@@ -34,6 +34,11 @@ export function cleanName(name) {
   return String(name == null ? '' : name).replace(/[^\p{L}\p{M} .'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);
 }
 
+// The name another player is seen under: a character's name, or an account's username.
+export function cleanHandle(name) {
+  return String(name == null ? '' : name).replace(/[^\p{L}\p{M}\p{N} ._'-]/gu, '').replace(/\s+/g, ' ').trim().slice(0, 24);
+}
+
 const STAFF = new Set(['doctor', 'nurse', 'pharmacist', 'labscientist', 'records']);
 const PATIENT_SLOTS = new Set(['reception.queue', 'reception.wait', 'consulting.patient', 'pharmacy.customer', 'ward.bed', 'emergency.bed']);
 
@@ -248,7 +253,8 @@ export function createTalk({ state, population, residents, players, weather, hub
     const x = Number(data.x), z = Number(data.z), heading = Number(data.heading);
     const b = ZONE.bounds;
     if (!Number.isFinite(x) || !Number.isFinite(z) || x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return null;
-    const name = cleanName(data.name);
+    // another player is known by their account's username, which may have figures and underscores in it
+    const name = cleanHandle(data.name);
     if (name.length < 2) return null;
     if (!visitors.has(id) && visitors.size >= CHAT.visitors) return null;
     const colour = (value, fallback) => (Number.isInteger(value) && value >= 0 && value <= 0xffffff ? value : fallback);

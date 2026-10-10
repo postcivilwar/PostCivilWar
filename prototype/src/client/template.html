@@ -755,7 +755,8 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 .parts { gap: 7px; }
 #paths { gap: 10px; margin-top: 8px !important; }
 .account-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 2px 0 0; }
-.account-row .hx { flex: 1 1 150px; }
+.account-row .hx { flex: 1 1 150px; min-width: 0; white-space: nowrap; font-size: 13px; letter-spacing: 0.07em; }
+.account-row #open-signup { flex: 1.35 1 170px; }
 .account-row .who { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
 .account-row .who b { color: #fff; font-weight: 700; letter-spacing: 0.02em; }
 .startrow { gap: 12px; }
@@ -891,6 +892,127 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .segment button { border-radius: 0; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: 12px; min-height: 40px; }
 .field { border-radius: 0; background: #0e0e0f; border: 1px solid rgba(255, 255, 255, 0.22); }
 .field:focus { border-color: #fff; outline: 0; }
+/* ---- an account: the page a username and a password are typed on ---- */
+#account { position: absolute; inset: 0; z-index: 60; display: flex; flex-direction: column; background: radial-gradient(120% 70% at 50% 0%, #17181a 0, #0a0a0b 46%, #050506 100%); color: #fff; overflow-y: auto; overscroll-behavior: contain; }
+#account[hidden] { display: none; }
+#account .pagebar { position: sticky; top: 0; z-index: 2; background: rgba(8, 8, 9, 0.92); }
+.accountform { width: min(100%, 460px); margin: 0 auto; padding: 26px 20px calc(40px + var(--sb)); display: flex; flex-direction: column; gap: 14px; }
+.accountform .lede { margin: 0 0 4px; color: #d7d7d2; font-size: 15px; line-height: 1.5; }
+.accountform label { display: flex; flex-direction: column; gap: 7px; }
+.accountform .field { min-height: 52px; font-size: 17px; padding: 12px 14px; letter-spacing: 0.01em; }
+.accountform .small { margin: -6px 0 2px; color: var(--muted); font-size: 12.5px; line-height: 1.45; }
+.accountform .passrow { display: flex; gap: 8px; align-items: stretch; }
+.accountform .passrow .field { flex: 1; }
+.accountform .passrow .btn { flex: none; min-width: 78px; }
+.accountform .hx { margin-top: 8px; }
+.accountform .notice { margin: 0; }
+.linkbtn { appearance: none; border: 0; background: none; color: #cfcfca; font: 600 14px/1.3 var(--font-ui); padding: 12px 6px; cursor: pointer; text-decoration: underline; text-underline-offset: 3px; align-self: center; }
+.linkbtn:hover, .linkbtn:focus-visible { color: #fff; outline: 0; }
+.account-row .hx:disabled { opacity: 0.55; }
+.account-note { flex: 1 1 100%; margin: 0; font-size: 12.5px; color: var(--muted); }
+
+/* ---- going in to deal: the screen goes to black and comes back ---- */
+#fade { position: absolute; inset: 0; z-index: 45; background: #000; opacity: 0; pointer-events: none; transition: opacity 0.32s ease; }
+#fade.on { opacity: 1; pointer-events: auto; }
+@media (prefers-reduced-motion: reduce) { #fade { transition-duration: 0.01s; } }
+
+/* ---- Property and the market, on the page ---- */
+.propertyhead { display: flex; align-items: flex-end; justify-content: space-between; gap: 12px; padding: 2px 0 4px; }
+.propertyhead .big { font: 800 26px/1.05 var(--font-ui); letter-spacing: 0.01em; }
+.propertyhead .who { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; }
+.propertyhead .who b { font-size: 15px; }
+.eyebrow.plain { text-transform: none; letter-spacing: 0.01em; font-size: 12.5px; font-weight: 500; }
+.callout { display: flex; flex-direction: column; gap: 12px; padding: 14px; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.callout p { margin: 0; color: #d7d7d2; font-size: 14px; line-height: 1.5; }
+.assetgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)); gap: 10px; }
+.assetcard { appearance: none; display: flex; align-items: center; gap: 12px; padding: 10px 12px; border: 0; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); color: #fff; text-align: left; cursor: pointer; font: inherit; transition: box-shadow 0.12s ease, background 0.12s ease; }
+.assetcard:hover, .assetcard:focus-visible { box-shadow: inset 0 0 0 1.5px #fff; outline: 0; background: #18181a; }
+.assetcard .what, .listing .what, .threadrow .what { display: flex; flex-direction: column; gap: 4px; min-width: 0; flex: 1; }
+.assetcard .what b, .listing .what b { font-size: 16px; line-height: 1.2; }
+.serial { font: 600 12.5px/1 var(--font-mono); color: #ffd166; letter-spacing: 0.02em; }
+.turntable { flex: none; background-repeat: no-repeat; background-color: transparent; cursor: grab; touch-action: pan-y; border-radius: 2px; outline: 0; user-select: none; -webkit-user-select: none; }
+.turntable.held { cursor: grabbing; }
+.turntable:focus-visible { box-shadow: 0 0 0 1.5px #fff; }
+.turntable.none { background: repeating-linear-gradient(135deg, #17171a 0 8px, #101012 8px 16px); cursor: default; }
+.assetcard .turntable { pointer-events: none; }
+.searchbar { position: sticky; top: -18px; z-index: 3; padding: 8px 0; background: linear-gradient(180deg, #0c0c0d 82%, rgba(12, 12, 13, 0)); }
+.searchbar .field { min-height: 50px; font-size: 16px; padding: 12px 14px; }
+.chips { display: flex; flex-wrap: wrap; gap: 7px; }
+.chip { appearance: none; min-height: 38px; padding: 0 14px; border: 0; background: #1a1a1c; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.18); color: #e9e9e4; font: 700 12px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; cursor: pointer; clip-path: polygon(7px 0, 100% 0, 100% calc(100% - 7px), calc(100% - 7px) 100%, 0 100%, 0 7px); }
+.chip[aria-pressed="true"] { background: #fff; color: #0a0a0a; box-shadow: none; }
+.chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.listings { display: flex; flex-direction: column; gap: 10px; min-height: 120px; }
+.listing { display: flex; align-items: center; gap: 14px; padding: 12px; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); }
+.listing .price { font: 800 22px/1 var(--font-ui); color: #fff; letter-spacing: 0.01em; }
+.listing .actions { margin-top: 4px; }
+.tag { align-self: flex-start; padding: 4px 8px; font: 700 11px/1 var(--font-ui); letter-spacing: 0.08em; text-transform: uppercase; background: #232326; color: #ffd166; }
+.tag.hot { background: #ff3fa4; color: #fff; }
+.empty { margin: 18px 0 4px; font-size: 16px; color: #e9e9e4; }
+.viewerwrap { display: flex; flex-direction: column; align-items: center; gap: 8px; }
+.viewerwrap .small { text-align: center; margin: 0; }
+.viewer { width: min(100%, 340px); aspect-ratio: 1; display: grid; place-items: center; background: radial-gradient(circle at 50% 42%, #2a2b2f 0, #141416 58%, #0a0a0b 100%); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); overflow: hidden; }
+.viewer .modelcanvas { width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; }
+.line .strong { font: 800 18px/1 var(--font-ui); }
+.sellrow { display: flex; flex-wrap: wrap; gap: 12px; align-items: center; }
+.pricefield { display: flex; align-items: center; gap: 8px; flex: 1 1 140px; }
+.pricefield .field { min-height: 50px; font: 700 18px/1 var(--font-ui); }
+.pricefield span { font: 800 14px/1 var(--font-ui); letter-spacing: 0.08em; color: var(--muted); }
+.threadrow { appearance: none; width: 100%; display: flex; align-items: center; gap: 12px; padding: 11px 12px; border: 0; border-bottom: 1px solid rgba(255, 255, 255, 0.08); background: none; color: #fff; text-align: left; font: inherit; cursor: pointer; }
+.threadrow:last-child { border-bottom: 0; }
+.threadrow:hover, .threadrow:focus-visible { background: #1a1a1c; outline: 0; }
+.threadrow .last { color: var(--muted); font-size: 13px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.threadrow .count { flex: none; min-width: 22px; height: 22px; border-radius: 11px; padding: 0 6px; background: #00a884; color: #fff; font: 700 12px/22px var(--font-ui); text-align: center; }
+.avatar { flex: none; width: 40px; height: 40px; border-radius: 50%; display: grid; place-items: center; background: linear-gradient(160deg, #6a7b88, #3b4852); color: #fff; font: 700 17px/1 var(--font-ui); }
+.adminform { display: flex; flex-direction: column; gap: 12px; }
+.adminform label { display: flex; flex-direction: column; gap: 6px; }
+
+/* ---- the deal: a conversation on the handset ---- */
+#sheet.mini .handset[data-app="deal"] .wall { background: #0b141a; }
+#sheet.mini .handset[data-app="deal"] .statusbar { background: #1f2c33; }
+#sheet.mini .handset[data-app="deal"] .island { background: #000; }
+#sheet.mini .screen.chat { padding: 0; gap: 0; overflow: hidden; display: flex; flex-direction: column; color: #e9edef; }
+.chathead { flex: none; display: flex; align-items: center; gap: 9px; padding: 6px 10px 9px 4px; background: #1f2c33; }
+.chatback { appearance: none; flex: none; width: 34px; height: 40px; border: 0; background: none; color: #e9edef; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.chatback svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.chathead .avatar { width: 38px; height: 38px; font-size: 16px; }
+.chathead .who { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.chathead .who b { font-size: 16px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.chathead .who span { font-size: 11.5px; color: #8696a0; }
+.dealitem { flex: none; display: flex; align-items: center; gap: 10px; padding: 8px 12px; background: #111b21; border-bottom: 1px solid rgba(255, 255, 255, 0.06); }
+.dealitem .pic { flex: none; width: 44px; height: 44px; border-radius: 8px; background: #233138 center / cover no-repeat; }
+.dealitem .what { display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dealitem .what b { font-size: 13.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dealitem .what span { font-size: 12px; color: #8696a0; }
+.chatlog { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; display: flex; flex-direction: column; gap: 6px; padding: 10px 10px 12px; scrollbar-width: thin; background: #0b141a; }
+.bubble { position: relative; max-width: 84%; padding: 7px 10px 8px; border-radius: 9px; font-size: 14.5px; line-height: 1.34; overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.bubble time { display: block; margin-top: 2px; font-size: 10.5px; text-align: right; color: rgba(233, 237, 239, 0.55); }
+.bubble.me { align-self: flex-end; background: #005c4b; border-top-right-radius: 2px; }
+.bubble.them, .bubble.shop { align-self: flex-start; background: #202c33; border-top-left-radius: 2px; }
+.bubble.sys { align-self: center; max-width: 92%; background: #182229; color: #cfd8dc; font-size: 12.5px; text-align: center; padding: 6px 12px; border-radius: 8px; }
+.bubble.sys.good { background: #0d3b33; color: #d7fdf3; }
+.bubble.sys.big { font-size: 14px; font-weight: 600; padding: 10px 14px; }
+.bubble.offer { display: flex; flex-direction: column; gap: 3px; min-width: 150px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.bubble.offer .eyebrow { color: rgba(233, 237, 239, 0.7); font-size: 10.5px; }
+.bubble.offer b { font: 800 20px/1.1 var(--font-ui); }
+.dealnote { flex: none; padding: 8px 12px; background: #3b1d1d; color: #ffd9d4; font-size: 12.5px; line-height: 1.4; }
+.dealbar { flex: none; display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 9px 10px; background: #111b21; border-top: 1px solid rgba(255, 255, 255, 0.07); }
+.dealbar .offerline { flex: 1 1 110px; display: flex; flex-direction: column; gap: 3px; min-width: 0; }
+.dealbar .offerline b { font: 800 19px/1 var(--font-ui); }
+.dealbar .offerline.quiet { font-size: 12.5px; color: #8696a0; }
+.dealbar .hx.small { min-width: 0; min-height: 42px; flex: 0 1 auto; font-size: 12.5px; }
+.dealbar .hx.cta { min-width: 104px; min-height: 46px; font-size: 14px; font-weight: 800; letter-spacing: 0.1em; color: #0a0a0a; }
+.dealbar.asking p { flex: 1 1 100%; margin: 0 0 2px; font-size: 13px; line-height: 1.4; color: #e9edef; }
+.dealbar.asking .hx { flex: 1 1 100%; min-height: 46px; }
+.dealbar.asking .hx.cta { font-size: 13px; letter-spacing: 0.08em; }
+.dealbar .pricefield { flex: 1 1 110px; }
+.dealbar .pricefield .field { min-height: 42px; background: #2a3942; border: 0; color: #fff; border-radius: 8px; font-size: 17px; padding: 8px 10px; }
+.composer { flex: none; display: flex; align-items: center; gap: 8px; padding: 7px 8px 6px; background: #0b141a; }
+.composer .field { flex: 1; min-height: 42px; border-radius: 21px; border: 0; background: #2a3942; color: #e9edef; padding: 9px 15px; font-size: 16px; }
+.composer .field::placeholder { color: #8696a0; }
+.sendbtn { appearance: none; flex: none; width: 42px; height: 42px; border-radius: 50%; border: 0; background: #00a884; color: #fff; display: grid; place-items: center; cursor: pointer; padding: 0; }
+.sendbtn svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
+.sendbtn:active { transform: scale(0.93); }
+#sheet.mini .handset[data-app="deal"] .homebar { background: #0b141a; }
 </style>
 
 <script>
@@ -994,6 +1116,9 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
     <div class="body" id="sheet-body"></div>
   </aside>
 
+  <!-- going in to deal: black for a moment -->
+  <div id="fade" aria-hidden="true"></div>
+
   <div id="start">
     <header class="lead">
       <div class="brand">
@@ -1007,6 +1132,7 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
         <button class="hx" id="open-signup" type="button">Create account</button>
         <button class="hx" id="open-login" type="button">Log in</button>
         <div class="who" id="account-who" hidden><span>Signed in as <b id="account-name"></b></span><button class="hx small" id="account-logout" type="button">Log out</button></div>
+        <p class="account-note" id="account-note" hidden></p>
       </div>
       <h2 id="start-title">Create your character</h2>
     </header>
@@ -1034,6 +1160,24 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
         <div class="notice" id="start-error" hidden></div>
       </form>
     </div>
+  </div>
+
+  <!-- An account: the page a username and a password are typed on. One page for both making an account and logging in. -->
+  <div id="account" hidden role="dialog" aria-modal="true" aria-labelledby="account-title">
+    <div class="pagebar">
+      <button class="pageback" id="account-back" type="button" aria-label="Back"><svg class="lined" viewBox="0 0 24 24" aria-hidden="true"><path d="M14.5 5l-7 7 7 7"></path></svg></button>
+      <h3 id="account-title">Create account</h3>
+    </div>
+    <form class="accountform" id="account-form" novalidate>
+      <p class="lede" id="account-lede"></p>
+      <label><span class="eyebrow">Username</span><input class="field" id="account-username" name="username" autocomplete="username" autocapitalize="none" autocorrect="off" spellcheck="false" maxlength="16" required enterkeyhint="next"></label>
+      <p class="small" id="account-username-note"></p>
+      <label><span class="eyebrow">Password</span><span class="passrow"><input class="field" id="account-password" name="password" type="password" autocomplete="new-password" maxlength="128" required enterkeyhint="go"><button class="btn quiet" id="account-show" type="button" aria-pressed="false" aria-label="Show the password">Show</button></span></label>
+      <p class="small" id="account-password-note"></p>
+      <div class="notice" id="account-error" role="alert" hidden></div>
+      <button class="hx primary wide" id="account-submit" type="submit">Create account</button>
+      <button class="linkbtn" id="account-switch" type="button"></button>
+    </form>
   </div>
 
   <!-- The opening. It is plain markup and style so that it is on screen before the game's own script has even been read. -->

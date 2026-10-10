@@ -69,7 +69,7 @@ s = await st(); check('and on again (once per touch, no double toggle)', s.run =
 // RUN -> INTERACTION: open the phone
 await page.tap('#btn-phone'); await page.waitForTimeout(500);
 s = await st(); check('RUN -> INTERACTION: a panel ends the run and hides the buttons', s.run === false && s.mode === 'panel' && s.shown === '', s);
-await page.tap('#sheet-close'); await page.waitForTimeout(500);
+await page.tap('.homebar'); await page.waitForTimeout(900);      // the bar at the foot of the handset puts it away
 s = await st(); check('back from the panel: walking, Run off', s.mode === 'walking' && s.run === false && s.pressed === 'false', s);
 // RUN -> VEHICLE: hire a keke by hand, switch Run on, get in
 await page.evaluate(() => { const g = window.__nlw.host.game; const id = Object.keys(g.state.vehicles.list).find((k) => g.state.vehicles.list[k].kind === 'keke'); const veh = g.state.vehicles.list[id]; veh.hire = { playerId: window.__nlw.playerId, until: 1e12 }; window.__nlw.place(veh.x + 1.6, veh.z); });

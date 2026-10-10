@@ -50,6 +50,7 @@ export function createHost({ seed = 20261006, saved = null } = {}) {
     portal,
     auditor: ledger.auditor,
     settlementOps: settlement,   // operator-side functions; never exposed to a client
+    market: game.market,         // the shared market's side of a sale; where the world runs on a server, never exposed to a client
     tick(dtReal) { game.step(dtReal); settlement.tick(dtReal); },
     save() {
       return { version: SAVE_VERSION, savedAt: Date.now(), rng: rng.getState(), settlementRng: settlementRng.getState(), game: JSON.parse(JSON.stringify(game.state)), ledger: ledger.serialize(), settlement: settlement.serialize() };

@@ -4,11 +4,24 @@ import { createRequire } from 'node:module';
 import { randomUUID } from 'node:crypto';
 
 const require = createRequire(import.meta.url);
+if (!process.env.PCW_DATABASE_URL) throw new Error('PCW_DATABASE_URL is not set: run these with server/with-postgres.sh');
+
+// Each file of tests has a database to itself, made here and named after this process, so that one file
+// emptying the shop does not leave another with nothing to buy.
+{
+  const postgres = require('../../api/_lib/postgres/index.js');
+  const url = new URL(process.env.PCW_DATABASE_URL);
+  const name = `pcw_test_${process.pid}`;
+  const admin = postgres({ host: url.hostname, port: Number(url.port), database: url.pathname.slice(1), username: decodeURIComponent(url.username), password: decodeURIComponent(url.password), max: 1, onnotice() {} });
+  await admin.unsafe(`create database ${name}`);
+  await admin.end();
+  url.pathname = `/${name}`;
+  process.env.PCW_DATABASE_URL = url.href;
+}
+
 export const game = require('../../api/game.js');
 export const { database, closeDatabase } = require('../../api/_lib/db.js');
 export const { HOLARIS } = require('../../api/_lib/schema.js');
-
-if (!process.env.PCW_DATABASE_URL) throw new Error('PCW_DATABASE_URL is not set: run these with server/with-postgres.sh');
 
 let addresses = 0;
 
@@ -48,3 +61,24 @@ export async function newPlayer(prefix = 'Player') {
 export const uuid = () => randomUUID();
 export const NEAR_HOLARIS = { x: HOLARIS.x, z: HOLARIS.z };
 export const ZONE = 'NG-AN-OGB-Z1';
+
+// A browser's `fetch`, for the game's own client code (prototype/src/net/online.js): it keeps its cookie as a
+// browser does, and can be cut off from the network.
+export function browser(address) {
+  const at = address || `10.2.${Math.floor((addresses += 1) / 250)}.${addresses % 250}`;
+  let cookie = '';
+  const net = { down: false, lose: null, calls: 0 };
+  const fetcher = async (url, init = {}) => {
+    net.calls += 1;
+    if (net.down) throw new TypeError('Failed to fetch');
+    const body = init.body ? JSON.parse(init.body) : {};
+    const headers = {};
+    for (const [name, value] of Object.entries(init.headers || {})) headers[name.toLowerCase()] = value;
+    const answer = await request({ method: init.method || 'GET', body, cookie, address: at, headers: init.method === 'POST' ? headers : { 'x-pcw': null } });
+    if (answer.setCookie) cookie = answer.setCookie.split(';')[0].endsWith('=') ? '' : answer.setCookie.split(';')[0];
+    // the request arrived and was acted on, but its answer was lost on the way back
+    if (net.lose && net.lose(body)) throw new TypeError('Failed to fetch');
+    return { ok: answer.status >= 200 && answer.status < 300, status: answer.status, json: async () => answer.body };
+  };
+  return { fetcher, net };
+}

@@ -406,7 +406,7 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   await page.click('button:has-text("Nigeria")');
   await page.waitForTimeout(300);
   await shot('24-nation');
-  await page.click('.back');
+  await page.click('#page-back');
   await page.click('.app:has-text("Wallet")');
   await page.waitForTimeout(300);
   await shot('25-wallet');
@@ -668,7 +668,9 @@ await session('phone', { width: 400, height: 780 }, async (page, shot) => {
   await page.waitForTimeout(400);
   await shot('04-funds');
   // driving on a phone: the layout of the readout, the stick and the prompt
-  await page.tap('#sheet-close');
+  await page.tap('#page-back'); await page.waitForTimeout(300);      // from adding funds back to the wallet
+  await page.tap('#page-back'); await page.waitForTimeout(300);      // from the wallet to the handset
+  await page.tap('.homebar');                                         // and the handset is put away
   await page.waitForTimeout(300);
   await nlw(page, () => {
     const n = window.__nlw; const g = n.host.game; const v = g.state.vehicles.list['V-0001'];
@@ -918,7 +920,7 @@ for (const [name, size] of [['sideways', { width: 760, height: 360, touch: true 
     const way = await page.textContent('#sheet-body');
     if (!/On foot/.test(way) || !/\d+ m/.test(way)) bad('the map gives no distance or time to the hospital');
     await page.tap('button:has-text("Mark it in the town")'); await page.waitForTimeout(300);
-    await page.tap('#sheet-close');
+    await nlw(page, () => window.__nlw.ui.close());
     await check('08-waypoint', ['Run']);
     if (!(await page.isVisible('#waypoint'))) bad('no waypoint line after marking a place');
   });

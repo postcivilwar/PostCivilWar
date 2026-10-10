@@ -57,7 +57,7 @@ export function createUI(app) {
     $('sheet-title').textContent = title;
     sheet.hidden = false;
     sheet.classList.toggle('device', !!(options && options.device));
-    sheet.classList.remove('mini', 'page');
+    sheet.classList.remove('mini', 'page', 'big');
     current = { render, tabs, tab: tabs ? tabs[0].id : null, live: false };
     drawTabs();
     redraw();
@@ -74,19 +74,33 @@ export function createUI(app) {
     const W = game.clientWidth || window.innerWidth, H = game.clientHeight || window.innerHeight;
     const upright = H > W;
     const room = H - (upright ? 150 : 62) - 14;                       // upright, the purse and the clock stay in view above it
-    const k = Math.max(0.3, Math.min(1, room / HANDSET.h, (W * (upright ? 0.6 : 0.3)) / HANDSET.w, 620 / HANDSET.h));
+    let k = Math.max(0.3, Math.min(1, room / HANDSET.h, (W * (upright ? 0.6 : 0.3)) / HANDSET.w, 620 / HANDSET.h));
+    // A conversation is typed in, so for that the handset is brought close: as large as the screen allows. On a
+    // phone the keyboard comes up over the foot of the page; the handset is fitted into what is left above it.
+    sheet.style.removeProperty('bottom');
+    if (sheet.classList.contains('big')) {
+      const vv = window.visualViewport;
+      const seen = vv ? vv.height : H;
+      const lifted = vv ? Math.max(0, window.innerHeight - vv.height - vv.offsetTop) : 0;
+      k = Math.max(0.3, Math.min(1.35, (seen - (lifted ? 8 : upright ? 62 : 24)) / HANDSET.h, (W * (upright ? 1 : 0.42) - 12) / HANDSET.w));
+      if (lifted) sheet.style.bottom = `${Math.round(lifted + 4)}px`;
+    }
     sheet.style.setProperty('--pk', k.toFixed(4));
     sheet.style.width = `${Math.round(HANDSET.w * k)}px`;
     sheet.style.height = `${Math.round(HANDSET.h * k)}px`;
   }
-  function mode(next) {
+  function mode(next, options) {
     const was = sheet.classList.contains('mini') ? 'mini' : sheet.classList.contains('page') ? 'page' : '';
-    if (was === next) { if (next === 'mini') fitPhone(); return; }
+    const big = !!(options && options.big) && next === 'mini';
+    const wasBig = sheet.classList.contains('big');
+    sheet.classList.toggle('big', big);
+    if (was === next) { if (next === 'mini' && big !== wasBig) fitPhone(); else if (next === 'mini') fitPhone(); return; }
     sheet.classList.toggle('mini', next === 'mini');
     sheet.classList.toggle('page', next === 'page');
     if (next === 'mini') fitPhone(); else { sheet.style.removeProperty('width'); sheet.style.removeProperty('height'); }
   }
   for (const type of ['resize', 'orientationchange']) window.addEventListener(type, () => setTimeout(fitPhone, 60));
+  if (window.visualViewport) for (const type of ['resize', 'scroll']) window.visualViewport.addEventListener(type, () => fitPhone());
   const usingPhone = () => !sheet.hidden && sheet.classList.contains('device');
   const phoneOut = () => usingPhone() && sheet.classList.contains('mini');
   // how much of the screen the handset covers on its right, for the game to keep the character clear of it
@@ -120,8 +134,10 @@ export function createUI(app) {
 
   function close() {
     sheet.hidden = true;
-    sheet.classList.remove('mini', 'page');
-    sheet.style.removeProperty('width'); sheet.style.removeProperty('height');
+    sheet.classList.remove('mini', 'page', 'big');
+    sheet.style.removeProperty('width'); sheet.style.removeProperty('height'); sheet.style.removeProperty('bottom');
+    if (phone && phone.market.dealOpen) phone.market.closeDeal();
+    if (phone) phone.market.leave();
     current = null;
     $('view').focus({ preventScroll: true });
     if (app.closed) app.closed();
@@ -534,6 +550,20 @@ export function createUI(app) {
   }
 
   function settings(root, viewNames) {
+    // On the website: the account this character is kept with.
+    if (app.online && app.online.available) {
+      const st = app.online.status();
+      root.append(section('Account'));
+      if (st.state === 'in') {
+        root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Signed in as ', h('b', { id: 'settings-username' }, st.account.username)), h('button', { class: 'btn', type: 'button', id: 'settings-logout', onclick: () => app.account.logOut() }, 'Log out'))));
+        root.append(h('p', { class: 'small' }, 'Your character is kept with your account, so it is the same character on any device you log in on. Other players near you see your username over your head.'));
+      } else if (st.state === 'out') {
+        root.append(h('div', { class: 'hxrow' },
+          h('button', { class: 'hx', type: 'button', id: 'settings-signup', onclick: () => app.account.open('signup') }, 'Create account'),
+          h('button', { class: 'hx', type: 'button', id: 'settings-login', onclick: () => app.account.open('login') }, 'Log in')));
+        root.append(h('p', { class: 'small' }, 'An account is a username and a password. It keeps this character for you on any device, lets other players see you in town, and lets you own and trade things. Without one the game plays as it always has, on this device.'));
+      } else root.append(h('p', { class: 'small' }, st.state === 'checking' ? 'Asking the server...' : `Accounts cannot be reached just now. ${st.message || ''} The game plays as usual on this device.`));
+    }
     root.append(section('Sound'));
     root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); }))));
     const levels = app.volumes();
@@ -1166,7 +1196,7 @@ export function createUI(app) {
 
   $('btn-phone').addEventListener('click', () => { if (sheet.hidden) openPhone(); else close(); });
 
-  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state) }, h, open, redraw, close, mode, line, section, money, amt, tr, trPlain, trIn, when, refused, live };
+  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state), openDeal: (args) => phone.openDeal(args), leaveDeal: () => phone.leaveDeal() }, h, open, redraw, close, mode, isOpen: () => !sheet.hidden, isDevice: () => usingPhone(), line, section, money, amt, tr, trPlain, trIn, when, refused, live };
   panels = createPanels(shared);
   phone = createPhone({ ...shared, legacy: { wallet, property, people: peopleTab, map, funds, runs, journal, settings, vehicleLines: (v) => vehicleLines(v).filter(Boolean) }, lawBlock: panels.lawBlock, log: () => noticeLog });
 
@@ -1183,5 +1213,5 @@ export function createUI(app) {
     });
   }
 
-  return { openDialogue, talkToPerson, openOkada, openService, openBoard, openPhone, openCustody: () => panels.openCustody(), openRest, updateHud, setPrompt, setKeys, setVitals, setWaypoint, setDash, toast, tick, close, openChat, closeChat, chatOpen: () => !chatBar.hidden, isOpen: () => !sheet.hidden, usingPhone, phoneOut, phoneWidth, phoneScreen: () => (usingPhone() ? phone.screen : null) };
+  return { openDialogue, talkToPerson, openOkada, openService, openBoard, openPhone, openCustody: () => panels.openCustody(), openRest, updateHud, setPrompt, setKeys, setVitals, setWaypoint, setDash, toast, tick, close, openChat, closeChat, chatOpen: () => !chatBar.hidden, isOpen: () => !sheet.hidden, usingPhone, phoneOut, phoneWidth, phoneScreen: () => (usingPhone() ? phone.screen : null), openDeal: (args) => phone.openDeal(args), dealOpen: () => phone.market.dealOpen, marketStale: () => phone.market.stale(), signedOut: () => phone.market.signedOut(), redraw: () => redraw() };
 }

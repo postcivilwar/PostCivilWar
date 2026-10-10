@@ -529,7 +529,10 @@ test('multiplayer: what another computer sends is checked, and gives it no power
   assert.equal(seen('p1', null), null);
   assert.equal(seen('', { name: 'Eve', x: 0, z: 100 }), null);
   const v = seen('p1', { name: '<img src=x onerror=alert(1)>Eve', x: ZONE.spawn.x + 2, z: ZONE.spawn.z, heading: 'north', lang: 'klingon', look: { skin: 'red', top: -5, bottom: 1e9, body: {} } });
-  assert.equal(v.name, 'img srcx onerroralertEve', 'a name is letters and spaces, nothing else');
+  // (a player with an account is seen under their username, which may have figures and underscores in it)
+  assert.equal(v.name, 'img srcx onerroralert1Ev', 'a name is letters, figures and spaces: nothing a page could read as markup');
+  assert.ok(!/[<>=()&"/\\]/.test(v.name));
+  assert.equal(seen('p2', { name: 'Chidi_77', x: ZONE.spawn.x + 3, z: ZONE.spawn.z }).name, 'Chidi_77');
   assert.equal(v.lang, 'en');
   assert.equal(v.heading, 0);
   assert.deepEqual(v.look, { skin: 0x6b4226, top: 0xf2c200, bottom: 0x2c3440, build: 1, body: 'm', outfit: 'streetwear' });

@@ -22,6 +22,7 @@ import { createJustice, LAW } from './justice.js';
 import { createCare, CARE } from './care.js';
 import { createPhone } from './phone.js';
 import { createHijack, HIJACK } from './hijack.js';
+import { createMarketBridge } from './market.js';
 import { cleanFigureLook } from './figures.js';
 import { createReactions } from './reactions.js';
 import { makeRng } from './rng.js';
@@ -101,6 +102,8 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
   const impact = createImpact({ state, players: state.players, population, actors, conflict, talk, emit, rng, hub, door: CARE.ambulance.door, visitors: () => talk.visitors() });
   const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: TIME_SCALE });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
+  // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
+  const market = createMarketBridge({ state, ledger, monetary, issuanceAccount, players: state.players });
   for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.hijack === undefined) q.hijack = null; }
   // the riders have been out since before the newcomer's bus came in
   if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, SIM_START - k * TIME_SCALE, -k, false);
@@ -823,6 +826,8 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     stats: () => ({ ...population.stats, people: population.total, simulated: population.count, riders: okada.riders.length }),
     // what anyone can see of a person: their name and how they look
     faces: (ids) => ids.filter((i) => Number.isInteger(i) && i >= 0 && i < population.count).slice(0, 400).map((i) => { const who = population.people[i]; return { index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig }; }),
+    // not an intent: the market service's side of a sale (see market.js)
+    market,
     internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact },
   };
 }

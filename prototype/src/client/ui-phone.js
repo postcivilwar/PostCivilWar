@@ -14,6 +14,7 @@ import { BUSINESSES } from '../sim/economy.js';
 import { HEALTH } from '../sim/conflict.js';
 import { CAMERA_VIEW } from './camera.js';
 import { clockOf } from './music.js';
+import { createMarketUI } from './ui-market.js';
 
 // Pictograms, drawn here on a 24 by 24 grid: [paths]. Each app has a tile of its own colour, as on any phone, so
 // an app is known at a glance; the game's own interface stays black and white round it.
@@ -60,7 +61,7 @@ const APPS = Object.freeze([
   { id: 'settings', name: 'Settings', held: true },
 ]);
 // used in the hand, with the town in view; everything else is a page over the whole screen
-const IN_HAND = new Set(['home', 'camera', 'music']);
+const IN_HAND = new Set(['home', 'camera', 'music', 'deal']);
 const LAW_WORDS = Object.freeze({ normal: 'Nothing against you', suspicious: 'The police are asking questions', wanted: 'Wanted', pursuit: 'Police in pursuit', arrested: 'Under arrest', custody: 'In custody', released: 'Released' });
 
 const draw = (paths, box = '0 0 24 24') => {
@@ -76,6 +77,7 @@ const GLYPHS = Object.freeze({
   next: ['M6 5.4v13.2a.6.6 0 0 0 1 .5l8.5-6.6a.6.6 0 0 0 0-1L7 4.9a.6.6 0 0 0-1 .5z', 'M16.5 5h2.2v14h-2.2z'], prev: ['M18 5.4v13.2a.6.6 0 0 1-1 .5l-8.5-6.6a.6.6 0 0 1 0-1L17 4.9a.6.6 0 0 1 1 .5z', 'M5.3 5h2.2v14H5.3z'],
   flip: ['M4 9a8 8 0 0 1 14.5-3.5', 'M18.8 2.6v3.2h-3.2', 'M20 15a8 8 0 0 1-14.5 3.5', 'M5.2 21.4v-3.2h3.2'],
   back: ['M14.5 5l-7 7 7 7'],
+  send: ['M3.4 20.4l17.5-7.6a.9.9 0 0 0 0-1.6L3.4 3.6a.6.6 0 0 0-.8.7L4.7 11l8.3 1-8.3 1-2.1 6.7a.6.6 0 0 0 .8.7z'],
 });
 const glyph = (id, filled = true) => { const el = draw(GLYPHS[id]); el.classList.add(filled ? 'filled' : 'lined'); return el; };
 // "4 min 30 s" or "50 s": how long something takes, in the player's own time
@@ -90,7 +92,9 @@ export function createPhone(kit) {
   let draft = '';
   let funding = false;
 
-  const go = (id, state = {}) => { screen = id; sub = state; said = null; draft = ''; redraw(); };
+  // Property and the conversation in which a thing is bought or sold (ui-market.js)
+  const marketUI = createMarketUI({ ...kit, glyph });
+  const go = (id, state = {}) => { if (screen === 'property' && id !== 'property') marketUI.leave(); if (screen === 'deal' && id !== 'deal') marketUI.closeDeal(); screen = id; sub = state; said = null; draft = ''; redraw(); };
   const send = (intent) => app.send(intent);
   const flashMessage = (result, good) => redraw(result.ok ? (good ? { good: true, text: typeof good === 'function' ? good(result) : good } : null) : { text: result.message });
 
@@ -101,7 +105,8 @@ export function createPhone(kit) {
   let ticking = null;            // what on the screen moves by itself (the song's clock)
 
   function show(appId = null, state = {}) {
-    screen = appId && APPS.some((a) => a.id === appId) ? appId : 'home';
+    if (screen === 'deal' && appId !== 'deal') marketUI.closeDeal();
+    screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId)) ? appId : 'home';
     sub = state; said = null; funding = false; drawn = null; rising = true; looking = null;
     open(app.view().self.name, 'Phone', render, null, { device: true });
   }
@@ -125,23 +130,23 @@ export function createPhone(kit) {
     const held = !!view.self.law.arrest;
     ticking = null;
     // drawn again when something it shows has changed: an app may name more of its own
-    live(() => { const v = app.view(); const me = v.self; const a = me.law.arrest; return `${me.health}|${me.balance}|${me.law.state}|${me.law.seen.length}|${a ? `${a.status}${a.fine.confirmed}${a.call.status}` : ''}|${me.phone.unread}|${me.phone.requests.map((r) => `${r.arrest}${r.ready}${r.near}`).join()}|${me.phone.surety}|${me.critical}`; });
+    live(() => { const v = app.view(); const me = v.self; const a = me.law.arrest; return `${me.health}|${me.balance}|${me.law.state}|${me.law.seen.length}|${a ? `${a.status}${a.fine.confirmed}${a.call.status}` : ''}|${me.phone.unread}|${me.phone.requests.map((r) => `${r.arrest}${r.ready}${r.near}`).join()}|${me.phone.surety}|${me.critical}|${app.market ? `${app.market.state.unread}.${app.market.state.toDecide}` : ''}|${app.online ? app.online.status().state : ''}`; });
     const meta = APPS.find((a) => a.id === screen);
-    if (screen !== 'home' && held && !meta.held) screen = 'home';
+    if (screen !== 'home' && held && !(meta && meta.held)) screen = 'home';
     const atHome = screen === 'home';
     const inHand = IN_HAND.has(screen);
-    kit.mode(inHand ? 'mini' : 'page');
+    kit.mode(inHand ? 'mini' : 'page', { big: screen === 'deal' });
     const inner = h('div', { class: `screen${drawn !== screen ? ' opening' : ''}` });
     drawn = screen;
-    const deepIn = () => !!(sub.contact || sub.thread || sub.place || sub.asset || sub.market || sub.deal || funding);
-    const back = () => { if (deepIn()) { sub = sub.market && (sub.asset || sub.deal) ? { market: sub.market } : {}; said = null; funding = false; redraw(); } else go('home'); };
+    const deepIn = () => !!(sub.contact || sub.thread || sub.place || sub.asset || sub.market || sub.own || sub.admin || funding);
+    const back = () => { if (deepIn()) { sub = sub.market && sub.asset ? { market: true } : {}; said = null; funding = false; redraw(); } else go('home'); };
     if (!inHand) {
       // a page over the whole screen: the way back at the top left, the app's name beside it
       const bar = h('div', { class: 'pagebar' },
         h('button', { class: 'pageback', type: 'button', id: 'page-back', 'aria-label': deepIn() ? `Back to ${meta.name}` : 'Back to the phone', onclick: back }, glyph('back', false)),
         h('h3', null, meta.name),
         h('span', { class: 'pagetime' }, view.clock.label));
-      ({ contacts, messages, calls, map: mapApp, wallet, health, police, transport, jobs, property: () => legacy.property(inner), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings })[screen](inner, view, held);
+      ({ contacts, messages, calls, map: mapApp, wallet, health, police, transport, jobs, property: () => marketUI.page(inner, view, sub, (state) => go('property', state)), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings })[screen](inner, view, held);
       root.append(h('div', { class: 'page', 'data-app': screen }, bar, inner));
       return;
     }
@@ -156,6 +161,7 @@ export function createPhone(kit) {
       const counts = home(inner, view, held);
       glass.append(h('div', { class: 'dockbar' }, APPS.filter((a) => a.dock).map((a) => tile(a, counts, held))));
     } else if (screen === 'camera') cameraApp(inner);
+    else if (screen === 'deal') marketUI.deal(inner);
     else musicApp(inner);
     glass.append(homebar);
     root.append(h('div', { class: `handset${atHome ? '' : ' inapp'}${rising ? ' rising' : ''}`, 'data-app': screen }, glass, h('i', { class: 'sheen' })));
@@ -169,7 +175,7 @@ export function createPhone(kit) {
     root.append(h('div', { class: 'greeting' }, h('div', { class: 'eyebrow' }, `${view.calendar.weekday}, day ${view.clock.day}`), h('div', { class: 'big' }, view.clock.label)));
     if (held) root.append(h('div', { class: 'banner' }, self.law.arrest.call.status === 'allowed' ? 'You are held by the police. You may call or message people you know.' : 'You are held by the police. Ask the officer before you call anyone.'));
     else if (self.critical) root.append(h('div', { class: 'banner red' }, 'Your health is critical. Open Health to find a hospital or call the ambulance.'));
-    const counts = { messages: self.phone.unread, contacts: self.phone.requests.length, police: self.law.seen.length + (self.law.role ? self.law.role.prisoners.filter((a) => a.call.status === 'asked').length : 0), notices: 0 };
+    const counts = { messages: self.phone.unread, contacts: self.phone.requests.length, police: self.law.seen.length + (self.law.role ? self.law.role.prisoners.filter((a) => a.call.status === 'asked').length : 0), notices: 0, property: app.market ? app.market.state.unread + app.market.state.toDecide : 0 };
     root.append(h('div', { class: 'apps' }, APPS.filter((a) => !a.dock).map((a) => tile(a, counts, held))));
     for (const r of self.phone.requests) root.append(requestCard(r));
     return counts;
@@ -551,5 +557,13 @@ export function createPhone(kit) {
 
   function settings(root) { legacy.settings(root, Object.values(CAMERA_VIEW).map((v) => v.name)); }
 
-  return { charge, show, go, get screen() { return screen; }, tick() { if (ticking) ticking(); } };
+  // The conversation in which something is bought or sold: the handset comes out with it open.
+  function openDeal(args) {
+    const pending = marketUI.openDeal(args);
+    if (kit.isOpen() && kit.isDevice()) go('deal'); else show('deal');
+    return pending;
+  }
+  function leaveDeal() { marketUI.closeDeal(); kit.close(); }
+
+  return { charge, show, go, openDeal, leaveDeal, market: marketUI, get screen() { return screen; }, tick() { if (ticking) ticking(); } };
 }

@@ -3,10 +3,11 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, zoneShoreZ, zoneWalkable } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
+import { buildShowroom } from './render-holaris.js';
 
 const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
@@ -193,6 +194,7 @@ function addTree(solid, leaves, t) {
 // -------------------------------------------------------------- buildings --
 
 function addBuilding(B, signs, b) {
+  if (b.kind === 'showroom') return;      // drawn by its own code: see buildShowroom
   const { solid, walls, roofs } = B;
   const south = b.door === 's';
   const dir = south ? 1 : -1;
@@ -381,6 +383,8 @@ export function buildWorld(scene) {
   }
 
   for (const b of ZONE_BUILDINGS) addBuilding(B, signs, b);
+  // the glass showroom: its own few meshes
+  const showrooms = ZONE_BUILDINGS.filter((b) => b.kind === 'showroom').map((b) => { const shop = ZONE_SHOPS.find((sh) => sh.building === b.id); const made = buildShowroom(b, { storeys: shop ? shop.storeys : 3 }); scene.add(made.group); return made; });
   for (const t of ZONE_TREES) addTree(solid, leaves, t);
   // parked coaches and kekes are the supplied models, each stepping through its levels of detail with distance
   const parkedVehicles = [];
@@ -532,5 +536,5 @@ export function buildWorld(scene) {
       if (v.model.group.visible) v.model.setDistance(d, undefined, VEHICLE_BIAS[quality]);
     }
   }
-  return { glowMaterial, waterMaterial, lampHeads, signs, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
+  return { glowMaterial, waterMaterial, lampHeads, signs, showrooms, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
 }

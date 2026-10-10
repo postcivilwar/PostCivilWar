@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS } from '../sim/zone.js';
 import { SPEED, SWIM, structureFootprint } from '../sim/sim.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
 import { VEHICLE_KINDS, RUN_RULES, vehicleFits, vehicleSpeedAt, vehicleBox, lowerFirst } from '../sim/vehicles.js';
@@ -50,6 +50,10 @@ import { createWebApp } from './webapp.js';
 import { createPhoneHold } from './phone-hold.js';
 import { createMusic } from './music.js';
 import { trText, trAmount, TR } from '../sim/ledger.js';
+import { createOnline, createWebTransport, packSave, unpackSave } from '../net/online.js';
+import { createMarket, createAccountSync } from './market.js';
+import { createAccountUI } from './account-ui.js';
+import { makeDealMarker } from './render-holaris.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -336,6 +340,152 @@ function start(carried) {
     remember: (id) => { prefs.song = id; writeStored(PREFS_KEY, prefs); },
   });
 
+  // ---------------------------------------------------------- the website's server --
+  // Accounts, the character kept with them, the market and the other players (net/online.js). Only the website
+  // has a server; anywhere else `online.available` is false and none of this asks the network for anything.
+  const ACCOUNT_KEY = 'pcw-account-v1';
+  const online = createOnline({ available: !!webapp.site });
+  const savedNow = () => (playerId ? { host: host.save(), playerId } : null);
+  const market = createMarket({
+    online, zone: ZONE.id, bridge: () => (playerId ? host.market : null), playerId: () => playerId,
+    notify: (event) => marketNote(event), saveSoon: () => accountSync.soon(),
+  });
+  const accountSync = createAccountSync({
+    online, pack: packSave, unpack: unpackSave, read: savedNow,
+    adopt: (saved, why) => adoptCharacter(saved, why),
+    forget: () => { clearSave(); playing = false; ui.close(); showStart(true); },
+    summary: () => { const self = host.game.view(playerId).self; return { name: self.name, figure: self.look && self.look.figure ? self.look.figure : '', tr: self.balance }; },
+    applied: () => market.applied(),
+    mark: { get: () => readStored(ACCOUNT_KEY), set: (value) => { if (value) writeStored(ACCOUNT_KEY, value); else { try { localStorage.removeItem(ACCOUNT_KEY); } catch (error) { /* nothing kept */ } } } },
+    notify: (event) => { if (event.type === 'newer') ui.toast({ type: 'note', text: 'This character has been played on another device since. The newer one has been loaded.' }); },
+  });
+  // The character kept with the account becomes the one played here. One that belonged to no account is put
+  // aside on this device, not lost.
+  function adoptCharacter(saved, why) {
+    const next = createHost({ saved: saved.host });
+    if (!next.game.hasPlayer(saved.playerId)) return false;
+    if (why === 'account' && playerId) writeStored(`${SAVE_KEY}-guest`, { host: host.save(), playerId });
+    const wasPlaying = playing;
+    if (wasPlaying) ui.close();
+    host = next; playerId = saved.playerId; known.clear();
+    writeStored(SAVE_KEY, { host: host.save(), playerId });
+    if (wasPlaying) enterWorld(); else showStart(false);
+    return true;
+  }
+  // Signed in, the other players in town are those the server knows of; signed out, there are none.
+  function onlineChanged() {
+    if (!online.available) return;
+    const want = online.signedIn;
+    if (want && !(transport && transport.kind === 'web')) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden }) }; if (playing) relink(); }
+    if (!want && transport && transport.kind === 'web') { transport = null; if (playing) relink(); }
+    if (!want) { market.reset(); ui.signedOut(); }
+  }
+  function marketNote(event) {
+    const say = (text) => ui.toast({ type: 'note', text });
+    if (event.type === 'sold') { say(`Sold: ${event.what}. ${trText(event.amount)} has been added to your balance.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
+    else if (event.type === 'bought') { say(`Bought: ${event.what}, for ${trText(event.amount)}. It is in Property on your phone.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
+    else if (event.type === 'returned') say(`Your offer for ${event.what} came to nothing. ${trText(event.amount)} is back in your wallet.`);
+    else if (event.type === 'owing') say(`You owe ${trText(event.amount)} for ${event.what} and do not have it. It is paid as soon as you do.`);
+    else if (event.type === 'offer') { say('Someone has made an offer for something you are selling. Open Property on your phone.'); audio.chime('alert'); ui.marketStale(); }
+    else if (event.type === 'message') { say('A message about something for sale. Open Property on your phone.'); audio.chime('tap'); ui.marketStale(); }
+    refreshView();
+  }
+
+  // Where things are sold: a pink column at every open listing in this town, the kind one steps into. Stepping
+  // in is how a buyer begins to deal: the screen goes to black and comes back on the conversation.
+  const dealMarkers = new Map();     // listing id -> { listing, marker, x, z, armed }
+  let dealListAt = -1e9;
+  let fading = false;
+  async function refreshDealMarkers() {
+    if (!online.available) return;
+    dealListAt = clock;
+    const answer = await market.all();
+    if (!answer.ok) return;
+    const wanted = new Set();
+    for (const l of market.state.all) {
+      if (l.place.zone !== ZONE.id) continue;
+      const shop = l.shop ? zoneShop(l.shop) : null;
+      const at = shop ? shop.marker : l.place;
+      wanted.add(l.id);
+      const had = dealMarkers.get(l.id);
+      if (had) { had.listing = l; continue; }
+      const marker = makeDealMarker();
+      marker.group.position.set(at.x, 0, at.z);
+      scene.add(marker.group);
+      dealMarkers.set(l.id, { listing: l, marker, x: at.x, z: at.z, armed: Math.hypot(at.x - predicted.x, at.z - predicted.z) > marker.radius + 0.9 });
+    }
+    for (const [id, m] of dealMarkers) if (!wanted.has(id)) { scene.remove(m.marker.group); m.marker.dispose(); dealMarkers.delete(id); }
+  }
+  function enterDeal(m) {
+    const l = m.listing;
+    if (!online.signedIn) { accountUI.open('signup', `To buy from ${l.seller} you need an account.`); return; }
+    if (l.mine) { ui.toast({ type: 'note', text: 'This is your own marker. A buyer who steps into it will write to you: look under Conversations in Property on your phone.' }); return; }
+    fading = true;
+    controls.release(); input.keys.clear();
+    $('fade').classList.add('on');
+    setTimeout(() => {
+      // face whoever is selling: the shop's own attendant, if it has one
+      const shop = l.shop ? zoneShop(l.shop) : null;
+      if (shop && playing) {
+        predicted.heading = Math.atan2(shop.attendant.x - predicted.x, shop.attendant.z - predicted.z);
+        server.send({ type: 'move', x: predicted.x, z: predicted.z, heading: predicted.heading, run: false });
+        // the eye stands behind and to one side, so that both of them and the shop are in the picture
+        cam.yaw = predicted.heading - 0.6; cam.pitch = 0.12; cam.dist = 6.2;
+      }
+      if (playing) ui.openDeal({ listing: l.id, at: { x: predicted.x, z: predicted.z } });
+      setTimeout(() => { $('fade').classList.remove('on'); fading = false; }, 280);
+    }, 340);
+  }
+  function tickDealMarkers(dt) {
+    if (online.available && !document.hidden && clock - dealListAt > (dealMarkers.size ? 45 : 20)) refreshDealMarkers();
+    const self = view ? view.self : null;
+    const onFoot = playing && self && !self.driving && !self.riding && !self.astride && !self.swimming && !self.dead && !self.down && !self.carried && !self.law.arrest && !self.fight;
+    for (const m of dealMarkers.values()) {
+      const far = Math.hypot(m.x - predicted.x, m.z - predicted.z);
+      m.marker.group.visible = playing && far < 260;
+      if (far < 90) m.marker.tick(dt);
+      if (far > m.marker.radius + 0.9) m.armed = true;
+      else if (far < m.marker.radius - 0.2 && m.armed && onFoot && !ui.isOpen() && !fading && !accountUI.isOpen) { m.armed = false; enterDeal(m); }
+    }
+  }
+  // A shop's own person, standing where the shop says: there to be seen and faced; the dealing is on the phone.
+  const shopActors = ZONE_SHOPS.map((shop) => {
+    const actor = makeCharacter(shop.attendant.look, shop.attendant.name, false, 1);
+    actor.group.position.set(shop.attendant.x, 0, shop.attendant.z);
+    actor.group.rotation.y = shop.attendant.facing;
+    actor.group.visible = false;
+    scene.add(actor.group);
+    return { shop, actor };
+  });
+  function tickShopActors(dt) {
+    for (const s of shopActors) {
+      const far = Math.hypot(s.shop.attendant.x - predicted.x, s.shop.attendant.z - predicted.z);
+      s.actor.group.visible = playing && far < 170;
+      if (!s.actor.group.visible || far > 70) continue;
+      // they turn a little towards someone who comes close
+      const want = far < 9 ? Math.atan2(predicted.x - s.shop.attendant.x, predicted.z - s.shop.attendant.z) : s.shop.attendant.facing;
+      let turn = (want - s.actor.group.rotation.y) % (Math.PI * 2); if (turn > Math.PI) turn -= Math.PI * 2; if (turn < -Math.PI) turn += Math.PI * 2;
+      s.actor.group.rotation.y += turn * Math.min(1, dt * 3);
+      animateCharacter(s.actor, dt, 0, false);
+      showName(s.actor, far < 8, dt);
+    }
+  }
+  // What to call a spot in town, for a listing made where its seller stands.
+  function placeName(x, z) {
+    const title = (text) => text.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
+    let best = null;
+    for (const b of ZONE_BUILDINGS) { if (!b.sign) continue; const d = Math.hypot(b.x - x, b.z - z) - Math.max(b.w, b.d) / 2; if (d < 26 && (!best || d < best.d)) best = { d, text: `Near ${title(b.sign)}` }; }
+    if (!best) for (const r of ZONE_ROADS) { if (!r.name) continue; const d = Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1)); if (!best || d < best.d) best = { d, text: d < 8 ? r.name : `Off ${r.name}` }; }
+    return best ? `${best.text}, ${ZONE.name}` : ZONE.name;
+  }
+  function goToListing(l) {
+    const shop = l.shop ? zoneShop(l.shop) : null;
+    const at = shop ? shop.marker : l.place;
+    setWaypoint({ x: at.x, z: at.z, label: l.kind === 'primary' ? l.seller : `${l.seller}: ${l.name}` });
+    ui.close();
+    ui.toast({ type: 'note', text: `${l.place.label} is marked. Follow the line on the map at the top left to the pink marker, and step into it.` });
+  }
+
   // The phone's own camera. What it shows is this scene, drawn a second time from where the handset is: looking
   // the way the character faces (the back camera), or back at the character's face from arm's length (the front
   // one, turned left to right as a phone shows a face). It is drawn small, a dozen times a second, into the
@@ -425,10 +575,31 @@ function start(carried) {
     shutter: () => audio.shutter(),
     music,
     phoneCam,
+    online, market,
+    account: { open: (mode, why) => accountUI.open(mode, why), logOut: () => accountUI.logOut() },
+    goToListing: (l) => goToListing(l),
+    placeName: (x, z) => placeName(x, z),
+    marketChanged: () => { refreshDealMarkers(); market.soon(); accountSync.soon(); },
     perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
   });
   audio.setMuted(!prefs.sound);
   audio.setVolumes({ ...DEFAULT_VOLUMES, ...(prefs.volumes || {}) });
+
+  const accountUI = createAccountUI({
+    online, sync: accountSync,
+    local: () => { if (!playerId) return null; const mark = readStored(ACCOUNT_KEY); return { name: host.game.view(playerId).self.name, mine: !!(online.signedIn && mark && mark.user === online.account.username.toLowerCase()) }; },
+    onChange: (event) => {
+      onlineChanged();
+      if (event.type === 'created') ui.toast({ type: 'note', text: `Your account is made. You are ${event.account.username}: other players near you see that name over your head.` });
+      else if (event.type === 'in') ui.toast({ type: 'note', text: event.warning || (event.adopted ? `Logged in as ${event.account.username}. Your character has been brought to this device.` : `Logged in as ${event.account.username}.`) });
+      else if (event.type === 'stayed') ui.toast({ type: 'note', text: event.message });
+      if (event.type !== 'stayed') { market.soon(); refreshDealMarkers(); ui.marketStale(); }
+      if (playing) ui.redraw();
+    },
+  });
+  online.onChange(() => onlineChanged());
+  // Is there a server, and is this browser signed in? If so, which copy of the character is the one to play.
+  online.check().then(async () => { onlineChanged(); if (online.signedIn) { const settled = await accountSync.settle(); if (!settled.ok && settled.message) ui.toast({ type: 'note', text: settled.message }); } refreshDealMarkers(); });
 
   for (const r of ZONE_RESIDENTS) {
     const actor = makeCharacter(r.look, r.name, false, 1);
@@ -1530,12 +1701,14 @@ blood.update(dt, view.blood || []);
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
-      monitor.mark('interface');
+      tickDealMarkers(dt); tickShopActors(dt);
+    monitor.mark('interface');
       // indoors: put away the roof of the building the player is in
       inside = town.setInside(predicted.x, predicted.z);
       room = inside ? zoneRoomAt(predicted.x, predicted.z) : null;
 
       saveTimer += dt;
+      market.tick(dt); accountSync.tick(dt);
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
@@ -1566,6 +1739,7 @@ blood.update(dt, view.blood || []);
     night = skyState.night;
     setVehicleDaylight(1 - night);
     world.glowMaterial.emissiveIntensity = night * 1.5;
+    for (const showroom of world.showrooms) showroom.setNight(night);
     siteLayer.setNight(night * 1.5);
     world.waterMaterial.color.copy(linear(ZONE_PROPS.water.day)).lerp(linear(ZONE_PROPS.water.night), night * 0.8).lerp(linear(ZONE_PROPS.water.dull), skyState.dull * 0.5);
     lampTimer += dt;
@@ -1628,7 +1802,7 @@ blood.update(dt, view.blood || []);
     requestAnimationFrame(frame);
   }
 
-  document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) writeStored(SAVE_KEY, { host: host.save(), playerId }); if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
+  document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {
     window.claude.hot.snapshot(() => (playing ? { host: host.save(), playerId } : {}));
   }
@@ -1647,6 +1821,7 @@ blood.update(dt, view.blood || []);
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
+    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers,
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),

@@ -93,6 +93,9 @@ export const ZONE_BUILDINGS = Object.freeze([
   building('home5', 'home', '', 120, 96, 9, 7, 3.0, 's', 0xcfd9df, 0x8b4a33),
   building('home6', 'home', '', 150, 96, 9, 7, 3.0, 's', 0xe3d6a8, 0x5f6a72),
   building('home7', 'home', '', 180, 96, 9, 7, 3.0, 's', 0xd9c7b0, 0x355e3b),
+  // HOLARIS Watch (October 2026): three storeys of glass on open ground north of the motor park, west of Market
+  // Road. It is drawn by its own code (render-holaris.js), not as a walled building with a pitched roof.
+  building('holaris', 'showroom', 'HOLARIS WATCH', -26, 44, 16, 12, 12.6, 's', 0x9fd3e6, 0x16222b),
   ...TOWN_BUILDINGS,
 ]);
 
@@ -106,6 +109,15 @@ export const ZONE_RANKS = TOWN_RANKS;
 export const ZONE_STOPS = TOWN_STOPS;
 export const ZONE_SOUNDS = TOWN_SOUNDS;
 export const ZONE_NOTICES = TOWN_NOTICES;
+
+// Shops that sell through the market every player shares. `marker` is where a buyer stands to deal: the pink
+// column before the door. `attendant` is where the shop's own person stands.
+export const ZONE_SHOPS = Object.freeze([
+  Object.freeze({ id: 'holaris', name: 'HOLARIS Watch', building: 'holaris', storeys: 3, marker: Object.freeze({ x: -26, z: 55.4 }), attendant: Object.freeze({ x: -23.6, z: 53.1, facing: 0, name: 'HOLARIS attendant', look: Object.freeze({ skin: 0x5a3620, top: 0x14171b, bottom: 0x14171b, build: 1, body: 'f', outfit: 'shirt', sleeves: 'long', hair: 'low' }) }) }),
+]);
+export function zoneShop(id) {
+  return ZONE_SHOPS.find((s) => s.id === id) || null;
+}
 
 export function zoneBuilding(id) {
   return ZONE_BUILDINGS.find((b) => b.id === id) || null;
