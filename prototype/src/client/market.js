@@ -13,7 +13,7 @@
 //
 // It draws nothing and touches no page: the interface is ui-market.js.
 
-export const MARKET_CLIENT = Object.freeze({ syncEvery: 20, listFor: 30 });
+export const MARKET_CLIENT = Object.freeze({ syncEvery: 45, listFor: 30 });
 
 export function newId() {
   if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();

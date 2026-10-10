@@ -335,7 +335,7 @@ function start(carried) {
   // Music on the phone (music.js): the game's own pieces, and on the website the songs listed in music/library.json.
   const music = createMusic({
     player: audio.player,
-    fetchJson: webapp.site ? () => fetch('music/library.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : { tracks: [] })) : null,
+    fetchJson: webapp.site ? () => (navigator.onLine === false ? Promise.resolve({ tracks: [] }) : fetch('music/library.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : { tracks: [] }))) : null,
     recalled: prefs.song || null,
     remember: (id) => { prefs.song = id; writeStored(PREFS_KEY, prefs); },
   });
@@ -437,7 +437,7 @@ function start(carried) {
     }, 340);
   }
   function tickDealMarkers(dt) {
-    if (online.available && !document.hidden && clock - dealListAt > (dealMarkers.size ? 45 : 20)) refreshDealMarkers();
+    if (online.available && playing && !document.hidden && clock - dealListAt > (dealMarkers.size ? 120 : 60)) refreshDealMarkers();
     const self = view ? view.self : null;
     const onFoot = playing && self && !self.driving && !self.riding && !self.astride && !self.swimming && !self.dead && !self.down && !self.carried && !self.law.arrest && !self.fight;
     for (const m of dealMarkers.values()) {

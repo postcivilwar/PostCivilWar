@@ -9,7 +9,7 @@ const { SCHEMA: S } = require('./schema.js');
 const { UUID } = require('./market.js');
 
 const MAX_SAVE = 3 * 1024 * 1024;
-const SEEN_FOR = 8;                      // seconds a player stays in sight after their game last said where they are
+const SEEN_FOR = 14;                     // seconds a player stays in sight after their game last said where they are (a game alone in town says so every ten)
 const MOST_PEERS = 48;
 
 const short = (value, most) => (typeof value === 'string' ? value.replace(/[\u0000-\u001f\u007f]+/g, ' ').trim().slice(0, most) : null);

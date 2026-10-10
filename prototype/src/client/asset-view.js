@@ -47,7 +47,7 @@ export function createTurntable(modelId, { size = 220, still = false, label = 'T
   let held = null, touched = still, timer = 0, last = 0;
   const spin = (now) => { if (!el.isConnected && last) { timer = 0; return; } if (!touched) { if (last) at += ((now - last) / 1000) * 0.07; show(); } last = now; timer = requestAnimationFrame(spin); };
   if (!still) timer = requestAnimationFrame(spin);
-  el.addEventListener('pointerdown', (event) => { held = { x: event.clientX, at }; touched = true; el.setPointerCapture(event.pointerId); el.classList.add('held'); event.preventDefault(); });
+  el.addEventListener('pointerdown', (event) => { held = { x: event.clientX, at }; touched = true; try { el.setPointerCapture(event.pointerId); } catch (error) { /* a pointer the browser no longer has */ } el.classList.add('held'); event.preventDefault(); });
   el.addEventListener('pointermove', (event) => { if (!held) return; at = held.at - (event.clientX - held.x) / (size * 1.6); show(); });
   const drop = () => { held = null; el.classList.remove('held'); };
   el.addEventListener('pointerup', drop); el.addEventListener('pointercancel', drop);
@@ -184,7 +184,7 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
   // turning and coming closer
   const fingers = new Map();
   let spread = 0;
-  canvas.addEventListener('pointerdown', (event) => { fingers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.setPointerCapture(event.pointerId); look.auto = false; event.preventDefault(); });
+  canvas.addEventListener('pointerdown', (event) => { fingers.set(event.pointerId, { x: event.clientX, y: event.clientY }); try { canvas.setPointerCapture(event.pointerId); } catch (error) { /* a pointer the browser no longer has */ } look.auto = false; event.preventDefault(); });
   canvas.addEventListener('pointermove', (event) => {
     const f = fingers.get(event.pointerId);
     if (!f) return;

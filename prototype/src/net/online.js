@@ -7,7 +7,10 @@
 // Nothing secret is here or can be: the page holds no key. A signed-in browser carries a session cookie that
 // this code cannot read; the server knows who is asking from that and from nothing the page says.
 
-export const ONLINE = Object.freeze({ timeout: 12000, presenceNear: 1.1, presenceAlone: 3, presenceStep: 0.15 });
+// How often this game tells the server where it stands and asks who else is in town (seconds): often with
+// someone close enough to be watched walking, seldom with nobody about. Every asking is a request the site's
+// host counts, so it is no more often than what is on screen needs.
+export const ONLINE = Object.freeze({ timeout: 12000, presenceNear: 1.2, presenceFar: 4, presenceAlone: 10, near: 70, presenceStep: 0.15 });
 
 // ---- a character, made small enough to send ----
 
@@ -48,8 +51,13 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
   const changed = () => { for (const fn of [...listeners]) fn(status); };
   const set = (patch) => { Object.assign(status, patch); changed(); };
 
+  // A device that says it has no connection is believed: nothing is sent that is bound to fail.
+  const cutOff = () => typeof navigator !== 'undefined' && navigator.onLine === false;
+  const OFFLINE = { ok: false, code: 'OFFLINE', message: 'The server could not be reached. Check the connection and try again.' };
+
   async function ask(op, body = {}, options = {}) {
     if (!available) return { ok: false, code: 'NO_SERVER', message: 'This copy of the game has no server.' };
+    if (cutOff()) return OFFLINE;
     const control = typeof AbortController === 'function' ? new AbortController() : null;
     const timer = control ? setTimeout(() => control.abort(), options.timeout || timeout) : 0;
     try {
@@ -61,7 +69,7 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
       if (!answer.ok && answer.code === 'SIGNED_OUT' && status.state === 'in') set({ state: 'out', account: null, save: null });
       return answer;
     } catch (error) {
-      return { ok: false, code: 'OFFLINE', message: 'The server could not be reached. Check the connection and try again.' };
+      return OFFLINE;
     } finally {
       clearTimeout(timer);
     }
@@ -71,6 +79,7 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
   async function check() {
     if (!available) return status;
     let here = null;
+    if (cutOff()) { set({ state: 'down', account: null, save: null, message: 'There is no connection.' }); return status; }
     try { const response = await send(address, { method: 'GET', cache: 'no-store', credentials: 'same-origin' }); here = await response.json(); } catch (error) { here = null; }
     if (!here || !here.ok || !here.accounts) { set({ state: 'down', account: null, save: null, message: here && here.ok ? 'Accounts are not set up on this site yet.' : 'The server could not be reached.' }); return status; }
     const me = await ask('me');
@@ -139,7 +148,7 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
       const old = peers.get(peer.id);
       const at = old ? shownOf(old, t) : peer.state;
       const jumped = old && Math.hypot(peer.state.x - at.x, peer.state.z - at.z) > 25;
-      peers.set(peer.id, { from: jumped || !old ? peer.state : at, to: peer.state, at: t, span: Math.max(0.4, Math.min(3.5, old ? t - old.heard : 1)), heard: t });
+      peers.set(peer.id, { from: jumped || !old ? peer.state : at, to: peer.state, at: t, span: Math.max(0.4, Math.min(4.5, old ? t - old.heard : 1)), heard: t });
     }
     for (const id of [...peers.keys()]) if (!here.has(id)) peers.delete(id);
   }
@@ -149,7 +158,11 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     if (closed) return;
     if (handler) handler(online.signedIn ? shown() : []);
     if (!visible()) return;
-    const wait = peers.size ? ONLINE.presenceNear : ONLINE.presenceAlone;
+    let wait = ONLINE.presenceAlone;
+    if (peers.size) {
+      wait = ONLINE.presenceFar;
+      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; break; }
+    }
     if (now() - last >= wait) exchange();
   }, ONLINE.presenceStep * 1000);
 

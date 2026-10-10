@@ -270,8 +270,10 @@ for (const [label, size] of Object.entries({ desk: { width: 1280, height: 760 },
     if (!order) bad('"Create your character" is not below the story');
     await shot(`03-${label}-start`);
     // the text the start screen has always carried is still there
-    const words = await c(() => ({ intro: document.querySelector('#start-intro').textContent, notes: [...document.querySelectorAll('#start .small')].map((p) => p.textContent).join(' ') }));
-    if (!/15 January 1970/.test(words.intro) || /Prototype build/i.test(await c(() => document.querySelector('#start').textContent)) || !/no accounts yet/i.test(words.notes) || !/no real money/i.test(words.notes)) bad('the start screen lost its words');
+    // the story is still there; the three paragraphs that stood at the foot (10 October 2026: taken out at the owner's word) are not
+    const words = await c(() => ({ intro: document.querySelector('#start-intro').textContent, all: document.querySelector('#start').textContent }));
+    if (!/15 January 1970/.test(words.intro) || /Prototype build/i.test(words.all)) bad('the start screen lost its story');
+    if (/no accounts yet|Walk with W A S D|browser prototype|no real money/i.test(words.all)) bad('the three paragraphs at the foot of the start screen are still there');
     // a name of the player's own; Enter; the figure in the town is the one chosen, in those colours
     const want = await c(() => window.__creator.look());
     await page.fill('#name', 'Ngozi Okafor');
@@ -777,14 +779,15 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
   await shot('03-hospital-bill');
   const fee = Number((bill['Hospital fee'] || '').replace(/[^0-9]/g, ''));
   const before = (await now(page)).balance;
-  if (Number((bill['Balance after payment'] || '').replace(/[^0-9]/g, '')) !== before - fee) bad(`the bill says ${bill['Balance after payment']} after paying ${fee} from ${before}`);
+  // the bill is written in TR; the ledger counts units, two to a TR
+  if (Number((bill['Balance after payment'] || '').replace(/[^0-9]/g, '')) !== before / 2 - fee) bad(`the bill says ${bill['Balance after payment']} after paying ${fee} TR from ${before / 2} TR`);
   // the same press sent twice, as a double tap or a retry would: one request id, one charge
   const twice = await page.evaluate(() => { const b = [...document.querySelectorAll('#sheet-body button')].find((x) => x.textContent.startsWith('Pay ')); const sent = []; const n = window.__nlw; const real = n.host.game.intent; n.host.game.intent = (id, m) => { const r = real(id, m); if (m.type === 'care.pay') sent.push({ m, r }); return r; }; b.click(); const again = sent.length ? real(n.playerId, sent[0].m) : null; n.host.game.intent = real; return { first: sent[0] ? sent[0].r : null, again }; });
   await page.waitForTimeout(600);
   s = await now(page);
   if (!twice.first || !twice.first.ok) bad(`paying the hospital failed: ${JSON.stringify(twice.first)}`);
   if (!twice.again || !twice.again.replayed) bad(`the second copy of the payment was not recognised: ${JSON.stringify(twice.again)}`);
-  if (s.balance !== before - fee) bad(`paid ${fee} once, but the balance went from ${before} to ${s.balance}`);
+  if (s.balance !== before - fee * 2) bad(`paid ${fee} TR once, but the balance went from ${before / 2} TR to ${s.balance / 2} TR`);
   if (s.health !== 80) bad(`treated to 80%, health is ${s.health}`);
   await shot('04-hospital-paid');
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);

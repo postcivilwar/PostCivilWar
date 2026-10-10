@@ -14,10 +14,14 @@ const MAX_BODY = 3.5 * 1024 * 1024;      // the host refuses anything over 4.5 M
 
 // The request's body as an object. The host may already have read it; a plain Node server has not.
 async function readBody(req) {
-  if (req.body !== undefined && req.body !== null) {
-    if (Buffer.isBuffer(req.body)) return parse(req.body.toString('utf8'));
-    if (typeof req.body === 'string') return parse(req.body);
-    if (typeof req.body === 'object') return req.body;
+  // (the host reads it lazily, and refuses what is not JSON as it does so)
+  let given;
+  try { given = req.body; } catch (error) { throw new ApiError(400, 'BAD_REQUEST', 'The request could not be read.'); }
+  if (given !== undefined && given !== null) {
+    if (Buffer.isBuffer(given)) return parse(given.toString('utf8'));
+    if (typeof given === 'string') return parse(given);
+    if (typeof given === 'object' && !Array.isArray(given)) return given;
+    throw new ApiError(400, 'BAD_REQUEST', 'The request could not be read.');
   }
   const chunks = [];
   let size = 0;

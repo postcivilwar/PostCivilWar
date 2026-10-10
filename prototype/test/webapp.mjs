@@ -28,6 +28,8 @@ const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   const name = path === '/' ? 'index.html' : path.slice(1);
   if (!serverUp) { req.socket.destroy(); return; }
+  // the host also answers for the game's server (api/game.js); here, as on a site that has been given no database
+  if (path === '/api/game') { sent.push([path, 200, 0]); res.writeHead(req.method === 'GET' ? 200 : 503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(req.method === 'GET' ? { ok: true, service: 'postcivilwar', accounts: false } : { ok: false, code: 'NO_DATABASE', message: 'Accounts are not set up on this site yet.' })); return; }
   const file = resolve(site, name);
   if (name.includes('..') || !(overrides.has(name) || existsSync(file))) { sent.push([path, 404, 0]); res.writeHead(404, { 'content-type': 'text/plain' }); res.end('not found'); return; }
   const body = overrides.has(name) ? Buffer.from(overrides.get(name)) : readFileSync(file);

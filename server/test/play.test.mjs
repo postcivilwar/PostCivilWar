@@ -267,7 +267,7 @@ test('two players in the same town see each other walk, each under the other\'s 
   const pa = a.host.game.state.players[a.playerId], pb = b.host.game.state.players[b.playerId];
   pa.x = -30; pa.z = 100; pb.x = -28; pb.z = 100;
   la.tick(1); lb.tick(1);
-  await tick(4); await tick(4); await tick(0.2);
+  await tick(11); await tick(11); await tick(0.2);      // alone in town a game asks only every ten seconds
   const seenByA = a.host.game.visitors.list();
   const seenByB = b.host.game.visitors.list();
   assert.deepEqual(seenByA.map((v) => v.name), [b.username]);
@@ -275,8 +275,8 @@ test('two players in the same town see each other walk, each under the other\'s 
   assert.equal(seenByA[0].x, -28);
   // a walks 6 m; b sees them part of the way there before all of it
   pa.x = -24; la.tick(1);
-  await tick(1.2);          // a's new place reaches the server; b hears it on its own next round
-  await tick(1.2);
+  await tick(1.3);          // a's new place reaches the server; b hears it on its own next round
+  await tick(1.3);
   const mid = [];
   for (let i = 0; i < 6; i += 1) { await tick(0.3); mid.push(b.host.game.visitors.list()[0].x); }
   assert.ok(mid.some((x) => x > -30 && x < -24), `moved evenly: ${mid.join(', ')}`);

@@ -20,7 +20,7 @@ const OUT_SECONDS = 0.85;        // from the press to the phone held up
 const AWAY_SECONDS = 0.6;
 const POCKET = 0.42;             // the part of the way out at which the hand is in the pocket
 // what the screen is showing, as the colour of the light it throws: [r, g, b] in 0..1
-const SCREENS = Object.freeze({ home: [1, 0.78, 0.6], camera: [0.75, 0.86, 1], music: [1, 0.55, 0.5], page: [0.8, 0.86, 1] });
+const SCREENS = Object.freeze({ home: [1, 0.78, 0.6], camera: [0.75, 0.86, 1], music: [1, 0.55, 0.5], deal: [0.55, 0.95, 0.8], page: [0.8, 0.86, 1] });
 
 const smooth = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
 

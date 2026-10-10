@@ -846,7 +846,7 @@ itself to run on a server: the zone server the architecture calls for.
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 215 headless tests, in fourteen files
+node --test test/*.test.mjs                        # 221 headless tests, in fifteen files
 ../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 31 tests against a real PostgreSQL
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in two browsers: accounts, the market, a deal between two players
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/

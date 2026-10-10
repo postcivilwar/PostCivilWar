@@ -339,11 +339,11 @@ export function createMarketUI(kit) {
     const me = msg.from === 'me';
     const who = msg.from === 'shop' ? 'shop' : me ? 'me' : 'them';
     const t = new Date(msg.at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
-    if (msg.kind === 'offer') return h('div', { class: `bubble offer ${who}` }, h('span', { class: 'eyebrow' }, me ? 'Your offer' : `${d.thread.other} offers`), h('b', null, tr(msg.amount)), h('time', null, t));
-    if (msg.kind === 'accepted') return h('div', { class: 'bubble sys good' }, msg.body || 'Sold.');
-    if (msg.kind === 'declined') return h('div', { class: 'bubble sys' }, msg.body || (me ? `You refused ${tr(msg.amount)}.` : `${d.thread.other} refused ${tr(msg.amount)}.`));
-    if (msg.kind === 'withdrawn') return h('div', { class: 'bubble sys' }, me ? `You withdrew your offer of ${tr(msg.amount)}.` : `${d.thread.other} withdrew the offer of ${tr(msg.amount)}.`);
-    return h('div', { class: `bubble ${who}` }, msg.body, h('time', null, t));
+    if (msg.kind === 'offer') return h('div', { class: `msg offer ${who}` }, h('span', { class: 'eyebrow' }, me ? 'Your offer' : `${d.thread.other} offers`), h('b', null, tr(msg.amount)), h('time', null, t));
+    if (msg.kind === 'accepted') return h('div', { class: 'msg sys good' }, msg.body || 'Sold.');
+    if (msg.kind === 'declined') return h('div', { class: 'msg sys' }, msg.body || (me ? `You refused ${tr(msg.amount)}.` : `${d.thread.other} refused ${tr(msg.amount)}.`));
+    if (msg.kind === 'withdrawn') return h('div', { class: 'msg sys' }, me ? `You withdrew your offer of ${tr(msg.amount)}.` : `${d.thread.other} withdrew the offer of ${tr(msg.amount)}.`);
+    return h('div', { class: `msg ${who}` }, msg.body, h('time', null, t));
   }
 
   // `fresh`: the phone is drawing its screen now, and has not yet put it on the page
@@ -362,17 +362,17 @@ export function createMarketUI(kit) {
       h('button', { class: 'chatback', type: 'button', id: 'deal-back', 'aria-label': 'Leave the conversation', onclick: () => app.leaveDeal() }, kit.glyph('back', false)),
       h('span', { class: 'avatar' }, d.thread ? d.thread.other.slice(0, 1).toUpperCase() : '·'),
       h('span', { class: 'who' }, h('b', null, d.thread ? d.thread.other : 'The seller'), h('span', null, d.thread ? (d.thread.automatic ? 'Shop attendant · automatic' : d.thread.role === 'buyer' ? 'Seller' : 'Buyer') : ''))));
-    if (d.loading) { root.append(h('div', { class: 'chatlog' }, h('div', { class: 'bubble sys' }, 'Opening the conversation...'))); return; }
+    if (d.loading) { root.append(h('div', { class: 'chatlog' }, h('div', { class: 'msg sys' }, 'Opening the conversation...'))); return; }
     if (d.error) {
-      root.append(h('div', { class: 'chatlog' }, h('div', { class: 'bubble sys' }, d.error)));
+      root.append(h('div', { class: 'chatlog' }, h('div', { class: 'msg sys' }, d.error)));
       if (!signedIn()) root.append(h('div', { class: 'dealbar' }, h('button', { class: 'hx small', type: 'button', onclick: () => app.account.open('signup') }, 'Create account'), h('button', { class: 'hx small', type: 'button', onclick: () => app.account.open('login') }, 'Log in')));
       return;
     }
     root.append(h('div', { class: 'dealitem' }, h('span', { class: 'pic', style: ASSET_MODELS[l.asset.model] ? `background-image:url("${ASSET_MODELS[l.asset.model].poster}")` : '' }),
       h('span', { class: 'what' }, h('b', null, l.name), h('span', null, `${l.kind === 'primary' ? 'Price' : 'Asking'} ${tr(l.price)}${l.kind === 'primary' && l.status === 'open' ? ` · ${l.left} left` : ''}${l.status !== 'open' ? ' · no longer for sale' : ''}`))));
     const log = h('div', { class: 'chatlog', id: 'deal-log', 'aria-live': 'polite' }, d.messages.map((msg) => bubble(msg, d)));
-    if (!d.messages.length) log.append(h('div', { class: 'bubble sys' }, d.thread.role === 'buyer' ? `Say hello to ${d.thread.other}, or make an offer.` : 'Nothing has been said yet.'));
-    if (d.done) log.append(h('div', { class: 'bubble sys good big', id: 'deal-done' }, d.done));
+    if (!d.messages.length) log.append(h('div', { class: 'msg sys' }, d.thread.role === 'buyer' ? `Say hello to ${d.thread.other}, or make an offer.` : 'Nothing has been said yet.'));
+    if (d.done) log.append(h('div', { class: 'msg sys good big', id: 'deal-done' }, d.done));
     root.append(log);
 
     // what can be done about the price, above the place to type
