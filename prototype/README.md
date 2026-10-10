@@ -38,6 +38,9 @@ browser console.
 Open `dist/local.html` in a browser (it uses the copy of three.js in
 `vendor/`), or publish `dist/index.html` (it loads three.js from cdnjs).
 
+The website, postcivilwar.com, is `dist/site/`: the same game as a page that
+stands on its own and can be installed (see "The website as an app").
+
 The address can end in `#nointro` to leave out the opening, `#lite` or `#full`
 to choose how the town is drawn whatever the device (see "Phones"), and
 `#nodraw` to draw nothing. They can be joined: `#nointro-lite`.
@@ -639,11 +642,61 @@ Okada riders are the exception: all 26 are stepped, because they answer calls. R
   name, like the keys the save is stored under, is from before the game was
   renamed; changing the keys would orphan characters already made.
 
+## The website as an app
+
+`node build.mjs` also writes `dist/site/`, and `node build.mjs --site` then
+makes the repository's `site/` folder the same as it. `site/` is what the
+host serves, as it is, with no build of its own (`vercel.json`). The game in
+it is the game in `dist/index.html`; what differs is what surrounds it.
+
+- **A whole document** (`src/site/head.html`). The page published as an
+  artifact is wrapped in a document by its host; a website has to bring its
+  own. Without one a phone lays the page out 980 pixels wide and shrinks it,
+  the browser reads it by its old rules, and the page has a margin. With it:
+  the phone's own width, the notch and home bar reported, the standard rules,
+  black before anything is drawn, and no pulling the page down to reload it.
+- **Nothing from anywhere else.** The 3D library is served from beside the
+  page (the file in `vendor/`), not from cdnjs.
+- **A manifest and icons** (`src/site/manifest.webmanifest`,
+  `assets/brand/icons/`). A phone or a computer can install the game: it gets
+  its own icon and name and opens on the whole screen, upright or sideways,
+  with no browser round it. The icons are drawn from the mark by
+  `tools/brand/make_icons.mjs` and kept in the repository; `share.png` is the
+  picture that goes with the address when it is sent to someone.
+- **A worker that keeps the files on the device** (`src/site/sw.js`, with its
+  table of files filled in by the build). Two rules. The page: the network
+  first, so anyone with a connection has the newest game the moment it is put
+  live; the copy kept from last time when there is no connection, or when
+  none answers in four seconds. Every other file: the kept copy, held under
+  the fingerprint of its contents, so a file is fetched again only when it
+  has changed. The two figures are 10 MB and 13 MB as text; only one a player
+  has used is kept. The owner's GLB files are not touched by any of this: the
+  text beside the page is those bytes, and a test compares them.
+- **In Settings, "This device"** (`src/client/webapp.js`): whether the game
+  plays without a connection (asked of the worker, not assumed), and an
+  Install button only when the browser has offered to install. On an iPhone
+  or iPad, where there is no such offer, it says where Add to Home Screen is.
+  Away from the website (the artifact, a copy on disk) the section is absent
+  and no worker is started.
+
+What to know about it:
+
+- An installed game on an iPhone or iPad keeps its own storage: a character
+  made in Safari is not in the installed game. On Android and on a computer
+  the two share it.
+- A browser decides for itself when to offer installing. The game cannot make
+  it; it can only use the offer when it comes.
+- The game still has no accounts and no server. Installing changes where the
+  game opens from, not where a character lives: one browser's storage on one
+  device. The installed game asks the browser not to clear that storage.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 190 headless tests, in twelve files
-node build.mjs                                     # writes dist/index.html, dist/local.html, the character lab and the vehicle yard
+node --test test/*.test.mjs                        # 204 headless tests, in thirteen files
+node build.mjs                                     # writes dist/index.html, dist/local.html, the character lab, the vehicle yard and dist/site/
+node build.mjs --site                              # the same, then makes site/ (what the host serves) the same as dist/site/
+node test/webapp.mjs out/                          # the website as an app: serves dist/site/, checks it can be installed, takes the network away and plays
 node test/play.mjs out/                            # plays the built page in headless Chromium (needs Playwright)
 node test/play.mjs out/ town                       # one session: opening, desktop, town, phone, action, sideways or upright
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
@@ -677,6 +730,19 @@ killed; and that the police hear of it only from someone who saw.
 law, treatment, the phone and taking vehicles, by sending the requests a
 client sends. `client.test.mjs` covers the frame monitor, the detail governor
 and the camera.
+
+`webapp.test.mjs` covers the website as an app: the manifest and that every
+icon it lists is there at the size it says; the document's head; that
+installing is offered only where it is true; the worker, run against a
+pretend network and a pretend store (what it keeps, what it gives back with
+no connection, that the page is the newest when there is a connection, that
+a slow network does not hold the game up, that a changed file is fetched
+again and an unchanged one is not, that an error page is never kept); and
+that `site/` is one build, with the figures in it the owner's files byte for
+byte. `webapp.mjs` does it in a browser on a phone-sized screen: a first
+visit, what the browser says stands in the way of installing (nothing), the
+Settings section, then no connection at all: the opening, the town and the
+player's character all come back, and nothing large is ever sent twice.
 
 `town.test.mjs` covers: the map and every door; the 1,000 people and their
 roles; weekday, Saturday and Sunday routines; school, hospital, church and

@@ -29,6 +29,17 @@ page is built (`build.mjs`). The rays and the ground are white; the disc is the 
 colour. On the splash the ground draws in, the sun rises from behind it, and the rays
 fan out one after another.
 
+## The icons
+
+`icons/` holds what a device shows for the game: the icon on a home screen
+(square, for a phone that cuts its own shape, and with cut corners for
+everything else), the small one in a browser's tab, and `share.png`, the
+picture that goes with postcivilwar.com when the address is sent to someone.
+All are the mark on black, drawn by `tools/brand/make_icons.mjs` from
+`src/client/mark.svg.txt`; `share.png` adds the name in PCW Arcade.
+
+    node tools/brand/make_icons.mjs       # writes assets/brand/icons/ (needs Playwright)
+
 ## The font: PCW Arcade
 
 `pcw-arcade.ttf` is an original pixel face made for this game by

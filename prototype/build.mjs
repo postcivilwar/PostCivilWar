@@ -1,15 +1,19 @@
 // Bundles the prototype into one self-contained HTML page.
 //
-//   node build.mjs
+//   node build.mjs           writes dist/
+//   node build.mjs --site    writes dist/, then makes the repository's site/ folder the same as dist/site/
 //
-// Writes dist/index.html (loads three.js from cdnjs; this is the published
-// page) and dist/local.html (loads the vendored copy; works offline).
+// Writes dist/index.html (loads three.js from cdnjs; this is the page
+// published as an artifact), dist/local.html (loads the vendored copy; works
+// from a disk) and dist/site/ (the website: a whole document with its icons,
+// its manifest and the worker that keeps it on a device; see the end of this file).
 // There are no build dependencies. Source files are ES modules that use only
 // single-line named imports, `export function|const|class` and
 // `export * from`, so a module
 // can be turned into a function that returns its exports.
 
-import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, copyFileSync } from 'node:fs';
+import { createHash } from 'node:crypto';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -92,3 +96,50 @@ const yardPage = (three) => `${yardTemplate}\n<script src="${three}"></script>\n
 writeFileSync(resolve(root, 'dist/yard.html'), yardPage('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'));
 writeFileSync(resolve(root, 'dist/yard-local.html'), skeleton(yardPage('../vendor/three.min.js')));
 console.log(`vehicle yard: ${yard.modules} modules, ${(yard.bundle.length / 1024).toFixed(0)} KB of script`);
+
+// The website, postcivilwar.com: the same game as dist/index.html, as a page that stands on its own and can be
+// put on a device. It differs from the artifact's page in what surrounds the game, never in the game:
+//   - it is a whole document (the artifact's host wraps its page in one; a website has to bring its own), so a
+//     phone lays it out at the phone's width and the browser reads it by the standard rules;
+//   - the 3D library is served from beside the page, the same file as vendor/, so nothing comes from anywhere else;
+//   - a manifest and icons, so a phone or a computer can install it and open it full screen from its own icon;
+//   - sw.js, which keeps the files on the device: the game then opens with no connection (src/site/sw.js).
+// The two figures are the owner's files, byte for byte, as base64 text, exactly as beside the artifact's page.
+const siteDir = resolve(root, 'dist/site');
+rmSync(siteDir, { recursive: true, force: true });
+mkdirSync(siteDir, { recursive: true });
+const siteFiles = new Map();          // name -> bytes
+const put = (name, bytes) => { siteFiles.set(name, Buffer.isBuffer(bytes) ? bytes : Buffer.from(bytes, 'utf8')); };
+const head = readFileSync(resolve(root, 'src/site/head.html'), 'utf8');
+if (!/^<title>PostCivilWar<\/title>\n/.test(template)) throw new Error('template.html: expected to begin with the title');
+const gameBody = template.replace(/^<title>[^<]*<\/title>\n/, '');      // the document's head carries the title
+put('index.html', `<!doctype html>\n<html lang="en">\n<head>\n${head}</head>\n<body>\n${gameBody}\n<script src="three.min.js"></script>\n<script>\n${bundle}</script>\n</body>\n</html>\n`);
+put('three.min.js', readFileSync(resolve(root, 'vendor/three.min.js')));
+put('THREE-LICENSE.txt', readFileSync(resolve(root, 'vendor/THREE-LICENSE.txt')));
+for (const [name] of FIGURE_FILES) put(`${name}.b64.txt`, readFileSync(resolve(root, `dist/${name}.b64.txt`)));
+const manifest = readFileSync(resolve(root, 'src/site/manifest.webmanifest'), 'utf8');
+JSON.parse(manifest);
+put('manifest.webmanifest', manifest);
+for (const name of readdirSync(resolve(root, 'assets/brand/icons')).sort()) put(name, readFileSync(resolve(root, 'assets/brand/icons', name)));
+for (const icon of JSON.parse(manifest).icons) if (!siteFiles.has(icon.src)) throw new Error(`manifest.webmanifest: no file ${icon.src}`);
+// The worker's table: every file it may keep, under the fingerprint of its contents. The page is not in it
+// (it is always asked for afresh), nor are the two files nothing in the game ever reads.
+const NOT_KEPT = new Set(['index.html', 'THREE-LICENSE.txt', 'share.png']);
+const KEPT_FIRST = ['', 'three.min.js', 'manifest.webmanifest', 'favicon.svg', 'icon-192.png'];
+const table = {};
+for (const [name, bytes] of [...siteFiles].sort(([a], [b]) => (a < b ? -1 : 1))) if (!NOT_KEPT.has(name)) table[name] = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
+for (const name of KEPT_FIRST) if (name && !table[name]) throw new Error(`sw.js: ${name} is to be kept first but is not among the site's files`);
+const worker = readFileSync(resolve(root, 'src/site/sw.js'), 'utf8').replace('/*@@FILES@@*/{}', JSON.stringify(table)).replace('/*@@FIRST@@*/[]', JSON.stringify(KEPT_FIRST));
+if (worker.includes('@@')) throw new Error('sw.js: a placeholder was left unfilled');
+put('sw.js', worker);
+for (const [name, bytes] of siteFiles) writeFileSync(resolve(siteDir, name), bytes);
+console.log(`website: ${siteFiles.size} files, ${([...siteFiles.values()].reduce((n, b) => n + b.length, 0) / 1048576).toFixed(1)} MB; the page is ${(siteFiles.get('index.html').length / 1048576).toFixed(1)} MB`);
+
+// --site: the repository's site/ folder is what the host serves, as it is. Make it this build, and nothing else.
+if (process.argv.includes('--site')) {
+  const served = resolve(root, '../site');
+  mkdirSync(served, { recursive: true });
+  for (const name of readdirSync(served)) if (!siteFiles.has(name)) rmSync(resolve(served, name), { recursive: true, force: true });
+  for (const name of siteFiles.keys()) copyFileSync(resolve(siteDir, name), resolve(served, name));
+  console.log(`site/ is now this build (${siteFiles.size} files)`);
+}

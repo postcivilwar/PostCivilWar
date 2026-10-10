@@ -1,4 +1,50 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>PostCivilWar</title>
+<meta name="description" content="15 January 1970. The Civil War has just ended. You arrive at Atani motor park with nothing but £20. Find work. Buy a plot. Build the first walls. Start again.">
+<meta name="theme-color" content="#000000">
+<!-- On a device: its own icon, its own name, the whole screen, and the files kept there (manifest.webmanifest, sw.js). -->
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-48.png" type="image/png" sizes="48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PostCivilWar">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="application-name" content="PostCivilWar">
+<!-- What goes with the address when it is sent to someone. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PostCivilWar">
+<meta property="og:title" content="PostCivilWar">
+<meta property="og:description" content="15 January 1970. The Civil War has just ended. You arrive at Atani motor park with nothing but £20. Find work. Buy a plot. Build the first walls. Start again.">
+<meta property="og:url" content="https://postcivilwar.com/">
+<meta property="og:image" content="https://postcivilwar.com/share.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A rising sun over level ground, and the name POST CIVIL WAR">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+/* The same ground the game has always been tested on (the document the build wraps the local copy in), black
+   before anything is drawn, and no pulling the page down to reload it in the middle of a game. */
+:root{color-scheme:light;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+html{background:#000;overscroll-behavior:none}
+body{margin:0;font:14px system-ui,sans-serif;overscroll-behavior:none}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<script>
+/* A browser's offer to put the game on the device comes when the browser chooses, often before the game's own
+   script has been read. It is kept here for the game to use (src/client/webapp.js), and so is the news that
+   it has been done. The browser's own way of offering is left alone. */
+window.addEventListener('beforeinstallprompt', function (e) { window.__PCW_INSTALL = e; });
+window.addEventListener('appinstalled', function () { window.__PCW_INSTALL = null; window.__PCW_INSTALLED = true; });
+</script>
+</head>
+<body>
 <style>
 /* The edges of the screen. A phone's notch and home bar are kept clear of (--st, --sb) when the game has the
    whole screen; inside an app that already shows it below its own bar (a frame), there is nothing to keep
@@ -904,7 +950,7 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
   <script>window.__introAt = performance.now();</script>
 </div>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script src="three.min.js"></script>
 <script>
 "use strict";
 const __modules = {};
@@ -17933,6 +17979,32 @@ function createUI(app) {
     root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
     root.append(h('p', { class: 'small' }, 'Auto lowers detail only when frames are slow for several seconds on end, and raises it again when there is room. A single hitch never changes it.'));
 
+    // On the website only: the game on this device. Each line is there only when it is true.
+    if (app.webapp && app.webapp.site) {
+      const WAYS = { yes: 'Yes', 'not yet': 'Not yet', no: 'No' };
+      const cells = h('div', { class: 'rows', id: 'ondevice' });
+      const note = h('p', { class: 'small' });
+      const draw = () => {
+        const now = app.webapp.state();
+        const rows = [];
+        if (now.way === 'installed') rows.push(line('Installed on this device', 'Yes'));
+        // the browser has offered: one press, and the browser asks its own question
+        if (now.way === 'prompt') rows.push(h('div', { class: 'setrow' }, h('span', null, 'Install on this device'), h('button', { class: 'btn primary', type: 'button', id: 'install-app', onclick: () => { app.webapp.install().then(() => { if (cells.isConnected) draw(); }); } }, 'Install')));
+        rows.push(line('Plays without a connection', WAYS[now.offline]));
+        cells.replaceChildren(...rows);
+        const said = [];
+        if (now.way === 'prompt') said.push('Installed, the game opens from its own icon, on the whole screen, without the browser round it.');
+        if (now.way === 'share') said.push('To install: tap Share in the browser, then Add to Home Screen. The game then opens from its own icon, on the whole screen. Installed, it keeps its own characters: one made here in the browser stays here.');
+        said.push(now.offline === 'no'
+          ? 'This browser does not keep the game, so it needs a connection each time it is opened.'
+          : 'Once it has loaded, the game is kept on this device and opens with no connection. With a connection it is always the newest.');
+        note.textContent = said.join(' ');
+      };
+      draw();
+      root.append(section('This device'), cells, note);
+      app.webapp.refresh().then(() => { if (cells.isConnected) draw(); });
+    }
+
     root.append(section('Controls'));
     root.append(h('div', { class: 'rows' }, [
       ['Walk', 'W A S D or arrow keys · the stick'], ['Run', 'Hold Shift · the Run button switches it on and off'], ['Look around', 'Drag on the world'], ['Zoom', 'Mouse wheel or pinch'],
@@ -20055,6 +20127,133 @@ function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, skillsPag
 return { createFitter };
 })();
 
+// ---- client/webapp.js ----
+__modules["client/webapp.js"] = (function () {
+// The game as an app on a device: installed from the website, opened from its own icon, kept there so it opens
+// with no connection.
+//
+// This is the page's side of it, and it does something only on the website. The website's page has a manifest
+// (src/site/manifest.webmanifest) and a worker that keeps its files (src/site/sw.js); the page published as an
+// artifact and the copy opened from a disk have neither, and there this stands idle and offers nothing.
+//
+// What it does: starts the worker; tells it which of the two large figures this player has used, so that one
+// is kept; asks the browser to keep the player's character safe once the game is installed; and answers three
+// questions for Settings: can it be installed here and how, is it installed, does it play without a connection.
+
+// How this browser lets the game be installed.
+//   'installed'  this is the installed game
+//   'prompt'     the browser has offered: one press and its own question
+//   'share'      an iPhone or iPad: Share, then Add to Home Screen. There is no other way there.
+//   null         not here, or not yet
+function installWay({ site, standalone, offered, userAgent = '', platform = '', touchPoints = 0 }) {
+  if (!site) return null;
+  if (standalone) return 'installed';
+  if (offered) return 'prompt';
+  // an iPad says it is a Mac; a Mac has no touch screen
+  const apple = /iPhone|iPad|iPod/.test(userAgent) || (platform === 'MacIntel' && touchPoints > 1);
+  return apple ? 'share' : null;
+}
+
+// Does it play with no connection: only when the page, the 3D library and the player's own figure are all kept.
+//   'yes' | 'not yet' (a worker is there but something is still to be kept) | 'no' (no worker)
+function playsOffline({ worker, kept = [], needs = [] }) {
+  if (!worker) return 'no';
+  return needs.every((path) => kept.includes(path)) ? 'yes' : 'not yet';
+}
+
+const idle = Object.freeze({ site: false, state: () => ({ site: false, way: null, offline: 'no' }), refresh: () => Promise.resolve(), install: () => Promise.resolve(false) });
+
+// figures: which file each supplied figure is fetched from, by id ({ W1: 'woman.b64.txt', ... })
+// figure:  the id of the figure this player is using just now
+function createWebApp({ win = typeof window === 'undefined' ? null : window, figures = {}, figure = () => null, library = 'three.min.js' } = {}) {
+  if (!win || !win.document) return idle;
+  const doc = win.document, nav = win.navigator || {};
+  if (!doc.querySelector('link[rel="manifest"]')) return idle;
+  let framed = true;
+  try { framed = win.self !== win.top; } catch (error) { framed = true; }
+  const mode = (name) => { try { return !!win.matchMedia && win.matchMedia(`(display-mode: ${name})`).matches; } catch (error) { return false; } };
+  // as it was when the page opened: a browser window made full screen afterwards is still a browser window
+  const standalone = nav.standalone === true || mode('standalone') || mode('fullscreen') || mode('minimal-ui') || mode('window-controls-overlay');
+  const local = /^(localhost|127\.0\.0\.1|\[::1\])$/.test(win.location.hostname);
+  const can = !framed && 'serviceWorker' in nav && (win.location.protocol === 'https:' || local);
+
+  let registration = null;
+  let kept = [];
+  const worker = () => (registration && (registration.active || registration.waiting || registration.installing)) || null;
+  const tell = (message, transfer) => { const w = registration && registration.active; if (w) w.postMessage(message, transfer || []); };
+
+  // what the worker has: asked, never assumed
+  function refresh() {
+    const w = registration && registration.active;
+    if (!w || typeof win.MessageChannel !== 'function') return Promise.resolve();
+    return new Promise((resolve) => {
+      const channel = new win.MessageChannel();
+      const timer = win.setTimeout(resolve, 3000);
+      channel.port1.onmessage = (event) => { win.clearTimeout(timer); if (event.data && Array.isArray(event.data.paths)) kept = event.data.paths; resolve(); };
+      w.postMessage({ type: 'kept' }, [channel.port2]);
+    });
+  }
+
+  // Each figure the page has fetched is 10 MB or more and was fetched before the worker could see it (the page's
+  // first script begins it). Once it has arrived the worker is told to keep it; the browser still has it, so
+  // nothing is fetched twice. A figure never used is never kept.
+  const told = new Set();
+  function keepFigure(id) {
+    const path = figures[id];
+    const arriving = win.__PCW_FIGURE_BYTES && win.__PCW_FIGURE_BYTES[id];
+    if (!path || !arriving || told.has(id)) return;
+    told.add(id);
+    Promise.resolve(arriving).then(() => { tell({ type: 'keep', paths: [path] }); }).catch(() => { told.delete(id); });
+  }
+  function watchFigures() {
+    for (const id of Object.keys(win.__PCW_FIGURE_BYTES || {})) keepFigure(id);
+    const load = win.__PCW_LOAD_FIGURE;
+    if (typeof load !== 'function' || load.__kept) return;
+    const wrapped = function (id) { const result = load(id); keepFigure(id); return result; };
+    wrapped.__kept = true;
+    win.__PCW_LOAD_FIGURE = wrapped;
+  }
+
+  // An installed game is where a player's character lives. Ask the browser not to clear it away when the
+  // device runs short of room. Asked only of an installed game: some browsers put a question to the player.
+  function keepSaves() {
+    try { if (nav.storage && typeof nav.storage.persist === 'function') nav.storage.persist().catch(() => {}); } catch (error) { /* not offered here */ }
+  }
+
+  if (can) {
+    const begin = () => {
+      nav.serviceWorker.register('sw.js').then((made) => { registration = made; return nav.serviceWorker.ready; }).then((ready) => {
+        registration = ready;
+        watchFigures();
+        return refresh();
+      }).catch(() => { /* no worker: the game plays as it always has, from the network */ });
+    };
+    if (doc.readyState === 'complete') begin(); else win.addEventListener('load', begin, { once: true });
+  }
+  if (standalone) keepSaves();
+  win.addEventListener('appinstalled', keepSaves);
+
+  return {
+    site: true,
+    state() {
+      const way = installWay({ site: true, standalone: standalone || win.__PCW_INSTALLED === true, offered: !!win.__PCW_INSTALL, userAgent: nav.userAgent, platform: nav.platform, touchPoints: nav.maxTouchPoints });
+      const needs = ['', library].concat(figures[figure()] ? [figures[figure()]] : []);
+      return { site: true, way, offline: playsOffline({ worker: !!worker(), kept, needs }) };
+    },
+    refresh,
+    // The browser's own question. True if the player said yes.
+    async install() {
+      const offer = win.__PCW_INSTALL;
+      if (!offer || typeof offer.prompt !== 'function') return false;
+      win.__PCW_INSTALL = null;        // an offer can be used once
+      try { offer.prompt(); const choice = await offer.userChoice; return !!choice && choice.outcome === 'accepted'; } catch (error) { return false; }
+    },
+  };
+}
+
+return { installWay, playsOffline, createWebApp };
+})();
+
 // ---- client/main.js ----
 __modules["client/main.js"] = (function () {
 // Client entry point: input, camera, prediction, drawing and sound.
@@ -20105,6 +20304,7 @@ const { createSkills } = __modules["client/skills.js"];
 const { buildCatalog } = __modules["client/skill-catalog.js"];
 const { createFitter } = __modules["client/fit.js"];
 const { QUALITY_RULES } = __modules["client/monitor.js"];
+const { createWebApp } = __modules["client/webapp.js"];
 const { cowrieText, cowrieAmount, POUNDS_PER_COWRIE, COWRIE } = __modules["sim/ledger.js"];
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
@@ -20379,6 +20579,9 @@ function start(carried) {
   }, { ready: () => !!sampler }) });
   if (window.claude && typeof window.claude.use === 'function') window.claude.use('sample').then((fn) => { sampler = fn || null; }).catch(() => {});
 
+  // On the website the game can be put on a device and kept there; anywhere else this offers nothing.
+  const webapp = createWebApp({ figures: { W1: 'woman.b64.txt', M1: 'man.b64.txt' }, figure: () => (prefs.look && prefs.look.figure === 'M1' ? 'M1' : 'W1') });
+
   const settings = {
     language: () => (view ? view.self.lang : 'en'),
     translate: () => prefs.translate,
@@ -20398,6 +20601,7 @@ function start(carried) {
     restart: () => { clearSave(); playing = false; ui.close(); showStart(true); },
     closed: () => { if (playing) { refreshView(); prompt = findPrompt(); } },
     settings,
+    webapp,
     link: () => (link ? link.status() : { kind: 'none', peers: 0, failed: false }),
     room: () => (room ? `${room.name}` : null),
     sound: () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); if (prefs.sound) audio.start(); writeStored(PREFS_KEY, prefs); return prefs.sound; },
@@ -21678,3 +21882,5 @@ if (typeof THREE === 'undefined') {
 return {  };
 })();
 </script>
+</body>
+</html>

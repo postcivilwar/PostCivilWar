@@ -1,0 +1,42 @@
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>PostCivilWar</title>
+<meta name="description" content="15 January 1970. The Civil War has just ended. You arrive at Atani motor park with nothing but £20. Find work. Buy a plot. Build the first walls. Start again.">
+<meta name="theme-color" content="#000000">
+<!-- On a device: its own icon, its own name, the whole screen, and the files kept there (manifest.webmanifest, sw.js). -->
+<link rel="manifest" href="manifest.webmanifest" crossorigin="use-credentials">
+<link rel="icon" href="favicon.svg" type="image/svg+xml">
+<link rel="icon" href="favicon-48.png" type="image/png" sizes="48x48">
+<link rel="apple-touch-icon" href="apple-touch-icon.png">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="PostCivilWar">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="application-name" content="PostCivilWar">
+<!-- What goes with the address when it is sent to someone. -->
+<meta property="og:type" content="website">
+<meta property="og:site_name" content="PostCivilWar">
+<meta property="og:title" content="PostCivilWar">
+<meta property="og:description" content="15 January 1970. The Civil War has just ended. You arrive at Atani motor park with nothing but £20. Find work. Buy a plot. Build the first walls. Start again.">
+<meta property="og:url" content="https://postcivilwar.com/">
+<meta property="og:image" content="https://postcivilwar.com/share.png">
+<meta property="og:image:width" content="1200">
+<meta property="og:image:height" content="630">
+<meta property="og:image:alt" content="A rising sun over level ground, and the name POST CIVIL WAR">
+<meta name="twitter:card" content="summary_large_image">
+<style>
+/* The same ground the game has always been tested on (the document the build wraps the local copy in), black
+   before anything is drawn, and no pulling the page down to reload it in the middle of a game. */
+:root{color-scheme:light;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}
+html{background:#000;overscroll-behavior:none}
+body{margin:0;font:14px system-ui,sans-serif;overscroll-behavior:none}
+img{max-width:100%}
+[hidden]{display:none!important}
+</style>
+<script>
+/* A browser's offer to put the game on the device comes when the browser chooses, often before the game's own
+   script has been read. It is kept here for the game to use (src/client/webapp.js), and so is the news that
+   it has been done. The browser's own way of offering is left alone. */
+window.addEventListener('beforeinstallprompt', function (e) { window.__PCW_INSTALL = e; });
+window.addEventListener('appinstalled', function () { window.__PCW_INSTALL = null; window.__PCW_INSTALLED = true; });
+</script>

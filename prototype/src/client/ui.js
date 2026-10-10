@@ -521,6 +521,32 @@ export function createUI(app) {
     root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
     root.append(h('p', { class: 'small' }, 'Auto lowers detail only when frames are slow for several seconds on end, and raises it again when there is room. A single hitch never changes it.'));
 
+    // On the website only: the game on this device. Each line is there only when it is true.
+    if (app.webapp && app.webapp.site) {
+      const WAYS = { yes: 'Yes', 'not yet': 'Not yet', no: 'No' };
+      const cells = h('div', { class: 'rows', id: 'ondevice' });
+      const note = h('p', { class: 'small' });
+      const draw = () => {
+        const now = app.webapp.state();
+        const rows = [];
+        if (now.way === 'installed') rows.push(line('Installed on this device', 'Yes'));
+        // the browser has offered: one press, and the browser asks its own question
+        if (now.way === 'prompt') rows.push(h('div', { class: 'setrow' }, h('span', null, 'Install on this device'), h('button', { class: 'btn primary', type: 'button', id: 'install-app', onclick: () => { app.webapp.install().then(() => { if (cells.isConnected) draw(); }); } }, 'Install')));
+        rows.push(line('Plays without a connection', WAYS[now.offline]));
+        cells.replaceChildren(...rows);
+        const said = [];
+        if (now.way === 'prompt') said.push('Installed, the game opens from its own icon, on the whole screen, without the browser round it.');
+        if (now.way === 'share') said.push('To install: tap Share in the browser, then Add to Home Screen. The game then opens from its own icon, on the whole screen. Installed, it keeps its own characters: one made here in the browser stays here.');
+        said.push(now.offline === 'no'
+          ? 'This browser does not keep the game, so it needs a connection each time it is opened.'
+          : 'Once it has loaded, the game is kept on this device and opens with no connection. With a connection it is always the newest.');
+        note.textContent = said.join(' ');
+      };
+      draw();
+      root.append(section('This device'), cells, note);
+      app.webapp.refresh().then(() => { if (cells.isConnected) draw(); });
+    }
+
     root.append(section('Controls'));
     root.append(h('div', { class: 'rows' }, [
       ['Walk', 'W A S D or arrow keys · the stick'], ['Run', 'Hold Shift · the Run button switches it on and off'], ['Look around', 'Drag on the world'], ['Zoom', 'Mouse wheel or pinch'],

@@ -45,6 +45,7 @@ here should be pointed at the live network before that is resolved with counsel.
 
 ```
 prototype/              (exists) Atani slice: simulation, browser client, tests
+site/                   (exists) the website as served: written by `node build.mjs --site`, never edited by hand
 services/
   ledger/               (exists) ledger and settlement schema, contract tests
 docs/
@@ -70,6 +71,11 @@ docs/                   further design documents, one per system, written with t
 ## Running things
 
 Play the prototype: open `prototype/dist/local.html` in a browser.
+
+The website (postcivilwar.com) is the `site/` folder, served as it is. It is the
+same game as a page that can be installed on a phone or a computer and opens
+with no connection. To bring it up to date: `node build.mjs --site` in
+`prototype/`, then commit `site/`. What is pushed to `main` is live.
 
 Simulation tests (Node 18 or later, no packages):
 

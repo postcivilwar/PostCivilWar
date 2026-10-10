@@ -1,0 +1,22 @@
+{
+  "id": "./",
+  "name": "PostCivilWar",
+  "short_name": "PostCivilWar",
+  "description": "15 January 1970. The Civil War has just ended. You arrive at Atani motor park with nothing but £20. Find work. Buy a plot. Build the first walls. Start again.",
+  "lang": "en",
+  "dir": "ltr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "display_override": ["fullscreen", "standalone"],
+  "orientation": "any",
+  "background_color": "#000000",
+  "theme_color": "#000000",
+  "categories": ["games"],
+  "icons": [
+    { "src": "icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "icon-maskable-192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

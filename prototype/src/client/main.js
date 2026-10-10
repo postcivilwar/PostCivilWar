@@ -46,6 +46,7 @@ import { createSkills } from './skills.js';
 import { buildCatalog } from './skill-catalog.js';
 import { createFitter } from './fit.js';
 import { QUALITY_RULES } from './monitor.js';
+import { createWebApp } from './webapp.js';
 import { cowrieText, cowrieAmount, POUNDS_PER_COWRIE, COWRIE } from '../sim/ledger.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
@@ -320,6 +321,9 @@ function start(carried) {
   }, { ready: () => !!sampler }) });
   if (window.claude && typeof window.claude.use === 'function') window.claude.use('sample').then((fn) => { sampler = fn || null; }).catch(() => {});
 
+  // On the website the game can be put on a device and kept there; anywhere else this offers nothing.
+  const webapp = createWebApp({ figures: { W1: 'woman.b64.txt', M1: 'man.b64.txt' }, figure: () => (prefs.look && prefs.look.figure === 'M1' ? 'M1' : 'W1') });
+
   const settings = {
     language: () => (view ? view.self.lang : 'en'),
     translate: () => prefs.translate,
@@ -339,6 +343,7 @@ function start(carried) {
     restart: () => { clearSave(); playing = false; ui.close(); showStart(true); },
     closed: () => { if (playing) { refreshView(); prompt = findPrompt(); } },
     settings,
+    webapp,
     link: () => (link ? link.status() : { kind: 'none', peers: 0, failed: false }),
     room: () => (room ? `${room.name}` : null),
     sound: () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); if (prefs.sound) audio.start(); writeStored(PREFS_KEY, prefs); return prefs.sound; },
