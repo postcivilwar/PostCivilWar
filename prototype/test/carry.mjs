@@ -36,8 +36,10 @@ const IPHONE = 'Mozilla/5.0 (iPhone; CPU iPhone OS 18_0 like Mac OS X) AppleWebK
 
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 // One place a game can be: a browser with storage of its own. `clipboard`: whether it lets a page read what was copied.
-async function place(name, { clipboard }) {
+async function place(name, { clipboard, installed = false }) {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, userAgent: IPHONE, permissions: clipboard ? ['clipboard-read', 'clipboard-write'] : [] });
+  // an iPhone says of a page opened from the home screen that it stands alone
+  if (installed) await context.addInitScript(() => { Object.defineProperty(Navigator.prototype, 'standalone', { get: () => true }); });
   const page = await context.newPage();
   page.setDefaultTimeout(120000);
   page.on('console', (m) => { if (m.type() === 'error') bad(`${name}: console: ${m.text()}`); });
@@ -90,11 +92,12 @@ await safari.context.close();
 
 // ---- 2. the installed game: storage of its own, no character; the code is pasted ----
 say('2. in the installed game');
-const app = await place('installed', { clipboard: true });
+const app = await place('installed', { clipboard: true, installed: true });
 await app.page.goto(`${origin}/#nointro`, { timeout: 300000 });
 await app.ready();
 s = await start(app.page);
 if (!s.bring || s.resume) bad(`the installed game, which has no character, does not offer to bring one (${JSON.stringify(s)})`);
+if (s.install) bad('the installed game tells the player to install it');
 await app.page.tap('#bring-open');
 await app.page.evaluate(() => document.querySelector('#bring-panel').scrollIntoView({ block: 'center' }));
 await app.page.screenshot({ path: resolve(out, 'carry-03-bring.png') });
@@ -111,7 +114,7 @@ s = await start(app.page);
 say(`   after pasting: ${JSON.stringify({ resume: s.resume, label: s.label, bring: s.bring })}`);
 if (!s.resume || s.label !== 'Continue as Adaeze Okeke' || s.bring) bad(`the character did not arrive: ${JSON.stringify(s)}`);
 if (await app.page.evaluate(() => !!document.querySelector('#intro'))) bad('the opening played a second time after the character arrived');
-await app.page.evaluate(() => document.querySelector('#continue').scrollIntoView({ block: 'center' }));
+await app.page.evaluate(() => document.querySelector('#continue').scrollIntoView({ block: 'end' }));
 await app.page.screenshot({ path: resolve(out, 'carry-04-arrived.png') });
 await app.page.tap('#continue');
 await app.inTown();
