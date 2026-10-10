@@ -296,7 +296,17 @@ test('what is served is one build: every file the worker in site/ lists is there
     const supplied = readFileSync(here(`assets/characters/figures/animated/${file}`));
     assert.ok(Buffer.from(readFileSync(new URL(text, served), 'latin1'), 'base64').equals(supplied), `${text} is ${file}, unchanged`);
   }
-  // and nothing else is lying about in the folder
-  const expected = new Set([...Object.keys(table), 'index.html', 'sw.js', 'THREE-LICENSE.txt', 'share.png']);
-  assert.deepEqual(readdirSync(served).filter((name) => !expected.has(name)), []);
+  // the wristwatch is the owner's model, byte for byte; it is beside the page and is not one of the files the worker keeps
+  assert.ok(readFileSync(new URL('assets/watch.glb', served)).equals(readFileSync(here('assets/market/watch.glb'))), 'the watch on the site is the supplied model, unchanged');
+  assert.equal(table['assets/watch.glb'], undefined);
+  assert.ok(table['assets/watch-turn.webp'] && table['assets/watch-poster.webp']);
+  // the list of songs is always asked for afresh, and every song it names is there
+  const songs = JSON.parse(readFileSync(new URL('music/library.json', served), 'utf8')).tracks;
+  assert.ok(Array.isArray(songs));
+  for (const song of songs) assert.ok(existsSync(new URL(`music/${song.file}`, served)), `music/${song.file}`);
+  assert.ok(Object.keys(table).every((name) => !name.startsWith('music/')));
+  // and nothing else is lying about in the folder, or in the two folders inside it
+  const expected = new Set([...Object.keys(table), 'index.html', 'sw.js', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb', 'music/library.json', ...songs.flatMap((song) => [song.file, song.cover].filter(Boolean).map((name) => `music/${name}`))]);
+  const there = readdirSync(served, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? readdirSync(new URL(`${entry.name}/`, served)).map((name) => `${entry.name}/${name}`) : [entry.name]));
+  assert.deepEqual(there.filter((name) => !expected.has(name)), []);
 });

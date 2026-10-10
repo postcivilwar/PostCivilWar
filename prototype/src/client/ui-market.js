@@ -41,8 +41,11 @@ export function createMarketUI(kit) {
   function dropViewer() { if (m.viewer) { m.viewer.view.dispose(); m.viewer = null; } }
   const turntable = (model, size, still) => { const t = createTurntable(model, { size, still }); m.tables.push(t); return t.el; };
 
+  // a server that has answered, signed in or not
+  const up = () => here() && ['in', 'out'].includes(online().status().state);
+
   async function refresh(force) {
-    if (!here() || m.loading) return;
+    if (!up() || m.loading) return;
     if (m.loaded && !force) return;
     m.loading = true;
     const jobs = [market().list(m.query)];
@@ -74,14 +77,14 @@ export function createMarketUI(kit) {
   }
 
   function home(root, view, sub, go) {
-    if (here() && !m.loaded) refresh();
+    if (up() && !m.loaded) refresh();
     root.append(h('div', { class: 'propertyhead' },
       h('div', null, h('div', { class: 'eyebrow' }, 'Property'), h('div', { class: 'big' }, 'What you own')),
       signedIn() ? h('div', { class: 'who' }, h('span', { class: 'eyebrow' }, 'Account'), h('b', null, online().account.username)) : null));
 
     root.append(section('Assets'));
     if (!here()) root.append(h('p', { class: 'small' }, 'Things are bought and sold in a market that every player shares. It is on postcivilwar.com; this copy of the game has no connection to it.'));
-    else if (online().status().state === 'down') root.append(h('p', { class: 'small' }, `The market cannot be reached just now. ${online().status().message || ''}`));
+    else if (!up()) root.append(h('p', { class: 'small' }, online().status().state === 'checking' ? 'Asking the server...' : `The market cannot be reached just now. ${online().status().message || ''}`));
     else if (!signedIn()) root.append(accountPrompt('What you buy belongs to your account, so that it is yours on any device. Make one, or log in, to own and to sell. Anyone may look at what is for sale.'));
     else if (m.mineError) root.append(h('div', { class: 'notice' }, m.mineError), h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: () => refresh(true) }, 'Try again')));
     else if (!m.mine) root.append(h('p', { class: 'small' }, 'Asking the market what is yours...'));
@@ -93,7 +96,7 @@ export function createMarketUI(kit) {
 
     const held = market() ? market().held() : { held: 0, holds: [] };
     if (held.held > 0) root.append(line('Set aside for your offers', tr(held.held)));
-    if (here() && online().status().state !== 'down') root.append(h('button', { class: 'hx primary wide', type: 'button', id: 'buy-asset', onclick: () => go({ market: true }) }, 'Buy asset'));
+    if (up()) root.append(h('button', { class: 'hx primary wide', type: 'button', id: 'buy-asset', onclick: () => go({ market: true }) }, 'Buy asset'));
 
     if (signedIn() && m.mine && m.mine.threads.length) {
       root.append(section('Conversations'));

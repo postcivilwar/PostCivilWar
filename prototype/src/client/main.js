@@ -397,7 +397,8 @@ function start(carried) {
   let dealListAt = -1e9;
   let fading = false;
   async function refreshDealMarkers() {
-    if (!online.available) return;
+    // only of a server that has answered: one that cannot be reached, or has no market, is not asked again and again
+    if (!online.available || !['in', 'out'].includes(online.status().state)) return;
     dealListAt = clock;
     const answer = await market.all();
     if (!answer.ok) return;

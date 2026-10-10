@@ -14,7 +14,7 @@
 //
 // The figures are 10 MB and 13 MB. Only one that a player has actually used is kept (the page says which).
 
-const FILES = {"apple-touch-icon.png":"c151758111b1cb33","favicon-48.png":"6cab812182670522","favicon.svg":"d3ea2b16fb56f1b9","icon-192.png":"b1d03eb66147d391","icon-512.png":"9498ec46b5ea48a1","icon-maskable-192.png":"7ce6c304a461239e","icon-maskable-512.png":"bfc4a75988ec1d97","man.b64.txt":"b0a3002292b4ff8d","manifest.webmanifest":"b73f5af02f2141ed","three.min.js":"9274bbcec8d96168","woman.b64.txt":"740fbe53ae5855bc"};        // path beside the page -> fingerprint of the file's contents
+const FILES = {"apple-touch-icon.png":"c151758111b1cb33","assets/watch-poster.webp":"7aa600977f930dc5","assets/watch-turn.webp":"50b9100b2811b5a5","favicon-48.png":"6cab812182670522","favicon.svg":"d3ea2b16fb56f1b9","icon-192.png":"b1d03eb66147d391","icon-512.png":"9498ec46b5ea48a1","icon-maskable-192.png":"7ce6c304a461239e","icon-maskable-512.png":"bfc4a75988ec1d97","man.b64.txt":"b0a3002292b4ff8d","manifest.webmanifest":"b73f5af02f2141ed","three.min.js":"9274bbcec8d96168","woman.b64.txt":"740fbe53ae5855bc"};        // path beside the page -> fingerprint of the file's contents
 const FIRST = ["","three.min.js","manifest.webmanifest","favicon.svg","icon-192.png"];        // kept as soon as this is installed: the page and the small files
 const PAGE = '';                      // the page's own path: the folder this file is in
 const CACHE = 'pcw-files-v1';

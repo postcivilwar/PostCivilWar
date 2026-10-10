@@ -59,7 +59,8 @@ page.setDefaultTimeout(120000);
 let offline = false;
 page.on('console', (m) => { if (m.type() === 'error') bad(`console${offline ? ' (offline)' : ''}: ${m.text()}`); });
 page.on('pageerror', (e) => bad(`page error: ${e.message}`));
-page.on('requestfailed', (r) => bad(`request failed${offline ? ' (offline)' : ''}: ${r.url()}`));
+// (a question to the game's server that the page was asking as it was navigated away from is not a failure of anything)
+page.on('requestfailed', (r) => { if (/\/api\/game$/.test(r.url()) && r.failure() && r.failure().errorText === 'net::ERR_ABORTED') return; bad(`request failed${offline ? ' (offline)' : ''}: ${r.url()}`); });
 
 // the game's own word that the town is made and can be entered (the button exists before the game has started)
 const townReady = () => page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
