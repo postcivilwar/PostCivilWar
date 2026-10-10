@@ -1,0 +1,872 @@
+<title>PostCivilWar</title>
+<style>
+/* The edges of the screen. A phone's notch and home bar are kept clear of (--st, --sb) when the game has the
+   whole screen; inside an app that already shows it below its own bar (a frame), there is nothing to keep
+   clear and the game's top band sits right at the top. The page's own padding is taken over here. */
+:root { --st: env(safe-area-inset-top, 0px); --sb: env(safe-area-inset-bottom, 0px); padding: 0 !important; }
+html.framed { --st: 0px; --sb: 0px; }
+
+/* PostCivilWar. One look throughout: black, white and the greys between. Colour is kept for the
+   world itself. The only colour the interface owns is the sun in the mark, and red where something
+   is wrong. Text is set in the device's own face; the game's arcade face is for the name and for
+   the few moments that should feel like a game. */
+@font-face { font-family: "PCW Arcade"; src: url(data:font/ttf;base64,@@PCW_FONT@@) format("truetype"); font-display: block; }
+:root {
+  color-scheme: dark;
+  --bg: #060607;
+  --panel: #0d0d0e;
+  --panel-2: #161617;
+  --raise: rgba(255, 255, 255, 0.07);
+  --raise-2: rgba(255, 255, 255, 0.12);
+  --line: rgba(255, 255, 255, 0.13);
+  --line-strong: rgba(255, 255, 255, 0.3);
+  --text: #f4f4f2;
+  --muted: #9c9ca1;
+  --dim: #6c6c72;
+  --white: #ffffff;
+  --ink: #0a0a0a;
+  --danger: #cf4436;
+  --sun: #e9c46a;             /* the sun in the mark, and nothing else */
+  --glass: rgba(6, 6, 7, 0.74);
+  --paper: #f4f4f2;
+  --paper-ink: #0e0e0f;
+  --paper-rule: #b9b9b6;
+  --font-ui: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Inter", "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  --font-display: "PCW Arcade", ui-monospace, "Courier New", monospace;
+  --font-mono: ui-monospace, "SF Mono", "Roboto Mono", Menlo, Consolas, monospace;
+}
+[hidden] { display: none !important; }
+*, *::before, *::after { box-sizing: border-box; }
+html, body { height: 100%; }
+body { background: var(--bg); color: var(--text); font-family: var(--font-ui); font-size: 15px; line-height: 1.45; overflow: hidden; -webkit-font-smoothing: antialiased; }
+button, input, select, textarea { font: inherit; color: inherit; }
+#game { position: relative; height: 100%; overflow: hidden; background: var(--bg); user-select: none; -webkit-user-select: none; touch-action: none; }
+#view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; outline: none; }
+/* a blow from a vehicle: the picture is knocked for a third of a second */
+#view.jolt { animation: jolt 0.34s cubic-bezier(.3,.7,.3,1); }
+@keyframes jolt { 0% { transform: translate(0,0) rotate(0); } 18% { transform: translate(-9px,6px) rotate(-0.7deg); } 42% { transform: translate(7px,-4px) rotate(0.5deg); } 68% { transform: translate(-3px,2px) rotate(-0.2deg); } 100% { transform: none; } }
+
+/* ---------- shared pieces ---------- */
+.eyebrow { font-weight: 600; letter-spacing: 0.12em; text-transform: uppercase; font-size: 11px; color: var(--muted); }
+.mono { font-family: var(--font-mono); font-variant-numeric: tabular-nums; }
+.btn { appearance: none; border: 0; border-radius: 10px; background: var(--raise-2); color: var(--text); font-weight: 600; font-size: 15px; letter-spacing: 0.01em; padding: 11px 16px; cursor: pointer; text-align: center; min-height: 44px; }
+.btn:hover { background: rgba(255, 255, 255, 0.18); }
+.btn:focus-visible, .field:focus-visible, .swatch:focus-visible, .tab:focus-visible, .rowbtn:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+.btn.primary { background: var(--white); color: var(--ink); }
+.btn.primary:hover { background: #e4e4e2; }
+.btn.quiet { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
+.btn.danger { background: var(--danger); color: #fff; }
+.btn[disabled] { opacity: 0.4; cursor: not-allowed; }
+.field { background: var(--raise); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; min-width: 0; width: 100%; user-select: text; -webkit-user-select: text; font-size: 16px; }
+.notice { border-left: 2px solid var(--danger); background: rgba(207, 68, 54, 0.14); padding: 9px 12px; border-radius: 0 8px 8px 0; }
+.notice.good { border-color: var(--white); background: var(--raise); }
+.notice.pinned { position: sticky; top: -14px; z-index: 2; background: #2a1614; }
+.notice.pinned.good { background: #1d1d1f; }
+.keycap { display: inline-block; min-width: 22px; padding: 0 6px; border: 1px solid var(--line-strong); border-radius: 5px; font-family: var(--font-mono); font-size: 12px; color: var(--text); text-align: center; }
+.arcade { font-family: var(--font-display); text-transform: uppercase; letter-spacing: 0.02em; }
+
+/* ---------- the opening: the mark, the story, the question ---------- */
+#intro { position: absolute; inset: 0; z-index: 50; background: #000; color: var(--white); overflow: hidden; }
+#intro > section { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s; padding: 20px; padding-left: calc(20px + env(safe-area-inset-left, 0px)); padding-right: calc(20px + env(safe-area-inset-right, 0px)); }
+#intro[data-stage="splash"] > .splash, #intro[data-stage="slides"] > .slides, #intro[data-stage="choice"] > .choice { opacity: 1; visibility: visible; transition: opacity 0.35s ease; }
+#intro.leaving { opacity: 0; transition: opacity 0.45s ease; pointer-events: none; }
+
+/* Sound, top left through the whole opening: one icon that says which way it is set. */
+#intro-mute { position: absolute; z-index: 4; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(8px + var(--st)); width: 44px; height: 44px; padding: 0; appearance: none; border: 0; background: none; color: var(--white); cursor: pointer; display: grid; place-items: center; opacity: 0.82; transition: opacity 0.15s, transform 0.12s; -webkit-tap-highlight-color: transparent; }
+#intro-mute:active { transform: scale(0.9); }
+#intro-mute:focus-visible, #intro-skip:focus-visible, #intro-play:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
+#intro-mute svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
+#intro-mute .off, #intro-mute[aria-pressed="false"] .on { display: none; }
+#intro-mute[aria-pressed="false"] .off { display: block; }
+#intro-mute[aria-pressed="false"] { opacity: 0.55; }
+
+/* The splash is one composition: mark, name, a quiet line under it, and the way in. It sits a little above
+   the middle, where the eye puts the middle, and every size in it comes from the screen it is on. */
+.splash { background: radial-gradient(90% 60% at 50% 40%, #131314 0, #050505 62%, #000 100%); }
+.lockup { --title: min(calc((100vw - 44px) / 12.9), 12.5vh, 62px); display: flex; flex-direction: column; align-items: center; transform: translateY(-2.5vh); max-width: 100%; }
+.mark { height: auto; overflow: visible; }
+.mark .disc { fill: var(--sun); }
+.mark .ray, .mark .ground { fill: var(--white); }
+.splash .mark { width: calc(var(--title) * 4.4); max-width: 60vw; margin-bottom: calc(var(--title) * 0.95); }
+.splash .mark .disc { animation: sun-rise 1.5s cubic-bezier(0.2, 0.7, 0.2, 1) 0.35s both; }
+.splash .mark .ray { transform-origin: 120px 100px; animation: ray-out 0.5s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(1.25s + var(--i) * 0.07s); }
+.splash .mark .ground { transform-origin: 120px 100px; animation: ground-in 0.6s ease-out both; animation-delay: calc(0.05s + var(--i) * 0.12s); }
+@keyframes sun-rise { from { transform: translateY(46px); } to { transform: none; } }
+@keyframes ray-out { from { transform: scale(0.55); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes ground-in { from { transform: scaleX(0); opacity: 0; } to { transform: none; opacity: 1; } }
+/* The name is always one line. Its size is worked out from the width it has: the three words are 12.9 times as wide as the letters are tall. */
+.wordmark { font-family: var(--font-display); font-size: var(--title); line-height: 1; margin: 0; font-weight: 400; white-space: nowrap; }
+.wordmark i { font-style: normal; display: inline-block; white-space: pre; animation: letter-in 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(1.9s + var(--i) * 0.07s); }
+@keyframes letter-in { from { transform: translateY(0.55em); opacity: 0; } to { transform: none; opacity: 1; } }
+.splash .domain { margin-top: calc(var(--title) * 0.62); font-size: clamp(9.5px, calc(var(--title) * 0.26), 12px); font-weight: 500; letter-spacing: 0.34em; text-indent: 0.34em; text-transform: uppercase; color: #5e5e63; animation: fade-in 0.6s ease 3.1s both; }
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+/* The way in: first a row of marks that light one after another while the game gets ready, then PLAY in their place. */
+.gate { position: relative; margin-top: clamp(26px, 6.5vh, 54px); width: min(240px, 62vw); height: 50px; display: grid; place-items: center; }
+.load { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 9px; transition: opacity 0.3s ease; animation: fade-in 0.5s ease 0.4s both; }
+.load .ticks { display: flex; justify-content: space-between; height: 9px; }
+.load .ticks i { width: 1.5px; height: 100%; background: var(--white); opacity: 0.16; animation: tick 0.18s ease-out both; animation-delay: calc(0.35s + var(--i) * 0.145s); }
+@keyframes tick { from { opacity: 0.16; transform: scaleY(0.55); } 55% { opacity: 1; transform: scaleY(1.25); } to { opacity: 0.92; transform: none; } }
+.load span { display: flex; justify-content: center; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.3em; color: #6c6c71; text-transform: uppercase; }
+#intro-play { position: absolute; appearance: none; border: 0; background: var(--white); color: var(--ink); font-family: var(--font-display); font-size: 17px; line-height: 1; letter-spacing: 0.14em; text-indent: 0.14em; padding: 16px 0 15px; width: 100%; cursor: pointer; opacity: 0; transform: translateY(6px); pointer-events: none; transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.12s; -webkit-tap-highlight-color: transparent; }
+#intro.ready .load { opacity: 0; }
+#intro.ready #intro-play { opacity: 1; transform: none; pointer-events: auto; }
+#intro.ready #intro-play:active { transform: translateY(1px) scale(0.985); background: #dcdcda; }
+@media (hover: hover) { #intro.ready #intro-play:hover { background: #e9e9e7; } }
+
+.slides { padding: 0 !important; background: #000; }
+.slides .bg { position: absolute; inset: -6%; background-size: cover; background-position: center; filter: blur(22px) brightness(0.42) grayscale(0.4); }
+.slides img { position: relative; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6); }
+.slides img.in { animation: slide-in 1s cubic-bezier(0.2, 0.6, 0.2, 1) both; }
+@keyframes slide-in { from { transform: scale(1.045); } to { transform: scale(1); } }
+.slides .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.slides .flash.go { animation: shutter-flash 0.22s ease-out both; }
+@keyframes shutter-flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
+/* Skip is a word and an arrow, with nothing behind them. */
+#intro-skip { position: absolute; z-index: 4; right: calc(6px + env(safe-area-inset-right, 0px)); top: calc(8px + var(--st)); height: 44px; padding: 0 10px 0 14px; appearance: none; border: 0; background: none; color: var(--white); font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: 0.26em; cursor: pointer; display: flex; align-items: center; gap: 2px; opacity: 0.86; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); transition: opacity 0.15s, transform 0.12s; -webkit-tap-highlight-color: transparent; }
+#intro-skip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); transition: transform 0.15s; }
+#intro-skip:active { transform: scale(0.94); }
+@media (hover: hover) { #intro-skip:hover { opacity: 1; } #intro-skip:hover svg { transform: translateX(3px); } #intro-mute:hover { opacity: 1; } }
+
+/* The question. Its two answers stand side by side, the same size, on any screen wide enough to hold them. */
+.choice { gap: clamp(16px, 4.2vh, 34px); background: radial-gradient(80% 60% at 50% 40%, #121213 0, #030303 70%, #000 100%); text-align: center; }
+.choice .mark { width: clamp(44px, 9vh, 64px); }
+.choice h2 { font-family: var(--font-display); font-weight: 400; font-size: clamp(15px, min(4.5vw, 6vh), 28px); line-height: 1.5; margin: 0; }
+.choice .options { display: grid; grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); align-items: stretch; gap: clamp(8px, 2vw, 16px); width: min(520px, 100%); }
+.choice .or { align-self: center; font-size: 10px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase; color: #5e5e63; }
+.pick { position: relative; appearance: none; border: 1.5px solid rgba(255, 255, 255, 0.55); background: transparent; color: var(--white); cursor: pointer; padding: clamp(12px, 2.6vh, 20px) 8px clamp(11px, 2.4vh, 18px); min-height: 56px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 7px; overflow: hidden; transition: background 0.22s ease, color 0.22s ease, border-color 0.22s ease, opacity 0.35s ease, transform 0.12s ease; -webkit-tap-highlight-color: transparent; }
+.pick b { font-family: var(--font-display); font-weight: 400; font-size: clamp(14px, min(4.3vw, 5vh), 24px); line-height: 1; }
+.pick span { font-size: clamp(10.5px, 2.7vw, 12.5px); color: var(--muted); letter-spacing: 0.01em; transition: color 0.22s ease; }
+.pick:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
+.pick:active { transform: scale(0.975); }
+@media (hover: hover) { .pick:not(:disabled):hover { border-color: var(--white); background: rgba(255, 255, 255, 0.07); } }
+/* chosen: it fills, a line runs along its foot while the sound plays, and the other steps back */
+.pick.chosen { background: var(--white); color: var(--ink); border-color: var(--white); }
+.pick.chosen span { color: #4a4a4e; }
+.pick.chosen::after { content: ""; position: absolute; left: 0; bottom: 0; height: 2px; width: 100%; background: var(--ink); transform-origin: 0 50%; animation: chosen-line 0.8s cubic-bezier(0.3, 0, 0.2, 1) both; }
+@keyframes chosen-line { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.pick.passed { opacity: 0.22; border-color: rgba(255, 255, 255, 0.3); }
+.pick:disabled { cursor: default; }
+.choice .small { color: #6c6c71; font-size: 11.5px; line-height: 1.45; max-width: 46ch; margin: 0; }
+@media (max-width: 300px) { .choice .options { grid-template-columns: 1fr; } .choice .or { display: none; } }
+
+/* ---------- start: make a character, or carry on ---------- */
+@media (max-height: 520px) and (orientation: landscape) { #start { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; grid-template-rows: auto 1fr !important; grid-template-areas: "stage lead" "stage panel" !important; } #start .stage { position: sticky !important; height: 100vh !important; height: 100dvh !important; min-height: 0 !important; } }
+#start { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 460px) 1fr; grid-template-rows: auto 1fr; grid-template-areas: "lead stage" "panel stage"; background: radial-gradient(ellipse at 68% 46%, #1b1c1f 0, #0b0b0c 62%, #060607 100%); overflow-y: auto; overscroll-behavior: contain; }
+#start .lead { grid-area: lead; padding: clamp(20px, 5vh, 48px) clamp(16px, 4vw, 44px) 0; display: flex; flex-direction: column; gap: 14px; }
+#start .intro { grid-area: panel; }
+#start .story { display: flex; flex-direction: column; gap: 6px; max-width: 46ch; }
+#start .story p { margin: 0; color: var(--text); line-height: 1.45; }
+#start .story p:first-child { color: var(--white); font-weight: 600; }
+/* the figure on its turntable: the switch above it, the name below it, neither over it */
+#start .stage { grid-area: stage; position: sticky; top: 0; height: 100vh; height: 100dvh; min-height: 360px; display: flex; flex-direction: column; align-items: center; padding: calc(14px + var(--st)) 0 calc(12px + var(--sb)); box-sizing: border-box; }
+#start .view-box { position: relative; flex: 1; width: 100%; min-height: 160px; }
+#stage-view { position: absolute; inset: 0; width: 100%; height: 100%; display: block; cursor: grab; outline: none; touch-action: pan-y; }
+#stage-view:active { cursor: grabbing; }
+.seg { display: flex; padding: 3px; gap: 3px; border-radius: 7px; background: rgba(255, 255, 255, 0.08); flex: none; }
+.seg button { min-width: 104px; min-height: 40px; border: 0; border-radius: 5px; background: transparent; color: rgba(255, 255, 255, 0.72); font: 600 14px/1 var(--font-ui, system-ui); letter-spacing: 0.02em; cursor: pointer; }
+.seg button[aria-pressed="true"] { background: var(--white); color: var(--ink); }
+.stage-nav { display: flex; align-items: center; justify-content: center; gap: 18px; flex: none; }
+.stage-nav .nav { width: 48px; height: 48px; border-radius: 24px; border: 1px solid rgba(255, 255, 255, 0.22); background: rgba(0, 0, 0, 0.25); color: var(--white); display: grid; place-items: center; cursor: pointer; }
+.stage-nav .nav svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.stage-nav .nav:disabled { opacity: 0.3; cursor: default; }
+.fig-label { min-width: 132px; text-align: center; display: flex; flex-direction: column; gap: 3px; }
+.fig-label b { font-size: 19px; font-weight: 700; letter-spacing: 0.01em; }
+.fig-label span { font-size: 12px; color: rgba(255, 255, 255, 0.55); font-variant-numeric: tabular-nums; }
+.dots { display: flex; justify-content: center; gap: 2px; flex: none; min-height: 22px; }
+.dots button { width: 22px; height: 22px; border: 0; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
+.dots button::after { content: ""; width: 6px; height: 6px; border-radius: 1px; background: rgba(255, 255, 255, 0.3); transition: width 0.2s, background 0.2s; }
+.dots button[aria-current="true"]::after { width: 18px; background: var(--white); }
+/* the colours and the animations: square-cornered blocks, like the switch above the figure */
+.parts { display: flex; flex-wrap: wrap; gap: 6px; margin: 8px 0 10px; }
+.part { display: inline-flex; align-items: center; gap: 7px; min-height: 38px; padding: 0 12px 0 9px; border-radius: 6px; border: 1px solid rgba(255, 255, 255, 0.16); background: rgba(255, 255, 255, 0.05); color: var(--text); font: 500 13px/1 var(--font-ui, system-ui); cursor: pointer; }
+.part i { width: 16px; height: 16px; border-radius: 3px; box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.35) inset; }
+.part[aria-pressed="true"] { border-color: var(--white); background: var(--white); color: var(--ink); }
+#anim-list .part { padding: 0 13px; }
+#part-swatches .swatch { width: 40px; height: 40px; border-radius: 6px; }
+#start .intro { padding: 20px clamp(16px, 4vw, 44px) clamp(24px, 5vh, 48px); display: flex; flex-direction: column; gap: 18px; }
+#start .brand { display: flex; align-items: center; gap: 14px; }
+#start .brand .mark { width: 64px; flex: none; }
+#start h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(17px, 2.1vw, 24px); line-height: 1.25; margin: 0; white-space: nowrap; }
+#start h2 { font-size: 22px; font-weight: 700; margin: 6px 0 0; letter-spacing: -0.01em; }
+/* the question comes after the story, just above the woman-or-man switch, set apart by a rule */
+#start .lead #start-title { margin: 8px 0 0; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
+#start p { margin: 0; max-width: 46ch; color: var(--text); }
+#start .small { color: var(--muted); font-size: 13px; }
+#sheet .small { color: var(--muted); font-size: 13px; margin: 0; }
+#sheet .vital { grid-template-columns: auto 1fr auto; }
+#sheet .banner strong { font-weight: 600; }
+.creator { display: flex; flex-direction: column; gap: 14px; border-top: 1px solid var(--line); padding-top: 16px; }
+.creator label { display: flex; flex-direction: column; gap: 6px; }
+.swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+.swatch { width: 36px; height: 36px; border-radius: 18px; border: 2px solid transparent; cursor: pointer; padding: 0; }
+.btn.choice { padding: 8px 14px; font-size: 14px; min-height: 40px; } .btn.choice[aria-pressed="true"] { background: var(--white); color: var(--ink); }
+.swatch[aria-pressed="true"] { border-color: var(--white); box-shadow: 0 0 0 2px var(--bg) inset; }
+.startrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+
+/* a health line, wherever one is shown */
+.vital { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
+.vital .bar { height: 5px; background: rgba(255, 255, 255, 0.18); border-radius: 3px; overflow: hidden; }
+.vital .bar i { display: block; height: 100%; width: 100%; background: var(--white); transition: width 0.18s, background 0.2s; }
+.vital.critical .bar i { background: var(--danger); }
+.vital .mono { font-size: 13px; min-width: 2.4em; text-align: right; }
+
+/* ---------- HUD ----------
+   Less of it, and more of the town. What is always there is small and sits in the corners: the time, the
+   purse. Everything else comes when it matters and goes again: a notice, a prompt, the health of someone
+   the player is fighting. Nothing has a white card behind it. */
+#hud { position: absolute; inset: 0; pointer-events: none; --under: 80px; }
+#hud > * { pointer-events: auto; }
+.meter { height: 2px; background: rgba(255, 255, 255, 0.22); margin-top: 6px; border-radius: 1px; overflow: hidden; }
+.meter i { display: block; height: 100%; background: var(--white); width: 80%; transition: width 0.3s; }
+.meter.low i { background: var(--danger); }
+/* The corners are the game's own: the arcade face, heavy black edges, a little colour. The purse is green as money is,
+   the life bar green to orange to red; the time is white. Nothing has a box behind it but the radar. */
+.hudr { position: absolute; top: calc(3px + var(--st)); right: calc(10px + env(safe-area-inset-right, 0px)); max-width: calc(100% - 100px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: none; text-align: right; }
+.hudr > * { pointer-events: auto; }
+/* Small, at the very top, two short lines: the purse (cowries, and what they are worth in 1970 pounds), then the
+   time, the day and where. The black edge is thinner at this size, so the letters stay sharp on a phone. */
+.arcade-edge, .purse .amount, .purse .pounds, .plate .clock { font-family: "PCW Arcade", var(--font-ui); -webkit-text-stroke: 0; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 -1.5px 0 #000, 0 1.5px 0 #000, -1.5px 0 0 #000, 1.5px 0 0 #000, 0 2px 3px rgba(0, 0, 0, 0.5); }
+.purse { line-height: 1; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
+.purse .amount { color: #7fe07a; font-size: 18px; letter-spacing: 0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+.purse .amount .unit { font-size: 9px; letter-spacing: 0.08em; color: #bff0b8; }
+.purse .pounds { color: #f3e2a6; font-size: 9px; letter-spacing: 0.08em; margin-top: 0; }
+.plate { margin-top: 1px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: 6px; row-gap: 1px; }
+.plate .clock { color: #fff; font-size: 12px; letter-spacing: 0.06em; line-height: 1; font-variant-numeric: tabular-nums; }
+.plate .eyebrow { font-size: 8px; letter-spacing: 0.12em; color: #f2f2f0; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; }
+.plate .where { display: flex; gap: 6px; align-items: baseline; justify-content: flex-end; white-space: nowrap; }
+.plate .room, .plate #lawchip { flex-basis: 100%; text-align: right; }
+/* the radar: round, a heavy black rim and a thin light one, the map turning under a fixed arrow */
+.radar { position: absolute; top: calc(4px + var(--st)); left: calc(4px + env(safe-area-inset-left, 0px)); width: 64px; height: 64px; padding: 0; border: 0; border-radius: 50%; background: #1e2a1c; box-shadow: 0 0 0 2px #000, 0 0 0 3px rgba(255, 255, 255, 0.6), 0 3px 8px rgba(0, 0, 0, 0.5); overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.radar canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
+@media (min-width: 900px) and (min-height: 600px) { .radar { width: 92px; height: 92px; } .purse .amount { font-size: 22px; } .purse .amount .unit, .purse .pounds { font-size: 10px; } .plate .clock { font-size: 14px; } .plate .eyebrow { font-size: 9px; } #hud .life { width: 120px; height: 10px; } #hud { --under: 108px; } }
+/* life: only while it matters, above the purse. Thick, edged in black: green, orange as it falls, red at a fifth */
+#vitals { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; pointer-events: none; margin-bottom: 2px; }
+#hud .vital { display: flex; gap: 5px; align-items: center; }
+#hud .life { width: 96px; height: 8px; background: #2a0e0c; box-shadow: 0 0 0 1.5px #000, 0 1px 3px rgba(0, 0, 0, 0.5); border-radius: 1px; overflow: hidden; position: relative; }
+#hud .life i { display: block; height: 100%; width: 100%; background: linear-gradient(#5fe36a, #2fa33a); transition: width 0.25s, background 0.25s; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28); }
+#hud .vital.hurt .life i { background: linear-gradient(#ffb547, #e67712); }
+#hud .vital.critical .life i { background: linear-gradient(#ff5a4a, #c4231a); animation: pulse 0.8s steps(2, start) infinite; }
+#hud .vital .num { font-family: "PCW Arcade", var(--font-ui); font-size: 8px; color: #fff; min-width: 2.2em; text-align: right; text-shadow: -1px -1px 0 #000, 1px -1px 0 #000, -1px 1px 0 #000, 1px 1px 0 #000; }
+#hud .vital.foe .who { font-size: 7.5px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 2px #000; max-width: 110px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#hud .life.thin { width: 64px; height: 4px; } #hud .life.thin i { background: linear-gradient(#e8e8e8, #a8a8ae); }
+#critical { color: #ff8d80; text-shadow: 0 1px 2px #000; font-size: 8px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
+@keyframes pulse { 50% { opacity: 0.45; } }
+#flash { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px 30px rgba(190, 30, 20, 0.85); opacity: 0; }
+#lawchip { display: inline-block; margin-top: 2px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 8px; padding: 1px 6px 2px; flex-basis: auto !important; border-radius: 5px; background: var(--danger); color: #fff; }
+#lawchip.suspicious, #lawchip.released { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); color: var(--text); }
+#lawchip.custody, #lawchip.arrested { background: var(--white); color: var(--ink); }
+#lawchip.pursuit { animation: pulse 0.7s steps(2, start) infinite; }
+
+/* Notices: near the top, in the middle, under whatever is in the corners. Dark glass, white words, no wider
+   than what they say. Never more than two at once on a phone. */
+#notices { position: absolute; top: calc(var(--under) + var(--st)); left: 50%; transform: translateX(-50%); width: min(330px, calc(100% - 24px)); display: flex; flex-direction: column; align-items: center; gap: 5px; pointer-events: none; }
+#hud #notices > * { pointer-events: none; }
+@keyframes slip-in { from { transform: translateY(-5px); opacity: 0; } to { transform: none; opacity: 1; } }
+.hint, .slip, .gov, .law, .alarm, .ringing { box-sizing: border-box; width: fit-content; max-width: 100%; background: rgba(0, 0, 0, 0.7); color: #fff; font-family: var(--font-ui); font-size: 12.5px; line-height: 1.36; padding: 6px 11px 7px; border-radius: 9px; text-align: left; animation: slip-in 0.2s ease-out; }
+.gov .head, .law .head, .alarm b, .ringing b, .slip b { display: block; font-weight: 700; letter-spacing: 0.13em; text-transform: uppercase; font-size: 9.5px; color: rgba(255, 255, 255, 0.66); margin-bottom: 1px; }
+.gov .head { display: flex; justify-content: space-between; gap: 10px; }
+.gov .from { font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 9.5px; color: rgba(255, 255, 255, 0.5); }
+.gov .amt, .slip .amt { font-family: var(--font-mono); letter-spacing: 0; color: #fff; }
+.slip .amt { float: right; font-weight: 600; margin-left: 12px; }
+.slip .ref, .gov .mono, .alarm .mono { font-family: var(--font-mono); font-size: 9.5px !important; color: rgba(255, 255, 255, 0.45) !important; opacity: 1 !important; }
+.alarm { box-shadow: inset 2.5px 0 0 var(--danger); }
+.alarm b { color: #ff8d80; }
+.ringing { pointer-events: auto !important; box-shadow: inset 2.5px 0 0 var(--white); }
+
+/* what the large button would do just now, and what is being done */
+#actbar { position: absolute; left: 50%; bottom: calc(84px + var(--sb)); transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 6px; max-width: calc(100% - 32px); pointer-events: none; }
+#actbar > * { pointer-events: auto; }
+/* Nothing over the town blurs what is behind it: a blur makes the device read the picture back every frame, and phones pay for that. */
+#prompt { background: rgba(0, 0, 0, 0.58); border-radius: 9px; padding: 6px 11px; font-size: 13px; display: flex; gap: 9px; align-items: center; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+#prompt .ring { width: 70px; height: 2px; background: rgba(255, 255, 255, 0.22); border-radius: 1px; overflow: hidden; }
+#prompt .ring i { display: block; height: 100%; width: 0; background: var(--white); }
+#keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
+.key { appearance: none; border: 0; background: rgba(0, 0, 0, 0.44); color: var(--text); border-radius: 8px; padding: 5px 9px 5px 6px; display: flex; gap: 6px; align-items: center; font-size: 12.5px; cursor: pointer; }
+.key:hover { background: rgba(30, 30, 32, 0.8); }
+.key.warn .keycap { border-color: var(--danger); }
+.key[aria-pressed="true"] { background: var(--white); color: var(--ink); }
+.key[aria-pressed="true"] .keycap { color: var(--ink); border-color: var(--ink); }
+.key .keycap { min-width: 20px; }
+@media (pointer: coarse) { #keys { display: none; } #prompt .keycap { display: none; } }
+#taking { background: rgba(0, 0, 0, 0.5); border-radius: 9px; padding: 6px 12px; min-width: 170px; text-align: center; font-size: 13px; }
+#taking .ring { height: 2px; background: rgba(255, 255, 255, 0.22); margin-top: 6px; border-radius: 1px; overflow: hidden; } #taking .ring i { display: block; height: 100%; width: 0; background: var(--white); }
+#waypoint { appearance: none; border: 0; background: rgba(0, 0, 0, 0.44); color: var(--text); font-family: inherit; border-radius: 14px; padding: 4px 11px; font-size: 12px; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; cursor: pointer; min-height: 28px; }
+/* the dashboard, while driving: one line at the foot of the screen */
+.dash { position: absolute; left: 50%; bottom: calc(12px + var(--sb)); transform: translateX(-50%); background: rgba(0, 0, 0, 0.44); border-radius: 9px; padding: 5px 11px; display: flex; gap: 12px; align-items: baseline; font-family: var(--font-mono); font-size: 12px; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.dash .eyebrow { font-size: 9.5px; }
+.dash .low { color: #ff8d80; }
+/* what might be done next: said once, quietly, and then it goes */
+.next { position: absolute; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(14px + var(--sb)); max-width: min(320px, calc(100% - 180px)); background: rgba(0, 0, 0, 0.44); border-radius: 9px; padding: 6px 10px; font-size: 12.5px; line-height: 1.35; color: #e4e4e2; opacity: 0; pointer-events: none !important; }
+.next.say { animation: next-say 11s ease both; }
+@keyframes next-say { 0% { opacity: 0; transform: translateY(4px); } 4% { opacity: 1; transform: none; } 88% { opacity: 1; } 100% { opacity: 0; } }
+#hud.busy .next, #hud.prompting .next, #hud.marked .next { display: none; }
+/* the phone, and talking to a player who is near: two small icons */
+.dock { position: absolute; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(10px + var(--sb)); display: flex; gap: 2px; }
+.dock .btn, #chat-btn { appearance: none; position: relative; width: 46px; height: 46px; min-height: 0; padding: 0; border: 0; border-radius: 23px; background: none; box-shadow: none; color: #fff; display: grid; place-items: center; cursor: pointer; -webkit-tap-highlight-color: transparent; transition: transform 0.12s, background 0.15s; }
+.dock .btn:hover, #chat-btn:hover { background: rgba(255, 255, 255, 0.1); }
+.dock .btn:active, #chat-btn:active { transform: scale(0.9); }
+.ico { width: 28px; height: 28px; color: #fff; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.7)); display: block; }
+.ico .f { fill: currentColor; stroke: none; }
+.ico .s { fill: none; stroke: currentColor; stroke-linecap: round; stroke-linejoin: round; }
+.dock .ico, #chat-btn .ico { width: 22px; height: 22px; }
+/* the phone and the chat sit on the same dark disc as every other control */
+.dock .btn, #chat-btn { background: rgba(12, 14, 18, 0.52) !important; box-shadow: inset 0 0 0 2px var(--ring, rgba(0, 0, 0, 0.88)), inset 0 0 0 3px rgba(255, 255, 255, 0.12) !important; }
+.dock .badge { position: absolute; top: 3px; right: 1px; min-width: 16px; height: 16px; padding: 0 4px; background: var(--danger); color: #fff; border-radius: 8px; font-size: 10.5px; font-weight: 700; line-height: 16px; letter-spacing: 0; }
+
+/* ---------- arrested ---------- */
+#arrested { position: absolute; inset: 0; z-index: 40; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; pointer-events: none; background: radial-gradient(ellipse at center, rgba(30, 0, 0, 0.25) 0, rgba(0, 0, 0, 0.78) 72%); animation: arrest-in 0.25s ease-out both; }
+#arrested .cuffs { width: min(78vw, 460px); height: auto; filter: drop-shadow(0 8px 14px rgba(0, 0, 0, 0.7)); }
+#arrested .steel { fill: none; stroke: #d9dde2; stroke-width: 14; }
+#arrested .hole { fill: none; stroke: #7d848c; stroke-width: 3; }
+#arrested .bolt { fill: none; stroke: #b9c0c7; stroke-width: 9; stroke-linejoin: round; }
+#arrested .lock { fill: #9aa2aa; stroke: #2b2f33; stroke-width: 3; }
+#arrested .chain rect { fill: none; stroke: #c4cad0; stroke-width: 5; }
+#arrested .cuff.left { transform-origin: 58px 78px; animation: cuff-l 0.9s cubic-bezier(.2, 1.6, .4, 1) both; }
+#arrested .cuff.right { transform-origin: 182px 78px; animation: cuff-r 0.9s cubic-bezier(.2, 1.6, .4, 1) both; }
+#arrested .word { font-family: "PCW Arcade", var(--font-ui); color: #ff3b2f; font-size: clamp(38px, 11vw, 92px); letter-spacing: 0.08em; text-shadow: -4px -4px 0 #000, 4px -4px 0 #000, -4px 4px 0 #000, 4px 4px 0 #000, 0 6px 14px rgba(0, 0, 0, 0.8); animation: word-slam 0.55s 0.35s cubic-bezier(.2, 1.4, .4, 1) both, word-shake 0.18s 0.9s 6 linear; }
+@keyframes arrest-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes cuff-l { 0% { transform: translateX(-60vw) rotate(-120deg); } 70% { transform: rotate(8deg); } 100% { transform: none; } }
+@keyframes cuff-r { 0% { transform: translateX(60vw) rotate(120deg); } 70% { transform: rotate(-8deg); } 100% { transform: none; } }
+@keyframes word-slam { from { transform: scale(2.6); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes word-shake { 25% { transform: translate(-3px, 1px); } 50% { transform: translate(3px, -1px); } 75% { transform: translate(-2px, -1px); } }
+#blackout { position: absolute; inset: 0; z-index: 39; background: #000; pointer-events: none; opacity: 0; transition: opacity 0.6s ease; }
+#blackout.on { opacity: 1; }
+@media (prefers-reduced-motion: reduce) { #arrested, #arrested .cuff, #arrested .word { animation: none; } }
+
+/* ---------- speech bubbles ---------- */
+#bubbles { position: absolute; inset: 0; pointer-events: none; overflow: hidden; }
+.bubble { position: absolute; left: 0; top: 0; max-width: 200px; background: rgba(0, 0, 0, 0.62); color: #fff; border-radius: 10px; padding: 5px 10px 6px; font-size: 12.5px; line-height: 1.32; will-change: transform; }
+.bubble::after { content: ""; position: absolute; left: var(--tail, 50%); bottom: -4px; width: 9px; height: 9px; margin-left: -4.5px; background: inherit; transform: rotate(45deg); border-radius: 0 0 2px 0; clip-path: polygon(100% 0, 100% 100%, 0 100%); }
+.bubble .who { font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 9.5px; color: rgba(255, 255, 255, 0.66); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.bubble .who .role { font-weight: 600; color: rgba(255, 255, 255, 0.45); margin-left: 6px; }
+.bubble .say { overflow-wrap: anywhere; display: -webkit-box; -webkit-line-clamp: 4; -webkit-box-orient: vertical; overflow: hidden; }
+.bubble .gloss { font-size: 11px; color: rgba(255, 255, 255, 0.7); border-top: 1px solid rgba(255, 255, 255, 0.16); margin-top: 3px; padding-top: 2px; font-style: italic; }
+.bubble .lang { font-style: normal; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; font-size: 9px; color: rgba(255, 255, 255, 0.6); margin-right: 5px; }
+.bubble .tr { pointer-events: auto; appearance: none; border: 0; background: none; padding: 0; font: inherit; font-style: normal; color: #fff; text-decoration: underline; cursor: pointer; }
+.bubble.me { background: rgba(255, 255, 255, 0.92); color: #0e0e0f; }
+.bubble.me .who, .bubble.me .lang { color: rgba(0, 0, 0, 0.6); } .bubble.me .gloss { color: rgba(0, 0, 0, 0.62); border-top-color: rgba(0, 0, 0, 0.14); } .bubble.me .tr { color: #0e0e0f; }
+.bubble.chat { box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.55); }
+.bubble.far { font-size: 11.5px; opacity: 0.88; max-width: 165px; }
+
+/* ---------- chat: only when another player is close ---------- */
+#chat-btn { position: absolute; right: calc(58px + env(safe-area-inset-right, 0px)); bottom: calc(10px + var(--sb)); }
+#chat-btn span { position: absolute; top: 2px; right: 0; min-width: 16px; height: 16px; padding: 0 4px; background: var(--white); color: var(--ink); border-radius: 8px; font-size: 10.5px; font-weight: 700; line-height: 16px; }
+#chat-btn span:empty { display: none; }
+#chat-bar { position: absolute; left: 50%; bottom: calc(132px + var(--sb)); transform: translateX(-50%); width: min(360px, calc(100% - 32px)); display: flex; gap: 6px; background: rgba(0, 0, 0, 0.6); border-radius: 14px; padding: 6px; }
+/* while a line is being typed the key hints do nothing, and would sit under the box */
+#game:has(#chat-bar:not([hidden])) #keys, #game:has(#chat-bar:not([hidden])) #prompt { visibility: hidden; }
+#chat-bar input { flex: 1; min-width: 0; background: #f6f6f4; color: #0e0e0f; border: 0; border-radius: 10px; padding: 8px 12px; font-size: 16px; user-select: text; -webkit-user-select: text; }
+#chat-bar .btn { font-size: 14px; padding: 8px 14px; min-height: 40px; }
+.room { color: var(--text); }
+
+/* ---------- sheet ---------- */
+#sheet { position: absolute; top: 0; right: 0; bottom: 0; width: min(460px, 100%); background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; user-select: text; -webkit-user-select: text; touch-action: pan-y; }
+#sheet header { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; padding: 16px 16px 12px; border-bottom: 1px solid var(--line); }
+#sheet h2 { font-weight: 700; font-size: 24px; line-height: 1.12; letter-spacing: -0.015em; margin: 3px 0 0; text-wrap: balance; }
+#sheet .body { padding: 14px 16px 24px; overflow-y: auto; display: flex; flex-direction: column; gap: 14px; min-height: 0; flex: 1; }
+#sheet h3 { font-weight: 600; letter-spacing: 0.1em; text-transform: uppercase; font-size: 11.5px; color: var(--muted); margin: 8px 0 0; }
+#sheet p { margin: 0; }
+#sheet-close { min-height: 40px; padding: 8px 14px; font-size: 14px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px 16px 0; border-bottom: 1px solid var(--line); }
+.tab { appearance: none; background: none; border: 0; border-bottom: 2px solid transparent; padding: 8px 8px 9px; font-weight: 600; font-size: 14px; color: var(--muted); cursor: pointer; }
+.tab[aria-selected="true"] { color: var(--text); border-color: var(--white); }
+.rows { display: flex; flex-direction: column; }
+.rowbtn { appearance: none; background: none; border: 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 62px 1fr auto; gap: 10px; align-items: baseline; padding: 11px 2px; text-align: left; cursor: pointer; width: 100%; min-height: 44px; }
+.rowbtn:hover { background: var(--raise); }
+.rowbtn[aria-current="true"] { background: var(--raise-2); }
+.chip { font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; font-size: 10.5px; padding: 2px 7px; border: 1px solid currentColor; border-radius: 6px; white-space: nowrap; }
+.chip.sale { color: var(--text); } .chip.yours { background: var(--white); border-color: var(--white); color: var(--ink); } .chip.taken { color: var(--dim); }
+.kv { display: grid; grid-template-columns: minmax(96px, 34%) 1fr; gap: 4px 12px; margin: 0; }
+.kv dt { color: var(--muted); } .kv dd { margin: 0; min-width: 0; overflow-wrap: anywhere; }
+.line { display: flex; justify-content: space-between; gap: 12px; border-bottom: 1px solid var(--line); padding: 8px 0; }
+.line span:last-child { font-variant-numeric: tabular-nums; white-space: nowrap; color: #d6d6d4; }
+.pos { color: var(--white) !important; font-weight: 600; } .neg { color: var(--danger) !important; }
+.actions { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+.qty { display: grid; grid-template-columns: 1fr 84px auto; gap: 8px; align-items: center; border-bottom: 1px solid var(--line); padding: 8px 0; }
+.speech { font-size: 17px; line-height: 1.5; }
+.deed { background: var(--paper); color: var(--paper-ink); padding: 18px 16px 46px; font-family: var(--font-mono); font-size: 12.5px; position: relative; border: 1px solid var(--paper-rule); outline: 4px double var(--paper-rule); outline-offset: -8px; }
+.deed h4 { font-family: var(--font-ui); font-weight: 700; font-size: 18px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 2px; text-align: center; }
+.deed .sub { text-align: center; margin-bottom: 10px; }
+.deed .kv dt { color: #6a6a6a; }
+.stamp { position: absolute; right: 18px; bottom: 12px; transform: rotate(-9deg); border: 3px solid var(--paper-ink); color: var(--paper-ink); font-weight: 700; letter-spacing: 0.14em; padding: 2px 10px; font-size: 15px; opacity: 0.8; text-transform: uppercase; }
+.sandbox { background: repeating-linear-gradient(135deg, #d8d8d6 0 12px, #1a1a1b 12px 24px); padding: 2px; border-radius: 12px; }
+.sandbox > div { background: var(--panel); padding: 10px 12px; border-radius: 10px; }
+.steps { display: flex; gap: 4px; }
+.steps i { flex: 1; height: 3px; background: rgba(255, 255, 255, 0.18); border-radius: 2px; }
+.steps i.on { background: var(--white); }
+canvas.map { width: 100%; height: auto; display: block; background: #101011; border-radius: 12px; }
+.stage { display: grid; grid-template-columns: 22px 1fr; gap: 8px; padding: 7px 0; border-bottom: 1px solid var(--line); }
+.stage .dot { width: 14px; height: 14px; border: 1.5px solid var(--dim); border-radius: 7px; margin-top: 3px; }
+.stage.done .dot { background: var(--white); border-color: var(--white); }
+.stage.now .dot { border-color: var(--white); }
+.stage small { color: var(--muted); display: block; }
+.banner { background: var(--raise-2); padding: 10px 13px; border-radius: 12px; font-size: 13.5px; }
+.banner.red { background: var(--danger); color: #fff; }
+.said { background: var(--raise-2); border-radius: 16px 16px 16px 5px; padding: 9px 13px; font-size: 14.5px; max-width: 92%; }
+.thread { display: flex; flex-direction: column; gap: 6px; }
+.msg { max-width: 82%; padding: 8px 12px; border-radius: 17px 17px 17px 5px; background: var(--raise-2); font-size: 15px; overflow-wrap: anywhere; }
+.msg.mine { align-self: flex-end; background: var(--white); color: var(--ink); border-radius: 17px 17px 5px 17px; }
+.msg small { display: block; opacity: 0.55; font-size: 11px; }
+.compose { display: flex; gap: 6px; } .compose input { flex: 1; min-width: 0; }
+/* a bill: what is being paid for, line by line, before it is paid */
+.bill { background: var(--paper); color: var(--paper-ink); font-family: var(--font-mono); font-size: 13px; padding: 12px 14px; border-radius: 6px 6px 0 0; border-bottom: 2px dashed var(--paper-rule); }
+.bill h4 { font-family: var(--font-ui); font-weight: 700; font-size: 14px; letter-spacing: 0.08em; text-transform: uppercase; margin: 0 0 6px; }
+.bill .row { display: flex; justify-content: space-between; gap: 12px; padding: 3px 0; border-bottom: 1px dotted var(--paper-rule); }
+.bill .row.total { font-weight: 700; border-bottom: 0; border-top: 2px solid var(--paper-ink); margin-top: 4px; padding-top: 6px; }
+.bill .row.bad span:last-child { color: #b3261e; }
+.levels { display: grid; grid-template-columns: repeat(auto-fit, minmax(96px, 1fr)); gap: 8px; }
+.level { appearance: none; border: 1.5px solid var(--line); background: var(--raise); border-radius: 12px; padding: 10px 10px; text-align: left; cursor: pointer; display: flex; flex-direction: column; gap: 2px; min-height: 76px; }
+.level b { font-size: 24px; font-weight: 700; line-height: 1.05; letter-spacing: -0.02em; }
+.level small { color: var(--muted); font-size: 12px; }
+.level[aria-pressed="true"] { border-color: var(--white); background: var(--raise-2); }
+.level[disabled] { opacity: 0.45; cursor: not-allowed; }
+.level:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
+.faders { display: grid; gap: 2px; margin: 4px 0 10px; }
+.fader { display: grid; grid-template-columns: 9.5em 1fr 2.4em; align-items: center; gap: 10px; min-height: 40px; }
+.fader input[type="range"] { -webkit-appearance: none; appearance: none; width: 100%; min-width: 0; height: 28px; background: transparent; touch-action: pan-y; --fill: 50%; }
+.fader input[type="range"]::-webkit-slider-runnable-track { height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--white) var(--fill), rgba(255, 255, 255, 0.2) var(--fill)); }
+.fader input[type="range"]::-moz-range-track { height: 4px; border-radius: 2px; background: rgba(255, 255, 255, 0.2); }
+.fader input[type="range"]::-moz-range-progress { height: 4px; border-radius: 2px; background: var(--white); }
+.fader input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; margin-top: -10px; border-radius: 12px; background: var(--white); border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+.fader input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 12px; background: var(--white); border: 0; }
+.fader .mono { text-align: right; color: var(--muted); font-variant-numeric: tabular-nums; }
+/* an on-off switch */
+.switch { appearance: none; -webkit-appearance: none; position: relative; width: 51px; height: 31px; border-radius: 16px; border: 0; background: rgba(255, 255, 255, 0.2); cursor: pointer; transition: background 0.18s; flex: none; padding: 0; }
+.switch::after { content: ""; position: absolute; left: 2px; top: 2px; width: 27px; height: 27px; border-radius: 14px; background: #fff; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.45); transition: transform 0.18s; }
+.switch[aria-checked="true"] { background: var(--white); }
+.switch[aria-checked="true"]::after { transform: translateX(20px); background: var(--ink); }
+.switch:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
+.setrow { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; }
+.segment { display: flex; background: var(--raise); border-radius: 10px; padding: 2px; gap: 2px; }
+.segment button { appearance: none; flex: 1; border: 0; background: transparent; color: var(--text); border-radius: 8px; padding: 8px 6px; font-size: 13px; font-weight: 600; cursor: pointer; min-height: 36px; }
+.segment button[aria-pressed="true"] { background: var(--white); color: var(--ink); }
+
+/* ---------- the phone: a handset, a home screen, apps ---------- */
+#sheet.device { background: #000; border-left: 0; }
+#sheet.device > header { position: absolute; right: 8px; top: 8px; z-index: 6; padding: 0; border: 0; }
+#sheet.device > header > div { display: none; }
+#sheet.device #sheet-close { width: 34px; height: 34px; min-height: 34px; padding: 0; border-radius: 17px; background: rgba(255, 255, 255, 0.16); box-shadow: none; font-size: 0; position: relative; }
+#sheet.device #sheet-close::before, #sheet.device #sheet-close::after { content: ""; position: absolute; left: 10px; right: 10px; top: 16px; height: 2px; background: #fff; border-radius: 1px; transform: rotate(45deg); }
+#sheet.device #sheet-close::after { transform: rotate(-45deg); }
+#sheet.device .body { padding: 10px; gap: 0; overflow: hidden; }
+.handset { position: relative; flex: 1; min-height: 0; width: 100%; max-width: 420px; margin: 0 auto; border-radius: 46px; background: #000; box-shadow: 0 0 0 1px #3c3c3f, 0 0 0 3px #111112, 0 0 0 4px #4a4a4d; overflow: hidden; display: flex; flex-direction: column; isolation: isolate; }
+.handset .wall { position: absolute; inset: 0; z-index: -1; background: radial-gradient(120% 60% at 50% 0%, #37373a 0, #1a1a1c 38%, #060607 78%, #000 100%); }
+.handset.inapp .wall { background: #000; }
+.handset .island { position: absolute; left: 50%; top: 11px; width: 104px; height: 30px; margin-left: -52px; border-radius: 15px; background: #000; z-index: 4; }
+.handset .island::after { content: ""; position: absolute; right: 11px; top: 10px; width: 10px; height: 10px; border-radius: 5px; background: #121214; box-shadow: inset 0 0 0 1.5px #1e1e22; }
+.statusbar { display: flex; justify-content: space-between; align-items: center; height: 52px; padding: 6px 30px 0; font-size: 15px; font-weight: 600; letter-spacing: -0.01em; flex: none; }
+.statusbar .right { display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600; }
+.statusbar .cells { display: flex; gap: 2px; align-items: flex-end; height: 11px; } .statusbar .cells i { width: 3px; border-radius: 1px; background: #fff; } .statusbar .cells i:nth-child(1) { height: 4px; } .statusbar .cells i:nth-child(2) { height: 6px; } .statusbar .cells i:nth-child(3) { height: 8.5px; } .statusbar .cells i:nth-child(4) { height: 11px; }
+.statusbar .cell { width: 25px; height: 12px; border-radius: 3.5px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.45); padding: 2px; position: relative; }
+.statusbar .cell::after { content: ""; position: absolute; right: -3px; top: 4px; width: 2px; height: 4px; border-radius: 0 1px 1px 0; background: rgba(255, 255, 255, 0.45); }
+.statusbar .cell i { display: block; height: 100%; border-radius: 1.5px; background: #fff; }
+.statusbar .cell.low i { background: var(--danger); }
+.screen { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 4px 16px 10px; display: flex; flex-direction: column; gap: 12px; scrollbar-width: none; }
+.screen::-webkit-scrollbar { display: none; }
+.screen.opening { animation: app-open 0.26s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+@keyframes app-open { from { transform: scale(0.94); opacity: 0; } to { transform: none; opacity: 1; } }
+.homebar { flex: none; appearance: none; border: 0; background: none; height: 26px; cursor: pointer; display: grid; place-items: center; padding: 0; }
+.homebar i { display: block; width: 136px; height: 5px; border-radius: 3px; background: rgba(255, 255, 255, 0.9); }
+.greeting { padding: 14px 6px 6px; text-align: center; }
+.greeting .eyebrow { font-size: 15px; letter-spacing: 0; text-transform: none; color: rgba(255, 255, 255, 0.82); font-weight: 600; }
+.greeting .big { font-weight: 300; font-size: 76px; line-height: 1; letter-spacing: -0.03em; font-variant-numeric: tabular-nums; }
+.apps { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 20px 6px; padding: 10px 2px 4px; }
+.app { appearance: none; border: 0; background: none; padding: 0; display: flex; flex-direction: column; align-items: center; gap: 6px; cursor: pointer; color: #fff; font-size: 11.5px; font-weight: 500; line-height: 1.15; text-align: center; min-height: 84px; position: relative; -webkit-tap-highlight-color: transparent; }
+.app .icon { width: 60px; height: 60px; border-radius: 15px; display: grid; place-items: center; background: linear-gradient(160deg, #47474b 0, #2a2a2d 45%, #19191b 100%); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.22), 0 4px 10px rgba(0, 0, 0, 0.4); transition: transform 0.12s, filter 0.12s; }
+.app.light .icon { background: linear-gradient(160deg, #ffffff 0, #e9e9e7 55%, #cfcfcd 100%); }
+.app.light .icon svg { stroke: #0a0a0a; }
+.app:active .icon { transform: scale(0.92); filter: brightness(0.75); }
+.app .icon svg { width: 30px; height: 30px; fill: none; stroke: #fff; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.app[disabled] { opacity: 0.3; cursor: not-allowed; }
+.app .count { position: absolute; top: -5px; right: calc(50% - 38px); min-width: 20px; height: 20px; border-radius: 10px; background: var(--danger); color: #fff; font-size: 12px; font-weight: 700; line-height: 20px; padding: 0 6px; }
+.dockbar { flex: none; margin: 4px 12px 0; padding: 13px 10px; border-radius: 32px; background: rgba(255, 255, 255, 0.13); display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+.dockbar .app { min-height: 60px; }
+.dockbar .app > span:not(.icon):not(.count) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+.navbar { display: flex; align-items: center; min-height: 40px; margin: 0 -6px; flex: none; }
+.back { appearance: none; border: 0; background: none; color: #fff; font-size: 17px; font-weight: 400; padding: 8px 8px 8px 2px; min-height: 44px; display: flex; align-items: center; gap: 4px; cursor: pointer; }
+.back::before { content: ""; width: 11px; height: 11px; border-left: 2.4px solid #fff; border-bottom: 2.4px solid #fff; transform: rotate(45deg); margin: 0 2px 0 6px; border-radius: 1px; }
+.back:focus-visible, .app:focus-visible, .contact:focus-visible, .homebar:focus-visible { outline: 2px solid #fff; outline-offset: 2px; border-radius: 10px; }
+#sheet .apphead { flex: none; }
+#sheet .apphead h3 { margin: 0; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; text-transform: none; color: #fff; line-height: 1.1; }
+/* inside the handset, the shared pieces take the handset's manners: grouped cells, round buttons */
+#sheet.device h3 { font-size: 13px; letter-spacing: 0.02em; text-transform: uppercase; color: var(--muted); font-weight: 400; margin: 12px 0 -6px 14px; }
+#sheet.device .rows { background: #1c1c1e; border-radius: 12px; overflow: hidden; }
+#sheet.device .rows > * { border-bottom: 0.5px solid rgba(255, 255, 255, 0.14); padding-left: 14px; padding-right: 14px; }
+#sheet.device .rows > *:last-child { border-bottom: 0; }
+#sheet.device .screen > .line { background: #1c1c1e; border-radius: 12px; border: 0; padding: 12px 14px; margin-top: -6px; }
+#sheet.device .screen > .line + .line { border-radius: 0 0 12px 12px; margin-top: -13px; box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.14); }
+#sheet.device .line { padding-top: 12px; padding-bottom: 12px; }
+#sheet.device .line span:last-child { color: var(--muted); }
+#sheet.device .btn { border-radius: 14px; background: #1c1c1e; font-weight: 500; }
+#sheet.device .btn.primary { background: #fff; color: #0a0a0a; font-weight: 600; }
+#sheet.device .btn.quiet { box-shadow: none; background: transparent; color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.4); }
+#sheet.device .btn.danger { background: var(--danger); color: #fff; }
+#sheet.device .btn.choice[aria-pressed="true"] { background: #fff; color: #0a0a0a; }
+#sheet.device .apphead h3 { margin: 0 0 2px 2px; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; text-transform: none; color: #fff; line-height: 1.1; }
+#sheet.device p.small, #sheet.device p.eyebrow { font-size: 12.5px; line-height: 1.4; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 400; padding: 0 14px; margin-top: -6px; }
+#sheet.device .setrow { padding-top: 4px; padding-bottom: 4px; }
+#sheet.device .faders { margin: 0; gap: 0; }
+#sheet.device .fader { min-height: 46px; }
+#sheet.device .segment { background: #1c1c1e; }
+#sheet.device canvas.map { border-radius: 12px; }
+/* nothing on the handset's screen gives up its height to make room: the screen scrolls instead */
+.screen > * { flex-shrink: 0; }
+#sheet.device .field { background: #1c1c1e; border-color: transparent; border-radius: 12px; }
+#sheet.device p { color: #e6e6e4; font-size: 15px; }
+#sheet.device .notice.pinned { position: static; border-radius: 12px; border: 0; background: #2a1614; }
+#sheet.device .notice.pinned.good { background: #1c1c1e; }
+.contact { appearance: none; background: none; border: 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: 40px 1fr auto; gap: 12px; align-items: center; padding: 9px 2px; text-align: left; cursor: pointer; width: 100%; min-height: 58px; color: inherit; }
+.contact:hover { background: var(--raise); }
+.contact .face { width: 40px; height: 40px; border-radius: 20px; background: linear-gradient(180deg, #8e8e93 0, #5a5a5f 100%); color: #fff; display: grid; place-items: center; font-weight: 600; font-size: 15px; letter-spacing: 0.02em; }
+.contact .face.sos { background: var(--white); color: var(--ink); font-weight: 800; }
+.contact small { display: block; color: var(--muted); font-size: 12.5px; }
+.contact .chev { width: 8px; height: 8px; border-right: 2px solid var(--dim); border-top: 2px solid var(--dim); transform: rotate(45deg); margin-right: 4px; }
+
+/* ---------- touch ----------
+   The stick is a ring and a knob. The buttons are icons with nothing behind them: each has a touch area
+   larger than what is drawn, the one that matters most has a thin ring round it, and one that is switched
+   on turns solid. Where they sit is worked out from one unit, so a tablet gets them larger and a phone on
+   its side gets them lower and wider; they keep to the right-hand edge and never cover the middle. */
+#touch { position: absolute; inset: 0; pointer-events: none; --k: 1; --ring: rgba(0, 0, 0, 0.88); }
+/* after dark the rings are white, so that they show against the night */
+#touch.night { --ring: rgba(255, 255, 255, 0.9); }
+#stick { position: absolute; left: calc(20px + env(safe-area-inset-left, 0px)); bottom: calc(72px + var(--sb)); width: calc(112px * var(--k)); height: calc(112px * var(--k)); border-radius: 50%; border: 1.5px solid rgba(255, 255, 255, 0.55); background: rgba(0, 0, 0, 0.1); box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.18), inset 0 0 0 1px rgba(0, 0, 0, 0.18); pointer-events: auto; touch-action: none; transform: scale(var(--stick-scale, 1)); transform-origin: left bottom; }
+#stick i { position: absolute; left: 50%; top: 50%; width: 44px; height: 44px; margin: -22px; box-sizing: border-box; border-radius: 50%; background: rgba(255, 255, 255, 0.96); border: 3px solid #000; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.4); }
+/* Skills: one round button at the middle of the right-hand edge; tapped, five of the character's skills open in
+   an arc beside it, each a solid icon on a dark disc with its name under it. While they are open the other
+   buttons on the right are put away; the stick on the left is untouched. */
+.skills-btn { position: absolute; right: calc(12px + env(safe-area-inset-right, 0px)); top: var(--skills-y, 50%); transform: translateY(-50%); width: 58px; height: 58px; padding: 0; border: 0; border-radius: 50%; background: rgba(12, 14, 18, 0.55); box-shadow: inset 0 0 0 2px var(--ring, rgba(0, 0, 0, 0.88)), inset 0 0 0 3px rgba(255, 255, 255, 0.14), 0 3px 10px rgba(0, 0, 0, 0.3); display: grid; place-items: center; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; transition: transform 0.1s ease, background 0.12s ease; z-index: 3; }
+.skills-btn .ico { width: 32px; height: 32px; transition: transform 0.12s ease; }
+.skills-btn.down { transform: translateY(-50%) scale(0.92); }
+.skills-btn.open { background: rgba(255, 255, 255, 0.94); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 1), 0 3px 10px rgba(0, 0, 0, 0.3); }
+.skills-btn.open .ico { color: #0a0a0a; filter: none; transform: rotate(22.5deg); }
+.skills-btn:disabled { opacity: 0.4; }
+.skills-count { position: absolute; left: 50%; bottom: -15px; transform: translateX(-50%); font-family: "PCW Arcade", var(--font-ui); font-size: 8px; letter-spacing: 0.08em; color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; white-space: nowrap; pointer-events: none; }
+.skills-page { position: absolute; right: 0; top: var(--skills-y, 50%); width: 0; height: 0; z-index: 3; transform: scale(var(--arc-scale, 1)); transform-origin: calc(-41px - env(safe-area-inset-right, 0px)) 0; }
+.skill { position: absolute; width: 54px; height: 54px; padding: 0; border: 0; background: none; cursor: pointer; touch-action: none; -webkit-tap-highlight-color: transparent; opacity: 0; transform: scale(0.84); transition: opacity 0.14s ease, transform 0.14s ease; }
+.skills-page.in .skill { opacity: 1; transform: none; }
+.skill .disc { position: absolute; inset: 0; border-radius: 50%; background: rgba(12, 14, 18, 0.58); box-shadow: inset 0 0 0 2px var(--ring, rgba(0, 0, 0, 0.88)), inset 0 0 0 3px rgba(255, 255, 255, 0.14), 0 3px 8px rgba(0, 0, 0, 0.3); display: grid; place-items: center; transition: background 0.1s, transform 0.1s; }
+.skill .disc .ico { width: 30px; height: 30px; }
+.skill .name { position: absolute; left: 50%; top: 100%; margin-top: 2px; transform: translateX(-50%); font-size: 9.5px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 2px #000, 0 0 4px #000; white-space: nowrap; pointer-events: none; }
+.skill.down .disc { transform: scale(0.92); }
+.skill.on .disc { background: #fff; } .skill.on .disc .ico { color: #0a0a0a; filter: none; }
+/* the arc: five places round the left side of the button, from above it to below it */
+.skill.at0 { right: calc(32px + env(safe-area-inset-right, 0px)); top: -129px; }
+.skill.at1 { right: calc(94px + env(safe-area-inset-right, 0px)); top: -94px; }
+.skill.at2 { right: calc(118px + env(safe-area-inset-right, 0px)); top: -27px; }
+.skill.at3 { right: calc(94px + env(safe-area-inset-right, 0px)); top: 40px; }
+.skill.at4 { right: calc(32px + env(safe-area-inset-right, 0px)); top: 75px; }
+#touch.skills-open .pad { opacity: 0; pointer-events: none !important; transition: opacity 0.12s ease; }
+/* At the wheel (three wheels or more): the stick on the left is a steering wheel that turns as it is dragged; on
+   the right, nothing but the accelerator (tall), the brake (wide), the horn and the door. Solid white on dark. */
+#stick .wheelart { display: none; }
+#stick.wheel { width: calc(132px * var(--k)); height: calc(132px * var(--k)); border: 0; background: radial-gradient(circle, rgba(12, 14, 18, 0.5) 0 62%, rgba(12, 14, 18, 0) 64%); box-shadow: none; }
+#stick.wheel i { display: none; }
+#stick.wheel .wheelart { display: block; position: absolute; inset: 0; width: 100%; height: 100%; color: #fff; filter: drop-shadow(0 2px 3px rgba(0, 0, 0, 0.6)); transition: transform 0.06s linear; pointer-events: none; }
+#touch.wheel .pad[data-id="gas"] { right: calc(18px + env(safe-area-inset-right, 0px)); bottom: calc(26px + var(--sb)); width: 72px; height: 120px; border-radius: 18px; background: rgba(12, 14, 18, 0.52); box-shadow: inset 0 0 0 2px var(--ring), inset 0 0 0 3px rgba(255, 255, 255, 0.14), 0 4px 10px rgba(0, 0, 0, 0.3); }
+#touch.wheel .pad[data-id="gas"] .ico { width: 50px; height: 50px; }
+#touch.wheel .pad[data-id="brake"] { right: calc(104px + env(safe-area-inset-right, 0px)); bottom: calc(26px + var(--sb)); width: 100px; height: 72px; border-radius: 18px; }
+#touch.wheel .pad[data-id="brake"] .ico { width: 50px; height: 50px; }
+#touch.wheel .pad[data-id="horn"] { right: calc(125px + env(safe-area-inset-right, 0px)); bottom: calc(114px + var(--sb)); width: 58px; height: 58px; }
+#touch.wheel .pad[data-id="act"] { right: calc(25px + env(safe-area-inset-right, 0px)); bottom: calc(162px + var(--sb)); width: 56px; height: 56px; }
+/* the dashboard goes up under the top band, and what the large button would do sits clear above the wheel */
+#hud.wheel .dash { top: calc(var(--under) + var(--st)) !important; bottom: auto !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; max-width: calc(100% - 24px); }
+#hud.wheel .dash:not([hidden]) ~ #notices { top: calc(var(--under) + 36px + var(--st)); }
+#hud.wheel #actbar { bottom: calc(222px + var(--sb)) !important; }
+#hud.wheel .dock { right: auto; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--sb)); }
+@media (max-height: 480px) { #hud.wheel .dock { left: calc(164px + env(safe-area-inset-left, 0px)); } #hud.wheel #chat-btn { left: calc(212px + env(safe-area-inset-left, 0px)); } }
+@media (max-height: 480px) { #hud.wheel #actbar { bottom: calc(150px + var(--sb)) !important; left: calc(160px + env(safe-area-inset-left, 0px)) !important; transform: none !important; } }
+#touch.wheel .pad[data-id="gas"].down, #touch.wheel .pad[data-id="brake"].down { background: #fff; }
+#touch.wheel .pad[data-id="gas"].down .ico, #touch.wheel .pad[data-id="brake"].down .ico { color: #0a0a0a; }
+/* In the river (premium, cool and wet): the stick becomes the left hand, in a ring of blue glass; the stroke is the
+   right hand, the large button, in the same glass. Nothing else is on screen but a way out near the bank. */
+#stick.swim { border: 2px solid rgba(170, 225, 255, 0.9); background: radial-gradient(circle at 50% 38%, rgba(110, 190, 240, 0.38), rgba(8, 40, 72, 0.42) 72%); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.4), 0 0 22px rgba(90, 185, 255, 0.4), inset 0 0 16px rgba(160, 220, 255, 0.4); }
+#stick.swim i { width: 54px; height: 54px; margin: -27px; background: #f4fbff url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg transform='translate(24 0) scale(-1 1)' fill='none' stroke='%230b2a44' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.4 12.6V7.6a1.3 1.3 0 0 1 2.6 0v4.2 M10 11.4V5.4a1.3 1.3 0 0 1 2.6 0v6 M12.6 11.4V6.2a1.3 1.3 0 0 1 2.6 0v5.6 M15.2 12V8.4a1.3 1.3 0 0 1 2.6 0v5.4c0 3.4-2.3 6.2-5.8 6.2-2.4 0-3.9-1.1-5.1-3l-2.1-3.4a1.3 1.3 0 0 1 2.2-1.4l1.2 1.8'/%3E%3C/g%3E%3C/svg%3E") center / 68% no-repeat; border: 3px solid #0b2a44; box-shadow: 0 3px 10px rgba(0, 0, 0, 0.45), inset 0 -3px 0 rgba(11, 42, 68, 0.18); }
+#stick.swim::after { content: ""; position: absolute; inset: -9px; border-radius: 50%; border: 1px dashed rgba(190, 235, 255, 0.55); pointer-events: none; }
+.pad.primary[data-id="stroke"] { background: radial-gradient(circle at 50% 38%, rgba(110, 190, 240, 0.42), rgba(8, 40, 72, 0.5) 72%); box-shadow: inset 0 0 0 2px rgba(170, 225, 255, 0.95), 0 0 0 1.5px rgba(0, 0, 0, 0.4), 0 0 22px rgba(90, 185, 255, 0.45); }
+.pad.primary[data-id="stroke"] .ico { color: #f4fbff; width: calc(46px * var(--k)); height: calc(46px * var(--k)); }
+.pad.primary[data-id="stroke"].down { background: #f4fbff; } .pad.primary[data-id="stroke"].down .ico { color: #0b2a44; }
+.pad[data-id="swim"], .pad[data-id="climb"] { box-shadow: inset 0 0 0 2.5px rgba(150, 215, 255, 0.95), 0 0 14px rgba(90, 185, 255, 0.35) !important; }
+#pad { position: absolute; right: env(safe-area-inset-right, 0px); bottom: var(--sb); width: 0; height: 0; transform: scale(var(--pad-scale, 1)); transform-origin: right bottom; }
+.pad { position: absolute; width: calc(58px * var(--k)); height: calc(58px * var(--k)); padding: 0; border: 0; border-radius: 50%; background: none; color: #fff; display: grid; place-items: center; pointer-events: auto; touch-action: none; -webkit-tap-highlight-color: transparent; transition: transform 0.1s ease, background 0.12s ease, opacity 0.15s; }
+.pad .ico { width: calc(36px * var(--k)); height: calc(36px * var(--k)); }
+/* every button but the large one has a ring of its own: black by day, white by night. The slots keep them apart, never touching */
+.pad:not(.primary) { background: rgba(12, 14, 18, 0.52); box-shadow: inset 0 0 0 2px var(--ring), inset 0 0 0 3px rgba(255, 255, 255, 0.12), 0 3px 8px rgba(0, 0, 0, 0.28); }
+.pad:not(.primary) .ico { width: calc(30px * var(--k)); height: calc(30px * var(--k)); }
+.pad.primary { right: calc(16px * var(--k)); bottom: calc(96px * var(--k)); width: calc(78px * var(--k)); height: calc(78px * var(--k)); box-shadow: inset 0 0 0 2px rgba(255, 255, 255, 0.85), inset 0 0 0 3px rgba(0, 0, 0, 0.25), 0 3px 10px rgba(0, 0, 0, 0.3); background: rgba(12, 14, 18, 0.46); }
+.pad.primary .ico { width: calc(42px * var(--k)); height: calc(42px * var(--k)); }
+.pad.slot1 { right: calc(104px * var(--k)); bottom: calc(92px * var(--k)); }
+.pad.slot2 { right: calc(26px * var(--k)); bottom: calc(184px * var(--k)); }
+.pad.slot3 { right: calc(92px * var(--k)); bottom: calc(160px * var(--k)); }
+.pad.slot4 { right: calc(26px * var(--k)); bottom: calc(250px * var(--k)); }
+.pad.slot5 { right: calc(92px * var(--k)); bottom: calc(228px * var(--k)); }
+.pad.slot6 { right: calc(26px * var(--k)); bottom: calc(316px * var(--k)); }
+.pad.slot7 { right: calc(92px * var(--k)); bottom: calc(296px * var(--k)); }
+/* switched on, or held: solid, with the icon cut out of it in black */
+.pad[aria-pressed="true"], .pad.down { background: radial-gradient(circle closest-side, #fff 0 78%, rgba(255, 255, 255, 0) 80%); }
+.pad.primary[aria-pressed="true"], .pad.primary.down { background: #fff; }
+.pad[aria-pressed="true"] .ico, .pad.down .ico { color: #0a0a0a; filter: none; }
+.pad.down { transform: scale(0.93); }
+/* an action that is against someone, or against the law: a small red mark at its shoulder */
+.pad.warn::after { content: ""; position: absolute; top: 18%; right: 18%; width: 7px; height: 7px; border-radius: 50%; background: var(--danger); box-shadow: 0 0 0 1.5px rgba(0, 0, 0, 0.45); }
+.pad.primary.warn::after { top: 8%; right: 8%; }
+.pad:disabled { opacity: 0.32; }
+/* On anything wide, there is room between the corners: notices go there, at the very top, and the dashboard takes the top when a vehicle is being driven. */
+@media (min-width: 641px) {
+  #notices { top: calc(8px + var(--st)); width: min(360px, calc(100% - 320px)); }
+  .dash { bottom: auto; top: calc(8px + var(--st)); }
+  .dash:not([hidden]) ~ #notices { top: calc(42px + var(--st)); }
+  #chat-bar { top: auto; }
+}
+/* a tablet: everything a size up */
+@media (min-width: 700px) and (min-height: 700px) { #touch { --k: 1.22; } }
+
+/* A phone held upright: the corners stay small, the prompt moves to the left above the stick, and the phone's own screen fills the page. */
+@media (max-width: 640px) {
+  #start { grid-template-columns: 1fr; grid-template-rows: auto auto auto; grid-template-areas: "lead" "stage" "panel"; }
+  /* upright on a phone: the story first, then the figure, which stays in view while its colours are chosen below it */
+  #start .lead { padding: calc(18px + var(--st)) 16px 14px; }
+  #start .stage { position: sticky; top: 0; z-index: 2; height: 56vh; height: 56svh; min-height: 360px; padding-top: 10px; background: radial-gradient(ellipse at 50% 55%, #1b1c1f 0, #0b0b0c 75%); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6); }
+  #start .intro > * { order: 2; }
+  #start .intro > .creator { order: 1; border-top: 0; padding-top: 0; }
+  #part-swatches { gap: 7px; } #part-swatches .swatch { width: 37px; height: 37px; }
+  .plate .wide { display: none; }
+  #notices > :nth-last-child(n+3) { display: none; }
+  #actbar { left: calc(16px + env(safe-area-inset-left, 0px)); transform: none; align-items: flex-start; bottom: calc(196px + var(--sb)); max-width: calc(100% - 176px); }
+  #actbar #prompt { white-space: normal; }
+  .dock { right: auto; left: calc(12px + env(safe-area-inset-left, 0px)); bottom: calc(10px + var(--sb)); }
+  #chat-btn { right: auto; left: calc(60px + env(safe-area-inset-left, 0px)); }
+  #chat-bar { bottom: auto; top: calc(var(--under) + var(--st)); }
+  .dash { left: auto; right: calc(12px + env(safe-area-inset-right, 0px)); transform: none; max-width: calc(100% - 130px); overflow: hidden; }
+  .next { left: calc(16px + env(safe-area-inset-left, 0px)); bottom: calc(196px + var(--sb)); max-width: calc(100% - 176px); }
+  #sheet h2 { font-size: 22px; }
+  /* on a phone the handset is the screen itself */
+  #sheet.device .body { padding: 0; }
+  .handset { max-width: none; border-radius: 0; box-shadow: none; }
+  .handset .island { display: none; }
+  .statusbar { height: 40px; padding: 2px 22px 0; }
+  #sheet.device > header { top: 3px; right: 50%; margin-right: -17px; }
+}
+/* A phone held sideways: little height. The stick and the buttons sit lower and the buttons spread sideways; the prompt goes to the foot of the screen between them. */
+@media (max-height: 480px) {
+  .radar { width: 54px; height: 54px; top: calc(4px + var(--st)); }
+  #hud { --under: 66px; }
+  /* with the phone on its side the top band is the map and the purse; notices and the dashboard go just under it */
+  #notices { top: calc(var(--under) + var(--st)); width: min(340px, calc(100% - 300px)); }
+  .dash { top: calc(var(--under) + var(--st)) !important; bottom: auto !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; }
+  .dash:not([hidden]) ~ #notices { top: calc(var(--under) + 34px + var(--st)); }
+  #stick { bottom: calc(16px + var(--sb)); width: 104px; height: 104px; }
+  .pad.primary { right: 22px; bottom: 22px; }
+  .pad.slot1 { right: 110px; bottom: 16px; }
+  .pad.slot2 { right: 30px; bottom: 108px; }
+  .pad.slot3 { right: 100px; bottom: 84px; }
+  .pad.slot4 { right: 176px; bottom: 16px; }
+  .pad.slot5 { right: 168px; bottom: 82px; }
+  .pad.slot6 { right: 240px; bottom: 84px; }
+  /* the Skills button a little above the middle, clear of the buttons below it; its arc a size smaller */
+  .skills-btn { width: 50px; height: 50px; } .skills-btn .ico { width: 28px; height: 28px; }
+  .skills-page { transform-origin: calc(-37px - env(safe-area-inset-right, 0px)) 0; }
+  .skill { width: 46px; height: 46px; } .skill .disc .ico { width: 26px; height: 26px; } .skill .name { font-size: 8.5px; }
+  .skill.at0 { right: calc(28px + env(safe-area-inset-right, 0px)); top: -110px; }
+  .skill.at1 { right: calc(80px + env(safe-area-inset-right, 0px)); top: -80px; }
+  .skill.at2 { right: calc(101px + env(safe-area-inset-right, 0px)); top: -23px; }
+  .skill.at3 { right: calc(80px + env(safe-area-inset-right, 0px)); top: 34px; }
+  .skill.at4 { right: calc(28px + env(safe-area-inset-right, 0px)); top: 64px; }
+  .pad.slot7 { right: 100px; bottom: 150px; }
+  .dock { right: auto; left: calc(132px + env(safe-area-inset-left, 0px)); bottom: calc(8px + var(--sb)); }
+  #chat-btn { right: auto; left: calc(180px + env(safe-area-inset-left, 0px)); bottom: calc(8px + var(--sb)); }
+  .next { display: none; }
+  .plate .wide { display: none; }
+  #notices > :nth-last-child(n+3) { display: none; }
+  #actbar { bottom: calc(60px + var(--sb)); max-width: calc(100% - 470px); min-width: 170px; }
+  #actbar #prompt { white-space: normal; font-size: 12.5px; padding: 5px 9px; }
+  #chat-bar { bottom: auto; top: calc(var(--under) + var(--st)); }
+  #sheet h2 { font-size: 20px; } #sheet header { padding: 10px 16px 8px; }
+  .lockup { transform: none; --title: min(calc((100vw - 44px) / 12.9), 10.5vh, 62px); }
+  .splash .mark { width: calc(var(--title) * 3.5); margin-bottom: calc(var(--title) * 0.7); }
+  .gate { margin-top: 20px; }
+  .greeting .big { font-size: 44px; } .greeting { padding: 0; }
+  .handset { border-radius: 30px; } .statusbar { height: 34px; } .handset .island { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  .slip, .hint, .gov, .law, .alarm, .ringing, .screen.opening { animation: none; } .meter i { transition: none; }
+  .next.say { animation: none; opacity: 1; }
+  .splash .mark .disc, .splash .mark .ray, .splash .mark .ground, .wordmark i, .splash .domain, .load, .slides img.in, .slides .flash.go, .pick.chosen::after { animation: none; }
+  .load .ticks i { animation-duration: 0.01s; }
+  #intro-play, .pick { transition: none; }
+  #view.jolt { animation: none; }
+}
+</style>
+
+<script>
+/* Before anything else: is the game in a frame, and start fetching and decoding both supplied figures on a
+   worker, so that they are ready by the time the page has finished starting (src/client/animated.js). */
+(function () {
+  try { if (window.self !== window.top) document.documentElement.classList.add('framed'); } catch (e) { document.documentElement.classList.add('framed'); }
+  var got = window.__PCW_FIGURE_BYTES = {};
+  try {
+    var src = "onmessage=function(e){var d=e.data;var go=function(t){try{var raw=atob(t.trim());var n=raw.length;var out=new Uint8Array(n);for(var i=0;i<n;i+=1)out[i]=raw.charCodeAt(i);postMessage({id:d.id,buf:out.buffer},[out.buffer]);}catch(err){postMessage({id:d.id,error:String(err)});}};if(d.text){go(d.text);}else{fetch(d.url).then(function(r){if(!r.ok)throw new Error(d.url+': '+r.status);return r.text();}).then(go).catch(function(err){postMessage({id:d.id,error:String(err)});});}};";
+    var w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
+    var wait = {};
+    w.onmessage = function (e) { var r = wait[e.data.id]; if (!r) return; if (e.data.error) r.no(new Error(e.data.error)); else r.yes(e.data.buf); };
+    var FILES = { W1: ['woman.b64.txt', '__PCW_WOMAN_B64'], M1: ['man.b64.txt', '__PCW_MAN_B64'] };
+    // asked for by animated.js; the first is begun here, the other only when it is wanted (each is 10 MB or more)
+    window.__PCW_LOAD_FIGURE = function (id) {
+      if (got[id] || !FILES[id]) return got[id] || null;
+      got[id] = new Promise(function (yes, no) { wait[id] = { yes: yes, no: no }; });
+      got[id].catch(function () {});
+      w.postMessage({ id: id, url: new URL(FILES[id][0], location.href).href, text: window[FILES[id][1]] || null });
+      return got[id];
+    };
+    // the one this device chose last time, or the woman, whom the screen opens on
+    var first = 'W1';
+    try { var prefs = JSON.parse(localStorage.getItem('nlw-prefs-v1') || '{}'); if (prefs && prefs.look && prefs.look.figure === 'M1') first = 'M1'; } catch (e) {}
+    window.__PCW_LOAD_FIGURE(first);
+  } catch (e) { /* no workers: animated.js fetches and decodes them itself */ }
+})();
+</script>
+<div id="game">
+  <!-- The mark is a sun coming up over level ground. Its shapes are in mark.svg.txt and are written into each place the brand appears when the page is built; this holds only the line the sun rises from behind. -->
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <defs>
+      <clipPath id="pcw-sky"><rect x="0" y="0" width="240" height="100"></rect></clipPath>
+    </defs>
+  </svg>
+  <canvas id="view" tabindex="0" aria-label="The town"></canvas>
+
+  <div id="bubbles" aria-live="off"></div>
+
+  <div id="hud" hidden>
+    <!-- top left: the radar. It turns with the camera, the player in the middle; tap it for the phone's map -->
+    <button class="radar" id="radar" type="button" aria-label="The radar. Open the map"><canvas id="radar-map" width="300" height="300"></canvas></button>
+    <!-- top right: life (only in danger), the purse, then the time -->
+    <div class="hudr" id="hudr">
+      <div id="vitals" hidden>
+        <div class="vital" id="vital-self"><div class="life" role="meter" aria-label="Your health" aria-valuemin="0" aria-valuemax="100" id="health-meter"><i id="health-fill"></i></div><span class="num" id="health-num">100</span></div>
+        <div class="vital foe" id="vital-foe" hidden><span class="who" id="foe-name"></span><div class="life thin"><i id="foe-fill"></i></div><span class="num" id="foe-num"></span></div>
+        <div id="critical" role="alert" hidden>Critical</div>
+      </div>
+      <div class="purse" aria-live="off">
+        <div class="amount"><span id="hud-balance">40</span><span class="unit"> COWRIES</span></div>
+        <div class="pounds" id="hud-pounds">= £20</div>
+      </div>
+      <div class="plate">
+        <div class="clock" id="hud-clock">07:30</div>
+        <div class="eyebrow" id="hud-day">Day 1</div>
+        <div class="where"><span class="eyebrow" id="hud-place"></span><span class="eyebrow" id="hud-weather">Clear</span></div>
+        <div class="eyebrow room" id="hud-room" hidden></div>
+        <div id="lawchip" hidden></div>
+      </div>
+    </div>
+    <div class="dash" id="hud-dash" hidden><span class="eyebrow" id="dash-plate"></span><span id="dash-speed"></span><span id="dash-fuel"></span><span id="dash-load"></span></div>
+    <div id="notices" aria-live="polite"></div>
+    <button id="chat-btn" type="button" aria-label="Chat with the players near you" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4c-4.7 0-8.5 3.1-8.5 7 0 2.2 1.2 4.1 3.1 5.4L6 20l4-2.2c.6.1 1.3.2 2 .2 4.7 0 8.5-3.1 8.5-7S16.7 4 12 4z"></path></svg><span id="chat-count"></span></button>
+    <form id="chat-bar" hidden autocomplete="off"><input id="chat-input" maxlength="140" placeholder="Say something" aria-label="Say something to the players near you" enterkeyhint="send"><button class="btn primary" type="submit">Say</button></form>
+    <div id="actbar">
+      <button id="waypoint" type="button" hidden></button>
+      <div id="taking" hidden><span id="taking-text"></span><div class="ring"><i id="taking-fill"></i></div></div>
+      <div id="keys" hidden></div>
+      <div id="prompt" hidden><span class="keycap" id="prompt-key">E</span><span id="prompt-text"></span><span class="ring" id="prompt-ring" hidden><i></i></span></div>
+    </div>
+    <div class="next" id="hud-next"></div>
+    <div class="dock">
+      <button class="btn" id="btn-phone" type="button" aria-label="Phone"><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M6.6 3.5h2.7l1.6 4.4-2.1 1.3a11 11 0 0 0 6 6l1.3-2.1 4.4 1.6v2.7a2 2 0 0 1-2 2C10.6 19.4 4.6 13.4 4.6 5.5a2 2 0 0 1 2-2z"></path></svg><span class="badge" id="phone-badge" hidden></span></button>
+    </div>
+    <div id="flash"></div>
+  </div>
+  <!-- taken by the police: a pair of handcuffs snaps shut over the screen, ARRESTED, for four seconds; then dark, then the Police Post -->
+  <div id="arrested" aria-live="assertive" hidden>
+    <svg class="cuffs" viewBox="0 0 240 140" aria-hidden="true">
+      <g class="cuff left"><circle cx="58" cy="78" r="40" class="steel"/><circle cx="58" cy="78" r="27" class="hole"/><path class="bolt" d="M58 38 v-14 h20 v14"/><rect x="40" y="108" width="36" height="16" rx="4" class="lock"/></g>
+      <g class="chain"><rect x="96" y="66" width="22" height="13" rx="6.5"/><rect x="111" y="66" width="22" height="13" rx="6.5"/><rect x="126" y="66" width="22" height="13" rx="6.5"/></g>
+      <g class="cuff right"><circle cx="182" cy="78" r="40" class="steel"/><circle cx="182" cy="78" r="27" class="hole"/><path class="bolt" d="M182 38 v-14 h-20 v14"/><rect x="164" y="108" width="36" height="16" rx="4" class="lock"/></g>
+    </svg>
+    <div class="word">ARRESTED</div>
+  </div>
+  <div id="blackout" hidden></div>
+
+  <div id="touch" hidden>
+    <div id="stick"><i></i></div>
+    <div id="pad"></div>
+  </div>
+
+  <aside id="sheet" hidden aria-live="polite">
+    <header>
+      <div><div class="eyebrow" id="sheet-eyebrow"></div><h2 id="sheet-title"></h2></div>
+      <button class="btn quiet" id="sheet-close" type="button" aria-label="Close">Close</button>
+    </header>
+    <div class="tabs" id="sheet-tabs" hidden></div>
+    <div class="body" id="sheet-body"></div>
+  </aside>
+
+  <div id="start">
+    <header class="lead">
+      <div class="brand">
+        <svg class="mark" viewBox="0 0 240 132" aria-hidden="true">@@PCW_MARK@@</svg>
+        <h1 class="arcade">Post Civil War</h1>
+      </div>
+      <div class="story" id="start-intro"></div>
+      <h2 id="start-title">Create your character</h2>
+    </header>
+    <!-- the figure, drawn in 3D: drag it to turn it; the arrows change it -->
+    <section class="stage" id="stage" aria-label="Your character">
+      <div class="seg" id="genders" role="group" aria-label="Woman or man"><button type="button" data-gender="f" aria-pressed="true">Woman</button><button type="button" data-gender="m" aria-pressed="false">Man</button></div>
+      <div class="view-box"><canvas id="stage-view" aria-label="Your character, drag to turn"></canvas></div>
+      <div class="stage-nav">
+        <button class="nav" id="fig-prev" type="button" aria-label="Previous character"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M15 5l-7 7 7 7"></path></svg></button>
+        <div class="fig-label"><b id="fig-name"></b><span id="fig-count"></span></div>
+        <button class="nav" id="fig-next" type="button" aria-label="Next character"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
+      </div>
+      <div class="dots" id="fig-dots"></div>
+    </section>
+    <div class="intro">
+      <form class="creator" id="creator" autocomplete="off">
+        <label><span class="eyebrow">Name</span><input class="field" id="name" name="name" maxlength="24" value="" required autocapitalize="words" enterkeyhint="done"></label>
+        <div id="colour-block"><div class="eyebrow">Colours</div><div class="parts" id="part-tabs"></div><div class="swatches" id="part-swatches"></div></div>
+        <div id="anim-block" hidden><div class="eyebrow">Animations</div><div class="parts" id="anim-list"></div></div>
+        <div><div class="eyebrow">Your path</div><div class="actions" id="paths" style="margin-top:6px"><button class="btn choice" type="button" data-path="hero" aria-pressed="true">Hero</button><button class="btn choice" type="button" data-path="villain" aria-pressed="false">Villain</button></div></div>
+        <div class="startrow">
+          <button class="btn primary" id="enter" type="submit">Enter the town</button>
+          <button class="btn quiet" id="continue" type="button" hidden>Continue</button>
+        </div>
+        <div class="notice" id="start-error" hidden></div>
+      </form>
+      <p class="small">There are no accounts yet. Your character and everything they own are kept on this device, and Continue picks them up again. Signing up and logging in arrive with the game's servers at postcivilwar.com.</p>
+      <p class="small">Walk with W A S D or the arrow keys, hold Shift to run, drag to look around, press E to act, C to change the view, Tab for your phone. Other keys appear on screen when there is something to use them on. On a phone, use the stick; the buttons on the right change with what you are doing.</p>
+      <p class="small">This is a browser prototype of the game's systems. The world runs on this page; no real money or real bitcoin is involved. If someone else has this page open, you can meet and talk in town.</p>
+    </div>
+  </div>
+
+  <!-- The opening. It is plain markup and style so that it is on screen before the game's own script has even been read. -->
+  <div id="intro" data-stage="splash">
+    <button id="intro-mute" type="button" aria-label="Sound" aria-pressed="true"><svg class="on" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9.8v4.4h3.2l6 4.3V5.5l-6 4.3z"></path><path d="M16.4 9.2a4 4 0 0 1 0 5.6"></path><path d="M19 6.6a7.6 7.6 0 0 1 0 10.8"></path></svg><svg class="off" viewBox="0 0 24 24" aria-hidden="true"><path d="M3.5 9.8v4.4h3.2l6 4.3V5.5l-6 4.3z"></path><path d="M16.5 9.5l5 5"></path><path d="M21.5 9.5l-5 5"></path></svg></button>
+    <section class="splash" aria-label="Post Civil War">
+      <div class="lockup">
+        <svg class="mark" viewBox="0 0 240 132" role="img" aria-label="A rising sun">@@PCW_MARK@@</svg>
+        <h1 class="wordmark" aria-label="Post Civil War"><span aria-hidden="true"><i style="--i:0">P</i><i style="--i:1">O</i><i style="--i:2">S</i><i style="--i:3">T</i><i style="--i:4"> </i><i style="--i:5">C</i><i style="--i:6">I</i><i style="--i:7">V</i><i style="--i:8">I</i><i style="--i:9">L</i><i style="--i:10"> </i><i style="--i:11">W</i><i style="--i:12">A</i><i style="--i:13">R</i></span></h1>
+        <div class="domain">postcivilwar.com</div>
+        <div class="gate">
+          <div class="load" aria-hidden="true"><div class="ticks"><i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i><i style="--i:3"></i><i style="--i:4"></i><i style="--i:5"></i><i style="--i:6"></i><i style="--i:7"></i><i style="--i:8"></i><i style="--i:9"></i><i style="--i:10"></i><i style="--i:11"></i><i style="--i:12"></i><i style="--i:13"></i><i style="--i:14"></i><i style="--i:15"></i><i style="--i:16"></i><i style="--i:17"></i><i style="--i:18"></i><i style="--i:19"></i><i style="--i:20"></i><i style="--i:21"></i><i style="--i:22"></i><i style="--i:23"></i><i style="--i:24"></i><i style="--i:25"></i><i style="--i:26"></i><i style="--i:27"></i><i style="--i:28"></i><i style="--i:29"></i><i style="--i:30"></i><i style="--i:31"></i></div><span><b>Loading</b></span></div>
+          <button id="intro-play" type="button" tabindex="-1">PLAY</button>
+        </div>
+      </div>
+    </section>
+    <section class="slides" aria-label="The story so far">
+      <div class="bg" id="slide-bg"></div>
+      <img id="slide-img" alt="">
+      <div class="flash" id="slide-flash"></div>
+      <button id="intro-skip" type="button" aria-label="Skip the story">SKIP<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
+    </section>
+    <section class="choice" aria-labelledby="choice-title">
+      <svg class="mark" viewBox="0 0 240 132" aria-hidden="true">@@PCW_MARK@@</svg>
+      <h2 id="choice-title">Be a hero<br>or be a villain?</h2>
+      <div class="options">
+        <button class="pick" type="button" data-path="hero"><b>HERO</b><span>Build. Protect. Earn it.</span></button>
+        <span class="or" aria-hidden="true">or</span>
+        <button class="pick" type="button" data-path="villain"><b>VILLAIN</b><span>Take. Run. Answer for it.</span></button>
+      </div>
+      <p class="small">Your answer is kept with your character. The town's rules are the same for both: what you do decides the rest.</p>
+    </section>
+  </div>
+  <script>window.__introAt = performance.now();</script>
+</div>

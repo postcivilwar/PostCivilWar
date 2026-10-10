@@ -1,0 +1,319 @@
+{
+ "keke": {
+  "masters": {
+   "modern": {
+    "file": "keke/canonical_keke.glb",
+    "sha256": "52a95f35279882ca2dd50c8b725a93a325c5ee9b790890b9da946fc6efe99e7e",
+    "triangles": 57292
+   },
+   "classic": {
+    "file": "keke/canonical_keke_classic.glb",
+    "sha256": "91c95f781753d01ca757d6a7b1286ba3006a51b3170ec04ea58436237f75c162",
+    "triangles": 57828
+   },
+   "tvs": {
+    "file": "keke/canonical_keke_tvs.glb",
+    "sha256": "d71b3f17c89132ac71d0e6a8da068afe69a5a695c5c0e401730473262c0d7e86",
+    "triangles": 57292
+   }
+  },
+  "triangles": {
+   "keke.body": [
+    8040,
+    2092
+   ],
+   "keke.front.modern": [
+    732,
+    156
+   ],
+   "keke.fork.modern": [
+    1276,
+    398
+   ],
+   "keke.front.classic": [
+    1388,
+    372
+   ],
+   "keke.fork.classic": [
+    1276,
+    398
+   ],
+   "keke.front.tvs": [
+    732,
+    156
+   ],
+   "keke.fork.tvs": [
+    1276,
+    398
+   ],
+   "keke.wheel": [
+    4124,
+    444
+   ],
+   "keke.far.modern": [
+    1670
+   ],
+   "keke.far.classic": [
+    1660
+   ],
+   "keke.far.tvs": [
+    1670
+   ]
+  },
+  "empty_triangles_dropped": {
+   "keke.body": 288,
+   "keke.front.modern": 192,
+   "keke.fork.modern": 0,
+   "keke.front.classic": 72,
+   "keke.fork.classic": 0,
+   "keke.front.tvs": 192,
+   "keke.fork.tvs": 0,
+   "keke.wheel": 0
+  },
+  "shared_body_pieces": 77,
+  "front_pieces": {
+   "modern": 13,
+   "classic": 7,
+   "tvs": 13
+  },
+  "texture_bytes": {
+   "wear": 5279,
+   "weave": 10645
+  },
+  "drawn": {
+   "near": 22420,
+   "middle": 3978,
+   "far": 1670
+  },
+  "lod_files": {
+   "keke_lod0.glb": 22420,
+   "keke_lod1.glb": 3978,
+   "keke_lod2.glb": 1670,
+   "keke_classic_lod0.glb": 23076,
+   "keke_classic_lod1.glb": 4194,
+   "keke_classic_lod2.glb": 1660,
+   "keke_tvs_lod0.glb": 22420,
+   "keke_tvs_lod1.glb": 3978,
+   "keke_tvs_lod2.glb": 1670
+  }
+ },
+ "bus": {
+  "master": {
+   "file": "bus/canonical_ivm_bus.glb",
+   "sha256": "293ac2d35443a17301eac52715a468bef84c487adcc95c474cd67b43754fcc75",
+   "triangles": 170704
+  },
+  "triangles": {
+   "bus.shell": [
+    28952,
+    7548
+   ],
+   "bus.cabin": [
+    6844,
+    2796
+   ],
+   "bus.wheel": [
+    2408,
+    292
+   ],
+   "bus.far": [
+    3531
+   ]
+  },
+  "pieces": {
+   "shell": 422,
+   "cabin": 233
+  },
+  "branding_pieces_left_out": 52,
+  "branding_left_out": {
+   "letters": 14,
+   "seat_logos": 36,
+   "badges": 2,
+   "triangles": 948,
+   "letter_boxes": [
+    [
+     [
+      -0.2454,
+      1.2476,
+      5.849
+     ],
+     [
+      -0.2348,
+      1.3213,
+      5.851
+     ]
+    ],
+    [
+     [
+      -0.2186,
+      1.2476,
+      5.849
+     ],
+     [
+      -0.1504,
+      1.3213,
+      5.851
+     ]
+    ],
+    [
+     [
+      -0.1343,
+      1.2476,
+      5.849
+     ],
+     [
+      -0.066,
+      1.3213,
+      5.851
+     ]
+    ],
+    [
+     [
+      -0.0531,
+      1.2466,
+      5.849
+     ],
+     [
+      0.0261,
+      1.3222,
+      5.851
+     ]
+    ],
+    [
+     [
+      0.0353,
+      1.2466,
+      5.849
+     ],
+     [
+      0.077,
+      1.3222,
+      5.851
+     ]
+    ],
+    [
+     [
+      0.0853,
+      1.2466,
+      5.849
+     ],
+     [
+      0.1644,
+      1.3222,
+      5.851
+     ]
+    ],
+    [
+     [
+      0.1773,
+      1.2476,
+      5.849
+     ],
+     [
+      0.2455,
+      1.3213,
+      5.851
+     ]
+    ],
+    [
+     [
+      -0.432,
+      1.883,
+      -5.626
+     ],
+     [
+      -0.3119,
+      2.0126,
+      -5.624
+     ]
+    ],
+    [
+     [
+      -0.2893,
+      1.8813,
+      -5.626
+     ],
+     [
+      -0.15,
+      2.0143,
+      -5.624
+     ]
+    ],
+    [
+     [
+      -0.1354,
+      1.8813,
+      -5.626
+     ],
+     [
+      -0.062,
+      2.0143,
+      -5.624
+     ]
+    ],
+    [
+     [
+      -0.0459,
+      1.8813,
+      -5.626
+     ],
+     [
+      0.0934,
+      2.0143,
+      -5.624
+     ]
+    ],
+    [
+     [
+      0.1162,
+      1.883,
+      -5.626
+     ],
+     [
+      0.2363,
+      2.0126,
+      -5.624
+     ]
+    ],
+    [
+     [
+      0.2646,
+      1.883,
+      -5.626
+     ],
+     [
+      0.3847,
+      2.0126,
+      -5.624
+     ]
+    ],
+    [
+     [
+      0.4132,
+      1.883,
+      -5.626
+     ],
+     [
+      0.4318,
+      2.0126,
+      -5.624
+     ]
+    ]
+   ]
+  },
+  "drawn": {
+   "near": 50244,
+   "middle": 12096,
+   "far": 3531
+  },
+  "lod_files": {
+   "coach_lod0.glb": 50244,
+   "coach_lod1.glb": 12096,
+   "coach_lod2.glb": 3531
+  }
+ },
+ "kit": {
+  "bytes": 1689912,
+  "file": "src/client/vehicle-kit-data.js"
+ }
+}

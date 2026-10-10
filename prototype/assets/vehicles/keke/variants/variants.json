@@ -1,0 +1,241 @@
+{
+ "model": "canonical_keke.glb",
+ "size": {
+  "id": "keke",
+  "name": "Keke",
+  "width": 1.625,
+  "bodyWidth": 1.224,
+  "length": 2.581,
+  "height": 1.92,
+  "front": 1.317,
+  "back": -1.264,
+  "wheelRadius": 0.251,
+  "halfWidth": 0.72,
+  "halfLength": 1.32,
+  "trims": [
+   "modern",
+   "classic",
+   "tvs"
+  ]
+ },
+ "fronts": {
+  "modern": {
+   "name": "Square lamps",
+   "file": "canonical_keke.glb"
+  },
+  "classic": {
+   "name": "Round lamps",
+   "file": "canonical_keke_classic.glb"
+  },
+  "tvs": {
+   "name": "Square lamps, slim",
+   "file": "canonical_keke_tvs.glb"
+  }
+ },
+ "paint": [
+  {
+   "id": "blue",
+   "name": "Blue",
+   "colour": "#1d4f9e"
+  },
+  {
+   "id": "green",
+   "name": "Green",
+   "colour": "#1f7a3d"
+  },
+  {
+   "id": "red",
+   "name": "Red",
+   "colour": "#b3261e"
+  },
+  {
+   "id": "yellow",
+   "name": "Yellow",
+   "colour": "#e7b40e"
+  },
+  {
+   "id": "white",
+   "name": "White",
+   "colour": "#ecebe4"
+  },
+  {
+   "id": "black",
+   "name": "Black",
+   "colour": "#1d1e22"
+  },
+  {
+   "id": "orange",
+   "name": "Orange",
+   "colour": "#e2731a"
+  }
+ ],
+ "canopy": {
+  "black": "#212223",
+  "navy": "#1a2440",
+  "maroon": "#4a1c1f",
+  "grey": "#55585c",
+  "green": "#1d3a2a"
+ },
+ "seat": {
+  "black": "#212223",
+  "brown": "#4d3423",
+  "red": "#6d1f1c",
+  "grey": "#4a4c50"
+ },
+ "floor": {
+  "dark": "#4f5250",
+  "green": "#44776a",
+  "red": "#6a3a30"
+ },
+ "slogans": [
+  "GOD'S TIME",
+  "NO FOOD FOR LAZY MAN",
+  "ONE DAY E GO BETTER",
+  "CHUKWU EBUKA",
+  "NO CONDITION IS PERMANENT",
+  "THANK GOD",
+  "SLOW AND STEADY",
+  "TRUST NO BODY"
+ ],
+ "extras": [
+  "curtains"
+ ],
+ "sheet": [
+  {
+   "name": "Keke 01: blue",
+   "model": "canonical keke",
+   "trim": "modern",
+   "colours": {
+    "paint": "#1d4f9e",
+    "canopy": "#1a2440",
+    "vinyl": "#4a4c50",
+    "floor": "#4f5250"
+   },
+   "wear": 0.73,
+   "dirt": 0.96,
+   "markings": {
+    "slogan": "NO FOOD FOR LAZY MAN",
+    "number": "456"
+   },
+   "extras": []
+  },
+  {
+   "name": "Keke 02: green",
+   "model": "canonical keke",
+   "trim": "classic",
+   "colours": {
+    "paint": "#1f7a3d",
+    "canopy": "#212223",
+    "vinyl": "#212223",
+    "floor": "#44776a"
+   },
+   "wear": 0.33,
+   "dirt": 0.43,
+   "markings": {
+    "slogan": "ONE DAY E GO BETTER",
+    "number": "550"
+   },
+   "extras": [
+    "curtains"
+   ]
+  },
+  {
+   "name": "Keke 03: red",
+   "model": "canonical keke",
+   "trim": "tvs",
+   "colours": {
+    "paint": "#b3261e",
+    "canopy": "#212223",
+    "vinyl": "#212223",
+    "floor": "#4f5250"
+   },
+   "wear": 0.79,
+   "dirt": 0.58,
+   "markings": {
+    "slogan": "CHUKWU EBUKA",
+    "number": "702"
+   },
+   "extras": [
+    "curtains"
+   ]
+  },
+  {
+   "name": "Keke 04: yellow",
+   "model": "canonical keke",
+   "trim": "classic",
+   "colours": {
+    "paint": "#e7b40e",
+    "canopy": "#212223",
+    "vinyl": "#212223",
+    "floor": "#44776a"
+   },
+   "wear": 0.51,
+   "dirt": 0.67,
+   "markings": {
+    "slogan": "ONE DAY E GO BETTER",
+    "number": "670"
+   },
+   "extras": [
+    "curtains"
+   ]
+  },
+  {
+   "name": "Keke 05: white",
+   "model": "canonical keke",
+   "trim": "tvs",
+   "colours": {
+    "paint": "#ecebe4",
+    "canopy": "#212223",
+    "vinyl": "#212223",
+    "floor": "#4f5250"
+   },
+   "wear": 0.36,
+   "dirt": 0.55,
+   "markings": {
+    "slogan": null,
+    "number": "638"
+   },
+   "extras": [
+    "curtains"
+   ]
+  },
+  {
+   "name": "Keke 06: black",
+   "model": "canonical keke",
+   "trim": "modern",
+   "colours": {
+    "paint": "#1d1e22",
+    "canopy": "#212223",
+    "vinyl": "#4d3423",
+    "floor": "#4f5250"
+   },
+   "wear": 0.4,
+   "dirt": 0.77,
+   "markings": {
+    "slogan": null,
+    "number": "176"
+   },
+   "extras": [
+    "curtains"
+   ]
+  },
+  {
+   "name": "Keke 07: orange",
+   "model": "canonical keke",
+   "trim": "tvs",
+   "colours": {
+    "paint": "#e2731a",
+    "canopy": "#212223",
+    "vinyl": "#212223",
+    "floor": "#6a3a30"
+   },
+   "wear": 0.47,
+   "dirt": 0.62,
+   "markings": {
+    "slogan": "THANK GOD",
+    "number": "351"
+   },
+   "extras": []
+  }
+ ]
+}

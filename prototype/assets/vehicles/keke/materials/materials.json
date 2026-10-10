@@ -1,0 +1,124 @@
+{
+ "slots": {
+  "paint": {
+   "from": "Weathered transport yellow",
+   "colour": [
+    0.7986,
+    0.4562,
+    0.0044
+   ],
+   "roughness": 0.55,
+   "metalness": 0.18
+  },
+  "canopy": {
+   "from": "Black woven canopy",
+   "colour": [
+    0.0155,
+    0.0162,
+    0.0171
+   ],
+   "roughness": 0.88,
+   "metalness": 0
+  },
+  "vinyl": {
+   "from": "Black vinyl upholstery",
+   "colour": [
+    0.0155,
+    0.0162,
+    0.0171
+   ],
+   "roughness": 0.58,
+   "metalness": 0
+  },
+  "alloy": {
+   "from": "Brushed wheel alloy",
+   "colour": [
+    0.48,
+    0.5,
+    0.51
+   ],
+   "roughness": 0.32,
+   "metalness": 0.78
+  },
+  "trim": {
+   "from": "Dark trim",
+   "colour": [
+    0.025,
+    0.028,
+    0.032
+   ],
+   "roughness": 0.68,
+   "metalness": 0.1
+  },
+  "lens": {
+   "from": "Headlamp lens",
+   "colour": [
+    0.84,
+    0.87,
+    0.83
+   ],
+   "roughness": 0.17,
+   "metalness": 0.12
+  },
+  "glass": {
+   "from": "Smoked windshield",
+   "colour": [
+    0.24,
+    0.34,
+    0.37
+   ],
+   "roughness": 0.13,
+   "metalness": 0.05
+  },
+  "steel": {
+   "from": "Steel chassis",
+   "colour": [
+    0.13,
+    0.14,
+    0.14
+   ],
+   "roughness": 0.62,
+   "metalness": 0.65
+  },
+  "tail": {
+   "from": "Tail lamps",
+   "colour": [
+    0.6,
+    0.02,
+    0.013
+   ],
+   "roughness": 0.24,
+   "metalness": 0.1
+  },
+  "rubber": {
+   "from": "Tyres and seals",
+   "colour": [
+    0.018,
+    0.02,
+    0.021
+   ],
+   "roughness": 0.94,
+   "metalness": 0
+  },
+  "floor": {
+   "from": "Worn floor",
+   "colour": [
+    0.08,
+    0.085,
+    0.08
+   ],
+   "roughness": 0.85,
+   "metalness": 0.05
+  },
+  "amber": {
+   "from": "Amber indicator",
+   "colour": [
+    1,
+    0.29,
+    0.015
+   ],
+   "roughness": 0.25,
+   "metalness": 0.1
+  }
+ }
+}

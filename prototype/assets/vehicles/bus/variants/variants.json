@@ -1,0 +1,268 @@
+{
+ "model": "canonical_ivm_bus.glb",
+ "size": {
+  "id": "bus",
+  "name": "Coach",
+  "width": 3.41,
+  "bodyWidth": 2.624,
+  "length": 11.569,
+  "height": 3.817,
+  "front": 5.896,
+  "back": -5.673,
+  "wheelRadius": 0.492,
+  "halfWidth": 1.45,
+  "halfLength": 5.9,
+  "trims": [
+   "standard"
+  ]
+ },
+ "liveries": [
+  {
+   "id": "blue",
+   "name": "Blue",
+   "lower": "#1d4f9e",
+   "upper": "#f1f3f2",
+   "lettering": "#1d4f9e"
+  },
+  {
+   "id": "green",
+   "name": "Green",
+   "lower": "#16a542",
+   "upper": "#f1f3f2",
+   "lettering": "#16a542"
+  },
+  {
+   "id": "red",
+   "name": "Red",
+   "lower": "#b3261e",
+   "upper": "#f1f3f2",
+   "lettering": "#b3261e"
+  },
+  {
+   "id": "white",
+   "name": "White",
+   "lower": "#eeeee8",
+   "upper": "#f4f4f0",
+   "lettering": "#1f2f6b"
+  },
+  {
+   "id": "yellow",
+   "name": "Yellow",
+   "lower": "#e7b40e",
+   "upper": "#f1f3f2",
+   "lettering": "#1c1d21"
+  },
+  {
+   "id": "silver",
+   "name": "Silver",
+   "lower": "#aeb4ba",
+   "upper": "#dfe3e6",
+   "lettering": "#7a1f1c"
+  },
+  {
+   "id": "dark",
+   "name": "Dark",
+   "lower": "#20242c",
+   "upper": "#d9dcdf",
+   "lettering": "#c9a227"
+  }
+ ],
+ "cabins": {
+  "blue": {
+   "seat": "#26397f",
+   "curtain": "#427bbd"
+  },
+  "maroon": {
+   "seat": "#5c1f26",
+   "curtain": "#9a5a52"
+  },
+  "grey": {
+   "seat": "#4a4f58",
+   "curtain": "#8d949c"
+  },
+  "green": {
+   "seat": "#1f4d36",
+   "curtain": "#6c9a78"
+  }
+ },
+ "operators": [
+  "OGBARU LINE",
+  "EASTBANK COACHES",
+  "ATANI TRAVELLERS",
+  "RIVER ROAD MOTORS"
+ ],
+ "routes": [
+  "ATANI · ONITSHA",
+  "ATANI · AWKA",
+  "ATANI · ASABA",
+  "ATANI · NNEWI"
+ ],
+ "extras": [
+  "flaps"
+ ],
+ "sheet": [
+  {
+   "name": "Coach 01: blue",
+   "model": "canonical bus",
+   "trim": "standard",
+   "colours": {
+    "paint": "#1d4f9e",
+    "paint2": "#f1f3f2",
+    "accent": "#1d4f9e",
+    "seat": "#4a4f58",
+    "curtain": "#8d949c"
+   },
+   "wear": 0.26,
+   "dirt": 0.58,
+   "markings": {
+    "operator": "OGBARU LINE",
+    "route": "ATANI · ONITSHA",
+    "number": "84",
+    "advert": null
+   },
+   "extras": [
+    "flaps"
+   ]
+  },
+  {
+   "name": "Coach 02: green",
+   "model": "canonical bus",
+   "trim": "standard",
+   "colours": {
+    "paint": "#16a542",
+    "paint2": "#f1f3f2",
+    "accent": "#16a542",
+    "seat": "#26397f",
+    "curtain": "#427bbd"
+   },
+   "wear": 0.38,
+   "dirt": 0.66,
+   "markings": {
+    "operator": "EASTBANK COACHES",
+    "route": "ATANI · AWKA",
+    "number": "13",
+    "advert": null
+   },
+   "extras": []
+  },
+  {
+   "name": "Coach 03: red",
+   "model": "canonical bus",
+   "trim": "standard",
+   "colours": {
+    "paint": "#b3261e",
+    "paint2": "#f1f3f2",
+    "accent": "#b3261e",
+    "seat": "#5c1f26",
+    "curtain": "#9a5a52"
+   },
+   "wear": 0.18,
+   "dirt": 0.44,
+   "markings": {
+    "operator": "ATANI TRAVELLERS",
+    "route": "ATANI · ASABA",
+    "number": "76",
+    "advert": {
+     "head": "EASTBANK CEMENT",
+     "line": "Strong walls start here",
+     "ground": 1325660,
+     "ink": 16106776
+    }
+   },
+   "extras": []
+  },
+  {
+   "name": "Coach 04: white",
+   "model": "canonical bus",
+   "trim": "standard",
+   "colours": {
+    "paint": "#eeeee8",
+    "paint2": "#f4f4f0",
+    "accent": "#1f2f6b",
+    "seat": "#26397f",
+    "curtain": "#427bbd"
+   },
+   "wear": 0.61,
+   "dirt": 0.65,
+   "markings": {
+    "operator": "RIVER ROAD MOTORS",
+    "route": "ATANI · NNEWI",
+    "number": "57",
+    "advert": null
+   },
+   "extras": []
+  },
+  {
+   "name": "Coach 05: yellow",
+   "model": "canonical bus",
+   "trim": "standard",
+   "colours": {
+    "paint": "#e7b40e",
+    "paint2": "#f1f3f2",
+    "accent": "#1c1d21",
+    "seat": "#4a4f58",
+    "curtain": "#8d949c"
+   },
+   "wear": 0.51,
+   "dirt": 0.61,
+   "markings": {
+    "operator": "OGBARU LINE",
+    "route": "ATANI · AWKA",
+    "number": "35",
+    "advert": null
+   },
+   "extras": [
+    "flaps"
+   ]
+  },
+  {
+   "name": "Coach 06: silver",
+   "model": "canonical bus",
+   "trim": "standard",
+   "colours": {
+    "paint": "#aeb4ba",
+    "paint2": "#dfe3e6",
+    "accent": "#7a1f1c",
+    "seat": "#26397f",
+    "curtain": "#427bbd"
+   },
+   "wear": 0.09,
+   "dirt": 0.4,
+   "markings": {
+    "operator": "EASTBANK COACHES",
+    "route": "ATANI · ASABA",
+    "number": "19",
+    "advert": {
+     "head": "EASTBANK CEMENT",
+     "line": "Strong walls start here",
+     "ground": 1325660,
+     "ink": 16106776
+    }
+   },
+   "extras": []
+  },
+  {
+   "name": "Coach 07: dark",
+   "model": "canonical bus",
+   "trim": "standard",
+   "colours": {
+    "paint": "#20242c",
+    "paint2": "#d9dcdf",
+    "accent": "#c9a227",
+    "seat": "#26397f",
+    "curtain": "#427bbd"
+   },
+   "wear": 0.55,
+   "dirt": 0.64,
+   "markings": {
+    "operator": "ATANI TRAVELLERS",
+    "route": "ATANI · NNEWI",
+    "number": "67",
+    "advert": null
+   },
+   "extras": [
+    "flaps"
+   ]
+  }
+ ]
+}

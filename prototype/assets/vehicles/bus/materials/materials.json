@@ -1,0 +1,154 @@
+{
+ "slots": {
+  "paint": {
+   "name": "Body paint, lower",
+   "colour": [
+    0.008,
+    0.38,
+    0.055
+   ],
+   "roughness": 0.4,
+   "metalness": 0.16
+  },
+  "paint2": {
+   "name": "Body paint, upper",
+   "colour": [
+    0.88,
+    0.9,
+    0.89
+   ],
+   "roughness": 0.36,
+   "metalness": 0.13
+  },
+  "accent": {
+   "name": "Lettering and stripes",
+   "colour": [
+    0.008,
+    0.38,
+    0.055
+   ],
+   "roughness": 0.4,
+   "metalness": 0.16
+  },
+  "trim": {
+   "name": "Window surround",
+   "colour": [
+    0.018,
+    0.022,
+    0.025
+   ],
+   "roughness": 0.37,
+   "metalness": 0.2
+  },
+  "cabinlight": {
+   "name": "Cabin lighting",
+   "colour": [
+    0.035,
+    0.15,
+    0.95
+   ],
+   "roughness": 0.25,
+   "metalness": 0
+  },
+  "seat": {
+   "name": "Seat upholstery",
+   "colour": [
+    0.018,
+    0.045,
+    0.24
+   ],
+   "roughness": 0.78,
+   "metalness": 0
+  },
+  "curtain": {
+   "name": "Curtains",
+   "colour": [
+    0.055,
+    0.2,
+    0.52
+   ],
+   "roughness": 0.88,
+   "metalness": 0
+  },
+  "alloy": {
+   "name": "Brushed aluminium",
+   "colour": [
+    0.54,
+    0.58,
+    0.6
+   ],
+   "roughness": 0.25,
+   "metalness": 0.8
+  },
+  "floor": {
+   "name": "Cabin flooring",
+   "colour": [
+    0.065,
+    0.076,
+    0.09
+   ],
+   "roughness": 0.82,
+   "metalness": 0
+  },
+  "chassis": {
+   "name": "Chassis and dashboard",
+   "colour": [
+    0.045,
+    0.053,
+    0.06
+   ],
+   "roughness": 0.63,
+   "metalness": 0.12
+  },
+  "lens": {
+   "name": "Headlight reflector",
+   "colour": [
+    0.8,
+    0.85,
+    0.86
+   ],
+   "roughness": 0.17,
+   "metalness": 0.4
+  },
+  "amber": {
+   "name": "Indicator amber",
+   "colour": [
+    0.96,
+    0.34,
+    0.025
+   ],
+   "roughness": 0.22,
+   "metalness": 0.1
+  },
+  "tail": {
+   "name": "Rear red lens",
+   "colour": [
+    0.62,
+    0.012,
+    0.015
+   ],
+   "roughness": 0.24,
+   "metalness": 0.12
+  },
+  "glass": {
+   "name": "Tinted glass",
+   "colour": [
+    0.1,
+    0.26,
+    0.26
+   ],
+   "roughness": 0.12,
+   "metalness": 0.05
+  },
+  "rubber": {
+   "name": "Tyre rubber",
+   "colour": [
+    0.014,
+    0.017,
+    0.019
+   ],
+   "roughness": 0.89,
+   "metalness": 0
+  }
+ }
+}

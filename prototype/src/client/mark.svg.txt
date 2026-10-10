@@ -1,0 +1,12 @@
+<g clip-path="url(#pcw-sky)"><circle class="disc" cx="120" cy="100" r="36"></circle></g>
+<path class="ray" style="--i:0" d="M70.3 92.1 L48.6 88.7 L49.9 80.8 L71.2 86.2 Z"></path>
+<path class="ray" style="--i:1" d="M75.8 72.9 L57.9 60.2 L62.6 53.7 L79.3 68.0 Z"></path>
+<path class="ray" style="--i:2" d="M89.6 58.3 L80.2 38.5 L87.4 35.0 L94.9 55.6 Z"></path>
+<path class="ray" style="--i:3" d="M108.4 51.2 L107.7 29.3 L115.7 29.0 L114.4 50.9 Z"></path>
+<path class="ray" style="--i:4" d="M125.6 50.9 L124.3 29.0 L132.3 29.3 L131.6 51.2 Z"></path>
+<path class="ray" style="--i:5" d="M145.1 55.6 L152.6 35.0 L159.8 38.5 L150.4 58.3 Z"></path>
+<path class="ray" style="--i:6" d="M160.7 68.0 L177.4 53.7 L182.1 60.2 L164.2 72.9 Z"></path>
+<path class="ray" style="--i:7" d="M168.8 86.2 L190.1 80.8 L191.4 88.7 L169.7 92.1 Z"></path>
+<rect class="ground" style="--i:0" x="26" y="100" width="188" height="5"></rect>
+<rect class="ground" style="--i:1" x="60" y="112" width="120" height="4"></rect>
+<rect class="ground" style="--i:2" x="90" y="123" width="60" height="3"></rect>

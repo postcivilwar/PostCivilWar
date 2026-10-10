@@ -1,0 +1,29 @@
+<!doctype html><html><body style="margin:0;background:#888"><canvas id=c width=900 height=600></canvas>
+<script src="/vendor/three.min.js"></script>
+<script type="module">
+import { parseGLB, modelFromGLB } from '/src/client/glb.js';
+const surface = (o) => new THREE.MeshStandardMaterial(o);
+const r = new THREE.WebGLRenderer({ canvas: document.getElementById('c'), antialias: true }); r.outputEncoding = THREE.sRGBEncoding;
+const scene = new THREE.Scene(); scene.add(new THREE.HemisphereLight(0xffffff, 0x444444, 1.2));
+const d = new THREE.DirectionalLight(0xffffff, 0.8); d.position.set(2,3,3); scene.add(d);
+const grid = new THREE.GridHelper(4, 16); scene.add(grid);
+window.load = async (file) => { const buf = await (await fetch(file)).arrayBuffer(); return modelFromGLB(parseGLB(buf), { surface }); };
+window.show = async ({ files, clips, times, yaw = 0.6, borrow }) => {
+  while (scene.children.length > 3) scene.remove(scene.children[3]);
+  const models = []; for (const f of files) models.push(await window.load(f));
+  await Promise.all(models.map((m) => m.ready));
+  const out = [];
+  models.forEach((m, i) => {
+    const { root } = m.figure(); const k = 1.75 / m.height; root.scale.setScalar(k); root.position.x = (i - (models.length - 1) / 2) * 1.0; root.rotation.y = yaw; scene.add(root);
+    let clip = m.clips.find((c) => c.name === clips[i]);
+    if (!clip && borrow) { const src = models[borrow[i]].clips.find((c) => c.name === clips[i]); clip = new THREE.AnimationClip(src.name, src.duration, src.tracks.filter((t) => t.name.endsWith('.quaternion'))); }
+    const mixer = new THREE.AnimationMixer(root); const a = mixer.clipAction(clip); a.play(); mixer.setTime(times[i]);
+    root.updateMatrixWorld(true);
+    const p = new THREE.Vector3(); const get = (n) => { const o = root.getObjectByName(n); o.getWorldPosition(p); return p.toArray().map((v) => +v.toFixed(3)); };
+    out.push({ pelvis: get('pelvis'), thigh: get('thigh_l'), calf: get('calf_l'), foot: get('foot_l'), hand: get('hand_l'), hand_r: get('hand_r'), head: get('head') });
+  });
+  const cam = new THREE.PerspectiveCamera(30, 1.5, 0.1, 50); cam.position.set(0.3, 1.0, 5.2); cam.lookAt(0, 0.8, 0);
+  r.render(scene, cam); return out;
+};
+window.ready = true;
+</script></body></html>
