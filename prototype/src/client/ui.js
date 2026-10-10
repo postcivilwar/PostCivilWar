@@ -57,11 +57,40 @@ export function createUI(app) {
     $('sheet-title').textContent = title;
     sheet.hidden = false;
     sheet.classList.toggle('device', !!(options && options.device));
+    sheet.classList.remove('mini', 'page');
     current = { render, tabs, tab: tabs ? tabs[0].id : null, live: false };
     drawTabs();
     redraw();
     $('sheet-close').focus({ preventScroll: true });
   }
+
+  // The phone is used in two ways (ui-phone.js): in the hand, small, at the lower right with the town in view
+  // ('mini'), or as a page over the whole screen ('page'). In the hand it is drawn at one size and scaled to
+  // fit: as tall as the screen allows under the top band, and never so wide that the stick is covered.
+  const HANDSET = { w: 320, h: 692 };
+  function fitPhone() {
+    if (!sheet.classList.contains('mini')) return;
+    const game = $('game');
+    const W = game.clientWidth || window.innerWidth, H = game.clientHeight || window.innerHeight;
+    const upright = H > W;
+    const room = H - (upright ? 150 : 62) - 14;                       // upright, the purse and the clock stay in view above it
+    const k = Math.max(0.3, Math.min(1, room / HANDSET.h, (W * (upright ? 0.6 : 0.3)) / HANDSET.w, 620 / HANDSET.h));
+    sheet.style.setProperty('--pk', k.toFixed(4));
+    sheet.style.width = `${Math.round(HANDSET.w * k)}px`;
+    sheet.style.height = `${Math.round(HANDSET.h * k)}px`;
+  }
+  function mode(next) {
+    const was = sheet.classList.contains('mini') ? 'mini' : sheet.classList.contains('page') ? 'page' : '';
+    if (was === next) { if (next === 'mini') fitPhone(); return; }
+    sheet.classList.toggle('mini', next === 'mini');
+    sheet.classList.toggle('page', next === 'page');
+    if (next === 'mini') fitPhone(); else { sheet.style.removeProperty('width'); sheet.style.removeProperty('height'); }
+  }
+  for (const type of ['resize', 'orientationchange']) window.addEventListener(type, () => setTimeout(fitPhone, 60));
+  const usingPhone = () => !sheet.hidden && sheet.classList.contains('device');
+  const phoneOut = () => usingPhone() && sheet.classList.contains('mini');
+  // how much of the screen the handset covers on its right, for the game to keep the character clear of it
+  const phoneWidth = () => (phoneOut() ? sheet.getBoundingClientRect().width + 14 : 0);
 
   function drawTabs() {
     tabsBar.replaceChildren();
@@ -91,6 +120,8 @@ export function createUI(app) {
 
   function close() {
     sheet.hidden = true;
+    sheet.classList.remove('mini', 'page');
+    sheet.style.removeProperty('width'); sheet.style.removeProperty('height');
     current = null;
     $('view').focus({ preventScroll: true });
     if (app.closed) app.closed();
@@ -1115,7 +1146,8 @@ export function createUI(app) {
     if (sheet.classList.contains('device')) {
       const seen = app.view();
       const label = seen.clock.label;
-      for (const el of body.querySelectorAll('.statusbar .time, .greeting .big')) if (el.textContent !== label) el.textContent = label;
+      for (const el of body.querySelectorAll('.statusbar .time, .greeting .big, .pagetime')) if (el.textContent !== label) el.textContent = label;
+      phone.tick();
       const cell = body.querySelector('.statusbar .cell');
       if (cell) phone.charge(cell, seen.self.energy);
     }
@@ -1134,7 +1166,7 @@ export function createUI(app) {
 
   $('btn-phone').addEventListener('click', () => { if (sheet.hidden) openPhone(); else close(); });
 
-  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state) }, h, open, redraw, close, line, section, money, amt, tr, trPlain, trIn, when, refused, live };
+  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state) }, h, open, redraw, close, mode, line, section, money, amt, tr, trPlain, trIn, when, refused, live };
   panels = createPanels(shared);
   phone = createPhone({ ...shared, legacy: { wallet, property, people: peopleTab, map, funds, runs, journal, settings, vehicleLines: (v) => vehicleLines(v).filter(Boolean) }, lawBlock: panels.lawBlock, log: () => noticeLog });
 
@@ -1151,5 +1183,5 @@ export function createUI(app) {
     });
   }
 
-  return { openDialogue, talkToPerson, openOkada, openService, openBoard, openPhone, openCustody: () => panels.openCustody(), openRest, updateHud, setPrompt, setKeys, setVitals, setWaypoint, setDash, toast, tick, close, openChat, closeChat, chatOpen: () => !chatBar.hidden, isOpen: () => !sheet.hidden };
+  return { openDialogue, talkToPerson, openOkada, openService, openBoard, openPhone, openCustody: () => panels.openCustody(), openRest, updateHud, setPrompt, setKeys, setVitals, setWaypoint, setDash, toast, tick, close, openChat, closeChat, chatOpen: () => !chatBar.hidden, isOpen: () => !sheet.hidden, usingPhone, phoneOut, phoneWidth, phoneScreen: () => (usingPhone() ? phone.screen : null) };
 }

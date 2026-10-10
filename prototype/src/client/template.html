@@ -496,11 +496,6 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 #sheet.device .screen > .line + .line { border-radius: 0 0 12px 12px; margin-top: -13px; box-shadow: inset 0 0.5px 0 rgba(255, 255, 255, 0.14); }
 #sheet.device .line { padding-top: 12px; padding-bottom: 12px; }
 #sheet.device .line span:last-child { color: var(--muted); }
-#sheet.device .btn { border-radius: 14px; background: #1c1c1e; font-weight: 500; }
-#sheet.device .btn.primary { background: #fff; color: #0a0a0a; font-weight: 600; }
-#sheet.device .btn.quiet { box-shadow: none; background: transparent; color: #fff; text-decoration: underline; text-underline-offset: 3px; text-decoration-color: rgba(255, 255, 255, 0.4); }
-#sheet.device .btn.danger { background: var(--danger); color: #fff; }
-#sheet.device .btn.choice[aria-pressed="true"] { background: #fff; color: #0a0a0a; }
 #sheet.device .apphead h3 { margin: 0 0 2px 2px; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; text-transform: none; color: #fff; line-height: 1.1; }
 #sheet.device p.small, #sheet.device p.eyebrow { font-size: 12.5px; line-height: 1.4; color: var(--muted); text-transform: none; letter-spacing: 0; font-weight: 400; padding: 0 14px; margin-top: -6px; }
 #sheet.device .setrow { padding-top: 4px; padding-bottom: 4px; }
@@ -770,6 +765,132 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 #intro.ready #intro-play:active { background: none; transform: translateY(1px) scale(0.98); }
 @media (hover: hover) { #intro.ready #intro-play:hover { background: none; border-image-source: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='48' viewBox='0 0 140 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23262628'/%3E%3Cstop offset='1' stop-color='%230c0c0d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='1,24 27,1 113,1 139,24 113,47 27,47' fill='url(%23g)' stroke='%23ffffff' stroke-width='1.6' stroke-linejoin='miter'/%3E%3Cpolygon points='8.5,24 30.5,5.5 109.5,5.5 131.5,24 109.5,42.5 30.5,42.5' fill='none' stroke='%23c9c9c5' stroke-width='1.1' stroke-linejoin='miter'/%3E%3C/svg%3E"); } }
 .gate { height: 58px; }
+
+/* ---------- the phone (10 October 2026) ----------
+   In the hand: a handset at the lower right, drawn at one size (320 by 692) and scaled to fit the screen (--pk,
+   set in ui.js), with the town still in view round it. Titanium edge, black bezel, glass with a light across it,
+   an island at the top. On it: a wallpaper of the sun coming up over the river, and apps in their own colours.
+   Everything else on the phone is a page over the whole screen with the way back at its top left. */
+#sheet.device.mini { top: auto; left: auto; right: calc(10px + env(safe-area-inset-right, 0px)); bottom: calc(8px + var(--sb)); background: none; border: 0; overflow: visible; touch-action: manipulation; user-select: none; -webkit-user-select: none; z-index: 30; }
+#sheet.device.mini > header, #sheet.device.page > header { display: none; }
+#sheet.device.mini .body { position: static; padding: 0; overflow: visible; }
+#sheet.mini .handset { position: absolute; right: 0; bottom: 0; width: 320px; height: 692px; max-width: none; margin: 0; flex: none; display: block; overflow: visible; isolation: auto; border-radius: 54px; padding: 11px; box-sizing: border-box; transform-origin: 100% 100%; transform: scale(var(--pk, 1));
+  background: linear-gradient(135deg, #a9abb1 0%, #55575c 14%, #1e1f22 38%, #101113 60%, #3c3d42 84%, #b5b7bd 100%);
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.35), inset 0 0 0 2.5px #0c0c0d, 0 0 0 1px #050506, 0 30px 60px rgba(0, 0, 0, 0.6), 0 8px 18px rgba(0, 0, 0, 0.5); }
+#sheet.mini .handset.rising { animation: phone-up 0.34s cubic-bezier(0.2, 0.85, 0.25, 1) 0.5s both; }
+@keyframes phone-up { from { transform: translateY(112%) scale(var(--pk, 1)); } to { transform: translateY(0) scale(var(--pk, 1)); } }
+/* the buttons on its edges */
+#sheet.mini .handset::before { content: ""; position: absolute; left: -2.5px; top: 132px; width: 3px; height: 30px; border-radius: 2px 0 0 2px; background: linear-gradient(90deg, #77797e, #2b2c30); box-shadow: 0 46px 0 0 #55575c, 0 92px 0 0 #55575c; }
+#sheet.mini .handset::after { content: ""; position: absolute; right: -2.5px; top: 190px; width: 3px; height: 74px; border-radius: 0 2px 2px 0; background: linear-gradient(270deg, #77797e, #2b2c30); }
+.handset .glass { position: relative; width: 100%; height: 100%; border-radius: 43px; background: #000; overflow: hidden; display: flex; flex-direction: column; isolation: isolate; box-shadow: 0 0 0 3px #000; }
+.handset .sheen { position: absolute; inset: 11px; border-radius: 43px; pointer-events: none; z-index: 5; background: linear-gradient(118deg, rgba(255, 255, 255, 0.13) 0%, rgba(255, 255, 255, 0.04) 20%, rgba(255, 255, 255, 0) 38%, rgba(255, 255, 255, 0) 78%, rgba(255, 255, 255, 0.05) 100%); }
+/* the wallpaper: the sun coming up over the river */
+#sheet.mini .handset .wall { position: absolute; inset: 0; z-index: -1; background:
+  radial-gradient(34% 15% at 50% 55.5%, #fff3c4 0, #ffd27a 40%, rgba(255, 190, 110, 0) 100%),
+  radial-gradient(90% 34% at 50% 57%, rgba(255, 150, 90, 0.9) 0, rgba(255, 120, 100, 0.35) 55%, rgba(255, 120, 100, 0) 100%),
+  linear-gradient(180deg, rgba(0, 0, 0, 0) 56.8%, #0d3440 57%, #0f4c5c 63%, #093845 78%, #041c25 100%),
+  radial-gradient(60% 9% at 16% 57.5%, #152a3a 0, #152a3a 60%, rgba(21, 42, 58, 0) 62%),
+  radial-gradient(70% 8% at 88% 57.6%, #1b3145 0, #1b3145 60%, rgba(27, 49, 69, 0) 62%),
+  linear-gradient(180deg, #14204d 0%, #2f3d85 18%, #7a4f9a 36%, #e0718a 48%, #ffb37a 56.8%, #0d3440 57%); }
+#sheet.mini .handset.inapp .wall { background: #000; }
+#sheet.mini .handset .island { display: block; position: absolute; left: 50%; top: 10px; width: 92px; height: 27px; margin-left: -46px; border-radius: 14px; background: #000; z-index: 4; }
+#sheet.mini .statusbar { height: 46px; padding: 6px 26px 0; font-size: 14px; font-weight: 600; color: #fff; text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35); }
+#sheet.mini .screen { padding: 2px 14px 8px; gap: 10px; scrollbar-width: none; }
+#sheet.mini .greeting { padding: 4px 0 2px; text-align: center; text-shadow: 0 1px 6px rgba(0, 0, 0, 0.35); }
+#sheet.mini .greeting .eyebrow { color: rgba(255, 255, 255, 0.92); letter-spacing: 0.02em; text-transform: none; font-size: 14px; font-weight: 500; }
+#sheet.mini .greeting .big { font-size: 62px; font-weight: 600; line-height: 1; letter-spacing: -0.02em; }
+#sheet.mini .apps { grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px 4px; padding: 8px 0 2px; }
+#sheet.mini .app { font-size: 10.5px; font-weight: 500; gap: 5px; min-height: 74px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55); }
+#sheet.mini .app .icon { width: 54px; height: 54px; border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -8px 12px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.35); }
+#sheet.mini .app .icon svg { width: 28px; height: 28px; stroke: currentColor; stroke-width: 1.9; }
+#sheet.mini .app:active .icon { transform: scale(0.92); filter: brightness(0.85); }
+#sheet.mini .app:disabled { opacity: 0.4; }
+#sheet.mini .app .count { top: -4px; right: 6px; }
+#sheet.mini .dockbar { margin: 2px 10px 0; padding: 11px 6px; border-radius: 28px; background: rgba(255, 255, 255, 0.22); -webkit-backdrop-filter: blur(18px) saturate(1.4); backdrop-filter: blur(18px) saturate(1.4); box-shadow: inset 0 0 0 0.5px rgba(255, 255, 255, 0.3); }
+#sheet.mini .dockbar .app { min-height: 54px; }
+#sheet.mini .homebar { height: 22px; }
+#sheet.mini .homebar i { width: 118px; height: 5px; }
+#sheet.mini .banner { font-size: 12.5px; }
+/* the camera */
+.viewfinder { position: relative; flex: 1; min-height: 0; margin: 0 -14px; background: #050506; overflow: hidden; }
+.viewfinder canvas, .viewfinder img { position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover; display: block; }
+.viewfinder .camside { position: absolute; left: 50%; top: 10px; transform: translateX(-50%); padding: 3px 9px; border-radius: 10px; background: rgba(0, 0, 0, 0.45); color: #ffd60a; font-size: 10.5px; font-weight: 700; letter-spacing: 0.12em; }
+.camflash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
+.camflash.go { animation: shutter-flash 0.24s ease-out both; }
+.cambar { flex: none; height: 104px; margin: 0 -14px -8px; padding: 0 22px; display: flex; align-items: center; justify-content: space-between; background: #000; }
+.shutter { appearance: none; width: 70px; height: 70px; border-radius: 35px; border: 4px solid #fff; background: none; padding: 0; display: grid; place-items: center; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.shutter i { width: 54px; height: 54px; border-radius: 27px; background: #fff; transition: transform 0.08s ease, background 0.08s ease; }
+.shutter:active i { transform: scale(0.86); background: #d8d8d8; }
+.camthumb { appearance: none; width: 46px; height: 46px; border-radius: 9px; border: 1.5px solid rgba(255, 255, 255, 0.7); background: #1c1c1e center / cover no-repeat; padding: 0; cursor: pointer; }
+.camthumb.empty { border-color: rgba(255, 255, 255, 0.18); cursor: default; }
+.camflip { appearance: none; width: 46px; height: 46px; border-radius: 23px; border: 0; background: rgba(255, 255, 255, 0.16); color: #fff; display: grid; place-items: center; cursor: pointer; }
+.camflip svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; }
+.camflip:active { background: rgba(255, 255, 255, 0.32); }
+.camtext { appearance: none; border: 0; background: none; color: #ffd60a; font: 600 15px/1 var(--font-ui); padding: 12px 4px; cursor: pointer; text-decoration: none; }
+/* music */
+#sheet.mini .handset[data-app="music"] .wall { background: linear-gradient(180deg, #2a0d14 0%, #100609 40%, #000 100%); }
+#sheet.mini .handset[data-app="music"] .screen { gap: 9px; padding-top: 4px; }
+.cover { flex: none; width: 100%; aspect-ratio: 1 / 0.78; border-radius: 16px; background-size: cover; background-position: center; display: grid; place-items: end start; padding: 14px; box-sizing: border-box; box-shadow: 0 14px 28px rgba(0, 0, 0, 0.5), inset 0 0 0 0.5px rgba(255, 255, 255, 0.2); }
+.cover span { font: 800 25px/1.02 var(--font-ui); letter-spacing: -0.02em; color: #fff; text-shadow: 0 2px 10px rgba(0, 0, 0, 0.35); max-width: 9ch; }
+.nowplaying { display: flex; flex-direction: column; gap: 2px; padding: 2px 2px 0; }
+.nowplaying b { font-size: 18px; font-weight: 700; letter-spacing: -0.01em; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.nowplaying span { font-size: 13.5px; color: rgba(255, 255, 255, 0.6); }
+.progress { display: flex; flex-direction: column; gap: 3px; }
+.progress .times { display: flex; justify-content: space-between; font-size: 11px; color: rgba(255, 255, 255, 0.55); font-variant-numeric: tabular-nums; }
+input.seek { appearance: none; -webkit-appearance: none; width: 100%; height: 22px; margin: 0; background: none; cursor: pointer; --fill: 0%; touch-action: none; }
+input.seek::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; background: linear-gradient(90deg, #fff 0 var(--fill), rgba(255, 255, 255, 0.24) var(--fill) 100%); }
+input.seek::-moz-range-track { height: 5px; border-radius: 3px; background: linear-gradient(90deg, #fff 0 var(--fill), rgba(255, 255, 255, 0.24) var(--fill) 100%); }
+input.seek::-webkit-slider-thumb { -webkit-appearance: none; width: 15px; height: 15px; border-radius: 8px; background: #fff; margin-top: -5px; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.5); }
+input.seek::-moz-range-thumb { width: 15px; height: 15px; border: 0; border-radius: 8px; background: #fff; }
+input.seek:disabled { opacity: 0.4; }
+.transport { display: flex; align-items: center; justify-content: space-between; padding: 0 22px; }
+.transport button { appearance: none; border: 0; background: none; color: #fff; width: 54px; height: 54px; display: grid; place-items: center; cursor: pointer; border-radius: 27px; -webkit-tap-highlight-color: transparent; transition: transform 0.08s ease, background 0.12s ease; }
+.transport button svg { width: 34px; height: 34px; }
+.transport button.big { width: 68px; height: 68px; border-radius: 34px; background: #fff; color: #14060a; }
+.transport button.big svg { width: 36px; height: 36px; }
+.transport button:active { transform: scale(0.9); }
+svg.filled path { fill: currentColor; stroke: none; }
+svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-linecap: round; stroke-linejoin: round; }
+.mustate { font-size: 12px; color: rgba(255, 255, 255, 0.7); text-align: center; }
+.mustate.bad { color: #ff8a80; }
+.volrow { display: flex; align-items: center; gap: 10px; font-size: 11.5px; color: rgba(255, 255, 255, 0.6); padding: 0 2px; }
+.volrow .seek { flex: 1; }
+.tracklist { display: flex; flex-direction: column; gap: 2px; margin-top: 2px; }
+.track { appearance: none; border: 0; background: none; color: #fff; display: grid; grid-template-columns: 40px 1fr auto; gap: 11px; align-items: center; padding: 6px 4px; border-radius: 10px; text-align: left; cursor: pointer; }
+.track i { width: 40px; height: 40px; border-radius: 8px; background-size: cover; background-position: center; }
+.track span { display: flex; flex-direction: column; gap: 1px; min-width: 0; }
+.track b { font-size: 14px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.track small { font-size: 12px; color: rgba(255, 255, 255, 0.55); }
+.track.on { background: rgba(255, 255, 255, 0.12); }
+.track.on b { color: #ff6b81; }
+.bars { display: flex; align-items: flex-end; gap: 2px; height: 14px; padding-right: 4px; }
+.bars u { width: 3px; background: #ff6b81; border-radius: 1px; animation: bar-beat 0.9s ease-in-out infinite; }
+.bars u:nth-child(2) { animation-delay: -0.3s; } .bars u:nth-child(3) { animation-delay: -0.6s; }
+@keyframes bar-beat { 0%, 100% { height: 4px; } 50% { height: 14px; } }
+#sheet.mini .small { font-size: 11px; color: rgba(255, 255, 255, 0.5); padding: 0 2px; margin: 0; }
+/* a page over the whole screen */
+#sheet.device.page { inset: 0; width: 100%; border: 0; background: radial-gradient(120% 70% at 50% 0%, #17181a 0, #0a0a0b 46%, #050506 100%); z-index: 30; }
+#sheet.device.page .body { padding: 0; gap: 0; overflow: hidden; }
+.page { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+.pagebar { flex: none; display: flex; align-items: center; gap: 14px; padding: calc(10px + var(--st)) calc(18px + env(safe-area-inset-right, 0px)) 10px calc(12px + env(safe-area-inset-left, 0px)); border-bottom: 1px solid rgba(255, 255, 255, 0.1); background: rgba(0, 0, 0, 0.35); }
+.pageback { appearance: none; flex: none; width: 54px; height: 46px; padding: 0; border: 0; background: #8e8e8a; color: #fff; display: grid; place-items: center; cursor: pointer; clip-path: polygon(34% 0, 100% 0, 100% 100%, 34% 100%, 0 50%); position: relative; isolation: isolate; transition: transform 0.09s ease; -webkit-tap-highlight-color: transparent; }
+.pageback::before { content: ""; position: absolute; inset: 1.5px; z-index: -1; background: linear-gradient(180deg, #1c1c1d, #09090a); clip-path: polygon(34% 0, 100% 0, 100% 100%, 34% 100%, 1.4px 50%); }
+.pageback svg { width: 22px; height: 22px; margin-left: 6px; }
+.pageback:hover { background: #fff; }
+.pageback:active { transform: scale(0.95); }
+.pageback:focus-visible { outline: 0; background: #fff; filter: drop-shadow(0 0 3px rgba(255, 255, 255, 0.9)); }
+.pagebar h3, #sheet.device .pagebar h3 { margin: 0; flex: 1; font: 800 19px/1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: #fff; }
+.pagetime { font: 600 13px/1 var(--font-mono); color: var(--muted); font-variant-numeric: tabular-nums; }
+#sheet.device.page .screen { flex: 1; min-height: 0; overflow-y: auto; overscroll-behavior: contain; padding: 18px max(16px, calc((100% - 760px) / 2)) calc(28px + var(--sb)); gap: 12px; }
+#sheet.device.page .rows { border-radius: 4px; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09); }
+#sheet.device.page .screen > .line { border-radius: 4px; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.09); }
+#sheet.device.page .screen > .line + .line { border-radius: 0 0 4px 4px; }
+@media (prefers-reduced-motion: reduce) { #sheet.mini .handset.rising { animation-duration: 0.01s; } .bars u { animation: none; height: 10px; } }
+/* the rest of the controls in panels and pages, squared to match */
+.segment { border-radius: 0; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); padding: 3px; gap: 3px; }
+.segment button { border-radius: 0; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; font-size: 12px; min-height: 40px; }
+.field { border-radius: 0; background: #0e0e0f; border: 1px solid rgba(255, 255, 255, 0.22); }
+.field:focus { border-color: #fff; outline: 0; }
 </style>
 
 <script>

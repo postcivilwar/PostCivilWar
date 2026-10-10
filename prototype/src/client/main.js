@@ -47,6 +47,8 @@ import { buildCatalog } from './skill-catalog.js';
 import { createFitter } from './fit.js';
 import { QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
+import { createPhoneHold } from './phone-hold.js';
+import { createMusic } from './music.js';
 import { trText, trAmount, TR } from '../sim/ledger.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
@@ -115,6 +117,8 @@ function start(carried) {
   const siteLayer = createSiteLayer(scene);
   const yardStacks = createYardStacks(scene);
   const audio = createAudio();
+  // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
+  const phoneHold = createPhoneHold({ scene, lite: LITE });
 
   // Street lamps at night. Every light of this kind is worked out for every pixel of everything, lit or
   // not, at any hour, so there are few: the two lamps nearest the player on a desktop, none on a phone.
@@ -324,6 +328,69 @@ function start(carried) {
   // On the website the game can be put on a device and kept there; anywhere else this offers nothing.
   const webapp = createWebApp({ figures: { W1: 'woman.b64.txt', M1: 'man.b64.txt' }, figure: () => (prefs.look && prefs.look.figure === 'M1' ? 'M1' : 'W1') });
 
+  // Music on the phone (music.js): the game's own pieces, and on the website the songs listed in music/library.json.
+  const music = createMusic({
+    player: audio.player,
+    fetchJson: webapp.site ? () => fetch('music/library.json', { cache: 'no-cache' }).then((r) => (r.ok ? r.json() : { tracks: [] })) : null,
+    recalled: prefs.song || null,
+    remember: (id) => { prefs.song = id; writeStored(PREFS_KEY, prefs); },
+  });
+
+  // The phone's own camera. What it shows is this scene, drawn a second time from where the handset is: looking
+  // the way the character faces (the back camera), or back at the character's face from arm's length (the front
+  // one, turned left to right as a phone shows a face). It is drawn small, a dozen times a second, into the
+  // canvas in the Camera app, and only while that app is the one open.
+  const phoneCam = (() => {
+    const W = 270, H = 480;
+    let target = null, pixels = null, image = null, spare = null;
+    const eye = new THREE.PerspectiveCamera(64, W / H, 0.06, 900);
+    const at = new THREE.Vector3(), to = new THREE.Vector3();
+    let facing = 'back', wait = 0;
+    function draw(dt) {
+      const canvas = document.getElementById('phone-cam');
+      if (!canvas || !me) return;
+      wait -= dt;
+      if (wait > 0) return;
+      wait = LITE ? 1 / 9 : 1 / 14;
+      if (!target) {
+        target = new THREE.WebGLRenderTarget(W, H); target.texture.encoding = THREE.sRGBEncoding;
+        pixels = new Uint8Array(W * H * 4);
+        spare = document.createElement('canvas'); spare.width = W; spare.height = H;
+        image = spare.getContext('2d').createImageData(W, H);
+      }
+      const tall = (me.spec ? me.spec.height : 1.7) * (me.scale || 1);
+      const base = me.group.position, hx = Math.sin(predicted.heading), hz = Math.cos(predicted.heading);
+      const headY = base.y + tall * 0.9;
+      // from where the handset is, once it is held up; until then from where it will be
+      if (phoneHold.ready && phoneHold.raised > 0.9) at.copy(phoneHold.prop.position); else at.set(base.x + hx * 0.3 * tall / 1.7, base.y + tall * 0.88, base.z + hz * 0.3 * tall / 1.7);
+      // the back camera looks out from the far side of the handset, past the fingers that hold it
+      if (facing === 'back') { at.x += hx * 0.12; at.z += hz * 0.12; to.set(at.x + hx * 12, at.y - 0.6, at.z + hz * 12); eye.fov = 66; }
+      else { to.set(base.x, headY, base.z); eye.fov = 84; }
+      eye.position.copy(at); eye.lookAt(to); eye.updateProjectionMatrix();
+      // the handset and its glow are not in its own picture; the figure is, even when the game's own eye is inside its head
+      const shown = me.group.visible, handset = phoneHold.prop.visible, shadows = renderer.shadowMap.autoUpdate;
+      me.group.visible = true; phoneHold.hideForPicture(true); renderer.shadowMap.autoUpdate = false;
+      renderer.setRenderTarget(target);
+      renderer.render(scene, eye);
+      renderer.setRenderTarget(null);
+      renderer.shadowMap.autoUpdate = shadows; me.group.visible = shown; phoneHold.hideForPicture(false); phoneHold.prop.visible = handset;
+      renderer.readRenderTargetPixels(target, 0, 0, W, H, pixels);
+      // what was drawn comes back last row first
+      const data = image.data, row = W * 4;
+      for (let y = 0; y < H; y += 1) data.set(pixels.subarray((H - 1 - y) * row, (H - y) * row), y * row);
+      for (let i = 3; i < data.length; i += 4) data[i] = 255;
+      spare.getContext('2d').putImageData(image, 0, 0);
+      const g = canvas.getContext('2d');
+      g.setTransform(facing === 'front' ? -1 : 1, 0, 0, 1, facing === 'front' ? W : 0, 0);
+      g.drawImage(spare, 0, 0);
+      g.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    return { width: W, height: H, facing: () => facing, flip() { facing = facing === 'back' ? 'front' : 'back'; wait = 0; }, draw, dispose() { if (target) { target.dispose(); target = null; } } };
+  })();
+  // a page or a panel stops the feet; the phone in the hand does not
+  const uiBlocks = () => ui.isOpen() && !ui.phoneOut();
+  let phoneShift = 0;
+
   const settings = {
     language: () => (view ? view.self.lang : 'en'),
     translate: () => prefs.translate,
@@ -355,6 +422,9 @@ function start(carried) {
     volumes: () => audio.volumes(),
     setVolume: (name, value) => { audio.setVolumes({ [name]: value }); prefs.volumes = audio.volumes(); writeStored(PREFS_KEY, prefs); if (name === 'ui') audio.chime('ok'); },
     chime: (kind) => audio.chime(kind),
+    shutter: () => audio.shutter(),
+    music,
+    phoneCam,
     perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
   });
   audio.setMuted(!prefs.sound);
@@ -629,6 +699,8 @@ function start(carried) {
     if (key === 'Tab' || key === 'p') { event.preventDefault(); if (ui.isOpen()) ui.close(); else ui.openPhone(); return; }
     if (key === 'm') { ui.openPhone('map'); return; }
     if (key === 'n') { toggleSound(); return; }
+    // with the phone in the hand only the feet answer: the keys that walk, and nothing else
+    if (ui.phoneOut()) { if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) { if (key.startsWith('Arrow')) event.preventDefault(); input.keys.add(key); } return; }
     if (ui.isOpen()) return;
     if (key === 't') { if (ui.openChat()) event.preventDefault(); return; }
     if (key === 'k') { if (!event.repeat) skills.tap(); return; }
@@ -1058,7 +1130,7 @@ function start(carried) {
   function swimPlayer(dt) {
     const { forward, strafe } = controls.axes();
     const magnitude = Math.min(1, Math.hypot(forward, strafe));
-    const steering = !ui.isOpen() && magnitude >= 0.12;
+    const steering = !uiBlocks() && magnitude >= 0.12;
     const hard = controls.held('stroke') || controls.running;
     let pace = 0, wanted = predicted.heading;
     if (steering) {
@@ -1089,10 +1161,11 @@ function start(carried) {
     if (view.self.swimming) return swimPlayer(dt);
     const { forward, strafe } = controls.axes();
     const magnitude = Math.min(1, Math.hypot(forward, strafe));
-    const steering = !ui.isOpen() && magnitude >= 0.12;
+    const steering = !uiBlocks() && magnitude >= 0.12;
     if (!steering && going.speed <= 0.02) { going.speed = 0; return 0; }
     // Running is what the player chose (Shift, or Run switched on), never a guess from how far the stick is pushed.
-    const run = controls.running && !view.self.critical;
+    // nobody runs with their eyes on a phone
+    const run = controls.running && !view.self.critical && !ui.phoneOut();
     let wanted = predicted.heading;
     let pace = 0;
     if (steering) {
@@ -1368,6 +1441,8 @@ function start(carried) {
       if (driving) { seatCharacter(me); me.group.position.y = DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = -0.04; } else if (astride) { seatCharacter(me); me.group.position.y = -0.15 * me.scale; } else standCharacter(me);
       if (taking) poseTaking(me, taking.step, taking.progress);
       else if (self.fight || me.strike) poseFighter(me, clock, { guard: !!self.fight, block: blocking && !!self.fight });
+      // the phone, in the hand of someone on their feet: out of the pocket, held up, looked at
+      phoneHold.update(dt, me, { use: ui.usingPhone(), able: !driving && !riding && !astride && !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried, night, screen: ui.phoneOut() ? ui.phoneScreen() : 'page' });
       // knocked down by a vehicle, or killed: flat on the ground quickly, and up again more slowly
       // in the river: the figure floats with its body at the water's surface (the water is drawn at -0.32)
       me.swimming = !!self.swimming;
@@ -1521,7 +1596,7 @@ blood.update(dt, view.blood || []);
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
-      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), sources, panel: ui.isOpen(), siren: ambulance ? ambulance.siren : null });
+      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null });
     }
 
     monitor.mark('warming up');
@@ -1530,7 +1605,13 @@ blood.update(dt, view.blood || []);
     // behind the opening nothing of the town can be seen: once it is warmed up, it is not drawn at all
     // the start screen covers the town entirely: once it is warmed, it is not drawn behind it for nobody
     const covered = !playing && startEl && !startEl.hidden && warm.stage >= 5;
-    if (!NO_DRAW && !covered && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
+    // The phone held up covers the right of the screen: the picture is moved over so the character is not behind it.
+    phoneShift += ((playing ? ui.phoneWidth() : 0) / 2 - phoneShift) * Math.min(1, dt * 7);
+    if (phoneShift > 0.5) camera.setViewOffset(viewW, viewH, phoneShift, 0, viewW, viewH); else if (camera.view && camera.view.enabled) camera.clearViewOffset();
+    // a page of the phone covers the town entirely, so the town is not drawn behind it
+    const paged = playing && ui.usingPhone() && !ui.phoneOut();
+    if (playing && !NO_DRAW && ui.phoneScreen() === 'camera') monitor.time('phone camera', () => phoneCam.draw(dt));
+    if (!NO_DRAW && !covered && !paged && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame

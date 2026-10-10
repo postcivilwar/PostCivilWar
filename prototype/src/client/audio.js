@@ -516,6 +516,7 @@ export function createAudio() {
     const fx = Math.sin(L.yaw), fz = Math.cos(L.yaw);
     const l = ctx.listener;
     if (l.positionX) { l.positionX.value = L.x; l.positionY.value = 1.6; l.positionZ.value = L.z; l.forwardX.value = fx; l.forwardY.value = 0; l.forwardZ.value = fz; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; } else { l.setPosition(L.x, 1.6, L.z); l.setOrientation(fx, 0, fz, 0, 1, 0); }
+    ownStep(now);
     // The long sounds are steered about twelve times a second. Sixty times a second was sixty
     // changes a second to every one of them, which is work for nothing and can make a phone crackle.
     since += dt;
@@ -610,6 +611,92 @@ export function createAudio() {
     for (const [id, g] of spots) if (!wanted.has(id)) { g.osc.stop(); g.rattle.src.stop(); g.p.disconnect(); spots.delete(id); }
   }
 
+  // ------------------------------------------------------------ the player's own music --
+  // What the player puts on from the phone. One thing plays at a time, and it goes on playing when the phone is
+  // put away. A track is either one of the game's own pieces (a style above, played from its first step for a
+  // set length, so it has a beginning, an end and a place that can be moved to) or a file beside the page. It
+  // goes through the Music volume like every other music, but does not step back when a panel opens: it is the
+  // player's, not the town's.
+  const deck = { track: null, state: 'idle', error: '', out: null, bus: null, startedAt: 0, offset: 0, next: 0, el: null, node: null, ended: null, token: 0 };
+  const ownOut = () => { if (!deck.out) { deck.out = ctx.createGain(); deck.out.gain.value = TRIM.music * 1.25; deck.out.connect(nodes.groups.music.user); } return deck.out; };
+  const ownTime = () => (deck.track && deck.track.kind === 'file' ? (deck.el ? deck.el.currentTime : 0) : deck.state === 'playing' && ctx ? deck.offset + (ctx.currentTime - deck.startedAt) : deck.offset);
+  const ownLength = () => (!deck.track ? 0 : deck.track.kind === 'file' ? (deck.el && Number.isFinite(deck.el.duration) ? deck.el.duration : 0) : deck.track.duration);
+  // whatever has been scheduled a moment ahead is cut off with the bus it was played into
+  function ownHush() { if (deck.bus && ctx) { const bus = deck.bus; deck.bus = null; bus.gain.setTargetAtTime(0, ctx.currentTime, 0.02); setTimeout(() => { try { bus.disconnect(); } catch (error) { /* already gone */ } }, 300); } }
+  function ownDrop() {
+    deck.token += 1;
+    ownHush();
+    if (deck.el) { const el = deck.el; deck.el = null; try { el.pause(); el.removeAttribute('src'); el.load(); } catch (error) { /* nothing was loaded */ } }
+    if (deck.node) { try { deck.node.disconnect(); } catch (error) { /* already gone */ } deck.node = null; }
+  }
+  function ownLoad(track, { autoplay = true, at = 0 } = {}) {
+    if (!start()) { deck.state = 'error'; deck.error = 'This browser cannot play sound.'; return false; }
+    ownDrop();
+    deck.track = track; deck.error = ''; deck.offset = Math.max(0, at);
+    if (track.kind === 'file') {
+      const token = deck.token;
+      const el = new Audio();
+      el.preload = 'auto'; el.src = track.url;
+      deck.el = el; deck.state = 'loading';
+      try { deck.node = ctx.createMediaElementSource(el); deck.node.connect(ownOut()); } catch (error) { deck.node = null; }
+      el.addEventListener('ended', () => { if (token === deck.token) { deck.state = 'ended'; if (deck.ended) deck.ended(); } });
+      el.addEventListener('error', () => { if (token === deck.token) { deck.state = 'error'; deck.error = 'That song could not be loaded.'; } });
+      el.addEventListener('playing', () => { if (token === deck.token) deck.state = 'playing'; });
+      el.addEventListener('waiting', () => { if (token === deck.token && deck.state === 'playing') deck.state = 'loading'; });
+      if (at > 0) el.addEventListener('loadedmetadata', () => { if (token === deck.token) { try { el.currentTime = Math.min(at, el.duration || at); } catch (error) { /* not seekable yet */ } } }, { once: true });
+      if (autoplay) el.play().catch(() => { if (token === deck.token && deck.state !== 'error') { deck.state = 'paused'; } });
+      else deck.state = 'paused';
+      return true;
+    }
+    if (!MUSIC_STYLES[track.style]) { deck.state = 'error'; deck.error = 'That piece is not in this build.'; return false; }
+    deck.state = 'paused';
+    if (autoplay) ownPlay();
+    return true;
+  }
+  function ownPlay() {
+    if (!deck.track || !start()) return false;
+    if (deck.track.kind === 'file') { if (deck.el) deck.el.play().catch(() => {}); return true; }
+    if (deck.state === 'playing') return true;
+    if (deck.offset >= deck.track.duration - 0.05) deck.offset = 0;
+    deck.bus = ctx.createGain(); deck.bus.gain.value = 1; deck.bus.connect(ownOut());
+    deck.startedAt = ctx.currentTime + 0.06; deck.next = deck.startedAt; deck.state = 'playing';
+    return true;
+  }
+  function ownPause() {
+    if (!deck.track) return;
+    if (deck.track.kind === 'file') { if (deck.el) deck.el.pause(); deck.state = 'paused'; return; }
+    if (deck.state !== 'playing') return;
+    deck.offset = Math.min(deck.track.duration, ownTime()); deck.state = 'paused'; ownHush();
+  }
+  function ownSeek(seconds) {
+    if (!deck.track) return;
+    const to = Math.max(0, Math.min(ownLength() || 0, Number(seconds) || 0));
+    if (deck.track.kind === 'file') { if (deck.el) { try { deck.el.currentTime = to; } catch (error) { /* not seekable yet */ } } return; }
+    const was = deck.state === 'playing';
+    if (was) ownHush();
+    deck.offset = to; deck.state = 'paused';
+    if (was) ownPlay();
+  }
+  // the game's own pieces are played a little ahead, step by step, like the town's loudspeakers
+  function ownStep(now) {
+    if (deck.state !== 'playing' || !deck.track || deck.track.kind === 'file' || !deck.bus) return;
+    const def = MUSIC_STYLES[deck.track.style];
+    // the page was held up for a while: carry on from now, in time, rather than play what was missed all at once
+    if (deck.next < now - 0.15) deck.next = deck.startedAt + Math.ceil((now + 0.03 - deck.startedAt) / def.step) * def.step;
+    while (deck.next < now + 0.4) {
+      const at = deck.offset + (deck.next - deck.startedAt);
+      if (at >= deck.track.duration) { deck.offset = deck.track.duration; deck.state = 'ended'; ownHush(); if (deck.ended) deck.ended(); return; }
+      def.play(ctx, deck.bus, nodes.white, deck.next, Math.round(at / def.step));
+      deck.next += def.step;
+    }
+  }
+  const player = Object.freeze({
+    load: ownLoad, play: ownPlay, pause: ownPause, seek: ownSeek,
+    stop() { ownDrop(); deck.track = null; deck.state = 'idle'; deck.offset = 0; },
+    onEnded(fn) { deck.ended = fn; },
+    status: () => ({ state: deck.state, error: deck.error, id: deck.track ? deck.track.id : null, time: Math.max(0, Math.min(ownLength() || Infinity, ownTime())), duration: ownLength() }),
+  });
+
   const rmsOf = (analyser) => {
     const data = new Float32Array(analyser.fftSize);
     analyser.getFloatTimeDomainData(data);
@@ -630,6 +717,7 @@ export function createAudio() {
   return {
     supported: !!Ctx,
     start, update, bell, footstep, horn, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    player,
     get running() { return !!ctx && ctx.state === 'running'; },
     get muted() { return muted; },
     setMuted(value) { muted = !!value; if (ctx) nodes.master.gain.setTargetAtTime(muted ? 0 : volumes.master, ctx.currentTime, 0.05); },

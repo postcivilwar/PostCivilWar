@@ -74,7 +74,7 @@ function aim(bone, child, to) {
   bone.updateMatrixWorld(true);
 }
 // An arm reaching for a point: the elbow bends toward `pole`, the hand ends on the point if it can reach it.
-function reach(upper, lower, hand, target, pole) {
+export function reach(upper, lower, hand, target, pole) {
   if (!upper || !lower || !hand) return;
   const S = upper.getWorldPosition(new THREE.Vector3()), E = lower.getWorldPosition(new THREE.Vector3()), H = hand.getWorldPosition(new THREE.Vector3());
   const l1 = S.distanceTo(E), l2 = E.distanceTo(H);

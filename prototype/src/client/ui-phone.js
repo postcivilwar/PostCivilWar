@@ -1,19 +1,22 @@
-// The phone: a handset with a home screen of apps.
+// The phone: a handset the character takes out and holds, with a home screen of apps.
 //
-// Everything on it comes from the simulation: who can be reached, what was
-// said, what is owed, where a place is and how long the walk will take. The
-// phone decides nothing; a button here sends a request and shows the answer.
+// It is on screen as a phone is in a hand: small, at the lower right, with the town still in view and the stick
+// still under the left thumb. The home screen, the Camera and Music are used there. Every other app opens as a
+// page over the whole screen, with a way back at the top left, because it has lists to read and things to type.
 //
-// In custody only part of it works, and calls and messages only once the
-// officer has allowed them.
+// Everything on it comes from the simulation: who can be reached, what was said, what is owed, where a place is
+// and how long the walk will take. The phone decides nothing; a button here sends a request and shows the answer.
+//
+// In custody only part of it works, and calls and messages only once the officer has allowed them.
 
 import { ZONE, ZONE_SERVICES, ZONE_MOULD_STATIONS, zoneService } from '../sim/zone.js';
 import { BUSINESSES } from '../sim/economy.js';
 import { HEALTH } from '../sim/conflict.js';
 import { CAMERA_VIEW } from './camera.js';
+import { clockOf } from './music.js';
 
-// Pictograms, drawn here on a 24 by 24 grid: [paths]. One weight of line, one colour: the handset has no
-// colours of its own, so an app is told from its neighbours by its shape and its name.
+// Pictograms, drawn here on a 24 by 24 grid: [paths]. Each app has a tile of its own colour, as on any phone, so
+// an app is known at a glance; the game's own interface stays black and white round it.
 const ICONS = Object.freeze({
   contacts: ['M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z', 'M4 20c0-4 3.6-6 8-6s8 2 8 6'],
   messages: ['M12 4c-4.7 0-8.5 3.1-8.5 7 0 2.2 1.2 4.1 3.1 5.4L6 20l4-2.2c.6.1 1.3.2 2 .2 4.7 0 8.5-3.1 8.5-7S16.7 4 12 4z'],
@@ -28,31 +31,53 @@ const ICONS = Object.freeze({
   people: ['M9 11a3 3 0 1 0 0-6 3 3 0 0 0 0 6z', 'M3 19c0-3 2.7-5 6-5s6 2 6 5', 'M16 11a3 3 0 1 0-1-5.8', 'M17 14c2.6.3 4 2.2 4 5'],
   settings: ['M4 7h10', 'M18 7h2', 'M16 5v4', 'M4 12h2', 'M10 12h10', 'M8 10v4', 'M4 17h12', 'M20 17h0', 'M18 15v4'],
   notices: ['M6 17v-6a6 6 0 0 1 12 0v6l2 2H4z', 'M10 21h4'],
+  camera: ['M4 8h3.2l1.6-2.4h6.4L16.8 8H20a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 19H4a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 4 8z', 'M12 16.4a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z'],
+  music: ['M9 17.5V6l10-2v11.5', 'M9 17.5a2.5 2.5 0 1 1-2.5-2.5', 'M19 15.5a2.5 2.5 0 1 1-2.5-2.5'],
 });
-// `held`: works in custody too. `dock`: kept in the row at the foot of the home screen. `light`: a white tile.
+// each tile: the two ends of its colour, and the colour of its drawing
+const TILES = Object.freeze({
+  calls: ['#5ee06a', '#12a833', '#fff'], messages: ['#6fe37c', '#1fb141', '#fff'], camera: ['#e9e9ec', '#a9a9b0', '#1c1c1f'], music: ['#ff6b81', '#e0143c', '#fff'],
+  map: ['#7ed6a4', '#2a8fd6', '#fff'], wallet: ['#3a3a3e', '#0b0b0c', '#ffd166'], property: ['#34d6b7', '#0a8f7a', '#fff'], contacts: ['#c9c9ce', '#8a8a92', '#fff'],
+  health: ['#ffffff', '#f0e9ea', '#ff3b55'], police: ['#4a7bf0', '#1a3a9c', '#fff'], transport: ['#ffd23f', '#f59e0b', '#1c1c1f'], jobs: ['#c08a5a', '#7a4a22', '#fff'],
+  people: ['#b07cf7', '#6a2fd0', '#fff'], notices: ['#ff7a59', '#e0341a', '#fff'], settings: ['#9a9aa2', '#55555c', '#fff'],
+});
+// `held`: works in custody too. `dock`: kept in the row at the foot of the home screen.
 const APPS = Object.freeze([
-  { id: 'calls', name: 'Calls', held: true, dock: true, light: true },
-  { id: 'messages', name: 'Messages', held: true, dock: true, light: true },
-  { id: 'contacts', name: 'Contacts', held: true, dock: true },
-  { id: 'map', name: 'Map', held: true, dock: true },
+  { id: 'calls', name: 'Calls', held: true, dock: true },
+  { id: 'messages', name: 'Messages', held: true, dock: true },
+  { id: 'camera', name: 'Camera', dock: true },
+  { id: 'music', name: 'Music', dock: true },
+  { id: 'map', name: 'Map', held: true },
   { id: 'wallet', name: 'Wallet' },
+  { id: 'property', name: 'Property' },
+  { id: 'contacts', name: 'Contacts', held: true },
   { id: 'health', name: 'Health', held: true },
   { id: 'police', name: 'Police', held: true },
   { id: 'transport', name: 'Transport' },
   { id: 'jobs', name: 'Jobs' },
-  { id: 'property', name: 'Property' },
   { id: 'people', name: 'People' },
   { id: 'notices', name: 'Notices' },
   { id: 'settings', name: 'Settings', held: true },
 ]);
+// used in the hand, with the town in view; everything else is a page over the whole screen
+const IN_HAND = new Set(['home', 'camera', 'music']);
 const LAW_WORDS = Object.freeze({ normal: 'Nothing against you', suspicious: 'The police are asking questions', wanted: 'Wanted', pursuit: 'Police in pursuit', arrested: 'Under arrest', custody: 'In custody', released: 'Released' });
 
-const svg = (id) => {
+const draw = (paths, box = '0 0 24 24') => {
   const el = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
-  el.setAttribute('viewBox', '0 0 24 24'); el.setAttribute('aria-hidden', 'true');
-  for (const d of ICONS[id]) { const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', d); el.append(path); }
+  el.setAttribute('viewBox', box); el.setAttribute('aria-hidden', 'true');
+  for (const d of paths) { const path = document.createElementNS('http://www.w3.org/2000/svg', 'path'); path.setAttribute('d', d); el.append(path); }
   return el;
 };
+const svg = (id) => draw(ICONS[id]);
+// the player's controls: filled shapes
+const GLYPHS = Object.freeze({
+  play: ['M8 5.2v13.6a.7.7 0 0 0 1.1.6l10.2-6.8a.7.7 0 0 0 0-1.2L9.1 4.6A.7.7 0 0 0 8 5.2z'], pause: ['M7 5h3.4v14H7z', 'M13.6 5H17v14h-3.4z'],
+  next: ['M6 5.4v13.2a.6.6 0 0 0 1 .5l8.5-6.6a.6.6 0 0 0 0-1L7 4.9a.6.6 0 0 0-1 .5z', 'M16.5 5h2.2v14h-2.2z'], prev: ['M18 5.4v13.2a.6.6 0 0 1-1 .5l-8.5-6.6a.6.6 0 0 1 0-1L17 4.9a.6.6 0 0 1 1 .5z', 'M5.3 5h2.2v14H5.3z'],
+  flip: ['M4 9a8 8 0 0 1 14.5-3.5', 'M18.8 2.6v3.2h-3.2', 'M20 15a8 8 0 0 1-14.5 3.5', 'M5.2 21.4v-3.2h3.2'],
+  back: ['M14.5 5l-7 7 7 7'],
+});
+const glyph = (id, filled = true) => { const el = draw(GLYPHS[id]); el.classList.add(filled ? 'filled' : 'lined'); return el; };
 // "4 min 30 s" or "50 s": how long something takes, in the player's own time
 export const howLong = (seconds) => (seconds < 60 ? `${Math.max(5, Math.round(seconds / 5) * 5)} s` : `${Math.floor(seconds / 60)} min${seconds % 60 >= 20 && seconds < 600 ? ` ${Math.round((seconds % 60) / 10) * 10} s` : ''}`);
 
@@ -70,10 +95,14 @@ export function createPhone(kit) {
   const flashMessage = (result, good) => redraw(result.ok ? (good ? { good: true, text: typeof good === 'function' ? good(result) : good } : null) : { text: result.message });
 
   let drawn = null;              // the screen last drawn, so that an app opens with a movement and a redraw of it does not
+  let rising = false;            // the phone has just been taken out: it comes up into view once
+  const shots = [];              // photographs taken since the page was opened: { url, at }
+  let looking = null;            // the photograph being looked at
+  let ticking = null;            // what on the screen moves by itself (the song's clock)
 
   function show(appId = null, state = {}) {
     screen = appId && APPS.some((a) => a.id === appId) ? appId : 'home';
-    sub = state; said = null; funding = false; drawn = null;
+    sub = state; said = null; funding = false; drawn = null; rising = true; looking = null;
     open(app.view().self.name, 'Phone', render, null, { device: true });
   }
 
@@ -85,38 +114,52 @@ export function createPhone(kit) {
     cell.firstChild.style.width = `${Math.max(8, level)}%`;
   }
 
-  const tile = (a, counts, held) => h('button', { class: `app${a.light ? ' light' : ''}`, type: 'button', disabled: held && !a.held, 'aria-label': counts[a.id] ? `${a.name}, ${counts[a.id]} new` : a.name, onclick: () => go(a.id) },
-    h('span', { class: 'icon' }, svg(a.id)), h('span', null, a.name), counts[a.id] ? h('span', { class: 'count' }, String(counts[a.id])) : null);
+  const tile = (a, counts, held) => {
+    const [from, to, ink] = TILES[a.id];
+    return h('button', { class: 'app', type: 'button', disabled: held && !a.held, 'data-app': a.id, 'aria-label': counts[a.id] ? `${a.name}, ${counts[a.id]} new` : a.name, onclick: () => go(a.id) },
+      h('span', { class: 'icon', style: `background:linear-gradient(160deg,${from},${to});color:${ink}` }, svg(a.id)), h('span', null, a.name), counts[a.id] ? h('span', { class: 'count' }, String(counts[a.id])) : null);
+  };
 
   function render(root) {
     const view = app.view();
     const held = !!view.self.law.arrest;
+    ticking = null;
     // drawn again when something it shows has changed: an app may name more of its own
-    live(() => { const v = app.view(); const me = v.self; const a = me.law.arrest; return `${me.health}|${me.balance}|${me.law.state}|${me.law.seen.length}|${a ? `${a.status}${a.fine.confirmed}${a.call.status}` : ''}|${me.phone.unread}|${me.phone.requests.map((r) => `${r.arrest}${r.ready}${r.near}`).join()}|${me.phone.surety}|${me.ambulance ? me.ambulance.status : ''}|${me.law.role ? me.law.role.prisoners.map((x) => `${x.status}${x.call.status}`).join() : ''}`; });
+    live(() => { const v = app.view(); const me = v.self; const a = me.law.arrest; return `${me.health}|${me.balance}|${me.law.state}|${me.law.seen.length}|${a ? `${a.status}${a.fine.confirmed}${a.call.status}` : ''}|${me.phone.unread}|${me.phone.requests.map((r) => `${r.arrest}${r.ready}${r.near}`).join()}|${me.phone.surety}|${me.critical}`; });
     const meta = APPS.find((a) => a.id === screen);
     if (screen !== 'home' && held && !meta.held) screen = 'home';
     const atHome = screen === 'home';
+    const inHand = IN_HAND.has(screen);
+    kit.mode(inHand ? 'mini' : 'page');
+    const inner = h('div', { class: `screen${drawn !== screen ? ' opening' : ''}` });
+    drawn = screen;
+    const deepIn = () => !!(sub.contact || sub.thread || sub.place || sub.asset || sub.market || sub.deal || funding);
+    const back = () => { if (deepIn()) { sub = sub.market && (sub.asset || sub.deal) ? { market: sub.market } : {}; said = null; funding = false; redraw(); } else go('home'); };
+    if (!inHand) {
+      // a page over the whole screen: the way back at the top left, the app's name beside it
+      const bar = h('div', { class: 'pagebar' },
+        h('button', { class: 'pageback', type: 'button', id: 'page-back', 'aria-label': deepIn() ? `Back to ${meta.name}` : 'Back to the phone', onclick: back }, glyph('back', false)),
+        h('h3', null, meta.name),
+        h('span', { class: 'pagetime' }, view.clock.label));
+      ({ contacts, messages, calls, map: mapApp, wallet, health, police, transport, jobs, property: () => legacy.property(inner), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings })[screen](inner, view, held);
+      root.append(h('div', { class: 'page', 'data-app': screen }, bar, inner));
+      return;
+    }
     const cell = h('span', { class: 'cell', role: 'img' }, h('i'));
     charge(cell, view.self.energy);
     const bar = h('div', { class: 'statusbar' }, h('span', { class: 'time' }, view.clock.label),
       h('span', { class: 'right' }, h('span', { class: 'cells', role: 'img', 'aria-label': 'Signal' }, h('i'), h('i'), h('i'), h('i')), h('span', null, ZONE.name), cell));
-    const inner = h('div', { class: `screen${drawn !== screen ? ' opening' : ''}` });
-    drawn = screen;
-    const back = () => { if (sub.contact || sub.thread || sub.place || funding) { sub = {}; said = null; funding = false; redraw(); } else go('home'); };
     // the bar at the foot: from an app it goes home; from home it puts the phone away
     const homebar = h('button', { class: 'homebar', type: 'button', 'aria-label': atHome ? 'Put the phone away' : 'Home', onclick: () => { if (atHome) kit.close(); else go('home'); } }, h('i'));
-    const handset = h('div', { class: `handset${atHome ? '' : ' inapp'}` }, h('div', { class: 'wall' }), h('div', { class: 'island' }), bar, inner);
+    const glass = h('div', { class: 'glass' }, h('div', { class: 'wall' }), h('div', { class: 'island' }), bar, inner);
     if (atHome) {
       const counts = home(inner, view, held);
-      handset.append(h('div', { class: 'dockbar' }, APPS.filter((a) => a.dock).map((a) => tile(a, counts, held))));
-    } else {
-      const deep = !!(sub.contact || sub.thread || sub.place || funding);
-      inner.append(h('div', { class: 'navbar' }, h('button', { class: 'back', type: 'button', 'aria-label': deep ? `Back to ${meta.name}` : 'Back to the home screen', onclick: back }, deep ? meta.name : 'Home')));
-      inner.append(h('div', { class: 'apphead' }, h('h3', null, meta.name)));
-      ({ contacts, messages, calls, map: mapApp, wallet, health, police, transport, jobs, property: () => legacy.property(inner), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings })[screen](inner, view, held);
-    }
-    handset.append(homebar);
-    root.append(handset);
+      glass.append(h('div', { class: 'dockbar' }, APPS.filter((a) => a.dock).map((a) => tile(a, counts, held))));
+    } else if (screen === 'camera') cameraApp(inner);
+    else musicApp(inner);
+    glass.append(homebar);
+    root.append(h('div', { class: `handset${atHome ? '' : ' inapp'}${rising ? ' rising' : ''}`, 'data-app': screen }, glass, h('i', { class: 'sheen' })));
+    rising = false;
   }
 
   // --- home ----------------------------------------------------------------------
@@ -130,6 +173,92 @@ export function createPhone(kit) {
     root.append(h('div', { class: 'apps' }, APPS.filter((a) => !a.dock).map((a) => tile(a, counts, held))));
     for (const r of self.phone.requests) root.append(requestCard(r));
     return counts;
+  }
+
+  // --- camera ----------------------------------------------------------------------
+  // What the handset's own camera sees: the town in front of the character, or, turned round, the character's
+  // own face with the town behind. The picture is the game's own scene drawn a second time from where the
+  // phone is (main.js draws it into the canvas here); nothing is made up for it.
+
+  function cameraApp(root) {
+    const cam = app.phoneCam;
+    if (looking) {
+      root.append(h('div', { class: 'viewfinder still' }, h('img', { src: looking.url, alt: 'The photograph you took' })),
+        h('div', { class: 'cambar' },
+          h('button', { class: 'camtext', type: 'button', onclick: () => { looking = null; redraw(); } }, 'Back'),
+          h('a', { class: 'camtext', href: looking.url, download: `postcivilwar-${looking.at}.jpg` }, 'Save'),
+          h('button', { class: 'camtext', type: 'button', onclick: () => { shots.splice(shots.indexOf(looking), 1); looking = null; redraw(); } }, 'Delete')));
+      return;
+    }
+    const canvas = h('canvas', { id: 'phone-cam', width: String(cam.width), height: String(cam.height), 'aria-label': cam.facing() === 'front' ? 'The front camera: your character' : 'The back camera: what is in front of your character' });
+    const flash = h('i', { class: 'camflash' });
+    const last = shots[shots.length - 1];
+    root.append(h('div', { class: 'viewfinder' }, canvas, flash, h('span', { class: 'camside' }, cam.facing() === 'front' ? 'FRONT' : 'BACK')),
+      h('div', { class: 'cambar' },
+        last ? h('button', { class: 'camthumb', type: 'button', 'aria-label': 'Look at the last photograph', style: `background-image:url(${last.url})`, onclick: () => { looking = last; redraw(); } }) : h('span', { class: 'camthumb empty' }),
+        h('button', { class: 'shutter', type: 'button', id: 'cam-shutter', 'aria-label': 'Take a photograph', onclick: () => {
+          // exactly what is in the viewfinder at this moment
+          let url = '';
+          try { url = canvas.toDataURL('image/jpeg', 0.9); } catch (error) { url = ''; }
+          if (!url || url.length < 200) return;
+          shots.push({ url, at: `${app.view().clock.day}-${String(shots.length + 1).padStart(2, '0')}` });
+          if (shots.length > 12) shots.shift();
+          app.shutter();
+          flash.classList.remove('go'); void flash.offsetWidth; flash.classList.add('go');
+          setTimeout(() => { if (screen === 'camera') redraw(); }, 260);
+        } }, h('i')),
+        h('button', { class: 'camflip', type: 'button', id: 'cam-flip', 'aria-label': cam.facing() === 'front' ? 'Switch to the back camera' : 'Switch to the front camera', onclick: () => { cam.flip(); redraw(); } }, glyph('flip', false))));
+  }
+
+  // --- music ------------------------------------------------------------------------
+  // The library and the player are in music.js and audio.js. This is the face of them: what is playing, where
+  // in it, and the controls. It keeps playing when the phone is put away.
+
+  let musicWatch = null;
+  function musicApp(root) {
+    const music = app.music;
+    const track = music.current();
+    const s = music.status();
+    const playing = s.state === 'playing' || s.state === 'loading';
+    const cover = h('div', { class: 'cover', style: track.cover ? `background-image:url("${track.cover}")` : `background:linear-gradient(150deg,${track.art[0]},${track.art[1]})` }, track.cover ? null : h('span', null, track.title));
+    const length = s.duration || track.duration || 0;
+    const bar = h('input', { class: 'seek', id: 'mu-seek', type: 'range', min: '0', max: String(Math.max(1, Math.round(length))), step: '1', value: String(Math.round(s.time)), disabled: !length, 'aria-label': 'Where in the song' });
+    const fill = () => bar.style.setProperty('--fill', `${length ? (Number(bar.value) / Math.max(1, Number(bar.max))) * 100 : 0}%`);
+    fill();
+    let dragging = false;
+    const now = h('span', { id: 'mu-now' }, clockOf(s.time)), total = h('span', { id: 'mu-total' }, length ? clockOf(length) : '--:--');
+    bar.addEventListener('input', () => { dragging = true; fill(); now.textContent = clockOf(Number(bar.value)); });
+    bar.addEventListener('change', () => { dragging = false; music.seek(Number(bar.value)); });
+    const word = { loading: 'Loading…', error: s.error || 'This song could not be played.' }[s.state] || '';
+    const levels = app.volumes();
+    const volume = h('input', { class: 'seek vol', type: 'range', min: '0', max: '100', step: '5', value: String(Math.round(levels.music * 100)), 'aria-label': 'Music volume' });
+    const vfill = () => volume.style.setProperty('--fill', `${volume.value}%`);
+    vfill();
+    volume.addEventListener('input', () => { vfill(); app.setVolume('music', Number(volume.value) / 100); });
+    root.append(...[
+      cover,
+      h('div', { class: 'nowplaying' }, h('b', { id: 'mu-title' }, track.title), h('span', null, track.artist)),
+      h('div', { class: 'progress' }, bar, h('div', { class: 'times' }, now, total)),
+      word ? h('div', { class: `mustate${s.state === 'error' ? ' bad' : ''}`, role: 'status' }, word) : null,
+      h('div', { class: 'transport' },
+        h('button', { type: 'button', id: 'mu-prev', 'aria-label': 'Previous song', onclick: () => music.prev() }, glyph('prev')),
+        h('button', { class: 'big', type: 'button', id: 'mu-play', 'aria-label': playing ? 'Pause' : 'Play', 'aria-pressed': String(playing), onclick: () => music.toggle() }, glyph(playing ? 'pause' : 'play')),
+        h('button', { type: 'button', id: 'mu-next', 'aria-label': 'Next song', onclick: () => music.next() }, glyph('next'))),
+      h('label', { class: 'volrow' }, h('span', null, 'Volume'), volume),
+      h('div', { class: 'tracklist', role: 'list' }, music.tracks().map((t) => h('button', { class: `track${t.id === track.id ? ' on' : ''}`, type: 'button', role: 'listitem', 'data-track': t.id, onclick: () => music.play(t.id) },
+        h('i', { style: t.cover ? `background-image:url("${t.cover}")` : `background:linear-gradient(150deg,${t.art[0]},${t.art[1]})` }), h('span', null, h('b', null, t.title), h('small', null, t.artist)), t.id === track.id && playing ? h('em', { class: 'bars' }, h('u'), h('u'), h('u')) : null))),
+      music.library() === 'songs' ? null : h('p', { class: 'small' }, music.library() === 'loading' ? 'Looking for songs…' : 'These four are the game\'s own. Songs added to the game will be listed here.')].filter(Boolean));
+    // the song moves on by itself: the bar and the clock follow it, and a change of song or state draws the screen again
+    if (musicWatch) musicWatch();
+    const seen = `${track.id}|${s.state}|${music.library()}`;
+    musicWatch = music.onChange(() => { if (screen === 'music' && root.isConnected && !dragging) redraw(); });
+    ticking = () => {
+      if (!root.isConnected) return;
+      const st = music.status();
+      if (`${music.current().id}|${st.state}|${music.library()}` !== seen) { if (!dragging) redraw(); return; }
+      if (!dragging) { bar.value = String(Math.round(st.time)); fill(); now.textContent = clockOf(st.time); }
+      if (st.duration && total.textContent === '--:--') { total.textContent = clockOf(st.duration); bar.max = String(Math.round(st.duration)); bar.disabled = false; }
+    };
   }
 
   // Who the player is: the name, and the answer they gave when the game first asked.
@@ -422,5 +551,5 @@ export function createPhone(kit) {
 
   function settings(root) { legacy.settings(root, Object.values(CAMERA_VIEW).map((v) => v.name)); }
 
-  return { charge, show, go, get screen() { return screen; } };
+  return { charge, show, go, get screen() { return screen; }, tick() { if (ticking) ticking(); } };
 }
