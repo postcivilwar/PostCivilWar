@@ -521,6 +521,23 @@ export function createUI(app) {
     root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
     root.append(h('p', { class: 'small' }, 'Auto lowers detail only when frames are slow for several seconds on end, and raises it again when there is room. A single hitch never changes it.'));
 
+    // The character as a code, to take to another browser or device (src/client/carry.js). The code is made
+    // when this is drawn, so that pressing Copy can hand it over at once: a browser allows that only in the press itself.
+    if (app.character) {
+      let code = null;
+      const copy = h('button', { class: 'btn primary', type: 'button', id: 'copy-character', disabled: true }, 'Copy');
+      const box = h('textarea', { class: 'field', id: 'character-code', rows: '3', readonly: true, hidden: true, 'aria-label': 'Your character, as a code' });
+      const said = h('p', { class: 'small' }, 'There are no accounts yet, so a character lives in one browser on one device. Copy gives you your character, and everything they own, as a code. Where you want them, open the game and choose "Bring it here" on the first screen, before making a new character.');
+      app.character.code().then((made) => { code = made; copy.disabled = false; }).catch(() => { said.textContent = 'This browser cannot write the character out as a code.'; });
+      copy.addEventListener('click', () => {
+        if (!code) return;
+        const done = () => { copy.textContent = 'Copied'; setTimeout(() => { if (copy.isConnected) copy.textContent = 'Copy'; }, 2500); };
+        const byHand = () => { box.hidden = false; box.value = code; box.focus(); box.select(); said.textContent = 'This browser would not copy it. The code is in the box: select all of it and copy it.'; };
+        try { navigator.clipboard.writeText(code).then(done, byHand); } catch (error) { byHand(); }
+      });
+      root.append(section('Your character'), h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Take it to another browser or device'), copy)), said, box);
+    }
+
     // On the website only: the game on this device. Each line is there only when it is true.
     if (app.webapp && app.webapp.site) {
       const WAYS = { yes: 'Yes', 'not yet': 'Not yet', no: 'No' };
@@ -536,7 +553,7 @@ export function createUI(app) {
         cells.replaceChildren(...rows);
         const said = [];
         if (now.way === 'prompt') said.push('Installed, the game opens from its own icon, on the whole screen, without the browser round it.');
-        if (now.way === 'share') said.push('To install: tap Share in the browser, then Add to Home Screen. The game then opens from its own icon, on the whole screen. Installed, it keeps its own characters: one made here in the browser stays here.');
+        if (now.way === 'share') said.push('To install: tap Share in the browser, then Add to Home Screen. The game then opens from its own icon, on the whole screen. An iPhone keeps the installed game apart from the browser, so to take your character with you: press Copy under Your character first, then choose "Bring it here" on the first screen of the installed game.');
         said.push(now.offline === 'no'
           ? 'This browser does not keep the game, so it needs a connection each time it is opened.'
           : 'Once it has loaded, the game is kept on this device and opens with no connection. With a connection it is always the newest.');

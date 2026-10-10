@@ -248,6 +248,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.choice { padding: 8px 14px; font-size: 14px; min-height: 40px; } .btn.choice[aria-pressed="true"] { background: var(--white); color: var(--ink); }
 .swatch[aria-pressed="true"] { border-color: var(--white); box-shadow: 0 0 0 2px var(--bg) inset; }
 .startrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+/* bringing a character from somewhere else: plain writing until it is asked for */
+.textlink { appearance: none; border: 0; background: none; padding: 6px 0; min-height: 32px; color: var(--muted); font-size: 13px; text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.textlink:hover, .textlink:focus-visible { color: var(--text); }
+#bring-panel { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+#bring-code, #character-code { font-family: var(--font-mono); resize: vertical; min-height: 64px; word-break: break-all; }
 
 /* a health line, wherever one is shown */
 .vital { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
@@ -864,6 +869,21 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
       </div>
       <div class="story" id="start-intro"></div>
       <h2 id="start-title">Create your character</h2>
+      <!-- A character made somewhere else (another browser, another device, or Safari when this is the game installed on an
+           iPhone, which keeps its own storage): brought here as a code. Offered only while there is no character here. -->
+      <div id="bring" hidden>
+        <button class="textlink" id="bring-open" type="button" aria-expanded="false" aria-controls="bring-panel">Already have a character somewhere else? Bring it here</button>
+        <div id="bring-panel" hidden>
+          <p class="small">Where your character is, open the phone, then Settings, and press Copy under Your character. Then come back here.</p>
+          <div class="startrow"><button class="btn" id="bring-paste" type="button">Paste the code</button></div>
+          <textarea class="field" id="bring-code" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Character code" placeholder="or paste the code here"></textarea>
+          <div class="startrow"><button class="btn quiet" id="bring-go" type="button">Bring it here</button></div>
+          <div class="notice" id="bring-error" role="alert" hidden></div>
+        </div>
+      </div>
+      <!-- An iPhone keeps an installed game apart from the browser. Said here, in the browser on an iPhone or iPad only, to a
+           player who has no character yet: the moment at which installing first saves carrying a character across later. -->
+      <p class="small" id="start-install" hidden>On an iPhone or iPad, install the game before you make a character: tap Share, then Add to Home Screen, and open it from its icon.</p>
     </header>
     <!-- the figure, drawn in 3D: drag it to turn it; the arrows change it -->
     <section class="stage" id="stage" aria-label="Your character">
@@ -17979,6 +17999,23 @@ function createUI(app) {
     root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
     root.append(h('p', { class: 'small' }, 'Auto lowers detail only when frames are slow for several seconds on end, and raises it again when there is room. A single hitch never changes it.'));
 
+    // The character as a code, to take to another browser or device (src/client/carry.js). The code is made
+    // when this is drawn, so that pressing Copy can hand it over at once: a browser allows that only in the press itself.
+    if (app.character) {
+      let code = null;
+      const copy = h('button', { class: 'btn primary', type: 'button', id: 'copy-character', disabled: true }, 'Copy');
+      const box = h('textarea', { class: 'field', id: 'character-code', rows: '3', readonly: true, hidden: true, 'aria-label': 'Your character, as a code' });
+      const said = h('p', { class: 'small' }, 'There are no accounts yet, so a character lives in one browser on one device. Copy gives you your character, and everything they own, as a code. Where you want them, open the game and choose "Bring it here" on the first screen, before making a new character.');
+      app.character.code().then((made) => { code = made; copy.disabled = false; }).catch(() => { said.textContent = 'This browser cannot write the character out as a code.'; });
+      copy.addEventListener('click', () => {
+        if (!code) return;
+        const done = () => { copy.textContent = 'Copied'; setTimeout(() => { if (copy.isConnected) copy.textContent = 'Copy'; }, 2500); };
+        const byHand = () => { box.hidden = false; box.value = code; box.focus(); box.select(); said.textContent = 'This browser would not copy it. The code is in the box: select all of it and copy it.'; };
+        try { navigator.clipboard.writeText(code).then(done, byHand); } catch (error) { byHand(); }
+      });
+      root.append(section('Your character'), h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Take it to another browser or device'), copy)), said, box);
+    }
+
     // On the website only: the game on this device. Each line is there only when it is true.
     if (app.webapp && app.webapp.site) {
       const WAYS = { yes: 'Yes', 'not yet': 'Not yet', no: 'No' };
@@ -17994,7 +18031,7 @@ function createUI(app) {
         cells.replaceChildren(...rows);
         const said = [];
         if (now.way === 'prompt') said.push('Installed, the game opens from its own icon, on the whole screen, without the browser round it.');
-        if (now.way === 'share') said.push('To install: tap Share in the browser, then Add to Home Screen. The game then opens from its own icon, on the whole screen. Installed, it keeps its own characters: one made here in the browser stays here.');
+        if (now.way === 'share') said.push('To install: tap Share in the browser, then Add to Home Screen. The game then opens from its own icon, on the whole screen. An iPhone keeps the installed game apart from the browser, so to take your character with you: press Copy under Your character first, then choose "Bring it here" on the first screen of the installed game.');
         said.push(now.offline === 'no'
           ? 'This browser does not keep the game, so it needs a connection each time it is opened.'
           : 'Once it has loaded, the game is kept on this device and opens with no connection. With a connection it is always the newest.');
@@ -20254,6 +20291,130 @@ function createWebApp({ win = typeof window === 'undefined' ? null : window, fig
 return { installWay, playsOffline, createWebApp };
 })();
 
+// ---- client/carry.js ----
+__modules["client/carry.js"] = (function () {
+// Taking a character from one place to another.
+//
+// There are no accounts yet: a character, and the town as that player has left it, live in one browser's
+// storage on one device. Two places that look like the same game to a player do not share that storage:
+// another browser, another phone, and, on an iPhone or iPad, the game installed on the home screen, which is
+// kept apart from Safari by the phone itself. So a character made in Safari is not in the installed game.
+//
+// Until there are accounts, this is how a character moves: the place that has it writes it out as a code (the
+// whole save, packed small), the player copies it, and the place that wants it reads it back. Nothing leaves
+// the device unless the player sends the code somewhere themselves.
+//
+// A code is something a stranger could hand a player, so reading one trusts nothing: it must unpack, be the
+// right kind of thing for this town and this version, stay within a size, and load into a simulation that then
+// really has that player. Only then is it kept.
+
+const KIND = 'pcw-character';
+const PACKED = 'PCW1.';        // the save as JSON, gzipped, in base64 for addresses
+const PLAIN = 'PCW0.';         // the same, not gzipped: for a browser that cannot gzip
+const MOST_TEXT = 6 * 1024 * 1024;       // the longest code that is looked at at all (characters)
+const MOST_JSON = 4 * 1024 * 1024;       // the most a code may unpack to (bytes): what one browser's storage will hold
+
+class CarryError extends Error {}
+
+const toBase64 = (bytes) => {
+  let text = '';
+  for (let i = 0; i < bytes.length; i += 0x8000) text += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000));
+  return btoa(text).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+};
+const fromBase64 = (text) => {
+  const raw = atob(text.replace(/-/g, '+').replace(/_/g, '/'));
+  const bytes = new Uint8Array(raw.length);
+  for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+  return bytes;
+};
+const canGzip = () => typeof CompressionStream === 'function' && typeof DecompressionStream === 'function' && typeof Response === 'function';
+
+// Everything that comes out of a stream, but never more than `most` bytes of it.
+async function drain(stream, most) {
+  const reader = stream.getReader();
+  const parts = [];
+  let size = 0;
+  for (;;) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    size += value.length;
+    if (size > most) { reader.cancel().catch(() => {}); throw new CarryError('That code is too large to be a character.'); }
+    parts.push(value);
+  }
+  const out = new Uint8Array(size);
+  let at = 0;
+  for (const part of parts) { out.set(part, at); at += part.length; }
+  return out;
+}
+
+// A character as a code. `save` is what the game keeps ({ host, playerId }); `prefs` is what goes with it
+// (which figure and colours, and the answer to the opening's question).
+async function packCharacter({ zone, save, prefs = {} }) {
+  const json = JSON.stringify({ kind: KIND, v: 1, zone, save, prefs: { look: prefs.look || null, path: prefs.path || null } });
+  const bytes = new TextEncoder().encode(json);
+  if (!canGzip()) return PLAIN + toBase64(bytes);
+  const packed = await drain(new Blob([bytes]).stream().pipeThrough(new CompressionStream('gzip')), MOST_JSON * 2);
+  return PACKED + toBase64(packed);
+}
+
+// A code as a character, or a CarryError that says in plain words why not.
+async function unpackCharacter(text) {
+  // a message app may have broken it over lines or put spaces round it
+  const code = String(text || '').replace(/\s+/g, '');
+  if (!code) throw new CarryError('There is no code there yet.');
+  if (code.length > MOST_TEXT) throw new CarryError('That code is too large to be a character.');
+  const packed = code.startsWith(PACKED);
+  if (!packed && !code.startsWith(PLAIN)) throw new CarryError('That is not a character code. Copy it again from Settings in the place that has your character.');
+  const body = code.slice(PACKED.length);
+  if (!/^[A-Za-z0-9_-]+$/.test(body)) throw new CarryError('That code is damaged. Copy it again, all of it.');
+  let bytes;
+  try {
+    bytes = fromBase64(body);
+    if (packed) {
+      if (!canGzip()) throw new CarryError('This browser cannot read that code. Try a newer browser.');
+      bytes = await drain(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip')), MOST_JSON);
+    }
+  } catch (error) {
+    if (error instanceof CarryError) throw error;
+    throw new CarryError('That code is damaged. Copy it again, all of it.');
+  }
+  if (bytes.length > MOST_JSON) throw new CarryError('That code is too large to be a character.');
+  let data;
+  try { data = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes)); } catch (error) { throw new CarryError('That code is damaged. Copy it again, all of it.'); }
+  if (!data || typeof data !== 'object' || data.kind !== KIND || data.v !== 1) throw new CarryError('That is not a character code.');
+  return data;
+}
+
+// Is what a code held really a character that this game can carry on with? It is loaded into a simulation of
+// its own and asked. { ok: true, name, save, prefs } or { ok: false, why }.
+function checkCharacter(data, { zone, version, createHost }) {
+  const no = (why) => ({ ok: false, why });
+  if (!data || typeof data !== 'object' || !data.save || typeof data.save !== 'object') return no('That is not a character code.');
+  if (data.zone !== zone) return no('That character is from a different town, and cannot come here yet.');
+  const { host, playerId } = data.save;
+  if (!host || typeof host !== 'object' || typeof playerId !== 'string' || !playerId) return no('That is not a character code.');
+  if (host.version !== version) return no('That character was saved by a different version of the game, and cannot be read by this one.');
+  let name;
+  try {
+    const trial = createHost({ saved: JSON.parse(JSON.stringify(host)) });      // a copy: the one that is kept is not played with
+    if (!trial.game.hasPlayer(playerId)) return no('That code has a town in it but no character.');
+    name = trial.game.view(playerId).self.name;
+    trial.tick(0.1);          // and the town it came with can carry on
+  } catch (error) {
+    return no('That code is damaged: the character in it cannot be read.');
+  }
+  if (typeof name !== 'string' || !name) return no('That code is damaged: the character in it cannot be read.');
+  // what goes with the character is taken only if it is what it should be
+  const prefs = {};
+  const given = data.prefs && typeof data.prefs === 'object' ? data.prefs : {};
+  if (given.path === 'hero' || given.path === 'villain') prefs.path = given.path;
+  if (given.look && typeof given.look === 'object' && !Array.isArray(given.look) && JSON.stringify(given.look).length < 4000) prefs.look = given.look;
+  return { ok: true, name, save: { host, playerId }, prefs };
+}
+
+return { CarryError, packCharacter, unpackCharacter, checkCharacter };
+})();
+
 // ---- client/main.js ----
 __modules["client/main.js"] = (function () {
 // Client entry point: input, camera, prediction, drawing and sound.
@@ -20267,7 +20428,7 @@ __modules["client/main.js"] = (function () {
 // In this prototype the simulation runs in the same page, so `server.send`
 // is a function call. In the networked game it is a message to a zone server.
 
-const { createHost } = __modules["sim/host.js"];
+const { createHost, SAVE_VERSION } = __modules["sim/host.js"];
 const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ } = __modules["sim/zone.js"];
 const { SPEED, SWIM, structureFootprint } = __modules["sim/sim.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
@@ -20305,6 +20466,7 @@ const { buildCatalog } = __modules["client/skill-catalog.js"];
 const { createFitter } = __modules["client/fit.js"];
 const { QUALITY_RULES } = __modules["client/monitor.js"];
 const { createWebApp } = __modules["client/webapp.js"];
+const { packCharacter, unpackCharacter, checkCharacter, CarryError } = __modules["client/carry.js"];
 const { cowrieText, cowrieAmount, POUNDS_PER_COWRIE, COWRIE } = __modules["sim/ledger.js"];
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
@@ -20602,6 +20764,8 @@ function start(carried) {
     closed: () => { if (playing) { refreshView(); prompt = findPrompt(); } },
     settings,
     webapp,
+    // the character as a code, to take to another browser or device (src/client/carry.js)
+    character: { code: () => packCharacter({ zone: ZONE.id, save: { host: host.save(), playerId }, prefs }) },
     link: () => (link ? link.status() : { kind: 'none', peers: 0, failed: false }),
     room: () => (room ? `${room.name}` : null),
     sound: () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); if (prefs.sound) audio.start(); writeStored(PREFS_KEY, prefs); return prefs.sound; },
@@ -20835,6 +20999,8 @@ function start(carried) {
     drawSpectator();
     const resume = $('continue');
     resume.hidden = !playerId;
+    $('bring').hidden = !!playerId;      // offered only where there is no character to lose
+    $('start-install').hidden = !!playerId || webapp.state().way !== 'share';
     if (playerId) resume.textContent = `Continue as ${host.game.view(playerId).self.name}`;
   }
 
@@ -20875,6 +21041,40 @@ function start(carried) {
     }
   });
   $('continue').addEventListener('click', () => { if (playerId) enterWorld(); });
+
+  // A character from somewhere else, brought here as a code (src/client/carry.js). Offered only while there is
+  // no character on this device, so nothing is ever replaced. What the code holds is checked before it is kept;
+  // then the page starts again, as it does for anyone coming back, without the opening a second time.
+  const bringSay = (text) => { $('bring-error').hidden = !text; $('bring-error').textContent = text || ''; };
+  async function bringCharacter(text) {
+    if (playerId) return false;
+    bringSay('');
+    try {
+      const found = checkCharacter(await unpackCharacter(text), { zone: ZONE.id, version: SAVE_VERSION, createHost });
+      if (!found.ok) { bringSay(found.why); return false; }
+      let kept = false;
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(found.save)); kept = !!readStored(SAVE_KEY); } catch (error) { kept = false; }
+      if (!kept) { bringSay('This browser would not keep the character: its storage is full or switched off.'); return false; }
+      writeStored(PREFS_KEY, { ...prefs, ...found.prefs });
+      const flags = location.hash.replace(/^#/, '').split('-').filter(Boolean);
+      if (!flags.includes('nointro')) flags.push('nointro');
+      location.hash = flags.join('-');
+      location.reload();
+      return true;
+    } catch (error) {
+      bringSay(error instanceof CarryError ? error.message : 'That code could not be read.');
+      return false;
+    }
+  }
+  $('bring-open').addEventListener('click', () => { const panel = $('bring-panel'); panel.hidden = !panel.hidden; $('bring-open').setAttribute('aria-expanded', String(!panel.hidden)); });
+  $('bring-go').addEventListener('click', () => { bringCharacter($('bring-code').value); });
+  $('bring-paste').addEventListener('click', async () => {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch (error) { text = ''; }
+    if (!text || !text.trim()) { bringSay('This browser will not hand over what was copied. Press and hold in the box below, choose Paste, then press Bring it here.'); $('bring-code').focus(); return; }
+    $('bring-code').value = text.trim();
+    bringCharacter(text);
+  });
 
   // -------------------------------------------------------------- input --
 

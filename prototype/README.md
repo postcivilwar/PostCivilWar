@@ -682,21 +682,52 @@ it is the game in `dist/index.html`; what differs is what surrounds it.
 What to know about it:
 
 - An installed game on an iPhone or iPad keeps its own storage: a character
-  made in Safari is not in the installed game. On Android and on a computer
-  the two share it.
+  made in Safari is not in the installed game, which opens on "Create your
+  character" like any new player's. On Android and on a computer the two
+  share it. See "Taking a character somewhere else".
 - A browser decides for itself when to offer installing. The game cannot make
   it; it can only use the offer when it comes.
 - The game still has no accounts and no server. Installing changes where the
   game opens from, not where a character lives: one browser's storage on one
   device. The installed game asks the browser not to clear that storage.
 
+## Taking a character somewhere else
+
+There are no accounts, so a character and the town as its player left it
+live in one browser's storage. Another browser, another device, and the game
+installed on an iPhone (which the phone keeps apart from Safari) do not have
+it. Until there are accounts a character moves as a code
+(`src/client/carry.js`):
+
+- **Settings, "Your character", Copy** writes the whole save (the town, the
+  ledger, the player) with the figure and the hero-or-villain answer as one
+  code: JSON, gzipped, in letters and figures only. A new character is about
+  11,000 characters; it goes on the clipboard, never through a server.
+- **The first screen, "Already have a character somewhere else? Bring it
+  here"**, is offered only where there is no character, so nothing is ever
+  replaced. Paste the code (one button, or by hand into the box) and the
+  page starts again with "Continue as" that character, without the opening a
+  second time.
+- A code is something a stranger could hand a player, so reading one trusts
+  nothing: it must unpack, within a size, be for this town and this version
+  of the save, and load into a simulation of its own that then really has
+  that player. Otherwise it is refused in words that say what to do.
+- In the browser on an iPhone or iPad, a player with no character yet is told
+  to install first and make the character there; Settings says how to carry
+  one across that already exists.
+
+It moves a character; it does not join two places. The same code pasted in
+two places makes two copies that then go their own ways. That is what
+accounts and the shared world are for.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 204 headless tests, in thirteen files
+node --test test/*.test.mjs                        # 212 headless tests, in fourteen files
 node build.mjs                                     # writes dist/index.html, dist/local.html, the character lab, the vehicle yard and dist/site/
 node build.mjs --site                              # the same, then makes site/ (what the host serves) the same as dist/site/
 node test/webapp.mjs out/                          # the website as an app: serves dist/site/, checks it can be installed, takes the network away and plays
+node test/carry.mjs out/                           # a character copied in one browser and brought into another that shares nothing with it
 node test/play.mjs out/                            # plays the built page in headless Chromium (needs Playwright)
 node test/play.mjs out/ town                       # one session: opening, desktop, town, phone, action, sideways or upright
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
@@ -743,6 +774,13 @@ byte. `webapp.mjs` does it in a browser on a phone-sized screen: a first
 visit, what the browser says stands in the way of installing (nothing), the
 Settings section, then no connection at all: the opening, the town and the
 player's character all come back, and nothing large is ever sent twice.
+
+`carry.test.mjs` covers the character code: that a character comes back the
+same, with the same purse, place and day; that a code broken over lines
+still reads; and everything that must be refused (not a code, cut short,
+damaged, too large when unpacked, another town, another version, a town with
+no such player). `carry.mjs` does it between two browsers that share nothing:
+copy in Settings, paste on the first screen, by the button and by hand.
 
 `town.test.mjs` covers: the map and every door; the 1,000 people and their
 roles; weekday, Saturday and Sunday routines; school, hospital, church and

@@ -9,7 +9,7 @@
 // In this prototype the simulation runs in the same page, so `server.send`
 // is a function call. In the networked game it is a message to a zone server.
 
-import { createHost } from '../sim/host.js';
+import { createHost, SAVE_VERSION } from '../sim/host.js';
 import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ } from '../sim/zone.js';
 import { SPEED, SWIM, structureFootprint } from '../sim/sim.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -47,6 +47,7 @@ import { buildCatalog } from './skill-catalog.js';
 import { createFitter } from './fit.js';
 import { QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
+import { packCharacter, unpackCharacter, checkCharacter, CarryError } from './carry.js';
 import { cowrieText, cowrieAmount, POUNDS_PER_COWRIE, COWRIE } from '../sim/ledger.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
@@ -344,6 +345,8 @@ function start(carried) {
     closed: () => { if (playing) { refreshView(); prompt = findPrompt(); } },
     settings,
     webapp,
+    // the character as a code, to take to another browser or device (src/client/carry.js)
+    character: { code: () => packCharacter({ zone: ZONE.id, save: { host: host.save(), playerId }, prefs }) },
     link: () => (link ? link.status() : { kind: 'none', peers: 0, failed: false }),
     room: () => (room ? `${room.name}` : null),
     sound: () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); if (prefs.sound) audio.start(); writeStored(PREFS_KEY, prefs); return prefs.sound; },
@@ -577,6 +580,8 @@ function start(carried) {
     drawSpectator();
     const resume = $('continue');
     resume.hidden = !playerId;
+    $('bring').hidden = !!playerId;      // offered only where there is no character to lose
+    $('start-install').hidden = !!playerId || webapp.state().way !== 'share';
     if (playerId) resume.textContent = `Continue as ${host.game.view(playerId).self.name}`;
   }
 
@@ -617,6 +622,40 @@ function start(carried) {
     }
   });
   $('continue').addEventListener('click', () => { if (playerId) enterWorld(); });
+
+  // A character from somewhere else, brought here as a code (src/client/carry.js). Offered only while there is
+  // no character on this device, so nothing is ever replaced. What the code holds is checked before it is kept;
+  // then the page starts again, as it does for anyone coming back, without the opening a second time.
+  const bringSay = (text) => { $('bring-error').hidden = !text; $('bring-error').textContent = text || ''; };
+  async function bringCharacter(text) {
+    if (playerId) return false;
+    bringSay('');
+    try {
+      const found = checkCharacter(await unpackCharacter(text), { zone: ZONE.id, version: SAVE_VERSION, createHost });
+      if (!found.ok) { bringSay(found.why); return false; }
+      let kept = false;
+      try { localStorage.setItem(SAVE_KEY, JSON.stringify(found.save)); kept = !!readStored(SAVE_KEY); } catch (error) { kept = false; }
+      if (!kept) { bringSay('This browser would not keep the character: its storage is full or switched off.'); return false; }
+      writeStored(PREFS_KEY, { ...prefs, ...found.prefs });
+      const flags = location.hash.replace(/^#/, '').split('-').filter(Boolean);
+      if (!flags.includes('nointro')) flags.push('nointro');
+      location.hash = flags.join('-');
+      location.reload();
+      return true;
+    } catch (error) {
+      bringSay(error instanceof CarryError ? error.message : 'That code could not be read.');
+      return false;
+    }
+  }
+  $('bring-open').addEventListener('click', () => { const panel = $('bring-panel'); panel.hidden = !panel.hidden; $('bring-open').setAttribute('aria-expanded', String(!panel.hidden)); });
+  $('bring-go').addEventListener('click', () => { bringCharacter($('bring-code').value); });
+  $('bring-paste').addEventListener('click', async () => {
+    let text = '';
+    try { text = await navigator.clipboard.readText(); } catch (error) { text = ''; }
+    if (!text || !text.trim()) { bringSay('This browser will not hand over what was copied. Press and hold in the box below, choose Paste, then press Bring it here.'); $('bring-code').focus(); return; }
+    $('bring-code').value = text.trim();
+    bringCharacter(text);
+  });
 
   // -------------------------------------------------------------- input --
 

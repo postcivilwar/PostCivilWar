@@ -202,6 +202,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn.choice { padding: 8px 14px; font-size: 14px; min-height: 40px; } .btn.choice[aria-pressed="true"] { background: var(--white); color: var(--ink); }
 .swatch[aria-pressed="true"] { border-color: var(--white); box-shadow: 0 0 0 2px var(--bg) inset; }
 .startrow { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+/* bringing a character from somewhere else: plain writing until it is asked for */
+.textlink { appearance: none; border: 0; background: none; padding: 6px 0; min-height: 32px; color: var(--muted); font-size: 13px; text-align: left; text-decoration: underline; text-underline-offset: 3px; cursor: pointer; }
+.textlink:hover, .textlink:focus-visible { color: var(--text); }
+#bring-panel { display: flex; flex-direction: column; gap: 10px; margin-top: 8px; }
+#bring-code, #character-code { font-family: var(--font-mono); resize: vertical; min-height: 64px; word-break: break-all; }
 
 /* a health line, wherever one is shown */
 .vital { display: grid; grid-template-columns: auto 1fr auto; gap: 10px; align-items: center; }
@@ -807,6 +812,21 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
       </div>
       <div class="story" id="start-intro"></div>
       <h2 id="start-title">Create your character</h2>
+      <!-- A character made somewhere else (another browser, another device, or Safari when this is the game installed on an
+           iPhone, which keeps its own storage): brought here as a code. Offered only while there is no character here. -->
+      <div id="bring" hidden>
+        <button class="textlink" id="bring-open" type="button" aria-expanded="false" aria-controls="bring-panel">Already have a character somewhere else? Bring it here</button>
+        <div id="bring-panel" hidden>
+          <p class="small">Where your character is, open the phone, then Settings, and press Copy under Your character. Then come back here.</p>
+          <div class="startrow"><button class="btn" id="bring-paste" type="button">Paste the code</button></div>
+          <textarea class="field" id="bring-code" rows="2" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="Character code" placeholder="or paste the code here"></textarea>
+          <div class="startrow"><button class="btn quiet" id="bring-go" type="button">Bring it here</button></div>
+          <div class="notice" id="bring-error" role="alert" hidden></div>
+        </div>
+      </div>
+      <!-- An iPhone keeps an installed game apart from the browser. Said here, in the browser on an iPhone or iPad only, to a
+           player who has no character yet: the moment at which installing first saves carrying a character across later. -->
+      <p class="small" id="start-install" hidden>On an iPhone or iPad, install the game before you make a character: tap Share, then Add to Home Screen, and open it from its icon.</p>
     </header>
     <!-- the figure, drawn in 3D: drag it to turn it; the arrows change it -->
     <section class="stage" id="stage" aria-label="Your character">

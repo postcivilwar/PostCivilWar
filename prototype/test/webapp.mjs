@@ -85,6 +85,9 @@ if (doc.scripts.some((s) => !s.startsWith(origin))) bad(`a script from another s
 if (doc.framed) bad('the page thinks it is in a frame');
 if (doc.overscroll !== 'none') bad(`pulling down would reload the page (${doc.overscroll})`);
 await townReady();
+// an Android phone shares its storage with the installed game: nothing about installing first is said
+if (await page.evaluate(() => !document.querySelector('#start-install').hidden)) bad('an Android phone is told to install before making a character');
+if (await page.evaluate(() => document.querySelector('#bring').hidden)) bad('a new player is not offered to bring a character');
 const first = await figureHere('W1');
 if (first !== 9852308) bad(`the woman arrived as ${first} bytes, not the 9,852,308 that were supplied`);
 const kept1 = await waitKept('woman.b64.txt');
