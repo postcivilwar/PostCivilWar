@@ -126,15 +126,18 @@ export function createCreator({ canvas, root, nameField, onPick, saved }) {
     const f = choice.figure;
     for (const b of $('genders').children) b.setAttribute('aria-pressed', String(b.dataset.gender === choice.gender));
     $('fig-name').textContent = f.name;
-    $('fig-count').textContent = `${choice.index + 1} of ${choice.count}`;
-    $('fig-dots').replaceChildren(...FIGURE_ORDER[choice.gender].map((id, i) => {
+    // the arrows and the dots go through every character there is, the women and then the men: with one of
+    // each they would otherwise have nothing to do
+    const here = placeOf();
+    $('fig-count').textContent = `${here + 1} of ${EVERYONE.length}`;
+    $('fig-dots').replaceChildren(...EVERYONE.map((entry, i) => {
       const b = document.createElement('button');
-      b.type = 'button'; b.setAttribute('aria-label', `${FIGURES[id].name}, ${i + 1} of ${choice.count}`);
-      b.setAttribute('aria-current', String(i === choice.index));
-      b.addEventListener('click', () => { if (i !== choice.index) { const dir = i > choice.index ? 1 : -1; choice.go(i); changed(dir); } });
+      b.type = 'button'; b.setAttribute('aria-label', `${FIGURES[entry.id].name}, ${i + 1} of ${EVERYONE.length}`);
+      b.setAttribute('aria-current', String(i === here));
+      b.addEventListener('click', () => { if (i !== here) goTo(i, i > here ? 1 : -1); });
       return b;
     }));
-    $('fig-prev').disabled = choice.count < 2; $('fig-next').disabled = choice.count < 2;
+    $('fig-prev').disabled = EVERYONE.length < 2; $('fig-next').disabled = EVERYONE.length < 2;
     $('colour-block').hidden = !f.parts.length;
     $('anim-block').hidden = !f.animated;
     if (f.animated) drawAnims();
@@ -171,7 +174,10 @@ export function createCreator({ canvas, root, nameField, onPick, saved }) {
     }) : [Object.assign(document.createElement('span'), { className: 'small', textContent: 'Loading the animations…' })]));
   }
   function changed(dir) { drawControls(); show(dir); onPick && onPick(choice.look()); }
-  function step(by) { choice.step(by); changed(by); }
+  const EVERYONE = Object.keys(FIGURE_ORDER).flatMap((gender) => FIGURE_ORDER[gender].map((id, index) => ({ gender, index, id })));
+  function placeOf() { return Math.max(0, EVERYONE.findIndex((e) => e.gender === choice.gender && e.index === choice.index)); }
+  function goTo(i, dir) { const to = EVERYONE[i]; if (to.gender !== choice.gender) choice.setGender(to.gender); choice.go(to.index); changed(dir); }
+  function step(by) { const n = EVERYONE.length; if (n > 1) goTo((placeOf() + by + n) % n, by); }
   for (const b of $('genders').children) b.addEventListener('click', () => { if (b.dataset.gender !== choice.gender) { choice.setGender(b.dataset.gender); changed(1); } });
   $('fig-prev').addEventListener('click', () => step(-1));
   $('fig-next').addEventListener('click', () => step(1));

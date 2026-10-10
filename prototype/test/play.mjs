@@ -54,11 +54,13 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   await page.screenshot({ path: resolve(out, 'opening-01-splash-early.png') }).catch(() => {});
   const early = await page.evaluate(() => ({
     since: performance.now() - window.__introAt, title: document.title, brand: document.querySelector('.wordmark').getAttribute('aria-label'),
-    domain: document.querySelector('.splash .domain').textContent, rays: document.querySelectorAll('.splash .mark .ray').length, disc: getComputedStyle(document.querySelector('.splash .mark .disc')).fill,
+    domain: !!document.querySelector('.splash .domain') || /postcivilwar\.com/i.test(document.querySelector('.splash').textContent), rays: document.querySelectorAll('.splash .mark .ray').length, disc: getComputedStyle(document.querySelector('.splash .mark .disc')).fill,
     ray: getComputedStyle(document.querySelector('.splash .mark .ray')).fill, ground: getComputedStyle(document.querySelector('.splash .wordmark')).color, back: getComputedStyle(document.querySelector('#intro')).backgroundColor,
     face: getComputedStyle(document.querySelector('.wordmark')).fontFamily, scheme: getComputedStyle(document.documentElement).colorScheme }));
   if (early.title !== 'PostCivilWar') bad(`the page is titled "${early.title}"`);
-  if (early.brand !== 'Post Civil War' || early.domain !== 'postcivilwar.com') bad(`the splash reads "${early.brand}" and "${early.domain}"`);
+  if (early.brand !== 'Post Civil War') bad(`the splash reads "${early.brand}"`);
+  // the address under the name was taken off at the owner's word (10 October 2026)
+  if (early.domain) bad('the splash still shows the address');
   if (early.rays !== 8) bad(`the sun has ${early.rays} rays`);
   if (early.ray !== 'rgb(255, 255, 255)' || early.ground !== 'rgb(255, 255, 255)') bad(`the mark and the name are not white: ${early.ray}, ${early.ground}`);
   if (early.disc !== 'rgb(233, 196, 106)') bad(`the sun is ${early.disc}`);
@@ -77,9 +79,8 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
     const vis = (sel) => { const e = document.querySelector(sel); const c = getComputedStyle(e); return c.display !== 'none' && c.visibility !== 'hidden' && +c.opacity > 0.5 && e.getBoundingClientRect().width > 0; };
     const play = document.querySelector('#intro-play'); const c = getComputedStyle(play); const mute = document.querySelector('#intro-mute').getBoundingClientRect();
     const span = document.querySelector('.wordmark span').getBoundingClientRect(); const size = parseFloat(getComputedStyle(document.querySelector('.wordmark')).fontSize);
-    const domain = getComputedStyle(document.querySelector('.splash .domain'));
     return { stage: window.__nlw.intro.stage(), since: performance.now() - window.__introAt, play: vis('#intro-play'), label: play.textContent.trim(), text: document.querySelector('#intro').textContent, border: c.borderTopWidth, ticks: document.querySelectorAll('.load .ticks i').length,
-      sound: window.__nlw.audio.running, soundOn: document.querySelector('#intro-mute').getAttribute('aria-pressed'), mute: [mute.left, mute.top], lines: Math.round(span.height / size), domainSize: parseFloat(domain.fontSize), titleSize: size, played: window.__nlw.intro.log.played };
+      sound: window.__nlw.audio.running, soundOn: document.querySelector('#intro-mute').getAttribute('aria-pressed'), mute: [mute.left, mute.top], lines: Math.round(span.height / size), titleSize: size, played: window.__nlw.intro.log.played };
   });
   if (waiting.since < 4800) bad(`PLAY was offered after ${Math.round(waiting.since)} ms`);
   if (waiting.stage !== 'splash' || !waiting.play || waiting.label !== 'PLAY' || waiting.played) bad(`after five seconds, untouched: ${JSON.stringify(waiting)}`);
@@ -88,7 +89,6 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   if (waiting.soundOn !== 'true') bad('sound is not on for a first visit');
   if (waiting.mute[0] > 40 || waiting.mute[1] > 40) bad(`the sound button is at ${waiting.mute.map(Math.round)}, not the top left`);
   if (waiting.lines !== 1) bad(`the name is on ${waiting.lines} lines`);
-  if (waiting.domainSize > waiting.titleSize / 3) bad(`the address is ${waiting.domainSize}px beside a ${waiting.titleSize}px name`);
   if (waiting.ticks < 12) bad('the splash has no loading marks');
   if (parseFloat(waiting.border) > 0) bad('PLAY has an outline');
   await shot('02-splash');
@@ -139,8 +139,10 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   const start = await page.evaluate(() => ({ pressed: [...document.querySelectorAll('#paths button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.path), heading: document.querySelector('#start-title').textContent, prefs: JSON.parse(localStorage.getItem('nlw-prefs-v1') || '{}').path, mark: document.querySelectorAll('#start .brand .mark .ray').length, text: document.querySelector('#start').textContent }));
   if (start.pressed.join() !== 'villain' || start.prefs !== 'villain') bad(`the start screen has ${start.pressed} chosen, remembered ${start.prefs}`);
   if (start.mark !== 8) bad('the start screen has no mark');
-  if (!/no accounts yet/i.test(start.text) || !/postcivilwar\.com/.test(start.text)) bad('the start screen does not say that there are no accounts yet');
-  if (/log ?in|sign ?up/i.test(await page.evaluate(() => [...document.querySelectorAll('#start button')].map((b) => b.textContent).join(' ')))) bad('the start screen has a sign-up or log-in button, and there are no accounts');
+  // the three paragraphs at the foot of the start screen were taken off at the owner's word (10 October 2026)
+  if (/There are no accounts yet|Walk with W A S D|This is a browser prototype/i.test(start.text)) bad('the start screen still has the section that was removed');
+  // a copy opened from a disk has no server to ask, so it offers no account: no button pretends
+  if (/log ?in|create account/i.test(await page.evaluate(() => [...document.querySelectorAll('#start button')].filter((b) => b.offsetParent !== null).map((b) => b.textContent).join(' ')))) bad('a page with no server offers an account');
   await shot('06-start');
   await page.fill('#name', 'Nonso Obi');
   await page.click('#enter');
@@ -182,7 +184,7 @@ for (const [label, size] of Object.entries({ small: { width: 320, height: 568, t
     if (splash.lines !== 1 || splash.rows !== 1) bad(`the name is on ${Math.max(splash.lines, splash.rows)} lines`);
     if (splash.l < 8 || splash.r > splash.w - 8) bad(`the name runs from ${Math.round(splash.l)} to ${Math.round(splash.r)} of ${splash.w}`);
     if (splash.scroll) bad('the splash scrolls');
-    const off1 = await inside(['.wordmark span', '#intro-play', '#intro-mute', '.splash .mark', '.splash .domain']);
+    const off1 = await inside(['.wordmark span', '#intro-play', '#intro-mute', '.splash .mark']);
     if (off1.length) bad(`off the screen on the splash: ${off1.join(', ')}`);
     await shot(`10-${label}-splash`);
     await page.evaluate(() => window.__nlw.intro.begin());
@@ -212,7 +214,8 @@ for (const [label, size] of Object.entries({ desk: { width: 1280, height: 760 },
     // the man's figures
     await page.click('[data-gender="m"]'); await page.waitForTimeout(600);
     let s = await c(() => ({ id: window.__creator.shown.id, dots: document.querySelectorAll('#fig-dots button').length, name: document.querySelector('#name').value, label: document.querySelector('#fig-name').textContent }));
-    if (s.id !== 'M1' || s.dots !== 1) bad(`Man shows ${s.id} with ${s.dots} to choose from`);
+    // the arrows and dots go through every character: the woman and the man
+    if (s.id !== 'M1' || s.dots !== 2) bad(`Man shows ${s.id} with ${s.dots} to choose from`);
     if (s.name !== s.label) bad(`the name field reads "${s.name}" for ${s.label}`);
     // the man is the supplied animated file: every animation it has is offered by a one-word name, and plays
     await page.waitForFunction(() => document.querySelectorAll('#anim-list [data-anim]').length > 0, null, { timeout: 120000 });
@@ -229,7 +232,14 @@ for (const [label, size] of Object.entries({ desk: { width: 1280, height: 760 },
     // the woman: the owner's supplied animated file, the only one; her animations by one word each, and they play
     await page.click('[data-gender="f"]'); await page.waitForTimeout(600);
     s = await c(() => ({ id: window.__creator.shown.id, dots: document.querySelectorAll('#fig-dots button').length, prev: document.querySelector('#fig-prev').disabled }));
-    if (s.id !== 'W1' || s.dots !== 1 || !s.prev) bad(`Woman shows ${s.id} with ${s.dots} to choose from (arrows ${s.prev ? 'off' : 'on'})`);
+    if (s.id !== 'W1' || s.dots !== 2 || s.prev) bad(`Woman shows ${s.id} with ${s.dots} to choose from (arrows ${s.prev ? 'off' : 'on'})`);
+    // the arrows go through every character and round again, and the Woman and Man buttons follow
+    await page.click('#fig-next'); await page.waitForTimeout(500);
+    let turn = await c(() => ({ id: window.__creator.shown.id, man: document.querySelector('[data-gender="m"]').getAttribute('aria-pressed'), count: document.querySelector('#fig-count').textContent }));
+    if (turn.id !== 'M1' || turn.man !== 'true' || turn.count !== '2 of 2') bad(`the next arrow went to ${JSON.stringify(turn)}`);
+    await page.click('#fig-prev'); await page.waitForTimeout(500);
+    turn = await c(() => ({ id: window.__creator.shown.id, woman: document.querySelector('[data-gender="f"]').getAttribute('aria-pressed'), count: document.querySelector('#fig-count').textContent }));
+    if (turn.id !== 'W1' || turn.woman !== 'true' || turn.count !== '1 of 2') bad(`the previous arrow went to ${JSON.stringify(turn)}`);
     await page.waitForFunction(() => document.querySelectorAll('#anim-list [data-anim]').length > 0 && window.__creator.rig && window.__creator.rig.labels.length, null, { timeout: 180000 });
     const her = await c(() => ({ labels: [...document.querySelectorAll('#anim-list [data-anim]')].map((b) => b.textContent), clips: window.__creator.rig.labels.length, colours: !document.querySelector('#colour-block').hidden }));
     if (her.labels.length !== her.clips || new Set(her.labels).size !== her.labels.length || her.labels.some((l) => !/^[A-Z][a-z]+$/.test(l))) bad(`the woman's ${her.clips} animations are offered as ${her.labels.join(', ')}`);
