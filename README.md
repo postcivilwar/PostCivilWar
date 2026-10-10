@@ -12,7 +12,8 @@ The architecture and its reasoning are in the **Architecture Decision Document**
 
 | Path | What it is | State |
 | --- | --- | --- |
-| `prototype/` | A browser-playable prototype of the first vertical slice: Atani, Anambra State, on the River Niger. A town of 1,000 people with homes, jobs and daily routines; a hospital, schools, a university, a polytechnic, a college and two churches to walk into; okada riders who carry passengers for a fare; speech in English, Pidgin, Igbo, Yoruba and Hausa; chat with players who are near; positional sound; health and fighting, witnesses, police who arrest on foot, fines and the return of stolen money, a hospital, a clinic and an ambulance, a phone with thirteen apps, vehicles that can be taken, players who cannot walk through each other, vehicles that knock people down and can kill a player, buttons that are pictures and change with what the player is doing, and ten camera views. It opens with the brand, PLAY, a story in five pictures and one question (hero or villain); its interface is black and white and kept small, its phone a handset, and people walk and run from the planted foot up. Under it: a land registry, permits, staged construction, shops, jobs, a keke to hire, buy and drive | Playable. 170 headless tests pass, plus scripted browser sessions with keyboard and with real touch input. **Not** the production client. Players who meet can see and talk to each other and block each other's way, but each page still runs its own copy of the world: there is no zone server yet, so nothing involving health, money or the law works between two devices (`docs/multiplayer-audit.md`). |
+| `prototype/` | A browser-playable prototype of the first vertical slice: Atani, Anambra State, on the River Niger. A town of 1,000 people with homes, jobs and daily routines; a hospital, schools, a university, a polytechnic, a college and two churches to walk into; okada riders who carry passengers for a fare; speech in English, Pidgin, Igbo, Yoruba and Hausa; chat with players who are near; positional sound; health and fighting, witnesses, police who arrest on foot, fines and the return of stolen money, a hospital, a clinic and an ambulance, a phone that is taken out and held, with fifteen apps, a camera and music, vehicles that can be taken, players who cannot walk through each other, vehicles that knock people down and can kill a player, buttons that are pictures and change with what the player is doing, and ten camera views. It opens with the brand, PLAY, a story in five pictures and one question (hero or villain); its interface is black and white and kept small, and people walk and run from the planted foot up. Under it: a land registry, permits, staged construction, shops, jobs, a keke to hire, buy and drive | Playable. 215 headless tests pass, plus scripted browser sessions with keyboard and with real touch input. **Not** the production client. Players who meet can see and talk to each other and block each other's way, but each page still runs its own copy of the world: there is no zone server yet, so nothing involving health, money or the law works between two devices (`docs/multiplayer-audit.md`). On the website, accounts, the market and seeing other players go through `api/`. |
+| `api/`, `server/` | The website's server: one function on PostgreSQL. Accounts (a username and a password), each account's character, the shared market (what is for sale, who owns what, the talk and the sale), and where signed-in players are. `server/` runs it on this machine and tests it | Working. 31 tests against a real PostgreSQL, and a scripted session of two players in two browsers. Money is still each player's own game's (see `prototype/README.md`, "The server"). |
 | `services/ledger/` | Append-only double-entry ledger in PostgreSQL, and the bitcoin settlement data model beside it | Working at the database level. 85 contract tests pass. No network service in front of it yet. |
 
 The brand's font, mark and the supplied story slides are in `prototype/assets/brand`
@@ -29,8 +30,9 @@ standing in for those, and what replaces each.
 - **Everything here runs on test bitcoin.** The ledger is created as a sandbox and
   refuses an asset on the live Bitcoin network. That cannot be changed with an update;
   it takes a reviewed migration.
-- **Gameplay uses a separate game currency** (asset `CWR`, working name "cowrie"). It
-  is not naira and does not represent legal tender.
+- **Gameplay uses a separate game currency**, **TR** (2,000 TR are the £20 a newcomer
+  arrives with; until 10 October 2026 it was called the cowrie and its asset code `CWR`).
+  It is not naira and does not represent legal tender.
 - **The game cannot reach bitcoin.** Custody and settlement are a separate schema with
   separate database roles. The gameplay role cannot read or write a bitcoin account.
 - **Game funds are not redeemable for bitcoin** unless the settlement policy enables
@@ -46,6 +48,8 @@ here should be pointed at the live network before that is resolved with counsel.
 ```
 prototype/              (exists) Atani slice: simulation, browser client, tests
 site/                   (exists) the website as served: written by `node build.mjs --site`, never edited by hand
+api/                    (exists) the website's server: api/game.js and what it is made of (accounts, saved characters, the market)
+server/                 (exists) the server on this machine (dev.mjs), a throwaway PostgreSQL for it, and its tests
 services/
   ledger/               (exists) ledger and settlement schema, contract tests
 docs/
@@ -83,6 +87,18 @@ Simulation tests (Node 18 or later, no packages):
 cd prototype
 node --test test/*.test.mjs
 ```
+
+The website's server (a local PostgreSQL install; nothing downloaded):
+
+```
+server/with-postgres.sh node --test server/test/*.test.mjs     # accounts, the market, the game's own client code against it
+server/with-postgres.sh node server/dev.mjs                    # the whole site at http://localhost:8787/, accounts and all
+```
+
+On the host the server needs one thing: a PostgreSQL address in `POSTGRES_URL` (the
+database integration sets it). `PCW_ADMINS` may name the usernames, separated by
+commas, who can put new things on the market. No secret is in the repository or in
+the page.
 
 Ledger and settlement tests (a local PostgreSQL install and Python 3, nothing
 downloaded):

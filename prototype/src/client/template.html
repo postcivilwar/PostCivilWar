@@ -759,6 +759,8 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 .account-row #open-signup { flex: 1.35 1 170px; }
 .account-row .who { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
 .account-row .who b { color: #fff; font-weight: 700; letter-spacing: 0.02em; }
+.account-row .who .hx { color: #fff; flex: 0 0 auto; }
+#continue-top { margin: 4px 0 2px; }
 .startrow { gap: 12px; }
 .startrow .hx { flex: 1 1 180px; }
 /* the opening: PLAY, and the two answers */
@@ -1134,6 +1136,8 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
         <div class="who" id="account-who" hidden><span>Signed in as <b id="account-name"></b></span><button class="hx small" id="account-logout" type="button">Log out</button></div>
         <p class="account-note" id="account-note" hidden></p>
       </div>
+      <!-- a character already on this device (or brought to it by logging in): one press and the game goes on -->
+      <button class="hx primary wide" id="continue-top" type="button" hidden>Continue</button>
       <h2 id="start-title">Create your character</h2>
     </header>
     <!-- the figure, drawn in 3D: drag it to turn it; the arrows change it -->

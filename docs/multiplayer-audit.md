@@ -1,5 +1,14 @@
 # Multiplayer interaction system: audit and plan
 
+> **10 October 2026: what has changed since this was written.** The website now has a server (`api/`), on
+> PostgreSQL: **username accounts** exist (item 12), each account's character is kept by the server, signed-in
+> players in the same town **see each other under their usernames**, and there is a **shared market** in which
+> ownership and sales are the server's alone. The money is now called TR. What has *not* changed is the centre
+> of this document: each page still runs its own copy of the world, so health, the law and TR itself are still
+> each player's own game's. A sale between two players is recorded by the server and settled by each game's
+> own ledger, once. The table below is left as it was written; read it with this in mind.
+
+
 PostCivilWar · prototype of Atani · written for Phase 1 of the multiplayer brief
 
 This is the audit the brief asks for before anything is rewritten: what exists, what is broken, what is

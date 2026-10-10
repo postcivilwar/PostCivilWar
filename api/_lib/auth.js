@@ -29,6 +29,7 @@ const RESERVED = new Set(['admin', 'administrator', 'root', 'system', 'governmen
 function cleanUsername(value) {
   if (typeof value !== 'string') throw new ApiError(400, 'USERNAME', 'Choose a username.');
   const name = value.trim();
+  if (!name) throw new ApiError(400, 'USERNAME', 'Choose a username.');
   if (name.length < 3 || name.length > 16) throw new ApiError(400, 'USERNAME', 'A username is 3 to 16 characters long.');
   if (!/^[A-Za-z][A-Za-z0-9_]*$/.test(name)) throw new ApiError(400, 'USERNAME', 'A username begins with a letter and has only letters, figures and underscores: no spaces.');
   if (RESERVED.has(name.toLowerCase())) throw new ApiError(400, 'USERNAME', 'That username is not available.');
@@ -36,7 +37,7 @@ function cleanUsername(value) {
 }
 
 function cleanPassword(value, username) {
-  if (typeof value !== 'string') throw new ApiError(400, 'PASSWORD', 'Choose a password.');
+  if (typeof value !== 'string' || !value) throw new ApiError(400, 'PASSWORD', 'Choose a password.');
   if (value.length < 8) throw new ApiError(400, 'PASSWORD', 'A password is at least 8 characters long.');
   if (value.length > 128) throw new ApiError(400, 'PASSWORD', 'A password is at most 128 characters long.');
   if (username && value.toLowerCase() === username.toLowerCase()) throw new ApiError(400, 'PASSWORD', 'The password must not be the username.');

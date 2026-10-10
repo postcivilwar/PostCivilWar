@@ -22,6 +22,15 @@ question; its interface is black and white; its phone is a handset; and
 people walk and run from the feet up (see "The opening", "The interface" and
 "Walking and running").
 
+Since 10 October 2026: the money is **TR** (2,000 TR are the £20 a newcomer
+arrives with); the phone is taken out of a pocket and held, with its apps in
+their own colours, a camera that shows the town and music that plays; every
+button is cut from one black, outlined system; and on the website there are
+**accounts** (a username and a password), a **market** that every player
+shares, and **HOLARIS Watch**, a glass showroom that sells the owner's
+wristwatch. See "TR", "The phone in the hand", "Accounts", "Property and the
+market" and "The server".
+
 **What this is not.** It is not the Unreal Engine client the architecture
 calls for. People are built on one supplied character model (see
 "Characters"); everything else is drawn in code from shapes and painted
@@ -75,7 +84,7 @@ Things to do, in no order:
   Registry, get a permit at the Secretariat, order materials, build.
 - Hire a keke at the motor park and take delivery runs. Buy one in any of
   seven colours, with any of three fronts.
-- Open the phone: thirteen apps. Find the way to anywhere in town on the map
+- Open the phone: fifteen apps. Find the way to anywhere in town on the map
   and mark it; a white beacon stands there until you arrive.
 - Drive a keke at walking pace through the market and sound the horn (`H`):
   people step aside. Drive fast at someone and they are knocked down, you
@@ -187,12 +196,19 @@ are in `assets/characters/figures/README.md`.
   the sun's shadows, then grass and townspeople's limbs, then draw distance, and it climbs back slowly. The
   supplied figures' 4096-pixel textures are drawn at 2048 on a phone (the files are unchanged).
 
-## Money at the start, and fines
+## TR: money at the start, and fines
 
-Every character is given 40 cowries (£20 of 1970 money) once, as an issuance on the ledger keyed to the
-character, so it can never be paid twice. Fines, in hundredths of a cowrie on the ledger: taken by the town's
-police, about half a cowrie whatever the offence; a player constable may set from a tenth of a cowrie to one
-cowrie, or up to ten where someone died.
+The game's money is **TR**. Every character is given 2,000 TR (£20 of 1970 money: £1 is 100 TR) once, as an
+issuance on the ledger keyed to the character, so it can never be paid twice. The town's police charge
+**10 TR** for an offence and **100 TR** where someone was killed; a player constable may set from 5 TR to
+10 TR, or up to 100 TR where someone died.
+
+Until 10 October 2026 the money was called the cowrie. It was renamed, not converted: the ledger holds whole
+numbers of units and not one of them was touched. A unit was a hundredth of a cowrie and is now half a TR
+(`TR = 2` in `sim/ledger.js`), so the 4,000 units a newcomer was given are 2,000 TR and are still £20.
+Because no stored number changes, the rename cannot be applied twice and cannot make or lose a unit; an
+account written before it says `CWR` and is read as `TR`. A test loads a character saved under the old name
+and finds exactly what it had. What did change is what the police charge.
 
 The answer goes to the simulation with the character (`join({ path })`), is
 saved with them, and is shown on the phone under People. **It changes no
@@ -207,8 +223,11 @@ Things a reader should know:
 - **Sound** is on unless the player turns it off. The button at the top left
   of the opening turns it off and on; so do Settings on the phone and the `N`
   key. All three are one switch, kept on the device.
-- **There are no accounts.** The start screen says so and has no sign-up or
-  log-in button. A character lives in the browser's storage on one device.
+- **Accounts are on the website only.** There, between the story and
+  "Create your character", are Create account and Log in. Anywhere else (the
+  page opened from a disk, or published as an artifact) there is no server to
+  ask, the two buttons are not shown, and a character lives in the browser's
+  storage on one device, as before. See "Accounts".
 - **A returning player** with a character on the device, who has answered
   before, sees the splash and the story and is not asked again.
 - **The flag is not shown.** The supplied first and second slides showed the
@@ -237,7 +256,7 @@ name only. No font or image is fetched from anywhere.
 
 Less interface, more game. What is on screen while playing:
 
-- **Two small corners.** Place, weather and clock on the left; cowries and a
+- **Two small corners.** Place, weather and clock on the left; TR and a
   thin health bar on the right. In a fight, or after a collision, a second
   thin bar under it is the other person.
 - **Notices** are small dark cards with white writing, at the top, between
@@ -686,14 +705,151 @@ What to know about it:
   the two share it.
 - A browser decides for itself when to offer installing. The game cannot make
   it; it can only use the offer when it comes.
-- The game still has no accounts and no server. Installing changes where the
-  game opens from, not where a character lives: one browser's storage on one
-  device. The installed game asks the browser not to clear that storage.
+- Installing changes where the game opens from, not where a character lives.
+  Without an account that is one browser's storage on one device (the
+  installed game asks the browser not to clear it). With an account the
+  character is also kept by the server, so logging in to the installed game
+  brings it there: that is the answer to "I installed it and my character is
+  gone".
+- With no connection the installed game still opens and plays. Accounts, the
+  market and other players need the server; the start screen says when it
+  cannot be reached, and asks again by itself.
+
+## TR, the phone, accounts and the market (10 October 2026)
+
+### One button system
+
+Every button is cut from the same black with a thin bright line, after the
+owner's reference. `.hx` is the bar with pointed ends (PLAY, Enter the town,
+Woman and Man, Hero and Villain, Create account and Log in, Buy asset); it is
+one SVG stretched as a border image, so any width keeps its points. `.btn` is
+every other button, with its corners cut; `.part` the small plates for
+animations and colours; `.blockarrow` the two solid, bevelled arrows that
+change the character. They share their states: brighter under the pointer, a
+shade smaller when pressed, white when chosen, dim when they cannot be used,
+and a white outline for a keyboard.
+
+### The phone in the hand
+
+Pressing the phone button no longer opens a panel. The character puts the
+right hand to the pocket, brings out a handset and holds it up
+(`phone-hold.js`: the arm is solved to the hand each frame; the head turns to
+the screen). The screen lights the hand and the face, more at night. The
+handset on screen is the same one: small, at the lower right, the town still
+in view (`#sheet.device.mini`).
+
+- **In the hand**: the home screen, Camera, Music and a deal. With the phone
+  out only the walking keys and the stick work; the buttons on the right are
+  not there; putting it away brings everything back. It is not offered at the
+  wheel, on a motorcycle, in a fight or in the river.
+- **A page**: every other app opens over the whole screen with the way back
+  at the top left, because it has lists to read and things to type.
+- **Camera** draws the game's own scene a second time from where the handset
+  is: the way the character faces, or back at the character's own face,
+  mirrored as a phone shows it. Nothing is invented and no real camera is
+  asked for. The shutter keeps a picture, which can be saved.
+- **Music** plays four pieces the game makes itself and any song listed in
+  `assets/music/library.json` (see `assets/music/README.md`; the build copies
+  them to the site). Play, pause, next, previous, a bar to move through the
+  song, volume, and what is playing; it goes on playing with the phone away,
+  and never twice at once. **No recorded song is in the repository**: the
+  list is empty until the owner adds songs they have the right to publish.
+
+### Accounts
+
+On the website only. A username (3 to 16 letters, figures and underscores)
+and a password (8 characters or more): nothing else is asked.
+
+- The password is never kept. The server keeps what scrypt makes of it with
+  its own salt. A session is a random number in a cookie the page's code
+  cannot read (`HttpOnly`, `SameSite=Lax`, `Secure`); the database holds only
+  its fingerprint.
+- Guessing is slowed: eight wrong passwords for a name, or forty from one
+  address, and the next try waits fifteen minutes. A wrong password and a
+  username nobody has get the same answer.
+- **The character goes with the account.** Making an account while a
+  character is on the device keeps that character. Logging in on another
+  device brings it there. Each save says which copy it began from, so a
+  device that has fallen behind is told and takes the newer copy rather than
+  overwriting it. Logging out sends the character to the account first and
+  only then clears the device.
+- **Other players.** Signed-in players in the same town see each other, each
+  under their **username**, shown over the head as a townsperson's name is.
+  The server puts the name there; a game cannot appear under another's.
+- Without an account everything else plays as it always has.
+
+### Property and the market
+
+**Property** on the phone is a page: what the player owns from the market,
+their conversations, their land, and what they have bought and sold. **Buy
+asset** opens the market: every open listing, searched by name (watch, car,
+yacht, bike, motorcycle, gun, clothes are offered as words to press; a word
+that matches nothing says so, and nothing is made up to fill the page).
+
+- A listing can be **turned by hand**. What is turned is twenty-four
+  photographs of the real model, taken from all round it by
+  `tools/assets/make_turntable.mjs` with the game's own viewer. **See the
+  model itself in 3D** fetches the model and draws it live.
+- **The wristwatch is the owner's model, as supplied**: 64,658,368 bytes, 1.9
+  million triangles, three textures, the same bytes on the site as in
+  `assets/market/watch.glb`. It is far too large to send to everyone who
+  opens the market, which is why the photographs exist; the model is fetched
+  only when a player asks and has been told its size.
+- **Show the way** marks the seller's place; the line on the radar leads
+  there. A **pink column** stands at every open listing in town
+  (`makeDealMarker`). Stepping into it, the screen goes to black and comes
+  back on a conversation with the seller, on the handset, as in any messaging
+  app: words, an offer, an answer.
+- **A shop's price is the price.** HOLARIS Watch's attendant is automatic and
+  says so: it knows the price and what is left, and does not bargain. Buy,
+  confirm, and the watch is the buyer's.
+- **Between players it is a real conversation.** Each sees the other's words
+  about a second after they are sent. The buyer's Buy makes an offer; the
+  seller sees **Sell property** with the amount, confirms, and the thing
+  leaves one Property for the other while the TR goes the other way.
+- An owner sells on from the thing's own page: a price, and the marker stands
+  where they are. Only an administrator puts something new on the market
+  (the owner names administrators in the host's settings, `PCW_ADMINS`).
+
+### HOLARIS Watch
+
+Three storeys of glass on open ground north of the motor park, west of Market
+Road (`render-holaris.js`; the building is in the town's own list, so it is
+solid, on the map and on the radar). Steel frame, lit showroom floors, the
+name on the roof and over the door; after dark it is the brightest thing in
+town. Ten wristwatches at 100 TR, each numbered. When the tenth is sold the
+listing closes, its marker goes, and it is no longer in the market.
+
+### The server
+
+`api/game.js` at the top of the repository: one function on PostgreSQL
+(`api/_lib/`), deployed by the host exactly as the repository has it. There is
+no install step: the database client, postgres.js, is kept in
+`api/_lib/postgres/`. The tables make themselves the first time the function
+runs (`schema.js`), in their own schema, `pcw`, with row-level security on
+and nothing allowed, so the database host's public keys can read and write
+none of it.
+
+What the server is the authority for, and what it is not:
+
+| | |
+| --- | --- |
+| Accounts, sessions | The server, entirely |
+| What is for sale, the stock, who owns what, whether a sale happened | The server, entirely. A sale is one database transaction: the listing is locked, the thing changes owner, the stock goes down, the offer is marked and the sale written, together or not at all. Fifteen buyers at once for ten watches get ten |
+| The talk between buyer and seller | The server |
+| **TR** | **Each player's own game, as all the game's money is today.** There is no shared world server, so the simulation that holds the ledger runs in the page. A sale is settled through `sim/market.js`: the buyer's game sets the money aside before the offer is sent, pays it when the sale is recorded, and takes it back if the offer comes to nothing; the seller's game receives it. Each movement happens once however often it is asked, and each game tells the server with its next save that it has paid or been paid. A player who alters their own page can alter their own TR, exactly as before; they cannot alter what they own, the stock, or anyone else's money |
+| Where players are | Each game says where it stands about once a second; the server says who else is there. Good for seeing and meeting; not for fighting, the law or anything else between two players, which still needs one world |
+
+The TR row is the limit to know. Making it the server's needs the simulation
+itself to run on a server: the zone server the architecture calls for.
 
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 204 headless tests, in thirteen files
+node --test test/*.test.mjs                        # 215 headless tests, in fourteen files
+../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 31 tests against a real PostgreSQL
+../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in two browsers: accounts, the market, a deal between two players
+../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
 node build.mjs                                     # writes dist/index.html, dist/local.html, the character lab, the vehicle yard and dist/site/
 node build.mjs --site                              # the same, then makes site/ (what the host serves) the same as dist/site/
 node test/webapp.mjs out/                          # the website as an app: serves dist/site/, checks it can be installed, takes the network away and plays

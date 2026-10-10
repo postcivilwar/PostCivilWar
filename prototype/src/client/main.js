@@ -599,7 +599,20 @@ function start(carried) {
   });
   online.onChange(() => onlineChanged());
   // Is there a server, and is this browser signed in? If so, which copy of the character is the one to play.
-  online.check().then(async () => { onlineChanged(); if (online.signedIn) { const settled = await accountSync.settle(); if (!settled.ok && settled.message) ui.toast({ type: 'note', text: settled.message }); } refreshDealMarkers(); });
+  // Asked when the page opens, and again now and then for as long as the server cannot be reached.
+  let greetedAt = 0, greeting = false;
+  async function greetServer() {
+    if (!online.available || greeting) return;
+    greeting = true; greetedAt = clock;
+    try {
+      await online.check();
+      onlineChanged();
+      if (online.signedIn) { const settled = await accountSync.settle(); if (!settled.ok && settled.message) ui.toast({ type: 'note', text: settled.message }); }
+      refreshDealMarkers();
+    } finally { greeting = false; }
+  }
+  greetServer();
+  window.addEventListener('online', () => { if (online.status().state === 'down') greetServer(); });
 
   for (const r of ZONE_RESIDENTS) {
     const actor = makeCharacter(r.look, r.name, false, 1);
@@ -819,6 +832,10 @@ function start(carried) {
     const resume = $('continue');
     resume.hidden = !playerId;
     if (playerId) resume.textContent = `Continue as ${host.game.view(playerId).self.name}`;
+    // the same, at the head of the screen where it is seen at once
+    $('continue-top').hidden = !playerId;
+    $('continue-top').textContent = resume.textContent;
+    $('start-title').textContent = playerId ? 'Or start again with a new character' : 'Create your character';
   }
 
   function enterWorld() {
@@ -857,7 +874,7 @@ function start(carried) {
       $('start-error').textContent = error.message;
     }
   });
-  $('continue').addEventListener('click', () => { if (playerId) enterWorld(); });
+  for (const id of ['continue', 'continue-top']) $(id).addEventListener('click', () => { if (playerId) enterWorld(); });
 
   // -------------------------------------------------------------- input --
 
@@ -1702,6 +1719,7 @@ blood.update(dt, view.blood || []);
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
       tickDealMarkers(dt); tickShopActors(dt);
+    if (online.available && online.status().state === 'down' && clock - greetedAt > 60 && !document.hidden) greetServer();
     monitor.mark('interface');
       // indoors: put away the roof of the building the player is in
       inside = town.setInside(predicted.x, predicted.z);

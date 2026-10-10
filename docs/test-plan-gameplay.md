@@ -159,7 +159,7 @@ tests exercise the database directly, as the service roles.
 | B6 | Choosing makes a sound; a click, a tap, `H` or `V` answers | `opening` (a voice starts on the click); `intro.test` keys | automated; **how it sounds needs a person** |
 | B7 | The answer is the simulation's: joined with the character, saved, shown on the phone | `intro.test` three tests; `opening` | automated |
 | B8 | The answer changes nothing the town decides | `intro.test` "the answer changes nothing…" | automated |
-| B9 | No sign-up or log-in button exists, and the start screen says there are no accounts | `opening` | automated |
+| B9 | Where there is no server (the page from a disk or as an artifact) no sign-up or log-in button is shown; on the website Create account and Log in are side by side between the story and "Create your character" | `opening`; `server/test/site.mjs` | automated |
 | B10 | A returning player with a character is not asked again; Skip cuts the story short | `opening` (second load) | automated |
 | B10a | Skip is writing with nothing behind it; there are no slide marks; nothing says "tap for sound" or "tap to begin" | `opening` (computed background and border; the text of the opening) | automated |
 | B11 | No font or image is fetched: every request the page makes succeeds, offline | every `play.mjs` session fails on any failed request | automated |
@@ -221,8 +221,8 @@ The redesign brief's own checklist, and Phase 2 of the multiplayer brief. Phase 
 |---|---|---|---|
 | H1 | One woman (W1) and one man (M1), each from its supplied file, unchanged, every animation offered by one word and played in place | `figures.test`; `creator` (Dance, Box, Walk; Walk, Jump, Kick) | automated; **smoothness needs a person** |
 | H2 | "Create your character" comes after the story, above the switch | `creator` | automated |
-| H3 | Every character has 40 cowries (£20) once, on the ledger | `sim.test` | automated |
-| H4 | Fines: about 0.5 cowries from the town's police; up to 1 from a player constable, up to 10 where someone died | `justice.test` | automated |
+| H3 | Every character has 2,000 TR (£20) once, on the ledger; a character saved when the money was cowries has exactly what it had | `sim.test` | automated |
+| H4 | Fines: 10 TR from the town's police, 100 TR where someone was killed; a player constable 5 to 10 TR, up to 100 where someone died | `justice.test` | automated |
 | H5 | The radar at the top left; a job taken on the phone becomes a route on it | `upright` (08-waypoint) | automated; by eye |
 | H6 | Money, then time, day and weather at the top right; the life bar above it in a fight, green, orange, red from 20% | `upright` (03-fight); by eye | automated in part |
 | H7 | Ringed buttons, black by day, white by night, none touching; no camera button on foot | `touch`; `upright` (clashes, no View on foot) | automated |
