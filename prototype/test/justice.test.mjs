@@ -16,7 +16,7 @@ import { LAW } from '../src/sim/justice.js';
 import { SPEED } from '../src/sim/sim.js';
 import { zoneService } from '../src/sim/zone.js';
 import { fund } from './helpers.mjs';
-import { createLedger, LedgerError, fineShares } from '../src/sim/ledger.js';
+import { createLedger, LedgerError, fineShares, TR } from '../src/sim/ledger.js';
 import { createHost } from '../src/sim/host.js';
 
 const MARKET = [8, 58];
@@ -270,7 +270,7 @@ test('a fine paid to an officer of the regular police goes to the government, on
   const arrest = w.g.view(w.id).self.law.arrest;
   const mine = w.balance(w.p), gov = government(w), count = w.host.auditor.transactionCount();
   const fine = LAW.offences.assault.fine;
-  assert.equal(fine, 50, 'the town\'s police fine half a cowrie');
+  assert.equal(fine, 10 * TR, 'the town\'s police charge 10 TR');
   assert.equal(arrest.fine.amount, fine);
   const paid = ok(w.send(w.id, { type: 'custody.pay' }));
   assert.equal(paid.amount, fine);
@@ -347,7 +347,7 @@ test('running from the police is an offence of its own; out of sight long enough
   assert.ok(Object.values(w.g.state.justice.crimes).every((c) => c.status === 'lapsed'));
 });
 
-test('stolen money: taken by a ledger transaction, and taken back and returned on arrest, to the cowrie', () => {
+test('stolen money: taken by a ledger transaction, and taken back and returned on arrest, to the last unit', () => {
   const w = town();
   const before = pool(w), mine = w.balance(w.p);
   // work through the market until a pocket is picked without the owner feeling it
@@ -379,7 +379,7 @@ test('stolen money: taken by a ledger transaction, and taken back and returned o
   const back = arrest.restitution.find((r) => r.kind === 'returned');
   assert.equal(back.paid, got.taken);
   assert.equal(back.due, got.taken);
-  assert.equal(pool(w), before, 'the households have every cowrie back');
+  assert.equal(pool(w), before, 'the households have every unit back');
   assert.equal(w.balance(w.p), mine, 'and the culprit is no richer');
   const given = txnsOf(w, 'restitution');
   assert.equal(given.length, 1);
@@ -514,7 +514,7 @@ test('a player\'s pocket: pocket money only, the victim is told at once, and get
   ok(w.send(v.id, { type: 'police.reportSeen', crimeId: seen[0].id }));
   refused(w.send(t.id, { type: 'police.reportSeen', crimeId: seen[0].id }), 'NOT_A_WITNESS');
   until(w, () => t.law.state === 'custody', 900);
-  assert.equal(w.balance(v), vBefore, 'every cowrie is back with the victim');
+  assert.equal(w.balance(v), vBefore, 'every unit is back with the victim');
   assert.ok(w.events(v.id).some((e) => e.type === 'receipt' && e.amount === got.taken));
   assert.equal(w.balance(t), tBefore - fines);
   clean(w);
@@ -557,15 +557,15 @@ test('special constables: the badge is given by the simulation, and it carries t
   until(w, () => w.g.view(w.ids[0]).officers.length === 0, 60);            // the regular police stand down
   // the fine: within limits, set once, then fixed
   assert.equal(arrest.fine.confirmed, false);
-  assert.deepEqual([arrest.fine.least, arrest.fine.scale, arrest.fine.most, arrest.fine.amount], [10, 50, 100, 50]);
+  assert.deepEqual([arrest.fine.least, arrest.fine.scale, arrest.fine.most, arrest.fine.amount], [5 * TR, 10 * TR, 10 * TR, 10 * TR]);
   refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 5000 }), 'OUT_OF_RANGE');
-  refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 101 }), 'OUT_OF_RANGE');
+  refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 21 }), 'OUT_OF_RANGE');
   refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 9 }), 'OUT_OF_RANGE');
-  refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 45.5 }), 'OUT_OF_RANGE');
-  refused(w.send(f.id, { type: 'police.fine', arrestId: arrest.id, amount: 90 }), 'NOT_POLICE');
-  ok(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 90 }));
-  refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 100 }), 'FINE_SET');
-  assert.equal(w.g.view(x.id).self.law.arrest.fine.amount, 90);
+  refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 15.5 }), 'OUT_OF_RANGE');
+  refused(w.send(f.id, { type: 'police.fine', arrestId: arrest.id, amount: 18 }), 'NOT_POLICE');
+  ok(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 18 }));
+  refused(w.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 20 }), 'FINE_SET');
+  assert.equal(w.g.view(x.id).self.law.arrest.fine.amount, 18);
   // the prisoner walks with the constable, and is booked in at the Police Post
   refused(w.send(n.id, { type: 'police.book', arrestId: arrest.id }), 'TOO_FAR');
   refused(w.send(x.id, { type: 'custody.pay' }), 'NOT_IN_CUSTODY');
@@ -584,25 +584,25 @@ test('special constables: the badge is given by the simulation, and it carries t
   // the prisoner pays: one transaction, three entries
   const xB = w.balance(x), nB = w.balance(n), gB = government(w), count = w.host.auditor.transactionCount();
   const paid = ok(w.send(x.id, { type: 'custody.pay' }));
-  assert.equal(paid.amount, 90);
-  assert.equal(paid.toGovernment, 1, 'one in a hundred, rounded up to a whole hundredth');
-  assert.equal(paid.toOfficer, 89);
-  assert.equal(w.balance(x), xB - 90);
-  assert.equal(w.balance(n), nB + 89);
+  assert.equal(paid.amount, 18);
+  assert.equal(paid.toGovernment, 1, 'one in a hundred, rounded up to a whole ledger unit');
+  assert.equal(paid.toOfficer, 17);
+  assert.equal(w.balance(x), xB - 18);
+  assert.equal(w.balance(n), nB + 17);
   assert.equal(government(w), gB + 1);
   assert.equal(w.host.auditor.transactionCount(), count + 1, 'one transaction');
   const txn = w.host.auditor.transactions().find((t) => t.id === paid.txn);
   assert.equal(txn.entries.length, 3);
   assert.equal(txn.entries.reduce((sum, e) => sum + e.amount, 0), 0);
-  assert.equal(txn.meta.toOfficer, 89);
-  assert.ok(w.events(n.id).some((e) => e.type === 'receipt' && e.amount === 89));
+  assert.equal(txn.meta.toOfficer, 17);
+  assert.ok(w.events(n.id).some((e) => e.type === 'receipt' && e.amount === 17));
   // paid again from anywhere: nothing moves
   ok(w.send(x.id, { type: 'custody.pay', arrestId: arrest.id }));
   w.place(f, post().x, post().z - 1);
   const fB = w.balance(f);
   const again = ok(w.send(f.id, { type: 'bail.pay', arrestId: arrest.id }));
   assert.equal(again.replayed, true);
-  assert.equal(w.balance(n), nB + 89);
+  assert.equal(w.balance(n), nB + 17);
   assert.equal(w.balance(f), fB, 'the friend is charged nothing');
   assert.equal(w.host.auditor.transactionCount(), count + 1);
   clean(w);
@@ -637,7 +637,7 @@ test('a friend pays the fine at the Police Post; an arrest by the regular police
   clean(w);
 });
 
-// The owner's fines (8 October 2026), in hundredths of a cowrie. Offences are put on the books the way the
+// The owner's charges (10 October 2026), in ledger units, two to a TR: 10 TR for a crime, 100 TR for a killing. Offences are put on the books the way the
 // simulation records them (justice.offence), and the police are told in their own time.
 const offend = (w, p, type) => {
   const victim = standing(w, p.x, p.z, { range: 600, not: ['police'] })[0];
@@ -645,9 +645,9 @@ const offend = (w, p, type) => {
 };
 const wantedFor = (w, p, n) => until(w, () => p.law.crimes.length === n && ['wanted', 'pursuit'].includes(p.law.state), LAW.report[1] + 2);
 
-test('the regular police fine half a cowrie whatever was done, ten where someone died: the heaviest offence, not the sum', () => {
+test('the police charge 10 TR whatever was done, 100 TR where someone was killed: the heaviest offence, not the sum', () => {
   assert.equal(LAW.mostFine, undefined); assert.equal(LAW.fineRange, undefined);
-  for (const [type, rule] of Object.entries(LAW.offences)) assert.equal(rule.fine, rule.death ? 1000 : 50, type);
+  for (const [type, rule] of Object.entries(LAW.offences)) assert.equal(rule.fine, (rule.death ? 100 : 10) * TR, type);
   assert.deepEqual(Object.keys(LAW.offences).filter((k) => LAW.offences[k].death), ['death_by_driving']);
   const w = town(['Ola Ordinary', 'Dayo Driver'], { funded: false });
   const [a, d] = w.players;
@@ -659,15 +659,15 @@ test('the regular police fine half a cowrie whatever was done, ten where someone
   const officer = w.pop.people.find((q) => q.job === 'police');
   const by = { kind: 'npc', id: officer.index, name: officer.name };
   const ordinary = w.I.justice.arrest(a, by);
-  assert.deepEqual([ordinary.fine.scale, ordinary.fine.amount, ordinary.fine.confirmed], [50, 50, true], 'two offences, half a cowrie: not one cowrie');
+  assert.deepEqual([ordinary.fine.scale, ordinary.fine.amount, ordinary.fine.confirmed], [10 * TR, 10 * TR, true], 'two offences, 10 TR: not 20');
   const killing = w.I.justice.arrest(d, by);
-  assert.deepEqual([killing.fine.scale, killing.fine.amount, killing.fine.confirmed], [1000, 1000, true], 'ten cowries, not ten and a half');
-  assert.equal(w.g.view(a.id).self.law.arrest.fine.amount, 50);
-  assert.equal(w.g.view(d.id).self.law.arrest.fine.amount, 1000);
+  assert.deepEqual([killing.fine.scale, killing.fine.amount, killing.fine.confirmed], [100 * TR, 100 * TR, true], '100 TR, not 110');
+  assert.equal(w.g.view(a.id).self.law.arrest.fine.amount, 10 * TR);
+  assert.equal(w.g.view(d.id).self.law.arrest.fine.amount, 100 * TR);
   clean(w);
 });
 
-test('a player constable sets a fine from a tenth of a cowrie to one cowrie, and up to ten where someone died', () => {
+test('a player constable sets a fine from 5 TR up to the charge: 10 TR, or 100 TR where someone was killed', () => {
   const w = town(['Ngozi Constable', 'Ade Low', 'Bisi High', 'Dayo Driver'], { funded: false });
   const [n, lo, hi, d] = w.players;
   w.place(n, post().x, post().z - 1);
@@ -677,25 +677,25 @@ test('a player constable sets a fine from a tenth of a cowrie to one cowrie, and
   offend(w, lo, 'assault'); offend(w, hi, 'vehicle_theft'); offend(w, hi, 'assault'); offend(w, d, 'assault'); offend(w, d, 'death_by_driving');
   wantedFor(w, lo, 1); wantedFor(w, hi, 2); wantedFor(w, d, 2);
   const take = (q) => { w.place(n, q.x + 1, q.z); return ok(w.send(n.id, { type: 'police.arrest', playerId: q.id })).arrest; };
-  // an ordinary arrest: 10 to 100, and it stands at the police's half a cowrie until set
+  // an ordinary arrest: 5 TR to 10 TR, and it stands at the police's 10 TR until set
   const a1 = take(lo);
-  assert.deepEqual([a1.fine.least, a1.fine.scale, a1.fine.most, a1.fine.amount, a1.fine.confirmed], [10, 50, 100, 50, false]);
+  assert.deepEqual([a1.fine.least, a1.fine.scale, a1.fine.most, a1.fine.amount, a1.fine.confirmed], [5 * TR, 10 * TR, 10 * TR, 10 * TR, false]);
   refused(w.send(n.id, { type: 'police.fine', arrestId: a1.id, amount: 9 }), 'OUT_OF_RANGE');
   ok(w.send(n.id, { type: 'police.fine', arrestId: a1.id, amount: 10 }));
   assert.equal(w.g.view(lo.id).self.law.arrest.fine.amount, 10);
   const a2 = take(hi);
-  assert.deepEqual([a2.fine.scale, a2.fine.most], [50, 100], 'two ordinary offences: still at most one cowrie');
-  const tooMuch = refused(w.send(n.id, { type: 'police.fine', arrestId: a2.id, amount: 101 }), 'OUT_OF_RANGE');
-  assert.match(tooMuch.message, /0\.10 cowries and 1 cowrie/);
-  ok(w.send(n.id, { type: 'police.fine', arrestId: a2.id, amount: 100 }));
-  assert.equal(w.g.view(hi.id).self.law.arrest.fine.amount, 100);
-  // where a death is among the crimes: up to ten cowries
+  assert.deepEqual([a2.fine.scale, a2.fine.most], [10 * TR, 10 * TR], 'two ordinary offences: still at most 10 TR');
+  const tooMuch = refused(w.send(n.id, { type: 'police.fine', arrestId: a2.id, amount: 10 * TR + 1 }), 'OUT_OF_RANGE');
+  assert.match(tooMuch.message, /5 TR and 10 TR/);
+  ok(w.send(n.id, { type: 'police.fine', arrestId: a2.id, amount: 10 * TR }));
+  assert.equal(w.g.view(hi.id).self.law.arrest.fine.amount, 10 * TR);
+  // where a killing is among the crimes: up to 100 TR
   const a3 = take(d);
-  assert.deepEqual([a3.fine.least, a3.fine.scale, a3.fine.most, a3.fine.amount], [10, 1000, 1000, 1000]);
-  refused(w.send(n.id, { type: 'police.fine', arrestId: a3.id, amount: 1001 }), 'OUT_OF_RANGE');
-  ok(w.send(n.id, { type: 'police.fine', arrestId: a3.id, amount: 1000 }));
-  refused(w.send(n.id, { type: 'police.fine', arrestId: a3.id, amount: 101 }), 'FINE_SET');
-  assert.equal(w.g.view(d.id).self.law.arrest.fine.amount, 1000);
+  assert.deepEqual([a3.fine.least, a3.fine.scale, a3.fine.most, a3.fine.amount], [5 * TR, 100 * TR, 100 * TR, 100 * TR]);
+  refused(w.send(n.id, { type: 'police.fine', arrestId: a3.id, amount: 100 * TR + 1 }), 'OUT_OF_RANGE');
+  ok(w.send(n.id, { type: 'police.fine', arrestId: a3.id, amount: 100 * TR }));
+  refused(w.send(n.id, { type: 'police.fine', arrestId: a3.id, amount: 21 }), 'FINE_SET');
+  assert.equal(w.g.view(d.id).self.law.arrest.fine.amount, 100 * TR);
   clean(w);
 });
 
@@ -743,7 +743,7 @@ function books() {
   return { ledger, g, player, government, post, code, balance: (a) => g.balance(a) };
 }
 
-test('the ledger itself: a fine goes to government in full, or is split with the constable to the cowrie, and no other way', () => {
+test('the ledger itself: a fine goes to government in full, or is split with the constable to the unit, and no other way', () => {
   const b = books();
   const culprit = b.player('culprit', 10_000), constable = b.player('officer-1'), friend = b.player('friend');
   // an arrest by the regular police: all of it to government, and no player paid
@@ -754,7 +754,7 @@ test('the ledger itself: a fine goes to government in full, or is split with the
   for (const [amount, tax] of [[1_000, 10], [250, 3], [50, 1], [101, 2], [2, 1]]) {
     assert.deepEqual(fineShares(amount), { government: tax, constable: amount - tax });
     const meta = { arrest: `B-${amount}`, officer: 'player:officer-1' };
-    assert.equal(b.code(() => b.post('fine', [[culprit, -amount], [constable, amount - tax + 1], [b.government, tax - 1]].filter(([, x]) => x !== 0), meta)), 'NL012', `${amount}: a cowrie too many for the constable`);
+    assert.equal(b.code(() => b.post('fine', [[culprit, -amount], [constable, amount - tax + 1], [b.government, tax - 1]].filter(([, x]) => x !== 0), meta)), 'NL012', `${amount}: a unit too many for the constable`);
     assert.equal(b.code(() => b.post('fine', [[culprit, -amount], [friend, amount - tax], [b.government, tax]], meta)), 'NL012', `${amount}: the share to someone else`);
     assert.equal(b.code(() => b.post('fine', [[culprit, -amount], [constable, amount - tax], [b.government, tax]], meta)), 'posted');
   }
@@ -867,14 +867,14 @@ test('coming back does not pay a constable twice, heal a patient twice or lift w
   const N = a.player(n.id), X = a.player(x.id);
   N.x = X.x + 1; N.z = X.z; N.lastMoveAt = a.g.state.real - 5;
   const arrest = ok(a.send(n.id, { type: 'police.arrest', playerId: x.id })).arrest;
-  ok(a.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 100 }));
+  ok(a.send(n.id, { type: 'police.fine', arrestId: arrest.id, amount: 10 * TR }));
   N.x = post().x; N.z = post().z - 1; X.x = post().x + 1; X.z = post().z - 1; N.lastMoveAt = X.lastMoveAt = a.g.state.real - 5;
   for (let t = 0; t < 30 && a.g.view(x.id).self.law.state !== 'custody'; t += 1) { a.send(n.id, { type: 'police.book', arrestId: arrest.id }); a.host.tick(0.5); }
   assert.equal(a.g.view(x.id).self.law.state, 'custody');
   const reward0 = a.balance(n.id);
   ok(a.send(x.id, { type: 'custody.pay', arrestId: arrest.id }));
   const reward = a.balance(n.id) - reward0;
-  assert.equal(reward, 99, 'ninety-nine parts in a hundred of 100');
+  assert.equal(reward, 10 * TR - 1, 'all of the 10 TR but the government\'s one unit');
   // and back again: asking a second time pays nobody a second time
   const b = reloaded({ host: a.host });
   assert.equal(ok(b.send(x.id, { type: 'custody.pay', arrestId: arrest.id })).replayed, true);

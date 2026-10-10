@@ -11,7 +11,7 @@ import { clockOf } from '../sim/sim.js';
 import { lowerFirst } from '../sim/vehicles.js';
 import { KEKE_TRIMS } from '../sim/vehicle-looks.js';
 import { HEALTH } from '../sim/conflict.js';
-import { cowrieAmount, cowrieText, POUNDS_PER_COWRIE, COWRIE } from '../sim/ledger.js';
+import { trAmount, trText, trPlain, trIn, poundsOf, TR } from '../sim/ledger.js';
 import { createPhone } from './ui-phone.js';
 import { createPanels } from './ui-panels.js';
 
@@ -36,9 +36,9 @@ export function h(tag, props, ...kids) {
 
 const $ = (id) => document.getElementById(id);
 export const money = (n) => Math.round(n).toLocaleString('en-GB');
-// amounts of money are hundredths of a cowrie (src/sim/ledger.js)
-const cw = cowrieAmount;
-const cowries = cowrieText;
+// amounts of money are ledger units, two to a TR (src/sim/ledger.js)
+const amt = trAmount;
+const tr = trText;
 const tbtc = (sats) => `${(sats / 1e8).toFixed(8)} tBTC`;
 const when = (t) => { const c = clockOf(t); return `Day ${c.day}, ${c.label}`; };
 const WEATHER_WORD = { clear: 'Clear', cloudy: 'Overcast', rain: 'Rain', storm: 'Storm' };
@@ -133,8 +133,8 @@ export function createUI(app) {
       root.append(h('p', null, `${r.rider.name} will take you there on the back of his motorcycle. You pay before you set off.`));
       const balance = app.view().self.balance;
       root.append(h('div', { class: 'rows' }, r.stops.map((stop) => h('button', { class: 'rowbtn', type: 'button', disabled: balance < stop.fare, onclick: () => { const out = app.send({ type: 'okada.ride', n, stop: stop.id }); if (out.ok) close(); else redraw({ text: out.message }); } },
-        h('strong', null, `${cw(stop.fare)}`), h('span', null, stop.name), h('span', { class: 'eyebrow' }, `${stop.metres} m`)))));
-      if (r.stops.every((stop) => balance < stop.fare)) root.append(h('div', { class: 'notice' }, `The shortest ride is ${cowries(Math.min(...r.stops.map((stop) => stop.fare)))}. You have ${cowries(balance)}.`));
+        h('strong', null, `${amt(stop.fare)}`), h('span', null, stop.name), h('span', { class: 'eyebrow' }, `${stop.metres} m`)))));
+      if (r.stops.every((stop) => balance < stop.fare)) root.append(h('div', { class: 'notice' }, `The shortest ride is ${tr(Math.min(...r.stops.map((stop) => stop.fare)))}. You have ${tr(balance)}.`));
     });
   }
 
@@ -187,9 +187,9 @@ export function createUI(app) {
         if (chosen.yours) root.append(deed(chosen));
         root.append(...parcelDetails(chosen));
         if (chosen.status === 'available') {
-          root.append(section('Purchase'), line('Price', cowries(chosen.price)), line('Registration fee, 3%', cowries(chosen.fee)), line('Total', cowries(chosen.total)));
+          root.append(section('Purchase'), line('Price', tr(chosen.price)), line('Registration fee, 3%', tr(chosen.fee)), line('Total', tr(chosen.total)));
           const balance = app.view().self.balance;
-          if (balance < chosen.total) root.append(h('div', { class: 'notice' }, `You have ${cowries(balance)}. You need ${cowries(chosen.total - balance)} more.`));
+          if (balance < chosen.total) root.append(h('div', { class: 'notice' }, `You have ${tr(balance)}. You need ${tr(chosen.total - balance)} more.`));
           root.append(h('div', { class: 'actions' }, h('button', {
             class: 'btn primary', type: 'button', disabled: balance < chosen.total,
             onclick: () => {
@@ -197,7 +197,7 @@ export function createUI(app) {
               confirming = false;
               act({ type: 'registry.buy', parcelId: chosen.id }, (r) => `Plot ${r.parcel.plot} is yours. Title ${r.titleNo} has been entered in the register.`);
             },
-          }, confirming ? `Confirm: pay ${cowries(chosen.total)}` : 'Buy this plot')));
+          }, confirming ? `Confirm: pay ${tr(chosen.total)}` : 'Buy this plot')));
         }
         return;
       }
@@ -206,7 +206,7 @@ export function createUI(app) {
         root.append(section(label));
         root.append(h('div', { class: 'rows' }, result.parcels.filter((p) => p.zoning === code).map((p) => h('button', { class: 'rowbtn', type: 'button', onclick: () => { selected = p.id; confirming = false; redraw(); } },
           h('strong', null, p.plot),
-          h('span', null, `${money(p.area)} m² · ${p.status === 'available' ? cowries(p.total) : p.ownerName}`),
+          h('span', null, `${money(p.area)} m² · ${p.status === 'available' ? tr(p.total) : p.ownerName}`),
           h('span', { class: `chip ${p.yours ? 'yours' : p.status === 'available' ? 'sale' : 'taken'}` }, p.yours ? 'Yours' : p.status === 'available' ? 'For sale' : 'Taken')))));
       }
     }, [{ id: 'register', label: 'Register' }, { id: 'account', label: 'Public account' }]);
@@ -216,9 +216,9 @@ export function createUI(app) {
     const result = app.send({ type: 'treasury.public', code });
     if (!result.ok) { root.append(refused(result)); return; }
     root.append(h('p', null, `${title}. Anyone may read it.`));
-    root.append(line('Balance', cowries(result.balance)), line('Received since opening', cowries(result.income), 'pos'), line('Paid out since opening', cowries(result.spending), 'neg'));
+    root.append(line('Balance', tr(result.balance)), line('Received since opening', tr(result.income), 'pos'), line('Paid out since opening', tr(result.spending), 'neg'));
     root.append(section('By purpose'));
-    root.append(h('div', { class: 'rows' }, result.lines.length ? result.lines.map((row) => line(row.label, `${row.amount > 0 ? '+' : '−'}${cw(Math.abs(row.amount))}`, row.amount > 0 ? 'pos' : 'neg')) : h('p', null, 'Nothing has been received or paid yet.')));
+    root.append(h('div', { class: 'rows' }, result.lines.length ? result.lines.map((row) => line(row.label, `${row.amount > 0 ? '+' : '−'}${amt(Math.abs(row.amount))}`, row.amount > 0 ? 'pos' : 'neg')) : h('p', null, 'Nothing has been received or paid yet.')));
   }
 
   function openSecretariat() {
@@ -235,7 +235,7 @@ export function createUI(app) {
           const allowed = plot.permittedUses.includes(design.id);
           root.append(h('div', { class: 'qty' },
             h('div', null, h('strong', null, design.name), h('div', { class: 'eyebrow' }, `${design.size} · ${design.zoning} zoning`)),
-            h('span', { class: 'mono' }, cw(design.fee)),
+            h('span', { class: 'mono' }, amt(design.fee)),
             h('button', { class: 'btn primary', type: 'button', disabled: !allowed, title: allowed ? '' : 'Not a permitted use on this plot', onclick: () => act({ type: 'permit.apply', parcelId: plot.id, design: design.id }, (r) => `Permit ${r.permitNo} issued. You may build.`) }, allowed ? 'Apply' : 'Not allowed')));
         }
         if (!plot.permittedUses.length) root.append(h('p', null, 'This plot is farmland. No building permits are issued for it in this build.'));
@@ -253,7 +253,7 @@ export function createUI(app) {
       if (businessId === 'yard') {
         const job = app.send({ type: 'job.info' });
         root.append(section('Work'));
-        root.append(h('p', null, `${zoneResident(BUSINESSES.yard.owner).short} pays ${cowries(job.ok ? job.wage : BUSINESSES.yard.wagePerBlock)} for every block you mould. Stand at one of the two free moulds in the yard and hold E. You have moulded ${job.ok ? job.moulded : 0} so far.`));
+        root.append(h('p', null, `${zoneResident(BUSINESSES.yard.owner).short} pays ${tr(job.ok ? job.wage : BUSINESSES.yard.wagePerBlock)} for every block you mould. Stand at one of the two free moulds in the yard and hold E. You have moulded ${job.ok ? job.moulded : 0} so far.`));
         root.append(section('Buy'));
       }
       if (carry && !result.carriers.some((c) => c.id === carry)) carry = null;
@@ -271,11 +271,11 @@ export function createUI(app) {
         if (quantities[item.item] == null) quantities[item.item] = item.item === 'block' ? 30 : 1;
         const input = h('input', { class: 'field mono', id: `qty-${item.item}`, type: 'number', min: '1', max: '500', value: String(quantities[item.item]), 'aria-label': `Quantity of ${item.name}`, oninput: (e) => { quantities[item.item] = Math.max(1, Math.min(500, Math.round(Number(e.target.value) || 1))); } });
         root.append(h('div', { class: 'qty' },
-          h('div', null, h('strong', null, item.name), h('div', { class: 'eyebrow' }, `${cw(item.price)} per ${item.unit} · ${money(item.stock)} in stock`)),
+          h('div', null, h('strong', null, item.name), h('div', { class: 'eyebrow' }, `${amt(item.price)} per ${item.unit} · ${money(item.stock)} in stock`)),
           input,
-          h('button', { class: 'btn primary', type: 'button', disabled: !result.plots.length && !carry, onclick: () => act({ type: 'shop.buy', businessId, item: item.item, qty: quantities[item.item], parcelId: carry ? null : deliverTo, carry }, (r) => (r.carried ? `Paid ${cowries(r.total)}. It is loaded in keke ${r.plate}.` : `Paid ${cowries(r.total)} including delivery. It reaches the plot in about ${r.dueMinutes} minutes.`)) }, 'Buy')));
+          h('button', { class: 'btn primary', type: 'button', disabled: !result.plots.length && !carry, onclick: () => act({ type: 'shop.buy', businessId, item: item.item, qty: quantities[item.item], parcelId: carry ? null : deliverTo, carry }, (r) => (r.carried ? `Paid ${tr(r.total)}. It is loaded in keke ${r.plate}.` : `Paid ${tr(r.total)} including delivery. It reaches the plot in about ${r.dueMinutes} minutes.`)) }, 'Buy')));
       }
-      if (!carry) root.append(h('p', { class: 'eyebrow' }, `Delivery ${cowries(result.business.delivery)} per order`));
+      if (!carry) root.append(h('p', { class: 'eyebrow' }, `Delivery ${tr(result.business.delivery)} per order`));
     });
   }
 
@@ -283,7 +283,7 @@ export function createUI(app) {
     open('Food', BUSINESSES.kitchen.name, (root) => {
       const energy = app.view().self.energy;
       root.append(h('p', null, `${ZONE.dish}, served hot. A plate restores your strength.`));
-      root.append(line('One plate', cowries(BUSINESSES.kitchen.sells.meal)), line('Your energy', `${Math.round(energy)} of 100`));
+      root.append(line('One plate', tr(BUSINESSES.kitchen.sells.meal)), line('Your energy', `${Math.round(energy)} of 100`));
       root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', onclick: () => act({ type: 'eat' }, 'You eat. That is better.') }, 'Buy a plate')));
     });
   }
@@ -309,17 +309,17 @@ export function createUI(app) {
           root.append(...vehicleLines(v).filter(Boolean));
           const room = Math.floor((v.tank - v.fuel) * 10) / 10;
           if (v.usable) root.append(h('div', { class: 'actions' },
-            h('button', { class: 'btn', type: 'button', disabled: room < 0.1, onclick: () => act({ type: 'vehicle.refuel', vehicleId: v.id, litres: 2 }, (x) => `${x.litres.toFixed(1)} litres of petrol for ${cowries(x.cost)}.`) }, `Petrol, 2 litres: ${cowries(Math.ceil(Math.min(2, room) * r.fuelPrice))}`),
-            h('button', { class: 'btn', type: 'button', disabled: room < 0.1, onclick: () => act({ type: 'vehicle.refuel', vehicleId: v.id, litres: 99 }, (x) => `Tank filled: ${x.litres.toFixed(1)} litres for ${cowries(x.cost)}.`) }, `Fill the tank: ${cowries(Math.ceil(room * r.fuelPrice))}`)));
+            h('button', { class: 'btn', type: 'button', disabled: room < 0.1, onclick: () => act({ type: 'vehicle.refuel', vehicleId: v.id, litres: 2 }, (x) => `${x.litres.toFixed(1)} litres of petrol for ${tr(x.cost)}.`) }, `Petrol, 2 litres: ${tr(Math.ceil(Math.min(2, room) * r.fuelPrice))}`),
+            h('button', { class: 'btn', type: 'button', disabled: room < 0.1, onclick: () => act({ type: 'vehicle.refuel', vehicleId: v.id, litres: 99 }, (x) => `Tank filled: ${x.litres.toFixed(1)} litres for ${tr(x.cost)}.`) }, `Fill the tank: ${tr(Math.ceil(room * r.fuelPrice))}`)));
         }
       }
       const hiring = r.mine.some((v) => !v.owned);
       root.append(section('Hire for the day'));
-      root.append(line('Fee', cowries(k.hirePerDay)), line('Free to hire now', String(r.forHire)));
+      root.append(line('Fee', tr(k.hirePerDay)), line('Free to hire now', String(r.forHire)));
       root.append(h('p', null, 'Yours until six tomorrow morning. Petrol is extra. Leave it anywhere when you are done and it will be taken back to the park.'));
-      root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: hiring || r.forHire < 1, onclick: () => act({ type: 'vehicle.hire' }, (x) => `Keke ${x.vehicle.plate} is yours for the day. It is standing in the park with a yellow ring under it.`) }, hiring ? 'You have one on hire' : `Hire a keke: ${cowries(k.hirePerDay)}`)));
+      root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: hiring || r.forHire < 1, onclick: () => act({ type: 'vehicle.hire' }, (x) => `Keke ${x.vehicle.plate} is yours for the day. It is standing in the park with a yellow ring under it.`) }, hiring ? 'You have one on hire' : `Hire a keke: ${tr(k.hirePerDay)}`)));
       root.append(section('Buy one'));
-      root.append(line('Price', cowries(k.price)), line('State registration and plate', cowries(k.registration)), line('In all', cowries(k.total)));
+      root.append(line('Price', tr(k.price)), line('State registration and plate', tr(k.registration)), line('In all', tr(k.total)));
       // the same keke in any of the dealer's colours, with any of the three fronts
       if (!r.paints.some((c) => c.id === wanted.paint)) wanted.paint = 'yellow';
       if (!r.trims.includes(wanted.trim)) wanted.trim = r.trims[0];
@@ -331,8 +331,8 @@ export function createUI(app) {
         if (!confirming) { confirming = true; redraw(); return; }
         confirming = false;
         act({ type: 'vehicle.buy', paint: wanted.paint, trim: wanted.trim }, (x) => `Keke ${x.vehicle.plate} is registered in your name. It is standing in the park.`);
-      } }, confirming ? `Confirm: pay ${cowries(k.total)}` : 'Buy a new keke')));
-      root.append(h('p', { class: 'eyebrow' }, `Tank ${k.tank} litres · carries ${k.capacity} load units · petrol ${cowries(r.fuelPrice)} a litre`));
+      } }, confirming ? `Confirm: pay ${tr(k.total)}` : 'Buy a new keke')));
+      root.append(h('p', { class: 'eyebrow' }, `Tank ${k.tank} litres · carries ${k.capacity} load units · petrol ${tr(r.fuelPrice)} a litre`));
     });
   }
 
@@ -340,7 +340,7 @@ export function createUI(app) {
     open('Education', BUSINESSES.school.name, (root) => {
       const certified = app.view().self.skills.blocklaying;
       root.append(h('p', null, 'Block-laying certificate. One class of two hours. With it, each spell of work you do on your own site counts double.'));
-      root.append(line('Course fee', cowries(BUSINESSES.school.fee)), line('Certificate', certified ? 'Held' : 'Not held'));
+      root.append(line('Course fee', tr(BUSINESSES.school.fee)), line('Certificate', certified ? 'Held' : 'Not held'));
       root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: certified, onclick: () => act({ type: 'school.enrol' }, 'You sat the class and passed. Two hours have gone by.') }, certified ? 'Already certified' : 'Enrol and attend')));
     });
   }
@@ -355,7 +355,7 @@ export function createUI(app) {
       const p = result.parcel;
       const s = result.site;
       if (p.status === 'available') {
-        root.append(h('p', null, `For sale by the State. ${cowries(p.price)} plus a 3% registration fee: ${cowries(p.total)} in all.`));
+        root.append(h('p', null, `For sale by the State. ${tr(p.price)} plus a 3% registration fee: ${tr(p.total)} in all.`));
         root.append(h('div', { class: 'notice good' }, ZONE_TEXT.toRegistry));
       }
       if (p.yours) root.append(...siteBlock(s, parcelId));
@@ -398,7 +398,7 @@ export function createUI(app) {
     } else {
       const units = s.current.labour - site.labour;
       out.push(h('p', null, `Ready for ${s.current.name.toLowerCase()}. Work it yourself: stand at the yellow marker beside the pad and hold E. Or pay the mason to do this stage.`));
-      out.push(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: !!site.mason, onclick: () => act({ type: 'site.hire', parcelId }, (r) => `${zoneResident('mason').name} is engaged for ${r.stage.toLowerCase()} and is walking over.`) }, site.mason ? 'Mason at work' : `Hire the mason: ${cowries(units * MASON_RATE)}`)));
+      out.push(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: !!site.mason, onclick: () => act({ type: 'site.hire', parcelId }, (r) => `${zoneResident('mason').name} is engaged for ${r.stage.toLowerCase()} and is walking over.`) }, site.mason ? 'Mason at work' : `Hire the mason: ${tr(units * MASON_RATE)}`)));
       if (s.current.dry) out.push(h('p', { class: 'eyebrow' }, 'This stage stops when it rains'));
     }
     return out;
@@ -417,13 +417,13 @@ export function createUI(app) {
 
   function wallet(root) {
     const result = app.send({ type: 'wallet.history' });
-    root.append(line('Cowries', cw(result.balance)));
-    root.append(h('p', null, 'Cowries are the money of this world. They are game funds, not legal tender, and not bitcoin.'));
+    root.append(line('TR', amt(result.balance)));
+    root.append(h('p', null, 'TR is the money of this world. It is game money: not legal tender, and not bitcoin.'));
     root.append(section('Recent entries'));
     if (!result.rows.length) { root.append(h('p', null, 'Nothing yet. Earn a wage at the block yard, or add sandbox funds.')); return; }
     root.append(h('div', { class: 'rows' }, result.rows.map((row) => h('div', { class: 'line' },
       h('span', null, row.reason, h('div', { class: 'eyebrow mono' }, `${row.id} · ${when(row.at)}`)),
-      h('span', { class: row.amount > 0 ? 'pos' : 'neg' }, `${row.amount > 0 ? '+' : '−'}${cw(Math.abs(row.amount))}`)))));
+      h('span', { class: row.amount > 0 ? 'pos' : 'neg' }, `${row.amount > 0 ? '+' : '−'}${amt(Math.abs(row.amount))}`)))));
   }
 
   function property(root) {
@@ -449,7 +449,7 @@ export function createUI(app) {
     if (!r.hasVehicle) root.append(h('div', { class: 'notice' }, 'You need a keke for this. Hire or buy one at the motor park.'));
     if (r.mine) {
       root.append(section('Your run'));
-      root.append(line(r.mine.what, cowries(r.mine.fee)));
+      root.append(line(r.mine.what, tr(r.mine.fee)));
       root.append(h('p', null, r.mine.state === 'accepted' ? `Collect it at ${r.mine.from.label}. A yellow beacon marks the spot. Drive into the ring and press E.` : `Loaded. Take it to ${r.mine.to.label}, drive into the ring and press E. You are paid on delivery.`));
       root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => act({ type: 'run.drop' }, 'You gave the run up.') }, 'Give up this run')));
     }
@@ -458,7 +458,7 @@ export function createUI(app) {
     for (const run of r.open) {
       root.append(h('div', { class: 'qty' },
         h('div', null, h('strong', null, run.what), h('div', { class: 'eyebrow' }, `${run.from.label} to ${run.to.label} · open until ${clockOf(run.closesAt).label}`)),
-        h('span', { class: 'mono' }, cw(run.fee)),
+        h('span', { class: 'mono' }, amt(run.fee)),
         h('button', { class: 'btn primary', type: 'button', disabled: !r.hasVehicle || !!r.mine, onclick: () => act({ type: 'run.accept', runId: run.id }, (x) => `Taken. Collect it at ${x.run.from.label}.`) }, 'Take it')));
     }
     root.append(line('Runs you have delivered', String(r.done)));
@@ -754,13 +754,13 @@ export function createUI(app) {
         h('div', { class: 'steps' }, Array.from({ length: s.confirmationsRequired }, (_, i) => h('i', { class: i < d.confirmations ? 'on' : '' })))));
     }
 
-    root.append(section('2 · Convert to cowries'));
-    root.append(h('p', null, `Platform rate: 1 satoshi buys ${cowrieAmount(s.rate)} cowries (${s.rate} hundredths). A quote holds the rate for 60 seconds.`));
+    root.append(section('2 · Convert to TR'));
+    root.append(h('p', null, `Platform rate: ${money(TR / s.rate)} satoshis buy 1 TR. A quote holds the rate for 60 seconds.`));
     if (portalState.quote) {
       const q = portalState.quote;
-      root.append(line(`${money(q.sats)} sats`, `${cowries(q.cowries)}`));
+      root.append(line(`${money(q.sats)} sats`, `${tr(q.cowries)}`));
       root.append(h('div', { class: 'actions' },
-        h('button', { class: 'btn primary', type: 'button', onclick: () => { const r = portalCall('convert', { quoteId: q.id }, (d) => `Converted. ${cowries(d.cowries)} added to your wallet.`); portalState.quote = null; if (r.ok) portalState.sats = ''; redraw(); } }, 'Convert at this quote'),
+        h('button', { class: 'btn primary', type: 'button', onclick: () => { const r = portalCall('convert', { quoteId: q.id }, (d) => `Converted. ${tr(d.cowries)} added to your wallet.`); portalState.quote = null; if (r.ok) portalState.sats = ''; redraw(); } }, 'Convert at this quote'),
         h('button', { class: 'btn quiet', type: 'button', onclick: () => { portalState.quote = null; redraw(); } }, 'Cancel')));
     } else {
       root.append(h('div', { class: 'qty' },
@@ -783,9 +783,9 @@ export function createUI(app) {
         h('div', { class: 'steps' }, order.map((_, i) => h('i', { class: at >= i ? 'on' : '' })))));
     }
 
-    root.append(section('Cowries back to bitcoin'));
+    root.append(section('TR back to bitcoin'));
     root.append(h('p', null, 'Game funds are not redeemable for bitcoin unless the settlement layer authorises it. In this build redemption is switched off.'));
-    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => portalCall('redeem', { cowries: 1000 }) }, 'Ask to redeem 10 cowries')));
+    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => portalCall('redeem', { cowries: 1000 }) }, `Ask to redeem ${trText(1000)}`)));
   }
 
   function portalCall(method, args, successText) {
@@ -804,16 +804,16 @@ export function createUI(app) {
     const night = view.clock.hourFloat < 6.5 || view.clock.hourFloat >= 18.75;
     if (touchEl.classList.contains('night') !== night) touchEl.classList.toggle('night', night);
     $('hud-weather').textContent = WEATHER_WORD[view.weather.kind];
-    // the purse: cowries, and what that is in the pounds of the story (40 cowries are £20)
-    const balance = cw(view.self.balance);
+    // the purse: TR, and what that is in the pounds of the story (2,000 TR are £20)
+    const balance = amt(view.self.balance);
     if ($('hud-balance').textContent !== balance) {
       $('hud-balance').textContent = balance;
-      const pounds = (view.self.balance / COWRIE) * POUNDS_PER_COWRIE;
+      const pounds = poundsOf(view.self.balance);
       $('hud-pounds').textContent = `= £${pounds.toLocaleString('en-GB', { minimumFractionDigits: Number.isInteger(pounds) ? 0 : 2, maximumFractionDigits: 2 })}`;
     }
     const next = view.journal.find((step) => !step.done);
     const run = view.self.run;
-    const text = run ? (run.state === 'accepted' ? `Run: collect ${lowerFirst(run.what)} at ${run.from.label}` : `Run: take the load to ${run.to.label} for ${cowries(run.fee)}`)
+    const text = run ? (run.state === 'accepted' ? `Run: collect ${lowerFirst(run.what)} at ${run.from.label}` : `Run: take the load to ${run.to.label} for ${tr(run.fee)}`)
       : next ? `Next, if you like: ${next.text}` : `You have a home in ${ZONE.name}. The town is yours to live in.`;
     const riding = view.self.riding;
     const shown = riding ? `On ${riding.rider.split(' ')[0]}'s okada to ${riding.to}` : text;
@@ -1068,7 +1068,7 @@ export function createUI(app) {
     const box = $('notices');
     let el;
     let stay = 5200;
-    const amount = event.amount != null ? `${event.amount > 0 ? '+' : '−'}${cw(Math.abs(event.amount))}` : null;
+    const amount = event.amount != null ? `${event.amount > 0 ? '+' : '−'}${amt(Math.abs(event.amount))}` : null;
     // kept for the Notices app: everything but passing hints
     if (event.type !== 'note' && event.type !== 'site' && event.text) { noticeLog.push({ type: event.type, title: event.title || { witness: 'What you saw', call: `Call from ${event.from}`, message: `Message from ${event.from}`, critical: 'Critical health', alert: 'Alert' }[event.type] || null, text: event.text, amount: event.amount || 0, txn: event.txn || null, at: app.view() ? app.view().t : 0 }); if (noticeLog.length > 60) noticeLog.shift(); }
     if (event.type === 'police') {
@@ -1134,7 +1134,7 @@ export function createUI(app) {
 
   $('btn-phone').addEventListener('click', () => { if (sheet.hidden) openPhone(); else close(); });
 
-  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state) }, h, open, redraw, close, line, section, money, cw, cowries, when, refused, live };
+  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state) }, h, open, redraw, close, line, section, money, amt, tr, trPlain, trIn, when, refused, live };
   panels = createPanels(shared);
   phone = createPhone({ ...shared, legacy: { wallet, property, people: peopleTab, map, funds, runs, journal, settings, vehicleLines: (v) => vehicleLines(v).filter(Boolean) }, lawBlock: panels.lawBlock, log: () => noticeLog });
 

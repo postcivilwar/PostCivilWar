@@ -565,7 +565,7 @@ test('multiplayer: what another computer sends is checked, and gives it no power
 test('okada: riders work the town, carry passengers and are paid', () => {
   const { host, id } = newWorld();
   const okada = host.game.internals.okada;
-  const supply = host.auditor.supply().CWR;
+  const supply = host.auditor.supply().TR;
   assert.equal(okada.riders.length, 26);
   assert.ok(okada.audit().onShift >= 20, 'most riders are out by half past seven');
   const seenMoving = new Set();
@@ -583,7 +583,7 @@ test('okada: riders work the town, carry passengers and are paid', () => {
   assert.ok(audit.settled > 0 && audit.outstanding < audit.fares);
   assert.ok(audit.pool < OKADA_RULES.pool, 'the fares came out of the households\' pool');
   assert.deepEqual(host.auditor.reconcile(), []);
-  assert.equal(host.auditor.supply().CWR <= supply, true, 'no money is made by riding about');
+  assert.equal(host.auditor.supply().TR <= supply, true, 'no money is made by riding about');
   // riders are townspeople: each has a name and a home, and goes home at night
   const pop = host.game.internals.population;
   for (const r of okada.riders) assert.equal(pop.people[r.i].job, 'okada');

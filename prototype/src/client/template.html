@@ -223,7 +223,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
    the life bar green to orange to red; the time is white. Nothing has a box behind it but the radar. */
 .hudr { position: absolute; top: calc(3px + var(--st)); right: calc(10px + env(safe-area-inset-right, 0px)); max-width: calc(100% - 100px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: none; text-align: right; }
 .hudr > * { pointer-events: auto; }
-/* Small, at the very top, two short lines: the purse (cowries, and what they are worth in 1970 pounds), then the
+/* Small, at the very top, two short lines: the purse (TR, and what it is worth in 1970 pounds), then the
    time, the day and where. The black edge is thinner at this size, so the letters stay sharp on a phone. */
 .arcade-edge, .purse .amount, .purse .pounds, .plate .clock { font-family: "PCW Arcade", var(--font-ui); -webkit-text-stroke: 0; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 -1.5px 0 #000, 0 1.5px 0 #000, -1.5px 0 0 #000, 1.5px 0 0 #000, 0 2px 3px rgba(0, 0, 0, 0.5); }
 .purse { line-height: 1; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
@@ -747,7 +747,7 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
         <div id="critical" role="alert" hidden>Critical</div>
       </div>
       <div class="purse" aria-live="off">
-        <div class="amount"><span id="hud-balance">40</span><span class="unit"> COWRIES</span></div>
+        <div class="amount"><span id="hud-balance">2,000</span><span class="unit"> TR</span></div>
         <div class="pounds" id="hud-pounds">= £20</div>
       </div>
       <div class="plate">

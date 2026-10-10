@@ -66,7 +66,7 @@ export const DESIGNS = Object.freeze({
 export const PAINT_COLOURS = Object.freeze({ cream: 0xe9dcc0, river: 0x8fc1b5, clay: 0xc97b5a, sky: 0xa9c4dd, leaf: 0x9db58a, sun: 0xe8c45c });
 
 export const ENERGY = Object.freeze({ max: 100, mould: 2, build: 3, meal: 45, restPerHour: 18 });
-export const MASON_RATE = 120;            // hundredths of a cowrie per unit of labour, paid in advance per stage
+export const MASON_RATE = 120;            // ledger units (two to a TR) per unit of labour, paid in advance per stage
 export const MASON_SECONDS_PER_UNIT = 5;  // real seconds
 const WORK_INTERVAL = 1.1;                // minimum real seconds between two work actions by one person
 const OPENING_CAPITAL = { 'business:yard': 60000, 'business:store': 80000, 'business:kitchen': 15000, 'business:clinic': 10000, 'business:school': 10000, [`government:${GOV_LOCAL}`]: 150000, [`government:${GOV_STATE}`]: 50000 };

@@ -14,7 +14,7 @@ import { createPopulation, RANGE } from './population.js';
 import { createOkada } from './okada.js';
 import { createTalk } from './talk.js';
 import { LANGUAGES } from './culture.js';
-import { LedgerError, cowrieText } from './ledger.js';
+import { LedgerError, trText } from './ledger.js';
 import { createActors } from './actors.js';
 import { createConflict, HEALTH, MOVES, COMBAT } from './conflict.js';
 import { createImpact, IMPACT, BODY } from './impact.js';
@@ -58,7 +58,7 @@ export function structureFootprint(parcel, design) {
   return { x0: parcel.cx - w / 2, x1: parcel.cx + w / 2, z0: parcel.cz - d / 2, z1: parcel.cz + d / 2 };
 }
 
-// What every new character arrives with, in hundredths of a cowrie: 40 cowries, the £20 of the story.
+// What every new character arrives with, in ledger units (two to a TR): 2,000 TR, the £20 of the story.
 export const ARRIVAL_FUNDS = 4000;
 
 // Swimming in the river (8 October 2026). Slower than walking; a stroke held makes it faster. One goes in from
@@ -534,7 +534,7 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
       const status = serviceState('yard');
       if (!status.open) throw new GameError('CLOSED', `The yard is not working now. ${status.reason}`);
       const result = economy.mould(p, stationId, state.real);
-      if (p.stats.blocksMoulded === 1) emit(p.id, { type: 'receipt', title: 'First wage', text: `${BUSINESSES.yard.name} paid you ${cowrieText(result.wage)} for one block.`, txn: result.txn, amount: result.wage });
+      if (p.stats.blocksMoulded === 1) emit(p.id, { type: 'receipt', title: 'First wage', text: `${BUSINESSES.yard.name} paid you ${trText(result.wage)} for one block.`, txn: result.txn, amount: result.wage });
       return result;
     },
 
@@ -661,7 +661,7 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     'phone.thread'(p, { key }) { return phone.thread(p, String(key)); },
     'phone.askBail'(p, { key }) { return phone.askBail(p, String(key)); },
     'phone.askSurety'(p, { key }) { return phone.askSurety(p, String(key)); },
-    'phone.repay'(p, { debtId, amount }) { const result = phone.repay(p, String(debtId), amount); emit(p.id, { type: 'receipt', title: 'Repaid', text: result.left ? `You still owe ${cowrieText(result.left)}.` : 'You owe nothing more.', txn: result.txn, amount: -result.paid }); return result; },
+    'phone.repay'(p, { debtId, amount }) { const result = phone.repay(p, String(debtId), amount); emit(p.id, { type: 'receipt', title: 'Repaid', text: result.left ? `You still owe ${trText(result.left)}.` : 'You owe nothing more.', txn: result.txn, amount: -result.paid }); return result; },
     'contacts.add'(p, { playerId }) { return phone.addContact(p, String(playerId)); },
     'contacts.tag'(p, { key, tag }) { return phone.tagContact(p, String(key), String(tag)); },
     'contacts.remove'(p, { key }) { return phone.removeContact(p, String(key)); },
@@ -705,7 +705,7 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     } catch (error) {
       if (error instanceof GameError) return { ok: false, code: error.code, message: error.message, ...(error.at ? { at: error.at } : {}) };
       if (error instanceof LedgerError) {
-        const text = error.code === 'NL001' ? 'You do not have enough cowries for that.' : `The ledger refused the payment (${error.code}).`;
+        const text = error.code === 'NL001' ? 'You do not have enough TR for that.' : `The ledger refused the payment (${error.code}).`;
         return { ok: false, code: error.code, message: text };
       }
       throw error;
@@ -735,12 +735,12 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     return id;
   }
 
-  // Everyone arrives with £20 in their pocket: 40 cowries, issued once to each character, on the ledger like
+  // Everyone arrives with £20 in their pocket: 2,000 TR, issued once to each character, on the ledger like
   // any other money. The key means it can never be paid twice: not on a retried join, not on a reload. A
   // character made before arrival money existed is given it the first time the world is loaded.
   function grantArrival(p) {
     monetary.post({
-      key: `arrival:${p.id}`, kind: 'issuance', initiator: 'ops:monetary', reason: `Arrival money for ${p.name}: £20, as ${cowrieText(ARRIVAL_FUNDS)}`,
+      key: `arrival:${p.id}`, kind: 'issuance', initiator: 'ops:monetary', reason: `Arrival money for ${p.name}: £20, as ${trText(ARRIVAL_FUNDS)}`,
       legs: [{ account: issuanceAccount, amount: -ARRIVAL_FUNDS }, { account: p.wallet, amount: ARRIVAL_FUNDS }],
     });
   }
@@ -753,7 +753,7 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     return [
       { id: 'arrive', text: `Arrive in ${ZONE.name}`, done: true },
       { id: 'look', text: `Read the survey board on a plot in the ${ZONE.scheme}`, done: Object.keys(p.inspected).length > 0 || owned.length > 0 },
-      { id: 'funds', text: 'Earn your first cowries: mould blocks at the yard, or add sandbox funds from your phone', done: history.length > 1 },
+      { id: 'funds', text: 'Earn your first TR: mould blocks at the yard, or add sandbox funds from your phone', done: history.length > 1 },
       { id: 'land', text: 'Buy a plot at the Lands Registry', done: owned.length > 0 },
       { id: 'permit', text: 'Get a building permit at the Secretariat', done: sites.some((r) => r.permit) },
       { id: 'materials', text: 'Have materials delivered from the yard and the store', done: sites.some((r) => r.site && (r.site.started || r.site.stage > 0)) || owned.some((id) => Object.values(state.economy.stock[`site:${id}`] || {}).some((q) => q > 0)) },

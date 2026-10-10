@@ -12,7 +12,7 @@
 // clinic is a private business: its owner sets the prices and may be
 // bargained with, and what it takes goes to the business.
 
-import { cowrieAmount } from './ledger.js';
+import { trAmount } from './ledger.js';
 import { ZONE, zoneService, zoneWalkable } from './zone.js';
 import { GameError } from './registry.js';
 import { graphNearest, graphRoute, graphPoint } from './graph.js';
@@ -98,17 +98,17 @@ export function createCare({ state, players, ledger, accounts, emit, hub }) {
     if (real() > q.expires) throw new GameError('EXPIRED', 'That quote has run out. Ask again at the desk.');
     const option = q.options.find((o) => o.level === Number(level));
     if (!option) throw new GameError('NO_OPTION', 'That level of treatment was not offered.');
-    if (q.rounds >= CARE.rounds) throw new GameError('LAST_PRICE', `"${cowrieAmount(option.fee)} is my last price."`);
+    if (q.rounds >= CARE.rounds) throw new GameError('LAST_PRICE', `"${trAmount(option.fee)} is my last price."`);
     const want = Math.floor(Number(offer));
     if (!Number.isFinite(want) || want <= 0) throw new GameError('BAD_OFFER', 'Name a price.');
     q.rounds += 1;
     const floor = Math.ceil(option.list * place.floor);
     if (want >= option.fee) return { accepted: true, fee: option.fee, said: 'That is the price already.', quote: quoteView(q, p) };
-    if (want >= floor) { option.fee = want; return { accepted: true, fee: want, said: `All right. ${cowrieAmount(want)}.`, quote: quoteView(q, p) }; }
+    if (want >= floor) { option.fee = want; return { accepted: true, fee: want, said: `All right. ${trAmount(want)}.`, quote: quoteView(q, p) }; }
     // meet them part of the way, and never go back up
     const counter = Math.max(floor, Math.min(option.fee, round10((option.fee + Math.max(want, floor)) / 2)));
     option.fee = counter;
-    return { accepted: false, fee: counter, said: q.rounds >= CARE.rounds ? `${cowrieAmount(counter)}. That is my last price.` : `I cannot do ${cowrieAmount(want)}. ${cowrieAmount(counter)}.`, quote: quoteView(q, p) };
+    return { accepted: false, fee: counter, said: q.rounds >= CARE.rounds ? `${trAmount(counter)}. That is my last price.` : `I cannot do ${trAmount(want)}. ${trAmount(counter)}.`, quote: quoteView(q, p) };
   }
 
   // Pays for one level of a quote and gives the treatment. Asked twice, it answers twice and charges once.

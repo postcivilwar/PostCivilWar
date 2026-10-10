@@ -13,7 +13,7 @@ import { newWorld, ok, walkTo, goToService, goToBoard, goToWork, goToMould, run,
 import { ZONE_RUNS, ZONE_VEHICLE_BAYS } from '../src/sim/zone.js';
 import { VEHICLE_KINDS, FUEL, vehicleFits } from '../src/sim/vehicles.js';
 import { ARRIVAL_FUNDS } from '../src/sim/sim.js';
-import { cowrieText, cowrieAmount, COWRIE } from '../src/sim/ledger.js';
+import { trText, trAmount, trPlain, trIn, poundsOf, TR } from '../src/sim/ledger.js';
 
 const refused = (result, code) => { assert.equal(result.ok, false, 'expected a refusal'); assert.equal(result.code, code, result.message); };
 const clean = (host) => { assert.deepEqual(host.auditor.reconcile(), []); assert.deepEqual(host.game.audit().goods, []); };
@@ -75,7 +75,7 @@ test('the map: every path, post and service point is on walkable ground', () => 
   for (const p of ZONE_PARCELS) assert.match(p.id, /^NG-AN-OGB-\d{6}$/);
 });
 
-test('ledger: the gameplay handle cannot touch test bitcoin or create cowries', () => {
+test('ledger: the gameplay handle cannot touch test bitcoin or create TR', () => {
   const ledger = createLedger();
   const a = ledger.gameplay.openAccount('player', 'a', 'wallet');
   const b = ledger.gameplay.openAccount('player', 'b', 'wallet');
@@ -107,28 +107,64 @@ test('ledger: double entry, idempotency and refusals', () => {
   assert.equal(ledger.gameplay.balance(a), 600);
   assert.equal(ledger.gameplay.balance(b), 400);
   assert.deepEqual(ledger.auditor.reconcile(), []);
-  assert.equal(ledger.auditor.supply().CWR, 1000);
+  assert.equal(ledger.auditor.supply().TR, 1000);
   assert.throws(() => { ledger.auditor.transactions()[0].entries[0].amount = 1; }, TypeError);
 });
 
-test('cowries are counted in hundredths and written as cowries', () => {
-  assert.equal(COWRIE, 100);
-  assert.equal(cowrieText(4000), '40 cowries');
-  assert.equal(cowrieText(50), '0.50 cowries');
-  assert.equal(cowrieText(100), '1 cowrie');
-  assert.equal(cowrieText(12345), '123.45 cowries');
-  assert.equal(cowrieAmount(12345), '123.45');
-  assert.equal(cowrieAmount(4000), '40');
+test('TR: two ledger units to a TR, written as TR, and £20 is 2,000 TR', () => {
+  assert.equal(TR, 2);
+  assert.equal(trText(4000), '2,000 TR');
+  assert.equal(trText(20), '10 TR');
+  assert.equal(trText(200), '100 TR');
+  assert.equal(trText(1), '0.5 TR');
+  assert.equal(trText(12345), '6,172.5 TR');
+  assert.equal(trAmount(4000), '2,000');
+  assert.equal(trPlain(4000), '2000', 'no commas in a box a number is typed into');
+  assert.equal(trIn('10'), 20);
+  assert.equal(trIn('7.5'), 15);
+  assert.equal(trIn('ten'), null);
+  assert.equal(poundsOf(ARRIVAL_FUNDS), 20, 'the arrival money is the £20 of the story');
+  assert.equal(poundsOf(100 * TR), 1, '£1 is 100 TR');
 });
 
-test('arrival: every newcomer is given 40 cowries once, by one issuance on the ledger, and never again', () => {
+test('the rename changed no number: a character saved when the money was cowries has exactly what they had', () => {
   const host = createHost();
-  const supply0 = host.auditor.supply().CWR, count0 = host.auditor.transactionCount();
+  const id = host.game.join({ name: 'Ada Before', look: {} });
+  const other = host.game.join({ name: 'Bayo Before', look: {} });
+  // a save as it was written before the rename: the accounts say their asset is CWR
+  const old = JSON.parse(JSON.stringify(host.save()));
+  for (const account of old.ledger.accounts) if (account.asset === 'TR') account.asset = 'CWR';
+  assert.ok(old.ledger.accounts.some((a) => a.asset === 'CWR'));
+  const before = old.ledger.accounts.map((a) => [a.id, a.balance]);
+  const supply0 = host.auditor.supply().TR;      // the town's own opening capital, and the two arrivals
+  let now = createHost({ saved: old });
+  // loaded, saved and loaded again, three times over: the numbers never move, so nothing can be applied twice
+  for (let k = 0; k < 3; k += 1) {
+    assert.equal(now.game.view(id).self.balance, ARRIVAL_FUNDS);
+    assert.equal(trText(now.game.view(id).self.balance), '2,000 TR');
+    assert.equal(now.auditor.supply().TR, supply0, 'not a unit more or less in the world');
+    assert.equal(now.auditor.supply().CWR, undefined, 'there is one currency, not two');
+    assert.deepEqual(now.auditor.reconcile(), []);
+    const saved = JSON.parse(JSON.stringify(now.save()));
+    assert.deepEqual(saved.ledger.accounts.map((a) => [a.id, a.balance]), before);
+    assert.ok(saved.ledger.accounts.every((a) => a.asset !== 'CWR'));
+    now = createHost({ saved });
+  }
+  // and the money still works: a new arrival after the rename is given the same 2,000 TR into the same ledger
+  const late = now.game.join({ name: 'Chidi After', look: {} });
+  assert.equal(now.game.view(late).self.balance, ARRIVAL_FUNDS);
+  assert.equal(now.game.view(other).self.balance, ARRIVAL_FUNDS);
+  assert.deepEqual(now.auditor.reconcile(), []);
+});
+
+test('arrival: every newcomer is given 2,000 TR once, by one issuance on the ledger, and never again', () => {
+  const host = createHost();
+  const supply0 = host.auditor.supply().TR, count0 = host.auditor.transactionCount();
   const id = host.game.join({ name: 'Ada Newcomer', look: {} });
   assert.equal(ARRIVAL_FUNDS, 4000);
-  assert.equal(cowrieText(ARRIVAL_FUNDS), '40 cowries');
+  assert.equal(trText(ARRIVAL_FUNDS), '2,000 TR');
   assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS);
-  assert.equal(host.auditor.supply().CWR - supply0, ARRIVAL_FUNDS, 'issued, not taken from anyone');
+  assert.equal(host.auditor.supply().TR - supply0, ARRIVAL_FUNDS, 'issued, not taken from anyone');
   assert.equal(host.auditor.transactionCount(), count0 + 1);
   const arrivals = () => host.auditor.transactions().filter((t) => t.key.startsWith('arrival:'));
   const [grant] = arrivals();
@@ -137,14 +173,14 @@ test('arrival: every newcomer is given 40 cowries once, by one issuance on the l
   assert.equal(grant.entries.length, 2);
   assert.equal(grant.entries.find((e) => e.amount > 0).account, host.game.state.players[id].wallet);
   assert.equal(grant.entries.find((e) => e.amount > 0).amount, ARRIVAL_FUNDS);
-  assert.match(grant.reason, /40 cowries/);
+  assert.match(grant.reason, /2,000 TR/);
   const history = ok(host.game.intent(id, { type: 'wallet.history' })).rows;
   assert.deepEqual(history.map((r) => [r.kind, r.amount]), [['issuance', ARRIVAL_FUNDS]]);
   assert.equal(host.game.view(id).journal.find((j) => j.id === 'funds').done, false, 'the arrival money is not a first earning');
   // a second newcomer: a grant of their own
   const id2 = host.game.join({ name: 'Bayo Newcomer', look: {} });
   assert.equal(host.game.view(id2).self.balance, ARRIVAL_FUNDS);
-  assert.equal(host.auditor.supply().CWR - supply0, 2 * ARRIVAL_FUNDS);
+  assert.equal(host.auditor.supply().TR - supply0, 2 * ARRIVAL_FUNDS);
   // saved and loaded again, twice: nobody is given it a second time
   let again = host;
   for (let k = 0; k < 2; k += 1) {
@@ -152,7 +188,7 @@ test('arrival: every newcomer is given 40 cowries once, by one issuance on the l
     again.tick(1);
     assert.equal(again.game.view(id).self.balance, ARRIVAL_FUNDS);
     assert.equal(again.game.view(id2).self.balance, ARRIVAL_FUNDS);
-    assert.equal(again.auditor.supply().CWR - supply0, 2 * ARRIVAL_FUNDS);
+    assert.equal(again.auditor.supply().TR - supply0, 2 * ARRIVAL_FUNDS);
     assert.equal(again.auditor.transactions().filter((t) => t.key.startsWith('arrival:')).length, 2);
   }
   // a newcomer after the reload is a new character with a new key, and gets their own
@@ -185,14 +221,14 @@ test('settlement: conversion uses a quote, moves both sides at once, and a quote
   const { host, id } = newWorld();
   ok(host.portal(id, 'faucet', { sats: 100_000 }));
   for (let i = 0; i < 3; i += 1) host.settlementOps.mineBlock();
-  const supplyBefore = host.auditor.supply().CWR;
+  const supplyBefore = host.auditor.supply().TR;
   const quote = ok(host.portal(id, 'quote', { sats: 60_000 })).data;
   assert.equal(quote.cowries, 30_000);
   const done = ok(host.portal(id, 'convert', { quoteId: quote.id })).data;
   assert.equal(done.cowries, 30_000);
   assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS + 30_000);
   assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 40_000);
-  assert.equal(host.auditor.supply().CWR - supplyBefore, 30_000);
+  assert.equal(host.auditor.supply().TR - supplyBefore, 30_000);
   refused(host.portal(id, 'convert', { quoteId: quote.id }), 'QUOTE_USED');
   const tooMuch = ok(host.portal(id, 'quote', { sats: 50_000 })).data;
   refused(host.portal(id, 'convert', { quoteId: tooMuch.id }), 'INSUFFICIENT_BTC');
@@ -239,7 +275,7 @@ test('settlement: a large withdrawal waits for a named reviewer, and a rejection
   clean(host);
 });
 
-test('settlement: cowries are not redeemable unless the settlement layer authorises it', () => {
+test('settlement: TR is not redeemable unless the settlement layer authorises it', () => {
   const { host, id } = newWorld();
   fund(host, id, 100_000);
   refused(host.portal(id, 'redeem', { cowries: 10_000 }), 'REDEMPTION_DISABLED');
@@ -254,19 +290,19 @@ test('settlement: cowries are not redeemable unless the settlement layer authori
   settlement.convert('p1', settlement.quote('p1', 100_000).id);
   const wallet = ledger.gameplay.findAccount('player', 'p1', 'wallet');
   const request = settlement.requestRedemption('p1', 20_000);
-  assert.equal(ledger.gameplay.balance(wallet), 30_000, 'the cowries are held while the request is pending');
+  assert.equal(ledger.gameplay.balance(wallet), 30_000, 'the TR is held while the request is pending');
   assert.equal(settlement.summary('p1').btcSats, 0, 'no bitcoin moves before authorisation');
   assert.throws(() => settlement.decideRedemption(request.id, 'authorise', ''), (e) => e.code === 'NO_REVIEWER');
   settlement.decideRedemption(request.id, 'authorise', 'ops:settlement-officer');
   assert.equal(settlement.summary('p1').btcSats, 40_000);
-  assert.equal(ledger.auditor.supply().CWR, 30_000, 'redeemed cowries leave circulation');
+  assert.equal(ledger.auditor.supply().TR, 30_000, 'redeemed TR leaves circulation');
   const second = settlement.requestRedemption('p1', 10_000);
   settlement.decideRedemption(second.id, 'decline', 'ops:settlement-officer');
-  assert.equal(ledger.gameplay.balance(wallet), 30_000, 'a declined request returns the cowries');
+  assert.equal(ledger.gameplay.balance(wallet), 30_000, 'a declined request returns the TR');
   assert.throws(() => settlement.decideRedemption(second.id, 'authorise', 'ops:settlement-officer'), (e) => e.code === 'ALREADY_DECIDED');
   assert.deepEqual(ledger.auditor.reconcile(), []);
   assert.ok(settlement.proofOfReserves().matches);
-  // only what came in from bitcoin can go back out: game-issued cowries (like the arrival money) cannot
+  // only what came in from bitcoin can go back out: game-issued TR (like the arrival money) cannot
   ledger.monetary.post({ key: 'arrival:p1', kind: 'issuance', initiator: 'ops:monetary', reason: 'Arrival money', legs: [{ account: ledger.system.issuance, amount: -4000 }, { account: wallet, amount: 4000 }] });
   assert.throws(() => settlement.requestRedemption('p1', 30_001), (e) => e.code === 'NOT_REDEEMABLE');
   assert.equal(ledger.gameplay.balance(wallet), 34_000, 'a refused request holds nothing');
@@ -497,7 +533,7 @@ test('labour for hire: the mason walks to the site, does one stage, and is paid 
 
 test('a living town: residents commute, are paid, eat and pay the levy; money and goods stay conserved', () => {
   const { host, id } = newWorld();
-  const supply = host.auditor.supply().CWR;
+  const supply = host.auditor.supply().TR;
   const seenWalking = new Set();
   for (let i = 0; i < 2 * 86400 / 30; i += 1) {
     host.tick(1);
@@ -506,7 +542,7 @@ test('a living town: residents commute, are paid, eat and pay the levy; money an
   assert.equal(host.game.view(id).clock.day, 3);
   assert.ok(seenWalking.size >= 14, `${seenWalking.size} residents were seen walking`);
   assert.ok(host.auditor.transactionCount() > 150);
-  assert.ok(host.auditor.supply().CWR <= supply, 'nothing is issued by daily life; imports retire currency');
+  assert.ok(host.auditor.supply().TR <= supply, 'nothing is issued by daily life; imports retire currency');
   assert.equal(host.game.audit().missedPayments, 0);
   clean(host);
 });
@@ -614,13 +650,13 @@ test('vehicles: buying one pays the dealer and the State, registers it, and reti
   const k = VEHICLE_KINDS.keke;
   const state = host.game.internals.economy.accounts.government('NG-AN');
   const stateBefore = balanceOf(host, state);
-  const supplyBefore = host.auditor.supply().CWR;
+  const supplyBefore = host.auditor.supply().TR;
   const mineBefore = host.game.view(id).self.balance;
   const bought = ok(host.game.intent(id, { type: 'vehicle.buy' }));
   assert.equal(bought.total, k.price + k.registration);
   assert.equal(mineBefore - host.game.view(id).self.balance, k.price + k.registration);
   assert.equal(balanceOf(host, state) - stateBefore, k.registration);
-  assert.equal(supplyBefore - host.auditor.supply().CWR, Math.round(k.price * k.importShare), 'the maker is outside the world: that money is retired');
+  assert.equal(supplyBefore - host.auditor.supply().TR, Math.round(k.price * k.importShare), 'the maker is outside the world: that money is retired');
   assert.match(bought.vehicle.plate, /^OGB 003 AN$/);
   assert.equal(bought.vehicle.owned, true);
   assert.deepEqual(host.game.audit().vehicles, { count: 3, expected: 3 });

@@ -58,7 +58,7 @@ export const howLong = (seconds) => (seconds < 60 ? `${Math.max(5, Math.round(se
 
 // kit: the pieces the rest of the interface is made of, and the screens that already existed
 export function createPhone(kit) {
-  const { app, h, open, redraw, line, section, money, cw, cowries, when, refused, legacy, lawBlock, log, live } = kit;
+  const { app, h, open, redraw, line, section, money, amt, tr, trPlain, trIn, when, refused, legacy, lawBlock, log, live } = kit;
   let screen = 'home';
   let sub = {};                  // where in an app the player is: the contact, the thread, the place chosen
   let said = null;               // the last thing someone said on a call
@@ -144,11 +144,11 @@ export function createPhone(kit) {
   // Someone has asked the player to come and pay a fine: where, how far, how long.
   function requestCard(r) {
     return h('div', { class: 'banner' },
-      h('strong', null, `${r.from} asks you to pay a fine`), h('div', null, `${cowries(r.amount)} at the ${r.station.name} (${r.no}).`),
+      h('strong', null, `${r.from} asks you to pay a fine`), h('div', null, `${tr(r.amount)} at the ${r.station.name} (${r.no}).`),
       h('div', { class: 'eyebrow' }, r.near ? 'You are there' : `${money(r.metres)} m · about ${howLong(r.walkSeconds)} on foot`),
       h('div', { class: 'actions', style: 'margin-top:8px' },
         h('button', { class: 'btn', type: 'button', onclick: () => { app.setWaypoint({ ...r.station, label: r.station.name }); go('map', { place: { ...r.station, label: r.station.name } }); } }, 'Show the way'),
-        h('button', { class: 'btn primary', type: 'button', disabled: !r.near || !r.ready || !r.canPay, onclick: () => flashMessage(send({ type: 'bail.pay', arrestId: r.arrest, requestId: app.requestId('bail') }), `Paid. ${r.from} is free to go.`) }, r.near ? (r.ready ? (r.canPay ? `Pay ${cowries(r.amount)}` : 'Not enough cowries') : 'Not brought in yet') : 'Pay at the Police Post')));
+        h('button', { class: 'btn primary', type: 'button', disabled: !r.near || !r.ready || !r.canPay, onclick: () => flashMessage(send({ type: 'bail.pay', arrestId: r.arrest, requestId: app.requestId('bail') }), `Paid. ${r.from} is free to go.`) }, r.near ? (r.ready ? (r.canPay ? `Pay ${tr(r.amount)}` : 'Not enough cowries') : 'Not brought in yet') : 'Pay at the Police Post')));
   }
 
   // --- contacts ---------------------------------------------------------------------
@@ -167,7 +167,7 @@ export function createPhone(kit) {
       if (!list.length && (kind === 'emergency' || kind === 'business')) continue;
       root.append(section(title));
       if (!list.length) { root.append(h('p', { class: 'small' }, kind === 'person' ? 'Anyone in town you speak to is added here.' : kind === 'family' ? 'Nobody yet. A friend can be marked as family.' : 'Nobody yet. Stand next to another player to take their number.')); continue; }
-      root.append(h('div', { class: 'rows' }, list.map((c) => h('button', { class: 'contact', type: 'button', onclick: () => { sub = { contact: c.key }; said = null; redraw(); } }, face(c), h('span', null, c.name, h('small', null, c.owed ? `You owe ${cowries(c.owed)}` : c.note)), h('span', { class: 'chev', 'aria-hidden': 'true' })))));
+      root.append(h('div', { class: 'rows' }, list.map((c) => h('button', { class: 'contact', type: 'button', onclick: () => { sub = { contact: c.key }; said = null; redraw(); } }, face(c), h('span', null, c.name, h('small', null, c.owed ? `You owe ${tr(c.owed)}` : c.note)), h('span', { class: 'chev', 'aria-hidden': 'true' })))));
     }
     // another player standing close enough to swap numbers with
     const close = view.players.filter((q) => !q.visitor && Math.hypot(q.x - view.self.x, q.z - view.self.z) <= 6 && !r.contacts.some((c) => c.player === q.id));
@@ -191,11 +191,11 @@ export function createPhone(kit) {
     } else if (c.key === 'svc:hospital') {
       const info = send({ type: 'care.ambulance.info' });
       if (info.ok) {
-        root.append(line('Your health', `${view.self.health}%`), line('Ambulance call-out', info.free ? 'Free: your health is critical' : cowries(info.fee)), line('Your balance', cowries(info.balance)));
-        if (!info.free && info.needed) root.append(line('Balance after', cowries(info.balance - info.fee), info.balance < info.fee ? 'neg' : ''));
+        root.append(line('Your health', `${view.self.health}%`), line('Ambulance call-out', info.free ? 'Free: your health is critical' : tr(info.fee)), line('Your balance', tr(info.balance)));
+        if (!info.free && info.needed) root.append(line('Balance after', tr(info.balance - info.fee), info.balance < info.fee ? 'neg' : ''));
         const riding = view.self.ambulance;
         buttons.push(h('button', { class: 'btn primary', type: 'button', disabled: !!riding || !info.needed || !info.available || (!info.free && info.balance < info.fee), onclick: () => call('ambulance') },
-          riding ? 'The ambulance is coming' : !info.needed ? 'You are well enough to walk' : !info.available ? 'The ambulance is out' : info.free ? 'Call the ambulance' : `Call the ambulance: ${cowries(info.fee)}`));
+          riding ? 'The ambulance is coming' : !info.needed ? 'You are well enough to walk' : !info.available ? 'The ambulance is out' : info.free ? 'Call the ambulance' : `Call the ambulance: ${tr(info.fee)}`));
       }
       buttons.push(h('button', { class: 'btn quiet', type: 'button', onclick: () => { const s = zoneService('hospital'); go('map', { place: { x: s.x, z: s.z, label: s.name } }); } }, 'Show the way'));
     } else if (c.kind === 'business') {
@@ -204,11 +204,11 @@ export function createPhone(kit) {
     } else if (c.kind === 'person') {
       buttons.push(h('button', { class: 'btn primary', type: 'button', disabled: !allowed, onclick: () => call(null) }, 'Call'));
       if (held) buttons.push(h('button', { class: 'btn', type: 'button', disabled: !allowed || !!view.self.phone.surety, onclick: () => { const out = send({ type: 'phone.askSurety', key: c.key }); said = out.ok ? out.said : null; flashMessage(out, out.ok && out.agreed ? 'They are on their way to the Police Post.' : null); } }, view.self.phone.surety ? 'Help is on the way' : 'Ask them to pay my fine'));
-      for (const d of book.debts.filter((x) => x.resident === c.resident)) buttons.push(h('button', { class: 'btn', type: 'button', disabled: view.self.balance < 1, onclick: () => flashMessage(send({ type: 'phone.repay', debtId: d.id, requestId: app.requestId('repay') }), (x) => (x.left ? `Paid ${cowries(x.paid)}. You still owe ${cowries(x.left)}.` : 'Paid in full. Thank you, they say.')) }, `Repay ${cowries(Math.min(d.left, view.self.balance))}`));
+      for (const d of book.debts.filter((x) => x.resident === c.resident)) buttons.push(h('button', { class: 'btn', type: 'button', disabled: view.self.balance < 1, onclick: () => flashMessage(send({ type: 'phone.repay', debtId: d.id, requestId: app.requestId('repay') }), (x) => (x.left ? `Paid ${tr(x.paid)}. You still owe ${tr(x.left)}.` : 'Paid in full. Thank you, they say.')) }, `Repay ${tr(Math.min(d.left, view.self.balance))}`));
     } else {
       buttons.push(h('button', { class: 'btn primary', type: 'button', disabled: !allowed, onclick: () => call(null) }, 'Call'));
       buttons.push(h('button', { class: 'btn', type: 'button', disabled: !allowed, onclick: () => go('messages', { thread: c.key }) }, 'Message'));
-      if (held) buttons.push(h('button', { class: 'btn', type: 'button', disabled: !allowed, onclick: () => flashMessage(send({ type: 'phone.askBail', key: c.key }), (x) => `Asked ${x.asked} to come and pay ${cowries(x.amount)}.`) }, 'Ask them to pay my fine'));
+      if (held) buttons.push(h('button', { class: 'btn', type: 'button', disabled: !allowed, onclick: () => flashMessage(send({ type: 'phone.askBail', key: c.key }), (x) => `Asked ${x.asked} to come and pay ${tr(x.amount)}.`) }, 'Ask them to pay my fine'));
       buttons.push(h('button', { class: 'btn quiet', type: 'button', onclick: () => flashMessage(send({ type: 'contacts.tag', key: c.key, tag: c.kind === 'family' ? 'friend' : 'family' })) }, c.kind === 'family' ? 'Mark as a friend' : 'Mark as family'));
       buttons.push(h('button', { class: 'btn quiet', type: 'button', onclick: () => { const out = send({ type: 'contacts.remove', key: c.key }); sub = {}; flashMessage(out); } }, 'Remove'));
     }
@@ -299,7 +299,7 @@ export function createPhone(kit) {
       root.append(h('div', { class: 'contact', style: 'cursor:default;grid-template-columns:1fr auto' },
         h('span', null, h('strong', null, s.name), h('small', null, `${t.kind === 'government' ? 'Government: fixed prices' : 'Private: the owner\'s prices, open to bargaining'} · ${open ? 'open now' : 'closed now'}`),
           h('small', null, way.ok ? `${money(way.metres)} m · about ${howLong(way.walkSeconds)} on foot` : ''),
-          h('small', null, `From ${HEALTH.critical}%: ${t.example.map((e) => `to ${e.to}% ${cw(e.fee)}`).join(' · ')}`)),
+          h('small', null, `From ${HEALTH.critical}%: ${t.example.map((e) => `to ${e.to}% ${amt(e.fee)}`).join(' · ')}`)),
         h('button', { class: 'btn', type: 'button', onclick: () => { app.setWaypoint({ x: s.x, z: s.z, label: s.name }); go('map', { place: { x: s.x, z: s.z, label: s.name } }); } }, 'Way')));
     }
     root.append(section('Other ways to get there'));
@@ -321,8 +321,8 @@ export function createPhone(kit) {
     }
     if (law.owed > 0) {
       root.append(section('Owed to people you wronged'));
-      root.append(line('Still to pay back', cowries(law.owed), 'neg'));
-      root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', disabled: view.self.balance < 1 || !!law.arrest, onclick: () => flashMessage(send({ type: 'police.settle', requestId: app.requestId('settle') }), (x) => `Paid back ${cowries(x.paid)}.`) }, 'Pay it back now')));
+      root.append(line('Still to pay back', tr(law.owed), 'neg'));
+      root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', disabled: view.self.balance < 1 || !!law.arrest, onclick: () => flashMessage(send({ type: 'police.settle', requestId: app.requestId('settle') }), (x) => `Paid back ${tr(x.paid)}.`) }, 'Pay it back now')));
     }
     if (law.seen.length) {
       root.append(section('What you saw'));
@@ -332,12 +332,12 @@ export function createPhone(kit) {
     else root.append(section('Special constables'), h('p', { class: 'small' }, 'Someone with a clean record can be sworn in at the Police Post. A constable may arrest a wanted player and set the fine within the limits; the fine is the constable\'s, less one in a hundred to the government.'));
     if (r.record.arrests.length) {
       root.append(section('Your record'));
-      root.append(h('div', { class: 'rows' }, r.record.arrests.map((a) => line(`${a.no}: ${a.offences.map((o) => o.name.toLowerCase()).join(', ')}`, a.payment.status === 'paid' ? `${cw(a.fine.amount)} paid` : a.payment.status === 'served' ? 'time served' : a.status))));
+      root.append(h('div', { class: 'rows' }, r.record.arrests.map((a) => line(`${a.no}: ${a.offences.map((o) => o.name.toLowerCase()).join(', ')}`, a.payment.status === 'paid' ? `${amt(a.fine.amount)} paid` : a.payment.status === 'served' ? 'time served' : a.status))));
     }
     root.append(section('The scale of fines'));
-    root.append(h('div', { class: 'rows' }, Object.values(r.scale).map((o) => line(o.name, `${cw(o.fine)} or ${o.hours} h`))));
+    root.append(h('div', { class: 'rows' }, Object.values(r.scale).map((o) => line(o.name, `${amt(o.fine)} or ${o.hours} h`))));
     root.append(section('Where fines have gone'));
-    root.append(line('Fines paid, in all', cowries(r.treasury.fines)), line('To the government', cowries(r.treasury.toGovernment)), line('To constables', cowries(r.treasury.toConstables)), line('Returned to victims', cowries(r.treasury.restitution)));
+    root.append(line('Fines paid, in all', tr(r.treasury.fines)), line('To the government', tr(r.treasury.toGovernment)), line('To constables', tr(r.treasury.toConstables)), line('Returned to victims', tr(r.treasury.restitution)));
   }
 
   function constable(root, view, role) {
@@ -347,18 +347,18 @@ export function createPhone(kit) {
       if (!w.wanted.length) root.append(h('p', { class: 'small' }, 'Nobody is wanted just now. There are no other players in this town to arrest: each copy of this page is its own town for the present.'));
       for (const q of w.wanted) {
         root.append(h('div', { class: 'contact', style: 'cursor:default;grid-template-columns:1fr auto' },
-          h('span', null, h('strong', null, q.name), h('small', null, `${q.offences.join(', ')} · scale fine ${cw(q.fine)}`), h('small', null, `${money(q.metres)} m from you`)),
+          h('span', null, h('strong', null, q.name), h('small', null, `${q.offences.join(', ')} · scale fine ${amt(q.fine)}`), h('small', null, `${money(q.metres)} m from you`)),
           h('button', { class: 'btn primary', type: 'button', disabled: q.metres > 2.2, onclick: () => flashMessage(send({ type: 'police.arrest', playerId: q.id }), `${q.name} is under arrest. Set the fine, then walk them to the Police Post.`) }, q.metres > 2.2 ? 'Get within reach' : 'Arrest')));
       }
     }
     for (const a of role.prisoners) {
       root.append(section(`Your prisoner: ${a.culprit}`));
-      root.append(line('Arrest', a.no), line('For', a.offences.map((o) => o.name.toLowerCase()).join(', ')), line('Fine', a.fine.confirmed ? cowries(a.fine.amount) : `not set: ${cw(a.fine.least)} to ${cw(a.fine.most)}`));
+      root.append(line('Arrest', a.no), line('For', a.offences.map((o) => o.name.toLowerCase()).join(', ')), line('Fine', a.fine.confirmed ? tr(a.fine.amount) : `not set: ${amt(a.fine.least)} to ${amt(a.fine.most)}`));
       if (!a.fine.confirmed) {
         if (sub.fine === undefined || sub.fineFor !== a.id) { sub.fine = a.fine.scale; sub.fineFor = a.id; }
-        // typed in cowries (0.10 to 1, or to 10 where someone died); sent in the ledger's hundredths
-        const input = h('input', { class: 'field mono', type: 'number', min: cw(a.fine.least), max: cw(a.fine.most), step: '0.05', value: cw(sub.fine), 'aria-label': 'Fine in cowries', oninput: (e) => { const v = Math.round(Number(e.target.value) * 100); if (Number.isFinite(v)) sub.fine = v; } });
-        root.append(h('div', { class: 'qty' }, h('span', { class: 'small' }, 'Once set it cannot be changed, by you or anyone.'), input, h('button', { class: 'btn primary', type: 'button', onclick: () => flashMessage(send({ type: 'police.fine', arrestId: a.id, amount: sub.fine }), (x) => `Fine set at ${cowries(x.arrest.fine.amount)}.`) }, 'Set')));
+        // typed in TR (5 to 10, or to 100 where someone died); sent in ledger units
+        const input = h('input', { class: 'field mono', type: 'number', inputmode: 'decimal', min: trPlain(a.fine.least), max: trPlain(a.fine.most), step: '0.5', value: trPlain(sub.fine), 'aria-label': 'Fine in TR', oninput: (e) => { const v = trIn(e.target.value); if (v !== null) sub.fine = v; } });
+        root.append(h('div', { class: 'qty' }, h('span', { class: 'small' }, 'Once set it cannot be changed, by you or anyone.'), input, h('button', { class: 'btn primary', type: 'button', onclick: () => flashMessage(send({ type: 'police.fine', arrestId: a.id, amount: sub.fine }), (x) => `Fine set at ${tr(x.arrest.fine.amount)}.`) }, 'Set')));
       }
       const post = a.station;
       const atPost = Math.hypot(view.self.x - post.x, view.self.z - post.z) <= 7;
@@ -392,11 +392,11 @@ export function createPhone(kit) {
     const hasKeke = view.vehicles.some((v) => v.yours);
     const open = (svc) => view.clock.hour >= svc.opens && view.clock.hour < svc.closes;
     const list = [
-      { id: 'mould', title: 'Block moulder', where: yard.name, pay: `${cowries(BUSINESSES.yard.wagePerBlock)} a block`, hours: `${yard.opens}:00 to ${yard.closes}:00`, open: open(yard),
+      { id: 'mould', title: 'Block moulder', where: yard.name, pay: `${tr(BUSINESSES.yard.wagePerBlock)} a block`, hours: `${yard.opens}:00 to ${yard.closes}:00`, open: open(yard),
         how: 'Stand at a free mould in the yard and hold E for each block. Paid as each one is made.', at: { x: mould.standX, z: mould.standZ, label: `Job: block moulder, ${yard.name}` } },
       { id: 'runs', title: 'Keke delivery runs', where: park.name, pay: 'Paid on delivery', hours: 'From 6:30 through the day', open: true,
         how: hasKeke ? 'Take a run below; the radar then shows where to collect and where to deliver.' : 'You need a keke: hire one by the day at the motor park first.', at: hasKeke ? null : { x: park.x, z: park.z, label: `Job: hire a keke, ${park.name}` } },
-      { id: 'school', title: 'Learn blocklaying (course)', where: school.name, pay: `Costs ${cowries(BUSINESSES.school.fee)}`, hours: `${school.opens}:00 to ${school.closes}:00`, open: open(school),
+      { id: 'school', title: 'Learn blocklaying (course)', where: school.name, pay: `Costs ${tr(BUSINESSES.school.fee)}`, hours: `${school.opens}:00 to ${school.closes}:00`, open: open(school),
         how: 'A certificate lets you lay blocks on your own plot.', at: { x: school.x, z: school.z, label: `Course: blocklaying, ${school.name}` } },
     ];
     root.append(section('Jobs open now'));
@@ -417,7 +417,7 @@ export function createPhone(kit) {
   function notices(root) {
     const rows = log();
     if (!rows.length) { root.append(h('p', null, 'Nothing yet. Receipts, notices from government and the police, and calls are kept here.')); return; }
-    root.append(h('div', { class: 'rows' }, rows.slice().reverse().map((e) => h('div', { class: 'line' }, h('span', null, h('strong', null, e.title || { receipt: 'Receipt', gov: 'Government', police: 'Police', note: 'Note' }[e.type] || 'Note'), h('div', { class: 'small' }, e.text), h('div', { class: 'eyebrow mono' }, `${when(e.at)}${e.txn ? ` · ${e.txn}` : ''}`)), h('span', { class: e.amount > 0 ? 'pos' : e.amount < 0 ? 'neg' : '' }, e.amount ? `${e.amount > 0 ? '+' : '−'}${cw(Math.abs(e.amount))}` : '')))));
+    root.append(h('div', { class: 'rows' }, rows.slice().reverse().map((e) => h('div', { class: 'line' }, h('span', null, h('strong', null, e.title || { receipt: 'Receipt', gov: 'Government', police: 'Police', note: 'Note' }[e.type] || 'Note'), h('div', { class: 'small' }, e.text), h('div', { class: 'eyebrow mono' }, `${when(e.at)}${e.txn ? ` · ${e.txn}` : ''}`)), h('span', { class: e.amount > 0 ? 'pos' : e.amount < 0 ? 'neg' : '' }, e.amount ? `${e.amount > 0 ? '+' : '−'}${amt(Math.abs(e.amount))}` : '')))));
   }
 
   function settings(root) { legacy.settings(root, Object.values(CAMERA_VIEW).map((v) => v.name)); }

@@ -47,7 +47,7 @@ import { buildCatalog } from './skill-catalog.js';
 import { createFitter } from './fit.js';
 import { QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
-import { cowrieText, cowrieAmount, POUNDS_PER_COWRIE, COWRIE } from '../sim/ledger.js';
+import { trText, trAmount, TR } from '../sim/ledger.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -708,7 +708,7 @@ function start(carried) {
     const near = (spot) => Math.hypot(predicted.x - spot.x, predicted.z - spot.z) <= RUN_RULES.reach;
     if (Math.abs(car.speed) > 1.5) return null;
     if (run && run.state === 'accepted' && near(run.from)) return { short: 'Load', text: `Load: ${lowerFirst(run.what)}`, run: () => say(server.send({ type: 'run.load' }), `Loaded. Take it to ${run.to.label}.`) };
-    if (run && run.state === 'loaded' && near(run.to)) return { short: 'Deliver', text: `Deliver to ${run.to.label}: ${cowrieText(run.fee)}`, run: () => say(server.send({ type: 'run.deliver' })) };
+    if (run && run.state === 'loaded' && near(run.to)) return { short: 'Deliver', text: `Deliver to ${run.to.label}: ${trText(run.fee)}`, run: () => say(server.send({ type: 'run.deliver' })) };
     if (v.load > 0) {
       for (const id of view.self.owned) {
         const p = ZONE_PARCELS.find((parcel) => parcel.id === id);
@@ -761,7 +761,7 @@ function start(carried) {
     }
     for (const station of ZONE_MOULD_STATIONS) {
       if (station.reservedFor) continue;
-      add(station.standX, station.standZ, 1.7, { bias: 1, hold: true, short: 'Mould', text: `Hold to mould a block: ${cowrieText(BUSINESSES.yard.wagePerBlock)} each`, intent: { type: 'job.mould', stationId: station.id } });
+      add(station.standX, station.standZ, 1.7, { bias: 1, hold: true, short: 'Mould', text: `Hold to mould a block: ${trText(BUSINESSES.yard.wagePerBlock)} each`, intent: { type: 'job.mould', stationId: station.id } });
     }
     for (const site of view.sites) {
       if (!view.self.owned.includes(site.parcelId) || !site.design) continue;

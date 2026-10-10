@@ -24,27 +24,27 @@
 
 import { ZONE, ZONE_SPOTS, zoneService, zoneWalkable } from './zone.js';
 import { GameError } from './registry.js';
-import { LedgerError, fineShares, cowrieText } from './ledger.js';
+import { LedgerError, fineShares, trText, TR } from './ledger.js';
 import { POSE } from './population.js';
 import { PACE, clearLine } from './actors.js';
 
 export const LAW = Object.freeze({
-  // Fines are in hundredths of a cowrie (src/sim/ledger.js). The owner's rule (8 October 2026): taken by the
-  // town's police, a culprit pays about half a cowrie whatever they did; a player constable may set up to one
-  // cowrie; where someone died, up to ten.
+  // Fines are in ledger units, two to a TR (src/sim/ledger.js). The owner's rule (10 October 2026): the police
+  // charge 10 TR for a crime, whatever it was, and 100 TR where someone was killed. A player constable sets the
+  // fine once, from half the charge up to the charge and never above it.
   offences: Object.freeze({
-    assault: Object.freeze({ name: 'Assault', severity: 2, fine: 50, hours: 2 }),
-    assault_serious: Object.freeze({ name: 'Assault causing harm', severity: 3, fine: 50, hours: 4 }),
-    theft: Object.freeze({ name: 'Stealing', severity: 2, fine: 50, hours: 3 }),
-    vehicle_theft: Object.freeze({ name: 'Taking a vehicle', severity: 3, fine: 50, hours: 5 }),
-    resisting: Object.freeze({ name: 'Resisting arrest', severity: 1, fine: 50, hours: 1 }),
-    dangerous_driving: Object.freeze({ name: 'Dangerous driving causing harm', severity: 3, fine: 50, hours: 4 }),
-    death_by_driving: Object.freeze({ name: 'Causing death by dangerous driving', severity: 4, fine: 1000, hours: 8, death: true }),
+    assault: Object.freeze({ name: 'Assault', severity: 2, fine: 10 * TR, hours: 2 }),
+    assault_serious: Object.freeze({ name: 'Assault causing harm', severity: 3, fine: 10 * TR, hours: 4 }),
+    theft: Object.freeze({ name: 'Stealing', severity: 2, fine: 10 * TR, hours: 3 }),
+    vehicle_theft: Object.freeze({ name: 'Taking a vehicle', severity: 3, fine: 10 * TR, hours: 5 }),
+    resisting: Object.freeze({ name: 'Resisting arrest', severity: 1, fine: 10 * TR, hours: 1 }),
+    dangerous_driving: Object.freeze({ name: 'Dangerous driving causing harm', severity: 3, fine: 10 * TR, hours: 4 }),
+    death_by_driving: Object.freeze({ name: 'Causing death by dangerous driving', severity: 4, fine: 100 * TR, hours: 8, death: true }),
   }),
-  compensation: 300,               // paid to a player who was put in hospital, out of the culprit's pocket (3 cowries)
+  compensation: 300,               // paid to a player who was put in hospital, out of the culprit's pocket (150 TR)
   mostHours: 8,
-  // what a player constable may set: from a tenth of a cowrie to one cowrie, or to ten where someone died
-  constableFine: Object.freeze({ least: 10, most: 100, mostWithDeath: 1000 }),
+  // what a player constable may set: from 5 TR to the charge of 10 TR, or to 100 TR where someone was killed
+  constableFine: Object.freeze({ least: 5 * TR, most: 10 * TR, mostWithDeath: 100 * TR }),
   witness: Object.freeze({ range: 30, chance: Object.freeze([0, 0.5, 0.7, 0.9, 0.95]), unseen: 0.15, stealth: 0.45, most: 8 }),
   report: Object.freeze([3, 8]),       // real seconds for word of a crime that was seen to reach the police
   discover: Object.freeze([40, 100]),  // real seconds before someone who noticed nothing finds their money gone
@@ -276,7 +276,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     const crime = offence(p, 'theft', { victim, x: at.x, z: at.z, amount, stealth: true, noticed: false, txn: txn.id });
     book.totals.stolen += amount;
     // a player is told at once that the money is gone: nobody loses money without knowing it
-    if (victim.kind === 'player') emit(victim.id, { type: 'alert', title: 'Your pocket has been picked', text: `${cowrieText(amount)} are gone. You did not see who took them. You can report it to the police from your phone.`, amount: -amount, txn: txn.id, crime: crime.id });
+    if (victim.kind === 'player') emit(victim.id, { type: 'alert', title: 'Your pocket has been picked', text: `${trText(amount)} are gone. You did not see who took them. You can report it to the police from your phone.`, amount: -amount, txn: txn.id, crime: crime.id });
     return { taken: amount, noticed: known(book.crimes[crime.id]), crime: crime.id, txn: txn.id };
   }
 
@@ -419,7 +419,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
 
   // --- arrest ----------------------------------------------------------------------------
 
-  // the police's fine: the heaviest of the offences, not their sum (half a cowrie, or ten where someone died)
+  // the police's charge: the heaviest of the offences, not their sum (10 TR, or 100 TR where someone was killed)
   const fineFor = (crimes) => Math.max(...crimes.map((c) => LAW.offences[c.type].fine));
   const deathIn = (crimes) => crimes.some((c) => LAW.offences[c.type].death);
   const hoursFor = (crimes) => Math.min(LAW.mostHours, crimes.reduce((sum, c) => sum + LAW.offences[c.type].hours, 0));
@@ -439,7 +439,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
         out.paid = pay; out.txn = txn.id;
         if (out.kind === 'returned') crime.recovered += pay; else crime.compensated = true;
         book.totals.restitution += pay;
-        if (crime.victim.kind === 'player') emit(crime.victim.id, { type: 'receipt', title: out.kind === 'returned' ? 'Stolen money returned' : 'Compensation', text: `The police have ${out.kind === 'returned' ? 'recovered' : 'collected'} ${cowrieText(pay)} for you from ${p.name}.`, txn: txn.id, amount: pay });
+        if (crime.victim.kind === 'player') emit(crime.victim.id, { type: 'receipt', title: out.kind === 'returned' ? 'Stolen money returned' : 'Compensation', text: `The police have ${out.kind === 'returned' ? 'recovered' : 'collected'} ${trText(pay)} for you from ${p.name}.`, txn: txn.id, amount: pay });
       }
       if (out.due > out.paid) book.owed[p.id] = (book.owed[p.id] || 0) + (out.due - out.paid);
       arrest.restitution.push(out);
@@ -482,7 +482,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     for (const o of Object.values(book.officers)) if (o.suspect === p.id) { if (officer.kind === 'npc' && o.i === officer.id) { o.duty = 'escort'; o.arrest = record.id; actors.hold(o.i, 'Handcuffing a prisoner'); } else dutyOver(o.i); }
     if (officer.kind === 'npc') officerSays(officer.id, 'You are under arrest. Come with me.');
     const back = record.restitution.reduce((sum, r) => sum + r.paid, 0);
-    emit(p.id, { type: 'police', title: 'Under arrest', text: `${officer.name} has arrested you: ${crimes.map((c) => LAW.offences[c.type].name.toLowerCase()).join(', ')}.${back ? ` ${cowrieText(back)} have been taken back from you.` : ''} ${officer.kind === 'npc' ? 'You are being taken to the Police Post.' : 'You are being walked to the Police Post.'}`, arrest: record.id });
+    emit(p.id, { type: 'police', title: 'Under arrest', text: `${officer.name} has arrested you: ${crimes.map((c) => LAW.offences[c.type].name.toLowerCase()).join(', ')}.${back ? ` ${trText(back)} have been taken back from you.` : ''} ${officer.kind === 'npc' ? 'You are being taken to the Police Post.' : 'You are being walked to the Police Post.'}`, arrest: record.id });
     for (const c of crimes) if (c.victim.kind === 'player') emit(c.victim.id, { type: 'police', title: 'Arrest made', text: `${p.name} has been arrested (${record.no}).` });
     return record;
   }
@@ -497,7 +497,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     if (fetched) for (const o of Object.values(book.officers)) if (o.arrest === record.id) dutyOver(o.i);
     p.heading = Math.PI; p.lastMoveAt = real();
     setState(p, 'custody');
-    emit(p.id, { type: 'police', title: 'In custody', text: `You are held at the Police Post. Fine: ${cowrieText(record.fine.amount)}. Pay it, ask someone to pay it for you, or sit out ${record.hours} hours.`, arrest: record.id });
+    emit(p.id, { type: 'police', title: 'In custody', text: `You are held at the Police Post. Fine: ${trText(record.fine.amount)}. Pay it, ask someone to pay it for you, or sit out ${record.hours} hours.`, arrest: record.id });
   }
 
   function release(record, how) {
@@ -546,7 +546,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     }
     record.payment = { status: 'paid', txn: txn.id, paidBy: payer.id, paidByName: payer.name, at: Math.round(state.t), toGovernment: tax, toOfficer: reward };
     book.totals.fines += amount; book.totals.toGovernment += tax; book.totals.toConstables += reward;
-    if (constable && reward > 0) emit(constable.id, { type: 'receipt', title: 'Arrest reward', text: `${record.culpritName}'s fine is paid (${record.no}). Your share is ${cowrieText(reward)}; ${cowrieText(tax)} went to the government.`, txn: txn.id, amount: reward });
+    if (constable && reward > 0) emit(constable.id, { type: 'receipt', title: 'Arrest reward', text: `${record.culpritName}'s fine is paid (${record.no}). Your share is ${trText(reward)}; ${trText(tax)} went to the government.`, txn: txn.id, amount: reward });
     if (!own && players[payer.id]) emit(payer.id, { type: 'receipt', title: 'Fine paid', text: `You paid ${record.culpritName}'s fine (${record.no}).`, txn: txn.id, amount: -amount });
     else if (!own) { /* a townsperson paid: the prisoner is told by whoever arranged it */ }
     else emit(payer.id, { type: 'receipt', title: 'Fine paid', text: `${record.no}: ${names}.`, txn: txn.id, amount: -amount });
@@ -576,7 +576,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
         book.totals.restitution += pay;
       }
     }
-    if (paid <= 0) throw new GameError('CANNOT_PAY', 'You do not have the cowries to pay what you owe.');
+    if (paid <= 0) throw new GameError('CANNOT_PAY', 'You do not have the TR to pay what you owe.');
     book.owed[p.id] = owed - paid;
     return { paid, owed: book.owed[p.id] };
   }
@@ -629,12 +629,12 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     needRole(p);
     const record = book.arrests[arrestId];
     if (!record || record.officer.kind !== 'player' || record.officer.id !== p.id) throw new GameError('NOT_YOURS', 'That is not your arrest.');
-    if (record.fine.confirmed) throw new GameError('FINE_SET', `The fine was set at ${cowrieText(record.fine.amount)} and cannot be changed.`);
+    if (record.fine.confirmed) throw new GameError('FINE_SET', `The fine was set at ${trText(record.fine.amount)} and cannot be changed.`);
     const value = Number(amount);
-    if (!Number.isInteger(value) || value < record.fine.least || value > record.fine.most) throw new GameError('OUT_OF_RANGE', `The fine must be between ${cowrieText(record.fine.least)} and ${cowrieText(record.fine.most)}.`);
+    if (!Number.isInteger(value) || value < record.fine.least || value > record.fine.most) throw new GameError('OUT_OF_RANGE', `The fine must be between ${trText(record.fine.least)} and ${trText(record.fine.most)}.`);
     record.fine.amount = value; record.fine.confirmed = true; record.fine.confirmedAt = real();
     const q = players[record.culprit];
-    if (q) emit(q.id, { type: 'police', title: 'Fine set', text: `${p.name} has set your fine at ${cowrieText(value)}.` });
+    if (q) emit(q.id, { type: 'police', title: 'Fine set', text: `${p.name} has set your fine at ${trText(value)}.` });
     return { arrest: arrestView(record, p) };
   }
 

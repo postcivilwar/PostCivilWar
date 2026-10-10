@@ -7,7 +7,7 @@
 // Parcel ids carry country, state and local government codes
 // (NG-AN-OGB-000101), so the same registry holds any state's land.
 
-import { cowrieText } from './ledger.js';
+import { trText } from './ledger.js';
 import { ZONE, ZONE_PARCELS, ZONING, zoneParcel, zoneParcelByPlot } from './zone.js';
 
 export const REGISTRY_FEE_RATE = 0.03;      // registration fee on the sale price
@@ -78,7 +78,7 @@ export function createRegistry({ state, ledger, accounts, clock }) {
       meta: { parcel: parcelId, price, registrationFee: fee },
     });
     const titleNo = issueTitle(parcelId, { kind: 'player', id: player.id, name: player.name }, result.id,
-      `Sold by ${ZONE.government.state.name} to ${player.name} for ${cowrieText(price)}; registration fee ${cowrieText(fee)}`);
+      `Sold by ${ZONE.government.state.name} to ${player.name} for ${trText(price)}; registration fee ${trText(fee)}`);
     return { titleNo, txn: result.id, price, fee, total, parcel: view(parcelId, player.id) };
   }
 

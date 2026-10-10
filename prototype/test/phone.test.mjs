@@ -218,10 +218,10 @@ test('someone in town who knows the player will walk to the Police Post and pay;
   // nothing is taken back without the player choosing to repay; part now, the rest later
   run(w.host, 120);
   assert.equal(w.balance(x), mine);
-  const part = ok(w.send(x.id, { type: 'phone.repay', debtId: debts[0].id, amount: 20 }));
-  assert.deepEqual([part.paid, part.left], [20, fine - 20]);
+  const part = ok(w.send(x.id, { type: 'phone.repay', debtId: debts[0].id, amount: 8 }));
+  assert.deepEqual([part.paid, part.left], [8, fine - 8]);
   const rest = ok(w.send(x.id, { type: 'phone.repay', debtId: debts[0].id }));
-  assert.deepEqual([rest.paid, rest.left], [fine - 20, 0]);
+  assert.deepEqual([rest.paid, rest.left], [fine - 8, 0]);
   assert.equal(w.balance(x), mine - fine);
   assert.equal(w.host.auditor.balance(wallet), theirs);
   refused(w.send(x.id, { type: 'phone.repay', debtId: debts[0].id }), 'NO_DEBT');

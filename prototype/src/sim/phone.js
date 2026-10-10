@@ -15,7 +15,7 @@
 
 import { ZONE_SERVICES, ZONE_RESIDENTS, zoneService, zoneResident } from './zone.js';
 import { GameError } from './registry.js';
-import { LedgerError, cowrieText } from './ledger.js';
+import { LedgerError, trText } from './ledger.js';
 import { nearestNode, graphNearest, graphDistance } from './graph.js';
 import { wayBetween, wayLength } from './actors.js';
 
@@ -92,7 +92,7 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
       }
       const law = hub.justice.selfView(p);
       log(p, c, 'Asked the desk');
-      return { said: law.state === 'wanted' || law.state === 'pursuit' ? 'We are looking for you. Give yourself up and it will go easier.' : law.owed ? `You still owe ${cowrieText(law.owed)} to people you wronged.` : 'Police Post. Nothing is held against you.', options: [...(law.seen.length ? ['report'] : []), ...(law.state === 'wanted' || law.state === 'pursuit' ? ['surrender'] : [])] };
+      return { said: law.state === 'wanted' || law.state === 'pursuit' ? 'We are looking for you. Give yourself up and it will go easier.' : law.owed ? `You still owe ${trText(law.owed)} to people you wronged.` : 'Police Post. Nothing is held against you.', options: [...(law.seen.length ? ['report'] : []), ...(law.state === 'wanted' || law.state === 'pursuit' ? ['surrender'] : [])] };
     }
     if (c.key === 'svc:hospital') {
       if (about === 'ambulance') { const r = hub.care.callAmbulance(p); log(p, c, 'Called the ambulance'); return { said: r.replayed ? 'The ambulance is already on its way.' : 'The ambulance is on its way. Stay by the road.', ...r }; }
@@ -110,7 +110,7 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
       const live = residents.get(c.resident);
       const owed = owedTo(p, c.resident);
       log(p, c, 'Spoke');
-      return { said: owed ? `${r.short} here. You still owe me ${cowrieText(owed)}, remember.` : live.mode === 'walking' ? `${r.short} here. I am on the road just now.` : `${r.short} here. ${r.talk && r.talk.tip ? r.talk.tip : 'How are you?'}`, options: p.custody ? ['surety'] : owed ? ['repay'] : [] };
+      return { said: owed ? `${r.short} here. You still owe me ${trText(owed)}, remember.` : live.mode === 'walking' ? `${r.short} here. I am on the road just now.` : `${r.short} here. ${r.talk && r.talk.tip ? r.talk.tip : 'How are you?'}`, options: p.custody ? ['surety'] : owed ? ['repay'] : [] };
     }
     // another player: it rings for them
     const q = players[c.player];
@@ -171,7 +171,7 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
     const bail = hub.justice.bailFor(p.custody);
     if (!bail) throw new GameError('NOT_NEEDED', 'There is nothing to pay.');
     book.requests[`${p.custody}|${c.player}`] = { arrest: p.custody, from: p.id, to: c.player, at: clock() };
-    emit(c.player, { type: 'call', from: p.name, by: p.id, text: `${p.name} is held at the ${bail.station.name} and asks you to pay a fine of ${cowrieText(bail.amount)}. Your phone shows the way.`, arrest: p.custody });
+    emit(c.player, { type: 'call', from: p.name, by: p.id, text: `${p.name} is held at the ${bail.station.name} and asks you to pay a fine of ${trText(bail.amount)}. Your phone shows the way.`, arrest: p.custody });
     return { asked: c.name, amount: bail.amount };
   }
 
@@ -236,7 +236,7 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
         book.debtSeq += 1;
         const id = `D-${String(book.debtSeq).padStart(5, '0')}`;
         book.debts[id] = { id, player: s.player, to: s.resident, amount: paid.amount, left: paid.amount, at: clock(), arrest: s.arrest };
-        if (p) emit(p.id, { type: 'note', text: `${r.name} has paid your fine of ${cowrieText(paid.amount)}. You owe it back: repay from your phone when you can.` });
+        if (p) emit(p.id, { type: 'note', text: `${r.name} has paid your fine of ${trText(paid.amount)}. You owe it back: repay from your phone when you can.` });
       } catch (error) {
         if (!(error instanceof GameError) && !(error instanceof LedgerError)) throw error;
         if (p) emit(p.id, { type: 'note', text: `${r.short} came, but could not pay after all.` });

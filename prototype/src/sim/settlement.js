@@ -9,14 +9,14 @@
 // seconds. Addresses are made-up strings with a sandbox prefix. Nothing in
 // this file can reach the Bitcoin network, and there are no keys.
 
-import { LedgerError } from './ledger.js';
+import { LedgerError, trText } from './ledger.js';
 
 export const SETTLEMENT_POLICY = Object.freeze({
   environment: 'sandbox',
   asset: 'TBTC',
   confirmationsRequired: 3,
   blockIntervalSeconds: 6,          // sandbox chain only
-  cowriesPerSat: 0.5,               // platform-set conversion rate: hundredths of a cowrie per satoshi (the ledger counts cowries in hundredths)
+  cowriesPerSat: 0.5,               // platform-set conversion rate: ledger units per satoshi (two units are one TR, so 4 satoshis buy 1 TR). The field keeps its first name because saved quotes carry it.
   quoteLifetimeSeconds: 60,
   faucetLimitSats: 1_000_000,       // 0.01 tBTC per account, lifetime
   minWithdrawalSats: 10_000,
@@ -57,7 +57,7 @@ export function createSettlement({ ledger, rng, saved, policy = SETTLEMENT_POLIC
         ownerId,
         address: policy.addressPrefix + hex(38),
         btcAccount: books.openAccount('player', ownerId, 'settlement', policy.asset),
-        gameAccount: books.openAccount('player', ownerId, 'wallet', 'CWR'),
+        gameAccount: books.openAccount('player', ownerId, 'wallet', 'TR'),
         faucetUsed: 0, frozen: false, verification: 'sandbox',
       };
       log('system', 'account_opened', { ownerId });
@@ -107,7 +107,7 @@ export function createSettlement({ ledger, rng, saved, policy = SETTLEMENT_POLIC
     requireOpen(record);
     if (!Number.isSafeInteger(sats) || sats <= 0) throw new SettlementError('INVALID_AMOUNT', 'Enter a whole number of satoshis.');
     const cowries = Math.floor(sats * policy.cowriesPerSat);
-    if (cowries < 1) throw new SettlementError('TOO_SMALL', 'That amount converts to less than a hundredth of a cowrie.');
+    if (cowries < 1) throw new SettlementError('TOO_SMALL', 'That amount converts to less than half a TR.');
     const id = nextId('quote');
     state.quotes[id] = { id, ownerId, sats, cowries, rate: policy.cowriesPerSat, expiresAt: state.seconds + policy.quoteLifetimeSeconds, used: false };
     return { ...state.quotes[id] };
@@ -123,7 +123,7 @@ export function createSettlement({ ledger, rng, saved, policy = SETTLEMENT_POLIC
     let result;
     try {
       result = books.post({
-        key: `conversion:${q.id}`, kind: 'conversion', initiator: 'svc:settlement', reason: 'Test bitcoin converted to cowries',
+        key: `conversion:${q.id}`, kind: 'conversion', initiator: 'svc:settlement', reason: 'Test bitcoin converted to TR',
         legs: [
           { account: record.btcAccount, amount: -q.sats }, { account: sys.conversionReserve, amount: q.sats },
           { account: sys.issuance, amount: -q.cowries }, { account: record.gameAccount, amount: q.cowries },
@@ -248,25 +248,25 @@ export function createSettlement({ ledger, rng, saved, policy = SETTLEMENT_POLIC
     const record = account(ownerId);
     requireOpen(record);
     if (!policy.redemptionEnabled) {
-      throw new SettlementError('REDEMPTION_DISABLED', 'Cowries cannot be redeemed for bitcoin in this build. The settlement layer has not authorised redemption.');
+      throw new SettlementError('REDEMPTION_DISABLED', 'TR cannot be redeemed for bitcoin in this build. The settlement layer has not authorised redemption.');
     }
-    if (!Number.isSafeInteger(cowries) || cowries <= 0) throw new SettlementError('INVALID_AMOUNT', 'Enter an amount of cowries.');
+    if (!Number.isSafeInteger(cowries) || cowries <= 0) throw new SettlementError('INVALID_AMOUNT', 'Enter an amount of TR.');
     // Only cowries that came in from bitcoin can go back out as bitcoin: never the arrival money or anything
     // else the game issued, which no reserve stands behind.
     const convertedIn = Object.values(state.quotes).filter((q) => q.ownerId === ownerId && q.used).reduce((sum, q) => sum + q.cowries, 0);
     const out = state.redemptions.filter((r) => r.ownerId === ownerId && r.status !== 'declined').reduce((sum, r) => sum + r.cowries, 0);
-    if (cowries > convertedIn - out) throw new SettlementError('NOT_REDEEMABLE', `Only cowries bought with test bitcoin can be redeemed; ${Math.max(0, convertedIn - out)} hundredths of a cowrie are.`);
+    if (cowries > convertedIn - out) throw new SettlementError('NOT_REDEEMABLE', `Only TR bought with test bitcoin can be redeemed; ${trText(Math.max(0, convertedIn - out))} is.`);
     const sats = Math.floor(cowries / policy.cowriesPerSat);
     if (sats < 1) throw new SettlementError('TOO_SMALL', 'That amount is worth less than one satoshi.');
     const id = nextId('red');
     try {
       books.post({
-        key: `redemption_hold:${id}`, kind: 'redemption_hold', initiator: 'svc:settlement', reason: 'Redemption requested: cowries held',
+        key: `redemption_hold:${id}`, kind: 'redemption_hold', initiator: 'svc:settlement', reason: 'Redemption requested: TR held',
         legs: [{ account: record.gameAccount, amount: -cowries }, { account: sys.redemptionEscrow, amount: cowries }],
         meta: { redemption: id },
       });
     } catch (error) {
-      if (error instanceof LedgerError && error.code === 'NL001') throw new SettlementError('INSUFFICIENT_FUNDS', 'There are not enough cowries in the wallet.');
+      if (error instanceof LedgerError && error.code === 'NL001') throw new SettlementError('INSUFFICIENT_FUNDS', 'There is not enough TR in the wallet.');
       throw error;
     }
     const redemption = { id, ownerId, cowries, sats, status: 'pending_authorisation', requestedAt: state.seconds, decidedBy: null, txn: null };
@@ -296,7 +296,7 @@ export function createSettlement({ ledger, rng, saved, policy = SETTLEMENT_POLIC
       r.status = 'authorised'; r.txn = result.id;
     } else {
       books.post({
-        key: `redemption_release:${r.id}`, kind: 'redemption_release', initiator: officer, reason: 'Redemption declined: cowries returned',
+        key: `redemption_release:${r.id}`, kind: 'redemption_release', initiator: officer, reason: 'Redemption declined: TR returned',
         legs: [{ account: sys.redemptionEscrow, amount: -r.cowries }, { account: record.gameAccount, amount: r.cowries }],
         meta: { redemption: r.id },
       });

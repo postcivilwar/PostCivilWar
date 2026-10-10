@@ -13,7 +13,7 @@ import { BUSINESSES } from '../sim/economy.js';
 const CALL_WORDS = Object.freeze({ none: 'Not asked', asked: 'Asked. Waiting for the officer\'s answer', allowed: 'Allowed', denied: 'Refused. You may ask again in a minute' });
 
 export function createPanels(kit) {
-  const { app, h, open, redraw, line, section, money, cw, cowries, when, refused, live } = kit;
+  const { app, h, open, redraw, line, section, money, amt, tr, trPlain, trIn, when, refused, live } = kit;
   const send = (intent) => app.send(intent);
   const say = (result, good) => { app.chime(result.ok ? 'tap' : 'error'); redraw(result.ok ? (good ? { good: true, text: typeof good === 'function' ? good(result) : good } : null) : { text: result.message }); return result; };
   const row = (label, value, cls) => h('div', { class: `row${cls ? ` ${cls}` : ''}` }, h('span', null, label), h('span', null, value));
@@ -40,7 +40,7 @@ export function createPanels(kit) {
       const self = app.view().self;
       live(() => { const s = app.view().self; return `${s.health}|${s.balance}|${stale()}`; });
       root.append(vital(self.health));
-      if (paid) root.append(h('div', { class: 'bill' }, h('h4', null, 'Receipt'), row('Treated to', `${paid.level}%`), row('Restored', `+${paid.restored}`), row('Paid', cowries(paid.fee)), row('Entry', paid.txn)));
+      if (paid) root.append(h('div', { class: 'bill' }, h('h4', null, 'Receipt'), row('Treated to', `${paid.level}%`), row('Restored', `+${paid.restored}`), row('Paid', tr(paid.fee)), row('Entry', paid.txn)));
       if (self.health >= HEALTH.max) root.append(h('p', null, 'You are in full health. There is nothing to treat.'));
       else {
         let problem = null;
@@ -51,12 +51,12 @@ export function createPanels(kit) {
       if (placeId === 'clinic') {
         root.append(section('Rest and a tonic'));
         root.append(h('p', { class: 'small' }, 'For tiredness, not for injuries: it restores your energy in full and leaves your health as it is.'));
-        root.append(line('Price', cowries(BUSINESSES.clinic.fee)), line('Your energy', `${Math.round(self.energy)} of 100`));
-        root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', disabled: self.energy >= 100 || self.balance < BUSINESSES.clinic.fee, onclick: () => say(send({ type: 'clinic.treat', requestId: app.requestId('tonic') }), 'Rested. You feel well.') }, self.energy >= 100 ? 'You are not tired' : `Pay ${cowries(BUSINESSES.clinic.fee)}`)));
+        root.append(line('Price', tr(BUSINESSES.clinic.fee)), line('Your energy', `${Math.round(self.energy)} of 100`));
+        root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', disabled: self.energy >= 100 || self.balance < BUSINESSES.clinic.fee, onclick: () => say(send({ type: 'clinic.treat', requestId: app.requestId('tonic') }), 'Rested. You feel well.') }, self.energy >= 100 ? 'You are not tired' : `Pay ${tr(BUSINESSES.clinic.fee)}`)));
       }
       if (tariff.ok) {
         root.append(section('How the price is made'));
-        root.append(line('Seeing you', cowries(tariff.prices.consult)), line('Each point of health restored', cowries(tariff.prices.perPoint)), line('Paid to', tariff.paidTo));
+        root.append(line('Seeing you', tr(tariff.prices.consult)), line('Each point of health restored', tr(tariff.prices.perPoint)), line('Paid to', tariff.paidTo));
         root.append(h('p', { class: 'small' }, government ? 'These are the government\'s prices. They are the same for everyone and are not open to bargaining.' : 'These are the owner\'s prices. You may name a lower one; the owner may take it, or meet you part of the way.'));
       }
     });
@@ -64,28 +64,28 @@ export function createPanels(kit) {
     function treatment(root, self) {
       root.append(self.health <= HEALTH.critical ? h('div', { class: 'banner red' }, h('strong', null, 'Critical. '), 'Choose how far you want to be treated.') : h('p', null, 'Choose how far you want to be treated. You pay for what is restored.'));
       root.append(h('div', { class: 'levels', role: 'group', 'aria-label': 'Level of treatment' }, q.options.map((o) => h('button', { class: 'level', type: 'button', 'aria-pressed': String(chosen === o.level), onclick: () => pick(o.level) },
-        h('small', null, `${q.health}% to`), h('b', null, `${o.level}%`), h('span', { class: 'mono' }, cw(o.fee)), o.fee < o.list ? h('small', null, `was ${cw(o.list)}`) : null))));
+        h('small', null, `${q.health}% to`), h('b', null, `${o.level}%`), h('span', { class: 'mono' }, amt(o.fee)), o.fee < o.list ? h('small', null, `was ${amt(o.list)}`) : null))));
       const o = q.options.find((x) => x.level === chosen);
       if (!o) { root.append(h('p', { class: 'small' }, `Prices are held for you for ${Math.round(q.expiresIn / 60)} minutes.`)); return; }
       const after = self.balance - o.fee;
       root.append(h('div', { class: 'bill' }, h('h4', null, 'Bill'),
         row('Current health', `${q.health}%`), row('Treatment level', `${o.level}%`), row('Amount restored', `+${o.restored}`),
-        row(government ? 'Hospital fee' : 'Clinic fee', cowries(o.fee)),
-        row('Current balance', cowries(self.balance)), row('Balance after payment', after < 0 ? `short by ${cw(-after)}` : cowries(after), `total${after < 0 ? ' bad' : ''}`)));
+        row(government ? 'Hospital fee' : 'Clinic fee', tr(o.fee)),
+        row('Current balance', tr(self.balance)), row('Balance after payment', after < 0 ? `short by ${amt(-after)}` : tr(after), `total${after < 0 ? ' bad' : ''}`)));
       if (said) root.append(h('div', { class: 'said' }, said));
       root.append(h('div', { class: 'actions' },
         h('button', { class: 'btn primary', type: 'button', disabled: after < 0, onclick: () => {
           const r = send({ type: 'care.pay', quoteId: q.id, level: o.level, requestId: payId });
           if (r.ok) { paid = r; q = null; chosen = null; app.chime('paid'); redraw({ good: true, text: `Treated. Your health is now ${r.health}%.` }); } else { app.chime('error'); redraw({ text: r.message }); }
-        } }, after < 0 ? 'Not enough cowries' : `Pay ${cowries(o.fee)}`),
+        } }, after < 0 ? 'Not enough TR' : `Pay ${tr(o.fee)}`),
         h('button', { class: 'btn quiet', type: 'button', onclick: () => { chosen = null; redraw(); } }, 'Choose again')));
       if (q.bargain) {
         root.append(section('Name your price'));
-        if (q.bargain.roundsLeft <= 0) root.append(h('p', { class: 'small' }, `${cw(o.fee)} is the last price.`));
+        if (q.bargain.roundsLeft <= 0) root.append(h('p', { class: 'small' }, `${amt(o.fee)} is the last price.`));
         else {
-          const input = h('input', { class: 'field mono', type: 'number', inputmode: 'numeric', min: '0.01', max: cw(o.fee), step: '0.10', value: offer, placeholder: cw(Math.round(o.fee * 0.85 / 10) * 10), 'aria-label': 'Your offer in cowries', oninput: (e) => { offer = e.target.value; } });
+          const input = h('input', { class: 'field mono', type: 'number', inputmode: 'decimal', min: '0.5', max: trPlain(o.fee), step: '0.5', value: offer, placeholder: trPlain(Math.round(o.fee * 0.85 / 10) * 10), 'aria-label': 'Your offer in TR', oninput: (e) => { offer = e.target.value; } });
           const make = () => {
-            const r = send({ type: 'care.bargain', quoteId: q.id, level: o.level, offer: Math.round(Number(offer) * 100) });
+            const r = send({ type: 'care.bargain', quoteId: q.id, level: o.level, offer: trIn(offer) });
             if (r.ok) { q = r.quote; got = performance.now(); said = r.said; offer = ''; payId = app.requestId('care'); app.chime(r.accepted ? 'ok' : 'tap'); redraw(); } else { app.chime('error'); redraw({ text: r.message }); }
           };
           input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); make(); } });
@@ -109,23 +109,23 @@ export function createPanels(kit) {
     out.push(line('Where you are', a.status === 'escort' ? 'Being walked to the Police Post' : `Held at the ${a.station.name}`));
     if (a.status === 'custody') out.push(line('Held until', `${when(a.until)}, unless the fine is paid`));
     else out.push(line('If the fine is not paid', `${a.hours} hours in the cell`));
-    for (const r of a.restitution) out.push(line(r.kind === 'compensation' ? `Compensation to ${r.victim}` : `Returned to ${r.victim}`, r.paid >= r.due ? cowries(r.paid) : `${cw(r.paid)} of ${cw(r.due)}`));
-    if (law.owed > 0) out.push(line('Still owed to those you wronged', cowries(law.owed), 'neg'));
+    for (const r of a.restitution) out.push(line(r.kind === 'compensation' ? `Compensation to ${r.victim}` : `Returned to ${r.victim}`, r.paid >= r.due ? tr(r.paid) : `${amt(r.paid)} of ${amt(r.due)}`));
+    if (law.owed > 0) out.push(line('Still owed to those you wronged', tr(law.owed), 'neg'));
     const balance = view.self.balance;
     if (a.fine.confirmed) {
       const after = balance - a.fine.amount;
       out.push(h('div', { class: 'bill' }, h('h4', null, 'Fine'),
-        h('div', { class: 'row' }, h('span', null, 'Fine'), h('span', null, cowries(a.fine.amount))),
+        h('div', { class: 'row' }, h('span', null, 'Fine'), h('span', null, tr(a.fine.amount))),
         h('div', { class: 'row' }, h('span', null, 'It goes to'), h('span', null, a.byConstable ? 'the constable, less 1% to government' : 'the Federal Government')),
-        h('div', { class: 'row' }, h('span', null, 'Current balance'), h('span', null, cowries(balance))),
-        h('div', { class: `row total${after < 0 ? ' bad' : ''}` }, h('span', null, 'Balance after payment'), h('span', null, after < 0 ? `short by ${cw(-after)}` : cowries(after)))));
-    } else out.push(line('Fine', `The officer has not set it yet. The scale says ${cw(a.fine.scale)}.`));
+        h('div', { class: 'row' }, h('span', null, 'Current balance'), h('span', null, tr(balance))),
+        h('div', { class: `row total${after < 0 ? ' bad' : ''}` }, h('span', null, 'Balance after payment'), h('span', null, after < 0 ? `short by ${amt(-after)}` : tr(after)))));
+    } else out.push(line('Fine', `The officer has not set it yet. The scale says ${amt(a.fine.scale)}.`));
     const buttons = [];
     buttons.push(h('button', { class: 'btn primary', type: 'button', disabled: !law.canPay, onclick: () => {
       const r = send({ type: 'custody.pay', arrestId: a.id, requestId: fineId.id });
       if (r.ok) app.chime('paid');
-      say(r, (x) => `Paid ${cowries(x.amount)}. You are free to go.`);
-    } }, a.status !== 'custody' ? 'Pay at the Police Post' : !a.fine.confirmed ? 'Fine not set yet' : law.canPay ? `Pay ${cowries(a.fine.amount)}` : 'Not enough cowries'));
+      say(r, (x) => `Paid ${tr(x.amount)}. You are free to go.`);
+    } }, a.status !== 'custody' ? 'Pay at the Police Post' : !a.fine.confirmed ? 'Fine not set yet' : law.canPay ? `Pay ${tr(a.fine.amount)}` : 'Not enough TR'));
     if (a.call.status === 'none' || a.call.status === 'denied') buttons.push(h('button', { class: 'btn', type: 'button', onclick: () => say(send({ type: 'custody.requestCall' }), (x) => (x.call.status === 'allowed' ? 'The officer nods. You may use your phone.' : 'You have asked. Wait for the answer.')) }, 'Ask for a phone call'));
     if (a.call.status === 'allowed') buttons.push(h('button', { class: 'btn', type: 'button', onclick: () => app.openPhone('contacts') }, 'Call someone'));
     if (a.status === 'custody') buttons.push(h('button', { class: 'btn quiet', type: 'button', onclick: () => say(send({ type: 'custody.wait' }), (x) => `${Math.round(x.hours * 10) / 10} hours pass in the cell.`) }, 'Sit out the time'));
@@ -141,7 +141,7 @@ export function createPanels(kit) {
       live(() => { const s = app.view().self; const a = s.law.arrest; return `${s.law.state}|${a ? `${a.status}|${a.fine.confirmed}|${a.call.status}|${a.payment.status}` : ''}|${s.balance}|${s.phone.surety}`; });
       const r = send({ type: 'police.status' });
       if (!r.ok) { root.append(refused(r)); return; }
-      if (!r.law.arrest) { root.append(h('p', null, 'Nothing holds you here now. The door is open.')); if (r.law.owed > 0) root.append(line('Still owed to those you wronged', cowries(r.law.owed), 'neg')); return; }
+      if (!r.law.arrest) { root.append(h('p', null, 'Nothing holds you here now. The door is open.')); if (r.law.owed > 0) root.append(line('Still owed to those you wronged', tr(r.law.owed), 'neg')); return; }
       root.append(...lawBlock(r.law, view));
       root.append(section('While you are held'));
       root.append(h('p', { class: 'small' }, 'You may look at your contacts and the map. You may call or message people you know once the officer allows it. You cannot fight, take a vehicle, work or trade until you are released.'));
@@ -161,13 +161,13 @@ export function createPanels(kit) {
       const law = r.law;
       if (tab === 'record') {
         root.append(section('The scale of fines'));
-        root.append(h('div', { class: 'rows' }, Object.values(r.scale).map((o) => line(o.name, `${cw(o.fine)} or ${o.hours} h`))));
+        root.append(h('div', { class: 'rows' }, Object.values(r.scale).map((o) => line(o.name, `${amt(o.fine)} or ${o.hours} h`))));
         root.append(section('Where fines have gone'));
-        root.append(line('Fines paid, in all', cowries(r.treasury.fines)), line('To the government', cowries(r.treasury.toGovernment)), line('To special constables', cowries(r.treasury.toConstables)), line('Returned to victims', cowries(r.treasury.restitution)));
+        root.append(line('Fines paid, in all', tr(r.treasury.fines)), line('To the government', tr(r.treasury.toGovernment)), line('To special constables', tr(r.treasury.toConstables)), line('Returned to victims', tr(r.treasury.restitution)));
         root.append(h('p', { class: 'small' }, 'A fine after an arrest by a police officer goes to the government in full. After an arrest by a special constable, ninety-nine parts in a hundred go to the constable and one to the government, in a single entry.'));
         if (r.record.arrests.length) {
           root.append(section('Your record'));
-          root.append(h('div', { class: 'rows' }, r.record.arrests.map((a) => line(`${a.no}: ${a.offences.map((o) => o.name.toLowerCase()).join(', ')}`, a.payment.status === 'paid' ? `${cw(a.fine.amount)} paid` : a.payment.status === 'served' ? 'time served' : a.status))));
+          root.append(h('div', { class: 'rows' }, r.record.arrests.map((a) => line(`${a.no}: ${a.offences.map((o) => o.name.toLowerCase()).join(', ')}`, a.payment.status === 'paid' ? `${amt(a.fine.amount)} paid` : a.payment.status === 'served' ? 'time served' : a.status))));
         }
         return;
       }
@@ -177,14 +177,14 @@ export function createPanels(kit) {
       }
       if (law.owed > 0) {
         root.append(section('Owed to people you wronged'));
-        root.append(line('Still to pay back', cowries(law.owed), 'neg'));
-        root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', disabled: view.self.balance < 1, onclick: () => say(send({ type: 'police.settle', requestId: app.requestId('settle') }), (x) => `Paid back ${cowries(x.paid)}.`) }, 'Pay it back now')));
+        root.append(line('Still to pay back', tr(law.owed), 'neg'));
+        root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', disabled: view.self.balance < 1, onclick: () => say(send({ type: 'police.settle', requestId: app.requestId('settle') }), (x) => `Paid back ${tr(x.paid)}.`) }, 'Pay it back now')));
       }
       for (const req of view.self.phone.requests) {
         if (!payIds[req.arrest]) payIds[req.arrest] = app.requestId('bail');
         root.append(section(`${req.from} asks you to pay a fine`));
-        root.append(h('div', { class: 'bill' }, h('h4', null, req.no), row('Fine', cowries(req.amount)), row('Current balance', cowries(view.self.balance)), row('Balance after payment', view.self.balance < req.amount ? `short by ${cw(req.amount - view.self.balance)}` : cowries(view.self.balance - req.amount), `total${view.self.balance < req.amount ? ' bad' : ''}`)));
-        root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: !req.ready || !req.canPay, onclick: () => { const out = send({ type: 'bail.pay', arrestId: req.arrest, requestId: payIds[req.arrest] }); if (out.ok) app.chime('paid'); say(out, `Paid. ${req.from} is free to go.`); } }, !req.ready ? 'Not brought in yet' : req.canPay ? `Pay ${cowries(req.amount)}` : 'Not enough cowries')));
+        root.append(h('div', { class: 'bill' }, h('h4', null, req.no), row('Fine', tr(req.amount)), row('Current balance', tr(view.self.balance)), row('Balance after payment', view.self.balance < req.amount ? `short by ${amt(req.amount - view.self.balance)}` : tr(view.self.balance - req.amount), `total${view.self.balance < req.amount ? ' bad' : ''}`)));
+        root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: !req.ready || !req.canPay, onclick: () => { const out = send({ type: 'bail.pay', arrestId: req.arrest, requestId: payIds[req.arrest] }); if (out.ok) app.chime('paid'); say(out, `Paid. ${req.from} is free to go.`); } }, !req.ready ? 'Not brought in yet' : req.canPay ? `Pay ${tr(req.amount)}` : 'Not enough cowries')));
       }
       root.append(section('Report what you saw'));
       if (!law.seen.length) root.append(h('p', { class: 'small' }, 'You have seen nothing the police do not already know about.'));
