@@ -16,7 +16,7 @@
 import { ZONE_SERVICES, ZONE_RESIDENTS, zoneService, zoneResident } from './zone.js';
 import { GameError } from './registry.js';
 import { LedgerError, trText } from './ledger.js';
-import { nearestNode, graphNearest, graphDistance } from './graph.js';
+import { nearestNode, graphNearest, graphDistance, graphRoute, graphPoint, graphSize, graphIsRoad } from './graph.js';
 import { wayBetween, wayLength } from './actors.js';
 
 export const PHONE = Object.freeze({
@@ -147,6 +147,38 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
   // --- finding the way ------------------------------------------------------------------
 
   // The way from where a player stands to a point: the path, how long it is, how long it takes.
+  // The way by road: from where the player stands to the nearest road, along the town's roads and lanes to
+  // the one nearest the place, and from there to its door. (Two places close enough to see one another need no
+  // road between them.) Gives the points, with the player's own first, or null if no road joins the two.
+  function byRoad(px, pz, x, z, a, b) {
+    if (Math.hypot(x - px, z - pz) < 18) return [[px, pz], [x, z]];
+    // Which point of the road to make for, and which to leave it at: not simply the nearest to each end, but
+    // the pair that makes the whole journey shortest, walking to and from the road counted three times as dear
+    // than keeping to it.
+    const near = (qx, qz, nearest) => { const out = []; for (let i = 0; i < graphSize(); i += 1) { if (!graphIsRoad(i)) continue; const [nx, nz] = graphPoint(i); const d = Math.hypot(nx - qx, nz - qz); if (d <= 70) out.push([i, d]); } out.sort((m, n) => m[1] - n[1]); return out.length ? out.slice(0, 20) : [[nearest, Math.hypot(graphPoint(nearest)[0] - qx, graphPoint(nearest)[1] - qz)]]; };
+    let best = null;
+    for (const [from, d0] of near(px, pz, a)) for (const [to, d1] of near(x, z, b)) {
+      const along = graphDistance(from, to, true);
+      if (!Number.isFinite(along)) continue;
+      const cost = d0 * 3 + along + d1 * 3;
+      if (!best || cost < best.cost) best = { cost, from, to };
+    }
+    const nodes = best ? graphRoute(best.from, best.to, true) : graphRoute(a, b, true);
+    if (!nodes) return null;
+    const pts = nodes.map((n) => graphPoint(n));
+    // not back along the road to its nearest point, when the next one along is as near
+    while (pts.length > 1 && Math.hypot(pts[1][0] - px, pts[1][1] - pz) <= Math.hypot(pts[0][0] - px, pts[0][1] - pz) + 1) pts.shift();
+    while (pts.length > 1 && Math.hypot(pts[pts.length - 2][0] - x, pts[pts.length - 2][1] - z) <= Math.hypot(pts[pts.length - 1][0] - x, pts[pts.length - 1][1] - z) + 1) pts.pop();
+    // a straight stretch of road is two points, however many posts stand along it
+    const out = [[px, pz]];
+    for (const pt of pts) {
+      const n = out.length;
+      if (n >= 2 && Math.abs((out[n - 1][0] - out[n - 2][0]) * (pt[1] - out[n - 2][1]) - (out[n - 1][1] - out[n - 2][1]) * (pt[0] - out[n - 2][0])) < 0.05 * Math.hypot(pt[0] - out[n - 2][0], pt[1] - out[n - 2][1]) && n > 2) out[n - 1] = pt; else out.push(pt);
+    }
+    out.push([x, z]);
+    return out;
+  }
+
   function route(p, to) {
     const x = Number(to && to.x), z = Number(to && to.z);
     if (!Number.isFinite(x) || !Number.isFinite(z)) throw new GameError('NO_PLACE', 'There is no such place.');
@@ -154,10 +186,14 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
     const metres = wayLength(p.x, p.z, points);
     const a = graphNearest(p.x, p.z, true), b = graphNearest(x, z, true);
     const road = graphDistance(a, b, true);
+    const along = byRoad(p.x, p.z, x, z, a, b);
+    const round = ([qx, qz]) => [Math.round(qx * 10) / 10, Math.round(qz * 10) / 10];
     return {
       to: { x, z, label: (to && to.label) || '' }, points: [[Math.round(p.x * 10) / 10, Math.round(p.z * 10) / 10], ...points.map(([px, pz]) => [Math.round(px * 10) / 10, Math.round(pz * 10) / 10])],
       metres: Math.round(metres), walkSeconds: Math.round(metres / PHONE.walk), walkMinutes: Math.max(1, Math.round((metres / PHONE.walk) * timeScale / 60)),
       driveSeconds: Number.isFinite(road) ? Math.round(road / PHONE.drive) : null,
+      // the same journey kept to the town's roads: what a map shows, and how far that is
+      road: along ? along.map(round) : null, roadMetres: along ? Math.round(wayLength(along[0][0], along[0][1], along.slice(1))) : null,
     };
   }
 

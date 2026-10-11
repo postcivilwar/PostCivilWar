@@ -5,7 +5,8 @@ import { SOUND_NAMES } from './audio.js';
 import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_PROPS, ZONE_TEXT, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, zoneResident, zoneParcel, zoneService } from '../sim/zone.js';
 import { LANGUAGES } from '../sim/culture.js';
 import { NIGERIA_STATES, NIGERIA_ZONES } from '../sim/nigeria.js';
-import { geoToWorld, gridToTrue } from '../sim/geo.js';
+import { geoToWorld } from '../sim/geo.js';
+import { createTownMap } from './town-map.js';
 import { GOODS, DESIGNS, PAINT_COLOURS, MASON_RATE, BUSINESSES, countOf } from '../sim/economy.js';
 import { clockOf } from '../sim/sim.js';
 import { lowerFirst } from '../sim/vehicles.js';
@@ -666,136 +667,71 @@ export function createUI(app) {
 
   // ------------------------------------------------------------------ map --
 
-  function map(root, way) {
-    live(() => { const v = app.view().self; return `${Math.round(v.x / 3)}|${Math.round(v.z / 3)}`; });
+  // The Map app. The town is a map to find the way by (town-map.js): it is moved and zoomed with the hand, the
+  // player is on it, and the way to a place is drawn along the town's own roads. `pick(place)` is called when a
+  // name on the map is pressed; `fitTo` is a route to bring wholly into view, the first time it is shown.
+  const townMapState = {};
+  let townMap = null;
+  function map(root, way, { pick = null, fitTo = null, live: liveWay = null } = {}) {
     root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Which map' },
       h('button', { type: 'button', 'aria-pressed': String(mapMode === 'town'), onclick: () => { mapMode = 'town'; redraw(); } }, ZONE.name),
       h('button', { type: 'button', 'aria-pressed': String(mapMode === 'nation'), onclick: () => { mapMode = 'nation'; redraw(); } }, 'Nigeria')));
-    const canvas = h('canvas', { class: 'map', width: '840', height: mapMode === 'town' ? String(townMapHeight(840)) : '720' });
-    root.append(canvas);
-    if (mapMode === 'town') { drawTown(canvas, way); root.append(h('p', { class: 'eyebrow' }, 'White: your land, your keke, your run · outlined: for sale · grey: taken · dots: okadas · white line: the way · north is up')); } else {
+    if (townMap) { townMap.dispose(); townMap = null; }
+    if (mapMode === 'town') {
+      townMap = createTownMap({
+        h, state: townMapState, onPick: pick,
+        view: () => app.view(),
+        way: () => (liveWay ? liveWay() : way),
+        waypoint: () => app.waypoint(),
+        listings: () => (app.market && app.online && app.online.signedIn ? app.market.state.all.filter((l) => l.place && l.place.zone === ZONE.id).map((l) => ({ x: l.place.x, z: l.place.z })) : []),
+      });
+      root.append(townMap.el);
+      if (fitTo) requestAnimationFrame(() => { if (townMap) townMap.fit(fitTo); });
+      root.append(h('div', { class: 'maplegend' },
+        h('span', null, h('i', { class: 'lg me' }), 'You'), h('span', null, h('i', { class: 'lg route' }), 'The way'), h('span', null, h('i', { class: 'lg major' }), 'Tarred road'),
+        h('span', null, h('i', { class: 'lg minor' }), 'Laterite road'), h('span', null, h('i', { class: 'lg mine' }), 'Your land'), h('span', null, h('i', { class: 'lg sale' }), 'Plot for sale')));
+      root.append(h('p', { class: 'small' }, 'Drag to move the map. Pinch, or use + and −, to bring it closer. The round button brings it back to where you are. North is up.'));
+    } else {
+      const canvas = h('canvas', { class: 'map nation', width: '840', height: '720', role: 'img', 'aria-label': `The state capitals of Nigeria, with ${ZONE.name} marked` });
+      root.append(canvas);
       drawNation(canvas);
       root.append(h('p', null, `All 36 states and the Federal Capital Territory are registered in the world model at 1:10 scale. Only ${ZONE.name} is built. Capitals are shown at approximate positions; state boundaries arrive with the map data.`));
     }
   }
 
-  // The town map is drawn north-up, whatever way the zone's site grid is turned.
-  const mapCorners = () => {
-    const b = ZONE.bounds;
-    const pts = [[b.minX, b.minZ], [b.maxX, b.minZ], [b.minX, b.maxZ], [b.maxX, b.maxZ]].map(([x, z]) => gridToTrue(x, z, ZONE.gridBearing));
-    return { minE: Math.min(...pts.map((p) => p.e)), maxE: Math.max(...pts.map((p) => p.e)), minS: Math.min(...pts.map((p) => p.s)), maxS: Math.max(...pts.map((p) => p.s)) };
-  };
-  function townMapHeight(width) {
-    const c = mapCorners();
-    return Math.round((width * (c.maxS - c.minS)) / (c.maxE - c.minE));
-  }
-
-  // Both maps are drawn the way the rest of the interface is: black, white and the greys between. What is
-  // the player's own is white; what matters next is ringed in white; everything else keeps to grey.
+  // The country: the state capitals where the world model has them, coloured by their zone. There are no
+  // boundaries or coastline in the game's data yet, and none is drawn.
   const MAP_FONT = '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif';
-  function drawTown(canvas, way) {
-    const ctx = canvas.getContext('2d');
-    const b = ZONE.bounds;
-    const c = mapCorners();
-    const scale = canvas.width / (c.maxE - c.minE);
-    const P = (x, z) => { const t = gridToTrue(x, z, ZONE.gridBearing); return [(t.e - c.minE) * scale, (t.s - c.minS) * scale]; };
-    const corners = (x0, z0, x1, z1, inset = 0) => {
-      const [ax, ay] = P(x0, z0);
-      const [bx, by] = P(x1, z1);
-      return [Math.min(ax, bx) + inset, Math.min(ay, by) + inset, Math.abs(bx - ax) - inset * 2, Math.abs(by - ay) - inset * 2];
-    };
-    const rect = (x0, z0, x1, z1, inset = 0) => ctx.fillRect(...corners(x0, z0, x1, z1, inset));
-    ctx.fillStyle = '#1d1d1f'; ctx.fillRect(0, 0, canvas.width, canvas.height);
-    // the river: everything beyond the bank, out to the edge of the zone
-    ctx.fillStyle = '#0b0b0c'; ctx.beginPath(); ctx.moveTo(...P(b.minX, b.maxZ));
-    for (let x = b.minX; x <= b.maxX; x += 5) ctx.lineTo(...P(x, zoneShoreZ(x)));
-    ctx.lineTo(...P(b.maxX, b.maxZ)); ctx.fill();
-    ctx.fillStyle = '#3a3a3d'; rect(ZONE_JETTY.x0, ZONE_JETTY.z0, ZONE_JETTY.x1, ZONE_JETTY.z1);
-    ctx.fillStyle = '#232325'; rect(ZONE_FARMLAND.x0, ZONE_FARMLAND.z0, ZONE_FARMLAND.x1, ZONE_FARMLAND.z1);
-    for (const r of ZONE_ROADS) { ctx.fillStyle = r.surface === 'asphalt' ? '#4a4a4e' : '#38383b'; rect(r.x0, r.z0, r.x1, r.z1); }
-    const view = app.view();
-    view.parcels.forEach((row, index) => {
-      const p = ZONE_PARCELS[index];
-      if (row.yours) { ctx.fillStyle = '#ffffff'; rect(p.x0, p.z0, p.x1, p.z1, 1); return; }
-      ctx.fillStyle = row.status === 'available' ? '#2c2c2e' : '#29292b';
-      rect(p.x0, p.z0, p.x1, p.z1, 1);
-      // for sale: an outline in white
-      if (row.status === 'available') { ctx.strokeStyle = 'rgba(255,255,255,0.85)'; ctx.lineWidth = 1.5; ctx.strokeRect(...corners(p.x0, p.z0, p.x1, p.z1, 2)); }
-    });
-    for (const k of ZONE_COMPOUNDS) { ctx.fillStyle = 'rgba(255,255,255,0.05)'; rect(k.x0, k.z0, k.x1, k.z1); }
-    ctx.fillStyle = '#5a5a5e';
-    for (const hs of ZONE_HOUSES) rect(hs.x - hs.w / 2, hs.z - hs.d / 2, hs.x + hs.w / 2, hs.z + hs.d / 2);
-    for (const sh of ZONE_SHEDS) rect(sh.x - 2.5, sh.z - 2.5, sh.x + 2.5, sh.z + 2.5);
-    ctx.fillStyle = '#7c7c81';
-    for (const bd of ZONE_BUILDINGS) rect(bd.x - bd.w / 2, bd.z - bd.d / 2, bd.x + bd.w / 2, bd.z + bd.d / 2);
-    for (const k of ZONE_COMPOUNDS) for (const bd of k.buildings) rect(bd.x0, bd.z0, bd.x1, bd.z1);
-    ctx.fillStyle = '#b4b4b8';
-    for (const o of view.okadas) { const [ox, oy] = P(o.x, o.z); ctx.beginPath(); ctx.arc(ox, oy, 2.6, 0, Math.PI * 2); ctx.fill(); }
-    ctx.font = `600 15px ${MAP_FONT}`; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round';
-    const label = (text, x, y) => { ctx.strokeStyle = 'rgba(0,0,0,0.75)'; ctx.lineWidth = 4; ctx.strokeText(text, x, y); ctx.fillStyle = '#ffffff'; ctx.fillText(text, x, y); };
-    for (const [text, x, z, align] of ZONE_PROPS.mapLabels) {
-      const [sx, sy] = P(x, z);
-      if (align === 'vertical') { ctx.save(); ctx.translate(sx, sy); ctx.rotate(-Math.PI / 2); ctx.textAlign = 'center'; label(text, 0, 0); ctx.restore(); continue; }
-      ctx.textAlign = align; label(text, sx, sy);
-    }
-    // vehicles, and where the current run has to go
-    for (const v of view.vehicles) { const [vx, vy] = P(v.x, v.z); ctx.fillStyle = v.yours ? '#ffffff' : '#1d1d1f'; ctx.fillRect(vx - 4, vy - 4, 8, 8); ctx.strokeStyle = v.yours ? '#000000' : '#b4b4b8'; ctx.lineWidth = 1; ctx.strokeRect(vx - 4, vy - 4, 8, 8); }
-    if (view.self.run) {
-      const spot = view.self.run.state === 'accepted' ? view.self.run.from : view.self.run.to;
-      const [rx, ry] = P(spot.x, spot.z);
-      ctx.strokeStyle = '#000000'; ctx.lineWidth = 6; ctx.beginPath(); ctx.arc(rx, ry, 11, 0, Math.PI * 2); ctx.stroke();
-      ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(rx, ry, 11, 0, Math.PI * 2); ctx.stroke();
-      ctx.fillStyle = '#ffffff'; ctx.beginPath(); ctx.arc(rx, ry, 4, 0, Math.PI * 2); ctx.fill();
-    }
-    // the way that was asked for, and the place marked in the town
-    if (way && way.points.length > 1) {
-      ctx.lineJoin = 'round'; ctx.lineCap = 'round';
-      for (const [colour, width] of [['#000000', 10], ['#ffffff', 5]]) { ctx.strokeStyle = colour; ctx.lineWidth = width; ctx.beginPath(); way.points.forEach(([x, z], i) => { const [sx, sy] = P(x, z); if (i) ctx.lineTo(sx, sy); else ctx.moveTo(sx, sy); }); ctx.stroke(); }
-      const [tx, ty] = P(way.to.x, way.to.z);
-      ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(tx, ty, 9, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
-    }
-    const mark = app.waypoint();
-    if (mark) { const [wx, wy] = P(mark.x, mark.z); ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 3; ctx.beginPath(); ctx.arc(wx, wy, 14, 0, Math.PI * 2); ctx.stroke(); }
-    // the ambulance, when it is out: the one thing on the map in colour, because it is an emergency
-    const van = view.ambulance;
-    if (van && van.mode !== 'parked') { const [ax, ay] = P(van.x, van.z); ctx.fillStyle = '#ffffff'; ctx.fillRect(ax - 6, ay - 6, 12, 12); ctx.fillStyle = '#cf4436'; ctx.fillRect(ax - 1.5, ay - 5, 3, 10); ctx.fillRect(ax - 5, ay - 1.5, 10, 3); }
-    ctx.fillStyle = '#ffffff';
-    // north arrow
-    ctx.textAlign = 'center'; ctx.font = `700 16px ${MAP_FONT}`; ctx.fillText('N', canvas.width - 26, 44);
-    ctx.beginPath(); ctx.moveTo(canvas.width - 26, 8); ctx.lineTo(canvas.width - 19, 30); ctx.lineTo(canvas.width - 33, 30); ctx.closePath(); ctx.fill();
-    // the player: a white arrow, edged in black so it shows on anything
-    const me = view.self;
-    const [mx, my] = P(me.x, me.z);
-    ctx.save(); ctx.translate(mx, my); ctx.rotate(-me.heading + Math.PI + (ZONE.gridBearing * Math.PI) / 180);
-    ctx.fillStyle = '#ffffff'; ctx.strokeStyle = '#000000'; ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(0, -14); ctx.lineTo(10, 11); ctx.lineTo(0, 5); ctx.lineTo(-10, 11); ctx.closePath(); ctx.stroke(); ctx.fill(); ctx.restore();
-  }
-
   function drawNation(canvas) {
     const ctx = canvas.getContext('2d');
-    ctx.fillStyle = '#0d0d0e'; ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.fillStyle = '#e9efdd'; ctx.fillRect(0, 0, canvas.width, canvas.height);
     const pts = NIGERIA_STATES.map((s) => ({ ...s, ...geoToWorld(s.lat, s.lon) }));
     const minX = Math.min(...pts.map((p) => p.x)), maxX = Math.max(...pts.map((p) => p.x)), minZ = Math.min(...pts.map((p) => p.z)), maxZ = Math.max(...pts.map((p) => p.z));
-    const pad = 60;
-    const scale = Math.min((canvas.width - pad * 2) / (maxX - minX), (canvas.height - pad * 2) / (maxZ - minZ));
+    const pad = 64;
+    const scale = Math.min((canvas.width - pad * 2) / (maxX - minX), (canvas.height - pad * 2 - 20) / (maxZ - minZ));
     const X = (x) => pad + (x - minX) * scale;
-    const Z = (z) => pad + (z - minZ) * scale;
-    ctx.strokeStyle = 'rgba(255,255,255,0.08)'; ctx.lineWidth = 1;
+    const Z = (z) => pad + 20 + (z - minZ) * scale;
+    ctx.strokeStyle = '#d3dcc3'; ctx.lineWidth = 1;
     for (let km = 0; km * 1000 <= maxX - minX + 20000; km += 20) { ctx.beginPath(); ctx.moveTo(X(minX + km * 1000), 0); ctx.lineTo(X(minX + km * 1000), canvas.height); ctx.stroke(); }
     for (let km = 0; km * 1000 <= maxZ - minZ + 20000; km += 20) { ctx.beginPath(); ctx.moveTo(0, Z(minZ + km * 1000)); ctx.lineTo(canvas.width, Z(minZ + km * 1000)); ctx.stroke(); }
-    // the six zones are told apart by how light they are, and each state carries its own code beside it
-    const zoneShade = { NW: '#f4f4f2', NE: '#cfcfd2', NC: '#aaaaae', SW: '#88888d', SE: '#6a6a6f', SS: '#4f4f54' };
-    ctx.font = `600 14px ui-monospace, "SF Mono", Menlo, Consolas, monospace`; ctx.textAlign = 'center';
+    // the six zones each have a colour, and each state carries its own code beside it
+    const zoneColour = { NW: '#b3541e', NE: '#7a5195', NC: '#c9930a', SW: '#2f7d4f', SE: '#1a73e8', SS: '#c0392b' };
+    ctx.font = `700 14px ${MAP_FONT}`; ctx.textAlign = 'center'; ctx.lineJoin = 'round';
     for (const p of pts) {
-      ctx.fillStyle = zoneShade[p.zone]; ctx.beginPath(); ctx.arc(X(p.x), Z(p.z), p.code === 'FC' ? 7 : 5, 0, Math.PI * 2); ctx.fill();
-      ctx.fillStyle = 'rgba(255,255,255,0.78)'; ctx.fillText(p.code, X(p.x), Z(p.z) - 10);
+      ctx.fillStyle = zoneColour[p.zone]; ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2;
+      ctx.beginPath(); ctx.arc(X(p.x), Z(p.z), p.code === 'FC' ? 8 : 6, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+      ctx.strokeStyle = 'rgba(255,255,255,0.9)'; ctx.lineWidth = 4; ctx.strokeText(p.code, X(p.x), Z(p.z) - 12);
+      ctx.fillStyle = '#26331f'; ctx.fillText(p.code, X(p.x), Z(p.z) - 12);
     }
     const here = { x: ZONE.origin.x, z: ZONE.origin.z };
     const text = `${ZONE.name} · you are here`;
-    ctx.strokeStyle = '#ffffff'; ctx.lineWidth = 2.5; ctx.beginPath(); ctx.arc(X(here.x), Z(here.z), 12, 0, Math.PI * 2); ctx.stroke();
-    ctx.fillStyle = '#ffffff'; ctx.textAlign = 'left'; ctx.font = `700 18px ${MAP_FONT}`; ctx.strokeStyle = '#0d0d0e'; ctx.lineWidth = 5; ctx.lineJoin = 'round'; ctx.strokeText(text, X(here.x) + 18, Z(here.z) + 22); ctx.fillText(text, X(here.x) + 18, Z(here.z) + 22);
-    ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = `500 14px ${MAP_FONT}`; ctx.fillText('Grid squares are 20 game km (200 real km)', pad, canvas.height - 18);
-    let lx = pad; ctx.textAlign = 'left';
-    for (const [code, name] of Object.entries(NIGERIA_ZONES)) { ctx.fillStyle = zoneShade[code]; ctx.fillRect(lx, 16, 12, 12); ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillText(name, lx + 17, 27); lx += ctx.measureText(name).width + 38; }
+    ctx.beginPath(); ctx.arc(X(here.x), Z(here.z), 20, 0, Math.PI * 2); ctx.fillStyle = 'rgba(26,115,232,0.2)'; ctx.fill();
+    ctx.beginPath(); ctx.arc(X(here.x), Z(here.z), 9, 0, Math.PI * 2); ctx.fillStyle = '#ffffff'; ctx.fill();
+    ctx.beginPath(); ctx.arc(X(here.x), Z(here.z), 6.5, 0, Math.PI * 2); ctx.fillStyle = '#1a73e8'; ctx.fill();
+    ctx.textAlign = 'left'; ctx.font = `700 18px ${MAP_FONT}`; ctx.strokeStyle = 'rgba(255,255,255,0.95)'; ctx.lineWidth = 5; ctx.strokeText(text, X(here.x) + 24, Z(here.z) + 26); ctx.fillStyle = '#12458f'; ctx.fillText(text, X(here.x) + 24, Z(here.z) + 26);
+    ctx.fillStyle = '#5a6650'; ctx.font = `500 14px ${MAP_FONT}`; ctx.fillText('Grid squares are 20 game km (200 real km)', pad, canvas.height - 16);
+    let lx = 16; ctx.textAlign = 'left'; ctx.font = `600 13px ${MAP_FONT}`;
+    for (const [code, name] of Object.entries(NIGERIA_ZONES)) { ctx.fillStyle = zoneColour[code]; ctx.beginPath(); ctx.arc(lx + 6, 22, 6, 0, Math.PI * 2); ctx.fill(); ctx.fillStyle = '#26331f'; ctx.fillText(name, lx + 17, 27); lx += ctx.measureText(name).width + 34; }
   }
 
   // ------------------------------------------------------------------ HUD --

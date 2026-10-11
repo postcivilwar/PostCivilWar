@@ -228,7 +228,7 @@ function start(carried) {
     else if (key !== radarRouteFor || radarRouteWait <= 0) {
       radarRouteFor = key; radarRouteWait = 1.5;
       const r = server.send({ type: 'map.route', x: target.x, z: target.z, label: target.label || '' });
-      radarWay = r && r.ok && r.points ? [...r.points, [target.x, target.z]] : null;
+      radarWay = r && r.ok && (r.road || r.points) ? [...(r.road || r.points), [target.x, target.z]] : null;
     }
     const self = view.self;
     const chased = self.law.state === 'pursuit' || self.law.state === 'wanted';

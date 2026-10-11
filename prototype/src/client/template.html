@@ -1146,6 +1146,35 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .wl-bigname { font: 800 clamp(24px, 8vw, 36px)/1.1 var(--font-ui); overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
 .about { display: flex; flex-direction: column; gap: 12px; }
 .about p { margin: 0; line-height: 1.55; color: #e4e4df; }
+
+/* ---- the Map app's map: a map to find the way by, moved and zoomed with the hand (town-map.js) ---- */
+.navmap { position: relative; width: 100%; height: clamp(260px, 58vh, 600px); border-radius: 14px; overflow: hidden; background: #9ccaf0; box-shadow: inset 0 0 0 1px rgba(0, 0, 0, 0.25), 0 6px 20px rgba(0, 0, 0, 0.35); flex: none; }
+.navmap-canvas { position: absolute; inset: 0; width: 100%; height: 100%; display: block; touch-action: none; cursor: grab; outline: none; }
+.navmap-canvas.held { cursor: grabbing; }
+.navmap-canvas:focus-visible { box-shadow: inset 0 0 0 3px #1a73e8; }
+.navmap-btn { appearance: none; width: 44px; height: 44px; border: 0; padding: 0; display: grid; place-items: center; background: #ffffff; color: #26331f; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.navmap-btn svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 2.2; stroke-linecap: round; stroke-linejoin: round; }
+@media (hover: hover) { .navmap-btn:hover { background: #eef2e6; } }
+.navmap-btn:active { background: #dfe6d2; }
+.navmap-btn:focus-visible { outline: 3px solid #1a73e8; outline-offset: -3px; }
+.navmap-zoom { position: absolute; right: 10px; bottom: 64px; display: flex; flex-direction: column; border-radius: 10px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.navmap-zoom .navmap-btn + .navmap-btn { border-top: 1px solid #d5dbc8; }
+.navmap-here { position: absolute; right: 10px; bottom: 10px; border-radius: 22px; overflow: hidden; box-shadow: 0 2px 8px rgba(0, 0, 0, 0.35); }
+.navmap-here .navmap-btn { border-radius: 22px; color: #5a6650; }
+.navmap-here .navmap-btn.on { color: #1a73e8; }
+.navmap-north { position: absolute; right: 12px; top: 10px; width: 40px; height: 40px; border-radius: 20px; background: rgba(255, 255, 255, 0.92); display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3); pointer-events: none; }
+.navmap-north svg { width: 22px; height: 22px; margin-top: -7px; fill: #e53935; stroke: none; }
+.navmap-north span { position: absolute; bottom: 3px; font: 800 9px/1 var(--font-ui); color: #26331f; }
+.maplegend { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 12.5px; color: var(--muted); padding: 0 2px; }
+.maplegend span { display: inline-flex; align-items: center; gap: 6px; white-space: nowrap; }
+.maplegend .lg { display: inline-block; width: 18px; height: 8px; border-radius: 2px; box-shadow: 0 0 0 1px rgba(0, 0, 0, 0.35); }
+.maplegend .lg.me { width: 11px; height: 11px; border-radius: 6px; background: #1a73e8; box-shadow: 0 0 0 2px #fff; }
+.maplegend .lg.route { background: #1a73e8; height: 5px; box-shadow: 0 0 0 1.5px #fff; }
+.maplegend .lg.major { background: #ffe7a0; box-shadow: 0 0 0 1.5px #d0a63a; }
+.maplegend .lg.minor { background: #ffffff; box-shadow: 0 0 0 1.5px #b3b6a6; }
+.maplegend .lg.mine { background: #ffe08a; box-shadow: 0 0 0 1.5px #c98a00; height: 11px; width: 13px; }
+.maplegend .lg.sale { background: #dbe7c9; box-shadow: none; border: 1.5px dashed #d98c00; height: 9px; width: 11px; }
+canvas.map.nation { border-radius: 14px; }
 </style>
 
 <script>

@@ -392,13 +392,31 @@ export function createPhone(kit) {
 
   // --- map ---------------------------------------------------------------------------------
 
+  // The way to the place that was asked for: the simulation's own route, along the town's roads and paths, and
+  // asked for again as the player moves so that it always begins where they are.
+  let routed = null;             // { key, x, z, at, way }
+  function wayNow() {
+    if (!sub.place) { routed = null; return null; }
+    const self = app.view().self;
+    const key = `${sub.place.x}|${sub.place.z}`;
+    const stale = !routed || routed.key !== key || Math.hypot(self.x - routed.x, self.z - routed.z) > 4;
+    if (stale) { const r = send({ type: 'map.route', x: sub.place.x, z: sub.place.z, label: sub.place.label }); routed = { key, x: self.x, z: self.z, way: r.ok ? r : null }; }
+    return routed.way;
+  }
+  let fitted = '';               // the place whose whole way has been brought into view once already
+
   function mapApp(root, view) {
     const places = [...ZONE_SERVICES.map((s) => ({ x: s.x, z: s.z, label: s.name })), ...view.self.phone.requests.map((r) => ({ ...r.station, label: `${r.station.name}: ${r.from}` }))];
-    let way = null;
-    if (sub.place) { const r = send({ type: 'map.route', x: sub.place.x, z: sub.place.z, label: sub.place.label }); if (r.ok) way = r; }
-    legacy.map(root, way);
+    const way = wayNow();
+    const key = sub.place ? `${sub.place.x}|${sub.place.z}` : '';
+    const first = !!way && fitted !== key;
+    fitted = key;
+    legacy.map(root, way, { live: wayNow, fitTo: first ? way.road || way.points : null, pick: (place) => { sub = { place }; redraw(); } });
     if (way) {
-      root.append(line(way.to.label || 'There', `${money(way.metres)} m`), line('On foot', `about ${howLong(way.walkSeconds)}`), way.driveSeconds ? line('By keke or okada', `about ${howLong(way.driveSeconds)}`) : null);
+      // the distance is the way shown, along the roads; on foot one may also cut straight across open ground
+      const far = way.roadMetres || way.metres;
+      root.append(h('div', { class: 'rows', id: 'map-way' }, line(way.to.label || 'There', `${money(far)} m by road`), line('On foot', `about ${howLong(Math.round(way.walkSeconds * (far / Math.max(1, way.metres))))}`), way.driveSeconds ? line('By keke or okada', `about ${howLong(way.driveSeconds)}`) : null,
+        way.roadMetres && way.metres < way.roadMetres - 15 ? line('Straight across, on foot', `${money(way.metres)} m`) : null));
       const marked = app.waypoint() && Math.hypot(app.waypoint().x - way.to.x, app.waypoint().z - way.to.z) < 1;
       root.append(h('div', { class: 'actions' },
         h('button', { class: 'btn primary', type: 'button', onclick: () => { app.setWaypoint(marked ? null : { x: way.to.x, z: way.to.z, label: way.to.label }); redraw(); } }, marked ? 'Take the marker away' : 'Mark it in the town'),
