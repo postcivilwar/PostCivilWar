@@ -68,13 +68,13 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- the opening: the mark, the story, the question ---------- */
 #intro { position: absolute; inset: 0; z-index: 50; background: #000; color: var(--white); overflow: hidden; }
 #intro > section { position: absolute; inset: 0; display: flex; flex-direction: column; align-items: center; justify-content: center; opacity: 0; visibility: hidden; transition: opacity 0.35s ease, visibility 0s linear 0.35s; padding: 20px; padding-left: calc(20px + env(safe-area-inset-left, 0px)); padding-right: calc(20px + env(safe-area-inset-right, 0px)); }
-#intro[data-stage="splash"] > .splash, #intro[data-stage="slides"] > .slides, #intro[data-stage="choice"] > .choice { opacity: 1; visibility: visible; transition: opacity 0.35s ease; }
+#intro[data-stage="splash"] > .splash, #intro[data-stage="cover"] > .gamecover, #intro[data-stage="choice"] > .choice { opacity: 1; visibility: visible; transition: opacity 0.35s ease; }
 #intro.leaving { opacity: 0; transition: opacity 0.45s ease; pointer-events: none; }
 
 /* Sound, top left through the whole opening: one icon that says which way it is set. */
 #intro-mute { position: absolute; z-index: 4; left: calc(8px + env(safe-area-inset-left, 0px)); top: calc(8px + var(--st)); width: 44px; height: 44px; padding: 0; appearance: none; border: 0; background: none; color: var(--white); cursor: pointer; display: grid; place-items: center; opacity: 0.82; transition: opacity 0.15s, transform 0.12s; -webkit-tap-highlight-color: transparent; }
 #intro-mute:active { transform: scale(0.9); }
-#intro-mute:focus-visible, #intro-skip:focus-visible, #intro-play:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
+#intro-mute:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
 #intro-mute svg { width: 22px; height: 22px; fill: none; stroke: currentColor; stroke-width: 1.9; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); }
 #intro-mute .off, #intro-mute[aria-pressed="false"] .on { display: none; }
 #intro-mute[aria-pressed="false"] .off { display: block; }
@@ -99,32 +99,42 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .wordmark i { font-style: normal; display: inline-block; white-space: pre; animation: letter-in 0.34s cubic-bezier(0.2, 0.8, 0.2, 1) both; animation-delay: calc(1.9s + var(--i) * 0.07s); }
 @keyframes letter-in { from { transform: translateY(0.55em); opacity: 0; } to { transform: none; opacity: 1; } }
 @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
-/* The way in: first a row of marks that light one after another while the game gets ready, then PLAY in their place. */
+/* A row of marks that light one after another while the game gets ready. The cover, and PLAY, come after them. */
 .gate { position: relative; margin-top: clamp(26px, 6.5vh, 54px); width: min(240px, 62vw); height: 50px; display: grid; place-items: center; }
 .load { position: absolute; inset: 0; display: flex; flex-direction: column; justify-content: center; gap: 9px; transition: opacity 0.3s ease; animation: fade-in 0.5s ease 0.4s both; }
 .load .ticks { display: flex; justify-content: space-between; height: 9px; }
 .load .ticks i { width: 1.5px; height: 100%; background: var(--white); opacity: 0.16; animation: tick 0.18s ease-out both; animation-delay: calc(0.35s + var(--i) * 0.145s); }
 @keyframes tick { from { opacity: 0.16; transform: scaleY(0.55); } 55% { opacity: 1; transform: scaleY(1.25); } to { opacity: 0.92; transform: none; } }
 .load span { display: flex; justify-content: center; font-family: var(--font-mono); font-size: 9.5px; letter-spacing: 0.3em; color: #6c6c71; text-transform: uppercase; }
-#intro-play { position: absolute; appearance: none; border: 0; background: var(--white); color: var(--ink); font-family: var(--font-display); font-size: 17px; line-height: 1; letter-spacing: 0.14em; text-indent: 0.14em; padding: 16px 0 15px; width: 100%; cursor: pointer; opacity: 0; transform: translateY(6px); pointer-events: none; transition: opacity 0.35s ease, transform 0.35s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.12s; -webkit-tap-highlight-color: transparent; }
-#intro.ready .load { opacity: 0; animation: none; visibility: hidden; }
-#intro.ready #intro-play { opacity: 1; transform: none; pointer-events: auto; }
-#intro.ready #intro-play:active { transform: translateY(1px) scale(0.985); background: #dcdcda; }
-@media (hover: hover) { #intro.ready #intro-play:hover { background: #e9e9e7; } }
 
-.slides { padding: 0 !important; background: #000; }
-.slides .bg { position: absolute; inset: -6%; background-size: cover; background-position: center; filter: blur(22px) brightness(0.42) grayscale(0.4); }
-.slides img { position: relative; max-width: 100%; max-height: 100%; width: auto; height: auto; object-fit: contain; display: block; box-shadow: 0 18px 60px rgba(0, 0, 0, 0.6); }
-.slides img.in { animation: slide-in 1s cubic-bezier(0.2, 0.6, 0.2, 1) both; }
-@keyframes slide-in { from { transform: scale(1.045); } to { transform: scale(1); } }
-.slides .flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; }
-.slides .flash.go { animation: shutter-flash 0.22s ease-out both; }
-@keyframes shutter-flash { 0% { opacity: 0.85; } 100% { opacity: 0; } }
-/* Skip is a word and an arrow, with nothing behind them. */
-#intro-skip { position: absolute; z-index: 4; right: calc(6px + env(safe-area-inset-right, 0px)); top: calc(8px + var(--st)); height: 44px; padding: 0 10px 0 14px; appearance: none; border: 0; background: none; color: var(--white); font-family: var(--font-ui); font-size: 12px; font-weight: 600; letter-spacing: 0.26em; cursor: pointer; display: flex; align-items: center; gap: 2px; opacity: 0.86; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9); transition: opacity 0.15s, transform 0.12s; -webkit-tap-highlight-color: transparent; }
-#intro-skip svg { width: 16px; height: 16px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; filter: drop-shadow(0 1px 2px rgba(0, 0, 0, 0.8)); transition: transform 0.15s; }
-#intro-skip:active { transform: scale(0.94); }
-@media (hover: hover) { #intro-skip:hover { opacity: 1; } #intro-skip:hover svg { transform: translateX(3px); } #intro-mute:hover { opacity: 1; } }
+/* The cover: one supplied picture, in four pieces (tools/brand/cover.py). The plate fills the screen; the name,
+   the words and PLAY are put on it where this screen has room (intro.js works out where). PLAY is the painted
+   button itself, made a real one. */
+.gamecover { padding: 0 !important; background: var(--cover-sky, #97d5ea); overflow: hidden; }
+.gamecover > * { position: absolute; left: 0; top: 0; }
+.gamecover img { display: block; width: 100%; height: 100%; max-width: none; max-height: none; object-fit: fill; -webkit-user-drag: none; user-select: none; -webkit-user-select: none; pointer-events: none; }
+.gamecover .plate { transform-origin: 60% 45%; will-change: transform; }
+.gamecover .logo { filter: drop-shadow(0 2px 10px rgba(20, 40, 60, 0.18)); }
+#intro[data-stage="cover"] .gamecover .plate { animation: cover-in 1.6s cubic-bezier(0.2, 0.6, 0.2, 1) both; }
+#intro[data-stage="cover"] .gamecover .logo { animation: cover-drop 0.7s cubic-bezier(0.2, 0.8, 0.2, 1) 0.15s both; }
+#intro[data-stage="cover"] .gamecover .words { animation: fade-in 0.6s ease 0.55s both; }
+#intro[data-stage="cover"] #cover-play { animation: cover-rise 0.6s cubic-bezier(0.2, 0.8, 0.2, 1) 0.5s both; }
+@keyframes cover-in { from { transform: scale(1.05); } to { transform: none; } }
+@keyframes cover-drop { from { transform: translateY(-14px); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes cover-rise { from { transform: translateY(12px); opacity: 0; } to { transform: none; opacity: 1; } }
+#cover-play { appearance: none; -webkit-appearance: none; border: 0; padding: 0; margin: 0; background: none; cursor: pointer; border-radius: 9% / 40%; -webkit-tap-highlight-color: transparent; touch-action: manipulation; filter: drop-shadow(0 6px 14px rgba(6, 20, 40, 0.45)); transition: filter 0.15s ease; }
+#cover-play img { transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1), filter 0.15s ease; }
+#cover-play::after { content: ""; position: absolute; inset: 5% 1.2%; border-radius: 9% / 40%; box-shadow: 0 0 0 0 rgba(240, 214, 150, 0.55); animation: cover-pulse 2.2s ease-out 1.4s infinite; pointer-events: none; }
+@keyframes cover-pulse { 0% { box-shadow: 0 0 0 0 rgba(240, 214, 150, 0.5); } 70%, 100% { box-shadow: 0 0 0 14px rgba(240, 214, 150, 0); } }
+@media (hover: hover) { #cover-play:hover img { filter: brightness(1.22) saturate(1.1); transform: translateY(-1px) scale(1.015); } #cover-play:hover { filter: drop-shadow(0 10px 20px rgba(6, 20, 40, 0.5)); } }
+#cover-play:active img { transform: translateY(1px) scale(0.975); filter: brightness(0.9); }
+#cover-play:focus-visible { outline: 3px solid #fff; outline-offset: 3px; }
+#cover-play:disabled { cursor: default; }
+#cover-play:disabled::after { animation: none; }
+#cover-play:disabled img { filter: brightness(0.82); transform: scale(0.985); }
+/* over the light sky the sound mark needs something behind it */
+#intro[data-stage="cover"] #intro-mute { background: rgba(18, 22, 30, 0.5); border-radius: 22px; opacity: 1; }
+@media (hover: hover) { #intro-mute:hover { opacity: 1; } }
 
 /* The question. Its two answers stand side by side, the same size, on any screen wide enough to hold them. */
 .choice { gap: clamp(16px, 4.2vh, 34px); background: radial-gradient(80% 60% at 50% 40%, #121213 0, #030303 70%, #000 100%); text-align: center; }
@@ -685,9 +695,10 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 @media (prefers-reduced-motion: reduce) {
   .slip, .hint, .gov, .law, .alarm, .ringing, .screen.opening { animation: none; } .meter i { transition: none; }
   .next.say { animation: none; opacity: 1; }
-  .splash .mark .disc, .splash .mark .ray, .splash .mark .ground, .wordmark i, .load, .slides img.in, .slides .flash.go, .pick.chosen::after { animation: none; }
+  .splash .mark .disc, .splash .mark .ray, .splash .mark .ground, .wordmark i, .load, .pick.chosen::after { animation: none; }
+  #intro[data-stage="cover"] .gamecover .plate, #intro[data-stage="cover"] .gamecover .logo, #intro[data-stage="cover"] .gamecover .words, #intro[data-stage="cover"] #cover-play, #cover-play::after { animation: none; }
   .load .ticks i { animation-duration: 0.01s; }
-  #intro-play, .pick { transition: none; }
+  #cover-play img, .pick { transition: none; }
   #view.jolt { animation: none; }
 }
 
@@ -765,10 +776,7 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 #continue-top { margin: 4px 0 2px; }
 .startrow { gap: 12px; }
 .startrow .hx { flex: 1 1 180px; }
-/* the opening: PLAY, and the two answers */
-#intro-play { background: none; color: #fff; border: solid transparent; border-width: 0 31px; border-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='48' viewBox='0 0 140 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23161617'/%3E%3Cstop offset='1' stop-color='%23050506'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='1,24 27,1 113,1 139,24 113,47 27,47' fill='url(%23g)' stroke='%23e4e4e0' stroke-width='1.6' stroke-linejoin='miter'/%3E%3Cpolygon points='8.5,24 30.5,5.5 109.5,5.5 131.5,24 109.5,42.5 30.5,42.5' fill='none' stroke='%238f8f8b' stroke-width='1.1' stroke-linejoin='miter'/%3E%3C/svg%3E") 0 31 fill / 0 31px stretch; padding: 19px 0 17px; }
-#intro.ready #intro-play:active { background: none; transform: translateY(1px) scale(0.98); }
-@media (hover: hover) { #intro.ready #intro-play:hover { background: none; border-image-source: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='140' height='48' viewBox='0 0 140 48'%3E%3Cdefs%3E%3ClinearGradient id='g' x1='0' y1='0' x2='0' y2='1'%3E%3Cstop offset='0' stop-color='%23262628'/%3E%3Cstop offset='1' stop-color='%230c0c0d'/%3E%3C/linearGradient%3E%3C/defs%3E%3Cpolygon points='1,24 27,1 113,1 139,24 113,47 27,47' fill='url(%23g)' stroke='%23ffffff' stroke-width='1.6' stroke-linejoin='miter'/%3E%3Cpolygon points='8.5,24 30.5,5.5 109.5,5.5 131.5,24 109.5,42.5 30.5,42.5' fill='none' stroke='%23c9c9c5' stroke-width='1.1' stroke-linejoin='miter'/%3E%3C/svg%3E"); } }
+/* the opening: the two answers */
 .gate { height: 58px; }
 
 /* ---------- the phone (10 October 2026) ----------
@@ -1195,15 +1203,14 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
         <h1 class="wordmark" aria-label="Post Civil War"><span aria-hidden="true"><i style="--i:0">P</i><i style="--i:1">O</i><i style="--i:2">S</i><i style="--i:3">T</i><i style="--i:4"> </i><i style="--i:5">C</i><i style="--i:6">I</i><i style="--i:7">V</i><i style="--i:8">I</i><i style="--i:9">L</i><i style="--i:10"> </i><i style="--i:11">W</i><i style="--i:12">A</i><i style="--i:13">R</i></span></h1>
         <div class="gate">
           <div class="load" aria-hidden="true"><div class="ticks"><i style="--i:0"></i><i style="--i:1"></i><i style="--i:2"></i><i style="--i:3"></i><i style="--i:4"></i><i style="--i:5"></i><i style="--i:6"></i><i style="--i:7"></i><i style="--i:8"></i><i style="--i:9"></i><i style="--i:10"></i><i style="--i:11"></i><i style="--i:12"></i><i style="--i:13"></i><i style="--i:14"></i><i style="--i:15"></i><i style="--i:16"></i><i style="--i:17"></i><i style="--i:18"></i><i style="--i:19"></i><i style="--i:20"></i><i style="--i:21"></i><i style="--i:22"></i><i style="--i:23"></i><i style="--i:24"></i><i style="--i:25"></i><i style="--i:26"></i><i style="--i:27"></i><i style="--i:28"></i><i style="--i:29"></i><i style="--i:30"></i><i style="--i:31"></i></div><span><b>Loading</b></span></div>
-          <button id="intro-play" type="button" tabindex="-1">PLAY</button>
         </div>
       </div>
     </section>
-    <section class="slides" aria-label="The story so far">
-      <div class="bg" id="slide-bg"></div>
-      <img id="slide-img" alt="">
-      <div class="flash" id="slide-flash"></div>
-      <button id="intro-skip" type="button" aria-label="Skip the story">SKIP<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 5l7 7-7 7"></path></svg></button>
+    <section class="gamecover" aria-label="Post Civil War">
+      <img class="plate" id="cover-plate" alt="">
+      <img class="logo" id="cover-logo" alt="Post Civil War">
+      <img class="words" id="cover-words" alt="Find work. Buy a plot. Build the walls. Start again.">
+      <button id="cover-play" type="button" aria-label="Play" tabindex="-1"><img id="cover-play-art" alt=""></button>
     </section>
     <section class="choice" aria-labelledby="choice-title">
       <svg class="mark" viewBox="0 0 240 132" aria-hidden="true">@@PCW_MARK@@</svg>

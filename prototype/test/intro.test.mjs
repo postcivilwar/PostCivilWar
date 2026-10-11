@@ -5,46 +5,82 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync, existsSync } from 'node:fs';
-import { INTRO_TIMES, PATHS, slideDelay, pathForKey } from '../src/client/intro.js';
-import { STORY_SLIDES } from '../src/client/brand-data.js';
+import { INTRO_TIMES, PATHS, pathForKey, coverLayout } from '../src/client/intro.js';
+import { COVER } from '../src/client/brand-data.js';
 import { createHost } from '../src/sim/host.js';
 
 const here = (path) => new URL(`../${path}`, import.meta.url);
 
-test('the splash is five seconds and each picture one', () => {
+test('the splash is five seconds, and nothing on it is pressed: the cover and its PLAY come after it', () => {
   assert.equal(INTRO_TIMES.splash, 5000);
-  assert.equal(INTRO_TIMES.slide, 1000);
   assert.deepEqual(PATHS, ['hero', 'villain']);
+  const page = readFileSync(here('src/client/template.html'), 'utf8');
+  assert.ok(!page.includes('intro-play'), 'the splash has no PLAY of its own');
+  assert.ok(!/slide-img|intro-skip|class="slides"/.test(page), 'the story in pictures is gone');
+  assert.ok(page.includes('id="cover-play"'), 'PLAY is on the cover');
+  assert.ok(!existsSync(here('assets/brand/slides')), 'and so are its pictures');
 });
 
-test('the story is the five pictures that were delivered, in the order their author gave', () => {
-  assert.deepEqual(STORY_SLIDES.map((s) => s.id), ['01_the_war_ended', '02_home_had_changed', '03_what_remained', '05_voices_from_the_ruins', '06_learning_to_live']);
-  for (const slide of STORY_SLIDES) {
-    assert.ok(slide.src.startsWith('data:image/jpeg;base64,'), `${slide.id} travels inside the page`);
-    assert.ok(slide.alt.length > 20, `${slide.id} is described for someone who cannot see it`);
-    // each is the scaled copy of a master that is kept, untouched, beside the tool that scales it
-    assert.ok(existsSync(here(`assets/brand/slides/${slide.id}_1080p.jpg`)), `${slide.id} has its master`);
+test('the cover is the supplied picture: kept as supplied, and carried in the page in four pieces', () => {
+  assert.ok(existsSync(here('assets/brand/cover/cover-master.jpg')), 'the picture as it was supplied');
+  for (const piece of ['plate.jpg', 'logo.png', 'words.png', 'play.png', 'cover.json']) assert.ok(existsSync(here(`assets/brand/cover/${piece}`)), piece);
+  assert.ok(COVER.plate.startsWith('data:image/jpeg;base64,'));
+  for (const piece of ['logo', 'words', 'play']) {
+    assert.ok(COVER[piece].src.startsWith('data:image/webp;base64,'), `${piece} travels inside the page`);
+    for (const key of ['x', 'y', 'w', 'h']) assert.ok(COVER[piece][key] > 0 && COVER[piece][key] < 1, `${piece}.${key}`);
   }
-  // the fourth was never delivered, and nothing stands in for it
-  assert.ok(!STORY_SLIDES.some((s) => s.id.startsWith('04')));
+  assert.ok(Math.abs(COVER.aspect - 16 / 9) < 0.01);
+  assert.ok(COVER.alt.length > 40, 'described for someone who cannot see it');
+  assert.match(COVER.sky, /^#[0-9a-f]{6}$/);
 });
 
-test('every picture gets its turn: on time when the device keeps up, shortened but never skipped when it does not', () => {
-  // on time: the first picture went up at 0, the second is due at 1000
-  assert.equal(slideDelay(1, 0), 1000);
-  assert.equal(slideDelay(1, 400), 600);
-  assert.equal(slideDelay(3, 2100), 900);
-  // late: the device was busy for two seconds. The next picture still gets a third of a second.
-  assert.equal(slideDelay(1, 2000), 1000 / 3);
-  // five pictures shown on time end five seconds after the first went up
-  let clock = 0;
-  for (let shown = 1; shown <= 5; shown += 1) clock += slideDelay(shown, clock);
-  assert.equal(clock, 5000);
-  // and a device that stalls for 1.7 s on the second picture catches up without dropping one
-  clock = 0; let seen = 0;
-  for (let shown = 1; shown <= 5; shown += 1) { seen += 1; clock += slideDelay(shown, clock) + (shown === 2 ? 1700 : 0); }
-  assert.equal(seen, 5);
-  assert.ok(clock < 5000 + 1700);
+const SCREENS = [[320, 568], [360, 640], [390, 844], [412, 915], [768, 1024], [820, 1180], [900, 900], [1024, 768], [1180, 820], [740, 360], [844, 390], [932, 430], [1280, 720], [1366, 768], [1440, 900], [1920, 1080], [2560, 1080], [3440, 1440], [280, 653], [1000, 1000]];
+const inside = (box, W, H) => box.x >= -0.5 && box.y >= -0.5 && box.x + box.w <= W + 0.5 && box.y + box.h <= H + 0.5;
+const overlap = (a, b) => a.x < b.x + b.w && b.x < a.x + a.w && a.y < b.y + b.h && b.y < a.y + a.h;
+
+test('on a 16:9 screen every piece of the cover is back exactly where it was in the picture', () => {
+  for (const [W, H] of [[1280, 720], [1920, 1080], [2560, 1440]]) {
+    const at = coverLayout(W, H);
+    assert.equal(at.mode, 'wide');
+    assert.deepEqual([at.plate.x, at.plate.y, Math.round(at.plate.w), Math.round(at.plate.h)], [0, 0, W, H].map((v, i) => (i === 2 ? Math.round(H * COVER.aspect) : v)));
+    for (const piece of ['logo', 'words', 'play']) {
+      const box = at[piece];
+      assert.ok(Math.abs(box.x - COVER[piece].x * at.plate.w) < 0.6 && Math.abs(box.y - COVER[piece].y * at.plate.h) < 0.6, `${piece} at ${W}x${H}`);
+      assert.ok(Math.abs(box.w - COVER[piece].w * at.plate.w) < 0.6 && Math.abs(box.h - COVER[piece].h * at.plate.h) < 0.6, `${piece} size at ${W}x${H}`);
+    }
+  }
+});
+
+test('on every screen the whole name and the whole of PLAY are in view, PLAY is big enough for a finger, and the picture leaves no gap', () => {
+  for (const [W, H] of SCREENS) {
+    const at = coverLayout(W, H);
+    const label = `${W}x${H} (${at.mode})`;
+    assert.ok(inside(at.logo, W, H), `the name on ${label}: ${JSON.stringify(at.logo)}`);
+    assert.ok(inside(at.play, W, H) && inside(at.hit, W, H), `PLAY on ${label}: ${JSON.stringify(at.hit)}`);
+    assert.ok(at.hit.h >= 47.99 && at.hit.w >= 120, `PLAY is ${at.hit.w} by ${at.hit.h} on ${label}`);
+    assert.ok(!overlap(at.logo, at.hit), `the name and PLAY overlap on ${label}`);
+    if (at.words) { assert.ok(inside(at.words, W, H), `the words on ${label}`); assert.ok(!overlap(at.words, at.logo), `the words are on the name on ${label}`); }
+    // the picture reaches both sides and the foot; above it, on a tall screen, is sky of its own colour
+    assert.ok(at.plate.x <= 0.5 && at.plate.x + at.plate.w >= W - 0.5, `the picture leaves a gap at a side on ${label}`);
+    assert.ok(at.plate.y + at.plate.h >= H - 0.5, `the picture stops short of the foot on ${label}`);
+    if (at.mode === 'wide') assert.ok(at.plate.y <= 0.5, `the picture starts below the top on ${label}`);
+    // neither is squashed
+    assert.ok(Math.abs(at.plate.w / at.plate.h - COVER.aspect) < 0.01, `the picture is squashed on ${label}`);
+    assert.ok(Math.abs(at.logo.w / at.logo.h - COVER.logo.ratio) < 0.01 && Math.abs(at.play.w / at.play.h - COVER.play.ratio) < 0.01, `a piece is squashed on ${label}`);
+    // the two figures are on the screen from side to side
+    const left = at.plate.x + COVER.figures[0] * at.plate.w, right = left + COVER.figures[2] * at.plate.w;
+    assert.ok(left >= -1 && right <= W + 1, `the figures run from ${Math.round(left)} to ${Math.round(right)} of ${W} on ${label}`);
+    // and on a wide screen the name is clear of them
+    if (at.mode === 'wide') assert.ok(at.logo.x + at.logo.w < left, `the name is over the figures on ${label}`);
+    else assert.ok(at.logo.y + at.logo.h <= at.plate.y + 0.5, `the name is over the picture on ${label}`);
+  }
+});
+
+test('a notch or a home bar is kept clear of', () => {
+  const tall = coverLayout(390, 844, COVER, { top: 47, bottom: 34 });
+  assert.ok(tall.logo.y >= 47 && tall.hit.y + tall.hit.h <= 844 - 34);
+  const wide = coverLayout(844, 390, COVER, { left: 47, right: 47 });
+  assert.ok(wide.logo.x >= 47 && wide.words.x + wide.words.w <= 844 - 47);
 });
 
 test('H answers hero and V answers villain; nothing else answers', () => {
