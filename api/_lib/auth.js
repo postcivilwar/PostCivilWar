@@ -147,14 +147,19 @@ async function requireAccount(sql, req) {
 
 // ---- the three things a person does ----
 
-async function signUp(sql, req, body) {
+// `with_` is what else must exist the moment the account does (its wallet): it is made in the same transaction,
+// so there is never an account without it, and never two.
+async function signUp(sql, req, body, with_ = null) {
   const username = cleanUsername(body.username);
   const password = cleanPassword(body.password, username);
   await allow(sql, `signup:addr:${addressOf(req)}`, LIMITS.signupAddress.most, LIMITS.signupAddress.window);
   const hash = await hashPassword(password);
-  const rows = await sql.unsafe(`insert into ${S}.accounts (username, username_key, pass_hash) values ($1, $2, $3) on conflict (username_key) do nothing returning id, username, username_key, role`, [username, username.toLowerCase(), hash]);
-  if (!rows.length) throw new ApiError(409, 'TAKEN', 'That username is taken. Choose another.');
-  const account = rows[0];
+  const account = await sql.begin(async (tx) => {
+    const rows = await tx.unsafe(`insert into ${S}.accounts (username, username_key, pass_hash) values ($1, $2, $3) on conflict (username_key) do nothing returning id, username, username_key, role`, [username, username.toLowerCase(), hash]);
+    if (!rows.length) throw new ApiError(409, 'TAKEN', 'That username is taken. Choose another.');
+    if (with_) await with_(tx, rows[0]);
+    return rows[0];
+  });
   account.admin = isAdmin(account);
   return { account, cookie: await startSession(sql, req, account.id) };
 }

@@ -83,12 +83,18 @@ export function run(host, seconds, step = 0.1) {
   for (let elapsed = 0; elapsed < seconds; elapsed += step) host.tick(step);
 }
 
-// Sandbox funds: faucet, wait for confirmations, convert everything.
+// Money for a test that needs more than the arrival money: put into the character's wallet as the bank would
+// put it there (the bank's side of this world's money: sim/bank.js). `sats` is what the tests have always
+// asked for; two of them are one ledger unit, so 100,000 are 25,000 TR.
 export function fund(host, id, sats = 100_000) {
-  ok(host.portal(id, 'faucet', { sats }));
-  run(host, host.settlementOps.policy.blockIntervalSeconds * (host.settlementOps.policy.confirmationsRequired + 1));
-  const quote = ok(host.portal(id, 'quote', { sats })).data;
-  return ok(host.portal(id, 'convert', { quoteId: quote.id })).data;
+  // (the tests were written when funds took twenty-four seconds to arrive, and some count on the town having
+  // moved on by then: the same time is let pass)
+  run(host, 24);
+  const have = host.game.view(id).self.balance;
+  const cowries = Math.floor(sats * 0.5);
+  const done = host.bank.align(id, have + cowries + host.bank.report(id).spent - host.bank.report(id).earned, 'Test funds');
+  if (!done.ok) throw new Error(done.message);
+  return { cowries };
 }
 
 export function waitUntilOpen(host, id, serviceId, limitSeconds = 4000) {

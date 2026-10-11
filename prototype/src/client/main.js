@@ -53,6 +53,8 @@ import { trText, trAmount, TR } from '../sim/ledger.js';
 import { createOnline, createWebTransport, packSave, unpackSave } from '../net/online.js';
 import { createMarket, createAccountSync } from './market.js';
 import { createAccountUI } from './account-ui.js';
+import { createWallet } from './wallet.js';
+import { createConfirm } from './confirm.js';
 import { makeDealMarker } from './render-holaris.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
@@ -344,20 +346,42 @@ function start(carried) {
   // Accounts, the character kept with them, the market and the other players (net/online.js). Only the website
   // has a server; anywhere else `online.available` is false and none of this asks the network for anything.
   const ACCOUNT_KEY = 'pcw-account-v1';
+  const SEEN_KEY = 'pcw-wallet-seen-v1';      // the last entry of each account's wallet this device has told its player about
   const online = createOnline({ available: !!webapp.site });
+  const confirm = createConfirm();
   const savedNow = () => (playerId ? { host: host.save(), playerId } : null);
+  const accountMark = () => readStored(ACCOUNT_KEY);
+  // The player's wallet: the bank's figure, and this world's own wallet kept in line with it (client/wallet.js).
+  const walletClient = createWallet({
+    online, bank: () => (playerId ? host.bank : null), playerId: () => playerId,
+    saveNow: () => accountSync.upload(), saveSoon: () => accountSync.soon(),
+    notify: (event) => walletNote(event),
+    seen: {
+      get: () => { const all = readStored(SEEN_KEY) || {}; const user = online.account ? online.account.username.toLowerCase() : null; return user && Number.isSafeInteger(all[user]) ? all[user] : null; },
+      set: (value) => { const user = online.account ? online.account.username.toLowerCase() : null; if (!user) return; const all = readStored(SEEN_KEY) || {}; all[user] = value; writeStored(SEEN_KEY, all); },
+    },
+  });
   const market = createMarket({
     online, zone: ZONE.id, bridge: () => (playerId ? host.market : null), playerId: () => playerId,
     notify: (event) => marketNote(event), saveSoon: () => accountSync.soon(),
+    saveNow: () => accountSync.upload(), wallet: () => walletClient,
   });
+  // The character leaves this device: it was erased, or its player has logged out.
+  function forgetCharacter(why) {
+    clearSave(); playing = false; ui.close(); if (why !== 'erased') walletClient.reset(); showStart(true);
+  }
   const accountSync = createAccountSync({
     online, pack: packSave, unpack: unpackSave, read: savedNow,
     adopt: (saved, why) => adoptCharacter(saved, why),
-    forget: () => { clearSave(); playing = false; ui.close(); showStart(true); },
-    summary: () => { const self = host.game.view(playerId).self; return { name: self.name, figure: self.look && self.look.figure ? self.look.figure : '', tr: self.balance }; },
+    forget: (why) => forgetCharacter(why),
+    summary: () => { const self = host.game.view(playerId).self; return { name: self.name, figure: self.look && self.look.figure ? self.look.figure : '' }; },
     applied: () => market.applied(),
-    mark: { get: () => readStored(ACCOUNT_KEY), set: (value) => { if (value) writeStored(ACCOUNT_KEY, value); else { try { localStorage.removeItem(ACCOUNT_KEY); } catch (error) { /* nothing kept */ } } } },
-    notify: (event) => { if (event.type === 'newer') ui.toast({ type: 'note', text: 'This character has been played on another device since. The newer one has been loaded.' }); },
+    wallet: () => walletClient,
+    mark: { get: accountMark, set: (value) => { if (value) writeStored(ACCOUNT_KEY, value); else { try { localStorage.removeItem(ACCOUNT_KEY); } catch (error) { /* nothing kept */ } } } },
+    notify: (event) => {
+      if (event.type === 'newer') ui.toast({ type: 'note', text: 'This character has been played on another device since. The newer one has been loaded.' });
+      if (event.type === 'erased') ui.toast({ type: 'note', text: 'This saved game was erased from another device. A new journey begins here.' });
+    },
   });
   // The character kept with the account becomes the one played here. One that belonged to no account is put
   // aside on this device, not lost.
@@ -372,17 +396,39 @@ function start(carried) {
     if (wasPlaying) enterWorld(); else showStart(false);
     return true;
   }
-  // Signed in, the other players in town are those the server knows of; signed out, there are none.
+  // Signed in, the other players in town are those the server knows of; signed out, there are none. And on the
+  // website nobody is in town signed out: a session that has ended (signed out on another device, or thirty
+  // days gone by) puts the character away on this device and asks for the account again.
   function onlineChanged() {
     if (!online.available) return;
     const want = online.signedIn;
     if (want && !(transport && transport.kind === 'web')) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden }) }; if (playing) relink(); }
     if (!want && transport && transport.kind === 'web') { transport = null; if (playing) relink(); }
     if (!want) { market.reset(); ui.signedOut(); }
+    if (online.status().state === 'out') {
+      walletClient.reset();
+      if (playing) {
+        writeStored(SAVE_KEY, { host: host.save(), playerId });
+        playing = false; ui.close(); showStart(false);
+        accountUI.why('You have been signed out', 'Log in to carry on. Your character is kept with your account, and on this device as you left it.');
+      }
+    }
+    accountUI.draw();
+  }
+  // What the bank has told this device since it last looked: TR that has arrived, and the like.
+  function walletNote(event) {
+    const say = (text) => ui.toast({ type: 'note', text });
+    if (event.type === 'received') { say(`${trText(event.amount)} received from ${event.other}.${event.note ? ` "${event.note}"` : ''}`); audio.chime('paid'); }
+    else if (event.type === 'sold') { say(`Sold: ${event.what || 'something of yours'}. ${trText(event.amount)} is in your wallet.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
+    else if (event.type === 'bought') { say(`Bought: ${event.what || 'something'}, for ${trText(event.amount)}. It is in Property on your phone.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
+    else if (event.type === 'returned') say(`Your offer${event.what ? ` for ${event.what}` : ''} came to nothing. ${trText(event.amount)} is back in your wallet.`);
+    else if (event.type === 'refused') say(`The bank did not take ${trText(event.amount)} of what this game says was earned in town: it was more than could have been earned in the time. Your balance is the bank's figure.`);
+    ui.walletStale();
+    refreshView();
   }
   function marketNote(event) {
     const say = (text) => ui.toast({ type: 'note', text });
-    if (event.type === 'sold') { say(`Sold: ${event.what}. ${trText(event.amount)} has been added to your balance.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
+    if (event.type === 'sold') { say(`Sold: ${event.what}. ${trText(event.amount)} is in your wallet.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
     else if (event.type === 'bought') { say(`Bought: ${event.what}, for ${trText(event.amount)}. It is in Property on your phone.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
     else if (event.type === 'returned') say(`Your offer for ${event.what} came to nothing. ${trText(event.amount)} is back in your wallet.`);
     else if (event.type === 'owing') say(`You owe ${trText(event.amount)} for ${event.what} and do not have it. It is paid as soon as you do.`);
@@ -552,13 +598,11 @@ function start(carried) {
 
   const server = {
     send: (intent) => host.game.intent(playerId, intent),
-    portal: (method, args) => host.portal(playerId, method, args),
   };
   const ui = createUI({
     send: (intent) => { const r = server.send(intent); refreshView(); return r; },
-    portal: (method, args) => { const r = server.portal(method, args); refreshView(); return r; },
     view: () => view,
-    restart: () => { clearSave(); playing = false; ui.close(); showStart(true); },
+    erase: () => eraseSave(),
     closed: () => { if (playing) { refreshView(); prompt = findPrompt(); } },
     settings,
     webapp,
@@ -576,8 +620,10 @@ function start(carried) {
     shutter: () => audio.shutter(),
     music,
     phoneCam,
-    online, market,
+    online, market, wallet: walletClient,
+    saveNow: () => accountSync.upload(),
     account: { open: (mode, why) => accountUI.open(mode, why), logOut: () => accountUI.logOut() },
+    accountName: () => { const m = accountMark(); return online.account ? online.account.username : m && m.user ? m.user : ''; },
     goToListing: (l) => goToListing(l),
     placeName: (x, z) => placeName(x, z),
     marketChanged: () => { refreshDealMarkers(); market.soon(); accountSync.soon(); },
@@ -587,17 +633,44 @@ function start(carried) {
   audio.setVolumes({ ...DEFAULT_VOLUMES, ...(prefs.volumes || {}) });
 
   const accountUI = createAccountUI({
-    online, sync: accountSync,
-    local: () => { if (!playerId) return null; const mark = readStored(ACCOUNT_KEY); return { name: host.game.view(playerId).self.name, mine: !!(online.signedIn && mark && mark.user === online.account.username.toLowerCase()) }; },
+    online, sync: accountSync, confirm,
+    local: () => {
+      if (!playerId) return null;
+      const mark = accountMark();
+      return { name: host.game.view(playerId).self.name, mine: !!(online.signedIn && mark && mark.user === online.account.username.toLowerCase()), owner: mark && mark.user ? mark.user : null };
+    },
     onChange: (event) => {
       onlineChanged();
       if (event.type === 'created') ui.toast({ type: 'note', text: `Your account is made. You are ${event.account.username}: other players near you see that name over your head.` });
       else if (event.type === 'in') ui.toast({ type: 'note', text: event.warning || (event.adopted ? `Logged in as ${event.account.username}. Your character has been brought to this device.` : `Logged in as ${event.account.username}.`) });
-      else if (event.type === 'stayed') ui.toast({ type: 'note', text: event.message });
-      if (event.type !== 'stayed') { market.soon(); refreshDealMarkers(); ui.marketStale(); }
+      else if (event.type === 'out') ui.toast({ type: 'note', text: 'You are logged out. Your character is kept with your account.' });
+      if (event.type !== 'checked') { market.soon(); refreshDealMarkers(); ui.marketStale(); ui.walletStale(); }
+      if (event.type === 'created' || event.type === 'in') { showStart(false); const first = playerId ? $('continue') : $('name'); if (first && !coarse) first.focus({ preventScroll: true }); }
       if (playing) ui.redraw();
     },
   });
+
+  // "Erase this save and start again": asked about first, and done with the account before it is done here.
+  // What is erased is the character. The account, its username and password, its wallet and every entry in it,
+  // the people it sends to and what it owns in the market are not touched.
+  function eraseSave() {
+    return confirm.ask({
+      title: 'Erase your saved game?',
+      body: 'This will permanently delete the selected game\'s saved progress and start a new journey. This action cannot be undone.',
+      confirm: 'Erase Save and Restart', cancel: 'Cancel', busy: 'Erasing...', danger: true,
+      run: async () => {
+        if (!online.available) { forgetCharacter('erased'); return { ok: true }; }
+        // with no connection the copy kept with the account could not be erased, and would only come back
+        if (!online.signedIn) return { ok: false, message: 'Your saved game is kept with your account, and the game\'s server cannot be reached just now, so it has not been erased. Nothing was changed. Check your connection and try again.' };
+        const answer = await accountSync.erase();
+        if (!answer.ok) return { ok: false, message: `Your saved game could not be erased, and nothing was changed. ${answer.message || ''}` };
+        return { ok: true };
+      },
+    }).then((done) => {
+      if (done) ui.toast({ type: 'note', text: online.available ? 'Your saved game has been erased. Your account, your TR and what you own are as they were. A new journey begins.' : 'Your saved game has been erased. A new journey begins.' });
+      return done;
+    });
+  }
   online.onChange(() => onlineChanged());
   // Is there a server, and is this browser signed in? If so, which copy of the character is the one to play.
   // Asked when the page opens, and again now and then for as long as the server cannot be reached.
@@ -608,7 +681,8 @@ function start(carried) {
     try {
       await online.check();
       onlineChanged();
-      if (online.signedIn) { const settled = await accountSync.settle(); if (!settled.ok && settled.message) ui.toast({ type: 'note', text: settled.message }); }
+      if (online.signedIn) { const settled = await accountSync.settle(); if (!settled.ok && settled.message) ui.toast({ type: 'note', text: settled.message }); if (settled.erased) ui.toast({ type: 'note', text: 'This saved game was erased from another device. A new journey begins here.' }); }
+      accountUI.draw();
       refreshDealMarkers();
     } finally { greeting = false; }
   }
@@ -860,8 +934,15 @@ function start(carried) {
     canvas.focus({ preventScroll: true });
   }
 
+  // On the website nobody goes into town without an account: asked here, whatever the start screen is showing.
+  function mayEnter() {
+    if (accountUI.mayPlay()) return true;
+    if (online.status().state === 'out') accountUI.open('signup', 'An account is needed to play.');
+    return false;
+  }
   $('creator').addEventListener('submit', (event) => {
     event.preventDefault();
+    if (!mayEnter()) return;
     const fresh = createHost();
     try {
       const id = fresh.game.join({ name: $('name').value, path: pathChosen, look: creator.look() });
@@ -870,12 +951,14 @@ function start(carried) {
       $('start-error').hidden = true;
       enterWorld();
       ui.toast({ type: 'note', text: ZONE_TEXT.arrival });
+      // the new character is kept with the account at once, and its wallet is the account's own
+      if (online.signedIn) accountSync.upload();
     } catch (error) {
       $('start-error').hidden = false;
       $('start-error').textContent = error.message;
     }
   });
-  for (const id of ['continue', 'continue-top']) $(id).addEventListener('click', () => { if (playerId) enterWorld(); });
+  for (const id of ['continue', 'continue-top']) $(id).addEventListener('click', () => { if (playerId && mayEnter()) enterWorld(); });
 
   // -------------------------------------------------------------- input --
 
@@ -1840,7 +1923,7 @@ blood.update(dt, view.blood || []);
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
-    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers,
+    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),

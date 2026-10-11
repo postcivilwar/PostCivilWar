@@ -15,6 +15,7 @@ import { HEALTH } from '../sim/conflict.js';
 import { CAMERA_VIEW } from './camera.js';
 import { clockOf } from './music.js';
 import { createMarketUI } from './ui-market.js';
+import { createWalletUI } from './ui-wallet.js';
 
 // Pictograms, drawn here on a 24 by 24 grid: [paths]. Each app has a tile of its own colour, as on any phone, so
 // an app is known at a glance; the game's own interface stays black and white round it.
@@ -90,11 +91,12 @@ export function createPhone(kit) {
   let sub = {};                  // where in an app the player is: the contact, the thread, the place chosen
   let said = null;               // the last thing someone said on a call
   let draft = '';
-  let funding = false;
 
   // Property and the conversation in which a thing is bought or sold (ui-market.js)
   const marketUI = createMarketUI({ ...kit, glyph });
-  const go = (id, state = {}) => { if (screen === 'property' && id !== 'property') marketUI.leave(); if (screen === 'deal' && id !== 'deal') marketUI.closeDeal(); screen = id; sub = state; said = null; draft = ''; redraw(); };
+  // the Wallet: the bank's figure, sending and receiving (ui-wallet.js)
+  const walletUI = createWalletUI(kit);
+  const go = (id, state = {}) => { if (screen === 'property' && id !== 'property') marketUI.leave(); if (screen === 'wallet' && id !== 'wallet') walletUI.leave(); if (screen === 'deal' && id !== 'deal') marketUI.closeDeal(); screen = id; sub = state; said = null; draft = ''; redraw(); };
   const send = (intent) => app.send(intent);
   const flashMessage = (result, good) => redraw(result.ok ? (good ? { good: true, text: typeof good === 'function' ? good(result) : good } : null) : { text: result.message });
 
@@ -107,7 +109,7 @@ export function createPhone(kit) {
   function show(appId = null, state = {}) {
     if (screen === 'deal' && appId !== 'deal') marketUI.closeDeal();
     screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId)) ? appId : 'home';
-    sub = state; said = null; funding = false; drawn = null; rising = true; looking = null;
+    sub = state; said = null; drawn = null; rising = true; looking = null;
     open(app.view().self.name, 'Phone', render, null, { device: true });
   }
 
@@ -138,15 +140,15 @@ export function createPhone(kit) {
     kit.mode(inHand ? 'mini' : 'page', { big: screen === 'deal' });
     const inner = h('div', { class: `screen${drawn !== screen ? ' opening' : ''}` });
     drawn = screen;
-    const deepIn = () => !!(sub.contact || sub.thread || sub.place || sub.asset || sub.market || sub.own || sub.admin || funding);
-    const back = () => { if (deepIn()) { sub = sub.market && sub.asset ? { market: true } : {}; said = null; funding = false; redraw(); } else go('home'); };
+    const deepIn = () => !!(sub.contact || sub.thread || sub.place || sub.asset || sub.market || sub.own || sub.admin || (screen === 'wallet' && walletUI.deep(sub)));
+    const back = () => { if (deepIn()) { sub = screen === 'wallet' ? walletUI.back(sub) : sub.market && sub.asset ? { market: true } : {}; said = null; redraw(); } else go('home'); };
     if (!inHand) {
       // a page over the whole screen: the way back at the top left, the app's name beside it
       const bar = h('div', { class: 'pagebar' },
         h('button', { class: 'pageback', type: 'button', id: 'page-back', 'aria-label': deepIn() ? `Back to ${meta.name}` : 'Back to the phone', onclick: back }, glyph('back', false)),
         h('h3', null, meta.name),
         h('span', { class: 'pagetime' }, view.clock.label));
-      ({ contacts, messages, calls, map: mapApp, wallet, health, police, transport, jobs, property: () => marketUI.page(inner, view, sub, (state) => go('property', state)), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings })[screen](inner, view, held);
+      ({ contacts, messages, calls, map: mapApp, wallet: () => walletUI.page(inner, view, sub, (state) => go('wallet', state)), health, police, transport, jobs, property: () => marketUI.page(inner, view, sub, (state) => go('property', state)), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings })[screen](inner, view, held);
       root.append(h('div', { class: 'page', 'data-app': screen }, bar, inner));
       return;
     }
@@ -406,14 +408,6 @@ export function createPhone(kit) {
     root.append(h('div', { class: 'rows' }, places.map((p) => h('button', { class: 'rowbtn', type: 'button', style: 'grid-template-columns:1fr auto', 'aria-current': String(!!sub.place && sub.place.label === p.label), onclick: () => { sub = { place: p }; redraw(); } }, h('span', null, p.label), h('span', { class: 'eyebrow' }, `${money(Math.hypot(p.x - view.self.x, p.z - view.self.z))} m`)))));
   }
 
-  // --- wallet ------------------------------------------------------------------------------
-
-  function wallet(root) {
-    if (funding) { legacy.funds(root); return; }
-    legacy.wallet(root);
-    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: () => { funding = true; redraw(); } }, 'Add funds (sandbox)')));
-  }
-
   // --- health ------------------------------------------------------------------------------
 
   function health(root, view, held) {
@@ -565,5 +559,5 @@ export function createPhone(kit) {
   }
   function leaveDeal() { marketUI.closeDeal(); kit.close(); }
 
-  return { charge, show, go, openDeal, leaveDeal, market: marketUI, get screen() { return screen; }, tick() { if (ticking) ticking(); } };
+  return { charge, show, go, openDeal, leaveDeal, market: marketUI, wallet: walletUI, get screen() { return screen; }, tick() { if (ticking) ticking(); } };
 }

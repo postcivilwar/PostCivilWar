@@ -1,10 +1,9 @@
 // Headless tests for the simulation. Run with: node --test test/
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readFileSync, existsSync } from 'node:fs';
 import { createHost } from '../src/sim/host.js';
 import { createLedger, LedgerError } from '../src/sim/ledger.js';
-import { createSettlement, SETTLEMENT_POLICY } from '../src/sim/settlement.js';
 import { makeRng } from '../src/sim/rng.js';
 import { ZONE, ZONE_PARCELS, ZONE_NODES, ZONE_EDGES, ZONE_PLACES, ZONE_SERVICES, ZONE_JETTY, zoneParcelByPlot, zoneWalkable, zoneService, zoneToGeo } from '../src/sim/zone.js';
 import { NIGERIA_STATES } from '../src/sim/nigeria.js';
@@ -13,6 +12,8 @@ import { newWorld, ok, walkTo, goToService, goToBoard, goToWork, goToMould, run,
 import { ZONE_RUNS, ZONE_VEHICLE_BAYS } from '../src/sim/zone.js';
 import { VEHICLE_KINDS, FUEL, vehicleFits } from '../src/sim/vehicles.js';
 import { ARRIVAL_FUNDS } from '../src/sim/sim.js';
+import { BUSINESSES } from '../src/sim/economy.js';
+import { ZONE_MOULD_STATIONS } from '../src/sim/zone.js';
 import { trText, trAmount, trPlain, trIn, poundsOf, TR } from '../src/sim/ledger.js';
 
 const refused = (result, code) => { assert.equal(result.ok, false, 'expected a refusal'); assert.equal(result.code, code, result.message); };
@@ -199,128 +200,70 @@ test('arrival: every newcomer is given 2,000 TR once, by one issuance on the led
   clean(again);
 });
 
-test('settlement: a deposit is credited once, and only after enough confirmations', () => {
+test('there is no way to make TR: no sandbox, no test funds, no door but the game\'s own rules', () => {
   const { host, id } = newWorld();
-  const deposit = ok(host.portal(id, 'faucet', { sats: 100_000 })).data;
-  assert.equal(deposit.status, 'seen');
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 0);
-  host.settlementOps.mineBlock();
-  host.settlementOps.mineBlock();
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 0, 'two confirmations are not enough');
-  assert.equal(ok(host.portal(id, 'summary')).data.deposits[0].confirmations, 2);
-  host.settlementOps.mineBlock();
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 100_000);
-  for (let i = 0; i < 5; i += 1) host.settlementOps.mineBlock();
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 100_000, 'credited exactly once');
-  assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS, 'a deposit alone creates no game funds: only the arrival money is there');
-  assert.ok(host.settlementOps.proofOfReserves().matches);
-  clean(host);
-});
-
-test('settlement: conversion uses a quote, moves both sides at once, and a quote works once', () => {
-  const { host, id } = newWorld();
-  ok(host.portal(id, 'faucet', { sats: 100_000 }));
-  for (let i = 0; i < 3; i += 1) host.settlementOps.mineBlock();
-  const supplyBefore = host.auditor.supply().TR;
-  const quote = ok(host.portal(id, 'quote', { sats: 60_000 })).data;
-  assert.equal(quote.cowries, 30_000);
-  const done = ok(host.portal(id, 'convert', { quoteId: quote.id })).data;
-  assert.equal(done.cowries, 30_000);
-  assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS + 30_000);
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 40_000);
-  assert.equal(host.auditor.supply().TR - supplyBefore, 30_000);
-  refused(host.portal(id, 'convert', { quoteId: quote.id }), 'QUOTE_USED');
-  const tooMuch = ok(host.portal(id, 'quote', { sats: 50_000 })).data;
-  refused(host.portal(id, 'convert', { quoteId: tooMuch.id }), 'INSUFFICIENT_BTC');
-  const stale = ok(host.portal(id, 'quote', { sats: 10_000 })).data;
-  run(host, SETTLEMENT_POLICY.quoteLifetimeSeconds + 1, 1);
-  refused(host.portal(id, 'convert', { quoteId: stale.id }), 'QUOTE_EXPIRED');
-  assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS + 30_000);
-  clean(host);
-});
-
-test('settlement: a withdrawal is held, checked, broadcast, confirmed and then settled', () => {
-  const { host, id } = newWorld();
-  ok(host.portal(id, 'faucet', { sats: 200_000 }));
-  for (let i = 0; i < 3; i += 1) host.settlementOps.mineBlock();
-  refused(host.portal(id, 'withdraw', { address: 'bc1qrealmainnetaddressxxxxxxxxxxxxxxxxxxxxx', sats: 50_000 }), 'BAD_ADDRESS');
-  refused(host.portal(id, 'withdraw', { address: 'sbx1qaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', sats: 5_000 }), 'BELOW_MINIMUM');
-  refused(host.portal(id, 'withdraw', { address: 'sbx1qaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', sats: 200_000 }), 'INSUFFICIENT_BTC');
-  const w = ok(host.portal(id, 'withdraw', { address: 'sbx1qaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa', sats: 50_000 })).data;
-  assert.equal(w.status, 'approved');
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 200_000 - 50_000 - SETTLEMENT_POLICY.withdrawalFeeSats, 'amount and fee are held at once');
-  assert.ok(host.settlementOps.proofOfReserves().matches);
-  host.settlementOps.mineBlock();
-  assert.equal(ok(host.portal(id, 'summary')).data.withdrawals[0].status, 'broadcast');
-  for (let i = 0; i < 3; i += 1) { host.settlementOps.mineBlock(); assert.ok(host.settlementOps.proofOfReserves().matches); }
-  assert.equal(ok(host.portal(id, 'summary')).data.withdrawals[0].status, 'settled');
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 149_000);
-  clean(host);
-});
-
-test('settlement: a large withdrawal waits for a named reviewer, and a rejection returns the funds', () => {
-  const { host, id } = newWorld();
-  ok(host.portal(id, 'faucet', { sats: 900_000 }));
-  for (let i = 0; i < 3; i += 1) host.settlementOps.mineBlock();
-  const w = ok(host.portal(id, 'withdraw', { address: 'sbx1qbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', sats: 400_000 })).data;
-  assert.equal(w.status, 'manual_review');
-  for (let i = 0; i < 4; i += 1) host.settlementOps.mineBlock();
-  assert.equal(ok(host.portal(id, 'summary')).data.withdrawals[0].status, 'manual_review', 'nothing is sent without review');
-  assert.throws(() => host.settlementOps.reviewWithdrawal(w.id, 'approve', ''), (e) => e.code === 'NO_REVIEWER');
-  host.settlementOps.reviewWithdrawal(w.id, 'reject', 'ops:compliance-officer');
-  assert.equal(ok(host.portal(id, 'summary')).data.btcSats, 900_000);
-  assert.equal(ok(host.portal(id, 'withdraw', { address: 'sbx1qbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', sats: 300_000 })).data.status, 'approved');
-  refused(host.portal(id, 'withdraw', { address: 'sbx1qbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb', sats: 250_000 }), 'DAILY_LIMIT');
-  assert.ok(host.settlementOps.auditLog().some((row) => row.action === 'withdrawal_rejected' && row.actor === 'ops:compliance-officer'));
-  clean(host);
-});
-
-test('settlement: TR is not redeemable unless the settlement layer authorises it', () => {
-  const { host, id } = newWorld();
-  fund(host, id, 100_000);
-  refused(host.portal(id, 'redeem', { cowries: 10_000 }), 'REDEMPTION_DISABLED');
-  assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS + 50_000);
-
-  // The same flow with the policy switched on by the operator.
-  const ledger = createLedger();
-  const settlement = createSettlement({ ledger, rng: makeRng(7), policy: { ...SETTLEMENT_POLICY, redemptionEnabled: true } });
-  settlement.account('p1');
-  settlement.faucet('p1', 100_000);
-  for (let i = 0; i < 3; i += 1) settlement.mineBlock();
-  settlement.convert('p1', settlement.quote('p1', 100_000).id);
-  const wallet = ledger.gameplay.findAccount('player', 'p1', 'wallet');
-  const request = settlement.requestRedemption('p1', 20_000);
-  assert.equal(ledger.gameplay.balance(wallet), 30_000, 'the TR is held while the request is pending');
-  assert.equal(settlement.summary('p1').btcSats, 0, 'no bitcoin moves before authorisation');
-  assert.throws(() => settlement.decideRedemption(request.id, 'authorise', ''), (e) => e.code === 'NO_REVIEWER');
-  settlement.decideRedemption(request.id, 'authorise', 'ops:settlement-officer');
-  assert.equal(settlement.summary('p1').btcSats, 40_000);
-  assert.equal(ledger.auditor.supply().TR, 30_000, 'redeemed TR leaves circulation');
-  const second = settlement.requestRedemption('p1', 10_000);
-  settlement.decideRedemption(second.id, 'decline', 'ops:settlement-officer');
-  assert.equal(ledger.gameplay.balance(wallet), 30_000, 'a declined request returns the TR');
-  assert.throws(() => settlement.decideRedemption(second.id, 'authorise', 'ops:settlement-officer'), (e) => e.code === 'ALREADY_DECIDED');
-  assert.deepEqual(ledger.auditor.reconcile(), []);
-  assert.ok(settlement.proofOfReserves().matches);
-  // only what came in from bitcoin can go back out: game-issued TR (like the arrival money) cannot
-  ledger.monetary.post({ key: 'arrival:p1', kind: 'issuance', initiator: 'ops:monetary', reason: 'Arrival money', legs: [{ account: ledger.system.issuance, amount: -4000 }, { account: wallet, amount: 4000 }] });
-  assert.throws(() => settlement.requestRedemption('p1', 30_001), (e) => e.code === 'NOT_REDEEMABLE');
-  assert.equal(ledger.gameplay.balance(wallet), 34_000, 'a refused request holds nothing');
-  settlement.requestRedemption('p1', 30_000);
-  assert.throws(() => settlement.requestRedemption('p1', 1), (e) => e.code === 'NOT_REDEEMABLE', 'the arrival money stays a game fund');
-});
-
-test('isolation: the game simulation does not import or receive the settlement service', () => {
+  // the sandbox that turned test bitcoin into TR is gone, with its portal and its service
+  assert.equal(host.portal, undefined);
+  assert.equal(host.settlementOps, undefined);
+  assert.ok(!existsSync(new URL('../src/sim/settlement.js', import.meta.url)));
+  for (const type of ['settlement.faucet', 'wallet.fund', 'funds.add', 'faucet', 'sandbox.funds', 'constructor']) refused(host.game.intent(id, { type }), 'UNKNOWN_INTENT');
+  // nothing the game is given can issue money
   for (const file of ['sim.js', 'economy.js', 'registry.js', 'residents.js', 'vehicles.js', 'zone.js', 'zones/atani.js']) {
     const source = readFileSync(new URL(`../src/sim/${file}`, import.meta.url), 'utf8');
-    assert.ok(!/from '\.\/settlement\.js'/.test(source), `${file} must not import settlement`);
-    assert.ok(!/TBTC|satoshi|bitcoin/i.test(source.replace(/\/\/.*$/gm, '')), `${file} must not mention bitcoin`);
+    assert.ok(!/TBTC|satoshi|bitcoin|faucet|sandbox/i.test(source.replace(/\/\/.*$/gm, '')), `${file} must not mention the sandbox`);
   }
+  // nor does the page offer it: no button, no screen, no words
+  for (const file of ['ui.js', 'ui-phone.js', 'ui-wallet.js', 'main.js', 'template.html']) {
+    const source = readFileSync(new URL(`../src/client/${file}`, import.meta.url), 'utf8');
+    assert.ok(!/Add funds|faucet|tBTC|settlement portal|portal\(/i.test(source), `${file} still has the sandbox in it`);
+  }
+  const saved = host.save();
+  assert.equal(saved.settlement, undefined);
+  assert.equal(JSON.stringify(host.game.view(id)).includes('sbx1q'), false);
+  clean(host);
+});
+
+test('the bank: what a character earns and spends in town is reported once; the arrival money and the bank\'s own corrections are not', () => {
   const { host, id } = newWorld();
-  refused(host.game.intent(id, { type: 'settlement.faucet', sats: 1 }), 'UNKNOWN_INTENT');
-  refused(host.game.intent(id, { type: 'constructor' }), 'UNKNOWN_INTENT');
-  assert.equal(host.portal('p-9999', 'summary').code, 'NO_ACCOUNT');
-  assert.equal(JSON.stringify(host.game.view(id)).includes('sbx1q'), false, 'the game view carries no settlement data');
+  // newly arrived: nothing to tell the bank (it gave the same arrival money itself)
+  let r = host.bank.report(id);
+  assert.deepEqual({ from: r.from, earned: r.earned, spent: r.spent }, { from: 0, earned: 0, spent: 0 });
+  assert.equal(r.upto, host.auditor.transactions().length);
+  // a morning at the block yard
+  goToMould(host, id);
+  waitUntilOpen(host, id, 'yard');
+  for (let i = 0; i < 3; i += 1) { run(host, 1.3); ok(host.game.intent(id, { type: 'job.mould', stationId: ZONE_MOULD_STATIONS[0].id })); }
+  r = host.bank.report(id);
+  assert.equal(r.earned, 3 * BUSINESSES.yard.wagePerBlock);
+  assert.equal(r.spent, 0);
+  assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS + r.earned);
+  // the bank takes it: the next report starts there, and says nothing twice
+  assert.equal(host.bank.told(id, r.upto), r.upto);
+  assert.deepEqual({ ...host.bank.report(id) }, { from: r.upto, upto: r.upto, earned: 0, spent: 0 });
+  // someone sends this player 100 TR: the bank's figure goes up, and the wallet here is brought into line
+  const before = host.game.view(id).self.balance;
+  const moved = host.bank.align(id, before + 200, 'Received from ada');
+  assert.deepEqual(moved, { ok: true, moved: 200, balance: before + 200 });
+  assert.equal(host.game.view(id).self.balance, before + 200);
+  assert.deepEqual({ ...host.bank.report(id), upto: 0 }, { from: r.upto, upto: 0, earned: 0, spent: 0 }, 'and that is not told back to the bank as an earning');
+  // in line already: nothing moves
+  assert.equal(host.bank.align(id, before + 200).moved, 0);
+  // one more block, not yet told: bringing the wallet into line keeps it
+  run(host, 1.3); ok(host.game.intent(id, { type: 'job.mould', stationId: ZONE_MOULD_STATIONS[0].id }));
+  assert.equal(host.bank.align(id, before + 200 - 50, 'Sent to bayo').moved, -50);
+  assert.equal(host.game.view(id).self.balance, before + 150 + BUSINESSES.yard.wagePerBlock);
+  assert.equal(host.bank.report(id).earned, BUSINESSES.yard.wagePerBlock);
+  // nonsense is refused, and the bank can take the wallet to nothing but not below it
+  assert.equal(host.bank.align(id, -5).ok, false);
+  assert.equal(host.bank.align(id, 1.5).ok, false);
+  host.bank.told(id, host.bank.report(id).upto);
+  host.bank.align(id, 0);
+  assert.equal(host.game.view(id).self.balance, 0);
+  // all of it survives a save, and the world's own books still balance
+  const again = createHost({ saved: host.save() });
+  assert.deepEqual(again.bank.view(id), host.bank.view(id));
+  assert.deepEqual(again.bank.report(id), host.bank.report(id));
+  clean(host); clean(again);
 });
 
 test('movement: the simulation rejects teleports, speed hacks and walking through walls', () => {
@@ -559,7 +502,7 @@ test('persistence: a saved world resumes exactly where it stopped', () => {
   assert.equal(resumed.auditor.transactionCount(), host.auditor.transactionCount());
   for (let i = 0; i < 600; i += 1) { host.tick(1); resumed.tick(1); }
   assert.deepEqual(resumed.game.view(id), host.game.view(id), 'both copies evolve identically');
-  assert.deepEqual(resumed.portal(id, 'summary'), host.portal(id, 'summary'));
+  assert.deepEqual(resumed.bank.view(id), host.bank.view(id));
   clean(resumed);
   assert.equal(createHost({ saved: { version: 1 } }).game.hasPlayer(id), false, 'an incompatible save is ignored');
 });

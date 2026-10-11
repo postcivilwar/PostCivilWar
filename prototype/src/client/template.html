@@ -1025,6 +1025,127 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .sendbtn svg { width: 20px; height: 20px; fill: currentColor; stroke: none; }
 .sendbtn:active { transform: scale(0.93); }
 #sheet.mini .handset[data-app="deal"] .homebar { background: #0b141a; }
+
+/* ---- the question before something that cannot be taken back ---- */
+#confirm { position: absolute; inset: 0; z-index: 80; display: grid; place-items: center; padding: calc(16px + var(--st)) calc(16px + env(safe-area-inset-right, 0px)) calc(16px + var(--sb)) calc(16px + env(safe-area-inset-left, 0px)); background: rgba(0, 0, 0, 0.72); -webkit-backdrop-filter: blur(3px); backdrop-filter: blur(3px); animation: fade-in 0.14s ease both; overflow: auto; }
+#confirm[hidden] { display: none; }
+.confirm-box { width: min(440px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 22px 20px 18px; background: linear-gradient(180deg, #1b1c1f, #0e0e10); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 24px 70px rgba(0, 0, 0, 0.7); color: #fff; animation: cover-rise 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
+.confirm-box h3 { margin: 0; font: 800 20px/1.2 var(--font-ui); letter-spacing: 0; text-transform: none; color: #fff; }
+.confirm-box p { margin: 0; color: #d4d4cf; font-size: 15px; line-height: 1.5; }
+.confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+.confirm-actions .hx { flex: 1 1 150px; min-width: 0; font-size: 13px; letter-spacing: 0.07em; white-space: nowrap; }
+/* on a narrow screen the two answers are one above the other, each the full width: neither is squeezed, and a long one is read whole */
+@media (max-width: 520px) { .confirm-actions { flex-direction: column; } .confirm-actions .hx { flex: none; width: 100%; } }
+#confirm-yes.danger { color: #ffd9d4; }
+#confirm-yes:disabled, #confirm-no:disabled { opacity: 0.6; cursor: progress; }
+@media (prefers-reduced-motion: reduce) { #confirm, .confirm-box { animation: none; } }
+
+/* ---- the start screen until someone is signed in: an account, and nothing else ---- */
+.gate-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }
+.gate-card h2 { margin: 0 !important; font-size: 20px !important; }
+.gate-card p { margin: 0; color: #d7d7d2; font-size: 14.5px; line-height: 1.5; max-width: none !important; }
+.gate-wait { display: flex; align-items: center; gap: 10px; color: #fff !important; }
+.spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; animation: spin 0.8s linear infinite; flex: none; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
+#start[data-gate="shut"] .stage, #start[data-gate="shut"] .intro, #start[data-gate="shut"] #continue-top, #start[data-gate="shut"] #start-title,
+#start[data-gate="wait"] .stage, #start[data-gate="wait"] .intro, #start[data-gate="wait"] #continue-top, #start[data-gate="wait"] #start-title { display: none !important; }
+#start[data-gate="shut"], #start[data-gate="wait"] { grid-template-columns: minmax(0, 560px) !important; grid-template-rows: auto !important; grid-template-areas: "lead" !important; justify-content: center; align-content: center; overflow: auto; }
+#start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead { padding-bottom: clamp(20px, 5vh, 48px); }
+#start[data-gate="shut"] .account-row .hx, #start[data-gate="wait"] .account-row .hx { min-height: 56px; font-size: 14px; }
+#account-retry { flex: 0 0 auto !important; }
+
+/* ---- a switch: where the knob is, the colour of the track and the word beside it all say on or off ---- */
+.switchbox { display: inline-flex; align-items: center; gap: 10px; flex: none; }
+.switchword { min-width: 2.2em; text-align: right; font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+.switch { appearance: none; -webkit-appearance: none; position: relative; width: 56px; height: 32px; border-radius: 16px; border: 0; padding: 0; flex: none; cursor: pointer; background: #2b2c30; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.28), inset 0 2px 4px rgba(0, 0, 0, 0.45); transition: background 0.2s ease, box-shadow 0.2s ease; -webkit-tap-highlight-color: transparent; touch-action: manipulation; }
+.switch::after { content: ""; position: absolute; left: 4px; top: 4px; width: 24px; height: 24px; border-radius: 12px; background: #dcdcd8; box-shadow: 0 1px 3px rgba(0, 0, 0, 0.55); transition: transform 0.2s cubic-bezier(0.3, 0.7, 0.3, 1), background 0.2s ease; }
+/* a mark inside the track as well, for anyone to whom the two colours look alike: a ring for off, a bar for on */
+.switch::before { content: ""; position: absolute; top: 50%; right: 10px; width: 8px; height: 8px; margin-top: -4px; border-radius: 50%; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.5); transition: opacity 0.15s ease; }
+.switch[aria-checked="true"] { background: #3c9a66; box-shadow: inset 0 0 0 1.5px rgba(255, 255, 255, 0.22), inset 0 2px 4px rgba(0, 0, 0, 0.25); }
+.switch[aria-checked="true"]::after { transform: translateX(24px); background: #ffffff; }
+.switch[aria-checked="true"]::before { right: auto; left: 13px; width: 2px; height: 10px; margin-top: -5px; border-radius: 1px; background: rgba(255, 255, 255, 0.9); box-shadow: none; }
+.switchbox:has(.switch[aria-checked="true"]) .switchword { color: #7fd6a4; }
+@media (hover: hover) { .switch:hover { filter: brightness(1.12); } }
+.switch:active::after { width: 28px; }
+.switch[aria-checked="true"]:active::after { transform: translateX(20px); }
+.switch:focus-visible { outline: 2px solid var(--white); outline-offset: 3px; }
+.switch:disabled { opacity: 0.45; cursor: not-allowed; }
+@media (prefers-reduced-motion: reduce) { .switch, .switch::after { transition: none; } }
+
+/* ---- a slider: a track that fills, and a knob large enough for a thumb ---- */
+.fader input[type="range"] { height: 32px; cursor: pointer; }
+.fader input[type="range"]::-webkit-slider-runnable-track { height: 6px; border-radius: 3px; background: linear-gradient(90deg, #3c9a66 var(--fill), #2b2c30 var(--fill)); box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.fader input[type="range"]::-moz-range-track { height: 6px; border-radius: 3px; background: #2b2c30; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); }
+.fader input[type="range"]::-moz-range-progress { height: 6px; border-radius: 3px; background: #3c9a66; }
+.fader input[type="range"]::-webkit-slider-thumb { -webkit-appearance: none; width: 24px; height: 24px; margin-top: -9px; border-radius: 12px; background: #fff; border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 0 1px rgba(0, 0, 0, 0.25); transition: transform 0.12s ease, box-shadow 0.12s ease; }
+.fader input[type="range"]::-moz-range-thumb { width: 24px; height: 24px; border-radius: 12px; background: #fff; border: 0; box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6); }
+.fader input[type="range"]:active::-webkit-slider-thumb { transform: scale(1.12); box-shadow: 0 1px 4px rgba(0, 0, 0, 0.6), 0 0 0 6px rgba(60, 154, 102, 0.28); }
+.fader input[type="range"]:focus-visible { outline: none; }
+.fader input[type="range"]:focus-visible::-webkit-slider-thumb { box-shadow: 0 0 0 3px #0b0b0c, 0 0 0 5px #fff; }
+.fader input[type="range"]:focus-visible::-moz-range-thumb { box-shadow: 0 0 0 3px #0b0b0c, 0 0 0 5px #fff; }
+.fader .mono { color: #e4e4df; font-weight: 600; }
+
+/* ---- the Wallet ---- */
+.wl-ic { width: 20px; height: 20px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; stroke-linejoin: round; flex: none; }
+.wl-card { position: relative; display: flex; flex-direction: column; gap: 8px; padding: 18px 16px 14px; background: linear-gradient(150deg, #24252a 0%, #111113 70%); box-shadow: inset 0 0 0 1px rgba(255, 209, 102, 0.28), 0 10px 30px rgba(0, 0, 0, 0.35); }
+.wl-top { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 44px; margin: -8px -6px 0 0; }
+.wl-balance { display: flex; align-items: baseline; gap: 8px; font-variant-numeric: tabular-nums; }
+.wl-balance b { font: 800 clamp(38px, 11vw, 56px)/1 var(--font-ui); letter-spacing: -0.02em; color: #fff; overflow-wrap: anywhere; }
+.wl-balance span { font: 800 18px/1 var(--font-ui); letter-spacing: 0.08em; color: #ffd166; }
+.wl-balance.wl-wait b { color: #6f6f76; }
+.wl-held { font-size: 13px; color: var(--muted); }
+.wl-user { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); min-height: 44px; }
+.wl-copied { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #7fd6a4; white-space: nowrap; }
+.wl-icon.done { background: #3c9a66; color: #fff; }
+.wl-user b { flex: 1; min-width: 0; font-size: 17px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; user-select: text; -webkit-user-select: text; }
+.wl-icon { appearance: none; flex: none; width: 44px; height: 44px; display: grid; place-items: center; border: 0; padding: 0; background: rgba(255, 255, 255, 0.08); color: #fff; border-radius: 22px; cursor: pointer; transition: background 0.12s, transform 0.1s; -webkit-tap-highlight-color: transparent; }
+.wl-icon.quiet { background: none; color: var(--muted); }
+@media (hover: hover) { .wl-icon:hover { background: rgba(255, 255, 255, 0.18); color: #fff; } }
+.wl-icon:active { transform: scale(0.92); }
+.wl-icon:focus-visible, .wl-pick:focus-visible, .wl-chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.wl-icon:disabled { opacity: 0.4; }
+.wl-actions { display: flex; gap: 12px; }
+.wl-actions > .hx { flex: 1 1 0; min-width: 0; }
+.wl-actions.column { flex-direction: column; }
+.wl-actions.column > .hx { flex: none; }
+.wl-person { display: flex; align-items: center; gap: 4px; }
+.wl-pick { appearance: none; flex: 1; min-width: 0; display: flex; align-items: center; gap: 12px; min-height: 52px; padding: 6px 0; border: 0; background: none; color: #fff; font: inherit; text-align: left; cursor: pointer; }
+.wl-pick b { flex: 1; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.wl-pick .eyebrow { color: #7fd6a4; }
+.wl-entry { display: flex; align-items: flex-start; gap: 12px; padding-top: 12px; padding-bottom: 12px; }
+.wl-dir { flex: none; width: 34px; height: 34px; border-radius: 17px; display: grid; place-items: center; background: rgba(255, 255, 255, 0.08); color: #ff8a7a; }
+.wl-dir.in { color: #7fd6a4; }
+.wl-dir .wl-ic { width: 17px; height: 17px; }
+.wl-what { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 3px; }
+.wl-what b { font-size: 15px; overflow-wrap: anywhere; }
+.wl-what > span { color: #c9c9c4; font-size: 13px; overflow-wrap: anywhere; }
+.wl-what .wl-note { font-style: italic; }
+.wl-what .eyebrow.plain { text-transform: none; letter-spacing: 0; font-weight: 400; font-size: 11.5px; color: var(--muted); }
+.wl-amount { flex: none; font-variant-numeric: tabular-nums; font-weight: 700; white-space: nowrap; }
+.wl-amount.pos { color: #7fd6a4 !important; } .wl-amount.neg { color: #ff8a7a !important; }
+.wl-head { display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 10px; padding: 2px 0 4px; }
+.wl-head .big { font: 800 26px/1.05 var(--font-ui); }
+.wl-head .seg { display: flex; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); padding: 3px; gap: 3px; }
+.wl-head .seg button { appearance: none; border: 0; background: none; color: var(--text); font: 700 12px/1 var(--font-ui); letter-spacing: 0.06em; text-transform: uppercase; padding: 0 12px; min-height: 38px; cursor: pointer; }
+.wl-head .seg button[aria-pressed="true"] { background: #fff; color: #0b0b0c; }
+.wl-form { display: flex; flex-direction: column; gap: 12px; }
+.wl-field { display: flex; flex-direction: column; gap: 6px; }
+.wl-field .field { min-height: 50px; font-size: 17px; }
+#send-amount { font-variant-numeric: tabular-nums; font-weight: 700; font-size: 22px; }
+.wl-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-top: -4px; }
+.wl-chip { appearance: none; border: 0; min-height: 36px; padding: 0 12px; background: #1c1c1e; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.16); color: #fff; font: 600 13px/1 var(--font-ui); cursor: pointer; border-radius: 18px; }
+.wl-chip[aria-pressed="true"] { background: #3c9a66; box-shadow: none; }
+.wl-sheet .line span:first-child { color: var(--muted); }
+.wl-sheet .line span:last-child { color: #fff !important; font-weight: 600; white-space: normal; text-align: right; overflow-wrap: anywhere; }
+.wl-done { display: flex; flex-direction: column; align-items: center; gap: 8px; padding: 18px 0 8px; text-align: center; }
+.wl-done .big { font: 800 28px/1.1 var(--font-ui); }
+.wl-tick { width: 64px; height: 64px; border-radius: 32px; display: grid; place-items: center; background: #3c9a66; color: #fff; }
+.wl-tick .wl-ic { width: 34px; height: 34px; stroke-width: 2.6; }
+.wl-name { align-items: center; text-align: center; gap: 12px; padding: 22px 16px; }
+.wl-bigname { font: 800 clamp(24px, 8vw, 36px)/1.1 var(--font-ui); overflow-wrap: anywhere; user-select: text; -webkit-user-select: text; }
+.about { display: flex; flex-direction: column; gap: 12px; }
+.about p { margin: 0; line-height: 1.55; color: #e4e4df; }
 </style>
 
 <script>
@@ -1138,13 +1259,20 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
         <h1 class="arcade">Post Civil War</h1>
       </div>
       <div class="story" id="start-intro"></div>
-      <!-- An account: a username and a password, kept by the game's server, so a character is the player's on any device.
-           Offered on the website, where there is a server to ask (src/client/account.js); hidden everywhere else. -->
+      <!-- An account: a username and a password, kept by the game's server. On the website nobody plays without
+           one: until someone is signed in, this is all the start screen offers (src/client/account-ui.js). A copy
+           of the game with no server to ask has no accounts, and none of this is shown. -->
+      <div class="gate-card" id="gate" hidden>
+        <h2 id="gate-title">Create an account to play</h2>
+        <p id="gate-text">Your character, your TR and everything you own are kept with your account, so they are yours on any device. It takes a username and a password: nothing else is asked.</p>
+        <p class="gate-wait" id="gate-wait" hidden><i class="spin" aria-hidden="true"></i><span>Looking for your account...</span></p>
+      </div>
       <div class="account-row" id="account-row" hidden>
-        <button class="hx" id="open-signup" type="button">Create account</button>
-        <button class="hx" id="open-login" type="button">Log in</button>
+        <button class="hx primary" id="open-signup" type="button">Create Account</button>
+        <button class="hx" id="open-login" type="button">Log In</button>
         <div class="who" id="account-who" hidden><span>Signed in as <b id="account-name"></b></span><button class="hx small" id="account-logout" type="button">Log out</button></div>
         <p class="account-note" id="account-note" hidden></p>
+        <button class="hx small" id="account-retry" type="button" hidden>Try again</button>
       </div>
       <!-- a character already on this device (or brought to it by logging in): one press and the game goes on -->
       <button class="hx primary wide" id="continue-top" type="button" hidden>Continue</button>
@@ -1192,6 +1320,19 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
       <button class="hx primary wide" id="account-submit" type="submit">Create account</button>
       <button class="linkbtn" id="account-switch" type="button"></button>
     </form>
+  </div>
+
+  <!-- A question to be answered before something that cannot be taken back: log out, erase a save (src/client/confirm.js). -->
+  <div id="confirm" hidden role="alertdialog" aria-modal="true" aria-labelledby="confirm-title" aria-describedby="confirm-body">
+    <div class="confirm-box">
+      <h3 id="confirm-title"></h3>
+      <p id="confirm-body"></p>
+      <div class="notice" id="confirm-error" role="alert" hidden></div>
+      <div class="confirm-actions">
+        <button class="hx" id="confirm-no" type="button">Cancel</button>
+        <button class="hx" id="confirm-yes" type="button"></button>
+      </div>
+    </div>
   </div>
 
   <!-- The opening. It is plain markup and style so that it is on screen before the game's own script has even been read. -->

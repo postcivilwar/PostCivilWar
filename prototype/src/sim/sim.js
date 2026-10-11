@@ -3,7 +3,7 @@
 //
 // It has no renderer and no DOM, so it runs the same in a browser tab, in
 // Node, or behind a network socket. It is given a gameplay ledger handle and
-// nothing else to do with money: it cannot see the settlement service.
+// nothing else to do with money: it cannot make TR, and it cannot see the bank.
 
 import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ } from './zone.js';
 import { createResidents } from './residents.js';
@@ -756,7 +756,7 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     return [
       { id: 'arrive', text: `Arrive in ${ZONE.name}`, done: true },
       { id: 'look', text: `Read the survey board on a plot in the ${ZONE.scheme}`, done: Object.keys(p.inspected).length > 0 || owned.length > 0 },
-      { id: 'funds', text: 'Earn your first TR: mould blocks at the yard, or add sandbox funds from your phone', done: history.length > 1 },
+      { id: 'funds', text: 'Earn your first TR: mould blocks at the yard', done: history.length > 1 },
       { id: 'land', text: 'Buy a plot at the Lands Registry', done: owned.length > 0 },
       { id: 'permit', text: 'Get a building permit at the Secretariat', done: sites.some((r) => r.permit) },
       { id: 'materials', text: 'Have materials delivered from the yard and the store', done: sites.some((r) => r.site && (r.site.started || r.site.stage > 0)) || owned.some((id) => Object.values(state.economy.stock[`site:${id}`] || {}).some((q) => q > 0)) },

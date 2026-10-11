@@ -37,9 +37,15 @@ export function h(tag, props, ...kids) {
 const $ = (id) => document.getElementById(id);
 export const money = (n) => Math.round(n).toLocaleString('en-GB');
 // amounts of money are ledger units, two to a TR (src/sim/ledger.js)
+// What the game is, in its owner's words. (The three paragraphs are theirs, and are shown as they wrote them.)
+export const ABOUT = Object.freeze([
+  'Step into a rich, immersive world set in post-civil war Nigeria, after the Biafran conflict. This open-world life simulation invites players from all backgrounds, worldwide, to experience a journey of reinvention. Set in the Eastern region of Nigeria after the 1970 ceasefire, you begin with just \u00a320, having lost everything in the aftermath of the war.',
+  'In this game, you forge your own path: will you rise as a hero, helping rebuild your community or take a darker route as a villain? Whether you choose to work as a teacher, engineer, pastor or engage in crime\u2014car theft, smuggling or other high-stakes risks, your choices shape your destiny. Build wealth by trading land, cars, and assets; or lose yourself in the struggle for survival. Every action has consequences\u2014police, soldiers and justice will follow.',
+  'Powered by TR as your currency, the game blends historical authenticity with limitless freedom. Anyone can experience the rich culture, the triumphs, and the challenges of rebuilding life in post-war Nigeria. Your story, your choices\u2014start today.',
+]);
+
 const amt = trAmount;
 const tr = trText;
-const tbtc = (sats) => `${(sats / 1e8).toFixed(8)} tBTC`;
 const when = (t) => { const c = clockOf(t); return `Day ${c.day}, ${c.label}`; };
 const WEATHER_WORD = { clear: 'Clear', cloudy: 'Overcast', rain: 'Rain', storm: 'Storm' };
 
@@ -137,7 +143,7 @@ export function createUI(app) {
     sheet.classList.remove('mini', 'page', 'big');
     sheet.style.removeProperty('width'); sheet.style.removeProperty('height'); sheet.style.removeProperty('bottom');
     if (phone && phone.market.dealOpen) phone.market.closeDeal();
-    if (phone) phone.market.leave();
+    if (phone) { phone.market.leave(); phone.wallet.leave(); }
     current = null;
     $('view').focus({ preventScroll: true });
     if (app.closed) app.closed();
@@ -453,7 +459,6 @@ export function createUI(app) {
 
   // ---------------------------------------------------------------- phone --
 
-  let portalState = { quote: null, message: null, sats: '', address: '', amount: '', redeem: '' };
   let mapMode = 'town';
   const noticeLog = [];        // what the player has been told, kept for the Notices app
 
@@ -462,12 +467,10 @@ export function createUI(app) {
   let panels = null;
   function openPhone(appId, state) { phone.show(appId === 'help' ? 'settings' : appId || null, state); }
 
+  // This world's own entries: all there is to show in a copy of the game with no server (ui-wallet.js).
   function wallet(root) {
     const result = app.send({ type: 'wallet.history' });
-    root.append(line('TR', amt(result.balance)));
-    root.append(h('p', null, 'TR is the money of this world. It is game money: not legal tender, and not bitcoin.'));
-    root.append(section('Recent entries'));
-    if (!result.rows.length) { root.append(h('p', null, 'Nothing yet. Earn a wage at the block yard, or add sandbox funds.')); return; }
+    if (!result.rows.length) { root.append(h('p', null, 'Nothing yet. Earn a wage at the block yard.')); return; }
     root.append(h('div', { class: 'rows' }, result.rows.map((row) => h('div', { class: 'line' },
       h('span', null, row.reason, h('div', { class: 'eyebrow mono' }, `${row.id} · ${when(row.at)}`)),
       h('span', { class: row.amount > 0 ? 'pos' : 'neg' }, `${row.amount > 0 ? '+' : '−'}${amt(Math.abs(row.amount))}`)))));
@@ -542,27 +545,30 @@ export function createUI(app) {
     root.append(h('p', null, 'Everyone in town has a name, a home, a family and something to do with the day. Walk up to anyone and press E to greet them.'));
   }
 
-  // A switch: on or off, said so to a screen reader, worked by a press or the space bar.
+  // A switch: on or off. It says which in three ways (where the knob is, the colour of the track, and the word
+  // beside it), says so to a screen reader, and is worked by a press, a click, Enter or the space bar. What it
+  // shows is the setting itself: it moves when the setting has changed, and the caller draws it again from that.
   function toggle(id, on, label, change) {
+    const word = h('span', { class: 'switchword', 'aria-hidden': 'true' }, on ? 'On' : 'Off');
     const el = h('button', { class: 'switch', type: 'button', id, role: 'switch', 'aria-checked': String(!!on), 'aria-label': label });
-    el.addEventListener('click', () => change(el.getAttribute('aria-checked') !== 'true'));
-    return el;
+    el.addEventListener('click', () => {
+      const next = el.getAttribute('aria-checked') !== 'true';
+      el.setAttribute('aria-checked', String(next)); word.textContent = next ? 'On' : 'Off';
+      change(next);
+    });
+    return h('span', { class: 'switchbox' }, word, el);
   }
 
   function settings(root, viewNames) {
-    // On the website: the account this character is kept with.
+    // On the website: the account this character is kept with. (Nobody plays there without one.)
     if (app.online && app.online.available) {
       const st = app.online.status();
+      const who = st.account ? st.account.username : app.accountName ? app.accountName() : '';
       root.append(section('Account'));
       if (st.state === 'in') {
         root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Signed in as ', h('b', { id: 'settings-username' }, st.account.username)), h('button', { class: 'btn', type: 'button', id: 'settings-logout', onclick: () => app.account.logOut() }, 'Log out'))));
-        root.append(h('p', { class: 'small' }, 'Your character is kept with your account, so it is the same character on any device you log in on. Other players near you see your username over your head.'));
-      } else if (st.state === 'out') {
-        root.append(h('div', { class: 'hxrow' },
-          h('button', { class: 'hx', type: 'button', id: 'settings-signup', onclick: () => app.account.open('signup') }, 'Create account'),
-          h('button', { class: 'hx', type: 'button', id: 'settings-login', onclick: () => app.account.open('login') }, 'Log in')));
-        root.append(h('p', { class: 'small' }, 'An account is a username and a password. It keeps this character for you on any device, lets other players see you in town, and lets you own and trade things. Without one the game plays as it always has, on this device.'));
-      } else root.append(h('p', { class: 'small' }, st.state === 'checking' ? 'Asking the server...' : `Accounts cannot be reached just now. ${st.message || ''} The game plays as usual on this device.`));
+        root.append(h('p', { class: 'small' }, 'Your character, your TR and what you own are kept with your account, so they are the same on any device you log in on. Other players near you see your username over your head.'));
+      } else root.append(h('p', { class: 'small', id: 'settings-offline' }, st.state === 'checking' ? 'Asking the server...' : `The game's server cannot be reached just now. ${st.message || ''} ${who ? `You are playing as ${who}: ` : ''}your character is kept on this device and goes to your account when the connection is back. Nothing can be sent, received, bought or sold until then.`));
     }
     root.append(section('Sound'));
     root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); }))));
@@ -650,10 +656,12 @@ export function createUI(app) {
     current.refresh = measure;
     root.append(measured, hitches);
 
+    root.append(section('Saved game'));
+    root.append(h('p', { class: 'small' }, 'Erasing puts this character away for good and begins a new journey. Your account, your username, your TR and everything you own in the market are kept.'));
+    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', id: 'erase-save', onclick: () => app.erase() }, 'Erase this save and start again')));
+
     root.append(section('About'));
-    root.append(h('p', null, 'PostCivilWar is a browser prototype of one town. The simulation decides every outcome: where you may walk, what you may buy, who owns what, what is said and who hears it. The art and the sound are made in code and are stylised, not realistic. Sleeping, resting and classes move the clock forward, which a shared world would not allow.'));
-    root.append(h('p', { class: 'small' }, 'There are no accounts yet: this character lives on this device. Sign-up and log-in arrive with the game\'s servers at postcivilwar.com.'));
-    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => app.restart() }, 'Erase this save and start again')));
+    root.append(h('div', { class: 'about', id: 'about' }, ABOUT.map((text) => h('p', null, text))));
   }
 
   // ------------------------------------------------------------------ map --
@@ -788,72 +796,6 @@ export function createUI(app) {
     ctx.fillStyle = 'rgba(255,255,255,0.6)'; ctx.font = `500 14px ${MAP_FONT}`; ctx.fillText('Grid squares are 20 game km (200 real km)', pad, canvas.height - 18);
     let lx = pad; ctx.textAlign = 'left';
     for (const [code, name] of Object.entries(NIGERIA_ZONES)) { ctx.fillStyle = zoneShade[code]; ctx.fillRect(lx, 16, 12, 12); ctx.fillStyle = 'rgba(255,255,255,0.8)'; ctx.fillText(name, lx + 17, 27); lx += ctx.measureText(name).width + 38; }
-  }
-
-  // ---------------------------------------------- settlement portal (funds) --
-
-  function funds(root) {
-    const res = app.portal('summary');
-    if (!res.ok) { root.append(refused(res)); return; }
-    const s = res.data;
-    current.live = () => JSON.stringify(app.portal('summary').data);
-    current.signature = JSON.stringify(s);
-    root.append(h('div', { class: 'sandbox' }, h('div', null,
-      h('div', { class: 'eyebrow' }, 'Settlement portal · sandbox'),
-      h('p', null, 'This screen is not part of the game world. It talks to the settlement service, which holds bitcoin on a separate ledger. In this build the bitcoin is test bitcoin from a built-in chain. It has no value and cannot leave this page.'))));
-    if (portalState.message) root.append(h('div', { class: `notice pinned${portalState.message.good ? ' good' : ''}`, role: 'status' }, portalState.message.text));
-
-    root.append(section('Your settlement account'));
-    root.append(line('Confirmed balance', tbtc(s.btcSats)), line('Chain height', `block ${money(s.height)}`));
-    root.append(h('div', null, h('div', { class: 'eyebrow' }, 'Deposit address (sandbox)'), h('div', { class: 'mono', style: 'overflow-wrap:anywhere' }, s.address)));
-
-    root.append(section('1 · Deposit'));
-    root.append(h('p', null, `A deposit is credited after ${s.confirmationsRequired} confirmations. The test faucet stands in for sending bitcoin from a wallet of your own.`));
-    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', disabled: s.faucetRemaining < 100000, onclick: () => portalCall('faucet', { sats: 100000 }, 'Deposit broadcast. Waiting for confirmations.') }, 'Send 0.001 tBTC from the faucet')));
-    for (const d of s.deposits) {
-      root.append(h('div', null, h('div', { class: 'line' }, h('span', null, d.status === 'credited' ? 'Credited' : `Confirming ${Math.min(d.confirmations, s.confirmationsRequired)} of ${s.confirmationsRequired}`, h('div', { class: 'eyebrow mono' }, `${d.txid.slice(0, 18)}…`)), h('span', null, tbtc(d.sats))),
-        h('div', { class: 'steps' }, Array.from({ length: s.confirmationsRequired }, (_, i) => h('i', { class: i < d.confirmations ? 'on' : '' })))));
-    }
-
-    root.append(section('2 · Convert to TR'));
-    root.append(h('p', null, `Platform rate: ${money(TR / s.rate)} satoshis buy 1 TR. A quote holds the rate for 60 seconds.`));
-    if (portalState.quote) {
-      const q = portalState.quote;
-      root.append(line(`${money(q.sats)} sats`, `${tr(q.cowries)}`));
-      root.append(h('div', { class: 'actions' },
-        h('button', { class: 'btn primary', type: 'button', onclick: () => { const r = portalCall('convert', { quoteId: q.id }, (d) => `Converted. ${tr(d.cowries)} added to your wallet.`); portalState.quote = null; if (r.ok) portalState.sats = ''; redraw(); } }, 'Convert at this quote'),
-        h('button', { class: 'btn quiet', type: 'button', onclick: () => { portalState.quote = null; redraw(); } }, 'Cancel')));
-    } else {
-      root.append(h('div', { class: 'qty' },
-        h('input', { class: 'field mono', id: 'convert-sats', type: 'number', min: '1', placeholder: 'satoshis', value: portalState.sats || (s.btcSats ? String(s.btcSats) : ''), 'aria-label': 'Satoshis to convert', oninput: (e) => { portalState.sats = e.target.value; } }),
-        h('span', null, 'sats'),
-        h('button', { class: 'btn', type: 'button', onclick: () => { const sats = Math.round(Number(portalState.sats || s.btcSats)); const r = app.portal('quote', { sats }); if (r.ok) { portalState.quote = r.data; portalState.message = null; } else portalState.message = { text: r.message }; redraw(); } }, 'Get a quote')));
-    }
-
-    root.append(section('3 · Withdraw bitcoin'));
-    root.append(h('p', null, `Withdrawals come from your confirmed bitcoin balance. Minimum ${money(s.minWithdrawalSats)} sats, fee ${money(s.withdrawalFeeSats)} sats. Each one is held, checked, then sent.`));
-    root.append(h('input', { class: 'field mono', id: 'wd-address', placeholder: 'sandbox address (sbx1q…)', value: portalState.address, 'aria-label': 'Destination address', oninput: (e) => { portalState.address = e.target.value.trim(); } }));
-    root.append(h('div', { class: 'qty' },
-      h('input', { class: 'field mono', id: 'wd-sats', type: 'number', min: '1', placeholder: 'satoshis', value: portalState.amount, 'aria-label': 'Satoshis to withdraw', oninput: (e) => { portalState.amount = e.target.value; } }),
-      h('span', null, 'sats'),
-      h('button', { class: 'btn', type: 'button', onclick: () => portalCall('withdraw', { address: portalState.address, sats: Math.round(Number(portalState.amount)) }, (d) => (d.status === 'manual_review' ? 'Held for manual review.' : 'Approved. It will be broadcast in the next block.')) }, 'Request')));
-    for (const w of s.withdrawals) {
-      const order = ['approved', 'broadcast', 'settled'];
-      const at = order.indexOf(w.status);
-      root.append(h('div', null, h('div', { class: 'line' }, h('span', null, { manual_review: 'Waiting for manual review', approved: 'Approved, waiting to be sent', broadcast: `Sent, ${w.confirmations} of ${s.confirmationsRequired} confirmations`, settled: 'Settled', rejected: 'Rejected, funds returned' }[w.status] || w.status, h('div', { class: 'eyebrow mono' }, `${w.id} → ${w.address.slice(0, 14)}…`)), h('span', null, tbtc(w.sats))),
-        h('div', { class: 'steps' }, order.map((_, i) => h('i', { class: at >= i ? 'on' : '' })))));
-    }
-
-    root.append(section('TR back to bitcoin'));
-    root.append(h('p', null, 'Game funds are not redeemable for bitcoin unless the settlement layer authorises it. In this build redemption is switched off.'));
-    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => portalCall('redeem', { cowries: 1000 }) }, `Ask to redeem ${trText(1000)}`)));
-  }
-
-  function portalCall(method, args, successText) {
-    const r = app.portal(method, args);
-    portalState.message = r.ok ? (successText ? { good: true, text: typeof successText === 'function' ? successText(r.data) : successText } : null) : { text: r.message };
-    redraw();
-    return r;
   }
 
   // ------------------------------------------------------------------ HUD --
@@ -1196,9 +1138,9 @@ export function createUI(app) {
 
   $('btn-phone').addEventListener('click', () => { if (sheet.hidden) openPhone(); else close(); });
 
-  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state), openDeal: (args) => phone.openDeal(args), leaveDeal: () => phone.leaveDeal() }, h, open, redraw, close, mode, isOpen: () => !sheet.hidden, isDevice: () => usingPhone(), line, section, money, amt, tr, trPlain, trIn, when, refused, live };
+  const shared = { app: { ...app, openPhone: (id, state) => openPhone(id, state), openDeal: (args) => phone.openDeal(args), leaveDeal: () => phone.leaveDeal() }, h, open, redraw, close, mode, isOpen: () => !sheet.hidden, isDevice: () => usingPhone(), line, section, money, amt, tr, trPlain, trIn, when, refused, live, toast: (event) => toast(event) };
   panels = createPanels(shared);
-  phone = createPhone({ ...shared, legacy: { wallet, property, people: peopleTab, map, funds, runs, journal, settings, vehicleLines: (v) => vehicleLines(v).filter(Boolean) }, lawBlock: panels.lawBlock, log: () => noticeLog });
+  phone = createPhone({ ...shared, legacy: { wallet, property, people: peopleTab, map, runs, journal, settings, vehicleLines: (v) => vehicleLines(v).filter(Boolean) }, lawBlock: panels.lawBlock, log: () => noticeLog });
 
   function openRest(benchId) {
     open('Bench', 'Sit and rest', (root) => {
@@ -1213,5 +1155,5 @@ export function createUI(app) {
     });
   }
 
-  return { openDialogue, talkToPerson, openOkada, openService, openBoard, openPhone, openCustody: () => panels.openCustody(), openRest, updateHud, setPrompt, setKeys, setVitals, setWaypoint, setDash, toast, tick, close, openChat, closeChat, chatOpen: () => !chatBar.hidden, isOpen: () => !sheet.hidden, usingPhone, phoneOut, phoneWidth, phoneScreen: () => (usingPhone() ? phone.screen : null), openDeal: (args) => phone.openDeal(args), dealOpen: () => phone.market.dealOpen, marketStale: () => phone.market.stale(), signedOut: () => phone.market.signedOut(), redraw: () => redraw() };
+  return { openDialogue, talkToPerson, openOkada, openService, openBoard, openPhone, openCustody: () => panels.openCustody(), openRest, updateHud, setPrompt, setKeys, setVitals, setWaypoint, setDash, toast, tick, close, openChat, closeChat, chatOpen: () => !chatBar.hidden, isOpen: () => !sheet.hidden, usingPhone, phoneOut, phoneWidth, phoneScreen: () => (usingPhone() ? phone.screen : null), openDeal: (args) => phone.openDeal(args), dealOpen: () => phone.market.dealOpen, marketStale: () => phone.market.stale(), walletStale: () => phone.wallet.stale(), signedOut: () => { phone.market.signedOut(); phone.wallet.signedOut(); }, redraw: () => redraw() };
 }

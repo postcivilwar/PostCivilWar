@@ -84,13 +84,13 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
     if (!here || !here.ok || !here.accounts) { set({ state: 'down', account: null, save: null, message: here && here.ok ? 'Accounts are not set up on this site yet.' : 'The server could not be reached.' }); return status; }
     const me = await ask('me');
     if (!me.ok) set({ state: 'down', account: null, save: null, message: me.message });
-    else set(me.account ? { state: 'in', account: me.account, save: me.save || null, message: '' } : { state: 'out', account: null, save: null, message: '' });
+    else set(me.account ? { state: 'in', account: me.account, save: me.save || null, wallet: me.wallet || null, message: '' } : { state: 'out', account: null, save: null, wallet: null, message: '' });
     return status;
   }
 
   async function enter(op, username, password, extra) {
     const answer = await ask(op, { username, password, ...(extra || {}) }, { timeout: 20000 });
-    if (answer.ok) set({ state: 'in', account: answer.account, save: answer.save || null, message: '' });
+    if (answer.ok) set({ state: 'in', account: answer.account, save: answer.save || null, wallet: answer.wallet || null, message: '' });
     return answer;
   }
 
@@ -104,7 +104,8 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
     signUp: (username, password, save) => enter('signup', username, password, save ? { save } : null),
     logIn: (username, password) => enter('login', username, password),
     async logOut() { const answer = await ask('logout'); if (answer.ok || answer.code !== 'OFFLINE') set({ state: available ? 'out' : 'off', account: null, save: null }); return answer; },
-    noteSave(rev) { if (status.state === 'in') status.save = { ...(status.save || {}), rev }; },
+    // the character kept with the account is now at this revision (or, `erased`: there is none, as of this one)
+    noteSave(rev, erased = false) { if (status.state === 'in') status.save = erased ? { rev, erased: true } : { ...(status.save && !status.save.erased ? status.save : {}), rev }; },
   };
 }
 

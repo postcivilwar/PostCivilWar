@@ -6,15 +6,16 @@
 // written, all together or not at all. Two buyers pressing Buy on the last item at the same moment are served
 // one after the other, and the second finds it gone.
 //
-// Money. The TR itself is kept by each player's own game, as all the game's money is today (there is no shared
-// world server yet). So a sale here records what is owed: `sales` says the buyer's game must pay this much and
-// the seller's game must be given it, and each game does that exactly once and says so with its next save
-// (buyer_paid_rev, seller_credited_rev). The buyer's game sets the money aside before it makes an offer, so an
-// accepted offer is always paid from money that was really there.
+// Money. It is the bank's (wallet.js), and it moves in the same transaction as the thing that is bought. At a
+// shop the price leaves the buyer's wallet as the item becomes theirs. Between two players, the buyer's offer is
+// set aside from their wallet when it is made (so an offer is always made with TR that is really there, and that
+// TR cannot be spent on anything else meanwhile); the seller's yes moves it to the seller, and a no, a
+// withdrawal, or the thing going to someone else gives it back.
 
 const { ApiError } = require('./http.js');
 const { allow } = require('./auth.js');
 const { SCHEMA: S } = require('./schema.js');
+const wallet = require('./wallet.js');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 const MAX_PRICE = 2_000_000_000;         // ledger units: a thousand million TR
@@ -152,7 +153,12 @@ async function sync(sql, me, body) {
        (select count(*) from ${S}.messages m join ${S}.threads t on t.id = m.thread_id
          where (t.buyer_id = $1 or t.seller_id = $1) and m.sender_id is distinct from $1 and m.id > (case when t.buyer_id = $1 then t.buyer_read else t.seller_read end))::int as unread,
        (select count(*) from ${S}.offers o join ${S}.threads t on t.id = o.thread_id where t.seller_id = $1 and o.status = 'pending')::int as to_decide`, [me.id]);
-  return { offers, unread: waiting[0].unread, toDecide: waiting[0].to_decide, ...(await dues(sql, me)) };
+  // offers of mine that have been accepted and that I have not yet opened the conversation to see
+  const won = await sql.unsafe(
+    `select m.id, m.amount, m.body from ${S}.messages m join ${S}.threads t on t.id = m.thread_id
+     where t.buyer_id = $1 and m.kind = 'accepted' and m.id > t.buyer_read order by m.id limit 10`, [me.id]);
+  // and, in the same asking, what the wallet holds now and what has come into it since the page last looked
+  return { offers, unread: waiting[0].unread, toDecide: waiting[0].to_decide, accepted: won.map((row) => ({ id: Number(row.id), amount: num(row.amount), what: String(row.body || '').replace(/^Sold: /, '').replace(/, for [^,]*$/, '') })), ...(await dues(sql, me)), ...(await wallet.get(sql, me, { since: body.since })) };
 }
 
 // ---- talking ----
@@ -247,10 +253,20 @@ async function write(sql, me, body) {
 
 // ---- buying and selling ----
 
+// TR that was set aside for an offer goes back to the buyer. Once: an offer's money is returned under its own key.
+async function giveBack(tx, offer, what) {
+  const held = Number(offer.held) || 0;
+  if (held <= 0) return;
+  const buyer = await wallet.walletOf(tx, offer.buyer_id, false);
+  await wallet.post(tx, { kind: 'release', actor: offer.buyer_id, key: `release:${offer.id}`, note: 'Offer returned', meta: { offer: offer.id, what: what || null }, legs: [{ wallet: await wallet.systemWallet(tx, 'escrow'), amount: -held }, { wallet: buyer.id, amount: held }] });
+}
+
 // The sale. Called with the listing's row locked. Gives { sold, sale } or declines the offer and says why.
+// `offer` is { id, buyer_id, held }: what was set aside for it (nothing, at a shop: there the price is paid here).
 async function settle(tx, listing, offer, thread, amount) {
   const decline = async (why) => {
     await tx.unsafe(`update ${S}.offers set status = 'declined', decided_at = now() where id = $1 and status = 'pending'`, [offer.id]);
+    await giveBack(tx, offer, listing.asset_name);
     await say(tx, thread.id, null, 'declined', why, num(offer.amount), offer.id);
     return { sold: false, reason: why };
   };
@@ -271,13 +287,28 @@ async function settle(tx, listing, offer, thread, amount) {
   await tx.unsafe(`update ${S}.listings set sold = sold + 1, status = $2, closed_at = case when $2 = 'sold' then now() else null end where id = $1`, [listing.id, gone ? 'sold' : 'open']);
   const took = await tx.unsafe(`update ${S}.offers set status = 'accepted', decided_at = now() where id = $1 and status = 'pending' returning id`, [offer.id]);
   if (!took.length) throw new ApiError(409, 'DECIDED', 'That offer has already been answered.');
-  const sale = (await tx.unsafe(`insert into ${S}.sales (offer_id, listing_id, asset_id, holding_id, buyer_id, seller_id, amount) values ($1, $2, $3, $4, $5, $6, $7) returning id, at`, [offer.id, listing.id, listing.asset_id, holdingId, offer.buyer_id, listing.seller_id, amount]))[0];
+  // (the two marks say that neither game has anything left to settle: the bank moves the money, below)
+  const sale = (await tx.unsafe(`insert into ${S}.sales (offer_id, listing_id, asset_id, holding_id, buyer_id, seller_id, amount, buyer_paid_rev, seller_credited_rev) values ($1, $2, $3, $4, $5, $6, $7, 0, 0) returning id, at`, [offer.id, listing.id, listing.asset_id, holdingId, offer.buyer_id, listing.seller_id, amount]))[0];
   const name = serial ? `${listing.asset_name} No. ${serial} of ${edition}` : listing.asset_name;
+  // the money, with the thing: in this same transaction, so that neither moves without the other
+  const meta = { sale: sale.id, offer: offer.id, what: name, buyer: offer.buyer_id, seller: listing.seller_id || null, shop: listing.kind === 'primary' ? listing.shop_name : null };
+  const held = Number(offer.held) || 0;
+  if (listing.kind === 'primary') {
+    const buyer = await wallet.walletOf(tx, offer.buyer_id, true);
+    if (buyer.balance < amount) throw new ApiError(409, 'FUNDS', `You do not have enough. It is ${trText(amount)} and you have ${trText(buyer.balance)}.`);
+    await wallet.post(tx, { kind: 'sale', actor: offer.buyer_id, key: `sale:${offer.id}`, note: `Bought: ${name}`, meta, legs: [{ wallet: buyer.id, amount: -amount }, { wallet: await wallet.systemWallet(tx, 'world'), amount }] });
+  } else {
+    if (held < amount) throw new ApiError(409, 'FUNDS', 'The money for that offer is not there. The offer must be made again.');
+    const seller = await wallet.walletOf(tx, listing.seller_id, false);
+    const legs = [{ wallet: await wallet.systemWallet(tx, 'escrow'), amount: -held }, { wallet: seller.id, amount }];
+    if (held > amount) legs.push({ wallet: (await wallet.walletOf(tx, offer.buyer_id, false)).id, amount: held - amount });
+    await wallet.post(tx, { kind: 'sale', actor: offer.buyer_id, key: `sale:${offer.id}`, note: `Sold: ${name}`, meta, legs });
+  }
   await say(tx, thread.id, null, 'accepted', `Sold: ${name}, for ${trText(amount)}.`, amount, offer.id);
   if (gone) {
     // anyone else who was offering for it is told, and their money is theirs again
-    const others = await tx.unsafe(`update ${S}.offers set status = 'declined', decided_at = now() where listing_id = $1 and status = 'pending' returning id, thread_id, amount`, [listing.id]);
-    for (const other of others) await say(tx, other.thread_id, null, 'declined', 'It has been sold to another buyer.', num(other.amount), other.id);
+    const others = await tx.unsafe(`update ${S}.offers set status = 'declined', decided_at = now() where listing_id = $1 and status = 'pending' returning id, buyer_id, held, thread_id, amount`, [listing.id]);
+    for (const other of others) { await giveBack(tx, other, listing.asset_name); await say(tx, other.thread_id, null, 'declined', 'It has been sold to another buyer.', num(other.amount), other.id); }
   }
   return { sold: true, sale: { id: sale.id, offer: offer.id, amount, what: name, holding: holdingId } };
 }
@@ -303,13 +334,25 @@ async function offer(sql, me, body) {
     if (before.length) {
       if (before[0].buyer_id !== me.id) throw new ApiError(409, 'OFFER', 'That offer cannot be made.');
       const sale = (await tx.unsafe(`select id, amount from ${S}.sales where offer_id = $1`, [offerId]))[0];
-      return { offer: { id: offerId, status: before[0].status, amount: num(before[0].amount) }, sale: sale ? { id: sale.id, offer: offerId, amount: num(sale.amount) } : null, ...(await threadView(tx, me, thread, Number(body.after))) };
+      return { offer: { id: offerId, status: before[0].status, amount: num(before[0].amount) }, sale: sale ? { id: sale.id, offer: offerId, amount: num(sale.amount) } : null, ...(await wallet.after(tx, me.id)), ...(await threadView(tx, me, thread, Number(body.after))) };
     }
     const listing = await lockedListing(tx, thread.listing_id);
     if (listing.status !== 'open') throw new ApiError(409, 'GONE', 'That is no longer for sale.');
     if ((await tx.unsafe(`select 1 from ${S}.offers where thread_id = $1 and status = 'pending'`, [thread.id])).length) throw new ApiError(409, 'PENDING', 'You have an offer waiting for an answer. Withdraw it to make another.');
-    const made = { id: offerId, buyer_id: me.id, amount };
-    await tx.unsafe(`insert into ${S}.offers (id, thread_id, listing_id, buyer_id, amount, status) values ($1, $2, $3, $4, $5, 'pending')`, [offerId, thread.id, listing.id, me.id, amount]);
+    // At a shop the price is paid as the thing is handed over (settle, below). Between players the offer's TR
+    // is set aside now, from the buyer's wallet with the wallet locked: no offer is made with TR that is not there.
+    let held = 0;
+    const mine = await wallet.walletOf(tx, me.id, true);
+    if (listing.kind === 'primary') {
+      const price = Number(listing.price);
+      if (amount >= price && mine.balance < price) throw new ApiError(409, 'FUNDS', `You do not have enough. It is ${trText(price)} and you have ${trText(mine.balance)}.`);
+    } else {
+      if (mine.balance < amount) throw new ApiError(409, 'FUNDS', `You do not have that much. You have ${trText(mine.balance)}.`);
+      held = amount;
+    }
+    const made = { id: offerId, buyer_id: me.id, amount, held };
+    await tx.unsafe(`insert into ${S}.offers (id, thread_id, listing_id, buyer_id, amount, status, held) values ($1, $2, $3, $4, $5, 'pending', $6)`, [offerId, thread.id, listing.id, me.id, amount, held]);
+    if (held > 0) await wallet.post(tx, { kind: 'hold', actor: me.id, key: `hold:${offerId}`, note: `Offer: ${itemName(listing)}`, meta: { offer: offerId, what: itemName(listing), seller: listing.seller_id, buyer: me.id }, legs: [{ wallet: mine.id, amount: -held }, { wallet: await wallet.systemWallet(tx, 'escrow'), amount: held }] });
     await say(tx, thread.id, me.id, 'offer', '', amount, offerId);
     let outcome = { sold: false }, status = 'pending';
     if (listing.kind === 'primary') {
@@ -321,7 +364,7 @@ async function offer(sql, me, body) {
       }
       status = outcome.sold ? 'accepted' : 'declined';
     }
-    return { offer: { id: offerId, status, amount }, sale: outcome.sold ? outcome.sale : null, ...(await threadView(tx, me, thread, Number(body.after))) };
+    return { offer: { id: offerId, status, amount }, sale: outcome.sold ? outcome.sale : null, ...(await wallet.after(tx, me.id)), ...(await threadView(tx, me, thread, Number(body.after))) };
   });
 }
 
@@ -329,7 +372,7 @@ async function offer(sql, me, body) {
 async function withdraw(sql, me, body) {
   const offerId = uuid(body.offer, 'an offer');
   return sql.begin(async (tx) => {
-    const rows = await tx.unsafe(`select o.id, o.thread_id, o.amount, o.status from ${S}.offers o where o.id = $1 and o.buyer_id = $2 for update`, [offerId, me.id]);
+    const rows = await tx.unsafe(`select o.id, o.buyer_id, o.held, o.thread_id, o.amount, o.status from ${S}.offers o where o.id = $1 and o.buyer_id = $2 for update`, [offerId, me.id]);
     if (!rows.length) {
       // nothing reached the market under that number: remember it as void, so that it never can
       await tx.unsafe(`insert into ${S}.offers (id, buyer_id, amount, status, decided_at) values ($1, $2, 0, 'void', now()) on conflict (id) do nothing`, [offerId, me.id]);
@@ -339,8 +382,9 @@ async function withdraw(sql, me, body) {
     const found = rows[0];
     if (found.status === 'pending') {
       await tx.unsafe(`update ${S}.offers set status = 'withdrawn', decided_at = now() where id = $1`, [offerId]);
+      await giveBack(tx, found);
       await say(tx, found.thread_id, me.id, 'withdrawn', '', num(found.amount), offerId);
-      return { offer: { id: offerId, status: 'withdrawn' } };
+      return { offer: { id: offerId, status: 'withdrawn' }, ...(await wallet.after(tx, me.id)) };
     }
     return { offer: { id: offerId, status: found.status } };
   });
@@ -356,17 +400,19 @@ async function decide(sql, me, body) {
     const listing = await lockedListing(tx, found.listing_id);
     const thread = await threadFor(tx, me, found.thread_id, true);
     // read again now that the listing is ours alone: the buyer may have withdrawn in the meantime
-    const now = (await tx.unsafe(`select status, amount from ${S}.offers where id = $1 for update`, [offerId]))[0];
+    const now = (await tx.unsafe(`select status, amount, held from ${S}.offers where id = $1 for update`, [offerId]))[0];
     if (now.status !== 'pending') throw new ApiError(409, 'DECIDED', now.status === 'withdrawn' ? 'The buyer has withdrawn that offer.' : 'That offer has already been answered.');
     const amount = Number(now.amount);
     if (accept && body.amount !== undefined && Number(body.amount) !== amount) throw new ApiError(409, 'CHANGED', 'The offer is not the one you were shown. Look again.');
     let outcome = { sold: false };
-    if (accept) outcome = await settle(tx, listing, { id: offerId, buyer_id: found.buyer_id, amount }, thread, amount);
+    const made = { id: offerId, buyer_id: found.buyer_id, amount, held: Number(now.held) };
+    if (accept) outcome = await settle(tx, listing, made, thread, amount);
     else {
       await tx.unsafe(`update ${S}.offers set status = 'declined', decided_at = now() where id = $1`, [offerId]);
+      await giveBack(tx, made, listing.asset_name);
       await say(tx, thread.id, me.id, 'declined', '', amount, offerId);
     }
-    return { offer: { id: offerId, status: outcome.sold ? 'accepted' : 'declined' }, sale: outcome.sold ? outcome.sale : null, ...(await threadView(tx, me, thread, Number(body.after))) };
+    return { offer: { id: offerId, status: outcome.sold ? 'accepted' : 'declined' }, sale: outcome.sold ? outcome.sale : null, ...(await wallet.after(tx, me.id)), ...(await threadView(tx, me, thread, Number(body.after))) };
   });
 }
 
@@ -397,8 +443,8 @@ async function unlist(sql, me, body) {
     if (!may) throw new ApiError(403, 'NOT_YOURS', 'That listing is not yours.');
     if (listing.status !== 'open') return { listing: listingView(listing, me) };
     await tx.unsafe(`update ${S}.listings set status = 'closed', closed_at = now() where id = $1`, [listingId]);
-    const waiting = await tx.unsafe(`update ${S}.offers set status = 'declined', decided_at = now() where listing_id = $1 and status = 'pending' returning id, thread_id, amount`, [listingId]);
-    for (const o of waiting) await say(tx, o.thread_id, null, 'declined', 'It is no longer for sale.', num(o.amount), o.id);
+    const waiting = await tx.unsafe(`update ${S}.offers set status = 'declined', decided_at = now() where listing_id = $1 and status = 'pending' returning id, buyer_id, held, thread_id, amount`, [listingId]);
+    for (const o of waiting) { await giveBack(tx, o, listing.asset_name); await say(tx, o.thread_id, null, 'declined', 'It is no longer for sale.', num(o.amount), o.id); }
     return { listing: listingView((await tx.unsafe(`${LISTING} where l.id = $1`, [listingId]))[0], me) };
   });
 }
