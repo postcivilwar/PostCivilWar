@@ -288,6 +288,17 @@ const MIGRATIONS = [
          primary key (owner_id, person_id),
          check (owner_id <> person_id)
        )`,
+      // ---- nobody but the site's own server (done before anything is written into the new tables) ----
+      ...['wallets', 'wallet_tx', 'wallet_entries', 'beneficiaries'].map((table) => `alter table ${S}.${table} enable row level security`),
+      `do $$ declare r text; begin
+         foreach r in array array['anon', 'authenticated'] loop
+           if exists (select 1 from pg_roles where rolname = r) then
+             execute format('revoke all on all tables in schema ${S} from %I', r);
+             execute format('revoke all on all sequences in schema ${S} from %I', r);
+             execute format('revoke all on all functions in schema ${S} from %I', r);
+           end if;
+         end loop;
+       end $$`,
       // ---- the character: how far its own ledger has been told to the bank, and that it can be erased ----
       `alter table ${S}.saves add column wallet_mark bigint not null default 0`,
       `alter table ${S}.saves add column erased boolean not null default false`,
@@ -318,16 +329,8 @@ const MIGRATIONS = [
       // and each buyer's game gives the money back.
       `with closed as (update ${S}.offers set status = 'declined', decided_at = now() where status = 'pending' returning id, thread_id, amount)
        insert into ${S}.messages (thread_id, kind, body, amount, offer_id) select thread_id, 'declined', 'The market''s money has moved to the bank. Make the offer again.', amount, id from closed where thread_id is not null`,
-      ...['wallets', 'wallet_tx', 'wallet_entries', 'beneficiaries'].map((table) => `alter table ${S}.${table} enable row level security`),
-      `do $$ declare r text; begin
-         foreach r in array array['anon', 'authenticated'] loop
-           if exists (select 1 from pg_roles where rolname = r) then
-             execute format('revoke all on all tables in schema ${S} from %I', r);
-             execute format('revoke all on all sequences in schema ${S} from %I', r);
-             execute format('revoke all on all functions in schema ${S} from %I', r);
-           end if;
-         end loop;
-       end $$`,
+      // every movement written in this step is checked now, not left for the end: each sums to nothing
+      `set constraints all immediate`,
     ],
   },
 ];
