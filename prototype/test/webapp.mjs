@@ -1,7 +1,9 @@
-// The website as an app, in a real browser: serves dist/site/ the way the host does, opens it on a phone-sized
-// screen, lets its worker settle, checks the browser would install it, then takes the network away and plays.
-//   node test/webapp.mjs [output-directory]
-// Needs Playwright with Chromium, and `node build.mjs` first. Not part of the unit tests.
+// The website as an app, in a real browser: serves dist/site/ the way the host does, with the game's own server
+// behind it, opens it on a phone-sized screen, lets its worker settle, checks the browser would install it,
+// makes an account (nobody plays on the website without one), then takes the network away and plays.
+//   ../server/with-postgres.sh node test/webapp.mjs [output-directory]
+// Needs Playwright with Chromium, a database (with-postgres.sh starts a throwaway one), and `node build.mjs`
+// first. Not part of the unit tests.
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -18,6 +20,8 @@ const site = resolve(here, '../dist/site');
 const out = resolve(process.argv[2] || resolve(here, '../dist/shots'));
 mkdirSync(out, { recursive: true });
 if (!existsSync(resolve(site, 'sw.js'))) { console.error('dist/site/ is not built: run node build.mjs'); process.exit(2); }
+if (!process.env.PCW_DATABASE_URL) { console.error('PCW_DATABASE_URL is not set: run this with ../server/with-postgres.sh'); process.exit(2); }
+const game = require('../../api/game.js');      // the very function the host runs
 
 // ---- the host, in small: each file with its type, a fingerprint to ask again by, and the host's caching rules ----
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
@@ -28,8 +32,8 @@ const server = createServer((req, res) => {
   const path = decodeURIComponent(new URL(req.url, 'http://x').pathname);
   const name = path === '/' ? 'index.html' : path.slice(1);
   if (!serverUp) { req.socket.destroy(); return; }
-  // the host also answers for the game's server (api/game.js); here, as on a site that has been given no database
-  if (path === '/api/game') { sent.push([path, 200, 0]); res.writeHead(req.method === 'GET' ? 200 : 503, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-store' }); res.end(JSON.stringify(req.method === 'GET' ? { ok: true, service: 'postcivilwar', accounts: false } : { ok: false, code: 'NO_DATABASE', message: 'Accounts are not set up on this site yet.' })); return; }
+  // the host also answers for the game's server: the very function it runs (api/game.js), on this machine's database
+  if (path === '/api/game') { sent.push([path, 200, 0]); game(req, res); return; }
   const file = resolve(site, name);
   if (name.includes('..') || !(overrides.has(name) || existsSync(file))) { sent.push([path, 404, 0]); res.writeHead(404, { 'content-type': 'text/plain' }); res.end('not found'); return; }
   const body = overrides.has(name) ? Buffer.from(overrides.get(name)) : readFileSync(file);
@@ -115,7 +119,20 @@ const icons = await page.evaluate(async () => { const m = await (await fetch('ma
 for (const [src, real, said] of icons) if (real !== said) bad(`${src} is ${real}, the manifest says ${said}`);
 
 // ---- 3. into the town, and Settings says what is true ----
-say('3. in the town');
+say('3. an account, and into the town');
+// the website is shut to anyone without an account: no name to fill in, no way in
+const shut = await page.evaluate(() => { const seen = (sel) => { const e = document.querySelector(sel); const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0; }; return { gate: document.querySelector('#start').dataset.gate, name: seen('#name'), enter: seen('#enter'), signup: seen('#open-signup'), login: seen('#open-login'), may: window.__nlw.mayEnter(), wide: document.documentElement.scrollWidth > document.documentElement.clientWidth }; });
+if (shut.gate !== 'shut' || shut.name || shut.enter || shut.may || !shut.signup || !shut.login) bad(`before an account is made the start screen is ${JSON.stringify(shut)}`);
+if (shut.wide) bad('the shut start screen scrolls sideways on a phone');
+await page.screenshot({ path: resolve(out, 'webapp-01b-account-first.png') });
+const username = `App_${Math.random().toString(36).slice(2, 8)}`;
+// (asking the game whether the town may be entered is what pressing Enter does: it answers no and opens the account page)
+if (await page.isVisible('#account')) { await page.tap('#account-back'); await page.waitForSelector('#account', { state: 'hidden' }); }
+await page.tap('#open-signup');
+await page.fill('#account-username', username); await page.fill('#account-password', 'a password for the app test');
+await page.tap('#account-submit');
+await page.waitForFunction(() => window.__nlw.online.status().state === 'in', null, { timeout: 60000 });
+await page.waitForSelector('#account', { state: 'hidden' });
 await page.fill('#name', 'Adaeze Okeke');
 await page.tap('#enter');
 await page.waitForFunction(() => window.__nlw && window.__nlw.view && window.__nlw.view.self && !document.querySelector('#hud').hidden, null, { timeout: 120000 });
@@ -149,10 +166,14 @@ await page.screenshot({ path: resolve(out, 'webapp-04-offline-opening.png') });
 await townReady().catch(() => bad('with no connection the town was never ready'));
 const again = await figureHere('W1');
 if (again !== 9852308) bad(`with no connection the woman arrived as ${again}`);
-const back = await page.evaluate(() => ({ resume: !document.querySelector('#continue').hidden, label: document.querySelector('#continue').textContent, three: typeof THREE }));
+// someone who has signed in on this device may carry on with their own character; they are told how things stand
+await page.waitForFunction(() => window.__nlw.online.status().state === 'down', null, { timeout: 60000 }).catch(() => bad('with no connection the game does not notice the server is out of reach'));
+const back = await page.evaluate(() => ({ resume: !document.querySelector('#continue').hidden, label: document.querySelector('#continue').textContent, three: typeof THREE, gate: document.querySelector('#start').dataset.gate, may: window.__nlw.mayEnter(), note: document.querySelector('#account-note').hidden ? '' : document.querySelector('#account-note').textContent }));
 if (!back.resume || !/Adaeze/.test(back.label)) bad(`with no connection the character was not offered back (${back.label})`);
+if (back.gate !== 'open' || !back.may) bad(`with no connection a player who had signed in here is shut out (${back.gate})`);
+if (!back.note.includes(username) || !/no connection/i.test(back.note)) bad(`with no connection the start screen says "${back.note}"`);
 if (sent.length !== before) bad('something reached the server while there was no connection');
-await page.waitForSelector('#intro-play.ready, #intro-play:not([tabindex="-1"])', { timeout: 20000 }).catch(() => {});
+await page.waitForSelector('#intro[data-stage="cover"] #cover-play', { timeout: 30000 }).catch(() => bad('with no connection the cover never took the splash\'s place'));
 await page.screenshot({ path: resolve(out, 'webapp-05-offline-ready.png') });
 offline = false;
 
@@ -180,7 +201,9 @@ offline = false;
 
 await context.close();
 server.close();
+await require('../../api/_lib/db.js').closeDatabase();
 rmSync(profile, { recursive: true, force: true });
 say(`sent in full by the server: the page ${bytesOf('/')} times, the 3D library ${bytesOf('/three.min.js')}, the woman ${bytesOf('/woman.b64.txt')}, the man ${bytesOf('/man.b64.txt')}`);
 if (problems.length) { console.log(`\n${problems.length} problem(s):`); for (const p of problems) console.log(` - ${p}`); process.exit(1); }
-console.log('\nThe website installs, keeps itself, and plays with no connection.');
+console.log('\nThe website installs, keeps itself, asks for an account, and then plays with no connection.');
+process.exit(0);

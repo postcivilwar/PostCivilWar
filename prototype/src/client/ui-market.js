@@ -311,12 +311,19 @@ export function createMarketUI(kit) {
     redraw();
     return answer;
   }
+  // Something has been bought or sold: what this device believed was owned is no longer shown. Property asks
+  // the market afresh the next time it is opened, and says it is asking until the answer is there.
+  function changedHands() { m.loaded = false; m.mine = null; app.marketChanged(); }
   function closeDeal() { if (m.deal && m.deal.timer) clearInterval(m.deal.timer); m.deal = null; }
 
   function take(d, answer) {
     d.thread = answer.thread; d.id = answer.thread.id;
     let grew = false;
-    for (const msg of answer.messages || []) if (msg.id > d.last) { d.messages.push(msg); d.last = msg.id; grew = true; }
+    let decided = false;
+    for (const msg of answer.messages || []) if (msg.id > d.last) { d.messages.push(msg); d.last = msg.id; grew = true; if (msg.kind === 'accepted') decided = true; }
+    // a sale read here is not told again by the round (the conversation has now been seen), so what this
+    // device believes is owned is asked for afresh: the thing sold has changed hands
+    if (decided) { changedHands(); }
     return grew;
   }
 
@@ -442,7 +449,7 @@ export function createMarketUI(kit) {
     if (m.deal !== d) return;
     if (answer.ok) {
       take(d, answer);
-      if (answer.sale) { d.done = `It is yours: ${answer.sale.what}. Find it in Property.`; app.chime('paid'); m.loaded = false; app.marketChanged(); }
+      if (answer.sale) { d.done = `It is yours: ${answer.sale.what}. Find it in Property.`; app.chime('paid'); changedHands(); }
     } else if (answer.code === 'INSUFFICIENT') d.note = `You have ${tr(balance())}. That is not enough for ${tr(units)}.`;
     else if (answer.code === 'OFFLINE') d.note = 'The connection failed as the offer was sent. The money is set aside and safe; in a moment the game will learn whether the offer arrived, and return it if not.';
     else d.note = answer.message;
@@ -457,7 +464,7 @@ export function createMarketUI(kit) {
     if (m.deal !== d) return;
     if (answer.ok) {
       take(d, answer);
-      if (answer.sale) { d.done = `Sold for ${tr(answer.sale.amount)}. It has been added to your balance.`; app.chime('paid'); m.loaded = false; app.marketChanged(); }
+      if (answer.sale) { d.done = `Sold for ${tr(answer.sale.amount)}. It has been added to your balance.`; app.chime('paid'); changedHands(); }
     } else d.note = answer.message;
     drawDeal();
   }

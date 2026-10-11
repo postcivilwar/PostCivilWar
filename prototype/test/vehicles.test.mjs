@@ -10,7 +10,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { readFileSync, readdirSync } from 'node:fs';
+import { readFileSync, readdirSync, existsSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -245,7 +245,8 @@ test("no maker's name, badge or logo from the supplied coach reaches the game", 
   // the exported levels are named for what they are
   assert.deepEqual(readdirSync(asset('bus/lod')).sort(), ['coach_lod0.glb', 'coach_lod1.glb', 'coach_lod2.glb']);
   for (const file of readdirSync(asset('bus/lod'))) { const data = readFileSync(asset(`bus/lod/${file}`)); const json = data.subarray(20, 20 + data.readUInt32LE(12)).toString('utf8'); assert.ok(!words.test(json), file); }
-  assert.deepEqual(readdirSync(asset('bus/textures')), [], 'no logo images kept beside the coach');
+  // (an empty folder is not kept by git, so in a fresh copy of the repository it is not there at all)
+  assert.deepEqual(existsSync(asset('bus/textures')) ? readdirSync(asset('bus/textures')) : [], [], 'no logo images kept beside the coach');
 });
 
 test('colours and finishes come from the supplied materials', () => {

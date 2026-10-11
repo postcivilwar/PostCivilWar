@@ -7,8 +7,7 @@ get a permit, have materials delivered and put up a building in stages, and
 all the while the town goes about its day around them.
 
 **What this is.** The game's rules running for real: an authoritative
-simulation, a land registry, a double-entry ledger, a sandbox bitcoin
-settlement service, 1,000 residents with jobs, homes, families and daily
+simulation, a land registry, a double-entry ledger, 1,000 residents with jobs, homes, families and daily
 routines, okada riders who carry passengers for a fare, speech in five
 languages, opening hours, weather and a day and night cycle. Since October
 2026 also: health and fighting, offences and witnesses, police who come on
@@ -80,8 +79,8 @@ Things to do, in no order:
   your language on the phone, under People.
 - Take an okada from a rank: `E` beside a waiting rider, pick a stop, pay.
 - Read a survey board in the Niger View Layout, mould blocks at the yard for
-  a first wage or add sandbox funds from the phone, buy a plot at the Lands
-  Registry, get a permit at the Secretariat, order materials, build.
+  a first wage, buy a plot at the Lands Registry, get a permit at the
+  Secretariat, order materials, build.
 - Hire a keke at the motor park and take delivery runs. Buy one in any of
   seven colours, with any of three fronts.
 - Open the phone: fifteen apps. Find the way to anywhere in town on the map
@@ -99,24 +98,27 @@ Things to do, in no order:
 `src/client/intro.js`, with its markup and animation in `template.html` so
 that it is on screen before the game's own script has been read.
 
-1. **Splash**, black: the mark (a rising sun) draws itself, POST CIVIL WAR
-   arrives a letter at a time on one line at every screen size, and
-   postcivilwar.com sits small and grey under it. For five seconds, counted
-   from when it first appears, a row of thirty-two marks lights in turn while
-   the game gets ready. Then **PLAY** takes their place: a flat white button
-   with no outline. The mark and the name are white; the sun's disc is the
-   one touch of yellow.
-2. **The story**: the five supplied slides, one second each, each with a
-   camera shutter and a flash. They are fitted inside the screen, never
-   cropped, because their captions are part of the pictures. Skip is a word
-   and a chevron at the top right, with nothing behind it.
+1. **Splash**, black: the mark (a rising sun) draws itself and POST CIVIL WAR
+   arrives a letter at a time on one line at every screen size. For five
+   seconds, counted from when it first appears, a row of thirty-two marks
+   lights in turn while the game gets ready. The mark and the name are white;
+   the sun's disc is the one touch of yellow. **The splash has no button**:
+   when the five seconds are over the cover takes its place by itself.
+2. **The cover**: the owner's supplied picture (11 October 2026), which took
+   the place of the five story slides. Its own painted **PLAY** button is the
+   button: a click, a tap, Enter or Space. The picture is carried in four
+   pieces (the plate, the name, the words, PLAY) and put together for the
+   screen it is on, so that the whole name, both figures and PLAY are in view
+   on a wide monitor, a tablet and an upright phone alike, with nothing under
+   a notch (`coverLayout` in `intro.js`; `assets/brand/README.md`).
 3. **The question**: *Be a hero or be a villain?* The two answers are the
    same size, side by side on one line on every screen, and neither looks
    chosen until one is. It covers everything and must be answered: a click, a
    tap, or the `H` or `V` key. The chosen one fills with white and the other
    dims. Each answer has its own sound.
-4. **The start screen**: make a character, or continue with the one kept on
-   this device.
+4. **The start screen**. On the website it is shut until the player has an
+   account: see "An account before play". Then: make a character, or continue
+   with the account's own.
 
 ## Making a character
 
@@ -223,26 +225,22 @@ Things a reader should know:
 - **Sound** is on unless the player turns it off. The button at the top left
   of the opening turns it off and on; so do Settings on the phone and the `N`
   key. All three are one switch, kept on the device.
-- **Accounts are on the website only.** There, between the story and
-  "Create your character", are Create account and Log in. Anywhere else (the
-  page opened from a disk, or published as an artifact) there is no server to
-  ask, the two buttons are not shown, and a character lives in the browser's
-  storage on one device, as before. See "Accounts".
-- **A returning player** with a character on the device, who has answered
-  before, sees the splash and the story and is not asked again.
-- **The flag is not shown.** The supplied first and second slides showed the
-  Biafran flag (on the desk, and on a sleeve). The game uses retouched copies
-  with it painted out; the supplied files are kept unchanged beside them
-  (`tools/brand/retouch.py`, `assets/brand/slides/retouched/`). The number of
-  slides is the same.
-- **Five slides, not six.** The fourth of the story was never delivered. The
-  limits that come with the pictures, including rights in the photographs they
-  were drawn from, are in `assets/brand/README.md`.
+- **Accounts are on the website, and there they are required.** The start
+  screen offers Create Account and Log In and nothing else until one of them
+  has been done. Anywhere else (the page opened from a disk, or published as
+  an artifact) there is no server to ask, no account and no bank: a character
+  lives in the browser's storage on one device. See "An account before play".
+- **A returning player** who has answered before sees the splash and the
+  cover and is not asked the question again.
+- **The story slides are gone**, and with them the retouched copies and the
+  tool that made them. The notes about the missing fourth slide and the
+  rights in the photographs behind them no longer apply to anything in the
+  game.
 - With the device's reduce-motion setting on, the mark, the letters and the
-  slides appear without their animation.
+  cover appear without their animation.
 - The opening is set in January 1970. The town behind it is present-day
-  Atani, with motorcycles, phones and a bitcoin sandbox. Joining the two is
-  for the owner to decide; nothing in the town has been changed to 1970.
+  Atani, with motorcycles and phones. Joining the two is for the owner to
+  decide; nothing in the town has been changed to 1970.
 
 ## The interface
 
@@ -489,14 +487,14 @@ src/sim/        The simulation. No DOM, no renderer. Runs in Node and in the bro
   hijack.js         Taking a motorcycle or a keke: where to stand, the steps, what follows
   talk.js           Who says what to whom: townspeople, players, and players' chat
   ledger.js         In-memory ledger with the same contract as services/ledger
-  settlement.js     Sandbox bitcoin: simulated chain, deposits, quotes, withdrawals, redemption gate
+  bank.js           What the character has earned and spent in town since the bank last heard, and bringing the town's purse into step with the bank
   registry.js       Parcels, titles, permits
   economy.js        Goods, businesses, wages, construction
   vehicles.js       Vehicles: hire, purchase and registration, petrol, driving checks, cargo, runs
   vehicle-looks.js  What each keke and coach looks like: fronts, paints, liveries, markings, wear
   residents.js      The 16 named residents: schedules and walking
   sim.js            The zone's game server: intents in, views out
-  host.js           Wires the game and the settlement service together, and keeps them apart
+  host.js           Wires the game, its ledger's auditor, the bank bridge and the market bridge together
 src/net/        What joins one player's world to another's
   transport.js      The transport interface, an in-memory hub for tests, and the live room transport
   link.js           What is sent about a player, and how what arrives is checked
@@ -506,7 +504,13 @@ src/client/     Rendering (three.js r128), crowd, speech bubbles, sound, input, 
   controls.js       The stick and the buttons: which are shown, and what is held
   camera.js         The camera's views, and keeping it out of walls
   combat-view.js    How a blow, a block and a flinch look
-  intro.js          The opening: splash, PLAY, story, the question
+  intro.js          The opening: the splash, the cover with its PLAY, the question; where the cover's pieces go on any screen
+  account-ui.js     Create Account and Log In; the start screen shut until someone is signed in
+  confirm.js        The question asked before logging out or erasing a saved game
+  wallet.js         This device's side of the bank: the balance, sending, history, beneficiaries
+  ui-wallet.js      The Wallet app
+  town-map.js       The Map app's map: drawn from the town's own data, moved and zoomed by hand
+  phone-hold.js     The handset in the character's hand
   creator.js        Making a character: the supplied figures on a turntable, their colours or animations, the name
   glb.js            Reads a supplied GLB as it is: mesh, texture, skeleton, animations
   radar.js          The round map at the top left, and the route to where the player is going
@@ -519,7 +523,7 @@ src/client/     Rendering (three.js r128), crowd, speech bubbles, sound, input, 
   animated.js       A figure that plays its own file's animations (the supplied man)
   choice.js         The choice itself, without the page
   icons.js          The pictures on the buttons
-  brand-data.js     The story slides, scaled and written into the page (generated)
+  brand-data.js     The cover's four pieces, written into the page (generated)
   mark.svg.txt      The rising-sun mark's shapes
   gait.js           Walking and running, worked out from the planted foot up
   ui-phone.js       The handset and its apps
@@ -532,8 +536,8 @@ src/client/     Rendering (three.js r128), crowd, speech bubbles, sound, input, 
   vehicle-models.js A keke or a coach: shared geometry, its colours, wheels, lamps, levels of detail
   vehicle-kit-data.js  The baked vehicle kit (generated)
   yard.js           The vehicle yard page
-assets/brand/       The font, the supplied story slides and the notes that go with them
-tools/brand/        Makes the font; scales the slides into the page
+assets/brand/       The font, the supplied cover and the notes that go with them
+tools/brand/        Makes the font; separates the cover into its pieces and writes them into the page
 assets/characters/  The base character and every part generated for it, as GLB
 tools/characters/   The bake: takes the base apart, makes the clothes, hair and lighter copies
 assets/vehicles/    The supplied keke and coach (read-only), their lighter levels, textures and catalogue
@@ -555,12 +559,12 @@ Boundaries that are deliberate and checked by tests:
 - **The ledger has rules of its own for this money.** One fine for an arrest,
   one bill for a quote, a fine split exactly or refused, whoever asks.
   `ledger.js` and migration 0003 of `services/ledger` hold the same rules.
-- **The game cannot see bitcoin.** `sim.js` is handed a gameplay ledger handle
-  that can only move game currency between accounts. It does not import the
-  settlement module, and its view of the world contains no settlement data.
-- **Game currency is not redeemable** for bitcoin unless the settlement
-  policy enables it and an officer authorises each request. In this build the
-  policy is off.
+- **There is no way to make TR in the page.** The "Add funds (sandbox)" page
+  and the sandbox bitcoin behind it (`settlement.js`) were removed on 11
+  October 2026. `sim.js` is handed a gameplay ledger handle that can only
+  move game currency between accounts; nothing in the game mints it but the
+  2,000 TR a new character arrives with, and on the website that is issued
+  by the bank, once per account.
 - **Another player's computer is not trusted.** What arrives over the
   transport is checked for shape, size and position, shown as a visitor, and
   gives that visitor no way to touch money, land or anything else here.
@@ -646,10 +650,8 @@ Okada riders are the exception: all 26 are stepped, because they answer calls. R
 - Resting, sleeping and attending class move the clock forward. A shared world
   cannot do that.
 - Petrol is used about ten times faster than a real keke would at this scale.
-- The settlement "chain" is a counter that mints a block every six seconds.
-  Addresses use a made-up `sbx1q` prefix so they cannot be mistaken for
-  Bitcoin addresses.
-- Saves go to the browser's local storage, one per zone. Chat is not saved.
+- Saves go to the browser's local storage, one per zone, and on the website to
+  the player's account. Chat is not saved.
 - The layout is schematic and the people and businesses are invented. It is
   not a survey of the real Atani. The Igbo, Yoruba, Hausa and Pidgin in the
   phrase book were written for this prototype and have not been checked by
@@ -706,14 +708,14 @@ What to know about it:
 - A browser decides for itself when to offer installing. The game cannot make
   it; it can only use the offer when it comes.
 - Installing changes where the game opens from, not where a character lives.
-  Without an account that is one browser's storage on one device (the
-  installed game asks the browser not to clear it). With an account the
-  character is also kept by the server, so logging in to the installed game
-  brings it there: that is the answer to "I installed it and my character is
-  gone".
-- With no connection the installed game still opens and plays. Accounts, the
-  market and other players need the server; the start screen says when it
-  cannot be reached, and asks again by itself.
+  The character is kept by the server with the account, so logging in to the
+  installed game brings it there: that is the answer to "I installed it and
+  my character is gone".
+- With no connection the installed game still opens, and a player who has
+  signed in on that device before can carry on with their character; what
+  they earn goes to the bank when the connection is back. Someone who has
+  never signed in there is told the server cannot be reached and cannot
+  play. The Wallet, the market and other players need the server.
 
 ## TR, the phone, accounts and the market (10 October 2026)
 
@@ -776,7 +778,8 @@ and a password (8 characters or more): nothing else is asked.
 - **Other players.** Signed-in players in the same town see each other, each
   under their **username**, shown over the head as a townsperson's name is.
   The server puts the name there; a game cannot appear under another's.
-- Without an account everything else plays as it always has.
+- On the website an account is now required before play: see "An account
+  before play" below.
 
 ### Property and the market
 
@@ -837,18 +840,153 @@ What the server is the authority for, and what it is not:
 | Accounts, sessions | The server, entirely |
 | What is for sale, the stock, who owns what, whether a sale happened | The server, entirely. A sale is one database transaction: the listing is locked, the thing changes owner, the stock goes down, the offer is marked and the sale written, together or not at all. Fifteen buyers at once for ten watches get ten |
 | The talk between buyer and seller | The server |
-| **TR** | **Each player's own game, as all the game's money is today.** There is no shared world server, so the simulation that holds the ledger runs in the page. A sale is settled through `sim/market.js`: the buyer's game sets the money aside before the offer is sent, pays it when the sale is recorded, and takes it back if the offer comes to nothing; the seller's game receives it. Each movement happens once however often it is asked, and each game tells the server with its next save that it has paid or been paid. A player who alters their own page can alter their own TR, exactly as before; they cannot alter what they own, the stock, or anyone else's money |
+| **TR** | **The server (since 11 October 2026).** Every account has a wallet at the bank; see "The bank" below for what that does and does not mean while the town itself still runs in the page |
 | Where players are | Each game says where it stands about once a second; the server says who else is there. Good for seeing and meeting; not for fighting, the law or anything else between two players, which still needs one world |
 
-The TR row is the limit to know. Making it the server's needs the simulation
-itself to run on a server: the zone server the architecture calls for.
+The town is still simulated in the page, so what a character earns and
+spends there is reported to the bank, not decided by it. "The bank" below
+says exactly what follows from that.
+
+## An account before play, the bank, the map (11 October 2026)
+
+### An account before play
+
+On the website nobody enters the town without an account.
+
+- The start screen is shut (`#start[data-gate]`: `wait` while the server is
+  asked who is here, `shut`, `open`). Shut, it shows a welcome, **Create
+  Account** and **Log In**, and nothing else: no name box, no figures, no
+  Enter, no Continue. While the server is being asked it shows "One moment"
+  and no part of the game, so nothing flashes past.
+- It is not only hidden. `mayEnter()` in `main.js` is asked again when Enter
+  or Continue is pressed, and a player who is signed out while playing (the
+  session ended, or they logged out on another device) is taken back to the
+  shut start screen. Everything the server keeps (the saved game, the
+  wallet, what is owned, the market, who is in town) is refused without a
+  session: the server answers 401.
+- What is in the page itself cannot be locked from the page: the town is
+  drawn by code the browser has been sent. Someone who rewrites that code can
+  walk about a town on their own device. They have no account, so no wallet,
+  nothing saved, nothing owned, nobody else in sight, and nothing they do
+  reaches anyone.
+- With no connection: someone who has signed in on this device before may
+  carry on with their own character; anyone else is told the server cannot
+  be reached.
+- A new account's wallet and its 2,000 TR are made in the same database
+  transaction as the account, once. A new character on an account that
+  already has TR arrives with what the bank holds, not another 2,000.
+- A copy of the game with no server (opened from a disk, or the published
+  artifact) has no accounts and no gate.
+
+### Logging out, and erasing a saved game
+
+Both ask first (`confirm.js`: a dialog with a title, what will happen, and two
+buttons; Escape and Cancel change nothing; the keyboard stays inside it; it
+is announced to a screen reader).
+
+- **Log out**: "Log out of your account?" with Cancel and Log Out. Logging
+  out sends the character to the account, ends the session on the server and
+  clears this device.
+- **Erase** (Settings, "Saved game"): "Erase your saved game?" with Cancel
+  and Erase Save and Restart. It deletes the character and its town on the
+  server and on the device and goes back to the start. **It does not touch
+  the wallet**: the TR, the history, the beneficiaries and what was bought in
+  the market belong to the account. The server keeps a marker where the save
+  was, numbered one past the last save, so a copy still open on another
+  device is refused when it next tries to save and cannot bring the erased
+  game back.
+
+### The bank: TR kept by the server
+
+`api/_lib/wallet.js` and migration 2 in `api/_lib/schema.js`.
+
+- **Every account has one wallet.** Amounts are whole numbers of half a TR.
+  A movement is a row in `wallet_tx` and two or more rows in
+  `wallet_entries` that add up to nothing: what leaves one wallet arrives in
+  another. The database itself enforces it: a balance changes only when an
+  entry is written (triggers), history cannot be changed or deleted, every
+  movement must sum to zero when its transaction ends, and a player's
+  balance cannot go below nothing. Three wallets are the system's: issuance
+  (where arrival money comes from), the world (shops, and what is earned and
+  spent in town) and escrow (TR set aside for an offer).
+- **Sending** (`wallet.send`): by username, to a registered user, never to
+  oneself. Both wallets are locked in a fixed order, the sender's balance is
+  read only then, and the two entries are written together or not at all.
+  Every send carries a key made when the confirmation screen is shown: the
+  same key sent twice (a double press, a retry after a lost answer) is one
+  transfer and gets the first one's receipt. The server takes no balance
+  from the browser. **There is no fee**: the confirmation shows "Fee: None".
+  Thirty sends a minute per account at most.
+- **The Wallet app** (`ui-wallet.js`): the balance, the username with a copy
+  button ("Username copied"), Send, Receive, saved beneficiaries (kept by
+  the other account's id, so a beneficiary is a person, not a spelling) and
+  the history. Send asks the bank to check first, then shows a confirmation
+  (recipient, amount, fee, total, Confirm Transfer, Cancel), then a receipt
+  with a reference. A username nobody has is answered "Username not found.
+  You can only send TR to registered users."
+- **The market** pays through the bank: a shop purchase moves TR from the
+  buyer to the world in the same transaction as the sale; an offer to
+  another player moves it to escrow, and it goes to the seller on yes or back
+  to the buyer on no, withdrawal or the thing being sold to someone else.
+- **"Add funds (sandbox)" is gone**, page and route, and the sandbox bitcoin
+  module with it. Nothing in the page or the server can create TR on
+  request.
+
+**What the bank does not yet decide.** The town (wages, shops in town, fares,
+fines, fees) is simulated in the player's browser, because there is no
+shared world server. So with each save the game reports what the character
+earned and spent in town since the last one, and the bank applies it in the
+same transaction as the save. The bank cannot check a wage against a job it
+did not see. What it does is cap it: an account may be credited at most
+3,000 TR of town earnings an hour, with room for 10,000 TR saved up
+(`PCW_EARN_HOUR`, `PCW_EARN_BURST`, in ledger units); anything over is
+refused and the player is told. Spending is never capped, and a report that
+does not follow on from the last one is refused. The consequences, plainly:
+
+- Someone who rewrites their own page can claim town earnings they did not
+  make, up to that allowance. They cannot touch anyone else's wallet, send
+  what they do not have, go below nothing, or change a transfer or a sale.
+- Every new account arrives with 2,000 TR. Six accounts may be made from one
+  network address an hour; nothing else stops someone making accounts to
+  send their arrival money to one of them. Whether new accounts should wait
+  before they can send is for the owner to decide.
+- Closing both needs the town to run on a server: the zone server the
+  architecture calls for.
+
+### Settings
+
+Switches are a track with a thumb: muted green when on, neutral grey when
+off, a light thumb, the word On or Off beside it, a visible ring for the
+keyboard, and they say their state to a screen reader. Sliders have a
+filled part in the same green. About is the owner's three paragraphs.
+
+### The Map app
+
+`town-map.js` draws the town from its own data (roads by rank, the river,
+buildings with their names, the player, the destination, things for sale),
+in the manner of a navigation map: drag to move, pinch or the wheel or the
+two buttons to zoom, a button to come back to the player. No map service is
+used and nothing is fetched. The way to a place is drawn **along the roads**
+(`phone.js`, `byRoad`): from where the player stands to the nearest road,
+through the road network, and off it to the door; the distance shown is the
+distance by road, and it is worked out again as the player moves.
+
+### The phone in the hand, again
+
+The handset now sits in the palm, not out past the wrist. `phone-hold.js`
+reads the hand's own frame from the figure's bones (where the knuckles are,
+which way the fingers run, which way the palm faces), places the handset in
+that frame, turns the wrist so the glass faces the figure's eyes, bends the
+four fingers round the far edge and lays the thumb on the near one. Because
+it is measured from the bones it holds for either figure. `test/hold.mjs`
+measures it in a browser, standing and walking.
 
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 221 headless tests, in fifteen files
-../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 31 tests against a real PostgreSQL
-../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in two browsers: accounts, the market, a deal between two players
+node --test test/*.test.mjs                        # 225 headless tests, in seventeen files
+../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 51 tests against a real PostgreSQL (accounts, the market, the bank, play, and the step from the old tables to the new)
+../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the market, a deal, a transfer in the Wallet, a second device, logging out, erasing
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
 node build.mjs                                     # writes dist/index.html, dist/local.html, the character lab, the vehicle yard and dist/site/
 node build.mjs --site                              # the same, then makes site/ (what the host serves) the same as dist/site/
@@ -856,6 +994,7 @@ node test/webapp.mjs out/                          # the website as an app: serv
 node test/play.mjs out/                            # plays the built page in headless Chromium (needs Playwright)
 node test/play.mjs out/ town                       # one session: opening, desktop, town, phone, action, sideways or upright
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
+node test/hold.mjs                                 # the handset in the hand, measured on both figures
 node test/sound.mjs                                # how loud each group of sounds is
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings
 ```
@@ -864,16 +1003,35 @@ node test/look.mjs out/                            # close-up shots of people, v
 planted foot stays put, that the leg found really reaches it, that a knee
 only bends one way, that nothing jumps between frames, that a walk has both
 feet down and a run has neither, and that a wrapper shortens the step.
-`intro.test.mjs` covers the opening's timing, the slides and their order,
+`intro.test.mjs` covers the opening's timing, that the splash has no button
+and the slides are gone, where the cover's pieces go on twenty screen sizes
+(the whole name, both figures and PLAY in view, PLAY big enough to press),
 the font, and that the answer is kept by the simulation and changes nothing
 it decides. The `opening` session of `play.mjs` walks the opening itself in a
-browser: the five seconds, PLAY, the sound button and that it is remembered,
-five slides and five shutters in order, the question with neither answer
-marked, the sound, the answer on the phone, and a returning player who is not
-asked again. It then opens the page at five more sizes (a small phone, a tall
-one, a phone on its side, a tablet upright and on its side) and checks that
-the name is on one line, the two answers are side by side and the same size,
-and nothing is off the screen.
+browser: the five seconds, the cover, its PLAY, the sound button and that it
+is remembered, the question with neither answer marked, the sound, the
+answer on the phone, and a returning player who is not asked again. It then
+opens the page at five more sizes (a small phone, a tall one, a phone on its
+side, a tablet upright and on its side) and checks the cover and the
+question at each.
+
+`words.test.mjs` holds the owner's own words letter for letter: the three
+paragraphs of About, the two questions asked before logging out and erasing,
+the answer for a username nobody has; and that nothing names the game
+anything else or offers to add funds.
+
+`map.test.mjs` covers the way by road: that it follows the road network,
+begins where the player is and ends at the door.
+
+`server/test/wallet.test.mjs` covers the bank: one wallet and one arrival
+grant per account; sending and every refusal (nobody, oneself, nothing,
+less than nothing, a quarter, more than there is); the same key twice;
+twenty sends at once from a wallet that can afford thirteen; players
+sending to each other in a ring at the same moment; that history cannot be edited; that a
+movement that does not balance is refused by the database; beneficiaries;
+the allowance on town earnings; and an audit of every wallet against its
+entries. `migrate.test.mjs` takes a database as it is live today, with
+players and a sale in it, through the step to the bank.
 
 `impact.test.mjs` covers bodies and vehicles: that players block each other
 and cannot be passed through or pinned; harm by speed; knockdown and getting

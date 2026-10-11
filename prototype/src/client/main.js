@@ -377,7 +377,8 @@ function start(carried) {
     summary: () => { const self = host.game.view(playerId).self; return { name: self.name, figure: self.look && self.look.figure ? self.look.figure : '' }; },
     applied: () => market.applied(),
     wallet: () => walletClient,
-    mark: { get: accountMark, set: (value) => { if (value) writeStored(ACCOUNT_KEY, value); else { try { localStorage.removeItem(ACCOUNT_KEY); } catch (error) { /* nothing kept */ } } } },
+    // (the username is kept as its owner writes it too, to be shown when there is no connection to ask)
+    mark: { get: accountMark, set: (value) => { if (value) { const before = accountMark(); const shown = online.signedIn && online.account.username.toLowerCase() === value.user ? online.account.username : before && before.user === value.user && before.name ? before.name : value.user; writeStored(ACCOUNT_KEY, { ...value, name: shown }); } else { try { localStorage.removeItem(ACCOUNT_KEY); } catch (error) { /* nothing kept */ } } } },
     notify: (event) => {
       if (event.type === 'newer') ui.toast({ type: 'note', text: 'This character has been played on another device since. The newer one has been loaded.' });
       if (event.type === 'erased') ui.toast({ type: 'note', text: 'This saved game was erased from another device. A new journey begins here.' });
@@ -637,7 +638,7 @@ function start(carried) {
     local: () => {
       if (!playerId) return null;
       const mark = accountMark();
-      return { name: host.game.view(playerId).self.name, mine: !!(online.signedIn && mark && mark.user === online.account.username.toLowerCase()), owner: mark && mark.user ? mark.user : null };
+      return { name: host.game.view(playerId).self.name, mine: !!(online.signedIn && mark && mark.user === online.account.username.toLowerCase()), owner: mark && mark.user ? (mark.name || mark.user) : null };
     },
     onChange: (event) => {
       onlineChanged();

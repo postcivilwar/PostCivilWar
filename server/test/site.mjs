@@ -3,11 +3,13 @@
 //   node prototype/build.mjs
 //   server/with-postgres.sh node server/test/site.mjs [output-directory]
 //
-// Two players, each in a browser of their own. One makes an account on a computer, buys a watch at HOLARIS
-// Watch, and puts it up for sale. The other, on a phone, finds it in the market, walks into the seller's marker,
-// talks, and offers; the seller says yes. Then: the same account on a second device, the model itself, and
-// signing out. Everything is done by pressing what a player presses; what is checked is what the player sees
-// and what each game's own ledger holds. Needs Playwright with Chromium. Not part of the unit tests.
+// Two players, each in a browser of their own. Nobody plays without an account: the first thing checked is that
+// the town is shut until one is made. One makes an account on a computer, buys a watch at HOLARIS Watch, and
+// puts it up for sale. The other, on a phone, finds it in the market, walks into the seller's marker, talks, and
+// offers; the seller says yes. Then TR is sent from one to the other in the Wallet; the same account on a second
+// device, the model itself, logging out (asked first) and erasing a saved game (asked first; the TR stays).
+// Everything is done by pressing what a player presses; what is checked is what the player sees, what each
+// game's own ledger holds, and what the bank holds. Needs Playwright with Chromium. Not part of the unit tests.
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
@@ -33,10 +35,11 @@ const tag = Math.random().toString(36).slice(2, 6);
 
 async function device(label, size, mobile = false) {
   const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1, hasTouch: mobile, isMobile: mobile, serviceWorkers: 'block' });
+  await context.grantPermissions(['clipboard-read', 'clipboard-write'], { origin }).catch(() => {});
   const page = await context.newPage();
   page.setDefaultTimeout(180000);
   page.on('pageerror', (e) => bad(`${label}: ${e.message}`));
-  page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource.*40[19]|status of 4(01|09|29)/.test(m.text())) bad(`${label}: console: ${m.text()}`); });
+  page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource.*40[01349]|status of 4(00|01|03|04|09|29)/.test(m.text())) bad(`${label}: console: ${m.text()}`); });
   await page.goto(`${origin}/#nointro-lite`, { timeout: 300000 });
   await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
   await page.waitForFunction(() => window.__nlw.online.status().state !== 'checking');
@@ -46,6 +49,14 @@ async function device(label, size, mobile = false) {
     shot: async (name) => { await page.waitForTimeout(400); await page.screenshot({ path: resolve(out, `${label}-${name}.png`) }); },
     game: (fn, arg) => page.evaluate(fn, arg),
     balance: () => page.evaluate(() => window.__nlw.view.self.balance),
+    bank: () => page.evaluate(() => window.__nlw.wallet.state.balance),
+    // the town's purse and the bank agree, and both say this many TR
+    async has(tr, when) {
+      await page.waitForFunction((want) => window.__nlw.view.self.balance === want && window.__nlw.wallet.state.balance === want, tr * 2, { timeout: 30000 }).catch(() => {});
+      const got = await page.evaluate(() => [window.__nlw.view.self.balance / 2, window.__nlw.wallet.state.balance / 2]);
+      if (got[0] !== tr || got[1] !== tr) bad(`${label}: ${when}: the purse holds ${got[0]} TR and the bank ${got[1]} TR; it should be ${tr} TR`);
+    },
+    openWallet: async () => { await page.evaluate(() => window.__nlw.ui.openPhone('wallet')); await page.waitForSelector('.page[data-app="wallet"]'); await page.waitForFunction(() => document.querySelector('#wallet-balance') && !document.querySelector('#wallet-balance').classList.contains('wl-wait')); },
     async signUp(username, password) {
       await press('#open-signup');
       await page.fill('#account-username', username); await page.fill('#account-password', password);
@@ -85,10 +96,19 @@ const seller = await device('seller', { width: 1280, height: 760 });
 const sellerName = `Seller_${tag}`;
 {
   const p = seller.page;
-  const row = await seller.game(() => ({ shown: !document.querySelector('#account-row').hidden, signup: document.querySelector('#open-signup').getBoundingClientRect(), login: document.querySelector('#open-login').getBoundingClientRect(), story: document.querySelector('#start-intro').getBoundingClientRect().bottom, title: document.querySelector('#start-title').getBoundingClientRect().top }));
-  if (!row.shown) bad('the start screen does not offer Create account and Log in');
-  if (Math.abs(row.signup.top - row.login.top) > 2 || row.login.left <= row.signup.right) bad('Create account and Log in are not side by side');
-  if (!(row.signup.top >= row.story - 1 && row.signup.bottom <= row.title + 1)) bad('the account buttons are not between the story and "Create your character"');
+  // the town is shut: a welcome, Create Account and Log In, and no way in beside them
+  const seen = (sel) => { const e = document.querySelector(sel); if (!e) return false; const r = e.getBoundingClientRect(); return r.width > 0 && r.height > 0 && getComputedStyle(e).visibility !== 'hidden'; };
+  const row = await seller.game(`(() => { const seen = ${seen.toString()}; return { gate: document.querySelector('#start').dataset.gate, title: document.querySelector('#gate-title').textContent, card: seen('#gate'), signup: document.querySelector('#open-signup').getBoundingClientRect(), login: document.querySelector('#open-login').getBoundingClientRect(), labels: [document.querySelector('#open-signup').textContent, document.querySelector('#open-login').textContent], enter: seen('#enter'), name: seen('#name'), cont: seen('#continue') || seen('#continue-top'), may: window.__nlw.mayEnter(), words: document.querySelector('#start').innerText }; })()`);
+  if (row.gate !== 'shut' || !row.card) bad(`with nobody signed in the start screen's gate is "${row.gate}"`);
+  if (row.labels.join('|') !== 'Create Account|Log In') bad(`the two buttons read ${JSON.stringify(row.labels)}`);
+  if (Math.abs(row.signup.top - row.login.top) > 2 || row.login.left <= row.signup.right) bad('Create Account and Log In are not side by side');
+  if (row.enter || row.name || row.cont) bad(`with nobody signed in the way into the town is on show (${JSON.stringify({ enter: row.enter, name: row.name, cont: row.cont })})`);
+  if (row.may) bad('with nobody signed in the game says the town may be entered');
+  if (/without an account|no account|guest|skip/i.test(row.words)) bad(`the welcome speaks of playing without an account: "${row.words}"`);
+  // ...and not only hidden: asking the game itself to begin opens nothing
+  const forced = await seller.game(() => { const b = document.querySelector('#enter'); document.querySelector('#name').value = 'Nobody'; b.click(); return new Promise((r) => setTimeout(() => r({ hud: !document.querySelector('#hud').hidden, player: window.__nlw.playerId || null, start: !document.querySelector('#start').hidden }), 900)); });
+  if (forced.hud || forced.player || !forced.start) bad(`pressing Enter from outside the page's own buttons let someone in: ${JSON.stringify(forced)}`);
+  if (await p.isVisible('#account')) await p.click('#account-back');
   await seller.shot('01-start');
   await seller.press('#open-signup');
   // what is typed is checked before anything is sent
@@ -157,7 +177,7 @@ say('2. ...walks into the pink marker at HOLARIS Watch and buys a watch');
   await p.click('#deal-yes'); await p.waitForSelector('#deal-done');
   await seller.shot('07-bought');
   if (!/It is yours: HOLARIS Wristwatch No\. 1 of 10/.test(await p.textContent('#deal-done'))) bad(`after buying: "${await p.textContent('#deal-done')}"`);
-  if ((await seller.balance()) !== 1900 * TR) bad(`after buying a watch for 100 TR the seller has ${(await seller.balance()) / TR} TR`);
+  await seller.has(1900, 'after buying a watch for 100 TR');
   if (!/1,900/.test(await p.textContent('#hud-balance'))) bad(`the purse reads ${await p.textContent('#hud-balance')}`);
   await p.click('#deal-back'); await p.waitForTimeout(700);
   const after = await seller.game(() => ({ open: window.__nlw.ui.isOpen(), mode: window.__nlw.mode }));
@@ -247,6 +267,7 @@ let offerShown = false;
   await buyer.press('#deal-yes'); await p.waitForSelector('#deal-withdraw');
   const held = await buyer.game(() => ({ balance: window.__nlw.view.self.balance, held: window.__nlw.market.held().held }));
   if (held.balance !== 1860 * TR || held.held !== 140 * TR) bad(`with 140 TR offered the buyer has ${held.balance / TR} TR and ${held.held / TR} TR set aside`);
+  await buyer.has(1860, 'with 140 TR set aside for an offer');
   await buyer.shot('07-waiting');
   offerShown = await s.waitForSelector('#deal-sell', { timeout: 20000 }).then(() => true, () => false);
   if (!offerShown) bad('the seller is not shown the offer');
@@ -262,16 +283,17 @@ if (offerShown) {
   await seller.shot('13-confirm');
   await s.click('#deal-yes'); await s.waitForSelector('#deal-done');
   await seller.shot('14-sold');
-  if ((await seller.balance()) !== 2040 * TR) bad(`the seller has ${(await seller.balance()) / TR} TR; 2,000 - 100 + 140 is 2,040`);
+  await seller.has(2040, 'after selling for 140 TR (2,000 - 100 + 140)');
   await p.waitForFunction(() => window.__nlw.market.held().held === 0, null, { timeout: 30000 }).catch(() => bad('the buyer\'s game did not learn of the sale'));
   await p.waitForTimeout(600); await buyer.shot('08-bought');
-  if ((await buyer.balance()) !== 1860 * TR) bad(`the buyer has ${(await buyer.balance()) / TR} TR; 2,000 - 140 is 1,860`);
+  await buyer.has(1860, 'after buying for 140 TR');
   await buyer.press('#deal-back'); await p.waitForTimeout(600);
   await buyer.openProperty(); await p.waitForSelector('.assetcard');
   if (!/No\. 1 of 10/.test(await p.textContent('.assetcard'))) bad(`the buyer's Property shows "${await p.textContent('.assetcard')}"`);
   await buyer.shot('09-owned');
   await s.click('#deal-back'); await s.waitForTimeout(600);
-  await seller.openProperty(); await s.waitForSelector('#market-history');
+  await seller.openProperty();
+  await s.waitForFunction(() => { const hist = document.querySelector('#market-history'); return hist && /Sold to/.test(hist.textContent); }, null, { timeout: 30000 }).catch(() => {});
   if (await s.isVisible('.assetcard')) bad('the seller still has the watch');
   const history = await s.textContent('#market-history');
   if (!history.includes(`Sold to ${buyerName}`) || !/\+140 TR/.test(history) || !/Bought from HOLARIS Watch/.test(history)) bad(`the seller's history reads "${history}"`);
@@ -282,8 +304,86 @@ if (offerShown) {
   if (ledgers.some((n) => n)) bad(`a ledger does not reconcile: ${ledgers}`);
 }
 
+
+// ------------------------------------------------------------------ the Wallet --
+say('8. The buyer sends 250.5 TR to the seller in the Wallet');
+{
+  const p = buyer.page, s = seller.page;
+  await buyer.openWallet(); await p.waitForTimeout(600);
+  await buyer.shot('10-wallet');
+  const home = await buyer.game(() => ({ balance: document.querySelector('#wallet-balance').textContent, username: document.querySelector('#wallet-username').textContent, send: document.querySelector('#wallet-send').textContent.trim(), receive: document.querySelector('#wallet-receive').textContent.trim(), history: document.querySelector('#wallet-history').getAttribute('aria-label'), copy: document.querySelector('#wallet-copy').getAttribute('aria-label'), words: document.querySelector('.page[data-app="wallet"]').innerText }));
+  if (!/1,860/.test(home.balance)) bad(`the Wallet shows "${home.balance}"; the buyer has 1,860 TR`);
+  if (home.username.replace(/^@/, '') !== buyerName) bad(`the Wallet names the account "${home.username}"`);
+  if (!/^send$/i.test(home.send) || !/^receive$/i.test(home.receive)) bad(`the Wallet's two buttons read "${home.send}" and "${home.receive}"`);
+  if (!home.history || !home.copy) bad('the history and copy buttons have no names for a screen reader');
+  if (/sandbox|add funds|faucet/i.test(home.words)) bad('the Wallet still speaks of adding funds');
+  await buyer.press('#wallet-copy');
+  await p.waitForFunction(() => /Username copied/.test(document.querySelector('#wallet-copied').textContent), null, { timeout: 10000 }).catch(() => bad('copying the username does not say "Username copied"'));
+  const clip = await p.evaluate(() => navigator.clipboard.readText()).catch(() => null);
+  if (clip !== null && clip !== buyerName) bad(`what was copied is "${clip}"`);
+  await buyer.press('#wallet-receive'); await p.waitForSelector('#receive-username');
+  if ((await p.textContent('#receive-username')).replace(/^@/, '') !== buyerName) bad(`Receive shows "${await p.textContent('#receive-username')}"`);
+  await buyer.shot('11-receive');
+  await buyer.press('#page-back'); await p.waitForSelector('#wallet-send');
+  await buyer.press('#wallet-send'); await p.waitForSelector('#send-form');
+  const told = async () => p.evaluate(() => { const e = document.querySelector('#send-problem'); return e && !e.hidden ? e.textContent : ''; });
+  // nothing typed; nobody of that name; oneself; more than there is; not an amount
+  await buyer.press('#send-continue'); await p.waitForTimeout(300);
+  if (!(await told())) bad('sending with nothing typed is not answered');
+  await p.fill('#send-username', `nobody_${tag}`); await p.fill('#send-amount', '10'); await buyer.press('#send-continue');
+  await p.waitForFunction(() => { const e = document.querySelector('#send-problem'); return e && !e.hidden && /Username not found/.test(e.textContent); }, null, { timeout: 15000 }).catch(() => {});
+  if ((await told()) !== 'Username not found. You can only send TR to registered users.') bad(`a username nobody has is answered "${await told()}"`);
+  await buyer.shot('12-nobody');
+  for (const [who, amount, why] of [[buyerName, '10', 'oneself'], [sellerName, '5000', 'more than there is'], [sellerName, '0', 'nothing'], [sellerName, '-5', 'less than nothing'], [sellerName, '1.25', 'a quarter of a TR']]) {
+    await p.fill('#send-username', who); await p.fill('#send-amount', amount); await buyer.press('#send-continue');
+    await p.waitForTimeout(1200);
+    if (await p.isVisible('#send-confirm')) { bad(`sending to ${why} got as far as the confirmation`); await buyer.press('#send-cancel'); await p.waitForSelector('#send-form'); } else if (!(await told())) bad(`sending ${why} is not answered`);
+  }
+  await buyer.has(1860, 'after five refused sends');
+  // the real one: the capitals in the name do not matter, and nothing moves until it is confirmed
+  await p.fill('#send-username', sellerName.toUpperCase()); await p.fill('#send-amount', '250.5'); await p.fill('#send-note', 'for the cement');
+  await buyer.press('#send-continue'); await p.waitForSelector('#send-confirm');
+  await buyer.shot('13-confirm');
+  const sum = await p.textContent('#send-summary');
+  if (!sum.includes(sellerName) || !/250\.5 TR/.test(sum) || !/Fee/i.test(sum) || !/Total/i.test(sum)) bad(`the confirmation reads "${sum}"`);
+  if (!/Fee\D*0 TR|No fee|None/i.test(sum)) bad(`the confirmation's fee is not "none": "${sum}"`);
+  if ((await p.textContent('#send-confirm')).trim() !== 'Confirm Transfer' || (await p.textContent('#send-cancel')).trim() !== 'Cancel') bad('the confirmation\'s buttons are not Confirm Transfer and Cancel');
+  await buyer.has(1860, 'with a transfer waiting to be confirmed');
+  await buyer.press('#send-cancel'); await p.waitForSelector('#send-form');
+  await buyer.has(1860, 'after cancelling a transfer');
+  await buyer.press('#send-continue'); await p.waitForSelector('#send-confirm');
+  // pressed twice in a hurry: one transfer
+  await p.evaluate(() => { const b = document.querySelector('#send-confirm'); b.click(); b.click(); });
+  await p.waitForSelector('#send-done'); await buyer.shot('14-sent');
+  const done = await p.textContent('.page[data-app="wallet"]');
+  if (!/250\.5 TR sent/.test(done) || !done.includes(sellerName) || !/TR-[0-9A-Z]{10}/.test(done) || !/for the cement/.test(done)) bad(`the receipt reads "${done}"`);
+  await buyer.has(1609.5, 'after sending 250.5 TR');
+  await buyer.press('#send-keep'); await p.waitForTimeout(800);
+  await buyer.press('#send-finish'); await p.waitForSelector('#wallet-people');
+  if (!(await p.textContent('#wallet-people')).includes(sellerName)) bad(`the saved beneficiaries are "${await p.textContent('#wallet-people')}"`);
+  await buyer.press('#wallet-history'); await p.waitForSelector('#wallet-entries');
+  await buyer.shot('15-history');
+  const lines = await p.textContent('#wallet-entries');
+  if (!lines.includes(sellerName) || !/250\.5/.test(lines) || !/Arriv|Welcome|2,000/i.test(lines)) bad(`the buyer's history reads "${lines}"`);
+  // the seller is told, and has it: in the bank and in the purse
+  await seller.game(() => window.__nlw.ui.close()); await seller.game(() => window.__nlw.market.sync());
+  await seller.has(2290.5, 'after receiving 250.5 TR (2,040 + 250.5)');
+  await seller.openWallet(); await s.waitForTimeout(600); await seller.shot('16-received');
+  if (!/2,290\.5/.test(await s.textContent('#wallet-balance'))) bad(`the seller's Wallet shows "${await s.textContent('#wallet-balance')}"`);
+  await seller.press('#wallet-history'); await s.waitForSelector('#wallet-entries');
+  const got = await s.textContent('#wallet-entries');
+  if (!got.includes(buyerName) || !/\+\s?250\.5/.test(got) || !/for the cement/.test(got)) bad(`the seller's history reads "${got}"`);
+  await seller.game(() => window.__nlw.ui.close()); await buyer.game(() => window.__nlw.ui.close());
+  // a browser that says it has more than it has: the bank goes by its own books, not by what it is told
+  const lie = await buyer.game(async (to) => { const r = await fetch('/api/game', { method: 'POST', headers: { 'content-type': 'application/json', 'x-pcw': '1' }, body: JSON.stringify({ op: 'wallet.send', username: to, amount: '5000', balance: 99999999, key: crypto.randomUUID() }) }); return { status: r.status, body: await r.json().catch(() => null) }; }, sellerName);
+  if (lie.status !== 409 || !lie.body || (lie.body.code || (lie.body.error && lie.body.error.code)) !== 'FUNDS') bad(`sending 5,000 TR with a made-up balance was answered ${JSON.stringify(lie)}`);
+  await buyer.has(1609.5, 'after a send the bank refused');
+  const all = await Promise.all([seller, buyer].map((d) => d.game(() => window.__nlw.host.auditor.reconcile().length)));
+  if (all.some((n) => n)) bad(`after the transfer a ledger does not reconcile: ${all}`);
+}
+
 // ------------------------------------------------------------------ the same account elsewhere --
-say('8. The buyer logs in on a computer: the same character, the watch, the same money');
+say('9. The buyer logs in on a computer: the same character, the watch, the same money');
 {
   await buyer.game(() => window.__nlw.accountSync.upload());
   const other = await device('buyer2', { width: 1280, height: 760 });
@@ -299,7 +399,7 @@ say('8. The buyer logs in on a computer: the same character, the watch, the same
   if (!/Continue as Buyer Okafor/.test(await p.textContent('#continue-top'))) bad(`Continue reads "${await p.textContent('#continue-top')}"`);
   await p.click('#continue-top');
   await p.waitForFunction(() => window.__nlw.view && !document.querySelector('#hud').hidden); await p.waitForTimeout(1000);
-  if ((await other.balance()) !== 1860 * TR) bad(`on the second device the buyer has ${(await other.balance()) / TR} TR`);
+  await other.has(1609.5, 'on the second device');
   await other.openProperty(); await p.waitForSelector('.assetcard');
   // the model itself, fetched only when asked for
   await p.click('.assetcard'); await p.waitForSelector('#load-model');
@@ -311,20 +411,99 @@ say('8. The buyer logs in on a computer: the same character, the watch, the same
   else { await p.waitForTimeout(3500); await other.shot('02-model'); }
   if (asked.length !== 1) bad(`the model was asked for ${asked.length} times`);
   await other.game(() => window.__nlw.ui.close()); await p.waitForTimeout(500);
-  // signing out: the character goes to the account and leaves this device
+  // logging out is asked first: Cancel and Escape leave everything as it was
+  say('10. Logging out asks first');
   await other.game(() => window.__nlw.ui.openPhone('settings')); await p.waitForSelector('#settings-logout');
   if ((await p.textContent('#settings-username')) !== buyerName) bad('Settings does not say who is signed in');
-  await p.click('#settings-logout');
+  await p.click('#settings-logout'); await p.waitForSelector('#confirm:not([hidden])');
+  await other.shot('03-logout-asked');
+  const asked2 = await other.game(() => ({ title: document.querySelector('#confirm-title').textContent, body: document.querySelector('#confirm-body').textContent, no: document.querySelector('#confirm-no').textContent.trim(), yes: document.querySelector('#confirm-yes').textContent.trim(), role: document.querySelector('#confirm [role]') ? document.querySelector('#confirm [role]').getAttribute('role') : document.querySelector('#confirm').getAttribute('role'), state: window.__nlw.online.status().state }));
+  if (asked2.title !== 'Log out of your account?') bad(`logging out asks "${asked2.title}"`);
+  if (asked2.body !== 'You will be signed out of the game. Your saved progress will remain available when you log in again.') bad(`logging out explains "${asked2.body}"`);
+  if (asked2.no !== 'Cancel' || asked2.yes !== 'Log Out') bad(`logging out offers "${asked2.no}" and "${asked2.yes}"`);
+  if (asked2.state !== 'in') bad('the account was signed out before the question was answered');
+  await p.click('#confirm-no'); await p.waitForSelector('#confirm', { state: 'hidden' });
+  await p.waitForTimeout(500);
+  if ((await other.game(() => window.__nlw.online.status().state)) !== 'in') bad('Cancel signed the account out');
+  await p.click('#settings-logout'); await p.waitForSelector('#confirm:not([hidden])');
+  await p.keyboard.press('Escape'); await p.waitForSelector('#confirm', { state: 'hidden' });
+  if ((await other.game(() => window.__nlw.online.status().state)) !== 'in') bad('Escape signed the account out');
+  await p.click('#settings-logout'); await p.waitForSelector('#confirm:not([hidden])');
+  await p.click('#confirm-yes');
   await p.waitForFunction(() => window.__nlw.online.status().state === 'out', null, { timeout: 30000 });
-  await p.waitForTimeout(800); await other.shot('03-logged-out');
-  const gone = await other.game(() => ({ playerId: window.__nlw.playerId, start: !document.querySelector('#start').hidden, kept: !!localStorage.getItem('nlw-save-v5-NG-AN-OGB-Z1'), signup: !document.querySelector('#open-signup').hidden }));
-  if (gone.playerId || !gone.start || gone.kept || !gone.signup) bad(`after signing out: ${JSON.stringify(gone)}`);
+  await p.waitForTimeout(800); await other.shot('04-logged-out');
+  const gone = await other.game(() => ({ playerId: window.__nlw.playerId, start: !document.querySelector('#start').hidden, kept: !!localStorage.getItem('nlw-save-v5-NG-AN-OGB-Z1'), signup: !document.querySelector('#open-signup').hidden, gate: document.querySelector('#start').dataset.gate, may: window.__nlw.mayEnter(), bank: window.__nlw.wallet.state.balance }));
+  if (gone.playerId || !gone.start || gone.kept || !gone.signup) bad(`after logging out: ${JSON.stringify(gone)}`);
+  if (gone.gate !== 'shut' || gone.may) bad(`after logging out the town is not shut (${gone.gate})`);
+  // signed out, the server gives nothing: not the save, not the wallet
+  const shut = await other.game(async () => { const ask = async (op) => { const r = await fetch('/api/game', { method: 'POST', headers: { 'content-type': 'application/json', 'x-pcw': '1' }, body: JSON.stringify({ op }) }); return r.status; }; return { save: await ask('save.get'), wallet: await ask('wallet.get'), history: await ask('wallet.history') }; });
+  if (shut.save !== 401 || shut.wallet !== 401 || shut.history !== 401) bad(`signed out, the server answered ${JSON.stringify(shut)}`);
+  // the back button does not bring the town back
+  await p.goBack().catch(() => {}); await p.waitForTimeout(800);
+  const backed = await p.evaluate(() => ({ hud: !!(document.querySelector('#hud') && !document.querySelector('#hud').hidden), nlw: !!window.__nlw })).catch(() => ({ hud: false, nlw: false }));
+  if (backed.hud) bad('after logging out, going back shows the town');
+  // logging in again: the progress is there
+  await p.goto(`${origin}/#nointro-lite`, { timeout: 300000 });
+  await p.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await p.waitForFunction(() => window.__nlw.online.status().state === 'out');
+  await p.click('#open-login'); await p.fill('#account-username', buyerName); await p.fill('#account-password', 'a password for the buyer'); await p.click('#account-submit');
+  await p.waitForSelector('#continue-top:not([hidden])', { timeout: 30000 }).catch(() => bad('after logging in again there is no Continue'));
+  if (!/Buyer Okafor/.test(await p.textContent('#continue-top'))) bad(`after logging in again Continue reads "${await p.textContent('#continue-top')}"`);
   await other.context.close();
+}
+
+// ------------------------------------------------------------------ erasing a saved game --
+say('11. Erasing a saved game asks first; the character goes, the TR and the watch\'s history stay');
+{
+  const p = seller.page;
+  await seller.game(() => window.__nlw.accountSync.upload());
+  await seller.game(() => window.__nlw.ui.openPhone('settings')); await p.waitForSelector('#erase-save');
+  await p.evaluate(() => document.querySelector('#erase-save').scrollIntoView({ block: 'center' }));
+  await p.click('#erase-save'); await p.waitForSelector('#confirm:not([hidden])');
+  await seller.shot('17-erase-asked');
+  const ask = await seller.game(() => ({ title: document.querySelector('#confirm-title').textContent, body: document.querySelector('#confirm-body').textContent, no: document.querySelector('#confirm-no').textContent.trim(), yes: document.querySelector('#confirm-yes').textContent.trim() }));
+  if (ask.title !== 'Erase your saved game?') bad(`erasing asks "${ask.title}"`);
+  if (ask.body !== 'This will permanently delete the selected game\'s saved progress and start a new journey. This action cannot be undone.') bad(`erasing explains "${ask.body}"`);
+  if (ask.no !== 'Cancel' || ask.yes !== 'Erase Save and Restart') bad(`erasing offers "${ask.no}" and "${ask.yes}"`);
+  await p.click('#confirm-no'); await p.waitForSelector('#confirm', { state: 'hidden' }); await p.waitForTimeout(400);
+  const kept = await seller.game(() => ({ playing: !document.querySelector('#hud').hidden, name: window.__nlw.view.self.name, local: !!localStorage.getItem('nlw-save-v5-NG-AN-OGB-Z1') }));
+  if (!kept.playing || kept.name !== 'Seller Eze' || !kept.local) bad(`after Cancel: ${JSON.stringify(kept)}`);
+  await p.click('#erase-save'); await p.waitForSelector('#confirm:not([hidden])');
+  await p.click('#confirm-yes');
+  await p.waitForFunction(() => document.querySelector('#confirm').hidden && !document.querySelector('#start').hidden, null, { timeout: 30000 }).catch(() => bad('erasing did not go back to the start'));
+  await p.waitForTimeout(800); await seller.shot('18-erased');
+  const after = await seller.game(async () => { const r = await fetch('/api/game', { method: 'POST', headers: { 'content-type': 'application/json', 'x-pcw': '1' }, body: JSON.stringify({ op: 'save.get' }) }); const save = await r.json(); return { state: window.__nlw.online.status().state, player: window.__nlw.playerId || null, local: localStorage.getItem('nlw-save-v5-NG-AN-OGB-Z1') === null, bank: window.__nlw.wallet.state.balance, cont: document.querySelector('#continue').hidden && document.querySelector('#continue-top').hidden, server: { erased: !!save.erased, data: save.save === null } }; });
+  if (after.state !== 'in') bad('erasing signed the account out');
+  if (after.player || !after.local || !after.cont) bad(`after erasing: ${JSON.stringify(after)}`);
+  if (!after.server.erased || !after.server.data) bad(`the server still has the saved game: ${JSON.stringify(after.server)}`);
+  if (after.bank !== 2290.5 * TR) bad(`erasing changed the bank balance to ${after.bank / TR} TR`);
+  // a new journey on the same account: the TR is what the bank holds, not a new 2,000
+  await seller.enter('Seller Again');
+  await seller.has(2290.5, 'on a new journey after erasing');
+  await seller.openWallet(); await seller.press('#wallet-history'); await p.waitForSelector('#wallet-entries');
+  const lines = await p.textContent('#wallet-entries');
+  if (!lines.includes(buyerName) || !/250\.5/.test(lines)) bad(`after erasing, the history lost the transfer: "${lines}"`);
+  await seller.shot('19-new-journey');
+  // reloading does not bring the erased game back
+  await seller.game(() => window.__nlw.accountSync.upload());
+  await p.reload({ timeout: 300000 });
+  await p.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await p.waitForSelector('#continue-top:not([hidden])', { timeout: 30000 }).catch(() => bad('after a reload the new journey is not offered'));
+  if (!/Seller Again/.test(await p.textContent('#continue-top'))) bad(`after a reload Continue reads "${await p.textContent('#continue-top')}"`);
+}
+
+// ------------------------------------------------------------------ the bank's own books --
+say('12. The bank\'s books: every movement in two halves, every balance the sum of its lines');
+{
+  const { database } = require('../../api/_lib/db.js');
+  const wallet = require('../../api/_lib/wallet.js');
+  const wrong = await wallet.audit(await database());
+  if (wrong.length) bad(`the bank does not balance: ${wrong.join('; ')}`);
 }
 
 await browser.close();
 server.close();
 const { closeDatabase } = require('../../api/_lib/db.js');
 await closeDatabase();
-console.log(problems.length ? `\n${problems.length} problem(s):\n${problems.map((x) => ` - ${x}`).join('\n')}` : '\nThe site: accounts, the market, the deal and the second device all as they should be.');
+console.log(problems.length ? `\n${problems.length} problem(s):\n${problems.map((x) => ` - ${x}`).join('\n')}` : '\nThe site: the account before play, the market, the deal, the Wallet, the second device, logging out and erasing all as they should be.');
 process.exit(problems.length ? 1 : 0);

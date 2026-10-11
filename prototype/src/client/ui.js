@@ -2,7 +2,7 @@
 // office and shop opens, receipts, the phone and the map.
 
 import { SOUND_NAMES } from './audio.js';
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_PROPS, ZONE_TEXT, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, zoneResident, zoneParcel, zoneService } from '../sim/zone.js';
+import { ZONE, ZONE_TEXT, zoneResident, zoneParcel, zoneService } from '../sim/zone.js';
 import { LANGUAGES } from '../sim/culture.js';
 import { NIGERIA_STATES, NIGERIA_ZONES } from '../sim/nigeria.js';
 import { geoToWorld } from '../sim/geo.js';

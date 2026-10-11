@@ -83,8 +83,9 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
   // ---- where the map is ----
   const me = () => { const v = view(); return v && v.self ? v.self : null; };
   function measure() {
-    const box = canvas.getBoundingClientRect();
-    const w = Math.round(box.width), ht = Math.round(box.height);
+    // its size as the page lays it out, not as it is drawn at this moment: a page that is still sliding in is
+    // drawn a little small, and a map measured then would be stretched until it was measured again
+    const w = canvas.clientWidth, ht = canvas.clientHeight;
     if (!w || !ht) return false;
     const ratio = Math.min(2, window.devicePixelRatio || 1);
     if (w !== W || ht !== H || ratio !== dpr) { W = w; H = ht; dpr = ratio; canvas.width = Math.round(W * dpr); canvas.height = Math.round(H * dpr); dirty = true; }
@@ -394,6 +395,8 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
     dirty = false;
     el.dataset.zoom = state.k.toFixed(3);
     el.dataset.follow = String(state.follow !== false);
+    // where the player's dot is on the map, in the map's own pixels (at an edge of the town it is off the middle)
+    { const p = me(); if (p) { const at = P(p.x, p.z); el.dataset.me = `${at[0].toFixed(1)},${at[1].toFixed(1)}`; } else delete el.dataset.me; }
   }
 
   // drawn again when it has been moved, and a few times a second for what moves by itself
@@ -411,7 +414,7 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
   // ---- the hand on it ----
   const fingers = new Map();
   let pinch = 0, moved = 0, downAt = null, lastTap = 0;
-  const place = (event) => { const b = canvas.getBoundingClientRect(); return [event.clientX - b.left, event.clientY - b.top]; };
+  const place = (event) => { const b = canvas.getBoundingClientRect(); return [(event.clientX - b.left) * (b.width ? W / b.width : 1), (event.clientY - b.top) * (b.height ? H / b.height : 1)]; };
   canvas.addEventListener('pointerdown', (event) => {
     if (event.pointerType === 'mouse' && event.button !== 0) return;
     try { canvas.setPointerCapture(event.pointerId); } catch (error) { /* a made-up pointer has none to give */ }

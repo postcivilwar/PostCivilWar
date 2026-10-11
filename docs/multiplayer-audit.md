@@ -1,5 +1,14 @@
 # Multiplayer interaction system: audit and plan
 
+> **Since this audit (11 October 2026).** The website now has accounts, and an account is needed
+> before play; each account's TR is kept by the server and sent between players by username; the
+> in-page sandbox that turned test bitcoin into game money has been removed; the market is paid
+> through the server's bank. The rows below that say "no accounts" or "money is each page's own"
+> describe the game as it was when the audit was written. The shared world itself (one town that
+> every player is in) is still not built. See `prototype/README.md`, "An account before play, the
+> bank, the map".
+
+
 > **10 October 2026: what has changed since this was written.** The website now has a server (`api/`), on
 > PostgreSQL: **username accounts** exist (item 12), each account's character is kept by the server, signed-in
 > players in the same town **see each other under their usernames**, and there is a **shared market** in which

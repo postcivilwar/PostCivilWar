@@ -100,7 +100,7 @@ export function createAccountUI({ online, sync, local, confirm, onChange = () =>
     if (st.state === 'in') { $('account-name').textContent = st.account.username; said = null; }
     note.hidden = st.state !== 'down';
     if (st.state === 'down') note.textContent = open
-      ? `There is no connection to the game's server. ${st.message || ''} You can carry on as ${offlineOwner()} on this device: your character goes to your account when the connection is back. Nothing can be sent, received, bought or sold until then.`
+      ? `${st.message || 'The game\'s server cannot be reached.'} You can carry on as ${offlineOwner()} on this device: your character goes to your account when the connection is back. Nothing can be sent, received, bought or sold until then.`
       : `${st.message || 'The server could not be reached.'}`;
     if (!open) {
       const words = st.state === 'checking' ? { title: 'One moment', text: 'Your account is being looked for.' }

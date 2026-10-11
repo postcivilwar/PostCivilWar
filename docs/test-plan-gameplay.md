@@ -153,15 +153,15 @@ tests exercise the database directly, as the service roles.
 | --- | --- | --- | --- |
 | B1 | The page is titled PostCivilWar; the splash is black with a white mark and name, a yellow sun, the arcade font, postcivilwar.com | `play.mjs` session `opening` (reads the computed colours and the font) | automated |
 | B2 | The splash holds for five seconds from first sight, showing loading marks and no button; then PLAY, and it goes no further alone | `intro.test`; `opening` (PLAY is not offered before 4.8 s; the stage is still the splash until it is pressed) | automated |
-| B3 | Five slides, in the story's order, one after another, none skipped even on a slow device; one shutter sound each | `intro.test` "every picture gets its turn…"; `opening` (order, five shutters) | automated |
-| B4 | A slide is fitted whole, never cropped; each has a description | `opening` (object-fit, alt) | automated |
+| B3 | The cover (the owner's supplied picture, 11 October 2026) takes the splash's place by itself after five seconds; the story slides are gone from the page and the repository | `intro.test` "the splash has no PLAY… the story in pictures is gone"; `opening` (stage, what is in the page) | automated |
+| B4 | On every screen the whole name, both figures and PLAY are in view, PLAY is big enough for a finger, and nothing is under a notch; on a 16:9 screen the picture is exactly as supplied | `intro.test` (twenty screen sizes); `opening` (six window sizes: every piece inside the window, nothing over PLAY, no gap round the picture) | automated |
 | B5 | The question must be answered: nothing behind it can be reached | `opening` (what is under the pointer at Enter) | automated |
 | B6 | Choosing makes a sound; a click, a tap, `H` or `V` answers | `opening` (a voice starts on the click); `intro.test` keys | automated; **how it sounds needs a person** |
 | B7 | The answer is the simulation's: joined with the character, saved, shown on the phone | `intro.test` three tests; `opening` | automated |
 | B8 | The answer changes nothing the town decides | `intro.test` "the answer changes nothing…" | automated |
 | B9 | Where there is no server (the page from a disk or as an artifact) no sign-up or log-in button is shown; on the website Create account and Log in are side by side between the story and "Create your character" | `opening`; `server/test/site.mjs` | automated |
 | B10 | A returning player with a character is not asked again; Skip cuts the story short | `opening` (second load) | automated |
-| B10a | Skip is writing with nothing behind it; there are no slide marks; nothing says "tap for sound" or "tap to begin" | `opening` (computed background and border; the text of the opening) | automated |
+| B10a | PLAY is the cover's own painted button and it works: a tap, a click, Enter or Space; the splash has no button; nothing says "tap for sound" or "tap to begin" | `opening` (the splash's buttons, PLAY's name and place, the press) | automated |
 | B11 | No font or image is fetched: every request the page makes succeeds, offline | every `play.mjs` session fails on any failed request | automated |
 | B12 | A planted foot stays put; the solved leg reaches it; knees bend one way; nothing jumps; walk and run are told apart by the feet | `gait.test` eleven tests | automated |
 | B13 | How the walk and the run look | Character Lab (Walk, Jog, Run), by eye; strips of twelve frames were reviewed for the base character, a man in shorts and a woman in a wrapper | reviewed by eye here; **needs a person, in motion** |
@@ -185,7 +185,7 @@ The redesign brief's own checklist, and Phase 2 of the multiplayer brief. Phase 
 | U9 | Names: white writing, no card, only near, fading | by eye from screenshots (a townsperson at 1 m; a player at 6 m); the texture is transparent by construction (`nameTexture`) | reviewed by eye |
 | U10 | The two answers are on one line, the same size, not tall, and neither looks chosen before one is | `opening`: at the five touch sizes, tops, heights and widths equal and under a fifth of the screen's height; at 1280×760, same fill and none focused or pressed | automated |
 | U11 | The sound button is at the top left, shows on or off, is on for a first visit, and is remembered | `opening` (position; `aria-pressed`; the stored preference after each press; pressing it does not start the story) | automated |
-| U12 | The flag is gone from every slide that had it; five slides still | `intro.test` (five slides); the two retouched pictures were compared with the supplied ones by eye at full size | reviewed by eye |
+| U12 | *(retired with the slides, 11 October 2026: there is no flag to paint out because the pictures that had it are gone)* | `intro.test` (no slides, no retouching tool) | automated |
 | U13 | Health bars are small and out of the way | by eye from the fight screenshots, upright and sideways | reviewed by eye |
 | M1 | A player cannot walk into, or through, another player; nobody can be pinned | `impact.test`, three tests | automated, one simulation |
 | M2 | A vehicle's occupant, a patient in the ambulance and the dead take up no room | `impact.test` | automated |
@@ -262,11 +262,19 @@ The redesign brief's own checklist, and Phase 2 of the multiplayer brief. Phase 
 
 Twenty minutes, on a phone and on a laptop:
 
-0. Open the page fresh. Watch the splash and its loading marks, press PLAY, watch the
-   five slides and listen for the shutter on each. Turn the phone on its side at each
-   stage. Try the sound button at the top left, then reload: it should be as you left it. Answer the question both ways (erase
-   the save in Settings to be asked again). Note whether five seconds and one second a
-   slide feel right.
+0. Open the page fresh. Watch the splash and its loading marks; the cover should take
+   its place by itself. Turn the phone on its side and back: the whole name, both
+   figures and PLAY should be in view each way, with nothing under the notch. Press
+   PLAY. Try the sound button at the top left, then reload: it should be as you left
+   it. Answer the question both ways (erase the save in Settings to be asked again).
+   On the website, check that nothing lets you into the town before you have made an
+   account or logged in.
+
+0a. On the website, with two phones and two accounts: open Wallet on each, copy one
+   username, send TR to it from the other, and watch it arrive. Try a username nobody
+   has, your own, more than you have. Log out (it should ask first), log in again: the
+   character and the TR should be as they were. Erase the saved game in Settings (it
+   should ask first): the character goes, the TR and the history stay.
 
 1. Walk, switch Run on and off, with one thumb and with two. Walk into a wall with the
    camera behind you.
@@ -301,8 +309,11 @@ another, anything that is charged that should not be, anything too loud.
 - **Not verified:** frame rate and touch feel on real hardware, including whether the
   lighter drawing cures the slow-down recorded on an Android phone; how the sound
   sounds; safe areas on real notched phones.
-- **The opening has five slides of a story written for six**, and the rights in the
-  photographs the slides were drawn from are for the owner to confirm.
+- **The cover is the owner's supplied picture**; where its name, words and button were
+  lifted off so they can be placed for each screen, the sky and water behind them are
+  filled in by program. Checked by eye at the sizes the game shows.
+- **On the website, what a character earns in town is reported by the browser** and
+  capped by the bank, not decided by it (`prototype/README.md`, "The bank").
 - **The hero-or-villain answer does nothing yet** but stay with the character.
 - **Known flaw:** a porch roof, such as the one over the hospital's emergency door, can
   still hide the player when the camera is side-on and above it. Sheds and market stalls

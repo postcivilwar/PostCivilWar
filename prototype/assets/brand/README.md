@@ -55,85 +55,62 @@ It is used for brand moments only: the splash, the question, the name on the sta
 screen, the small labels of the opening. Everything a player reads at length is set in
 the device's own interface face.
 
-## The story slides
+## The cover
 
-`slides/` holds the five illustrated slides as supplied (1920 by 1080 JPEG, captions
-drawn into the pictures) and the note that came with them (`slides/HANDOFF.md`). They
-are masters: nothing in the build changes them.
+`cover/cover-master.jpg` is the game's cover as the owner supplied it (11 October 2026;
+2576 by 1449): the name at the left, two figures standing before the river, four lines
+of words at the right and a painted PLAY button under the name. It is a master: nothing
+in the build changes it. It took the place of the five story slides, which are no
+longer in the repository or the page.
 
+The picture is one painting at one shape, and screens are many shapes, so it is carried
+in four pieces that are put back together on each screen:
+
+    python3 tools/brand/cover.py          # writes plate.jpg, logo.png, words.png, play.png, cover.json
     python3 tools/brand/bake.py           # writes src/client/brand-data.js
 
-scales each to 1280 by 720 and writes them into the page's data, in the story order the
-note gives:
+- `plate.jpg`: the picture with the name, the words and the button taken off it (sky is
+  continued where the name and the words were; the water is continued where the button
+  was), so that it can be moved and scaled behind them;
+- `logo.png`, `words.png`, `play.png`: the name, the four lines and the button, each cut
+  out with nothing behind it;
+- `cover.json`: where each stood in the supplied picture, and where the two figures are.
 
-1. The war ended. 15 January 1970.
-2. Home had changed.
-3. What remained.
-4. *(not delivered: see below)*
-5. Voices from the ruins.
-6. Learning to live.
+On a 16:9 screen every piece goes back exactly where the painter put it. On any other
+screen each is placed where there is room (`coverLayout` in `src/client/intro.js`):
+wide screens keep the name and PLAY at the left and the figures in view; a tall phone
+has sky and the name above, the figures below and PLAY at the foot. On every screen the
+whole name, both figures and PLAY are in view, PLAY is never smaller than a finger, and
+nothing is put under a notch or a home bar. `test/intro.test.mjs` checks that over
+twenty screen sizes.
 
-What the note asks for, and what the game does:
+**PLAY is the picture's own button, and it works.** It is what a player presses to go
+on; Enter and Space do the same. The splash before it has no button of its own any
+more.
 
-- **No captions are added.** The words are part of each picture.
-- **The whole frame is kept.** A picture is fitted inside the screen, never cropped to
-  fill it; on a narrow screen the space around it is a blurred copy of the same picture.
-- **Reduced motion is respected.** With the device's reduce-motion setting on, the
-  pictures change without the flash or the slow push-in.
-- **Each picture is described** for someone who cannot see it (its caption, as `alt`).
+Things to know about the cover:
 
-Two things differ from the note, both by the owner's instruction: each slide is shown
-for **one second**, not about eight, and each arrives with a **camera shutter** and a
-flash rather than a cross-fade. The Skip button is the note's "skip"; there is no
-pause, previous or next at one second a slide.
-
-### Limits that go with these pictures
-
-- **The fourth slide was never delivered.** The service that drew the others refused
-  the source photograph. The story runs with five slides, and nothing has been drawn to
-  stand in for the missing one. Its intended caption was "A generation carried it.
-  Wounds they could not always explain."
-- **They are illustrations, not evidence.** The note says so itself: colours, clothing,
-  faces and backgrounds are partly inferred, and the speech and protest scenes are not
-  evidence that those events happened on 15 January 1970 or after the surrender. The
-  game presents them as an illustrated opening and makes no historical claim from their
-  details.
-- **Rights in the source photographs still apply.** The slides were drawn from archive
-  photographs. Whoever publishes the game needs the right to use those photographs as
-  sources, or slides drawn from material that is clear. That is a question for the
-  owner before a public launch; it is not something the build can settle.
-- The delivered JPEGs were enlarged from a 1376 by 768 render, so they are soft at full
-  size. At the 1280 by 720 the page uses, that does not show.
+- Where the name, the words and the button were lifted off, the sky and the water
+  behind them are filled in by program. It was checked by eye at the sizes the game
+  shows; enlarged, the filled water is plainer than the painted water beside it.
+- The cover is a painting of two people. Whoever publishes the game needs the right to
+  use it; the owner supplied it as theirs.
 
 ## The opening, in order
 
-1. **Splash**, black: the mark draws itself, POST CIVIL WAR arrives letter by letter on
-   one line, postcivilwar.com small under it. A row of marks lights in turn for five
-   seconds while the game gets ready; then **PLAY** replaces it.
-2. **Story**, five slides at one second each, a shutter sound and a flash on every one.
-   Skip is at the top right.
+1. **Splash**, black: the mark draws itself and POST CIVIL WAR arrives letter by letter
+   on one line. A row of marks lights in turn for five seconds while the game gets
+   ready. Nothing is pressed.
+2. **The cover** takes its place by itself, with **PLAY** on it.
 3. **The question**: *Be a hero or be a villain?* Two answers side by side. It must be
-   answered to go on. Each answer has its own sound.
-4. **The start screen**: make a character, or continue with the one on this device.
+   answered to go on. Each answer has its own sound. (A player who already has a
+   character on the device is not asked again.)
+4. **The start screen**. On the website it is shut until the player has made an account
+   or logged in: Create Account and Log In, and nothing else. After that: make a
+   character, or continue with the account's own.
 
 A browser will not play any sound until the page has been touched. PLAY is that touch.
 Sound is on by default; the button at the top left of the opening turns it off and on,
 and the choice is kept on the device (it is the same switch as Settings and the N key).
 
-## The flag
-
-The first and second supplied slides showed the Biafran flag: standing on the desk in
-the first, and as a patch on a sleeve in the second. The owner asked for it to be
-removed wherever it appears, with the pictures themselves and their number kept. So:
-
-- the supplied files are untouched, in `slides/`;
-- `tools/brand/retouch.py` paints the flag out of copies and writes them to
-  `slides/retouched/` (the desk is continued where the flag stood; the sleeve is plain);
-- `tools/brand/bake.py` uses a retouched copy where there is one.
-
-The retouching was done by program and checked by eye at the size the game shows. Close
-up, the desk top where the flag stood is plainer than the rest of the drawing.
-
-There are no accounts yet. The start screen says so, and has no sign-up or log-in
-button, because one that did nothing would be a lie. Accounts arrive with the game's
-servers.
+With the device's reduce-motion setting on, the cover arrives without its slow push-in.

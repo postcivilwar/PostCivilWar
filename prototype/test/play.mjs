@@ -72,50 +72,60 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   const held = await page.evaluate(() => ({ since: performance.now() - window.__introAt, stage: window.__nlw.intro.stage() }));
   if (held.since < 4800 && held.stage !== 'splash') bad(`the splash gave way after ${Math.round(held.since)} ms`);
   await page.waitForFunction(() => performance.now() - window.__introAt > 5400, null, { timeout: 120000 });
-  // while it gets ready the splash shows its loading marks and no button; then PLAY, and it goes no further alone
+  // The splash has loading marks and nothing to press. It gives way by itself to the cover, the supplied
+  // picture, and there the game waits: PLAY, on the cover, is the one way on.
+  const onSplash = await page.evaluate(() => ({ buttons: [...document.querySelectorAll('#intro .splash button')].length, ticks: document.querySelectorAll('.load .ticks i').length, play: !!document.querySelector('#intro-play') }));
+  if (onSplash.buttons || onSplash.play) bad('the splash still has a button on it');
+  if (onSplash.ticks < 12) bad('the splash has no loading marks');
   await page.waitForFunction(() => window.__nlw.intro.ready(), null, { timeout: 120000 });
-  await page.waitForTimeout(600);
+  await page.waitForTimeout(2200);
   const waiting = await page.evaluate(() => {
-    const vis = (sel) => { const e = document.querySelector(sel); const c = getComputedStyle(e); return c.display !== 'none' && c.visibility !== 'hidden' && +c.opacity > 0.5 && e.getBoundingClientRect().width > 0; };
-    const play = document.querySelector('#intro-play'); const c = getComputedStyle(play); const mute = document.querySelector('#intro-mute').getBoundingClientRect();
-    const span = document.querySelector('.wordmark span').getBoundingClientRect(); const size = parseFloat(getComputedStyle(document.querySelector('.wordmark')).fontSize);
-    return { stage: window.__nlw.intro.stage(), since: performance.now() - window.__introAt, play: vis('#intro-play'), label: play.textContent.trim(), text: document.querySelector('#intro').textContent, border: c.borderTopWidth, ticks: document.querySelectorAll('.load .ticks i').length,
-      sound: window.__nlw.audio.running, soundOn: document.querySelector('#intro-mute').getAttribute('aria-pressed'), mute: [mute.left, mute.top], lines: Math.round(span.height / size), titleSize: size, played: window.__nlw.intro.log.played };
+    const vis = (sel) => { const e = document.querySelector(sel); if (!e) return false; const c = getComputedStyle(e); return c.display !== 'none' && c.visibility !== 'hidden' && +c.opacity > 0.5 && e.getBoundingClientRect().width > 0; };
+    const box = (sel) => { const r = document.querySelector(sel).getBoundingClientRect(); return [r.left, r.top, r.right, r.bottom].map(Math.round); };
+    const play = document.querySelector('#cover-play'); const mute = document.querySelector('#intro-mute').getBoundingClientRect();
+    const plate = document.querySelector('#cover-plate');
+    return { stage: window.__nlw.intro.stage(), since: performance.now() - window.__introAt, play: vis('#cover-play'), name: play.getAttribute('aria-label'), disabled: play.disabled, text: document.querySelector('#intro').textContent,
+      splash: vis('#intro .splash'), slides: !!document.querySelector('#slide-img, #intro-skip, .slides'), plate: [plate.naturalWidth, plate.naturalHeight], alt: plate.alt, logoAlt: document.querySelector('#cover-logo').alt,
+      boxes: { plate: box('#cover-plate'), logo: box('#cover-logo'), play: box('#cover-play') }, words: vis('#cover-words'), w: innerWidth, h: innerHeight,
+      sound: window.__nlw.audio.running, soundOn: document.querySelector('#intro-mute').getAttribute('aria-pressed'), mute: [mute.left, mute.top], played: window.__nlw.intro.log.played, layout: window.__nlw.intro.log.layout.mode };
   });
-  if (waiting.since < 4800) bad(`PLAY was offered after ${Math.round(waiting.since)} ms`);
-  if (waiting.stage !== 'splash' || !waiting.play || waiting.label !== 'PLAY' || waiting.played) bad(`after five seconds, untouched: ${JSON.stringify(waiting)}`);
+  if (waiting.since < 4800) bad(`the cover came after ${Math.round(waiting.since)} ms`);
+  if (waiting.stage !== 'cover' || !waiting.play || waiting.disabled || waiting.played) bad(`after the splash, untouched: ${JSON.stringify({ stage: waiting.stage, play: waiting.play, disabled: waiting.disabled, played: waiting.played })}`);
+  if (waiting.splash) bad('the splash is still showing under the cover');
+  if (waiting.slides) bad('the story in pictures is still in the page');
+  if (waiting.name !== 'Play') bad(`PLAY is called "${waiting.name}"`);
+  if (waiting.plate[0] < 1600 || Math.abs(waiting.plate[0] / waiting.plate[1] - 16 / 9) > 0.02) bad(`the cover picture is ${waiting.plate.join(' by ')}`);
+  if (waiting.alt.length < 40 || waiting.logoAlt !== 'Post Civil War') bad('the cover is not described for someone who cannot see it');
+  // on a 16:9 window the picture is as it was supplied: it fills the screen, and its pieces are where they were
+  { const [l, t, r, b] = waiting.boxes.plate; if (l > 0 || t > 0 || r < waiting.w || b < waiting.h) bad(`the cover leaves a gap: ${waiting.boxes.plate} on ${waiting.w} by ${waiting.h}`); }
+  { const [l, t, r, b] = waiting.boxes.play; if (l < 0 || t < 0 || r > waiting.w || b > waiting.h || b - t < 44) bad(`PLAY is at ${waiting.boxes.play}`); if (Math.abs(l / waiting.w - 0.0924) > 0.02 || Math.abs(t / waiting.h - 0.77) > 0.03) bad(`PLAY is not where the picture has it: ${waiting.boxes.play}`); }
+  { const [l, t, r, b] = waiting.boxes.logo; if (l < 0 || t < 0 || r > waiting.w || b > waiting.h) bad(`the name is cut off: ${waiting.boxes.logo}`); }
+  if (waiting.layout !== 'wide' || !waiting.words) bad(`on a wide screen the cover is laid out "${waiting.layout}", words shown: ${waiting.words}`);
   if (/tap to begin|tap for sound/i.test(waiting.text)) bad('the opening still says to tap');
   if (waiting.sound) bad('sound was playing before the page was touched');
   if (waiting.soundOn !== 'true') bad('sound is not on for a first visit');
   if (waiting.mute[0] > 40 || waiting.mute[1] > 40) bad(`the sound button is at ${waiting.mute.map(Math.round)}, not the top left`);
-  if (waiting.lines !== 1) bad(`the name is on ${waiting.lines} lines`);
-  if (waiting.ticks < 12) bad('the splash has no loading marks');
-  if (parseFloat(waiting.border) > 0) bad('PLAY has an outline');
-  await shot('02-splash');
+  await shot('02-cover');
+  // it goes no further alone
+  await page.waitForTimeout(1500);
+  if ((await page.evaluate(() => window.__nlw.intro.stage())) !== 'cover') bad('the cover went on without PLAY being pressed');
   // the sound button: off, and remembered; on again
   await page.click('#intro-mute');
   const off = await page.evaluate(() => ({ pressed: document.querySelector('#intro-mute').getAttribute('aria-pressed'), kept: JSON.parse(localStorage.getItem('nlw-prefs-v1') || '{}').sound, stage: window.__nlw.intro.stage() }));
   if (off.pressed !== 'false' || off.kept !== false) bad(`the sound button turned sound ${JSON.stringify(off)}`);
-  if (off.stage !== 'splash') bad('the sound button started the story');
+  if (off.stage !== 'cover') bad('the sound button moved the opening on');
   await page.click('#intro-mute');
   const on = await page.evaluate(() => ({ pressed: document.querySelector('#intro-mute').getAttribute('aria-pressed'), kept: JSON.parse(localStorage.getItem('nlw-prefs-v1') || '{}').sound }));
   if (on.pressed !== 'true' || on.kept !== true) bad(`the sound button turned sound back ${JSON.stringify(on)}`);
-  await page.click('#intro-play');
-  await page.waitForFunction(() => window.__nlw.intro.stage() === 'slides', null, { timeout: 60000 });
-  await page.waitForFunction(() => window.__nlw.intro.log.slides.length >= 2, null, { timeout: 120000 });
-  await shot('03-story');
-  const during = await page.evaluate(() => { const k = document.querySelector('#intro-skip'); const c = getComputedStyle(k); return { fit: getComputedStyle(document.querySelector('#slide-img')).objectFit, alt: document.querySelector('#slide-img').alt, pips: document.querySelectorAll('#slide-count, .pips').length, skip: !!k, skipBack: c.backgroundColor, skipBorder: c.borderTopWidth, text: document.querySelector('#intro .slides').textContent }; });
-  if (during.fit !== 'contain') bad(`a picture is fitted "${during.fit}", which could crop its caption`);
-  if (during.alt.length < 20) bad('the picture on screen has no description');
-  if (during.pips || !during.skip) bad(`the story shows ${during.pips} sets of marks, skip button ${during.skip}`);
-  if (!/rgba\(0, 0, 0, 0\)|transparent/.test(during.skipBack) || parseFloat(during.skipBorder) > 0) bad(`Skip sits on a block: ${during.skipBack}, border ${during.skipBorder}`);
-  if (/tap for sound/i.test(during.text)) bad('the story still says to tap for sound');
-  await page.waitForFunction(() => window.__nlw.intro.stage() === 'choice', null, { timeout: 180000 });
-  const story = await page.evaluate(() => window.__nlw.intro.log);
-  const order = story.slides.map((s) => s.id).join(' ');
-  if (order !== '01_the_war_ended 02_home_had_changed 03_what_remained 05_voices_from_the_ruins 06_learning_to_live') bad(`the story ran: ${order}`);
-  if (story.shutters !== 5) bad(`${story.shutters} shutter sounds for 5 pictures`);
-  if (story.slides.some((s, i) => i && s.at <= story.slides[i - 1].at)) bad('the pictures did not come one after another');
+  // PLAY is a real button: it takes the pointer, it is pressed once, and the game goes on
+  const top = await page.evaluate(() => { const r = document.querySelector('#cover-play').getBoundingClientRect(); const e = document.elementFromPoint(r.left + r.width / 2, r.top + r.height / 2); return e && (e.id === 'cover-play' || !!e.closest('#cover-play')); });
+  if (!top) bad('something lies over PLAY');
+  await page.click('#cover-play');
+  await page.click('#cover-play', { force: true, timeout: 2000 }).catch(() => {});      // a second press does nothing
+  await page.waitForFunction(() => window.__nlw.intro.stage() === 'choice', null, { timeout: 60000 });
+  const story = await page.evaluate(() => ({ log: window.__nlw.intro.log, sound: window.__nlw.audio.running }));
+  if (!story.log.played || story.log.playedAt < story.log.coverAt) bad(`PLAY was not what moved the opening on: ${JSON.stringify(story.log)}`);
+  if (!story.sound) bad('pressing PLAY did not start the sound');
   await shot('04-question');
   const asked = await page.evaluate(() => ({ text: document.querySelector('#choice-title').textContent, picks: [...document.querySelectorAll('.pick')].map((b) => b.dataset.path), face: getComputedStyle(document.querySelector('#choice-title')).fontFamily, start: !document.querySelector('#intro'),
     marked: [...document.querySelectorAll('.pick')].filter((b) => b.classList.contains('chosen') || b.getAttribute('aria-pressed') === 'true' || b === document.activeElement).length, fills: [...document.querySelectorAll('.pick')].map((b) => getComputedStyle(b).backgroundColor) }));
@@ -160,11 +170,8 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   await page.waitForSelector('#intro[data-stage="splash"]', { timeout: 120000 });
   await page.waitForFunction(() => window.__nlw && window.__nlw.intro, null, { timeout: 300000 });
   await page.waitForFunction(() => window.__nlw.intro.ready(), null, { timeout: 120000 });
-  await page.click('#intro-play');
-  // Skip is pressed the moment the story starts (from inside the page: at a frame a second the story would be over first)
-  await page.waitForFunction(() => { if (window.__nlw.intro.stage() !== 'slides') return false; document.querySelector('#intro-skip').click(); return true; }, null, { timeout: 60000 });
-  const skipped = await page.evaluate(() => window.__nlw.intro.log.slides.length);
-  if (skipped >= 5) bad('Skip did not cut the story short');
+  // the keyboard works it too: Enter on the cover is PLAY
+  await page.keyboard.press('Enter');
   await page.waitForFunction(() => !document.querySelector('#intro'), null, { timeout: 60000 });
   const back = await page.evaluate(() => ({ asked: window.__nlw.intro.log.path, resume: !document.querySelector('#continue').hidden, label: document.querySelector('#continue').textContent }));
   if (back.asked !== null) bad('a returning player was asked the question again');
@@ -178,19 +185,36 @@ for (const [label, size] of Object.entries({ small: { width: 320, height: 568, t
     page.goto(page_file, { timeout: 300000 }).catch(() => {});
     await page.waitForSelector('#intro[data-stage="splash"] .wordmark', { timeout: 120000 });
     await page.waitForFunction(() => window.__nlw && window.__nlw.intro && window.__nlw.intro.ready(), null, { timeout: 300000 });
-    await page.waitForTimeout(700);
+    await page.waitForTimeout(2300);      // (the cover has come up, and its pieces have settled)
     const inside = (sels) => page.evaluate((sels) => sels.map((sel) => { const e = document.querySelector(sel); const r = e.getBoundingClientRect(); return { sel, l: r.left, t: r.top, r: r.right, b: r.bottom, w: innerWidth, h: innerHeight }; }).filter((r) => r.l < 0 || r.t < 0 || r.r > r.w + 0.5 || r.b > r.h + 0.5).map((r) => r.sel), sels);
     const splash = await page.evaluate(() => { const span = document.querySelector('.wordmark span').getBoundingClientRect(); const size = parseFloat(getComputedStyle(document.querySelector('.wordmark')).fontSize); const tops = [...document.querySelectorAll('.wordmark i')].map((i) => Math.round(i.getBoundingClientRect().top)); return { lines: Math.round(span.height / size), rows: new Set(tops).size, l: span.left, r: span.right, w: innerWidth, scroll: document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1 }; });
     if (splash.lines !== 1 || splash.rows !== 1) bad(`the name is on ${Math.max(splash.lines, splash.rows)} lines`);
     if (splash.l < 8 || splash.r > splash.w - 8) bad(`the name runs from ${Math.round(splash.l)} to ${Math.round(splash.r)} of ${splash.w}`);
     if (splash.scroll) bad('the splash scrolls');
-    const off1 = await inside(['.wordmark span', '#intro-play', '#intro-mute', '.splash .mark']);
-    if (off1.length) bad(`off the screen on the splash: ${off1.join(', ')}`);
-    await shot(`10-${label}-splash`);
+    await shot(`10-${label}-cover`);
+    // the cover on this screen: the whole name and the whole of PLAY in view, the two figures between the sides,
+    // PLAY big enough for a finger, nothing over it, and no gap at the sides or the foot
+    const cover = await page.evaluate(() => {
+      const L = window.__nlw.intro.log.layout;
+      const r = (sel) => { const b = document.querySelector(sel).getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom, w: b.width, h: b.height }; };
+      const play = r('#cover-play');
+      const over = document.elementFromPoint(play.l + play.w / 2, play.t + play.h / 2);
+      return { mode: L.mode, plate: r('#cover-plate'), logo: r('#cover-logo'), play, top: !!over && (over.id === 'cover-play' || !!over.closest('#cover-play')), w: innerWidth, h: innerHeight, scroll: document.documentElement.scrollWidth > innerWidth + 1 || document.documentElement.scrollHeight > innerHeight + 1,
+        sky: getComputedStyle(document.querySelector('.gamecover')).backgroundColor, stage: window.__nlw.intro.stage() };
+    });
+    if (cover.stage !== 'cover') bad(`the opening is at "${cover.stage}", not the cover`);
+    const within = (b) => b.l >= -0.5 && b.t >= -0.5 && b.r <= cover.w + 0.5 && b.b <= cover.h + 0.5;
+    if (!within(cover.logo)) bad(`the name is cut off: ${JSON.stringify(cover.logo)}`);
+    if (!within(cover.play)) bad(`PLAY is cut off: ${JSON.stringify(cover.play)}`);
+    if (cover.play.h < 47.5 || cover.play.w < 120) bad(`PLAY is ${Math.round(cover.play.w)} by ${Math.round(cover.play.h)}`);
+    if (!cover.top) bad('something lies over PLAY');
+    if (cover.plate.l > 0.5 || cover.plate.r < cover.w - 0.5 || cover.plate.b < cover.h - 0.5) bad(`the cover leaves a gap: ${JSON.stringify(cover.plate)}`);
+    if (cover.logo.b > cover.play.t && cover.logo.r > cover.play.l && cover.logo.l < cover.play.r) bad('the name and PLAY overlap');
+    if (cover.scroll) bad('the cover scrolls');
+    if ((size.width > size.height * 1.2) !== (cover.mode === 'wide')) bad(`laid out "${cover.mode}" on a ${size.width} by ${size.height} screen`);
+    const off1 = await inside(['#cover-logo', '#cover-play', '#intro-mute']);
+    if (off1.length) bad(`off the screen on the cover: ${off1.join(', ')}`);
     await page.evaluate(() => window.__nlw.intro.begin());
-    await page.waitForFunction(() => window.__nlw.intro.stage() === 'slides', null, { timeout: 60000 });
-    const off2 = await inside(['#intro-skip', '#intro-mute']);
-    if (off2.length) bad(`off the screen in the story: ${off2.join(', ')}`);
     await page.waitForFunction(() => window.__nlw.intro.stage() === 'choice', null, { timeout: 180000 });
     await page.waitForTimeout(900);
     const picks = await page.evaluate(() => [...document.querySelectorAll('.pick')].map((b) => { const r = b.getBoundingClientRect(); return { l: r.left, t: r.top, r: r.right, b: r.bottom, w: r.width, h: r.height }; }));
@@ -323,26 +347,33 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   await page.waitForTimeout(500);
   await shot('06-register');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
-  // funds: faucet, wait, convert
+  // the phone
   await page.keyboard.press('Tab');
   await page.waitForTimeout(400);
   await shot('06b-phone-home');
   const apps = await page.evaluate(() => [...document.querySelectorAll('.app')].map((a) => a.textContent.trim()));
   for (const want of ['Contacts', 'Map', 'Messages', 'Calls', 'Wallet', 'Health', 'Police', 'Transport', 'Jobs', 'Settings', 'Notices']) if (!apps.includes(want)) problems.push(`desktop: the phone has no ${want} app (${apps.join(', ')})`);
   await page.click('.app:has-text("Wallet")');
-  await page.click('text=Add funds');
-  await page.click('text=Send 0.001 tBTC from the faucet');
-  await page.waitForTimeout(2500);
-  await shot('07-funds-confirming');
-  await page.waitForTimeout(24000);
-  await page.click('text=Get a quote');
-  await page.waitForTimeout(300);
-  await shot('08-funds-quote');
-  await page.click('text=Convert at this quote');
-  await page.waitForTimeout(400);
-  await shot('09-funds-converted');
+  await page.waitForSelector('.page[data-app="wallet"] #wallet-balance');
+  const walletPage = await page.evaluate(() => { const root = document.querySelector('.page[data-app="wallet"]'); return { text: root.textContent, buttons: [...root.querySelectorAll('button')].filter((b) => b.offsetParent !== null && b.id !== 'page-back').map((b) => (b.textContent || b.getAttribute('aria-label') || '').trim()), balance: document.querySelector('#wallet-balance').textContent }; });
+  // the sandbox that made TR is gone: no button, no screen, no word of it
+  if (/Add funds|sandbox|faucet|tBTC|bitcoin|settlement/i.test(walletPage.text) || walletPage.buttons.some((b) => /fund|faucet|deposit/i.test(b))) problems.push(`desktop: the wallet still offers sandbox funds: ${JSON.stringify(walletPage.buttons)}`);
+  if (!/^2,000\s*TR$/.test(walletPage.balance.trim())) problems.push(`desktop: a new arrival's wallet reads "${walletPage.balance}"`);
+  // a copy of the game opened from a disk has no server and so no bank: it shows this world's own money, says where sending is, and offers no button that would do nothing
+  if (walletPage.buttons.some((b) => /send|receive/i.test(b))) problems.push(`desktop: a page with no server offers to send TR: ${JSON.stringify(walletPage.buttons)}`);
+  if (!/postcivilwar\.com/.test(walletPage.text)) problems.push('desktop: the wallet does not say where TR can be sent and received');
+  await shot('07-wallet');
+  // TR for the rest of this play-through, put into the wallet as the bank would put it. (Nothing on the page can do this.)
+  await nlw(page, () => { const n = window.__nlw; const have = n.host.game.view(n.playerId).self.balance; n.host.bank.align(n.playerId, have + 50000, 'Test funds'); });
+  await page.waitForTimeout(1200);
+  const funded = await page.evaluate(() => document.querySelector('#wallet-balance').textContent.trim());
+  if (!/^27,000\s*TR$/.test(funded)) problems.push(`desktop: after the bank put 25,000 TR in, the wallet reads "${funded}"`);
+  await shot('09-wallet-funded');
   await page.keyboard.press('Escape'); await page.waitForTimeout(500);
-  // buy plot R-05
+  // buy plot R-05. (The Lands Registry keeps office hours, 08:00 to 16:00, and a newcomer arrives a little before
+  // it opens: the morning is let pass. The sandbox's wait used to do that by accident.)
+  await nlw(page, () => { const n = window.__nlw; const c = n.view.clock.hourFloat; if (c < 8.25 || c > 15) n.skip(((24 + 9 - c) % 24)); });
+  await page.waitForFunction(() => window.__nlw.phoneHold.out === 0 && window.__nlw.mode === 'walking' && !/Closed/.test(document.querySelector('#prompt').textContent), null, { timeout: 30000 }).catch(() => problems.push(`desktop: at the Lands Registry the prompt reads "${'?'}"`));
   await page.keyboard.press('e');
   await page.waitForTimeout(400);
   await page.click('.rowbtn:has-text("R-05")');
@@ -495,7 +526,7 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   await nlw(page, () => { const n = window.__nlw; const g = n.host.game; const c = n.view.clock.hourFloat; n.skip(((24 + 17.7 - c) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 7200 }; n.place(40, 131); n.cam.yaw = 0.25; n.cam.dist = 11; n.cam.pitch = 0.16; });
   await page.waitForTimeout(3500);
   await shot('26-river-evening');
-  const audit = await nlw(page, () => ({ ledger: window.__nlw.host.auditor.reconcile(), goods: window.__nlw.host.game.audit().goods, vehicles: window.__nlw.host.game.audit().vehicles, reserves: window.__nlw.host.settlementOps.proofOfReserves().matches, journal: window.__nlw.view.journal.every((j) => j.done) }));
+  const audit = await nlw(page, () => ({ ledger: window.__nlw.host.auditor.reconcile(), goods: window.__nlw.host.game.audit().goods, vehicles: window.__nlw.host.game.audit().vehicles, reserves: window.__nlw.host.portal === undefined && window.__nlw.host.settlementOps === undefined, journal: window.__nlw.view.journal.every((j) => j.done) }));
   if (audit.ledger.length || audit.goods.length || !audit.reserves || !audit.journal || audit.vehicles.count !== audit.vehicles.expected) problems.push(`desktop: audit failed ${JSON.stringify(audit)}`);
 });
 
@@ -506,8 +537,8 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   await page.fill('#name', 'Ifeoma Eze');
   await page.click('#enter');
   await page.waitForTimeout(1500);
-  // sandbox funds, straight through the portal: the wallet screens are played in the other session
-  await nlw(page, () => { const n = window.__nlw; const h = n.host; h.portal(n.playerId, 'faucet', { sats: 100000 }); const wait = h.settlementOps.policy.blockIntervalSeconds * (h.settlementOps.policy.confirmationsRequired + 1); for (let t = 0; t < wait; t += 0.1) h.tick(0.1); const q = h.portal(n.playerId, 'quote', { sats: 100000 }).data; h.portal(n.playerId, 'convert', { quoteId: q.id }); });
+  // TR to play with, put in as the bank would put it (and the twenty-four seconds the town used to be given while it arrived)
+  await nlw(page, () => { const n = window.__nlw; const h = n.host; for (let t = 0; t < 24; t += 0.1) h.tick(0.1); h.bank.align(n.playerId, h.game.view(n.playerId).self.balance + 50000, 'Test funds'); });
   const at = (hour) => nlw(page, (hour) => { const n = window.__nlw; const g = n.host.game; n.skip(((24 + hour - n.view.clock.hourFloat) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 6 * 3600 }; }, hour);
   const look = (x, z, yaw, dist, pitch) => nlw(page, ([x, z, yaw, dist, pitch]) => { const n = window.__nlw; n.place(x, z); n.cam.yaw = yaw; n.cam.dist = dist; n.cam.pitch = pitch; }, [x, z, yaw, dist, pitch]);
   const live = (seconds) => nlw(page, (seconds) => { const n = window.__nlw; for (let t = 0; t < seconds; t += 0.1) { n.host.tick(0.1); if (n.second) n.second.host.tick(0.1); } }, seconds);
@@ -648,7 +679,7 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
     for (const m of music) if (!(m.rms > 0.005) || m.peak > 1) bad(`music style ${m.style}: rms ${m.rms}, peak ${m.peak}`);
   }
   // 8. the books still balance after all of it
-  const audit = await nlw(page, () => ({ ledger: window.__nlw.host.auditor.reconcile(), okada: window.__nlw.host.game.audit().okada.balanced, reserves: window.__nlw.host.settlementOps.proofOfReserves().matches, perf: window.__nlw.perf, sim: window.__nlw.host.game.stats() }));
+  const audit = await nlw(page, () => ({ ledger: window.__nlw.host.auditor.reconcile(), okada: window.__nlw.host.game.audit().okada.balanced, reserves: window.__nlw.host.portal === undefined && window.__nlw.host.settlementOps === undefined, perf: window.__nlw.perf, sim: window.__nlw.host.game.stats() }));
   if (audit.ledger.length || !audit.okada || !audit.reserves) bad(`audit failed ${JSON.stringify(audit)}`);
   console.log('town session: ' + JSON.stringify({ town, working, okada: await nlw(page, () => window.__nlw.host.game.audit().okada), sim: audit.sim }));
 });
@@ -666,12 +697,55 @@ await session('phone', { width: 400, height: 780 }, async (page, shot) => {
   const tiles = await nlw(page, () => [...document.querySelectorAll('.app')].map((a) => { const r = a.getBoundingClientRect(); return [a.textContent.trim(), Math.round(r.left), Math.round(r.right), Math.round(r.width), Math.round(r.height)]; }));
   for (const [label, left, right, w, h] of tiles) if (left < 0 || right > 400 || w < 44 || h < 44) problems.push(`phone: the ${label} app is at ${left}..${right}, ${w} by ${h}`);
   await page.tap('.app:has-text("Wallet")');
-  await page.tap('text=Add funds');
+  await page.waitForSelector('.page[data-app="wallet"] #wallet-balance');
   await page.waitForTimeout(400);
-  await shot('04-funds');
-  // driving on a phone: the layout of the readout, the stick and the prompt
-  await page.tap('#page-back'); await page.waitForTimeout(300);      // from adding funds back to the wallet
+  await shot('04-wallet');
+  { const w = await page.evaluate(() => { const root = document.querySelector('.page[data-app="wallet"]'); const b = document.querySelector('#wallet-balance').getBoundingClientRect(); return { text: root.textContent, l: b.left, r: b.right, wide: root.scrollWidth > root.clientWidth + 1 }; });
+    if (/Add funds|sandbox|faucet/i.test(w.text)) problems.push('phone: the wallet still offers sandbox funds');
+    if (w.l < 0 || w.r > 400 || w.wide) problems.push(`phone: the balance runs from ${Math.round(w.l)} to ${Math.round(w.r)}`); }
+  // the Map: a map to find the way by. It is zoomed by its buttons, moved by a finger, brought back by the round button, and shows the way along the roads
   await page.tap('#page-back'); await page.waitForTimeout(300);      // from the wallet to the handset
+  await page.tap('.app:has-text("Map")');
+  await page.waitForSelector('.navmap');
+  await page.waitForTimeout(500);
+  const mapNow = () => page.evaluate(() => { const m = document.querySelector('.navmap'); const c = m.querySelector('canvas'); const g = c.getContext('2d'); const px = (x, y) => [...g.getImageData(Math.round(x * c.width / c.clientWidth), Math.round(y * c.height / c.clientHeight), 1, 1).data].slice(0, 3); const r = m.getBoundingClientRect(); return { zoom: +m.dataset.zoom, follow: m.dataset.follow, l: r.left, r: r.right, w: c.clientWidth, h: c.clientHeight, centre: px(c.clientWidth / 2, c.clientHeight / 2), me: (m.dataset.me || '').split(',').map(Number), dot: m.dataset.me ? px(...m.dataset.me.split(',').map(Number)) : null, buttons: [...m.querySelectorAll('button')].map((b) => { const q = b.getBoundingClientRect(); return [b.id, Math.round(q.width), Math.round(q.height)]; }) }; });
+  const m0 = await mapNow();
+  if (m0.l < 0 || m0.r > 391 || m0.h < 240) problems.push(`phone: the map is ${m0.w} by ${m0.h}, from ${Math.round(m0.l)} to ${Math.round(m0.r)}`);
+  if (m0.follow !== 'true') problems.push('phone: the map does not open on where the player is');
+  for (const [id, bw, bh] of m0.buttons) if (bw < 44 || bh < 44) problems.push(`phone: the map's ${id} button is ${bw} by ${bh}`);
+  // the player is the blue dot, and it is in view: in the middle, or (where the town ends) as near the middle as the town's edge lets it be
+  const blue = (c) => !!c && c[2] > 180 && c[0] < 90;
+  const inView = (m) => m.me.length === 2 && m.me[0] > 12 && m.me[0] < m.w - 12 && m.me[1] > 12 && m.me[1] < m.h - 12;
+  if (!inView(m0) || !blue(m0.dot)) problems.push(`phone: the player's dot should be at ${m0.me} on a map ${m0.w} by ${m0.h}; what is there is ${m0.dot}`);
+  await page.tap('#map-zoom-in'); await page.waitForTimeout(250);
+  const m1 = await mapNow();
+  if (!(m1.zoom > m0.zoom * 1.3)) problems.push(`phone: zoom in took the map from ${m0.zoom} to ${m1.zoom}`);
+  await page.tap('#map-zoom-out'); await page.tap('#map-zoom-out'); await page.waitForTimeout(250);
+  const m2 = await mapNow();
+  if (!(m2.zoom < m1.zoom / 2)) problems.push(`phone: zoom out took the map from ${m1.zoom} to ${m2.zoom}`);
+  { const box = await page.locator('.navmap-canvas').boundingBox(); const cx = box.x + box.width / 2, cy = box.y + box.height / 2;
+    const cdp = await page.context().newCDPSession(page);
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [{ x: cx, y: cy, id: 1 }] });
+    for (let i = 1; i <= 5; i += 1) await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: [{ x: cx - i * 16, y: cy - i * 10, id: 1 }] });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+    await page.waitForTimeout(250); }
+  const m3 = await mapNow();
+  if (m3.follow !== 'false') problems.push('phone: dragging the map did not let go of the player');
+  if (Math.hypot(m3.me[0] - m2.me[0], m3.me[1] - m2.me[1]) < 30) problems.push(`phone: the map did not move under the finger (the dot went from ${m2.me} to ${m3.me})`);
+  await page.tap('#map-recentre'); await page.waitForTimeout(250);
+  const m4 = await mapNow();
+  if (m4.follow !== 'true' || !inView(m4) || !blue(m4.dot)) problems.push(`phone: the round button did not bring the map back to the player (${m4.follow}, the dot at ${m4.me}: ${m4.dot})`);
+  await shot('04b-map');
+  await page.evaluate(() => { [...document.querySelectorAll('.page[data-app="map"] .rowbtn')].find((r) => /Lands Registry/.test(r.textContent)).click(); });
+  await page.waitForSelector('#map-way');
+  await page.waitForTimeout(400);
+  const way = await page.evaluate(() => { const n = window.__nlw; const r = n.host.game.intent(n.playerId, { type: 'map.route', x: 48, z: -60 }); return { text: document.querySelector('#map-way').textContent, road: r.road.length, straight: r.metres, byRoad: r.roadMetres }; });
+  if (!/by road/.test(way.text) || !(way.byRoad > way.straight) || way.road < 4) problems.push(`phone: the way to the Lands Registry: ${JSON.stringify(way)}`);
+  await page.evaluate(() => { document.querySelector('.page .screen').scrollTop = 0; });
+  await shot('04c-map-way');
+  // driving on a phone: the layout of the readout, the stick and the prompt
+  await page.tap('#page-back'); await page.waitForTimeout(300);      // from the way back to the map
+  await page.tap('#page-back'); await page.waitForTimeout(300);      // from the map to the handset
   await page.tap('.homebar');                                         // and the handset is put away
   await page.waitForTimeout(300);
   await nlw(page, () => {
@@ -709,11 +783,9 @@ await session('phone', { width: 400, height: 780 }, async (page, shot) => {
 // motorcycle, the camera's views and the ambulance: each played with the keys
 // a player would press, and each checked against the simulation's own ledger.
 const fundNow = (page) => nlw(page, () => {
-  const n = window.__nlw; const h = n.host; const pol = h.settlementOps.policy;
-  h.portal(n.playerId, 'faucet', { sats: 100000 });
-  for (let t = 0; t < pol.blockIntervalSeconds * (pol.confirmationsRequired + 1); t += 0.1) h.tick(0.1);
-  const q = h.portal(n.playerId, 'quote', { sats: 100000 }).data;
-  h.portal(n.playerId, 'convert', { quoteId: q.id });
+  const n = window.__nlw; const h = n.host;
+  for (let t = 0; t < 24; t += 0.1) h.tick(0.1);
+  h.bank.align(n.playerId, h.game.view(n.playerId).self.balance + 50000, 'Test funds');
   h.game.state.weather = { kind: 'clear', until: 1e15 };
   n.place(n.view.self.x, n.view.self.z);
 });
@@ -875,7 +947,7 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
     if ((await nlw(page, () => window.__nlw.view.self.law.state)) === 'normal') bad('taking a motorcycle left the player with nothing against them');
     await page.keyboard.press('e'); await page.waitForTimeout(900);
   }
-  const audit = await nlw(page, () => ({ ledger: window.__nlw.host.auditor.reconcile(), justice: window.__nlw.host.game.audit().justice, care: window.__nlw.host.game.audit().care, reserves: window.__nlw.host.settlementOps.proofOfReserves().matches }));
+  const audit = await nlw(page, () => ({ ledger: window.__nlw.host.auditor.reconcile(), justice: window.__nlw.host.game.audit().justice, care: window.__nlw.host.game.audit().care, reserves: window.__nlw.host.portal === undefined && window.__nlw.host.settlementOps === undefined }));
   if (audit.ledger.length || !audit.reserves) bad(`audit failed ${JSON.stringify(audit)}`);
   console.log('action session: ' + JSON.stringify({ justice: audit.justice, care: audit.care }));
 });
