@@ -162,7 +162,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- start: make a character, or carry on ---------- */
 @media (max-height: 520px) and (orientation: landscape) { #start { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; grid-template-rows: auto 1fr !important; grid-template-areas: "stage lead" "stage panel" !important; } #start .stage { position: sticky !important; height: 100vh !important; height: 100dvh !important; min-height: 0 !important; } }
 #start { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 460px) 1fr; grid-template-rows: auto 1fr; grid-template-areas: "lead stage" "panel stage"; background: radial-gradient(ellipse at 68% 46%, #1b1c1f 0, #0b0b0c 62%, #060607 100%); overflow-y: auto; overscroll-behavior: contain; }
-#start .lead { grid-area: lead; padding: clamp(20px, 5vh, 48px) clamp(16px, 4vw, 44px) 0; display: flex; flex-direction: column; gap: 14px; }
+#start .lead { grid-area: lead; padding: calc(clamp(16px, 5vh, 48px) + var(--st)) max(clamp(16px, 4vw, 44px), env(safe-area-inset-right, 0px)) 0 max(clamp(16px, 4vw, 44px), env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 #start .intro { grid-area: panel; }
 #start .story { display: flex; flex-direction: column; gap: 6px; max-width: 46ch; }
 #start .story p { margin: 0; color: var(--text); line-height: 1.45; }
@@ -194,14 +194,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #anim-list .part { padding: 0 13px; }
 #part-swatches .swatch { width: 40px; height: 40px; border-radius: 6px; }
 #start .intro { padding: 20px clamp(16px, 4vw, 44px) clamp(24px, 5vh, 48px); display: flex; flex-direction: column; gap: 18px; }
-#start .brand { display: flex; align-items: center; gap: 14px; }
-#start .brand .mark { width: 64px; flex: none; }
-#start h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(17px, 2.1vw, 24px); line-height: 1.25; margin: 0; white-space: nowrap; }
+#start .brand { display: flex; align-items: center; gap: clamp(10px, 3vw, 14px); min-width: 0; }
+#start .brand .mark { width: clamp(44px, 15vw, 64px); flex: none; }
+/* The game's name: on one line where there is room for it, on two where there is not, and never cut. (It is
+   three words: where the line is too short it breaks between them, and the mark beside it gets smaller first.) */
+#start h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(16px, min(2.1vw + 6px, 5.6vw), 24px); line-height: 1.25; margin: 0; min-width: 0; overflow-wrap: break-word; text-wrap: balance; }
 #start h2 { font-size: 22px; font-weight: 700; margin: 6px 0 0; letter-spacing: -0.01em; }
 /* the question comes after the story, just above the woman-or-man switch, set apart by a rule */
 #start .lead #start-title { margin: 8px 0 0; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
 #start p { margin: 0; max-width: 46ch; color: var(--text); }
 #start .small { color: var(--muted); font-size: 13px; }
+/* (a small button is still a button: its words are white, not the grey of small print. "Try again" was the only
+   thing to press on its screen and looked as if it could not be) */
+#start .hx.small { color: #fff; }
 #sheet .small { color: var(--muted); font-size: 13px; margin: 0; }
 #sheet .vital { grid-template-columns: auto 1fr auto; }
 #sheet .banner strong { font-weight: 600; }
@@ -224,20 +229,26 @@ button, input, select, textarea { font: inherit; color: inherit; }
    Less of it, and more of the town. What is always there is small and sits in the corners: the time, the
    purse. Everything else comes when it matters and goes again: a notice, a prompt, the health of someone
    the player is fighting. Nothing has a white card behind it. */
-#hud { position: absolute; inset: 0; pointer-events: none; --under: 80px; }
+#hud { position: absolute; inset: 0; pointer-events: none; --under: 85px; }
 #hud > * { pointer-events: auto; }
 .meter { height: 2px; background: rgba(255, 255, 255, 0.22); margin-top: 6px; border-radius: 1px; overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--white); width: 80%; transition: width 0.3s; }
 .meter.low i { background: var(--danger); }
 /* The corners are the game's own: the arcade face, heavy black edges, a little colour. The purse is green as money is,
    the life bar green to orange to red; the time is white. Nothing has a box behind it but the radar. */
-.hudr { position: absolute; top: calc(3px + var(--st)); right: calc(10px + env(safe-area-inset-right, 0px)); max-width: calc(100% - 100px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: none; text-align: right; }
+/* The top band keeps a little clear of the screen's edge: the figures have a black outline that reaches above
+   their own line, and a phone's screen has rounded corners. Set hard against the top (as it once was) the
+   balance lost its top edge on a phone held sideways. */
+.hudr { position: absolute; top: calc(8px + var(--st)); right: calc(12px + env(safe-area-inset-right, 0px)); max-width: calc(100% - 100px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: none; text-align: right; }
 .hudr > * { pointer-events: auto; }
 /* Small, at the very top, two short lines: the purse (TR, and what it is worth in 1970 pounds), then the
    time, the day and where. The black edge is thinner at this size, so the letters stay sharp on a phone. */
 .arcade-edge, .purse .amount, .purse .pounds, .plate .clock { font-family: "PCW Arcade", var(--font-ui); -webkit-text-stroke: 0; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 -1.5px 0 #000, 0 1.5px 0 #000, -1.5px 0 0 #000, 1.5px 0 0 #000, 0 2px 3px rgba(0, 0, 0, 0.5); }
-.purse { line-height: 1; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-.purse .amount { color: #7fe07a; font-size: 18px; letter-spacing: 0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The balance is one line, whole, however many figures it has: its size comes from the room there is beside the
+   radar and how many characters are to go in it (--n, set where the balance is written), never larger than its
+   usual size and never too small to read; the pounds go under it when there is not room beside it. */
+.purse { --big: 18px; line-height: 1.2; padding: 1px 2px 0 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: 6px; row-gap: 0; white-space: nowrap; max-width: 100%; }
+.purse .amount { color: #7fe07a; font-size: clamp(9px, calc((100vw - 118px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / (var(--n, 8) * 0.86)), var(--big)); letter-spacing: 0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .purse .amount .unit { font-size: 9px; letter-spacing: 0.08em; color: #bff0b8; }
 .purse .pounds { color: #f3e2a6; font-size: 9px; letter-spacing: 0.08em; margin-top: 0; }
 .plate { margin-top: 1px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: 6px; row-gap: 1px; }
@@ -246,9 +257,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .plate .where { display: flex; gap: 6px; align-items: baseline; justify-content: flex-end; white-space: nowrap; }
 .plate .room, .plate #lawchip { flex-basis: 100%; text-align: right; }
 /* the radar: round, a heavy black rim and a thin light one, the map turning under a fixed arrow */
-.radar { position: absolute; top: calc(4px + var(--st)); left: calc(4px + env(safe-area-inset-left, 0px)); width: 64px; height: 64px; padding: 0; border: 0; border-radius: 50%; background: #1e2a1c; box-shadow: 0 0 0 2px #000, 0 0 0 3px rgba(255, 255, 255, 0.6), 0 3px 8px rgba(0, 0, 0, 0.5); overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.radar { position: absolute; top: calc(8px + var(--st)); left: calc(8px + env(safe-area-inset-left, 0px)); width: 64px; height: 64px; padding: 0; border: 0; border-radius: 50%; background: #1e2a1c; box-shadow: 0 0 0 2px #000, 0 0 0 3px rgba(255, 255, 255, 0.6), 0 3px 8px rgba(0, 0, 0, 0.5); overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .radar canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
-@media (min-width: 900px) and (min-height: 600px) { .radar { width: 92px; height: 92px; } .purse .amount { font-size: 22px; } .purse .amount .unit, .purse .pounds { font-size: 10px; } .plate .clock { font-size: 14px; } .plate .eyebrow { font-size: 9px; } #hud .life { width: 120px; height: 10px; } #hud { --under: 108px; } }
+@media (min-width: 900px) and (min-height: 600px) { .radar { width: 92px; height: 92px; } .purse { --big: 22px; } .purse .amount .unit, .purse .pounds { font-size: 10px; } .plate .clock { font-size: 14px; } .plate .eyebrow { font-size: 9px; } #hud .life { width: 120px; height: 10px; } #hud { --under: 113px; } }
 /* life: only while it matters, above the purse. Thick, edged in black: green, orange as it falls, red at a fifth */
 #vitals { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; pointer-events: none; margin-bottom: 2px; }
 #hud .vital { display: flex; gap: 5px; align-items: center; }
@@ -628,7 +639,7 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 
 /* A phone held upright: the corners stay small, the prompt moves to the left above the stick, and the phone's own screen fills the page. */
 @media (max-width: 640px) {
-  #start { grid-template-columns: 1fr; grid-template-rows: auto auto auto; grid-template-areas: "lead" "stage" "panel"; }
+  #start { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "lead" "stage" "panel"; }
   /* upright on a phone: the story first, then the figure, which stays in view while its colours are chosen below it */
   #start .lead { padding: calc(18px + var(--st)) 16px 14px; }
   #start .stage { position: sticky; top: 0; z-index: 2; height: 56vh; height: 56svh; min-height: 360px; padding-top: 10px; background: radial-gradient(ellipse at 50% 55%, #1b1c1f 0, #0b0b0c 75%); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6); }
@@ -654,8 +665,8 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 }
 /* A phone held sideways: little height. The stick and the buttons sit lower and the buttons spread sideways; the prompt goes to the foot of the screen between them. */
 @media (max-height: 480px) {
-  .radar { width: 54px; height: 54px; top: calc(4px + var(--st)); }
-  #hud { --under: 66px; }
+  .radar { width: 54px; height: 54px; top: calc(7px + var(--st)); }
+  #hud { --under: 70px; }
   /* with the phone on its side the top band is the map and the purse; notices and the dashboard go just under it */
   #notices { top: calc(var(--under) + var(--st)); width: min(340px, calc(100% - 300px)); }
   .dash { top: calc(var(--under) + var(--st)) !important; bottom: auto !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; }
@@ -757,6 +768,13 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 .stage-nav .nav:disabled { opacity: 0.28; }
 .stage-nav .nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .fig-label b { font-size: 21px; letter-spacing: 0.02em; }
+/* The arrows and the name between them are as wide as the stage and no wider: the arrows are sized from the
+   screen (never under 48 px, which a thumb needs), the name gives way before they do, and nothing is pushed off
+   the side of a narrow phone or out of the stage's half of a phone on its side. */
+.stage-nav { width: 100%; max-width: 100%; box-sizing: border-box; padding: 0 8px; gap: clamp(8px, 4vw, 22px); }
+.stage-nav .nav { flex: none; width: clamp(52px, 19vw, 78px); height: auto; aspect-ratio: 78 / 70; }
+.stage-nav .fig-label { flex: 0 1 132px; min-width: 0; overflow-wrap: anywhere; }
+@media (max-height: 520px) and (orientation: landscape) { .stage-nav { gap: clamp(6px, 2vw, 22px); } .stage-nav .nav { width: clamp(48px, 9vw, 78px); } }
 /* the animations, the colours: small plates with cut corners, the chosen one white */
 .part { --cut: 6px; position: relative; isolation: isolate; min-height: 40px; padding: 0 14px 0 11px; border: 0; border-radius: 0; background: #77777a; color: #f0f0ec; font: 700 12px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); transition: transform 0.09s ease; }
 .part::before { content: ""; position: absolute; inset: 1.5px; z-index: -1; background: linear-gradient(180deg, #1b1b1d, #0a0a0b); clip-path: polygon(calc(var(--cut) - 0.6px) 0, 100% 0, 100% calc(100% - var(--cut) + 0.6px), calc(100% - var(--cut) + 0.6px) 100%, 0 100%, 0 calc(var(--cut) - 0.6px)); }
@@ -769,7 +787,7 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 .parts { gap: 7px; }
 #paths { gap: 10px; margin-top: 8px !important; }
 .account-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 2px 0 0; }
-.account-row .hx { flex: 1 1 150px; min-width: 0; white-space: nowrap; font-size: 13px; letter-spacing: 0.07em; }
+.account-row .hx { flex: 1 1 150px; min-width: max-content; max-width: 100%; white-space: nowrap; font-size: 13px; letter-spacing: 0.07em; }
 .account-row #open-signup { flex: 1.35 1 170px; }
 .account-row .who { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
 .account-row .who b { color: #fff; font-weight: 700; letter-spacing: 0.02em; }
@@ -1033,10 +1051,35 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .confirm-box { width: min(480px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 22px 20px 18px; background: linear-gradient(180deg, #1b1c1f, #0e0e10); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 24px 70px rgba(0, 0, 0, 0.7); color: #fff; animation: cover-rise 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .confirm-box h3 { margin: 0; font: 800 20px/1.2 var(--font-ui); letter-spacing: 0; text-transform: none; color: #fff; }
 .confirm-box p { margin: 0; color: #d4d4cf; font-size: 15px; line-height: 1.5; }
-.confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+/* what is to be paid, set out so that it can be read: a name on the left, a figure on the right */
+.confirm-rows { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0; margin: 2px 0 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.03); }
+.confirm-rows[hidden] { display: none; }
+.confirm-rows dt, .confirm-rows dd { margin: 0; padding: 10px 12px; font-size: 14.5px; line-height: 1.3; border-top: 1px solid rgba(255, 255, 255, 0.09); min-width: 0; }
+.confirm-rows dt:first-of-type, .confirm-rows dt:first-of-type + dd { border-top: 0; }
+.confirm-rows dt { color: #b9b9b4; }
+.confirm-rows dd { color: #fff; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.confirm-rows dd.strong { color: #9fe0b8; }
+.confirm-note { font-size: 13.5px !important; color: #b9b9b4 !important; }
+.confirm-box { max-height: 100%; overflow-y: auto; }
+/* A phone on its side has room across and none down: a dialog with a table in it puts the words on the left and
+   the table and the buttons on the right, so that the buttons are on the screen without scrolling for them. */
+@media (max-height: 520px) and (orientation: landscape) and (min-width: 600px) {
+  .confirm-box:has(.confirm-rows:not([hidden])) { width: min(780px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); column-gap: 20px; row-gap: 8px; align-content: start; padding: 16px 18px 14px; }
+  .confirm-box:has(.confirm-rows:not([hidden])) > h3, .confirm-box:has(.confirm-rows:not([hidden])) > #confirm-body, .confirm-box:has(.confirm-rows:not([hidden])) > .confirm-note, .confirm-box:has(.confirm-rows:not([hidden])) > #confirm-error { grid-column: 1; }
+  .confirm-box:has(.confirm-rows:not([hidden])) > .confirm-rows { grid-column: 2; grid-row: 1 / span 4; align-self: start; }
+  .confirm-box:has(.confirm-rows:not([hidden])) > .confirm-actions { grid-column: 2; margin-top: 2px; }
+  .confirm-rows dt, .confirm-rows dd { padding: 6px 10px; font-size: 13.5px; }
+  .confirm-box p { font-size: 14px; line-height: 1.4; }
+  .confirm-actions .hx { min-height: 44px; }
+}
+.confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 0; }
 .confirm-actions .hx { flex: 1 1 auto; min-width: max-content; padding-left: 30px; padding-right: 30px; font-size: 13px; letter-spacing: 0.07em; white-space: nowrap; }
 /* on a narrow screen the two answers are one above the other, each the full width: neither is squeezed, and a long one is read whole */
-@media (max-width: 520px) { .confirm-actions { flex-direction: column; } .confirm-actions .hx { flex: none; width: 100%; } }
+@media (max-width: 520px) { .confirm-actions { flex-direction: column; } .confirm-actions .hx { flex: none; width: 100%; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: normal; line-height: 1.2; } }
+/* The answers are always on the screen. When a dialog is taller than the screen (the upgrade's table on a small
+   phone), what is above them scrolls and they stay at the foot of the box, on its own ground. */
+.confirm-actions { position: sticky; bottom: -18px; z-index: 1; margin-bottom: -18px; padding: 10px 0 18px; background: linear-gradient(180deg, rgba(14, 14, 16, 0), #0e0e10 10px); }
+.confirm-box { overscroll-behavior: contain; }
 #confirm-yes.danger { color: #ffd9d4; }
 #confirm-yes:disabled, #confirm-no:disabled { opacity: 0.6; cursor: progress; }
 @media (prefers-reduced-motion: reduce) { #confirm, .confirm-box { animation: none; } }
@@ -1049,11 +1092,51 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; animation: spin 0.8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
-#start[data-gate="shut"] .stage, #start[data-gate="shut"] .intro, #start[data-gate="shut"] #continue-top, #start[data-gate="shut"] #start-title,
-#start[data-gate="wait"] .stage, #start[data-gate="wait"] .intro, #start[data-gate="wait"] #continue-top, #start[data-gate="wait"] #start-title { display: none !important; }
-#start[data-gate="shut"], #start[data-gate="wait"] { grid-template-columns: minmax(0, 560px) !important; grid-template-rows: auto !important; grid-template-areas: "lead" !important; justify-content: center; align-content: center; overflow: auto; }
-#start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead { padding-bottom: clamp(20px, 5vh, 48px); }
+/* The start screen with only its head on it: shut until someone signs in (data-gate), or a moment's wait for
+   someone who already has a character (data-screen="resume"). The head sits in the middle of the screen when
+   it fits there. When the screen is too short for it (a phone on its side) it starts at the top and the page
+   scrolls: an auto margin does that, where centring the row would have pushed its top off the screen, out of
+   reach, which is how the game's name came to be cut off. */
+#start[data-gate="shut"] .stage, #start[data-gate="shut"] .intro, #start[data-gate="shut"] #start-title, #start[data-gate="shut"] #locked-note, #start[data-gate="shut"] #resume,
+#start[data-gate="wait"] .stage, #start[data-gate="wait"] .intro, #start[data-gate="wait"] #start-title, #start[data-gate="wait"] #locked-note, #start[data-gate="wait"] #resume,
+#start[data-screen="resume"] .stage, #start[data-screen="resume"] .intro, #start[data-screen="resume"] #start-title, #start[data-screen="resume"] #locked-note { display: none !important; }
+#start[data-gate="shut"], #start[data-gate="wait"], #start[data-screen="resume"] { display: flex !important; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; }
+#start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead, #start[data-screen="resume"] .lead { width: min(620px, 100%); margin: auto; box-sizing: border-box; padding-top: calc(clamp(14px, 4vh, 40px) + var(--st)); padding-bottom: calc(clamp(14px, 4vh, 40px) + var(--sb)); flex: none; }
 #start[data-gate="shut"] .account-row .hx, #start[data-gate="wait"] .account-row .hx { min-height: 56px; font-size: 14px; }
+/* a signed-in player waiting to go in does not need the account's own row repeated above them */
+#start[data-screen="resume"]:not([data-gate="shut"]):not([data-gate="wait"]) .account-row #account-note:not([hidden]) { display: block; }
+/* A phone on its side: the story on the left, what is to be done on the right, so that it all fits without
+   scrolling on most phones (and scrolls, from the top, on the ones where it does not). */
+@media (max-height: 520px) and (orientation: landscape) and (min-width: 600px) {
+  #start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead, #start[data-screen="resume"] .lead { width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: clamp(18px, 4vw, 36px); row-gap: 10px; align-items: start; }
+  #start[data-gate="shut"] .lead > .brand, #start[data-gate="wait"] .lead > .brand, #start[data-screen="resume"] .lead > .brand { grid-column: 1; grid-row: 1; }
+  #start[data-gate="shut"] .lead > .story, #start[data-gate="wait"] .lead > .story, #start[data-screen="resume"] .lead > .story { grid-column: 1; grid-row: 2 / span 3; }
+  #start[data-gate="shut"] .lead > .gate-card, #start[data-gate="wait"] .lead > .gate-card, #start[data-screen="resume"] .lead > .gate-card { grid-column: 2; grid-row: 1 / span 2; }
+  #start[data-gate="shut"] .lead > .account-row, #start[data-gate="wait"] .lead > .account-row, #start[data-screen="resume"] .lead > .account-row { grid-column: 2; grid-row: 3; margin: 0; }
+  #start .story p { line-height: 1.38; font-size: 14.5px; }
+  .gate-card { padding: 13px 14px; gap: 7px; }
+  .gate-card h2 { font-size: 18px !important; }
+  .gate-card p { font-size: 13.5px; line-height: 1.42; }
+  #start[data-gate="shut"] .account-row .hx, #start[data-gate="wait"] .account-row .hx { min-height: 48px; }
+}
+
+/* ---- the characters, looked at from inside the game ---- */
+#start[data-screen="gallery"] .lead > .story, #start[data-screen="gallery"] .lead > .gate-card, #start[data-screen="gallery"] .lead > .account-row, #start[data-screen="gallery"] #locked-note,
+#start[data-screen="gallery"] .creator > label, #start[data-screen="gallery"] .creator > #colour-block, #start[data-screen="gallery"] .creator > .startrow, #start[data-screen="gallery"] .creator > #start-error { display: none !important; }
+#start[data-screen="gallery"] #start-title { border-top: 0; padding-top: 0; margin-top: 2px; }
+#start:not([data-screen="gallery"]) .gallery { display: none !important; }
+.gallery { display: flex; flex-direction: column; gap: 12px; order: -1; }
+#start .intro > .gallery { order: 0; }
+.gallery[hidden] { display: none; }
+.gallery-tag { align-self: flex-start; padding: 5px 10px; font: 700 11px/1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: #0b0b0c; background: #9fe0b8; }
+.gallery-tag[data-own="false"] { background: #e8e8e3; }
+.gallery p { margin: 0; max-width: 52ch !important; }
+#gallery-text { color: #fff; }
+/* buttons whose words may be long (a character's name, "Back to the Game"): they keep their words whole, and
+   on a narrow screen take a line each instead of being squeezed or cut */
+.startrow .hx { min-width: min(100%, 150px); max-width: 100%; white-space: normal; text-align: center; line-height: 1.2; padding-top: 6px; padding-bottom: 6px; }
+@media (max-width: 520px) { .gallery .startrow { flex-direction: column; align-items: stretch; } .gallery .startrow .hx { flex: none; width: 100%; } }
+#locked-note { max-width: 46ch; }
 #account-retry { flex: 0 0 auto !important; }
 
 /* ---- a switch: where the knob is, the colour of the track and the word beside it all say on or off ---- */
@@ -1096,6 +1179,18 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .wl-balance span { font: 800 18px/1 var(--font-ui); letter-spacing: 0.08em; color: #ffd166; }
 .wl-balance.wl-wait b { color: #6f6f76; }
 .wl-held { font-size: 13px; color: var(--muted); }
+/* what the balance is made of: one line under it, and the rest for anyone who opens it */
+.wl-parts { font-size: 13.5px; color: #d9d9d4; }
+.wl-parts summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; }
+.wl-parts summary::-webkit-details-marker { display: none; }
+.wl-parts summary:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.wl-parts .wl-more { flex: none; font: 700 11px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: #ffd166; padding: 6px 0 6px 8px; }
+.wl-parts[open] .wl-more { opacity: 0.6; }
+.wl-partrows { display: grid; gap: 0; margin: 4px 0 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.wl-part { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.wl-part:first-child { border-top: 0; }
+.wl-part b { color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wl-parts .small { margin: 8px 0 0 !important; line-height: 1.45; }
 .wl-user { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); min-height: 44px; }
 .wl-copied { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #7fd6a4; white-space: nowrap; }
 .wl-icon.done { background: #3c9a66; color: #fff; }
@@ -1106,8 +1201,9 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .wl-icon:active { transform: scale(0.92); }
 .wl-icon:focus-visible, .wl-pick:focus-visible, .wl-chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .wl-icon:disabled { opacity: 0.4; }
-.wl-actions { display: flex; gap: 12px; }
-.wl-actions > .hx { flex: 1 1 0; min-width: 0; }
+.wl-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+/* each as wide as its words at least: on a phone too narrow for the two side by side, one goes under the other */
+.wl-actions > .hx { flex: 1 1 0; min-width: max-content; max-width: 100%; }
 .wl-actions.column { flex-direction: column; }
 .wl-actions.column > .hx { flex: none; }
 .wl-person { display: flex; align-items: center; gap: 4px; }
@@ -1304,9 +1400,17 @@ canvas.map.nation { border-radius: 14px; }
         <p class="account-note" id="account-note" hidden></p>
         <button class="hx small" id="account-retry" type="button" hidden>Try again</button>
       </div>
-      <!-- a character already on this device (or brought to it by logging in): one press and the game goes on -->
-      <button class="hx primary wide" id="continue-top" type="button" hidden>Continue</button>
+      <!-- Someone who already has a character is not asked to make one: this is what they see for the moment it
+           takes the town to be ready (or their character to arrive from their account), and then they are in. A
+           character that could not be fetched is said so here, with a way to try again; it is never replaced. -->
+      <div class="gate-card" id="resume" role="status" hidden>
+        <h2 id="resume-title">Welcome back</h2>
+        <p id="resume-text"></p>
+        <p class="gate-wait" id="resume-wait"><i class="spin" aria-hidden="true"></i><span id="resume-wait-text">Preparing the town...</span></p>
+        <button class="hx small" id="resume-retry" type="button" hidden>Try again</button>
+      </div>
       <h2 id="start-title">Create your character</h2>
+      <p class="small" id="locked-note" hidden></p>
     </header>
     <!-- the figure, drawn in 3D: drag it to turn it; the arrows change it -->
     <section class="stage" id="stage" aria-label="Your character">
@@ -1324,13 +1428,23 @@ canvas.map.nation { border-radius: 14px; }
         <label><span class="eyebrow">Name</span><input class="field" id="name" name="name" maxlength="24" value="" required autocapitalize="words" enterkeyhint="done"></label>
         <div id="colour-block"><div class="eyebrow">Colours</div><div class="parts" id="part-tabs"></div><div class="swatches" id="part-swatches"></div></div>
         <div id="anim-block" hidden><div class="eyebrow">Animations</div><div class="parts" id="anim-list"></div></div>
-        <div><div class="eyebrow">Your path</div><div class="actions" id="paths" style="margin-top:6px"><button class="hx small" type="button" data-path="hero" aria-pressed="true">Hero</button><button class="hx small" type="button" data-path="villain" aria-pressed="false">Villain</button></div></div>
         <div class="startrow">
           <button class="hx primary" id="enter" type="submit">Enter the town</button>
-          <button class="hx" id="continue" type="button" hidden>Continue</button>
         </div>
-        <div class="notice" id="start-error" hidden></div>
+        <div class="notice" id="start-error" role="alert" hidden></div>
       </form>
+      <!-- The characters, looked at from inside the game (main.js, openGallery). Looking changes nothing; the only
+           way to become another is the upgrade, which is paid for and asked about first. -->
+      <div class="gallery" id="gallery" hidden>
+        <div class="gallery-tag" id="gallery-tag" data-own="true">Your character</div>
+        <p id="gallery-text"></p>
+        <div class="startrow">
+          <button class="hx primary" id="gallery-upgrade" type="button" hidden>Upgrade Character</button>
+          <button class="hx" id="gallery-back" type="button">Back to the Game</button>
+        </div>
+        <p class="small" id="gallery-rule"></p>
+        <div class="notice" id="gallery-note" role="alert" hidden></div>
+      </div>
     </div>
   </div>
 
@@ -1357,6 +1471,8 @@ canvas.map.nation { border-radius: 14px; }
     <div class="confirm-box">
       <h3 id="confirm-title"></h3>
       <p id="confirm-body"></p>
+      <dl class="confirm-rows" id="confirm-rows" hidden></dl>
+      <p class="confirm-note" id="confirm-note" hidden></p>
       <div class="notice" id="confirm-error" role="alert" hidden></div>
       <div class="confirm-actions">
         <button class="hx" id="confirm-no" type="button">Cancel</button>

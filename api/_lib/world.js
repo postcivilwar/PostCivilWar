@@ -57,11 +57,13 @@ async function savePut(sql, me, body, { first = false } = {}) {
     let mark = now.length ? Number(now[0].wallet_mark) : 0;
     let bank = null;
     if (report) { bank = await wallet.game(tx, me, report, mark); mark = bank.mark; }
-    else bank = { balance: (await wallet.walletOf(tx, me.id, false)).balance, mark, refused: 0, short: 0 };
+    else { const w = await wallet.walletOf(tx, me.id, false); bank = { balance: w.balance, starter: w.starter, illicit: w.illicit, eligible: w.eligible, mark, refused: 0, short: 0 }; }
+    // (the account's character is the server's to say; what a page calls its figure is only kept for one that has none yet)
+    const figure = (await tx.unsafe(`select figure from ${S}.accounts where id = $1`, [me.id]))[0].figure || short(summary.figure, 8);
     await tx.unsafe(
       `insert into ${S}.saves (account_id, rev, enc, data, character_name, figure, tr, wallet_mark, erased) values ($1, $2, $3, $4, $5, $6, $7, $8, false)
        on conflict (account_id) do update set rev = excluded.rev, enc = excluded.enc, data = excluded.data, character_name = excluded.character_name, figure = excluded.figure, tr = excluded.tr, wallet_mark = excluded.wallet_mark, erased = false, updated_at = now()`,
-      [me.id, next, enc, body.data, short(summary.name, 40), short(summary.figure, 8), bank.balance, mark]);
+      [me.id, next, enc, body.data, short(summary.name, 40), figure, bank.balance, mark]);
     // (sales made before the bank kept the money were settled by each game and marked here; none are made that way now)
     const paid = ids(applied.debits), credited = ids(applied.credits);
     if (paid.length) await tx.unsafe(`update ${S}.sales set buyer_paid_rev = $2 where buyer_id = $1 and buyer_paid_rev is null and id in (select value::uuid from jsonb_array_elements_text($3::text::jsonb))`, [me.id, next, JSON.stringify(paid)]);
@@ -100,7 +102,9 @@ async function presence(sql, me, body) {
     const x = Number(state.x), z = Number(state.z);
     const text = JSON.stringify(state);
     if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 5000 || Math.abs(z) > 5000 || text.length > 900) throw new ApiError(400, 'BAD_REQUEST', 'That is not a place in town.');
-    const stamped = JSON.stringify({ ...state, n: me.username });
+    // the name is the account's, and so is the figure: a game appears to others as the character its account is
+    const look = state.lk && typeof state.lk === 'object' && !Array.isArray(state.lk) ? state.lk : null;
+    const stamped = JSON.stringify({ ...state, n: me.username, ...(me.figure && look ? { lk: { ...look, g: me.figure, f: me.figure.startsWith('W') ? 1 : 0 } } : {}) });
     await sql.unsafe(
       `insert into ${S}.presence (account_id, zone, x, z, state, at) values ($1, $2, $3, $4, $5::text::jsonb, now())
        on conflict (account_id) do update set zone = excluded.zone, x = excluded.x, z = excluded.z, state = excluded.state, at = now()`,

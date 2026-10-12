@@ -10,6 +10,10 @@
 //             back; and only then is it sent, under a key made once for that confirmation. If no answer comes,
 //             the same key is used again: the bank does it once however often it is asked.
 //
+// What the wallet is made of is the bank's to say too: how much of it is starter TR (the arrival money, which
+// pays the town's charges and costs and nothing else) and how much is eligible (earned TR: what can be sent,
+// offered, or spent on a thing to own). This world's own count of that is set to the bank's with each answer.
+//
 // It draws nothing and touches no page: the interface is ui-wallet.js.
 
 import { newId } from './market.js';
@@ -19,15 +23,15 @@ import { trText } from '../sim/ledger.js';
 // playerId(): this player. saveNow(): send the character to the account at once, and say how that went.
 // notify(event): things the player should be told. seen: { get(), set(n) }: the last entry this device has shown.
 export function createWallet({ online, bank, playerId, saveNow = async () => null, saveSoon = () => {}, notify = () => {}, seen = { get: () => null, set: () => {} }, id = newId }) {
-  const state = { balance: null, held: 0, username: '', last: 0, at: 0, loading: false, error: '' };
+  const state = { balance: null, starter: null, illicit: 0, eligible: null, held: 0, username: '', last: 0, at: 0, loading: false, error: '' };
   const can = () => online.available && online.signedIn;
   const fail = (code, message) => ({ ok: false, code, message });
 
   // This world's wallet is made to say what the bank says (plus what has happened in town since the bank was told).
-  function align(balance, why) {
+  function align(balance, why, parts = null) {
     const b = bank(), me = playerId();
     if (!b || !me || !Number.isSafeInteger(balance)) return 0;
-    const done = b.align(me, balance, why);
+    const done = b.align(me, balance, why, parts);
     if (done.ok && done.moved) saveSoon();
     return done.ok ? done.moved : 0;
   }
@@ -36,7 +40,13 @@ export function createWallet({ online, bank, playerId, saveNow = async () => nul
   function heard(answer, why) {
     if (!answer) return;
     const w = answer.wallet && typeof answer.wallet === 'object' ? answer.wallet : answer;
-    if (Number.isSafeInteger(w.balance)) { state.balance = w.balance; state.at = Date.now(); state.error = ''; align(w.balance, why); }
+    if (Number.isSafeInteger(w.balance)) {
+      state.balance = w.balance; state.at = Date.now(); state.error = '';
+      // what it is made of: said by the bank with every balance it gives
+      const parts = Number.isSafeInteger(w.starter) ? { starter: w.starter, illicit: Number.isSafeInteger(w.illicit) ? w.illicit : 0 } : null;
+      if (parts) { state.starter = parts.starter; state.illicit = parts.illicit; state.eligible = Number.isSafeInteger(w.eligible) ? w.eligible : w.balance - parts.starter; }
+      align(w.balance, why, parts);
+    }
     if (Number.isSafeInteger(w.held)) state.held = w.held;
     if (typeof w.username === 'string') state.username = w.username;
     if (Number.isSafeInteger(w.last)) {
@@ -54,6 +64,8 @@ export function createWallet({ online, bank, playerId, saveNow = async () => nul
     if (b && me && Number.isSafeInteger(w.mark)) b.told(me, w.mark);
     heard(w, why);
     if (w.refused > 0) notify({ type: 'refused', amount: w.refused });
+    // the game here let something be bought that the bank will not take out of starter TR: the player is told
+    if (w.shortAsset > 0) notify({ type: 'unpaid', amount: w.shortAsset });
   }
 
   function report() { const b = bank(), me = playerId(); return b && me ? b.report(me) : null; }
@@ -92,6 +104,6 @@ export function createWallet({ online, bank, playerId, saveNow = async () => nul
     people: () => online.ask('wallet.people'),
     addPerson: (username) => online.ask('wallet.person.add', { username }),
     removePerson: (username) => online.ask('wallet.person.remove', { username }),
-    reset() { state.balance = null; state.held = 0; state.username = ''; state.last = 0; state.error = ''; },
+    reset() { state.balance = null; state.starter = null; state.illicit = 0; state.eligible = null; state.held = 0; state.username = ''; state.last = 0; state.error = ''; },
   };
 }

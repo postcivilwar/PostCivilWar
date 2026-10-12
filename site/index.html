@@ -208,7 +208,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 /* ---------- start: make a character, or carry on ---------- */
 @media (max-height: 520px) and (orientation: landscape) { #start { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr) !important; grid-template-rows: auto 1fr !important; grid-template-areas: "stage lead" "stage panel" !important; } #start .stage { position: sticky !important; height: 100vh !important; height: 100dvh !important; min-height: 0 !important; } }
 #start { position: absolute; inset: 0; display: grid; grid-template-columns: minmax(0, 460px) 1fr; grid-template-rows: auto 1fr; grid-template-areas: "lead stage" "panel stage"; background: radial-gradient(ellipse at 68% 46%, #1b1c1f 0, #0b0b0c 62%, #060607 100%); overflow-y: auto; overscroll-behavior: contain; }
-#start .lead { grid-area: lead; padding: clamp(20px, 5vh, 48px) clamp(16px, 4vw, 44px) 0; display: flex; flex-direction: column; gap: 14px; }
+#start .lead { grid-area: lead; padding: calc(clamp(16px, 5vh, 48px) + var(--st)) max(clamp(16px, 4vw, 44px), env(safe-area-inset-right, 0px)) 0 max(clamp(16px, 4vw, 44px), env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 14px; min-width: 0; }
 #start .intro { grid-area: panel; }
 #start .story { display: flex; flex-direction: column; gap: 6px; max-width: 46ch; }
 #start .story p { margin: 0; color: var(--text); line-height: 1.45; }
@@ -240,14 +240,19 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #anim-list .part { padding: 0 13px; }
 #part-swatches .swatch { width: 40px; height: 40px; border-radius: 6px; }
 #start .intro { padding: 20px clamp(16px, 4vw, 44px) clamp(24px, 5vh, 48px); display: flex; flex-direction: column; gap: 18px; }
-#start .brand { display: flex; align-items: center; gap: 14px; }
-#start .brand .mark { width: 64px; flex: none; }
-#start h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(17px, 2.1vw, 24px); line-height: 1.25; margin: 0; white-space: nowrap; }
+#start .brand { display: flex; align-items: center; gap: clamp(10px, 3vw, 14px); min-width: 0; }
+#start .brand .mark { width: clamp(44px, 15vw, 64px); flex: none; }
+/* The game's name: on one line where there is room for it, on two where there is not, and never cut. (It is
+   three words: where the line is too short it breaks between them, and the mark beside it gets smaller first.) */
+#start h1 { font-family: var(--font-display); font-weight: 400; font-size: clamp(16px, min(2.1vw + 6px, 5.6vw), 24px); line-height: 1.25; margin: 0; min-width: 0; overflow-wrap: break-word; text-wrap: balance; }
 #start h2 { font-size: 22px; font-weight: 700; margin: 6px 0 0; letter-spacing: -0.01em; }
 /* the question comes after the story, just above the woman-or-man switch, set apart by a rule */
 #start .lead #start-title { margin: 8px 0 0; padding-top: 16px; border-top: 1px solid rgba(255, 255, 255, 0.12); }
 #start p { margin: 0; max-width: 46ch; color: var(--text); }
 #start .small { color: var(--muted); font-size: 13px; }
+/* (a small button is still a button: its words are white, not the grey of small print. "Try again" was the only
+   thing to press on its screen and looked as if it could not be) */
+#start .hx.small { color: #fff; }
 #sheet .small { color: var(--muted); font-size: 13px; margin: 0; }
 #sheet .vital { grid-template-columns: auto 1fr auto; }
 #sheet .banner strong { font-weight: 600; }
@@ -270,20 +275,26 @@ button, input, select, textarea { font: inherit; color: inherit; }
    Less of it, and more of the town. What is always there is small and sits in the corners: the time, the
    purse. Everything else comes when it matters and goes again: a notice, a prompt, the health of someone
    the player is fighting. Nothing has a white card behind it. */
-#hud { position: absolute; inset: 0; pointer-events: none; --under: 80px; }
+#hud { position: absolute; inset: 0; pointer-events: none; --under: 85px; }
 #hud > * { pointer-events: auto; }
 .meter { height: 2px; background: rgba(255, 255, 255, 0.22); margin-top: 6px; border-radius: 1px; overflow: hidden; }
 .meter i { display: block; height: 100%; background: var(--white); width: 80%; transition: width 0.3s; }
 .meter.low i { background: var(--danger); }
 /* The corners are the game's own: the arcade face, heavy black edges, a little colour. The purse is green as money is,
    the life bar green to orange to red; the time is white. Nothing has a box behind it but the radar. */
-.hudr { position: absolute; top: calc(3px + var(--st)); right: calc(10px + env(safe-area-inset-right, 0px)); max-width: calc(100% - 100px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: none; text-align: right; }
+/* The top band keeps a little clear of the screen's edge: the figures have a black outline that reaches above
+   their own line, and a phone's screen has rounded corners. Set hard against the top (as it once was) the
+   balance lost its top edge on a phone held sideways. */
+.hudr { position: absolute; top: calc(8px + var(--st)); right: calc(12px + env(safe-area-inset-right, 0px)); max-width: calc(100% - 100px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)); display: flex; flex-direction: column; align-items: flex-end; gap: 2px; pointer-events: none; text-align: right; }
 .hudr > * { pointer-events: auto; }
 /* Small, at the very top, two short lines: the purse (TR, and what it is worth in 1970 pounds), then the
    time, the day and where. The black edge is thinner at this size, so the letters stay sharp on a phone. */
 .arcade-edge, .purse .amount, .purse .pounds, .plate .clock { font-family: "PCW Arcade", var(--font-ui); -webkit-text-stroke: 0; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 -1.5px 0 #000, 0 1.5px 0 #000, -1.5px 0 0 #000, 1.5px 0 0 #000, 0 2px 3px rgba(0, 0, 0, 0.5); }
-.purse { line-height: 1; display: flex; align-items: baseline; gap: 6px; white-space: nowrap; }
-.purse .amount { color: #7fe07a; font-size: 18px; letter-spacing: 0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
+/* The balance is one line, whole, however many figures it has: its size comes from the room there is beside the
+   radar and how many characters are to go in it (--n, set where the balance is written), never larger than its
+   usual size and never too small to read; the pounds go under it when there is not room beside it. */
+.purse { --big: 18px; line-height: 1.2; padding: 1px 2px 0 0; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: 6px; row-gap: 0; white-space: nowrap; max-width: 100%; }
+.purse .amount { color: #7fe07a; font-size: clamp(9px, calc((100vw - 118px - env(safe-area-inset-left, 0px) - env(safe-area-inset-right, 0px)) / (var(--n, 8) * 0.86)), var(--big)); letter-spacing: 0.02em; white-space: nowrap; font-variant-numeric: tabular-nums; }
 .purse .amount .unit { font-size: 9px; letter-spacing: 0.08em; color: #bff0b8; }
 .purse .pounds { color: #f3e2a6; font-size: 9px; letter-spacing: 0.08em; margin-top: 0; }
 .plate { margin-top: 1px; display: flex; flex-wrap: wrap; justify-content: flex-end; align-items: baseline; column-gap: 6px; row-gap: 1px; }
@@ -292,9 +303,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .plate .where { display: flex; gap: 6px; align-items: baseline; justify-content: flex-end; white-space: nowrap; }
 .plate .room, .plate #lawchip { flex-basis: 100%; text-align: right; }
 /* the radar: round, a heavy black rim and a thin light one, the map turning under a fixed arrow */
-.radar { position: absolute; top: calc(4px + var(--st)); left: calc(4px + env(safe-area-inset-left, 0px)); width: 64px; height: 64px; padding: 0; border: 0; border-radius: 50%; background: #1e2a1c; box-shadow: 0 0 0 2px #000, 0 0 0 3px rgba(255, 255, 255, 0.6), 0 3px 8px rgba(0, 0, 0, 0.5); overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+.radar { position: absolute; top: calc(8px + var(--st)); left: calc(8px + env(safe-area-inset-left, 0px)); width: 64px; height: 64px; padding: 0; border: 0; border-radius: 50%; background: #1e2a1c; box-shadow: 0 0 0 2px #000, 0 0 0 3px rgba(255, 255, 255, 0.6), 0 3px 8px rgba(0, 0, 0, 0.5); overflow: hidden; cursor: pointer; -webkit-tap-highlight-color: transparent; }
 .radar canvas { width: 100%; height: 100%; display: block; border-radius: 50%; }
-@media (min-width: 900px) and (min-height: 600px) { .radar { width: 92px; height: 92px; } .purse .amount { font-size: 22px; } .purse .amount .unit, .purse .pounds { font-size: 10px; } .plate .clock { font-size: 14px; } .plate .eyebrow { font-size: 9px; } #hud .life { width: 120px; height: 10px; } #hud { --under: 108px; } }
+@media (min-width: 900px) and (min-height: 600px) { .radar { width: 92px; height: 92px; } .purse { --big: 22px; } .purse .amount .unit, .purse .pounds { font-size: 10px; } .plate .clock { font-size: 14px; } .plate .eyebrow { font-size: 9px; } #hud .life { width: 120px; height: 10px; } #hud { --under: 113px; } }
 /* life: only while it matters, above the purse. Thick, edged in black: green, orange as it falls, red at a fifth */
 #vitals { display: flex; flex-direction: column; align-items: flex-end; gap: 3px; pointer-events: none; margin-bottom: 2px; }
 #hud .vital { display: flex; gap: 5px; align-items: center; }
@@ -674,7 +685,7 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 
 /* A phone held upright: the corners stay small, the prompt moves to the left above the stick, and the phone's own screen fills the page. */
 @media (max-width: 640px) {
-  #start { grid-template-columns: 1fr; grid-template-rows: auto auto auto; grid-template-areas: "lead" "stage" "panel"; }
+  #start { grid-template-columns: minmax(0, 1fr); grid-template-rows: auto auto auto; grid-template-areas: "lead" "stage" "panel"; }
   /* upright on a phone: the story first, then the figure, which stays in view while its colours are chosen below it */
   #start .lead { padding: calc(18px + var(--st)) 16px 14px; }
   #start .stage { position: sticky; top: 0; z-index: 2; height: 56vh; height: 56svh; min-height: 360px; padding-top: 10px; background: radial-gradient(ellipse at 50% 55%, #1b1c1f 0, #0b0b0c 75%); box-shadow: 0 10px 24px rgba(0, 0, 0, 0.6); }
@@ -700,8 +711,8 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 }
 /* A phone held sideways: little height. The stick and the buttons sit lower and the buttons spread sideways; the prompt goes to the foot of the screen between them. */
 @media (max-height: 480px) {
-  .radar { width: 54px; height: 54px; top: calc(4px + var(--st)); }
-  #hud { --under: 66px; }
+  .radar { width: 54px; height: 54px; top: calc(7px + var(--st)); }
+  #hud { --under: 70px; }
   /* with the phone on its side the top band is the map and the purse; notices and the dashboard go just under it */
   #notices { top: calc(var(--under) + var(--st)); width: min(340px, calc(100% - 300px)); }
   .dash { top: calc(var(--under) + var(--st)) !important; bottom: auto !important; left: 50% !important; right: auto !important; transform: translateX(-50%) !important; }
@@ -803,6 +814,13 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 .stage-nav .nav:disabled { opacity: 0.28; }
 .stage-nav .nav:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .fig-label b { font-size: 21px; letter-spacing: 0.02em; }
+/* The arrows and the name between them are as wide as the stage and no wider: the arrows are sized from the
+   screen (never under 48 px, which a thumb needs), the name gives way before they do, and nothing is pushed off
+   the side of a narrow phone or out of the stage's half of a phone on its side. */
+.stage-nav { width: 100%; max-width: 100%; box-sizing: border-box; padding: 0 8px; gap: clamp(8px, 4vw, 22px); }
+.stage-nav .nav { flex: none; width: clamp(52px, 19vw, 78px); height: auto; aspect-ratio: 78 / 70; }
+.stage-nav .fig-label { flex: 0 1 132px; min-width: 0; overflow-wrap: anywhere; }
+@media (max-height: 520px) and (orientation: landscape) { .stage-nav { gap: clamp(6px, 2vw, 22px); } .stage-nav .nav { width: clamp(48px, 9vw, 78px); } }
 /* the animations, the colours: small plates with cut corners, the chosen one white */
 .part { --cut: 6px; position: relative; isolation: isolate; min-height: 40px; padding: 0 14px 0 11px; border: 0; border-radius: 0; background: #77777a; color: #f0f0ec; font: 700 12px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; clip-path: polygon(var(--cut) 0, 100% 0, 100% calc(100% - var(--cut)), calc(100% - var(--cut)) 100%, 0 100%, 0 var(--cut)); transition: transform 0.09s ease; }
 .part::before { content: ""; position: absolute; inset: 1.5px; z-index: -1; background: linear-gradient(180deg, #1b1b1d, #0a0a0b); clip-path: polygon(calc(var(--cut) - 0.6px) 0, 100% 0, 100% calc(100% - var(--cut) + 0.6px), calc(100% - var(--cut) + 0.6px) 100%, 0 100%, 0 calc(var(--cut) - 0.6px)); }
@@ -815,7 +833,7 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 .parts { gap: 7px; }
 #paths { gap: 10px; margin-top: 8px !important; }
 .account-row { display: flex; flex-wrap: wrap; gap: 12px; margin: 2px 0 0; }
-.account-row .hx { flex: 1 1 150px; min-width: 0; white-space: nowrap; font-size: 13px; letter-spacing: 0.07em; }
+.account-row .hx { flex: 1 1 150px; min-width: max-content; max-width: 100%; white-space: nowrap; font-size: 13px; letter-spacing: 0.07em; }
 .account-row #open-signup { flex: 1.35 1 170px; }
 .account-row .who { flex: 1 1 100%; display: flex; align-items: center; justify-content: space-between; gap: 12px; color: var(--muted); font-size: 13px; }
 .account-row .who b { color: #fff; font-weight: 700; letter-spacing: 0.02em; }
@@ -1079,10 +1097,35 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .confirm-box { width: min(480px, 100%); display: flex; flex-direction: column; gap: 12px; padding: 22px 20px 18px; background: linear-gradient(180deg, #1b1c1f, #0e0e10); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 24px 70px rgba(0, 0, 0, 0.7); color: #fff; animation: cover-rise 0.18s cubic-bezier(0.2, 0.8, 0.2, 1) both; }
 .confirm-box h3 { margin: 0; font: 800 20px/1.2 var(--font-ui); letter-spacing: 0; text-transform: none; color: #fff; }
 .confirm-box p { margin: 0; color: #d4d4cf; font-size: 15px; line-height: 1.5; }
-.confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 8px; }
+/* what is to be paid, set out so that it can be read: a name on the left, a figure on the right */
+.confirm-rows { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 0; margin: 2px 0 0; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.12); background: rgba(255, 255, 255, 0.03); }
+.confirm-rows[hidden] { display: none; }
+.confirm-rows dt, .confirm-rows dd { margin: 0; padding: 10px 12px; font-size: 14.5px; line-height: 1.3; border-top: 1px solid rgba(255, 255, 255, 0.09); min-width: 0; }
+.confirm-rows dt:first-of-type, .confirm-rows dt:first-of-type + dd { border-top: 0; }
+.confirm-rows dt { color: #b9b9b4; }
+.confirm-rows dd { color: #fff; font-weight: 700; text-align: right; font-variant-numeric: tabular-nums; overflow-wrap: anywhere; }
+.confirm-rows dd.strong { color: #9fe0b8; }
+.confirm-note { font-size: 13.5px !important; color: #b9b9b4 !important; }
+.confirm-box { max-height: 100%; overflow-y: auto; }
+/* A phone on its side has room across and none down: a dialog with a table in it puts the words on the left and
+   the table and the buttons on the right, so that the buttons are on the screen without scrolling for them. */
+@media (max-height: 520px) and (orientation: landscape) and (min-width: 600px) {
+  .confirm-box:has(.confirm-rows:not([hidden])) { width: min(780px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1.05fr); column-gap: 20px; row-gap: 8px; align-content: start; padding: 16px 18px 14px; }
+  .confirm-box:has(.confirm-rows:not([hidden])) > h3, .confirm-box:has(.confirm-rows:not([hidden])) > #confirm-body, .confirm-box:has(.confirm-rows:not([hidden])) > .confirm-note, .confirm-box:has(.confirm-rows:not([hidden])) > #confirm-error { grid-column: 1; }
+  .confirm-box:has(.confirm-rows:not([hidden])) > .confirm-rows { grid-column: 2; grid-row: 1 / span 4; align-self: start; }
+  .confirm-box:has(.confirm-rows:not([hidden])) > .confirm-actions { grid-column: 2; margin-top: 2px; }
+  .confirm-rows dt, .confirm-rows dd { padding: 6px 10px; font-size: 13.5px; }
+  .confirm-box p { font-size: 14px; line-height: 1.4; }
+  .confirm-actions .hx { min-height: 44px; }
+}
+.confirm-actions { display: flex; flex-wrap: wrap; gap: 12px; margin-top: 0; }
 .confirm-actions .hx { flex: 1 1 auto; min-width: max-content; padding-left: 30px; padding-right: 30px; font-size: 13px; letter-spacing: 0.07em; white-space: nowrap; }
 /* on a narrow screen the two answers are one above the other, each the full width: neither is squeezed, and a long one is read whole */
-@media (max-width: 520px) { .confirm-actions { flex-direction: column; } .confirm-actions .hx { flex: none; width: 100%; } }
+@media (max-width: 520px) { .confirm-actions { flex-direction: column; } .confirm-actions .hx { flex: none; width: 100%; min-width: 0; padding-left: 4px; padding-right: 4px; white-space: normal; line-height: 1.2; } }
+/* The answers are always on the screen. When a dialog is taller than the screen (the upgrade's table on a small
+   phone), what is above them scrolls and they stay at the foot of the box, on its own ground. */
+.confirm-actions { position: sticky; bottom: -18px; z-index: 1; margin-bottom: -18px; padding: 10px 0 18px; background: linear-gradient(180deg, rgba(14, 14, 16, 0), #0e0e10 10px); }
+.confirm-box { overscroll-behavior: contain; }
 #confirm-yes.danger { color: #ffd9d4; }
 #confirm-yes:disabled, #confirm-no:disabled { opacity: 0.6; cursor: progress; }
 @media (prefers-reduced-motion: reduce) { #confirm, .confirm-box { animation: none; } }
@@ -1095,11 +1138,51 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .spin { width: 16px; height: 16px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.25); border-top-color: #fff; animation: spin 0.8s linear infinite; flex: none; }
 @keyframes spin { to { transform: rotate(360deg); } }
 @media (prefers-reduced-motion: reduce) { .spin { animation-duration: 2.4s; } }
-#start[data-gate="shut"] .stage, #start[data-gate="shut"] .intro, #start[data-gate="shut"] #continue-top, #start[data-gate="shut"] #start-title,
-#start[data-gate="wait"] .stage, #start[data-gate="wait"] .intro, #start[data-gate="wait"] #continue-top, #start[data-gate="wait"] #start-title { display: none !important; }
-#start[data-gate="shut"], #start[data-gate="wait"] { grid-template-columns: minmax(0, 560px) !important; grid-template-rows: auto !important; grid-template-areas: "lead" !important; justify-content: center; align-content: center; overflow: auto; }
-#start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead { padding-bottom: clamp(20px, 5vh, 48px); }
+/* The start screen with only its head on it: shut until someone signs in (data-gate), or a moment's wait for
+   someone who already has a character (data-screen="resume"). The head sits in the middle of the screen when
+   it fits there. When the screen is too short for it (a phone on its side) it starts at the top and the page
+   scrolls: an auto margin does that, where centring the row would have pushed its top off the screen, out of
+   reach, which is how the game's name came to be cut off. */
+#start[data-gate="shut"] .stage, #start[data-gate="shut"] .intro, #start[data-gate="shut"] #start-title, #start[data-gate="shut"] #locked-note, #start[data-gate="shut"] #resume,
+#start[data-gate="wait"] .stage, #start[data-gate="wait"] .intro, #start[data-gate="wait"] #start-title, #start[data-gate="wait"] #locked-note, #start[data-gate="wait"] #resume,
+#start[data-screen="resume"] .stage, #start[data-screen="resume"] .intro, #start[data-screen="resume"] #start-title, #start[data-screen="resume"] #locked-note { display: none !important; }
+#start[data-gate="shut"], #start[data-gate="wait"], #start[data-screen="resume"] { display: flex !important; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; }
+#start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead, #start[data-screen="resume"] .lead { width: min(620px, 100%); margin: auto; box-sizing: border-box; padding-top: calc(clamp(14px, 4vh, 40px) + var(--st)); padding-bottom: calc(clamp(14px, 4vh, 40px) + var(--sb)); flex: none; }
 #start[data-gate="shut"] .account-row .hx, #start[data-gate="wait"] .account-row .hx { min-height: 56px; font-size: 14px; }
+/* a signed-in player waiting to go in does not need the account's own row repeated above them */
+#start[data-screen="resume"]:not([data-gate="shut"]):not([data-gate="wait"]) .account-row #account-note:not([hidden]) { display: block; }
+/* A phone on its side: the story on the left, what is to be done on the right, so that it all fits without
+   scrolling on most phones (and scrolls, from the top, on the ones where it does not). */
+@media (max-height: 520px) and (orientation: landscape) and (min-width: 600px) {
+  #start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead, #start[data-screen="resume"] .lead { width: min(980px, 100%); display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); column-gap: clamp(18px, 4vw, 36px); row-gap: 10px; align-items: start; }
+  #start[data-gate="shut"] .lead > .brand, #start[data-gate="wait"] .lead > .brand, #start[data-screen="resume"] .lead > .brand { grid-column: 1; grid-row: 1; }
+  #start[data-gate="shut"] .lead > .story, #start[data-gate="wait"] .lead > .story, #start[data-screen="resume"] .lead > .story { grid-column: 1; grid-row: 2 / span 3; }
+  #start[data-gate="shut"] .lead > .gate-card, #start[data-gate="wait"] .lead > .gate-card, #start[data-screen="resume"] .lead > .gate-card { grid-column: 2; grid-row: 1 / span 2; }
+  #start[data-gate="shut"] .lead > .account-row, #start[data-gate="wait"] .lead > .account-row, #start[data-screen="resume"] .lead > .account-row { grid-column: 2; grid-row: 3; margin: 0; }
+  #start .story p { line-height: 1.38; font-size: 14.5px; }
+  .gate-card { padding: 13px 14px; gap: 7px; }
+  .gate-card h2 { font-size: 18px !important; }
+  .gate-card p { font-size: 13.5px; line-height: 1.42; }
+  #start[data-gate="shut"] .account-row .hx, #start[data-gate="wait"] .account-row .hx { min-height: 48px; }
+}
+
+/* ---- the characters, looked at from inside the game ---- */
+#start[data-screen="gallery"] .lead > .story, #start[data-screen="gallery"] .lead > .gate-card, #start[data-screen="gallery"] .lead > .account-row, #start[data-screen="gallery"] #locked-note,
+#start[data-screen="gallery"] .creator > label, #start[data-screen="gallery"] .creator > #colour-block, #start[data-screen="gallery"] .creator > .startrow, #start[data-screen="gallery"] .creator > #start-error { display: none !important; }
+#start[data-screen="gallery"] #start-title { border-top: 0; padding-top: 0; margin-top: 2px; }
+#start:not([data-screen="gallery"]) .gallery { display: none !important; }
+.gallery { display: flex; flex-direction: column; gap: 12px; order: -1; }
+#start .intro > .gallery { order: 0; }
+.gallery[hidden] { display: none; }
+.gallery-tag { align-self: flex-start; padding: 5px 10px; font: 700 11px/1 var(--font-ui); letter-spacing: 0.12em; text-transform: uppercase; color: #0b0b0c; background: #9fe0b8; }
+.gallery-tag[data-own="false"] { background: #e8e8e3; }
+.gallery p { margin: 0; max-width: 52ch !important; }
+#gallery-text { color: #fff; }
+/* buttons whose words may be long (a character's name, "Back to the Game"): they keep their words whole, and
+   on a narrow screen take a line each instead of being squeezed or cut */
+.startrow .hx { min-width: min(100%, 150px); max-width: 100%; white-space: normal; text-align: center; line-height: 1.2; padding-top: 6px; padding-bottom: 6px; }
+@media (max-width: 520px) { .gallery .startrow { flex-direction: column; align-items: stretch; } .gallery .startrow .hx { flex: none; width: 100%; } }
+#locked-note { max-width: 46ch; }
 #account-retry { flex: 0 0 auto !important; }
 
 /* ---- a switch: where the knob is, the colour of the track and the word beside it all say on or off ---- */
@@ -1142,6 +1225,18 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .wl-balance span { font: 800 18px/1 var(--font-ui); letter-spacing: 0.08em; color: #ffd166; }
 .wl-balance.wl-wait b { color: #6f6f76; }
 .wl-held { font-size: 13px; color: var(--muted); }
+/* what the balance is made of: one line under it, and the rest for anyone who opens it */
+.wl-parts { font-size: 13.5px; color: #d9d9d4; }
+.wl-parts summary { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; cursor: pointer; list-style: none; -webkit-tap-highlight-color: transparent; }
+.wl-parts summary::-webkit-details-marker { display: none; }
+.wl-parts summary:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
+.wl-parts .wl-more { flex: none; font: 700 11px/1 var(--font-ui); letter-spacing: 0.1em; text-transform: uppercase; color: #ffd166; padding: 6px 0 6px 8px; }
+.wl-parts[open] .wl-more { opacity: 0.6; }
+.wl-partrows { display: grid; gap: 0; margin: 4px 0 8px; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.1); }
+.wl-part { display: flex; justify-content: space-between; gap: 12px; padding: 8px 10px; border-top: 1px solid rgba(255, 255, 255, 0.08); }
+.wl-part:first-child { border-top: 0; }
+.wl-part b { color: #fff; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.wl-parts .small { margin: 8px 0 0 !important; line-height: 1.45; }
 .wl-user { display: flex; align-items: center; gap: 10px; margin-top: 6px; padding-top: 10px; border-top: 1px solid rgba(255, 255, 255, 0.1); min-height: 44px; }
 .wl-copied { font-size: 12px; font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: #7fd6a4; white-space: nowrap; }
 .wl-icon.done { background: #3c9a66; color: #fff; }
@@ -1152,8 +1247,9 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .wl-icon:active { transform: scale(0.92); }
 .wl-icon:focus-visible, .wl-pick:focus-visible, .wl-chip:focus-visible { outline: 2px solid #fff; outline-offset: 2px; }
 .wl-icon:disabled { opacity: 0.4; }
-.wl-actions { display: flex; gap: 12px; }
-.wl-actions > .hx { flex: 1 1 0; min-width: 0; }
+.wl-actions { display: flex; flex-wrap: wrap; gap: 12px; }
+/* each as wide as its words at least: on a phone too narrow for the two side by side, one goes under the other */
+.wl-actions > .hx { flex: 1 1 0; min-width: max-content; max-width: 100%; }
 .wl-actions.column { flex-direction: column; }
 .wl-actions.column > .hx { flex: none; }
 .wl-person { display: flex; align-items: center; gap: 4px; }
@@ -1361,9 +1457,17 @@ canvas.map.nation { border-radius: 14px; }
         <p class="account-note" id="account-note" hidden></p>
         <button class="hx small" id="account-retry" type="button" hidden>Try again</button>
       </div>
-      <!-- a character already on this device (or brought to it by logging in): one press and the game goes on -->
-      <button class="hx primary wide" id="continue-top" type="button" hidden>Continue</button>
+      <!-- Someone who already has a character is not asked to make one: this is what they see for the moment it
+           takes the town to be ready (or their character to arrive from their account), and then they are in. A
+           character that could not be fetched is said so here, with a way to try again; it is never replaced. -->
+      <div class="gate-card" id="resume" role="status" hidden>
+        <h2 id="resume-title">Welcome back</h2>
+        <p id="resume-text"></p>
+        <p class="gate-wait" id="resume-wait"><i class="spin" aria-hidden="true"></i><span id="resume-wait-text">Preparing the town...</span></p>
+        <button class="hx small" id="resume-retry" type="button" hidden>Try again</button>
+      </div>
       <h2 id="start-title">Create your character</h2>
+      <p class="small" id="locked-note" hidden></p>
     </header>
     <!-- the figure, drawn in 3D: drag it to turn it; the arrows change it -->
     <section class="stage" id="stage" aria-label="Your character">
@@ -1381,13 +1485,23 @@ canvas.map.nation { border-radius: 14px; }
         <label><span class="eyebrow">Name</span><input class="field" id="name" name="name" maxlength="24" value="" required autocapitalize="words" enterkeyhint="done"></label>
         <div id="colour-block"><div class="eyebrow">Colours</div><div class="parts" id="part-tabs"></div><div class="swatches" id="part-swatches"></div></div>
         <div id="anim-block" hidden><div class="eyebrow">Animations</div><div class="parts" id="anim-list"></div></div>
-        <div><div class="eyebrow">Your path</div><div class="actions" id="paths" style="margin-top:6px"><button class="hx small" type="button" data-path="hero" aria-pressed="true">Hero</button><button class="hx small" type="button" data-path="villain" aria-pressed="false">Villain</button></div></div>
         <div class="startrow">
           <button class="hx primary" id="enter" type="submit">Enter the town</button>
-          <button class="hx" id="continue" type="button" hidden>Continue</button>
         </div>
-        <div class="notice" id="start-error" hidden></div>
+        <div class="notice" id="start-error" role="alert" hidden></div>
       </form>
+      <!-- The characters, looked at from inside the game (main.js, openGallery). Looking changes nothing; the only
+           way to become another is the upgrade, which is paid for and asked about first. -->
+      <div class="gallery" id="gallery" hidden>
+        <div class="gallery-tag" id="gallery-tag" data-own="true">Your character</div>
+        <p id="gallery-text"></p>
+        <div class="startrow">
+          <button class="hx primary" id="gallery-upgrade" type="button" hidden>Upgrade Character</button>
+          <button class="hx" id="gallery-back" type="button">Back to the Game</button>
+        </div>
+        <p class="small" id="gallery-rule"></p>
+        <div class="notice" id="gallery-note" role="alert" hidden></div>
+      </div>
     </div>
   </div>
 
@@ -1414,6 +1528,8 @@ canvas.map.nation { border-radius: 14px; }
     <div class="confirm-box">
       <h3 id="confirm-title"></h3>
       <p id="confirm-body"></p>
+      <dl class="confirm-rows" id="confirm-rows" hidden></dl>
+      <p class="confirm-note" id="confirm-note" hidden></p>
       <div class="notice" id="confirm-error" role="alert" hidden></div>
       <div class="confirm-actions">
         <button class="hx" id="confirm-no" type="button">Cancel</button>
@@ -1818,89 +1934,6 @@ function createLedger(saved) {
 }
 
 return { LedgerError, LEDGER_ASSETS, LEGACY_ASSET_CODES, TR, TR_PER_POUND, trAmount, trText, trPlain, trIn, poundsOf, LEDGER_KINDS, LEDGER_KIND_RULES, LEDGER_POLICY, fineShares, createLedger };
-})();
-
-// ---- sim/bank.js ----
-__modules["sim/bank.js"] = (function () {
-// The bridge between this world's money and the bank.
-//
-// A player's TR is kept by the bank (the server: api/_lib/wallet.js). It is the bank's figure that is theirs:
-// what they can send to another player or pay in the market is what the bank says they have. The town itself
-// still runs here, in this world, with its own ledger: a wage is paid here, a fare is spent here. So the two
-// are kept in step, by three things, each of which is safe to ask for again:
-//
-//   report    what this character has earned and spent in town since the bank was last told. It goes to the
-//             bank with the character's next save, and the bank takes it (earnings only as far as a person
-//             could have earned them).
-//   told      the bank has taken a report: the next one starts where that one ended.
-//   align     the wallet here is made to say what the bank says, plus whatever has happened in town since the
-//             last report. TR that arrived from another player appears here; TR sent to one leaves.
-//
-// The arrival money is not reported: the bank gave the account the same £20 itself, once. Nor is anything
-// `align` moved, for the same reason: the bank already has it.
-//
-// This is not an intent. A player's own page calls it today because the simulation runs in the page; where the
-// simulation runs on a server, the bank is that server's own and no client can call this.
-
-const { LedgerError } = __modules["sim/ledger.js"];
-
-function createBankBridge({ state, auditor, ledger, monetary, issuanceAccount, players }) {
-  if (!state.bank) state.bank = { players: {} };
-  const book = (id) => state.bank.players[id] || (state.bank.players[id] = { mark: 0, aligned: 0 });
-  const text = (value) => (typeof value === 'string' ? value.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 90) : '');
-
-  function who(playerId) {
-    const p = players[playerId];
-    if (!p) throw new LedgerError('NL006', 'unknown player');
-    return p;
-  }
-
-  // Everything that has moved in or out of this character's wallet in town since the bank was last told.
-  function report(playerId) {
-    const p = who(playerId), b = book(playerId);
-    const all = auditor.transactions();
-    let earned = 0, spent = 0;
-    for (let i = Math.min(b.mark, all.length); i < all.length; i += 1) {
-      const txn = all[i];
-      if (txn.key.startsWith('bank:') || txn.key === `arrival:${p.id}`) continue;
-      for (const entry of txn.entries) {
-        if (entry.account !== p.wallet) continue;
-        if (entry.amount > 0) earned += entry.amount; else spent -= entry.amount;
-      }
-    }
-    return { from: b.mark, upto: all.length, earned, spent };
-  }
-
-  // The bank has taken everything up to `upto`. (Or, for a character fetched from the account: this is how far
-  // the bank has been told about it.)
-  function told(playerId, upto) {
-    who(playerId);
-    if (Number.isSafeInteger(upto) && upto >= 0) book(playerId).mark = Math.min(upto, auditor.transactions().length);
-    return book(playerId).mark;
-  }
-
-  // The wallet here is made to agree with the bank. Gives how much it moved by (nothing, when they agreed).
-  function align(playerId, bankBalance, why) {
-    const p = who(playerId), b = book(playerId);
-    if (!Number.isSafeInteger(bankBalance) || bankBalance < 0) return { ok: false, code: 'BAD_REQUEST', message: 'That is not a balance.' };
-    const since = report(playerId);
-    const should = Math.max(0, bankBalance + since.earned - since.spent);
-    const have = ledger.balance(p.wallet);
-    const diff = should - have;
-    if (diff === 0) return { ok: true, moved: 0, balance: have };
-    b.aligned += 1;
-    const reason = text(why) || (diff > 0 ? 'Brought in from the bank' : 'Taken to the bank');
-    const legs = diff > 0 ? [{ account: issuanceAccount, amount: -diff }, { account: p.wallet, amount: diff }] : [{ account: p.wallet, amount: diff }, { account: issuanceAccount, amount: -diff }];
-    monetary.post({ key: `bank:align:${p.id}:${b.aligned}:${auditor.transactions().length}`, kind: diff > 0 ? 'issuance' : 'retirement', initiator: 'ops:bank', reason, legs, meta: { bank: String(bankBalance) } });
-    return { ok: true, moved: diff, balance: should };
-  }
-
-  const view = (playerId) => { const p = who(playerId); return { mark: book(playerId).mark, balance: ledger.balance(p.wallet) }; };
-
-  return { report, told, align, view };
-}
-
-return { createBankBridge };
 })();
 
 // ---- sim/geo.js ----
@@ -3842,6 +3875,471 @@ __modules["sim/zone.js"] = (function () {
 return { ...__modules["sim/zones/atani.js"] };
 })();
 
+// ---- sim/registry.js ----
+__modules["sim/registry.js"] = (function () {
+// Land registry.
+//
+// One record per surveyed parcel: who owns it, how it is zoned, what it has
+// been through. A sale is a ledger payment and a change of title in the same
+// step; if the payment is refused the title does not move.
+//
+// Parcel ids carry country, state and local government codes
+// (NG-AN-OGB-000101), so the same registry holds any state's land.
+
+const { trText } = __modules["sim/ledger.js"];
+const { ZONE, ZONE_PARCELS, ZONING, zoneParcel, zoneParcelByPlot } = __modules["sim/zone.js"];
+
+const REGISTRY_FEE_RATE = 0.03;      // registration fee on the sale price
+const MAX_PARCELS_PER_PLAYER = 3;    // prototype allocation limit
+
+class GameError extends Error {
+  constructor(code, message) {
+    super(message);
+    this.name = 'GameError';
+    this.code = code;
+  }
+}
+
+function createRegistry({ state, ledger, accounts, clock }) {
+  if (!state.registry) {
+    state.registry = { parcels: {}, titleCounter: 0, permitCounter: 0 };
+    for (const p of ZONE_PARCELS) {
+      state.registry.parcels[p.id] = {
+        owner: { kind: 'government', id: ZONE.government.state.code, name: ZONE.government.state.name },
+        status: 'available', titleNo: null, permit: null, site: null,
+        history: [{ at: 0, type: 'survey', detail: `Surveyed and beaconed as Plot ${p.plot}, ${p.scheme}` }],
+      };
+    }
+  }
+  const book = state.registry;
+
+  function record(parcelId) {
+    const row = book.parcels[parcelId];
+    if (!row) throw new GameError('NO_PARCEL', 'There is no such parcel in the register.');
+    return row;
+  }
+
+  function quote(parcelId) {
+    const p = zoneParcel(parcelId);
+    if (!p) throw new GameError('NO_PARCEL', 'There is no such parcel in the register.');
+    const fee = Math.round(p.price * REGISTRY_FEE_RATE);
+    return { price: p.price, fee, total: p.price + fee };
+  }
+
+  function issueTitle(parcelId, owner, txn, detail) {
+    const row = record(parcelId);
+    book.titleCounter += 1;
+    row.owner = owner;
+    row.status = 'titled';
+    row.titleNo = `${ZONE.state}/${ZONE.lgaCode}/${String(book.titleCounter).padStart(5, '0')}`;
+    row.history.push({ at: clock(), type: 'sale', detail, txn });
+    return row.titleNo;
+  }
+
+  // Used once at world creation for the parcels residents already hold.
+  function allocate(plot, owner, detail) {
+    const p = zoneParcelByPlot(plot);
+    return issueTitle(p.id, owner, null, detail);
+  }
+
+  function purchase(player, parcelId) {
+    const p = zoneParcel(parcelId);
+    const row = record(parcelId);
+    if (row.status !== 'available') throw new GameError('NOT_FOR_SALE', `Plot ${p.plot} is not for sale.`);
+    const held = Object.values(book.parcels).filter((r) => r.owner.kind === 'player' && r.owner.id === player.id).length;
+    if (held >= MAX_PARCELS_PER_PLAYER) throw new GameError('ALLOCATION_LIMIT', `One person may hold at most ${MAX_PARCELS_PER_PLAYER} plots in this scheme.`);
+    const { price, fee, total } = quote(parcelId);
+    // The key makes a double submission harmless: the same person cannot pay twice for the same plot.
+    const result = ledger.post({
+      key: `land:${parcelId}:${player.id}`, kind: 'land_purchase', initiator: 'svc:registry',
+      reason: `Purchase of Plot ${p.plot}, ${p.scheme}`,
+      legs: [{ account: player.wallet, amount: -total }, { account: accounts.government(ZONE.government.state.code), amount: total }],
+      meta: { parcel: parcelId, price, registrationFee: fee },
+    });
+    const titleNo = issueTitle(parcelId, { kind: 'player', id: player.id, name: player.name }, result.id,
+      `Sold by ${ZONE.government.state.name} to ${player.name} for ${trText(price)}; registration fee ${trText(fee)}`);
+    return { titleNo, txn: result.id, price, fee, total, parcel: view(parcelId, player.id) };
+  }
+
+  function applyPermit(player, parcelId, design) {
+    const p = zoneParcel(parcelId);
+    const row = record(parcelId);
+    if (row.owner.kind !== 'player' || row.owner.id !== player.id) throw new GameError('NOT_OWNER', 'A permit can only be issued to the registered owner of the plot.');
+    if (row.permit) throw new GameError('HAS_PERMIT', `Plot ${p.plot} already has building permit ${row.permit.no}.`);
+    if (!ZONING[p.zoning].uses.includes(design.id)) {
+      throw new GameError('ZONING', `Plot ${p.plot} is zoned ${ZONING[p.zoning].name}. A ${design.name.toLowerCase()} is not a permitted use there.`);
+    }
+    const result = ledger.post({
+      key: `permit:${parcelId}:${design.id}`, kind: 'government_fee', initiator: 'svc:secretariat',
+      reason: `Building permit fee, Plot ${p.plot}`,
+      legs: [{ account: player.wallet, amount: -design.permitFee }, { account: accounts.government(ZONE.government.local.code), amount: design.permitFee }],
+      meta: { parcel: parcelId, design: design.id },
+    });
+    book.permitCounter += 1;
+    row.permit = { no: `${ZONE.lgaCode}/BP/${String(book.permitCounter).padStart(4, '0')}`, design: design.id, issuedAt: clock(), txn: result.id };
+    row.history.push({ at: clock(), type: 'permit', detail: `Building permit ${row.permit.no} issued for a ${design.name.toLowerCase()}`, txn: result.id });
+    return { permitNo: row.permit.no, txn: result.id, fee: design.permitFee };
+  }
+
+  function view(parcelId, viewerId) {
+    const p = zoneParcel(parcelId);
+    const row = record(parcelId);
+    const yours = row.owner.kind === 'player' && row.owner.id === viewerId;
+    const zoning = ZONING[p.zoning];
+    return {
+      id: p.id, plot: p.plot, scheme: p.scheme, state: ZONE.stateName, lga: ZONE.lga,
+      zoning: zoning.code, zoningName: zoning.name, permittedUses: zoning.uses.slice(),
+      area: p.area, lat: p.lat, lon: p.lon, x0: p.x0, z0: p.z0, x1: p.x1, z1: p.z1, cx: p.cx, cz: p.cz,
+      status: row.status, yours, ownerName: row.owner.name, ownerKind: row.owner.kind, titleNo: row.titleNo,
+      ...quote(parcelId),
+      permit: row.permit ? { ...row.permit } : null,
+      development: row.site ? (row.site.complete ? 'developed' : 'under construction') : 'undeveloped',
+      history: row.history.map((h) => ({ ...h })),
+    };
+  }
+
+  return {
+    quote, purchase, applyPermit, allocate, view, record,
+    list: (viewerId) => ZONE_PARCELS.map((p) => view(p.id, viewerId)),
+    ownedBy: (playerId) => ZONE_PARCELS.filter((p) => { const r = book.parcels[p.id]; return r.owner.kind === 'player' && r.owner.id === playerId; }).map((p) => p.id),
+  };
+}
+
+return { REGISTRY_FEE_RATE, MAX_PARCELS_PER_PLAYER, GameError, createRegistry };
+})();
+
+// ---- sim/funds.js ----
+__modules["sim/funds.js"] = (function () {
+// Where a player's TR came from, and what each kind of it may be spent on.
+//
+// Every character arrives with 2,000 TR: the £20 of the story. That is starter TR. It is there to begin with:
+// it pays fines, the ambulance, the hospital, levies and permits, fares, food, fuel and the like. It is never
+// another player's to have, and it never buys a thing to own: not land, not a vehicle, not what a building is
+// made of. Those are bought with TR that was earned.
+//
+// So a wallet is three amounts, and every TR in it is one of them:
+//
+//   starter   the arrival money that is left
+//   earned    wages and payments for work done; what was received from another player; what a sale brought
+//   illicit   what was taken from someone (the game has theft, and it has police). It is spent as earned TR
+//             is, and it is what is handed back first when the law catches up; it is never counted as starter
+//             TR, and starter TR is never counted as it.
+//
+// "Eligible" TR is earned + illicit: what may be sent to another player or spent on something to own.
+//
+// What is drawn from when something is paid for, always the same way:
+//
+//   a charge or a cost of living   starter first, then earned, then illicit
+//   something to own (an asset)    earned, then illicit; never starter: with too little of those it is refused
+//   restitution                    illicit first (it is what was taken), then starter, then earned
+//
+// TR that passes from one player to another inside a town (a thief's takings, a constable's share of a fine, what
+// is handed back to someone robbed) arrives as what it was when it left: starter TR that reaches another wallet
+// is starter TR there too. Nothing that starts as arrival money becomes earned by changing hands.
+//
+// What a payment *is* is read from the ledger's own record of it (its key, kind and what it says it bought),
+// never from anything a client says about it. The same rules are kept by the bank on the server
+// (api/_lib/wallet.js), which is where they bind on the website: this file is the town's own keeping of them,
+// so that the Lands Registry refuses a plot at the counter and not a save later.
+
+const { GameError } = __modules["sim/registry.js"];
+const { trText } = __modules["sim/ledger.js"];
+
+const FUND_CLASSES = Object.freeze(['starter', 'lawful', 'illicit', 'refund', 'fee', 'living', 'restitution', 'asset', 'upgrade', 'bank']);
+
+// The words a player is given when starter TR is in the way. (The bank says the same things: api/_lib/wallet.js.)
+const FUND_WORDS = Object.freeze({
+  asset: 'Starter TR cannot be used to buy assets. Earn TR through gameplay to make purchases.',
+  transfer: 'Starter TR cannot be transferred. Earn TR through gameplay to send money to other players.',
+  short: 'You do not have enough eligible TR for this transaction.',
+});
+
+const starts = (key, ...prefixes) => prefixes.some((prefix) => key.startsWith(prefix));
+
+// What one movement in or out of a player's wallet is. `amount` is that wallet's side of it: more than nothing
+// for TR coming in, less for TR going out.
+function classOf(txn, amount) {
+  const key = String((txn && txn.key) || ''), kind = txn && txn.kind, meta = (txn && txn.meta) || {};
+  if (starts(key, 'bank:')) return 'bank';               // the bank bringing this world's wallet into step with its own
+  if (starts(key, 'arrival:')) return 'starter';
+  if (amount > 0) {
+    if (kind === 'theft' || starts(key, 'theft:')) return 'illicit';
+    if (starts(key, 'market-release:')) return 'refund';
+    return 'lawful';                                     // wages, delivery runs, a constable's share of a fine, a sale
+  }
+  if (starts(key, 'upgrade:')) return 'upgrade';        // a character upgrade: earned TR only, as for a thing to own
+  if (kind === 'restitution' || starts(key, 'restitution:')) return 'restitution';
+  if (kind === 'theft' || starts(key, 'theft:')) return 'taken';      // what a thief took from this wallet
+  if (kind === 'fine' || kind === 'medical_fee' || kind === 'government_fee' || starts(key, 'fine:', 'ambulance:', 'permit:', 'repay:')) return 'fee';
+  if (kind === 'land_purchase' || starts(key, 'land:', 'vehicle:', 'market-hold:', 'market-pay:')) return 'asset';
+  if (starts(key, 'hire:', 'fuel:', 'okada:')) return 'living';
+  if (kind === 'wage') return 'asset';                   // a mason paid to raise a stage of the player's own building
+  if (kind === 'goods_purchase') {
+    if (meta.service === 'treatment') return 'fee';
+    if (meta.service || meta.item === 'meal') return 'living';
+    return 'asset';                                      // blocks, cement, roofing, doors, paint: what a building is made of
+  }
+  return 'living';
+}
+
+const ORDER = Object.freeze({
+  fee: ['starter', 'earned', 'illicit'], living: ['starter', 'earned', 'illicit'],
+  restitution: ['illicit', 'starter', 'earned'],
+  asset: ['earned', 'illicit', 'starter'],               // (starter last: only for what was bought before this rule, when it was let)
+  upgrade: ['earned', 'illicit', 'starter'],
+  taken: ['earned', 'illicit', 'starter'],
+  bank: ['earned', 'illicit', 'starter'],
+});
+
+// One movement applied to { bal, starter, illicit }. Gives what was drawn from each: { starter, earned, illicit }.
+function applyFunds(f, cls, amount) {
+  const drawn = { starter: 0, earned: 0, illicit: 0 };
+  if (amount >= 0) {
+    if (cls === 'starter') { f.starter += amount; drawn.starter = amount; } else if (cls === 'illicit') { f.illicit += amount; drawn.illicit = amount; } else drawn.earned = amount;
+    f.bal += amount;
+    return drawn;
+  }
+  let left = -amount;
+  const have = { starter: f.starter, illicit: f.illicit, earned: Math.max(0, f.bal - f.starter - f.illicit) };
+  for (const bucket of ORDER[cls] || ORDER.living) {
+    const take = Math.min(left, have[bucket]);
+    if (take) drawn[bucket] = -take;
+    left -= take;
+    if (bucket === 'starter') f.starter -= take; else if (bucket === 'illicit') f.illicit -= take;
+  }
+  f.bal += amount;
+  // (a wallet that went below what it held is the ledger's to refuse, not this file's; nothing is left over here)
+  if (f.starter + f.illicit > Math.max(0, f.bal)) { const over = f.starter + f.illicit - Math.max(0, f.bal); const s = Math.min(over, f.starter); f.starter -= s; f.illicit -= over - s; }
+  return drawn;
+}
+
+function createFunds({ state, ledger, auditor, players }) {
+  if (!state.funds) state.funds = { players: {}, at: 0 };
+  const F = state.funds;
+  if (!Number.isSafeInteger(F.at)) { F.at = 0; F.players = {}; }      // (kept another way once: read again from the start)
+  const book = F.players;
+  let owner = new Map(), counted = -1;                   // wallet account -> player id
+  const ownerOf = (account) => {
+    const n = Object.keys(players).length;
+    if (n !== counted) { owner = new Map(Object.keys(players).map((id) => [players[id].wallet, id])); counted = n; }
+    return owner.get(account) || null;
+  };
+  const entry = (id) => book[id] || (book[id] = { bal: 0, starter: 0, illicit: 0 });
+
+  // One movement in the ledger, taken into the count. What leaves a player's wallet is drawn in the order its
+  // kind says; what reaches a player's wallet from another player's is what it was when it left.
+  function settle(txn, into = entry, only = null) {
+    const paid = { starter: 0, earned: 0, illicit: 0 };
+    let fromPlayers = 0;
+    for (const e of txn.entries) {
+      if (!(e.amount < 0)) continue;
+      const id = ownerOf(e.account);
+      if (!id) continue;
+      if (only && id !== only) { fromPlayers += -e.amount; paid.earned += -e.amount; continue; }
+      const drawn = applyFunds(into(id), classOf(txn, e.amount), e.amount);
+      paid.starter -= drawn.starter; paid.earned -= drawn.earned; paid.illicit -= drawn.illicit; fromPlayers += -e.amount;
+    }
+    for (const e of txn.entries) {
+      if (!(e.amount > 0)) continue;
+      const id = ownerOf(e.account);
+      if (!id || (only && id !== only)) continue;
+      const cls = classOf(txn, e.amount), f = into(id);
+      if (fromPlayers > 0 && cls !== 'bank' && cls !== 'starter') {
+        // a player paid this: the starter part of what they paid stays starter (rounded towards starter)
+        const starter = Math.min(e.amount, Math.ceil((e.amount * paid.starter) / fromPlayers));
+        const rest = e.amount - starter;
+        const illicit = cls === 'illicit' ? rest : Math.min(rest, Math.floor((e.amount * paid.illicit) / fromPlayers));
+        f.starter += starter; f.illicit += illicit; f.bal += e.amount;
+      } else applyFunds(f, cls, e.amount);
+    }
+  }
+
+  // Everything the ledger has written is in the count. A world from before this was kept has its whole
+  // history read: arrival money is starter TR, and each thing since is what it was.
+  function sync() {
+    const all = auditor.transactions();
+    for (; F.at < all.length; F.at += 1) settle(all[F.at]);
+  }
+
+  // A player's three amounts, as of the last thing the ledger wrote.
+  function of(playerId) {
+    const p = players[playerId];
+    if (!p) return null;
+    sync();
+    const f = entry(playerId);
+    const bal = ledger.balance(p.wallet);
+    if (f.bal !== bal) { f.bal = bal; if (f.starter + f.illicit > bal) { const over = f.starter + f.illicit - bal; const s = Math.min(over, f.starter); f.starter -= s; f.illicit -= over - s; } }
+    return f;
+  }
+
+  // What a player's wallet is made of: { total, starter, earned, illicit, eligible }, in ledger units.
+  function split(playerId) {
+    const f = of(playerId);
+    if (!f) return { total: 0, starter: 0, earned: 0, illicit: 0, eligible: 0 };
+    return { total: f.bal, starter: f.starter, earned: f.bal - f.starter - f.illicit, illicit: f.illicit, eligible: f.bal - f.starter };
+  }
+
+  // May this be paid for? Nothing to say if it may; a GameError that tells the player the actual reason if not.
+  // (A wallet with too little in it altogether is left to the ledger, which says so in its own words.)
+  function mayPay(playerId, amount, cls) {
+    if (cls !== 'asset' && cls !== 'upgrade') return;
+    const now = split(playerId);
+    if (now.total < amount || now.eligible >= amount) return;
+    if (now.eligible <= 0) throw new GameError('STARTER_FUNDS', FUND_WORDS.asset);
+    throw new GameError('ELIGIBLE_FUNDS', `${FUND_WORDS.short} It is ${trText(amount)}, and ${trText(now.eligible)} of what you have is TR you have earned. ${FUND_WORDS.asset}`);
+  }
+
+  // A ledger handle that asks first. Every part of the town that takes TR from a player pays through one of these.
+  function guard(handle) {
+    return Object.freeze({
+      ...handle,
+      post(request) {
+        const legs = request && Array.isArray(request.legs) ? request.legs : [];
+        for (const leg of legs) {
+          if (!leg || !(leg.amount < 0)) continue;
+          const id = ownerOf(leg.account);
+          if (id) mayPay(id, -leg.amount, classOf(request, leg.amount));
+        }
+        return handle.post(request);
+      },
+    });
+  }
+
+  // The bank has said what the wallet is made of (as far as it has been told: everything before `mark` in this
+  // world's ledger). What has happened in town since is put on top of that, in the order it happened.
+  function rebase(playerId, bank, mark) {
+    const p = players[playerId];
+    if (!p || !bank || !Number.isSafeInteger(bank.balance) || bank.balance < 0) return null;
+    sync();
+    const starter = Number.isSafeInteger(bank.starter) && bank.starter >= 0 ? Math.min(bank.starter, bank.balance) : 0;
+    const illicit = Number.isSafeInteger(bank.illicit) && bank.illicit >= 0 ? Math.min(bank.illicit, bank.balance - starter) : 0;
+    const all = auditor.transactions();
+    const f = { bal: bank.balance, starter, illicit };
+    for (let i = Math.max(0, Math.min(Number.isSafeInteger(mark) ? mark : all.length, all.length)); i < all.length; i += 1) {
+      const txn = all[i];
+      // (the bringing-into-step itself, and the arrival money, which the bank gave the account itself: its figures already hold both)
+      if (classOf(txn, 1) === 'bank' || classOf(txn, 1) === 'starter') continue;
+      settle(txn, () => f, playerId);
+    }
+    book[playerId] = f;
+    return of(playerId);
+  }
+
+  return { of, split, mayPay, guard, rebase, classOf };
+}
+
+return { FUND_CLASSES, FUND_WORDS, classOf, applyFunds, createFunds };
+})();
+
+// ---- sim/bank.js ----
+__modules["sim/bank.js"] = (function () {
+// The bridge between this world's money and the bank.
+//
+// A player's TR is kept by the bank (the server: api/_lib/wallet.js). It is the bank's figure that is theirs:
+// what they can send to another player or pay in the market is what the bank says they have. The town itself
+// still runs here, in this world, with its own ledger: a wage is paid here, a fare is spent here. So the two
+// are kept in step, by three things, each of which is safe to ask for again:
+//
+//   report    what this character has earned and spent in town since the bank was last told, by what each
+//             thing was: lawful earnings, what was taken from someone, charges and the cost of living, what
+//             was handed back, and what was paid for things to own (funds.js says which is which, from the
+//             ledger's own record). It goes to the bank with the character's next save, and the bank takes
+//             it: earnings only as far as a person could have earned them, and things to own only out of TR
+//             that was earned, never out of the arrival money.
+//   told      the bank has taken a report: the next one starts where that one ended.
+//   align     the wallet here is made to say what the bank says, plus whatever has happened in town since the
+//             last report. TR that arrived from another player appears here; TR sent to one leaves. With
+//             it comes what the bank says the wallet is made of (starter TR, and TR that was taken), and
+//             this world's own count of that is set to the bank's.
+//   figure    the bank has taken the fee for a character upgrade: the character here becomes the new one.
+//
+// The arrival money is not reported: the bank gave the account the same £20 itself, once. Nor is anything
+// `align` moved, for the same reason: the bank already has it.
+//
+// This is not an intent. A player's own page calls it today because the simulation runs in the page; where the
+// simulation runs on a server, the bank is that server's own and no client can call this.
+
+const { LedgerError } = __modules["sim/ledger.js"];
+const { classOf } = __modules["sim/funds.js"];
+
+function createBankBridge({ state, auditor, ledger, monetary, issuanceAccount, players, funds = null, setFigure = null }) {
+  if (!state.bank) state.bank = { players: {} };
+  const book = (id) => state.bank.players[id] || (state.bank.players[id] = { mark: 0, aligned: 0 });
+  const text = (value) => (typeof value === 'string' ? value.replace(/[\x00-\x1f\x7f]/g, ' ').trim().slice(0, 90) : '');
+
+  function who(playerId) {
+    const p = players[playerId];
+    if (!p) throw new LedgerError('NL006', 'unknown player');
+    return p;
+  }
+
+  // Everything that has moved in or out of this character's wallet in town since the bank was last told.
+  //   in   { lawful, illicit }                 out   { cost, restitution, asset }
+  // (`earned` and `spent` are the two sums, for anything that only wants to know how far the wallet has moved.)
+  function report(playerId) {
+    const p = who(playerId), b = book(playerId);
+    const all = auditor.transactions();
+    const into = { lawful: 0, illicit: 0 }, out = { cost: 0, restitution: 0, asset: 0 };
+    for (let i = Math.min(b.mark, all.length); i < all.length; i += 1) {
+      const txn = all[i];
+      if (txn.key.startsWith('bank:') || txn.key === `arrival:${p.id}`) continue;
+      for (const entry of txn.entries) {
+        if (entry.account !== p.wallet) continue;
+        const cls = classOf(txn, entry.amount);
+        if (entry.amount > 0) { if (cls === 'illicit') into.illicit += entry.amount; else into.lawful += entry.amount; }
+        else if (cls === 'restitution') out.restitution -= entry.amount;
+        else if (cls === 'asset' || cls === 'upgrade') out.asset -= entry.amount;
+        else out.cost -= entry.amount;
+      }
+    }
+    return { v: 2, from: b.mark, upto: all.length, in: into, out, earned: into.lawful + into.illicit, spent: out.cost + out.restitution + out.asset };
+  }
+
+  // The bank has taken everything up to `upto`. (Or, for a character fetched from the account: this is how far
+  // the bank has been told about it.)
+  function told(playerId, upto) {
+    who(playerId);
+    if (Number.isSafeInteger(upto) && upto >= 0) book(playerId).mark = Math.min(upto, auditor.transactions().length);
+    return book(playerId).mark;
+  }
+
+  // The wallet here is made to agree with the bank. Gives how much it moved by (nothing, when they agreed).
+  // `parts` is what the bank says the wallet is made of: { starter, illicit } (the rest of it is earned).
+  function align(playerId, bankBalance, why, parts = null) {
+    const p = who(playerId), b = book(playerId);
+    if (!Number.isSafeInteger(bankBalance) || bankBalance < 0) return { ok: false, code: 'BAD_REQUEST', message: 'That is not a balance.' };
+    const since = report(playerId);
+    const should = Math.max(0, bankBalance + since.earned - since.spent);
+    const have = ledger.balance(p.wallet);
+    const diff = should - have;
+    const made = () => { if (funds && parts && typeof parts === 'object') funds.rebase(playerId, { balance: bankBalance, starter: parts.starter, illicit: parts.illicit }, b.mark); };
+    if (diff === 0) { made(); return { ok: true, moved: 0, balance: have }; }
+    b.aligned += 1;
+    const reason = text(why) || (diff > 0 ? 'Brought in from the bank' : 'Taken to the bank');
+    const legs = diff > 0 ? [{ account: issuanceAccount, amount: -diff }, { account: p.wallet, amount: diff }] : [{ account: p.wallet, amount: diff }, { account: issuanceAccount, amount: -diff }];
+    monetary.post({ key: `bank:align:${p.id}:${b.aligned}:${auditor.transactions().length}`, kind: diff > 0 ? 'issuance' : 'retirement', initiator: 'ops:bank', reason, legs, meta: { bank: String(bankBalance) } });
+    made();
+    return { ok: true, moved: diff, balance: should };
+  }
+
+  // The bank has taken the fee for a character upgrade (or says which character the account's is): the
+  // character here is that one. The fee itself reaches this wallet by `align`, as any movement at the bank does.
+  function figure(playerId, to, paid = {}) {
+    const p = who(playerId);
+    if (!setFigure) return { ok: false, code: 'BAD_REQUEST', message: 'This world cannot change a character.' };
+    if (p.look && p.look.figure === to) return { ok: true, changed: false, figure: to };
+    try { setFigure(playerId, to, paid); } catch (error) { return { ok: false, code: error.code || 'BAD_REQUEST', message: error.message }; }
+    return { ok: true, changed: true, figure: to };
+  }
+
+  const view = (playerId) => { const p = who(playerId); return { mark: book(playerId).mark, balance: ledger.balance(p.wallet) }; };
+
+  return { report, told, align, figure, view };
+}
+
+return { createBankBridge };
+})();
+
 // ---- sim/graph.js ----
 __modules["sim/graph.js"] = (function () {
 // Finding the way: the zone's walking graph, with every route worked out
@@ -4094,139 +4592,6 @@ function createResidents({ state, timeScale }) {
 }
 
 return { departurePlan, scheduledPlace, createResidents };
-})();
-
-// ---- sim/registry.js ----
-__modules["sim/registry.js"] = (function () {
-// Land registry.
-//
-// One record per surveyed parcel: who owns it, how it is zoned, what it has
-// been through. A sale is a ledger payment and a change of title in the same
-// step; if the payment is refused the title does not move.
-//
-// Parcel ids carry country, state and local government codes
-// (NG-AN-OGB-000101), so the same registry holds any state's land.
-
-const { trText } = __modules["sim/ledger.js"];
-const { ZONE, ZONE_PARCELS, ZONING, zoneParcel, zoneParcelByPlot } = __modules["sim/zone.js"];
-
-const REGISTRY_FEE_RATE = 0.03;      // registration fee on the sale price
-const MAX_PARCELS_PER_PLAYER = 3;    // prototype allocation limit
-
-class GameError extends Error {
-  constructor(code, message) {
-    super(message);
-    this.name = 'GameError';
-    this.code = code;
-  }
-}
-
-function createRegistry({ state, ledger, accounts, clock }) {
-  if (!state.registry) {
-    state.registry = { parcels: {}, titleCounter: 0, permitCounter: 0 };
-    for (const p of ZONE_PARCELS) {
-      state.registry.parcels[p.id] = {
-        owner: { kind: 'government', id: ZONE.government.state.code, name: ZONE.government.state.name },
-        status: 'available', titleNo: null, permit: null, site: null,
-        history: [{ at: 0, type: 'survey', detail: `Surveyed and beaconed as Plot ${p.plot}, ${p.scheme}` }],
-      };
-    }
-  }
-  const book = state.registry;
-
-  function record(parcelId) {
-    const row = book.parcels[parcelId];
-    if (!row) throw new GameError('NO_PARCEL', 'There is no such parcel in the register.');
-    return row;
-  }
-
-  function quote(parcelId) {
-    const p = zoneParcel(parcelId);
-    if (!p) throw new GameError('NO_PARCEL', 'There is no such parcel in the register.');
-    const fee = Math.round(p.price * REGISTRY_FEE_RATE);
-    return { price: p.price, fee, total: p.price + fee };
-  }
-
-  function issueTitle(parcelId, owner, txn, detail) {
-    const row = record(parcelId);
-    book.titleCounter += 1;
-    row.owner = owner;
-    row.status = 'titled';
-    row.titleNo = `${ZONE.state}/${ZONE.lgaCode}/${String(book.titleCounter).padStart(5, '0')}`;
-    row.history.push({ at: clock(), type: 'sale', detail, txn });
-    return row.titleNo;
-  }
-
-  // Used once at world creation for the parcels residents already hold.
-  function allocate(plot, owner, detail) {
-    const p = zoneParcelByPlot(plot);
-    return issueTitle(p.id, owner, null, detail);
-  }
-
-  function purchase(player, parcelId) {
-    const p = zoneParcel(parcelId);
-    const row = record(parcelId);
-    if (row.status !== 'available') throw new GameError('NOT_FOR_SALE', `Plot ${p.plot} is not for sale.`);
-    const held = Object.values(book.parcels).filter((r) => r.owner.kind === 'player' && r.owner.id === player.id).length;
-    if (held >= MAX_PARCELS_PER_PLAYER) throw new GameError('ALLOCATION_LIMIT', `One person may hold at most ${MAX_PARCELS_PER_PLAYER} plots in this scheme.`);
-    const { price, fee, total } = quote(parcelId);
-    // The key makes a double submission harmless: the same person cannot pay twice for the same plot.
-    const result = ledger.post({
-      key: `land:${parcelId}:${player.id}`, kind: 'land_purchase', initiator: 'svc:registry',
-      reason: `Purchase of Plot ${p.plot}, ${p.scheme}`,
-      legs: [{ account: player.wallet, amount: -total }, { account: accounts.government(ZONE.government.state.code), amount: total }],
-      meta: { parcel: parcelId, price, registrationFee: fee },
-    });
-    const titleNo = issueTitle(parcelId, { kind: 'player', id: player.id, name: player.name }, result.id,
-      `Sold by ${ZONE.government.state.name} to ${player.name} for ${trText(price)}; registration fee ${trText(fee)}`);
-    return { titleNo, txn: result.id, price, fee, total, parcel: view(parcelId, player.id) };
-  }
-
-  function applyPermit(player, parcelId, design) {
-    const p = zoneParcel(parcelId);
-    const row = record(parcelId);
-    if (row.owner.kind !== 'player' || row.owner.id !== player.id) throw new GameError('NOT_OWNER', 'A permit can only be issued to the registered owner of the plot.');
-    if (row.permit) throw new GameError('HAS_PERMIT', `Plot ${p.plot} already has building permit ${row.permit.no}.`);
-    if (!ZONING[p.zoning].uses.includes(design.id)) {
-      throw new GameError('ZONING', `Plot ${p.plot} is zoned ${ZONING[p.zoning].name}. A ${design.name.toLowerCase()} is not a permitted use there.`);
-    }
-    const result = ledger.post({
-      key: `permit:${parcelId}:${design.id}`, kind: 'government_fee', initiator: 'svc:secretariat',
-      reason: `Building permit fee, Plot ${p.plot}`,
-      legs: [{ account: player.wallet, amount: -design.permitFee }, { account: accounts.government(ZONE.government.local.code), amount: design.permitFee }],
-      meta: { parcel: parcelId, design: design.id },
-    });
-    book.permitCounter += 1;
-    row.permit = { no: `${ZONE.lgaCode}/BP/${String(book.permitCounter).padStart(4, '0')}`, design: design.id, issuedAt: clock(), txn: result.id };
-    row.history.push({ at: clock(), type: 'permit', detail: `Building permit ${row.permit.no} issued for a ${design.name.toLowerCase()}`, txn: result.id });
-    return { permitNo: row.permit.no, txn: result.id, fee: design.permitFee };
-  }
-
-  function view(parcelId, viewerId) {
-    const p = zoneParcel(parcelId);
-    const row = record(parcelId);
-    const yours = row.owner.kind === 'player' && row.owner.id === viewerId;
-    const zoning = ZONING[p.zoning];
-    return {
-      id: p.id, plot: p.plot, scheme: p.scheme, state: ZONE.stateName, lga: ZONE.lga,
-      zoning: zoning.code, zoningName: zoning.name, permittedUses: zoning.uses.slice(),
-      area: p.area, lat: p.lat, lon: p.lon, x0: p.x0, z0: p.z0, x1: p.x1, z1: p.z1, cx: p.cx, cz: p.cz,
-      status: row.status, yours, ownerName: row.owner.name, ownerKind: row.owner.kind, titleNo: row.titleNo,
-      ...quote(parcelId),
-      permit: row.permit ? { ...row.permit } : null,
-      development: row.site ? (row.site.complete ? 'developed' : 'under construction') : 'undeveloped',
-      history: row.history.map((h) => ({ ...h })),
-    };
-  }
-
-  return {
-    quote, purchase, applyPermit, allocate, view, record,
-    list: (viewerId) => ZONE_PARCELS.map((p) => view(p.id, viewerId)),
-    ownedBy: (playerId) => ZONE_PARCELS.filter((p) => { const r = book.parcels[p.id]; return r.owner.kind === 'player' && r.owner.id === playerId; }).map((p) => p.id),
-  };
-}
-
-return { REGISTRY_FEE_RATE, MAX_PARCELS_PER_PLAYER, GameError, createRegistry };
 })();
 
 // ---- sim/economy.js ----
@@ -10568,7 +10933,8 @@ const { createCare, CARE } = __modules["sim/care.js"];
 const { createPhone } = __modules["sim/phone.js"];
 const { createHijack, HIJACK } = __modules["sim/hijack.js"];
 const { createMarketBridge } = __modules["sim/market.js"];
-const { cleanFigureLook } = __modules["sim/figures.js"];
+const { cleanFigureLook, FIGURES } = __modules["sim/figures.js"];
+const { createFunds, FUND_WORDS } = __modules["sim/funds.js"];
 const { createReactions } = __modules["sim/reactions.js"];
 const { makeRng } = __modules["sim/rng.js"];
 
@@ -10607,17 +10973,29 @@ function structureFootprint(parcel, design) {
 // What every new character arrives with, in ledger units (two to a TR): 2,000 TR, the £20 of the story.
 const ARRIVAL_FUNDS = 4000;
 
+// Changing one's character after the first choice (11 October 2026). It is not free and not a switch: it is
+// offered only to a wallet holding more than the arrival money, it costs a quarter of everything in the wallet
+// at that moment (to the half TR, rounded down), and all of that quarter must be TR that was earned: starter TR
+// pays none of it.
+const UPGRADE = Object.freeze({ above: ARRIVAL_FUNDS, parts: 4 });
+const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
+
 // Swimming in the river (8 October 2026). Slower than walking; a stroke held makes it faster. One goes in from
 // the bank and comes out at the bank; while in the water nothing else can be done.
 const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
 const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
-function createGameSim({ ledger, monetary, issuanceAccount, rng, saved }) {
+function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved }) {
   const state = saved || { version: 1, t: SIM_START, real: 0, playerCounter: 0, players: {}, weather: { kind: 'clear', until: 0 }, reports: [], structures: 0 };
   const queues = {};
   const emit = (playerId, event) => { if (state.players[playerId]) (queues[playerId] || (queues[playerId] = [])).push(event); };
   const clock = () => Math.round(state.t);
   const weather = () => ({ kind: state.weather.kind, wet: state.weather.kind === 'rain' || state.weather.kind === 'storm', intensity: { clear: 0, cloudy: 0, rain: 0.6, storm: 1 }[state.weather.kind] });
+
+  // Where each player's TR came from, and what each kind may pay for (funds.js). Everything in town that takes
+  // TR from a player pays through `ledger`, which asks first: starter TR does not buy a thing to own.
+  const funds = createFunds({ state, ledger: rawLedger, auditor, players: state.players });
+  const ledger = funds.guard(rawLedger);
 
   const residents = createResidents({ state, timeScale: TIME_SCALE });
   const accountsShim = { government: (code) => ledger.openAccount('government', code, 'treasury') };
@@ -10648,7 +11026,8 @@ function createGameSim({ ledger, monetary, issuanceAccount, rng, saved }) {
   const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: TIME_SCALE });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
-  const market = createMarketBridge({ state, ledger, monetary, issuanceAccount, players: state.players });
+  // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
+  const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });
   for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.hijack === undefined) q.hijack = null; }
   // the riders have been out since before the newcomer's bus came in
   if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, SIM_START - k * TIME_SCALE, -k, false);
@@ -11215,7 +11594,25 @@ function createGameSim({ ledger, monetary, issuanceAccount, rng, saved }) {
     'contacts.remove'(p, { key }) { return phone.removeContact(p, String(key)); },
     'map.route'(p, { x, z, label }) { return phone.route(p, { x, z, label: label ? String(label).slice(0, 60) : '' }); },
 
-    'wallet.history'(p) { return { balance: ledger.balance(p.wallet), rows: ledger.history(p.wallet, 25) }; },
+    'wallet.history'(p) { return { balance: ledger.balance(p.wallet), funds: funds.split(p.id), rows: ledger.history(p.wallet, 25) }; },
+    // The character. It is chosen once, when the player first arrives, and it stays: looking at another changes
+    // nothing. Changing it afterwards is an upgrade, paid for (see UPGRADE above).
+    'character.quote'(p, { figure }) { return { quote: upgradeQuote(p, figure) }; },
+    'character.upgrade'(p, { figure, fee }) {
+      const quote = upgradeQuote(p, figure);
+      if (!quote.ok) throw new GameError(quote.code, quote.message);
+      // what the player was shown is what is charged: if the wallet has moved since, they are shown again
+      if (fee !== undefined && fee !== quote.fee) throw new GameError('QUOTE_CHANGED', `Your balance has changed since you were shown the fee. It is now ${trText(quote.fee)}.`);
+      p.upgradeSeq = (p.upgradeSeq || 0) + 1;
+      const txn = ledger.post({
+        key: `upgrade:${p.id}:${p.upgradeSeq}`, kind: 'government_fee', initiator: `player:${p.id}`, reason: `Character upgrade: ${FIGURES[quote.from].name} to ${FIGURES[quote.to].name}`,
+        legs: [{ account: p.wallet, amount: -quote.fee }, { account: economy.accounts.government(ZONE.government.state.code), amount: quote.fee }],
+        meta: { from: quote.from, to: quote.to, total: String(quote.total) },
+      });
+      const done = changeFigure(p, quote.to, { fee: quote.fee, total: quote.total, txn: txn.id });
+      emit(p.id, { type: 'receipt', title: 'Character upgraded', text: `You are now ${FIGURES[quote.to].name}'s figure. The fee was ${trText(quote.fee)}.`, txn: txn.id });
+      return { upgrade: done, balance: ledger.balance(p.wallet) };
+    },
     'property.list'(p) { return { parcels: registry.ownedBy(p.id).map((id) => ({ parcel: registry.view(id, p.id), site: economy.siteView(id, p.id) })) }; },
   };
 
@@ -11294,6 +11691,35 @@ function createGameSim({ ledger, monetary, issuanceAccount, rng, saved }) {
   }
   for (const p of Object.values(state.players)) grantArrival(p);
 
+  // What an upgrade to `figure` would cost this player now, and whether it may be had. Worked out here, from
+  // this world's own ledger: nothing a client says about its balance or the price is used.
+  function upgradeQuote(p, figure) {
+    const from = p.look && p.look.figure ? p.look.figure : null;
+    const to = typeof figure === 'string' && Object.hasOwn(FIGURES, figure) ? figure : null;
+    const f = funds.split(p.id);
+    const fee = upgradeFee(f.total);
+    const quote = { from, to, total: f.total, fee, after: f.total - fee, eligible: f.eligible, starter: f.starter, above: UPGRADE.above, ok: false, code: '', message: '' };
+    const no = (code, message) => ({ ...quote, code, message });
+    if (!to) return no('NO_CHARACTER', 'That character is not one that can be chosen.');
+    if (!from) return no('NO_CHARACTER', 'You have no character to upgrade from yet.');
+    if (to === from) return no('SAME', 'That is the character you already are.');
+    if (f.total <= UPGRADE.above) return no('BALANCE', `A character can be upgraded once you have more than ${trText(UPGRADE.above)}. You have ${trText(f.total)}.`);
+    if (f.eligible < fee) return no('ELIGIBLE_FUNDS', `${FUND_WORDS.short} The upgrade is ${trText(fee)}, and ${trText(f.eligible)} of what you have is TR you have earned. Starter TR cannot pay for an upgrade.`);
+    return { ...quote, ok: true };
+  }
+  // The character becomes another figure. Nothing else about the player changes: not where they stand, what
+  // they own, what they have or who they are.
+  function changeFigure(p, figure, paid = {}) {
+    const from = p.look && p.look.figure ? p.look.figure : null;
+    const look = cleanFigureLook({ figure, colours: p.look && p.look.colours });
+    if (!look) throw new GameError('NO_CHARACTER', 'That character is not one that can be chosen.');
+    p.look = look;
+    const record = { from, to: figure, fee: paid.fee || 0, total: paid.total || 0, txn: paid.txn || null, ref: paid.ref || null, at: clock(), day: state.real };
+    (p.upgrades || (p.upgrades = [])).push(record);
+    if (p.upgrades.length > 40) p.upgrades.shift();
+    return record;
+  }
+
   function journal(p) {
     const owned = registry.ownedBy(p.id);
     const sites = owned.map((id) => state.registry.parcels[id]);
@@ -11353,7 +11779,7 @@ function createGameSim({ ledger, monetary, issuanceAccount, rng, saved }) {
     return {
       ...zoneView(playerId),
       ...talk.view(p),
-      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
+      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? { n: p.astride } : null, swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
@@ -11373,13 +11799,18 @@ function createGameSim({ ledger, monetary, issuanceAccount, rng, saved }) {
     faces: (ids) => ids.filter((i) => Number.isInteger(i) && i >= 0 && i < population.count).slice(0, 400).map((i) => { const who = population.people[i]; return { index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig }; }),
     // not an intent: the market service's side of a sale (see market.js)
     market,
+    // not intents either: what each player's TR is made of (funds.js), and the bank's side of a character
+    // upgrade it has already taken the fee for (bank.js). Where the world runs on a server no client reaches these.
+    funds,
+    setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
+    upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
     internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact },
   };
 }
 
 const GAME_REFERENCE = Object.freeze({ GOODS, DESIGNS, PAINT_COLOURS, ENERGY, HEALTH, MOVES, COMBAT, LAW, CARE, HIJACK, IMPACT, BODY });
 
-return { TIME_SCALE, SIM_START, SPEED, clockOf, structureFootprint, ARRIVAL_FUNDS, SWIM, createGameSim, GAME_REFERENCE };
+return { TIME_SCALE, SIM_START, SPEED, clockOf, structureFootprint, ARRIVAL_FUNDS, UPGRADE, upgradeFee, SWIM, createGameSim, GAME_REFERENCE };
 })();
 
 // ---- sim/host.js ----
@@ -11405,9 +11836,9 @@ function createHost({ seed = 20261006, saved = null } = {}) {
   const rng = makeRng(seed);
   if (usable) rng.setState(usable.rng);
   const ledger = createLedger(usable ? usable.ledger : null);
-  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, rng, saved: usable ? usable.game : null });
+  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, auditor: ledger.auditor, rng, saved: usable ? usable.game : null });
   ledger.setClock(() => Math.round(game.state.t));
-  const bank = createBankBridge({ state: game.state, auditor: ledger.auditor, ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, players: game.state.players });
+  const bank = createBankBridge({ state: game.state, auditor: ledger.auditor, ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, players: game.state.players, funds: game.funds, setFigure: game.setFigure });
 
   return {
     game,
@@ -18393,6 +18824,8 @@ function createMarketUI(kit) {
   const here = () => !!(market() && online() && online().available);
   const signedIn = () => here() && online().signedIn;
   const balance = () => app.view().self.balance;
+  // what can be spent on a thing to own: TR that was earned (the arrival money does not buy assets)
+  const spendable = () => { const f = app.view().self.funds; return f && Number.isSafeInteger(f.eligible) ? f.eligible : balance(); };
   const say = (good, text) => { m.note = { good, text }; };
   const noteBox = () => { if (!m.note) return null; const n = m.note; m.note = null; return h('div', { class: `notice${n.good ? ' good' : ''}`, role: 'status' }, n.text); };
 
@@ -18766,7 +19199,7 @@ function createMarketUI(kit) {
     else if (offer) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Your offer is with the seller'), h('b', null, tr(offer.amount))),
       h('button', { class: 'hx small', type: 'button', id: 'deal-withdraw', disabled: d.busy, onclick: async () => { d.busy = true; drawDeal(); await market().withdraw(offer.id); d.busy = false; await poll(d); drawDeal(); } }, 'Withdraw'));
     else if (d.thread.automatic) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Price'), h('b', null, tr(l.price))),
-      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
+      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
     else {
       const amount = h('input', { class: 'field', id: 'deal-amount', type: 'number', inputmode: 'decimal', min: '0.5', step: '0.5', value: d.amount || trPlain(l.price), 'aria-label': 'Your offer in TR' });
       amount.addEventListener('input', () => { d.amount = amount.value; });
@@ -18774,7 +19207,7 @@ function createMarketUI(kit) {
         h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => {
           const units = trIn(amount.value);
           if (!units || units <= 0) { d.note = 'Type what you will pay, in TR.'; drawDeal(); return; }
-          d.asking = { text: `Offer ${tr(units)} for the ${l.name}? It is set aside from your ${tr(balance())} until ${d.thread.other} answers, and is paid only if they say yes.`, label: `Offer ${tr(units)}`, yes: () => makeOffer(d, units) }; drawDeal();
+          d.asking = { text: `Offer ${tr(units)} for the ${l.name}? It is set aside from your ${tr(spendable())} of earned TR until ${d.thread.other} answers, and is paid only if they say yes.`, label: `Offer ${tr(units)}`, yes: () => makeOffer(d, units) }; drawDeal();
         } }, 'Buy'));
     }
     if (d.note) { root.append(h('div', { class: 'dealnote', role: 'alert' }, d.note)); d.note = ''; }
@@ -18879,7 +19312,7 @@ const icon = (id) => {
 };
 
 const WORDS = Object.freeze({
-  sent: 'Sent', received: 'Received', opening: 'Arrival money', game: 'In town', held: 'Offer', returned: 'Offer returned', bought: 'Bought', sold: 'Sold',
+  sent: 'Sent', received: 'Received', opening: 'Arrival money', game: 'In town', held: 'Offer', returned: 'Offer returned', bought: 'Bought', sold: 'Sold', upgrade: 'Character upgrade',
 });
 const STATUS = Object.freeze({ completed: 'Completed', held: 'Set aside', paid: 'Paid', returned: 'Returned' });
 
@@ -18921,6 +19354,23 @@ function createWalletUI(kit) {
     redraw();
   }
 
+  // What a wallet is made of, said small under the balance and opened for anyone who wants the whole of it.
+  //   parts: { total, starter, eligible, held } in ledger units (eligible is TR that was earned: what can be
+  //   sent to another player or spent on a thing to own)
+  function partsBox(parts) {
+    if (!parts || !Number.isSafeInteger(parts.starter)) return null;
+    const row = (label, value, id) => h('div', { class: 'wl-part' }, h('span', null, label), h('b', id ? { id } : null, tr(value)));
+    return h('details', { class: 'wl-parts', id: 'wallet-parts' },
+      h('summary', null, h('span', { id: 'wallet-eligible-line' }, `${tr(parts.eligible)} can be sent or spent on assets`), h('span', { class: 'wl-more' }, 'Details')),
+      h('div', { class: 'wl-partrows' },
+        row('Total', parts.total, 'wallet-total'),
+        row('Starter TR', parts.starter, 'wallet-starter'),
+        row('Earned TR (eligible)', parts.eligible, 'wallet-eligible'),
+        parts.held > 0 ? row('Set aside for your offers', parts.held, 'wallet-held') : null),
+      h('p', { class: 'small' }, 'Starter TR is the 2,000 TR you arrived with. It pays fines, the ambulance, hospital bills, levies, permits, fares, food and fuel. It cannot be sent to another player and does not buy assets (land, vehicles, building materials, things in the market) or a character upgrade.'),
+      h('p', { class: 'small' }, 'Earned TR is what you are paid for work in town, what other players send you, and what you sell things for. It can be sent and spent on anything.'));
+  }
+
   // ---- the page ----
 
   function page(root, view, sub, go) {
@@ -18936,7 +19386,9 @@ function createWalletUI(kit) {
 
   // A copy of the game with no server: this world's own money, and nothing that needs the bank.
   function local(root, view) {
-    root.append(h('div', { class: 'wl-card' }, h('div', { class: 'eyebrow' }, 'TR balance'), h('div', { class: 'wl-balance', id: 'wallet-balance' }, h('b', null, trPlainGrouped(view.self.balance)), h('span', null, 'TR'))));
+    const f = view.self.funds || null;
+    root.append(h('div', { class: 'wl-card' }, h('div', { class: 'eyebrow' }, 'TR balance'), h('div', { class: 'wl-balance', id: 'wallet-balance' }, h('b', null, trPlainGrouped(view.self.balance)), h('span', null, 'TR')),
+      f ? partsBox({ total: f.total, starter: f.starter, eligible: f.eligible, held: 0 }) : null));
     root.append(h('p', { class: 'small' }, 'TR is the money of this world. Sending TR to other players, and receiving it, is on postcivilwar.com, where every player has an account and a wallet kept by the game\'s server. This copy of the game has no connection to it.'));
     root.append(section('Recent entries'));
     kit.legacy.wallet(root);
@@ -18989,6 +19441,7 @@ function createWalletUI(kit) {
       h('div', { class: 'wl-top' }, h('div', { class: 'eyebrow' }, 'TR balance'),
         h('button', { class: 'wl-icon', type: 'button', id: 'wallet-history', 'aria-label': 'Transaction history', title: 'Transaction history', onclick: () => { w.history.loaded = false; go({ history: true }); } }, icon('history'))),
       st.balance === null ? h('div', { class: 'wl-balance wl-wait', id: 'wallet-balance', 'aria-busy': 'true' }, h('b', null, st.error ? '\u2014' : '···'), h('span', null, 'TR')) : figure(st.balance),
+      st.balance !== null && st.starter !== null ? partsBox({ total: st.balance, starter: st.starter, eligible: st.eligible, held: st.held }) : null,
       st.held > 0 ? h('div', { class: 'wl-held' }, `${tr(st.held)} more is set aside for your offers in the market`) : null,
       h('div', { class: 'wl-user' }, h('span', { class: 'eyebrow' }, 'Username'), h('b', { id: 'wallet-username' }, name), h('span', { class: 'wl-copied', id: 'wallet-copied', role: 'status', hidden: true }), copyButton(name, 'wallet-copy')));
     root.append(card);
@@ -19022,10 +19475,10 @@ function createWalletUI(kit) {
   function entryRow(e) {
     const who = e.type === 'sent' ? `to ${e.other}` : e.type === 'received' ? `from ${e.other}` : e.type === 'sold' && e.other ? `to ${e.other}` : (e.type === 'bought' || e.type === 'held') && e.other ? `from ${e.other}` : '';
     const title = `${WORDS[e.type] || e.type}${who ? ` ${who}` : ''}`;
-    const detail = e.type === 'game' ? `Earned ${tr(e.earned)}, spent ${tr(e.spent)}` : e.what || '';
+    const detail = e.type === 'game' ? `Earned ${tr(e.earned)}, spent ${tr(e.spent)}` : e.type === 'upgrade' ? String(e.note || '').replace(/^Character upgrade:\s*/, '') : e.what || '';
     return h('div', { class: 'wl-entry', 'data-type': e.type, 'data-ref': e.ref },
       h('span', { class: `wl-dir ${e.direction}` }, icon(e.direction === 'in' ? 'receive' : 'send')),
-      h('span', { class: 'wl-what' }, h('b', null, title), detail ? h('span', null, detail) : null, e.note && e.note !== 'In town' && e.type !== 'opening' && e.type !== 'held' && e.type !== 'returned' && e.type !== 'bought' && e.type !== 'sold' ? h('span', { class: 'wl-note' }, `"${e.note}"`) : null,
+      h('span', { class: 'wl-what' }, h('b', null, title), detail ? h('span', null, detail) : null, e.note && e.note !== 'In town' && e.type !== 'opening' && e.type !== 'held' && e.type !== 'returned' && e.type !== 'bought' && e.type !== 'sold' && e.type !== 'upgrade' ? h('span', { class: 'wl-note' }, `"${e.note}"`) : null,
         h('span', { class: 'eyebrow plain' }, `${date(e.at)} · ${STATUS[e.status] || e.status} · ${e.ref}`)),
       h('span', { class: `wl-amount ${e.direction === 'in' ? 'pos' : 'neg'}` }, `${e.direction === 'in' ? '+' : '\u2212'}${tr(e.amount)}`));
   }
@@ -19036,7 +19489,12 @@ function createWalletUI(kit) {
 
   function form(root, go) {
     const st = wallet().state;
-    root.append(h('div', { class: 'wl-head' }, h('div', { class: 'big' }, 'Send TR'), st.balance !== null ? h('div', { class: 'eyebrow' }, `You have ${tr(st.balance)}`) : null));
+    // what can be sent is what was earned: said here, before anything is typed
+    const can = st.eligible !== null ? st.eligible : st.balance;
+    root.append(h('div', { class: 'wl-head' }, h('div', { class: 'big' }, 'Send TR'), can !== null ? h('div', { class: 'eyebrow', id: 'send-can' }, `You can send ${tr(can)}`) : null));
+    if (st.eligible !== null && st.eligible < st.balance) root.append(h('p', { class: 'small', id: 'send-starter-note' }, st.eligible > 0
+      ? `Your balance is ${tr(st.balance)}. ${tr(st.starter)} of it is starter TR, which cannot be transferred.`
+      : 'Starter TR cannot be transferred. Earn TR through gameplay to send money to other players.'));
     const submit = async (event) => {
       if (event) event.preventDefault();
       if (w.checking) return;
@@ -19067,7 +19525,8 @@ function createWalletUI(kit) {
     root.append(h('div', { class: 'wl-head' }, h('div', { class: 'big' }, 'Confirm transfer'), h('div', { class: 'eyebrow' }, 'Nothing has been sent yet')));
     root.append(h('div', { class: 'rows wl-sheet', id: 'send-summary' },
       line('Recipient', c.person.username), line('Amount', tr(c.amount)), line('Fee', c.fee > 0 ? tr(c.fee) : 'None'), line('Total to leave your wallet', tr(c.total)),
-      c.note ? line('Note', c.note) : null, line('Your balance afterwards', tr(c.balance - c.total))));
+      c.note ? line('Note', c.note) : null, line('Your balance afterwards', tr(c.balance - c.total)),
+      Number.isSafeInteger(c.eligible) ? line('Of which TR you can still send', tr(c.eligible - c.total)) : null));
     if (w.sendProblem) root.append(h('div', { class: 'notice', id: 'confirm-problem', role: 'alert' }, w.sendProblem));
     const doSend = async () => {
       if (w.sending) return;
@@ -20541,6 +21000,13 @@ function createUI(app) {
         root.append(h('p', { class: 'small' }, 'Your character, your TR and what you own are kept with your account, so they are the same on any device you log in on. Other players near you see your username over your head.'));
       } else root.append(h('p', { class: 'small', id: 'settings-offline' }, st.state === 'checking' ? 'Asking the server...' : `The game's server cannot be reached just now. ${st.message || ''} ${who ? `You are playing as ${who}: ` : ''}your character is kept on this device and goes to your account when the connection is back. Nothing can be sent, received, bought or sold until then.`));
     }
+    // The character: who the player is, and the way to look at the others. (Looking changes nothing.)
+    const mine = app.character ? app.character() : null;
+    if (mine && app.gallery) {
+      root.append(section('Character'));
+      root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Your character: ', h('b', { id: 'settings-character' }, mine.name)), h('button', { class: 'btn', type: 'button', id: 'open-gallery', onclick: () => app.gallery() }, 'View characters'))));
+      root.append(h('p', { class: 'small' }, 'Your character was chosen when you arrived and stays yours. You can look at the others at any time; changing to one of them is a character upgrade, which is paid for.'));
+    }
     root.append(section('Sound'));
     root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); }))));
     const levels = app.volumes();
@@ -20717,6 +21183,8 @@ function createUI(app) {
     const balance = amt(view.self.balance);
     if ($('hud-balance').textContent !== balance) {
       $('hud-balance').textContent = balance;
+      // (how many characters the balance is: the page sizes the figures from it, so that a great balance still fits)
+      $('hud-balance').closest('.purse').style.setProperty('--n', String(balance.length + 2));
       const pounds = poundsOf(view.self.balance);
       $('hud-pounds').textContent = `= £${pounds.toLocaleString('en-GB', { minimumFractionDigits: Number.isInteger(pounds) ? 0 : 2, maximumFractionDigits: 2 })}`;
     }
@@ -21658,7 +22126,12 @@ return { COVER };
 // ---- client/intro.js ----
 __modules["client/intro.js"] = (function () {
 // The opening: the brand while the game gets ready (five seconds), then the game's cover with PLAY on it, then
-// the one question every player answers.
+// the one question every player answers, once.
+//
+// The question is asked here, straight after PLAY, when it is already known that it has never been answered
+// (a copy of the game with no accounts, and no answer kept on the device). On the website the answer belongs to
+// the account, and who is playing is not known until they have signed in: there the opening ends at PLAY, and
+// the question is put later, by `question()`, to an account that has never answered it. It is never put twice.
 //
 // The markup and its animations are in template.html, so the splash is on screen before this script
 // has been read. This file keeps time (which stage is showing, what was answered) and lays the cover out.
@@ -21736,16 +22209,20 @@ function coverLayout(W, H, cover = COVER, inset = {}) {
 
 function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_TIMES }) {
   const root = document.getElementById('intro');
-  const done = (path) => { if (root) root.remove(); onDone(path); };
-  if (!root) { onDone(null); return { stage: () => 'done', active: () => false }; }
-  if (location.hash.includes('nointro')) { done(null); return { stage: () => 'done', active: () => false }; }
+  // (the opening is put away, not thrown away: the question may still have to be asked)
+  const done = (path) => { if (root) { root.hidden = true; root.classList.remove('leaving', 'ready'); root.dataset.stage = 'done'; } onDone(path); };
+  let asking = null;             // the question put after the opening is over: { resolve }
+  let later = null;              // (filled in below: how the question is put again)
+  const closed = { stage: () => 'done', active: () => false, ready: () => false, question: () => (later ? later() : Promise.resolve(null)), asking: () => !!asking };
+  if (!root) { onDone(null); return closed; }
+  const skipped = location.hash.includes('nointro');
 
   const $ = (id) => document.getElementById(id);
   const stageBox = root.querySelector('.gamecover');
   const plate = $('cover-plate'), logo = $('cover-logo'), words = $('cover-words'), play = $('cover-play'), playArt = $('cover-play-art');
   const mute = $('intro-mute');
   const startedAt = typeof window.__introAt === 'number' ? window.__introAt : performance.now();
-  let stage = 'splash';
+  let stage = skipped ? 'done' : 'splash';
   let answered = false;
   let ready = false;             // the cover is up and PLAY can be pressed
   const log = { played: false, playedAt: 0, coverAt: 0, path: null, layout: null };
@@ -21773,7 +22250,7 @@ function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_T
     el.style.width = `${box.w.toFixed(2)}px`; el.style.height = `${box.h.toFixed(2)}px`;
   };
   function layout() {
-    if (stage === 'done') return;
+    if (stage === 'done' || skipped) return;
     const W = root.clientWidth, H = root.clientHeight;
     if (!W || !H) return;
     const at = coverLayout(W, H, cover, insets());
@@ -21797,9 +22274,9 @@ function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_T
   mute.addEventListener('click', (event) => { event.stopPropagation(); sound.toggle(); showSound(); if (sound.on()) { audio.start(); setTimeout(() => audio.choose('move'), 80); } });
 
   const onKey = (event) => {
-    if (stage === 'done') return;
+    if (stage === 'done' && !asking) return;
     if (stage === 'cover' && (event.key === 'Enter' || event.key === ' ') && event.target !== mute) { event.preventDefault(); begin(); return; }
-    if (stage === 'choice') { const path = pathForKey(event.key); if (path) choose(path); }
+    if (stage === 'choice' || asking) { const path = pathForKey(event.key); if (path) choose(path); }
   };
   window.addEventListener('keydown', onKey);
 
@@ -21837,7 +22314,7 @@ function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_T
   }
 
   function choose(path) {
-    if (answered || stage !== 'choice' || !PATHS.includes(path)) return;
+    if (answered || (stage !== 'choice' && !asking) || !PATHS.includes(path)) return;
     answered = true;
     log.path = path;
     if (sound.on()) audio.start();
@@ -21855,7 +22332,16 @@ function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_T
 
   function leave(path) {
     stage = 'done';
-    window.removeEventListener('keydown', onKey);
+    if (asking) {
+      // The question was put after the opening: it goes away as it came, and whoever asked has the answer.
+      // It is still "being asked" until the answer has been handed over: if it stopped being so while it was
+      // going away, anything that looked in that half second (the town becoming ready, a sign-in) would find
+      // the question neither on the screen nor answered, and put it a second time.
+      const pending = asking;
+      root.classList.add('leaving');
+      setTimeout(() => { root.hidden = true; root.classList.remove('leaving'); root.dataset.stage = 'done'; if (asking === pending) asking = null; pending.resolve(path); }, times.leave);
+      return;
+    }
     window.removeEventListener('resize', layout);
     window.removeEventListener('orientationchange', layout);
     if (window.visualViewport) window.visualViewport.removeEventListener('resize', layout);
@@ -21867,9 +22353,23 @@ function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_T
   for (const button of root.querySelectorAll('.pick')) {
     button.addEventListener('click', () => choose(button.dataset.path));
     // a pointer passing over an answer ticks; a finger has no "over", so on touch only the choice sounds
-    button.addEventListener('pointerenter', (event) => { if (event.pointerType === 'mouse' && !answered && stage === 'choice') audio.choose('move'); });
+    button.addEventListener('pointerenter', (event) => { if (event.pointerType === 'mouse' && !answered && (stage === 'choice' || asking)) audio.choose('move'); });
   }
   play.addEventListener('click', begin);
+
+  // The question, put after the opening is over: to an account that has never answered it. Gives the answer.
+  // Asked while it is already being asked, it is the same asking.
+  later = function question() {
+    if (asking) return asking.promise;
+    let resolve; const promise = new Promise((ok) => { resolve = ok; });
+    asking = { resolve, promise };
+    answered = false;
+    for (const button of root.querySelectorAll('.pick')) { button.classList.remove('chosen', 'passed'); button.setAttribute('aria-pressed', 'false'); button.disabled = false; }
+    root.hidden = false; root.classList.remove('leaving');
+    stage = 'choice'; root.dataset.stage = 'choice';
+    return promise;
+  };
+  if (skipped) { done(null); return { ...closed, question: later, asking: () => !!asking, choose, stage: () => (asking ? 'choice' : 'done'), active: () => !!asking }; }
 
   // The splash has its five seconds, counted from when it first appeared, not from when this script woke.
   // Then the cover takes its place: nothing is pressed to get from one to the other.
@@ -21878,7 +22378,8 @@ function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_T
 
   return {
     stage: () => stage,
-    active: () => stage !== 'done',
+    active: () => stage !== 'done' || !!asking,
+    question: later, asking: () => !!asking,
     ready: () => ready,
     log,
     layout,
@@ -21929,6 +22430,13 @@ return { createChoice };
 __modules["client/creator.js"] = (function () {
 // Making a character: a woman or a man, one of the owner's supplied figures, its colours and a name.
 //
+// The same view is used three ways (`setMode`):
+//   choose    a new player, choosing. What is shown is what will be chosen, and it is remembered on the device.
+//   locked    the character is already the account's (a new journey after a saved game was erased): only that
+//             one is shown, and there is nothing to change it with.
+//   gallery   someone with a character, looking at the others. Every character can be turned and watched; none
+//             of it chooses anything, remembers anything or touches the name. Changing is the upgrade's business.
+//
 // The figure is drawn here as the game will draw it, from the same baked data and the same skeleton, in its
 // own small view: turned by dragging, changed by a flick or the arrows. Nothing here decides anything; the
 // choice goes to the simulation when the player enters the town, and it checks what it is given
@@ -21941,8 +22449,9 @@ const { makeCharacter, animateCharacter } = __modules["client/character.js"];
 const PART_NAMES = { skin: 'Skin', hair: 'Hair', top: 'Top', bottom: 'Bottom', shoes: 'Shoes', hat: 'Hat' };
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 
-function createCreator({ canvas, root, nameField, onPick, saved }) {
+function createCreator({ canvas, root, nameField, onPick, onView = () => {}, saved }) {
   const choice = createChoice(saved);
+  let mode = 'choose';
   const $ = (id) => document.getElementById(id);
   let named = false;       // the player has typed a name of their own; until then the field holds the figure's own
   nameField.addEventListener('input', () => { named = nameField.value.trim().length > 0; });
@@ -22066,7 +22575,9 @@ function createCreator({ canvas, root, nameField, onPick, saved }) {
       b.addEventListener('click', () => { if (i !== here) goTo(i, i > here ? 1 : -1); });
       return b;
     }));
-    $('fig-prev').disabled = EVERYONE.length < 2; $('fig-next').disabled = EVERYONE.length < 2;
+    const fixed = mode === 'locked';
+    $('fig-prev').disabled = fixed || EVERYONE.length < 2; $('fig-next').disabled = fixed || EVERYONE.length < 2;
+    $('genders').hidden = fixed; $('fig-prev').hidden = fixed; $('fig-next').hidden = fixed; $('fig-dots').hidden = fixed; $('fig-count').hidden = fixed;
     $('colour-block').hidden = !f.parts.length;
     $('anim-block').hidden = !f.animated;
     if (f.animated) drawAnims();
@@ -22084,10 +22595,10 @@ function createCreator({ canvas, root, nameField, onPick, saved }) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'swatch'; b.style.background = hex(c);
       b.setAttribute('aria-label', `${PART_NAMES[part]} colour ${i + 1}`); b.setAttribute('aria-pressed', String(c === now));
-      b.addEventListener('click', () => { choice.colour(part, c); drawControls(); show(0); onPick && onPick(choice.look()); });
+      b.addEventListener('click', () => { if (mode !== 'choose') return; choice.colour(part, c); drawControls(); show(0); onPick && onPick(choice.look()); });
       return b;
     }));
-    if (!named) nameField.value = f.name;
+    if (!named && mode !== 'gallery') nameField.value = f.name;
   }
   // the animations a figure came with, by their one-word names; the one playing is marked
   function drawAnims() {
@@ -22102,12 +22613,30 @@ function createCreator({ canvas, root, nameField, onPick, saved }) {
       return b;
     }) : [Object.assign(document.createElement('span'), { className: 'small', textContent: 'Loading the animations\u2026' })]));
   }
-  function changed(dir) { drawControls(); show(dir); onPick && onPick(choice.look()); }
+  // (only a new player's choosing is remembered; looking is not choosing)
+  function changed(dir) { drawControls(); show(dir); if (mode === 'choose' && onPick) onPick(choice.look()); onView(choice.figure.id); }
   const EVERYONE = Object.keys(FIGURE_ORDER).flatMap((gender) => FIGURE_ORDER[gender].map((id, index) => ({ gender, index, id })));
   function placeOf() { return Math.max(0, EVERYONE.findIndex((e) => e.gender === choice.gender && e.index === choice.index)); }
-  function goTo(i, dir) { const to = EVERYONE[i]; if (to.gender !== choice.gender) choice.setGender(to.gender); choice.go(to.index); changed(dir); }
+  function goTo(i, dir) { if (mode === 'locked') return; const to = EVERYONE[i]; if (to.gender !== choice.gender) choice.setGender(to.gender); choice.go(to.index); changed(dir); }
   function step(by) { const n = EVERYONE.length; if (n > 1) goTo((placeOf() + by + n) % n, by); }
-  for (const b of $('genders').children) b.addEventListener('click', () => { if (b.dataset.gender !== choice.gender) { choice.setGender(b.dataset.gender); changed(1); } });
+  for (const b of $('genders').children) b.addEventListener('click', () => { if (mode !== 'locked' && b.dataset.gender !== choice.gender) { choice.setGender(b.dataset.gender); changed(1); } });
+  // Shows one character, by its id, without that being a choice.
+  function showFigure(id) {
+    const at = EVERYONE.findIndex((e) => e.id === id);
+    if (at < 0) return false;
+    const to = EVERYONE[at];
+    if (to.gender !== choice.gender) choice.setGender(to.gender);
+    choice.go(to.index);
+    drawControls(); show(0); onView(choice.figure.id);
+    return true;
+  }
+  function setMode(next, figure = null) {
+    const to = next === 'locked' || next === 'gallery' ? next : 'choose';
+    // (asked for what is already so: nothing is built again)
+    if (to === mode && (!figure || figure === choice.figure.id)) { onView(choice.figure.id); return; }
+    mode = to;
+    if (figure && figure !== choice.figure.id) showFigure(figure); else { drawControls(); onView(choice.figure.id); }
+  }
   $('fig-prev').addEventListener('click', () => step(-1));
   $('fig-next').addEventListener('click', () => step(1));
   root.addEventListener('keydown', (e) => {
@@ -22120,7 +22649,9 @@ function createCreator({ canvas, root, nameField, onPick, saved }) {
   requestAnimationFrame(frame);
   return {
     look: () => choice.look(),
-    choice,
+    choice, setMode, showFigure,
+    get mode() { return mode; },
+    figure: () => choice.figure.id,
     // for the checks: what is on the turntable
     get shown() { return shown ? { id: shown.id, key: shown.key, triangles: shown.rig.triangles, yaw, animation: shown.rig.animated && shown.rig.current ? shown.rig.current.getClip().name : null } : null; },
     playing: () => (shown && shown.rig.animated && shown.rig.current ? shown.rig.current.getClip().name : null),
@@ -23132,9 +23663,12 @@ function createOnline({ available = false, address = 'api/game', fetcher = null,
     if (!available) return { ok: false, code: 'NO_SERVER', message: 'This copy of the game has no server.' };
     if (cutOff()) return OFFLINE;
     const control = typeof AbortController === 'function' ? new AbortController() : null;
-    const timer = control ? setTimeout(() => control.abort(), options.timeout || timeout) : 0;
+    const wait = options.timeout || timeout;
+    let timer = control ? setTimeout(() => control.abort(), wait) : 0;
     try {
       const response = await send(address, { method: 'POST', credentials: 'same-origin', cache: 'no-store', keepalive: !!options.keepalive, headers: { 'Content-Type': 'application/json', 'X-PCW': '1' }, body: JSON.stringify({ op, ...body }), signal: control ? control.signal : undefined });
+      // the server has answered: reading what it said has its own time, and is not cut short by the first clock
+      if (control) { clearTimeout(timer); timer = setTimeout(() => control.abort(), wait); }
       let answer = null;
       try { answer = await response.json(); } catch (error) { answer = null; }
       if (!answer || typeof answer !== 'object' || typeof answer.ok !== 'boolean') return { ok: false, code: 'SERVER', message: 'The server did not answer properly. Try again in a moment.' };
@@ -23155,7 +23689,12 @@ function createOnline({ available = false, address = 'api/game', fetcher = null,
     if (cutOff()) { set({ state: 'down', account: null, save: null, message: 'There is no connection.' }); return status; }
     try { const response = await send(address, { method: 'GET', cache: 'no-store', credentials: 'same-origin' }); here = await response.json(); } catch (error) { here = null; }
     if (!here || !here.ok || !here.accounts) { set({ state: 'down', account: null, save: null, message: here && here.ok ? 'Accounts are not set up on this site yet.' : 'The server could not be reached.' }); return status; }
-    const me = await ask('me');
+    // (The first asking is made while the town is being built. On a slow device the page may not get round to
+    // the answer before its own clock runs out, though the server answered at once: the request is then cut off
+    // before the answer or half-way through reading it. One failure of that kind is not a server out of reach:
+    // it is asked again, with longer to answer, before anyone is told so.)
+    let me = await ask('me');
+    if (!me.ok && (me.code === 'OFFLINE' || me.code === 'SERVER') && !cutOff()) me = await ask('me', {}, { timeout: 30000 });
     if (!me.ok) set({ state: 'down', account: null, save: null, message: me.message });
     else set(me.account ? { state: 'in', account: me.account, save: me.save || null, wallet: me.wallet || null, message: '' } : { state: 'out', account: null, save: null, wallet: null, message: '' });
     return status;
@@ -23179,6 +23718,8 @@ function createOnline({ available = false, address = 'api/game', fetcher = null,
     async logOut() { const answer = await ask('logout'); if (answer.ok || answer.code !== 'OFFLINE') set({ state: available ? 'out' : 'off', account: null, save: null }); return answer; },
     // the character kept with the account is now at this revision (or, `erased`: there is none, as of this one)
     noteSave(rev, erased = false) { if (status.state === 'in') status.save = erased ? { rev, erased: true } : { ...(status.save && !status.save.erased ? status.save : {}), rev }; },
+    // the account's own character and path, as the server has just said they are
+    noteCharacter(character) { if (status.state === 'in' && status.account && character) { status.account = { ...status.account, figure: character.figure || status.account.figure || null, path: character.path || status.account.path || null }; changed(); } },
   };
 }
 
@@ -23768,6 +24309,10 @@ __modules["client/wallet.js"] = (function () {
 //             back; and only then is it sent, under a key made once for that confirmation. If no answer comes,
 //             the same key is used again: the bank does it once however often it is asked.
 //
+// What the wallet is made of is the bank's to say too: how much of it is starter TR (the arrival money, which
+// pays the town's charges and costs and nothing else) and how much is eligible (earned TR: what can be sent,
+// offered, or spent on a thing to own). This world's own count of that is set to the bank's with each answer.
+//
 // It draws nothing and touches no page: the interface is ui-wallet.js.
 
 const { newId } = __modules["client/market.js"];
@@ -23777,15 +24322,15 @@ const { trText } = __modules["sim/ledger.js"];
 // playerId(): this player. saveNow(): send the character to the account at once, and say how that went.
 // notify(event): things the player should be told. seen: { get(), set(n) }: the last entry this device has shown.
 function createWallet({ online, bank, playerId, saveNow = async () => null, saveSoon = () => {}, notify = () => {}, seen = { get: () => null, set: () => {} }, id = newId }) {
-  const state = { balance: null, held: 0, username: '', last: 0, at: 0, loading: false, error: '' };
+  const state = { balance: null, starter: null, illicit: 0, eligible: null, held: 0, username: '', last: 0, at: 0, loading: false, error: '' };
   const can = () => online.available && online.signedIn;
   const fail = (code, message) => ({ ok: false, code, message });
 
   // This world's wallet is made to say what the bank says (plus what has happened in town since the bank was told).
-  function align(balance, why) {
+  function align(balance, why, parts = null) {
     const b = bank(), me = playerId();
     if (!b || !me || !Number.isSafeInteger(balance)) return 0;
-    const done = b.align(me, balance, why);
+    const done = b.align(me, balance, why, parts);
     if (done.ok && done.moved) saveSoon();
     return done.ok ? done.moved : 0;
   }
@@ -23794,7 +24339,13 @@ function createWallet({ online, bank, playerId, saveNow = async () => null, save
   function heard(answer, why) {
     if (!answer) return;
     const w = answer.wallet && typeof answer.wallet === 'object' ? answer.wallet : answer;
-    if (Number.isSafeInteger(w.balance)) { state.balance = w.balance; state.at = Date.now(); state.error = ''; align(w.balance, why); }
+    if (Number.isSafeInteger(w.balance)) {
+      state.balance = w.balance; state.at = Date.now(); state.error = '';
+      // what it is made of: said by the bank with every balance it gives
+      const parts = Number.isSafeInteger(w.starter) ? { starter: w.starter, illicit: Number.isSafeInteger(w.illicit) ? w.illicit : 0 } : null;
+      if (parts) { state.starter = parts.starter; state.illicit = parts.illicit; state.eligible = Number.isSafeInteger(w.eligible) ? w.eligible : w.balance - parts.starter; }
+      align(w.balance, why, parts);
+    }
     if (Number.isSafeInteger(w.held)) state.held = w.held;
     if (typeof w.username === 'string') state.username = w.username;
     if (Number.isSafeInteger(w.last)) {
@@ -23812,6 +24363,8 @@ function createWallet({ online, bank, playerId, saveNow = async () => null, save
     if (b && me && Number.isSafeInteger(w.mark)) b.told(me, w.mark);
     heard(w, why);
     if (w.refused > 0) notify({ type: 'refused', amount: w.refused });
+    // the game here let something be bought that the bank will not take out of starter TR: the player is told
+    if (w.shortAsset > 0) notify({ type: 'unpaid', amount: w.shortAsset });
   }
 
   function report() { const b = bank(), me = playerId(); return b && me ? b.report(me) : null; }
@@ -23850,7 +24403,7 @@ function createWallet({ online, bank, playerId, saveNow = async () => null, save
     people: () => online.ask('wallet.people'),
     addPerson: (username) => online.ask('wallet.person.add', { username }),
     removePerson: (username) => online.ask('wallet.person.remove', { username }),
-    reset() { state.balance = null; state.held = 0; state.username = ''; state.last = 0; state.error = ''; },
+    reset() { state.balance = null; state.starter = null; state.illicit = 0; state.eligible = null; state.held = 0; state.username = ''; state.last = 0; state.error = ''; },
   };
 }
 
@@ -23869,8 +24422,10 @@ __modules["client/confirm.js"] = (function () {
 // that is under way neither button can be pressed again, so one press is one request. If it fails the dialog
 // stays, says why in plain words, and nothing has been changed.
 //
-//   ask({ title, body, confirm, cancel, busy, danger, run })  ->  a promise of true (done) or false (not done)
+//   ask({ title, body, rows, note, confirm, cancel, busy, danger, run })  ->  a promise of true (done) or false (not done)
 //   run: async () => ({ ok: true }) or ({ ok: false, message })
+//   rows: [[label, value], ...] set out as a small table under the words (what is to be paid, and so on)
+//   note: one more line under the table.   confirm: null for something that can only be read and closed.
 
 const $ = (id) => document.getElementById(id);
 
@@ -23878,6 +24433,7 @@ function createConfirm() {
   const box = $('confirm');
   if (!box) return { ask: async ({ run }) => { const r = await run(); return !!(r && r.ok); }, get isOpen() { return false; } };
   const title = $('confirm-title'), body = $('confirm-body'), error = $('confirm-error'), yes = $('confirm-yes'), no = $('confirm-no');
+  const table = $('confirm-rows'), foot = $('confirm-note');
   let open = null;              // { resolve, run, opener, busy, words }
 
   function close(result) {
@@ -23920,7 +24476,7 @@ function createConfirm() {
     if (event.key === 'Tab') {
       // the focus stays inside: there are two things to press and it goes from one to the other
       event.preventDefault();
-      const order = [no, yes].filter((b) => !b.disabled);
+      const order = [no, yes].filter((b) => !b.disabled && !b.hidden);
       if (!order.length) return;
       const at = order.indexOf(document.activeElement);
       order[(at + (event.shiftKey ? order.length - 1 : 1)) % order.length].focus({ preventScroll: true });
@@ -23929,13 +24485,19 @@ function createConfirm() {
   // keys typed while it is up are its own: the game behind it does not hear them
   for (const type of ['keyup', 'keypress']) box.addEventListener(type, (event) => event.stopPropagation());
 
-  function ask({ title: heading, body: text, confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, run }) {
+  function ask({ title: heading, body: text = '', rows = null, note = '', confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, run = async () => ({ ok: true }) }) {
     if (open) return Promise.resolve(false);
     return new Promise((resolve) => {
       open = { resolve, run, opener: document.activeElement, busy: false, words: { confirm, busy } };
       title.textContent = heading;
-      body.textContent = text;
-      yes.textContent = confirm; no.textContent = cancel;
+      body.textContent = text; body.hidden = !text;
+      if (table) {
+        table.replaceChildren(...(rows || []).flatMap(([label, value, strong]) => { const dt = document.createElement('dt'); dt.textContent = label; const dd = document.createElement('dd'); dd.textContent = value; if (strong) dd.className = 'strong'; return [dt, dd]; }));
+        table.hidden = !(rows && rows.length);
+      }
+      if (foot) { foot.textContent = note; foot.hidden = !note; }
+      yes.hidden = confirm === null;
+      yes.textContent = confirm || ''; no.textContent = cancel;
       yes.disabled = false; no.disabled = false;
       yes.classList.toggle('danger', !!danger);
       error.hidden = true; error.textContent = '';
@@ -23965,7 +24527,8 @@ __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
 const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS } = __modules["sim/zone.js"];
-const { SPEED, SWIM, structureFootprint } = __modules["sim/sim.js"];
+const { SPEED, SWIM, UPGRADE, structureFootprint } = __modules["sim/sim.js"];
+const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
 const { VEHICLE_KINDS, RUN_RULES, vehicleFits, vehicleSpeedAt, vehicleBox, lowerFirst } = __modules["sim/vehicles.js"];
 const { createTranslator } = __modules["sim/culture.js"];
@@ -24005,7 +24568,7 @@ const { createPhoneHold } = __modules["client/phone-hold.js"];
 const { createMusic } = __modules["client/music.js"];
 const { trText, trAmount, TR } = __modules["sim/ledger.js"];
 const { createOnline, createWebTransport, packSave, unpackSave } = __modules["net/online.js"];
-const { createMarket, createAccountSync } = __modules["client/market.js"];
+const { createMarket, createAccountSync, newId } = __modules["client/market.js"];
 const { createAccountUI } = __modules["client/account-ui.js"];
 const { createWallet } = __modules["client/wallet.js"];
 const { createConfirm } = __modules["client/confirm.js"];
@@ -24212,6 +24775,9 @@ function start(carried) {
   let host = createHost({ saved: stored ? stored.host : null });
   let playerId = stored && host.game.hasPlayer(stored.playerId) ? stored.playerId : null;
   let playing = false;
+  let intro = null;                   // the opening (intro.js); it can also put the one question again, later
+  let gallery = false;                // looking at the characters, from inside the game: nothing is being played meanwhile
+  let characterTrouble = '';          // why the character kept with the account could not be brought here, if it could not
   let view = null;
   let predicted = { x: ZONE.spawn.x, z: ZONE.spawn.z, heading: 0 };
   let me = null;
@@ -24322,7 +24888,7 @@ function start(carried) {
   });
   // The character leaves this device: it was erased, or its player has logged out.
   function forgetCharacter(why) {
-    clearSave(); playing = false; ui.close(); if (why !== 'erased') walletClient.reset(); showStart(true);
+    clearSave(); playing = false; gallery = false; ui.close(); if (why !== 'erased') walletClient.reset(); showStart(true); route();
   }
   const accountSync = createAccountSync({
     online, pack: packSave, unpack: unpackSave, read: savedNow,
@@ -24348,7 +24914,8 @@ function start(carried) {
     if (wasPlaying) ui.close();
     host = next; playerId = saved.playerId; known.clear();
     writeStored(SAVE_KEY, { host: host.save(), playerId });
-    if (wasPlaying) enterWorld(); else showStart(false);
+    characterTrouble = '';
+    if (wasPlaying) enterWorld(); else { showStart(false); route(); }
     return true;
   }
   // Signed in, the other players in town are those the server knows of; signed out, there are none. And on the
@@ -24362,13 +24929,14 @@ function start(carried) {
     if (!want) { market.reset(); ui.signedOut(); }
     if (online.status().state === 'out') {
       walletClient.reset();
-      if (playing) {
+      if (playing || gallery) {
         writeStored(SAVE_KEY, { host: host.save(), playerId });
-        playing = false; ui.close(); showStart(false);
+        playing = false; gallery = false; ui.close(); showStart(false);
         accountUI.why('You have been signed out', 'Log in to carry on. Your character is kept with your account, and on this device as you left it.');
       }
     }
     accountUI.draw();
+    route();
   }
   // What the bank has told this device since it last looked: TR that has arrived, and the like.
   function walletNote(event) {
@@ -24377,6 +24945,7 @@ function start(carried) {
     else if (event.type === 'sold') { say(`Sold: ${event.what || 'something of yours'}. ${trText(event.amount)} is in your wallet.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
     else if (event.type === 'bought') { say(`Bought: ${event.what || 'something'}, for ${trText(event.amount)}. It is in Property on your phone.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
     else if (event.type === 'returned') say(`Your offer${event.what ? ` for ${event.what}` : ''} came to nothing. ${trText(event.amount)} is back in your wallet.`);
+    else if (event.type === 'unpaid') say(`${trText(event.amount)} of what this game says was spent on things to own was not taken by the bank: only TR you have earned buys them, and there was not enough. Your balance is the bank's figure.`);
     else if (event.type === 'refused') say(`The bank did not take ${trText(event.amount)} of what this game says was earned in town: it was more than could have been earned in the time. Your balance is the bank's figure.`);
     ui.walletStale();
     refreshView();
@@ -24558,6 +25127,9 @@ function start(carried) {
     send: (intent) => { const r = server.send(intent); refreshView(); return r; },
     view: () => view,
     erase: () => eraseSave(),
+    // the characters, to look at; and which one the player is
+    gallery: () => openGallery(),
+    character: () => { const id = myFigure(); return id ? { figure: id, name: figureName(id) } : null; },
     closed: () => { if (playing) { refreshView(); prompt = findPrompt(); } },
     settings,
     webapp,
@@ -24600,7 +25172,8 @@ function start(carried) {
       else if (event.type === 'in') ui.toast({ type: 'note', text: event.warning || (event.adopted ? `Logged in as ${event.account.username}. Your character has been brought to this device.` : `Logged in as ${event.account.username}.`) });
       else if (event.type === 'out') ui.toast({ type: 'note', text: 'You are logged out. Your character is kept with your account.' });
       if (event.type !== 'checked') { market.soon(); refreshDealMarkers(); ui.marketStale(); ui.walletStale(); }
-      if (event.type === 'created' || event.type === 'in') { showStart(false); const first = playerId ? $('continue') : $('name'); if (first && !coarse) first.focus({ preventScroll: true }); }
+      // signed in: the account's own character and path are the ones that count, and the player goes where they belong
+      if (event.type === 'created' || event.type === 'in') { characterTrouble = event.warning || ''; syncProfile().then(() => route()); }
       if (playing) ui.redraw();
     },
   });
@@ -24636,10 +25209,16 @@ function start(carried) {
     try {
       await online.check();
       onlineChanged();
-      if (online.signedIn) { const settled = await accountSync.settle(); if (!settled.ok && settled.message) ui.toast({ type: 'note', text: settled.message }); if (settled.erased) ui.toast({ type: 'note', text: 'This saved game was erased from another device. A new journey begins here.' }); }
+      if (online.signedIn) {
+        const settled = await accountSync.settle();
+        // a character that could not be fetched is not replaced by a new one: the player is told, and can try again
+        characterTrouble = !settled.ok && settled.message ? settled.message : '';
+        if (settled.erased) ui.toast({ type: 'note', text: 'This saved game was erased from another device. A new journey begins here.' });
+        await syncProfile();
+      }
       accountUI.draw();
       refreshDealMarkers();
-    } finally { greeting = false; }
+    } finally { greeting = false; route(); }
   }
   greetServer();
   window.addEventListener('online', () => { if (online.status().state === 'down') greetServer(); });
@@ -24830,24 +25409,64 @@ function start(carried) {
 
   // -------------------------------------------------------------- start --
 
-  // The character: one of the owner's supplied figures, turned in its own view, in the colours the player
-  // picks. The last choice made on this device is where the screen starts.
+  // The character: one of the owner's supplied figures, turned in its own view. A new player chooses one, once;
+  // after that the same view is where the others can be looked at, and nothing in it changes who the player is.
   const creator = createCreator({
     canvas: $('stage-view'), root: $('start'), nameField: $('name'),
     saved: prefs.look || {},
     onPick: (look) => { prefs.look = look; writeStored(PREFS_KEY, prefs); },
+    onView: (figure) => drawGallery(figure),
   });
   window.__creator = creator;
-  // The answer to the opening's question: remembered on this device, and shown here so it can be changed
-  // before a character is made. It goes to the simulation with the character and stays with them.
+
+  // The answer to "hero or villain". It is given once: in the opening where there are no accounts, and to an
+  // account that has never answered where there are. It is kept (on the device, with the character, and with
+  // the account), and nothing on the screen where a character is made asks it again.
   let pathChosen = prefs.path === 'villain' ? 'villain' : 'hero';
   function choosePath(path, remember = true) {
     pathChosen = path === 'villain' ? 'villain' : 'hero';
-    for (const button of $('paths').children) button.setAttribute('aria-pressed', String(button.dataset.path === pathChosen));
     if (remember) { prefs.path = pathChosen; writeStored(PREFS_KEY, prefs); }
   }
-  choosePath(pathChosen, false);
-  for (const button of $('paths').children) button.addEventListener('click', () => { choosePath(button.dataset.path); audio.choose('move'); });
+  // The answer already given, wherever it is kept; null if it never was.
+  function knownPath() {
+    if (playerId) { const mine = host.game.view(playerId).self.path; if (mine) return mine; }
+    if (online.signedIn && online.account && online.account.path) return online.account.path;
+    return prefs.path === 'hero' || prefs.path === 'villain' ? prefs.path : null;
+  }
+  // The character the account is, if it has chosen one (the server's word); or, with no accounts, this device's.
+  const accountFigure = () => (online.signedIn && online.account && online.account.figure ? online.account.figure : null);
+  const myFigure = () => { if (!playerId) return null; const look = host.game.view(playerId).self.look; return look && look.figure ? look.figure : null; };
+  const figureName = (id) => (FIGURES[id] ? FIGURES[id].name : 'your character');
+
+  // The account and the copy of the game on this device are made to agree about who the player is. The account's
+  // character is the one that counts: a copy here that says otherwise is changed to it, never the other way.
+  // An account that has no character or path yet (one from before they were kept with it) takes what its own
+  // game already has, once.
+  async function syncProfile() {
+    if (!online.signedIn || !online.account) return;
+    const self = playerId ? host.game.view(playerId).self : null;
+    const here = self && self.look && self.look.figure ? self.look.figure : null;
+    const want = {};
+    if (!online.account.figure && here) want.figure = here;
+    if (!online.account.path) { const path = (self && self.path) || (prefs.path === 'hero' || prefs.path === 'villain' ? prefs.path : null); if (path) want.path = path; }
+    if (want.figure || want.path) {
+      const answer = await online.ask('character.choose', want);
+      if (answer.ok) online.noteCharacter(answer.character);
+      else if (answer.code === 'CHOSEN') online.noteCharacter({ figure: answer.figure, path: answer.path });
+    }
+    const theirs = accountFigure();
+    if (theirs && playerId && myFigure() && myFigure() !== theirs) { host.bank.figure(playerId, theirs); writeStored(SAVE_KEY, { host: host.save(), playerId }); if (playing) wearCharacter(); accountSync.soon(); }
+    if (online.account.path) choosePath(online.account.path);
+  }
+
+  // What the start screen is showing: 'create' (a new journey), 'resume' (a character there is, being made
+  // ready or fetched), 'gallery' (looking at the characters from inside the game). The account's own part of
+  // it, shut until someone is signed in, is account-ui.js's.
+  function setScreen(screen) {
+    $('start').dataset.screen = screen;
+    $('resume').hidden = screen !== 'resume';
+    $('gallery').hidden = screen !== 'gallery';
+  }
 
   function showStart(fresh) {
     $('start').hidden = false;
@@ -24859,21 +25478,73 @@ function start(carried) {
     for (const mesh of markers.values()) scene.remove(mesh);
     markers.clear();
     drawSpectator();
-    const resume = $('continue');
-    resume.hidden = !playerId;
-    if (playerId) resume.textContent = `Continue as ${host.game.view(playerId).self.name}`;
-    // the same, at the head of the screen where it is seen at once
-    $('continue-top').hidden = !playerId;
-    $('continue-top').textContent = resume.textContent;
-    $('start-title').textContent = playerId ? 'Or start again with a new character' : 'Create your character';
+    drawStart();
   }
 
-  function enterWorld() {
+  // The start screen, as things stand: someone with a character is not asked to make one, and someone whose
+  // character could not be fetched is told so and is not given another.
+  function drawStart() {
+    if (gallery) { setScreen('gallery'); $('start-title').textContent = 'Characters'; return; }
+    const waiting = !!playerId || expectsCharacter();
+    setScreen(waiting ? 'resume' : 'create');
+    if (waiting) {
+      const name = playerId ? host.game.view(playerId).self.name : (online.status().save && online.status().save.name) || '';
+      $('resume-title').textContent = name ? `Welcome back, ${name}` : 'Welcome back';
+      const failed = !playerId && !!characterTrouble;
+      $('resume-text').textContent = failed ? `Your character is kept with your account, and it could not be brought to this device just now. ${characterTrouble} Nothing has been lost, and no new character has been made.` : playerId ? 'Your character is as you left it.' : 'Your character is being brought from your account.';
+      $('resume-wait').hidden = failed;
+      $('resume-wait-text').textContent = playerId ? 'Preparing the town...' : 'Fetching your character...';
+      $('resume-retry').hidden = !failed;
+      return;
+    }
+    // a new journey. The character is chosen here once; an account that already has one keeps it
+    const fixed = accountFigure();
+    creator.setMode(fixed ? 'locked' : 'choose', fixed);
+    $('start-title').textContent = fixed ? 'Begin a new journey' : 'Create your character';
+    $('locked-note').hidden = !fixed;
+    if (fixed) $('locked-note').textContent = `Your character is ${figureName(fixed)}'s figure. It is yours on every journey, and can be changed in town with a character upgrade.`;
+  }
+  // Signed in, with a character kept by the account that is not on this device yet.
+  const expectsCharacter = () => online.available && online.signedIn && !playerId && !!online.status().save && !online.status().save.erased;
+  $('resume-retry').addEventListener('click', async () => {
+    $('resume-retry').disabled = true; characterTrouble = ''; drawStart();
+    const settled = online.signedIn ? await accountSync.settle() : { ok: false, message: 'You are not signed in.' };
+    characterTrouble = !settled.ok && settled.message ? settled.message : '';
+    $('resume-retry').disabled = false;
+    route();
+  });
+
+  // Where the player belongs, once the opening is over. Called whenever something that decides it has changed
+  // (the opening ended, the town is ready, someone signed in or out, a character arrived or went). Someone with
+  // a character goes into the town: they are not shown the screen where one is made, and are not asked anything.
+  function route() {
+    if (playing || gallery) return;
+    if (!intro || (intro.active() && !intro.asking())) return;         // the opening is still on the screen
+    if (!accountUI.mayPlay()) { if (!$('start').hidden) drawStart(); return; }  // the website, signed out: the start screen is shut (account-ui.js)
+    if (playerId) { if (isReady) enterWorld(); else drawStart(); return; }
+    if (expectsCharacter()) { drawStart(); return; }
+    // nobody's character is here: a new journey. The one question is asked first, if it has never been answered
+    if (!knownPath()) {
+      if (!intro.asking()) intro.question().then((answer) => { if (answer) { choosePath(answer); syncProfile().then(() => route()); } });
+      return;
+    }
+    choosePath(knownPath(), false);
+    drawStart();
+    if (!coarse && !NO_INTRO && document.activeElement === document.body) $('name').focus({ preventScroll: true });
+  }
+
+  // The figure in the town is the character the simulation says the player is.
+  function wearCharacter() {
     view = host.game.view(playerId);
     if (me) scene.remove(me.group);
     me = makeCharacter(view.self.look, null, true);
     scene.add(me.group);
     skillsFor(me);
+  }
+
+  function enterWorld() {
+    gallery = false;
+    wearCharacter();
     predicted = { x: view.self.x, z: view.self.z, heading: view.self.heading };
     car.speed = 0;
     cam.target.set(predicted.x, 1.5, predicted.z);
@@ -24895,25 +25566,164 @@ function start(carried) {
     if (online.status().state === 'out') accountUI.open('signup', 'An account is needed to play.');
     return false;
   }
-  $('creator').addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (!mayEnter()) return;
-    const fresh = createHost();
+
+  // A new journey begins. For someone who has never chosen, this is the choosing: they are asked to be sure,
+  // the account is told (and it is the account's answer that stands), and only then is there a character.
+  let beginning = false;
+  async function beginJourney() {
+    if (beginning || !mayEnter()) return;
+    const fail = (text) => { $('start-error').hidden = false; $('start-error').textContent = text; };
+    $('start-error').hidden = true;
+    const name = $('name').value;
+    if (String(name || '').replace(/[^\p{L}\p{M} .'-]/gu, '').trim().length < 2) { fail('Choose a name of at least two letters.'); return; }
+    if (online.available && !online.signedIn) { fail('A new journey is begun with your account, and the game\'s server cannot be reached just now. Check your connection and try again.'); return; }
+    beginning = true;
     try {
-      const id = fresh.game.join({ name: $('name').value, path: pathChosen, look: creator.look() });
+      let figure = accountFigure();
+      if (!figure) {
+        const picked = creator.look().figure;
+        const sure = await confirm.ask({
+          title: `Choose ${figureName(picked)}?`,
+          body: `${figureName(picked)}'s figure will be your character from now on, on every device and every journey. You can look at the others whenever you like; changing to one of them later is a character upgrade, which is paid for.`,
+          confirm: 'Choose This Character', cancel: 'Go Back', busy: 'Saving...',
+          run: async () => {
+            if (!online.signedIn) return { ok: true };
+            const answer = await online.ask('character.choose', { figure: picked, path: pathChosen });
+            if (answer.ok) { online.noteCharacter(answer.character); return { ok: true }; }
+            // (chosen already, on another device a moment ago: that choice is the account's)
+            if (answer.code === 'CHOSEN') { online.noteCharacter({ figure: answer.figure, path: answer.path }); return { ok: true }; }
+            return { ok: false, message: `Your character could not be saved to your account, so nothing has been chosen. ${answer.message || ''}` };
+          },
+        });
+        if (!sure) return;
+        figure = accountFigure() || picked;
+      }
+      const fresh = createHost();
+      const id = fresh.game.join({ name, path: knownPath() || pathChosen, look: { ...creator.look(), figure, body: FIGURES[figure].gender } });
       host = fresh; playerId = id;
       known.clear();
-      $('start-error').hidden = true;
+      prefs.look = { ...creator.look(), figure }; writeStored(PREFS_KEY, prefs);
+      writeStored(SAVE_KEY, { host: host.save(), playerId });
       enterWorld();
       ui.toast({ type: 'note', text: ZONE_TEXT.arrival });
       // the new character is kept with the account at once, and its wallet is the account's own
       if (online.signedIn) accountSync.upload();
     } catch (error) {
-      $('start-error').hidden = false;
-      $('start-error').textContent = error.message;
+      fail(error.message);
+    } finally { beginning = false; }
+  }
+  $('creator').addEventListener('submit', (event) => { event.preventDefault(); beginJourney(); });
+
+  // ---- the characters, looked at from inside the game ----
+  // Every character can be turned and watched. Looking changes nothing: not who the player is, not where they
+  // stand, not what is kept on the device. The only way to become another is the upgrade.
+  function openGallery() {
+    if (!playing || !playerId) return;
+    writeStored(SAVE_KEY, { host: host.save(), playerId });
+    ui.close();
+    playing = false; gallery = true;
+    $('hud').hidden = true; $('touch').hidden = true;
+    bubbles.clear();
+    $('start').hidden = false;
+    setScreen('gallery');
+    $('start-title').textContent = 'Characters';
+    creator.setMode('gallery', myFigure() || undefined);
+    $('start').scrollTop = 0;
+    $('gallery-back').focus({ preventScroll: true });
+  }
+  function closeGallery() {
+    if (!gallery) return;
+    gallery = false;
+    if (playerId) enterWorld(); else route();
+  }
+  // What the gallery says about the character on the turntable.
+  let quoted = null;                  // the last thing the bank (or this world) said an upgrade to it would cost
+  function drawGallery(figure) {
+    if (!gallery) return;
+    const mine = myFigure();
+    const own = figure === mine;
+    $('gallery-tag').textContent = own ? 'Your character' : 'Looking only';
+    $('gallery-tag').dataset.own = String(own);
+    $('gallery-text').textContent = own
+      ? `You are ${figureName(mine)}'s figure. The arrows show the other characters: looking at them changes nothing.`
+      : `This is ${figureName(figure)}'s figure. You are still ${figureName(mine)}'s: looking changes nothing.`;
+    $('gallery-upgrade').hidden = own || !mine;
+    $('gallery-upgrade').textContent = `Upgrade to ${figureName(figure)}`;
+    $('gallery-rule').textContent = `A character upgrade is offered once you have more than ${trText(UPGRADE.above)}. It costs a quarter of your whole balance at that moment, paid in TR you have earned (starter TR pays none of it), and it is permanent until you pay for another.`;
+    $('gallery-note').hidden = true;
+    quoted = null;
+  }
+  // What an upgrade to `figure` would cost now: from the bank where there is one (after it has been told of
+  // everything spent in town), from this world's own ledger where there is not.
+  async function upgradeQuote(figure) {
+    if (online.available) {
+      if (!online.signedIn) return { ok: false, message: 'The game\'s server cannot be reached just now, so a character cannot be upgraded. Check your connection and try again.' };
+      const saved = await accountSync.upload();
+      if (saved && !saved.ok && (saved.code === 'OFFLINE' || saved.code === 'SERVER')) return { ok: false, message: saved.message };
+      const answer = await online.ask('character.quote', { figure });
+      return answer.ok ? answer.quote : { ok: false, message: answer.message };
     }
-  });
-  for (const id of ['continue', 'continue-top']) $(id).addEventListener('click', () => { if (playerId && mayEnter()) enterWorld(); });
+    const answer = host.game.intent(playerId, { type: 'character.quote', figure });
+    return answer.ok ? answer.quote : { ok: false, message: answer.message };
+  }
+  async function upgradeCharacter() {
+    const figure = creator.figure();
+    const button = $('gallery-upgrade');
+    if (!gallery || button.disabled || figure === myFigure()) return;
+    button.disabled = true;
+    const quote = await upgradeQuote(figure);
+    button.disabled = false;
+    if (!gallery) return;
+    quoted = quote;
+    const rows = quote.total === undefined ? null : [
+      ['Current character', figureName(quote.from)], ['New character', figureName(quote.to)],
+      ['Current balance', trText(quote.total)], ['Upgrade fee', trText(quote.fee)], ['Balance after upgrade', trText(quote.after)],
+      ['TR you have earned', trText(quote.eligible)],
+    ];
+    if (!quote.ok) {
+      // not to be had just now: the player is shown the figures and the actual reason, and there is nothing to confirm
+      await confirm.ask({ title: 'Upgrade Character', body: quote.message || 'A character cannot be upgraded just now.', rows, note: $('gallery-rule').textContent, confirm: null, cancel: 'Close' });
+      return;
+    }
+    const key = newId();
+    let result = null;
+    const done = await confirm.ask({
+      title: 'Upgrade Character', rows,
+      body: 'Upgrading changes your permanent character. You will need to pay another upgrade fee to change it again.',
+      note: 'The fee is a quarter of your balance, and is paid in TR you have earned.',
+      confirm: 'Confirm Upgrade', cancel: 'Cancel', busy: 'Upgrading...',
+      run: async () => {
+        if (!online.available) {
+          const answer = host.game.intent(playerId, { type: 'character.upgrade', figure, fee: quote.fee, requestId: `upgrade-${key}` });
+          if (!answer.ok) return { ok: false, message: `${answer.message} Nothing was charged and your character has not changed.` };
+          result = { fee: answer.upgrade.fee, to: figure };
+          return { ok: true };
+        }
+        // the same key however often it has to be asked: the bank does it once
+        const answer = await online.ask('character.upgrade', { key, figure, fee: quote.fee }, { timeout: 20000 });
+        if (!answer.ok) {
+          const lost = answer.code === 'OFFLINE' || answer.code === 'SERVER';
+          return { ok: false, message: lost ? 'No answer came back. Press Confirm Upgrade again: it will not be charged twice.' : `${answer.message} Nothing was charged and your character has not changed.` };
+        }
+        online.noteCharacter(answer.character);
+        // the character here becomes the account's; the fee reaches this world's wallet as any movement at the bank does
+        host.bank.figure(playerId, answer.character.figure, { fee: answer.upgrade.fee, total: answer.upgrade.total, ref: answer.upgrade.ref });
+        walletClient.heard(answer, `Character upgrade: ${trText(answer.upgrade.fee)}`);
+        result = { fee: answer.upgrade.fee, to: answer.character.figure, ref: answer.upgrade.ref };
+        return { ok: true };
+      },
+    });
+    if (!done || !result) return;
+    prefs.look = { ...(prefs.look || {}), figure: result.to }; writeStored(PREFS_KEY, prefs);
+    writeStored(SAVE_KEY, { host: host.save(), playerId });
+    if (online.signedIn) accountSync.upload();
+    audio.chime('paid');
+    closeGallery();
+    ui.toast({ type: 'note', text: `You are now ${figureName(result.to)}'s figure. The upgrade cost ${trText(result.fee)}${result.ref ? ` (${result.ref})` : ''}.` });
+  }
+  $('gallery-back').addEventListener('click', closeGallery);
+  $('gallery-upgrade').addEventListener('click', upgradeCharacter);
+  window.addEventListener('keydown', (event) => { if (gallery && event.key === 'Escape' && !confirm.isOpen) { event.preventDefault(); closeGallery(); } });
 
   // -------------------------------------------------------------- input --
 
@@ -25564,8 +26374,8 @@ function start(carried) {
     }
   }
   let isReady = false;
-  function ready() { isReady = true; $('enter').disabled = false; $('continue').disabled = false; $('enter').textContent = `Enter ${ZONE.name}`; }
-  $('enter').disabled = true; $('continue').disabled = true; $('enter').textContent = 'Preparing the town\u2026';
+  function ready() { isReady = true; $('enter').disabled = false; $('enter').textContent = `Enter ${ZONE.name}`; route(); }
+  $('enter').disabled = true; $('enter').textContent = 'Preparing the town\u2026';
   if (NO_DRAW) ready();
 
   // The hospital's ambulance: one van that the simulation drives about town.
@@ -25879,7 +26689,7 @@ blood.update(dt, view.blood || []);
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
     phoneHold, camera,
-    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(),
+    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
@@ -25907,14 +26717,15 @@ blood.update(dt, view.blood || []);
   };
 
   showStart(false);
-  // The opening plays over the start screen while the town is made ready behind it. A player with a character
-  // on this device who has answered before is not asked again.
-  const intro = createIntro({
+  // The opening plays over the start screen while the town is made ready behind it. The one question is asked
+  // in it only where there are no accounts and it has never been answered on this device; on the website it is
+  // the account's to answer, and is put (once) after signing in, to an account that never has (`route`).
+  intro = createIntro({
     audio,
     // the same switch as Settings and the N key: on for a first visit, and whatever the player last chose after that
     sound: { on: () => !!prefs.sound, toggle: () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); writeStored(PREFS_KEY, prefs); } },
-    ask: () => !(playerId && (prefs.path === 'hero' || prefs.path === 'villain')),
-    onDone: (path) => { if (path) choosePath(path); const first = playerId ? $('continue') : $('name'); if (first && !NO_INTRO && !coarse) first.focus({ preventScroll: true }); },
+    ask: () => !online.available && !knownPath(),
+    onDone: (path) => { if (path) choosePath(path); setTimeout(route, 0); },
   });
   window.__nlw.intro = intro;
   requestAnimationFrame(frame);

@@ -31,7 +31,7 @@ const icon = (id) => {
 };
 
 const WORDS = Object.freeze({
-  sent: 'Sent', received: 'Received', opening: 'Arrival money', game: 'In town', held: 'Offer', returned: 'Offer returned', bought: 'Bought', sold: 'Sold',
+  sent: 'Sent', received: 'Received', opening: 'Arrival money', game: 'In town', held: 'Offer', returned: 'Offer returned', bought: 'Bought', sold: 'Sold', upgrade: 'Character upgrade',
 });
 const STATUS = Object.freeze({ completed: 'Completed', held: 'Set aside', paid: 'Paid', returned: 'Returned' });
 
@@ -73,6 +73,23 @@ export function createWalletUI(kit) {
     redraw();
   }
 
+  // What a wallet is made of, said small under the balance and opened for anyone who wants the whole of it.
+  //   parts: { total, starter, eligible, held } in ledger units (eligible is TR that was earned: what can be
+  //   sent to another player or spent on a thing to own)
+  function partsBox(parts) {
+    if (!parts || !Number.isSafeInteger(parts.starter)) return null;
+    const row = (label, value, id) => h('div', { class: 'wl-part' }, h('span', null, label), h('b', id ? { id } : null, tr(value)));
+    return h('details', { class: 'wl-parts', id: 'wallet-parts' },
+      h('summary', null, h('span', { id: 'wallet-eligible-line' }, `${tr(parts.eligible)} can be sent or spent on assets`), h('span', { class: 'wl-more' }, 'Details')),
+      h('div', { class: 'wl-partrows' },
+        row('Total', parts.total, 'wallet-total'),
+        row('Starter TR', parts.starter, 'wallet-starter'),
+        row('Earned TR (eligible)', parts.eligible, 'wallet-eligible'),
+        parts.held > 0 ? row('Set aside for your offers', parts.held, 'wallet-held') : null),
+      h('p', { class: 'small' }, 'Starter TR is the 2,000 TR you arrived with. It pays fines, the ambulance, hospital bills, levies, permits, fares, food and fuel. It cannot be sent to another player and does not buy assets (land, vehicles, building materials, things in the market) or a character upgrade.'),
+      h('p', { class: 'small' }, 'Earned TR is what you are paid for work in town, what other players send you, and what you sell things for. It can be sent and spent on anything.'));
+  }
+
   // ---- the page ----
 
   function page(root, view, sub, go) {
@@ -88,7 +105,9 @@ export function createWalletUI(kit) {
 
   // A copy of the game with no server: this world's own money, and nothing that needs the bank.
   function local(root, view) {
-    root.append(h('div', { class: 'wl-card' }, h('div', { class: 'eyebrow' }, 'TR balance'), h('div', { class: 'wl-balance', id: 'wallet-balance' }, h('b', null, trPlainGrouped(view.self.balance)), h('span', null, 'TR'))));
+    const f = view.self.funds || null;
+    root.append(h('div', { class: 'wl-card' }, h('div', { class: 'eyebrow' }, 'TR balance'), h('div', { class: 'wl-balance', id: 'wallet-balance' }, h('b', null, trPlainGrouped(view.self.balance)), h('span', null, 'TR')),
+      f ? partsBox({ total: f.total, starter: f.starter, eligible: f.eligible, held: 0 }) : null));
     root.append(h('p', { class: 'small' }, 'TR is the money of this world. Sending TR to other players, and receiving it, is on postcivilwar.com, where every player has an account and a wallet kept by the game\'s server. This copy of the game has no connection to it.'));
     root.append(section('Recent entries'));
     kit.legacy.wallet(root);
@@ -141,6 +160,7 @@ export function createWalletUI(kit) {
       h('div', { class: 'wl-top' }, h('div', { class: 'eyebrow' }, 'TR balance'),
         h('button', { class: 'wl-icon', type: 'button', id: 'wallet-history', 'aria-label': 'Transaction history', title: 'Transaction history', onclick: () => { w.history.loaded = false; go({ history: true }); } }, icon('history'))),
       st.balance === null ? h('div', { class: 'wl-balance wl-wait', id: 'wallet-balance', 'aria-busy': 'true' }, h('b', null, st.error ? '—' : '···'), h('span', null, 'TR')) : figure(st.balance),
+      st.balance !== null && st.starter !== null ? partsBox({ total: st.balance, starter: st.starter, eligible: st.eligible, held: st.held }) : null,
       st.held > 0 ? h('div', { class: 'wl-held' }, `${tr(st.held)} more is set aside for your offers in the market`) : null,
       h('div', { class: 'wl-user' }, h('span', { class: 'eyebrow' }, 'Username'), h('b', { id: 'wallet-username' }, name), h('span', { class: 'wl-copied', id: 'wallet-copied', role: 'status', hidden: true }), copyButton(name, 'wallet-copy')));
     root.append(card);
@@ -174,10 +194,10 @@ export function createWalletUI(kit) {
   function entryRow(e) {
     const who = e.type === 'sent' ? `to ${e.other}` : e.type === 'received' ? `from ${e.other}` : e.type === 'sold' && e.other ? `to ${e.other}` : (e.type === 'bought' || e.type === 'held') && e.other ? `from ${e.other}` : '';
     const title = `${WORDS[e.type] || e.type}${who ? ` ${who}` : ''}`;
-    const detail = e.type === 'game' ? `Earned ${tr(e.earned)}, spent ${tr(e.spent)}` : e.what || '';
+    const detail = e.type === 'game' ? `Earned ${tr(e.earned)}, spent ${tr(e.spent)}` : e.type === 'upgrade' ? String(e.note || '').replace(/^Character upgrade:\s*/, '') : e.what || '';
     return h('div', { class: 'wl-entry', 'data-type': e.type, 'data-ref': e.ref },
       h('span', { class: `wl-dir ${e.direction}` }, icon(e.direction === 'in' ? 'receive' : 'send')),
-      h('span', { class: 'wl-what' }, h('b', null, title), detail ? h('span', null, detail) : null, e.note && e.note !== 'In town' && e.type !== 'opening' && e.type !== 'held' && e.type !== 'returned' && e.type !== 'bought' && e.type !== 'sold' ? h('span', { class: 'wl-note' }, `"${e.note}"`) : null,
+      h('span', { class: 'wl-what' }, h('b', null, title), detail ? h('span', null, detail) : null, e.note && e.note !== 'In town' && e.type !== 'opening' && e.type !== 'held' && e.type !== 'returned' && e.type !== 'bought' && e.type !== 'sold' && e.type !== 'upgrade' ? h('span', { class: 'wl-note' }, `"${e.note}"`) : null,
         h('span', { class: 'eyebrow plain' }, `${date(e.at)} · ${STATUS[e.status] || e.status} · ${e.ref}`)),
       h('span', { class: `wl-amount ${e.direction === 'in' ? 'pos' : 'neg'}` }, `${e.direction === 'in' ? '+' : '−'}${tr(e.amount)}`));
   }
@@ -188,7 +208,12 @@ export function createWalletUI(kit) {
 
   function form(root, go) {
     const st = wallet().state;
-    root.append(h('div', { class: 'wl-head' }, h('div', { class: 'big' }, 'Send TR'), st.balance !== null ? h('div', { class: 'eyebrow' }, `You have ${tr(st.balance)}`) : null));
+    // what can be sent is what was earned: said here, before anything is typed
+    const can = st.eligible !== null ? st.eligible : st.balance;
+    root.append(h('div', { class: 'wl-head' }, h('div', { class: 'big' }, 'Send TR'), can !== null ? h('div', { class: 'eyebrow', id: 'send-can' }, `You can send ${tr(can)}`) : null));
+    if (st.eligible !== null && st.eligible < st.balance) root.append(h('p', { class: 'small', id: 'send-starter-note' }, st.eligible > 0
+      ? `Your balance is ${tr(st.balance)}. ${tr(st.starter)} of it is starter TR, which cannot be transferred.`
+      : 'Starter TR cannot be transferred. Earn TR through gameplay to send money to other players.'));
     const submit = async (event) => {
       if (event) event.preventDefault();
       if (w.checking) return;
@@ -219,7 +244,8 @@ export function createWalletUI(kit) {
     root.append(h('div', { class: 'wl-head' }, h('div', { class: 'big' }, 'Confirm transfer'), h('div', { class: 'eyebrow' }, 'Nothing has been sent yet')));
     root.append(h('div', { class: 'rows wl-sheet', id: 'send-summary' },
       line('Recipient', c.person.username), line('Amount', tr(c.amount)), line('Fee', c.fee > 0 ? tr(c.fee) : 'None'), line('Total to leave your wallet', tr(c.total)),
-      c.note ? line('Note', c.note) : null, line('Your balance afterwards', tr(c.balance - c.total))));
+      c.note ? line('Note', c.note) : null, line('Your balance afterwards', tr(c.balance - c.total)),
+      Number.isSafeInteger(c.eligible) ? line('Of which TR you can still send', tr(c.eligible - c.total)) : null));
     if (w.sendProblem) root.append(h('div', { class: 'notice', id: 'confirm-problem', role: 'alert' }, w.sendProblem));
     const doSend = async () => {
       if (w.sending) return;

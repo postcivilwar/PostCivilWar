@@ -258,6 +258,82 @@ The redesign brief's own checklist, and Phase 2 of the multiplayer brief. Phase 
 | S9 | At the wheel: steering wheel left; accelerator, brake, horn and the door right; no Skills | skills.mjs; `upright` | automated |
 | S10 | Every button a solid icon on a dark disc | `touch`; the icon sheet by eye | automated in part |
 
+## 15. Starter TR, one character, the upgrade, and fitting the screen (added 11 October 2026)
+
+From the owner's second build prompt of 11 October. `wallet`, `character`, `migrate`, `migrate2` and `play`
+are files in `server/test/` (run against a real PostgreSQL); `funds`, `sim` and `words` are in
+`prototype/test/`; `site.mjs` and `fit.mjs` are played in real browsers against the real server and database.
+
+**Starter TR and earned TR**
+
+| # | What must be true | How it is checked | State |
+|---|---|---|---|
+| T1 | A new account has exactly 2,000 TR, all of it starter TR, given once | `wallet` (arrival money); `play`; site.mjs step 1 | automated |
+| T2 | Starter TR cannot be sent: not a unit, not to a second account of the same person | `wallet` (the arrival money cannot be sent) | automated |
+| T3 | Starter TR buys nothing to own: market goods, an offer, land, a vehicle, building materials | `wallet` (the market is paid for... with earned TR); `funds` (keke, land); site.mjs steps 2 and 6 | automated |
+| T4 | Starter TR pays fines, the ambulance, treatment, levies, fares and food | `wallet` (the town); `funds` (a new arrival) | automated |
+| T5 | Earned TR can be sent | `wallet` (sending); `play`; site.mjs step 8 | automated |
+| T6 | Earned TR buys things | `wallet`; `funds`; site.mjs step 2 | automated |
+| T7 | A wallet of both: a charge takes starter first; a purchase or transfer takes earned only | `wallet` (the worked example: 2,000 + 700; a 300 fine; 800 refused; 500 bought) | automated |
+| T8 | A transfer larger than the earned TR is refused whole, though the balance is larger | `wallet`; site.mjs step 8 (800 TR with 700 earned and 2,700 in the wallet) | automated |
+| T9 | A purchase larger than the earned TR is refused whole; no part of it from starter TR | `wallet`; `funds` (a keke) | automated |
+| T10 | A direct request to the server cannot do either, whatever it says the TR is | `wallet` (by saying otherwise); site.mjs step 8 | automated |
+| T11 | Asked twice under one key: done once; the key cannot be reused for something else | `wallet` (asked twice is done once) | automated |
+| T12 | Many at once for the same TR: never spent twice, never below nothing | `wallet` (many at once; many things at once for the same earned TR) | automated |
+| T13 | A returned offer comes back as what it was; nothing returned becomes earned | `wallet` (between players; no road) | automated |
+| T14 | A thing bought with starter TR before the rule returns starter TR when sold | `wallet` (no road...); `migrate2` | automated |
+| T15 | Accounts that existed before keep every unit; nothing unproven becomes earned; the division is written down | `migrate` (first tables to third); `migrate2` (second to third) | automated |
+| T16 | The refusals use the three sentences asked for, and never say the balance is too small when it is not | `words`; `wallet`; `funds`; site.mjs steps 2, 6, 8 | automated |
+| T17 | The database refuses what the code should never send: starter TR out except to the town, a balance changed without an entry, parts greater than the whole | `wallet` (the database itself keeps the books) | automated |
+| T18 | Illicit TR is kept apart from both, and handed back first | `wallet` (what was taken); `funds` | automated |
+| T19 | Every refusal about TR is written down (who, which request, how much, why) and the record cannot be edited | `wallet` (what was asked for and refused is written down) | automated |
+
+**One character**
+
+| # | What must be true | How it is checked | State |
+|---|---|---|---|
+| C1 | A new player chooses one character and is asked to be sure; Go Back chooses nothing | site.mjs step 1; play.mjs `opening` | automated (browser) |
+| C2 | The choice is kept with the account | `character` (chosen once); site.mjs step 1 | automated |
+| C3 | After a reload: the same character, straight into town | site.mjs steps 10b, 11; play.mjs `opening`, `creator` | automated (browser) |
+| C4 | After logging out and in: the same character, straight into town | site.mjs step 10 | automated (browser) |
+| C5 | On another device: the same character | `character`; `play`; site.mjs steps 9 and 11b (a device that never saw the account, after an upgrade) | automated |
+| C6 | Someone with a character is never shown the screen where one is made, the question, a name box or a Continue button | site.mjs steps 9, 10, 11b (watched every 40 ms while going in) | automated (browser) |
+| C7 | Hero or villain is asked once and not again on the character screen | `words`; site.mjs step 1; play.mjs `opening`; fit.mjs | automated |
+| C8 | Looking at the others changes nothing, at the bank, in the town or on the device | `funds` (no other way); site.mjs step 9b; fit.mjs | automated |
+| C9 | A character cannot be changed for nothing by asking the server directly | `character` (chosen once); site.mjs steps 1, 9b, 10b | automated |
+| C10 | A character that cannot be fetched: told, with Retry; no other character put in its place or offered; Retry brings it | site.mjs step 11b (the request for the saved game is cut off) | automated (browser) |
+| C11 | An account from before: takes the character and path its saved game has, once | `character` (an account from before); `migrate2` | automated |
+| C12 | Other players see the character the account is, whatever a page says | `character` (other players see) | automated |
+
+**The upgrade**
+
+| # | What must be true | How it is checked | State |
+|---|---|---|---|
+| U1 | Under 2,000 TR: not offered | `character`; `funds` | automated |
+| U2 | Exactly 2,000 TR: not offered | `character`; `funds`; fit.mjs (the dialog with only Close) | automated |
+| U3 | More than 2,000 TR: may be asked for | `character`; site.mjs steps 9b, 10b | automated |
+| U4 | The fee is a quarter of the whole balance (2,400: 600; 4,000: 1,000; 8,000: 2,000; 12,000: 3,000), to the half TR, rounded down | `words`; `character`; site.mjs step 10b (2,790.5: 697.5) | automated |
+| U5 | The fee shown is the fee charged | site.mjs step 10b | automated (browser) |
+| U6 | Cancel charges nothing and changes nobody | site.mjs step 10b | automated (browser) |
+| U7 | Confirm takes the fee and changes the character, together | `character` (the upgrade); site.mjs step 10b | automated |
+| U8 | It is still the character after a reload, a new journey and on another device | site.mjs steps 10b, 11, 11b | automated (browser) |
+| U9 | Pressed twice, or many at once: one upgrade, one fee | `character` (pressed many times at once); site.mjs step 10b | automated |
+| U10 | A fee of the browser's choosing: nothing charged, nothing changed | `character`; site.mjs step 10b | automated |
+| U11 | Starter TR pays none of it; too little earned TR and it is refused whole | `character` (offered only...; a payment that cannot be made); site.mjs step 9b | automated |
+| U12 | A failure part-way leaves the old character and the old balance | `character` (a payment that cannot be made changes nothing) | automated |
+| U13 | The change is recorded: from, to, the balance, the fee, the reference, the time | `character`; site.mjs step 10b | automated |
+
+**Fitting the screen** (`test/fit.mjs`, thirteen sizes, turned and resized without reloading)
+
+| # | What must be true | State |
+|---|---|---|
+| F1 | The game's name is whole on the start screen, upright and sideways; on a phone held sideways (360 px tall or more) the name and both buttons are on the screen together | automated (browser) |
+| F2 | In town the balance is whole and at least 5 px clear of the top, at every size; a balance of ten figures fits a 320 px phone | automated (browser) |
+| F3 | Nothing named is off the side, or cut off where it cannot be scrolled to; no button's words spill; the page never scrolls sideways | automated (browser) |
+| F4 | A dialog's answers are on the screen without scrolling, including the upgrade's table on a small phone | automated (browser) |
+| F5 | Turning or resizing does not move the player, change the character, or lose the game | automated (browser) |
+| F6 | The same on a real Android phone and a real iPhone, with a notch, the browser's own bars, and the keyboard up | **not verified: needs a person with the devices** |
+
 ## What a person should play through on a real device
 
 Twenty minutes, on a phone and on a laptop:
@@ -314,6 +390,11 @@ another, anything that is charged that should not be, anything too loud.
   filled in by program. Checked by eye at the sizes the game shows.
 - **On the website, what a character earns in town is reported by the browser** and
   capped by the bank, not decided by it (`prototype/README.md`, "The bank").
+  So TR claimed that way would count as earned TR: starter TR cannot be sent or spent on
+  things to own, but a rewritten page could claim earnings up to the allowance.
+- **The third screenshot in the owner's prompt of 11 October (the balance cut off) did
+  not arrive.** The fix was made from the code and measured at thirteen sizes; it should
+  be looked at on the phone the screenshot was taken on.
 - **The hero-or-villain answer does nothing yet** but stay with the character.
 - **Known flaw:** a porch roof, such as the one over the hospital's emergency door, can
   still hide the player when the camera is side-on and above it. Sheds and market stalls

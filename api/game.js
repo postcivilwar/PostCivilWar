@@ -8,7 +8,8 @@
 // have come from the game's own page, the database, and who is asking.
 //
 // What it keeps: accounts (a username and what scrypt makes of a password), each account's character, its
-// wallet and every movement of TR, the market, and where signed-in players are standing. It holds no secret that the page ever sees.
+// wallet and every movement of TR (and which of it is starter TR and which was earned), the one character each
+// account is, the market, and where signed-in players are standing. It holds no secret that the page ever sees.
 
 const { ApiError, readBody, fromOwnPage, send } = require('./_lib/http.js');
 const { database, configured } = require('./_lib/db.js');
@@ -16,8 +17,11 @@ const auth = require('./_lib/auth.js');
 const market = require('./_lib/market.js');
 const world = require('./_lib/world.js');
 const wallet = require('./_lib/wallet.js');
+const character = require('./_lib/character.js');
+const { SCHEMA: S } = require('./_lib/schema.js');
 
-const publicAccount = (account) => ({ username: account.username, admin: !!account.admin });
+// (the character and the path are the account's own: chosen once, kept here, and the same on every device)
+const publicAccount = (account) => ({ username: account.username, admin: !!account.admin, figure: account.figure || null, path: account.path || null });
 const purse = (sql, account) => wallet.after(sql, account.id);
 // Two movements that wanted each other's wallets at the same instant: the database stops one of them, and it is
 // simply done again. (Everything that moves TR is done once however often it is asked: see wallet.js.)
@@ -41,6 +45,10 @@ const OPS = {
   'save.get': [true, ({ sql, me }) => world.saveGet(sql, me)],
   'save.put': [true, ({ sql, me, body }) => world.savePut(sql, me, body)],
   'save.erase': [true, ({ sql, me }) => world.saveErase(sql, me)],
+  'character.get': [true, async ({ sql, me }) => ({ character: await character.profile(sql, me.id), ...(await character.changes(sql, me)) })],
+  'character.choose': [true, ({ sql, me, body }) => character.choose(sql, me, body)],
+  'character.quote': [true, ({ sql, me, body }) => character.quote(sql, me, body)],
+  'character.upgrade': [true, ({ sql, me, body }) => character.upgrade(sql, me, body)],
   'wallet.get': [true, ({ sql, me, body }) => wallet.get(sql, me, body)],
   'wallet.find': [true, ({ sql, me, body }) => wallet.find(sql, me, body)],
   'wallet.check': [true, ({ sql, me, body }) => wallet.check(sql, me, body)],
@@ -65,7 +73,24 @@ const OPS = {
   'admin.list': [true, ({ sql, me, body }) => market.adminList(sql, me, body)],
 };
 
-async function handle(req, res) {
+// Refusals that are about what TR is or how much of it there is. Each is written down (who asked, for what, how
+// much, and the reason given), beside the ledger, which only says what did move.
+const REFUSALS = new Set(['STARTER_FUNDS', 'ELIGIBLE_FUNDS', 'FUNDS', 'QUOTE_CHANGED', 'BALANCE']);
+const MONEY_OPS = new Set(['wallet.check', 'wallet.send', 'market.offer', 'market.decide', 'character.quote', 'character.upgrade']);
+const short = (value, most) => (typeof value === 'string' || typeof value === 'number' ? String(value).slice(0, most) : null);
+async function noteRefusal(at, error) {
+  if (!at || !at.sql || !at.me || !MONEY_OPS.has(at.op) || !REFUSALS.has(error.code)) return;
+  const body = at.body || {}, extra = error.extra || {};
+  const detail = {};
+  for (const key of ['username', 'figure', 'thread', 'offer', 'listing']) { const v = short(body[key], 64); if (v !== null) detail[key] = v; }
+  for (const key of ['balance', 'eligible', 'starter']) if (Number.isSafeInteger(extra[key])) detail[key] = extra[key];
+  if (extra.quote && Number.isSafeInteger(extra.quote.fee)) detail.fee = extra.quote.fee;
+  const amount = short(body.amount !== undefined ? body.amount : body.fee, 32);
+  // (the refusal has already been decided: failing to write it down must not turn it into something else)
+  try { await at.sql.unsafe(`insert into ${S}.wallet_refusals (account_id, op, code, amount, detail) values ($1, $2, $3, $4, $5::text::jsonb)`, [at.me.id, at.op, error.code, amount, JSON.stringify(detail)]); } catch (failed) { console.error('refusal not recorded:', failed && failed.message); }
+}
+
+async function handle(req, res, at) {
   if (req.method === 'GET' || req.method === 'HEAD') return send(res, 200, { ok: true, service: 'postcivilwar', accounts: configured() });
   if (req.method !== 'POST') throw new ApiError(405, 'METHOD', 'Not that way.');
   if (!fromOwnPage(req)) throw new ApiError(403, 'NOT_THE_GAME', 'This is for the game itself.');
@@ -80,6 +105,7 @@ async function handle(req, res) {
   }
   const [needsAccount, run] = entry;
   const me = needsAccount ? await auth.requireAccount(sql, req) : await auth.accountOf(sql, req);
+  at.sql = sql; at.me = me; at.op = body.op; at.body = body;
   let result;
   for (let tries = 0; ; tries += 1) {
     try { result = await run({ sql, req, body, me }); break; } catch (error) { if (!(error && AGAIN.has(error.code)) || tries >= 3) throw error; }
@@ -89,9 +115,11 @@ async function handle(req, res) {
 }
 
 module.exports = async function game(req, res) {
+  const at = {};
   try {
-    await handle(req, res);
+    await handle(req, res, at);
   } catch (error) {
+    if (error instanceof ApiError) await noteRefusal(at, error);
     if (error instanceof ApiError) return send(res, error.status, { ok: false, code: error.code, message: error.message, ...(error.extra || {}) });
     console.error('game:', error && (error.stack || error.message));
     return send(res, 500, { ok: false, code: 'SERVER', message: 'Something went wrong on the server. Nothing was changed.' });

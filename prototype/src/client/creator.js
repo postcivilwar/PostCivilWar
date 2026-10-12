@@ -1,5 +1,12 @@
 // Making a character: a woman or a man, one of the owner's supplied figures, its colours and a name.
 //
+// The same view is used three ways (`setMode`):
+//   choose    a new player, choosing. What is shown is what will be chosen, and it is remembered on the device.
+//   locked    the character is already the account's (a new journey after a saved game was erased): only that
+//             one is shown, and there is nothing to change it with.
+//   gallery   someone with a character, looking at the others. Every character can be turned and watched; none
+//             of it chooses anything, remembers anything or touches the name. Changing is the upgrade's business.
+//
 // The figure is drawn here as the game will draw it, from the same baked data and the same skeleton, in its
 // own small view: turned by dragging, changed by a flick or the arrows. Nothing here decides anything; the
 // choice goes to the simulation when the player enters the town, and it checks what it is given
@@ -12,8 +19,9 @@ import { makeCharacter, animateCharacter } from './character.js';
 const PART_NAMES = { skin: 'Skin', hair: 'Hair', top: 'Top', bottom: 'Bottom', shoes: 'Shoes', hat: 'Hat' };
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 
-export function createCreator({ canvas, root, nameField, onPick, saved }) {
+export function createCreator({ canvas, root, nameField, onPick, onView = () => {}, saved }) {
   const choice = createChoice(saved);
+  let mode = 'choose';
   const $ = (id) => document.getElementById(id);
   let named = false;       // the player has typed a name of their own; until then the field holds the figure's own
   nameField.addEventListener('input', () => { named = nameField.value.trim().length > 0; });
@@ -137,7 +145,9 @@ export function createCreator({ canvas, root, nameField, onPick, saved }) {
       b.addEventListener('click', () => { if (i !== here) goTo(i, i > here ? 1 : -1); });
       return b;
     }));
-    $('fig-prev').disabled = EVERYONE.length < 2; $('fig-next').disabled = EVERYONE.length < 2;
+    const fixed = mode === 'locked';
+    $('fig-prev').disabled = fixed || EVERYONE.length < 2; $('fig-next').disabled = fixed || EVERYONE.length < 2;
+    $('genders').hidden = fixed; $('fig-prev').hidden = fixed; $('fig-next').hidden = fixed; $('fig-dots').hidden = fixed; $('fig-count').hidden = fixed;
     $('colour-block').hidden = !f.parts.length;
     $('anim-block').hidden = !f.animated;
     if (f.animated) drawAnims();
@@ -155,10 +165,10 @@ export function createCreator({ canvas, root, nameField, onPick, saved }) {
       const b = document.createElement('button');
       b.type = 'button'; b.className = 'swatch'; b.style.background = hex(c);
       b.setAttribute('aria-label', `${PART_NAMES[part]} colour ${i + 1}`); b.setAttribute('aria-pressed', String(c === now));
-      b.addEventListener('click', () => { choice.colour(part, c); drawControls(); show(0); onPick && onPick(choice.look()); });
+      b.addEventListener('click', () => { if (mode !== 'choose') return; choice.colour(part, c); drawControls(); show(0); onPick && onPick(choice.look()); });
       return b;
     }));
-    if (!named) nameField.value = f.name;
+    if (!named && mode !== 'gallery') nameField.value = f.name;
   }
   // the animations a figure came with, by their one-word names; the one playing is marked
   function drawAnims() {
@@ -173,12 +183,30 @@ export function createCreator({ canvas, root, nameField, onPick, saved }) {
       return b;
     }) : [Object.assign(document.createElement('span'), { className: 'small', textContent: 'Loading the animations…' })]));
   }
-  function changed(dir) { drawControls(); show(dir); onPick && onPick(choice.look()); }
+  // (only a new player's choosing is remembered; looking is not choosing)
+  function changed(dir) { drawControls(); show(dir); if (mode === 'choose' && onPick) onPick(choice.look()); onView(choice.figure.id); }
   const EVERYONE = Object.keys(FIGURE_ORDER).flatMap((gender) => FIGURE_ORDER[gender].map((id, index) => ({ gender, index, id })));
   function placeOf() { return Math.max(0, EVERYONE.findIndex((e) => e.gender === choice.gender && e.index === choice.index)); }
-  function goTo(i, dir) { const to = EVERYONE[i]; if (to.gender !== choice.gender) choice.setGender(to.gender); choice.go(to.index); changed(dir); }
+  function goTo(i, dir) { if (mode === 'locked') return; const to = EVERYONE[i]; if (to.gender !== choice.gender) choice.setGender(to.gender); choice.go(to.index); changed(dir); }
   function step(by) { const n = EVERYONE.length; if (n > 1) goTo((placeOf() + by + n) % n, by); }
-  for (const b of $('genders').children) b.addEventListener('click', () => { if (b.dataset.gender !== choice.gender) { choice.setGender(b.dataset.gender); changed(1); } });
+  for (const b of $('genders').children) b.addEventListener('click', () => { if (mode !== 'locked' && b.dataset.gender !== choice.gender) { choice.setGender(b.dataset.gender); changed(1); } });
+  // Shows one character, by its id, without that being a choice.
+  function showFigure(id) {
+    const at = EVERYONE.findIndex((e) => e.id === id);
+    if (at < 0) return false;
+    const to = EVERYONE[at];
+    if (to.gender !== choice.gender) choice.setGender(to.gender);
+    choice.go(to.index);
+    drawControls(); show(0); onView(choice.figure.id);
+    return true;
+  }
+  function setMode(next, figure = null) {
+    const to = next === 'locked' || next === 'gallery' ? next : 'choose';
+    // (asked for what is already so: nothing is built again)
+    if (to === mode && (!figure || figure === choice.figure.id)) { onView(choice.figure.id); return; }
+    mode = to;
+    if (figure && figure !== choice.figure.id) showFigure(figure); else { drawControls(); onView(choice.figure.id); }
+  }
   $('fig-prev').addEventListener('click', () => step(-1));
   $('fig-next').addEventListener('click', () => step(1));
   root.addEventListener('keydown', (e) => {
@@ -191,7 +219,9 @@ export function createCreator({ canvas, root, nameField, onPick, saved }) {
   requestAnimationFrame(frame);
   return {
     look: () => choice.look(),
-    choice,
+    choice, setMode, showFigure,
+    get mode() { return mode; },
+    figure: () => choice.figure.id,
     // for the checks: what is on the turntable
     get shown() { return shown ? { id: shown.id, key: shown.key, triangles: shown.rig.triangles, yaw, animation: shown.rig.animated && shown.rig.current ? shown.rig.current.getClip().name : null } : null; },
     playing: () => (shown && shown.rig.animated && shown.rig.current ? shown.rig.current.getClip().name : null),

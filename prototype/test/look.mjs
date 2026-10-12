@@ -1,5 +1,6 @@
 // Close-up screenshots of people, vehicles and buildings, for judging the look.
 //   node test/look.mjs <output-directory>
+import { pastQuestion, enterTown } from './start.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -16,9 +17,9 @@ const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
 await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro', { timeout: 300000 });
-await page.waitForTimeout(1500);
+await pastQuestion(page);
 if (process.env.LOOK_BODY) await page.click(`[data-gender="${process.env.LOOK_BODY}"]`);
-await page.click('#enter');
+await enterTown(page);
 await page.waitForTimeout(1200);
 await page.evaluate(() => { const n = window.__nlw; const g = n.host.game; n.skip(2.6); g.state.weather = { kind: 'clear', until: g.state.t + 9 * 3600 }; document.getElementById('toasts').style.display = 'none'; });
 

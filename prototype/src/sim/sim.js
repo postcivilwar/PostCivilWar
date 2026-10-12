@@ -23,7 +23,8 @@ import { createCare, CARE } from './care.js';
 import { createPhone } from './phone.js';
 import { createHijack, HIJACK } from './hijack.js';
 import { createMarketBridge } from './market.js';
-import { cleanFigureLook } from './figures.js';
+import { cleanFigureLook, FIGURES } from './figures.js';
+import { createFunds, FUND_WORDS } from './funds.js';
 import { createReactions } from './reactions.js';
 import { makeRng } from './rng.js';
 
@@ -62,17 +63,29 @@ export function structureFootprint(parcel, design) {
 // What every new character arrives with, in ledger units (two to a TR): 2,000 TR, the £20 of the story.
 export const ARRIVAL_FUNDS = 4000;
 
+// Changing one's character after the first choice (11 October 2026). It is not free and not a switch: it is
+// offered only to a wallet holding more than the arrival money, it costs a quarter of everything in the wallet
+// at that moment (to the half TR, rounded down), and all of that quarter must be TR that was earned: starter TR
+// pays none of it.
+export const UPGRADE = Object.freeze({ above: ARRIVAL_FUNDS, parts: 4 });
+export const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
+
 // Swimming in the river (8 October 2026). Slower than walking; a stroke held makes it faster. One goes in from
 // the bank and comes out at the bank; while in the water nothing else can be done.
 export const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
 const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
-export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved }) {
+export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved }) {
   const state = saved || { version: 1, t: SIM_START, real: 0, playerCounter: 0, players: {}, weather: { kind: 'clear', until: 0 }, reports: [], structures: 0 };
   const queues = {};
   const emit = (playerId, event) => { if (state.players[playerId]) (queues[playerId] || (queues[playerId] = [])).push(event); };
   const clock = () => Math.round(state.t);
   const weather = () => ({ kind: state.weather.kind, wet: state.weather.kind === 'rain' || state.weather.kind === 'storm', intensity: { clear: 0, cloudy: 0, rain: 0.6, storm: 1 }[state.weather.kind] });
+
+  // Where each player's TR came from, and what each kind may pay for (funds.js). Everything in town that takes
+  // TR from a player pays through `ledger`, which asks first: starter TR does not buy a thing to own.
+  const funds = createFunds({ state, ledger: rawLedger, auditor, players: state.players });
+  const ledger = funds.guard(rawLedger);
 
   const residents = createResidents({ state, timeScale: TIME_SCALE });
   const accountsShim = { government: (code) => ledger.openAccount('government', code, 'treasury') };
@@ -103,7 +116,8 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
   const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: TIME_SCALE });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
-  const market = createMarketBridge({ state, ledger, monetary, issuanceAccount, players: state.players });
+  // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
+  const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });
   for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.hijack === undefined) q.hijack = null; }
   // the riders have been out since before the newcomer's bus came in
   if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, SIM_START - k * TIME_SCALE, -k, false);
@@ -670,7 +684,25 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     'contacts.remove'(p, { key }) { return phone.removeContact(p, String(key)); },
     'map.route'(p, { x, z, label }) { return phone.route(p, { x, z, label: label ? String(label).slice(0, 60) : '' }); },
 
-    'wallet.history'(p) { return { balance: ledger.balance(p.wallet), rows: ledger.history(p.wallet, 25) }; },
+    'wallet.history'(p) { return { balance: ledger.balance(p.wallet), funds: funds.split(p.id), rows: ledger.history(p.wallet, 25) }; },
+    // The character. It is chosen once, when the player first arrives, and it stays: looking at another changes
+    // nothing. Changing it afterwards is an upgrade, paid for (see UPGRADE above).
+    'character.quote'(p, { figure }) { return { quote: upgradeQuote(p, figure) }; },
+    'character.upgrade'(p, { figure, fee }) {
+      const quote = upgradeQuote(p, figure);
+      if (!quote.ok) throw new GameError(quote.code, quote.message);
+      // what the player was shown is what is charged: if the wallet has moved since, they are shown again
+      if (fee !== undefined && fee !== quote.fee) throw new GameError('QUOTE_CHANGED', `Your balance has changed since you were shown the fee. It is now ${trText(quote.fee)}.`);
+      p.upgradeSeq = (p.upgradeSeq || 0) + 1;
+      const txn = ledger.post({
+        key: `upgrade:${p.id}:${p.upgradeSeq}`, kind: 'government_fee', initiator: `player:${p.id}`, reason: `Character upgrade: ${FIGURES[quote.from].name} to ${FIGURES[quote.to].name}`,
+        legs: [{ account: p.wallet, amount: -quote.fee }, { account: economy.accounts.government(ZONE.government.state.code), amount: quote.fee }],
+        meta: { from: quote.from, to: quote.to, total: String(quote.total) },
+      });
+      const done = changeFigure(p, quote.to, { fee: quote.fee, total: quote.total, txn: txn.id });
+      emit(p.id, { type: 'receipt', title: 'Character upgraded', text: `You are now ${FIGURES[quote.to].name}'s figure. The fee was ${trText(quote.fee)}.`, txn: txn.id });
+      return { upgrade: done, balance: ledger.balance(p.wallet) };
+    },
     'property.list'(p) { return { parcels: registry.ownedBy(p.id).map((id) => ({ parcel: registry.view(id, p.id), site: economy.siteView(id, p.id) })) }; },
   };
 
@@ -749,6 +781,35 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
   }
   for (const p of Object.values(state.players)) grantArrival(p);
 
+  // What an upgrade to `figure` would cost this player now, and whether it may be had. Worked out here, from
+  // this world's own ledger: nothing a client says about its balance or the price is used.
+  function upgradeQuote(p, figure) {
+    const from = p.look && p.look.figure ? p.look.figure : null;
+    const to = typeof figure === 'string' && Object.hasOwn(FIGURES, figure) ? figure : null;
+    const f = funds.split(p.id);
+    const fee = upgradeFee(f.total);
+    const quote = { from, to, total: f.total, fee, after: f.total - fee, eligible: f.eligible, starter: f.starter, above: UPGRADE.above, ok: false, code: '', message: '' };
+    const no = (code, message) => ({ ...quote, code, message });
+    if (!to) return no('NO_CHARACTER', 'That character is not one that can be chosen.');
+    if (!from) return no('NO_CHARACTER', 'You have no character to upgrade from yet.');
+    if (to === from) return no('SAME', 'That is the character you already are.');
+    if (f.total <= UPGRADE.above) return no('BALANCE', `A character can be upgraded once you have more than ${trText(UPGRADE.above)}. You have ${trText(f.total)}.`);
+    if (f.eligible < fee) return no('ELIGIBLE_FUNDS', `${FUND_WORDS.short} The upgrade is ${trText(fee)}, and ${trText(f.eligible)} of what you have is TR you have earned. Starter TR cannot pay for an upgrade.`);
+    return { ...quote, ok: true };
+  }
+  // The character becomes another figure. Nothing else about the player changes: not where they stand, what
+  // they own, what they have or who they are.
+  function changeFigure(p, figure, paid = {}) {
+    const from = p.look && p.look.figure ? p.look.figure : null;
+    const look = cleanFigureLook({ figure, colours: p.look && p.look.colours });
+    if (!look) throw new GameError('NO_CHARACTER', 'That character is not one that can be chosen.');
+    p.look = look;
+    const record = { from, to: figure, fee: paid.fee || 0, total: paid.total || 0, txn: paid.txn || null, ref: paid.ref || null, at: clock(), day: state.real };
+    (p.upgrades || (p.upgrades = [])).push(record);
+    if (p.upgrades.length > 40) p.upgrades.shift();
+    return record;
+  }
+
   function journal(p) {
     const owned = registry.ownedBy(p.id);
     const sites = owned.map((id) => state.registry.parcels[id]);
@@ -808,7 +869,7 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     return {
       ...zoneView(playerId),
       ...talk.view(p),
-      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
+      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? { n: p.astride } : null, swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
@@ -828,6 +889,11 @@ export function createGameSim({ ledger, monetary, issuanceAccount, rng, saved })
     faces: (ids) => ids.filter((i) => Number.isInteger(i) && i >= 0 && i < population.count).slice(0, 400).map((i) => { const who = population.people[i]; return { index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig }; }),
     // not an intent: the market service's side of a sale (see market.js)
     market,
+    // not intents either: what each player's TR is made of (funds.js), and the bank's side of a character
+    // upgrade it has already taken the fee for (bank.js). Where the world runs on a server no client reaches these.
+    funds,
+    setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
+    upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
     internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact },
   };
 }

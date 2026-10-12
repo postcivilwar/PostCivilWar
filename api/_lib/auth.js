@@ -125,7 +125,7 @@ async function accountOf(sql, req) {
   const token = cookiesOf(req)[COOKIE];
   if (!token || token.length > 128) return null;
   const rows = await sql.unsafe(
-    `select a.id, a.username, a.username_key, a.role, s.token_hash, s.last_used_at < now() - interval '1 hour' as stale
+    `select a.id, a.username, a.username_key, a.role, a.figure, a.path, s.token_hash, s.last_used_at < now() - interval '1 hour' as stale
      from ${S}.sessions s join ${S}.accounts a on a.id = s.account_id
      where s.token_hash = $1 and s.expires_at > now()`, [fingerprint(token)]);
   if (!rows.length) return null;
@@ -134,7 +134,7 @@ async function accountOf(sql, req) {
     await sql.unsafe(`update ${S}.sessions set last_used_at = now(), expires_at = now() + make_interval(days => $2::int) where token_hash = $1`, [row.token_hash, SESSION_DAYS]);
     await sql.unsafe(`update ${S}.accounts set last_seen_at = now() where id = $1`, [row.id]);
   }
-  const account = { id: row.id, username: row.username, username_key: row.username_key, role: row.role, session: row.token_hash };
+  const account = { id: row.id, username: row.username, username_key: row.username_key, role: row.role, figure: row.figure || null, path: row.path || null, session: row.token_hash };
   account.admin = isAdmin(account);
   return account;
 }
@@ -174,7 +174,7 @@ async function signIn(sql, req, body) {
   const byAddress = await counted(sql, addressKey, LIMITS.loginAddress.window);
   if (byName.count >= LIMITS.loginName.most) throw tooMany(byName.wait);
   if (byAddress.count >= LIMITS.loginAddress.most) throw tooMany(byAddress.wait);
-  const rows = await sql.unsafe(`select id, username, username_key, role, pass_hash from ${S}.accounts where username_key = $1`, [key]);
+  const rows = await sql.unsafe(`select id, username, username_key, role, figure, path, pass_hash from ${S}.accounts where username_key = $1`, [key]);
   let good = false;
   if (rows.length) good = await verifyPassword(password, rows[0].pass_hash); else await pretendToCheck(password);
   if (!good) {
@@ -184,7 +184,7 @@ async function signIn(sql, req, body) {
     throw new ApiError(401, 'NO_MATCH', 'That username and password do not match.');
   }
   await sql.unsafe(`delete from ${S}.limits where key = $1`, [nameKey]);
-  const account = { id: rows[0].id, username: rows[0].username, username_key: rows[0].username_key, role: rows[0].role };
+  const account = { id: rows[0].id, username: rows[0].username, username_key: rows[0].username_key, role: rows[0].role, figure: rows[0].figure || null, path: rows[0].path || null };
   account.admin = isAdmin(account);
   await sql.unsafe(`update ${S}.accounts set last_seen_at = now() where id = $1`, [account.id]);
   return { account, cookie: await startSession(sql, req, account.id) };

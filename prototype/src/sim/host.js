@@ -19,9 +19,9 @@ export function createHost({ seed = 20261006, saved = null } = {}) {
   const rng = makeRng(seed);
   if (usable) rng.setState(usable.rng);
   const ledger = createLedger(usable ? usable.ledger : null);
-  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, rng, saved: usable ? usable.game : null });
+  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, auditor: ledger.auditor, rng, saved: usable ? usable.game : null });
   ledger.setClock(() => Math.round(game.state.t));
-  const bank = createBankBridge({ state: game.state, auditor: ledger.auditor, ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, players: game.state.players });
+  const bank = createBankBridge({ state: game.state, auditor: ledger.auditor, ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, players: game.state.players, funds: game.funds, setFigure: game.setFigure });
 
   return {
     game,

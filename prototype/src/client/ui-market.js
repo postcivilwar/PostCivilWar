@@ -31,6 +31,8 @@ export function createMarketUI(kit) {
   const here = () => !!(market() && online() && online().available);
   const signedIn = () => here() && online().signedIn;
   const balance = () => app.view().self.balance;
+  // what can be spent on a thing to own: TR that was earned (the arrival money does not buy assets)
+  const spendable = () => { const f = app.view().self.funds; return f && Number.isSafeInteger(f.eligible) ? f.eligible : balance(); };
   const say = (good, text) => { m.note = { good, text }; };
   const noteBox = () => { if (!m.note) return null; const n = m.note; m.note = null; return h('div', { class: `notice${n.good ? ' good' : ''}`, role: 'status' }, n.text); };
 
@@ -404,7 +406,7 @@ export function createMarketUI(kit) {
     else if (offer) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Your offer is with the seller'), h('b', null, tr(offer.amount))),
       h('button', { class: 'hx small', type: 'button', id: 'deal-withdraw', disabled: d.busy, onclick: async () => { d.busy = true; drawDeal(); await market().withdraw(offer.id); d.busy = false; await poll(d); drawDeal(); } }, 'Withdraw'));
     else if (d.thread.automatic) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Price'), h('b', null, tr(l.price))),
-      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
+      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
     else {
       const amount = h('input', { class: 'field', id: 'deal-amount', type: 'number', inputmode: 'decimal', min: '0.5', step: '0.5', value: d.amount || trPlain(l.price), 'aria-label': 'Your offer in TR' });
       amount.addEventListener('input', () => { d.amount = amount.value; });
@@ -412,7 +414,7 @@ export function createMarketUI(kit) {
         h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => {
           const units = trIn(amount.value);
           if (!units || units <= 0) { d.note = 'Type what you will pay, in TR.'; drawDeal(); return; }
-          d.asking = { text: `Offer ${tr(units)} for the ${l.name}? It is set aside from your ${tr(balance())} until ${d.thread.other} answers, and is paid only if they say yes.`, label: `Offer ${tr(units)}`, yes: () => makeOffer(d, units) }; drawDeal();
+          d.asking = { text: `Offer ${tr(units)} for the ${l.name}? It is set aside from your ${tr(spendable())} of earned TR until ${d.thread.other} answers, and is paid only if they say yes.`, label: `Offer ${tr(units)}`, yes: () => makeOffer(d, units) }; drawDeal();
         } }, 'Buy'));
     }
     if (d.note) { root.append(h('div', { class: 'dealnote', role: 'alert' }, d.note)); d.note = ''; }

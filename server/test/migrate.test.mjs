@@ -1,5 +1,6 @@
-// The step from the first tables to the bank, on a database that already has players in it: what the live
-// site's database is when the new code first reaches it.
+// The steps from the first tables to the bank and on to starter TR kept apart, on a database that already has
+// players in it and has never had a bank. (migrate2.test.mjs is the other case: a database that already has the
+// bank, with TR moved about in it, which is what the live site's database is today.)
 //   server/with-postgres.sh node --test server/test/*.test.mjs
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
@@ -72,22 +73,43 @@ test('a database with players, sales and waiting offers in it is brought to the 
   assert.equal(inNow.account.username, 'OldSeller');
   assert.equal(inNow.save.rev, 7);
   assert.equal(inNow.wallet.balance, 2000 * TR + 300);
+  // Nobody kept count of where TR came from before today, so everything these wallets hold is treated as starter
+  // TR: the bank never saw any of it earned in town. Nothing was taken from anyone; it is written down for each.
+  assert.deepEqual({ starter: inNow.wallet.starter, eligible: inNow.wallet.eligible }, { starter: 2000 * TR + 300, eligible: 0 });
+  const ruled = await sql.unsafe(`select r.balance, r.starter, r.earned, r.town_earned, r.rule from ${S}.wallet_reconciled r join ${S}.wallets w on w.id = r.wallet_id where w.account_id = $1`, [seller]);
+  assert.deepEqual({ balance: Number(ruled[0].balance), starter: Number(ruled[0].starter), earned: Number(ruled[0].earned), town: Number(ruled[0].town_earned) }, { balance: 4300, starter: 4300, earned: 0, town: 0 });
+  assert.match(ruled[0].rule, /starter = the rest/);
+  assert.equal((await sql.unsafe(`select count(*)::int as n from ${S}.wallet_reconciled`))[0].n, 3);
+  // the character each account already had is the account's character from here on
+  assert.equal(inNow.account.figure, 'M1');
+  // the watches bought before today were bought with arrival money: each carries what it cost
+  assert.deepEqual((await sql.unsafe(`select serial, starter_basis from ${S}.holdings order by serial`)).map((r) => [r.serial, Number(r.starter_basis)]), [[1, 280], [2, 300], [3, 0]]);
   const history = (await p.ok('wallet.history')).entries;
   assert.deepEqual(history.map((e) => [e.type, e.amount]), [['sold', 300], ['opening', 2000 * TR]]);
-  // their game's first save tells the bank everything the character has earned and spent since it arrived
-  const first = await p.ok('save.put', { baseRev: 7, enc: 'json', data: '{"host":{}}', summary: { name: 'Seller Eze' }, wallet: { from: 0, upto: 311, earned: 280 + 150, spent: 2 * 200 + 75 } });
+  // their game's first save tells the bank everything the character has earned and spent since it arrived:
+  // 215 TR earned; a 200 TR thing to own, paid out of that; 37.5 TR of costs, paid out of starter TR
+  const first = await p.ok('save.put', { baseRev: 7, enc: 'json', data: '{"host":{}}', summary: { name: 'Seller Eze' }, wallet: { v: 2, from: 0, upto: 311, in: { lawful: 430, illicit: 0 }, out: { cost: 75, restitution: 0, asset: 400 } } });
   assert.equal(first.wallet.balance, 2000 * TR + 300 + 430 - 475);
+  assert.deepEqual({ starter: first.wallet.starter, eligible: first.wallet.eligible, short: first.wallet.short }, { starter: 4300 - 75, eligible: 30, short: 0 });
   assert.equal(first.wallet.mark, 311);
-  // they can sell the watch they still have, and the buyer whose offer was closed can offer again, with TR that is now set aside at the bank
+  // a page still open from before today, saving in the old way, is told to reload and nothing of its report is taken
+  const stale = await p.call('save.put', { baseRev: 8, enc: 'json', data: '{"host":{}}', wallet: { from: 311, upto: 320, earned: 9000, spent: 0 } });
+  assert.equal(stale.body.code, 'OUT_OF_DATE');
+  // The buyer whose offer was closed has only arrival money: it cannot be offered. Once they have earned 150 TR
+  // in town, 125 TR of it can be; the seller is paid in earned TR, and their arrival money is not touched.
   const b = person();
   await b.ok('login', { username: 'OldBuyer', password: 'the old password' });
   const again = uuid();
+  const no = await b.call('market.offer', { thread: t3, offer: again, amount: 250 });
+  assert.equal(no.body.code, 'STARTER_FUNDS');
+  await b.ok('save.put', { baseRev: 3, enc: 'json', data: '{"host":{}}', summary: { name: 'Buyer Obi' }, wallet: { v: 2, from: 0, upto: 9, in: { lawful: 300, illicit: 0 }, out: { cost: 0, restitution: 0, asset: 0 } } });
   const made = await b.ok('market.offer', { thread: t3, offer: again, amount: 250 });
   assert.equal(made.offer.status, 'pending');
-  assert.equal(made.balance, 2000 * TR - 250);
+  assert.deepEqual({ balance: made.balance, starter: made.starter, eligible: made.eligible }, { balance: 2000 * TR + 50, starter: 2000 * TR, eligible: 50 });
   const sold = await p.ok('market.decide', { offer: again, accept: true, amount: 250 });
   assert.equal(sold.sale.amount, 250);
   assert.equal(sold.balance, first.wallet.balance + 250);
+  assert.equal(sold.starter, first.wallet.starter, 'the watch (No. 3) was never bought with anyone\'s arrival money: all 125 TR is earned');
   assert.deepEqual(await bank.audit(sql), []);
 
   // ---- starting again does not do any of it twice ----

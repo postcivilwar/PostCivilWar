@@ -239,13 +239,13 @@ test('the bank: what a character earns and spends in town is reported once; the 
   assert.equal(host.game.view(id).self.balance, ARRIVAL_FUNDS + r.earned);
   // the bank takes it: the next report starts there, and says nothing twice
   assert.equal(host.bank.told(id, r.upto), r.upto);
-  assert.deepEqual({ ...host.bank.report(id) }, { from: r.upto, upto: r.upto, earned: 0, spent: 0 });
+  { const next = host.bank.report(id); assert.deepEqual({ from: next.from, upto: next.upto, earned: next.earned, spent: next.spent }, { from: r.upto, upto: r.upto, earned: 0, spent: 0 }); }
   // someone sends this player 100 TR: the bank's figure goes up, and the wallet here is brought into line
   const before = host.game.view(id).self.balance;
   const moved = host.bank.align(id, before + 200, 'Received from ada');
   assert.deepEqual(moved, { ok: true, moved: 200, balance: before + 200 });
   assert.equal(host.game.view(id).self.balance, before + 200);
-  assert.deepEqual({ ...host.bank.report(id), upto: 0 }, { from: r.upto, upto: 0, earned: 0, spent: 0 }, 'and that is not told back to the bank as an earning');
+  { const next = host.bank.report(id); assert.deepEqual({ from: next.from, earned: next.earned, spent: next.spent }, { from: r.upto, earned: 0, spent: 0 }, 'and that is not told back to the bank as an earning'); }
   // in line already: nothing moves
   assert.equal(host.bank.align(id, before + 200).moved, 0);
   // one more block, not yet told: bringing the wallet into line keeps it

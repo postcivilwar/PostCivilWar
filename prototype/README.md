@@ -133,7 +133,9 @@ The switch sits above the figure, square-cornered. **Drag** turns the figure in 
 (only the arrows and dots do, and with one figure each they are off). Every animation in the chosen file is
 offered under a one-word name (Walk, Run, Dance, Box, Kick, Sit, Laugh…); pressing one plays exactly that
 animation in place, faded in from the last over about a third of a second. Neither figure takes colours.
-Then the name, Hero or Villain, and Enter. The choice is checked by the simulation, saved, and sent to
+Then the name, and Enter. (Hero or Villain is not on this screen: it is asked once, before it, and kept; see
+"Starter TR, one character, the upgrade" below. The character is chosen here once, and Enter asks the player
+to be sure.) The choice is checked by the simulation, saved, and sent to
 others; a save naming a figure that no longer exists (the earlier six women and three men) falls back to a
 kit figure. Files are read by `src/client/glb.js` and played by `src/client/animated.js`. Details and limits
 are in `assets/characters/figures/README.md`.
@@ -981,16 +983,188 @@ four fingers round the far edge and lays the thumb on the near one. Because
 it is measured from the bones it holds for either figure. `test/hold.mjs`
 measures it in a browser, standing and walking.
 
+## Starter TR, one character, the upgrade (11 October 2026)
+
+From the owner's second build prompt of 11 October and two screenshots. On branch `premium`; not live.
+
+### Starter TR and earned TR
+
+Every account arrives with 2,000 TR. That is **starter TR**, and it stays starter TR for as long as any of it
+is left. A wallet is three amounts, and every TR in it is one of them:
+
+| | where it comes from | what it may do |
+|---|---|---|
+| **Starter TR** | the 2,000 TR an account is given, once | pays what the town charges and what living costs: fines, the ambulance, hospital bills, levies and permits, fares, food, fuel, hire. **Never sent to another player. Never spent on a thing to own** (land, a vehicle, what a building is made of, a mason's wage for a stage of it, anything in the market, a character upgrade) |
+| **Earned TR** | wages and payment for work in town; TR another player sent; what a sale brought | anything |
+| **Illicit TR** | what was taken from someone (the game has theft, and police) | spent as earned TR is; handed back first when the law catches up. It is never counted as starter TR, nor starter TR as it |
+
+"Eligible" TR is earned + illicit: what can be sent, or spent on a thing to own.
+
+What is drawn from when something is paid, always the same way: a charge or a cost of living takes starter TR
+first, then earned, then illicit; a thing to own, a transfer, an offer and an upgrade take earned then
+illicit and **never** starter (with too little of those they are refused whole: there is no part payment out
+of starter TR); restitution takes illicit first. The worked example in the brief is a test
+(`server/test/wallet.test.mjs`): 2,000 starter and 700 earned; a 300 TR fine leaves 1,700 starter; sending
+800 TR is refused; a 500 TR vehicle comes out of the 700.
+
+**Where it is kept and who decides.** On the website the three amounts are the server's
+(`api/_lib/wallet.js`): `wallets.starter` and `wallets.illicit` beside `balance`, and every line of the ledger
+says which of them it moved (`wallet_entries.bucket`). The page never says what kind of TR something is: a
+transfer or purchase carries an amount and nothing else, and anything else a browser sends about it
+(`balance`, `eligible`, `bucket`) is ignored. The database itself holds the rule, below the server's code: a
+trigger refuses any entry that takes starter TR out of a wallet except in a town report (charges and costs),
+and any that puts starter TR into one except the first grant and what a sale returns (below); another refuses
+any change to `balance`, `starter` or `illicit` that is not an entry; a check keeps the parts within the
+whole. `wallet.audit` verifies all of it against the ledger.
+
+**What is written down.** The ledger says what moved: every movement has its two sides, its kind, which part
+of each wallet it touched, who asked and when, and it cannot be edited. Beside it, `wallet_refusals` says what
+was asked to move and did **not**, because of what the TR was or how much there was (a transfer or offer of
+starter TR, more than was earned, more than there is, an upgrade at a fee the server did not quote): who
+asked, which request, how much, the reason given, and the figures the server went by. It too is only ever
+added to. What a town reported and the bank would not believe or would not take from starter TR is in the
+`game` movement's own record.
+
+**No way round.**
+- *Sending* moves earned as earned and illicit as illicit; starter TR cannot be a side of a transfer.
+- *An offer* in the market is set aside from eligible TR only, and comes back as what it was.
+- *Buying and selling back.* What was bought before this rule, when starter TR was let buy, carries how much
+  starter TR went into it (`holdings.starter_basis`); when it is sold, that much of the price reaches the
+  seller as starter TR again. Nothing bought since can have any in it.
+- *In town.* The town is simulated in the browser, and keeps the same rule itself (`src/sim/funds.js`): the
+  Lands Registry, the vehicle seller and the builder's yard refuse starter TR at the counter, with the actual
+  reason. What each payment *is* is read from the game's own ledger (its key and kind), and reported to the
+  bank with each save in categories (`in: lawful, illicit`; `out: cost, restitution, asset`); the bank applies
+  its own rule to them. An asset reported beyond the eligible TR there is, is simply not paid out of starter
+  TR (the player is told). TR that passes between players inside a town (a thief's takings, a constable's
+  share of a fine) arrives as what it was when it left: starter stays starter.
+- *Many accounts.* The arrival money of a second account is as untransferable as the first's.
+
+**What a player sees.** The Wallet shows the balance, and under it one line, "700 TR can be sent or spent on
+assets", which opens to Total, Starter TR, Earned TR (eligible) and what is set aside for offers. The Send
+form says "You can send 700 TR" before anything is typed. Refusals say the actual reason, in the words asked
+for, and never that the balance is too small when it is not:
+
+- "Starter TR cannot be transferred. Earn TR through gameplay to send money to other players."
+- "Starter TR cannot be used to buy assets. Earn TR through gameplay to make purchases."
+- "You do not have enough eligible TR for this transaction." (followed by the figures)
+
+**Accounts that existed before** (migration 3, `api/_lib/schema.js`). Nothing is deleted and no balance is
+changed. Offers waiting for an answer are declined first and their TR returned (they were made under the old
+rule). Then each wallet is divided conservatively: its **earned** TR is the smaller of (what it holds above
+2,000 TR) and (what its town reported earning to the bank, all told); **everything else is starter TR**. So
+TR whose source cannot be shown is restricted, not freed; a balance at or under 2,000 TR is all starter. The
+figures used are written to `wallet_reconciled`, one row per wallet, so any of them can be reviewed and
+corrected by a later, deliberate step. Tested on a populated copy of the first set of tables and of the
+second (`server/test/migrate.test.mjs`, `migrate2.test.mjs`).
+
+**What this does not close.** The town still runs in the browser. Someone who rewrites their own page can
+report town earnings they did not earn, up to the allowance (3,000 TR an hour; a new account begins with room
+for 500 TR, not the full 10,000, so a fresh account cannot claim much at once). That TR would be earned TR.
+It closes when the town runs on a server; until then it is capped, logged with every save (`wallet_tx` kind
+`game`, with what was claimed and what was refused), and visible to an audit. Plots cost more than the arrival
+money already, so in ordinary play nothing a newcomer could buy on day one is lost by this rule.
+
+### One character, chosen once
+
+A player has one character. It is chosen when the account first plays, with the name, and Enter asks
+"Choose Adaeze?" (Choose This Character / Go Back) before anything is kept. It is kept **on the account**
+(`accounts.figure`, with `accounts.path` for hero or villain), not in the saved game, so it is the same on
+every device, and still the account's after a saved game is erased and a new journey begun. The server takes
+a first choice once (`character.choose`): a second, different one is refused (`CHOSEN`).
+
+After that nobody is asked again. Someone who has a character and opens the game, logs in, reloads, or comes
+back on another device is taken **into the town**: no screen that offers a character, a path or a name, and
+no Continue button to press. (`route()` in `src/client/main.js` is the one place that decides this.) If the
+character cannot be fetched they are told so, with Retry, and nothing else is offered: no other character is
+put in its place. With no connection, someone who signed in on the device before goes in with the copy kept
+there.
+
+An account from before this was kept takes the character and path its own saved game already has, once
+(migration 3 does it for saved games on the server; the page does it for an account whose only copy is on a
+device). An account that never answered hero or villain is asked, once, when it next begins a journey.
+
+**Hero or villain is asked once**, in the opening where there are no accounts, and straight after an account
+is made where there are. (It stays "being asked" until its answer has been handed over: when it stopped
+being so while still leaving the screen, anything that looked in that half second put it a second time,
+unseen, and a V or an H typed in the name then changed the answer.) The row "Your path: Hero / Villain" that stood on the character screen (the owner's
+second screenshot) is gone, with both Continue buttons.
+
+**Looking is free.** Settings, Character, "View characters" opens the same turntable from inside the game.
+Every character can be turned and its animations played. The one the player is, is marked "Your character";
+another is marked "Looking only" and has one button, "Upgrade to Emeka". Looking changes nothing: not who the
+player is, at the bank, in the town or on the device, and not where they stand.
+
+### The upgrade
+
+Changing character is a paid upgrade, and the only way to change.
+
+- Offered only when the **whole balance is more than 2,000 TR** (exactly 2,000 is not enough).
+- The fee is **a quarter of the whole balance at that moment** (2,400 TR: 600; 4,000: 1,000; 8,000: 2,000;
+  12,000: 3,000), to the half TR, rounded down (TR is kept in halves: 2,790.5 TR gives 697.5).
+- **All of it must be earned TR.** Starter TR pays none of it; there is no part payment.
+- The player is shown, before anything happens: Current character, New character, Current balance, Upgrade
+  fee, Balance after upgrade, and "Upgrading changes your permanent character. You will need to pay another
+  upgrade fee to change it again." Cancel / Confirm Upgrade. If it cannot be had, the same figures are shown
+  with the actual reason and only Close.
+- The server works the fee out itself from its own books, with the account and its wallet locked
+  (`api/_lib/character.js`). The fee the page was shown is sent back only to be **checked**: if the balance
+  has moved since, nothing is charged and the player is shown the new figure (`QUOTE_CHANGED`). A fee of the
+  browser's own choosing therefore changes nothing.
+- The fee and the new character are written in one transaction, or neither is. Asked twice under one key, it
+  is done once; two at once are done one after the other, the second against the new balance.
+- Every change is recorded (`character_changes`: from, to, the balance it was worked out on, the fee, the
+  bank's reference, the time) and appears in the Wallet's history as "Character upgrade".
+- Changing back is another upgrade at another fee.
+
+Where there is no server (a copy on disk), the same rule is kept by the town's own ledger (`sim.js`,
+`character.quote` / `character.upgrade`).
+
+### Fitting the screen
+
+Three things from the owner's prompt, each fixed where it went wrong and not by clipping. (Two screenshots
+came with it: the name cut off, and the character screen. The third, of the balance, did not arrive, so that
+one was found in the code and by measuring, and should be checked against the owner's own phone.)
+
+- **The game's name cut off at the top of a phone held sideways.** The start screen centred its one column
+  in the screen; when the column was taller than the screen, centring pushed its top above the top, where it
+  could not be scrolled to. Now the column takes an auto margin (centred when it fits, starting at the top and
+  scrolling when it does not), on a phone held sideways it is two columns (story left, what to do right) so
+  that it fits without scrolling on most phones, the name's size follows the width and may wrap, and the
+  padding includes the notch.
+- **The balance clipped at the top in town.** The purse sat 3 px below the safe area with a line-height of 1, and
+  its figures have a black edge drawn outside their own box, so on a phone held sideways the top of the edge
+  was at the very top of the screen and was cut. It now starts 8 px below the safe area with room for its
+  edge (the test asks for 5 px clear at every size), and its figures are sized from the room there is and how many of them
+  there are, so a balance of ten figures fits a 320 px phone.
+- **The character screen's buttons running over** went with the row that was removed.
+
+And, found by the audit below and fixed the same way (sizes that give way, wrapping, a column that may be
+narrower than its contents): the arrows beside the character's name on a 320 px phone and in the stage's half
+of a phone held sideways; Create Account and Send/Receive on narrow phones; a dialog's answers, which now
+stay at the foot of the dialog while what is above them scrolls (the upgrade's table on a small phone).
+
+`test/fit.mjs` goes through every screen a player meets (cover, shut start screen, account form, the
+question, choosing a character, being asked to be sure, the town, the town with a very large balance, the
+Wallet and its breakdown, Send, Settings, the characters, the upgrade, erase and log out) at thirteen sizes
+(320x568, 360x640, 390x844, 412x915, 568x320, 640x360, 800x360, 844x390, 915x412, 768x1024, 1024x768,
+1280x720, 1600x900), resizing without reloading as a phone is turned, and fails if anything named is off the
+side, cut off where it cannot be scrolled to, or has words that do not fit their button, if the page scrolls
+sideways, or if turning the phone moved the player or lost anything. It is a desktop browser pretending:
+**it does not replace a real phone** (notches, the address bar, the on-screen keyboard and real fonts are
+only approximated).
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 225 headless tests, in seventeen files
-../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 51 tests against a real PostgreSQL (accounts, the market, the bank, play, and the step from the old tables to the new)
-../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the market, a deal, a transfer in the Wallet, a second device, logging out, erasing
+node --test test/*.test.mjs                        # 242 headless tests, in eighteen files
+../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 66 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
+../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
 node build.mjs                                     # writes dist/index.html, dist/local.html, the character lab, the vehicle yard and dist/site/
 node build.mjs --site                              # the same, then makes site/ (what the host serves) the same as dist/site/
-node test/webapp.mjs out/                          # the website as an app: serves dist/site/, checks it can be installed, takes the network away and plays
+../server/with-postgres.sh node test/webapp.mjs out/   # the website as an app: serves dist/site/, checks it can be installed, takes the network away and plays
 node test/play.mjs out/                            # plays the built page in headless Chromium (needs Playwright)
 node test/play.mjs out/ town                       # one session: opening, desktop, town, phone, action, sideways or upright
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons

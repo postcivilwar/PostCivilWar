@@ -1,6 +1,7 @@
 // Plays the built page in a headless browser and saves screenshots.
 //   node test/play.mjs <output-directory>
 // Needs Playwright with Chromium. Not part of the unit tests.
+import { pastQuestion, enterTown, openingOver } from './start.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -29,8 +30,8 @@ async function session(name, viewport, script) {
   page.on('pageerror', (e) => problems.push(`${name}: ${e.message}`));
   if (name !== 'opening') {
     await page.goto(page_url, { timeout: 300000 });
-    // Enter is offered once the town has been made ready to draw
-    await page.waitForFunction(() => { const b = document.querySelector('#enter'); return b && !b.disabled; }, null, { timeout: 300000 });
+    // the one question (never answered on this device), then Enter, which is offered once the town is ready to draw
+    await pastQuestion(page);
     await page.waitForTimeout(500);
   }
   const shot = async (label) => { await page.waitForTimeout(400); await page.screenshot({ path: resolve(out, `${name}-${label}.png`) }); };
@@ -127,7 +128,7 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   if (!story.log.played || story.log.playedAt < story.log.coverAt) bad(`PLAY was not what moved the opening on: ${JSON.stringify(story.log)}`);
   if (!story.sound) bad('pressing PLAY did not start the sound');
   await shot('04-question');
-  const asked = await page.evaluate(() => ({ text: document.querySelector('#choice-title').textContent, picks: [...document.querySelectorAll('.pick')].map((b) => b.dataset.path), face: getComputedStyle(document.querySelector('#choice-title')).fontFamily, start: !document.querySelector('#intro'),
+  const asked = await page.evaluate(() => ({ text: document.querySelector('#choice-title').textContent, picks: [...document.querySelectorAll('.pick')].map((b) => b.dataset.path), face: getComputedStyle(document.querySelector('#choice-title')).fontFamily, start: document.querySelector('#intro').hidden,
     marked: [...document.querySelectorAll('.pick')].filter((b) => b.classList.contains('chosen') || b.getAttribute('aria-pressed') === 'true' || b === document.activeElement).length, fills: [...document.querySelectorAll('.pick')].map((b) => getComputedStyle(b).backgroundColor) }));
   if (asked.marked || asked.fills[0] !== asked.fills[1]) bad(`an answer looks chosen before one is picked: ${JSON.stringify(asked.fills)}`);
   if (!/hero/i.test(asked.text) || !/villain/i.test(asked.text)) bad(`the question reads "${asked.text}"`);
@@ -144,10 +145,13 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   if (chosen.chosen.join() !== 'villain' || chosen.path !== 'villain') bad(`chose villain, got ${JSON.stringify(chosen.chosen)} ${chosen.path}`);
   if (!(chosen.sound.voices.short > before || chosen.sound.level > 0.0005)) bad('choosing made no sound');
   await shot('05-chosen');
-  await page.waitForFunction(() => !document.querySelector('#intro'), null, { timeout: 60000 });
+  await page.waitForFunction(openingOver, null, { timeout: 60000 });
   await page.waitForFunction(() => { const b = document.querySelector('#enter'); return b && !b.disabled; }, null, { timeout: 300000 });
-  const start = await page.evaluate(() => ({ pressed: [...document.querySelectorAll('#paths button')].filter((b) => b.getAttribute('aria-pressed') === 'true').map((b) => b.dataset.path), heading: document.querySelector('#start-title').textContent, prefs: JSON.parse(localStorage.getItem('nlw-prefs-v1') || '{}').path, mark: document.querySelectorAll('#start .brand .mark .ray').length, text: document.querySelector('#start').textContent }));
-  if (start.pressed.join() !== 'villain' || start.prefs !== 'villain') bad(`the start screen has ${start.pressed} chosen, remembered ${start.prefs}`);
+  const start = await page.evaluate(() => ({ again: !!document.querySelector('#paths') || /your path/i.test(document.querySelector('#start').innerText) || [...document.querySelectorAll('#start button')].some((b) => /^(hero|villain)$/i.test(b.textContent.trim())), screen: document.querySelector('#start').dataset.screen, heading: document.querySelector('#start-title').textContent, prefs: JSON.parse(localStorage.getItem('nlw-prefs-v1') || '{}').path, mark: document.querySelectorAll('#start .brand .mark .ray').length, text: document.querySelector('#start').textContent }));
+  // the answer is kept, and the screen where the character is made does not ask for it a second time
+  if (start.again) bad('the start screen asks hero or villain again');
+  if (start.prefs !== 'villain') bad(`the answer was villain; remembered ${start.prefs}`);
+  if (start.screen !== 'create' || !/Create your character/.test(start.heading)) bad(`after the question the start screen is "${start.screen}", headed "${start.heading}"`);
   if (start.mark !== 8) bad('the start screen has no mark');
   // the three paragraphs at the foot of the start screen were taken off at the owner's word (10 October 2026)
   if (/There are no accounts yet|Walk with W A S D|This is a browser prototype/i.test(start.text)) bad('the start screen still has the section that was removed');
@@ -155,7 +159,11 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   if (/log ?in|create account/i.test(await page.evaluate(() => [...document.querySelectorAll('#start button')].filter((b) => b.offsetParent !== null).map((b) => b.textContent).join(' ')))) bad('a page with no server offers an account');
   await shot('06-start');
   await page.fill('#name', 'Nonso Obi');
-  await page.click('#enter');
+  // Enter does not go straight in: the character is for good, so the player is asked to be sure, and may go back
+  const unsure = await enterTown(page, { answer: 'no' });
+  if (!/^Choose (Adaeze|Emeka)\?$/.test(unsure.title) || unsure.yes !== 'Choose This Character' || unsure.no !== 'Go Back' || !/character upgrade/.test(unsure.body)) bad(`asked to be sure of the character: ${JSON.stringify(unsure)}`);
+  if (await page.evaluate(() => !document.querySelector('#hud').hidden || !!window.__nlw.playerId)) bad('Go Back went into the town');
+  await enterTown(page);
   await page.waitForFunction(() => window.__nlw.view && window.__nlw.mode === 'walking', null, { timeout: 120000 });
   const kept = await page.evaluate(() => { const n = window.__nlw; return { view: n.view.self.path, state: n.host.game.state.players[n.playerId].path }; });
   if (kept.view !== 'villain' || kept.state !== 'villain') bad(`the simulation holds the path as ${JSON.stringify(kept)}`);
@@ -172,10 +180,13 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   await page.waitForFunction(() => window.__nlw.intro.ready(), null, { timeout: 120000 });
   // the keyboard works it too: Enter on the cover is PLAY
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => !document.querySelector('#intro'), null, { timeout: 60000 });
-  const back = await page.evaluate(() => ({ asked: window.__nlw.intro.log.path, resume: !document.querySelector('#continue').hidden, label: document.querySelector('#continue').textContent }));
+  await page.waitForFunction(openingOver, null, { timeout: 60000 });
+  // ...and there is nothing to choose: PLAY takes them into the town as they were, with no screen in between that
+  // offers a character, a path or a name
+  await page.waitForFunction(() => window.__nlw.mode === 'walking' && !document.querySelector('#hud').hidden, null, { timeout: 300000 }).catch(() => bad('a returning player was not taken into the town'));
+  const back = await page.evaluate(() => ({ asked: window.__nlw.intro.log.path, start: !document.querySelector('#start').hidden, name: window.__nlw.view && window.__nlw.view.self.name, path: window.__nlw.view && window.__nlw.view.self.path }));
   if (back.asked !== null) bad('a returning player was asked the question again');
-  if (!back.resume || !/Nonso Obi/.test(back.label)) bad(`a returning player is offered "${back.label}"`);
+  if (back.start || back.name !== 'Nonso Obi' || back.path !== 'villain') bad(`a returning player is ${JSON.stringify(back)}`);
   await shot('08-returning');
 });
 
@@ -303,8 +314,8 @@ for (const [label, size] of Object.entries({ desk: { width: 1280, height: 760 },
     await page.fill('#name', 'Ngozi Okafor');
     await c(() => window.__creator.step(0));
     if ((await page.inputValue('#name')) !== 'Ngozi Okafor') bad('a typed name was replaced');
-    await page.waitForFunction(() => { const b = document.querySelector('#enter'); return b && !b.disabled; }, null, { timeout: 300000 });
-    await page.click('#enter');
+    const sure = await enterTown(page);
+    if (sure.title !== `Choose ${want.figure === 'M1' ? 'Emeka' : 'Adaeze'}?`) bad(`chose ${want.figure}; asked "${sure.title}"`);
     await page.waitForFunction(() => window.__nlw.mode === 'walking', null, { timeout: 120000 });
     const inTown = await c(() => ({ look: window.__nlw.view.self.look, name: window.__nlw.view.self.name, figure: window.__nlw.me.figure }));
     if (inTown.look.figure !== want.figure || inTown.figure !== want.figure || JSON.stringify(inTown.look.colours) !== JSON.stringify(want.colours)) bad(`chose ${JSON.stringify(want)}, the town has ${JSON.stringify(inTown)}`);
@@ -312,12 +323,14 @@ for (const [label, size] of Object.entries({ desk: { width: 1280, height: 760 },
     await c(() => { const n = window.__nlw; n.cam.dist = 4.2; n.cam.pitch = 0.12; });
     await page.waitForTimeout(1500);
     await shot(`04-${label}-in-town`);
-    // and after a reload, Continue brings back the same figure
+    // and after a reload the player is in the town as the same figure: nothing is chosen a second time
     await c(() => window.__nlw.saveNow());
     await page.reload({ timeout: 300000 });
-    await page.waitForFunction(() => { const b = document.querySelector('#continue'); return b && !b.hidden && !b.disabled; }, null, { timeout: 300000 });
-    await page.click('#continue');
-    await page.waitForFunction(() => window.__nlw.mode === 'walking', null, { timeout: 120000 });
+    let offered = false;
+    const watch = setInterval(() => page.evaluate(() => { const s = document.querySelector('#start'); return !!s && !s.hidden && s.dataset.screen === 'create'; }).then((seen) => { offered = offered || seen; }).catch(() => {}), 400);
+    await page.waitForFunction(() => window.__nlw && window.__nlw.mode === 'walking' && !document.querySelector('#hud').hidden, null, { timeout: 300000 });
+    clearInterval(watch);
+    if (offered) bad('a player with a character was shown the screen where one is made');
     const back = await c(() => ({ figure: window.__nlw.me.figure, look: window.__nlw.view.self.look }));
     if (back.figure !== want.figure || JSON.stringify(back.look.colours) !== JSON.stringify(want.colours)) bad(`after a reload the character is ${JSON.stringify(back)}`);
   });
@@ -326,7 +339,7 @@ for (const [label, size] of Object.entries({ desk: { width: 1280, height: 760 },
 await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   await shot('01-start');
   await page.fill('#name', 'Nonso Obi');
-  await page.click('#enter');
+  await enterTown(page);
   await page.waitForTimeout(1200);
   await shot('02-arrive');
   // walk up Market Road, away from the river, with the keyboard
@@ -535,7 +548,7 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
 await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   const bad = (text) => problems.push(`town: ${text}`);
   await page.fill('#name', 'Ifeoma Eze');
-  await page.click('#enter');
+  await enterTown(page);
   await page.waitForTimeout(1500);
   // TR to play with, put in as the bank would put it (and the twenty-four seconds the town used to be given while it arrived)
   await nlw(page, () => { const n = window.__nlw; const h = n.host; for (let t = 0; t < 24; t += 0.1) h.tick(0.1); h.bank.align(n.playerId, h.game.view(n.playerId).self.balance + 50000, 'Test funds'); });
@@ -686,7 +699,7 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
 
 await session('phone', { width: 400, height: 780 }, async (page, shot) => {
   await shot('01-start');
-  await page.tap('#enter');
+  await enterTown(page, { tap: true });
   await page.waitForTimeout(1200);
   await shot('02-arrive');
   const overflow = await nlw(page, () => document.documentElement.scrollWidth > document.documentElement.clientWidth);
@@ -818,7 +831,7 @@ const clashes = (page) => nlw(page, () => {
 await session('action', { width: 1280, height: 760 }, async (page, shot) => {
   const bad = (text) => problems.push(`action: ${text}`);
   await page.fill('#name', 'Emeka Nwosu');
-  await page.click('#enter');
+  await enterTown(page);
   await page.waitForFunction(() => window.__nlw && window.__nlw.mode === 'walking');
   await fundNow(page);
   // the buttons on offer change with what is within reach
@@ -957,7 +970,7 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
 for (const [name, size] of [['sideways', { width: 760, height: 360, touch: true }], ['upright', { width: 390, height: 800, touch: true }]]) {
   await session(name, size, async (page, shot) => {
     const bad = (text) => problems.push(`${name}: ${text}`);
-    await page.tap('#enter');
+    await enterTown(page, { tap: true });
     await page.waitForFunction(() => window.__nlw && window.__nlw.mode === 'walking');
     await fundNow(page);
     const check = async (label, want) => {

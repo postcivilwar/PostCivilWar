@@ -8,8 +8,10 @@
 // that is under way neither button can be pressed again, so one press is one request. If it fails the dialog
 // stays, says why in plain words, and nothing has been changed.
 //
-//   ask({ title, body, confirm, cancel, busy, danger, run })  ->  a promise of true (done) or false (not done)
+//   ask({ title, body, rows, note, confirm, cancel, busy, danger, run })  ->  a promise of true (done) or false (not done)
 //   run: async () => ({ ok: true }) or ({ ok: false, message })
+//   rows: [[label, value], ...] set out as a small table under the words (what is to be paid, and so on)
+//   note: one more line under the table.   confirm: null for something that can only be read and closed.
 
 const $ = (id) => document.getElementById(id);
 
@@ -17,6 +19,7 @@ export function createConfirm() {
   const box = $('confirm');
   if (!box) return { ask: async ({ run }) => { const r = await run(); return !!(r && r.ok); }, get isOpen() { return false; } };
   const title = $('confirm-title'), body = $('confirm-body'), error = $('confirm-error'), yes = $('confirm-yes'), no = $('confirm-no');
+  const table = $('confirm-rows'), foot = $('confirm-note');
   let open = null;              // { resolve, run, opener, busy, words }
 
   function close(result) {
@@ -59,7 +62,7 @@ export function createConfirm() {
     if (event.key === 'Tab') {
       // the focus stays inside: there are two things to press and it goes from one to the other
       event.preventDefault();
-      const order = [no, yes].filter((b) => !b.disabled);
+      const order = [no, yes].filter((b) => !b.disabled && !b.hidden);
       if (!order.length) return;
       const at = order.indexOf(document.activeElement);
       order[(at + (event.shiftKey ? order.length - 1 : 1)) % order.length].focus({ preventScroll: true });
@@ -68,13 +71,19 @@ export function createConfirm() {
   // keys typed while it is up are its own: the game behind it does not hear them
   for (const type of ['keyup', 'keypress']) box.addEventListener(type, (event) => event.stopPropagation());
 
-  function ask({ title: heading, body: text, confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, run }) {
+  function ask({ title: heading, body: text = '', rows = null, note = '', confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, run = async () => ({ ok: true }) }) {
     if (open) return Promise.resolve(false);
     return new Promise((resolve) => {
       open = { resolve, run, opener: document.activeElement, busy: false, words: { confirm, busy } };
       title.textContent = heading;
-      body.textContent = text;
-      yes.textContent = confirm; no.textContent = cancel;
+      body.textContent = text; body.hidden = !text;
+      if (table) {
+        table.replaceChildren(...(rows || []).flatMap(([label, value, strong]) => { const dt = document.createElement('dt'); dt.textContent = label; const dd = document.createElement('dd'); dd.textContent = value; if (strong) dd.className = 'strong'; return [dt, dd]; }));
+        table.hidden = !(rows && rows.length);
+      }
+      if (foot) { foot.textContent = note; foot.hidden = !note; }
+      yes.hidden = confirm === null;
+      yes.textContent = confirm || ''; no.textContent = cancel;
       yes.disabled = false; no.disabled = false;
       yes.classList.toggle('danger', !!danger);
       error.hidden = true; error.textContent = '';

@@ -53,3 +53,61 @@ test('the game is given no name it does not have, and no way to make TR out of n
   const page = read('src/client/template.html');
   assert.ok(!/without an account|no account needed|play as a guest/i.test(page), 'the page still offers play without an account');
 });
+
+// Starter TR and the character upgrade: the words a player is given, exactly as they were asked for, said the
+// same by the town (src/sim/funds.js) and by the bank (api/_lib/wallet.js).
+test('starter TR is refused in the words that were asked for, by the town and by the bank alike', async () => {
+  const { FUND_WORDS } = await import('../src/sim/funds.js');
+  const { createRequire } = await import('node:module');
+  const bank = createRequire(import.meta.url)('../../api/_lib/wallet.js').WORDS;
+  const wanted = {
+    transfer: 'Starter TR cannot be transferred. Earn TR through gameplay to send money to other players.',
+    asset: 'Starter TR cannot be used to buy assets. Earn TR through gameplay to make purchases.',
+    short: 'You do not have enough eligible TR for this transaction.',
+  };
+  for (const [key, words] of Object.entries(wanted)) {
+    assert.equal(FUND_WORDS[key], words, `the town's "${key}"`);
+    assert.equal(bank[key], words, `the bank's "${key}"`);
+  }
+  // the Wallet says the first of them before anything is typed, and names the parts of a balance
+  const wallet = read('src/client/ui-wallet.js');
+  assert.ok(wallet.includes(wanted.transfer), 'the send form does not say that starter TR cannot be transferred');
+  for (const label of ["'Total'", "'Starter TR'", "'Earned TR (eligible)'"]) assert.ok(wallet.includes(label), `the Wallet's breakdown has no ${label}`);
+});
+
+test('a character upgrade is confirmed in the words that were asked for', () => {
+  const main = read('src/client/main.js');
+  for (const words of [
+    'Upgrading changes your permanent character. You will need to pay another upgrade fee to change it again.',
+    "'Confirm Upgrade'", "cancel: 'Cancel'",
+    "'Current character'", "'New character'", "'Current balance'", "'Upgrade fee'", "'Balance after upgrade'",
+  ]) assert.ok(main.includes(words), `${words} is not in the upgrade's confirmation`);
+});
+
+test('the screen where a character is made does not ask hero or villain', () => {
+  const page = read('src/client/template.html');
+  const from = page.indexOf('<div id="start"'), to = page.indexOf('id="intro"', from);
+  assert.ok(from > 0 && to > from, 'the start screen was not found in the page');
+  const start = page.slice(from, to);
+  assert.ok(start.length > 500, 'the start screen was not found in the page');
+  assert.ok(!/id="paths"|data-path=|Your path/i.test(start), 'the start screen still has the path on it');
+  assert.ok(!/id="continue"|id="continue-top"/.test(page), 'the start screen still has a Continue button');
+  // the question itself is still there, in the opening, where it is asked once
+  assert.match(page, /class="pick"[^>]*data-path="hero"|data-path="hero"[^>]*class="pick"/);
+});
+
+test('the upgrade fee is a quarter of the whole balance, offered only above 2,000 TR: the same sum in the town and at the bank', async () => {
+  const sim = await import('../src/sim/sim.js');
+  const { createRequire } = await import('node:module');
+  const bank = createRequire(import.meta.url)('../../api/_lib/character.js');
+  assert.deepEqual({ ...sim.UPGRADE }, { ...bank.UPGRADE });
+  assert.equal(bank.UPGRADE.above, 4000);            // 2,000 TR, at two units to the TR
+  // the examples that were given, in TR
+  for (const [total, fee] of [[2400, 600], [4000, 1000], [8000, 2000], [12000, 3000]]) {
+    assert.equal(sim.upgradeFee(total * 2) / 2, fee, `${total} TR in the town`);
+    assert.equal(bank.upgradeFee(total * 2) / 2, fee, `${total} TR at the bank`);
+  }
+  // a balance that does not divide: to the half TR, rounded down, and the same in both places
+  for (const units of [4001, 4003, 5581, 4899, 99999, 1]) assert.equal(sim.upgradeFee(units), bank.upgradeFee(units));
+  assert.equal(bank.upgradeFee(5581), 1395);
+});

@@ -20,9 +20,16 @@ const TABLES = ['migrations', 'accounts', 'sessions', 'limits', 'saves', 'assets
 //   grant      what every account is given once: the arrival money, £20 as 2,000 TR
 //   earnBurst  the most in-game earnings the bank will take from one account at once
 //   earnHour   and how much more of them it will take for each hour that passes
+//   earnStart  how much of them it will take from an account that has only just been made
 // A game's earnings are told to the bank by the game itself (the town runs in the player's own browser), so the
 // bank takes them only up to what a person playing could have earned. See api/_lib/wallet.js.
-const WALLET = { grant: 4000, earnBurst: 20000, earnHour: 6000 };
+const WALLET = { grant: 4000, earnBurst: 20000, earnHour: 6000, earnStart: 1000 };
+
+// The characters an account may be: the owner's supplied figures, by the names the game knows them by
+// (prototype/src/sim/figures.js; a test holds the two lists together).
+const FIGURES = { W1: 'Adaeze', M1: 'Emeka' };
+// A character upgrade: offered only above the arrival money, for one part in `parts` of the whole wallet.
+const UPGRADE = { above: WALLET.grant, parts: 4 };
 
 const HOLARIS = { shop: 'holaris', asset: 'holaris-watch', listing: '00000000-0000-4000-8000-000000000001', x: -26, z: 55.4, price: 200, stock: 10 };
 
@@ -333,6 +340,174 @@ const MIGRATIONS = [
       `set constraints all immediate`,
     ],
   },
+  {
+    id: 3,
+    name: 'starter TR kept apart from earned TR; one character to an account, changed only by a paid upgrade',
+    statements: [
+      // ---- offers that are waiting are closed first, and their TR goes back ----
+      // An offer made before today set its TR aside out of the whole wallet, arrival money included. From here
+      // on only earned TR can be set aside, so nothing waits in the old way: each buyer has their TR again
+      // before any wallet is looked at, and can make the offer again.
+      `do $$ declare o record; w uuid; t uuid; esc uuid; begin
+         select id into esc from ${S}.wallets where code = 'escrow';
+         for o in select id, buyer_id, held, thread_id, amount from ${S}.offers where status = 'pending' order by created_at loop
+           if o.held > 0 and not exists (select 1 from ${S}.wallet_tx where actor_id = o.buyer_id and idem_key = 'release:' || o.id) then
+             select id into w from ${S}.wallets where account_id = o.buyer_id;
+             insert into ${S}.wallet_tx (ref, kind, actor_id, idem_key, note, meta) values ('TR-R' || upper(substr(md5(o.id::text), 1, 9)), 'release', o.buyer_id, 'release:' || o.id, 'Offer returned', jsonb_build_object('offer', o.id)) returning id into t;
+             insert into ${S}.wallet_entries (tx_id, wallet_id, amount) values (t, esc, -o.held), (t, w, o.held);
+           end if;
+           update ${S}.offers set status = 'declined', decided_at = now() where id = o.id;
+           if o.thread_id is not null then insert into ${S}.messages (thread_id, kind, body, amount, offer_id) values (o.thread_id, 'declined', 'Offers are now made with earned TR only. Your TR has been returned: make the offer again.', o.amount, o.id); end if;
+         end loop;
+       end $$`,
+      // (each of those is checked now: the tables are about to be altered, and nothing may be left waiting)
+      `set constraints all immediate`,
+      `set constraints all deferred`,
+
+      // ---- what each wallet is made of ----
+      //   starter   arrival money that is left: it pays the town's charges and costs, and nothing else
+      //   illicit   TR that was taken from someone in the game
+      //   (earned is the rest: balance - starter - illicit)
+      `alter table ${S}.wallets add column starter bigint not null default 0`,
+      `alter table ${S}.wallets add column illicit bigint not null default 0`,
+      // ...and which of them each entry moved. (Entries written before today say nothing: nobody kept count then.)
+      `alter table ${S}.wallet_entries add column bucket text check (bucket in ('starter', 'earned', 'illicit'))`,
+      // one movement may now touch a wallet once for each kind of TR in it
+      `alter table ${S}.wallet_entries drop constraint wallet_entries_tx_id_wallet_id_key`,
+      `create unique index wallet_entries_once on ${S}.wallet_entries(tx_id, wallet_id, coalesce(bucket, ''))`,
+
+      // ---- the wallets that already exist ----
+      // Nobody's balance changes. What changes is what the bank will let each part of it do. Until today the
+      // bank kept no count of where TR came from, so it is settled here by one rule, the same for everyone and
+      // on the cautious side: a wallet's earned TR is what it holds above the arrival money, and no more of
+      // that than the town earnings the bank itself took from that account's game. Everything else in it is
+      // starter TR. (So TR that reached a wallet from another player before today is not counted as earned:
+      // it may have been someone's arrival money.) What was decided for each wallet is written down.
+      `create table ${S}.wallet_reconciled (
+         wallet_id uuid primary key references ${S}.wallets(id),
+         at timestamptz not null default now(),
+         balance bigint not null,
+         starter bigint not null,
+         illicit bigint not null default 0,
+         earned bigint not null,
+         town_earned bigint not null,
+         last_entry bigint not null,
+         rule text not null
+       )`,
+      `insert into ${S}.wallet_reconciled (wallet_id, balance, starter, earned, town_earned, last_entry, rule)
+       select w.id, w.balance, w.balance - e.earned, e.earned, e.town, coalesce((select max(id) from ${S}.wallet_entries x where x.wallet_id = w.id), 0),
+              'earned = least(greatest(balance - ${WALLET.grant}, 0), town earnings taken by the bank); starter = the rest'
+       from ${S}.wallets w
+       cross join lateral (select coalesce(sum(case when (t.meta->>'earned') ~ '^[0-9]+$' then (t.meta->>'earned')::bigint else 0 end), 0) as town
+                           from ${S}.wallet_entries x join ${S}.wallet_tx t on t.id = x.tx_id where x.wallet_id = w.id and t.kind = 'game') g
+       cross join lateral (select least(greatest(w.balance - ${WALLET.grant}, 0), g.town) as earned, g.town as town) e
+       where w.kind = 'player'`,
+      `update ${S}.wallets w set starter = r.starter from ${S}.wallet_reconciled r where r.wallet_id = w.id`,
+
+      // ---- from here on, an entry says which TR it moves, and the database moves that and nothing else ----
+      `create or replace function ${S}.wallet_entry_applies() returns trigger language plpgsql as $f$
+       declare whose text; why text;
+       begin
+         select kind into whose from ${S}.wallets where id = new.wallet_id;
+         if not found then raise exception 'no such wallet' using errcode = 'P0001'; end if;
+         if whose = 'system' then
+           if new.bucket is not null then raise exception 'the bank''s own wallets hold TR of no kind' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+           return new;
+         end if;
+         if new.bucket is null then raise exception 'an entry in a player''s wallet says which TR it moves' using errcode = 'P0001'; end if;
+         if new.bucket = 'starter' then
+           -- starter TR leaves a wallet only for the town's own charges and costs (a save's report), and reaches
+           -- one only as arrival money or as the price of something that was itself bought with it
+           select kind into why from ${S}.wallet_tx where id = new.tx_id;
+           if new.amount < 0 and why <> 'game' then raise exception 'starter TR pays the town''s charges and costs and nothing else' using errcode = 'P0001'; end if;
+           if new.amount > 0 and why not in ('grant', 'sale') then raise exception 'starter TR is not made that way' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount, starter = starter + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         elsif new.bucket = 'illicit' then
+           update ${S}.wallets set balance = balance + new.amount, illicit = illicit + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         else
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         end if;
+         return new;
+       end $f$`,
+      `create or replace function ${S}.wallet_balance_guard() returns trigger language plpgsql as $f$
+       begin
+         if tg_op = 'DELETE' then raise exception 'a wallet is never deleted' using errcode = 'P0001'; end if;
+         if (new.balance is distinct from old.balance or new.starter is distinct from old.starter or new.illicit is distinct from old.illicit) and pg_trigger_depth() < 2 then raise exception 'a balance changes only by a ledger entry' using errcode = 'P0001'; end if;
+         if new.id is distinct from old.id or new.kind is distinct from old.kind or new.account_id is distinct from old.account_id or new.code is distinct from old.code or new.overdraw is distinct from old.overdraw then raise exception 'a wallet is not altered' using errcode = 'P0001'; end if;
+         return new;
+       end $f$`,
+      // no part of a wallet goes below nothing, and the parts never come to more than the whole
+      `alter table ${S}.wallets add constraint wallets_parts check (starter >= 0 and illicit >= 0 and (kind <> 'player' or starter + illicit <= balance))`,
+      `alter table ${S}.wallet_tx drop constraint wallet_tx_kind_check`,
+      `alter table ${S}.wallet_tx add constraint wallet_tx_kind_check check (kind in ('grant', 'transfer', 'game', 'hold', 'release', 'sale', 'refund', 'upgrade'))`,
+
+      // ---- the market ----
+      // how much of an offer's TR was TR that had been taken (so that it goes back as what it was)
+      `alter table ${S}.offers add column held_illicit bigint not null default 0 check (held_illicit >= 0)`,
+      // Something bought before today may have been bought with arrival money. If it is sold on, that much of
+      // what it fetches is starter TR again in the seller's wallet: selling a thing does not turn arrival money
+      // into earned TR. (Anything bought from today is bought with earned TR, and carries nothing.)
+      `alter table ${S}.holdings add column starter_basis bigint not null default 0 check (starter_basis >= 0)`,
+      `update ${S}.holdings h set starter_basis = coalesce((select s.amount from ${S}.sales s where s.holding_id = h.id and s.buyer_id = h.owner_id order by s.at desc limit 1), 0)`,
+
+      // ---- the character ----
+      // One to an account, chosen once when the player first arrives, and with it the answer to "hero or
+      // villain". Kept here, not in the saved game, so that it is the same on every device, outlives a save that
+      // is erased, and cannot be changed by anything a page sends but the upgrade below.
+      `alter table ${S}.accounts add column figure text check (figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')}))`,
+      `alter table ${S}.accounts add column figure_at timestamptz`,
+      `alter table ${S}.accounts add column path text check (path in ('hero', 'villain'))`,
+      // an account that already has a character is that character
+      `update ${S}.accounts a set figure = s.figure, figure_at = now() from ${S}.saves s where s.account_id = a.id and not s.erased and s.figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')})`,
+      // every change of character after the first choice: what it was, what it became, what it cost, and the
+      // movement at the bank that paid for it
+      `create table ${S}.character_changes (
+         id uuid primary key default gen_random_uuid(),
+         account_id uuid not null references ${S}.accounts(id) on delete cascade,
+         from_figure text not null,
+         to_figure text not null,
+         total bigint not null,
+         fee bigint not null check (fee > 0),
+         tx_id uuid not null references ${S}.wallet_tx(id),
+         idem_key text not null,
+         at timestamptz not null default now(),
+         unique (account_id, idem_key)
+       )`,
+      `create index character_changes_account on ${S}.character_changes(account_id, at)`,
+
+      // ---- what was asked for and refused ----
+      // The ledger says what moved. This says what was asked to move and did not, because of what the TR was
+      // or how much of it there was: who asked, for what, how much, and the reason given. It is written when
+      // the refusal is made and is never changed: someone trying one road after another to get starter TR out
+      // leaves a line for each.
+      `create table ${S}.wallet_refusals (
+         id bigserial primary key,
+         account_id uuid not null references ${S}.accounts(id),
+         op text not null,
+         code text not null,
+         amount text,
+         detail jsonb not null default '{}'::jsonb,
+         at timestamptz not null default now()
+       )`,
+      `create index wallet_refusals_account on ${S}.wallet_refusals(account_id, at)`,
+      `create trigger wallet_refusals_kept before update or delete on ${S}.wallet_refusals for each row execute function ${S}.wallet_history_is_kept()`,
+      `create trigger wallet_refusals_kept_all before truncate on ${S}.wallet_refusals for each statement execute function ${S}.wallet_history_is_kept()`,
+
+      // ---- nobody but the site's own server ----
+      ...['wallet_reconciled', 'character_changes', 'wallet_refusals'].map((table) => `alter table ${S}.${table} enable row level security`),
+      `do $$ declare r text; begin
+         foreach r in array array['anon', 'authenticated'] loop
+           if exists (select 1 from pg_roles where rolname = r) then
+             execute format('revoke all on all tables in schema ${S} from %I', r);
+             execute format('revoke all on all sequences in schema ${S} from %I', r);
+             execute format('revoke all on all functions in schema ${S} from %I', r);
+           end if;
+         end loop;
+       end $$`,
+      `set constraints all immediate`,
+    ],
+  },
 ];
 
-module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET };
+module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE };

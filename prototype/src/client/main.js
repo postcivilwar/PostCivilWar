@@ -11,7 +11,8 @@
 
 import { createHost } from '../sim/host.js';
 import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS } from '../sim/zone.js';
-import { SPEED, SWIM, structureFootprint } from '../sim/sim.js';
+import { SPEED, SWIM, UPGRADE, structureFootprint } from '../sim/sim.js';
+import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
 import { VEHICLE_KINDS, RUN_RULES, vehicleFits, vehicleSpeedAt, vehicleBox, lowerFirst } from '../sim/vehicles.js';
 import { createTranslator } from '../sim/culture.js';
@@ -51,7 +52,7 @@ import { createPhoneHold } from './phone-hold.js';
 import { createMusic } from './music.js';
 import { trText, trAmount, TR } from '../sim/ledger.js';
 import { createOnline, createWebTransport, packSave, unpackSave } from '../net/online.js';
-import { createMarket, createAccountSync } from './market.js';
+import { createMarket, createAccountSync, newId } from './market.js';
 import { createAccountUI } from './account-ui.js';
 import { createWallet } from './wallet.js';
 import { createConfirm } from './confirm.js';
@@ -258,6 +259,9 @@ function start(carried) {
   let host = createHost({ saved: stored ? stored.host : null });
   let playerId = stored && host.game.hasPlayer(stored.playerId) ? stored.playerId : null;
   let playing = false;
+  let intro = null;                   // the opening (intro.js); it can also put the one question again, later
+  let gallery = false;                // looking at the characters, from inside the game: nothing is being played meanwhile
+  let characterTrouble = '';          // why the character kept with the account could not be brought here, if it could not
   let view = null;
   let predicted = { x: ZONE.spawn.x, z: ZONE.spawn.z, heading: 0 };
   let me = null;
@@ -368,7 +372,7 @@ function start(carried) {
   });
   // The character leaves this device: it was erased, or its player has logged out.
   function forgetCharacter(why) {
-    clearSave(); playing = false; ui.close(); if (why !== 'erased') walletClient.reset(); showStart(true);
+    clearSave(); playing = false; gallery = false; ui.close(); if (why !== 'erased') walletClient.reset(); showStart(true); route();
   }
   const accountSync = createAccountSync({
     online, pack: packSave, unpack: unpackSave, read: savedNow,
@@ -394,7 +398,8 @@ function start(carried) {
     if (wasPlaying) ui.close();
     host = next; playerId = saved.playerId; known.clear();
     writeStored(SAVE_KEY, { host: host.save(), playerId });
-    if (wasPlaying) enterWorld(); else showStart(false);
+    characterTrouble = '';
+    if (wasPlaying) enterWorld(); else { showStart(false); route(); }
     return true;
   }
   // Signed in, the other players in town are those the server knows of; signed out, there are none. And on the
@@ -408,13 +413,14 @@ function start(carried) {
     if (!want) { market.reset(); ui.signedOut(); }
     if (online.status().state === 'out') {
       walletClient.reset();
-      if (playing) {
+      if (playing || gallery) {
         writeStored(SAVE_KEY, { host: host.save(), playerId });
-        playing = false; ui.close(); showStart(false);
+        playing = false; gallery = false; ui.close(); showStart(false);
         accountUI.why('You have been signed out', 'Log in to carry on. Your character is kept with your account, and on this device as you left it.');
       }
     }
     accountUI.draw();
+    route();
   }
   // What the bank has told this device since it last looked: TR that has arrived, and the like.
   function walletNote(event) {
@@ -423,6 +429,7 @@ function start(carried) {
     else if (event.type === 'sold') { say(`Sold: ${event.what || 'something of yours'}. ${trText(event.amount)} is in your wallet.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
     else if (event.type === 'bought') { say(`Bought: ${event.what || 'something'}, for ${trText(event.amount)}. It is in Property on your phone.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
     else if (event.type === 'returned') say(`Your offer${event.what ? ` for ${event.what}` : ''} came to nothing. ${trText(event.amount)} is back in your wallet.`);
+    else if (event.type === 'unpaid') say(`${trText(event.amount)} of what this game says was spent on things to own was not taken by the bank: only TR you have earned buys them, and there was not enough. Your balance is the bank's figure.`);
     else if (event.type === 'refused') say(`The bank did not take ${trText(event.amount)} of what this game says was earned in town: it was more than could have been earned in the time. Your balance is the bank's figure.`);
     ui.walletStale();
     refreshView();
@@ -604,6 +611,9 @@ function start(carried) {
     send: (intent) => { const r = server.send(intent); refreshView(); return r; },
     view: () => view,
     erase: () => eraseSave(),
+    // the characters, to look at; and which one the player is
+    gallery: () => openGallery(),
+    character: () => { const id = myFigure(); return id ? { figure: id, name: figureName(id) } : null; },
     closed: () => { if (playing) { refreshView(); prompt = findPrompt(); } },
     settings,
     webapp,
@@ -646,7 +656,8 @@ function start(carried) {
       else if (event.type === 'in') ui.toast({ type: 'note', text: event.warning || (event.adopted ? `Logged in as ${event.account.username}. Your character has been brought to this device.` : `Logged in as ${event.account.username}.`) });
       else if (event.type === 'out') ui.toast({ type: 'note', text: 'You are logged out. Your character is kept with your account.' });
       if (event.type !== 'checked') { market.soon(); refreshDealMarkers(); ui.marketStale(); ui.walletStale(); }
-      if (event.type === 'created' || event.type === 'in') { showStart(false); const first = playerId ? $('continue') : $('name'); if (first && !coarse) first.focus({ preventScroll: true }); }
+      // signed in: the account's own character and path are the ones that count, and the player goes where they belong
+      if (event.type === 'created' || event.type === 'in') { characterTrouble = event.warning || ''; syncProfile().then(() => route()); }
       if (playing) ui.redraw();
     },
   });
@@ -682,10 +693,16 @@ function start(carried) {
     try {
       await online.check();
       onlineChanged();
-      if (online.signedIn) { const settled = await accountSync.settle(); if (!settled.ok && settled.message) ui.toast({ type: 'note', text: settled.message }); if (settled.erased) ui.toast({ type: 'note', text: 'This saved game was erased from another device. A new journey begins here.' }); }
+      if (online.signedIn) {
+        const settled = await accountSync.settle();
+        // a character that could not be fetched is not replaced by a new one: the player is told, and can try again
+        characterTrouble = !settled.ok && settled.message ? settled.message : '';
+        if (settled.erased) ui.toast({ type: 'note', text: 'This saved game was erased from another device. A new journey begins here.' });
+        await syncProfile();
+      }
       accountUI.draw();
       refreshDealMarkers();
-    } finally { greeting = false; }
+    } finally { greeting = false; route(); }
   }
   greetServer();
   window.addEventListener('online', () => { if (online.status().state === 'down') greetServer(); });
@@ -876,24 +893,64 @@ function start(carried) {
 
   // -------------------------------------------------------------- start --
 
-  // The character: one of the owner's supplied figures, turned in its own view, in the colours the player
-  // picks. The last choice made on this device is where the screen starts.
+  // The character: one of the owner's supplied figures, turned in its own view. A new player chooses one, once;
+  // after that the same view is where the others can be looked at, and nothing in it changes who the player is.
   const creator = createCreator({
     canvas: $('stage-view'), root: $('start'), nameField: $('name'),
     saved: prefs.look || {},
     onPick: (look) => { prefs.look = look; writeStored(PREFS_KEY, prefs); },
+    onView: (figure) => drawGallery(figure),
   });
   window.__creator = creator;
-  // The answer to the opening's question: remembered on this device, and shown here so it can be changed
-  // before a character is made. It goes to the simulation with the character and stays with them.
+
+  // The answer to "hero or villain". It is given once: in the opening where there are no accounts, and to an
+  // account that has never answered where there are. It is kept (on the device, with the character, and with
+  // the account), and nothing on the screen where a character is made asks it again.
   let pathChosen = prefs.path === 'villain' ? 'villain' : 'hero';
   function choosePath(path, remember = true) {
     pathChosen = path === 'villain' ? 'villain' : 'hero';
-    for (const button of $('paths').children) button.setAttribute('aria-pressed', String(button.dataset.path === pathChosen));
     if (remember) { prefs.path = pathChosen; writeStored(PREFS_KEY, prefs); }
   }
-  choosePath(pathChosen, false);
-  for (const button of $('paths').children) button.addEventListener('click', () => { choosePath(button.dataset.path); audio.choose('move'); });
+  // The answer already given, wherever it is kept; null if it never was.
+  function knownPath() {
+    if (playerId) { const mine = host.game.view(playerId).self.path; if (mine) return mine; }
+    if (online.signedIn && online.account && online.account.path) return online.account.path;
+    return prefs.path === 'hero' || prefs.path === 'villain' ? prefs.path : null;
+  }
+  // The character the account is, if it has chosen one (the server's word); or, with no accounts, this device's.
+  const accountFigure = () => (online.signedIn && online.account && online.account.figure ? online.account.figure : null);
+  const myFigure = () => { if (!playerId) return null; const look = host.game.view(playerId).self.look; return look && look.figure ? look.figure : null; };
+  const figureName = (id) => (FIGURES[id] ? FIGURES[id].name : 'your character');
+
+  // The account and the copy of the game on this device are made to agree about who the player is. The account's
+  // character is the one that counts: a copy here that says otherwise is changed to it, never the other way.
+  // An account that has no character or path yet (one from before they were kept with it) takes what its own
+  // game already has, once.
+  async function syncProfile() {
+    if (!online.signedIn || !online.account) return;
+    const self = playerId ? host.game.view(playerId).self : null;
+    const here = self && self.look && self.look.figure ? self.look.figure : null;
+    const want = {};
+    if (!online.account.figure && here) want.figure = here;
+    if (!online.account.path) { const path = (self && self.path) || (prefs.path === 'hero' || prefs.path === 'villain' ? prefs.path : null); if (path) want.path = path; }
+    if (want.figure || want.path) {
+      const answer = await online.ask('character.choose', want);
+      if (answer.ok) online.noteCharacter(answer.character);
+      else if (answer.code === 'CHOSEN') online.noteCharacter({ figure: answer.figure, path: answer.path });
+    }
+    const theirs = accountFigure();
+    if (theirs && playerId && myFigure() && myFigure() !== theirs) { host.bank.figure(playerId, theirs); writeStored(SAVE_KEY, { host: host.save(), playerId }); if (playing) wearCharacter(); accountSync.soon(); }
+    if (online.account.path) choosePath(online.account.path);
+  }
+
+  // What the start screen is showing: 'create' (a new journey), 'resume' (a character there is, being made
+  // ready or fetched), 'gallery' (looking at the characters from inside the game). The account's own part of
+  // it, shut until someone is signed in, is account-ui.js's.
+  function setScreen(screen) {
+    $('start').dataset.screen = screen;
+    $('resume').hidden = screen !== 'resume';
+    $('gallery').hidden = screen !== 'gallery';
+  }
 
   function showStart(fresh) {
     $('start').hidden = false;
@@ -905,21 +962,73 @@ function start(carried) {
     for (const mesh of markers.values()) scene.remove(mesh);
     markers.clear();
     drawSpectator();
-    const resume = $('continue');
-    resume.hidden = !playerId;
-    if (playerId) resume.textContent = `Continue as ${host.game.view(playerId).self.name}`;
-    // the same, at the head of the screen where it is seen at once
-    $('continue-top').hidden = !playerId;
-    $('continue-top').textContent = resume.textContent;
-    $('start-title').textContent = playerId ? 'Or start again with a new character' : 'Create your character';
+    drawStart();
   }
 
-  function enterWorld() {
+  // The start screen, as things stand: someone with a character is not asked to make one, and someone whose
+  // character could not be fetched is told so and is not given another.
+  function drawStart() {
+    if (gallery) { setScreen('gallery'); $('start-title').textContent = 'Characters'; return; }
+    const waiting = !!playerId || expectsCharacter();
+    setScreen(waiting ? 'resume' : 'create');
+    if (waiting) {
+      const name = playerId ? host.game.view(playerId).self.name : (online.status().save && online.status().save.name) || '';
+      $('resume-title').textContent = name ? `Welcome back, ${name}` : 'Welcome back';
+      const failed = !playerId && !!characterTrouble;
+      $('resume-text').textContent = failed ? `Your character is kept with your account, and it could not be brought to this device just now. ${characterTrouble} Nothing has been lost, and no new character has been made.` : playerId ? 'Your character is as you left it.' : 'Your character is being brought from your account.';
+      $('resume-wait').hidden = failed;
+      $('resume-wait-text').textContent = playerId ? 'Preparing the town...' : 'Fetching your character...';
+      $('resume-retry').hidden = !failed;
+      return;
+    }
+    // a new journey. The character is chosen here once; an account that already has one keeps it
+    const fixed = accountFigure();
+    creator.setMode(fixed ? 'locked' : 'choose', fixed);
+    $('start-title').textContent = fixed ? 'Begin a new journey' : 'Create your character';
+    $('locked-note').hidden = !fixed;
+    if (fixed) $('locked-note').textContent = `Your character is ${figureName(fixed)}'s figure. It is yours on every journey, and can be changed in town with a character upgrade.`;
+  }
+  // Signed in, with a character kept by the account that is not on this device yet.
+  const expectsCharacter = () => online.available && online.signedIn && !playerId && !!online.status().save && !online.status().save.erased;
+  $('resume-retry').addEventListener('click', async () => {
+    $('resume-retry').disabled = true; characterTrouble = ''; drawStart();
+    const settled = online.signedIn ? await accountSync.settle() : { ok: false, message: 'You are not signed in.' };
+    characterTrouble = !settled.ok && settled.message ? settled.message : '';
+    $('resume-retry').disabled = false;
+    route();
+  });
+
+  // Where the player belongs, once the opening is over. Called whenever something that decides it has changed
+  // (the opening ended, the town is ready, someone signed in or out, a character arrived or went). Someone with
+  // a character goes into the town: they are not shown the screen where one is made, and are not asked anything.
+  function route() {
+    if (playing || gallery) return;
+    if (!intro || (intro.active() && !intro.asking())) return;         // the opening is still on the screen
+    if (!accountUI.mayPlay()) { if (!$('start').hidden) drawStart(); return; }  // the website, signed out: the start screen is shut (account-ui.js)
+    if (playerId) { if (isReady) enterWorld(); else drawStart(); return; }
+    if (expectsCharacter()) { drawStart(); return; }
+    // nobody's character is here: a new journey. The one question is asked first, if it has never been answered
+    if (!knownPath()) {
+      if (!intro.asking()) intro.question().then((answer) => { if (answer) { choosePath(answer); syncProfile().then(() => route()); } });
+      return;
+    }
+    choosePath(knownPath(), false);
+    drawStart();
+    if (!coarse && !NO_INTRO && document.activeElement === document.body) $('name').focus({ preventScroll: true });
+  }
+
+  // The figure in the town is the character the simulation says the player is.
+  function wearCharacter() {
     view = host.game.view(playerId);
     if (me) scene.remove(me.group);
     me = makeCharacter(view.self.look, null, true);
     scene.add(me.group);
     skillsFor(me);
+  }
+
+  function enterWorld() {
+    gallery = false;
+    wearCharacter();
     predicted = { x: view.self.x, z: view.self.z, heading: view.self.heading };
     car.speed = 0;
     cam.target.set(predicted.x, 1.5, predicted.z);
@@ -941,25 +1050,164 @@ function start(carried) {
     if (online.status().state === 'out') accountUI.open('signup', 'An account is needed to play.');
     return false;
   }
-  $('creator').addEventListener('submit', (event) => {
-    event.preventDefault();
-    if (!mayEnter()) return;
-    const fresh = createHost();
+
+  // A new journey begins. For someone who has never chosen, this is the choosing: they are asked to be sure,
+  // the account is told (and it is the account's answer that stands), and only then is there a character.
+  let beginning = false;
+  async function beginJourney() {
+    if (beginning || !mayEnter()) return;
+    const fail = (text) => { $('start-error').hidden = false; $('start-error').textContent = text; };
+    $('start-error').hidden = true;
+    const name = $('name').value;
+    if (String(name || '').replace(/[^\p{L}\p{M} .'-]/gu, '').trim().length < 2) { fail('Choose a name of at least two letters.'); return; }
+    if (online.available && !online.signedIn) { fail('A new journey is begun with your account, and the game\'s server cannot be reached just now. Check your connection and try again.'); return; }
+    beginning = true;
     try {
-      const id = fresh.game.join({ name: $('name').value, path: pathChosen, look: creator.look() });
+      let figure = accountFigure();
+      if (!figure) {
+        const picked = creator.look().figure;
+        const sure = await confirm.ask({
+          title: `Choose ${figureName(picked)}?`,
+          body: `${figureName(picked)}'s figure will be your character from now on, on every device and every journey. You can look at the others whenever you like; changing to one of them later is a character upgrade, which is paid for.`,
+          confirm: 'Choose This Character', cancel: 'Go Back', busy: 'Saving...',
+          run: async () => {
+            if (!online.signedIn) return { ok: true };
+            const answer = await online.ask('character.choose', { figure: picked, path: pathChosen });
+            if (answer.ok) { online.noteCharacter(answer.character); return { ok: true }; }
+            // (chosen already, on another device a moment ago: that choice is the account's)
+            if (answer.code === 'CHOSEN') { online.noteCharacter({ figure: answer.figure, path: answer.path }); return { ok: true }; }
+            return { ok: false, message: `Your character could not be saved to your account, so nothing has been chosen. ${answer.message || ''}` };
+          },
+        });
+        if (!sure) return;
+        figure = accountFigure() || picked;
+      }
+      const fresh = createHost();
+      const id = fresh.game.join({ name, path: knownPath() || pathChosen, look: { ...creator.look(), figure, body: FIGURES[figure].gender } });
       host = fresh; playerId = id;
       known.clear();
-      $('start-error').hidden = true;
+      prefs.look = { ...creator.look(), figure }; writeStored(PREFS_KEY, prefs);
+      writeStored(SAVE_KEY, { host: host.save(), playerId });
       enterWorld();
       ui.toast({ type: 'note', text: ZONE_TEXT.arrival });
       // the new character is kept with the account at once, and its wallet is the account's own
       if (online.signedIn) accountSync.upload();
     } catch (error) {
-      $('start-error').hidden = false;
-      $('start-error').textContent = error.message;
+      fail(error.message);
+    } finally { beginning = false; }
+  }
+  $('creator').addEventListener('submit', (event) => { event.preventDefault(); beginJourney(); });
+
+  // ---- the characters, looked at from inside the game ----
+  // Every character can be turned and watched. Looking changes nothing: not who the player is, not where they
+  // stand, not what is kept on the device. The only way to become another is the upgrade.
+  function openGallery() {
+    if (!playing || !playerId) return;
+    writeStored(SAVE_KEY, { host: host.save(), playerId });
+    ui.close();
+    playing = false; gallery = true;
+    $('hud').hidden = true; $('touch').hidden = true;
+    bubbles.clear();
+    $('start').hidden = false;
+    setScreen('gallery');
+    $('start-title').textContent = 'Characters';
+    creator.setMode('gallery', myFigure() || undefined);
+    $('start').scrollTop = 0;
+    $('gallery-back').focus({ preventScroll: true });
+  }
+  function closeGallery() {
+    if (!gallery) return;
+    gallery = false;
+    if (playerId) enterWorld(); else route();
+  }
+  // What the gallery says about the character on the turntable.
+  let quoted = null;                  // the last thing the bank (or this world) said an upgrade to it would cost
+  function drawGallery(figure) {
+    if (!gallery) return;
+    const mine = myFigure();
+    const own = figure === mine;
+    $('gallery-tag').textContent = own ? 'Your character' : 'Looking only';
+    $('gallery-tag').dataset.own = String(own);
+    $('gallery-text').textContent = own
+      ? `You are ${figureName(mine)}'s figure. The arrows show the other characters: looking at them changes nothing.`
+      : `This is ${figureName(figure)}'s figure. You are still ${figureName(mine)}'s: looking changes nothing.`;
+    $('gallery-upgrade').hidden = own || !mine;
+    $('gallery-upgrade').textContent = `Upgrade to ${figureName(figure)}`;
+    $('gallery-rule').textContent = `A character upgrade is offered once you have more than ${trText(UPGRADE.above)}. It costs a quarter of your whole balance at that moment, paid in TR you have earned (starter TR pays none of it), and it is permanent until you pay for another.`;
+    $('gallery-note').hidden = true;
+    quoted = null;
+  }
+  // What an upgrade to `figure` would cost now: from the bank where there is one (after it has been told of
+  // everything spent in town), from this world's own ledger where there is not.
+  async function upgradeQuote(figure) {
+    if (online.available) {
+      if (!online.signedIn) return { ok: false, message: 'The game\'s server cannot be reached just now, so a character cannot be upgraded. Check your connection and try again.' };
+      const saved = await accountSync.upload();
+      if (saved && !saved.ok && (saved.code === 'OFFLINE' || saved.code === 'SERVER')) return { ok: false, message: saved.message };
+      const answer = await online.ask('character.quote', { figure });
+      return answer.ok ? answer.quote : { ok: false, message: answer.message };
     }
-  });
-  for (const id of ['continue', 'continue-top']) $(id).addEventListener('click', () => { if (playerId && mayEnter()) enterWorld(); });
+    const answer = host.game.intent(playerId, { type: 'character.quote', figure });
+    return answer.ok ? answer.quote : { ok: false, message: answer.message };
+  }
+  async function upgradeCharacter() {
+    const figure = creator.figure();
+    const button = $('gallery-upgrade');
+    if (!gallery || button.disabled || figure === myFigure()) return;
+    button.disabled = true;
+    const quote = await upgradeQuote(figure);
+    button.disabled = false;
+    if (!gallery) return;
+    quoted = quote;
+    const rows = quote.total === undefined ? null : [
+      ['Current character', figureName(quote.from)], ['New character', figureName(quote.to)],
+      ['Current balance', trText(quote.total)], ['Upgrade fee', trText(quote.fee)], ['Balance after upgrade', trText(quote.after)],
+      ['TR you have earned', trText(quote.eligible)],
+    ];
+    if (!quote.ok) {
+      // not to be had just now: the player is shown the figures and the actual reason, and there is nothing to confirm
+      await confirm.ask({ title: 'Upgrade Character', body: quote.message || 'A character cannot be upgraded just now.', rows, note: $('gallery-rule').textContent, confirm: null, cancel: 'Close' });
+      return;
+    }
+    const key = newId();
+    let result = null;
+    const done = await confirm.ask({
+      title: 'Upgrade Character', rows,
+      body: 'Upgrading changes your permanent character. You will need to pay another upgrade fee to change it again.',
+      note: 'The fee is a quarter of your balance, and is paid in TR you have earned.',
+      confirm: 'Confirm Upgrade', cancel: 'Cancel', busy: 'Upgrading...',
+      run: async () => {
+        if (!online.available) {
+          const answer = host.game.intent(playerId, { type: 'character.upgrade', figure, fee: quote.fee, requestId: `upgrade-${key}` });
+          if (!answer.ok) return { ok: false, message: `${answer.message} Nothing was charged and your character has not changed.` };
+          result = { fee: answer.upgrade.fee, to: figure };
+          return { ok: true };
+        }
+        // the same key however often it has to be asked: the bank does it once
+        const answer = await online.ask('character.upgrade', { key, figure, fee: quote.fee }, { timeout: 20000 });
+        if (!answer.ok) {
+          const lost = answer.code === 'OFFLINE' || answer.code === 'SERVER';
+          return { ok: false, message: lost ? 'No answer came back. Press Confirm Upgrade again: it will not be charged twice.' : `${answer.message} Nothing was charged and your character has not changed.` };
+        }
+        online.noteCharacter(answer.character);
+        // the character here becomes the account's; the fee reaches this world's wallet as any movement at the bank does
+        host.bank.figure(playerId, answer.character.figure, { fee: answer.upgrade.fee, total: answer.upgrade.total, ref: answer.upgrade.ref });
+        walletClient.heard(answer, `Character upgrade: ${trText(answer.upgrade.fee)}`);
+        result = { fee: answer.upgrade.fee, to: answer.character.figure, ref: answer.upgrade.ref };
+        return { ok: true };
+      },
+    });
+    if (!done || !result) return;
+    prefs.look = { ...(prefs.look || {}), figure: result.to }; writeStored(PREFS_KEY, prefs);
+    writeStored(SAVE_KEY, { host: host.save(), playerId });
+    if (online.signedIn) accountSync.upload();
+    audio.chime('paid');
+    closeGallery();
+    ui.toast({ type: 'note', text: `You are now ${figureName(result.to)}'s figure. The upgrade cost ${trText(result.fee)}${result.ref ? ` (${result.ref})` : ''}.` });
+  }
+  $('gallery-back').addEventListener('click', closeGallery);
+  $('gallery-upgrade').addEventListener('click', upgradeCharacter);
+  window.addEventListener('keydown', (event) => { if (gallery && event.key === 'Escape' && !confirm.isOpen) { event.preventDefault(); closeGallery(); } });
 
   // -------------------------------------------------------------- input --
 
@@ -1610,8 +1858,8 @@ function start(carried) {
     }
   }
   let isReady = false;
-  function ready() { isReady = true; $('enter').disabled = false; $('continue').disabled = false; $('enter').textContent = `Enter ${ZONE.name}`; }
-  $('enter').disabled = true; $('continue').disabled = true; $('enter').textContent = 'Preparing the town…';
+  function ready() { isReady = true; $('enter').disabled = false; $('enter').textContent = `Enter ${ZONE.name}`; route(); }
+  $('enter').disabled = true; $('enter').textContent = 'Preparing the town…';
   if (NO_DRAW) ready();
 
   // The hospital's ambulance: one van that the simulation drives about town.
@@ -1925,7 +2173,7 @@ blood.update(dt, view.blood || []);
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
     phoneHold, camera,
-    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(),
+    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
@@ -1953,14 +2201,15 @@ blood.update(dt, view.blood || []);
   };
 
   showStart(false);
-  // The opening plays over the start screen while the town is made ready behind it. A player with a character
-  // on this device who has answered before is not asked again.
-  const intro = createIntro({
+  // The opening plays over the start screen while the town is made ready behind it. The one question is asked
+  // in it only where there are no accounts and it has never been answered on this device; on the website it is
+  // the account's to answer, and is put (once) after signing in, to an account that never has (`route`).
+  intro = createIntro({
     audio,
     // the same switch as Settings and the N key: on for a first visit, and whatever the player last chose after that
     sound: { on: () => !!prefs.sound, toggle: () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); writeStored(PREFS_KEY, prefs); } },
-    ask: () => !(playerId && (prefs.path === 'hero' || prefs.path === 'villain')),
-    onDone: (path) => { if (path) choosePath(path); const first = playerId ? $('continue') : $('name'); if (first && !NO_INTRO && !coarse) first.focus({ preventScroll: true }); },
+    ask: () => !online.available && !knownPath(),
+    onDone: (path) => { if (path) choosePath(path); setTimeout(route, 0); },
   });
   window.__nlw.intro = intro;
   requestAnimationFrame(frame);

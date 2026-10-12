@@ -58,6 +58,32 @@ export async function newPlayer(prefix = 'Player') {
   return p;
 }
 
+// TR that a player earned in town, as their game would report it with a save: `units` of it (two to a TR),
+// lawful unless it is said to have been taken from someone. The bank takes a game's word for its earnings only
+// so far (wallet.js); a test that is about something else is first given room to be believed.
+export async function earn(p, units, kind = 'lawful') {
+  const sql = await database();
+  await sql.unsafe(`update pcw.wallets w set earn_room = earn_room + $2 from pcw.accounts a where a.id = w.account_id and a.username_key = $1`, [p.username.toLowerCase(), units]);
+  const now = await p.ok('save.get');
+  const rev = now.save ? now.save.rev : (now.rev || 0), mark = now.wallet.mark;
+  const kept = await p.ok('save.put', {
+    baseRev: rev, enc: now.save ? now.save.enc : 'json', data: now.save ? now.save.data : JSON.stringify({ host: { test: true } }), summary: { name: 'Test Player', figure: 'W1' },
+    wallet: { v: 2, from: mark, upto: mark + 1, in: { lawful: kind === 'lawful' ? units : 0, illicit: kind === 'illicit' ? units : 0 }, out: { cost: 0, restitution: 0, asset: 0 } },
+  });
+  if (kept.wallet.refused) throw new Error(`the bank refused ${kept.wallet.refused} of what the test said was earned`);
+  return kept;
+}
+
+// A report of what a character did in town, as its game sends it with a save.
+export const report = (from, upto, { lawful = 0, illicit = 0, cost = 0, restitution = 0, asset = 0 } = {}) => ({ v: 2, from, upto, in: { lawful, illicit }, out: { cost, restitution, asset } });
+
+// A new player who has also earned `units` in town (so has TR that can be sent and spent on things to own).
+export async function earner(prefix = 'Player', units = 4000) {
+  const p = await newPlayer(prefix);
+  await earn(p, units);
+  return p;
+}
+
 export const uuid = () => randomUUID();
 export const NEAR_HOLARIS = { x: HOLARIS.x, z: HOLARIS.z };
 export const ZONE = 'NG-AN-OGB-Z1';

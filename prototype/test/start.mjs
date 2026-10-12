@@ -1,0 +1,35 @@
+// How a browser test gets from the page to the town, the way a player does: the one question answered if it is
+// asked, a character chosen, and the choice confirmed. Shared by the browser tests; not a test itself.
+
+// Past the opening, to the screen where a character is made. A player who has never said hero or villain is
+// asked once, before anything else: this answers.
+export async function pastQuestion(page, path = 'hero') {
+  await page.waitForFunction(() => {
+    const n = window.__nlw; if (!n || !n.intro) return false;
+    const start = document.querySelector('#start');
+    return n.intro.asking() || (start && !start.hidden && start.dataset.screen === 'create');
+  }, null, { timeout: 300000 });
+  if (await page.evaluate(() => window.__nlw.intro.asking())) {
+    await page.waitForTimeout(400);
+    await page.evaluate((p) => document.querySelector(`.pick[data-path="${p}"]`).click(), path);
+    // (the town may be being built at this moment, with the page too busy to count the half second the answer takes)
+    await page.waitForFunction(() => !window.__nlw.intro.asking(), null, { timeout: 300000 });
+  }
+  // Enter is offered once the town has been made ready to draw
+  await page.waitForFunction(() => { const b = document.querySelector('#enter'); const s = document.querySelector('#start'); return b && !b.disabled && !s.hidden && s.dataset.screen === 'create'; }, null, { timeout: 300000 });
+}
+
+// Enter, and the question that follows it: "Choose this character?". Gives what the question said.
+export async function enterTown(page, { tap = false, answer = 'yes' } = {}) {
+  const press = (sel) => (tap ? page.tap(sel) : page.click(sel));
+  await press('#enter');
+  await page.waitForSelector('#confirm:not([hidden])', { timeout: 60000 });
+  const asked = await page.evaluate(() => ({ title: document.querySelector('#confirm-title').textContent, body: document.querySelector('#confirm-body').textContent, yes: document.querySelector('#confirm-yes').textContent.trim(), no: document.querySelector('#confirm-no').textContent.trim(), hud: !document.querySelector('#hud').hidden }));
+  if (answer === 'no') { await press('#confirm-no'); await page.waitForSelector('#confirm', { state: 'hidden' }); return asked; }
+  await press('#confirm-yes');
+  await page.waitForFunction(() => !document.querySelector('#hud').hidden && window.__nlw.view && window.__nlw.playerId, null, { timeout: 180000 });
+  return asked;
+}
+
+// The opening is over and put away (it is hidden, not removed: the question may be asked later).
+export const openingOver = () => { const i = document.querySelector('#intro'); return !i || i.hidden; };

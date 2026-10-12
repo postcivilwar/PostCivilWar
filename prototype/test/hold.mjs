@@ -4,6 +4,7 @@
 // is gone. Measured from the figures' own bones, so it holds for either figure at any size.
 //   node test/hold.mjs
 // Needs Playwright with Chromium and a built dist/local.html. Not part of the unit tests.
+import { pastQuestion, enterTown } from './start.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -36,8 +37,9 @@ for (const [who, label] of [['f', 'the woman'], ['m', 'the man']]) {
   page.on('pageerror', (e) => check(`${label}: no error in the page`, false, e.message));
   await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro', { timeout: 300000 });
   await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await pastQuestion(page);
   await page.click(`#genders [data-gender="${who}"]`);
-  await page.fill('#name', 'Hold Test'); await page.click('#enter');
+  await page.fill('#name', 'Hold Test'); await enterTown(page);
   await page.waitForFunction(() => window.__nlw.view && !document.querySelector('#hud').hidden);
   await page.waitForTimeout(1500);
   await page.evaluate(() => window.__nlw.place(-2, 80));

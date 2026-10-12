@@ -59,9 +59,12 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
     if (!available) return { ok: false, code: 'NO_SERVER', message: 'This copy of the game has no server.' };
     if (cutOff()) return OFFLINE;
     const control = typeof AbortController === 'function' ? new AbortController() : null;
-    const timer = control ? setTimeout(() => control.abort(), options.timeout || timeout) : 0;
+    const wait = options.timeout || timeout;
+    let timer = control ? setTimeout(() => control.abort(), wait) : 0;
     try {
       const response = await send(address, { method: 'POST', credentials: 'same-origin', cache: 'no-store', keepalive: !!options.keepalive, headers: { 'Content-Type': 'application/json', 'X-PCW': '1' }, body: JSON.stringify({ op, ...body }), signal: control ? control.signal : undefined });
+      // the server has answered: reading what it said has its own time, and is not cut short by the first clock
+      if (control) { clearTimeout(timer); timer = setTimeout(() => control.abort(), wait); }
       let answer = null;
       try { answer = await response.json(); } catch (error) { answer = null; }
       if (!answer || typeof answer !== 'object' || typeof answer.ok !== 'boolean') return { ok: false, code: 'SERVER', message: 'The server did not answer properly. Try again in a moment.' };
@@ -82,7 +85,12 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
     if (cutOff()) { set({ state: 'down', account: null, save: null, message: 'There is no connection.' }); return status; }
     try { const response = await send(address, { method: 'GET', cache: 'no-store', credentials: 'same-origin' }); here = await response.json(); } catch (error) { here = null; }
     if (!here || !here.ok || !here.accounts) { set({ state: 'down', account: null, save: null, message: here && here.ok ? 'Accounts are not set up on this site yet.' : 'The server could not be reached.' }); return status; }
-    const me = await ask('me');
+    // (The first asking is made while the town is being built. On a slow device the page may not get round to
+    // the answer before its own clock runs out, though the server answered at once: the request is then cut off
+    // before the answer or half-way through reading it. One failure of that kind is not a server out of reach:
+    // it is asked again, with longer to answer, before anyone is told so.)
+    let me = await ask('me');
+    if (!me.ok && (me.code === 'OFFLINE' || me.code === 'SERVER') && !cutOff()) me = await ask('me', {}, { timeout: 30000 });
     if (!me.ok) set({ state: 'down', account: null, save: null, message: me.message });
     else set(me.account ? { state: 'in', account: me.account, save: me.save || null, wallet: me.wallet || null, message: '' } : { state: 'out', account: null, save: null, wallet: null, message: '' });
     return status;
@@ -106,6 +114,8 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
     async logOut() { const answer = await ask('logout'); if (answer.ok || answer.code !== 'OFFLINE') set({ state: available ? 'out' : 'off', account: null, save: null }); return answer; },
     // the character kept with the account is now at this revision (or, `erased`: there is none, as of this one)
     noteSave(rev, erased = false) { if (status.state === 'in') status.save = erased ? { rev, erased: true } : { ...(status.save && !status.save.erased ? status.save : {}), rev }; },
+    // the account's own character and path, as the server has just said they are
+    noteCharacter(character) { if (status.state === 'in' && status.account && character) { status.account = { ...status.account, figure: character.figure || status.account.figure || null, path: character.path || status.account.path || null }; changed(); } },
   };
 }
 

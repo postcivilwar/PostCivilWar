@@ -1,5 +1,10 @@
 // The opening: the brand while the game gets ready (five seconds), then the game's cover with PLAY on it, then
-// the one question every player answers.
+// the one question every player answers, once.
+//
+// The question is asked here, straight after PLAY, when it is already known that it has never been answered
+// (a copy of the game with no accounts, and no answer kept on the device). On the website the answer belongs to
+// the account, and who is playing is not known until they have signed in: there the opening ends at PLAY, and
+// the question is put later, by `question()`, to an account that has never answered it. It is never put twice.
 //
 // The markup and its animations are in template.html, so the splash is on screen before this script
 // has been read. This file keeps time (which stage is showing, what was answered) and lays the cover out.
@@ -77,16 +82,20 @@ export function coverLayout(W, H, cover = COVER, inset = {}) {
 
 export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_TIMES }) {
   const root = document.getElementById('intro');
-  const done = (path) => { if (root) root.remove(); onDone(path); };
-  if (!root) { onDone(null); return { stage: () => 'done', active: () => false }; }
-  if (location.hash.includes('nointro')) { done(null); return { stage: () => 'done', active: () => false }; }
+  // (the opening is put away, not thrown away: the question may still have to be asked)
+  const done = (path) => { if (root) { root.hidden = true; root.classList.remove('leaving', 'ready'); root.dataset.stage = 'done'; } onDone(path); };
+  let asking = null;             // the question put after the opening is over: { resolve }
+  let later = null;              // (filled in below: how the question is put again)
+  const closed = { stage: () => 'done', active: () => false, ready: () => false, question: () => (later ? later() : Promise.resolve(null)), asking: () => !!asking };
+  if (!root) { onDone(null); return closed; }
+  const skipped = location.hash.includes('nointro');
 
   const $ = (id) => document.getElementById(id);
   const stageBox = root.querySelector('.gamecover');
   const plate = $('cover-plate'), logo = $('cover-logo'), words = $('cover-words'), play = $('cover-play'), playArt = $('cover-play-art');
   const mute = $('intro-mute');
   const startedAt = typeof window.__introAt === 'number' ? window.__introAt : performance.now();
-  let stage = 'splash';
+  let stage = skipped ? 'done' : 'splash';
   let answered = false;
   let ready = false;             // the cover is up and PLAY can be pressed
   const log = { played: false, playedAt: 0, coverAt: 0, path: null, layout: null };
@@ -114,7 +123,7 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
     el.style.width = `${box.w.toFixed(2)}px`; el.style.height = `${box.h.toFixed(2)}px`;
   };
   function layout() {
-    if (stage === 'done') return;
+    if (stage === 'done' || skipped) return;
     const W = root.clientWidth, H = root.clientHeight;
     if (!W || !H) return;
     const at = coverLayout(W, H, cover, insets());
@@ -138,9 +147,9 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
   mute.addEventListener('click', (event) => { event.stopPropagation(); sound.toggle(); showSound(); if (sound.on()) { audio.start(); setTimeout(() => audio.choose('move'), 80); } });
 
   const onKey = (event) => {
-    if (stage === 'done') return;
+    if (stage === 'done' && !asking) return;
     if (stage === 'cover' && (event.key === 'Enter' || event.key === ' ') && event.target !== mute) { event.preventDefault(); begin(); return; }
-    if (stage === 'choice') { const path = pathForKey(event.key); if (path) choose(path); }
+    if (stage === 'choice' || asking) { const path = pathForKey(event.key); if (path) choose(path); }
   };
   window.addEventListener('keydown', onKey);
 
@@ -178,7 +187,7 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
   }
 
   function choose(path) {
-    if (answered || stage !== 'choice' || !PATHS.includes(path)) return;
+    if (answered || (stage !== 'choice' && !asking) || !PATHS.includes(path)) return;
     answered = true;
     log.path = path;
     if (sound.on()) audio.start();
@@ -196,7 +205,16 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
 
   function leave(path) {
     stage = 'done';
-    window.removeEventListener('keydown', onKey);
+    if (asking) {
+      // The question was put after the opening: it goes away as it came, and whoever asked has the answer.
+      // It is still "being asked" until the answer has been handed over: if it stopped being so while it was
+      // going away, anything that looked in that half second (the town becoming ready, a sign-in) would find
+      // the question neither on the screen nor answered, and put it a second time.
+      const pending = asking;
+      root.classList.add('leaving');
+      setTimeout(() => { root.hidden = true; root.classList.remove('leaving'); root.dataset.stage = 'done'; if (asking === pending) asking = null; pending.resolve(path); }, times.leave);
+      return;
+    }
     window.removeEventListener('resize', layout);
     window.removeEventListener('orientationchange', layout);
     if (window.visualViewport) window.visualViewport.removeEventListener('resize', layout);
@@ -208,9 +226,23 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
   for (const button of root.querySelectorAll('.pick')) {
     button.addEventListener('click', () => choose(button.dataset.path));
     // a pointer passing over an answer ticks; a finger has no "over", so on touch only the choice sounds
-    button.addEventListener('pointerenter', (event) => { if (event.pointerType === 'mouse' && !answered && stage === 'choice') audio.choose('move'); });
+    button.addEventListener('pointerenter', (event) => { if (event.pointerType === 'mouse' && !answered && (stage === 'choice' || asking)) audio.choose('move'); });
   }
   play.addEventListener('click', begin);
+
+  // The question, put after the opening is over: to an account that has never answered it. Gives the answer.
+  // Asked while it is already being asked, it is the same asking.
+  later = function question() {
+    if (asking) return asking.promise;
+    let resolve; const promise = new Promise((ok) => { resolve = ok; });
+    asking = { resolve, promise };
+    answered = false;
+    for (const button of root.querySelectorAll('.pick')) { button.classList.remove('chosen', 'passed'); button.setAttribute('aria-pressed', 'false'); button.disabled = false; }
+    root.hidden = false; root.classList.remove('leaving');
+    stage = 'choice'; root.dataset.stage = 'choice';
+    return promise;
+  };
+  if (skipped) { done(null); return { ...closed, question: later, asking: () => !!asking, choose, stage: () => (asking ? 'choice' : 'done'), active: () => !!asking }; }
 
   // The splash has its five seconds, counted from when it first appeared, not from when this script woke.
   // Then the cover takes its place: nothing is pressed to get from one to the other.
@@ -219,7 +251,8 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
 
   return {
     stage: () => stage,
-    active: () => stage !== 'done',
+    active: () => stage !== 'done' || !!asking,
+    question: later, asking: () => !!asking,
     ready: () => ready,
     log,
     layout,

@@ -4,6 +4,7 @@
 //   ../server/with-postgres.sh node test/webapp.mjs [output-directory]
 // Needs Playwright with Chromium, a database (with-postgres.sh starts a throwaway one), and `node build.mjs`
 // first. Not part of the unit tests.
+import { pastQuestion, enterTown } from './start.mjs';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -133,8 +134,11 @@ await page.fill('#account-username', username); await page.fill('#account-passwo
 await page.tap('#account-submit');
 await page.waitForFunction(() => window.__nlw.online.status().state === 'in', null, { timeout: 60000 });
 await page.waitForSelector('#account', { state: 'hidden' });
+// a new account: hero or villain, once; then the character, once, and asked to be sure
+await pastQuestion(page, 'hero');
 await page.fill('#name', 'Adaeze Okeke');
-await page.tap('#enter');
+const sure = await enterTown(page, { tap: true });
+if (sure.title !== 'Choose Adaeze?' || sure.yes !== 'Choose This Character') bad(`choosing a character asked ${JSON.stringify(sure)}`);
 await page.waitForFunction(() => window.__nlw && window.__nlw.view && window.__nlw.view.self && !document.querySelector('#hud').hidden, null, { timeout: 120000 });
 await page.evaluate(() => window.__nlw.ui.openPhone('settings'));
 await page.waitForSelector('#ondevice');
@@ -168,13 +172,19 @@ const again = await figureHere('W1');
 if (again !== 9852308) bad(`with no connection the woman arrived as ${again}`);
 // someone who has signed in on this device may carry on with their own character; they are told how things stand
 await page.waitForFunction(() => window.__nlw.online.status().state === 'down', null, { timeout: 60000 }).catch(() => bad('with no connection the game does not notice the server is out of reach'));
-const back = await page.evaluate(() => ({ resume: !document.querySelector('#continue').hidden, label: document.querySelector('#continue').textContent, three: typeof THREE, gate: document.querySelector('#start').dataset.gate, may: window.__nlw.mayEnter(), note: document.querySelector('#account-note').hidden ? '' : document.querySelector('#account-note').textContent }));
-if (!back.resume || !/Adaeze/.test(back.label)) bad(`with no connection the character was not offered back (${back.label})`);
+const back = await page.evaluate(() => ({ three: typeof THREE, gate: document.querySelector('#start').dataset.gate, may: window.__nlw.mayEnter(), note: document.querySelector('#account-note').hidden ? '' : document.querySelector('#account-note').textContent }));
 if (back.gate !== 'open' || !back.may) bad(`with no connection a player who had signed in here is shut out (${back.gate})`);
 if (!back.note.includes(username) || !/no connection/i.test(back.note)) bad(`with no connection the start screen says "${back.note}"`);
 if (sent.length !== before) bad('something reached the server while there was no connection');
 await page.waitForSelector('#intro[data-stage="cover"] #cover-play', { timeout: 30000 }).catch(() => bad('with no connection the cover never took the splash\'s place'));
 await page.screenshot({ path: resolve(out, 'webapp-05-offline-ready.png') });
+// PLAY: their own character, as they left it, straight into the town. Nothing to choose and nothing asked.
+await page.tap('#cover-play');
+await page.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 180000 }).catch(() => bad('with no connection the player was not taken into the town'));
+const home = await page.evaluate(() => ({ name: window.__nlw.view ? window.__nlw.view.self.name : null, figure: window.__nlw.view ? window.__nlw.view.self.look.figure : null, start: !document.querySelector('#start').hidden, asked: window.__nlw.intro.log.path }));
+if (home.name !== 'Adaeze Okeke' || home.figure !== 'W1' || home.start || home.asked !== null) bad(`with no connection the player came back as ${JSON.stringify(home)}`);
+if (sent.length !== before) bad('something reached the server while there was no connection (after PLAY)');
+await page.screenshot({ path: resolve(out, 'webapp-05b-offline-in-town.png') });
 offline = false;
 
 // ---- 5. the game is brought up to date: with a connection the new page, at once ----

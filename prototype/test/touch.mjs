@@ -5,6 +5,7 @@
 // wheel; and the notice card, which is small, dark and near the top.
 //   node test/touch.mjs
 // Needs Playwright with Chromium and a built dist/local.html. Not part of the unit tests.
+import { pastQuestion, enterTown } from './start.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -17,8 +18,8 @@ const context = await browser.newContext({ viewport: { width: 390, height: 800 }
 const page = await context.newPage();
 page.on('pageerror', (e) => console.log('pageerror:', e.message));
 await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro', { timeout: 300000 });
-await page.waitForTimeout(1500);
-await page.fill('#name', 'Run Test'); await page.tap('#enter'); await page.waitForTimeout(1500);
+await pastQuestion(page);
+await page.fill('#name', 'Run Test'); await enterTown(page, { tap: true }); await page.waitForTimeout(1500);
 const box = async (sel) => page.evaluate((s) => { const el = document.querySelector(s); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; }, sel);
 const cdp = await context.newCDPSession(page);
 const touch = (type, points) => cdp.send('Input.dispatchTouchEvent', { type, touchPoints: points.map((p) => ({ x: p.x, y: p.y, id: p.id, radiusX: 8, radiusY: 8, force: 1 })) });

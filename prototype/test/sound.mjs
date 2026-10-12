@@ -4,6 +4,7 @@
 // short sounds are started at once.
 //   node test/sound.mjs
 // Needs Playwright with Chromium and a built dist/local.html. Not part of the unit tests.
+import { pastQuestion, enterTown } from './start.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -17,7 +18,8 @@ const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable
 const page = await (await browser.newContext({ viewport: { width: 320, height: 180 }, deviceScaleFactor: 1 })).newPage();
 page.on('pageerror', (e) => console.log('pageerror:', e.message));
 await page.goto('file://' + resolve(here, '../dist/local.html') + '#nodraw-nointro', { timeout: 300000 });
-await page.fill('#name', 'Loud'); await page.click('#enter'); await page.waitForTimeout(1500);
+await pastQuestion(page);
+await page.fill('#name', 'Loud'); await enterTown(page); await page.waitForTimeout(1500);
 const measure = async (label, seconds = 8) => {
   const r = await page.evaluate(async (secs) => {
     const a = window.__nlw.audio; const out = []; let peak = 0; const sums = {};

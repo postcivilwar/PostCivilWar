@@ -571,6 +571,13 @@ export function createUI(app) {
         root.append(h('p', { class: 'small' }, 'Your character, your TR and what you own are kept with your account, so they are the same on any device you log in on. Other players near you see your username over your head.'));
       } else root.append(h('p', { class: 'small', id: 'settings-offline' }, st.state === 'checking' ? 'Asking the server...' : `The game's server cannot be reached just now. ${st.message || ''} ${who ? `You are playing as ${who}: ` : ''}your character is kept on this device and goes to your account when the connection is back. Nothing can be sent, received, bought or sold until then.`));
     }
+    // The character: who the player is, and the way to look at the others. (Looking changes nothing.)
+    const mine = app.character ? app.character() : null;
+    if (mine && app.gallery) {
+      root.append(section('Character'));
+      root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Your character: ', h('b', { id: 'settings-character' }, mine.name)), h('button', { class: 'btn', type: 'button', id: 'open-gallery', onclick: () => app.gallery() }, 'View characters'))));
+      root.append(h('p', { class: 'small' }, 'Your character was chosen when you arrived and stays yours. You can look at the others at any time; changing to one of them is a character upgrade, which is paid for.'));
+    }
     root.append(section('Sound'));
     root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); }))));
     const levels = app.volumes();
@@ -747,6 +754,8 @@ export function createUI(app) {
     const balance = amt(view.self.balance);
     if ($('hud-balance').textContent !== balance) {
       $('hud-balance').textContent = balance;
+      // (how many characters the balance is: the page sizes the figures from it, so that a great balance still fits)
+      $('hud-balance').closest('.purse').style.setProperty('--n', String(balance.length + 2));
       const pounds = poundsOf(view.self.balance);
       $('hud-pounds').textContent = `= £${pounds.toLocaleString('en-GB', { minimumFractionDigits: Number.isInteger(pounds) ? 0 : 2, maximumFractionDigits: 2 })}`;
     }

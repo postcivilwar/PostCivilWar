@@ -42,7 +42,7 @@ test('signing up makes an account and a session; the password is kept only as a 
   const p = person();
   const made = await p.call('signup', { username: 'Adaeze', password: 'correct horse battery' });
   assert.equal(made.status, 200);
-  assert.deepEqual(made.body.account, { username: 'Adaeze', admin: false });
+  assert.deepEqual(made.body.account, { username: 'Adaeze', admin: false, figure: null, path: null });
   assert.match(made.setCookie, /^pcw_session=[\w-]{40,}; Path=\/; HttpOnly; SameSite=Lax; Max-Age=2592000; Secure$/);
   assert.equal((await p.ok('me')).account.username, 'Adaeze');
   const sql = await database();

@@ -2,7 +2,11 @@
 //   server/with-postgres.sh node --test server/test/*.test.mjs
 import test, { after } from 'node:test';
 import assert from 'node:assert/strict';
-import { person, newPlayer, database, closeDatabase, uuid, HOLARIS, NEAR_HOLARIS, ZONE } from './harness.mjs';
+import { person, earner, database, closeDatabase, uuid, HOLARIS, NEAR_HOLARIS, ZONE } from './harness.mjs';
+
+// Everyone who buys here has earned TR to buy with (2,000 TR besides the arrival money): a thing to own is not
+// bought with starter TR (wallet.test.mjs is where that is tried).
+const newPlayer = (prefix) => earner(prefix, 4000);
 
 after(() => closeDatabase());
 
@@ -99,9 +103,9 @@ test('an offer under the shop\'s price is refused; the price buys it, once, and 
   assert.equal(mine.history.length, 1);
   assert.deepEqual({ side: mine.history[0].side, other: mine.history[0].other, amount: mine.history[0].amount }, { side: 'bought', other: 'HOLARIS Watch', amount: 100 * TR });
   // the price left the buyer's wallet as the watch became theirs: once, for the two askings; neither game is left anything to settle
-  assert.equal(bought.balance, 2000 * TR - 100 * TR);
-  assert.equal(again.balance, 2000 * TR - 100 * TR);
-  assert.equal((await p.ok('wallet.get')).wallet.balance, 2000 * TR - 100 * TR);
+  assert.equal(bought.balance, 4000 * TR - 100 * TR);
+  assert.equal(again.balance, 4000 * TR - 100 * TR);
+  assert.equal((await p.ok('wallet.get')).wallet.balance, 4000 * TR - 100 * TR);
   assert.deepEqual(mine.debits, []);
   assert.equal((await p.ok('market.sync', { offers: [offerId] })).offers[offerId], 'accepted');
   // an offer under the price took nothing
@@ -197,16 +201,16 @@ test('an owner sells on: a listing with its own marker, a real conversation, an 
   assert.equal(now.holdings[0].paid, 140 * TR);
   assert.equal((await buyer.ok('market.list', { q: seller.username })).listings.length, 0);
   // exactly 140 TR has left the buyer's wallet and reached the seller's, in the bank, with the watch; nothing is left owing
-  assert.equal((await buyer.ok('wallet.get')).wallet.balance, 2000 * TR - 140 * TR);
-  assert.equal((await seller.ok('wallet.get')).wallet.balance, 2000 * TR - 100 * TR + 140 * TR);
-  assert.equal((await rival.ok('wallet.get')).wallet.balance, 2000 * TR);
+  assert.equal((await buyer.ok('wallet.get')).wallet.balance, 4000 * TR - 140 * TR);
+  assert.equal((await seller.ok('wallet.get')).wallet.balance, 4000 * TR - 100 * TR + 140 * TR);
+  assert.equal((await rival.ok('wallet.get')).wallet.balance, 4000 * TR);
   assert.deepEqual(now.debits, []);
   const due = await seller.ok('market.sync', {});
   assert.deepEqual({ credits: due.credits, debits: due.debits }, { credits: [], debits: [] });
-  assert.equal(due.wallet.balance, 2000 * TR + 40 * TR);
+  assert.equal(due.wallet.balance, 4000 * TR + 40 * TR);
   // a game cannot say that anything was paid or received: what a save claims of sales changes no wallet
-  await rival.ok('save.put', { baseRev: 0, enc: 'json', data: '{}', applied: { debits: [sold.sale.id], credits: [sold.sale.id] } });
-  assert.equal((await rival.ok('wallet.get')).wallet.balance, 2000 * TR);
+  await rival.ok('save.put', { baseRev: (await rival.ok('me')).save.rev, enc: 'json', data: '{}', applied: { debits: [sold.sale.id], credits: [sold.sale.id] } });
+  assert.equal((await rival.ok('wallet.get')).wallet.balance, 4000 * TR);
   // both have it in their history
   assert.deepEqual((await seller.ok('market.mine')).history.map((h) => [h.side, h.other, h.amount]), [['sold', buyer.username, 140 * TR], ['bought', 'HOLARIS Watch', 100 * TR]]);
   assert.deepEqual(now.history.map((h) => [h.side, h.other, h.amount]), [['bought', seller.username, 140 * TR]]);
