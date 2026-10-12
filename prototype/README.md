@@ -985,7 +985,8 @@ measures it in a browser, standing and walking.
 
 ## Starter TR, one character, the upgrade (11 October 2026)
 
-From the owner's second build prompt of 11 October and two screenshots. On branch `premium`; not live.
+From the owner's second build prompt of 11 October and two screenshots. Live at postcivilwar.com since
+12 October 2026, with everything in the two sections before this one.
 
 ### Starter TR and earned TR
 
