@@ -20,6 +20,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createDevServer } from '../dev.mjs';
+import { overTown } from '../../prototype/test/start.mjs';
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -99,6 +100,7 @@ async function device(label, size, mobile = false) {
       }
       await page.waitForFunction(() => window.__nlw.view && !document.querySelector('#hud').hidden);
       await page.waitForTimeout(1200);
+      await clearTown(d, 'after Enter');
       return asked;
     },
     // what the bank says the wallet is made of, in TR: { total, starter, eligible }
@@ -149,6 +151,8 @@ const watchStart = (d) => d.page.evaluate(() => {
 const offered = (d) => d.page.evaluate(() => { clearInterval(window.__offering); return window.__offered; });
 const rowsOf = (d) => d.page.evaluate(() => { const out = {}; const dts = [...document.querySelectorAll('#confirm-rows dt')]; for (const dt of dts) out[dt.textContent.trim()] = dt.nextElementSibling.textContent.trim(); return out; });
 const asked = (d) => d.page.evaluate(() => ({ title: document.querySelector('#confirm-title').textContent, body: document.querySelector('#confirm-body').textContent, note: document.querySelector('#confirm-note').hidden ? '' : document.querySelector('#confirm-note').textContent, yes: document.querySelector('#confirm-yes').hidden ? null : document.querySelector('#confirm-yes').textContent.trim(), no: document.querySelector('#confirm-no').textContent.trim() }));
+// In town with nothing of the start screen left over it (test/start.mjs says what "over it" means).
+const clearTown = async (d, when) => { const over = await d.page.evaluate(overTown).catch((e) => `could not be looked at (${e.message})`); if (over) bad(`${d.label}: ${when}: ${over}`); };
 // who the player is, everywhere it is kept
 const who = (d) => d.page.evaluate(() => ({ account: window.__nlw.online.account.figure, town: window.__nlw.playerId ? window.__nlw.host.game.view(window.__nlw.playerId).self.look.figure : null, drawn: window.__nlw.me ? window.__nlw.me.figure : null }));
 const openCharacters = async (d) => {
@@ -593,6 +597,7 @@ say('9. The buyer logs in on a computer: straight into town as the same characte
   await p.waitForTimeout(300); await other.shot('01-logged-in');
   await p.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 120000 }).catch(() => bad('after logging in, someone with a character was not taken into the town'));
   await p.waitForTimeout(1000);
+  await clearTown(other, 'after logging in on a second device');
   const shown = await offered(other);
   if (shown.length) bad(`logging in with a character, the player was offered: ${shown.join(', ')}`);
   const home = await other.game(() => ({ name: window.__nlw.view.self.name, path: window.__nlw.view.self.path, figure: window.__nlw.view.self.look.figure, account: window.__nlw.online.account.figure }));
@@ -692,6 +697,7 @@ say('9. The buyer logs in on a computer: straight into town as the same characte
   await watchStart(other);
   await p.click('#open-login'); await p.fill('#account-username', buyerName); await p.fill('#account-password', 'a password for the buyer'); await p.click('#account-submit');
   await p.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 120000 }).catch(() => bad('after logging in again the player was not taken into the town'));
+  await clearTown(other, 'after logging in again');
   const again = await offered(other);
   if (again.length) bad(`logging in again, the player was offered: ${again.join(', ')}`);
   const same = await other.game(() => (window.__nlw.view ? { name: window.__nlw.view.self.name, figure: window.__nlw.view.self.look.figure, path: window.__nlw.view.self.path } : null));
@@ -760,6 +766,7 @@ say('10b. The seller, with 2,790.5 TR of which 790.5 TR was earned, upgrades fro
   await p.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 120000 }).catch(() => bad('after a reload the upgraded player was not taken into the town'));
   now = await who(seller);
   if (now.account !== 'M1' || now.town !== 'M1' || now.drawn !== 'M1') bad(`after a reload the upgraded player is ${JSON.stringify(now)}`);
+  await clearTown(seller, 'after a reload with a character');
   await seller.has(2093, 'after a reload');
 }
 
@@ -813,6 +820,7 @@ say('11. Erasing a saved game asks first; the journey goes, the TR, the characte
   await p.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 120000 }).catch(() => bad('after a reload the new journey was not gone into'));
   const name = await seller.game(() => (window.__nlw.view ? window.__nlw.view.self.name : null));
   if (name !== 'Seller Again') bad(`after a reload the player is "${name}"`);
+  await clearTown(seller, 'after a reload on a new journey');
 
   // ---- and on a device that has never seen this account: the upgraded character, straight into town ----
   say('11b. The seller logs in on a phone that has never seen the account: Emeka, in town, nothing asked');
@@ -844,6 +852,7 @@ say('11. Erasing a saved game asks first; the journey goes, the TR, the characte
   await phone.press('#resume-retry');
   await q.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 180000 }).catch(() => bad('on a new device the seller was not taken into the town'));
   await q.waitForTimeout(1500); await phone.shot('01-in-town');
+  await clearTown(phone, 'on a new device, after Retry');
   const seen = await offered(phone);
   if (seen.length) bad(`on a new device the seller was offered: ${seen.join(', ')}`);
   const there = { ...(await who(phone)), name: await phone.game(() => window.__nlw.view.self.name), path: await phone.game(() => window.__nlw.view.self.path) };

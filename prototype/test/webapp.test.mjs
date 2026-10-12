@@ -306,7 +306,13 @@ test('what is served is one build: every file the worker in site/ lists is there
   for (const song of songs) assert.ok(existsSync(new URL(`music/${song.file}`, served)), `music/${song.file}`);
   assert.ok(Object.keys(table).every((name) => !name.startsWith('music/')));
   // and nothing else is lying about in the folder, or in the two folders inside it
-  const expected = new Set([...Object.keys(table), 'index.html', 'sw.js', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb', 'music/library.json', ...songs.flatMap((song) => [song.file, song.cover].filter(Boolean).map((name) => `music/${name}`))]);
+  // which build this is: the page's own fingerprint, in a file that is asked for on the live address after a deployment
+  const version = JSON.parse(readFileSync(new URL('version.json', served), 'utf8'));
+  const pageBytes = readFileSync(new URL('index.html', served));
+  assert.equal(version.page, createHash('sha256').update(pageBytes).digest('hex').slice(0, 16), 'version.json names the page that is served with it');
+  assert.equal(version.bytes, pageBytes.length);
+  assert.equal(table['version.json'], undefined, 'and is always asked for afresh');
+  const expected = new Set([...Object.keys(table), 'index.html', 'sw.js', 'version.json', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb', 'music/library.json', ...songs.flatMap((song) => [song.file, song.cover].filter(Boolean).map((name) => `music/${name}`))]);
   const there = readdirSync(served, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? readdirSync(new URL(`${entry.name}/`, served)).map((name) => `${entry.name}/${name}`) : [entry.name]));
   assert.deepEqual(there.filter((name) => !expected.has(name)), []);
 });

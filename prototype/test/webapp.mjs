@@ -4,7 +4,7 @@
 //   ../server/with-postgres.sh node test/webapp.mjs [output-directory]
 // Needs Playwright with Chromium, a database (with-postgres.sh starts a throwaway one), and `node build.mjs`
 // first. Not part of the unit tests.
-import { pastQuestion, enterTown } from './start.mjs';
+import { pastQuestion, enterTown, overTown } from './start.mjs';
 import { createRequire } from 'node:module';
 import { createServer } from 'node:http';
 import { createHash } from 'node:crypto';
@@ -183,6 +183,7 @@ await page.tap('#cover-play');
 await page.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 180000 }).catch(() => bad('with no connection the player was not taken into the town'));
 const home = await page.evaluate(() => ({ name: window.__nlw.view ? window.__nlw.view.self.name : null, figure: window.__nlw.view ? window.__nlw.view.self.look.figure : null, start: !document.querySelector('#start').hidden, asked: window.__nlw.intro.log.path }));
 if (home.name !== 'Adaeze Okeke' || home.figure !== 'W1' || home.start || home.asked !== null) bad(`with no connection the player came back as ${JSON.stringify(home)}`);
+{ const over = await page.evaluate(overTown); if (over) bad(`with no connection the player is in town, but ${over}`); }
 if (sent.length !== before) bad('something reached the server while there was no connection (after PLAY)');
 await page.screenshot({ path: resolve(out, 'webapp-05b-offline-in-town.png') });
 offline = false;

@@ -142,7 +142,11 @@ for (const [name, from] of [['assets/watch.glb', 'assets/market/watch.glb'], ['a
 }
 // The worker's table: every file it may keep, under the fingerprint of its contents. The page is not in it
 // (it is always asked for afresh), nor are the two files nothing in the game ever reads.
-const NOT_KEPT = new Set(['index.html', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb']);
+// Which build this is: the fingerprint of the page itself, in a small file of its own. After the site has been
+// put live, the live address is asked for this file and it is compared with the build that was tested, so that
+// "it is live" is something checked and not something assumed.
+put('version.json', `${JSON.stringify({ page: createHash('sha256').update(siteFiles.get('index.html')).digest('hex').slice(0, 16), bytes: siteFiles.get('index.html').length })}\n`);
+const NOT_KEPT = new Set(['index.html', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb', 'version.json']);
 // songs are streamed, a piece at a time, and the list of them is always asked for afresh: neither is kept by the worker
 const kept = (name) => !NOT_KEPT.has(name) && !name.startsWith('music/');
 const KEPT_FIRST = ['', 'three.min.js', 'manifest.webmanifest', 'favicon.svg', 'icon-192.png'];

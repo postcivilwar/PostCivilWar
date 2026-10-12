@@ -28,8 +28,21 @@ export async function enterTown(page, { tap = false, answer = 'yes' } = {}) {
   if (answer === 'no') { await press('#confirm-no'); await page.waitForSelector('#confirm', { state: 'hidden' }); return asked; }
   await press('#confirm-yes');
   await page.waitForFunction(() => !document.querySelector('#hud').hidden && window.__nlw.view && window.__nlw.playerId, null, { timeout: 180000 });
+  const over = await page.evaluate(overTown);
+  if (over) throw new Error(`entered the town, but ${over}`);
   return asked;
 }
+
+// In town, with nothing of the start screen left over it: what is wrong, in words, or '' if nothing is. (The
+// start screen being marked hidden is not enough: it once stayed on the screen all the same.)
+export const overTown = () => {
+  const start = document.querySelector('#start'), hud = document.querySelector('#hud');
+  const box = start.getBoundingClientRect();
+  if (hud.hidden || !hud.getBoundingClientRect().width) return 'the town\'s own screen is not showing';
+  if (box.width > 0 || box.height > 0 || getComputedStyle(start).display !== 'none') return `the start screen is still on the screen (${Math.round(box.width)} by ${Math.round(box.height)}, "${start.dataset.screen}")`;
+  for (const [x, y] of [[0.5, 0.5], [0.25, 0.3], [0.75, 0.7], [0.5, 0.85]]) { const top = document.elementFromPoint(innerWidth * x, innerHeight * y); if (top && top.closest('#start, #intro')) return `${top.closest('#start') ? 'the start screen' : 'the opening'} lies over the town at ${x}, ${y}`; }
+  return '';
+};
 
 // The opening is over and put away (it is hidden, not removed: the question may be asked later).
 export const openingOver = () => { const i = document.querySelector('#intro'); return !i || i.hidden; };

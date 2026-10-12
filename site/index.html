@@ -1146,7 +1146,11 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 #start[data-gate="shut"] .stage, #start[data-gate="shut"] .intro, #start[data-gate="shut"] #start-title, #start[data-gate="shut"] #locked-note, #start[data-gate="shut"] #resume,
 #start[data-gate="wait"] .stage, #start[data-gate="wait"] .intro, #start[data-gate="wait"] #start-title, #start[data-gate="wait"] #locked-note, #start[data-gate="wait"] #resume,
 #start[data-screen="resume"] .stage, #start[data-screen="resume"] .intro, #start[data-screen="resume"] #start-title, #start[data-screen="resume"] #locked-note { display: none !important; }
-#start[data-gate="shut"], #start[data-gate="wait"], #start[data-screen="resume"] { display: flex !important; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; }
+/* (Only while the start screen is being shown. This rule once applied to a start screen that had been put away
+   as well, and being as strong as the rule that hides hidden things, it won: someone coming back went into the
+   town and the "Welcome back" card stayed on top of it for good.) */
+#start[data-gate="shut"]:not([hidden]), #start[data-gate="wait"]:not([hidden]), #start[data-screen="resume"]:not([hidden]) { display: flex !important; flex-direction: column; align-items: center; overflow-x: hidden; overflow-y: auto; }
+#start[hidden] { display: none !important; }
 #start[data-gate="shut"] .lead, #start[data-gate="wait"] .lead, #start[data-screen="resume"] .lead { width: min(620px, 100%); margin: auto; box-sizing: border-box; padding-top: calc(clamp(14px, 4vh, 40px) + var(--st)); padding-bottom: calc(clamp(14px, 4vh, 40px) + var(--sb)); flex: none; }
 #start[data-gate="shut"] .account-row .hx, #start[data-gate="wait"] .account-row .hx { min-height: 56px; font-size: 14px; }
 /* a signed-in player waiting to go in does not need the account's own row repeated above them */

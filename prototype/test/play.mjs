@@ -1,7 +1,7 @@
 // Plays the built page in a headless browser and saves screenshots.
 //   node test/play.mjs <output-directory>
 // Needs Playwright with Chromium. Not part of the unit tests.
-import { pastQuestion, enterTown, openingOver } from './start.mjs';
+import { pastQuestion, enterTown, openingOver, overTown } from './start.mjs';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -187,6 +187,7 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   const back = await page.evaluate(() => ({ asked: window.__nlw.intro.log.path, start: !document.querySelector('#start').hidden, name: window.__nlw.view && window.__nlw.view.self.name, path: window.__nlw.view && window.__nlw.view.self.path }));
   if (back.asked !== null) bad('a returning player was asked the question again');
   if (back.start || back.name !== 'Nonso Obi' || back.path !== 'villain') bad(`a returning player is ${JSON.stringify(back)}`);
+  { const over = await page.evaluate(overTown); if (over) bad(`a returning player is in town, but ${over}`); }
   await shot('08-returning');
 });
 
@@ -331,6 +332,7 @@ for (const [label, size] of Object.entries({ desk: { width: 1280, height: 760 },
     await page.waitForFunction(() => window.__nlw && window.__nlw.mode === 'walking' && !document.querySelector('#hud').hidden, null, { timeout: 300000 });
     clearInterval(watch);
     if (offered) bad('a player with a character was shown the screen where one is made');
+    { const over = await page.evaluate(overTown); if (over) bad(`after a reload the player is in town, but ${over}`); }
     const back = await c(() => ({ figure: window.__nlw.me.figure, look: window.__nlw.view.self.look }));
     if (back.figure !== want.figure || JSON.stringify(back.look.colours) !== JSON.stringify(want.colours)) bad(`after a reload the character is ${JSON.stringify(back)}`);
   });

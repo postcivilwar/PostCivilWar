@@ -9,6 +9,7 @@ import { mkdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
+import { overTown } from './start.mjs';
 
 const require = createRequire(import.meta.url);
 let chromium;
@@ -134,6 +135,7 @@ await page.waitForFunction(() => !document.querySelector('#hud').hidden, null, {
 await page.waitForTimeout(1500);
 
 // ---- in town: the balance and the map at the top, whole, whichever way the phone is held ----
+{ const over = await page.evaluate(overTown); if (over) bad(`in town: ${over}`); }
 const before = await page.evaluate(() => ({ x: window.__nlw.view.self.x, z: window.__nlw.view.self.z, name: window.__nlw.view.self.name, figure: window.__nlw.view.self.look.figure }));
 await everySize('in town', { whole: ['.purse', '#hud-balance', '#hud-pounds', '#hud-clock', '#radar', '#btn-phone', '#stick', '.pad'] });
 // the figures of the balance have a black edge: the whole of it, edge and all, is clear of the top of the screen
@@ -198,6 +200,20 @@ await page.tap('#gallery-back');
 await page.waitForFunction(() => !document.querySelector('#hud').hidden);
 const back = await page.evaluate(() => ({ x: window.__nlw.view.self.x, z: window.__nlw.view.self.z, figure: window.__nlw.view.self.look.figure }));
 if (back.figure !== before.figure || Math.hypot(back.x - before.x, back.z - before.z) > 3) bad(`coming back from the characters moved or changed the player: ${JSON.stringify(back)}`);
+
+// ---- coming back: the page is loaded again, the player is taken into the town, and nothing is left over it ----
+await page.evaluate(() => window.__nlw.accountSync.upload());
+for (const [size, width, height] of [['phone-tall', 390, 844], ['phone-side-wide', 800, 360]]) {
+  await page.setViewportSize({ width, height });
+  await page.goto(`${origin}/#nointro`, { timeout: 300000 });
+  await page.waitForFunction(() => window.__nlw && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 300000 }).catch(() => bad(`coming back, ${size}: the player was not taken into the town`));
+  await page.waitForTimeout(800);
+  const over = await page.evaluate(overTown);
+  if (over) bad(`coming back, ${size}: ${over}`);
+  for (const wrong of await look({ whole: ['.purse', '#hud-balance', '#radar', '#btn-phone', '#stick', '.pad', '#skills-btn'] })) bad(`coming back, ${size}: ${wrong}`);
+  await page.screenshot({ path: resolve(out, `coming-back-${size}.png`) });
+}
+await page.setViewportSize({ width: 390, height: 844 });
 
 // ---- logging out and erasing: the two questions ----
 await page.evaluate(() => window.__nlw.ui.openPhone('settings'));
