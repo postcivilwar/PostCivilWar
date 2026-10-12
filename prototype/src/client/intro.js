@@ -191,9 +191,11 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
     answered = true;
     log.path = path;
     if (sound.on()) audio.start();
-    // the very first touch of the page may be this one: give the sound a moment to be let through
-    const ring = () => audio.choose(path);
-    if (!ring()) setTimeout(ring, 90);
+    // the very first touch of the page may be this one, and the town may be being built behind it: the sound is
+    // tried again for a moment, until the browser lets it through
+    let tries = 0;
+    const ring = () => { if (audio.choose(path) || (tries += 1) > 10) return; setTimeout(ring, 90); };
+    ring();
     for (const button of root.querySelectorAll('.pick')) {
       button.classList.toggle('chosen', button.dataset.path === path);
       button.classList.toggle('passed', button.dataset.path !== path);

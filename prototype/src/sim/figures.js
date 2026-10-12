@@ -15,9 +15,16 @@ export const FIGURES = Object.freeze({
   // an ordinary kit figure.
   W1: Object.freeze({ id: 'W1', gender: 'f', name: 'Adaeze', file: 'woman.glb', animated: true, parts: Object.freeze([]) }),
   M1: Object.freeze({ id: 'M1', gender: 'm', name: 'Emeka', file: 'muscular_male.glb', animated: true, parts: Object.freeze([]) }),
+  // Four more of the owner's supplied figures (12 October 2026), each drawn as supplied: an athlete and a police
+  // officer (women), a priest in his vestments and a hooded warrior (men). Their ids are new: M2 and M3 were
+  // figures taken out on 8 October, and an old save that names one is left as it was.
+  W2: Object.freeze({ id: 'W2', gender: 'f', name: 'Ngozi', file: 'athlete.glb', animated: true, parts: Object.freeze([]) }),
+  W3: Object.freeze({ id: 'W3', gender: 'f', name: 'Amaka', file: 'police.glb', animated: true, parts: Object.freeze([]) }),
+  M4: Object.freeze({ id: 'M4', gender: 'm', name: 'Ikenna', file: 'priest.glb', animated: true, parts: Object.freeze([]) }),
+  M5: Object.freeze({ id: 'M5', gender: 'm', name: 'Uche', file: 'warrior.glb', animated: true, parts: Object.freeze([]) }),
 });
 
-export const FIGURE_ORDER = Object.freeze({ f: Object.freeze(['W1']), m: Object.freeze(['M1']) });
+export const FIGURE_ORDER = Object.freeze({ f: Object.freeze(['W1', 'W2', 'W3']), m: Object.freeze(['M1', 'M4', 'M5']) });
 
 // The colours offered on the selection screen. Any colour is accepted from a client that sends a valid number;
 // these are what the screen shows.

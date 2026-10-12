@@ -90,6 +90,7 @@ export function createPhone(kit) {
   let screen = 'home';
   let sub = {};                  // where in an app the player is: the contact, the thread, the place chosen
   let said = null;               // the last thing someone said on a call
+  let callUntil = 0;             // until when the player is on that call (Date.now())
   let draft = '';
 
   // Property and the conversation in which a thing is bought or sold (ui-market.js)
@@ -318,7 +319,8 @@ export function createPhone(kit) {
     const allowed = !held || book.custody.mayCall;
     root.append(h('div', { class: 'contact', style: 'cursor:default' }, face(c), h('span', null, h('strong', null, c.name), h('small', null, c.note)), h('span')));
     if (said) root.append(h('div', { class: 'said' }, said));
-    const call = (about, good) => { const out = send({ type: 'phone.call', key: c.key, about }); app.chime(out.ok ? 'tap' : 'error'); said = out.ok ? out.said : null; flashMessage(out, good); return out; };
+    // a call that goes through is held to the ear for as long as it takes to say what is said (phone-hold.js)
+    const call = (about, good) => { const out = send({ type: 'phone.call', key: c.key, about }); app.chime(out.ok ? 'tap' : 'error'); said = out.ok ? out.said : null; if (out.ok) callUntil = Date.now() + Math.min(15000, 7000 + String(out.said || '').length * 45); flashMessage(out, good); return out; };
     const buttons = [];
     if (c.key === 'svc:police') {
       const law = view.self.law;
@@ -577,5 +579,5 @@ export function createPhone(kit) {
   }
   function leaveDeal() { marketUI.closeDeal(); kit.close(); }
 
-  return { charge, show, go, openDeal, leaveDeal, market: marketUI, wallet: walletUI, get screen() { return screen; }, tick() { if (ticking) ticking(); } };
+  return { charge, show, go, openDeal, leaveDeal, market: marketUI, wallet: walletUI, get screen() { return screen; }, get calling() { return Date.now() < callUntil; }, hangUp() { callUntil = 0; }, tick() { if (ticking) ticking(); } };
 }

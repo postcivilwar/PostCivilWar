@@ -49,6 +49,11 @@ export function parseGLB(buffer) {
   return { json, accessor, bytes, animations };
 }
 
+// A node's name as three.js can bind an animation to it: some files name their bones with characters it keeps for
+// itself (Mixamo's "mixamorig:Hips"), which are taken out exactly as three.js's own loader takes them out. The
+// file is not changed; only the name the figure's bone is known by here.
+export const boneName = (raw) => String(raw || '').replace(/\s/g, '_').replace(/[\[\]\.:\/]/g, '');
+
 // The short name a person would give an animation: "walk.001" is walk, "make_a_call_02.001" is call. Two that
 // would share a name get the second its own word from ALSO, so that every label is one word and different.
 const LABEL = {
@@ -60,6 +65,12 @@ const LABEL = {
   dance_04: 'Shimmy', dance_01: 'Boogie', clap: 'Clap', run_upstairs: 'Climb', defeat_03: 'Defeat', defeat_02: 'Slump', dive: 'Dive', fall: 'Fall',
   flee_01: 'Flee', flee_02: 'Escape', jump_down: 'Leap', depressed: 'Sad', bow: 'Bow', cry: 'Cry', laugh_02: 'Laugh', laugh_01: 'Giggle',
   heart_pose: 'Heart', cheer: 'Cheer',
+  // the athlete's, the officer's, the priest's and the warrior's (12 October 2026)
+  football_catch: 'Catch', dribble: 'Dribble', basketball_shot: 'Basket', volleyball: 'Volley', pitch_baseball: 'Pitch', football_pass: 'Pass',
+  jump_rope_01: 'Skip', flip: 'Flip', slash: 'Slash', complain_01: 'Complain', complain_02: 'Grumble', frustrated_01: 'Frustrated', warm_up: 'Warmup',
+  fold_arms: 'Arms', idle: 'Idle', climb: 'Climb', angry_01: 'Angry', angry_02: 'Fume', angry_03: 'Rage', look_around: 'Look',
+  'knell down to pray': 'Pray', 'rev father blessing someone': 'Bless', sing_01: 'Hymn',
+  'punching and kicking, dodging and melee attacks': 'Spar', frightened: 'Fright', cast_a_spell: 'Spell',
 };
 export function animationLabel(name) {
   const base = String(name).replace(/\.\d+$/, '');
@@ -84,26 +95,29 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
   if (!at.NORMAL) geometry.computeVertexNormals();
   geometry.computeBoundingBox(); geometry.computeBoundingSphere();
 
-  // the material: its texture as it was packed, the way glTF lays textures (no flip)
+  // the material: its textures as they were packed, the way glTF lays textures (no flip). A file may carry, beside
+  // its colour picture, a picture of how the surface is bent (normal) and one of how rough and how metal each part
+  // of it is; each is read as it is when there.
   const mat = json.materials ? json.materials[prim.material || 0] : {};
   const pbr = mat.pbrMetallicRoughness || {};
-  let map = null;
   const ready = [];
-  if (pbr.baseColorTexture) {
-    const image = json.images[json.textures[pbr.baseColorTexture.index].source];
+  // On a phone a 4096-pixel texture is about 85 MB of the graphics memory once mipmapped, for a figure that is
+  // a few hundred pixels tall on the screen: there it is drawn from a copy at `maxTexture` pixels. The file and
+  // its picture are unchanged; only what is handed to the graphics card is smaller.
+  const fit = (picture) => {
+    if (!maxTexture || picture.width <= maxTexture) return picture;
+    const c = document.createElement('canvas'); c.width = maxTexture; c.height = Math.round(picture.height * (maxTexture / picture.width));
+    c.getContext('2d').drawImage(picture, 0, 0, c.width, c.height);
+    return c;
+  };
+  function textureOf(ref, colour) {
+    if (!ref) return null;
+    const image = json.images[json.textures[ref.index].source];
     const blob = new Blob([bytes(image.bufferView)], { type: image.mimeType || 'image/jpeg' });
-    map = new THREE.Texture();
-    map.flipY = false; map.encoding = THREE.sRGBEncoding; map.anisotropy = 4;
+    const map = new THREE.Texture();
+    map.flipY = false; map.anisotropy = 4;
+    if (colour) map.encoding = THREE.sRGBEncoding;
     const img = new Image();
-    // On a phone a 4096-pixel texture is about 85 MB of the graphics memory once mipmapped, for a figure that is
-    // a few hundred pixels tall on the screen: there it is drawn from a copy at `maxTexture` pixels. The file and
-    // its picture are unchanged; only what is handed to the graphics card is smaller.
-    const fit = (picture) => {
-      if (!maxTexture || picture.width <= maxTexture) return picture;
-      const c = document.createElement('canvas'); c.width = maxTexture; c.height = Math.round(picture.height * (maxTexture / picture.width));
-      c.getContext('2d').drawImage(picture, 0, 0, c.width, c.height);
-      return c;
-    };
     // decoded (and made smaller, on a phone) away from the page's own thread where the browser can; the
     // picture is the file's, unchanged
     const viaImage = () => new Promise((resolve) => { img.onload = () => { map.image = fit(img); map.needsUpdate = true; resolve(); }; img.onerror = () => resolve(); img.src = URL.createObjectURL(blob); });
@@ -111,9 +125,17 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
       ? (maxTexture ? createImageBitmap(blob, { resizeWidth: maxTexture, resizeHeight: maxTexture, resizeQuality: 'high' }) : createImageBitmap(blob))
       : Promise.reject(new Error('no createImageBitmap'));
     ready.push(bitmap.then((bmp) => { map.image = bmp; map.needsUpdate = true; }).catch(viaImage));
+    return map;
   }
+  const map = textureOf(pbr.baseColorTexture, true);
+  const normalMap = textureOf(mat.normalTexture, false);
+  // glTF keeps roughness in the green of this picture and metalness in its blue, which is how three.js reads both
+  const rough = textureOf(pbr.metallicRoughnessTexture, false);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
-  const material = surface({ map, color: colour, skinning: true, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+  const options = { map, color: colour, skinning: true, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide };
+  if (normalMap) { options.normalMap = normalMap; if (mat.normalTexture.scale !== undefined) options.normalScale = new THREE.Vector2(mat.normalTexture.scale, mat.normalTexture.scale); }
+  if (rough) { options.roughnessMap = rough; options.metalnessMap = rough; }
+  const material = surface(options);
 
   // the node tree, read once; each figure builds its own copy of it
   const skin = json.skins[0];
@@ -122,7 +144,7 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
   const sceneRoots = json.scenes[json.scene || 0].nodes;
 
   const clips = parsed.animations.map((a) => new THREE.AnimationClip(a.name, a.length, a.tracks.map((t) => {
-    const name = `${t.node}.${t.path === 'translation' ? 'position' : t.path === 'rotation' ? 'quaternion' : 'scale'}`;
+    const name = `${boneName(t.node)}.${t.path === 'translation' ? 'position' : t.path === 'rotation' ? 'quaternion' : 'scale'}`;
     const T = t.path === 'rotation' ? THREE.QuaternionKeyframeTrack : THREE.VectorKeyframeTrack;
     return new T(name, t.times, t.values, t.step ? THREE.InterpolateDiscrete : undefined);
   })));
@@ -131,7 +153,7 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
     const objects = json.nodes.map((n, i) => {
       const isBone = skin.joints.includes(i);
       const o = isBone ? new THREE.Bone() : new THREE.Group();
-      o.name = n.name || `node${i}`;
+      o.name = boneName(n.name || `node${i}`);
       if (n.matrix) new THREE.Matrix4().fromArray(n.matrix).decompose(o.position, o.quaternion, o.scale);
       if (n.translation) o.position.fromArray(n.translation);
       if (n.rotation) o.quaternion.fromArray(n.rotation);
@@ -142,7 +164,7 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
     const bones = skin.joints.map((j) => objects[j]);
     const inverses = skin.joints.map((_, k) => new THREE.Matrix4().fromArray(inverse, k * 16));
     const mesh = new THREE.SkinnedMesh(geometry, material);
-    mesh.name = json.nodes[meshNode].name;
+    mesh.name = boneName(json.nodes[meshNode].name);
     mesh.frustumCulled = false;
     objects[meshNode].add(mesh);
     const root = new THREE.Group();

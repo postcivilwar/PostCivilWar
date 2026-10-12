@@ -18,6 +18,7 @@ import { geoToWorld, worldToGeo, gridToTrue } from '../geo.js';
 import { makeRng } from '../rng.js';
 import { houseDoor } from '../layout.js';
 import { kekeLook, busLook, footprintBox } from '../vehicle-looks.js';
+import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } from './atani-outskirts.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
 export const ZONE = Object.freeze({
@@ -900,9 +901,16 @@ function buildTrees() {
   }
   return Object.freeze(trees);
 }
-export const ZONE_TREES = buildTrees();
+// (none stands where the bridge's approach comes up from the road: the rest are where they always were)
+const underBridge = (t) => t.x > BRIDGE.x0 - 2 && t.x < BRIDGE.x1 + 2 && t.z > BRIDGE.start - 2;
+export const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(t)));
 
-export const ZONE_COLLIDERS = Object.freeze([...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45))].map(Object.freeze));
+// Beyond the town (atani-outskirts.js): the road to Onitsha, the airport and the bridge. They are walked and
+// driven on like the town's own ground, and their walls are walls; the town's own layout is unchanged by them.
+export * from './atani-outskirts.js';
+export const zoneGroundY = outskirtsGroundY;
+
+export const ZONE_COLLIDERS = Object.freeze([...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 // True when a person of the given radius can stand at (x, z).
@@ -914,7 +922,7 @@ export function zoneSolid(x, z, radius = 0.2) {
 }
 
 export function zoneWalkable(x, z, extra = [], radius = 0.4) {
-  if (!onGround(x, z)) return false;
+  if (!onGround(x, z) && !onOutskirts(x, z)) return false;
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
   for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
   return true;

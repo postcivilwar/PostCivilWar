@@ -15,6 +15,7 @@
 import { FIGURES, FIGURE_ORDER, FIGURE_SWATCHES } from '../sim/figures.js';
 import { createChoice } from './choice.js';
 import { makeCharacter, animateCharacter } from './character.js';
+import { figureHere } from './animated.js';
 
 const PART_NAMES = { skin: 'Skin', hair: 'Hair', top: 'Top', bottom: 'Bottom', shoes: 'Shoes', hat: 'Hat' };
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -196,7 +197,9 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
   }
   // (only a new player's choosing is remembered; looking is not choosing)
   function changed(dir) { drawControls(); show(dir); if (mode === 'choose' && onPick) onPick(choice.look()); onView(choice.figure.id); }
-  const EVERYONE = Object.keys(FIGURE_ORDER).flatMap((gender) => FIGURE_ORDER[gender].map((id, index) => ({ gender, index, id })));
+  // (a copy of the game opened from a file on disk carries only the first two figures inside it, and can fetch
+  // nothing: there only those are offered; on the website every one is)
+  const EVERYONE = Object.keys(FIGURE_ORDER).flatMap((gender) => FIGURE_ORDER[gender].map((id, index) => ({ gender, index, id }))).filter((e) => figureHere(e.id));
   function placeOf() { return Math.max(0, EVERYONE.findIndex((e) => e.gender === choice.gender && e.index === choice.index)); }
   function goTo(i, dir) { if (mode === 'locked') return; const to = EVERYONE[i]; if (to.gender !== choice.gender) choice.setGender(to.gender); choice.go(to.index); changed(dir); }
   function step(by) { const n = EVERYONE.length; if (n > 1) goTo((placeOf() + by + n) % n, by); }

@@ -17,6 +17,11 @@
 // the pocket the grip is eased in; as it goes back it is eased out, and the fingers are left as the figure's
 // own animation has them.
 //
+// A call. While the player is talking to someone on the phone the hand takes the handset from in front of the
+// chest up to the ear, the glass against the cheek, and brings it back down when the call ends. The figure's own
+// call animation plays on the rest of the body while it stands (animated.js: react('call')); the right arm is
+// placed by the same reaching, so that the handset is at that figure's ear whatever its height or its rig.
+//
 // The light: on a desktop one small lamp at the screen, always in the scene and simply dark when the phone is
 // away (a lamp that came and went would make every surface in town be worked out again). On a phone or tablet,
 // which draws no lamps at all, the glow is painted: a soft patch at the screen and a fainter one on the face.
@@ -106,6 +111,8 @@ export function createPhoneHold({ scene, lite }) {
   let out = 0;                    // 0 away .. 1 held up
   let hidden = null;
   let raise = 0;                  // 0 held to read .. 1 held up to take a picture
+  let ear = 0;                    // 0 held to read .. 1 at the ear, on a call
+  let calling = null;             // the figure on whom a call animation was started
   const v = { hand: new THREE.Vector3(), from: new THREE.Vector3(), pocket: new THREE.Vector3(), hold: new THREE.Vector3(), target: new THREE.Vector3(), pole: new THREE.Vector3(), head: new THREE.Vector3(), zero: new THREE.Vector3(), up: new THREE.Vector3(), eye: new THREE.Vector3(), look: new THREE.Vector3() };
   const q = { a: new THREE.Quaternion(), w: new THREE.Quaternion(), p: new THREE.Quaternion(), m: new THREE.Matrix4() };
   const hide = () => { prop.visible = false; screenGlow.visible = false; faceGlow.visible = false; if (lamp) lamp.intensity = 0; release(); };
@@ -153,10 +160,18 @@ export function createPhoneHold({ scene, lite }) {
 
   // rig: the player's figure (animated.js). use: is the phone out. able: is the figure standing or walking (not
   // at a wheel, in the water, on the ground). night: 0 at noon .. 1 in the dark. screen: what the phone shows.
-  function update(dt, rig, { use, able, night = 0, screen = 'home' }) {
-    const want = use && able ? 1 : 0;
+  // call: is the player talking to someone on it now
+  function update(dt, rig, { use, able, night = 0, screen = 'home', call = false }) {
+    const want = (use || call) && able ? 1 : 0;
     out += Math.max(-dt / AWAY_SECONDS, Math.min(dt / OUT_SECONDS, want - out));
     if (!able) out = 0;
+    // to the ear once the phone is out, back down when the call ends
+    const onCall = call && able && out > 0.97;
+    ear += ((onCall ? 1 : 0) - ear) * Math.min(1, dt * (onCall ? 4 : 5));
+    if (ear < 0.002) ear = 0;
+    // the figure's own call animation, on its body, while it stands and talks (it is ended when the call is)
+    if (onCall && rig && rig.react && calling !== rig && (rig.speed || 0) < 0.3) { if (rig.react('call') === 'clip') calling = rig; }
+    if (calling && (!onCall || calling !== rig || (rig.speed || 0) > 0.3)) { if (calling.doing && calling.doing.kind === 'call') calling.endDoing(0.4); calling = null; }
     if (out <= 0.001 || !rig || !rig.animated || !rig.bones || !rig.group.visible) { hide(); return; }
     const holder = rig.body;
     const H = rig.spec.height;
@@ -172,6 +187,12 @@ export function createPhoneHold({ scene, lite }) {
     raise += ((screen === 'camera' ? 1 : 0) - raise) * Math.min(1, dt * 6);
     // (the wrist: the handset itself lies across the fingers, a hand's breadth further in towards the middle of the body)
     v.hold.set((-0.085 - 0.02 * raise) * H, (0.71 + 0.18 * raise) * H, (0.19 + 0.12 * raise) * H);
+    // on a call: the wrist below and in front of the right ear, so that the handset in the palm lies along the cheek
+    if (ear > 0) {
+      head.getWorldPosition(v.eye); holder.worldToLocal(v.eye);
+      v.look.set(v.eye.x - 0.062 * H, v.eye.y - 0.085 * H, v.eye.z + 0.02 * H);
+      v.hold.lerp(v.look, smooth(ear));
+    }
     if (out < POCKET) v.target.lerpVectors(v.from, v.pocket, smooth(out / POCKET));
     else {
       const u = smooth((out - POCKET) / (1 - POCKET));
@@ -196,6 +217,15 @@ export function createPhoneHold({ scene, lite }) {
       v.eye.copy(v.head).addScaledVector(v.up, 0.06 * H);
       grp.n.copy(v.eye).sub(v.hand).normalize();
       grp.f.copy(grp.left).multiplyScalar(Math.cos(0.42)).addScaledVector(v.up, Math.sin(0.42));
+      if (ear > 0) {
+        // at the ear: the palm to the side of the head, the fingers running up past the temple and a little forward
+        const k = smooth(ear);
+        holder.localToWorld(grp.a.set(0, 0, 1)).sub(holder.localToWorld(v.zero.set(0, 0, 0))).normalize();
+        v.look.copy(v.head).sub(v.hand).normalize();
+        grp.n.lerp(v.look, k).normalize();
+        grp.b.copy(v.up).multiplyScalar(0.85).addScaledVector(grp.a, 0.5).normalize();
+        grp.f.lerp(grp.b, k);
+      }
       grp.f.addScaledVector(grp.n, -grp.f.dot(grp.n)).normalize();
       grp.side.crossVectors(grp.f, grp.n).normalize();
       grp.m.makeBasis(grp.f, grp.side, grp.n).multiply(grip.toLocal);
@@ -250,8 +280,8 @@ export function createPhoneHold({ scene, lite }) {
       }
     }
 
-    // the head tips down to the screen, by the shortest turn from straight ahead
-    if (held > 0.01) {
+    // the head tips down to the screen, by the shortest turn from straight ahead (not on a call: it is at the ear)
+    if (held > 0.01 && ear < 0.5) {
       holder.localToWorld(v.look.set(0, 0, 1)).sub(holder.localToWorld(v.zero.set(0, 0, 0))).normalize();
       v.eye.copy(prop.position).sub(v.head).normalize();
       q.a.setFromUnitVectors(v.look, v.eye);
@@ -296,6 +326,8 @@ export function createPhoneHold({ scene, lite }) {
     get prop() { return prop; },
     get ready() { return out > 0.97; },
     get raised() { return raise; },
+    // 0 held in front, 1 at the ear on a call
+    get atEar() { return ear; },
     // while the phone's own camera takes its picture, neither the handset nor its glow is in it
     hideForPicture(on) { if (on) { hidden = [screenGlow.visible, faceGlow.visible]; prop.visible = false; screenGlow.visible = false; faceGlow.visible = false; } else if (hidden) { [screenGlow.visible, faceGlow.visible] = hidden; hidden = null; } },
     dispose() { scene.remove(prop, screenGlow, faceGlow); if (lamp) scene.remove(lamp); },

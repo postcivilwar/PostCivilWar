@@ -1207,11 +1207,128 @@ town uses (68 of them) is compiled once at start; on a phone that is a second or
 **On the owner's phone.** Settings, "Measured on this device" shows frames a second and the slowest part of a frame,
 measured on the device itself: those are the numbers to look at if the town itself feels slow.
 
+## The real day and the real weather (12 October 2026)
+
+The game's clock is the player's own clock. If it is 9:20 on a Monday morning where the player is, it is 9:20 on
+that Monday morning in Atani; at noon the sun is high, at night it is dark, and a player who joins today arrives on
+today's date. A player in another country plays in their own time of day. Time cannot be skipped: sleeping or
+waiting no longer moves the clock on, and anything that used to take game hours (a sentence in custody, a
+record that lapses, recovering after a knock-down) takes that long in real minutes, scaled from the old 48-minute
+day so that nothing takes thirty times longer than it did.
+
+The weather is the real weather where the player is: the server asks MET Norway's forecast for the player's
+place (from where the host says the request came from; Atani's if it cannot tell), turns it into clear,
+cloudy, rain or storm, and keeps it for each place for a while (`pcw.weather_cache`). The forecast is used under
+CC BY 4.0 and Settings says so. Without a connection the weather is the game's own.
+
+`#gameclock` in the address brings back the old 48-minute day, for the play-through tests.
+
+## Six characters, and bodies that react (12 October 2026)
+
+**The figures.** The owner supplied four more GLB characters: an athlete and a police officer (women), a priest
+in his vestments and a hooded warrior (men). With Adaeze and Emeka there are three women (W1 Adaeze, W2 Ngozi,
+W3 Amaka) and three men (M1 Emeka, M4 Ikenna, M5 Uche). M2 and M3 are not used: they named figures taken out on
+8 October, and an old save that names one stays as it was. Each file is used byte for byte (`test/figures.test.mjs`
+checks their checksums), drawn at a person's height, with its own textures (the priest's file also has a normal
+map and a roughness map, which are now read). A new player chooses any of them on the selection screen, in their
+own list; a player who already has a character reaches them only through the paid character upgrade, as before
+(the server's check on an account's character was widened by migration 5).
+
+The files are rigged two ways: the athlete and the officer like Adaeze and Emeka (Unreal's bone names), the priest
+and the warrior with Mixamo's (`mixamorig:Hips`). The game reaches for bones by the Unreal names; a Mixamo figure
+answers to both. Bone names are read the way three.js binds animations (`boneName` in `glb.js`): before, a Mixamo
+file would have stood in its bind pose.
+
+**What a file lacks, borrowed.** The officer's file has no walk or run, the priest's no run, three have no
+standing-still clip and three no swim. Rather than slide a figure along in a pose, those are carried over from
+another supplied figure onto this figure's own bones (`tools/characters/borrow.mjs`, written to
+`src/client/figure-borrowed.js`): between files rigged the same way each bone turns from its bind as the
+source's does; between the two riggings each limb is pointed the way the source's points. Only rotations are
+carried, so every figure keeps its own proportions. Each new figure also has its own sitting pose, carried over
+from Adaeze's sit, for a keke's seat or a motorcycle.
+
+| | stands | walks | runs | swims | hit | falls | punches | kicks | phone call |
+|---|---|---|---|---|---|---|---|---|---|
+| Adaeze (W1) | agree | own | own | own | by hand | fall, defeat_03 | box_01, box_02, box_03 | front_kick_02, _01 | make_a_call_02 |
+| Emeka (M1) | agree | own | own | own | hit_to_head | laid flat by hand | by hand | front_kick_02, _01 | make_a_call_01 |
+| Ngozi (W2) | officer's idle | own | own | own | by hand | fall | by hand | by hand | make_a_call_02 |
+| Amaka (W3) | own idle | Emeka's | Emeka's | Emeka's | by hand | fall, defeat_03 | by hand | by hand | make_a_call_02 |
+| Ikenna (M4) | officer's idle | own | warrior's | Emeka's | by hand | fall, defeat_03 | by hand | by hand | make_a_call_02 |
+| Uche (M5) | officer's idle | own | own | Emeka's | hit_to_head | laid flat by hand | box_01, box_02, box_03 | front_kick_02, _01 | make_a_call_02 |
+
+**Reacting by itself.** A blow that lands in a fight, a blow the player throws, being knocked down by a vehicle
+and being killed are shown on the figure without anyone opening the Skills menu (`react` and `lay` in
+`src/client/animated.js`, called from the fight feed and the knock-down the simulation already reports). Each is
+shown with the figure's own clip where its file has one, and by moving its bones by hand where it has none (the
+head snapping back, an arm thrown out, a leg swung up). A fall uses the figure's own falls: the first when run
+down or killed, the second (where there is one) for a lighter knock. Several files' falls turn the body without
+lowering it, so a lying figure is let down until it rests on the ground, and raised again as it gets up. What
+matters more interrupts what matters less: falling over everything, then being hit, then a blow or a shot, then a
+phone call, then a skill; walking off ends a blow or a call at once rather than sliding the feet. The Skills
+button is as it was, and plays each figure's own clips; the new clips have one-word names (Pray, Bless, Spar...).
+
+**A phone call.** When a call goes through, the hand takes the handset from in front of the chest up to the ear,
+the glass against the cheek, for as long as it takes to say what is said, and back down; while the figure stands,
+its own call animation plays on the rest of the body. The handset stays in the palm (the hand's frame is read
+from each figure's own knuckles, so it fits every rig), and anything that takes the phone out of the hand (a
+fight, a vehicle, the water) ends the call.
+
+**Not done, and why.** There is no gun or shooting in the game to connect a pose to; the officer's, the priest's
+and Emeka's files have kneeling `shoot` clips, which play as skills. No file has a get-up animation (a figure
+blends back to standing) or a hit from a particular direction.
+
+## Power bikes and surfboards: ready for their models (12 October 2026)
+
+No power bike and no surfboard is in the game, because neither model has been supplied; nothing offers one. What
+does not need the model is built and tested:
+
+- **Handling** (`src/sim/power-bikes.js`): a big motorcycle leans into a turn and turns by leaning, wider the
+  faster it goes, stands up when let go, accelerates less as it nears its top speed, brakes hard without going
+  backwards and slows off the tar. Each bike may change any of it.
+- **Controls**: a layout of its own while riding one, nothing of the walking stick or the car's pedals: a left and a
+  right steering arrow at the lower left, the throttle and the brake at the right, the horn at the top right;
+  each lights blue and white while a finger is on it. It comes when the player gets on a power bike and goes when
+  they get off. With a keyboard: W, S or Space, A and D, H.
+- **Engines and horns** (`src/client/bike-audio.js`): made in the browser, like every other sound in the game, from
+  what an engine is: a 500 cc single, a 650 cc parallel twin, a 1000 cc inline four and a 1200 cc V-twin, each
+  beating at its own firing rate, with its own pipe, rasp and airbox, climbing with the revs through the gears,
+  starting, settling, crackling on the overrun and running down. A bike may bring its own recordings instead. It
+  plays through the vehicle volume, so the settings and mute govern it; the town's sounds are not touched.
+- **Surfboards** (`src/sim/surfboards.js`): who may surf (an owner, in the water), how a board goes on the river and
+  stops at the bank, and getting off. Three of the figures already have a surf pose.
+
+Adding a bike or a board is adding its entry, with its model.
+
+## Beyond the town: the road to Onitsha, Atani Airport, the bridge (12 October 2026)
+
+`src/sim/zones/atani-outskirts.js` and `src/client/render-outskirts.js`. The town itself is unchanged.
+
+- **The road to Onitsha.** Registry Road goes on out of town as the Atani–Onitsha Road, two lanes with lines and
+  verges, lamps, and roadside shops that come closer together the further it goes, towards the city. The real road
+  is twenty-odd kilometres through Ogbaru's riverside communities to Okpoko and Onitsha; this is its first stretch,
+  shortened and schematic, and it ends at road works where the world ends. Odekpe, Ohita, Okpoko and Onitsha are
+  named on the sign at the edge of town, where the road goes; none of them is placed at a made-up spot on it.
+- **Atani Airport** (an invention of the game): a 540 m runway with its markings and edge lights, a parallel
+  taxiway, an apron with five stands marked for the aircraft that will come later, a glass terminal with doors for
+  departures, check-in and arrivals and a hall with check-in desks inside, a control tower, an administration
+  building, a fire station, a car park, the airport road and the fence round the airside with its gate. No
+  aircraft, and no flights: there is nothing to fly yet.
+- **The bridge.** A crossing of the game's own over the Niger, after the owner's photographs of the river's steel
+  through-truss bridges: riveted trusses with an X in each bay, cross girders overhead, footways and rails, and
+  piers of two tapering concrete legs on round caissons in the water. It rises from Waterside Road over an
+  embankment, carries its deck 7 m over the water, and comes down on the far bank to a barrier: Asaba and Delta
+  State are for later. It is not the First Niger Bridge, which is at Onitsha, and does not say it is.
+
+Walking and driving go everywhere there is ground or deck, and nowhere else: the rails, the fence, the terminal's
+glass and the road works are walls. The deck carries whoever is on it at its height (`zoneGroundY`), so a
+player, a keke or a motorcycle goes up the approach and across, and the camera with them; one cannot swim from
+the deck. The map and the radar show all of it.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 248 headless tests, in nineteen files
-../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 66 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+node --test test/*.test.mjs                        # 275 headless tests, in twenty-three files
+../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 71 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
@@ -1223,6 +1340,9 @@ node test/play.mjs out/ town                       # one session: opening, deskt
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
 node test/hold.mjs                                 # the handset in the hand, measured on both figures
 node test/sound.mjs                                # how loud each group of sounds is
+node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
+node test/bike.mjs out/                            # the power bike's controls and engines (with nothing to ride yet)
+node test/outskirts.mjs out/                       # the road to Onitsha, the airport and the bridge, walked
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings
 ```
 

@@ -141,9 +141,11 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   const before = await page.evaluate(() => window.__nlw.audio.status().voices.short);
   await page.click('.pick[data-path="villain"]');
   await page.waitForTimeout(250);
+  // (the page may be busy building the town just then: the sound is given a moment longer to start)
+  await page.waitForFunction((b) => { const s = window.__nlw.audio.status(); return s.voices.short > b || s.level > 0.0005; }, before, { timeout: 1500 }).catch(() => {});
   const chosen = await page.evaluate(() => ({ chosen: [...document.querySelectorAll('.pick.chosen')].map((b) => b.dataset.path), path: window.__nlw.intro.log.path, sound: window.__nlw.audio.status() }));
   if (chosen.chosen.join() !== 'villain' || chosen.path !== 'villain') bad(`chose villain, got ${JSON.stringify(chosen.chosen)} ${chosen.path}`);
-  if (!(chosen.sound.voices.short > before || chosen.sound.level > 0.0005)) bad('choosing made no sound');
+  if (!(chosen.sound.voices.short > before || chosen.sound.level > 0.0005)) bad(`choosing made no sound (${JSON.stringify({ before, state: chosen.sound.state, muted: chosen.sound.muted, voices: chosen.sound.voices, level: chosen.sound.level })})`);
   await shot('05-chosen');
   await page.waitForFunction(openingOver, null, { timeout: 60000 });
   await page.waitForFunction(() => { const b = document.querySelector('#enter'); return b && !b.disabled; }, null, { timeout: 300000 });

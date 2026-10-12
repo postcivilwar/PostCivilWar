@@ -12,6 +12,7 @@
 import { Batch, place, linear, surface } from './render-kit.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } from './render-people.js';
 import { poseFighter } from './combat-view.js';
+import { zoneGroundY } from '../sim/zone.js';
 
 const POSE = { stand: 0, walk: 1, sit: 2, lie: 3, hidden: 4, ride: 5 };
 const MAX_FIGURES = 520;
@@ -419,7 +420,7 @@ export function createCrowd(scene) {
         bike.x = own.x; bike.z = own.z; bike.h = own.h; bike.speed = own.speed;
         E.set(0, bike.h, -own.lean);
         bike.mesh.quaternion.setFromEuler(E);
-        bike.mesh.position.set(bike.x, 0, bike.z);
+        bike.mesh.position.set(bike.x, zoneGroundY(bike.x, bike.z), bike.z);      // (up on the bridge's deck, where it is on it)
         continue;
       }
       const gx = o.x - bike.x, gz = o.z - bike.z;
@@ -471,7 +472,7 @@ export function createCrowd(scene) {
       const gap = Math.hypot(gx, gz);
       if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
       other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
-      other.rig.group.position.set(other.x, other.rig.group.position.y, other.z);
+      other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : zoneGroundY(other.x, other.z), other.z);
       other.rig.group.rotation.y = other.h;
       const stance = frame.others ? frame.others[q.id] : null;
       // another player in the river swims, with their own figure's swim, floating at the surface
@@ -493,8 +494,9 @@ export function createCrowd(scene) {
       // knocked down, or dead: on the ground; getting up: on the way back (and flat in the water, for a figure with no swim of its own)
       const flat = !!(stance && (stance.down || stance.dead)) || (other.rig.swimming && !other.rig.animated);
       other.fall = (other.fall || 0) + ((flat ? 1 : 0) - (other.fall || 0)) * Math.min(1, dt * (flat ? 12 : 4));
-      layCharacter(other.rig, other.fall);
-      if (other.rig.swimming) other.rig.group.position.y = other.rig.animated ? -(other.rig.spec.height * 0.58) - 0.22 : -0.5; else if (other.wasSwimming) other.rig.group.position.y = 0;
+      // (a supplied figure falls with its own fall: the harder one when killed or bowled over on the move)
+      layCharacter(other.rig, other.fall, (stance && stance.dead) || other.rig.speed > 1.5 ? 'hard' : 'soft');
+      if (other.rig.swimming) other.rig.group.position.y = other.rig.animated ? -(other.rig.spec.height * 0.58) - 0.22 : -0.5; else if (other.wasSwimming) other.rig.group.position.y = zoneGroundY(other.x, other.z);
       other.wasSwimming = other.rig.swimming;
       if (other.rig.strike || (stance && stance.fighting)) poseFighter(other.rig, frame.clock || 0, { guard: !!(stance && stance.fighting), block: !!(stance && stance.blocking) });
     }

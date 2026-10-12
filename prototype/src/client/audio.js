@@ -21,6 +21,8 @@
 //   lowers music and background; an open panel lowers everything but itself.
 //   A limiter on the way out catches what is left.
 
+import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn } from './bike-audio.js';
+
 // How each kind of engine sounds: lowest pitch, how far it climbs, its
 // character. Only the keke and the okada move in this build; the rest are
 // here so that a new vehicle has a voice the day it is added.
@@ -410,6 +412,14 @@ export function createAudio() {
     if (x === null) here('horn', 0.3, 'vehicles', play); else at(x, z, 60, 'horn', 0.3, 'vehicles', play);
   }
 
+  // A power bike's own horn (bike-audio.js BIKE_HORNS), from the player's own bike.
+  function bikeHorn(id = 'dual') {
+    if (!ctx || muted || ctx.currentTime < hornAt) return;
+    const h = BIKE_HORNS[id] || BIKE_HORNS.dual;
+    hornAt = ctx.currentTime + h.length + 0.2;
+    here('horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
+  }
+
   // A blow in a fight: 'punch', 'heavy', 'kick', 'block', 'miss', 'shove', 'fall'. No voices, no gore: a thud and the cloth.
   function blow(kind, x, z) {
     const play = (out, t) => {
@@ -551,10 +561,19 @@ export function createAudio() {
       }
     }
 
-    // the vehicle being driven, and the wheels on the road
+    // the vehicle being driven, and the wheels on the road. A power bike has an engine of its own (bike-audio.js):
+    // started when the player gets on, run down when they get off; the small engine voice is quiet meanwhile.
     const own = scene.own;
-    if (own && nodes.own.kind !== own.kind && ENGINE_VOICES[own.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(own.kind, false); }
-    nodes.own.set(own ? own.rev : 0, own ? 0.21 + own.throttle * 0.24 : 0, now);
+    const bike = own && own.kind === 'powerbike' ? own : null;
+    if (bike && (!nodes.bike || nodes.bike.id !== bike.bike)) {
+      if (nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; setTimeout(() => old.dispose(), 1500); }
+      const profile = BIKE_SOUNDS[bike.sound] || BIKE_SOUNDS.four1000;
+      nodes.bike = { id: bike.bike, engine: createBikeEngine(ctx, nodes.vehicles, profile, { noise: nodes.white }) };
+      nodes.bike.engine.start(now);
+    } else if (!bike && nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; nodes.bike = null; setTimeout(() => old.dispose(), 1500); }
+    if (bike) nodes.bike.engine.set(bike.rev, bike.throttle, now);
+    if (own && !bike && nodes.own.kind !== own.kind && ENGINE_VOICES[own.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(own.kind, false); }
+    nodes.own.set(own && !bike ? own.rev : 0, own && !bike ? 0.21 + own.throttle * 0.24 : 0, now);
     nodes.tyres.gain.gain.setTargetAtTime(own ? own.rev * 0.035 : 0, now, 0.2);
     engines.forEach((voice, i) => {
       const e = scene.engines[i];
@@ -716,7 +735,7 @@ export function createAudio() {
 
   return {
     supported: !!Ctx,
-    start, update, bell, footstep, horn, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     get running() { return !!ctx && ctx.state === 'running'; },
     get muted() { return muted; },
@@ -729,6 +748,7 @@ export function createAudio() {
     status: () => ({ supported: !!Ctx, state: ctx ? ctx.state : 'not started', muted, stations: [...stations.keys()], spots: [...spots.keys()], level: level(), peak: ctx ? rmsOf(nodes.analyser).peak : 0,
       groups: ctx ? Object.fromEntries(SOUND_GROUPS.map((name) => [name, rmsOf(nodes.groups[name].meter).rms])) : {},
       ducked: ctx ? Object.fromEntries(SOUND_GROUPS.map((name) => [name, Number(nodes.groups[name].duck.gain.value.toFixed(2))])) : {},
-      voices: ctx ? { short: playing.filter((s) => s.until > ctx.currentTime).length, ...stats } : null }),
+      voices: ctx ? { short: playing.filter((s) => s.until > ctx.currentTime).length, ...stats } : null,
+      bike: ctx && nodes.bike ? { id: nodes.bike.id, profile: nodes.bike.engine.profile.name, running: nodes.bike.engine.running } : null }),
   };
 }

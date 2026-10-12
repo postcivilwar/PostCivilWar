@@ -633,7 +633,7 @@ say('9. The buyer logs in on a computer: straight into town as the same characte
   if (own.tag !== 'Your character' || own.shown !== 'W1' || own.upgrade) bad(`the characters open on ${JSON.stringify(own)}`);
   if (own.name || own.enter) bad('looking at the characters offers a name to type or a way to enter as one');
   if (!/more than 2,000 TR/.test(own.rule) || !/a quarter of your whole balance/.test(own.rule) || !/starter TR pays none of it/.test(own.rule)) bad(`the rule for upgrading reads "${own.rule}"`);
-  await p.click('#fig-next'); await p.waitForFunction(() => !document.querySelector('#gallery-upgrade').hidden); await p.waitForTimeout(500);
+  await p.click('#fig-dots button[aria-label^="Emeka,"]'); await p.waitForFunction(() => !document.querySelector('#gallery-upgrade').hidden);      // (Emeka: one of the other characters, there are six) await p.waitForTimeout(500);
   await other.shot('02c-another');
   const another = await other.game(() => ({ tag: document.querySelector('#gallery-tag').textContent, text: document.querySelector('#gallery-text').textContent, upgrade: document.querySelector('#gallery-upgrade').textContent.trim(), shown: window.__creator.shown.id }));
   if (another.tag !== 'Looking only' || another.shown !== 'M1' || another.upgrade !== 'Upgrade to Emeka' || !/You are still Adaeze's/.test(another.text)) bad(`the other character is shown as ${JSON.stringify(another)}`);
@@ -720,7 +720,7 @@ say('10b. The seller, with 2,790.5 TR of which 790.5 TR was earned, upgrades fro
   await seller.game(() => window.__nlw.ui.close());
   await seller.made(2790.5, 2000, 'before the upgrade');
   await openCharacters(seller);
-  await p.click('#fig-next'); await p.waitForFunction(() => !document.querySelector('#gallery-upgrade').hidden); await p.waitForTimeout(400);
+  await p.click('#fig-dots button[aria-label^="Emeka,"]'); await p.waitForFunction(() => !document.querySelector('#gallery-upgrade').hidden);      // (Emeka: one of the other characters, there are six) await p.waitForTimeout(400);
   await p.click('#gallery-upgrade'); await p.waitForSelector('#confirm:not([hidden])'); await p.waitForTimeout(400);
   await seller.shot('16b-upgrade-asked');
   const ask = { ...(await asked(seller)), rows: await rowsOf(seller) };

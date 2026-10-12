@@ -58,6 +58,9 @@ export const ICONS = Object.freeze({
   // at the wheel
   horn: ['M3 9.4h3.6l6.4-4.6v14.4l-6.4-4.6H3z', { s: 'M16.2 9a4.2 4.2 0 0 1 0 6', w: 2.5 }, { s: 'M19 6.4a8 8 0 0 1 0 11.2', w: 2.5 }],
   gas: ['M8.4 2.4h7.2a1.6 1.6 0 0 1 1.6 1.7l-1 14.6a2.6 2.6 0 0 1-2.6 2.5h-3.2a2.6 2.6 0 0 1-2.6-2.5L6.8 4.1a1.6 1.6 0 0 1 1.6-1.7z M9.2 6.4h5.6v1.6H9.2z M9.4 10.2h5.2v1.6H9.4z M9.6 14h4.8v1.6H9.6z'],
+  // a power bike's two steering arrows: solid, pointing out to their own side
+  steerleft: ['M15.6 3.6v16.8L4.2 12z'],
+  steerright: ['M8.4 3.6v16.8L19.8 12z'],
   brake: ['M4.4 6.6h15.2a1.6 1.6 0 0 1 1.6 1.8l-.9 8.3a2.4 2.4 0 0 1-2.4 2.1H6.1a2.4 2.4 0 0 1-2.4-2.1L2.8 8.4a1.6 1.6 0 0 1 1.6-1.8z M7.4 9.6h1.6v6H7.4z M11.2 9.6h1.6v6h-1.6z M15 9.6h1.6v6H15z'],
   // in the river
   hand: [PALM, ...FINGERS, { s: 'M3 22.2c1.5-.9 3-.9 4.5 0s3 .9 4.5 0 3-.9 4.5 0 3 .9 4.5 0', w: 1.8 }],

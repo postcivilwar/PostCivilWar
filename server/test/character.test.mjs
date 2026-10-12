@@ -172,6 +172,31 @@ test('the upgrade: the fee is a quarter of the wallet at that moment, paid in ea
   await clean();
 });
 
+test('the four characters added later: chosen by a new player, reached by an existing one only through a paid upgrade', async () => {
+  for (const figure of ['W2', 'W3', 'M4', 'M5']) {
+    const p = await newPlayer(`New${figure}`);
+    const chosen = await p.ok('character.choose', { figure, path: 'hero' });
+    assert.equal(chosen.character.figure, figure);
+    assert.equal((await mine(p)).figure, figure);
+  }
+  // someone who chose before they were added: the old character stays until an upgrade is paid for
+  const old = await settler('Before', 'M1', 2000 * TR);
+  assert.equal((await old.call('character.choose', { figure: 'M4', path: 'hero' })).status, 409);
+  assert.equal((await mine(old)).figure, 'M1');
+  const q = (await old.ok('character.quote', { figure: 'M4' })).quote;
+  assert.equal(q.ok, true);
+  const done = await old.ok('character.upgrade', { key: uuid(), figure: 'M4', fee: q.fee });
+  assert.deepEqual({ from: done.upgrade.from, to: done.upgrade.to, fee: done.upgrade.fee }, { from: 'M1', to: 'M4', fee: 1000 * TR });
+  assert.equal((await mine(old)).figure, 'M4');
+  // with no earned TR, no upgrade: the new characters are not given away
+  const poor = await settler('Poor', 'W1');
+  const none = (await poor.ok('character.quote', { figure: 'W2' })).quote;
+  assert.equal(none.ok, false);
+  assert.equal((await poor.call('character.upgrade', { key: uuid(), figure: 'W2', fee: 500 * TR })).status >= 400, true);
+  assert.equal((await mine(poor)).figure, 'W1');
+  await clean();
+});
+
 test('pressed many times at once: one upgrade, one fee, whichever way the requests fall', async () => {
   // the same confirmation arriving ten times: one movement
   const p = await settler('Burst', 'W1', 6000 * TR);     // 8,000 TR: the fee is 2,000 TR

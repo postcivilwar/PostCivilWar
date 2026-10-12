@@ -456,7 +456,10 @@ export function showName(rig, wanted, dt) {
 
 // Lays a figure on the ground, or stands it up again: `amount` runs from 0 (upright) to 1 (flat on its back,
 // where it was standing). Someone knocked down by a vehicle goes down fast and gets up slower.
-export function layCharacter(actor, amount) {
+// A supplied figure whose file has a fall of its own falls with it instead, and is let down onto the ground
+// (animated.js); `how` says which of its falls: 'hard' (run down, killed) or 'soft'.
+export function layCharacter(actor, amount, how = 'hard') {
+  if (actor.animated && actor.lay && actor.lay(amount, how)) { actor.body.rotation.x = 0; actor.body.position.set(0, 0, 0); if (amount > 0.5) actor.blob.visible = false; return; }
   const a = Math.max(0, Math.min(1, amount));
   actor.body.rotation.x = -Math.PI / 2 * a;
   actor.body.position.set(0, 0.14 * a, 0.85 * a);

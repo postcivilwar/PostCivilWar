@@ -70,13 +70,18 @@ const skeleton = (content) => `<!doctype html><html lang="en"><head><meta charse
 // fetches each from beside itself: as .glb where the host serves it, otherwise as the same bytes written as
 // base64 text (the published artifact serves no .glb). The local copy, opened from disk where nothing can be
 // fetched, carries both inside.
-const FIGURE_FILES = [['man', 'muscular_male.glb', '__PCW_MAN_B64'], ['woman', 'woman.glb', '__PCW_WOMAN_B64']];
+// The four added on 12 October 2026 (an athlete, a police officer, a priest, a hooded warrior; 8 to 21 MB each)
+// are served the same way; the local copy carries only the first two inside it, so that it stays a file a
+// browser can open, and the others are seen on the website.
+const FIGURE_FILES = [['man', 'muscular_male.glb', '__PCW_MAN_B64', true], ['woman', 'woman.glb', '__PCW_WOMAN_B64', true],
+  ['athlete', 'athlete.glb', '__PCW_ATHLETE_B64', false], ['police', 'police.glb', '__PCW_POLICE_B64', false],
+  ['priest', 'priest.glb', '__PCW_PRIEST_B64', false], ['warrior', 'warrior.glb', '__PCW_WARRIOR_B64', false]];
 let inline = '';
-for (const [name, file, global] of FIGURE_FILES) {
+for (const [name, file, global, inLocal] of FIGURE_FILES) {
   const bytes = readFileSync(resolve(root, `assets/characters/figures/animated/${file}`));
   writeFileSync(resolve(root, `dist/${name}.glb`), bytes);
   writeFileSync(resolve(root, `dist/${name}.b64.txt`), bytes.toString('base64'));
-  inline += `<script>window.${global} = "${bytes.toString('base64')}";</script>\n`;
+  if (inLocal) inline += `<script>window.${global} = "${bytes.toString('base64')}";</script>\n`;
 }
 writeFileSync(resolve(root, 'dist/local.html'), skeleton(inline + page('../vendor/three.min.js')));
 console.log(`bundled ${modules} modules, ${(bundle.length / 1024).toFixed(0)} KB of script`);

@@ -168,7 +168,22 @@ export function createControls({ stick, pad }) {
       // at the wheel on a touch screen there are two pedals as well as the stick
       if (held.has('gas')) forward += 1;
       if (held.has('brake')) forward -= 1;
+      // on a power bike: the two arrows steer, the throttle goes (the brake is read by bike(), below)
+      if (held.has('steer-left')) strafe -= 1;
+      if (held.has('steer-right')) strafe += 1;
+      if (held.has('throttle')) forward += 1;
       return { forward: Math.max(-1, Math.min(1, forward - (steerOnly ? 0 : state.stickY))), strafe: Math.max(-1, Math.min(1, strafe + state.stickX)) };
+    },
+    // On a power bike: which way it is steered (-1 left .. 1 right), the throttle and the brake (each 0..1),
+    // from its own buttons on a touch screen, or from the keys (W or Up to go, S or Down or Space to brake).
+    bike() {
+      const k = state.keys;
+      let steer = 0;
+      if (held.has('steer-left') || k.has('a') || k.has('ArrowLeft')) steer -= 1;
+      if (held.has('steer-right') || k.has('d') || k.has('ArrowRight')) steer += 1;
+      const throttle = held.has('throttle') || k.has('w') || k.has('ArrowUp') ? 1 : 0;
+      const brake = held.has('brake') || k.has('s') || k.has('ArrowDown') || k.has(' ') ? 1 : 0;
+      return { steer, throttle, brake };
     },
     // Running is chosen, never guessed: Shift held down, or Run switched on.
     get running() { return state.run || state.keys.has('Shift'); },

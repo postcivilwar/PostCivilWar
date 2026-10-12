@@ -7,7 +7,7 @@
 // The town itself is drawn once into a picture and only turned and moved each frame; the marks are drawn
 // over it. Nothing here decides anything: it draws what the view says.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT } from '../sim/zone.js';
 import { trueToGrid } from '../sim/geo.js';
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -76,6 +76,14 @@ export function createRadar(canvas) {
     g.setTransform(rx * k, -fx * k, rz * k, -fz * k, R, R);
     g.imageSmoothingEnabled = true;
     g.drawImage(picture, b.minX - s.x, b.minZ - s.z, picture.width / PX, picture.height / PX);
+    // beyond the town: the airport's runway, taxiway, apron and terminal, the roads out and the bridge (a few
+    // shapes, drawn as they are, rather than a second picture of a kilometre and a half of bush)
+    const near = (r) => r.x1 > s.x - range * 1.5 && r.x0 < s.x + range * 1.5 && r.z1 > s.z - range * 1.5 && r.z0 < s.z + range * 1.5;
+    const shape = (r) => g.fillRect(r.x0 - s.x, r.z0 - s.z, r.x1 - r.x0, r.z1 - r.z0);
+    g.fillStyle = RADAR_COLOURS.asphalt;
+    for (const r of [AIRPORT.runway, AIRPORT.taxiway, ...AIRPORT.links, AIRPORT.apron, ...OUTSKIRT_ROADS]) if (near(r)) shape(r);
+    g.fillStyle = RADAR_COLOURS.building;
+    if (near(AIRPORT.terminal)) shape(AIRPORT.terminal);
     // the way to go: thick, dark-edged, along the roads
     if (s.route && s.route.length > 1) {
       g.lineJoin = 'round'; g.lineCap = 'round';

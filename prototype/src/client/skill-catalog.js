@@ -24,6 +24,13 @@ const KIND = {
   football_save: ['sport', 'ball'], shoot: ['sport', 'ball'], lift_heavy: ['sport', 'lift'], 'press-up': ['sport', 'lift'], surf: ['sport', 'surf'],
   make_a_call: ['everyday', 'phonecall'], call: ['everyday', 'phonecall'], scratch: ['everyday', 'think'], turn: ['everyday', 'turn'], sit: ['everyday', 'sit'],
   fall: ['everyday', 'fall'], hit_to_head: ['everyday', 'fall'], hurt: ['everyday', 'fall'],
+  // the athlete's, the officer's, the priest's and the warrior's
+  'punching and kicking, dodging and melee attacks': ['fight', 'punch'], slash: ['fight', 'punch'],
+  frightened: ['feeling', 'scared'], angry: ['feeling', 'agree'], complain: ['feeling', 'agree'], frustrated: ['feeling', 'sad'],
+  fold_arms: ['everyday', 'think'], look_around: ['everyday', 'turn'], idle: ['everyday', 'think'], cast_a_spell: ['everyday', 'skills'],
+  'knell down to pray': ['everyday', 'sit'], 'rev father blessing someone': ['greeting', 'greet'],
+  football_catch: ['sport', 'ball'], football_pass: ['sport', 'ball'], dribble: ['sport', 'ball'], basketball_shot: ['sport', 'ball'], volleyball: ['sport', 'ball'], pitch_baseball: ['sport', 'ball'],
+  jump_rope: ['sport', 'jump'], flip: ['sport', 'jump'], warm_up: ['sport', 'lift'], climb: ['sport', 'climb'],
 };
 const ORDER = ['fight', 'dance', 'feeling', 'greeting', 'sport', 'everyday'];
 

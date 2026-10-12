@@ -5,7 +5,7 @@
 // Node, or behind a network socket. It is given a gameplay ledger handle and
 // nothing else to do with money: it cannot make TR, and it cannot see the bank.
 
-import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ } from './zone.js';
+import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY } from './zone.js';
 import { createResidents } from './residents.js';
 import { createRegistry, GameError } from './registry.js';
 import { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON_RATE, countOf } from './economy.js';
@@ -392,6 +392,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (p.fight) throw new GameError('FIGHTING', 'You are in a fight.');
       if (conflict.critical(p)) throw new GameError('CRITICAL', 'Your health is critical. You cannot swim like this.');
       if (p.swimming) throw new GameError('SWIMMING', 'You are already in the water.');
+      if (zoneGroundY(p.x, p.z) > 0.5) throw new GameError('TOO_FAR', 'You are up on the bridge. Walk down to the water first.');
       const toWater = zoneToWater(p.x, p.z);
       if (toWater > SWIM.reach) throw new GameError('TOO_FAR', 'Walk down to the water first.');
       // the nearest water straight out from the bank
@@ -921,7 +922,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       ...zoneView(playerId),
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? { n: p.astride } : null, swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach },
+        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? { n: p.astride } : null, swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),

@@ -42,6 +42,8 @@ function buildGround() {
     if (toShore < 0) { y = Math.max(-3.2, toShore * 0.16); c.lerp(bed, Math.min(1, -toShore / 10)); }
     const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
     if (outside > 0 && toShore > 0) y = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
+    // beyond the town towards Onitsha the land is drawn by render-outskirts.js: this lies just under it
+    if (x < b.minX - 6 && z > -650 && z < 140 && toShore > 0) y = -0.12;
     position.setY(i, y);
     colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
   }
@@ -128,7 +130,7 @@ function frondGeometry(length, width, rise, droop) {
   return geometry;
 }
 
-function addTree(solid, leaves, t) {
+export function addTree(solid, leaves, t) {
   const s = t.size;
   const jitter = (k) => noise(t.x * 3.1 + k, t.z * 1.7);
   if (t.kind === 'palm') {

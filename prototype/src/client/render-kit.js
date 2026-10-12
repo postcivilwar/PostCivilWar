@@ -566,7 +566,7 @@ export function setLite(on) { lite = !!on; buildingMaterials = null; }
 export function isLite() { return lite; }
 export function surface(options) {
   if (!lite) return new THREE.MeshStandardMaterial(options);
-  const { roughness, metalness, normalMap, normalScale, envMap, envMapIntensity, ...plain } = options;
+  const { roughness, metalness, normalMap, normalScale, roughnessMap, metalnessMap, envMap, envMapIntensity, ...plain } = options;
   return new THREE.MeshLambertMaterial(plain);
 }
 

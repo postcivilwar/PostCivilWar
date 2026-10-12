@@ -23,7 +23,7 @@
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE } from '../sim/zone.js';
 import { gridToTrue, trueToGrid } from '../sim/geo.js';
 
 export const MAP_STYLE = Object.freeze({
@@ -46,9 +46,13 @@ export const roadRank = (road) => (road.surface === 'asphalt' ? 0 : road.surface
 
 // The town in the map's own measure: metres east and south of the middle of the grid, north up.
 const T = (x, z) => gridToTrue(x, z, ZONE.gridBearing);
+// The roads on the map: the town's, and those beyond it to Onitsha, the airport and over the bridge.
+const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS]);
 export function mapExtent() {
   const b = ZONE.bounds;
-  const pts = [T(b.minX, b.minZ), T(b.maxX, b.minZ), T(b.minX, b.maxZ), T(b.maxX, b.maxZ)];
+  // (out as far as the road works on the Onitsha road, the airport's fence and the bridge's far end)
+  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0), maxZ = Math.max(b.maxZ, BRIDGE.end);
+  const pts = [T(minX, minZ), T(b.maxX, minZ), T(minX, maxZ), T(b.maxX, maxZ)];
   return { minE: Math.min(...pts.map((p) => p.e)), maxE: Math.max(...pts.map((p) => p.e)), minS: Math.min(...pts.map((p) => p.s)), maxS: Math.max(...pts.map((p) => p.s)) };
 }
 
@@ -57,7 +61,7 @@ function namesOf() {
   const out = [];
   const seen = new Set();
   const add = (text, x, z, kind, from) => { const key = text.toLowerCase(); if (!text || seen.has(key)) return; seen.add(key); out.push({ text, x, z, kind, from }); };
-  for (const [text, x, z, align] of ZONE_PROPS.mapLabels) add(text, x, z, align === 'vertical' ? 'water' : 'place', /River|Market|Motor park|Hospital|Registry/.test(text) ? 0 : 1.15);
+  for (const [text, x, z, align] of [...ZONE_PROPS.mapLabels, ...OUTSKIRT_MAP_LABELS]) add(text, x, z, align === 'vertical' ? 'water' : 'place', /River|Market|Motor park|Hospital|Registry/.test(text) ? 0 : 1.15);
   for (const k of ZONE_COMPOUNDS) add(k.name, (k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2, 'place', 2.4);
   // a building is called what the town calls it: the name of the office or the shop in it, or else what its sign says
   const called = (b) => { const office = ZONE_SERVICES.find((sv) => sv.id === b.id); const shop = ZONE_SHOPS.find((sh) => sh.id === b.id); return (office && office.name) || (shop && shop.name) || titled(b.sign); };
@@ -180,6 +184,12 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
       g.strokeStyle = MAP_STYLE.groundsEdge; g.lineWidth = 1; g.stroke();
     }
     quad(ZONE_JETTY.x0, ZONE_JETTY.z0, ZONE_JETTY.x1, ZONE_JETTY.z1); g.fillStyle = MAP_STYLE.jetty; g.fill(); g.strokeStyle = MAP_STYLE.jettyEdge; g.lineWidth = 1; g.stroke();
+    // the airport: its fenced land, the runway, the taxiway and the apron, the terminal
+    const A = AIRPORT;
+    quad(A.fence.x0, A.fence.z0, A.fence.x1, A.fence.z1); g.fillStyle = MAP_STYLE.grounds; g.fill(); g.strokeStyle = MAP_STYLE.groundsEdge; g.lineWidth = 1; g.stroke();
+    for (const r of [A.runway, A.taxiway, ...A.links, A.apron]) { quad(r.x0, r.z0, r.x1, r.z1); g.fillStyle = MAP_STYLE.major; g.fill(); }
+    quad(A.terminal.x0, A.terminal.z0, A.terminal.x1, A.terminal.z1); g.fillStyle = MAP_STYLE.building; g.fill();
+    for (const b of OUTSKIRT_BUILDINGS) { if (!onScreen(b.x - b.w / 2, b.z - b.d / 2, b.x + b.w / 2, b.z + b.d / 2)) continue; quad(b.x - b.w / 2, b.z - b.d / 2, b.x + b.w / 2, b.z + b.d / 2); g.fillStyle = MAP_STYLE.house; g.fill(); }
   }
 
   function plots(v) {
@@ -209,7 +219,7 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
   // The roads: every edge first, then every surface, lowest rank first, so that where two roads meet the
   // junction is open and the greater road runs through the lesser.
   function roads() {
-    const order = [...ZONE_ROADS].sort((a, b) => roadRank(b) - roadRank(a));
+    const order = [...MAP_ROADS].sort((a, b) => roadRank(b) - roadRank(a));
     const grow = (rank) => Math.max(0, (rank === 0 ? 2.2 : rank === 1 ? 1.5 : 1.2) - state.k * 0.25);      // far out, a road is still wide enough to be seen
     const shape = (r, extra) => { const rank = roadRank(r); const m = grow(rank) / state.k + extra / state.k; quad(r.x0 - (r.x1 - r.x0 < r.z1 - r.z0 ? m : 0), r.z0 - (r.x1 - r.x0 < r.z1 - r.z0 ? 0 : m), r.x1 + (r.x1 - r.x0 < r.z1 - r.z0 ? m : 0), r.z1 + (r.x1 - r.x0 < r.z1 - r.z0 ? 0 : m)); };
     for (const r of order) { if (!onScreen(r.x0, r.z0, r.x1, r.z1)) continue; const rank = roadRank(r); shape(r, rank === 2 ? 0.8 : 1.3); g.fillStyle = [MAP_STYLE.majorEdge, MAP_STYLE.minorEdge, MAP_STYLE.laneEdge][rank]; g.fill(); }
@@ -217,7 +227,7 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
     // the line down the middle of a tarred road, close to
     if (state.k > 2.6) {
       g.strokeStyle = MAP_STYLE.centre; g.lineWidth = Math.max(1, 0.18 * state.k); g.setLineDash([3 * state.k, 3 * state.k]);
-      for (const r of ZONE_ROADS) {
+      for (const r of MAP_ROADS) {
         if (roadRank(r) !== 0 || !onScreen(r.x0, r.z0, r.x1, r.z1)) continue;
         const along = r.x1 - r.x0 >= r.z1 - r.z0;
         const [ax, ay] = along ? P(r.x0, (r.z0 + r.z1) / 2) : P((r.x0 + r.x1) / 2, r.z0), [bx, by] = along ? P(r.x1, (r.z0 + r.z1) / 2) : P((r.x0 + r.x1) / 2, r.z1);
@@ -272,7 +282,7 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
 
   function roadNames() {
     const done = new Map();          // name -> where it has been written, so that it is not written again close by
-    for (const r of [...ZONE_ROADS].sort((a, b) => roadRank(a) - roadRank(b))) {
+    for (const r of [...MAP_ROADS].sort((a, b) => roadRank(a) - roadRank(b))) {
       const rank = roadRank(r);
       if (state.k < [0.62, 1.25, 2.3][rank]) continue;
       const [ax, ay] = P(r.x0, r.z0), [bx, by] = P(r.x1, r.z1);

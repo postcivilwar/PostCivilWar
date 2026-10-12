@@ -27,7 +27,9 @@ const WALLET = { grant: 4000, earnBurst: 20000, earnHour: 6000, earnStart: 1000 
 
 // The characters an account may be: the owner's supplied figures, by the names the game knows them by
 // (prototype/src/sim/figures.js; a test holds the two lists together).
-const FIGURES = { W1: 'Adaeze', M1: 'Emeka' };
+const FIGURES = { W1: 'Adaeze', M1: 'Emeka', W2: 'Ngozi', W3: 'Amaka', M4: 'Ikenna', M5: 'Uche' };
+// the figures there were when the account's character was first kept (migration 1 is as it was run)
+const FIRST_FIGURES = ['W1', 'M1'];
 // A character upgrade: offered only above the arrival money, for one part in `parts` of the whole wallet.
 const UPGRADE = { above: WALLET.grant, parts: 4 };
 
@@ -455,11 +457,11 @@ const MIGRATIONS = [
       // One to an account, chosen once when the player first arrives, and with it the answer to "hero or
       // villain". Kept here, not in the saved game, so that it is the same on every device, outlives a save that
       // is erased, and cannot be changed by anything a page sends but the upgrade below.
-      `alter table ${S}.accounts add column figure text check (figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')}))`,
+      `alter table ${S}.accounts add column figure text check (figure in (${FIRST_FIGURES.map((id) => `'${id}'`).join(', ')}))`,
       `alter table ${S}.accounts add column figure_at timestamptz`,
       `alter table ${S}.accounts add column path text check (path in ('hero', 'villain'))`,
       // an account that already has a character is that character
-      `update ${S}.accounts a set figure = s.figure, figure_at = now() from ${S}.saves s where s.account_id = a.id and not s.erased and s.figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')})`,
+      `update ${S}.accounts a set figure = s.figure, figure_at = now() from ${S}.saves s where s.account_id = a.id and not s.erased and s.figure in (${FIRST_FIGURES.map((id) => `'${id}'`).join(', ')})`,
       // every change of character after the first choice: what it was, what it became, what it cost, and the
       // movement at the bank that paid for it
       `create table ${S}.character_changes (
@@ -527,6 +529,16 @@ const MIGRATIONS = [
            if exists (select 1 from pg_roles where rolname = r) then execute format('revoke all on ${S}.weather_cache from %I', r); end if;
          end loop;
        end $$`,
+    ],
+  },
+  {
+    id: 5,
+    name: 'four more characters an account may be',
+    statements: [
+      // The athlete, the police officer, the priest and the hooded warrior (12 October 2026). The check on an
+      // account's character is widened to them; every character already kept stays exactly as it is.
+      `alter table ${S}.accounts drop constraint if exists accounts_figure_check`,
+      `alter table ${S}.accounts add constraint accounts_figure_check check (figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')}))`,
     ],
   },
 ];

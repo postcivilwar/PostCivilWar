@@ -17,6 +17,8 @@ export function startStrike(rig, kind, clock) {
   // a flinch does not cut short a blow already on its way out
   if (kind === 'flinch' && rig.strike && clock - rig.strike.at < rig.strike.dur * 0.6 && rig.strike.kind !== 'flinch') return;
   rig.strike = { kind, at: clock, dur: STRIKES[kind] };
+  // a supplied figure shows it with its own clip for it where its file has one (animated.js), by hand otherwise
+  if (rig.animated && rig.react) rig.react(kind === 'flinch' ? 'hit' : kind === 'miss' ? 'punch' : kind, { length: STRIKES[kind] });
 }
 
 // Poses a figure that is in a fight. Call it after the ordinary animation each frame.

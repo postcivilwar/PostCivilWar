@@ -10,7 +10,7 @@
 // carrying your own goods instead of paying for delivery, and paid delivery
 // runs for the town's businesses.
 
-import { ZONE, ZONE_TEXT, ZONE_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident } from './zone.js';
+import { ZONE, ZONE_TEXT, ZONE_ROADS, OUTSKIRT_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident } from './zone.js';
 import { GameError } from './registry.js';
 import { LedgerError } from './ledger.js';
 import { KEKE_PAINTS, VEHICLE_MODELS, kekeLook, footprintBox } from './vehicle-looks.js';
@@ -29,7 +29,7 @@ export const RUN_RULES = Object.freeze({ openMinutes: 90, carryMinutes: 180, rea
 // "Bales of cloth" in the middle of a sentence, without touching proper names.
 export const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
 
-const onRoad = (x, z) => ZONE_ROADS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
+const onRoad = (x, z) => ZONE_ROADS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) || OUTSKIRT_ROADS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
 
 // The top speed of a vehicle at a point, in metres a second.
 export function vehicleSpeedAt(kind, x, z, wet) {
