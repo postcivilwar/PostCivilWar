@@ -252,6 +252,14 @@ const sellerName = `Seller_${tag}`;
   if (!still.body || !still.body.character || still.body.character.figure !== 'W1' || still.body.character.path !== 'villain') bad(`after a second choice was sent the account's character is ${JSON.stringify(still.body)}`);
   // the arrival money is starter TR, all of it
   await seller.made(2000, 2000, 'on arrival');
+  // the town keeps this device's own time and date, and Settings says where the time and the weather come from
+  const time = await seller.game(() => { const d = new Date(); const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']; const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']; return { day: document.querySelector('#hud-day').textContent, want: `${names[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`, clock: window.__nlw.view.clock.label, now: `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}` }; });
+  if (time.day.toLowerCase() !== time.want.toLowerCase()) bad(`in town the date reads "${time.day}"; the device says ${time.want}`);
+  if (time.clock !== time.now) { const [a1, b1] = time.clock.split(':').map(Number); const [a2, b2] = time.now.split(':').map(Number); if (Math.abs(a1 * 60 + b1 - (a2 * 60 + b2)) > 1) bad(`in town the clock reads ${time.clock}; the device's reads ${time.now}`); }
+  await seller.game(() => window.__nlw.ui.openPhone('settings')); await p.waitForSelector('#settings-time');
+  const said = await p.textContent('#settings-time');
+  if (!/This device's own clock/.test(said) || !/Today/.test(said) || !/Weather/.test(said)) bad(`Settings says of the time and weather "${said}"`);
+  await seller.game(() => window.__nlw.ui.close());
 }
 
 say('2. ...walks into the pink marker at HOLARIS Watch and buys a watch');

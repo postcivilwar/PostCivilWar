@@ -489,7 +489,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
 
   function intoCustody(record, fetched = false) {
     const p = players[record.culprit];
-    record.status = 'custody'; record.bookedAt = Math.round(state.t); record.until = record.bookedAt + record.hours * 3600;
+    record.status = 'custody'; record.bookedAt = Math.round(state.t); record.until = record.bookedAt + (hub.span ? hub.span(record.hours * 3600) : record.hours * 3600);
     if (!record.fine.confirmed) { record.fine.confirmed = true; record.fine.confirmedAt = real(); }
     if (!p) return;
     // they were walked here; only someone who has somehow been left far behind is fetched
@@ -589,7 +589,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
   function enlist(p) {
     if (roleOf(p)) throw new GameError('ALREADY', 'You already carry a badge.');
     if (lawOf(p).state !== 'normal') throw new GameError('NOT_NOW', 'The police will not take on someone they are looking for.');
-    if (Object.values(book.arrests).some((a) => a.culprit === p.id && state.t - a.at < 3 * 86400)) throw new GameError('RECORD', 'You were arrested within the last three days. Come back with a clean record.');
+    if (Object.values(book.arrests).some((a) => a.culprit === p.id && state.t - a.at < (hub.span ? hub.span(3 * 86400) : 3 * 86400))) throw new GameError('RECORD', 'You were arrested within the last three days. Come back with a clean record.');
     if ((book.owed[p.id] || 0) > 0) throw new GameError('RECORD', 'You still owe money to someone you wronged.');
     if (Object.keys(book.roles).length >= LAW.constables) throw new GameError('FULL', 'The post has all the special constables it is allowed.');
     book.badgeSeq += 1;
@@ -708,7 +708,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
         }
         if (law.state === 'pursuit' && !Object.values(book.officers).some((o) => o.suspect === p.id && o.duty === 'pursue')) setState(p, 'wanted');
         // someone not seen for half a day is no longer looked for; what they did stays on the books, unsolved
-        if (state.t - (law.wantedAt || 0) > LAW.lapse) { for (const c of law.crimes) if (book.crimes[c].status === 'open') book.crimes[c].status = 'lapsed'; law.crimes = []; setState(p, 'normal'); emit(p.id, { type: 'police', title: 'No longer wanted', text: 'The police have stopped looking for you.' }); }
+        if (state.t - (law.wantedAt || 0) > (hub.span ? hub.span(LAW.lapse) : LAW.lapse)) { for (const c of law.crimes) if (book.crimes[c].status === 'open') book.crimes[c].status = 'lapsed'; law.crimes = []; setState(p, 'normal'); emit(p.id, { type: 'police', title: 'No longer wanted', text: 'The police have stopped looking for you.' }); }
       }
       if (!p.custody) continue;
       const record = book.arrests[p.custody];

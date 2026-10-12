@@ -35,7 +35,7 @@ for (const [who, label] of [['f', 'the woman'], ['m', 'the man']]) {
   const context = await browser.newContext({ viewport: { width: 800, height: 700 }, deviceScaleFactor: 1 });
   const page = await context.newPage(); page.setDefaultTimeout(180000);
   page.on('pageerror', (e) => check(`${label}: no error in the page`, false, e.message));
-  await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro', { timeout: 300000 });
+  await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro-gameclock', { timeout: 300000 });
   await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
   await pastQuestion(page);
   await page.click(`#genders [data-gender="${who}"]`);

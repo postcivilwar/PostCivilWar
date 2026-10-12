@@ -17,7 +17,7 @@ const seen = {};
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const page = await (await browser.newContext({ viewport: { width: 320, height: 180 }, deviceScaleFactor: 1 })).newPage();
 page.on('pageerror', (e) => console.log('pageerror:', e.message));
-await page.goto('file://' + resolve(here, '../dist/local.html') + '#nodraw-nointro', { timeout: 300000 });
+await page.goto('file://' + resolve(here, '../dist/local.html') + '#nodraw-nointro-gameclock', { timeout: 300000 });
 await pastQuestion(page);
 await page.fill('#name', 'Loud'); await enterTown(page); await page.waitForTimeout(1500);
 const measure = async (label, seconds = 8) => {

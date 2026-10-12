@@ -11,13 +11,14 @@
 // wallet and every movement of TR (and which of it is starter TR and which was earned), the one character each
 // account is, the market, and where signed-in players are standing. It holds no secret that the page ever sees.
 
-const { ApiError, readBody, fromOwnPage, send } = require('./_lib/http.js');
+const { ApiError, readBody, fromOwnPage, send, addressOf } = require('./_lib/http.js');
 const { database, configured } = require('./_lib/db.js');
 const auth = require('./_lib/auth.js');
 const market = require('./_lib/market.js');
 const world = require('./_lib/world.js');
 const wallet = require('./_lib/wallet.js');
 const character = require('./_lib/character.js');
+const weather = require('./_lib/weather.js');
 const { SCHEMA: S } = require('./_lib/schema.js');
 
 // (the character and the path are the account's own: chosen once, kept here, and the same on every device)
@@ -29,6 +30,8 @@ const AGAIN = new Set(['40P01', '40001']);
 
 // op -> [needs an account, what it does]. `ctx` is { sql, req, body, me }.
 const OPS = {
+  // the real weather where the player is (no account needed: it is the same for anyone there)
+  'world.weather': [false, async ({ sql, req }) => { await auth.allow(sql, `weather:${addressOf(req)}`, 30, 600); return weather.current(sql, req); }],
   'me': [false, async ({ sql, me }) => (me ? { account: publicAccount(me), save: await world.saveInfo(sql, me.id), wallet: await purse(sql, me) } : { account: null })],
   'signup': [false, async ({ sql, req, body }) => {
     const { account, cookie } = await auth.signUp(sql, req, body, (tx, made) => wallet.open(tx, made.id));

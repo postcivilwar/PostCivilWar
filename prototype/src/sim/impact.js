@@ -351,7 +351,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
       const rec = book.npc[key];
       if (rec.dead) { if (!rec.dead.gone && now >= rec.dead.takeAt) { rec.dead.gone = true; actors.remove(Number(key)); } continue; }
       if (rec.reactAt && now >= rec.reactAt) { if (hub.reactions) hub.reactions.react(Number(key), rec.reactWith || 'hurt'); rec.reactAt = 0; }
-      if (state.t - rec.t > 7200) delete book.npc[key];
+      if (state.t - rec.t > (hub.span ? hub.span(7200) : 7200)) delete book.npc[key];
     }
   }
 

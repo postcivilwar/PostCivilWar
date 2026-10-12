@@ -14,12 +14,13 @@ import { makeRng } from './rng.js';
 
 export const SAVE_VERSION = 4;
 
-export function createHost({ seed = 20261006, saved = null } = {}) {
+// `wallClock`: the real clock (sim.js, `wallSeconds`), for a town that keeps the player's own time.
+export function createHost({ seed = 20261006, saved = null, wallClock = null } = {}) {
   const usable = saved && saved.version === SAVE_VERSION ? saved : null;
   const rng = makeRng(seed);
   if (usable) rng.setState(usable.rng);
   const ledger = createLedger(usable ? usable.ledger : null);
-  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, auditor: ledger.auditor, rng, saved: usable ? usable.game : null });
+  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, auditor: ledger.auditor, rng, saved: usable ? usable.game : null, wallClock });
   ledger.setClock(() => Math.round(game.state.t));
   const bank = createBankBridge({ state: game.state, auditor: ledger.auditor, ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, players: game.state.players, funds: game.funds, setFigure: game.setFigure });
 

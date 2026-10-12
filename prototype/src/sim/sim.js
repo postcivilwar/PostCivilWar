@@ -45,6 +45,23 @@ const SCRIPTED_WEATHER = [[9 + 40 / 60, 'clear'], [10 + 10 / 60, 'cloudy'], [11 
 const WEATHER_NEXT = { clear: [['clear', 0.55], ['cloudy', 0.45]], cloudy: [['clear', 0.45], ['rain', 0.4], ['storm', 0.15]], rain: [['cloudy', 0.7], ['rain', 0.2], ['storm', 0.1]], storm: [['rain', 0.6], ['cloudy', 0.4]] };
 const WEATHER_HOURS = { clear: [2, 5], cloudy: [0.5, 2], rain: [0.75, 2], storm: [0.3, 0.8] };
 
+// The world's clock can be the real one (12 October 2026): the hour, the day and the date where the player
+// is. Day 0 is 1 January 2025, a Wednesday, so that the town's week (`firstWeekday`) falls on the real one.
+export const WALL_EPOCH = Date.UTC(2025, 0, 1);
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// Seconds since the start of day 0, by the clock and calendar of the place `when` is read in (the device's own
+// time zone). The day is counted from the date, not from elapsed time, so a change to or from summer time is
+// an hour on the clock and never a day lost or repeated.
+export function wallSeconds(when = new Date()) {
+  const day = Math.round((Date.UTC(when.getFullYear(), when.getMonth(), when.getDate()) - WALL_EPOCH) / 86400000);
+  return day * 86400 + when.getHours() * 3600 + when.getMinutes() * 60 + when.getSeconds() + when.getMilliseconds() / 1000;
+}
+// The date of a day of the world's clock: { weekday, day, month, year }.
+export function dateOf(t) {
+  const d = new Date(WALL_EPOCH + Math.floor(t / 86400) * 86400000);
+  return { weekday: d.getUTCDay(), day: d.getUTCDate(), month: MONTHS[d.getUTCMonth()], monthIndex: d.getUTCMonth(), year: d.getUTCFullYear() };
+}
+
 export function clockOf(t) {
   const dayNumber = Math.floor(t / 86400);
   const seconds = t - dayNumber * 86400;
@@ -75,8 +92,16 @@ export const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
 export const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
 const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
-export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved }) {
-  const state = saved || { version: 1, t: SIM_START, real: 0, playerCounter: 0, players: {}, weather: { kind: 'clear', until: 0 }, reports: [], structures: 0 };
+// `wallClock`: the real clock, as `wallSeconds` gives it. With one, the town keeps the player's own time: the
+// hour, the day and the date are the real ones, a second of play is a second of the day, and time cannot be
+// skipped. What was made to take a while in play (a sentence served, being looked for, a bruise) takes as
+// long, in real minutes, as it did when a day went by in forty-eight: `span` turns those lengths into the
+// clock's. Without one (the tests, and anything that wants a quick day) the day is forty-eight minutes long.
+export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved, wallClock = null }) {
+  const scale = wallClock ? 1 : TIME_SCALE;
+  const span = (gameSeconds) => (gameSeconds * scale) / TIME_SCALE;
+  const state = saved || { version: 1, t: wallClock ? wallClock() : SIM_START, real: 0, playerCounter: 0, players: {}, weather: { kind: 'clear', until: 0 }, reports: [], structures: 0 };
+  const startT = state.t;
   const queues = {};
   const emit = (playerId, event) => { if (state.players[playerId]) (queues[playerId] || (queues[playerId] = [])).push(event); };
   const clock = () => Math.round(state.t);
@@ -87,17 +112,17 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const funds = createFunds({ state, ledger: rawLedger, auditor, players: state.players });
   const ledger = funds.guard(rawLedger);
 
-  const residents = createResidents({ state, timeScale: TIME_SCALE });
+  const residents = createResidents({ state, timeScale: scale });
   const accountsShim = { government: (code) => ledger.openAccount('government', code, 'treasury') };
   const registry = createRegistry({ state, ledger, accounts: accountsShim, clock });
   const economy = createEconomy({ state, ledger, monetary, issuanceAccount, registry, residents, clock, weather, emit });
   const INITIAL_GOODS = { block: 240, cement: 68, roofing: 6, doorset: 6, paint: 8 };
   // the parts that deal with trouble know each other through this, so that none needs the rest to exist first
-  const hub = {};
+  const hub = { span };
   const vehicles = createVehicles({ state, ledger, issuanceAccount, economy, clock, weather, emit, structureBoxes: () => structureBoxes(), hub });
   const fresh = !state.okada;
-  const population = createPopulation({ state, timeScale: TIME_SCALE });
-  const okada = createOkada({ state, ledger, monetary, issuanceAccount, population, timeScale: TIME_SCALE, emit, players: state.players, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes()] });
+  const population = createPopulation({ state, timeScale: scale });
+  const okada = createOkada({ state, ledger, monetary, issuanceAccount, population, timeScale: scale, emit, players: state.players, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes()] });
   // a player is the base character; saves from before it say nothing about what they wear
   for (const id of Object.keys(state.players)) if (!state.players[id].look.outfit) state.players[id].look = { ...state.players[id].look, outfit: 'streetwear' };
   const talk = createTalk({ state, population, residents, players: state.players, weather, hub });
@@ -113,14 +138,14 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const justice = createJustice({ state, players: state.players, ledger, accounts: economy.accounts, population, actors, talk, emit, rng, hub });
   const care = createCare({ state, players: state.players, ledger, accounts: economy.accounts, emit, hub });
   const impact = createImpact({ state, players: state.players, population, actors, conflict, talk, emit, rng, hub, door: CARE.ambulance.door, visitors: () => talk.visitors() });
-  const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: TIME_SCALE });
+  const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: scale });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
   // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
   const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });
   for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.hijack === undefined) q.hijack = null; }
   // the riders have been out since before the newcomer's bus came in
-  if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, SIM_START - k * TIME_SCALE, -k, false);
+  if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, startT - k * scale, -k, false);
 
   // Things that happen at a set time each day: bells, and notices read out.
   const DAILY = [];
@@ -151,7 +176,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   if (!saved) {
     // Begin before dawn and let the town walk to work, so the first thing a
     // new arrival sees is people on the road.
-    const startMinute = Math.floor(SIM_START / 60);
+    const startMinute = Math.floor((startT % 86400) / 60);
     residents.init(startMinute - 150);
     for (let i = 0; i < (150 * 60) / TIME_SCALE; i += 1) residents.tick(1, startMinute - 150 + Math.floor((i * TIME_SCALE) / 60));
     // Some residents already hold land, so the register is not empty on day one.
@@ -172,7 +197,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
 
   function advanceWeather() {
     const now = clockOf(state.t);
-    if (now.day === 1) {
+    if (now.day === 1 && !wallClock) {
       for (const [untilHour, kind] of SCRIPTED_WEATHER) {
         if (now.hourFloat < untilHour) { state.weather = { kind, until: untilHour * 3600 }; return; }
       }
@@ -182,7 +207,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     let next = 'clear';
     for (const [kind, p] of WEATHER_NEXT[state.weather.kind]) { acc += p; if (roll < acc) { next = kind; break; } }
     const [lo, hi] = WEATHER_HOURS[next];
-    state.weather = { kind: next, until: state.t + (lo + rng.next() * (hi - lo)) * 3600 };
+    state.weather = { kind: next, until: state.t + span((lo + rng.next() * (hi - lo)) * 3600) };
   }
 
   let boxCache = null;
@@ -244,7 +269,13 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     const before = Math.floor(state.t / 3600);
     const was = state.t;
     state.real += dtReal;
-    state.t += dtReal * TIME_SCALE;
+    if (wallClock) {
+      // the real clock. A page that was put away for a while, or a saved game opened days later, finds the town
+      // where the clock is: the hours between are not played through, one by one (nothing was there to see them)
+      const target = wallClock();
+      if (Math.abs(target - state.t) > 120) { state.t = target; settleAfterJump(); return; }
+      if (target > state.t) state.t = target;
+    } else state.t += dtReal * TIME_SCALE;
     const now = clockOf(state.t);
     if (state.t >= state.weather.until) advanceWeather();
     const after = Math.floor(state.t / 3600);
@@ -275,10 +306,29 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     return n;
   }
 
+  // After the clock has jumped (a page put away, a save opened later): the day's plans for the new hour, and
+  // weather that is not left over from before.
+  function settleAfterJump() {
+    population.prepare(state.t);
+    if (!state.weather.real || state.t >= state.weather.until) advanceWeather();
+    const now = clockOf(state.t);
+    residents.tick(0, now.hour * 60 + now.minute, weather().wet ? SPEED.rain : 1);
+  }
+
+  // The real weather where the player is (from the site's server), while it is known: it holds for three hours
+  // unless told again, and the town's own weather comes back if it is not.
+  function setWeather(kind) {
+    if (!['clear', 'cloudy', 'rain', 'storm'].includes(kind)) return false;
+    state.weather = { kind, until: state.t + 3 * 3600, real: true };
+    return true;
+  }
+
   // Prototype convenience for a single player: sleeping, resting and classes
   // run the world forward. A shared world cannot skip time; there the player
-  // waits, or logs out and comes back.
+  // waits, or logs out and comes back. On the real clock nobody's time is skipped: what these do (rest, a
+  // certificate, a sentence served) is done, and the clock goes on as it was.
   function advance(gameSeconds) {
+    if (wallClock) return;
     let left = gameSeconds / TIME_SCALE;
     quiet = true;
     while (left > 0) { const dt = Math.min(1, left); step(dt); left -= dt; }
@@ -638,6 +688,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       const record = p.custody ? justice.arrestOf(p.custody) : null;
       if (!record || record.status !== 'custody') throw new GameError('NOT_IN_CUSTODY', 'You are not being held.');
       const seconds = Math.max(0, record.until - state.t) + TIME_SCALE;
+      if (wallClock) { record.until = Math.min(record.until, state.t); justice.tick(0); return { hours: seconds / 3600 }; }
       advance(seconds);
       return { hours: seconds / 3600 };
     },
@@ -848,7 +899,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     const services = {};
     for (const s of ZONE_SERVICES) services[s.id] = serviceState(s.id);
     return {
-      t: state.t, clock: now, weather: weather(), zone: ZONE.id,
+      t: state.t, clock: now, weather: weather(), zone: ZONE.id, date: wallClock ? dateOf(state.t) : null, realWeather: !!state.weather.real,
       residents: ZONE_RESIDENTS.map((r) => { const live = residents.get(r.id); return { id: r.id, x: live.x, z: live.z, heading: live.heading, mode: live.mode, busy: live.override ? 'site' : live.placeKey }; }),
       parcels: ZONE_PARCELS.map((parcel) => { const row = state.registry.parcels[parcel.id]; return { id: parcel.id, status: row.status, yours: !!viewerId && row.owner.kind === 'player' && row.owner.id === viewerId }; }),
       sites, services, yardBlocks: state.economy.stock.yard.block || 0,
@@ -878,7 +929,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   }
 
   return {
-    state, intent, join, view, spectate: (at) => zoneView(null, at), step, advance, clockOf: () => clockOf(state.t), weather, structureBoxes,
+    state, intent, join, view, spectate: (at) => zoneView(null, at), step, advance, clockOf: () => clockOf(state.t), weather, setWeather, realTime: !!wallClock, structureBoxes,
     drain: (playerId) => { const q = queues[playerId] || []; queues[playerId] = []; return q; },
     hasPlayer: (id) => !!state.players[id],
     audit: () => ({ goods: economy.auditGoods(INITIAL_GOODS), missedPayments: state.economy.missed, vehicles: vehicles.audit(), okada: okada.audit(), justice: justice.audit(), care: care.audit() }),

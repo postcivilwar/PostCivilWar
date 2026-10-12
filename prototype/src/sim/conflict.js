@@ -362,7 +362,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
       const i = Number(key);
       const rec = book.npc[key];
       if (rec.mood !== 'fighting') {
-        if (state.t - rec.at > COMBAT.remember && !actors.has(i)) delete book.npc[key];
+        if (state.t - rec.at > (hub.span ? hub.span(COMBAT.remember) : COMBAT.remember) && !actors.has(i)) delete book.npc[key];
         continue;
       }
       const p = players[rec.by];

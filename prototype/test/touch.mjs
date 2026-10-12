@@ -17,7 +17,7 @@ const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable
 const context = await browser.newContext({ viewport: { width: 390, height: 800 }, deviceScaleFactor: 1, hasTouch: true, isMobile: true });
 const page = await context.newPage();
 page.on('pageerror', (e) => console.log('pageerror:', e.message));
-await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro', { timeout: 300000 });
+await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro-gameclock', { timeout: 300000 });
 await pastQuestion(page);
 await page.fill('#name', 'Run Test'); await enterTown(page, { tap: true }); await page.waitForTimeout(1500);
 const box = async (sel) => page.evaluate((s) => { const el = document.querySelector(s); if (!el) return null; const r = el.getBoundingClientRect(); return { x: r.left + r.width / 2, y: r.top + r.height / 2, w: r.width, h: r.height }; }, sel);

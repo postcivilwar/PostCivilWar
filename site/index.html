@@ -8707,7 +8707,7 @@ function createConflict({ state, players, population, actors, talk, emit, rng, h
       const i = Number(key);
       const rec = book.npc[key];
       if (rec.mood !== 'fighting') {
-        if (state.t - rec.at > COMBAT.remember && !actors.has(i)) delete book.npc[key];
+        if (state.t - rec.at > (hub.span ? hub.span(COMBAT.remember) : COMBAT.remember) && !actors.has(i)) delete book.npc[key];
         continue;
       }
       const p = players[rec.by];
@@ -9147,7 +9147,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       const rec = book.npc[key];
       if (rec.dead) { if (!rec.dead.gone && now >= rec.dead.takeAt) { rec.dead.gone = true; actors.remove(Number(key)); } continue; }
       if (rec.reactAt && now >= rec.reactAt) { if (hub.reactions) hub.reactions.react(Number(key), rec.reactWith || 'hurt'); rec.reactAt = 0; }
-      if (state.t - rec.t > 7200) delete book.npc[key];
+      if (state.t - rec.t > (hub.span ? hub.span(7200) : 7200)) delete book.npc[key];
     }
   }
 
@@ -9710,7 +9710,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
 
   function intoCustody(record, fetched = false) {
     const p = players[record.culprit];
-    record.status = 'custody'; record.bookedAt = Math.round(state.t); record.until = record.bookedAt + record.hours * 3600;
+    record.status = 'custody'; record.bookedAt = Math.round(state.t); record.until = record.bookedAt + (hub.span ? hub.span(record.hours * 3600) : record.hours * 3600);
     if (!record.fine.confirmed) { record.fine.confirmed = true; record.fine.confirmedAt = real(); }
     if (!p) return;
     // they were walked here; only someone who has somehow been left far behind is fetched
@@ -9810,7 +9810,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
   function enlist(p) {
     if (roleOf(p)) throw new GameError('ALREADY', 'You already carry a badge.');
     if (lawOf(p).state !== 'normal') throw new GameError('NOT_NOW', 'The police will not take on someone they are looking for.');
-    if (Object.values(book.arrests).some((a) => a.culprit === p.id && state.t - a.at < 3 * 86400)) throw new GameError('RECORD', 'You were arrested within the last three days. Come back with a clean record.');
+    if (Object.values(book.arrests).some((a) => a.culprit === p.id && state.t - a.at < (hub.span ? hub.span(3 * 86400) : 3 * 86400))) throw new GameError('RECORD', 'You were arrested within the last three days. Come back with a clean record.');
     if ((book.owed[p.id] || 0) > 0) throw new GameError('RECORD', 'You still owe money to someone you wronged.');
     if (Object.keys(book.roles).length >= LAW.constables) throw new GameError('FULL', 'The post has all the special constables it is allowed.');
     book.badgeSeq += 1;
@@ -9929,7 +9929,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
         }
         if (law.state === 'pursuit' && !Object.values(book.officers).some((o) => o.suspect === p.id && o.duty === 'pursue')) setState(p, 'wanted');
         // someone not seen for half a day is no longer looked for; what they did stays on the books, unsolved
-        if (state.t - (law.wantedAt || 0) > LAW.lapse) { for (const c of law.crimes) if (book.crimes[c].status === 'open') book.crimes[c].status = 'lapsed'; law.crimes = []; setState(p, 'normal'); emit(p.id, { type: 'police', title: 'No longer wanted', text: 'The police have stopped looking for you.' }); }
+        if (state.t - (law.wantedAt || 0) > (hub.span ? hub.span(LAW.lapse) : LAW.lapse)) { for (const c of law.crimes) if (book.crimes[c].status === 'open') book.crimes[c].status = 'lapsed'; law.crimes = []; setState(p, 'normal'); emit(p.id, { type: 'police', title: 'No longer wanted', text: 'The police have stopped looking for you.' }); }
       }
       if (!p.custody) continue;
       const record = book.arrests[p.custody];
@@ -10984,6 +10984,23 @@ const SCRIPTED_WEATHER = [[9 + 40 / 60, 'clear'], [10 + 10 / 60, 'cloudy'], [11 
 const WEATHER_NEXT = { clear: [['clear', 0.55], ['cloudy', 0.45]], cloudy: [['clear', 0.45], ['rain', 0.4], ['storm', 0.15]], rain: [['cloudy', 0.7], ['rain', 0.2], ['storm', 0.1]], storm: [['rain', 0.6], ['cloudy', 0.4]] };
 const WEATHER_HOURS = { clear: [2, 5], cloudy: [0.5, 2], rain: [0.75, 2], storm: [0.3, 0.8] };
 
+// The world's clock can be the real one (12 October 2026): the hour, the day and the date where the player
+// is. Day 0 is 1 January 2025, a Wednesday, so that the town's week (`firstWeekday`) falls on the real one.
+const WALL_EPOCH = Date.UTC(2025, 0, 1);
+const MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+// Seconds since the start of day 0, by the clock and calendar of the place `when` is read in (the device's own
+// time zone). The day is counted from the date, not from elapsed time, so a change to or from summer time is
+// an hour on the clock and never a day lost or repeated.
+function wallSeconds(when = new Date()) {
+  const day = Math.round((Date.UTC(when.getFullYear(), when.getMonth(), when.getDate()) - WALL_EPOCH) / 86400000);
+  return day * 86400 + when.getHours() * 3600 + when.getMinutes() * 60 + when.getSeconds() + when.getMilliseconds() / 1000;
+}
+// The date of a day of the world's clock: { weekday, day, month, year }.
+function dateOf(t) {
+  const d = new Date(WALL_EPOCH + Math.floor(t / 86400) * 86400000);
+  return { weekday: d.getUTCDay(), day: d.getUTCDate(), month: MONTHS[d.getUTCMonth()], monthIndex: d.getUTCMonth(), year: d.getUTCFullYear() };
+}
+
 function clockOf(t) {
   const dayNumber = Math.floor(t / 86400);
   const seconds = t - dayNumber * 86400;
@@ -11014,8 +11031,16 @@ const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
 const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
 const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
-function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved }) {
-  const state = saved || { version: 1, t: SIM_START, real: 0, playerCounter: 0, players: {}, weather: { kind: 'clear', until: 0 }, reports: [], structures: 0 };
+// `wallClock`: the real clock, as `wallSeconds` gives it. With one, the town keeps the player's own time: the
+// hour, the day and the date are the real ones, a second of play is a second of the day, and time cannot be
+// skipped. What was made to take a while in play (a sentence served, being looked for, a bruise) takes as
+// long, in real minutes, as it did when a day went by in forty-eight: `span` turns those lengths into the
+// clock's. Without one (the tests, and anything that wants a quick day) the day is forty-eight minutes long.
+function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved, wallClock = null }) {
+  const scale = wallClock ? 1 : TIME_SCALE;
+  const span = (gameSeconds) => (gameSeconds * scale) / TIME_SCALE;
+  const state = saved || { version: 1, t: wallClock ? wallClock() : SIM_START, real: 0, playerCounter: 0, players: {}, weather: { kind: 'clear', until: 0 }, reports: [], structures: 0 };
+  const startT = state.t;
   const queues = {};
   const emit = (playerId, event) => { if (state.players[playerId]) (queues[playerId] || (queues[playerId] = [])).push(event); };
   const clock = () => Math.round(state.t);
@@ -11026,17 +11051,17 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   const funds = createFunds({ state, ledger: rawLedger, auditor, players: state.players });
   const ledger = funds.guard(rawLedger);
 
-  const residents = createResidents({ state, timeScale: TIME_SCALE });
+  const residents = createResidents({ state, timeScale: scale });
   const accountsShim = { government: (code) => ledger.openAccount('government', code, 'treasury') };
   const registry = createRegistry({ state, ledger, accounts: accountsShim, clock });
   const economy = createEconomy({ state, ledger, monetary, issuanceAccount, registry, residents, clock, weather, emit });
   const INITIAL_GOODS = { block: 240, cement: 68, roofing: 6, doorset: 6, paint: 8 };
   // the parts that deal with trouble know each other through this, so that none needs the rest to exist first
-  const hub = {};
+  const hub = { span };
   const vehicles = createVehicles({ state, ledger, issuanceAccount, economy, clock, weather, emit, structureBoxes: () => structureBoxes(), hub });
   const fresh = !state.okada;
-  const population = createPopulation({ state, timeScale: TIME_SCALE });
-  const okada = createOkada({ state, ledger, monetary, issuanceAccount, population, timeScale: TIME_SCALE, emit, players: state.players, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes()] });
+  const population = createPopulation({ state, timeScale: scale });
+  const okada = createOkada({ state, ledger, monetary, issuanceAccount, population, timeScale: scale, emit, players: state.players, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes()] });
   // a player is the base character; saves from before it say nothing about what they wear
   for (const id of Object.keys(state.players)) if (!state.players[id].look.outfit) state.players[id].look = { ...state.players[id].look, outfit: 'streetwear' };
   const talk = createTalk({ state, population, residents, players: state.players, weather, hub });
@@ -11052,14 +11077,14 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   const justice = createJustice({ state, players: state.players, ledger, accounts: economy.accounts, population, actors, talk, emit, rng, hub });
   const care = createCare({ state, players: state.players, ledger, accounts: economy.accounts, emit, hub });
   const impact = createImpact({ state, players: state.players, population, actors, conflict, talk, emit, rng, hub, door: CARE.ambulance.door, visitors: () => talk.visitors() });
-  const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: TIME_SCALE });
+  const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: scale });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
   // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
   const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });
   for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.hijack === undefined) q.hijack = null; }
   // the riders have been out since before the newcomer's bus came in
-  if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, SIM_START - k * TIME_SCALE, -k, false);
+  if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, startT - k * scale, -k, false);
 
   // Things that happen at a set time each day: bells, and notices read out.
   const DAILY = [];
@@ -11090,7 +11115,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   if (!saved) {
     // Begin before dawn and let the town walk to work, so the first thing a
     // new arrival sees is people on the road.
-    const startMinute = Math.floor(SIM_START / 60);
+    const startMinute = Math.floor((startT % 86400) / 60);
     residents.init(startMinute - 150);
     for (let i = 0; i < (150 * 60) / TIME_SCALE; i += 1) residents.tick(1, startMinute - 150 + Math.floor((i * TIME_SCALE) / 60));
     // Some residents already hold land, so the register is not empty on day one.
@@ -11111,7 +11136,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
 
   function advanceWeather() {
     const now = clockOf(state.t);
-    if (now.day === 1) {
+    if (now.day === 1 && !wallClock) {
       for (const [untilHour, kind] of SCRIPTED_WEATHER) {
         if (now.hourFloat < untilHour) { state.weather = { kind, until: untilHour * 3600 }; return; }
       }
@@ -11121,7 +11146,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     let next = 'clear';
     for (const [kind, p] of WEATHER_NEXT[state.weather.kind]) { acc += p; if (roll < acc) { next = kind; break; } }
     const [lo, hi] = WEATHER_HOURS[next];
-    state.weather = { kind: next, until: state.t + (lo + rng.next() * (hi - lo)) * 3600 };
+    state.weather = { kind: next, until: state.t + span((lo + rng.next() * (hi - lo)) * 3600) };
   }
 
   let boxCache = null;
@@ -11183,7 +11208,13 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     const before = Math.floor(state.t / 3600);
     const was = state.t;
     state.real += dtReal;
-    state.t += dtReal * TIME_SCALE;
+    if (wallClock) {
+      // the real clock. A page that was put away for a while, or a saved game opened days later, finds the town
+      // where the clock is: the hours between are not played through, one by one (nothing was there to see them)
+      const target = wallClock();
+      if (Math.abs(target - state.t) > 120) { state.t = target; settleAfterJump(); return; }
+      if (target > state.t) state.t = target;
+    } else state.t += dtReal * TIME_SCALE;
     const now = clockOf(state.t);
     if (state.t >= state.weather.until) advanceWeather();
     const after = Math.floor(state.t / 3600);
@@ -11214,10 +11245,29 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     return n;
   }
 
+  // After the clock has jumped (a page put away, a save opened later): the day's plans for the new hour, and
+  // weather that is not left over from before.
+  function settleAfterJump() {
+    population.prepare(state.t);
+    if (!state.weather.real || state.t >= state.weather.until) advanceWeather();
+    const now = clockOf(state.t);
+    residents.tick(0, now.hour * 60 + now.minute, weather().wet ? SPEED.rain : 1);
+  }
+
+  // The real weather where the player is (from the site's server), while it is known: it holds for three hours
+  // unless told again, and the town's own weather comes back if it is not.
+  function setWeather(kind) {
+    if (!['clear', 'cloudy', 'rain', 'storm'].includes(kind)) return false;
+    state.weather = { kind, until: state.t + 3 * 3600, real: true };
+    return true;
+  }
+
   // Prototype convenience for a single player: sleeping, resting and classes
   // run the world forward. A shared world cannot skip time; there the player
-  // waits, or logs out and comes back.
+  // waits, or logs out and comes back. On the real clock nobody's time is skipped: what these do (rest, a
+  // certificate, a sentence served) is done, and the clock goes on as it was.
   function advance(gameSeconds) {
+    if (wallClock) return;
     let left = gameSeconds / TIME_SCALE;
     quiet = true;
     while (left > 0) { const dt = Math.min(1, left); step(dt); left -= dt; }
@@ -11577,6 +11627,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       const record = p.custody ? justice.arrestOf(p.custody) : null;
       if (!record || record.status !== 'custody') throw new GameError('NOT_IN_CUSTODY', 'You are not being held.');
       const seconds = Math.max(0, record.until - state.t) + TIME_SCALE;
+      if (wallClock) { record.until = Math.min(record.until, state.t); justice.tick(0); return { hours: seconds / 3600 }; }
       advance(seconds);
       return { hours: seconds / 3600 };
     },
@@ -11787,7 +11838,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     const services = {};
     for (const s of ZONE_SERVICES) services[s.id] = serviceState(s.id);
     return {
-      t: state.t, clock: now, weather: weather(), zone: ZONE.id,
+      t: state.t, clock: now, weather: weather(), zone: ZONE.id, date: wallClock ? dateOf(state.t) : null, realWeather: !!state.weather.real,
       residents: ZONE_RESIDENTS.map((r) => { const live = residents.get(r.id); return { id: r.id, x: live.x, z: live.z, heading: live.heading, mode: live.mode, busy: live.override ? 'site' : live.placeKey }; }),
       parcels: ZONE_PARCELS.map((parcel) => { const row = state.registry.parcels[parcel.id]; return { id: parcel.id, status: row.status, yours: !!viewerId && row.owner.kind === 'player' && row.owner.id === viewerId }; }),
       sites, services, yardBlocks: state.economy.stock.yard.block || 0,
@@ -11817,7 +11868,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   }
 
   return {
-    state, intent, join, view, spectate: (at) => zoneView(null, at), step, advance, clockOf: () => clockOf(state.t), weather, structureBoxes,
+    state, intent, join, view, spectate: (at) => zoneView(null, at), step, advance, clockOf: () => clockOf(state.t), weather, setWeather, realTime: !!wallClock, structureBoxes,
     drain: (playerId) => { const q = queues[playerId] || []; queues[playerId] = []; return q; },
     hasPlayer: (id) => !!state.players[id],
     audit: () => ({ goods: economy.auditGoods(INITIAL_GOODS), missedPayments: state.economy.missed, vehicles: vehicles.audit(), okada: okada.audit(), justice: justice.audit(), care: care.audit() }),
@@ -11839,7 +11890,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
 
 const GAME_REFERENCE = Object.freeze({ GOODS, DESIGNS, PAINT_COLOURS, ENERGY, HEALTH, MOVES, COMBAT, LAW, CARE, HIJACK, IMPACT, BODY });
 
-return { TIME_SCALE, SIM_START, SPEED, clockOf, structureFootprint, ARRIVAL_FUNDS, UPGRADE, upgradeFee, SWIM, createGameSim, GAME_REFERENCE };
+return { TIME_SCALE, SIM_START, SPEED, WALL_EPOCH, wallSeconds, dateOf, clockOf, structureFootprint, ARRIVAL_FUNDS, UPGRADE, upgradeFee, SWIM, createGameSim, GAME_REFERENCE };
 })();
 
 // ---- sim/host.js ----
@@ -11860,12 +11911,13 @@ const { makeRng } = __modules["sim/rng.js"];
 
 const SAVE_VERSION = 4;
 
-function createHost({ seed = 20261006, saved = null } = {}) {
+// `wallClock`: the real clock (sim.js, `wallSeconds`), for a town that keeps the player's own time.
+function createHost({ seed = 20261006, saved = null, wallClock = null } = {}) {
   const usable = saved && saved.version === SAVE_VERSION ? saved : null;
   const rng = makeRng(seed);
   if (usable) rng.setState(usable.rng);
   const ledger = createLedger(usable ? usable.ledger : null);
-  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, auditor: ledger.auditor, rng, saved: usable ? usable.game : null });
+  const game = createGameSim({ ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, auditor: ledger.auditor, rng, saved: usable ? usable.game : null, wallClock });
   ledger.setClock(() => Math.round(game.state.t));
   const bank = createBankBridge({ state: game.state, auditor: ledger.auditor, ledger: ledger.gameplay, monetary: ledger.monetary, issuanceAccount: ledger.system.issuance, players: game.state.players, funds: game.funds, setFigure: game.setFigure });
 
@@ -19959,7 +20011,7 @@ function createPhone(kit) {
 
   function home(root, view, held) {
     const self = view.self;
-    root.append(h('div', { class: 'greeting' }, h('div', { class: 'eyebrow' }, `${view.calendar.weekday}, day ${view.clock.day}`), h('div', { class: 'big' }, view.clock.label)));
+    root.append(h('div', { class: 'greeting' }, h('div', { class: 'eyebrow' }, view.date ? `${view.calendar.weekday} ${view.date.day} ${view.date.month}` : `${view.calendar.weekday}, day ${view.clock.day}`), h('div', { class: 'big' }, view.clock.label)));
     if (held) root.append(h('div', { class: 'banner' }, self.law.arrest.call.status === 'allowed' ? 'You are held by the police. You may call or message people you know.' : 'You are held by the police. Ask the officer before you call anyone.'));
     else if (self.critical) root.append(h('div', { class: 'banner red' }, 'Your health is critical. Open Health to find a hospital or call the ambulance.'));
     const counts = { messages: self.phone.unread, contacts: self.phone.requests.length, police: self.law.seen.length + (self.law.role ? self.law.role.prisoners.filter((a) => a.call.status === 'asked').length : 0), notices: 0, property: app.market ? app.market.state.unread + app.market.state.toDecide : 0 };
@@ -20596,7 +20648,7 @@ const { NIGERIA_STATES, NIGERIA_ZONES } = __modules["sim/nigeria.js"];
 const { geoToWorld } = __modules["sim/geo.js"];
 const { createTownMap } = __modules["client/town-map.js"];
 const { GOODS, DESIGNS, PAINT_COLOURS, MASON_RATE, BUSINESSES, countOf } = __modules["sim/economy.js"];
-const { clockOf } = __modules["sim/sim.js"];
+const { clockOf, dateOf } = __modules["sim/sim.js"];
 const { lowerFirst } = __modules["sim/vehicles.js"];
 const { KEKE_TRIMS } = __modules["sim/vehicle-looks.js"];
 const { HEALTH } = __modules["sim/conflict.js"];
@@ -20635,7 +20687,8 @@ const ABOUT = Object.freeze([
 
 const amt = trAmount;
 const tr = trText;
-const when = (t) => { const c = clockOf(t); return `Day ${c.day}, ${c.label}`; };
+// (a time on the real clock is a date; on the game's own short days, a day's number)
+const when = (t) => { const c = clockOf(t); if (t > 365 * 86400) { const d = dateOf(t); return `${d.day} ${d.month}, ${c.label}`; } return `Day ${c.day}, ${c.label}`; };
 const WEATHER_WORD = { clear: 'Clear', cloudy: 'Overcast', rain: 'Rain', storm: 'Storm' };
 
 function createUI(app) {
@@ -21179,6 +21232,20 @@ function createUI(app) {
     })));
     root.append(h('p', { class: 'small' }, 'Each kind of sound has its own volume. Music and background step back by themselves when something needs to be heard.'));
 
+    // The town keeps the player's own time and, on the website, the real weather where they are
+    {
+      const v = app.view();
+      const w = app.realWeather ? app.realWeather() : null;
+      root.append(section('Time and weather'));
+      const rows = [line('Time', app.realClock ? 'This device\'s own clock' : 'The game\'s own day, forty-eight minutes long')];
+      if (v && v.date) rows.push(line('Today', `${v.calendar.weekday} ${v.date.day} ${v.date.month}`));
+      rows.push(line('Weather', w ? `${WEATHER_WORD[w.kind]}${Number.isFinite(w.temperature) ? `, ${Math.round(w.temperature)}°C` : ''}${w.place ? ` in ${w.place}` : ''}` : 'The town\'s own', 'settings-weather'));
+      root.append(h('div', { class: 'rows', id: 'settings-time' }, ...rows));
+      root.append(h('p', { class: 'small' }, w
+        ? 'Morning, afternoon and night come when they come where you are, and the sky is the real one there: weather data from The Norwegian Meteorological Institute (MET Norway, CC BY 4.0), for the approximate place your connection comes from. Where you are is not kept.'
+        : 'Morning, afternoon and night come when they come where you are. When the real weather where you are cannot be had, the town has weather of its own.'));
+    }
+
     const perf = app.perf();
     root.append(section('Detail'));
     root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
@@ -21356,7 +21423,8 @@ function createUI(app) {
     // said once when it changes, then it fades: it is a suggestion, not a fixture
     // one thing said at a time: the next step waits while a notice is up
     if (shown !== lastNext && !noticeShowing()) { lastNext = shown; const el = $('hud-next'); el.textContent = shown; el.classList.remove('say'); void el.offsetWidth; el.classList.add('say'); }
-    const day = `Day ${view.clock.day} · ${view.calendar.weekday}`;
+    // the real date where the player is; on the game's own short days, the day's number
+    const day = view.date ? `${view.calendar.weekday} ${view.date.day} ${view.date.month}` : `Day ${view.clock.day} · ${view.calendar.weekday}`;
     if ($('hud-day').textContent !== day) $('hud-day').textContent = day;
     const room = app.room();
     const roomLine = $('hud-room');
@@ -24699,7 +24767,7 @@ __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
 const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS } = __modules["sim/zone.js"];
-const { SPEED, SWIM, UPGRADE, structureFootprint } = __modules["sim/sim.js"];
+const { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } = __modules["sim/sim.js"];
 const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
 const { VEHICLE_KINDS, RUN_RULES, vehicleFits, vehicleSpeedAt, vehicleBox, lowerFirst } = __modules["sim/vehicles.js"];
@@ -24768,6 +24836,9 @@ const $ = (id) => document.getElementById(id);
 // For measuring the page's own work apart from the graphics card's: the address ending in #nodraw draws nothing.
 const NO_DRAW = HASH.includes('nodraw');
 const NO_INTRO = HASH.includes('nointro');
+// The town keeps the player's own time: the real hour, day and date (sim.js). '#gameclock' in the address
+// gives the old forty-eight-minute day instead, for the play-throughs that need a whole day in a few minutes.
+const REAL_CLOCK = !HASH.includes('gameclock');
 
 function readStored(key) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (error) { return null; }
@@ -24944,7 +25015,14 @@ function start(carried) {
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
   const prefs = { translate: true, sound: true, detail: 'auto', ...(readStored(PREFS_KEY) || {}) };
-  let host = createHost({ saved: stored ? stored.host : null });
+  // Every world made here keeps the real clock, and the real weather where the player is, once that is known.
+  let realWeather = null;              // { kind, place, temperature, at } from the site's server
+  const newHost = (options = {}) => {
+    const made = createHost({ ...options, wallClock: REAL_CLOCK ? wallSeconds : null });
+    if (realWeather && made.game.realTime) made.game.setWeather(realWeather.kind);
+    return made;
+  };
+  let host = newHost({ saved: stored ? stored.host : null });
   let playerId = stored && host.game.hasPlayer(stored.playerId) ? stored.playerId : null;
   let playing = false;
   let intro = null;                   // the opening (intro.js); it can also put the one question again, later
@@ -25040,6 +25118,19 @@ function start(carried) {
   const ACCOUNT_KEY = 'pcw-account-v1';
   const SEEN_KEY = 'pcw-wallet-seen-v1';      // the last entry of each account's wallet this device has told its player about
   const online = createOnline({ available: !!webapp.site });
+  // The real weather where the player is: asked of the site's server now and every twenty minutes. The server
+  // asks the Norwegian Meteorological Institute, for the approximate place the connection comes from (worked
+  // out by the host; nothing is asked of the player, and nothing is kept about where they are). Where there is
+  // no server, or no answer, the town keeps weather of its own.
+  async function fetchWeather() {
+    if (!online.available || !REAL_CLOCK) return;
+    const answer = await online.ask('world.weather', {}, { timeout: 9000 });
+    if (!answer.ok || !answer.weather) return;
+    realWeather = answer.weather;
+    if (host.game.realTime) host.game.setWeather(realWeather.kind);
+  }
+  setTimeout(fetchWeather, 1500);
+  setInterval(fetchWeather, 20 * 60 * 1000);
   const confirm = createConfirm();
   const savedNow = () => (playerId ? { host: host.save(), playerId } : null);
   const accountMark = () => readStored(ACCOUNT_KEY);
@@ -25079,7 +25170,7 @@ function start(carried) {
   // The character kept with the account becomes the one played here. One that belonged to no account is put
   // aside on this device, not lost.
   function adoptCharacter(saved, why) {
-    const next = createHost({ saved: saved.host });
+    const next = newHost({ saved: saved.host });
     if (!next.game.hasPlayer(saved.playerId)) return false;
     if (why === 'account' && playerId) writeStored(`${SAVE_KEY}-guest`, { host: host.save(), playerId });
     const wasPlaying = playing;
@@ -25326,6 +25417,8 @@ function start(carried) {
     goToListing: (l) => goToListing(l),
     placeName: (x, z) => placeName(x, z),
     marketChanged: () => { refreshDealMarkers(); market.soon(); accountSync.soon(); },
+    realWeather: () => realWeather,
+    realClock: REAL_CLOCK,
     perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
   });
   audio.setMuted(!prefs.sound);
@@ -25648,7 +25741,7 @@ function start(carried) {
     $('touch').hidden = true;
     bubbles.clear();
     if (link) { link.close(); link = null; }
-    if (fresh) { host = createHost(); playerId = null; view = null; known.clear(); if (me) { scene.remove(me.group); me = null; } }
+    if (fresh) { host = newHost(); playerId = null; view = null; known.clear(); if (me) { scene.remove(me.group); me = null; } }
     for (const mesh of markers.values()) scene.remove(mesh);
     markers.clear();
     drawSpectator();
@@ -25772,7 +25865,7 @@ function start(carried) {
         if (!sure) return;
         figure = accountFigure() || picked;
       }
-      const fresh = createHost();
+      const fresh = newHost();
       const id = fresh.game.join({ name, path: knownPath() || pathChosen, look: { ...creator.look(), figure, body: FIGURES[figure].gender } });
       host = fresh; playerId = id;
       known.clear();
@@ -26870,11 +26963,12 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
+    fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
     // A second player, in a second copy of the world in this page, joined to
     // this one by the loopback transport: the same path two devices take.
     twin(name = 'Second Player', x = null, z = null) {
       const hub = createLoopbackHub();
-      const other = createHost();
+      const other = newHost();
       const id = other.game.join({ name, look: { skin: 0x4f3019, top: 0x1f5c4d, body: 'f' } });
       transport = { make: () => hub.join('first') };
       relink();

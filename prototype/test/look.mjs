@@ -16,7 +16,7 @@ const page = await (await browser.newContext({ viewport: { width: 1280, height: 
 const errors = [];
 page.on('pageerror', (e) => errors.push(e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource/.test(m.text())) errors.push(m.text()); });
-await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro', { timeout: 300000 });
+await page.goto('file://' + resolve(here, '../dist/local.html') + '#nointro-gameclock', { timeout: 300000 });
 await pastQuestion(page);
 if (process.env.LOOK_BODY) await page.click(`[data-gender="${process.env.LOOK_BODY}"]`);
 await enterTown(page);

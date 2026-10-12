@@ -136,6 +136,14 @@ await page.waitForTimeout(1500);
 
 // ---- in town: the balance and the map at the top, whole, whichever way the phone is held ----
 { const over = await page.evaluate(overTown); if (over) bad(`in town: ${over}`); }
+// the town keeps this device's own time and date
+{
+  const c = await page.evaluate(() => { const d = new Date(); const names = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday']; const months = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December']; return { day: document.querySelector('#hud-day').textContent, clock: document.querySelector('#hud-clock').textContent, want: `${names[d.getDay()]} ${d.getDate()} ${months[d.getMonth()]}`, minutes: d.getHours() * 60 + d.getMinutes() }; });
+  const [hh, mm] = c.clock.split(':').map(Number);
+  const off = Math.abs(((hh * 60 + mm) - c.minutes + 1440 + 720) % 1440 - 720);
+  if (c.day.toLowerCase() !== c.want.toLowerCase()) bad(`in town the date reads "${c.day}"; this device says ${c.want}`);
+  if (!(off <= 1)) bad(`in town the clock reads ${c.clock}; this device's clock is ${Math.floor(c.minutes / 60)}:${String(c.minutes % 60).padStart(2, '0')}`);
+}
 const before = await page.evaluate(() => ({ x: window.__nlw.view.self.x, z: window.__nlw.view.self.z, name: window.__nlw.view.self.name, figure: window.__nlw.view.self.look.figure }));
 await everySize('in town', { whole: ['.purse', '#hud-balance', '#hud-pounds', '#hud-clock', '#radar', '#btn-phone', '#stick', '.pad'] });
 // the figures of the balance have a black edge: the whole of it, edge and all, is clear of the top of the screen

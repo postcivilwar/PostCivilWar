@@ -11,7 +11,7 @@
 
 import { createHost } from '../sim/host.js';
 import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS } from '../sim/zone.js';
-import { SPEED, SWIM, UPGRADE, structureFootprint } from '../sim/sim.js';
+import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
 import { VEHICLE_KINDS, RUN_RULES, vehicleFits, vehicleSpeedAt, vehicleBox, lowerFirst } from '../sim/vehicles.js';
@@ -80,6 +80,9 @@ const $ = (id) => document.getElementById(id);
 // For measuring the page's own work apart from the graphics card's: the address ending in #nodraw draws nothing.
 const NO_DRAW = HASH.includes('nodraw');
 const NO_INTRO = HASH.includes('nointro');
+// The town keeps the player's own time: the real hour, day and date (sim.js). '#gameclock' in the address
+// gives the old forty-eight-minute day instead, for the play-throughs that need a whole day in a few minutes.
+const REAL_CLOCK = !HASH.includes('gameclock');
 
 function readStored(key) {
   try { const raw = localStorage.getItem(key); return raw ? JSON.parse(raw) : null; } catch (error) { return null; }
@@ -256,7 +259,14 @@ function start(carried) {
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
   const prefs = { translate: true, sound: true, detail: 'auto', ...(readStored(PREFS_KEY) || {}) };
-  let host = createHost({ saved: stored ? stored.host : null });
+  // Every world made here keeps the real clock, and the real weather where the player is, once that is known.
+  let realWeather = null;              // { kind, place, temperature, at } from the site's server
+  const newHost = (options = {}) => {
+    const made = createHost({ ...options, wallClock: REAL_CLOCK ? wallSeconds : null });
+    if (realWeather && made.game.realTime) made.game.setWeather(realWeather.kind);
+    return made;
+  };
+  let host = newHost({ saved: stored ? stored.host : null });
   let playerId = stored && host.game.hasPlayer(stored.playerId) ? stored.playerId : null;
   let playing = false;
   let intro = null;                   // the opening (intro.js); it can also put the one question again, later
@@ -352,6 +362,19 @@ function start(carried) {
   const ACCOUNT_KEY = 'pcw-account-v1';
   const SEEN_KEY = 'pcw-wallet-seen-v1';      // the last entry of each account's wallet this device has told its player about
   const online = createOnline({ available: !!webapp.site });
+  // The real weather where the player is: asked of the site's server now and every twenty minutes. The server
+  // asks the Norwegian Meteorological Institute, for the approximate place the connection comes from (worked
+  // out by the host; nothing is asked of the player, and nothing is kept about where they are). Where there is
+  // no server, or no answer, the town keeps weather of its own.
+  async function fetchWeather() {
+    if (!online.available || !REAL_CLOCK) return;
+    const answer = await online.ask('world.weather', {}, { timeout: 9000 });
+    if (!answer.ok || !answer.weather) return;
+    realWeather = answer.weather;
+    if (host.game.realTime) host.game.setWeather(realWeather.kind);
+  }
+  setTimeout(fetchWeather, 1500);
+  setInterval(fetchWeather, 20 * 60 * 1000);
   const confirm = createConfirm();
   const savedNow = () => (playerId ? { host: host.save(), playerId } : null);
   const accountMark = () => readStored(ACCOUNT_KEY);
@@ -391,7 +414,7 @@ function start(carried) {
   // The character kept with the account becomes the one played here. One that belonged to no account is put
   // aside on this device, not lost.
   function adoptCharacter(saved, why) {
-    const next = createHost({ saved: saved.host });
+    const next = newHost({ saved: saved.host });
     if (!next.game.hasPlayer(saved.playerId)) return false;
     if (why === 'account' && playerId) writeStored(`${SAVE_KEY}-guest`, { host: host.save(), playerId });
     const wasPlaying = playing;
@@ -638,6 +661,8 @@ function start(carried) {
     goToListing: (l) => goToListing(l),
     placeName: (x, z) => placeName(x, z),
     marketChanged: () => { refreshDealMarkers(); market.soon(); accountSync.soon(); },
+    realWeather: () => realWeather,
+    realClock: REAL_CLOCK,
     perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
   });
   audio.setMuted(!prefs.sound);
@@ -960,7 +985,7 @@ function start(carried) {
     $('touch').hidden = true;
     bubbles.clear();
     if (link) { link.close(); link = null; }
-    if (fresh) { host = createHost(); playerId = null; view = null; known.clear(); if (me) { scene.remove(me.group); me = null; } }
+    if (fresh) { host = newHost(); playerId = null; view = null; known.clear(); if (me) { scene.remove(me.group); me = null; } }
     for (const mesh of markers.values()) scene.remove(mesh);
     markers.clear();
     drawSpectator();
@@ -1084,7 +1109,7 @@ function start(carried) {
         if (!sure) return;
         figure = accountFigure() || picked;
       }
-      const fresh = createHost();
+      const fresh = newHost();
       const id = fresh.game.join({ name, path: knownPath() || pathChosen, look: { ...creator.look(), figure, body: FIGURES[figure].gender } });
       host = fresh; playerId = id;
       known.clear();
@@ -2182,11 +2207,12 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
+    fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
     // A second player, in a second copy of the world in this page, joined to
     // this one by the loopback transport: the same path two devices take.
     twin(name = 'Second Player', x = null, z = null) {
       const hub = createLoopbackHub();
-      const other = createHost();
+      const other = newHost();
       const id = other.game.join({ name, look: { skin: 0x4f3019, top: 0x1f5c4d, body: 'f' } });
       transport = { make: () => hub.join('first') };
       relink();

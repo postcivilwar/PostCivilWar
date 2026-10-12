@@ -8,7 +8,7 @@ import { NIGERIA_STATES, NIGERIA_ZONES } from '../sim/nigeria.js';
 import { geoToWorld } from '../sim/geo.js';
 import { createTownMap } from './town-map.js';
 import { GOODS, DESIGNS, PAINT_COLOURS, MASON_RATE, BUSINESSES, countOf } from '../sim/economy.js';
-import { clockOf } from '../sim/sim.js';
+import { clockOf, dateOf } from '../sim/sim.js';
 import { lowerFirst } from '../sim/vehicles.js';
 import { KEKE_TRIMS } from '../sim/vehicle-looks.js';
 import { HEALTH } from '../sim/conflict.js';
@@ -47,7 +47,8 @@ export const ABOUT = Object.freeze([
 
 const amt = trAmount;
 const tr = trText;
-const when = (t) => { const c = clockOf(t); return `Day ${c.day}, ${c.label}`; };
+// (a time on the real clock is a date; on the game's own short days, a day's number)
+const when = (t) => { const c = clockOf(t); if (t > 365 * 86400) { const d = dateOf(t); return `${d.day} ${d.month}, ${c.label}`; } return `Day ${c.day}, ${c.label}`; };
 const WEATHER_WORD = { clear: 'Clear', cloudy: 'Overcast', rain: 'Rain', storm: 'Storm' };
 
 export function createUI(app) {
@@ -591,6 +592,20 @@ export function createUI(app) {
     })));
     root.append(h('p', { class: 'small' }, 'Each kind of sound has its own volume. Music and background step back by themselves when something needs to be heard.'));
 
+    // The town keeps the player's own time and, on the website, the real weather where they are
+    {
+      const v = app.view();
+      const w = app.realWeather ? app.realWeather() : null;
+      root.append(section('Time and weather'));
+      const rows = [line('Time', app.realClock ? 'This device\'s own clock' : 'The game\'s own day, forty-eight minutes long')];
+      if (v && v.date) rows.push(line('Today', `${v.calendar.weekday} ${v.date.day} ${v.date.month}`));
+      rows.push(line('Weather', w ? `${WEATHER_WORD[w.kind]}${Number.isFinite(w.temperature) ? `, ${Math.round(w.temperature)}°C` : ''}${w.place ? ` in ${w.place}` : ''}` : 'The town\'s own', 'settings-weather'));
+      root.append(h('div', { class: 'rows', id: 'settings-time' }, ...rows));
+      root.append(h('p', { class: 'small' }, w
+        ? 'Morning, afternoon and night come when they come where you are, and the sky is the real one there: weather data from The Norwegian Meteorological Institute (MET Norway, CC BY 4.0), for the approximate place your connection comes from. Where you are is not kept.'
+        : 'Morning, afternoon and night come when they come where you are. When the real weather where you are cannot be had, the town has weather of its own.'));
+    }
+
     const perf = app.perf();
     root.append(section('Detail'));
     root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
@@ -768,7 +783,8 @@ export function createUI(app) {
     // said once when it changes, then it fades: it is a suggestion, not a fixture
     // one thing said at a time: the next step waits while a notice is up
     if (shown !== lastNext && !noticeShowing()) { lastNext = shown; const el = $('hud-next'); el.textContent = shown; el.classList.remove('say'); void el.offsetWidth; el.classList.add('say'); }
-    const day = `Day ${view.clock.day} · ${view.calendar.weekday}`;
+    // the real date where the player is; on the game's own short days, the day's number
+    const day = view.date ? `${view.calendar.weekday} ${view.date.day} ${view.date.month}` : `Day ${view.clock.day} · ${view.calendar.weekday}`;
     if ($('hud-day').textContent !== day) $('hud-day').textContent = day;
     const room = app.room();
     const roomLine = $('hud-room');

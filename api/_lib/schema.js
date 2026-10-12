@@ -508,6 +508,27 @@ const MIGRATIONS = [
       `set constraints all immediate`,
     ],
   },
+  {
+    id: 4,
+    name: 'the real weather, kept for a while for each place it was asked for',
+    statements: [
+      // One row a place (rounded to a tenth of a degree, some ten kilometres): what the weather there is and until
+      // when that holds. Nothing about who asked is kept.
+      `create table ${S}.weather_cache (
+         place text primary key,
+         kind text not null check (kind in ('clear', 'cloudy', 'rain', 'storm')),
+         detail jsonb not null default '{}'::jsonb,
+         fetched_at timestamptz not null default now(),
+         expires_at timestamptz not null
+       )`,
+      `alter table ${S}.weather_cache enable row level security`,
+      `do $$ declare r text; begin
+         foreach r in array array['anon', 'authenticated'] loop
+           if exists (select 1 from pg_roles where rolname = r) then execute format('revoke all on ${S}.weather_cache from %I', r); end if;
+         end loop;
+       end $$`,
+    ],
+  },
 ];
 
 module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE };

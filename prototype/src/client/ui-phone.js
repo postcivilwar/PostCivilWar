@@ -174,7 +174,7 @@ export function createPhone(kit) {
 
   function home(root, view, held) {
     const self = view.self;
-    root.append(h('div', { class: 'greeting' }, h('div', { class: 'eyebrow' }, `${view.calendar.weekday}, day ${view.clock.day}`), h('div', { class: 'big' }, view.clock.label)));
+    root.append(h('div', { class: 'greeting' }, h('div', { class: 'eyebrow' }, view.date ? `${view.calendar.weekday} ${view.date.day} ${view.date.month}` : `${view.calendar.weekday}, day ${view.clock.day}`), h('div', { class: 'big' }, view.clock.label)));
     if (held) root.append(h('div', { class: 'banner' }, self.law.arrest.call.status === 'allowed' ? 'You are held by the police. You may call or message people you know.' : 'You are held by the police. Ask the officer before you call anyone.'));
     else if (self.critical) root.append(h('div', { class: 'banner red' }, 'Your health is critical. Open Health to find a hospital or call the ambulance.'));
     const counts = { messages: self.phone.unread, contacts: self.phone.requests.length, police: self.law.seen.length + (self.law.role ? self.law.role.prisoners.filter((a) => a.call.status === 'asked').length : 0), notices: 0, property: app.market ? app.market.state.unread + app.market.state.toDecide : 0 };

@@ -13,7 +13,7 @@ const here = dirname(fileURLToPath(import.meta.url));
 const out = resolve(process.argv[2] || resolve(here, '../dist/shots'));
 const page_file = 'file://' + resolve(here, '../dist/local.html');
 // Every session but the first starts past the opening: the address ending in #nointro leaves it out.
-const page_url = page_file + '#nointro';
+const page_url = page_file + '#nointro-gameclock';      // (the old forty-eight-minute day: the play-throughs skip hours)
 
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
 const only = process.argv[3] || null;      // run one session: desktop, town, phone, action or sideways
