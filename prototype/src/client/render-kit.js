@@ -14,15 +14,124 @@ export function place(x, y, z, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0) {
 
 function letGo() { this.array = null; }
 
+// A list of numbers that grows as it is added to, kept as the 32-bit floats the graphics card is given. (The
+// town is some forty million of them. They were once gathered in ordinary lists, a number at a time, at twice
+// the room each, and copied into floats at the end.)
+class Floats {
+  constructor() { this.array = new Float32Array(3072); this.length = 0; }
+  // room for `n` more; gives the array to write into, from `this.length`
+  room(n) {
+    if (this.length + n > this.array.length) {
+      let size = this.array.length * 2;
+      while (size < this.length + n) size *= 2;
+      const next = new Float32Array(size);
+      next.set(this.array.subarray(0, this.length));
+      this.array = next;
+    }
+    return this.array;
+  }
+  // the numbers, exactly as many as there are; the list is finished with
+  take() { const out = this.array.slice(0, this.length); this.array = null; return out; }
+}
+
+// A box, as THREE.BoxGeometry makes one and `toNonIndexed` unfolds it: which corner each of its thirty-six
+// points is (as signs), and where a texture lies on it. Made once, from the library's own box, so that a box
+// added from here is the same box, number for number, without a geometry being built for each one.
+let boxSigns = null, boxUv = null;
+const boxPoints = new Float32Array(108);
+function boxOf(w, h, d) {
+  if (!boxSigns) {
+    const made = new THREE.BoxGeometry(2, 2, 2).toNonIndexed();
+    boxSigns = new Float32Array(made.attributes.position.array);
+    boxUv = new Float32Array(made.attributes.uv.array);
+  }
+  const hw = w / 2, hh = h / 2, hd = d / 2;
+  for (let i = 0; i < 108; i += 3) { boxPoints[i] = boxSigns[i] * hw; boxPoints[i + 1] = boxSigns[i + 1] * hh; boxPoints[i + 2] = boxSigns[i + 2] * hd; }
+  return boxPoints;
+}
+const normalMatrix = () => (normalMatrix.m || (normalMatrix.m = new THREE.Matrix3()));
+
 // Collects many small shapes into one vertex-coloured mesh.
 //   add()    flat-shaded: every face catches the light on its own
 //   round()  keeps the shape's own normals, for curved surfaces
 // `uv` chooses how a texture lies on everything in the batch: 'plan' lays it
 // on the ground, 'wall' hangs it on upright faces, 'keep' uses the shape's own.
+//
+// What is written is what the library itself would have written (unfold the shape, move it by the matrix,
+// work out its normals): the same sums in the same order, so the town is the same town to the last bit
+// (test/render-kit.test.mjs holds it to that). It is done here in one pass over the numbers, where the
+// library made three copies of every shape on the way.
 export class Batch {
-  constructor({ uv = 'keep', scale = 1 } = {}) { this.positions = []; this.normals = []; this.colours = []; this.uvs = []; this.uv = uv; this.scale = scale; }
+  constructor({ uv = 'keep', scale = 1 } = {}) { this.positions = new Floats(); this.normals = new Floats(); this.colours = new Floats(); this.uvs = new Floats(); this.uv = uv; this.scale = scale; }
 
   add(geometry, matrix, hex, shade = 1, smooth = false, uvMode = this.uv) {
+    const at = geometry.attributes;
+    const position = at.position;
+    // (anything but plain triangles of 32-bit floats is left to the library, as it always was)
+    if (!(position.array instanceof Float32Array) || position.itemSize !== 3 || position.isInterleavedBufferAttribute || (at.normal && (!(at.normal.array instanceof Float32Array) || at.normal.isInterleavedBufferAttribute)) || (at.uv && (!(at.uv.array instanceof Float32Array) || at.uv.isInterleavedBufferAttribute || at.uv.itemSize !== 2))) return this.addByLibrary(geometry, matrix, hex, shade, smooth, uvMode);
+    const index = geometry.index ? geometry.index.array : null;
+    const count = index ? index.length : position.count;
+    if (count % 3 !== 0) return this.addByLibrary(geometry, matrix, hex, shade, smooth, uvMode);
+    return this.write(position.array, index, count, smooth && at.normal ? at.normal.array : null, at.uv ? at.uv.array : null, matrix, hex, shade, uvMode);
+  }
+
+  // `count` points of the shape (taken in the order of `index`, if it has one), moved by `matrix`.
+  write(P, index, count, N, T, matrix, hex, shade, uvMode) {
+    const e = matrix.elements;
+    const start = this.positions.length;
+    const pos = this.positions.room(count * 3), nrm = this.normals.room(count * 3), col = this.colours.room(count * 3);
+    const uvAt = this.uvs.length;
+    const uvs = this.uvs.room(count * 2);
+    const c = linear(hex).multiplyScalar(shade);
+    const cr = c.r, cg = c.g, cb = c.b;
+    const s = this.scale;
+    const mode = uvMode === 'plan' ? 1 : uvMode === 'planZ' ? 2 : uvMode === 'wall' ? 3 : T ? 4 : 0;
+    const m = N ? normalMatrix().getNormalMatrix(matrix).elements : null;
+    for (let k = 0, o = start, u = uvAt; k < count; k += 1, o += 3, u += 2) {
+      const v = index ? index[k] : k;
+      const a = v * 3;
+      const x = P[a], y = P[a + 1], z = P[a + 2];
+      const w = 1 / (e[3] * x + e[7] * y + e[11] * z + e[15]);
+      pos[o] = (e[0] * x + e[4] * y + e[8] * z + e[12]) * w;
+      pos[o + 1] = (e[1] * x + e[5] * y + e[9] * z + e[13]) * w;
+      pos[o + 2] = (e[2] * x + e[6] * y + e[10] * z + e[14]) * w;
+      if (m) {
+        // the shape's own normals, turned with it
+        const nx = N[a], ny = N[a + 1], nz = N[a + 2];
+        const tx = m[0] * nx + m[3] * ny + m[6] * nz, ty = m[1] * nx + m[4] * ny + m[7] * nz, tz = m[2] * nx + m[5] * ny + m[8] * nz;
+        const inv = 1 / (Math.sqrt(tx * tx + ty * ty + tz * tz) || 1);
+        nrm[o] = tx * inv; nrm[o + 1] = ty * inv; nrm[o + 2] = tz * inv;
+      }
+      col[o] = cr; col[o + 1] = cg; col[o + 2] = cb;
+      // (where a texture lies is worked out from the point as it was stored: a 32-bit float)
+      if (mode === 1) { uvs[u] = pos[o] / s; uvs[u + 1] = pos[o + 2] / s; }
+      else if (mode === 2) { uvs[u] = pos[o + 2] / s; uvs[u + 1] = pos[o] / s; }
+      else if (mode === 3) { uvs[u] = (pos[o] + pos[o + 2]) / s; uvs[u + 1] = pos[o + 1] / s; }
+      else if (mode === 4) { uvs[u] = T[v * 2]; uvs[u + 1] = T[v * 2 + 1]; }
+      else { uvs[u] = 0; uvs[u + 1] = 0; }
+    }
+    if (!m) {
+      // every face catches the light on its own: its normal is across its own three points, as they were stored
+      const end = start + count * 3;
+      for (let o = start; o < end; o += 9) {
+        const bx = pos[o + 3], by = pos[o + 4], bz = pos[o + 5];
+        const cx = pos[o + 6] - bx, cy = pos[o + 7] - by, cz = pos[o + 8] - bz;
+        const ax = pos[o] - bx, ay = pos[o + 1] - by, az = pos[o + 2] - bz;
+        // (kept as a 32-bit float before it is made one long, as the library keeps it)
+        const x = Math.fround(cy * az - cz * ay), y = Math.fround(cz * ax - cx * az), z = Math.fround(cx * ay - cy * ax);
+        const inv = 1 / (Math.sqrt(x * x + y * y + z * z) || 1);
+        const nx = x * inv, ny = y * inv, nz = z * inv;
+        nrm[o] = nx; nrm[o + 1] = ny; nrm[o + 2] = nz;
+        nrm[o + 3] = nx; nrm[o + 4] = ny; nrm[o + 5] = nz;
+        nrm[o + 6] = nx; nrm[o + 7] = ny; nrm[o + 8] = nz;
+      }
+    }
+    this.positions.length += count * 3; this.normals.length += count * 3; this.colours.length += count * 3; this.uvs.length += count * 2;
+    return this;
+  }
+
+  // The same, by the library's own steps: for a shape `write` does not take, and what `write` is tested against.
+  addByLibrary(geometry, matrix, hex, shade = 1, smooth = false, uvMode = this.uv) {
     const g = geometry.index ? geometry.toNonIndexed() : geometry.clone();
     g.applyMatrix4(matrix);
     if (!smooth || !g.attributes.normal) g.computeVertexNormals();
@@ -31,39 +140,44 @@ export class Batch {
     const n = g.attributes.normal.array;
     const t = g.attributes.uv ? g.attributes.uv.array : null;
     const s = this.scale;
+    const count = p.length / 3;
+    const start = this.positions.length, uvAt = this.uvs.length;
+    const pos = this.positions.room(count * 3), nrm = this.normals.room(count * 3), col = this.colours.room(count * 3), uvs = this.uvs.room(count * 2);
     for (let i = 0, j = 0; i < p.length; i += 3, j += 2) {
-      this.positions.push(p[i], p[i + 1], p[i + 2]);
-      this.normals.push(n[i], n[i + 1], n[i + 2]);
-      this.colours.push(c.r, c.g, c.b);
-      if (uvMode === 'plan') this.uvs.push(p[i] / s, p[i + 2] / s);
-      else if (uvMode === 'planZ') this.uvs.push(p[i + 2] / s, p[i] / s);
-      else if (uvMode === 'wall') this.uvs.push((p[i] + p[i + 2]) / s, p[i + 1] / s);
-      else if (t) this.uvs.push(t[j], t[j + 1]);
-      else this.uvs.push(0, 0);
+      const o = start + i, u = uvAt + j;
+      pos[o] = p[i]; pos[o + 1] = p[i + 1]; pos[o + 2] = p[i + 2];
+      nrm[o] = n[i]; nrm[o + 1] = n[i + 1]; nrm[o + 2] = n[i + 2];
+      col[o] = c.r; col[o + 1] = c.g; col[o + 2] = c.b;
+      if (uvMode === 'plan') { uvs[u] = p[i] / s; uvs[u + 1] = p[i + 2] / s; }
+      else if (uvMode === 'planZ') { uvs[u] = p[i + 2] / s; uvs[u + 1] = p[i] / s; }
+      else if (uvMode === 'wall') { uvs[u] = (p[i] + p[i + 2]) / s; uvs[u + 1] = p[i + 1] / s; }
+      else if (t) { uvs[u] = t[j]; uvs[u + 1] = t[j + 1]; }
+      else { uvs[u] = 0; uvs[u + 1] = 0; }
     }
+    this.positions.length += count * 3; this.normals.length += count * 3; this.colours.length += count * 3; this.uvs.length += count * 2;
     g.dispose();
     return this;
   }
 
   round(geometry, matrix, hex, shade = 1, uvMode) { return this.add(geometry, matrix, hex, shade, true, uvMode); }
 
-  box(w, h, d, matrix, hex, shade, uvMode) { return this.add(new THREE.BoxGeometry(w, h, d), matrix, hex, shade, false, uvMode); }
+  box(w, h, d, matrix, hex, shade = 1, uvMode = this.uv) { const points = boxOf(w, h, d); return this.write(points, null, 36, null, boxUv, matrix, hex, shade, uvMode); }
 
   get empty() { return !this.positions || this.positions.length === 0; }
 
   build(material) {
     if (this.built) throw new Error('This batch has been built already: its numbers were let go.');
     const geometry = new THREE.BufferGeometry();
-    geometry.setAttribute('position', new THREE.Float32BufferAttribute(this.positions, 3));
-    geometry.setAttribute('normal', new THREE.Float32BufferAttribute(this.normals, 3));
-    geometry.setAttribute('color', new THREE.Float32BufferAttribute(this.colours, 3));
-    geometry.setAttribute('uv', new THREE.Float32BufferAttribute(this.uvs, 2));
+    geometry.setAttribute('position', new THREE.BufferAttribute(this.positions.take(), 3));
+    geometry.setAttribute('normal', new THREE.BufferAttribute(this.normals.take(), 3));
+    geometry.setAttribute('color', new THREE.BufferAttribute(this.colours.take(), 3));
+    geometry.setAttribute('uv', new THREE.BufferAttribute(this.uvs.take(), 2));
     geometry.computeBoundingSphere();
     // These meshes never change and nothing reads their numbers again, so once the graphics card has a
     // copy the page lets its own go. The town is some eighty megabytes of them.
     for (const attribute of Object.values(geometry.attributes)) attribute.onUpload(letGo);
-    // The lists the mesh was gathered in are ten times the size of the mesh and are finished with. Whoever
-    // built the town keeps hold of this batch for as long as the page is open, so they are dropped here.
+    // Whoever built the town keeps hold of this batch for as long as the page is open, so the lists it was
+    // gathered in are dropped here.
     this.built = true;
     this.positions = this.normals = this.colours = this.uvs = null;
     return new THREE.Mesh(geometry, material);
@@ -77,22 +191,22 @@ export class Batch {
 export class Chunked {
   constructor(options = {}, size = 125) { this.options = options; this.size = size; this.chunks = new Map(); }
 
-  pick(geometry, matrix) {
+  // the square a shape belongs to: where its matrix puts it, or (placed by its own coordinates) its first point
+  pick(points, matrix) {
     const e = matrix.elements;
     let x = e[12], z = e[14];
-    // something placed by its own coordinates, not by its matrix
-    if (x === 0 && z === 0 && e[0] === 1 && e[10] === 1) { const p = geometry.attributes.position.array; x = p[0]; z = p[2]; }
+    if (x === 0 && z === 0 && e[0] === 1 && e[10] === 1) { x = points[0]; z = points[2]; }
     const key = `${Math.floor(x / this.size)},${Math.floor(z / this.size)}`;
     let chunk = this.chunks.get(key);
     if (!chunk) { chunk = new Batch(this.options); this.chunks.set(key, chunk); }
     return chunk;
   }
 
-  add(geometry, matrix, hex, shade = 1, smooth = false, uvMode) { this.pick(geometry, matrix).add(geometry, matrix, hex, shade, smooth, uvMode); return this; }
+  add(geometry, matrix, hex, shade = 1, smooth = false, uvMode) { this.pick(geometry.attributes.position.array, matrix).add(geometry, matrix, hex, shade, smooth, uvMode); return this; }
 
   round(geometry, matrix, hex, shade = 1, uvMode) { return this.add(geometry, matrix, hex, shade, true, uvMode); }
 
-  box(w, h, d, matrix, hex, shade, uvMode) { return this.add(new THREE.BoxGeometry(w, h, d), matrix, hex, shade, false, uvMode); }
+  box(w, h, d, matrix, hex, shade, uvMode) { this.pick(boxOf(w, h, d), matrix).box(w, h, d, matrix, hex, shade, uvMode); return this; }
 
   get empty() { return this.chunks.size === 0; }
 

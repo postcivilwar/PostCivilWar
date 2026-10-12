@@ -1155,10 +1155,62 @@ sideways, or if turning the phone moved the player or lost anything. It is a des
 **it does not replace a real phone** (notches, the address bar, the on-screen keyboard and real fonts are
 only approximated).
 
+## Faster to start (12 October 2026)
+
+The owner's message of 12 October: the game was slow, with a photograph of the "Welcome back / Preparing the
+town" card and the Skills button showing through it.
+
+**The card that never went away.** That photograph was a fault, not slowness: a returning player was taken
+into the town and the card stayed drawn over it for good (one style rule kept the start screen shown after it
+was put away). Fixed and put live the same night; the tests now check that nothing of the start screen is
+left over the town, after every way into it.
+
+**Measured, then changed.** Where the time went was measured before anything was changed: a profile of the
+page from opening to the town being ready, a profile of walking in town, and the browser's own timeline. In
+town the game's own work was about 10 ms a frame on the test machine, which a phone can afford; the time was
+in starting. Three things were changed:
+
+- *Building the town.* Every mesh in the town is gathered by `Batch` (`src/client/render-kit.js`). It used to
+  unfold, move and copy every shape three times over and keep the numbers in ordinary lists; it now does it in
+  one pass into 32-bit arrays, and makes no geometry at all for a box. The town is the same to the last bit:
+  `test/render-kit.test.mjs` compares the two ways on every kind of shape, and every mesh the page makes was
+  fingerprinted before and after. The town's paths (`src/sim/zones/atani.js`) are worked out over plain lists
+  instead of making a new list of every node for each search; the town's data is the same, checked by a
+  fingerprint of all of it.
+- *The page.* On the website the character kit and the vehicle kit (6.4 MB of the 9.4 MB page) are files of
+  their own: fetched the moment the page starts to arrive, unpacked on a worker, and kept by the service
+  worker under their fingerprints, so that bringing the game up to date no longer sends them again. The page
+  is now 3.1 MB (1.4 MB as sent, from 3.7 MB). The page asks for each by the fingerprint it was built with,
+  and the service worker never mixes a page with the files of another build.
+- *Someone who already has a character.* The character screen's own 3D view (a second drawing surface, with
+  the figure's textures sent to the graphics card a second time) is not made until that screen is shown, and
+  the town no longer waits for it.
+
+Measured on the same machine, the same way, before and after (a phone-sized window; the machine draws with
+software, which makes drawing far slower than on any phone, so the drawing-heavy totals say little about a
+real device and the script times say more):
+
+| | before | after |
+|---|---|---|
+| the page, as sent | 3.7 MB | 1.4 MB |
+| script run from opening the page to the town being ready | 4.4 s | 3.5 s |
+| of which: building the game (`start`) | 2.4 s | 1.8 s |
+| of which: building the town's meshes (`buildWorld`) | 1.4 s | 1.0 s |
+| of which: working out the town's paths | 0.27 s | 0.10 s |
+| a returning player, from opening the page to being in town | 14.0 to 15.0 s | 11.8 to 12.8 s |
+
+**What is still slow, and why.** The opening shows its splash for five seconds by design; a returning player
+waits for that before PLAY. A first visit downloads the woman's figure (7.8 MB as sent) and the page and kits
+(3.7 MB): the owner's figure files are used exactly as supplied, so they are not made smaller. Each shader the
+town uses (68 of them) is compiled once at start; on a phone that is a second or two the first time.
+
+**On the owner's phone.** Settings, "Measured on this device" shows frames a second and the slowest part of a frame,
+measured on the device itself: those are the numbers to look at if the town itself feels slow.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 242 headless tests, in eighteen files
+node --test test/*.test.mjs                        # 248 headless tests, in nineteen files
 ../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 66 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach

@@ -211,6 +211,25 @@ test('the worker: a figure is kept once it has been used, and only that one', as
   assert.deepEqual([...said.paths].sort(), ['', 'man.b64.txt', 'three.min.js', 'woman.b64.txt']);
 });
 
+test('the worker: a file asked for by the fingerprint the page was built with is kept; by another, fetched as it is now and not kept', async () => {
+  const site = makeSite({ ...FILES_V1, 'kit.b64.txt': 'the kit, version one' }), device = makeDevice(), net = { online: true, asked: [] };
+  const w = runWorker(site, device, net);
+  await w.install(); await w.activate();
+  const one = sha('the kit, version one');
+  // the page of this build asks for its kit by its fingerprint: fetched once, then kept
+  assert.equal((await w.get(`./kit.b64.txt?v=${one}`)).text, 'the kit, version one');
+  net.asked.length = 0; net.online = false;
+  assert.equal((await w.get(`./kit.b64.txt?v=${one}`)).text, 'the kit, version one');
+  assert.deepEqual(net.asked, [], 'and is not asked for again');
+  // the site is brought up to date and the page that arrives is newer than this worker: it asks for the new kit
+  // by its own fingerprint, and is given the kit as it is now, not the one this worker kept
+  net.online = true; site.files['kit.b64.txt'] = 'the kit, version two';
+  assert.equal((await w.get(`./kit.b64.txt?v=${sha('the kit, version two')}`)).text, 'the kit, version two');
+  // ...which is not kept in place of the one this worker's own pages need
+  net.online = false;
+  assert.equal((await w.get(`./kit.b64.txt?v=${one}`)).text, 'the kit, version one');
+});
+
 test('the worker: with a connection the page is always the newest; without one, the newest it has seen', async () => {
   const site = makeSite(FILES_V1), device = makeDevice(), net = { online: true, asked: [] };
   const w = runWorker(site, device, net);

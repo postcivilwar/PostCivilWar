@@ -113,7 +113,22 @@ const put = (name, bytes) => { siteFiles.set(name, Buffer.isBuffer(bytes) ? byte
 const head = readFileSync(resolve(root, 'src/site/head.html'), 'utf8');
 if (!/^<title>PostCivilWar<\/title>\n/.test(template)) throw new Error('template.html: expected to begin with the title');
 const gameBody = template.replace(/^<title>[^<]*<\/title>\n/, '');      // the document's head carries the title
-put('index.html', `<!doctype html>\n<html lang="en">\n<head>\n${head}</head>\n<body>\n${gameBody}\n<script src="three.min.js"></script>\n<script>\n${bundle}</script>\n</body>\n</html>\n`);
+// The character kit and the vehicle kit are two-thirds of the game's script: numbers, written as text. On the
+// website they are files of their own beside the page: fetched as soon as the page begins to arrive, and kept
+// by the worker under their fingerprints, so that bringing the game up to date does not send them again. The
+// page asks for each by its fingerprint (sw.js keeps a page and its files from being mixed across builds).
+let siteBundle = bundle;
+const packFiles = {};
+for (const [name, constant] of [['kit', 'KIT_B64'], ['vehicles', 'VEHICLE_B64']]) {
+  const found = new RegExp(`const ${constant} = '([A-Za-z0-9+/=]+)';`).exec(siteBundle);
+  if (!found) throw new Error(`the bundle has no ${constant} to take out`);
+  if (siteBundle.indexOf(`const ${constant} = '`, found.index + 1) !== -1) throw new Error(`the bundle has ${constant} twice`);
+  siteBundle = siteBundle.slice(0, found.index) + `const ${constant} = '';` + siteBundle.slice(found.index + found[0].length);
+  put(`${name}.b64.txt`, found[1]);
+  packFiles[name] = `${name}.b64.txt?v=${createHash('sha256').update(found[1]).digest('hex').slice(0, 16)}`;
+}
+const packScript = `<script>window.__PCW_PACK_FILES = ${JSON.stringify(packFiles)};</script>\n`;
+put('index.html', `<!doctype html>\n<html lang="en">\n<head>\n${head}${packScript}</head>\n<body>\n${gameBody}\n<script src="three.min.js"></script>\n<script>\n${siteBundle}</script>\n</body>\n</html>\n`);
 put('three.min.js', readFileSync(resolve(root, 'vendor/three.min.js')));
 put('THREE-LICENSE.txt', readFileSync(resolve(root, 'vendor/THREE-LICENSE.txt')));
 for (const [name] of FIGURE_FILES) put(`${name}.b64.txt`, readFileSync(resolve(root, `dist/${name}.b64.txt`)));
@@ -149,7 +164,8 @@ put('version.json', `${JSON.stringify({ page: createHash('sha256').update(siteFi
 const NOT_KEPT = new Set(['index.html', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb', 'version.json']);
 // songs are streamed, a piece at a time, and the list of them is always asked for afresh: neither is kept by the worker
 const kept = (name) => !NOT_KEPT.has(name) && !name.startsWith('music/');
-const KEPT_FIRST = ['', 'three.min.js', 'manifest.webmanifest', 'favicon.svg', 'icon-192.png'];
+// (the two kits are needed to start at all, so they are kept as soon as the worker is: the game then opens with no connection)
+const KEPT_FIRST = ['', 'three.min.js', 'kit.b64.txt', 'vehicles.b64.txt', 'manifest.webmanifest', 'favicon.svg', 'icon-192.png'];
 const table = {};
 for (const [name, bytes] of [...siteFiles].sort(([a], [b]) => (a < b ? -1 : 1))) if (kept(name)) table[name] = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
 for (const name of KEPT_FIRST) if (name && !table[name]) throw new Error(`sw.js: ${name} is to be kept first but is not among the site's files`);

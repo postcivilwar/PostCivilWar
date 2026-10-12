@@ -106,7 +106,9 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
     site: true,
     state() {
       const way = installWay({ site: true, standalone: standalone || win.__PCW_INSTALLED === true, offered: !!win.__PCW_INSTALL, userAgent: nav.userAgent, platform: nav.platform, touchPoints: nav.maxTouchPoints });
-      const needs = ['', library].concat(figures[figure()] ? [figures[figure()]] : []);
+      // (on the website the two kits are files of their own, and are needed as much as the page)
+      const packs = Object.values((win && win.__PCW_PACK_FILES) || {}).map((address) => String(address).split('?')[0]);
+      const needs = ['', library].concat(packs, figures[figure()] ? [figures[figure()]] : []);
       return { site: true, way, offline: playsOffline({ worker: !!worker(), kept, needs }) };
     },
     refresh,

@@ -19,7 +19,10 @@ import { makeCharacter, animateCharacter } from './character.js';
 const PART_NAMES = { skin: 'Skin', hair: 'Hair', top: 'Top', bottom: 'Bottom', shoes: 'Shoes', hat: 'Hat' };
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 
-export function createCreator({ canvas, root, nameField, onPick, onView = () => {}, saved }) {
+// `lazy`: someone who already has a character may never look at this screen. Its own 3D view (a second
+// drawing surface, with the figure's textures sent to the graphics card a second time) is then not made until
+// the screen is actually on show; until then this costs nothing but the buttons.
+export function createCreator({ canvas, root, nameField, onPick, onView = () => {}, saved, lazy = false }) {
   const choice = createChoice(saved);
   let mode = 'choose';
   const $ = (id) => document.getElementById(id);
@@ -27,20 +30,26 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
   nameField.addEventListener('input', () => { named = nameField.value.trim().length > 0; });
 
   // ------------------------------------------------------------------ the view --
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-  renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-  renderer.outputEncoding = THREE.sRGBEncoding;
-  const scene = new THREE.Scene();
-  const camera = new THREE.PerspectiveCamera(26, 1, 0.1, 50);
-  scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75));
-  const key = new THREE.DirectionalLight(0xfff4e6, 1.15); key.position.set(2.2, 3.4, 3.0); scene.add(key);
-  const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
-  const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false }));
-  floor.rotation.x = -Math.PI / 2; scene.add(floor);
-  const ring = new THREE.Mesh(new THREE.RingGeometry(0.41, 0.418, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, depthWrite: false }));
-  ring.rotation.x = -Math.PI / 2; ring.position.y = 0.002; scene.add(ring);
+  let renderer = null, scene = null, camera = null, turntable = null;
+  // made the first time it is needed: at once, or (lazy) when the screen is first on show
+  function ensure() {
+    if (renderer) return;
+    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    scene = new THREE.Scene();
+    camera = new THREE.PerspectiveCamera(26, 1, 0.1, 50);
+    scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75));
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.15); key.position.set(2.2, 3.4, 3.0); scene.add(key);
+    const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
+    const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false }));
+    floor.rotation.x = -Math.PI / 2; scene.add(floor);
+    const ring = new THREE.Mesh(new THREE.RingGeometry(0.41, 0.418, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, depthWrite: false }));
+    ring.rotation.x = -Math.PI / 2; ring.position.y = 0.002; scene.add(ring);
+    turntable = new THREE.Group(); scene.add(turntable);
+    show(0);
+  }
 
-  const turntable = new THREE.Group(); scene.add(turntable);
   let shown = null;          // { rig, id, key }
   let leaving = null;        // the one sliding out
   let slide = 0, slideDir = 0;
@@ -65,6 +74,7 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
 
   // a new figure slides in from the side it was asked for; a new colour is the same figure redrawn
   function show(dir = 0) {
+    if (!renderer) return;              // (not made yet: the figure is put on it when it is)
     const next = build();
     if (shown && dir === 0) { dispose(shown); shown = next; turntable.add(next.rig.group); return; }
     dispose(leaving);
@@ -77,6 +87,7 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
     if (!root.isConnected) return;
     if (root.offsetParent === null || root.hidden) { requestAnimationFrame(frame); return; }
     const w = canvas.clientWidth, h = canvas.clientHeight;
+    if (!renderer) { if (w > 0 && h > 0) ensure(); else { requestAnimationFrame(frame); return; } }
     if (w > 0 && h > 0 && (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio()))) {
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     }
@@ -215,7 +226,7 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
   });
 
   drawControls();
-  show(0);
+  if (!lazy) ensure();
   requestAnimationFrame(frame);
   return {
     look: () => choice.look(),

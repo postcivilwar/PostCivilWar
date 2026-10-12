@@ -36,8 +36,13 @@ const good = (response) => !!response && response.ok && response.status === 200 
 const fresh = (path) => fetch(new Request(urlOf(path), { cache: 'no-cache', credentials: 'same-origin' }));
 const drop = (response) => { try { if (response && response.body) response.body.cancel().catch(() => {}); } catch (error) { /* already read */ } };
 
-// A file kept under its fingerprint: from here if it is here, otherwise fetched, kept and handed on.
+// A file kept under its fingerprint: from here if it is here, otherwise fetched, kept and handed on. A page may
+// ask for a file by the fingerprint it was built with (`?v=`): if that is not the one this worker knows (a page
+// newer than this worker, or older), the file is fetched as it is now and not kept, so that a page and the
+// files it was built with are never mixed with those of another build.
 async function file(path, event) {
+  const asked = event.request ? new URL(event.request.url).searchParams.get('v') : null;      // (a page's message has no request)
+  if (asked && asked !== FILES[path]) return fetch(new Request(event.request.url, { cache: 'no-cache', credentials: 'same-origin' }));
   const cache = await caches.open(CACHE);
   const kept = await cache.match(keyOf(path), { ignoreVary: true });
   if (kept) return kept;

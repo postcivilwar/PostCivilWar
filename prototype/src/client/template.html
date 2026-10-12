@@ -1285,7 +1285,7 @@ canvas.map.nation { border-radius: 14px; }
   try { if (window.self !== window.top) document.documentElement.classList.add('framed'); } catch (e) { document.documentElement.classList.add('framed'); }
   var got = window.__PCW_FIGURE_BYTES = {};
   try {
-    var src = "onmessage=function(e){var d=e.data;var go=function(t){try{var raw=atob(t.trim());var n=raw.length;var out=new Uint8Array(n);for(var i=0;i<n;i+=1)out[i]=raw.charCodeAt(i);postMessage({id:d.id,buf:out.buffer},[out.buffer]);}catch(err){postMessage({id:d.id,error:String(err)});}};if(d.text){go(d.text);}else{fetch(d.url).then(function(r){if(!r.ok)throw new Error(d.url+': '+r.status);return r.text();}).then(go).catch(function(err){postMessage({id:d.id,error:String(err)});});}};";
+    var src = "onmessage=function(e){var d=e.data;var go=function(t){try{var raw=atob(t.trim());var n=raw.length;var out=new Uint8Array(n);for(var i=0;i<n;i+=1)out[i]=raw.charCodeAt(i);postMessage({id:d.id,buf:out.buffer},[out.buffer]);}catch(err){postMessage({id:d.id,error:String(err)});}};if(d.text){go(d.text);}else{var get=function(){return fetch(d.url).then(function(r){if(!r.ok)throw new Error(d.url+': '+r.status);return r.text();});};get().catch(function(){return new Promise(function(y){setTimeout(y,1500);}).then(get);}).then(go).catch(function(err){postMessage({id:d.id,error:String(err)});});}};";
     var w = new Worker(URL.createObjectURL(new Blob([src], { type: 'text/javascript' })));
     var wait = {};
     w.onmessage = function (e) { var r = wait[e.data.id]; if (!r) return; if (e.data.error) r.no(new Error(e.data.error)); else r.yes(e.data.buf); };
@@ -1298,6 +1298,19 @@ canvas.map.nation { border-radius: 14px; }
       w.postMessage({ id: id, url: new URL(FILES[id][0], location.href).href, text: window[FILES[id][1]] || null });
       return got[id];
     };
+    // On the website the character and vehicle kits are files of their own beside the page (build.mjs names
+    // them, with their fingerprints): both are needed before the town can be built, so both are begun now,
+    // while the rest of the page is still arriving.
+    var PACKS = window.__PCW_PACK_FILES || null;
+    if (PACKS) {
+      var packs = window.__PCW_PACKS = {};
+      Object.keys(PACKS).forEach(function (name) {
+        var id = 'pack:' + name;
+        packs[name] = new Promise(function (yes, no) { wait[id] = { yes: yes, no: no }; });
+        packs[name].catch(function () {});
+        w.postMessage({ id: id, url: new URL(PACKS[name], location.href).href, text: null });
+      });
+    }
     // the one this device chose last time, or the woman, whom the screen opens on
     var first = 'W1';
     try { var prefs = JSON.parse(localStorage.getItem('nlw-prefs-v1') || '{}'); if (prefs && prefs.look && prefs.look.figure === 'M1') first = 'M1'; } catch (e) {}

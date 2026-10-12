@@ -14,8 +14,8 @@
 //
 // The figures are 10 MB and 13 MB. Only one that a player has actually used is kept (the page says which).
 
-const FILES = {"apple-touch-icon.png":"c151758111b1cb33","assets/watch-poster.webp":"7aa600977f930dc5","assets/watch-turn.webp":"50b9100b2811b5a5","favicon-48.png":"6cab812182670522","favicon.svg":"d3ea2b16fb56f1b9","icon-192.png":"b1d03eb66147d391","icon-512.png":"9498ec46b5ea48a1","icon-maskable-192.png":"7ce6c304a461239e","icon-maskable-512.png":"bfc4a75988ec1d97","man.b64.txt":"b0a3002292b4ff8d","manifest.webmanifest":"b73f5af02f2141ed","three.min.js":"9274bbcec8d96168","woman.b64.txt":"740fbe53ae5855bc"};        // path beside the page -> fingerprint of the file's contents
-const FIRST = ["","three.min.js","manifest.webmanifest","favicon.svg","icon-192.png"];        // kept as soon as this is installed: the page and the small files
+const FILES = {"apple-touch-icon.png":"c151758111b1cb33","assets/watch-poster.webp":"7aa600977f930dc5","assets/watch-turn.webp":"50b9100b2811b5a5","favicon-48.png":"6cab812182670522","favicon.svg":"d3ea2b16fb56f1b9","icon-192.png":"b1d03eb66147d391","icon-512.png":"9498ec46b5ea48a1","icon-maskable-192.png":"7ce6c304a461239e","icon-maskable-512.png":"bfc4a75988ec1d97","kit.b64.txt":"a9a4ed8f93fe4d42","man.b64.txt":"b0a3002292b4ff8d","manifest.webmanifest":"b73f5af02f2141ed","three.min.js":"9274bbcec8d96168","vehicles.b64.txt":"8d1cee47670122c0","woman.b64.txt":"740fbe53ae5855bc"};        // path beside the page -> fingerprint of the file's contents
+const FIRST = ["","three.min.js","kit.b64.txt","vehicles.b64.txt","manifest.webmanifest","favicon.svg","icon-192.png"];        // kept as soon as this is installed: the page and the small files
 const PAGE = '';                      // the page's own path: the folder this file is in
 const CACHE = 'pcw-files-v1';
 const WAIT = 4000;                    // how long the network has to answer for the page before the kept copy is shown (ms)
@@ -36,8 +36,13 @@ const good = (response) => !!response && response.ok && response.status === 200 
 const fresh = (path) => fetch(new Request(urlOf(path), { cache: 'no-cache', credentials: 'same-origin' }));
 const drop = (response) => { try { if (response && response.body) response.body.cancel().catch(() => {}); } catch (error) { /* already read */ } };
 
-// A file kept under its fingerprint: from here if it is here, otherwise fetched, kept and handed on.
+// A file kept under its fingerprint: from here if it is here, otherwise fetched, kept and handed on. A page may
+// ask for a file by the fingerprint it was built with (`?v=`): if that is not the one this worker knows (a page
+// newer than this worker, or older), the file is fetched as it is now and not kept, so that a page and the
+// files it was built with are never mixed with those of another build.
 async function file(path, event) {
+  const asked = event.request ? new URL(event.request.url).searchParams.get('v') : null;      // (a page's message has no request)
+  if (asked && asked !== FILES[path]) return fetch(new Request(event.request.url, { cache: 'no-cache', credentials: 'same-origin' }));
   const cache = await caches.open(CACHE);
   const kept = await cache.match(keyOf(path), { ignoreVary: true });
   if (kept) return kept;

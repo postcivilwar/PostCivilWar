@@ -14,6 +14,14 @@ export const VEHICLE_GROUPS = Object.freeze(['solid', 'glass']);
 let bytes = null;
 function buffer() {
   if (bytes) return bytes;
+  // On the website the kit is a file of its own beside the page, fetched and unpacked before the game starts
+  // (template.html, main.js); everywhere else it is carried inside the page.
+  if (!VEHICLE_B64) {
+    const fetched = typeof window !== 'undefined' && window.__PCW_PACK_BYTES && window.__PCW_PACK_BYTES.vehicles;
+    if (!fetched) throw new Error('The vehicle kit has not arrived.');
+    bytes = fetched;
+    return bytes;
+  }
   const text = atob(VEHICLE_B64);
   bytes = new Uint8Array(text.length);
   for (let i = 0; i < text.length; i += 1) bytes[i] = text.charCodeAt(i);

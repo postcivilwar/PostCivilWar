@@ -15,6 +15,14 @@ const packs = { kit: { meta: KIT_META, b64: KIT_B64, bytes: null }, fig: { meta:
 const packOf = (id) => (id.startsWith('fig.') ? packs.fig : packs.kit);
 function buffer(pack) {
   if (pack.bytes) return pack.bytes;
+  // On the website the kit is a file of its own beside the page, fetched and unpacked before the game starts
+  // (template.html, main.js); everywhere else it is carried inside the page.
+  if (!pack.b64 && pack === packs.kit) {
+    const fetched = typeof window !== 'undefined' && window.__PCW_PACK_BYTES && window.__PCW_PACK_BYTES.kit;
+    if (!fetched) throw new Error('The character kit has not arrived.');
+    pack.bytes = fetched;
+    return pack.bytes;
+  }
   const text = atob(pack.b64);
   pack.bytes = new Uint8Array(text.length);
   for (let i = 0; i < text.length; i += 1) pack.bytes[i] = text.charCodeAt(i);

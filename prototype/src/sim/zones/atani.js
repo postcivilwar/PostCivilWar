@@ -615,12 +615,22 @@ const STREETS = [
 
 function buildTown() {
   const nodes = {};
-  for (const [name, at] of Object.entries(BASE_NODES)) nodes[name] = at.slice();
+  // The same nodes, in the order they were made, as three plain lists: every search below goes through all of
+  // them, thousands of times, and going through the object itself made a new list of pairs each time. A node
+  // is only ever added through `put`, so the lists and the object cannot disagree.
+  const nodeNames = [], nodeX = [], nodeZ = [];
+  const nodeIndex = new Map();
+  const put = (id, x, z) => {
+    nodes[id] = [x, z];
+    const i = nodeIndex.get(id);
+    if (i === undefined) { nodeIndex.set(id, nodeNames.length); nodeNames.push(id); nodeX.push(x); nodeZ.push(z); } else { nodeX[i] = x; nodeZ[i] = z; }
+  };
+  for (const [name, at] of Object.entries(BASE_NODES)) put(name, at[0], at[1]);
   const edges = BASE_EDGES.map((e) => e.slice());
   const problems = [];
   let counter = 0;
 
-  const near = (x, z, range) => { let best = null; let bestD = range; for (const [name, [nx, nz]] of Object.entries(nodes)) { const d = Math.hypot(nx - x, nz - z); if (d < bestD) { bestD = d; best = name; } } return best; };
+  const near = (x, z, range) => { let best = null; let bestD = range; for (let i = 0; i < nodeNames.length; i += 1) { const d = Math.hypot(nodeX[i] - x, nodeZ[i] - z); if (d < bestD) { bestD = d; best = nodeNames[i]; } } return best; };
   const project = (x, z, a, b) => { const [ax, az] = nodes[a]; const [bx, bz] = nodes[b]; const dx = bx - ax; const dz = bz - az; const len2 = dx * dx + dz * dz || 1; const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)); return { t, x: ax + dx * t, z: az + dz * t }; };
   const link = (a, b) => { if (a !== b && !edges.some(([p, q]) => (p === a && q === b) || (p === b && q === a))) edges.push([a, b]); };
   // the node at a point: one already there, or a new one, cut into any path it lies on
@@ -631,16 +641,17 @@ function buildTown() {
     for (let i = 0; i < edges.length; i += 1) {
       const [a, b] = edges[i];
       const p = project(x, z, a, b);
-      if (p.t > 0.001 && p.t < 0.999 && Math.hypot(p.x - x, p.z - z) < 0.35) { nodes[id] = [x, z]; edges.splice(i, 1, [a, id], [id, b]); return id; }
+      if (p.t > 0.001 && p.t < 0.999 && Math.hypot(p.x - x, p.z - z) < 0.35) { put(id, x, z); edges.splice(i, 1, [a, id], [id, b]); return id; }
     }
-    nodes[id] = [x, z];
+    put(id, x, z);
     return id;
   }
   function segment(a, b) {
     const [ax, az] = nodes[a];
     const [bx, bz] = nodes[b];
     const on = [];
-    for (const [name, [nx, nz]] of Object.entries(nodes)) {
+    for (let i = 0; i < nodeNames.length; i += 1) {
+      const name = nodeNames[i], nx = nodeX[i], nz = nodeZ[i];
       if (name === a || name === b) continue;
       const p = project(nx, nz, a, b);
       if (p.t > 0.001 && p.t < 0.999 && Math.hypot(p.x - nx, p.z - nz) < 0.35) on.push([p.t, name]);
@@ -798,7 +809,7 @@ function buildTown() {
   for (const s of TOWN_SPOTS) {
     let node = null;
     let bestD = 15;
-    for (const [name, [nx, nz]] of Object.entries(nodes)) { const d = Math.hypot(nx - s.x, nz - s.z); if (d < bestD && openLine(s.x, s.z, nx, nz, 0.3)) { bestD = d; node = name; } }
+    for (let k = 0; k < nodeNames.length; k += 1) { const nx = nodeX[k], nz = nodeZ[k]; const d = Math.hypot(nx - s.x, nz - s.z); if (d < bestD && openLine(s.x, s.z, nx, nz, 0.3)) { bestD = d; node = nodeNames[k]; } }
     if (!node) { node = nodeAt(s.x, s.z); if (!edges.some(([a, b]) => a === node || b === node)) attach(node, { max: 70, what: `${s.venue} ${s.slot}` }); }
     addSpot({ ...s, ctx: s.ctx || 'street', node });
   }
@@ -807,7 +818,7 @@ function buildTown() {
     const s = spots[i];
     let node = null;
     let bestD = 30;
-    for (const [name, [nx, nz]] of Object.entries(nodes)) { const d = Math.hypot(nx - s.x, nz - s.z); if (d < bestD && openLine(s.x, s.z, nx, nz, 0.3)) { bestD = d; node = name; } }
+    for (let k = 0; k < nodeNames.length; k += 1) { const nx = nodeX[k], nz = nodeZ[k]; const d = Math.hypot(nx - s.x, nz - s.z); if (d < bestD && openLine(s.x, s.z, nx, nz, 0.3)) { bestD = d; node = nodeNames[k]; } }
     if (!node) problems.push(`no path to spot ${s.venue} ${s.slot}`);
     spots[i] = Object.freeze({ ...s, node: node || 'mk_s' });
   }

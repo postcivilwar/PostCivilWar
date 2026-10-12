@@ -898,6 +898,8 @@ function start(carried) {
   const creator = createCreator({
     canvas: $('stage-view'), root: $('start'), nameField: $('name'),
     saved: prefs.look || {},
+    // someone with a character here is going into town, not choosing one: the screen's own view waits until it is shown
+    lazy: !!playerId,
     onPick: (look) => { prefs.look = look; writeStored(PREFS_KEY, prefs); },
     onView: (figure) => drawGallery(figure),
   });
@@ -2227,5 +2229,20 @@ if (typeof THREE === 'undefined') {
   // Building the town holds the page for a moment. The brand is drawing itself on screen just then, so the
   // town waits until it has: the opening is ten seconds long, and the town is ready well inside that.
   const shown = typeof window.__introAt === 'number' ? performance.now() - window.__introAt : Infinity;
-  if (NO_INTRO || !document.getElementById('intro') || shown > 1900) begin(); else setTimeout(begin, 1900 - shown);
+  const whenShown = () => { const now = typeof window.__introAt === 'number' ? performance.now() - window.__introAt : Infinity; if (NO_INTRO || !document.getElementById('intro') || now > 1900) begin(); else setTimeout(begin, 1900 - now); };
+  // On the website the character and vehicle kits come as files of their own (begun by the page's first
+  // script): the town is built once both are here. Without them nothing can be drawn, and the player is told.
+  const packs = window.__PCW_PACKS;
+  if (!packs) { if (NO_INTRO || !document.getElementById('intro') || shown > 1900) begin(); else setTimeout(begin, 1900 - shown); }
+  else {
+    Promise.all(Object.keys(packs).map((name) => packs[name].then((buf) => [name, new Uint8Array(buf)])))
+      .then((pairs) => { window.__PCW_PACK_BYTES = Object.fromEntries(pairs); whenShown(); })
+      .catch(() => {
+        $('start-error').hidden = false;
+        $('start-error').textContent = 'Some of the game\'s files did not arrive, so the town cannot be built. Check the connection and reload the page.';
+        $('enter').disabled = true;
+        const opening = document.getElementById('intro');
+        if (opening) opening.remove();
+      });
+  }
 }
