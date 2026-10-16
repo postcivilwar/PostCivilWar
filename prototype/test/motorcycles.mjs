@@ -109,7 +109,7 @@ async function measure() {
     };
   });
 }
-const seated = (m) => m.drawn && m.ready && m.handL < 0.13 && m.handR < 0.13 && m.footL < 0.16 && m.footR < 0.16 && m.hipsOverSeat > 0 && m.hipsOverSeat < 0.2 && m.hipsFromSeat < 0.27;
+const seated = (m) => m.drawn && m.ready && m.handL < 0.13 && m.handR < 0.13 && m.footL < 0.16 && m.footR < 0.16 && m.hipsOverSeat > 0 && m.hipsOverSeat < 0.2 && m.hipsFromSeat < 0.35;
 await page.evaluate(() => window.__nlw.ui.openPhone('property', {}));
 await page.waitForTimeout(1500);
 const holding = await page.evaluate(() => window.__nlw.market.state.mine.holdings.find((h) => h.asset.model === 'bike:streetfighter').id);
@@ -119,14 +119,14 @@ await shot('02-owned');
 // (out on the open road west of the town, where nobody walks, to ride)
 await page.evaluate(() => { const n = window.__nlw; n.place(-300, -40); n.face(-Math.PI / 2); });
 await page.click('#ride-bike');
-await page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 120000 });
+await page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 300000 });
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.me.group.rotation.y - Math.PI / 2; n.cam.dist = 4.2; n.cam.pitch = 0.15; });
 await page.waitForTimeout(800);
 let m = await measure();
 check('Ride it: the Streetfighter is drawn under the player, who sits on its seat with hands on the grips and feet on the pegs', seated(m), m);
 await shot('03-on');
 const start = { x: m.x, z: m.z };
-await page.keyboard.down('w'); await page.waitForTimeout(2500);
+await page.keyboard.down('w'); await page.waitForTimeout(4000);   // (a headless browser draws slowly, and the game's time with it)
 m = await measure();
 check('the throttle takes it away, the wheels turn and the engine runs', m.speed > 3 && Math.hypot(m.x - start.x, m.z - start.z) > 3 && m.spin > 0.5 && m.engine && m.engine.running, m);
 await page.keyboard.down('d'); await page.waitForTimeout(900);
@@ -163,7 +163,7 @@ for (const id of all) {
   await page.waitForTimeout(300);
   const r = await page.evaluate((which) => window.__nlw.rideBike(which), id);
   if (!r || !r.ok) { check(`${id}: ridden`, false, r); continue; }
-  await page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 120000 });
+  await page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 300000 });
   await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.me.group.rotation.y - Math.PI / 2 + 0.35; n.cam.dist = 4.2; n.cam.pitch = 0.12; });
   await page.waitForTimeout(900);
   m = await measure();

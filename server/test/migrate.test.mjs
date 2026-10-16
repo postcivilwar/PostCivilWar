@@ -55,7 +55,7 @@ test('a database with players, sales and waiting offers in it is brought to the 
   assert.equal(await wallet(quiet), 2000 * TR);
   assert.equal(await wallet(seller), 2000 * TR + 300);
   assert.equal((await sql.unsafe(`select count(*)::int as n from ${S}.wallets where kind = 'player'`))[0].n, 3);
-  assert.deepEqual((await sql.unsafe(`select code from ${S}.wallets where kind = 'system' order by code`)).map((r) => r.code), ['escrow', 'issuance', 'world']);
+  assert.deepEqual((await sql.unsafe(`select code from ${S}.wallets where kind = 'system' order by code`)).map((r) => r.code), ['adhold', 'adtax', 'adverts', 'escrow', 'issuance', 'world']);
   // each sale's seller is marked as paid, once: the one already settled is as it was
   assert.deepEqual((await sql.unsafe(`select id, seller_credited_rev from ${S}.sales order by amount`)).map((r) => [r.id, r.seller_credited_rev]), [[s1, 5], [s2, 0]]);
   // the offers that were waiting are closed, each buyer is told, and nothing is held for them

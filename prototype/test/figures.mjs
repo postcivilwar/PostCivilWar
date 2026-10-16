@@ -192,7 +192,7 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
     check(`${label}: and lies on the ground, not in the air`, m.pelvis < 0.45 && m.head < 0.55 && m.low > -0.15, m);
   } else check(`${label}: knocked down (no fall in its file), it is laid flat`, m.tipped < -1.2, m);
   await shot('7-down');
-  await page.waitForTimeout(5000);
+  await page.waitForTimeout(8000);   // (the game's time goes slower than the clock's when the browser draws slowly)
   m = await page.evaluate(measure);
   check(`${label}: up again, standing on its feet`, !m.lying && m.tipped > -0.05 && m.head > spec.height * 0.78 && Math.abs(m.low) < 0.2, m);
 

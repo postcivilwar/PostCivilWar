@@ -47,12 +47,12 @@ test('with no place from the host, Atani\'s weather', async () => {
   met.asked.length = 0; met.answer = forecast('clearsky_night', 24); met.fail = false;
   const r = await ask();
   assert.equal(r.body.weather.kind, 'clear');
-  assert.equal(r.body.weather.place, 'Atani', 'and it says so');
-  assert.equal(met.asked[0].url, `${weather.SOURCE}?lat=6.0&lon=6.8`);
+  assert.equal(r.body.weather.place, 'Asaba', 'and it says so');
+  assert.equal(met.asked[0].url, `${weather.SOURCE}?lat=6.2&lon=6.7`);
   // a place that makes no sense is no place
   met.asked.length = 0;
   await ask(from('north', 900));
-  assert.equal(met.asked.length, 0, 'Atani again, and it is already known');
+  assert.equal(met.asked.length, 0, 'Asaba again, and it is already known');
 });
 
 test('MET not answering: the last weather known there, if it is recent; otherwise none, and the town keeps its own', async () => {

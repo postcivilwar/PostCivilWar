@@ -10,7 +10,8 @@
 
 const { SCHEMA: S } = require('./schema.js');
 
-const ATANI = { lat: 6.033, lon: 6.75, place: 'Atani' };
+// the game's own town, when the player's place is not known (Asaba, Delta State, since 13 October 2026)
+const ATANI = { lat: 6.198, lon: 6.733, place: 'Asaba' };
 const SOURCE = 'https://api.met.no/weatherapi/locationforecast/2.0/compact';
 // MET asks every caller to say who it is and how to reach them
 const AGENT = 'PostCivilWar/1.0 (+https://postcivilwar.com)';

@@ -16,6 +16,7 @@ import { CAMERA_VIEW } from './camera.js';
 import { clockOf } from './music.js';
 import { createMarketUI } from './ui-market.js';
 import { createWalletUI } from './ui-wallet.js';
+import { createAdsUI } from './ui-ads.js';
 
 // Pictograms, drawn here on a 24 by 24 grid: [paths]. Each app has a tile of its own colour, as on any phone, so
 // an app is known at a glance; the game's own interface stays black and white round it.
@@ -35,6 +36,8 @@ const ICONS = Object.freeze({
   notices: ['M6 17v-6a6 6 0 0 1 12 0v6l2 2H4z', 'M10 21h4'],
   camera: ['M4 8h3.2l1.6-2.4h6.4L16.8 8H20a1.5 1.5 0 0 1 1.5 1.5v8A1.5 1.5 0 0 1 20 19H4a1.5 1.5 0 0 1-1.5-1.5v-8A1.5 1.5 0 0 1 4 8z', 'M12 16.4a3.4 3.4 0 1 0 0-6.8 3.4 3.4 0 0 0 0 6.8z'],
   music: ['M9 17.5V6l10-2v11.5', 'M9 17.5a2.5 2.5 0 1 1-2.5-2.5', 'M19 15.5a2.5 2.5 0 1 1-2.5-2.5'],
+  ads: ['M3 5h18v10H3z', 'M11 15v6', 'M13 15v6', 'M7 9h4', 'M7 11.5h7'],
+  admin: ['M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z', 'M12 8v5', 'M9.5 10.5h5'],
 });
 // each tile: the two ends of its colour, and the colour of its drawing
 const TILES = Object.freeze({
@@ -42,6 +45,7 @@ const TILES = Object.freeze({
   map: ['#7ed6a4', '#2a8fd6', '#fff'], wallet: ['#3a3a3e', '#0b0b0c', '#ffd166'], property: ['#34d6b7', '#0a8f7a', '#fff'], contacts: ['#c9c9ce', '#8a8a92', '#fff'],
   health: ['#ffffff', '#f0e9ea', '#ff3b55'], police: ['#4a7bf0', '#1a3a9c', '#fff'], transport: ['#ffd23f', '#f59e0b', '#1c1c1f'], jobs: ['#c08a5a', '#7a4a22', '#fff'],
   people: ['#b07cf7', '#6a2fd0', '#fff'], notices: ['#ff7a59', '#e0341a', '#fff'], settings: ['#9a9aa2', '#55555c', '#fff'],
+  ads: ['#ffb347', '#e8590c', '#fff'], admin: ['#2b2d42', '#0d0e17', '#7cf0c8'],
 });
 // `held`: works in custody too. `dock`: kept in the row at the foot of the home screen.
 const APPS = Object.freeze([
@@ -59,7 +63,10 @@ const APPS = Object.freeze([
   { id: 'jobs', name: 'Jobs' },
   { id: 'people', name: 'People' },
   { id: 'notices', name: 'Notices' },
+  { id: 'ads', name: 'ADS' },
   { id: 'settings', name: 'Settings', held: true },
+  // only on an administrator's phone (the server decides who that is, and checks again for everything it does)
+  { id: 'admin', name: 'Admin', admin: true },
 ]);
 // used in the hand, with the town in view; everything else is a page over the whole screen
 const IN_HAND = new Set(['home', 'camera', 'music', 'deal']);
@@ -97,6 +104,9 @@ export function createPhone(kit) {
   const marketUI = createMarketUI({ ...kit, glyph });
   // the Wallet: the bank's figure, sending and receiving (ui-wallet.js)
   const walletUI = createWalletUI(kit);
+  // ADS (booking a billboard) and Admin (the review and the bank's figures): ui-ads.js
+  const adsUI = createAdsUI(kit);
+  const isAdmin = () => adsUI.isAdmin();
   const go = (id, state = {}) => { if (screen === 'property' && id !== 'property') marketUI.leave(); if (screen === 'wallet' && id !== 'wallet') walletUI.leave(); if (screen === 'deal' && id !== 'deal') marketUI.closeDeal(); screen = id; sub = state; said = null; draft = ''; redraw(); };
   const send = (intent) => app.send(intent);
   const flashMessage = (result, good) => redraw(result.ok ? (good ? { good: true, text: typeof good === 'function' ? good(result) : good } : null) : { text: result.message });
@@ -109,7 +119,7 @@ export function createPhone(kit) {
 
   function show(appId = null, state = {}) {
     if (screen === 'deal' && appId !== 'deal') marketUI.closeDeal();
-    screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId)) ? appId : 'home';
+    screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId && (!a.admin || isAdmin()))) ? appId : 'home';
     sub = state; said = null; drawn = null; rising = true; looking = null;
     open(app.view().self.name, 'Phone', render, null, { device: true });
   }
@@ -136,20 +146,21 @@ export function createPhone(kit) {
     live(() => { const v = app.view(); const me = v.self; const a = me.law.arrest; return `${me.health}|${me.balance}|${me.law.state}|${me.law.seen.length}|${a ? `${a.status}${a.fine.confirmed}${a.call.status}` : ''}|${me.phone.unread}|${me.phone.requests.map((r) => `${r.arrest}${r.ready}${r.near}`).join()}|${me.phone.surety}|${me.critical}|${app.market ? `${app.market.state.unread}.${app.market.state.toDecide}` : ''}|${app.online ? app.online.status().state : ''}`; });
     const meta = APPS.find((a) => a.id === screen);
     if (screen !== 'home' && held && !(meta && meta.held)) screen = 'home';
+    if (meta && meta.admin && !isAdmin()) screen = 'home';
     const atHome = screen === 'home';
     const inHand = IN_HAND.has(screen);
     kit.mode(inHand ? 'mini' : 'page', { big: screen === 'deal' });
     const inner = h('div', { class: `screen${drawn !== screen ? ' opening' : ''}` });
     drawn = screen;
-    const deepIn = () => !!(sub.contact || sub.thread || sub.place || sub.asset || sub.market || sub.own || sub.admin || (screen === 'wallet' && walletUI.deep(sub)));
-    const back = () => { if (deepIn()) { sub = screen === 'wallet' ? walletUI.back(sub) : sub.market && sub.asset ? { market: true } : {}; said = null; redraw(); } else go('home'); };
+    const deepIn = () => !!(sub.contact || sub.thread || sub.place || sub.asset || sub.market || sub.own || (screen === 'property' && sub.admin) || (screen === 'wallet' && walletUI.deep(sub)) || (screen === 'ads' && adsUI.deep(sub)));
+    const back = () => { if (deepIn()) { sub = screen === 'wallet' ? walletUI.back(sub) : screen === 'ads' ? adsUI.back(sub) : sub.market && sub.asset ? { market: true } : {}; said = null; redraw(); } else go('home'); };
     if (!inHand) {
       // a page over the whole screen: the way back at the top left, the app's name beside it
       const bar = h('div', { class: 'pagebar' },
         h('button', { class: 'pageback', type: 'button', id: 'page-back', 'aria-label': deepIn() ? `Back to ${meta.name}` : 'Back to the phone', onclick: back }, glyph('back', false)),
         h('h3', null, meta.name),
         h('span', { class: 'pagetime' }, view.clock.label));
-      ({ contacts, messages, calls, map: mapApp, wallet: () => walletUI.page(inner, view, sub, (state) => go('wallet', state)), health, police, transport, jobs, property: () => marketUI.page(inner, view, sub, (state) => go('property', state)), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings })[screen](inner, view, held);
+      ({ contacts, messages, calls, map: mapApp, wallet: () => walletUI.page(inner, view, sub, (state) => go('wallet', state)), health, police, transport, jobs, property: () => marketUI.page(inner, view, sub, (state) => go('property', state)), people: () => { profile(inner, view); legacy.people(inner); }, notices, settings, ads: () => adsUI.page(inner, view, sub, (state) => go('ads', state)), admin: () => adsUI.adminPage(inner, view, sub, (state) => go('admin', state), (id, state) => go(id, state)) })[screen](inner, view, held);
       root.append(h('div', { class: 'page', 'data-app': screen }, bar, inner));
       return;
     }
@@ -179,7 +190,7 @@ export function createPhone(kit) {
     if (held) root.append(h('div', { class: 'banner' }, self.law.arrest.call.status === 'allowed' ? 'You are held by the police. You may call or message people you know.' : 'You are held by the police. Ask the officer before you call anyone.'));
     else if (self.critical) root.append(h('div', { class: 'banner red' }, 'Your health is critical. Open Health to find a hospital or call the ambulance.'));
     const counts = { messages: self.phone.unread, contacts: self.phone.requests.length, police: self.law.seen.length + (self.law.role ? self.law.role.prisoners.filter((a) => a.call.status === 'asked').length : 0), notices: 0, property: app.market ? app.market.state.unread + app.market.state.toDecide : 0 };
-    root.append(h('div', { class: 'apps' }, APPS.filter((a) => !a.dock).map((a) => tile(a, counts, held))));
+    root.append(h('div', { class: 'apps' }, APPS.filter((a) => !a.dock && (!a.admin || isAdmin())).map((a) => tile(a, counts, held))));
     for (const r of self.phone.requests) root.append(requestCard(r));
     return counts;
   }

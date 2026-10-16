@@ -209,10 +209,12 @@ async function open(tx, accountId) {
 async function after(sql, accountId) {
   const rows = await sql.unsafe(`select w.balance, w.starter, w.illicit, (select coalesce(max(id), 0) from ${S}.wallet_entries e where e.wallet_id = w.id) as last from ${S}.wallets w where w.account_id = $1`, [accountId]);
   const p = partsOf(rows[0]);
-  return { balance: p.balance, starter: p.starter, illicit: p.illicit, eligible: p.eligible, held: await heldBy(sql, accountId), last: Number(rows[0].last) };
+  return { balance: p.balance, starter: p.starter, illicit: p.illicit, eligible: p.eligible, earned: p.earned, held: await heldBy(sql, accountId), adHeld: await adHeldBy(sql, accountId), last: Number(rows[0].last) };
 }
 
 const heldBy = async (sql, accountId) => Number((await sql.unsafe(`select coalesce(sum(held), 0) as held from ${S}.offers where buyer_id = $1 and status = 'pending'`, [accountId]))[0].held);
+// what is held of the player's earned TR for advertising waiting for review
+const adHeldBy = async (sql, accountId) => Number((await sql.unsafe(`select coalesce(sum(total), 0) as held from ${S}.ad_campaigns where account_id = $1 and status = 'pending'`, [accountId]))[0].held);
 
 // What a player's wallet page begins with, and what has come in since the page last looked.
 async function get(sql, me, body = {}) {
@@ -222,10 +224,10 @@ async function get(sql, me, body = {}) {
   let news = [];
   if (since !== null && last > since) {
     // what came in (TR received, a sale, an offer's TR returned) and what was bought at a shop
-    const rows = await sql.unsafe(`${HISTORY} where e.wallet_id = $1 and e.id > $2 and ((e.amount > 0 and t.kind in ('transfer', 'sale', 'release', 'refund')) or (e.amount < 0 and t.kind = 'sale')) order by e.id desc limit 10`, [wallet.id, since]);
+    const rows = await sql.unsafe(`${HISTORY} where e.wallet_id = $1 and e.id > $2 and ((e.amount > 0 and t.kind in ('transfer', 'sale', 'release', 'refund', 'ad-release', 'ad-charge')) or (e.amount < 0 and t.kind = 'sale')) order by e.id desc limit 10`, [wallet.id, since]);
     news = rows.map(line);
   }
-  return { wallet: { username: me.username, balance: wallet.balance, starter: wallet.starter, illicit: wallet.illicit, eligible: wallet.eligible, held: await heldBy(sql, me.id), last }, news };
+  return { wallet: { username: me.username, balance: wallet.balance, starter: wallet.starter, illicit: wallet.illicit, eligible: wallet.eligible, earned: wallet.earned, held: await heldBy(sql, me.id), adHeld: await adHeldBy(sql, me.id), last }, news };
 }
 
 // ---- sending ----
@@ -309,7 +311,7 @@ const HISTORY = `
         from ${S}.wallet_entries where wallet_id = $1 group by tx_id, wallet_id) e
   join ${S}.wallet_tx t on t.id = e.tx_id`;
 
-const TYPES = { grant: 'opening', game: 'game', hold: 'held', release: 'returned', refund: 'returned', upgrade: 'upgrade' };
+const TYPES = { grant: 'opening', game: 'game', hold: 'held', release: 'returned', refund: 'returned', upgrade: 'upgrade', 'ad-hold': 'advert held', 'ad-charge': 'advert approved', 'ad-release': 'advert returned' };
 function line(row) {
   const amount = Number(row.amount);
   const type = row.kind === 'transfer' ? (amount < 0 ? 'sent' : 'received') : row.kind === 'sale' ? (amount < 0 ? 'bought' : 'sold') : TYPES[row.kind] || row.kind;
@@ -437,6 +439,9 @@ async function audit(sql) {
   const escrow = Number((await sql.unsafe(`select balance from ${S}.wallets where code = 'escrow'`))[0].balance);
   const held = Number((await sql.unsafe(`select coalesce(sum(held), 0) as held from ${S}.offers where status = 'pending'`))[0].held);
   if (escrow !== held) problems.push(`${escrow} is set aside and waiting offers account for ${held}`);
+  const adHold = Number((await sql.unsafe(`select balance from ${S}.wallets where code = 'adhold'`))[0].balance);
+  const adOwed = Number((await sql.unsafe(`select coalesce(sum(total), 0) as owed from ${S}.ad_campaigns where status = 'pending'`))[0].owed);
+  if (adHold !== adOwed) problems.push(`${adHold} is held for advertising and waiting campaigns account for ${adOwed}`);
   // the parts of each wallet: none below nothing, never more than the whole, and each what its entries say
   // (counted from the day the count began for that wallet: its first entry, or the reconciliation of step 3)
   for (const row of await sql.unsafe(`select id from ${S}.wallets where kind = 'player' and (starter < 0 or illicit < 0 or starter + illicit > balance)`)) problems.push(`wallet ${row.id} has parts that do not fit in it`);

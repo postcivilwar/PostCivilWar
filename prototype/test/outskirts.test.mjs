@@ -1,4 +1,4 @@
-// Beyond the town: the road to Onitsha, Atani Airport and the bridge, as the simulation knows them.
+// Beyond the town: the road south toward Kwale, Asaba Airport and the bridge, as the simulation knows them.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { zoneWalkable, zoneGroundY, zoneSwimmable, BRIDGE, AIRPORT, ONITSHA_ROAD, OUTSKIRT_ROADS, OUTSKIRT_SIGNS, ZONE_ROADS, ZONE_BUILDINGS, ZONE } from '../src/sim/zone.js';

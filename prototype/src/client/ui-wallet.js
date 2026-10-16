@@ -31,7 +31,7 @@ const icon = (id) => {
 };
 
 const WORDS = Object.freeze({
-  sent: 'Sent', received: 'Received', opening: 'Arrival money', game: 'In town', held: 'Offer', returned: 'Offer returned', bought: 'Bought', sold: 'Sold', upgrade: 'Character upgrade',
+  sent: 'Sent', received: 'Received', opening: 'Arrival money', game: 'In town', held: 'Offer', returned: 'Offer returned', bought: 'Bought', sold: 'Sold', upgrade: 'Character upgrade', 'advert held': 'Advertising held for review', 'advert approved': 'Advertising approved', 'advert returned': 'Advertising returned',
 });
 const STATUS = Object.freeze({ completed: 'Completed', held: 'Set aside', paid: 'Paid', returned: 'Returned' });
 
@@ -85,7 +85,8 @@ export function createWalletUI(kit) {
         row('Total', parts.total, 'wallet-total'),
         row('Starter TR', parts.starter, 'wallet-starter'),
         row('Earned TR (eligible)', parts.eligible, 'wallet-eligible'),
-        parts.held > 0 ? row('Set aside for your offers', parts.held, 'wallet-held') : null),
+        parts.held > 0 ? row('Set aside for your offers', parts.held, 'wallet-held') : null,
+        parts.adHeld > 0 ? row('Held for advertising under review', parts.adHeld, 'wallet-ad-held') : null),
       h('p', { class: 'small' }, 'Starter TR is the 2,000 TR you arrived with. It pays fines, the ambulance, hospital bills, levies, permits, fares, food and fuel. It cannot be sent to another player and does not buy assets (land, vehicles, building materials, things in the market) or a character upgrade.'),
       h('p', { class: 'small' }, 'Earned TR is what you are paid for work in town, what other players send you, and what you sell things for. It can be sent and spent on anything.'));
   }
@@ -160,7 +161,7 @@ export function createWalletUI(kit) {
       h('div', { class: 'wl-top' }, h('div', { class: 'eyebrow' }, 'TR balance'),
         h('button', { class: 'wl-icon', type: 'button', id: 'wallet-history', 'aria-label': 'Transaction history', title: 'Transaction history', onclick: () => { w.history.loaded = false; go({ history: true }); } }, icon('history'))),
       st.balance === null ? h('div', { class: 'wl-balance wl-wait', id: 'wallet-balance', 'aria-busy': 'true' }, h('b', null, st.error ? '—' : '···'), h('span', null, 'TR')) : figure(st.balance),
-      st.balance !== null && st.starter !== null ? partsBox({ total: st.balance, starter: st.starter, eligible: st.eligible, held: st.held }) : null,
+      st.balance !== null && st.starter !== null ? partsBox({ total: st.balance, starter: st.starter, eligible: st.eligible, held: st.held, adHeld: st.adHeld || 0 }) : null,
       st.held > 0 ? h('div', { class: 'wl-held' }, `${tr(st.held)} more is set aside for your offers in the market`) : null,
       h('div', { class: 'wl-user' }, h('span', { class: 'eyebrow' }, 'Username'), h('b', { id: 'wallet-username' }, name), h('span', { class: 'wl-copied', id: 'wallet-copied', role: 'status', hidden: true }), copyButton(name, 'wallet-copy')));
     root.append(card);

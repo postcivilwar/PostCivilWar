@@ -23,7 +23,7 @@ import { trText } from '../sim/ledger.js';
 // playerId(): this player. saveNow(): send the character to the account at once, and say how that went.
 // notify(event): things the player should be told. seen: { get(), set(n) }: the last entry this device has shown.
 export function createWallet({ online, bank, playerId, saveNow = async () => null, saveSoon = () => {}, notify = () => {}, seen = { get: () => null, set: () => {} }, id = newId }) {
-  const state = { balance: null, starter: null, illicit: 0, eligible: null, held: 0, username: '', last: 0, at: 0, loading: false, error: '' };
+  const state = { balance: null, starter: null, illicit: 0, eligible: null, held: 0, adHeld: 0, username: '', last: 0, at: 0, loading: false, error: '' };
   const can = () => online.available && online.signedIn;
   const fail = (code, message) => ({ ok: false, code, message });
 
@@ -48,6 +48,7 @@ export function createWallet({ online, bank, playerId, saveNow = async () => nul
       align(w.balance, why, parts);
     }
     if (Number.isSafeInteger(w.held)) state.held = w.held;
+    if (Number.isSafeInteger(w.adHeld)) state.adHeld = w.adHeld;
     if (typeof w.username === 'string') state.username = w.username;
     if (Number.isSafeInteger(w.last)) {
       state.last = w.last;
@@ -104,6 +105,6 @@ export function createWallet({ online, bank, playerId, saveNow = async () => nul
     people: () => online.ask('wallet.people'),
     addPerson: (username) => online.ask('wallet.person.add', { username }),
     removePerson: (username) => online.ask('wallet.person.remove', { username }),
-    reset() { state.balance = null; state.starter = null; state.illicit = 0; state.eligible = null; state.held = 0; state.username = ''; state.last = 0; state.error = ''; },
+    reset() { state.balance = null; state.starter = null; state.illicit = 0; state.eligible = null; state.held = 0; state.adHeld = 0; state.username = ''; state.last = 0; state.error = ''; },
   };
 }

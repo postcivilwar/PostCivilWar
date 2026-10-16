@@ -598,8 +598,96 @@ const MIGRATIONS = [
        end $f$`,
       ...MOTORCYCLES.map((m) => `insert into ${S}.assets (id, name, category, keywords, model, blurb) values ('${m.asset}', '${m.name.replace(/'/g, "''")}', 'motorcycle', 'motorcycle motorbike bike power ${m.id.replace(/-/g, ' ')}', 'bike:${m.id}', '${m.blurb.replace(/'/g, "''")}') on conflict (id) do nothing`),
       ...MOTORCYCLES.map((m) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${m.listing}', '${m.asset}', 'primary', '${SHOWROOM.shop}', '${SHOWROOM.name}', ${m.price}, ${MOTORCYCLE_STOCK}, '${SHOWROOM.zone}', ${m.x}, ${m.z}, '${SHOWROOM.name}, by Waterside Road, west of the motor park') on conflict (id) do nothing`),
+      // the town is Asaba, Delta State, now (13 October 2026): the watch shop's address and the watch's words say so
+      `update ${S}.listings set place_label = 'HOLARIS Watch, Market Road, Asaba' where id = '${HOLARIS.listing}'`,
+      `update ${S}.assets set blurb = 'A wristwatch from the HOLARIS Watch house in Asaba. Ten were made, each with its own number.' where id = '${HOLARIS.asset}'`,
       // one of each motorcycle to an account (the market also refuses a second, with a reason)
       `create unique index holdings_one_motorcycle on ${S}.holdings(owner_id, asset_id) where asset_id like 'motorcycle-%'`,
+    ],
+  },
+  {
+    id: 7,
+    name: 'advertising on the billboards: campaigns, their pictures, holds of earned TR, the tax, and an admin',
+    statements: [
+      // three of the bank's own wallets: what is held for campaigns under review, the advertising fees taken, and
+      // the advertising tax (for the in-game agency for signage and advertising in Delta State; no player's)
+      `insert into ${S}.wallets (kind, code, overdraw) values ('system', 'adhold', false), ('system', 'adverts', false), ('system', 'adtax', false)`,
+      `alter table ${S}.wallet_tx drop constraint wallet_tx_kind_check`,
+      `alter table ${S}.wallet_tx add constraint wallet_tx_kind_check check (kind in ('grant', 'transfer', 'game', 'hold', 'release', 'sale', 'refund', 'upgrade', 'ad-hold', 'ad-charge', 'ad-release'))`,
+      // a campaign: one advertiser, one billboard, a run of whole days, its price as the server worked it out, and
+      // where it stands. (Scheduled, active and expired are not kept: they follow from its days and the clock.)
+      `create table ${S}.ad_campaigns (
+         id uuid primary key default gen_random_uuid(),
+         account_id uuid not null references ${S}.accounts(id),
+         idem_key text not null,
+         billboard_id text not null,
+         category text not null check (category in ('small', 'medium', 'large', 'xl', 'tv')),
+         brand text not null default '',
+         link text not null default '',
+         days integer not null check (days > 0 and days <= 366),
+         start_at timestamptz,
+         end_at timestamptz,
+         fee_day bigint not null check (fee_day > 0),
+         tax_day bigint not null check (tax_day >= 0),
+         fee bigint not null check (fee >= 0),
+         tax bigint not null check (tax >= 0),
+         total bigint not null check (total = fee + tax),
+         refunded bigint not null default 0 check (refunded >= 0),
+         status text not null default 'draft' check (status in ('draft', 'pending', 'approved', 'rejected', 'cancelled')),
+         terms_version text,
+         terms_at timestamptz,
+         rights boolean not null default false,
+         reviewer_id uuid references ${S}.accounts(id),
+         reviewed_at timestamptz,
+         review_note text not null default '',
+         created_at timestamptz not null default now(),
+         submitted_at timestamptz,
+         unique (account_id, idem_key),
+         check (status = 'draft' or (start_at is not null and end_at > start_at and terms_version is not null and rights))
+       )`,
+      `create index ad_campaigns_board on ${S}.ad_campaigns(billboard_id, start_at) where status in ('pending', 'approved')`,
+      `create index ad_campaigns_account on ${S}.ad_campaigns(account_id, created_at desc)`,
+      // its pictures: one for a printed board, three to ten for a screen; kept here, given out only as allowed
+      `create table ${S}.ad_art (
+         id uuid primary key default gen_random_uuid(),
+         campaign_id uuid not null references ${S}.ad_campaigns(id),
+         idx integer not null check (idx >= 0 and idx < 10),
+         mime text not null check (mime in ('image/png', 'image/jpeg', 'image/webp')),
+         width integer not null check (width > 0),
+         height integer not null check (height > 0),
+         bytes integer not null check (bytes > 0),
+         sha256 text not null,
+         data bytea not null,
+         created_at timestamptz not null default now(),
+         unique (campaign_id, idx)
+       )`,
+      // one row a billboard, locked while a booking on it is made, so that two bookings never take the same days
+      `create table ${S}.ad_slots (billboard_id text primary key)`,
+      `insert into ${S}.ad_slots (billboard_id) select value->>'id' from jsonb_array_elements('${JSON.stringify(require('./billboards.json').map((b) => ({ id: b.id })))}'::jsonb) on conflict do nothing`,
+      // what happened to each campaign, by whom and when: only ever added to
+      `create table ${S}.ad_events (
+         id bigserial primary key,
+         campaign_id uuid not null references ${S}.ad_campaigns(id),
+         actor_id uuid references ${S}.accounts(id),
+         action text not null,
+         note text not null default '',
+         meta jsonb not null default '{}'::jsonb,
+         at timestamptz not null default now()
+       )`,
+      `create trigger ad_events_kept before update or delete on ${S}.ad_events for each row execute function ${S}.wallet_history_is_kept()`,
+      `create trigger ad_events_kept_all before truncate on ${S}.ad_events for each statement execute function ${S}.wallet_history_is_kept()`,
+      ...['ad_campaigns', 'ad_art', 'ad_slots', 'ad_events'].map((table) => `alter table ${S}.${table} enable row level security`),
+      `do $$ declare r text; begin
+         foreach r in array array['anon', 'authenticated'] loop
+           if exists (select 1 from pg_roles where rolname = r) then
+             execute format('revoke all on all tables in schema ${S} from %I', r);
+             execute format('revoke all on all sequences in schema ${S} from %I', r);
+           end if;
+         end loop;
+       end $$`,
+      // the owner's administrator (13 October 2026): the account named Chukwumezie, if it has been made. (Nobody
+      // else becomes one by taking that name later: this is done once, now, to the account that has it now.)
+      `update ${S}.accounts set role = 'admin' where username_key = 'chukwumezie'`,
     ],
   },
 ];

@@ -1,4 +1,4 @@
-// Beyond the town, in a headless browser on the website as it is served: the road out towards Onitsha, Atani
+// Beyond the town, in a headless browser on the website as it is served: the road out south towards Kwale, Asaba
 // Airport and the bridge over the Niger. A player walks out along the road, through the airport's car park and
 // its terminal, onto its apron by the gate, and across the bridge to its barrier; the deck carries them at its
 // height, the rails and the fence hold, the swim button is not offered on the deck, and what is drawn there

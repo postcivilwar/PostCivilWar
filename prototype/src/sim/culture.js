@@ -58,8 +58,7 @@ export const PEOPLES = Object.freeze({
     ['Onome', 'Eloho', 'Efemena', 'Oghenekevwe', 'Ejiroghene', 'Akpevwe', 'Omamuyovwi', 'Rukevwe'],
     ['Akpobome', 'Edewor', 'Onojeta', 'Okpako', 'Ejovwo', 'Agbroko', 'Umukoro', 'Otobo'],
     [['catholic', 0.4], ['anglican', 0.4], ['other', 0.2]]),
-  // The peoples of Delta State (13 October 2026, when the town became Asaba). Enuani is the Igbo of Asaba and the
-  // Anioma towns round it, and is spoken here with the phrase book's Igbo; Ika and Ukwuani are languages of their
+  // The peoples of Delta State (added 13 October 2026). Enuani is the Igbo of the Anioma towns, and is spoken here with the phrase book's Igbo; Ika and Ukwuani are languages of their
   // own, as are Isoko and Itsekiri, and none of them is in the phrase book yet.
   enuani: people('enuani', 'Anioma (Enuani)', 'ig',
     ['Nwaka', 'Chukwuka', 'Nkem', 'Ifeanyi', 'Okwudili', 'Chiedu', 'Azuka', 'Chukwudi', 'Nnamdi', 'Emeka', 'Obi', 'Uche', 'Kenechukwu', 'Ikechukwu', 'Ndidi', 'Ogbogu'],

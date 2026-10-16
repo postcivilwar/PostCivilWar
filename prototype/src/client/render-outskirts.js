@@ -1,5 +1,5 @@
 // Beyond the town (src/sim/zones/atani-outskirts.js): the ground out to the road works on the Onitsha road, the
-// road itself and what stands beside it, Atani Airport, and the bridge over the Niger. Drawn the way the town is:
+// road itself and what stands beside it, Asaba Airport, and the bridge over the Niger. Drawn the way the town is:
 // merged into a few meshes by kind of surface, in squares that are drawn only within sight.
 //
 // The bridge follows the owner's photographs of the Niger's steel through-truss bridges: a deck carried between

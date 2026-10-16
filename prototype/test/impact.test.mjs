@@ -389,7 +389,8 @@ test('townspeople get out of the way of a vehicle that sounds its horn', () => {
   const hits = driveAt(w, d, someone.x, someone.z, { horn: true });
   assert.deepEqual(hits.filter((h) => h.kind === 'npc' && h.id === someone.i), [], 'they were not struck');
   const now = whereIs(w, someone.i);
-  assert.ok(Math.abs(now.z - someone.z) > 0.6 || Math.abs(now.x - someone.x) > 0.6, 'they stepped aside');
+  // (an old person may already be on the way back to where they were by the time the keke has passed)
+  assert.ok(Math.abs(now.z - someone.z) > 0.6 || Math.abs(now.x - someone.x) > 0.6 || (now.act === 'Going back' && Math.hypot(now.x - someone.x, now.z - someone.z) > 0.3), `they stepped aside ${JSON.stringify({ someone: { x: someone.x, z: someone.z }, now })}`);
 });
 
 test('a townsperson who cannot get clear is knocked down, bleeds, and gets up; struck again and again, they die, lie there, and are taken away', () => {

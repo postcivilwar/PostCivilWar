@@ -27,9 +27,9 @@ const save = (p, baseRev, report) => p.call('save.put', { baseRev, enc: 'json', 
 test('a new account has a wallet with the arrival money, £20 as 2,000 TR: given once, by the bank, and written down', async () => {
   const p = await newPlayer('Arrive');
   const got = await p.ok('wallet.get');
-  assert.deepEqual(got.wallet, { username: p.username, balance: STARTER, starter: STARTER, illicit: 0, eligible: 0, held: 0, last: got.wallet.last }, 'all of it is starter TR');
+  assert.deepEqual(got.wallet, { username: p.username, balance: STARTER, starter: STARTER, illicit: 0, eligible: 0, earned: 0, held: 0, adHeld: 0, last: got.wallet.last }, 'all of it is starter TR');
   const me = await p.ok('me');
-  assert.deepEqual(me.wallet, { balance: STARTER, starter: STARTER, illicit: 0, eligible: 0, held: 0, last: got.wallet.last });
+  assert.deepEqual(me.wallet, { balance: STARTER, starter: STARTER, illicit: 0, eligible: 0, earned: 0, held: 0, adHeld: 0, last: got.wallet.last });
   const { entries, more } = await p.ok('wallet.history');
   assert.equal(entries.length, 1);
   assert.equal(more, false);
@@ -336,7 +336,7 @@ test('erasing a character: only the character goes. The account, the wallet, its
   const me = await p.ok('me');
   assert.equal(me.account.username, p.username);
   assert.deepEqual(me.save, { rev: rev + 1, erased: true });
-  assert.deepEqual(await p.ok('save.get'), { ok: true, save: null, erased: true, rev: rev + 1, wallet: { balance: before.balance, starter: before.starter, illicit: 0, eligible: before.eligible, held: 0, last: erased.wallet.last, mark: 0 } });
+  assert.deepEqual(await p.ok('save.get'), { ok: true, save: null, erased: true, rev: rev + 1, wallet: { balance: before.balance, starter: before.starter, illicit: 0, eligible: before.eligible, earned: before.eligible, held: 0, adHeld: 0, last: erased.wallet.last, mark: 0 } });
   assert.equal(await balance(p), before.balance);
   assert.deepEqual((await p.ok('wallet.history', { all: true })).entries.map((e) => e.ref), before.history);
   assert.equal((await p.ok('wallet.people')).people.length, before.people);

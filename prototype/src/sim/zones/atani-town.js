@@ -11,17 +11,17 @@ const road = (id, name, x0, z0, x1, z1, surface) => Object.freeze({ id, name, x0
 export const TOWN_ROADS = Object.freeze([
   road('college', 'College Road', -5, -470, 5, -216, 'asphalt'),
   road('campus', 'Campus Road', -150, -345, 240, -337, 'laterite'),
-  road('lane-w', 'Umuoga Lane', -237, 65.5, -83, 68.5, 'path'),
-  road('lane-wx', 'Umuoga Lane', -86, 68.5, -83, 108, 'path'),
-  road('lane-wn', 'Umuoga Lane', -86, -35, -83, 65.5, 'path'),
-  road('lane-e', 'Odekpe Lane', 86, 65.5, 237, 68.5, 'path'),
-  road('lane-en', 'Odekpe Lane', 86, -35, 89, 65.5, 'path'),
-  road('lane-ex', 'Odekpe Lane', 86, 68.5, 89, 108, 'path'),
-  road('lane-n1', 'Ochuche Lane', -150, -392, -5, -389, 'path'),
-  road('lane-n2', 'Akili Lane', -150, -437, -5, -434, 'path'),
-  road('lane-ne', 'Ossomala Lane', 168, -462, 171, -345, 'path'),
-  road('lane-ne1', 'Ossomala Lane', 171, -392, 238, -389, 'path'),
-  road('lane-ne2', 'Ossomala Lane', 171, -437, 238, -434, 'path'),
+  road('lane-w', 'Umuezei Lane', -237, 65.5, -83, 68.5, 'path'),
+  road('lane-wx', 'Umuezei Lane', -86, 68.5, -83, 108, 'path'),
+  road('lane-wn', 'Umuezei Lane', -86, -35, -83, 65.5, 'path'),
+  road('lane-e', 'Umuonaje Lane', 86, 65.5, 237, 68.5, 'path'),
+  road('lane-en', 'Umuonaje Lane', 86, -35, 89, 65.5, 'path'),
+  road('lane-ex', 'Umuonaje Lane', 86, 68.5, 89, 108, 'path'),
+  road('lane-n1', 'Umuaji Lane', -150, -392, -5, -389, 'path'),
+  road('lane-n2', 'Ugbomanta Lane', -150, -437, -5, -434, 'path'),
+  road('lane-ne', 'Umuagu Lane', 168, -462, 171, -345, 'path'),
+  road('lane-ne1', 'Umuagu Lane', 171, -392, 238, -389, 'path'),
+  road('lane-ne2', 'Umuagu Lane', 171, -437, 238, -434, 'path'),
   road('farm', 'Farm Path', -215, -342.5, -150, -339.5, 'path'),
   road('farm-n', 'Farm Path', -203, -440, -200, -342.5, 'path'),
 ]);
@@ -36,15 +36,15 @@ function buildHouses() {
     const n = list.length;
     list.push(Object.freeze({ id: `house-${String(n + 1).padStart(3, '0')}`, quarter, x, z, w: 8 + (n % 3), d: 6.5 + ((n * 7) % 3) * 0.5, h: 2.9 + ((n * 5) % 3) * 0.15, door, wall: WALLS[(n * 5) % WALLS.length], roof: ROOFS[(n * 3) % ROOFS.length] }));
   };
-  for (const x of [-105, -135, -165, -195, -225]) add('Umuoga', x, 96, 's');
-  for (let k = 0; k < 10; k += 1) add('Umuoga', -230 + k * 15, 76, 'n');
-  for (let k = 0; k < 10; k += 1) add('Umuoga', -230 + k * 15, 58, 's');
-  for (const x of [105, 135, 165, 195, 225]) add('Odekpe', x, 96, 's');
-  for (let k = 0; k < 10; k += 1) add('Odekpe', 95 + k * 15, 76, 'n');
-  for (let k = 0; k < 10; k += 1) add('Odekpe', 95 + k * 15, 58, 's');
+  for (const x of [-105, -135, -165, -195, -225]) add('Umuezei', x, 96, 's');
+  for (let k = 0; k < 10; k += 1) add('Umuezei', -230 + k * 15, 76, 'n');
+  for (let k = 0; k < 10; k += 1) add('Umuezei', -230 + k * 15, 58, 's');
+  for (const x of [105, 135, 165, 195, 225]) add('Umuonaje', x, 96, 's');
+  for (let k = 0; k < 10; k += 1) add('Umuonaje', 95 + k * 15, 76, 'n');
+  for (let k = 0; k < 10; k += 1) add('Umuonaje', 95 + k * 15, 58, 's');
   for (const [z, door] of [[-378, 'n'], [-402, 's'], [-423, 'n'], [-448, 's']]) {
-    for (let k = 0; k < 9; k += 1) add(z > -410 ? 'Ochuche' : 'Akili', -140 + k * 15, z, door);
-    for (let k = 0; k < 4; k += 1) add('Ossomala', 182 + k * 15, z, door);
+    for (let k = 0; k < 9; k += 1) add(z > -410 ? 'Umuaji' : 'Ugbomanta', -140 + k * 15, z, door);
+    for (let k = 0; k < 4; k += 1) add('Umuagu', 182 + k * 15, z, door);
   }
   return Object.freeze(list);
 }
@@ -380,7 +380,7 @@ export const TOWN_STOPS = Object.freeze([
   ['park', 'Motor park', -40, 113], ['market', 'Market gate', 0, 60], ['jetty', 'Jetty', 21, 113], ['registry', 'Lands Registry', 48, -40],
   ['hospital', 'General Hospital', -175, -40], ['primary', 'Central Primary School', 150, -40], ['secondary', 'Government Secondary School', 160, -40],
   ['catholic', 'St. Michael\'s Church', -91, -40], ['yard', 'Block yard', -95, -141], ['layout', 'Niger View Layout', 100, -212],
-  ['university', 'Niger Valley University', 0, -282], ['college', 'College of Education', 90, -341], ['umuoga', 'Umuoga quarter', -84.5, 67], ['odekpe', 'Odekpe quarter', 87.5, 67], ['ochuche', 'Ochuche quarter', -75, -390.5],
+  ['university', 'Niger Valley University', 0, -282], ['college', 'College of Education', 90, -341], ['umuezei', 'Umuezei quarter', -84.5, 67], ['umuonaje', 'Umuonaje quarter', 87.5, 67], ['umuaji', 'Umuaji quarter', -75, -390.5],
 ].map(([id, name, x, z]) => Object.freeze({ id, name, x, z })));
 
 // Sound that belongs to a place: music from a loudspeaker, a generator, a bell.

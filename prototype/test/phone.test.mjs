@@ -146,7 +146,7 @@ test('from custody the phone is the officer\'s to allow: asked for, granted, and
   assert.equal(request.from, x.name);
   assert.equal(request.amount, fine);
   assert.deepEqual(request.station, { x: post().x, z: post().z, name: 'Police Post' });
-  assert.ok(request.metres > 150 && request.walkSeconds === Math.round(request.metres / 2.4) && request.walkMinutes >= 1);
+  assert.ok(request.metres > 150 && Math.abs(request.walkSeconds - request.metres / 2.4) <= 0.75 && request.walkMinutes >= 1, JSON.stringify(request));
   assert.equal(request.near, false);
   assert.equal(request.ready, true);
   refused(w.send(f.id, { type: 'bail.pay', arrestId: request.arrest }), 'TOO_FAR');

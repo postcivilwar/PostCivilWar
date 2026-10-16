@@ -50,8 +50,9 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
         e.bike.pose({ travelled: e.travelled, steerAngle: ridden.steer || 0, tilt: ridden.lean || 0 });
       }
     }
-    for (const p of parked) {
-      if (!POWER_BIKES[p.bike] || Math.hypot(p.x - from.x, p.z - from.z) > SIGHT) continue;
+    // (the nearest few: a player who owns many and leaves them together sees those beside them)
+    const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, 3);
+    for (const p of near) {
       const key = `park:${p.bike}`;
       wanted.add(key);
       const e = entry(key, p.bike);
@@ -119,10 +120,10 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
         }
         return gap;
       };
-      // still out of reach: the rider sits further forward on the seat (up to a quarter of a metre), and bends again
+      // still out of reach: the rider sits further forward on the seat (up to a third of a metre), and bends again
       const gap = bend();
       if (gap > 0) {
-        me.group.position.add(off(0, 0, Math.min(0.25, gap * 1.3)));
+        me.group.position.add(off(0, 0, Math.min(0.33, gap * 1.3)));
         me.group.updateMatrixWorld(true);
         bend();
       }

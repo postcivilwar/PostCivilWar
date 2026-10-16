@@ -19,6 +19,7 @@ import { makeRng } from '../rng.js';
 import { houseDoor } from '../layout.js';
 import { kekeLook, busLook, footprintBox } from '../vehicle-looks.js';
 import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } from './atani-outskirts.js';
+import { ZONE_BILLBOARDS } from './atani-billboards.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
 export const ZONE = Object.freeze({
@@ -774,7 +775,7 @@ function buildTown() {
     if (b.kind !== 'home') continue;
     const place = ZONE_PLACES[b.id];
     const home = { id: b.id, kind: 'house', x: b.x, z: b.z, beds: 8, home: addSpot({ venue: 'home', slot: 'home', room: b.id, x: place.x, z: place.z, facing: 0, node: place.node, inside: true, ctx: 'home' }) };
-    front(home, { x: b.x, z: b.z + b.d / 2 + 1.6, facing: 0 }, place.node, b.x < 0 ? 'Umuoga' : 'Odekpe');
+    front(home, { x: b.x, z: b.z + b.d / 2 + 1.6, facing: 0 }, place.node, b.x < 0 ? 'Umuezei' : 'Umuonaje');
     homes.push(home);
   }
   for (const h of ZONE_HOUSES) {
@@ -922,7 +923,10 @@ export const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(
 export * from './atani-outskirts.js';
 export const zoneGroundY = outskirtsGroundY;
 
-export const ZONE_COLLIDERS = Object.freeze([...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS].map(Object.freeze));
+// The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
+// (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)
+const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], billboard: b.id })));
+export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 // True when a person of the given radius can stand at (x, z).
@@ -932,6 +936,9 @@ const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 export function zoneSolid(x, z, radius = 0.2) {
   return blockedIn(COLLIDER_INDEX, x, z, radius);
 }
+
+// Is this ground at all: the town's land (not the river) or the land beyond it that can be walked.
+export const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z);
 
 export function zoneWalkable(x, z, extra = [], radius = 0.4) {
   if (!onGround(x, z) && !onOutskirts(x, z)) return false;

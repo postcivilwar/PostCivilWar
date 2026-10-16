@@ -91,7 +91,7 @@ export function createTalk({ state, population, residents, players, weather, hub
       if (p.age < 4) continue;
       const at = population.locate(i, t, {});
       const spot = at.moving ? null : ZONE_SPOTS[at.spot];
-      out.push({ key: `n:${i}`, n: i, x, z, moving: pose === POSE.walk, langs: p.langs, name: p.short, role: '', part: partOf(p, spot), ctx: spot ? spot.ctx : 'street', room: spot ? spot.room : null, chatty: p.traits.includes('talkative') || p.traits.includes('jovial') ? 1.6 : p.traits.includes('reserved') || p.traits.includes('shy') ? 0.45 : 1 });
+      out.push({ key: `n:${i}`, n: i, x, z, moving: pose === POSE.walk, langs: p.langs, age: p.age, name: p.short, role: '', part: partOf(p, spot), ctx: spot ? spot.ctx : 'street', room: spot ? spot.room : null, chatty: p.traits.includes('talkative') || p.traits.includes('jovial') ? 1.6 : p.traits.includes('reserved') || p.traits.includes('shy') ? 0.45 : 1 });
     }
     for (const r of residents.all()) {
       if (r.mode === 'inside') continue;
@@ -150,7 +150,10 @@ export function createTalk({ state, population, residents, players, weather, hub
     const roll = hash(A.n + 5, B.n + 3, bucket);
     // buying and selling is as often done in Pidgin, the language of trade
     const trade = (A.ctx === 'market' || B.ctx === 'market' || A.ctx === 'park' || B.ctx === 'park') && common.includes('pcm');
-    const lang = formal || common.length < 2 ? sharedLanguage(A.langs, B.langs, formal) : trade && roll > 0.5 ? 'pcm' : common[roll < 0.58 ? 0 : roll < 0.86 || common.length < 3 ? 1 : 2];
+    // a lesson is taught in English, the language of the school, by a teacher who has it (a class of children of
+    // many peoples, as in a Delta town, has no other language in common), unless the class is too young for it
+    const teaching = A.ctx === 'class' && [A, B].some((x) => x.part === 'teacher' && x.langs.includes('en')) && [A, B].some((x) => x.part === 'pupil' && x.age >= 6);
+    const lang = teaching ? 'en' : formal || common.length < 2 ? sharedLanguage(A.langs, B.langs, formal) : trade && roll > 0.5 ? 'pcm' : common[roll < 0.58 ? 0 : roll < 0.86 || common.length < 3 ? 1 : 2];
     let at = real + 0.2;
     let last = at;
     for (const [who, id] of exchange.lines) {

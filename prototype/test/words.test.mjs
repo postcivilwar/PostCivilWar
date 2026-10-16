@@ -12,10 +12,11 @@ const here = (p) => resolve(dirname(fileURLToPath(import.meta.url)), '..', p);
 const read = (p) => readFileSync(here(p), 'utf8');
 const sources = (dir, out = []) => { for (const name of readdirSync(dir)) { const p = join(dir, name); if (statSync(p).isDirectory()) sources(p, out); else if (/\.(js|mjs|html|css|json)$/.test(name)) out.push(p); } return out; };
 
+// The owner's revised About, 13 October 2026 (the setting moved to Delta State).
 const WANTED = [
-  "Step into a rich, immersive world set in post-civil war Nigeria, after the Biafran conflict. This open-world life simulation invites players from all backgrounds, worldwide, to experience a journey of reinvention. Set in the Eastern region of Nigeria after the 1970 ceasefire, you begin with just £20, having lost everything in the aftermath of the war.",
-  "In this game, you forge your own path: will you rise as a hero, helping rebuild your community or take a darker route as a villain? Whether you choose to work as a teacher, engineer, pastor or engage in crime—car theft, smuggling or other high-stakes risks, your choices shape your destiny. Build wealth by trading land, cars, and assets; or lose yourself in the struggle for survival. Every action has consequences—police, soldiers and justice will follow.",
-  "Powered by TR as your currency, the game blends historical authenticity with limitless freedom. Anyone can experience the rich culture, the triumphs, and the challenges of rebuilding life in post-war Nigeria. Your story, your choices—start today."
+  "Step into a rich, immersive world set in post-civil-war Nigeria. This open-world life simulation invites players from all backgrounds, worldwide, to experience a journey of reinvention. You arrive in Delta State with just \u00a320, having lost everything in the aftermath of the war.",
+  "In this game, you forge your own path: will you rise as a hero, helping rebuild your community, or take a darker route as a villain? Whether you choose to work as a teacher, engineer or pastor, or engage in crime such as car theft, smuggling or other high-stakes risks, your choices shape your destiny. Build wealth by trading land, cars and assets, or lose yourself in the struggle for survival. Every action has consequences\u2014police, soldiers and justice will follow.",
+  "Powered by TR as your in-game currency, the game blends Nigerian cultural richness with freedom and consequence. Explore Delta-inspired communities, build businesses, discover new opportunities and experience the challenges of rebuilding your life. Your story, your choices\u2014start today.",
 ];
 
 test('About is the three paragraphs, letter for letter', () => {

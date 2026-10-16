@@ -10,7 +10,23 @@
 import { BIKE_PARTS } from './bike-parts.js';
 import { surface } from './render-kit.js';
 
-const cache = new Map();          // one geometry and material a bike, however many are drawn
+const cache = new Map();          // one geometry and material a bike, however many are drawn (most recently used last)
+const users = new Map();          // how many of each are in the scene now
+const KEEP = 3;                   // bikes kept ready when none of them is drawn: their 4096 pictures are large
+
+// Lets go of the bikes nobody is drawing, oldest first, beyond the few kept ready.
+function trim() {
+  for (const [key, made] of cache) {
+    if (cache.size <= KEEP) break;
+    if (users.get(key)) continue;
+    cache.delete(key);
+    made.then(({ geometries, material }) => {
+      for (const g of geometries) g.dispose();
+      for (const t of [material.map, material.normalMap, material.roughnessMap]) if (t) t.dispose();
+      material.dispose();
+    }, () => {});
+  }
+}
 
 function picture(url, colour) {
   const map = new THREE.Texture();
@@ -62,6 +78,10 @@ async function partsOf(id, { base, lite }) {
 // One motorcycle to put in the scene. `length` is its real length in metres.
 export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1 } = {}) {
   const { spec, geometries, material } = await partsOf(id, { base, lite });
+  const key = `${id}:${lite ? 2 : 4}`;
+  users.set(key, (users.get(key) || 0) + 1);
+  if (cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
+  let held = true;
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `bike:${id}`;
   const lean = new THREE.Group(); group.add(lean);          // leans about the line its tyres touch the ground on
@@ -95,7 +115,7 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
       steer.rotation.y = steerAngle;
       lean.rotation.z = -tilt;
     },
-    dispose() { if (group.parent) group.parent.remove(group); },
+    dispose() { if (group.parent) group.parent.remove(group); if (held) { held = false; users.set(key, users.get(key) - 1); trim(); } },
   };
 }
 

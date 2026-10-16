@@ -20,6 +20,7 @@ import { createLoopbackHub, createRoomTransport } from '../net/transport.js';
 import { createLink } from '../net/link.js';
 import { buildWorld } from './render-world.js';
 import { buildOutskirts } from './render-outskirts.js';
+import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite } from './render-kit.js';
@@ -128,9 +129,29 @@ function start(carried) {
   // arrives, and starting is what the owner asked to be quick. Its lamps then join the town's.
   let outskirts = { lampHeads: [], see() {}, ready: false };
   let beyondWait = 0;
+  let billboards = null;
+  // the campaigns showing on billboards now: asked of the server every few minutes, and drawn on them
+  const adBoard = {
+    at: -1e9, list: [],
+    async refresh() {
+      if (!online.available) return;
+      const answer = await online.ask('ads.board', {});
+      if (answer.ok) { adBoard.list = answer.campaigns; adBoard.at = clock; if (billboards) billboards.show(answer.campaigns); }
+    },
+  };
   function buildBeyond() {
     if (outskirts.ready) return;
     outskirts = { ...buildOutskirts(scene, { glowMaterial: world.glowMaterial }), ready: true };
+    // the advertising billboards, in town and beyond it (render-billboards.js), with the same wait
+    billboards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, loadArtwork: async (id) => {
+      // an approved campaign's picture, from the server (only an approved one is given to anyone but its advertiser)
+      const answer = await online.ask('ads.art', { id }, { timeout: 30000 });
+      if (!answer.ok) throw new Error(answer.message);
+      const raw = atob(answer.data); const bytes = new Uint8Array(raw.length);
+      for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+      return new Blob([bytes], { type: answer.mime });
+    } });
+    adBoard.refresh();
     world.lampHeads.push(...outskirts.lampHeads);
     lampPools.place();
   }
@@ -677,6 +698,7 @@ function start(carried) {
     rideBike: (id) => rideOwnBike(id),
     bikeSound: (id) => audio.previewBike(id),
     stopBikeSound: () => audio.stopPreview(),
+    refreshAdverts: () => adBoard.refresh(),
     saveNow: () => accountSync.upload(),
     account: { open: (mode, why) => accountUI.open(mode, why), logOut: () => accountUI.logOut() },
     accountName: () => { const m = accountMark(); return online.account ? online.account.username : m && m.user ? m.user : ''; },
@@ -2215,6 +2237,8 @@ blood.update(dt, view.blood || []);
     night = skyState.night;
     setVehicleDaylight(1 - night);
     world.glowMaterial.emissiveIntensity = night * 1.5;
+    if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
+    if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
     for (const showroom of world.showrooms) showroom.setNight(night);
     siteLayer.setNight(night * 1.5);
     world.waterMaterial.color.copy(linear(ZONE_PROPS.water.day)).lerp(linear(ZONE_PROPS.water.night), night * 0.8).lerp(linear(ZONE_PROPS.water.dull), skyState.dull * 0.5);
@@ -2312,7 +2336,7 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)
-    get beyond() { return outskirts.ready; }, buildBeyond: () => buildBeyond(),
+    get beyond() { return outskirts.ready; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(),
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },

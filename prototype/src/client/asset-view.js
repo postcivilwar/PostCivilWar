@@ -208,6 +208,7 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
   canvas.addEventListener('pointerup', lift); canvas.addEventListener('pointercancel', lift);
   canvas.addEventListener('wheel', (event) => { look.dist = Math.max(1.3, Math.min(7, look.dist * (event.deltaY > 0 ? 1.1 : 0.9))); look.auto = false; event.preventDefault(); }, { passive: false });
 
+  let shownBike = null;           // (given back when the viewer closes, so that its pictures can be let go)
   async function load(modelId, onProgress, { source = null, base = 'bikes/', lite = touchFirst() || isLite() } = {}) {
     const model = ASSET_MODELS[modelId];
     if (!model) throw new Error('There is no model of that.');
@@ -215,7 +216,8 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
       // a motorcycle: its own parts, at its real length, stood in the middle on its wheels
       if (onProgress) onProgress(0, 1);
       const bike = await loadBike(model.bike, { base, lite, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1 });
-      if (closed) return null;
+      if (closed) { bike.dispose(); return null; }
+      shownBike = bike;
       bike.pose({});
       const box = new THREE.Box3().setFromObject(bike.group);
       const centre = box.getCenter(new THREE.Vector3());
@@ -271,6 +273,7 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
     dispose() {
       closed = true;
       if (raf) cancelAnimationFrame(raf);
+      if (shownBike) { shownBike.dispose(); shownBike = null; }
       if (mesh) { mesh.geometry.dispose(); for (const t of [mesh.material.map, mesh.material.roughnessMap, mesh.material.normalMap]) if (t) t.dispose(); mesh.material.dispose(); }
       env.dispose();
       renderer.dispose();

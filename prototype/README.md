@@ -1324,6 +1324,75 @@ glass and the road works are walls. The deck carries whoever is on it at its hei
 player, a keke or a motorcycle goes up the approach and across, and the camera with them; one cannot swim from
 the deck. The map and the radar show all of it.
 
+## Asaba, Delta State; twelve motorcycles; five hundred billboards and the ADS app (13 to 16 October 2026)
+
+From the owner's Delta State prompt, twelve motorcycle models and eighteen billboard photographs. (The two sections
+above describe the town as it was first built, as Atani in Anambra State; what changed is here.)
+
+### Asaba, Delta State
+
+- The town is **Asaba**, Oshimili South, Delta State, on the west bank of the Niger (`src/sim/zones/atani.js`: the
+  name, the state, the local government, the map's origin at 6.198 N 6.733 E, plates `ASB nnn DT`). Its quarters
+  and lanes, the hospital, the polytechnic and the college of education carry Asaba names. The road out south is
+  the Asaba–Kwale Road (Kwale, Ughelli, Warri on its sign); the airport is **Asaba Airport**.
+- Kept on purpose as identifiers only, never shown: the file names `atani*.js`, the zone id `NG-AN-OGB-Z1`, the
+  government account codes and the road id `onitsha`. Saved games and the server's records refer to them.
+- **The people**: about seven in ten speak a Delta language at home (Enuani Igbo 32 %, Urhobo 12, Isoko 7, Ika 7,
+  Ijaw (Izon) 6, Itsekiri 4, Ukwuani 4), the rest Igbo, Edo, Yoruba, Hausa, Igala and Efik (`ZONE_POPULATION`, one
+  table, easily changed). The game's phrase book has Igbo, Yoruba, Hausa and Pidgin only: a townsperson whose
+  language it has no phrases for speaks Pidgin or English to the player and says which language they speak at
+  home. Lessons are in English. Nothing is made up in a language the game does not have.
+- **The bridge** now lands at a gantry over its far end: WELCOME TO ANAMBRA STATE — LIGHT OF THE NATION, and the
+  barrier beyond it: Onitsha and Anambra State are not built.
+- The About page is the owner's text.
+
+### Twelve motorcycles
+
+The owner's twelve models, each the supplied file byte for byte, are sold at the **Motorcycle Showroom** by
+Waterside Road from 1,000 TR to 10,000 TR (`src/sim/power-bikes.js`; the server's own list in
+`api/_lib/schema.js`, a test checks they agree). Arrival money may buy one (the owner's exception: the database
+allows starter TR out for a showroom motorcycle and nothing new), one of each to an account, kept on the server.
+From Property, Ride puts the bike under the player: the rider on its seat, hands on its grips and feet on its pegs
+(`src/client/own-bike-view.js`), wheels turning, leaning into turns, getting off leaves it standing. Each bike has
+an engine of its own, made in the page, that runs as long as the throttle is held; Play sound and Stop sound on
+its page, quiet when the page is left. The owner's own recordings go in where those engines are, one for each bike,
+when they are sent.
+
+### Five hundred billboards
+
+Eighteen photographs (one a repeat), seventeen kinds, built in three dimensions from their parts
+(`src/sim/billboards.js` for the kinds, `src/client/render-billboards.js` for the steel): poles with flanges and
+base plates, raked legs, yellow scaffold legs with their bracing, side trusses, the box behind the face,
+platforms of grating with handrails, ladders with cages or pegs, floodlights, and the five digital kinds (a screen
+on a unipole, a four-sided tower, a curved screen on a mast, a chrome frame on a plinth, a building wrapped in
+screens). `tools/billboards/place.mjs` places them: 500 (150 small, 150 medium, 120 large, 60 extra-large, 20
+digital screens), 52 at the airport, 142 on the Kwale road, 306 in town, in 28 sizes, each with its identity
+(`BB-001` ...), every pole and leg on level open ground (not on a road, a plot, a path, in a building or the
+river: `test/billboards.test.mjs`), its supports walls to walk into. Each face says PLACE YOUR ADS and its own size.
+
+Drawn as instances: one shape of each kind, its instances near the camera in full, further ones as an outline,
+none beyond sight; one set of faces for each size; the screens drawn again only when near.
+
+### ADS and Admin
+
+`src/client/ui-ads.js` on the phone; `api/_lib/ads.js` on the server.
+
+- **ADS**: the prices, the billboards (by category, place and whether free), one billboard (its size, the shape a
+  picture must be, how long), the brand and link, the flier or three to ten slides, the whole price with the fee
+  and tax and the first free days, the Advertising Terms and Conditions (`src/sim/ad-terms.js`) and the checkbox,
+  submit; then the campaigns with their status, days and the reviewer's words, and Cancel while one waits.
+- **Money**: `(fee + tax) × days` in whole TR, from the server's own table; a week is 7 days, a month 30. Only
+  earned TR pays (not arrival money, not TR taken from someone). Submitted, the total moves from the player's earned
+  TR to the bank's `adhold`; approved, the fee goes to `adverts` and the tax to `adtax` (the Delta State agency's);
+  rejected or cancelled, it comes back. Each happens once, under its own key, with the campaign's row locked; a
+  billboard's row is locked while its days are found, so no two campaigns share a day.
+- **Pictures**: PNG, JPEG or WebP stills, checked from their own bytes on the server (kind, pixels, 2.4 MB at most,
+  the billboard's shape within 4 %); given to anyone only while their campaign is approved and running.
+- **Admin** (only on an administrator's phone; the server checks every request): campaigns waiting with their
+  pictures, approve, or not with a reason; every campaign; the advertising tax and fees, what is held, players'
+  TR, recent payments, market sales, upgrades, the advertising history and whether the books agree.
+- **No email** is sent: the owner chose to keep submissions in the database only. Nothing says one was sent.
+
 ## Tests
 
 ```

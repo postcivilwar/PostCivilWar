@@ -19,6 +19,7 @@ const world = require('./_lib/world.js');
 const wallet = require('./_lib/wallet.js');
 const character = require('./_lib/character.js');
 const weather = require('./_lib/weather.js');
+const ads = require('./_lib/ads.js');
 const { SCHEMA: S } = require('./_lib/schema.js');
 
 // (the character and the path are the account's own: chosen once, kept here, and the same on every device)
@@ -74,12 +75,26 @@ const OPS = {
   'market.unlist': [true, ({ sql, me, body }) => market.unlist(sql, me, body)],
   'admin.assets': [true, ({ sql, me }) => market.adminAssets(sql, me)],
   'admin.list': [true, ({ sql, me, body }) => market.adminList(sql, me, body)],
+  // advertising on the billboards (ads.js): what is showing is anyone's to see; booking needs an account
+  'ads.board': [false, async ({ sql, req }) => { await auth.allow(sql, `ads-board:${addressOf(req)}`, 60, 600); return ads.board(sql); }],
+  'ads.art': [false, async ({ sql, req, me, body }) => { await auth.allow(sql, `ads-art:${addressOf(req)}`, 400, 600); return ads.art(sql, me, body); }],
+  'ads.catalog': [false, ({ sql }) => ads.catalog(sql)],
+  'ads.quote': [true, ({ sql, me, body }) => ads.quote(sql, me, body)],
+  'ads.mine': [true, ({ sql, me }) => ads.mine(sql, me)],
+  'ads.draft': [true, ({ sql, me, body }) => ads.draft(sql, me, body)],
+  'ads.upload': [true, ({ sql, me, body }) => ads.upload(sql, me, body)],
+  'ads.unupload': [true, ({ sql, me, body }) => ads.removeArt(sql, me, body)],
+  'ads.submit': [true, ({ sql, me, body }) => ads.submit(sql, me, body)],
+  'ads.cancel': [true, ({ sql, me, body }) => ads.cancel(sql, me, body)],
+  'admin.ads': [true, ({ sql, me, body }) => ads.adminList(sql, me, body)],
+  'admin.ad.decide': [true, ({ sql, me, body }) => ads.decide(sql, me, body)],
+  'admin.overview': [true, ({ sql, me }) => ads.overview(sql, me)],
 };
 
 // Refusals that are about what TR is or how much of it there is. Each is written down (who asked, for what, how
 // much, and the reason given), beside the ledger, which only says what did move.
-const REFUSALS = new Set(['STARTER_FUNDS', 'ELIGIBLE_FUNDS', 'FUNDS', 'QUOTE_CHANGED', 'BALANCE']);
-const MONEY_OPS = new Set(['wallet.check', 'wallet.send', 'market.offer', 'market.decide', 'character.quote', 'character.upgrade']);
+const REFUSALS = new Set(['STARTER_FUNDS', 'ELIGIBLE_FUNDS', 'EARNED_FUNDS', 'FUNDS', 'QUOTE_CHANGED', 'BALANCE']);
+const MONEY_OPS = new Set(['wallet.check', 'wallet.send', 'market.offer', 'market.decide', 'character.quote', 'character.upgrade', 'ads.submit']);
 const short = (value, most) => (typeof value === 'string' || typeof value === 'number' ? String(value).slice(0, most) : null);
 async function noteRefusal(at, error) {
   if (!at || !at.sql || !at.me || !MONEY_OPS.has(at.op) || !REFUSALS.has(error.code)) return;

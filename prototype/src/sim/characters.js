@@ -24,6 +24,10 @@ export const BODY_TYPES = {
 // An outfit: the parts that make it, and which of the wearer's colours goes on each part's cloth.
 // `skin` lists the bare limbs it leaves showing. `feet` is what goes on the feet unless the wearer chooses.
 const P = (id, colours = {}, prints = null) => ({ id, colours, prints });
+// Whose dress a people wears, where it is not its own name: the Anioma (Enuani), Ika and Ukwuani peoples of Delta
+// State wear Igbo dress; the Urhobo, Isoko, Itsekiri and Ijaw women wear the wrapper and blouse of the Delta.
+export const DRESS_OF = Object.freeze({ enuani: 'igbo', ika: 'igbo', ukwuani: 'igbo', urhobo: 'delta', isoko: 'delta', itsekiri: 'delta', ijaw: 'delta' });
+
 export const OUTFITS = {
   // --- the base character's own clothes ---
   streetwear: { name: 'Hoodie and joggers', kind: 'urban', pose: 'base', parts: [P('base.yoke'), P('base.hoodie', { a: 'top', b: 'accent', c: 'accent2' }), P('base.joggers', { a: 'bottom', b: 'trim' })], feet: 'sneakers' },
@@ -310,7 +314,8 @@ export function wearFor(p, look) {
   else if (job === 'infant') { c.outfit = f ? 'gown' : 'tee-shorts'; c.shoes = 'sandals'; c.prints = f && h(7) < 0.5 ? { print: pick(ANKARA, 8) } : {}; }
 
   // --- people and age: native wear where it would be worn ---
-  const people = p.people;
+  // (the Anioma, Ika and Ukwuani peoples wear what Igbo people wear: DRESS_OF)
+  const people = DRESS_OF[p.people] || p.people;
   if (!uniformed && adult) {
     const elder = p.age >= 55;
     const trade = ['trader', 'foodvendor', 'hawker', 'homemaker', 'retiree', 'farmer'].includes(job);
@@ -323,7 +328,7 @@ export function wearFor(p, look) {
         const ground = cloth.colours[0];
         c.prints = { print: cloth };
         if (people === 'yoruba') { c.outfit = h(14) < 0.7 ? 'iro-buba' : 'boubou'; c.hat = h(15) < (elder ? 0.6 : 0.3) ? 'gele' : h(15) < 0.85 ? 'headtie' : null; if (c.hat === 'gele') { c.prints.hatprint = PRINTS.asooke([pick([0x7b2d5b, 0xb5651d, 0x1d3f73, 0x2e6f73], 16), 0xd9a441, 0xf3ecdc]); if (h(17) < 0.5) c.extras.push('shouldercloth'); } else if (c.hat) c.prints.hatprint = cloth; c.colours = { top: ground, bottom: ground, hat: ground }; }
-        else if (people === 'igbo' || people === 'igala' || people === 'edo') { c.outfit = h(14) < (elder ? 0.6 : 0.35) ? 'double-wrapper' : h(14) < 0.9 ? 'blouse-wrapper' : 'boubou'; if (c.outfit === 'double-wrapper' && h(18) < 0.4) c.prints.print = PRINTS.george([ground, 0xd9a441, cloth.colours[2] || 0xf2c200]); c.hat = h(15) < 0.72 ? (h(19) < 0.75 ? 'headtie' : 'scarf') : null; if (c.hat) c.prints.hatprint = h(20) < 0.6 ? c.prints.print : null; c.colours = { top: pick([...WRAP_PLAIN, cloth.colours[1]], 21), trim: cloth.colours[1], bottom: ground, hat: pick([ground, cloth.colours[1], 0x7b2d5b, 0x1f5c4d], 22) }; if (!c.prints.hatprint) delete c.prints.hatprint; }
+        else if (people === 'igbo' || people === 'igala' || people === 'edo' || people === 'delta') { c.outfit = h(14) < (elder ? 0.6 : 0.35) ? 'double-wrapper' : h(14) < 0.9 ? 'blouse-wrapper' : 'boubou'; if (c.outfit === 'double-wrapper' && h(18) < 0.4) c.prints.print = PRINTS.george([ground, 0xd9a441, cloth.colours[2] || 0xf2c200]); c.hat = h(15) < 0.72 ? (h(19) < 0.75 ? 'headtie' : 'scarf') : null; if (c.hat) c.prints.hatprint = h(20) < 0.6 ? c.prints.print : null; c.colours = { top: pick([...WRAP_PLAIN, cloth.colours[1]], 21), trim: cloth.colours[1], bottom: ground, hat: pick([ground, cloth.colours[1], 0x7b2d5b, 0x1f5c4d], 22) }; if (!c.prints.hatprint) delete c.prints.hatprint; }
         else { c.outfit = pick(['blouse-wrapper', 'blouse-wrapper', 'boubou', 'gown'], 14); c.hat = h(15) < 0.6 ? pick(['headtie', 'scarf'], 19) : null; c.colours = { top: pick([...WRAP_PLAIN, cloth.colours[1]], 21), trim: cloth.colours[1], bottom: ground, hat: ground }; if (c.hat) c.prints.hatprint = cloth; }
         if (c.outfit !== 'gown' && h(23) < 0.3) c.extras.push('beads');
       } else if (office) { c.outfit = pick(['shirt-skirt', 'gown', 'skirt-blouse', 'shirt-skirt'], 14); c.prints = {}; c.colours = { top: pick([0xf3ecdc, 0xe9eef4, 0xe9c8d6, 0xbcd3ea, look.top], 21), bottom: pick([0x24364f, 0x2a2a2a, 0x44352a, 0x5a1f47], 22), trim: look.bottom }; c.shoes = 'shoes'; c.hat = null; }

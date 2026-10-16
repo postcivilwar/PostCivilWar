@@ -265,7 +265,8 @@ const sellerName = `Seller_${tag}`;
 say('2. ...walks into the pink marker at HOLARIS Watch and buys a watch');
 {
   const p = seller.page;
-  const markers = await seller.game(async () => { await window.__nlw.refreshDealMarkers(); return [...window.__nlw.dealMarkers.values()].map((m) => ({ name: m.listing.name, x: m.x, z: m.z, visible: m.marker.group.visible })); });
+  const markers = await seller.game(async () => { await window.__nlw.refreshDealMarkers(); return [...window.__nlw.dealMarkers.values()].filter((m) => !(m.listing.asset && m.listing.asset.category === 'motorcycle')).map((m) => ({ name: m.listing.name, x: m.x, z: m.z, visible: m.marker.group.visible })); });
+  // (the motorcycle showroom's twelve are checked by prototype/test/motorcycles.mjs: here, the rest)
   if (markers.length !== 1 || markers[0].name !== 'HOLARIS Wristwatch') bad(`the markers in town are ${JSON.stringify(markers)}`);
   await seller.openProperty();
   if (!(await p.isVisible('#no-assets'))) bad('a new player is not told they own nothing from the market');
@@ -274,20 +275,20 @@ say('2. ...walks into the pink marker at HOLARIS Watch and buys a watch');
   if (back.x > 30 || back.y > 30) bad(`the way back is at ${Math.round(back.x)}, ${Math.round(back.y)}`);
   await p.click('#buy-asset'); await p.waitForSelector('.listing');
   await seller.shot('03-market');
-  const listed = await seller.game(() => [...document.querySelectorAll('.listing')].map((l) => l.textContent));
+  const listed = await seller.game(() => [...document.querySelectorAll('.listing')].map((l) => l.textContent).filter((t) => !/Motorcycle Showroom/.test(t)));
   if (listed.length !== 1 || !/HOLARIS Wristwatch/.test(listed[0]) || !/100 TR/.test(listed[0]) || !/10 of 10 left/.test(listed[0])) bad(`the market lists ${JSON.stringify(listed)}`);
   // the photographs are there, and dragging turns the watch
   const turned = await seller.game(async () => { const t = document.querySelector('.listing .turntable'); const before = t.style.backgroundPosition; const r = t.getBoundingClientRect(); const fire = (type, x) => t.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: r.top + 40, pointerId: 7, bubbles: true })); fire('pointerdown', r.left + 100); fire('pointermove', r.left + 20); fire('pointerup', r.left + 20); const img = new Image(); const ok = await new Promise((res) => { img.onload = () => res(img.naturalWidth); img.onerror = () => res(0); img.src = 'assets/watch-turn.webp'; }); return { before, after: t.style.backgroundPosition, width: ok }; });
   if (turned.width !== 2304) bad(`the watch's photographs did not load (${turned.width})`);
   if (turned.before === turned.after) bad('dragging the watch does not turn it');
   // searching: what is there is found; what is not is said not to be there, and nothing is made up
-  for (const [q, n] of [['car', 0], ['yacht', 0], ['gun', 0], ['watch', 1], ['WATCHES', 1], ['holaris', 1]]) {
+  for (const [q, n] of [['yacht', 0], ['gun', 0], ['helicopter', 0], ['watch', 1], ['WATCHES', 1], ['holaris', 1]]) {
     await p.fill('#market-search', q);
     await p.waitForFunction(([want, query]) => window.__nlw.market.state.query === query && document.querySelectorAll('.listing').length === want, [n, q], { timeout: 15000 }).catch(() => bad(`searching "${q}" does not show ${n}`));
   }
-  await p.fill('#market-search', 'car'); await p.waitForSelector('#market-empty'); await seller.shot('04-search-car');
+  await p.fill('#market-search', 'yacht'); await p.waitForSelector('#market-empty'); await seller.shot('04-search-yacht');
   await p.fill('#market-search', ''); await p.waitForSelector('.listing .btn');
-  await p.click('.listing .btn'); await p.waitForSelector('#go-there'); await seller.shot('05-listing');
+  await p.locator('.listing', { hasText: 'HOLARIS' }).locator('.btn').click(); await p.waitForSelector('#go-there'); await seller.shot('05-listing');
   await p.click('#go-there'); await p.waitForTimeout(600);
   const way = await seller.game(() => ({ open: window.__nlw.ui.isOpen(), mark: document.querySelector('#waypoint') && !document.querySelector('#waypoint').hidden }));
   if (way.open || !way.mark) bad(`"Show the way" left the phone ${way.open ? 'open' : 'away'} and the place ${way.mark ? 'marked' : 'unmarked'}`);
@@ -374,7 +375,7 @@ const buyerName = `Buyer_${tag}`;
   if (!chose || chose.title !== 'Choose Adaeze?') bad(`the buyer, choosing, was asked ${JSON.stringify(chose)}`);
   await buyer.made(2000, 2000, 'on arrival');
   await buyer.openProperty(); await buyer.press('#buy-asset'); await p.waitForSelector('.listing');
-  await p.waitForFunction(() => document.querySelectorAll('.listing').length === 2, null, { timeout: 15000 }).catch(() => bad('the buyer does not see two listings'));
+  await p.waitForFunction(() => [...document.querySelectorAll('.listing')].filter((l) => !/Motorcycle Showroom/.test(l.textContent)).length === 2, null, { timeout: 15000 }).catch(() => bad('the buyer does not see two listings'));
   await buyer.shot('02-market');
   await p.fill('#market-search', sellerName); await p.waitForFunction(() => document.querySelectorAll('.listing').length === 1);
   const card = await p.textContent('.listing');
@@ -474,7 +475,7 @@ if (offerShown) {
   if (!history.includes(`Sold to ${buyerName}`) || !/\+140 TR/.test(history) || !/Bought from HOLARIS Watch/.test(history)) bad(`the seller's history reads "${history}"`);
   await seller.shot('15-history');
   // the marker has gone from both towns; pressing again changes nothing
-  for (const d of [seller, buyer]) { const left = await d.game(async () => { await window.__nlw.refreshDealMarkers(); await window.__nlw.market.sync(); await window.__nlw.market.sync(); return { markers: [...window.__nlw.dealMarkers.values()].map((m) => m.listing.name), balance: window.__nlw.view.self.balance }; }); if (left.markers.length !== 1) bad(`${d.label}: markers left are ${JSON.stringify(left.markers)}`); if (left.balance !== (d === seller ? 2540 : 2700) * TR) bad(`${d.label}: a second round changed the balance to ${left.balance / TR}`); }
+  for (const d of [seller, buyer]) { const left = await d.game(async () => { await window.__nlw.refreshDealMarkers(); await window.__nlw.market.sync(); await window.__nlw.market.sync(); return { markers: [...window.__nlw.dealMarkers.values()].filter((m) => !(m.listing.asset && m.listing.asset.category === 'motorcycle')).map((m) => m.listing.name), balance: window.__nlw.view.self.balance }; }); if (left.markers.length !== 1) bad(`${d.label}: markers left are ${JSON.stringify(left.markers)}`); if (left.balance !== (d === seller ? 2540 : 2700) * TR) bad(`${d.label}: a second round changed the balance to ${left.balance / TR}`); }
   const ledgers = await Promise.all([seller, buyer].map((d) => d.game(() => window.__nlw.host.auditor.reconcile().length)));
   if (ledgers.some((n) => n)) bad(`a ledger does not reconcile: ${ledgers}`);
 }
@@ -592,6 +593,8 @@ say('8. The buyer sends 250.5 TR to the seller in the Wallet');
 say('9. The buyer logs in on a computer: straight into town as the same character, the watch, the same money');
 {
   await buyer.game(() => window.__nlw.accountSync.upload());
+  // (the buyer's first device is done with: closed, so that this machine draws two towns at a time, not three)
+  await buyer.context.close();
   const other = await device('buyer2', { width: 1280, height: 760 });
   const p = other.page;
   await p.click('#open-login');
@@ -701,7 +704,7 @@ say('9. The buyer logs in on a computer: straight into town as the same characte
   // logging in again: the same character and the progress, and again nothing is asked
   await p.goto(`${origin}/#nointro-lite`, { timeout: 300000 });
   await p.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
-  await p.waitForFunction(() => window.__nlw.online.status().state === 'out');
+  await p.waitForFunction(() => window.__nlw.online.status().state === 'out', null, { timeout: 300000 });
   await watchStart(other);
   await p.click('#open-login'); await p.fill('#account-username', buyerName); await p.fill('#account-password', 'a password for the buyer'); await p.click('#account-submit');
   await p.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 120000 }).catch(() => bad('after logging in again the player was not taken into the town'));
@@ -832,6 +835,8 @@ say('11. Erasing a saved game asks first; the journey goes, the TR, the characte
 
   // ---- and on a device that has never seen this account: the upgraded character, straight into town ----
   say('11b. The seller logs in on a phone that has never seen the account: Emeka, in town, nothing asked');
+  // (the seller's first device is done with: closed, so that this machine draws one town at a time)
+  await seller.context.close();
   const phone = await device('seller2', { width: 800, height: 360 }, true);
   const q = phone.page;
   await watchStart(phone);

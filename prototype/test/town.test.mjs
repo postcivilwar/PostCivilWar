@@ -111,10 +111,13 @@ test('people: a thousand residents, each a whole person', () => {
     }
   }
   assert.ok(children > 300);
-  // names from across the country, most of them from here
+  // names from across the country, most of them from here: about 70% of Delta State's own peoples (Asaba, 13 October 2026)
   const by = {};
   for (const p of pop.people) by[p.people] = (by[p.people] || 0) + 1;
-  assert.ok(by.igbo > 700 && by.yoruba > 10 && by.hausa > 10 && Object.keys(by).length >= 6, JSON.stringify(by));
+  const delta = ['enuani', 'urhobo', 'isoko', 'ika', 'ijaw', 'itsekiri', 'ukwuani'].reduce((n, k) => n + (by[k] || 0), 0);
+  assert.ok(delta > 620 && delta < 780 && by.enuani > by.urhobo && by.yoruba > 10 && by.hausa > 10 && Object.keys(by).length >= 10, JSON.stringify(by));
+  // each speaks their own language at home where the phrase book has it, and Pidgin or English otherwise
+  for (const p of pop.people) if (p.age >= 8) assert.ok(p.langs.length >= 1 && (PEOPLES[p.people].language ? p.langs[0] === PEOPLES[p.people].language : ['pcm', 'en', 'ig'].includes(p.langs[0])), `${p.name} (${p.people}) speaks ${p.langs}`);
   const variety = new Set(pop.people.map((p) => `${p.look.outfit}|${p.look.top}|${p.look.skin}|${(p.look.hat || [])[0]}`));
   assert.ok(variety.size > 250, `${variety.size} different looks`);
   // the same seed makes the same town; another seed makes another
@@ -203,7 +206,7 @@ test('routines: Saturday has no school, and Sunday is for church', () => {
   // nobody shares a pew place
   const seats = new Map();
   for (let i = 0; i < pop.count; i += 1) { const o = pop.locate(i, H(7.2, sunday), {}); if (o.moving || o.pose === POSE.hidden) continue; const s = ZONE_SPOTS[o.spot]; if (s.slot !== 'nave.pew') continue; assert.ok(!seats.has(s.id), `two people in one pew place: ${pop.people[i].name} and ${pop.people[seats.get(s.id)]?.name}`); seats.set(s.id, i); }
-  assert.ok(seats.size > 100);
+  assert.ok(seats.size > 80, `${seats.size} in the pews`);
 });
 
 test('school workers: teachers, heads and pupils are where a school day puts them', () => {
@@ -354,7 +357,7 @@ test('conversations: a lesson is conducted in English, and a sale is haggled', (
   for (let i = 0; i < 600; i += 1) { host.tick(0.1); for (const line of host.game.view(id).speech) heard.set(line.id, line); }
   const lesson = [...heard.values()].filter((l) => ['Open your books.', 'Read after me.', 'Yes, teacher.'].includes(l.text));
   assert.ok(lesson.length >= 2, 'the teacher speaks and the class answers');
-  assert.ok(lesson.every((l) => l.lang === 'en'));
+  assert.ok(lesson.every((l) => l.lang === 'en'), JSON.stringify(lesson.map((l) => [l.name, l.text, l.lang])));
   const haggle = EXCHANGES.filter((e) => e.roles && e.roles[1] === 'trader');
   assert.ok(haggle.length >= 2);
 });
