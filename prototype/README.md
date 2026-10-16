@@ -1459,6 +1459,41 @@ none beyond sight; one set of faces for each size; the screens drawn again only 
   engines within 120 m; each is let go when the rider gets off or rides away). Other players out beyond the town's
   square (the airport, the road out, over the bridge) are now seen there too: they were dropped before.
 
+## The first city block (16 October 2026)
+
+From the owner's city brief and street recordings: one representative block built and checked first, before the
+rest of the map. Market Road, from the Registry Road junction to the Waterside Road junction, is now a city
+boulevard (`src/sim/zones/atani-city.js` says what is where; `src/client/render-city.js` draws it).
+
+- **The road.** Four lanes of about 3 m between kerbs, a slight crown, paired yellow lines down the middle, dashed
+  white lines between the lanes, a yellow line along each kerb; zebra crossings at both junctions and at the market
+  gate, stop lines, straight-on arrows, drains at the kerb and manholes in the lanes.
+- **The pavements.** Four metres of warm sandstone pavers (60 by 40 cm, in a stretcher bond) each side, 15 cm above
+  the road on real kerbs, turning the corners into Registry Road and Waterside Road and paved up to the buildings'
+  fronts; they slope down to the road at every crossing (no step anywhere on a crossing's line). The ground is the
+  pavement's height where it stands, for the player, other players, the town's people and vehicles.
+- **Along them.** Streetlights both sides with their arms over the road (and their pools of light at night),
+  traffic signals at the junction for all four ways in and at the market gate crossing, black bollards along a
+  raised lawn behind a low panelled retaining wall (with trees and shrubs), bins in pairs, hydrants.
+- **The buildings.** Six, all real geometry: a brick shopfront terrace (shopfronts, fascias with names, awnings,
+  lintels and sills, a cornice), two rendered towers with windows set back in a grid and balconies, a stone building
+  with an arcade of arches at street level, and two glass office towers with curtain walls (mullions, opaque floor
+  bands, a granite podium, an entrance canopy), reflecting the sky. Some windows are lit at night. They are not
+  entered. Everything the town had here stays where it was: the police post, the clinic, the store, the kitchen,
+  the trade sheds (now painted kiosks on the pavement), the market, the HOLARIS showroom and the motor park; the way
+  into the market and the store is left open.
+- **People and traffic.** The town's people walk the pavements, not the middle of the road (the walking graph has a
+  pavement path and walking along the carriageway costs four times as much), cross at the crossings and stop at
+  the kerb before stepping out. The okadas keep to the inner lane on their side and stop at a red light; the
+  signals change by the town's own clock (`signalState`), so what is seen and what the traffic does agree.
+- **Asset provenance.** Nothing was downloaded or copied: the road, paving, kerbs, furniture, lawn and buildings
+  are made in code (`render-city.js`), and their textures (pavers, asphalt, brick, stone, render) are painted in
+  code at their real sizes. The kekes and coaches are the owner's supplied models; the people are the town's own.
+- **Not yet.** There are no cars, vans or buses in traffic: no models of them were supplied (only the keke and the
+  coach), and none are invented. Only the okadas and the ambulance move on the roads; players drive kekes and their
+  own motorcycles. People wait at the kerb for a few seconds rather than for the walkers' signal. The rest of the
+  map is as it was until this block is approved.
+
 ## Tests
 
 ```
