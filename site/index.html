@@ -2895,506 +2895,56 @@ __modules["sim/zones/atani-billboards.js"] = (function () {
 // identity (what a campaign is booked against), kind, size and category, where it stands and which way it faces,
 // where it is (for a person), and the ground its supports take up.
 const ZONE_BILLBOARDS = Object.freeze([
-  {"id":"BB-001","type":"dark-unipole-catwalk","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":-934.6,"z":-211.3,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-935,-212.6,-934.2,-211.8]]},
-  {"id":"BB-002","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-922.9,"z":-102.6,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-923.1,-102.3,-922.6,-101.7]]},
-  {"id":"BB-003","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-920.7,"z":-211.3,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-921,-212,-920.4,-211.5]]},
-  {"id":"BB-004","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-907.5,"z":-102.3,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-907.8,-102,-907.2,-101.4]]},
-  {"id":"BB-005","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-906.8,"z":-210.8,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-907,-211.5,-906.6,-211.1]]},
-  {"id":"BB-006","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-894.9,"z":-211.1,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-895.2,-212,-894.6,-211.5]]},
-  {"id":"BB-007","type":"galvanised-unipole-railing","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":-888.4,"z":-102.8,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-888.8,-102.3,-888,-101.5]]},
-  {"id":"BB-008","type":"dark-unipole-truss","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-882.5,"z":-211.1,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-882.8,-212.1,-882.1,-211.5]]},
-  {"id":"BB-009","type":"offset-white-unipole","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":2.4,"bottom":5.4,"x":-874.7,"z":-103.5,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-877.6,-103.1,-876.9,-102.4]]},
   {"id":"BB-010","type":"dark-unipole-catwalk","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":-861.3,"z":-211.1,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-861.7,-212.4,-860.9,-211.6]]},
-  {"id":"BB-011","type":"galvanised-unipole-deck-lamps","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":-856.8,"z":-101.1,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-857.2,-100.6,-856.3,-99.7]]},
-  {"id":"BB-012","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-845.9,"z":-211.1,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-846.1,-212,-845.6,-211.4]]},
-  {"id":"BB-013","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-844.9,"z":-104.3,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-845.1,-104,-844.7,-103.6]]},
-  {"id":"BB-014","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-833.5,"z":-101.8,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-833.8,-101.5,-833.2,-100.9]]},
-  {"id":"BB-015","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-822.1,"z":-209.9,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-822.4,-210.6,-821.9,-210.2]]},
-  {"id":"BB-016","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-822.1,"z":-102,"heading":3.142,"region":"airport","place":"Asaba Airport, Car Park","feet":[[-822.5,-101.6,-821.8,-100.9]]},
-  {"id":"BB-017","type":"dark-unipole-deep","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":-810.2,"z":-211.1,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-810.6,-212.4,-809.7,-211.5]]},
-  {"id":"BB-018","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-805.2,"z":-186.8,"heading":3.142,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-805.4,-186.6,-805,-186.1]]},
-  {"id":"BB-019","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-794.3,"z":-211.1,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-794.6,-211.9,-794.1,-211.4]]},
-  {"id":"BB-020","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-791.3,"z":-184.6,"heading":3.142,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-791.9,-183.9,-790.8,-182.8]]},
-  {"id":"BB-021","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-784.3,"z":-211.8,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-784.5,-212.5,-784,-212]]},
-  {"id":"BB-022","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-775.4,"z":-185.5,"heading":3.142,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-775.7,-185.2,-775.1,-184.6]]},
-  {"id":"BB-023","type":"tv-building","scale":1,"category":"tv","tv":true,"width":24,"height":9,"bottom":8,"x":-765.8,"z":-77,"heading":2.052,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-792.6,-92.4,-757.4,-52.1]]},
-  {"id":"BB-024","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-764.6,"z":-128.6,"heading":1.957,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-763.8,-122.4,-762.2,-120.9],[-769.1,-135.5,-767.5,-133.9]]},
-  {"id":"BB-025","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-764.3,"z":-88.9,"heading":2.01,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-763.2,-82.8,-761.6,-81.2],[-769.2,-95.6,-767.6,-94]]},
-  {"id":"BB-026","type":"yellow-trestle","scale":1,"category":"xl","tv":false,"width":30,"height":6,"bottom":7,"x":-762.9,"z":-105.7,"heading":2.04,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-757.6,-93.1,-757.1,-92.6],[-759.2,-92.3,-758.7,-91.8],[-759,-95.8,-758.4,-95.2],[-760.6,-95,-760,-94.4],[-760.3,-98.5,-759.8,-97.9],[-761.9,-97.6,-761.4,-97.1],[-761.7,-101.1,-761.1,-100.6],[-763.3,-100.3,-762.8,-99.8],[-763,-103.8,-762.5,-103.3],[-764.6,-103,-764.1,-102.5],[-764.4,-106.5,-763.9,-105.9],[-766,-105.7,-765.5,-105.1],[-765.8,-109.2,-765.2,-108.6],[-767.4,-108.3,-766.8,-107.8],[-767.1,-111.8,-766.6,-111.3],[-768.7,-111,-768.2,-110.5],[-768.5,-114.5,-767.9,-114],[-770.1,-113.7,-769.5,-113.2],[-769.8,-117.2,-769.3,-116.6],[-771.4,-116.4,-770.9,-115.8]]},
-  {"id":"BB-027","type":"front-unipole-ladder","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":6,"x":-762.8,"z":-213.5,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-763.2,-214.6,-762.4,-213.9]]},
-  {"id":"BB-028","type":"tv-tower","scale":1,"category":"tv","tv":true,"width":6,"height":8,"bottom":4.5,"x":-761.7,"z":-171,"heading":1.944,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-770,-175,-759.7,-164.6]]},
-  {"id":"BB-029","type":"dark-unipole-catwalk","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-761.6,"z":-182.7,"heading":3.142,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-762.2,-182.1,-761.1,-181]]},
-  {"id":"BB-030","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-761.2,"z":-141.4,"heading":2.069,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-759.7,-135.4,-758.1,-133.8],[-766.4,-147.8,-764.8,-146.2]]},
-  {"id":"BB-031","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-758.8,"z":-55.9,"heading":2.02,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-760.2,-56,-759.1,-54.9]]},
-  {"id":"BB-032","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-758.6,"z":-154.9,"heading":2.056,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-760.5,-155.1,-758.8,-153.5]]},
-  {"id":"BB-033","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-757.4,"z":-111.7,"heading":2.059,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-758.3,-111.8,-757.6,-111.1]]},
-  {"id":"BB-034","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-755.7,"z":-83.5,"heading":1.999,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-756.4,-83.6,-755.8,-83]]},
-  {"id":"BB-035","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-755.6,"z":-122.7,"heading":2.104,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-756.4,-122.7,-755.8,-122.1]]},
-  {"id":"BB-036","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-755.4,"z":-60.8,"heading":2.099,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-756.1,-60.9,-755.5,-60.3]]},
-  {"id":"BB-037","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-755.4,"z":-172.2,"heading":1.987,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-756.1,-172.3,-755.5,-171.8]]},
-  {"id":"BB-038","type":"dark-unipole-deep","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":-752.1,"z":-212.3,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-752.4,-213.2,-751.8,-212.6]]},
-  {"id":"BB-039","type":"tv-tower","scale":1,"category":"tv","tv":true,"width":6,"height":8,"bottom":4.5,"x":-748.8,"z":-218.2,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-752.8,-225.6,-744.8,-217.6]]},
-  {"id":"BB-040","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-736.3,"z":-159.8,"heading":-1.996,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-736.2,-159.9,-735.6,-159.3]]},
-  {"id":"BB-041","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-736.1,"z":-140.5,"heading":-2.114,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-736,-140.5,-735.4,-139.9]]},
-  {"id":"BB-042","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-735.8,"z":-103,"heading":-2.049,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-735.6,-103.1,-734.9,-102.4]]},
-  {"id":"BB-043","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-735.7,"z":-124.2,"heading":-1.935,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-735.5,-124.4,-734.6,-123.5]]},
-  {"id":"BB-044","type":"galvanised-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-734.8,"z":-77.5,"heading":-1.992,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-734.6,-77.7,-733.7,-76.8]]},
-  {"id":"BB-045","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-732.5,"z":-155.3,"heading":-2.039,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-732.3,-155.6,-731,-154.3]]},
-  {"id":"BB-046","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-732.5,"z":-96.7,"heading":-2.041,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-732.3,-97.1,-730.4,-95.2]]},
-  {"id":"BB-047","type":"dark-unipole-catwalk","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-732.4,"z":-200,"heading":-2.085,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-732.1,-200.1,-730.6,-198.6]]},
-  {"id":"BB-048","type":"tv-chrome","scale":1,"category":"tv","tv":true,"width":12,"height":4,"bottom":5,"x":-732.1,"z":-115.6,"heading":-1.932,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-734.6,-121,-728.3,-109.8]]},
-  {"id":"BB-049","type":"tv-curved","scale":1,"category":"tv","tv":true,"width":9,"height":10,"bottom":6,"x":-731.1,"z":-136.9,"heading":-1.988,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-733.2,-132.5,-731.6,-130.9]]},
-  {"id":"BB-050","type":"tv-chrome","scale":1,"category":"tv","tv":true,"width":12,"height":4,"bottom":5,"x":-730,"z":-171.7,"heading":-1.993,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-732.8,-176.9,-725.9,-165.8]]},
-  {"id":"BB-051","type":"tv-tower","scale":1,"category":"tv","tv":true,"width":6,"height":8,"bottom":4.5,"x":-729.3,"z":-76.4,"heading":-2.003,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-731.5,-80.3,-720.9,-69.6]]},
-  {"id":"BB-052","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-728.6,"z":-189.8,"heading":-1.977,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-725.9,-195.6,-724.6,-194.2],[-730.7,-184.6,-729.3,-183.2]]},
-  {"id":"BB-053","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-1182.3,"z":-54,"heading":-0.414,"region":"road","place":"Asaba\u2013Kwale Road, 950 m out of town","feet":[[-1186.2,-57.4,-1185.3,-56.5],[-1183.1,-57.4,-1182.1,-56.5],[-1180.9,-55.1,-1180,-54.2],[-1177.8,-55.1,-1176.9,-54.1]]},
-  {"id":"BB-054","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-1174.1,"z":-58.6,"heading":-0.366,"region":"road","place":"Asaba\u2013Kwale Road, 940 m out of town","feet":[[-1180,-62.4,-1178.7,-61],[-1168.8,-58.1,-1167.5,-56.8]]},
-  {"id":"BB-055","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-1173.1,"z":-24.6,"heading":3.567,"region":"road","place":"Asaba\u2013Kwale Road, 940 m out of town","feet":[[-1168,-26.8,-1166.6,-25.5],[-1178.9,-21.9,-1177.5,-20.5]]},
-  {"id":"BB-056","type":"dark-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":9,"x":-1155.3,"z":-24.2,"heading":3.61,"region":"road","place":"Asaba\u2013Kwale Road, 920 m out of town","feet":[[-1155.5,-23.9,-1154.1,-22.4]]},
-  {"id":"BB-057","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-1151.1,"z":-53.4,"heading":-0.42,"region":"road","place":"Asaba\u2013Kwale Road, 920 m out of town","feet":[[-1151.3,-55.3,-1149.9,-53.8]]},
-  {"id":"BB-058","type":"front-unipole-ladder","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":5,"x":-1136.2,"z":-26.6,"heading":3.616,"region":"road","place":"Asaba\u2013Kwale Road, 900 m out of town","feet":[[-1136.4,-26.5,-1135.5,-25.6]]},
-  {"id":"BB-059","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-1136.1,"z":-53.7,"heading":-0.465,"region":"road","place":"Asaba\u2013Kwale Road, 900 m out of town","feet":[[-1139.9,-57.3,-1138.9,-56.3],[-1136.7,-57.1,-1135.8,-56.1],[-1134.7,-54.7,-1133.8,-53.7],[-1131.6,-54.5,-1130.7,-53.5]]},
-  {"id":"BB-060","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-1130.3,"z":-23.5,"heading":3.604,"region":"road","place":"Asaba\u2013Kwale Road, 900 m out of town","feet":[[-1130.5,-23.4,-1129.2,-22.1]]},
-  {"id":"BB-061","type":"dark-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":9,"x":-1123.2,"z":-55.9,"heading":-0.531,"region":"road","place":"Asaba\u2013Kwale Road, 890 m out of town","feet":[[-1123.4,-57.7,-1121.9,-56.2]]},
-  {"id":"BB-062","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-1112.9,"z":-27.1,"heading":3.687,"region":"road","place":"Asaba\u2013Kwale Road, 880 m out of town","feet":[[-1109,-28.7,-1108.1,-27.8],[-1110.9,-26.2,-1109.9,-25.2],[-1114,-25.7,-1113,-24.8],[-1115.8,-23.2,-1114.8,-22.2]]},
-  {"id":"BB-063","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-1103.4,"z":-53.3,"heading":-0.479,"region":"road","place":"Asaba\u2013Kwale Road, 870 m out of town","feet":[[-1103.6,-55.1,-1102.2,-53.6]]},
-  {"id":"BB-064","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-1102.9,"z":-24.7,"heading":3.583,"region":"road","place":"Asaba\u2013Kwale Road, 870 m out of town","feet":[[-1103.2,-24.4,-1101.6,-22.8]]},
-  {"id":"BB-065","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-1091.1,"z":-58.3,"heading":-0.468,"region":"road","place":"Asaba\u2013Kwale Road, 860 m out of town","feet":[[-1095.9,-62.4,-1094.4,-61],[-1086.7,-57.8,-1085.3,-56.3]]},
-  {"id":"BB-066","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-1089.1,"z":-49.9,"heading":-0.519,"region":"road","place":"Asaba\u2013Kwale Road, 860 m out of town","feet":[[-1089.1,-50.6,-1088.5,-50]]},
-  {"id":"BB-067","type":"front-unipole-ladder","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":5,"x":-1085.9,"z":-28.3,"heading":3.596,"region":"road","place":"Asaba\u2013Kwale Road, 850 m out of town","feet":[[-1086,-28.2,-1085.2,-27.3]]},
-  {"id":"BB-068","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-1078.5,"z":-26,"heading":3.576,"region":"road","place":"Asaba\u2013Kwale Road, 850 m out of town","feet":[[-1078.8,-25.7,-1077.1,-24]]},
-  {"id":"BB-069","type":"dark-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":9,"x":-1066.2,"z":-52.9,"heading":-0.517,"region":"road","place":"Asaba\u2013Kwale Road, 830 m out of town","feet":[[-1066.4,-54.7,-1064.9,-53.2]]},
-  {"id":"BB-070","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-1063.8,"z":-28.4,"heading":3.672,"region":"road","place":"Asaba\u2013Kwale Road, 830 m out of town","feet":[[-1063.9,-28.3,-1063.3,-27.7]]},
   {"id":"BB-071","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-1055.1,"z":-25.9,"heading":3.551,"region":"road","place":"Asaba\u2013Kwale Road, 820 m out of town","feet":[[-1055.6,-25.7,-1053.7,-23.9]]},
-  {"id":"BB-072","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-1050.8,"z":-56.6,"heading":-0.437,"region":"road","place":"Asaba\u2013Kwale Road, 820 m out of town","feet":[[-1060.7,-62.1,-1060.3,-61.7],[-1060.1,-63.4,-1059.7,-63],[-1058.5,-61.1,-1058.1,-60.6],[-1057.9,-62.4,-1057.5,-62],[-1056.3,-60.1,-1055.9,-59.6],[-1055.7,-61.4,-1055.3,-60.9],[-1054.2,-59,-1053.7,-58.6],[-1053.6,-60.3,-1053.1,-59.9],[-1052,-58,-1051.6,-57.6],[-1051.4,-59.3,-1051,-58.9],[-1049.8,-57,-1049.4,-56.6],[-1049.2,-58.3,-1048.8,-57.9],[-1047.6,-56,-1047.2,-55.6],[-1047,-57.3,-1046.6,-56.9],[-1045.5,-55,-1045,-54.5],[-1044.9,-56.3,-1044.4,-55.9],[-1043.3,-54,-1042.9,-53.5],[-1042.7,-55.3,-1042.3,-54.8],[-1041.1,-52.9,-1040.7,-52.5],[-1040.5,-54.2,-1040.1,-53.8]]},
-  {"id":"BB-073","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-1040.8,"z":-24.6,"heading":3.574,"region":"road","place":"Asaba\u2013Kwale Road, 810 m out of town","feet":[[-1041.1,-24.4,-1039.8,-23.1]]},
-  {"id":"BB-074","type":"dark-unipole-truss","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-1030,"z":-52.3,"heading":-0.469,"region":"road","place":"Asaba\u2013Kwale Road, 800 m out of town","feet":[[-1030.2,-53.3,-1029.3,-52.5]]},
-  {"id":"BB-075","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-1026.8,"z":-24.6,"heading":3.647,"region":"road","place":"Asaba\u2013Kwale Road, 790 m out of town","feet":[[-1020.9,-27.8,-1019.3,-26.1],[-1033.2,-21,-1031.6,-19.3]]},
-  {"id":"BB-076","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-1020.7,"z":-54.8,"heading":-0.384,"region":"road","place":"Asaba\u2013Kwale Road, 790 m out of town","feet":[[-1021,-56.3,-1019.7,-55]]},
-  {"id":"BB-077","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-1008.8,"z":-29.3,"heading":3.512,"region":"road","place":"Asaba\u2013Kwale Road, 780 m out of town","feet":[[-1008.9,-29.1,-1008.3,-28.6]]},
-  {"id":"BB-078","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-1006.7,"z":-55.5,"heading":-0.457,"region":"road","place":"Asaba\u2013Kwale Road, 770 m out of town","feet":[[-1011.5,-59.6,-1010,-58.1],[-1002.3,-55.1,-1000.9,-53.6]]},
-  {"id":"BB-079","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-998.8,"z":-25.3,"heading":3.668,"region":"road","place":"Asaba\u2013Kwale Road, 770 m out of town","feet":[[-994.5,-27.6,-993,-26.1],[-1003.3,-22.5,-1001.8,-21]]},
-  {"id":"BB-080","type":"tv-chrome","scale":1,"category":"tv","tv":true,"width":12,"height":4,"bottom":5,"x":-986.1,"z":-54.5,"heading":-0.484,"region":"road","place":"Asaba\u2013Kwale Road, 750 m out of town","feet":[[-991.2,-58.8,-980.3,-51.4]]},
-  {"id":"BB-081","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-978.8,"z":-24,"heading":3.506,"region":"road","place":"Asaba\u2013Kwale Road, 750 m out of town","feet":[[-979,-23.7,-978,-22.6]]},
-  {"id":"BB-082","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-969.4,"z":-54.3,"heading":-0.475,"region":"road","place":"Asaba\u2013Kwale Road, 740 m out of town","feet":[[-979,-60.1,-978.6,-59.7],[-978.4,-61.4,-977.9,-61],[-976.9,-59.1,-976.5,-58.6],[-976.2,-60.3,-975.8,-59.9],[-974.8,-58,-974.3,-57.5],[-974.1,-59.2,-973.7,-58.8],[-972.6,-56.9,-972.2,-56.4],[-972,-58.1,-971.5,-57.7],[-970.5,-55.8,-970.1,-55.3],[-969.8,-57,-969.4,-56.6],[-968.4,-54.7,-967.9,-54.2],[-967.7,-55.9,-967.3,-55.5],[-966.2,-53.6,-965.8,-53.1],[-965.6,-54.8,-965.1,-54.4],[-964.1,-52.5,-963.7,-52],[-963.4,-53.7,-963,-53.3],[-962,-51.4,-961.5,-50.9],[-961.3,-52.7,-960.9,-52.2],[-959.8,-50.3,-959.4,-49.8],[-959.2,-51.6,-958.7,-51.1]]},
-  {"id":"BB-083","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-963.4,"z":-29.4,"heading":3.532,"region":"road","place":"Asaba\u2013Kwale Road, 730 m out of town","feet":[[-963.5,-29.2,-962.9,-28.7]]},
-  {"id":"BB-084","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-959.4,"z":-25.5,"heading":3.665,"region":"road","place":"Asaba\u2013Kwale Road, 730 m out of town","feet":[[-955.1,-27.8,-953.6,-26.3],[-963.9,-22.6,-962.4,-21.1]]},
-  {"id":"BB-085","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-957.2,"z":-54.9,"heading":-0.494,"region":"road","place":"Asaba\u2013Kwale Road, 730 m out of town","feet":[[-957.4,-56.7,-955.9,-55.2]]},
-  {"id":"BB-086","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-944.2,"z":-26.9,"heading":3.555,"region":"road","place":"Asaba\u2013Kwale Road, 710 m out of town","feet":[[-944.3,-26.7,-943.6,-26]]},
-  {"id":"BB-087","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-940.3,"z":-54.2,"heading":-0.392,"region":"road","place":"Asaba\u2013Kwale Road, 710 m out of town","feet":[[-940.5,-55.5,-939.4,-54.5]]},
-  {"id":"BB-088","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-931,"z":-26.3,"heading":3.536,"region":"road","place":"Asaba\u2013Kwale Road, 700 m out of town","feet":[[-931.2,-26,-930.1,-24.9]]},
-  {"id":"BB-089","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-928.4,"z":-56.8,"heading":-0.454,"region":"road","place":"Asaba\u2013Kwale Road, 700 m out of town","feet":[[-934,-61,-932.6,-59.7],[-923.3,-55.8,-921.9,-54.4]]},
-  {"id":"BB-090","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-915.7,"z":-25.4,"heading":3.55,"region":"road","place":"Asaba\u2013Kwale Road, 680 m out of town","feet":[[-910.5,-27.5,-909.1,-26.2],[-921.5,-22.8,-920.1,-21.4]]},
-  {"id":"BB-091","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-904.8,"z":-54.2,"heading":-0.367,"region":"road","place":"Asaba\u2013Kwale Road, 670 m out of town","feet":[[-905.2,-56.1,-903.6,-54.6]]},
-  {"id":"BB-092","type":"galvanised-unipole-railing","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-897.8,"z":-26.4,"heading":3.679,"region":"road","place":"Asaba\u2013Kwale Road, 670 m out of town","feet":[[-897.9,-26.2,-897,-25.3]]},
-  {"id":"BB-093","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-890.6,"z":-56.7,"heading":-0.356,"region":"road","place":"Asaba\u2013Kwale Road, 660 m out of town","feet":[[-891.1,-58.7,-889.3,-56.9]]},
-  {"id":"BB-094","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-887,"z":-24,"heading":3.497,"region":"road","place":"Asaba\u2013Kwale Road, 660 m out of town","feet":[[-882.5,-25.4,-881.1,-24],[-892.1,-21.8,-890.7,-20.4]]},
-  {"id":"BB-095","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-874,"z":-55.2,"heading":-0.393,"region":"road","place":"Asaba\u2013Kwale Road, 640 m out of town","feet":[[-874.3,-57.1,-872.8,-55.5]]},
   {"id":"BB-096","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-865.1,"z":-26.9,"heading":3.493,"region":"road","place":"Asaba\u2013Kwale Road, 630 m out of town","feet":[[-865.4,-26.7,-864.2,-25.4]]},
-  {"id":"BB-097","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-860,"z":-51.9,"heading":-0.439,"region":"road","place":"Asaba\u2013Kwale Road, 630 m out of town","feet":[[-860.1,-52.7,-859.5,-52.1]]},
-  {"id":"BB-098","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-854.8,"z":-55.7,"heading":-0.515,"region":"road","place":"Asaba\u2013Kwale Road, 620 m out of town","feet":[[-855.1,-57.6,-853.3,-55.9]]},
-  {"id":"BB-099","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-854,"z":-25.4,"heading":3.673,"region":"road","place":"Asaba\u2013Kwale Road, 620 m out of town","feet":[[-849.7,-27.7,-848.2,-26.2],[-858.6,-22.5,-857,-21]]},
-  {"id":"BB-100","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":-837.9,"z":-51.2,"heading":-0.389,"region":"road","place":"Asaba\u2013Kwale Road, 610 m out of town","feet":[[-836.1,-51.3,-835.4,-50.6]]},
-  {"id":"BB-101","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-837.2,"z":-26.8,"heading":3.582,"region":"road","place":"Asaba\u2013Kwale Road, 610 m out of town","feet":[[-837.3,-26.6,-836.4,-25.7]]},
-  {"id":"BB-102","type":"tv-curved","scale":1,"category":"tv","tv":true,"width":9,"height":10,"bottom":6,"x":-829.6,"z":-54.6,"heading":-0.41,"region":"road","place":"Asaba\u2013Kwale Road, 600 m out of town","feet":[[-825.2,-54.1,-823.6,-52.5]]},
-  {"id":"BB-103","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-828.8,"z":-24.1,"heading":3.593,"region":"road","place":"Asaba\u2013Kwale Road, 600 m out of town","feet":[[-823.7,-26.5,-822.3,-25.1],[-834.4,-21.3,-833.1,-19.9]]},
-  {"id":"BB-104","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-812.7,"z":-50.4,"heading":-0.517,"region":"road","place":"Asaba\u2013Kwale Road, 580 m out of town","feet":[[-812.8,-51.2,-812.1,-50.5]]},
-  {"id":"BB-105","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-808.2,"z":-26.2,"heading":3.512,"region":"road","place":"Asaba\u2013Kwale Road, 580 m out of town","feet":[[-808.6,-26,-806.9,-24.3]]},
-  {"id":"BB-106","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-807.7,"z":-55.4,"heading":-0.383,"region":"road","place":"Asaba\u2013Kwale Road, 580 m out of town","feet":[[-808,-57.2,-806.5,-55.8]]},
-  {"id":"BB-107","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-794.3,"z":-24.7,"heading":3.53,"region":"road","place":"Asaba\u2013Kwale Road, 560 m out of town","feet":[[-789.8,-26.3,-788.4,-24.8],[-799.3,-22.4,-797.8,-21]]},
-  {"id":"BB-108","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-789.6,"z":-53.1,"heading":-0.514,"region":"road","place":"Asaba\u2013Kwale Road, 560 m out of town","feet":[[-789.7,-54.4,-788.6,-53.3]]},
-  {"id":"BB-109","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-788.8,"z":-59.6,"heading":-0.511,"region":"road","place":"Asaba\u2013Kwale Road, 560 m out of town","feet":[[-793.4,-63.9,-791.9,-62.4],[-784.5,-58.9,-783,-57.4]]},
-  {"id":"BB-110","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-776.8,"z":-25.6,"heading":3.625,"region":"road","place":"Asaba\u2013Kwale Road, 540 m out of town","feet":[[-776.9,-25.3,-775.8,-24.2]]},
-  {"id":"BB-111","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-771.2,"z":-22,"heading":3.691,"region":"road","place":"Asaba\u2013Kwale Road, 540 m out of town","feet":[[-761.6,-27.3,-761.2,-26.9],[-760.9,-26.1,-760.4,-25.7],[-763.7,-26.1,-763.2,-25.7],[-762.9,-24.9,-762.5,-24.4],[-765.7,-24.8,-765.3,-24.4],[-765,-23.6,-764.5,-23.2],[-767.8,-23.6,-767.3,-23.1],[-767,-22.4,-766.6,-21.9],[-769.8,-22.3,-769.4,-21.9],[-769.1,-21.1,-768.6,-20.7],[-771.9,-21.1,-771.4,-20.6],[-771.1,-19.9,-770.7,-19.4],[-773.9,-19.8,-773.5,-19.4],[-773.1,-18.6,-772.7,-18.2],[-775.9,-18.6,-775.5,-18.1],[-775.2,-17.3,-774.8,-16.9],[-778,-17.3,-777.6,-16.9],[-777.2,-16.1,-776.8,-15.7],[-780,-16.1,-779.6,-15.6],[-779.3,-14.8,-778.9,-14.4]]},
-  {"id":"BB-112","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-770.7,"z":-53.4,"heading":-0.409,"region":"road","place":"Asaba\u2013Kwale Road, 540 m out of town","feet":[[-771,-54.9,-769.7,-53.6]]},
-  {"id":"BB-113","type":"yellow-trestle","scale":1,"category":"xl","tv":false,"width":30,"height":6,"bottom":7,"x":-755.3,"z":-21.1,"heading":3.62,"region":"road","place":"Asaba\u2013Kwale Road, 520 m out of town","feet":[[-742.7,-27,-742.2,-26.5],[-741.9,-25.4,-741.4,-24.9],[-745.4,-25.6,-744.8,-25.1],[-744.6,-24,-744,-23.5],[-748,-24.2,-747.5,-23.7],[-747.2,-22.6,-746.7,-22.1],[-750.7,-22.9,-750.2,-22.3],[-749.9,-21.3,-749.3,-20.7],[-753.4,-21.5,-752.8,-20.9],[-752.5,-19.9,-752,-19.3],[-756,-20.1,-755.5,-19.6],[-755.2,-18.5,-754.7,-18],[-758.7,-18.7,-758.2,-18.2],[-757.9,-17.1,-757.3,-16.6],[-761.4,-17.3,-760.8,-16.8],[-760.5,-15.7,-760,-15.2],[-764,-16,-763.5,-15.4],[-763.2,-14.4,-762.7,-13.8],[-766.7,-14.6,-766.2,-14],[-765.9,-13,-765.3,-12.4]]},
-  {"id":"BB-114","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-732.5,"z":-56.2,"heading":-0.429,"region":"road","place":"Asaba\u2013Kwale Road, 500 m out of town","feet":[[-732.7,-57.7,-731.4,-56.4]]},
-  {"id":"BB-115","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-732.4,"z":-23.9,"heading":3.507,"region":"road","place":"Asaba\u2013Kwale Road, 500 m out of town","feet":[[-732.9,-23.6,-731.1,-21.8]]},
-  {"id":"BB-116","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-722.7,"z":-58.2,"heading":-0.496,"region":"road","place":"Asaba\u2013Kwale Road, 490 m out of town","feet":[[-728.1,-62.7,-726.7,-61.3],[-717.6,-57,-716.2,-55.6]]},
-  {"id":"BB-117","type":"front-unipole-ladder","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":5,"x":-719.8,"z":-27.2,"heading":3.595,"region":"road","place":"Asaba\u2013Kwale Road, 490 m out of town","feet":[[-720,-27.1,-719.1,-26.2]]},
-  {"id":"BB-118","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-709.6,"z":-28.7,"heading":3.547,"region":"road","place":"Asaba\u2013Kwale Road, 480 m out of town","feet":[[-709.7,-28.5,-709.1,-27.9]]},
-  {"id":"BB-119","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-704.4,"z":-50.8,"heading":-0.451,"region":"road","place":"Asaba\u2013Kwale Road, 470 m out of town","feet":[[-704.5,-51.6,-703.9,-51]]},
-  {"id":"BB-120","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-702.6,"z":-25.7,"heading":3.601,"region":"road","place":"Asaba\u2013Kwale Road, 470 m out of town","feet":[[-692.7,-30.2,-692.2,-29.8],[-692,-28.9,-691.6,-28.5],[-694.8,-29.1,-694.4,-28.7],[-694.2,-27.8,-693.8,-27.4],[-697,-28.1,-696.5,-27.6],[-696.3,-26.8,-695.9,-26.3],[-699.1,-27,-698.7,-26.6],[-698.5,-25.7,-698.1,-25.3],[-701.3,-25.9,-700.9,-25.5],[-700.6,-24.6,-700.2,-24.2],[-703.4,-24.9,-703,-24.4],[-702.8,-23.6,-702.4,-23.1],[-705.6,-23.8,-705.2,-23.4],[-704.9,-22.5,-704.5,-22.1],[-707.7,-22.7,-707.3,-22.3],[-707.1,-21.4,-706.7,-21],[-709.9,-21.7,-709.5,-21.2],[-709.2,-20.4,-708.8,-19.9],[-712,-20.6,-711.6,-20.2],[-711.4,-19.3,-711,-18.9]]},
-  {"id":"BB-121","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-698.4,"z":-54.4,"heading":-0.473,"region":"road","place":"Asaba\u2013Kwale Road, 470 m out of town","feet":[[-703.2,-58.6,-701.7,-57.1],[-694.1,-53.9,-692.6,-52.4]]},
-  {"id":"BB-122","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-695.3,"z":-20.8,"heading":3.678,"region":"road","place":"Asaba\u2013Kwale Road, 460 m out of town","feet":[[-689.4,-24.1,-687.8,-22.5],[-701.5,-16.9,-699.9,-15.3]]},
-  {"id":"BB-123","type":"yellow-trestle","scale":1,"category":"xl","tv":false,"width":30,"height":6,"bottom":7,"x":-682.7,"z":-55.7,"heading":-0.465,"region":"road","place":"Asaba\u2013Kwale Road, 450 m out of town","feet":[[-695.1,-63,-694.6,-62.5],[-694.3,-64.6,-693.8,-64.1],[-692.4,-61.7,-691.9,-61.2],[-691.6,-63.3,-691.1,-62.8],[-689.7,-60.4,-689.2,-59.8],[-688.9,-62,-688.4,-61.4],[-687.1,-59,-686.5,-58.5],[-686.3,-60.6,-685.7,-60.1],[-684.4,-57.7,-683.8,-57.1],[-683.6,-59.3,-683,-58.7],[-681.7,-56.3,-681.2,-55.8],[-680.9,-57.9,-680.4,-57.4],[-679,-55,-678.5,-54.4],[-678.2,-56.6,-677.7,-56],[-676.3,-53.6,-675.8,-53.1],[-675.5,-55.2,-675,-54.7],[-673.7,-52.3,-673.1,-51.7],[-672.9,-53.9,-672.3,-53.4],[-671,-50.9,-670.4,-50.4],[-670.2,-52.6,-669.6,-52]]},
-  {"id":"BB-124","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-672.1,"z":-29.6,"heading":3.517,"region":"road","place":"Asaba\u2013Kwale Road, 440 m out of town","feet":[[-672.2,-29.4,-671.7,-28.8]]},
-  {"id":"BB-125","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-667.9,"z":-25.8,"heading":3.595,"region":"road","place":"Asaba\u2013Kwale Road, 440 m out of town","feet":[[-668.2,-25.7,-666.9,-24.4]]},
-  {"id":"BB-126","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-666.8,"z":-54.9,"heading":-0.505,"region":"road","place":"Asaba\u2013Kwale Road, 430 m out of town","feet":[[-667,-56.3,-665.7,-55]]},
-  {"id":"BB-127","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-661.7,"z":-59.4,"heading":-0.449,"region":"road","place":"Asaba\u2013Kwale Road, 430 m out of town","feet":[[-666.6,-63.5,-665.1,-62],[-657.3,-59,-655.9,-57.6]]},
-  {"id":"BB-128","type":"dark-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":9,"x":-655.4,"z":-26,"heading":3.687,"region":"road","place":"Asaba\u2013Kwale Road, 420 m out of town","feet":[[-655.6,-25.7,-654.1,-24.2]]},
-  {"id":"BB-129","type":"dark-unipole-truss","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-646.6,"z":-51.5,"heading":-0.363,"region":"road","place":"Asaba\u2013Kwale Road, 410 m out of town","feet":[[-646.7,-52.6,-645.9,-51.7]]},
   {"id":"BB-130","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-644.4,"z":-24.3,"heading":3.599,"region":"road","place":"Asaba\u2013Kwale Road, 410 m out of town","feet":[[-644.8,-24.1,-643,-22.4]]},
-  {"id":"BB-131","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-644,"z":-59.1,"heading":-0.469,"region":"road","place":"Asaba\u2013Kwale Road, 410 m out of town","feet":[[-653.7,-64.9,-653.2,-64.5],[-653,-66.2,-652.6,-65.7],[-651.5,-63.8,-651.1,-63.4],[-650.9,-65.1,-650.4,-64.7],[-649.4,-62.7,-648.9,-62.3],[-648.7,-64,-648.3,-63.6],[-647.2,-61.6,-646.8,-61.2],[-646.6,-62.9,-646.1,-62.5],[-645.1,-60.6,-644.7,-60.1],[-644.4,-61.8,-644,-61.4],[-642.9,-59.5,-642.5,-59],[-642.3,-60.8,-641.9,-60.3],[-640.8,-58.4,-640.4,-58],[-640.2,-59.7,-639.7,-59.2],[-638.7,-57.3,-638.2,-56.9],[-638,-58.6,-637.6,-58.2],[-636.5,-56.2,-636.1,-55.8],[-635.9,-57.5,-635.4,-57.1],[-634.4,-55.1,-634,-54.7],[-633.7,-56.4,-633.3,-56]]},
-  {"id":"BB-132","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-635.6,"z":-21,"heading":3.623,"region":"road","place":"Asaba\u2013Kwale Road, 400 m out of town","feet":[[-629.6,-24,-628,-22.3],[-642.1,-17.5,-640.5,-15.8]]},
-  {"id":"BB-133","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-631,"z":-29.7,"heading":3.621,"region":"road","place":"Asaba\u2013Kwale Road, 400 m out of town","feet":[[-631.1,-29.6,-630.5,-29]]},
-  {"id":"BB-134","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-630.9,"z":-59.5,"heading":-0.451,"region":"road","place":"Asaba\u2013Kwale Road, 400 m out of town","feet":[[-637.5,-64.4,-635.9,-62.8],[-624.8,-58.3,-623.2,-56.7]]},
-  {"id":"BB-135","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-616.1,"z":-28.3,"heading":3.691,"region":"road","place":"Asaba\u2013Kwale Road, 380 m out of town","feet":[[-616.2,-28.2,-615.2,-27.3]]},
-  {"id":"BB-136","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-612.5,"z":-22.7,"heading":3.672,"region":"road","place":"Asaba\u2013Kwale Road, 380 m out of town","feet":[[-612.7,-22.4,-611.1,-20.8]]},
-  {"id":"BB-137","type":"dark-unipole-deep","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":-609.3,"z":-51.5,"heading":-0.427,"region":"road","place":"Asaba\u2013Kwale Road, 380 m out of town","feet":[[-609.4,-52.4,-608.6,-51.7]]},
-  {"id":"BB-138","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-602.9,"z":-55.3,"heading":-0.543,"region":"road","place":"Asaba\u2013Kwale Road, 370 m out of town","feet":[[-603.1,-57.2,-601.4,-55.5]]},
-  {"id":"BB-139","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-600.7,"z":-29.4,"heading":3.572,"region":"road","place":"Asaba\u2013Kwale Road, 370 m out of town","feet":[[-600.8,-29.2,-600.2,-28.6]]},
-  {"id":"BB-140","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-596.8,"z":-21.8,"heading":3.585,"region":"road","place":"Asaba\u2013Kwale Road, 360 m out of town","feet":[[-586.8,-26.1,-586.4,-25.7],[-586.2,-24.8,-585.8,-24.4],[-589,-25.1,-588.6,-24.6],[-588.4,-23.8,-587.9,-23.3],[-591.2,-24,-590.7,-23.6],[-590.5,-22.7,-590.1,-22.3],[-593.3,-23,-592.9,-22.6],[-592.7,-21.7,-592.3,-21.3],[-595.5,-22,-595.1,-21.6],[-594.9,-20.7,-594.4,-20.3],[-597.7,-20.9,-597.2,-20.5],[-597,-19.6,-596.6,-19.2],[-599.8,-19.9,-599.4,-19.5],[-599.2,-18.6,-598.8,-18.2],[-602,-18.9,-601.6,-18.5],[-601.4,-17.6,-600.9,-17.2],[-604.2,-17.9,-603.7,-17.4],[-603.5,-16.6,-603.1,-16.1],[-606.3,-16.8,-605.9,-16.4],[-605.7,-15.5,-605.3,-15.1]]},
-  {"id":"BB-141","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-588.6,"z":-50.1,"heading":-0.439,"region":"road","place":"Asaba\u2013Kwale Road, 360 m out of town","feet":[[-588.8,-50.9,-588.1,-50.2]]},
-  {"id":"BB-142","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-585.3,"z":-53.8,"heading":-0.489,"region":"road","place":"Asaba\u2013Kwale Road, 350 m out of town","feet":[[-585.4,-54.7,-584.6,-54]]},
-  {"id":"BB-143","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-580.8,"z":-57.8,"heading":-0.451,"region":"road","place":"Asaba\u2013Kwale Road, 350 m out of town","feet":[[-581.1,-59.6,-579.6,-58.1]]},
-  {"id":"BB-144","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-573.2,"z":-27.1,"heading":3.534,"region":"road","place":"Asaba\u2013Kwale Road, 340 m out of town","feet":[[-573.5,-26.7,-572.1,-25.3]]},
-  {"id":"BB-145","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-568.7,"z":-59.1,"heading":-0.536,"region":"road","place":"Asaba\u2013Kwale Road, 340 m out of town","feet":[[-574,-63.7,-572.6,-62.3],[-563.7,-57.6,-562.3,-56.2]]},
-  {"id":"BB-146","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-568.6,"z":-52.1,"heading":-0.521,"region":"road","place":"Asaba\u2013Kwale Road, 340 m out of town","feet":[[-568.7,-52.8,-568.1,-52.2]]},
-  {"id":"BB-147","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-562.4,"z":-23.9,"heading":3.56,"region":"road","place":"Asaba\u2013Kwale Road, 330 m out of town","feet":[[-562.7,-23.7,-561.4,-22.4]]},
-  {"id":"BB-148","type":"galvanised-unipole-deck-lamps","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":-550.8,"z":-51.2,"heading":-0.423,"region":"road","place":"Asaba\u2013Kwale Road, 320 m out of town","feet":[[-551,-52.6,-549.8,-51.4]]},
-  {"id":"BB-149","type":"tv-building","scale":1,"category":"tv","tv":true,"width":24,"height":9,"bottom":8,"x":-550.6,"z":-59.5,"heading":-0.518,"region":"road","place":"Asaba\u2013Kwale Road, 320 m out of town","feet":[[-565.7,-86.5,-525.2,-50.6]]},
-  {"id":"BB-150","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-550.2,"z":-21.9,"heading":3.547,"region":"road","place":"Asaba\u2013Kwale Road, 320 m out of town","feet":[[-544,-24.3,-542.5,-22.8],[-557,-18.8,-555.4,-17.2]]},
-  {"id":"BB-151","type":"front-unipole-ladder","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":5,"x":-549.4,"z":-28.6,"heading":3.641,"region":"road","place":"Asaba\u2013Kwale Road, 320 m out of town","feet":[[-549.5,-28.5,-548.7,-27.6]]},
-  {"id":"BB-152","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-533.1,"z":-50.8,"heading":-0.419,"region":"road","place":"Asaba\u2013Kwale Road, 300 m out of town","feet":[[-533.2,-51.5,-532.7,-51]]},
-  {"id":"BB-153","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-527.9,"z":-25,"heading":3.525,"region":"road","place":"Asaba\u2013Kwale Road, 300 m out of town","feet":[[-528.1,-24.7,-527.1,-23.6]]},
-  {"id":"BB-154","type":"offset-white-unipole","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":2.4,"bottom":5.4,"x":-523.1,"z":-51.9,"heading":-0.469,"region":"road","place":"Asaba\u2013Kwale Road, 290 m out of town","feet":[[-520.9,-51.9,-520.1,-51]]},
-  {"id":"BB-155","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-518.5,"z":-21.4,"heading":3.537,"region":"road","place":"Asaba\u2013Kwale Road, 290 m out of town","feet":[[-513.3,-23.4,-511.9,-22.1],[-524.3,-18.8,-523,-17.5]]},
-  {"id":"BB-156","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-516.8,"z":-55.1,"heading":-0.482,"region":"road","place":"Asaba\u2013Kwale Road, 280 m out of town","feet":[[-526.4,-61.1,-526,-60.6],[-525.7,-62.3,-525.3,-61.9],[-524.3,-60,-523.8,-59.5],[-523.6,-61.2,-523.2,-60.8],[-522.2,-58.8,-521.7,-58.4],[-521.5,-60.1,-521.1,-59.7],[-520,-57.7,-519.6,-57.3],[-519.4,-59,-518.9,-58.6],[-517.9,-56.6,-517.5,-56.2],[-517.2,-57.9,-516.8,-57.5],[-515.8,-55.5,-515.3,-55.1],[-515.1,-56.8,-514.7,-56.3],[-513.6,-54.4,-513.2,-54],[-513,-55.7,-512.6,-55.2],[-511.5,-53.3,-511.1,-52.8],[-510.9,-54.5,-510.4,-54.1],[-509.4,-52.2,-509,-51.7],[-508.7,-53.4,-508.3,-53],[-507.3,-51,-506.8,-50.6],[-506.6,-52.3,-506.2,-51.9]]},
-  {"id":"BB-157","type":"yellow-trestle","scale":1,"category":"xl","tv":false,"width":30,"height":6,"bottom":7,"x":-502.2,"z":-19.6,"heading":3.513,"region":"road","place":"Asaba\u2013Kwale Road, 270 m out of town","feet":[[-489.1,-24.1,-488.6,-23.5],[-488.5,-22.4,-487.9,-21.9],[-491.9,-23,-491.4,-22.4],[-491.2,-21.3,-490.7,-20.8],[-494.7,-21.9,-494.2,-21.4],[-494,-20.2,-493.5,-19.7],[-497.5,-20.8,-497,-20.3],[-496.8,-19.1,-496.3,-18.6],[-500.3,-19.7,-499.8,-19.2],[-499.6,-18,-499.1,-17.5],[-503.1,-18.6,-502.6,-18.1],[-502.4,-16.9,-501.9,-16.4],[-505.9,-17.5,-505.4,-17],[-505.2,-15.8,-504.7,-15.3],[-508.7,-16.4,-508.2,-15.9],[-508,-14.8,-507.5,-14.2],[-511.5,-15.3,-510.9,-14.8],[-510.8,-13.7,-510.3,-13.1],[-514.3,-14.3,-513.7,-13.7],[-513.6,-12.6,-513.1,-12.1]]},
-  {"id":"BB-158","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-496.6,"z":-51.7,"heading":-0.397,"region":"road","place":"Asaba\u2013Kwale Road, 260 m out of town","feet":[[-496.7,-52.4,-496.1,-51.8]]},
-  {"id":"BB-159","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-496.2,"z":-28.3,"heading":3.549,"region":"road","place":"Asaba\u2013Kwale Road, 260 m out of town","feet":[[-496.4,-28.1,-495.6,-27.3]]},
-  {"id":"BB-160","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-488.9,"z":-54.5,"heading":-0.437,"region":"road","place":"Asaba\u2013Kwale Road, 260 m out of town","feet":[[-495.6,-59.4,-494,-57.8],[-482.8,-53.4,-481.2,-51.9]]},
-  {"id":"BB-161","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-477.7,"z":-26,"heading":3.501,"region":"road","place":"Asaba\u2013Kwale Road, 250 m out of town","feet":[[-478,-25.8,-476.7,-24.5]]},
-  {"id":"BB-162","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-473.3,"z":-54.3,"heading":-0.501,"region":"road","place":"Asaba\u2013Kwale Road, 240 m out of town","feet":[[-478.8,-58.8,-477.4,-57.4],[-468.3,-53.1,-466.9,-51.7]]},
-  {"id":"BB-163","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-464.2,"z":-24.2,"heading":3.564,"region":"road","place":"Asaba\u2013Kwale Road, 230 m out of town","feet":[[-454.1,-28.3,-453.7,-27.8],[-453.5,-26.9,-453.1,-26.5],[-456.3,-27.3,-455.9,-26.9],[-455.7,-26,-455.3,-25.5],[-458.5,-26.3,-458.1,-25.9],[-457.9,-25,-457.5,-24.6],[-460.7,-25.3,-460.3,-24.9],[-460.1,-24,-459.7,-23.6],[-462.9,-24.3,-462.4,-23.9],[-462.3,-23,-461.9,-22.6],[-465.1,-23.3,-464.6,-22.9],[-464.5,-22,-464,-21.6],[-467.2,-22.4,-466.8,-21.9],[-466.7,-21,-466.2,-20.6],[-469.4,-21.4,-469,-21],[-468.8,-20.1,-468.4,-19.6],[-471.6,-20.4,-471.2,-20],[-471,-19.1,-470.6,-18.7],[-473.8,-19.4,-473.4,-19],[-473.2,-18.1,-472.8,-17.7]]},
-  {"id":"BB-164","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-460.1,"z":-54.3,"heading":-0.413,"region":"road","place":"Asaba\u2013Kwale Road, 230 m out of town","feet":[[-460.2,-55.7,-459.2,-54.6]]},
-  {"id":"BB-165","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-449.8,"z":-59.4,"heading":-0.357,"region":"road","place":"Asaba\u2013Kwale Road, 220 m out of town","feet":[[-455.7,-63.1,-454.4,-61.8],[-444.5,-58.9,-443.2,-57.6]]},
-  {"id":"BB-166","type":"dark-unipole-catwalk","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-442.1,"z":-26.1,"heading":3.646,"region":"road","place":"Asaba\u2013Kwale Road, 210 m out of town","feet":[[-442.3,-25.8,-440.8,-24.3]]},
-  {"id":"BB-167","type":"tv-curved","scale":1,"category":"tv","tv":true,"width":9,"height":10,"bottom":6,"x":-433.9,"z":-22.5,"heading":3.542,"region":"road","place":"Asaba\u2013Kwale Road, 200 m out of town","feet":[[-439.2,-20.4,-437.6,-18.8]]},
-  {"id":"BB-168","type":"galvanised-unipole-railing","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-433.4,"z":-51.1,"heading":-0.42,"region":"road","place":"Asaba\u2013Kwale Road, 200 m out of town","feet":[[-433.5,-52.2,-432.6,-51.3]]},
-  {"id":"BB-169","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-424,"z":-56.7,"heading":-0.531,"region":"road","place":"Asaba\u2013Kwale Road, 190 m out of town","feet":[[-430.3,-62.1,-428.7,-60.4],[-418.2,-54.9,-416.5,-53.3]]},
-  {"id":"BB-170","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-421.8,"z":-20.3,"heading":3.514,"region":"road","place":"Asaba\u2013Kwale Road, 190 m out of town","feet":[[-417.4,-21.7,-415.9,-20.3],[-426.9,-18,-425.5,-16.6]]},
-  {"id":"BB-171","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":-416.2,"z":-28.7,"heading":3.531,"region":"road","place":"Asaba\u2013Kwale Road, 180 m out of town","feet":[[-416.4,-28.5,-415.6,-27.7]]},
-  {"id":"BB-172","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-402.8,"z":-26.1,"heading":3.673,"region":"road","place":"Asaba\u2013Kwale Road, 170 m out of town","feet":[[-398.9,-27.7,-398,-26.7],[-400.8,-25.2,-399.8,-24.2],[-403.9,-24.7,-402.9,-23.8],[-405.8,-22.2,-404.8,-21.3]]},
-  {"id":"BB-173","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-400,"z":-54.9,"heading":-0.418,"region":"road","place":"Asaba\u2013Kwale Road, 170 m out of town","feet":[[-405.8,-59,-404.4,-57.6],[-394.8,-54.1,-393.5,-52.8]]},
-  {"id":"BB-174","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-390.4,"z":-23.5,"heading":3.611,"region":"road","place":"Asaba\u2013Kwale Road, 160 m out of town","feet":[[-380.5,-28.1,-380,-27.6],[-379.8,-26.8,-379.4,-26.4],[-382.6,-27,-382.2,-26.6],[-382,-25.7,-381.5,-25.3],[-384.7,-25.9,-384.3,-25.5],[-384.1,-24.6,-383.7,-24.2],[-386.9,-24.8,-386.5,-24.4],[-386.2,-23.5,-385.8,-23.1],[-389,-23.7,-388.6,-23.3],[-388.4,-22.5,-387.9,-22],[-391.2,-22.7,-390.7,-22.2],[-390.5,-21.4,-390.1,-20.9],[-393.3,-21.6,-392.9,-21.1],[-392.7,-20.3,-392.2,-19.9],[-395.4,-20.5,-395,-20.1],[-394.8,-19.2,-394.4,-18.8],[-397.6,-19.4,-397.2,-19],[-396.9,-18.1,-396.5,-17.7],[-399.7,-18.3,-399.3,-17.9],[-399.1,-17,-398.6,-16.6]]},
-  {"id":"BB-175","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-386.6,"z":-57.5,"heading":-0.499,"region":"road","place":"Asaba\u2013Kwale Road, 150 m out of town","feet":[[-392,-61.9,-390.6,-60.5],[-381.5,-56.2,-380.1,-54.8]]},
-  {"id":"BB-176","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-367.9,"z":-26.2,"heading":3.613,"region":"road","place":"Asaba\u2013Kwale Road, 140 m out of town","feet":[[-363.9,-27.5,-362.9,-26.6],[-365.9,-25.1,-365,-24.2],[-369,-24.9,-368.1,-23.9],[-371,-22.5,-370.1,-21.6]]},
-  {"id":"BB-177","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-363.3,"z":-55.7,"heading":-0.42,"region":"road","place":"Asaba\u2013Kwale Road, 130 m out of town","feet":[[-368.2,-59.6,-366.8,-58.1],[-358.9,-55.4,-357.4,-53.9]]},
-  {"id":"BB-178","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-355.1,"z":-25.4,"heading":3.604,"region":"road","place":"Asaba\u2013Kwale Road, 120 m out of town","feet":[[-350.7,-27.3,-349.3,-25.9],[-359.9,-22.8,-358.4,-21.3]]},
-  {"id":"BB-179","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-347.1,"z":-57.7,"heading":-0.538,"region":"road","place":"Asaba\u2013Kwale Road, 120 m out of town","feet":[[-350.6,-61.5,-349.6,-60.5],[-347.5,-61,-346.6,-60.1],[-345.7,-58.5,-344.7,-57.6],[-342.6,-58.1,-341.6,-57.1]]},
-  {"id":"BB-180","type":"offset-white-unipole","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":2.4,"bottom":5.4,"x":-336.2,"z":-27.6,"heading":3.631,"region":"road","place":"Asaba\u2013Kwale Road, 100 m out of town","feet":[[-338.6,-26.2,-337.7,-25.3]]},
-  {"id":"BB-181","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-332,"z":-52.5,"heading":-0.493,"region":"road","place":"Asaba\u2013Kwale Road, 100 m out of town","feet":[[-332.1,-53.4,-331.3,-52.7]]},
-  {"id":"BB-182","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-329.2,"z":-24.2,"heading":3.554,"region":"road","place":"Asaba\u2013Kwale Road, 100 m out of town","feet":[[-324,-26.3,-322.7,-25],[-335,-21.5,-333.6,-20.2]]},
-  {"id":"BB-183","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":-324.8,"z":-57.6,"heading":-0.502,"region":"road","place":"Asaba\u2013Kwale Road, 90 m out of town","feet":[[-330.2,-62,-328.9,-60.6],[-319.7,-56.3,-318.4,-54.9]]},
-  {"id":"BB-184","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-314.5,"z":-22.1,"heading":3.648,"region":"road","place":"Asaba\u2013Kwale Road, 80 m out of town","feet":[[-308.6,-25.3,-307,-23.7],[-320.9,-18.5,-319.3,-16.8]]},
-  {"id":"BB-185","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-313.5,"z":-29.5,"heading":3.576,"region":"road","place":"Asaba\u2013Kwale Road, 80 m out of town","feet":[[-313.6,-29.4,-313,-28.8]]},
-  {"id":"BB-186","type":"offset-white-unipole","scale":1,"category":"large","tv":false,"width":14,"height":4,"bottom":9,"x":-306.2,"z":-55.6,"heading":-0.413,"region":"road","place":"Asaba\u2013Kwale Road, 70 m out of town","feet":[[-302.6,-55.7,-301.1,-54.3]]},
-  {"id":"BB-187","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-296.9,"z":-23.5,"heading":3.684,"region":"road","place":"Asaba\u2013Kwale Road, 60 m out of town","feet":[[-291.1,-26.9,-289.4,-25.3],[-303.1,-19.7,-301.5,-18]]},
-  {"id":"BB-188","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-287.3,"z":-50.8,"heading":-0.443,"region":"road","place":"Asaba\u2013Kwale Road, 60 m out of town","feet":[[-287.4,-51.6,-286.8,-51]]},
-  {"id":"BB-189","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-286.7,"z":-56.2,"heading":-0.359,"region":"road","place":"Asaba\u2013Kwale Road, 50 m out of town","feet":[[-293.6,-60.6,-292.1,-59.1],[-280.5,-55.7,-278.9,-54.1]]},
-  {"id":"BB-190","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-275.2,"z":-23.7,"heading":3.536,"region":"road","place":"Asaba\u2013Kwale Road, 40 m out of town","feet":[[-270.7,-25.3,-269.3,-23.9],[-280.2,-21.4,-278.7,-19.9]]},
-  {"id":"BB-191","type":"yellow-trestle","scale":1,"category":"xl","tv":false,"width":30,"height":6,"bottom":7,"x":-269.1,"z":-56.1,"heading":-0.423,"region":"road","place":"Asaba\u2013Kwale Road, 40 m out of town","feet":[[-281.7,-62.9,-281.2,-62.4],[-281,-64.6,-280.5,-64.1],[-279,-61.7,-278.5,-61.2],[-278.2,-63.4,-277.7,-62.8],[-276.2,-60.5,-275.7,-60],[-275.5,-62.1,-275,-61.6],[-273.5,-59.3,-273,-58.7],[-272.8,-60.9,-272.2,-60.4],[-270.8,-58,-270.2,-57.5],[-270,-59.7,-269.5,-59.1],[-268,-56.8,-267.5,-56.3],[-267.3,-58.4,-266.8,-57.9],[-265.3,-55.6,-264.8,-55],[-264.6,-57.2,-264,-56.7],[-262.6,-54.3,-262,-53.8],[-261.8,-56,-261.3,-55.4],[-259.8,-53.1,-259.3,-52.6],[-259.1,-54.7,-258.6,-54.2],[-257.1,-51.9,-256.6,-51.3],[-256.4,-53.5,-255.8,-53]]},
-  {"id":"BB-192","type":"tv-tower","scale":1,"category":"tv","tv":true,"width":6,"height":8,"bottom":4.5,"x":-260.3,"z":-21.8,"heading":3.495,"region":"road","place":"Asaba\u2013Kwale Road, 30 m out of town","feet":[[-264.3,-23.7,-254,-13.4]]},
-  {"id":"BB-193","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-257,"z":-29.7,"heading":3.622,"region":"road","place":"Asaba\u2013Kwale Road, 30 m out of town","feet":[[-257.1,-29.6,-256.4,-28.9]]},
   {"id":"BB-194","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":-244.4,"z":-55.5,"heading":-0.516,"region":"road","place":"Asaba\u2013Kwale Road, 10 m out of town","feet":[[-249,-59.9,-247.5,-58.4],[-240.1,-54.8,-238.6,-53.3]]},
-  {"id":"BB-195","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-234.8,"z":101.8,"heading":0,"region":"town","place":"Waterside Road, by the bridge","feet":[[-235.1,100.9,-234.6,101.4]]},
-  {"id":"BB-196","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-233.5,"z":-25.9,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-234,-25.4,-233.1,-24.6]]},
-  {"id":"BB-197","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-225.2,"z":125.6,"heading":3.142,"region":"town","place":"Waterside Road, by the bridge","feet":[[-225.7,126,-224.7,127]]},
-  {"id":"BB-198","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":-225.1,"z":-50.2,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-225.4,-51.1,-224.8,-50.5]]},
-  {"id":"BB-199","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-220.2,"z":-30.5,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-220.6,-30.2,-219.9,-29.5]]},
-  {"id":"BB-200","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-215.9,"z":102.7,"heading":0,"region":"town","place":"Waterside Road, by the bridge","feet":[[-216.3,101.7,-215.6,102.3]]},
   {"id":"BB-201","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-210.6,"z":-336.5,"heading":3.142,"region":"town","place":"Farm Path, Asaba","feet":[[-210.8,-336.3,-210.3,-335.8]]},
-  {"id":"BB-202","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-209.8,"z":-52.4,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-210.1,-53.3,-209.5,-52.8]]},
-  {"id":"BB-203","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-208.1,"z":-352.8,"heading":1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-208.8,-353,-208.3,-352.6]]},
-  {"id":"BB-204","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-207.7,"z":-368.7,"heading":1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-208.4,-368.9,-208,-368.5]]},
-  {"id":"BB-205","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-207.7,"z":-390.5,"heading":1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-208.4,-390.7,-207.9,-390.3]]},
   {"id":"BB-206","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-206.8,"z":-409.4,"heading":1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-207.5,-409.6,-207.1,-409.2]]},
-  {"id":"BB-207","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-206.7,"z":-419.3,"heading":1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-207.4,-419.5,-206.9,-419.1]]},
-  {"id":"BB-208","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-203.4,"z":103.5,"heading":0,"region":"town","place":"Waterside Road, by the bridge","feet":[[-203.8,102.4,-203.1,103.1]]},
-  {"id":"BB-209","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-199.9,"z":-30.6,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-200.3,-30.2,-199.5,-29.5]]},
-  {"id":"BB-210","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-196.9,"z":-425.8,"heading":-1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-196.7,-426,-196.2,-425.5]]},
-  {"id":"BB-211","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-196.7,"z":-336,"heading":3.142,"region":"town","place":"Farm Path, Asaba","feet":[[-196.9,-335.7,-196.5,-335.3]]},
-  {"id":"BB-212","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-196.5,"z":-360.1,"heading":-1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-196.3,-360.3,-195.7,-359.8]]},
-  {"id":"BB-213","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-195.9,"z":-397.6,"heading":-1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-195.7,-397.8,-195.2,-397.4]]},
-  {"id":"BB-214","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-195.5,"z":-388.6,"heading":-1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-195.2,-388.9,-194.8,-388.4]]},
-  {"id":"BB-215","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-195.4,"z":-51.8,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-195.9,-53.2,-194.9,-52.2]]},
-  {"id":"BB-216","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-195.3,"z":-415.1,"heading":-1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-195.1,-415.4,-194.6,-414.9]]},
-  {"id":"BB-217","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-195.2,"z":-347.7,"heading":0,"region":"town","place":"Farm Path, Asaba","feet":[[-195.5,-348.4,-195,-347.9]]},
-  {"id":"BB-218","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-194.8,"z":-371.6,"heading":-1.571,"region":"town","place":"Farm Path, Asaba","feet":[[-194.6,-371.8,-194.1,-371.4]]},
-  {"id":"BB-219","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-189.6,"z":105,"heading":0,"region":"town","place":"Waterside Road, by the bridge","feet":[[-189.9,104.3,-189.4,104.8]]},
-  {"id":"BB-220","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-185.8,"z":-347.7,"heading":0,"region":"town","place":"Farm Path, Asaba","feet":[[-186,-348.5,-185.5,-347.9]]},
   {"id":"BB-221","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-184,"z":124.7,"heading":3.142,"region":"town","place":"Waterside Road, by the bridge","feet":[[-180,125.7,-179.3,126.4],[-182.9,126.9,-182.2,127.6],[-185.8,125.7,-185.1,126.4],[-188.6,126.9,-187.9,127.6]]},
-  {"id":"BB-222","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-179.6,"z":-50.9,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-180.1,-52.6,-179,-51.5]]},
-  {"id":"BB-223","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-179.2,"z":-335.7,"heading":3.142,"region":"town","place":"Farm Path, Asaba","feet":[[-179.4,-335.5,-179,-335]]},
-  {"id":"BB-224","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-168.2,"z":-346.7,"heading":0,"region":"town","place":"Farm Path, Asaba","feet":[[-168.4,-347.4,-168,-346.9]]},
-  {"id":"BB-225","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":-167.5,"z":122.6,"heading":3.142,"region":"town","place":"Waterside Road, by the bridge","feet":[[-169.9,123,-169.3,123.5]]},
-  {"id":"BB-226","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-160,"z":-336,"heading":3.142,"region":"town","place":"Farm Path, Asaba","feet":[[-160.2,-335.8,-159.8,-335.3]]},
-  {"id":"BB-227","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-157.1,"z":-51.9,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-161.7,-53.6,-161,-52.9],[-158.9,-54.8,-158.2,-54.1],[-156,-53.6,-155.3,-52.9],[-153.1,-54.8,-152.4,-54.1]]},
-  {"id":"BB-228","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-156.3,"z":103.1,"heading":0,"region":"town","place":"Waterside Road, by the bridge","feet":[[-156.7,102.1,-156,102.8]]},
-  {"id":"BB-229","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-151.8,"z":129.1,"heading":3.142,"region":"town","place":"Waterside Road, by the bridge","feet":[[-141,129.7,-140.7,130],[-141,131.1,-140.7,131.4],[-143.4,129.7,-143.1,130],[-143.4,131.1,-143.1,131.4],[-145.8,129.7,-145.5,130],[-145.8,131.1,-145.5,131.4],[-148.2,129.7,-147.9,130],[-148.2,131.1,-147.9,131.4],[-150.6,129.7,-150.3,130],[-150.6,131.1,-150.3,131.4],[-153,129.7,-152.7,130],[-153,131.1,-152.7,131.4],[-155.4,129.7,-155.1,130],[-155.4,131.1,-155.1,131.4],[-157.8,129.7,-157.5,130],[-157.8,131.1,-157.5,131.4],[-160.2,129.7,-159.9,130],[-160.2,131.1,-159.9,131.4],[-162.6,129.7,-162.3,130],[-162.6,131.1,-162.3,131.4]]},
-  {"id":"BB-230","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-143.3,"z":-30.9,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-143.5,-30.7,-143,-30.1]]},
-  {"id":"BB-231","type":"twin-pole-railing","scale":0.85,"category":"large","tv":false,"width":13.6,"height":4.7,"bottom":7.7,"x":-136.7,"z":-351.7,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-141.5,-353.2,-140.6,-352.3],[-132.8,-353.2,-131.9,-352.3]]},
-  {"id":"BB-232","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-133.7,"z":-55,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-134.3,-56.9,-133,-55.6]]},
-  {"id":"BB-233","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-133.5,"z":-395.1,"heading":0,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-133.7,-395.8,-133.2,-395.3]]},
-  {"id":"BB-234","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-133.2,"z":-49.2,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-133.5,-50,-132.9,-49.5]]},
-  {"id":"BB-235","type":"dark-unipole-truss","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":-131.7,"z":-30.5,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-132.1,-30,-131.3,-29.2]]},
-  {"id":"BB-236","type":"dark-unipole-deep","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":-130.7,"z":123.3,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-131,123.6,-130.4,124.2]]},
-  {"id":"BB-237","type":"front-unipole-ladder","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":6,"x":-128.6,"z":102.5,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[-129,101.4,-128.2,102.2]]},
-  {"id":"BB-238","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-125.7,"z":-332.4,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[-125.9,-332.2,-125.4,-331.7]]},
-  {"id":"BB-239","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-119,"z":-384.8,"heading":3.142,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-119.2,-384.6,-118.8,-384.1]]},
-  {"id":"BB-240","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-118.7,"z":-395.9,"heading":0,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-118.9,-396.6,-118.5,-396.1]]},
-  {"id":"BB-241","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-117.3,"z":126,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-118,126.5,-116.6,127.9]]},
-  {"id":"BB-242","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-115.7,"z":-51.5,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-116.2,-52.8,-115.3,-52]]},
-  {"id":"BB-243","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-115.7,"z":-351.6,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-116.2,-352.9,-115.2,-352]]},
-  {"id":"BB-244","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-114.9,"z":-132.6,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[-115.2,-132.3,-114.6,-131.8]]},
-  {"id":"BB-245","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-110.5,"z":-152.8,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-111,-154.2,-110,-153.3]]},
-  {"id":"BB-246","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-108.1,"z":-26.2,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-108.8,-25.7,-107.5,-24.4]]},
   {"id":"BB-247","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":-107.1,"z":-332.7,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[-107.4,-332.3,-106.8,-331.7]]},
-  {"id":"BB-248","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-104.6,"z":-132.6,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[-104.9,-132.3,-104.3,-131.7]]},
-  {"id":"BB-249","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-102.9,"z":-441.2,"heading":0,"region":"town","place":"Ugbomanta Lane, Asaba","feet":[[-103.1,-441.9,-102.7,-441.5]]},
-  {"id":"BB-250","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-102.3,"z":-395.5,"heading":0,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-102.5,-396.2,-102.1,-395.8]]},
-  {"id":"BB-251","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-98.7,"z":102.1,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[-99.2,100.7,-98.2,101.7]]},
-  {"id":"BB-252","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-98.2,"z":-149.1,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-98.5,-150,-97.9,-149.4]]},
-  {"id":"BB-253","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":-93.9,"z":-349.8,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-94.2,-350.7,-93.6,-350.1]]},
-  {"id":"BB-254","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":-93.5,"z":-28.5,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-95.9,-28.2,-95.3,-27.6]]},
-  {"id":"BB-255","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-91.4,"z":84.9,"heading":1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-92.1,84.7,-91.6,85.2]]},
-  {"id":"BB-256","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-90.3,"z":47.3,"heading":1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-91,47.1,-90.5,47.5]]},
-  {"id":"BB-257","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-90.3,"z":-11,"heading":1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-91,-11.2,-90.5,-10.8]]},
-  {"id":"BB-258","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-89.8,"z":27.6,"heading":1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-90.5,27.4,-90.1,27.8]]},
-  {"id":"BB-259","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-89.6,"z":36.5,"heading":1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-90.3,36.2,-89.8,36.7]]},
-  {"id":"BB-260","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-89.5,"z":16.2,"heading":1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-90.2,15.9,-89.8,16.4]]},
-  {"id":"BB-261","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-88.4,"z":-396.6,"heading":0,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-88.6,-397.3,-88.2,-396.9]]},
   {"id":"BB-262","type":"offset-white-unipole","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":2.4,"bottom":5.4,"x":-87.8,"z":122.3,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-90.7,122.7,-90,123.4]]},
-  {"id":"BB-263","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-87.6,"z":-51.6,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-88.2,-53.3,-87.1,-52.2]]},
-  {"id":"BB-264","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-87.6,"z":-155.8,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-88.2,-157.6,-87,-156.4]]},
-  {"id":"BB-265","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-86.4,"z":-149.7,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-86.7,-150.6,-86.2,-150]]},
   {"id":"BB-266","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-86.4,"z":-441.8,"heading":0,"region":"town","place":"Ugbomanta Lane, Asaba","feet":[[-86.6,-442.5,-86.2,-442.1]]},
-  {"id":"BB-267","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-83.6,"z":128,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-84.2,128.6,-83,129.8]]},
-  {"id":"BB-268","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-81,"z":-353.8,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-81.5,-355.2,-80.5,-354.2]]},
-  {"id":"BB-269","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-80.1,"z":26.6,"heading":-1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-79.8,26.3,-79.3,26.9]]},
-  {"id":"BB-270","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-79.2,"z":-333.6,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[-79.4,-333.3,-78.9,-332.8]]},
-  {"id":"BB-271","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-79,"z":-15,"heading":-1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-78.7,-15.2,-78.3,-14.7]]},
-  {"id":"BB-272","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-78.5,"z":87.1,"heading":-1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-78.2,86.9,-77.8,87.3]]},
-  {"id":"BB-273","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-78.3,"z":1.2,"heading":-1.571,"region":"town","place":"Umuezei Lane, Asaba","feet":[[-78,0.9,-77.6,1.4]]},
-  {"id":"BB-274","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-76.2,"z":-27.5,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-76.6,-27,-75.8,-26.2]]},
-  {"id":"BB-275","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-76,"z":-430.6,"heading":3.142,"region":"town","place":"Ugbomanta Lane, Asaba","feet":[[-76.2,-430.4,-75.8,-429.9]]},
-  {"id":"BB-276","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":-72.6,"z":-149.6,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-70.8,-150.5,-70.3,-149.9]]},
-  {"id":"BB-277","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-72.4,"z":98.7,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[-77.1,97,-76.4,97.7],[-74.2,95.8,-73.5,96.5],[-71.4,97,-70.7,97.7],[-68.5,95.8,-67.8,96.5]]},
-  {"id":"BB-278","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-72.1,"z":122.3,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-72.4,122.7,-71.8,123.2]]},
-  {"id":"BB-279","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-71.5,"z":-385.5,"heading":3.142,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-71.7,-385.3,-71.2,-384.8]]},
-  {"id":"BB-280","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-70.4,"z":-395.3,"heading":0,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-70.6,-396,-70.1,-395.6]]},
-  {"id":"BB-281","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-64.7,"z":127.8,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-65.3,128.4,-64.1,129.6]]},
-  {"id":"BB-282","type":"galvanised-four-leg","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":5.3,"x":-64.4,"z":-51,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-67.9,-52.2,-67.4,-51.7],[-65.8,-53.1,-65.2,-52.6],[-63.6,-52.2,-63.1,-51.7],[-61.5,-53.1,-60.9,-52.6]]},
   {"id":"BB-283","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-60.3,"z":-154.9,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-60.7,-156.2,-59.9,-155.4]]},
-  {"id":"BB-284","type":"twin-pole-railing","scale":0.85,"category":"large","tv":false,"width":13.6,"height":4.7,"bottom":7.7,"x":-59.9,"z":-352.7,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-64.8,-354.2,-63.8,-353.3],[-56.1,-354.2,-55.1,-353.3]]},
-  {"id":"BB-285","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-59.1,"z":-133.6,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[-59.4,-133.4,-58.9,-132.9]]},
-  {"id":"BB-286","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-57.6,"z":-333.4,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[-57.8,-333.1,-57.4,-332.7]]},
-  {"id":"BB-287","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-57.3,"z":-441.5,"heading":0,"region":"town","place":"Ugbomanta Lane, Asaba","feet":[[-57.5,-442.2,-57,-441.7]]},
-  {"id":"BB-288","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":-57,"z":-26.9,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-57.4,-26.4,-56.5,-25.6]]},
-  {"id":"BB-289","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-56.3,"z":-429.1,"heading":3.142,"region":"town","place":"Ugbomanta Lane, Asaba","feet":[[-56.5,-428.8,-56.1,-428.4]]},
-  {"id":"BB-290","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-56.2,"z":-384.5,"heading":3.142,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-56.4,-384.2,-56,-383.8]]},
-  {"id":"BB-291","type":"front-unipole-ladder","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":5,"x":-53.7,"z":-149.3,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-54.1,-150.2,-53.4,-149.6]]},
-  {"id":"BB-292","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-49.3,"z":-127.1,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[-49.9,-126.5,-48.7,-125.3]]},
-  {"id":"BB-293","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-43,"z":-352,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-43.5,-353.4,-42.5,-352.4]]},
-  {"id":"BB-294","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-38.1,"z":127.5,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-38.7,128.1,-37.6,129.2]]},
-  {"id":"BB-295","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-37.9,"z":122.2,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-38.2,122.5,-37.6,123]]},
-  {"id":"BB-296","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-35.7,"z":-148.5,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-35.9,-149.3,-35.4,-148.7]]},
-  {"id":"BB-297","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":-34.8,"z":-132.7,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[-35.1,-132.3,-34.5,-131.7]]},
-  {"id":"BB-298","type":"galvanised-four-leg","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":5.3,"x":-33,"z":-49.4,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-36.5,-50.6,-36,-50.1],[-34.3,-51.5,-33.8,-51],[-32.2,-50.6,-31.6,-50.1],[-30,-51.5,-29.5,-51]]},
-  {"id":"BB-299","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-30.1,"z":-350.4,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-30.3,-351.1,-29.9,-350.7]]},
-  {"id":"BB-300","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-29.6,"z":-27.3,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-30.2,-26.7,-28.9,-25.4]]},
-  {"id":"BB-301","type":"yellow-trestle","scale":1,"category":"xl","tv":false,"width":30,"height":6,"bottom":7,"x":-28.5,"z":-55.4,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-42.7,-56.5,-42.3,-56.1],[-42.7,-58.3,-42.3,-57.9],[-39.7,-56.5,-39.3,-56.1],[-39.7,-58.3,-39.3,-57.9],[-36.7,-56.5,-36.3,-56.1],[-36.7,-58.3,-36.3,-57.9],[-33.7,-56.5,-33.3,-56.1],[-33.7,-58.3,-33.3,-57.9],[-30.7,-56.5,-30.3,-56.1],[-30.7,-58.3,-30.3,-57.9],[-27.7,-56.5,-27.3,-56.1],[-27.7,-58.3,-27.3,-57.9],[-24.7,-56.5,-24.3,-56.1],[-24.7,-58.3,-24.3,-57.9],[-21.7,-56.5,-21.3,-56.1],[-21.7,-58.3,-21.3,-57.9],[-18.7,-56.5,-18.3,-56.1],[-18.7,-58.3,-18.3,-57.9],[-15.7,-56.5,-15.3,-56.1],[-15.7,-58.3,-15.3,-57.9]]},
-  {"id":"BB-302","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-28.3,"z":-395.4,"heading":0,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-28.5,-396.1,-28.1,-395.7]]},
-  {"id":"BB-303","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-28,"z":-440.5,"heading":0,"region":"town","place":"Ugbomanta Lane, Asaba","feet":[[-28.2,-441.2,-27.7,-440.8]]},
-  {"id":"BB-304","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":-27.7,"z":-332.6,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[-30,-332.3,-29.5,-331.8]]},
-  {"id":"BB-305","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-27,"z":-385.4,"heading":3.142,"region":"town","place":"Umuaji Lane, Asaba","feet":[[-27.2,-385.1,-26.7,-384.7]]},
-  {"id":"BB-306","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":-26.9,"z":-153.7,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-31.6,-155.4,-30.9,-154.7],[-28.7,-156.6,-28,-155.9],[-25.8,-155.4,-25.1,-154.7],[-22.9,-156.6,-22.2,-155.9]]},
-  {"id":"BB-307","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-23.4,"z":-148.6,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-23.6,-149.3,-23.2,-148.9]]},
-  {"id":"BB-308","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-16.3,"z":-352.4,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-16.7,-353.8,-15.8,-352.8]]},
-  {"id":"BB-309","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-14.7,"z":-208.7,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-16.5,-209.3,-15.2,-208]]},
-  {"id":"BB-310","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-14.5,"z":-173.4,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-15.9,-173.9,-14.9,-172.9]]},
-  {"id":"BB-311","type":"twin-pole-railing","scale":0.85,"category":"large","tv":false,"width":13.6,"height":4.7,"bottom":7.7,"x":-14.1,"z":-68.8,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-15.6,-64.9,-14.7,-64],[-15.6,-73.6,-14.7,-72.7]]},
-  {"id":"BB-312","type":"galvanised-unipole-railing","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":-13.8,"z":-49.4,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-14.2,-50.7,-13.4,-49.9]]},
-  {"id":"BB-313","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-13.4,"z":60.4,"heading":1.571,"region":"town","place":"Market Road, by the market","feet":[[-15.1,59.8,-14,60.9]]},
-  {"id":"BB-314","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-12.8,"z":124.4,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[-13.3,124.8,-12.4,125.8]]},
-  {"id":"BB-315","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":-12.5,"z":-22.9,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-14.3,-23.6,-13,-22.3]]},
-  {"id":"BB-316","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":-12.5,"z":-427.4,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-13.3,-429.8,-12.8,-429.3]]},
-  {"id":"BB-317","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-12.1,"z":-275.6,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-13,-275.9,-12.4,-275.3]]},
-  {"id":"BB-318","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":-12.1,"z":-323.9,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-12.9,-326.3,-12.4,-325.8]]},
-  {"id":"BB-319","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-11.8,"z":-151.6,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-13.2,-152.1,-12.2,-151.1]]},
-  {"id":"BB-320","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-11.7,"z":-372.9,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-12.5,-373.2,-12,-372.7]]},
-  {"id":"BB-321","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":-11.7,"z":-443.6,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-12.5,-443.9,-12,-443.3]]},
-  {"id":"BB-322","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-11.5,"z":-414.3,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-12.4,-414.6,-11.8,-414]]},
-  {"id":"BB-323","type":"offset-white-unipole","scale":0.75,"category":"medium","tv":false,"width":10.5,"height":3,"bottom":6.8,"x":-11.5,"z":-239.5,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-12.8,-243.1,-11.9,-242.2]]},
-  {"id":"BB-324","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-11.3,"z":-190.2,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-13.2,-190.9,-11.8,-189.5]]},
-  {"id":"BB-325","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-11.2,"z":-264.7,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-12,-264.9,-11.5,-264.4]]},
-  {"id":"BB-326","type":"front-unipole-ladder","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":5,"x":-11,"z":-290.1,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-11.9,-290.4,-11.3,-289.8]]},
   {"id":"BB-327","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":-10.7,"z":-464,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-11.7,-464.3,-11.1,-463.6]]},
-  {"id":"BB-328","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":-10.5,"z":-223.9,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-11.6,-224.3,-10.9,-223.6]]},
-  {"id":"BB-329","type":"dark-unipole-deep","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":-10.3,"z":-332.1,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[-10.6,-331.8,-10,-331.2]]},
-  {"id":"BB-330","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-10.2,"z":-312.7,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-10.9,-312.9,-10.5,-312.5]]},
-  {"id":"BB-331","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-10.2,"z":-362.4,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-10.9,-362.6,-10.5,-362.2]]},
-  {"id":"BB-332","type":"dark-unipole-truss","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":-10.2,"z":-401.6,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-11.5,-402,-10.7,-401.1]]},
-  {"id":"BB-333","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":-9.4,"z":-300.2,"heading":1.571,"region":"town","place":"College Road, Asaba","feet":[[-10.3,-300.5,-9.8,-299.9]]},
-  {"id":"BB-334","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":-9,"z":-69,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-9.7,-69.2,-9.2,-68.8]]},
-  {"id":"BB-335","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":-9,"z":-168.6,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-9.7,-168.9,-9.2,-168.4]]},
-  {"id":"BB-336","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-8.9,"z":-82.6,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-9.6,-82.8,-9.1,-82.4]]},
-  {"id":"BB-337","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":0.7,"z":123.1,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[0.4,123.5,1.1,124.1]]},
-  {"id":"BB-338","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":8.2,"z":-161.9,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[8.4,-162.2,8.9,-161.7]]},
-  {"id":"BB-339","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":9,"z":-47.7,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[9.3,-48,9.7,-47.5]]},
-  {"id":"BB-340","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":9.1,"z":-1.3,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[9.5,-1.6,10,-1]]},
-  {"id":"BB-341","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":9.1,"z":-75.2,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[9.5,-75.5,10,-74.9]]},
-  {"id":"BB-342","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":9.2,"z":-406.6,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[9.5,-406.9,10.1,-406.3]]},
-  {"id":"BB-343","type":"dark-unipole-deep","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":9.2,"z":-443.8,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[9.5,-444.1,10.1,-443.5]]},
   {"id":"BB-344","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":9.4,"z":-235.7,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[9.7,-235.9,10.2,-235.4]]},
-  {"id":"BB-345","type":"offset-white-unipole","scale":0.75,"category":"medium","tv":false,"width":10.5,"height":3,"bottom":6.8,"x":9.5,"z":-16.1,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[10,-13.4,10.8,-12.6]]},
-  {"id":"BB-346","type":"galvanised-unipole-deck-lamps","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":9.6,"z":56,"heading":-1.571,"region":"town","place":"Market Road, by the market","feet":[[10,55.6,10.9,56.5]]},
-  {"id":"BB-347","type":"galvanised-four-leg","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":5.3,"x":9.7,"z":-462.6,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[10.4,-466.1,10.9,-465.5],[11.3,-463.9,11.8,-463.4],[10.4,-461.7,10.9,-461.2],[11.3,-459.6,11.8,-459.1]]},
-  {"id":"BB-348","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":9.8,"z":14.6,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[10.1,14.3,10.7,14.9]]},
-  {"id":"BB-349","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":9.9,"z":-187.8,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[10.2,-188.1,10.6,-187.6]]},
-  {"id":"BB-350","type":"galvanised-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":10,"z":-386,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[10.4,-386.4,11.1,-385.7]]},
-  {"id":"BB-351","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":10.6,"z":-372.2,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[10.9,-372.5,11.5,-371.9]]},
-  {"id":"BB-352","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":10.7,"z":-278.6,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[11,-278.8,11.6,-278.3]]},
-  {"id":"BB-353","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":10.9,"z":33.3,"heading":-1.571,"region":"town","place":"Market Road, by the market","feet":[[11.5,32.7,12.7,33.9]]},
-  {"id":"BB-354","type":"front-unipole-ladder","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":6,"x":11.3,"z":-223.1,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[11.6,-223.5,12.4,-222.8]]},
-  {"id":"BB-355","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":11.4,"z":-317.3,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[11.8,-317.6,12.5,-316.9]]},
-  {"id":"BB-356","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":11.5,"z":-349.6,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[11.2,-350.5,11.8,-349.9]]},
-  {"id":"BB-357","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":11.7,"z":89.8,"heading":-1.571,"region":"town","place":"Market Road, by the market","feet":[[12,91.6,12.6,92.1]]},
-  {"id":"BB-358","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":11.8,"z":-255.3,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[12.1,-255.6,12.7,-255]]},
-  {"id":"BB-359","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":11.9,"z":-426.6,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[12.3,-426.9,13,-426.2]]},
-  {"id":"BB-360","type":"dark-unipole-deep","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":12.1,"z":-298.8,"heading":-1.571,"region":"town","place":"College Road, Asaba","feet":[[12.5,-299.2,13.4,-298.3]]},
-  {"id":"BB-361","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":13,"z":-151.5,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[12.4,-153.3,13.7,-152]]},
-  {"id":"BB-362","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":13.9,"z":98.6,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[13.5,97.3,14.4,98.1]]},
-  {"id":"BB-363","type":"offset-white-unipole","scale":1,"category":"large","tv":false,"width":14,"height":4,"bottom":9,"x":14.1,"z":-55.2,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[14.7,-51.6,15.8,-50.5]]},
-  {"id":"BB-364","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":14.1,"z":-330.7,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[13.8,-330.4,14.4,-329.7]]},
-  {"id":"BB-365","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":14.5,"z":-77.4,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[15.5,-82.1,16.2,-81.4],[16.7,-79.2,17.4,-78.5],[15.5,-76.3,16.2,-75.6],[16.7,-73.4,17.4,-72.7]]},
-  {"id":"BB-366","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":15,"z":-180.2,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[15.5,-180.6,16.3,-179.8]]},
-  {"id":"BB-367","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":15,"z":103.5,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[14.8,102.8,15.3,103.2]]},
-  {"id":"BB-368","type":"twin-pole-railing","scale":0.85,"category":"large","tv":false,"width":13.6,"height":4.7,"bottom":7.7,"x":15.6,"z":1.9,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[16.2,-2.9,17.1,-2],[16.2,5.8,17.1,6.7]]},
-  {"id":"BB-369","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":16,"z":-16.6,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[16.7,-17.1,17.8,-16]]},
-  {"id":"BB-370","type":"twin-pole-railing","scale":0.85,"category":"large","tv":false,"width":13.6,"height":4.7,"bottom":7.7,"x":19.7,"z":126.5,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[23.6,127,24.5,127.9],[14.9,127,15.8,127.9]]},
-  {"id":"BB-371","type":"dark-unipole-deep","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":20.8,"z":-30.4,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[20.3,-30,21.2,-29.1]]},
-  {"id":"BB-372","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":23.2,"z":-220.8,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[22.9,-221.7,23.5,-221.2]]},
-  {"id":"BB-373","type":"dark-unipole-truss","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":23.3,"z":-202.2,"heading":3.142,"region":"town","place":"Layout Close, Asaba","feet":[[22.9,-201.7,23.7,-200.9]]},
-  {"id":"BB-374","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":26,"z":-349.1,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[25.7,-350.1,26.4,-349.5]]},
-  {"id":"BB-375","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":33.5,"z":-333.2,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[33.3,-332.9,33.7,-332.5]]},
-  {"id":"BB-376","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":33.7,"z":-221.7,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[33.4,-222.6,34,-222]]},
-  {"id":"BB-377","type":"dark-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":9,"x":34,"z":98,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[33.5,96.3,34.6,97.4]]},
-  {"id":"BB-378","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":34.8,"z":103.4,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[34.5,102.5,35,103.1]]},
-  {"id":"BB-379","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":36.4,"z":-51.6,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[35.8,-53.4,36.9,-52.3]]},
-  {"id":"BB-380","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":36.6,"z":-348.7,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[36.3,-349.5,36.9,-348.9]]},
-  {"id":"BB-381","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":36.7,"z":-132.7,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[36.3,-132.4,37,-131.7]]},
-  {"id":"BB-382","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":42.3,"z":-32.1,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[42.1,-31.9,42.6,-31.4]]},
-  {"id":"BB-383","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":42.9,"z":125.3,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[42.4,125.7,43.4,126.7]]},
-  {"id":"BB-384","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":43.9,"z":-126.9,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[43.3,-126.3,44.5,-125.1]]},
   {"id":"BB-385","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":48.7,"z":-333.7,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[48.5,-333.4,49,-332.9]]},
-  {"id":"BB-386","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":49.2,"z":104,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[48.9,103.3,49.5,103.8]]},
-  {"id":"BB-387","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":50.3,"z":-25.7,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[49.7,-25.1,50.9,-23.9]]},
-  {"id":"BB-388","type":"offset-white-unipole","scale":0.75,"category":"medium","tv":false,"width":10.5,"height":3,"bottom":6.8,"x":52.1,"z":-221.9,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[54.8,-223.3,55.7,-222.4]]},
-  {"id":"BB-389","type":"galvanised-unipole-railing","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":54.2,"z":-349.2,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[53.9,-350.2,54.5,-349.6]]},
-  {"id":"BB-390","type":"front-unipole-ladder","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":5,"x":55.6,"z":-132.2,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[55.2,-131.9,55.9,-131.2]]},
-  {"id":"BB-391","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":65.4,"z":98.6,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[64.8,96.8,66,98]]},
-  {"id":"BB-392","type":"twin-pole-long","scale":0.85,"category":"xl","tv":false,"width":18.7,"height":4.7,"bottom":7.7,"x":65.5,"z":131,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[71,131.5,72,132.5],[59.1,131.5,60.1,132.5]]},
-  {"id":"BB-393","type":"dark-unipole-catwalk","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":65.9,"z":-54.7,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[65.3,-56.5,66.4,-55.4]]},
-  {"id":"BB-394","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":66,"z":-220.2,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[65.8,-221.1,66.3,-220.5]]},
-  {"id":"BB-395","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":67.2,"z":-332.9,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[67,-332.6,67.4,-332.2]]},
-  {"id":"BB-396","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":68.2,"z":-27.6,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[67.6,-27,68.8,-25.8]]},
-  {"id":"BB-397","type":"offset-white-unipole","scale":0.5,"category":"medium","tv":false,"width":7,"height":2,"bottom":4.5,"x":70.4,"z":-349.1,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[72.2,-349.9,72.8,-349.4]]},
-  {"id":"BB-398","type":"offset-white-unipole","scale":1,"category":"large","tv":false,"width":14,"height":4,"bottom":9,"x":73,"z":-130.6,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[68.3,-129.9,69.4,-128.8]]},
-  {"id":"BB-399","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":73.1,"z":124.6,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[77.1,125.5,77.8,126.2],[74.2,126.7,74.9,127.4],[71.3,125.5,72,126.2],[68.4,126.7,69.1,127.4]]},
-  {"id":"BB-400","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":80,"z":102.6,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[79.7,101.7,80.2,102.3]]},
-  {"id":"BB-401","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":80.6,"z":21.5,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[79.9,21.3,80.3,21.7]]},
-  {"id":"BB-402","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":80.6,"z":94.2,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[79.9,94,80.4,94.4]]},
   {"id":"BB-403","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":81.1,"z":3.4,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[80.4,3.2,80.8,3.6]]},
-  {"id":"BB-404","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":81.3,"z":75.5,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[80.6,75.3,81,75.7]]},
-  {"id":"BB-405","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":81.3,"z":85.9,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[80.6,85.6,81.1,86.1]]},
-  {"id":"BB-406","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":81.9,"z":37.2,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[81.2,37,81.7,37.5]]},
-  {"id":"BB-407","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":82,"z":49.8,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[81.3,49.5,81.8,50]]},
-  {"id":"BB-408","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":82.1,"z":-15.9,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[81.4,-16.1,81.8,-15.7]]},
-  {"id":"BB-409","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":82.2,"z":-28.6,"heading":1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[81.5,-28.9,81.9,-28.4]]},
-  {"id":"BB-410","type":"galvanised-four-leg","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":5.3,"x":82.6,"z":-221.8,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[79.1,-223,79.7,-222.5],[81.3,-223.9,81.8,-223.4],[83.5,-223,84,-222.5],[85.6,-223.9,86.2,-223.4]]},
-  {"id":"BB-411","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":83.5,"z":-50.9,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[82.9,-52.7,84.1,-51.5]]},
-  {"id":"BB-412","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":92,"z":4.4,"heading":-1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[92.2,4.2,92.8,4.7]]},
-  {"id":"BB-413","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":92.1,"z":126.4,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[91.5,127,92.6,128.1]]},
-  {"id":"BB-414","type":"dark-unipole-deep","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":92.2,"z":-332.8,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[91.9,-332.5,92.5,-331.9]]},
-  {"id":"BB-415","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":92.5,"z":23.4,"heading":-1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[92.8,23.2,93.2,23.6]]},
-  {"id":"BB-416","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":93.3,"z":89.8,"heading":-1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[93.6,89.5,94,90]]},
   {"id":"BB-417","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":93.4,"z":-349.3,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[93.1,-350.2,93.7,-349.6]]},
-  {"id":"BB-418","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":93.5,"z":-19.6,"heading":-1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[93.7,-19.9,94.2,-19.3]]},
-  {"id":"BB-419","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":94,"z":101.4,"heading":-1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[94.2,101.1,94.7,101.6]]},
-  {"id":"BB-420","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":94.2,"z":50.7,"heading":-1.571,"region":"town","place":"Umuonaje Lane, Asaba","feet":[[94.5,50.4,94.9,50.9]]},
   {"id":"BB-421","type":"offset-white-unipole","scale":0.75,"category":"medium","tv":false,"width":10.5,"height":3,"bottom":6.8,"x":95.6,"z":-132,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[92,-131.5,92.8,-130.7]]},
-  {"id":"BB-422","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":99.1,"z":-221.9,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[98.8,-222.8,99.4,-222.2]]},
-  {"id":"BB-423","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":100.8,"z":-31,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[100.6,-30.7,101,-30.3]]},
-  {"id":"BB-424","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":109.1,"z":-51,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[108.5,-52.7,109.6,-51.6]]},
-  {"id":"BB-425","type":"galvanised-unipole-railing","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":112.2,"z":102.9,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[111.9,101.9,112.6,102.5]]},
-  {"id":"BB-426","type":"galvanised-unipole-deck-lamps","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":113.7,"z":-30.6,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[113.2,-30.2,114.1,-29.3]]},
-  {"id":"BB-427","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":113.8,"z":-332.6,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[113.5,-332.3,114.1,-331.7]]},
-  {"id":"BB-428","type":"front-unipole-ladder","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":6,"x":116.1,"z":-132.8,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[115.7,-132.5,116.5,-131.7]]},
-  {"id":"BB-429","type":"dark-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":9,"x":117.5,"z":128.8,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[117,129.4,118.1,130.5]]},
-  {"id":"BB-430","type":"front-unipole-ladder","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":6,"x":118.5,"z":-220.2,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[118.1,-221.3,118.9,-220.5]]},
-  {"id":"BB-431","type":"dark-unipole-truss","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":119.2,"z":123.1,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[118.9,123.5,119.6,124.1]]},
-  {"id":"BB-432","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":126.7,"z":-348.8,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[126.5,-349.5,126.9,-349]]},
-  {"id":"BB-433","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":127.3,"z":-132.5,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[127,-132.2,127.5,-131.6]]},
-  {"id":"BB-434","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":128.4,"z":103.2,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[128.2,102.3,128.7,102.9]]},
-  {"id":"BB-435","type":"dark-unipole-deck-lamps","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":6.8,"x":129.5,"z":-51.9,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[129.1,-53.2,129.9,-52.4]]},
-  {"id":"BB-436","type":"galvanised-unipole-railing","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":133.6,"z":-223.5,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[133.3,-224.6,133.9,-223.9]]},
-  {"id":"BB-437","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":137.5,"z":125.7,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[137,126.2,138,127.1]]},
-  {"id":"BB-438","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":139.2,"z":-131.9,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[138.9,-131.6,139.5,-131.1]]},
-  {"id":"BB-439","type":"galvanised-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":6,"height":2.3,"bottom":4.5,"x":144.7,"z":-349.4,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[144.4,-350.3,145,-349.7]]},
-  {"id":"BB-440","type":"dark-unipole-deck-lamps","scale":0.5,"category":"medium","tv":false,"width":7,"height":2.5,"bottom":4.5,"x":148.9,"z":-223.3,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[148.6,-224.2,149.1,-223.6]]},
-  {"id":"BB-441","type":"offset-white-unipole","scale":1,"category":"large","tv":false,"width":14,"height":4,"bottom":9,"x":149.9,"z":-51,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[153.6,-52.7,154.7,-51.6]]},
-  {"id":"BB-442","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":153.6,"z":-333.1,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[153.3,-332.8,153.8,-332.4]]},
-  {"id":"BB-443","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":157.5,"z":-131.9,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[157.2,-131.6,157.8,-131]]},
-  {"id":"BB-444","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":157.8,"z":-348.5,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[157.6,-349.3,158.1,-348.8]]},
-  {"id":"BB-445","type":"offset-white-unipole","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":2.4,"bottom":5.4,"x":160.4,"z":-221.7,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[162.6,-222.7,163.2,-222.1]]},
-  {"id":"BB-446","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":162.6,"z":-368.6,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[161.9,-368.8,162.3,-368.4]]},
-  {"id":"BB-447","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":162.8,"z":-377.9,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[162.1,-378.1,162.5,-377.7]]},
-  {"id":"BB-448","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":162.8,"z":-356.9,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[162.1,-357.1,162.6,-356.7]]},
-  {"id":"BB-449","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":163,"z":-414.9,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[162.3,-415.1,162.7,-414.7]]},
-  {"id":"BB-450","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":163.5,"z":-387.8,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[162.8,-388,163.2,-387.6]]},
-  {"id":"BB-451","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":164,"z":-451.9,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[163.3,-452.1,163.8,-451.7]]},
-  {"id":"BB-452","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":164.6,"z":-429.2,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[163.9,-429.4,164.4,-429]]},
-  {"id":"BB-453","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":164.6,"z":-399.6,"heading":1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[163.9,-399.8,164.4,-399.3]]},
-  {"id":"BB-454","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":167.4,"z":124.4,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[166.8,125,167.9,126.1]]},
-  {"id":"BB-455","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":169.9,"z":-30.7,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[169.6,-30.4,170.3,-29.7]]},
-  {"id":"BB-456","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":173.4,"z":102.9,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[173.2,102.1,173.7,102.6]]},
-  {"id":"BB-457","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":173.9,"z":-378.4,"heading":-1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[174.2,-378.6,174.6,-378.2]]},
-  {"id":"BB-458","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":174.3,"z":-364.7,"heading":-1.571,"region":"town","place":"Umuagu Lane, Asaba","feet":[[174.6,-364.9,175,-364.5]]},
   {"id":"BB-459","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":175,"z":-441.7,"heading":0,"region":"town","place":"Umuagu Lane, Asaba","feet":[[174.8,-442.4,175.3,-441.9]]},
-  {"id":"BB-460","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":177.1,"z":-354.8,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[176.6,-356.2,177.6,-355.2]]},
-  {"id":"BB-461","type":"dark-unipole-catwalk","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":177.5,"z":-131.9,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[177.1,-131.5,177.8,-130.9]]},
-  {"id":"BB-462","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":178.5,"z":-332.7,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[178.3,-332.4,178.8,-332]]},
-  {"id":"BB-463","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":179.7,"z":-220.5,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[179.4,-221.3,180,-220.8]]},
   {"id":"BB-464","type":"galvanised-unipole-railing","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.4,"bottom":5.4,"x":184.4,"z":-52,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[184,-53.1,184.7,-52.4]]},
-  {"id":"BB-465","type":"galvanised-four-leg","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":7,"x":185.8,"z":129,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[189.8,130,190.5,130.7],[186.9,131.2,187.6,131.9],[184,130,184.7,130.7],[181.1,131.2,181.8,131.9]]},
-  {"id":"BB-466","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":188.8,"z":-429.5,"heading":3.142,"region":"town","place":"Umuagu Lane, Asaba","feet":[[188.6,-429.2,189,-428.8]]},
-  {"id":"BB-467","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":189.3,"z":-131.7,"heading":3.142,"region":"town","place":"Yard Lane, Asaba","feet":[[189,-131.4,189.6,-130.8]]},
-  {"id":"BB-468","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":189.4,"z":103.5,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[189.1,102.6,189.7,103.1]]},
-  {"id":"BB-469","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":191.8,"z":-220.1,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[191.5,-221.1,192.1,-220.5]]},
-  {"id":"BB-470","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":193,"z":-440.1,"heading":0,"region":"town","place":"Umuagu Lane, Asaba","feet":[[192.8,-440.8,193.2,-440.3]]},
-  {"id":"BB-471","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":193.8,"z":121.3,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[193.5,121.6,194,122.1]]},
-  {"id":"BB-472","type":"galvanised-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":195.3,"z":-30.6,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[195,-30.2,195.7,-29.5]]},
-  {"id":"BB-473","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":197.6,"z":-352.1,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[197,-353.9,198.2,-352.7]]},
-  {"id":"BB-474","type":"galvanised-unipole-railing","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":200.7,"z":-332.6,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[200.4,-332.3,201,-331.7]]},
-  {"id":"BB-475","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":201.2,"z":-150.4,"heading":-1.571,"region":"town","place":"Link Road, Asaba","feet":[[201.4,-150.6,201.9,-150.2]]},
-  {"id":"BB-476","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":201.6,"z":-197.2,"heading":-1.571,"region":"town","place":"Link Road, Asaba","feet":[[201.9,-197.4,202.3,-197]]},
-  {"id":"BB-477","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":202,"z":-161.3,"heading":-1.571,"region":"town","place":"Link Road, Asaba","feet":[[202.2,-161.6,202.7,-161.1]]},
-  {"id":"BB-478","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":203.1,"z":-180,"heading":-1.571,"region":"town","place":"Link Road, Asaba","feet":[[203.3,-180.2,203.8,-179.7]]},
-  {"id":"BB-479","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":205.2,"z":-396.1,"heading":0,"region":"town","place":"Umuagu Lane, Asaba","feet":[[204.9,-396.8,205.4,-396.3]]},
-  {"id":"BB-480","type":"galvanised-unipole-railing","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":205.4,"z":-51.3,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[204.9,-53,206,-51.9]]},
-  {"id":"BB-481","type":"dark-unipole-deck-lamps","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":3.6,"x":205.6,"z":-430.4,"heading":3.142,"region":"town","place":"Umuagu Lane, Asaba","feet":[[205.4,-430.2,205.8,-429.7]]},
-  {"id":"BB-482","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":205.8,"z":-384.9,"heading":3.142,"region":"town","place":"Umuagu Lane, Asaba","feet":[[205.5,-384.7,206,-384.2]]},
-  {"id":"BB-483","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":208.4,"z":-30.3,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[208,-29.9,208.7,-29.2]]},
-  {"id":"BB-484","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":212.3,"z":102.4,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[212,101.5,212.5,102.1]]},
-  {"id":"BB-485","type":"dark-unipole-catwalk","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":213,"z":-332.6,"heading":3.142,"region":"town","place":"Campus Road, Asaba","feet":[[212.7,-332.3,213.2,-331.7]]},
-  {"id":"BB-486","type":"dark-unipole-truss","scale":0.5,"category":"medium","tv":false,"width":6,"height":2,"bottom":4.5,"x":214.8,"z":-349.2,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[214.5,-350.1,215.1,-349.5]]},
-  {"id":"BB-487","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":216.3,"z":-430.5,"heading":3.142,"region":"town","place":"Umuagu Lane, Asaba","feet":[[216,-430.2,216.5,-429.7]]},
-  {"id":"BB-488","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":218.1,"z":-395.8,"heading":0,"region":"town","place":"Umuagu Lane, Asaba","feet":[[217.8,-396.6,218.3,-396.1]]},
-  {"id":"BB-489","type":"tv-curved","scale":1,"category":"tv","tv":true,"width":9,"height":10,"bottom":6,"x":218.9,"z":127.5,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[213,127.8,214.2,129]]},
-  {"id":"BB-490","type":"twin-pole-railing","scale":0.85,"category":"large","tv":false,"width":13.6,"height":4.7,"bottom":7.7,"x":219.2,"z":-356,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[214.4,-357.5,215.3,-356.5],[223.1,-357.5,224,-356.5]]},
-  {"id":"BB-491","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":220,"z":-385.3,"heading":3.142,"region":"town","place":"Umuagu Lane, Asaba","feet":[[219.7,-385,220.2,-384.6]]},
   {"id":"BB-492","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":221.3,"z":-440.1,"heading":0,"region":"town","place":"Umuagu Lane, Asaba","feet":[[221,-440.8,221.5,-440.3]]},
-  {"id":"BB-493","type":"front-unipole-ladder","scale":1,"category":"large","tv":false,"width":14,"height":5,"bottom":10,"x":226.3,"z":-26.7,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[225.6,-26.1,226.9,-24.8]]},
-  {"id":"BB-494","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":226.7,"z":122.3,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[226.5,122.6,227,123]]},
   {"id":"BB-495","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":230.8,"z":-32.1,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[230.6,-31.8,231,-31.4]]},
-  {"id":"BB-496","type":"front-unipole-ladder","scale":0.4,"category":"small","tv":false,"width":5.6,"height":2,"bottom":4,"x":232.7,"z":105,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[232.5,104.2,233,104.8]]},
-  {"id":"BB-497","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":233.4,"z":-440.5,"heading":0,"region":"town","place":"Umuagu Lane, Asaba","feet":[[233.2,-441.2,233.6,-440.7]]},
-  {"id":"BB-498","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":233.8,"z":-395.5,"heading":0,"region":"town","place":"Umuagu Lane, Asaba","feet":[[233.5,-396.2,234,-395.8]]},
-  {"id":"BB-499","type":"tv-chrome","scale":1,"category":"tv","tv":true,"width":12,"height":4,"bottom":5,"x":239.5,"z":100.1,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[234,98.1,245,100.7]]},
-  {"id":"BB-500","type":"dark-unipole-truss","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":243.2,"z":126,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[242.7,126.7,243.8,127.8]]},
+  {"id":"BB-501","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-226.1,"z":121.9,"heading":3.142,"region":"town","place":"Waterside Road, by the bridge","feet":[[-226.4,122.2,-225.9,122.6]]},
+  {"id":"BB-502","type":"dark-unipole-deep","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":221.3,"z":123.9,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[220.7,124.5,221.9,125.7]]},
+  {"id":"BB-503","type":"galvanised-unipole-railing","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":-902.8,"z":-210.7,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-903.1,-211.4,-902.6,-210.9]]},
+  {"id":"BB-504","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-1183.5,"z":-22.3,"heading":3.552,"region":"road","place":"Asaba\u2013Kwale Road, 950 m out of town","feet":[[-1173.4,-26.3,-1173,-25.8],[-1172.8,-24.9,-1172.4,-24.5],[-1175.6,-25.3,-1175.2,-24.9],[-1175,-24,-1174.6,-23.6],[-1177.8,-24.4,-1177.4,-23.9],[-1177.2,-23,-1176.8,-22.6],[-1180,-23.4,-1179.6,-23],[-1179.4,-22.1,-1179,-21.7],[-1182.2,-22.4,-1181.8,-22],[-1181.6,-21.1,-1181.2,-20.7],[-1184.4,-21.5,-1184,-21.1],[-1183.8,-20.2,-1183.4,-19.7],[-1186.6,-20.5,-1186.2,-20.1],[-1186,-19.2,-1185.6,-18.8],[-1188.8,-19.6,-1188.4,-19.1],[-1188.2,-18.2,-1187.8,-17.8],[-1191,-18.6,-1190.6,-18.2],[-1190.4,-17.3,-1190,-16.9],[-1193.2,-17.7,-1192.8,-17.2],[-1192.6,-16.3,-1192.2,-15.9]]},
+  {"id":"BB-505","type":"twin-pole-railing","scale":1,"category":"xl","tv":false,"width":16,"height":5.5,"bottom":9,"x":43.8,"z":128.9,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[48.4,129.5,49.5,130.6],[38.2,129.5,39.3,130.6]]},
+  {"id":"BB-506","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-1152.4,"z":-54.5,"heading":-0.474,"region":"road","place":"Asaba\u2013Kwale Road, 920 m out of town","feet":[[-1158.9,-59.5,-1157.3,-57.9],[-1146.4,-53.1,-1144.8,-51.5]]},
+  {"id":"BB-507","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-150.6,"z":-51.7,"heading":0,"region":"town","place":"Registry Road, Asaba","feet":[[-151.3,-53.6,-149.9,-52.2]]},
+  {"id":"BB-508","type":"tv-building","scale":1,"category":"tv","tv":true,"width":24,"height":9,"bottom":8,"x":-275.6,"z":-21.8,"heading":3.575,"region":"road","place":"Asaba\u2013Kwale Road, 40 m out of town","feet":[[-291.3,-29.5,-251.2,4.7]]},
+  {"id":"BB-509","type":"tv-tower","scale":1,"category":"tv","tv":true,"width":6,"height":8,"bottom":4.5,"x":163.4,"z":129.9,"heading":3.142,"region":"town","place":"Waterside Road, Asaba","feet":[[159.4,129.3,167.4,137.3]]},
+  {"id":"BB-510","type":"tv-curved","scale":1,"category":"tv","tv":true,"width":9,"height":10,"bottom":6,"x":-1016.8,"z":-57,"heading":-0.501,"region":"road","place":"Asaba\u2013Kwale Road, 780 m out of town","feet":[[-1012.5,-56.1,-1010.9,-54.5]]},
+  {"id":"BB-511","type":"tv-chrome","scale":1,"category":"tv","tv":true,"width":12,"height":4,"bottom":5,"x":16.1,"z":-73.3,"heading":-1.571,"region":"town","place":"Market Road, Asaba","feet":[[15.5,-78.8,18.1,-67.8]]},
+  {"id":"BB-512","type":"dark-unipole-deck-lamps","scale":0.6,"category":"medium","tv":false,"width":8.4,"height":3,"bottom":5.4,"x":-105.9,"z":-149.1,"heading":0,"region":"town","place":"Yard Lane, Asaba","feet":[[-106.2,-150.2,-105.6,-149.5]]},
+  {"id":"BB-513","type":"dark-unipole-truss","scale":0.75,"category":"medium","tv":false,"width":9,"height":3,"bottom":6.8,"x":175.3,"z":-223.3,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[174.9,-224.7,175.7,-223.8]]},
+  {"id":"BB-514","type":"dark-unipole-truss","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":203,"z":-182,"heading":-1.571,"region":"town","place":"Link Road, Asaba","feet":[[203.2,-182.2,203.7,-181.8]]},
+  {"id":"BB-515","type":"dark-unipole-catwalk","scale":0.4,"category":"small","tv":false,"width":4.8,"height":1.6,"bottom":3.6,"x":225,"z":-349.2,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[224.8,-349.9,225.3,-349.5]]},
+  {"id":"BB-516","type":"front-unipole-ladder","scale":0.75,"category":"large","tv":false,"width":10.5,"height":3.8,"bottom":7.5,"x":-107.2,"z":-25.1,"heading":3.142,"region":"town","place":"Registry Road, Asaba","feet":[[-107.7,-24.7,-106.7,-23.7]]},
+  {"id":"BB-517","type":"dark-unipole-deep","scale":0.6,"category":"medium","tv":false,"width":7.2,"height":2.7,"bottom":5.4,"x":82.7,"z":-222.6,"heading":0,"region":"town","place":"Layout Close, Asaba","feet":[[82.4,-223.7,83.1,-223]]},
+  {"id":"BB-518","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":75.1,"z":96.7,"heading":0,"region":"town","place":"Waterside Road, Asaba","feet":[[74.4,94.8,75.8,96.2]]},
+  {"id":"BB-519","type":"galvanised-unipole-deck-lamps","scale":0.75,"category":"medium","tv":false,"width":9,"height":3.4,"bottom":6.8,"x":-39.4,"z":-352.3,"heading":0,"region":"town","place":"Campus Road, Asaba","feet":[[-39.8,-353.6,-38.9,-352.7]]},
+  {"id":"BB-520","type":"galvanised-unipole-deck-lamps","scale":1,"category":"large","tv":false,"width":12,"height":4.5,"bottom":9,"x":-924.1,"z":-22.6,"heading":3.565,"region":"road","place":"Asaba\u2013Kwale Road, 690 m out of town","feet":[[-924.4,-22.3,-922.8,-20.7]]},
+  {"id":"BB-521","type":"dark-unipole-catwalk","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-13.5,"z":-11.2,"heading":1.571,"region":"town","place":"Market Road, Asaba","feet":[[-15.2,-11.7,-14.1,-10.6]]},
+  {"id":"BB-522","type":"tv-curved","scale":1,"category":"tv","tv":true,"width":9,"height":10,"bottom":6,"x":-589.7,"z":-54.8,"heading":-0.478,"region":"road","place":"Asaba\u2013Kwale Road, 360 m out of town","feet":[[-585.4,-54,-583.8,-52.4]]},
+  {"id":"BB-523","type":"dark-unipole-catwalk","scale":1,"category":"large","tv":false,"width":12,"height":4,"bottom":9,"x":-399.8,"z":-26.5,"heading":3.569,"region":"road","place":"Asaba\u2013Kwale Road, 170 m out of town","feet":[[-400.1,-26.2,-398.6,-24.7]]},
+  {"id":"BB-524","type":"twin-pole-long","scale":1,"category":"xl","tv":false,"width":22,"height":5.5,"bottom":9,"x":-490.1,"z":-22.3,"heading":3.67,"region":"road","place":"Asaba\u2013Kwale Road, 260 m out of town","feet":[[-484.2,-25.6,-482.6,-24],[-496.4,-18.5,-494.7,-16.9]]},
+  {"id":"BB-525","type":"yellow-trestle","scale":0.8,"category":"xl","tv":false,"width":24,"height":4.8,"bottom":5.6,"x":-372.3,"z":-56.3,"heading":-0.491,"region":"road","place":"Asaba\u2013Kwale Road, 140 m out of town","feet":[[-381.9,-62.3,-381.5,-61.9],[-381.2,-63.6,-380.8,-63.2],[-379.8,-61.2,-379.4,-60.8],[-379.1,-62.5,-378.7,-62.1],[-377.7,-60.1,-377.2,-59.6],[-377,-61.4,-376.6,-60.9],[-375.6,-58.9,-375.1,-58.5],[-374.9,-60.2,-374.5,-59.8],[-373.4,-57.8,-373,-57.4],[-372.8,-59.1,-372.3,-58.7],[-371.3,-56.7,-370.9,-56.3],[-370.7,-58,-370.2,-57.5],[-369.2,-55.6,-368.8,-55.1],[-368.5,-56.8,-368.1,-56.4],[-367.1,-54.4,-366.7,-54],[-366.4,-55.7,-366,-55.3],[-365,-53.3,-364.5,-52.9],[-364.3,-54.6,-363.9,-54.1],[-362.9,-52.2,-362.4,-51.7],[-362.2,-53.4,-361.8,-53]]},
+  {"id":"BB-526","type":"twin-pole-railing","scale":0.85,"category":"large","tv":false,"width":13.6,"height":4.7,"bottom":7.7,"x":-772.2,"z":-22.8,"heading":3.506,"region":"road","place":"Asaba\u2013Kwale Road, 540 m out of town","feet":[[-768.4,-24,-767.2,-22.8],[-776.5,-20.9,-775.3,-19.7]]},
+  {"id":"BB-527","type":"tv-curved","scale":1,"category":"tv","tv":true,"width":9,"height":10,"bottom":6,"x":-754.1,"z":-214.9,"heading":0,"region":"airport","place":"Asaba Airport, Terminal Drive","feet":[[-749.4,-216.4,-748.2,-215.2]]},
+  {"id":"BB-528","type":"tv-unipole","scale":1,"category":"tv","tv":true,"width":8,"height":10,"bottom":10,"x":-761.8,"z":-167.7,"heading":1.923,"region":"airport","place":"Asaba Airport, Airport Road","feet":[[-763.8,-168.2,-762,-166.4]]},
 ].map((b) => Object.freeze({ ...b, feet: Object.freeze(b.feet.map(Object.freeze)) })));
 
 return { ZONE_BILLBOARDS };
@@ -6407,6 +5957,8 @@ function createVehicles({ state, ledger, issuanceAccount, economy, clock, weathe
     return {
       driving: v ? summary(v, player.id) : null,
       vehicles: all().filter((c) => mayUnload(c, player.id)).map((c) => c.id),
+      // the kekes this player may drive, standing where they were left (other players are told of them: link.js)
+      parkedKekes: all().filter((c) => !c.driver && (c.owner.kind === 'player' ? c.owner.id === player.id : mayDrive(c, player.id))).map((c) => ({ id: c.id, x: c.x, z: c.z, heading: c.heading, plate: c.plate, look: c.look, fleet: c.owner.kind !== 'player' })),
       run: run ? runView(run) : null,
       openRuns: book.runs.filter((r) => r.state === 'open').length,
     };
@@ -9066,6 +8618,7 @@ const { POSE, RANGE } = __modules["sim/population.js"];
 const { GameError } = __modules["sim/registry.js"];
 const { cleanFigureLook } = __modules["sim/figures.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
+const { VEHICLE_MODELS, KEKE_PAINTS, KEKE_CANOPIES, KEKE_SEATS, KEKE_FLOORS } = __modules["sim/vehicle-looks.js"];
 
 const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLength: 140, gap: 1.2, visitors: 24 });
 
@@ -9284,7 +8837,7 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
     const out = [];
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, hornAt: v.hornAt === undefined ? -10 : v.hornAt });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0] });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -9305,6 +8858,19 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
   // someone else's computer, so none of it is trusted: every field is
   // checked, and a visitor has no say in anything but where they appear to
   // stand and what they said.
+  const near = (o, x, z) => Number.isFinite(Number(o.x)) && Number.isFinite(Number(o.z)) && Math.hypot(Number(o.x) - x, Number(o.z) - z) < 90;
+  const oneOf = (value, list, fallback) => (list.includes(value) ? value : fallback);
+  function lookIn(l) {
+    if (!l || typeof l !== 'object') return null;
+    const n01 = (k) => (Number.isFinite(Number(k)) ? Math.max(0, Math.min(1, Number(k))) : 0);
+    return { model: 'keke', trim: oneOf(l.trim, VEHICLE_MODELS.keke.trims, VEHICLE_MODELS.keke.trims[0]), paint: oneOf(l.paint, KEKE_PAINTS.map((p) => p.id), 'yellow'), canopy: oneOf(l.canopy, Object.keys(KEKE_CANOPIES), 'black'), seat: oneOf(l.seat, Object.keys(KEKE_SEATS), 'black'), floor: oneOf(l.floor, Object.keys(KEKE_FLOORS), 'dark'), wear: n01(l.wear), dirt: n01(l.dirt), slogan: l.slogan ? cleanText(String(l.slogan), 32) || null : null, number: l.number ? String(l.number).replace(/[^0-9]/g, '').slice(0, 4) || null : null, extras: Array.isArray(l.extras) && l.extras.includes('curtains') ? ['curtains'] : [] };
+  }
+  function vehicleIn(h) {
+    if (!h || typeof h !== 'object') return null;
+    if (h.kind === 'keke') return { kind: 'keke', id: cleanText(String(h.id || ''), 12), plate: cleanText(String(h.plate || ''), 14), look: lookIn(h.look) || lookIn({}), fleet: !!h.fleet };
+    if (h.kind === 'okada') return { kind: 'okada', back: !!h.back, driver: Number.isInteger(h.driver) && h.driver >= 0 && h.driver < 100000 ? h.driver : null };
+    return null;
+  }
   function visitorSeen(peerId, data) {
     const id = `v:${cleanText(peerId, 40).replace(/[^\w-]/g, '')}`;
     if (id.length < 3 || !data || typeof data !== 'object') return null;
@@ -9324,7 +8890,13 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
     const r = data.ride && typeof data.ride === 'object' ? data.ride : null;
     const n = (value, lo, hi) => { const k = Number(value); return Number.isFinite(k) ? Math.max(lo, Math.min(hi, k)) : 0; };
     v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1) } : null;
-    const horns = r ? n(r.horns, 0, 1e9) : 0;
+    // a vehicle under them (a keke they drive, an okada they ride or ride on the back of), the motorcycles and kekes of
+    // theirs standing near them, and how fast they are going: each field checked, a bad one dropped
+    v.vehicle = vehicleIn(data.vehicle);
+    v.parked = (Array.isArray(data.parked) ? data.parked : []).slice(0, 3).map((b) => (b && POWER_BIKES[b.bike] && near(b, x, z) ? { bike: b.bike, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen } : null)).filter(Boolean);
+    v.kekes = (Array.isArray(data.kekes) ? data.kekes : []).slice(0, 2).map((k) => (k && near(k, x, z) && lookIn(k.look) ? { id: cleanText(String(k.id || ''), 12), x: Number(k.x), z: Number(k.z), heading: n(k.heading, -10, 10), plate: cleanText(String(k.plate || ''), 14), look: lookIn(k.look), fleet: !!k.fleet } : null)).filter(Boolean);
+    v.vel = Array.isArray(data.vel) ? [n(data.vel[0], -80, 80), n(data.vel[1], -80, 80)] : [0, 0];
+    const horns = r ? n(r.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
     if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }
@@ -9365,7 +8937,7 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
       speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
     }
-    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100 }));
+    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }
@@ -13117,7 +12689,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     return {
       ...zoneView(playerId),
       ...talk.view(p),
-      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
+      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
@@ -13290,7 +12862,34 @@ function encodePlayer(self, zoneId) {
   // on one of their own motorcycles: which, and what it is doing (lamps, flames and the engine's note follow it)
   const a = self.astride;
   if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, hn: a.horns || 0 }; }
+  // Vehicles. Each copy of the town has its own; what this player drives, rides or has left standing exists only in
+  // theirs. So it travels with them, and every other player's game draws it where they are: the keke they drive
+  // (its plate and paint), the okada they ride or sit on the back of, and their own motorcycles and kekes standing
+  // near them. With it, how fast they are going, so that the others can carry it on between one word and the next.
+  const r2 = (v) => Math.round(v * 100) / 100;
+  if (self.driving) out.vh = { k: 'keke', id: self.driving.id, pl: self.driving.plate, lk: packLook(self.driving.look), f: self.driving.ownerName && !self.driving.owned ? 1 : 0, hn: self.horns || 0 };
+  else if (a && !a.model) out.vh = { k: 'okada', hn: self.horns || 0 };
+  else if (self.riding) out.vh = { k: 'okada', b: 1, dp: self.riding.i };
+  const near = (list) => (list || []).map((v) => ({ v, d: Math.hypot(v.x - self.x, v.z - self.z) })).filter((e) => e.d < PARKED_NEAR).sort((p, q) => p.d - q.d).map((e) => e.v);
+  const bikes = near(self.ownBikes && self.ownBikes.parked).slice(0, 3);
+  if (bikes.length) out.pk = bikes.map((b) => [b.bike, r2(b.x), r2(b.z), r2(b.h), b.fallen ? 1 : 0]);
+  const kekes = near(self.parkedKekes).slice(0, 2);
+  if (kekes.length) out.pv = kekes.map((v) => ({ id: v.id, x: r2(v.x), z: r2(v.z), h: r2(v.heading), pl: v.plate, lk: packLook(v.look), f: v.fleet ? 1 : 0 }));
+  if (self.vel) out.vl = [r2(self.vel[0]), r2(self.vel[1])];
   return out;
+}
+
+// A player's parked vehicles are told to others within this many metres of the player.
+const PARKED_NEAR = 70;
+
+// A keke's look, in short (vehicle-looks.js): its trim, paint, canopy, seat, floor, wear, dirt, slogan, number, extras.
+function packLook(l) {
+  if (!l || typeof l !== 'object') return null;
+  return { t: l.trim, p: l.paint, c: l.canopy, s: l.seat, f: l.floor, w: l.wear, d: l.dirt, g: l.slogan || null, u: l.number || null, x: l.extras && l.extras.length ? l.extras : undefined };
+}
+function unpackLook(k) {
+  if (!k || typeof k !== 'object') return null;
+  return { model: 'keke', trim: k.t, paint: k.p, canopy: k.c, seat: k.s, floor: k.f, wear: k.w, dirt: k.d, slogan: k.g || null, number: k.u || null, extras: Array.isArray(k.x) ? k.x : [] };
 }
 
 function decodePlayer(state, zoneId) {
@@ -13299,7 +12898,12 @@ function decodePlayer(state, zoneId) {
   const say = state.say && typeof state.say === 'object' ? { seq: state.say.q, text: state.say.t, lang: state.say.l } : null;
   const mb = state.mb && typeof state.mb === 'object' ? state.mb : null;
   const ride = mb ? { bike: mb.i, lean: mb.l, speed: mb.s, throttle: mb.t, brake: mb.k, rev: mb.r, horns: mb.hn } : null;
-  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride };
+  const vh = state.vh && typeof state.vh === 'object' ? state.vh : null;
+  const vehicle = vh ? { kind: vh.k, id: vh.id, plate: vh.pl, look: unpackLook(vh.lk), fleet: !!vh.f, back: !!vh.b, driver: vh.dp, horns: vh.hn } : null;
+  const parked = Array.isArray(state.pk) ? state.pk.map((b) => (Array.isArray(b) ? { bike: b[0], x: b[1], z: b[2], h: b[3], fallen: !!b[4] } : null)) : [];
+  const kekes = Array.isArray(state.pv) ? state.pv.map((v) => (v && typeof v === 'object' ? { id: v.id, x: v.x, z: v.z, heading: v.h, plate: v.pl, look: unpackLook(v.lk), fleet: !!v.f } : null)) : [];
+  const vel = Array.isArray(state.vl) ? state.vl : null;
+  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel };
 }
 
 function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
@@ -13318,13 +12922,18 @@ function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
     known = here;
     peers = here.size;
   });
+  let clock = 0, lastAt = null;
+  const vel = [0, 0];
   return {
     tick(dt) {
-      since += dt;
+      since += dt; clock += dt;
       if (since < interval) return;
       const me = self();
       if (!me) return;
-      const state = encodePlayer(me, zoneId);
+      // how fast it is going, from where it was last time (smoothed a little)
+      if (lastAt) { const span = clock - lastAt.t; if (span > 0.05) { const k = Math.min(1, span / 0.4); vel[0] += ((me.x - lastAt.x) / span - vel[0]) * k; vel[1] += ((me.z - lastAt.z) / span - vel[1]) * k; if (Math.hypot(vel[0], vel[1]) > 90) vel[0] = vel[1] = 0; } }
+      lastAt = { x: me.x, z: me.z, t: clock };
+      const state = encodePlayer({ ...me, vel: Math.hypot(vel[0], vel[1]) > 0.3 ? vel : [0, 0] }, zoneId);
       const text = JSON.stringify(state);
       // a player standing still is re-sent now and then, so that others keep seeing them
       if (text === last && since < 2) return;
@@ -13337,7 +12946,7 @@ function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
   };
 }
 
-return { LINK_VERSION, encodePlayer, decodePlayer, createLink };
+return { LINK_VERSION, encodePlayer, PARKED_NEAR, unpackLook, decodePlayer, createLink };
 })();
 
 // ---- client/render-kit.js ----
@@ -18531,6 +18140,10 @@ const { Batch, place, linear, surface } = __modules["client/render-kit.js"];
 const { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } = __modules["client/render-people.js"];
 const { poseFighter } = __modules["client/combat-view.js"];
 const { zoneGroundY } = __modules["sim/zone.js"];
+const { vehicleMeta } = __modules["client/vehicle-kit.js"];
+
+const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
+const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
 
 const POSE = { stand: 0, walk: 1, sit: 2, lie: 3, hidden: 4, ride: 5 };
 const MAX_FIGURES = 520;
@@ -18633,6 +18246,7 @@ function createCrowd(scene) {
   const bikes = new Map();
   const others = new Map();        // other players
   const mounted = new Map();       // full figures of people on motorcycles near the player, by their number
+  const peerOkadas = new Map();    // the okadas other players ride (each copy of the town has its own), by player
   const rigs = new Set();
   let lastRows = null;
   let lastOkadas = null;
@@ -18987,9 +18601,15 @@ function createCrowd(scene) {
       let other = others.get(q.id);
       if (!other) { other = { rig: makeCharacter(q.look, q.name, false, 1), x: q.x, z: q.z, h: q.heading }; scene.add(other.rig.group); others.set(q.id, other); }
       const gx = q.x - other.x, gz = q.z - other.z;
-      const gap = Math.hypot(gx, gz);
-      if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
-      other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
+      let gap = Math.hypot(gx, gz);
+      // in or on a vehicle: where their game says the vehicle is, carried on between words at its speed (main.js),
+      // so it is not left trailing behind as someone walking would be; and facing the way the vehicle faces
+      const vh = q.vehicle || null, seated = !!vh || !!q.ride;
+      if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }
+      else {
+        if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
+        other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
+      }
       other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : zoneGroundY(other.x, other.z), other.z);
       other.rig.group.rotation.y = other.h;
       const stance = frame.others ? frame.others[q.id] : null;
@@ -19006,7 +18626,7 @@ function createCrowd(scene) {
         if (em && len && t < len) other.rig.reaction = { name: em.name, time: t, weight: Math.min(1, t / 0.25, (len - t) / 0.3), loop: false, upper: false };
         else if (other.rig.reaction) other.rig.reaction.weight = Math.max(0, other.rig.reaction.weight - dt * 4);
       }
-      animateCharacter(other.rig, dt, other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
+      animateCharacter(other.rig, dt, seated ? 0 : other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
       // another player's name shows only to someone near them
       showName(other.rig, Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < 12, dt);
       // knocked down, or dead: on the ground; getting up: on the way back (and flat in the water, for a figure with no swim of its own)
@@ -19017,7 +18637,35 @@ function createCrowd(scene) {
       if (other.rig.swimming) other.rig.group.position.y = other.rig.animated ? -(other.rig.spec.height * 0.58) - 0.22 : -0.5; else if (other.wasSwimming) other.rig.group.position.y = zoneGroundY(other.x, other.z);
       other.wasSwimming = other.rig.swimming;
       if (other.rig.strike || (stance && stance.fighting)) poseFighter(other.rig, frame.clock || 0, { guard: !!(stance && stance.fighting), block: !!(stance && stance.blocking) });
+      // at the wheel of a keke (the keke is drawn by main.js): on its driver's seat
+      if (vh && vh.kind === 'keke') {
+        const fx = Math.sin(other.h), fz = Math.cos(other.h);
+        seatCharacter(other.rig);
+        other.rig.group.position.set(other.x + fx * KEKE_SEAT[2], zoneGroundY(other.x, other.z) + KEKE_SEAT[1] - SEATED * other.rig.scale, other.z + fz * KEKE_SEAT[2]);
+      }
+      // on an okada: the machine under them, and them in its saddle; on the back of one, its rider in front of them
+      if (vh && vh.kind === 'okada') {
+        let bike = peerOkadas.get(q.id);
+        if (!bike) { bike = { mesh: bikeMesh(bikeMaterial, `p:${q.id}`), x: other.x, z: other.z, was: { x: other.x, z: other.z } }; scene.add(bike.mesh); peerOkadas.set(q.id, bike); }
+        bike.seen = stamp;
+        const gy = zoneGroundY(other.x, other.z), fx = Math.sin(other.h), fz = Math.cos(other.h);
+        const moving = Math.hypot(other.x - bike.was.x, other.z - bike.was.z) > 0.002;
+        bike.was.x = other.x; bike.was.z = other.z;
+        E.set(0, other.h, moving ? 0 : 0.12);
+        bike.mesh.quaternion.setFromEuler(E);
+        bike.mesh.position.set(other.x, gy, other.z);
+        seatCharacter(other.rig);
+        const back = vh.back ? 0.5 + 0.12 : 0.17;
+        other.rig.group.position.set(other.x - fx * back, gy + (vh.back ? -0.04 : -0.15 * other.rig.scale), other.z - fz * back);
+        if (vh.back) {
+          other.rig.armL.shoulder.rotation.x = -0.4; other.rig.armR.shoulder.rotation.x = -0.4; other.rig.armL.elbow.rotation.x = -0.8; other.rig.armR.elbow.rotation.x = -0.8;
+          // the okada's own rider (one of the town's people, the same in every copy of the town)
+          const who = typeof vh.driver === 'number' ? known.get(vh.driver) : null;
+          if (who) figure(who.fig, other.x - fx * 0.05, 0.36 + gy, other.z - fz * 0.05, other.h, POSE.ride, 0, 0.55);
+        }
+      }
     }
+    for (const [id, bike] of peerOkadas) if (bike.seen !== stamp) { scene.remove(bike.mesh); peerOkadas.delete(id); }
     for (const [id, other] of others) if (!seen.has(id)) { scene.remove(other.rig.group); other.rig.dispose(); others.delete(id); }
 
     for (const mesh of Object.values(parts)) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; }
@@ -19045,6 +18693,8 @@ function createCrowd(scene) {
     update, anchor, stats,
     bike: (riderNumber) => bikes.get(riderNumber) || null,
     bikes: () => bikes.values(),
+    // how many other players' okadas are drawn (for the tests)
+    peerOkadas: () => peerOkadas.size,
     figureAt: (i) => actors.get(i) || null,
     // the full figure of a townsperson or of another player, if one is on show: for a blow struck or taken
     rigOf: (key) => { if (key.startsWith('n:')) { const a = actors.get(Number(key.slice(2))); return a && a.rig ? a.rig : null; } const o = others.get(key.slice(2)); return o ? o.rig : null; },
@@ -24521,7 +24171,7 @@ __modules["client/ui-ads.js"] = (function () {
 // player is told at once what is wrong with it; the server checks it again from its own bytes.
 //
 //   ADS    home      the prices, what is held, the player's campaigns (status, dates, feedback, cancel)
-//          browse    the 500 billboards: where, kind, size, category, and whether each is free
+//          browse    the 50 billboards: where, kind, size, category, and whether each is free
 //          board     one billboard: its size and the shape a picture must be, the length, the server's quote
 //          form      brand, link, the picture (or 3 to 10 slides)
 //          review    the whole price, the terms, the checkbox, submit
@@ -29182,7 +28832,7 @@ __modules["net/online.js"] = (function () {
 // How often this game tells the server where it stands and asks who else is in town (seconds): often with
 // someone close enough to be watched walking, seldom with nobody about. Every asking is a request the site's
 // host counts, so it is no more often than what is on screen needs.
-const ONLINE = Object.freeze({ timeout: 12000, presenceNear: 1.2, presenceFar: 4, presenceAlone: 10, near: 70, presenceStep: 0.15 });
+const ONLINE = Object.freeze({ timeout: 12000, presenceNear: 1.2, presenceMoving: 0.3, presenceFar: 4, presenceAlone: 10, near: 70, presenceStep: 0.15, carryOn: 2.2, settle: 0.3, fadeAfter: 1 });
 
 // ---- a character, made small enough to send ----
 
@@ -29305,37 +28955,103 @@ function createWebTransport({ online, zone, now = () => Date.now() / 1000, every
   const lerp = (a, b, k) => a + (b - a) * k;
   const turn = (a, b, k) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * k; };
 
+  // Where a peer is shown now. Someone in or on a vehicle is carried on from where they were last heard (for up to
+  // ONLINE.carryOn seconds, slowing after ONLINE.fadeAfter if nothing more is heard) the way they were going: at the speed they said, turning as they were turning, and
+  // gathering or losing speed as they were (both worked out from the last two words), so that a fast vehicle is
+  // shown where it is now and not where it was a second ago, round a bend as well as along a straight, and it stops
+  // where it stops. The difference from where it was being shown when the word came is let go over ONLINE.settle
+  // seconds (longer for a bigger difference), so it never jumps. Someone on foot (who can stop dead, and would be carried past where they stopped)
+  // is moved from where they were shown to where they were heard, over the time between two words, as is anyone
+  // whose game does not say how fast it is going.
+  const speedOf = (st) => (Array.isArray(st.vl) ? Math.hypot(Number(st.vl[0]) || 0, Number(st.vl[1]) || 0) : 0);
+  const carriedOn = (st) => Array.isArray(st.vl) && !!(st.vh || st.mb);
+  // from a state, `ahead` seconds on: { x, z, vx, vz }
+  function carry(st, ahead, motion) {
+    let x = st.x, z = st.z;
+    let sp = speedOf(st), ang = Math.atan2(Number(st.vl[0]) || 0, Number(st.vl[1]) || 0);
+    const steps = Math.max(1, Math.ceil(ahead / 0.05)), h = ahead / steps;
+    for (let i = 0; i < steps; i += 1) {
+      // (heard of no more for over a second: it is let slow to a stop, rather than run on and then be pulled back)
+      const late = (i + 0.5) * h > ONLINE.fadeAfter ? 8 : 0;
+      const next = Math.max(0, sp + (motion.accel - late) * h);
+      const mid = (sp + next) / 2;
+      ang += motion.turn * Math.exp(-((i + 0.5) * h) / 0.7) * h;        // (a bend ends: the turning is let go)
+      x += Math.sin(ang) * mid * h; z += Math.cos(ang) * mid * h;
+      sp = next;
+      if (sp === 0) break;
+    }
+    return { x, z, vx: Math.sin(ang) * sp, vz: Math.cos(ang) * sp };
+  }
+  function placeOf(p, t) {
+    const dt = Math.max(0, t - p.at);
+    if (carriedOn(p.to)) {
+      const settle = p.settle || ONLINE.settle, ahead = Math.min(dt + p.age, ONLINE.carryOn), fade = Math.exp(-dt / settle);
+      const c = carry(p.to, ahead, p.motion);
+      // (with the speed and way it is going now, the settling included, so the game carries it on from here the same way)
+      return { x: c.x + p.err.x * fade, z: c.z + p.err.z * fade, h: turn(p.from.h || 0, p.to.h || 0, Math.min(1, dt / 0.25)), vl: [Math.round((c.vx - (p.err.x * fade) / settle) * 100) / 100, Math.round((c.vz - (p.err.z * fade) / settle) * 100) / 100] };
+    }
+    const k = Math.max(0, Math.min(1, dt / p.span));
+    return { x: lerp(p.from.x, p.to.x, k), z: lerp(p.from.z, p.to.z, k), h: turn(p.from.h || 0, p.to.h || 0, k) };
+  }
   function shown() {
     const t = now();
     const out = [];
     for (const [id, p] of peers) {
-      const k = Math.max(0, Math.min(1, (t - p.at) / p.span));
-      out.push({ id, state: { ...p.to, x: Math.round(lerp(p.from.x, p.to.x, k) * 100) / 100, z: Math.round(lerp(p.from.z, p.to.z, k) * 100) / 100, h: turn(p.from.h || 0, p.to.h || 0, k) } });
+      const at = placeOf(p, t);
+      out.push({ id, state: { ...p.to, x: Math.round(at.x * 100) / 100, z: Math.round(at.z * 100) / 100, h: at.h, ...(at.vl ? { vl: at.vl } : {}) } });
     }
     return out;
+  }
+  // How a vehicle was turning (radians a second) and gathering speed (m/s each second), from two words about it
+  // `span` seconds apart; kept within what a vehicle can do, and only for one moving.
+  function motionOf(before, after, span, was) {
+    if (!before || !carriedOn(before) || !carriedOn(after) || span < 0.12 || span > 3) return { turn: 0, accel: 0 };
+    const s0 = speedOf(before), s1 = speedOf(after);
+    let accel = Math.max(-14, Math.min(9, (s1 - s0) / span));
+    let d = Math.atan2(Number(after.vl[0]) || 0, Number(after.vl[1]) || 0) - Math.atan2(Number(before.vl[0]) || 0, Number(before.vl[1]) || 0);
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    let turnRate = s0 > 2 && s1 > 2 ? Math.max(-1.6, Math.min(1.6, d / span)) : 0;
+    if (Math.abs(accel) < 0.4) accel = 0;
+    // a little of what it was doing before, so that one rough word does not throw it
+    if (was) { turnRate = turnRate * 0.7 + was.turn * 0.3; accel = accel * 0.7 + was.accel * 0.3; }
+    return { turn: turnRate, accel };
   }
 
   async function exchange() {
     if (busy || closed || !mine || !online.signedIn) return;
     busy = true; last = now();
+    const asked = last;
     const answer = await online.ask('presence', { zone, state: mine }, { timeout: 6000 });
     busy = false;
     if (closed) return;
     failed = !answer.ok;
-    if (!answer.ok) return;
+    // (an answer lost on the way: asked again at once, not after the usual wait)
+    if (!answer.ok) { last = -10; return; }
     const t = now();
     const here = new Set();
     for (const peer of Array.isArray(answer.peers) ? answer.peers : []) {
       if (!peer || typeof peer.id !== 'string' || !peer.state || typeof peer.state !== 'object') continue;
       here.add(peer.id);
       const old = peers.get(peer.id);
-      const at = old ? shownOf(old, t) : peer.state;
-      const jumped = old && Math.hypot(peer.state.x - at.x, peer.state.z - at.z) > 25;
-      peers.set(peer.id, { from: jumped || !old ? peer.state : at, to: peer.state, at: t, span: Math.max(0.4, Math.min(4.5, old ? t - old.heard : 1)), heard: t });
+      const at = old ? { ...old.to, ...placeOf(old, t) } : peer.state;
+      // how old what they said is: as long ago as the server says it was told, and the way back here (half the
+      // time the asking took); and when they said it, by this game's clock
+      const age = Math.max(0, Math.min(3, (Number.isFinite(Number(peer.age)) ? Number(peer.age) : 0) + (t - asked) / 2));
+      const said = t - age;
+      const same = old && old.said !== undefined && Math.abs(said - old.said) < 0.05 && JSON.stringify(old.to) === JSON.stringify(peer.state);
+      const motion = same ? old.motion : motionOf(old && old.to, peer.state, old ? said - old.said : 0, old && old.motion);
+      const target = carriedOn(peer.state) ? carry(peer.state, Math.min(age, ONLINE.carryOn), motion) : peer.state;
+      // (a jump further than they could have gone: shown there at once)
+      const err = { x: at.x - target.x, z: at.z - target.z };
+      const jumped = old && Math.hypot(err.x, err.z) > Math.max(25, speedOf(peer.state) * 3);
+      if (same) continue;
+      // (a bigger difference is let go over longer, so that it is never seen to snap)
+      const settle = Math.min(0.9, ONLINE.settle + Math.hypot(err.x, err.z) / 15);
+      peers.set(peer.id, { from: jumped || !old ? peer.state : at, to: peer.state, at: t, age, said, motion, settle, span: Math.max(0.4, Math.min(4.5, old ? t - old.heard : 1)), heard: t, err: jumped || !old ? { x: 0, z: 0 } : err });
     }
     for (const id of [...peers.keys()]) if (!here.has(id)) peers.delete(id);
   }
-  function shownOf(p, t) { const k = Math.max(0, Math.min(1, (t - p.at) / p.span)); return { ...p.to, x: lerp(p.from.x, p.to.x, k), z: lerp(p.from.z, p.to.z, k), h: turn(p.from.h || 0, p.to.h || 0, k) }; }
 
   const timer = every(() => {
     if (closed) return;
@@ -29344,7 +29060,7 @@ function createWebTransport({ online, zone, now = () => Date.now() / 1000, every
     let wait = ONLINE.presenceAlone;
     if (peers.size) {
       wait = ONLINE.presenceFar;
-      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; break; }
+      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; if (speedOf(p.to) > 2 || speedOf(mine) > 2) wait = ONLINE.presenceMoving; break; }
     }
     if (now() - last >= wait) exchange();
   }, ONLINE.presenceStep * 1000);
@@ -30177,7 +29893,7 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
   // ridden: { id, x, z, h, lean, speed, steer, throttle, brake, rev, rough } or null (this player's);
   // rides: [{ key, ...the same }] (other players' bikes, near enough to see); parked: [{ bike, x, z, h }];
   // groundY(x, z); from: { x, z }; night (0..1); now (seconds)
-  function update(dt, { ridden = null, rides = [], parked = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, now = 0 }) {
+  function update(dt, { ridden = null, rides = [], parked = [], parkedMost = 3, groundY = () => 0, from = { x: 0, z: 0 }, night = 0, now = 0 }) {
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -30196,9 +29912,9 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
       if (e.bike) place(e, r, groundY, dt, night, now);
     }
     // (the nearest few: a player who owns many and leaves them together sees those beside them)
-    const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, 3);
+    const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, parkedMost);
     for (const p of near) {
-      const key = `park:${p.bike}`;
+      const key = p.key || `park:${p.bike}`;
       wanted.add(key);
       const e = entry(key, p.bike);
       if (e.bike) {
@@ -30511,6 +30227,56 @@ function start(carried) {
   // other players' motorcycles, seen from here (the same drawing, without anything to fetch until one is near)
   const peerBikeView = createOwnBikeView(scene, { lite: LITE });
   let peerRides = [];
+  let shownPeers = [];
+  // Other players as they are now: one in or on a vehicle is carried on from where their game last said they were,
+  // at the speed it said they were going (a vehicle at speed would otherwise stand still between words and jump)
+  function peersNow() {
+    const ahead = Math.max(0, clock - viewAt);
+    shownPeers = (view.players || []).map((q) => {
+      const v = q.vel;
+      if (!v || !(q.vehicle || q.ride) || Math.hypot(v[0], v[1]) < 0.3) return q;
+      const k = Math.min(0.3, (q.ago || 0) + ahead);
+      return { ...q, x: q.x + v[0] * k, z: q.z + v[1] * k };
+    });
+    return shownPeers;
+  }
+  // Other players' kekes: the one each drives, and those of theirs standing near them. Each copy of the town has its
+  // own vehicles; these are drawn from what the other player's game says. A keke of the town's hire fleet that
+  // another player has out is not also shown standing in its bay here (nor in the way).
+  const peerKekes = new Map();          // key -> { actor, was, seen }
+  const claimedFleet = new Set();       // ids of the hire fleet's kekes another player has out
+  function updatePeerKekes(dt) {
+    const want = [];
+    claimedFleet.clear();
+    for (const q of shownPeers) {
+      if (q.vehicle && q.vehicle.kind === 'keke') {
+        const rig = crowd.rigOf(`p:${q.id}`);
+        want.push({ key: `d:${q.id}`, v: q.vehicle, x: q.x, z: q.z, h: rig ? rig.group.rotation.y : q.heading, driven: true });
+        if (q.vehicle.fleet && q.vehicle.id) claimedFleet.add(q.vehicle.id);
+      }
+      for (const k of q.kekes || []) { want.push({ key: `p:${q.id}:${k.id}`, v: k, x: k.x, z: k.z, h: k.heading, driven: false }); if (k.fleet && k.id) claimedFleet.add(k.id); }
+    }
+    const seen = new Set();
+    for (const w of want) {
+      seen.add(w.key);
+      let e = peerKekes.get(w.key);
+      const look = w.v.look || {};
+      const sig = JSON.stringify([look, w.v.plate]);
+      if (e && e.sig !== sig) { scene.remove(e.actor.group); e.actor.model.dispose(); peerKekes.delete(w.key); e = null; }
+      if (!e) { const actor = makeVehicle(look, w.v.plate || null, PLATE_REGION); actor.group.position.set(w.x, 0, w.z); actor.group.rotation.y = w.h; scene.add(actor.group); e = { actor, sig, was: { x: w.x, z: w.z } }; peerKekes.set(w.key, e); }
+      const g = e.actor.group;
+      g.position.set(w.x, zoneGroundY(w.x, w.z), w.z);
+      g.rotation.y = w.h;
+      const along = (w.x - e.was.x) * Math.sin(w.h) + (w.z - e.was.z) * Math.cos(w.h);
+      if (Math.abs(along) > 1e-4 && Math.abs(along) < 5) e.actor.model.roll(along);
+      e.was.x = w.x; e.was.z = w.z;
+      e.actor.model.setDistance(Math.hypot(w.x - camera.position.x, w.z - camera.position.z), undefined, VEHICLE_BIAS[quality.level]);
+      const lit = w.driven && night > 0.45 ? 1 : 0;
+      if (lit !== e.lit) { e.lit = lit; e.actor.model.lamps(lit, lit, 0, 0); }
+    }
+    for (const [key, e] of peerKekes) if (!seen.has(key)) { scene.remove(e.actor.group); e.actor.model.dispose(); peerKekes.delete(key); }
+    for (const [id, actor] of vehicleActors) if (!(view.self.driving && view.self.driving.id === id)) actor.group.visible = !claimedFleet.has(id);
+  }
   const peerHorned = new Map();
   let peerHornsHeard = 0;
   // the ridden bike's headlamp: one light, following it, on at night (a lamp's glow is drawn on every bike)
@@ -30701,6 +30467,7 @@ function start(carried) {
   let holdProgress = 0;
   let clock = 0;
   let viewTimer = 1;
+  let viewAt = 0;                     // when the view was last asked for (other players are carried on from it)
   let saveTimer = 0;
   let lampTimer = 1;
   let soundTimer = 1;
@@ -31163,6 +30930,7 @@ function start(carried) {
     const want = (i) => { if (typeof i === 'number' && !known.has(i) && !asking.has(i)) { asking.add(i); unknown.push(i); } };
     for (const row of zone.people) want(row[0]);
     for (const o of zone.okadas) { want(o.person); want(o.passenger); }
+    for (const q of zone.players || []) if (q.vehicle && typeof q.vehicle.driver === 'number') want(q.vehicle.driver);
     if (!unknown.length) return;
     const faces = playerId ? [] : host.game.faces(unknown);
     if (playerId) for (let from = 0; from < unknown.length; from += 60) { const r = server.send({ type: 'people.describe', ids: unknown.slice(from, from + 60) }); if (r.ok) faces.push(...r.people); }
@@ -31222,6 +30990,7 @@ function start(carried) {
   function refreshView() {
     if (!playerId) return;
     view = host.game.view(playerId);
+    viewAt = clock;
     drawZone(view);
     learnFaces(view);
     ui.updateHud(view);
@@ -31300,7 +31069,7 @@ function start(carried) {
     const boxes = builtBoxes();
     if (!view) return boxes;
     for (const v of view.vehicles) {
-      if (v.driver) continue;
+      if (v.driver || claimedFleet.has(v.id)) continue;
       const b = vehicleBox(v);
       if (predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4) continue;
       boxes.push(b);
@@ -32567,14 +32336,15 @@ function start(carried) {
       // the rest of the town, the okadas and other players
       updateAmbulance(view.ambulance, dt);
 blood.update(dt, view.blood || []);
-            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: view.players, known, eye: predicted, real: elapsed, clock, others: view.others,
+            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, others: view.others,
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
         maxRigs: MAX_RIGS[quality.level], detail: FIGURE_DETAIL[quality.level], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts });
       // other players on their own motorcycles: the bike under them and them on it, with its lamps and flames
       // (own-bike-view.js), from what their game says the bike is doing; its engine and horn are heard where it is
       peerRides = [];
-      for (const q of view.players || []) {
+      for (const q of shownPeers) {
+        if (q.vehicle && q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.horn(q.x, q.z); }
         if (!q.ride || !POWER_BIKES[q.ride.bike]) continue;
         const rig = crowd.rigOf(`p:${q.id}`);
         if (!rig) continue;
@@ -32582,7 +32352,10 @@ blood.update(dt, view.blood || []);
         peerRides.push({ key: q.id, id: q.ride.bike, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.ride.lean, speed: q.ride.speed, throttle: q.ride.throttle, brake: q.ride.brake, rev: q.ride.rev, rig });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.bikeHornAt(POWER_BIKES[q.ride.bike].horn, g.position.x, g.position.z); }
       }
-      peerBikeView.update(dt, { rides: peerRides, groundY: zoneGroundY, from: predicted, night, now: clock });
+      const peerParked = [];
+      for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}` });
+      peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
+      updatePeerKekes(dt);
       for (const r of peerRides) { seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0; peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`); }
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
@@ -32674,6 +32447,8 @@ blood.update(dt, view.blood || []);
     if (playing) {
       const engines = [];
       for (const b of crowd.bikes()) if (b.truth.moving) engines.push({ x: b.x, z: b.z, rev: Math.min(1, 0.35 + b.speed / 9), d: Math.hypot(b.x - predicted.x, b.z - predicted.z) });
+      // other players' kekes and okadas, heard where they are
+      for (const q of shownPeers) if (q.vehicle && Math.hypot(q.vel ? q.vel[0] : 0, q.vel ? q.vel[1] : 0) > 0.5) { const sp = Math.hypot(q.vel[0], q.vel[1]); engines.push({ x: q.x, z: q.z, rev: Math.min(1, 0.35 + sp / 9), d: Math.hypot(q.x - predicted.x, q.z - predicted.z) }); }
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
@@ -32717,7 +32492,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     skillsState: () => skills.state,
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },
