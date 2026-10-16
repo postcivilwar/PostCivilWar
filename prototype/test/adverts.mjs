@@ -1,6 +1,6 @@
 // The billboards and the ADS app in a headless browser, on the website as it is served with its server:
 //   - each of the seventeen kinds of billboard, seen from the road in front of it, says PLACE YOUR ADS and its size,
-//     and stands on the ground (a picture of each for the eye); what five hundred of them cost to draw;
+//     and stands on the ground (a picture of each for the eye); what the fifty of them cost to draw;
 //   - a player with earned TR books a billboard in the ADS app: chooses it, a week, brand, link, the picture (the
 //     page refuses one of the wrong shape first), the price and tax, the terms and the checkbox, submit; the TR is
 //     held; nothing is shown on the billboard;
@@ -66,7 +66,7 @@ await page.evaluate(() => { const g = window.__nlw.host.game; const day = Math.f
 
 // ---- the billboards, empty ----
 const stats = await page.evaluate(() => window.__nlw.billboards.stats);
-check('five hundred billboards are built, as instances of their kinds', stats.boards === ZONE_BILLBOARDS.length && stats.kinds === Object.keys(BILLBOARD_TYPES).length && stats.screens >= 18, stats);
+check('the fifty billboards are built, as instances of their kinds, ten of them screens', stats.boards === ZONE_BILLBOARDS.length && stats.boards === 50 && stats.kinds === Object.keys(BILLBOARD_TYPES).length && stats.screens === 10, stats);
 // stand in front of one: the camera looks at its face from the road
 const front = (b, back = 1) => {
   const t = BILLBOARD_TYPES[b.type], D = (Math.max(b.width, b.height * 2.2) * 0.9 + 6) * back;

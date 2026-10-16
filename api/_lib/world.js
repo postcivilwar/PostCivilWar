@@ -101,7 +101,7 @@ async function presence(sql, me, body) {
   if (state) {
     const x = Number(state.x), z = Number(state.z);
     const text = JSON.stringify(state);
-    if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 5000 || Math.abs(z) > 5000 || text.length > 900) throw new ApiError(400, 'BAD_REQUEST', 'That is not a place in town.');
+    if (!Number.isFinite(x) || !Number.isFinite(z) || Math.abs(x) > 5000 || Math.abs(z) > 5000 || text.length > 1500) throw new ApiError(400, 'BAD_REQUEST', 'That is not a place in town.');
     // the name is the account's, and so is the figure: a game appears to others as the character its account is
     const look = state.lk && typeof state.lk === 'object' && !Array.isArray(state.lk) ? state.lk : null;
     const stamped = JSON.stringify({ ...state, n: me.username, ...(me.figure && look ? { lk: { ...look, g: me.figure, f: me.figure.startsWith('W') ? 1 : 0 } } : {}) });
@@ -114,12 +114,13 @@ async function presence(sql, me, body) {
     return { peers: [] };
   }
   const rows = await sql.unsafe(
-    `select encode(sha256(p.account_id::text::bytea), 'hex') as who, p.state from ${S}.presence p
+    `select encode(sha256(p.account_id::text::bytea), 'hex') as who, p.state, extract(epoch from (now() - p.at))::float8 as age from ${S}.presence p
      where p.zone = $1 and p.account_id <> $2 and p.at > now() - make_interval(secs => $3::int)
      order by (p.x - $4::real) * (p.x - $4::real) + (p.z - $5::real) * (p.z - $5::real) limit $6::int`,
     [zone, me.id, SEEN_FOR, Number(state.x), Number(state.z), MOST_PEERS]);
   if (Math.random() < 0.02) await sql.unsafe(`delete from ${S}.presence where at < now() - interval '2 minutes'`);
-  return { peers: rows.map((row) => ({ id: `u${row.who.slice(0, 20)}`, state: row.state })) };
+  // (with how long ago each said it, in seconds: a game carries a moving vehicle on by that much)
+  return { peers: rows.map((row) => ({ id: `u${row.who.slice(0, 20)}`, state: row.state, age: Math.max(0, Math.round(Number(row.age) * 1000) / 1000) })) };
 }
 
 module.exports = { saveInfo, saveGet, savePut, saveErase, presence };

@@ -444,6 +444,8 @@ export function createVehicles({ state, ledger, issuanceAccount, economy, clock,
     return {
       driving: v ? summary(v, player.id) : null,
       vehicles: all().filter((c) => mayUnload(c, player.id)).map((c) => c.id),
+      // the kekes this player may drive, standing where they were left (other players are told of them: link.js)
+      parkedKekes: all().filter((c) => !c.driver && (c.owner.kind === 'player' ? c.owner.id === player.id : mayDrive(c, player.id))).map((c) => ({ id: c.id, x: c.x, z: c.z, heading: c.heading, plate: c.plate, look: c.look, fleet: c.owner.kind !== 'player' })),
       run: run ? runView(run) : null,
       openRuns: book.runs.filter((r) => r.state === 'open').length,
     };

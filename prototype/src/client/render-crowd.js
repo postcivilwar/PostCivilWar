@@ -13,6 +13,10 @@ import { Batch, place, linear, surface } from './render-kit.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } from './render-people.js';
 import { poseFighter } from './combat-view.js';
 import { zoneGroundY } from '../sim/zone.js';
+import { vehicleMeta } from './vehicle-kit.js';
+
+const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
+const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
 
 const POSE = { stand: 0, walk: 1, sit: 2, lie: 3, hidden: 4, ride: 5 };
 const MAX_FIGURES = 520;
@@ -115,6 +119,7 @@ export function createCrowd(scene) {
   const bikes = new Map();
   const others = new Map();        // other players
   const mounted = new Map();       // full figures of people on motorcycles near the player, by their number
+  const peerOkadas = new Map();    // the okadas other players ride (each copy of the town has its own), by player
   const rigs = new Set();
   let lastRows = null;
   let lastOkadas = null;
@@ -469,9 +474,15 @@ export function createCrowd(scene) {
       let other = others.get(q.id);
       if (!other) { other = { rig: makeCharacter(q.look, q.name, false, 1), x: q.x, z: q.z, h: q.heading }; scene.add(other.rig.group); others.set(q.id, other); }
       const gx = q.x - other.x, gz = q.z - other.z;
-      const gap = Math.hypot(gx, gz);
-      if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
-      other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
+      let gap = Math.hypot(gx, gz);
+      // in or on a vehicle: where their game says the vehicle is, carried on between words at its speed (main.js),
+      // so it is not left trailing behind as someone walking would be; and facing the way the vehicle faces
+      const vh = q.vehicle || null, seated = !!vh || !!q.ride;
+      if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }
+      else {
+        if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
+        other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
+      }
       other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : zoneGroundY(other.x, other.z), other.z);
       other.rig.group.rotation.y = other.h;
       const stance = frame.others ? frame.others[q.id] : null;
@@ -488,7 +499,7 @@ export function createCrowd(scene) {
         if (em && len && t < len) other.rig.reaction = { name: em.name, time: t, weight: Math.min(1, t / 0.25, (len - t) / 0.3), loop: false, upper: false };
         else if (other.rig.reaction) other.rig.reaction.weight = Math.max(0, other.rig.reaction.weight - dt * 4);
       }
-      animateCharacter(other.rig, dt, other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
+      animateCharacter(other.rig, dt, seated ? 0 : other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
       // another player's name shows only to someone near them
       showName(other.rig, Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < 12, dt);
       // knocked down, or dead: on the ground; getting up: on the way back (and flat in the water, for a figure with no swim of its own)
@@ -499,7 +510,35 @@ export function createCrowd(scene) {
       if (other.rig.swimming) other.rig.group.position.y = other.rig.animated ? -(other.rig.spec.height * 0.58) - 0.22 : -0.5; else if (other.wasSwimming) other.rig.group.position.y = zoneGroundY(other.x, other.z);
       other.wasSwimming = other.rig.swimming;
       if (other.rig.strike || (stance && stance.fighting)) poseFighter(other.rig, frame.clock || 0, { guard: !!(stance && stance.fighting), block: !!(stance && stance.blocking) });
+      // at the wheel of a keke (the keke is drawn by main.js): on its driver's seat
+      if (vh && vh.kind === 'keke') {
+        const fx = Math.sin(other.h), fz = Math.cos(other.h);
+        seatCharacter(other.rig);
+        other.rig.group.position.set(other.x + fx * KEKE_SEAT[2], zoneGroundY(other.x, other.z) + KEKE_SEAT[1] - SEATED * other.rig.scale, other.z + fz * KEKE_SEAT[2]);
+      }
+      // on an okada: the machine under them, and them in its saddle; on the back of one, its rider in front of them
+      if (vh && vh.kind === 'okada') {
+        let bike = peerOkadas.get(q.id);
+        if (!bike) { bike = { mesh: bikeMesh(bikeMaterial, `p:${q.id}`), x: other.x, z: other.z, was: { x: other.x, z: other.z } }; scene.add(bike.mesh); peerOkadas.set(q.id, bike); }
+        bike.seen = stamp;
+        const gy = zoneGroundY(other.x, other.z), fx = Math.sin(other.h), fz = Math.cos(other.h);
+        const moving = Math.hypot(other.x - bike.was.x, other.z - bike.was.z) > 0.002;
+        bike.was.x = other.x; bike.was.z = other.z;
+        E.set(0, other.h, moving ? 0 : 0.12);
+        bike.mesh.quaternion.setFromEuler(E);
+        bike.mesh.position.set(other.x, gy, other.z);
+        seatCharacter(other.rig);
+        const back = vh.back ? 0.5 + 0.12 : 0.17;
+        other.rig.group.position.set(other.x - fx * back, gy + (vh.back ? -0.04 : -0.15 * other.rig.scale), other.z - fz * back);
+        if (vh.back) {
+          other.rig.armL.shoulder.rotation.x = -0.4; other.rig.armR.shoulder.rotation.x = -0.4; other.rig.armL.elbow.rotation.x = -0.8; other.rig.armR.elbow.rotation.x = -0.8;
+          // the okada's own rider (one of the town's people, the same in every copy of the town)
+          const who = typeof vh.driver === 'number' ? known.get(vh.driver) : null;
+          if (who) figure(who.fig, other.x - fx * 0.05, 0.36 + gy, other.z - fz * 0.05, other.h, POSE.ride, 0, 0.55);
+        }
+      }
     }
+    for (const [id, bike] of peerOkadas) if (bike.seen !== stamp) { scene.remove(bike.mesh); peerOkadas.delete(id); }
     for (const [id, other] of others) if (!seen.has(id)) { scene.remove(other.rig.group); other.rig.dispose(); others.delete(id); }
 
     for (const mesh of Object.values(parts)) { mesh.count = n; mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true; }
@@ -527,6 +566,8 @@ export function createCrowd(scene) {
     update, anchor, stats,
     bike: (riderNumber) => bikes.get(riderNumber) || null,
     bikes: () => bikes.values(),
+    // how many other players' okadas are drawn (for the tests)
+    peerOkadas: () => peerOkadas.size,
     figureAt: (i) => actors.get(i) || null,
     // the full figure of a townsperson or of another player, if one is on show: for a blow struck or taken
     rigOf: (key) => { if (key.startsWith('n:')) { const a = actors.get(Number(key.slice(2))); return a && a.rig ? a.rig : null; } const o = others.get(key.slice(2)); return o ? o.rig : null; },

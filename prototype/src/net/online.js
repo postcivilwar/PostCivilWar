@@ -10,7 +10,7 @@
 // How often this game tells the server where it stands and asks who else is in town (seconds): often with
 // someone close enough to be watched walking, seldom with nobody about. Every asking is a request the site's
 // host counts, so it is no more often than what is on screen needs.
-export const ONLINE = Object.freeze({ timeout: 12000, presenceNear: 1.2, presenceFar: 4, presenceAlone: 10, near: 70, presenceStep: 0.15 });
+export const ONLINE = Object.freeze({ timeout: 12000, presenceNear: 1.2, presenceMoving: 0.3, presenceFar: 4, presenceAlone: 10, near: 70, presenceStep: 0.15, carryOn: 2.2, settle: 0.3, fadeAfter: 1 });
 
 // ---- a character, made small enough to send ----
 
@@ -133,37 +133,103 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
   const lerp = (a, b, k) => a + (b - a) * k;
   const turn = (a, b, k) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * k; };
 
+  // Where a peer is shown now. Someone in or on a vehicle is carried on from where they were last heard (for up to
+  // ONLINE.carryOn seconds, slowing after ONLINE.fadeAfter if nothing more is heard) the way they were going: at the speed they said, turning as they were turning, and
+  // gathering or losing speed as they were (both worked out from the last two words), so that a fast vehicle is
+  // shown where it is now and not where it was a second ago, round a bend as well as along a straight, and it stops
+  // where it stops. The difference from where it was being shown when the word came is let go over ONLINE.settle
+  // seconds (longer for a bigger difference), so it never jumps. Someone on foot (who can stop dead, and would be carried past where they stopped)
+  // is moved from where they were shown to where they were heard, over the time between two words, as is anyone
+  // whose game does not say how fast it is going.
+  const speedOf = (st) => (Array.isArray(st.vl) ? Math.hypot(Number(st.vl[0]) || 0, Number(st.vl[1]) || 0) : 0);
+  const carriedOn = (st) => Array.isArray(st.vl) && !!(st.vh || st.mb);
+  // from a state, `ahead` seconds on: { x, z, vx, vz }
+  function carry(st, ahead, motion) {
+    let x = st.x, z = st.z;
+    let sp = speedOf(st), ang = Math.atan2(Number(st.vl[0]) || 0, Number(st.vl[1]) || 0);
+    const steps = Math.max(1, Math.ceil(ahead / 0.05)), h = ahead / steps;
+    for (let i = 0; i < steps; i += 1) {
+      // (heard of no more for over a second: it is let slow to a stop, rather than run on and then be pulled back)
+      const late = (i + 0.5) * h > ONLINE.fadeAfter ? 8 : 0;
+      const next = Math.max(0, sp + (motion.accel - late) * h);
+      const mid = (sp + next) / 2;
+      ang += motion.turn * Math.exp(-((i + 0.5) * h) / 0.7) * h;        // (a bend ends: the turning is let go)
+      x += Math.sin(ang) * mid * h; z += Math.cos(ang) * mid * h;
+      sp = next;
+      if (sp === 0) break;
+    }
+    return { x, z, vx: Math.sin(ang) * sp, vz: Math.cos(ang) * sp };
+  }
+  function placeOf(p, t) {
+    const dt = Math.max(0, t - p.at);
+    if (carriedOn(p.to)) {
+      const settle = p.settle || ONLINE.settle, ahead = Math.min(dt + p.age, ONLINE.carryOn), fade = Math.exp(-dt / settle);
+      const c = carry(p.to, ahead, p.motion);
+      // (with the speed and way it is going now, the settling included, so the game carries it on from here the same way)
+      return { x: c.x + p.err.x * fade, z: c.z + p.err.z * fade, h: turn(p.from.h || 0, p.to.h || 0, Math.min(1, dt / 0.25)), vl: [Math.round((c.vx - (p.err.x * fade) / settle) * 100) / 100, Math.round((c.vz - (p.err.z * fade) / settle) * 100) / 100] };
+    }
+    const k = Math.max(0, Math.min(1, dt / p.span));
+    return { x: lerp(p.from.x, p.to.x, k), z: lerp(p.from.z, p.to.z, k), h: turn(p.from.h || 0, p.to.h || 0, k) };
+  }
   function shown() {
     const t = now();
     const out = [];
     for (const [id, p] of peers) {
-      const k = Math.max(0, Math.min(1, (t - p.at) / p.span));
-      out.push({ id, state: { ...p.to, x: Math.round(lerp(p.from.x, p.to.x, k) * 100) / 100, z: Math.round(lerp(p.from.z, p.to.z, k) * 100) / 100, h: turn(p.from.h || 0, p.to.h || 0, k) } });
+      const at = placeOf(p, t);
+      out.push({ id, state: { ...p.to, x: Math.round(at.x * 100) / 100, z: Math.round(at.z * 100) / 100, h: at.h, ...(at.vl ? { vl: at.vl } : {}) } });
     }
     return out;
+  }
+  // How a vehicle was turning (radians a second) and gathering speed (m/s each second), from two words about it
+  // `span` seconds apart; kept within what a vehicle can do, and only for one moving.
+  function motionOf(before, after, span, was) {
+    if (!before || !carriedOn(before) || !carriedOn(after) || span < 0.12 || span > 3) return { turn: 0, accel: 0 };
+    const s0 = speedOf(before), s1 = speedOf(after);
+    let accel = Math.max(-14, Math.min(9, (s1 - s0) / span));
+    let d = Math.atan2(Number(after.vl[0]) || 0, Number(after.vl[1]) || 0) - Math.atan2(Number(before.vl[0]) || 0, Number(before.vl[1]) || 0);
+    while (d > Math.PI) d -= Math.PI * 2;
+    while (d < -Math.PI) d += Math.PI * 2;
+    let turnRate = s0 > 2 && s1 > 2 ? Math.max(-1.6, Math.min(1.6, d / span)) : 0;
+    if (Math.abs(accel) < 0.4) accel = 0;
+    // a little of what it was doing before, so that one rough word does not throw it
+    if (was) { turnRate = turnRate * 0.7 + was.turn * 0.3; accel = accel * 0.7 + was.accel * 0.3; }
+    return { turn: turnRate, accel };
   }
 
   async function exchange() {
     if (busy || closed || !mine || !online.signedIn) return;
     busy = true; last = now();
+    const asked = last;
     const answer = await online.ask('presence', { zone, state: mine }, { timeout: 6000 });
     busy = false;
     if (closed) return;
     failed = !answer.ok;
-    if (!answer.ok) return;
+    // (an answer lost on the way: asked again at once, not after the usual wait)
+    if (!answer.ok) { last = -10; return; }
     const t = now();
     const here = new Set();
     for (const peer of Array.isArray(answer.peers) ? answer.peers : []) {
       if (!peer || typeof peer.id !== 'string' || !peer.state || typeof peer.state !== 'object') continue;
       here.add(peer.id);
       const old = peers.get(peer.id);
-      const at = old ? shownOf(old, t) : peer.state;
-      const jumped = old && Math.hypot(peer.state.x - at.x, peer.state.z - at.z) > 25;
-      peers.set(peer.id, { from: jumped || !old ? peer.state : at, to: peer.state, at: t, span: Math.max(0.4, Math.min(4.5, old ? t - old.heard : 1)), heard: t });
+      const at = old ? { ...old.to, ...placeOf(old, t) } : peer.state;
+      // how old what they said is: as long ago as the server says it was told, and the way back here (half the
+      // time the asking took); and when they said it, by this game's clock
+      const age = Math.max(0, Math.min(3, (Number.isFinite(Number(peer.age)) ? Number(peer.age) : 0) + (t - asked) / 2));
+      const said = t - age;
+      const same = old && old.said !== undefined && Math.abs(said - old.said) < 0.05 && JSON.stringify(old.to) === JSON.stringify(peer.state);
+      const motion = same ? old.motion : motionOf(old && old.to, peer.state, old ? said - old.said : 0, old && old.motion);
+      const target = carriedOn(peer.state) ? carry(peer.state, Math.min(age, ONLINE.carryOn), motion) : peer.state;
+      // (a jump further than they could have gone: shown there at once)
+      const err = { x: at.x - target.x, z: at.z - target.z };
+      const jumped = old && Math.hypot(err.x, err.z) > Math.max(25, speedOf(peer.state) * 3);
+      if (same) continue;
+      // (a bigger difference is let go over longer, so that it is never seen to snap)
+      const settle = Math.min(0.9, ONLINE.settle + Math.hypot(err.x, err.z) / 15);
+      peers.set(peer.id, { from: jumped || !old ? peer.state : at, to: peer.state, at: t, age, said, motion, settle, span: Math.max(0.4, Math.min(4.5, old ? t - old.heard : 1)), heard: t, err: jumped || !old ? { x: 0, z: 0 } : err });
     }
     for (const id of [...peers.keys()]) if (!here.has(id)) peers.delete(id);
   }
-  function shownOf(p, t) { const k = Math.max(0, Math.min(1, (t - p.at) / p.span)); return { ...p.to, x: lerp(p.from.x, p.to.x, k), z: lerp(p.from.z, p.to.z, k), h: turn(p.from.h || 0, p.to.h || 0, k) }; }
 
   const timer = every(() => {
     if (closed) return;
@@ -172,7 +238,7 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     let wait = ONLINE.presenceAlone;
     if (peers.size) {
       wait = ONLINE.presenceFar;
-      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; break; }
+      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; if (speedOf(p.to) > 2 || speedOf(mine) > 2) wait = ONLINE.presenceMoving; break; }
     }
     if (now() - last >= wait) exchange();
   }, ONLINE.presenceStep * 1000);

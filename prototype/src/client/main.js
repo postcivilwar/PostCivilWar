@@ -172,6 +172,56 @@ function start(carried) {
   // other players' motorcycles, seen from here (the same drawing, without anything to fetch until one is near)
   const peerBikeView = createOwnBikeView(scene, { lite: LITE });
   let peerRides = [];
+  let shownPeers = [];
+  // Other players as they are now: one in or on a vehicle is carried on from where their game last said they were,
+  // at the speed it said they were going (a vehicle at speed would otherwise stand still between words and jump)
+  function peersNow() {
+    const ahead = Math.max(0, clock - viewAt);
+    shownPeers = (view.players || []).map((q) => {
+      const v = q.vel;
+      if (!v || !(q.vehicle || q.ride) || Math.hypot(v[0], v[1]) < 0.3) return q;
+      const k = Math.min(0.3, (q.ago || 0) + ahead);
+      return { ...q, x: q.x + v[0] * k, z: q.z + v[1] * k };
+    });
+    return shownPeers;
+  }
+  // Other players' kekes: the one each drives, and those of theirs standing near them. Each copy of the town has its
+  // own vehicles; these are drawn from what the other player's game says. A keke of the town's hire fleet that
+  // another player has out is not also shown standing in its bay here (nor in the way).
+  const peerKekes = new Map();          // key -> { actor, was, seen }
+  const claimedFleet = new Set();       // ids of the hire fleet's kekes another player has out
+  function updatePeerKekes(dt) {
+    const want = [];
+    claimedFleet.clear();
+    for (const q of shownPeers) {
+      if (q.vehicle && q.vehicle.kind === 'keke') {
+        const rig = crowd.rigOf(`p:${q.id}`);
+        want.push({ key: `d:${q.id}`, v: q.vehicle, x: q.x, z: q.z, h: rig ? rig.group.rotation.y : q.heading, driven: true });
+        if (q.vehicle.fleet && q.vehicle.id) claimedFleet.add(q.vehicle.id);
+      }
+      for (const k of q.kekes || []) { want.push({ key: `p:${q.id}:${k.id}`, v: k, x: k.x, z: k.z, h: k.heading, driven: false }); if (k.fleet && k.id) claimedFleet.add(k.id); }
+    }
+    const seen = new Set();
+    for (const w of want) {
+      seen.add(w.key);
+      let e = peerKekes.get(w.key);
+      const look = w.v.look || {};
+      const sig = JSON.stringify([look, w.v.plate]);
+      if (e && e.sig !== sig) { scene.remove(e.actor.group); e.actor.model.dispose(); peerKekes.delete(w.key); e = null; }
+      if (!e) { const actor = makeVehicle(look, w.v.plate || null, PLATE_REGION); actor.group.position.set(w.x, 0, w.z); actor.group.rotation.y = w.h; scene.add(actor.group); e = { actor, sig, was: { x: w.x, z: w.z } }; peerKekes.set(w.key, e); }
+      const g = e.actor.group;
+      g.position.set(w.x, zoneGroundY(w.x, w.z), w.z);
+      g.rotation.y = w.h;
+      const along = (w.x - e.was.x) * Math.sin(w.h) + (w.z - e.was.z) * Math.cos(w.h);
+      if (Math.abs(along) > 1e-4 && Math.abs(along) < 5) e.actor.model.roll(along);
+      e.was.x = w.x; e.was.z = w.z;
+      e.actor.model.setDistance(Math.hypot(w.x - camera.position.x, w.z - camera.position.z), undefined, VEHICLE_BIAS[quality.level]);
+      const lit = w.driven && night > 0.45 ? 1 : 0;
+      if (lit !== e.lit) { e.lit = lit; e.actor.model.lamps(lit, lit, 0, 0); }
+    }
+    for (const [key, e] of peerKekes) if (!seen.has(key)) { scene.remove(e.actor.group); e.actor.model.dispose(); peerKekes.delete(key); }
+    for (const [id, actor] of vehicleActors) if (!(view.self.driving && view.self.driving.id === id)) actor.group.visible = !claimedFleet.has(id);
+  }
   const peerHorned = new Map();
   let peerHornsHeard = 0;
   // the ridden bike's headlamp: one light, following it, on at night (a lamp's glow is drawn on every bike)
@@ -362,6 +412,7 @@ function start(carried) {
   let holdProgress = 0;
   let clock = 0;
   let viewTimer = 1;
+  let viewAt = 0;                     // when the view was last asked for (other players are carried on from it)
   let saveTimer = 0;
   let lampTimer = 1;
   let soundTimer = 1;
@@ -824,6 +875,7 @@ function start(carried) {
     const want = (i) => { if (typeof i === 'number' && !known.has(i) && !asking.has(i)) { asking.add(i); unknown.push(i); } };
     for (const row of zone.people) want(row[0]);
     for (const o of zone.okadas) { want(o.person); want(o.passenger); }
+    for (const q of zone.players || []) if (q.vehicle && typeof q.vehicle.driver === 'number') want(q.vehicle.driver);
     if (!unknown.length) return;
     const faces = playerId ? [] : host.game.faces(unknown);
     if (playerId) for (let from = 0; from < unknown.length; from += 60) { const r = server.send({ type: 'people.describe', ids: unknown.slice(from, from + 60) }); if (r.ok) faces.push(...r.people); }
@@ -883,6 +935,7 @@ function start(carried) {
   function refreshView() {
     if (!playerId) return;
     view = host.game.view(playerId);
+    viewAt = clock;
     drawZone(view);
     learnFaces(view);
     ui.updateHud(view);
@@ -961,7 +1014,7 @@ function start(carried) {
     const boxes = builtBoxes();
     if (!view) return boxes;
     for (const v of view.vehicles) {
-      if (v.driver) continue;
+      if (v.driver || claimedFleet.has(v.id)) continue;
       const b = vehicleBox(v);
       if (predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4) continue;
       boxes.push(b);
@@ -2228,14 +2281,15 @@ function start(carried) {
       // the rest of the town, the okadas and other players
       updateAmbulance(view.ambulance, dt);
 blood.update(dt, view.blood || []);
-            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: view.players, known, eye: predicted, real: elapsed, clock, others: view.others,
+            crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, others: view.others,
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
         maxRigs: MAX_RIGS[quality.level], detail: FIGURE_DETAIL[quality.level], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts });
       // other players on their own motorcycles: the bike under them and them on it, with its lamps and flames
       // (own-bike-view.js), from what their game says the bike is doing; its engine and horn are heard where it is
       peerRides = [];
-      for (const q of view.players || []) {
+      for (const q of shownPeers) {
+        if (q.vehicle && q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.horn(q.x, q.z); }
         if (!q.ride || !POWER_BIKES[q.ride.bike]) continue;
         const rig = crowd.rigOf(`p:${q.id}`);
         if (!rig) continue;
@@ -2243,7 +2297,10 @@ blood.update(dt, view.blood || []);
         peerRides.push({ key: q.id, id: q.ride.bike, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.ride.lean, speed: q.ride.speed, throttle: q.ride.throttle, brake: q.ride.brake, rev: q.ride.rev, rig });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.bikeHornAt(POWER_BIKES[q.ride.bike].horn, g.position.x, g.position.z); }
       }
-      peerBikeView.update(dt, { rides: peerRides, groundY: zoneGroundY, from: predicted, night, now: clock });
+      const peerParked = [];
+      for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}` });
+      peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
+      updatePeerKekes(dt);
       for (const r of peerRides) { seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0; peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`); }
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
@@ -2335,6 +2392,8 @@ blood.update(dt, view.blood || []);
     if (playing) {
       const engines = [];
       for (const b of crowd.bikes()) if (b.truth.moving) engines.push({ x: b.x, z: b.z, rev: Math.min(1, 0.35 + b.speed / 9), d: Math.hypot(b.x - predicted.x, b.z - predicted.z) });
+      // other players' kekes and okadas, heard where they are
+      for (const q of shownPeers) if (q.vehicle && Math.hypot(q.vel ? q.vel[0] : 0, q.vel ? q.vel[1] : 0) > 0.5) { const sp = Math.hypot(q.vel[0], q.vel[1]); engines.push({ x: q.x, z: q.z, rev: Math.min(1, 0.35 + sp / 9), d: Math.hypot(q.x - predicted.x, q.z - predicted.z) }); }
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
@@ -2378,7 +2437,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     skillsState: () => skills.state,
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },

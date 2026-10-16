@@ -17,6 +17,7 @@ import { POSE, RANGE } from './population.js';
 import { GameError } from './registry.js';
 import { cleanFigureLook } from './figures.js';
 import { POWER_BIKES } from './power-bikes.js';
+import { VEHICLE_MODELS, KEKE_PAINTS, KEKE_CANOPIES, KEKE_SEATS, KEKE_FLOORS } from './vehicle-looks.js';
 
 export const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLength: 140, gap: 1.2, visitors: 24 });
 
@@ -235,7 +236,7 @@ export function createTalk({ state, population, residents, players, weather, hub
     const out = [];
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, hornAt: v.hornAt === undefined ? -10 : v.hornAt });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0] });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -256,6 +257,19 @@ export function createTalk({ state, population, residents, players, weather, hub
   // someone else's computer, so none of it is trusted: every field is
   // checked, and a visitor has no say in anything but where they appear to
   // stand and what they said.
+  const near = (o, x, z) => Number.isFinite(Number(o.x)) && Number.isFinite(Number(o.z)) && Math.hypot(Number(o.x) - x, Number(o.z) - z) < 90;
+  const oneOf = (value, list, fallback) => (list.includes(value) ? value : fallback);
+  function lookIn(l) {
+    if (!l || typeof l !== 'object') return null;
+    const n01 = (k) => (Number.isFinite(Number(k)) ? Math.max(0, Math.min(1, Number(k))) : 0);
+    return { model: 'keke', trim: oneOf(l.trim, VEHICLE_MODELS.keke.trims, VEHICLE_MODELS.keke.trims[0]), paint: oneOf(l.paint, KEKE_PAINTS.map((p) => p.id), 'yellow'), canopy: oneOf(l.canopy, Object.keys(KEKE_CANOPIES), 'black'), seat: oneOf(l.seat, Object.keys(KEKE_SEATS), 'black'), floor: oneOf(l.floor, Object.keys(KEKE_FLOORS), 'dark'), wear: n01(l.wear), dirt: n01(l.dirt), slogan: l.slogan ? cleanText(String(l.slogan), 32) || null : null, number: l.number ? String(l.number).replace(/[^0-9]/g, '').slice(0, 4) || null : null, extras: Array.isArray(l.extras) && l.extras.includes('curtains') ? ['curtains'] : [] };
+  }
+  function vehicleIn(h) {
+    if (!h || typeof h !== 'object') return null;
+    if (h.kind === 'keke') return { kind: 'keke', id: cleanText(String(h.id || ''), 12), plate: cleanText(String(h.plate || ''), 14), look: lookIn(h.look) || lookIn({}), fleet: !!h.fleet };
+    if (h.kind === 'okada') return { kind: 'okada', back: !!h.back, driver: Number.isInteger(h.driver) && h.driver >= 0 && h.driver < 100000 ? h.driver : null };
+    return null;
+  }
   function visitorSeen(peerId, data) {
     const id = `v:${cleanText(peerId, 40).replace(/[^\w-]/g, '')}`;
     if (id.length < 3 || !data || typeof data !== 'object') return null;
@@ -275,7 +289,13 @@ export function createTalk({ state, population, residents, players, weather, hub
     const r = data.ride && typeof data.ride === 'object' ? data.ride : null;
     const n = (value, lo, hi) => { const k = Number(value); return Number.isFinite(k) ? Math.max(lo, Math.min(hi, k)) : 0; };
     v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1) } : null;
-    const horns = r ? n(r.horns, 0, 1e9) : 0;
+    // a vehicle under them (a keke they drive, an okada they ride or ride on the back of), the motorcycles and kekes of
+    // theirs standing near them, and how fast they are going: each field checked, a bad one dropped
+    v.vehicle = vehicleIn(data.vehicle);
+    v.parked = (Array.isArray(data.parked) ? data.parked : []).slice(0, 3).map((b) => (b && POWER_BIKES[b.bike] && near(b, x, z) ? { bike: b.bike, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen } : null)).filter(Boolean);
+    v.kekes = (Array.isArray(data.kekes) ? data.kekes : []).slice(0, 2).map((k) => (k && near(k, x, z) && lookIn(k.look) ? { id: cleanText(String(k.id || ''), 12), x: Number(k.x), z: Number(k.z), heading: n(k.heading, -10, 10), plate: cleanText(String(k.plate || ''), 14), look: lookIn(k.look), fleet: !!k.fleet } : null)).filter(Boolean);
+    v.vel = Array.isArray(data.vel) ? [n(data.vel[0], -80, 80), n(data.vel[1], -80, 80)] : [0, 0];
+    const horns = r ? n(r.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
     if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }
@@ -316,7 +336,7 @@ export function createTalk({ state, population, residents, players, weather, hub
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
       speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
     }
-    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100 }));
+    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }

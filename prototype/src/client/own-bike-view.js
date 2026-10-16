@@ -92,7 +92,7 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
   // ridden: { id, x, z, h, lean, speed, steer, throttle, brake, rev, rough } or null (this player's);
   // rides: [{ key, ...the same }] (other players' bikes, near enough to see); parked: [{ bike, x, z, h }];
   // groundY(x, z); from: { x, z }; night (0..1); now (seconds)
-  function update(dt, { ridden = null, rides = [], parked = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, now = 0 }) {
+  function update(dt, { ridden = null, rides = [], parked = [], parkedMost = 3, groundY = () => 0, from = { x: 0, z: 0 }, night = 0, now = 0 }) {
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -111,9 +111,9 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
       if (e.bike) place(e, r, groundY, dt, night, now);
     }
     // (the nearest few: a player who owns many and leaves them together sees those beside them)
-    const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, 3);
+    const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, parkedMost);
     for (const p of near) {
-      const key = `park:${p.bike}`;
+      const key = p.key || `park:${p.bike}`;
       wanted.add(key);
       const e = entry(key, p.bike);
       if (e.bike) {

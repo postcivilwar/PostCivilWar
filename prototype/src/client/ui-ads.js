@@ -7,7 +7,7 @@
 // player is told at once what is wrong with it; the server checks it again from its own bytes.
 //
 //   ADS    home      the prices, what is held, the player's campaigns (status, dates, feedback, cancel)
-//          browse    the 500 billboards: where, kind, size, category, and whether each is free
+//          browse    the 50 billboards: where, kind, size, category, and whether each is free
 //          board     one billboard: its size and the shape a picture must be, the length, the server's quote
 //          form      brand, link, the picture (or 3 to 10 slides)
 //          review    the whole price, the terms, the checkbox, submit

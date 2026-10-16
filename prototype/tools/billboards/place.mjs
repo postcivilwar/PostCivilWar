@@ -1,5 +1,9 @@
-// Places the town's advertising billboards: five hundred of them, along the roads, at the airport, by the market
-// and at the bridge, each where a real one would stand.
+// Places the town's advertising billboards: fifty of them (ten of them screens), along the roads, at the airport,
+// by the market and at the bridge, each where a real one would stand, and well apart (the owner, 16 October 2026:
+// "no more than two billboards close to each other", with "enough gap" between one and the next).
+//
+// It first finds five hundred places that fit (as it did before 16 October 2026, when there were five hundred),
+// numbered as they were, then keeps fifty of them: so a billboard keeps the identity it had.
 //
 //   node tools/billboards/place.mjs        writes src/sim/zones/atani-billboards.js and api/_lib/billboards.json
 //
@@ -128,7 +132,7 @@ const TV_MIX = { 'tv-unipole': 6, 'tv-tower': 4, 'tv-curved': 4, 'tv-chrome': 4,
 const SETBACK = { small: 3.2, medium: 4.5, large: 6.5, xl: 8, tv: 7 };
 
 const placed = [];
-function place(category, combo, roadIds) {
+function place(category, combo, roadIds, into = placed, against = placed) {
   for (let attempt = 0; attempt < 30000; attempt += 1) {
     const road = ROAD(pick(roadIds));
     if (!road) continue;
@@ -143,9 +147,9 @@ function place(category, combo, roadIds) {
     else { Z0 = road.z0 + 4 + u * (road.z1 - road.z0 - 8); X = side > 0 ? road.x1 + back : road.x0 - back; h = side > 0 ? -Math.PI / 2 : Math.PI / 2; }
     // on a main road out of town, turned a little toward the traffic coming at it (it drives on the right)
     if (road.id === 'onitsha' || road.id === 'airport-access') h += side * (along ? 1 : -1) * (0.35 + rand() * 0.2);
-    const fit = fits(type, scale, X, Z0, h, placed);
+    const fit = fits(type, scale, X, Z0, h, against);
     if (!fit) continue;
-    placed.push({ type, scale, category, x: X, z: Z0, heading: h, road: road.id, ...fit });
+    into.push({ type, scale, category, x: X, z: Z0, heading: h, road: road.id, ...fit });
     return true;
   }
   return false;
@@ -171,15 +175,74 @@ const region = (b) => (b.road === 'onitsha' ? 'road' : AIRPORT.includes(b.road) 
 const ORDER = { airport: 0, road: 1, town: 2 };
 placed.sort((a, b) => ORDER[region(a)] - ORDER[region(b)] || a.x - b.x || a.z - b.z);
 const r1 = (v) => Math.round(v * 10) / 10;
-const list = placed.map((b, i) => {
+const entry = (b, id) => {
   const face = faceOf(b.type, b.scale);
   const feet = feetOf(b.type, b.scale).map((f) => {
     const hw = f.r !== undefined ? f.r : f.w / 2, hd = f.r !== undefined ? f.r : f.d / 2;
     const corners = [[-hw, -hd], [hw, -hd], [-hw, hd], [hw, hd]].map(([a, c]) => toWorld(b.x, b.z, b.heading, f.x + a, f.z + c));
     return [Math.min(...corners.map((p) => p.x)), Math.min(...corners.map((p) => p.z)), Math.max(...corners.map((p) => p.x)), Math.max(...corners.map((p) => p.z))].map(r1);
   });
-  return { id: `BB-${String(i + 1).padStart(3, '0')}`, type: b.type, scale: b.scale, category: b.category, tv: !!BILLBOARD_TYPES[b.type].tv, width: face.width, height: face.height, bottom: face.bottom, x: r1(b.x), z: r1(b.z), heading: Math.round(b.heading * 1000) / 1000, region: region(b), place: label(b), feet };
-});
+  return { id, type: b.type, scale: b.scale, category: b.category, tv: !!BILLBOARD_TYPES[b.type].tv, width: face.width, height: face.height, bottom: face.bottom, x: r1(b.x), z: r1(b.z), heading: Math.round(b.heading * 1000) / 1000, region: region(b), place: label(b), feet };
+};
+const list = placed.map((b, i) => entry(b, `BB-${String(i + 1).padStart(3, '0')}`));
+// more places that would fit, found without regard to the five hundred (each fits on its own; the choosing below
+// keeps them apart): the fifty are taken from the five hundred first, then from these, numbered on from BB-501
+const extra = [];
+for (const category of ['tv', 'xl', 'large', 'medium', 'small']) for (let i = 0; i < 260; i += 1) {
+  const found = [];
+  if (category === 'tv') { const types = Object.keys(TV_MIX); const type = types[i % types.length]; place('tv', [type, 1], type === 'tv-building' ? [['onitsha', 1], ['airport-access', 1]] : WHERE.tv, found, []); }
+  else place(category, null, WHERE[category], found, []);
+  if (found.length) extra.push(entry(found[0], null));
+}
+const ORIGINAL = list.length;
+// ---- fifty of them, well apart ----
+// No billboard within SPACING.least of another; and within SPACING.close of any one, at most one other (so never
+// more than two together). Every kind is kept, the screens and the categories in these numbers, spread over the
+// airport, the road out and the town as the room there allows.
+export const SPACING = Object.freeze({ least: 40, close: 90 });
+const KEEP = { tv: 10, xl: 6, large: 10, medium: 12, small: 12 };
+// how many other places are near each (fewer: easier to keep apart)
+const crowd = new Map();
+{ const all = [...list, ...extra]; for (const b of all) crowd.set(b, all.filter((c) => c !== b && Math.hypot(c.x - b.x, c.z - b.z) < SPACING.close).length); }
+function choose(trySeed) {
+  let s2 = trySeed >>> 0;
+  const r2 = () => { s2 = (s2 * 1664525 + 1013904223) >>> 0; return s2 / 4294967296; };
+  const pool = [...list, ...extra].map((b) => ({ b, k: crowd.get(b) * (0.6 + r2() * 0.8) + (b.id ? 0 : 0.5) })).sort((a, c) => a.k - c.k).map((e) => e.b);
+  const kept = [];
+  const d = (a, c) => Math.hypot(a.x - c.x, a.z - c.z);
+  const ok = (b) => {
+    let close = 0;
+    for (const k of kept) {
+      const dist = d(b, k);
+      if (dist < SPACING.least) return false;
+      if (dist < SPACING.close) { close += 1; if (close > 1) return false; if (kept.some((m) => m !== k && d(m, k) < SPACING.close)) return false; }
+    }
+    return true;
+  };
+  const ofCat = (c) => kept.filter((k) => k.category === c).length;
+  // every kind once first (the screens' kinds among the screens), then the rest; the places with the fewest others
+  // near them taken before the crowded ones, so that as many fit as can
+  for (const type of Object.keys(BILLBOARD_TYPES)) { const b = pool.find((x) => x.type === type && ok(x)); if (b && ofCat(b.category) < KEEP[b.category]) kept.push(b); }
+  for (const b of pool) {
+    if (kept.length >= 50) break;
+    if (kept.includes(b) || ofCat(b.category) >= KEEP[b.category] || !ok(b)) continue;
+    kept.push(b);
+  }
+  return kept;
+}
+let best = null;
+for (let t = 1; t <= 600; t += 1) {
+  const k = choose(t * 7919);
+  const types = new Set(k.map((b) => b.type)).size;
+  const score = k.length * 100 + types;
+  if (!best || score > best.score) best = { k, score, t };
+  if (k.length === 50 && types === Object.keys(BILLBOARD_TYPES).length) break;
+}
+let next = ORIGINAL;
+for (const b of best.k) if (!b.id) { next += 1; b.id = `BB-${String(next).padStart(3, '0')}`; }
+list.splice(0, list.length, ...best.k.sort((a, c) => a.id.localeCompare(c.id)));
+console.log("kept", list.length, 'from try', best.t, 'kinds', new Set(list.map((b) => b.type)).size, 'of', Object.keys(BILLBOARD_TYPES).length);
+
 const counts = {};
 for (const b of list) counts[b.category] = (counts[b.category] || 0) + 1;
 const byType = {};

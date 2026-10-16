@@ -1,4 +1,4 @@
-// The town's advertising billboards: five hundred of them, each with its own identity, kind, size and category;
+// The town's advertising billboards: fifty of them (ten screens), well apart, each with its own identity, kind, size and category;
 // every pole and leg on open ground (not on a road, in a building or in the river, nor hanging in the air), the
 // owner's prices, and the server's copy of the list the same as the game's.
 //   node --test test/billboards.test.mjs
@@ -18,13 +18,13 @@ const inBox = (b, x, z, m = 0) => x > b.x0 - m && x < b.x1 + m && z > b.z0 - m &
 const nearAreas = (x, z) => Math.min(...Z.OUTSKIRT_AREAS.map((a) => Math.hypot(Math.max(a.x0 - x, 0, x - a.x1), Math.max(a.z0 - z, 0, z - a.z1))));
 const ground = (x, z) => (x > -232 ? Z.zoneOnGround(x, z) : Z.zoneOnGround(x, z) || (x > -1325 && z > -655 && z < 110 && nearAreas(x, z) < 36));
 
-test('five hundred billboards, each with its own identity, in the five categories, about twenty of them screens', () => {
-  assert.ok(ZONE_BILLBOARDS.length >= 500);
+test('fifty billboards, each with its own identity, in the five categories, ten of them screens', () => {
+  assert.equal(ZONE_BILLBOARDS.length, 50);
   assert.equal(new Set(ZONE_BILLBOARDS.map((b) => b.id)).size, ZONE_BILLBOARDS.length);
   const count = {};
   for (const b of ZONE_BILLBOARDS) count[b.category] = (count[b.category] || 0) + 1;
-  for (const c of Object.keys(AD_CATEGORIES)) assert.ok(count[c] >= 15, `${c}: ${count[c]}`);
-  assert.ok(count.tv >= 18 && count.tv <= 24, `${count.tv} screens`);
+  for (const c of Object.keys(AD_CATEGORIES)) assert.ok(count[c] >= 5, `${c}: ${count[c]}`);
+  assert.equal(count.tv, 10, 'ten screens');
   for (const b of ZONE_BILLBOARDS) {
     const t = BILLBOARD_TYPES[b.type];
     assert.ok(t, b.type);
@@ -41,8 +41,16 @@ test('five hundred billboards, each with its own identity, in the five categorie
     assert.ok(existsSync(new URL(`../assets/billboards/reference/${t.ref}.jpg`, import.meta.url)) || existsSync(new URL(`../assets/billboards/reference/${t.ref}.jpeg`, import.meta.url)) || existsSync(new URL(`../assets/billboards/reference/${t.ref}.png`, import.meta.url)), `${id}: its photograph ${t.ref}`);
   }
   // the sizes vary: not one board scaled
-  assert.ok(new Set(ZONE_BILLBOARDS.map((b) => `${b.width}x${b.height}`)).size >= 25);
+  assert.ok(new Set(ZONE_BILLBOARDS.map((b) => `${b.width}x${b.height}`)).size >= 15);
   assert.equal(EMPTY_FACE, 'PLACE YOUR ADS');
+});
+
+test('well apart: none within 40 m of another, and never more than two close together (within 90 m)', () => {
+  for (const a of ZONE_BILLBOARDS) {
+    const near = ZONE_BILLBOARDS.filter((b) => b !== a && Math.hypot(a.x - b.x, a.z - b.z) < 90);
+    assert.ok(near.length <= 1, `${a.id}: ${near.map((b) => b.id).join(', ')} close by`);
+    for (const b of near) assert.ok(Math.hypot(a.x - b.x, a.z - b.z) >= 40, `${a.id} and ${b.id}`);
+  }
 });
 
 test('every pole and leg stands on open ground: not on a road, in a building, a plot or the river, and not in the air', () => {
