@@ -348,7 +348,10 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   await shot('02-arrive');
   // walk up Market Road, away from the river, with the keyboard
   await page.keyboard.down('Shift'); await page.keyboard.down('w');
-  await page.waitForTimeout(5000);
+  // (held for five seconds of the game's own time: a page drawn without a graphics card, as here, can run the game
+  // slower than the clock, and five seconds by the clock were not five seconds of running)
+  const ranFrom = await nlw(page, () => window.__nlw.host.game.state.real);
+  await page.waitForFunction((t) => window.__nlw.host.game.state.real >= t, ranFrom + 5, { timeout: 120000 }).catch(() => {});
   await page.keyboard.up('w'); await page.keyboard.up('Shift');
   await shot('03-walked');
   const walked = await nlw(page, () => ({ z: window.__nlw.view.self.z, x: window.__nlw.view.self.x }));
@@ -813,6 +816,8 @@ const someone = (page, x, z) => nlw(page, ([x, z]) => {
   for (let i = 0; i < pop.count; i += 1) {
     const w = pop.people[i]; if (w.age < 18 || w.job === 'police') continue;
     pop.locate(i, g.state.t, o); if (o.pose !== 0 || o.moving) continue;
+    // (and still standing there a while later: not someone who has stopped at a kerb only to look before crossing)
+    const later = {}; pop.locate(i, g.state.t + 150, later); if (later.pose !== 0 || later.moving || Math.hypot(later.x - o.x, later.z - o.z) > 0.3) continue;
     let open = true; for (let k = 1; k <= 6; k += 1) if (!n.walkable(o.x + Math.sin(o.h) * k, o.z + Math.cos(o.h) * k)) open = false;
     if (!open) continue;
     const d = Math.hypot(o.x - x, o.z - z); if (!best || d < best.d) best = { i, x: o.x, z: o.z, h: o.h, d, name: w.short };
