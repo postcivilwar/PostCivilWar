@@ -3,11 +3,12 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable } from '../sim/zone.js';
-import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface } from './render-kit.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable } from '../sim/zone.js';
+import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
 import { buildShowroom } from './render-holaris.js';
+import { buildCity } from './render-city.js';
 
 const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
@@ -363,6 +364,7 @@ export function buildWorld(scene) {
 
   // roads: a laterite shoulder under each tarred road, and markings on the tar
   for (const r of ZONE_ROADS) {
+    if (r.id === 'market') continue;          // (the city block's boulevard is drawn by render-city.js)
     const w = r.x1 - r.x0;
     const d = r.z1 - r.z0;
     const tar = r.surface === 'asphalt';
@@ -384,7 +386,7 @@ export function buildWorld(scene) {
     }
   }
 
-  for (const b of ZONE_BUILDINGS) addBuilding(B, signs, b);
+  for (const b of ZONE_BUILDINGS) if (b.kind !== 'city') addBuilding(B, signs, b);          // (the city block's are render-city.js's)
   // the glass showroom: its own few meshes
   const showrooms = ZONE_BUILDINGS.filter((b) => b.kind === 'showroom').map((b) => { const shop = ZONE_SHOPS.find((sh) => sh.building === b.id); const made = buildShowroom(b, { storeys: shop ? shop.storeys : 3 }); scene.add(made.group); return made; });
   for (const t of ZONE_TREES) addTree(solid, leaves, t);
@@ -423,7 +425,10 @@ export function buildWorld(scene) {
 
   // street lamps
   const lampHeads = [];
+  const inCity = (x, z) => x > CITY_AREA.x0 && x < CITY_AREA.x1 && z > CITY_AREA.z0 && z < CITY_AREA.z1;
   for (const lamp of ZONE_LAMPS) {
+    // (the city block's streetlights are its own; their heads are where these lamps are)
+    if (inCity(lamp.x, lamp.z)) { lampHeads.push({ x: lamp.x, z: lamp.z }); continue; }
     const reach = lamp.x < 0 ? 1 : -1;
     solid.round(new THREE.CylinderGeometry(0.06, 0.1, 5.4, 8), place(lamp.x, 2.7, lamp.z), 0x4a4d52);
     solid.box(0.24, 0.3, 0.24, place(lamp.x, 0.15, lamp.z), 0x8d877b);
@@ -460,7 +465,7 @@ export function buildWorld(scene) {
   const zb = ZONE.bounds;
   const poleSpots = (make, from, to, step) => { const out = []; for (let v = from; v <= to; v += step) { const p = make(v); if (zoneWalkable(p.x, p.z, [], 0.3)) out.push(p); } return out; };
   line(poleSpots((x) => ({ x, z: 121.5 }), zb.minX + 14, zb.maxX - 14, 46));
-  line(poleSpots((z) => ({ x: 6.3, z }), -165, 90, 50));
+  line(poleSpots((z) => ({ x: 6.3, z }), -165, -35, 50));          // (no further north: the city block has none)
 
   // jetty: planks on posts
   const jx = (ZONE_JETTY.x0 + ZONE_JETTY.x1) / 2;
@@ -491,6 +496,8 @@ export function buildWorld(scene) {
   scene.add(roadMesh);
 
   const glowMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.2, emissive: linear(0xffc66b), emissiveIntensity: 0 });
+  // the first city block: Market Road's boulevard and its buildings (render-city.js)
+  const city = buildCity(scene, { glowMaterial, lite: isLite(), addTree });
   for (const mesh of glow.build(glowMaterial)) { scene.add(mesh); sight.add(mesh); }
   for (const sign of signs) { scene.add(sign); sight.add(sign, 190, { x: sign.position.x, z: sign.position.z, radius: 4 }); }
   const wireGeometry = new THREE.BufferGeometry();
@@ -523,7 +530,7 @@ export function buildWorld(scene) {
   scene.add(far.build(surface({ vertexColors: true, roughness: 1, metalness: 0 })));
 
   // the river moves: its ripples drift downstream
-  const tick = (dt) => { ripples.offset.x += dt * 0.012; ripples.offset.y += dt * 0.004; };
+  const tick = (dt, now = null) => { ripples.offset.x += dt * 0.012; ripples.offset.y += dt * 0.004; city.tick(dt, now); };
 
   // a weak device gets thinner grass, then none
   let quality = 0;
@@ -538,5 +545,5 @@ export function buildWorld(scene) {
       if (v.model.group.visible) v.model.setDistance(d, undefined, VEHICLE_BIAS[quality]);
     }
   }
-  return { glowMaterial, waterMaterial, lampHeads, signs, showrooms, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
+  return { glowMaterial, waterMaterial, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
 }

@@ -173,7 +173,7 @@ export function createCrowd(scene) {
     Q.setFromEuler(E);
     const lift = pose === POSE.lie ? 0.72 : 0;
     const back = pose === POSE.lie ? 0.85 * s : 0;
-    P.set(x + Math.sin(h) * back, y + lift, z + Math.cos(h) * back);
+    P.set(x + Math.sin(h) * back, y + lift + zoneGroundY(x, z), z + Math.cos(h) * back);
     S.set(s * (fig.wide || 1), s, s * (fig.wide || 1));
     M.compose(P, Q, S);
     const hip = seated ? 0.46 : 0.9;
@@ -196,7 +196,7 @@ export function createCrowd(scene) {
     put(parts.shinR, joint(K, J, 0, -0.44, 0, kneeR), fig.legs);
     if (fig.skirt) put(parts.skirt, joint(K, M, 0, hip + 0.04, seated ? 0.12 : 0, seated ? -1.2 : 0, 1, seated ? 0.5 : fig.skirt === 1 ? 0.5 : 0.82, 1), fig.bottom);
     else parts.skirt.setMatrixAt(n, HIDE);
-    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
+    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06 + zoneGroundY(x, z), z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
     n += 1;
   }
 
@@ -210,7 +210,7 @@ export function createCrowd(scene) {
     E.set(pose === POSE.lie ? -Math.PI / 2 : 0, h, 0);
     Q.setFromEuler(E);
     const back = pose === POSE.lie ? 0.85 * s : 0;
-    P.set(x + Math.sin(h) * back, pose === POSE.lie ? 0.72 : 0, z + Math.cos(h) * back);
+    P.set(x + Math.sin(h) * back, (pose === POSE.lie ? 0.72 : 0) + zoneGroundY(x, z), z + Math.cos(h) * back);
     S.set(s * (fig.wide || 1), s, s * (fig.wide || 1));
     M.compose(P, Q, S);
     const hip = seated ? 0.46 : 0.9;
@@ -251,7 +251,8 @@ export function createCrowd(scene) {
       return;
     }
     g.rotation.set(0, actor.h, 0);
-    g.position.set(actor.x + (actor.ox || 0), 0, actor.z + (actor.oz || 0));
+    // (on the ground where they are: up on a pavement, where it stands above the road)
+    g.position.set(actor.x + (actor.ox || 0), zoneGroundY(actor.x, actor.z), actor.z + (actor.oz || 0));
     // the legs keep the pace the person is really going at, so the feet hold the ground
     const went = rig.atX === undefined ? 0 : Math.hypot(actor.x - rig.atX, actor.z - rig.atZ);
     rig.atX = actor.x; rig.atZ = actor.z;
@@ -534,7 +535,7 @@ export function createCrowd(scene) {
           other.rig.armL.shoulder.rotation.x = -0.4; other.rig.armR.shoulder.rotation.x = -0.4; other.rig.armL.elbow.rotation.x = -0.8; other.rig.armR.elbow.rotation.x = -0.8;
           // the okada's own rider (one of the town's people, the same in every copy of the town)
           const who = typeof vh.driver === 'number' ? known.get(vh.driver) : null;
-          if (who) figure(who.fig, other.x - fx * 0.05, 0.36 + gy, other.z - fz * 0.05, other.h, POSE.ride, 0, 0.55);
+          if (who) figure(who.fig, other.x - fx * 0.05, 0.36, other.z - fz * 0.05, other.h, POSE.ride, 0, 0.55);
         }
       }
     }

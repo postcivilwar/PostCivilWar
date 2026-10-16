@@ -42,6 +42,9 @@ export function initVehicles(renderer) {
   } catch (error) { shared.env = null; }
 }
 
+// What vehicles reflect (null until initVehicles has made it): the city's glass reflects it too.
+export const vehicleEnvironment = () => shared.env;
+
 // How bright the sky is, 0 at night to 1 at noon, so reflections fade after dark.
 export function setVehicleDaylight(amount) {
   const value = Math.max(0.04, Math.min(1, amount));

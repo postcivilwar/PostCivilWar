@@ -12,7 +12,7 @@
 // households; the riders pay a daily levy and take the rest home. The pool
 // is a simplification: residents do not yet have purses of their own.
 
-import { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, zoneWalkable } from './zone.js';
+import { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, zoneWalkable, trafficHold, onBoulevard } from './zone.js';
 import { graphRoute, graphDistance, graphNearest, graphPoint } from './graph.js';
 import { POSE, RIDE_SPEED } from './population.js';
 import { GameError } from './registry.js';
@@ -224,6 +224,10 @@ export function createOkada({ state, ledger, monetary, issuanceAccount, populati
       else if (r.goal && r.mode === 'toRank') { tx = r.goal.x; tz = r.goal.z; } else { arrive(r, t, real); return; }
       const dx = tx - r.x, dz = tz - r.z;
       const gap = Math.hypot(dx, dz);
+      // at a red light on the city block's boulevard: it waits at the line
+      const step = Math.min(gap, budget) + 0.6;
+      if (gap > 0.01 && trafficHold(r.x, r.z, r.x + (dx / gap) * step, r.z + (dz / gap) * step, real)) { r.held = true; r.h = Math.atan2(dx, dz); return; }
+      r.held = false;
       if (gap <= budget) {
         r.x = tx; r.z = tz; budget -= gap;
         if (!final) { r.node = r.route[r.k]; r.k += 1; } else { arrive(r, t, real); return; }
@@ -377,7 +381,8 @@ export function createOkada({ state, ledger, monetary, issuanceAccount, populati
     const out = [];
     for (const r of riders) {
       if (r.mode === 'off' || Math.hypot(r.x - x, r.z - z) > 240) continue;
-      const lane = r.moving && !parted(r) ? OKADA_RULES.lane : 0;
+      // (riders keep right; on the city block's boulevard, in the middle of the inner lane)
+      const lane = (r.moving || r.held) && !parted(r) ? (onBoulevard(r.x, r.z) ? 1.85 : OKADA_RULES.lane) : 0;
       const who = r.passenger;
       const carrying = who && (who.player || (who.npc !== undefined && book.trips[who.npc] && book.trips[who.npc].phase === 'riding'));
       out.push({ n: r.n, person: parted(r) ? null : r.i, x: Math.round((r.x - Math.cos(r.h) * lane) * 100) / 100, z: Math.round((r.z + Math.sin(r.h) * lane) * 100) / 100, h: Math.round(r.h * 100) / 100, moving: r.moving, free: freeNow(r), passenger: carrying ? (who.player ? `player:${who.player}` : who.npc) : null, yours: !!(who && who.player && who.player === viewerId),

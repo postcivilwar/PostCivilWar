@@ -20,6 +20,8 @@ import { houseDoor } from '../layout.js';
 import { kekeLook, busLook, footprintBox } from '../vehicle-looks.js';
 import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } from './atani-outskirts.js';
 import { ZONE_BILLBOARDS } from './atani-billboards.js';
+import { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, BOULEVARD, LAWN, cityGroundY } from './atani-city.js';
+export * from './atani-city.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
 export const ZONE = Object.freeze({
@@ -73,7 +75,9 @@ export const zoneToWater = (x, z) => zoneShoreZ(x) - z;
 const road = (id, name, x0, z0, x1, z1, surface) => Object.freeze({ id, name, x0, z0, x1, z1, surface });
 export const ZONE_ROADS = Object.freeze([
   road('waterside', 'Waterside Road', -250, 108, 250, 118, 'asphalt'),
-  road('market', 'Market Road', -5, -216, 5, 118, 'asphalt'),
+  // (the first city block, from Registry Road to Waterside Road, is a four-lane boulevard: atani-city.js)
+  road('market', 'Market Road', BOULEVARD.x0, BOULEVARD.z0, BOULEVARD.x1, BOULEVARD.z1, 'asphalt'),
+  road('market-s', 'Market Road', -5, -216, 5, -45, 'asphalt'),
   road('registry', 'Registry Road', -240, -45, 240, -35, 'asphalt'),
   road('yard', 'Yard Lane', -120, -145, 198, -137, 'laterite'),
   road('close', 'Layout Close', 5, -216, 198, -208, 'laterite'),
@@ -102,6 +106,8 @@ export const ZONE_BUILDINGS = Object.freeze([
   // Road. It is drawn by its own code (render-holaris.js), not as a walled building with a pitched roof.
   building('holaris', 'showroom', 'HOLARIS WATCH', -26, 44, 16, 12, 12.6, 's', 0x9fd3e6, 0x16222b),
   ...TOWN_BUILDINGS,
+  // the first city block's buildings (not entered: atani-city.js)
+  ...CITY_BUILDINGS,
 ]);
 
 // The wider town: houses, trade sheds, and the walled institutions with the
@@ -173,10 +179,11 @@ export const ZONE_VEHICLES = Object.freeze([
   parked('bus', 1, -72, 86, 0, { ...busLook(1), wear: 0.1, dirt: 0.2 }),          // green over white, as the coach was designed
   parked('bus', 2, -66.5, 86, 0, { ...busLook(0), advert: { head: 'NWOSU BUILDING MATERIALS', line: 'Cement · Roofing · Doors · Paint', ground: 0xf3ecdc, ink: 0x1f2f6b } }),
   parked('bus', 3, -50, 80, Math.PI / 2, { ...busLook(2), advert: { head: 'MAMA NKECHI KITCHEN', line: 'Hot food by the market', ground: 0x7a1f1c, ink: 0xf3ecdc } }),
-  parked('keke', 11, 7.4, 40, 0, kekeLook(3)),
-  parked('keke', 12, -7.4, 6, Math.PI, kekeLook(4)),
-  parked('keke', 13, -7.4, 62, Math.PI, kekeLook(5)),
-  parked('keke', 14, 30, -32.4, Math.PI / 2, kekeLook(6)),
+  // (by Market Road's city block: off the carriageway, in the way into the market and by the HOLARIS showroom)
+  parked('keke', 11, 16, 27, Math.PI / 2, kekeLook(3)),
+  parked('keke', 12, 16, 15, Math.PI / 2, kekeLook(4)),
+  parked('keke', 13, -14, 45, 0, kekeLook(5)),
+  parked('keke', 14, 34, -32.4, Math.PI / 2, kekeLook(6)),
   parked('keke', 15, -60, -32.4, -Math.PI / 2, kekeLook(7)),
   parked('keke', 16, -185, -30.6, Math.PI / 2, kekeLook(8)),
   parked('keke', 17, -99, -51, Math.PI / 2, kekeLook(9)),
@@ -215,7 +222,9 @@ export const ZONE_RUNS = Object.freeze([
 ]);
 
 export const ZONE_LAMPS = Object.freeze([
-  [-7, 100], [7, 60], [-7, 20], [7, -20], [-7, -60], [7, -100], [-7, -150], [7, -190],
+  // (Market Road's own, from Registry Road to the river, are the city block's streetlights: atani-city.js)
+  ...CITY_FURNITURE.filter((f) => f.kind === 'light').map((f) => [f.x + f.face * 1.8, f.z]),
+  [-7, -60], [7, -100], [-7, -150], [7, -190],
   [-60, 106], [-130, 106], [-200, 106], [70, 106], [140, 106],
   [-90, -47], [-160, -47], [90, -33], [150, -33],
   [60, -147], [130, -147], [-60, -147],
@@ -310,7 +319,9 @@ export const ZONE_ALLOCATIONS = Object.freeze([
 // ---------------------------------------------------------------------------
 
 const BASE_NODES = ({
-  mk_s: [0, 113], mk_m: [0, 60], mk_x: [0, -40], mk_y: [0, -141], mk_n: [0, -212],
+  mk_s: [0, 113], mk_m: [0, 60], mk_x: [0, -40],
+  // the west pavement of Market Road's city block, which people walk (the road's own middle is for the traffic)
+  pw_s: [-8.6, 104.5], pw_m: [-8.6, 60], pw_x: [-8.6, -30], mk_y: [0, -141], mk_n: [0, -212],
   mar_w1: [-40, 113], mar_w2: [-120, 113], mar_w3: [-150, 113], mar_w4: [-180, 113], mar_w5: [-210, 113],
   mar_e0: [21, 113], mar_e1: [120, 113], mar_e2: [150, 113], mar_e3: [180, 113],
   park: [-40, 99], jetty_a: [21, 140], jetty_b: [21, 174],
@@ -329,7 +340,8 @@ const BASE_EDGES = ([
   ['mk_s', 'mar_e0'], ['mar_e0', 'mar_e1'], ['mar_e1', 'mar_e2'], ['mar_e2', 'mar_e3'],
   ['h1', 'mar_w2'], ['h2', 'mar_w3'], ['h3', 'mar_w4'], ['h4', 'mar_w5'], ['h5', 'mar_e1'], ['h6', 'mar_e2'], ['h7', 'mar_e3'],
   ['park', 'mar_w1'], ['mar_e0', 'jetty_a'], ['jetty_a', 'jetty_b'],
-  ['mk_s', 'mk_m'], ['mk_m', 'mk_x'], ['mk_x', 'mk_y'], ['mk_y', 'mk_n'],
+  ['mk_s', 'mk_m'], ['mk_m', 'mk_x'],
+  ['mk_s', 'pw_s'], ['pw_s', 'pw_m'], ['pw_m', 'pw_x'], ['pw_x', 'mk_x'], ['pw_m', 'mk_m'], ['mk_x', 'mk_y'], ['mk_y', 'mk_n'],
   ['mk_m', 'market_gate'], ['market_gate', 'ma_w'], ['ma_w', 'market_mid'], ['market_mid', 'ma_e'], ['market_mid', 'market_n'],
   ['market_n', 'store_door'], ['market_n', 'kitchen_door'], ['ma_w', 'stall_w'], ['ma_e', 'stall_e'], ['ma_e', 'stall_s'],
   ['mk_x', 'rr_e1'], ['rr_e1', 'reg_door'], ['rr_e1', 'clinic_door'],
@@ -354,7 +366,7 @@ export const ZONE_PLACES = Object.freeze({
   park: place('park', -35, 95.5, 0.6), jetty: place('jetty_b', 21, 176.5, 0),
   survey: place('yl_e1', 112, -135.6, Math.PI), r12: place('r12_site', 104.5, -196, 0),
   lunch_a: place('kitchen_door', 60, 14.5, 0.4), lunch_b: place('kitchen_door', 68.5, 15, -0.5), lunch_c: place('market_n', 47, 15.5, 0.2),
-  stroll_market: place('ma_w', 36, 62.5, 1.0), stroll_shore: place('mar_e0', 30, 124, 0), stroll_cross: place('mk_x', 3.5, -30, 2.2),
+  stroll_market: place('ma_w', 36, 62.5, 1.0), stroll_shore: place('mar_e0', 30, 124, 0), stroll_cross: place('pw_x', -9.2, -27, 2.2),
 });
 
 // ---------------------------------------------------------------------------
@@ -537,6 +549,7 @@ export function zoneShedWalls(s) {
 function buildFixedColliders() {
   const boxes = [];
   for (const b of ZONE_BUILDINGS) boxes.push(boxOf(b.x, b.z, b.w / 2, b.d / 2));
+  boxes.push(...CITY_COLLIDERS);
   for (const s of ZONE_STALLS) boxes.push({ x0: s.x - 1.5, x1: s.x + 1.5, z0: s.z - 0.9, z1: s.z + 0.9 });
   for (const m of ZONE_MOULD_STATIONS) boxes.push({ x0: m.x - 0.7, x1: m.x + 0.7, z0: m.z - 0.6, z1: m.z + 0.6 });
   for (const v of ZONE_VEHICLES) {
@@ -875,8 +888,9 @@ function buildTrees() {
   const trees = [];
   const keepClear = [];
   for (const p of ZONE_PARCELS) keepClear.push({ x0: p.x0 - 2, x1: p.x1 + 2, z0: p.z0 - 2, z1: p.z1 + 2 });
-  for (const r of ZONE_ROADS) keepClear.push({ x0: r.x0 - 3, x1: r.x1 + 3, z0: r.z0 - 3, z1: r.z1 + 3 });
-  for (const b of ZONE_BUILDINGS) keepClear.push(boxOf(b.x, b.z, b.w / 2 + 5, b.d / 2 + 6));
+  // (the trees were laid out before the city block; it does not move the others: those in its way are taken out below)
+  for (const r of [...ZONE_ROADS.filter((q) => q.id !== 'market' && q.id !== 'market-s'), { x0: -5, x1: 5, z0: -216, z1: 118 }]) keepClear.push({ x0: r.x0 - 3, x1: r.x1 + 3, z0: r.z0 - 3, z1: r.z1 + 3 });
+  for (const b of ZONE_BUILDINGS) if (b.kind !== 'city') keepClear.push(boxOf(b.x, b.z, b.w / 2 + 5, b.d / 2 + 6));
   for (const h of ZONE_HOUSES) keepClear.push(boxOf(h.x, h.z, h.w / 2 + 2.5, h.d / 2 + 3.5));
   for (const s of ZONE_SHEDS) keepClear.push(boxOf(s.x, s.z, 6, 6));
   for (const c of ZONE_COMPOUNDS) {
@@ -916,12 +930,15 @@ function buildTrees() {
 }
 // (none stands where the bridge's approach comes up from the road: the rest are where they always were)
 const underBridge = (t) => t.x > BRIDGE.x0 - 2 && t.x < BRIDGE.x1 + 2 && t.z > BRIDGE.start - 2;
-export const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(t)));
+// (none where the city block has its road, pavements, buildings and lawn: the lawn has its own trees)
+const inCityWay = (t) => [...PAVEMENTS, { x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0: BOULEVARD.z0, z1: BOULEVARD.z1 }, { x0: LAWN.x0, x1: LAWN.x1, z0: LAWN.z0, z1: LAWN.z1 }, ...CITY_BUILDINGS.map((b) => boxOf(b.x, b.z, b.w / 2, b.d / 2))].some((b) => t.x > b.x0 - 2.5 && t.x < b.x1 + 2.5 && t.z > b.z0 - 2.5 && t.z < b.z1 + 2.5);
+export const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(t) && !inCityWay(t)));
 
 // Beyond the town (atani-outskirts.js): the road to Onitsha, the airport and the bridge. They are walked and
 // driven on like the town's own ground, and their walls are walls; the town's own layout is unchanged by them.
 export * from './atani-outskirts.js';
-export const zoneGroundY = outskirtsGroundY;
+// (the bridge and the far bank; and in the city block, the pavements, a kerb above the road)
+export const zoneGroundY = (x, z) => cityGroundY(x, z) || outskirtsGroundY(x, z);
 
 // The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
 // (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)

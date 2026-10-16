@@ -2350,7 +2350,7 @@ blood.update(dt, view.blood || []);
     headlight.intensity = lit ? 2.2 : 0;
     if (lit) { const b = ownBikeView.ridden(); b.headlampAt(headlight.position); headlight.target.position.copy(b.lean.localToWorld(shakeAim.set(0, 0.2, 12))); headlight.target.updateMatrixWorld(); }
 
-    world.tick(dt);
+    world.tick(dt, host && host.game ? host.game.state.real : null);
     const skyState = sky.update(dt, hour, weather, cam.target, camera);
     night = skyState.night;
     setVehicleDaylight(1 - night);

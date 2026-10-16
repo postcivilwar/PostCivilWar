@@ -7,7 +7,7 @@
 // part of that one building is put away, so the room can be seen from above.
 // THREE is the global from three.min.js.
 
-import { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, zoneShedWalls } from '../sim/zone.js';
+import { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, CITY_AREA, zoneShedWalls } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, textTexture, noise, shadeOf, addPitchedRoof, buildingKit } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 
@@ -410,8 +410,12 @@ function addShed(B, s, signs) {
   const alongX = s.face === 'n' || s.face === 's';
   const sx = alongX ? s.w : s.d, sz = alongX ? s.d : s.w;
   const [fx, fz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[s.face];
-  for (const wall of zoneShedWalls(s)) walls.box(wall.x1 - wall.x0, 2.3, wall.z1 - wall.z0, place((wall.x0 + wall.x1) / 2, 1.15, (wall.z0 + wall.z1) / 2), s.trade === 'foodvendor' ? 0xd9c0a0 : 0xb9b3a6);
-  roofs.box(sx + 0.9, 0.05, sz + 0.9, place(s.x + fx * 0.3, 2.42, s.z + fz * 0.3, 0, 1, 1, 1, alongX ? fz * 0.12 : 0, alongX ? 0 : -fx * 0.12), [0x8f989e, 0x7a2f22, 0x355e3b, 0x4f6272][Math.abs(Math.round(s.x + s.z)) % 4], 1, alongX ? 'plan' : 'planZ');
+  // (on the city block's pavement, a kiosk painted in its own colour under a flat metal canopy)
+  const city = s.x > CITY_AREA.x0 && s.x < CITY_AREA.x1 && s.z > CITY_AREA.z0 && s.z < CITY_AREA.z1;
+  const paint = [0x2e5d4b, 0x7a2f2a, 0x2b4a6e, 0x8a6a2a, 0x5a3a5e][Math.abs(Math.round(s.z / 9)) % 5];
+  for (const wall of zoneShedWalls(s)) walls.box(wall.x1 - wall.x0, 2.3, wall.z1 - wall.z0, place((wall.x0 + wall.x1) / 2, 1.15, (wall.z0 + wall.z1) / 2), city ? paint : s.trade === 'foodvendor' ? 0xd9c0a0 : 0xb9b3a6);
+  if (city) solid.box(sx + 0.7, 0.12, sz + 0.7, place(s.x + fx * 0.25, 2.46, s.z + fz * 0.25), 0x34383d);
+  else roofs.box(sx + 0.9, 0.05, sz + 0.9, place(s.x + fx * 0.3, 2.42, s.z + fz * 0.3, 0, 1, 1, 1, alongX ? fz * 0.12 : 0, alongX ? 0 : -fx * 0.12), [0x8f989e, 0x7a2f22, 0x355e3b, 0x4f6272][Math.abs(Math.round(s.x + s.z)) % 4], 1, alongX ? 'plan' : 'planZ');
   for (const side of [-1, 1]) solid.box(0.08, 2.4, 0.08, place(s.x + fx * (alongX ? sz : sx) / 2 + (alongX ? side * (sx / 2 - 0.05) : 0), 1.2, s.z + fz * (alongX ? sz : sx) / 2 + (alongX ? 0 : side * (sz / 2 - 0.05))), 0x6a5038);
   solid.box(sx, 0.03, sz, place(s.x, 0.015, s.z), 0x9c958a);
   const board = sign(s.sign, Math.min(s.w + 0.6, Math.max(3, s.sign.length * 0.26)), 0.5, ['#f5c518', '#171a2e']);

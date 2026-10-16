@@ -6,7 +6,7 @@
 // a route is a walk back along the tree. `road` routes keep to roads and
 // lanes, which is where motorcycles go.
 
-import { ZONE_NODES, ZONE_EDGES, ZONE_ROADS } from './zone.js';
+import { ZONE_NODES, ZONE_EDGES, ZONE_ROADS, BOULEVARD } from './zone.js';
 
 const NAMES = Object.keys(ZONE_NODES);
 const INDEX = new Map(NAMES.map((name, i) => [name, i]));
@@ -16,6 +16,8 @@ const Z = new Float32Array(COUNT);
 NAMES.forEach((name, i) => { X[i] = ZONE_NODES[name][0]; Z[i] = ZONE_NODES[name][1]; });
 
 const onRoad = (x, z) => ZONE_ROADS.some((r) => x >= r.x0 - 0.6 && x <= r.x1 + 0.6 && z >= r.z0 - 0.6 && z <= r.z1 + 0.6);
+const inBoulevard = (x, z) => x >= BOULEVARD.x0 && x <= BOULEVARD.x1 && z >= BOULEVARD.z0 + 12 && z <= BOULEVARD.z1 - 12;
+const alongBoulevard = (ax, az, bx, bz) => Math.abs(bz - az) > 20 && inBoulevard((ax + bx) / 2, (az + bz) / 2);
 const ROAD_NODE = new Uint8Array(COUNT);
 for (let i = 0; i < COUNT; i += 1) ROAD_NODE[i] = onRoad(X[i], Z[i]) ? 1 : 0;
 // people keep to one side of an open path; in a doorway they walk the middle
@@ -28,8 +30,11 @@ for (const [a, b] of ZONE_EDGES) {
   const i = INDEX.get(a);
   const j = INDEX.get(b);
   const length = Math.hypot(X[i] - X[j], Z[i] - Z[j]);
-  ALL[i].push([j, length]);
-  ALL[j].push([i, length]);
+  // (along the middle of a city boulevard is the traffic's way: someone walking takes the pavement beside it, and
+  // crosses it only where it has to be crossed)
+  const walk = alongBoulevard(X[i], Z[i], X[j], Z[j]) ? length * 4 : length;
+  ALL[i].push([j, walk]);
+  ALL[j].push([i, walk]);
   if (ROAD_NODE[i] && ROAD_NODE[j] && onRoad((X[i] + X[j]) / 2, (Z[i] + Z[j]) / 2)) { ROADS[i].push([j, length]); ROADS[j].push([i, length]); }
 }
 

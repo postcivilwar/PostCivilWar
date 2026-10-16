@@ -23,7 +23,8 @@ const MARKET = [8, 58];
 const clean = (w) => assert.deepEqual(w.host.auditor.reconcile(), [], 'the ledger balances');
 const government = (w) => w.host.auditor.balance(w.I.economy.accounts.government(post().jurisdiction));
 const pool = (w) => w.host.auditor.balance(w.I.okada.pool);
-const timid = (w) => standing(w, ...MARKET, { not: ['police'] }).find((a) => a.nerve < 0.4 && a.who.age < 55);
+// (not one an officer is walking past: a test of a blow is not a test of how fast the police come)
+const timid = (w) => farFromPolice(w, standing(w, ...MARKET, { range: 200, not: ['police'] }), 35).find((a) => a.nerve < 0.4 && a.who.age < 55);
 const bold = (w) => farFromPolice(w, standing(w, ...MARKET, { range: 500, not: ['police'] })).find((a) => a.nerve >= 0.75 && a.nerve < 0.95);
 const txnsOf = (w, kind) => w.host.auditor.transactions().filter((t) => t.kind === kind);
 
@@ -352,7 +353,7 @@ test('stolen money: taken by a ledger transaction, and taken back and returned o
   const before = pool(w), mine = w.balance(w.p);
   // work through the market until a pocket is picked without the owner feeling it
   let got = null, tried = 0;
-  for (const a of standing(w, ...MARKET, { range: 120, not: ['police'] })) {
+  for (const a of farFromPolice(w, standing(w, ...MARKET, { range: 120, not: ['police'] }), 35)) {
     beside(w, w.p, a, { behind: true, metres: 0.9 });
     const r = ok(w.send(w.id, { type: 'crime.steal', target: { kind: 'npc', id: a.i } }));
     tried += 1;

@@ -18,7 +18,7 @@
 // The few people who ride motorcycle taxis are the exception: a ride is
 // simulated, and okada.js tells this module where its passengers are.
 
-import { ZONE_SPOTS, ZONE_HOMES, ZONE_VENUES, ZONE_ROOMS, ZONE_POPULATION, ZONE_RESIDENTS } from './zone.js';
+import { ZONE_SPOTS, ZONE_HOMES, ZONE_VENUES, ZONE_ROOMS, ZONE_POPULATION, ZONE_RESIDENTS, BOULEVARD } from './zone.js';
 import { PEOPLES, GIVEN_NAMES, TRAITS } from './culture.js';
 import { makeRng } from './rng.js';
 import { wearFor, configFromLook, figFor } from './characters.js';
@@ -52,6 +52,11 @@ const CONGREGATION = { catholic: [...slot('catholic', 'nave.pew'), ...slot('cath
 
 // A journey between two spots: the points to walk through, and how far it is.
 const pathCache = new Map();
+// Crossing the city block's boulevard (atani-city.js): someone on foot stops at the kerb before stepping out, for as
+// long as walking KERB_PAUSE metres would take (a few seconds), and then crosses.
+const KERB_PAUSE = 4;
+const onCarriageway = (x, z) => x > BOULEVARD.x0 && x < BOULEVARD.x1 && z > BOULEVARD.z0 && z < BOULEVARD.z1;
+const atKerb = (x, z) => !onCarriageway(x, z) && Math.abs(x) < BOULEVARD.x1 + 5 && z > BOULEVARD.z0 - 4 && z < BOULEVARD.z1;
 function pathBetween(a, b) {
   const key = a * 8192 + b;
   let path = pathCache.get(key);
@@ -71,14 +76,20 @@ function pathBetween(a, b) {
   const xs = [];
   const open = [];
   const cum = [0];
-  for (const [x, z, o] of pts) {
+  const still = [];
+  for (let k = 0; k < pts.length; k += 1) {
+    const [x, z, o] = pts[k];
     const n = xs.length / 2;
     if (n && Math.abs(xs[n * 2 - 2] - x) < 0.01 && Math.abs(xs[n * 2 - 1] - z) < 0.01) continue;
     if (n) cum.push(cum[n - 1] + Math.hypot(x - xs[n * 2 - 2], z - xs[n * 2 - 1]));
     xs.push(x, z);
     open.push(o);
+    still.push(0);
+    // about to step off the pavement into the city boulevard's traffic: they stop at the kerb and look first
+    const next = pts[k + 1];
+    if (next && atKerb(x, z) && onCarriageway(next[0], next[1])) { cum.push(cum[cum.length - 1] + KERB_PAUSE); xs.push(x, z); open.push(0); still.push(1); }
   }
-  path = { xs: Float32Array.from(xs), open: Uint8Array.from(open), cum: Float32Array.from(cum), len: cum[cum.length - 1], nodes };
+  path = { xs: Float32Array.from(xs), open: Uint8Array.from(open), cum: Float32Array.from(cum), len: cum[cum.length - 1], nodes, still: still.some(Boolean) ? Uint8Array.from(still) : null };
   pathCache.set(key, path);
   return path;
 }
@@ -824,6 +835,13 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
       const f = (d - cum[a]) / span;
       const ax = path.xs[a * 2], az = path.xs[a * 2 + 1], bx = path.xs[b * 2], bz = path.xs[b * 2 + 1];
       const dx = (bx - ax) / span, dz = (bz - az) / span;
+      if (path.still && path.still[b]) {
+        // standing at the kerb, looking at the road before crossing it
+        const nx = path.xs[(b + 1) * 2], nz = path.xs[(b + 1) * 2 + 1];
+        out.x = ax; out.z = az; out.h = Number.isFinite(nx) ? Math.atan2(nx - ax, nz - az) : 0;
+        out.pose = POSE.stand; out.spot = leg.spot; out.act = leg.act; out.moving = false; out.leg = leg;
+        return out;
+      }
       const side = path.open[a] && path.open[b] ? people[i].side : 0;
       out.x = ax + (bx - ax) * f + dz * side;
       out.z = az + (bz - az) * f - dx * side;
