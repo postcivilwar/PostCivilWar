@@ -65,8 +65,11 @@ const lights = await page.evaluate(async () => {
 check('the junction\'s signals change, and Market Road and Registry Road are never green together', lights.some((s) => s.startsWith('green')) && lights.some((s) => s.endsWith('green')) && !lights.includes('green/green'), lights);
 
 // ---- at night ----
-await page.evaluate(() => { const n = window.__nlw; for (let i = 0; i < 24 && n.night < 0.6; i += 1) n.skip(1); });
+// (an hour at a time, letting a frame be drawn between, so that the sky and the lamps follow)
+for (let i = 0; i < 24 && (await page.evaluate(() => window.__nlw.night)) < 0.6; i += 1) { await page.evaluate(() => window.__nlw.skip(1)); await page.waitForTimeout(400); }
 await view('08-night', { x: -8.6, z: 15, h: 0, yaw: 0.25, dist: 6, pitch: 0.12, wait: 3500 });
+const dark = await page.evaluate(() => { const n = window.__nlw; return { night: +n.night.toFixed(2), lit: +n.world.glowMaterial.emissiveIntensity.toFixed(2), lamps: n.world.lampHeads.filter((l) => l.x > -31 && l.x < 30 && l.z > -49 && l.z < 118).length }; });
+check('at night the block\'s streetlights and some of its windows are lit', dark.night > 0.5 && dark.lit > 0.5 && dark.lamps >= 10, dark);
 
 // ---- what it costs ----
 const cost = await page.evaluate(() => { const n = window.__nlw; n.place(-8.6, 0); n.cam.yaw = 0; const r = n.renderer; return r ? { calls: r.info.render.calls, triangles: r.info.render.triangles } : null; });
