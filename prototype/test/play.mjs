@@ -816,8 +816,10 @@ const someone = (page, x, z) => nlw(page, ([x, z]) => {
   for (let i = 0; i < pop.count; i += 1) {
     const w = pop.people[i]; if (w.age < 18 || w.job === 'police') continue;
     pop.locate(i, g.state.t, o); if (o.pose !== 0 || o.moving) continue;
-    // (and still standing there a while later: not someone who has stopped at a kerb only to look before crossing)
-    const later = {}; pop.locate(i, g.state.t + 150, later); if (later.pose !== 0 || later.moving || Math.hypot(later.x - o.x, later.z - o.z) > 0.3) continue;
+    // (left to their own day, and still standing there a while later: not someone being taken somewhere by something
+    // that has happened, such as the one who came to help, nor someone stopped at a kerb only to look before crossing)
+    const own = {}, later = {}; pop.planned(i, g.state.t, own); pop.planned(i, g.state.t + 150, later);
+    if (Math.hypot(own.x - o.x, own.z - o.z) > 0.3 || later.pose !== 0 || later.moving || Math.hypot(later.x - o.x, later.z - o.z) > 0.3) continue;
     let open = true; for (let k = 1; k <= 6; k += 1) if (!n.walkable(o.x + Math.sin(o.h) * k, o.z + Math.cos(o.h) * k)) open = false;
     if (!open) continue;
     const d = Math.hypot(o.x - x, o.z - z); if (!best || d < best.d) best = { i, x: o.x, z: o.z, h: o.h, d, name: w.short };
@@ -894,7 +896,9 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
   // --- a fight: squaring up, blows, blocking; then the police ---
   const who = await someone(page, 0, 60);
   await faceUp(page, who);
-  await page.waitForTimeout(1500);
+  // (a second and a half of the game's own time: who is within reach is worked out as the game runs)
+  const facedAt = await nlw(page, () => window.__nlw.host.game.state.real);
+  await page.waitForFunction((t) => window.__nlw.host.game.state.real >= t, facedAt + 1.5, { timeout: 60000 }).catch(() => {});
   s = await now(page);
   if (!s.keys.some((k) => /Fight/.test(k))) bad(`facing ${who.name}, the keys offered are ${s.keys.join(', ')}`);
   await page.keyboard.press('f'); await page.waitForTimeout(1000);
