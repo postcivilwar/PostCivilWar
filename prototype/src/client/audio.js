@@ -21,7 +21,8 @@
 //   lowers music and background; an open panel lowers everything but itself.
 //   A limiter on the way out catches what is left.
 
-import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn } from './bike-audio.js';
+import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor } from './bike-audio.js';
+import { POWER_BIKES } from '../sim/power-bikes.js';
 
 // How each kind of engine sounds: lowest pitch, how far it climbs, its
 // character. Only the keke and the okada move in this build; the rest are
@@ -420,6 +421,37 @@ export function createAudio() {
     here('horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
   }
 
+  // A motorcycle's engine heard before it is bought (the market's Play Sound): started, held at idle, revved up
+  // through the gears and let off again, over and over, until it is stopped. One at a time: a second stops the
+  // first, and so does getting on a bike. Gives a function that stops it.
+  let preview = null;
+  function stopPreview() {
+    if (!preview) return;
+    const p = preview; preview = null;
+    clearInterval(p.timer);
+    if (ctx) { p.engine.stop(ctx.currentTime); setTimeout(() => p.engine.dispose(), 1600); }
+  }
+  function previewBike(id) {
+    stopPreview();
+    const bike = POWER_BIKES[id];
+    if (!bike || !start() || !ctx) return () => {};
+    const engine = createBikeEngine(ctx, nodes.vehicles, profileFor(bike), { noise: nodes.white });
+    engine.start(ctx.currentTime);
+    const began = ctx.currentTime;
+    // (one turn of it: idle 1.6 s, up through the gears 3.4 s, let off 1.6 s, idle again 1.4 s)
+    const cycle = 8;
+    const at = (t) => {
+      const k = t % cycle;
+      if (k < 1.6) return [0.04, 0];
+      if (k < 5) { const u = (k - 1.6) / 3.4; const gear = Math.min(3, Math.floor(u * 4)); const inGear = u * 4 - gear; return [0.18 + gear * 0.08 + inGear * 0.5, 1]; }
+      if (k < 6.6) return [Math.max(0.04, 0.6 * (1 - (k - 5) / 1.6)), 0];
+      return [0.04, 0];
+    };
+    const me = { engine, timer: setInterval(() => { if (!ctx || preview !== me) return; const [rev, throttle] = at(ctx.currentTime - began); engine.set(rev, throttle, ctx.currentTime); }, 50) };
+    preview = me;
+    return () => { if (preview === me) stopPreview(); };
+  }
+
   // A blow in a fight: 'punch', 'heavy', 'kick', 'block', 'miss', 'shove', 'fall'. No voices, no gore: a thud and the cloth.
   function blow(kind, x, z) {
     const play = (out, t) => {
@@ -567,7 +599,8 @@ export function createAudio() {
     const bike = own && own.kind === 'powerbike' ? own : null;
     if (bike && (!nodes.bike || nodes.bike.id !== bike.bike)) {
       if (nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; setTimeout(() => old.dispose(), 1500); }
-      const profile = BIKE_SOUNDS[bike.sound] || BIKE_SOUNDS.four1000;
+      const profile = POWER_BIKES[bike.bike] ? profileFor(POWER_BIKES[bike.bike]) : BIKE_SOUNDS[bike.sound] || BIKE_SOUNDS.four1000;
+      stopPreview();
       nodes.bike = { id: bike.bike, engine: createBikeEngine(ctx, nodes.vehicles, profile, { noise: nodes.white }) };
       nodes.bike.engine.start(now);
     } else if (!bike && nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; nodes.bike = null; setTimeout(() => old.dispose(), 1500); }
@@ -735,7 +768,7 @@ export function createAudio() {
 
   return {
     supported: !!Ctx,
-    start, update, bell, footstep, horn, bikeHorn, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     get running() { return !!ctx && ctx.state === 'running'; },
     get muted() { return muted; },

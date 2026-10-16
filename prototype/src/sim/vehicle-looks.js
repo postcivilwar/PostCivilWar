@@ -57,8 +57,8 @@ export const BUS_CABINS = Object.freeze({
 // a coach shows instead is its operator's name, which is invented below.
 
 // Invented operators, routes and slogans. None is a real company.
-export const BUS_OPERATORS = Object.freeze(['OGBARU LINE', 'EASTBANK COACHES', 'ATANI TRAVELLERS', 'RIVER ROAD MOTORS']);
-export const BUS_ROUTES = Object.freeze(['ATANI · ONITSHA', 'ATANI · AWKA', 'ATANI · ASABA', 'ATANI · NNEWI']);
+export const BUS_OPERATORS = Object.freeze(['OSHIMILI LINE', 'WESTBANK COACHES', 'ASABA TRAVELLERS', 'RIVER ROAD MOTORS']);
+export const BUS_ROUTES = Object.freeze(['ASABA · BENIN', 'ASABA · AGBOR', 'ASABA · WARRI', 'ASABA · UGHELLI']);
 export const KEKE_SLOGANS = Object.freeze(["GOD'S TIME", 'NO FOOD FOR LAZY MAN', 'ONE DAY E GO BETTER', 'CHUKWU EBUKA', 'NO CONDITION IS PERMANENT', 'THANK GOD', 'SLOW AND STEADY', 'TRUST NO BODY']);
 export const KEKE_EXTRAS = Object.freeze(['curtains']);
 export const BUS_EXTRAS = Object.freeze(['flaps']);

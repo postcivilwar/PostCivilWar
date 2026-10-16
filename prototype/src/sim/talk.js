@@ -12,7 +12,7 @@
 // its text, which is what a voice service would be given later.
 
 import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident } from './zone.js';
-import { LANGUAGES, EXCHANGES, phrase, greetingId, dayPart, sharedLanguage } from './culture.js';
+import { LANGUAGES, EXCHANGES, PEOPLES, phrase, greetingId, dayPart, sharedLanguage } from './culture.js';
 import { POSE, RANGE } from './population.js';
 import { GameError } from './registry.js';
 import { cleanFigureLook } from './figures.js';
@@ -196,6 +196,10 @@ export function createTalk({ state, population, residents, players, weather, hub
     const quiet = p.traits.includes('reserved') || p.traits.includes('shy');
     if (p.age < 12) answer(english ? `My name is ${p.first}. ${role}.` : `My name na ${p.first}.`, english ? 'en' : 'pcm', english ? null : `My name is ${p.first}.`);
     else answer(english ? `I am ${p.first} ${p.surname}. ${role}.` : `My name na ${p.first} ${p.surname}. ${role}.`, english ? 'en' : 'pcm', english ? null : `My name is ${p.first} ${p.surname}. ${role}.`);
+    // what they speak at home, when it is not what they are speaking to you in (said in English or Pidgin: the game
+    // does not put words into a language it does not hold)
+    const home = PEOPLES[p.people];
+    if (p.age >= 12 && home && home.tongue && home.language !== g.lang && !quiet && hash(index, 31) < 0.6) answer(english ? `At home I speak ${home.tongue}.` : `For house, na ${home.tongue} I dey speak.`, english ? 'en' : 'pcm', english ? null : `At home I speak ${home.tongue}.`);
     if (!quiet) {
       const doing = lowerFirst(who.activity);
       if (who.needs.hunger > 0.85 && hash(index, 4) < 0.5) { const hungry = spoken('hungry', g.lang, hour); answer(hungry.text, hungry.lang, hungry.gloss); }

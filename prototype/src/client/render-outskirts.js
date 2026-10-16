@@ -84,9 +84,22 @@ function addLamp(B, lamp, heads) {
 function addSign(B, s, signs) {
   // (a sign given its own height, `high`, hangs at that height above the town's ground: on a canopy or a girder)
   const ground = s.high !== undefined ? 0 : s.ground !== undefined ? s.ground : zoneGroundY(s.x, s.z);
-  const high = s.high !== undefined ? s.high : 2.4 + s.height / 2;
+  const high = s.gantry ? s.gantry.clear + s.height / 2 : s.high !== undefined ? s.high : 2.4 + s.height / 2;
   const fx = Math.sin(s.facing), fz = Math.cos(s.facing), rx = Math.cos(s.facing), rz = -Math.sin(s.facing);
-  if (s.high === undefined) for (const k of [-1, 1]) B.solid.box(0.12, high + s.height / 2, 0.12, place(s.x + rx * k * (s.width / 2 - 0.4) - fx * 0.08, ground + (high + s.height / 2) / 2, s.z + rz * k * (s.width / 2 - 0.4) - fz * 0.08), 0x6b6f74);
+  if (s.gantry) {
+    // a gantry over the road: two steel columns on concrete footings outside the road's edges, a box girder across
+    // their tops behind the sign, and a gold band of light along the sign's top and bottom edges
+    const g = s.gantry, top = g.clear + s.height + 0.9;
+    for (const k of [-1, 1]) {
+      const px = s.x + rx * k * (g.span / 2), pz = s.z + rz * k * (g.span / 2);
+      B.solid.box(1.2, 0.5, 1.2, place(px, ground + 0.25, pz, s.facing), 0x9a958b);
+      B.solid.box(0.55, top, 0.55, place(px, ground + top / 2, pz, s.facing), 0x2e3238);
+    }
+    for (const dy of [top - 0.25, g.clear - 0.25]) B.solid.box(g.span + 0.55, 0.5, 0.6, place(s.x - fx * 0.45, ground + dy, s.z - fz * 0.45, s.facing), 0x2e3238);
+    for (let k = -3; k <= 3; k += 1) B.solid.box(0.12, top - g.clear, 0.12, place(s.x + rx * k * (g.span / 7) - fx * 0.45, ground + (top + g.clear) / 2 - 0.25, s.z + rz * k * (g.span / 7) - fz * 0.45), 0x3a3e45);
+    for (const dy of [s.height / 2 + 0.16, -s.height / 2 - 0.16]) B.glow.box(s.width + 0.2, 0.08, 0.06, place(s.x + fx * 0.02, ground + high + dy, s.z + fz * 0.02, s.facing), 0xf2c200);
+  }
+  if (s.high === undefined && !s.gantry) for (const k of [-1, 1]) B.solid.box(0.12, high + s.height / 2, 0.12, place(s.x + rx * k * (s.width / 2 - 0.4) - fx * 0.08, ground + (high + s.height / 2) / 2, s.z + rz * k * (s.width / 2 - 0.4) - fz * 0.08), 0x6b6f74);
   B.solid.box(s.width + 0.2, s.height + 0.2, 0.08, place(s.x - fx * 0.05, ground + high, s.z - fz * 0.05, s.facing), 0x30343a);
   const [colour, background] = s.palette;
   const mesh = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshBasicMaterial({ map: textTexture(s.lines, { width: 1024, height: Math.round(1024 * s.height / s.width / 32) * 32 || 128, background, colour, size: s.lines.length > 1 ? 72 : 96 }), toneMapped: false }));

@@ -60,6 +60,7 @@ import { createAccountUI } from './account-ui.js';
 import { createWallet } from './wallet.js';
 import { createConfirm } from './confirm.js';
 import { makeDealMarker } from './render-holaris.js';
+import { createOwnBikeView } from './own-bike-view.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -143,6 +144,8 @@ function start(carried) {
   const audio = createAudio();
   // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
   const phoneHold = createPhoneHold({ scene, lite: LITE });
+  // the player's own motorcycles: the one ridden and the ones left standing (own-bike-view.js)
+  const ownBikeView = createOwnBikeView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your motorcycle could not be fetched. Check the connection.' }); } });
 
   // Street lamps at night. Every light of this kind is worked out for every pixel of everything, lit or
   // not, at any hour, so there are few: the two lamps nearest the player on a desktop, none on a phone.
@@ -476,7 +479,7 @@ function start(carried) {
   function marketNote(event) {
     const say = (text) => ui.toast({ type: 'note', text });
     if (event.type === 'sold') { say(`Sold: ${event.what}. ${trText(event.amount)} is in your wallet.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
-    else if (event.type === 'bought') { say(`Bought: ${event.what}, for ${trText(event.amount)}. It is in Property on your phone.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); }
+    else if (event.type === 'bought') { say(`Bought: ${event.what}, for ${trText(event.amount)}. It is in Property on your phone.`); audio.chime('paid'); ui.marketStale(); refreshDealMarkers(); market.mine(); }
     else if (event.type === 'returned') say(`Your offer for ${event.what} came to nothing. ${trText(event.amount)} is back in your wallet.`);
     else if (event.type === 'owing') say(`You owe ${trText(event.amount)} for ${event.what} and do not have it. It is paid as soon as you do.`);
     else if (event.type === 'offer') { say('Someone has made an offer for something you are selling. Open Property on your phone.'); audio.chime('alert'); ui.marketStale(); }
@@ -671,6 +674,9 @@ function start(carried) {
     music,
     phoneCam,
     online, market, wallet: walletClient,
+    rideBike: (id) => rideOwnBike(id),
+    bikeSound: (id) => audio.previewBike(id),
+    stopBikeSound: () => audio.stopPreview(),
     saveNow: () => accountSync.upload(),
     account: { open: (mode, why) => accountUI.open(mode, why), logOut: () => accountUI.logOut() },
     accountName: () => { const m = accountMark(); return online.account ? online.account.username : m && m.user ? m.user : ''; },
@@ -1360,12 +1366,14 @@ function start(carried) {
     if (!view) return null;
     if (view.self.law.arrest || view.self.carried || view.self.hijack) return null;
     if (view.self.driving) return findDrivingPrompt();
-    if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
+    if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
     if (view.self.fight) return null;
     if (view.self.riding) return { short: 'Get down', text: 'Get down from the okada', run: getDown };
     const here = predicted;
     const options = [];
     const add = (x, z, range, option) => { const d = Math.hypot(here.x - x, here.z - z); if (d <= range) options.push({ ...option, d: d - (option.bias || 0) }); };
+    // the player's own motorcycles, where they left them
+    for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
     for (const v of view.vehicles) {
       if (v.driver) continue;
       if (v.yours) add(v.x, v.z, 3.4, { bias: 1.2, short: 'Drive', text: `Drive keke ${v.plate}`, run: () => enterVehicle(v) });
@@ -1678,7 +1686,27 @@ function start(carried) {
   // the browser tests: `bikePreview` puts the riding controls on screen with nothing to ride (see __nlw).
   let bikePreview = false;
   const powerBike = () => { const a = view && view.self.astride; return a && a.model && POWER_BIKES[a.model] ? POWER_BIKES[a.model] : null; };
-  const bikeState = { speed: 0, lean: 0, heading: 0, throttle: 0 };
+  const bikeState = { speed: 0, lean: 0, heading: 0, throttle: 0, steer: 0 };
+  // On one of the player's own motorcycles: where they left it if they are beside it, or brought to them
+  // (from Property on the phone). The simulation decides; the bike is fetched the first time it is ridden.
+  function rideOwnBike(id) {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'bikes.ride', bike: id });
+    if (r.ok) { audio.stopPreview(); ui.close(); bikeState.speed = 0; bikeState.lean = 0; moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; refreshView(); }
+    say(r);
+    return r;
+  }
+  // What the server says this player owns, passed to the town whenever it changes: only those can be ridden.
+  let bikesSent = null, mineAskedAt = -1e9;
+  function syncOwnBikes() {
+    if (!playing || !view) return;
+    if (!market.state.mine) { if (online.signedIn && clock - mineAskedAt > 30) { mineAskedAt = clock; market.mine(); } return; }
+    const ids = market.state.mine.holdings.map((h) => (h.asset.model || '').replace(/^bike:/, '')).filter((id) => POWER_BIKES[id]).sort();
+    const key = ids.join(',');
+    if (key === bikesSent) return;
+    const r = server.send({ type: 'bikes.owned', bikes: ids });
+    if (r.ok) bikesSent = key;
+  }
   // A power bike under the player's hands: it leans into a turn and turns by leaning (power-bikes.js).
   function drivePowerBike(dt, bike) {
     const input = ui.isOpen() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
@@ -1687,6 +1715,8 @@ function start(carried) {
     const tar = motoSpeedAt(predicted.x, predicted.z, false) === MOTO.speedRoad;
     stepPowerBike(bikeState, input, dt, { handling, onTar: tar, wet: view.weather.wet });
     bikeState.throttle = input.throttle;
+    // the bars, as they are seen: turned by the steering at walking pace, hardly at all at speed
+    bikeState.steer += (input.steer * 0.42 * Math.max(0.08, 1 - Math.abs(bikeState.speed) / 7) - bikeState.steer) * Math.min(1, dt * 8);
     moto.speed = bikeState.speed; moto.lean = bikeState.lean;
     if (Math.abs(bikeState.speed) < 0.03) return 0;
     const nx = predicted.x + Math.sin(bikeState.heading) * bikeState.speed * dt;
@@ -2015,7 +2045,7 @@ function start(carried) {
       // squared up to someone and standing still, the player keeps facing them
       if (self.fight && self.fight.target && speed < 0.2) predicted.heading += angleGap(Math.atan2(self.fight.target.x - predicted.x, self.fight.target.z - predicted.z), predicted.heading) * Math.min(1, dt * 10);
       // the driver sits on the keke's own seat, which is ahead of its middle; a rider sits a little back of the middle of his machine
-      const back = riding ? -0.5 : driving ? DRIVER_SEAT[2] : astride ? -0.17 : 0;
+      const back = riding ? -0.5 : driving ? DRIVER_SEAT[2] : astride && !powerBike() ? -0.17 : 0;
       let wantX = predicted.x + Math.sin(predicted.heading) * back;
       let wantZ = predicted.z + Math.cos(predicted.heading) * back;
       if (taking && (taking.step === 'mount' || taking.step === 'enter')) {
@@ -2041,6 +2071,10 @@ function start(carried) {
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
       if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else { standCharacter(me); me.group.position.y = groundY; }
+      // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
+      const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer } : null;
+      ownBikeView.update(dt, { ridden: ownRide, parked: (self.ownBikes && self.ownBikes.parked) || [], groundY: zoneGroundY, from: predicted });
+      if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
       if (taking) poseTaking(me, taking.step, taking.progress);
       else if (self.fight || me.strike) poseFighter(me, clock, { guard: !!self.fight, block: blocking && !!self.fight });
       // the phone, in the hand of someone on their feet: out of the pocket, held up, looked at
@@ -2150,7 +2184,7 @@ blood.update(dt, view.blood || []);
       room = inside ? zoneRoomAt(predicted.x, predicted.z) : null;
 
       saveTimer += dt;
-      market.tick(dt); accountSync.tick(dt);
+      market.tick(dt); accountSync.tick(dt); syncOwnBikes();
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
@@ -2259,7 +2293,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     skillsState: () => skills.state,
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, town, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },

@@ -214,7 +214,7 @@ async function open(sql, me, body) {
   return result;
 }
 
-const leftText = (listing) => { const left = listing.stock - listing.sold; return left <= 0 ? 'They are all sold.' : `${left} of ${listing.stock} ${left === 1 ? 'is' : 'are'} left.`; };
+const leftText = (listing) => { if (listing.category === 'motorcycle') return 'It is new from the showroom; you may own one of each motorcycle.'; const left = listing.stock - listing.sold; return left <= 0 ? 'They are all sold.' : `${left} of ${listing.stock} ${left === 1 ? 'is' : 'are'} left.`; };
 
 async function read(sql, me, body) {
   const thread = await threadFor(sql, me, uuid(body.thread, 'a conversation'), false);
@@ -277,9 +277,15 @@ async function settle(tx, listing, offer, thread, amount) {
   };
   if (listing.status !== 'open' || listing.sold >= listing.stock) return decline('It has been sold.');
   let holdingId, serial = null, edition = null, starterBasis = 0;
+  const motorcycle = listing.category === 'motorcycle';
+  let paidLegs = null, paidStarter = 0;
   if (listing.kind === 'primary') {
-    serial = listing.sold + 1; edition = listing.stock;
-    holdingId = (await tx.unsafe(`insert into ${S}.holdings (asset_id, owner_id, serial, edition, origin_listing) values ($1, $2, $3, $4, $5) returning id`, [listing.asset_id, offer.buyer_id, serial, edition, listing.id]))[0].id;
+    // (a motorcycle may be paid for with starter TR: what that much was is kept with it, so that selling it on
+    // gives back starter TR, not earned)
+    if (motorcycle) { const buyer = await wallet.walletOf(tx, offer.buyer_id, true); const paid = wallet.motorcycleLegs(buyer, amount); paidLegs = paid.legs; paidStarter = paid.drawn.starter; }
+    // (a motorcycle is not one of a numbered edition: it is new from the showroom)
+    if (!motorcycle) { serial = listing.sold + 1; edition = listing.stock; }
+    holdingId = (await tx.unsafe(`insert into ${S}.holdings (asset_id, owner_id, serial, edition, origin_listing, starter_basis) values ($1, $2, $3, $4, $5, $6) returning id`, [listing.asset_id, offer.buyer_id, serial, edition, listing.id, paidStarter]))[0].id;
   } else {
     // (what the seller's own purchase of it cost in arrival money, if it was bought before starter TR was kept apart)
     const basis = await tx.unsafe(`select starter_basis from ${S}.holdings where id = $1 and owner_id = $2 for update`, [listing.holding_id, listing.seller_id]);
@@ -301,7 +307,10 @@ async function settle(tx, listing, offer, thread, amount) {
   // the money, with the thing: in this same transaction, so that neither moves without the other
   const meta = { sale: sale.id, offer: offer.id, what: name, buyer: offer.buyer_id, seller: listing.seller_id || null, shop: listing.kind === 'primary' ? listing.shop_name : null };
   const held = Number(offer.held) || 0;
-  if (listing.kind === 'primary') {
+  if (listing.kind === 'primary' && motorcycle) {
+    paidLegs.push({ wallet: await wallet.systemWallet(tx, 'world'), amount });
+    await wallet.post(tx, { kind: 'sale', actor: offer.buyer_id, key: `sale:${offer.id}`, note: `Bought: ${name}`, meta: { ...meta, starterFor: 'motorcycle', starter: paidStarter }, legs: paidLegs });
+  } else if (listing.kind === 'primary') {
     // a thing to own is paid for with earned TR: the arrival money does not buy it
     const buyer = await wallet.walletOf(tx, offer.buyer_id, true);
     wallet.mustBeEligible(buyer, amount, 'asset');
@@ -369,7 +378,13 @@ async function offer(sql, me, body) {
     // Either way it is earned TR that pays: the arrival money is not offered and does not buy a thing to own.
     let held = 0, heldIllicit = 0, holdLegs = null;
     const mine = await wallet.walletOf(tx, me.id, true);
-    if (listing.kind === 'primary') {
+    // one of each motorcycle to an account
+    if (listing.category === 'motorcycle' && (await tx.unsafe(`select 1 from ${S}.holdings where owner_id = $1 and asset_id = $2`, [me.id, listing.asset_id])).length) throw new ApiError(409, 'OWNED', `You already own the ${listing.asset_name}. One of each motorcycle to an account.`);
+    if (listing.kind === 'primary' && listing.category === 'motorcycle') {
+      // starter TR may buy a motorcycle: the whole balance counts
+      const price = Number(listing.price);
+      if (amount >= price && mine.balance < price) throw new ApiError(409, 'FUNDS', `You do not have that much. Your balance is ${trText(mine.balance)}.`, { balance: mine.balance });
+    } else if (listing.kind === 'primary') {
       const price = Number(listing.price);
       if (amount >= price) wallet.mustBeEligible(mine, price, 'asset');
     } else {

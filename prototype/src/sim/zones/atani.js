@@ -23,21 +23,24 @@ import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TO
 
 export const ZONE = Object.freeze({
   id: 'NG-AN-OGB-Z1',
-  name: 'Atani',
+  name: 'Asaba',
   country: 'NG',
   state: 'AN',
-  stateName: 'Anambra',
-  lga: 'Ogbaru',
+  stateName: 'Delta',
+  lga: 'Oshimili South',
   lgaCode: 'OGB',
   scheme: 'Niger View Layout',
   water: 'River Niger',
-  gridBearing: 90,                    // grid north points true east
-  origin: Object.freeze(geoToWorld(6.017, 6.75)),
+  // Asaba is on the west bank of the Niger: the river (the grid's +z) lies true east of the town, and the bridge
+  // crosses it eastward toward Onitsha. (Until 13 October 2026 this was Atani, on the east bank, at 90.)
+  gridBearing: 270,                   // grid north (+z) points true east
+  origin: Object.freeze(geoToWorld(6.198, 6.733)),
   bounds: Object.freeze({ minX: -250, maxX: 250, minZ: -480, maxZ: 185 }),
   spawn: Object.freeze({ x: -34, z: 101, heading: 0 }),
   government: Object.freeze({
-    state: Object.freeze({ code: 'NG-AN', name: 'Anambra State Government', short: 'Anambra State' }),
-    local: Object.freeze({ code: 'NG-AN-OGB', name: 'Ogbaru Local Government', short: 'Ogbaru Local Government' }),
+    // (the codes are the ledger's own names for these accounts and are kept as they were; the names are what is shown)
+    state: Object.freeze({ code: 'NG-AN', name: 'Delta State Government', short: 'Delta State' }),
+    local: Object.freeze({ code: 'NG-AN-OGB', name: 'Oshimili South Local Government', short: 'Oshimili South Local Government' }),
   }),
   dish: 'Rice and fresh fish stew',
   playerName: 'Nonso Obi',
@@ -80,7 +83,7 @@ export const ZONE_ROADS = Object.freeze([
 const building = (id, kind, sign, x, z, w, d, h, door, wall, roof) => Object.freeze({ id, kind, sign, x, z, w, d, h, door, wall, roof });
 export const ZONE_BUILDINGS = Object.freeze([
   building('registry', 'government', 'LANDS REGISTRY', 48, -70, 26, 16, 4.4, 's', 0xe9dfc8, 0x7a2f22),
-  building('secretariat', 'government', 'OGBARU LOCAL GOVT SECRETARIAT', -48, -70, 24, 15, 4.4, 's', 0xd9e2d0, 0x355e3b),
+  building('secretariat', 'government', 'OSHIMILI SOUTH LOCAL GOVT SECRETARIAT', -48, -70, 24, 15, 4.4, 's', 0xd9e2d0, 0x355e3b),
   building('police', 'government', 'POLICE POST', -40, -14, 13, 9, 3.4, 'n', 0xcfd8e6, 0x24364f),
   building('clinic', 'service', 'COMMUNITY CLINIC', 46, -12, 18, 11, 3.6, 'n', 0xf2f0ea, 0x2f6f73),
   building('school', 'service', 'NIGER VIEW TECHNICAL SCHOOL', -140, -72, 32, 11, 3.6, 's', 0xf0d9a4, 0x8a4b2a),
@@ -132,7 +135,7 @@ export const ZONE_SERVICES = Object.freeze([
   service('police', 'Police Post', -40, -20.5, 0, 24, 'sergeant|corporal', 'NG'),
   service('clinic', 'Community Clinic', 46, -19.5, 7, 21, 'nurse', null),
   // the emergency entrance of the General Hospital: always open, and staffed by the hospital's own people, not by one named resident
-  service('hospital', 'Atani General Hospital', -144, 5.6, 0, 24, '', 'NG-AN'),
+  service('hospital', 'Asaba General Hospital', -144, 5.6, 0, 24, '', 'NG-AN'),
   service('school', 'Niger View Technical School', -140, -64.5, 8, 14, 'instructor', null),
   service('yard', 'Udeh Block Industry', -95, -180, 7, 18, 'yardowner', null),
   service('store', 'Nwosu Building Materials', 30, 12.5, 7, 19, 'trader', null),
@@ -196,15 +199,15 @@ export const ZONE_VEHICLE_BAYS = Object.freeze([
   Object.freeze({ x: -29, z: 81.5, heading: Math.PI / 2 }),
   Object.freeze({ x: -20, z: 78, heading: Math.PI / 2 }),
 ]);
-export const ZONE_FLEET = Object.freeze({ dealer: 'rider', hireCount: 2, madeIn: 'Nnewi', name: 'Okoye Keke Hire' });
+export const ZONE_FLEET = Object.freeze({ dealer: 'rider', hireCount: 2, madeIn: 'Warri', name: 'Okoye Keke Hire' });
 
 // Delivery runs a keke rider can take. Each is posted at its hour every day,
 // paid for by the one who needs the goods moved, on delivery.
 const run = (id, hour, what, from, to, payer, fee) => Object.freeze({ id, hour, what, from: Object.freeze(from), to: Object.freeze(to), payer, fee });
 export const ZONE_RUNS = Object.freeze([
   run('fish', 6.5, 'Baskets of fresh fish', { x: 21, z: 128, label: 'the jetty' }, { x: 64, z: 20, label: 'Mama Nkechi Kitchen' }, 'business:kitchen', 180),
-  run('medicine', 8.5, 'Cartons of medicine off the Onitsha bus', { x: -42, z: 78, label: 'the motor park' }, { x: 46, z: -27, label: 'the clinic' }, 'business:clinic', 200),
-  run('cloth', 9.5, 'Bales of cloth off the Onitsha bus', { x: -42, z: 78, label: 'the motor park' }, { x: 12, z: 58, label: 'the market gate' }, 'resident:clothseller', 160),
+  run('medicine', 8.5, 'Cartons of medicine off the Benin bus', { x: -42, z: 78, label: 'the motor park' }, { x: 46, z: -27, label: 'the clinic' }, 'business:clinic', 200),
+  run('cloth', 9.5, 'Bales of cloth off the Warri bus', { x: -42, z: 78, label: 'the motor park' }, { x: 12, z: 58, label: 'the market gate' }, 'resident:clothseller', 160),
   run('yam', 11, 'Yam from the farms', { x: -112, z: -141, label: 'the farm end of Yard Lane' }, { x: 12, z: 58, label: 'the market gate' }, 'resident:produce', 220),
   run('books', 14.5, 'Exercise books and chalk', { x: -42, z: 78, label: 'the motor park' }, { x: -140, z: -55, label: 'the technical school' }, 'business:school', 200),
   run('files', 16, 'Council files for the land office', { x: -48, z: -50, label: 'the secretariat' }, { x: 48, z: -50, label: 'the Lands Registry' }, 'government:local', 120),
@@ -220,7 +223,7 @@ export const ZONE_LAMPS = Object.freeze([
 // Scenery the renderer draws that is particular to this town, and how the
 // town looks: its earth, its water, what stands on the far bank.
 export const ZONE_PROPS = Object.freeze({
-  shelter: Object.freeze({ x: -50, z: 68, sign: 'ATANI MOTOR PARK' }),
+  shelter: Object.freeze({ x: -50, z: 68, sign: 'ASABA MOTOR PARK' }),
   sandHeaps: Object.freeze([[-78, -172, 3.4, 1.9], [-84, -168, 2.2, 1.2]]),
   yardApron: Object.freeze({ x: -101, z: -179.6 }),
   worn: Object.freeze([[44, 58, 62], [-44, 82, 40], [-80, -175, 44]]),   // trodden earth: x, z, radius
@@ -378,7 +381,7 @@ export const ZONE_RESIDENTS = Object.freeze([
     }, 'secretariat'),
   resident('sergeant', 'Sgt. Musa Ibrahim', 'Sgt. Ibrahim', 'Police sergeant, day shift', 'gov:NG-AN-OGB', look(0x5a3a22, 0x1d2233, 0x1d2233, 1.1, { body: 'm', outfit: 'uniform', hat: ['beret', 0x10182a], hair: 'low', beard: true, height: 1.03 }),
     [['06:50', 'police'], ['19:05', 'home2', 'leave']], {
-      about: 'Atani is quiet. If something goes wrong, report it here and it goes on the record with a number.',
+      about: 'Asaba is quiet. If something goes wrong, report it here and it goes on the record with a number.',
       tip: 'A report is evidence. Keep the number.',
     }, 'police'),
   resident('corporal', 'Cpl. Ebiere Okon', 'Cpl. Okon', 'Police corporal, night shift', 'gov:NG-AN-OGB', look(0x7a4a2b, 0x1d2233, 0x1d2233, 0.98, { body: 'f', outfit: 'uniform', hat: ['beret', 0x10182a], hair: 'bun', height: 0.98 }),
@@ -438,7 +441,7 @@ export const ZONE_RESIDENTS = Object.freeze([
     }),
   resident('rider', 'Ifeanyi Okoye', 'Ifeanyi', 'Keke rider and dealer', 'self', look(0x4b2e1b, 0xb8860b, 0x2a2a2a, 1.0, { body: 'm', outfit: 'shirt', hat: ['facecap', 0x1b1b1e], hair: 'low' }),
     [['06:30', 'park'], ['13:20', 'lunch_a', 'leave'], ['14:10', 'park', 'leave'], ['19:40', 'home3', 'leave']], {
-      about: 'This is the motor park. Buses for Onitsha and Awka leave from here, when there are roads to take them. The kekes are mine: I hire them out by the day, and I can bring a new one down from Nnewi if you want your own.',
+      about: 'This is the motor park. Buses for Agbor, Benin and Warri leave from here, when there are roads to take them. The kekes are mine: I hire them out by the day, and I can bring a new one up from Warri if you want your own.',
       tip: 'A rider with a keke never lacks work. Look at the runs on your phone: fish from the jetty, cartons off the bus, yam from the farms.',
     }, 'park'),
   resident('surveyor', 'Surv. Ngozi Eze', 'Surv. Eze', 'Registered surveyor', 'self', look(0x65402a, 0xf2c200, 0x2c3440, 1.0, { body: 'f', outfit: 'hivis', sleeves: 'long', hat: ['helmet', 0xf5f5f5], hair: 'braids', height: 0.99 }),
@@ -454,19 +457,19 @@ export function zoneResident(id) {
 
 // Short lines of text that name places in this town.
 export const ZONE_TEXT = Object.freeze({
-  arrival: 'You step down from the bus at Atani motor park. Market Road runs east from here, away from the river.',
+  arrival: 'You step down from the bus at Asaba motor park. Market Road runs east from here, away from the river.',
   // the opening words on the character screen, one paragraph each, as the owner wrote them
   story: Object.freeze([
     '15 January 1970. The Civil War has just ended.',
-    'You arrive at Atani motor park with nothing but £20 and the ruins of a life you once knew.',
+    'You arrive at Asaba motor park with nothing but £20 and the ruins of a life you once knew.',
     'East of the market, beyond the River Niger, the land lies untouched—only government buildings remain.',
     'Find work. Buy a plot. Build the first walls. Start again.',
   ]),
-  intro: 'You arrive at Atani motor park with nothing. East of the market, away from the Niger, the land is surveyed and unbuilt. Find work, buy a plot, and put up the first walls.',
+  intro: 'You arrive at Asaba motor park with nothing. East of the market, away from the Niger, the land is surveyed and unbuilt. Find work, buy a plot, and put up the first walls.',
   toRegistry: 'To buy it, go to the Lands Registry on Registry Road, south of Market Road.',
   materials: 'Blocks come from the yard on Yard Lane; everything else from Nwosu Building Materials by the market.',
   fare: 'Keke fare',
-  plate: (n) => `OGB ${String(n).padStart(3, '0')} AN`,
+  plate: (n) => `ASB ${String(n).padStart(3, '0')} DT`,
   kitchenFish: 'Fish for the kitchen',
   kitchenProduce: 'Yam and vegetables for the kitchen',
 });
@@ -478,7 +481,16 @@ export const ZONE_TEXT = Object.freeze({
 export const ZONE_POPULATION = Object.freeze({
   seed: 6017675,
   firstWeekday: 3,                    // day one is a Wednesday
-  peoples: Object.freeze([['igbo', 0.82], ['igala', 0.04], ['yoruba', 0.04], ['hausa', 0.04], ['ijaw', 0.02], ['efik', 0.02], ['urhobo', 0.01], ['edo', 0.01]]),
+  // Who lives here, by people (culture.js), in shares of the town. Asaba, Delta State (13 October 2026): about 70%
+  // are of Delta State's own peoples, Asaba's own Anioma (Enuani) Igbo the most; the rest are from elsewhere in the
+  // country. Each speaks their own language at home; with a stranger they use what the phrase book has in common
+  // with them, and Pidgin and English otherwise. Change the shares here and the town is made with them.
+  peoples: Object.freeze([['enuani', 0.32], ['urhobo', 0.12], ['isoko', 0.07], ['ika', 0.07], ['ijaw', 0.06], ['itsekiri', 0.04], ['ukwuani', 0.04],
+    ['igbo', 0.12], ['edo', 0.06], ['yoruba', 0.04], ['hausa', 0.04], ['igala', 0.01], ['efik', 0.01]]),
+  // the share of those whose own language is not Igbo who also speak it (in an Anioma town, many do)
+  secondIgbo: 0.4,
+  // the peoples among whom an old man may be called Chief here
+  chiefs: Object.freeze(['enuani', 'igbo', 'ika', 'ukwuani', 'urhobo', 'isoko', 'itsekiri', 'ijaw', 'edo']),
   jobs: Object.freeze([
     ['infant', 90, 'home'], ['pupil', 150, 'primary'], ['student', 120, 'secondary'],
     ['undergrad', 50, 'university'], ['undergrad', 35, 'polytechnic'], ['undergrad', 25, 'college'],

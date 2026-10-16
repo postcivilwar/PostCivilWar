@@ -93,7 +93,7 @@ const CAMPUS_WALL = 0xe8e0d0;
 const CAMPUS_ROOF = 0x4a5d6e;
 
 export const TOWN_COMPOUNDS = Object.freeze([
-  compound('hospital', 'hospital', 'Atani General Hospital', 'ATANI GENERAL HOSPITAL', R(-225, -27, -125, 48), [['n', -175, 7], ['s', -162.5, 4]], [
+  compound('hospital', 'hospital', 'Asaba General Hospital', 'ASABA GENERAL HOSPITAL', R(-225, -27, -125, 48), [['n', -175, 7], ['s', -162.5, 4]], [
     makeBlock({ id: 'hosp-main', name: 'Out-patients', sign: 'OUT-PATIENTS', x0: -215, z0: 8, x1: -161, z1: 17, face: 'n', wall: HOSPITAL_WALL, roof: HOSPITAL_ROOF, rooms: [['reception', 'Reception and waiting', 14], ['consulting', 'Consulting room 1', 5.5], ['consulting', 'Consulting room 2', 5.5], ['pharmacy', 'Pharmacy', 7], ['lab', 'Laboratory', 7.5], ['office', 'Medical records', 6.5], ['office', 'Medical director', 8]] }),
     makeBlock({ id: 'hosp-emergency', name: 'Accident and emergency', sign: 'EMERGENCY', x0: -155, z0: 8, x1: -133, z1: 17, face: 'n', wall: HOSPITAL_WALL, roof: 0xa3261e, rooms: [['emergency', 'Emergency room', 13], ['consulting', 'Treatment room', 9]] }),
     makeBlock({ id: 'hosp-ward', name: 'Wards', sign: 'WARDS', x0: -215, z0: 30, x1: -161, z1: 39, face: 'n', wall: HOSPITAL_WALL, roof: HOSPITAL_ROOF, rooms: [['ward', 'Male ward', 18], ['ward', 'Female ward', 18], ['ward', 'Children\'s ward', 12], ['office', 'Nurses\' station', 6]] }),
@@ -112,7 +112,7 @@ export const TOWN_COMPOUNDS = Object.freeze([
     { kind: 'flag', x: -168, z: -18 },
     { kind: 'generator', x: -131, z: 42 },
     { kind: 'tank', x: -220, z: 44 },
-    { kind: 'board', x: -181, z: -20, text: ['ATANI GENERAL HOSPITAL', 'Out-patients 8 to 4 · Emergency always open'] },
+    { kind: 'board', x: -181, z: -20, text: ['ASABA GENERAL HOSPITAL', 'Out-patients 8 to 4 · Emergency always open'] },
   ], { ambience: 'hospital' }),
 
   compound('primary', 'primary', 'Central Primary School', 'CENTRAL PRIMARY SCHOOL', R(100, -27, 215, 48), [['n', 150, 6], ['s', 162.5, 4]], [
@@ -197,7 +197,7 @@ export const TOWN_COMPOUNDS = Object.freeze([
     { kind: 'generator', x: 226, z: -272 },
   ], { ambience: 'campus' }),
 
-  compound('polytechnic', 'polytechnic', 'Atani Polytechnic', 'ATANI POLYTECHNIC', R(-150, -330, -18, -232), [['e', -282, 7]], [
+  compound('polytechnic', 'polytechnic', 'Asaba Polytechnic', 'ASABA POLYTECHNIC', R(-150, -330, -18, -232), [['e', -282, 7]], [
     makeBlock({ id: 'poly-admin', name: 'Administration', sign: 'ADMINISTRATION', x0: -78, z0: -255, x1: -30, z1: -246, face: 'n', h: 3.6, wall: 0xe9e2c8, roof: 0x7a2f22, rooms: [['office', 'Rector', 8], ['office', 'Registry and bursary', 10], ['staffroom', 'Staff room', 11], ['classroom', 'Drawing studio', 19]] }),
     makeBlock({ id: 'poly-workshop', name: 'Engineering workshops', sign: 'ENGINEERING WORKSHOPS', x0: -142, z0: -258, x1: -90, z1: -246, face: 'n', h: 4.4, wall: 0xcfcabb, roof: 0x55585c, rooms: [['workshop', 'Mechanical workshop', 21], ['workshop', 'Electrical workshop', 21], ['office', 'Workshop store', 10]] }),
     makeBlock({ id: 'poly-lecture', name: 'Lecture block', sign: 'SCHOOL OF TECHNOLOGY', x0: -142, z0: -318, x1: -84, z1: -309, face: 's', h: 3.6, wall: 0xe9e2c8, roof: 0x7a2f22, rooms: [['classroom', 'ND 1', 12], ['classroom', 'ND 2', 12], ['lab', 'Computer laboratory', 13], ['lecture', 'Main hall', 21]] }),
@@ -208,13 +208,13 @@ export const TOWN_COMPOUNDS = Object.freeze([
     [[-24, -304.5], [-80, -304.5], [-146, -304.5]],
     [[-84, -262.5], [-80, -304.5]],
   ], [
-    { kind: 'arch', x: -18, z: -282, side: 'e', text: 'ATANI POLYTECHNIC' },
+    { kind: 'arch', x: -18, z: -282, side: 'e', text: 'ASABA POLYTECHNIC' },
     { kind: 'lawn', x0: -74, z0: -300, x1: -30, z1: -268 },
     { kind: 'flag', x: -28, z: -274 },
     { kind: 'generator', x: -146, z: -282 },
   ], { ambience: 'campus' }),
 
-  compound('college', 'college', 'Ogbaru College of Education', 'OGBARU COLLEGE OF EDUCATION', R(20, -465, 160, -352), [['s', 90, 7]], [
+  compound('college', 'college', 'Oshimili College of Education', 'OSHIMILI COLLEGE OF EDUCATION', R(20, -465, 160, -352), [['s', 90, 7]], [
     makeBlock({ id: 'coe-admin', name: 'Administration', sign: 'ADMINISTRATION', x0: 30, z0: -374, x1: 72, z1: -365, face: 's', h: 3.6, wall: 0xe6e9d6, roof: 0x355e3b, rooms: [['office', 'Provost', 8], ['office', 'Registry', 9], ['staffroom', 'Staff room', 11], ['library', 'College library', 14]] }),
     makeBlock({ id: 'coe-lecture', name: 'Lecture block', sign: 'SCHOOL OF EDUCATION', x0: 82, z0: -402, x1: 152, z1: -393, face: 's', h: 3.6, wall: 0xe6e9d6, roof: 0x355e3b, rooms: [['classroom', 'NCE 1', 12], ['classroom', 'NCE 2', 12], ['classroom', 'NCE 3', 12], ['lecture', 'Lecture hall', 19], ['staffroom', 'Lecturers\' room', 15]] }),
     makeBlock({ id: 'coe-demo', name: 'Demonstration block', sign: 'MICRO-TEACHING', x0: 30, z0: -432, x1: 72, z1: -424.5, face: 's', h: 3.4, wall: 0xe6e9d6, roof: 0x355e3b, rooms: [['classroom', 'Micro-teaching room 1', 9.5], ['classroom', 'Micro-teaching room 2', 9.5], ['lab', 'Science methods laboratory', 12.5], ['office', 'Teaching practice office', 10.5]] }),
@@ -226,7 +226,7 @@ export const TOWN_COMPOUNDS = Object.freeze([
     [[26, -420], [76, -420]],
     [[76, -420], [100, -420]],
   ], [
-    { kind: 'arch', x: 90, z: -352, side: 's', text: 'OGBARU COLLEGE OF EDUCATION' },
+    { kind: 'arch', x: 90, z: -352, side: 's', text: 'OSHIMILI COLLEGE OF EDUCATION' },
     { kind: 'flag', x: 96, z: -356 },
     { kind: 'pitch', x0: 92, z0: -458, x1: 152, z1: -416, goals: 'x' },
     { kind: 'tank', x: 26, z: -458 },

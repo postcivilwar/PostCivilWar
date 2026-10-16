@@ -339,7 +339,7 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1) {
     household += 1;
     p.household = household;
     p.faith = p.job === 'priest' || p.job === 'catechist' || p.job === 'sexton' ? 'catholic' : p.job === 'vicar' ? 'anglican' : faithOf(p.people);
-    if (JOBS[p.job].clergy && p.people === 'hausa') p.people = 'igbo';
+    if (JOBS[p.job].clergy && p.people === 'hausa') p.people = ZONE_POPULATION.peoples[0][0];
     nameIn(p, rng.pick(PEOPLES[p.people].surnames));
   }
   for (const p of people) if (p.venue === 'catholic') p.faith = 'catholic'; else if (p.venue === 'anglican') p.faith = 'anglican';
@@ -406,7 +406,7 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1) {
     else if (p.job === 'nurse') title = 'Nurse';
     else if (p.job === 'lecturer') title = p.age > 50 && rng.next() < 0.4 ? 'Prof.' : rng.next() < 0.6 ? 'Dr.' : '';
     else if (p.job === 'police') title = rng.pick(['Insp.', 'Sgt.', 'Cpl.', 'Cpl.']);
-    else if (p.job === 'retiree' && p.gender === 'm' && p.people === 'igbo' && rng.next() < 0.18) title = 'Chief';
+    else if (p.job === 'retiree' && p.gender === 'm' && ZONE_POPULATION.chiefs.includes(p.people) && rng.next() < 0.18) title = 'Chief';
     else if (p.people === 'hausa' && p.age >= 40) title = p.gender === 'm' ? (rng.next() < 0.5 ? 'Alhaji' : 'Mallam') : (rng.next() < 0.4 ? 'Hajiya' : '');
     p.title = title;
     p.name = title ? `${title} ${p.first} ${p.surname}` : `${p.first} ${p.surname}`;
@@ -422,7 +422,7 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1) {
     if (P.language) langs.push(P.language);
     if (p.age >= 5 && rng.next() < 0.93) langs.push('pcm');
     if (p.age >= 8 && (schooled || rng.next() < 0.55)) langs.push('en');
-    if (P.language !== 'ig' && p.age >= 6 && rng.next() < 0.55) langs.push('ig');
+    if (P.language !== 'ig' && p.age >= 6 && rng.next() < ZONE_POPULATION.secondIgbo) langs.push('ig');
     if (!langs.length) langs.push('pcm');
     p.langs = Object.freeze(langs);
     p.lang = langs[0];
@@ -932,7 +932,7 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
     const goingTo = at.moving ? ZONE_VENUES[ZONE_SPOTS[at.spot].venue] : null;
     return {
       id: p.id, index: i, name: p.name, short: p.short, age: p.age, gender: p.gender, role: roleOf(p), job: p.job, income: p.income,
-      people: PEOPLES[p.people].name, faith: p.faith, languages: p.langs, language: p.lang, traits: p.traits, transport: p.transport,
+      people: PEOPLES[p.people].name, tongue: PEOPLES[p.people].tongue, faith: p.faith, languages: p.langs, language: p.lang, traits: p.traits, transport: p.transport,
       home: p.quarter ? `${p.quarter} quarter` : ZONE_VENUES[p.venue] ? ZONE_VENUES[p.venue].name : 'town',
       activity: at.moving ? (ZONE_SPOTS[at.spot].venue === 'home' ? 'Walking home' : goingTo && goingTo.kind !== 'street' && goingTo.kind !== 'shed' ? `Walking to ${goingTo.name}` : 'Out walking') : at.act,
       needs, look: p.look, fig: p.fig,

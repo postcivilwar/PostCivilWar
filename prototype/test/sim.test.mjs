@@ -31,20 +31,22 @@ test('the country: 36 states and the FCT are registered, and coordinates round-t
   assert.ok(Math.abs(back.lat - 6.5244) < 1e-9 && Math.abs(back.lon - 3.3792) < 1e-9);
 });
 
-test('the town: Atani sits in Anambra State on the east bank of the river, in true coordinates', () => {
-  const anambra = NIGERIA_STATES.find((s) => s.code === ZONE.state);
-  assert.equal(anambra.name, 'Anambra');
+test('the town: Asaba, Delta State, on the west bank of the river, in true coordinates', () => {
+  assert.equal(ZONE.name, 'Asaba');
+  assert.equal(ZONE.stateName, 'Delta');
+  // (the town's identifiers are kept as they were, so that saved games, titles and the ledger still find it)
   assert.equal(ZONE.id, 'NG-AN-OGB-Z1');
+  const delta = NIGERIA_STATES.find((s) => s.name === 'Delta');
   const here = worldToGeo(ZONE.origin.x, ZONE.origin.z);
-  assert.ok(Math.abs(here.lat - 6.017) < 1e-9 && Math.abs(here.lon - 6.75) < 1e-9);
-  const awka = geoToWorld(anambra.lat, anambra.lon);
-  const km = Math.hypot(awka.x - ZONE.origin.x, awka.z - ZONE.origin.z) / 1000;
-  assert.ok(km > 2 && km < 6, `the state capital is ${km.toFixed(1)} game km away at 1:10`);
-  // The river lies west of the town and the layout runs inland to the east.
+  assert.ok(Math.abs(here.lat - 6.198) < 1e-9 && Math.abs(here.lon - 6.733) < 1e-9);
+  const capital = geoToWorld(delta.lat, delta.lon);
+  const km = Math.hypot(capital.x - ZONE.origin.x, capital.z - ZONE.origin.z) / 1000;
+  assert.ok(km < 1, `Asaba is the state capital (${km.toFixed(2)} game km away at 1:10)`);
+  // The river lies east of the town and the layout runs inland to the west.
   const jetty = zoneToGeo((ZONE_JETTY.x0 + ZONE_JETTY.x1) / 2, ZONE_JETTY.z1);
   const centre = zoneToGeo(0, 0);
-  assert.ok(jetty.lon < centre.lon, 'the jetty is west of the town centre');
-  for (const p of ZONE_PARCELS) assert.ok(p.lon > centre.lon, `plot ${p.plot} is east of the town centre`);
+  assert.ok(jetty.lon > centre.lon, 'the jetty is east of the town centre');
+  for (const p of ZONE_PARCELS) assert.ok(p.lon < centre.lon, `plot ${p.plot} is west of the town centre`);
   assert.ok(Math.abs(jetty.lat - centre.lat) < 0.003, 'the road to the jetty runs east to west');
   // Grid and true offsets convert both ways.
   const t = gridToTrue(12, -7, ZONE.gridBearing);
@@ -54,7 +56,7 @@ test('the town: Atani sits in Anambra State on the east bank of the river, in tr
 });
 
 test('the town is data: no rule or client file names a town, a state or a resident', () => {
-  const names = new RegExp(['Atani', 'Anambra', 'Ogbaru', 'Niger\\b', 'Epe\\b', 'Lagos', 'Okonkwo', 'Udeh', 'Akpan', 'Nkechi'].join('|'));
+  const names = new RegExp(['Atani', 'Asaba', 'Anambra', 'Ogbaru', 'Oshimili', 'Niger\\b', 'Epe\\b', 'Lagos', 'Okonkwo', 'Udeh', 'Akpan', 'Nkechi'].join('|'));
   for (const file of ['sim/sim.js', 'sim/vehicles.js', 'sim/economy.js', 'sim/registry.js', 'sim/residents.js', 'sim/host.js', 'client/main.js', 'client/ui.js', 'client/render-world.js', 'client/render-actors.js', 'client/render-sky.js', 'client/template.html']) {
     const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     const found = source.match(names);
@@ -523,7 +525,7 @@ test('vehicles: bays, run points and the dealer are on ground a keke can stand o
   const { host, id } = newWorld();
   const fleet = host.game.view(id).vehicles;
   assert.equal(fleet.length, 2);
-  for (const v of fleet) { assert.match(v.plate, /^OGB \d{3} AN$/); assert.equal(v.yours, false); }
+  for (const v of fleet) { assert.match(v.plate, /^ASB \d{3} DT$/); assert.equal(v.yours, false); }
 });
 
 test('vehicles: hiring a keke, driving it, and the checks on every step', () => {
@@ -600,7 +602,7 @@ test('vehicles: buying one pays the dealer and the State, registers it, and reti
   assert.equal(mineBefore - host.game.view(id).self.balance, k.price + k.registration);
   assert.equal(balanceOf(host, state) - stateBefore, k.registration);
   assert.equal(supplyBefore - host.auditor.supply().TR, Math.round(k.price * k.importShare), 'the maker is outside the world: that money is retired');
-  assert.match(bought.vehicle.plate, /^OGB 003 AN$/);
+  assert.match(bought.vehicle.plate, /^ASB 003 DT$/);
   assert.equal(bought.vehicle.owned, true);
   assert.deepEqual(host.game.audit().vehicles, { count: 3, expected: 3 });
   // petrol

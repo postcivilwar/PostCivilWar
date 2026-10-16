@@ -70,6 +70,7 @@ const ORDER = {
   eligible: ['earned', 'illicit'],                       // sending, an offer, a thing to own, an upgrade: never starter
   cost: ['starter', 'earned', 'illicit'],                // the town's charges and costs
   restitution: ['illicit', 'starter', 'earned'],         // what was taken is handed back first
+  motorcycle: ['starter', 'earned', 'illicit'],          // a motorcycle from the showroom: arrival money first
 };
 const partsOf = (row) => { const balance = Number(row.balance), starter = Number(row.starter), illicit = Number(row.illicit); return { balance, starter, illicit, earned: balance - starter - illicit, eligible: balance - starter }; };
 
@@ -98,6 +99,17 @@ function eligibleLegs(w, amount) {
   const legs = [];
   if (drawn.earned) legs.push({ wallet: w.id, amount: -drawn.earned, bucket: 'earned' });
   if (drawn.illicit) legs.push({ wallet: w.id, amount: -drawn.illicit, bucket: 'illicit' });
+  return { legs, drawn };
+}
+
+// The sides of a movement that pay `amount` for a motorcycle from the showroom out of wallet `w`: starter TR
+// first (the owner's word, 13 October 2026: arrival money may buy a motorcycle), then earned, then taken.
+function motorcycleLegs(w, amount) {
+  if (w.balance < amount) throw new ApiError(409, 'FUNDS', `You do not have that much. Your balance is ${trText(w.balance)}.`, { balance: w.balance });
+  const drawn = take({ starter: w.starter, earned: w.earned, illicit: w.illicit }, amount, ORDER.motorcycle);
+  if (drawn.short > 0) throw new ApiError(409, 'FUNDS', 'There is not enough TR for that.');
+  const legs = [];
+  for (const part of ['starter', 'earned', 'illicit']) if (drawn[part]) legs.push({ wallet: w.id, amount: -drawn[part], bucket: part });
   return { legs, drawn };
 }
 
@@ -434,8 +446,8 @@ async function audit(sql) {
      where w.kind = 'player' group by w.id, r.starter, r.illicit
      having w.starter <> coalesce(r.starter, 0) + coalesce(sum(e.amount) filter (where e.bucket = 'starter'), 0) or w.illicit <> coalesce(r.illicit, 0) + coalesce(sum(e.amount) filter (where e.bucket = 'illicit'), 0)`)) problems.push(`wallet ${row.id} says ${row.starter} starter and ${row.illicit} taken; its entries say ${row.starter_said} and ${row.illicit_said}`);
   // starter TR has gone nowhere but to the town: no entry takes it out of a wallet in any other kind of movement
-  for (const row of await sql.unsafe(`select e.id, t.kind from ${S}.wallet_entries e join ${S}.wallet_tx t on t.id = e.tx_id where e.bucket = 'starter' and ((e.amount < 0 and t.kind <> 'game') or (e.amount > 0 and t.kind not in ('grant', 'sale'))) limit 5`)) problems.push(`entry ${row.id} moves starter TR in a ${row.kind}`);
+  for (const row of await sql.unsafe(`select e.id, t.kind from ${S}.wallet_entries e join ${S}.wallet_tx t on t.id = e.tx_id where e.bucket = 'starter' and ((e.amount < 0 and t.kind <> 'game' and not (t.kind = 'sale' and t.meta->>'starterFor' = 'motorcycle')) or (e.amount > 0 and t.kind not in ('grant', 'sale'))) limit 5`)) problems.push(`entry ${row.id} moves starter TR in a ${row.kind}`);
   return problems;
 }
 
-module.exports = { after, get, find, check, send, history, people, addPerson, removePerson, game, open, post, walletOf, systemWallet, heldBy, audit, amountOf, trText, mustBeEligible, eligibleLegs, partsOf, keyOf, NO_USER, WORDS, TR };
+module.exports = { after, get, find, check, send, history, people, addPerson, removePerson, game, open, post, walletOf, systemWallet, heldBy, audit, amountOf, trText, mustBeEligible, eligibleLegs, motorcycleLegs, partsOf, keyOf, NO_USER, WORDS, TR };

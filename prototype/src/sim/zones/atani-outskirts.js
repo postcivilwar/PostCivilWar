@@ -1,21 +1,21 @@
-// Beyond the town: the road out of Atani towards Onitsha, an airport beside it, and a bridge over the River Niger.
-// Added 12 October 2026 at the owner's request. Content only, like atani.js: the simulation and the renderer
+// Beyond the town: the road out of Asaba to the south, Asaba Airport beside it, and the bridge over the River Niger
+// toward Anambra State. Added 12 October 2026 at the owner's request (then the town was Atani, on the east bank);
+// turned to Asaba and Delta State on 13 October 2026. Content only, like atani.js: the simulation and the renderer
 // read it through ../zone.js.
 //
-// Geography. Atani is in Ogbaru Local Government Area, on the east bank of the Niger; Onitsha is up river, to the
-// north, and the real road between them runs some twenty-odd kilometres through Ogbaru's riverside communities
-// (Odekpe, Ohita and others) to Okpoko and Onitsha. That is far more road than this game world holds. What is
-// built here is the first stretch of that road leaving Atani, shortened and schematic: it is not a survey, the
-// communities along it are named only on the direction signs (where the real road goes), and none of them is
-// placed at a made-up spot along it. The stretch ends at road works, honestly closed, where the world ends.
+// Geography. Asaba is on the west bank of the Niger, and Onitsha faces it across the river. The road built here
+// leaves the town southward, the way the real roads go on through Delta State toward Kwale, Ughelli and Warri;
+// it is the first stretch only, shortened and schematic (not a survey), with those towns named only on its
+// direction sign, and it ends at road works, honestly closed, where the world ends.
 //
-// The airport ("Atani Airport") and the bridge are inventions of the game. There is no airport at Atani; the
-// bridge is not the First Niger Bridge, which is at Onitsha and joins it to Asaba; it is a crossing of the game's
-// own, built after the steel through-truss bridges of the Niger (the owner's photographs), for the day the world
-// goes on to Asaba and Delta State. Its far end is closed until then.
+// The airport is the game's own "Asaba Airport", built on open land beside that road: it is not a model of the
+// real airport near Asaba. The bridge is the game's own crossing, after the steel through-truss bridges of the
+// Niger (the owner's photographs), not a model of the Niger bridges at Asaba and Onitsha. Its far end is in
+// Anambra State, which is not built yet: travellers are welcomed there by the State's sign, and stopped a little
+// further on by a barrier until that world is opened.
 //
-// Directions are the site grid's (atani.js): x across (grid north, -x, is true north... see ZONE.gridBearing:
-// grid -z is true east, inland; grid +z is true west, the river; grid -x is true north, up river towards Onitsha).
+// Directions are the site grid's (atani.js, ZONE.gridBearing 270): grid +z is true east, the river and Anambra
+// beyond it; grid -z is true west, inland; grid -x is true south, down the road toward Kwale and Warri.
 // One grid metre is one metre on the ground.
 
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
@@ -26,7 +26,7 @@ const road = (id, name, x0, z0, x1, z1, surface, extra = {}) => Object.freeze({ 
 // side), 7 m above the water on five piers; the approach rises from the road over an embankment, and on the far
 // bank it comes down onto the land and stops at a barrier.
 export const BRIDGE = Object.freeze({
-  name: 'Atani River Niger Bridge',
+  name: 'River Niger Bridge',
   x0: -212, x1: -198,              // the deck, rail to rail
   roadway: Object.freeze({ x0: -209.5, x1: -200.5 }),
   start: 118,                       // where the approach leaves Waterside Road
@@ -59,11 +59,12 @@ const FAR_BANK = box(-236, 312, -174, 392);
 const inFarBank = (x, z) => x > FAR_BANK.x0 && x < FAR_BANK.x1 && z > FAR_BANK.z0 && z < FAR_BANK.z1;
 
 // ----------------------------------------------------------------------------------------- the roads --
-// The road to Onitsha: Registry Road carried on out of town, wider, with a centre line and shoulders.
-export const ONITSHA_ROAD = road('onitsha', 'Atani–Onitsha Road', -1190, -47, -240, -33, 'asphalt', { lanes: 2, edgeLines: true });
+// The road south: Registry Road carried on out of town, wider, with a centre line and shoulders. (Its id and the
+// name ONITSHA_ROAD are the code's own, kept from when the town was Atani; what a player sees is its name.)
+export const ONITSHA_ROAD = road('onitsha', 'Asaba–Kwale Road', -1190, -47, -240, -33, 'asphalt', { lanes: 2, edgeLines: true });
 export const OUTSKIRT_ROADS = Object.freeze([
   ONITSHA_ROAD,
-  // the airport: in from the Onitsha road, along the front of the terminal, and to the car park
+  // the airport: in from the Kwale road, along the front of the terminal, and to the car park
   road('airport-access', 'Airport Road', -752, -205, -740, -47, 'asphalt', { lanes: 2, edgeLines: true }),
   road('airport-front', 'Terminal Drive', -940, -207, -740, -191, 'asphalt', { lanes: 2, edgeLines: true }),
   road('airport-park', 'Car Park', -936, -186, -812, -108, 'asphalt', { bays: true }),
@@ -72,10 +73,10 @@ export const OUTSKIRT_ROADS = Object.freeze([
 ]);
 
 // ----------------------------------------------------------------------------------------- the airport --
-// On open land beside the Onitsha road, inland of it. No aircraft: the stands and the runway are ready for them.
+// On open land beside the Kwale road, inland of it. No aircraft: the stands and the runway are ready for them.
 export const AIRPORT = Object.freeze({
-  name: 'Atani Airport',
-  runway: Object.freeze({ ...box(-1120, -474, -580, -434), heading: 'x', designators: ['09', '27'] }),
+  name: 'Asaba Airport',
+  runway: Object.freeze({ ...box(-1120, -474, -580, -434), heading: 'x', designators: ['18', '36'] }),
   taxiway: box(-1080, -411, -620, -393),
   links: Object.freeze([box(-1080, -434, -1062, -393), box(-638, -434, -620, -393), box(-860, -393, -842, -330)]),
   apron: box(-944, -330, -756, -252),
@@ -95,7 +96,7 @@ const A = AIRPORT;
 // Ground that can be walked and driven on outside the town's own bounds: the road corridor, the airport's land
 // and the bridge. The rest of the land beyond the town is bush.
 export const OUTSKIRT_AREAS = Object.freeze([
-  box(-1192, -60, -240, -20),                 // the Onitsha road and its verges
+  box(-1192, -60, -240, -20),                 // the Kwale road and its verges
   box(-1160, -510, -560, -20),                // the airport's land, inside and outside its fence
   box(BRIDGE.x0 + 0.6, BRIDGE.start - 2, BRIDGE.x1 - 0.6, BRIDGE.end),   // the deck, inside its rails
   box(FAR_BANK.x0, BRIDGE.land, FAR_BANK.x1, BRIDGE.end),              // the far bank by the bridge's end, up to the barrier
@@ -132,9 +133,11 @@ function terminalWalls() {
 export const OUTSKIRT_COLLIDERS = Object.freeze([
   // the bridge: its rails the length of the deck, and the end piers of its truss
   wall(BRIDGE.x0, BRIDGE.start + 2, BRIDGE.x0 + 0.6, BRIDGE.end), wall(BRIDGE.x1 - 0.6, BRIDGE.start + 2, BRIDGE.x1, BRIDGE.end),
+  // the columns of the State's welcome gantry on the far bank
+  ...[-1, 1].map((k) => box((BRIDGE.x0 + BRIDGE.x1) / 2 + k * 9.5 - 0.35, BRIDGE.land + 8 - 0.35, (BRIDGE.x0 + BRIDGE.x1) / 2 + k * 9.5 + 0.35, BRIDGE.land + 8 + 0.35)),
   // the barrier across the far end
   wall(FAR_BANK.x0, BRIDGE.end - 0.6, FAR_BANK.x1, BRIDGE.end),
-  // the road works at the end of the Onitsha road
+  // the road works at the end of the Kwale road
   wall(-1188, -47, -1184, -33),
   ...fenceWalls(),
   ...terminalWalls(),
@@ -143,7 +146,7 @@ export const OUTSKIRT_COLLIDERS = Object.freeze([
   box(A.fire.x0, A.fire.z0, A.fire.x1, A.fire.z1),
 ].map(Object.freeze));
 
-// Lamps: down the Onitsha road, round the terminal and its car park, and along the bridge.
+// Lamps: down the Kwale road, round the terminal and its car park, and along the bridge.
 export const OUTSKIRT_LAMPS = Object.freeze([
   ...Array.from({ length: 22 }, (_, i) => ({ x: -280 - i * 42, z: i % 2 ? -50 : -30 })),
   ...[-930, -890, -850, -810, -770].map((x) => ({ x, z: -188 })),
@@ -155,15 +158,18 @@ export const OUTSKIRT_LAMPS = Object.freeze([
 // Signs: what each says, where it stands and which way it faces (radians, 0 facing +z).
 export const OUTSKIRT_SIGNS = Object.freeze([
   // at the edge of town, for someone leaving: where the road goes (no distances: they are not measured here)
-  { id: 'onitsha-exit', lines: ['ONITSHA ROAD', 'Odekpe · Ohita · Okpoko · Onitsha'], x: -262, z: -54, facing: Math.PI / 2, width: 7, height: 2.2, palette: ['#ffffff', '#0b6b3a'] },
-  { id: 'airport-turn', lines: ['ATANI AIRPORT', 'Turn here'], x: -728, z: -54, facing: Math.PI / 2, width: 5.5, height: 2, palette: ['#ffffff', '#16407a'] },
-  { id: 'airport-terminal', lines: ['ATANI AIRPORT'], x: -850, z: -212.6, facing: 0, width: 26, height: 2.6, palette: ['#ffffff', '#0e2a4a'], high: 10.5 },
+  { id: 'onitsha-exit', lines: ['KWALE ROAD', 'Kwale · Ughelli · Warri'], x: -262, z: -54, facing: Math.PI / 2, width: 7, height: 2.2, palette: ['#ffffff', '#0b6b3a'] },
+  { id: 'airport-turn', lines: ['ASABA AIRPORT', 'Turn here'], x: -728, z: -54, facing: Math.PI / 2, width: 5.5, height: 2, palette: ['#ffffff', '#16407a'] },
+  { id: 'airport-terminal', lines: ['ASABA AIRPORT'], x: -850, z: -212.6, facing: 0, width: 26, height: 2.6, palette: ['#ffffff', '#0e2a4a'], high: 10.5 },
   { id: 'roadworks', lines: ['ROAD WORKS', 'Road closed ahead'], x: -1180, z: -54, facing: Math.PI / 2, width: 5, height: 2, palette: ['#111111', '#f2b705'] },
-  { id: 'bridge-name', lines: ['ATANI RIVER NIGER BRIDGE'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.truss.from - 0.45, facing: Math.PI, width: 12, height: 1.4, palette: ['#ffffff', '#24364f'], high: BRIDGE.height + BRIDGE.truss.rise - 0.2 },
-  { id: 'bridge-closed', lines: ['ROAD NOT YET OPEN', 'Asaba and Delta State: coming later'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.end - 1.4, facing: Math.PI, width: 8, height: 1.8, palette: ['#111111', '#f2b705'], ground: BRIDGE.farBank },
+  { id: 'bridge-name', lines: ['RIVER NIGER BRIDGE'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.truss.from - 0.45, facing: Math.PI, width: 12, height: 1.4, palette: ['#ffffff', '#24364f'], high: BRIDGE.height + BRIDGE.truss.rise - 0.2 },
+  // Anambra State, at the far end of the bridge: the State's welcome over the road where it comes down onto the far
+  // bank (a gantry, lit at night), and a little further on the barrier where the world ends for now
+  { id: 'anambra-welcome', lines: ['WELCOME TO ANAMBRA STATE —', 'LIGHT OF THE NATION'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.land + 8, facing: Math.PI, width: 15, height: 3.2, palette: ['#ffffff', '#0b3b6e', '#f2c200'], ground: BRIDGE.farBank, gantry: Object.freeze({ span: 19, clear: 6.2 }) },
+  { id: 'bridge-closed', lines: ['ROAD NOT YET OPEN', 'Onitsha and Anambra State: coming later'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.end - 1.4, facing: Math.PI, width: 8, height: 1.8, palette: ['#111111', '#f2b705'], ground: BRIDGE.farBank },
 ].map(Object.freeze));
 
-// Roadside buildings along the Onitsha road, more of them and closer together the further from Atani: the way a
+// Roadside buildings along the Kwale road, more of them and closer together the further from Asaba: the way a
 // road gets busier towards a city. Simple shops and stores; nobody lives or works in them in this build.
 export const OUTSKIRT_BUILDINGS = Object.freeze((() => {
   const out = [];
@@ -187,5 +193,5 @@ export const OUTSKIRT_BUILDING_COLLIDERS = Object.freeze(OUTSKIRT_BUILDINGS.map(
 
 // Labels for the map.
 export const OUTSKIRT_MAP_LABELS = Object.freeze([
-  ['To Onitsha', -1100, -60, 'center'], ['Atani Airport', -850, -300, 'center'], ['Bridge', -205, 230, 'vertical'],
+  ['To Kwale and Warri', -1100, -60, 'center'], ['Asaba Airport', -850, -300, 'center'], ['Bridge to Anambra', -205, 230, 'vertical'],
 ]);

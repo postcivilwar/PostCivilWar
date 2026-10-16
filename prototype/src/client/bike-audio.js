@@ -36,6 +36,9 @@ export const BIKE_HORNS = Object.freeze({
   high: Object.freeze({ notes: [523, 659], length: 0.35 }),
 });
 
+// The engine a bike sounds with: its kind of engine, tuned for it (power-bikes.js, `tone`).
+export const profileFor = (bike) => Object.freeze({ ...(BIKE_SOUNDS[bike && bike.sound] || BIKE_SOUNDS.four1000), ...((bike && bike.tone) || {}), name: bike ? `${bike.name}` : 'engine' });
+
 // The engine's beat for a share of its rev range (0 idle .. 1 the red line), in times a second.
 export function firingHz(profile, rev) {
   const rpm = profile.idle + (profile.redline - profile.idle) * Math.max(0, Math.min(1, rev));

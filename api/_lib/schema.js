@@ -30,6 +30,30 @@ const WALLET = { grant: 4000, earnBurst: 20000, earnHour: 6000, earnStart: 1000 
 const FIGURES = { W1: 'Adaeze', M1: 'Emeka', W2: 'Ngozi', W3: 'Amaka', M4: 'Ikenna', M5: 'Uche' };
 // the figures there were when the account's character was first kept (migration 1 is as it was run)
 const FIRST_FIGURES = ['W1', 'M1'];
+
+// The motorcycle showroom (13 October 2026): the owner's twelve motorcycles, sold new, one of each to an account.
+// Its markers stand in two rows of six on open ground by Waterside Road, west of the motor park.
+// The list is the game's own (prototype/src/sim/power-bikes.js: names and prices in TR); it is copied here because
+// the server is not built from the game's code. A test checks the two agree.
+// A motorcycle may be paid for with starter TR (the owner's word, 13 October 2026): it is the one thing to own that
+// arrival money buys. What starter TR paid for one is starter TR again if it is sold on (holdings.starter_basis).
+const SHOWROOM = { shop: 'motors', name: 'Motorcycle Showroom', x0: -63, z: 98, step: 4, zone: 'NG-AN-OGB-Z1' };
+const MOTORCYCLES = [
+  ['streetfighter', 'Streetfighter', 1000, 'A light naked street bike in red and white, upright and quick to turn.'],
+  ['cafe-racer', 'Café Racer', 1000, 'A grey café racer with an orange seat and an open frame.'],
+  ['white-sport', 'White Sport Tourer', 1000, 'A white half-faired sport tourer, easy to live with.'],
+  ['black-cruiser', 'Black Cruiser', 1500, 'A classic black cruiser with chrome, wire wheels and a low seat.'],
+  ['chopper', 'Chopper', 1500, 'A long chopper with high bars and a stepped seat.'],
+  ['purple-sport', 'Purple Sport', 1500, 'A fully faired sport bike in deep purple.'],
+  ['olive-cruiser', 'Olive Muscle Cruiser', 2500, 'A heavy muscle cruiser in military olive.'],
+  ['yellow-adventure', 'Yellow Adventure Tourer', 2500, 'A tall adventure tourer in yellow, at home off the tar as on it.'],
+  ['red-superbike', 'Red Superbike', 4000, 'A red superbike with a full race fairing.'],
+  ['black-gold-superbike', 'Black & Gold Superbike', 4000, 'A black superbike on gold wheels.'],
+  ['gold-tourer', 'Gold Grand Tourer', 6000, 'A full-dress touring bike in gold, with a fairing and hard luggage.'],
+  ['chrome-concept', 'Chrome V-Concept', 10000, 'A chrome show machine with twin wheels at each end and an engine down its length.'],
+].map(([id, name, tr, blurb], i) => ({ id, name, price: tr * 2, blurb, asset: `motorcycle-${id}`, listing: `00000000-0000-4000-8000-0000000002${String(i + 1).padStart(2, '0')}`, x: SHOWROOM.x0 + (i % 6) * SHOWROOM.step, z: SHOWROOM.z + (i < 6 ? -2.5 : 2.5) }));
+const MOTORCYCLE_STOCK = 1000000;          // new from the showroom: not a numbered edition, and not going to run out
+
 // A character upgrade: offered only above the arrival money, for one part in `parts` of the whole wallet.
 const UPGRADE = { above: WALLET.grant, parts: 4 };
 
@@ -541,6 +565,43 @@ const MIGRATIONS = [
       `alter table ${S}.accounts add constraint accounts_figure_check check (figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')}))`,
     ],
   },
+  {
+    id: 6,
+    name: 'the motorcycle showroom: twelve motorcycles, one of each to an account, which starter TR may pay for',
+    statements: [
+      // starter TR leaves a wallet for the town's charges and costs, and now also for a motorcycle from the showroom
+      // (a sale that says so, made by this server: see market.js, settle). Otherwise this is migration 3's rule.
+      `create or replace function ${S}.wallet_entry_applies() returns trigger language plpgsql as $f$
+       declare whose text; why text; what text;
+       begin
+         select kind into whose from ${S}.wallets where id = new.wallet_id;
+         if not found then raise exception 'no such wallet' using errcode = 'P0001'; end if;
+         if whose = 'system' then
+           if new.bucket is not null then raise exception 'the bank''s own wallets hold TR of no kind' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+           return new;
+         end if;
+         if new.bucket is null then raise exception 'an entry in a player''s wallet says which TR it moves' using errcode = 'P0001'; end if;
+         select kind, coalesce(meta->>'starterFor', '') into why, what from ${S}.wallet_tx where id = new.tx_id;
+         -- (a motorcycle's price goes to the town and to no player)
+         if what = 'motorcycle' and new.amount > 0 then raise exception 'a motorcycle from the showroom is paid to the town' using errcode = 'P0001'; end if;
+         if new.bucket = 'starter' then
+           if new.amount < 0 and why <> 'game' and not (why = 'sale' and what = 'motorcycle') then raise exception 'starter TR pays the town''s charges and costs and for a motorcycle, and nothing else' using errcode = 'P0001'; end if;
+           if new.amount > 0 and why not in ('grant', 'sale') then raise exception 'starter TR is not made that way' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount, starter = starter + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         elsif new.bucket = 'illicit' then
+           update ${S}.wallets set balance = balance + new.amount, illicit = illicit + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         else
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         end if;
+         return new;
+       end $f$`,
+      ...MOTORCYCLES.map((m) => `insert into ${S}.assets (id, name, category, keywords, model, blurb) values ('${m.asset}', '${m.name.replace(/'/g, "''")}', 'motorcycle', 'motorcycle motorbike bike power ${m.id.replace(/-/g, ' ')}', 'bike:${m.id}', '${m.blurb.replace(/'/g, "''")}') on conflict (id) do nothing`),
+      ...MOTORCYCLES.map((m) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${m.listing}', '${m.asset}', 'primary', '${SHOWROOM.shop}', '${SHOWROOM.name}', ${m.price}, ${MOTORCYCLE_STOCK}, '${SHOWROOM.zone}', ${m.x}, ${m.z}, '${SHOWROOM.name}, by Waterside Road, west of the motor park') on conflict (id) do nothing`),
+      // one of each motorcycle to an account (the market also refuses a second, with a reason)
+      `create unique index holdings_one_motorcycle on ${S}.holdings(owner_id, asset_id) where asset_id like 'motorcycle-%'`,
+    ],
+  },
 ];
 
-module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE };
+module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE, SHOWROOM, MOTORCYCLES };

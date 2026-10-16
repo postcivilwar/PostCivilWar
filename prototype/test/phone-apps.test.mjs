@@ -23,7 +23,7 @@ function fakePlayer() {
 test('music: the game\'s own four pieces are always there', () => {
   assert.equal(HOUSE_TRACKS.length, 4);
   const music = createMusic({ player: fakePlayer() });
-  assert.deepEqual(music.tracks().map((t) => t.title), ['Onitsha Road', 'Motor Park', 'Palm Wine Evening', 'Sunday Morning']);
+  assert.deepEqual(music.tracks().map((t) => t.title), ['Agbor Road', 'Motor Park', 'Palm Wine Evening', 'Sunday Morning']);
   assert.equal(music.library(), 'house');
   assert.equal(music.status().state, 'idle');
 });
@@ -101,7 +101,7 @@ test('music: songs the owner has added come first, and the song that was showing
   give({ tracks: [{ title: 'New Song', artist: 'Owner', file: 'new-song.mp3' }] });
   await new Promise((r) => setTimeout(r, 5));
   assert.equal(music.library(), 'songs');
-  assert.deepEqual(music.tracks().map((t) => t.title), ['New Song', 'Onitsha Road', 'Motor Park', 'Palm Wine Evening', 'Sunday Morning']);
+  assert.deepEqual(music.tracks().map((t) => t.title), ['New Song', 'Agbor Road', 'Motor Park', 'Palm Wine Evening', 'Sunday Morning']);
   assert.equal(music.current().id, 'house:afrobeat');
   assert.equal(player.calls.filter((c) => c[0] === 'load').length, 1, 'the list arriving does not restart what is playing');
   music.play('file:new-song.mp3');

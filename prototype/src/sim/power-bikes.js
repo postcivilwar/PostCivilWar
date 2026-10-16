@@ -1,22 +1,69 @@
-// Power bikes: big motorcycles (500 cc and up) that a player rides themselves, with their own controls, their
+// Power bikes: the big motorcycles a player owns and rides themselves, with their own controls, their
 // own handling and their own engine and horn. They are not okadas: an okada is a small bike that carries
 // people for a fare (okada.js), and the motorcycle a player can already ride is that small bike.
 //
-// No power bike is in the game yet: the owner will supply each bike's model. Until one is, POWER_BIKES is empty
-// and nothing in town offers one, shows one or plays one. What is here is everything that does not need the
-// model: how each bike handles (this file), its controls (src/client/bike-controls.js) and its engine and horn
-// (src/client/bike-audio.js). Adding a bike is adding an entry here, with its model, and nothing else.
+// The bikes are the owner's twelve supplied models (assets/vehicles/bikes/, drawn as supplied: see
+// src/client/bike-model.js). Each is sold new in the market at its price; a player may own one of each.
 //
-// An entry, when there is one:
-//   id: 'some-bike'           how the game knows it
-//   name: 'Some Bike 1000'    what a player sees
-//   model: 'some-bike.glb'    the owner's supplied model (assets/vehicles/), drawn as supplied
-//   cc: 1000                  the engine's size, for what the player is told
-//   sound: 'four1000'         which engine (BIKE_SOUNDS in bike-audio.js), or that bike's own recordings
-//   horn: 'dual'              which horn (BIKE_HORNS in bike-audio.js), or its own recording
-//   handling: { ... }         anything that differs from HANDLING below
+// The price follows the bike's class, read from how it looks: its size, its finish, and what kind of machine it
+// is (a light naked bike, a cruiser, a sport bike, a superbike, a touring flagship, a show machine). Nothing is
+// claimed about any bike's engine: the files say nothing of it, and neither does the game. A bike's handling
+// is set by its class in the same way.
+//
+// An entry:
+//   id                      how the game knows it (and its model, assets/vehicles/bikes/<id>.glb)
+//   name                    what a player sees
+//   tier                    its class, 1 (entry) to 5 (flagship); the price follows it
+//   price                   TR, new from the showroom
+//   length                  metres, nose to tail, that the model is drawn at
+//   sound                   which engine (BIKE_SOUNDS in bike-audio.js) until its own recording is supplied
+//   tone                    that engine tuned for this bike (its idle, pipe, rasp: TONES below)
+//   horn                    which horn (BIKE_HORNS in bike-audio.js)
+//   handling                anything that differs from HANDLING below
+//   blurb                   a line for the market
 
-export const POWER_BIKES = Object.freeze({});
+export const BIKE_TIERS = Object.freeze({
+  1: Object.freeze({ name: 'Entry', price: 1000 }),
+  2: Object.freeze({ name: 'Standard', price: 1500 }),
+  3: Object.freeze({ name: 'Premium', price: 2500 }),
+  4: Object.freeze({ name: 'Superbike', price: 4000 }),
+  5: Object.freeze({ name: 'Flagship', price: 6000 }),
+});
+
+const bike = (id, name, tier, length, sound, horn, handling, blurb, price = BIKE_TIERS[tier].price) => Object.freeze({ id, name, tier, price, length, sound, tone: Object.freeze(TONES[id] || {}), horn, handling: Object.freeze(handling), blurb });
+
+// Until each bike's own recording is supplied, its engine is made by the game (bike-audio.js) from the kind of
+// engine above, tuned for that bike so that no two of the twelve sound the same: its idle, the ring of its pipe,
+// the rasp of its exhaust. A recording, when it comes, replaces this (bike-audio.js, `recordings`).
+const TONES = {
+  'streetfighter': { idle: 1350, pipe: 230, rasp: 0.15 },
+  'cafe-racer': { idle: 1100, pipe: 185, rasp: 0.17, lope: 0.2 },
+  'white-sport': { idle: 1400, pipe: 175, rasp: 0.12 },
+  'black-cruiser': { idle: 900, pipe: 110, lope: 0.8 },
+  'chopper': { idle: 850, pipe: 98, lope: 0.85, rasp: 0.22 },
+  'purple-sport': { idle: 1500, pipe: 360, rasp: 0.09 },
+  'olive-cruiser': { idle: 1000, pipe: 135, lope: 0.7, rasp: 0.21, level: 0.5 },
+  'yellow-adventure': { idle: 1250, pipe: 200, rasp: 0.14, lope: 0.18 },
+  'red-superbike': { idle: 1600, pipe: 390, rasp: 0.11, redline: 14500 },
+  'black-gold-superbike': { idle: 1550, pipe: 315, rasp: 0.12, redline: 14000 },
+  'gold-tourer': { idle: 900, pipe: 125, lope: 0.6, rasp: 0.12, level: 0.42 },
+  'chrome-concept': { idle: 1100, pipe: 150, rasp: 0.16, redline: 9500, level: 0.48 },
+};
+
+export const POWER_BIKES = Object.freeze({
+  'streetfighter': bike('streetfighter', 'Streetfighter', 1, 2.05, 'twin650', 'single', { top: 24, accel: 5.4 }, 'A light naked street bike in red and white, upright and quick to turn.'),
+  'cafe-racer': bike('cafe-racer', 'Café Racer', 1, 2.05, 'twin650', 'single', { top: 23, accel: 5.0 }, 'A grey café racer with an orange seat and an open frame.'),
+  'white-sport': bike('white-sport', 'White Sport Tourer', 1, 2.1, 'single500', 'single', { top: 24, accel: 5.0 }, 'A white half-faired sport tourer, easy to live with.'),
+  'black-cruiser': bike('black-cruiser', 'Black Cruiser', 2, 2.35, 'vtwin1200', 'dual', { top: 24, accel: 4.8, leanMax: 0.5, wheelbase: 1.65 }, 'A classic black cruiser with chrome, wire wheels and a low seat.'),
+  'chopper': bike('chopper', 'Chopper', 2, 2.4, 'vtwin1200', 'dual', { top: 23, accel: 4.6, leanMax: 0.48, wheelbase: 1.7 }, 'A long chopper with high bars and a stepped seat.'),
+  'purple-sport': bike('purple-sport', 'Purple Sport', 2, 2.05, 'four1000', 'dual', { top: 27, accel: 5.8 }, 'A fully faired sport bike in deep purple.'),
+  'olive-cruiser': bike('olive-cruiser', 'Olive Muscle Cruiser', 3, 2.35, 'vtwin1200', 'dual', { top: 27, accel: 6.2, leanMax: 0.52, wheelbase: 1.65 }, 'A heavy muscle cruiser in military olive.'),
+  'yellow-adventure': bike('yellow-adventure', 'Yellow Adventure Tourer', 3, 2.25, 'twin650', 'dual', { top: 26, accel: 5.8, rough: 14 }, 'A tall adventure tourer in yellow, at home off the tar as on it.'),
+  'red-superbike': bike('red-superbike', 'Red Superbike', 4, 2.1, 'four1000', 'dual', { top: 31, accel: 7.2, leanMax: 0.7 }, 'A red superbike with a full race fairing.'),
+  'black-gold-superbike': bike('black-gold-superbike', 'Black & Gold Superbike', 4, 2.1, 'four1000', 'dual', { top: 31, accel: 7.0, leanMax: 0.7 }, 'A black superbike on gold wheels.'),
+  'gold-tourer': bike('gold-tourer', 'Gold Grand Tourer', 5, 2.55, 'vtwin1200', 'dual', { top: 28, accel: 5.4, leanMax: 0.5, wheelbase: 1.75 }, 'A full-dress touring bike in gold, with a fairing and hard luggage.'),
+  'chrome-concept': bike('chrome-concept', 'Chrome V-Concept', 5, 2.6, 'four1000', 'dual', { top: 33, accel: 7.6, leanMax: 0.55, wheelbase: 1.9 }, 'A chrome show machine with twin wheels at each end and an engine down its length.', 10000),
+});
 
 // How a big motorcycle goes, in metres, seconds and radians. A heavier, faster bike overrides some of these.
 export const HANDLING = Object.freeze({

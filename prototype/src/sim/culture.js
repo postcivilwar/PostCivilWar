@@ -22,7 +22,10 @@ export const LANGUAGE_IDS = Object.freeze(Object.keys(LANGUAGES));
 // A people: its home language (null where the phrase book has no column for
 // it yet, in which case its members speak Pidgin and English here), its
 // names, and the faiths its members mostly follow.
-const people = (id, name, language, male, female, surnames, faiths) => Object.freeze({ id, name, language, male: Object.freeze(male), female: Object.freeze(female), surnames: Object.freeze(surnames), faiths: Object.freeze(faiths) });
+// `tongue` is the name of its own language, whether or not the phrase book has it: what a person of that people
+// speaks at home. (A people whose language the phrase book does not hold talks with a stranger in Pidgin or English;
+// no line is ever made up in a language the game does not know.)
+const people = (id, name, language, male, female, surnames, faiths, tongue = name) => Object.freeze({ id, name, language, tongue, male: Object.freeze(male), female: Object.freeze(female), surnames: Object.freeze(surnames), faiths: Object.freeze(faiths) });
 
 export const PEOPLES = Object.freeze({
   igbo: people('igbo', 'Igbo', 'ig',
@@ -45,7 +48,7 @@ export const PEOPLES = Object.freeze({
     ['Aisha', 'Fatima', 'Zainab', 'Hauwa', 'Halima', 'Maryam', 'Rabi', 'Hadiza', 'Amina', 'Safiya', 'Bilkisu', 'Jamila', 'Khadija', 'Sadiya', 'Asabe', 'Ladi'],
     ['Abdullahi', 'Mohammed', 'Danladi', 'Yakubu', 'Lawal', 'Idris', 'Umar', 'Tanko', 'Shuaibu', 'Adamu', 'Ahmad', 'Isa', 'Dauda', 'Jibril', 'Maikudi', 'Gwarzo'],
     [['muslim', 0.95], ['other', 0.05]]),
-  ijaw: people('ijaw', 'Ijaw', null,
+  ijaw: people('ijaw', 'Ijaw (Izon)', null,
     ['Ebiowei', 'Tonye', 'Timi', 'Ebikeme', 'Tari', 'Boma', 'Seiyefa', 'Perekeme', 'Douye', 'Ebitimi'],
     ['Ebiere', 'Tariere', 'Ebiye', 'Preye', 'Ibinabo', 'Ayebatonye', 'Tamara', 'Ebimiere', 'Tonbra', 'Oyintari'],
     ['Dokubo', 'Sekibo', 'Amachree', 'Oyadonghan', 'Tebepah', 'Ogbise', 'Brisibe', 'Ekiye'],
@@ -55,6 +58,34 @@ export const PEOPLES = Object.freeze({
     ['Onome', 'Eloho', 'Efemena', 'Oghenekevwe', 'Ejiroghene', 'Akpevwe', 'Omamuyovwi', 'Rukevwe'],
     ['Akpobome', 'Edewor', 'Onojeta', 'Okpako', 'Ejovwo', 'Agbroko', 'Umukoro', 'Otobo'],
     [['catholic', 0.4], ['anglican', 0.4], ['other', 0.2]]),
+  // The peoples of Delta State (13 October 2026, when the town became Asaba). Enuani is the Igbo of Asaba and the
+  // Anioma towns round it, and is spoken here with the phrase book's Igbo; Ika and Ukwuani are languages of their
+  // own, as are Isoko and Itsekiri, and none of them is in the phrase book yet.
+  enuani: people('enuani', 'Anioma (Enuani)', 'ig',
+    ['Nwaka', 'Chukwuka', 'Nkem', 'Ifeanyi', 'Okwudili', 'Chiedu', 'Azuka', 'Chukwudi', 'Nnamdi', 'Emeka', 'Obi', 'Uche', 'Kenechukwu', 'Ikechukwu', 'Ndidi', 'Ogbogu'],
+    ['Nwamaka', 'Nkechi', 'Ngozi', 'Azuka', 'Ebele', 'Ifeoma', 'Chinwe', 'Nneka', 'Uche', 'Ogochukwu', 'Chioma', 'Ijeoma', 'Nkiru', 'Obiageli', 'Adaku', 'Nwanne'],
+    ['Okonjo', 'Nwajei', 'Odogwu', 'Mordi', 'Ogbogu', 'Nwanze', 'Ojogwu', 'Chukwura', 'Onyeobi', 'Isichei', 'Nwakobi', 'Okocha', 'Ogbemudia', 'Uzoka', 'Okolie', 'Nzekwu'],
+    [['catholic', 0.55], ['anglican', 0.35], ['other', 0.1]], 'Enuani (Igbo)'),
+  isoko: people('isoko', 'Isoko', null,
+    ['Ogheneovo', 'Akpo', 'Efe', 'Ufuoma', 'Oghenero', 'Edafe', 'Ejiro', 'Okiemute', 'Onome', 'Otuedon'],
+    ['Oghenevwogaga', 'Ese', 'Eguono', 'Onome', 'Ejiroghene', 'Oghenefejiro', 'Eruvwu', 'Ufuoma', 'Akpevwe', 'Oke'],
+    ['Akpoveta', 'Ogbe', 'Esiri', 'Ofuoku', 'Abraye', 'Okpara', 'Ogiogio', 'Umukoro', 'Ekpekpe', 'Ovie'],
+    [['anglican', 0.45], ['catholic', 0.35], ['other', 0.2]]),
+  itsekiri: people('itsekiri', 'Itsekiri', null,
+    ['Omagbemi', 'Toju', 'Ayiri', 'Omatsuli', 'Olu', 'Dore', 'Tuoyo', 'Ayo', 'Mene', 'Ebi'],
+    ['Toritseju', 'Oritse', 'Ayiri', 'Temisan', 'Tsola', 'Morenike', 'Ebi', 'Oma', 'Ese', 'Tejiri'],
+    ['Emiko', 'Ayomike', 'Ogbe', 'Rewane', 'Okotie', 'Eyesan', 'Uwawah', 'Omadeli', 'Arenyeka', 'Pessu'],
+    [['anglican', 0.45], ['catholic', 0.35], ['other', 0.2]]),
+  ika: people('ika', 'Ika', null,
+    ['Chukwuka', 'Ifeanyi', 'Nnamdi', 'Okwudili', 'Ikenna', 'Uche', 'Kelechi', 'Azubuike', 'Obinna', 'Chidi'],
+    ['Nkechi', 'Chinwe', 'Ifeoma', 'Nkiru', 'Ebele', 'Ngozi', 'Uju', 'Ada', 'Ogechi', 'Chioma'],
+    ['Okafor', 'Odiase', 'Ehiwe', 'Ogbeide', 'Iyasere', 'Ozoemena', 'Agbonta', 'Onyemenam', 'Odili', 'Ekwueme'],
+    [['catholic', 0.55], ['anglican', 0.3], ['other', 0.15]]),
+  ukwuani: people('ukwuani', 'Ukwuani', null,
+    ['Onyekachukwu', 'Chukwudi', 'Okwudili', 'Ifeanyi', 'Uche', 'Nwabueze', 'Obiora', 'Emeka', 'Azuka', 'Ndubuisi'],
+    ['Nkem', 'Ngozi', 'Ifeoma', 'Uche', 'Chinwe', 'Nneka', 'Ogechi', 'Ebele', 'Ada', 'Ijeoma'],
+    ['Okobi', 'Uti', 'Ossai', 'Onyeme', 'Nwaobi', 'Odiokwu', 'Egbo', 'Okpara', 'Ofili', 'Ukwu'],
+    [['catholic', 0.5], ['anglican', 0.35], ['other', 0.15]]),
   efik: people('efik', 'Efik and Ibibio', null,
     ['Ekong', 'Effiong', 'Etim', 'Udo', 'Edet', 'Asuquo', 'Ubong', 'Aniekan', 'Okon', 'Nsikak'],
     ['Ekaette', 'Arit', 'Eno', 'Nkoyo', 'Uduak', 'Mfon', 'Idongesit', 'Emem', 'Affiong', 'Itoro'],

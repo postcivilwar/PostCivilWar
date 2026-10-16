@@ -14,8 +14,19 @@
 // Both are only on the website; they are files beside the page, not part of it.
 // THREE is the global from three.min.js.
 
+import { BIKE_PARTS } from './bike-parts.js';
+import { loadBike } from './bike-model.js';
+import { isLite } from './render-kit.js';
+import { POWER_BIKES } from '../sim/power-bikes.js';
+
+// The motorcycles (13 October 2026): the owner's twelve, drawn from the same triangles and pictures the game rides
+// them with (bike-model.js), which are what is fetched to see one in 3D: 5 MB or so on a phone, 10 elsewhere.
+const touchFirst = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
+const bikeModel = (id) => Object.freeze({ bike: id, get megabytes() { const b = BIKE_PARTS[id].bytes; return Math.round(((touchFirst() || isLite()) ? b.lite : b.full) / 1e6); }, triangles: BIKE_PARTS[id].triangles, turntable: `assets/bike-${id}-turn.webp`, frames: 24, cols: 6, rows: 4, poster: `assets/bike-${id}-poster.webp` });
+
 export const ASSET_MODELS = Object.freeze({
   watch: Object.freeze({ file: 'assets/watch.glb', megabytes: 65, triangles: 1886649, turntable: 'assets/watch-turn.webp', frames: 24, cols: 6, rows: 4, poster: 'assets/watch-poster.webp' }),
+  ...Object.fromEntries(Object.keys(BIKE_PARTS).map((id) => [`bike:${id}`, bikeModel(id)])),
 });
 
 // ---- the turntable ----
@@ -197,9 +208,23 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
   canvas.addEventListener('pointerup', lift); canvas.addEventListener('pointercancel', lift);
   canvas.addEventListener('wheel', (event) => { look.dist = Math.max(1.3, Math.min(7, look.dist * (event.deltaY > 0 ? 1.1 : 0.9))); look.auto = false; event.preventDefault(); }, { passive: false });
 
-  async function load(modelId, onProgress, { source = null } = {}) {
+  async function load(modelId, onProgress, { source = null, base = 'bikes/', lite = touchFirst() || isLite() } = {}) {
     const model = ASSET_MODELS[modelId];
     if (!model) throw new Error('There is no model of that.');
+    if (model.bike) {
+      // a motorcycle: its own parts, at its real length, stood in the middle on its wheels
+      if (onProgress) onProgress(0, 1);
+      const bike = await loadBike(model.bike, { base, lite, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1 });
+      if (closed) return null;
+      bike.pose({});
+      const box = new THREE.Box3().setFromObject(bike.group);
+      const centre = box.getCenter(new THREE.Vector3());
+      bike.group.position.sub(centre);
+      radius = box.getBoundingSphere(new THREE.Sphere()).radius;
+      holder.add(bike.group);
+      if (onProgress) onProgress(1, 1);
+      return { triangles: model.triangles, bike: model.bike };
+    }
     let buffer = source;
     if (!buffer) {
       const response = await fetch(model.file);

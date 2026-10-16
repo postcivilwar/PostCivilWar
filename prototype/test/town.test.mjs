@@ -750,7 +750,7 @@ test('notices: a government speaks in its own name, and a receipt is a receipt',
 });
 
 test('the town is data: the new rules and drawing code name no town either', () => {
-  const names = new RegExp(['Atani', 'Anambra', 'Ogbaru', 'Niger\\b', 'St\\. Michael', 'All Saints', 'Umuoga', 'Odekpe'].join('|'));
+  const names = new RegExp(['Atani', 'Asaba', 'Anambra', 'Ogbaru', 'Oshimili', 'Niger\\b', 'St\\. Michael', 'All Saints', 'Umuoga', 'Odekpe'].join('|'));
   for (const file of ['sim/population.js', 'sim/okada.js', 'sim/talk.js', 'sim/layout.js', 'sim/graph.js', 'sim/culture.js', 'net/transport.js', 'net/link.js', 'client/render-town.js', 'client/render-crowd.js', 'client/bubbles.js', 'client/audio.js']) {
     const source = readFileSync(new URL(`../src/${file}`, import.meta.url), 'utf8');
     const found = source.match(names);

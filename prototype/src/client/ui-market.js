@@ -60,8 +60,22 @@ export function createMarketUI(kit) {
 
   // ---- the page ----
 
+  // A motorcycle's engine, heard before it is bought or before it is ridden: one at a time, stopped by pressing
+  // again, by another, or by leaving the page (audio.js previewBike).
+  const bikeOf = (model) => (typeof model === 'string' && model.startsWith('bike:') ? model.slice(5) : null);
+  function soundButton(bikeId) {
+    const playing = m.sound === bikeId;
+    return h('button', { class: `btn${playing ? ' primary' : ''}`, type: 'button', id: 'bike-sound', 'aria-pressed': String(playing), onclick: () => {
+      if (m.sound === bikeId) { app.stopBikeSound(); m.sound = null; } else { app.bikeSound(bikeId); m.sound = bikeId; }
+      redraw();
+    } }, playing ? 'Stop sound' : 'Play sound');
+  }
+  function quiet() { if (m.sound) { app.stopBikeSound(); m.sound = null; } }
+
   function page(root, view, sub, go) {
     tidy();
+    // the engine stops when its page is left
+    { const l = sub.asset ? market().state.listings.find((x) => x.id === sub.asset) : null; const own = sub.own && m.mine ? m.mine.holdings.find((x) => x.id === sub.own) : null; const here = bikeOf((l || own || { asset: {} }).asset.model); if (m.sound && m.sound !== here) quiet(); }
     if (!sub.asset && !sub.own) dropViewer();
     const box = noteBox();
     if (box) root.append(box);
@@ -158,7 +172,7 @@ export function createMarketUI(kit) {
           h('b', null, l.name),
           h('span', { class: 'price' }, tr(l.price)),
           h('span', { class: 'eyebrow plain' }, `${l.mine ? 'Your listing' : `Sold by ${l.seller}`} · ${l.place.label}`),
-          l.kind === 'primary' ? h('span', { class: 'tag' }, `${l.left} of ${l.stock} left`) : null,
+          l.kind === 'primary' ? h('span', { class: 'tag' }, l.asset.category === 'motorcycle' ? 'New' : `${l.left} of ${l.stock} left`) : null,
           h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', onclick: () => go({ market: true, asset: l.id }) }, 'View')))));
     }
   }
@@ -219,9 +233,16 @@ export function createMarketUI(kit) {
     root.append(h('div', { class: 'rows' },
       line('Price', tr(l.price), 'strong'),
       line(l.kind === 'primary' ? 'Sold by' : 'Owner', l.seller),
-      l.kind === 'primary' ? line('Left', `${l.left} of ${l.stock}`) : null,
+      l.kind === 'primary' && l.asset.category !== 'motorcycle' ? line('Left', `${l.left} of ${l.stock}`) : null,
       line('Where', l.place.label)));
     if (l.asset.blurb) root.append(h('p', null, l.asset.blurb));
+    const bike = bikeOf(l.asset.model);
+    if (bike) {
+      // its engine, and what pays for it
+      root.append(h('div', { class: 'actions' }, soundButton(bike)));
+      const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
+      root.append(h('p', { class: 'small', id: 'bike-terms' }, owned ? 'You own this motorcycle. One of each to an account: ride yours from Property.' : l.kind === 'primary' ? 'A motorcycle may be paid for with any of your TR, the arrival money included. One of each motorcycle to an account.' : 'Bought from another player, a motorcycle is paid for with TR you have earned.'));
+    }
     const self = app.view().self;
     const far = Math.round(Math.hypot(l.place.x - self.x, l.place.z - self.z));
     if (l.mine) {
@@ -246,6 +267,14 @@ export function createMarketUI(kit) {
       item.serial ? line('Number', `${item.serial} of ${item.edition}`) : null,
       item.paid ? line('You paid', tr(item.paid)) : null,
       line('Yours since', new Date(item.acquiredAt).toLocaleDateString('en-GB', { day: 'numeric', month: 'long', year: 'numeric' }))));
+    const bike = bikeOf(item.asset.model);
+    if (bike && !item.listing) {
+      // riding it: from where the player stands, or where they left it
+      root.append(h('div', { class: 'hxrow' },
+        h('button', { class: 'hx primary', type: 'button', id: 'ride-bike', onclick: () => { quiet(); const r = app.rideBike(bike); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Ride it'),
+        soundButton(bike)));
+      root.append(h('p', { class: 'small' }, 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
+    }
     if (item.listing) {
       root.append(h('div', { class: 'notice good' }, `It is for sale at ${tr(item.listing.price)}. A buyer who comes to its marker will write to you.`));
       root.append(h('div', { class: 'actions' }, h('button', { class: 'btn danger', type: 'button', id: 'unlist', onclick: async () => { const r = await market().unlist(item.listing.id); say(r.ok, r.ok ? 'It is off the market.' : r.message); await refresh(true); } }, 'Take it off the market')));
@@ -406,7 +435,7 @@ export function createMarketUI(kit) {
     else if (offer) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Your offer is with the seller'), h('b', null, tr(offer.amount))),
       h('button', { class: 'hx small', type: 'button', id: 'deal-withdraw', disabled: d.busy, onclick: async () => { d.busy = true; drawDeal(); await market().withdraw(offer.id); d.busy = false; await poll(d); drawDeal(); } }, 'Withdraw'));
     else if (d.thread.automatic) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Price'), h('b', null, tr(l.price))),
-      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
+      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: l.asset && l.asset.category === 'motorcycle' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a motorcycle.` : `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
     else {
       const amount = h('input', { class: 'field', id: 'deal-amount', type: 'number', inputmode: 'decimal', min: '0.5', step: '0.5', value: d.amount || trPlain(l.price), 'aria-label': 'Your offer in TR' });
       amount.addEventListener('input', () => { d.amount = amount.value; });
@@ -477,6 +506,6 @@ export function createMarketUI(kit) {
     // the market's own record changed (a sale, a listing): what is shown is asked for again
     stale() { m.loaded = false; },
     signedOut() { m.mine = null; m.loaded = false; closeDeal(); },
-    leave() { tidy(); dropViewer(); },
+    leave() { tidy(); dropViewer(); quiet(); },
   };
 }

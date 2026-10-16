@@ -12,6 +12,7 @@ import { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON
 import { createVehicles, LOAD_UNITS } from './vehicles.js';
 import { createPopulation, RANGE } from './population.js';
 import { createOkada } from './okada.js';
+import { createOwnBikes, isOwnBike, bikeOf } from './own-bikes.js';
 import { createTalk } from './talk.js';
 import { LANGUAGES } from './culture.js';
 import { LedgerError, trText } from './ledger.js';
@@ -32,12 +33,12 @@ export const TIME_SCALE = 30;                 // game seconds per real second (a
 export const SIM_START = 7.5 * 3600;          // 07:30 on day one
 export const SPEED = Object.freeze({ walk: 2.4, run: 5.6, rain: 0.9 });
 const REACH = 4.5;
-const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance';
+const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$';
 const WHILE_DRIVING = new RegExp(`^(vehicle\\.|run\\.|${ALWAYS})`);
 const WHILE_RIDING = new RegExp(`^(okada\\.alight$|${ALWAYS})`);
 const WHILE_ASTRIDE = new RegExp(`^(moto\\.|${ALWAYS})`);
 // Held by the police: the phone (as far as the officer allows), and what concerns the arrest itself.
-const IN_CUSTODY = /^(custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
+const IN_CUSTODY = /^(bikes\.owned$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
 const WHILE_CARRIED = /^(phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 const WHILE_TAKING = /^(hijack\.cancel$|chat\.|settings\.|people\.)/;
 const REQUESTS_KEPT = 40;                     // answers remembered for each player, to answer a request sent twice
@@ -129,7 +130,9 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   // people taken out of their day, fights, the law, the hospital, the phone, and vehicles taken without leave
   const actors = createActors({ state, population });
   actors.setResolver((target) => (target.kind === 'player' ? state.players[target.id] || null : null));
-  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.serviceState = (id) => serviceState(id);
+  // a player's own motorcycles, bought in the market
+  const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes()] });
+  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.serviceState = (id) => serviceState(id);
   // what townspeople's bodies do when something happens to them; its own dice, so that the rest of the town's
   // chances fall exactly as they did before it was added
   const reactions = createReactions({ state, population, rng: makeRng(0x5eac7) });
@@ -702,8 +705,13 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     // the horn: the simulation needs to know, because people in the road answer it
     'vehicle.horn'(p) { if (!p.driving) throw new GameError('NOT_DRIVING', 'You are not driving.'); return impact.horn(p); },
     'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return impact.horn(p); },
-    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return okada.rideDrive(p, step); },
-    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return okada.dismount(p); },
+    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : okada.rideDrive(p, step); },
+    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : okada.dismount(p); },
+    // --- a player's own motorcycles ---
+    // what the website's server says this player owns (the page passes it on); the bike is brought to them, or
+    // they get on it where they left it
+    'bikes.owned'(p, body) { return ownBikes.setOwned(p, body || {}); },
+    'bikes.ride'(p, body) { return ownBikes.mount(p, body || {}); },
 
     // --- treatment ---
     'care.tariff'(p, { place }) { return care.tariff(String(place)); },
@@ -922,7 +930,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       ...zoneView(playerId),
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? { n: p.astride } : null, swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
+        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride) } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),

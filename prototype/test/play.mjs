@@ -858,7 +858,7 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
   await nlw(page, () => { const n = window.__nlw; n.place(-144, 7.1); n.cam.yaw = Math.PI; n.cam.dist = 9; });
   await page.waitForTimeout(1500);
   await page.keyboard.press('e'); await page.waitForTimeout(700);
-  if ((await page.textContent('#sheet-title')) !== 'Atani General Hospital') bad('E at the hospital door did not open the hospital');
+  if ((await page.textContent('#sheet-title')) !== 'Asaba General Hospital') bad('E at the hospital door did not open the hospital');
   const levels = await page.evaluate(() => [...document.querySelectorAll('.level b')].map((b) => b.textContent));
   if (levels.join() !== '40%,60%,80%,100%') bad(`treatment levels offered: ${levels.join()}`);
   await shot('02-hospital-levels');
