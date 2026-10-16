@@ -290,14 +290,19 @@ for (const id of all) {
   // flat out at its top speed: the engine at its red line; flames from the silencers only on the big engines
   await page.evaluate((which) => { const n = window.__nlw; n.bikeState.speed = n.bikeTop(which) * 0.99; }, id);
   let flame = 0, rev = 0;
-  for (let i = 0; i < 6; i += 1) { await page.waitForTimeout(120); const f = await page.evaluate(() => { const n = window.__nlw, st = n.ownBikeView.stateOf(); return { flame: st ? st.flame : 0, rev: n.audio.status().bike.rev }; }); flame = Math.max(flame, f.flame); rev = Math.max(rev, f.rev); }
+  // (held there: a headless browser's frames are slow and uneven, and a step the server finds too long stops it)
+  for (let i = 0; i < 10 && !(rev > 0.9 && flame > 0.2); i += 1) { await page.waitForTimeout(120); const f = await page.evaluate((which) => { const n = window.__nlw, st = n.ownBikeView.stateOf(); if (n.view.self.astride) n.bikeState.speed = Math.max(n.bikeState.speed, n.bikeTop(which) * 0.97); const b = n.audio.status().bike; return { flame: st ? st.flame : 0, rev: b ? b.rev : 0 }; }, id); flame = Math.max(flame, f.flame); rev = Math.max(rev, f.rev); }
   const big = await page.evaluate((which) => window.__nlw.bikeCc(which), id) >= 1850;
   check(`${id}: flat out, the engine at its red line; ${big ? 'flames from its silencers' : 'no flames (not one of the big engines)'}`, rev > 0.9 && (big ? flame > 0.2 : flame === 0), { rev, flame, big });
   if (big && !shotFlames) { shotFlames = true; await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.me.group.rotation.y + 0.5; n.cam.dist = 3.6; n.cam.pitch = 0.1; }); await page.waitForTimeout(150); await shot(`11-flames-${id}`); }
   // and on the brake: the brake lamp lit, the nose down
   await page.evaluate(() => { window.__nlw.bikeState.speed = 12; });
-  await page.keyboard.up('w'); await page.keyboard.down('s'); await page.waitForTimeout(250);
-  const brake = await page.evaluate(() => { const st = window.__nlw.ownBikeView.stateOf(); return st ? { brake: st.brake, dive: +st.dive.toFixed(3), flame: st.flame } : null; });
+  await page.keyboard.up('w'); await page.keyboard.down('s');
+  let brake = null;
+  for (let i = 0; i < 8 && !(brake && brake.brake === 1 && brake.dive > 0.005); i += 1) {
+    await page.waitForTimeout(100);
+    brake = await page.evaluate(() => { const n = window.__nlw, st = n.ownBikeView.stateOf(); if (n.view.self.astride && n.bikeState.speed < 6) n.bikeState.speed = 10; return st ? { brake: st.brake, dive: +st.dive.toFixed(3), flame: st.flame, speed: +n.bikeState.speed.toFixed(2), astride: !!n.view.self.astride, down: !!n.view.self.down } : null; });
+  }
   check(`${id}: braking, its brake lamp lights red and the nose dips`, brake && brake.brake === 1 && brake.dive > 0.005, brake);
   await page.waitForTimeout(1500); await page.keyboard.up('s');
 }
