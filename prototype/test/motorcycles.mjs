@@ -291,7 +291,7 @@ for (const id of all) {
   await page.evaluate((which) => { const n = window.__nlw; n.bikeState.speed = n.bikeTop(which) * 0.99; }, id);
   let flame = 0, rev = 0;
   // (held there: a headless browser's frames are slow and uneven, and a step the server finds too long stops it)
-  for (let i = 0; i < 10 && !(rev > 0.9 && flame > 0.2); i += 1) { await page.waitForTimeout(120); const f = await page.evaluate((which) => { const n = window.__nlw, st = n.ownBikeView.stateOf(); if (n.view.self.astride) n.bikeState.speed = Math.max(n.bikeState.speed, n.bikeTop(which) * 0.97); const b = n.audio.status().bike; return { flame: st ? st.flame : 0, rev: b ? b.rev : 0 }; }, id); flame = Math.max(flame, f.flame); rev = Math.max(rev, f.rev); }
+  for (let i = 0; i < 30 && !(rev > 0.9 && (flame > 0.2 || i > 12)); i += 1) { await page.waitForTimeout(150); const f = await page.evaluate((which) => { const n = window.__nlw, st = n.ownBikeView.stateOf(); if (n.view.self.astride) n.bikeState.speed = Math.max(n.bikeState.speed, n.bikeTop(which) * 0.97); const b = n.audio.status().bike; return { flame: st ? st.flame : 0, rev: b ? b.rev : 0 }; }, id); flame = Math.max(flame, f.flame); rev = Math.max(rev, f.rev); }
   const big = await page.evaluate((which) => window.__nlw.bikeCc(which), id) >= 1850;
   check(`${id}: flat out, the engine at its red line; ${big ? 'flames from its silencers' : 'no flames (not one of the big engines)'}`, rev > 0.9 && (big ? flame > 0.2 : flame === 0), { rev, flame, big });
   if (big && !shotFlames) { shotFlames = true; await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.me.group.rotation.y + 0.5; n.cam.dist = 3.6; n.cam.pitch = 0.1; }); await page.waitForTimeout(150); await shot(`11-flames-${id}`); }
