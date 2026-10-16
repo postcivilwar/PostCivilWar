@@ -12,7 +12,7 @@
 // households; the riders pay a daily levy and take the rest home. The pool
 // is a simplification: residents do not yet have purses of their own.
 
-import { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, zoneWalkable } from './zone.js';
+import { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, zoneWalkable } from './zone.js';
 import { graphRoute, graphDistance, graphNearest, graphPoint } from './graph.js';
 import { POSE, RIDE_SPEED } from './population.js';
 import { GameError } from './registry.js';
@@ -30,7 +30,10 @@ export const OKADA_RULES = Object.freeze({
 // A motorcycle with a player in the saddle (one taken from its rider: nobody sells or hires them yet).
 export const MOTO = Object.freeze({ speedRoad: 11, speedRough: 6, reverse: 2, radius: 0.55, returnAfter: 10 });
 
-const onTar = (x, z) => ZONE_ROADS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) || OUTSKIRT_ROADS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
+const inBox = (r, x, z) => !!r && x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
+// tarred: the roads, and the airport's runway, taxiway, its links and the apron (all paved)
+const PAVED = [AIRPORT.runway, AIRPORT.taxiway, AIRPORT.apron, ...(Array.isArray(AIRPORT.links) ? AIRPORT.links : [])].filter((r) => r && Number.isFinite(r.x0));
+const onTar = (x, z) => ZONE_ROADS.some((r) => inBox(r, x, z)) || OUTSKIRT_ROADS.some((r) => inBox(r, x, z)) || PAVED.some((r) => inBox(r, x, z));
 // The top speed of a motorcycle at a point, in metres a second.
 export const motoSpeedAt = (x, z, wet) => (onTar(x, z) ? MOTO.speedRoad : MOTO.speedRough) * (wet ? 0.8 : 1);
 

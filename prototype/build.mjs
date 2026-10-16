@@ -150,6 +150,9 @@ for (const [name, from] of [['assets/watch.glb', 'assets/market/watch.glb'], ['a
 // 2048 for phones and 4096 elsewhere; and the market's photographs of each. A player's device fetches a motorcycle's
 // files only to ride it or look at it. The supplied files themselves are in assets/vehicles/bikes/ and are not sent.
 for (const name of readdirSync(resolve(root, 'assets/vehicles/bikes/game')).sort()) put(`bikes/${name}`, readFileSync(resolve(root, 'assets/vehicles/bikes/game', name)));
+// the owner's engine recordings (16 October 2026), cut into the loops and the start and stop the game plays
+// (tools/audio/bike_sounds.py; bike-audio.js, BIKE_RECORDINGS). The supplied files are in sound/original/ and are not sent.
+for (const name of readdirSync(resolve(root, 'assets/vehicles/bikes/sound/game')).filter((n) => n.endsWith('.wav')).sort()) put(`bikes/sound-${name}`, readFileSync(resolve(root, 'assets/vehicles/bikes/sound/game', name)));
 for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^bike-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
 // Songs for the phone's Music app: the list, and every file the list names (assets/music/README.md).
 {

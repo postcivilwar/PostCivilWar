@@ -101,6 +101,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .btn:focus-visible, .field:focus-visible, .swatch:focus-visible, .tab:focus-visible, .rowbtn:focus-visible { outline: 2px solid var(--white); outline-offset: 2px; }
 .btn.primary { background: var(--white); color: var(--ink); }
 .btn.primary:hover { background: #e4e4e2; }
+/* a button held on a page (a motorcycle's Rev and Horn): green while it is held, like the action buttons */
+.btn.hold { touch-action: none; user-select: none; -webkit-user-select: none; }
+.btn.hold.down { background: rgba(63, 226, 124, 0.16); box-shadow: inset 0 0 0 2px #3fe27c; color: #3fe27c; }
 .btn.quiet { background: transparent; box-shadow: inset 0 0 0 1px var(--line-strong); }
 .btn.danger { background: var(--danger); color: #fff; }
 .btn[disabled] { opacity: 0.4; cursor: not-allowed; }
@@ -1398,6 +1401,55 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .maplegend .lg.mine { background: #ffe08a; box-shadow: 0 0 0 1.5px #c98a00; height: 11px; width: 13px; }
 .maplegend .lg.sale { background: #dbe7c9; box-shadow: none; border: 1.5px dashed #d98c00; height: 9px; width: 11px; }
 canvas.map.nation { border-radius: 14px; }
+
+/* ---- The action buttons (16 October 2026, the owner's two screenshots) ---------------------------------------
+   Every on-screen control (action-button.js makes them; controls.js lays them out): see-through, a thin luminous
+   blue outline and a blue drawing, the town showing through; green the moment it is pressed, blue again the moment
+   it is let go. The same look for walking, swimming, cars, motorcycles and whatever is added later; each keeps its
+   own buttons, places and shapes. Day and night alike (the owner's choice). */
+#touch, .skills-btn { --ctl: #5cb0ff; --ctl-glow: rgba(92, 176, 255, 0.5); --ctl-fill: rgba(92, 176, 255, 0.06); --ctl-on: #3fe27c; --ctl-on-glow: rgba(63, 226, 124, 0.6); --ctl-on-fill: rgba(63, 226, 124, 0.16); }
+#touch #pad .pad, #touch #pad .pad.primary, #touch #pad .pad:not(.primary), .skills-btn { background: var(--ctl-fill) !important; box-shadow: inset 0 0 0 1.6px var(--ctl), 0 0 7px var(--ctl-glow) !important; color: var(--ctl) !important; transition: transform 0.08s ease !important; }   /* (the colours change at once: no fade) */
+#touch #pad .pad .ico, .skills-btn .ico { color: var(--ctl) !important; filter: drop-shadow(0 0 2px var(--ctl-glow)) !important; }
+#touch #pad .pad.down, .skills-btn.down { background: var(--ctl-on-fill) !important; box-shadow: inset 0 0 0 2px var(--ctl-on), 0 0 13px var(--ctl-on-glow) !important; }
+#touch #pad .pad.down { transform: scale(0.96) !important; }
+#touch #pad .pad.down .ico, .skills-btn.down .ico { color: var(--ctl-on) !important; filter: drop-shadow(0 0 3px var(--ctl-on-glow)) !important; }
+/* a switch that is on (Run, say): a little more blue inside, until it is pressed again */
+#touch #pad .pad[aria-pressed="true"]:not(.down), .skills-btn.open { background: rgba(92, 176, 255, 0.24) !important; }
+.skills-btn.open .ico { color: var(--ctl) !important; }
+/* shapes: the two pedals are the outline of a pedal, with the drawing filling it */
+#touch #pad .pad[data-shape="pedal-tall"], #touch #pad .pad[data-shape="pedal-wide"] { border-radius: 14px !important; }
+#touch #pad .pad[data-shape="pedal-tall"] .ico, #touch #pad .pad[data-shape="pedal-wide"] .ico { width: 78% !important; height: 78% !important; }
+#touch #pad .pad[data-shape="rounded"] { border-radius: 18px !important; }
+/* the stick: a ring and a ring inside it, green while a thumb is on it */
+#touch #stick:not(.wheel) { border: 0 !important; background: var(--ctl-fill) !important; box-shadow: inset 0 0 0 1.6px var(--ctl), 0 0 7px var(--ctl-glow) !important; }
+#touch #stick, #touch #stick > i { transition: none !important; }
+#touch #stick:not(.wheel) > i { background-color: rgba(92, 176, 255, 0.12) !important; border: 1.6px solid var(--ctl) !important; box-shadow: 0 0 8px var(--ctl-glow) !important; }
+#touch #stick.held:not(.wheel) { box-shadow: inset 0 0 0 2px var(--ctl-on), 0 0 13px var(--ctl-on-glow) !important; }
+#touch #stick.held:not(.wheel) > i { background-color: var(--ctl-on-fill) !important; border-color: var(--ctl-on) !important; box-shadow: 0 0 12px var(--ctl-on-glow) !important; }
+#touch #stick.swim::after { border-color: rgba(92, 176, 255, 0.5) !important; }
+#touch #stick.swim > i { background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg transform='translate(24 0) scale(-1 1)' fill='none' stroke='%235cb0ff' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.4 12.6V7.6a1.3 1.3 0 0 1 2.6 0v4.2 M10 11.4V5.4a1.3 1.3 0 0 1 2.6 0v6 M12.6 11.4V6.2a1.3 1.3 0 0 1 2.6 0v5.6 M15.2 12V8.4a1.3 1.3 0 0 1 2.6 0v5.4c0 3.4-2.3 6.2-5.8 6.2-2.4 0-3.9-1.1-5.1-3l-2.1-3.4a1.3 1.3 0 0 1 2.2-1.4l1.2 1.8'/%3E%3C/g%3E%3C/svg%3E") !important; }
+#touch #stick.swim.held > i { background-image: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Cg transform='translate(24 0) scale(-1 1)' fill='none' stroke='%233fe27c' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M7.4 12.6V7.6a1.3 1.3 0 0 1 2.6 0v4.2 M10 11.4V5.4a1.3 1.3 0 0 1 2.6 0v6 M12.6 11.4V6.2a1.3 1.3 0 0 1 2.6 0v5.6 M15.2 12V8.4a1.3 1.3 0 0 1 2.6 0v5.4c0 3.4-2.3 6.2-5.8 6.2-2.4 0-3.9-1.1-5.1-3l-2.1-3.4a1.3 1.3 0 0 1 2.2-1.4l1.2 1.8'/%3E%3C/g%3E%3C/svg%3E") !important; }
+/* at the wheel: the steering wheel drawn in the same blue line, green while it is held */
+#touch #stick.wheel { background: none !important; }
+#touch #stick.wheel .wheelart { color: var(--ctl) !important; filter: drop-shadow(0 0 3px var(--ctl-glow)) !important; }
+#touch #stick.wheel.held .wheelart { color: var(--ctl-on) !important; filter: drop-shadow(0 0 4px var(--ctl-on-glow)) !important; }
+
+/* ---- The speedometer (16 October 2026): see-through, at the front of the screen, while a motorcycle is ridden ---- */
+#speedo { position: absolute; left: 50%; bottom: calc(10px + var(--sb, 0px)); transform: translateX(-50%); width: 168px; height: 104px; pointer-events: none; z-index: 2; color: #fff; }
+#speedo[hidden] { display: none; }
+#speedo svg { width: 100%; height: 100%; overflow: visible; }
+#speedo .arc { fill: none; stroke: rgba(255, 255, 255, 0.28); stroke-width: 3; }
+#speedo .fill { fill: none; stroke: #5cb0ff; stroke-width: 3.4; filter: drop-shadow(0 0 3px rgba(92, 176, 255, 0.7)); }
+#speedo .tick { stroke: rgba(255, 255, 255, 0.55); stroke-width: 1.4; }
+#speedo .needle { stroke: #fff; stroke-width: 2.2; stroke-linecap: round; filter: drop-shadow(0 0 2px rgba(0, 0, 0, 0.6)); }
+#speedo .kmh { font: 800 30px/1 var(--font-ui, sans-serif); fill: #fff; text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, 0.45); stroke-width: 2px; }
+#speedo .unit, #speedo .cc { font: 700 9.5px/1 var(--font-ui, sans-serif); letter-spacing: 0.14em; fill: rgba(255, 255, 255, 0.8); text-anchor: middle; paint-order: stroke; stroke: rgba(0, 0, 0, 0.45); stroke-width: 2px; }
+#speedo.braking .fill { stroke: #ff5a4a; filter: drop-shadow(0 0 3px rgba(255, 90, 74, 0.7)); }
+/* what is written at the bottom of the screen (the keys, what can be done) goes up above the dial while it is there */
+#hud:has(#speedo:not([hidden])) #actbar { bottom: calc(126px + var(--sb)) !important; }
+@media (orientation: portrait) and (max-width: 600px) { #speedo { width: 140px; height: 88px; bottom: calc(262px + var(--sb, 0px)); } #hud:has(#speedo:not([hidden])) #actbar { bottom: calc(196px + var(--sb)) !important; } }
+@media (max-height: 420px) { #hud:has(#speedo:not([hidden])) #actbar { bottom: calc(98px + var(--sb)) !important; } }
+@media (max-height: 420px) { #speedo { width: 132px; height: 82px; bottom: calc(8px + var(--sb, 0px)); } }
 </style>
 
 <script>
@@ -1453,6 +1505,8 @@ canvas.map.nation { border-radius: 14px; }
   <div id="bubbles" aria-live="off"></div>
 
   <div id="hud" hidden>
+    <!-- the front of the screen, while a motorcycle is ridden: its speed (speedometer.js) -->
+    <div id="speedo" hidden role="meter" aria-label="Speed" aria-valuemin="0"></div>
     <!-- top left: the radar. It turns with the camera, the player in the middle; tap it for the phone's map -->
     <button class="radar" id="radar" type="button" aria-label="The radar. Open the map"><canvas id="radar-map" width="300" height="300"></canvas></button>
     <!-- top right: life (only in danger), the purse, then the time -->
@@ -8207,7 +8261,7 @@ __modules["sim/okada.js"] = (function () {
 // households; the riders pay a daily levy and take the rest home. The pool
 // is a simplification: residents do not yet have purses of their own.
 
-const { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, zoneWalkable } = __modules["sim/zone.js"];
+const { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, zoneWalkable } = __modules["sim/zone.js"];
 const { graphRoute, graphDistance, graphNearest, graphPoint } = __modules["sim/graph.js"];
 const { POSE, RIDE_SPEED } = __modules["sim/population.js"];
 const { GameError } = __modules["sim/registry.js"];
@@ -8225,7 +8279,10 @@ const OKADA_RULES = Object.freeze({
 // A motorcycle with a player in the saddle (one taken from its rider: nobody sells or hires them yet).
 const MOTO = Object.freeze({ speedRoad: 11, speedRough: 6, reverse: 2, radius: 0.55, returnAfter: 10 });
 
-const onTar = (x, z) => ZONE_ROADS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1) || OUTSKIRT_ROADS.some((r) => x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1);
+const inBox = (r, x, z) => !!r && x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
+// tarred: the roads, and the airport's runway, taxiway, its links and the apron (all paved)
+const PAVED = [AIRPORT.runway, AIRPORT.taxiway, AIRPORT.apron, ...(Array.isArray(AIRPORT.links) ? AIRPORT.links : [])].filter((r) => r && Number.isFinite(r.x0));
+const onTar = (x, z) => ZONE_ROADS.some((r) => inBox(r, x, z)) || OUTSKIRT_ROADS.some((r) => inBox(r, x, z)) || PAVED.some((r) => inBox(r, x, z));
 // The top speed of a motorcycle at a point, in metres a second.
 const motoSpeedAt = (x, z, wet) => (onTar(x, z) ? MOTO.speedRoad : MOTO.speedRough) * (wet ? 0.8 : 1);
 
@@ -8682,7 +8739,7 @@ __modules["sim/power-bikes.js"] = (function () {
 // own handling and their own engine and horn. They are not okadas: an okada is a small bike that carries
 // people for a fare (okada.js), and the motorcycle a player can already ride is that small bike.
 //
-// The bikes are the owner's twelve supplied models (assets/vehicles/bikes/, drawn as supplied: see
+// The bikes are the owner's fifteen supplied models (assets/vehicles/bikes/, drawn as supplied: see
 // src/client/bike-model.js). Each is sold new in the market at its price; a player may own one of each.
 //
 // The price follows the bike's class, read from how it looks: its size, its finish, and what kind of machine it
@@ -8710,7 +8767,7 @@ const BIKE_TIERS = Object.freeze({
   5: Object.freeze({ name: 'Flagship', price: 6000 }),
 });
 
-const bike = (id, name, tier, length, sound, horn, handling, blurb, price = BIKE_TIERS[tier].price) => Object.freeze({ id, name, tier, price, length, sound, tone: Object.freeze(TONES[id] || {}), horn, handling: Object.freeze(handling), blurb });
+const bike = (id, name, tier, length, sound, horn, handling, blurb, price = BIKE_TIERS[tier].price, cc = 0) => Object.freeze({ id, name, tier, price: price === undefined ? BIKE_TIERS[tier].price : price, cc, topKmh: topKmhOfCc(cc), length, sound, tone: Object.freeze(TONES[id] || {}), horn, handling: Object.freeze(handling), blurb });
 
 // Until each bike's own recording is supplied, its engine is made by the game (bike-audio.js) from the kind of
 // engine above, tuned for that bike so that no two of the twelve sound the same: its idle, the ring of its pipe,
@@ -8728,21 +8785,40 @@ const TONES = {
   'black-gold-superbike': { idle: 1550, pipe: 315, rasp: 0.12, redline: 14000 },
   'gold-tourer': { idle: 900, pipe: 125, lope: 0.6, rasp: 0.12, level: 0.42 },
   'chrome-concept': { idle: 1100, pipe: 150, rasp: 0.16, redline: 9500, level: 0.48 },
+  'gold-roadster': { idle: 1200, pipe: 205, rasp: 0.16, lope: 0.12 },
+  'black-bobber': { idle: 880, pipe: 104, lope: 0.9, rasp: 0.24 },
+  'power-cruiser': { idle: 950, pipe: 120, lope: 0.65, rasp: 0.18, level: 0.5 },
 };
 
+// Each bike's engine size (cc), from the owner's list of sizes (16 October 2026: 500, 600, 650, 700, 750, 1000,
+// 1200, 1400, 1500, 1650, 1750, 1850, 2000, 2300, 2500, 2800, 3000), matched to each bike by its class. Its top
+// speed and how hard it pulls follow from it (speedOfCc, below); the speedometer reads km/h from the same speed.
+const BIKE_CCS = Object.freeze([500, 600, 650, 700, 750, 1000, 1200, 1400, 1500, 1650, 1750, 1850, 2000, 2300, 2500, 2800, 3000]);
+const CC_RANGE = { low: 500, high: 3000 };
+// top speed, km/h: 100 at 500 cc, rising evenly to 240 at 3000 cc; the pull (m/s² from a standstill) with it
+const topKmhOfCc = (cc) => Math.round(100 + ((cc - CC_RANGE.low) / (CC_RANGE.high - CC_RANGE.low)) * 140);
+const speedOfCc = (cc) => Object.freeze({ top: Math.round((topKmhOfCc(cc) / 3.6) * 100) / 100, accel: Math.round((4.6 + ((cc - CC_RANGE.low) / (CC_RANGE.high - CC_RANGE.low)) * 3.4) * 100) / 100 });
+const FASTEST = speedOfCc(CC_RANGE.high).top;          // m/s: the top speed of the biggest engine there is
+
+const withCc = (cc, handling) => ({ ...handling, ...speedOfCc(cc) });
+
 const POWER_BIKES = Object.freeze({
-  'streetfighter': bike('streetfighter', 'Streetfighter', 1, 2.05, 'twin650', 'single', { top: 24, accel: 5.4 }, 'A light naked street bike in red and white, upright and quick to turn.'),
-  'cafe-racer': bike('cafe-racer', 'Café Racer', 1, 2.05, 'twin650', 'single', { top: 23, accel: 5.0 }, 'A grey café racer with an orange seat and an open frame.'),
-  'white-sport': bike('white-sport', 'White Sport Tourer', 1, 2.1, 'single500', 'single', { top: 24, accel: 5.0 }, 'A white half-faired sport tourer, easy to live with.'),
-  'black-cruiser': bike('black-cruiser', 'Black Cruiser', 2, 2.35, 'vtwin1200', 'dual', { top: 24, accel: 4.8, leanMax: 0.5, wheelbase: 1.65 }, 'A classic black cruiser with chrome, wire wheels and a low seat.'),
-  'chopper': bike('chopper', 'Chopper', 2, 2.4, 'vtwin1200', 'dual', { top: 23, accel: 4.6, leanMax: 0.48, wheelbase: 1.7 }, 'A long chopper with high bars and a stepped seat.'),
-  'purple-sport': bike('purple-sport', 'Purple Sport', 2, 2.05, 'four1000', 'dual', { top: 27, accel: 5.8 }, 'A fully faired sport bike in deep purple.'),
-  'olive-cruiser': bike('olive-cruiser', 'Olive Muscle Cruiser', 3, 2.35, 'vtwin1200', 'dual', { top: 27, accel: 6.2, leanMax: 0.52, wheelbase: 1.65 }, 'A heavy muscle cruiser in military olive.'),
-  'yellow-adventure': bike('yellow-adventure', 'Yellow Adventure Tourer', 3, 2.25, 'twin650', 'dual', { top: 26, accel: 5.8, rough: 14 }, 'A tall adventure tourer in yellow, at home off the tar as on it.'),
-  'red-superbike': bike('red-superbike', 'Red Superbike', 4, 2.1, 'four1000', 'dual', { top: 31, accel: 7.2, leanMax: 0.7 }, 'A red superbike with a full race fairing.'),
-  'black-gold-superbike': bike('black-gold-superbike', 'Black & Gold Superbike', 4, 2.1, 'four1000', 'dual', { top: 31, accel: 7.0, leanMax: 0.7 }, 'A black superbike on gold wheels.'),
-  'gold-tourer': bike('gold-tourer', 'Gold Grand Tourer', 5, 2.55, 'vtwin1200', 'dual', { top: 28, accel: 5.4, leanMax: 0.5, wheelbase: 1.75 }, 'A full-dress touring bike in gold, with a fairing and hard luggage.'),
-  'chrome-concept': bike('chrome-concept', 'Chrome V-Concept', 5, 2.6, 'four1000', 'dual', { top: 33, accel: 7.6, leanMax: 0.55, wheelbase: 1.9 }, 'A chrome show machine with twin wheels at each end and an engine down its length.', 10000),
+  'streetfighter': bike('streetfighter', 'Streetfighter', 1, 2.05, 'twin650', 'single', withCc(650, {}), 'A light naked street bike in red and white, upright and quick to turn.', undefined, 650),
+  'cafe-racer': bike('cafe-racer', 'Café Racer', 1, 2.05, 'twin650', 'single', withCc(600, {}), 'A grey café racer with an orange seat and an open frame.', undefined, 600),
+  'white-sport': bike('white-sport', 'White Sport Tourer', 1, 2.1, 'single500', 'single', withCc(500, {}), 'A white half-faired sport tourer, easy to live with.', undefined, 500),
+  'black-cruiser': bike('black-cruiser', 'Black Cruiser', 2, 2.35, 'vtwin1200', 'dual', withCc(1500, { leanMax: 0.5, wheelbase: 1.65 }), 'A classic black cruiser with chrome, wire wheels and a low seat.', undefined, 1500),
+  'chopper': bike('chopper', 'Chopper', 2, 2.4, 'vtwin1200', 'dual', withCc(1400, { leanMax: 0.48, wheelbase: 1.7 }), 'A long chopper with high bars and a stepped seat.', undefined, 1400),
+  'purple-sport': bike('purple-sport', 'Purple Sport', 2, 2.05, 'four1000', 'dual', withCc(1000, {}), 'A fully faired sport bike in deep purple.', undefined, 1000),
+  'olive-cruiser': bike('olive-cruiser', 'Olive Muscle Cruiser', 3, 2.35, 'vtwin1200', 'dual', withCc(1750, { leanMax: 0.52, wheelbase: 1.65 }), 'A heavy muscle cruiser in military olive.', undefined, 1750),
+  'yellow-adventure': bike('yellow-adventure', 'Yellow Adventure Tourer', 3, 2.25, 'twin650', 'dual', withCc(1200, { rough: 14 }), 'A tall adventure tourer in yellow, at home off the tar as on it.', undefined, 1200),
+  'red-superbike': bike('red-superbike', 'Red Superbike', 4, 2.1, 'four1000', 'dual', withCc(2500, { leanMax: 0.7 }), 'A red superbike with a full race fairing.', undefined, 2500),
+  'black-gold-superbike': bike('black-gold-superbike', 'Black & Gold Superbike', 4, 2.1, 'four1000', 'dual', withCc(2000, { leanMax: 0.7 }), 'A black superbike on gold wheels.', undefined, 2000),
+  'gold-tourer': bike('gold-tourer', 'Gold Grand Tourer', 5, 2.55, 'vtwin1200', 'dual', withCc(2800, { leanMax: 0.5, wheelbase: 1.75 }), 'A full-dress touring bike in gold, with a fairing and hard luggage.', undefined, 2800),
+  'chrome-concept': bike('chrome-concept', 'Chrome V-Concept', 5, 2.6, 'four1000', 'dual', withCc(3000, { leanMax: 0.55, wheelbase: 1.9 }), 'A chrome show machine with twin wheels at each end and an engine down its length.', 10000, 3000),
+  // the owner's three of 16 October 2026
+  'gold-roadster': bike('gold-roadster', 'Gold Muscle Roadster', 4, 2.3, 'four1000', 'dual', withCc(2300, {}), 'A big gold muscle roadster with a three-pipe engine on show.', undefined, 2300),
+  'black-bobber': bike('black-bobber', 'Black Bobber', 2, 2.3, 'vtwin1200', 'dual', withCc(1650, { leanMax: 0.5, wheelbase: 1.6 }), 'A black bobber with a fat front tyre, a solid tank and a low solo seat.', undefined, 1650),
+  'power-cruiser': bike('power-cruiser', 'Dark Power Cruiser', 3, 2.35, 'vtwin1200', 'dual', withCc(1850, { leanMax: 0.55, wheelbase: 1.7 }), 'A long, low custom power cruiser in black on gold-spoked wheels.', undefined, 1850),
 });
 
 // How a big motorcycle goes, in metres, seconds and radians. A heavier, faster bike overrides some of these.
@@ -8751,8 +8827,9 @@ const HANDLING = Object.freeze({
   rough: 9,             // top speed off the tar
   reverse: 1.2,         // pushed backwards with the feet
   accel: 5.5,           // m/s² with the throttle open, at low speed; less as it nears the top
-  brake: 9,             // m/s² with the brake fully on
-  coast: 0.9,           // m/s² lost with neither throttle nor brake (engine braking and the road)
+  brake: 13,            // m/s² with the brake fully on: speed drops fast
+  coast: 1.1,           // m/s² lost with neither throttle nor brake (engine braking and the road)
+  drag: 0.0009,         // and the air, by the square of the speed: let go at speed, it slows the more
   leanMax: 0.62,        // radians: how far over it leans at most
   leanRate: 2.6,        // how quickly it goes over (per second, towards the lean asked for)
   wheelbase: 1.45,      // metres: with the lean, how tight it turns
@@ -8781,7 +8858,7 @@ function stepPowerBike(state, input, dt, { handling = HANDLING, onTar = true, we
   else if (throttle > 0) {
     if (v < 0) v = Math.min(0, v + h.brake * dt);
     else v += h.accel * throttle * Math.max(0.08, 1 - (v / top) ** 2) * dt;
-  } else v -= Math.sign(v) * Math.min(Math.abs(v), h.coast * dt);
+  } else v -= Math.sign(v) * Math.min(Math.abs(v), (h.coast + (h.drag || 0) * v * v) * dt);
   // over the top speed (off the tar, say): it slows to it, it does not stop dead
   if (v > top) v = Math.max(top, v - h.brake * 0.6 * dt);
   // the lean: towards what the steering asks, the more so the faster it goes (positive: over to the right, as
@@ -8799,16 +8876,19 @@ function stepPowerBike(state, input, dt, { handling = HANDLING, onTar = true, we
 }
 
 // How hard the engine is working, 0 (idle) to 1 (the red line), from the speed and the throttle: what the
-// engine's sound follows. Each gear takes the revs up and drops them back as it changes.
+// engine's sound follows. Standing still with the throttle shut it idles (0). Each gear takes the revs up towards
+// the red line and drops them back as it changes; the last gear runs out at the top speed, so the engine is at its
+// red line (1) only flat out at the bike's top speed.
 function bikeRevs(speed, throttle, handling = HANDLING, gears = 6) {
   const share = Math.max(0, Math.min(1, Math.abs(speed) / handling.top));
   const gear = Math.min(gears - 1, Math.floor(share * gears));
   const inGear = share * gears - gear;
-  const base = 0.12 + 0.18 * (gear / gears);
-  return Math.max(0, Math.min(1, base + inGear * (0.62 - 0.05 * gear) + throttle * 0.12));
+  const low = gear === 0 ? 0 : 0.3 + 0.12 * ((gear - 1) / Math.max(1, gears - 2));      // where a change up drops them
+  const high = 0.8 + 0.1 * (gear / (gears - 1));                                         // where it changes up
+  return Math.max(0, Math.min(1, low + inGear * (high - low) + Math.max(0, Math.min(1, throttle)) * 0.1));
 }
 
-return { BIKE_TIERS, POWER_BIKES, HANDLING, handlingOf, stepPowerBike, bikeRevs };
+return { BIKE_TIERS, BIKE_CCS, topKmhOfCc, speedOfCc, FASTEST, POWER_BIKES, HANDLING, handlingOf, stepPowerBike, bikeRevs };
 })();
 
 // ---- sim/own-bikes.js ----
@@ -8823,13 +8903,24 @@ __modules["sim/own-bikes.js"] = (function () {
 // While a player rides one, `astride` is 'pb:<bike>' (a taken okada is a number there), so that everything that
 // already asks "is this player on a motorcycle?" (fights, arrests, treatment, what may be done meanwhile) gets
 // the same answer. A ridden bike strikes whoever is in its way as any motorcycle does (impact.js).
-const { POWER_BIKES, handlingOf } = __modules["sim/power-bikes.js"];
+const { POWER_BIKES, handlingOf, FASTEST } = __modules["sim/power-bikes.js"];
 const { zoneWalkable, zoneRoomAt } = __modules["sim/zone.js"];
 const { GameError } = __modules["sim/registry.js"];
 
 const isOwnBike = (astride) => typeof astride === 'string' && astride.startsWith('pb:');
 const bikeOf = (astride) => (isOwnBike(astride) ? astride.slice(3) : null);
 const ROOM = 0.7;                     // metres it takes up, for walls and kerbs
+// Coming off (16 October 2026, the owner's rule): running into something at speed throws the rider. The faster,
+// the harder: the life lost is in proportion to the speed, and is at most 5 in 100 (the top speed of the biggest
+// engine there is); slower than CRASH.least it is only a bump, and the bike stops.
+const CRASH = Object.freeze({
+  least: 5.5,                 // m/s (about 20 km/h): slower than this, a bump and no fall
+  most: 0.05,                 // the share of full health lost at the top speed of the biggest engine
+  lie: Object.freeze([1.6, 4.0]),     // real seconds on the ground, slowest fall to fastest
+  rise: 0.9,                  // real seconds getting up
+  thrown: Object.freeze([0.8, 4.5]),  // metres thrown forward
+});
+const crashHarm = (speed, max = 100) => max * CRASH.most * Math.min(1, Math.max(0, speed) / FASTEST);
 
 function createOwnBikes({ state, hub, obstacles }) {
   const own = (p) => (Array.isArray(p.bikes) ? p.bikes : []);
@@ -8872,7 +8963,11 @@ function createOwnBikes({ state, hub, obstacles }) {
 
   // One step of riding, as the rider's page moved it. Not further than the bike could have gone since the last
   // step, not through anything solid.
-  function drive(p, { x, z, heading }) {
+  // What the rider's page says the bike is doing, for others to see and hear (lamps, flames, the engine's note):
+  // nothing here depends on it, so it is only kept within sensible bounds.
+  const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  const rideOf = (step, top) => ({ lean: Math.round(num(step.lean, -0.9, 0.9) * 100) / 100, speed: Math.round(num(step.speed, -3, top) * 10) / 10, throttle: Math.round(num(step.throttle, 0, 1) * 10) / 10, brake: step.brake ? 1 : 0, rev: Math.round(num(step.rev, 0, 1) * 100) / 100 });
+  function drive(p, { x, z, heading, ...step }) {
     if (![x, z, heading].every(Number.isFinite)) throw new GameError('BAD_MOVE', 'Invalid position.');
     const b = p.pbike;
     if (!isOwnBike(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.');
@@ -8886,10 +8981,41 @@ function createOwnBikes({ state, hub, obstacles }) {
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, ROOM - 0.1)) throw new GameError('BLOCKED', 'Movement rejected.');
     const fromX = b.x, fromZ = b.z;
     b.x = x; b.z = z; b.h = heading; b.movedAt = state.real;
+    b.ride = rideOf(step, handling.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
     p.stats.driven = (p.stats.driven || 0) + gap;
     const hit = hub.impact ? hub.impact.step(p, { kind: 'moto', id: `pb:${b.id}` }, b, fromX, fromZ, x, z, heading, elapsed) : [];
     return hit.length ? { hit } : {};
+  }
+
+  // Thrown off: the bike ran into something solid at `speed` (as the rider's page found it: it moves the bike, and
+  // the town checks every step of it). The bike is left lying where it stopped; the rider is thrown on ahead, as
+  // far as there is room, and lies there, then gets up. What it costs in health follows the speed (crashHarm).
+  function crash(p, { speed }) {
+    const b = p.pbike;
+    if (!isOwnBike(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.');
+    const handling = handlingOf(POWER_BIKES[b.id]);
+    const v = Math.max(0, Math.min(handling.top, Number(speed) || 0));
+    if (v < CRASH.least) return { fell: false };
+    const share = Math.min(1, (v - CRASH.least) / Math.max(1, FASTEST - CRASH.least));
+    const now = state.real;
+    const h = b.h;
+    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true };
+    p.astride = null; p.pbike = null;
+    // thrown on ahead, to the last place there is room for a body before anything solid
+    const boxes = obstacles();
+    const far = CRASH.thrown[0] + (CRASH.thrown[1] - CRASH.thrown[0]) * share;
+    let at = { x: b.x, z: b.z };
+    for (let d = 0.4; d <= far + 1e-6; d += 0.4) { const q = { x: b.x + Math.sin(h) * d, z: b.z + Math.cos(h) * d }; if (!zoneWalkable(q.x, q.z, boxes, 0.3)) break; at = q; }
+    if (at.x === b.x && at.z === b.z) { const side = { x: b.x + Math.cos(h), z: b.z - Math.sin(h) }; if (zoneWalkable(side.x, side.z, boxes, 0.3)) at = side; }
+    p.x = at.x; p.z = at.z; p.lastMoveAt = now;
+    const harm = crashHarm(v, 100);
+    const before = p.health;
+    if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
+    const lie = CRASH.lie[0] + (CRASH.lie[1] - CRASH.lie[0]) * share;
+    p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h, speed: Math.round(v * 10) / 10 };
+    p.stats.crashes = (p.stats.crashes || 0) + 1;
+    return { fell: true, kmh: Math.round(v * 3.6), lost: before - p.health, health: p.health, x: at.x, z: at.z, bike: { id: b.id, x: b.x, z: b.z, h: b.h }, lie };
   }
 
   // Off: the rider steps down beside it, and it stays where it stands.
@@ -8910,13 +9036,13 @@ function createOwnBikes({ state, hub, obstacles }) {
 
   // What the player sees of their own bikes: which they own, which they are on, and where the others stand.
   function selfView(p) {
-    return { bikes: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ bike: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000 })) };
+    return { bikes: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ bike: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000, ...(s.fallen ? { fallen: true } : {}) })) };
   }
 
-  return { setOwned, mount, drive, leave, unseat, selfView, isOwnBike };
+  return { setOwned, mount, drive, crash, leave, unseat, selfView, isOwnBike };
 }
 
-return { isOwnBike, bikeOf, createOwnBikes };
+return { isOwnBike, bikeOf, CRASH, crashHarm, createOwnBikes };
 })();
 
 // ---- sim/talk.js ----
@@ -8934,11 +9060,12 @@ __modules["sim/talk.js"] = (function () {
 // speaker's head. Nothing here plays a voice: a line carries its language and
 // its text, which is what a voice service would be given later.
 
-const { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident } = __modules["sim/zone.js"];
+const { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround } = __modules["sim/zone.js"];
 const { LANGUAGES, EXCHANGES, PEOPLES, phrase, greetingId, dayPart, sharedLanguage } = __modules["sim/culture.js"];
 const { POSE, RANGE } = __modules["sim/population.js"];
 const { GameError } = __modules["sim/registry.js"];
 const { cleanFigureLook } = __modules["sim/figures.js"];
+const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 
 const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLength: 140, gap: 1.2, visitors: 24 });
 
@@ -9155,8 +9282,9 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
 
   function others(player) {
     const out = [];
-    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true });
+    const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
+    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, hornAt: v.hornAt === undefined ? -10 : v.hornAt });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -9182,7 +9310,8 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
     if (id.length < 3 || !data || typeof data !== 'object') return null;
     const x = Number(data.x), z = Number(data.z), heading = Number(data.heading);
     const b = ZONE.bounds;
-    if (!Number.isFinite(x) || !Number.isFinite(z) || x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return null;
+    // (within the town's square, or out on the land beyond it: the airport, the roads out, the far side of the bridge)
+    if (!Number.isFinite(x) || !Number.isFinite(z) || ((x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) && !zoneOnGround(x, z))) return null;
     // another player is known by their account's username, which may have figures and underscores in it
     const name = cleanHandle(data.name);
     if (name.length < 2) return null;
@@ -9191,6 +9320,14 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
     const look = data.look && typeof data.look === 'object' ? data.look : {};
     const old = visitors.get(id);
     const v = { id, name, x, z, heading: Number.isFinite(heading) ? heading : 0, lang: LANGUAGES[data.lang] ? data.lang : 'en', look: cleanFigureLook(look) || { skin: colour(look.skin, 0x6b4226), top: colour(look.top, 0xf2c200), bottom: colour(look.bottom, 0x2c3440), build: 1, body: look.body === 'f' ? 'f' : 'm', outfit: 'streetwear' }, seen: now(), saySeq: old ? old.saySeq : -1, saidAt: old ? old.saidAt : -10 };
+    // on a motorcycle: which (one of the game's own) and what it is doing, within bounds; a horn newly sounded
+    const r = data.ride && typeof data.ride === 'object' ? data.ride : null;
+    const n = (value, lo, hi) => { const k = Number(value); return Number.isFinite(k) ? Math.max(lo, Math.min(hi, k)) : 0; };
+    v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1) } : null;
+    const horns = r ? n(r.horns, 0, 1e9) : 0;
+    v.horns = old && old.horns !== undefined ? old.horns : horns;
+    v.hornAt = old ? old.hornAt : -10;
+    if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }
     visitors.set(id, v);
     const said = data.say;
     // what was said before this visitor came into view is not replayed
@@ -9228,7 +9365,7 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
       speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
     }
-    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100 }));
+    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }
@@ -10280,7 +10417,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     const involved = Object.keys(p.involved).filter((id) => players[id]).map((id) => ({ kind: 'player', id, name: players[id].name, health: players[id].health, dead: !!players[id].dead }));
     if (p.involvedNpc && book.npc[p.involvedNpc.i]) involved.push({ kind: 'npc', id: p.involvedNpc.i, name: p.involvedNpc.name, health: book.npc[p.involvedNpc.i].health, dead: !!book.npc[p.involvedNpc.i].dead });
     return {
-      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h } : null,
+      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h, ...(p.down.by === 'crash' ? { by: 'crash' } : {}) } : null,
       dead: p.dead ? { by: p.dead.byName, left: Math.max(0, Math.ceil(p.dead.wakeAt - now)), vehicle: p.dead.vehicle } : null,
       involved,
     };
@@ -10318,7 +10455,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
   }
 
   // The driver sounds the horn: for a moment, everyone ahead looks up.
-  function horn(driver) { driver.hornAt = real(); return {}; }
+  function horn(driver) { driver.hornAt = real(); driver.horns = (driver.horns || 0) + 1; return {}; }
 
   const api = { clear, step, stalled, horn, tick, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, record: (i) => book.npc[i] || null };
   hub.impact = api;
@@ -12756,6 +12893,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     'vehicle.horn'(p) { if (!p.driving) throw new GameError('NOT_DRIVING', 'You are not driving.'); return impact.horn(p); },
     'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return impact.horn(p); },
     'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : okada.rideDrive(p, step); },
+    'moto.crash'(p, body) { if (!isOwnBike(p.astride)) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return ownBikes.crash(p, body || {}); },
     'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : okada.dismount(p); },
     // --- a player's own motorcycles ---
     // what the website's server says this player owns (the page passes it on); the bike is brought to them, or
@@ -12980,7 +13118,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       ...zoneView(playerId),
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, riding: riding ? { n: riding.n, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride) } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
+        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
@@ -13149,6 +13287,9 @@ function encodePlayer(self, zoneId) {
   // a supplied figure and its colours: checked again by whoever hears it
   if (self.look.figure) { out.lk.g = self.look.figure; out.lk.c = self.look.colours; }
   if (self.said) out.say = { q: self.said.seq, t: self.said.text, l: self.said.lang };
+  // on one of their own motorcycles: which, and what it is doing (lamps, flames and the engine's note follow it)
+  const a = self.astride;
+  if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, hn: a.horns || 0 }; }
   return out;
 }
 
@@ -13156,7 +13297,9 @@ function decodePlayer(state, zoneId) {
   if (!state || typeof state !== 'object' || state.v !== LINK_VERSION || state.zn !== zoneId) return null;
   const lk = state.lk && typeof state.lk === 'object' ? state.lk : {};
   const say = state.say && typeof state.say === 'object' ? { seq: state.say.q, text: state.say.t, lang: state.say.l } : null;
-  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say };
+  const mb = state.mb && typeof state.mb === 'object' ? state.mb : null;
+  const ride = mb ? { bike: mb.i, lean: mb.l, speed: mb.s, throttle: mb.t, brake: mb.k, rev: mb.r, horns: mb.hn } : null;
+  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride };
 }
 
 function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
@@ -18123,7 +18266,8 @@ function makeFigure(spec, labelText, shadow = false) {
   };
   // the handles become bone rotations whenever the figure is about to be placed in the world
   const place = group.updateMatrixWorld;
-  group.updateMatrixWorld = function updateMatrixWorld(force) { applyPose(rig); if (rig.reaction && rig.reaction.weight > 0.001) applyReaction(rig); place.call(this, force); };
+  // (`freeze`: the bones have been set by hand for this frame, a rider's on a motorcycle say (own-bike-view.js), and are left as they are)
+  group.updateMatrixWorld = function updateMatrixWorld(force) { if (!rig.freeze) { applyPose(rig); if (rig.reaction && rig.reaction.weight > 0.001) applyReaction(rig); } place.call(this, force); };
   return rig;
 }
 
@@ -18792,7 +18936,7 @@ function createCrowd(scene) {
       if (own && own.n === bike.n) {
         // it goes where the player's own driving has put it, with no waiting for the simulation's word
         bike.x = own.x; bike.z = own.z; bike.h = own.h; bike.speed = own.speed;
-        E.set(0, bike.h, -own.lean);
+        E.set(0, bike.h, own.lean);
         bike.mesh.quaternion.setFromEuler(E);
         bike.mesh.position.set(bike.x, zoneGroundY(bike.x, bike.z), bike.z);      // (up on the bridge's deck, where it is on it)
         continue;
@@ -19551,26 +19695,20 @@ return { createBubbles };
 
 // ---- client/bike-audio.js ----
 __modules["client/bike-audio.js"] = (function () {
-// The engine and the horn of a power bike (src/sim/power-bikes.js), made by the game itself as it plays: no
-// recording of anyone's motorcycle is used. Each bike names one of the engines below, or brings its own
-// recordings (see `recordings`), and one of the horns.
+// The engine and the horn of a power bike (src/sim/power-bikes.js).
 //
-// An engine is heard as what it is: a four-stroke fires each cylinder once every two turns of the crank, so it
-// beats at revs/60 × cylinders/2 times a second, and that beat, with the pipes it goes out through, is its
-// sound. A big single thumps, slow and uneven; a V-twin lopes (its two cylinders fire close together, then a
-// gap); a parallel twin is even and gruff; an inline four is smooth and climbs to a howl. Each is made from that
-// beat (an oscillator whose overtones are that engine's), half of it for the lope of a single or a twin, the
-// rasp of the exhaust (noise around the beat), the pipe's own ring (a peak in the filter) and the airbox at high
-// revs. The revs follow the throttle and the gears (bikeRevs), smoothly, so nothing jumps; let off at speed and
-// the exhaust crackles on the overrun.
+// The engine is the owner's recordings (16 October 2026; BIKE_RECORDINGS and createRecordedEngine, below): the
+// supplied WAV files, cut by tools/audio/bike_sounds.py into an idle, a mid and a high loop for each of the two
+// kinds of engine they record (a big V-twin and a sports bike's four), and the start and the switching-off. Every
+// bike plays one of the two sets, pitched a little its own way.
 //
-// Started: the starter turns it over and it catches, rising to its idle. Stopped: it runs down and is quiet.
-// It plays into the game's own vehicle sound (audio.js), so the volume and mute settings govern it like
-// every other engine, and it is a voice of its own: the town's sounds and the other engines are left as they are.
+// The engine made below (createBikeEngine) is heard only when the recordings cannot be fetched at all: a
+// four-stroke's beat (revs/60 × cylinders/2 a second) with its exhaust rasp, its pipe's ring and its airbox, the
+// revs following the throttle and the gears (bikeRevs). No horn was among the recordings, so the horns are made
+// here too (BIKE_HORNS).
 //
-// To give a bike its own recordings later: `recordings: { idle: 'some-bike-idle.mp3', idleRpm: 1100, horn:
-// 'some-bike-horn.mp3' }` in its entry. The idle recording is then looped and played faster as the revs climb,
-// over the made engine's rasp; nothing else changes.
+// Everything plays into the game's own vehicle sound (audio.js), so the volume and mute settings govern it like
+// every other engine.
 
 const BIKE_SOUNDS = Object.freeze({
   // a 500 cc single: low and thumping, a lope at idle
@@ -19599,7 +19737,7 @@ function firingHz(profile, rev) {
 }
 
 // One power bike's engine, sounding into `out` (the game's vehicle sound). `ctx` is the page's AudioContext.
-function createBikeEngine(ctx, out, profile, { noise = null, recordings = null, fetchBuffer = null } = {}) {
+function createBikeEngine(ctx, out, profile, { noise = null } = {}) {
   const real = ctx.createPeriodicWave(new Float32Array(profile.harmonics.length + 1), Float32Array.from([0, ...profile.harmonics]), { disableNormalization: false });
   const beat = ctx.createOscillator(); beat.setPeriodicWave(real);
   // half the beat, for the lope of a single or a twin: the same engine heard every other stroke
@@ -19632,23 +19770,15 @@ function createBikeEngine(ctx, out, profile, { noise = null, recordings = null, 
   tone.connect(level);
   if (airGain) airGain.connect(level);
   level.connect(out);
-  // a bike's own idle recording, when it has one: looped, faster as the revs climb
-  let recorded = null;
-  if (recordings && recordings.idle && fetchBuffer) {
-    fetchBuffer(recordings.idle).then((buffer) => {
-      if (!buffer || stopped) return;
-      const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true;
-      const g = ctx.createGain(); g.gain.value = 0.9; src.connect(g); g.connect(level); src.start();
-      recorded = { src, g };
-      body.gain.value = 0.15;              // the made beat stays only underneath, for weight
-    }).catch(() => {});
-  }
   beat.start(); half.start(); if (rasp) rasp.start(); if (airbox) airbox.start();
 
   let running = false, stopped = false, rev = 0, popAt = 0;
   const engine = {
     profile,
     get running() { return running; },
+    // made, not recorded
+    recording: false,
+    get rev() { return rev; },
     // The starter, then it catches and settles to its idle.
     start(now = ctx.currentTime) {
       if (running || stopped) return;
@@ -19682,14 +19812,13 @@ function createBikeEngine(ctx, out, profile, { noise = null, recordings = null, 
       level.gain.setTargetAtTime(profile.level * (0.6 + 0.25 * rev + 0.15 * throttle), now, 0.1);
       if (raspGain) { raspGain.gain.setTargetAtTime(profile.rasp * (0.25 + 0.75 * throttle) * (0.5 + rev), now, 0.08); rasp.band.frequency.setTargetAtTime(Math.min(6000, f * 6), now, 0.1); }
       if (airGain) airGain.gain.setTargetAtTime(profile.intake * throttle * rev * rev, now, 0.1);
-      if (recorded) recorded.src.playbackRate.setTargetAtTime(Math.max(0.5, (profile.idle + (profile.redline - profile.idle) * rev) / (recordings.idleRpm || profile.idle)), now, 0.09);
       // on the overrun: throttle shut with the revs up, the exhaust pops now and then
       if (noise && throttle < 0.05 && rev > 0.35 && now > popAt && Math.random() < profile.crackle * 0.5) { popAt = now + 0.06 + Math.random() * 0.2; pop(now); }
     },
     dispose() {
       stopped = true; running = false;
       const t = ctx.currentTime + 0.5;
-      for (const n of [beat, half, rasp, airbox, recorded && recorded.src]) if (n) { try { n.stop(t); } catch (error) { /* already stopped */ } }
+      for (const n of [beat, half, rasp, airbox]) if (n) { try { n.stop(t); } catch (error) { /* already stopped */ } }
       setTimeout(() => { try { level.disconnect(); } catch (error) { /* gone */ } }, 700);
     },
   };
@@ -19712,7 +19841,115 @@ function soundBikeHorn(ctx, out, horn, now = ctx.currentTime) {
   return horn.length;
 }
 
-return { BIKE_SOUNDS, BIKE_HORNS, profileFor, firingHz, createBikeEngine, soundBikeHorn };
+// ---- The owner's recordings (16 October 2026) ---------------------------------------------------------------------
+// Made ready by tools/audio/bike_sounds.py from the owner's WAV files (kept as supplied; what each one is, as read
+// from the sound itself, is written at the top of that tool): for each of the two kinds of engine the owner sent,
+// a big deep twin ('twin', the nine "A_hyper-realistic" files) and a high-revving sports bike ('sport', the two
+// "gp_motor_powerbikes"), three seamless loops at idle, middle and high revs with the engine's firing frequency in
+// each, and the start and the switching off. No horn was among them: the horn is the one made below.
+const BIKE_RECORDINGS = Object.freeze({
+  base: 'bikes/sound-',
+  loops: Object.freeze({"twin": {"idle": {"file": "twin-idle.wav", "firing": 41.5}, "mid": {"file": "twin-mid.wav", "firing": 55.3}, "high": {"file": "twin-high.wav", "firing": 107.3}}, "sport": {"idle": {"file": "sport-idle.wav", "firing": 45.9}, "mid": {"file": "sport-mid.wav", "firing": 88.4}, "high": {"file": "sport-high.wav", "firing": 246.2}}}),
+  start: 'start.wav', stop: 'stop.wav',
+  // where the start catches (seconds into start.wav): the idle loop comes in under it from here
+  catchAt: 1.1,
+});
+// Which recordings a bike plays: the cruisers' V-twins the deep twin, the rest the sports bike.
+const recordingKindOf = (bike) => (bike && bike.sound === 'vtwin1200' ? 'twin' : 'sport');
+// Each bike pitched a little its own way, from its tuned idle (power-bikes.js, tone.idle): no two exactly alike.
+const recordingPitchOf = (bike) => { const base = BIKE_SOUNDS[bike && bike.sound] || BIKE_SOUNDS.four1000; const idle = (bike && bike.tone && bike.tone.idle) || base.idle; return Math.max(0.88, Math.min(1.14, idle / base.idle)); };
+const LAYERS = ['idle', 'mid', 'high'];
+const AT = { idle: 0, mid: 0.45, high: 1 };          // the revs (0 idle .. 1 the red line) each loop is heard best at
+
+// The engine, from the recordings: the three loops play together, each faded in where the revs are nearest its own
+// and sped up or slowed to the pitch the revs ask for, so that the engine climbs and falls smoothly and none of them
+// is ever heard to restart. The revs follow the bike: its speed, its gear and the throttle (bikeRevs), smoothly.
+//   buffers  { idle, mid, high, start, stop }: decoded AudioBuffers (see audio.js)
+//   out      where it sounds (the game's vehicle sound, or a panner for someone else's bike)
+function createRecordedEngine(ctx, out, { kind = 'sport', pitch = 1, buffers, level: base = 0.9 } = {}) {
+  const loops = BIKE_RECORDINGS.loops[kind];
+  const lo = loops.idle.firing * pitch, hi = loops.high.firing * pitch * 1.06;
+  const firingAt = (rev) => lo * (hi / lo) ** rev;                 // the firing frequency the revs ask for
+  const level = ctx.createGain(); level.gain.value = 0;
+  // more bite with the throttle open and the revs up, without simply getting louder: a lift in the upper middle
+  const bite = ctx.createBiquadFilter(); bite.type = 'peaking'; bite.frequency.value = 1800; bite.Q.value = 0.7; bite.gain.value = 0;
+  level.connect(bite); bite.connect(out);
+  const voices = {};
+  let running = false, stopped = false, rev = 0;
+  for (const layer of LAYERS) {
+    const src = ctx.createBufferSource(); src.buffer = buffers[layer]; src.loop = true;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(g); g.connect(level);
+    voices[layer] = { src, g, native: loops[layer].firing };
+  }
+  const weights = (r) => {
+    // equal power between the two loops either side of the revs
+    const w = { idle: 0, mid: 0, high: 0 };
+    if (r <= AT.mid) { const k = r / AT.mid; w.idle = Math.cos(k * Math.PI / 2); w.mid = Math.sin(k * Math.PI / 2); } else { const k = (r - AT.mid) / (AT.high - AT.mid); w.mid = Math.cos(k * Math.PI / 2); w.high = Math.sin(k * Math.PI / 2); }
+    return w;
+  };
+  function steer(now, glide) {
+    const f = firingAt(rev), w = weights(rev);
+    for (const layer of LAYERS) {
+      const v = voices[layer];
+      v.src.playbackRate.setTargetAtTime(Math.max(0.5, Math.min(2.2, f / v.native)), now, glide);
+      v.g.gain.setTargetAtTime(w[layer], now, glide);
+    }
+  }
+  const startAt = ctx.currentTime;
+  for (const layer of LAYERS) voices[layer].src.start(startAt, Math.random() * 0.5);
+  return {
+    recording: true,
+    get running() { return running; },
+    get rev() { return rev; },
+    // The ignition: the owner's start, then the idle comes in under it as it catches. `warm`: already running (a
+    // bike seen from afar, or the recordings arriving while it runs): no start sound.
+    start(now = ctx.currentTime, { warm = false } = {}) {
+      if (running || stopped) return;
+      running = true; rev = 0; steer(now, 0.01);
+      if (!warm && buffers.start) {
+        const s = ctx.createBufferSource(); s.buffer = buffers.start;
+        const g = ctx.createGain(); g.gain.value = base; s.connect(g); g.connect(out); s.start(now);
+        level.gain.setValueAtTime(0, now); level.gain.setValueAtTime(0, now + BIKE_RECORDINGS.catchAt); level.gain.linearRampToValueAtTime(base * 0.8, now + BIKE_RECORDINGS.catchAt + 0.6);
+      } else { level.gain.setValueAtTime(0, now); level.gain.linearRampToValueAtTime(base * 0.8, now + 0.35); }
+    },
+    // Switched off: the owner's running-down, and the loops let go under it.
+    stop(now = ctx.currentTime, { quiet = false } = {}) {
+      if (!running) return;
+      running = false;
+      level.gain.cancelScheduledValues(now); level.gain.setTargetAtTime(0, now, quiet ? 0.12 : 0.08);
+      if (!quiet && buffers.stop) { const s = ctx.createBufferSource(); s.buffer = buffers.stop; const g = ctx.createGain(); g.gain.value = base * 0.9; s.connect(g); g.connect(out); s.start(now); }
+    },
+    // The revs (0 idle .. 1 the red line) and the throttle (0..1), each frame or a few times a second.
+    set(nextRev, throttle = 0, now = ctx.currentTime) {
+      if (!running) return;
+      const was = rev;
+      rev = Math.max(0, Math.min(1, nextRev));
+      steer(now, rev > was ? 0.08 : 0.12);            // up a little quicker than down: an engine falls back gently
+      level.gain.setTargetAtTime(base * (0.8 + 0.12 * rev + 0.08 * throttle), now, 0.12);
+      bite.gain.setTargetAtTime(4.5 * throttle * (0.3 + 0.7 * rev), now, 0.1);
+    },
+    dispose() {
+      stopped = true; running = false;
+      const t = ctx.currentTime + 0.4;
+      for (const layer of LAYERS) { try { voices[layer].src.stop(t); } catch (error) { /* already stopped */ } }
+      setTimeout(() => { try { bite.disconnect(); } catch (error) { /* gone */ } }, 600);
+    },
+  };
+}
+
+// A horn held for as long as the button is (the game's own horn: no recording of one was supplied). Gives stop().
+function holdBikeHorn(ctx, out, horn, now = ctx.currentTime) {
+  const g = ctx.createGain();
+  const shape = ctx.createBiquadFilter(); shape.type = 'bandpass'; shape.frequency.value = 900; shape.Q.value = 0.7;
+  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.09, now + 0.02);
+  const oscs = horn.notes.map((f) => { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(shape); o.start(now); return o; });
+  shape.connect(g); g.connect(out);
+  let done = false;
+  return { stop(at = ctx.currentTime) { if (done) return; done = true; const end = Math.max(at, now + 0.15); g.gain.setValueAtTime(0.09, end); g.gain.exponentialRampToValueAtTime(0.0001, end + 0.06); for (const o of oscs) o.stop(end + 0.08); } };
+}
+
+return { BIKE_SOUNDS, BIKE_HORNS, profileFor, firingHz, createBikeEngine, soundBikeHorn, BIKE_RECORDINGS, recordingKindOf, recordingPitchOf, createRecordedEngine, holdBikeHorn };
 })();
 
 // ---- client/audio.js ----
@@ -19740,7 +19977,7 @@ __modules["client/audio.js"] = (function () {
 //   lowers music and background; an open panel lowers everything but itself.
 //   A limiter on the way out catches what is left.
 
-const { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor } = __modules["client/bike-audio.js"];
+const { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor, BIKE_RECORDINGS, recordingKindOf, recordingPitchOf, createRecordedEngine, holdBikeHorn } = __modules["client/bike-audio.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 
 // How each kind of engine sounds: lowest pitch, how far it climbs, its
@@ -19944,6 +20181,7 @@ function createAudio() {
   const spots = new Map();          // generators and the like, by id
   const playing = [];               // short sounds now sounding: { kind, until }
   const ear = { x: 0, z: 0 };
+  const PEER_HEARD = 120, PEER_ENGINES = 3;   // another player's motorcycle is heard within this many metres; the nearest few
   const ducks = { panel: false, focusUntil: 0 };
   let since = 1;
   let birdAt = 0, knockAt = 0, beepAt = 0, hornAt = 0, stepAt = 0;
@@ -20024,7 +20262,7 @@ function createAudio() {
     master.connect(limiter); limiter.connect(ctx.destination); limiter.connect(analyser);
     const groups = {};
     for (const name of SOUND_GROUPS) groups[name] = group(name, master);
-    nodes = { master, analyser, groups, white: noiseBuffer(ctx, 2, 'white'), brown: noiseBuffer(ctx, 3, 'brown') };
+    nodes = { master, analyser, groups, white: noiseBuffer(ctx, 2, 'white'), brown: noiseBuffer(ctx, 3, 'brown'), peerBikes: new Map() };
     for (const name of SOUND_GROUPS) nodes[name] = groups[name].input;
     nodes.wind = looped(nodes.brown, 'lowpass', 420);
     nodes.rain = looped(nodes.white, 'highpass', 1400);
@@ -20140,35 +20378,94 @@ function createAudio() {
     here('horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
   }
 
-  // A motorcycle's engine heard before it is bought (the market's Play Sound): started, held at idle, revved up
-  // through the gears and let off again, over and over, until it is stopped. One at a time: a second stops the
-  // first, and so does getting on a bike. Gives a function that stops it.
+  // Another player's bike sounding its horn, heard where the bike is.
+  function bikeHornAt(id, x, z) {
+    const h = BIKE_HORNS[id] || BIKE_HORNS.dual;
+    at(x, z, 90, 'horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
+  }
+
+  // The owner's engine recordings (bike-audio.js, BIKE_RECORDINGS): a set (the V-twin's or the sports bike's) is
+  // fetched and decoded the first time a bike that plays it is heard, then shared by every engine that plays it.
+  const decoded = new Map();
+  const fetchBuffer = (url) => {
+    if (!decoded.has(url)) decoded.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }).then((data) => ctx.decodeAudioData(data)));
+    return decoded.get(url);
+  };
+  const recordingSets = new Map();          // kind -> { buffers, failed }
+  function recordingsOf(kind) {
+    let r = recordingSets.get(kind);
+    if (!r) {
+      r = { buffers: null, failed: false };
+      recordingSets.set(kind, r);
+      const L = BIKE_RECORDINGS.loops[kind];
+      Promise.all([L.idle.file, L.mid.file, L.high.file, BIKE_RECORDINGS.start, BIKE_RECORDINGS.stop].map((f) => fetchBuffer(BIKE_RECORDINGS.base + f)))
+        .then(([idle, mid, high, startBuf, stopBuf]) => { r.buffers = { idle, mid, high, start: startBuf, stop: stopBuf }; }, () => { r.failed = true; });
+    }
+    return r;
+  }
+  // A bike's engine into `out`: the recordings once they are here (null until then). Only if they cannot be fetched
+  // at all does it fall back to the engine the game makes itself, and says so (status: recording false).
+  function bikeEngine(id, out) {
+    const bike = POWER_BIKES[id];
+    if (!bike) return null;
+    const kind = recordingKindOf(bike), r = recordingsOf(kind);
+    if (r.buffers) return createRecordedEngine(ctx, out, { kind, pitch: recordingPitchOf(bike), buffers: r.buffers });
+    if (r.failed) return createBikeEngine(ctx, out, profileFor(bike), { noise: nodes.white });
+    return null;
+  }
+  const retire = (engine, now, quiet = false) => { if (!engine) return; engine.stop(now, { quiet }); setTimeout(() => engine.dispose(), 2600); };
+
+  // A motorcycle's engine on its page in the market, before it is bought or ridden: started and switched off with
+  // its key, revved for as long as Rev is held (the revs climbing smoothly to its red line and falling back to idle
+  // when it is let go), and its horn for as long as Horn is held. One at a time: another bike's, getting on a bike,
+  // or leaving the page stops it. It is only a sound: no bike is put in the town and nobody else hears it.
   let preview = null;
+  const REV_UP = 0.85, REV_DOWN = 0.55;      // revs (0..1) a second, climbing while Rev is held, falling after
   function stopPreview() {
     if (!preview) return;
     const p = preview; preview = null;
     clearInterval(p.timer);
-    if (ctx) { p.engine.stop(ctx.currentTime); setTimeout(() => p.engine.dispose(), 1600); }
+    if (p.horn) p.horn.stop();
+    if (ctx) retire(p.engine, ctx.currentTime, !p.running);
   }
   function previewBike(id) {
     stopPreview();
     const bike = POWER_BIKES[id];
-    if (!bike || !start() || !ctx) return () => {};
-    const engine = createBikeEngine(ctx, nodes.vehicles, profileFor(bike), { noise: nodes.white });
-    engine.start(ctx.currentTime);
-    const began = ctx.currentTime;
-    // (one turn of it: idle 1.6 s, up through the gears 3.4 s, let off 1.6 s, idle again 1.4 s)
-    const cycle = 8;
-    const at = (t) => {
-      const k = t % cycle;
-      if (k < 1.6) return [0.04, 0];
-      if (k < 5) { const u = (k - 1.6) / 3.4; const gear = Math.min(3, Math.floor(u * 4)); const inGear = u * 4 - gear; return [0.18 + gear * 0.08 + inGear * 0.5, 1]; }
-      if (k < 6.6) return [Math.max(0.04, 0.6 * (1 - (k - 5) / 1.6)), 0];
-      return [0.04, 0];
+    if (!bike || !start() || !ctx) return null;
+    recordingsOf(recordingKindOf(bike));
+    const p = { id, engine: null, running: false, wanted: false, revving: false, rev: 0, horn: null, last: ctx.currentTime };
+    const tick = () => {
+      if (preview !== p || !ctx) return;
+      const now = ctx.currentTime, dt = Math.min(0.2, now - p.last);
+      p.last = now;
+      // the key turned before the recordings arrived: it starts as soon as they are here
+      if (p.wanted && !p.engine) { p.engine = bikeEngine(id, nodes.vehicles); if (p.engine) { p.engine.start(now); p.running = true; } }
+      const goal = p.running && p.revving ? 1 : 0;
+      p.rev = goal > p.rev ? Math.min(goal, p.rev + REV_UP * dt) : Math.max(goal, p.rev - REV_DOWN * dt);
+      if (p.engine && p.running) p.engine.set(p.rev, p.running && p.revving ? 1 : 0, now);
     };
-    const me = { engine, timer: setInterval(() => { if (!ctx || preview !== me) return; const [rev, throttle] = at(ctx.currentTime - began); engine.set(rev, throttle, ctx.currentTime); }, 50) };
-    preview = me;
-    return () => { if (preview === me) stopPreview(); };
+    p.timer = setInterval(tick, 40);
+    preview = p;
+    return {
+      id,
+      get running() { return p.running || (p.wanted && !p.engine); },
+      get rev() { return p.rev; },
+      // the key: on (the starter, then idle) or off (it runs down)
+      ignite() {
+        if (preview !== p) return false;
+        if (p.wanted) { p.wanted = false; p.revving = false; if (p.running) retire(p.engine, ctx.currentTime); p.engine = null; p.running = false; p.rev = 0; return false; }
+        start();
+        p.wanted = true; tick();
+        return true;
+      },
+      revHold(on) { if (preview === p) { p.revving = !!on && p.wanted; tick(); } },
+      hornHold(on) {
+        if (preview !== p) return;
+        if (on && !p.horn && start()) { p.horn = holdBikeHorn(ctx, nodes.vehicles, BIKE_HORNS[bike.horn] || BIKE_HORNS.dual, ctx.currentTime); focus(0.5); }
+        else if (!on && p.horn) { p.horn.stop(); p.horn = null; }
+      },
+      stop() { if (preview === p) stopPreview(); },
+    };
   }
 
   // A blow in a fight: 'punch', 'heavy', 'kick', 'block', 'miss', 'shove', 'fall'. No voices, no gore: a thud and the cloth.
@@ -20317,13 +20614,30 @@ function createAudio() {
     const own = scene.own;
     const bike = own && own.kind === 'powerbike' ? own : null;
     if (bike && (!nodes.bike || nodes.bike.id !== bike.bike)) {
-      if (nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; setTimeout(() => old.dispose(), 1500); }
-      const profile = POWER_BIKES[bike.bike] ? profileFor(POWER_BIKES[bike.bike]) : BIKE_SOUNDS[bike.sound] || BIKE_SOUNDS.four1000;
+      if (nodes.bike) retire(nodes.bike.engine, now);
       stopPreview();
-      nodes.bike = { id: bike.bike, engine: createBikeEngine(ctx, nodes.vehicles, profile, { noise: nodes.white }) };
-      nodes.bike.engine.start(now);
-    } else if (!bike && nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; nodes.bike = null; setTimeout(() => old.dispose(), 1500); }
-    if (bike) nodes.bike.engine.set(bike.rev, bike.throttle, now);
+      nodes.bike = { id: bike.bike, engine: null, since: now };
+    } else if (!bike && nodes.bike) { retire(nodes.bike.engine, now); nodes.bike = null; }
+    if (bike && !nodes.bike.engine) {
+      // the key is turned as the player gets on; if the recordings take a while to arrive, it is already running
+      nodes.bike.engine = bikeEngine(bike.bike, nodes.vehicles);
+      if (nodes.bike.engine) nodes.bike.engine.start(now, { warm: now - nodes.bike.since > 4 });
+    }
+    if (bike && nodes.bike.engine) nodes.bike.engine.set(bike.rev, bike.throttle, now);
+    // other players' motorcycles: each nearby one's own engine, heard from where it is (the nearest few; one engine
+    // each, made when it comes near and let go when it goes)
+    const peers = (scene.peerBikes || []).filter((q) => POWER_BIKES[q.bike] && Math.hypot(q.x - ear.x, q.z - ear.z) < PEER_HEARD).sort((a, b) => Math.hypot(a.x - ear.x, a.z - ear.z) - Math.hypot(b.x - ear.x, b.z - ear.z)).slice(0, PEER_ENGINES);
+    const heardNow = new Set();
+    for (const q of peers) {
+      heardNow.add(q.key);
+      let e = nodes.peerBikes.get(q.key);
+      if (e && e.id !== q.bike) { retire(e.engine, now, true); setTimeout(() => e.pan.disconnect(), 3000); nodes.peerBikes.delete(q.key); e = null; }
+      if (!e) { e = { id: q.bike, engine: null, pan: panner(PEER_HEARD / 1.6) }; e.pan.connect(nodes.vehicles); nodes.peerBikes.set(q.key, e); }
+      move(e.pan, q.x, 0.7, q.z);
+      if (!e.engine) { e.engine = bikeEngine(q.bike, e.pan); if (e.engine) e.engine.start(now, { warm: true }); }
+      if (e.engine) e.engine.set(q.rev, q.throttle, now);
+    }
+    for (const [key, e] of nodes.peerBikes) if (!heardNow.has(key)) { retire(e.engine, now, true); setTimeout(() => e.pan.disconnect(), 3000); nodes.peerBikes.delete(key); }
     if (own && !bike && nodes.own.kind !== own.kind && ENGINE_VOICES[own.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(own.kind, false); }
     nodes.own.set(own && !bike ? own.rev : 0, own && !bike ? 0.21 + own.throttle * 0.24 : 0, now);
     nodes.tyres.gain.gain.setTargetAtTime(own ? own.rev * 0.035 : 0, now, 0.2);
@@ -20487,7 +20801,7 @@ function createAudio() {
 
   return {
     supported: !!Ctx,
-    start, update, bell, footstep, horn, bikeHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     get running() { return !!ctx && ctx.state === 'running'; },
     get muted() { return muted; },
@@ -20501,7 +20815,10 @@ function createAudio() {
       groups: ctx ? Object.fromEntries(SOUND_GROUPS.map((name) => [name, rmsOf(nodes.groups[name].meter).rms])) : {},
       ducked: ctx ? Object.fromEntries(SOUND_GROUPS.map((name) => [name, Number(nodes.groups[name].duck.gain.value.toFixed(2))])) : {},
       voices: ctx ? { short: playing.filter((s) => s.until > ctx.currentTime).length, ...stats } : null,
-      bike: ctx && nodes.bike ? { id: nodes.bike.id, profile: nodes.bike.engine.profile.name, running: nodes.bike.engine.running } : null }),
+      bike: ctx && nodes.bike ? { id: nodes.bike.id, running: !!nodes.bike.engine && nodes.bike.engine.running, recording: !!nodes.bike.engine && !!nodes.bike.engine.recording, rev: nodes.bike.engine ? nodes.bike.engine.rev : 0 } : null,
+      preview: preview ? { id: preview.id, running: preview.running, recording: !!preview.engine && !!preview.engine.recording, rev: preview.rev, revving: preview.revving, horn: !!preview.horn } : null,
+      peerBikes: ctx ? [...nodes.peerBikes].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, recording: !!e.engine && !!e.engine.recording, rev: e.engine ? e.engine.rev : 0 })) : [],
+      recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])) }),
   };
 }
 
@@ -21343,6 +21660,89 @@ __modules["client/bike-parts.js"] = (function () {
 // Written by tools/vehicles/bikes.py from the owner's motorcycle files: do not edit by hand.
 // Each bike's mesh is split by place into body, steer, front wheel and rear wheel (see that tool).
 const BIKE_PARTS = Object.freeze({
+ "black-bobber": {
+  "vertices": 127503,
+  "triangles": 132026,
+  "parts": [
+   54403,
+   7513,
+   28379,
+   41731
+  ],
+  "length": 0.9791,
+  "height": 0.5886,
+  "width": 0.5596,
+  "front": {
+   "z": 0.356,
+   "y": 0.118,
+   "r": 0.118,
+   "half": 0.0364
+  },
+  "rear": {
+   "z": -0.356,
+   "y": 0.126,
+   "r": 0.126,
+   "half": 0.065
+  },
+  "rake": 0.44,
+  "grip": [
+   0.2169,
+   0.5086,
+   0.1003
+  ],
+  "seat": [
+   0.0,
+   0.2623,
+   -0.2157
+  ],
+  "peg": [
+   0.1026,
+   0.0885,
+   -0.0957
+  ],
+  "head": [
+   0.0,
+   0.2905,
+   0.3939
+  ],
+  "tail": [
+   0.0,
+   0.1886,
+   -0.4459
+  ],
+  "pipes": [
+   [
+    0.0454,
+    0.1381,
+    -0.4515
+   ],
+   [
+    -0.045,
+    0.1501,
+    -0.4668
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "black-bobber.bin",
+   "color4k": "black-bobber-color-4k.jpg",
+   "color2k": "black-bobber-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "black-bobber-rm-4k.webp",
+   "rm2k": "black-bobber-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "black-bobber-normal-4k.png",
+   "normal2k": "black-bobber-normal-2k.webp",
+   "normalSize": 4096
+  },
+  "sha256": "2643fca03c4b5f3ee5badd696613e7d1d8056af4f12e790c504d9e5c91b899a9",
+  "bytes": {
+   "lite": 6412303,
+   "full": 10852892
+  }
+ },
  "black-cruiser": {
   "vertices": 98507,
   "triangles": 114420,
@@ -21382,6 +21782,28 @@ const BIKE_PARTS = Object.freeze({
    0.1091,
    0.0962,
    -0.0787
+  ],
+  "head": [
+   0.0,
+   0.2887,
+   0.3665
+  ],
+  "tail": [
+   0.0,
+   0.2562,
+   -0.5079
+  ],
+  "pipes": [
+   [
+    0.0463,
+    0.2633,
+    -0.5012
+   ],
+   [
+    -0.0697,
+    0.2556,
+    -0.5074
+   ]
   ],
   "metallic": 1.0,
   "roughness": 1.0,
@@ -21444,6 +21866,28 @@ const BIKE_PARTS = Object.freeze({
    0.1008,
    0.002
   ],
+  "head": [
+   0.0,
+   0.3413,
+   0.4068
+  ],
+  "tail": [
+   0.0,
+   0.3023,
+   -0.4939
+  ],
+  "pipes": [
+   [
+    0.0474,
+    0.2917,
+    -0.4955
+   ],
+   [
+    -0.0477,
+    0.282,
+    -0.4916
+   ]
+  ],
   "metallic": 1.0,
   "roughness": 1.0,
   "normalScale": 1.0,
@@ -21504,6 +21948,28 @@ const BIKE_PARTS = Object.freeze({
    0.089,
    0.115,
    -0.0254
+  ],
+  "head": [
+   0.0,
+   0.2356,
+   0.4208
+  ],
+  "tail": [
+   0.0,
+   0.1999,
+   -0.4188
+  ],
+  "pipes": [
+   [
+    0.055,
+    0.1529,
+    -0.3639
+   ],
+   [
+    -0.0494,
+    0.1913,
+    -0.3634
+   ]
   ],
   "metallic": 1.0,
   "roughness": 1.0,
@@ -21566,6 +22032,28 @@ const BIKE_PARTS = Object.freeze({
    0.1043,
    -0.0536
   ],
+  "head": [
+   0.0,
+   0.2699,
+   0.387
+  ],
+  "tail": [
+   0.0,
+   0.24,
+   -0.477
+  ],
+  "pipes": [
+   [
+    0.0605,
+    0.2663,
+    -0.456
+   ],
+   [
+    -0.0605,
+    0.2647,
+    -0.4577
+   ]
+  ],
   "metallic": 1.0,
   "roughness": 1.0,
   "normalScale": 1.0,
@@ -21627,6 +22115,28 @@ const BIKE_PARTS = Object.freeze({
    0.0928,
    -0.0889
   ],
+  "head": [
+   0.0,
+   0.2191,
+   0.4567
+  ],
+  "tail": [
+   0.0,
+   0.187,
+   -0.4758
+  ],
+  "pipes": [
+   [
+    0.0739,
+    0.1378,
+    -0.4873
+   ],
+   [
+    -0.0751,
+    0.1407,
+    -0.485
+   ]
+  ],
   "metallic": 1.0,
   "roughness": 1.0,
   "normalScale": 1.0,
@@ -21646,6 +22156,89 @@ const BIKE_PARTS = Object.freeze({
   "bytes": {
    "lite": 4706814,
    "full": 10283025
+  }
+ },
+ "gold-roadster": {
+  "vertices": 76566,
+  "triangles": 95681,
+  "parts": [
+   62336,
+   6741,
+   14079,
+   12525
+  ],
+  "length": 0.9759,
+  "height": 0.5014,
+  "width": 0.4322,
+  "front": {
+   "z": 0.3539,
+   "y": 0.1229,
+   "r": 0.121,
+   "half": 0.0328
+  },
+  "rear": {
+   "z": -0.3539,
+   "y": 0.126,
+   "r": 0.126,
+   "half": 0.0357
+  },
+  "rake": 0.44,
+  "grip": [
+   0.1741,
+   0.4383,
+   0.1276
+  ],
+  "seat": [
+   0.0,
+   0.3199,
+   -0.1466
+  ],
+  "peg": [
+   0.1066,
+   0.0922,
+   -0.0266
+  ],
+  "head": [
+   0.0,
+   0.2396,
+   0.412
+  ],
+  "tail": [
+   0.0,
+   0.2189,
+   -0.4836
+  ],
+  "pipes": [
+   [
+    0.0433,
+    0.2252,
+    -0.4844
+   ],
+   [
+    -0.0431,
+    0.2252,
+    -0.488
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "gold-roadster.bin",
+   "color4k": "gold-roadster-color-4k.jpg",
+   "color2k": "gold-roadster-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "gold-roadster-rm-4k.webp",
+   "rm2k": "gold-roadster-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "gold-roadster-normal-4k.png",
+   "normal2k": "gold-roadster-normal-2k.webp",
+   "normalSize": 4096
+  },
+  "sha256": "a24fb606cb9c2a1f3ddac0133633d4ba71f2ccbe3939b74168304ed8f844b2ca",
+  "bytes": {
+   "lite": 4588743,
+   "full": 9774716
   }
  },
  "gold-tourer": {
@@ -21687,6 +22280,28 @@ const BIKE_PARTS = Object.freeze({
    0.0792,
    0.092,
    -0.027
+  ],
+  "head": [
+   0.0,
+   0.2484,
+   0.3742
+  ],
+  "tail": [
+   0.0,
+   0.1588,
+   -0.4944
+  ],
+  "pipes": [
+   [
+    0.0798,
+    0.0993,
+    -0.4987
+   ],
+   [
+    -0.0494,
+    0.1191,
+    -0.4956
+   ]
   ],
   "metallic": 1.0,
   "roughness": 1.0,
@@ -21749,6 +22364,28 @@ const BIKE_PARTS = Object.freeze({
    0.1088,
    -0.0278
   ],
+  "head": [
+   0.0,
+   0.2605,
+   0.3972
+  ],
+  "tail": [
+   0.0,
+   0.2295,
+   -0.4877
+  ],
+  "pipes": [
+   [
+    0.0453,
+    0.2641,
+    -0.4004
+   ],
+   [
+    -0.0451,
+    0.263,
+    -0.4
+   ]
+  ],
   "metallic": 1.0,
   "roughness": 1.0,
   "normalScale": 1.0,
@@ -21768,6 +22405,89 @@ const BIKE_PARTS = Object.freeze({
   "bytes": {
    "lite": 5028990,
    "full": 10667025
+  }
+ },
+ "power-cruiser": {
+  "vertices": 96350,
+  "triangles": 110565,
+  "parts": [
+   57475,
+   7291,
+   21459,
+   24340
+  ],
+  "length": 0.9788,
+  "height": 0.4974,
+  "width": 0.3785,
+  "front": {
+   "z": 0.3508,
+   "y": 0.133,
+   "r": 0.133,
+   "half": 0.065
+  },
+  "rear": {
+   "z": -0.3508,
+   "y": 0.148,
+   "r": 0.144,
+   "half": 0.0254
+  },
+  "rake": 0.44,
+  "grip": [
+   0.1623,
+   0.4221,
+   0.0165
+  ],
+  "seat": [
+   0.0,
+   0.2967,
+   -0.2256
+  ],
+  "peg": [
+   0.1259,
+   0.0998,
+   -0.1056
+  ],
+  "head": [
+   0.0,
+   0.249,
+   0.4328
+  ],
+  "tail": [
+   0.0,
+   0.1997,
+   -0.4565
+  ],
+  "pipes": [
+   [
+    0.049,
+    0.1622,
+    -0.3628
+   ],
+   [
+    -0.0476,
+    0.162,
+    -0.3631
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "power-cruiser.bin",
+   "color4k": "power-cruiser-color-4k.jpg",
+   "color2k": "power-cruiser-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "power-cruiser-rm-4k.webp",
+   "rm2k": "power-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "power-cruiser-normal-4k.png",
+   "normal2k": "power-cruiser-normal-2k.webp",
+   "normalSize": 4096
+  },
+  "sha256": "8cc9514f139acff15b6dc6c3c3aa227f79e293b226a6cf6f8d2826300a8065da",
+  "bytes": {
+   "lite": 5265147,
+   "full": 10355595
   }
  },
  "purple-sport": {
@@ -21809,6 +22529,28 @@ const BIKE_PARTS = Object.freeze({
    0.062,
    0.1087,
    -0.0425
+  ],
+  "head": [
+   0.0,
+   0.2716,
+   0.3924
+  ],
+  "tail": [
+   0.0,
+   0.2711,
+   -0.5032
+  ],
+  "pipes": [
+   [
+    0.0435,
+    0.2745,
+    -0.5025
+   ],
+   [
+    -0.0443,
+    0.2745,
+    -0.5003
+   ]
   ],
   "metallic": 1.0,
   "roughness": 1.0,
@@ -21871,6 +22613,28 @@ const BIKE_PARTS = Object.freeze({
    0.1061,
    -0.0098
   ],
+  "head": [
+   0.0,
+   0.2744,
+   0.4183
+  ],
+  "tail": [
+   0.0,
+   0.25,
+   -0.4311
+  ],
+  "pipes": [
+   [
+    0.0478,
+    0.1626,
+    -0.452
+   ],
+   [
+    -0.0476,
+    0.1566,
+    -0.459
+   ]
+  ],
   "metallic": 1.0,
   "roughness": 1.0,
   "normalScale": 1.0,
@@ -21931,6 +22695,28 @@ const BIKE_PARTS = Object.freeze({
    0.0593,
    0.1013,
    0.0024
+  ],
+  "head": [
+   0.0,
+   0.271,
+   0.4104
+  ],
+  "tail": [
+   0.0,
+   0.2973,
+   -0.4694
+  ],
+  "pipes": [
+   [
+    0.0467,
+    0.2115,
+    -0.3662
+   ],
+   [
+    -0.0469,
+    0.1471,
+    -0.3504
+   ]
   ],
   "metallic": 1.0,
   "roughness": 1.0,
@@ -21993,6 +22779,28 @@ const BIKE_PARTS = Object.freeze({
    0.1108,
    -0.0712
   ],
+  "head": [
+   0.0,
+   0.265,
+   0.3679
+  ],
+  "tail": [
+   0.0,
+   0.2411,
+   -0.5192
+  ],
+  "pipes": [
+   [
+    0.0452,
+    0.2385,
+    -0.5237
+   ],
+   [
+    -0.0472,
+    0.2397,
+    -0.5217
+   ]
+  ],
   "metallic": 1.0,
   "roughness": 1.0,
   "normalScale": 1.0,
@@ -22053,6 +22861,28 @@ const BIKE_PARTS = Object.freeze({
    0.0706,
    0.0877,
    0.0046
+  ],
+  "head": [
+   0.0,
+   0.3466,
+   0.3522
+  ],
+  "tail": [
+   0.0,
+   0.2937,
+   -0.4864
+  ],
+  "pipes": [
+   [
+    0.0442,
+    0.182,
+    -0.4673
+   ],
+   [
+    -0.0438,
+    0.1801,
+    -0.4604
+   ]
   ],
   "metallic": 1.0,
   "roughness": 1.0,
@@ -22159,6 +22989,61 @@ async function partsOf(id, { base, lite }) {
   return made;
 }
 
+// The lamps and flames of one bike, in its own frame (the model's units). Shared shapes and materials; each bike
+// has its own few small meshes, switched on and off, so nothing is made while it is ridden.
+const LAMP = {};
+function lampParts() {
+  if (LAMP.disc) return LAMP;
+  LAMP.disc = new THREE.CircleGeometry(1, 20);
+  LAMP.glow = new THREE.PlaneGeometry(1, 1);
+  const g = document.createElement('canvas'); g.width = g.height = 64;
+  const c = g.getContext('2d'); const r = c.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.35, 'rgba(255,255,255,0.45)'); r.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = r; c.fillRect(0, 0, 64, 64);
+  LAMP.glowMap = new THREE.CanvasTexture(g);
+  // a flame: a cone from the pipe's end, hot white at its root, orange then blue at its tip
+  LAMP.flame = new THREE.ConeGeometry(1, 1, 10, 1, true); LAMP.flame.translate(0, 0.5, 0); LAMP.flame.rotateX(-Math.PI / 2);   // wide at the pipe (z 0), its tip back along -z
+  const f = document.createElement('canvas'); f.width = 8; f.height = 64;
+  const fc = f.getContext('2d'); const lg = fc.createLinearGradient(0, 0, 0, 64); lg.addColorStop(0, 'rgba(255,250,220,1)'); lg.addColorStop(0.35, 'rgba(255,150,40,0.9)'); lg.addColorStop(0.8, 'rgba(90,120,255,0.45)'); lg.addColorStop(1, 'rgba(60,80,255,0)'); fc.fillStyle = lg; fc.fillRect(0, 0, 8, 64);
+  LAMP.flameMap = new THREE.CanvasTexture(f);
+  return LAMP;
+}
+function lampsOf(spec, frame) {
+  const P = lampParts();
+  const made = [];
+  const put = (mesh) => { frame.add(mesh); made.push(mesh); return mesh; };
+  const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, depthWrite: false, ...extra });
+  const glowMat = (color) => basic(color, { map: P.glowMap, blending: THREE.AdditiveBlending, opacity: 0 });
+  const H = spec.head || [0, spec.height * 0.6, spec.length * 0.42], T = spec.tail || [0, spec.height * 0.45, -spec.length * 0.48];
+  // the headlamp: its glass, and a glow round it when it is on
+  const head = put(new THREE.Mesh(P.disc, basic(0x2a2a26, { opacity: 0.85 })));
+  head.position.set(H[0], H[1], H[2] + 0.004); head.scale.setScalar(0.03);
+  const headGlow = put(new THREE.Mesh(P.glow, glowMat(0xfff2cc))); headGlow.position.set(H[0], H[1], H[2] + 0.01); headGlow.scale.setScalar(0.16);
+  // the tail lamp: dark red, lit red at night, bright when braking
+  const tail = put(new THREE.Mesh(P.disc, basic(0x3a0806, { opacity: 0.9 })));
+  tail.position.set(T[0], T[1], T[2] - 0.004); tail.rotation.y = Math.PI; tail.scale.setScalar(0.022);
+  const tailGlow = put(new THREE.Mesh(P.glow, glowMat(0xff2010))); tailGlow.position.set(T[0], T[1], T[2] - 0.01); tailGlow.rotation.y = Math.PI; tailGlow.scale.setScalar(0.1);
+  // the flames: one from each silencer's end
+  const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.visible = false; return m; });
+  const st = { head: -1, brake: -1, tail: -1 };
+  return {
+    head,
+    set({ head: on = 0, tail: tl = 0, brake = 0, flame = 0, t = 0 } = {}) {
+      if (st.head !== on) { st.head = on; head.material.color.setHex(on > 0 ? 0xfffbe8 : 0x2a2a26); headGlow.material.opacity = 0.9 * on; headGlow.visible = on > 0; }
+      const red = brake ? 1 : tl * 0.45;
+      if (st.tail !== red) { st.tail = red; tail.material.color.setRGB(0.23 + 0.77 * Math.min(1, red * 1.4), 0.03 + 0.05 * red, 0.02); tailGlow.material.opacity = red; tailGlow.visible = red > 0; tailGlow.scale.setScalar(brake ? 0.14 : 0.1); }
+      for (let i = 0; i < flames.length; i += 1) {
+        const m = flames[i];
+        m.visible = flame > 0.02;
+        if (!m.visible) continue;
+        const flicker = 0.75 + 0.25 * Math.sin(t * 61 + i * 2.1) * Math.sin(t * 37 + i);
+        const len = 0.06 + 0.16 * flame * flicker;
+        m.scale.set(0.022 * (0.7 + 0.3 * flame), 0.022 * (0.7 + 0.3 * flame), len);
+        m.material.opacity = Math.min(1, 0.4 + 0.6 * flame) * flicker;
+      }
+    },
+    dispose() { for (const m of made) { m.parent && m.parent.remove(m); m.material.dispose(); } },
+  };
+}
+
 // One motorcycle to put in the scene. `length` is its real length in metres.
 async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1 } = {}) {
   const { spec, geometries, material } = await partsOf(id, { base, lite });
@@ -22182,6 +23067,9 @@ async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1 } = {}
   const frontMesh = mesh(geometries[2]); frontMesh.position.set(0, -F.y, -F.z); frontSpin.add(frontMesh);
   const rearSpin = new THREE.Group(); rearSpin.position.set(0, R.y, R.z); frame.add(rearSpin);
   const rearMesh = mesh(geometries[3]); rearMesh.position.set(0, -R.y, -R.z); rearSpin.add(rearMesh);
+  // the lamps and the exhaust flames, where the model has its headlamp, tail lamp and silencers (bikes.py):
+  // drawn by the game over the model, which is not changed
+  const fx = lampsOf(spec, frame);
   const metres = (v) => v * scale;
   const wheelRadius = { front: metres(F.r), rear: metres(R.r) };
   return {
@@ -22193,13 +23081,20 @@ async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1 } = {}
     lean, frame,
     // travelled: metres the bike has rolled (the wheels turn by it); steer: radians the bars are turned (left
     // positive); tilt: radians it leans (right positive, as the game keeps it)
-    pose({ travelled = 0, steerAngle = 0, tilt = 0 } = {}) {
+    pose({ travelled = 0, steerAngle = 0, tilt = 0, dive = 0, bob = 0 } = {}) {
       frontSpin.rotation.x = travelled / wheelRadius.front;
       rearSpin.rotation.x = travelled / wheelRadius.rear;
       steer.rotation.y = steerAngle;
-      lean.rotation.z = -tilt;
+      // the suspension: the nose dips under hard braking (dive, radians) and the bike rides up and down over the road
+      frame.rotation.x = dive; lean.position.y = bob;
+      lean.rotation.z = tilt;            // (the bike's +x is its left: a turn about its length by +tilt leans it to the right)
     },
-    dispose() { if (group.parent) group.parent.remove(group); if (held) { held = false; users.set(key, users.get(key) - 1); trim(); } },
+    // headlamp and tail lamp (0..1 each), the brake lamp (on or off), the exhaust flames (0..1); `t` seconds
+    lamps(state) { fx.set(state); },
+    // where its headlamp is in the world (for a light that follows it)
+    headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
+    headlamp: fx.head,
+    dispose() { fx.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; users.set(key, users.get(key) - 1); trim(); } },
   };
 }
 
@@ -22498,6 +23393,97 @@ function createModelView(canvas, { transparent = true, pixelRatio = Math.min(2, 
 return { ASSET_MODELS, createTurntable, readStillModel, createModelView };
 })();
 
+// ---- client/action-button.js ----
+__modules["client/action-button.js"] = (function () {
+// One on-screen action button: the game's one way of making a button a player presses with a finger, a mouse, a
+// key or a controller. Every touch control is made here (controls.js), and so is any control added later (an
+// aircraft's, a boat's): it gets the same look and the same handling without being designed again.
+//
+// The look (the owner's screenshots of 16 October 2026; template.html, "The action buttons"): a see-through
+// button with a thin luminous blue outline and a blue drawing, the town showing through it; while it is pressed,
+// the outline, the drawing and a faint fill turn green, and the moment it is let go it is blue again.
+//
+// The handling:
+//   - pressed: the instant a finger, a mouse button or a pen comes down on it (pointerdown), never on `click`;
+//   - let go: when that pointer comes up, is cancelled (the system took the touch, a call came in), when the
+//     page loses it, or when the finger is dragged well off the button. It cannot stay lit: a backstop also lets
+//     go when that pointer comes up anywhere on the page, or when no finger is left on the glass;
+//   - a keyboard or screen reader's `click` (no pointer) presses and lets go at once;
+//   - kind 'tap' does its thing once as it goes down; 'hold' does it for as long as it is held ('down' and 'up'
+//     are both told); 'toggle' is a tap that the game shows as on or off (aria-pressed).
+//
+//   const b = createActionButton({ id: 'throttle', kind: 'hold', onDown, onUp });
+//   b.configure({ icon, label, shape: 'pedal-tall', size: [78, 128], place: { right: 18, bottom: 26 } });
+//   b.setLit(true) / b.setLit(false)        lit by something other than a pointer (a key, a controller)
+//   b.release()                              let go now (the page is hidden, the controls change)
+
+const DRAG_OFF = 28;            // px beyond its edge that a held finger may wander before the button lets go
+
+function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => {} }) {
+  const el = document.createElement('button');
+  el.type = 'button';
+  el.dataset.id = id;
+  const st = { kind, pointer: null, held: false, lit: false };
+
+  const show = () => el.classList.toggle('down', st.held || st.lit);
+  function down(pointerId) {
+    if (st.held) return;
+    st.held = true; st.pointer = pointerId;
+    show();
+    onDown(id);
+  }
+  function up() {
+    if (!st.held) return;
+    st.held = false; st.pointer = null;
+    show();
+    // (a tap has already done its thing on the way down: only a hold is told it has ended)
+    if (st.kind === 'hold') onUp(id);
+  }
+
+  el.addEventListener('pointerdown', (event) => {
+    event.preventDefault();
+    try { el.setPointerCapture(event.pointerId); } catch (error) { /* the pointer has already gone */ }
+    down(event.pointerId);
+  });
+  for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(type, (event) => { if (st.pointer === event.pointerId) up(); });
+  // dragged off: a finger that slides well away from the button lets it go (the button is captured, so it is
+  // told where the finger goes)
+  el.addEventListener('pointermove', (event) => {
+    if (st.pointer !== event.pointerId) return;
+    const r = el.getBoundingClientRect();
+    const out = Math.max(r.left - event.clientX, event.clientX - r.right, r.top - event.clientY, event.clientY - r.bottom);
+    if (out > DRAG_OFF) up();
+  });
+  el.addEventListener('click', (event) => {
+    if (event.detail !== 0) return;          // a pointer's click: answered already, on the way down
+    down(-1); up();
+  });
+  el.addEventListener('contextmenu', (event) => event.preventDefault());
+
+  return {
+    el,
+    id,
+    get held() { return st.held; },
+    get pointer() { return st.pointer; },
+    // Sets what it shows and how it behaves. `place` is { right, bottom } (or left/top) in px; `size` is [w, h];
+    // `shape` is 'round' (the default), 'pedal-tall', 'pedal-wide' or 'rounded'.
+    configure({ kind: k, shape, size, place } = {}) {
+      if (k) st.kind = k;
+      el.dataset.shape = shape || 'round';
+      if (size) { el.style.width = `${size[0]}px`; el.style.height = `${size[1]}px`; }
+      if (place) for (const side of ['left', 'right', 'top', 'bottom']) if (place[side] !== undefined) el.style[side] = typeof place[side] === 'number' ? `${place[side]}px` : place[side];
+    },
+    // lit while a key or a controller button is held (the screen shows what the player is doing, however)
+    setLit(on) { if (st.lit === !!on) return; st.lit = !!on; show(); },
+    release() { up(); st.lit = false; show(); },
+    // from the page: this pointer has come up somewhere else, or no finger is left on the glass
+    pointerGone(pointerId) { if (st.held && (pointerId === undefined || st.pointer === pointerId) && st.pointer !== -1) up(); },
+  };
+}
+
+return { createActionButton };
+})();
+
 // ---- client/ui-market.js ----
 __modules["client/ui-market.js"] = (function () {
 // Property on the phone: what the player owns, what is for sale, and the conversation in which a thing is
@@ -22515,6 +23501,7 @@ __modules["client/ui-market.js"] = (function () {
 // kit: the pieces the phone is made of (ui-phone.js). go(state) moves about inside the app.
 
 const { createTurntable, createModelView, ASSET_MODELS } = __modules["client/asset-view.js"];
+const { createActionButton } = __modules["client/action-button.js"];
 
 const SEARCHES = Object.freeze(['Watch', 'Car', 'Yacht', 'Bike', 'Motorcycle', 'Gun', 'Clothes']);
 const POLL = 1300;                    // how often an open conversation asks for what is new (milliseconds)
@@ -22562,22 +23549,38 @@ function createMarketUI(kit) {
 
   // ---- the page ----
 
-  // A motorcycle's engine, heard before it is bought or before it is ridden: one at a time, stopped by pressing
-  // again, by another, or by leaving the page (audio.js previewBike).
+  // A motorcycle's engine, heard before it is bought or before it is ridden (audio.js previewBike): its key (the
+  // starter, then idle; pressed again, it is switched off), Rev (held: the revs climb to its red line; let go: back
+  // to idle) and Horn (held for as long as it sounds). One engine at a time: another bike's page, getting on a bike
+  // or leaving the page stops it. Rev and Horn are action buttons (action-button.js): they let go however the finger
+  // leaves them, so nothing is left revving.
   const bikeOf = (model) => (typeof model === 'string' && model.startsWith('bike:') ? model.slice(5) : null);
-  function soundButton(bikeId) {
-    const playing = m.sound === bikeId;
-    return h('button', { class: `btn${playing ? ' primary' : ''}`, type: 'button', id: 'bike-sound', 'aria-pressed': String(playing), onclick: () => {
-      if (m.sound === bikeId) { app.stopBikeSound(); m.sound = null; } else { app.bikeSound(bikeId); m.sound = bikeId; }
-      redraw();
-    } }, playing ? 'Stop sound' : 'Play sound');
+  function engineControls(bikeId) {
+    const mine = () => (m.sound && m.sound.id === bikeId ? m.sound : null);
+    const ensure = () => { if (!mine()) { quiet(); m.sound = app.bikeSound(bikeId); } return mine(); };
+    const key = h('button', { class: 'btn', type: 'button', id: 'bike-ignition' });
+    const rev = createActionButton({ id: 'bike-rev', kind: 'hold', onDown: () => { const c = mine(); if (c) c.revHold(true); }, onUp: () => { const c = mine(); if (c) c.revHold(false); } });
+    const horn = createActionButton({ id: 'bike-horn', kind: 'hold', onDown: () => { const c = ensure(); if (c) c.hornHold(true); }, onUp: () => { const c = mine(); if (c) c.hornHold(false); } });
+    rev.el.id = 'bike-rev'; horn.el.id = 'bike-horn';
+    for (const [b, label] of [[rev, 'Rev'], [horn, 'Horn']]) { b.el.className = 'btn hold'; b.el.textContent = label; b.el.title = `Hold to ${label.toLowerCase()}`; }
+    const show = () => {
+      const on = !!mine() && mine().running;
+      key.textContent = on ? 'Switch off' : 'Start engine';
+      key.classList.toggle('primary', on);
+      key.setAttribute('aria-pressed', String(on));
+      rev.el.disabled = !on;
+      if (!on) rev.release();
+    };
+    key.onclick = () => { const c = ensure(); if (c) c.ignite(); show(); };
+    show();
+    return h('div', { class: 'actions', id: 'bike-engine' }, key, rev.el, horn.el);
   }
-  function quiet() { if (m.sound) { app.stopBikeSound(); m.sound = null; } }
+  function quiet() { if (m.sound) { m.sound.stop(); m.sound = null; } else app.stopBikeSound(); }
 
   function page(root, view, sub, go) {
     tidy();
     // the engine stops when its page is left
-    { const l = sub.asset ? market().state.listings.find((x) => x.id === sub.asset) : null; const own = sub.own && m.mine ? m.mine.holdings.find((x) => x.id === sub.own) : null; const here = bikeOf((l || own || { asset: {} }).asset.model); if (m.sound && m.sound !== here) quiet(); }
+    { const l = sub.asset ? market().state.listings.find((x) => x.id === sub.asset) : null; const own = sub.own && m.mine ? m.mine.holdings.find((x) => x.id === sub.own) : null; const here = bikeOf((l || own || { asset: {} }).asset.model); if (m.sound && m.sound.id !== here) quiet(); }
     if (!sub.asset && !sub.own) dropViewer();
     const box = noteBox();
     if (box) root.append(box);
@@ -22741,7 +23744,7 @@ function createMarketUI(kit) {
     const bike = bikeOf(l.asset.model);
     if (bike) {
       // its engine, and what pays for it
-      root.append(h('div', { class: 'actions' }, soundButton(bike)));
+      root.append(engineControls(bike));
       const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
       root.append(h('p', { class: 'small', id: 'bike-terms' }, owned ? 'You own this motorcycle. One of each to an account: ride yours from Property.' : l.kind === 'primary' ? 'A motorcycle may be paid for with any of your TR, the arrival money included. One of each motorcycle to an account.' : 'Bought from another player, a motorcycle is paid for with TR you have earned.'));
     }
@@ -22773,8 +23776,8 @@ function createMarketUI(kit) {
     if (bike && !item.listing) {
       // riding it: from where the player stands, or where they left it
       root.append(h('div', { class: 'hxrow' },
-        h('button', { class: 'hx primary', type: 'button', id: 'ride-bike', onclick: () => { quiet(); const r = app.rideBike(bike); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Ride it'),
-        soundButton(bike)));
+        h('button', { class: 'hx primary', type: 'button', id: 'ride-bike', onclick: () => { quiet(); const r = app.rideBike(bike); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Ride it')));
+      root.append(engineControls(bike));
       root.append(h('p', { class: 'small' }, 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
     }
     if (item.listing) {
@@ -25996,6 +26999,12 @@ const ICONS = Object.freeze({
   // a power bike's two steering arrows: solid, pointing out to their own side
   steerleft: ['M15.6 3.6v16.8L4.2 12z'],
   steerright: ['M8.4 3.6v16.8L19.8 12z'],
+  // the action buttons of 16 October 2026 (the owner's screenshots): steering chevrons, and the two pedals drawn
+  // as the screenshots draw them, inside a button that is itself the pedal's outline (ICON_BOX gives their shape)
+  chevleft: [{ s: 'M11.6 5.6L5.2 12l6.4 6.4 M18.4 5.6L12 12l6.4 6.4', w: 2.6 }],
+  chevright: [{ s: 'M12.4 5.6L18.8 12l-6.4 6.4 M5.6 5.6L12 12l-6.4 6.4', w: 2.6 }],
+  pedalgas: [{ ring: [12, 5.2, 1.7], w: 1.6 }, { ring: [12, 34.8, 1.7], w: 1.6 }, 'M6.2 25.6l11.6-11.6v4.4L6.2 30z M6.2 17.6L17.8 6v4.4L6.2 22z'],
+  pedalbrake: [{ ring: [10.5, 4.6, 1.7], w: 1.6 }, { ring: [29.5, 4.6, 1.7], w: 1.6 }, 'M5.2 9.2h3.6L5.2 15.4z M9.6 21.6l9.2-12.4h3.6l-9.2 12.4z M15.8 21.6L25 9.2h3.6l-9.2 12.4z M28.6 21.6c0-5.4 2.4-9.6 6.2-11.6v11.6z'],
   brake: ['M4.4 6.6h15.2a1.6 1.6 0 0 1 1.6 1.8l-.9 8.3a2.4 2.4 0 0 1-2.4 2.1H6.1a2.4 2.4 0 0 1-2.4-2.1L2.8 8.4a1.6 1.6 0 0 1 1.6-1.8z M7.4 9.6h1.6v6H7.4z M11.2 9.6h1.6v6h-1.6z M15 9.6h1.6v6H15z'],
   // in the river
   hand: [PALM, ...FINGERS, { s: 'M3 22.2c1.5-.9 3-.9 4.5 0s3 .9 4.5 0 3-.9 4.5 0 3 .9 4.5 0', w: 1.8 }],
@@ -26035,10 +27044,13 @@ const PROMPT_ICON = Object.freeze({
 });
 
 const NS = 'http://www.w3.org/2000/svg';
+// drawings that are not square: the two pedals
+const ICON_BOX = Object.freeze({ pedalgas: '0 0 24 40', pedalbrake: '0 0 40 26' });
 function icon(id) {
   const parts = ICONS[id] || ICONS.act;
   const el = document.createElementNS(NS, 'svg');
-  el.setAttribute('viewBox', '0 0 24 24');
+  el.setAttribute('viewBox', ICON_BOX[id] || '0 0 24 24');
+  if (ICON_BOX[id]) el.dataset.box = id;
   el.setAttribute('aria-hidden', 'true');
   el.setAttribute('class', 'ico');
   for (const part of parts) {
@@ -26069,6 +27081,7 @@ __modules["client/controls.js"] = (function () {
 // nothing about what a button means.
 
 const { icon } = __modules["client/icons.js"];
+const { createActionButton } = __modules["client/action-button.js"];
 
 const SLOTS = 7;                 // buttons round the main one
 
@@ -26095,13 +27108,14 @@ function createControls({ stick, pad }) {
     if (steerOnly) { const art = stick.querySelector('.wheelart'); if (art) art.style.transform = `rotate(${x * 120}deg)`; knob.style.transform = ''; }
     else knob.style.transform = `translate(${x * 33}px, ${y * 33}px)`;
   };
-  const dropStick = () => { stickPointer = null; state.stickX = 0; state.stickY = 0; knob.style.transform = ''; const art = stick.querySelector('.wheelart'); if (art) art.style.transform = ''; };
+  const dropStick = () => { stick.classList.remove('held'); stickPointer = null; state.stickX = 0; state.stickY = 0; knob.style.transform = ''; const art = stick.querySelector('.wheelart'); if (art) art.style.transform = ''; };
   // At the wheel: the stick is a steering wheel. Only how far it is turned counts; the pedals go and stop.
   let steerOnly = false;
   stick.addEventListener('pointerdown', (event) => {
     if (stickPointer !== null) return;
     event.preventDefault();
     stickPointer = event.pointerId;
+    stick.classList.add('held');
     try { stick.setPointerCapture(event.pointerId); } catch (error) { /* the pointer has already gone */ }
     moveStick(event);
   });
@@ -26114,14 +27128,14 @@ function createControls({ stick, pad }) {
   // its finger in it.
   let stickTouch = null;           // the touch identifier of the finger on the stick, where touch events exist
   stick.addEventListener('touchstart', (event) => { if (stickTouch === null && event.changedTouches.length) stickTouch = event.changedTouches[0].identifier; }, { passive: true });
-  for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, (event) => { if (event.pointerId === stickPointer) dropStick(); }, true);
+  for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, (event) => { if (event.pointerId === stickPointer) dropStick(); for (const entry of buttons.values()) entry.button.pointerGone(event.pointerId); }, true);
   const checkTouches = (event) => {
     const still = new Set([...event.touches].map((t) => t.identifier));
     if (stickTouch !== null && !still.has(stickTouch)) { stickTouch = null; dropStick(); }
     if (event.touches.length === 0) {
       stickTouch = null;
       if (stickPointer !== null || state.stickX || state.stickY) dropStick();
-      for (const entry of buttons.values()) if (entry.pointer !== null && entry.pointer !== -1) lift(entry);
+      for (const entry of buttons.values()) entry.button.pointerGone();
     }
   };
   for (const type of ['touchend', 'touchcancel']) window.addEventListener(type, checkTouches, { capture: true, passive: true });
@@ -26130,55 +27144,26 @@ function createControls({ stick, pad }) {
 
   // ---------------------------------------------------------- the buttons --
 
-  function press(entry, pointerId) {
-    const { spec } = entry;
-    if (spec.kind === 'hold') {
-      if (held.has(spec.id)) return;
-      held.add(spec.id); entry.pointer = pointerId;
-      entry.el.classList.add('down');
-      emit(spec.id, 'down');
-      return;
-    }
-    emit(spec.id, 'down');
-  }
-  function lift(entry) {
-    if (!held.delete(entry.spec.id)) return;
-    entry.pointer = null;
-    entry.el.classList.remove('down');
-    emit(entry.spec.id, 'up');
-  }
-
+  // Each button is an action button (action-button.js): it lights green while it is pressed and lets go however
+  // the finger leaves it. A hold is held here for as long as it is pressed.
   function make(id) {
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.dataset.id = id;
-    const entry = { el, spec: null, pointer: null };
-    el.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      if (entry.spec.kind === 'hold') { try { el.setPointerCapture(event.pointerId); } catch (error) { /* gone already */ } }
-      press(entry, event.pointerId);
+    const entry = { spec: null };
+    entry.button = createActionButton({
+      id,
+      onDown: () => { if (entry.spec.kind === 'hold') held.add(id); emit(id, 'down'); },
+      onUp: () => { if (held.delete(id)) emit(id, 'up'); },
     });
-    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(type, (event) => { if (entry.pointer === event.pointerId) lift(entry); });
-    // A keyboard or a screen reader presses a button with `click` and no
-    // pointer at all: such a click counts no presses (`detail` is 0). A click
-    // that follows a finger or a mouse was answered already, on the way down.
-    // (Telling the two apart by the clock fails on a slow device, where the
-    // click can be handled a second after the touch that caused it.)
-    el.addEventListener('click', (event) => {
-      if (event.detail !== 0) return;
-      press(entry, -1);
-      if (entry.spec.kind === 'hold') lift(entry);
-    });
-    el.addEventListener('contextmenu', (event) => event.preventDefault());
-    pad.append(el);
+    entry.el = entry.button.el;
+    pad.append(entry.el);
     return entry;
   }
+  const lift = (entry) => { entry.button.release(); if (held.delete(entry.spec.id)) emit(entry.spec.id, 'up'); };
 
   // Sets which buttons are shown. `list` is in order of importance: the first
   // marked `primary` is the large one, the rest take the places round it.
   //   { id, label, kind: 'tap' | 'hold' | 'toggle', primary, pressed, tone, hint }
   function layout(list) {
-    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}`).join('~');
+    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}|${b.shape || ''}`).join('~');
     if (next === signature) return;
     signature = next;
     const seen = new Set();
@@ -26189,8 +27174,9 @@ function createControls({ stick, pad }) {
       let entry = buttons.get(spec.id);
       if (!entry) { entry = make(spec.id); buttons.set(spec.id, entry); }
       entry.spec = { kind: 'tap', ...spec };
+      entry.button.configure({ kind: entry.spec.kind, shape: spec.shape, size: spec.size, place: spec.place });
       const el = entry.el;
-      el.className = `pad ${spec.primary ? 'primary' : `slot${slot += 1}`}${spec.tone ? ` ${spec.tone}` : ''}${held.has(spec.id) ? ' down' : ''}`;
+      el.className = `pad ${spec.primary ? 'primary' : `slot${slot += 1}`}${spec.tone ? ` ${spec.tone}` : ''}${entry.button.held || held.has(spec.id) ? ' down' : ''}`;
       // what the button does is drawn, not written; the word is still there for a screen reader and for a long press
       const drawn = spec.icon || spec.id;
       if (el.dataset.icon !== drawn) { el.dataset.icon = drawn; el.replaceChildren(icon(drawn)); }
@@ -26210,6 +27196,30 @@ function createControls({ stick, pad }) {
     for (const entry of buttons.values()) lift(entry);
   }
 
+  // A controller, where there is one (the Gamepad API): its left stick, and its triggers as throttle and brake.
+  function gamepad() {
+    const none = { x: 0, y: 0, go: 0, stop: 0 };
+    let pads;
+    try { pads = navigator.getGamepads ? navigator.getGamepads() : null; } catch (error) { return none; }
+    const g = pads && [...pads].find((p) => p && p.connected);
+    if (!g) return none;
+    const dead = (v) => (Math.abs(v || 0) < 0.15 ? 0 : v);
+    const b = (i) => (g.buttons[i] ? g.buttons[i].value || (g.buttons[i].pressed ? 1 : 0) : 0);
+    return { x: dead(g.axes[0]), y: dead(g.axes[1]), go: b(7), stop: b(6) };
+  }
+  // The buttons on screen light while the same thing is done with a key or a controller, so that what is shown is
+  // what the player is doing.
+  const KEYS_OF = { throttle: ['w', 'ArrowUp'], gas: ['w', 'ArrowUp'], brake: ['s', 'ArrowDown', ' '], 'steer-left': ['a', 'ArrowLeft'], 'steer-right': ['d', 'ArrowRight'], horn: ['h'] };
+  function lightFromKeys(pad) {
+    for (const entry of buttons.values()) {
+      const keys = KEYS_OF[entry.spec.id];
+      if (!keys) continue;
+      const id = entry.spec.id;
+      const byPad = (id === 'throttle' || id === 'gas') ? pad.go > 0.1 : id === 'brake' ? pad.stop > 0.1 : id === 'steer-left' ? pad.x < -0.3 : id === 'steer-right' ? pad.x > 0.3 : false;
+      entry.button.setLit(byPad || keys.some((key) => state.keys.has(key)));
+    }
+  }
+
   return {
     state,
     layout,
@@ -26219,7 +27229,9 @@ function createControls({ stick, pad }) {
     // Which way the player is pushing: forward and to the right, each -1 to 1.
     axes() {
       const k = state.keys;
-      let forward = 0, strafe = 0;
+      const pad = gamepad();
+      lightFromKeys(pad);
+      let forward = -pad.y, strafe = pad.x;
       if (k.has('w') || k.has('ArrowUp')) forward += 1;
       if (k.has('s') || k.has('ArrowDown')) forward -= 1;
       if (k.has('d') || k.has('ArrowRight')) strafe += 1;
@@ -26227,6 +27239,7 @@ function createControls({ stick, pad }) {
       // at the wheel on a touch screen there are two pedals as well as the stick
       if (held.has('gas')) forward += 1;
       if (held.has('brake')) forward -= 1;
+      forward += pad.go - pad.stop;
       // on a power bike: the two arrows steer, the throttle goes (the brake is read by bike(), below)
       if (held.has('steer-left')) strafe -= 1;
       if (held.has('steer-right')) strafe += 1;
@@ -26237,11 +27250,14 @@ function createControls({ stick, pad }) {
     // from its own buttons on a touch screen, or from the keys (W or Up to go, S or Down or Space to brake).
     bike() {
       const k = state.keys;
+      const pad = gamepad();
+      lightFromKeys(pad);
       let steer = 0;
       if (held.has('steer-left') || k.has('a') || k.has('ArrowLeft')) steer -= 1;
       if (held.has('steer-right') || k.has('d') || k.has('ArrowRight')) steer += 1;
-      const throttle = held.has('throttle') || k.has('w') || k.has('ArrowUp') ? 1 : 0;
-      const brake = held.has('brake') || k.has('s') || k.has('ArrowDown') || k.has(' ') ? 1 : 0;
+      steer = Math.max(-1, Math.min(1, steer + pad.x));
+      const throttle = held.has('throttle') || k.has('w') || k.has('ArrowUp') ? 1 : pad.go;
+      const brake = held.has('brake') || k.has('s') || k.has('ArrowDown') || k.has(' ') ? 1 : pad.stop;
       return { steer, throttle, brake };
     },
     // Running is chosen, never guessed: Shift held down, or Run switched on.
@@ -26256,6 +27272,79 @@ function createControls({ stick, pad }) {
 }
 
 return { createControls };
+})();
+
+// ---- client/speedometer.js ----
+__modules["client/speedometer.js"] = (function () {
+// The speedometer: see-through, at the front of the screen while a motorcycle is ridden. It shows the bike's own
+// speed in km/h (the speed the game moves it at, times 3.6), on a dial that ends a little above the bike's top
+// speed, which its engine size sets (power-bikes.js, speedOfCc), with the engine size under it.
+//
+//   const speedo = createSpeedometer($('speedo'));
+//   speedo.show({ topKmh, cc, name }) / speedo.hide()
+//   speedo.update(dt, { kmh, braking })            every frame: the needle follows smoothly, never jumps
+
+const NS = 'http://www.w3.org/2000/svg';
+const SWEEP = 240;                 // degrees the dial covers
+const START = 150;                 // where 0 is (degrees, clockwise from the right)
+const R = 62, CX = 84, CY = 72;
+
+const node = (tag, attrs) => { const el = document.createElementNS(NS, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
+const polar = (deg, r) => [CX + r * Math.cos((deg * Math.PI) / 180), CY + r * Math.sin((deg * Math.PI) / 180)];
+const arcPath = (from, to, r) => { const [x0, y0] = polar(from, r), [x1, y1] = polar(to, r); return `M${x0.toFixed(2)} ${y0.toFixed(2)}A${r} ${r} 0 ${to - from > 180 ? 1 : 0} 1 ${x1.toFixed(2)} ${y1.toFixed(2)}`; };
+
+function createSpeedometer(el) {
+  const svg = node('svg', { viewBox: '0 0 168 104', 'aria-hidden': 'true' });
+  const arc = node('path', { class: 'arc', d: arcPath(START, START + SWEEP, R) });
+  const fill = node('path', { class: 'fill', d: '' });
+  const ticks = node('g', {});
+  const needle = node('line', { class: 'needle', x1: CX, y1: CY, x2: CX, y2: CY });
+  const kmh = node('text', { class: 'kmh', x: CX, y: CY + 6 });
+  const unit = node('text', { class: 'unit', x: CX, y: CY + 20 });
+  const cc = node('text', { class: 'cc', x: CX, y: CY + 33 });
+  unit.textContent = 'KM/H';
+  svg.append(arc, ticks, fill, needle, kmh, unit, cc);
+  el.append(svg);
+  const st = { shown: false, max: 120, value: 0, drawn: -1 };
+
+  function show({ topKmh, cc: size }) {
+    // the dial ends at the next 20 above the top speed
+    st.max = Math.max(60, Math.ceil((topKmh * 1.08) / 20) * 20);
+    ticks.replaceChildren();
+    const step = st.max > 200 ? 40 : 20;
+    for (let v = 0; v <= st.max; v += step) {
+      const deg = START + (v / st.max) * SWEEP;
+      const [x0, y0] = polar(deg, R - 1), [x1, y1] = polar(deg, R - 7);
+      ticks.append(node('line', { class: 'tick', x1: x0.toFixed(2), y1: y0.toFixed(2), x2: x1.toFixed(2), y2: y1.toFixed(2) }));
+    }
+    cc.textContent = size ? `${size} CC` : '';
+    el.setAttribute('aria-valuemax', String(st.max));
+    st.value = 0; st.drawn = -1;
+    el.hidden = false; st.shown = true;
+  }
+  function hide() { if (!st.shown) return; el.hidden = true; st.shown = false; }
+
+  function update(dt, { kmh: speed, braking = false }) {
+    if (!st.shown) return;
+    const want = Math.max(0, Math.min(st.max, speed));
+    // the needle follows the speed closely, without a jump (a few hundredths of a second behind it)
+    st.value += (want - st.value) * Math.min(1, dt * 12);
+    const shown = Math.round(st.value);
+    el.classList.toggle('braking', !!braking);
+    if (shown === st.drawn) return;
+    st.drawn = shown;
+    const deg = START + (st.value / st.max) * SWEEP;
+    fill.setAttribute('d', st.value > 0.5 ? arcPath(START, deg, R) : '');
+    const [x0, y0] = polar(deg, 34), [x, y] = polar(deg, R - 10);
+    needle.setAttribute('x1', x0.toFixed(2)); needle.setAttribute('y1', y0.toFixed(2)); needle.setAttribute('x2', x.toFixed(2)); needle.setAttribute('y2', y.toFixed(2));
+    kmh.textContent = String(shown);
+    el.setAttribute('aria-valuenow', String(shown));
+  }
+
+  return { show, hide, update, get shown() { return st.shown; }, get reading() { return st.drawn; }, get max() { return st.max; } };
+}
+
+return { createSpeedometer };
 })();
 
 // ---- client/monitor.js ----
@@ -29010,11 +30099,31 @@ const { reach } = __modules["client/animated.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 
 const SIGHT = 70;                    // metres within which a parked bike of the player's is drawn
+const PEER_SIGHT = 160, PEER_MOST = 4;  // another player's ridden bike: drawn within this, the nearest few
+// flames from the silencers: only the big engines, only near the red line with the throttle wide open (or a burst
+// when it is shut at high revs)
+const FLAMES = Object.freeze({ cc: 1850, rev: 0.82 });
+const SUSPENSION = Object.freeze({ dive: 0.035, road: 0.004, rough: 0.018 });
 const PARKED_LEAN = -0.07;           // radians: a parked bike leans a little to its left, on its stand
+// how a rider sits: forward from the waist (radians), more when going fast; into a turn with the body (a share of the
+// bike's own lean, added to it), the head turned into the turn and kept nearly level
+const RIDE = Object.freeze({ forward: 0.22, tuck: 0.2, roll: 0.45, rollSign: 1, look: 0.55, level: 0.6 });
+const FALLEN_LEAN = -1.25;          // radians: one that came down in a crash lies on its left side until it is ridden again
 const v = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), e: new THREE.Euler(0, 0, 0, 'XYZ'), q: new THREE.Quaternion(), axis: new THREE.Vector3() };
+
+// A figure's bones by the names the supplied figures use (pelvis, hand_l, ...): theirs as they are, or the game's own
+// figure's (character.js: Hips, Hand_L, ...) under those names, so that anyone can sit on a bike.
+const KIT_NAMES = { pelvis: 'Hips', spine_01: 'Spine', spine_02: 'Chest', neck_01: 'Neck', head: 'Head' };
+for (const [s, S] of [['l', 'L'], ['r', 'R']]) Object.assign(KIT_NAMES, { [`upperarm_${s}`]: `UpperArm_${S}`, [`lowerarm_${s}`]: `Forearm_${S}`, [`hand_${s}`]: `Hand_${S}`, [`thigh_${s}`]: `Thigh_${S}`, [`calf_${s}`]: `Shin_${S}`, [`foot_${s}`]: `Foot_${S}` });
+function bonesOf(figure) {
+  if (typeof figure.bones.get === 'function') return figure.bones;
+  if (!figure.kitBones) { const byName = new Map(figure.bones.map((b) => [b.name, b])); figure.kitBones = { get: (name) => byName.get(KIT_NAMES[name]) || null }; }
+  return figure.kitBones;
+}
 
 function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () => {} } = {}) {
   const shown = new Map();          // key -> { id, bike, loading, travelled }
+  const frozen = new Set();         // figures whose bones seat() set by hand this frame
 
   function entry(key, id) {
     let e = shown.get(key);
@@ -29031,20 +30140,60 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
     return e;
   }
 
-  // ridden: { id, x, z, h, lean, speed, steer } or null; parked: [{ bike, x, z, h }]; groundY(x, z); from: { x, z }
-  function update(dt, { ridden = null, parked = [], groundY = () => 0, from = { x: 0, z: 0 } }) {
+  // The lamps, the flames and the suspension of a bike being ridden, from what it is doing (the same for one's own
+  // bike and for another player's, from what their game says of it):
+  //   headlamp and tail lamp on at night; the brake lamp bright while braking; flames from the silencers of the big
+  //   engines (FLAMES.cc and up) with the throttle wide open near the red line, and a burst when it is shut at high
+  //   revs; the nose dipping under the brake and the bike riding the road, a little over the tar, more off it.
+  function effects(e, ride, dt, night, now) {
+    const bike = POWER_BIKES[ride.id];
+    const speed = Math.abs(ride.speed || 0), top = bike ? bike.handling.top : 30;
+    const rev = Math.max(0, Math.min(1, ride.rev || 0)), throttle = ride.throttle || 0, braking = !!ride.brake && speed > 0.3;
+    e.fx = e.fx || { pop: 0, lastThrottle: 0, dive: 0, phase: Math.random() * 10 };
+    const fx = e.fx;
+    const big = !!bike && bike.cc >= FLAMES.cc;
+    if (big && fx.lastThrottle > 0.6 && throttle < 0.05 && rev > 0.55) fx.pop = 0.3;          // shut at high revs: a burst
+    fx.pop = Math.max(0, fx.pop - dt);
+    fx.lastThrottle = throttle;
+    const open = big && throttle > 0.9 && rev > FLAMES.rev ? (rev - FLAMES.rev) / (1 - FLAMES.rev) : 0;
+    const flame = Math.max(open, fx.pop > 0 ? 0.55 * (fx.pop / 0.3) : 0);
+    fx.dive += ((braking ? SUSPENSION.dive * Math.min(1, speed / 10) : 0) - fx.dive) * Math.min(1, dt * 8);
+    fx.phase += dt * (0.6 + speed * 0.35);
+    const rough = ride.rough ? SUSPENSION.rough : SUSPENSION.road;
+    const bob = rough * Math.min(1, speed / 8) * (Math.sin(fx.phase * 2.3) * 0.6 + Math.sin(fx.phase * 5.1 + 1.3) * 0.4);
+    e.state = { head: night > 0.25 ? 1 : 0, tail: night > 0.25 ? 1 : 0, brake: braking ? 1 : 0, flame, t: now, dive: fx.dive, bob };
+    return e.state;
+  }
+  const place = (e, ride, groundY, dt, night, now) => {
+    const st = effects(e, ride, dt, night, now);
+    const g = e.bike.group;
+    g.position.set(ride.x, groundY(ride.x, ride.z), ride.z);
+    g.rotation.set(0, ride.h, 0);
+    g.visible = true;
+    e.bike.pose({ travelled: e.travelled, steerAngle: ride.steer || 0, tilt: ride.lean || 0, dive: st.dive, bob: st.bob });
+    e.bike.lamps(st);
+  };
+
+  // ridden: { id, x, z, h, lean, speed, steer, throttle, brake, rev, rough } or null (this player's);
+  // rides: [{ key, ...the same }] (other players' bikes, near enough to see); parked: [{ bike, x, z, h }];
+  // groundY(x, z); from: { x, z }; night (0..1); now (seconds)
+  function update(dt, { ridden = null, rides = [], parked = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, now = 0 }) {
+    for (const f of frozen) f.freeze = false;
+    frozen.clear();
     const wanted = new Set();
     if (ridden && POWER_BIKES[ridden.id]) {
       wanted.add('ride');
       const e = entry('ride', ridden.id);
       e.travelled += (ridden.speed || 0) * dt;
-      if (e.bike) {
-        const g = e.bike.group;
-        g.position.set(ridden.x, groundY(ridden.x, ridden.z), ridden.z);
-        g.rotation.set(0, ridden.h, 0);
-        g.visible = true;
-        e.bike.pose({ travelled: e.travelled, steerAngle: ridden.steer || 0, tilt: ridden.lean || 0 });
-      }
+      if (e.bike) place(e, ridden, groundY, dt, night, now);
+    }
+    // other players' bikes: the nearest few within sight
+    for (const r of rides.filter((q) => POWER_BIKES[q.id] && Math.hypot(q.x - from.x, q.z - from.z) <= PEER_SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, PEER_MOST)) {
+      const key = `peer:${r.key}`;
+      wanted.add(key);
+      const e = entry(key, r.id);
+      e.travelled += (r.speed || 0) * dt;
+      if (e.bike) place(e, r, groundY, dt, night, now);
     }
     // (the nearest few: a player who owns many and leaves them together sees those beside them)
     const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, 3);
@@ -29055,7 +30204,7 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
       if (e.bike) {
         e.bike.group.position.set(p.x, groundY(p.x, p.z), p.z);
         e.bike.group.rotation.set(0, p.h, 0);
-        e.bike.pose({ travelled: e.travelled, steerAngle: 0.25, tilt: PARKED_LEAN });
+        e.bike.pose({ travelled: e.travelled, steerAngle: 0.25, tilt: p.fallen ? FALLEN_LEAN : PARKED_LEAN });
       }
     }
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.bike) e.bike.dispose(); shown.delete(key); }
@@ -29064,22 +30213,26 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
   // The rider on the bike they ride. Called after the figure has been posed for the frame (seated): the figure is
   // put so that its hips are on the seat, then its hands are put on the grips and its feet on the pegs, leaning
   // forward from the waist as far as the bars ask. Gives false while the bike is still being fetched.
-  function seat(me, ridden, groundY) {
-    const e = shown.get('ride');
+  function seat(me, ridden, groundY, key = 'ride') {
+    const e = shown.get(key);
     if (!e || !e.bike || !ridden || !me.bones) return false;
     const bike = e.bike;
-    const pelvis = me.bones.get('pelvis');
+    const bones = bonesOf(me);
+    const pelvis = bones.get('pelvis');
     if (!pelvis) return false;
     const gy = groundY(ridden.x, ridden.z);
     // upright first, to measure where the posed figure's hips are in its own frame
     me.group.rotation.set(0, ridden.h, 0);
     me.group.position.set(ridden.x, gy, ridden.z);
     me.group.updateMatrixWorld(true);
+    // (the game's own figure poses its bones each time it is placed: posed now, then held as this sets them, until
+    // the next frame's update lets it go)
+    if (!me.animated) { me.freeze = true; frozen.add(me); }
     const hips = me.group.worldToLocal(pelvis.getWorldPosition(v.a));
     // the hips a hand's breadth above the seat's surface; the figure's frame is the bike's (both face +z, left +x)
     const offset = v.b.set(bike.seat.x - hips.x, bike.seat.y + 0.09 - hips.y, bike.seat.z - hips.z);
     // then over with the bike, about the line its tyres stand on
-    v.e.set(0, ridden.h, -(ridden.lean || 0), 'XYZ');
+    v.e.set(0, ridden.h, ridden.lean || 0, 'XYZ');
     me.group.rotation.copy(v.e);
     me.group.position.set(ridden.x, gy, ridden.z).add(offset.applyEuler(v.e));
     me.group.updateMatrixWorld(true);
@@ -29089,8 +30242,8 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
     const off = (x, y, z) => me.group.localToWorld(v.d.set(x, y, z)).sub(me.group.localToWorld(v.a.set(0, 0, 0))).clone();
     const dir = (x, y, z) => me.group.localToWorld(v.d.set(x, y, z)).sub(me.group.localToWorld(v.a.set(0, 0, 0))).normalize().clone();
     // leaning forward from the waist until the grips are within reach
-    const spine = me.bones.get('spine_02') || me.bones.get('spine_01');
-    const arm = (s) => { const u = me.bones.get(`upperarm_${s}`), l = me.bones.get(`lowerarm_${s}`), h = me.bones.get(`hand_${s}`); return u && l && h ? { u, l, h, length: u.getWorldPosition(new THREE.Vector3()).distanceTo(l.getWorldPosition(new THREE.Vector3())) + l.getWorldPosition(new THREE.Vector3()).distanceTo(h.getWorldPosition(new THREE.Vector3())) } : null; };
+    const spine = bones.get('spine_02') || bones.get('spine_01');
+    const arm = (s) => { const u = bones.get(`upperarm_${s}`), l = bones.get(`lowerarm_${s}`), h = bones.get(`hand_${s}`); return u && l && h ? { u, l, h, length: u.getWorldPosition(new THREE.Vector3()).distanceTo(l.getWorldPosition(new THREE.Vector3())) + l.getWorldPosition(new THREE.Vector3()).distanceTo(h.getWorldPosition(new THREE.Vector3())) } : null; };
     const arms = { l: arm('l'), r: arm('r') };
     const grips = { l: bike.grips[0], r: bike.grips[1] };
     if (spine && arms.l && arms.r) {
@@ -29116,6 +30269,17 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
         }
         return gap;
       };
+      // the riding position (16 October 2026, the owner's brief): leaning forward over the tank, the more so the
+      // faster it goes, and into a turn with the body, a little further over than the bike itself
+      const pace = Math.min(1, Math.abs(ridden.speed || 0) / 30);
+      turn(RIDE.forward + RIDE.tuck * pace);
+      const lean = ridden.lean || 0;
+      if (Math.abs(lean) > 1e-3) {
+        const fwd = dir(0, 0, 1);
+        const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion());
+        spine.quaternion.premultiply(v.q.setFromAxisAngle(fwd.applyQuaternion(parentQ.invert()), RIDE.roll * lean * RIDE.rollSign));
+        spine.updateMatrixWorld(true);
+      }
       // still out of reach: the rider sits further forward on the seat (up to a third of a metre), and bends again
       const gap = bend();
       if (gap > 0) {
@@ -29132,9 +30296,21 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
       const target = world(grips[s]).clone().add(off(0, 0.01, -0.05));
       reach(a.u, a.l, a.h, target, dir(side * 0.9, -0.6, -0.2));
     }
+    // the neck and head: looking where the bike is going, turned into the turn and kept nearly level as the body
+    // leans (a rider's eyes stay with the horizon)
+    const neck = bones.get('neck_01'), head = bones.get('head');
+    if (neck && head) {
+      const lean = ridden.lean || 0;
+      const up = dir(0, 1, 0), fwd = dir(0, 0, 1);
+      const put = (bone, axis, angle) => { const q = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); bone.quaternion.premultiply(v.q.setFromAxisAngle(axis.clone().applyQuaternion(q), angle)); bone.updateMatrixWorld(true); };
+      // the head comes up against the forward lean, to look ahead down the road
+      put(neck, dir(1, 0, 0), -(RIDE.forward + RIDE.tuck * Math.min(1, Math.abs(ridden.speed || 0) / 30)) * 0.7);
+      put(neck, up, -RIDE.look * lean);
+      put(head, fwd, -RIDE.level * lean * RIDE.rollSign);
+    }
     // feet on the pegs (the ankle just above and behind each peg), knees forward and out
     for (const s of ['l', 'r']) {
-      const thigh = me.bones.get(`thigh_${s}`), calf = me.bones.get(`calf_${s}`), foot = me.bones.get(`foot_${s}`);
+      const thigh = bones.get(`thigh_${s}`), calf = bones.get(`calf_${s}`), foot = bones.get(`foot_${s}`);
       if (!thigh || !calf || !foot) continue;
       const side = s === 'l' ? 1 : -1;
       const target = world(bike.pegs[s === 'l' ? 0 : 1]).clone().add(off(side * 0.02, 0.07, -0.05));
@@ -29148,14 +30324,15 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
     // is the bike being ridden drawn yet (it is fetched the first time it is ridden)
     ready: () => { const e = shown.get('ride'); return !!(e && e.bike); },
     // the bike being ridden (bike-model.js), for the tests
-    ridden: () => { const e = shown.get('ride'); return e && e.bike ? e.bike : null; },
+    ridden: (key = 'ride') => { const e = shown.get(key); return e && e.bike ? e.bike : null; },
+    stateOf: (key = 'ride') => { const e = shown.get(key); return e ? e.state || null : null; },
     failed: () => { const e = shown.get('ride'); return !!(e && e.failed); },
     count: () => shown.size,
     dispose() { for (const e of shown.values()) if (e.bike) e.bike.dispose(); shown.clear(); },
   };
 }
 
-return { createOwnBikeView };
+return { FLAMES, SUSPENSION, RIDE, createOwnBikeView };
 })();
 
 // ---- client/main.js ----
@@ -29195,12 +30372,14 @@ const { createBubbles } = __modules["client/bubbles.js"];
 const { createAudio, renderStyle, MUSIC_STYLES, DEFAULT_VOLUMES } = __modules["client/audio.js"];
 const { createUI, h } = __modules["client/ui.js"];
 const { createControls } = __modules["client/controls.js"];
+const { createSpeedometer } = __modules["client/speedometer.js"];
 const { createMonitor, createGovernor } = __modules["client/monitor.js"];
 const { createWarmUp } = __modules["client/warmup.js"];
 const { HEALTH } = __modules["sim/conflict.js"];
 const { driverSide } = __modules["sim/hijack.js"];
 const { MOTO, motoSpeedAt } = __modules["sim/okada.js"];
 const { POWER_BIKES, handlingOf, stepPowerBike, bikeRevs } = __modules["sim/power-bikes.js"];
+const { CRASH } = __modules["sim/own-bikes.js"];
 const { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz } = __modules["client/bike-audio.js"];
 const { startStrike, poseFighter, poseTaking, soundOf } = __modules["client/combat-view.js"];
 const { createCameraRig, nextView, viewFor, CAMERA_VIEW } = __modules["client/camera.js"];
@@ -29329,6 +30508,14 @@ function start(carried) {
   const phoneHold = createPhoneHold({ scene, lite: LITE });
   // the player's own motorcycles: the one ridden and the ones left standing (own-bike-view.js)
   const ownBikeView = createOwnBikeView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your motorcycle could not be fetched. Check the connection.' }); } });
+  // other players' motorcycles, seen from here (the same drawing, without anything to fetch until one is near)
+  const peerBikeView = createOwnBikeView(scene, { lite: LITE });
+  let peerRides = [];
+  const peerHorned = new Map();
+  let peerHornsHeard = 0;
+  // the ridden bike's headlamp: one light, following it, on at night (a lamp's glow is drawn on every bike)
+  const headlight = new THREE.SpotLight(0xfff1d6, 0, 38, 0.42, 0.55, 1.6);
+  headlight.castShadow = false; scene.add(headlight); scene.add(headlight.target);
 
   // Street lamps at night. Every light of this kind is worked out for every pixel of everything, lit or
   // not, at any hour, so there are few: the two lamps nearest the player on a desktop, none on a phone.
@@ -29499,6 +30686,8 @@ function start(carried) {
   const requestId = (what) => `${what}-${Date.now().toString(36)}-${(requestSeq += 1)}`;
   const cam = { yaw: Math.PI, pitch: 0.27, dist: 8, target: new THREE.Vector3(ZONE.spawn.x, 1.5, ZONE.spawn.z), lastDrag: -10 };
   const controls = createControls({ stick: $('stick'), pad: $('pad') });
+  // the speedometer at the front of the screen, while one of the player's own motorcycles is ridden
+  const speedo = createSpeedometer($('speedo'));
   const input = controls.state;      // keys down, where the stick is, whether Run is on
   let actKey = false;                // E or Enter held down
   const acting = () => actKey || controls.held('act');
@@ -29633,7 +30822,7 @@ function start(carried) {
   function onlineChanged() {
     if (!online.available) return;
     const want = online.signedIn;
-    if (want && !(transport && transport.kind === 'web')) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden }) }; if (playing) relink(); }
+    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden }) }; if (playing) relink(); }
     if (!want && transport && transport.kind === 'web') { transport = null; if (playing) relink(); }
     if (!want) { market.reset(); ui.signedOut(); }
     if (online.status().state === 'out') {
@@ -29860,6 +31049,7 @@ function start(carried) {
     rideBike: (id) => rideOwnBike(id),
     bikeSound: (id) => audio.previewBike(id),
     stopBikeSound: () => audio.stopPreview(),
+    // (the market's engine controls: audio.js previewBike gives { ignite, revHold, hornHold, stop })
     refreshAdverts: () => adBoard.refresh(),
     saveNow: () => accountSync.upload(),
     account: { open: (mode, why) => accountUI.open(mode, why), logOut: () => accountUI.logOut() },
@@ -30734,12 +31924,12 @@ function start(carried) {
     // At the wheel of anything with three wheels or more: on a touch screen, nothing but the wheel (the stick, on
     // the left) and, on the right, the accelerator, the brake, the horn, and the door to step out by. The view
     // is still C on a keyboard.
-    if (m === 'driving' && coarse && wheelLayout()) return [{ id: 'gas', label: 'Accelerate', icon: 'gas', kind: 'hold', primary: true, hint: 'Hold to go' }, { id: 'brake', label: 'Brake', icon: 'brake', kind: 'hold', hint: 'Hold to brake, and to go back' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...main, primary: false, icon: 'getout', label: (prompt && prompt.short) || 'Step out' }, { ...look, keyOnly: true }];
+    if (m === 'driving' && coarse && wheelLayout()) return [{ id: 'gas', label: 'Accelerate', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to go' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake, and to go back' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...main, primary: false, icon: 'getout', label: (prompt && prompt.short) || 'Step out' }, { ...look, keyOnly: true }];
     if (m === 'driving') return [...pedals, out, { id: 'horn', key: 'h', label: 'Horn' }, look];
     if (m === 'moto') return [...pedals, out, { id: 'horn', key: 'h', label: 'Horn' }, look];
     // On a power bike: its own layout, on a touch screen and with a keyboard alike. Steering arrows at the lower
     // left, the throttle and the brake at the right, the horn at the top, and getting off.
-    if (m === 'powerbike') return [{ id: 'throttle', label: 'Throttle', icon: 'gas', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'brake', kind: 'hold', hint: 'Hold to brake' }, { id: 'steer-left', label: 'Steer left', icon: 'steerleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'steerright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
+    if (m === 'powerbike') return [{ id: 'throttle', label: 'Throttle', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
     if (m === 'riding') return [main, look];
     if (m === 'custody') return [{ id: 'custody', key: 'e', label: 'Police', primary: true, hint: 'Your arrest: the fine, a phone call, the time to serve' }, { id: 'phone', key: 'o', label: 'Phone', keyOnly: true }];
     if (m === 'taking') return [{ id: 'cancel', key: 'e', label: 'Stop', primary: true, hint: 'Let go' }];
@@ -30870,7 +32060,9 @@ function start(carried) {
   // the browser tests: `bikePreview` puts the riding controls on screen with nothing to ride (see __nlw).
   let bikePreview = false;
   const powerBike = () => { const a = view && view.self.astride; return a && a.model && POWER_BIKES[a.model] ? POWER_BIKES[a.model] : null; };
-  const bikeState = { speed: 0, lean: 0, heading: 0, throttle: 0, steer: 0 };
+  const bikeState = { speed: 0, lean: 0, heading: 0, throttle: 0, steer: 0, braking: false };
+  const SHAKE = 0.022;                 // metres: the most the view shakes at a motorcycle's top speed
+  const shakeBy = new THREE.Vector3(), shakeAim = new THREE.Vector3();
   // On one of the player's own motorcycles: where they left it if they are beside it, or brought to them
   // (from Property on the phone). The simulation decides; the bike is fetched the first time it is ridden.
   function rideOwnBike(id) {
@@ -30891,6 +32083,19 @@ function start(carried) {
     const r = server.send({ type: 'bikes.owned', bikes: ids });
     if (r.ok) bikesSent = key;
   }
+  // Into something solid: at speed the rider is thrown off (the town decides how hard, own-bikes.js `crash`);
+  // slower, the bike only stops against it.
+  function crashOrStop() {
+    const speed = Math.abs(bikeState.speed);
+    bikeState.speed = 0; moto.speed = 0; bikeState.lean = 0; moto.lean = 0;
+    if (speed < CRASH.least) return;
+    const r = server.send({ type: 'moto.crash', speed });
+    if (r.ok && r.fell) {
+      predicted.x = r.x; predicted.z = r.z;
+      ui.toast({ type: 'alert', title: 'Thrown off', text: `You came off at ${r.kmh} km/h${r.lost ? ` and lost ${r.lost} health` : ''}. Your ${POWER_BIKES[r.bike.id].name} is where it fell.` });
+      refreshView();
+    }
+  }
   // A power bike under the player's hands: it leans into a turn and turns by leaning (power-bikes.js).
   function drivePowerBike(dt, bike) {
     const input = ui.isOpen() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
@@ -30898,7 +32103,7 @@ function start(carried) {
     bikeState.heading = predicted.heading;
     const tar = motoSpeedAt(predicted.x, predicted.z, false) === MOTO.speedRoad;
     stepPowerBike(bikeState, input, dt, { handling, onTar: tar, wet: view.weather.wet });
-    bikeState.throttle = input.throttle;
+    bikeState.throttle = input.throttle; bikeState.braking = input.brake > 0;
     // the bars, as they are seen: turned by the steering at walking pace, hardly at all at speed
     bikeState.steer += (input.steer * 0.42 * Math.max(0.08, 1 - Math.abs(bikeState.speed) / 7) - bikeState.steer) * Math.min(1, dt * 8);
     moto.speed = bikeState.speed; moto.lean = bikeState.lean;
@@ -30906,9 +32111,12 @@ function start(carried) {
     const nx = predicted.x + Math.sin(bikeState.heading) * bikeState.speed * dt;
     const nz = predicted.z + Math.cos(bikeState.heading) * bikeState.speed * dt;
     // into something solid: it stops there, and does not go through
-    if (!zoneWalkable(nx, nz, structureBoxes(), handling.radius)) { bikeState.speed = 0; moto.speed = 0; return 0; }
-    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: bikeState.heading });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = bikeState.heading; if (result.hit) bikeState.speed = 0; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; bikeState.speed = 0; }
+    if (!zoneWalkable(nx, nz, structureBoxes(), handling.radius)) { crashOrStop(); return 0; }
+    // (with what the bike is doing, for other players to see and hear: its lean, speed, throttle, brake and revs)
+    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: bikeState.heading, lean: bikeState.lean, speed: bikeState.speed, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(bikeState.speed, bikeState.throttle, handling) });
+    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = bikeState.heading; if (result.hit) bikeState.speed = 0; }
+    else if (result.code === 'BLOCKED') { crashOrStop(); return 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; bikeState.speed = 0; }
     if (clock - cam.lastDrag > 1.5 && bikeState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.2);
     return Math.abs(bikeState.speed);
   }
@@ -31249,15 +32457,15 @@ function start(carried) {
       if (holding && prompt.intent.type === 'site.work') { const parcel = ZONE_PARCELS.find((p) => p.id === prompt.intent.parcelId); predicted.heading += angleGap(Math.atan2(parcel.cx - predicted.x, parcel.cz - predicted.z), predicted.heading) * Math.min(1, dt * 8); }
       if (holding && prompt.intent.type === 'job.mould') predicted.heading += angleGap(Math.PI, predicted.heading) * Math.min(1, dt * 8);
       me.group.rotation.y = predicted.heading;
-      me.group.rotation.z = astride ? -moto.lean : 0;
+      me.group.rotation.z = astride ? moto.lean : 0;      // (positive: over to the right, into a right turn)
       animateCharacter(me, dt, driving || riding || astride ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
       if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else { standCharacter(me); me.group.position.y = groundY; }
       // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
-      const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer } : null;
-      ownBikeView.update(dt, { ridden: ownRide, parked: (self.ownBikes && self.ownBikes.parked) || [], groundY: zoneGroundY, from: predicted });
+      const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
+      ownBikeView.update(dt, { ridden: ownRide, parked: (self.ownBikes && self.ownBikes.parked) || [], groundY: zoneGroundY, from: predicted, night, now: clock });
       if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
       if (taking) poseTaking(me, taking.step, taking.progress);
       else if (self.fight || me.strike) poseFighter(me, clock, { guard: !!self.fight, block: blocking && !!self.fight });
@@ -31273,14 +32481,20 @@ function start(carried) {
       const lying = !!self.dead || (!!self.down && !self.down.rising) || flat;
       me.fall = (me.fall || 0) + ((lying ? 1 : 0) - (me.fall || 0)) * Math.min(1, dt * (lying ? 12 : 4));
       // (a supplied figure falls with its own fall: the harder one when killed, or bowled over on the move)
-      if (lying && !me.fellHow) me.fellHow = self.dead || (me.speed || 0) > 1.5 ? 'hard' : 'soft';
+      if (lying && !me.fellHow) me.fellHow = self.dead || (self.down && self.down.by === 'crash') || (me.speed || 0) > 1.5 ? 'hard' : 'soft';
       if (!lying && me.fall < 0.02) me.fellHow = null;
       layCharacter(me, me.fall, me.fellHow || 'hard');
       if (me.swimming) { me.group.position.y = me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5; if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
       // in the ambulance, or with the eye inside its own head, the figure is not drawn
       me.group.visible = !aboard && !rig.hidesPlayer;
-      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
+      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
+      // one of the player's own motorcycles: its own speedometer, scaled to its engine (speedometer.js)
+      if (astride && powerBike()) {
+        const bike = powerBike();
+        if (!speedo.shown || speedo.bike !== bike.id) { speedo.show({ topKmh: bike.topKmh, cc: bike.cc }); speedo.bike = bike.id; }
+        speedo.update(dt, { kmh: Math.abs(bikeState.speed) * 3.6, braking: bikeState.braking && Math.abs(bikeState.speed) > 0.3 });
+      } else speedo.hide();
       if (driving) ownEngine = { kind: 'keke', rev: Math.min(1, Math.abs(car.speed) / VEHICLE_KINDS.keke.speedRoad), throttle: car.throttle || 0 };
       else if (astride && powerBike()) { const bike = powerBike(); ownEngine = { kind: 'powerbike', bike: bike.id, sound: bike.sound, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(bike)), throttle: bikeState.throttle }; }
       else if (astride) ownEngine = { kind: 'okada', rev: Math.min(1, Math.abs(moto.speed) / MOTO.speedRoad), throttle: Math.abs(controls.axes().forward) };
@@ -31357,6 +32571,19 @@ blood.update(dt, view.blood || []);
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
         maxRigs: MAX_RIGS[quality.level], detail: FIGURE_DETAIL[quality.level], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts });
+      // other players on their own motorcycles: the bike under them and them on it, with its lamps and flames
+      // (own-bike-view.js), from what their game says the bike is doing; its engine and horn are heard where it is
+      peerRides = [];
+      for (const q of view.players || []) {
+        if (!q.ride || !POWER_BIKES[q.ride.bike]) continue;
+        const rig = crowd.rigOf(`p:${q.id}`);
+        if (!rig) continue;
+        const g = rig.group;
+        peerRides.push({ key: q.id, id: q.ride.bike, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.ride.lean, speed: q.ride.speed, throttle: q.ride.throttle, brake: q.ride.brake, rev: q.ride.rev, rig });
+        if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.bikeHornAt(POWER_BIKES[q.ride.bike].horn, g.position.x, g.position.z); }
+      }
+      peerBikeView.update(dt, { rides: peerRides, groundY: zoneGroundY, from: predicted, night, now: clock });
+      for (const r of peerRides) { seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0; peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`); }
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
@@ -31393,6 +32620,17 @@ blood.update(dt, view.blood || []);
       indoors: inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
       dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,
     });
+    // fast on a motorcycle: the view shakes a little, more the nearer it is to its top speed (never much)
+    const bikeNow = playing && view && view.self.astride && powerBike() ? powerBike() : null;
+    if (bikeNow) {
+      const share = Math.abs(bikeState.speed) / bikeNow.handling.top;
+      const amount = share > 0.55 ? SHAKE * ((share - 0.55) / 0.45) ** 2 : 0;
+      if (amount > 0) camera.position.add(shakeBy.set(Math.sin(clock * 47.1) * amount, Math.sin(clock * 53.7 + 1.1) * amount * 0.8, Math.sin(clock * 41.3 + 2.3) * amount));
+    }
+    // its headlamp at night
+    const lit = !!bikeNow && night > 0.25 && ownBikeView.ridden() && ownBikeView.ridden().headlamp;
+    headlight.intensity = lit ? 2.2 : 0;
+    if (lit) { const b = ownBikeView.ridden(); b.headlampAt(headlight.position); headlight.target.position.copy(b.lean.localToWorld(shakeAim.set(0, 0.2, 12))); headlight.target.updateMatrixWorld(); }
 
     world.tick(dt);
     const skyState = sky.update(dt, hour, weather, cam.target, camera);
@@ -31439,7 +32677,7 @@ blood.update(dt, view.blood || []);
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
-      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null });
+      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null });
     }
 
     monitor.mark('warming up');
@@ -31479,7 +32717,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     skillsState: () => skills.state,
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, server, prompt: () => findPrompt(), town, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },
@@ -31509,7 +32747,7 @@ blood.update(dt, view.blood || []);
       const hub = createLoopbackHub();
       const other = newHost();
       const id = other.game.join({ name, look: { skin: 0x4f3019, top: 0x1f5c4d, body: 'f' } });
-      transport = { make: () => hub.join('first') };
+      transport = { kind: 'twin', make: () => hub.join('first') };
       relink();
       const q = other.game.state.players[id];
       if (x !== null) { q.x = x; q.z = z; }

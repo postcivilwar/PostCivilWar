@@ -1,0 +1,112 @@
+{
+ "originals": {
+  "re1-start-stop": {
+   "file": "A_hyper-realistic_re_1-1792127485971-9cbdaea0.wav",
+   "sha256": "9cbdaea014ab8bc2dd524f234725cd99f9dcf60ffafe3af22d2e7b251a46f7cc",
+   "bytes": 4124238
+  },
+  "re1-steady": {
+   "file": "A_hyper-realistic_re_1-1792127624241-099296e7.wav",
+   "sha256": "099296e7b8e4bfde4b1afb308bdbc272f52b3ab4d35d2e9dc9c60e4d5a57f4df",
+   "bytes": 4124238
+  },
+  "re2-idle": {
+   "file": "A_hyper-realistic_re_2-1792127477311-d121bac8.wav",
+   "sha256": "d121bac8c1034b7b3d78ee68737d6830b44d2caf3e315150aedefb40dba90dce",
+   "bytes": 4124238
+  },
+  "re2-shutdown": {
+   "file": "A_hyper-realistic_re_2-1792127646080-dc2c5cec.wav",
+   "sha256": "dc2c5cecf3fb45d2c6c70b0ab3dc8e0b65435985b68741457c283be3762499eb",
+   "bytes": 4124238
+  },
+  "re3-blips": {
+   "file": "A_hyper-realistic_re_3-1792127443646-1379c0bd.wav",
+   "sha256": "1379c0bdd59228e8837b3f8d23fc35071cd684329f547a601c32bd6401555f96",
+   "bytes": 4124238
+  },
+  "re3-letoff": {
+   "file": "A_hyper-realistic_re_3-1792127670979-333a7e15.wav",
+   "sha256": "333a7e1511b02635efbbc47db8211bd58c1c12d161ee42d525d8a3fe1235cf04",
+   "bytes": 4124238
+  },
+  "re4-cruise": {
+   "file": "A_hyper-realistic_re_4-1792127422704-e03ee453.wav",
+   "sha256": "e03ee453586d610cf7b8f11c942debc79c9003dbc069e7b0123c9b47fe0e2267",
+   "bytes": 4124238
+  },
+  "re4-revs": {
+   "file": "A_hyper-realistic_re_4-1792127685894-6a5add90.wav",
+   "sha256": "6a5add90937b34f0cf2a70c41385152c40ba57e51790620af035d5fdeb90f74a",
+   "bytes": 4124238
+  },
+  "gp3-gears": {
+   "file": "gp_motor_powerbikes__3-1792127030335-8fcac2ce.wav",
+   "sha256": "8fcac2ce6a8e6861f3773066969314dc2a73019e808244e8a9fb82f5cb05339a",
+   "bytes": 2526798
+  },
+  "gp4-flat-out": {
+   "file": "gp_motor_powerbikes__4-1792127052551-b90360e0.wav",
+   "sha256": "b90360e0f52633f225b0199cfc6188dd57412b315716008756eb6243264dd2bf",
+   "bytes": 2526798
+  }
+ },
+ "loops": {
+  "twin-idle": {
+   "file": "twin-idle.wav",
+   "from": "re2-idle",
+   "at": 2.0,
+   "seconds": 3.0,
+   "firing": 41.5
+  },
+  "twin-mid": {
+   "file": "twin-mid.wav",
+   "from": "re4-cruise",
+   "at": 5.35,
+   "seconds": 3.0,
+   "firing": 55.3
+  },
+  "twin-high": {
+   "file": "twin-high.wav",
+   "from": "re4-revs",
+   "at": 8.4,
+   "seconds": 1.6,
+   "firing": 107.3
+  },
+  "sport-idle": {
+   "file": "sport-idle.wav",
+   "from": "re1-steady",
+   "at": 2.8,
+   "seconds": 3.0,
+   "firing": 45.9
+  },
+  "sport-mid": {
+   "file": "sport-mid.wav",
+   "from": "gp4-flat-out",
+   "at": 8.55,
+   "seconds": 3.0,
+   "firing": 88.4
+  },
+  "sport-high": {
+   "file": "sport-high.wav",
+   "from": "gp3-gears",
+   "at": 6.55,
+   "seconds": 1.4,
+   "firing": 246.2
+  }
+ },
+ "oneShots": {
+  "start": {
+   "file": "start.wav",
+   "from": "re1-start-stop",
+   "at": 0.8,
+   "seconds": 2.4
+  },
+  "stop": {
+   "file": "stop.wav",
+   "from": "re1-start-stop",
+   "at": 18.7,
+   "seconds": 2.78
+  }
+ }
+}

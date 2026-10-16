@@ -84,6 +84,10 @@ RADIUS = {
 }
 
 
+# bikes whose back tyre is wider than the 13 cm a tyre is otherwise taken to be at most
+FAT_REAR = {'power-cruiser'}
+
+
 def fit_wheel(P, sign, radius=None, wide=False):
     """A wheel at one end (sign +1 the front, -1 the back): where its tyre touches the ground, its radius from
     the lower half of the tyre (or as given), and how wide it is."""
@@ -146,7 +150,27 @@ def anchors(P, front, rear):
     pz = sz + 0.12; py = max(0.07, front['y'] * 0.75)
     side = (np.abs(z - pz) < 0.05) & (np.abs(y - py) < 0.05)
     px = float(np.percentile(np.abs(x[side]), 90)) + 0.01 if side.sum() > 10 else 0.12
-    return {'grip': [gx, gy, gz], 'seat': [0.0, sy, sz], 'peg': [px, py, pz], 'height': float(H)}
+    # the lamps and the exhaust (16 October 2026: lights and flames are put where the model has them):
+    #   head   the front-most point of the upper front, near the middle (the headlamp's glass)
+    #   tail   the rear-most point near the middle, above the rear wheel's axle (the tail lamp)
+    #   pipe   the rear-most points low down at each side, behind the rear axle (the silencers' ends)
+    upper = (np.abs(x) < 0.06) & (y > 0.45 * H) & (y < 0.85 * H) & (z > gz - 0.05)
+    hz = float(np.percentile(z[upper], 99.5)) if upper.sum() > 20 else float(z.max())
+    hsel = upper & (z > hz - 0.02)
+    head = [0.0, float(np.median(y[hsel])) if hsel.sum() else 0.6 * H, hz]
+    back = (np.abs(x) < 0.07) & (y > rear['y'] + 0.02) & (y < 0.8 * H)
+    tz = float(np.percentile(z[back], 0.5)) if back.sum() > 20 else float(z.min())
+    tsel = back & (z < tz + 0.02)
+    tail = [0.0, float(np.median(y[tsel])) if tsel.sum() else 0.45 * H, tz]
+    pipes = []
+    for side in (1, -1):
+        low = (x * side > 0.04) & (y > 0.04) & (y < rear['y'] + rear['r'] * 1.2) & (z < rear['z'] + rear['r'] * 0.6)
+        if low.sum() < 20: continue
+        pz0 = float(np.percentile(z[low], 1))
+        end = low & (z < pz0 + 0.025)
+        if end.sum() < 3: continue
+        pipes.append([float(np.median(x[end])), float(np.median(y[end])), pz0])
+    return {'grip': [gx, gy, gz], 'seat': [0.0, sy, sz], 'peg': [px, py, pz], 'height': float(H), 'head': head, 'tail': tail, 'pipes': pipes}
 
 
 def parts_of(P, idx, front, rear, rake):
@@ -182,6 +206,10 @@ def build(bike_id):
     m = read(path)
     P, N, uv, idx = m['pos'], m['nrm'], m['uv'], m['idx']
     ext = P.max(0) - P.min(0)
+    # a file made in centimetres (one of the owner's is: about 98 long) is read in metres-of-the-model like the
+    # others: every point divided by the same 100, which changes nothing of its shape
+    unit = 100.0 if ext.max() > 5 else 1.0
+    P = P / unit; ext = ext / unit
     quarter = 1 if ext[0] > ext[2] else 0          # lying across: a quarter turn brings it lengthways
     P = rot_y(P, quarter); N = rot_y(N, quarter)
     # faces +Z: the bars and the screen (the highest points) are at the front
@@ -189,7 +217,7 @@ def build(bike_id):
     if P[top, 2].mean() < 0: P = rot_y(P, 2); N = rot_y(N, 2); quarter += 2
     given = RADIUS.get(bike_id, {})
     twin = bike_id == 'chrome-concept'          # two tyres side by side at each end
-    rear = fit_wheel(P, -1, given.get('rear'), twin); front = fit_wheel(P, 1, given.get('front'), twin)
+    rear = fit_wheel(P, -1, given.get('rear'), twin or bike_id in FAT_REAR); front = fit_wheel(P, 1, given.get('front'), twin)
     # stood on the ground between its wheels, centred across
     shift = np.array([-(P[:, 0].max() + P[:, 0].min()) / 2, -min(front['y'] - front['r'], rear['y'] - rear['r']), -(front['z'] + rear['z']) / 2])
     P = P + shift
@@ -222,17 +250,18 @@ def build(bike_id):
     r4 = lambda v: round(float(v), 4)
     return {
         'master': f'{bike_id}.glb', 'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw),
-        'vertices': int(len(P)), 'triangles': int(len(idx)), 'parts': counts, 'quarterTurns': quarter % 4,
+        'unit': unit, 'vertices': int(len(P)), 'triangles': int(len(idx)), 'parts': counts, 'quarterTurns': quarter % 4,
         'length': r4(P[:, 2].max() - P[:, 2].min()), 'height': r4(P[:, 1].max()), 'width': r4(P[:, 0].max() - P[:, 0].min()),
         'front': {k: r4(v) for k, v in front.items()}, 'rear': {k: r4(v) for k, v in rear.items()}, 'rake': rake,
         'grip': [r4(v) for v in an['grip']], 'seat': [r4(v) for v in an['seat']], 'peg': [r4(v) for v in an['peg']],
+        'head': [r4(v) for v in an['head']], 'tail': [r4(v) for v in an['tail']], 'pipes': [[r4(v) for v in p] for p in an['pipes']],
         'metallic': m['metallic'], 'roughness': m['roughness'], 'normalScale': m['normalScale'], 'files': files,
     }
 
 
 def write_js(manifest):
     """The same numbers for the game's own code (what each bike's parts are and where its wheels and rider go)."""
-    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'front', 'rear', 'rake', 'grip', 'seat', 'peg', 'metallic', 'roughness', 'normalScale', 'files', 'sha256')
+    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'front', 'rear', 'rake', 'grip', 'seat', 'peg', 'head', 'tail', 'pipes', 'metallic', 'roughness', 'normalScale', 'files', 'sha256')
     body = {k: {f: v[f] for f in keep} for k, v in sorted(manifest.items())}
     # what a player's device fetches to draw each one: on a phone (the 2048 pictures) and elsewhere (the 4096)
     game = os.path.join(SRC, 'game')

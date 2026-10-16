@@ -11,11 +11,12 @@
 // speaker's head. Nothing here plays a voice: a line carries its language and
 // its text, which is what a voice service would be given later.
 
-import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident } from './zone.js';
+import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround } from './zone.js';
 import { LANGUAGES, EXCHANGES, PEOPLES, phrase, greetingId, dayPart, sharedLanguage } from './culture.js';
 import { POSE, RANGE } from './population.js';
 import { GameError } from './registry.js';
 import { cleanFigureLook } from './figures.js';
+import { POWER_BIKES } from './power-bikes.js';
 
 export const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLength: 140, gap: 1.2, visitors: 24 });
 
@@ -232,8 +233,9 @@ export function createTalk({ state, population, residents, players, weather, hub
 
   function others(player) {
     const out = [];
-    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true });
+    const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
+    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, hornAt: v.hornAt === undefined ? -10 : v.hornAt });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -259,7 +261,8 @@ export function createTalk({ state, population, residents, players, weather, hub
     if (id.length < 3 || !data || typeof data !== 'object') return null;
     const x = Number(data.x), z = Number(data.z), heading = Number(data.heading);
     const b = ZONE.bounds;
-    if (!Number.isFinite(x) || !Number.isFinite(z) || x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) return null;
+    // (within the town's square, or out on the land beyond it: the airport, the roads out, the far side of the bridge)
+    if (!Number.isFinite(x) || !Number.isFinite(z) || ((x < b.minX || x > b.maxX || z < b.minZ || z > b.maxZ) && !zoneOnGround(x, z))) return null;
     // another player is known by their account's username, which may have figures and underscores in it
     const name = cleanHandle(data.name);
     if (name.length < 2) return null;
@@ -268,6 +271,14 @@ export function createTalk({ state, population, residents, players, weather, hub
     const look = data.look && typeof data.look === 'object' ? data.look : {};
     const old = visitors.get(id);
     const v = { id, name, x, z, heading: Number.isFinite(heading) ? heading : 0, lang: LANGUAGES[data.lang] ? data.lang : 'en', look: cleanFigureLook(look) || { skin: colour(look.skin, 0x6b4226), top: colour(look.top, 0xf2c200), bottom: colour(look.bottom, 0x2c3440), build: 1, body: look.body === 'f' ? 'f' : 'm', outfit: 'streetwear' }, seen: now(), saySeq: old ? old.saySeq : -1, saidAt: old ? old.saidAt : -10 };
+    // on a motorcycle: which (one of the game's own) and what it is doing, within bounds; a horn newly sounded
+    const r = data.ride && typeof data.ride === 'object' ? data.ride : null;
+    const n = (value, lo, hi) => { const k = Number(value); return Number.isFinite(k) ? Math.max(lo, Math.min(hi, k)) : 0; };
+    v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1) } : null;
+    const horns = r ? n(r.horns, 0, 1e9) : 0;
+    v.horns = old && old.horns !== undefined ? old.horns : horns;
+    v.hornAt = old ? old.hornAt : -10;
+    if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }
     visitors.set(id, v);
     const said = data.say;
     // what was said before this visitor came into view is not replayed
@@ -305,7 +316,7 @@ export function createTalk({ state, population, residents, players, weather, hub
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
       speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
     }
-    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100 }));
+    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }

@@ -356,7 +356,8 @@ export function makeFigure(spec, labelText, shadow = false) {
   };
   // the handles become bone rotations whenever the figure is about to be placed in the world
   const place = group.updateMatrixWorld;
-  group.updateMatrixWorld = function updateMatrixWorld(force) { applyPose(rig); if (rig.reaction && rig.reaction.weight > 0.001) applyReaction(rig); place.call(this, force); };
+  // (`freeze`: the bones have been set by hand for this frame, a rider's on a motorcycle say (own-bike-view.js), and are left as they are)
+  group.updateMatrixWorld = function updateMatrixWorld(force) { if (!rig.freeze) { applyPose(rig); if (rig.reaction && rig.reaction.weight > 0.001) applyReaction(rig); } place.call(this, force); };
   return rig;
 }
 

@@ -61,6 +61,12 @@ export const ICONS = Object.freeze({
   // a power bike's two steering arrows: solid, pointing out to their own side
   steerleft: ['M15.6 3.6v16.8L4.2 12z'],
   steerright: ['M8.4 3.6v16.8L19.8 12z'],
+  // the action buttons of 16 October 2026 (the owner's screenshots): steering chevrons, and the two pedals drawn
+  // as the screenshots draw them, inside a button that is itself the pedal's outline (ICON_BOX gives their shape)
+  chevleft: [{ s: 'M11.6 5.6L5.2 12l6.4 6.4 M18.4 5.6L12 12l6.4 6.4', w: 2.6 }],
+  chevright: [{ s: 'M12.4 5.6L18.8 12l-6.4 6.4 M5.6 5.6L12 12l-6.4 6.4', w: 2.6 }],
+  pedalgas: [{ ring: [12, 5.2, 1.7], w: 1.6 }, { ring: [12, 34.8, 1.7], w: 1.6 }, 'M6.2 25.6l11.6-11.6v4.4L6.2 30z M6.2 17.6L17.8 6v4.4L6.2 22z'],
+  pedalbrake: [{ ring: [10.5, 4.6, 1.7], w: 1.6 }, { ring: [29.5, 4.6, 1.7], w: 1.6 }, 'M5.2 9.2h3.6L5.2 15.4z M9.6 21.6l9.2-12.4h3.6l-9.2 12.4z M15.8 21.6L25 9.2h3.6l-9.2 12.4z M28.6 21.6c0-5.4 2.4-9.6 6.2-11.6v11.6z'],
   brake: ['M4.4 6.6h15.2a1.6 1.6 0 0 1 1.6 1.8l-.9 8.3a2.4 2.4 0 0 1-2.4 2.1H6.1a2.4 2.4 0 0 1-2.4-2.1L2.8 8.4a1.6 1.6 0 0 1 1.6-1.8z M7.4 9.6h1.6v6H7.4z M11.2 9.6h1.6v6h-1.6z M15 9.6h1.6v6H15z'],
   // in the river
   hand: [PALM, ...FINGERS, { s: 'M3 22.2c1.5-.9 3-.9 4.5 0s3 .9 4.5 0 3-.9 4.5 0 3 .9 4.5 0', w: 1.8 }],
@@ -100,10 +106,13 @@ export const PROMPT_ICON = Object.freeze({
 });
 
 const NS = 'http://www.w3.org/2000/svg';
+// drawings that are not square: the two pedals
+const ICON_BOX = Object.freeze({ pedalgas: '0 0 24 40', pedalbrake: '0 0 40 26' });
 export function icon(id) {
   const parts = ICONS[id] || ICONS.act;
   const el = document.createElementNS(NS, 'svg');
-  el.setAttribute('viewBox', '0 0 24 24');
+  el.setAttribute('viewBox', ICON_BOX[id] || '0 0 24 24');
+  if (ICON_BOX[id]) el.dataset.box = id;
   el.setAttribute('aria-hidden', 'true');
   el.setAttribute('class', 'ico');
   for (const part of parts) {

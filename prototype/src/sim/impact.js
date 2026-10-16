@@ -373,7 +373,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const involved = Object.keys(p.involved).filter((id) => players[id]).map((id) => ({ kind: 'player', id, name: players[id].name, health: players[id].health, dead: !!players[id].dead }));
     if (p.involvedNpc && book.npc[p.involvedNpc.i]) involved.push({ kind: 'npc', id: p.involvedNpc.i, name: p.involvedNpc.name, health: book.npc[p.involvedNpc.i].health, dead: !!book.npc[p.involvedNpc.i].dead });
     return {
-      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h } : null,
+      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h, ...(p.down.by === 'crash' ? { by: 'crash' } : {}) } : null,
       dead: p.dead ? { by: p.dead.byName, left: Math.max(0, Math.ceil(p.dead.wakeAt - now)), vehicle: p.dead.vehicle } : null,
       involved,
     };
@@ -411,7 +411,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
   }
 
   // The driver sounds the horn: for a moment, everyone ahead looks up.
-  function horn(driver) { driver.hornAt = real(); return {}; }
+  function horn(driver) { driver.hornAt = real(); driver.horns = (driver.horns || 0) + 1; return {}; }
 
   const api = { clear, step, stalled, horn, tick, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, record: (i) => book.npc[i] || null };
   hub.impact = api;

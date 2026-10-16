@@ -1,23 +1,17 @@
-// The engine and the horn of a power bike (src/sim/power-bikes.js), made by the game itself as it plays: no
-// recording of anyone's motorcycle is used. Each bike names one of the engines below, or brings its own
-// recordings (see `recordings`), and one of the horns.
+// The engine and the horn of a power bike (src/sim/power-bikes.js).
 //
-// An engine is heard as what it is: a four-stroke fires each cylinder once every two turns of the crank, so it
-// beats at revs/60 × cylinders/2 times a second, and that beat, with the pipes it goes out through, is its
-// sound. A big single thumps, slow and uneven; a V-twin lopes (its two cylinders fire close together, then a
-// gap); a parallel twin is even and gruff; an inline four is smooth and climbs to a howl. Each is made from that
-// beat (an oscillator whose overtones are that engine's), half of it for the lope of a single or a twin, the
-// rasp of the exhaust (noise around the beat), the pipe's own ring (a peak in the filter) and the airbox at high
-// revs. The revs follow the throttle and the gears (bikeRevs), smoothly, so nothing jumps; let off at speed and
-// the exhaust crackles on the overrun.
+// The engine is the owner's recordings (16 October 2026; BIKE_RECORDINGS and createRecordedEngine, below): the
+// supplied WAV files, cut by tools/audio/bike_sounds.py into an idle, a mid and a high loop for each of the two
+// kinds of engine they record (a big V-twin and a sports bike's four), and the start and the switching-off. Every
+// bike plays one of the two sets, pitched a little its own way.
 //
-// Started: the starter turns it over and it catches, rising to its idle. Stopped: it runs down and is quiet.
-// It plays into the game's own vehicle sound (audio.js), so the volume and mute settings govern it like
-// every other engine, and it is a voice of its own: the town's sounds and the other engines are left as they are.
+// The engine made below (createBikeEngine) is heard only when the recordings cannot be fetched at all: a
+// four-stroke's beat (revs/60 × cylinders/2 a second) with its exhaust rasp, its pipe's ring and its airbox, the
+// revs following the throttle and the gears (bikeRevs). No horn was among the recordings, so the horns are made
+// here too (BIKE_HORNS).
 //
-// To give a bike its own recordings later: `recordings: { idle: 'some-bike-idle.mp3', idleRpm: 1100, horn:
-// 'some-bike-horn.mp3' }` in its entry. The idle recording is then looped and played faster as the revs climb,
-// over the made engine's rasp; nothing else changes.
+// Everything plays into the game's own vehicle sound (audio.js), so the volume and mute settings govern it like
+// every other engine.
 
 export const BIKE_SOUNDS = Object.freeze({
   // a 500 cc single: low and thumping, a lope at idle
@@ -46,7 +40,7 @@ export function firingHz(profile, rev) {
 }
 
 // One power bike's engine, sounding into `out` (the game's vehicle sound). `ctx` is the page's AudioContext.
-export function createBikeEngine(ctx, out, profile, { noise = null, recordings = null, fetchBuffer = null } = {}) {
+export function createBikeEngine(ctx, out, profile, { noise = null } = {}) {
   const real = ctx.createPeriodicWave(new Float32Array(profile.harmonics.length + 1), Float32Array.from([0, ...profile.harmonics]), { disableNormalization: false });
   const beat = ctx.createOscillator(); beat.setPeriodicWave(real);
   // half the beat, for the lope of a single or a twin: the same engine heard every other stroke
@@ -79,23 +73,15 @@ export function createBikeEngine(ctx, out, profile, { noise = null, recordings =
   tone.connect(level);
   if (airGain) airGain.connect(level);
   level.connect(out);
-  // a bike's own idle recording, when it has one: looped, faster as the revs climb
-  let recorded = null;
-  if (recordings && recordings.idle && fetchBuffer) {
-    fetchBuffer(recordings.idle).then((buffer) => {
-      if (!buffer || stopped) return;
-      const src = ctx.createBufferSource(); src.buffer = buffer; src.loop = true;
-      const g = ctx.createGain(); g.gain.value = 0.9; src.connect(g); g.connect(level); src.start();
-      recorded = { src, g };
-      body.gain.value = 0.15;              // the made beat stays only underneath, for weight
-    }).catch(() => {});
-  }
   beat.start(); half.start(); if (rasp) rasp.start(); if (airbox) airbox.start();
 
   let running = false, stopped = false, rev = 0, popAt = 0;
   const engine = {
     profile,
     get running() { return running; },
+    // made, not recorded
+    recording: false,
+    get rev() { return rev; },
     // The starter, then it catches and settles to its idle.
     start(now = ctx.currentTime) {
       if (running || stopped) return;
@@ -129,14 +115,13 @@ export function createBikeEngine(ctx, out, profile, { noise = null, recordings =
       level.gain.setTargetAtTime(profile.level * (0.6 + 0.25 * rev + 0.15 * throttle), now, 0.1);
       if (raspGain) { raspGain.gain.setTargetAtTime(profile.rasp * (0.25 + 0.75 * throttle) * (0.5 + rev), now, 0.08); rasp.band.frequency.setTargetAtTime(Math.min(6000, f * 6), now, 0.1); }
       if (airGain) airGain.gain.setTargetAtTime(profile.intake * throttle * rev * rev, now, 0.1);
-      if (recorded) recorded.src.playbackRate.setTargetAtTime(Math.max(0.5, (profile.idle + (profile.redline - profile.idle) * rev) / (recordings.idleRpm || profile.idle)), now, 0.09);
       // on the overrun: throttle shut with the revs up, the exhaust pops now and then
       if (noise && throttle < 0.05 && rev > 0.35 && now > popAt && Math.random() < profile.crackle * 0.5) { popAt = now + 0.06 + Math.random() * 0.2; pop(now); }
     },
     dispose() {
       stopped = true; running = false;
       const t = ctx.currentTime + 0.5;
-      for (const n of [beat, half, rasp, airbox, recorded && recorded.src]) if (n) { try { n.stop(t); } catch (error) { /* already stopped */ } }
+      for (const n of [beat, half, rasp, airbox]) if (n) { try { n.stop(t); } catch (error) { /* already stopped */ } }
       setTimeout(() => { try { level.disconnect(); } catch (error) { /* gone */ } }, 700);
     },
   };
@@ -157,4 +142,112 @@ export function soundBikeHorn(ctx, out, horn, now = ctx.currentTime) {
   for (const f of horn.notes) { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(shape); o.start(now); o.stop(now + horn.length + 0.02); }
   shape.connect(g); g.connect(out);
   return horn.length;
+}
+
+// ---- The owner's recordings (16 October 2026) ---------------------------------------------------------------------
+// Made ready by tools/audio/bike_sounds.py from the owner's WAV files (kept as supplied; what each one is, as read
+// from the sound itself, is written at the top of that tool): for each of the two kinds of engine the owner sent,
+// a big deep twin ('twin', the nine "A_hyper-realistic" files) and a high-revving sports bike ('sport', the two
+// "gp_motor_powerbikes"), three seamless loops at idle, middle and high revs with the engine's firing frequency in
+// each, and the start and the switching off. No horn was among them: the horn is the one made below.
+export const BIKE_RECORDINGS = Object.freeze({
+  base: 'bikes/sound-',
+  loops: Object.freeze({"twin": {"idle": {"file": "twin-idle.wav", "firing": 41.5}, "mid": {"file": "twin-mid.wav", "firing": 55.3}, "high": {"file": "twin-high.wav", "firing": 107.3}}, "sport": {"idle": {"file": "sport-idle.wav", "firing": 45.9}, "mid": {"file": "sport-mid.wav", "firing": 88.4}, "high": {"file": "sport-high.wav", "firing": 246.2}}}),
+  start: 'start.wav', stop: 'stop.wav',
+  // where the start catches (seconds into start.wav): the idle loop comes in under it from here
+  catchAt: 1.1,
+});
+// Which recordings a bike plays: the cruisers' V-twins the deep twin, the rest the sports bike.
+export const recordingKindOf = (bike) => (bike && bike.sound === 'vtwin1200' ? 'twin' : 'sport');
+// Each bike pitched a little its own way, from its tuned idle (power-bikes.js, tone.idle): no two exactly alike.
+export const recordingPitchOf = (bike) => { const base = BIKE_SOUNDS[bike && bike.sound] || BIKE_SOUNDS.four1000; const idle = (bike && bike.tone && bike.tone.idle) || base.idle; return Math.max(0.88, Math.min(1.14, idle / base.idle)); };
+const LAYERS = ['idle', 'mid', 'high'];
+const AT = { idle: 0, mid: 0.45, high: 1 };          // the revs (0 idle .. 1 the red line) each loop is heard best at
+
+// The engine, from the recordings: the three loops play together, each faded in where the revs are nearest its own
+// and sped up or slowed to the pitch the revs ask for, so that the engine climbs and falls smoothly and none of them
+// is ever heard to restart. The revs follow the bike: its speed, its gear and the throttle (bikeRevs), smoothly.
+//   buffers  { idle, mid, high, start, stop }: decoded AudioBuffers (see audio.js)
+//   out      where it sounds (the game's vehicle sound, or a panner for someone else's bike)
+export function createRecordedEngine(ctx, out, { kind = 'sport', pitch = 1, buffers, level: base = 0.9 } = {}) {
+  const loops = BIKE_RECORDINGS.loops[kind];
+  const lo = loops.idle.firing * pitch, hi = loops.high.firing * pitch * 1.06;
+  const firingAt = (rev) => lo * (hi / lo) ** rev;                 // the firing frequency the revs ask for
+  const level = ctx.createGain(); level.gain.value = 0;
+  // more bite with the throttle open and the revs up, without simply getting louder: a lift in the upper middle
+  const bite = ctx.createBiquadFilter(); bite.type = 'peaking'; bite.frequency.value = 1800; bite.Q.value = 0.7; bite.gain.value = 0;
+  level.connect(bite); bite.connect(out);
+  const voices = {};
+  let running = false, stopped = false, rev = 0;
+  for (const layer of LAYERS) {
+    const src = ctx.createBufferSource(); src.buffer = buffers[layer]; src.loop = true;
+    const g = ctx.createGain(); g.gain.value = 0;
+    src.connect(g); g.connect(level);
+    voices[layer] = { src, g, native: loops[layer].firing };
+  }
+  const weights = (r) => {
+    // equal power between the two loops either side of the revs
+    const w = { idle: 0, mid: 0, high: 0 };
+    if (r <= AT.mid) { const k = r / AT.mid; w.idle = Math.cos(k * Math.PI / 2); w.mid = Math.sin(k * Math.PI / 2); } else { const k = (r - AT.mid) / (AT.high - AT.mid); w.mid = Math.cos(k * Math.PI / 2); w.high = Math.sin(k * Math.PI / 2); }
+    return w;
+  };
+  function steer(now, glide) {
+    const f = firingAt(rev), w = weights(rev);
+    for (const layer of LAYERS) {
+      const v = voices[layer];
+      v.src.playbackRate.setTargetAtTime(Math.max(0.5, Math.min(2.2, f / v.native)), now, glide);
+      v.g.gain.setTargetAtTime(w[layer], now, glide);
+    }
+  }
+  const startAt = ctx.currentTime;
+  for (const layer of LAYERS) voices[layer].src.start(startAt, Math.random() * 0.5);
+  return {
+    recording: true,
+    get running() { return running; },
+    get rev() { return rev; },
+    // The ignition: the owner's start, then the idle comes in under it as it catches. `warm`: already running (a
+    // bike seen from afar, or the recordings arriving while it runs): no start sound.
+    start(now = ctx.currentTime, { warm = false } = {}) {
+      if (running || stopped) return;
+      running = true; rev = 0; steer(now, 0.01);
+      if (!warm && buffers.start) {
+        const s = ctx.createBufferSource(); s.buffer = buffers.start;
+        const g = ctx.createGain(); g.gain.value = base; s.connect(g); g.connect(out); s.start(now);
+        level.gain.setValueAtTime(0, now); level.gain.setValueAtTime(0, now + BIKE_RECORDINGS.catchAt); level.gain.linearRampToValueAtTime(base * 0.8, now + BIKE_RECORDINGS.catchAt + 0.6);
+      } else { level.gain.setValueAtTime(0, now); level.gain.linearRampToValueAtTime(base * 0.8, now + 0.35); }
+    },
+    // Switched off: the owner's running-down, and the loops let go under it.
+    stop(now = ctx.currentTime, { quiet = false } = {}) {
+      if (!running) return;
+      running = false;
+      level.gain.cancelScheduledValues(now); level.gain.setTargetAtTime(0, now, quiet ? 0.12 : 0.08);
+      if (!quiet && buffers.stop) { const s = ctx.createBufferSource(); s.buffer = buffers.stop; const g = ctx.createGain(); g.gain.value = base * 0.9; s.connect(g); g.connect(out); s.start(now); }
+    },
+    // The revs (0 idle .. 1 the red line) and the throttle (0..1), each frame or a few times a second.
+    set(nextRev, throttle = 0, now = ctx.currentTime) {
+      if (!running) return;
+      const was = rev;
+      rev = Math.max(0, Math.min(1, nextRev));
+      steer(now, rev > was ? 0.08 : 0.12);            // up a little quicker than down: an engine falls back gently
+      level.gain.setTargetAtTime(base * (0.8 + 0.12 * rev + 0.08 * throttle), now, 0.12);
+      bite.gain.setTargetAtTime(4.5 * throttle * (0.3 + 0.7 * rev), now, 0.1);
+    },
+    dispose() {
+      stopped = true; running = false;
+      const t = ctx.currentTime + 0.4;
+      for (const layer of LAYERS) { try { voices[layer].src.stop(t); } catch (error) { /* already stopped */ } }
+      setTimeout(() => { try { bite.disconnect(); } catch (error) { /* gone */ } }, 600);
+    },
+  };
+}
+
+// A horn held for as long as the button is (the game's own horn: no recording of one was supplied). Gives stop().
+export function holdBikeHorn(ctx, out, horn, now = ctx.currentTime) {
+  const g = ctx.createGain();
+  const shape = ctx.createBiquadFilter(); shape.type = 'bandpass'; shape.frequency.value = 900; shape.Q.value = 0.7;
+  g.gain.setValueAtTime(0.0001, now); g.gain.exponentialRampToValueAtTime(0.09, now + 0.02);
+  const oscs = horn.notes.map((f) => { const o = ctx.createOscillator(); o.type = 'sawtooth'; o.frequency.value = f; o.connect(shape); o.start(now); return o; });
+  shape.connect(g); g.connect(out);
+  let done = false;
+  return { stop(at = ctx.currentTime) { if (done) return; done = true; const end = Math.max(at, now + 0.15); g.gain.setValueAtTime(0.09, end); g.gain.exponentialRampToValueAtTime(0.0001, end + 0.06); for (const o of oscs) o.stop(end + 0.08); } };
 }

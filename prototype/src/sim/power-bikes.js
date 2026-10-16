@@ -2,7 +2,7 @@
 // own handling and their own engine and horn. They are not okadas: an okada is a small bike that carries
 // people for a fare (okada.js), and the motorcycle a player can already ride is that small bike.
 //
-// The bikes are the owner's twelve supplied models (assets/vehicles/bikes/, drawn as supplied: see
+// The bikes are the owner's fifteen supplied models (assets/vehicles/bikes/, drawn as supplied: see
 // src/client/bike-model.js). Each is sold new in the market at its price; a player may own one of each.
 //
 // The price follows the bike's class, read from how it looks: its size, its finish, and what kind of machine it
@@ -30,7 +30,7 @@ export const BIKE_TIERS = Object.freeze({
   5: Object.freeze({ name: 'Flagship', price: 6000 }),
 });
 
-const bike = (id, name, tier, length, sound, horn, handling, blurb, price = BIKE_TIERS[tier].price) => Object.freeze({ id, name, tier, price, length, sound, tone: Object.freeze(TONES[id] || {}), horn, handling: Object.freeze(handling), blurb });
+const bike = (id, name, tier, length, sound, horn, handling, blurb, price = BIKE_TIERS[tier].price, cc = 0) => Object.freeze({ id, name, tier, price: price === undefined ? BIKE_TIERS[tier].price : price, cc, topKmh: topKmhOfCc(cc), length, sound, tone: Object.freeze(TONES[id] || {}), horn, handling: Object.freeze(handling), blurb });
 
 // Until each bike's own recording is supplied, its engine is made by the game (bike-audio.js) from the kind of
 // engine above, tuned for that bike so that no two of the twelve sound the same: its idle, the ring of its pipe,
@@ -48,21 +48,40 @@ const TONES = {
   'black-gold-superbike': { idle: 1550, pipe: 315, rasp: 0.12, redline: 14000 },
   'gold-tourer': { idle: 900, pipe: 125, lope: 0.6, rasp: 0.12, level: 0.42 },
   'chrome-concept': { idle: 1100, pipe: 150, rasp: 0.16, redline: 9500, level: 0.48 },
+  'gold-roadster': { idle: 1200, pipe: 205, rasp: 0.16, lope: 0.12 },
+  'black-bobber': { idle: 880, pipe: 104, lope: 0.9, rasp: 0.24 },
+  'power-cruiser': { idle: 950, pipe: 120, lope: 0.65, rasp: 0.18, level: 0.5 },
 };
 
+// Each bike's engine size (cc), from the owner's list of sizes (16 October 2026: 500, 600, 650, 700, 750, 1000,
+// 1200, 1400, 1500, 1650, 1750, 1850, 2000, 2300, 2500, 2800, 3000), matched to each bike by its class. Its top
+// speed and how hard it pulls follow from it (speedOfCc, below); the speedometer reads km/h from the same speed.
+export const BIKE_CCS = Object.freeze([500, 600, 650, 700, 750, 1000, 1200, 1400, 1500, 1650, 1750, 1850, 2000, 2300, 2500, 2800, 3000]);
+const CC_RANGE = { low: 500, high: 3000 };
+// top speed, km/h: 100 at 500 cc, rising evenly to 240 at 3000 cc; the pull (m/s² from a standstill) with it
+export const topKmhOfCc = (cc) => Math.round(100 + ((cc - CC_RANGE.low) / (CC_RANGE.high - CC_RANGE.low)) * 140);
+export const speedOfCc = (cc) => Object.freeze({ top: Math.round((topKmhOfCc(cc) / 3.6) * 100) / 100, accel: Math.round((4.6 + ((cc - CC_RANGE.low) / (CC_RANGE.high - CC_RANGE.low)) * 3.4) * 100) / 100 });
+export const FASTEST = speedOfCc(CC_RANGE.high).top;          // m/s: the top speed of the biggest engine there is
+
+const withCc = (cc, handling) => ({ ...handling, ...speedOfCc(cc) });
+
 export const POWER_BIKES = Object.freeze({
-  'streetfighter': bike('streetfighter', 'Streetfighter', 1, 2.05, 'twin650', 'single', { top: 24, accel: 5.4 }, 'A light naked street bike in red and white, upright and quick to turn.'),
-  'cafe-racer': bike('cafe-racer', 'Café Racer', 1, 2.05, 'twin650', 'single', { top: 23, accel: 5.0 }, 'A grey café racer with an orange seat and an open frame.'),
-  'white-sport': bike('white-sport', 'White Sport Tourer', 1, 2.1, 'single500', 'single', { top: 24, accel: 5.0 }, 'A white half-faired sport tourer, easy to live with.'),
-  'black-cruiser': bike('black-cruiser', 'Black Cruiser', 2, 2.35, 'vtwin1200', 'dual', { top: 24, accel: 4.8, leanMax: 0.5, wheelbase: 1.65 }, 'A classic black cruiser with chrome, wire wheels and a low seat.'),
-  'chopper': bike('chopper', 'Chopper', 2, 2.4, 'vtwin1200', 'dual', { top: 23, accel: 4.6, leanMax: 0.48, wheelbase: 1.7 }, 'A long chopper with high bars and a stepped seat.'),
-  'purple-sport': bike('purple-sport', 'Purple Sport', 2, 2.05, 'four1000', 'dual', { top: 27, accel: 5.8 }, 'A fully faired sport bike in deep purple.'),
-  'olive-cruiser': bike('olive-cruiser', 'Olive Muscle Cruiser', 3, 2.35, 'vtwin1200', 'dual', { top: 27, accel: 6.2, leanMax: 0.52, wheelbase: 1.65 }, 'A heavy muscle cruiser in military olive.'),
-  'yellow-adventure': bike('yellow-adventure', 'Yellow Adventure Tourer', 3, 2.25, 'twin650', 'dual', { top: 26, accel: 5.8, rough: 14 }, 'A tall adventure tourer in yellow, at home off the tar as on it.'),
-  'red-superbike': bike('red-superbike', 'Red Superbike', 4, 2.1, 'four1000', 'dual', { top: 31, accel: 7.2, leanMax: 0.7 }, 'A red superbike with a full race fairing.'),
-  'black-gold-superbike': bike('black-gold-superbike', 'Black & Gold Superbike', 4, 2.1, 'four1000', 'dual', { top: 31, accel: 7.0, leanMax: 0.7 }, 'A black superbike on gold wheels.'),
-  'gold-tourer': bike('gold-tourer', 'Gold Grand Tourer', 5, 2.55, 'vtwin1200', 'dual', { top: 28, accel: 5.4, leanMax: 0.5, wheelbase: 1.75 }, 'A full-dress touring bike in gold, with a fairing and hard luggage.'),
-  'chrome-concept': bike('chrome-concept', 'Chrome V-Concept', 5, 2.6, 'four1000', 'dual', { top: 33, accel: 7.6, leanMax: 0.55, wheelbase: 1.9 }, 'A chrome show machine with twin wheels at each end and an engine down its length.', 10000),
+  'streetfighter': bike('streetfighter', 'Streetfighter', 1, 2.05, 'twin650', 'single', withCc(650, {}), 'A light naked street bike in red and white, upright and quick to turn.', undefined, 650),
+  'cafe-racer': bike('cafe-racer', 'Café Racer', 1, 2.05, 'twin650', 'single', withCc(600, {}), 'A grey café racer with an orange seat and an open frame.', undefined, 600),
+  'white-sport': bike('white-sport', 'White Sport Tourer', 1, 2.1, 'single500', 'single', withCc(500, {}), 'A white half-faired sport tourer, easy to live with.', undefined, 500),
+  'black-cruiser': bike('black-cruiser', 'Black Cruiser', 2, 2.35, 'vtwin1200', 'dual', withCc(1500, { leanMax: 0.5, wheelbase: 1.65 }), 'A classic black cruiser with chrome, wire wheels and a low seat.', undefined, 1500),
+  'chopper': bike('chopper', 'Chopper', 2, 2.4, 'vtwin1200', 'dual', withCc(1400, { leanMax: 0.48, wheelbase: 1.7 }), 'A long chopper with high bars and a stepped seat.', undefined, 1400),
+  'purple-sport': bike('purple-sport', 'Purple Sport', 2, 2.05, 'four1000', 'dual', withCc(1000, {}), 'A fully faired sport bike in deep purple.', undefined, 1000),
+  'olive-cruiser': bike('olive-cruiser', 'Olive Muscle Cruiser', 3, 2.35, 'vtwin1200', 'dual', withCc(1750, { leanMax: 0.52, wheelbase: 1.65 }), 'A heavy muscle cruiser in military olive.', undefined, 1750),
+  'yellow-adventure': bike('yellow-adventure', 'Yellow Adventure Tourer', 3, 2.25, 'twin650', 'dual', withCc(1200, { rough: 14 }), 'A tall adventure tourer in yellow, at home off the tar as on it.', undefined, 1200),
+  'red-superbike': bike('red-superbike', 'Red Superbike', 4, 2.1, 'four1000', 'dual', withCc(2500, { leanMax: 0.7 }), 'A red superbike with a full race fairing.', undefined, 2500),
+  'black-gold-superbike': bike('black-gold-superbike', 'Black & Gold Superbike', 4, 2.1, 'four1000', 'dual', withCc(2000, { leanMax: 0.7 }), 'A black superbike on gold wheels.', undefined, 2000),
+  'gold-tourer': bike('gold-tourer', 'Gold Grand Tourer', 5, 2.55, 'vtwin1200', 'dual', withCc(2800, { leanMax: 0.5, wheelbase: 1.75 }), 'A full-dress touring bike in gold, with a fairing and hard luggage.', undefined, 2800),
+  'chrome-concept': bike('chrome-concept', 'Chrome V-Concept', 5, 2.6, 'four1000', 'dual', withCc(3000, { leanMax: 0.55, wheelbase: 1.9 }), 'A chrome show machine with twin wheels at each end and an engine down its length.', 10000, 3000),
+  // the owner's three of 16 October 2026
+  'gold-roadster': bike('gold-roadster', 'Gold Muscle Roadster', 4, 2.3, 'four1000', 'dual', withCc(2300, {}), 'A big gold muscle roadster with a three-pipe engine on show.', undefined, 2300),
+  'black-bobber': bike('black-bobber', 'Black Bobber', 2, 2.3, 'vtwin1200', 'dual', withCc(1650, { leanMax: 0.5, wheelbase: 1.6 }), 'A black bobber with a fat front tyre, a solid tank and a low solo seat.', undefined, 1650),
+  'power-cruiser': bike('power-cruiser', 'Dark Power Cruiser', 3, 2.35, 'vtwin1200', 'dual', withCc(1850, { leanMax: 0.55, wheelbase: 1.7 }), 'A long, low custom power cruiser in black on gold-spoked wheels.', undefined, 1850),
 });
 
 // How a big motorcycle goes, in metres, seconds and radians. A heavier, faster bike overrides some of these.
@@ -71,8 +90,9 @@ export const HANDLING = Object.freeze({
   rough: 9,             // top speed off the tar
   reverse: 1.2,         // pushed backwards with the feet
   accel: 5.5,           // m/s² with the throttle open, at low speed; less as it nears the top
-  brake: 9,             // m/s² with the brake fully on
-  coast: 0.9,           // m/s² lost with neither throttle nor brake (engine braking and the road)
+  brake: 13,            // m/s² with the brake fully on: speed drops fast
+  coast: 1.1,           // m/s² lost with neither throttle nor brake (engine braking and the road)
+  drag: 0.0009,         // and the air, by the square of the speed: let go at speed, it slows the more
   leanMax: 0.62,        // radians: how far over it leans at most
   leanRate: 2.6,        // how quickly it goes over (per second, towards the lean asked for)
   wheelbase: 1.45,      // metres: with the lean, how tight it turns
@@ -101,7 +121,7 @@ export function stepPowerBike(state, input, dt, { handling = HANDLING, onTar = t
   else if (throttle > 0) {
     if (v < 0) v = Math.min(0, v + h.brake * dt);
     else v += h.accel * throttle * Math.max(0.08, 1 - (v / top) ** 2) * dt;
-  } else v -= Math.sign(v) * Math.min(Math.abs(v), h.coast * dt);
+  } else v -= Math.sign(v) * Math.min(Math.abs(v), (h.coast + (h.drag || 0) * v * v) * dt);
   // over the top speed (off the tar, say): it slows to it, it does not stop dead
   if (v > top) v = Math.max(top, v - h.brake * 0.6 * dt);
   // the lean: towards what the steering asks, the more so the faster it goes (positive: over to the right, as
@@ -119,11 +139,14 @@ export function stepPowerBike(state, input, dt, { handling = HANDLING, onTar = t
 }
 
 // How hard the engine is working, 0 (idle) to 1 (the red line), from the speed and the throttle: what the
-// engine's sound follows. Each gear takes the revs up and drops them back as it changes.
+// engine's sound follows. Standing still with the throttle shut it idles (0). Each gear takes the revs up towards
+// the red line and drops them back as it changes; the last gear runs out at the top speed, so the engine is at its
+// red line (1) only flat out at the bike's top speed.
 export function bikeRevs(speed, throttle, handling = HANDLING, gears = 6) {
   const share = Math.max(0, Math.min(1, Math.abs(speed) / handling.top));
   const gear = Math.min(gears - 1, Math.floor(share * gears));
   const inGear = share * gears - gear;
-  const base = 0.12 + 0.18 * (gear / gears);
-  return Math.max(0, Math.min(1, base + inGear * (0.62 - 0.05 * gear) + throttle * 0.12));
+  const low = gear === 0 ? 0 : 0.3 + 0.12 * ((gear - 1) / Math.max(1, gears - 2));      // where a change up drops them
+  const high = 0.8 + 0.1 * (gear / (gears - 1));                                         // where it changes up
+  return Math.max(0, Math.min(1, low + inGear * (high - low) + Math.max(0, Math.min(1, throttle)) * 0.1));
 }

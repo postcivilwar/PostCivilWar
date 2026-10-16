@@ -36,7 +36,7 @@ test('the first thing for sale is the wristwatch: 100 TR, ten of them, at HOLARI
   // searching
   for (const q of ['watch', 'WATCHES', 'wrist', 'holaris', 'holaris watch', 'jewellery']) assert.equal((await guest.ok('market.list', { q })).listings.length, 1, q);
   for (const q of ['car', 'yacht', 'gun', 'clothe', 'watch car', '100%', '_']) assert.equal((await guest.ok('market.list', { q })).listings.length, 0, q);
-  for (const q of ['bike', 'motorcycle', 'MOTORCYCLES']) assert.equal((await guest.ok('market.list', { q })).listings.length, 12, q);
+  for (const q of ['bike', 'motorcycle', 'MOTORCYCLES']) assert.equal((await guest.ok('market.list', { q })).listings.length, 15, q);
   // but only an account can do anything
   assert.equal((await guest.call('market.mine')).status, 401);
   assert.equal((await guest.call('market.open', { listing: HOLARIS.listing, at: NEAR_HOLARIS })).status, 401);

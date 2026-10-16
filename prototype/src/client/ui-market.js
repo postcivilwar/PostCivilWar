@@ -13,6 +13,7 @@
 // kit: the pieces the phone is made of (ui-phone.js). go(state) moves about inside the app.
 
 import { createTurntable, createModelView, ASSET_MODELS } from './asset-view.js';
+import { createActionButton } from './action-button.js';
 
 const SEARCHES = Object.freeze(['Watch', 'Car', 'Yacht', 'Bike', 'Motorcycle', 'Gun', 'Clothes']);
 const POLL = 1300;                    // how often an open conversation asks for what is new (milliseconds)
@@ -60,22 +61,38 @@ export function createMarketUI(kit) {
 
   // ---- the page ----
 
-  // A motorcycle's engine, heard before it is bought or before it is ridden: one at a time, stopped by pressing
-  // again, by another, or by leaving the page (audio.js previewBike).
+  // A motorcycle's engine, heard before it is bought or before it is ridden (audio.js previewBike): its key (the
+  // starter, then idle; pressed again, it is switched off), Rev (held: the revs climb to its red line; let go: back
+  // to idle) and Horn (held for as long as it sounds). One engine at a time: another bike's page, getting on a bike
+  // or leaving the page stops it. Rev and Horn are action buttons (action-button.js): they let go however the finger
+  // leaves them, so nothing is left revving.
   const bikeOf = (model) => (typeof model === 'string' && model.startsWith('bike:') ? model.slice(5) : null);
-  function soundButton(bikeId) {
-    const playing = m.sound === bikeId;
-    return h('button', { class: `btn${playing ? ' primary' : ''}`, type: 'button', id: 'bike-sound', 'aria-pressed': String(playing), onclick: () => {
-      if (m.sound === bikeId) { app.stopBikeSound(); m.sound = null; } else { app.bikeSound(bikeId); m.sound = bikeId; }
-      redraw();
-    } }, playing ? 'Stop sound' : 'Play sound');
+  function engineControls(bikeId) {
+    const mine = () => (m.sound && m.sound.id === bikeId ? m.sound : null);
+    const ensure = () => { if (!mine()) { quiet(); m.sound = app.bikeSound(bikeId); } return mine(); };
+    const key = h('button', { class: 'btn', type: 'button', id: 'bike-ignition' });
+    const rev = createActionButton({ id: 'bike-rev', kind: 'hold', onDown: () => { const c = mine(); if (c) c.revHold(true); }, onUp: () => { const c = mine(); if (c) c.revHold(false); } });
+    const horn = createActionButton({ id: 'bike-horn', kind: 'hold', onDown: () => { const c = ensure(); if (c) c.hornHold(true); }, onUp: () => { const c = mine(); if (c) c.hornHold(false); } });
+    rev.el.id = 'bike-rev'; horn.el.id = 'bike-horn';
+    for (const [b, label] of [[rev, 'Rev'], [horn, 'Horn']]) { b.el.className = 'btn hold'; b.el.textContent = label; b.el.title = `Hold to ${label.toLowerCase()}`; }
+    const show = () => {
+      const on = !!mine() && mine().running;
+      key.textContent = on ? 'Switch off' : 'Start engine';
+      key.classList.toggle('primary', on);
+      key.setAttribute('aria-pressed', String(on));
+      rev.el.disabled = !on;
+      if (!on) rev.release();
+    };
+    key.onclick = () => { const c = ensure(); if (c) c.ignite(); show(); };
+    show();
+    return h('div', { class: 'actions', id: 'bike-engine' }, key, rev.el, horn.el);
   }
-  function quiet() { if (m.sound) { app.stopBikeSound(); m.sound = null; } }
+  function quiet() { if (m.sound) { m.sound.stop(); m.sound = null; } else app.stopBikeSound(); }
 
   function page(root, view, sub, go) {
     tidy();
     // the engine stops when its page is left
-    { const l = sub.asset ? market().state.listings.find((x) => x.id === sub.asset) : null; const own = sub.own && m.mine ? m.mine.holdings.find((x) => x.id === sub.own) : null; const here = bikeOf((l || own || { asset: {} }).asset.model); if (m.sound && m.sound !== here) quiet(); }
+    { const l = sub.asset ? market().state.listings.find((x) => x.id === sub.asset) : null; const own = sub.own && m.mine ? m.mine.holdings.find((x) => x.id === sub.own) : null; const here = bikeOf((l || own || { asset: {} }).asset.model); if (m.sound && m.sound.id !== here) quiet(); }
     if (!sub.asset && !sub.own) dropViewer();
     const box = noteBox();
     if (box) root.append(box);
@@ -239,7 +256,7 @@ export function createMarketUI(kit) {
     const bike = bikeOf(l.asset.model);
     if (bike) {
       // its engine, and what pays for it
-      root.append(h('div', { class: 'actions' }, soundButton(bike)));
+      root.append(engineControls(bike));
       const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
       root.append(h('p', { class: 'small', id: 'bike-terms' }, owned ? 'You own this motorcycle. One of each to an account: ride yours from Property.' : l.kind === 'primary' ? 'A motorcycle may be paid for with any of your TR, the arrival money included. One of each motorcycle to an account.' : 'Bought from another player, a motorcycle is paid for with TR you have earned.'));
     }
@@ -271,8 +288,8 @@ export function createMarketUI(kit) {
     if (bike && !item.listing) {
       // riding it: from where the player stands, or where they left it
       root.append(h('div', { class: 'hxrow' },
-        h('button', { class: 'hx primary', type: 'button', id: 'ride-bike', onclick: () => { quiet(); const r = app.rideBike(bike); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Ride it'),
-        soundButton(bike)));
+        h('button', { class: 'hx primary', type: 'button', id: 'ride-bike', onclick: () => { quiet(); const r = app.rideBike(bike); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Ride it')));
+      root.append(engineControls(bike));
       root.append(h('p', { class: 'small' }, 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
     }
     if (item.listing) {

@@ -10,6 +10,7 @@
 // nothing about what a button means.
 
 import { icon } from './icons.js';
+import { createActionButton } from './action-button.js';
 
 const SLOTS = 7;                 // buttons round the main one
 
@@ -36,13 +37,14 @@ export function createControls({ stick, pad }) {
     if (steerOnly) { const art = stick.querySelector('.wheelart'); if (art) art.style.transform = `rotate(${x * 120}deg)`; knob.style.transform = ''; }
     else knob.style.transform = `translate(${x * 33}px, ${y * 33}px)`;
   };
-  const dropStick = () => { stickPointer = null; state.stickX = 0; state.stickY = 0; knob.style.transform = ''; const art = stick.querySelector('.wheelart'); if (art) art.style.transform = ''; };
+  const dropStick = () => { stick.classList.remove('held'); stickPointer = null; state.stickX = 0; state.stickY = 0; knob.style.transform = ''; const art = stick.querySelector('.wheelart'); if (art) art.style.transform = ''; };
   // At the wheel: the stick is a steering wheel. Only how far it is turned counts; the pedals go and stop.
   let steerOnly = false;
   stick.addEventListener('pointerdown', (event) => {
     if (stickPointer !== null) return;
     event.preventDefault();
     stickPointer = event.pointerId;
+    stick.classList.add('held');
     try { stick.setPointerCapture(event.pointerId); } catch (error) { /* the pointer has already gone */ }
     moveStick(event);
   });
@@ -55,14 +57,14 @@ export function createControls({ stick, pad }) {
   // its finger in it.
   let stickTouch = null;           // the touch identifier of the finger on the stick, where touch events exist
   stick.addEventListener('touchstart', (event) => { if (stickTouch === null && event.changedTouches.length) stickTouch = event.changedTouches[0].identifier; }, { passive: true });
-  for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, (event) => { if (event.pointerId === stickPointer) dropStick(); }, true);
+  for (const type of ['pointerup', 'pointercancel']) window.addEventListener(type, (event) => { if (event.pointerId === stickPointer) dropStick(); for (const entry of buttons.values()) entry.button.pointerGone(event.pointerId); }, true);
   const checkTouches = (event) => {
     const still = new Set([...event.touches].map((t) => t.identifier));
     if (stickTouch !== null && !still.has(stickTouch)) { stickTouch = null; dropStick(); }
     if (event.touches.length === 0) {
       stickTouch = null;
       if (stickPointer !== null || state.stickX || state.stickY) dropStick();
-      for (const entry of buttons.values()) if (entry.pointer !== null && entry.pointer !== -1) lift(entry);
+      for (const entry of buttons.values()) entry.button.pointerGone();
     }
   };
   for (const type of ['touchend', 'touchcancel']) window.addEventListener(type, checkTouches, { capture: true, passive: true });
@@ -71,55 +73,26 @@ export function createControls({ stick, pad }) {
 
   // ---------------------------------------------------------- the buttons --
 
-  function press(entry, pointerId) {
-    const { spec } = entry;
-    if (spec.kind === 'hold') {
-      if (held.has(spec.id)) return;
-      held.add(spec.id); entry.pointer = pointerId;
-      entry.el.classList.add('down');
-      emit(spec.id, 'down');
-      return;
-    }
-    emit(spec.id, 'down');
-  }
-  function lift(entry) {
-    if (!held.delete(entry.spec.id)) return;
-    entry.pointer = null;
-    entry.el.classList.remove('down');
-    emit(entry.spec.id, 'up');
-  }
-
+  // Each button is an action button (action-button.js): it lights green while it is pressed and lets go however
+  // the finger leaves it. A hold is held here for as long as it is pressed.
   function make(id) {
-    const el = document.createElement('button');
-    el.type = 'button';
-    el.dataset.id = id;
-    const entry = { el, spec: null, pointer: null };
-    el.addEventListener('pointerdown', (event) => {
-      event.preventDefault();
-      if (entry.spec.kind === 'hold') { try { el.setPointerCapture(event.pointerId); } catch (error) { /* gone already */ } }
-      press(entry, event.pointerId);
+    const entry = { spec: null };
+    entry.button = createActionButton({
+      id,
+      onDown: () => { if (entry.spec.kind === 'hold') held.add(id); emit(id, 'down'); },
+      onUp: () => { if (held.delete(id)) emit(id, 'up'); },
     });
-    for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(type, (event) => { if (entry.pointer === event.pointerId) lift(entry); });
-    // A keyboard or a screen reader presses a button with `click` and no
-    // pointer at all: such a click counts no presses (`detail` is 0). A click
-    // that follows a finger or a mouse was answered already, on the way down.
-    // (Telling the two apart by the clock fails on a slow device, where the
-    // click can be handled a second after the touch that caused it.)
-    el.addEventListener('click', (event) => {
-      if (event.detail !== 0) return;
-      press(entry, -1);
-      if (entry.spec.kind === 'hold') lift(entry);
-    });
-    el.addEventListener('contextmenu', (event) => event.preventDefault());
-    pad.append(el);
+    entry.el = entry.button.el;
+    pad.append(entry.el);
     return entry;
   }
+  const lift = (entry) => { entry.button.release(); if (held.delete(entry.spec.id)) emit(entry.spec.id, 'up'); };
 
   // Sets which buttons are shown. `list` is in order of importance: the first
   // marked `primary` is the large one, the rest take the places round it.
   //   { id, label, kind: 'tap' | 'hold' | 'toggle', primary, pressed, tone, hint }
   function layout(list) {
-    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}`).join('~');
+    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}|${b.shape || ''}`).join('~');
     if (next === signature) return;
     signature = next;
     const seen = new Set();
@@ -130,8 +103,9 @@ export function createControls({ stick, pad }) {
       let entry = buttons.get(spec.id);
       if (!entry) { entry = make(spec.id); buttons.set(spec.id, entry); }
       entry.spec = { kind: 'tap', ...spec };
+      entry.button.configure({ kind: entry.spec.kind, shape: spec.shape, size: spec.size, place: spec.place });
       const el = entry.el;
-      el.className = `pad ${spec.primary ? 'primary' : `slot${slot += 1}`}${spec.tone ? ` ${spec.tone}` : ''}${held.has(spec.id) ? ' down' : ''}`;
+      el.className = `pad ${spec.primary ? 'primary' : `slot${slot += 1}`}${spec.tone ? ` ${spec.tone}` : ''}${entry.button.held || held.has(spec.id) ? ' down' : ''}`;
       // what the button does is drawn, not written; the word is still there for a screen reader and for a long press
       const drawn = spec.icon || spec.id;
       if (el.dataset.icon !== drawn) { el.dataset.icon = drawn; el.replaceChildren(icon(drawn)); }
@@ -151,6 +125,30 @@ export function createControls({ stick, pad }) {
     for (const entry of buttons.values()) lift(entry);
   }
 
+  // A controller, where there is one (the Gamepad API): its left stick, and its triggers as throttle and brake.
+  function gamepad() {
+    const none = { x: 0, y: 0, go: 0, stop: 0 };
+    let pads;
+    try { pads = navigator.getGamepads ? navigator.getGamepads() : null; } catch (error) { return none; }
+    const g = pads && [...pads].find((p) => p && p.connected);
+    if (!g) return none;
+    const dead = (v) => (Math.abs(v || 0) < 0.15 ? 0 : v);
+    const b = (i) => (g.buttons[i] ? g.buttons[i].value || (g.buttons[i].pressed ? 1 : 0) : 0);
+    return { x: dead(g.axes[0]), y: dead(g.axes[1]), go: b(7), stop: b(6) };
+  }
+  // The buttons on screen light while the same thing is done with a key or a controller, so that what is shown is
+  // what the player is doing.
+  const KEYS_OF = { throttle: ['w', 'ArrowUp'], gas: ['w', 'ArrowUp'], brake: ['s', 'ArrowDown', ' '], 'steer-left': ['a', 'ArrowLeft'], 'steer-right': ['d', 'ArrowRight'], horn: ['h'] };
+  function lightFromKeys(pad) {
+    for (const entry of buttons.values()) {
+      const keys = KEYS_OF[entry.spec.id];
+      if (!keys) continue;
+      const id = entry.spec.id;
+      const byPad = (id === 'throttle' || id === 'gas') ? pad.go > 0.1 : id === 'brake' ? pad.stop > 0.1 : id === 'steer-left' ? pad.x < -0.3 : id === 'steer-right' ? pad.x > 0.3 : false;
+      entry.button.setLit(byPad || keys.some((key) => state.keys.has(key)));
+    }
+  }
+
   return {
     state,
     layout,
@@ -160,7 +158,9 @@ export function createControls({ stick, pad }) {
     // Which way the player is pushing: forward and to the right, each -1 to 1.
     axes() {
       const k = state.keys;
-      let forward = 0, strafe = 0;
+      const pad = gamepad();
+      lightFromKeys(pad);
+      let forward = -pad.y, strafe = pad.x;
       if (k.has('w') || k.has('ArrowUp')) forward += 1;
       if (k.has('s') || k.has('ArrowDown')) forward -= 1;
       if (k.has('d') || k.has('ArrowRight')) strafe += 1;
@@ -168,6 +168,7 @@ export function createControls({ stick, pad }) {
       // at the wheel on a touch screen there are two pedals as well as the stick
       if (held.has('gas')) forward += 1;
       if (held.has('brake')) forward -= 1;
+      forward += pad.go - pad.stop;
       // on a power bike: the two arrows steer, the throttle goes (the brake is read by bike(), below)
       if (held.has('steer-left')) strafe -= 1;
       if (held.has('steer-right')) strafe += 1;
@@ -178,11 +179,14 @@ export function createControls({ stick, pad }) {
     // from its own buttons on a touch screen, or from the keys (W or Up to go, S or Down or Space to brake).
     bike() {
       const k = state.keys;
+      const pad = gamepad();
+      lightFromKeys(pad);
       let steer = 0;
       if (held.has('steer-left') || k.has('a') || k.has('ArrowLeft')) steer -= 1;
       if (held.has('steer-right') || k.has('d') || k.has('ArrowRight')) steer += 1;
-      const throttle = held.has('throttle') || k.has('w') || k.has('ArrowUp') ? 1 : 0;
-      const brake = held.has('brake') || k.has('s') || k.has('ArrowDown') || k.has(' ') ? 1 : 0;
+      steer = Math.max(-1, Math.min(1, steer + pad.x));
+      const throttle = held.has('throttle') || k.has('w') || k.has('ArrowUp') ? 1 : pad.go;
+      const brake = held.has('brake') || k.has('s') || k.has('ArrowDown') || k.has(' ') ? 1 : pad.stop;
       return { steer, throttle, brake };
     },
     // Running is chosen, never guessed: Shift held down, or Run switched on.

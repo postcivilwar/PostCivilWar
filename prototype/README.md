@@ -1393,11 +1393,77 @@ none beyond sight; one set of faces for each size; the screens drawn again only 
   TR, recent payments, market sales, upgrades, the advertising history and whether the books agree.
 - **No email** is sent: the owner chose to keep submissions in the database only. Nothing says one was sent.
 
+## Fifteen motorcycles, engine sizes and the speedometer, riding posture, coming off, and the action buttons (16 October 2026)
+
+- **Fifteen motorcycles.** The owner sent fifteen files: twelve are byte for byte the twelve already in the game,
+  and three are new, used exactly as supplied (one was made in centimetres: `tools/vehicles/bikes.py` reads it at
+  the same scale as the others, which changes nothing of its shape): the **Gold Muscle Roadster** (4,000 TR), the
+  **Black Bobber** (1,500 TR) and the **Dark Power Cruiser** (2,500 TR), in a third row at the showroom (database
+  step 8).
+- **Engine sizes.** Each bike has an engine size from the owner's list (`BIKE_CCS` in `src/sim/power-bikes.js`):
+  500 to 3,000 cc. Its top speed follows it evenly, 100 km/h at 500 cc to 240 km/h at 3,000 cc, and so does how
+  hard it pulls. The throttle takes the speed up smoothly and less hard near the top; letting go slows it by the
+  engine, the road and the air (more the faster it goes); the brake takes it down fast.
+- **The speedometer** (`src/client/speedometer.js`): see-through, at the front of the screen while one of the
+  player's motorcycles is ridden; a dial to just above that bike's top speed, a needle and the km/h that follow the
+  speed without jumping, the engine size under it, and red while braking. What is written at the foot of the
+  screen moves up above it.
+- **Riding posture** (`src/client/own-bike-view.js`, `RIDE`): forward over the tank, more at speed; hands on the
+  grips and feet on the pegs; into a turn the body goes over with the bike and a little further, the head turns
+  into the turn and is kept nearly level. (The bike itself now leans into the turn: it leaned the wrong way before.)
+- **Coming off** (`crash` in `src/sim/own-bikes.js`): ridden into something solid faster than 20 km/h, the rider
+  is thrown off by themselves, lands ahead and lies there with the figure's own fall, and gets up after a few
+  seconds; the bike lies on its side where it hit until it is ridden again. The life lost is in proportion to the
+  speed: 5 in 100 at 240 km/h (the top speed of the biggest engine), less below.
+- **The action buttons** (`src/client/action-button.js`; "The action buttons" in `template.html`): every touch
+  control is see-through with a thin luminous blue outline and a blue drawing, turns green the instant it is
+  pressed and blue the instant it is let go (also when the touch is cancelled, the finger is dragged off it, or no
+  finger is left on the glass), for walking, swimming, cars and motorcycles. The car's and motorcycle's pedals are
+  drawn as the owner's screenshots draw them, the motorcycle's steering as two chevrons. Keys and a game controller
+  light the same buttons. A new control is a spec (`id, icon, kind, shape, size, place`) and gets all of this.
+- The airport's runway, taxiway and apron count as paved: a bike reaches its top speed on them.
+
+## The motorcycles' engines, lamps and flames, and other riders (16 October 2026)
+
+- **The owner's recordings.** Eleven WAV files came, one of them a second copy of another, none of them labelled.
+  `tools/audio/bike_sounds.py` measures each (its firing rate, its loudness over time, where it starts and stops)
+  and says what it found: a big V-twin started, idled and switched off; the same twin steady; a sports four idling,
+  blipped, cruising, revved and flat out through the gears; a race bike changing gear. **No horn is among them**,
+  so the horns are still the game's own. The supplied files are kept unchanged in
+  `assets/vehicles/bikes/sound/original/`; the game plays cuts of them (`sound/game/`, served as
+  `bikes/sound-*.wav`): for each of the two engines an idle, a middle and a high loop, and the start and the
+  switching-off. The V-twin cruisers (Black Cruiser, Chopper, Olive Muscle Cruiser, Gold Grand Tourer, Black Bobber,
+  Dark Power Cruiser) play the twin, the rest the sports four, each pitched a little its own way.
+- **The engine as it is ridden** (`createRecordedEngine` in `src/client/bike-audio.js`): getting on turns the key
+  (the start, then the idle comes in as it catches); the three loops play together, crossfaded by the revs and
+  sped up or slowed to the pitch the revs ask for, so nothing is heard to restart and no copy is left playing; the
+  throttle adds bite; getting off plays the switching-off. The revs (`bikeRevs`) follow the speed through six
+  gears and the throttle: idle standing still, falling at each change, the red line only flat out at the top speed.
+  The recordings are fetched the first time a bike that plays them is heard. Only if they cannot be fetched at all
+  does a bike fall back to the engine the game makes (and its status says so).
+- **On a bike's page in the market**: Start engine (the start, then idle; pressed again, Switch off), Rev (held:
+  the revs climb smoothly to the red line; let go: back to idle) and Horn (held for as long as it sounds). Rev and
+  Horn are action buttons: green while held, and let go however the finger leaves them. One engine at a time;
+  another bike's page, getting on a bike or leaving the page stops it. It is only a sound: no bike is put in the
+  town and no other player is told of it.
+- **Lamps, flames and suspension** (`effects` in `src/client/own-bike-view.js`, `lampsOf` in `bike-model.js`, at
+  the headlamp, tail lamp and silencers `bikes.py` found in each model): head and tail lamps at night, with a light
+  that follows the ridden bike's headlamp on the road; the brake lamp bright red while braking; flames from the
+  silencers only on the big engines (1,850 cc and up) with the throttle wide open near the red line, and a burst
+  when it is shut at high revs; the nose dipping under hard braking and the bike riding the road (more off the
+  tar); the view shaking a little near the top speed.
+- **Other riders.** A player on their own motorcycle sends which bike and what it is doing (lean, speed, throttle,
+  brake, revs, horn) with where they are (`src/net/link.js`; the game checks every field, `talk.js`). Everyone near
+  sees the same model under them, seated with hands on the grips and feet on the pegs (the game's own figures too),
+  leaning, with its lamps, brake lamp and flames, and hears its engine and horn from where it is (the nearest three
+  engines within 120 m; each is let go when the rider gets off or rides away). Other players out beyond the town's
+  square (the airport, the road out, over the bridge) are now seen there too: they were dropped before.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 275 headless tests, in twenty-three files
-../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 71 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+node --test test/*.test.mjs                        # 286 headless tests
+../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 82 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/

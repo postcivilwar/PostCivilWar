@@ -1,4 +1,4 @@
-// The motorcycle showroom against a real PostgreSQL: the owner's twelve motorcycles, their prices, starter TR that
+// The motorcycle showroom against a real PostgreSQL: the owner's fifteen motorcycles, their prices, starter TR that
 // may buy one (and nothing else it could not buy before), one of each to an account, ownership kept after logging
 // in again, and selling one on.
 //   server/with-postgres.sh node --test server/test/*.test.mjs
@@ -22,11 +22,11 @@ async function buy(p, id, amount) {
   return p.call('market.offer', { thread: thread.id, offer: uuid(), amount: amount === undefined ? l.price : amount });
 }
 
-test('the showroom sells the twelve motorcycles, each at the game\'s own price, from 1,000 TR up', async () => {
+test('the showroom sells the fifteen motorcycles, each at the game\'s own price, from 1,000 TR up', async () => {
   const guest = person();
   const list = await showroom(guest);
-  assert.equal(list.length, 12);
-  assert.equal(Object.keys(POWER_BIKES).length, 12);
+  assert.equal(list.length, 15);
+  assert.equal(Object.keys(POWER_BIKES).length, 15);
   for (const [id, bike] of Object.entries(POWER_BIKES)) {
     const l = list.find((x) => x.asset.model === `bike:${id}`);
     assert.ok(l, id);
@@ -39,8 +39,8 @@ test('the showroom sells the twelve motorcycles, each at the game\'s own price, 
   // the server's own list and the game's agree
   assert.deepEqual(MOTORCYCLES.map((m) => [m.id, m.name, m.price]), Object.values(POWER_BIKES).map((b) => [b.id, b.name, b.price * TR]));
   // prices rise with the class, never fall
-  const prices = Object.values(POWER_BIKES).map((b) => b.price);
-  for (let i = 1; i < prices.length; i += 1) assert.ok(prices[i] >= prices[i - 1]);
+  const byTier = Object.values(POWER_BIKES).sort((a, b) => a.tier - b.tier || a.price - b.price);
+  for (let i = 1; i < byTier.length; i += 1) assert.ok(byTier[i].price >= byTier[i - 1].price);
 });
 
 test('arrival money buys a motorcycle: once each, at the showroom\'s price, and nothing else it could not buy before', async () => {

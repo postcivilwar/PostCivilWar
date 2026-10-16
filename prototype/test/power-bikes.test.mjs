@@ -4,8 +4,8 @@ import { POWER_BIKES, HANDLING, handlingOf, stepPowerBike, bikeRevs } from '../s
 
 const ride = (input, seconds, state = { speed: 0, lean: 0, heading: 0 }, options) => { for (let t = 0; t < seconds; t += 1 / 60) stepPowerBike(state, input, 1 / 60, options); return state; };
 
-test('the power bikes are the owner\'s twelve supplied models (13 October 2026)', () => {
-  assert.equal(Object.keys(POWER_BIKES).length, 12);
+test('the power bikes are the owner\'s fifteen supplied models (13 and 16 October 2026)', () => {
+  assert.equal(Object.keys(POWER_BIKES).length, 15);
 });
 
 test('the throttle takes it up to its top speed, and no further', () => {
@@ -22,7 +22,8 @@ test('the brake stops it in a short distance, without it going backwards', () =>
   let metres = 0;
   for (let i = 0; i < 600 && s.speed > 0; i += 1) { stepPowerBike(s, { brake: 1 }, 1 / 60); metres += s.speed / 60; }
   assert.equal(s.speed, 0);
-  assert.ok(metres > 15 && metres < 30, `stopping distance ${metres}`);
+  // (braking drops the speed fast: the owner's brief of 16 October 2026)
+  assert.ok(metres > 10 && metres < 20, `stopping distance ${metres}`);
 });
 
 test('let go, it rolls to a stop', () => {
@@ -61,4 +62,7 @@ test('the revs climb through each gear, drop at the change and stay between idle
   for (let v = 0; v <= HANDLING.top; v += 0.25) { const r = bikeRevs(v, 1); assert.ok(r >= 0 && r <= 1); if (r < last - 0.05) drops += 1; last = r; }
   assert.ok(drops >= 4, `gear changes heard: ${drops}`);
   assert.ok(bikeRevs(0, 0) < 0.2, 'idle is low');
+  assert.equal(bikeRevs(0, 0), 0, 'standing, throttle shut: idle');
+  assert.equal(bikeRevs(HANDLING.top, 1), 1, 'flat out at the top speed: the red line');
+  assert.ok(bikeRevs(HANDLING.top * 0.5, 0) < bikeRevs(HANDLING.top * 0.5, 1), 'the throttle lifts them');
 });

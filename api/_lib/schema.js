@@ -51,7 +51,11 @@ const MOTORCYCLES = [
   ['black-gold-superbike', 'Black & Gold Superbike', 4000, 'A black superbike on gold wheels.'],
   ['gold-tourer', 'Gold Grand Tourer', 6000, 'A full-dress touring bike in gold, with a fairing and hard luggage.'],
   ['chrome-concept', 'Chrome V-Concept', 10000, 'A chrome show machine with twin wheels at each end and an engine down its length.'],
-].map(([id, name, tr, blurb], i) => ({ id, name, price: tr * 2, blurb, asset: `motorcycle-${id}`, listing: `00000000-0000-4000-8000-0000000002${String(i + 1).padStart(2, '0')}`, x: SHOWROOM.x0 + (i % 6) * SHOWROOM.step, z: SHOWROOM.z + (i < 6 ? -2.5 : 2.5) }));
+  // the owner's three of 16 October 2026, in a third row
+  ['gold-roadster', 'Gold Muscle Roadster', 4000, 'A big gold muscle roadster with a three-pipe engine on show.'],
+  ['black-bobber', 'Black Bobber', 1500, 'A black bobber with a fat front tyre, a solid tank and a low solo seat.'],
+  ['power-cruiser', 'Dark Power Cruiser', 2500, 'A long, low custom power cruiser in black on gold-spoked wheels.'],
+].map(([id, name, tr, blurb], i) => ({ id, name, price: tr * 2, blurb, asset: `motorcycle-${id}`, listing: `00000000-0000-4000-8000-0000000002${String(i + 1).padStart(2, '0')}`, x: SHOWROOM.x0 + (i % 6) * SHOWROOM.step, z: SHOWROOM.z + (i < 6 ? -2.5 : i < 12 ? 2.5 : 7.5) }));
 const MOTORCYCLE_STOCK = 1000000;          // new from the showroom: not a numbered edition, and not going to run out
 
 // A character upgrade: offered only above the arrival money, for one part in `parts` of the whole wallet.
@@ -688,6 +692,14 @@ const MIGRATIONS = [
       // the owner's administrator (13 October 2026): the account named Chukwumezie, if it has been made. (Nobody
       // else becomes one by taking that name later: this is done once, now, to the account that has it now.)
       `update ${S}.accounts set role = 'admin' where username_key = 'chukwumezie'`,
+    ],
+  },
+  {
+    id: 8,
+    name: 'three more of the owner\'s motorcycles in the showroom',
+    statements: [
+      ...MOTORCYCLES.slice(12).map((m) => `insert into ${S}.assets (id, name, category, keywords, model, blurb) values ('${m.asset}', '${m.name.replace(/'/g, "''")}', 'motorcycle', 'motorcycle motorbike bike power ${m.id.replace(/-/g, ' ')}', 'bike:${m.id}', '${m.blurb.replace(/'/g, "''")}') on conflict (id) do nothing`),
+      ...MOTORCYCLES.slice(12).map((m) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${m.listing}', '${m.asset}', 'primary', '${SHOWROOM.shop}', '${SHOWROOM.name}', ${m.price}, ${MOTORCYCLE_STOCK}, '${SHOWROOM.zone}', ${m.x}, ${m.z}, '${SHOWROOM.name}, by Waterside Road, west of the motor park') on conflict (id) do nothing`),
     ],
   },
 ];

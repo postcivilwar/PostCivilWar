@@ -18,6 +18,9 @@ export function encodePlayer(self, zoneId) {
   // a supplied figure and its colours: checked again by whoever hears it
   if (self.look.figure) { out.lk.g = self.look.figure; out.lk.c = self.look.colours; }
   if (self.said) out.say = { q: self.said.seq, t: self.said.text, l: self.said.lang };
+  // on one of their own motorcycles: which, and what it is doing (lamps, flames and the engine's note follow it)
+  const a = self.astride;
+  if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, hn: a.horns || 0 }; }
   return out;
 }
 
@@ -25,7 +28,9 @@ export function decodePlayer(state, zoneId) {
   if (!state || typeof state !== 'object' || state.v !== LINK_VERSION || state.zn !== zoneId) return null;
   const lk = state.lk && typeof state.lk === 'object' ? state.lk : {};
   const say = state.say && typeof state.say === 'object' ? { seq: state.say.q, text: state.say.t, lang: state.say.l } : null;
-  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say };
+  const mb = state.mb && typeof state.mb === 'object' ? state.mb : null;
+  const ride = mb ? { bike: mb.i, lean: mb.l, speed: mb.s, throttle: mb.t, brake: mb.k, rev: mb.r, horns: mb.hn } : null;
+  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

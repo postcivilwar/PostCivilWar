@@ -21,7 +21,7 @@
 //   lowers music and background; an open panel lowers everything but itself.
 //   A limiter on the way out catches what is left.
 
-import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor } from './bike-audio.js';
+import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor, BIKE_RECORDINGS, recordingKindOf, recordingPitchOf, createRecordedEngine, holdBikeHorn } from './bike-audio.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
 
 // How each kind of engine sounds: lowest pitch, how far it climbs, its
@@ -225,6 +225,7 @@ export function createAudio() {
   const spots = new Map();          // generators and the like, by id
   const playing = [];               // short sounds now sounding: { kind, until }
   const ear = { x: 0, z: 0 };
+  const PEER_HEARD = 120, PEER_ENGINES = 3;   // another player's motorcycle is heard within this many metres; the nearest few
   const ducks = { panel: false, focusUntil: 0 };
   let since = 1;
   let birdAt = 0, knockAt = 0, beepAt = 0, hornAt = 0, stepAt = 0;
@@ -305,7 +306,7 @@ export function createAudio() {
     master.connect(limiter); limiter.connect(ctx.destination); limiter.connect(analyser);
     const groups = {};
     for (const name of SOUND_GROUPS) groups[name] = group(name, master);
-    nodes = { master, analyser, groups, white: noiseBuffer(ctx, 2, 'white'), brown: noiseBuffer(ctx, 3, 'brown') };
+    nodes = { master, analyser, groups, white: noiseBuffer(ctx, 2, 'white'), brown: noiseBuffer(ctx, 3, 'brown'), peerBikes: new Map() };
     for (const name of SOUND_GROUPS) nodes[name] = groups[name].input;
     nodes.wind = looped(nodes.brown, 'lowpass', 420);
     nodes.rain = looped(nodes.white, 'highpass', 1400);
@@ -421,35 +422,94 @@ export function createAudio() {
     here('horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
   }
 
-  // A motorcycle's engine heard before it is bought (the market's Play Sound): started, held at idle, revved up
-  // through the gears and let off again, over and over, until it is stopped. One at a time: a second stops the
-  // first, and so does getting on a bike. Gives a function that stops it.
+  // Another player's bike sounding its horn, heard where the bike is.
+  function bikeHornAt(id, x, z) {
+    const h = BIKE_HORNS[id] || BIKE_HORNS.dual;
+    at(x, z, 90, 'horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
+  }
+
+  // The owner's engine recordings (bike-audio.js, BIKE_RECORDINGS): a set (the V-twin's or the sports bike's) is
+  // fetched and decoded the first time a bike that plays it is heard, then shared by every engine that plays it.
+  const decoded = new Map();
+  const fetchBuffer = (url) => {
+    if (!decoded.has(url)) decoded.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }).then((data) => ctx.decodeAudioData(data)));
+    return decoded.get(url);
+  };
+  const recordingSets = new Map();          // kind -> { buffers, failed }
+  function recordingsOf(kind) {
+    let r = recordingSets.get(kind);
+    if (!r) {
+      r = { buffers: null, failed: false };
+      recordingSets.set(kind, r);
+      const L = BIKE_RECORDINGS.loops[kind];
+      Promise.all([L.idle.file, L.mid.file, L.high.file, BIKE_RECORDINGS.start, BIKE_RECORDINGS.stop].map((f) => fetchBuffer(BIKE_RECORDINGS.base + f)))
+        .then(([idle, mid, high, startBuf, stopBuf]) => { r.buffers = { idle, mid, high, start: startBuf, stop: stopBuf }; }, () => { r.failed = true; });
+    }
+    return r;
+  }
+  // A bike's engine into `out`: the recordings once they are here (null until then). Only if they cannot be fetched
+  // at all does it fall back to the engine the game makes itself, and says so (status: recording false).
+  function bikeEngine(id, out) {
+    const bike = POWER_BIKES[id];
+    if (!bike) return null;
+    const kind = recordingKindOf(bike), r = recordingsOf(kind);
+    if (r.buffers) return createRecordedEngine(ctx, out, { kind, pitch: recordingPitchOf(bike), buffers: r.buffers });
+    if (r.failed) return createBikeEngine(ctx, out, profileFor(bike), { noise: nodes.white });
+    return null;
+  }
+  const retire = (engine, now, quiet = false) => { if (!engine) return; engine.stop(now, { quiet }); setTimeout(() => engine.dispose(), 2600); };
+
+  // A motorcycle's engine on its page in the market, before it is bought or ridden: started and switched off with
+  // its key, revved for as long as Rev is held (the revs climbing smoothly to its red line and falling back to idle
+  // when it is let go), and its horn for as long as Horn is held. One at a time: another bike's, getting on a bike,
+  // or leaving the page stops it. It is only a sound: no bike is put in the town and nobody else hears it.
   let preview = null;
+  const REV_UP = 0.85, REV_DOWN = 0.55;      // revs (0..1) a second, climbing while Rev is held, falling after
   function stopPreview() {
     if (!preview) return;
     const p = preview; preview = null;
     clearInterval(p.timer);
-    if (ctx) { p.engine.stop(ctx.currentTime); setTimeout(() => p.engine.dispose(), 1600); }
+    if (p.horn) p.horn.stop();
+    if (ctx) retire(p.engine, ctx.currentTime, !p.running);
   }
   function previewBike(id) {
     stopPreview();
     const bike = POWER_BIKES[id];
-    if (!bike || !start() || !ctx) return () => {};
-    const engine = createBikeEngine(ctx, nodes.vehicles, profileFor(bike), { noise: nodes.white });
-    engine.start(ctx.currentTime);
-    const began = ctx.currentTime;
-    // (one turn of it: idle 1.6 s, up through the gears 3.4 s, let off 1.6 s, idle again 1.4 s)
-    const cycle = 8;
-    const at = (t) => {
-      const k = t % cycle;
-      if (k < 1.6) return [0.04, 0];
-      if (k < 5) { const u = (k - 1.6) / 3.4; const gear = Math.min(3, Math.floor(u * 4)); const inGear = u * 4 - gear; return [0.18 + gear * 0.08 + inGear * 0.5, 1]; }
-      if (k < 6.6) return [Math.max(0.04, 0.6 * (1 - (k - 5) / 1.6)), 0];
-      return [0.04, 0];
+    if (!bike || !start() || !ctx) return null;
+    recordingsOf(recordingKindOf(bike));
+    const p = { id, engine: null, running: false, wanted: false, revving: false, rev: 0, horn: null, last: ctx.currentTime };
+    const tick = () => {
+      if (preview !== p || !ctx) return;
+      const now = ctx.currentTime, dt = Math.min(0.2, now - p.last);
+      p.last = now;
+      // the key turned before the recordings arrived: it starts as soon as they are here
+      if (p.wanted && !p.engine) { p.engine = bikeEngine(id, nodes.vehicles); if (p.engine) { p.engine.start(now); p.running = true; } }
+      const goal = p.running && p.revving ? 1 : 0;
+      p.rev = goal > p.rev ? Math.min(goal, p.rev + REV_UP * dt) : Math.max(goal, p.rev - REV_DOWN * dt);
+      if (p.engine && p.running) p.engine.set(p.rev, p.running && p.revving ? 1 : 0, now);
     };
-    const me = { engine, timer: setInterval(() => { if (!ctx || preview !== me) return; const [rev, throttle] = at(ctx.currentTime - began); engine.set(rev, throttle, ctx.currentTime); }, 50) };
-    preview = me;
-    return () => { if (preview === me) stopPreview(); };
+    p.timer = setInterval(tick, 40);
+    preview = p;
+    return {
+      id,
+      get running() { return p.running || (p.wanted && !p.engine); },
+      get rev() { return p.rev; },
+      // the key: on (the starter, then idle) or off (it runs down)
+      ignite() {
+        if (preview !== p) return false;
+        if (p.wanted) { p.wanted = false; p.revving = false; if (p.running) retire(p.engine, ctx.currentTime); p.engine = null; p.running = false; p.rev = 0; return false; }
+        start();
+        p.wanted = true; tick();
+        return true;
+      },
+      revHold(on) { if (preview === p) { p.revving = !!on && p.wanted; tick(); } },
+      hornHold(on) {
+        if (preview !== p) return;
+        if (on && !p.horn && start()) { p.horn = holdBikeHorn(ctx, nodes.vehicles, BIKE_HORNS[bike.horn] || BIKE_HORNS.dual, ctx.currentTime); focus(0.5); }
+        else if (!on && p.horn) { p.horn.stop(); p.horn = null; }
+      },
+      stop() { if (preview === p) stopPreview(); },
+    };
   }
 
   // A blow in a fight: 'punch', 'heavy', 'kick', 'block', 'miss', 'shove', 'fall'. No voices, no gore: a thud and the cloth.
@@ -598,13 +658,30 @@ export function createAudio() {
     const own = scene.own;
     const bike = own && own.kind === 'powerbike' ? own : null;
     if (bike && (!nodes.bike || nodes.bike.id !== bike.bike)) {
-      if (nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; setTimeout(() => old.dispose(), 1500); }
-      const profile = POWER_BIKES[bike.bike] ? profileFor(POWER_BIKES[bike.bike]) : BIKE_SOUNDS[bike.sound] || BIKE_SOUNDS.four1000;
+      if (nodes.bike) retire(nodes.bike.engine, now);
       stopPreview();
-      nodes.bike = { id: bike.bike, engine: createBikeEngine(ctx, nodes.vehicles, profile, { noise: nodes.white }) };
-      nodes.bike.engine.start(now);
-    } else if (!bike && nodes.bike) { nodes.bike.engine.stop(now); const old = nodes.bike.engine; nodes.bike = null; setTimeout(() => old.dispose(), 1500); }
-    if (bike) nodes.bike.engine.set(bike.rev, bike.throttle, now);
+      nodes.bike = { id: bike.bike, engine: null, since: now };
+    } else if (!bike && nodes.bike) { retire(nodes.bike.engine, now); nodes.bike = null; }
+    if (bike && !nodes.bike.engine) {
+      // the key is turned as the player gets on; if the recordings take a while to arrive, it is already running
+      nodes.bike.engine = bikeEngine(bike.bike, nodes.vehicles);
+      if (nodes.bike.engine) nodes.bike.engine.start(now, { warm: now - nodes.bike.since > 4 });
+    }
+    if (bike && nodes.bike.engine) nodes.bike.engine.set(bike.rev, bike.throttle, now);
+    // other players' motorcycles: each nearby one's own engine, heard from where it is (the nearest few; one engine
+    // each, made when it comes near and let go when it goes)
+    const peers = (scene.peerBikes || []).filter((q) => POWER_BIKES[q.bike] && Math.hypot(q.x - ear.x, q.z - ear.z) < PEER_HEARD).sort((a, b) => Math.hypot(a.x - ear.x, a.z - ear.z) - Math.hypot(b.x - ear.x, b.z - ear.z)).slice(0, PEER_ENGINES);
+    const heardNow = new Set();
+    for (const q of peers) {
+      heardNow.add(q.key);
+      let e = nodes.peerBikes.get(q.key);
+      if (e && e.id !== q.bike) { retire(e.engine, now, true); setTimeout(() => e.pan.disconnect(), 3000); nodes.peerBikes.delete(q.key); e = null; }
+      if (!e) { e = { id: q.bike, engine: null, pan: panner(PEER_HEARD / 1.6) }; e.pan.connect(nodes.vehicles); nodes.peerBikes.set(q.key, e); }
+      move(e.pan, q.x, 0.7, q.z);
+      if (!e.engine) { e.engine = bikeEngine(q.bike, e.pan); if (e.engine) e.engine.start(now, { warm: true }); }
+      if (e.engine) e.engine.set(q.rev, q.throttle, now);
+    }
+    for (const [key, e] of nodes.peerBikes) if (!heardNow.has(key)) { retire(e.engine, now, true); setTimeout(() => e.pan.disconnect(), 3000); nodes.peerBikes.delete(key); }
     if (own && !bike && nodes.own.kind !== own.kind && ENGINE_VOICES[own.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(own.kind, false); }
     nodes.own.set(own && !bike ? own.rev : 0, own && !bike ? 0.21 + own.throttle * 0.24 : 0, now);
     nodes.tyres.gain.gain.setTargetAtTime(own ? own.rev * 0.035 : 0, now, 0.2);
@@ -768,7 +845,7 @@ export function createAudio() {
 
   return {
     supported: !!Ctx,
-    start, update, bell, footstep, horn, bikeHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     get running() { return !!ctx && ctx.state === 'running'; },
     get muted() { return muted; },
@@ -782,6 +859,9 @@ export function createAudio() {
       groups: ctx ? Object.fromEntries(SOUND_GROUPS.map((name) => [name, rmsOf(nodes.groups[name].meter).rms])) : {},
       ducked: ctx ? Object.fromEntries(SOUND_GROUPS.map((name) => [name, Number(nodes.groups[name].duck.gain.value.toFixed(2))])) : {},
       voices: ctx ? { short: playing.filter((s) => s.until > ctx.currentTime).length, ...stats } : null,
-      bike: ctx && nodes.bike ? { id: nodes.bike.id, profile: nodes.bike.engine.profile.name, running: nodes.bike.engine.running } : null }),
+      bike: ctx && nodes.bike ? { id: nodes.bike.id, running: !!nodes.bike.engine && nodes.bike.engine.running, recording: !!nodes.bike.engine && !!nodes.bike.engine.recording, rev: nodes.bike.engine ? nodes.bike.engine.rev : 0 } : null,
+      preview: preview ? { id: preview.id, running: preview.running, recording: !!preview.engine && !!preview.engine.recording, rev: preview.rev, revving: preview.revving, horn: !!preview.horn } : null,
+      peerBikes: ctx ? [...nodes.peerBikes].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, recording: !!e.engine && !!e.engine.recording, rev: e.engine ? e.engine.rev : 0 })) : [],
+      recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])) }),
   };
 }

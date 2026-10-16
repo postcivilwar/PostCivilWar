@@ -35,9 +35,17 @@ const pads = () => page.evaluate(() => [...document.querySelectorAll('.pad')].fi
 const clear = (c) => /rgba\(\d+, \d+, \d+, 0(\.0\d*)?\)|transparent/.test(c);
 let shownPads = await pads();
 check('walking: every button is a picture, with a name, and no written label; no camera button on foot', shownPads.length >= 2 && !shownPads.some((b) => b.id === 'camera') && shownPads.every((b) => b.icon && b.text === '' && b.name.length > 1), shownPads.map((b) => [b.id, b.text, b.name]));
-// every button sits on the same dark, see-through disc (10 October 2026: the solid icon family), never an opaque one until pressed
-const disc = (c) => { const m = c.match(/rgba\((\d+), (\d+), (\d+), ([\d.]+)\)/); return !!m && +m[1] < 40 && +m[2] < 40 && +m[3] < 40 && +m[4] > 0.3 && +m[4] < 0.7; };
-check('every button is on a dark see-through disc until it is pressed', shownPads.filter((b) => b.held !== 'true').every((b) => disc(b.back)), shownPads.map((b) => [b.id, b.back]));
+// every button is the owner's design of 16 October 2026: see-through, a thin luminous blue outline and a blue
+// drawing (green only while it is pressed)
+const look = (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const c = getComputedStyle(e); const i = e.matches('.pad') ? e.querySelector('.ico') : null; return { down: e.classList.contains('down') || e.classList.contains('held'), shadow: c.boxShadow, back: c.backgroundColor, ink: i ? getComputedStyle(i).color : null }; }, sel);
+const BLUE = 'rgb(92, 176, 255)', GREEN = 'rgb(63, 226, 124)';
+const alpha = (c) => { const m = c.match(/rgba?\(\d+, \d+, \d+(?:, ([\d.]+))?\)/); return m ? (m[1] === undefined ? 1 : +m[1]) : 1; };
+const blue = (l) => !!l && !l.down && l.shadow.includes(BLUE) && alpha(l.back) < 0.3 && (l.ink === null || l.ink === BLUE);
+const green = (l) => !!l && l.down && l.shadow.includes(GREEN) && alpha(l.back) < 0.3 && (l.ink === null || l.ink === GREEN);
+const allLooks = await page.evaluate(() => [...document.querySelectorAll('.pad')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => `.pad[data-id="${e.dataset.id}"]`));
+const looks = []; for (const q of allLooks) looks.push([q, await look(q)]);
+check('every button: see-through, a thin blue outline and a blue drawing', looks.every(([, l]) => blue(l) || (l.down === false && l.shadow.includes(BLUE))), looks);
+check('the stick: see-through, blue', blue(await look('#stick')), await look('#stick'));
 check('every button is big enough for a thumb and on the screen', shownPads.every((b) => b.w >= 44 && b.h >= 44 && b.l >= 0 && b.t >= 0 && b.r <= 390 && b.b <= 800), shownPads.map((b) => [b.id, Math.round(b.w)]));
 // the notice card: small, dark, near the top, and not across the middle of the screen
 await page.evaluate(() => window.__nlw.ui.toast({ type: 'police', title: 'Under arrest', text: 'Insp. Perpetua Akinola has arrested you: taking a vehicle. You are being walked to the Police Post.' }));
@@ -47,9 +55,16 @@ check('a notice is a small card near the top', !!card && card.b < 800 * 0.36 && 
 check('a notice is dark, see-through, with white writing', !!card && card.back[0] + card.back[1] + card.back[2] < 150 && (card.back[3] === undefined ? 1 : card.back[3]) < 0.9 && /rgb\(2[0-9]{2}, 2[0-9]{2}, 2[0-9]{2}\)/.test(card.ink), card);
 // WALK: full stick without Run is a walk
 await touch('touchStart', [{ ...stick, id: 1 }]); await touch('touchMove', [full]); await page.waitForTimeout(500);
+check('the stick is green while a thumb is on it', green(await look('#stick')), await look('#stick'));
 let v = await speed(); check('full stick, Run off: walking pace', v > 1.8 && v < 3.0, v.toFixed(2));
-// WALK -> RUN with a second finger while the stick is held
-await touch('touchStart', [full, { ...run, id: 2 }]); await page.waitForTimeout(60); await touch('touchEnd', [{ ...run, id: 2 }]); await page.waitForTimeout(300);
+// WALK -> RUN with a second finger while the stick is held: green while it is down, blue the moment it is up
+await touch('touchStart', [full, { ...run, id: 2 }]); await page.waitForTimeout(60);
+const pressedLook = await look('.pad[data-id=run]');
+await touch('touchEnd', [{ ...run, id: 2 }]); await page.waitForTimeout(120);
+const releasedLook = await look('.pad[data-id=run]');
+check('a button turns green the moment it is pressed', green(pressedLook), pressedLook);
+check('and blue again the moment it is let go', !releasedLook.down && releasedLook.shadow.includes(BLUE), releasedLook);
+await page.waitForTimeout(180);
 let s = await st(); check('second finger switches Run on while moving', s.run === true && s.pressed === 'true', s);
 v = await speed(); check('WALK -> RUN: running pace', v > 4.6 && v < 6.2, v.toFixed(2));
 // RUN -> WALK
@@ -89,8 +104,26 @@ const car0 = await page.evaluate(() => { const c = window.__nlw.view.self.drivin
 const gas = await box('.pad[data-id=gas]');
 await touch('touchStart', [{ ...gas, id: 9 }]); await page.waitForTimeout(3500);
 const car1 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return { x: c.x, z: c.z, held: document.querySelector('.pad[data-id=gas]').getAttribute('aria-pressed') }; });
-await touch('touchEnd', []); await page.waitForTimeout(2500);
-const car2 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return { x: c.x, z: c.z }; });
+const gasHeld = await look('.pad[data-id=gas]');
+await touch('touchEnd', []); await page.waitForTimeout(150);
+const gasUp = await look('.pad[data-id=gas]');
+check('the accelerator is green for as long as it is held, blue when let go', green(gasHeld) && blue(gasUp), { gasHeld, gasUp });
+// held, then the touch is taken away by the system (a call, a gesture): it lets go and does not stay lit
+await touch('touchStart', [{ ...gas, id: 10 }]); await page.waitForTimeout(150);
+await touch('touchCancel', []); await page.waitForTimeout(150);
+const cancelled = await look('.pad[data-id=gas]');
+check('an interrupted touch lets the button go', blue(cancelled) && !(await page.evaluate(() => window.__nlw.controls.held('gas'))), cancelled);
+// held, then the finger slides well off it: it lets go
+await touch('touchStart', [{ ...gas, id: 11 }]); await page.waitForTimeout(150);
+await touch('touchMove', [{ x: gas.x, y: gas.y - 70, id: 11 }]); await page.waitForTimeout(80);
+await touch('touchMove', [{ x: 195, y: 300, id: 11 }]); await page.waitForTimeout(150);
+const dragged = await look('.pad[data-id=gas]');
+const stillHeld = await page.evaluate(() => window.__nlw.controls.held('gas'));
+await touch('touchEnd', []); await page.waitForTimeout(150);
+check('a finger dragged off a button lets it go', blue(dragged) && !stillHeld, { dragged, stillHeld, mode: await page.evaluate(() => window.__nlw.mode) });
+await page.waitForTimeout(2200);
+const car2 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return c ? { x: c.x, z: c.z } : { gone: true, mode: window.__nlw.mode, notices: [...document.querySelectorAll('#notices > *')].map((e) => e.textContent).slice(-3), self: { x: window.__nlw.view.self.x, z: window.__nlw.view.self.z, law: window.__nlw.view.self.law.state } }; });
+if (car2.gone) console.log('CAR GONE', JSON.stringify(car2));
 await page.waitForTimeout(1500);
 const car3 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return { x: c.x, z: c.z }; });
 check('holding the accelerator drives the keke', Math.hypot(car1.x - car0.x, car1.z - car0.z) > 0.5, { from: car0, to: car1 });
@@ -136,6 +169,29 @@ check('Block is up only while the finger is on it', guard === true && after === 
 const leave = await box('.pad[data-id=leave]');
 await touch('touchStart', [{ ...leave, id: 8 }]); await page.waitForTimeout(60); await touch('touchEnd', []); await page.waitForTimeout(900);
 s = await st(); check('COMBAT -> WALK: stepping away brings back the walking buttons, Run off', s.mode === 'walking' && s.run === false && /Run/.test(s.shown), s);
+// ---- the motorcycle's controls (shown without a bike, as __nlw.bikePreview does): the screenshots' design ----
+const { mkdirSync } = await import('node:fs');
+const shots = process.argv[2] || '/tmp/touch-shots'; mkdirSync(shots, { recursive: true });
+await page.evaluate(() => window.__nlw.bikePreview(true)); await page.waitForTimeout(500);
+const bikePads = await page.evaluate(() => Object.fromEntries([...document.querySelectorAll('.pad')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => [e.dataset.id, { shape: e.dataset.shape, icon: e.dataset.icon }])));
+check('on a motorcycle: the throttle and brake are pedals, the steering two chevrons, as in the screenshots', bikePads.throttle && bikePads.throttle.shape === 'pedal-tall' && bikePads.throttle.icon === 'pedalgas' && bikePads.brake.shape === 'pedal-wide' && bikePads.brake.icon === 'pedalbrake' && bikePads['steer-left'].icon === 'chevleft' && bikePads['steer-right'].icon === 'chevright', bikePads);
+await page.screenshot({ path: `${shots}/bike-controls.png` });
+const thr = await box('.pad[data-id=throttle]'), right = await box('.pad[data-id="steer-right"]');
+await touch('touchStart', [{ ...thr, id: 21 }, { ...right, id: 22 }]); await page.waitForTimeout(200);
+const both = [await look('.pad[data-id=throttle]'), await look('.pad[data-id="steer-right"]'), await look('.pad[data-id=brake]')];
+await page.screenshot({ path: `${shots}/bike-controls-pressed.png` });
+const input = await page.evaluate(() => window.__nlw.bikeInput);
+await touch('touchEnd', []); await page.waitForTimeout(150);
+const after2 = [await look('.pad[data-id=throttle]'), await look('.pad[data-id="steer-right"]')];
+check('two held at once (throttle and steering) are both green; the one not touched stays blue', green(both[0]) && green(both[1]) && blue(both[2]) && input.throttle === 1 && input.steer === 1, { both, input });
+check('both blue again when let go', after2.every(blue), after2);
+await page.evaluate(() => window.__nlw.bikePreview(false)); await page.waitForTimeout(400);
+// ---- swimming: the stick in the same design ----
+await page.evaluate(() => { const n = window.__nlw; const g = n.host.game; const p = g.state.players[n.playerId]; p.swimming = { since: g.state.real }; p.x = -150; p.z = 160; n.refresh && n.refresh(); });
+await page.waitForTimeout(900);
+const swimLook = await page.evaluate(() => ({ swim: document.querySelector('#stick').classList.contains('swim'), shadow: getComputedStyle(document.querySelector('#stick')).boxShadow }));
+await page.screenshot({ path: `${shots}/swim-controls.png` });
+check('swimming: the stick is see-through with the blue outline', !swimLook.swim || swimLook.shadow.includes(BLUE), swimLook);
 await browser.close();
 console.log(results.every(Boolean) ? 'touch: ok' : 'touch: FAILURES');
 process.exit(results.every(Boolean) ? 0 : 1);

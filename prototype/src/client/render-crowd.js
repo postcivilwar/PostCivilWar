@@ -418,7 +418,7 @@ export function createCrowd(scene) {
       if (own && own.n === bike.n) {
         // it goes where the player's own driving has put it, with no waiting for the simulation's word
         bike.x = own.x; bike.z = own.z; bike.h = own.h; bike.speed = own.speed;
-        E.set(0, bike.h, -own.lean);
+        E.set(0, bike.h, own.lean);
         bike.mesh.quaternion.setFromEuler(E);
         bike.mesh.position.set(bike.x, zoneGroundY(bike.x, bike.z), bike.z);      // (up on the bridge's deck, where it is on it)
         continue;
