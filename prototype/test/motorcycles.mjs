@@ -291,7 +291,8 @@ for (const id of all) {
   await page.evaluate((which) => { const n = window.__nlw; n.bikeState.speed = n.bikeTop(which) * 0.99; }, id);
   let flame = 0, rev = 0;
   // (held there: a headless browser's frames are slow and uneven, and a step the server finds too long stops it)
-  for (let i = 0; i < 30 && !(rev > 0.9 && (flame > 0.2 || i > 12)); i += 1) { await page.waitForTimeout(150); const f = await page.evaluate((which) => { const n = window.__nlw, st = n.ownBikeView.stateOf(); if (n.view.self.astride) n.bikeState.speed = Math.max(n.bikeState.speed, n.bikeTop(which) * 0.97); const b = n.audio.status().bike; return { flame: st ? st.flame : 0, rev: b ? b.rev : 0 }; }, id); flame = Math.max(flame, f.flame); rev = Math.max(rev, f.rev); }
+  const bigOne = (await page.evaluate((which) => window.__nlw.bikeCc(which), id)) >= 1850;
+  for (let i = 0; i < 30 && !(rev > 0.9 && (bigOne ? flame > 0.2 : i >= 3)); i += 1) { await page.waitForTimeout(150); const f = await page.evaluate((which) => { const n = window.__nlw, st = n.ownBikeView.stateOf(); if (n.view.self.astride) n.bikeState.speed = Math.max(n.bikeState.speed, n.bikeTop(which) * 0.97); const b = n.audio.status().bike; return { flame: st ? st.flame : 0, rev: b ? b.rev : 0 }; }, id); flame = Math.max(flame, f.flame); rev = Math.max(rev, f.rev); }
   const big = await page.evaluate((which) => window.__nlw.bikeCc(which), id) >= 1850;
   check(`${id}: flat out, the engine at its red line; ${big ? 'flames from its silencers' : 'no flames (not one of the big engines)'}`, rev > 0.9 && (big ? flame > 0.2 : flame === 0), { rev, flame, big });
   if (big && !shotFlames) { shotFlames = true; await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.me.group.rotation.y + 0.5; n.cam.dist = 3.6; n.cam.pitch = 0.1; }); await page.waitForTimeout(150); await shot(`11-flames-${id}`); }
@@ -353,7 +354,7 @@ await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.me.group.rotat
 await page.waitForTimeout(300);
 await shot('12-another-player');
 await page.evaluate(() => { window.__peerRide = { throttle: 0, brake: true, rev: 0.4, lean: 0, speed: 3 }; });
-await page.waitForTimeout(1200);
+await page.waitForFunction((id) => { const st = window.__nlw.peerBikeView.stateOf(`peer:${id}`); return st && st.brake === 1; }, peer.seenAs, { timeout: 20000 }).catch(() => {});
 const peerBrake = await page.evaluate((id) => { const st = window.__nlw.peerBikeView.stateOf(`peer:${id}`); return st && { brake: st.brake, flame: st.flame }; }, peer.seenAs);
 check('on the brake, their brake lamp is lit here', peerBrake && peerBrake.brake === 1, peerBrake);
 const hornsBefore = await page.evaluate(() => window.__nlw.peerHornsHeard);
@@ -362,7 +363,7 @@ await page.waitForFunction((n0) => window.__nlw.peerHornsHeard > n0, hornsBefore
 check('their horn is heard here, from where they are', (await page.evaluate(() => window.__nlw.peerHornsHeard)) > hornsBefore, null);
 // off their bike: nothing of it is left drawn or running here
 await page.evaluate((id) => { clearInterval(window.__peerTimer); window.__nlw.second.host.game.intent(id, { type: 'moto.leave' }); }, peer.id);
-await page.waitForTimeout(2500);
+await page.waitForFunction(() => window.__nlw.peerBikeView.count() === 0 && window.__nlw.audio.status().peerBikes.length === 0, null, { timeout: 20000 }).catch(() => {});
 const gone = await page.evaluate(() => ({ drawn: window.__nlw.peerBikeView.count(), heard: window.__nlw.audio.status().peerBikes.length }));
 check('when they get off, their ridden bike and its engine are let go here', gone.drawn === 0 && gone.heard === 0, gone);
 
