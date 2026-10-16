@@ -243,6 +243,7 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
     stateOf: (key = 'ride') => { const e = shown.get(key); return e ? e.state || null : null; },
     failed: () => { const e = shown.get('ride'); return !!(e && e.failed); },
     count: () => shown.size,
+    keys: () => [...shown.keys()],
     dispose() { for (const e of shown.values()) if (e.bike) e.bike.dispose(); shown.clear(); },
   };
 }
