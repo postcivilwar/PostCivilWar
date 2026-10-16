@@ -70,7 +70,7 @@ const MOTORCYCLE_STOCK = 1000000;          // new from the showroom: not a numbe
 // the game's own (prototype/src/sim/zones/atani-powerbike.js, `displays`), copied here because the server is not
 // built from the game's code; a test checks they agree. With them, each bike's engine and top speed, which the
 // showroom's salesman tells a buyer (market.js): the game's own figures (power-bikes.js), and a test checks those too.
-const POWERBIKE = { shop: 'motors', name: 'PostCivilWar PowerBike', salesman: 'Obi', label: 'PostCivilWar PowerBike, beside HOLARIS Watch, Asaba' };
+const POWERBIKE = { shop: 'motors', name: 'PostCivilWar PowerBike', salesman: 'Obi', label: 'PostCivilWar PowerBike, north of the motor park, Asaba' };          // (not "beside HOLARIS Watch": a search for a watch would find every motorcycle)
 const POWERBIKE_STANDS = {
   'streetfighter': [-74.8, 48.4, 650, 108], 'cafe-racer': [-69.2, 48.4, 600, 106], 'red-superbike': [-63.6, 48.4, 2500, 212], 'white-sport': [-58.0, 48.4, 500, 100], 'purple-sport': [-52.4, 48.4, 1000, 128],
   'black-cruiser': [-74.8, 43.2, 1500, 156], 'chopper': [-69.2, 43.2, 1400, 150], 'chrome-concept': [-63.6, 43.2, 3000, 240], 'black-bobber': [-58.0, 43.2, 1650, 164], 'olive-cruiser': [-52.4, 43.2, 1750, 170],

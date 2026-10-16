@@ -37,7 +37,7 @@ test('the showroom sells the fifteen motorcycles, each at the game\'s own price,
     assert.equal(l.seller, 'PostCivilWar PowerBike');
     assert.equal(l.shop, POWERBIKE.shop);
     assert.deepEqual([l.place.x, l.place.z], POWERBIKE_STANDS[id].slice(0, 2), id);
-    assert.equal(l.place.label, 'PostCivilWar PowerBike, beside HOLARIS Watch, Asaba');
+    assert.equal(l.place.label, 'PostCivilWar PowerBike, north of the motor park, Asaba');
     assert.ok(l.price >= 1000 * TR);
   }
   // the server's own list and the game's agree
@@ -135,13 +135,14 @@ test('PostCivilWar PowerBike\'s salesman: says who he is, answers about the bike
   // his greeting: the showroom, his name, that his answers are automatic, and the bike's own engine, speed and price
   const hello = messages[messages.length - 1];
   assert.equal(hello.from, 'shop');
-  for (const part of ['PostCivilWar PowerBike', 'Obi', 'automatic', 'Red Superbike', '2,500 cc', '212 km/h', '10,000 TR']) assert.ok(hello.body.includes(part), `${part}: ${hello.body}`);
+  const price = `${(l.price / TR).toLocaleString('en-GB')} TR`;
+  for (const part of ['PostCivilWar PowerBike', 'Obi', 'automatic', 'Red Superbike', '2,500 cc', '212 km/h', price]) assert.ok(hello.body.includes(part), `${part}: ${hello.body}`);
   const ask = async (text) => { const r = await p.ok('market.say', { thread: thread.id, text, after: 0 }); const last = r.messages[r.messages.length - 1]; assert.equal(last.from, 'shop', text); return last.body; };
   assert.match(await ask('Tell me about the engine'), /2,500 cc engine/);
   assert.match(await ask('How fast does it go?'), /212 km\/h/);
   assert.match(await ask('is it really 2500cc?'), /2,500 cc engine/, 'a figure with cc is a question about the engine, not an offer');
-  assert.match(await ask('Can you give me a discount?'), /price is fixed at 10,000 TR/);
-  assert.match(await ask('I will pay 8000'), /can't take less/);
+  assert.ok((await ask('Can you give me a discount?')).includes(`price is fixed at ${price}`));
+  assert.match(await ask(`I will pay ${l.price / TR - 500}`), /can't take less/);
   assert.match(await ask('Can I pay with my arrival money?'), /arrival TR included/);
   assert.match(await ask('Can I take it for a test ride?'), /Once it's yours you can ride it/);
   assert.match(await ask('How do I get it after I buy?'), /Property on your phone/);
@@ -152,7 +153,7 @@ test('PostCivilWar PowerBike\'s salesman: says who he is, answers about the bike
   assert.equal((await p.ok('market.mine')).holdings.length, 0);
   // the price is the price: Buy pays it, and it is theirs
   const bought = await p.call('market.offer', { thread: thread.id, offer: uuid(), amount: l.price });
-  assert.equal(bought.body.code, 'FUNDS', 'a 10,000 TR bike is more than the arrival money');
+  assert.equal(bought.body.code, 'FUNDS', `a ${price} bike is more than the arrival money`);
   const cheap = (await showroom(p)).find((x) => x.asset.model === 'bike:white-sport');
   const second = await p.ok('market.open', { listing: cheap.id, at: { x: cheap.place.x, z: cheap.place.z - 1.6 } });
   assert.ok(second.messages[second.messages.length - 1].body.includes('500 cc'));
