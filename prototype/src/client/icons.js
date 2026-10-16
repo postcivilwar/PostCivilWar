@@ -101,7 +101,7 @@ export const ICONS = Object.freeze({
 
 // What the large button shows for each thing the player can do to what is in front of them (see findPrompt in main.js).
 export const PROMPT_ICON = Object.freeze({
-  Talk: 'talk', Enter: 'enter', Drive: 'drive', 'Get out': 'getout', 'Get off': 'getoff', 'Get down': 'getoff', Ride: 'ride',
+  Talk: 'talk', Ask: 'talk', Enter: 'enter', Drive: 'drive', 'Get out': 'getout', 'Get off': 'getoff', 'Get down': 'getoff', Ride: 'ride',
   Sit: 'sit', Sleep: 'sleep', Look: 'look', Read: 'read', Load: 'load', Unload: 'unload', Deliver: 'unload', Mould: 'work', Work: 'work',
 });
 

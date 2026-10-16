@@ -1,0 +1,293 @@
+// PostCivilWar PowerBike in a headless browser, on the website as it is served with its server and a database:
+//   - the owner's skyscraper beside HOLARIS Watch, a reasonable way off it, its old owner's name covered by the
+//     showroom's own band, badge and crown; one pink column before its doors and none for the motorcycles at
+//     HOLARIS (whose own column is still there);
+//   - walked into the column: the screen goes dark and comes back inside, at the doors; the building is not drawn
+//     round the hall, the hall is; the camera stays inside it;
+//   - the fifteen motorcycles: the nearest drawn as the owner's models, the rest as pictures of them, every one
+//     where it stands, with room to walk all round;
+//   - the salesman comes to the player and stands with them at a motorcycle;
+//   - asked about the motorcycle: the phone's conversation opens on it (its card, its engine and speed, its price),
+//     the player turns to him, and what each says moves their hands and heads, one after the other;
+//   - a question tapped, a question typed, each answered; the motorcycle bought from the conversation;
+//   - on a phone's screen the conversation fits, with everything a finger's size;
+//   - a second player (a second copy of the town in the page) in the hall: asked about a bike first, the salesman
+//     is theirs; three or more, he walks the floor;
+//   - out by the mat at the doors: back outside, beside the column;
+//   - nothing goes wrong in the page.
+//   ../server/with-postgres.sh node test/showroom.mjs [shots folder]
+import { createRequire } from 'node:module';
+import { mkdirSync } from 'node:fs';
+import { resolve } from 'node:path';
+import { createDevServer } from '../../server/dev.mjs';
+import { pastQuestion, enterTown } from './start.mjs';
+const require = createRequire(import.meta.url);
+let chromium;
+try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
+const out = process.argv[2] || '/tmp/showroom-shots';
+mkdirSync(out, { recursive: true });
+const server = createDevServer();
+await new Promise((r) => server.listen(0, '127.0.0.1', r));
+const origin = `http://localhost:${server.address().port}`;
+const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--autoplay-policy=no-user-gesture-required'] });
+const results = [];
+const check = (name, ok, detail) => { results.push(ok); console.log(ok ? 'ok  ' : 'FAIL', name, detail === undefined ? '' : JSON.stringify(detail)); };
+
+const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+const page = await context.newPage(); page.setDefaultTimeout(240000);
+page.on('pageerror', (e) => check('no error in the page', false, e.message));
+page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check('no error in the console', false, m.text()); });
+const shot = (name) => page.screenshot({ path: resolve(out, `${name}.png`) });
+const username = `Show_${Math.random().toString(36).slice(2, 8)}`;
+const password = 'a password for the showroom test';
+
+await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
+await page.click('#open-signup');
+await page.fill('#account-username', username); await page.fill('#account-password', password);
+await page.click('#account-submit');
+await page.waitForFunction(() => window.__nlw.online.status().state === 'in', null, { timeout: 120000 });
+await pastQuestion(page);
+await page.fill('#name', 'Showroom Test');
+await enterTown(page);
+await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 240000 });
+// (the day's light, for the pictures)
+await page.evaluate(() => { const n = window.__nlw; const hour = n.view.clock.hourFloat; if (hour < 9 || hour > 16) n.skip((24 + 11 - hour) % 24); });
+
+const P = { portal: { x: -63.6, z: 59.6 } };
+const go = async (x, z, h, cam) => {
+  await page.evaluate(([x, z, h, cam]) => { const n = window.__nlw; n.place(x, z); n.face(h); if (cam) { n.cam.yaw = cam.yaw; n.cam.pitch = cam.pitch; n.cam.dist = cam.dist; n.rig.snap(n.cam); } }, [x, z, h, cam || null]);
+};
+
+// ---- outside: the tower, beside HOLARIS ----
+await go(-48, 92, Math.PI, { yaw: Math.PI - 0.32, pitch: 0.2, dist: 30 });
+await page.waitForFunction(() => window.__nlw.powerbike.tower || window.__nlw.powerbike.failed, null, { timeout: 300000 });
+const tower = await page.evaluate(() => { const p = window.__nlw.powerbike; return { loaded: !!p.tower, failed: p.failed, triangles: p.tower && p.tower.triangles, signs: p.signs.map((s) => s.name), visible: p.exterior.visible }; });
+check('the owner\'s skyscraper is drawn from the supplied file, whole (every one of its 7,985 triangles)', tower.loaded && !tower.failed && tower.triangles === 7985 && tower.visible, tower);
+check('its old owner\'s name and badge are covered by the showroom\'s own: the band, the badge, and the name standing on its top', ['powerbike-band', 'powerbike-badge', 'powerbike-crown', 'powerbike-crown'].every((n, i) => tower.signs[i] === n), tower.signs);
+await page.waitForTimeout(2500);
+await shot('01-beside-holaris');
+await go(-40, 150, Math.PI, { yaw: Math.PI - 0.2, pitch: 0.28, dist: 60 });
+await page.waitForTimeout(2500);
+await shot('02-the-tower-and-its-crown');
+
+// ---- the columns: one for the showroom, none for its motorcycles at HOLARIS, HOLARIS's own kept ----
+await page.evaluate(() => window.__nlw.refreshDealMarkers());
+await page.waitForFunction(() => window.__nlw.market.state.all.length >= 16, null, { timeout: 60000 }).catch(() => {});
+const columns = await page.evaluate(() => {
+  const n = window.__nlw;
+  const named = []; n.scene.traverse((o) => { if (o.name === 'powerbike-portal') named.push(o); });
+  const marks = [...n.dealMarkers.values()];
+  const motors = n.market.state.all.filter((l) => l.shop === 'motors');
+  return { showroom: named.length, motorsMarkers: marks.filter((m) => m.listing.shop === 'motors').length, holaris: marks.filter((m) => m.listing.shop === 'holaris').length, listed: motors.length, places: motors.map((l) => [l.place.x, l.place.z]) };
+});
+check('exactly one pink column for the showroom; none for its motorcycles; HOLARIS keeps its own', columns.showroom === 1 && columns.motorsMarkers === 0 && columns.holaris === 1 && columns.listed === 15, columns);
+check('each motorcycle is sold where it stands in the hall', columns.places.every(([x, z]) => x > -78.6 && x < -45.4 && z > 33 && z < 53.9), columns.places);
+await go(-60.6, 70, Math.PI, { yaw: Math.PI + 0.25, pitch: 0.16, dist: 9 });
+await page.waitForTimeout(1800);
+await shot('03-the-column-before-the-doors');
+
+// ---- in, by the column ----
+await go(P.portal.x, P.portal.z + 3.2, Math.PI, { yaw: Math.PI, pitch: 0.2, dist: 7 });
+await page.waitForTimeout(600);
+await page.keyboard.down('w');
+let faded = false;
+for (let i = 0; i < 40 && !faded; i += 1) { await page.waitForTimeout(100); faded = await page.evaluate(() => document.getElementById('fade').classList.contains('on')); }
+await page.keyboard.up('w');
+check('stepping into the column darkens the screen', faded, null);
+await page.waitForFunction(() => window.__nlw.showroom.inside && !document.getElementById('fade').classList.contains('on'), null, { timeout: 30000 });
+const inside = await page.evaluate(() => { const n = window.__nlw, p = n.powerbike; return { at: [+n.predicted.x.toFixed(2), +n.predicted.z.toFixed(2)], sim: [n.view.self.x, n.view.self.z], hall: !!p.hall && p.hall.group.visible, exterior: p.exterior.visible, portal: p.portal.group.visible }; });
+check('and it comes back inside, at the doors, where the simulation put the player', inside.at[0] === -63.6 && inside.at[1] === 51.6 && inside.sim[0] === -63.6 && inside.sim[1] === 51.6, inside);
+check('inside, the hall is drawn and the building round it is not', inside.hall && !inside.exterior && !inside.portal, inside);
+await page.waitForTimeout(2500);
+await shot('04-inside-the-doors');
+
+// ---- the floor: the motorcycles ----
+await go(-61.2, 46.0, Math.PI * 0.75, { yaw: Math.PI * 0.8, pitch: 0.2, dist: 6.5 });
+await page.waitForFunction(() => window.__nlw.powerbike.shown().filter((d) => d.model).length >= 3, null, { timeout: 240000 }).catch(() => {});
+await page.waitForTimeout(2000);
+const floor = await page.evaluate(() => window.__nlw.powerbike.shown());
+const models = floor.filter((d) => d.model), pictures = floor.filter((d) => d.picture);
+check('the nearest motorcycles are the owner\'s models; the rest are pictures of them; every one is shown', models.length >= 2 && models.length <= 3 && models.length + pictures.length === 15, { models: models.map((d) => `${d.bike}:${d.tier}`), pictures: pictures.length });
+const camInside = await page.evaluate(() => { const c = window.__nlw.camera.position; return [c.x, c.y, c.z]; });
+check('the camera is inside the hall', camInside[0] > -78.6 && camInside[0] < -45.4 && camInside[2] > 33 && camInside[2] < 53.9 && camInside[1] < 6.6, camInside);
+await shot('05-the-floor');
+await go(-52, 46.0, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.1, pitch: 0.22, dist: 7.4 });
+await page.waitForTimeout(3000);
+await shot('06-across-the-hall');
+
+// ---- the salesman comes to the player at a motorcycle ----
+const red = { x: -63.6, z: 48.4, r: 1.45, h: 0.3 };
+const stand = { x: red.x + Math.sin(red.h + 0.9) * (red.r + 0.95), z: red.z + Math.cos(red.h + 0.9) * (red.r + 0.95) };
+await go(stand.x, stand.z, Math.atan2(red.x - stand.x, red.z - stand.z), { yaw: Math.atan2(red.x - stand.x, red.z - stand.z) - 0.5, pitch: 0.16, dist: 6 });
+await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; return s.with && Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 60000 }).catch(() => {});
+const came = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; return { mode: s.mode, with: s.with, d: +Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z).toFixed(2), shown: n.salesmanActor.group.visible }; });
+check('the salesman comes over and stands with the player at the motorcycle they are looking at', came.shown && came.mode === 'assist' && came.d > 0.9 && came.d < 2.2, came);
+await page.waitForTimeout(1200);
+await shot('07-the-salesman-comes');
+
+// ---- asking him about it: the conversation on the phone ----
+const asking = await page.evaluate(() => { const p = window.__nlw.prompt(); return p ? { short: p.short, text: p.text } : null; });
+check('at the motorcycle the player is offered to ask him about it', asking && asking.short === 'Ask' && /Obi about the Red Superbike/.test(asking.text), asking);
+await page.keyboard.press('e');
+await page.waitForSelector('#deal-log .msg.shop', { timeout: 60000 });
+await page.waitForTimeout(1500);
+const opened = await page.evaluate(() => {
+  const q = (s) => document.querySelector(s);
+  return {
+    head: q('.chathead .who b').textContent, role: q('.chathead .who span').textContent, tag: !!q('.chathead .brandtag'),
+    card: q('.dealitem.bike .what b').textContent, chips: [...document.querySelectorAll('.dealitem .chip')].map((c) => c.textContent), price: q('.dealitem .price').textContent,
+    hello: [...document.querySelectorAll('#deal-log .msg.shop')].map((m) => m.textContent)[0] || '',
+    quick: [...document.querySelectorAll('#deal-quick button')].map((b) => b.textContent),
+    talk: window.__nlw.showroom.talk, phoneHeld: window.__nlw.phoneHold.raised,
+  };
+});
+check('the conversation opens with him: his name, the bike\'s card with its engine, top speed and price', opened.head === 'Obi' && /Salesman/.test(opened.role) && opened.card === 'Red Superbike' && opened.chips.includes('2,500 cc') && opened.chips.includes('212 km/h') && /10,000 TR/.test(opened.price), opened);
+check('he greets the player about this bike, and says his answers are automatic', /Obi/.test(opened.hello) && /automatic/.test(opened.hello) && /Red Superbike/.test(opened.hello), opened.hello);
+check('questions to tap are offered', opened.quick.length >= 5, opened.quick);
+check('talking face to face: the phone is not held up in the town', opened.talk && opened.talk.bike === 'red-superbike' && opened.phoneHeld < 0.2, { talk: opened.talk, raised: opened.phoneHeld });
+await page.waitForTimeout(2500);
+const facing = await page.evaluate(() => {
+  const n = window.__nlw, s = n.salesman.state, me = n.me;
+  const to = Math.atan2(s.x - n.predicted.x, s.z - n.predicted.z);
+  let d = (to - me.group.rotation.y) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+  let e = (Math.atan2(n.predicted.x - s.x, n.predicted.z - s.z) - s.heading) % (Math.PI * 2); if (e > Math.PI) e -= Math.PI * 2; if (e < -Math.PI) e += Math.PI * 2;
+  return { player: +Math.abs(d).toFixed(2), him: +Math.abs(e).toFixed(2), mode: s.mode, apart: +Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z).toFixed(2) };
+});
+check('the player and the salesman face each other, a step apart', facing.player < 0.35 && facing.him < 0.4 && facing.mode === 'talk' && facing.apart > 0.9 && facing.apart < 2.3, facing);
+await shot('08-asking-about-the-red-superbike');
+
+// what is said moves the hands: typed, the player speaks; answered, he does
+const handHeight = () => page.evaluate(() => { const n = window.__nlw; const b = n.me.bones && n.me.bones.get('hand_r'); return { me: b ? b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null }; });
+const quiet = await handHeight();
+await page.click('#deal-text');
+await page.keyboard.type('How fast does it go?');
+await page.keyboard.press('Enter');
+const pending = await page.evaluate(() => ({ pending: !!document.querySelector('#deal-log .msg.me.pending') || [...document.querySelectorAll('#deal-log .msg.me')].some((m) => /How fast/.test(m.textContent)) }));
+await page.waitForTimeout(700);
+const speaking = await handHeight();
+await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /212 km\/h/.test(m.textContent)), null, { timeout: 30000 });
+const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => `${l.who}@${l.from.toFixed(2)}-${l.to.toFixed(2)}`));
+const said = await page.evaluate(() => [...document.querySelectorAll('#deal-log .msg')].slice(-2).map((m) => m.className + ': ' + m.textContent));
+check('a typed question goes up at once and is answered from what is so', pending.pending && /212 km\/h/.test(said[1] || ''), said);
+check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && speaking.me > quiet.me + 0.05, { quiet, speaking });
+// (his greeting, then the player's question, then his answer: each begins once the one before has ended)
+const turns = lines1.map((l) => { const [who, span] = l.split('@'); const [from, to] = span.split('-').map(Number); return { who, from, to }; });
+check('then he answers, after the player: one after the other, never both at once', turns.length >= 3 && turns.at(-2).who === 'me' && turns.at(-1).who === 'him' && turns.every((t, i) => i === 0 || t.from >= turns[i - 1].to), lines1);
+await page.waitForFunction(() => { const n = window.__nlw; const l = n.showroom.lines.filter((x) => x.who === 'him').at(-1); return l && Date.now() / 1000 > l.from + 0.8; }, null, { timeout: 20000 });
+const answering = await page.evaluate(() => ({ his: window.__nlw.showroom.him.speaking, amount: window.__nlw.showroom.him.amount }));
+check('while he answers he speaks (with the hands), and the player listens', answering.his > 0.5 && answering.amount > 0.8, answering);
+await shot('09-he-answers');
+// over a few seconds nobody stands still: the hands and heads keep moving
+const track = [];
+for (let i = 0; i < 8; i += 1) {
+  await page.waitForTimeout(350);
+  track.push(await page.evaluate(() => {
+    const n = window.__nlw, hand = n.me.bones.get('hand_r'), head = n.me.bones.get('head');
+    return { hand: hand.getWorldPosition(new THREE.Vector3()).toArray(), head: head.getWorldQuaternion(new THREE.Quaternion()).toArray() };
+  }));
+}
+let handMoved = 0, headTurned = 0;
+for (const a of track) for (const b of track) {
+  handMoved = Math.max(handMoved, Math.hypot(a.hand[0] - b.hand[0], a.hand[1] - b.hand[1], a.hand[2] - b.hand[2]));
+  const dot = Math.abs(a.head[0] * b.head[0] + a.head[1] * b.head[1] + a.head[2] * b.head[2] + a.head[3] * b.head[3]);
+  headTurned = Math.max(headTurned, 2 * Math.acos(Math.min(1, dot)));
+}
+check('nobody is still: the player\'s hand and head move all the while', handMoved > 0.01 && headTurned > 0.02, { hand: +handMoved.toFixed(3), head: +headTurned.toFixed(3) });
+// a question tapped
+await page.click('#deal-quick button[data-ask="Discount?"]');
+await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /price is fixed/.test(m.textContent)), null, { timeout: 30000 });
+check('a question tapped is sent as written and answered: no haggling', true, null);
+await shot('10-a-question-tapped');
+
+// ---- on a phone's screen ----
+await page.setViewportSize({ width: 390, height: 844 });
+await page.waitForTimeout(1200);
+const fits = await page.evaluate(() => {
+  const box = (s) => { const e = document.querySelector(s); if (!e) return null; const r = e.getBoundingClientRect(); return { x: r.x, y: r.y, w: r.width, h: r.height, right: r.right, bottom: r.bottom }; };
+  const sheet = box('#sheet');
+  const parts = ['.chathead', '.dealitem', '#deal-log', '#deal-quick', '#deal-bar', '.composer'].map((s) => [s, box(s)]);
+  const buttons = [...document.querySelectorAll('#deal-quick button, #deal-send, #deal-buy, #deal-back')].map((b) => { const r = b.getBoundingClientRect(); const k = parseFloat(getComputedStyle(document.querySelector('#sheet')).getPropertyValue('--pk')) || 1; return { id: b.id || b.textContent, h: +(r.height).toFixed(1), unscaled: +(r.height / k).toFixed(1) }; });
+  const typed = getComputedStyle(document.querySelector('#deal-text')).fontSize;
+  return { viewport: [innerWidth, innerHeight], sheet, parts, buttons, typed, scroll: document.documentElement.scrollWidth <= innerWidth };
+});
+const inside390 = fits.parts.every(([, b]) => b && b.x >= -0.5 && b.right <= 390.5);
+check('on a phone the whole conversation is on the screen, nothing off its edge', inside390 && fits.scroll && fits.sheet.right <= 390.5, fits);
+check('every button is a finger\'s size, and the typing is 16 px (no zoom on a phone)', fits.buttons.every((b) => b.unscaled >= 36) && parseFloat(fits.typed) >= 16, { buttons: fits.buttons, typed: fits.typed });
+await shot('11-on-a-phone');
+await page.setViewportSize({ width: 1280, height: 720 });
+await page.waitForTimeout(800);
+
+// ---- bought from the conversation ----
+await page.keyboard.press('Escape');
+await page.waitForTimeout(500);
+const street = { x: -74.8, z: 48.4, r: 1.45, h: 0.55 };
+const at2 = { x: street.x + Math.sin(street.h) * (street.r + 0.9), z: street.z + Math.cos(street.h) * (street.r + 0.9) };
+await go(at2.x, at2.z, street.h + Math.PI, { yaw: street.h + Math.PI - 0.4, pitch: 0.16, dist: 6 });
+await page.waitForTimeout(800);
+const ask2 = await page.evaluate(() => { const p = window.__nlw.prompt(); return p && p.text; });
+await page.keyboard.press('e');
+await page.waitForSelector('#deal-buy', { timeout: 60000 });
+await page.click('#deal-buy');
+await page.waitForSelector('#deal-yes', { timeout: 30000 });
+await page.click('#deal-yes');
+await page.waitForSelector('#deal-done', { timeout: 60000 });
+const done = await page.evaluate(async () => { const n = window.__nlw; await n.market.mine(); return { text: document.querySelector('#deal-done').textContent, mine: n.market.state.mine.holdings.map((h) => h.asset.model) }; });
+check('asked about the Streetfighter and bought it there: it is the player\'s', /Streetfighter/.test(ask2 || '') && /yours/.test(done.text) && done.mine.includes('bike:streetfighter'), { ask2, done });
+await shot('12-bought');
+await page.keyboard.press('Escape');
+await page.waitForTimeout(400);
+const ended = await page.evaluate(() => ({ talk: window.__nlw.showroom.talk, open: window.__nlw.ui.dealOpen() }));
+check('closing the conversation ends it', !ended.talk && !ended.open, ended);
+await page.waitForFunction(() => window.__nlw.view.self.ownBikes && window.__nlw.view.self.ownBikes.bikes.includes('streetfighter'), null, { timeout: 30000 }).catch(() => {});
+const indoors = await page.evaluate(() => window.__nlw.server.send({ type: 'bikes.ride', bike: 'streetfighter' }));
+check('a motorcycle is not brought into the hall', !indoors.ok, indoors);
+
+// ---- a second player in the hall ----
+await page.evaluate(() => { const n = window.__nlw; n.twin('Second Rider', -58.0 + 2.3, 43.2); });
+await page.waitForFunction(() => (window.__nlw.view.players || []).some((q) => q.name === 'Second Rider'), null, { timeout: 30000 });
+await go(-63.6, 46.0, Math.PI, { yaw: Math.PI - 0.9, pitch: 0.2, dist: 7 });
+await page.evaluate(() => { const n = window.__nlw; n.second.face(-Math.PI / 2); n.second.ask('black-bobber'); });
+await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && q.talk && s.mode === 'talk' && s.with === `p:${q.id}`; }, null, { timeout: 30000 }).catch(() => {});
+const theirs = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { mode: s.mode, with: s.with, them: q && `p:${q.id}`, talk: q && q.talk }; });
+check('another player asks him about a motorcycle: he goes to them', theirs.mode === 'talk' && theirs.with === theirs.them && theirs.talk && theirs.talk.bike === 'black-bobber', theirs);
+await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && Math.hypot(s.x - q.x, s.z - q.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 30000 }).catch(() => {});
+await page.waitForTimeout(1500);
+const peerTalk = await page.evaluate(() => { const n = window.__nlw; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { gesturing: n.showroom.peers.has(q.id) && n.showroom.peers.get(q.id).amount > 0.5 }; });
+check('and they are seen talking with him', peerTalk.gesturing, peerTalk);
+await shot('13-another-player-asks');
+// the player asks too, after them: he stays with whoever asked first
+await page.evaluate(() => window.__nlw.askAbout('chrome-concept'));
+await page.waitForTimeout(2500);
+const first = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { with: s.with, them: `p:${q.id}` }; });
+check('two asking at once: he stays with whoever began first', first.with === first.them, first);
+await page.keyboard.press('Escape');
+await page.evaluate(() => window.__nlw.second.ask(null));
+// three more in the hall, nobody asking: he walks the floor
+await page.evaluate(() => { const g = window.__nlw.host.game; for (const [k, x, z] of [['third', -72, 45.8], ['fourth', -55.2, 40.6]]) g.visitors.seen(k, { name: `Visitor ${k}`, x, z, heading: 0 }); });
+await page.waitForFunction(() => window.__nlw.salesman.state.mode === 'roam', null, { timeout: 20000 }).catch(() => {});
+const roam = await page.evaluate(() => ({ mode: window.__nlw.salesman.state.mode, customers: window.__nlw.hallCustomers().length }));
+check('with four in the hall he walks the floor, not after anyone in particular', roam.mode === 'roam' && roam.customers >= 4, roam);
+await page.waitForTimeout(1500);
+await shot('14-a-busy-floor');
+
+// ---- out by the mat ----
+await page.evaluate(() => { const g = window.__nlw.host.game; g.visitors.gone('third'); g.visitors.gone('fourth'); });
+await go(-63.6, 51.9, 0, { yaw: 0, pitch: 0.2, dist: 6 });
+await page.waitForTimeout(500);
+await page.keyboard.down('w');
+let left = false;
+for (let i = 0; i < 40 && !left; i += 1) { await page.waitForTimeout(100); left = await page.evaluate(() => !window.__nlw.showroom.inside); }
+await page.keyboard.up('w');
+await page.waitForFunction(() => !document.getElementById('fade').classList.contains('on'), null, { timeout: 20000 });
+const outside = await page.evaluate(() => { const n = window.__nlw, p = n.powerbike; return { at: [n.predicted.x, n.predicted.z], hall: p.hall.group.visible, exterior: p.exterior.visible, portal: p.portal.group.visible, salesman: n.salesmanActor.group.visible }; });
+check('the mat at the doors takes the player out, beside the column; the building is drawn again and the hall is not', left && outside.at[0] === -60 && outside.at[1] === 58.4 && !outside.hall && outside.exterior && outside.portal && !outside.salesman, outside);
+await page.waitForTimeout(2000);
+await shot('15-back-outside');
+
+await browser.close();
+server.close();
+const failed = results.filter((r) => !r).length;
+console.log(`${results.length - failed} of ${results.length} checks passed`);
+process.exit(failed ? 1 : 0);

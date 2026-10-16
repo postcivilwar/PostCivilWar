@@ -14,8 +14,18 @@
 
 import { createTurntable, createModelView, ASSET_MODELS } from './asset-view.js';
 import { createActionButton } from './action-button.js';
+import { POWERBIKE } from '../sim/zone.js';
+import { POWER_BIKES } from '../sim/power-bikes.js';
 
 const SEARCHES = Object.freeze(['Watch', 'Car', 'Yacht', 'Bike', 'Motorcycle', 'Gun', 'Clothes']);
+// What a buyer in PostCivilWar PowerBike may ask the salesman with one tap: each is sent as it reads, as if typed,
+// and he answers it (api/_lib/market.js, salesmanReply)
+const ASK_SALESMAN = Object.freeze([
+  ['Engine', 'Tell me about the engine'], ['Top speed', 'How fast does it go?'], ['Arrival money?', 'Can I pay with my arrival money?'],
+  ['Test ride', 'Can I take it for a test ride?'], ['Delivery', 'How do I get it after I buy?'], ['Discount?', 'Can you give me a discount?'],
+].map(([label, text]) => Object.freeze({ label, text })));
+// a motorcycle of the showroom's, for the conversation's card: its engine and its top speed
+const showroomBike = (l) => (l && l.shop === POWERBIKE.shop && l.asset && POWER_BIKES[String(l.asset.model || '').replace(/^bike:/, '')]) || null;
 const POLL = 1300;                    // how often an open conversation asks for what is new (milliseconds)
 
 export function createMarketUI(kit) {
@@ -368,7 +378,13 @@ export function createMarketUI(kit) {
     d.thread = answer.thread; d.id = answer.thread.id;
     let grew = false;
     let decided = false;
-    for (const msg of answer.messages || []) if (msg.id > d.last) { d.messages.push(msg); d.last = msg.id; grew = true; if (msg.kind === 'accepted') decided = true; }
+    const fresh = [];
+    for (const msg of answer.messages || []) if (msg.id > d.last) { d.messages.push(msg); d.last = msg.id; grew = true; fresh.push(msg); if (msg.kind === 'accepted') decided = true; }
+    // what the other side says, as it arrives (the player's own words were told as they were sent); when a
+    // conversation is first opened only its last word is new
+    const heard = (d.heard ? fresh : fresh.slice(-1)).filter((msg) => msg.from !== 'me' && msg.body);
+    d.heard = true;
+    if (app.dealSaid) for (const msg of heard) app.dealSaid({ from: msg.from, body: msg.body, kind: msg.kind });
     // a sale read here is not told again by the round (the conversation has now been seen), so what this
     // device believes is owned is asked for afresh: the thing sold has changed hands
     if (decided) { changedHands(); }
@@ -412,31 +428,85 @@ export function createMarketUI(kit) {
     const typing = root.querySelector('#deal-text');
     const hadFocus = typing && document.activeElement === typing;
     if (typing) d.draft = typing.value;
+    const oldLog = root.querySelector('#deal-log');
+    const atBottom = !oldLog || oldLog.scrollHeight - oldLog.scrollTop - oldLog.clientHeight < 40;
     root.replaceChildren();
     root.classList.add('chat');
     if (!d) { root.append(h('p', { class: 'small' }, 'No conversation is open.')); return; }
     const l = d.thread ? d.thread.listing : null;
-    root.append(h('div', { class: 'chathead' },
+    // (before the conversation has come, what is known of the listing from the market's list)
+    const known = l || (d.listing && market() ? market().state.all.find((x) => x.id === d.listing) : null) || null;
+    const bike = showroomBike(known);
+    const other = d.thread ? d.thread.other : known ? known.seller : 'The seller';
+    // who the conversation is with: in PostCivilWar PowerBike, its salesman
+    const name = bike ? POWERBIKE.salesman : other;
+    const role = bike ? 'Salesman · automatic replies' : d.thread ? (d.thread.automatic ? 'Shop attendant · automatic' : d.thread.role === 'buyer' ? 'Seller' : 'Buyer') : '';
+    root.append(h('div', { class: `chathead${bike ? ' showroom' : ''}` },
       h('button', { class: 'chatback', type: 'button', id: 'deal-back', 'aria-label': 'Leave the conversation', onclick: () => app.leaveDeal() }, kit.glyph('back', false)),
-      h('span', { class: 'avatar' }, d.thread ? d.thread.other.slice(0, 1).toUpperCase() : '·'),
-      h('span', { class: 'who' }, h('b', null, d.thread ? d.thread.other : 'The seller'), h('span', null, d.thread ? (d.thread.automatic ? 'Shop attendant · automatic' : d.thread.role === 'buyer' ? 'Seller' : 'Buyer') : ''))));
-    if (d.loading) { root.append(h('div', { class: 'chatlog' }, h('div', { class: 'msg sys' }, 'Opening the conversation...'))); return; }
+      h('span', { class: `avatar${bike ? ' salesman' : ''}` }, String(name || '·').slice(0, 1).toUpperCase(), h('i', { class: 'dot', 'aria-hidden': 'true' })),
+      h('span', { class: 'who' }, h('b', null, name), h('span', null, role)),
+      bike ? h('span', { class: 'brandtag', 'aria-hidden': 'true' }, 'PowerBike') : null));
+    if (d.loading) { root.append(h('div', { class: 'chatlog', id: 'deal-log' }, h('div', { class: 'msg sys' }, 'Opening the conversation...'), d.listing ? h('div', { class: 'msg shop typing', 'aria-label': `${name} is writing` }, h('i'), h('i'), h('i')) : null)); return; }
     if (d.error) {
-      root.append(h('div', { class: 'chatlog' }, h('div', { class: 'msg sys' }, d.error)));
+      root.append(h('div', { class: 'chatlog', id: 'deal-log' }, h('div', { class: 'msg sys' }, d.error)));
       if (!signedIn()) root.append(h('div', { class: 'dealbar' }, h('button', { class: 'hx small', type: 'button', onclick: () => app.account.open('signup') }, 'Create account'), h('button', { class: 'hx small', type: 'button', onclick: () => app.account.open('login') }, 'Log in')));
       return;
     }
-    root.append(h('div', { class: 'dealitem' }, h('span', { class: 'pic', style: ASSET_MODELS[l.asset.model] ? `background-image:url("${ASSET_MODELS[l.asset.model].poster}")` : '' }),
-      h('span', { class: 'what' }, h('b', null, l.name), h('span', null, `${l.kind === 'primary' ? 'Price' : 'Asking'} ${tr(l.price)}${l.kind === 'primary' && l.status === 'open' ? ` · ${l.left} left` : ''}${l.status !== 'open' ? ' · no longer for sale' : ''}`))));
-    const log = h('div', { class: 'chatlog', id: 'deal-log', 'aria-live': 'polite' }, d.messages.map((msg) => bubble(msg, d)));
-    if (!d.messages.length) log.append(h('div', { class: 'msg sys' }, d.thread.role === 'buyer' ? `Say hello to ${d.thread.other}, or make an offer.` : 'Nothing has been said yet.'));
+    const open = l.status === 'open';
+    const pic = ASSET_MODELS[l.asset.model] ? `background-image:url("${ASSET_MODELS[l.asset.model].poster}")` : '';
+    if (bike) {
+      // the motorcycle: its picture, its name, its engine and top speed, and its price
+      root.append(h('div', { class: 'dealitem bike' }, h('span', { class: 'pic', style: pic }),
+        h('span', { class: 'what' }, h('b', null, l.name),
+          h('span', { class: 'chips' }, h('i', { class: 'chip' }, `${bike.cc.toLocaleString('en-GB')} cc`), h('i', { class: 'chip' }, `${bike.topKmh} km/h`), h('i', { class: 'chip' }, open ? 'New' : 'Not on sale'))),
+        h('span', { class: 'price' }, h('small', null, 'Price'), tr(l.price))));
+    } else {
+      root.append(h('div', { class: 'dealitem' }, h('span', { class: 'pic', style: pic }),
+        h('span', { class: 'what' }, h('b', null, l.name), h('span', null, `${l.kind === 'primary' ? 'Price' : 'Asking'} ${tr(l.price)}${l.kind === 'primary' && open ? ` · ${l.left} left` : ''}${!open ? ' · no longer for sale' : ''}`))));
+    }
+    // (a bubble rises into place the first time it is shown, not each time the conversation is drawn again; and not
+    // at all for what was there when the conversation opened, or for the player's own words, already up as they went)
+    const shown = d.shown || (d.shown = new Set());
+    const first = !d.drawn;
+    d.drawn = true;
+    const log = h('div', { class: 'chatlog', id: 'deal-log', 'aria-live': 'polite' }, d.messages.map((msg) => {
+      const el = bubble(msg, d);
+      if (!shown.has(msg.id)) { shown.add(msg.id); if (!first && msg.from !== 'me') el.classList.add('new'); }
+      return el;
+    }));
+    if (!d.messages.length && !d.pending) log.append(h('div', { class: 'msg sys' }, d.thread.role === 'buyer' ? `Say hello to ${d.thread.other}, or make an offer.` : 'Nothing has been said yet.'));
+    // what has just been sent, until the market has it; and a shop's answer being written meanwhile
+    if (d.pending) {
+      const up = d.pendingShown === d.pending;
+      log.append(h('div', { class: `msg me pending${up ? '' : ' new'}` }, d.pending, h('time', null, 'Sending…')));
+      if (d.thread.automatic) log.append(h('div', { class: `msg shop typing${up ? '' : ' new'}`, id: 'deal-typing', 'aria-label': `${name} is writing` }, h('i'), h('i'), h('i')));
+      d.pendingShown = d.pending;
+    } else d.pendingShown = null;
     if (d.done) log.append(h('div', { class: 'msg sys good big', id: 'deal-done' }, d.done));
-    root.append(log);
+
+    // the place to type, and sending what is typed (or a question tapped)
+    const text = h('input', { class: 'field', id: 'deal-text', type: 'text', maxlength: '400', placeholder: bike ? `Ask ${POWERBIKE.salesman} about the bike` : 'Message', value: d.draft || '', autocomplete: 'off', enterkeyhint: 'send', 'aria-label': `Message to ${name}` });
+    const send = async (typed) => {
+      const tapped = typeof typed === 'string';
+      const body = (tapped ? typed : text.value).trim();
+      if (!body || d.sending) return;
+      d.sending = true; if (!tapped) { text.value = ''; d.draft = ''; }
+      if (app.dealSaid) app.dealSaid({ from: 'me', body, kind: 'text' });
+      // the words go up at once, and a shop's answer is shown being written while it comes
+      d.pending = body; drawDeal();
+      const answer = await market().say(d.id, body, d.last);
+      d.pending = null;
+      d.sending = false;
+      if (m.deal !== d) return;
+      if (answer.ok) take(d, answer); else { d.note = answer.message; if (!tapped && !d.draft) d.draft = body; }
+      drawDeal();
+      const again = dealRoot && dealRoot.querySelector('#deal-text');
+      if (again && !tapped) again.focus({ preventScroll: true });
+    };
 
     // what can be done about the price, above the place to type
     const bar = h('div', { class: 'dealbar', id: 'deal-bar' });
     const offer = d.thread.offer;
-    const open = l.status === 'open';
     if (d.asking) {
       const a = d.asking;
       bar.classList.add('asking');
@@ -463,28 +533,22 @@ export function createMarketUI(kit) {
           d.asking = { text: `Offer ${tr(units)} for the ${l.name}? It is set aside from your ${tr(spendable())} of earned TR until ${d.thread.other} answers, and is paid only if they say yes.`, label: `Offer ${tr(units)}`, yes: () => makeOffer(d, units) }; drawDeal();
         } }, 'Buy'));
     }
+
+    root.append(log);
+    // in the showroom: questions for the salesman, one tap each
+    if (bike && d.thread.automatic && open && !d.asking && !d.done) {
+      root.append(h('div', { class: 'quick', id: 'deal-quick', role: 'group', 'aria-label': `Ask ${POWERBIKE.salesman}` },
+        ASK_SALESMAN.map((q) => h('button', { type: 'button', 'data-ask': q.label, disabled: !!d.sending, onclick: () => send(q.text) }, q.label))));
+    }
     if (d.note) { root.append(h('div', { class: 'dealnote', role: 'alert' }, d.note)); d.note = ''; }
     root.append(bar);
-
-    const text = h('input', { class: 'field', id: 'deal-text', type: 'text', maxlength: '400', placeholder: 'Message', value: d.draft || '', autocomplete: 'off', enterkeyhint: 'send', 'aria-label': `Message to ${d.thread.other}` });
-    const send = async () => {
-      const body = text.value.trim();
-      if (!body || d.sending) return;
-      d.sending = true; text.value = ''; d.draft = '';
-      const answer = await market().say(d.id, body, d.last);
-      d.sending = false;
-      if (m.deal !== d) return;
-      if (answer.ok) take(d, answer); else d.note = answer.message;
-      drawDeal();
-      const again = dealRoot && dealRoot.querySelector('#deal-text');
-      if (again) again.focus({ preventScroll: true });
-    };
     text.addEventListener('keydown', (event) => { if (event.key === 'Enter') { event.preventDefault(); send(); } });
     text.addEventListener('input', () => { d.draft = text.value; });
     text.addEventListener('focus', () => { d.focused = true; });
     text.addEventListener('blur', () => { setTimeout(() => { if (text.isConnected && document.activeElement !== text) d.focused = false; }, 0); });
-    root.append(h('form', { class: 'composer', onsubmit: (event) => { event.preventDefault(); send(); } }, text, h('button', { class: 'sendbtn', type: 'submit', id: 'deal-send', 'aria-label': 'Send' }, kit.glyph('send'))));
-    log.scrollTop = log.scrollHeight;
+    root.append(h('form', { class: 'composer', onsubmit: (event) => { event.preventDefault(); send(); } }, text, h('button', { class: 'sendbtn', type: 'submit', id: 'deal-send', 'aria-label': 'Send', disabled: !!d.sending }, kit.glyph('send'))));
+    // the newest at the foot, unless the reader has scrolled up to read something earlier
+    if (atBottom || d.pending || fresh) log.scrollTop = log.scrollHeight; else if (oldLog) log.scrollTop = oldLog.scrollTop;
     if (hadFocus || d.focused) text.focus({ preventScroll: true });
   }
 

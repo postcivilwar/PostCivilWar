@@ -2,7 +2,7 @@
 // office and shop opens, receipts, the phone and the map.
 
 import { SOUND_NAMES } from './audio.js';
-import { ZONE, ZONE_TEXT, zoneResident, zoneParcel, zoneService } from '../sim/zone.js';
+import { ZONE, ZONE_TEXT, zoneResident, zoneParcel, zoneService, POWERBIKE } from '../sim/zone.js';
 import { LANGUAGES } from '../sim/culture.js';
 import { NIGERIA_STATES, NIGERIA_ZONES } from '../sim/nigeria.js';
 import { geoToWorld } from '../sim/geo.js';
@@ -699,13 +699,25 @@ export function createUI(app) {
       h('button', { type: 'button', 'aria-pressed': String(mapMode === 'town'), onclick: () => { mapMode = 'town'; redraw(); } }, ZONE.name),
       h('button', { type: 'button', 'aria-pressed': String(mapMode === 'nation'), onclick: () => { mapMode = 'nation'; redraw(); } }, 'Nigeria')));
     if (townMap) { townMap.dispose(); townMap = null; }
+    // where things are for sale in this town: one pin for each place, and one for all of PostCivilWar PowerBike's
+    // motorcycles, at the pink column before its doors (they are sold inside)
+    const listingPins = () => {
+      if (!(app.market && app.online && app.online.signedIn)) return [];
+      const pins = new Map();
+      for (const l of app.market.state.all) {
+        if (!l.place || l.place.zone !== ZONE.id) continue;
+        const at = l.shop === POWERBIKE.shop ? POWERBIKE.portal : l.place;
+        pins.set(`${at.x},${at.z}`, { x: at.x, z: at.z });
+      }
+      return [...pins.values()];
+    };
     if (mapMode === 'town') {
       townMap = createTownMap({
         h, state: townMapState, onPick: pick,
         view: () => app.view(),
         way: () => (liveWay ? liveWay() : way),
         waypoint: () => app.waypoint(),
-        listings: () => (app.market && app.online && app.online.signedIn ? app.market.state.all.filter((l) => l.place && l.place.zone === ZONE.id).map((l) => ({ x: l.place.x, z: l.place.z })) : []),
+        listings: () => listingPins(),
       });
       root.append(townMap.el);
       if (fitTo) requestAnimationFrame(() => { if (townMap) townMap.fit(fitTo); });

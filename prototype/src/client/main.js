@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -55,6 +55,7 @@ import { createFitter } from './fit.js';
 import { QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
 import { createPhoneHold } from './phone-hold.js';
+import { ANIMATED } from './animated.js';
 import { createMusic } from './music.js';
 import { trText, trAmount, TR } from '../sim/ledger.js';
 import { createOnline, createWebTransport, packSave, unpackSave } from '../net/online.js';
@@ -64,6 +65,9 @@ import { createWallet } from './wallet.js';
 import { createConfirm } from './confirm.js';
 import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
+import { buildPowerbike } from './render-powerbike.js';
+import { createSalesman } from '../sim/salesman.js';
+import { talkGesture } from './talk-gestures.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -387,7 +391,13 @@ function start(carried) {
     ...ZONE_STALLS.map((st) => ({ x0: st.x - 2, x1: st.x + 2, z0: st.z - 2.2, z1: st.z + 1.8 })),
   ];
   const underLowRoof = (x, z) => { for (const r of lowRoofs) if (x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) return true; return false; };
-  const rig = createCameraRig(camera, { blocked: (x, z, y) => zoneSolid(x, z, 0.25) || (y > 1.95 && underLowRoof(x, z)) });
+  // (in PostCivilWar PowerBike's hall only its walls stand in the camera's way: the stands and the furniture are low,
+  // under the camera's line; and the tower over it is solid to its top)
+  const towerAt = POWERBIKE.footprint;
+  const rig = createCameraRig(camera, {
+    blocked: (x, z, y) => (inPowerbikeHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25)) || (y > 1.95 && underLowRoof(x, z)),
+    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : 0),
+  });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
   let lastFight = 0;                 // the last blow from the simulation that has been shown
   let flash = 0;                     // the screen's edge reddens for a moment when the player is struck
@@ -430,9 +440,16 @@ function start(carried) {
   let transport = null;
   let link = null;
   let twin = null;                    // a second world in this page, for testing two players
+  // what this player's game tells the others: the simulation's own view of them, and, while they ask the showroom's
+  // salesman about a motorcycle, which one and for how long (salesman.js goes to whoever began first)
+  function linkSelf() {
+    if (!view) return null;
+    if (!showroom.talk || !showroom.inside) return view.self;
+    return { ...view.self, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
+  }
   function relink() {
     if (link) { link.close(); link = null; }
-    if (transport && playerId) link = createLink({ transport: transport.make(), game: host.game, zoneId: ZONE.id, self: () => (view ? view.self : null) });
+    if (transport && playerId) link = createLink({ transport: transport.make(), game: host.game, zoneId: ZONE.id, self: () => linkSelf() });
   }
   if (window.claude && typeof window.claude.use === 'function') {
     window.claude.use('room').then((live) => { if (live) { transport = { make: () => createRoomTransport(live) }; if (playing) relink(); } }).catch(() => {});
@@ -448,7 +465,8 @@ function start(carried) {
   if (window.claude && typeof window.claude.use === 'function') window.claude.use('sample').then((fn) => { sampler = fn || null; }).catch(() => {});
 
   // On the website the game can be put on a device and kept there; anywhere else this offers nothing.
-  const FIGURE_TEXT = { W1: 'woman.b64.txt', M1: 'man.b64.txt', W2: 'athlete.b64.txt', W3: 'police.b64.txt', M4: 'priest.b64.txt', M5: 'warrior.b64.txt' };
+  // (each figure's file beside the page: the first six as base64 text, the eighteen of 16 October as they are)
+  const FIGURE_TEXT = Object.fromEntries(Object.values(ANIMATED).map((spec) => [spec.id, spec.text || spec.file]));
   const webapp = createWebApp({ figures: FIGURE_TEXT, figure: () => (prefs.look && FIGURE_TEXT[prefs.look.figure] ? prefs.look.figure : 'W1') });
 
   // Music on the phone (music.js): the game's own pieces, and on the website the songs listed in music/library.json.
@@ -585,6 +603,9 @@ function start(carried) {
     const wanted = new Set();
     for (const l of market.state.all) {
       if (l.place.zone !== ZONE.id) continue;
+      // PostCivilWar PowerBike's motorcycles are sold in its hall: the one pink column before its doors is its own
+      // (render-powerbike.js), and none is put up for each of them
+      if (l.shop === POWERBIKE.shop) continue;
       const shop = l.shop ? zoneShop(l.shop) : null;
       const at = shop ? shop.marker : l.place;
       wanted.add(l.id);
@@ -651,6 +672,198 @@ function start(carried) {
       showName(s.actor, far < 8, dt);
     }
   }
+  // ---- PostCivilWar PowerBike ----
+  // The motorcycle showroom beside HOLARIS (atani-powerbike.js says where everything is; render-powerbike.js draws
+  // it): its one pink column, which takes a player in; the hall, where the fifteen motorcycles stand; the mat by the
+  // doors, which takes them out again; Obi, the salesman (salesman.js); and asking him about a motorcycle, which is
+  // the market's own conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
+  const powerbike = buildPowerbike(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize });
+  const salesman = createSalesman();
+  // one of the game's own figures, dressed for the showroom floor: a white shirt, a dark red tie, dark trousers
+  const salesmanActor = makeCharacter({ body: 'm', skin: 0x4a2c17, build: 1, wear: { outfit: 'shirt', hair: 'fade', face: 83, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x8c1d2c, bottom: 0x1e2229, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } }, POWERBIKE.salesman, true, 1);
+  salesmanActor.group.visible = false;
+  scene.add(salesmanActor.group);
+  const HALL_ROOM = Object.freeze({ x0: POWERBIKE.hall.x0, z0: POWERBIKE.hall.z0, x1: POWERBIKE.hall.x1, z1: POWERBIKE.hall.z1, top: POWERBIKE.hall.ceiling });
+  const HALL_VIEW = Object.freeze({ pitch: 0.04, maxPitch: 1.05, dist: 7.5 });
+  const showroom = {
+    inside: false,             // the player is in the hall
+    armed: true,               // the column takes them in (once they have stepped out of it)
+    talk: null,                // asking the salesman about a motorcycle: { bike, since, listing }
+    amount: 0,                 // how much of that conversation shows on the player's figure (eased in and out)
+    lines: [],                 // who says what when, for the hands and heads: [{ who: 'me' | 'him', from, to }] (seconds)
+    turnSent: -10,             // when the player's turn toward him was last told to the town
+    him: { amount: 0, speaking: 0 },
+    peers: new Map(),          // other players asking him about a motorcycle: id -> { amount, seed }
+    welcomed: false,           // the player has been told how the showroom works
+  };
+  const nowSeconds = () => Date.now() / 1000;          // the wall clock: the same on every device
+  // Everyone in the hall, the player and anyone else, as the salesman sees them (the same on every device)
+  function hallCustomers() {
+    const out = [];
+    if (view && inPowerbikeHall(predicted.x, predicted.z)) out.push({ id: `p:${playerId}`, x: predicted.x, z: predicted.z, heading: predicted.heading, talking: showroom.talk ? showroom.talk.bike : null, since: showroom.talk ? showroom.talk.since : 0 });
+    for (const q of (view && view.players) || []) if (inPowerbikeHall(q.x, q.z)) out.push({ id: `p:${q.id}`, x: q.x, z: q.z, heading: q.heading, talking: q.talk ? q.talk.bike : null, since: q.talk ? q.talk.since : 0 });
+    return out;
+  }
+  // In or out: the screen goes dark, the simulation sets the player down inside the doors (or outside beside the
+  // column), and the screen comes back on the hall (or the street)
+  function goShowroom(way) {
+    if (fading) return;
+    fading = true;
+    controls.release(); input.keys.clear();
+    $('fade').classList.add('on');
+    setTimeout(() => {
+      const r = playing ? server.send({ type: way === 'in' ? 'showroom.in' : 'showroom.out' }) : { ok: false };
+      if (r.ok) {
+        predicted.x = r.x; predicted.z = r.z; predicted.heading = r.heading;
+        if (me) me.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
+        // the eye behind them, looking the way they face: into the hall, or out at the town
+        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : 0.27; cam.dist = way === 'in' ? 6.2 : 8;
+        cam.target.set(r.x, 1.55 + zoneGroundY(r.x, r.z), r.z);
+        rig.snap(cam);
+        refreshView();
+        audio.chime(way === 'in' ? 'ok' : 'tap');
+        if (way === 'in' && !showroom.welcomed) { showroom.welcomed = true; ui.toast({ type: 'note', text: `${POWERBIKE.name}. Walk up to any motorcycle to ask ${POWERBIKE.salesman}, the salesman, about it. The mat by the doors takes you back out.` }); }
+      } else if (r.message) ui.toast({ type: 'note', text: r.message });
+      setTimeout(() => { $('fade').classList.remove('on'); fading = false; }, 320);
+    }, 360);
+  }
+  const showroomListing = (bike) => market.state.all.find((l) => l.shop === POWERBIKE.shop && l.asset && l.asset.model === `bike:${bike}`) || null;
+  // Asking him about a motorcycle on the floor: the market's conversation about it opens on the phone, and he comes
+  // to stand with the player by it
+  async function askAbout(display) {
+    const bike = POWER_BIKES[display.bike];
+    if (!bike) return;
+    if (!online.available) { ui.toast({ type: 'note', text: `${POWERBIKE.salesman} sells these through the market every player shares, and this copy of the game cannot reach it: the ${bike.name} cannot be bought here.` }); return; }
+    if (!online.signedIn) { accountUI.open('signup', `To buy the ${bike.name} you need an account.`); return; }
+    let l = showroomListing(display.bike);
+    if (!l) { await market.all(); l = showroomListing(display.bike); }
+    if (!l) { ui.toast({ type: 'note', text: `The ${bike.name} is not on sale just now.` }); return; }
+    if (!playing || !inPowerbikeHall(predicted.x, predicted.z)) return;
+    showroom.talk = { bike: display.bike, since: host.game.state.real, listing: l.id };
+    showroom.lines = [];
+    ui.openDeal({ listing: l.id, at: { x: predicted.x, z: predicted.z } });
+  }
+  function endTalk() { showroom.talk = null; showroom.lines = []; }
+  // What is said in that conversation, as it is said (ui-market.js): whoever said it speaks, with the hands, for as
+  // long as it would take to say; the other listens. One after the other, never both at once.
+  function dealSaid({ from, body = '' }) {
+    if (!showroom.talk) return;
+    const now = nowSeconds();
+    const who = from === 'me' ? 'me' : 'him';
+    const length = Math.min(who === 'me' ? 4.5 : 7.5, 1.1 + String(body).length * 0.045);
+    const last = showroom.lines.length ? showroom.lines[showroom.lines.length - 1].to : 0;
+    const start = Math.max(now, last + 0.3);
+    showroom.lines.push({ who, from: start, to: start + length });
+    if (showroom.lines.length > 8) showroom.lines.shift();
+  }
+  function speakingNow(now) {
+    let mine = 0, his = 0;
+    for (const l of showroom.lines) {
+      if (now < l.from - 0.25 || now > l.to + 0.35) continue;
+      const k = Math.max(0, Math.min(1, (now - l.from + 0.25) / 0.45, (l.to + 0.35 - now) / 0.45));
+      if (l.who === 'me') mine = Math.max(mine, k); else his = Math.max(his, k);
+    }
+    const quiet = showroom.lines.length ? now - showroom.lines[showroom.lines.length - 1].to : 99;
+    return { mine, his, quiet };
+  }
+  // the steady to and fro of a conversation nobody here can read (another player's with him): turns of a few seconds
+  const turnOf = (t, seed) => { const u = Math.sin(t * 0.43 + seed) + 0.6 * Math.sin(t * 0.17 + seed * 2.1); return u > 0.25 ? 1 : u < -0.35 ? 0 : 0.35; };
+
+  function tickShowroom(dt) {
+    if (!playing || !view) { salesmanActor.group.visible = false; powerbike.portal.group.visible = false; return; }
+    const self = view.self;
+    const inHall = inPowerbikeHall(predicted.x, predicted.z);
+    if (inHall !== showroom.inside) {
+      showroom.inside = inHall;
+      powerbike.setInside(inHall);
+      // coming into an empty hall he is at his desk and comes over; into a busy one, he is where he is for everyone
+      if (inHall) { if (hallCustomers().length > 1) salesman.rejoin(); else salesman.home(); } else endTalk();
+    }
+    powerbike.near(predicted.x, predicted.z);
+    const c = POWERBIKE.portal, far = Math.hypot(c.x - predicted.x, c.z - predicted.z);
+    powerbike.portal.group.visible = !inHall && far < 260;
+    // the column, stepped into on foot: in; the mat inside the doors: out
+    const onFoot = !self.driving && !self.riding && !self.astride && !self.swimming && !self.dead && !self.down && !self.carried && !self.law.arrest && !self.fight;
+    if (far > c.radius + 0.9) showroom.armed = true;
+    else if (!inHall && far < c.radius - 0.2 && showroom.armed && onFoot && !ui.isOpen() && !fading && !accountUI.isOpen) { showroom.armed = false; goShowroom('in'); }
+    if (inHall && onFoot && !fading && !uiBlocks() && onPowerbikeExit(predicted.x, predicted.z)) { if (ui.isOpen()) ui.close(); endTalk(); goShowroom('out'); }
+    // the conversation is over when it is closed
+    if (showroom.talk && !ui.dealOpen()) endTalk();
+    if (!inHall) { salesmanActor.group.visible = false; return; }
+
+    // the salesman: where he goes, the same on every device (salesman.js), and drawn there
+    const customers = hallCustomers();
+    const st = salesman.step(dt, { now: nowSeconds(), customers });
+    const a = salesmanActor;
+    a.group.visible = true;
+    a.group.position.set(st.x, 0, st.z);
+    a.group.rotation.y = st.heading;
+    animateCharacter(a, dt, st.speed, false);
+    standCharacter(a);
+    showName(a, Math.hypot(st.x - predicted.x, st.z - predicted.z) < 7 && !showroom.talk, dt);
+    // talking with someone (asking about a bike) or showing them one: his hands, his head and his body
+    const withWho = st.with ? customers.find((q) => q.id === st.with) : null;
+    const t = clock;
+    let want = 0, speak = 0;
+    if (withWho && st.speed < 0.35 && Math.hypot(withWho.x - st.x, withWho.z - st.z) < 3.4) {
+      if (st.mode === 'talk') {
+        want = 1;
+        if (st.with === `p:${playerId}`) { const sp = speakingNow(nowSeconds()); speak = sp.his > 0 ? sp.his : sp.mine > 0 ? 0 : sp.quiet > 5 ? 0.3 * (0.5 + 0.5 * Math.sin(t * 0.6)) : 0.1; }
+        else speak = 1 - turnOf(t, 3.7);
+      } else if (st.mode === 'assist') { want = 0.65; speak = 0.45 + 0.35 * Math.sin(t * 0.5); }
+      else if (st.mode === 'roam') { want = 0.4; speak = 0.3; }
+    }
+    showroom.him.amount += (want - showroom.him.amount) * Math.min(1, dt * (want > showroom.him.amount ? 2.5 : 4));
+    showroom.him.speaking += (speak - showroom.him.speaking) * Math.min(1, dt * 5);
+    if (showroom.him.amount > 0.01) talkGesture(a, { t, amount: showroom.him.amount, speaking: showroom.him.speaking, look: withWho ? angleGap(Math.atan2(withWho.x - st.x, withWho.z - st.z), st.heading) : 0 });
+  }
+  // The player's own figure while asking about a motorcycle: turned to him (the town is told now and then, so that
+  // other players see it), speaking with the hands when they have written something, listening when he answers.
+  function tickTalkPose(dt, speed) {
+    const want = showroom.talk && showroom.inside && speed < 0.3 && !ui.calling() ? 1 : 0;
+    showroom.amount += (want - showroom.amount) * Math.min(1, dt * (want ? 2.5 : 6));
+    if (showroom.amount < 0.01 || !me) return;
+    const s = salesman.state;
+    const toHim = Math.atan2(s.x - predicted.x, s.z - predicted.z);
+    if (want && speed < 0.05 && !led()) {
+      predicted.heading += angleGap(toHim, predicted.heading) * Math.min(1, dt * 3);
+      if (clock - showroom.turnSent > 0.6 && Math.abs(angleGap(predicted.heading, view.self.heading)) > 0.06) { showroom.turnSent = clock; server.send({ type: 'move', x: predicted.x, z: predicted.z, heading: predicted.heading, run: false }); }
+    }
+    const sp = speakingNow(nowSeconds());
+    talkGesture(me, { t: clock + 7.3, amount: showroom.amount, speaking: sp.mine, look: angleGap(toHim, me.group.rotation.y) });
+  }
+  // Other players asking him about a motorcycle: turned to him, and talking with him by turns
+  function tickPeerTalk(dt) {
+    const s = salesman.state;
+    const seen = new Set();
+    if (showroom.inside) for (const q of shownPeers) {
+      if (!q.talk || !inPowerbikeHall(q.x, q.z)) continue;
+      const rig = crowd.rigOf(`p:${q.id}`);
+      if (!rig) continue;
+      seen.add(q.id);
+      let p = showroom.peers.get(q.id);
+      if (!p) { p = { amount: 0, seed: (String(q.id).length * 7.13) % 6.28 }; showroom.peers.set(q.id, p); }
+      p.amount += (1 - p.amount) * Math.min(1, dt * 2.5);
+      talkGesture(rig, { t: clock + p.seed * 3, amount: p.amount, speaking: turnOf(clock, 3.7), look: angleGap(Math.atan2(s.x - rig.group.position.x, s.z - rig.group.position.z), rig.group.rotation.y) });
+    }
+    for (const id of showroom.peers.keys()) if (!seen.has(id)) showroom.peers.delete(id);
+  }
+  // In the conversation the eye stands where it sees the two of them, side on, a little behind the player (the
+  // picture is moved over by the phone's width, so that neither is behind the phone). A drag looks about as usual.
+  function frameTalk(dt) {
+    if (!showroom.talk || !showroom.inside || showroom.amount < 0.05) return;
+    const s = salesman.state;
+    const mx = (predicted.x + s.x) / 2, mz = (predicted.z + s.z) / 2;
+    const toHim = Math.atan2(s.x - predicted.x, s.z - predicted.z);
+    const k = Math.min(1, dt * 2.2) * showroom.amount;
+    if (clock - cam.lastDrag > 2.5) {
+      cam.yaw += angleGap(toHim + 1.3, cam.yaw) * k;
+      cam.pitch += (0.1 - cam.pitch) * k;
+      cam.dist += (4.4 - cam.dist) * k;
+    }
+    cam.target.lerp(camGoal.set(mx, 1.42 + zoneGroundY(mx, mz), mz), Math.min(1, dt * 4) * showroom.amount);
+  }
+
   // What to call a spot in town, for a listing made where its seller stands.
   function placeName(x, z) {
     const title = (text) => text.toLowerCase().replace(/(^|\s)\S/g, (c) => c.toUpperCase());
@@ -660,6 +873,17 @@ function start(carried) {
     return best ? `${best.text}, ${ZONE.name}` : ZONE.name;
   }
   function goToListing(l) {
+    if (l.shop === POWERBIKE.shop) {
+      // one of PostCivilWar PowerBike's motorcycles: to its column, or, for someone already inside, to its stand
+      const bike = String((l.asset && l.asset.model) || '').replace(/^bike:/, '');
+      const stand = POWERBIKE.displays.find((d) => d.bike === bike);
+      const inHall = inPowerbikeHall(predicted.x, predicted.z);
+      const at = inHall && stand ? { x: stand.x + Math.sin(stand.h) * (stand.r + 1.2), z: stand.z + Math.cos(stand.h) * (stand.r + 1.2) } : POWERBIKE.portal;
+      setWaypoint({ x: at.x, z: at.z, label: inHall ? l.name : POWERBIKE.name });
+      ui.close();
+      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ask ${POWERBIKE.salesman} about it.` : `${POWERBIKE.name} is marked, beside HOLARIS Watch. Follow the line on the map at the top left to the pink column before its doors and step into it: the ${l.name} is on the floor inside, and ${POWERBIKE.salesman} the salesman will help you.` });
+      return;
+    }
     const shop = l.shop ? zoneShop(l.shop) : null;
     const at = shop ? shop.marker : l.place;
     setWaypoint({ x: at.x, z: at.z, label: l.kind === 'primary' ? l.seller : `${l.seller}: ${l.name}` });
@@ -769,6 +993,8 @@ function start(carried) {
     goToListing: (l) => goToListing(l),
     placeName: (x, z) => placeName(x, z),
     marketChanged: () => { refreshDealMarkers(); market.soon(); accountSync.soon(); },
+    // what is said in an open conversation, as it is said: in the showroom, the one who says it speaks
+    dealSaid: (said) => dealSaid(said),
     realWeather: () => realWeather,
     realClock: REAL_CLOCK,
     perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
@@ -1460,6 +1686,13 @@ function start(carried) {
     const here = predicted;
     const options = [];
     const add = (x, z, range, option) => { const d = Math.hypot(here.x - x, here.z - z); if (d <= range) options.push({ ...option, d: d - (option.bias || 0) }); };
+    // in PostCivilWar PowerBike: the motorcycle on show nearest, to ask the salesman about; and the salesman himself
+    if (showroom.inside) {
+      const at = powerbikeDisplayNear(here.x, here.z, 1.7);
+      if (at && POWER_BIKES[at.display.bike]) options.push({ d: at.gap - 1, short: 'Ask', text: `Ask ${POWERBIKE.salesman} about the ${POWER_BIKES[at.display.bike].name}`, run: () => askAbout(at.display) });
+      const s = salesman.state;
+      add(s.x, s.z, 2.4, { short: 'Talk', text: `Talk to ${POWERBIKE.salesman}, the salesman`, run: () => ui.toast({ type: 'note', text: `${POWERBIKE.salesman}: "Welcome to ${POWERBIKE.name}! Every bike on the floor is for sale. Walk up to the one you like and ask me about it, and I'll tell you everything."` }) });
+    }
     // the player's own motorcycles, where they left them
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
     for (const v of view.vehicles) {
@@ -1922,6 +2155,12 @@ function start(carried) {
     const boxes = structureBoxes();
     let nx = predicted.x + dx * speed * dt;
     let nz = predicted.z + dz * speed * dt;
+    // nobody walks through the showroom's salesman (he is drawn on each device, not kept by the simulation): a step
+    // into him keeps only its part past him
+    if (showroom.inside) {
+      const s = salesman.state, before = Math.hypot(predicted.x - s.x, predicted.z - s.z), after = Math.hypot(nx - s.x, nz - s.z);
+      if (after < 0.62 && after < before && before > 1e-3) { const ox = (s.x - predicted.x) / before, oz = (s.z - predicted.z) / before, along = (nx - predicted.x) * ox + (nz - predicted.z) * oz; nx -= ox * along; nz -= oz * along; }
+    }
     if (!zoneWalkable(nx, nz, boxes)) {
       if (zoneWalkable(nx, predicted.z, boxes)) nz = predicted.z;
       else if (zoneWalkable(predicted.x, nz, boxes)) nx = predicted.x;
@@ -2187,7 +2426,11 @@ function start(carried) {
       // (on a call it is held to the ear; the call is ended by anything that takes the phone out of the hand)
       const phoneAble = !driving && !riding && !astride && !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried;
       if (!phoneAble && ui.calling()) ui.hangUp();
-      phoneHold.update(dt, me, { use: ui.usingPhone(), able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : 'page', call: ui.calling() });
+      // (asking the showroom's salesman about a motorcycle, the player talks to him face to face: the phone's screen
+      // is the conversation, and the handset is not held up in the town)
+      const talking = !!showroom.talk && showroom.inside;
+      phoneHold.update(dt, me, { use: ui.usingPhone() && !talking, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : 'page', call: ui.calling() });
+      tickTalkPose(dt, speed);
       // knocked down by a vehicle, or killed: flat on the ground quickly, and up again more slowly
       // in the river: the figure floats with its body at the water's surface (the water is drawn at -0.32)
       me.swimming = !!self.swimming;
@@ -2225,7 +2468,7 @@ function start(carried) {
       if (!driving && !riding && !astride && !aboard && speed > 0.3) {
         // a step is heard as each foot comes down: the figure's own stride says when
         const foot = Math.floor(me.phase * 2);
-        if (foot !== stepPhase) { stepPhase = foot; audio.footstep(inside ? 'floor' : predicted.x > ZONE_JETTY.x0 && predicted.x < ZONE_JETTY.x1 && predicted.z > ZONE_JETTY.z0 ? 'wood' : onTar(predicted.x, predicted.z) ? 'tar' : 'earth'); }
+        if (foot !== stepPhase) { stepPhase = foot; audio.footstep(inside || showroom.inside ? 'floor' : predicted.x > ZONE_JETTY.x0 && predicted.x < ZONE_JETTY.x1 && predicted.z > ZONE_JETTY.z0 ? 'wood' : onTar(predicted.x, predicted.z) ? 'tar' : 'earth'); }
       }
 
       if (!driving) car.steer = 0;
@@ -2305,7 +2548,7 @@ blood.update(dt, view.blood || []);
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
-      tickDealMarkers(dt); tickShopActors(dt);
+      tickDealMarkers(dt); tickShopActors(dt); tickShowroom(dt); tickPeerTalk(dt);
     if (online.available && online.status().state === 'down' && clock - greetedAt > 60 && !document.hidden) greetServer();
     monitor.mark('interface');
       // indoors: put away the roof of the building the player is in
@@ -2318,6 +2561,7 @@ blood.update(dt, view.blood || []);
       ui.tick(dt);
 
       if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z); else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), Math.min(1, dt * 9));
+      if (!cam.free) frameTalk(dt);
     } else {
       // the start screen circles the town centre
       cam.yaw = 0.35 + Math.sin(clock * 0.05) * 0.5;
@@ -2333,9 +2577,12 @@ blood.update(dt, view.blood || []);
     monitor.mark('sky and camera');
     // Indoors the camera looks down into the room from above; in every view it keeps out of walls.
     const sitting = playing && view && (view.self.driving || view.self.riding || view.self.astride);
+    // (in PostCivilWar PowerBike's hall the camera stays inside its walls and under its ceiling)
+    const hall = playing && showroom.inside;
     rig.update(dt, {
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw,
-      indoors: inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
+      indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
+      room: hall ? HALL_ROOM : null,
       dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,
     });
     // fast on a motorcycle: the view shakes a little, more the nearer it is to its top speed (never much)
@@ -2351,7 +2598,8 @@ blood.update(dt, view.blood || []);
     if (lit) { const b = ownBikeView.ridden(); b.headlampAt(headlight.position); headlight.target.position.copy(b.lean.localToWorld(shakeAim.set(0, 0.2, 12))); headlight.target.updateMatrixWorld(); }
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
-    const skyState = sky.update(dt, hour, weather, cam.target, camera);
+    const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0);
+    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5 });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     world.glowMaterial.emissiveIntensity = night * 1.5;
@@ -2366,7 +2614,7 @@ blood.update(dt, view.blood || []);
       const nearest = world.lampHeads.map((lamp) => ({ lamp, d: Math.hypot(lamp.x - cam.target.x, lamp.z - cam.target.z) })).sort((a, b) => a.d - b.d);
       lampLights.forEach((light, index) => { const item = nearest[index]; if (item) { light.position.x = item.lamp.x; light.position.z = item.lamp.z; light.position.y = 4.8 + zoneGroundY(item.lamp.x, item.lamp.z); } });
     }
-    for (const light of lampLights) light.intensity = night * 1.25;
+    for (const light of lampLights) light.intensity = hall ? 0 : night * 1.25;
     lampPools.mesh.visible = night > 0.02;
     lampPools.material.opacity = night * 0.5;
     markerMaterial.opacity = 0.55 + Math.sin(clock * 3) * 0.3;
@@ -2379,6 +2627,8 @@ blood.update(dt, view.blood || []);
       sources = soundSources(hour, weather.wet);
       const reach = Math.min(REACH[quality.level], scene.fog.far * 0.82);
       world.see(cam.target.x, cam.target.z, reach);
+      // (PostCivilWar PowerBike's tower: the owner's model, fetched once the town is ready, or at once for someone near it)
+      if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();
       // (beyond the town: built a few seconds into play once the town is warmed up, or at once for someone already out there)
       if (!outskirts.ready && playing) {
         beyondWait += 0.5;      // (this is looked at twice a second)
@@ -2397,7 +2647,7 @@ blood.update(dt, view.blood || []);
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
-      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null });
+      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null });
     }
 
     monitor.mark('warming up');
@@ -2449,6 +2699,8 @@ blood.update(dt, view.blood || []);
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
     phoneHold, camera,
+    // PostCivilWar PowerBike: the building, the salesman, and asking about a motorcycle
+    powerbike, salesman, salesmanActor, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
@@ -2471,7 +2723,9 @@ blood.update(dt, view.blood || []);
       relink();
       const q = other.game.state.players[id];
       if (x !== null) { q.x = x; q.z = z; }
-      twin = { host: other, id, link: createLink({ transport: hub.join('second'), game: other.game, zoneId: ZONE.id, self: () => other.game.view(id).self }), place(px, pz) { q.x = px; q.z = pz; q.lastMoveAt = other.game.state.real; }, say: (text) => other.game.intent(id, { type: 'chat.say', text }), language: (lang) => other.game.intent(id, { type: 'settings.language', lang }), view: () => other.game.view(id) };
+      let asking = null;            // the second player asking the showroom's salesman about a motorcycle
+      const selfOf = () => { const v = other.game.view(id).self; return asking ? { ...v, talk: { bike: asking.bike, ago: other.game.state.real - asking.since } } : v; };
+      twin = { host: other, id, link: createLink({ transport: hub.join('second'), game: other.game, zoneId: ZONE.id, self: selfOf }), place(px, pz) { q.x = px; q.z = pz; q.lastMoveAt = other.game.state.real; }, face(h) { q.heading = h; }, ask(bike) { asking = bike ? { bike, since: other.game.state.real } : null; }, say: (text) => other.game.intent(id, { type: 'chat.say', text }), language: (lang) => other.game.intent(id, { type: 'settings.language', lang }), view: () => other.game.view(id) };
       return twin;
     },
     get second() { return twin; },

@@ -31,6 +31,10 @@ const KIND = {
   'knell down to pray': ['everyday', 'sit'], 'rev father blessing someone': ['greeting', 'greet'],
   football_catch: ['sport', 'ball'], football_pass: ['sport', 'ball'], dribble: ['sport', 'ball'], basketball_shot: ['sport', 'ball'], volleyball: ['sport', 'ball'], pitch_baseball: ['sport', 'ball'],
   jump_rope: ['sport', 'jump'], flip: ['sport', 'jump'], warm_up: ['sport', 'lift'], climb: ['sport', 'climb'],
+  // the eighteen figures of 16 October 2026
+  zombie: ['feeling', 'scared'], 'Dead zombie walk': ['feeling', 'scared'], magic: ['everyday', 'skills'], chop: ['fight', 'punch'], fire: ['fight', 'punch'],
+  swagger: ['dance', 'dance'], freaky: ['dance', 'dance'], 'blow kiss': ['greeting', 'heart'], hit_to_stomach: ['everyday', 'fall'], hit_to_body: ['everyday', 'fall'],
+  summersault: ['sport', 'jump'], wait: ['everyday', 'think'],
 };
 const ORDER = ['fight', 'dance', 'feeling', 'greeting', 'sport', 'everyday'];
 

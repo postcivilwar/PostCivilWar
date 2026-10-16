@@ -16,6 +16,7 @@ import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, cpSync, ex
 import { createHash } from 'node:crypto';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { FIGURES } from './src/sim/figures.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
 const IMPORT = /^import\s+\{([^}]+)\}\s+from\s+'([^']+)';?[ \t]*$/gm;
@@ -58,7 +59,17 @@ const { bundle, modules } = bundleFrom(resolve(root, 'src/client/main.js'));
 // The brand's display face travels inside the page: the host allows no font files of its own.
 const font = readFileSync(resolve(root, 'assets/brand/pcw-arcade.ttf')).toString('base64');
 const mark = readFileSync(resolve(root, 'src/client/mark.svg.txt'), 'utf8').trim();
-const template = readFileSync(resolve(root, 'src/client/template.html'), 'utf8').replace('@@PCW_FONT@@', font).replaceAll('@@PCW_MARK@@', mark);
+const FIGURE_FILES = [['man', 'muscular_male.glb', '__PCW_MAN_B64', true], ['woman', 'woman.glb', '__PCW_WOMAN_B64', true],
+  ['athlete', 'athlete.glb', '__PCW_ATHLETE_B64', false], ['police', 'police.glb', '__PCW_POLICE_B64', false],
+  ['priest', 'priest.glb', '__PCW_PRIEST_B64', false], ['warrior', 'warrior.glb', '__PCW_WARRIOR_B64', false]];
+// Where the page's first script fetches each supplied figure from (template.html): the six of 8 and 12 October as
+// base64 text (and, in the copy on disk, the first two written into the page); the eighteen of 16 October as the
+// files they are.
+const FIGURE_LOAD = Object.fromEntries(Object.values(FIGURES).map((f) => {
+  const old = FIGURE_FILES.find(([, file]) => file === f.file);
+  return [f.id, old ? [`${old[0]}.b64.txt`, old[2]] : [f.file, null, 1]];
+}));
+const template = readFileSync(resolve(root, 'src/client/template.html'), 'utf8').replace('@@PCW_FONT@@', font).replaceAll('@@PCW_MARK@@', mark).replace('@@PCW_FIGURE_FILES@@', JSON.stringify(FIGURE_LOAD));
 if (template.includes('@@')) throw new Error('template.html: a placeholder was left unfilled');
 const page = (three) => `${template}\n<script src="${three}"></script>\n<script>\n${bundle}</script>\n`;
 mkdirSync(resolve(root, 'dist'), { recursive: true });
@@ -73,9 +84,6 @@ const skeleton = (content) => `<!doctype html><html lang="en"><head><meta charse
 // The four added on 12 October 2026 (an athlete, a police officer, a priest, a hooded warrior; 8 to 21 MB each)
 // are served the same way; the local copy carries only the first two inside it, so that it stays a file a
 // browser can open, and the others are seen on the website.
-const FIGURE_FILES = [['man', 'muscular_male.glb', '__PCW_MAN_B64', true], ['woman', 'woman.glb', '__PCW_WOMAN_B64', true],
-  ['athlete', 'athlete.glb', '__PCW_ATHLETE_B64', false], ['police', 'police.glb', '__PCW_POLICE_B64', false],
-  ['priest', 'priest.glb', '__PCW_PRIEST_B64', false], ['warrior', 'warrior.glb', '__PCW_WARRIOR_B64', false]];
 let inline = '';
 for (const [name, file, global, inLocal] of FIGURE_FILES) {
   const bytes = readFileSync(resolve(root, `assets/characters/figures/animated/${file}`));
@@ -83,6 +91,11 @@ for (const [name, file, global, inLocal] of FIGURE_FILES) {
   writeFileSync(resolve(root, `dist/${name}.b64.txt`), bytes.toString('base64'));
   if (inLocal) inline += `<script>window.${global} = "${bytes.toString('base64')}";</script>\n`;
 }
+// The eighteen added on 16 October 2026 (src/sim/figures.js; 5 to 38 MB each) are served as the files they are,
+// beside the page, under their own names: the website serves .glb, so no copy as text is made of them. The copy of
+// the game on disk carries none of them.
+const SERVED_FIGURES = Object.values(FIGURES).map((f) => f.file).filter((file) => !FIGURE_FILES.some(([, f]) => f === file));
+for (const file of SERVED_FIGURES) writeFileSync(resolve(root, `dist/${file}`), readFileSync(resolve(root, `assets/characters/figures/animated/${file}`)));
 writeFileSync(resolve(root, 'dist/local.html'), skeleton(inline + page('../vendor/three.min.js')));
 console.log(`bundled ${modules} modules, ${(bundle.length / 1024).toFixed(0)} KB of script`);
 
@@ -124,7 +137,7 @@ const gameBody = template.replace(/^<title>[^<]*<\/title>\n/, '');      // the d
 // page asks for each by its fingerprint (sw.js keeps a page and its files from being mixed across builds).
 let siteBundle = bundle;
 const packFiles = {};
-for (const [name, constant] of [['kit', 'KIT_B64'], ['vehicles', 'VEHICLE_B64']]) {
+for (const [name, constant] of [['kit', 'KIT_B64'], ['vehicles', 'VEHICLE_B64'], ['moves', 'MOVES_B64']]) {
   const found = new RegExp(`const ${constant} = '([A-Za-z0-9+/=]+)';`).exec(siteBundle);
   if (!found) throw new Error(`the bundle has no ${constant} to take out`);
   if (siteBundle.indexOf(`const ${constant} = '`, found.index + 1) !== -1) throw new Error(`the bundle has ${constant} twice`);
@@ -137,6 +150,7 @@ put('index.html', `<!doctype html>\n<html lang="en">\n<head>\n${head}${packScrip
 put('three.min.js', readFileSync(resolve(root, 'vendor/three.min.js')));
 put('THREE-LICENSE.txt', readFileSync(resolve(root, 'vendor/THREE-LICENSE.txt')));
 for (const [name] of FIGURE_FILES) put(`${name}.b64.txt`, readFileSync(resolve(root, `dist/${name}.b64.txt`)));
+for (const file of SERVED_FIGURES) put(file, readFileSync(resolve(root, `dist/${file}`)));
 const manifest = readFileSync(resolve(root, 'src/site/manifest.webmanifest'), 'utf8');
 JSON.parse(manifest);
 put('manifest.webmanifest', manifest);
@@ -145,6 +159,10 @@ for (const icon of JSON.parse(manifest).icons) if (!siteFiles.has(icon.src)) thr
 // Things that can be owned (asset-view.js): the owner's model exactly as it was supplied, and the photographs
 // taken of it. The model is 64 MB and is fetched only when a player asks to see it.
 for (const [name, from] of [['assets/watch.glb', 'assets/market/watch.glb'], ['assets/watch-turn.webp', 'assets/market/watch-turn.webp'], ['assets/watch-poster.webp', 'assets/market/watch-poster.webp']]) put(name, readFileSync(resolve(root, from)));
+// PostCivilWar PowerBike (16 October 2026): the owner's skyscraper, exactly as supplied (13 MB), beside the page, where
+// render-powerbike.js fetches it once the town is ready. The pictures of the motorcycles from all round that stand in
+// for those across its hall (tools/vehicles/bike_impostors.mjs) go up with the market's photographs, below.
+put('powerbike.glb', readFileSync(resolve(root, 'assets/buildings/powerbike/skyscraper.glb')));
 // The owner's twelve motorcycles (13 October 2026): their parts as the game draws them (tools/vehicles/bikes.py
 // sorted the triangles of each supplied file into body, fork and wheels, every one kept) and their pictures, at
 // 2048 for phones and 4096 elsewhere; and the market's photographs of each. A player's device fetches a motorcycle's
@@ -179,11 +197,14 @@ const NOT_KEPT = new Set(['index.html', 'THREE-LICENSE.txt', 'share.png', 'asset
 // songs are streamed, a piece at a time, and the list of them is always asked for afresh: neither is kept by the worker
 const kept = (name) => !NOT_KEPT.has(name) && !name.startsWith('music/');
 // (the two kits are needed to start at all, so they are kept as soon as the worker is: the game then opens with no connection)
-const KEPT_FIRST = ['', 'three.min.js', 'kit.b64.txt', 'vehicles.b64.txt', 'manifest.webmanifest', 'favicon.svg', 'icon-192.png'];
+const KEPT_FIRST = ['', 'three.min.js', 'kit.b64.txt', 'vehicles.b64.txt', 'moves.b64.txt', 'manifest.webmanifest', 'favicon.svg', 'icon-192.png'];
+// the figures: each is kept only when the page asks for it (the player's own figure), never just for being looked at
+const ASKED = [...FIGURE_FILES.map(([name]) => `${name}.b64.txt`), ...SERVED_FIGURES];
 const table = {};
 for (const [name, bytes] of [...siteFiles].sort(([a], [b]) => (a < b ? -1 : 1))) if (kept(name)) table[name] = createHash('sha256').update(bytes).digest('hex').slice(0, 16);
 for (const name of KEPT_FIRST) if (name && !table[name]) throw new Error(`sw.js: ${name} is to be kept first but is not among the site's files`);
-const worker = readFileSync(resolve(root, 'src/site/sw.js'), 'utf8').replace('/*@@FILES@@*/{}', JSON.stringify(table)).replace('/*@@FIRST@@*/[]', JSON.stringify(KEPT_FIRST));
+for (const name of ASKED) if (!table[name]) throw new Error(`sw.js: ${name} is to be kept when asked for but is not among the site's files`);
+const worker = readFileSync(resolve(root, 'src/site/sw.js'), 'utf8').replace('/*@@FILES@@*/{}', JSON.stringify(table)).replace('/*@@FIRST@@*/[]', JSON.stringify(KEPT_FIRST)).replace('/*@@ASKED@@*/[]', JSON.stringify(ASKED));
 if (worker.includes('@@')) throw new Error('sw.js: a placeholder was left unfilled');
 put('sw.js', worker);
 for (const [name, bytes] of siteFiles) { mkdirSync(dirname(resolve(siteDir, name)), { recursive: true }); writeFileSync(resolve(siteDir, name), bytes); }

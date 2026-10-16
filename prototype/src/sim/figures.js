@@ -22,9 +22,34 @@ export const FIGURES = Object.freeze({
   W3: Object.freeze({ id: 'W3', gender: 'f', name: 'Amaka', file: 'police.glb', animated: true, parts: Object.freeze([]) }),
   M4: Object.freeze({ id: 'M4', gender: 'm', name: 'Ikenna', file: 'priest.glb', animated: true, parts: Object.freeze([]) }),
   M5: Object.freeze({ id: 'M5', gender: 'm', name: 'Uche', file: 'warrior.glb', animated: true, parts: Object.freeze([]) }),
+  // Eighteen more of the owner's supplied figures (16 October 2026), each drawn as supplied. Which are women and
+  // which are men was read from the figures themselves (their bodies, faces and clothes), not from the files'
+  // names. Two of the files supplied were one figure (the same mesh and textures, one with three more
+  // animations): it is here once, from the fuller file. None is a figure the game already had.
+  W4: Object.freeze({ id: 'W4', gender: 'f', name: 'Chioma', file: 'female_figure.glb', animated: true, parts: Object.freeze([]) }),
+  W5: Object.freeze({ id: 'W5', gender: 'f', name: 'Ifeoma', file: 'athletic_outfit.glb', animated: true, parts: Object.freeze([]) }),
+  W6: Object.freeze({ id: 'W6', gender: 'f', name: 'Nneka', file: 'fashion_model_3.glb', animated: true, parts: Object.freeze([]) }),
+  W7: Object.freeze({ id: 'W7', gender: 'f', name: 'Chiamaka', file: 'zombie_survivor.glb', animated: true, parts: Object.freeze([]) }),
+  W8: Object.freeze({ id: 'W8', gender: 'f', name: 'Obiageli', file: 'female_character_2.glb', animated: true, parts: Object.freeze([]) }),
+  W9: Object.freeze({ id: 'W9', gender: 'f', name: 'Ebele', file: 'horror_nurse.glb', animated: true, parts: Object.freeze([]) }),
+  W10: Object.freeze({ id: 'W10', gender: 'f', name: 'Adanna', file: 'camouflage_bikini.glb', animated: true, parts: Object.freeze([]) }),
+  W11: Object.freeze({ id: 'W11', gender: 'f', name: 'Ujunwa', file: 'swimwear_model.glb', animated: true, parts: Object.freeze([]) }),
+  W12: Object.freeze({ id: 'W12', gender: 'f', name: 'Chinwe', file: 'fashion_model_2.glb', animated: true, parts: Object.freeze([]) }),
+  W13: Object.freeze({ id: 'W13', gender: 'f', name: 'Ifeyinwa', file: 'fashion_model_1.glb', animated: true, parts: Object.freeze([]) }),
+  M6: Object.freeze({ id: 'M6', gender: 'm', name: 'Chinedu', file: 'male_figure.glb', animated: true, parts: Object.freeze([]) }),
+  M7: Object.freeze({ id: 'M7', gender: 'm', name: 'Obinna', file: 'zombie.glb', animated: true, parts: Object.freeze([]) }),
+  M8: Object.freeze({ id: 'M8', gender: 'm', name: 'Nnamdi', file: 'horror_character.glb', animated: true, parts: Object.freeze([]) }),
+  M9: Object.freeze({ id: 'M9', gender: 'm', name: 'Kelechi', file: 'hobo_character.glb', animated: true, parts: Object.freeze([]) }),
+  M10: Object.freeze({ id: 'M10', gender: 'm', name: 'Okechukwu', file: 'zombie_character.glb', animated: true, parts: Object.freeze([]) }),
+  M11: Object.freeze({ id: 'M11', gender: 'm', name: 'Tobenna', file: 'human_character.glb', animated: true, parts: Object.freeze([]) }),
+  M12: Object.freeze({ id: 'M12', gender: 'm', name: 'Chukwudi', file: 'ninja_armor.glb', animated: true, parts: Object.freeze([]) }),
+  M13: Object.freeze({ id: 'M13', gender: 'm', name: 'Ifeanyi', file: 'ninja_warrior.glb', animated: true, parts: Object.freeze([]) }),
 });
 
-export const FIGURE_ORDER = Object.freeze({ f: Object.freeze(['W1', 'W2', 'W3']), m: Object.freeze(['M1', 'M4', 'M5']) });
+export const FIGURE_ORDER = Object.freeze({
+  f: Object.freeze(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13']),
+  m: Object.freeze(['M1', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13']),
+});
 
 // The colours offered on the selection screen. Any colour is accepted from a client that sends a valid number;
 // these are what the screen shows.

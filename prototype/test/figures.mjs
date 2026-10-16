@@ -10,6 +10,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown } from './start.mjs';
+import { FIGURES, FIGURE_ORDER } from '../src/sim/figures.js';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
@@ -49,7 +50,8 @@ const measure = () => {
   return { clip: cur, time: me.current ? +me.current.time.toFixed(2) : 0, running: !!(me.current && me.current.isRunning()), low: +low.toFixed(2), high: +high.toFixed(2), head: +head.y.toFixed(2), pelvis: +pelvis.y.toFixed(2), ground: +me.group.position.y.toFixed(2), doing: me.doing ? me.doing.kind : null, byHand: me.byHand ? me.byHand.kind : null, lying: me.lying ? me.lying.name : null, drop: +me.drop.toFixed(2), tipped: +me.body.rotation.x.toFixed(2) };
 };
 
-const FIG = { W1: ['f', 'Adaeze'], M1: ['m', 'Emeka'], W2: ['f', 'Ngozi'], W3: ['f', 'Amaka'], M4: ['m', 'Ikenna'], M5: ['m', 'Uche'] };
+// every figure a player may be: the women, then the men, in the order the selection screen offers them
+const FIG = Object.fromEntries([...FIGURE_ORDER.f, ...FIGURE_ORDER.m].map((id) => [id, [FIGURES[id].gender, FIGURES[id].name]]));
 for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   const [gender, name] = FIG[id];
   const label = `${id} (${name})`;
@@ -70,7 +72,7 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   await page.waitForTimeout(500);
   const pressed = await page.evaluate(() => [...document.querySelectorAll('#genders [data-gender]')].find((b) => b.getAttribute('aria-pressed') === 'true').dataset.gender);
   check(`${label}: listed as ${gender === 'f' ? 'a woman' : 'a man'}`, pressed === gender, pressed);
-  // the figure drawn on the selection screen arrives (the file is 8 to 21 MB)
+  // the figure drawn on the selection screen arrives (the file is 5 to 36 MB)
   await page.waitForFunction(() => { const c = window.__nlw.creator; return !c || !c.loading || !c.loading(); }, null, { timeout: 240000 }).catch(() => {});
   await page.waitForTimeout(1500);
   await shot('1-chosen');

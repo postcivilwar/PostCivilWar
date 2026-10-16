@@ -12,10 +12,11 @@
 //   is kept under the fingerprint of its contents, so a file that changes is fetched again and a file that
 //   does not is never fetched again, however often the game is brought up to date.
 //
-// The figures are 10 MB and 13 MB. Only one that a player has actually used is kept (the page says which).
+// The figures are 5 to 38 MB each. Only the one a player actually uses is kept (the page says which).
 
 const FILES = /*@@FILES@@*/{};        // path beside the page -> fingerprint of the file's contents
 const FIRST = /*@@FIRST@@*/[];        // kept as soon as this is installed: the page and the small files
+const ASKED = new Set(/*@@ASKED@@*/[]);  // kept only when the page asks: the figures (each 5 to 38 MB), the player's own
 const PAGE = '';                      // the page's own path: the folder this file is in
 const CACHE = 'pcw-files-v1';
 const WAIT = 4000;                    // how long the network has to answer for the page before the kept copy is shown (ms)
@@ -40,14 +41,16 @@ const drop = (response) => { try { if (response && response.body) response.body.
 // ask for a file by the fingerprint it was built with (`?v=`): if that is not the one this worker knows (a page
 // newer than this worker, or older), the file is fetched as it is now and not kept, so that a page and the
 // files it was built with are never mixed with those of another build.
-async function file(path, event) {
+// A figure is not kept just for being fetched (a player looking through the characters fetches many): only when
+// the page asks for it to be (`keep`), which it does for the player's own.
+async function file(path, event, keep = !ASKED.has(path)) {
   const asked = event.request ? new URL(event.request.url).searchParams.get('v') : null;      // (a page's message has no request)
   if (asked && asked !== FILES[path]) return fetch(new Request(event.request.url, { cache: 'no-cache', credentials: 'same-origin' }));
   const cache = await caches.open(CACHE);
   const kept = await cache.match(keyOf(path), { ignoreVary: true });
   if (kept) return kept;
   const response = await fresh(path);
-  if (good(response)) event.waitUntil(cache.put(keyOf(path), response.clone()).catch(() => {}));
+  if (keep && good(response)) event.waitUntil(cache.put(keyOf(path), response.clone()).catch(() => {}));
   return response;
 }
 
@@ -111,7 +114,7 @@ self.addEventListener('message', (event) => {
   const data = event.data || {};
   if (data.type === 'keep') {
     const paths = (Array.isArray(data.paths) ? data.paths : []).filter((path) => path !== PAGE && Object.prototype.hasOwnProperty.call(FILES, path));
-    event.waitUntil(Promise.all(paths.map((path) => file(path, event).then(drop))).catch(() => {}));
+    event.waitUntil(Promise.all(paths.map((path) => file(path, event, true).then(drop))).catch(() => {}));
   }
   if (data.type === 'kept') {
     const reply = (event.ports && event.ports[0]) || event.source;

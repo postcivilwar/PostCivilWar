@@ -198,6 +198,7 @@ export function addTree(solid, leaves, t) {
 
 function addBuilding(B, signs, b) {
   if (b.kind === 'showroom') return;      // drawn by its own code: see buildShowroom
+  if (b.kind === 'tower') return;         // the owner's supplied model, drawn by its own code: see render-powerbike.js
   const { solid, walls, roofs } = B;
   const south = b.door === 's';
   const dir = south ? 1 : -1;

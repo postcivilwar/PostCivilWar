@@ -9,7 +9,7 @@ import { POWER_BIKES } from '../../prototype/src/sim/power-bikes.js';
 import { createRequire } from 'node:module';
 const require = createRequire(import.meta.url);
 const wallet = require('../../api/_lib/wallet.js');
-const { MOTORCYCLES } = require('../../api/_lib/schema.js');
+const { MOTORCYCLES, POWERBIKE, POWERBIKE_STANDS } = require('../../api/_lib/schema.js');
 
 after(() => closeDatabase());
 const TR = 2;
@@ -33,7 +33,11 @@ test('the showroom sells the fifteen motorcycles, each at the game\'s own price,
     assert.equal(l.asset.name, bike.name, id);
     assert.equal(l.price, bike.price * TR, `${id}: the server's price is the game's`);
     assert.equal(l.asset.category, 'motorcycle');
-    assert.equal(l.seller, 'Motorcycle Showroom');
+    // sold by PostCivilWar PowerBike, beside HOLARIS, each from its own stand in the hall (migration 10)
+    assert.equal(l.seller, 'PostCivilWar PowerBike');
+    assert.equal(l.shop, POWERBIKE.shop);
+    assert.deepEqual([l.place.x, l.place.z], POWERBIKE_STANDS[id].slice(0, 2), id);
+    assert.equal(l.place.label, 'PostCivilWar PowerBike, beside HOLARIS Watch, Asaba');
     assert.ok(l.price >= 1000 * TR);
   }
   // the server's own list and the game's agree
@@ -121,4 +125,53 @@ test('earned TR pays the rest; sold on, what starter TR paid comes back as start
   const t = (await owner2.ok('market.open', { listing: again.id, at: { x: 41, z: -11 } })).thread;
   assert.equal((await owner2.call('market.offer', { thread: t.id, offer: uuid(), amount: 1700 * TR })).body.code, 'OWNED');
   await clean();
+});
+
+test('PostCivilWar PowerBike\'s salesman: says who he is, answers about the bike from what is so, and never bargains', async () => {
+  const p = await newPlayer('Asker');
+  const l = (await showroom(p)).find((x) => x.asset.model === 'bike:red-superbike');
+  const { thread, messages } = await p.ok('market.open', { listing: l.id, at: { x: l.place.x + 1.5, z: l.place.z + 1.6 } });
+  assert.equal(thread.automatic, true);
+  // his greeting: the showroom, his name, that his answers are automatic, and the bike's own engine, speed and price
+  const hello = messages[messages.length - 1];
+  assert.equal(hello.from, 'shop');
+  for (const part of ['PostCivilWar PowerBike', 'Obi', 'automatic', 'Red Superbike', '2,500 cc', '212 km/h', '10,000 TR']) assert.ok(hello.body.includes(part), `${part}: ${hello.body}`);
+  const ask = async (text) => { const r = await p.ok('market.say', { thread: thread.id, text, after: 0 }); const last = r.messages[r.messages.length - 1]; assert.equal(last.from, 'shop', text); return last.body; };
+  assert.match(await ask('Tell me about the engine'), /2,500 cc engine/);
+  assert.match(await ask('How fast does it go?'), /212 km\/h/);
+  assert.match(await ask('is it really 2500cc?'), /2,500 cc engine/, 'a figure with cc is a question about the engine, not an offer');
+  assert.match(await ask('Can you give me a discount?'), /price is fixed at 10,000 TR/);
+  assert.match(await ask('I will pay 8000'), /can't take less/);
+  assert.match(await ask('Can I pay with my arrival money?'), /arrival TR included/);
+  assert.match(await ask('Can I take it for a test ride?'), /Once it's yours you can ride it/);
+  assert.match(await ask('How do I get it after I buy?'), /Property on your phone/);
+  assert.match(await ask('Are you a real person?'), /game's people.*automatic/);
+  assert.match(await ask('hello'), /What would you like to know about the Red Superbike/);
+  // asking costs nothing and buys nothing
+  assert.deepEqual(await parts(p), { balance: 2000 * TR, starter: 2000 * TR, eligible: 0 });
+  assert.equal((await p.ok('market.mine')).holdings.length, 0);
+  // the price is the price: Buy pays it, and it is theirs
+  const bought = await p.call('market.offer', { thread: thread.id, offer: uuid(), amount: l.price });
+  assert.equal(bought.body.code, 'FUNDS', 'a 10,000 TR bike is more than the arrival money');
+  const cheap = (await showroom(p)).find((x) => x.asset.model === 'bike:white-sport');
+  const second = await p.ok('market.open', { listing: cheap.id, at: { x: cheap.place.x, z: cheap.place.z - 1.6 } });
+  assert.ok(second.messages[second.messages.length - 1].body.includes('500 cc'));
+  const paid = await p.call('market.offer', { thread: second.thread.id, offer: uuid(), amount: cheap.price });
+  assert.equal(paid.body.offer.status, 'accepted', JSON.stringify(paid.body));
+  assert.deepEqual((await p.ok('market.mine')).holdings.map((h) => h.asset.model), ['bike:white-sport']);
+  await clean();
+});
+
+test('the showroom\'s stands, engines and top speeds are the game\'s own', async () => {
+  const { POWERBIKE: GAME } = await import('../../prototype/src/sim/zones/atani-powerbike.js');
+  assert.equal(GAME.name, POWERBIKE.name);
+  assert.equal(GAME.shop, POWERBIKE.shop);
+  assert.equal(GAME.salesman, POWERBIKE.salesman);
+  assert.deepEqual(Object.keys(POWERBIKE_STANDS).sort(), Object.keys(POWER_BIKES).sort());
+  for (const d of GAME.displays) {
+    const [x, z, cc, kmh] = POWERBIKE_STANDS[d.bike];
+    assert.deepEqual([x, z], [d.x, d.z], d.bike);
+    assert.equal(cc, POWER_BIKES[d.bike].cc, d.bike);
+    assert.equal(kmh, POWER_BIKES[d.bike].topKmh, d.bike);
+  }
 });

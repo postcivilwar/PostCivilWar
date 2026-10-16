@@ -22,6 +22,8 @@ import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, o
 import { ZONE_BILLBOARDS } from './atani-billboards.js';
 import { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, BOULEVARD, LAWN, cityGroundY } from './atani-city.js';
 export * from './atani-city.js';
+import { POWERBIKE, POWERBIKE_COLLIDERS } from './atani-powerbike.js';
+export * from './atani-powerbike.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
 export const ZONE = Object.freeze({
@@ -105,6 +107,9 @@ export const ZONE_BUILDINGS = Object.freeze([
   // HOLARIS Watch (October 2026): three storeys of glass on open ground north of the motor park, west of Market
   // Road. It is drawn by its own code (render-holaris.js), not as a walled building with a pitched roof.
   building('holaris', 'showroom', 'HOLARIS WATCH', -26, 44, 16, 12, 12.6, 's', 0x9fd3e6, 0x16222b),
+  // PostCivilWar PowerBike (16 October 2026): the owner's skyscraper beside HOLARIS, the motorcycle showroom in its
+  // podium. Drawn from the supplied model (render-powerbike.js); entered by its pink column (atani-powerbike.js).
+  building('powerbike', 'tower', 'POSTCIVILWAR POWERBIKE', POWERBIKE.model.x, POWERBIKE.model.z, +(POWERBIKE.footprint.x1 - POWERBIKE.footprint.x0).toFixed(2), +(POWERBIKE.footprint.z1 - POWERBIKE.footprint.z0).toFixed(2), POWERBIKE.model.height, 's', 0x2a3340, 0x11161c),
   ...TOWN_BUILDINGS,
   // the first city block's buildings (not entered: atani-city.js)
   ...CITY_BUILDINGS,
@@ -548,8 +553,9 @@ export function zoneShedWalls(s) {
 
 function buildFixedColliders() {
   const boxes = [];
-  for (const b of ZONE_BUILDINGS) boxes.push(boxOf(b.x, b.z, b.w / 2, b.d / 2));
-  boxes.push(...CITY_COLLIDERS);
+  // (the showroom tower is hollow at its foot: its walls are round its hall, which is walked in)
+  for (const b of ZONE_BUILDINGS) if (b.kind !== 'tower') boxes.push(boxOf(b.x, b.z, b.w / 2, b.d / 2));
+  boxes.push(...CITY_COLLIDERS, ...POWERBIKE_COLLIDERS);
   for (const s of ZONE_STALLS) boxes.push({ x0: s.x - 1.5, x1: s.x + 1.5, z0: s.z - 0.9, z1: s.z + 0.9 });
   for (const m of ZONE_MOULD_STATIONS) boxes.push({ x0: m.x - 0.7, x1: m.x + 0.7, z0: m.z - 0.6, z1: m.z + 0.6 });
   for (const v of ZONE_VEHICLES) {
@@ -890,7 +896,7 @@ function buildTrees() {
   for (const p of ZONE_PARCELS) keepClear.push({ x0: p.x0 - 2, x1: p.x1 + 2, z0: p.z0 - 2, z1: p.z1 + 2 });
   // (the trees were laid out before the city block; it does not move the others: those in its way are taken out below)
   for (const r of [...ZONE_ROADS.filter((q) => q.id !== 'market' && q.id !== 'market-s'), { x0: -5, x1: 5, z0: -216, z1: 118 }]) keepClear.push({ x0: r.x0 - 3, x1: r.x1 + 3, z0: r.z0 - 3, z1: r.z1 + 3 });
-  for (const b of ZONE_BUILDINGS) if (b.kind !== 'city') keepClear.push(boxOf(b.x, b.z, b.w / 2 + 5, b.d / 2 + 6));
+  for (const b of ZONE_BUILDINGS) if (b.kind !== 'city' && b.kind !== 'tower') keepClear.push(boxOf(b.x, b.z, b.w / 2 + 5, b.d / 2 + 6));
   for (const h of ZONE_HOUSES) keepClear.push(boxOf(h.x, h.z, h.w / 2 + 2.5, h.d / 2 + 3.5));
   for (const s of ZONE_SHEDS) keepClear.push(boxOf(s.x, s.z, 6, 6));
   for (const c of ZONE_COMPOUNDS) {
@@ -932,7 +938,9 @@ function buildTrees() {
 const underBridge = (t) => t.x > BRIDGE.x0 - 2 && t.x < BRIDGE.x1 + 2 && t.z > BRIDGE.start - 2;
 // (none where the city block has its road, pavements, buildings and lawn: the lawn has its own trees)
 const inCityWay = (t) => [...PAVEMENTS, { x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0: BOULEVARD.z0, z1: BOULEVARD.z1 }, { x0: LAWN.x0, x1: LAWN.x1, z0: LAWN.z0, z1: LAWN.z1 }, ...CITY_BUILDINGS.map((b) => boxOf(b.x, b.z, b.w / 2, b.d / 2))].some((b) => t.x > b.x0 - 2.5 && t.x < b.x1 + 2.5 && t.z > b.z0 - 2.5 && t.z < b.z1 + 2.5);
-export const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(t) && !inCityWay(t)));
+// (none where the showroom tower stands, or by its pink column: the others are where they were)
+const byPowerbike = (t) => { const f = POWERBIKE.footprint, p = POWERBIKE.portal; return (t.x > f.x0 - 3 && t.x < f.x1 + 3 && t.z > f.z0 - 3 && t.z < f.z1 + 3) || Math.hypot(t.x - p.x, t.z - p.z) < 6; };
+export const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(t) && !inCityWay(t) && !byPowerbike(t)));
 
 // Beyond the town (atani-outskirts.js): the road to Onitsha, the airport and the bridge. They are walked and
 // driven on like the town's own ground, and their walls are walls; the town's own layout is unchanged by them.

@@ -70,7 +70,8 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
   function keepFigure(id) {
     const path = figures[id];
     const arriving = win.__PCW_FIGURE_BYTES && win.__PCW_FIGURE_BYTES[id];
-    if (!path || !arriving || told.has(id)) return;
+    // only the player's own: one looked at among the characters, or seen on someone else, is not kept
+    if (!path || !arriving || told.has(id) || id !== figure()) return;
     told.add(id);
     Promise.resolve(arriving).then(() => { tell({ type: 'keep', paths: [path] }); }).catch(() => { told.delete(id); });
   }

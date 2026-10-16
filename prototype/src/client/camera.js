@@ -46,8 +46,9 @@ export function nextView(current, where) {
 export const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).includes(current) ? current : (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot)[0]);
 
 // `blocked(x, z, y)` says whether a point is inside something solid, or above a low roof that
-// would hide whoever stands under it.
-export function createCameraRig(camera, { blocked, wallHeight = 4.2 } = {}) {
+// would hide whoever stands under it. `tall(x, z)`, if given, is how high a building far taller than the
+// eaves stands there (0 where there is none): up to its top, it is solid too.
+export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null } = {}) {
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, arm: 8, rise: 0 };
   const eye = new THREE.Vector3(), aim = new THREE.Vector3();
   let view = 'behind';
@@ -60,24 +61,41 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2 } = {}) {
     const steps = Math.max(2, Math.ceil(dist / 0.45));
     for (let i = 2; i <= steps; i += 1) {
       const d = (dist * i) / steps;
-      if (ty + dy * d > wallHeight) break;                     // above the eaves: nothing up there to be inside
-      if (blocked(tx + dx * d, tz + dz * d, ty + dy * d)) return Math.max(0.2, (dist * (i - 1)) / steps - 0.25);
+      const x = tx + dx * d, y = ty + dy * d, z = tz + dz * d;
+      if (y > wallHeight) {
+        // above the eaves: nothing up there to be inside, but a tower
+        if (!tall) break;
+        if (y > tall(x, z)) continue;
+      }
+      if (blocked(x, z, y)) return Math.max(0.2, (dist * (i - 1)) / steps - 0.25);
     }
     return dist;
+  }
+  // How far along the line from the target a camera can stand and still be inside a room it may not leave
+  // (`room`: { x0, z0, x1, z1, top }), a little off its walls.
+  function inRoom(room, tx, ty, tz, dx, dy, dz, dist) {
+    if (!room) return dist;
+    const m = 0.3;
+    let d = dist;
+    if (dx > 1e-6) d = Math.min(d, (room.x1 - m - tx) / dx); else if (dx < -1e-6) d = Math.min(d, (room.x0 + m - tx) / dx);
+    if (dz > 1e-6) d = Math.min(d, (room.z1 - m - tz) / dz); else if (dz < -1e-6) d = Math.min(d, (room.z0 + m - tz) / dz);
+    if (dy > 1e-6) d = Math.min(d, (room.top - m - ty) / dy);
+    return Math.max(0.2, d);
   }
 
   // Places the camera for this frame.
   //   cam      { yaw, pitch, dist }: what the player has set by dragging and zooming
   //   target   { x, y, z }: what is looked at
   //   heading  which way the player or vehicle faces
-  //   indoors  null, or { pitch, dist }: limits while under a roof
+  //   indoors  null, or { pitch, dist, maxPitch }: limits while under a roof
+  //   room     null, or { x0, z0, x1, z1, top }: a hall the camera stays inside (it looks from within it)
   //   dragged  seconds since the player last dragged the view
-  function update(dt, { cam, target, heading, indoors = null, dragged = 99, eyeHeight = 1.55 }) {
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55 }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.behind;
     const ease = Math.min(1, dt * 5);
     let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : v.dist;
     let wantPitch = v.pitch === null || v.pitch === undefined ? cam.pitch : v.pitch;
-    if (indoors && !v.seat) { wantPitch = Math.max(wantPitch, indoors.pitch); wantDist = Math.min(wantDist, indoors.dist); }
+    if (indoors && !v.seat) { wantPitch = Math.max(wantPitch, indoors.pitch); if (indoors.maxPitch !== undefined) wantPitch = Math.min(wantPitch, indoors.maxPitch); wantDist = Math.min(wantDist, indoors.dist); }
     live.dist += (wantDist - live.dist) * ease;
     live.pitch += (wantPitch - live.pitch) * ease;
     live.turn += ((v.turn || 0) - live.turn) * ease;
@@ -100,7 +118,8 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2 } = {}) {
     // figure had to be left undrawn, and the player seemed to have vanished): it rises over what is in the way,
     // looking down, as high as it needs and no higher, and comes back down when the way is clear.
     // (not under a roof: there the camera keeps below the eaves, as before)
-    const roofed = !!blocked && (blocked(tx, tz, ty + 1.0) || blocked(tx, tz, ty + 2.4));
+    // (in a hall the camera keeps inside: it comes in toward the player rather than rising through the ceiling)
+    const roofed = !!room || (!!blocked && (blocked(tx, tz, ty + 1.0) || blocked(tx, tz, ty + 2.4)));
     if (!v.seat && !roofed) {
       const clearAt = (p) => { const c = Math.cos(p); return clearance(tx, ty, tz, -Math.sin(yaw) * c, Math.sin(p), -Math.cos(yaw) * c, live.dist); };
       let need = 0;
@@ -116,16 +135,18 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2 } = {}) {
     // With something solid close behind, the camera comes in along its own line: quickly, so it is never
     // inside the wall, and out again slowly. Closer than arm's length it would be pressed against the back
     // of the player's head, so from there it sees with the player's eyes and the figure is not drawn.
-    const room = v.seat ? live.dist : clearance(tx, ty, tz, dx, dy, dz, live.dist);
+    const space = v.seat ? live.dist : Math.min(clearance(tx, ty, tz, dx, dy, dz, live.dist), inRoom(room, tx, ty, tz, dx, dy, dz, live.dist));
     // In, it eases over a few frames rather than jumping, but is never left more than a hand's width inside
     // whatever is in the way; out, it takes its time, so a post passing behind does not make the view pump.
-    live.arm = room < live.arm ? Math.max(room, Math.min(room + 0.12, live.arm + (room - live.arm) * Math.min(1, dt * 24))) : live.arm + (room - live.arm) * Math.min(1, dt * 2.5);
+    live.arm = space < live.arm ? Math.max(space, Math.min(space + 0.12, live.arm + (space - live.arm) * Math.min(1, dt * 24))) : live.arm + (space - live.arm) * Math.min(1, dt * 2.5);
     close = live.arm < (close ? NEAR + 0.5 : NEAR);          // a little slack, so it does not flicker at the edge
     // on foot the figure is always drawn: where even the view from above is blocked (a doorway), the camera
     // stays at arm's length, never inside the head. Only a view from a seat sees with the player's own eyes.
     const near = close && !!v.seat;
     const dist = near ? Math.min(live.arm, 0.25) : Math.max(live.arm, v.seat ? 0 : 1.1);
     eye.set(tx + dx * dist, Math.max(0.5, ty + dy * dist), tz + dz * dist);
+    // (kept inside the hall's walls even at arm's length)
+    if (room) { eye.x = Math.max(room.x0 + 0.15, Math.min(room.x1 - 0.15, eye.x)); eye.z = Math.max(room.z0 + 0.15, Math.min(room.z1 - 0.15, eye.z)); eye.y = Math.min(room.top - 0.15, eye.y); }
     aim.set(tx, ty, tz);
     if (live.seat > 0.002) {
       // from the seat: the eye is the player's own, looking where they face (and a little about, if dragged)

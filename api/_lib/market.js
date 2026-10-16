@@ -14,7 +14,7 @@
 
 const { ApiError } = require('./http.js');
 const { allow } = require('./auth.js');
-const { SCHEMA: S } = require('./schema.js');
+const { SCHEMA: S, POWERBIKE, POWERBIKE_STANDS, MOTORCYCLES } = require('./schema.js');
 const wallet = require('./wallet.js');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -207,7 +207,7 @@ async function open(sql, me, body) {
       if (!(far <= REACH)) throw new ApiError(403, 'TOO_FAR', `Go to ${listing.place_label} to talk to the seller.`);
       await allow(tx, `threads:${me.id}`, 30, 3600);
       thread = (await tx.unsafe(`insert into ${S}.threads (listing_id, buyer_id, seller_id) values ($1, $2, $3) on conflict (listing_id, buyer_id) do update set last_at = now() returning *`, [listingId, me.id, listing.seller_id]))[0];
-      if (listing.kind === 'primary') await say(tx, thread.id, null, 'attendant', `Welcome to ${listing.shop_name}. The ${listing.asset_name} is ${trText(listing.price)}. ${leftText(listing)}`);
+      if (listing.kind === 'primary') await say(tx, thread.id, null, 'attendant', isShowroom(listing) ? salesmanGreeting(listing) : `Welcome to ${listing.shop_name}. The ${listing.asset_name} is ${trText(listing.price)}. ${leftText(listing)}`);
     }
     return threadView(tx, me, thread, 0);
   });
@@ -233,6 +233,50 @@ function attendantReply(listing, text, alreadyExplained) {
   return alreadyExplained ? null : `I am this shop's attendant: a machine, not a person. I can tell you the price and how many are left, and take your payment. The ${listing.asset_name} is ${trText(price)}.`;
 }
 
+// The salesman of PostCivilWar PowerBike, for a motorcycle on its floor. He is one of the game's people and says so
+// the first time: his answers are made here, by rule, from what the showroom knows of the bike (its name, its
+// engine and top speed, its price, what it looks like), and he says nothing that is not so. Like any shop, he
+// never bargains: the price is the price.
+const isShowroom = (listing) => listing.kind === 'primary' && listing.shop === POWERBIKE.shop;
+function bikeFacts(listing) {
+  const id = String(listing.model || '').replace(/^bike:/, '');
+  const stand = POWERBIKE_STANDS[id], m = MOTORCYCLES.find((x) => x.id === id);
+  return { id, cc: stand ? stand[2] : null, kmh: stand ? stand[3] : null, blurb: (m && m.blurb) || listing.blurb || '' };
+}
+const lowerFirst = (text) => (text ? text.charAt(0).toLowerCase() + text.slice(1) : text);
+function salesmanGreeting(listing) {
+  const f = bikeFacts(listing);
+  return `Welcome to ${POWERBIKE.name}! I'm ${POWERBIKE.salesman}, the salesman here (one of the game's people: my answers are automatic). This is the ${listing.asset_name}${f.cc ? `: ${f.cc.toLocaleString('en-GB')} cc, about ${f.kmh} km/h flat out` : ''}. It's ${trText(listing.price)}. Ask me anything about it, or press Buy when you're ready.`;
+}
+function salesmanReply(listing, text) {
+  const f = bikeFacts(listing), name = listing.asset_name, price = Number(listing.price);
+  const t = text.toLowerCase();
+  const has = (re) => re.test(t);
+  if (listing.status !== 'open') return `I'm sorry: the ${name} is not on sale just now.`;
+  const figure = (text.match(/\d[\d,]*(?:\.\d+)?/) || [''])[0].replace(/,/g, '');
+  const aboutEngine = has(/\d\s*cc\b|\b(cc|engine|motor|cylinders?|power(ful)?|horse ?power|hp|torque|displacement)\b/);
+  const aboutSpeed = has(/\d\s*(km|kmh|km\/h|mph)\b|\b(fast|speed|top|km|kmh|km\/h|mph|quick|quickest)\b/);
+  if (figure && !aboutEngine && !aboutSpeed) {
+    const offered = Math.round(Number(figure) * TR);
+    return offered < price ? `The ${name} is ${trText(price)}, the same for everyone: I can't take less. Press Buy when you're ready.` : `${trText(price)} it is. Press Buy to pay, and it's yours.`;
+  }
+  if (has(/\b(who are you|your name|are you (a )?(real|human|person|bot|robot|machine)|real person|human|robot|bot)\b/)) return `I'm ${POWERBIKE.salesman}, the salesman at ${POWERBIKE.name}: one of the game's people. My answers are automatic, but what I tell you about the bikes and their prices is true.`;
+  if (has(/\b(discount|reduce|reduction|lower|less|cheaper price|negotiat\w*|bargain|haggle|last price|best price|deal)\b/)) return `I'm sorry: the price is fixed at ${trText(price)}. Nobody haggles at ${POWERBIKE.name}, and nobody pays more than the price either.`;
+  if (aboutEngine) return f.cc ? `The ${name} has a ${f.cc.toLocaleString('en-GB')} cc engine. ${f.blurb}` : `The ${name}: ${lowerFirst(f.blurb)}`;
+  if (aboutSpeed) return f.kmh ? `Flat out, the ${name} does about ${f.kmh} km/h${f.kmh >= 200 ? ': one of the fastest machines on our floor' : f.kmh <= 110 ? ': easy and friendly, a good first bike' : ''}.` : `It's quick enough for anyone: ask me about its engine.`;
+  if (has(/\b(starter|arrival|pay with|payment|card|cash|wallet|afford)\b/)) return `Any TR in your wallet pays for it, your arrival TR included: a motorcycle is one thing arrival money can buy. It's ${trText(price)}.`;
+  if (has(/\b(price|cost|how much|expensive|cheap|tr)\b/)) return `The ${name} is ${trText(price)}. That's the showroom's price, the same for everyone.`;
+  if (has(/\b(test|try|test ride|ride it|demo)\b/)) return `Not off the floor, I'm afraid. Once it's yours you can ride it straight away: outside, open Property on your phone and choose to ride it, and it's brought to you.`;
+  if (has(/\b(deliver|delivery|collect|pick it up|where do i get|get it|bring)\b/)) return `Once it's yours it's in Property on your phone. Step outside, choose to ride it there, and it's brought to wherever you're standing.`;
+  if (has(/\b(colou?r|paint|look|style|design|seat|wheels?|chrome)\b/)) return f.blurb || `Have a walk round it: it looks even better close up.`;
+  if (has(/\b(how many|stock|left|available|in stock|sold out|own)\b/)) return `It's new from the showroom, and there's no shortage: you can own one of each of our motorcycles.`;
+  if (has(/\b(other|another|recommend|best|which one|suggest|first bike|beginner)\b/)) return `Every bike here has a plate with its engine, top speed and price. For a first bike the Streetfighter, the Café Racer and the White Sport Tourer are ${trText(1000 * TR)} each; the Chrome V-Concept on the turntable is our flagship.`;
+  if (has(/\b(buy|take it|i want it|i'?ll take|purchase)\b/)) return `Good choice. Press Buy and it's yours for ${trText(price)}.`;
+  if (has(/\b(thank|thanks|cheers|great|nice|cool|ok|okay|alright)\b/)) return `You're welcome! Take your time: I'm right here if you have any questions.`;
+  if (has(/\b(hi|hello|hey|good (morning|afternoon|evening)|kedu|bawo|sannu)\b/)) return `Hello! What would you like to know about the ${name}? Its engine, its top speed, its price?`;
+  return `I can tell you about the ${name}'s engine, its top speed and its price, or how to pay. Ask away, or press Buy when you're ready.`;
+}
+
 async function write(sql, me, body) {
   const text = cleanText(body.text, 400);
   if (!text) throw new ApiError(400, 'EMPTY', 'There is nothing to send.');
@@ -244,7 +288,7 @@ async function write(sql, me, body) {
     if (thread.seller_id === null) {
       const listing = (await tx.unsafe(`${LISTING} where l.id = $1`, [thread.listing_id]))[0];
       const explained = (await tx.unsafe(`select 1 from ${S}.messages where thread_id = $1 and kind = 'attendant' and body like 'I am this shop''s attendant%' limit 1`, [thread.id])).length > 0;
-      const reply = attendantReply(listing, text, explained);
+      const reply = isShowroom(listing) ? salesmanReply(listing, text) : attendantReply(listing, text, explained);
       if (reply) await say(tx, thread.id, null, 'attendant', reply);
     }
     return threadView(tx, me, thread, Number(body.after));
@@ -518,4 +562,4 @@ async function adminList(sql, me, body) {
   return { listing: listingView((await sql.unsafe(`${LISTING} where l.id = $1`, [made[0].id]))[0], me) };
 }
 
-module.exports = { list, mine, sync, open, read, write, offer, withdraw, decide, sell, unlist, adminAssets, adminList, UUID };
+module.exports = { list, mine, sync, open, read, write, offer, withdraw, decide, sell, unlist, adminAssets, adminList, UUID, salesmanGreeting, salesmanReply };

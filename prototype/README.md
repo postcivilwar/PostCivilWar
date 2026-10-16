@@ -1494,6 +1494,62 @@ boulevard (`src/sim/zones/atani-city.js` says what is where; `src/client/render-
   own motorcycles. People wait at the kerb for a few seconds rather than for the walkers' signal. The rest of the
   map is as it was until this block is approved.
 
+## PostCivilWar PowerBike, and eighteen more characters (16 October 2026)
+
+### PostCivilWar PowerBike
+
+The motorcycle showroom is the owner's supplied skyscraper (`assets/buildings/powerbike/skyscraper.glb`, 7,985
+triangles and one 8192-pixel picture, used exactly as supplied and served beside the page as `powerbike.glb`), stood
+46 m tall on the open ground just west of HOLARIS Watch, about 10 m from it, the two fronts facing the same way
+(`src/sim/zones/atani-powerbike.js` says where everything is; `src/client/render-powerbike.js` draws it).
+
+- **Its name.** What the model said of another company (a name across the podium, a badge high on the central tower)
+  is covered by the showroom's own: a band across the podium (the canonical rising sun, POSTCIVILWAR, and POWERBIKE
+  in gold, leaning forward with speed lines), a panel with the logo where the badge was, and the name standing on
+  top of the central tower on posts, facing the town both ways, as HOLARIS's stands on its roof. The file is not
+  changed.
+- **One way in.** The pink columns that stood for each motorcycle are gone; one stands before the showroom's doors.
+  Stepping into it darkens the screen, the simulation sets the player down just inside the doors
+  (`showroom.in`), and the screen comes back on the hall. The mat by the doors takes them out the same way
+  (`showroom.out`), beside the column. HOLARIS's own column, attendant and sale are as they were.
+- **The hall,** under the podium: a polished tiled floor, white walls, a glass front with the doors, lit panels in
+  the ceiling, the name on the back wall, framed pictures of the bikes, the salesman's desk, a lounge and plants.
+  The fifteen motorcycles stand in three rows on round white stands with a light round each foot and a plate with
+  the name, engine, top speed and price, with at least 1.6 m between stands; the Chrome V-Concept turns on a
+  turntable in the middle. Inside, the building round the hall is not drawn, the camera stays inside the walls and
+  under the ceiling, and the light is the hall's own (white, all round and from overhead, by day and by night).
+- **The motorcycles,** drawn cheaply enough for a phone: the nearest two (phone) or three (computer) within 6.5 m
+  are the owner's models themselves, the nearest at full detail on a computer; every other one is a picture of the
+  same model taken from the side it is seen from (24 sides, `tools/vehicles/bike_impostors.mjs`, lit as the hall is
+  lit), at its own size, where it stands.
+- **The salesman, Obi,** one of the game's own figures in a white shirt and a dark red tie (`src/sim/salesman.js`).
+  Nobody in: he waits at his desk. One or two customers: he keeps with one of them, a step to their side, and comes
+  round to them when they stop at a motorcycle. Three or more: he walks the floor, stopping with whoever is near.
+  Whoever asks about a motorcycle first has him until they finish. Every device works him out from what all of them
+  share (who is in the hall and where, who is asking about which bike and since when, the clock), so every player in
+  the showroom sees him do the same, to within the moment it takes word of a player to arrive. Nobody walks through
+  him.
+- **Asking about a motorcycle.** At a stand the player is offered **Ask**. The phone's conversation opens on that
+  motorcycle: its card (picture, engine, top speed, price), Obi's greeting, questions to tap (engine, top speed,
+  arrival money, test ride, delivery, discount) and a place to type; **Buy** pays the showroom's price. He answers
+  by rule from what the showroom knows of the bike (`api/_lib/market.js`, `salesmanReply`), says the first time that
+  he is one of the game's people and his answers are automatic, and never bargains. Meanwhile, in the hall, the
+  player turns to him and the two talk face to face (`src/client/talk-gestures.js`): whoever has just said something
+  speaks with the hands (beats of the right hand, the left following, open palms turning), the head and the chest
+  turned to the other; the other listens, hands together, nodding now and then. Turns follow the conversation as it
+  is written. Other players asking him are seen doing the same, by turns.
+- **The conversation on the phone,** for every deal: a glassy header with who it is with, the thing on a card,
+  bubbles that rise into place as they arrive (not each time the screen is drawn), a shop's answer shown being
+  written while it comes, a pill to type in at 16 px, and every button a finger's size.
+- **The market.** The fifteen listings are the same ones at the same prices; migration 10 renames the shop
+  PostCivilWar PowerBike and puts each listing at its stand. The map shows one pin for the showroom, at its column.
+
+### Eighteen more characters
+
+Ten women (W4–W13) and eight men (M6–M13), the owner's supplied rigged and animated GLBs, used byte for byte and
+added to the women's and the men's lists of the choice; one upload was a copy of another and is not used. See
+`assets/characters/figures/README.md`.
+
 ## Tests
 
 ```
@@ -1511,6 +1567,7 @@ node test/touch.mjs                                # real touch input: Run, the 
 node test/hold.mjs                                 # the handset in the hand, measured on both figures
 node test/sound.mjs                                # how loud each group of sounds is
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
+../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
 node test/bike.mjs out/                            # the power bike's controls and engines (with nothing to ride yet)
 node test/outskirts.mjs out/                       # the road to Onitsha, the airport and the bridge, walked
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings

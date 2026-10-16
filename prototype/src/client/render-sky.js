@@ -18,6 +18,13 @@ const KEYS = [
   [24, 0x070b1f, 0x101a3a, 0x8fa8ff, 0.1, 0.16],
 ];
 
+// The light in PostCivilWar PowerBike's hall: white, all round and from straight above, exactly as its motorcycles'
+// pictures were taken (tools/vehicles/bike_impostors.mjs), so that a picture and the model drawn in its place agree.
+const OVERHEAD = new THREE.Vector3(0.001, 1, 0.001).normalize();
+const WHITE = new THREE.Color(1, 1, 1);
+const HALL_FLOOR = new THREE.Color(0x8a8478);
+const HALL_LIGHT = Object.freeze({ all: 1.0, key: 0.75 });
+
 function sample(hour) {
   let a = KEYS[0];
   let b = KEYS[KEYS.length - 1];
@@ -110,7 +117,9 @@ export function createSky(scene, renderer) {
   let flash = 0;
   const tmp = new THREE.Vector3();
 
-  function update(dt, hour, weather, focus, camera) {
+  // `indoor` (0 to 1): how far the light is a hall's own (PostCivilWar PowerBike): its ceiling's panels, white, from
+  // above and all round, the same by day and by night; and no rain falling.
+  function update(dt, hour, weather, focus, camera, indoor = 0) {
     const s = sample(hour);
     const targetCover = { clear: 0.12, cloudy: 0.75, rain: 0.92, storm: 1 }[weather.kind];
     cover += (targetCover - cover) * Math.min(1, dt * 0.9);
@@ -140,6 +149,8 @@ export function createSky(scene, renderer) {
     const lit = isDay ? trueToGrid(Math.cos(dayAngle), 0.34, ZONE.gridBearing) : trueToGrid(-0.45, 0.4, ZONE.gridBearing);
     const dir = tmp.set(lit.x, isDay ? Math.max(0.12, up) : 0.8, lit.z);
     dir.normalize();
+    // (indoors, from straight above: a hair off it, so that the shadow's camera has a way to face)
+    if (indoor > 0) dir.lerp(OVERHEAD, indoor).normalize();
     sun.position.copy(focus).addScaledVector(dir, 200);
     sun.target.position.copy(focus);
     sun.color.copy(s.sun);
@@ -147,6 +158,10 @@ export function createSky(scene, renderer) {
     hemi.intensity = s.ambient * (1 - dull * 0.25) + flash * 0.6;
     hemi.color.copy(s.top).lerp(new THREE.Color(1, 1, 1), 0.55);
     hemi.groundColor.copy(linear(0x8a7a5a)).multiplyScalar(0.7 + s.ambient * 0.5);
+    if (indoor > 0) {
+      sun.color.lerp(WHITE, indoor); sun.intensity += (HALL_LIGHT.key - sun.intensity) * indoor;
+      hemi.color.lerp(WHITE, indoor); hemi.groundColor.lerp(HALL_FLOOR, indoor); hemi.intensity += (HALL_LIGHT.all - hemi.intensity) * indoor;
+    }
 
     dome.position.copy(camera.position);
     stars.position.copy(camera.position);
@@ -165,7 +180,7 @@ export function createSky(scene, renderer) {
     clouds.rotation.y += dt * 0.004;
 
     rain.material.opacity = wetness * 0.55;
-    rain.visible = wetness > 0.02;
+    rain.visible = wetness > 0.02 && indoor < 0.5;
     if (rain.visible) {
       const fall = 26;
       for (let i = 0; i < DROPS; i += 1) {

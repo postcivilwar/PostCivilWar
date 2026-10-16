@@ -17,10 +17,10 @@ import { characterSpec, configFromLook } from '../src/sim/characters.js';
 import { createHost } from '../src/sim/host.js';
 import { encodePlayer, decodePlayer } from '../src/net/link.js';
 import { ZONE } from '../src/sim/zone.js';
-import { parseGLB, animationLabel, boneName } from '../src/client/glb.js';
+import { parseGLB, figureLabels, boneName } from '../src/client/glb.js';
 import { ANIMATED } from '../src/client/animated.js';
 import { SEAT_POSE } from '../src/client/seat-pose.js';
-import { BORROWED, SEATS } from '../src/client/figure-borrowed.js';
+import { figureMoves, borrowedFor, seatFor } from '../src/client/figure-moves.js';
 
 const master = (file) => { const b = readFileSync(new URL(`../assets/characters/figures/animated/${file}`, import.meta.url)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
 const MASTERS = {
@@ -31,12 +31,45 @@ const MASTERS = {
   W3: { file: 'police.glb', md5: 'd7f5ddcf60e8e56583ed93db5ef2ed36', animations: 18, joints: 61, images: 1 },
   M4: { file: 'priest.glb', md5: 'cb27d9d600e3a46a67c509fc58854d65', animations: 19, joints: 65, images: 3 },
   M5: { file: 'warrior.glb', md5: '230877a24a149d161f015fc06706e3b8', animations: 14, joints: 65, images: 1 },
+  // supplied on 16 October 2026 (two of the files supplied were one figure: zombie_character.glb is the fuller)
+  W4: { file: 'female_figure.glb', md5: '704224bcbfca52bec3313d7f68b6845c', animations: 11, joints: 65, images: 3 },
+  W5: { file: 'athletic_outfit.glb', md5: '39a99defd263d62da1c9a39ce85bb9e9', animations: 14, joints: 65, images: 3 },
+  W6: { file: 'fashion_model_3.glb', md5: 'a625ebbdff017179f4800a881e6f800f', animations: 20, joints: 65, images: 2 },
+  W7: { file: 'zombie_survivor.glb', md5: '224c67af76e9f7f77491ea1fedab6a86', animations: 16, joints: 65, images: 3 },
+  W8: { file: 'female_character_2.glb', md5: '18f21504e75078151633b60aecabdf01', animations: 13, joints: 65, images: 3 },
+  W9: { file: 'horror_nurse.glb', md5: '9ec2b92e0944108a8396163e8b58d7b5', animations: 12, joints: 65, images: 3 },
+  W10: { file: 'camouflage_bikini.glb', md5: 'ae932d015787db7a79eb26b5b0db6d55', animations: 9, joints: 65, images: 3 },
+  W11: { file: 'swimwear_model.glb', md5: 'abe7b532432707b1c28ed437237fb512', animations: 11, joints: 65, images: 1 },
+  W12: { file: 'fashion_model_2.glb', md5: '1774dfb2ee13c401bb5cd3e2e0025f97', animations: 12, joints: 65, images: 1 },
+  W13: { file: 'fashion_model_1.glb', md5: '4b7bfb20bafa2d4e36811cb08c8c3c82', animations: 28, joints: 65, images: 2 },
+  M6: { file: 'male_figure.glb', md5: '3a7aa49293940b7c11a5fc8f61711add', animations: 16, joints: 65, images: 1 },
+  M7: { file: 'zombie.glb', md5: 'a5a3a1561d549d934b0aa60dc296a4e7', animations: 15, joints: 65, images: 3 },
+  M8: { file: 'horror_character.glb', md5: '8d0f497ef08709b97970744cdd50e650', animations: 13, joints: 65, images: 3 },
+  M9: { file: 'hobo_character.glb', md5: 'b9f0f14679183e9e0c202b748a92adc5', animations: 18, joints: 65, images: 3 },
+  M10: { file: 'zombie_character.glb', md5: '73312db769b15a5f9851aa3d69e96445', animations: 21, joints: 65, images: 3 },
+  M11: { file: 'human_character.glb', md5: 'c510cb7e8f781e336c6bb432fc9a36d1', animations: 10, joints: 65, images: 1 },
+  M12: { file: 'ninja_armor.glb', md5: '7bfb69491e40c80877b094ae1155d65a', animations: 15, joints: 65, images: 1 },
+  M13: { file: 'ninja_warrior.glb', md5: 'c7a13d9945a3c46ebbc6f502955329bf', animations: 27, joints: 65, images: 1 },
 };
+const NEW_WOMEN = ['W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13'];
+const NEW_MEN = ['M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13'];
 
-test('three women and three men, each drawn from the file the owner supplied, which is kept unchanged', () => {
-  assert.deepEqual(FIGURE_ORDER.f, ['W1', 'W2', 'W3']);
-  assert.deepEqual(FIGURE_ORDER.m, ['M1', 'M4', 'M5']);
-  assert.deepEqual(Object.keys(FIGURES).sort(), ['M1', 'M4', 'M5', 'W1', 'W2', 'W3']);
+test('thirteen women and eleven men, each drawn from the file the owner supplied, which is kept unchanged', () => {
+  assert.deepEqual(FIGURE_ORDER.f, ['W1', 'W2', 'W3', ...NEW_WOMEN]);
+  assert.deepEqual(FIGURE_ORDER.m, ['M1', 'M4', 'M5', ...NEW_MEN]);
+  assert.deepEqual(Object.keys(FIGURES).sort(), Object.keys(MASTERS).sort());
+  // no figure is in the game twice: every file is a different figure (its mesh and its textures differ)
+  const shapes = new Set(), files = new Set();
+  for (const f of Object.values(FIGURES)) {
+    const parsed = parseGLB(master(f.file));
+    const a = parsed.json.accessors[parsed.json.meshes[0].primitives[0].attributes.POSITION];
+    shapes.add(`${a.count}:${a.max.join(',')}`); files.add(f.file);
+  }
+  assert.equal(shapes.size, Object.keys(FIGURES).length, 'each figure has its own shape');
+  assert.equal(files.size, Object.keys(FIGURES).length);
+  // the new ones are the women and the men they were seen to be
+  for (const id of NEW_WOMEN) assert.equal(FIGURES[id].gender, 'f', id);
+  for (const id of NEW_MEN) assert.equal(FIGURES[id].gender, 'm', id);
   for (const id of FIGURE_ORDER.f) assert.equal(FIGURES[id].gender, 'f', `${id} is a woman`);
   for (const id of FIGURE_ORDER.m) assert.equal(FIGURES[id].gender, 'm', `${id} is a man`);
   // the ids of the figures taken out on 8 October are not given to new ones: an old save naming one stays as it was
@@ -45,7 +78,7 @@ test('three women and three men, each drawn from the file the owner supplied, wh
   for (const f of Object.values(FIGURES)) {
     assert.ok(f.animated && ANIMATED[f.id], `${f.id} is drawn from its own file`);
     assert.equal(f.file, MASTERS[f.id].file);
-    assert.equal(createHash('md5').update(Buffer.from(master(f.file))).digest('hex'), MASTERS[f.id].md5, `${f.file} is the file supplied on 8 October 2026`);
+    assert.equal(createHash('md5').update(Buffer.from(master(f.file))).digest('hex'), MASTERS[f.id].md5, `${f.file} is the file as it was supplied`);
     assert.deepEqual(f.parts, [], 'drawn as supplied: no part of it takes a colour');
   }
   assert.equal(FIGURES.W1.gender, 'f'); assert.equal(FIGURES.M1.gender, 'm');
@@ -58,13 +91,13 @@ for (const [id, m] of Object.entries(MASTERS)) {
     assert.equal(parsed.json.skins[0].joints.length, m.joints);
     assert.equal(parsed.json.images.length, m.images, 'the textures are inside the file');
     assert.equal(parsed.animations.length, m.animations);
-    const labels = parsed.animations.map((a) => animationLabel(a.name));
+    const labels = figureLabels(parsed.animations.map((a) => a.name));
     assert.equal(new Set(labels).size, m.animations, `every animation has its own name: ${labels.join(' ')}`);
     for (const l of labels) assert.match(l, /^[A-Z][a-z]+$/, 'one word each');
     // standing, walking, running and swimming: the file's own, or (named ~) borrowed from another supplied figure
     const spec = ANIMATED[id];
     for (const a of [spec.walk, spec.run, spec.still, spec.swim]) {
-      if (a.startsWith('~')) assert.ok(BORROWED[m.file] && BORROWED[m.file][a.slice(1)], `${a} is borrowed for ${m.file}`);
+      if (a.startsWith('~')) assert.ok(borrowedFor(m.file)[a.slice(1)], `${a} is borrowed for ${m.file}`);
       else assert.ok(parsed.animations.some((x) => x.name === a), `${a} is in the file`);
     }
     // what is shown for each thing that happens to it is in its own file
@@ -88,7 +121,7 @@ test('the sitting pose is the woman\'s own sit animation, and fits both skeleton
 });
 
 test('what a figure lacks is borrowed onto its own bones, and each new figure has a seat of its own', () => {
-  for (const [file, moves] of Object.entries(BORROWED)) for (const [as, b] of Object.entries(moves)) {
+  for (const [file, moves] of Object.entries(figureMoves().borrowed)) for (const [as, b] of Object.entries(moves)) {
     const parsed = parseGLB(master(file));
     const bones = new Set(parsed.json.skins[0].joints.map((j) => boneName(parsed.json.nodes[j].name)));
     for (const bone of b.bones) assert.ok(bones.has(bone), `${file} ${as}: ${bone} is one of its bones`);
@@ -96,12 +129,15 @@ test('what a figure lacks is borrowed onto its own bones, and each new figure ha
     assert.equal(Buffer.from(b.data, 'base64').length, b.frames * b.bones.length * 4 * 2);
     assert.ok(!parseGLB(master(file)).animations.some((a) => a.name.replace(/\.\d+$/, '') === as), `${file} has no ${as} of its own`);
   }
-  for (const file of ['athlete.glb', 'police.glb', 'priest.glb', 'warrior.glb']) {
+  for (const file of ['athlete.glb', 'police.glb', 'priest.glb', 'warrior.glb', ...[...NEW_WOMEN, ...NEW_MEN].map((id) => FIGURES[id].file)]) {
     const parsed = parseGLB(master(file));
     const bones = new Set(parsed.json.skins[0].joints.map((j) => boneName(parsed.json.nodes[j].name)));
-    assert.ok(Object.keys(SEATS[file]).length >= 20, file);
-    for (const bone of Object.keys(SEATS[file])) assert.ok(bones.has(bone), `${file}: ${bone}`);
+    assert.ok(Object.keys(seatFor(file)).length >= 20, file);
+    for (const bone of Object.keys(seatFor(file))) assert.ok(bones.has(bone), `${file}: ${bone}`);
   }
+  // a woman borrows the woman's walk and run, a man the man's walk and the warrior's run
+  for (const id of NEW_WOMEN) for (const [as, b] of Object.entries(borrowedFor(FIGURES[id].file))) if (as === 'walk' || as === 'run') assert.match(b.from, /^woman\.glb#/, `${id} ${as}`);
+  for (const id of NEW_MEN) for (const [as, b] of Object.entries(borrowedFor(FIGURES[id].file))) if (as === 'walk' || as === 'run') assert.match(b.from, /^(muscular_male|warrior)\.glb#/, `${id} ${as}`);
 });
 
 test('a figure look is checked: an unknown figure is refused and a colour that is not a colour takes the default', () => {
@@ -122,13 +158,16 @@ test('the choice on the start screen: a woman or a man, the arrows going round e
   const c = createChoice({});
   assert.equal(c.gender, 'f');
   assert.equal(c.figure.id, 'W1');
-  assert.deepEqual([c.step(1).id, c.step(1).id, c.step(1).id], ['W2', 'W3', 'W1'], 'the arrows go through the women only');
-  assert.equal(c.step(-1).id, 'W3'); assert.equal(c.step(-1).id, 'W2');
+  assert.deepEqual(Array.from({ length: 13 }, () => c.step(1).id), ['W2', 'W3', ...NEW_WOMEN, 'W1'], 'the arrows go through the women only');
+  assert.equal(c.step(-1).id, 'W13'); assert.equal(c.step(-1).id, 'W12');
+  c.step(1); c.step(1);
+  assert.equal(c.step(1).id, 'W2');
   assert.equal(c.setGender('m').id, 'M1');
-  assert.deepEqual([c.step(1).id, c.step(1).id, c.step(1).id], ['M4', 'M5', 'M1'], 'the arrows go through the men only');
+  assert.deepEqual(Array.from({ length: 11 }, () => c.step(1).id), ['M4', 'M5', ...NEW_MEN, 'M1'], 'the arrows go through the men only');
   c.setGender('f'); assert.equal(c.figure.id, 'W2', 'each list keeps its place');
   assert.equal(FIGURES.W1.name, 'Adaeze'); assert.equal(FIGURES.M1.name, 'Emeka');
   assert.deepEqual(['W2', 'W3', 'M4', 'M5'].map((id) => FIGURES[id].name), ['Ngozi', 'Amaka', 'Ikenna', 'Uche']);
+  assert.equal(new Set(Object.values(FIGURES).map((f) => f.name)).size, Object.keys(FIGURES).length, 'each starts with a name of its own');
   assert.equal(createChoice({ figure: 'M4' }).figure.id, 'M4');
   // the last choice on this device is where the screen starts; an old one starts at the woman
   assert.equal(createChoice({ figure: 'M1' }).figure.id, 'M1');

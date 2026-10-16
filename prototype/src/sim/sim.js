@@ -5,7 +5,7 @@
 // Node, or behind a network socket. It is given a gameplay ledger handle and
 // nothing else to do with money: it cannot make TR, and it cannot see the bank.
 
-import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY } from './zone.js';
+import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit } from './zone.js';
 import { createResidents } from './residents.js';
 import { createRegistry, GameError } from './registry.js';
 import { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON_RATE, countOf } from './economy.js';
@@ -418,6 +418,28 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       p.x = at.x; p.z = at.z; p.heading = Math.PI; p.lastMoveAt = state.real;
       p.swimming = null;
       return { x: p.x, z: p.z };
+    },
+
+    // Into the PostCivilWar PowerBike showroom by the pink column before its porch, and out again by the mat inside
+    // its doors (atani-powerbike.js). The page darkens the screen while it happens (main.js); here the player is set
+    // down inside, or outside beside the column.
+    'showroom.in'(p) {
+      if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
+      if (justice.lawOf(p).state === 'pursuit') throw new GameError('PURSUED', 'The police are after you. The showroom will not open its doors to you now.');
+      const c = POWERBIKE.portal;
+      if (Math.hypot(p.x - c.x, p.z - c.z) > c.radius + 0.6) throw new GameError('TOO_FAR', `Step into the pink column before ${POWERBIKE.name} first.`);
+      const a = POWERBIKE.arrive;
+      p.x = a.x; p.z = a.z; p.heading = a.heading; p.lastMoveAt = state.real;
+      p.stats.showroom = (p.stats.showroom || 0) + 1;
+      return { x: p.x, z: p.z, heading: p.heading };
+    },
+    'showroom.out'(p) {
+      if (!inPowerbikeHall(p.x, p.z)) throw new GameError('NOT_INSIDE', `You are not in ${POWERBIKE.name}.`);
+      const e = POWERBIKE.exit;
+      if (!onPowerbikeExit(p.x, p.z) && Math.hypot(p.x - (e.x0 + e.x1) / 2, p.z - (e.z0 + e.z1) / 2) > 2.6) throw new GameError('TOO_FAR', 'Walk to the doors first.');
+      const l = POWERBIKE.leave;
+      p.x = l.x; p.z = l.z; p.heading = l.heading; p.lastMoveAt = state.real;
+      return { x: p.x, z: p.z, heading: p.heading };
     },
 
     talk(p, { residentId }) {

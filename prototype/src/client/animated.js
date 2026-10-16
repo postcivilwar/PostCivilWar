@@ -8,16 +8,16 @@
 // The file is large, so it is fetched once, beside the page, and shared by every figure made from it. Until it
 // has arrived a figure is an empty place in the world.
 
-import { parseGLB, modelFromGLB, animationLabel, boneName } from './glb.js';
+import { parseGLB, modelFromGLB, figureLabels, boneName } from './glb.js';
 import { nameTexture, surface } from './render-kit.js';
 import { SEAT_POSE } from './seat-pose.js';
-import { BORROWED, SEATS } from './figure-borrowed.js';
+import { borrowedFor, seatFor } from './figure-moves.js';
 
 // Which supplied animated figures there are, where each file is, and how tall a person it is. The files are
 // made one unit tall; they are drawn at a person's height, the same all over, nothing else changed.
 // `still` is what plays when the figure stands in town; `walk`, `run` and `swim` what plays as it goes. A name
 // beginning with ~ is a movement the file itself does not have, borrowed from another supplied figure and played
-// on this one's own bones (figure-borrowed.js; tools/characters/borrow.mjs says how).
+// on this one's own bones (figure-moves.js; tools/characters/borrow.mjs says how).
 // `rig` is how the file names its bones: 'ue' (pelvis, hand_r) or 'mixamo' (mixamorig:Hips, mixamorig:RightHand).
 // `react` names, for each thing that can happen to the figure, which of its own clips shows it, best first:
 //   hit    a blow lands on it                      fall   knocked off its feet (the first that goes all the way down)
@@ -36,7 +36,42 @@ export const ANIMATED = Object.freeze({
     react: Object.freeze({ hit: [], fall: ['fall', 'defeat_03'], punch: [], heavy: [], kick: [], call: ['make_a_call_02'] }) }),
   M5: Object.freeze({ id: 'M5', file: 'warrior.glb', text: 'warrior.b64.txt', inline: '__PCW_WARRIOR_B64', height: 1.82, rig: 'mixamo', walk: 'walk.001', run: 'run.001', still: '~idle', swim: '~swim', walkSpeed: 1.35, runSpeed: 4.8,
     react: Object.freeze({ hit: ['hit_to_head.001'], fall: [], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }) }),
+  // The eighteen of 16 October 2026 (src/sim/figures.js). The website serves each file as it is (no copy as text:
+  // `text` is null), and the copy of the game on disk carries none of them (`inline` is null).
+  ...newFigures([
+    ['W4', 'female_figure.glb', 1.68, { swim: 'swim.001' }, { hit: ['hit_to_stomach.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'] }],
+    ['W5', 'athletic_outfit.glb', 1.70, { swim: 'swim.001' }, { hit: ['hit_to_stomach.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['W6', 'fashion_model_3.glb', 1.72, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'] }],
+    ['W7', 'zombie_survivor.glb', 1.68, { run: 'run.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'], call: ['make_a_call_02.001'] }],
+    ['W8', 'female_character_2.glb', 1.70, { run: 'run.001', swim: 'swim.001' }, { punch: ['box_01.001'], kick: ['front_kick_02.001'] }],
+    ['W9', 'horror_nurse.glb', 1.70, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
+    ['W10', 'camouflage_bikini.glb', 1.70, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001'] }],
+    ['W11', 'swimwear_model.glb', 1.72, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001'] }],
+    ['W12', 'fashion_model_2.glb', 1.74, { swim: 'swim.001' }, { punch: ['box_01.001'] }],
+    ['W13', 'fashion_model_1.glb', 1.68, { swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M6', 'male_figure.glb', 1.82, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
+    ['M7', 'zombie.glb', 1.80, { walk: 'walk.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M8', 'horror_character.glb', 1.85, { run: 'run.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
+    ['M9', 'hobo_character.glb', 1.78, { walk: 'walk.001', swim: 'swim.001' }, { hit: ['hit_to_head.001'], fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'], call: ['make_a_call_02.001'] }],
+    ['M10', 'zombie_character.glb', 1.80, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
+    ['M11', 'human_character.glb', 1.80, {}, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
+    ['M12', 'ninja_armor.glb', 1.83, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
+    ['M13', 'ninja_warrior.glb', 1.85, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001', 'defeat_02.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+  ]),
 });
+// [id, file, height, its own walk/run/swim clips (what it lacks is borrowed: ~walk, ~run, ~swim), what shows what
+// happens to it]. Every one of them stands with the borrowed idle; women walk and run at a woman's pace.
+function newFigures(list) {
+  return Object.fromEntries(list.map(([id, file, height, own, react]) => {
+    const woman = id.startsWith('W');
+    return [id, Object.freeze({
+      id, file, text: null, inline: null, height, rig: 'mixamo',
+      walk: own.walk || '~walk', run: own.run || '~run', still: '~idle', swim: own.swim || '~swim',
+      walkSpeed: woman ? 1.3 : 1.35, runSpeed: woman ? 4.5 : 4.7,
+      react: Object.freeze({ hit: [], fall: [], punch: [], heavy: [], kick: [], call: [], ...react }),
+    })];
+  }));
+}
 
 // Mixamo's name for each bone this game reaches for by its Unreal name (the hands and fingers for the phone,
 // the arms and legs for a seat). A Mixamo figure answers to both.
@@ -90,18 +125,19 @@ function bytesHere(spec) {
     return Promise.resolve(out.buffer);
   }
   const decode = (text) => { const raw = atob(text.trim()); const out = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i += 1) out[i] = raw.charCodeAt(i); return out.buffer; };
-  // the file itself where the host serves it; otherwise the same bytes written as text beside it
+  // the file itself where the host serves it; otherwise the same bytes written as text beside it (a figure with no
+  // text copy has only the file)
   return fetch(spec.file)
     .then((r) => { if (!r.ok) throw new Error(`${spec.file}: ${r.status}`); return r.arrayBuffer(); })
     .then((b) => { if (new DataView(b).getUint32(0, true) !== 0x46546c67) throw new Error('not the file'); return b; })
-    .catch(() => fetch(spec.text).then((r) => { if (!r.ok) throw new Error(`${spec.text}: ${r.status}`); return r.text(); }).then(decode));
+    .catch((error) => { if (!spec.text) throw error; return fetch(spec.text).then((r) => { if (!r.ok) throw new Error(`${spec.text}: ${r.status}`); return r.text(); }).then(decode); });
 }
 export function loadAnimated(id) {
   if (!loading.has(id)) {
     const spec = ANIMATED[id];
     loading.set(id, bytesOf(spec).then((buffer) => {
       const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture() });
-      return model.ready.then(() => ({ spec, model, labels: model.clips.map((c) => ({ name: c.name, label: animationLabel(c.name) })) }));
+      return model.ready.then(() => { const words = figureLabels(model.clips.map((c) => c.name)); return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })) }; });
     }));
   }
   return loading.get(id);
@@ -133,7 +169,7 @@ export function reach(upper, lower, hand, target, pole) {
   aim(lower, hand, S.clone().add(dir.multiplyScalar(d)));
 }
 
-// A movement borrowed from another figure's file (figure-borrowed.js), as a clip for this figure's bones.
+// A movement borrowed from another figure's file (figure-moves.js), as a clip for this figure's bones.
 function borrowedClip(name, b) {
   const raw = atob(b.data); const bytes = new Uint8Array(raw.length);
   for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
@@ -276,7 +312,7 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
       rig.seated = on;
       if (!on) { lift.position.set(0, 0, 0); return; }
       if (!rig.bones) return;
-      const pose = SEATS[spec.file] || SEAT_POSE;
+      const pose = seatFor(spec.file) || SEAT_POSE;
       for (const [name, q] of Object.entries(pose)) { const b = rig.bones.get(boneName(name)); if (b) b.quaternion.fromArray(q); }
       lift.position.set(0, 0, 0); holder.updateMatrixWorld(true);
       const thigh = rig.bones.get('thigh_l'), pelvis = rig.bones.get('pelvis');
@@ -387,7 +423,7 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
       const a = rig.mixer.clipAction(clip); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(clip.name, a);
     }
     // what the file lacks, borrowed (not offered as a skill: it is not the figure's own)
-    for (const [as, b] of Object.entries(BORROWED[spec.file] || {})) { const a = rig.mixer.clipAction(borrowedClip(`~${as}`, b)); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(`~${as}`, a); }
+    for (const [as, b] of Object.entries(borrowedFor(spec.file))) { const a = rig.mixer.clipAction(borrowedClip(`~${as}`, b)); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(`~${as}`, a); }
     // (a clip chosen for another figure that this one does not have: it stands instead)
     const first = rig.chosen && rig.actions.has(rig.chosen) ? rig.chosen : spec.still;
     rig.chosen = null; rig.play(first, 0);

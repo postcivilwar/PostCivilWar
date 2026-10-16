@@ -35,6 +35,9 @@ export function encodePlayer(self, zoneId) {
   const kekes = near(self.parkedKekes).slice(0, 2);
   if (kekes.length) out.pv = kekes.map((v) => ({ id: v.id, x: r2(v.x), z: r2(v.z), h: r2(v.heading), pl: v.plate, lk: packLook(v.look), f: v.fleet ? 1 : 0 }));
   if (self.vel) out.vl = [r2(self.vel[0]), r2(self.vel[1])];
+  // in the PostCivilWar PowerBike showroom, asking the salesman about one of its motorcycles: which, and for how long
+  // (the salesman goes to whoever began first: salesman.js)
+  if (self.talk && typeof self.talk.bike === 'string') out.tk = [self.talk.bike, Math.round(Math.max(0, self.talk.ago || 0) * 10) / 10];
   return out;
 }
 
@@ -62,7 +65,8 @@ export function decodePlayer(state, zoneId) {
   const parked = Array.isArray(state.pk) ? state.pk.map((b) => (Array.isArray(b) ? { bike: b[0], x: b[1], z: b[2], h: b[3], fallen: !!b[4] } : null)) : [];
   const kekes = Array.isArray(state.pv) ? state.pv.map((v) => (v && typeof v === 'object' ? { id: v.id, x: v.x, z: v.z, heading: v.h, plate: v.pl, look: unpackLook(v.lk), fleet: !!v.f } : null)) : [];
   const vel = Array.isArray(state.vl) ? state.vl : null;
-  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel };
+  const talk = Array.isArray(state.tk) ? { bike: state.tk[0], ago: state.tk[1] } : null;
+  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

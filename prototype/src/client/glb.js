@@ -71,12 +71,33 @@ const LABEL = {
   fold_arms: 'Arms', idle: 'Idle', climb: 'Climb', angry_01: 'Angry', angry_02: 'Fume', angry_03: 'Rage', look_around: 'Look',
   'knell down to pray': 'Pray', 'rev father blessing someone': 'Bless', sing_01: 'Hymn',
   'punching and kicking, dodging and melee attacks': 'Spar', frightened: 'Fright', cast_a_spell: 'Spell',
+  // the eighteen figures of 16 October 2026
+  hit_to_stomach: 'Winded', hit_to_body_01: 'Struck', 'blow kiss': 'Kiss', 'Dead zombie walk': 'Shamble', zombie: 'Zombie', magic: 'Magic',
+  chop: 'Chop', swagger: 'Swagger', freaky: 'Freaky', sing_02: 'Croon', sing_03: 'Chant', frustrated_02: 'Exasperated', summersault: 'Somersault',
+  wait: 'Wait', fire: 'Fire',
 };
+// The second of two animations in one file that would be called the same: its own word instead.
+const ALSO = { box_01: 'Strike', magic: 'Sorcery', run_upstairs: 'Stairs', climb: 'Scale', sing_04: 'Serenade', dance_05: 'Hop', walk: 'Stroll', run: 'Sprint' };
 export function animationLabel(name) {
   const base = String(name).replace(/\.\d+$/, '');
   if (LABEL[base]) return LABEL[base];
   const word = base.replace(/_\d+$/, '').split(/[_\s-]+/).pop() || base;
   return word.charAt(0).toUpperCase() + word.slice(1);
+}
+// Every animation of one figure, each with its own one-word name: where two would share a name, the later one
+// takes its other word (ALSO). The figures supplied before 16 October have no two alike, so theirs are unchanged.
+export function figureLabels(names) {
+  const taken = new Set();
+  return names.map((name) => {
+    let label = animationLabel(name);
+    if (taken.has(label)) {
+      const base = String(name).replace(/\.\d+$/, '');
+      const other = ALSO[base] || ALSO[base.replace(/_\d+$/, '')];
+      label = other && !taken.has(other) ? other : `${label}${'abcdefghijklmnopqrstuvwxyz'[taken.size % 26]}`;
+    }
+    taken.add(label);
+    return label;
+  });
 }
 
 // ---------------------------------------------------------------------------------------- drawing --

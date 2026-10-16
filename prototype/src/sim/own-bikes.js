@@ -9,7 +9,7 @@
 // already asks "is this player on a motorcycle?" (fights, arrests, treatment, what may be done meanwhile) gets
 // the same answer. A ridden bike strikes whoever is in its way as any motorcycle does (impact.js).
 import { POWER_BIKES, handlingOf, FASTEST } from './power-bikes.js';
-import { zoneWalkable, zoneRoomAt } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall } from './zone.js';
 import { GameError } from './registry.js';
 
 export const isOwnBike = (astride) => typeof astride === 'string' && astride.startsWith('pb:');
@@ -55,7 +55,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     let at;
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < 3) at = parked;
     else {
-      if (zoneRoomAt(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
+      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
       if (!zoneWalkable(p.x, p.z, obstacles(), ROOM)) throw new GameError('NO_ROOM', 'There is no room for a motorcycle here. Go out to the road.');
       at = { x: p.x, z: p.z, h: p.heading || 0 };
     }
