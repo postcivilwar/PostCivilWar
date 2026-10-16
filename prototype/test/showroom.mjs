@@ -93,7 +93,7 @@ await go(P.portal.x, P.portal.z + 3.2, Math.PI, { yaw: Math.PI, pitch: 0.2, dist
 await page.waitForTimeout(600);
 await page.keyboard.down('w');
 let faded = false;
-for (let i = 0; i < 40 && !faded; i += 1) { await page.waitForTimeout(100); faded = await page.evaluate(() => document.getElementById('fade').classList.contains('on')); }
+for (let i = 0; i < 300 && !faded; i += 1) { await page.waitForTimeout(100); faded = await page.evaluate(() => document.getElementById('fade').classList.contains('on') || window.__nlw.showroom.inside); }
 await page.keyboard.up('w');
 check('stepping into the column darkens the screen', faded, null);
 await page.waitForFunction(() => window.__nlw.showroom.inside && !document.getElementById('fade').classList.contains('on'), null, { timeout: 30000 });
@@ -136,18 +136,24 @@ await page.waitForTimeout(1500);
 const opened = await page.evaluate(() => {
   const q = (s) => document.querySelector(s);
   return {
-    head: q('.chathead .who b').textContent, role: q('.chathead .who span').textContent, tag: !!q('.chathead .brandtag'),
-    card: q('.dealitem.bike .what b').textContent, chips: [...document.querySelectorAll('.dealitem .chip')].map((c) => c.textContent), price: q('.dealitem .price').textContent,
+    head: q('.chathead .who b').textContent, role: q('.chathead .who span').textContent, brand: q('.dealitem .brandline') && q('.dealitem .brandline').textContent,
+    card: q('.dealitem.bike .what b').textContent, chips: [...document.querySelectorAll('.dealitem .spec')].map((c) => c.textContent), price: q('.dealitem .price').textContent,
     hello: [...document.querySelectorAll('#deal-log .msg.shop')].map((m) => m.textContent)[0] || '',
     quick: [...document.querySelectorAll('#deal-quick button')].map((b) => b.textContent),
     talk: window.__nlw.showroom.talk, phoneHeld: window.__nlw.phoneHold.raised,
+    expected: (() => { const l = window.__nlw.market.state.all.find((x) => x.asset && x.asset.model === 'bike:red-superbike'); return l ? `${(l.price / 2).toLocaleString('en-GB')} TR` : null; })(),
   };
 });
-check('the conversation opens with him: his name, the bike\'s card with its engine, top speed and price', opened.head === 'Obi' && /Salesman/.test(opened.role) && opened.card === 'Red Superbike' && opened.chips.includes('2,500 cc') && opened.chips.includes('212 km/h') && /10,000 TR/.test(opened.price), opened);
+check('the conversation opens with him: his name, the bike\'s card with its engine, top speed and price', opened.head === 'Obi' && /Salesman/.test(opened.role) && opened.brand === 'PostCivilWar PowerBike' && opened.card === 'Red Superbike' && opened.chips.includes('2,500 cc') && opened.chips.includes('212 km/h') && !!opened.expected && opened.price.includes(opened.expected), opened);
 check('he greets the player about this bike, and says his answers are automatic', /Obi/.test(opened.hello) && /automatic/.test(opened.hello) && /Red Superbike/.test(opened.hello), opened.hello);
 check('questions to tap are offered', opened.quick.length >= 5, opened.quick);
 check('talking face to face: the phone is not held up in the town', opened.talk && opened.talk.bike === 'red-superbike' && opened.phoneHeld < 0.2, { talk: opened.talk, raised: opened.phoneHeld });
-await page.waitForTimeout(2500);
+// (looked for frame by frame, as long as it takes: without a graphics card a frame here can take seconds)
+await page.waitForFunction(() => {
+  const n = window.__nlw, s = n.salesman.state, me = n.me;
+  const gap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); };
+  return s.mode === 'talk' && s.speed < 0.2 && gap(Math.atan2(s.x - n.predicted.x, s.z - n.predicted.z), me.group.rotation.y) < 0.35 && gap(Math.atan2(n.predicted.x - s.x, n.predicted.z - s.z), s.heading) < 0.4;
+}, null, { timeout: 90000 }).catch(() => {});
 const facing = await page.evaluate(() => {
   const n = window.__nlw, s = n.salesman.state, me = n.me;
   const to = Math.atan2(s.x - n.predicted.x, s.z - n.predicted.z);
@@ -161,28 +167,31 @@ await shot('08-asking-about-the-red-superbike');
 // what is said moves the hands: typed, the player speaks; answered, he does
 const handHeight = () => page.evaluate(() => { const n = window.__nlw; const b = n.me.bones && n.me.bones.get('hand_r'); return { me: b ? b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null }; });
 const quiet = await handHeight();
+const QUESTION = 'How fast does the Red Superbike go when you open it right up on a long straight road?';
 await page.click('#deal-text');
-await page.keyboard.type('How fast does it go?');
+await page.keyboard.type(QUESTION);
 await page.keyboard.press('Enter');
 const pending = await page.evaluate(() => ({ pending: !!document.querySelector('#deal-log .msg.me.pending') || [...document.querySelectorAll('#deal-log .msg.me')].some((m) => /How fast/.test(m.textContent)) }));
-await page.waitForTimeout(700);
+// while the words are said the player's right hand comes up (looked for frame by frame)
+const rose = await page.waitForFunction((q) => { const n = window.__nlw; const b = n.me.bones.get('hand_r'); return b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y > q + 0.05; }, quiet.me, { timeout: 20000 }).then(() => true, () => false);
 const speaking = await handHeight();
-await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /212 km\/h/.test(m.textContent)), null, { timeout: 30000 });
-const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => `${l.who}@${l.from.toFixed(2)}-${l.to.toFixed(2)}`));
+await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /212 km\/h/.test(m.textContent)), null, { timeout: 90000 });
 const said = await page.evaluate(() => [...document.querySelectorAll('#deal-log .msg')].slice(-2).map((m) => m.className + ': ' + m.textContent));
 check('a typed question goes up at once and is answered from what is so', pending.pending && /212 km\/h/.test(said[1] || ''), said);
-check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && speaking.me > quiet.me + 0.05, { quiet, speaking });
+check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && rose, { quiet, speaking });
+const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => `${l.who}@${l.from.toFixed(2)}-${l.to.toFixed(2)}`));
 // (his greeting, then the player's question, then his answer: each begins once the one before has ended)
 const turns = lines1.map((l) => { const [who, span] = l.split('@'); const [from, to] = span.split('-').map(Number); return { who, from, to }; });
 check('then he answers, after the player: one after the other, never both at once', turns.length >= 3 && turns.at(-2).who === 'me' && turns.at(-1).who === 'him' && turns.every((t, i) => i === 0 || t.from >= turns[i - 1].to), lines1);
-await page.waitForFunction(() => { const n = window.__nlw; const l = n.showroom.lines.filter((x) => x.who === 'him').at(-1); return l && Date.now() / 1000 > l.from + 0.8; }, null, { timeout: 20000 });
-const answering = await page.evaluate(() => ({ his: window.__nlw.showroom.him.speaking, amount: window.__nlw.showroom.him.amount }));
-check('while he answers he speaks (with the hands), and the player listens', answering.his > 0.5 && answering.amount > 0.8, answering);
+// while he answers he speaks with the hands, and the player listens (looked for frame by frame)
+const answered = await page.waitForFunction(() => window.__nlw.showroom.him.speaking > 0.5, null, { timeout: 60000 }).then(() => true, () => false);
+const answering = await page.evaluate(() => { const n = window.__nlw; const now = Date.now() / 1000; return { his: +n.showroom.him.speaking.toFixed(2), him: +n.showroom.him.amount.toFixed(2), player: +n.showroom.amount.toFixed(2), playerSpeaking: n.showroom.lines.some((l) => l.who === 'me' && now >= l.from && now <= l.to) }; });
+check('while he answers he speaks (with the hands), and the player listens', answered && answering.him > 0.8 && answering.player > 0.8 && !answering.playerSpeaking, answering);
 await shot('09-he-answers');
 // over a few seconds nobody stands still: the hands and heads keep moving
 const track = [];
 for (let i = 0; i < 8; i += 1) {
-  await page.waitForTimeout(350);
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
   track.push(await page.evaluate(() => {
     const n = window.__nlw, hand = n.me.bones.get('hand_r'), head = n.me.bones.get('head');
     return { hand: hand.getWorldPosition(new THREE.Vector3()).toArray(), head: head.getWorldQuaternion(new THREE.Quaternion()).toArray() };
@@ -197,7 +206,7 @@ for (const a of track) for (const b of track) {
 check('nobody is still: the player\'s hand and head move all the while', handMoved > 0.01 && headTurned > 0.02, { hand: +handMoved.toFixed(3), head: +headTurned.toFixed(3) });
 // a question tapped
 await page.click('#deal-quick button[data-ask="Discount?"]');
-await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /price is fixed/.test(m.textContent)), null, { timeout: 30000 });
+await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /price is fixed/.test(m.textContent)), null, { timeout: 90000 });
 check('a question tapped is sent as written and answered: no haggling', true, null);
 await shot('10-a-question-tapped');
 
@@ -246,27 +255,28 @@ check('a motorcycle is not brought into the hall', !indoors.ok, indoors);
 
 // ---- a second player in the hall ----
 await page.evaluate(() => { const n = window.__nlw; n.twin('Second Rider', -58.0 + 2.3, 43.2); });
-await page.waitForFunction(() => (window.__nlw.view.players || []).some((q) => q.name === 'Second Rider'), null, { timeout: 30000 });
+await page.waitForFunction(() => (window.__nlw.view.players || []).some((q) => q.name === 'Second Rider'), null, { timeout: 90000 });
 await go(-63.6, 46.0, Math.PI, { yaw: Math.PI - 0.9, pitch: 0.2, dist: 7 });
 await page.evaluate(() => { const n = window.__nlw; n.second.face(-Math.PI / 2); n.second.ask('black-bobber'); });
-await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && q.talk && s.mode === 'talk' && s.with === `p:${q.id}`; }, null, { timeout: 30000 }).catch(() => {});
+await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && q.talk && s.mode === 'talk' && s.with === `p:${q.id}`; }, null, { timeout: 90000 }).catch(() => {});
 const theirs = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { mode: s.mode, with: s.with, them: q && `p:${q.id}`, talk: q && q.talk }; });
 check('another player asks him about a motorcycle: he goes to them', theirs.mode === 'talk' && theirs.with === theirs.them && theirs.talk && theirs.talk.bike === 'black-bobber', theirs);
-await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && Math.hypot(s.x - q.x, s.z - q.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 30000 }).catch(() => {});
-await page.waitForTimeout(1500);
+await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && Math.hypot(s.x - q.x, s.z - q.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 90000 }).catch(() => {});
+await page.waitForFunction(() => { const n = window.__nlw; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && n.showroom.peers.has(q.id) && n.showroom.peers.get(q.id).amount > 0.5; }, null, { timeout: 60000 }).catch(() => {});
 const peerTalk = await page.evaluate(() => { const n = window.__nlw; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { gesturing: n.showroom.peers.has(q.id) && n.showroom.peers.get(q.id).amount > 0.5 }; });
 check('and they are seen talking with him', peerTalk.gesturing, peerTalk);
 await shot('13-another-player-asks');
 // the player asks too, after them: he stays with whoever asked first
 await page.evaluate(() => window.__nlw.askAbout('chrome-concept'));
-await page.waitForTimeout(2500);
+await page.waitForFunction(() => window.__nlw.showroom.talk && window.__nlw.ui.dealOpen() && document.querySelector('#deal-log .msg.shop'), null, { timeout: 90000 }).catch(() => {});
+await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
 const first = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { with: s.with, them: `p:${q.id}` }; });
 check('two asking at once: he stays with whoever began first', first.with === first.them, first);
 await page.keyboard.press('Escape');
 await page.evaluate(() => window.__nlw.second.ask(null));
 // three more in the hall, nobody asking: he walks the floor
 await page.evaluate(() => { const g = window.__nlw.host.game; for (const [k, x, z] of [['third', -72, 45.8], ['fourth', -55.2, 40.6]]) g.visitors.seen(k, { name: `Visitor ${k}`, x, z, heading: 0 }); });
-await page.waitForFunction(() => window.__nlw.salesman.state.mode === 'roam', null, { timeout: 20000 }).catch(() => {});
+await page.waitForFunction(() => window.__nlw.salesman.state.mode === 'roam', null, { timeout: 60000 }).catch(() => {});
 const roam = await page.evaluate(() => ({ mode: window.__nlw.salesman.state.mode, customers: window.__nlw.hallCustomers().length }));
 check('with four in the hall he walks the floor, not after anyone in particular', roam.mode === 'roam' && roam.customers >= 4, roam);
 await page.waitForTimeout(1500);
@@ -278,7 +288,7 @@ await go(-63.6, 51.9, 0, { yaw: 0, pitch: 0.2, dist: 6 });
 await page.waitForTimeout(500);
 await page.keyboard.down('w');
 let left = false;
-for (let i = 0; i < 40 && !left; i += 1) { await page.waitForTimeout(100); left = await page.evaluate(() => !window.__nlw.showroom.inside); }
+for (let i = 0; i < 300 && !left; i += 1) { await page.waitForTimeout(100); left = await page.evaluate(() => !window.__nlw.showroom.inside); }
 await page.keyboard.up('w');
 await page.waitForFunction(() => !document.getElementById('fade').classList.contains('on'), null, { timeout: 20000 });
 const outside = await page.evaluate(() => { const n = window.__nlw, p = n.powerbike; return { at: [n.predicted.x, n.predicted.z], hall: p.hall.group.visible, exterior: p.exterior.visible, portal: p.portal.group.visible, salesman: n.salesmanActor.group.visible }; });

@@ -3,7 +3,7 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
@@ -79,6 +79,10 @@ function buildGrass() {
     if (z > zoneShoreZ(x) - 6 || onRoad(x, z, 1.2) || wornAt(x, z) > 0.3) continue;
     if (smoothNoise(x / 14, z / 14) < 0.42) continue;                                // grass grows in drifts, not evenly
     if (!zoneWalkable(x, z, [], 1.6)) continue;
+    // (none in PostCivilWar PowerBike's hall, whose floor is walked on but is indoors, nor on its paved forecourt)
+    const pb = POWERBIKE.footprint, door = POWERBIKE.doors;
+    if (x > pb.x0 - 0.5 && x < pb.x1 + 0.5 && z > pb.z0 - 0.5 && z < pb.z1 + 0.5) continue;
+    if (x > door.x - 8.5 && x < door.x + 8.5 && z >= pb.z1 && z < pb.z1 + 6.9) continue;
     const key = `${Math.floor(x / cell)},${Math.floor(z / cell)}`;
     if (!squares.has(key)) squares.set(key, []);
     squares.get(key).push([x, z, i]);

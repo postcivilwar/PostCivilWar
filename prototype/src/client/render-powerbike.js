@@ -93,22 +93,30 @@ export const crownTexture = () => canvasTexture(2048, 1024, (g, img) => {
   powerWord(g, 'POWER', 1010, 470, 380, 990, { line: 26 });
   powerWord(g, 'BIKE', 1010, 900, 380, 990, { line: 26 });
 });
-// The band across the podium, where the old name was: on dark glass, the sun, POSTCIVILWAR and POWERBIKE.
+// The band across the podium, where the old name was: on dark glass, the sun, POSTCIVILWAR and POWERBIKE. The whole
+// line is measured first and made smaller if it would not fit (the letters are the device's own heavy face, whose
+// width differs from one device to another), then set out in the middle.
 export const bandTexture = () => canvasTexture(4096, 384, (g, img) => {
   const bg = g.createLinearGradient(0, 0, 0, 384); bg.addColorStop(0, '#191c21'); bg.addColorStop(0.5, '#0d0f12'); bg.addColorStop(1, '#16191d');
   g.fillStyle = bg; g.fillRect(0, 0, 4096, 384);
   g.fillStyle = GOLD; g.fillRect(0, 14, 4096, 6); g.fillRect(0, 364, 4096, 6);
   g.textBaseline = 'alphabetic';
-  // measured first, then set out in the middle
-  const sunH = 290, sunW = img ? (img.width / (img.height * SUN_SHARE)) * sunH : 0;
-  g.font = HEAVY(230); const a = g.measureText('POSTCIVILWAR').width;
-  g.font = HEAVY(230, true); const b = g.measureText('POWERBIKE').width;
-  const total = sunW + 90 + a + 150 + b, x0 = Math.max(60, (4096 - total) / 2);
-  if (img) g.drawImage(img, 0, 0, img.width, img.height * SUN_SHARE, x0, 46, sunW, sunH);
-  const ax = x0 + sunW + 90;
-  heavyText(g, 'POSTCIVILWAR', ax, 278, 230, a + 10, { fill: CREAM });
-  g.fillStyle = GOLD; g.beginPath(); g.moveTo(ax + a + 70, 60); g.lineTo(ax + a + 92, 60); g.lineTo(ax + a + 56, 324); g.lineTo(ax + a + 34, 324); g.closePath(); g.fill();
-  powerWord(g, 'POWERBIKE', ax + a + 150, 278, 230, b + 10);
+  // at size px: the sun, a gap, POSTCIVILWAR, the gold stroke in a gap, POWERBIKE
+  const layout = (px) => {
+    g.font = HEAVY(px); const a = g.measureText('POSTCIVILWAR').width;
+    g.font = HEAVY(px, true); const b = g.measureText('POWERBIKE').width;
+    const sunH = px * 1.26, sunW = img ? (img.width / (img.height * SUN_SHARE)) * sunH : 0;
+    return { a, b, sunH, sunW, total: sunW + px * 0.39 + a + px * 0.65 + b };
+  };
+  let px = 230, L = layout(px);
+  while (L.total > 4096 - 160 && px > 60) { px -= 6; L = layout(px); }
+  const x0 = (4096 - L.total) / 2, base = 192 + px * 0.37;
+  if (img) g.drawImage(img, 0, 0, img.width, img.height * SUN_SHARE, x0, 192 - L.sunH / 2 - 6, L.sunW, L.sunH);
+  const ax = x0 + L.sunW + px * 0.39;
+  heavyText(g, 'POSTCIVILWAR', ax, base, px, L.a + 10, { fill: CREAM });
+  const sx = ax + L.a + px * 0.15;
+  g.fillStyle = GOLD; g.beginPath(); g.moveTo(sx + px * 0.16, 192 - px * 0.57); g.lineTo(sx + px * 0.25, 192 - px * 0.57); g.lineTo(sx + px * 0.09, 192 + px * 0.57); g.lineTo(sx, 192 + px * 0.57); g.closePath(); g.fill();
+  powerWord(g, 'POWERBIKE', ax + L.a + px * 0.65, base, px, L.b + 10);
 });
 // Where the old badge was, high on the central tower: the logo on a dark panel.
 export const badgeTexture = () => canvasTexture(1024, 1200, (g, img) => {
@@ -503,14 +511,15 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
 
   // The models near the player: the nearest within `NEAR` at the device's own detail, the next at a phone's, the
   // rest pictures. One that is left far behind is let go.
-  const NEAR = 6.5, FAR = 8.5, MODELS = lite ? 2 : 3;
-  function updateDisplays(dt, { eye, player, now }) {
+  // (`models`: how many may be models at once: the page asks for fewer when the device is struggling)
+  const NEAR = 6.5, FAR = 8.5;
+  function updateDisplays(dt, { eye, player, now, models = lite ? 2 : 3 }) {
     const ranked = displays.map((d) => ({ d, gap: Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r })).sort((a, b) => a.gap - b.gap);
     ranked.forEach(({ d, gap }, rank) => {
       // the turntable turns, slowly
       d.heading = d.display.stand === 'turntable' ? d.display.h + now * 0.22 : d.display.h;
-      const want = !ON_DISK && rank < MODELS && gap < NEAR ? (rank === 0 && !lite ? 'full' : 'lite') : null;
-      const keep = d.model && rank < MODELS + 1 && gap < FAR;
+      const want = !ON_DISK && rank < models && gap < NEAR ? (rank === 0 && !lite ? 'full' : 'lite') : null;
+      const keep = d.model && rank < models + 1 && gap < FAR;
       if (want && (!d.model || (d.tier !== want && !d.loading)) && !d.loading) {
         const tier = want;
         d.loading = loadBike(d.display.bike, { base: 'bikes/', lite: tier === 'lite', length: d.bike.length })
@@ -561,9 +570,9 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
     },
     // the first time someone comes near, the hall is made (so that stepping in does not wait for it)
     near(x, z) { if (!hall && Math.hypot(x - P.portal.x, z - P.portal.z) < 45) ensureHall(); },
-    tick(dt, { eye, player, now }) {
+    tick(dt, { eye, player, now, models }) {
       if (!inside && Math.hypot(player.x - P.portal.x, player.z - P.portal.z) < 110) portal.tick(dt);
-      if (inside && hall) updateDisplays(dt, { eye, player, now });
+      if (inside && hall) updateDisplays(dt, { eye, player, now, models });
     },
     // for the checks: what is drawn as a model and what as a picture
     shown() { return displays.map((d) => ({ bike: d.display.bike, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: bikeLoaded(d.display.bike, d.tier === 'lite') })); },

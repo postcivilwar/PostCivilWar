@@ -444,8 +444,7 @@ export function createMarketUI(kit) {
     root.append(h('div', { class: `chathead${bike ? ' showroom' : ''}` },
       h('button', { class: 'chatback', type: 'button', id: 'deal-back', 'aria-label': 'Leave the conversation', onclick: () => app.leaveDeal() }, kit.glyph('back', false)),
       h('span', { class: `avatar${bike ? ' salesman' : ''}` }, String(name || '·').slice(0, 1).toUpperCase(), h('i', { class: 'dot', 'aria-hidden': 'true' })),
-      h('span', { class: 'who' }, h('b', null, name), h('span', null, role)),
-      bike ? h('span', { class: 'brandtag', 'aria-hidden': 'true' }, 'PowerBike') : null));
+      h('span', { class: 'who' }, h('b', null, name), h('span', null, role))));
     if (d.loading) { root.append(h('div', { class: 'chatlog', id: 'deal-log' }, h('div', { class: 'msg sys' }, 'Opening the conversation...'), d.listing ? h('div', { class: 'msg shop typing', 'aria-label': `${name} is writing` }, h('i'), h('i'), h('i')) : null)); return; }
     if (d.error) {
       root.append(h('div', { class: 'chatlog', id: 'deal-log' }, h('div', { class: 'msg sys' }, d.error)));
@@ -456,9 +455,10 @@ export function createMarketUI(kit) {
     const pic = ASSET_MODELS[l.asset.model] ? `background-image:url("${ASSET_MODELS[l.asset.model].poster}")` : '';
     if (bike) {
       // the motorcycle: its picture, its name, its engine and top speed, and its price
-      root.append(h('div', { class: 'dealitem bike' }, h('span', { class: 'pic', style: pic }),
+      // (the showroom's name runs along the top of the card, the whole width of it, so it is never cut short)
+      root.append(h('div', { class: 'dealitem bike' }, h('em', { class: 'brandline' }, POWERBIKE.name), h('span', { class: 'pic', style: pic }),
         h('span', { class: 'what' }, h('b', null, l.name),
-          h('span', { class: 'chips' }, h('i', { class: 'chip' }, `${bike.cc.toLocaleString('en-GB')} cc`), h('i', { class: 'chip' }, `${bike.topKmh} km/h`), h('i', { class: 'chip' }, open ? 'New' : 'Not on sale'))),
+          h('span', { class: 'specs' }, h('i', { class: 'spec' }, `${bike.cc.toLocaleString('en-GB')} cc`), h('i', { class: 'spec' }, `${bike.topKmh} km/h`), h('i', { class: 'spec' }, open ? 'New' : 'Not on sale'))),
         h('span', { class: 'price' }, h('small', null, 'Price'), tr(l.price))));
     } else {
       root.append(h('div', { class: 'dealitem' }, h('span', { class: 'pic', style: pic }),

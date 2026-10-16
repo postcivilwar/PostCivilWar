@@ -685,6 +685,7 @@ function start(carried) {
   scene.add(salesmanActor.group);
   const HALL_ROOM = Object.freeze({ x0: POWERBIKE.hall.x0, z0: POWERBIKE.hall.z0, x1: POWERBIKE.hall.x1, z1: POWERBIKE.hall.z1, top: POWERBIKE.hall.ceiling });
   const HALL_VIEW = Object.freeze({ pitch: 0.04, maxPitch: 1.05, dist: 7.5 });
+  const HALL_SIGHT = 60;            // metres of the town drawn while the player is in the hall (what its glass front shows)
   const showroom = {
     inside: false,             // the player is in the hall
     armed: true,               // the column takes them in (once they have stepped out of it)
@@ -778,6 +779,7 @@ function start(carried) {
       powerbike.setInside(inHall);
       // coming into an empty hall he is at his desk and comes over; into a busy one, he is where he is for everyone
       if (inHall) { if (hallCustomers().length > 1) salesman.rejoin(); else salesman.home(); } else endTalk();
+      soundTimer = 1;               // (what is drawn of the town, at once: only what the glass front shows, or all of it again)
     }
     powerbike.near(predicted.x, predicted.z);
     const c = POWERBIKE.portal, far = Math.hypot(c.x - predicted.x, c.z - predicted.z);
@@ -2599,7 +2601,8 @@ blood.update(dt, view.blood || []);
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
     const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0);
-    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5 });
+    // (the motorcycles drawn as models in the hall: fewer on a phone, and fewer again on a device that is struggling)
+    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, models: quality.level >= 2 ? 1 : LITE || quality.level >= 1 ? 2 : 3 });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     world.glowMaterial.emissiveIntensity = night * 1.5;
@@ -2625,7 +2628,9 @@ blood.update(dt, view.blood || []);
     if (soundTimer > 0.5) {
       soundTimer = 0;
       sources = soundSources(hour, weather.wet);
-      const reach = Math.min(REACH[quality.level], scene.fog.far * 0.82);
+      // (in PostCivilWar PowerBike's hall only what is near can be seen, through its glass front: the rest of the
+      // town, behind its walls, is not drawn)
+      const reach = showroom.inside ? HALL_SIGHT : Math.min(REACH[quality.level], scene.fog.far * 0.82);
       world.see(cam.target.x, cam.target.z, reach);
       // (PostCivilWar PowerBike's tower: the owner's model, fetched once the town is ready, or at once for someone near it)
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();
