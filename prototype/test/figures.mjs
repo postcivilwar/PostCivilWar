@@ -186,15 +186,18 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   // knocked down: on the ground, and up again
   await page.evaluate(() => { const n = window.__nlw; n.place(-2, 80); n.face(0); n.cam.yaw = Math.PI / 2; n.cam.dist = 5; n.cam.pitch = 0.25; });
   await page.waitForTimeout(1500);
-  await page.evaluate(() => { const g = window.__nlw.host.game; const p = g.state.players[window.__nlw.playerId]; const now = g.state.real; p.down = { at: now, until: now + 4, upAt: now + 5, by: 'test', h: 0 }; });
-  await page.waitForTimeout(3600);
+  const downAt = await page.evaluate(() => { const g = window.__nlw.host.game; const p = g.state.players[window.__nlw.playerId]; const now = g.state.real; p.down = { at: now, until: now + 4, upAt: now + 5, by: 'test', h: 0 }; return now; });
+  // (waited for by the game's own time, not the clock's: a page that draws slowly, on a busy machine, runs the game
+  // slower than the clock, and the fall would be looked at before it had happened)
+  const gameTime = (s) => page.waitForFunction((t) => window.__nlw.host.game.state.real >= t, s, { timeout: 180000 });
+  await gameTime(downAt + 3.6);
   m = await page.evaluate(measure);
   if (spec.falls) {
     check(`${label}: knocked down, it falls with its own fall`, !!m.lying && m.tipped === 0, m);
     check(`${label}: and lies on the ground, not in the air`, m.pelvis < 0.45 && m.head < 0.55 && m.low > -0.15, m);
   } else check(`${label}: knocked down (no fall in its file), it is laid flat`, m.tipped < -1.2, m);
   await shot('7-down');
-  await page.waitForTimeout(8000);   // (the game's time goes slower than the clock's when the browser draws slowly)
+  await gameTime(downAt + 11.6);
   m = await page.evaluate(measure);
   check(`${label}: up again, standing on its feet`, !m.lying && m.tipped > -0.05 && m.head > spec.height * 0.78 && Math.abs(m.low) < 0.2, m);
 
