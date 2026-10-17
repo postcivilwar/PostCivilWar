@@ -65,7 +65,7 @@ const leaves = await page.evaluate(() => {
   });
   return { kinds, wrong, foliage: n.foliage() };
 });
-check('every kind of tree has leaves cut out of pictures of leaves, mangoes, almonds, coconut and oil palms', ['mango', 'almond', 'frond', 'oilfrond'].every((k) => leaves.kinds[k] && leaves.kinds[k].meshes > 0) && leaves.wrong.length === 0, leaves);
+check('every tree\'s leaves are cut out of pictures of leaves: the mangoes\' and almonds\' sprays, the palms\' fronds (two sheets of pictures)', ['spray', 'frond'].every((k) => leaves.kinds[k] && leaves.kinds[k].meshes > 0) && Object.keys(leaves.kinds).length === 2 && leaves.wrong.length === 0, leaves);
 // (the wind's clock runs with the frames drawn: without a graphics card, a frame can take a second or more)
 const w0 = (await page.evaluate(() => window.__nlw.foliage())).wind;
 await page.waitForTimeout(4000);

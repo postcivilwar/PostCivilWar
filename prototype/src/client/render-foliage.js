@@ -20,65 +20,80 @@ const SIZE = 125;
 
 // ---------------------------------------------------------------------------------------------- the pictures --
 
-function canvas(w, h, draw) {
+// The pictures, two to a sheet so that a square of ground draws all its leaves in two goes, not four: the mango's and
+// the almond's sprays side by side on one, the coconut palm's and the oil palm's fronds on the other. Where each is on
+// its sheet (`u0` to `u1` across it):
+const PICTURES = Object.freeze({
+  mango: { sheet: 'spray', u0: 0, u1: 0.5 }, almond: { sheet: 'spray', u0: 0.5, u1: 1 },
+  frond: { sheet: 'frond', u0: 0, u1: 0.5 }, oilfrond: { sheet: 'frond', u0: 0.5, u1: 1 },
+});
+function sheet(w, h, draw) {
   const c = document.createElement('canvas'); c.width = w; c.height = h;
-  draw(c.getContext('2d'), w, h);
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, w, h);
+  draw(g, w, h);
   const t = new THREE.CanvasTexture(c);
   t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
   return t;
 }
-// A spray of leaves: along twigs from the middle of the card outward, and in a rosette at the end of each. `long` and `wide`: the leaf's shape, as parts of the card (a mango's long and narrow, an almond's broad and
-// rounded at its tip). Grey to white, to be coloured by the tree's own green; the midrib a little darker.
-function sprayTexture({ twigs = 7, perTwig = 7, long = 0.2, wide = 0.05, round = 0, seed = 0 } = {}) {
-  return canvas(256, 256, (g, W) => {
-    g.clearRect(0, 0, W, W);
-    const leaf = (x, y, a, L, Wd, shade) => {
-      g.save(); g.translate(x, y); g.rotate(a);
-      g.fillStyle = `rgb(${shade},${shade},${shade})`;
-      // from its stalk at (0, 0) to its tip at (L, 0): widest a third of the way along (or, `round`, near the tip)
-      const at = L * (0.35 + 0.3 * round);
-      g.beginPath(); g.moveTo(0, 0);
-      g.bezierCurveTo(at * 0.6, -Wd, at + (L - at) * 0.5, -Wd * (0.9 + round * 0.3), L, 0);
-      g.bezierCurveTo(at + (L - at) * 0.5, Wd * (0.9 + round * 0.3), at * 0.6, Wd, 0, 0);
-      g.fill();
-      g.strokeStyle = `rgba(70,70,70,0.5)`; g.lineWidth = Math.max(1, Wd * 0.14);
-      g.beginPath(); g.moveTo(0, 0); g.lineTo(L * 0.94, 0); g.stroke();
-      g.restore();
-    };
-    for (let t = 0; t < twigs; t += 1) {
-      const r = (k) => noise(t * 7.3 + seed, k * 3.1 + seed * 0.7);
-      const a = (t / twigs) * Math.PI * 2 + (r(1) - 0.5) * 0.7, reach = (0.3 + r(2) * 0.14) * W;
-      const ex = W / 2 + Math.cos(a) * reach, ey = W / 2 + Math.sin(a) * reach;
-      // (the twig itself is hidden by its leaves: only they are drawn)
-      for (let k = 0; k < perTwig; k += 1) {
-        const q = (j) => noise(t * 13.1 + k * 5.7 + seed, j * 2.3);
-        const along = k / perTwig, side = k % 2 ? 1 : -1, end = k >= perTwig - 3;
-        const x = W / 2 + (ex - W / 2) * (end ? 1 : 0.25 + along * 0.7), y = W / 2 + (ey - W / 2) * (end ? 1 : 0.25 + along * 0.7);
-        const turn = end ? a + (k - perTwig + 2) * 0.75 + (q(1) - 0.5) * 0.4 : a + side * (0.7 + q(2) * 0.5);
-        const L = long * (0.75 + q(3) * 0.5) * W, Wd = wide * (0.8 + q(4) * 0.4) * W;
-        leaf(x, y, turn, L, Wd, Math.round(150 + q(5) * 105));
-      }
+// (each picture kept inside its own part of the sheet, a few pixels in from its edge)
+function within(g, x, y, w, h, draw) { g.save(); g.beginPath(); g.rect(x + 3, y + 3, w - 6, h - 6); g.clip(); g.translate(x, y); draw(); g.restore(); }
+
+// A spray of leaves, W across: along twigs from the middle of the card outward, and in a rosette at the end of each.
+// `long` and `wide`: the leaf's shape, as parts of the card (a mango's long and narrow, an almond's broad and rounded
+// at its tip). Grey to white, to be coloured by the tree's own green; the midrib a little darker.
+function drawSpray(g, W, { twigs = 7, perTwig = 7, long = 0.2, wide = 0.05, round = 0, seed = 0 } = {}) {
+  const leaf = (x, y, a, L, Wd, shade) => {
+    g.save(); g.translate(x, y); g.rotate(a);
+    g.fillStyle = `rgb(${shade},${shade},${shade})`;
+    // from its stalk at (0, 0) to its tip at (L, 0): widest a third of the way along (or, `round`, near the tip)
+    const at = L * (0.35 + 0.3 * round);
+    g.beginPath(); g.moveTo(0, 0);
+    g.bezierCurveTo(at * 0.6, -Wd, at + (L - at) * 0.5, -Wd * (0.9 + round * 0.3), L, 0);
+    g.bezierCurveTo(at + (L - at) * 0.5, Wd * (0.9 + round * 0.3), at * 0.6, Wd, 0, 0);
+    g.fill();
+    g.strokeStyle = 'rgba(70,70,70,0.5)'; g.lineWidth = Math.max(1, Wd * 0.14);
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(L * 0.94, 0); g.stroke();
+    g.restore();
+  };
+  for (let t = 0; t < twigs; t += 1) {
+    const r = (k) => noise(t * 7.3 + seed, k * 3.1 + seed * 0.7);
+    const a = (t / twigs) * Math.PI * 2 + (r(1) - 0.5) * 0.7, reach = (0.3 + r(2) * 0.14) * W;
+    const ex = W / 2 + Math.cos(a) * reach, ey = W / 2 + Math.sin(a) * reach;
+    // (the twig itself is hidden by its leaves: only they are drawn)
+    for (let k = 0; k < perTwig; k += 1) {
+      const q = (j) => noise(t * 13.1 + k * 5.7 + seed, j * 2.3);
+      const along = k / perTwig, side = k % 2 ? 1 : -1, end = k >= perTwig - 3;
+      const x = W / 2 + (ex - W / 2) * (end ? 1 : 0.25 + along * 0.7), y = W / 2 + (ey - W / 2) * (end ? 1 : 0.25 + along * 0.7);
+      const turn = end ? a + (k - perTwig + 2) * 0.75 + (q(1) - 0.5) * 0.4 : a + side * (0.7 + q(2) * 0.5);
+      const L = long * (0.75 + q(3) * 0.5) * W, Wd = wide * (0.8 + q(4) * 0.4) * W;
+      leaf(x, y, turn, L, Wd, Math.round(150 + q(5) * 105));
     }
-  });
+  }
 }
-// A palm frond's leaflets: its rib down the middle (the picture's length is the frond's, its tip at the top), the
-// leaflets either side reaching out and forward toward the tip, longest in the frond's middle.
-function frondTexture({ seed = 0, stiff = 0 } = {}) {
-  return canvas(128, 512, (g, W, H) => {
-    g.clearRect(0, 0, W, H);
-    const rib = W / 2;
-    for (let y = 10; y < H - 6; y += 4) {
-      const t = y / H, reach = (W / 2 - 3) * Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + t * 0.95)), 0.55);
-      for (const side of [-1, 1]) {
-        const shade = Math.round(165 + noise(y + seed, side + 5) * 90);
-        const forward = (10 + noise(y, side + 9 + seed) * 14) * (1 - stiff * 0.6);
-        g.strokeStyle = `rgb(${shade},${shade},${shade})`; g.lineWidth = 3.4 + noise(y, side + 2) * 1.4;
-        g.beginPath(); g.moveTo(rib, y); g.quadraticCurveTo(rib + side * reach * 0.55, y - forward * 0.25, rib + side * reach, y - forward); g.stroke();
-      }
+// A palm frond's leaflets, W across and H long: its rib down the middle (its tip at the top), the leaflets either
+// side reaching out and forward toward the tip, longest in the frond's middle.
+function drawFrond(g, W, H, { seed = 0, stiff = 0 } = {}) {
+  const rib = W / 2;
+  for (let y = 10; y < H - 6; y += 4) {
+    const t = y / H, reach = (W / 2 - 4) * Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + t * 0.95)), 0.55);
+    for (const side of [-1, 1]) {
+      const shade = Math.round(165 + noise(y + seed, side + 5) * 90);
+      const forward = (10 + noise(y, side + 9 + seed) * 14) * (1 - stiff * 0.6);
+      g.strokeStyle = `rgb(${shade},${shade},${shade})`; g.lineWidth = 3.4 + noise(y, side + 2) * 1.4;
+      g.beginPath(); g.moveTo(rib, y); g.quadraticCurveTo(rib + side * reach * 0.55, y - forward * 0.25, rib + side * reach, y - forward); g.stroke();
     }
-    g.fillStyle = 'rgb(170,160,120)'; g.fillRect(rib - 2, 0, 4, H);
-  });
+  }
+  g.fillStyle = 'rgb(170,160,120)'; g.fillRect(rib - 2, 0, 4, H);
 }
+const sprays = () => sheet(512, 256, (g) => {
+  within(g, 0, 0, 256, 256, () => drawSpray(g, 256, { twigs: 7, perTwig: 8, long: 0.19, wide: 0.045, seed: 1 }));
+  within(g, 256, 0, 256, 256, () => drawSpray(g, 256, { twigs: 6, perTwig: 6, long: 0.17, wide: 0.075, round: 1, seed: 2 }));
+});
+const fronds = () => sheet(256, 512, (g) => {
+  within(g, 0, 0, 128, 512, () => drawFrond(g, 128, 512, { seed: 0 }));
+  within(g, 128, 0, 128, 512, () => drawFrond(g, 128, 512, { seed: 3, stiff: 1 }));
+});
 
 // ---------------------------------------------------------------------------------------------- the builder --
 
@@ -102,7 +117,7 @@ class Leaves {
 const FRONT = [0, 1, 2, 0, 2, 3], BACK = [0, 2, 1, 0, 3, 2], CORNER = [[0, 0], [1, 0], [1, 1], [0, 1]];
 
 export class Foliage {
-  constructor() { this.parts = new Map(); }       // `${kind}:${square}` -> Leaves
+  constructor() { this.parts = new Map(); }       // `${sheet}:${square}` -> Leaves
   at(kind, x, z) {
     const key = `${kind}:${Math.floor(x / SIZE)},${Math.floor(z / SIZE)}`;
     let part = this.parts.get(key);
@@ -112,19 +127,19 @@ export class Foliage {
   // One spray: a card `size` across centred at (x, y, z), turned `yaw` about the upright and tipped `tilt`, lit as
   // if its face looked along (nx, ny, nz) (outward from its crown's middle), from both sides. `kind`: which picture.
   spray(kind, x, y, z, size, yaw, tilt, nx, ny, nz, hex, shade = 1) {
-    const part = this.at(kind, x, z), col = linear(hex).multiplyScalar(shade);
+    const pic = PICTURES[kind], part = this.at(pic.sheet, x, z), col = linear(hex).multiplyScalar(shade), du = pic.u1 - pic.u0;
     const h = size / 2, cy = Math.cos(yaw), sy = Math.sin(yaw), ct = Math.cos(tilt), st = Math.sin(tilt);
     const ax = cy * h, az = -sy * h;                                   // across: level, turned by yaw
     const ux = sy * st * h, uy = ct * h, uz = cy * st * h;             // up: tipped by tilt
     const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
     const q = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([i, j]) => [x + ax * i + ux * j, y + uy * j, z + az * i + uz * j]);
-    for (const order of [FRONT, BACK]) for (const k of order) part.vertex(q[k][0], q[k][1], q[k][2], nx, ny, nz, CORNER[k][0], CORNER[k][1], col);
+    for (const order of [FRONT, BACK]) for (const k of order) part.vertex(q[k][0], q[k][1], q[k][2], nx, ny, nz, pic.u0 + CORNER[k][0] * du, CORNER[k][1], col);
   }
   // A palm frond: its ribbon (`points` along it from the crown, each with its left and right edges and how far along
   // it is), with the frond's picture along it; each piece lit by which way it faces.
   frond(kind, points, hex, shade = 1) {
     const [x0, , z0] = points[0].p;
-    const part = this.at(kind, x0, z0), col = linear(hex).multiplyScalar(shade);
+    const pic = PICTURES[kind], part = this.at(pic.sheet, x0, z0), col = linear(hex).multiplyScalar(shade), du = pic.u1 - pic.u0;
     for (let i = 0; i + 1 < points.length; i += 1) {
       const a = points[i], b = points[i + 1];
       const q = [a.l, a.r, b.r, b.l], t = [[0, a.v], [1, a.v], [1, b.v], [0, b.v]];
@@ -133,12 +148,12 @@ export class Foliage {
       const fx = q[3][0] - q[0][0], fy = q[3][1] - q[0][1], fz = q[3][2] - q[0][2];
       let nx = ey * fz - ez * fy, ny = ez * fx - ex * fz, nz = ex * fy - ey * fx;
       const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
-      for (const k of FRONT) part.vertex(q[k][0], q[k][1], q[k][2], nx, ny, nz, t[k][0], t[k][1], col);
+      for (const k of FRONT) part.vertex(q[k][0], q[k][1], q[k][2], nx, ny, nz, pic.u0 + t[k][0] * du, t[k][1], col);
     }
   }
   get empty() { return this.parts.size === 0; }
   get triangles() { let n = 0; for (const part of this.parts.values()) n += part.triangles; return n; }
-  // One mesh for each kind of leaf in each square, each casting the shadow of its leaves.
+  // One mesh for each sheet of leaves in each square (sprays, fronds), each casting the shadow of its leaves.
   build(materials = foliageMaterials()) {
     return [...this.parts.values()].map((part) => {
       const material = materials[part.kind];
@@ -233,7 +248,7 @@ export const setWind = (seconds) => { wind.value = seconds % 3600; };
 // (the tests: the wind's clock, and which kinds of leaf there are)
 export const foliageState = () => ({ wind: wind.value, kinds: made ? Object.keys(made) : [] });
 function sway(material, kind) {
-  const frond = kind === 'frond' || kind === 'oilfrond';
+  const frond = kind === 'frond';
   material.onBeforeCompile = (shader) => {
     shader.uniforms.uWind = wind;
     shader.vertexShader = shader.vertexShader
@@ -255,21 +270,16 @@ function sway(material, kind) {
 let made = null;
 export function foliageMaterials() {
   if (made) return made;
-  const pictures = {
-    mango: sprayTexture({ twigs: 7, perTwig: 8, long: 0.19, wide: 0.045, seed: 1 }),
-    almond: sprayTexture({ twigs: 6, perTwig: 6, long: 0.17, wide: 0.075, round: 1, seed: 2 }),
-    frond: frondTexture({ seed: 0 }),
-    oilfrond: frondTexture({ seed: 3, stiff: 1 }),
-  };
+  const pictures = { spray: sprays(), frond: fronds() };
   made = {};
   const lite = isLite();
   for (const [kind, map] of Object.entries(pictures)) {
-    const frond = kind === 'frond' || kind === 'oilfrond';
+    const frond = kind === 'frond';
     const cut = frond ? 0.35 : 0.42;
     // (a spray is drawn from both sides by its own two faces, each lit as the crown is; a frond from both sides of
-    // its one face, its underside dark as a leaf's is)
-    // (matte, lit at its corners: a leaf has no gloss to speak of from where it is seen, and a gloss worked out from the
-    // crown's light rather than the card's own face turned a card white seen from beneath it)
+    // its one face, its underside dark as a leaf's is). Matte, lit at its corners: a leaf has no gloss to speak of
+    // from where it is seen, and a gloss worked out from the crown's light rather than the card's own face turned a
+    // card white seen from beneath it.
     const m = sway(new THREE.MeshLambertMaterial({ map, vertexColors: true, alphaTest: cut, alphaToCoverage: !lite, side: frond ? THREE.DoubleSide : THREE.FrontSide }), kind);
     m.userData.depth = sway(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map, alphaTest: cut }), kind);
     made[kind] = m;

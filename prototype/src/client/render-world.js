@@ -506,7 +506,7 @@ export function buildWorld(scene) {
   const ripples = rippleNormalTexture();
   ripples.repeat.set(60, 9);
   // (the river gives back the sky, broken by its ripples: render-finish.js)
-  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.16, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.85);
+  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5);
   const water = new THREE.Mesh(new THREE.PlaneGeometry(1500, farEdge - nearEdge + 8, 1, 1), waterMaterial);
   water.rotation.x = -Math.PI / 2;
   water.position.set(0, -0.32, (nearEdge + farEdge + 8) / 2);
