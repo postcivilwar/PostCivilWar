@@ -43,7 +43,7 @@ img{max-width:100%}
 window.addEventListener('beforeinstallprompt', function (e) { window.__PCW_INSTALL = e; });
 window.addEventListener('appinstalled', function () { window.__PCW_INSTALL = null; window.__PCW_INSTALLED = true; });
 </script>
-<script>window.__PCW_PACK_FILES = {"kit":"kit.b64.txt?v=a9a4ed8f93fe4d42","vehicles":"vehicles.b64.txt?v=8d1cee47670122c0","moves":"moves.b64.txt?v=20dd73a16b751719"};</script>
+<script>window.__PCW_PACK_FILES = {"kit":"kit.b64.txt?v=a9a4ed8f93fe4d42","vehicles":"vehicles.b64.txt?v=8d1cee47670122c0","moves":"moves.b64.txt?v=801ef686f6b5777d"};</script>
 </head>
 <body>
 <style>
@@ -232,7 +232,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .fig-label { min-width: 132px; text-align: center; display: flex; flex-direction: column; gap: 3px; }
 .fig-label b { font-size: 19px; font-weight: 700; letter-spacing: 0.01em; }
 .fig-label span { font-size: 12px; color: rgba(255, 255, 255, 0.55); font-variant-numeric: tabular-nums; }
-.dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 2px; flex: none; min-height: 22px; max-width: min(100%, 340px); margin-inline: auto; }          /* (24 characters and more: they wrap, not pushing the panel beside them narrow) */
+.dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 2px; flex: none; min-height: 22px; max-width: min(100%, 360px); margin-inline: auto; }          /* (thirty characters: two lines of fifteen; they wrap, not pushing the panel beside them narrow) */
 .dots button { width: 22px; height: 22px; border: 0; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
 .dots button::after { content: ""; width: 6px; height: 6px; border-radius: 1px; background: rgba(255, 255, 255, 0.3); transition: width 0.2s, background 0.2s; }
 .dots button[aria-current="true"]::after { width: 18px; background: var(--white); }
@@ -1146,6 +1146,7 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 .dealitem.bike .pic { width: 62px; height: 62px; }
 .dealitem .what { flex: 1; display: flex; flex-direction: column; gap: 4px; min-width: 0; }
 .dealitem .what b { font-size: 14px; font-weight: 700; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.dealitem.bike .what b { white-space: normal; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.2; }          /* (a longer name, "PostCivilWar Tourer", on two lines rather than cut short) */
 .dealitem .what > span { font-size: 12px; color: #8fa1ae; }
 .dealitem.bike { flex-wrap: wrap; row-gap: 8px; }
 .dealitem .brandline { flex: 1 0 100%; display: flex; align-items: center; gap: 8px; min-width: 0; padding: 1px 2px 0; font: italic 900 9.5px/1.1 var(--font-ui); letter-spacing: 0.14em; text-transform: uppercase; color: #e9c46a; white-space: nowrap; }
@@ -1500,7 +1501,7 @@ canvas.map.nation { border-radius: 14px; }
     w.onmessage = function (e) { var r = wait[e.data.id]; if (!r) return; if (e.data.error) r.no(new Error(e.data.error)); else r.yes(e.data.buf); };
     // each figure's file beside the page, the name of the copy written into the page (if one is), and whether the
     // file is served as it is (1) or as base64 text; filled in by build.mjs from src/sim/figures.js
-    var FILES = {"W1":["woman.b64.txt","__PCW_WOMAN_B64"],"M1":["man.b64.txt","__PCW_MAN_B64"],"W2":["athlete.b64.txt","__PCW_ATHLETE_B64"],"W3":["police.b64.txt","__PCW_POLICE_B64"],"M4":["priest.b64.txt","__PCW_PRIEST_B64"],"M5":["warrior.b64.txt","__PCW_WARRIOR_B64"],"W4":["female_figure.glb",null,1],"W5":["athletic_outfit.glb",null,1],"W6":["fashion_model_3.glb",null,1],"W7":["zombie_survivor.glb",null,1],"W8":["female_character_2.glb",null,1],"W9":["horror_nurse.glb",null,1],"W10":["camouflage_bikini.glb",null,1],"W11":["swimwear_model.glb",null,1],"W12":["fashion_model_2.glb",null,1],"W13":["fashion_model_1.glb",null,1],"M6":["male_figure.glb",null,1],"M7":["zombie.glb",null,1],"M8":["horror_character.glb",null,1],"M9":["hobo_character.glb",null,1],"M10":["zombie_character.glb",null,1],"M11":["human_character.glb",null,1],"M12":["ninja_armor.glb",null,1],"M13":["ninja_warrior.glb",null,1]};
+    var FILES = {"W1":["woman.b64.txt","__PCW_WOMAN_B64"],"M1":["man.b64.txt","__PCW_MAN_B64"],"W2":["athlete.b64.txt","__PCW_ATHLETE_B64"],"W3":["police.b64.txt","__PCW_POLICE_B64"],"M4":["priest.b64.txt","__PCW_PRIEST_B64"],"M5":["warrior.b64.txt","__PCW_WARRIOR_B64"],"W4":["female_figure.glb",null,1],"W5":["athletic_outfit.glb",null,1],"W6":["fashion_model_3.glb",null,1],"W7":["zombie_survivor.glb",null,1],"W8":["female_character_2.glb",null,1],"W9":["horror_nurse.glb",null,1],"W10":["camouflage_bikini.glb",null,1],"W11":["swimwear_model.glb",null,1],"W12":["fashion_model_2.glb",null,1],"W13":["fashion_model_1.glb",null,1],"M6":["male_figure.glb",null,1],"M7":["zombie.glb",null,1],"M8":["horror_character.glb",null,1],"M9":["hobo_character.glb",null,1],"M10":["zombie_character.glb",null,1],"M11":["human_character.glb",null,1],"M12":["ninja_armor.glb",null,1],"M13":["ninja_warrior.glb",null,1],"W14":["fashion_model_7.glb",null,1],"W15":["fashion_model_5.glb",null,1],"M14":["fashion_model_6.glb",null,1],"M15":["patchwork_shirt.glb",null,1],"M16":["nigerian_traditional.glb",null,1],"M17":["urban_streetwear.glb",null,1]};
     // asked for by animated.js; the first is begun here, the other only when it is wanted (each is 10 MB or more)
     window.__PCW_LOAD_FIGURE = function (id) {
       if (got[id] || !FILES[id]) return got[id] || null;
@@ -3198,7 +3199,7 @@ __modules["sim/zones/atani-powerbike.js"] = (function () {
 //     is not changed;
 //   - in front of the porch, one pink column, the kind a buyer steps into (render-holaris.js makes it): stepping in
 //     takes the player inside, the screen going dark and coming back (main.js, the simulation's `showroom.in`);
-//   - inside, under the podium, the showroom hall: the fifteen motorcycles on stands with room all round each, a
+//   - inside, under the podium, the showroom hall: the motorcycles (seventeen) on stands with room all round each, a
 //     turntable in the middle, the salesman's desk, a lounge, and the doors, where a mat by them takes the player
 //     back out (`showroom.out`);
 //   - the salesman, who keeps the floor and comes to whoever is looking (src/sim/salesman.js).
@@ -3229,8 +3230,9 @@ const POWERBIKE = Object.freeze({
     tower: Object.freeze({ x: -0.054, z: -0.0525, r: 0.0885, top: 1.0 }),
   }),
   footprint: box(AT.x - HALF.x * S, AT.z - HALF.z * S, AT.x + HALF.x * S, AT.z + HALF.z * S),
-  // the hall under the podium: its floor is the ground; its ceiling is below the podium's roof
-  hall: Object.freeze({ x0: -78.6, z0: 33.0, x1: -45.4, z1: 53.9, ceiling: 6.6 }),
+  // the hall under the podium: its floor is the ground; its ceiling is below the podium's roof. (Its back wall was at
+  // 33.0 until 17 October 2026, when the hall was taken 5.4 m further in under the podium for a fourth row.)
+  hall: Object.freeze({ x0: -78.6, z0: 27.6, x1: -45.4, z1: 53.9, ceiling: 6.6 }),
   doors: Object.freeze({ x: -63.6, z: 53.9, width: 2.8, height: 3.2 }),
   // the pink column before the porch, and where someone stepping out of the doors is set down (clear of it)
   portal: Object.freeze({ x: -63.6, z: 59.6, radius: 1.25 }),
@@ -3246,14 +3248,16 @@ const POWERBIKE = Object.freeze({
     ['black-cruiser', -74.8, 43.2, 1.1], ['chopper', -69.2, 43.2, 0.9], ['chrome-concept', -63.6, 43.2, 0, 'turntable'], ['black-bobber', -58.0, 43.2, -0.9], ['olive-cruiser', -52.4, 43.2, -1.1],
     // the back row: the big tourers, the roadster and the superbike
     ['yellow-adventure', -74.8, 38.0, 0.45], ['power-cruiser', -69.2, 38.0, 0.3], ['gold-tourer', -63.6, 38.0, 0], ['gold-roadster', -58.0, 38.0, -0.3], ['black-gold-superbike', -52.4, 38.0, -0.45],
+    // the fourth row, at the back (17 October 2026): the owner's two newest, either side of the hall's middle line
+    ['midnight-cruiser', -66.4, 32.8, 0.35], ['civil-war-tourer', -60.8, 32.8, -0.35],
   ].map(([bike, x, z, h, stand = 'plinth']) => Object.freeze({ bike, x, z, h, stand, r: stand === 'turntable' ? 2.0 : 1.45 }))),
   // the salesman's desk (against the east wall, facing the floor), the lounge by the windows, the brand wall
   desk: box(-48.0, 38.8, -47.1, 42.6),
   lounge: Object.freeze({ sofa: box(-46.4, 45.9, -45.5, 49.9), table: box(-48.6, 46.9, -47.4, 48.9), chairs: Object.freeze([Object.freeze({ x: -49.9, z: 46.4 }), Object.freeze({ x: -49.9, z: 50.4 })]) }),
-  plants: Object.freeze([[-77.9, 33.7], [-77.9, 53.2], [-46.1, 33.7], [-46.1, 53.2], [-69.6, 53.3], [-57.6, 53.3]].map(([x, z]) => Object.freeze({ x, z }))),
+  plants: Object.freeze([[-77.9, 28.3], [-77.9, 53.2], [-46.1, 28.3], [-46.1, 53.2], [-69.6, 53.3], [-57.6, 53.3]].map(([x, z]) => Object.freeze({ x, z }))),
   // where the salesman waits when nobody is in, and the walk he takes round the floor when he is not with anyone
   home: Object.freeze({ x: -49.4, z: 40.7, heading: -Math.PI / 2 }),
-  round: Object.freeze([[-49.4, 40.7], [-55.2, 45.8], [-61.0, 51.2], [-66.4, 45.8], [-72.0, 51.0], [-77.0, 45.8], [-72.0, 40.6], [-66.4, 35.4], [-60.8, 40.6], [-55.2, 35.4]].map(([x, z]) => Object.freeze({ x, z }))),
+  round: Object.freeze([[-49.4, 40.7], [-55.2, 45.8], [-61.0, 51.2], [-66.4, 45.8], [-72.0, 51.0], [-77.0, 45.8], [-72.0, 40.6], [-71.6, 33.0], [-63.6, 29.9], [-55.6, 33.0], [-60.8, 40.6], [-55.2, 35.4]].map(([x, z]) => Object.freeze({ x, z }))),
 });
 
 // Is a point in the hall (on its floor, inside its walls)?
@@ -6698,11 +6702,19 @@ const FIGURES = Object.freeze({
   M11: Object.freeze({ id: 'M11', gender: 'm', name: 'Tobenna', file: 'human_character.glb', animated: true, parts: Object.freeze([]) }),
   M12: Object.freeze({ id: 'M12', gender: 'm', name: 'Chukwudi', file: 'ninja_armor.glb', animated: true, parts: Object.freeze([]) }),
   M13: Object.freeze({ id: 'M13', gender: 'm', name: 'Ifeanyi', file: 'ninja_warrior.glb', animated: true, parts: Object.freeze([]) }),
+  // Six more (17 October 2026), read the same way, by looking at each: two women and four men. A seventh file the
+  // owner supplied, a figure of a well-known film and comic character, is left out at the owner's word.
+  W14: Object.freeze({ id: 'W14', gender: 'f', name: 'Nkiru', file: 'fashion_model_7.glb', animated: true, parts: Object.freeze([]) }),
+  W15: Object.freeze({ id: 'W15', gender: 'f', name: 'Uloma', file: 'fashion_model_5.glb', animated: true, parts: Object.freeze([]) }),
+  M14: Object.freeze({ id: 'M14', gender: 'm', name: 'Chidi', file: 'fashion_model_6.glb', animated: true, parts: Object.freeze([]) }),
+  M15: Object.freeze({ id: 'M15', gender: 'm', name: 'Ebuka', file: 'patchwork_shirt.glb', animated: true, parts: Object.freeze([]) }),
+  M16: Object.freeze({ id: 'M16', gender: 'm', name: 'Obiora', file: 'nigerian_traditional.glb', animated: true, parts: Object.freeze([]) }),
+  M17: Object.freeze({ id: 'M17', gender: 'm', name: 'Somto', file: 'urban_streetwear.glb', animated: true, parts: Object.freeze([]) }),
 });
 
 const FIGURE_ORDER = Object.freeze({
-  f: Object.freeze(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13']),
-  m: Object.freeze(['M1', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13']),
+  f: Object.freeze(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'W14', 'W15']),
+  m: Object.freeze(['M1', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13', 'M14', 'M15', 'M16', 'M17']),
 });
 
 // The colours offered on the selection screen. Any colour is accepted from a client that sends a valid number;
@@ -8755,6 +8767,8 @@ const TONES = {
   'gold-roadster': { idle: 1200, pipe: 205, rasp: 0.16, lope: 0.12 },
   'black-bobber': { idle: 880, pipe: 104, lope: 0.9, rasp: 0.24 },
   'power-cruiser': { idle: 950, pipe: 120, lope: 0.65, rasp: 0.18, level: 0.5 },
+  'midnight-cruiser': { idle: 870, pipe: 102, lope: 0.85, rasp: 0.21, level: 0.5 },
+  'civil-war-tourer': { idle: 1150, pipe: 172, rasp: 0.12, lope: 0.15, level: 0.45 },
 };
 
 // Each bike's engine size (cc), from the owner's list of sizes (16 October 2026: 500, 600, 650, 700, 750, 1000,
@@ -8786,6 +8800,9 @@ const POWER_BIKES = Object.freeze({
   'gold-roadster': bike('gold-roadster', 'Gold Muscle Roadster', 4, 2.3, 'four1000', 'dual', withCc(2300, {}), 'A big gold muscle roadster with a three-pipe engine on show.', undefined, 2300),
   'black-bobber': bike('black-bobber', 'Black Bobber', 2, 2.3, 'vtwin1200', 'dual', withCc(1650, { leanMax: 0.5, wheelbase: 1.6 }), 'A black bobber with a fat front tyre, a solid tank and a low solo seat.', undefined, 1650),
   'power-cruiser': bike('power-cruiser', 'Dark Power Cruiser', 3, 2.35, 'vtwin1200', 'dual', withCc(1850, { leanMax: 0.55, wheelbase: 1.7 }), 'A long, low custom power cruiser in black on gold-spoked wheels.', undefined, 1850),
+  // the owner's two of 17 October 2026, given the two sizes of the owner's list that were left (700 and 750 cc)
+  'midnight-cruiser': bike('midnight-cruiser', 'Midnight Cruiser', 2, 2.3, 'vtwin1200', 'dual', withCc(750, { leanMax: 0.5, wheelbase: 1.65 }), 'A dark cruiser on spoked wheels, low and wide, its twin-cylinder engine in black and chrome.', undefined, 750),
+  'civil-war-tourer': bike('civil-war-tourer', 'PostCivilWar Tourer', 2, 2.25, 'twin650', 'dual', withCc(700, {}), 'A white touring bike in the PostCivilWar colours, with a tall screen and hard luggage at the back.', undefined, 700),
 });
 
 // How a big motorcycle goes, in metres, seconds and radians. A heavier, faster bike overrides some of these.
@@ -17973,6 +17990,8 @@ const LABEL = {
   hit_to_stomach: 'Winded', hit_to_body_01: 'Struck', 'blow kiss': 'Kiss', 'Dead zombie walk': 'Shamble', zombie: 'Zombie', magic: 'Magic',
   chop: 'Chop', swagger: 'Swagger', freaky: 'Freaky', sing_02: 'Croon', sing_03: 'Chant', frustrated_02: 'Exasperated', summersault: 'Somersault',
   wait: 'Wait', fire: 'Fire',
+  // the six of 17 October 2026
+  'female twerking': 'Twerk', 'female cat walk': 'Catwalk', crossover_dribble: 'Crossover',
 };
 // The second of two animations in one file that would be called the same: its own word instead.
 const ALSO = { box_01: 'Strike', magic: 'Sorcery', run_upstairs: 'Stairs', climb: 'Scale', sing_04: 'Serenade', dance_05: 'Hop', walk: 'Stroll', run: 'Sprint' };
@@ -18212,6 +18231,13 @@ const ANIMATED = Object.freeze({
     ['M11', 'human_character.glb', 1.80, {}, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M12', 'ninja_armor.glb', 1.83, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M13', 'ninja_warrior.glb', 1.85, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],          // (its defeat_02, "Slump", ends on its knees, not on the ground: not a fall)
+    // the six of 17 October 2026
+    ['W14', 'fashion_model_7.glb', 1.72, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'] }],
+    ['W15', 'fashion_model_5.glb', 1.66, {}, { hit: ['hit_to_stomach.001', 'hit_to_head.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
+    ['M14', 'fashion_model_6.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M15', 'patchwork_shirt.glb', 1.82, { swim: 'swim.001' }, { punch: ['box_01.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M16', 'nigerian_traditional.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M17', 'urban_streetwear.glb', 1.78, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
   ]),
 });
 // [id, file, height, its own walk/run/swim clips (what it lacks is borrowed: ~walk, ~run, ~swim), what shows what
@@ -18254,6 +18280,34 @@ const SEATED_HEIGHT = 0.845;
 const GRIP = { x: 0.25, y: 0.3, z: 0.38 };
 
 const loading = new Map();
+// Each figure's model (its shape and pictures, shared by every figure drawn from it) is kept while a figure on the
+// screen is drawn from it, and one more besides; beyond that, the one let go longest ago is freed. A figure's pictures
+// are up to half a gigabyte of graphics memory at full size, and a player looking through thirty characters on the
+// choosing screen otherwise kept every one they had looked at, until the page fell over (17 October 2026).
+const users = new Map();          // id -> how many figures on the screen are drawn from it
+const unused = [];                // ids drawn by none, the longest unused first
+const KEEP_UNUSED = 1;
+function useModel(id) {
+  users.set(id, (users.get(id) || 0) + 1);
+  const i = unused.indexOf(id); if (i >= 0) unused.splice(i, 1);
+}
+function releaseModel(id) {
+  const n = (users.get(id) || 1) - 1;
+  if (n > 0) { users.set(id, n); return; }
+  users.delete(id); unused.push(id);
+  while (unused.length > KEEP_UNUSED) {
+    const old = unused.shift(), held = loading.get(old);
+    loading.delete(old);
+    if (held) held.then(({ model }) => {
+      model.geometry.dispose();
+      const m = model.material;
+      for (const t of new Set([m.map, m.normalMap, m.roughnessMap, m.metalnessMap].filter(Boolean))) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); }
+      m.dispose();
+    }, () => {});
+  }
+}
+// (for the tests: which models are held)
+const heldModels = () => ({ loaded: [...loading.keys()], users: Object.fromEntries(users), unused: [...unused] });
 // a touch-first device draws the supplied textures at half size (see glb.js); '#full' in the address keeps them whole
 const liteTexture = () => { try { const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; return coarse && !String(location.hash).includes('full') ? 2048 : 0; } catch (error) { return 0; } };
 function bytesOf(spec) {
@@ -18358,6 +18412,8 @@ const smooth01 = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * 
 
 function makeAnimatedRig(id, labelText, shadow = false) {
   const spec = ANIMATED[id];
+  useModel(id);
+  let released = false;
   const group = new THREE.Group();
   const holder = new THREE.Group();
   const lift = new THREE.Group();          // raised or lowered to put the figure on a seat
@@ -18518,7 +18574,7 @@ function makeAnimatedRig(id, labelText, shadow = false) {
       if (Math.abs(rig.drop) < 1e-4) rig.drop = 0;
       if (!rig.seated) lift.position.y = rig.drop;
     },
-    dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } },
+    dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } if (!released) { released = true; releaseModel(id); } },
   };
 
   // Turns a bone about an axis given in the figure's own frame (x its left, y up, z ahead), on top of its pose.
@@ -18627,7 +18683,7 @@ function driveAnimated(rig, dt, speed) {
   rig.afterClips(dt);
 }
 
-return { ANIMATED, PRIORITY, figureHere, loadAnimated, reach, makeAnimatedRig, driveAnimated };
+return { ANIMATED, PRIORITY, heldModels, figureHere, loadAnimated, reach, makeAnimatedRig, driveAnimated };
 })();
 
 // ---- client/character.js ----
@@ -22960,6 +23016,83 @@ const BIKE_PARTS = Object.freeze({
    "full": 10283025
   }
  },
+ "civil-war-tourer": {
+  "vertices": 14045,
+  "triangles": 10766,
+  "parts": [
+   8007,
+   877,
+   1054,
+   828
+  ],
+  "length": 0.9995,
+  "height": 0.6577,
+  "width": 0.4692,
+  "front": {
+   "z": 0.3385,
+   "y": 0.1435,
+   "r": 0.142,
+   "half": 0.0315
+  },
+  "rear": {
+   "z": -0.3385,
+   "y": 0.144,
+   "r": 0.144,
+   "half": 0.0432
+  },
+  "rake": 0.44,
+  "grip": [
+   0.2085,
+   0.5049,
+   0.1915
+  ],
+  "seat": [
+   0.0,
+   0.2925,
+   -0.0887
+  ],
+  "peg": [
+   0.0983,
+   0.1076,
+   0.0313
+  ],
+  "head": [
+   0.0,
+   0.3838,
+   0.399
+  ],
+  "tail": [
+   0.0,
+   0.3057,
+   -0.5116
+  ],
+  "pipes": [
+   [
+    0.1333,
+    0.3081,
+    -0.5101
+   ],
+   [
+    -0.1333,
+    0.3081,
+    -0.5101
+   ]
+  ],
+  "metallic": 0,
+  "roughness": 0.8999999761581421,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "civil-war-tourer.bin",
+   "color4k": "civil-war-tourer-color-4k.jpg",
+   "color2k": "civil-war-tourer-color-2k.jpg",
+   "colorSize": 8192
+  },
+  "sha256": "9ca8d0b0b80874296207cb997c5b0ee20c4175861d4e96ba5e8553de83d88b68",
+  "bytes": {
+   "lite": 1269970,
+   "full": 2712538
+  }
+ },
  "gold-roadster": {
   "vertices": 76566,
   "triangles": 95681,
@@ -23124,6 +23257,89 @@ const BIKE_PARTS = Object.freeze({
   "bytes": {
    "lite": 5198673,
    "full": 11543826
+  }
+ },
+ "midnight-cruiser": {
+  "vertices": 127447,
+  "triangles": 132054,
+  "parts": [
+   54405,
+   7513,
+   28381,
+   41755
+  ],
+  "length": 0.9791,
+  "height": 0.5886,
+  "width": 0.5596,
+  "front": {
+   "z": 0.356,
+   "y": 0.118,
+   "r": 0.118,
+   "half": 0.0364
+  },
+  "rear": {
+   "z": -0.356,
+   "y": 0.126,
+   "r": 0.126,
+   "half": 0.065
+  },
+  "rake": 0.44,
+  "grip": [
+   0.2169,
+   0.5086,
+   0.1003
+  ],
+  "seat": [
+   0.0,
+   0.2623,
+   -0.2157
+  ],
+  "peg": [
+   0.1026,
+   0.0885,
+   -0.0957
+  ],
+  "head": [
+   0.0,
+   0.2905,
+   0.3939
+  ],
+  "tail": [
+   0.0,
+   0.1886,
+   -0.4459
+  ],
+  "pipes": [
+   [
+    0.0454,
+    0.1381,
+    -0.4515
+   ],
+   [
+    -0.045,
+    0.1501,
+    -0.4668
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "midnight-cruiser.bin",
+   "color4k": "midnight-cruiser-color-4k.jpg",
+   "color2k": "midnight-cruiser-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "midnight-cruiser-rm-4k.webp",
+   "rm2k": "midnight-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "midnight-cruiser-normal-4k.png",
+   "normal2k": "midnight-cruiser-normal-2k.webp",
+   "normalSize": 4096
+  },
+  "sha256": "5ca2593b79c7c3d1de3529c74f38d559b3492e4c0f9867a759422eb5dc30c3ce",
+  "bytes": {
+   "lite": 6411197,
+   "full": 10851584
   }
  },
  "olive-cruiser": {
@@ -23762,7 +23978,8 @@ async function partsOf(id, { base, lite }) {
   if (!spec) throw new Error(`There is no motorcycle ${id}.`);
   const made = (async () => {
     const f = spec.files, tier = lite ? '2k' : '4k';
-    const textures = [picture(base + f[`color${tier}`], true), picture(base + f[`normal${tier}`], false), picture(base + f[`rm${tier}`], false)];
+    // (a bike made with few triangles may come with its colour picture only: then it has no other to fetch)
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour]) => (f[`${name}${tier}`] ? picture(base + f[`${name}${tier}`], colour) : null));
     const response = await fetchKept(base + f.mesh);
     if (!response.ok) throw new Error(`${f.mesh}: ${response.status}`);
     const buf = await response.arrayBuffer();
@@ -23783,7 +24000,7 @@ async function partsOf(id, { base, lite }) {
       geometries.push(g);
       first += count;
     }
-    const [color, normalMap, rm] = await Promise.all(textures.map((t) => t.ready));
+    const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
     const material = surface({ map: color, normalMap, normalScale: new THREE.Vector2(spec.normalScale, -spec.normalScale), roughnessMap: rm, metalnessMap: rm, roughness: spec.roughness, metalness: spec.metallic, envMapIntensity: 1.1 });
     return { spec, geometries, material };
   })();
@@ -23825,7 +24042,7 @@ function lampsOf(spec, frame) {
   tail.position.set(T[0], T[1], T[2] - 0.004); tail.rotation.y = Math.PI; tail.scale.setScalar(0.022);
   const tailGlow = put(new THREE.Mesh(P.glow, glowMat(0xff2010))); tailGlow.position.set(T[0], T[1], T[2] - 0.01); tailGlow.rotation.y = Math.PI; tailGlow.scale.setScalar(0.1);
   // the flames: one from each silencer's end
-  const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.visible = false; return m; });
+  const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.scale.set(0.022, 0.022, 0.06); m.visible = false; return m; });          // (made at its unlit size: a cone a whole bike long, even unseen, made the bike's measured size twice what it is)
   const st = { head: -1, brake: -1, tail: -1 };
   return {
     head,
@@ -24129,7 +24346,10 @@ function createModelView(canvas, { transparent = true, pixelRatio = Math.min(2, 
       if (closed) { bike.dispose(); return null; }
       shownBike = bike;
       bike.pose({});
-      const box = new THREE.Box3().setFromObject(bike.group);
+      // (its size is what is drawn of it: a lamp's glow or a flame that is not lit is left out)
+      const box = new THREE.Box3(), part = new THREE.Box3();
+      bike.group.updateMatrixWorld(true);
+      bike.group.traverseVisible((o) => { if (!o.isMesh || !o.geometry) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); box.union(part.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld)); });
       const centre = box.getCenter(new THREE.Vector3());
       bike.group.position.sub(centre);
       radius = box.getBoundingSphere(new THREE.Sphere()).radius;
@@ -31301,7 +31521,7 @@ __modules["client/bike-impostors.js"] = (function () {
 // Each motorcycle's pictures from all round (assets/market/bike-<id>-impostor.webp): 24 frames, 6 across and 4 down,
 // frame i seen from i/24 of the way round from the bike's front toward its left, 0.16 rad above. `size` is the side of a
 // frame in metres; `centre` where the middle of the picture is, from the bike's own origin on the ground (metres).
-const BIKE_IMPOSTOR = Object.freeze({ frames: 24, cols: 6, rows: 4, elevation: 0.16, bikes: {"black-bobber":{"size":2.7552,"centre":[0,0.6913,0.0022]},"black-cruiser":{"size":2.6838,"centre":[0,0.7462,-0.0777]},"black-gold-superbike":{"size":2.3879,"centre":[0,0.5802,-0.0206]},"cafe-racer":{"size":2.2612,"centre":[0,0.5036,-0.0096]},"chopper":{"size":2.8878,"centre":[0,0.6751,-0.0029]},"chrome-concept":{"size":2.8686,"centre":[0,0.5971,-0.0144]},"gold-roadster":{"size":2.6161,"centre":[0,0.5908,-0.003]},"gold-tourer":{"size":2.8284,"centre":[0,0.7016,-0.0448]},"olive-cruiser":{"size":2.5855,"centre":[0,0.6325,-0.0308]},"power-cruiser":{"size":2.6204,"centre":[0,0.5971,-0.0169]},"purple-sport":{"size":2.3367,"centre":[0,0.5818,-0.0385]},"red-superbike":{"size":2.3872,"centre":[0,0.5874,-0.013]},"streetfighter":{"size":2.2204,"centre":[0,0.5602,-0.001]},"white-sport":{"size":2.3287,"centre":[0,0.5963,-0.0768]},"yellow-adventure":{"size":2.6396,"centre":[0,0.7315,-0.0395]}} });
+const BIKE_IMPOSTOR = Object.freeze({ frames: 24, cols: 6, rows: 4, elevation: 0.16, bikes: {"black-bobber":{"size":2.7552,"centre":[0,0.6913,0.0022]},"black-cruiser":{"size":2.6838,"centre":[0,0.7462,-0.0777]},"black-gold-superbike":{"size":2.3879,"centre":[0,0.5802,-0.0206]},"cafe-racer":{"size":2.2612,"centre":[0,0.5036,-0.0096]},"chopper":{"size":2.8878,"centre":[0,0.6751,-0.0029]},"chrome-concept":{"size":2.8686,"centre":[0,0.5971,-0.0144]},"civil-war-tourer":{"size":2.5851,"centre":[0,0.7403,-0.0432]},"gold-roadster":{"size":2.6161,"centre":[0,0.5908,-0.003]},"gold-tourer":{"size":2.8284,"centre":[0,0.7016,-0.0448]},"midnight-cruiser":{"size":2.8151,"centre":[0,0.7064,0.0022]},"olive-cruiser":{"size":2.5855,"centre":[0,0.6325,-0.0308]},"power-cruiser":{"size":2.6204,"centre":[0,0.5971,-0.0169]},"purple-sport":{"size":2.3367,"centre":[0,0.5818,-0.0385]},"red-superbike":{"size":2.3872,"centre":[0,0.5874,-0.013]},"streetfighter":{"size":2.2204,"centre":[0,0.5602,-0.001]},"white-sport":{"size":2.3287,"centre":[0,0.5963,-0.0768]},"yellow-adventure":{"size":2.6396,"centre":[0,0.7315,-0.0395]}} });
 
 return { BIKE_IMPOSTOR };
 })();
@@ -31318,15 +31538,15 @@ __modules["client/render-powerbike.js"] = (function () {
 // the model has arrived (it is 13 MB) a plain dark shape of the same size stands in its place.
 //
 // Inside (built the first time someone comes near): the hall under the podium. A polished floor, white walls, a glass
-// front with the doors, light panels in the ceiling; the fifteen motorcycles on round white stands with a light round
-// each foot and a plate giving the name, engine, top speed and price; the middle one turning; the salesman's desk,
-// a lounge, plants, pictures of the bikes on the walls, the name on the back wall; and the mat by the doors that
-// takes the player out.
+// front with the doors, light panels in the ceiling; the motorcycles on round white stands with a light round
+// each foot and a plate giving the name, engine, top speed and price (seventeen, in four rows since 17 October 2026);
+// the middle one turning; the salesman's desk, a lounge, plants, pictures of the bikes on the walls, the name on the
+// back wall; and the mat by the doors that takes the player out.
 //
 // The motorcycles: each nearby one is the owner's model itself (bike-model.js), the nearest at the device's full
 // detail; each further off is a picture of that model taken from the side it is seen from (tools/vehicles/
 // bike_impostors.mjs: twenty-four sides), at its own size and where it stands, so that the hall is full of bikes
-// without a phone having to hold fifteen of them at once.
+// without a phone having to hold seventeen of them at once.
 //
 // While the player is outside, the hall is not drawn; while inside, the building round it is not (nothing of it can
 // be seen from the hall, and it stands where the hall's own walls are).
@@ -31601,7 +31821,8 @@ function buildHall() {
     pic.position.set(x + (ry ? 0.04 : 0), 2.6, z + (ry ? 0 : 0.04)); pic.rotation.y = ry;
     group.add(pic); posters.push({ bike, pic });
   };
-  ['red-superbike', 'gold-tourer', 'chopper', 'chrome-concept', 'olive-cruiser'].forEach((bike, i) => frame(bike, H.x0 + 0.24, H.z0 + 3.4 + i * 3.9, Math.PI / 2));
+  // (seven along the west wall since the hall went deeper, 17 October 2026, the two newest among them)
+  ['midnight-cruiser', 'red-superbike', 'gold-tourer', 'chopper', 'chrome-concept', 'olive-cruiser', 'civil-war-tourer'].forEach((bike, i) => frame(bike, H.x0 + 0.24, H.z0 + 3.4 + i * 3.6, Math.PI / 2));
   frame('black-gold-superbike', P.doors.x - 7.4, H.z0 + 0.24, 0); frame('yellow-adventure', P.doors.x + 7.4, H.z0 + 0.24, 0);
 
   // the salesman's desk, against the east wall, facing the floor: white, with a brass edge and the sun on its front
@@ -31957,9 +32178,14 @@ function createFloor() {
     }
     return { x: POWERBIKE.home.x, z: POWERBIKE.home.z };
   }
+  // (each point of the line is looked at itself as well as by its cell: a cell is open where its middle is clear, and
+  // a line cut across the corner of one can pass nearer a stand's corner than he should)
   function clearLine(ax, az, bx, bz) {
     const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / (CELL * 0.5)));
-    for (let k = 1; k <= steps; k += 1) if (!isOpen(ax + ((bx - ax) * k) / steps, az + ((bz - az) * k) / steps)) return false;
+    for (let k = 1; k <= steps; k += 1) {
+      const x = ax + ((bx - ax) * k) / steps, z = az + ((bz - az) * k) / steps;
+      if (!isOpen(x, z) || !zoneWalkable(x, z, [], SALESMAN.radius * 0.75)) return false;
+    }
     return true;
   }
   function route(ax, az, bx, bz) {
@@ -32298,7 +32524,7 @@ const { createFitter } = __modules["client/fit.js"];
 const { QUALITY_RULES } = __modules["client/monitor.js"];
 const { createWebApp } = __modules["client/webapp.js"];
 const { createPhoneHold } = __modules["client/phone-hold.js"];
-const { ANIMATED } = __modules["client/animated.js"];
+const { ANIMATED, heldModels } = __modules["client/animated.js"];
 const { createMusic } = __modules["client/music.js"];
 const { trText, trAmount, TR } = __modules["sim/ledger.js"];
 const { createOnline, createWebTransport, packSave, unpackSave } = __modules["net/online.js"];
@@ -34934,6 +35160,7 @@ blood.update(dt, view.blood || []);
   // Debug handle for automated play-testing. It reaches into the simulation
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
+    heldModels,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
