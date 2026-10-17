@@ -1736,7 +1736,8 @@ and 1024 on a phone (buildings) or 4096 and 2048 (vehicles), never larger than t
 - **What it costs to draw:** each model is about ten thousand triangles, the plain houses a few dozen. The houses of
   one model are drawn together in one go, and only those within 170 m (110 m on a phone) from their models; further
   off, each is a plain block of its size and colour, all of them in one go. The towers are always drawn from their
-  models, and from further off than the rest of the town.
+  models, and from further off than the rest of the town, but never beyond the haze (the fog's far edge, where
+  whatever is drawn is drawn unseen), and from inside a hall no further off than the rest.
 - **The trees** were scattered once by chance over the ground the houses' plots and paths left clear: scattered again
   with the new plots, every tree in town would have moved. They are kept where they stood (`atani-trees.js`), less the
   few where a new building now stands.
@@ -1745,6 +1746,46 @@ and 1024 on a phone (buildings) or 4096 and 2048 (vehicles), never larger than t
 
 - three.js's box round a turned mesh is the box round its turned box, larger than the mesh: the tests measure a
   building from every point of its model where it is drawn.
+- The airport's test said there was no aircraft anywhere: the one aircraft now is the owner's jet on its stand.
+
+## Real leaves, glass that gives back the sky, and rain on the roads (17 October 2026)
+
+The owner asked for the town to look real: glass that reflects, finishes as they are, natural trees, real materials.
+
+### The trees (`src/client/render-foliage.js`)
+
+- **Leaves cut out of pictures of leaves.** Every tree in town, on the city block's lawn, along the road to Onitsha
+  and in the car showroom's planters keeps its trunk and branches, and its leaves are now drawn from pictures of
+  leaves, painted in the page (nothing is fetched), with the air between them: a mango's crown is a hundred and
+  twenty-six sprays of its long dark leaves round a dome, over a trunk that forks into three limbs, each forking
+  again; an almond's broad leaves lie in flat tiers on its level branches; a palm's fronds are each a ribbon of
+  leaflets either side of its rib, a coconut palm's arching and a lighter green, an oil palm's stiffer and deeper.
+  The city block's shrubs are small bushes of the same leaves.
+- **Lit as crowns.** Each spray is lit as if it were part of the round crown it belongs to, not as the flat card it
+  is, from whichever side it is seen: a crown is light on top and toward the sun, darker underneath and inside. A
+  frond is lit on whichever side is seen, its top toward the sky. Leaves are matte.
+- **Their shadows** are the shapes of their leaves, with the light coming through between them.
+- **The wind** moves them a little, the tips of a frond more than its base and the top of a crown more than the rest,
+  now and then in a gust, each tree a moment apart from the next; their shadows move with them.
+- What it costs: @@COST@@
+
+### Glass, the river, metal, plaster (`src/client/render-finish.js`)
+
+- **Window glass** in the town's buildings, the city block's glass and steel, the glass on the road to Onitsha,
+  HOLARIS's steel, the PowerBike tower and the owner's buildings and vehicles give back the sky by day: more at a
+  glancing angle than face on, less under cloud, hardly at all at night (when the windows are lit from within, as
+  before). The owner's buildings and vehicles gave back a noon sky all night.
+- **The river** gives back the sky, broken up by its ripples.
+- **The zinc roofs** have the dull sheen of zinc.
+- **The walls** are painted plaster, with the plaster's slight unevenness under the paint.
+
+### Rain on the roads
+
+- In any rain the ground is soon wet through (the harder it rains, the sooner): roads, paving, walls and roofs
+  darker, and the roads and the roofs glossy, the roads giving back the sky as a wet road does. Once the rain stops
+  they dry slowly.
+- On a phone surfaces are lit without gloss, as before: there the wet ground is darker, and nothing gives back the
+  sky.
 
 ## Tests
 
