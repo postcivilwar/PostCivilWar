@@ -5,63 +5,68 @@
 //
 // A model is fetched when the first building drawn from it comes within sight, the nearest first, one or two at a
 // time (each file carries an 8192-pixel picture, and decoding one takes a moment and a good deal of memory); every
-// building of that model then shares its one mesh and picture. Until a building's model has come, a plain block of
-// its size stands in its place. Its picture is handed to the graphics card at 2048 pixels on a computer and 1024 on a
-// phone (the file keeps its 8192): nineteen buildings at their full size would need several gigabytes of graphics
-// memory. A building out of sight is not drawn; a tower is seen from further off than a house.
+// building of that model then shares its one mesh and picture. Its picture is handed to the graphics card at 2048
+// pixels on a computer and 1024 on a phone (the file keeps its 8192): nineteen buildings at their full size would
+// need several gigabytes of graphics memory.
+//
+// What it costs to draw. Each model is about ten thousand triangles; the plain houses were a few dozen. So:
+//   - the houses of one model are drawn together, in one go (an instanced mesh), and only those near enough to be
+//     seen as more than a block (`HOUSE_SIGHT`); further off, out to where the town is drawn at all, each house is a
+//     plain block of its size and colour, all of them in one go, as is a house whose model has not come yet;
+//   - a tower is always drawn from its model, from further off than the rest of the town (it stands above it).
 
 import { ZONE_HOUSES, TOWN_TOWERS, TOWN_MODELS } from '../sim/zone.js';
 import { loadSuppliedMesh } from './supplied-model.js';
 import { surface } from './render-kit.js';
 
-const STAND_IN = { house: 0xd8d4cb, tower: 0x2f3946 };
-const TOWER_SIGHT = 220;            // metres beyond the town's own reach at which a tower is still drawn
+const HOUSE_BLOCK = 0xdcd8cf;      // a house seen from afar: the owner's houses are white and pale grey
+const TOWER_BLOCK = 0x2f3946;
+const TOWER_SIGHT = 220;           // metres beyond the town's own reach at which a tower is still drawn
 
-// One building: where it stands and what it is drawn from. Its model's own frame is turned so that its front faces
-// +z and set so that the middle of its foot is at the origin, then scaled and turned to its heading.
-function placeModel(mesh, m, k) {
-  mesh.rotation.y = -m.front;
-  const fit = new THREE.Group();
-  fit.scale.setScalar(k);
-  fit.position.set(-m.mid[0] * k, 0, -m.mid[1] * k);
-  fit.add(mesh);
-  return fit;
+// Where a building's model is drawn: its own frame turned so that its front faces +z, the middle of its foot at the
+// origin, scaled, then turned to its heading and set on its plot.
+function modelMatrix(e, m) {
+  const turn = new THREE.Matrix4().makeRotationY(-m.front);
+  const scale = new THREE.Matrix4().makeScale(e.k, e.k, e.k);
+  const centre = new THREE.Matrix4().makeTranslation(-m.mid[0] * e.k, 0, -m.mid[1] * e.k);
+  const place = new THREE.Matrix4().makeRotationY(e.heading).setPosition(e.x, 0, e.z);
+  return place.multiply(centre).multiply(scale).multiply(turn);
+}
+// Its plain block: the footprint's box (world axes), a little lower than the building
+function blockMatrix(e) {
+  return new THREE.Matrix4().compose(new THREE.Vector3(e.x, 0, e.z), new THREE.Quaternion(), new THREE.Vector3(e.w, e.h * (e.kind === 'house' ? 0.8 : 0.9), e.d));
 }
 
 export function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = null } = {}) {
   const most = Math.min(lite ? 1024 : 2048, maxTexture || 2048);
-  const at = (b) => ({ ...b, radius: Math.hypot(b.w, b.d) / 2 });
-  const entries = [
-    ...ZONE_HOUSES.filter((h) => h.model).map((h) => at({ id: h.id, model: h.model, x: h.x, z: h.z, heading: h.heading, k: h.k, w: h.w, d: h.d, h: h.h, kind: 'house' })),
-    ...TOWN_TOWERS.map((t) => at({ id: t.id, model: t.model, x: t.x, z: t.z, heading: t.heading, k: t.k, w: t.w, d: t.d, h: t.h, kind: 'tower' })),
-  ];
-  const standInGeometry = new THREE.BoxGeometry(1, 1, 1);
-  standInGeometry.translate(0, 0.5, 0);
-  const standInMaterials = { house: surface({ color: STAND_IN.house, roughness: 0.8, metalness: 0 }), tower: surface({ color: STAND_IN.tower, roughness: 0.35, metalness: 0.4 }) };
-  for (const e of entries) {
-    e.holder = new THREE.Group();
-    e.holder.position.set(e.x, 0, e.z);
-    e.holder.rotation.y = e.heading;
-    e.holder.name = `town-${e.id}`;
-    // (the stand-in is the footprint's box, in the world's axes: the holder is turned, so it is turned back)
-    e.standIn = new THREE.Mesh(standInGeometry, standInMaterials[e.kind]);
-    const side = Math.abs(Math.sin(e.heading)) > 0.5;
-    e.standIn.scale.set(side ? e.d : e.w, e.h * (e.kind === 'house' ? 0.8 : 0.9), side ? e.w : e.d);
-    e.standIn.castShadow = true; e.standIn.receiveShadow = true;
-    e.holder.add(e.standIn);
-    e.holder.visible = false;
-    e.drawn = null;
-    scene.add(e.holder);
-  }
+  const HOUSE_SIGHT = lite ? 110 : 170;
+  const at = (b) => ({ ...b, radius: Math.hypot(b.w, b.d) / 2, drawn: false, mesh: null });
+  const houses = ZONE_HOUSES.filter((h) => h.model).map((h) => at({ id: h.id, model: h.model, x: h.x, z: h.z, heading: h.heading, k: h.k, w: h.w, d: h.d, h: h.h, kind: 'house' }));
+  const towers = TOWN_TOWERS.map((t) => at({ id: t.id, model: t.model, x: t.x, z: t.z, heading: t.heading, k: t.k, w: t.w, d: t.d, h: t.h, kind: 'tower' }));
+  const entries = [...houses, ...towers];
+  for (const e of entries) { e.matrix = modelMatrix(e, TOWN_MODELS[e.model]); e.block = blockMatrix(e); }
 
-  const models = new Map(Object.keys(TOWN_MODELS).map((id) => [id, { id, m: TOWN_MODELS[id], state: 'idle', mesh: null, triangles: 0, failed: null }]));
+  // the plain blocks: one box, drawn wherever a building is not drawn from its model
+  const box = new THREE.BoxGeometry(1, 1, 1); box.translate(0, 0.5, 0);
+  const blocks = (colour, capacity, roughness, metalness) => {
+    const mesh = new THREE.InstancedMesh(box, surface({ color: colour, roughness, metalness }), capacity);
+    mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.name = 'town-blocks';
+    scene.add(mesh);
+    return mesh;
+  };
+  const houseBlocks = blocks(HOUSE_BLOCK, houses.length, 0.85, 0);
+  const towerBlocks = blocks(TOWER_BLOCK, towers.length, 0.35, 0.4);
+
+  // the models, each with its houses (drawn together) and its towers (each on its own, so that what is out of view is
+  // not drawn)
+  const models = new Map(Object.keys(TOWN_MODELS).map((id) => [id, { id, m: TOWN_MODELS[id], state: 'idle', mesh: null, triangles: 0, failed: null, houses: houses.filter((e) => e.model === id), towers: towers.filter((e) => e.model === id), instanced: null }]));
   const busy = () => [...models.values()].filter((r) => r.state === 'loading').length;
-  const most_at_once = lite ? 1 : 2;
-  // models waiting their turn, the nearest first; one is begun whenever one has finished
+  const atOnce = lite ? 1 : 2;
   let queue = [];
   function pump() {
     queue = queue.filter((r) => r.state === 'idle');
-    while (queue.length && busy() < most_at_once) load(queue.shift());
+    while (queue.length && busy() < atOnce) load(queue.shift());
   }
   function load(record) {
     record.state = 'loading';
@@ -69,45 +74,81 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     loadSuppliedMesh(m.file, { maxTexture: most, env, brand: m.brand || null, name: `town-${m.id}` })
       .then(({ mesh, triangles }) => {
         record.mesh = mesh; record.triangles = triangles; record.state = 'ready';
-        for (const e of entries) if (e.model === m.id) dress(e);
+        if (record.houses.length) {
+          const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, record.houses.length);
+          inst.count = 0; inst.frustumCulled = false; inst.castShadow = true; inst.receiveShadow = true;
+          inst.name = `town-${m.id}`;
+          scene.add(inst);
+          record.instanced = inst;
+        }
+        for (const e of record.towers) {
+          const t = new THREE.Mesh(mesh.geometry, mesh.material);
+          t.matrixAutoUpdate = false; t.matrix.copy(e.matrix); t.updateMatrixWorld(true);
+          t.castShadow = true; t.receiveShadow = true; t.visible = false;
+          t.name = `town-${m.id}`;
+          scene.add(t);
+          e.mesh = t;
+        }
+        refresh();
       })
       .catch((error) => { record.state = 'failed'; record.failed = String(error.message || error); })
       .finally(pump);
   }
-  // a building whose model has come: drawn from it, the stand-in put away
-  function dress(e) {
-    const record = models.get(e.model);
-    if (e.drawn || record.state !== 'ready') return;
-    const mesh = new THREE.Mesh(record.mesh.geometry, record.mesh.material);
-    mesh.castShadow = true; mesh.receiveShadow = true;
-    mesh.name = `town-${e.model}`;
-    e.drawn = placeModel(mesh, record.m, e.k);
-    e.holder.add(e.drawn);
-    e.standIn.visible = false;
+
+  // Which building is drawn how, from where the eye is: written into the instanced meshes.
+  let last = { x: 0, z: 0, reach: 0 };
+  function refresh() {
+    const { x, z, reach } = last;
+    let nb = 0, nt = 0;
+    for (const r of models.values()) {
+      let n = 0;
+      for (const e of r.houses) {
+        const gap = Math.hypot(e.x - x, e.z - z) - e.radius;
+        e.drawn = false;
+        if (gap > reach) continue;
+        if (r.instanced && gap < HOUSE_SIGHT) { r.instanced.setMatrixAt(n, e.matrix); n += 1; e.drawn = true; }
+        else { houseBlocks.setMatrixAt(nb, e.block); nb += 1; }
+      }
+      if (r.instanced) { r.instanced.count = n; r.instanced.instanceMatrix.needsUpdate = true; }
+      for (const e of r.towers) {
+        const seen = Math.hypot(e.x - x, e.z - z) - e.radius < reach + TOWER_SIGHT;
+        e.drawn = seen && !!e.mesh;
+        if (e.mesh) e.mesh.visible = seen;
+        else if (seen) { towerBlocks.setMatrixAt(nt, e.block); nt += 1; }
+      }
+    }
+    houseBlocks.count = nb; houseBlocks.instanceMatrix.needsUpdate = true;
+    towerBlocks.count = nt; towerBlocks.instanceMatrix.needsUpdate = true;
   }
 
   // What is in sight from (x, z): drawn; and, when `fetch` (once the town is ready), the models wanted there fetched,
-  // the nearest first.
+  // the nearest first: a house's once it is nearly near enough to be drawn from it, a tower's once it is in sight.
   function see(x, z, reach, fetch = true) {
-    const wanted = [];
-    for (const e of entries) {
-      const gap = Math.hypot(e.x - x, e.z - z) - e.radius;
-      const visible = gap < reach + (e.kind === 'tower' ? TOWER_SIGHT : 0);
-      e.holder.visible = visible;
-      if (visible && models.get(e.model).state === 'idle') wanted.push({ record: models.get(e.model), gap });
-    }
+    last = { x, z, reach };
+    refresh();
     if (!fetch) return;
+    const wanted = [];
+    for (const r of models.values()) {
+      if (r.state !== 'idle') continue;
+      let gap = Infinity;
+      for (const e of r.houses) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - HOUSE_SIGHT - 40);
+      for (const e of r.towers) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - reach - TOWER_SIGHT);
+      if (gap < 0) wanted.push({ r, gap });
+    }
     wanted.sort((a, b) => a.gap - b.gap);
-    queue = [...new Set([...wanted.map((w) => w.record), ...queue])];
+    queue = [...new Set([...wanted.map((w) => w.r), ...queue])];
     pump();
   }
   // (for whoever needs every one of them: the tests; still one or two at a time)
   function loadAll() { queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
   const state = () => ({
     models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed })),
-    shown: entries.filter((e) => e.holder.visible).length,
     drawn: entries.filter((e) => e.drawn).length,
+    blocks: houseBlocks.count + towerBlocks.count,
     entries: entries.length,
+    houseSight: HOUSE_SIGHT,
   });
-  return { see, loadAll, state, entries };
+  // (the tests: the geometry of the model a building is drawn from; `e.matrix` is where)
+  const geometryOf = (id) => { const r = models.get(id); return r && r.mesh ? r.mesh.geometry : null; };
+  return { see, loadAll, state, entries, geometryOf, refresh: () => refresh() };
 }

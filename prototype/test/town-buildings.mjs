@@ -50,26 +50,33 @@ await page.waitForFunction(() => window.__nlw.townBuildings.state().models.every
 const st = await page.evaluate(() => window.__nlw.townBuildings.state());
 const wrong = st.models.filter((m) => m.state !== 'ready' || m.triangles !== TOWN_MODELS[m.id].triangles);
 check('every one of the owner\'s nineteen buildings is fetched and read whole, every triangle', st.models.length === 19 && wrong.length === 0, wrong.length ? wrong : st.models.length);
-check('every house and tower is drawn from its model, none from a stand-in', st.drawn === st.entries && st.entries === ZONE_HOUSES.filter((h) => h.model).length + TOWN_TOWERS.length, { drawn: st.drawn, entries: st.entries });
+// near each building, it is drawn from its model; from afar, a house is a plain block (towers are always their models)
+const drawnNear = await page.evaluate(() => {
+  const tb = window.__nlw.townBuildings, out = { near: 0, far: 0, of: tb.entries.length, missing: [] };
+  for (const e of tb.entries) { tb.see(e.x, e.z + 3, 300, false); if (e.drawn) out.near += 1; else out.missing.push(e.id); }
+  const h = tb.entries.find((e) => e.kind === 'house'); tb.see(h.x + tb.state().houseSight + 60, h.z, 300, false); if (!h.drawn) out.far += 1;
+  tb.see(window.__nlw.cam.target.x, window.__nlw.cam.target.z, 300, false);
+  return out;
+});
+check('every house and tower is drawn from its model by whoever is near it; from afar a house is a plain block', drawnNear.near === drawnNear.of && drawnNear.far === 1 && drawnNear.of === ZONE_HOUSES.filter((h) => h.model).length + TOWN_TOWERS.length, drawnNear);
 
-// ---- each where it should be, its size and its way round ----
-const placed = await page.evaluate(() => window.__nlw.townBuildings.entries.map((e) => {
-  e.holder.updateMatrixWorld(true);
-  let mesh = null; e.holder.traverse((o) => { if (o.isMesh && o.name.startsWith('town-') && o.visible !== false && o !== e.standIn) mesh = o; });
-  if (!mesh) return { id: e.id, missing: true };
-  // (every point of its mesh where it is drawn: three.js's own box of a turned mesh is the box of its turned box, larger)
-  const box = new THREE.Box3(), v = new THREE.Vector3(), pos = mesh.geometry.attributes.position;
-  for (let i = 0; i < pos.count; i += 1) box.expandByPoint(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
-  const size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
-  return { id: e.id, kind: e.kind, x: e.x, z: e.z, w: e.w, d: e.d, h: e.h, size: [size.x, size.y, size.z], mid: [mid.x, mid.z], foot: box.min.y, standIn: e.standIn.visible };
-}));
-const off = placed.filter((p) => p.missing || p.standIn || !near(p.size[0], p.w, Math.max(0.15, p.w * 0.03)) || !near(p.size[2], p.d, Math.max(0.15, p.d * 0.03)) || !near(p.size[1], p.h, Math.max(0.15, p.h * 0.03)) || !near(p.mid[0], p.x, 0.25) || !near(p.mid[1], p.z, 0.25) || !near(p.foot, 0, 0.05));
+// ---- each where it should be, its size and its way round: every point of its model, where it is drawn ----
+const placed = await page.evaluate(() => {
+  const tb = window.__nlw.townBuildings;
+  return tb.entries.map((e) => {
+    const geo = tb.geometryOf(e.model), pos = geo.attributes.position, v = new THREE.Vector3(), box = new THREE.Box3();
+    for (let i = 0; i < pos.count; i += 1) box.expandByPoint(v.fromBufferAttribute(pos, i).applyMatrix4(e.matrix));
+    const size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+    return { id: e.id, kind: e.kind, x: e.x, z: e.z, w: e.w, d: e.d, h: e.h, size: [size.x, size.y, size.z], mid: [mid.x, mid.z], foot: box.min.y };
+  });
+});
+const off = placed.filter((p) => !near(p.size[0], p.w, Math.max(0.15, p.w * 0.03)) || !near(p.size[2], p.d, Math.max(0.15, p.d * 0.03)) || !near(p.size[1], p.h, Math.max(0.15, p.h * 0.03)) || !near(p.mid[0], p.x, 0.25) || !near(p.mid[1], p.z, 0.25) || !near(p.foot, 0, 0.05));
 check('each stands on its plot, its own size, square to its lane, on the ground', off.length === 0, off.slice(0, 4));
 
 // ---- the hotel's facade: nothing written on it ----
 const hotel = await page.evaluate((rects) => {
   const n = window.__nlw; let mesh = null;
-  n.townBuildings.entries.find((e) => e.model === 'hotel').holder.traverse((o) => { if (o.isMesh && o.name === 'town-hotel') mesh = o; });
+  mesh = n.townBuildings.entries.find((e) => e.model === 'hotel').mesh;
   const img = mesh.material.map.image, c = document.createElement('canvas'); c.width = img.width; c.height = img.height;
   const g = c.getContext('2d'); g.drawImage(img, 0, 0);
   return rects.map(({ at: [u0, v0, u1, v1] }) => {
