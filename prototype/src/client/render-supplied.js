@@ -52,7 +52,8 @@ const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (er
 const FROM_DISK = 'This copy of the page is opened from the disk, where the model cannot be fetched.';
 
 export function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } = {}) {
-  const most = Math.min(lite ? 2048 : 4096, maxTexture || 4096);
+  // (parked things, mostly seen from across a car park: their pictures at 2048 on a computer, 1024 on a phone)
+  const most = Math.min(lite ? 1024 : 2048, maxTexture || 2048);
   const parked = ['jet', 'boxTruck', 'heavyTruck'].map((id) => {
     const v = SUPPLIED_VEHICLES[id];
     const holder = new THREE.Group();

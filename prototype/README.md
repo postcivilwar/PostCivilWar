@@ -1698,7 +1698,8 @@ The owner's assets of 17 October, each the supplied file exactly as it is (`asse
 them was modelled facing the way the game faces things, and several were modelled turned a little off square:
 `tools/buildings/measure.py` measured each one as it stands, and the game turns and scales it by those measures; the
 files are not changed. Their pictures are 8192 pixels square: the graphics card is handed them at 2048 on a computer
-and 1024 on a phone (buildings) or 4096 and 2048 (vehicles), never larger than they are.
+and 1024 on a phone, never larger than they are, and they are read one at a time: each can take a quarter of a
+gigabyte while it is read.
 
 ### Vehicles (`src/sim/zones/supplied-vehicles.js`, `src/client/render-supplied.js`)
 

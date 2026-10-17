@@ -12,6 +12,13 @@ import { parseGLB, fetchKept } from './glb.js';
 import { surface } from './render-kit.js';
 import { reflects } from './render-finish.js';
 
+// One large picture taken in at a time, whichever building or vehicle it is for. A model carries up to three pictures
+// of 8192 pixels, each of which can take a quarter of a gigabyte while it is read; the town, the car showroom and the
+// owner's vehicles each fetch their models, and all of them read at once were more than a browser's page is allowed
+// (in a test the page fell over).
+let reading = Promise.resolve();
+function oneAtATime(task) { const run = reading.then(task, task); reading = run.then(() => {}, () => {}); return run; }
+
 export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9 } = {}) {
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
@@ -33,8 +40,10 @@ export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = n
     const own = pictureSize(raw);
     const most = Math.min(maxTexture || 4096, own ? Math.max(own.width, own.height) : Infinity);
     const wide = own ? Math.round((most * own.width) / Math.max(own.width, own.height)) : most, high = own ? Math.round((most * own.height) / Math.max(own.width, own.height)) : most;
-    let picture = await (typeof createImageBitmap === 'function' ? createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null);
-    if (!picture) picture = await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); });
+    let picture = await oneAtATime(async () => {
+      const made = typeof createImageBitmap === 'function' ? await createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null;
+      return made || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); });
+    });
     if (paint && paint.length) {
       const c = document.createElement('canvas'); c.width = picture.width; c.height = picture.height;
       const g = c.getContext('2d'); g.drawImage(picture, 0, 0);
