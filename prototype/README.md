@@ -1540,7 +1540,12 @@ triangles and one 8192-pixel picture, used exactly as supplied and served beside
   is written. Other players asking him are seen doing the same, by turns.
 - **The conversation on the phone,** for every deal: a glassy header with who it is with, the thing on a card,
   bubbles that rise into place as they arrive (not each time the screen is drawn), a shop's answer shown being
-  written while it comes, a pill to type in at 16 px, and every button a finger's size.
+  written while it comes, a pill to type in at 16 px, and every button a finger's size. It stays at its newest
+  words when the phone draws its whole screen again (as it does after a sale, when the balance changes), and Buy
+  reads dark on white: the phone's small-print style had been reaching the deal's small buttons (on HOLARIS too).
+- **With no connection** (the installed web app), the tower and the hall's motorcycles come from the copies the web
+  app kept; if it kept none, they are not asked for until there is a connection (`fetchKept` in `src/client/glb.js`),
+  and the plain shape stands in the tower's place meanwhile.
 - **The market.** The fifteen listings are the same ones at the same prices; migration 10 renames the shop
   PostCivilWar PowerBike and puts each listing at its stand. The map shows one pin for the showroom, at its column.
 
@@ -1548,7 +1553,8 @@ triangles and one 8192-pixel picture, used exactly as supplied and served beside
 
 Ten women (W4–W13) and eight men (M6–M13), the owner's supplied rigged and animated GLBs, used byte for byte and
 added to the women's and the men's lists of the choice; one upload was a copy of another and is not used. See
-`assets/characters/figures/README.md`.
+`assets/characters/figures/README.md`. The dots under the character on the choosing screen now wrap onto a second
+line: twenty-four in one line were wider than a phone, and on a tablet pushed the panel beside them narrow.
 
 ## Tests
 

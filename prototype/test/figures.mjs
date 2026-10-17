@@ -130,12 +130,15 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
     await page.keyboard.press('Escape');
     // (the camera in front, a little to the right, to see the hand at the ear)
     await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.me.group.rotation.y + Math.PI - 0.6; n.cam.dist = 2.4; n.cam.pitch = 0.1; });
-    await page.waitForFunction(() => window.__nlw.phoneHold.atEar > 0.95, null, { timeout: 20000 }).catch(() => {});
-    const ear = await page.evaluate(() => {
+    // (all of it read in one frame, frame by frame, until it holds: the call lasts so many seconds of the clock, and
+    // without a graphics card a heavy figure's frame can take seconds, so a call can end between two separate looks)
+    const ear = await page.waitForFunction(() => {
       const n = window.__nlw; const at = (name) => n.me.bones.get(name).getWorldPosition(new THREE.Vector3());
       const P = n.phoneHold.prop.getWorldPosition(new THREE.Vector3());
-      return { called: n.ui.calling(), atEar: +n.phoneHold.atEar.toFixed(2), toHead: +P.distanceTo(at('head')).toFixed(3), height: n.me.spec.height, toKnuckle: +P.distanceTo(at('middle_01_r')).toFixed(3), doing: n.me.doing ? n.me.doing.name : null };
-    });
+      const e = { called: n.ui.calling(), atEar: +n.phoneHold.atEar.toFixed(2), toHead: +P.distanceTo(at('head')).toFixed(3), height: n.me.spec.height, toKnuckle: +P.distanceTo(at('middle_01_r')).toFixed(3), doing: n.me.doing ? n.me.doing.name : null };
+      window.__ear = e;
+      return e.called && e.atEar > 0.95 && e.toHead < 0.14 * e.height && e.toKnuckle < 0.1 ? e : false;
+    }, null, { timeout: 30000 }).then((handle) => handle.jsonValue(), () => page.evaluate(() => window.__ear));
     check(`${label}: on a call the handset is at the ear, still in the palm (${ear.doing || 'no call clip'})`, called && ear.called && ear.atEar > 0.95 && ear.toHead < 0.14 * ear.height && ear.toKnuckle < 0.1, ear);
     await shot('9-call');
     await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 5; });
