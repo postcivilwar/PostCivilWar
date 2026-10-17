@@ -1684,6 +1684,12 @@ between the edge of town and the airport (`src/sim/zones/asaba-carshow.js` says 
   it backs up.
 - In the rain every vehicle's top speed is lower (the weather is the game's own, by its clock): the motorcycles'
   browser test now rides them on a dry day, so that each is seen reaching its red line.
+- The compound was drawn wherever anyone was: from PostCivilWar PowerBike's doors, 250 m from its railings, it was a
+  third of what was drawn (235,000 triangles), and from inside the hall, where nothing beyond 60 m is drawn, its
+  towers were fetched and drawn behind the hall's walls. Now the compound is drawn within the town's reach of its
+  railings, its towers from further off but never beyond the haze, and nothing of it from inside PowerBike's hall;
+  each run of its railings has its own bars, drawn only by someone within 90 m of it (a bar is 2 cm across, and
+  there are 6,474 of them), and not drawn where that run is out of view.
 
 ## The owner's vehicles and buildings, each to its place (17 October 2026)
 

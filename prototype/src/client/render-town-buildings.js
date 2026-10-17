@@ -96,9 +96,9 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   }
 
   // Which building is drawn how, from where the eye is: written into the instanced meshes.
-  let last = { x: 0, z: 0, reach: 0 };
+  let last = { x: 0, z: 0, reach: 0, tall: TOWER_SIGHT };
   function refresh() {
-    const { x, z, reach } = last;
+    const { x, z, reach, tall } = last;
     // (a tower stands above the town and is seen from further off than it, but never through the haze: beyond the fog's
     // far edge whatever is drawn is drawn unseen)
     const haze = scene.fog ? scene.fog.far : Infinity;
@@ -114,7 +114,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
       }
       if (r.instanced) { r.instanced.count = n; r.instanced.instanceMatrix.needsUpdate = true; }
       for (const e of r.towers) {
-        const seen = Math.hypot(e.x - x, e.z - z) - e.radius < Math.min(haze, reach + TOWER_SIGHT);
+        const seen = Math.hypot(e.x - x, e.z - z) - e.radius < Math.min(haze, reach + tall);
         e.drawn = seen && !!e.mesh;
         if (e.mesh) e.mesh.visible = seen;
         else if (seen) { towerBlocks.setMatrixAt(nt, e.block); nt += 1; }
@@ -126,8 +126,9 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
 
   // What is in sight from (x, z): drawn; and, when `fetch` (once the town is ready), the models wanted there fetched,
   // the nearest first: a house's once it is nearly near enough to be drawn from it, a tower's once it is in sight.
-  function see(x, z, reach, fetch = true) {
-    last = { x, z, reach };
+  // (`tall`: how much further off than the town a tower is seen; from inside a hall, 0)
+  function see(x, z, reach, fetch = true, tall = TOWER_SIGHT) {
+    last = { x, z, reach, tall };
     refresh();
     if (!fetch) return;
     const wanted = [];
@@ -135,7 +136,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
       if (r.state !== 'idle') continue;
       let gap = Infinity;
       for (const e of r.houses) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - HOUSE_SIGHT - 40);
-      for (const e of r.towers) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - Math.min(scene.fog ? scene.fog.far : Infinity, reach + TOWER_SIGHT));
+      for (const e of r.towers) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - Math.min(scene.fog ? scene.fog.far : Infinity, reach + tall));
       if (gap < 0) wanted.push({ r, gap });
     }
     wanted.sort((a, b) => a.gap - b.gap);

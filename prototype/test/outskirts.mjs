@@ -49,6 +49,24 @@ const at = () => page.evaluate(() => { const n = window.__nlw; return { x: +n.vi
 const go = (x, z, heading, cam = {}) => page.evaluate(([px, pz, h, c]) => { const n = window.__nlw; n.place(px, pz); n.face(h); n.cam.yaw = c.yaw !== undefined ? c.yaw : h; n.cam.dist = c.dist || 9; n.cam.pitch = c.pitch !== undefined ? c.pitch : 0.25; }, [x, z, heading, cam]);
 const walk = async (ms, key = 'w') => { await page.keyboard.down(key); await page.waitForTimeout(ms); await page.keyboard.up(key); await page.waitForTimeout(300); };
 const cost = () => page.evaluate(() => window.__nlw.drawn);
+// Walks (W, and Shift to run) until `done(where)` holds, or the player has stopped (six frames drawn without a step
+// taken: a wall, a barrier), or `limit` ms have gone: by the frames drawn, not by the clock, so that a slow frame
+// (without a graphics card, a large picture being taken in can hold the page for seconds) cannot cut a walk short.
+const frameNo = () => page.evaluate(() => window.__nlw.renderer.info.render.frame);
+const walkUntil = async (done, { run = true, limit = 45000 } = {}) => {
+  if (run) await page.keyboard.down('Shift');
+  await page.keyboard.down('w');
+  const t0 = Date.now(); let last = await at(), lastFrame = await frameNo();
+  while (Date.now() - t0 < limit) {
+    await page.waitForTimeout(400);
+    const now = await at(), f = await frameNo();
+    if (done(now)) break;
+    if (Math.hypot(now.x - last.x, now.z - last.z) < 0.05) { if (f - lastFrame >= 6) break; } else { last = now; lastFrame = f; }
+  }
+  await page.keyboard.up('w'); if (run) await page.keyboard.up('Shift');
+  await page.waitForTimeout(300);
+  return at();
+};
 
 // in town, for comparison
 await go(-30, 60, 0); await page.waitForTimeout(2000);
@@ -65,8 +83,7 @@ check('a player walks out of town onto the Onitsha road', after.x < before.x - 5
 await shot('1-onitsha-road');
 await go(-1170, -40, -Math.PI / 2, { dist: 14, pitch: 0.2 });
 await page.waitForTimeout(1500);
-await page.keyboard.down('Shift'); await walk(8000); await page.keyboard.up('Shift');
-const end = await at();
+const end = await walkUntil(() => false);
 check('the road works at the end stop anyone going further', end.x > -1186 && end.x < -1180, end);
 await shot('2-roadworks');
 
@@ -78,17 +95,14 @@ await go(-850, -180, Math.PI, { yaw: Math.PI + 0.35, dist: 22, pitch: 0.2 });
 await page.waitForTimeout(2000);
 await shot('4-terminal');
 await go(-850, -195, Math.PI);
-await page.keyboard.down('Shift'); await walk(4500); await page.keyboard.up('Shift');
-const hall = await at();
+const hall = await walkUntil((p) => p.z < -218);
 check('through the middle door into the hall', hall.z < -214 && hall.z > -248, hall);
 await shot('5-hall');
-await page.keyboard.down('Shift'); await walk(8000); await page.keyboard.up('Shift');
-const wall = await at();
+const wall = await walkUntil(() => false);
 check('the glass at the back holds: nobody walks out onto the apron through it', wall.z > -248.5 && wall.z < -244, wall);
 await go(-683, -240, Math.PI, { dist: 12, pitch: 0.2 });
 await page.waitForTimeout(800);
-await page.keyboard.down('Shift'); await walk(7000); await page.keyboard.up('Shift');
-const apron = await at();
+const apron = await walkUntil((p) => p.z < -256);
 check('through the gate by the admin building onto the airside', apron.z < -253, apron);
 await go(-850, -300, 0, { yaw: 0.4, dist: 70, pitch: 0.3 });
 await page.waitForTimeout(3000);
@@ -103,8 +117,7 @@ await go(-205, 112, 0, { yaw: Math.PI, dist: 10, pitch: 0.2 });
 await page.waitForTimeout(1500);
 await shot('7-bridge-approach');
 await go(-205, 112, 0);
-await page.keyboard.down('Shift'); await walk(16000); await page.keyboard.up('Shift');
-const deck = await at();
+const deck = await walkUntil((p) => p.z > 156 && p.y > 3);
 check('up the approach onto the deck, carried at its height', deck.z > 150 && deck.y > 3, deck);
 check('no swimming from the deck', !deck.keys.includes('swim'), deck.keys);
 await go(-205, 225, 0, { yaw: Math.PI + 0.25, dist: 9, pitch: 0.12 });
@@ -121,8 +134,7 @@ await page.waitForTimeout(2000);
 await shot('9-bridge-from-the-water');
 await go(-205, 360, 0, { dist: 10, pitch: 0.2 });
 await page.waitForTimeout(1200);
-await page.keyboard.down('Shift'); await walk(9000); await page.keyboard.up('Shift');
-const far = await at();
+const far = await walkUntil(() => false);
 check('on the far bank, at its ground, the barrier stops anyone going on', far.z < 384 && far.z > 380 && far.y > 0.9 && far.y < 1.1, far);
 await shot('10-far-bank');
 const bridge = await cost();

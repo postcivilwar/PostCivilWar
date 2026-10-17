@@ -155,20 +155,29 @@ function buildFence(group, { lite }) {
   const paint = surface({ vertexColors: true, roughness: 0.45, metalness: 0.25 });
   const rails = solid.build(paint); rails.castShadow = true; rails.receiveShadow = true; rails.name = 'carshow-railings';
   group.add(rails);
-  // the bars and their spears
+  // the bars and their spears: for each run of railings its own two sets (each with the bounds of its run, so that
+  // a run out of view, or out of the sun's shadows, is not drawn there), and drawn only by someone near enough to
+  // see them as bars (`see`): a bar is 2 cm across, and there are thousands of them
   const barGeo = new THREE.BoxGeometry(0.02, 1.9, 0.02); barGeo.translate(0, 0.12 + 0.95, 0);
   const tipGeo = new THREE.ConeGeometry(0.026, 0.1, 4); tipGeo.translate(0, 2.07, 0);
   const material = surface({ color: MILK, roughness: 0.45, metalness: 0.25 });
   const m = new THREE.Matrix4();
-  for (const geo of [barGeo, tipGeo]) {
-    const inst = new THREE.InstancedMesh(geo, material, bars.length);
-    bars.forEach(([x, z, ry], i) => inst.setMatrixAt(i, m.makeRotationY(ry + Math.PI / 4).setPosition(x, 0, z)));
-    inst.instanceMatrix.needsUpdate = true;
-    inst.castShadow = !lite; inst.receiveShadow = false; inst.name = 'carshow-bars';
-    inst.frustumCulled = false;
-    group.add(inst);
-  }
-  return { bars: bars.length, posts: posts.length };
+  const barRuns = runs.map(([ax, az, bx, bz]) => {
+    const mine = bars.filter(([x, z]) => Math.abs((x - ax) * (bz - az) - (z - az) * (bx - ax)) < 0.01 && x >= Math.min(ax, bx) - 0.01 && x <= Math.max(ax, bx) + 0.01 && z >= Math.min(az, bz) - 0.01 && z <= Math.max(az, bz) + 0.01);
+    const meshes = [barGeo, tipGeo].map((geo) => {
+      const own = geo.clone();
+      own.boundingSphere = new THREE.Sphere(new THREE.Vector3((ax + bx) / 2, 1.1, (az + bz) / 2), Math.hypot(bx - ax, bz - az) / 2 + 2);
+      const inst = new THREE.InstancedMesh(own, material, mine.length);
+      mine.forEach(([x, z, ry], i) => inst.setMatrixAt(i, m.makeRotationY(ry + Math.PI / 4).setPosition(x, 0, z)));
+      inst.instanceMatrix.needsUpdate = true;
+      inst.castShadow = !lite; inst.receiveShadow = false; inst.name = 'carshow-bars';
+      group.add(inst);
+      return inst;
+    });
+    return { ax, az, bx, bz, meshes, count: mine.length };
+  });
+  if (barRuns.reduce((n, r) => n + r.count, 0) !== bars.length) throw new Error('every bar belongs to one run of the railings');
+  return { bars: bars.length, posts: posts.length, runs: barRuns };
 }
 
 // ------------------------------------------------------------------------------------------- the gate --
@@ -639,11 +648,13 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   scene.add(outside);
   // the compound itself (its paving, railings, gate, cameras, the showroom's doors and its name) is made the first
   // time it is asked for (`load`: once the town is ready, or at once for someone near), not while the game starts
-  let court = null, fence = null, gate = null, cams = [], doors = null;
+  let court = null, fence = null, gate = null, cams = [], doors = null, barRuns = [];
   function ensureOutside() {
     if (court) return;
     court = buildForecourt(outside, { lite });
-    fence = buildFence(outside, { lite });
+    // (what is told of the railings is their counts; their runs of bars are kept here, for `see`)
+    const made = buildFence(outside, { lite });
+    fence = { bars: made.bars, posts: made.posts }; barRuns = made.runs;
     gate = buildGate(outside);
     cams = buildCameras(outside);
     doors = buildDoors(exterior);
@@ -653,7 +664,29 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   // the buildings: a plain shape each until its model is here
   const env = lite ? null : vehicleEnvironment();
   const VILLA_SIGHT = lite ? 120 : 200;
-  const buildings = P.buildings.map((b) => { const stand = standIn(b); exterior.add(stand); return { b, stand, mesh: null, failed: null, requested: false, retryAt: 0, triangles: 0 }; });
+  const buildings = P.buildings.map((b) => { const stand = standIn(b); exterior.add(stand); return { b, stand, mesh: null, failed: null, requested: false, retryAt: 0, triangles: 0, seen: true, radius: Math.max(...b.outline.map(([u, v]) => { const q = onBuilding(b, u, v); return Math.hypot(q.x - b.x, q.z - b.z); })) }; });
+  // What can be seen from (x, z), `reach` being how far the town is drawn just now (from inside a hall, only what its
+  // glass front shows): the compound itself (its paving, railings, gate and cameras) within that reach of its railings,
+  // and each building within it too; the towers, standing above the town, from further off; never through the haze
+  // (beyond the fog's far edge whatever is drawn is drawn unseen); from inside a hall (`tall` 0) no further than the
+  // rest. From inside PostCivilWar PowerBike's hall, 300 m away, the towers were drawn behind its walls.
+  const TALL = 220;
+  function see(x, z, reach, tall = TALL) {
+    const haze = scene.fog ? scene.fog.far : Infinity;
+    const dx = Math.max(C.x0 - x, 0, x - C.x1), dz = Math.max(C.z0 - z, 0, z - C.z1);
+    outside.visible = Math.hypot(dx, dz) < Math.min(haze, reach + 40);
+    // (the railings' bars: by someone within 90 m of their run; further off, its posts and rails)
+    for (const r of barRuns) {
+      const ux = r.bx - r.ax, uz = r.bz - r.az, t = Math.max(0, Math.min(1, ((x - r.ax) * ux + (z - r.az) * uz) / (ux * ux + uz * uz)));
+      const near = Math.hypot(x - (r.ax + ux * t), z - (r.az + uz * t)) < 90;
+      for (const mesh of r.meshes) mesh.visible = near;
+    }
+    for (const e of buildings) {
+      e.seen = Math.hypot(e.b.x - x, e.b.z - z) - e.radius < Math.min(haze, reach + (e.b.id === 'villa' ? 40 : tall));
+      if (e.b.id === 'villa' && e.mesh) continue;            // (the villa, once here: see `tick`)
+      if (e.mesh) e.mesh.visible = e.seen; else e.stand.visible = e.seen;
+    }
+  }
   function load(x, z) {
     ensureOutside();
     for (const e of buildings) {
@@ -668,7 +701,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       // files are as supplied)
       loadBuilding(e.b, { maxTexture: Math.min(lite ? 2048 : 4096, maxTexture || 4096), env })
         .then(({ mesh, triangles }) => {
-          mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale);
+          mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale); mesh.visible = e.seen;
           exterior.add(mesh);
           // (the villa keeps its plain shape, drawn in its place from afar: see `tick`)
           if (e.b.id === 'villa') e.stand.visible = false;
@@ -774,7 +807,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
     get inside() { return inside; },
     signs,
     get gate() { return gate; }, get fence() { return fence; }, get cams() { return cams; }, get court() { return court; },
-    load,
+    load, see,
     // `on`: the player is in the hall. Outside, the hall is not drawn; inside, the showroom round it is not (the
     // compound stays: it is what the glass front shows)
     setInside(on) {
@@ -797,7 +830,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       const villa = buildings.find((e) => e.b.id === 'villa');
       if (villa && villa.mesh) {
         const gap = Math.hypot(eye.x - villa.b.x, eye.z - villa.b.z), near = gap < VILLA_SIGHT;
-        villa.mesh.visible = near; villa.stand.visible = !near;
+        villa.mesh.visible = near && villa.seen; villa.stand.visible = !near && villa.seen;
         // (and its shadow only from close by, where the sun's shadows are drawn at all)
         villa.mesh.castShadow = gap < 90;
       }
