@@ -1,29 +1,40 @@
-// The realism pass in a headless browser (the page as it is built, with no server):
+// The realism pass in a headless browser, on the website as it is served (so that the owner's buildings come too):
 //   - the trees' leaves are pictures of leaves cut out of the air (sprays on the mangoes and almonds, leaflets on the
 //     palms' fronds), each kind with the shadow of its leaves, and they move in the wind;
 //   - window glass, the river and the zinc roofs give back the sky by day, and hardly at all at night;
 //   - in the rain the roads are wet: darker and glossy, giving back the sky; and they dry slowly after it;
 //   - nothing goes wrong in the page; and what a frame costs to draw, with a picture of each view.
-//   node test/realism.mjs [shots folder]
+//   ../server/with-postgres.sh node test/realism.mjs [shots folder]
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
-import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown } from './start.mjs';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
-const here = dirname(fileURLToPath(import.meta.url));
 const out = process.argv[2] || '/tmp/realism-shots';
 mkdirSync(out, { recursive: true });
+const server = createDevServer();
+await new Promise((r) => server.listen(0, '127.0.0.1', r));
+const origin = `http://localhost:${server.address().port}`;
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(ok ? 'ok  ' : 'FAIL', name, detail === undefined ? '' : JSON.stringify(detail)); };
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist'] });
-const page = await browser.newPage({ viewport: { width: 1280, height: 720 } });
+const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+const page = await context.newPage();
 page.setDefaultTimeout(300000);
 page.on('pageerror', (e) => check('no error in the page', false, e.message));
 page.on('console', (m) => { if (m.type() === 'error') check('no error in the console', false, m.text()); });
-await page.goto(`file://${resolve(here, '../dist/local.html')}#nointro-gameclock`, { timeout: 300000 });
+await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
+await page.click('#open-signup');
+await page.waitForSelector('#account:not([hidden])');
+await page.fill('#account-username', `Leaves_${Math.random().toString(36).slice(2, 8)}`);
+await page.fill('#account-password', 'a password for the browser test');
+await page.click('#account-submit');
+await page.waitForFunction(() => window.__nlw.online.status().state === 'in', null, { timeout: 120000 });
 await pastQuestion(page);
 await page.fill('#name', 'Tree Looker').catch(() => {});
 await enterTown(page);
@@ -55,10 +66,11 @@ const leaves = await page.evaluate(() => {
   return { kinds, wrong, foliage: n.foliage() };
 });
 check('every kind of tree has leaves cut out of pictures of leaves, mangoes, almonds, coconut and oil palms', ['mango', 'almond', 'frond', 'oilfrond'].every((k) => leaves.kinds[k] && leaves.kinds[k].meshes > 0) && leaves.wrong.length === 0, leaves);
+// (the wind's clock runs with the frames drawn: without a graphics card, a frame can take a second or more)
 const w0 = (await page.evaluate(() => window.__nlw.foliage())).wind;
-await page.waitForTimeout(1500);
+await page.waitForTimeout(4000);
 const w1 = (await page.evaluate(() => window.__nlw.foliage())).wind;
-check('the leaves move in the wind (its clock runs)', w1 > w0 + 0.5, { w0, w1 });
+check('the leaves move in the wind (its clock runs)', w1 > w0 + 0.2, { w0, w1 });
 const programs = await page.evaluate(() => window.__nlw.renderer.info.programs.map((p) => p.cacheKey).filter((k) => k.includes('pcw-leaves')).length);
 check('the leaves are drawn by the swaying shader, and their shadows too', programs >= 2, programs);
 
@@ -106,4 +118,5 @@ check('at night the glass gives back almost nothing, and is lit from within', ni
 console.log('what a frame costs (triangles, calls):', JSON.stringify(costs));
 const failed = results.filter((r) => !r).length;
 console.log(failed ? `\n${failed} of ${results.length} checks failed` : `\nAll ${results.length} checks passed.`);
-await browser.close();
+await browser.close(); server.close();
+process.exit(failed ? 1 : 0);

@@ -47,6 +47,9 @@ function roofFront(mesh, frame) {
 }
 
 const STAND_IN = 0x3a3f46;
+// (a copy of the page opened from the disk cannot fetch a model: there the plain shapes stand in for them)
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
+const FROM_DISK = 'This copy of the page is opened from the disk, where the model cannot be fetched.';
 
 export function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } = {}) {
   const most = Math.min(lite ? 2048 : 4096, maxTexture || 4096);
@@ -65,13 +68,15 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
 
   function load(p) {
     if (p.model || p.loading) return p.loading;
+    if (ON_DISK) { p.failed = FROM_DISK; return null; }
+    p.failed = null;
     p.loading = loadSuppliedMesh(p.v.file, { maxTexture: most, env, name: `supplied-${p.id}` })
       .then(({ mesh, triangles }) => {
         const { fit } = fitVehicle(mesh, p.v);
         p.model = fit; p.triangles = triangles;
         p.holder.add(fit); p.standIn.visible = false;
       })
-      .catch((error) => { p.failed = String(error.message || error); })
+      .catch((error) => { p.failed = String(error.message || error); p.failedAt = performance.now(); })
       .finally(() => { p.loading = null; });
     return p.loading;
   }
@@ -85,8 +90,12 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
   // ---- the ambulance ----
   let ambulance = null;          // { mesh, fit, lamps } once its model has come
   let ambulanceLoading = null;
+  let ambulanceFailedAt = 0;
   function loadAmbulance() {
+    // (one that could not be fetched is asked for again half a minute later; from the disk, never)
+    if (ambulance && ambulance.failed && !ON_DISK && performance.now() - ambulanceFailedAt > 30000) ambulance = null;
     if (ambulance || ambulanceLoading) return ambulanceLoading;
+    if (ON_DISK) { ambulance = { failed: FROM_DISK }; return null; }
     const v = SUPPLIED_VEHICLES.ambulance;
     ambulanceLoading = loadSuppliedMesh(v.file, { maxTexture: most, env, name: 'supplied-ambulance' })
       .then(({ mesh, triangles }) => {
@@ -94,7 +103,7 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
         const roof = roofFront(mesh, frame);
         ambulance = { fit, roof, triangles };
       })
-      .catch((error) => { ambulance = { failed: String(error.message || error) }; })
+      .catch((error) => { ambulance = { failed: String(error.message || error) }; ambulanceFailedAt = performance.now(); })
       .finally(() => { ambulanceLoading = null; });
     return ambulanceLoading;
   }
@@ -119,7 +128,8 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
   function tick(eye) {
     for (const p of parked) {
       const d = Math.hypot(eye.x - p.v.x, eye.z - p.v.z);
-      if (d < p.v.reach && !p.failed) load(p);
+      // (one that could not be fetched is asked for again half a minute later; from the disk, never)
+      if (d < p.v.reach && (!p.failed || (!ON_DISK && performance.now() - (p.failedAt || 0) > 30000))) load(p);
       else if (d > p.v.reach * 1.6) release(p);
     }
   }

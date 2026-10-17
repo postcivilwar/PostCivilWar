@@ -22,6 +22,8 @@ import { surface } from './render-kit.js';
 const HOUSE_BLOCK = 0xdcd8cf;      // a house seen from afar: the owner's houses are white and pale grey
 const TOWER_BLOCK = 0x2f3946;
 const TOWER_SIGHT = 220;           // metres beyond the town's own reach at which a tower is still drawn
+// (a copy of the page opened from the disk cannot fetch a model: there each building is its plain block)
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 
 // Where a building's model is drawn: its own frame turned so that its front faces +z, the middle of its foot at the
 // origin, scaled, then turned to its heading and set on its plot.
@@ -91,7 +93,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
         }
         refresh();
       })
-      .catch((error) => { record.state = 'failed'; record.failed = String(error.message || error); })
+      .catch((error) => { record.state = 'failed'; record.failed = String(error.message || error); record.failedAt = performance.now(); })
       .finally(pump);
   }
 
@@ -130,9 +132,11 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   function see(x, z, reach, fetch = true, tall = TOWER_SIGHT) {
     last = { x, z, reach, tall };
     refresh();
-    if (!fetch) return;
+    if (!fetch || ON_DISK) return;
     const wanted = [];
     for (const r of models.values()) {
+      // (one that could not be fetched is asked for again half a minute later)
+      if (r.state === 'failed' && performance.now() - (r.failedAt || 0) > 30000) r.state = 'idle';
       if (r.state !== 'idle') continue;
       let gap = Infinity;
       for (const e of r.houses) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - HOUSE_SIGHT - 40);
@@ -144,7 +148,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     pump();
   }
   // (for whoever needs every one of them: the tests; still one or two at a time)
-  function loadAll() { queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
+  function loadAll() { if (ON_DISK) return; queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
   const state = () => ({
     models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed })),
     drawn: entries.filter((e) => e.drawn).length,
