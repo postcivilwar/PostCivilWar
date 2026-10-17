@@ -31,8 +31,10 @@ window.take = async (id) => {
   const info = await view.load('car:' + id, null, { base: '/assets/vehicles/cars/game/', lite: false });
   const sheet = document.createElement('canvas'); sheet.width = ${FRAME * COLS}; sheet.height = ${FRAME * ROWS};
   const g = sheet.getContext('2d'); g.imageSmoothingQuality = 'high';
-  for (let i = 0; i < ${FRAMES}; i += 1) { view.shot(Math.PI / 2 + (i / ${FRAMES}) * Math.PI * 2, 0.2, 2.45); g.drawImage(canvas, (i % ${COLS}) * ${FRAME}, Math.floor(i / ${COLS}) * ${FRAME}, ${FRAME}, ${FRAME}); }
-  view.shot(Math.PI / 2 + 0.55, 0.24, 2.6);
+  // (a car is long for its height: the camera stands far enough back that the whole of it is in every picture)
+  for (let i = 0; i < ${FRAMES}; i += 1) { view.shot(Math.PI / 2 + (i / ${FRAMES}) * Math.PI * 2, 0.2, 3.3); g.drawImage(canvas, (i % ${COLS}) * ${FRAME}, Math.floor(i / ${COLS}) * ${FRAME}, ${FRAME}, ${FRAME}); }
+  // (its poster from in front and to its left, as a car is shown)
+  view.shot(Math.PI / 2 - 0.6, 0.22, 3.45);
   const out = { info, sheet: await b64(await blobOf(sheet, 'image/webp', 0.86)), poster: await b64(await blobOf(canvas, 'image/webp', 0.9)) };
   view.dispose();
   return out;

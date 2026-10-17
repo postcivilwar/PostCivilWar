@@ -1086,7 +1086,7 @@ function start(carried) {
       const at = inHall && stand ? { x: stand.x + Math.sin(stand.h) * (stand.r + 1.2), z: stand.z + Math.cos(stand.h) * (stand.r + 1.2) } : CARSHOW.entry;
       setWaypoint({ x: at.x, z: at.z, label: inHall ? l.name : CARSHOW.name });
       ui.close();
-      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ask ${sellerOf(id).spec.name} about it.` : `${CARSHOW.name} is marked, on the Kwale road out of Asaba. Follow the line on the map at the top left through its gate to the showroom's glass doors and walk in: the ${l.name} is on the floor inside, and ${sellerOf(id).spec.name} will help you.` });
+      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ask ${sellerOf(id).spec.name} about it.` : `${CARSHOW.name} is marked, ${CARSHOW.where}. Follow the line on the map at the top left through its gate to the showroom's glass doors and walk in: the ${l.name} is on the floor inside, and ${sellerOf(id).spec.name} will help you.` });
       return;
     }
     const shop = l.shop ? zoneShop(l.shop) : null;

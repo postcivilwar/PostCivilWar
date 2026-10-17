@@ -55,7 +55,7 @@ SOURCES = {
     'black-luxury-suv': ('b07c56cb-luxurysuv3dmodel_1.glb', '+x'),
     'white-square-suv': ('448e186a-mercedesg-class3dmodel.glb', '+x'),
     'grey-grand-tourer': ('a7608979-luxury_car_3d_model_1.glb', '+z'),
-    'black-grand-convertible': ('4adbe7a0-luxuryconvertiblecar3dmodel.glb', '+z'),
+    'black-grand-convertible': ('4adbe7a0-luxuryconvertiblecar3dmodel.glb', '-z'),
     'pearl-convertible': ('a91b91c7-luxurycar3dmodel.glb', '+x'),
     'midnight-saloon': ('0f714eb4-luxurycar3dmodel_2.glb', '+x'),
     'state-limousine': ('c18f836d-presidentiallimousine3dmodel.glb', '+x'),

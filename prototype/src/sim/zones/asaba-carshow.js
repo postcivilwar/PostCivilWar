@@ -104,6 +104,7 @@ export const CARSHOW = Object.freeze({
   name: 'Post Civil War Car Showroom',
   shop: 'cars',                          // the market's name for the showroom (its listings keep it)
   label: 'Post Civil War Car Showroom, Kwale Road, Asaba',
+  where: 'on the Kwale road out of Asaba',          // (for directions: where the compound is)
   compound: C,
   gate: GATE,
   // the iron railings: posts, rails and bars; the four corner posts carry the cameras

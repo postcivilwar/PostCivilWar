@@ -235,7 +235,7 @@ const indoors = await page.evaluate(() => window.__nlw.server.send({ type: 'cars
 check('the town is told it is theirs; and a car is not brought into the hall', indoors.code === 'INDOORS', indoors);
 
 // ---- another player asks about a car on the other side of the floor ----
-await page.evaluate(() => { const n = window.__nlw; n.twin('Second Buyer', -392.0, -176.0); });
+await page.evaluate(() => { const n = window.__nlw; n.twin('Second Buyer', -396.3, -176.4); });          // (in the aisle on Oluchi's side)
 await page.waitForFunction(() => (window.__nlw.view.players || []).some((q) => q.name === 'Second Buyer'), null, { timeout: 90000 });
 await page.evaluate(() => { const n = window.__nlw; n.second.face(-Math.PI / 2); n.second.askCar('black-luxury-suv'); });
 await page.waitForFunction(() => { const n = window.__nlw, s = n.carSalesmen[1].sim.state; const q = n.view.players.find((x) => x.name === 'Second Buyer'); return q && q.carTalk && s.mode === 'talk' && s.with === `p:${q.id}` && Math.hypot(s.x - q.x, s.z - q.z) < 2.4 && s.speed < 0.2; }, null, { timeout: 120000 }).catch(() => {});
