@@ -56,6 +56,22 @@ test('a car goes as a car does: smoothly up to its top speed, slows when let go,
   assert.ok(before - s.speed > coasted * 4, 'the brake takes off far more than letting go');
   for (let i = 0; i < 60 * 10; i += 1) stepPowerCar(s, { brake: 1 }, 1 / 60, { handling: h });
   assert.ok(s.speed < 0 && s.speed >= -h.reverse, 'held on when stopped, it backs up, slowly');
+  // braking to a stop does not roll it back: it stands for a moment (reverseAfter) before the brake takes it backwards
+  {
+    const b = { speed: 5, steer: 0, heading: 0 }, v = [];
+    for (let i = 0; i < 60 * 3; i += 1) { stepPowerCar(b, { brake: 1 }, 1 / 60, { handling: h }); v.push(b.speed); }
+    const stopped = v.findIndex((x) => x === 0), backing = v.findIndex((x) => x < 0);
+    assert.ok(stopped > 0 && v.slice(0, stopped).every((x) => x > 0), 'it slows to a stop, going forward all the way');
+    assert.ok(backing > stopped, 'and only then backs up');
+    const standing = (backing - stopped) / 60;
+    assert.ok(standing >= h.reverseAfter - 1 / 60 && standing <= h.reverseAfter + 2 / 60, `it stands ${standing} s, the brake held, before it backs up`);
+    // let go of the brake and pressed again at a standstill: the moment starts again
+    const c2 = { speed: 0, steer: 0, heading: 0 };
+    for (let i = 0; i < 15; i += 1) stepPowerCar(c2, { brake: 1 }, 1 / 60, { handling: h });
+    stepPowerCar(c2, {}, 1 / 60, { handling: h });
+    for (let i = 0; i < 15; i += 1) stepPowerCar(c2, { brake: 1 }, 1 / 60, { handling: h });
+    assert.equal(c2.speed, 0, 'two short presses at a standstill do not add up to reversing');
+  }
   // the steering: at walking pace a full turn of the wheel turns it tightly; flat out, the same turn far less
   const slow = { speed: 4, steer: 0, heading: 0 }, fast = { speed: h.top, steer: 0, heading: 0 };
   for (let i = 0; i < 60; i += 1) { stepPowerCar(slow, { steer: 1, throttle: 0.2 }, 1 / 60, { handling: h }); stepPowerCar(fast, { steer: 1, throttle: 1 }, 1 / 60, { handling: h }); }

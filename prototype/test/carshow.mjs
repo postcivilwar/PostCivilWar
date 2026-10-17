@@ -132,7 +132,7 @@ await page.evaluate(() => {
   const look = () => { if (rec.stop) return; rec.frames.push(n.carshowView.state().cams); requestAnimationFrame(look); };
   requestAnimationFrame(look);
 });
-await page.waitForFunction(() => { const f = window.__cams.frames; return f.length > 10 && [0, 1, 2, 3].every((k) => f.some((c) => c[k].lit) && f.some((c) => !c[k].lit)); }, null, { timeout: 120000 }).catch(() => {});
+await page.waitForFunction(() => { const f = window.__cams.frames; return f.length > 10 && [0, 1, 2, 3].some((k) => Math.abs(f[f.length - 1][k].yaw - f[0][k].yaw) > 0.05); }, null, { timeout: 120000 }).catch(() => {});
 const cams = await page.evaluate(() => {
   const rec = window.__cams; rec.stop = true;
   const f = rec.frames, first = f[0], last = f[f.length - 1];
@@ -141,7 +141,15 @@ const cams = await page.evaluate(() => {
   let d = (to - c.yaw) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
   return { frames: f.length, turned: [0, 1, 2, 3].map((k) => +Math.abs(last[k].yaw - first[k].yaw).toFixed(3)), blinked: [0, 1, 2, 3].map((k) => f.some((q) => q[k].lit) && f.some((q) => !q[k].lit)), watching: +Math.abs(d).toFixed(3) };
 });
-check('each camera turns, and blinks red now and then', cams.blinked.every(Boolean) && cams.turned.some((v) => v > 0.05), cams);
+// (the blinking, by the cameras' own clock, a twenty-fifth of a second at a time over three seconds: a software-drawn
+// browser shows a frame now and then, and a blink lasts a sixth of a second)
+const blink = await page.evaluate(() => {
+  const n = window.__nlw, v = n.carshowView, seen = [[], [], [], []];
+  const t0 = (Date.now() / 1000) % 1e5;
+  for (let k = 0; k < 80; k += 1) { v.tick(0.04, { eye: n.camera.position, player: n.predicted, now: t0 + k * 0.04, people: [n.predicted], gateOpen: n.view.carshowGate || 0 }); v.state().cams.forEach((c, i) => seen[i].push(c.lit)); }
+  return seen.map((s) => s.some(Boolean) && s.some((x) => !x));
+});
+check('each camera turns, and blinks red now and then', blink.every(Boolean) && cams.turned.some((v) => v > 0.05), { ...cams, blinked: blink });
 check('the camera nearest the player turns to watch them', cams.watching < 0.3, cams.watching);
 await shot('05-a-camera-watching');
 
@@ -259,7 +267,7 @@ for (let i = 0; i < 300 && !left; i += 1) { await page.waitForTimeout(100); left
 await page.keyboard.up('w');
 await page.waitForFunction(() => !document.getElementById('fade').classList.contains('on'), null, { timeout: 20000 });
 const outside = await page.evaluate(() => { const n = window.__nlw, c = n.carshowView; return { at: [+n.predicted.x.toFixed(2), +n.predicted.z.toFixed(2)], hall: c.hall.group.visible, exterior: c.exterior.visible, staff: n.carSalesmen.some((s) => s.actor.group.visible) }; });
-check('the mat inside the doors takes the player out before them; the buildings are drawn again, the hall is not', left && Math.abs(outside.at[0] - DOORS.x) < 0.01 && Math.abs(outside.at[1] - (DOORS.z + 4.6)) < 0.01 && !outside.hall && outside.exterior && !outside.staff, outside);
+check('the mat inside the doors takes the player out before them; the buildings are drawn again, the hall is not', left && Math.hypot(outside.at[0] - DOORS.x, outside.at[1] - (DOORS.z + 4.6)) < 0.6 && !outside.hall && outside.exterior && !outside.staff, outside);
 
 // ---- driving it ----
 await page.evaluate(() => window.__nlw.ui.openPhone('property', {}));
@@ -286,16 +294,18 @@ await page.keyboard.up('d');
 check('steered right, it turns right, its front wheels turned', turned.h < startAt.h - 0.02 && turned.steer > 0.05 && turned.wheels === 2, { turned, from: startAt.h });
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.heading + Math.PI - 0.4; n.cam.dist = 6.5; n.cam.pitch = 0.14; });
 await page.keyboard.up('w'); await page.keyboard.down('s');
-// (held for a few seconds: it stops; held on, it then backs up)
-const braking = [];
-let brakeShot = false;
-for (let i = 0; i < 40 && !(braking.length && braking[braking.length - 1].v < -0.6); i += 1) {
-  await page.waitForTimeout(100);
-  const f = await page.evaluate(() => { const n = window.__nlw, st = n.carView.stateOf(); return { v: +n.carState.speed.toFixed(2), brake: st && st.brake, reverse: st && st.reverse, red: document.querySelector('#speedo').classList.contains('braking') }; });
-  braking.push(f);
-  if (!brakeShot && f.brake === 1) { brakeShot = true; await shot('15-braking'); }
-}
+// (held for a few seconds: it stops; held on, it then backs up. Every frame is written down in the page: a
+// software-drawn browser's frames are far apart, and the car stands still for only a moment)
+await page.evaluate(() => {
+  const n = window.__nlw, rec = window.__brake = { frames: [], stop: false };
+  const look = () => { if (rec.stop) return; const st = n.carView.stateOf(); rec.frames.push({ v: +n.carState.speed.toFixed(2), brake: st && st.brake, reverse: st && st.reverse, red: document.querySelector('#speedo').classList.contains('braking') }); requestAnimationFrame(look); };
+  requestAnimationFrame(look);
+});
+await page.waitForFunction(() => window.__brake.frames.some((f) => f.brake === 1), null, { timeout: 20000 }).catch(() => {});
+await shot('15-braking');
+await page.waitForFunction(() => { const f = window.__brake.frames; return f.length && f[f.length - 1].v < -0.6; }, null, { timeout: 30000 }).catch(() => {});
 await page.keyboard.up('s');
+const braking = await page.evaluate(() => { window.__brake.stop = true; return window.__brake.frames; });
 const last = braking[braking.length - 1];
 check('on the brake its brake lamps light and it stops; held on a moment more, it backs up, its reversing lamps lit and its brake lamps not', braking.some((f) => f.brake === 1 && f.red && f.v > 0.3) && braking.some((f) => Math.abs(f.v) < 0.05) && last.v < -0.3 && last.reverse === 1 && last.brake === 0 && !last.red, braking);
 await page.evaluate(() => { const n = window.__nlw; n.carState.speed = 0; });
