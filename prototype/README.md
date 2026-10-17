@@ -1571,6 +1571,8 @@ character, is left out at the owner's word. See `assets/characters/figures/READM
   split into body, fork and wheels by `tools/vehicles/bikes.py` like the fifteen. Two other motorcycles in the same
   batch were byte for byte the Black Bobber and the Dark Power Cruiser already on sale, and are not added twice.
 - They take the two sizes of the owner's list that were left: 750 cc (114 km/h) and 700 cc (111 km/h), 1,500 TR each.
+  The Midnight Cruiser is drawn 2.3 m long, as the Black Bobber is: the two are the same bike's model, near enough
+  (the same pictures), and at 2.35 m a rider's hands fell a centimetre short of its grips.
 - **The hall** goes 5.4 m further in under the podium (its back wall at z 27.6, was 33.0) for a fourth row with the
   two of them either side of the middle line, the same room round every stand; seven framed pictures now hang along
   the west wall. Obi walks round them too. Migration 12 puts them on sale at their stands.

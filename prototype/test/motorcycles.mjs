@@ -272,7 +272,8 @@ check('and up again after a few seconds', await page.evaluate(() => !window.__nl
 // ---- every one of the seventeen ----
 let shotFlames = false;
 const all = only.length ? only : listed.map((l) => l.model.slice(5));
-await page.evaluate((ids) => window.__nlw.server.send({ type: 'bikes.owned', bikes: ids }), all);
+// (the Streetfighter stays theirs: it is ridden again at night below)
+await page.evaluate((ids) => window.__nlw.server.send({ type: 'bikes.owned', bikes: [...new Set(['streetfighter', ...ids])] }), all);
 for (const id of all) {
   // (the bikes already ridden are put away, out of the way of this one's run down the runway)
   await page.evaluate(() => { const n = window.__nlw; if (n.view.self.astride) n.server.send({ type: 'moto.leave' }); const me = n.host.game.state.players[n.playerId]; if (me.parked) for (const k of Object.keys(me.parked)) delete me.parked[k]; n.place(-600, -454); n.face(-Math.PI / 2); });
