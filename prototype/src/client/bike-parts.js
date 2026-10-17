@@ -499,6 +499,83 @@ export const BIKE_PARTS = Object.freeze({
    "full": 10283025
   }
  },
+ "civil-war-tourer": {
+  "vertices": 14045,
+  "triangles": 10766,
+  "parts": [
+   8007,
+   877,
+   1054,
+   828
+  ],
+  "length": 0.9995,
+  "height": 0.6577,
+  "width": 0.4692,
+  "front": {
+   "z": 0.3385,
+   "y": 0.1435,
+   "r": 0.142,
+   "half": 0.0315
+  },
+  "rear": {
+   "z": -0.3385,
+   "y": 0.144,
+   "r": 0.144,
+   "half": 0.0432
+  },
+  "rake": 0.44,
+  "grip": [
+   0.2085,
+   0.5049,
+   0.1915
+  ],
+  "seat": [
+   0.0,
+   0.2925,
+   -0.0887
+  ],
+  "peg": [
+   0.0983,
+   0.1076,
+   0.0313
+  ],
+  "head": [
+   0.0,
+   0.3838,
+   0.399
+  ],
+  "tail": [
+   0.0,
+   0.3057,
+   -0.5116
+  ],
+  "pipes": [
+   [
+    0.1333,
+    0.3081,
+    -0.5101
+   ],
+   [
+    -0.1333,
+    0.3081,
+    -0.5101
+   ]
+  ],
+  "metallic": 0,
+  "roughness": 0.8999999761581421,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "civil-war-tourer.bin",
+   "color4k": "civil-war-tourer-color-4k.jpg",
+   "color2k": "civil-war-tourer-color-2k.jpg",
+   "colorSize": 8192
+  },
+  "sha256": "9ca8d0b0b80874296207cb997c5b0ee20c4175861d4e96ba5e8553de83d88b68",
+  "bytes": {
+   "lite": 1269970,
+   "full": 2712538
+  }
+ },
  "gold-roadster": {
   "vertices": 76566,
   "triangles": 95681,
@@ -663,6 +740,89 @@ export const BIKE_PARTS = Object.freeze({
   "bytes": {
    "lite": 5198673,
    "full": 11543826
+  }
+ },
+ "midnight-cruiser": {
+  "vertices": 127447,
+  "triangles": 132054,
+  "parts": [
+   54405,
+   7513,
+   28381,
+   41755
+  ],
+  "length": 0.9791,
+  "height": 0.5886,
+  "width": 0.5596,
+  "front": {
+   "z": 0.356,
+   "y": 0.118,
+   "r": 0.118,
+   "half": 0.0364
+  },
+  "rear": {
+   "z": -0.356,
+   "y": 0.126,
+   "r": 0.126,
+   "half": 0.065
+  },
+  "rake": 0.44,
+  "grip": [
+   0.2169,
+   0.5086,
+   0.1003
+  ],
+  "seat": [
+   0.0,
+   0.2623,
+   -0.2157
+  ],
+  "peg": [
+   0.1026,
+   0.0885,
+   -0.0957
+  ],
+  "head": [
+   0.0,
+   0.2905,
+   0.3939
+  ],
+  "tail": [
+   0.0,
+   0.1886,
+   -0.4459
+  ],
+  "pipes": [
+   [
+    0.0454,
+    0.1381,
+    -0.4515
+   ],
+   [
+    -0.045,
+    0.1501,
+    -0.4668
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "midnight-cruiser.bin",
+   "color4k": "midnight-cruiser-color-4k.jpg",
+   "color2k": "midnight-cruiser-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "midnight-cruiser-rm-4k.webp",
+   "rm2k": "midnight-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "midnight-cruiser-normal-4k.png",
+   "normal2k": "midnight-cruiser-normal-2k.webp",
+   "normalSize": 4096
+  },
+  "sha256": "5ca2593b79c7c3d1de3529c74f38d559b3492e4c0f9867a759422eb5dc30c3ce",
+  "bytes": {
+   "lite": 6411197,
+   "full": 10851584
   }
  },
  "olive-cruiser": {

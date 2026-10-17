@@ -50,11 +50,18 @@ const MASTERS = {
   M11: { file: 'human_character.glb', md5: 'c510cb7e8f781e336c6bb432fc9a36d1', animations: 10, joints: 65, images: 1 },
   M12: { file: 'ninja_armor.glb', md5: '7bfb69491e40c80877b094ae1155d65a', animations: 15, joints: 65, images: 1 },
   M13: { file: 'ninja_warrior.glb', md5: 'c7a13d9945a3c46ebbc6f502955329bf', animations: 27, joints: 65, images: 1 },
+  // the six of 17 October 2026
+  W14: { file: 'fashion_model_7.glb', md5: '5df25c6f19873fe6149b6c769a8be7f2', animations: 17, joints: 65, images: 3 },
+  W15: { file: 'fashion_model_5.glb', md5: '3b85fd9813e6438d2d33b44bf3d301fb', animations: 15, joints: 65, images: 3 },
+  M14: { file: 'fashion_model_6.glb', md5: '6ab16a5c6900f06619f550bfacb1161d', animations: 17, joints: 65, images: 3 },
+  M15: { file: 'patchwork_shirt.glb', md5: '934edcdbc343d9d5c16a5b2839c94af9', animations: 9, joints: 65, images: 3 },
+  M16: { file: 'nigerian_traditional.glb', md5: '478589e4762c608113bfb84eedb27aa2', animations: 16, joints: 65, images: 3 },
+  M17: { file: 'urban_streetwear.glb', md5: '4c7f8f5e2c48bd17609219a0ce51b59e', animations: 13, joints: 65, images: 3 },
 };
-const NEW_WOMEN = ['W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13'];
-const NEW_MEN = ['M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13'];
+const NEW_WOMEN = ['W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'W14', 'W15'];
+const NEW_MEN = ['M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13', 'M14', 'M15', 'M16', 'M17'];
 
-test('thirteen women and eleven men, each drawn from the file the owner supplied, which is kept unchanged', () => {
+test('fifteen women and fifteen men, each drawn from the file the owner supplied, which is kept unchanged', () => {
   assert.deepEqual(FIGURE_ORDER.f, ['W1', 'W2', 'W3', ...NEW_WOMEN]);
   assert.deepEqual(FIGURE_ORDER.m, ['M1', 'M4', 'M5', ...NEW_MEN]);
   assert.deepEqual(Object.keys(FIGURES).sort(), Object.keys(MASTERS).sort());
@@ -158,12 +165,12 @@ test('the choice on the start screen: a woman or a man, the arrows going round e
   const c = createChoice({});
   assert.equal(c.gender, 'f');
   assert.equal(c.figure.id, 'W1');
-  assert.deepEqual(Array.from({ length: 13 }, () => c.step(1).id), ['W2', 'W3', ...NEW_WOMEN, 'W1'], 'the arrows go through the women only');
-  assert.equal(c.step(-1).id, 'W13'); assert.equal(c.step(-1).id, 'W12');
+  assert.deepEqual(Array.from({ length: FIGURE_ORDER.f.length }, () => c.step(1).id), ['W2', 'W3', ...NEW_WOMEN, 'W1'], 'the arrows go through the women only');
+  assert.equal(c.step(-1).id, FIGURE_ORDER.f.at(-1)); assert.equal(c.step(-1).id, FIGURE_ORDER.f.at(-2));
   c.step(1); c.step(1);
   assert.equal(c.step(1).id, 'W2');
   assert.equal(c.setGender('m').id, 'M1');
-  assert.deepEqual(Array.from({ length: 11 }, () => c.step(1).id), ['M4', 'M5', ...NEW_MEN, 'M1'], 'the arrows go through the men only');
+  assert.deepEqual(Array.from({ length: FIGURE_ORDER.m.length }, () => c.step(1).id), ['M4', 'M5', ...NEW_MEN, 'M1'], 'the arrows go through the men only');
   c.setGender('f'); assert.equal(c.figure.id, 'W2', 'each list keeps its place');
   assert.equal(FIGURES.W1.name, 'Adaeze'); assert.equal(FIGURES.M1.name, 'Emeka');
   assert.deepEqual(['W2', 'W3', 'M4', 'M5'].map((id) => FIGURES[id].name), ['Ngozi', 'Amaka', 'Ikenna', 'Uche']);

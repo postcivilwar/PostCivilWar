@@ -58,9 +58,14 @@ function createFloor() {
     }
     return { x: POWERBIKE.home.x, z: POWERBIKE.home.z };
   }
+  // (each point of the line is looked at itself as well as by its cell: a cell is open where its middle is clear, and
+  // a line cut across the corner of one can pass nearer a stand's corner than he should)
   function clearLine(ax, az, bx, bz) {
     const steps = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / (CELL * 0.5)));
-    for (let k = 1; k <= steps; k += 1) if (!isOpen(ax + ((bx - ax) * k) / steps, az + ((bz - az) * k) / steps)) return false;
+    for (let k = 1; k <= steps; k += 1) {
+      const x = ax + ((bx - ax) * k) / steps, z = az + ((bz - az) * k) / steps;
+      if (!isOpen(x, z) || !zoneWalkable(x, z, [], SALESMAN.radius * 0.75)) return false;
+    }
     return true;
   }
   function route(ax, az, bx, bz) {

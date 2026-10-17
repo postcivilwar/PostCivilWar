@@ -50,6 +50,7 @@ def read(path):
         return arr.reshape(a['count'], n) if n > 1 else arr
 
     def image(i):
+        if i is None: return None          # (a file may carry only its colour picture: then there is no other to keep)
         v = j['bufferViews'][j['images'][i]['bufferView']]
         return binary[v.get('byteOffset', 0):v.get('byteOffset', 0) + v['byteLength']], j['images'][i].get('mimeType')
 
@@ -86,6 +87,34 @@ RADIUS = {
 
 # bikes whose back tyre is wider than the 13 cm a tyre is otherwise taken to be at most
 FAT_REAR = {'power-cruiser'}
+
+# bikes made with few triangles (about 11,000), whose tyres are coarse rings of points: their wheels are found as the
+# ring most of the points round each end lie on (`ring_fit`), the tyre's foot on the ground, rather than by the
+# ground-contact cluster `fit_wheel` starts from, which on a coarse tyre is not under the axle
+RING_FIT = {'civil-war-tourer'}
+
+
+def ring_fit(P, sign):
+    x, y, z = P[:, 0], P[:, 1], P[:, 2]
+    near = (np.abs(x) < 0.07) & (z * sign > 0.15)
+    y0 = float(y[near].min())
+    z0 = float(np.median(z[near & (y < y0 + 0.02)]))
+    sel = near & (np.abs(z - z0) < 0.25) & (y < y0 + 0.4)
+    zz, yy = z[sel], y[sel] - y0
+    best = None
+    for zc in np.arange(z0 - 0.06, z0 + 0.06, 0.002):
+        for R in np.arange(0.08, 0.26, 0.002):
+            d = np.hypot(zz - zc, yy - R)
+            on = np.abs(d - R) < 0.005
+            bins = len(set((np.degrees(np.arctan2(yy[on] - R, zz[on] - zc)) // 15).astype(int)))
+            score = bins * 100 + int(on.sum())
+            if best is None or score > best[0]: best = (score, float(zc), float(R))
+    _, zc, R = best
+    yc = y0 + R
+    d = np.hypot(z - zc, y - yc)
+    band = (d > 0.8 * R) & (d < 1.03 * R) & (y < yc - 0.03) & (np.abs(x) < 0.1)
+    half = min(float(np.percentile(np.abs(x[band]), 99)) if band.sum() > 20 else 0.05, 0.065)
+    return {'z': zc, 'y': yc, 'r': R, 'half': half}
 
 
 def fit_wheel(P, sign, radius=None, wide=False):
@@ -217,7 +246,8 @@ def build(bike_id):
     if P[top, 2].mean() < 0: P = rot_y(P, 2); N = rot_y(N, 2); quarter += 2
     given = RADIUS.get(bike_id, {})
     twin = bike_id == 'chrome-concept'          # two tyres side by side at each end
-    rear = fit_wheel(P, -1, given.get('rear'), twin or bike_id in FAT_REAR); front = fit_wheel(P, 1, given.get('front'), twin)
+    if bike_id in RING_FIT: rear = ring_fit(P, -1); front = ring_fit(P, 1)
+    else: rear = fit_wheel(P, -1, given.get('rear'), twin or bike_id in FAT_REAR); front = fit_wheel(P, 1, given.get('front'), twin)
     # stood on the ground between its wheels, centred across
     shift = np.array([-(P[:, 0].max() + P[:, 0].min()) / 2, -min(front['y'] - front['r'], rear['y'] - rear['r']), -(front['z'] + rear['z']) / 2])
     P = P + shift
@@ -234,7 +264,9 @@ def build(bike_id):
     blob = P.astype(np.float32).tobytes() + n16.tobytes() + (b'\0\0' * (len(P) % 2)) + uv.astype(np.float32).tobytes() + idx.astype(np.uint32).tobytes()
     open(os.path.join(OUT, f'{bike_id}.bin'), 'wb').write(blob)
     files = {'mesh': f'{bike_id}.bin'}
-    for name, (data, mime) in m['images'].items():
+    for name, picture in m['images'].items():
+        if picture is None: continue
+        data, mime = picture
         im = Image.open(io.BytesIO(data)); size = im.width
         fmt = 'jpg' if name == 'color' else 'webp'
         # 4k: the supplied picture itself where it is 4096 or less; otherwise drawn at 4096
@@ -266,7 +298,7 @@ def write_js(manifest):
     # what a player's device fetches to draw each one: on a phone (the 2048 pictures) and elsewhere (the 4096)
     game = os.path.join(SRC, 'game')
     for k, v in body.items():
-        size = lambda name: os.path.getsize(os.path.join(game, v['files'][name]))
+        size = lambda name: os.path.getsize(os.path.join(game, v['files'][name])) if name in v['files'] else 0
         v['bytes'] = {'lite': size('mesh') + size('color2k') + size('normal2k') + size('rm2k'), 'full': size('mesh') + size('color4k') + size('normal4k') + size('rm4k')}
     open(os.path.join(ROOT, 'src', 'client', 'bike-parts.js'), 'w').write(
         "// Written by tools/vehicles/bikes.py from the owner's motorcycle files: do not edit by hand.\n"

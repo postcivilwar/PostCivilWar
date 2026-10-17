@@ -57,6 +57,13 @@ export const ANIMATED = Object.freeze({
     ['M11', 'human_character.glb', 1.80, {}, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M12', 'ninja_armor.glb', 1.83, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M13', 'ninja_warrior.glb', 1.85, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],          // (its defeat_02, "Slump", ends on its knees, not on the ground: not a fall)
+    // the six of 17 October 2026
+    ['W14', 'fashion_model_7.glb', 1.72, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'] }],
+    ['W15', 'fashion_model_5.glb', 1.66, {}, { hit: ['hit_to_stomach.001', 'hit_to_head.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
+    ['M14', 'fashion_model_6.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M15', 'patchwork_shirt.glb', 1.82, { swim: 'swim.001' }, { punch: ['box_01.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M16', 'nigerian_traditional.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M17', 'urban_streetwear.glb', 1.78, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
   ]),
 });
 // [id, file, height, its own walk/run/swim clips (what it lacks is borrowed: ~walk, ~run, ~swim), what shows what
@@ -99,6 +106,34 @@ const SEATED_HEIGHT = 0.845;
 const GRIP = { x: 0.25, y: 0.3, z: 0.38 };
 
 const loading = new Map();
+// Each figure's model (its shape and pictures, shared by every figure drawn from it) is kept while a figure on the
+// screen is drawn from it, and one more besides; beyond that, the one let go longest ago is freed. A figure's pictures
+// are up to half a gigabyte of graphics memory at full size, and a player looking through thirty characters on the
+// choosing screen otherwise kept every one they had looked at, until the page fell over (17 October 2026).
+const users = new Map();          // id -> how many figures on the screen are drawn from it
+const unused = [];                // ids drawn by none, the longest unused first
+const KEEP_UNUSED = 1;
+function useModel(id) {
+  users.set(id, (users.get(id) || 0) + 1);
+  const i = unused.indexOf(id); if (i >= 0) unused.splice(i, 1);
+}
+function releaseModel(id) {
+  const n = (users.get(id) || 1) - 1;
+  if (n > 0) { users.set(id, n); return; }
+  users.delete(id); unused.push(id);
+  while (unused.length > KEEP_UNUSED) {
+    const old = unused.shift(), held = loading.get(old);
+    loading.delete(old);
+    if (held) held.then(({ model }) => {
+      model.geometry.dispose();
+      const m = model.material;
+      for (const t of new Set([m.map, m.normalMap, m.roughnessMap, m.metalnessMap].filter(Boolean))) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); }
+      m.dispose();
+    }, () => {});
+  }
+}
+// (for the tests: which models are held)
+export const heldModels = () => ({ loaded: [...loading.keys()], users: Object.fromEntries(users), unused: [...unused] });
 // a touch-first device draws the supplied textures at half size (see glb.js); '#full' in the address keeps them whole
 const liteTexture = () => { try { const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; return coarse && !String(location.hash).includes('full') ? 2048 : 0; } catch (error) { return 0; } };
 function bytesOf(spec) {
@@ -203,6 +238,8 @@ const smooth01 = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * 
 
 export function makeAnimatedRig(id, labelText, shadow = false) {
   const spec = ANIMATED[id];
+  useModel(id);
+  let released = false;
   const group = new THREE.Group();
   const holder = new THREE.Group();
   const lift = new THREE.Group();          // raised or lowered to put the figure on a seat
@@ -363,7 +400,7 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
       if (Math.abs(rig.drop) < 1e-4) rig.drop = 0;
       if (!rig.seated) lift.position.y = rig.drop;
     },
-    dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } },
+    dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } if (!released) { released = true; releaseModel(id); } },
   };
 
   // Turns a bone about an axis given in the figure's own frame (x its left, y up, z ahead), on top of its pose.

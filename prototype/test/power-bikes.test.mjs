@@ -4,8 +4,8 @@ import { POWER_BIKES, HANDLING, handlingOf, stepPowerBike, bikeRevs } from '../s
 
 const ride = (input, seconds, state = { speed: 0, lean: 0, heading: 0 }, options) => { for (let t = 0; t < seconds; t += 1 / 60) stepPowerBike(state, input, 1 / 60, options); return state; };
 
-test('the power bikes are the owner\'s fifteen supplied models (13 and 16 October 2026)', () => {
-  assert.equal(Object.keys(POWER_BIKES).length, 15);
+test('the power bikes are the owner\'s seventeen supplied models (13, 16 and 17 October 2026)', () => {
+  assert.equal(Object.keys(POWER_BIKES).length, 17);
 });
 
 test('the throttle takes it up to its top speed, and no further', () => {

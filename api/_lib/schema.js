@@ -32,9 +32,13 @@ const FIGURES = {
   // the eighteen of 16 October 2026: ten women and eight men
   W4: 'Chioma', W5: 'Ifeoma', W6: 'Nneka', W7: 'Chiamaka', W8: 'Obiageli', W9: 'Ebele', W10: 'Adanna', W11: 'Ujunwa', W12: 'Chinwe', W13: 'Ifeyinwa',
   M6: 'Chinedu', M7: 'Obinna', M8: 'Nnamdi', M9: 'Kelechi', M10: 'Okechukwu', M11: 'Tobenna', M12: 'Chukwudi', M13: 'Ifeanyi',
+  // the six of 17 October 2026: two women and four men
+  W14: 'Nkiru', W15: 'Uloma', M14: 'Chidi', M15: 'Ebuka', M16: 'Obiora', M17: 'Somto',
 };
 // the figures an account could be when migration 5 was run (it is kept as it was run)
 const FIGURES_OF_12_OCTOBER = ['W1', 'M1', 'W2', 'W3', 'M4', 'M5'];
+// and when migration 9 was run
+const FIGURES_OF_16_OCTOBER = [...FIGURES_OF_12_OCTOBER, 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13'];
 // the figures there were when the account's character was first kept (migration 1 is as it was run)
 const FIRST_FIGURES = ['W1', 'M1'];
 
@@ -62,6 +66,9 @@ const MOTORCYCLES = [
   ['gold-roadster', 'Gold Muscle Roadster', 4000, 'A big gold muscle roadster with a three-pipe engine on show.'],
   ['black-bobber', 'Black Bobber', 1500, 'A black bobber with a fat front tyre, a solid tank and a low solo seat.'],
   ['power-cruiser', 'Dark Power Cruiser', 2500, 'A long, low custom power cruiser in black on gold-spoked wheels.'],
+  // the owner's two of 17 October 2026, in a fourth row at the back of PowerBike's hall (migration 12)
+  ['midnight-cruiser', 'Midnight Cruiser', 1500, 'A dark cruiser on spoked wheels, low and wide, its twin-cylinder engine in black and chrome.'],
+  ['civil-war-tourer', 'PostCivilWar Tourer', 1500, 'A white touring bike in the PostCivilWar colours, with a tall screen and hard luggage at the back.'],
 ].map(([id, name, tr, blurb], i) => ({ id, name, price: tr * 2, blurb, asset: `motorcycle-${id}`, listing: `00000000-0000-4000-8000-0000000002${String(i + 1).padStart(2, '0')}`, x: SHOWROOM.x0 + (i % 6) * SHOWROOM.step, z: SHOWROOM.z + (i < 6 ? -2.5 : i < 12 ? 2.5 : 7.5) }));
 const MOTORCYCLE_STOCK = 1000000;          // new from the showroom: not a numbered edition, and not going to run out
 
@@ -75,6 +82,7 @@ const POWERBIKE_STANDS = {
   'streetfighter': [-74.8, 48.4, 650, 108], 'cafe-racer': [-69.2, 48.4, 600, 106], 'red-superbike': [-63.6, 48.4, 2500, 212], 'white-sport': [-58.0, 48.4, 500, 100], 'purple-sport': [-52.4, 48.4, 1000, 128],
   'black-cruiser': [-74.8, 43.2, 1500, 156], 'chopper': [-69.2, 43.2, 1400, 150], 'chrome-concept': [-63.6, 43.2, 3000, 240], 'black-bobber': [-58.0, 43.2, 1650, 164], 'olive-cruiser': [-52.4, 43.2, 1750, 170],
   'yellow-adventure': [-74.8, 38.0, 1200, 139], 'power-cruiser': [-69.2, 38.0, 1850, 176], 'gold-tourer': [-63.6, 38.0, 2800, 229], 'gold-roadster': [-58.0, 38.0, 2300, 201], 'black-gold-superbike': [-52.4, 38.0, 2000, 184],
+  'midnight-cruiser': [-66.4, 32.8, 750, 114], 'civil-war-tourer': [-60.8, 32.8, 700, 111],
 };
 
 // A character upgrade: offered only above the arrival money, for one part in `parts` of the whole wallet.
@@ -728,7 +736,7 @@ const MIGRATIONS = [
       // The owner's eighteen figures of 16 October 2026. The check on an account's character is widened to them;
       // every character already kept stays exactly as it is.
       `alter table ${S}.accounts drop constraint if exists accounts_figure_check`,
-      `alter table ${S}.accounts add constraint accounts_figure_check check (figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')}))`,
+      `alter table ${S}.accounts add constraint accounts_figure_check check (figure in (${FIGURES_OF_16_OCTOBER.map((id) => `'${id}'`).join(', ')}))`,
     ],
   },
   {
@@ -738,6 +746,25 @@ const MIGRATIONS = [
       // the same fifteen listings, at the same prices, with what was sold and said kept: only where each is and what
       // the shop is called change
       ...MOTORCYCLES.map((m) => `update ${S}.listings set shop_name = '${POWERBIKE.name}', place_x = ${POWERBIKE_STANDS[m.id][0]}, place_z = ${POWERBIKE_STANDS[m.id][1]}, place_label = '${POWERBIKE.label}' where id = '${m.listing}'`),
+    ],
+  },
+  {
+    id: 11,
+    name: 'six more characters an account may be',
+    statements: [
+      // The owner's six figures of 17 October 2026. The check on an account's character is widened to them; every
+      // character already kept stays exactly as it is.
+      `alter table ${S}.accounts drop constraint if exists accounts_figure_check`,
+      `alter table ${S}.accounts add constraint accounts_figure_check check (figure in (${Object.keys(FIGURES).map((id) => `'${id}'`).join(', ')}))`,
+    ],
+  },
+  {
+    id: 12,
+    name: 'two more of the owner\'s motorcycles, at the back of PostCivilWar PowerBike\'s hall',
+    statements: [
+      // the Midnight Cruiser and the PostCivilWar Tourer of 17 October 2026, each sold from its own stand
+      ...MOTORCYCLES.slice(15).map((m) => `insert into ${S}.assets (id, name, category, keywords, model, blurb) values ('${m.asset}', '${m.name.replace(/'/g, "''")}', 'motorcycle', 'motorcycle motorbike bike power ${m.id.replace(/-/g, ' ')}', 'bike:${m.id}', '${m.blurb.replace(/'/g, "''")}') on conflict (id) do nothing`),
+      ...MOTORCYCLES.slice(15).map((m) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${m.listing}', '${m.asset}', 'primary', '${POWERBIKE.shop}', '${POWERBIKE.name}', ${m.price}, ${MOTORCYCLE_STOCK}, '${SHOWROOM.zone}', ${POWERBIKE_STANDS[m.id][0]}, ${POWERBIKE_STANDS[m.id][1]}, '${POWERBIKE.label}') on conflict (id) do nothing`),
     ],
   },
 ];

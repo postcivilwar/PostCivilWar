@@ -46,7 +46,8 @@ async function partsOf(id, { base, lite }) {
   if (!spec) throw new Error(`There is no motorcycle ${id}.`);
   const made = (async () => {
     const f = spec.files, tier = lite ? '2k' : '4k';
-    const textures = [picture(base + f[`color${tier}`], true), picture(base + f[`normal${tier}`], false), picture(base + f[`rm${tier}`], false)];
+    // (a bike made with few triangles may come with its colour picture only: then it has no other to fetch)
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour]) => (f[`${name}${tier}`] ? picture(base + f[`${name}${tier}`], colour) : null));
     const response = await fetchKept(base + f.mesh);
     if (!response.ok) throw new Error(`${f.mesh}: ${response.status}`);
     const buf = await response.arrayBuffer();
@@ -67,7 +68,7 @@ async function partsOf(id, { base, lite }) {
       geometries.push(g);
       first += count;
     }
-    const [color, normalMap, rm] = await Promise.all(textures.map((t) => t.ready));
+    const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
     const material = surface({ map: color, normalMap, normalScale: new THREE.Vector2(spec.normalScale, -spec.normalScale), roughnessMap: rm, metalnessMap: rm, roughness: spec.roughness, metalness: spec.metallic, envMapIntensity: 1.1 });
     return { spec, geometries, material };
   })();
@@ -109,7 +110,7 @@ function lampsOf(spec, frame) {
   tail.position.set(T[0], T[1], T[2] - 0.004); tail.rotation.y = Math.PI; tail.scale.setScalar(0.022);
   const tailGlow = put(new THREE.Mesh(P.glow, glowMat(0xff2010))); tailGlow.position.set(T[0], T[1], T[2] - 0.01); tailGlow.rotation.y = Math.PI; tailGlow.scale.setScalar(0.1);
   // the flames: one from each silencer's end
-  const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.visible = false; return m; });
+  const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.scale.set(0.022, 0.022, 0.06); m.visible = false; return m; });          // (made at its unlit size: a cone a whole bike long, even unseen, made the bike's measured size twice what it is)
   const st = { head: -1, brake: -1, tail: -1 };
   return {
     head,

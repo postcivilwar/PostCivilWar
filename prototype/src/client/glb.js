@@ -91,6 +91,8 @@ const LABEL = {
   hit_to_stomach: 'Winded', hit_to_body_01: 'Struck', 'blow kiss': 'Kiss', 'Dead zombie walk': 'Shamble', zombie: 'Zombie', magic: 'Magic',
   chop: 'Chop', swagger: 'Swagger', freaky: 'Freaky', sing_02: 'Croon', sing_03: 'Chant', frustrated_02: 'Exasperated', summersault: 'Somersault',
   wait: 'Wait', fire: 'Fire',
+  // the six of 17 October 2026
+  'female twerking': 'Twerk', 'female cat walk': 'Catwalk', crossover_dribble: 'Crossover',
 };
 // The second of two animations in one file that would be called the same: its own word instead.
 const ALSO = { box_01: 'Strike', magic: 'Sorcery', run_upstairs: 'Stairs', climb: 'Scale', sing_04: 'Serenade', dance_05: 'Hop', walk: 'Stroll', run: 'Sprint' };

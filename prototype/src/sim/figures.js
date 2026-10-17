@@ -44,11 +44,19 @@ export const FIGURES = Object.freeze({
   M11: Object.freeze({ id: 'M11', gender: 'm', name: 'Tobenna', file: 'human_character.glb', animated: true, parts: Object.freeze([]) }),
   M12: Object.freeze({ id: 'M12', gender: 'm', name: 'Chukwudi', file: 'ninja_armor.glb', animated: true, parts: Object.freeze([]) }),
   M13: Object.freeze({ id: 'M13', gender: 'm', name: 'Ifeanyi', file: 'ninja_warrior.glb', animated: true, parts: Object.freeze([]) }),
+  // Six more (17 October 2026), read the same way, by looking at each: two women and four men. A seventh file the
+  // owner supplied, a figure of a well-known film and comic character, is left out at the owner's word.
+  W14: Object.freeze({ id: 'W14', gender: 'f', name: 'Nkiru', file: 'fashion_model_7.glb', animated: true, parts: Object.freeze([]) }),
+  W15: Object.freeze({ id: 'W15', gender: 'f', name: 'Uloma', file: 'fashion_model_5.glb', animated: true, parts: Object.freeze([]) }),
+  M14: Object.freeze({ id: 'M14', gender: 'm', name: 'Chidi', file: 'fashion_model_6.glb', animated: true, parts: Object.freeze([]) }),
+  M15: Object.freeze({ id: 'M15', gender: 'm', name: 'Ebuka', file: 'patchwork_shirt.glb', animated: true, parts: Object.freeze([]) }),
+  M16: Object.freeze({ id: 'M16', gender: 'm', name: 'Obiora', file: 'nigerian_traditional.glb', animated: true, parts: Object.freeze([]) }),
+  M17: Object.freeze({ id: 'M17', gender: 'm', name: 'Somto', file: 'urban_streetwear.glb', animated: true, parts: Object.freeze([]) }),
 });
 
 export const FIGURE_ORDER = Object.freeze({
-  f: Object.freeze(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13']),
-  m: Object.freeze(['M1', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13']),
+  f: Object.freeze(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'W14', 'W15']),
+  m: Object.freeze(['M1', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13', 'M14', 'M15', 'M16', 'M17']),
 });
 
 // The colours offered on the selection screen. Any colour is accepted from a client that sends a valid number;

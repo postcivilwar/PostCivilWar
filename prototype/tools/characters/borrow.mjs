@@ -52,6 +52,9 @@ const NEW_FIGURES = [
   ['horror_nurse.glb', 'f'], ['camouflage_bikini.glb', 'f'], ['swimwear_model.glb', 'f'], ['fashion_model_2.glb', 'f'], ['fashion_model_1.glb', 'f'],
   ['male_figure.glb', 'm'], ['zombie.glb', 'm'], ['horror_character.glb', 'm'], ['hobo_character.glb', 'm'], ['zombie_character.glb', 'm'],
   ['human_character.glb', 'm'], ['ninja_armor.glb', 'm'], ['ninja_warrior.glb', 'm'],
+  // the six of 17 October 2026
+  ['fashion_model_7.glb', 'f'], ['fashion_model_5.glb', 'f'],
+  ['fashion_model_6.glb', 'm'], ['patchwork_shirt.glb', 'm'], ['nigerian_traditional.glb', 'm'], ['urban_streetwear.glb', 'm'],
 ];
 const SOURCES = {
   f: { walk: ['woman.glb', 'walk.001', 30], run: ['woman.glb', 'run.001', 30], swim: ['woman.glb', 'swim.001', 15] },

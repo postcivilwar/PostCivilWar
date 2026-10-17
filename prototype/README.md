@@ -1556,10 +1556,34 @@ added to the women's and the men's lists of the choice; one upload was a copy of
 `assets/characters/figures/README.md`. The dots under the character on the choosing screen now wrap onto a second
 line: twenty-four in one line were wider than a phone, and on a tablet pushed the panel beside them narrow.
 
+## Six more characters, and two more motorcycles (17 October 2026)
+
+### Six characters
+
+Two women (W14, W15) and four men (M14–M17), the owner's rigged and animated GLBs, byte for byte, in the women's and
+the men's lists; the server knows them (migration 11). A seventh supplied figure, of a well-known film and comic
+character, is left out at the owner's word. See `assets/characters/figures/README.md`.
+
+### Two more motorcycles at PostCivilWar PowerBike
+
+- **The Midnight Cruiser** (the owner's `blackmotorcycle3dmodel_1.glb`, 132,054 triangles) and **the PostCivilWar
+  Tourer** (`civilwarmotorcycle3dmodel.glb`, 10,766 triangles, white in the PostCivilWar colours), each as supplied,
+  split into body, fork and wheels by `tools/vehicles/bikes.py` like the fifteen. Two other motorcycles in the same
+  batch were byte for byte the Black Bobber and the Dark Power Cruiser already on sale, and are not added twice.
+- They take the two sizes of the owner's list that were left: 750 cc (114 km/h) and 700 cc (111 km/h), 1,500 TR each.
+- **The hall** goes 5.4 m further in under the podium (its back wall at z 27.6, was 33.0) for a fourth row with the
+  two of them either side of the middle line, the same room round every stand; seven framed pictures now hang along
+  the west wall. Obi walks round them too. Migration 12 puts them on sale at their stands.
+- **The tourer has one picture**, its colour: `bikes.py` and `bike-model.js` now take a bike with no normal or
+  metal/roughness picture; its coarse tyres are found as rings (`ring_fit`).
+- **Found on the way:** a bike's exhaust flames were made a whole bike long before first lit, and though unseen they
+  counted in the bike's size: the market's 3D viewer framed every motorcycle small and to one side. They are made at
+  their unlit size, and the viewer measures only what is drawn.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 331 headless tests
+node --test test/*.test.mjs                        # 337 headless tests
 ../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 84 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach

@@ -122,3 +122,27 @@ put with the women or the men by its body and dress; one more file was a copy of
   those of other players it meets); the service worker keeps only the player's own.
 - **Look-alikes.** `horror_character.glb` resembles a well-known film slasher and `horror_nurse.glb` a well-known game's
   nurse; `athletic_outfit.glb` wears a sports crest. They are the owner's supplied files, used as supplied.
+
+## The six of 17 October 2026 (W14, W15, M14–M17)
+
+Supplied with their own Mixamo skeletons (65 joints), textures and animations, and used byte for byte as the
+eighteen before them. Each was looked at from the front, the side and the back and put with the women or the men by
+its body and dress. A seventh file supplied with them, a figure of a well-known film and comic character, is not used:
+the owner chose to leave it out.
+
+| Id | File | Supplied as | Default name | Height | Triangles | Animations | MD5 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| W14 | fashion_model_7.glb | fashionmodel3dmodel_7.glb | Nkiru | 1.72 m | 93,539 | 17 | 5df25c6f19873fe6149b6c769a8be7f2 |
+| W15 | fashion_model_5.glb | fashionmodel3dmodel_5.glb | Uloma | 1.66 m | 103,236 | 15 | 3b85fd9813e6438d2d33b44bf3d301fb |
+| M14 | fashion_model_6.glb | fashionmodel3dmodel_6.glb | Chidi | 1.80 m | 92,528 | 17 | 6ab16a5c6900f06619f550bfacb1161d |
+| M15 | patchwork_shirt.glb | patchworkshirt3dmodel.glb | Ebuka | 1.82 m | 91,901 | 9 | 934edcdbc343d9d5c16a5b2839c94af9 |
+| M16 | nigerian_traditional.glb | nigeriantraditionalclothing3dmodel.glb | Obiora | 1.80 m | 96,944 | 16 | 478589e4762c608113bfb84eedb27aa2 |
+| M17 | urban_streetwear.glb | urbanstreetwear3dmodel.glb | Somto | 1.78 m | 92,660 | 13 | 4c7f8f5e2c48bd17609219a0ce51b59e |
+
+- **Women and men.** The two women follow W13 on the women's side of the choice, the four men follow M13 on the men's
+  (`src/sim/figures.js`); the server knows all thirty (`api/_lib/schema.js`, migration 11).
+- **What each does in town**, as for the eighteen: its own swim where its file has one; the walk and run of the woman
+  (women) or the man's walk and the warrior's run (men), and the officer's idle, borrowed (`tools/characters/borrow.mjs`);
+  every other animation is a skill with a one-word name (three new words: Twerk and Catwalk for the "female twerking"
+  and "female cat walk" clips, and Crossover for "crossover_dribble"). None of the six has a fall of its own that ends on
+  the ground but W14: the others are laid flat by the game when knocked down.

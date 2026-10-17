@@ -7,9 +7,9 @@ import { POWER_BIKES, handlingOf, BIKE_CCS, topKmhOfCc, stepPowerBike, FASTEST }
 import { crashHarm, CRASH } from '../src/sim/own-bikes.js';
 import { BIKE_PARTS } from '../src/client/bike-parts.js';
 
-test('the fifteen motorcycles: each has its model\'s parts, a price from 1,000 TR, an engine size from the owner\'s list, and its own tuned engine', () => {
+test('the seventeen motorcycles: each has its model\'s parts, a price from 1,000 TR, an engine size from the owner\'s list, and its own tuned engine', () => {
   const ids = Object.keys(POWER_BIKES);
-  assert.equal(ids.length, 15);
+  assert.equal(ids.length, 17);
   assert.deepEqual([...ids].sort(), Object.keys(BIKE_PARTS).sort());
   for (const id of ids) {
     const b = POWER_BIKES[id], parts = BIKE_PARTS[id];
@@ -21,9 +21,9 @@ test('the fifteen motorcycles: each has its model\'s parts, a price from 1,000 T
   }
   // no two engines the same
   const tones = ids.map((id) => JSON.stringify([POWER_BIKES[id].sound, POWER_BIKES[id].tone]));
-  assert.equal(new Set(tones).size, 15);
+  assert.equal(new Set(tones).size, 17);
   // engine sizes from the owner's list, each bike its own; the top speed (and the speedometer's km/h) follows it
-  assert.equal(new Set(ids.map((id) => POWER_BIKES[id].cc)).size, 15);
+  assert.equal(new Set(ids.map((id) => POWER_BIKES[id].cc)).size, 17, 'every size on the owner\'s list, each once');
   for (const id of ids) { assert.ok(BIKE_CCS.includes(POWER_BIKES[id].cc), id); assert.equal(Math.round(handlingOf(POWER_BIKES[id]).top * 3.6), POWER_BIKES[id].topKmh, id); }
   const byCc = ids.map((id) => POWER_BIKES[id]).sort((a, b) => a.cc - b.cc);
   for (let i = 1; i < byCc.length; i += 1) assert.ok(byCc[i].topKmh > byCc[i - 1].topKmh && handlingOf(byCc[i]).accel > handlingOf(byCc[i - 1]).accel, `${byCc[i].id} is faster than ${byCc[i - 1].id}`);

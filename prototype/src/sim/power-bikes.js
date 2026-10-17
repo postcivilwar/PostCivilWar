@@ -51,6 +51,8 @@ const TONES = {
   'gold-roadster': { idle: 1200, pipe: 205, rasp: 0.16, lope: 0.12 },
   'black-bobber': { idle: 880, pipe: 104, lope: 0.9, rasp: 0.24 },
   'power-cruiser': { idle: 950, pipe: 120, lope: 0.65, rasp: 0.18, level: 0.5 },
+  'midnight-cruiser': { idle: 870, pipe: 102, lope: 0.85, rasp: 0.21, level: 0.5 },
+  'civil-war-tourer': { idle: 1150, pipe: 172, rasp: 0.12, lope: 0.15, level: 0.45 },
 };
 
 // Each bike's engine size (cc), from the owner's list of sizes (16 October 2026: 500, 600, 650, 700, 750, 1000,
@@ -82,6 +84,9 @@ export const POWER_BIKES = Object.freeze({
   'gold-roadster': bike('gold-roadster', 'Gold Muscle Roadster', 4, 2.3, 'four1000', 'dual', withCc(2300, {}), 'A big gold muscle roadster with a three-pipe engine on show.', undefined, 2300),
   'black-bobber': bike('black-bobber', 'Black Bobber', 2, 2.3, 'vtwin1200', 'dual', withCc(1650, { leanMax: 0.5, wheelbase: 1.6 }), 'A black bobber with a fat front tyre, a solid tank and a low solo seat.', undefined, 1650),
   'power-cruiser': bike('power-cruiser', 'Dark Power Cruiser', 3, 2.35, 'vtwin1200', 'dual', withCc(1850, { leanMax: 0.55, wheelbase: 1.7 }), 'A long, low custom power cruiser in black on gold-spoked wheels.', undefined, 1850),
+  // the owner's two of 17 October 2026, given the two sizes of the owner's list that were left (700 and 750 cc)
+  'midnight-cruiser': bike('midnight-cruiser', 'Midnight Cruiser', 2, 2.35, 'vtwin1200', 'dual', withCc(750, { leanMax: 0.5, wheelbase: 1.65 }), 'A dark cruiser on spoked wheels, low and wide, its twin-cylinder engine in black and chrome.', undefined, 750),
+  'civil-war-tourer': bike('civil-war-tourer', 'PostCivilWar Tourer', 2, 2.25, 'twin650', 'dual', withCc(700, {}), 'A white touring bike in the PostCivilWar colours, with a tall screen and hard luggage at the back.', undefined, 700),
 });
 
 // How a big motorcycle goes, in metres, seconds and radians. A heavier, faster bike overrides some of these.

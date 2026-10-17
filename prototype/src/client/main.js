@@ -55,7 +55,7 @@ import { createFitter } from './fit.js';
 import { QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
 import { createPhoneHold } from './phone-hold.js';
-import { ANIMATED } from './animated.js';
+import { ANIMATED, heldModels } from './animated.js';
 import { createMusic } from './music.js';
 import { trText, trAmount, TR } from '../sim/ledger.js';
 import { createOnline, createWebTransport, packSave, unpackSave } from '../net/online.js';
@@ -2691,6 +2691,7 @@ blood.update(dt, view.blood || []);
   // Debug handle for automated play-testing. It reaches into the simulation
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
+    heldModels,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },

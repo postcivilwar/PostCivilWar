@@ -8,15 +8,15 @@
 // the model has arrived (it is 13 MB) a plain dark shape of the same size stands in its place.
 //
 // Inside (built the first time someone comes near): the hall under the podium. A polished floor, white walls, a glass
-// front with the doors, light panels in the ceiling; the fifteen motorcycles on round white stands with a light round
-// each foot and a plate giving the name, engine, top speed and price; the middle one turning; the salesman's desk,
-// a lounge, plants, pictures of the bikes on the walls, the name on the back wall; and the mat by the doors that
-// takes the player out.
+// front with the doors, light panels in the ceiling; the motorcycles on round white stands with a light round
+// each foot and a plate giving the name, engine, top speed and price (seventeen, in four rows since 17 October 2026);
+// the middle one turning; the salesman's desk, a lounge, plants, pictures of the bikes on the walls, the name on the
+// back wall; and the mat by the doors that takes the player out.
 //
 // The motorcycles: each nearby one is the owner's model itself (bike-model.js), the nearest at the device's full
 // detail; each further off is a picture of that model taken from the side it is seen from (tools/vehicles/
 // bike_impostors.mjs: twenty-four sides), at its own size and where it stands, so that the hall is full of bikes
-// without a phone having to hold fifteen of them at once.
+// without a phone having to hold seventeen of them at once.
 //
 // While the player is outside, the hall is not drawn; while inside, the building round it is not (nothing of it can
 // be seen from the hall, and it stands where the hall's own walls are).
@@ -291,7 +291,8 @@ function buildHall() {
     pic.position.set(x + (ry ? 0.04 : 0), 2.6, z + (ry ? 0 : 0.04)); pic.rotation.y = ry;
     group.add(pic); posters.push({ bike, pic });
   };
-  ['red-superbike', 'gold-tourer', 'chopper', 'chrome-concept', 'olive-cruiser'].forEach((bike, i) => frame(bike, H.x0 + 0.24, H.z0 + 3.4 + i * 3.9, Math.PI / 2));
+  // (seven along the west wall since the hall went deeper, 17 October 2026, the two newest among them)
+  ['midnight-cruiser', 'red-superbike', 'gold-tourer', 'chopper', 'chrome-concept', 'olive-cruiser', 'civil-war-tourer'].forEach((bike, i) => frame(bike, H.x0 + 0.24, H.z0 + 3.4 + i * 3.6, Math.PI / 2));
   frame('black-gold-superbike', P.doors.x - 7.4, H.z0 + 0.24, 0); frame('yellow-adventure', P.doors.x + 7.4, H.z0 + 0.24, 0);
 
   // the salesman's desk, against the east wall, facing the floor: white, with a brass edge and the sun on its front

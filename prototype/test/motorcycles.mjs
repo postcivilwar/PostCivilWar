@@ -1,5 +1,5 @@
-// The owner's fifteen motorcycles in a headless browser, on the website as it is served with its server:
-//   - the showroom lists all fifteen at their prices; a bike's page starts its engine (the owner's recordings),
+// The owner's seventeen motorcycles in a headless browser, on the website as it is served with its server:
+//   - the showroom lists all seventeen at their prices; a bike's page starts its engine (the owner's recordings),
 //     revs it while Rev is held and falls back to idle when let go, sounds its horn while Horn is held, and stops
 //     when switched off, when another bike's page is opened or when the page is left; it puts no bike in the town;
 //   - a new player buys one with arrival money, at the showroom, and it is in Property;
@@ -7,7 +7,7 @@
 //     its grips and feet on its pegs; the throttle takes it away, the wheels turn, it leans when steered, the
 //     engine follows the throttle; getting off leaves it standing; it is still theirs after the page is reloaded;
 //   - the speedometer, leaning forward and into turns, and being thrown off into a wall;
-//   - every one of the fifteen ridden in turn: its engine on the recordings, its red line flat out, flames only on
+//   - every one of the seventeen ridden in turn: its engine on the recordings, its red line flat out, flames only on
 //     the big engines, the brake lamp and the nose dipping on the brake, with a picture of each;
 //   - another player on their motorcycle (a second copy of the town): seen on the same model, seated, leaning,
 //     with its flames and brake lamp, its engine and horn heard from where it is, and let go when they get off;
@@ -54,7 +54,7 @@ await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null,
 
 // ---- the showroom ----
 const listed = await page.evaluate(async () => { const r = await window.__nlw.market.list('motorcycle'); return r.ok ? r.listings.map((l) => ({ id: l.id, model: l.asset.model, name: l.asset.name, price: l.price, place: l.place })) : r; });
-check('the showroom lists the fifteen motorcycles', Array.isArray(listed) && listed.length === 15, Array.isArray(listed) ? listed.map((l) => `${l.name} ${l.price / TR}`) : listed);
+check('the showroom lists the seventeen motorcycles', Array.isArray(listed) && listed.length === 17, Array.isArray(listed) ? listed.map((l) => `${l.name} ${l.price / TR}`) : listed);
 const cheapest = listed.find((l) => l.model === 'bike:streetfighter');
 check('the cheapest is 1,000 TR, the dearest 10,000 TR', cheapest.price === 1000 * TR && Math.max(...listed.map((l) => l.price)) === 10000 * TR, null);
 // its page: photographs, and its engine heard there: the key, Rev held, Horn held; quiet when the page is left
@@ -269,7 +269,7 @@ check('the bike lies where it hit; the speedometer is gone', fall.parked && fall
 await page.waitForFunction(() => !window.__nlw.view.self.down, null, { timeout: 30000 }).catch(() => {});
 check('and up again after a few seconds', await page.evaluate(() => !window.__nlw.view.self.down), null);
 
-// ---- every one of the fifteen ----
+// ---- every one of the seventeen ----
 let shotFlames = false;
 const all = only.length ? only : listed.map((l) => l.model.slice(5));
 await page.evaluate((ids) => window.__nlw.server.send({ type: 'bikes.owned', bikes: ids }), all);

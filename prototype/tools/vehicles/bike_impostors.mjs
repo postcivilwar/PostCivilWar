@@ -96,12 +96,15 @@ for (const id of ids) {
 }
 await browser.close();
 server.close();
-if (process.argv.slice(2).length === 0) {
+// (named bikes only: their measurements join those already written for the rest, which are kept as they are)
+const all = process.argv.slice(2).length === 0 ? measured : { ...(await import(resolve(root, 'src/client/bike-impostors.js'))).BIKE_IMPOSTOR.bikes, ...measured };
+const sorted = Object.fromEntries(Object.keys(all).sort().map((k) => [k, all[k]]));
+{
   writeFileSync(resolve(root, 'src/client/bike-impostors.js'),
     `// Written by tools/vehicles/bike_impostors.mjs: do not edit by hand.\n` +
     `// Each motorcycle's pictures from all round (assets/market/bike-<id>-impostor.webp): ${FRAMES} frames, ${COLS} across and ${ROWS} down,\n` +
     `// frame i seen from i/${FRAMES} of the way round from the bike's front toward its left, ${ELEVATION} rad above. \`size\` is the side of a\n` +
     `// frame in metres; \`centre\` where the middle of the picture is, from the bike's own origin on the ground (metres).\n` +
-    `export const BIKE_IMPOSTOR = Object.freeze({ frames: ${FRAMES}, cols: ${COLS}, rows: ${ROWS}, elevation: ${ELEVATION}, bikes: ${JSON.stringify(measured)} });\n`);
+    `export const BIKE_IMPOSTOR = Object.freeze({ frames: ${FRAMES}, cols: ${COLS}, rows: ${ROWS}, elevation: ${ELEVATION}, bikes: ${JSON.stringify(sorted)} });\n`);
   console.log('written src/client/bike-impostors.js');
 }

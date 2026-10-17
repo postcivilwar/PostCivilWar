@@ -4,7 +4,7 @@
 //     HOLARIS (whose own column is still there);
 //   - walked into the column: the screen goes dark and comes back inside, at the doors; the building is not drawn
 //     round the hall, the hall is; the camera stays inside it;
-//   - the fifteen motorcycles: the nearest drawn as the owner's models, the rest as pictures of them, every one
+//   - the seventeen motorcycles: the nearest drawn as the owner's models, the rest as pictures of them, every one
 //     where it stands, with room to walk all round;
 //   - the salesman comes to the player and stands with them at a motorcycle;
 //   - asked about the motorcycle: the phone's conversation opens on it (its card, its engine and speed, its price),
@@ -74,7 +74,7 @@ await shot('02-the-tower-and-its-crown');
 
 // ---- the columns: one for the showroom, none for its motorcycles at HOLARIS, HOLARIS's own kept ----
 await page.evaluate(() => window.__nlw.refreshDealMarkers());
-await page.waitForFunction(() => window.__nlw.market.state.all.length >= 16, null, { timeout: 60000 }).catch(() => {});
+await page.waitForFunction(() => window.__nlw.market.state.all.length >= 18, null, { timeout: 60000 }).catch(() => {});
 const columns = await page.evaluate(() => {
   const n = window.__nlw;
   const named = []; n.scene.traverse((o) => { if (o.name === 'powerbike-portal') named.push(o); });
@@ -82,8 +82,8 @@ const columns = await page.evaluate(() => {
   const motors = n.market.state.all.filter((l) => l.shop === 'motors');
   return { showroom: named.length, motorsMarkers: marks.filter((m) => m.listing.shop === 'motors').length, holaris: marks.filter((m) => m.listing.shop === 'holaris').length, listed: motors.length, places: motors.map((l) => [l.place.x, l.place.z]) };
 });
-check('exactly one pink column for the showroom; none for its motorcycles; HOLARIS keeps its own', columns.showroom === 1 && columns.motorsMarkers === 0 && columns.holaris === 1 && columns.listed === 15, columns);
-check('each motorcycle is sold where it stands in the hall', columns.places.every(([x, z]) => x > -78.6 && x < -45.4 && z > 33 && z < 53.9), columns.places);
+check('exactly one pink column for the showroom; none for its motorcycles; HOLARIS keeps its own', columns.showroom === 1 && columns.motorsMarkers === 0 && columns.holaris === 1 && columns.listed === 17, columns);
+check('each motorcycle is sold where it stands in the hall', columns.places.every(([x, z]) => x > -78.6 && x < -45.4 && z > 27.6 && z < 53.9), columns.places);
 await go(-60.6, 70, Math.PI, { yaw: Math.PI + 0.25, pitch: 0.16, dist: 9 });
 await page.waitForTimeout(1800);
 await shot('03-the-column-before-the-doors');
@@ -109,9 +109,9 @@ await page.waitForFunction(() => window.__nlw.powerbike.shown().filter((d) => d.
 await page.waitForTimeout(2000);
 const floor = await page.evaluate(() => window.__nlw.powerbike.shown());
 const models = floor.filter((d) => d.model), pictures = floor.filter((d) => d.picture);
-check('the nearest motorcycles are the owner\'s models; the rest are pictures of them; every one is shown', models.length >= 2 && models.length <= 3 && models.length + pictures.length === 15, { models: models.map((d) => `${d.bike}:${d.tier}`), pictures: pictures.length });
+check('the nearest motorcycles are the owner\'s models; the rest are pictures of them; every one is shown', models.length >= 2 && models.length <= 3 && models.length + pictures.length === 17, { models: models.map((d) => `${d.bike}:${d.tier}`), pictures: pictures.length });
 const camInside = await page.evaluate(() => { const c = window.__nlw.camera.position; return [c.x, c.y, c.z]; });
-check('the camera is inside the hall', camInside[0] > -78.6 && camInside[0] < -45.4 && camInside[2] > 33 && camInside[2] < 53.9 && camInside[1] < 6.6, camInside);
+check('the camera is inside the hall', camInside[0] > -78.6 && camInside[0] < -45.4 && camInside[2] > 27.6 && camInside[2] < 53.9 && camInside[1] < 6.6, camInside);
 await shot('05-the-floor');
 await go(-52, 46.0, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.1, pitch: 0.22, dist: 7.4 });
 await page.waitForTimeout(3000);

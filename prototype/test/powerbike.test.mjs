@@ -55,8 +55,8 @@ test('one pink column before the doors, clear of everything; set down inside and
   assert.ok(walk(P.home.x, P.home.z), 'the salesman\'s place by his desk');
 });
 
-test('the hall: fifteen motorcycles, each on its own stand with room all round; walled but for the way in and out', () => {
-  assert.equal(P.displays.length, 15);
+test('the hall: seventeen motorcycles, each on its own stand with room all round; walled but for the way in and out', () => {
+  assert.equal(P.displays.length, 17);
   assert.deepEqual(P.displays.map((d) => d.bike).sort(), Object.keys(POWER_BIKES).sort(), 'every motorcycle, once');
   assert.equal(P.displays.filter((d) => d.stand === 'turntable').length, 1);
   for (const d of P.displays) {

@@ -219,7 +219,10 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
       if (closed) { bike.dispose(); return null; }
       shownBike = bike;
       bike.pose({});
-      const box = new THREE.Box3().setFromObject(bike.group);
+      // (its size is what is drawn of it: a lamp's glow or a flame that is not lit is left out)
+      const box = new THREE.Box3(), part = new THREE.Box3();
+      bike.group.updateMatrixWorld(true);
+      bike.group.traverseVisible((o) => { if (!o.isMesh || !o.geometry) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); box.union(part.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld)); });
       const centre = box.getCenter(new THREE.Vector3());
       bike.group.position.sub(centre);
       radius = box.getBoundingSphere(new THREE.Sphere()).radius;

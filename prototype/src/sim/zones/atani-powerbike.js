@@ -8,7 +8,7 @@
 //     is not changed;
 //   - in front of the porch, one pink column, the kind a buyer steps into (render-holaris.js makes it): stepping in
 //     takes the player inside, the screen going dark and coming back (main.js, the simulation's `showroom.in`);
-//   - inside, under the podium, the showroom hall: the fifteen motorcycles on stands with room all round each, a
+//   - inside, under the podium, the showroom hall: the motorcycles (seventeen) on stands with room all round each, a
 //     turntable in the middle, the salesman's desk, a lounge, and the doors, where a mat by them takes the player
 //     back out (`showroom.out`);
 //   - the salesman, who keeps the floor and comes to whoever is looking (src/sim/salesman.js).
@@ -39,8 +39,9 @@ export const POWERBIKE = Object.freeze({
     tower: Object.freeze({ x: -0.054, z: -0.0525, r: 0.0885, top: 1.0 }),
   }),
   footprint: box(AT.x - HALF.x * S, AT.z - HALF.z * S, AT.x + HALF.x * S, AT.z + HALF.z * S),
-  // the hall under the podium: its floor is the ground; its ceiling is below the podium's roof
-  hall: Object.freeze({ x0: -78.6, z0: 33.0, x1: -45.4, z1: 53.9, ceiling: 6.6 }),
+  // the hall under the podium: its floor is the ground; its ceiling is below the podium's roof. (Its back wall was at
+  // 33.0 until 17 October 2026, when the hall was taken 5.4 m further in under the podium for a fourth row.)
+  hall: Object.freeze({ x0: -78.6, z0: 27.6, x1: -45.4, z1: 53.9, ceiling: 6.6 }),
   doors: Object.freeze({ x: -63.6, z: 53.9, width: 2.8, height: 3.2 }),
   // the pink column before the porch, and where someone stepping out of the doors is set down (clear of it)
   portal: Object.freeze({ x: -63.6, z: 59.6, radius: 1.25 }),
@@ -56,14 +57,16 @@ export const POWERBIKE = Object.freeze({
     ['black-cruiser', -74.8, 43.2, 1.1], ['chopper', -69.2, 43.2, 0.9], ['chrome-concept', -63.6, 43.2, 0, 'turntable'], ['black-bobber', -58.0, 43.2, -0.9], ['olive-cruiser', -52.4, 43.2, -1.1],
     // the back row: the big tourers, the roadster and the superbike
     ['yellow-adventure', -74.8, 38.0, 0.45], ['power-cruiser', -69.2, 38.0, 0.3], ['gold-tourer', -63.6, 38.0, 0], ['gold-roadster', -58.0, 38.0, -0.3], ['black-gold-superbike', -52.4, 38.0, -0.45],
+    // the fourth row, at the back (17 October 2026): the owner's two newest, either side of the hall's middle line
+    ['midnight-cruiser', -66.4, 32.8, 0.35], ['civil-war-tourer', -60.8, 32.8, -0.35],
   ].map(([bike, x, z, h, stand = 'plinth']) => Object.freeze({ bike, x, z, h, stand, r: stand === 'turntable' ? 2.0 : 1.45 }))),
   // the salesman's desk (against the east wall, facing the floor), the lounge by the windows, the brand wall
   desk: box(-48.0, 38.8, -47.1, 42.6),
   lounge: Object.freeze({ sofa: box(-46.4, 45.9, -45.5, 49.9), table: box(-48.6, 46.9, -47.4, 48.9), chairs: Object.freeze([Object.freeze({ x: -49.9, z: 46.4 }), Object.freeze({ x: -49.9, z: 50.4 })]) }),
-  plants: Object.freeze([[-77.9, 33.7], [-77.9, 53.2], [-46.1, 33.7], [-46.1, 53.2], [-69.6, 53.3], [-57.6, 53.3]].map(([x, z]) => Object.freeze({ x, z }))),
+  plants: Object.freeze([[-77.9, 28.3], [-77.9, 53.2], [-46.1, 28.3], [-46.1, 53.2], [-69.6, 53.3], [-57.6, 53.3]].map(([x, z]) => Object.freeze({ x, z }))),
   // where the salesman waits when nobody is in, and the walk he takes round the floor when he is not with anyone
   home: Object.freeze({ x: -49.4, z: 40.7, heading: -Math.PI / 2 }),
-  round: Object.freeze([[-49.4, 40.7], [-55.2, 45.8], [-61.0, 51.2], [-66.4, 45.8], [-72.0, 51.0], [-77.0, 45.8], [-72.0, 40.6], [-66.4, 35.4], [-60.8, 40.6], [-55.2, 35.4]].map(([x, z]) => Object.freeze({ x, z }))),
+  round: Object.freeze([[-49.4, 40.7], [-55.2, 45.8], [-61.0, 51.2], [-66.4, 45.8], [-72.0, 51.0], [-77.0, 45.8], [-72.0, 40.6], [-71.6, 33.0], [-63.6, 29.9], [-55.6, 33.0], [-60.8, 40.6], [-55.2, 35.4]].map(([x, z]) => Object.freeze({ x, z }))),
 });
 
 // Is a point in the hall (on its floor, inside its walls)?
