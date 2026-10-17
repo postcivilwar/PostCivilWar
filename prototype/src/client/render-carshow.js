@@ -718,6 +718,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
 
   // the buildings: a plain shape each until its model is here
   const env = lite ? null : vehicleEnvironment();
+  const VILLA_SIGHT = lite ? 120 : 200;
   const buildings = P.buildings.map((b) => { const stand = standIn(b); exterior.add(stand); return { b, stand, mesh: null, failed: null, requested: false, retryAt: 0, triangles: 0 }; });
   function load(x, z) {
     ensureOutside();
@@ -734,8 +735,10 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       loadBuilding(e.b, { maxTexture: Math.min(lite ? 2048 : 4096, maxTexture || 4096), env })
         .then(({ mesh, triangles }) => {
           mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale);
-          exterior.add(mesh); exterior.remove(e.stand);
-          e.stand.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); });
+          exterior.add(mesh);
+          // (the villa keeps its plain shape, drawn in its place from afar: see `tick`)
+          if (e.b.id === 'villa') e.stand.visible = false;
+          else { exterior.remove(e.stand); e.stand.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
           e.mesh = mesh; e.triangles = triangles; e.failed = null;
         })
         .catch((error) => { e.failed = String((error && error.message) || error); e.requested = false; e.retryAt = performance.now() + (error && error.offline ? 5000 : 30000); });
@@ -854,6 +857,16 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
     // the cameras, the flags; inside, the cars
     tick(dt, { eye, player, now, people = [], gateOpen = 0, models }) {
       const nearCompound = !!court && Math.hypot(player.x - G.x, player.z - (C.z0 + C.z1) / 2) < 420;
+      // The villa is two million triangles, two hundred times the other buildings: it is drawn from its model by
+      // whoever is near enough to see it as more than a white house among palms (VILLA_SIGHT), and as its plain
+      // shape from further off, in the compound and beyond it (from the airport, the road).
+      const villa = buildings.find((e) => e.b.id === 'villa');
+      if (villa && villa.mesh) {
+        const gap = Math.hypot(eye.x - villa.b.x, eye.z - villa.b.z), near = gap < VILLA_SIGHT;
+        villa.mesh.visible = near; villa.stand.visible = !near;
+        // (and its shadow only from close by, where the sun's shadows are drawn at all)
+        villa.mesh.castShadow = gap < 90;
+      }
       gateShown += (gateOpen - gateShown) * Math.min(1, dt * 8);
       if (nearCompound) {
         gate.set(gateShown);
