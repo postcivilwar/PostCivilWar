@@ -100,8 +100,8 @@ s = await st(); check('RUN -> VEHICLE: getting in ends the run; driving buttons 
 check('at the wheel there are an accelerator and a brake', /Accelerate/.test(s.shown) && /Brake/.test(s.shown), s.shown);
 shownPads = await pads();
 check('driving: every button is a picture with no written label', shownPads.every((b) => b.icon && b.text === ''), shownPads.map((b) => [b.id, b.text]));
-// (driven on a quiet road, Campus Road in the north of town: from the motor park's bay it went into the crowd there, and
-// a run of the test once ran someone over and was taken in by the police, which is the game working, not the buttons)
+// (driven on a quiet road, Campus Road in the north of town: from the motor park's bay it drove into the busy park, and
+// in one run the police took the player in before the test was done, which has nothing to do with the buttons)
 await page.evaluate(() => window.__nlw.park(-100, -341, Math.PI / 2));
 await page.waitForTimeout(800);
 const car0 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return { x: c.x, z: c.z }; });
