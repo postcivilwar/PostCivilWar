@@ -1559,8 +1559,8 @@ line: twenty-four in one line were wider than a phone, and on a tablet pushed th
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 286 headless tests
-../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 82 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+node --test test/*.test.mjs                        # 331 headless tests
+../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 84 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
