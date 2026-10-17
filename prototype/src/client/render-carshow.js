@@ -719,7 +719,23 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   // the buildings: a plain shape each until its model is here
   const env = lite ? null : vehicleEnvironment();
   const VILLA_SIGHT = lite ? 120 : 200;
-  const buildings = P.buildings.map((b) => { const stand = standIn(b); exterior.add(stand); return { b, stand, mesh: null, failed: null, requested: false, retryAt: 0, triangles: 0 }; });
+  const buildings = P.buildings.map((b) => { const stand = standIn(b); exterior.add(stand); return { b, stand, mesh: null, failed: null, requested: false, retryAt: 0, triangles: 0, seen: true, radius: Math.max(...b.outline.map(([u, v]) => { const q = onBuilding(b, u, v); return Math.hypot(q.x - b.x, q.z - b.z); })) }; });
+  // What can be seen from (x, z), `reach` being how far the town is drawn just now (from inside a hall, only what its
+  // glass front shows): the compound itself (its paving, railings, gate and cameras) within that reach of its railings,
+  // and each building within it too; the towers, standing above the town, from further off; never through the haze
+  // (beyond the fog's far edge whatever is drawn is drawn unseen). From inside PostCivilWar PowerBike's hall, 300 m
+  // away, the towers were drawn behind its walls.
+  const TALL = 220;
+  function see(x, z, reach) {
+    const haze = scene.fog ? scene.fog.far : Infinity;
+    const dx = Math.max(C.x0 - x, 0, x - C.x1), dz = Math.max(C.z0 - z, 0, z - C.z1);
+    outside.visible = Math.hypot(dx, dz) < Math.min(haze, reach + 40);
+    for (const e of buildings) {
+      e.seen = Math.hypot(e.b.x - x, e.b.z - z) - e.radius < Math.min(haze, reach + (e.b.id === 'villa' ? 40 : TALL));
+      if (e.b.id === 'villa' && e.mesh) continue;            // (the villa, once here: see `tick`)
+      if (e.mesh) e.mesh.visible = e.seen; else e.stand.visible = e.seen;
+    }
+  }
   function load(x, z) {
     ensureOutside();
     for (const e of buildings) {
@@ -734,7 +750,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       // files are as supplied)
       loadBuilding(e.b, { maxTexture: Math.min(lite ? 2048 : 4096, maxTexture || 4096), env })
         .then(({ mesh, triangles }) => {
-          mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale);
+          mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale); mesh.visible = e.seen;
           exterior.add(mesh);
           // (the villa keeps its plain shape, drawn in its place from afar: see `tick`)
           if (e.b.id === 'villa') e.stand.visible = false;
@@ -840,7 +856,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
     get inside() { return inside; },
     signs,
     get gate() { return gate; }, get fence() { return fence; }, get cams() { return cams; }, get court() { return court; },
-    load,
+    load, see,
     // `on`: the player is in the hall. Outside, the hall is not drawn; inside, the showroom round it is not (the
     // compound stays: it is what the glass front shows)
     setInside(on) {
@@ -863,7 +879,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       const villa = buildings.find((e) => e.b.id === 'villa');
       if (villa && villa.mesh) {
         const gap = Math.hypot(eye.x - villa.b.x, eye.z - villa.b.z), near = gap < VILLA_SIGHT;
-        villa.mesh.visible = near; villa.stand.visible = !near;
+        villa.mesh.visible = near && villa.seen; villa.stand.visible = !near && villa.seen;
         // (and its shadow only from close by, where the sun's shadows are drawn at all)
         villa.mesh.castShadow = gap < 90;
       }

@@ -2958,8 +2958,10 @@ blood.update(dt, view.blood || []);
       // (PostCivilWar PowerBike's tower: the owner's model, fetched once the town is ready, or at once for someone near it)
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();
       // (the car showroom's buildings: the owner's models, each fetched once the town is ready, for someone near
-      // enough to see it; render-carshow.js says how near)
-      if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - CARSHOW.doors.x, predicted.z - CARSHOW.doors.z) < 400)) carshowView.load(predicted.x, predicted.z);
+      // enough to see it; render-carshow.js says how near; not while in PowerBike's hall, from where none is seen); and
+      // each drawn only where it can be seen from
+      if (playing && !showroom.inside && (warm.stage >= 5 || Math.hypot(predicted.x - CARSHOW.doors.x, predicted.z - CARSHOW.doors.z) < 400)) carshowView.load(predicted.x, predicted.z);
+      carshowView.see(cam.target.x, cam.target.z, reach);
       // (beyond the town: built a few seconds into play once the town is warmed up, or at once for someone already out there)
       if (!outskirts.ready && playing) {
         beyondWait += 0.5;      // (this is looked at twice a second)
