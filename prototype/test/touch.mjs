@@ -100,6 +100,10 @@ s = await st(); check('RUN -> VEHICLE: getting in ends the run; driving buttons 
 check('at the wheel there are an accelerator and a brake', /Accelerate/.test(s.shown) && /Brake/.test(s.shown), s.shown);
 shownPads = await pads();
 check('driving: every button is a picture with no written label', shownPads.every((b) => b.icon && b.text === ''), shownPads.map((b) => [b.id, b.text]));
+// (driven on a quiet road, Campus Road in the north of town: from the motor park's bay it drove into the busy park, and
+// in one run the police took the player in before the test was done, which has nothing to do with the buttons)
+await page.evaluate(() => window.__nlw.park(-100, -341, Math.PI / 2));
+await page.waitForTimeout(800);
 const car0 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return { x: c.x, z: c.z }; });
 const gas = await box('.pad[data-id=gas]');
 await touch('touchStart', [{ ...gas, id: 9 }]); await page.waitForTimeout(3500);
@@ -123,7 +127,7 @@ await touch('touchEnd', []); await page.waitForTimeout(150);
 check('a finger dragged off a button lets it go', blue(dragged) && !stillHeld, { dragged, stillHeld, mode: await page.evaluate(() => window.__nlw.mode) });
 await page.waitForTimeout(2200);
 const car2 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return c ? { x: c.x, z: c.z } : { gone: true, mode: window.__nlw.mode, notices: [...document.querySelectorAll('#notices > *')].map((e) => e.textContent).slice(-3), self: { x: window.__nlw.view.self.x, z: window.__nlw.view.self.z, law: window.__nlw.view.self.law.state } }; });
-if (car2.gone) console.log('CAR GONE', JSON.stringify(car2));
+if (car2.gone) console.log('CAR GONE', JSON.stringify(car2), JSON.stringify(await page.evaluate(() => Object.values(window.__nlw.host.game.state.justice.crimes).slice(-3).map((c) => ({ type: c.type, x: c.x, z: c.z, victim: c.victim, witnesses: (c.witnesses || []).length })))));
 await page.waitForTimeout(1500);
 const car3 = await page.evaluate(() => { const c = window.__nlw.view.self.driving; return { x: c.x, z: c.z }; });
 check('holding the accelerator drives the keke', Math.hypot(car1.x - car0.x, car1.z - car0.z) > 0.5, { from: car0, to: car1 });

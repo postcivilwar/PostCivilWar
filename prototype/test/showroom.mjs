@@ -166,6 +166,12 @@ await shot('08-asking-about-the-red-superbike');
 
 // what is said moves the hands: typed, the player speaks; answered, he does
 const handHeight = () => page.evaluate(() => { const n = window.__nlw; const b = n.me.bones && n.me.bones.get('hand_r'); return { me: b ? b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null }; });
+// (the car showroom's towers, out on the Kwale road, are fetched once the town is ready by anyone within 900 m of
+// them, as this hall is: each carries an 8192 picture, and without a graphics card taking one in holds the page up
+// for seconds, long enough for a sentence to be said unseen. Their arrival is waited for, so that what is looked for
+// here is the hands, not the pictures)
+await page.waitForFunction(() => { const c = window.__nlw.carshowView; return !c || c.buildings.filter((b) => b.id !== 'villa').every((b) => b.loaded || b.failed); }, null, { timeout: 600000 }).catch(() => {});
+await page.waitForTimeout(1500);
 const quiet = await handHeight();
 // (every frame from here on is written down in the page: without a graphics card a frame can take seconds, and his
 // answer can be over before the test has finished looking at the player's question)

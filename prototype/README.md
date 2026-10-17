@@ -1596,7 +1596,9 @@ between the edge of town and the airport (`src/sim/zones/asaba-carshow.js` says 
   clear of the others. What was written on them (another company's name and badge on the glass tower's podium, and
   another's name twice on the stacked tower) is painted over in the page with the building's own surface from beside
   it; the files are not changed. Until a model has arrived a plain shape of its outline stands in its place. Their
-  walls are solid. The villa (76 MB) is fetched only by someone within 320 m of it. Their pictures are drawn at up to
+  walls are solid. The villa (76 MB) is fetched only by someone within 320 m of it, and drawn from its model only
+  within 200 m (120 m on a phone), its shadow within 90 m: it is two million triangles, and drawn whole from the
+  airport it cost ten times what the rest of that view does. Further off its plain shape stands in for it. Their pictures are drawn at up to
   4096 pixels on a computer and 2048 on a phone, and never larger than they are in the file: at their full 8192 the
   five together filled a browser's memory.
 - **Its name,** POST CIVIL WAR CAR SHOWROOM beside the canonical rising sun, stands on the podium over the doors and
@@ -1741,8 +1743,8 @@ and 1024 on a phone (buildings) or 4096 and 2048 (vehicles), never larger than t
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 337 headless tests
-../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 84 tests against a real PostgreSQL (accounts, the market, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+node --test test/*.test.mjs                        # 347 headless tests
+../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
