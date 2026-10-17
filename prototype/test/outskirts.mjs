@@ -94,8 +94,9 @@ await go(-850, -300, 0, { yaw: 0.4, dist: 70, pitch: 0.3 });
 await page.waitForTimeout(3000);
 await shot('6-apron-runway');
 const airport = await cost();
-const planes = await page.evaluate(() => { let n = 0; window.__nlw.scene.traverse((o) => { if (/aircraft|plane|jet/i.test(o.name || '')) n += 1; }); return n; });
-check('no aircraft anywhere', planes === 0, planes);
+// (the one aircraft at the airport is the owner's private jet, on the middle stand: render-supplied.js)
+const planes = await page.evaluate(() => { const names = []; window.__nlw.scene.traverse((o) => { if (/aircraft|plane|jet/i.test(o.name || '')) names.push(o.name); }); const jet = window.__nlw.scene.getObjectByName('supplied-jet'); return { others: names.filter((n) => !/^supplied-jet$/.test(n)), jet: jet ? [Math.round(jet.position.x), Math.round(jet.position.z * 10) / 10] : null }; });
+check('the one aircraft is the owner\'s private jet, on its stand at the terminal', planes.others.length === 0 && planes.jet && planes.jet[0] === -845 && planes.jet[1] === -269.5, planes);
 
 // the bridge: up the approach from Waterside Road, across, to the barrier
 await go(-205, 112, 0, { yaw: Math.PI, dist: 10, pitch: 0.2 });
