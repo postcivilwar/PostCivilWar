@@ -88,8 +88,9 @@ const day = await page.evaluate(() => { const n = window.__nlw, w = n.world; ret
 check('by day the glass and the river give back the sky', day.lite || (day.finishes.envSet && day.glass.env && day.glass.k > 0.5 && day.river.env && day.river.k > 0.4), day);
 costs.river = await view('07-the-river-from-the-jetty', { x: 21, z: 170, h: 0.2, dist: 6, pitch: 0.08 });
 // (a lane of the owner's houses, once their models have come: what a frame there costs)
-await page.evaluate(() => { const n = window.__nlw; n.place(-95, -395.5); n.face(Math.PI / 2); });
-await page.waitForFunction(() => window.__nlw.townBuildings.state().drawn >= 8, null, { timeout: 240000 }).catch(() => {});
+await page.evaluate(() => { const n = window.__nlw; n.place(-95, -395.5); n.face(Math.PI / 2); n.townBuildings.loadAll(); });
+// (every model fetched first, one or two at a time: without a graphics card each of their 8192-pixel pictures takes a while)
+await page.waitForFunction(() => window.__nlw.townBuildings.state().models.every((m) => m.state === 'ready' || m.state === 'failed'), null, { timeout: 900000 }).catch(() => {});
 costs.lane = await view('10-a-lane-of-the-owners-houses', { x: -95, z: -395.5, h: Math.PI / 2, dist: 8, pitch: 0.12, wait: 4000 });
 costs.laneDrawn = await page.evaluate(() => window.__nlw.townBuildings.state().drawn);
 
