@@ -163,7 +163,9 @@ await page.keyboard.up('w');
 check('walked up to, the showroom\'s glass doors slide open, and stepping through them darkens the screen', faded && doorsOpen > 0.3, { faded, doorsOpen });
 await page.waitForFunction(() => window.__nlw.carshow.inside && !document.getElementById('fade').classList.contains('on'), null, { timeout: 30000 });
 const inside = await page.evaluate(() => { const n = window.__nlw, c = n.carshowView; return { at: [+n.predicted.x.toFixed(2), +n.predicted.z.toFixed(2)], hall: !!c.hall && c.hall.group.visible, exterior: c.exterior.visible, outside: c.outside.visible }; });
-check('it comes back inside the doors; the hall is drawn and the buildings round it are not (the compound through the glass is)', inside.at[0] === -420.7 && Math.abs(inside.at[1] - (-159.49)) < 0.01 && inside.hall && !inside.exterior && inside.outside, inside);
+// (set down just inside them, at z -159.49; W is still held for a moment after, while the test sees the screen darken,
+// so the player may have walked a step further in, never out)
+check('it comes back inside the doors; the hall is drawn and the buildings round it are not (the compound through the glass is)', inside.at[0] === -420.7 && inside.at[1] <= -159.48 && inside.at[1] > -160.3 && inside.hall && !inside.exterior && inside.outside, inside);
 await page.waitForTimeout(2500);
 await shot('06-inside-the-doors');
 
