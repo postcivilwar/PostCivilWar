@@ -17,6 +17,7 @@ let wet = 0;
 // `material` gives back the sky, `strength` times as much as a mirror would by full day.
 export function reflects(material, strength = 1) {
   if (!material || isLite() || !material.isMeshStandardMaterial) return material;
+  if (!reflecting.has(material)) material.addEventListener('dispose', () => reflecting.delete(material));
   reflecting.set(material, strength);
   given(material);
   return material;
@@ -26,6 +27,7 @@ export function reflects(material, strength = 1) {
 export function weathers(material, { darken = 0.25, gloss = 0, sheen = 0 } = {}) {
   if (!material || wetting.has(material)) return material;
   wetting.set(material, { colour: material.color.clone(), roughness: material.roughness, darken, gloss, sheen: material.isMeshStandardMaterial && !isLite() ? sheen : 0 });
+  material.addEventListener('dispose', () => wetting.delete(material));
   if (wetting.get(material).sheen) given(material);
   return material;
 }

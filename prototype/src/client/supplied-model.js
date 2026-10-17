@@ -10,6 +10,7 @@
 
 import { parseGLB, fetchKept } from './glb.js';
 import { surface } from './render-kit.js';
+import { reflects } from './render-finish.js';
 
 export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9 } = {}) {
   const response = await fetchKept(file);
@@ -59,6 +60,8 @@ export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = n
   // the glass, the cladding and the paint reflect the sky (render-city.js's glass does the same)
   const material = surface({ map, normalMap, roughnessMap: rm, metalnessMap: rm, color: colour, roughness: rm ? 1 : (pbr.roughnessFactor ?? 1), metalness: rm ? 1 : (pbr.metallicFactor ?? 1), envMap: env || null, envMapIntensity, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
   if (normalMap && material.normalScale) material.normalScale.set(1, -1);
+  // (and gives back less of it under cloud, and hardly any at night: render-finish.js)
+  if (env) reflects(material, envMapIntensity);
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = name;
