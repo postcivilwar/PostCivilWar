@@ -486,7 +486,7 @@ export function buildWorld(scene) {
   cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));      // (the market's umbrellas)
   for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
   // (tarmac and laterite: in the rain darker, and the tarmac glossy, giving back the sky)
-  const roadMesh = roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.35, gloss: 0.62, sheen: 0.75 }));
+  const roadMesh = roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
   roadMesh.receiveShadow = true;
   scene.add(roadMesh);
 
