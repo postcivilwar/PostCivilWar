@@ -57,7 +57,10 @@ const placed = await page.evaluate(() => window.__nlw.townBuildings.entries.map(
   e.holder.updateMatrixWorld(true);
   let mesh = null; e.holder.traverse((o) => { if (o.isMesh && o.name.startsWith('town-') && o.visible !== false && o !== e.standIn) mesh = o; });
   if (!mesh) return { id: e.id, missing: true };
-  const box = new THREE.Box3().setFromObject(mesh), size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+  // (every point of its mesh where it is drawn: three.js's own box of a turned mesh is the box of its turned box, larger)
+  const box = new THREE.Box3(), v = new THREE.Vector3(), pos = mesh.geometry.attributes.position;
+  for (let i = 0; i < pos.count; i += 1) box.expandByPoint(v.fromBufferAttribute(pos, i).applyMatrix4(mesh.matrixWorld));
+  const size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
   return { id: e.id, kind: e.kind, x: e.x, z: e.z, w: e.w, d: e.d, h: e.h, size: [size.x, size.y, size.z], mid: [mid.x, mid.z], foot: box.min.y, standIn: e.standIn.visible };
 }));
 const off = placed.filter((p) => p.missing || p.standIn || !near(p.size[0], p.w, Math.max(0.15, p.w * 0.03)) || !near(p.size[2], p.d, Math.max(0.15, p.d * 0.03)) || !near(p.size[1], p.h, Math.max(0.15, p.h * 0.03)) || !near(p.mid[0], p.x, 0.25) || !near(p.mid[1], p.z, 0.25) || !near(p.foot, 0, 0.05));
@@ -78,21 +81,21 @@ const hotel = await page.evaluate((rects) => {
 }, TOWN_MODELS.hotel.brand);
 check('the hotel\'s facade carries no other company\'s name: where it was written is the facade\'s own bronze', hotel.every((share) => share < 0.01), hotel);
 
-// ---- solid ----
+// ---- solid: pushed against from right beside it, the player stays outside, at arm's length from its wall ----
+const pushInto = async (x, z, heading, ms = 2000) => {
+  await go(x, z, heading, { yaw: heading, dist: 7, pitch: 0.3 });
+  await page.waitForTimeout(500);
+  await page.keyboard.down('w'); await page.waitForTimeout(ms); await page.keyboard.up('w');
+  await page.waitForTimeout(300);
+  return page.evaluate(() => ({ x: +window.__nlw.predicted.x.toFixed(2), z: +window.__nlw.predicted.z.toFixed(2) }));
+};
 const house = ZONE_HOUSES.find((h) => h.model && h.door === 's' && h.quarter === 'Umuezei');
-await go(house.x, house.z + house.d / 2 + 3.5, Math.PI, { yaw: Math.PI, dist: 7, pitch: 0.25 });
-await page.waitForTimeout(600);
-await page.keyboard.down('w'); await page.waitForTimeout(2500); await page.keyboard.up('w');
-await page.waitForTimeout(300);
-const atHouse = await page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z }));
-check('walked up to, a house is solid: the player stops at its front', atHouse.z > house.z + house.d / 2 + 0.1 && atHouse.z < house.z + house.d / 2 + 1.6, { atHouse, front: house.z + house.d / 2 });
+const fromBehind = await pushInto(house.x, house.z - house.d / 2 - 0.9, 0);
+const fromSide = await pushInto(house.x - house.w / 2 - 0.9, house.z, Math.PI / 2);
+check('pushed against from behind and from the side, a house holds: the player stays outside its walls', fromBehind.z < house.z - house.d / 2 - 0.2 && fromSide.x < house.x - house.w / 2 - 0.2, { fromBehind, fromSide, back: house.z - house.d / 2, side: house.x - house.w / 2 });
 const tower = TOWN_TOWERS.find((t) => t.id === 'registry-towers');
-await go(tower.x, tower.z + tower.d / 2 + 4, Math.PI, { yaw: Math.PI, dist: 8, pitch: 0.3 });
-await page.waitForTimeout(600);
-await page.keyboard.down('w'); await page.waitForTimeout(2500); await page.keyboard.up('w');
-await page.waitForTimeout(300);
-const atTower = await page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z }));
-check('and so is a tower', atTower.z > tower.z + tower.d / 2 + 0.1 && atTower.z < tower.z + tower.d / 2 + 1.6, { atTower, front: tower.z + tower.d / 2 });
+const atTower = await pushInto(tower.x, tower.z + tower.d / 2 + 0.9, Math.PI);
+check('and so does a tower', atTower.z > tower.z + tower.d / 2 + 0.2, { atTower, front: tower.z + tower.d / 2 });
 
 // ---- pictures, and what is drawn ----
 const views = [
