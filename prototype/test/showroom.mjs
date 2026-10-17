@@ -167,6 +167,18 @@ await shot('08-asking-about-the-red-superbike');
 // what is said moves the hands: typed, the player speaks; answered, he does
 const handHeight = () => page.evaluate(() => { const n = window.__nlw; const b = n.me.bones && n.me.bones.get('hand_r'); return { me: b ? b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null }; });
 const quiet = await handHeight();
+// (every frame from here on is written down in the page: without a graphics card a frame can take seconds, and his
+// answer can be over before the test has finished looking at the player's question)
+await page.evaluate(() => {
+  const n = window.__nlw, rec = window.__talkFrames = { frames: [], stop: false };
+  const look = () => {
+    if (rec.stop) return;
+    const now = Date.now() / 1000;
+    rec.frames.push({ now, his: n.showroom.him.speaking, him: n.showroom.him.amount, player: n.showroom.amount, playerSpeaking: n.showroom.lines.some((l) => l.who === 'me' && now >= l.from && now <= l.to) });
+    requestAnimationFrame(look);
+  };
+  requestAnimationFrame(look);
+});
 const QUESTION = 'How fast does the Red Superbike go when you open it right up on a long straight road?';
 await page.click('#deal-text');
 await page.keyboard.type(QUESTION);
@@ -183,10 +195,17 @@ const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => 
 // (his greeting, then the player's question, then his answer: each begins once the one before has ended)
 const turns = lines1.map((l) => { const [who, span] = l.split('@'); const [from, to] = span.split('-').map(Number); return { who, from, to }; });
 check('then he answers, after the player: one after the other, never both at once', turns.length >= 3 && turns.at(-2).who === 'me' && turns.at(-1).who === 'him' && turns.every((t, i) => i === 0 || t.from >= turns[i - 1].to), lines1);
-// while he answers he speaks with the hands, and the player listens (looked for frame by frame)
-const answered = await page.waitForFunction(() => window.__nlw.showroom.him.speaking > 0.5, null, { timeout: 60000 }).then(() => true, () => false);
-const answering = await page.evaluate(() => { const n = window.__nlw; const now = Date.now() / 1000; return { his: +n.showroom.him.speaking.toFixed(2), him: +n.showroom.him.amount.toFixed(2), player: +n.showroom.amount.toFixed(2), playerSpeaking: n.showroom.lines.some((l) => l.who === 'me' && now >= l.from && now <= l.to) }; });
-check('while he answers he speaks (with the hands), and the player listens', answered && answering.him > 0.8 && answering.player > 0.8 && !answering.playerSpeaking, answering);
+// while he answers he speaks with the hands, and the player listens: the frames drawn while his answer was said
+// (once it is over, and a frame after)
+const answer = turns.at(-1);
+await page.waitForFunction((end) => Date.now() / 1000 > end && window.__talkFrames.frames.some((f) => f.now > end), answer.to + 0.4, { timeout: 120000 }).catch(() => {});
+const answering = await page.evaluate(({ from, to }) => {
+  const rec = window.__talkFrames; rec.stop = true;
+  const during = rec.frames.filter((f) => f.now >= from - 0.25 && f.now <= to + 0.35);
+  const best = during.reduce((a, f) => (!a || f.his > a.his ? f : a), null);
+  return { frames: rec.frames.length, during: during.length, at: best && { his: +best.his.toFixed(2), him: +best.him.toFixed(2), player: +best.player.toFixed(2), playerSpeaking: best.playerSpeaking } };
+}, answer);
+check('while he answers he speaks (with the hands), and the player listens', !!answering.at && answering.at.his > 0.5 && answering.at.him > 0.8 && answering.at.player > 0.8 && !answering.at.playerSpeaking, answering);
 await shot('09-he-answers');
 // over a few seconds nobody stands still: the hands and heads keep moving
 const track = [];
