@@ -714,11 +714,13 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   scene.add(outside);
   // the compound itself (its paving, railings, gate, cameras, the showroom's doors and its name) is made the first
   // time it is asked for (`load`: once the town is ready, or at once for someone near), not while the game starts
-  let court = null, fence = null, gate = null, cams = [], doors = null;
+  let court = null, fence = null, gate = null, cams = [], doors = null, barRuns = [];
   function ensureOutside() {
     if (court) return;
     court = buildForecourt(outside, { lite });
-    fence = buildFence(outside, { lite });
+    // (what is told of the railings is their counts; their runs of bars are kept here, for `see`)
+    const made = buildFence(outside, { lite });
+    fence = { bars: made.bars, posts: made.posts }; barRuns = made.runs;
     gate = buildGate(outside);
     cams = buildCameras(outside);
     doors = buildDoors(exterior);
@@ -740,7 +742,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
     const dx = Math.max(C.x0 - x, 0, x - C.x1), dz = Math.max(C.z0 - z, 0, z - C.z1);
     outside.visible = Math.hypot(dx, dz) < Math.min(haze, reach + 40);
     // (the railings' bars: by someone within 90 m of their run; further off, its posts and rails)
-    if (fence) for (const r of fence.runs) {
+    for (const r of barRuns) {
       const ux = r.bx - r.ax, uz = r.bz - r.az, t = Math.max(0, Math.min(1, ((x - r.ax) * ux + (z - r.az) * uz) / (ux * ux + uz * uz)));
       const near = Math.hypot(x - (r.ax + ux * t), z - (r.az + uz * t)) < 90;
       for (const mesh of r.meshes) mesh.visible = near;
