@@ -88,9 +88,12 @@ const rain = await page.evaluate(() => { const n = window.__nlw, road = n.world.
 check('in the rain the ground is wet, and the tarmac glossy', rain.finishes.wet > 0.6 && (rain.lite || (rain.road && rain.road.roughness < 0.6 && rain.road.sheen > 0.2)), rain);
 costs.rain = await view('08-rain-on-the-road', { x: 6, z: -40, h: 0, dist: 7, pitch: 0.08, wait: 3000 });
 await page.evaluate(() => window.__nlw.host.game.setWeather('clear'));
-await page.waitForTimeout(6000);
-const after = await page.evaluate(() => window.__nlw.finishes());
-check('after the rain the ground dries, slowly', after.wet < rain.finishes.wet && after.wet > 0.3, { during: rain.finishes.wet, after: after.wet });
+// (the sky clears over a few seconds; then the ground begins to dry, and is still wet a while after)
+await page.waitForTimeout(8000);
+const after1 = await page.evaluate(() => window.__nlw.finishes());
+await page.waitForTimeout(8000);
+const after2 = await page.evaluate(() => window.__nlw.finishes());
+check('after the rain the ground dries, slowly', after2.wet < after1.wet && after2.wet > 0.3, { during: rain.finishes.wet, after: [after1.wet, after2.wet] });
 
 // ---- at night ----
 for (let i = 0; i < 24 && (await page.evaluate(() => window.__nlw.night)) < 0.6; i += 1) { await page.evaluate(() => window.__nlw.skip(1)); await page.waitForTimeout(400); }

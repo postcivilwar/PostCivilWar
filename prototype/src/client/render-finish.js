@@ -37,8 +37,8 @@ function given(material) {
   if (env && material.envMap !== env) { material.envMap = env; material.needsUpdate = true; }
 }
 
-// Each frame (or every few): `daylight` 0 at night to 1 by day, `wetness` how hard it is raining (0 to 1), `dull`
-// how overcast the sky is (0 to 1).
+// Each frame (or every few): `daylight` 0 at night to 1 by day, `wetness` how hard it is raining (0 to 1: the town's
+// rain is 0.6, a storm 1), `dull` how overcast the sky is (0 to 1).
 export function updateFinishes(dt, { daylight = 1, wetness = 0, dull = 0 } = {}) {
   const env = vehicleEnvironment();
   if (!envSet && env) {
@@ -47,8 +47,9 @@ export function updateFinishes(dt, { daylight = 1, wetness = 0, dull = 0 } = {})
     for (const [material, w] of wetting) if (w.sheen && !reflecting.has(material)) { material.envMap = env; material.needsUpdate = true; }
     envSet = true;
   }
-  // the ground takes the rain at once and dries slowly after it
-  wet += (wetness - wet) * Math.min(1, dt * (wetness > wet ? 0.6 : 0.012));
+  // the ground is soon wet through in any rain (the harder it rains, the sooner), and dries slowly after it
+  const raining = wetness > 0.05;
+  wet += ((raining ? 1 : 0) - wet) * Math.min(1, dt * (raining ? 0.1 + wetness : 0.012));
   const sky = Math.max(0.04, Math.min(1, daylight)) * (1 - 0.45 * dull);
   for (const [material, strength] of reflecting) material.envMapIntensity = strength * sky;
   for (const [material, w] of wetting) {
