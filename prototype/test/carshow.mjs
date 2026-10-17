@@ -293,21 +293,27 @@ const turned = await page.evaluate(() => ({ h: window.__nlw.predicted.heading, s
 await page.keyboard.up('d');
 check('steered right, it turns right, its front wheels turned', turned.h < startAt.h - 0.02 && turned.steer > 0.05 && turned.wheels === 2, { turned, from: startAt.h });
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.heading + Math.PI - 0.4; n.cam.dist = 6.5; n.cam.pitch = 0.14; });
-await page.keyboard.up('w'); await page.keyboard.down('s');
-// (held for a few seconds: it stops; held on, it then backs up. Every frame is written down in the page: a
-// software-drawn browser's frames are far apart, and the car stands still for only a moment)
+// (held for a few seconds: it stops; held on, it then backs up. Every frame is written down in the page from before
+// the brake is pressed: a software-drawn browser's frames are far apart (each is simulated in steps of a twentieth of
+// a second), so that the moment the car stands still can fall inside one frame. How long it stood is the time the
+// brake has been held at a standstill (`held`, power-cars.js) less the time it has been backing up since, at 2.2 m/s²)
 await page.evaluate(() => {
   const n = window.__nlw, rec = window.__brake = { frames: [], stop: false };
-  const look = () => { if (rec.stop) return; const st = n.carView.stateOf(); rec.frames.push({ v: +n.carState.speed.toFixed(2), brake: st && st.brake, reverse: st && st.reverse, red: document.querySelector('#speedo').classList.contains('braking') }); requestAnimationFrame(look); };
+  const look = () => { if (rec.stop) return; const st = n.carView.stateOf(); rec.frames.push({ v: +n.carState.speed.toFixed(2), held: +(n.carState.held || 0).toFixed(3), brake: st && st.brake, reverse: st && st.reverse, red: document.querySelector('#speedo').classList.contains('braking') }); requestAnimationFrame(look); };
   requestAnimationFrame(look);
 });
+await page.keyboard.up('w'); await page.keyboard.down('s');
 await page.waitForFunction(() => window.__brake.frames.some((f) => f.brake === 1), null, { timeout: 20000 }).catch(() => {});
 await shot('15-braking');
 await page.waitForFunction(() => { const f = window.__brake.frames; return f.length && f[f.length - 1].v < -0.6; }, null, { timeout: 30000 }).catch(() => {});
 await page.keyboard.up('s');
 const braking = await page.evaluate(() => { window.__brake.stop = true; return window.__brake.frames; });
 const last = braking[braking.length - 1];
-check('on the brake its brake lamps light and it stops; held on a moment more, it backs up, its reversing lamps lit and its brake lamps not', braking.some((f) => f.brake === 1 && f.red && f.v > 0.3) && braking.some((f) => Math.abs(f.v) < 0.05) && last.v < -0.3 && last.reverse === 1 && last.brake === 0 && !last.red, braking);
+const firstBack = braking.findIndex((f) => f.v < -0.05), back = braking[firstBack];
+const stood = back ? back.held - Math.abs(back.v) / 2.2 : 0;
+check('on the brake its brake lamps light and it slows to a stop; held on a moment more, it backs up, its reversing lamps lit and its brake lamps not',
+  braking.some((f) => f.brake === 1 && f.red && f.v > 0.3) && !!back && stood > 0.25 && braking.slice(firstBack).every((f) => f.brake === 0 && !f.red && (f.v > -0.2 || f.reverse === 1)) && last.reverse === 1 && last.v < -0.6,
+  { stood: +stood.toFixed(2), frames: braking.slice(Math.max(0, firstBack - 3), firstBack + 2), last });
 await page.evaluate(() => { const n = window.__nlw; n.carState.speed = 0; });
 const horns0 = await page.evaluate(() => window.__nlw.view.self.incar.horns);
 await page.keyboard.press('h');
