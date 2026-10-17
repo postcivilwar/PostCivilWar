@@ -429,7 +429,11 @@ export function createMarketUI(kit) {
     const hadFocus = typing && document.activeElement === typing;
     if (typing) d.draft = typing.value;
     const oldLog = root.querySelector('#deal-log');
-    const atBottom = !oldLog || oldLog.scrollHeight - oldLog.scrollTop - oldLog.clientHeight < 40;
+    // where the reader was: following the conversation at its foot, or up reading something said earlier. The phone
+    // draws its whole screen afresh when the player's balance or health changes (a sale changes the balance), and a
+    // fresh screen has no log yet: then what the reader last did is remembered on the conversation
+    const atBottom = oldLog ? oldLog.scrollHeight - oldLog.scrollTop - oldLog.clientHeight < 40 : d == null || d.readUp == null;
+    const readAt = oldLog ? oldLog.scrollTop : d ? d.readUp : null;
     root.replaceChildren();
     root.classList.add('chat');
     if (!d) { root.append(h('p', { class: 'small' }, 'No conversation is open.')); return; }
@@ -548,7 +552,12 @@ export function createMarketUI(kit) {
     text.addEventListener('blur', () => { setTimeout(() => { if (text.isConnected && document.activeElement !== text) d.focused = false; }, 0); });
     root.append(h('form', { class: 'composer', onsubmit: (event) => { event.preventDefault(); send(); } }, text, h('button', { class: 'sendbtn', type: 'submit', id: 'deal-send', 'aria-label': 'Send', disabled: !!d.sending }, kit.glyph('send'))));
     // the newest at the foot, unless the reader has scrolled up to read something earlier
-    if (atBottom || d.pending || fresh) log.scrollTop = log.scrollHeight; else if (oldLog) log.scrollTop = oldLog.scrollTop;
+    const place = () => { if (atBottom || d.pending) log.scrollTop = log.scrollHeight; else if (readAt != null) log.scrollTop = readAt; };
+    place();
+    // (a screen drawn afresh is not on the page yet, and cannot be scrolled until it is: it was left at its top, so
+    // that after a purchase the conversation showed its first words and not its last)
+    if (!log.isConnected) queueMicrotask(() => { if (log.isConnected) place(); else requestAnimationFrame(place); });
+    log.addEventListener('scroll', () => { d.readUp = log.scrollHeight - log.scrollTop - log.clientHeight < 40 ? null : log.scrollTop; }, { passive: true });
     if (hadFocus || d.focused) text.focus({ preventScroll: true });
   }
 

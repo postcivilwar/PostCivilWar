@@ -7,6 +7,22 @@
 //
 // Nothing read is changed. A model's instances share its geometry and texture; each has its own bones.
 
+// A file beside the page (a model, its pictures). With a connection: fetched as any file is (the web app's service
+// worker hands over its kept copy if it has one). With none (navigator.onLine false): the copy the web app kept, if
+// it kept one, and otherwise the network is not asked at all, since the request could only fail; the error says so
+// (`offline`), and whoever asked tries again later.
+export async function fetchKept(url) {
+  if (typeof navigator !== 'undefined' && navigator.onLine === false) {
+    let kept = null;
+    try { kept = typeof caches !== 'undefined' ? await caches.match(new URL(url, location.href).href, { ignoreSearch: true, ignoreVary: true }) : null; } catch (error) { kept = null; }
+    if (kept) return kept;
+    const error = new Error(`${url}: there is no connection, and no copy kept`);
+    error.offline = true;
+    throw error;
+  }
+  return fetch(url);
+}
+
 const TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 

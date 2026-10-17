@@ -9,6 +9,7 @@
 // are the 2048 set; elsewhere the 4096 set. The supplied files are not changed or replaced by either.
 import { BIKE_PARTS } from './bike-parts.js';
 import { surface } from './render-kit.js';
+import { fetchKept } from './glb.js';
 
 const cache = new Map();          // one geometry and material a bike, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
@@ -32,7 +33,7 @@ function picture(url, colour) {
   const map = new THREE.Texture();
   map.flipY = false; map.anisotropy = 4;
   if (colour) map.encoding = THREE.sRGBEncoding;
-  const ready = fetch(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
+  const ready = fetchKept(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
     .then((image) => { map.image = image; map.needsUpdate = true; return map; });
   return { map, ready };
@@ -46,7 +47,7 @@ async function partsOf(id, { base, lite }) {
   const made = (async () => {
     const f = spec.files, tier = lite ? '2k' : '4k';
     const textures = [picture(base + f[`color${tier}`], true), picture(base + f[`normal${tier}`], false), picture(base + f[`rm${tier}`], false)];
-    const response = await fetch(base + f.mesh);
+    const response = await fetchKept(base + f.mesh);
     if (!response.ok) throw new Error(`${f.mesh}: ${response.status}`);
     const buf = await response.arrayBuffer();
     const n = spec.vertices;

@@ -24,7 +24,7 @@
 import { POWERBIKE } from '../sim/zone.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
 import { trText } from '../sim/ledger.js';
-import { parseGLB } from './glb.js';
+import { parseGLB, fetchKept } from './glb.js';
 import { Batch, place, surface, linear } from './render-kit.js';
 import { makeDealMarker } from './render-holaris.js';
 import { loadBike, bikeLoaded } from './bike-model.js';
@@ -183,7 +183,7 @@ function floorTexture() {
 // file beside the page). `maxTexture`: the largest picture this device's graphics take, and on a phone a copy at
 // 2048 is what is handed to them (the file is unchanged).
 async function loadTower({ maxTexture }) {
-  const response = await fetch(M.file);
+  const response = await fetchKept(M.file);
   if (!response.ok) throw new Error(`${M.file}: ${response.status}`);
   const parsed = parseGLB(await response.arrayBuffer());
   const { json, accessor, bytes } = parsed;
@@ -464,19 +464,21 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
   scene.add(portal.group);
 
   // the model itself, when it has come
-  let tower = null, failed = null, requested = false;
+  let tower = null, failed = null, requested = false, retryAt = 0;
   function load() {
-    if (requested) return;
-    requested = true;
+    if (requested || tower) return;
     // (a copy of the page opened from the disk cannot fetch files beside it: the plain shape stands there instead)
-    if (ON_DISK) { failed = 'This copy of the page is opened from the disk, where the model cannot be fetched.'; return; }
+    if (ON_DISK) { requested = true; failed = 'This copy of the page is opened from the disk, where the model cannot be fetched.'; return; }
+    // (with no connection, and nothing kept, the plain shape stands there until there is one: asked again a little later)
+    if (performance.now() < retryAt) return;
+    requested = true;
     loadTower({ maxTexture: lite ? Math.min(2048, maxTexture || 2048) : maxTexture && maxTexture < 8192 ? maxTexture : 0 })
       .then(({ mesh, triangles }) => {
         mesh.position.set(M.x, 0, M.z); mesh.rotation.y = M.heading; mesh.scale.setScalar(M.scale);
         exterior.add(mesh); exterior.remove(stand); stand.geometry.dispose(); stand.material.dispose();
-        tower = { mesh, triangles };
+        tower = { mesh, triangles }; failed = null;
       })
-      .catch((error) => { failed = String(error && error.message || error); });
+      .catch((error) => { failed = String(error && error.message || error); requested = false; retryAt = performance.now() + (error && error.offline ? 5000 : 30000); });
   }
 
   // ---- inside ----
@@ -520,7 +522,8 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
       d.heading = d.display.stand === 'turntable' ? d.display.h + now * 0.22 : d.display.h;
       const want = !ON_DISK && rank < models && gap < NEAR ? (rank === 0 && !lite ? 'full' : 'lite') : null;
       const keep = d.model && rank < models + 1 && gap < FAR;
-      if (want && (!d.model || (d.tier !== want && !d.loading)) && !d.loading) {
+      // (a model that would not come, for want of a connection or otherwise, is not asked for again at once)
+      if (want && (!d.model || (d.tier !== want && !d.loading)) && !d.loading && !(d.failedAt && performance.now() - d.failedAt < 15000)) {
         const tier = want;
         d.loading = loadBike(d.display.bike, { base: 'bikes/', lite: tier === 'lite', length: d.bike.length })
           .then((model) => {
@@ -531,7 +534,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
             model.pose({});
             d.holder.add(model.group);
           })
-          .catch(() => { d.loading = null; d.failed = true; });
+          .catch(() => { d.loading = null; d.failed = true; d.failedAt = performance.now(); });
       } else if (d.model && !want && !keep) { d.model.dispose(); d.model = null; d.tier = null; }
       d.holder.rotation.y = d.heading;
       const shown = !!d.model;

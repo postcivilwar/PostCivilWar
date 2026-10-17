@@ -185,7 +185,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .fig-label { min-width: 132px; text-align: center; display: flex; flex-direction: column; gap: 3px; }
 .fig-label b { font-size: 19px; font-weight: 700; letter-spacing: 0.01em; }
 .fig-label span { font-size: 12px; color: rgba(255, 255, 255, 0.55); font-variant-numeric: tabular-nums; }
-.dots { display: flex; justify-content: center; gap: 2px; flex: none; min-height: 22px; }
+.dots { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 2px; flex: none; min-height: 22px; max-width: min(100%, 340px); margin-inline: auto; }          /* (24 characters and more: they wrap, not pushing the panel beside them narrow) */
 .dots button { width: 22px; height: 22px; border: 0; background: transparent; padding: 0; cursor: pointer; display: grid; place-items: center; }
 .dots button::after { content: ""; width: 6px; height: 6px; border-radius: 1px; background: rgba(255, 255, 255, 0.3); transition: width 0.2s, background 0.2s; }
 .dots button[aria-current="true"]::after { width: 18px; background: var(--white); }

@@ -64,8 +64,17 @@ page.setDefaultTimeout(120000);
 let offline = false;
 page.on('console', (m) => { if (m.type() === 'error') bad(`console${offline ? ' (offline)' : ''}: ${m.text()}`); });
 page.on('pageerror', (e) => bad(`page error: ${e.message}`));
-// (a question to the game's server that the page was asking as it was navigated away from is not a failure of anything)
-page.on('requestfailed', (r) => { if (/\/api\/game$/.test(r.url()) && r.failure() && r.failure().errorText === 'net::ERR_ABORTED') return; bad(`request failed${offline ? ' (offline)' : ''}: ${r.url()}`); });
+// (a question to the game's server that the page was asking as it was navigated away from is not a failure of anything;
+// nor is a file that was still coming when the connection was taken away, and the page reloaded: the game asking, with
+// no connection, for what it cannot have is what is looked for, and that is a request begun while there was none)
+const begunOffline = new WeakSet();
+page.on('request', (r) => { if (offline) begunOffline.add(r); });
+page.on('requestfailed', (r) => {
+  const why = r.failure() ? r.failure().errorText : '';
+  if (/\/api\/game$/.test(r.url()) && why === 'net::ERR_ABORTED') return;
+  if (offline && !begunOffline.has(r)) { say(`   (still coming when the connection went, and cut off: ${r.url()}, ${why})`); return; }
+  bad(`request failed${offline ? ' (offline)' : ''}: ${r.url()} (${why})`);
+});
 
 // the game's own word that the town is made and can be entered (the button exists before the game has started)
 const townReady = () => page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
