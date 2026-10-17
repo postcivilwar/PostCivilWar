@@ -275,7 +275,7 @@ say('2. ...walks into the pink marker at HOLARIS Watch and buys a watch');
   if (back.x > 30 || back.y > 30) bad(`the way back is at ${Math.round(back.x)}, ${Math.round(back.y)}`);
   await p.click('#buy-asset'); await p.waitForSelector('.listing');
   await seller.shot('03-market');
-  const listed = await seller.game(() => [...document.querySelectorAll('.listing')].map((l) => l.textContent).filter((t) => !/Motorcycle Showroom/.test(t)));
+  const listed = await seller.game(() => [...document.querySelectorAll('.listing')].map((l) => l.textContent).filter((t) => !/Motorcycle Showroom|PostCivilWar PowerBike/.test(t)));
   if (listed.length !== 1 || !/HOLARIS Wristwatch/.test(listed[0]) || !/100 TR/.test(listed[0]) || !/10 of 10 left/.test(listed[0])) bad(`the market lists ${JSON.stringify(listed)}`);
   // the photographs are there, and dragging turns the watch
   const turned = await seller.game(async () => { const t = document.querySelector('.listing .turntable'); const before = t.style.backgroundPosition; const r = t.getBoundingClientRect(); const fire = (type, x) => t.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: r.top + 40, pointerId: 7, bubbles: true })); fire('pointerdown', r.left + 100); fire('pointermove', r.left + 20); fire('pointerup', r.left + 20); const img = new Image(); const ok = await new Promise((res) => { img.onload = () => res(img.naturalWidth); img.onerror = () => res(0); img.src = 'assets/watch-turn.webp'; }); return { before, after: t.style.backgroundPosition, width: ok }; });
@@ -375,7 +375,7 @@ const buyerName = `Buyer_${tag}`;
   if (!chose || chose.title !== 'Choose Adaeze?') bad(`the buyer, choosing, was asked ${JSON.stringify(chose)}`);
   await buyer.made(2000, 2000, 'on arrival');
   await buyer.openProperty(); await buyer.press('#buy-asset'); await p.waitForSelector('.listing');
-  await p.waitForFunction(() => [...document.querySelectorAll('.listing')].filter((l) => !/Motorcycle Showroom/.test(l.textContent)).length === 2, null, { timeout: 15000 }).catch(() => bad('the buyer does not see two listings'));
+  await p.waitForFunction(() => [...document.querySelectorAll('.listing')].filter((l) => !/Motorcycle Showroom|PostCivilWar PowerBike/.test(l.textContent)).length === 2, null, { timeout: 15000 }).catch(() => bad('the buyer does not see two listings'));
   await buyer.shot('02-market');
   await p.fill('#market-search', sellerName); await p.waitForFunction(() => document.querySelectorAll('.listing').length === 1);
   const card = await p.textContent('.listing');
