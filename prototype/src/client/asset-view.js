@@ -16,17 +16,24 @@
 
 import { BIKE_PARTS } from './bike-parts.js';
 import { loadBike } from './bike-model.js';
+import { CAR_PARTS } from './car-parts.js';
+import { loadCar } from './car-model.js';
 import { isLite } from './render-kit.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
+import { POWER_CARS } from '../sim/power-cars.js';
 
 // The motorcycles (13 October 2026): the owner's twelve, drawn from the same triangles and pictures the game rides
 // them with (bike-model.js), which are what is fetched to see one in 3D: 5 MB or so on a phone, 10 elsewhere.
 const touchFirst = () => typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches;
 const bikeModel = (id) => Object.freeze({ bike: id, get megabytes() { const b = BIKE_PARTS[id].bytes; return Math.round(((touchFirst() || isLite()) ? b.lite : b.full) / 1e6); }, triangles: BIKE_PARTS[id].triangles, turntable: `assets/bike-${id}-turn.webp`, frames: 24, cols: 6, rows: 4, poster: `assets/bike-${id}-poster.webp` });
 
+// The cars (17 October 2026): the owner's twenty, the same way.
+const carModel = (id) => Object.freeze({ car: id, get megabytes() { const b = CAR_PARTS[id].bytes; return Math.round(((touchFirst() || isLite()) ? b.lite : b.full) / 1e6); }, triangles: CAR_PARTS[id].triangles, turntable: `assets/car-${id}-turn.webp`, frames: 24, cols: 6, rows: 4, poster: `assets/car-${id}-poster.webp` });
+
 export const ASSET_MODELS = Object.freeze({
   watch: Object.freeze({ file: 'assets/watch.glb', megabytes: 65, triangles: 1886649, turntable: 'assets/watch-turn.webp', frames: 24, cols: 6, rows: 4, poster: 'assets/watch-poster.webp' }),
   ...Object.fromEntries(Object.keys(BIKE_PARTS).map((id) => [`bike:${id}`, bikeModel(id)])),
+  ...Object.fromEntries(Object.keys(CAR_PARTS).map((id) => [`car:${id}`, carModel(id)])),
 });
 
 // ---- the turntable ----
@@ -209,13 +216,15 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
   canvas.addEventListener('wheel', (event) => { look.dist = Math.max(1.3, Math.min(7, look.dist * (event.deltaY > 0 ? 1.1 : 0.9))); look.auto = false; event.preventDefault(); }, { passive: false });
 
   let shownBike = null;           // (given back when the viewer closes, so that its pictures can be let go)
-  async function load(modelId, onProgress, { source = null, base = 'bikes/', lite = touchFirst() || isLite() } = {}) {
+  async function load(modelId, onProgress, { source = null, base = null, lite = touchFirst() || isLite() } = {}) {
     const model = ASSET_MODELS[modelId];
     if (!model) throw new Error('There is no model of that.');
-    if (model.bike) {
-      // a motorcycle: its own parts, at its real length, stood in the middle on its wheels
+    if (model.bike || model.car) {
+      // a motorcycle or a car: its own parts, at its real length, stood in the middle on its wheels
       if (onProgress) onProgress(0, 1);
-      const bike = await loadBike(model.bike, { base, lite, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1 });
+      const bike = model.car
+        ? await loadCar(model.car, { base: base || 'cars/', lite, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6 })
+        : await loadBike(model.bike, { base: base || 'bikes/', lite, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1 });
       if (closed) { bike.dispose(); return null; }
       shownBike = bike;
       bike.pose({});
@@ -228,7 +237,7 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
       radius = box.getBoundingSphere(new THREE.Sphere()).radius;
       holder.add(bike.group);
       if (onProgress) onProgress(1, 1);
-      return { triangles: model.triangles, bike: model.bike };
+      return model.car ? { triangles: model.triangles, car: model.car } : { triangles: model.triangles, bike: model.bike };
     }
     let buffer = source;
     if (!buffer) {

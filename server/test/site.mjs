@@ -265,8 +265,9 @@ const sellerName = `Seller_${tag}`;
 say('2. ...walks into the pink marker at HOLARIS Watch and buys a watch');
 {
   const p = seller.page;
-  const markers = await seller.game(async () => { await window.__nlw.refreshDealMarkers(); return [...window.__nlw.dealMarkers.values()].filter((m) => !(m.listing.asset && m.listing.asset.category === 'motorcycle')).map((m) => ({ name: m.listing.name, x: m.x, z: m.z, visible: m.marker.group.visible })); });
-  // (the motorcycle showroom's twelve are checked by prototype/test/motorcycles.mjs: here, the rest)
+  const markers = await seller.game(async () => { await window.__nlw.refreshDealMarkers(); return [...window.__nlw.dealMarkers.values()].filter((m) => !(m.listing.asset && ['motorcycle', 'car'].includes(m.listing.asset.category))).map((m) => ({ name: m.listing.name, x: m.x, z: m.z, visible: m.marker.group.visible })); });
+  // (the motorcycle showroom's are checked by prototype/test/motorcycles.mjs, and the car showroom's twenty are left
+  // out as well: here, the rest)
   if (markers.length !== 1 || markers[0].name !== 'HOLARIS Wristwatch') bad(`the markers in town are ${JSON.stringify(markers)}`);
   await seller.openProperty();
   if (!(await p.isVisible('#no-assets'))) bad('a new player is not told they own nothing from the market');
@@ -275,7 +276,7 @@ say('2. ...walks into the pink marker at HOLARIS Watch and buys a watch');
   if (back.x > 30 || back.y > 30) bad(`the way back is at ${Math.round(back.x)}, ${Math.round(back.y)}`);
   await p.click('#buy-asset'); await p.waitForSelector('.listing');
   await seller.shot('03-market');
-  const listed = await seller.game(() => [...document.querySelectorAll('.listing')].map((l) => l.textContent).filter((t) => !/Motorcycle Showroom|PostCivilWar PowerBike/.test(t)));
+  const listed = await seller.game(() => [...document.querySelectorAll('.listing')].map((l) => l.textContent).filter((t) => !/Motorcycle Showroom|PostCivilWar PowerBike|Post Civil War Car Showroom/.test(t)));
   if (listed.length !== 1 || !/HOLARIS Wristwatch/.test(listed[0]) || !/100 TR/.test(listed[0]) || !/10 of 10 left/.test(listed[0])) bad(`the market lists ${JSON.stringify(listed)}`);
   // the photographs are there, and dragging turns the watch
   const turned = await seller.game(async () => { const t = document.querySelector('.listing .turntable'); const before = t.style.backgroundPosition; const r = t.getBoundingClientRect(); const fire = (type, x) => t.dispatchEvent(new PointerEvent(type, { clientX: x, clientY: r.top + 40, pointerId: 7, bubbles: true })); fire('pointerdown', r.left + 100); fire('pointermove', r.left + 20); fire('pointerup', r.left + 20); const img = new Image(); const ok = await new Promise((res) => { img.onload = () => res(img.naturalWidth); img.onerror = () => res(0); img.src = 'assets/watch-turn.webp'; }); return { before, after: t.style.backgroundPosition, width: ok }; });
@@ -375,7 +376,7 @@ const buyerName = `Buyer_${tag}`;
   if (!chose || chose.title !== 'Choose Adaeze?') bad(`the buyer, choosing, was asked ${JSON.stringify(chose)}`);
   await buyer.made(2000, 2000, 'on arrival');
   await buyer.openProperty(); await buyer.press('#buy-asset'); await p.waitForSelector('.listing');
-  await p.waitForFunction(() => [...document.querySelectorAll('.listing')].filter((l) => !/Motorcycle Showroom|PostCivilWar PowerBike/.test(l.textContent)).length === 2, null, { timeout: 15000 }).catch(() => bad('the buyer does not see two listings'));
+  await p.waitForFunction(() => [...document.querySelectorAll('.listing')].filter((l) => !/Motorcycle Showroom|PostCivilWar PowerBike|Post Civil War Car Showroom/.test(l.textContent)).length === 2, null, { timeout: 15000 }).catch(() => bad('the buyer does not see two listings'));
   await buyer.shot('02-market');
   await p.fill('#market-search', sellerName); await p.waitForFunction(() => document.querySelectorAll('.listing').length === 1);
   const card = await p.textContent('.listing');
@@ -475,7 +476,7 @@ if (offerShown) {
   if (!history.includes(`Sold to ${buyerName}`) || !/\+140 TR/.test(history) || !/Bought from HOLARIS Watch/.test(history)) bad(`the seller's history reads "${history}"`);
   await seller.shot('15-history');
   // the marker has gone from both towns; pressing again changes nothing
-  for (const d of [seller, buyer]) { const left = await d.game(async () => { await window.__nlw.refreshDealMarkers(); await window.__nlw.market.sync(); await window.__nlw.market.sync(); return { markers: [...window.__nlw.dealMarkers.values()].filter((m) => !(m.listing.asset && m.listing.asset.category === 'motorcycle')).map((m) => m.listing.name), balance: window.__nlw.view.self.balance }; }); if (left.markers.length !== 1) bad(`${d.label}: markers left are ${JSON.stringify(left.markers)}`); if (left.balance !== (d === seller ? 2540 : 2700) * TR) bad(`${d.label}: a second round changed the balance to ${left.balance / TR}`); }
+  for (const d of [seller, buyer]) { const left = await d.game(async () => { await window.__nlw.refreshDealMarkers(); await window.__nlw.market.sync(); await window.__nlw.market.sync(); return { markers: [...window.__nlw.dealMarkers.values()].filter((m) => !(m.listing.asset && ['motorcycle', 'car'].includes(m.listing.asset.category))).map((m) => m.listing.name), balance: window.__nlw.view.self.balance }; }); if (left.markers.length !== 1) bad(`${d.label}: markers left are ${JSON.stringify(left.markers)}`); if (left.balance !== (d === seller ? 2540 : 2700) * TR) bad(`${d.label}: a second round changed the balance to ${left.balance / TR}`); }
   const ledgers = await Promise.all([seller, buyer].map((d) => d.game(() => window.__nlw.host.auditor.reconcile().length)));
   if (ledgers.some((n) => n)) bad(`a ledger does not reconcile: ${ledgers}`);
 }

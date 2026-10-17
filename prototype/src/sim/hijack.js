@@ -43,7 +43,7 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
     if (p.custody) throw new GameError('IN_CUSTODY', 'You are in the hands of the police.');
     if (p.carried) throw new GameError('CARRIED', 'You are in the ambulance.');
     if (hub.conflict.critical(p)) throw new GameError('CRITICAL', 'Your health is critical. You have not the strength.');
-    if (p.driving || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined)) throw new GameError('NOT_ON_FOOT', 'Get down first.');
+    if (p.driving || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined) || p.incar) throw new GameError('NOT_ON_FOOT', 'Get down first.');
   }
 
   // target: { okada: n } or { vehicle: id }

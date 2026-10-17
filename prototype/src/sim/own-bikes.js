@@ -30,7 +30,7 @@ export const crashHarm = (speed, max = 100) => max * CRASH.most * Math.min(1, Ma
 export function createOwnBikes({ state, hub, obstacles }) {
   const own = (p) => (Array.isArray(p.bikes) ? p.bikes : []);
   const parkedOf = (p) => { if (!p.parked || typeof p.parked !== 'object') p.parked = {}; return p.parked; };
-  const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
+  const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
 
   // What the server says this player owns: the list is replaced as a whole. A bike no longer theirs (sold) is
   // taken from under them if they are on it, and is no longer parked anywhere.

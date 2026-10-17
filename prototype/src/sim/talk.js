@@ -11,12 +11,13 @@
 // speaker's head. Nothing here plays a voice: a line carries its language and
 // its text, which is what a voice service would be given later.
 
-import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround, inPowerbikeHall } from './zone.js';
+import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround, inPowerbikeHall, inCarHall } from './zone.js';
 import { LANGUAGES, EXCHANGES, PEOPLES, phrase, greetingId, dayPart, sharedLanguage } from './culture.js';
 import { POSE, RANGE } from './population.js';
 import { GameError } from './registry.js';
 import { cleanFigureLook } from './figures.js';
 import { POWER_BIKES } from './power-bikes.js';
+import { POWER_CARS } from './power-cars.js';
 import { VEHICLE_MODELS, KEKE_PAINTS, KEKE_CANOPIES, KEKE_SEATS, KEKE_FLOORS } from './vehicle-looks.js';
 
 export const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLength: 140, gap: 1.2, visitors: 24 });
@@ -235,8 +236,9 @@ export function createTalk({ state, population, residents, players, weather, hub
   function others(player) {
     const out = [];
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
-    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null });
+    const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
+    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -294,12 +296,19 @@ export function createTalk({ state, population, residents, players, weather, hub
     v.vehicle = vehicleIn(data.vehicle);
     v.parked = (Array.isArray(data.parked) ? data.parked : []).slice(0, 3).map((b) => (b && POWER_BIKES[b.bike] && near(b, x, z) ? { bike: b.bike, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen } : null)).filter(Boolean);
     v.kekes = (Array.isArray(data.kekes) ? data.kekes : []).slice(0, 2).map((k) => (k && near(k, x, z) && lookIn(k.look) ? { id: cleanText(String(k.id || ''), 12), x: Number(k.x), z: Number(k.z), heading: n(k.heading, -10, 10), plate: cleanText(String(k.plate || ''), 14), look: lookIn(k.look), fleet: !!k.fleet } : null)).filter(Boolean);
-    v.vel = Array.isArray(data.vel) ? [n(data.vel[0], -80, 80), n(data.vel[1], -80, 80)] : [0, 0];
+    v.vel = Array.isArray(data.vel) ? [n(data.vel[0], -100, 100), n(data.vel[1], -100, 100)] : [0, 0];
+    // in one of their own cars (one of the game's own) and what it is doing, within bounds; their cars standing near
+    const c = data.car && typeof data.car === 'object' ? data.car : null;
+    v.car = c && typeof c.car === 'string' && POWER_CARS[c.car] ? { car: c.car, steer: n(c.steer, -0.7, 0.7), speed: n(c.speed, -6, 100), throttle: n(c.throttle, 0, 1), brake: c.brake ? 1 : 0, rev: n(c.rev, 0, 1), lamps: c.lamps ? 1 : 0 } : null;
+    v.cars = (Array.isArray(data.cars) ? data.cars : []).slice(0, 3).map((b) => (b && POWER_CARS[b.car] && near(b, x, z) ? { car: b.car, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10) } : null)).filter(Boolean);
     // asking the showroom's salesman about one of its motorcycles: only in the showroom's hall, only one of its bikes;
     // when it began, by this town's clock (kept from the first word of it, so that it does not drift)
     const tk = data.talk && typeof data.talk === 'object' && POWER_BIKES[data.talk.bike] && inPowerbikeHall(x, z) ? data.talk : null;
     v.talk = tk ? { bike: tk.bike, since: old && old.talk && old.talk.bike === tk.bike ? old.talk.since : now() - n(tk.ago, 0, 3600) } : null;
-    const horns = r ? n(r.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
+    // and asking one of the car showroom's salesmen about one of its cars: only in its hall, only one of its cars
+    const tc = data.carTalk && typeof data.carTalk === 'object' && POWER_CARS[data.carTalk.car] && inCarHall(x, z) ? data.carTalk : null;
+    v.carTalk = tc ? { car: tc.car, since: old && old.carTalk && old.carTalk.car === tc.car ? old.carTalk.since : now() - n(tc.ago, 0, 3600) } : null;
+    const horns = r ? n(r.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
     if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }

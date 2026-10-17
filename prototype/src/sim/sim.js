@@ -5,7 +5,7 @@
 // Node, or behind a network socket. It is given a gameplay ledger handle and
 // nothing else to do with money: it cannot make TR, and it cannot see the bank.
 
-import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit } from './zone.js';
+import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, stepCarshowGate, carshowGateBoxes } from './zone.js';
 import { createResidents } from './residents.js';
 import { createRegistry, GameError } from './registry.js';
 import { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON_RATE, countOf } from './economy.js';
@@ -13,6 +13,7 @@ import { createVehicles, LOAD_UNITS } from './vehicles.js';
 import { createPopulation, RANGE } from './population.js';
 import { createOkada } from './okada.js';
 import { createOwnBikes, isOwnBike, bikeOf } from './own-bikes.js';
+import { createOwnCars, isOwnCar, carOf } from './own-cars.js';
 import { createTalk } from './talk.js';
 import { LANGUAGES } from './culture.js';
 import { LedgerError, trText } from './ledger.js';
@@ -33,12 +34,13 @@ export const TIME_SCALE = 30;                 // game seconds per real second (a
 export const SIM_START = 7.5 * 3600;          // 07:30 on day one
 export const SPEED = Object.freeze({ walk: 2.4, run: 5.6, rain: 0.9 });
 const REACH = 4.5;
-const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$';
+const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$|cars\\.owned$';
 const WHILE_DRIVING = new RegExp(`^(vehicle\\.|run\\.|${ALWAYS})`);
 const WHILE_RIDING = new RegExp(`^(okada\\.alight$|${ALWAYS})`);
 const WHILE_ASTRIDE = new RegExp(`^(moto\\.|${ALWAYS})`);
+const WHILE_INCAR = new RegExp(`^(car\\.|${ALWAYS})`);
 // Held by the police: the phone (as far as the officer allows), and what concerns the arrest itself.
-const IN_CUSTODY = /^(bikes\.owned$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
+const IN_CUSTODY = /^(bikes\.owned$|cars\.owned$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
 const WHILE_CARRIED = /^(phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 const WHILE_TAKING = /^(hijack\.cancel$|chat\.|settings\.|people\.)/;
 const REQUESTS_KEPT = 40;                     // answers remembered for each player, to answer a request sent twice
@@ -120,10 +122,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const INITIAL_GOODS = { block: 240, cement: 68, roofing: 6, doorset: 6, paint: 8 };
   // the parts that deal with trouble know each other through this, so that none needs the rest to exist first
   const hub = { span };
-  const vehicles = createVehicles({ state, ledger, issuanceAccount, economy, clock, weather, emit, structureBoxes: () => structureBoxes(), hub });
+  const vehicles = createVehicles({ state, ledger, issuanceAccount, economy, clock, weather, emit, structureBoxes: () => [...structureBoxes(), ...parkedCars()], hub });
   const fresh = !state.okada;
   const population = createPopulation({ state, timeScale: scale });
-  const okada = createOkada({ state, ledger, monetary, issuanceAccount, population, timeScale: scale, emit, players: state.players, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes()] });
+  const okada = createOkada({ state, ledger, monetary, issuanceAccount, population, timeScale: scale, emit, players: state.players, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
   // a player is the base character; saves from before it say nothing about what they wear
   for (const id of Object.keys(state.players)) if (!state.players[id].look.outfit) state.players[id].look = { ...state.players[id].look, outfit: 'streetwear' };
   const talk = createTalk({ state, population, residents, players: state.players, weather, hub });
@@ -131,8 +133,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const actors = createActors({ state, population });
   actors.setResolver((target) => (target.kind === 'player' ? state.players[target.id] || null : null));
   // a player's own motorcycles, bought in the market
-  const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes()] });
-  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.serviceState = (id) => serviceState(id);
+  const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
+  // and their own cars (17 October 2026); a car left standing is in everybody's way
+  const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)] });
+  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.serviceState = (id) => serviceState(id);
   // what townspeople's bodies do when something happens to them; its own dice, so that the rest of the town's
   // chances fall exactly as they did before it was added
   const reactions = createReactions({ state, population, rng: makeRng(0x5eac7) });
@@ -146,7 +150,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
   // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
   const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });
-  for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.hijack === undefined) q.hijack = null; }
+  for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.incar === undefined) q.incar = null; if (q.hijack === undefined) q.hijack = null; }
   // the riders have been out since before the newcomer's bus came in
   if (fresh) for (let k = 240; k > 0; k -= 1) okada.tick(1, startT - k * scale, -k, false);
 
@@ -215,6 +219,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
 
   let boxCache = null;
   let boxVersion = -1;
+  // the players' cars standing where they were left (nobody has one in a copy of the game with no server), and the
+  // car showroom's gate, as far as it is shut: both in the way of whoever moves
+  function parkedCars() { return [...(hub.ownCars ? hub.ownCars.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)]; }
+
   function structureBoxes() {
     if (boxVersion === state.structures && boxCache) return boxCache;
     boxCache = [];
@@ -295,12 +303,23 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     justice.tick(dtReal);
     care.tick(dtReal);
     impact.tick();
+    stepGate(dtReal);
     if (!quiet) reactions.tick(dtReal, Object.values(state.players).filter((q) => !q.custody && !q.carried));
     phone.tick();
     // nobody hears the town talk while time is being skipped (a night's sleep), and listening for it was two thirds of the cost of skipping
     if (!quiet) talk.tick(state.t);
     daily(was, state.t);
     if (stagesBefore !== countStructures()) state.structures = countStructures();
+  }
+
+  // The car showroom's gate (asaba-carshow.js): it slides open for whoever comes to it, on foot or driving, and
+  // closes again behind them. Everyone here, and everyone seen from another copy of the world, opens it.
+  function stepGate(dtReal) {
+    if (!state.carshowGate) state.carshowGate = { open: 0, lastNear: -1e9 };
+    const people = [];
+    for (const q of Object.values(state.players)) if (!q.custody && !q.carried && !q.dead) people.push({ x: q.x, z: q.z, driving: !!(q.incar || q.driving || (q.astride !== null && q.astride !== undefined)) });
+    for (const v of talk.visitors()) people.push({ x: v.x, z: v.z, driving: !!(v.vehicle || v.ride || v.car) });
+    stepCarshowGate(state.carshowGate, people, dtReal, state.real);
   }
 
   function countStructures() {
@@ -344,6 +363,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     move(p, { x, z, heading, run }) {
       if (![x, z, heading].every(Number.isFinite)) throw new GameError('BAD_MOVE', 'Invalid position.');
       if (p.driving) throw new GameError('DRIVING', 'You are driving. Step out first.');
+      if (p.incar) throw new GameError('DRIVING', 'You are in a car. Get out first.');
       if (p.riding !== null && p.riding !== undefined) throw new GameError('RIDING', 'You are on an okada. Get down first.');
       if (state.real < (p.heldUntil || 0)) throw new GameError('HELD', 'You are being held.');
       // another player is a body in the way: nobody walks through anybody
@@ -366,7 +386,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       const gap = Math.hypot(x - p.x, z - p.z);
       if (gap > limit) throw new GameError('TOO_FAST', 'Movement rejected.');
       // Parked vehicles are in the way, except one that has been put down on top of you.
-      const parked = vehicles.boxes().filter((b) => !(p.x > b.x0 - 0.4 && p.x < b.x1 + 0.4 && p.z > b.z0 - 0.4 && p.z < b.z1 + 0.4));
+      const parked = [...vehicles.boxes(), ...parkedCars()].filter((b) => !(p.x > b.x0 - 0.4 && p.x < b.x1 + 0.4 && p.z > b.z0 - 0.4 && p.z < b.z1 + 0.4));
       const boxes = [...structureBoxes(), ...parked];
       // the ambulance too, unless the player is one of those it is in the middle of helping aboard
       const van = care.box();
@@ -431,6 +451,26 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       const a = POWERBIKE.arrive;
       p.x = a.x; p.z = a.z; p.heading = a.heading; p.lastMoveAt = state.real;
       p.stats.showroom = (p.stats.showroom || 0) + 1;
+      return { x: p.x, z: p.z, heading: p.heading };
+    },
+    // Into the Post Civil War Car Showroom by its glass doors, and out again by the mat inside them (asaba-carshow.js):
+    // the doors slide open for whoever comes to them (the page draws that); stepping through, the screen darkens and
+    // the player is set down inside the hall, or outside before the doors.
+    'carshow.in'(p) {
+      if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
+      if (justice.lawOf(p).state === 'pursuit') throw new GameError('PURSUED', 'The police are after you. The showroom will not open its doors to you now.');
+      if (!carshowAtDoors(p.x, p.z)) throw new GameError('TOO_FAR', `Walk up to the doors of ${CARSHOW.name} first.`);
+      const a = CARSHOW.arrive;
+      p.x = a.x; p.z = a.z; p.heading = a.heading; p.lastMoveAt = state.real;
+      p.stats.carshow = (p.stats.carshow || 0) + 1;
+      return { x: p.x, z: p.z, heading: p.heading };
+    },
+    'carshow.out'(p) {
+      if (!inCarHall(p.x, p.z)) throw new GameError('NOT_INSIDE', `You are not in ${CARSHOW.name}.`);
+      const e = CARSHOW.exit;
+      if (!onCarshowExit(p.x, p.z) && Math.hypot(p.x - (e.x0 + e.x1) / 2, p.z - (e.z0 + e.z1) / 2) > 2.6) throw new GameError('TOO_FAR', 'Walk to the doors first.');
+      const l = CARSHOW.leave;
+      p.x = l.x; p.z = l.z; p.heading = l.heading; p.lastMoveAt = state.real;
       return { x: p.x, z: p.z, heading: p.heading };
     },
     'showroom.out'(p) {
@@ -735,6 +775,13 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     // they get on it where they left it
     'bikes.owned'(p, body) { return ownBikes.setOwned(p, body || {}); },
     'bikes.ride'(p, body) { return ownBikes.mount(p, body || {}); },
+    // --- a player's own cars (17 October 2026), as their motorcycles ---
+    'cars.owned'(p, body) { return ownCars.setOwned(p, body || {}); },
+    'cars.enter'(p, body) { return ownCars.enter(p, body || {}); },
+    'car.drive'(p, step) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return ownCars.drive(p, step || {}); },
+    'car.crash'(p, body) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return ownCars.crash(p, body || {}); },
+    'car.leave'(p) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return ownCars.leave(p); },
+    'car.horn'(p) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return impact.horn(p); },
 
     // --- treatment ---
     'care.tariff'(p, { place }) { return care.tariff(String(place)); },
@@ -818,6 +865,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (p.driving && !WHILE_DRIVING.test(message.type)) throw new GameError('DRIVING', 'Step out of the keke first.');
       if (p.riding !== null && p.riding !== undefined && !WHILE_RIDING.test(message.type)) throw new GameError('RIDING', 'Get down from the okada first.');
       if (p.astride !== null && p.astride !== undefined && !WHILE_ASTRIDE.test(message.type)) throw new GameError('RIDING', 'Get off the motorcycle first.');
+      if (p.incar && !WHILE_INCAR.test(message.type)) throw new GameError('IN_CAR', 'Get out of the car first.');
       if (p.swimming && !WHILE_SWIMMING.test(message.type)) throw new GameError('SWIMMING', 'You are in the river. Swim to the bank and climb out first.');
       return { ok: true, ...handler(p, message) };
     } catch (error) {
@@ -846,7 +894,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       zone: ZONE.id, x: ZONE.spawn.x, z: ZONE.spawn.z, heading: ZONE.spawn.heading,
       energy: 80, skills: { blocklaying: false }, wallet: ledger.openAccount('player', id, 'wallet'),
       met: {}, inspected: {}, stats: { blocksMoulded: 0, walked: 0 }, lastMoveAt: state.real, lastWorkAt: -10, joinedAt: clock(), lang: 'en', riding: null,
-      health: HEALTH.max, fight: null, law: { state: 'normal', since: 0, crimes: [], seenAt: null }, custody: null, carried: null, astride: null, hijack: null,
+      health: HEALTH.max, fight: null, law: { state: 'normal', since: 0, crimes: [], seenAt: null }, custody: null, carried: null, astride: null, incar: null, hijack: null,
       down: null, dead: null, involved: {},
     };
     grantArrival(state.players[id]);
@@ -942,6 +990,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       // trouble within sight: blows struck, people shaken by them, officers out on a call, the ambulance
       fights: conflict.eventsNear(eye.x, eye.z), impacts: impact.eventsNear(eye.x, eye.z), fallen: impact.fallen(), blood: impact.bleeding(eye.x, eye.z), reacts: reactions.near(eye.x, eye.z), moods: conflict.moods(eye.x, eye.z), officers: justice.officersNear(eye.x, eye.z), ambulance: care.ambulanceView(),
       population: population.total,
+      // how far open the car showroom's gate is (0 shut, 1 wide open)
+      carshowGate: state.carshowGate ? Math.round(state.carshowGate.open * 1000) / 1000 : 0,
     };
   }
 
@@ -953,7 +1003,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       ...zoneView(playerId),
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
+        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),

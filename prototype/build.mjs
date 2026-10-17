@@ -172,6 +172,15 @@ for (const name of readdirSync(resolve(root, 'assets/vehicles/bikes/game')).sort
 // (tools/audio/bike_sounds.py; bike-audio.js, BIKE_RECORDINGS). The supplied files are in sound/original/ and are not sent.
 for (const name of readdirSync(resolve(root, 'assets/vehicles/bikes/sound/game')).filter((n) => n.endsWith('.wav')).sort()) put(`bikes/sound-${name}`, readFileSync(resolve(root, 'assets/vehicles/bikes/sound/game', name)));
 for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^bike-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
+// The Post Civil War Car Showroom (17 October 2026): the owner's five buildings for its compound, exactly as supplied,
+// beside the page, where render-carshow.js fetches each as someone comes near (the villa, 76 MB, only from close by);
+// and the owner's twenty cars, their parts as the game draws them (tools/vehicles/cars.py sorted the triangles of
+// each supplied file into body and wheels, every one kept) and their pictures at 2048 and 4096, with the market's
+// photographs of each and the pictures from all round that stand in for those across the hall. The supplied car
+// files themselves are in assets/vehicles/cars/ and are not sent.
+for (const [name, from] of [['carshow-showroom.glb', 'tall_glass_skyscraper_3d_model.glb'], ['carshow-stacked.glb', 'modern_skyscraper_3d_model_4.glb'], ['carshow-twisting.glb', 'twisting_skyscraper_3d_model.glb'], ['carshow-deck.glb', 'architectural_3d_model_1.glb'], ['carshow-villa.glb', 'modern_villa_3d_model.glb']]) put(name, readFileSync(resolve(root, 'assets/buildings/carshow', from)));
+for (const name of readdirSync(resolve(root, 'assets/vehicles/cars/game')).sort()) put(`cars/${name}`, readFileSync(resolve(root, 'assets/vehicles/cars/game', name)));
+for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^car-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
 // Songs for the phone's Music app: the list, and every file the list names (assets/music/README.md).
 {
   const dir = resolve(root, 'assets/music');

@@ -21,8 +21,9 @@ async function buyWatch(p) {
 
 test('the first thing for sale is the wristwatch: 100 TR, ten of them, at HOLARIS Watch; anyone may look', async () => {
   const guest = person();
-  // (and, since 13 October 2026, the showroom's twelve motorcycles: motorcycles.test.mjs)
-  const all = (await guest.ok('market.list', {})).listings.filter((l) => l.asset.category !== 'motorcycle');
+  // (and, since 13 October 2026, the showroom's twelve motorcycles: motorcycles.test.mjs; since 17 October, the Post
+  // Civil War Car Showroom's twenty cars: cars.test.mjs)
+  const all = (await guest.ok('market.list', {})).listings.filter((l) => !['motorcycle', 'car'].includes(l.asset.category));
   assert.equal(all.length, 1);
   const w = all[0];
   assert.equal(w.asset.name, 'HOLARIS Wristwatch');
@@ -35,8 +36,9 @@ test('the first thing for sale is the wristwatch: 100 TR, ten of them, at HOLARI
   assert.ok(Number.isFinite(w.place.x) && Number.isFinite(w.place.z));
   // searching
   for (const q of ['watch', 'WATCHES', 'wrist', 'holaris', 'holaris watch', 'jewellery']) assert.equal((await guest.ok('market.list', { q })).listings.length, 1, q);
-  for (const q of ['car', 'yacht', 'gun', 'clothe', 'watch car', '100%', '_']) assert.equal((await guest.ok('market.list', { q })).listings.length, 0, q);
+  for (const q of ['yacht', 'gun', 'clothe', 'watch car', '100%', '_']) assert.equal((await guest.ok('market.list', { q })).listings.length, 0, q);
   for (const q of ['bike', 'motorcycle', 'MOTORCYCLES']) assert.equal((await guest.ok('market.list', { q })).listings.length, 17, q);          // (the seventeen of PostCivilWar PowerBike)
+  for (const q of ['car', 'CARS']) assert.equal((await guest.ok('market.list', { q })).listings.length, 20, q);                                // (the twenty of the Post Civil War Car Showroom)
   // but only an account can do anything
   assert.equal((await guest.call('market.mine')).status, 401);
   assert.equal((await guest.call('market.open', { listing: HOLARIS.listing, at: NEAR_HOLARIS })).status, 401);
@@ -266,7 +268,7 @@ test('only an administrator puts new things into the market', async () => {
   try {
     assert.equal((await boss.ok('me')).account.admin, true);
     assert.equal((await player.call('admin.list', what)).status, 403);
-    assert.equal((await boss.ok('admin.assets')).assets.filter((a) => a.category !== 'motorcycle').length, 1);
+    assert.equal((await boss.ok('admin.assets')).assets.filter((a) => !['motorcycle', 'car'].includes(a.category)).length, 1);
     assert.equal((await boss.call('admin.list', { ...what, asset: 'a-yacht-nobody-made' })).status, 404);
     assert.equal((await boss.call('admin.list', { ...what, stock: 0 })).status, 400);
     const { listing } = await boss.ok('admin.list', what);
@@ -304,7 +306,7 @@ test('ten watches, and never an eleventh: many buyers at once are served one aft
   assert.equal((await sql.unsafe(`select count(*)::int as n from pcw.sales where listing_id = $1`, [HOLARIS.listing]))[0].n, 10);
   // it has vanished from the store
   assert.equal(await watch(person()), null);
-  assert.equal((await person().ok('market.list', {})).listings.filter((l) => l.kind === 'primary' && l.asset.category !== 'motorcycle').length, 0);
+  assert.equal((await person().ok('market.list', {})).listings.filter((l) => l.kind === 'primary' && !['motorcycle', 'car'].includes(l.asset.category)).length, 0);
   // and cannot be bought by someone who was already standing in the shop
   const late = await buyers[0].call('market.offer', { thread: threads[0], offer: uuid(), amount: 100 * TR });
   assert.equal(late.body.code, 'GONE');

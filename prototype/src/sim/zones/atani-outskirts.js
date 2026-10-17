@@ -18,6 +18,8 @@
 // beyond it; grid -z is true west, inland; grid -x is true south, down the road toward Kwale and Warri.
 // One grid metre is one metre on the ground.
 
+import { CARSHOW, CARSHOW_AREAS } from './asaba-carshow.js';
+
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
 const road = (id, name, x0, z0, x1, z1, surface, extra = {}) => Object.freeze({ id, name, x0, z0, x1, z1, surface, ...extra });
 
@@ -100,6 +102,7 @@ export const OUTSKIRT_AREAS = Object.freeze([
   box(-1160, -510, -560, -20),                // the airport's land, inside and outside its fence
   box(BRIDGE.x0 + 0.6, BRIDGE.start - 2, BRIDGE.x1 - 0.6, BRIDGE.end),   // the deck, inside its rails
   box(FAR_BANK.x0, BRIDGE.land, FAR_BANK.x1, BRIDGE.end),              // the far bank by the bridge's end, up to the barrier
+  ...CARSHOW_AREAS,                                                     // the Post Civil War Car Showroom's compound, and its drive from the road
 ]);
 export const onOutskirts = (x, z) => OUTSKIRT_AREAS.some((a) => x > a.x0 && x < a.x1 && z > a.z0 && z < a.z1);
 
@@ -181,6 +184,8 @@ export const OUTSKIRT_BUILDINGS = Object.freeze((() => {
       // not where the airport road leaves, nor in front of the airport's land
       const z = side < 0 ? -64 - (i % 3) * 3 : -16 + (i % 2) * 3;
       if (side < 0 && x < -700 && x > -770) continue;
+      // (nor in front of the car showroom's compound, 17 October 2026: those that stood there are taken away)
+      if (side < 0 && x - 14 < CARSHOW.compound.x1 + 6 && x > CARSHOW.compound.x0 - 6) continue;
       if (((i * 7 + (side + 1) * 3) % 10) / 10 > 0.35 + busy * 0.6) continue;
       const w = 7 + ((i * 13) % 5) * 1.5, d = 6 + ((i * 7) % 3) * 1.5, h = 3 + busy * 3.4 * (((i * 5) % 3) / 2);
       out.push(Object.freeze({ id: `road-${i}-${side}`, x: x - w / 2, z, w, d, h, facing: side < 0 ? 0 : Math.PI, wall: [0xd9c7a0, 0xc9d6c3, 0xe3d6a8, 0xcfd9df, 0xd6c2c2][i % 5], roof: [0x7d7f83, 0x8b4a33, 0x5f6a72, 0x355e3b][i % 4] }));

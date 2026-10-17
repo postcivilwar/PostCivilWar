@@ -34,10 +34,18 @@ export function encodePlayer(self, zoneId) {
   if (bikes.length) out.pk = bikes.map((b) => [b.bike, r2(b.x), r2(b.z), r2(b.h), b.fallen ? 1 : 0]);
   const kekes = near(self.parkedKekes).slice(0, 2);
   if (kekes.length) out.pv = kekes.map((v) => ({ id: v.id, x: r2(v.x), z: r2(v.z), h: r2(v.heading), pl: v.plate, lk: packLook(v.look), f: v.fleet ? 1 : 0 }));
+  // in one of their own cars (17 October 2026): which, and what it is doing (its lamps, brake lamps and the engine's
+  // note follow it); and their own cars standing near them
+  const c = self.incar;
+  if (c && c.car) { const d = c.drive || {}; out.mc = { i: c.car, s: d.steer || 0, v: d.speed || 0, t: d.throttle || 0, k: d.brake ? 1 : 0, r: d.rev || 0, l: d.lamps ? 1 : 0, hn: c.horns || 0 }; }
+  const cars = near(self.ownCars && self.ownCars.parked).slice(0, 3);
+  if (cars.length) out.pc = cars.map((p) => [p.car, r2(p.x), r2(p.z), r2(p.h)]);
   if (self.vel) out.vl = [r2(self.vel[0]), r2(self.vel[1])];
   // in the PostCivilWar PowerBike showroom, asking the salesman about one of its motorcycles: which, and for how long
   // (the salesman goes to whoever began first: salesman.js)
   if (self.talk && typeof self.talk.bike === 'string') out.tk = [self.talk.bike, Math.round(Math.max(0, self.talk.ago || 0) * 10) / 10];
+  // and in the car showroom, asking a salesman about one of its cars
+  if (self.carTalk && typeof self.carTalk.car === 'string') out.tc = [self.carTalk.car, Math.round(Math.max(0, self.carTalk.ago || 0) * 10) / 10];
   return out;
 }
 
@@ -66,7 +74,11 @@ export function decodePlayer(state, zoneId) {
   const kekes = Array.isArray(state.pv) ? state.pv.map((v) => (v && typeof v === 'object' ? { id: v.id, x: v.x, z: v.z, heading: v.h, plate: v.pl, look: unpackLook(v.lk), fleet: !!v.f } : null)) : [];
   const vel = Array.isArray(state.vl) ? state.vl : null;
   const talk = Array.isArray(state.tk) ? { bike: state.tk[0], ago: state.tk[1] } : null;
-  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk };
+  const mc = state.mc && typeof state.mc === 'object' ? state.mc : null;
+  const car = mc ? { car: mc.i, steer: mc.s, speed: mc.v, throttle: mc.t, brake: mc.k, rev: mc.r, lamps: mc.l, horns: mc.hn } : null;
+  const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3] } : null)) : [];
+  const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
+  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
@@ -94,7 +106,7 @@ export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
       const me = self();
       if (!me) return;
       // how fast it is going, from where it was last time (smoothed a little)
-      if (lastAt) { const span = clock - lastAt.t; if (span > 0.05) { const k = Math.min(1, span / 0.4); vel[0] += ((me.x - lastAt.x) / span - vel[0]) * k; vel[1] += ((me.z - lastAt.z) / span - vel[1]) * k; if (Math.hypot(vel[0], vel[1]) > 90) vel[0] = vel[1] = 0; } }
+      if (lastAt) { const span = clock - lastAt.t; if (span > 0.05) { const k = Math.min(1, span / 0.4); vel[0] += ((me.x - lastAt.x) / span - vel[0]) * k; vel[1] += ((me.z - lastAt.z) / span - vel[1]) * k; if (Math.hypot(vel[0], vel[1]) > 110) vel[0] = vel[1] = 0; } }
       lastAt = { x: me.x, z: me.z, t: clock };
       const state = encodePlayer({ ...me, vel: Math.hypot(vel[0], vel[1]) > 0.3 ? vel : [0, 0] }, zoneId);
       const text = JSON.stringify(state);

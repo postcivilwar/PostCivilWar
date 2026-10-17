@@ -404,7 +404,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     if (d > LAW.reach) return;
     const still = now - (p.lastMoveAt || 0) >= LAW.still;
     const helpless = (hub.conflict && hub.conflict.critical(p)) || now < (p.heldUntil || 0) || law.surrendered;
-    const stopped = p.driving || (p.astride !== null && p.astride !== undefined) ? still : still || helpless;
+    const stopped = p.driving || (p.astride !== null && p.astride !== undefined) || p.incar ? still : still || helpless;
     if (stopped) arrest(p, { kind: 'npc', id: o.i, name: people[o.i].name });
   }
 
@@ -472,6 +472,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     if (hub.conflict) hub.conflict.stop(p);
     if (hub.vehicles && p.driving) hub.vehicles.eject(p);
     if (hub.okada) hub.okada.unseat(p);
+    if (hub.ownCars) hub.ownCars.unseat(p);
     if (hub.hijack) hub.hijack.cancel(p);
     recover(record, p);
     if (hub.vehicles) hub.vehicles.recover(p.id);

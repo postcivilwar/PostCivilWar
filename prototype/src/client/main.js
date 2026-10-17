@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -41,6 +41,8 @@ import { driverSide } from '../sim/hijack.js';
 import { MOTO, motoSpeedAt } from '../sim/okada.js';
 import { POWER_BIKES, handlingOf, stepPowerBike, bikeRevs } from '../sim/power-bikes.js';
 import { CRASH } from '../sim/own-bikes.js';
+import { POWER_CARS, carHandlingOf, stepPowerCar, carRevs, carBoxes } from '../sim/power-cars.js';
+import { CAR_CRASH, carFits } from '../sim/own-cars.js';
 import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz } from './bike-audio.js';
 import { startStrike, poseFighter, poseTaking, soundOf } from './combat-view.js';
 import { createCameraRig, nextView, viewFor, CAMERA_VIEW } from './camera.js';
@@ -65,6 +67,9 @@ import { createWallet } from './wallet.js';
 import { createConfirm } from './confirm.js';
 import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
+import { createCarView } from './car-view.js';
+import { setCarDaylight } from './car-model.js';
+import { buildCarshow } from './render-carshow.js';
 import { buildPowerbike } from './render-powerbike.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
@@ -175,6 +180,8 @@ function start(carried) {
   const ownBikeView = createOwnBikeView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your motorcycle could not be fetched. Check the connection.' }); } });
   // other players' motorcycles, seen from here (the same drawing, without anything to fetch until one is near)
   const peerBikeView = createOwnBikeView(scene, { lite: LITE });
+  // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
+  const carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
   let peerRides = [];
   let shownPeers = [];
   // Other players as they are now: one in or on a vehicle is carried on from where their game last said they were,
@@ -183,7 +190,7 @@ function start(carried) {
     const ahead = Math.max(0, clock - viewAt);
     shownPeers = (view.players || []).map((q) => {
       const v = q.vel;
-      if (!v || !(q.vehicle || q.ride) || Math.hypot(v[0], v[1]) < 0.3) return q;
+      if (!v || !(q.vehicle || q.ride || q.car) || Math.hypot(v[0], v[1]) < 0.3) return q;
       const k = Math.min(0.3, (q.ago || 0) + ahead);
       return { ...q, x: q.x + v[0] * k, z: q.z + v[1] * k };
     });
@@ -395,8 +402,8 @@ function start(carried) {
   // under the camera's line; and the tower over it is solid to its top)
   const towerAt = POWERBIKE.footprint;
   const rig = createCameraRig(camera, {
-    blocked: (x, z, y) => (inPowerbikeHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25)) || (y > 1.95 && underLowRoof(x, z)),
-    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : 0),
+    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25)) || (y > 1.95 && underLowRoof(x, z)),
+    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
   let lastFight = 0;                 // the last blow from the simulation that has been shown
@@ -444,6 +451,7 @@ function start(carried) {
   // salesman about a motorcycle, which one and for how long (salesman.js goes to whoever began first)
   function linkSelf() {
     if (!view) return null;
+    if (carshow.talk && carshow.inside) return { ...view.self, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return view.self;
     return { ...view.self, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
   }
@@ -1251,6 +1259,12 @@ function start(carried) {
     const a = view.ambulance;
     const van = Math.abs(Math.sin(a.h)) > 0.5 ? { x0: a.x - 2.7, x1: a.x + 2.7, z0: a.z - 1.1, z1: a.z + 1.1 } : { x0: a.x - 1.1, x1: a.x + 1.1, z0: a.z - 2.7, z1: a.z + 2.7 };
     if (!(predicted.x > van.x0 - 0.5 && predicted.x < van.x1 + 0.5 && predicted.z > van.z0 - 0.5 && predicted.z < van.z1 + 0.5)) boxes.push(van);
+    // the player's own cars where they were left (not the one they are in), and the car showroom's gate as far as it is shut
+    for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) {
+      if (!POWER_CARS[c.car]) continue;
+      for (const b of carBoxes(POWER_CARS[c.car], c.x, c.z, c.h)) if (!(predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4)) boxes.push(b);
+    }
+    boxes.push(...carshowGateBoxes(view.carshowGate || 0));
     return boxes;
   }
 
@@ -1682,6 +1696,7 @@ function start(carried) {
     if (!view) return null;
     if (view.self.law.arrest || view.self.carried || view.self.hijack) return null;
     if (view.self.driving) return findDrivingPrompt();
+    if (view.self.incar) return Math.abs(carState.speed) > 1.5 ? null : { short: 'Get out', text: ownCar() ? `Get out of the ${ownCar().name}` : 'Get out of the car', run: leaveOwnCar };
     if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
     if (view.self.fight) return null;
     if (view.self.riding) return { short: 'Get down', text: 'Get down from the okada', run: getDown };
@@ -1697,6 +1712,8 @@ function start(carried) {
     }
     // the player's own motorcycles, where they left them
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
+    // and their own cars (reached from beside a door: the car's own half-width and a step)
+    for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) if (POWER_CARS[c.car]) add(c.x, c.z, POWER_CARS[c.car].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive your ${POWER_CARS[c.car].name}`, run: () => enterOwnCar(c.car) });
     for (const v of view.vehicles) {
       if (v.driver) continue;
       if (v.yours) add(v.x, v.z, 3.4, { bias: 1.2, short: 'Drive', text: `Drive keke ${v.plate}`, run: () => enterVehicle(v) });
@@ -1779,6 +1796,8 @@ function start(carried) {
     if (self.carried) return 'carried';
     if (self.hijack) return 'taking';
     if (self.driving) return 'driving';
+    // a car of their own: its own controls, as a power bike's
+    if (self.incar && ownCar()) return 'car';
     // a power bike has its own controls (power-bikes.js); none is in the game until its model is supplied
     if (self.astride && powerBike()) return 'powerbike';
     if (bikePreview) return 'powerbike';
@@ -1789,14 +1808,14 @@ function start(carried) {
     return 'walking';
   }
   // Where the camera's choice of views comes from.
-  const where = () => (view && (view.self.driving || view.self.astride || view.self.riding) ? 'vehicle' : 'foot');
+  const where = () => (view && (view.self.driving || view.self.astride || view.self.riding || view.self.incar) ? 'vehicle' : 'foot');
 
   // Who and what is within reach for the things that are only sometimes on
   // offer: someone to square up to, a pocket, a vehicle at its driver's side.
   function findNear() {
     const out = { fight: null, steal: null, take: null };
     const self = view.self;
-    if (self.driving || self.riding || self.astride || self.law.arrest || self.carried || self.hijack) return out;
+    if (self.driving || self.riding || self.astride || self.incar || self.law.arrest || self.carried || self.hijack) return out;
     const fx = Math.sin(predicted.heading), fz = Math.cos(predicted.heading);
     let best = 2.2;
     const consider = (kind, id, name, x, z, h) => {
@@ -1879,6 +1898,9 @@ function start(carried) {
     // On a power bike: its own layout, on a touch screen and with a keyboard alike. Steering arrows at the lower
     // left, the throttle and the brake at the right, the horn at the top, and getting off.
     if (m === 'powerbike') return [{ id: 'throttle', label: 'Throttle', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
+    // In a car: the same layout as on a power bike (the arrows steer; the accelerator and the brake at the right), the
+    // horn, and the door to get out by.
+    if (m === 'car') return [{ id: 'throttle', label: 'Accelerate', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake, and to back up' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getout', label: (prompt && prompt.short) || 'Get out' }, { ...look, keyOnly: true }];
     if (m === 'riding') return [main, look];
     if (m === 'custody') return [{ id: 'custody', key: 'e', label: 'Police', primary: true, hint: 'Your arrest: the fine, a phone call, the time to serve' }, { id: 'phone', key: 'o', label: 'Phone', keyOnly: true }];
     if (m === 'taking') return [{ id: 'cancel', key: 'e', label: 'Stop', primary: true, hint: 'Let go' }];
@@ -1906,11 +1928,11 @@ function start(carried) {
     const wheel = mode === 'driving' && coarse && wheelLayout();
     if (stickEl.classList.contains('wheel') !== wheel) { stickEl.classList.toggle('wheel', wheel); $('touch').classList.toggle('wheel', wheel); $('hud').classList.toggle('wheel', wheel); controls.setSteering(wheel); }
     // on a power bike the stick goes and the bike's own buttons come; anything else, and they go again
-    const onBike = mode === 'powerbike';
+    const onBike = mode === 'powerbike' || mode === 'car';
     if ($('touch').classList.contains('bike') !== onBike) { $('touch').classList.toggle('bike', onBike); $('hud').classList.toggle('bike', onBike); }
     keymap.clear();
     for (const b of list) if (b.key && b.key !== 'Shift') keymap.set(b.key, b);
-    ui.setKeys(mode === 'walking' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
+    ui.setKeys(mode === 'walking' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
   }
 
   // One move in a fight: asked of the simulation, which says what came of it.
@@ -1937,7 +1959,7 @@ function start(carried) {
       case 'run': controls.setRun(!input.run); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
-      case 'horn': { const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
+      case 'horn': { if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
       case 'camera': rig.view = nextView(rig.view, where()); ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW[rig.view].name.toLowerCase()}.` }); break;
       case 'fight': if (near.fight) said(server.send({ type: 'combat.engage', target: { kind: near.fight.kind, id: near.fight.id } }), `You square up to ${near.fight.name}.`); break;
       case 'punch': case 'heavy': case 'kick': case 'shove': case 'grab': strike(id); break;
@@ -2092,6 +2114,68 @@ function start(carried) {
     return Math.abs(moto.speed);
   }
 
+  // --- the player's own cars (17 October 2026) ---
+  // The car the player is in, if it is one of their own (its entry in POWER_CARS), and how it is going.
+  const ownCar = () => { const c = view && view.self.incar; return c && POWER_CARS[c.car] ? POWER_CARS[c.car] : null; };
+  const carState = { speed: 0, steer: 0, heading: 0, throttle: 0, braking: false };
+  // Into one of the player's own cars: where they left it if they are beside it, or brought to them (from Property
+  // on the phone). The simulation decides; the car is fetched the first time it is driven.
+  function enterOwnCar(id) {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'cars.enter', car: id });
+    if (r.ok) { audio.stopPreview(); ui.close(); carState.speed = 0; carState.steer = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; cam.yaw = r.h; refreshView(); }
+    say(r);
+    return r;
+  }
+  // What the server says this player owns, passed to the town whenever it changes: only those can be driven.
+  let carsSent = null;
+  function syncOwnCars() {
+    if (!playing || !view || !market.state.mine) return;
+    const ids = market.state.mine.holdings.map((h) => (h.asset.model || '').replace(/^car:/, '')).filter((id) => POWER_CARS[id]).sort();
+    const key = ids.join(',');
+    if (key === carsSent) return;
+    const r = server.send({ type: 'cars.owned', cars: ids });
+    if (r.ok) carsSent = key;
+  }
+  // Into something solid: at speed it hurts the driver (the town decides how much: own-cars.js, `crash`); slower,
+  // the car only stops against it.
+  function carCrashOrStop() {
+    const speed = Math.abs(carState.speed);
+    carState.speed = 0;
+    if (speed < CAR_CRASH.least) return;
+    const r = server.send({ type: 'car.crash', speed });
+    if (r.ok && r.hurt) { flash = 1; ui.toast({ type: 'alert', title: 'Crash', text: `You hit something at ${r.kmh} km/h${r.lost ? ` and lost ${r.lost} health` : ''}.` }); refreshView(); }
+  }
+  // A car under the player's hands (power-cars.js): it turns about its back wheels, no harder than its tyres grip,
+  // and the whole of it is checked against what is solid, not only its middle (own-cars.js, `carFits`).
+  function driveOwnCar(dt, spec) {
+    const input = ui.isOpen() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    const handling = carHandlingOf(spec);
+    carState.heading = predicted.heading;
+    const tar = motoSpeedAt(predicted.x, predicted.z, false) === MOTO.speedRoad;
+    stepPowerCar(carState, input, dt, { handling, onTar: tar, wet: view.weather.wet });
+    carState.throttle = input.throttle; carState.braking = input.brake > 0;
+    if (Math.abs(carState.speed) < 0.03) return 0;
+    const nx = predicted.x + Math.sin(carState.heading) * carState.speed * dt;
+    const nz = predicted.z + Math.cos(carState.heading) * carState.speed * dt;
+    // into something solid: it stops there, and does not go through
+    if (!carFits(spec.id, nx, nz, carState.heading, structureBoxes(), 0.2)) { carCrashOrStop(); return 0; }
+    // (with what the car is doing, for other players to see and hear: its steering, speed, throttle, brake, revs, lamps)
+    const result = server.send({ type: 'car.drive', x: nx, z: nz, heading: carState.heading, steer: carState.steer, speed: carState.speed, throttle: carState.throttle, brake: carState.braking, rev: carRevs(carState.speed, carState.throttle, handling), lamps: night > 0.25 });
+    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = carState.heading; if (result.hit) carState.speed = 0; }
+    else if (result.code === 'BLOCKED') { carCrashOrStop(); return 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; carState.speed = 0; }
+    // the view swings round behind the car as it goes (not while it backs up)
+    if (clock - cam.lastDrag > 1.5 && carState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.0);
+    return Math.abs(carState.speed);
+  }
+  function leaveOwnCar() {
+    const r = server.send({ type: 'car.leave' });
+    if (r.ok) { carState.speed = 0; carState.steer = 0; predicted.x = r.x; predicted.z = r.z; }
+    say(r);
+    return r;
+  }
+
   // The player on foot. A body does not reach its pace, or lose it, in no time, and it does not go one way
   // while facing another: it turns to where it is sent, slows to turn about, and takes a step or two to stop.
   // All of that is how the figure is moved here; the simulation is still told each place it reaches and
@@ -2124,8 +2208,9 @@ function start(carried) {
   const PACE = { gather: 9, shed: 13, turn: 9.5 };      // metres a second each second; radians a second
   function movePlayer(dt) {
     going.turn = 0;
-    if (led() || view.self.driving || view.self.astride || view.self.riding) going.speed = 0;
+    if (led() || view.self.driving || view.self.astride || view.self.riding || view.self.incar) going.speed = 0;
     if (led()) return 0;                       // walked in by an officer, carried, or with hands on a vehicle: not theirs to steer
+    if (view.self.incar) { const spec = ownCar(); return spec ? driveOwnCar(dt, spec) : 0; }
     if (view.self.driving) return driveVehicle(dt);
     if (view.self.astride) return driveMoto(dt);
     if (view.self.riding) return 0;
@@ -2380,6 +2465,7 @@ function start(carried) {
       const driving = self.driving;
       const riding = self.riding;
       const astride = self.astride;
+      const incar = self.incar;
       const taking = self.hijack;
       const aboard = self.carried === 'aboard';
       const bike = riding ? crowd.bike(riding.n) : null;
@@ -2413,7 +2499,7 @@ function start(carried) {
       if (holding && prompt.intent.type === 'job.mould') predicted.heading += angleGap(Math.PI, predicted.heading) * Math.min(1, dt * 8);
       me.group.rotation.y = predicted.heading;
       me.group.rotation.z = astride ? moto.lean : 0;      // (positive: over to the right, into a right turn)
-      animateCharacter(me, dt, driving || riding || astride ? 0 : speed, holding, led() ? 0 : going.turn);
+      animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
@@ -2422,11 +2508,20 @@ function start(carried) {
       const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
       ownBikeView.update(dt, { ridden: ownRide, parked: (self.ownBikes && self.ownBikes.parked) || [], groundY: zoneGroundY, from: predicted, night, now: clock });
       if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
+      // in one of the player's own cars: the car is drawn where they are (car-view.js), with the other players' cars
+      // near them, and every car of theirs and others' left standing within sight; the figure is inside, unseen
+      const ownDrive = incar && ownCar() ? { id: ownCar().id, x: predicted.x, z: predicted.z, h: predicted.heading, speed: carState.speed, steer: carState.steer, throttle: carState.throttle, brake: carState.braking } : null;
+      const peerCars = [], parkedCars = ((self.ownCars && self.ownCars.parked) || []).map((c) => ({ ...c }));
+      for (const q of shownPeers) {
+        if (q.car && POWER_CARS[q.car.car]) peerCars.push({ key: q.id, id: q.car.car, x: q.x, z: q.z, h: q.heading, speed: q.car.speed, steer: q.car.steer, throttle: q.car.throttle, brake: q.car.brake, lamps: q.car.lamps });
+        for (const c of q.cars || []) parkedCars.push({ ...c, key: `cpark:${q.id}:${c.car}` });
+      }
+      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, groundY: zoneGroundY, from: predicted, night });
       if (taking) poseTaking(me, taking.step, taking.progress);
       else if (self.fight || me.strike) poseFighter(me, clock, { guard: !!self.fight, block: blocking && !!self.fight });
       // the phone, in the hand of someone on their feet: out of the pocket, held up, looked at
       // (on a call it is held to the ear; the call is ended by anything that takes the phone out of the hand)
-      const phoneAble = !driving && !riding && !astride && !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried;
+      const phoneAble = !driving && !riding && !astride && !incar && !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried;
       if (!phoneAble && ui.calling()) ui.hangUp();
       // (asking the showroom's salesman about a motorcycle, the player talks to him face to face: the phone's screen
       // is the conversation, and the handset is not held up in the town)
@@ -2445,16 +2540,22 @@ function start(carried) {
       layCharacter(me, me.fall, me.fellHow || 'hard');
       if (me.swimming) { me.group.position.y = me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5; if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
-      // in the ambulance, or with the eye inside its own head, the figure is not drawn
-      me.group.visible = !aboard && !rig.hidesPlayer;
+      // in the ambulance, in a car, or with the eye inside its own head, the figure is not drawn
+      me.group.visible = !aboard && !incar && !rig.hidesPlayer;
       ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
       // one of the player's own motorcycles: its own speedometer, scaled to its engine (speedometer.js)
       if (astride && powerBike()) {
         const bike = powerBike();
         if (!speedo.shown || speedo.bike !== bike.id) { speedo.show({ topKmh: bike.topKmh, cc: bike.cc }); speedo.bike = bike.id; }
         speedo.update(dt, { kmh: Math.abs(bikeState.speed) * 3.6, braking: bikeState.braking && Math.abs(bikeState.speed) > 0.3 });
+      } else if (incar && ownCar()) {
+        // in one of their own cars: its speedometer, scaled to its top speed
+        const c = ownCar();
+        if (!speedo.shown || speedo.bike !== `car:${c.id}`) { speedo.show({ topKmh: c.kmh, cc: 0 }); speedo.bike = `car:${c.id}`; }
+        speedo.update(dt, { kmh: Math.abs(carState.speed) * 3.6, braking: carState.braking && Math.abs(carState.speed) > 0.3 });
       } else speedo.hide();
-      if (driving) ownEngine = { kind: 'keke', rev: Math.min(1, Math.abs(car.speed) / VEHICLE_KINDS.keke.speedRoad), throttle: car.throttle || 0 };
+      if (incar && ownCar()) { const c = ownCar(); ownEngine = { kind: 'car', car: c.id, tone: c.tone, rev: carRevs(carState.speed, carState.throttle, carHandlingOf(c)), throttle: carState.throttle }; }
+      else if (driving) ownEngine = { kind: 'keke', rev: Math.min(1, Math.abs(car.speed) / VEHICLE_KINDS.keke.speedRoad), throttle: car.throttle || 0 };
       else if (astride && powerBike()) { const bike = powerBike(); ownEngine = { kind: 'powerbike', bike: bike.id, sound: bike.sound, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(bike)), throttle: bikeState.throttle }; }
       else if (astride) ownEngine = { kind: 'okada', rev: Math.min(1, Math.abs(moto.speed) / MOTO.speedRoad), throttle: Math.abs(controls.axes().forward) };
       flash = Math.max(0, flash - dt * 2.2);
@@ -2467,7 +2568,7 @@ function start(carried) {
       drawRadar(dt, { driving, astride, riding });
 
       // footsteps, in time with the stride
-      if (!driving && !riding && !astride && !aboard && speed > 0.3) {
+      if (!driving && !riding && !astride && !incar && !aboard && speed > 0.3) {
         // a step is heard as each foot comes down: the figure's own stride says when
         const foot = Math.floor(me.phase * 2);
         if (foot !== stepPhase) { stepPhase = foot; audio.footstep(inside || showroom.inside ? 'floor' : predicted.x > ZONE_JETTY.x0 && predicted.x < ZONE_JETTY.x1 && predicted.z > ZONE_JETTY.z0 ? 'wood' : onTar(predicted.x, predicted.z) ? 'tar' : 'earth'); }
@@ -2545,6 +2646,12 @@ blood.update(dt, view.blood || []);
       const peerParked = [];
       for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}` });
       peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
+      for (const q of shownPeers) {
+        if (!q.car) continue;
+        const rig = crowd.rigOf(`p:${q.id}`);
+        if (rig) rig.group.visible = false;
+        if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
+      }
       updatePeerKekes(dt);
       for (const r of peerRides) { seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0; peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`); }
       // a moving okada close by sounds its horn
@@ -2558,7 +2665,7 @@ blood.update(dt, view.blood || []);
       room = inside ? zoneRoomAt(predicted.x, predicted.z) : null;
 
       saveTimer += dt;
-      market.tick(dt); accountSync.tick(dt); syncOwnBikes();
+      market.tick(dt); accountSync.tick(dt); syncOwnBikes(); syncOwnCars();
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
@@ -2578,7 +2685,7 @@ blood.update(dt, view.blood || []);
 
     monitor.mark('sky and camera');
     // Indoors the camera looks down into the room from above; in every view it keeps out of walls.
-    const sitting = playing && view && (view.self.driving || view.self.riding || view.self.astride);
+    const sitting = playing && view && (view.self.driving || view.self.riding || view.self.astride || view.self.incar);
     // (in PostCivilWar PowerBike's hall the camera stays inside its walls and under its ceiling)
     const hall = playing && showroom.inside;
     rig.update(dt, {
@@ -2596,8 +2703,10 @@ blood.update(dt, view.blood || []);
     }
     // its headlamp at night
     const lit = !!bikeNow && night > 0.25 && ownBikeView.ridden() && ownBikeView.ridden().headlamp;
-    headlight.intensity = lit ? 2.2 : 0;
+    const carLit = !lit && playing && view && view.self.incar && night > 0.25 && carView.driven();
+    headlight.intensity = lit ? 2.2 : carLit ? 2.8 : 0;
     if (lit) { const b = ownBikeView.ridden(); b.headlampAt(headlight.position); headlight.target.position.copy(b.lean.localToWorld(shakeAim.set(0, 0.2, 12))); headlight.target.updateMatrixWorld(); }
+    else if (carLit) { const c = carView.driven(); c.group.localToWorld(headlight.position.set(0, 0.75, c.size.length / 2 - 0.2)); headlight.target.position.copy(c.group.localToWorld(shakeAim.set(0, 0, 18))); headlight.target.updateMatrixWorld(); }
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
     const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0);
@@ -2605,6 +2714,7 @@ blood.update(dt, view.blood || []);
     powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, models: quality.level >= 2 ? 1 : LITE || quality.level >= 1 ? 2 : 3 });
     night = skyState.night;
     setVehicleDaylight(1 - night);
+    setCarDaylight(1 - night);
     world.glowMaterial.emissiveIntensity = night * 1.5;
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }

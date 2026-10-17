@@ -204,7 +204,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
   function mayFight(p) {
     if (critical(p)) throw new GameError('CRITICAL', 'Your health is critical. You cannot fight.');
     if (p.custody) throw new GameError('IN_CUSTODY', 'You are in the hands of the police.');
-    if (p.driving || (p.riding !== null && p.riding !== undefined) || p.astride !== null && p.astride !== undefined) throw new GameError('NOT_ON_FOOT', 'You cannot fight from a vehicle.');
+    if (p.driving || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined) || p.incar) throw new GameError('NOT_ON_FOOT', 'You cannot fight from a vehicle.');
     if (p.carried) throw new GameError('CARRIED', 'You are in the ambulance.');
     if (p.swimming) throw new GameError('SWIMMING', 'You are in the river.');
   }

@@ -1,6 +1,8 @@
 // The salesman of PostCivilWar PowerBike: where he walks and whom he faces, worked out the same way on every
 // player's device from what they all share (who is in the hall and where, who is asking about which motorcycle,
-// and the time of day by the clock), so that everyone in the showroom sees him do the same thing.
+// and the time of day by the clock), so that everyone in the showroom sees him do the same thing. The two of the
+// Post Civil War Car Showroom (17 October 2026) do the same on their floor, each with the customers on their own
+// side of the hall and those asking about one of their own cars (`mine`).
 //
 //   nobody in the hall              he waits at his desk
 //   one or two customers            he keeps with one of them (the active customer: whoever is asking about a
@@ -12,11 +14,18 @@
 // Someone asking about a motorcycle (`talking`) has the phone's conversation open with him about it: he stands with
 // them by it, facing them. Pure: no drawing, no page; the town's walls and stands come from the zone.
 //
-//   const s = createSalesman();
+//   const s = createSalesman();                     (PowerBike's: Obi)
+//   const s = createSalesman({ floor: 'carshow', name, home, round, mine });
 //   s.step(dt, { now, customers: [{ id, x, z, heading, talking: 'red-superbike' | null, since }] });
 //   s.state   { x, z, heading, speed, mode, with, facing, talking }
 
-import { POWERBIKE, inPowerbikeHall, powerbikeDisplayNear, zoneWalkable } from './zone.js';
+import { POWERBIKE, inPowerbikeHall, powerbikeDisplayNear, zoneWalkable, CARSHOW, inCarHall, carshowDisplayNear } from './zone.js';
+
+// The floors a salesman keeps: its walls, and what stands on it for sale.
+export const FLOORS = Object.freeze({
+  powerbike: Object.freeze({ hall: POWERBIKE.hall, inHall: inPowerbikeHall, displayNear: powerbikeDisplayNear, home: POWERBIKE.home }),
+  carshow: Object.freeze({ hall: CARSHOW.hall, inHall: inCarHall, displayNear: carshowDisplayNear, home: CARSHOW.salesmen[0].home }),
+});
 
 export const SALESMAN = Object.freeze({
   name: POWERBIKE.salesman,
@@ -33,14 +42,16 @@ const wrap = (a) => { let d = a % (Math.PI * 2); if (d > Math.PI) d -= Math.PI *
 
 // The floor as a grid, and the way across it between two points round the stands (A*, then cut short where a
 // straight line is clear).
-function createFloor() {
-  const h = POWERBIKE.hall;
+const floors = new Map();
+const floorOf = (kind) => { if (!floors.has(kind)) floors.set(kind, createFloor(FLOORS[kind])); return floors.get(kind); };
+function createFloor(spec) {
+  const h = spec.hall;
   const nx = Math.floor((h.x1 - h.x0) / CELL), nz = Math.floor((h.z1 - h.z0) / CELL);
   const open = new Uint8Array(nx * nz);
   const xOf = (i) => h.x0 + (i + 0.5) * CELL, zOf = (j) => h.z0 + (j + 0.5) * CELL;
   for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) open[j * nx + i] = zoneWalkable(xOf(i), zOf(j), [], SALESMAN.radius) ? 1 : 0;
   const cellOf = (x, z) => [Math.max(0, Math.min(nx - 1, Math.floor((x - h.x0) / CELL))), Math.max(0, Math.min(nz - 1, Math.floor((z - h.z0) / CELL)))];
-  const isOpen = (x, z) => { if (!inPowerbikeHall(x, z, SALESMAN.radius)) return false; const [i, j] = cellOf(x, z); return open[j * nx + i] === 1; };
+  const isOpen = (x, z) => { if (!spec.inHall(x, z, SALESMAN.radius)) return false; const [i, j] = cellOf(x, z); return open[j * nx + i] === 1; };
   // the nearest open cell to a point (a target that falls on a stand is moved off it)
   function nearestOpen(x, z) {
     if (isOpen(x, z)) return { x, z };
@@ -56,7 +67,7 @@ function createFloor() {
       }
       if (best) return { x: best.x, z: best.z };
     }
-    return { x: POWERBIKE.home.x, z: POWERBIKE.home.z };
+    return { x: spec.home.x, z: spec.home.z };
   }
   // (each point of the line is looked at itself as well as by its cell: a cell is open where its middle is clear, and
   // a line cut across the corner of one can pass nearer a stand's corner than he should)
@@ -114,13 +125,13 @@ function createFloor() {
     }
     return out;
   }
-  return { route, nearestOpen, isOpen };
+  return { route, nearestOpen, isOpen, spec };
 }
 
 // Where to stand with customer `c`: a step to their side, the side nearer the motorcycle they are looking at if they
 // are at one (so that they, he and it are together), otherwise the side nearer to where he is now.
 function besideOf(c, floor, from) {
-  const near = powerbikeDisplayNear(c.x, c.z, 2.2);
+  const near = floor.spec.displayNear(c.x, c.z, 2.2);
   const towardBike = near ? Math.atan2(near.display.x - c.x, near.display.z - c.z) : c.heading;
   let best = null;
   for (const off of [1.05, -1.05, 1.55, -1.55, 0.55, -0.55, 2.2, -2.2]) {
@@ -133,9 +144,9 @@ function besideOf(c, floor, from) {
   return best || floor.nearestOpen(c.x + Math.sin(c.heading + 1.2) * SALESMAN.side, c.z + Math.cos(c.heading + 1.2) * SALESMAN.side);
 }
 
-export function createSalesman() {
-  const floor = createFloor();
-  const home = POWERBIKE.home;
+export function createSalesman({ floor: kind = 'powerbike', home = POWERBIKE.home, round = POWERBIKE.round, mine = () => true } = {}) {
+  const floor = floorOf(kind);
+  const spec = FLOORS[kind];
   const state = { x: home.x, z: home.z, heading: home.heading, speed: 0, mode: 'home', with: null, facing: home.heading, talking: null, placed: true };
   let path = [], goal = null, routedAt = -1e9, chooseAt = -1e9;
 
@@ -149,7 +160,7 @@ export function createSalesman() {
 
   // `now`: the clock's seconds (the same on every device); `customers`: everyone in the hall, this player included
   function step(dt, { now, customers = [] }) {
-    const inside = customers.filter((c) => inPowerbikeHall(c.x, c.z));
+    const inside = customers.filter((c) => spec.inHall(c.x, c.z) && mine(c));
     const byId = new Map(inside.map((c) => [c.id, c]));
     // (ties are broken by where people stand, which every device sees alike: each knows the others by its own names)
     const talkers = inside.filter((c) => c.talking).sort((a, b) => (a.since || 0) - (b.since || 0) || a.x - b.x || a.z - b.z);
@@ -175,7 +186,7 @@ export function createSalesman() {
         chooseAt = now;
       }
       state.with = c.id; state.talking = null;
-      const atBike = powerbikeDisplayNear(c.x, c.z, 1.2);
+      const atBike = spec.displayNear(c.x, c.z, 1.2);
       state.mode = atBike ? 'assist' : 'follow';
       const spot = besideOf(c, floor, state);
       setGoal(spot.x, spot.z, now);
@@ -185,8 +196,8 @@ export function createSalesman() {
       // a busy floor: round it, a point at a time, the same point on every device at the same time; a little while at
       // each, with whoever is nearest, if anyone is
       state.mode = 'roam'; state.talking = null;
-      const k = Math.floor(now / SALESMAN.roamEvery) % POWERBIKE.round.length;
-      const p = POWERBIKE.round[k];
+      const k = Math.floor(now / SALESMAN.roamEvery) % round.length;
+      const p = round[k];
       setGoal(p.x, p.z, now);
       const near = inside.map((c) => ({ c, d: Math.hypot(c.x - state.x, c.z - state.z) })).sort((a, b) => a.d - b.d)[0];
       state.with = near && near.d < 4 ? near.c.id : null;

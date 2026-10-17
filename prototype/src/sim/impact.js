@@ -55,7 +55,11 @@ export const IMPACT = Object.freeze({
 export const FRONTS = Object.freeze({
   keke: Object.freeze({ half: 0.72, nose: 1.15, tail: 1.2 }),
   moto: Object.freeze({ half: 0.36, nose: 0.85, tail: 0.8 }),
+  // a car (17 October 2026): an ordinary saloon's; each car gives its own (own-cars.js, from its length and width)
+  car: Object.freeze({ half: 0.92, nose: 2.3, tail: 2.3 }),
 });
+// What a vehicle is called, for whoever it struck.
+const VEHICLE_WORD = Object.freeze({ keke: 'keke', moto: 'motorcycle', car: 'car' });
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
 
@@ -80,7 +84,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
   const real = () => state.real;
   for (const id of Object.keys(players)) { const p = players[id]; if (p.down === undefined) p.down = null; if (p.dead === undefined) p.dead = null; if (!p.involved) p.involved = {}; }
 
-  const onFoot = (q) => !q.driving && (q.riding === null || q.riding === undefined) && (q.astride === null || q.astride === undefined) && !q.carried;
+  const onFoot = (q) => !q.driving && (q.riding === null || q.riding === undefined) && (q.astride === null || q.astride === undefined) && !q.incar && !q.carried;
   // someone who takes up room where they stand
   const solid = (q) => onFoot(q) && !q.dead;
 
@@ -186,7 +190,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
       q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: driver.id, h: heading };
-      emit(q.id, { type: 'alert', title: 'Knocked down', text: `${driver.name} hit you with a ${vehicle.kind === 'moto' ? 'motorcycle' : 'keke'}. Health ${q.health}.` });
+      emit(q.id, { type: 'alert', title: 'Knocked down', text: `${driver.name} hit you with a ${VEHICLE_WORD[vehicle.kind] || 'keke'}. Health ${q.health}.` });
     }
     show({ kind: killed ? 'killed' : 'knock', by: { kind: 'player', id: driver.id }, on: { kind: 'player', id: q.id }, x: q.x, z: q.z, speed: Math.round(speed * 10) / 10, harm: lost, vehicle: vehicle.kind });
     return { kind: 'player', id: q.id, name: q.name, harm: lost, health: q.health, killed };
@@ -278,8 +282,11 @@ export function createImpact({ state, players, population, actors, conflict, tal
 
   // A vehicle has been moved one step by its driver, from (x0, z0) to (x1, z1), facing `heading`.
   // Returns who it struck, if anyone, and stops the vehicle if it struck someone.
-  //   vehicle: { kind: 'keke' | 'moto', id }; `holder` is the vehicle's own record, where its pace is kept between steps
-  function step(driver, vehicle, holder, x0, z0, x1, z1, heading, elapsed) {
+  //   vehicle: { kind: 'keke' | 'moto' | 'car', id, front? }; `holder` is the vehicle's own record, where its pace is
+  //   kept between steps. A vehicle may give its own `front` (a car: its own length and width); it is not kept with
+  //   what it did, only its kind and its id are.
+  function step(driver, given, holder, x0, z0, x1, z1, heading, elapsed) {
+    const vehicle = { kind: given.kind, id: given.id };
     const gap = Math.hypot(x1 - x0, z1 - z0);
     // How fast it is going. Not simply this step over the time it took: a vehicle gathers speed, it does not
     // have it. So the pace kept here follows the steps but can rise only as fast as an engine could raise it,
@@ -290,7 +297,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     holder.pace = Math.min(holder.pace + IMPACT.gather * Math.max(elapsed, 1 / 120), holder.pace + (instant - holder.pace) * 0.5);
     holder.paceAt = now0;
     const speed = holder.pace;
-    const front = FRONTS[vehicle.kind] || FRONTS.keke;
+    const front = given.front || FRONTS[vehicle.kind] || FRONTS.keke;
     const ux = Math.sin(heading), uz = Math.cos(heading);
     // forward, the nose leads; backing up, the tail does
     const forward = (x1 - x0) * ux + (z1 - z0) * uz >= 0;

@@ -85,6 +85,63 @@ const POWERBIKE_STANDS = {
   'midnight-cruiser': [-66.4, 32.8, 750, 114], 'civil-war-tourer': [-60.8, 32.8, 700, 111],
 };
 
+// The Post Civil War Car Showroom (17 October 2026): the owner's twenty cars, sold new, one of each to an account,
+// each from its own stand in the hall of the showroom's glass tower by the Kwale road. Two salesmen keep the floor,
+// Tochi the west side and Oluchi the east, and a car is sold by the one whose side it stands on. The list (names,
+// prices in TR, classes and the market's line for each) is the game's own (prototype/src/sim/power-cars.js), and so
+// are the stands, their sides and each car's top speed (prototype/src/sim/zones/asaba-carshow.js, `displays`); they
+// are copied here because the server is not built from the game's code, and a test checks they agree.
+// A car is a thing to own like any other: earned TR pays for it, and the arrival money does not. (A motorcycle is
+// the one thing to own that starter TR may buy: migration 6.)
+const CARSHOW = { shop: 'cars', name: 'Post Civil War Car Showroom', label: 'Post Civil War Car Showroom, Kwale Road, Asaba', zone: 'NG-AN-OGB-Z1', salesmen: { west: 'Tochi', east: 'Oluchi' } };
+const CARS = [
+  ['grey-saloon', 'Grey Saloon', 2000, 'saloon', 'A modern grey saloon with a fastback roof: easy, comfortable, and the place to start.'],
+  ['classic-two-tone', 'Classic Two-Tone', 2500, 'classic', 'A long fifties saloon in black and white, chrome bumpers, a big grille and tail fins.'],
+  ['black-pickup', 'Black Pickup', 3000, 'pickup', 'A full-size black pickup with a hard top over its load bed: works all week, still looks sharp.'],
+  ['yellow-classic-roadster', 'Yellow Classic Roadster', 3500, 'classic', 'A classic open roadster in pale yellow, long bonnet, chrome and white-wall tyres.'],
+  ['blue-off-roader', 'Blue Off-Roader', 4000, 'offroad', 'A wild blue off-roader on huge tyres, roof rack and lamps: built for the bush tracks.'],
+  ['black-square-suv', 'Black Square SUV', 4500, 'suv', 'A square-cut black SUV, boxy and tough, with a wide stance and dark wheels.'],
+  ['camo-expedition', 'Camo Expedition SUV', 5000, 'offroad', 'An expedition SUV in camouflage, a tent box on its roof, spot lamps and a snorkel.'],
+  ['mint-sports-coupe', 'Mint Sports Coupé', 5000, 'sports', 'A low mint-green sports coupé with a dark roof: light, quick and sharp in the turns.'],
+  ['white-roadster', 'White Roadster', 5500, 'sports', 'A white two-seat convertible, roof down, red-trimmed wheels and a sculpted tail.'],
+  ['peach-suv', 'Peach Luxury SUV', 6000, 'suv', 'A tall luxury SUV in peach, its wheels painted to match, smooth as a saloon on the road.'],
+  ['black-luxury-suv', 'Black Luxury SUV', 6500, 'suv', 'A full-size black luxury SUV, three rows, a chrome grille and room for everyone.'],
+  ['white-square-suv', 'White Square SUV', 7000, 'suv', 'A white square-cut SUV with a black bonnet, a spare wheel on its back door and a bull bar.'],
+  ['grey-grand-tourer', 'Grey Grand Tourer', 7500, 'luxury', 'A grey grand tourer coupé: long, low and fast, for crossing the country in comfort.'],
+  ['black-grand-convertible', 'Black Grand Convertible', 8000, 'luxury', 'A black grand convertible with white leather and white wheels: quiet, stately, roof down.'],
+  ['pearl-convertible', 'Pearl Convertible', 8500, 'luxury', 'A pearl-white luxury convertible with a dark bonnet and black wheels.'],
+  ['midnight-saloon', 'Midnight Saloon', 10000, 'luxury', 'A midnight-blue grand saloon, chrome on its grille and its flanks: the quietest car on the floor.'],
+  ['state-limousine', 'State Limousine', 12000, 'limousine', 'A black armoured state limousine with flags on its wings: heavy, slow to stop, and impressive.'],
+  ['bronze-spyder', 'Bronze Spyder', 12000, 'super', 'A bronze open supercar, low and wide, with flying buttresses behind its seats.'],
+  ['red-winged-supercar', 'Red Winged Supercar', 14000, 'super', 'A legend in red: a low wedge of a supercar with a great wing across its tail.'],
+  ['gold-hypercar', 'Gold Hypercar', 18000, 'super', 'A gold hypercar with its doors raised to the sky: the crown of the showroom, and the fastest car in town.'],
+].map(([id, name, tr, cls, blurb], i) => ({ id, name, price: tr * 2, class: cls, blurb, asset: `car-${id}`, listing: `00000000-0000-4000-8000-0000000003${String(i + 1).padStart(2, '0')}` }));
+const CAR_STOCK = 1000000;                 // new from the showroom: not a numbered edition, and not going to run out
+// Where each car stands in the hall (x, z), its top speed in km/h (which its salesman tells a buyer: market.js), and
+// whose side of the floor its stand is on.
+const CAR_STANDS = {
+  'grey-saloon': [-426.11, -164.39, 170, 'west'],
+  'classic-two-tone': [-414.16, -164.39, 145, 'west'],
+  'black-pickup': [-390.28, -164.39, 165, 'east'],
+  'yellow-classic-roadster': [-402.22, -164.39, 200, 'west'],
+  'blue-off-roader': [-378.33, -164.39, 175, 'east'],
+  'black-square-suv': [-438.05, -176.39, 190, 'west'],
+  'camo-expedition': [-366.39, -164.39, 165, 'east'],
+  'mint-sports-coupe': [-438.05, -188.09, 260, 'west'],
+  'white-roadster': [-426.11, -188.09, 250, 'west'],
+  'peach-suv': [-414.16, -176.39, 220, 'west'],
+  'black-luxury-suv': [-390.28, -176.39, 200, 'east'],
+  'white-square-suv': [-426.11, -176.39, 220, 'west'],
+  'grey-grand-tourer': [-366.39, -188.09, 300, 'east'],
+  'black-grand-convertible': [-378.33, -188.09, 250, 'east'],
+  'pearl-convertible': [-414.16, -188.09, 290, 'west'],
+  'midnight-saloon': [-366.39, -176.39, 250, 'east'],
+  'state-limousine': [-378.33, -176.39, 180, 'east'],
+  'bronze-spyder': [-390.28, -188.09, 330, 'east'],
+  'red-winged-supercar': [-402.22, -188.09, 320, 'east'],
+  'gold-hypercar': [-402.22, -176.39, 350, 'east'],
+};
+
 // A character upgrade: offered only above the arrival money, for one part in `parts` of the whole wallet.
 const UPGRADE = { above: WALLET.grant, parts: 4 };
 
@@ -767,6 +824,19 @@ const MIGRATIONS = [
       ...MOTORCYCLES.slice(15).map((m) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${m.listing}', '${m.asset}', 'primary', '${POWERBIKE.shop}', '${POWERBIKE.name}', ${m.price}, ${MOTORCYCLE_STOCK}, '${SHOWROOM.zone}', ${POWERBIKE_STANDS[m.id][0]}, ${POWERBIKE_STANDS[m.id][1]}, '${POWERBIKE.label}') on conflict (id) do nothing`),
     ],
   },
+  {
+    id: 13,
+    name: 'the Post Civil War Car Showroom: twenty cars, one of each to an account',
+    statements: [
+      // the owner's twenty cars of 17 October 2026, each sold from its own stand in the showroom's hall. What starter TR
+      // may pay for is not changed: a car is paid for with earned TR, as any thing to own is (market.js, settle), and
+      // the database still refuses starter TR for anything but the town's charges and a motorcycle (migration 6).
+      ...CARS.map((c) => `insert into ${S}.assets (id, name, category, keywords, model, blurb) values ('${c.asset}', '${c.name.replace(/'/g, "''")}', 'car', 'car motor vehicle ${c.class} ${c.id.replace(/-/g, ' ')}', 'car:${c.id}', '${c.blurb.replace(/'/g, "''")}') on conflict (id) do nothing`),
+      ...CARS.map((c) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${c.listing}', '${c.asset}', 'primary', '${CARSHOW.shop}', '${CARSHOW.name.replace(/'/g, "''")}', ${c.price}, ${CAR_STOCK}, '${CARSHOW.zone}', ${CAR_STANDS[c.id][0]}, ${CAR_STANDS[c.id][1]}, '${CARSHOW.label.replace(/'/g, "''")}') on conflict (id) do nothing`),
+      // one of each car to an account (the market also refuses a second, with a reason)
+      `create unique index holdings_one_car on ${S}.holdings(owner_id, asset_id) where asset_id like 'car-%'`,
+    ],
+  },
 ];
 
-module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE, SHOWROOM, MOTORCYCLES, POWERBIKE, POWERBIKE_STANDS };
+module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE, SHOWROOM, MOTORCYCLES, POWERBIKE, POWERBIKE_STANDS, CARSHOW, CARS, CAR_STANDS };

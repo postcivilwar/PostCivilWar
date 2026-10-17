@@ -173,7 +173,7 @@ export function createCare({ state, players, ledger, accounts, emit, hub }) {
     const mine = Object.values(book.calls).find((c) => c.player === p.id && (c.status === 'coming' || c.status === 'waiting'));
     if (mine) return { call: callView(mine), replayed: true };
     if (van.mode !== 'parked') throw new GameError('BUSY', 'The ambulance is out on another call. Try again shortly, or make your own way.');
-    if (p.driving || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined)) throw new GameError('NOT_ON_FOOT', 'Stop and get down first.');
+    if (p.driving || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined) || p.incar) throw new GameError('NOT_ON_FOOT', 'Stop and get down first.');
     const node = graphNearest(p.x, p.z, true);
     const [nx, nz] = graphPoint(node);
     if (Math.hypot(nx - p.x, nz - p.z) > A.reach) throw new GameError('TOO_FAR', 'The ambulance cannot get near you here. Make your way towards a road and call again.');
@@ -223,7 +223,7 @@ export function createCare({ state, players, ledger, accounts, emit, hub }) {
     if (van.mode === 'waiting') {
       van.waited += dt;
       const d = p ? Math.hypot(p.x - van.x, p.z - van.z) : Infinity;
-      const able = p && !p.custody && !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined);
+      const able = p && !p.custody && !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar;
       if (able && d <= A.reach + 6) {
         // the crew bring them to the van: a short walk, not a jump
         if (!p.carried) { p.carried = { call: call.id, phase: 'boarding' }; if (hub.conflict) hub.conflict.stop(p); }

@@ -14,7 +14,7 @@
 
 const { ApiError } = require('./http.js');
 const { allow } = require('./auth.js');
-const { SCHEMA: S, POWERBIKE, POWERBIKE_STANDS, MOTORCYCLES } = require('./schema.js');
+const { SCHEMA: S, POWERBIKE, POWERBIKE_STANDS, MOTORCYCLES, CARSHOW, CARS, CAR_STANDS } = require('./schema.js');
 const wallet = require('./wallet.js');
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
@@ -207,14 +207,19 @@ async function open(sql, me, body) {
       if (!(far <= REACH)) throw new ApiError(403, 'TOO_FAR', `Go to ${listing.place_label} to talk to the seller.`);
       await allow(tx, `threads:${me.id}`, 30, 3600);
       thread = (await tx.unsafe(`insert into ${S}.threads (listing_id, buyer_id, seller_id) values ($1, $2, $3) on conflict (listing_id, buyer_id) do update set last_at = now() returning *`, [listingId, me.id, listing.seller_id]))[0];
-      if (listing.kind === 'primary') await say(tx, thread.id, null, 'attendant', isShowroom(listing) ? salesmanGreeting(listing) : `Welcome to ${listing.shop_name}. The ${listing.asset_name} is ${trText(listing.price)}. ${leftText(listing)}`);
+      if (listing.kind === 'primary') await say(tx, thread.id, null, 'attendant', isShowroom(listing) ? showroomGreeting(listing) : `Welcome to ${listing.shop_name}. The ${listing.asset_name} is ${trText(listing.price)}. ${leftText(listing)}`);
     }
     return threadView(tx, me, thread, 0);
   });
   return result;
 }
 
-const leftText = (listing) => { if (listing.category === 'motorcycle') return 'It is new from the showroom; you may own one of each motorcycle.'; const left = listing.stock - listing.sold; return left <= 0 ? 'They are all sold.' : `${left} of ${listing.stock} ${left === 1 ? 'is' : 'are'} left.`; };
+const leftText = (listing) => {
+  if (listing.category === 'motorcycle') return 'It is new from the showroom; you may own one of each motorcycle.';
+  if (listing.category === 'car') return 'It is new from the showroom; you may own one of each car.';
+  const left = listing.stock - listing.sold;
+  return left <= 0 ? 'They are all sold.' : `${left} of ${listing.stock} ${left === 1 ? 'is' : 'are'} left.`;
+};
 
 async function read(sql, me, body) {
   const thread = await threadFor(sql, me, uuid(body.thread, 'a conversation'), false);
@@ -233,11 +238,16 @@ function attendantReply(listing, text, alreadyExplained) {
   return alreadyExplained ? null : `I am this shop's attendant: a machine, not a person. I can tell you the price and how many are left, and take your payment. The ${listing.asset_name} is ${trText(price)}.`;
 }
 
+// A showroom's listing is answered by a salesman, not by a shop's attendant: at PostCivilWar PowerBike for a
+// motorcycle, and at the Post Civil War Car Showroom for a car. Which salesman follows what is for sale.
+const isShowroom = (listing) => listing.kind === 'primary' && (listing.shop === POWERBIKE.shop || listing.shop === CARSHOW.shop);
+const showroomGreeting = (listing) => (listing.category === 'car' ? carSalesmanGreeting(listing) : salesmanGreeting(listing));
+const showroomReply = (listing, text) => (listing.category === 'car' ? carSalesmanReply(listing, text) : salesmanReply(listing, text));
+
 // The salesman of PostCivilWar PowerBike, for a motorcycle on its floor. He is one of the game's people and says so
 // the first time: his answers are made here, by rule, from what the showroom knows of the bike (its name, its
 // engine and top speed, its price, what it looks like), and he says nothing that is not so. Like any shop, he
 // never bargains: the price is the price.
-const isShowroom = (listing) => listing.kind === 'primary' && listing.shop === POWERBIKE.shop;
 function bikeFacts(listing) {
   const id = String(listing.model || '').replace(/^bike:/, '');
   const stand = POWERBIKE_STANDS[id], m = MOTORCYCLES.find((x) => x.id === id);
@@ -277,6 +287,64 @@ function salesmanReply(listing, text) {
   return `I can tell you about the ${name}'s engine, its top speed and its price, or how to pay. Ask away, or press Buy when you're ready.`;
 }
 
+// The two salesmen of the Post Civil War Car Showroom, for a car on its floor: Tochi keeps the west side of the hall
+// and Oluchi the east, and a buyer is answered by the one whose side the car stands on. Like Obi at PowerBike, each
+// is one of the game's people and says so the first time; the answers are made here, by rule, from what the
+// showroom knows of the car (its name, what kind of car it is, its top speed, its price, what it looks like), and
+// say nothing that is not so. Nothing is said of any car's engine, because the game claims nothing about one
+// (power-cars.js): a buyer who asks is told that plainly. The price is the price.
+const CAR_KINDS = { saloon: 'a saloon', classic: 'a classic', pickup: 'a pickup', offroad: 'an off-roader', suv: 'an SUV', luxury: 'a luxury car', limousine: 'a limousine', sports: 'a sports car', super: 'a supercar' };
+const CAR_FASTEST = Math.max(...Object.values(CAR_STANDS).map((stand) => stand[2]));
+// what a buyer who asks is pointed to: the car to start with, and the one on the turntable in the middle of the floor
+const CAR_FIRST = CARS.find((c) => c.id === 'grey-saloon'), CAR_CROWN = CARS.find((c) => c.id === 'gold-hypercar');
+function carFacts(listing) {
+  const id = String(listing.model || '').replace(/^car:/, '');
+  const stand = CAR_STANDS[id], c = CARS.find((x) => x.id === id);
+  // (a car with no stand, which none of the twenty is, is answered from the west side of the floor)
+  const side = stand ? stand[3] : 'west';
+  return { id, kmh: stand ? stand[2] : null, side, salesman: CARSHOW.salesmen[side], kind: (c && CAR_KINDS[c.class]) || 'a car', blurb: (c && c.blurb) || listing.blurb || '' };
+}
+function carSalesmanGreeting(listing) {
+  const f = carFacts(listing);
+  return `Welcome to ${CARSHOW.name}! I'm ${f.salesman}, the salesman on this side of the floor (one of the game's people: my answers are automatic). This is the ${listing.asset_name}${f.kmh ? `: about ${f.kmh} km/h flat out` : ''}. It's ${trText(listing.price)}. Ask me anything about it, or press Buy when you're ready.`;
+}
+function carSalesmanReply(listing, text) {
+  const f = carFacts(listing), name = listing.asset_name, price = Number(listing.price);
+  // (a phone may type its apostrophes curled)
+  const t = text.toLowerCase().replace(/[\u2018\u2019]/g, "'");
+  const has = (re) => re.test(t);
+  if (listing.status !== 'open') return `I'm sorry: the ${name} is not on sale just now.`;
+  const figure = (text.match(/\d[\d,]*(?:\.\d+)?/) || [''])[0].replace(/,/g, '');
+  // ("motor" is not here: in town a motor is a car, and "how much is this motor?" asks its price)
+  const aboutEngine = has(/\d\s*(cc|hp|bhp|litres?|liters?)\b|\b(cc|engines?|cylinders?|v6|v8|v10|v12|turbo\w*|power(ful)?|horse ?power|hp|bhp|torque|displacement|litres?|liters?|petrol|diesel)\b/);
+  const aboutSpeed = has(/\d\s*(km|kmh|km\/h|mph)\b|\b(fast|faster|fastest|speed|top|km|kmh|km\/h|mph|quick|quicker|quickest|slow|slower)\b/);
+  // a sum is an offer; a figure under ten is not ("a 4x4?", "5 seats?"): no car here costs less than 2,000 TR
+  if (figure && Number(figure) >= 10 && !aboutEngine && !aboutSpeed) {
+    const offered = Math.round(Number(figure) * TR);
+    return offered < price ? `The ${name} is ${trText(price)}, the same for everyone: I can't take less. Press Buy when you're ready.` : `${trText(price)} it is. Press Buy to pay, and it's yours.`;
+  }
+  if (has(/\b(who are you|your name|are you (a )?(real|human|person|bot|robot|machine)|real person|human|robot|bot)\b/)) return `I'm ${f.salesman}, one of the two salesmen here: I keep the ${f.side} side of the floor. I'm one of the game's people, and my answers are automatic, but what I tell you about the cars and their prices is true.`;
+  if (has(/\b(discount|reduce|reduction|lower|less|cheaper price|negotiat\w*|bargain|haggle|last price|best price|deal)\b/)) return `I'm sorry: the price is fixed at ${trText(price)}. Nobody haggles here, and nobody pays more than the price either.`;
+  if (aboutEngine) return `The showroom doesn't give engine figures for its cars, and I won't make one up. What I can tell you: the ${name} is ${f.kind}${f.kmh ? `, and it does about ${f.kmh} km/h flat out` : ''}.`;
+  if (aboutSpeed) {
+    if (!f.kmh) return `I can't give you a figure for that one, I'm afraid.`;
+    const remark = f.kmh >= CAR_FASTEST ? ': the fastest car in town' : f.kmh >= 300 ? ': one of the fastest cars on our floor' : f.kmh <= 170 ? ': one of the gentlest cars on our floor' : '';
+    return `Flat out, the ${name} does about ${f.kmh} km/h${remark}.`;
+  }
+  if (has(/\b(starter|arrival|pay with|payment|card|cash|wallet|afford|earned)\b/)) return `Earned TR pays for it. Arrival money doesn't buy a car: that's only for the town's charges and costs, and for a motorcycle. The ${name} is ${trText(price)}.`;
+  if (has(/\b(price|cost|costs|how much|expensive|cheap|tr)\b/)) return `The ${name} is ${trText(price)}. That's the showroom's price, the same for everyone.`;
+  if (has(/\b(test|try|test drive|drive it|demo|spin)\b/)) return `Not off the floor, I'm afraid: the cars stay on their stands. Once it's yours: step outside, open Property on your phone and choose to drive it, and it's brought to you.`;
+  if (has(/\b(deliver|delivery|collect|pick it up|where do i get|get it|bring|keys?)\b/)) return `Once it's yours: step outside, open Property on your phone and choose to drive it, and it's brought to you.`;
+  if (has(/\b(colou?r|paint|look|looks|style|design|wheels?|tyres?|chrome|roof|seats?|doors?|leather|interior)\b/)) return f.blurb || `Have a walk round it: it looks even better close up.`;
+  if (has(/\b(what kind|which kind|kind of car|what type|which type|type of car|what class|what is it|what's it like|tell me about it)\b/)) return `It's ${f.kind}. ${f.blurb}`.trim();
+  if (has(/\b(how many|stock|left|available|in stock|sold out|own)\b/)) return `It's new from the showroom, and there's no shortage: you can own one of each of our cars.`;
+  if (has(/\b(other|another|recommend|best|which one|suggest|first car|beginner|cheapest)\b/)) return `For a first car, the ${CAR_FIRST.name} at ${trText(CAR_FIRST.price)}; the ${CAR_CROWN.name} on the turntable, at ${trText(CAR_CROWN.price)}, is the fastest car in town.`;
+  if (has(/\b(buy|take it|i want it|i'?ll take|purchase)\b/)) return `Good choice. Press Buy and it's yours for ${trText(price)}.`;
+  if (has(/\b(thank|thanks|cheers|great|nice|cool|ok|okay|alright)\b/)) return `You're welcome! Take your time: I'm right here if you have any questions.`;
+  if (has(/\b(hi|hello|hey|good (morning|afternoon|evening)|kedu|bawo|sannu)\b/)) return `Hello! What would you like to know about the ${name}? What it's like, its top speed, its price?`;
+  return `I can tell you what the ${name} is like, its top speed and its price, or how to pay for it. Ask away, or press Buy when you're ready.`;
+}
+
 async function write(sql, me, body) {
   const text = cleanText(body.text, 400);
   if (!text) throw new ApiError(400, 'EMPTY', 'There is nothing to send.');
@@ -288,7 +356,7 @@ async function write(sql, me, body) {
     if (thread.seller_id === null) {
       const listing = (await tx.unsafe(`${LISTING} where l.id = $1`, [thread.listing_id]))[0];
       const explained = (await tx.unsafe(`select 1 from ${S}.messages where thread_id = $1 and kind = 'attendant' and body like 'I am this shop''s attendant%' limit 1`, [thread.id])).length > 0;
-      const reply = isShowroom(listing) ? salesmanReply(listing, text) : attendantReply(listing, text, explained);
+      const reply = isShowroom(listing) ? showroomReply(listing, text) : attendantReply(listing, text, explained);
       if (reply) await say(tx, thread.id, null, 'attendant', reply);
     }
     return threadView(tx, me, thread, Number(body.after));
@@ -327,8 +395,8 @@ async function settle(tx, listing, offer, thread, amount) {
     // (a motorcycle may be paid for with starter TR: what that much was is kept with it, so that selling it on
     // gives back starter TR, not earned)
     if (motorcycle) { const buyer = await wallet.walletOf(tx, offer.buyer_id, true); const paid = wallet.motorcycleLegs(buyer, amount); paidLegs = paid.legs; paidStarter = paid.drawn.starter; }
-    // (a motorcycle is not one of a numbered edition: it is new from the showroom)
-    if (!motorcycle) { serial = listing.sold + 1; edition = listing.stock; }
+    // (a motorcycle or a car is not one of a numbered edition: each is new from its showroom)
+    if (!motorcycle && listing.category !== 'car') { serial = listing.sold + 1; edition = listing.stock; }
     holdingId = (await tx.unsafe(`insert into ${S}.holdings (asset_id, owner_id, serial, edition, origin_listing, starter_basis) values ($1, $2, $3, $4, $5, $6) returning id`, [listing.asset_id, offer.buyer_id, serial, edition, listing.id, paidStarter]))[0].id;
   } else {
     // (what the seller's own purchase of it cost in arrival money, if it was bought before starter TR was kept apart)
@@ -355,7 +423,8 @@ async function settle(tx, listing, offer, thread, amount) {
     paidLegs.push({ wallet: await wallet.systemWallet(tx, 'world'), amount });
     await wallet.post(tx, { kind: 'sale', actor: offer.buyer_id, key: `sale:${offer.id}`, note: `Bought: ${name}`, meta: { ...meta, starterFor: 'motorcycle', starter: paidStarter }, legs: paidLegs });
   } else if (listing.kind === 'primary') {
-    // a thing to own is paid for with earned TR: the arrival money does not buy it
+    // a thing to own is paid for with earned TR: the arrival money does not buy it (a car included: of the things to
+    // own, only a motorcycle may be bought with that)
     const buyer = await wallet.walletOf(tx, offer.buyer_id, true);
     wallet.mustBeEligible(buyer, amount, 'asset');
     const { legs } = wallet.eligibleLegs(buyer, amount);
@@ -422,8 +491,8 @@ async function offer(sql, me, body) {
     // Either way it is earned TR that pays: the arrival money is not offered and does not buy a thing to own.
     let held = 0, heldIllicit = 0, holdLegs = null;
     const mine = await wallet.walletOf(tx, me.id, true);
-    // one of each motorcycle to an account
-    if (listing.category === 'motorcycle' && (await tx.unsafe(`select 1 from ${S}.holdings where owner_id = $1 and asset_id = $2`, [me.id, listing.asset_id])).length) throw new ApiError(409, 'OWNED', `You already own the ${listing.asset_name}. One of each motorcycle to an account.`);
+    // one of each motorcycle, and one of each car, to an account (new or second-hand)
+    if ((listing.category === 'motorcycle' || listing.category === 'car') && (await tx.unsafe(`select 1 from ${S}.holdings where owner_id = $1 and asset_id = $2`, [me.id, listing.asset_id])).length) throw new ApiError(409, 'OWNED', `You already own the ${listing.asset_name}. One of each ${listing.category} to an account.`);
     if (listing.kind === 'primary' && listing.category === 'motorcycle') {
       // starter TR may buy a motorcycle: the whole balance counts
       const price = Number(listing.price);
@@ -562,4 +631,4 @@ async function adminList(sql, me, body) {
   return { listing: listingView((await sql.unsafe(`${LISTING} where l.id = $1`, [made[0].id]))[0], me) };
 }
 
-module.exports = { list, mine, sync, open, read, write, offer, withdraw, decide, sell, unlist, adminAssets, adminList, UUID, salesmanGreeting, salesmanReply };
+module.exports = { list, mine, sync, open, read, write, offer, withdraw, decide, sell, unlist, adminAssets, adminList, UUID, salesmanGreeting, salesmanReply, carSalesmanGreeting, carSalesmanReply };
