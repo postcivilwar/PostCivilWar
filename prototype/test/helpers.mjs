@@ -54,6 +54,20 @@ export function walkTo(host, id, x, z) {
         if (!stepped && blocked > 400) throw new Error(`stuck behind someone at (${moved.at.x.toFixed(1)}, ${moved.at.z.toFixed(1)})`);
         continue;
       }
+      // stepped round someone, and now against something solid (a bollard, a post): back toward the line being
+      // walked, as a client's player would be steered (the way between two points of the route is clear)
+      if (moved.code === 'BLOCKED' && blocked < 400) {
+        blocked += 1;
+        const [lx, lz] = points[Math.max(0, points.indexOf(points.find((q) => q[0] === tx && q[1] === tz)) - 1)] || [start.x, start.z];
+        const vx = tx - lx, vz = tz - lz, len = Math.hypot(vx, vz) || 1;
+        const along = ((me.x - lx) * vx + (me.z - lz) * vz) / (len * len);
+        const px = lx + vx * along, pz = lz + vz * along, off = Math.hypot(px - me.x, pz - me.z);
+        if (off > 0.05) {
+          const step = Math.min(off, stride);
+          const sx = me.x + ((px - me.x) / off) * step, sz = me.z + ((pz - me.z) / off) * step;
+          if (host.game.intent(id, { type: 'move', x: sx, z: sz, heading: Math.atan2(sx - me.x, sz - me.z), run: true }).ok) continue;
+        }
+      }
       throw new Error(`move to (${nx.toFixed(1)}, ${nz.toFixed(1)}) rejected: ${moved.code}`);
     }
   }

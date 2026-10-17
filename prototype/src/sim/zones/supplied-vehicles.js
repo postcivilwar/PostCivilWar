@@ -21,8 +21,9 @@ export const SUPPLIED_VEHICLES = Object.freeze({
   jet: supplied('jet', 'Private jet', 'vehicle-jet.glb', 'privatejet3dmodel.glb', deg(31.11), 20, 19.5, 6.5, { x: -845, z: -269.5, heading: 0, reach: 700 }),
   // the store's delivery truck, parked beside it, its lettered side to the market
   boxTruck: supplied('boxTruck', 'Red box truck', 'vehicle-box-truck.glb', 'red_box_truck_3d_model.glb', deg(-42.7), 7.2, 2.58, 2.87, { x: 47, z: 5, heading: -Math.PI / 2, reach: 320 }),
-  // the block yard's lorry, standing ready to go out to the road
-  heavyTruck: supplied('heavyTruck', 'Heavy truck', 'vehicle-heavy-truck.glb', 'heavytruck3dmodel.glb', deg(67.1), 7.0, 2.87, 3.51, { x: -88, z: -159.5, heading: 0, reach: 320 }),
+  // the block yard's lorry, inside its gate beside the way in, standing ready to go out to the road (clear of the way
+  // to the moulds and the shed, and of where the yard's people work)
+  heavyTruck: supplied('heavyTruck', 'Heavy truck', 'vehicle-heavy-truck.glb', 'heavytruck3dmodel.glb', deg(67.1), 7.0, 2.87, 3.51, { x: -104, z: -152, heading: 0, reach: 320 }),
 });
 
 // What each parked one takes up. The trucks are boxes; the jet is its fuselage, its wings (low enough to walk into)
