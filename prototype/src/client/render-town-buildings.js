@@ -99,6 +99,9 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   let last = { x: 0, z: 0, reach: 0 };
   function refresh() {
     const { x, z, reach } = last;
+    // (a tower stands above the town and is seen from further off than it, but never through the haze: beyond the fog's
+    // far edge whatever is drawn is drawn unseen)
+    const haze = scene.fog ? scene.fog.far : Infinity;
     let nb = 0, nt = 0;
     for (const r of models.values()) {
       let n = 0;
@@ -111,7 +114,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
       }
       if (r.instanced) { r.instanced.count = n; r.instanced.instanceMatrix.needsUpdate = true; }
       for (const e of r.towers) {
-        const seen = Math.hypot(e.x - x, e.z - z) - e.radius < reach + TOWER_SIGHT;
+        const seen = Math.hypot(e.x - x, e.z - z) - e.radius < Math.min(haze, reach + TOWER_SIGHT);
         e.drawn = seen && !!e.mesh;
         if (e.mesh) e.mesh.visible = seen;
         else if (seen) { towerBlocks.setMatrixAt(nt, e.block); nt += 1; }
@@ -132,7 +135,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
       if (r.state !== 'idle') continue;
       let gap = Infinity;
       for (const e of r.houses) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - HOUSE_SIGHT - 40);
-      for (const e of r.towers) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - reach - TOWER_SIGHT);
+      for (const e of r.towers) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - Math.min(scene.fog ? scene.fog.far : Infinity, reach + TOWER_SIGHT));
       if (gap < 0) wanted.push({ r, gap });
     }
     wanted.sort((a, b) => a.gap - b.gap);
