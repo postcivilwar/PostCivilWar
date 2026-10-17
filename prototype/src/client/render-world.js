@@ -118,6 +118,16 @@ function buildGrass() {
 
 // ------------------------------------------------------------------ trees --
 
+// A limb: a tapered round branch from (x, y, z) outward along `a` (an angle on the ground) and up, `tilt` from the
+// upright, `length` long, `r0` thick at its base and `r1` at its end. Gives where it ends.
+const UP = new THREE.Vector3(0, 1, 0);
+function limb(solid, x, y, z, a, tilt, length, r0, r1, colour) {
+  const dir = new THREE.Vector3(Math.sin(tilt) * Math.cos(a), Math.cos(tilt), Math.sin(tilt) * Math.sin(a));
+  const at = new THREE.Vector3(x, y, z).addScaledVector(dir, length / 2);
+  solid.round(new THREE.CylinderGeometry(r1, r0, length, 7), new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromUnitVectors(UP, dir), new THREE.Vector3(1, 1, 1)), colour);
+  return { x: x + dir.x * length, y: y + dir.y * length, z: z + dir.z * length };
+}
+
 // A tree: its trunk and branches into `solid`, its leaves into `foliage` (render-foliage.js: leaves drawn from pictures
 // of leaves, the air between them see-through, moving in the wind).
 export function addTree(solid, foliage, t) {
@@ -150,16 +160,13 @@ export function addTree(solid, foliage, t) {
     solid.round(new THREE.SphereGeometry(0.32 * s, 8, 6), place(t.x + 0.3, height - 0.35, t.z + 0.2, 0, 1, 1.2, 1), 0x7a2c1c);
     solid.round(new THREE.SphereGeometry(0.27 * s, 8, 6), place(t.x - 0.28, height - 0.4, t.z - 0.22, 0, 1, 1.2, 1), 0x8a3a1e);
   } else if (t.kind === 'mango') {
-    // mango: a short forked trunk, its limbs reaching up and out into a dense dome of leaves (seen between them)
-    solid.round(new THREE.CylinderGeometry(0.26 * s, 0.42 * s, 2.6 * s, 9), place(t.x, 1.3 * s, t.z), 0x5f4a36);
+    // mango: a short trunk forking into three limbs that reach up and out, each forking again, into a dense dome of
+    // leaves (seen between them)
+    solid.round(new THREE.CylinderGeometry(0.28 * s, 0.42 * s, 2.3 * s, 9), place(t.x, 1.15 * s, t.z), 0x5f4a36);
     for (let i = 0; i < 3; i += 1) {
-      const a = t.turn + i * 2.1;
-      solid.round(new THREE.CylinderGeometry(0.12 * s, 0.2 * s, 2.2 * s, 7), place(t.x + Math.cos(a) * 0.6 * s, 3.2 * s, t.z + Math.sin(a) * 0.6 * s, -a, 1, 1, 1, 0, 0.6), 0x5f4a36);
-      // and from each, two thinner ones further out
-      for (const side of [-1, 1]) {
-        const b = a + side * 0.55;
-        solid.round(new THREE.CylinderGeometry(0.05 * s, 0.1 * s, 1.9 * s, 6), place(t.x + Math.cos(b) * 1.45 * s, 4.45 * s, t.z + Math.sin(b) * 1.45 * s, -b, 1, 1, 1, 0, 0.95 + jitter(i * 2 + side) * 0.3), 0x5a4633);
-      }
+      const a = t.turn + i * 2.1 + (jitter(i + 60) - 0.5) * 0.5;
+      const end = limb(solid, t.x, 2.1 * s, t.z, a, 0.55 + jitter(i + 63) * 0.2, 2.0 * s, 0.22 * s, 0.13 * s, 0x5f4a36);
+      for (const side of [-1, 1]) limb(solid, end.x, end.y, end.z, a + side * 0.6, 0.8 + jitter(i * 2 + side + 66) * 0.35, 1.6 * s, 0.11 * s, 0.05 * s, 0x5a4633);
     }
     treeLeaves(foliage, t, s, jitter, null);
   } else {
@@ -167,7 +174,7 @@ export function addTree(solid, foliage, t) {
     solid.round(new THREE.CylinderGeometry(0.16 * s, 0.26 * s, 5.0 * s, 8), place(t.x, 2.5 * s, t.z), 0x74604a);
     const tiers = [[2.9, 3.0], [2.3, 4.0], [1.6, 4.9], [0.9, 5.6]];
     tiers.forEach(([r, y], i) => {
-      for (let k = 0; k < 5; k += 1) { const a = t.turn + i + k * 1.26; solid.round(new THREE.CylinderGeometry(0.03 * s, 0.05 * s, r * s, 5), place(t.x + Math.cos(a) * r * s * 0.45, y * s - 0.08, t.z + Math.sin(a) * r * s * 0.45, -a, 1, 1, 1, 0, Math.PI / 2 - 0.12), 0x74604a); }
+      for (let k = 0; k < 5; k += 1) { const a = t.turn + i + k * 1.26; limb(solid, t.x, y * s - 0.2, t.z, a, Math.PI / 2 - 0.12, r * s * 0.95, 0.06 * s, 0.025 * s, 0x74604a); }
     });
     treeLeaves(foliage, t, s, jitter, null);
   }
