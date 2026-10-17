@@ -63,8 +63,8 @@ function sprayTexture({ twigs = 7, perTwig = 7, long = 0.2, wide = 0.05, round =
     }
   });
 }
-// A palm frond's leaflets: its rib down the middle (the picture's length is the frond's, its width across it), the
-// leaflets either side reaching forward and hanging a little, longest in the frond's middle.
+// A palm frond's leaflets: its rib down the middle (the picture's length is the frond's, its tip at the top), the
+// leaflets either side reaching out and forward toward the tip, longest in the frond's middle.
 function frondTexture({ seed = 0, stiff = 0 } = {}) {
   return canvas(128, 512, (g, W, H) => {
     g.clearRect(0, 0, W, H);
@@ -73,9 +73,9 @@ function frondTexture({ seed = 0, stiff = 0 } = {}) {
       const t = y / H, reach = (W / 2 - 3) * Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + t * 0.95)), 0.55);
       for (const side of [-1, 1]) {
         const shade = Math.round(165 + noise(y + seed, side + 5) * 90);
-        const droop = (10 + noise(y, side + 9 + seed) * 14) * (1 - stiff * 0.6);
+        const forward = (10 + noise(y, side + 9 + seed) * 14) * (1 - stiff * 0.6);
         g.strokeStyle = `rgb(${shade},${shade},${shade})`; g.lineWidth = 2.4 + noise(y, side + 2) * 1.2;
-        g.beginPath(); g.moveTo(rib, y); g.quadraticCurveTo(rib + side * reach * 0.55, y + droop * 0.25, rib + side * reach, y + droop); g.stroke();
+        g.beginPath(); g.moveTo(rib, y); g.quadraticCurveTo(rib + side * reach * 0.55, y - forward * 0.25, rib + side * reach, y - forward); g.stroke();
       }
     }
     g.fillStyle = 'rgb(170,160,120)'; g.fillRect(rib - 2, 0, 4, H);

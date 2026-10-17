@@ -75,6 +75,11 @@ costs.street = await view('06-registry-windows', { x: 34, z: -50, h: 2.4, dist: 
 const day = await page.evaluate(() => { const n = window.__nlw, w = n.world; return { finishes: n.finishes(), glass: { env: !!w.glowMaterial.envMap, k: +w.glowMaterial.envMapIntensity.toFixed(2) }, river: { env: !!w.waterMaterial.envMap, k: +w.waterMaterial.envMapIntensity.toFixed(2) }, lite: n.lite === true }; });
 check('by day the glass and the river give back the sky', day.lite || (day.finishes.envSet && day.glass.env && day.glass.k > 0.5 && day.river.env && day.river.k > 0.4), day);
 costs.river = await view('07-the-river-from-the-jetty', { x: 21, z: 170, h: 0.2, dist: 6, pitch: 0.08 });
+// (a lane of the owner's houses, once their models have come: what a frame there costs)
+await page.evaluate(() => { const n = window.__nlw; n.place(-95, -395.5); n.face(Math.PI / 2); });
+await page.waitForFunction(() => window.__nlw.townBuildings.state().drawn >= 8, null, { timeout: 240000 }).catch(() => {});
+costs.lane = await view('10-a-lane-of-the-owners-houses', { x: -95, z: -395.5, h: Math.PI / 2, dist: 8, pitch: 0.12, wait: 4000 });
+costs.laneDrawn = await page.evaluate(() => window.__nlw.townBuildings.state().drawn);
 
 // ---- the rain, and after it ----
 await page.evaluate(() => window.__nlw.host.game.setWeather('rain'));
