@@ -56,6 +56,13 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
 
   const models = new Map(Object.keys(TOWN_MODELS).map((id) => [id, { id, m: TOWN_MODELS[id], state: 'idle', mesh: null, triangles: 0, failed: null }]));
   const busy = () => [...models.values()].filter((r) => r.state === 'loading').length;
+  const most_at_once = lite ? 1 : 2;
+  // models waiting their turn, the nearest first; one is begun whenever one has finished
+  let queue = [];
+  function pump() {
+    queue = queue.filter((r) => r.state === 'idle');
+    while (queue.length && busy() < most_at_once) load(queue.shift());
+  }
   function load(record) {
     record.state = 'loading';
     const m = record.m;
@@ -64,7 +71,8 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
         record.mesh = mesh; record.triangles = triangles; record.state = 'ready';
         for (const e of entries) if (e.model === m.id) dress(e);
       })
-      .catch((error) => { record.state = 'failed'; record.failed = String(error.message || error); });
+      .catch((error) => { record.state = 'failed'; record.failed = String(error.message || error); })
+      .finally(pump);
   }
   // a building whose model has come: drawn from it, the stand-in put away
   function dress(e) {
@@ -90,13 +98,11 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     }
     if (!fetch) return;
     wanted.sort((a, b) => a.gap - b.gap);
-    for (const w of wanted) {
-      if (busy() >= (lite ? 1 : 2)) break;
-      if (w.record.state === 'idle') load(w.record);
-    }
+    queue = [...new Set([...wanted.map((w) => w.record), ...queue])];
+    pump();
   }
-  // (for whoever needs all of them at once: the tests)
-  function loadAll() { for (const r of models.values()) if (r.state === 'idle') load(r); }
+  // (for whoever needs every one of them: the tests; still one or two at a time)
+  function loadAll() { queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
   const state = () => ({
     models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed })),
     shown: entries.filter((e) => e.holder.visible).length,

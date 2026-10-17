@@ -45,7 +45,10 @@ function buildHouses() {
     if (tower) { list.push(Object.freeze({ ...plain, x: tower.x, z: tower.z, w: tower.w, d: tower.d, h: tower.h, door: tower.door, tower: tower.id, plot: Object.freeze({ x, z }) })); return; }
     const model = houseModelFor(n), heading = door === 's' ? 0 : Math.PI;
     const fit = fitIn(TOWN_MODELS[model], heading, HOUSE_PLOT, HOUSE_PLOT);
-    list.push(Object.freeze({ ...plain, w: +fit.w.toFixed(3), d: +fit.d.toFixed(3), h: +fit.h.toFixed(3), model, heading, k: fit.k }));
+    // (its front where the plain house's front was, so that the lane, the door and what stands along the lane are as
+    // they were: it reaches back into the yard behind)
+    const back = (fit.d - plain.d) / 2;
+    list.push(Object.freeze({ ...plain, z: +(z + (door === 's' ? -back : back)).toFixed(3), w: +fit.w.toFixed(3), d: +fit.d.toFixed(3), h: +fit.h.toFixed(3), model, heading, k: fit.k }));
   };
   for (const x of [-105, -135, -165, -195, -225]) add('Umuezei', x, 96, 's');
   for (let k = 0; k < 10; k += 1) add('Umuezei', -230 + k * 15, 76, 'n');
