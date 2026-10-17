@@ -1738,6 +1738,8 @@ and 1024 on a phone (buildings) or 4096 and 2048 (vehicles), never larger than t
   off, each is a plain block of its size and colour, all of them in one go. The towers are always drawn from their
   models, and from further off than the rest of the town, but never beyond the haze (the fog's far edge, where
   whatever is drawn is drawn unseen), and from inside a hall no further off than the rest.
+  Measured in the lane with the most of them in sight (Umuezei, by house 67): a frame there is 569,000 triangles in
+  166 goes, against 301,000 in 187 with the plain houses; beside a mango in the middle of town it is 627,000.
 - **The trees** were scattered once by chance over the ground the houses' plots and paths left clear: scattered again
   with the new plots, every tree in town would have moved. They are kept where they stood (`atani-trees.js`), less the
   few where a new building now stands.
@@ -1767,7 +1769,11 @@ The owner asked for the town to look real: glass that reflects, finishes as they
 - **Their shadows** are the shapes of their leaves, with the light coming through between them.
 - **The wind** moves them a little, the tips of a frond more than its base and the top of a crown more than the rest,
   now and then in a gust, each tree a moment apart from the next; their shadows move with them.
-- What it costs: @@COST@@
+- What it costs: no more than the solid crowns did. The town's trees are 81,000 triangles of leaves against 117,000,
+  and with the four pictures on two sheets a square of ground draws its leaves in two goes. Measured from the same
+  places before and after (a browser without a graphics card, so the counts and not the times): beside a mango
+  627,000 triangles in 271 goes, against 675,000 in 271; from above the town 567,000 in 196, against 587,000 in 199;
+  in the street before the registry 482,000 in 243, against 485,000 in 234.
 
 ### Glass, the river, metal, plaster (`src/client/render-finish.js`)
 
