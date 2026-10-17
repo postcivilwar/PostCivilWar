@@ -25,7 +25,7 @@ import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite } from './render-kit.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
-import { initVehicles, setVehicleDaylight, vehicleWarmJobs } from './vehicle-models.js';
+import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionNames, reactionLength } from './render-people.js';
 import { createSky } from './render-sky.js';
@@ -70,6 +70,7 @@ import { createOwnBikeView } from './own-bike-view.js';
 import { createCarView } from './car-view.js';
 import { setCarDaylight } from './car-model.js';
 import { buildCarshow } from './render-carshow.js';
+import { createSupplied } from './render-supplied.js';
 import { buildPowerbike } from './render-powerbike.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
@@ -886,6 +887,9 @@ function start(carried) {
   // looking after one side of the floor (salesman.js); and asking one of them about a car, which is the market's own
   // conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
   const carshowView = buildCarshow(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize });
+  // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
+  // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
+  const supplied = createSupplied(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize, env: LITE ? null : vehicleEnvironment() });
   // two of the game's own figures, dressed for the showroom floor: a white shirt and a navy tie; a white blouse and a
   // navy skirt
   const CAR_STAFF_LOOKS = Object.freeze({
@@ -2622,9 +2626,16 @@ function start(carried) {
     g.position.x += (a.x - g.position.x) * Math.min(1, dt * 9);
     g.position.z += (a.z - g.position.z) * Math.min(1, dt * 9);
     g.rotation.y += angleGap(a.h, g.rotation.y) * Math.min(1, dt * 7);
-    // the lamp on the roof turns blue and white while it is on a call
-    ambulance.beacon.emissive.setHex(a.siren && Math.floor(clock * 4) % 2 ? 0x3a7bff : a.siren ? 0xffffff : 0x000000);
-    ambulance.beacon.emissiveIntensity = a.siren ? 2.2 : 0;
+    // the lamp on the roof turns blue and white while it is on a call; on the owner's ambulance (once its model has
+    // come, render-supplied.js), the two lamps at the front of its roof flash red and blue in turn
+    const dressed = supplied.dressAmbulance(ambulance);
+    if (dressed) {
+      const beat = Math.floor(clock * 5) % 2;
+      for (const l of dressed.lamps) l.material.emissiveIntensity = a.siren && (l.side < 0) === (beat === 0) ? 3.2 : 0;
+    } else {
+      ambulance.beacon.emissive.setHex(a.siren && Math.floor(clock * 4) % 2 ? 0x3a7bff : a.siren ? 0xffffff : 0x000000);
+      ambulance.beacon.emissiveIntensity = a.siren ? 2.2 : 0;
+    }
     ambulance.siren = a.siren ? { x: g.position.x, z: g.position.z } : null;
   }
 
@@ -2960,6 +2971,8 @@ blood.update(dt, view.blood || []);
       // (the car showroom's buildings: the owner's models, each fetched once the town is ready, for someone near
       // enough to see it; render-carshow.js says how near)
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - CARSHOW.doors.x, predicted.z - CARSHOW.doors.z) < 400)) carshowView.load(predicted.x, predicted.z);
+      // (the owner's vehicles: the parked ones as someone comes near each, the ambulance's once the town is ready)
+      if (playing) { supplied.tick(predicted); if (warm.stage >= 5) supplied.loadAmbulance(); }
       // (beyond the town: built a few seconds into play once the town is warmed up, or at once for someone already out there)
       if (!outskirts.ready && playing) {
         beyondWait += 0.5;      // (this is looked at twice a second)
@@ -3018,6 +3031,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     heldModels,
+    supplied, get ambulanceDrawn() { return ambulance; },
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },

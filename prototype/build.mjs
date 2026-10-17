@@ -12,6 +12,7 @@
 // `export * from`, so a module
 // can be turned into a function that returns its exports.
 
+import { SUPPLIED_VEHICLES } from './src/sim/zones/supplied-vehicles.js';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, cpSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, resolve, relative } from 'node:path';
@@ -180,6 +181,9 @@ for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^b
 // files themselves are in assets/vehicles/cars/ and are not sent.
 for (const [name, from] of [['carshow-showroom.glb', 'tall_glass_skyscraper_3d_model.glb'], ['carshow-stacked.glb', 'modern_skyscraper_3d_model_4.glb'], ['carshow-twisting.glb', 'twisting_skyscraper_3d_model.glb'], ['carshow-deck.glb', 'architectural_3d_model_1.glb'], ['carshow-villa.glb', 'modern_villa_3d_model.glb']]) put(name, readFileSync(resolve(root, 'assets/buildings/carshow', from)));
 for (const name of readdirSync(resolve(root, 'assets/vehicles/cars/game')).sort()) put(`cars/${name}`, readFileSync(resolve(root, 'assets/vehicles/cars/game', name)));
+// The owner's ambulance, private jet and two trucks (17 October 2026), exactly as supplied, beside the page, where
+// render-supplied.js fetches each: the parked ones as someone comes near them, the ambulance once the town is ready.
+for (const v of Object.values(SUPPLIED_VEHICLES)) put(v.file, readFileSync(resolve(root, 'assets/vehicles/town', v.source)));
 for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^car-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
 // Songs for the phone's Music app: the list, and every file the list names (assets/music/README.md).
 {

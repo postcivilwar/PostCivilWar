@@ -251,7 +251,8 @@ export function createCare({ state, players, ledger, accounts, emit, hub }) {
   }
 
   // The ground the van stands on, for anyone walking: it is in the way wherever it is.
-  const box = () => (Math.abs(Math.sin(van.h)) > 0.5 ? { x0: van.x - 2.7, x1: van.x + 2.7, z0: van.z - 1.1, z1: van.z + 1.1 } : { x0: van.x - 1.1, x1: van.x + 1.1, z0: van.z - 2.7, z1: van.z + 2.7 });
+  // (the owner's ambulance, 5.7 m long and 2.4 m wide across its mirrors: supplied-vehicles.js)
+  const box = () => (Math.abs(Math.sin(van.h)) > 0.5 ? { x0: van.x - 2.85, x1: van.x + 2.85, z0: van.z - 1.2, z1: van.z + 1.2 } : { x0: van.x - 1.2, x1: van.x + 1.2, z0: van.z - 2.85, z1: van.z + 2.85 });
   const ambulanceView = () => ({ x: Math.round(van.x * 100) / 100, z: Math.round(van.z * 100) / 100, h: Math.round(van.h * 100) / 100, mode: van.mode, siren: van.mode === 'out' || van.mode === 'back' });
   const selfView = (p) => { const call = Object.values(book.calls).find((c) => c.player === p.id && ['coming', 'waiting', 'aboard'].includes(c.status)); return { carried: p.carried ? p.carried.phase : null, ambulance: call ? callView(call) : null }; };
   const audit = () => ({ ...book.totals });

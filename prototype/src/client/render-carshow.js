@@ -25,7 +25,7 @@
 import { CARSHOW, onBuilding, carshowGateBoxes } from '../sim/zone.js';
 import { POWER_CARS } from '../sim/power-cars.js';
 import { trText } from '../sim/ledger.js';
-import { parseGLB, fetchKept } from './glb.js';
+import { loadSuppliedMesh } from './supplied-model.js';
 import { Batch, place, surface } from './render-kit.js';
 import { loadCar, carLoaded } from './car-model.js';
 import { CAR_IMPOSTOR } from './car-impostors.js';
@@ -277,78 +277,10 @@ function turnCameras(cams, dt, now, people) {
 
 // ------------------------------------------------------------------------------------------- the buildings --
 
-// One of the owner's buildings, read as it is: its one mesh, its pictures (colour, and where the file has them,
-// normal and metal and roughness), its material's own finish. What was written on it is painted over in the colour
-// picture the graphics card is given (`brand`: rectangles of the picture, and where beside each to take the
-// building's own surface from), feathered at its edges; the file is not changed.
-async function loadBuilding(b, { maxTexture, env }) {
-  const response = await fetchKept(b.file);
-  if (!response.ok) throw new Error(`${b.file}: ${response.status}`);
-  const { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
-  const prim = json.meshes[0].primitives[0], at = prim.attributes;
-  const geometry = new THREE.BufferGeometry();
-  const put = (name, key) => { if (at[key] === undefined) return; const a = accessor(at[key]); geometry.setAttribute(name, new THREE.BufferAttribute(a.array, a.width, a.normalized)); };
-  put('position', 'POSITION'); put('normal', 'NORMAL'); put('uv', 'TEXCOORD_0');
-  if (prim.indices !== undefined) geometry.setIndex(new THREE.BufferAttribute(accessor(prim.indices).array, 1));
-  if (!at.NORMAL) geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-  const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
-  const pictureOf = async (info, colour, paint = null) => {
-    if (!info) return null;
-    const image = json.images[json.textures[info.index].source];
-    const raw = bytes(image.bufferView);
-    const blob = new Blob([raw], { type: image.mimeType || 'image/jpeg' });
-    // (drawn no larger than `maxTexture`, and never larger than it is)
-    const own = pictureSize(raw);
-    const most = Math.min(maxTexture || 4096, own ? Math.max(own.width, own.height) : Infinity);
-    const wide = own ? Math.round((most * own.width) / Math.max(own.width, own.height)) : most, high = own ? Math.round((most * own.height) / Math.max(own.width, own.height)) : most;
-    let picture = await (typeof createImageBitmap === 'function' ? createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null);
-    if (!picture) picture = await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); });
-    if (paint && paint.length) {
-      const c = document.createElement('canvas'); c.width = picture.width; c.height = picture.height;
-      const g = c.getContext('2d'); g.drawImage(picture, 0, 0);
-      for (const { at: [u0, v0, u1, v1], from: [fu, fv] } of paint) {
-        const W = c.width, Hh = c.height, w = (u1 - u0) * W, h = (v1 - v0) * Hh, pad = Math.max(2, Math.min(w, h) * 0.12);
-        // the surface from beside it, laid over it, its edges blended into what is round it
-        const patch = document.createElement('canvas'); patch.width = Math.ceil(w + 2 * pad); patch.height = Math.ceil(h + 2 * pad);
-        const pg = patch.getContext('2d');
-        pg.drawImage(c, fu * W - pad, fv * Hh - pad, patch.width, patch.height, 0, 0, patch.width, patch.height);
-        const mask = pg.createLinearGradient(0, 0, patch.width, 0);
-        pg.globalCompositeOperation = 'destination-in';
-        const fade = (a, b) => { const m = pg.createLinearGradient(...a); m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(Math.min(0.45, pad / b), 'rgba(0,0,0,1)'); m.addColorStop(1 - Math.min(0.45, pad / b), 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)'); pg.fillStyle = m; pg.fillRect(0, 0, patch.width, patch.height); };
-        void mask;
-        fade([0, 0, patch.width, 0], patch.width); fade([0, 0, 0, patch.height], patch.height);
-        g.drawImage(patch, u0 * W - pad, v0 * Hh - pad);
-      }
-      picture = c;
-    }
-    const t = new THREE.Texture(picture);
-    t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
-    return t;
-  };
-  const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, b.brand), pictureOf(mat.normalTexture, false), pictureOf(pbr.metallicRoughnessTexture, false)]);
-  const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
-  // the glass and the cladding of a tower reflect the sky (render-city.js's glass does the same)
-  const material = surface({ map, normalMap, roughnessMap: rm, metalnessMap: rm, color: colour, roughness: rm ? 1 : (pbr.roughnessFactor ?? 1), metalness: rm ? 1 : (pbr.metallicFactor ?? 1), envMap: env || null, envMapIntensity: 0.9, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
-  if (normalMap && material.normalScale) material.normalScale.set(1, -1);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true; mesh.receiveShadow = true;
-  mesh.name = `carshow-${b.id}`;
-  return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
-}
-
-// How large a picture is, read from its first bytes (a PNG's header, or a JPEG's frame marker): null if neither.
-function pictureSize(b) {
-  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50) return { width: (b[16] << 24 | b[17] << 16 | b[18] << 8 | b[19]) >>> 0, height: (b[20] << 24 | b[21] << 16 | b[22] << 8 | b[23]) >>> 0 };
-  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
-  for (let i = 2; i + 9 < b.length;) {
-    if (b[i] !== 0xff) { i += 1; continue; }
-    const marker = b[i + 1];
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return { height: b[i + 5] << 8 | b[i + 6], width: b[i + 7] << 8 | b[i + 8] };
-    i += 2 + (b[i + 2] << 8 | b[i + 3]);
-  }
-  return null;
-}
+// One of the owner's buildings, read as it is (supplied-model.js): its one mesh, its pictures, its material's own
+// finish, with what was written on it painted over in the picture the graphics card is given (`brand`); the file is
+// not changed.
+const loadBuilding = (b, { maxTexture, env }) => loadSuppliedMesh(b.file, { maxTexture, env, brand: b.brand, name: `carshow-${b.id}` });
 
 // What stands where a building is until its model has come: its outline, raised to about its height, plain.
 function standIn(b) {

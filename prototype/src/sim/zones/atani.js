@@ -26,6 +26,9 @@ import { POWERBIKE, POWERBIKE_COLLIDERS } from './atani-powerbike.js';
 export * from './atani-powerbike.js';
 import { CARSHOW_COLLIDERS } from './asaba-carshow.js';
 export * from './asaba-carshow.js';
+// the owner's ambulance, private jet and two trucks (17 October 2026), each where it belongs
+import { SUPPLIED_VEHICLE_COLLIDERS } from './supplied-vehicles.js';
+export * from './supplied-vehicles.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
 export const ZONE = Object.freeze({
@@ -953,7 +956,7 @@ export const zoneGroundY = (x, z) => cityGroundY(x, z) || outskirtsGroundY(x, z)
 // The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
 // (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)
 const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], billboard: b.id })));
-export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS].map(Object.freeze));
+export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 // True when a person of the given radius can stand at (x, z).
