@@ -79,7 +79,7 @@ test('at its stand, a car\'s own salesman greets the buyer: Tochi on the west si
     assert.equal(messages.length, 1);
     assert.equal(messages[0].from, 'shop');
     const hello = messages[0].body, salesman = CAR_STANDS[id][3] === 'west' ? 'Tochi' : 'Oluchi';
-    for (const part of ['Welcome to Post Civil War Car Showroom!', `I'm ${salesman}, the salesman on this side of the floor`, 'automatic', `This is the ${car.name}: about ${car.kmh} km/h flat out.`, `It's ${car.price.toLocaleString('en-GB')} TR.`]) assert.ok(hello.includes(part), `${id}: "${part}" is not in "${hello}"`);
+    for (const part of ['Welcome to Post Civil War Car Showroom!', `I'm ${salesman}, and I look after the cars on this side of the floor`, 'automatic', `This is the ${car.name}: about ${car.kmh} km/h flat out.`, `It's ${car.price.toLocaleString('en-GB')} TR.`]) assert.ok(hello.includes(part), `${id}: "${part}" is not in "${hello}"`);
     assert.doesNotMatch(hello, /\bcc\b|engine|horse ?power|\bhp\b|litre/i, `${id}: nothing is said of an engine`);
   }
   // the conversation begins at the car's stand: not from across town, not from the other end of the hall, not from nowhere
@@ -119,14 +119,14 @@ test('the salesman answers from what is so: the price is fixed, the top speed is
   assert.match(await ask('What colour is it?'), /^A modern grey saloon with a fastback roof/);
   assert.match(await ask('How many can I own?'), /one of each of our cars/);
   assert.equal(await ask('Which one do you recommend?'), 'For a first car, the Grey Saloon at 2,000 TR; the Gold Hypercar on the turntable, at 18,000 TR, is the fastest car in town.');
-  assert.match(await ask('Are you a real person?'), /^I'm Tochi.*west side.*game's people.*automatic/);
+  assert.match(await ask('Are you a real person?'), /^I'm Tochi.*this side of the floor, and Oluchi the other.*game's people.*automatic/);
   assert.match(await ask('kedu'), /What would you like to know about the Grey Saloon/);
   // asking costs nothing and buys nothing
   assert.deepEqual(await parts(p), { balance: 2000 * TR, starter: 2000 * TR, eligible: 0 });
   assert.equal((await p.ok('market.mine')).holdings.length, 0);
   // the other side of the floor, and what is said of the fastest cars and the gentlest
   const reply = (id, text) => { const c = CARS.find((x) => x.id === id); return carSalesmanReply({ status: 'open', asset_name: c.name, price: c.price, model: `car:${id}`, blurb: c.blurb }, text); };
-  assert.match(reply('gold-hypercar', 'who are you?'), /^I'm Oluchi.*east side/);
+  assert.match(reply('gold-hypercar', 'who are you?'), /^I'm Oluchi.*this side of the floor, and Tochi the other/);
   assert.equal(reply('gold-hypercar', 'top speed?'), 'Flat out, the Gold Hypercar does about 350 km/h: the fastest car in town.');
   assert.equal(reply('red-winged-supercar', 'how fast?'), 'Flat out, the Red Winged Supercar does about 320 km/h: one of the fastest cars on our floor.');
   assert.equal(reply('classic-two-tone', 'how fast?'), 'Flat out, the Classic Two-Tone does about 145 km/h: one of the gentlest cars on our floor.');

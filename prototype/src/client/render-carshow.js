@@ -682,16 +682,24 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   scene.add(exterior);
   const outside = new THREE.Group(); outside.name = 'carshow-compound';            // what stays drawn from inside, through the glass
   scene.add(outside);
-  const court = buildForecourt(outside, { lite });
-  const fence = buildFence(outside, { lite });
-  const gate = buildGate(outside);
-  const cams = buildCameras(outside);
-  const doors = buildDoors(exterior);
+  // the compound itself (its paving, railings, gate, cameras, the showroom's doors and its name) is made the first
+  // time it is asked for (`load`: once the town is ready, or at once for someone near), not while the game starts
+  let court = null, fence = null, gate = null, cams = [], doors = null;
+  function ensureOutside() {
+    if (court) return;
+    court = buildForecourt(outside, { lite });
+    fence = buildFence(outside, { lite });
+    gate = buildGate(outside);
+    cams = buildCameras(outside);
+    doors = buildDoors(exterior);
+    makeSigns();
+  }
 
   // the buildings: a plain shape each until its model is here
   const env = lite ? null : vehicleEnvironment();
   const buildings = P.buildings.map((b) => { const stand = standIn(b); exterior.add(stand); return { b, stand, mesh: null, failed: null, requested: false, retryAt: 0, triangles: 0 }; });
   function load(x, z) {
+    ensureOutside();
     for (const e of buildings) {
       if (e.mesh || e.requested || ON_DISK) continue;
       if (performance.now() < e.retryAt) continue;
@@ -712,7 +720,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
 
   // the name: standing on the podium over the doors, and at the top of the tower, facing the forecourt and the road
   const signs = [];
-  {
+  function makeSigns() {
     const tex = nameTexture();
     const podiumTop = (S.podium || 0.2) * S.scale;
     const w = 30, h = w / 4;
@@ -803,7 +811,8 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
     get buildings() { return buildings.map((e) => ({ id: e.b.id, loaded: !!e.mesh, failed: e.failed, triangles: e.triangles })); },
     get hall() { return hall; },
     get inside() { return inside; },
-    signs, gate, fence, cams, court,
+    signs,
+    get gate() { return gate; }, get fence() { return fence; }, get cams() { return cams; }, get court() { return court; },
     load,
     // `on`: the player is in the hall. Outside, the hall is not drawn; inside, the showroom round it is not (the
     // compound stays: it is what the glass front shows)
@@ -816,11 +825,11 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       if (!on) dropModels();
     },
     // the first time someone comes near the doors, the hall is made (so that stepping in does not wait for it)
-    near(x, z) { if (!hall && Math.hypot(x - P.doors.x, z - P.doors.z) < 60) ensureHall(); },
+    near(x, z) { if (!hall && Math.hypot(x - P.doors.x, z - P.doors.z) < 60) { ensureOutside(); ensureHall(); } },
     // each frame: the gate (how far open the simulation has it, eased), the doors (open while someone is at them),
     // the cameras, the flags; inside, the cars
     tick(dt, { eye, player, now, people = [], gateOpen = 0, models }) {
-      const nearCompound = Math.hypot(player.x - G.x, player.z - (C.z0 + C.z1) / 2) < 420;
+      const nearCompound = !!court && Math.hypot(player.x - G.x, player.z - (C.z0 + C.z1) / 2) < 420;
       gateShown += (gateOpen - gateShown) * Math.min(1, dt * 8);
       if (nearCompound) {
         gate.set(gateShown);
@@ -835,6 +844,6 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
     gateBoxes: () => carshowGateBoxes(gateShown),
     // for the checks: what is drawn as a model and what as a picture
     shown() { return displays.map((d) => ({ car: d.display.car, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: carLoaded(d.display.car, d.tier === 'lite') })); },
-    state: () => ({ gate: gateShown, doors: doorsOpen, cams: cams.map((c) => ({ yaw: +c.yaw.toFixed(3), lit: c.glow.material.opacity > 0 })) }),
+    state: () => ({ built: !!court, gate: gateShown, doors: doorsOpen, cams: cams.map((c) => ({ yaw: +c.yaw.toFixed(3), lit: c.glow.material.opacity > 0 })) }),
   };
 }

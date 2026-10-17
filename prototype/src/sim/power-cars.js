@@ -92,14 +92,19 @@ export const CAR_FASTEST = Math.max(...Object.values(POWER_CARS).map((c) => carH
 export const topKmhOf = (c) => c.kmh;
 
 // The room a car takes where it stands, for walls and kerbs: a row of circles down its length, each as wide as the
-// car, near enough together that nothing slips in between them; and, for what walks round it, a square inside each.
+// car, so near together that its sides between them are short of the car's own by no more than a few centimetres
+// (SIDE); and a smaller circle in each of its four corners, which the row's round ends would otherwise leave out (a
+// car's corners are rounded, but not by half its width). For what walks round it, a square inside each circle.
 // (x, z) is its middle; h its heading (0 faces +z).
+const SIDE = 0.05, CORNER = 0.5;
 export function carCircles(spec, x, z, h) {
   const L = spec ? spec.length : 4.6, W = spec ? spec.width : 1.9;
   const r = W / 2, reach = Math.max(0, L / 2 - r);
-  const n = 1 + Math.ceil((2 * reach) / r);
-  const ux = Math.sin(h), uz = Math.cos(h), out = [];
+  const n = 1 + Math.ceil((2 * reach) / (2 * Math.sqrt(r * r - (r - SIDE) ** 2)));
+  const ux = Math.sin(h), uz = Math.cos(h), sx = Math.cos(h), sz = -Math.sin(h), out = [];
   for (let i = 0; i < n; i += 1) { const t = n === 1 ? 0 : -reach + (2 * reach * i) / (n - 1); out.push({ x: x + ux * t, z: z + uz * t, r }); }
+  const rc = Math.min(CORNER, r * 0.45), a = L / 2 - rc, b = W / 2 - rc;
+  for (const [ka, kb] of [[1, 1], [1, -1], [-1, 1], [-1, -1]]) out.push({ x: x + ux * a * ka + sx * b * kb, z: z + uz * a * ka + sz * b * kb, r: rc });
   return out;
 }
 export const carBoxes = (spec, x, z, h) => carCircles(spec, x, z, h).map((c) => { const k = c.r * 0.72; return { x0: c.x - k, z0: c.z - k, x1: c.x + k, z1: c.z + k }; });

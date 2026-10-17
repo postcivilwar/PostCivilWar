@@ -90,7 +90,9 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   //   indoors  null, or { pitch, dist, maxPitch }: limits while under a roof
   //   room     null, or { x0, z0, x1, z1, top }: a hall the camera stays inside (it looks from within it)
   //   dragged  seconds since the player last dragged the view
-  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55 }) {
+  //   bonnet   null, or { ahead, height }: for a vehicle of its own size (a car), where the view from the bonnet is:
+  //            metres ahead of the middle, and above the ground
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.behind;
     const ease = Math.min(1, dt * 5);
     let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : v.dist;
@@ -152,9 +154,10 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
       // from the seat: the eye is the player's own, looking where they face (and a little about, if dragged)
       const sy = heading + live.look;
       // (from the bonnet: the same, set forward past the front of the vehicle and a little lower)
-      const ahead = v.ahead || 0.18;
+      const own = bonnet && v.ahead ? bonnet : null;
+      const ahead = own ? own.ahead : v.ahead || 0.18;
       const sx = target.x + Math.sin(heading) * ahead, sz = target.z + Math.cos(heading) * ahead;
-      const seatEye = new THREE.Vector3(sx, target.y + (eyeHeight - 1.55) + 0.05 + (v.rise || 0), sz);
+      const seatEye = new THREE.Vector3(sx, own ? target.y - 1.55 + own.height : target.y + (eyeHeight - 1.55) + 0.05 + (v.rise || 0), sz);
       const seatAim = new THREE.Vector3(sx + Math.sin(sy) * 6, seatEye.y - 0.5, sz + Math.cos(sy) * 6);
       eye.lerp(seatEye, live.seat); aim.lerp(seatAim, live.seat);
     }

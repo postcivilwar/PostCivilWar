@@ -14,8 +14,9 @@
 
 import { createTurntable, createModelView, ASSET_MODELS } from './asset-view.js';
 import { createActionButton } from './action-button.js';
-import { POWERBIKE } from '../sim/zone.js';
+import { POWERBIKE, CARSHOW, carshowSideOf } from '../sim/zone.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
+import { POWER_CARS } from '../sim/power-cars.js';
 
 const SEARCHES = Object.freeze(['Watch', 'Car', 'Yacht', 'Bike', 'Motorcycle', 'Gun', 'Clothes']);
 // What a buyer in PostCivilWar PowerBike may ask the salesman with one tap: each is sent as it reads, as if typed,
@@ -26,6 +27,15 @@ const ASK_SALESMAN = Object.freeze([
 ].map(([label, text]) => Object.freeze({ label, text })));
 // a motorcycle of the showroom's, for the conversation's card: its engine and its top speed
 const showroomBike = (l) => (l && l.shop === POWERBIKE.shop && l.asset && POWER_BIKES[String(l.asset.model || '').replace(/^bike:/, '')]) || null;
+// a car of the Post Civil War Car Showroom's, for the conversation's card: its top speed; and who sells it (the one
+// whose side of the floor it stands on)
+const showroomCar = (l) => (l && l.shop === CARSHOW.shop && l.asset && POWER_CARS[String(l.asset.model || '').replace(/^car:/, '')]) || null;
+const carSeller = (car) => { const side = carshowSideOf(car.id); return (CARSHOW.salesmen.find((s) => s.side === side) || CARSHOW.salesmen[0]).name; };
+// what may be asked about a car with one tap (api/_lib/market.js, carSalesmanReply)
+const ASK_CAR = Object.freeze([
+  ['What is it like?', 'What kind of car is it?'], ['Top speed', 'How fast does it go?'], ['Arrival money?', 'Can I pay with my arrival money?'],
+  ['Test drive', 'Can I take it for a test drive?'], ['Delivery', 'How do I get it after I buy?'], ['Discount?', 'Can you give me a discount?'],
+].map(([label, text]) => Object.freeze({ label, text })));
 const POLL = 1300;                    // how often an open conversation asks for what is new (milliseconds)
 
 export function createMarketUI(kit) {
@@ -77,6 +87,9 @@ export function createMarketUI(kit) {
   // or leaving the page stops it. Rev and Horn are action buttons (action-button.js): they let go however the finger
   // leaves them, so nothing is left revving.
   const bikeOf = (model) => (typeof model === 'string' && model.startsWith('bike:') ? model.slice(5) : null);
+  const carOf = (model) => (typeof model === 'string' && model.startsWith('car:') && POWER_CARS[model.slice(4)] ? model.slice(4) : null);
+  // (new from a showroom: one of each to an account, not so many of so many)
+  const oneEach = (category) => category === 'motorcycle' || category === 'car';
   function engineControls(bikeId) {
     const mine = () => (m.sound && m.sound.id === bikeId ? m.sound : null);
     const ensure = () => { if (!mine()) { quiet(); m.sound = app.bikeSound(bikeId); } return mine(); };
@@ -199,7 +212,7 @@ export function createMarketUI(kit) {
           h('b', null, l.name),
           h('span', { class: 'price' }, tr(l.price)),
           h('span', { class: 'eyebrow plain' }, `${l.mine ? 'Your listing' : `Sold by ${l.seller}`} · ${l.place.label}`),
-          l.kind === 'primary' ? h('span', { class: 'tag' }, l.asset.category === 'motorcycle' ? 'New' : `${l.left} of ${l.stock} left`) : null,
+          l.kind === 'primary' ? h('span', { class: 'tag' }, oneEach(l.asset.category) ? 'New' : `${l.left} of ${l.stock} left`) : null,
           h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', onclick: () => go({ market: true, asset: l.id }) }, 'View')))));
     }
   }
@@ -260,7 +273,8 @@ export function createMarketUI(kit) {
     root.append(h('div', { class: 'rows' },
       line('Price', tr(l.price), 'strong'),
       line(l.kind === 'primary' ? 'Sold by' : 'Owner', l.seller),
-      l.kind === 'primary' && l.asset.category !== 'motorcycle' ? line('Left', `${l.left} of ${l.stock}`) : null,
+      l.kind === 'primary' && !oneEach(l.asset.category) ? line('Left', `${l.left} of ${l.stock}`) : null,
+      carOf(l.asset.model) ? line('Top speed', `About ${POWER_CARS[carOf(l.asset.model)].kmh} km/h`) : null,
       line('Where', l.place.label)));
     if (l.asset.blurb) root.append(h('p', null, l.asset.blurb));
     const bike = bikeOf(l.asset.model);
@@ -269,6 +283,10 @@ export function createMarketUI(kit) {
       root.append(engineControls(bike));
       const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
       root.append(h('p', { class: 'small', id: 'bike-terms' }, owned ? 'You own this motorcycle. One of each to an account: ride yours from Property.' : l.kind === 'primary' ? 'A motorcycle may be paid for with any of your TR, the arrival money included. One of each motorcycle to an account.' : 'Bought from another player, a motorcycle is paid for with TR you have earned.'));
+    }
+    if (carOf(l.asset.model)) {
+      const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
+      root.append(h('p', { class: 'small', id: 'car-terms' }, owned ? 'You own this car. One of each to an account: drive yours from Property.' : 'A car is paid for with TR you have earned: arrival money does not buy a car. One of each car to an account.'));
     }
     const self = app.view().self;
     const far = Math.round(Math.hypot(l.place.x - self.x, l.place.z - self.z));
@@ -301,6 +319,13 @@ export function createMarketUI(kit) {
         h('button', { class: 'hx primary', type: 'button', id: 'ride-bike', onclick: () => { quiet(); const r = app.rideBike(bike); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Ride it')));
       root.append(engineControls(bike));
       root.append(h('p', { class: 'small' }, 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
+    }
+    const car = carOf(item.asset.model);
+    if (car && !item.listing) {
+      // driving it: brought to where the player stands, or got into where they left it
+      root.append(h('div', { class: 'hxrow' },
+        h('button', { class: 'hx primary', type: 'button', id: 'drive-car', onclick: () => { quiet(); const r = app.driveCar(car); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Drive it')));
+      root.append(h('p', { class: 'small' }, `It is brought to you where you stand, outdoors, where there is room for a car (about ${Math.round(POWER_CARS[car].length * 10) / 10} m long); or, if you are beside where you left it, you get in there. Get out with the button you got in with.`));
     }
     if (item.listing) {
       root.append(h('div', { class: 'notice good' }, `It is for sale at ${tr(item.listing.price)}. A buyer who comes to its marker will write to you.`));
@@ -441,13 +466,16 @@ export function createMarketUI(kit) {
     // (before the conversation has come, what is known of the listing from the market's list)
     const known = l || (d.listing && market() ? market().state.all.find((x) => x.id === d.listing) : null) || null;
     const bike = showroomBike(known);
+    const car = bike ? null : showroomCar(known);
     const other = d.thread ? d.thread.other : known ? known.seller : 'The seller';
-    // who the conversation is with: in PostCivilWar PowerBike, its salesman
-    const name = bike ? POWERBIKE.salesman : other;
-    const role = bike ? 'Salesman · automatic replies' : d.thread ? (d.thread.automatic ? 'Shop attendant · automatic' : d.thread.role === 'buyer' ? 'Seller' : 'Buyer') : '';
-    root.append(h('div', { class: `chathead${bike ? ' showroom' : ''}` },
+    // who the conversation is with: in PostCivilWar PowerBike, its salesman; in the car showroom, whichever of the two
+    // looks after the side of the floor the car stands on
+    const name = bike ? POWERBIKE.salesman : car ? carSeller(car) : other;
+    const role = bike ? 'Salesman · automatic replies' : car ? 'Car sales · automatic replies' : d.thread ? (d.thread.automatic ? 'Shop attendant · automatic' : d.thread.role === 'buyer' ? 'Seller' : 'Buyer') : '';
+    const showroom = !!(bike || car);
+    root.append(h('div', { class: `chathead${showroom ? ' showroom' : ''}` },
       h('button', { class: 'chatback', type: 'button', id: 'deal-back', 'aria-label': 'Leave the conversation', onclick: () => app.leaveDeal() }, kit.glyph('back', false)),
-      h('span', { class: `avatar${bike ? ' salesman' : ''}` }, String(name || '·').slice(0, 1).toUpperCase(), h('i', { class: 'dot', 'aria-hidden': 'true' })),
+      h('span', { class: `avatar${showroom ? ' salesman' : ''}` }, String(name || '·').slice(0, 1).toUpperCase(), h('i', { class: 'dot', 'aria-hidden': 'true' })),
       h('span', { class: 'who' }, h('b', null, name), h('span', null, role))));
     if (d.loading) { root.append(h('div', { class: 'chatlog', id: 'deal-log' }, h('div', { class: 'msg sys' }, 'Opening the conversation...'), d.listing ? h('div', { class: 'msg shop typing', 'aria-label': `${name} is writing` }, h('i'), h('i'), h('i')) : null)); return; }
     if (d.error) {
@@ -463,6 +491,12 @@ export function createMarketUI(kit) {
       root.append(h('div', { class: 'dealitem bike' }, h('em', { class: 'brandline' }, POWERBIKE.name), h('span', { class: 'pic', style: pic }),
         h('span', { class: 'what' }, h('b', null, l.name),
           h('span', { class: 'specs' }, h('i', { class: 'spec' }, `${bike.cc.toLocaleString('en-GB')} cc`), h('i', { class: 'spec' }, `${bike.topKmh} km/h`), h('i', { class: 'spec' }, open ? 'New' : 'Not on sale'))),
+        h('span', { class: 'price' }, h('small', null, 'Price'), tr(l.price))));
+    } else if (car) {
+      // the car: its picture, its name, its top speed, and its price (the showroom's name along the top)
+      root.append(h('div', { class: 'dealitem bike car' }, h('em', { class: 'brandline' }, CARSHOW.name), h('span', { class: 'pic', style: pic }),
+        h('span', { class: 'what' }, h('b', null, l.name),
+          h('span', { class: 'specs' }, h('i', { class: 'spec' }, `${car.kmh} km/h`), h('i', { class: 'spec' }, open ? 'New' : 'Not on sale'))),
         h('span', { class: 'price' }, h('small', null, 'Price'), tr(l.price))));
     } else {
       root.append(h('div', { class: 'dealitem' }, h('span', { class: 'pic', style: pic }),
@@ -489,7 +523,7 @@ export function createMarketUI(kit) {
     if (d.done) log.append(h('div', { class: 'msg sys good big', id: 'deal-done' }, d.done));
 
     // the place to type, and sending what is typed (or a question tapped)
-    const text = h('input', { class: 'field', id: 'deal-text', type: 'text', maxlength: '400', placeholder: bike ? `Ask ${POWERBIKE.salesman} about the bike` : 'Message', value: d.draft || '', autocomplete: 'off', enterkeyhint: 'send', 'aria-label': `Message to ${name}` });
+    const text = h('input', { class: 'field', id: 'deal-text', type: 'text', maxlength: '400', placeholder: bike ? `Ask ${POWERBIKE.salesman} about the bike` : car ? `Ask ${name} about the car` : 'Message', value: d.draft || '', autocomplete: 'off', enterkeyhint: 'send', 'aria-label': `Message to ${name}` });
     const send = async (typed) => {
       const tapped = typeof typed === 'string';
       const body = (tapped ? typed : text.value).trim();
@@ -526,7 +560,7 @@ export function createMarketUI(kit) {
     else if (offer) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Your offer is with the seller'), h('b', null, tr(offer.amount))),
       h('button', { class: 'hx small', type: 'button', id: 'deal-withdraw', disabled: d.busy, onclick: async () => { d.busy = true; drawDeal(); await market().withdraw(offer.id); d.busy = false; await poll(d); drawDeal(); } }, 'Withdraw'));
     else if (d.thread.automatic) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Price'), h('b', null, tr(l.price))),
-      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: l.asset && l.asset.category === 'motorcycle' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a motorcycle.` : `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
+      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: l.asset && l.asset.category === 'motorcycle' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a motorcycle.` : l.asset && l.asset.category === 'car' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR, which is what pays for a car.` : `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
     else {
       const amount = h('input', { class: 'field', id: 'deal-amount', type: 'number', inputmode: 'decimal', min: '0.5', step: '0.5', value: d.amount || trPlain(l.price), 'aria-label': 'Your offer in TR' });
       amount.addEventListener('input', () => { d.amount = amount.value; });
@@ -540,9 +574,9 @@ export function createMarketUI(kit) {
 
     root.append(log);
     // in the showroom: questions for the salesman, one tap each
-    if (bike && d.thread.automatic && open && !d.asking && !d.done) {
-      root.append(h('div', { class: 'quick', id: 'deal-quick', role: 'group', 'aria-label': `Ask ${POWERBIKE.salesman}` },
-        ASK_SALESMAN.map((q) => h('button', { type: 'button', 'data-ask': q.label, disabled: !!d.sending, onclick: () => send(q.text) }, q.label))));
+    if ((bike || car) && d.thread.automatic && open && !d.asking && !d.done) {
+      root.append(h('div', { class: 'quick', id: 'deal-quick', role: 'group', 'aria-label': `Ask ${name}` },
+        (car ? ASK_CAR : ASK_SALESMAN).map((q) => h('button', { type: 'button', 'data-ask': q.label, disabled: !!d.sending, onclick: () => send(q.text) }, q.label))));
     }
     if (d.note) { root.append(h('div', { class: 'dealnote', role: 'alert' }, d.note)); d.note = ''; }
     root.append(bar);

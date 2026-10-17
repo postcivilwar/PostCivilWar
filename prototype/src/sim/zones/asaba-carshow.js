@@ -244,8 +244,10 @@ function colliders() {
   out.push(box(C.x0, C.z0 - t, C.x1, C.z0 + t), box(C.x0 - t, C.z0, C.x0 + t, C.z1), box(C.x1 - t, C.z0, C.x1 + t, C.z1));
   out.push(box(C.x0, C.z1 - t, gx0 - 0.3, C.z1 + t), box(gx1 + 0.3, C.z1 - t, C.x1, C.z1 + t));
   for (const x of [gx0 - 0.3, gx1 + 0.3]) out.push(box(x - 0.3, C.z1 - 0.3, x + 0.3, C.z1 + 0.3));
-  // the buildings (the showroom round its hall)
+  // the buildings (the showroom round its hall, and the hall's glass front from end to end: the outline's front is
+  // read coarsely, and nobody walks into the hall but by its doors, which take them in)
   out.push(...minusHall(outlineBoxes(SHOWROOM)));
+  out.push(box(HALL.x0, HALL.z1, HALL.x1, FRONT));
   for (const b of BUILDINGS.slice(1)) out.push(...outlineBoxes(b));
   // in the hall: the stands (a square inside each round one), the desks, the lounge, the plants
   for (const d of DISPLAYS) { const k = d.r * 0.72; out.push(box(d.x - k, d.z - k, d.x + k, d.z + k)); }
@@ -259,5 +261,7 @@ function colliders() {
   return Object.freeze(out.map(Object.freeze));
 }
 export const CARSHOW_COLLIDERS = colliders();
-// the ground that can be walked and driven on: inside the fence, and the drive out to the road
-export const CARSHOW_AREAS = Object.freeze([C, CARSHOW.drive.fromRoad]);
+// the ground that can be walked and driven on: inside the fence, and the drive out to the road (laid a little into
+// the compound, so that the line of the fence itself, in the gateway, is ground too)
+const R = CARSHOW.drive.fromRoad;
+export const CARSHOW_AREAS = Object.freeze([C, box(R.x0, C.z1 - 0.5, R.x1, R.z1)]);

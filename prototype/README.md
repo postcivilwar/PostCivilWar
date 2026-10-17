@@ -1580,6 +1580,98 @@ character, is left out at the owner's word. See `assets/characters/figures/READM
   counted in the bike's size: the market's 3D viewer framed every motorcycle small and to one side. They are made at
   their unlit size, and the viewer measures only what is drawn.
 
+## The Post Civil War Car Showroom, and cars to drive (17 October 2026)
+
+### The compound
+
+The owner's four buildings and the villa, each exactly as supplied (`assets/buildings/carshow/`, served beside the
+page as `carshow-*.glb`), stand in a large open compound, 285 by 142 m, beside the Kwale road just out of Asaba,
+between the edge of town and the airport (`src/sim/zones/asaba-carshow.js` says where everything is;
+`src/client/render-carshow.js` draws it).
+
+- **The buildings.** The tall glass tower on its podium, the largest of them, is the showroom; the stacked tower and
+  the twisting tower stand behind it, the tower on its raised deck and the villa in its gardens before them, each well
+  clear of the others. What was written on them (another company's name and badge on the glass tower's podium, and
+  another's name twice on the stacked tower) is painted over in the page with the building's own surface from beside
+  it; the files are not changed. Until a model has arrived a plain shape of its outline stands in its place. Their
+  walls are solid. The villa (76 MB) is fetched only by someone within 320 m of it.
+- **Its name,** POST CIVIL WAR CAR SHOWROOM beside the canonical rising sun, stands on the podium over the doors and
+  at the top of the tower, facing both ways.
+- **The railings.** White iron railings all round: a post every few metres and a bar every 13 cm with a spear at its
+  top, so that everything inside is seen through them. Nobody walks through them; the gate is the one way in.
+- **The gate,** in the middle of the front, on the road: two leaves of clear glass in brushed steel that slide apart
+  slowly (3.2 s) along the inside of the railings for whoever comes to it (within 13 m on foot, 30 m driving), wait
+  2.5 s after the last of them has gone, and close (3.8 s), as a bank's doors do. The simulation keeps it
+  (`stepCarshowGate`), so every player sees it the same, and its leaves are in the way while it is shut.
+- **CCTV:** a camera on a pole at each corner, turning at a motor's pace to watch whoever is nearest within 60 m and
+  sweeping slowly when nobody is, its red lamp blinking every 2.6 s or so.
+- **The ground:** interlocking paving blocks (I-shaped, each row half a block along from the last, the joints sunk),
+  the drive to the doors in a darker block, the visitors' bays marked out in white, kerbs; palms in round planters
+  along the front, three flag poles beside the drive (Nigeria's the tallest), lamps along it.
+
+### The showroom
+
+- **In by its glass doors:** walked up to on foot they slide open, and stepping through darkens the screen while the
+  simulation sets the player down inside (`carshow.in`); the mat inside them takes them out the same way
+  (`carshow.out`). The hall's walls and its glass front are solid: nobody walks in or out but by the doors.
+- **The hall,** in the tower's podium, 83 by 37 m: a polished floor, white walls, the glass front, lines of light in
+  the ceiling, the name on the back wall, the two desks against the end walls, a lounge by the glass, plants. The
+  twenty cars stand in three rows of seven on round white stands with a light round each, at least 2.4 m clear
+  between any two, each with a plate on a post giving its name, top speed and price; the Gold Hypercar turns on a
+  turntable in the middle. Inside, the buildings round the hall are not drawn (the compound is, through the glass),
+  and the camera stays inside the walls and under the ceiling.
+- **The cars on show** are drawn cheaply enough for a phone: the nearest two (phone) or three (computer) within 12 m
+  are the owner's models themselves, the nearest at full detail on a computer; every other one is a picture of the
+  same model from the side it is seen from (24 sides, `tools/vehicles/car_impostors.mjs`), at its own size.
+- **Tochi and Oluchi,** two of the game's own figures (a white shirt and a navy tie; a white blouse and a navy skirt),
+  each look after one side of the floor: Tochi the cars on the left as you come in, Oluchi those on the right. Each
+  is worked out as Obi at PowerBike is (`src/sim/salesman.js`, the `carshow` floor), with the customers on their own
+  side and anyone asking about one of their cars: at the desk when nobody is on their side, beside one or two, walking
+  their side when it is busy. Nobody walks through them.
+- **Asking about a car:** at a stand the player is offered **Ask**, and the market's conversation opens on the phone
+  with whoever sells it: the car's card (picture, top speed, price), the greeting, questions to tap (what it is like,
+  top speed, arrival money, test drive, delivery, discount) and **Buy**. The answers are by rule from what the
+  showroom knows (`api/_lib/market.js`, `carSalesmanReply`); nothing is said of any car's engine; the price is
+  fixed. In the hall the two of them talk face to face, as at PowerBike.
+
+### Twenty cars
+
+- **The owner's twenty models,** each as supplied (`assets/vehicles/cars/`), split by `tools/vehicles/cars.py` into
+  the body and its four wheels, every triangle kept, the wheels found where the tyres meet the ground. Each is drawn
+  at its real length (4.4 to 5.8 m) by one uniform scale, with its own pictures (4096 on a computer, 2048 on a
+  phone) under a clear coat that takes the sky's reflection, fading after dark: paint and glass as they are.
+- **Prices** from 2,000 TR (the Grey Saloon) to 18,000 TR (the Gold Hypercar, the fastest car in town at 350 km/h).
+  A car is paid for with TR that was earned: arrival money does not buy one (it does buy a motorcycle). One of each
+  car to an account. Migration 13 puts the twenty on sale at their stands.
+
+### Driving
+
+- **From Property, Drive it:** the car is brought to where the player stands, outdoors, wherever there is room for
+  the whole of it (the way they face, or the nearest way round that fits); beside where they left it, they get in
+  there. **Get out** puts them out on the driver's side, the left (Nigeria drives on the right), and the car stands
+  where it was left, in everybody's way, until they come back to it (**Drive your …**).
+- **The controls** are a motorcycle's: accelerate, brake (held when stopped, it backs up), steer left and right, the
+  horn, and the door. The car turns about its back wheels as a car does, no harder than its tyres grip (fast, the
+  same turn of the wheel turns it less), each class with its own acceleration, brakes and grip
+  (`src/sim/power-cars.js`). The whole of it is checked against what is solid at every step, on the page and again by
+  the simulation (`carFits`: a row of circles as wide as the car, so close that its sides are short by no more than
+  5 cm, and a smaller circle in each corner). Into something at speed it stops dead and the driver is hurt in
+  proportion to the speed, at most 8 in 100, and stays in it. A car in motion strikes whoever is in its way, as any
+  vehicle does.
+- **What is seen and heard:** the front wheels turn with the steering and all four roll; the body dips on its
+  springs under the brake, lifts a little under the throttle and leans out of a turn; headlamps and tail lamps at
+  night, with the road ahead lit; brake lamps; white reversing lamps. No recording of a car's engine was supplied:
+  each car's is made in the page (`src/client/car-audio.js`), the beat of its kind of engine through six gears, and
+  its horn by its kind of car. Its speedometer reads to its own top speed, with no engine size on it.
+- **Other players' cars** are seen where they are being driven (their own model, lamps and all) and heard, their
+  horns too, and their cars standing near them are seen.
+
+### Found on the way
+
+- The market's list of what is for sale held 60 listings, the shops' first: with the showrooms' 38 it now holds 120.
+- At the gateway the line of the railings itself was neither the compound's ground nor the road's: a pickup could
+  not cross it there. The drive's ground is laid a little into the compound.
+
 ## Tests
 
 ```
@@ -1598,6 +1690,7 @@ node test/hold.mjs                                 # the handset in the hand, me
 node test/sound.mjs                                # how loud each group of sounds is
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
+../server/with-postgres.sh node test/carshow.mjs out/    # the Post Civil War Car Showroom: the compound, the gate, the cameras, in and out by the doors, the cars, Tochi and Oluchi, asking and buying with earned TR, driving (the engine, the speedometer, steering, the brake, the gate, getting out), the lamps at night, another player's car
 node test/bike.mjs out/                            # the power bike's controls and engines (with nothing to ride yet)
 node test/outskirts.mjs out/                       # the road to Onitsha, the airport and the bridge, walked
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings

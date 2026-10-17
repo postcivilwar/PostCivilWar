@@ -164,7 +164,9 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6 }
     const m = mesh(geometries[k + 1]); m.position.set(-w.x, -w.y, -w.z); spin.add(m);
     return { at, steer, spin, r: w.r * scale, front: k < 2 };
   });
-  const fx = lampsOf(spec, springs);
+  // the lamps ride on the body too, at their places on the model (measured from the ground, as the body is drawn)
+  const lampFrame = new THREE.Group(); lampFrame.position.set(0, -spec.height * 0.35, 0); springs.add(lampFrame);
+  const fx = lampsOf(spec, lampFrame);
   const toBody = (v) => v;           // (the lamps are on the body: they pitch and roll with it)
   return {
     id, group, scale, spec, frame, toBody,

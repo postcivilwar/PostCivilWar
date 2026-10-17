@@ -75,7 +75,9 @@ async function list(sql, me, body) {
     params.push(`%${stem.replace(/[\\%_]/g, (c) => `\\${c}`)}%`);
     where += ` and (a.name || ' ' || a.category || ' ' || a.keywords || ' ' || coalesce(l.shop_name, '') || ' ' || coalesce(s.username, '') || ' ' || l.place_label) ilike $${params.length}`;
   }
-  const rows = await sql.unsafe(`${LISTING} where ${where} order by l.kind, l.created_at limit 60`, params);
+  // (the shops' own listings come first, and there are many of them now: forty-odd at the showrooms and the watch
+  // seller; what players sell follows, as many again and more)
+  const rows = await sql.unsafe(`${LISTING} where ${where} order by l.kind, l.created_at limit 120`, params);
   return { listings: rows.map((row) => listingView(row, me)) };
 }
 
@@ -302,11 +304,11 @@ function carFacts(listing) {
   const stand = CAR_STANDS[id], c = CARS.find((x) => x.id === id);
   // (a car with no stand, which none of the twenty is, is answered from the west side of the floor)
   const side = stand ? stand[3] : 'west';
-  return { id, kmh: stand ? stand[2] : null, side, salesman: CARSHOW.salesmen[side], kind: (c && CAR_KINDS[c.class]) || 'a car', blurb: (c && c.blurb) || listing.blurb || '' };
+  return { id, kmh: stand ? stand[2] : null, side, salesman: CARSHOW.salesmen[side], other: CARSHOW.salesmen[side === 'west' ? 'east' : 'west'], kind: (c && CAR_KINDS[c.class]) || 'a car', blurb: (c && c.blurb) || listing.blurb || '' };
 }
 function carSalesmanGreeting(listing) {
   const f = carFacts(listing);
-  return `Welcome to ${CARSHOW.name}! I'm ${f.salesman}, the salesman on this side of the floor (one of the game's people: my answers are automatic). This is the ${listing.asset_name}${f.kmh ? `: about ${f.kmh} km/h flat out` : ''}. It's ${trText(listing.price)}. Ask me anything about it, or press Buy when you're ready.`;
+  return `Welcome to ${CARSHOW.name}! I'm ${f.salesman}, and I look after the cars on this side of the floor (I'm one of the game's people: my answers are automatic). This is the ${listing.asset_name}${f.kmh ? `: about ${f.kmh} km/h flat out` : ''}. It's ${trText(listing.price)}. Ask me anything about it, or press Buy when you're ready.`;
 }
 function carSalesmanReply(listing, text) {
   const f = carFacts(listing), name = listing.asset_name, price = Number(listing.price);
@@ -323,7 +325,7 @@ function carSalesmanReply(listing, text) {
     const offered = Math.round(Number(figure) * TR);
     return offered < price ? `The ${name} is ${trText(price)}, the same for everyone: I can't take less. Press Buy when you're ready.` : `${trText(price)} it is. Press Buy to pay, and it's yours.`;
   }
-  if (has(/\b(who are you|your name|are you (a )?(real|human|person|bot|robot|machine)|real person|human|robot|bot)\b/)) return `I'm ${f.salesman}, one of the two salesmen here: I keep the ${f.side} side of the floor. I'm one of the game's people, and my answers are automatic, but what I tell you about the cars and their prices is true.`;
+  if (has(/\b(who are you|your name|are you (a )?(real|human|person|bot|robot|machine)|real person|human|robot|bot)\b/)) return `I'm ${f.salesman}, one of the two people selling cars here: I look after this side of the floor, and ${f.other} the other. I'm one of the game's people, and my answers are automatic, but what I tell you about the cars and their prices is true.`;
   if (has(/\b(discount|reduce|reduction|lower|less|cheaper price|negotiat\w*|bargain|haggle|last price|best price|deal)\b/)) return `I'm sorry: the price is fixed at ${trText(price)}. Nobody haggles here, and nobody pays more than the price either.`;
   if (aboutEngine) return `The showroom doesn't give engine figures for its cars, and I won't make one up. What I can tell you: the ${name} is ${f.kind}${f.kmh ? `, and it does about ${f.kmh} km/h flat out` : ''}.`;
   if (aboutSpeed) {
