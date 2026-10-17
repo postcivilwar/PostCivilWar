@@ -272,7 +272,9 @@ check('and up again after a few seconds', await page.evaluate(() => !window.__nl
 // ---- every one of the seventeen ----
 let shotFlames = false;
 const all = only.length ? only : listed.map((l) => l.model.slice(5));
-// (the Streetfighter stays theirs: it is ridden again at night below)
+// (the Streetfighter stays theirs: it is ridden again at night below; and the road is dry for the bikes' runs: in
+// the rain a bike's top speed is lower, and flat out there its engine is short of its red line, as it should be)
+await page.evaluate(() => { const g = window.__nlw.host.game; g.state.weather = { kind: 'clear', until: g.state.t + 6 * 3600 }; });
 await page.evaluate((ids) => window.__nlw.server.send({ type: 'bikes.owned', bikes: [...new Set(['streetfighter', ...ids])] }), all);
 for (const id of all) {
   // (the bikes already ridden are put away, out of the way of this one's run down the runway)
