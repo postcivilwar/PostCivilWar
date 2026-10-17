@@ -126,7 +126,7 @@ export const CARSHOW = Object.freeze({
   // stepping through the doors from outside; where someone coming in is set down, and someone going out
   entry: Object.freeze({ x: DOOR_X, z: FRONT + 0.9, radius: 1.5 }),
   arrive: Object.freeze({ x: DOOR_X, z: HALL.z1 - 2.4, heading: Math.PI }),
-  leave: Object.freeze({ x: DOOR_X + 2.6, z: FRONT + 4.2, heading: 0 }),
+  leave: Object.freeze({ x: DOOR_X, z: FRONT + 4.6, heading: 0 }),          // (straight out before the doors, clear of the canopy's posts)
   exit: box(DOOR_X - 1.8, HALL.z1 - 1.0, DOOR_X + 1.8, HALL.z1),
   displays: Object.freeze(DISPLAYS),
   // the salesmen's desks against the end walls, the lounge in the front corner by the glass, plants
@@ -249,6 +249,8 @@ function colliders() {
   // read coarsely, and nobody walks into the hall but by its doors, which take them in)
   out.push(...minusHall(outlineBoxes(SHOWROOM)));
   out.push(box(HALL.x0, HALL.z1, HALL.x1, FRONT));
+  // the two posts of the canopy over the doors (render-carshow.js, buildDoors)
+  for (const s of [-1, 1]) out.push(box(DOOR_X + s * 3.5 - 0.2, FRONT + 3.0 - 0.2, DOOR_X + s * 3.5 + 0.2, FRONT + 3.0 + 0.2));
   for (const b of BUILDINGS.slice(1)) out.push(...outlineBoxes(b));
   // in the hall: the stands (a square inside each round one), the desks, the lounge, the plants
   for (const d of DISPLAYS) { const k = d.r * 0.72; out.push(box(d.x - k, d.z - k, d.x + k, d.z + k)); }

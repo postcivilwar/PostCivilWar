@@ -452,7 +452,11 @@ function buildForecourt(group, { lite }) {
     group.add(m);
     return m;
   };
-  plane(C.x0, C.z0, C.x1, C.z1, grey, 0.03, 'carshow-paving');
+  // (all round the hall, not over it: the hall's own floor is lower than the paving, and is seen through the glass)
+  plane(C.x0, H.z1, C.x1, C.z1, grey, 0.03, 'carshow-paving');
+  plane(C.x0, C.z0, C.x1, H.z0, grey, 0.03, 'carshow-paving');
+  plane(C.x0, H.z0, H.x0, H.z1, grey, 0.03, 'carshow-paving');
+  plane(H.x1, H.z0, C.x1, H.z1, grey, 0.03, 'carshow-paving');
   const dw = P.drive.width / 2;
   plane(G.x - dw, P.doors.z + 1, G.x + dw, C.z1, charcoal, 0.034, 'carshow-drive');
   plane(P.drive.fromRoad.x0, P.drive.fromRoad.z0, P.drive.fromRoad.x1, P.drive.fromRoad.z1, charcoal, 0.032, 'carshow-apron');

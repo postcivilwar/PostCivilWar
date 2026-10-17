@@ -40,6 +40,7 @@ export const CAR_CLASSES = CLASSES;
 // What every car has in common: going backwards, coasting, the air, how quickly the wheels are turned.
 export const CAR_HANDLING = Object.freeze({
   reverse: 5,             // m/s at most, in reverse
+  reverseAfter: 0.35,     // seconds the brake is held at a standstill before it takes the car backwards
   coast: 0.9,             // m/s² lost with neither throttle nor brake (the engine and the road)
   drag: 0.00045,          // and the air, by the square of the speed
   steerRate: 2.6,         // radians a second the front wheels turn, towards what is asked
@@ -115,8 +116,9 @@ export const carBoxes = (spec, x, z, h) => carCircles(spec, x, z, h).map((c) => 
 //   onTar  whether the road under it is tarred; wet: whether it is raining
 // The front wheels turn towards what is asked, at a rate; the car turns about its back axle as a car does (at a
 // speed v with the wheels at δ it turns at v·tanδ/wheelbase), and no harder than its tyres grip: fast, the same
-// turn of the wheel turns it less, and it runs wide rather than spinning round. Braking stops it; held when it has
-// stopped, the brake takes it backwards (reverse), slowly.
+// turn of the wheel turns it less, and it runs wide rather than spinning round. Braking stops it; held on a moment
+// after it has stopped (`reverseAfter`: not at once, so that braking to a stop does not roll it back), the brake
+// takes it backwards (reverse), slowly. (`state.held` keeps how long the brake has been held at a standstill.)
 export function stepPowerCar(state, input, dt, { handling = carHandlingOf(null), onTar = true, wet = false } = {}) {
   const h = handling;
   const steer = Math.max(-1, Math.min(1, input.steer || 0));
@@ -124,12 +126,15 @@ export function stepPowerCar(state, input, dt, { handling = carHandlingOf(null),
   const brake = Math.max(0, Math.min(1, input.brake || 0));
   const top = (onTar ? h.top : h.rough) * (wet ? 0.85 : 1);
   let v = state.speed;
-  if (brake > 0 && v > 0.05) v = Math.max(0, v - h.brake * (wet ? 0.75 : 1) * brake * dt);
-  else if (brake > 0 && v <= 0.05) v = Math.max(-h.reverse, v - 2.2 * brake * dt);
-  else if (throttle > 0) {
+  if (brake > 0 && v > 0.05) { v = Math.max(0, v - h.brake * (wet ? 0.75 : 1) * brake * dt); state.held = 0; }
+  else if (brake > 0) {
+    state.held = (state.held || 0) + dt;
+    v = v < -0.05 || state.held > h.reverseAfter ? Math.max(-h.reverse, v - 2.2 * brake * dt) : 0;
+  } else if (throttle > 0) {
+    state.held = 0;
     if (v < 0) v = Math.min(0, v + h.brake * dt);
     else v += h.accel * throttle * Math.max(0.06, 1 - (v / top) ** 2) * dt;
-  } else v -= Math.sign(v) * Math.min(Math.abs(v), (h.coast + h.drag * v * v) * dt);
+  } else { state.held = 0; v -= Math.sign(v) * Math.min(Math.abs(v), (h.coast + h.drag * v * v) * dt); }
   if (v > top) v = Math.max(top, v - h.brake * 0.5 * dt);
   // the front wheels: towards what is asked; at speed the steering is quicker to straighten than to turn in
   const want = steer * h.steerMax;

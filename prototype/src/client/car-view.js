@@ -55,7 +55,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     g.rotation.set(0, d.h, 0);
     g.visible = true;
     e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch, roll: fx.roll });
-    e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: d.brake && Math.abs(d.speed || 0) > 0.2 ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
+    e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: d.brake && (d.speed || 0) > 0.2 ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
   };
 

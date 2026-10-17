@@ -92,10 +92,11 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   //   dragged  seconds since the player last dragged the view
   //   bonnet   null, or { ahead, height }: for a vehicle of its own size (a car), where the view from the bonnet is:
   //            metres ahead of the middle, and above the ground
-  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null }) {
+  //   longer   metres a vehicle is longer than a keke (a car's): the views behind it stand that much further back
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0 }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.behind;
     const ease = Math.min(1, dt * 5);
-    let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : v.dist;
+    let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : v.dist + (v.follow && !v.seat && CAMERA_VIEWS.vehicle.includes(view) ? longer : 0);
     let wantPitch = v.pitch === null || v.pitch === undefined ? cam.pitch : v.pitch;
     if (indoors && !v.seat) { wantPitch = Math.max(wantPitch, indoors.pitch); if (indoors.maxPitch !== undefined) wantPitch = Math.min(wantPitch, indoors.maxPitch); wantDist = Math.min(wantDist, indoors.dist); }
     live.dist += (wantDist - live.dist) * ease;

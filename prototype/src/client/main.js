@@ -2759,7 +2759,7 @@ function start(carried) {
         // in one of their own cars: its speedometer, scaled to its top speed
         const c = ownCar();
         if (!speedo.shown || speedo.bike !== `car:${c.id}`) { speedo.show({ topKmh: c.kmh, cc: 0 }); speedo.bike = `car:${c.id}`; }
-        speedo.update(dt, { kmh: Math.abs(carState.speed) * 3.6, braking: carState.braking && Math.abs(carState.speed) > 0.3 });
+        speedo.update(dt, { kmh: Math.abs(carState.speed) * 3.6, braking: carState.braking && carState.speed > 0.3 });
       } else speedo.hide();
       if (incar && ownCar()) { const c = ownCar(); ownEngine = { kind: 'car', car: c.id, tone: c.tone, rev: carRevs(carState.speed, carState.throttle, carHandlingOf(c)), throttle: carState.throttle }; }
       else if (driving) ownEngine = { kind: 'keke', rev: Math.min(1, Math.abs(car.speed) / VEHICLE_KINDS.keke.speedRoad), throttle: car.throttle || 0 };
@@ -2902,6 +2902,7 @@ blood.update(dt, view.blood || []);
       dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,
       // (in a car, the view from the bonnet is over its own bonnet, however long and high the car is)
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
+      longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : 0,
     });
     // fast on a motorcycle: the view shakes a little, more the nearer it is to its top speed (never much)
     const bikeNow = playing && view && view.self.astride && powerBike() ? powerBike() : null;

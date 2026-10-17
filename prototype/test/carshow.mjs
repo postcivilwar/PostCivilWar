@@ -81,7 +81,7 @@ await pastQuestion(page);
 await page.fill('#name', 'Car Showroom Test');
 await enterTown(page);
 await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 240000 });
-await page.evaluate(() => { const n = window.__nlw; const hour = n.view.clock.hourFloat; if (hour < 9 || hour > 15) n.skip((24 + 10 - hour) % 24); });
+await page.evaluate(() => { const n = window.__nlw; const hour = n.view.clock.hourFloat; if (hour < 9 || hour > 15) n.skip((24 + 10 - hour) % 24); const g = n.host.game; g.state.weather = { kind: 'clear', until: g.state.t + 8 * 3600 }; });
 
 const go = async (x, z, h, cam) => {
   await page.evaluate(([x, z, h, cam]) => { const n = window.__nlw; n.place(x, z); n.face(h); if (cam) { n.cam.yaw = cam.yaw; n.cam.pitch = cam.pitch; n.cam.dist = cam.dist; n.rig.snap(n.cam); } }, [x, z, h, cam || null]);
@@ -165,7 +165,10 @@ await page.waitForFunction(() => window.__nlw.carshowView.shown().filter((d) => 
 await page.waitForTimeout(2500);
 const floor = await page.evaluate(() => window.__nlw.carshowView.shown());
 const models = floor.filter((d) => d.model), pictures = floor.filter((d) => d.picture);
-check('the nearest cars are the owner\'s models; the rest are pictures of them; all twenty are shown', models.length >= 2 && models.length <= 3 && models.length + pictures.length === 20, { models: models.map((d) => `${d.car}:${d.tier}`), pictures: pictures.length });
+// (how many are drawn as models follows the device: three on a computer, two on a phone or on a computer that is
+// struggling, one on one struggling more; a software-drawn browser struggles)
+const wantModels = await page.evaluate(() => { const n = window.__nlw; return n.quality >= 2 ? 1 : n.lite || n.quality >= 1 ? 2 : 3; });
+check('the nearest cars are the owner\'s models (as many as the device draws); the rest are pictures of them; all twenty are shown', models.length === wantModels && models.length + pictures.length === 20, { want: wantModels, models: models.map((d) => `${d.car}:${d.tier}`), pictures: pictures.length });
 const camInside = await page.evaluate(() => { const c = window.__nlw.camera.position; return [c.x, c.y, c.z]; });
 check('the camera stays inside the hall, under its ceiling', camInside[0] > HALL.x0 && camInside[0] < HALL.x1 && camInside[2] > HALL.z0 && camInside[2] < HALL.z1 && camInside[1] < 7.2, camInside);
 await shot('07-the-floor');
@@ -180,7 +183,8 @@ await shot('08-the-hypercar');
 const saloon = { x: -426.11, z: -164.39, r: 3.3 };
 const by = { x: saloon.x + saloon.r + 0.95, z: saloon.z };
 await go(by.x, by.z, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.6, pitch: 0.16, dist: 6.5 });
-await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state; return t.with && Math.hypot(t.x - n.predicted.x, t.z - n.predicted.z) < 2.2 && t.speed < 0.2; }, null, { timeout: 90000 }).catch(() => {});
+// (Oluchi may still be walking back to her desk from the player's look at the hypercar, on her side of the floor)
+await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state, o = n.carSalesmen[1]; return t.with && Math.hypot(t.x - n.predicted.x, t.z - n.predicted.z) < 2.2 && t.speed < 0.2 && Math.hypot(o.sim.state.x - o.spec.home.x, o.sim.state.z - o.spec.home.z) < 0.6; }, null, { timeout: 150000 }).catch(() => {});
 const staff = await page.evaluate(() => { const n = window.__nlw; return n.carSalesmen.map((s) => ({ name: s.spec.name, mode: s.sim.state.mode, d: +Math.hypot(s.sim.state.x - n.predicted.x, s.sim.state.z - n.predicted.z).toFixed(2), home: +Math.hypot(s.sim.state.x - s.spec.home.x, s.sim.state.z - s.spec.home.z).toFixed(2), shown: s.actor.group.visible })); });
 check('on Tochi\'s side of the floor, Tochi comes over to the player at the car; Oluchi stays at her desk', staff[0].shown && staff[1].shown && staff[0].mode === 'assist' && staff[0].d < 2.2 && staff[1].home < 0.6, staff);
 await shot('09-tochi-comes');
@@ -255,7 +259,7 @@ for (let i = 0; i < 300 && !left; i += 1) { await page.waitForTimeout(100); left
 await page.keyboard.up('w');
 await page.waitForFunction(() => !document.getElementById('fade').classList.contains('on'), null, { timeout: 20000 });
 const outside = await page.evaluate(() => { const n = window.__nlw, c = n.carshowView; return { at: [+n.predicted.x.toFixed(2), +n.predicted.z.toFixed(2)], hall: c.hall.group.visible, exterior: c.exterior.visible, staff: n.carSalesmen.some((s) => s.actor.group.visible) }; });
-check('the mat inside the doors takes the player out before them; the buildings are drawn again, the hall is not', left && Math.abs(outside.at[0] - (-418.1)) < 0.01 && Math.abs(outside.at[1] - (-151.89)) < 0.01 && !outside.hall && outside.exterior && !outside.staff, outside);
+check('the mat inside the doors takes the player out before them; the buildings are drawn again, the hall is not', left && Math.abs(outside.at[0] - DOORS.x) < 0.01 && Math.abs(outside.at[1] - (DOORS.z + 4.6)) < 0.01 && !outside.hall && outside.exterior && !outside.staff, outside);
 
 // ---- driving it ----
 await page.evaluate(() => window.__nlw.ui.openPhone('property', {}));
@@ -282,13 +286,19 @@ await page.keyboard.up('d');
 check('steered right, it turns right, its front wheels turned', turned.h < startAt.h - 0.02 && turned.steer > 0.05 && turned.wheels === 2, { turned, from: startAt.h });
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.heading + Math.PI - 0.4; n.cam.dist = 6.5; n.cam.pitch = 0.14; });
 await page.keyboard.up('w'); await page.keyboard.down('s');
-await page.waitForFunction(() => { const st = window.__nlw.carView.stateOf(); return st && st.brake === 1; }, null, { timeout: 20000 }).catch(() => {});
-const braking = await page.evaluate(() => ({ lamps: window.__nlw.carView.stateOf(), red: document.querySelector('#speedo').classList.contains('braking') }));
-await shot('15-braking');
-await page.waitForTimeout(2500);
+// (held for a few seconds: it stops; held on, it then backs up)
+const braking = [];
+let brakeShot = false;
+for (let i = 0; i < 40 && !(braking.length && braking[braking.length - 1].v < -0.6); i += 1) {
+  await page.waitForTimeout(100);
+  const f = await page.evaluate(() => { const n = window.__nlw, st = n.carView.stateOf(); return { v: +n.carState.speed.toFixed(2), brake: st && st.brake, reverse: st && st.reverse, red: document.querySelector('#speedo').classList.contains('braking') }; });
+  braking.push(f);
+  if (!brakeShot && f.brake === 1) { brakeShot = true; await shot('15-braking'); }
+}
 await page.keyboard.up('s');
-const stopped = await page.evaluate(() => window.__nlw.carState.speed);
-check('on the brake its brake lamps light and it stops', braking.lamps && braking.lamps.brake === 1 && braking.red && Math.abs(stopped) < 1.5, { braking, stopped });
+const last = braking[braking.length - 1];
+check('on the brake its brake lamps light and it stops; held on a moment more, it backs up, its reversing lamps lit and its brake lamps not', braking.some((f) => f.brake === 1 && f.red && f.v > 0.3) && braking.some((f) => Math.abs(f.v) < 0.05) && last.v < -0.3 && last.reverse === 1 && last.brake === 0 && !last.red, braking);
+await page.evaluate(() => { const n = window.__nlw; n.carState.speed = 0; });
 const horns0 = await page.evaluate(() => window.__nlw.view.self.incar.horns);
 await page.keyboard.press('h');
 await page.waitForTimeout(400);
