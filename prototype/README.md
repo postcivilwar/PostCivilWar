@@ -1683,6 +1683,61 @@ between the edge of town and the airport (`src/sim/zones/asaba-carshow.js` says 
 - In the rain every vehicle's top speed is lower (the weather is the game's own, by its clock): the motorcycles'
   browser test now rides them on a dry day, so that each is seen reaching its red line.
 
+## The owner's vehicles and buildings, each to its place (17 October 2026)
+
+The owner's assets of 17 October, each the supplied file exactly as it is (`assets/vehicles/town/`,
+`assets/buildings/town/`, served beside the page), each drawn at one uniform scale and turned to face its way. None of
+them was modelled facing the way the game faces things, and several were modelled turned a little off square:
+`tools/buildings/measure.py` measured each one as it stands, and the game turns and scales it by those measures; the
+files are not changed. Their pictures are 8192 pixels square: the graphics card is handed them at 2048 on a computer
+and 1024 on a phone (buildings) or 4096 and 2048 (vehicles), never larger than they are.
+
+### Vehicles (`src/sim/zones/supplied-vehicles.js`, `src/client/render-supplied.js`)
+
+- **The ambulance** of the Asaba General Hospital, in white with the red check and PostCivilWar on its sides, 5.7 m
+  long: it is the van the simulation has always driven out to whoever calls it (`care.js`), now drawn as the owner's
+  model once it has been fetched (the old van until then). On a call the two lamps at the front of its roof flash red
+  and blue in turn. Its footprint in the simulation is its size.
+- **The private jet,** in the PostCivilWar livery, 20 m long, on the middle stand at Asaba Airport, nose to the
+  terminal, its nose wheel at the stop bar: seen through the terminal's glass. Its fuselage, its wings and its engines
+  are solid; one can walk under its tailplane.
+- **The red box truck,** the store's delivery truck, parked beside Nwosu Building Materials, its cab toward the
+  store and its lettered side toward the market (the lettering on its other side is mirrored in the model).
+- **The heavy truck,** the block yard's lorry, inside Udeh Block Industry's gate beside the way in, facing the road.
+- The parked ones are fetched as someone comes within sight of them (the jet from 700 m, the trucks from 320 m) and let
+  go again when they are far beyond; until then a plain block of their size stands where they are, since they are
+  solid there all along.
+
+### Buildings (`src/sim/zones/town-buildings.js`, `src/client/render-town-buildings.js`)
+
+- **Their houses** (the ten of 03:09 less the two that are towers: a curved house, a curved glass house, a white house,
+  two villas, a spiral house, a pod house and a white block) take the place of every one of the town's plain houses,
+  a hundred and two of them less those the towers stand on: each on the plot of the house it replaced, up to 12 m by
+  12 m, facing the lane the old one faced, its front where the old one's front was (so the lanes, the doors and what
+  stands along the lanes are as they were) and reaching back into its yard. Along each row no two neighbours are
+  alike. The same people live in them as before.
+- **Their towers** stand on the city side. At the inner ends of Umuezei and Umuonaje, the two quarters either side of
+  the city block, eight stand on the plots of the houses nearest the city (whose people now live in them, their doors
+  at the towers'): the purple tower and its twin, 54 m, one either side of the city; the black tower, the stacked
+  tower, the pink tower, the curved tower, the office tower and the copper tower, 34 to 48 m. On open ground beside
+  the city: the group of five towers (65 m) north of Registry Road east of Market Road, the hotel (45 m) west of it,
+  and the glass offices by the police post. Each is as tall as its site lets it stand whole: the town's own towers are
+  40 to 52 m.
+- **The hotel's facade** carried another company's name, in three places in its picture: it is painted over in the
+  page with the facade's own bronze from beside it, as the car showroom's buildings were; the file is not changed.
+- **What it costs to draw:** each model is about ten thousand triangles, the plain houses a few dozen. The houses of
+  one model are drawn together in one go, and only those within 170 m (110 m on a phone) from their models; further
+  off, each is a plain block of its size and colour, all of them in one go. The towers are always drawn from their
+  models, and from further off than the rest of the town.
+- **The trees** were scattered once by chance over the ground the houses' plots and paths left clear: scattered again
+  with the new plots, every tree in town would have moved. They are kept where they stood (`atani-trees.js`), less the
+  few where a new building now stands.
+
+### Found on the way
+
+- three.js's box round a turned mesh is the box round its turned box, larger than the mesh: the tests measure a
+  building from every point of its model where it is drawn.
+
 ## Tests
 
 ```
