@@ -1596,7 +1596,9 @@ between the edge of town and the airport (`src/sim/zones/asaba-carshow.js` says 
   clear of the others. What was written on them (another company's name and badge on the glass tower's podium, and
   another's name twice on the stacked tower) is painted over in the page with the building's own surface from beside
   it; the files are not changed. Until a model has arrived a plain shape of its outline stands in its place. Their
-  walls are solid. The villa (76 MB) is fetched only by someone within 320 m of it.
+  walls are solid. The villa (76 MB) is fetched only by someone within 320 m of it. Their pictures are drawn at up to
+  4096 pixels on a computer and 2048 on a phone, and never larger than they are in the file: at their full 8192 the
+  five together filled a browser's memory.
 - **Its name,** POST CIVIL WAR CAR SHOWROOM beside the canonical rising sun, stands on the podium over the doors and
   at the top of the tower, facing both ways.
 - **The railings.** White iron railings all round: a post every few metres and a bar every 13 cm with a spear at its
@@ -1673,6 +1675,13 @@ between the edge of town and the airport (`src/sim/zones/asaba-carshow.js` says 
 - The market's list of what is for sale held 60 listings, the shops' first: with the showrooms' 38 it now holds 120.
 - At the gateway the line of the railings itself was neither the compound's ground nor the road's: a pickup could
   not cross it there. The drive's ground is laid a little into the compound.
+- One of the twenty, the black convertible, was modelled facing the other way from the rest: it is turned when it
+  is split into its parts (`cars.py`), and its pictures were checked from the front of every car.
+- Held on at a standstill, the brake took a car straight into reverse, so that braking to a stop rolled it back at
+  once: it now stands for a third of a second first, and its brake lamps are lit only while it is slowing, not while
+  it backs up.
+- In the rain every vehicle's top speed is lower (the weather is the game's own, by its clock): the motorcycles'
+  browser test now rides them on a dry day, so that each is seen reaching its red line.
 
 ## Tests
 
