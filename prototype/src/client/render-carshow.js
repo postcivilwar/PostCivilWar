@@ -296,9 +296,13 @@ async function loadBuilding(b, { maxTexture, env }) {
   const pictureOf = async (info, colour, paint = null) => {
     if (!info) return null;
     const image = json.images[json.textures[info.index].source];
-    const blob = new Blob([bytes(image.bufferView)], { type: image.mimeType || 'image/jpeg' });
-    const most = maxTexture || 8192;
-    let picture = await (typeof createImageBitmap === 'function' ? createImageBitmap(blob, { resizeWidth: most, resizeHeight: most, resizeQuality: 'high' }).catch(() => null) : null);
+    const raw = bytes(image.bufferView);
+    const blob = new Blob([raw], { type: image.mimeType || 'image/jpeg' });
+    // (drawn no larger than `maxTexture`, and never larger than it is)
+    const own = pictureSize(raw);
+    const most = Math.min(maxTexture || 4096, own ? Math.max(own.width, own.height) : Infinity);
+    const wide = own ? Math.round((most * own.width) / Math.max(own.width, own.height)) : most, high = own ? Math.round((most * own.height) / Math.max(own.width, own.height)) : most;
+    let picture = await (typeof createImageBitmap === 'function' ? createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null);
     if (!picture) picture = await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); });
     if (paint && paint.length) {
       const c = document.createElement('canvas'); c.width = picture.width; c.height = picture.height;
@@ -331,6 +335,19 @@ async function loadBuilding(b, { maxTexture, env }) {
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = `carshow-${b.id}`;
   return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
+}
+
+// How large a picture is, read from its first bytes (a PNG's header, or a JPEG's frame marker): null if neither.
+function pictureSize(b) {
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50) return { width: (b[16] << 24 | b[17] << 16 | b[18] << 8 | b[19]) >>> 0, height: (b[20] << 24 | b[21] << 16 | b[22] << 8 | b[23]) >>> 0 };
+  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+  for (let i = 2; i + 9 < b.length;) {
+    if (b[i] !== 0xff) { i += 1; continue; }
+    const marker = b[i + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return { height: b[i + 5] << 8 | b[i + 6], width: b[i + 7] << 8 | b[i + 8] };
+    i += 2 + (b[i + 2] << 8 | b[i + 3]);
+  }
+  return null;
 }
 
 // What stands where a building is until its model has come: its outline, raised to about its height, plain.
@@ -707,7 +724,10 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       const reach = e.b.id === 'villa' ? 320 : 900;
       if (x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach) continue;
       e.requested = true;
-      loadBuilding(e.b, { maxTexture: lite ? Math.min(2048, maxTexture || 2048) : maxTexture && maxTexture < 8192 ? maxTexture : 0, env })
+      // (five buildings stand here together, each with an 8192 picture: drawn at 4096 on a computer and 2048 on a phone,
+      // as the motorcycles' and the cars' largest pictures are, they fit in a device's memory all at once; the
+      // files are as supplied)
+      loadBuilding(e.b, { maxTexture: Math.min(lite ? 2048 : 4096, maxTexture || 4096), env })
         .then(({ mesh, triangles }) => {
           mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale);
           exterior.add(mesh); exterior.remove(e.stand);
