@@ -6,6 +6,7 @@
 // Positions are site-grid metres (see atani.js for which way the grid lies).
 
 import { makeBlock, makeChurch, makeFence } from '../layout.js';
+import { TOWN_MODELS, TOWN_TOWERS, HOUSE_PLOT, fitIn, houseModelFor } from './town-buildings.js';
 
 const road = (id, name, x0, z0, x1, z1, surface) => Object.freeze({ id, name, x0, z0, x1, z1, surface });
 export const TOWN_ROADS = Object.freeze([
@@ -30,11 +31,21 @@ export const TOWN_ROADS = Object.freeze([
 
 const WALLS = [0xdcc9a8, 0xc9d6c3, 0xe6d3b8, 0xd6c2c2, 0xcfd9df, 0xe3d6a8, 0xd9c7b0, 0xe8dcc6, 0xbfcfb6, 0xe2c9a6, 0xd4d9c4, 0xf0e2c4];
 const ROOFS = [0x7d7f83, 0x8b4a33, 0x5f6a72, 0x7a2f22, 0x355e3b, 0x6e5a4a, 0x4f6272, 0x8a5a3a];
+// Since 17 October 2026 each of these plain houses has given way to one of the owner's buildings (town-buildings.js):
+// one of their houses on the same plot, facing the same lane (`model`, turned to `heading`, at scale `k`; `w`, `d`
+// and `h` its size), or, at the inner ends of Umuezei and Umuonaje, one of their towers (`tower`: the house's people
+// live in it, and its plot, size and door are the tower's; `plot` is where the house stood). Their ids, quarters and
+// beds are as they were.
 function buildHouses() {
   const list = [];
   const add = (quarter, x, z, door) => {
     const n = list.length;
-    list.push(Object.freeze({ id: `house-${String(n + 1).padStart(3, '0')}`, quarter, x, z, w: 8 + (n % 3), d: 6.5 + ((n * 7) % 3) * 0.5, h: 2.9 + ((n * 5) % 3) * 0.15, door, wall: WALLS[(n * 5) % WALLS.length], roof: ROOFS[(n * 3) % ROOFS.length] }));
+    const plain = { id: `house-${String(n + 1).padStart(3, '0')}`, quarter, x, z, w: 8 + (n % 3), d: 6.5 + ((n * 7) % 3) * 0.5, h: 2.9 + ((n * 5) % 3) * 0.15, door, wall: WALLS[(n * 5) % WALLS.length], roof: ROOFS[(n * 3) % ROOFS.length] };
+    const tower = TOWN_TOWERS.find((tw) => tw.houses.some((p) => p.x === x && p.z === z));
+    if (tower) { list.push(Object.freeze({ ...plain, x: tower.x, z: tower.z, w: tower.w, d: tower.d, h: tower.h, door: tower.door, tower: tower.id, plot: Object.freeze({ x, z }) })); return; }
+    const model = houseModelFor(n), heading = door === 's' ? 0 : Math.PI;
+    const fit = fitIn(TOWN_MODELS[model], heading, HOUSE_PLOT, HOUSE_PLOT);
+    list.push(Object.freeze({ ...plain, w: +fit.w.toFixed(3), d: +fit.d.toFixed(3), h: +fit.h.toFixed(3), model, heading, k: fit.k }));
   };
   for (const x of [-105, -135, -165, -195, -225]) add('Umuezei', x, 96, 's');
   for (let k = 0; k < 10; k += 1) add('Umuezei', -230 + k * 15, 76, 'n');

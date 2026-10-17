@@ -71,6 +71,7 @@ import { createCarView } from './car-view.js';
 import { setCarDaylight } from './car-model.js';
 import { buildCarshow } from './render-carshow.js';
 import { createSupplied } from './render-supplied.js';
+import { createTownBuildings } from './render-town-buildings.js';
 import { buildPowerbike } from './render-powerbike.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
@@ -890,6 +891,8 @@ function start(carried) {
   // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
   // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
   const supplied = createSupplied(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize, env: LITE ? null : vehicleEnvironment() });
+  // The owner's houses and towers (render-town-buildings.js), in place of the town's plain houses and on the city side
+  const townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: renderer.capabilities.maxTextureSize, env: LITE ? null : vehicleEnvironment() });
   // two of the game's own figures, dressed for the showroom floor: a white shirt and a navy tie; a white blouse and a
   // navy skirt
   const CAR_STAFF_LOOKS = Object.freeze({
@@ -2966,6 +2969,9 @@ blood.update(dt, view.blood || []);
       // town, behind its walls, is not drawn)
       const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.level], scene.fog.far * 0.82);
       world.see(cam.target.x, cam.target.z, reach);
+      // (the owner's houses and towers: each model fetched once the town is ready, for someone who can see it, or at
+      // once for someone right by one)
+      townBuildings.see(cam.target.x, cam.target.z, reach, playing && warm.stage >= 5);
       // (PostCivilWar PowerBike's tower: the owner's model, fetched once the town is ready, or at once for someone near it)
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();
       // (the car showroom's buildings: the owner's models, each fetched once the town is ready, for someone near
@@ -3031,7 +3037,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     heldModels,
-    supplied, get ambulanceDrawn() { return ambulance; },
+    supplied, townBuildings, get ambulanceDrawn() { return ambulance; },
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },

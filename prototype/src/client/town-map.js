@@ -23,7 +23,7 @@
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS } from '../sim/zone.js';
 import { gridToTrue, trueToGrid } from '../sim/geo.js';
 
 export const MAP_STYLE = Object.freeze({
@@ -246,6 +246,8 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
       quad(hs.x - hs.w / 2, hs.z - hs.d / 2, hs.x + hs.w / 2, hs.z + hs.d / 2); g.fillStyle = MAP_STYLE.house; g.fill();
       if (outline) { g.strokeStyle = MAP_STYLE.houseEdge; g.stroke(); }
     }
+    // the owner's towers (town-buildings.js): drawn as buildings are
+    for (const tw of TOWN_TOWERS) { if (!onScreen(tw.x - tw.w / 2, tw.z - tw.d / 2, tw.x + tw.w / 2, tw.z + tw.d / 2)) continue; quad(tw.x - tw.w / 2, tw.z - tw.d / 2, tw.x + tw.w / 2, tw.z + tw.d / 2); g.fillStyle = MAP_STYLE.building; g.fill(); if (outline) { g.strokeStyle = MAP_STYLE.houseEdge; g.stroke(); } }
     if (state.k > 1.3) for (const sh of ZONE_SHEDS) { quad(sh.x - 2.5, sh.z - 2.5, sh.x + 2.5, sh.z + 2.5); g.fillStyle = MAP_STYLE.house; g.fill(); if (outline) { g.strokeStyle = MAP_STYLE.houseEdge; g.stroke(); } }
     for (const k of ZONE_COMPOUNDS) for (const bd of k.buildings) {
       if (!onScreen(bd.x0, bd.z0, bd.x1, bd.z1)) continue;

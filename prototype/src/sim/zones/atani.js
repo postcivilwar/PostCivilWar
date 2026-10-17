@@ -15,7 +15,6 @@
 // and the people and businesses in it are invented.
 
 import { geoToWorld, worldToGeo, gridToTrue } from '../geo.js';
-import { makeRng } from '../rng.js';
 import { houseDoor } from '../layout.js';
 import { kekeLook, busLook, footprintBox } from '../vehicle-looks.js';
 import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } from './atani-outskirts.js';
@@ -29,6 +28,9 @@ export * from './asaba-carshow.js';
 // the owner's ambulance, private jet and two trucks (17 October 2026), each where it belongs
 import { SUPPLIED_VEHICLE_COLLIDERS } from './supplied-vehicles.js';
 export * from './supplied-vehicles.js';
+import { TOWN_TREES } from './atani-trees.js';
+import { TOWER_COLLIDERS } from './town-buildings.js';
+export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
 export const ZONE = Object.freeze({
@@ -570,7 +572,8 @@ function buildFixedColliders() {
   const sh = ZONE_PROPS.shelter;
   boxes.push({ x0: sh.x - 6, x1: sh.x + 6, z0: sh.z - 2.5, z1: sh.z + 2.5 });   // motor park shelter posts
   boxes.push({ x0: -64, x1: -50, z0: -196, z1: -176 });                          // cured block stacks
-  for (const h of ZONE_HOUSES) boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2));
+  for (const h of ZONE_HOUSES) if (!h.tower) boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2));
+  boxes.push(...TOWER_COLLIDERS);                                                // the owner's towers (town-buildings.js)
   for (const s of ZONE_SHEDS) boxes.push(...zoneShedWalls(s));
   for (const c of ZONE_COMPOUNDS) {
     boxes.push(...c.fence.walls);
@@ -894,58 +897,16 @@ export function zoneRoomAt(x, z) {
 // Trees, and the final test of where a person can stand.
 // ---------------------------------------------------------------------------
 
-function buildTrees() {
-  const rng = makeRng(20261006);
-  const trees = [];
-  const keepClear = [];
-  for (const p of ZONE_PARCELS) keepClear.push({ x0: p.x0 - 2, x1: p.x1 + 2, z0: p.z0 - 2, z1: p.z1 + 2 });
-  // (the trees were laid out before the city block; it does not move the others: those in its way are taken out below)
-  for (const r of [...ZONE_ROADS.filter((q) => q.id !== 'market' && q.id !== 'market-s'), { x0: -5, x1: 5, z0: -216, z1: 118 }]) keepClear.push({ x0: r.x0 - 3, x1: r.x1 + 3, z0: r.z0 - 3, z1: r.z1 + 3 });
-  for (const b of ZONE_BUILDINGS) if (b.kind !== 'city' && b.kind !== 'tower') keepClear.push(boxOf(b.x, b.z, b.w / 2 + 5, b.d / 2 + 6));
-  for (const h of ZONE_HOUSES) keepClear.push(boxOf(h.x, h.z, h.w / 2 + 2.5, h.d / 2 + 3.5));
-  for (const s of ZONE_SHEDS) keepClear.push(boxOf(s.x, s.z, 6, 6));
-  for (const c of ZONE_COMPOUNDS) {
-    for (const b of c.buildings) keepClear.push({ x0: b.x0 - 6, x1: b.x1 + 6, z0: b.z0 - 6, z1: b.z1 + 6 });
-    for (const y of c.yard) { if (y.x0 !== undefined) keepClear.push({ x0: y.x0 - 1, x1: y.x1 + 1, z0: y.z0 - 1, z1: y.z1 + 1 }); else keepClear.push(boxOf(y.x, y.z, 4, 4)); }
-    for (const w of c.fence.walls) keepClear.push({ x0: w.x0 - 1.6, x1: w.x1 + 1.6, z0: w.z0 - 1.6, z1: w.z1 + 1.6 });
-  }
-  keepClear.push({ x0: 8, x1: 82, z0: 18, z1: 100 }, { x0: -75, x1: -12, z0: 58, z1: 106 }, { x0: -118, x1: -42, z0: -202, z1: -148 });   // market, motor park, block yard
-  keepClear.push({ x0: ZONE_FARMLAND.x0, x1: ZONE_FARMLAND.x1, z0: ZONE_FARMLAND.z0, z1: ZONE_FARMLAND.z1 });
-  const clear = indexBoxes(keepClear);
-  const points = [];
-  for (const [from, to] of ZONE_EDGES) {
-    const a = ZONE_NODES[from];
-    const c = ZONE_NODES[to];
-    const steps = Math.max(1, Math.ceil(Math.hypot(c[0] - a[0], c[1] - a[1]) / 2.5));
-    for (let i = 0; i <= steps; i += 1) points.push(boxOf(a[0] + ((c[0] - a[0]) * i) / steps, a[1] + ((c[1] - a[1]) * i) / steps, 3.2, 3.2));
-  }
-  for (const spot of Object.values(ZONE_PLACES)) points.push(boxOf(spot.x, spot.z, 4, 4));
-  for (const s of ZONE_SPOTS) points.push(boxOf(s.x, s.z, 2.6, 2.6));
-  const paths = indexBoxes(points);
-  const b = ZONE.bounds;
-  let guard = 0;
-  while (trees.length < 260 && guard < 12000) {
-    guard += 1;
-    const x = b.minX + 4 + rng.next() * (b.maxX - b.minX - 8);
-    const z = b.minZ + 4 + rng.next() * (148 - b.minZ - 4);
-    const shore = zoneShoreZ(x);
-    if (z > shore - 3) continue;
-    if (blockedIn(clear, x, z, 0) || blockedIn(paths, x, z, 0)) continue;
-    if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 5)) continue;
-    // Oil palm country: coconut palms only along the bank, oil palms and mango inland.
-    const nearShore = z > shore - 30;
-    const kind = nearShore ? (rng.next() < 0.5 ? 'palm' : 'oilpalm') : (rng.next() < 0.45 ? 'oilpalm' : rng.next() < 0.55 ? 'mango' : 'almond');
-    trees.push(Object.freeze({ x: Number(x.toFixed(1)), z: Number(z.toFixed(1)), kind, size: Number((0.8 + rng.next() * 0.5).toFixed(2)), turn: Number((rng.next() * 6.28).toFixed(2)) }));
-  }
-  return Object.freeze(trees);
-}
 // (none stands where the bridge's approach comes up from the road: the rest are where they always were)
 const underBridge = (t) => t.x > BRIDGE.x0 - 2 && t.x < BRIDGE.x1 + 2 && t.z > BRIDGE.start - 2;
 // (none where the city block has its road, pavements, buildings and lawn: the lawn has its own trees)
 const inCityWay = (t) => [...PAVEMENTS, { x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0: BOULEVARD.z0, z1: BOULEVARD.z1 }, { x0: LAWN.x0, x1: LAWN.x1, z0: LAWN.z0, z1: LAWN.z1 }, ...CITY_BUILDINGS.map((b) => boxOf(b.x, b.z, b.w / 2, b.d / 2))].some((b) => t.x > b.x0 - 2.5 && t.x < b.x1 + 2.5 && t.z > b.z0 - 2.5 && t.z < b.z1 + 2.5);
 // (none where the showroom tower stands, or by its pink column: the others are where they were)
 const byPowerbike = (t) => { const f = POWERBIKE.footprint, p = POWERBIKE.portal; return (t.x > f.x0 - 3 && t.x < f.x1 + 3 && t.z > f.z0 - 3 && t.z < f.z1 + 3) || Math.hypot(t.x - p.x, t.z - p.z) < 6; };
-export const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(t) && !inCityWay(t) && !byPowerbike(t)));
+// (none where one of the owner's buildings now stands, or one of their vehicles: town-buildings.js, supplied-vehicles.js)
+const byNewBuilding = (t) => [...TOWER_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...TOWN_HOUSES.filter((h) => h.model).map((h) => boxOf(h.x, h.z, h.w / 2, h.d / 2))].some((b) => t.x > b.x0 - 2 && t.x < b.x1 + 2 && t.z > b.z0 - 2 && t.z < b.z1 + 2);
+// (the trees as they stood on 17 October 2026, atani-trees.js: scattered again, every one would have moved)
+export const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t) && !inCityWay(t) && !byPowerbike(t) && !byNewBuilding(t)));
 
 // Beyond the town (atani-outskirts.js): the road to Onitsha, the airport and the bridge. They are walked and
 // driven on like the town's own ground, and their walls are walls; the town's own layout is unchanged by them.

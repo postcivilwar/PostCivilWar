@@ -7,7 +7,7 @@
 // The town itself is drawn once into a picture and only turned and moved each frame; the marks are drawn
 // over it. Nothing here decides anything: it draws what the view says.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS } from '../sim/zone.js';
 import { trueToGrid } from '../sim/geo.js';
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -42,6 +42,7 @@ function drawTownPicture(owned) {
   for (const sh of ZONE_SHEDS) rect(sh.x - 2.5, sh.z - 2.5, sh.x + 2.5, sh.z + 2.5);
   g.fillStyle = RADAR_COLOURS.building;
   for (const bd of ZONE_BUILDINGS) rect(bd.x - bd.w / 2, bd.z - bd.d / 2, bd.x + bd.w / 2, bd.z + bd.d / 2);
+  for (const tw of TOWN_TOWERS) rect(tw.x - tw.w / 2, tw.z - tw.d / 2, tw.x + tw.w / 2, tw.z + tw.d / 2);          // the owner's towers
   for (const k of ZONE_COMPOUNDS) for (const bd of k.buildings) rect(bd.x0, bd.z0, bd.x1, bd.z1);
   return c;
 }

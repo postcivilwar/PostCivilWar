@@ -471,7 +471,8 @@ export function buildTown(scene, glowMaterial) {
 
   // houses, a quarter at a time so that what is out of sight is not drawn
   const quarters = new Map();
-  for (const hs of ZONE_HOUSES) { if (!quarters.has(hs.quarter)) quarters.set(hs.quarter, batches()); addHouse(quarters.get(hs.quarter), hs); }
+  // (a house that has given way to one of the owner's buildings is drawn by render-town-buildings.js)
+  for (const hs of ZONE_HOUSES) { if (hs.model || hs.tower) continue; if (!quarters.has(hs.quarter)) quarters.set(hs.quarter, batches()); addHouse(quarters.get(hs.quarter), hs); }
   for (const set of quarters.values()) add(set);
 
   const sheds = { solid: new Chunked(), walls: new Chunked({ uv: 'wall', scale: 3.2 }), roofs: new Chunked({ uv: 'plan', scale: 2.0 }), glow: new Chunked() };

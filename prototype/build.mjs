@@ -13,6 +13,7 @@
 // can be turned into a function that returns its exports.
 
 import { SUPPLIED_VEHICLES } from './src/sim/zones/supplied-vehicles.js';
+import { TOWN_MODELS } from './src/sim/zones/town-buildings.js';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, cpSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { dirname, resolve, relative } from 'node:path';
@@ -184,6 +185,9 @@ for (const name of readdirSync(resolve(root, 'assets/vehicles/cars/game')).sort(
 // The owner's ambulance, private jet and two trucks (17 October 2026), exactly as supplied, beside the page, where
 // render-supplied.js fetches each: the parked ones as someone comes near them, the ambulance once the town is ready.
 for (const v of Object.values(SUPPLIED_VEHICLES)) put(v.file, readFileSync(resolve(root, 'assets/vehicles/town', v.source)));
+// The owner's houses and towers in town (17 October 2026), exactly as supplied, beside the page, where
+// render-town-buildings.js fetches each model as the first building drawn from it comes within sight.
+for (const m of Object.values(TOWN_MODELS)) put(m.file, readFileSync(resolve(root, 'assets/buildings/town', m.source)));
 for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^car-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
 // Songs for the phone's Music app: the list, and every file the list names (assets/music/README.md).
 {
