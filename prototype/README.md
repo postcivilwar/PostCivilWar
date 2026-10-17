@@ -1699,7 +1699,9 @@ them was modelled facing the way the game faces things, and several were modelle
 `tools/buildings/measure.py` measured each one as it stands, and the game turns and scales it by those measures; the
 files are not changed. Their pictures are 8192 pixels square: the graphics card is handed them at 2048 on a computer
 and 1024 on a phone, never larger than they are, and they are read one at a time: each can take a quarter of a
-gigabyte while it is read.
+gigabyte while it is read. Once the graphics card has a picture, the page lets its own copy go, and the file's
+bytes too (the car showroom's buildings and the PowerBike tower as well; a car's or a motorcycle's pictures are
+kept, since the market's viewer may draw them too).
 
 ### Vehicles (`src/sim/zones/supplied-vehicles.js`, `src/client/render-supplied.js`)
 

@@ -23,6 +23,16 @@ export async function fetchKept(url) {
   return fetch(url);
 }
 
+// A picture read for the graphics card (an ImageBitmap) is held twice: by the page and by the card. Once the card has
+// it, the page's copy is let go (a 4096-pixel picture is 64 MB, and a building has up to three). Only for a model
+// drawn by the town's own renderer alone: a car's or a motorcycle's pictures are kept, since the market's viewer
+// (asset-view.js, a renderer of its own) may need them too. A picture drawn on a canvas (a name painted over) is
+// kept: the tests look at it.
+export function letGoOnceDrawn(texture) {
+  texture.onUpdate = () => { texture.onUpdate = null; const image = texture.image; if (image && typeof image.close === 'function') image.close(); };
+  return texture;
+}
+
 const TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 

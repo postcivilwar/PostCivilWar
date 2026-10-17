@@ -8,7 +8,7 @@
 // the owner's pictures are 8192 pixels square, and a browser cannot hold many of those at once (a few hundred
 // megabytes each once drawn); the file keeps them whole.
 
-import { parseGLB, fetchKept } from './glb.js';
+import { parseGLB, fetchKept, letGoOnceDrawn } from './glb.js';
 import { surface } from './render-kit.js';
 import { reflects } from './render-finish.js';
 
@@ -25,9 +25,10 @@ export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = n
   const { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
   const prim = json.meshes[0].primitives[0], at = prim.attributes;
   const geometry = new THREE.BufferGeometry();
-  const put = (key, attr) => { if (at[attr] === undefined) return; const a = accessor(at[attr]); geometry.setAttribute(key, new THREE.BufferAttribute(a.array, a.width, a.normalized)); };
+  // (each list copied out of the file, so that the file itself, mostly its pictures, is let go once read)
+  const put = (key, attr) => { if (at[attr] === undefined) return; const a = accessor(at[attr]); geometry.setAttribute(key, new THREE.BufferAttribute(a.array.slice(), a.width, a.normalized)); };
   put('position', 'POSITION'); put('normal', 'NORMAL'); put('uv', 'TEXCOORD_0');
-  if (prim.indices !== undefined) geometry.setIndex(new THREE.BufferAttribute(accessor(prim.indices).array, 1));
+  if (prim.indices !== undefined) geometry.setIndex(new THREE.BufferAttribute(accessor(prim.indices).array.slice(), 1));
   if (!at.NORMAL) geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
@@ -62,6 +63,8 @@ export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = n
     }
     const t = new THREE.Texture(picture);
     t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
+    // (once the graphics card has the picture, the page's own copy is let go: see glb.js)
+    letGoOnceDrawn(t);
     return t;
   };
   const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, brand), pictureOf(mat.normalTexture, false), pictureOf(pbr.metallicRoughnessTexture, false)]);

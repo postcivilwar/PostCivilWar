@@ -24,7 +24,7 @@
 import { POWERBIKE } from '../sim/zone.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
 import { trText } from '../sim/ledger.js';
-import { parseGLB, fetchKept } from './glb.js';
+import { parseGLB, fetchKept, letGoOnceDrawn } from './glb.js';
 import { Batch, place, surface, linear } from './render-kit.js';
 import { reflects } from './render-finish.js';
 import { makeDealMarker } from './render-holaris.js';
@@ -205,6 +205,7 @@ async function loadTower({ maxTexture }) {
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
     map.flipY = false; map.encoding = THREE.sRGBEncoding; map.anisotropy = 8; map.needsUpdate = true;
+    letGoOnceDrawn(map);
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   // (its glass and cladding give back a little of the sky: render-finish.js)
