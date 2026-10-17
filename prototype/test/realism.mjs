@@ -96,7 +96,8 @@ const after2 = await page.evaluate(() => window.__nlw.finishes());
 check('after the rain the ground dries, slowly', after2.wet < after1.wet && after2.wet > 0.3, { during: rain.finishes.wet, after: [after1.wet, after2.wet] });
 
 // ---- at night ----
-for (let i = 0; i < 24 && (await page.evaluate(() => window.__nlw.night)) < 0.6; i += 1) { await page.evaluate(() => window.__nlw.skip(1)); await page.waitForTimeout(400); }
+// (deep night: an hour at a time, a frame drawn between, so that the sky follows)
+for (let i = 0; i < 24 && (await page.evaluate(() => window.__nlw.night)) < 0.95; i += 1) { await page.evaluate(() => window.__nlw.skip(1)); await page.waitForTimeout(400); }
 await page.waitForTimeout(1500);
 costs.night = await view('09-night-windows', { x: 34, z: -50, h: 2.4, dist: 7, pitch: 0.05, wait: 3500 });
 const night = await page.evaluate(() => { const w = window.__nlw.world; return { glass: +w.glowMaterial.envMapIntensity.toFixed(3), lit: +w.glowMaterial.emissiveIntensity.toFixed(2) }; });
