@@ -1738,7 +1738,7 @@ and 1024 on a phone (buildings) or 4096 and 2048 (vehicles), never larger than t
   off, each is a plain block of its size and colour, all of them in one go. The towers are always drawn from their
   models, and from further off than the rest of the town, but never beyond the haze (the fog's far edge, where
   whatever is drawn is drawn unseen), and from inside a hall no further off than the rest.
-  Measured in the lane with the most of them in sight (Umuezei, by house 67): a frame there is 569,000 triangles in
+  Measured in the lane with the most of them in sight (Umuaji, by house 67): a frame there is 569,000 triangles in
   166 goes, against 301,000 in 187 with the plain houses; beside a mango in the middle of town it is 627,000.
 - **The trees** were scattered once by chance over the ground the houses' plots and paths left clear: scattered again
   with the new plots, every tree in town would have moved. They are kept where they stood (`atani-trees.js`), less the
