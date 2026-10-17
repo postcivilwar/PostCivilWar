@@ -155,4 +155,3 @@ export function carRevs(speed, throttle, handling = carHandlingOf(null), gears =
   return Math.max(0, Math.min(1, low + inGear * (high - low) + Math.max(0, Math.min(1, throttle)) * 0.08));
 }
 
-export { car as defineCar };
