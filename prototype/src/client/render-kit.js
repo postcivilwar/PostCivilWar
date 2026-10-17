@@ -424,6 +424,16 @@ export function rippleNormalTexture(size = 256) {
   }), { srgb: false });
 }
 
+// Rendered plaster, as a normal map that tiles: the slight waves of a trowelled coat, and the sand in it.
+export function plasterNormalTexture(size = 256) {
+  const h = (x, y) => tileNoise((x / size) * 6, (y / size) * 6, 6) * 0.55 + tileNoise((x / size) * 22 + 5, (y / size) * 22, 22) * 0.3 + noise(((x % size) + size) % size, ((y % size) + size) % size) * 0.15;
+  return canvasTexture(size, (ctx) => paintPixels(ctx, size, (x, y) => {
+    const dx = h(x + 1, y) - h(x - 1, y);
+    const dy = h(x, y + 1) - h(x, y - 1);
+    return [Math.round(127.5 - dx * 260), Math.round(127.5 - dy * 260), 255];
+  }), { srgb: false });
+}
+
 // Printed wrapper cloth: a ground colour with a repeating motif in two more.
 export function clothTexture(colours, motif = 'rings', size = 128) {
   const css = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
@@ -549,7 +559,7 @@ export function addWindow(B, x, y, z, alongX, barred, w = 1.3, h = 1.15) {
   const { solid, glow } = B;
   const size = (ww, hh, dd) => (alongX ? [ww, hh, dd] : [dd, hh, ww]);
   solid.box(...size(w + 0.22, h + 0.22, 0.1), place(x, y, z), 0x5d4630);                       // frame
-  glow.box(...size(w, h, 0.12), place(x, y, z), 0xa9c6d6);
+  glow.box(...size(w, h, 0.12), place(x, y, z), 0x8aa2ae);                                       // glass
   solid.box(...size(0.06, h, 0.14), place(x, y, z), 0x5d4630);                                 // mullion
   for (let i = 0; i < 5; i += 1) solid.box(...size(w, 0.025, 0.16), place(x, y - h / 2 + ((i + 0.5) * h) / 5, z), 0xd4d7d6);   // louvre blades
   solid.box(...size(w + 0.36, 0.07, 0.22), place(x, y - h / 2 - 0.14, z), 0x9c958a);           // sill
@@ -577,8 +587,10 @@ export function buildingKit() {
   const sheet = corrugatedTextures();
   buildingMaterials = {
     solid: surface({ vertexColors: true, roughness: 0.86, metalness: 0.02 }),
-    walls: surface({ vertexColors: true, map: grainTexture({ low: 0.74 }), roughness: 0.95, metalness: 0, side: THREE.DoubleSide }),
-    roofs: surface({ vertexColors: true, map: sheet.map, normalMap: sheet.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.62, metalness: 0.25 }),
+    // (painted plaster: the paint's faint sheen, and the plaster's own slight unevenness under it)
+    walls: surface({ vertexColors: true, map: grainTexture({ low: 0.74 }), normalMap: plasterNormalTexture(), normalScale: new THREE.Vector2(0.45, 0.45), roughness: 0.88, metalness: 0, side: THREE.DoubleSide }),
+    // (corrugated zinc: a dull metal, giving back a little of the sky: render-finish.js)
+    roofs: surface({ vertexColors: true, map: sheet.map, normalMap: sheet.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.5, metalness: 0.45 }),
   };
   return buildingMaterials;
 }

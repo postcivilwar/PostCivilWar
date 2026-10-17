@@ -11,6 +11,8 @@
 import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_LAMPS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } from '../sim/zone.js';
 import { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } from './render-kit.js';
 import { addTree } from './render-world.js';
+import { Foliage, foliageMaterials } from './render-foliage.js';
+import { reflects, weathers } from './render-finish.js';
 
 const STEEL = 0x8f9499, STEEL_DARK = 0x5f656b, CONCRETE = 0xb3a48a, CONCRETE_OLD = 0x9c8a6c, TAR = 0x56555a, LINE = 0xe6e2d6, YELLOW = 0xd8b33a;
 
@@ -325,7 +327,7 @@ export function buildOutskirts(scene, { glowMaterial }) {
   const roofs = new Chunked({ uv: 'plan', scale: 2.0 });
   const roads = new Chunked({ uv: 'plan', scale: 5 });
   const paint = new Chunked();
-  const leaves = new Chunked();
+  const leaves = new Foliage();
   const glow = new Chunked();
   const glass = new Chunked();
   const fence = new Chunked({ uv: 'wall', scale: 1 });
@@ -360,11 +362,11 @@ export function buildOutskirts(scene, { glowMaterial }) {
   add(solid.build(kit.solid));
   add(walls.build(kit.walls));
   add(roofs.build(kit.roofs));
-  add(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));
+  for (const mesh of leaves.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
   const tarmac = grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 7 });
-  add(roads.build(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 })), false);
+  add(roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.35, gloss: 0.62, sheen: 0.75 })), false);
   add(paint.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })), false);
-  add(glass.build(surface({ vertexColors: true, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false })), false);
+  add(glass.build(reflects(surface({ vertexColors: true, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false }), 1)), false);
   add(fence.build(new THREE.MeshLambertMaterial({ map: chainLink(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })), false);
   for (const mesh of glow.build(glowMaterial)) { scene.add(mesh); sight.add(mesh); }
   for (const sign of signs) { scene.add(sign); sight.add(sign, 260, { x: sign.position.x, z: sign.position.z, radius: 14 }); }

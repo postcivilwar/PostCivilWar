@@ -11,7 +11,8 @@
 //   const city = buildCity(scene, { glowMaterial, lite });   then city.tick(dt, { night }) each frame
 import { BOULEVARD, PAVEMENTS, LANDINGS, CROSSINGS, STOP_LINES, LAWN, LAWN_TREES, LAWN_SHRUBS, CITY_FURNITURE, CITY_BUILDINGS, KERB, cityGroundY, signalState } from '../sim/zone.js';
 import { Batch, place, linear, noise, grassTexture, textTexture, surface } from './render-kit.js';
-import { vehicleEnvironment } from './vehicle-models.js';
+import { Foliage, bush, foliageMaterials } from './render-foliage.js';
+import { reflects, weathers } from './render-finish.js';
 
 const ROAD_TOP = 0.08;                // the top of the town's roads (render-world.js)
 const CROWN = 0.05;                   // how much higher the middle of the boulevard is than its edges
@@ -304,18 +305,16 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
   wallRun(L.x0, L.z0, L.x0, L.z1);
   B.grass.box(L.x1 - L.x0 - L.wall, 0.06, L.z1 - L.z0 - L.wall, place((L.x0 + L.x1) / 2, lawnTop - 0.03, (L.z0 + L.z1) / 2), 0x6d9a45);
   B.solid.box(L.x1 - L.x0 - L.wall, lawnTop - 0.05, L.z1 - L.z0 - L.wall, place((L.x0 + L.x1) / 2, (lawnTop - 0.05) / 2, (L.z0 + L.z1) / 2), 0x5a4632);
-  const treeSolid = new Batch(), treeLeaves = new Batch();
-  for (const [i, t] of LAWN_TREES.entries()) addTree(treeSolid, treeLeaves, { x: t.x, z: t.z, kind: 'mango', size: 0.9 + hash(i, 4) * 0.25, turn: hash(i, 9) * 6 });
-  for (const [i, s] of LAWN_SHRUBS.entries()) {
-    for (let k = 0; k < 4; k += 1) B.leaves.round(new THREE.IcosahedronGeometry(0.42 + hash(i, k) * 0.2, 1), place(s.x + (hash(k, i) - 0.5) * 0.7, lawnTop + 0.35 + hash(i + k, 3) * 0.2, s.z + (hash(i, k + 5) - 0.5) * 0.7), k % 2 ? 0x3f7a35 : 0x4d8a3c, 0.9 + hash(k, i) * 0.2);
-  }
+  const treeSolid = new Batch(), foliage = new Foliage();
+  for (const [i, t] of LAWN_TREES.entries()) addTree(treeSolid, foliage, { x: t.x, z: t.z, kind: 'mango', size: 0.9 + hash(i, 4) * 0.25, turn: hash(i, 9) * 6 });
+  // the shrubs: low round bushes of the same leaves
+  for (const [i, s] of LAWN_SHRUBS.entries()) bush(foliage, s.x, lawnTop, s.z, 0.62 + hash(i, 2) * 0.2, (k) => hash(i * 17 + k, 23));
 
   // ------------------------------------------------------------- buildings
   const signs = [];
   for (const b of CITY_BUILDINGS) buildBuilding(B, b, { lite, signs });
 
   // ------------------------------------------------------------- materials
-  const env = () => vehicleEnvironment();
   const materials = {
     road: surface({ vertexColors: true, map: tex.asphalt, roughness: 0.93, metalness: 0 }),
     paint: surface({ vertexColors: true, roughness: 0.72, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
@@ -331,6 +330,11 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
     leaves: surface({ vertexColors: true, roughness: 0.9, metalness: 0 }),
     solid: surface({ vertexColors: true, roughness: 0.8, metalness: 0.05 }),
   };
+  // (the glass and the steel give back the sky; out in the rain the street is darker, and its tarmac and paving glossy:
+  // render-finish.js)
+  reflects(materials.glass, 1.1); reflects(materials.metal, 0.6);
+  weathers(materials.road, { darken: 0.35, gloss: 0.62, sheen: 0.75 }); weathers(materials.paving, { darken: 0.25, gloss: 0.32, sheen: 0.25 });
+  for (const name of ['concrete', 'brick', 'stone', 'render']) weathers(materials[name], { darken: 0.18 });
   const meshes = [];
   for (const [name, batch] of Object.entries(B)) {
     if (batch.empty) continue;
@@ -340,8 +344,9 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
     mesh.name = `city-${name}`;
     scene.add(mesh); meshes.push(mesh);
   }
-  for (const batch of [treeSolid, treeLeaves]) if (!batch.empty) {
-    const mesh = batch.build(batch === treeLeaves ? surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }) : materials.solid);
+  for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); meshes.push(mesh); }
+  for (const batch of [treeSolid]) if (!batch.empty) {
+    const mesh = batch.build(materials.solid);
     mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh); meshes.push(mesh);
   }
   for (const s of signs) scene.add(s);
@@ -360,11 +365,10 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
     lampMeshes.push({ colour, phase, material, mesh });
   });
   // the lights follow the town's own clock (atani-city.js signalState), the same one its traffic stops by
-  let clock = 0, envSet = false;
+  let clock = 0;
   function tick(dt, now = null) {
     clock = now === null ? clock + dt : now;
     for (const l of lampMeshes) l.material.emissiveIntensity = signalState(l.phase, clock) === l.colour ? 2.4 : 0;
-    if (!envSet && env() && !lite) { materials.glass.envMap = env(); materials.glass.needsUpdate = true; envSet = true; }
   }
   tick(0);
   return { tick, meshes, signal: (phase) => signalState(phase, clock), textures: tex };

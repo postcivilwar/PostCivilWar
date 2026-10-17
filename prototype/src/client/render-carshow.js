@@ -31,6 +31,8 @@ import { loadCar, carLoaded } from './car-model.js';
 import { CAR_IMPOSTOR } from './car-impostors.js';
 import { COVER } from './brand-data.js';
 import { vehicleEnvironment } from './vehicle-models.js';
+import { addTree } from './render-world.js';
+import { Foliage, foliageMaterials } from './render-foliage.js';
 
 const P = CARSHOW, C = CARSHOW.compound, G = CARSHOW.gate, H = CARSHOW.hall, S = CARSHOW.showroom;
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -418,11 +420,11 @@ function buildForecourt(group, { lite }) {
     return { m, geo, base: geo.attributes.position.array.slice(), seed: f.k * 1.7 };
   });
   // palms in round planters along the front of the forecourt, and lamps along the drive
-  const palms = new Batch(), fronds = new Batch(), lamps = new Batch(), heads = [];
-  for (const q of P.forecourt.palms) {
+  // (each palm the town's own coconut palm, render-world.js addTree, its crown as high as the planter and its trunk)
+  const palms = new Batch(), fronds = new Foliage(), lamps = new Batch(), heads = [];
+  for (const [k, q] of P.forecourt.palms.entries()) {
     palms.round(new THREE.CylinderGeometry(q.r * 0.88, q.r, 0.6, 24), place(q.x, 0.3, q.z), 0xd6d0c4);
-    palms.round(new THREE.CylinderGeometry(0.15, 0.22, q.h, 10), place(q.x, q.h / 2 + 0.3, q.z), 0x7b6a55);
-    for (let k = 0; k < 9; k += 1) { const a = (k / 9) * Math.PI * 2; fronds.box(0.5, 0.04, 2.6, place(q.x + Math.sin(a) * 1.1, q.h + 0.1, q.z + Math.cos(a) * 1.1, a, 1, 1, 1, 0.35), k % 2 ? 0x3c7a35 : 0x4f8f3e); }
+    addTree(palms, fronds, { x: q.x, z: q.z, kind: 'palm', size: (q.h + 0.3) / 7.2, turn: k * 1.9 });
   }
   for (const q of P.forecourt.lamps) {
     lamps.round(new THREE.CylinderGeometry(0.06, 0.09, 6, 10), place(q.x, 3, q.z), 0x34383d);
@@ -430,7 +432,7 @@ function buildForecourt(group, { lite }) {
     heads.push({ x: q.x - q.side * 0.3, z: q.z });
   }
   const palmMesh = palms.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })); palmMesh.castShadow = true; group.add(palmMesh);
-  const frondMesh = fronds.build(surface({ vertexColors: true, roughness: 0.7, metalness: 0, side: THREE.DoubleSide })); frondMesh.castShadow = true; group.add(frondMesh);
+  for (const mesh of fronds.build(foliageMaterials())) group.add(mesh);
   const lampMesh = lamps.build(surface({ vertexColors: true, roughness: 0.5, metalness: 0.5 })); lampMesh.castShadow = true; group.add(lampMesh);
   const lampGlow = new Batch();
   for (const h of heads) lampGlow.box(0.5, 0.03, 0.2, place(h.x, 5.95, h.z), 0xfff1c9);

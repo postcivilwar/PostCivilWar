@@ -26,6 +26,7 @@ import { POWER_BIKES } from '../sim/power-bikes.js';
 import { trText } from '../sim/ledger.js';
 import { parseGLB, fetchKept } from './glb.js';
 import { Batch, place, surface, linear } from './render-kit.js';
+import { reflects } from './render-finish.js';
 import { makeDealMarker } from './render-holaris.js';
 import { loadBike, bikeLoaded } from './bike-model.js';
 import { BIKE_IMPOSTOR } from './bike-impostors.js';
@@ -206,7 +207,8 @@ async function loadTower({ maxTexture }) {
     map.flipY = false; map.encoding = THREE.sRGBEncoding; map.anisotropy = 8; map.needsUpdate = true;
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
-  const material = surface({ map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+  // (its glass and cladding give back a little of the sky: render-finish.js)
+  const material = reflects(surface({ map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide }), 0.8);
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = 'powerbike-tower';

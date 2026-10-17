@@ -72,6 +72,8 @@ import { setCarDaylight } from './car-model.js';
 import { buildCarshow } from './render-carshow.js';
 import { createSupplied } from './render-supplied.js';
 import { createTownBuildings } from './render-town-buildings.js';
+import { updateFinishes, finishState } from './render-finish.js';
+import { foliageState } from './render-foliage.js';
 import { buildPowerbike } from './render-powerbike.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
@@ -2942,6 +2944,8 @@ blood.update(dt, view.blood || []);
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
+    // (glass, the river and zinc give back the sky by day; in the rain the ground is wet, and dries after it)
+    updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
@@ -3037,7 +3041,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     heldModels,
-    supplied, townBuildings, get ambulanceDrawn() { return ambulance; },
+    supplied, townBuildings, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },

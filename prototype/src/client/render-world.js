@@ -9,6 +9,8 @@ import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
 import { buildShowroom } from './render-holaris.js';
 import { buildCity } from './render-city.js';
+import { Foliage, treeLeaves, foliageMaterials, setWind } from './render-foliage.js';
+import { reflects, weathers } from './render-finish.js';
 
 const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
@@ -116,26 +118,9 @@ function buildGrass() {
 
 // ------------------------------------------------------------------ trees --
 
-// A palm frond: a ribbon that rises from the crown and droops at the tip.
-function frondGeometry(length, width, rise, droop) {
-  const steps = 6;
-  const positions = [];
-  const at = (t) => ({ r: length * t * (1 - 0.2 * t), y: rise * t - droop * t * t, w: width * Math.pow(Math.sin(Math.PI * (0.12 + 0.86 * t)), 0.7) });
-  for (let i = 0; i < steps; i += 1) {
-    const a = at(i / steps);
-    const b = at((i + 1) / steps);
-    for (const side of [-1, 1]) {
-      const quad = [[0, a.y, a.r], [side * a.w, a.y - a.w * 0.35, a.r], [side * b.w, b.y - b.w * 0.35, b.r], [0, b.y, b.r]];
-      for (const k of [0, 1, 2, 0, 2, 3]) positions.push(...quad[k]);
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.computeVertexNormals();
-  return geometry;
-}
-
-export function addTree(solid, leaves, t) {
+// A tree: its trunk and branches into `solid`, its leaves into `foliage` (render-foliage.js: leaves drawn from pictures
+// of leaves, the air between them see-through, moving in the wind).
+export function addTree(solid, foliage, t) {
   const s = t.size;
   const jitter = (k) => noise(t.x * 3.1 + k, t.z * 1.7);
   if (t.kind === 'palm') {
@@ -152,11 +137,7 @@ export function addTree(solid, leaves, t) {
       solid.round(new THREE.CylinderGeometry(r0 - 0.014 * s, r0, height / segments + 0.02, 9), place(x, y + height / segments / 2, t.z, 0, 1, 1, 1, 0, -lean * 2 * k), i % 2 ? 0x8f7a5e : 0x7c684e);
       topX = t.x + lean * height * (k + 1 / segments) * (k + 1 / segments);
     }
-    for (let i = 0; i < 12; i += 1) {
-      const a = t.turn + (i * Math.PI * 2) / 12 + jitter(i) * 0.3;
-      const up = i % 3 === 0;
-      leaves.add(frondGeometry((3.3 + jitter(i + 20) * 0.9) * s, 0.52 * s, (up ? 1.9 : 0.8) * s, (up ? 1.8 : 2.4) * s), place(topX, height - 0.05, t.z, a), i % 2 ? 0x4c8a36 : 0x5f9f45, 0.9 + jitter(i + 40) * 0.2);
-    }
+    treeLeaves(foliage, t, s, jitter, { x: topX, y: height });
     for (let i = 0; i < 4; i += 1) solid.round(new THREE.SphereGeometry(0.17 * s, 8, 6), place(topX + Math.cos(i * 1.7) * 0.24, height - 0.3, t.z + Math.sin(i * 1.7) * 0.24), 0x5f6b2c);
   } else if (t.kind === 'oilpalm') {
     // oil palm: a short stout trunk rough with leaf bases, and a full round crown
@@ -165,36 +146,30 @@ export function addTree(solid, leaves, t) {
       const y = (height * i) / 6;
       solid.add(new THREE.CylinderGeometry((0.3 + (i % 2) * 0.05) * s, (0.36 + (i % 2) * 0.04) * s, height / 6 + 0.02, 8), place(t.x, y + height / 12, t.z, i * 0.5), i % 2 ? 0x5a4a37 : 0x6a5842);
     }
-    for (let i = 0; i < 18; i += 1) {
-      const a = t.turn + (i * Math.PI * 2) / 18 + jitter(i) * 0.25;
-      const tier = i % 3;
-      leaves.add(frondGeometry((2.9 + jitter(i + 9) * 0.6) * s, 0.5 * s, [2.1, 1.1, 0.3][tier] * s, [1.5, 2.0, 2.3][tier] * s), place(t.x, height - 0.1, t.z, a), [0x3f7a33, 0x4a8a3a, 0x386e2f][tier], 0.9 + jitter(i + 30) * 0.2);
-    }
+    treeLeaves(foliage, t, s, jitter, { x: t.x, y: height });
     solid.round(new THREE.SphereGeometry(0.32 * s, 8, 6), place(t.x + 0.3, height - 0.35, t.z + 0.2, 0, 1, 1.2, 1), 0x7a2c1c);
     solid.round(new THREE.SphereGeometry(0.27 * s, 8, 6), place(t.x - 0.28, height - 0.4, t.z - 0.22, 0, 1, 1.2, 1), 0x8a3a1e);
   } else if (t.kind === 'mango') {
-    // mango: a dense rounded dome on a short forked trunk
+    // mango: a short forked trunk, its limbs reaching up and out into a dense dome of leaves (seen between them)
     solid.round(new THREE.CylinderGeometry(0.26 * s, 0.42 * s, 2.6 * s, 9), place(t.x, 1.3 * s, t.z), 0x5f4a36);
     for (let i = 0; i < 3; i += 1) {
       const a = t.turn + i * 2.1;
       solid.round(new THREE.CylinderGeometry(0.12 * s, 0.2 * s, 2.2 * s, 7), place(t.x + Math.cos(a) * 0.6 * s, 3.2 * s, t.z + Math.sin(a) * 0.6 * s, -a, 1, 1, 1, 0, 0.6), 0x5f4a36);
+      // and from each, two thinner ones further out
+      for (const side of [-1, 1]) {
+        const b = a + side * 0.55;
+        solid.round(new THREE.CylinderGeometry(0.05 * s, 0.1 * s, 1.9 * s, 6), place(t.x + Math.cos(b) * 1.45 * s, 4.45 * s, t.z + Math.sin(b) * 1.45 * s, -b, 1, 1, 1, 0, 0.95 + jitter(i * 2 + side) * 0.3), 0x5a4633);
+      }
     }
-    const blobs = 9;
-    for (let i = 0; i < blobs; i += 1) {
-      const a = t.turn + (i * Math.PI * 2) / (blobs - 2);
-      const top = i >= blobs - 2;
-      const r = (top ? 2.0 : 1.75 + jitter(i) * 0.5) * s;
-      const out = top ? (i === blobs - 1 ? 0.4 : 0.7) * s : 1.75 * s;
-      leaves.round(new THREE.IcosahedronGeometry(r, 1), place(t.x + Math.cos(a) * out, (top ? 5.6 : 4.3 + jitter(i + 5) * 0.5) * s, t.z + Math.sin(a) * out, a, 1, 0.82, 1), [0x2f6b34, 0x377a3a, 0x2b6130, 0x3d8040][i % 4], 0.92 + jitter(i + 12) * 0.16);
-    }
+    treeLeaves(foliage, t, s, jitter, null);
   } else {
-    // tropical almond: a straight trunk with flat tiers of leaf
+    // tropical almond: a straight trunk with level branches in tiers, the leaves lying flat on them
     solid.round(new THREE.CylinderGeometry(0.16 * s, 0.26 * s, 5.0 * s, 8), place(t.x, 2.5 * s, t.z), 0x74604a);
     const tiers = [[2.9, 3.0], [2.3, 4.0], [1.6, 4.9], [0.9, 5.6]];
     tiers.forEach(([r, y], i) => {
-      leaves.round(new THREE.SphereGeometry(r * s, 12, 6), place(t.x, y * s, t.z, t.turn + i * 0.6, 1, 0.16, 1), [0x4f8c3c, 0x5a9a44, 0x66a84c, 0x5a9a44][i]);
       for (let k = 0; k < 5; k += 1) { const a = t.turn + i + k * 1.26; solid.round(new THREE.CylinderGeometry(0.03 * s, 0.05 * s, r * s, 5), place(t.x + Math.cos(a) * r * s * 0.45, y * s - 0.08, t.z + Math.sin(a) * r * s * 0.45, -a, 1, 1, 1, 0, Math.PI / 2 - 0.12), 0x74604a); }
     });
+    treeLeaves(foliage, t, s, jitter, null);
   }
 }
 
@@ -362,7 +337,9 @@ export function buildWorld(scene) {
   const signs = [];
   const B = { solid, walls, roofs, roads, leaves, glow };
 
-  scene.add(buildGround());
+  const ground = buildGround();
+  weathers(ground.material, { darken: 0.16 });
+  scene.add(ground);
   const sight = createSight();
   const grass = buildGrass();
   for (const mesh of grass) { scene.add(mesh); sight.add(mesh, 150); }
@@ -394,7 +371,8 @@ export function buildWorld(scene) {
   for (const b of ZONE_BUILDINGS) if (b.kind !== 'city') addBuilding(B, signs, b);          // (the city block's are render-city.js's)
   // the glass showroom: its own few meshes
   const showrooms = ZONE_BUILDINGS.filter((b) => b.kind === 'showroom').map((b) => { const shop = ZONE_SHOPS.find((sh) => sh.building === b.id); const made = buildShowroom(b, { storeys: shop ? shop.storeys : 3 }); scene.add(made.group); return made; });
-  for (const t of ZONE_TREES) addTree(solid, leaves, t);
+  const foliage = new Foliage();
+  for (const t of ZONE_TREES) addTree(solid, foliage, t);
   // parked coaches and kekes are the supplied models, each stepping through its levels of detail with distance
   const parkedVehicles = [];
   for (const v of ZONE_VEHICLES) {
@@ -495,12 +473,18 @@ export function buildWorld(scene) {
   cast(solid.build(kit.solid));
   cast(walls.build(kit.walls));
   cast(roofs.build(kit.roofs));
-  cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));
-  const roadMesh = roads.build(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }));
+  // (the walls and roofs out in the weather: render-finish.js)
+  weathers(kit.walls, { darken: 0.2 });
+  weathers(reflects(kit.roofs, 0.5), { darken: 0.14, gloss: 0.3 });
+  cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));      // (the market's umbrellas)
+  for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
+  // (tarmac and laterite: in the rain darker, and the tarmac glossy, giving back the sky)
+  const roadMesh = roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.35, gloss: 0.62, sheen: 0.75 }));
   roadMesh.receiveShadow = true;
   scene.add(roadMesh);
 
-  const glowMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.2, emissive: linear(0xffc66b), emissiveIntensity: 0 });
+  // window glass and lamp covers: by day the glass gives back the sky (render-finish.js), at night it is lit from within
+  const glowMaterial = reflects(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.1, metalness: 0.3, emissive: linear(0xffc66b), emissiveIntensity: 0 }), 1);
   // the first city block: Market Road's boulevard and its buildings (render-city.js)
   const city = buildCity(scene, { glowMaterial, lite: isLite(), addTree });
   for (const mesh of glow.build(glowMaterial)) { scene.add(mesh); sight.add(mesh); }
@@ -514,7 +498,8 @@ export function buildWorld(scene) {
   const farEdge = 150 + ZONE_PROPS.water.width;
   const ripples = rippleNormalTexture();
   ripples.repeat.set(60, 9);
-  const waterMaterial = new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 });
+  // (the river gives back the sky, broken by its ripples: render-finish.js)
+  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.16, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.85);
   const water = new THREE.Mesh(new THREE.PlaneGeometry(1500, farEdge - nearEdge + 8, 1, 1), waterMaterial);
   water.rotation.x = -Math.PI / 2;
   water.position.set(0, -0.32, (nearEdge + farEdge + 8) / 2);
@@ -535,7 +520,8 @@ export function buildWorld(scene) {
   scene.add(far.build(surface({ vertexColors: true, roughness: 1, metalness: 0 })));
 
   // the river moves: its ripples drift downstream
-  const tick = (dt, now = null) => { ripples.offset.x += dt * 0.012; ripples.offset.y += dt * 0.004; city.tick(dt, now); };
+  let breeze = 0;
+  const tick = (dt, now = null) => { ripples.offset.x += dt * 0.012; ripples.offset.y += dt * 0.004; breeze += dt; setWind(breeze); city.tick(dt, now); };
 
   // a weak device gets thinner grass, then none
   let quality = 0;
@@ -550,5 +536,5 @@ export function buildWorld(scene) {
       if (v.model.group.visible) v.model.setDistance(d, undefined, VEHICLE_BIAS[quality]);
     }
   }
-  return { glowMaterial, waterMaterial, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
+  return { glowMaterial, waterMaterial, roadMaterial: roadMesh.material, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
 }
