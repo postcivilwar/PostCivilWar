@@ -153,20 +153,29 @@ function buildFence(group, { lite }) {
   const paint = surface({ vertexColors: true, roughness: 0.45, metalness: 0.25 });
   const rails = solid.build(paint); rails.castShadow = true; rails.receiveShadow = true; rails.name = 'carshow-railings';
   group.add(rails);
-  // the bars and their spears
+  // the bars and their spears: for each run of railings its own two sets (each with the bounds of its run, so that
+  // a run out of view, or out of the sun's shadows, is not drawn there), and drawn only by someone near enough to
+  // see them as bars (`see`): a bar is 2 cm across, and there are thousands of them
   const barGeo = new THREE.BoxGeometry(0.02, 1.9, 0.02); barGeo.translate(0, 0.12 + 0.95, 0);
   const tipGeo = new THREE.ConeGeometry(0.026, 0.1, 4); tipGeo.translate(0, 2.07, 0);
   const material = surface({ color: MILK, roughness: 0.45, metalness: 0.25 });
   const m = new THREE.Matrix4();
-  for (const geo of [barGeo, tipGeo]) {
-    const inst = new THREE.InstancedMesh(geo, material, bars.length);
-    bars.forEach(([x, z, ry], i) => inst.setMatrixAt(i, m.makeRotationY(ry + Math.PI / 4).setPosition(x, 0, z)));
-    inst.instanceMatrix.needsUpdate = true;
-    inst.castShadow = !lite; inst.receiveShadow = false; inst.name = 'carshow-bars';
-    inst.frustumCulled = false;
-    group.add(inst);
-  }
-  return { bars: bars.length, posts: posts.length };
+  const barRuns = runs.map(([ax, az, bx, bz]) => {
+    const mine = bars.filter(([x, z]) => Math.abs((x - ax) * (bz - az) - (z - az) * (bx - ax)) < 0.01 && x >= Math.min(ax, bx) - 0.01 && x <= Math.max(ax, bx) + 0.01 && z >= Math.min(az, bz) - 0.01 && z <= Math.max(az, bz) + 0.01);
+    const meshes = [barGeo, tipGeo].map((geo) => {
+      const own = geo.clone();
+      own.boundingSphere = new THREE.Sphere(new THREE.Vector3((ax + bx) / 2, 1.1, (az + bz) / 2), Math.hypot(bx - ax, bz - az) / 2 + 2);
+      const inst = new THREE.InstancedMesh(own, material, mine.length);
+      mine.forEach(([x, z, ry], i) => inst.setMatrixAt(i, m.makeRotationY(ry + Math.PI / 4).setPosition(x, 0, z)));
+      inst.instanceMatrix.needsUpdate = true;
+      inst.castShadow = !lite; inst.receiveShadow = false; inst.name = 'carshow-bars';
+      group.add(inst);
+      return inst;
+    });
+    return { ax, az, bx, bz, meshes, count: mine.length };
+  });
+  if (barRuns.reduce((n, r) => n + r.count, 0) !== bars.length) throw new Error('every bar belongs to one run of the railings');
+  return { bars: bars.length, posts: posts.length, runs: barRuns };
 }
 
 // ------------------------------------------------------------------------------------------- the gate --
@@ -730,6 +739,12 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
     const haze = scene.fog ? scene.fog.far : Infinity;
     const dx = Math.max(C.x0 - x, 0, x - C.x1), dz = Math.max(C.z0 - z, 0, z - C.z1);
     outside.visible = Math.hypot(dx, dz) < Math.min(haze, reach + 40);
+    // (the railings' bars: by someone within 90 m of their run; further off, its posts and rails)
+    if (fence) for (const r of fence.runs) {
+      const ux = r.bx - r.ax, uz = r.bz - r.az, t = Math.max(0, Math.min(1, ((x - r.ax) * ux + (z - r.az) * uz) / (ux * ux + uz * uz)));
+      const near = Math.hypot(x - (r.ax + ux * t), z - (r.az + uz * t)) < 90;
+      for (const mesh of r.meshes) mesh.visible = near;
+    }
     for (const e of buildings) {
       e.seen = Math.hypot(e.b.x - x, e.b.z - z) - e.radius < Math.min(haze, reach + (e.b.id === 'villa' ? 40 : TALL));
       if (e.b.id === 'villa' && e.mesh) continue;            // (the villa, once here: see `tick`)
