@@ -94,6 +94,16 @@ RADIUS = {
 # bikes whose back tyre is wider than the 13 cm a tyre is otherwise taken to be at most
 FAT_REAR = {'power-cruiser'}
 
+# bikes whose bars, mirrors and screen are not their highest points at the front: the long, low power cruiser's
+# mirrors stand about its middle, a little behind it, and the rule below read it the wrong way round (18 October
+# 2026: its fat back tyre was steered and its rider faced the tail; seen from the side, its fork and bars are at the
+# end without the seat)
+TURN_ROUND = {'power-cruiser'}
+
+# bikes whose headlamp is not above the front wheel: the concept bike's lamps are the strip between its two front
+# tyres (its front-most point, low down)
+LAMP_LOW = {'chrome-concept'}
+
 # bikes made with few triangles (about 11,000), whose tyres are coarse rings of points: their wheels are found as the
 # ring most of the points round each end lie on (`ring_fit`), the tyre's foot on the ground, rather than by the
 # ground-contact cluster `fit_wheel` starts from, which on a coarse tyre is not under the axle
@@ -155,8 +165,9 @@ def fit_wheel(P, sign, radius=None, wide=False):
     return {'z': zc, 'y': yc, 'r': R, 'half': half}
 
 
-def anchors(P, front, rear):
-    """Where a rider sits, holds the bars and puts their feet, read from the shape (in the bike's own units)."""
+def anchors(P, front, rear, N=None, bike_id=None):
+    """Where a rider sits, holds the bars and puts their feet, read from the shape (in the bike's own units); N, the
+    normals (which way each point's surface faces), for finding the headlamp's glass."""
     x, y, z = P[:, 0], P[:, 1], P[:, 2]
     H = y.max()
     # the bars: the widest points of the upper front of the bike, mirrors and their stalks left out (they stand
@@ -186,13 +197,25 @@ def anchors(P, front, rear):
     side = (np.abs(z - pz) < 0.05) & (np.abs(y - py) < 0.05)
     px = float(np.percentile(np.abs(x[side]), 90)) + 0.01 if side.sum() > 10 else 0.12
     # the lamps and the exhaust (16 October 2026: lights and flames are put where the model has them):
-    #   head   the front-most point of the upper front, near the middle (the headlamp's glass)
+    #   head   the headlamp's glass: the front-most surface facing forward, near the middle, clear of the front
+    #          mudguard (further from the front axle, seen from the side, than one and a half times the wheel's
+    #          radius) and below the grips (18 October 2026: the front-most point of the upper front, as it was, is
+    #          the mudguard's nose on most of the owner's bikes, and the lamp's glass was drawn there); on a LAMP_LOW
+    #          bike, and wherever nothing is found so, that front-most point
     #   tail   the rear-most point near the middle, above the rear wheel's axle (the tail lamp)
     #   pipe   the rear-most points low down at each side, behind the rear axle (the silencers' ends)
-    upper = (np.abs(x) < 0.06) & (y > 0.45 * H) & (y < 0.85 * H) & (z > gz - 0.05)
-    hz = float(np.percentile(z[upper], 99.5)) if upper.sum() > 20 else float(z.max())
-    hsel = upper & (z > hz - 0.02)
-    head = [0.0, float(np.median(y[hsel])) if hsel.sum() else 0.6 * H, hz]
+    R = front['r']
+    face = (np.abs(x) < 0.07) & (np.hypot(y - front['y'], z - front['z']) > 1.5 * R) & (y > front['y'] + 0.8 * R) & (y < gy - 0.01)
+    if N is not None: face &= N[:, 2] > 0.6
+    if N is not None and face.sum() >= 20 and bike_id not in LAMP_LOW:
+        hz = float(np.percentile(z[face], 99.5))
+        hsel = face & (z > hz - 0.015)
+        head = [0.0, float(np.median(y[hsel])), hz]
+    else:
+        upper = (np.abs(x) < 0.06) & (y > 0.45 * H) & (y < 0.85 * H) & (z > gz - 0.05)
+        hz = float(np.percentile(z[upper], 99.5)) if upper.sum() > 20 else float(z.max())
+        hsel = upper & (z > hz - 0.02)
+        head = [0.0, float(np.median(y[hsel])) if hsel.sum() else 0.6 * H, hz]
     back = (np.abs(x) < 0.07) & (y > rear['y'] + 0.02) & (y < 0.8 * H)
     tz = float(np.percentile(z[back], 0.5)) if back.sum() > 20 else float(z.min())
     tsel = back & (z < tz + 0.02)
@@ -247,9 +270,10 @@ def build(bike_id):
     P = P / unit; ext = ext / unit
     quarter = 1 if ext[0] > ext[2] else 0          # lying across: a quarter turn brings it lengthways
     P = rot_y(P, quarter); N = rot_y(N, quarter)
-    # faces +Z: the bars and the screen (the highest points) are at the front
+    # faces +Z: the bars and the screen (the highest points) are at the front (TURN_ROUND: a bike whose highest points
+    # are about its middle, read the other way round by that, is turned round)
     top = P[:, 1] > 0.92 * P[:, 1].max()
-    if P[top, 2].mean() < 0: P = rot_y(P, 2); N = rot_y(N, 2); quarter += 2
+    if (P[top, 2].mean() < 0) != (bike_id in TURN_ROUND): P = rot_y(P, 2); N = rot_y(N, 2); quarter += 2
     given = RADIUS.get(bike_id, {})
     twin = bike_id == 'chrome-concept'          # two tyres side by side at each end
     if bike_id in RING_FIT: rear = ring_fit(P, -1); front = ring_fit(P, 1)
@@ -259,10 +283,12 @@ def build(bike_id):
     P = P + shift
     for w in (front, rear): w['z'] += shift[2]; w['y'] += shift[1]
     rake = 0.44                                      # radians the fork leans back from upright (about 25 degrees): a first guess
-    an = anchors(P, front, rear)
+    an = anchors(P, front, rear, N, bike_id)
     # (18 October 2026) each wheel found again as it really is and cut out of the bike exactly where it ends, and what
-    # turns with the bars (the mudguard, the fork, the bars) cut out round them, about the fork's own line (wheelfit.py)
-    P, N, uv, idx, counts, front, rear, rake, steered, an = wheelfit.bike_parts(P, N, uv, idx, front, rear, an, rake, bike_id, anchors_of=lambda Ps: anchors(Ps, front, rear))
+    # turns with the bars (the mudguard, the fork, the bars, the lamp on a bike without a fairing) cut out round them,
+    # about the fork's own line (wheelfit.py)
+    P, N, uv, idx, counts, front, rear, rake, steered, an, lamp_turns = wheelfit.bike_parts(
+        P, N, uv, idx, front, rear, an, rake, bike_id, anchors_of=lambda Ps, Ns, fw: anchors(Ps, {**front, **fw}, rear, Ns, bike_id))
     os.makedirs(OUT, exist_ok=True)
     # geometry: positions (float32), normals (int16, of 32767), texture places (float32), triangles (uint32)
     n16 = np.round(np.clip(N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9), -1, 1) * 32767).astype(np.int16)
@@ -293,14 +319,14 @@ def build(bike_id):
         'length': r4(P[:, 2].max() - P[:, 2].min()), 'height': r4(P[:, 1].max()), 'width': r4(P[:, 0].max() - P[:, 0].min()),
         'front': {k: r4(v) for k, v in front.items()}, 'rear': {k: r4(v) for k, v in rear.items()}, 'rake': rake, 'steered': steered,
         'grip': [r4(v) for v in an['grip']], 'seat': [r4(v) for v in an['seat']], 'peg': [r4(v) for v in an['peg']],
-        'head': [r4(v) for v in an['head']], 'tail': [r4(v) for v in an['tail']], 'pipes': [[r4(v) for v in p] for p in an['pipes']],
+        'head': [r4(v) for v in an['head']], 'lampTurns': lamp_turns, 'tail': [r4(v) for v in an['tail']], 'pipes': [[r4(v) for v in p] for p in an['pipes']],
         'metallic': m['metallic'], 'roughness': m['roughness'], 'normalScale': m['normalScale'], 'files': files,
     }
 
 
 def write_js(manifest):
     """The same numbers for the game's own code (what each bike's parts are and where its wheels and rider go)."""
-    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'front', 'rear', 'rake', 'steered', 'grip', 'seat', 'peg', 'head', 'tail', 'pipes', 'metallic', 'roughness', 'normalScale', 'files', 'sha256')
+    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'front', 'rear', 'rake', 'steered', 'grip', 'seat', 'peg', 'head', 'lampTurns', 'tail', 'pipes', 'metallic', 'roughness', 'normalScale', 'files', 'sha256')
     body = {k: {f: v.get(f, 0) for f in keep} for k, v in sorted(manifest.items())}
     # what a player's device fetches to draw each one: on a phone (the 2048 pictures) and elsewhere (the 4096)
     game = os.path.join(SRC, 'game')

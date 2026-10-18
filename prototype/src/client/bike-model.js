@@ -45,7 +45,8 @@ function picture(url, colour, own) {
   return { map, ready };
 }
 // which file each picture of a set comes from (the 4096 set: its colour at 4096, its relief and finish at 2048)
-const SETS = Object.freeze({ '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
+const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
+const LARGER = ['512', '1k', '2k', '4k'];
 const tierOf = (lite, tier) => tier || PICTURES[lite ? 'lite' : 'full'].vehicle;
 
 async function partsOf(id, { base, tier, own = false }) {
@@ -56,7 +57,7 @@ async function partsOf(id, { base, tier, own = false }) {
   const made = (async () => {
     const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     // (a bike made with few triangles may come with its colour picture only: then it has no other to fetch)
-    const file = (name, size) => f[`${name}${size}`] || f[`${name}${size === '1k' ? '2k' : '4k'}`] || f[`${name}2k`];
+    const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
     const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own) : null));
     const response = await fetchKept(base + f.mesh);
     if (!response.ok) throw new Error(`${f.mesh}: ${response.status}`);
@@ -105,30 +106,33 @@ function lampParts() {
   LAMP.flameMap = new THREE.CanvasTexture(f);
   return LAMP;
 }
-function lampsOf(spec, frame) {
+function lampsOf(spec, frame, bars) {
   const P = lampParts();
   const made = [];
-  const put = (mesh) => { frame.add(mesh); made.push(mesh); return mesh; };
+  const put = (mesh, on = frame) => { on.add(mesh); made.push(mesh); return mesh; };
   const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, depthWrite: false, ...extra });
   const glowMat = (color) => basic(color, { map: P.glowMap, blending: THREE.AdditiveBlending, opacity: 0 });
   const H = spec.head || [0, spec.height * 0.6, spec.length * 0.42], T = spec.tail || [0, spec.height * 0.45, -spec.length * 0.48];
-  // the headlamp: its glass, and a glow round it when it is on
-  const head = put(new THREE.Mesh(P.disc, basic(0x2a2a26, { opacity: 0.85 })));
-  head.position.set(H[0], H[1], H[2] + 0.004); head.scale.setScalar(0.03);
-  const headGlow = put(new THREE.Mesh(P.glow, glowMat(0xfff2cc))); headGlow.position.set(H[0], H[1], H[2] + 0.01); headGlow.scale.setScalar(0.16);
-  // the tail lamp: dark red, lit red at night, bright when braking
+  // the headlamp: its glass lit, and a glow round it, when it is on (off, the model's own lamp is seen). A lamp held
+  // on the fork (`lampTurns`, tools/vehicles/bikes.py) turns with the bars: it rides on the steering, placed from the
+  // front axle; one in a fairing stays with the body
+  const [on, at] = spec.lampTurns && bars ? [bars.group, bars.at] : [frame, [0, 0, 0]];
+  const head = put(new THREE.Mesh(P.disc, basic(0xfffbe8, { opacity: 0.85 })), on);
+  head.position.set(H[0] - at[0], H[1] - at[1], H[2] + 0.004 - at[2]); head.scale.setScalar(0.03); head.visible = false;
+  const headGlow = put(new THREE.Mesh(P.glow, glowMat(0xfff2cc)), on); headGlow.position.set(H[0] - at[0], H[1] - at[1], H[2] + 0.01 - at[2]); headGlow.scale.setScalar(0.16); headGlow.visible = false;
+  // the tail lamp: lit red at night, bright when braking (off, the model's own lamp is seen)
   const tail = put(new THREE.Mesh(P.disc, basic(0x3a0806, { opacity: 0.9 })));
-  tail.position.set(T[0], T[1], T[2] - 0.004); tail.rotation.y = Math.PI; tail.scale.setScalar(0.022);
-  const tailGlow = put(new THREE.Mesh(P.glow, glowMat(0xff2010))); tailGlow.position.set(T[0], T[1], T[2] - 0.01); tailGlow.rotation.y = Math.PI; tailGlow.scale.setScalar(0.1);
+  tail.position.set(T[0], T[1], T[2] - 0.004); tail.rotation.y = Math.PI; tail.scale.setScalar(0.022); tail.visible = false;
+  const tailGlow = put(new THREE.Mesh(P.glow, glowMat(0xff2010))); tailGlow.position.set(T[0], T[1], T[2] - 0.01); tailGlow.rotation.y = Math.PI; tailGlow.scale.setScalar(0.1); tailGlow.visible = false;
   // the flames: one from each silencer's end
   const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.scale.set(0.022, 0.022, 0.06); m.visible = false; return m; });          // (made at its unlit size: a cone a whole bike long, even unseen, made the bike's measured size twice what it is)
   const st = { head: -1, brake: -1, tail: -1 };
   return {
     head,
     set({ head: on = 0, tail: tl = 0, brake = 0, flame = 0, t = 0 } = {}) {
-      if (st.head !== on) { st.head = on; head.material.color.setHex(on > 0 ? 0xfffbe8 : 0x2a2a26); headGlow.material.opacity = 0.9 * on; headGlow.visible = on > 0; }
+      if (st.head !== on) { st.head = on; head.visible = on > 0; head.material.opacity = 0.85 * Math.min(1, on * 1.5); headGlow.material.opacity = 0.9 * on; headGlow.visible = on > 0; }
       const red = brake ? 1 : tl * 0.45;
-      if (st.tail !== red) { st.tail = red; tail.material.color.setRGB(0.23 + 0.77 * Math.min(1, red * 1.4), 0.03 + 0.05 * red, 0.02); tailGlow.material.opacity = red; tailGlow.visible = red > 0; tailGlow.scale.setScalar(brake ? 0.14 : 0.1); }
+      if (st.tail !== red) { st.tail = red; tail.visible = red > 0; tail.material.color.setRGB(0.23 + 0.77 * Math.min(1, red * 1.4), 0.03 + 0.05 * red, 0.02); tailGlow.material.opacity = red; tailGlow.visible = red > 0; tailGlow.scale.setScalar(brake ? 0.14 : 0.1); }
       for (let i = 0; i < flames.length; i += 1) {
         const m = flames[i];
         m.visible = flame > 0.02;
@@ -180,7 +184,7 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
   const gripAt = [1, -1].map((side) => { const o = new THREE.Object3D(); o.position.set(side * spec.grip[0] - fx0, spec.grip[1] - F.y, spec.grip[2] - F.z); unrake.add(o); return o; });
   // the lamps and the exhaust flames, where the model has its headlamp, tail lamp and silencers (bikes.py):
   // drawn by the game over the model, which is not changed
-  const fx = lampsOf(spec, frame);
+  const fx = lampsOf(spec, frame, { group: unrake, at: [fx0, F.y, F.z] });
   const metres = (v) => v * scale;
   const wheelRadius = { front: metres(F.r), rear: metres(R.r) };
   return {
@@ -195,8 +199,9 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
     // travelled: metres the bike has rolled (the wheels turn by it); steer: radians the bars are turned (left
     // positive); tilt: radians it leans (right positive, as the game keeps it)
     pose({ travelled = 0, steerAngle = 0, tilt = 0, dive = 0, bob = 0 } = {}) {
-      frontSpin.rotation.x = travelled / wheelRadius.front;
-      rearSpin.rotation.x = travelled / wheelRadius.rear;
+      // (a wheel the model has only part of does not turn: wheelfit.py, STILL)
+      if (!F.still) frontSpin.rotation.x = travelled / wheelRadius.front;
+      if (!R.still) rearSpin.rotation.x = travelled / wheelRadius.rear;
       steer.rotation.y = steerAngle;
       // the suspension: the nose dips under hard braking (dive, radians) and the bike rides up and down over the road
       frame.rotation.x = dive; lean.position.y = bob;

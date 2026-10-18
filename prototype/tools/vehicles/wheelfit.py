@@ -297,7 +297,21 @@ def car_parts(P, N, uv, idx, guesses, vid):
 STEER = {
     'red-superbike': {'faired': True}, 'purple-sport': {'faired': True}, 'black-gold-superbike': {'faired': True},
     'white-sport': {'faired': True}, 'civil-war-tourer': {'faired': True}, 'yellow-adventure': {'faired': True},
+    # the tourer's batwing fairing is held on its fork, as such fairings are: it turns with the bars, whole (cut by
+    # the bars alone, its top went round and the rest stayed). `fairing`: everything ahead of a line `s` behind the
+    # fork's (clear of the tank's front, measured: the model has next to nothing there) and above `below` wheel radii
+    # over the front axle (the lower panels before the engine stay with the frame)
+    'gold-tourer': {'fairing': {'s': -0.075, 'below': 1.3}},
+    # the streetfighter's radiator shrouds wrap round its fork up to its lamp's cowl, all of it one piece in the model:
+    # cut round the fork they tore as the bars turned. Its cowl and lamp are kept with the frame (as on a bike whose
+    # cowl is held on the frame), its fork turns below them (`top`: up to that share of the way to the grips), its bars
+    # and their mirrors (`mirrors`) turn above them; and what turns is kept narrow round its fork's legs (`fork_x`, out from
+    # the middle: its legs are 6 out) and round its bars (`bars_y`, `bars_z`: up and down, and back and forth, of them)
+    'streetfighter': {'faired': True, 'top': 0.6, 'mirrors': True, 'fork_x': 0.075, 'bars_y': 0.025, 'bars_z': 0.025},
 }
+# Wheels whose model is not round all the way (the rest of the tyre is under a pannier, fused into it; or a show
+# machine's twin wheels behind solid covers): they would show the gap as they turned, so they do not turn.
+STILL = {'gold-tourer': ['rear'], 'chrome-concept': ['front', 'rear']}
 
 
 def fork_line(P, F, rake0):
@@ -341,19 +355,107 @@ def steering(F, an, rake, z_axis, cfg):
         # the mudguard and the bottom of the fork: round the front wheel, between the legs, not far behind the fork
         low = np.maximum.reduce([side / (1.42 * R) - 1, x / 0.115 - 1, -(s + 0.62 * R) / R, (t - 1.25 * R) / R])
         # the fork's legs and what joins them, up towards the bars (on a faired bike, only below the fairing)
-        fork = np.maximum.reduce([np.abs(s) / 0.05 - 1, x / 0.105 - 1, (t - upto) / R, -(t - 0.8 * R) / R])
+        fork = np.maximum.reduce([np.abs(s) / 0.05 - 1, x / cfg.get('fork_x', 0.105) - 1, (t - upto) / R, -(t - 0.8 * R) / R])
         # the bars: at the grips' height, from one grip to the other, from the top of the fork back to the grips
-        zlo, zhi = min(gz, c[2] - np.sin(rake) * top) - 0.06, max(gz, c[2] - np.sin(rake) * top) + 0.05
-        bars = np.maximum.reduce([np.abs(X[:, 1] - gy) / 0.045 - 1, x / (gx + 0.035) - 1, (zlo - X[:, 2]) / 0.05, (X[:, 2] - zhi) / 0.05,
+        zlo, zhi = min(gz, c[2] - np.sin(rake) * top) - cfg.get('bars_z', 0.06), max(gz, c[2] - np.sin(rake) * top) + cfg.get('bars_z', 0.05)
+        bars = np.maximum.reduce([np.abs(X[:, 1] - gy) / cfg.get('bars_y', 0.045) - 1, x / (gx + 0.035) - 1, (zlo - X[:, 2]) / 0.05, (X[:, 2] - zhi) / 0.05,
                                   # (in the middle, nothing behind the top of the fork: there is the tank, or the screen)
                                   np.where(x < 0.055, -(s + 0.035) / 0.03, -1.0)])
-        return np.minimum.reduce([low, fork, bars])
+        # the mirrors, on bikes without a fairing: on stalks from the bars, outboard, above the grips
+        mirrors = np.maximum.reduce([(gy - 0.02 - X[:, 1]) / 0.03, (X[:, 1] - gy - 0.17) / 0.03, (0.55 * gx - x) / 0.02, x / (gx + 0.06) - 1,
+                                     (zlo - 0.04 - X[:, 2]) / 0.05, (X[:, 2] - zhi - 0.04) / 0.05]) if (not faired or cfg.get('mirrors')) else np.full(len(X), 1.0)
+        # the headlamp, on bikes without a fairing: held on the fork, ahead of it (its glass, its shell behind that and
+        # the little cowl round it), at its own height
+        lamp = np.full(len(X), 1.0)
+        if not faired and an.get('head'):
+            hy, hz = an['head'][1], an['head'][2]
+            lamp = np.maximum.reduce([x / cfg.get('lamp_x', 0.62 * R) - 1, np.abs(X[:, 1] - hy) / (0.55 * R) - 1, (X[:, 2] - hz - 0.012) / 0.02,
+                                      (hz - 0.95 * R - X[:, 2]) / 0.02, (0.012 - s) / 0.02])
+        # a fairing held on the fork (a batwing): all of it, from its back to its nose, above the mudguard
+        held = np.full(len(X), 1.0)
+        if cfg.get('fairing'):
+            fc = cfg['fairing']
+            held = np.maximum.reduce([(fc['s'] - s) / 0.01, (F['y'] + fc['below'] * R - X[:, 1]) / 0.01, x / 0.3 - 1])
+        return np.minimum.reduce([low, fork, bars, mirrors, lamp, held])
     return g
+
+
+def settle(P, idx, part, R, whole=0.15, small=0.8):
+    """What turns with the bars, made of whole pieces of the model. The cut round the steering (`steering`) is exact,
+    but it is cut by place: a piece of the model it only clips (a lever's tip, the end of a mirror's stalk, the rim of
+    a lamp, the edge of a fairing the bars pass behind) goes whole with the side most of it is on, so that nothing is
+    left hanging in the air when the bars turn, nor torn off what does not turn; and a small loose piece (a lens, a
+    reflector, a bolt's head) that sits against one part and nothing else goes with that part. A piece of the model
+    is the triangles joined corner to corner (corners at the same place count as joined); the pieces the size of the
+    whole bike (the models that are one piece throughout) are left cut where they were. Only the body (0) and what
+    turns with the bars (1) are changed here; the wheels are not. Gives the parts again."""
+    from scipy.sparse import coo_matrix
+    from scipy.sparse.csgraph import connected_components
+    from scipy.spatial import cKDTree
+    sel = np.nonzero(part <= 1)[0]
+    T = idx[sel]
+    _, weld = np.unique(np.round(P / 1e-6).astype(np.int64), axis=0, return_inverse=True)
+    weld = weld.ravel()
+    t = weld[T]
+    nv = int(weld.max()) + 1
+    a = np.concatenate([t[:, 0], t[:, 1]]); b = np.concatenate([t[:, 1], t[:, 2]])
+    _, lab = connected_components(coo_matrix((np.ones(len(a), np.int8), (a, b)), shape=(nv, nv)), directed=False)
+    comp = lab[t[:, 0]]
+    area = 0.5 * np.linalg.norm(np.cross(P[T[:, 1]] - P[T[:, 0]], P[T[:, 2]] - P[T[:, 0]]), axis=1)
+    pk = part[sel].astype(np.int64)
+    n = int(lab.max()) + 1
+    A0 = np.bincount(comp, weights=area * (pk == 0), minlength=n)
+    A1 = np.bincount(comp, weights=area * (pk == 1), minlength=n)
+    total = A0 + A1
+    clipped = (np.minimum(A0, A1) > 0) & (np.minimum(A0, A1) < whole * total) & (total < 0.2 * total.sum())
+    move = clipped[comp]
+    pk[move] = (A1 > A0)[comp[move]].astype(np.int64)
+    moved_clipped = int(move.sum())
+    # small pieces of one part (joined within that part alone) that sit against the other part and against nothing
+    # else of their own: a lever's tip or a stalk's end the cut took off a model made in one piece, a lens, a reflector
+    Pw = np.zeros((nv, 3)); Pw[weld] = P                                       # (each welded corner's place)
+    moved_loose = 0
+    for side in (0, 1):
+        mine = pk == side
+        tt = t[mine]
+        if not len(tt) or mine.all(): continue
+        a = np.concatenate([tt[:, 0], tt[:, 1]]); b = np.concatenate([tt[:, 1], tt[:, 2]])
+        _, lw = connected_components(coo_matrix((np.ones(len(a), np.int8), (a, b)), shape=(nv, nv)), directed=False)
+        pc = lw[tt[:, 0]]                                                     # each of its triangles' piece
+        m = int(lw.max()) + 1
+        lo, hi = np.full((m, 3), np.inf), np.full((m, 3), -np.inf)
+        for k in range(3):
+            np.minimum.at(lo, pc, Pw[tt[:, k]]); np.maximum.at(hi, pc, Pw[tt[:, k]])
+        size = np.linalg.norm(hi - lo, axis=1)
+        own_w = np.unique(tt.ravel()); other_w = np.unique(t[~mine].ravel())
+        own_tree, other_tree = cKDTree(Pw[own_w]), cKDTree(Pw[other_w])
+        rows = np.nonzero(mine)[0]
+        for c in np.unique(pc[size[pc] < small * R]):
+            ws = np.unique(tt[pc == c].ravel())
+            d_other = float(other_tree.query(Pw[ws])[0].min())
+            if d_other > 0.02 * R: continue
+            dd, ii = own_tree.query(Pw[ws], k=min(32, len(own_w)))
+            d_own = float(np.where(lw[own_w[ii]] != c, dd, np.inf).min())
+            if d_own > max(0.03 * R, 3 * d_other):
+                pk[rows[pc == c]] = 1 - side; moved_loose += 1
+    part = part.copy(); part[sel] = pk.astype(part.dtype)
+    return part, moved_clipped, moved_loose
 
 
 # Motorcycles whose bars are turned in their files, and about how far (degrees about the steering's line; read by eye
 # from a slab of each front tyre seen from below): the front end is put straight by the game, then steered.
 BIKE_TURNED = {'black-cruiser': 32, 'white-sport': 9}
+
+# How far each bike's fork leans back from upright (radians): read by eye from each model seen from the side, its fork's
+# legs against lines drawn through the front axle at angles a few hundredths apart (18 October 2026). Measured from
+# the legs (`fork_line`) these came out as much as 0.3 too upright on the cruisers with long or covered forks (the
+# chopper's 0.32 for 0.63): the cut round the fork then left its top and the bars' risers behind, and the bars came
+# apart as they turned.
+RAKE = {
+    'black-bobber': 0.55, 'midnight-cruiser': 0.55, 'chopper': 0.63, 'gold-roadster': 0.54, 'olive-cruiser': 0.64, 'power-cruiser': 0.77,
+    'white-sport': 0.50, 'civil-war-tourer': 0.37, 'black-cruiser': 0.43, 'black-gold-superbike': 0.46, 'cafe-racer': 0.43, 'gold-tourer': 0.45,
+    'purple-sport': 0.42, 'red-superbike': 0.41, 'streetfighter': 0.47, 'yellow-adventure': 0.42,
+}
 
 
 def about_axis(s, ang):
@@ -386,6 +488,7 @@ def bike_parts(P, N, uv, idx, front, rear, an, rake0, bid, anchors_of=None):
     hands, seat and feet go, read from the bike with its front end straight (`anchors_of`)."""
     B = fit(P, N, [0.0, rear['y'], rear['z']], rear['r'], h0=rear['half'], lower=True)
     B['a'] = np.array([1.0, 0.0, 0.0])          # (its middle where it is: some bikes' wheels are not on their middle line)
+    rake0 = RAKE.get(bid, rake0)
     steered = 0.0
     if bid in BIKE_TURNED:
         steered = bars_turned(P, front, rake0, BIKE_TURNED[bid])
@@ -395,31 +498,53 @@ def bike_parts(P, N, uv, idx, front, rear, an, rake0, bid, anchors_of=None):
         F = fit(P, N, [0.0, front['y'], front['z']], front['r'], h0=front['half'], lower=True)
         F['a'] = np.array([1.0, 0.0, 0.0])
     fw = {'x': float(F['c'][0]), 'z': float(F['c'][2]), 'y': float(F['c'][1]), 'r': float(F['ro'])}
-    rake = rake0 if steered else fork_line(P, fw, rake0)[1]
+    rake = rake0 if (steered or bid in RAKE) else fork_line(P, fw, rake0)[1]
     s = np.array([0.0, np.cos(rake), -np.sin(rake)])
     pivot = np.array([fw['x'], fw['y'], fw['z']])
     straight = about_axis(s, -steered)
     unturn = (lambda X: (X - pivot) @ straight.T + pivot) if steered else (lambda X: X)
     cfg = STEER.get(bid, {})
     # what turns with the bars, read with the front end straight: first from where the hands are found on the bike as
-    # it is, then again from where they are on the bike made straight
-    g0 = steering(fw, an, rake, fw['z'], cfg)
+    # it is, then again from where they are on the bike made straight (all of the front above the wheel and ahead of
+    # the fork made straight for that, so that the lamp is found straight too)
+    g0 = steering(fw, {k: v for k, v in an.items() if k != 'head'}, rake, fw['z'], cfg)
     if steered and anchors_of:
-        inside_v = (g0(unturn(P)) <= 0) | (drum(F)(P) <= 0)
+        rel = unturn(P) - pivot
+        ahead = rel[:, 2] * np.cos(rake) + rel[:, 1] * np.sin(rake)
+        front_end = (ahead > -0.01) & (rel[:, 1] > 0.9 * fw['r']) & (rel[:, 1] < an['grip'][1] - fw['y'] + 0.06) & (np.abs(rel[:, 0]) < 0.12)
+        if cfg.get('faired'): front_end[:] = False          # (a fairing is fixed to the frame: not turned in the file)
+        inside_v = (g0(unturn(P)) <= 0) | (drum(F)(P) <= 0) | front_end
         Ps = P.copy(); Ps[inside_v] = unturn(P[inside_v])
-        an = anchors_of(Ps)
+        Ns = N.copy(); Ns[inside_v] = N[inside_v] @ straight.T
+        an = anchors_of(Ps, Ns, fw)
+    elif anchors_of:
+        # (read again with the front wheel as it is now found: the first guess at it is a little small on some bikes,
+        # and the top of a mudguard was taken for the headlamp)
+        an = anchors_of(P, N, fw)
     g = steering(fw, an, rake, fw['z'], cfg)
     gs = (lambda X: g(unturn(X))) if steered else g
     part = np.zeros(len(idx), np.int8)
     P, N, uv, idx, part = split(P, N, uv, idx, part, 2, drum(F))
     P, N, uv, idx, part = split(P, N, uv, idx, part, 3, drum(B))
     P, N, uv, idx, part = split(P, N, uv, idx, part, 1, gs)
+    part, clipped, loose = settle(P, idx, part, fw['r'])
+    # whether the headlamp's glass is on what turns (the part of the model nearest it, of the body and the steering)
+    from scipy.spatial import cKDTree
+    head = (np.array(an['head']) - pivot) @ straight + pivot          # (where the glass is in the file: turned back)
+    near = idx[part <= 1]
+    vs = np.unique(near.ravel())
+    vpart = np.zeros(len(P), np.int64)
+    for k in range(3): vpart[near[:, k]] = part[part <= 1]
+    _, nearest = cKDTree(P[vs]).query(head, k=12)
+    lamp_turns = bool(np.mean(vpart[vs[nearest]] == 1) > 0.5)
+    print(f'   {bid}: whole pieces kept together {clipped} triangles, loose pieces {loose}; lamp turns {lamp_turns}', flush=True)
     order = np.argsort(part, kind='stable')
     idx, part = idx[order], part[order]
     counts = [int((part == k).sum()) for k in range(4)]
     r5 = lambda v: round(float(v), 5)
-    spec = lambda w: {'x': r5(w['c'][0]), 'z': r5(w['c'][2]), 'y': r5(w['c'][1]), 'r': r5(w['ro']), 'tread': r5(w['r']), 'half': r5(w['h'])}
-    return P, N, uv, idx, counts, spec(F), spec(B), round(rake, 4), round(float(steered), 4), an
+    still = STILL.get(bid, [])
+    spec = lambda w, name: {'x': r5(w['c'][0]), 'z': r5(w['c'][2]), 'y': r5(w['c'][1]), 'r': r5(w['ro']), 'tread': r5(w['r']), 'half': r5(w['h']), **({'still': True} if name in still else {})}
+    return P, N, uv, idx, counts, spec(F, 'front'), spec(B, 'rear'), round(rake, 4), round(float(steered), 4), an, lamp_turns
 
 
 if __name__ == '__main__':

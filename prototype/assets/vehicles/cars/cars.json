@@ -137,7 +137,10 @@
    "normalSize": 4096,
    "color1k": "black-grand-convertible-color-1k.jpg",
    "normal1k": "black-grand-convertible-normal-1k.webp",
-   "rm1k": "black-grand-convertible-rm-1k.webp"
+   "rm1k": "black-grand-convertible-rm-1k.webp",
+   "color512": "black-grand-convertible-color-512.jpg",
+   "normal512": "black-grand-convertible-normal-512.webp",
+   "rm512": "black-grand-convertible-rm-512.webp"
   }
  },
  "black-luxury-suv": {
@@ -278,7 +281,10 @@
    "normalSize": 4096,
    "color1k": "black-luxury-suv-color-1k.jpg",
    "normal1k": "black-luxury-suv-normal-1k.webp",
-   "rm1k": "black-luxury-suv-rm-1k.webp"
+   "rm1k": "black-luxury-suv-rm-1k.webp",
+   "color512": "black-luxury-suv-color-512.jpg",
+   "normal512": "black-luxury-suv-normal-512.webp",
+   "rm512": "black-luxury-suv-rm-512.webp"
   }
  },
  "black-pickup": {
@@ -411,7 +417,8 @@
    "color4k": "black-pickup-color-4k.jpg",
    "color2k": "black-pickup-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "black-pickup-color-1k.jpg"
+   "color1k": "black-pickup-color-1k.jpg",
+   "color512": "black-pickup-color-512.jpg"
   }
  },
  "black-square-suv": {
@@ -544,7 +551,8 @@
    "color4k": "black-square-suv-color-4k.jpg",
    "color2k": "black-square-suv-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "black-square-suv-color-1k.jpg"
+   "color1k": "black-square-suv-color-1k.jpg",
+   "color512": "black-square-suv-color-512.jpg"
   }
  },
  "blue-off-roader": {
@@ -677,7 +685,8 @@
    "color4k": "blue-off-roader-color-4k.jpg",
    "color2k": "blue-off-roader-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "blue-off-roader-color-1k.jpg"
+   "color1k": "blue-off-roader-color-1k.jpg",
+   "color512": "blue-off-roader-color-512.jpg"
   }
  },
  "bronze-spyder": {
@@ -818,7 +827,10 @@
    "normalSize": 4096,
    "color1k": "bronze-spyder-color-1k.jpg",
    "normal1k": "bronze-spyder-normal-1k.webp",
-   "rm1k": "bronze-spyder-rm-1k.webp"
+   "rm1k": "bronze-spyder-rm-1k.webp",
+   "color512": "bronze-spyder-color-512.jpg",
+   "normal512": "bronze-spyder-normal-512.webp",
+   "rm512": "bronze-spyder-rm-512.webp"
   }
  },
  "camo-expedition": {
@@ -959,7 +971,10 @@
    "normalSize": 4096,
    "color1k": "camo-expedition-color-1k.jpg",
    "normal1k": "camo-expedition-normal-1k.webp",
-   "rm1k": "camo-expedition-rm-1k.webp"
+   "rm1k": "camo-expedition-rm-1k.webp",
+   "color512": "camo-expedition-color-512.jpg",
+   "normal512": "camo-expedition-normal-512.webp",
+   "rm512": "camo-expedition-rm-512.webp"
   }
  },
  "classic-two-tone": {
@@ -1100,7 +1115,10 @@
    "normalSize": 4096,
    "color1k": "classic-two-tone-color-1k.jpg",
    "normal1k": "classic-two-tone-normal-1k.webp",
-   "rm1k": "classic-two-tone-rm-1k.webp"
+   "rm1k": "classic-two-tone-rm-1k.webp",
+   "color512": "classic-two-tone-color-512.jpg",
+   "normal512": "classic-two-tone-normal-512.webp",
+   "rm512": "classic-two-tone-rm-512.webp"
   }
  },
  "gold-hypercar": {
@@ -1241,7 +1259,10 @@
    "normalSize": 4096,
    "color1k": "gold-hypercar-color-1k.jpg",
    "normal1k": "gold-hypercar-normal-1k.webp",
-   "rm1k": "gold-hypercar-rm-1k.webp"
+   "rm1k": "gold-hypercar-rm-1k.webp",
+   "color512": "gold-hypercar-color-512.jpg",
+   "normal512": "gold-hypercar-normal-512.webp",
+   "rm512": "gold-hypercar-rm-512.webp"
   }
  },
  "grey-grand-tourer": {
@@ -1382,7 +1403,10 @@
    "normalSize": 4096,
    "color1k": "grey-grand-tourer-color-1k.jpg",
    "normal1k": "grey-grand-tourer-normal-1k.webp",
-   "rm1k": "grey-grand-tourer-rm-1k.webp"
+   "rm1k": "grey-grand-tourer-rm-1k.webp",
+   "color512": "grey-grand-tourer-color-512.jpg",
+   "normal512": "grey-grand-tourer-normal-512.webp",
+   "rm512": "grey-grand-tourer-rm-512.webp"
   }
  },
  "grey-saloon": {
@@ -1515,7 +1539,8 @@
    "color4k": "grey-saloon-color-4k.jpg",
    "color2k": "grey-saloon-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "grey-saloon-color-1k.jpg"
+   "color1k": "grey-saloon-color-1k.jpg",
+   "color512": "grey-saloon-color-512.jpg"
   }
  },
  "midnight-saloon": {
@@ -1656,7 +1681,10 @@
    "normalSize": 4096,
    "color1k": "midnight-saloon-color-1k.jpg",
    "normal1k": "midnight-saloon-normal-1k.webp",
-   "rm1k": "midnight-saloon-rm-1k.webp"
+   "rm1k": "midnight-saloon-rm-1k.webp",
+   "color512": "midnight-saloon-color-512.jpg",
+   "normal512": "midnight-saloon-normal-512.webp",
+   "rm512": "midnight-saloon-rm-512.webp"
   }
  },
  "mint-sports-coupe": {
@@ -1789,7 +1817,8 @@
    "color4k": "mint-sports-coupe-color-4k.jpg",
    "color2k": "mint-sports-coupe-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "mint-sports-coupe-color-1k.jpg"
+   "color1k": "mint-sports-coupe-color-1k.jpg",
+   "color512": "mint-sports-coupe-color-512.jpg"
   }
  },
  "peach-suv": {
@@ -1930,7 +1959,10 @@
    "normalSize": 4096,
    "color1k": "peach-suv-color-1k.jpg",
    "normal1k": "peach-suv-normal-1k.webp",
-   "rm1k": "peach-suv-rm-1k.webp"
+   "rm1k": "peach-suv-rm-1k.webp",
+   "color512": "peach-suv-color-512.jpg",
+   "normal512": "peach-suv-normal-512.webp",
+   "rm512": "peach-suv-rm-512.webp"
   }
  },
  "pearl-convertible": {
@@ -2071,7 +2103,10 @@
    "normalSize": 4096,
    "color1k": "pearl-convertible-color-1k.jpg",
    "normal1k": "pearl-convertible-normal-1k.webp",
-   "rm1k": "pearl-convertible-rm-1k.webp"
+   "rm1k": "pearl-convertible-rm-1k.webp",
+   "color512": "pearl-convertible-color-512.jpg",
+   "normal512": "pearl-convertible-normal-512.webp",
+   "rm512": "pearl-convertible-rm-512.webp"
   }
  },
  "red-winged-supercar": {
@@ -2212,7 +2247,10 @@
    "normalSize": 4096,
    "color1k": "red-winged-supercar-color-1k.jpg",
    "normal1k": "red-winged-supercar-normal-1k.webp",
-   "rm1k": "red-winged-supercar-rm-1k.webp"
+   "rm1k": "red-winged-supercar-rm-1k.webp",
+   "color512": "red-winged-supercar-color-512.jpg",
+   "normal512": "red-winged-supercar-normal-512.webp",
+   "rm512": "red-winged-supercar-rm-512.webp"
   }
  },
  "state-limousine": {
@@ -2345,7 +2383,8 @@
    "color4k": "state-limousine-color-4k.jpg",
    "color2k": "state-limousine-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "state-limousine-color-1k.jpg"
+   "color1k": "state-limousine-color-1k.jpg",
+   "color512": "state-limousine-color-512.jpg"
   }
  },
  "white-roadster": {
@@ -2478,7 +2517,8 @@
    "color4k": "white-roadster-color-4k.jpg",
    "color2k": "white-roadster-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "white-roadster-color-1k.jpg"
+   "color1k": "white-roadster-color-1k.jpg",
+   "color512": "white-roadster-color-512.jpg"
   }
  },
  "white-square-suv": {
@@ -2619,7 +2659,10 @@
    "normalSize": 4096,
    "color1k": "white-square-suv-color-1k.jpg",
    "normal1k": "white-square-suv-normal-1k.webp",
-   "rm1k": "white-square-suv-rm-1k.webp"
+   "rm1k": "white-square-suv-rm-1k.webp",
+   "color512": "white-square-suv-color-512.jpg",
+   "normal512": "white-square-suv-normal-512.webp",
+   "rm512": "white-square-suv-rm-512.webp"
   }
  },
  "yellow-classic-roadster": {
@@ -2760,7 +2803,10 @@
    "normalSize": 4096,
    "color1k": "yellow-classic-roadster-color-1k.jpg",
    "normal1k": "yellow-classic-roadster-normal-1k.webp",
-   "rm1k": "yellow-classic-roadster-rm-1k.webp"
+   "rm1k": "yellow-classic-roadster-rm-1k.webp",
+   "color512": "yellow-classic-roadster-color-512.jpg",
+   "normal512": "yellow-classic-roadster-normal-512.webp",
+   "rm512": "yellow-classic-roadster-rm-512.webp"
   }
  }
 }

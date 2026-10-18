@@ -2,11 +2,11 @@
 // Each bike's mesh is split by place into body, steer, front wheel and rear wheel (see that tool).
 export const BIKE_PARTS = Object.freeze({
  "black-bobber": {
-  "vertices": 129962,
-  "triangles": 136270,
+  "vertices": 129981,
+  "triangles": 136308,
   "parts": [
-   50698,
-   12415,
+   46099,
+   17052,
    32256,
    40901
   ],
@@ -29,7 +29,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1295,
    "half": 0.0516
   },
-  "rake": 0.289,
+  "rake": 0.55,
   "steered": 0.0,
   "grip": [
    0.2169,
@@ -42,15 +42,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.2157
   ],
   "peg": [
-   0.1026,
-   0.0885,
+   0.1178,
+   0.0947,
    -0.0957
   ],
   "head": [
    0.0,
-   0.2905,
-   0.3939
+   0.366,
+   0.2661
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.1886,
@@ -84,33 +85,36 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "black-bobber-color-1k.jpg",
    "normal1k": "black-bobber-normal-1k.webp",
-   "rm1k": "black-bobber-rm-1k.webp"
+   "rm1k": "black-bobber-rm-1k.webp",
+   "color512": "black-bobber-color-512.jpg",
+   "normal512": "black-bobber-normal-512.webp",
+   "rm512": "black-bobber-rm-512.webp"
   },
   "sha256": "2643fca03c4b5f3ee5badd696613e7d1d8056af4f12e790c504d9e5c91b899a9",
   "bytes": {
-   "lite": 6527163,
-   "full": 10967752
+   "lite": 6528115,
+   "full": 10968704
   }
  },
  "black-cruiser": {
-  "vertices": 101412,
-  "triangles": 119236,
+  "vertices": 101407,
+  "triangles": 119234,
   "parts": [
-   66245,
-   21843,
-   12280,
+   64397,
+   23515,
+   12454,
    18868
   ],
   "length": 0.9773,
   "height": 0.6206,
   "width": 0.4433,
   "front": {
-   "x": 0.0102,
-   "z": 0.3332,
-   "y": 0.1419,
-   "r": 0.1365,
-   "tread": 0.1354,
-   "half": 0.0221
+   "x": 0.0098,
+   "z": 0.3331,
+   "y": 0.1431,
+   "r": 0.1376,
+   "tread": 0.1361,
+   "half": 0.0223
   },
   "rear": {
    "x": -0.0465,
@@ -120,32 +124,33 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1391,
    "half": 0.0416
   },
-  "rake": 0.44,
-  "steered": 0.5629,
+  "rake": 0.43,
+  "steered": 0.5585,
   "grip": [
-   0.179,
-   0.5043,
-   0.0717
+   0.189,
+   0.5046,
+   0.1227
   ],
   "seat": [
    0.0,
    0.3513,
-   -0.1741
+   -0.1755
   ],
   "peg": [
-   0.1094,
-   0.0962,
-   -0.0541
+   0.1095,
+   0.1073,
+   -0.0555
   ],
   "head": [
    0.0,
-   0.2928,
-   0.3847
+   0.3614,
+   0.2425
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.2562,
-   -0.5079
+   -0.5081
   ],
   "pipes": [
    [
@@ -175,20 +180,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "black-cruiser-color-1k.jpg",
    "normal1k": "black-cruiser-normal-1k.webp",
-   "rm1k": "black-cruiser-rm-1k.webp"
+   "rm1k": "black-cruiser-rm-1k.webp",
+   "color512": "black-cruiser-color-512.jpg",
+   "normal512": "black-cruiser-normal-512.webp",
+   "rm512": "black-cruiser-rm-512.webp"
   },
   "sha256": "7fcd26c2904bfc6d57a32c3e8c768f6834f1d8b273c221e77d248ec47cbf85ca",
   "bytes": {
-   "lite": 5581855,
-   "full": 10251432
+   "lite": 5581703,
+   "full": 10251280
   }
  },
  "black-gold-superbike": {
-  "vertices": 86794,
-  "triangles": 110231,
+  "vertices": 86800,
+  "triangles": 110221,
   "parts": [
-   66918,
-   16833,
+   66763,
+   16978,
    16151,
    10329
   ],
@@ -211,7 +219,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1478,
    "half": 0.0537
   },
-  "rake": 0.44,
+  "rake": 0.46,
   "steered": 0.0,
   "grip": [
    0.1559,
@@ -224,15 +232,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.118
   ],
   "peg": [
-   0.0988,
-   0.1008,
+   0.0995,
+   0.1037,
    0.002
   ],
   "head": [
    0.0,
-   0.3413,
-   0.4068
+   0.3491,
+   0.4077
   ],
+  "lampTurns": false,
   "tail": [
    0.0,
    0.3023,
@@ -266,20 +275,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "black-gold-superbike-color-1k.jpg",
    "normal1k": "black-gold-superbike-normal-1k.webp",
-   "rm1k": "black-gold-superbike-rm-1k.webp"
+   "rm1k": "black-gold-superbike-rm-1k.webp",
+   "color512": "black-gold-superbike-color-512.jpg",
+   "normal512": "black-gold-superbike-normal-512.webp",
+   "rm512": "black-gold-superbike-rm-512.webp"
   },
   "sha256": "1a6c98fb0e9d268c893298a159e1f00f97d01b4ee41b8beead37ac415045f6a0",
   "bytes": {
-   "lite": 4865933,
-   "full": 8938412
+   "lite": 4865969,
+   "full": 8938448
   }
  },
  "cafe-racer": {
-  "vertices": 98535,
-  "triangles": 117817,
+  "vertices": 98195,
+  "triangles": 117233,
   "parts": [
-   69006,
-   25927,
+   67002,
+   27347,
    11529,
    11355
   ],
@@ -302,7 +314,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1474,
    "half": 0.0353
   },
-  "rake": 0.44,
+  "rake": 0.43,
   "steered": 0.0,
   "grip": [
    0.1539,
@@ -316,14 +328,15 @@ export const BIKE_PARTS = Object.freeze({
   ],
   "peg": [
    0.089,
-   0.115,
+   0.1109,
    -0.0254
   ],
   "head": [
    0.0,
-   0.2356,
-   0.4208
+   0.379,
+   0.3095
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.1999,
@@ -357,20 +370,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "cafe-racer-color-1k.jpg",
    "normal1k": "cafe-racer-normal-1k.webp",
-   "rm1k": "cafe-racer-rm-1k.webp"
+   "rm1k": "cafe-racer-rm-1k.webp",
+   "color512": "cafe-racer-color-512.jpg",
+   "normal512": "cafe-racer-normal-512.webp",
+   "rm512": "cafe-racer-rm-512.webp"
   },
   "sha256": "590a8501b2b58161b3d19375d420342d5be1bb45e883f0402ebde64c22fdbbf4",
   "bytes": {
-   "lite": 5342817,
-   "full": 9665751
+   "lite": 5326969,
+   "full": 9649903
   }
  },
  "chopper": {
-  "vertices": 101460,
-  "triangles": 117989,
+  "vertices": 101019,
+  "triangles": 117307,
   "parts": [
-   63404,
-   25008,
+   53508,
+   34222,
    14060,
    15517
   ],
@@ -393,7 +409,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1289,
    "half": 0.0335
   },
-  "rake": 0.3173,
+  "rake": 0.63,
   "steered": 0.0,
   "grip": [
    0.2342,
@@ -407,14 +423,15 @@ export const BIKE_PARTS = Object.freeze({
   ],
   "peg": [
    0.0855,
-   0.1043,
+   0.1059,
    -0.0536
   ],
   "head": [
    0.0,
-   0.2699,
-   0.387
+   0.3746,
+   0.2438
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.24,
@@ -448,20 +465,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "chopper-color-1k.jpg",
    "normal1k": "chopper-normal-1k.webp",
-   "rm1k": "chopper-rm-1k.webp"
+   "rm1k": "chopper-rm-1k.webp",
+   "color512": "chopper-color-512.jpg",
+   "normal512": "chopper-normal-512.webp",
+   "rm512": "chopper-rm-512.webp"
   },
   "sha256": "54c928c2e4a12b56249feb45ff85ced85fa80df1bdc85b8f09d225b951186b83",
   "bytes": {
-   "lite": 5451488,
-   "full": 9758414
+   "lite": 5431840,
+   "full": 9738766
   }
  },
  "chrome-concept": {
-  "vertices": 82294,
-  "triangles": 106072,
+  "vertices": 82727,
+  "triangles": 106826,
   "parts": [
-   74212,
-   23193,
+   71908,
+   26251,
    2912,
    5755
   ],
@@ -474,7 +494,8 @@ export const BIKE_PARTS = Object.freeze({
    "y": 0.1134,
    "r": 0.1109,
    "tread": 0.1091,
-   "half": 0.0618
+   "half": 0.0618,
+   "still": 1.0
   },
   "rear": {
    "x": 0.0019,
@@ -482,7 +503,8 @@ export const BIKE_PARTS = Object.freeze({
    "y": 0.1292,
    "r": 0.1296,
    "tread": 0.1284,
-   "half": 0.0751
+   "half": 0.0751,
+   "still": 1.0
   },
   "rake": 0.44,
   "steered": 0.0,
@@ -497,8 +519,8 @@ export const BIKE_PARTS = Object.freeze({
    -0.2089
   ],
   "peg": [
-   0.1221,
-   0.0928,
+   0.1177,
+   0.085,
    -0.0889
   ],
   "head": [
@@ -506,6 +528,7 @@ export const BIKE_PARTS = Object.freeze({
    0.2191,
    0.4567
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.187,
@@ -539,20 +562,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "chrome-concept-color-1k.jpg",
    "normal1k": "chrome-concept-normal-1k.webp",
-   "rm1k": "chrome-concept-rm-1k.webp"
+   "rm1k": "chrome-concept-rm-1k.webp",
+   "color512": "chrome-concept-color-512.jpg",
+   "normal512": "chrome-concept-normal-512.webp",
+   "rm512": "chrome-concept-rm-512.webp"
   },
   "sha256": "59b76eddeff29be477b1608c7d576fc578545a8cffe3625d8f164617a7e8e70e",
   "bytes": {
-   "lite": 4884566,
-   "full": 10460777
+   "lite": 4904874,
+   "full": 10481085
   }
  },
  "civil-war-tourer": {
-  "vertices": 14859,
-  "triangles": 11994,
+  "vertices": 14847,
+  "triangles": 11966,
   "parts": [
-   7493,
-   2509,
+   7556,
+   2418,
    1084,
    908
   ],
@@ -575,7 +601,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1413,
    "half": 0.0432
   },
-  "rake": 0.44,
+  "rake": 0.37,
   "steered": 0.0,
   "grip": [
    0.2085,
@@ -589,14 +615,15 @@ export const BIKE_PARTS = Object.freeze({
   ],
   "peg": [
    0.0983,
-   0.1076,
+   0.1078,
    0.0313
   ],
   "head": [
    0.0,
-   0.3838,
+   0.3843,
    0.399
   ],
+  "lampTurns": false,
   "tail": [
    0.0,
    0.3057,
@@ -622,20 +649,21 @@ export const BIKE_PARTS = Object.freeze({
    "color4k": "civil-war-tourer-color-4k.jpg",
    "color2k": "civil-war-tourer-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "civil-war-tourer-color-1k.jpg"
+   "color1k": "civil-war-tourer-color-1k.jpg",
+   "color512": "civil-war-tourer-color-512.jpg"
   },
   "sha256": "9ca8d0b0b80874296207cb997c5b0ee20c4175861d4e96ba5e8553de83d88b68",
   "bytes": {
-   "lite": 1305870,
-   "full": 2748438
+   "lite": 1305222,
+   "full": 2747790
   }
  },
  "gold-roadster": {
-  "vertices": 78982,
-  "triangles": 99893,
+  "vertices": 78392,
+  "triangles": 98857,
   "parts": [
-   53679,
-   16374,
+   46717,
+   22300,
    14793,
    15047
   ],
@@ -658,7 +686,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1307,
    "half": 0.0353
   },
-  "rake": 0.3325,
+  "rake": 0.54,
   "steered": 0.0,
   "grip": [
    0.1741,
@@ -671,15 +699,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.1466
   ],
   "peg": [
-   0.1066,
-   0.0922,
+   0.1061,
+   0.0975,
    -0.0266
   ],
   "head": [
    0.0,
-   0.2396,
-   0.412
+   0.3445,
+   0.2984
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.2189,
@@ -713,20 +742,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "gold-roadster-color-1k.jpg",
    "normal1k": "gold-roadster-normal-1k.webp",
-   "rm1k": "gold-roadster-rm-1k.webp"
+   "rm1k": "gold-roadster-rm-1k.webp",
+   "color512": "gold-roadster-color-512.jpg",
+   "normal512": "gold-roadster-normal-512.webp",
+   "rm512": "gold-roadster-rm-512.webp"
   },
   "sha256": "a24fb606cb9c2a1f3ddac0133633d4ba71f2ccbe3939b74168304ed8f844b2ca",
   "bytes": {
-   "lite": 4702103,
-   "full": 9888076
+   "lite": 4674331,
+   "full": 9860304
   }
  },
  "gold-tourer": {
-  "vertices": 91215,
-  "triangles": 116831,
+  "vertices": 90329,
+  "triangles": 115281,
   "parts": [
-   62734,
-   32830,
+   56833,
+   37181,
    13009,
    8258
   ],
@@ -747,9 +779,10 @@ export const BIKE_PARTS = Object.freeze({
    "y": 0.1129,
    "r": 0.1129,
    "tread": 0.1123,
-   "half": 0.0321
+   "half": 0.0321,
+   "still": 1.0
   },
-  "rake": 0.44,
+  "rake": 0.45,
   "steered": 0.0,
   "grip": [
    0.1426,
@@ -763,14 +796,15 @@ export const BIKE_PARTS = Object.freeze({
   ],
   "peg": [
    0.0792,
-   0.092,
+   0.0858,
    -0.027
   ],
   "head": [
    0.0,
-   0.2484,
-   0.3742
+   0.3423,
+   0.2916
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.1588,
@@ -804,20 +838,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "gold-tourer-color-1k.jpg",
    "normal1k": "gold-tourer-normal-1k.webp",
-   "rm1k": "gold-tourer-rm-1k.webp"
+   "rm1k": "gold-tourer-rm-1k.webp",
+   "color512": "gold-tourer-color-512.jpg",
+   "normal512": "gold-tourer-normal-512.webp",
+   "rm512": "gold-tourer-rm-512.webp"
   },
   "sha256": "2993d194a76554d44480be76951bf3944e7c42487d8b50622c737f092e8ee657",
   "bytes": {
-   "lite": 5483169,
-   "full": 11828322
+   "lite": 5441533,
+   "full": 11786686
   }
  },
  "midnight-cruiser": {
-  "vertices": 129969,
-  "triangles": 136390,
+  "vertices": 129982,
+  "triangles": 136416,
   "parts": [
-   50803,
-   12281,
+   46361,
+   16749,
    32506,
    40800
   ],
@@ -840,7 +877,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1293,
    "half": 0.0516
   },
-  "rake": 0.2875,
+  "rake": 0.55,
   "steered": 0.0,
   "grip": [
    0.2169,
@@ -853,15 +890,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.2157
   ],
   "peg": [
-   0.1026,
-   0.0885,
+   0.1179,
+   0.095,
    -0.0957
   ],
   "head": [
    0.0,
-   0.2905,
-   0.3939
+   0.366,
+   0.2661
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.1886,
@@ -895,20 +933,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "midnight-cruiser-color-1k.jpg",
    "normal1k": "midnight-cruiser-normal-1k.webp",
-   "rm1k": "midnight-cruiser-rm-1k.webp"
+   "rm1k": "midnight-cruiser-rm-1k.webp",
+   "color512": "midnight-cruiser-color-512.jpg",
+   "normal512": "midnight-cruiser-normal-512.webp",
+   "rm512": "midnight-cruiser-rm-512.webp"
   },
   "sha256": "5ca2593b79c7c3d1de3529c74f38d559b3492e4c0f9867a759422eb5dc30c3ce",
   "bytes": {
-   "lite": 6528801,
-   "full": 10969188
+   "lite": 6529449,
+   "full": 10969836
   }
  },
  "olive-cruiser": {
-  "vertices": 95196,
-  "triangles": 114628,
+  "vertices": 94722,
+  "triangles": 113906,
   "parts": [
-   69131,
-   20059,
+   58183,
+   30285,
    13967,
    11471
   ],
@@ -931,7 +972,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.126,
    "half": 0.0314
   },
-  "rake": 0.4229,
+  "rake": 0.64,
   "steered": 0.0,
   "grip": [
    0.1208,
@@ -944,15 +985,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.1478
   ],
   "peg": [
-   0.135,
-   0.1088,
+   0.1355,
+   0.1034,
    -0.0278
   ],
   "head": [
    0.0,
-   0.2605,
-   0.3972
+   0.3232,
+   0.2523
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
    0.2295,
@@ -986,79 +1028,83 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "olive-cruiser-color-1k.jpg",
    "normal1k": "olive-cruiser-normal-1k.webp",
-   "rm1k": "olive-cruiser-rm-1k.webp"
+   "rm1k": "olive-cruiser-rm-1k.webp",
+   "color512": "olive-cruiser-color-512.jpg",
+   "normal512": "olive-cruiser-normal-512.webp",
+   "rm512": "olive-cruiser-rm-512.webp"
   },
   "sha256": "8590db45f7383b0dbb879385d3cfc6549c2bf2affa3972519d01d336a947cde2",
   "bytes": {
-   "lite": 5236690,
-   "full": 10874725
+   "lite": 5215702,
+   "full": 10853737
   }
  },
  "power-cruiser": {
-  "vertices": 98154,
-  "triangles": 113735,
+  "vertices": 98495,
+  "triangles": 114341,
   "parts": [
-   63265,
-   10184,
-   19742,
-   20544
+   51134,
+   22921,
+   20544,
+   19742
   ],
   "length": 0.9788,
   "height": 0.4974,
   "width": 0.3785,
   "front": {
-   "x": -0.0002,
-   "z": 0.3502,
-   "y": 0.1286,
-   "r": 0.1313,
-   "tread": 0.1303,
-   "half": 0.0529
-  },
-  "rear": {
-   "x": -0.0005,
-   "z": -0.3499,
+   "x": 0.0005,
+   "z": 0.3499,
    "y": 0.1505,
    "r": 0.1471,
    "tread": 0.1464,
    "half": 0.0243
   },
-  "rake": 0.44,
+  "rear": {
+   "x": 0.0002,
+   "z": -0.3502,
+   "y": 0.1286,
+   "r": 0.1313,
+   "tread": 0.1303,
+   "half": 0.0529
+  },
+  "rake": 0.77,
   "steered": 0.0,
   "grip": [
-   0.1623,
-   0.4221,
-   0.0165
+   0.1503,
+   0.4211,
+   0.0113
   ],
   "seat": [
    0.0,
-   0.2967,
-   -0.2256
+   0.2744,
+   -0.2165
   ],
   "peg": [
-   0.1259,
-   0.0998,
-   -0.1056
+   0.097,
+   0.1129,
+   -0.0965
   ],
   "head": [
    0.0,
-   0.249,
-   0.4328
+   0.3259,
+   0.2008
   ],
+  "lampTurns": true,
   "tail": [
    0.0,
-   0.1997,
-   -0.4565
+   0.2101,
+   -0.4284
   ],
   "pipes": [
    [
-    0.049,
-    0.1622,
-    -0.3628
+    0.0845,
+    0.1242,
+    -0.4788
    ],
    [
-    -0.0476,
-    0.162,
-    -0.3631
+    -0.0492,
+    0.1203,
+    -0.4622
    ]
   ],
   "metallic": 1.0,
@@ -1077,20 +1123,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "power-cruiser-color-1k.jpg",
    "normal1k": "power-cruiser-normal-1k.webp",
-   "rm1k": "power-cruiser-rm-1k.webp"
+   "rm1k": "power-cruiser-rm-1k.webp",
+   "color512": "power-cruiser-color-512.jpg",
+   "normal512": "power-cruiser-normal-512.webp",
+   "rm512": "power-cruiser-rm-512.webp"
   },
   "sha256": "8cc9514f139acff15b6dc6c3c3aa227f79e293b226a6cf6f8d2826300a8065da",
   "bytes": {
-   "lite": 5350091,
-   "full": 10440539
+   "lite": 5366231,
+   "full": 10456679
   }
  },
  "purple-sport": {
-  "vertices": 92540,
-  "triangles": 113837,
+  "vertices": 92605,
+  "triangles": 113977,
   "parts": [
-   71921,
-   28974,
+   70685,
+   30350,
    7808,
    5134
   ],
@@ -1113,7 +1162,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1404,
    "half": 0.0274
   },
-  "rake": 0.44,
+  "rake": 0.42,
   "steered": 0.0,
   "grip": [
    0.1731,
@@ -1126,15 +1175,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.1625
   ],
   "peg": [
-   0.062,
-   0.1087,
+   0.0622,
+   0.1067,
    -0.0425
   ],
   "head": [
    0.0,
-   0.2716,
-   0.3924
+   0.3953,
+   0.3576
   ],
+  "lampTurns": false,
   "tail": [
    0.0,
    0.2711,
@@ -1168,20 +1218,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "purple-sport-color-1k.jpg",
    "normal1k": "purple-sport-normal-1k.webp",
-   "rm1k": "purple-sport-rm-1k.webp"
+   "rm1k": "purple-sport-rm-1k.webp",
+   "color512": "purple-sport-color-512.jpg",
+   "normal512": "purple-sport-normal-512.webp",
+   "rm512": "purple-sport-rm-512.webp"
   },
   "sha256": "c1431c32254cf317c7569e39c826b44804fba9b9854d996879d82a6ef096b7ac",
   "bytes": {
-   "lite": 5229363,
-   "full": 9913779
+   "lite": 5232735,
+   "full": 9917151
   }
  },
  "red-superbike": {
-  "vertices": 96964,
-  "triangles": 118470,
+  "vertices": 96953,
+  "triangles": 118452,
   "parts": [
-   57533,
-   27401,
+   57153,
+   27763,
    17838,
    15698
   ],
@@ -1204,7 +1257,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1554,
    "half": 0.0508
   },
-  "rake": 0.44,
+  "rake": 0.41,
   "steered": 0.0,
   "grip": [
    0.1486,
@@ -1217,15 +1270,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.1298
   ],
   "peg": [
-   0.1016,
-   0.1061,
+   0.1029,
+   0.1086,
    -0.0098
   ],
   "head": [
    0.0,
-   0.2744,
-   0.4183
+   0.3699,
+   0.3938
   ],
+  "lampTurns": false,
   "tail": [
    0.0,
    0.25,
@@ -1259,20 +1313,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "red-superbike-color-1k.jpg",
    "normal1k": "red-superbike-normal-1k.webp",
-   "rm1k": "red-superbike-rm-1k.webp"
+   "rm1k": "red-superbike-rm-1k.webp",
+   "color512": "red-superbike-color-512.jpg",
+   "normal512": "red-superbike-normal-512.webp",
+   "rm512": "red-superbike-rm-512.webp"
   },
   "sha256": "10373b3b4488bbea9410501f6e28c1b1ed182c4e104e14d1bb16df5818f19f35",
   "bytes": {
-   "lite": 5346984,
-   "full": 10017279
+   "lite": 5346484,
+   "full": 10016779
   }
  },
  "streetfighter": {
-  "vertices": 98580,
-  "triangles": 117579,
+  "vertices": 98583,
+  "triangles": 117573,
   "parts": [
-   56129,
-   30575,
+   59267,
+   27431,
    15110,
    15765
   ],
@@ -1295,7 +1352,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1465,
    "half": 0.0336
   },
-  "rake": 0.44,
+  "rake": 0.47,
   "steered": 0.0,
   "grip": [
    0.1228,
@@ -1308,15 +1365,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.1176
   ],
   "peg": [
-   0.0593,
-   0.1013,
+   0.0624,
+   0.1083,
    0.0024
   ],
   "head": [
    0.0,
-   0.271,
-   0.4104
+   0.3888,
+   0.323
   ],
+  "lampTurns": false,
   "tail": [
    0.0,
    0.2973,
@@ -1350,31 +1408,34 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "streetfighter-color-1k.jpg",
    "normal1k": "streetfighter-normal-1k.webp",
-   "rm1k": "streetfighter-rm-1k.webp"
+   "rm1k": "streetfighter-rm-1k.webp",
+   "color512": "streetfighter-color-512.jpg",
+   "normal512": "streetfighter-normal-512.webp",
+   "rm512": "streetfighter-rm-512.webp"
   },
   "sha256": "efce25fb860777b584c6584326a86919d79a0a444e4bb20f995f80829161bc4e",
   "bytes": {
-   "lite": 5475557,
-   "full": 10316151
+   "lite": 5475565,
+   "full": 10316159
   }
  },
  "white-sport": {
-  "vertices": 99143,
-  "triangles": 119030,
+  "vertices": 99150,
+  "triangles": 119052,
   "parts": [
-   75563,
-   19694,
-   15047,
+   74437,
+   20821,
+   15068,
    8726
   ],
   "length": 0.9789,
   "height": 0.5559,
   "width": 0.3623,
   "front": {
-   "x": -0.0117,
+   "x": -0.0112,
    "z": 0.3315,
    "y": 0.1412,
-   "r": 0.1235,
+   "r": 0.1236,
    "tread": 0.1229,
    "half": 0.0257
   },
@@ -1386,28 +1447,29 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.1269,
    "half": 0.0262
   },
-  "rake": 0.44,
-  "steered": 0.096,
+  "rake": 0.5,
+  "steered": 0.1004,
   "grip": [
-   0.1213,
+   0.1208,
    0.3653,
-   0.1283
+   0.1297
   ],
   "seat": [
    0.0,
-   0.3489,
-   -0.1816
+   0.3471,
+   -0.1812
   ],
   "peg": [
    0.0832,
-   0.1108,
-   -0.0616
+   0.1059,
+   -0.0612
   ],
   "head": [
    0.0,
-   0.2656,
-   0.3697
+   0.3459,
+   0.3385
   ],
+  "lampTurns": false,
   "tail": [
    0.0,
    0.2411,
@@ -1441,20 +1503,23 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "white-sport-color-1k.jpg",
    "normal1k": "white-sport-normal-1k.webp",
-   "rm1k": "white-sport-rm-1k.webp"
+   "rm1k": "white-sport-rm-1k.webp",
+   "color512": "white-sport-color-512.jpg",
+   "normal512": "white-sport-normal-512.webp",
+   "rm512": "white-sport-rm-512.webp"
   },
   "sha256": "fa894ae88ae88022c4a804200150b939fdb8079f01024e962611b86ba918fd46",
   "bytes": {
-   "lite": 5296331,
-   "full": 9316812
+   "lite": 5296775,
+   "full": 9317256
   }
  },
  "yellow-adventure": {
-  "vertices": 105853,
-  "triangles": 120618,
+  "vertices": 105954,
+  "triangles": 120794,
   "parts": [
-   75493,
-   32816,
+   75366,
+   33119,
    6719,
    5590
   ],
@@ -1477,7 +1542,7 @@ export const BIKE_PARTS = Object.freeze({
    "tread": 0.13,
    "half": 0.0235
   },
-  "rake": 0.44,
+  "rake": 0.42,
   "steered": 0.0,
   "grip": [
    0.1894,
@@ -1490,15 +1555,16 @@ export const BIKE_PARTS = Object.freeze({
    -0.1154
   ],
   "peg": [
-   0.0706,
-   0.0877,
+   0.0721,
+   0.0985,
    0.0046
   ],
   "head": [
    0.0,
-   0.3466,
-   0.3522
+   0.3548,
+   0.3538
   ],
+  "lampTurns": false,
   "tail": [
    0.0,
    0.2937,
@@ -1532,12 +1598,15 @@ export const BIKE_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "yellow-adventure-color-1k.jpg",
    "normal1k": "yellow-adventure-normal-1k.webp",
-   "rm1k": "yellow-adventure-rm-1k.webp"
+   "rm1k": "yellow-adventure-rm-1k.webp",
+   "color512": "yellow-adventure-color-512.jpg",
+   "normal512": "yellow-adventure-normal-512.webp",
+   "rm512": "yellow-adventure-rm-512.webp"
   },
   "sha256": "93bda61452d793600cbdfac925c0c2d3510544750ef0860cddce1f8771dc4d3a",
   "bytes": {
-   "lite": 5693675,
-   "full": 10173092
+   "lite": 5698411,
+   "full": 10177828
   }
  }
 });

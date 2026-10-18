@@ -134,7 +134,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "black-grand-convertible-color-1k.jpg",
    "normal1k": "black-grand-convertible-normal-1k.webp",
-   "rm1k": "black-grand-convertible-rm-1k.webp"
+   "rm1k": "black-grand-convertible-rm-1k.webp",
+   "color512": "black-grand-convertible-color-512.jpg",
+   "normal512": "black-grand-convertible-normal-512.webp",
+   "rm512": "black-grand-convertible-rm-512.webp"
   },
   "sha256": "d9efddc6a2df74c1fcd7e6e77b1806ee160ad6b54e4215d86ea7e3b5a98998b8",
   "bytes": {
@@ -274,7 +277,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "black-luxury-suv-color-1k.jpg",
    "normal1k": "black-luxury-suv-normal-1k.webp",
-   "rm1k": "black-luxury-suv-rm-1k.webp"
+   "rm1k": "black-luxury-suv-rm-1k.webp",
+   "color512": "black-luxury-suv-color-512.jpg",
+   "normal512": "black-luxury-suv-normal-512.webp",
+   "rm512": "black-luxury-suv-rm-512.webp"
   },
   "sha256": "8090a90e88eb78ad38fc65739709576756fe3f1ac99ef90de1248dd4c82ab158",
   "bytes": {
@@ -406,7 +412,8 @@ export const CAR_PARTS = Object.freeze({
    "color4k": "black-pickup-color-4k.jpg",
    "color2k": "black-pickup-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "black-pickup-color-1k.jpg"
+   "color1k": "black-pickup-color-1k.jpg",
+   "color512": "black-pickup-color-512.jpg"
   },
   "sha256": "4af3c89ccf52a1be8166b3b6e3afd40fceefdacce58c8b0d2f536984ad6d2b51",
   "bytes": {
@@ -538,7 +545,8 @@ export const CAR_PARTS = Object.freeze({
    "color4k": "black-square-suv-color-4k.jpg",
    "color2k": "black-square-suv-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "black-square-suv-color-1k.jpg"
+   "color1k": "black-square-suv-color-1k.jpg",
+   "color512": "black-square-suv-color-512.jpg"
   },
   "sha256": "416c70a0a25c9f7d6e5e1dd52f0b46ec9b8fbf0a4762a205f63ae33761ea5f58",
   "bytes": {
@@ -670,7 +678,8 @@ export const CAR_PARTS = Object.freeze({
    "color4k": "blue-off-roader-color-4k.jpg",
    "color2k": "blue-off-roader-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "blue-off-roader-color-1k.jpg"
+   "color1k": "blue-off-roader-color-1k.jpg",
+   "color512": "blue-off-roader-color-512.jpg"
   },
   "sha256": "1e046dce2aebfd65f0cfd58a6e0903710dc89d810edd62ed7faf0167337a5264",
   "bytes": {
@@ -810,7 +819,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "bronze-spyder-color-1k.jpg",
    "normal1k": "bronze-spyder-normal-1k.webp",
-   "rm1k": "bronze-spyder-rm-1k.webp"
+   "rm1k": "bronze-spyder-rm-1k.webp",
+   "color512": "bronze-spyder-color-512.jpg",
+   "normal512": "bronze-spyder-normal-512.webp",
+   "rm512": "bronze-spyder-rm-512.webp"
   },
   "sha256": "785bf7085af2a5bf0ef68879f4c86a5140c064e75c5e7951069bdc724b8c8992",
   "bytes": {
@@ -950,7 +962,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "camo-expedition-color-1k.jpg",
    "normal1k": "camo-expedition-normal-1k.webp",
-   "rm1k": "camo-expedition-rm-1k.webp"
+   "rm1k": "camo-expedition-rm-1k.webp",
+   "color512": "camo-expedition-color-512.jpg",
+   "normal512": "camo-expedition-normal-512.webp",
+   "rm512": "camo-expedition-rm-512.webp"
   },
   "sha256": "2208151246a1d960b7b555576236310b0e23e9487b6faa93ddf33af3fad070cb",
   "bytes": {
@@ -1090,7 +1105,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "classic-two-tone-color-1k.jpg",
    "normal1k": "classic-two-tone-normal-1k.webp",
-   "rm1k": "classic-two-tone-rm-1k.webp"
+   "rm1k": "classic-two-tone-rm-1k.webp",
+   "color512": "classic-two-tone-color-512.jpg",
+   "normal512": "classic-two-tone-normal-512.webp",
+   "rm512": "classic-two-tone-rm-512.webp"
   },
   "sha256": "ec23e0a806f7d74dba5960941fefd56a6379ed591c79a625b402e97138b9129d",
   "bytes": {
@@ -1230,7 +1248,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "gold-hypercar-color-1k.jpg",
    "normal1k": "gold-hypercar-normal-1k.webp",
-   "rm1k": "gold-hypercar-rm-1k.webp"
+   "rm1k": "gold-hypercar-rm-1k.webp",
+   "color512": "gold-hypercar-color-512.jpg",
+   "normal512": "gold-hypercar-normal-512.webp",
+   "rm512": "gold-hypercar-rm-512.webp"
   },
   "sha256": "a29227def49be479335b7d5d76966326f195f9958705da37ec7f6f528a7a8068",
   "bytes": {
@@ -1370,7 +1391,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "grey-grand-tourer-color-1k.jpg",
    "normal1k": "grey-grand-tourer-normal-1k.webp",
-   "rm1k": "grey-grand-tourer-rm-1k.webp"
+   "rm1k": "grey-grand-tourer-rm-1k.webp",
+   "color512": "grey-grand-tourer-color-512.jpg",
+   "normal512": "grey-grand-tourer-normal-512.webp",
+   "rm512": "grey-grand-tourer-rm-512.webp"
   },
   "sha256": "643fca7d4e2f16257a42429cee7bbdfb469742e49bd6d4ab57c322116389baba",
   "bytes": {
@@ -1502,7 +1526,8 @@ export const CAR_PARTS = Object.freeze({
    "color4k": "grey-saloon-color-4k.jpg",
    "color2k": "grey-saloon-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "grey-saloon-color-1k.jpg"
+   "color1k": "grey-saloon-color-1k.jpg",
+   "color512": "grey-saloon-color-512.jpg"
   },
   "sha256": "95533b178cba5eba754dec13293bf67246439688fbac17eb4128e062f5b7763b",
   "bytes": {
@@ -1642,7 +1667,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "midnight-saloon-color-1k.jpg",
    "normal1k": "midnight-saloon-normal-1k.webp",
-   "rm1k": "midnight-saloon-rm-1k.webp"
+   "rm1k": "midnight-saloon-rm-1k.webp",
+   "color512": "midnight-saloon-color-512.jpg",
+   "normal512": "midnight-saloon-normal-512.webp",
+   "rm512": "midnight-saloon-rm-512.webp"
   },
   "sha256": "32feb3e7ae247d1a9603772772fad172d5f9f81572f946028bd4db40c6bcdeac",
   "bytes": {
@@ -1774,7 +1802,8 @@ export const CAR_PARTS = Object.freeze({
    "color4k": "mint-sports-coupe-color-4k.jpg",
    "color2k": "mint-sports-coupe-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "mint-sports-coupe-color-1k.jpg"
+   "color1k": "mint-sports-coupe-color-1k.jpg",
+   "color512": "mint-sports-coupe-color-512.jpg"
   },
   "sha256": "525ac8cebf8edef0ec60885f7a484b27d526b71ddf21e9ebdbb5b970a602449d",
   "bytes": {
@@ -1914,7 +1943,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "peach-suv-color-1k.jpg",
    "normal1k": "peach-suv-normal-1k.webp",
-   "rm1k": "peach-suv-rm-1k.webp"
+   "rm1k": "peach-suv-rm-1k.webp",
+   "color512": "peach-suv-color-512.jpg",
+   "normal512": "peach-suv-normal-512.webp",
+   "rm512": "peach-suv-rm-512.webp"
   },
   "sha256": "da7e2d1a64ad5d426bb72d94aa2cfde2f13ad9121a7c0850af07703fccb8256e",
   "bytes": {
@@ -2054,7 +2086,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "pearl-convertible-color-1k.jpg",
    "normal1k": "pearl-convertible-normal-1k.webp",
-   "rm1k": "pearl-convertible-rm-1k.webp"
+   "rm1k": "pearl-convertible-rm-1k.webp",
+   "color512": "pearl-convertible-color-512.jpg",
+   "normal512": "pearl-convertible-normal-512.webp",
+   "rm512": "pearl-convertible-rm-512.webp"
   },
   "sha256": "a92f0d635e8fef732d4c1b2886b170aef2cf925b501ada67b4c205acd29ae6d3",
   "bytes": {
@@ -2194,7 +2229,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "red-winged-supercar-color-1k.jpg",
    "normal1k": "red-winged-supercar-normal-1k.webp",
-   "rm1k": "red-winged-supercar-rm-1k.webp"
+   "rm1k": "red-winged-supercar-rm-1k.webp",
+   "color512": "red-winged-supercar-color-512.jpg",
+   "normal512": "red-winged-supercar-normal-512.webp",
+   "rm512": "red-winged-supercar-rm-512.webp"
   },
   "sha256": "e97afb51dbc3105c0d0388e89d3e5797686cdea5164ac43d76bab2d98ccfc31a",
   "bytes": {
@@ -2326,7 +2364,8 @@ export const CAR_PARTS = Object.freeze({
    "color4k": "state-limousine-color-4k.jpg",
    "color2k": "state-limousine-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "state-limousine-color-1k.jpg"
+   "color1k": "state-limousine-color-1k.jpg",
+   "color512": "state-limousine-color-512.jpg"
   },
   "sha256": "aabb43427517119ef6c8b2832b627c8415812dfb33a9b137c2cc7c1bceec19a5",
   "bytes": {
@@ -2458,7 +2497,8 @@ export const CAR_PARTS = Object.freeze({
    "color4k": "white-roadster-color-4k.jpg",
    "color2k": "white-roadster-color-2k.jpg",
    "colorSize": 8192,
-   "color1k": "white-roadster-color-1k.jpg"
+   "color1k": "white-roadster-color-1k.jpg",
+   "color512": "white-roadster-color-512.jpg"
   },
   "sha256": "06e8bc6337702bae311a6e31d192114f0ff165a01924337cb40f58a093b56849",
   "bytes": {
@@ -2598,7 +2638,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "white-square-suv-color-1k.jpg",
    "normal1k": "white-square-suv-normal-1k.webp",
-   "rm1k": "white-square-suv-rm-1k.webp"
+   "rm1k": "white-square-suv-rm-1k.webp",
+   "color512": "white-square-suv-color-512.jpg",
+   "normal512": "white-square-suv-normal-512.webp",
+   "rm512": "white-square-suv-rm-512.webp"
   },
   "sha256": "edb1dea10abd6e3a74de61313501e51061bd33bdfcf485faf445efcb577f9879",
   "bytes": {
@@ -2738,7 +2781,10 @@ export const CAR_PARTS = Object.freeze({
    "normalSize": 4096,
    "color1k": "yellow-classic-roadster-color-1k.jpg",
    "normal1k": "yellow-classic-roadster-normal-1k.webp",
-   "rm1k": "yellow-classic-roadster-rm-1k.webp"
+   "rm1k": "yellow-classic-roadster-rm-1k.webp",
+   "color512": "yellow-classic-roadster-color-512.jpg",
+   "normal512": "yellow-classic-roadster-normal-512.webp",
+   "rm512": "yellow-classic-roadster-rm-512.webp"
   },
   "sha256": "d589f8c674bece930e90a55080fdef9d22d2f9bb942520a7eb4008cfb5142157",
   "bytes": {

@@ -55,7 +55,8 @@ function picture(url, colour, own) {
 }
 // Which of a car's files each of its pictures comes from, for a set: the 4096 set is its colour at 4096 with its
 // relief and its finish at 2048 (they are seen no closer than its colour, and the two at 4096 are 170 MB more).
-const SETS = Object.freeze({ '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
+const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
+const LARGER = ['512', '1k', '2k', '4k'];
 const tierOf = (lite, tier) => tier || PICTURES[lite ? 'lite' : 'full'].vehicle;
 
 // The car's finish: its own pictures, and over them a clear coat that reflects the sky (not on a phone).
@@ -85,7 +86,7 @@ async function partsOf(id, { base, lite, tier, own = false }) {
     const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     // (a car made with few triangles comes with its colour picture only: then it has no other to fetch; a set its
     // files do not have is taken from the next larger)
-    const file = (name, size) => f[`${name}${size}`] || f[`${name}${size === '1k' ? '2k' : '4k'}`] || f[`${name}2k`];
+    const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
     const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own) : null));
     const response = await fetchKept(base + f.mesh);
     if (!response.ok) throw new Error(`${f.mesh}: ${response.status}`);
