@@ -154,11 +154,12 @@ await shot('06-inside-the-doors');
 // The set of pictures each car should be drawn with, the player at (x, z): as hall-models.js chooses them (budget.js,
 // HALL), the largest given up first on a device that is struggling (`level`), worked out here on its own.
 const ORDER = ['512', '1k', '2k', '4k'], CAP = ['4k', '2k', '1k', '512'];
-const hallTiers = (at, { lite, level }, ranges = { inspect: 4, near: 12, mid: 24 }) => {
+const hallTiers = (at, { lite, level }, ranges = { inspect: 4, near: 12, mid: 24 }, shrink = 1) => {
   const plan = SETS[lite ? 'lite' : 'full'];
   const gaps = CARSHOW.displays.map((d) => Math.max(0, Math.hypot(d.x - at.x, d.z - at.z) - d.r));
   const tiers = [];
-  gaps.map((gap, k) => [gap, k]).sort((a, b) => a[0] - b[0]).forEach(([gap, k], rank) => {
+  gaps.map((gap, k) => [gap, k]).sort((a, b) => a[0] - b[0]).forEach(([full, k], rank) => {
+    const gap = full / shrink;
     let t = rank === 0 && gap < ranges.inspect ? plan.inspect : rank < plan.nearRanks && gap < ranges.near ? plan.near : gap < ranges.mid ? plan.mid : plan.far;
     const cap = CAP[Math.max(0, Math.min(3, level))];
     if (t && ORDER.indexOf(t) > ORDER.indexOf(cap)) t = cap;
@@ -172,8 +173,13 @@ const settled = async (at, limit = 900000) => {
   let got = null;
   while (Date.now() - t0 < limit) {
     got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.carshowView.shown(), state: n.carshowView.models(), level: n.quality, lite: !!n.lite }; });
-    const want = hallTiers(at, got);
-    if (got.shown.every((d, k) => d.tier === want[k] && (d.model ? !d.picture : d.picture))) return { ...got, want, ok: true };
+    // (each with what its distance asks for, or a set it already had that it keeps while it is within a quarter of
+    // that set's distance again: hall-models.js gives a vehicle a smaller set only once it is clearly further off, so
+    // that nothing flickers between two sets at the edge of one)
+    const want = hallTiers(at, got), keep = hallTiers(at, got, undefined, 1.25);
+    const rankOf = (t) => (t ? ORDER.indexOf(t) : -1);         // (no set at all: its picture, on a phone)
+    const between = (t, lo, hi) => rankOf(t) >= rankOf(lo) && rankOf(t) <= rankOf(hi);
+    if (got.shown.every((d, k) => between(d.tier, want[k], keep[k]) && (d.model ? !d.picture : d.picture))) return { ...got, want, keep, ok: true };
     await page.waitForTimeout(1000);
   }
   return { ...got, want: got && hallTiers(at, got), ok: false };
@@ -221,7 +227,7 @@ const opened = await page.evaluate(() => {
     talk: window.__nlw.carshow.talk, placeholder: q('#deal-text').placeholder,
   };
 });
-check('the conversation opens with Tochi: the car\'s card with its top speed and its price, and nothing said of an engine', opened.head === 'Tochi' && opened.brand === 'Post Civil War Car Showroom' && opened.card === 'Grey Saloon' && opened.chips.includes('170 km/h') && !opened.chips.some((c) => /cc|CC/.test(c)) && /\b600 TR/.test(opened.price) && opened.placeholder === 'Ask Tochi about the car', opened);
+check('the conversation opens with Tochi: the car\'s card with its top speed and its price, and nothing said of an engine', opened.head === 'Tochi' && opened.brand === 'Post Civil War Car Showroom' && opened.card === 'Grey Saloon' && opened.chips.includes('170 km/h') && !opened.chips.some((c) => /cc|CC/.test(c)) && /(^|[^\d,])600 TR/.test(opened.price) && opened.placeholder === 'Ask Tochi about the car', opened);
 check('Tochi greets the player about this car, and says the answers are automatic', /Tochi/.test(opened.hello) && /automatic/.test(opened.hello) && /Grey Saloon/.test(opened.hello) && /170 km\/h/.test(opened.hello), opened.hello);
 check('questions to tap are offered (none about an engine)', opened.quick.length >= 5 && !opened.quick.some((q) => /engine/i.test(q)), opened.quick);
 await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state; return t.mode === 'talk' && t.speed < 0.2; }, null, { timeout: 60000 }).catch(() => {});

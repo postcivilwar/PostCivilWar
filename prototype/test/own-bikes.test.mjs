@@ -147,9 +147,10 @@ test('another player on their motorcycle, from another copy of the town: seen ou
   const { p, id, place } = w;
   place(p, -600, -454, 0);
   const seen = (ride) => w.g.visitors.seen('peer-1', { name: 'Ada_Rider', x: -606, z: -452, heading: 1.5, look: {}, ride });
-  const v = seen({ bike: 'power-cruiser', lean: 2, speed: 500, throttle: 3, brake: 1, rev: 0.9, horns: 4 });
+  const v = seen({ bike: 'power-cruiser', lean: 2, speed: 500, throttle: 3, brake: 1, rev: 0.9, steer: -3, horns: 4 });
   assert.ok(v, 'out on the airport\'s land, beyond the town\'s square: still seen');
-  assert.deepEqual(v.ride, { bike: 'power-cruiser', lean: 0.9, speed: 70, throttle: 1, brake: 1, rev: 0.9 });
+  // (its bars turned, held to the lock as the rest is held to what a bike can do)
+  assert.deepEqual(v.ride, { bike: 'power-cruiser', lean: 0.9, speed: 70, throttle: 1, brake: 1, rev: 0.9, steer: -0.7 });
   run(w.host, 0.5);
   let q = w.g.view(id).players.find((o) => o.name === 'Ada_Rider');
   assert.ok(q && q.ride && q.ride.bike === 'power-cruiser');

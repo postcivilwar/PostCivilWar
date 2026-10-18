@@ -35686,6 +35686,7 @@ const { reach } = __modules["client/animated.js"];
 const OUT_SECONDS = 0.85;        // from the press to the phone held up
 const AWAY_SECONDS = 0.6;
 const POCKET = 0.42;             // the part of the way out at which the hand is in the pocket
+const CHEST_TURN = 0.08;         // radians the chest turns towards the phone in the hand, seated on a bike or in a car
 // what the screen is showing, as the colour of the light it throws: [r, g, b] in 0..1
 const SCREENS = Object.freeze({ home: [1, 0.78, 0.6], camera: [0.75, 0.86, 1], music: [1, 0.55, 0.5], deal: [0.55, 0.95, 0.8], page: [0.8, 0.86, 1] });
 
@@ -35878,6 +35879,19 @@ function createPhoneHold({ scene, lite }) {
       v.target.x -= Math.sin(u * Math.PI) * 0.05 * H;       // out of the pocket and round, not through the hip
     }
     const held = smooth((out - pocketAt) / (1 - pocketAt));
+    // seated, the chest turns a little towards the hand that holds it (the other hand stays where it holds on: a turn
+    // this small moves it a centimetre or two)
+    if (seated) {
+      const chest = rig.bones.get('spine_03') || rig.bones.get('spine_02');
+      if (chest) {
+        const note = baseOf(chest);
+        holder.localToWorld(v.up.set(0, 1, 0)).sub(holder.localToWorld(v.zero.set(0, 0, 0))).normalize();
+        chest.parent.getWorldQuaternion(q.p).invert();
+        chest.quaternion.premultiply(q.a.setFromAxisAngle(v.look.copy(v.up).applyQuaternion(q.p), -k * CHEST_TURN * smooth(out)));
+        note.set.copy(chest.quaternion);
+        chest.updateMatrixWorld(true);
+      }
+    }
     holder.localToWorld(v.hand.copy(v.target));
     // (the elbow out and down to its own side)
     holder.localToWorld(v.pole.set(-0.7 * k, -1, -0.5)).sub(holder.localToWorld(v.zero.set(0, 0, 0)));
@@ -39058,10 +39072,11 @@ function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = nul
   // (`tall`: how much further off than the town a tower is seen; from inside a hall, 0)
   function see(x, z, reach, fetch = true, tall = TOWER_SIGHT) {
     last = { x, z, reach, tall };
-    // a house model no longer needed near here is let go (its houses become their blocks: see `refresh`)
+    // a house model no longer needed near here is let go (its houses become their blocks: see `refresh`); only in play
+    // (`fetch`), where what is let go can be fetched again
     const now = performance.now() / 1000;
     for (const r of models.values()) {
-      if (r.state !== 'ready' || r.towers.length || !r.houses.length) continue;
+      if (!fetch || keepAll || r.state !== 'ready' || r.towers.length || !r.houses.length) continue;
       const gap = Math.min(...r.houses.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius));
       if (gap < HOUSE_SIGHT + RELEASE) { r.neededAt = now; continue; }
       if (now - r.neededAt > RELEASE_AFTER) release(r);
@@ -39090,8 +39105,10 @@ function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = nul
     material.dispose(); r.mesh.geometry.dispose();
     r.mesh = null; r.triangles = 0; r.state = 'idle'; r.released += 1;
   }
-  // (for whoever needs every one of them: the tests; still one or two at a time)
-  function loadAll() { if (ON_DISK) return; queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
+  // (for whoever needs every one of them: the tests; still one or two at a time; and all of them kept until `keepAll`
+  // is let go again)
+  let keepAll = false;
+  function loadAll() { if (ON_DISK) return; keepAll = true; queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
   const state = () => ({
     models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed, released: r.released })),
     drawn: entries.filter((e) => e.drawn).length,
@@ -39101,7 +39118,7 @@ function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = nul
   });
   // (the tests: the geometry of the model a building is drawn from; `e.matrix` is where)
   const geometryOf = (id) => { const r = models.get(id); return r && r.mesh ? r.mesh.geometry : null; };
-  return { see, loadAll, state, entries, geometryOf, refresh: () => refresh() };
+  return { see, loadAll, letGoAgain: () => { keepAll = false; }, state, entries, geometryOf, refresh: () => refresh() };
 }
 
 return { createTownBuildings };
@@ -41234,7 +41251,7 @@ function start(carried) {
     let facing = 'back', wait = 0;
     function draw(dt) {
       const canvas = document.getElementById('phone-cam');
-      if (!canvas || !me) return;
+      if (!canvas || !me || contextLost) return;
       wait -= dt;
       if (wait > 0) return;
       wait = LITE ? 1 / 9 : 1 / 14;
@@ -42765,7 +42782,21 @@ function start(carried) {
   }
 
   let last = performance.now();
+  // The game's loop. The next frame is asked for before this one is drawn, and a mistake in drawing one frame is
+  // written to the console and counted (`frameErrors`) rather than left to end the loop (18 October 2026, the owner's
+  // brief: the game sometimes froze. Until now the next frame was asked for at the end of this one, so any error
+  // thrown on the way, however rare, stopped the game where it stood, the last picture left on the screen). The
+  // browser tests fail on any such error in the console, so none is hidden from them.
+  let frameErrors = 0;
   function frame(now) {
+    requestAnimationFrame(frame);
+    try { drawFrame(now); } catch (error) {
+      frameErrors += 1;
+      if (frameErrors <= 5 || frameErrors % 600 === 0) console.error(`PostCivilWar: a frame could not be drawn (${frameErrors})`, error);
+      monitor.count('frame error');
+    }
+  }
+  function drawFrame(now) {
     const elapsed = (now - last) / 1000;
     const dt = Math.min(0.5, Math.max(0.001, elapsed));
     last = now;
@@ -43162,7 +43193,9 @@ blood.update(dt, view.blood || []);
     // a page of the phone covers the town entirely, so the town is not drawn behind it
     const paged = playing && ui.usingPhone() && !ui.phoneOut();
     if (playing && !NO_DRAW && ui.phoneScreen() === 'camera') monitor.time('phone camera', () => phoneCam.draw(dt));
-    if (!NO_DRAW && !covered && !paged && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
+    // (nothing is drawn once the browser has taken the graphics away: what the graphics card held is gone, and the
+    // page let its own copies go once the card had them, so the picture cannot be made again without a reload)
+    if (!NO_DRAW && !covered && !paged && !contextLost && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame
@@ -43176,7 +43209,6 @@ blood.update(dt, view.blood || []);
     if (playing && view) bubbles.update(view.speech, headOf, project, predicted, `p:${playerId}`, viewW, viewH);
     monitor.end(elapsed * 1000);
     if (clock > 4 && !document.hidden) governor.frame(elapsed * 1000, dt);
-    requestAnimationFrame(frame);
   }
 
   // The picture taken away (18 October 2026, the owner's brief: the game froze, closed or restarted on phones). A
@@ -43223,7 +43255,7 @@ blood.update(dt, view.blood || []);
     // the Post Civil War Car Showroom: the compound and its hall, the two who sell the cars, and asking about one; the
     // player's own cars and driving them
     carshowView, carSalesmen, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
-    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
+    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },

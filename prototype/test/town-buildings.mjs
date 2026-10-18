@@ -44,6 +44,19 @@ const shot = (name) => page.screenshot({ path: resolve(out, `town-${name}.png`) 
 const go = (x, z, heading, cam = {}) => page.evaluate(([px, pz, h, c]) => { const n = window.__nlw; n.place(px, pz); n.face(h); n.cam.yaw = c.yaw !== undefined ? c.yaw : h; n.cam.dist = c.dist || 9; n.cam.pitch = c.pitch !== undefined ? c.pitch : 0.25; }, [x, z, heading, cam]);
 const near = (a, b, tol) => Math.abs(a - b) <= tol;
 
+// ---- a tower not yet drawn from its model is a glass tower, not a dark slab like its own shadow (18 October 2026) ----
+await go(-40, 80, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.2, dist: 12, pitch: 0.05 });
+await page.waitForTimeout(1500);
+await shot('0-towers-while-their-models-come');
+const plain = await page.evaluate(() => {
+  const blocks = []; window.__nlw.scene.traverse((o) => { if (o.name === 'town-blocks') blocks.push(o); });
+  const tower = blocks.find((b) => b.material.map);
+  if (!tower) return null;
+  const c = tower.material.color; const lum = 0.2126 * c.r + 0.7152 * c.g + 0.0722 * c.b;
+  return { glass: !!tower.material.map, lum: +lum.toFixed(2), metalness: tower.material.metalness, drawn: tower.count };
+});
+check('a tower drawn as its plain shape (from afar, or while its model comes) is glass with its panes, pale, not near black', !!plain && plain.glass && plain.lum > 0.25, plain);
+
 // ---- every model, fetched and drawn as supplied ----
 await page.evaluate(() => window.__nlw.townBuildings.loadAll());
 await page.waitForFunction(() => window.__nlw.townBuildings.state().models.every((m) => m.state === 'ready' || m.state === 'failed'), null, { timeout: 900000 });
@@ -103,6 +116,23 @@ check('pushed against from behind and from the side, a house holds: the player s
 const tower = TOWN_TOWERS.find((t) => t.id === 'registry-towers');
 const atTower = await pushInto(tower.x, tower.z + tower.d / 2 + 0.9, Math.PI);
 check('and so does a tower', atTower.z > tower.z + tower.d / 2 + 0.2, { atTower, front: tower.z + tower.d / 2 });
+
+// ---- far from every lane for a while: the house models are let go (their houses are plain blocks), the towers kept;
+// back in a lane, its houses' model is fetched again ----
+await page.evaluate(() => window.__nlw.townBuildings.letGoAgain());
+await go(-845, -290, Math.PI, { dist: 14, pitch: 0.25 });
+await page.waitForTimeout(26000);
+const away = await page.evaluate(() => {
+  const tb = window.__nlw.townBuildings, houseOnly = new Set(tb.entries.filter((e) => e.kind === 'house').map((e) => e.model));
+  for (const e of tb.entries) if (e.kind === 'tower') houseOnly.delete(e.model);
+  const models = tb.state().models;
+  return { houses: models.filter((m) => houseOnly.has(m.id)).map((m) => `${m.id}:${m.state}:${m.released}`), towers: models.filter((m) => !houseOnly.has(m.id)).map((m) => m.state) };
+});
+check('far from every lane for a while, each house model is let go (its houses are plain blocks), and the towers are kept', away.houses.length > 0 && away.houses.every((h) => /:idle:[1-9]/.test(h)) && away.towers.every((t) => t === 'ready'), away);
+await go(-170, 67, Math.PI / 2, { yaw: Math.PI / 2 + 0.35, dist: 10, pitch: 0.16 });
+await page.waitForFunction(() => { const tb = window.__nlw.townBuildings; const e = tb.entries.find((x) => x.kind === 'house' && Math.hypot(x.x + 170, x.z - 67) < 60); return e && e.drawn; }, null, { timeout: 300000 }).catch(() => {});
+const back = await page.evaluate(() => { const tb = window.__nlw.townBuildings; const e = tb.entries.find((x) => x.kind === 'house' && Math.hypot(x.x + 170, x.z - 67) < 60); return e ? { id: e.id, model: e.model, drawn: e.drawn, state: (tb.state().models.find((m) => m.id === e.model) || {}).state } : null; });
+check('back in the lane, its houses are drawn from their model again', !!back && back.drawn && back.state === 'ready', back);
 
 // ---- pictures, and what is drawn ----
 const views = [

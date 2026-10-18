@@ -1796,11 +1796,130 @@ The owner asked for the town to look real: glass that reflects, finishes as they
 - On a phone surfaces are lit without gloss, as before: there the wet ground is darker, and nothing gives back the
   sky.
 
+## Vehicles that turn and steer, the phone at the bars and the wheel, everyone's vehicles, and staying up (18 October 2026)
+
+The owner's brief of 18 October 2026 (multiplayer vehicles, performance and realistic driving), worked in its order.
+
+### Prices, and what pays for them
+
+- **Cars 600 to 6,000 TR**, by how much car each is: Grey Saloon 600; Classic Two-Tone 750; Black Pickup 950; Yellow
+  Classic Roadster 1,100; Blue Off-Roader 1,300; Black Square SUV 1,450; Camo Expedition SUV and Mint Sports Coupé 1,600;
+  White Roadster 1,800; Peach Luxury SUV 1,950; Black Luxury SUV 2,100; White Square SUV 2,300; Grey Grand Tourer 2,450;
+  Black Grand Convertible 2,650; Pearl Convertible 2,800; Midnight Saloon 3,300; State Limousine and Bronze Spyder
+  4,000; Red Winged Supercar 4,650; Gold Hypercar 6,000 (`src/sim/power-cars.js`).
+- **Motorcycles 300 to 3,000 TR**, five tiers of 300, 450, 750, 1,200 and 1,800, and the Chrome V-Concept at 3,000
+  (`src/sim/power-bikes.js`).
+- **The arrival money buys either**, as any TR does: a new player can drive away a car or ride off on a motorcycle with
+  the 2,000 TR they arrive with (from the showroom only; bought from another player, earned TR pays). The server keeps
+  the prices (migration 14 sets every listing's price; at a showroom an offer for less is declined and a sale is always
+  at the listing's own price, whatever the page sends), checks the balance, takes the starter TR first, records the sale once (the offer's own number), and keeps one of each car and
+  each motorcycle to an account (`api/_lib/market.js`, `api/_lib/wallet.js`, `api/_lib/schema.js`). Nothing else about
+  starter TR changed: it still pays the town's charges and costs, and for nothing else.
+
+### Wheels that turn and steer (`tools/vehicles/wheelfit.py`)
+
+The models are each one piece, wheels and body fused: a wheel can only be told apart by where it is. The first sort
+took every wheel to be a drum square to the vehicle, of one width. Measured, that was wrong: six cars' front wheels
+are turned in their files (9 to 18 degrees, as a car is photographed), and turned about the car's axis instead of
+their own they wobbled, part of the tyre standing still; wide tyres were wider than the drum; on the motorcycles bars
+of the fork, a pannier's foot and pieces of mudguard lay in a wheel's drum and went round with it. Now each wheel's
+axle is read from its own tyre and rim, its round fitted to its tread, its width from its sidewalls, and only what
+lies wholly inside goes round with it; a wheel turned in the file is first put straight, then turned as the vehicle
+rolls (by the distance it has really travelled, signed, so backing up turns it backwards; nothing turns it when it
+stands) and steered by the game. A motorcycle's front end (fork, mudguard, bars, its headlamp where the lamp is on the
+fork) turns about the fork's own lean, measured from each model by eye where the fit was unreliable.
+
+### The showrooms: every vehicle clear wherever it is seen from (`src/client/hall-models.js`, `budget.js` HALL)
+
+Every car and motorcycle on the floor is its model, never a blurred placeholder while it is looked at: the one the
+player stands at with its 4096 pictures (on a phone 1024), the next few nearest 2048, those across the hall 1024, the
+far end 512; on a phone the far end is the picture of it from all round. The sets nearest the doors are made ready as
+the player comes up to them, one model handed to the graphics card a frame; a downgrade waits until the player has
+moved on, so nothing flickers; all of it is let go once the player is well away. Each vehicle's pictures and the
+market's view of it are framed by the exact bounds of what is drawn (`src/client/bounds.js`).
+
+### The driver at the wheel (`tools/vehicles/driver_seats.py`, `src/client/car-view.js`)
+
+Most of the owner's cars are a closed shell, their windows painted on and nothing inside: no one in them can be seen,
+and no one is drawn there. Ten can be looked into (the five with their tops down, the classic saloon with empty window
+openings, the hypercar with its doors up, the winged supercar, and the two big four-by-fours with open windows): found
+by looking out from where the driver's head is, through no surface of the model. In those the seat and the steering
+wheel are the model's own, read from cross-sections of each cabin. The driver sits on the seat, leaning back as far
+as the roof allows and no further than the arms reach the wheel (sitting further forward if they still cannot), with
+both hands on the rim at ten to two, turning with the wheel as the car is steered, the feet on the pedals, the head
+turned a little into the turn; they pitch and roll with the car's body on its springs.
+
+### The phone on a motorcycle and at the wheel (`src/client/phone-hold.js`, `main.js`)
+
+Taking the phone out on a motorcycle (or a keke's handlebars), the left hand comes off its grip and holds the handset
+up to be read; the right keeps the throttle. At the wheel of a car the right hand takes it; the left keeps the wheel.
+The head bends to the screen and the chest turns a little toward it. Put away, the hand goes back to its grip or the
+rim. The vehicle is still driven with the phone in the hand: until now any phone on the screen let go of the
+throttle, the brake and the steering (only a page over the whole screen does that now, as on foot). Getting on or
+off, a fall, a crash or a fight puts the phone away at once.
+
+### Other players' vehicles (`src/net/link.js`, `src/sim/talk.js`, `src/net/online.js`, `vehicle-standins.js`)
+
+- Another player's motorcycle is seen with its bars turned as theirs are (the steering travels with the ride, checked
+  when heard, held to the lock), and their phone in their hand as they hold it: on foot, at the bars (left), at the
+  wheel (right), on a call. A player in their car is seen at its wheel where the car can be looked into.
+- **Their cars were not carried on between words.** The website hands each player the others' positions a few times a
+  second; a keke or a motorcycle was carried on between those words the way it was going (and round a bend), but a
+  car, added later, was not: it was moved in steps from where it had last been heard to where it was. Over a simulated
+  mobile connection (delay, jitter, lost answers) a car is now shown within a metre or so of where it is on a good
+  connection and a few metres on a poor one, never jumping, and facing the way it goes round a bend
+  (`test/vehicle-sync.test.mjs`).
+- **No one rides nothing.** The nearest few other players' vehicles are drawn as their models; a vehicle beyond them,
+  or one whose model is still on its way, was not drawn at all, and its rider sat in the air. Now its picture from all
+  round stands in for it (the showrooms' pictures, the side it is seen from, at its size), with its rider on it.
+
+### Staying up: what made the game crash, lag and freeze, and what was done
+
+Measured (one lap of the same thirteen stops: the motor park, the market, a lane of the owner's houses, the city
+block, the river, both showrooms' halls and the compound, the airport, two far views, a ride and a drive; every
+texture, buffer and render buffer the page handed the graphics card counted, in a browser without a graphics card;
+the live version against this one):
+
+| | the motor park | the PowerBike hall | the car showroom hall | the airport, after both | at the end | the most at once |
+|---|---|---|---|---|---|---|
+| a phone, before | 214 MB | 295 MB | 321 MB | 321 MB | 489 MB | 629 MB |
+| a phone, now | 145 MB | 213 MB | 190 MB | 169 MB | 244 MB | 367 MB |
+| a computer, before | 816 MB | 986 MB | 1,465 MB | 1,422 MB | 1,680 MB | 1,832 MB |
+| a computer, now | 414 MB | 737 MB | 694 MB | 363 MB | 728 MB | 930 MB |
+
+(pictures only; the computer's "before" is the first measurement of the day, of the same version, without the two far
+views). Before, nothing ever came back down; now what a hall or the compound took is let go after leaving it. The
+halls draw more triangles than before, every vehicle in them being its model where it used to be a picture (on a
+computer, the PowerBike hall 866,000 against 560,000; the car hall 900,000 against 279,000; on a phone the far end of
+each hall stays pictures). How fast a frame is drawn cannot be measured here (a browser without a graphics card takes
+a second or more a frame): that needs real phones and computers.
+
+- **One error stopped the game.** The next frame was asked for at the end of each frame, so any error thrown while
+  drawing one, however rare, stopped the game where it stood with its last picture on the screen: a freeze. Now the
+  next frame is asked for first, and an error in one frame is written to the console and counted, and the game goes
+  on (the browser tests fail on any such error, so none is hidden from them).
+- **The graphics taken away.** A phone short of memory may take a page's drawing away (its WebGL context is lost);
+  the game simply stopped there. Now it is saved at once, the town's sounds stop, nothing more is drawn, and the
+  player is told what happened and offered to reload the page to carry on (put off with "Not now", the question comes
+  back when they tap the picture or return to the page). The game never reloads itself.
+- **Pictures far larger than anything showed.** One picture, PowerBike's tower, was 8192 pixels square (341 MB once
+  mipmapped); the car showroom's buildings, every figure and every car were 4096 (85 MB each). Every picture handed
+  to the graphics card is now sized for how close the thing is ever seen (`budget.js`): 2048 on a computer and 1024 on
+  a phone for buildings, towers, figures and the owner's vehicles; vehicles on the road 2048 and 1024; the largest only
+  for a vehicle the player stands at in a showroom. The supplied files stay whole.
+- **Nothing let go.** A house model fetched for a lane the player had left far behind, the car showroom's buildings
+  after leaving the compound, and the showrooms' vehicles after leaving the hall were all kept for good; now each is
+  let go well beyond where it is drawn, and fetched again from the browser's copy if the player comes back.
+- **A building not yet drawn looked like a shadow.** Until a building's model has come (and from afar, for the
+  towers) its plain shape stands in; those shapes were near black (a tower block 0x2f3946, the car showroom's glass
+  0x2b3442, PowerBike's 0x1f2632), so from across town a tower looked like its own shadow. They are now glass with
+  panes and the sky in it, the colour of the buildings they stand for.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 349 headless tests
-../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+node --test test/*.test.mjs                        # 354 headless tests
+../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 91 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
@@ -1814,6 +1933,11 @@ node test/hold.mjs                                 # the handset in the hand, me
 node test/sound.mjs                                # how loud each group of sounds is
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
+../server/with-postgres.sh node test/seats.mjs out/      # at the wheel and on the bars: bought with arrival money, the driver seen with both hands on the rim, turning it; the phone in the right hand at the wheel and the left on a motorcycle, the vehicle still driven; the graphics lost and nothing reloaded
+../server/with-postgres.sh node test/vehicle-sync.mjs out/   # two players: a keke, okadas, another's motorcycle with its bars turned and the phone in the left hand, another at the wheel of an open car with the phone in the right, a closed car not seen through, more motorcycles than are drawn as models standing in as their pictures, each with its rider
+../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
+node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
+../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown
 ../server/with-postgres.sh node test/carshow.mjs out/    # the Post Civil War Car Showroom: the compound, the gate, the cameras, in and out by the doors, the cars, Tochi and Oluchi, asking and buying with earned TR, driving (the engine, the speedometer, steering, the brake, the gate, getting out), the lamps at night, another player's car
 node test/bike.mjs out/                            # the power bike's controls and engines (with nothing to ride yet)
 node test/outskirts.mjs out/                       # the road to Onitsha, the airport and the bridge, walked

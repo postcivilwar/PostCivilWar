@@ -475,10 +475,9 @@ function start(carried) {
   let transport = null;
   let link = null;
   let twin = null;                    // a second world in this page, for testing two players
-  // what this player's game tells the others: the simulation's own view of them, and, while they ask the showroom's
-  // salesman about a motorcycle, which one and for how long (salesman.js goes to whoever began first)
-  // what this player's link tells the others: where they are and what they are doing (link.js), with the phone in
-  // their hand (`phoneShown`, from the frame: 1 held to be read, 2 on a call, 3 held up for a picture)
+  // what this player's game tells the others: the simulation's own view of them, with the phone in their hand
+  // (`phoneShown`, from the frame: 1 held to be read, 2 on a call, 3 held up for a picture), and, while they ask the
+  // showroom's salesman about a motorcycle, which one and for how long (salesman.js goes to whoever began first)
   let phoneShown = 0;
   function linkSelf() {
     if (!view) return null;
@@ -1856,7 +1855,7 @@ function start(carried) {
 
   const pointers = new Map();
   let pinch = 0;
-  canvas.addEventListener('pointerdown', (event) => { canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (playing && prefs.sound) audio.start(); });
+  canvas.addEventListener('pointerdown', (event) => { canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (contextLost) askReload(); else if (playing && prefs.sound) audio.start(); });
   canvas.addEventListener('pointermove', (event) => {
     const p = pointers.get(event.pointerId);
     if (!p) return;
@@ -3112,16 +3111,19 @@ blood.update(dt, view.blood || []);
   // the page lets its own copy go, to save memory), so carrying on needs the page loaded afresh. Each time it happens
   // is counted (`contextLost`) for the frame monitor and the tests.
   let contextLost = 0;
+  // (asked again whenever the player comes back to the page while the picture is still lost, having said "Not now")
+  const askReload = () => confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', run: async () => { location.reload(); return { ok: true }; } });
   canvas.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
     contextLost += 1;
     monitor.count('graphics context lost');
     if (playing) { try { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } catch (error) { /* saved as far as it could be */ } }
     audio.suspend();
-    confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', run: async () => { location.reload(); return { ok: true }; } });
+    askReload();
   }, false);
   canvas.addEventListener('webglcontextrestored', () => { monitor.count('graphics context restored'); }, false);
-  document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
+  // (with the picture lost, the town's sounds stay off when the page is shown again, and the reload is offered again)
+  document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound && !contextLost) audio.start(); if (!document.hidden && contextLost) askReload(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {
     window.claude.hot.snapshot(() => (playing ? { host: host.save(), playerId } : {}));
   }

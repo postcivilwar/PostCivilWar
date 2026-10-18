@@ -140,10 +140,11 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   // (`tall`: how much further off than the town a tower is seen; from inside a hall, 0)
   function see(x, z, reach, fetch = true, tall = TOWER_SIGHT) {
     last = { x, z, reach, tall };
-    // a house model no longer needed near here is let go (its houses become their blocks: see `refresh`)
+    // a house model no longer needed near here is let go (its houses become their blocks: see `refresh`); only in play
+    // (`fetch`), where what is let go can be fetched again
     const now = performance.now() / 1000;
     for (const r of models.values()) {
-      if (r.state !== 'ready' || r.towers.length || !r.houses.length) continue;
+      if (!fetch || keepAll || r.state !== 'ready' || r.towers.length || !r.houses.length) continue;
       const gap = Math.min(...r.houses.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius));
       if (gap < HOUSE_SIGHT + RELEASE) { r.neededAt = now; continue; }
       if (now - r.neededAt > RELEASE_AFTER) release(r);
@@ -172,8 +173,10 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     material.dispose(); r.mesh.geometry.dispose();
     r.mesh = null; r.triangles = 0; r.state = 'idle'; r.released += 1;
   }
-  // (for whoever needs every one of them: the tests; still one or two at a time)
-  function loadAll() { if (ON_DISK) return; queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
+  // (for whoever needs every one of them: the tests; still one or two at a time; and all of them kept until `keepAll`
+  // is let go again)
+  let keepAll = false;
+  function loadAll() { if (ON_DISK) return; keepAll = true; queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
   const state = () => ({
     models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed, released: r.released })),
     drawn: entries.filter((e) => e.drawn).length,
@@ -183,5 +186,5 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   });
   // (the tests: the geometry of the model a building is drawn from; `e.matrix` is where)
   const geometryOf = (id) => { const r = models.get(id); return r && r.mesh ? r.mesh.geometry : null; };
-  return { see, loadAll, state, entries, geometryOf, refresh: () => refresh() };
+  return { see, loadAll, letGoAgain: () => { keepAll = false; }, state, entries, geometryOf, refresh: () => refresh() };
 }

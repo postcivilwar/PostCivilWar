@@ -7,7 +7,10 @@
 //     to it; the car can still be driven; the phone put away: both hands back on the wheel;
 //   - on the motorcycle: the left hand leaves its grip for the phone, the right stays on its grip; put away, both on
 //     the grips;
-//   - getting off with the phone out puts it away from the bars (on foot it is taken out of the pocket again).
+//   - getting off with the phone out puts it away from the bars (on foot it is taken out of the pocket again);
+//   - ridden into a wall with the phone in hand: thrown off, and the phone is put away at once;
+//   - the graphics taken away (as a phone short of memory does): the game says so, offers a reload, and does not
+//     reload by itself.
 //   ../server/with-postgres.sh node test/seats.mjs [shots folder]
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -187,12 +190,41 @@ const off = await page.evaluate(() => ({ astride: !!window.__nlw.view.self.astri
 check('getting off with the phone out puts it away from the bars at once, to come out of the pocket on foot', !off.astride && off.side === 'r' && off.out < 0.5, off);
 await page.evaluate(() => window.__nlw.ui.close());
 
+// a fall comes before the phone: ridden into a wall at speed with the phone in the left hand, the rider is thrown off
+// and the phone is put away at once (just behind the registry, facing its back wall, as in motorcycles.mjs)
+await page.waitForFunction(() => window.__nlw.phoneHold.out === 0, null, { timeout: 30000 }).catch(() => {});
+await page.evaluate(() => { const n = window.__nlw; n.place(48, -81); n.face(0); });
+await page.waitForTimeout(600);
+const remounted = await page.evaluate((b) => window.__nlw.rideBike(b), bike);
+await page.waitForFunction(() => window.__nlw.view.self.astride && window.__nlw.ownBikeView.ready(), null, { timeout: 300000 }).catch(() => {});
+await page.evaluate(() => window.__nlw.ui.openPhone());
+await page.waitForFunction(() => window.__nlw.phoneHold.out > 0.97, null, { timeout: 60000 }).catch(() => {});
+const holding = await page.evaluate(() => ({ out: +window.__nlw.phoneHold.out.toFixed(2), side: window.__nlw.phoneHold.side }));
+await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = Math.PI * 0.75; n.cam.dist = 7; n.cam.pitch = 0.25; n.bikeState.speed = 22; });
+await page.keyboard.down('w');
+await page.waitForFunction(() => !window.__nlw.view.self.astride, null, { timeout: 20000 }).catch(() => {});
+await page.keyboard.up('w');
+await page.waitForTimeout(100);
+const fell = await page.evaluate(() => { const n = window.__nlw, s = n.view.self; return { astride: !!s.astride, down: s.down ? s.down.by : null, out: n.phoneHold.out, phoneOnScreen: n.ui.usingPhone() }; });
+check('thrown off with the phone in hand: the fall comes first, and the phone is put away at once', !!(remounted && remounted.ok) && holding.out > 0.97 && holding.side === 'l' && !fell.astride && fell.down === 'crash' && fell.out === 0, { remounted: !!(remounted && remounted.ok), holding, fell });
+await shot('06-thrown-off-phone-away');
+await page.evaluate(() => window.__nlw.ui.close());
+await page.waitForFunction(() => !window.__nlw.view.self.down, null, { timeout: 30000 }).catch(() => {});
+
 // ---- the picture lost: the browser takes the graphics away (as a phone short of memory does) ----
 // The game is saved, the player is told and offered to reload; it does not reload itself.
 await page.evaluate(() => { window.__stillHere = true; window.__lose = window.__nlw.renderer ? null : null; const c = document.getElementById('view').getContext('webgl2') || document.getElementById('view').getContext('webgl'); window.__lose = c && c.getExtension('WEBGL_lose_context'); window.__lose.loseContext(); });
 await page.waitForTimeout(4000);
 const lost = await page.evaluate(() => { const box = document.getElementById('confirm'); return { stillHere: !!window.__stillHere, counted: window.__nlw.contextLost, asked: box && !box.hidden ? box.textContent.replace(/\s+/g, ' ').trim() : null }; });
 check('the graphics taken away: the game says so and offers to reload, and does not reload by itself', lost.stillHere && lost.counted === 1 && /picture was lost/i.test(lost.asked || '') && /Reload the page/.test(lost.asked || '') && /saved/i.test(lost.asked || ''), lost);
+// "Not now": the question goes; a tap on the lost picture asks it again (and the page is still not reloaded)
+await page.click('#confirm-no');
+await page.waitForTimeout(400);
+const putOff = await page.evaluate(() => document.getElementById('confirm').hidden);
+await page.mouse.click(550, 330);
+await page.waitForTimeout(800);
+const askedAgain = await page.evaluate(() => { const box = document.getElementById('confirm'); return { shown: !box.hidden && /picture was lost/i.test(box.textContent), stillHere: !!window.__stillHere }; });
+check('"Not now" puts the question away; a tap on the lost picture asks it again, and nothing reloads', putOff && askedAgain.shown && askedAgain.stillHere, { putOff, ...askedAgain });
 await page.evaluate(() => { window.__lose.restoreContext(); });
 await page.waitForTimeout(1500);
 

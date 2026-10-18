@@ -110,11 +110,12 @@ await shot('04-inside-the-doors');
 // The set of pictures each bike should be drawn with, the player at (x, z): as hall-models.js chooses them (budget.js,
 // HALL), the largest given up first on a device that is struggling (`level`), worked out here on its own.
 const ORDER = ['512', '1k', '2k', '4k'], CAP = ['4k', '2k', '1k', '512'];
-const hallTiers = (at, { lite, level }, ranges = { inspect: 2.5, near: 7, mid: 14 }) => {
+const hallTiers = (at, { lite, level }, ranges = { inspect: 2.5, near: 7, mid: 14 }, shrink = 1) => {
   const plan = HALL[lite ? 'lite' : 'full'];
   const gaps = POWERBIKE.displays.map((d) => Math.max(0, Math.hypot(d.x - at.x, d.z - at.z) - d.r));
   const tiers = [];
-  gaps.map((gap, k) => [gap, k]).sort((a, b) => a[0] - b[0]).forEach(([gap, k], rank) => {
+  gaps.map((gap, k) => [gap, k]).sort((a, b) => a[0] - b[0]).forEach(([full, k], rank) => {
+    const gap = full / shrink;
     let t = rank === 0 && gap < ranges.inspect ? plan.inspect : rank < plan.nearRanks && gap < ranges.near ? plan.near : gap < ranges.mid ? plan.mid : plan.far;
     const cap = CAP[Math.max(0, Math.min(3, level))];
     if (t && ORDER.indexOf(t) > ORDER.indexOf(cap)) t = cap;
@@ -128,8 +129,13 @@ const settled = async (at, limit = 600000) => {
   let got = null;
   while (Date.now() - t0 < limit) {
     got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.powerbike.shown(), state: n.powerbike.models(), level: n.quality, lite: !!n.lite }; });
-    const want = hallTiers(at, got);
-    if (got.shown.every((d, k) => d.tier === want[k] && (d.model ? !d.picture : d.picture))) return { ...got, want, ok: true };
+    // (each with what its distance asks for, or a set it already had that it keeps while it is within a quarter of
+    // that set's distance again: hall-models.js gives a vehicle a smaller set only once it is clearly further off, so
+    // that nothing flickers between two sets at the edge of one)
+    const want = hallTiers(at, got), keep = hallTiers(at, got, undefined, 1.25);
+    const rankOf = (t) => (t ? ORDER.indexOf(t) : -1);         // (no set at all: its picture, on a phone)
+    const between = (t, lo, hi) => rankOf(t) >= rankOf(lo) && rankOf(t) <= rankOf(hi);
+    if (got.shown.every((d, k) => between(d.tier, want[k], keep[k]) && (d.model ? !d.picture : d.picture))) return { ...got, want, keep, ok: true };
     await page.waitForTimeout(1000);
   }
   return { ...got, want: got && hallTiers(at, got), ok: false };
@@ -228,8 +234,9 @@ await page.evaluate(() => {
   requestAnimationFrame(look);
 });
 const QUESTION = 'How fast does the Red Superbike go when you open it right up on a long straight road?';
-await page.click('#deal-text');
-await page.keyboard.type(QUESTION);
+// (put in whole, as a phone's keyboard suggestion would: without a graphics card each key pressed waits for a frame,
+// and a frame in this hall, every motorcycle drawn as its model, takes seconds)
+await page.fill('#deal-text', QUESTION);
 await page.keyboard.press('Enter');
 const pending = await page.evaluate(() => ({ pending: !!document.querySelector('#deal-log .msg.me.pending') || [...document.querySelectorAll('#deal-log .msg.me')].some((m) => /How fast/.test(m.textContent)) }));
 // while the words are said the player's right hand comes up (looked for frame by frame)

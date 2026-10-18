@@ -35,7 +35,7 @@ export function createStandins(scene, { lite = false } = {}) {
   }
   function want(kind, id, s, now) {
     s.wantedAt = now;
-    if (s.asked || ON_DISK) return;
+    if (s.asked || ON_DISK || now < (s.retryAt || 0)) return;
     s.asked = true;
     const mine = ++s.generation;
     const img = new Image();
@@ -46,7 +46,8 @@ export function createStandins(scene, { lite = false } = {}) {
       if (lite) { const c = document.createElement('canvas'); c.width = img.width / 2; c.height = img.height / 2; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height); picture = c; }
       s.texture.image = picture; s.texture.needsUpdate = true; s.material.visible = true;
     };
-    img.onerror = () => { s.asked = false; };
+    // (one that could not be fetched is asked for again half a minute later, not every frame)
+    img.onerror = () => { if (s.generation !== mine) return; s.asked = false; s.retryAt = performance.now() / 1000 + 30; };
     img.src = `assets/${kind}-${id}-impostor.webp`;
   }
   function frameOf(e, k) {
