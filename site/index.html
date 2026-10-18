@@ -2185,31 +2185,6 @@ function trueToGrid(e, s, bearingDeg = 0) {
 return { WORLD_SCALE, CELL_SIZE, geoToWorld, worldToGeo, cellOf, cellKey, distance, gridToTrue, trueToGrid };
 })();
 
-// ---- sim/rng.js ----
-__modules["sim/rng.js"] = (function () {
-// Small seeded random number generator (mulberry32), so a world replays the
-// same way from the same seed and a saved game resumes exactly.
-
-function makeRng(seed) {
-  let a = seed >>> 0;
-  const next = () => {
-    a = (a + 0x6d2b79f5) | 0;
-    let t = Math.imul(a ^ (a >>> 15), 1 | a);
-    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
-    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
-  };
-  return {
-    next,
-    int: (n) => Math.floor(next() * n),
-    pick: (list) => list[Math.floor(next() * list.length)],
-    getState: () => a >>> 0,
-    setState: (value) => { a = value >>> 0; },
-  };
-}
-
-return { makeRng };
-})();
-
 // ---- sim/layout.js ----
 __modules["sim/layout.js"] = (function () {
 // Buildings people can walk into.
@@ -3572,6 +3547,434 @@ const POWERBIKE_COLLIDERS = colliders();
 return { POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, POWERBIKE_COLLIDERS };
 })();
 
+// ---- sim/zones/supplied-vehicles.js ----
+__modules["sim/zones/supplied-vehicles.js"] = (function () {
+// The owner's vehicles of 17 October 2026, each where it belongs: the General Hospital's ambulance, a private jet on a
+// stand at Asaba Airport, the red box truck at Nwosu Building Materials and the heavy truck at Udeh Block Industry.
+//
+// Each is the supplied model exactly as it is, drawn at one uniform scale (render-supplied.js). None of them was
+// modelled facing the way the game's vehicles face (+z): `front` is the way its front faces in its own file, in
+// radians from +z toward +x, measured from the model (its long axis, and which end of it is low: a cab, a nose);
+// `length` is how long it is drawn, front to back, which sets its scale. `width` is how wide it then is, mirrors
+// and all (the jet's: its wings). The ambulance is driven by the simulation (care.js); the other three stand where
+// they are put, solid, square to the grid, so that the boxes someone walks round are exact.
+//
+// This file is content, read by the simulation (what is in the way) and by the drawing.
+
+const deg = (d) => (d * Math.PI) / 180;
+const box = (x0, z0, x1, z1) => Object.freeze({ x0, z0, x1, z1 });
+
+const supplied = (id, name, file, source, front, length, width, height, more = {}) => Object.freeze({ id, name, file, source, front, length, width, height, ...more });
+const SUPPLIED_VEHICLES = Object.freeze({
+  // a box-bodied ambulance in the hospital's white with the red check, PostCivilWar on its sides and its lamps on the roof
+  ambulance: supplied('ambulance', 'Ambulance', 'vehicle-ambulance.glb', 'ambulance3dmodel.glb', deg(90.24), 5.7, 2.44, 3.09),
+  // a business jet in the PostCivilWar livery, nose to the terminal on the middle stand, its nose wheel at the stop bar
+  jet: supplied('jet', 'Private jet', 'vehicle-jet.glb', 'privatejet3dmodel.glb', deg(31.11), 20, 19.5, 6.5, { x: -845, z: -269.5, heading: 0, reach: 700 }),
+  // the store's delivery truck, parked beside it, its lettered side to the market
+  boxTruck: supplied('boxTruck', 'Red box truck', 'vehicle-box-truck.glb', 'red_box_truck_3d_model.glb', deg(-42.7), 7.2, 2.58, 2.87, { x: 47, z: 5, heading: -Math.PI / 2, reach: 320 }),
+  // the block yard's lorry, inside its gate beside the way in, standing ready to go out to the road (clear of the way
+  // to the moulds and the shed, and of where the yard's people work)
+  heavyTruck: supplied('heavyTruck', 'Heavy truck', 'vehicle-heavy-truck.glb', 'heavytruck3dmodel.glb', deg(67.1), 7.0, 2.87, 3.51, { x: -104, z: -152, heading: 0, reach: 320 }),
+});
+
+// What each parked one takes up. The trucks are boxes; the jet is its fuselage, its wings (low enough to walk into)
+// and its engines beside the tail; under the tailplane, high up, there is room.
+function parkedBoxes(v) {
+  const along = Math.abs(Math.sin(v.heading)) > 0.5;
+  const half = (l, w) => (along ? [l / 2, w / 2] : [w / 2, l / 2]);
+  if (v.id !== 'jet') { const [hx, hz] = half(v.length, v.width); return [box(v.x - hx, v.z - hz, v.x + hx, v.z + hz)]; }
+  // (the jet faces +z: its nose at z + length/2)
+  const tail = v.z - v.length / 2, wings = tail + v.length * 0.25;
+  return [
+    box(v.x - 1.4, tail, v.x + 1.4, v.z + v.length / 2),                 // the fuselage
+    box(v.x - v.width / 2, wings, v.x + v.width / 2, wings + v.length * 0.25),   // the wings
+    box(v.x - 2.2, tail, v.x + 2.2, tail + v.length * 0.25),            // the engines
+  ];
+}
+const SUPPLIED_VEHICLE_COLLIDERS = Object.freeze(['jet', 'boxTruck', 'heavyTruck'].flatMap((id) => parkedBoxes(SUPPLIED_VEHICLES[id])));
+
+return { SUPPLIED_VEHICLES, SUPPLIED_VEHICLE_COLLIDERS };
+})();
+
+// ---- sim/zones/atani-trees.js ----
+__modules["sim/zones/atani-trees.js"] = (function () {
+// The town's trees as they stood on 17 October 2026: where each is, its kind, its size and which way it is turned.
+//
+// They were scattered once by chance (seeded, so the same every time) over the ground the town's paths, buildings and
+// plots left clear; the scattering read the houses' plots and the paths to their doors. When the owner's buildings
+// took the plain houses' places (town-buildings.js), the plots and the doors moved, and scattering again would have
+// moved every tree in town: so they are kept here as they stood, and only those where a new building now stands are
+// taken out (atani.js, ZONE_TREES). Content, read by the simulation and the drawing.
+//
+// [x, z, kind, size, turn]
+const T = [
+  [226.3, -364.5, 'mango', 0.85, 1.55],
+  [-177.7, -328.6, 'oilpalm', 1.12, 2.54],
+  [212.4, 28.3, 'almond', 1.08, 2.45],
+  [-119.9, -324.4, 'oilpalm', 1.27, 3.56],
+  [-131.6, -1.2, 'mango', 0.9, 2.03],
+  [-142.3, -202.9, 'mango', 0.98, 5.67],
+  [110.2, -224.5, 'oilpalm', 1.27, 0.15],
+  [184.4, -308.9, 'oilpalm', 0.98, 5.04],
+  [56.7, -280.5, 'almond', 1.01, 2.38],
+  [-110.2, -292.1, 'mango', 1.25, 2.64],
+  [33.2, -122.2, 'oilpalm', 0.97, 4.8],
+  [104, -5.3, 'oilpalm', 1.01, 0.31],
+  [-148.8, -21.7, 'oilpalm', 0.85, 3.63],
+  [22.8, -391.3, 'oilpalm', 1.04, 6.17],
+  [29.1, -69.2, 'oilpalm', 1.02, 3.13],
+  [-159.9, 134.3, 'oilpalm', 0.84, 1.51],
+  [147, -376.1, 'mango', 1.13, 0.68],
+  [-118.3, -460.2, 'mango', 1.27, 6.06],
+  [-25.8, -161.4, 'mango', 1.11, 3.82],
+  [95.4, -364.2, 'almond', 1.2, 1.28],
+  [96.4, 5.9, 'oilpalm', 1.09, 4.8],
+  [25.8, -188.9, 'oilpalm', 1.08, 5],
+  [23.8, -59.3, 'mango', 0.99, 4.38],
+  [-129.9, -158.6, 'oilpalm', 1.22, 3.33],
+  [234.4, -211.2, 'oilpalm', 1.05, 0.31],
+  [38, -468.9, 'oilpalm', 0.83, 2.09],
+  [-102.1, -361.6, 'almond', 1.14, 4.26],
+  [-120.9, -150.3, 'oilpalm', 1.11, 6.25],
+  [-121.1, -359.2, 'mango', 0.84, 3.13],
+  [201.3, -80.7, 'oilpalm', 1.04, 3.94],
+  [-36.5, -365.4, 'mango', 1.08, 4.63],
+  [94.4, 41.9, 'oilpalm', 1.17, 4.63],
+  [21.6, -192.8, 'mango', 1.14, 2.98],
+  [-133.8, -224.2, 'oilpalm', 1.12, 5.42],
+  [-92.1, -234.5, 'oilpalm', 1.06, 2.05],
+  [35.6, -449.9, 'almond', 1, 3.56],
+  [-40.5, -233.8, 'oilpalm', 0.92, 3.27],
+  [-218.2, -50.1, 'oilpalm', 1.23, 4.35],
+  [65.4, 136.2, 'palm', 1.28, 3.2],
+  [-46.6, -110.9, 'mango', 0.81, 4.59],
+  [46.8, 144.4, 'palm', 1.13, 3.84],
+  [187.3, -353.1, 'mango', 1.09, 1.88],
+  [237.8, -357.1, 'almond', 1.05, 2.1],
+  [39.7, -116, 'oilpalm', 1.28, 5.34],
+  [-14.3, -318, 'almond', 1.1, 3.7],
+  [60.9, -108.7, 'oilpalm', 1.18, 2.36],
+  [24.9, -399.9, 'oilpalm', 1.17, 4.53],
+  [-230.3, -299.9, 'oilpalm', 1.02, 3.12],
+  [12.3, -194.8, 'oilpalm', 1.19, 3.35],
+  [-6.3, 131.2, 'palm', 1.17, 1.69],
+  [139.2, -331.8, 'almond', 1.1, 2.28],
+  [189.2, 85, 'mango', 0.83, 3.91],
+  [27.8, -269.3, 'oilpalm', 1.21, 3.56],
+  [-131.9, -10.9, 'oilpalm', 1.09, 5.79],
+  [-48.1, 127.2, 'oilpalm', 0.94, 2.25],
+  [-129.9, -101.1, 'oilpalm', 0.94, 4.77],
+  [-169, -99, 'mango', 1.23, 1.82],
+  [224.3, -333, 'mango', 0.83, 1.39],
+  [-228.5, -320.2, 'oilpalm', 0.86, 2.62],
+  [-245, -16.5, 'almond', 1.22, 5.56],
+  [-149.3, -170.2, 'oilpalm', 1.15, 3.4],
+  [24.9, -9.1, 'almond', 0.84, 3.83],
+  [68.5, -467, 'mango', 1.1, 1.25],
+  [75.3, -103.3, 'oilpalm', 0.95, 4.44],
+  [-139.6, -85.1, 'mango', 1.12, 0.26],
+  [242.8, -360.2, 'almond', 1.07, 3.18],
+  [-157.8, -303.8, 'mango', 0.86, 5.6],
+  [44.5, 136.2, 'palm', 0.9, 1.53],
+  [-213.9, -318.3, 'oilpalm', 1.21, 3.05],
+  [233.4, 85.2, 'oilpalm', 1.02, 2.1],
+  [13.5, -290.5, 'oilpalm', 0.81, 3.6],
+  [-99.9, 49.8, 'oilpalm', 1.03, 1.37],
+  [210.7, 146.5, 'palm', 1.07, 3.31],
+  [212.3, -207.8, 'oilpalm', 1.07, 3.99],
+  [98.1, -1.1, 'almond', 1.29, 3.36],
+  [-102.8, -427.2, 'mango', 1.09, 3.3],
+  [131.6, 59.7, 'oilpalm', 1.11, 3.74],
+  [-123.2, -125.8, 'mango', 0.98, 3.08],
+  [9.7, -362.4, 'oilpalm', 1.22, 1.85],
+  [-192.4, -305.4, 'oilpalm', 0.95, 4.8],
+  [-62.5, -360.8, 'oilpalm', 1.19, 5.76],
+  [-150.7, -138.9, 'mango', 1.09, 1.1],
+  [-240.5, -361, 'oilpalm', 1.2, 0.18],
+  [-180.2, 131.3, 'oilpalm', 0.88, 4.66],
+  [107.9, -64.8, 'oilpalm', 0.89, 2.57],
+  [53, -469.3, 'mango', 1.21, 3.78],
+  [132, 85.4, 'oilpalm', 1.22, 2.86],
+  [194.9, 126.3, 'oilpalm', 0.91, 3.01],
+  [-76.9, 77.1, 'almond', 0.82, 4.29],
+  [-33.9, -89.9, 'oilpalm', 1.18, 5.01],
+  [57.9, -397.6, 'oilpalm', 1.1, 1.52],
+  [225.4, -183.4, 'oilpalm', 0.88, 3.42],
+  [-56.5, -55.1, 'mango', 1.19, 5.25],
+  [202.7, -204.7, 'oilpalm', 1.1, 1.47],
+  [-41.4, -188.4, 'almond', 1.04, 3.35],
+  [-98, -463.3, 'oilpalm', 0.9, 6.2],
+  [-241.9, 17.4, 'mango', 1.14, 5.67],
+  [66.8, -124.1, 'mango', 1.05, 4.92],
+  [-155.5, -350.3, 'mango', 1.14, 0.66],
+  [114.5, 142.2, 'oilpalm', 1.02, 1.23],
+  [-27.4, -287.4, 'almond', 1.16, 2.78],
+  [-93.9, -207.2, 'almond', 1.12, 0.42],
+  [34.3, -87.4, 'mango', 1.05, 3.25],
+  [102.7, 133.3, 'palm', 1.05, 4.55],
+  [-14.5, -302, 'almond', 1.18, 3.46],
+  [184, 136, 'palm', 1.13, 5.38],
+  [-137.9, -294.7, 'mango', 1.11, 5.43],
+  [-238.4, -7.4, 'almond', 0.99, 1.77],
+  [-73.8, 132.8, 'palm', 1.01, 2.86],
+  [-43.2, -209.8, 'mango', 0.86, 3.6],
+  [239.4, 145.6, 'oilpalm', 1.19, 2.18],
+  [235.2, -333.8, 'oilpalm', 1.07, 2.95],
+  [-155.2, -154, 'mango', 0.86, 4],
+  [-56.5, -325.9, 'oilpalm', 1.11, 3.48],
+  [216.1, -201.6, 'almond', 0.82, 5.13],
+  [-240.5, -473.6, 'almond', 1.08, 1.76],
+  [129.3, -11.4, 'mango', 0.9, 6.13],
+  [25.7, -171.4, 'oilpalm', 0.86, 4.06],
+  [-133.2, -20.9, 'mango', 1.21, 4.16],
+  [203.3, -298.7, 'mango', 0.81, 1.28],
+  [-157.7, 123.3, 'oilpalm', 1.26, 5.76],
+  [234.4, -48.5, 'oilpalm', 0.95, 3.9],
+  [192.5, -359.9, 'mango', 0.85, 5.58],
+  [-209.3, -31.5, 'mango', 0.84, 4.55],
+  [222.4, -139.1, 'oilpalm', 1.18, 5.25],
+  [170.7, -131.9, 'mango', 1.3, 0.95],
+  [-57.8, -86.7, 'oilpalm', 0.92, 4.67],
+  [-129.9, -185.3, 'mango', 1.04, 4.69],
+  [207.8, -174.6, 'oilpalm', 1.19, 3.48],
+  [-67.6, -370.3, 'mango', 1.1, 1.09],
+  [-73.4, -81, 'mango', 1.26, 5.77],
+  [118.1, 135.9, 'oilpalm', 0.87, 5.34],
+  [-0.8, 130.3, 'oilpalm', 1, 3.88],
+  [155.5, -424.6, 'oilpalm', 1.18, 2.31],
+  [193.2, 17.7, 'mango', 0.85, 4.18],
+  [-190.8, -335.4, 'mango', 1.17, 5.75],
+  [-77.8, -350.5, 'oilpalm', 0.95, 4.8],
+  [-18.1, -164.3, 'mango', 0.91, 4.14],
+  [172.4, 130.8, 'palm', 1.26, 2.42],
+  [245.5, -407, 'oilpalm', 1.2, 4.35],
+  [-243.1, 49.5, 'oilpalm', 0.9, 0.63],
+  [122.8, 141.5, 'oilpalm', 1.23, 0.66],
+  [-91.8, -457.4, 'oilpalm', 0.97, 2.62],
+  [-143.7, 124.6, 'mango', 0.94, 4.39],
+  [178.6, -410.2, 'oilpalm', 1.1, 4.49],
+  [-11.9, -248, 'oilpalm', 0.99, 1.19],
+  [-128.2, -123.4, 'oilpalm', 1.23, 4.86],
+  [-152, -108.5, 'almond', 0.96, 3.59],
+  [77.3, -110.4, 'oilpalm', 1.27, 0.02],
+  [-121.9, -348.2, 'almond', 1.04, 4.18],
+  [183.1, -253.1, 'oilpalm', 1.24, 5.92],
+  [201.9, 123.8, 'palm', 0.81, 5.88],
+  [-245.4, -376.6, 'oilpalm', 1.05, 3.93],
+  [-86.4, -217.6, 'oilpalm', 0.97, 3.32],
+  [54.8, 123.9, 'mango', 0.93, 4.67],
+  [224.4, -190.1, 'mango', 1.13, 0.18],
+  [-93.1, -355.8, 'oilpalm', 0.89, 5.1],
+  [-115.8, -285.8, 'almond', 0.85, 0.44],
+  [244.6, -413.1, 'oilpalm', 1.1, 4.16],
+  [-99.7, -5.6, 'almond', 1.17, 0.81],
+  [-55.8, -116.1, 'mango', 0.94, 6.05],
+  [9.1, -204.5, 'mango', 0.82, 4.49],
+  [243.1, -169.2, 'oilpalm', 1, 0.62],
+  [-210.4, -328.5, 'oilpalm', 1.16, 0.11],
+  [-136.6, -124.3, 'almond', 1, 0.52],
+  [-108.6, -456.1, 'mango', 1.25, 1.93],
+  [232, -352.3, 'mango', 0.9, 5.77],
+  [-221.5, -113.5, 'mango', 1.09, 5.08],
+  [-9.6, -450, 'mango', 0.82, 1.12],
+  [-242.2, 87.7, 'oilpalm', 1.03, 2.83],
+  [41.5, -317.6, 'oilpalm', 1.1, 4.5],
+  [-157.8, -317.3, 'almond', 0.87, 1.76],
+  [-243.3, -252.3, 'almond', 1.25, 1.93],
+  [-121.5, -19.9, 'mango', 1.02, 0.94],
+  [17.4, 145.4, 'palm', 0.81, 1.91],
+  [-242.9, -197.3, 'almond', 1.1, 1.09],
+  [-44, -218.4, 'mango', 1.19, 1.67],
+  [233.6, -18.7, 'oilpalm', 1.28, 1.06],
+  [113.3, -6.4, 'mango', 0.84, 5.83],
+  [-133.2, -333.2, 'almond', 1.22, 2.82],
+  [-112.9, -10.4, 'oilpalm', 1.06, 3.96],
+  [215.2, -57, 'oilpalm', 0.86, 0.75],
+  [39.4, -287.9, 'almond', 1.04, 1.66],
+  [95.8, -26.3, 'mango', 0.94, 4.25],
+  [222.7, -414.8, 'oilpalm', 0.82, 4.87],
+  [-126.2, -367.5, 'almond', 1.15, 1.12],
+  [115.6, -375.6, 'mango', 1.02, 2.1],
+  [-73.6, -22.8, 'oilpalm', 1.15, 3.18],
+  [146.1, -327, 'mango', 1.03, 1.73],
+  [-233.4, -64.3, 'mango', 0.81, 1.68],
+  [144.7, -384.8, 'oilpalm', 1.29, 3.58],
+  [-151.8, -198.5, 'oilpalm', 1.18, 0.42],
+  [-119.2, -161, 'oilpalm', 0.87, 4.54],
+  [17.5, -405.9, 'oilpalm', 0.99, 1.52],
+  [-167.8, -9.8, 'mango', 0.95, 2.58],
+  [-224.9, -58, 'oilpalm', 1.03, 1.91],
+  [138.6, -72.6, 'oilpalm', 0.83, 3.84],
+  [-221.4, 138.1, 'oilpalm', 0.92, 3.31],
+  [244.3, -121.2, 'almond', 1.13, 4.67],
+  [127.9, -95.6, 'almond', 1.13, 4.64],
+  [-36.3, -124.1, 'oilpalm', 1.19, 6.15],
+  [-155.8, -235.4, 'mango', 0.98, 5.95],
+  [221.8, -296.1, 'mango', 0.81, 2.1],
+  [-207.1, 84.9, 'oilpalm', 1.21, 5.49],
+  [245.9, 44.5, 'oilpalm', 0.96, 4.51],
+  [191.6, -469.8, 'mango', 1.03, 0.97],
+  [-14.3, -257.4, 'almond', 0.88, 3.24],
+  [38.9, -27.4, 'oilpalm', 1.23, 2.38],
+  [48, -107.5, 'oilpalm', 0.92, 0.36],
+  [-99.7, -413.7, 'oilpalm', 0.95, 2.91],
+  [-86.6, -62.6, 'mango', 1.19, 5.18],
+  [47.6, -441.4, 'oilpalm', 1.09, 0.47],
+  [185, -30.9, 'oilpalm', 1.07, 1.66],
+  [223.2, -276.7, 'oilpalm', 1.26, 2.16],
+  [24.7, -258.5, 'mango', 0.99, 3],
+  [-155.1, -132.2, 'mango', 1.06, 6.05],
+  [-148.2, -250.4, 'almond', 1.12, 3.72],
+  [25.7, -296, 'oilpalm', 1.23, 1.59],
+  [-218.3, -62.5, 'oilpalm', 0.9, 2.25],
+  [-173, -334.7, 'mango', 1.15, 0.21],
+  [-23.3, 128.1, 'oilpalm', 1.01, 0.19],
+  [-23.8, -250.2, 'oilpalm', 1.14, 3.81],
+  [-122.4, -83.5, 'oilpalm', 1.16, 4.58],
+  [97.1, 18.3, 'oilpalm', 0.91, 1.81],
+  [91.6, -59.5, 'oilpalm', 0.84, 4.75],
+  [100.6, -125.4, 'mango', 1.03, 2.53],
+  [-10.8, -473.7, 'mango', 0.93, 2.93],
+  [-103.5, 38.3, 'oilpalm', 0.84, 6.12],
+  [179.6, 122.7, 'palm', 0.9, 0.18],
+  [-67.6, 5.5, 'almond', 1.16, 2.43],
+  [-77.7, -236.1, 'almond', 0.83, 4.57],
+  [175.7, -321, 'mango', 1.2, 0.54],
+  [207, 98.4, 'oilpalm', 1.08, 5.53],
+  [-95.3, 93.3, 'almond', 0.95, 0.08],
+  [-171.8, -473.4, 'oilpalm', 0.83, 2.6],
+  [14.1, -170.1, 'almond', 0.82, 0.81],
+  [-222.1, 76.2, 'oilpalm', 1.17, 3.27],
+  [-237.7, -13.2, 'oilpalm', 1.24, 1.29],
+  [-128.4, -92.5, 'mango', 1.1, 2.86],
+  [-245.1, -24.1, 'oilpalm', 0.95, 5.98],
+  [-185.3, -315.1, 'oilpalm', 0.88, 4.36],
+  [224.5, -49.7, 'mango', 0.87, 3.76],
+  [-236.7, 83.4, 'almond', 0.99, 0.54],
+  [227.7, -229.3, 'oilpalm', 1.13, 1.54],
+  [163.4, -331.8, 'mango', 0.99, 1.18],
+  [-155.7, -376.1, 'mango', 1.13, 1.95],
+  [232.9, -290, 'mango', 0.91, 3.92],
+  [210.7, 91.9, 'mango', 1.2, 0.8],
+  [203.4, -465.7, 'oilpalm', 1.23, 0.89],
+  [-49.2, -358.4, 'almond', 0.8, 5.19],
+  [214.8, -181.1, 'mango', 1.01, 1.57],
+  [-193.7, -300.5, 'almond', 0.84, 5.09],
+];
+const TOWN_TREES = Object.freeze(T.map(([x, z, kind, size, turn]) => Object.freeze({ x, z, kind, size, turn })));
+
+return { TOWN_TREES };
+})();
+
+// ---- sim/zones/town-buildings.js ----
+__modules["sim/zones/town-buildings.js"] = (function () {
+// The owner's buildings of 17 October 2026 in town: the ten of 03:09 and the new ones of 03:14 (the 03:14 copies of
+// the four towers already at the car showroom are the same files, and stand there only).
+//
+//   - The commonest houses, the plain ones of the quarters (atani-town.js), are each replaced by one of the owner's
+//     houses, villas and small blocks: the same plot, the same door to the same lane, the same people living there.
+//   - The towers stand on the city side: at the inner ends of Umuezei and Umuonaje, the two quarters either side of
+//     the city block, in place of the houses there (whose people now live in them, their doors at the tower's), and
+//     on open ground beside the city: north of Registry Road along Market Road, and by the police post.
+//
+// Each is the supplied model exactly as it is, drawn at one uniform scale (render-town-buildings.js); nothing in its
+// file is changed. `front` is the way the side it shows the street faces in its own file (radians from +z toward
+// +x; most were modelled square, some turned); `across`, `deep` and `high` are its size turned that way, in the
+// file's own units, and `mid` the middle of its foot (tools/buildings/measure.py measured them). The hotel's file
+// carries another company's name on its facade: it is painted over in the page (`brand`), as the car showroom's are.
+//
+// This file is content, read by the simulation (where each stands and what is in the way) and by the drawing.
+
+const deg = (d) => (d * Math.PI) / 180;
+const box = (x0, z0, x1, z1) => Object.freeze({ x0, z0, x1, z1 });
+
+const model = (id, name, source, frontDeg, across, deep, high, mid, triangles, kind, more = {}) => Object.freeze({ id, name, file: `town-${id}.glb`, source, front: deg(frontDeg), across, deep, high, mid: Object.freeze(mid), triangles, kind, ...more });
+const TOWN_MODELS = Object.freeze({
+  // the houses (03:09)
+  'curved-house': model('curved-house', 'Curved house', 'curvedmodernhouse3dmodel.glb', 0, 0.9116, 0.9995, 0.3843, [0, 0], 9575, 'house'),
+  'glass-house': model('glass-house', 'Curved glass house', 'curvedglassbuilding3dmodel.glb', 90, 0.9995, 0.6509, 0.397, [0, 0], 9750, 'house'),
+  'white-house': model('white-house', 'White house', 'modernhouse3dmodel.glb', 90, 0.9995, 0.9897, 0.8228, [0, 0], 8647, 'house'),
+  'villa': model('villa', 'Villa', 'modernvilla3dmodel.glb', -30.5, 0.8086, 0.7217, 0.3442, [-0.0217, 0.0087], 8676, 'house'),
+  'grey-villa': model('grey-villa', 'Grey villa', 'modernvilla3dmodel_1.glb', 0, 0.9995, 0.9893, 0.3901, [0, 0], 8947, 'house'),
+  'spiral-house': model('spiral-house', 'Spiral house', 'futuristicarchitecture3dmodel.glb', 180, 0.9995, 0.9097, 0.3179, [0, 0], 7691, 'house'),
+  'pod-house': model('pod-house', 'Pod house', 'futuristicbuilding3dmodel.glb', 0, 0.9761, 0.9507, 0.9995, [0, 0], 10158, 'house'),
+  'white-block': model('white-block', 'White block', 'futuristicbuilding3dmodel_1.glb', 11.5, 1.0175, 0.8237, 0.4946, [-0.0619, -0.0376], 9786, 'house'),
+  // the towers (two of 03:09, the rest of 03:14)
+  'purple-tower': model('purple-tower', 'Purple tower', 'futuristictower3dmodel.glb', 0, 0.3853, 0.6284, 0.9995, [0, 0], 9810, 'tower'),
+  'purple-twin': model('purple-twin', 'Purple tower', 'futuristic_tower_3d_model.glb', 0, 0.6284, 0.3853, 0.9995, [0, 0], 9810, 'tower'),
+  'black-tower': model('black-tower', 'Black tower', 'futuristicspeaker3dmodel.glb', 0, 0.6577, 0.7495, 0.98, [0, 0], 9512, 'tower'),
+  'glass-offices': model('glass-offices', 'Glass offices', 'modern_glass_building_3d_model.glb', 0, 0.8931, 0.9995, 0.9985, [0, 0], 8754, 'tower'),
+  'tower-group': model('tower-group', 'Five towers', 'modern_skyscraper_3d_model.glb', 0, 0.7856, 0.771, 0.9995, [0, 0], 7985, 'tower'),
+  'copper-tower': model('copper-tower', 'Copper tower', 'modern_skyscraper_3d_model_2.glb', 21.5, 0.4687, 0.706, 0.9995, [-0.0061, 0.0091], 9115, 'tower'),
+  'office-tower': model('office-tower', 'Office tower', 'modern_skyscraper_3d_model_3.glb', 0, 0.397, 0.4878, 0.9995, [0, 0], 8783, 'tower'),
+  'pink-tower': model('pink-tower', 'Pink tower', 'pink_angular_building_3d_model.glb', -27.5, 0.4247, 0.4886, 0.9995, [-0.0142, 0.0402], 9539, 'tower'),
+  'stacked-tower': model('stacked-tower', 'Stacked tower', 'modern_stacked_building_3d_model.glb', 0, 0.313, 0.3521, 0.9995, [0, 0], 8137, 'tower'),
+  // (its facade carried another company's name in three places in its picture: painted over with the facade beside it)
+  'hotel': model('hotel', 'Hotel', 'luxury_hotel_3d_model.glb', 90, 0.9995, 0.6011, 0.9087, [0, 0], 9153, 'tower', {
+    brand: Object.freeze([
+      Object.freeze({ at: [0.3864, 0.3485, 0.4291, 0.4187], from: [0.3436, 0.3485] }),
+      Object.freeze({ at: [0.5725, 0.7104, 0.6311, 0.7477], from: [0.5725, 0.7507] }),
+      Object.freeze({ at: [0.6812, 0.9436, 0.7532, 0.9814], from: [0.6812, 0.9033] }),
+    ]),
+  }),
+  'curved-tower': model('curved-tower', 'Curved tower', 'futuristic_curved_skyscraper_3d_model.glb', -35.5, 0.4226, 0.2919, 0.9995, [-0.0203, 0.0127], 9406, 'tower'),
+});
+
+// How a model stands at a heading (0: its front to +z): its size along x and along z for one unit of scale.
+function footOf(m, heading) {
+  const side = Math.abs(Math.sin(heading)) > 0.5;
+  return side ? { x: m.deep, z: m.across } : { x: m.across, z: m.deep };
+}
+// The scale at which it fills as much of a plot as it can, whole, its proportions kept, and its footprint there.
+function fitIn(m, heading, w, d, most = Infinity) {
+  const f = footOf(m, heading);
+  const k = Math.min(w / f.x, d / f.z, most / m.high);
+  return { k, w: f.x * k, d: f.z * k, h: m.high * k };
+}
+// The side of a footprint its front is on (the door side, as layout.js names it), from its heading.
+const doorSide = (heading) => {
+  const s = Math.round(Math.sin(heading)), c = Math.round(Math.cos(heading));
+  return c === 1 ? 's' : c === -1 ? 'n' : s === 1 ? 'e' : 'w';
+};
+
+// ---------------------------------------------------------------------------------------------- the towers --
+// Each on its site (a box of ground clear of every road, wall and building), as tall as the site lets it stand
+// whole: across the front of the site and back from it. The plain houses it takes the place of are listed, by the
+// place they stood (atani-town.js keeps their ids: their people live in the tower).
+const site = (id, modelId, x0, z0, x1, z1, heading, houses = []) => {
+  const m = TOWN_MODELS[modelId];
+  const fit = fitIn(m, heading, x1 - x0, z1 - z0);
+  return Object.freeze({ id, model: modelId, name: m.name, x: (x0 + x1) / 2, z: (z0 + z1) / 2, heading, k: fit.k, w: fit.w, d: fit.d, h: fit.h, door: doorSide(heading), site: box(x0, z0, x1, z1), houses: Object.freeze(houses.map(([x, z]) => Object.freeze({ x, z }))) });
+};
+const TOWN_TOWERS = Object.freeze([
+  // Umuezei, the west quarter: at its inner end, by the lane down to Waterside Road
+  site('umuezei-purple', 'purple-tower', -114, 70, -89, 104, 0, [[-95, 76], [-110, 76], [-105, 96]]),
+  site('umuezei-black', 'black-tower', -116, 28, -89, 64, 0, [[-95, 58], [-110, 58]]),
+  site('umuezei-stacked', 'stacked-tower', -146, 50, -119, 64, 0, [[-125, 58], [-140, 58]]),
+  site('umuezei-pink', 'pink-tower', -146, 70, -119, 86, Math.PI / 2, [[-125, 76], [-140, 76]]),
+  // Umuonaje, the east quarter: the purple tower's twin across the city
+  site('umuonaje-purple', 'purple-twin', 89, 70, 114, 104, -Math.PI / 2, [[95, 76], [110, 76], [105, 96]]),
+  site('umuonaje-curved', 'curved-tower', 89, 50, 116, 64, 0, [[95, 58], [110, 58]]),
+  site('umuonaje-office', 'office-tower', 119, 50, 146, 64, -Math.PI / 2, [[125, 58], [140, 58]]),
+  site('umuonaje-copper', 'copper-tower', 119, 70, 146, 86, -Math.PI / 2, [[125, 76], [140, 76]]),
+  // beside the city: north of Registry Road either side of Market Road, and by the police post
+  site('registry-towers', 'tower-group', 32, -136, 83, -84, 0),
+  site('market-hotel', 'hotel', -62, -136, -32, -82, Math.PI / 2),
+  site('police-offices', 'glass-offices', -82, -30, -63, -2, Math.PI),
+]);
+const TOWER_COLLIDERS = Object.freeze(TOWN_TOWERS.map((t) => box(t.x - t.w / 2, t.z - t.d / 2, t.x + t.w / 2, t.z + t.d / 2)));
+
+// ---------------------------------------------------------------------------------------------- the houses --
+// The owner's houses, in turn along each row so that no two neighbours are alike, each on the plot of the plain
+// house it replaces: 12 m across and 12 m back at most (the plots are 15 m apart along their lanes), facing the
+// lane the old one faced.
+const HOUSE_MODELS = Object.freeze(['curved-house', 'white-house', 'villa', 'glass-house', 'grey-villa', 'white-block', 'spiral-house', 'pod-house']);
+const HOUSE_PLOT = 12;
+function houseModelFor(n) { return HOUSE_MODELS[(n * 5) % HOUSE_MODELS.length]; }
+
+return { TOWN_MODELS, footOf, fitIn, doorSide, TOWN_TOWERS, TOWER_COLLIDERS, HOUSE_MODELS, HOUSE_PLOT, houseModelFor };
+})();
+
 // ---- sim/zones/atani-town.js ----
 __modules["sim/zones/atani-town.js"] = (function () {
 // Atani, the wider town: the hospital, the schools, the campuses, the
@@ -3582,6 +3985,7 @@ __modules["sim/zones/atani-town.js"] = (function () {
 // Positions are site-grid metres (see atani.js for which way the grid lies).
 
 const { makeBlock, makeChurch, makeFence } = __modules["sim/layout.js"];
+const { TOWN_MODELS, TOWN_TOWERS, HOUSE_PLOT, fitIn, houseModelFor } = __modules["sim/zones/town-buildings.js"];
 
 const road = (id, name, x0, z0, x1, z1, surface) => Object.freeze({ id, name, x0, z0, x1, z1, surface });
 const TOWN_ROADS = Object.freeze([
@@ -3606,11 +4010,24 @@ const TOWN_ROADS = Object.freeze([
 
 const WALLS = [0xdcc9a8, 0xc9d6c3, 0xe6d3b8, 0xd6c2c2, 0xcfd9df, 0xe3d6a8, 0xd9c7b0, 0xe8dcc6, 0xbfcfb6, 0xe2c9a6, 0xd4d9c4, 0xf0e2c4];
 const ROOFS = [0x7d7f83, 0x8b4a33, 0x5f6a72, 0x7a2f22, 0x355e3b, 0x6e5a4a, 0x4f6272, 0x8a5a3a];
+// Since 17 October 2026 each of these plain houses has given way to one of the owner's buildings (town-buildings.js):
+// one of their houses on the same plot, facing the same lane (`model`, turned to `heading`, at scale `k`; `w`, `d`
+// and `h` its size), or, at the inner ends of Umuezei and Umuonaje, one of their towers (`tower`: the house's people
+// live in it, and its plot, size and door are the tower's; `plot` is where the house stood). Their ids, quarters and
+// beds are as they were.
 function buildHouses() {
   const list = [];
   const add = (quarter, x, z, door) => {
     const n = list.length;
-    list.push(Object.freeze({ id: `house-${String(n + 1).padStart(3, '0')}`, quarter, x, z, w: 8 + (n % 3), d: 6.5 + ((n * 7) % 3) * 0.5, h: 2.9 + ((n * 5) % 3) * 0.15, door, wall: WALLS[(n * 5) % WALLS.length], roof: ROOFS[(n * 3) % ROOFS.length] }));
+    const plain = { id: `house-${String(n + 1).padStart(3, '0')}`, quarter, x, z, w: 8 + (n % 3), d: 6.5 + ((n * 7) % 3) * 0.5, h: 2.9 + ((n * 5) % 3) * 0.15, door, wall: WALLS[(n * 5) % WALLS.length], roof: ROOFS[(n * 3) % ROOFS.length] };
+    const tower = TOWN_TOWERS.find((tw) => tw.houses.some((p) => p.x === x && p.z === z));
+    if (tower) { list.push(Object.freeze({ ...plain, x: tower.x, z: tower.z, w: tower.w, d: tower.d, h: tower.h, door: tower.door, tower: tower.id, plot: Object.freeze({ x, z }) })); return; }
+    const model = houseModelFor(n), heading = door === 's' ? 0 : Math.PI;
+    const fit = fitIn(TOWN_MODELS[model], heading, HOUSE_PLOT, HOUSE_PLOT);
+    // (its front where the plain house's front was, so that the lane, the door and what stands along the lane are as
+    // they were: it reaches back into the yard behind)
+    const back = (fit.d - plain.d) / 2;
+    list.push(Object.freeze({ ...plain, z: +(z + (door === 's' ? -back : back)).toFixed(3), w: +fit.w.toFixed(3), d: +fit.d.toFixed(3), h: +fit.h.toFixed(3), model, heading, k: fit.k }));
   };
   for (const x of [-105, -135, -165, -195, -225]) add('Umuezei', x, 96, 's');
   for (let k = 0; k < 10; k += 1) add('Umuezei', -230 + k * 15, 76, 'n');
@@ -4003,7 +4420,6 @@ __modules["sim/zones/atani.js"] = (function () {
 // and the people and businesses in it are invented.
 
 const { geoToWorld, worldToGeo, gridToTrue } = __modules["sim/geo.js"];
-const { makeRng } = __modules["sim/rng.js"];
 const { houseDoor } = __modules["sim/layout.js"];
 const { kekeLook, busLook, footprintBox } = __modules["sim/vehicle-looks.js"];
 const { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } = __modules["sim/zones/atani-outskirts.js"];
@@ -4013,6 +4429,12 @@ const { CITY_BUILDINGS, CITY_COLLIDERS, CITY_FURNITURE, PAVEMENTS, BOULEVARD, LA
 const { POWERBIKE, POWERBIKE_COLLIDERS } = __modules["sim/zones/atani-powerbike.js"];
 
 const { CARSHOW_COLLIDERS } = __modules["sim/zones/asaba-carshow.js"];
+
+// the owner's ambulance, private jet and two trucks (17 October 2026), each where it belongs
+const { SUPPLIED_VEHICLE_COLLIDERS } = __modules["sim/zones/supplied-vehicles.js"];
+
+const { TOWN_TREES } = __modules["sim/zones/atani-trees.js"];
+const { TOWER_COLLIDERS } = __modules["sim/zones/town-buildings.js"];
 
 const { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } = __modules["sim/zones/atani-town.js"];
 
@@ -4555,7 +4977,8 @@ function buildFixedColliders() {
   const sh = ZONE_PROPS.shelter;
   boxes.push({ x0: sh.x - 6, x1: sh.x + 6, z0: sh.z - 2.5, z1: sh.z + 2.5 });   // motor park shelter posts
   boxes.push({ x0: -64, x1: -50, z0: -196, z1: -176 });                          // cured block stacks
-  for (const h of ZONE_HOUSES) boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2));
+  for (const h of ZONE_HOUSES) if (!h.tower) boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2));
+  boxes.push(...TOWER_COLLIDERS);                                                // the owner's towers (town-buildings.js)
   for (const s of ZONE_SHEDS) boxes.push(...zoneShedWalls(s));
   for (const c of ZONE_COMPOUNDS) {
     boxes.push(...c.fence.walls);
@@ -4879,58 +5302,16 @@ function zoneRoomAt(x, z) {
 // Trees, and the final test of where a person can stand.
 // ---------------------------------------------------------------------------
 
-function buildTrees() {
-  const rng = makeRng(20261006);
-  const trees = [];
-  const keepClear = [];
-  for (const p of ZONE_PARCELS) keepClear.push({ x0: p.x0 - 2, x1: p.x1 + 2, z0: p.z0 - 2, z1: p.z1 + 2 });
-  // (the trees were laid out before the city block; it does not move the others: those in its way are taken out below)
-  for (const r of [...ZONE_ROADS.filter((q) => q.id !== 'market' && q.id !== 'market-s'), { x0: -5, x1: 5, z0: -216, z1: 118 }]) keepClear.push({ x0: r.x0 - 3, x1: r.x1 + 3, z0: r.z0 - 3, z1: r.z1 + 3 });
-  for (const b of ZONE_BUILDINGS) if (b.kind !== 'city' && b.kind !== 'tower') keepClear.push(boxOf(b.x, b.z, b.w / 2 + 5, b.d / 2 + 6));
-  for (const h of ZONE_HOUSES) keepClear.push(boxOf(h.x, h.z, h.w / 2 + 2.5, h.d / 2 + 3.5));
-  for (const s of ZONE_SHEDS) keepClear.push(boxOf(s.x, s.z, 6, 6));
-  for (const c of ZONE_COMPOUNDS) {
-    for (const b of c.buildings) keepClear.push({ x0: b.x0 - 6, x1: b.x1 + 6, z0: b.z0 - 6, z1: b.z1 + 6 });
-    for (const y of c.yard) { if (y.x0 !== undefined) keepClear.push({ x0: y.x0 - 1, x1: y.x1 + 1, z0: y.z0 - 1, z1: y.z1 + 1 }); else keepClear.push(boxOf(y.x, y.z, 4, 4)); }
-    for (const w of c.fence.walls) keepClear.push({ x0: w.x0 - 1.6, x1: w.x1 + 1.6, z0: w.z0 - 1.6, z1: w.z1 + 1.6 });
-  }
-  keepClear.push({ x0: 8, x1: 82, z0: 18, z1: 100 }, { x0: -75, x1: -12, z0: 58, z1: 106 }, { x0: -118, x1: -42, z0: -202, z1: -148 });   // market, motor park, block yard
-  keepClear.push({ x0: ZONE_FARMLAND.x0, x1: ZONE_FARMLAND.x1, z0: ZONE_FARMLAND.z0, z1: ZONE_FARMLAND.z1 });
-  const clear = indexBoxes(keepClear);
-  const points = [];
-  for (const [from, to] of ZONE_EDGES) {
-    const a = ZONE_NODES[from];
-    const c = ZONE_NODES[to];
-    const steps = Math.max(1, Math.ceil(Math.hypot(c[0] - a[0], c[1] - a[1]) / 2.5));
-    for (let i = 0; i <= steps; i += 1) points.push(boxOf(a[0] + ((c[0] - a[0]) * i) / steps, a[1] + ((c[1] - a[1]) * i) / steps, 3.2, 3.2));
-  }
-  for (const spot of Object.values(ZONE_PLACES)) points.push(boxOf(spot.x, spot.z, 4, 4));
-  for (const s of ZONE_SPOTS) points.push(boxOf(s.x, s.z, 2.6, 2.6));
-  const paths = indexBoxes(points);
-  const b = ZONE.bounds;
-  let guard = 0;
-  while (trees.length < 260 && guard < 12000) {
-    guard += 1;
-    const x = b.minX + 4 + rng.next() * (b.maxX - b.minX - 8);
-    const z = b.minZ + 4 + rng.next() * (148 - b.minZ - 4);
-    const shore = zoneShoreZ(x);
-    if (z > shore - 3) continue;
-    if (blockedIn(clear, x, z, 0) || blockedIn(paths, x, z, 0)) continue;
-    if (trees.some((t) => Math.hypot(t.x - x, t.z - z) < 5)) continue;
-    // Oil palm country: coconut palms only along the bank, oil palms and mango inland.
-    const nearShore = z > shore - 30;
-    const kind = nearShore ? (rng.next() < 0.5 ? 'palm' : 'oilpalm') : (rng.next() < 0.45 ? 'oilpalm' : rng.next() < 0.55 ? 'mango' : 'almond');
-    trees.push(Object.freeze({ x: Number(x.toFixed(1)), z: Number(z.toFixed(1)), kind, size: Number((0.8 + rng.next() * 0.5).toFixed(2)), turn: Number((rng.next() * 6.28).toFixed(2)) }));
-  }
-  return Object.freeze(trees);
-}
 // (none stands where the bridge's approach comes up from the road: the rest are where they always were)
 const underBridge = (t) => t.x > BRIDGE.x0 - 2 && t.x < BRIDGE.x1 + 2 && t.z > BRIDGE.start - 2;
 // (none where the city block has its road, pavements, buildings and lawn: the lawn has its own trees)
 const inCityWay = (t) => [...PAVEMENTS, { x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0: BOULEVARD.z0, z1: BOULEVARD.z1 }, { x0: LAWN.x0, x1: LAWN.x1, z0: LAWN.z0, z1: LAWN.z1 }, ...CITY_BUILDINGS.map((b) => boxOf(b.x, b.z, b.w / 2, b.d / 2))].some((b) => t.x > b.x0 - 2.5 && t.x < b.x1 + 2.5 && t.z > b.z0 - 2.5 && t.z < b.z1 + 2.5);
 // (none where the showroom tower stands, or by its pink column: the others are where they were)
 const byPowerbike = (t) => { const f = POWERBIKE.footprint, p = POWERBIKE.portal; return (t.x > f.x0 - 3 && t.x < f.x1 + 3 && t.z > f.z0 - 3 && t.z < f.z1 + 3) || Math.hypot(t.x - p.x, t.z - p.z) < 6; };
-const ZONE_TREES = Object.freeze(buildTrees().filter((t) => !underBridge(t) && !inCityWay(t) && !byPowerbike(t)));
+// (none where one of the owner's buildings now stands, or one of their vehicles: town-buildings.js, supplied-vehicles.js)
+const byNewBuilding = (t) => [...TOWER_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...TOWN_HOUSES.filter((h) => h.model).map((h) => boxOf(h.x, h.z, h.w / 2, h.d / 2))].some((b) => t.x > b.x0 - 2 && t.x < b.x1 + 2 && t.z > b.z0 - 2 && t.z < b.z1 + 2);
+// (the trees as they stood on 17 October 2026, atani-trees.js: scattered again, every one would have moved)
+const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t) && !inCityWay(t) && !byPowerbike(t) && !byNewBuilding(t)));
 
 // Beyond the town (atani-outskirts.js): the road to Onitsha, the airport and the bridge. They are walked and
 // driven on like the town's own ground, and their walls are walls; the town's own layout is unchanged by them.
@@ -4941,7 +5322,7 @@ const zoneGroundY = (x, z) => cityGroundY(x, z) || outskirtsGroundY(x, z);
 // The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
 // (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)
 const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], billboard: b.id })));
-const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS].map(Object.freeze));
+const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 // True when a person of the given radius can stand at (x, z).
@@ -4962,7 +5343,7 @@ function zoneWalkable(x, z, extra = [], radius = 0.4) {
   return true;
 }
 
-return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/atani-outskirts.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, zoneResident, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, zoneRoomAt, ZONE_TREES, zoneGroundY, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable };
+return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/supplied-vehicles.js"], ...__modules["sim/zones/town-buildings.js"], ...__modules["sim/zones/atani-outskirts.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, zoneResident, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, zoneRoomAt, ZONE_TREES, zoneGroundY, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable };
 })();
 
 // ---- sim/zone.js ----
@@ -6935,6 +7316,31 @@ function createTranslator({ service = null } = {}) {
 }
 
 return { LANGUAGES, LANGUAGE_IDS, PEOPLES, GIVEN_NAMES, TRAITS, PHRASES, phrase, EXCHANGES, dayPart, greetingId, sharedLanguage, translatePhrase, createTranslator };
+})();
+
+// ---- sim/rng.js ----
+__modules["sim/rng.js"] = (function () {
+// Small seeded random number generator (mulberry32), so a world replays the
+// same way from the same seed and a saved game resumes exactly.
+
+function makeRng(seed) {
+  let a = seed >>> 0;
+  const next = () => {
+    a = (a + 0x6d2b79f5) | 0;
+    let t = Math.imul(a ^ (a >>> 15), 1 | a);
+    t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+  return {
+    next,
+    int: (n) => Math.floor(next() * n),
+    pick: (list) => list[Math.floor(next() * list.length)],
+    getState: () => a >>> 0,
+    setState: (value) => { a = value >>> 0; },
+  };
+}
+
+return { makeRng };
 })();
 
 // ---- sim/figures.js ----
@@ -12189,7 +12595,8 @@ function createCare({ state, players, ledger, accounts, emit, hub }) {
   }
 
   // The ground the van stands on, for anyone walking: it is in the way wherever it is.
-  const box = () => (Math.abs(Math.sin(van.h)) > 0.5 ? { x0: van.x - 2.7, x1: van.x + 2.7, z0: van.z - 1.1, z1: van.z + 1.1 } : { x0: van.x - 1.1, x1: van.x + 1.1, z0: van.z - 2.7, z1: van.z + 2.7 });
+  // (the owner's ambulance, 5.7 m long and 2.4 m wide across its mirrors: supplied-vehicles.js)
+  const box = () => (Math.abs(Math.sin(van.h)) > 0.5 ? { x0: van.x - 2.85, x1: van.x + 2.85, z0: van.z - 1.2, z1: van.z + 1.2 } : { x0: van.x - 1.2, x1: van.x + 1.2, z0: van.z - 2.85, z1: van.z + 2.85 });
   const ambulanceView = () => ({ x: Math.round(van.x * 100) / 100, z: Math.round(van.z * 100) / 100, h: Math.round(van.h * 100) / 100, mode: van.mode, siren: van.mode === 'out' || van.mode === 'back' });
   const selfView = (p) => { const call = Object.values(book.calls).find((c) => c.player === p.id && ['coming', 'waiting', 'aboard'].includes(c.status)); return { carried: p.carried ? p.carried.phase : null, ambulance: call ? callView(call) : null }; };
   const audit = () => ({ ...book.totals });
@@ -14546,6 +14953,16 @@ function rippleNormalTexture(size = 256) {
   }), { srgb: false });
 }
 
+// Rendered plaster, as a normal map that tiles: the slight waves of a trowelled coat, and the sand in it.
+function plasterNormalTexture(size = 256) {
+  const h = (x, y) => tileNoise((x / size) * 6, (y / size) * 6, 6) * 0.55 + tileNoise((x / size) * 22 + 5, (y / size) * 22, 22) * 0.3 + noise(((x % size) + size) % size, ((y % size) + size) % size) * 0.15;
+  return canvasTexture(size, (ctx) => paintPixels(ctx, size, (x, y) => {
+    const dx = h(x + 1, y) - h(x - 1, y);
+    const dy = h(x, y + 1) - h(x, y - 1);
+    return [Math.round(127.5 - dx * 260), Math.round(127.5 - dy * 260), 255];
+  }), { srgb: false });
+}
+
 // Printed wrapper cloth: a ground colour with a repeating motif in two more.
 function clothTexture(colours, motif = 'rings', size = 128) {
   const css = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
@@ -14671,7 +15088,7 @@ function addWindow(B, x, y, z, alongX, barred, w = 1.3, h = 1.15) {
   const { solid, glow } = B;
   const size = (ww, hh, dd) => (alongX ? [ww, hh, dd] : [dd, hh, ww]);
   solid.box(...size(w + 0.22, h + 0.22, 0.1), place(x, y, z), 0x5d4630);                       // frame
-  glow.box(...size(w, h, 0.12), place(x, y, z), 0xa9c6d6);
+  glow.box(...size(w, h, 0.12), place(x, y, z), 0x8aa2ae);                                       // glass
   solid.box(...size(0.06, h, 0.14), place(x, y, z), 0x5d4630);                                 // mullion
   for (let i = 0; i < 5; i += 1) solid.box(...size(w, 0.025, 0.16), place(x, y - h / 2 + ((i + 0.5) * h) / 5, z), 0xd4d7d6);   // louvre blades
   solid.box(...size(w + 0.36, 0.07, 0.22), place(x, y - h / 2 - 0.14, z), 0x9c958a);           // sill
@@ -14699,13 +15116,15 @@ function buildingKit() {
   const sheet = corrugatedTextures();
   buildingMaterials = {
     solid: surface({ vertexColors: true, roughness: 0.86, metalness: 0.02 }),
-    walls: surface({ vertexColors: true, map: grainTexture({ low: 0.74 }), roughness: 0.95, metalness: 0, side: THREE.DoubleSide }),
-    roofs: surface({ vertexColors: true, map: sheet.map, normalMap: sheet.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.62, metalness: 0.25 }),
+    // (painted plaster: the paint's faint sheen, and the plaster's own slight unevenness under it)
+    walls: surface({ vertexColors: true, map: grainTexture({ low: 0.74 }), normalMap: plasterNormalTexture(), normalScale: new THREE.Vector2(0.45, 0.45), roughness: 0.88, metalness: 0, side: THREE.DoubleSide }),
+    // (corrugated zinc: a dull metal, giving back a little of the sky: render-finish.js)
+    roofs: surface({ vertexColors: true, map: sheet.map, normalMap: sheet.normalMap, normalScale: new THREE.Vector2(0.9, 0.9), roughness: 0.5, metalness: 0.45 }),
   };
   return buildingMaterials;
 }
 
-return { linear, place, Batch, Chunked, createSight, gableGeometry, lathe, limb, nameTexture, textTexture, noise, smoothNoise, grainTexture, grassTexture, corrugatedTextures, rippleNormalTexture, clothTexture, faceTexture, shadeOf, addPitchedRoof, addWindow, setLite, isLite, surface, buildingKit };
+return { linear, place, Batch, Chunked, createSight, gableGeometry, lathe, limb, nameTexture, textTexture, noise, smoothNoise, grainTexture, grassTexture, corrugatedTextures, rippleNormalTexture, plasterNormalTexture, clothTexture, faceTexture, shadeOf, addPitchedRoof, addWindow, setLite, isLite, surface, buildingKit };
 })();
 
 // ---- client/render-vehicles.js ----
@@ -15361,6 +15780,75 @@ function makeVehicleModel(look, { plate = null, region = '', level = 0, shadows 
 return { initVehicles, vehicleEnvironment, setVehicleDaylight, plateTexture, vehicleWarmJobs, VEHICLE_LEVELS, VEHICLE_RANGES, makeVehicleModel };
 })();
 
+// ---- client/render-finish.js ----
+__modules["client/render-finish.js"] = (function () {
+// How surfaces answer the sky (the realism pass, 17 October 2026):
+//   - glass, the river and polished metal give back the sky by day: less under cloud, hardly at all at night;
+//   - a corrugated zinc roof has the dull sheen of zinc;
+//   - in the rain, and for a while after it, the ground is wet: tarmac, paving, roofs and walls darker, and tarmac and
+//     roofs glossy, the tarmac giving back the sky as a wet road does; dried out slowly once the rain has stopped.
+// Each of these is a material's settings changed now and then (`updateFinishes`), not anything more drawn. On a phone
+// (`isLite`) surfaces are lit without gloss (render-kit.js, `surface`): there the wet is only darker.
+
+const { isLite } = __modules["client/render-kit.js"];
+const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
+
+const reflecting = new Map();     // material -> how strongly it gives back the sky, by full day
+const wetting = new Map();        // material -> { colour, roughness, darken, gloss, sheen }
+let envSet = false;
+let wet = 0;
+
+// `material` gives back the sky, `strength` times as much as a mirror would by full day.
+function reflects(material, strength = 1) {
+  if (!material || isLite() || !material.isMeshStandardMaterial) return material;
+  if (!reflecting.has(material)) material.addEventListener('dispose', () => reflecting.delete(material));
+  reflecting.set(material, strength);
+  given(material);
+  return material;
+}
+// `material` is a surface out in the weather: wet, it is `darken` darker, `gloss` less rough, and (tarmac) gives back
+// `sheen` of the sky.
+function weathers(material, { darken = 0.25, gloss = 0, sheen = 0 } = {}) {
+  if (!material || wetting.has(material)) return material;
+  wetting.set(material, { colour: material.color.clone(), roughness: material.roughness, darken, gloss, sheen: material.isMeshStandardMaterial && !isLite() ? sheen : 0 });
+  material.addEventListener('dispose', () => wetting.delete(material));
+  if (wetting.get(material).sheen) given(material);
+  return material;
+}
+// (a material made after the sky was handed out, the outskirts' or a model's that came later: given it now)
+function given(material) {
+  const env = envSet ? vehicleEnvironment() : null;
+  if (env && material.envMap !== env) { material.envMap = env; material.needsUpdate = true; }
+}
+
+// Each frame (or every few): `daylight` 0 at night to 1 by day, `wetness` how hard it is raining (0 to 1: the town's
+// rain is 0.6, a storm 1), `dull` how overcast the sky is (0 to 1).
+function updateFinishes(dt, { daylight = 1, wetness = 0, dull = 0 } = {}) {
+  const env = vehicleEnvironment();
+  if (!envSet && env) {
+    // (given the sky once it has been made: render-world is built just after it, but a lab page may have none)
+    for (const material of reflecting.keys()) { material.envMap = env; material.needsUpdate = true; }
+    for (const [material, w] of wetting) if (w.sheen && !reflecting.has(material)) { material.envMap = env; material.needsUpdate = true; }
+    envSet = true;
+  }
+  // the ground is soon wet through in any rain (the harder it rains, the sooner), and dries slowly after it
+  const raining = wetness > 0.05;
+  wet += ((raining ? 1 : 0) - wet) * Math.min(1, dt * (raining ? 0.1 + wetness : 0.012));
+  const sky = Math.max(0.04, Math.min(1, daylight)) * (1 - 0.45 * dull);
+  for (const [material, strength] of reflecting) material.envMapIntensity = strength * sky;
+  for (const [material, w] of wetting) {
+    material.color.copy(w.colour).multiplyScalar(1 - w.darken * wet);
+    if (typeof w.roughness === 'number') material.roughness = Math.max(0.05, w.roughness - w.gloss * wet);
+    if (w.sheen) material.envMapIntensity = (reflecting.get(material) || 0) * sky + w.sheen * wet * sky;
+  }
+  return wet;
+}
+// (the tests: how wet the ground is now, and what is registered)
+const finishState = () => ({ wet, reflecting: reflecting.size, weathering: wetting.size, envSet });
+
+return { reflects, weathers, updateFinishes, finishState };
+})();
+
 // ---- client/render-holaris.js ----
 __modules["client/render-holaris.js"] = (function () {
 // HOLARIS Watch: a three-storey house of glass, where the wristwatch is sold.
@@ -15373,6 +15861,7 @@ __modules["client/render-holaris.js"] = (function () {
 // THREE is the global from three.min.js.
 
 const { Batch, place, surface, linear } = __modules["client/render-kit.js"];
+const { reflects } = __modules["client/render-finish.js"];
 
 const STEEL = 0x161b20;
 const STONE = 0xd9d5cb;
@@ -15503,7 +15992,7 @@ function buildShowroom(b, { storeys = 3 } = {}) {
     for (let i = 0; i < 12; i += 1) frame.box(1.3, 0.07, 0.34, place(b.x + hw - 1.2, base + floorH * f + 0.2 + (i * floorH) / 12, b.z - hd + 1.6 + i * 0.5), 0xcfd3d6);
   }
 
-  const frameMesh = frame.build(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }));
+  const frameMesh = frame.build(reflects(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }), 0.7));
   frameMesh.castShadow = true; frameMesh.receiveShadow = true;
   group.add(frameMesh);
 
@@ -15586,6 +16075,300 @@ function makeDealMarker() {
 return { buildShowroom, makeDealMarker };
 })();
 
+// ---- client/render-foliage.js ----
+__modules["client/render-foliage.js"] = (function () {
+// Leaves as leaves are: the crowns of the town's broadleaf trees and the fronds of its palms (render-world.js,
+// addTree), drawn from pictures of leaves with the air between them, not as solid shapes.
+//
+//   - A broadleaf crown is many small sprays of leaves (cards: a picture of a spray, the gaps in it see-through),
+//     set round the crown's shape at every angle. Each spray is lit as if it were part of a round crown, not as the
+//     flat card it is, so that the crown is light on top and toward the sun and dark beneath and inside; a card is
+//     drawn from both sides with that same light, so that it never shows its back as a dark patch. The mango's sprays
+//     are its long dark leaves, in a dense dome; the tropical almond's its broad paler leaves, in its flat tiers.
+//   - A palm frond is its ribbon with a picture of a rib and its leaflets, the air between them see-through, lit on
+//     whichever side is seen as a leaf is (its top toward the sky, its underside dark).
+//   - The leaves move in the wind a little, the tips more than the heart, each tree a moment apart from the next.
+//   - Their shadows are the shapes of the leaves, moving with them, not of the cards.
+//
+// The pictures are drawn here, once, on a canvas: nothing is fetched. Built in squares of ground like the rest of
+// the town (render-kit.js, Chunked), so that what is out of sight is not drawn.
+
+const { linear, noise, isLite } = __modules["client/render-kit.js"];
+
+const SIZE = 125;
+
+// ---------------------------------------------------------------------------------------------- the pictures --
+
+// The pictures, two to a sheet so that a square of ground draws all its leaves in two goes, not four: the mango's and
+// the almond's sprays side by side on one, the coconut palm's and the oil palm's fronds on the other. Where each is on
+// its sheet (`u0` to `u1` across it):
+const PICTURES = Object.freeze({
+  mango: { sheet: 'spray', u0: 0, u1: 0.5 }, almond: { sheet: 'spray', u0: 0.5, u1: 1 },
+  frond: { sheet: 'frond', u0: 0, u1: 0.5 }, oilfrond: { sheet: 'frond', u0: 0.5, u1: 1 },
+});
+function sheet(w, h, draw) {
+  const c = document.createElement('canvas'); c.width = w; c.height = h;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, w, h);
+  draw(g, w, h);
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  return t;
+}
+// (each picture kept inside its own part of the sheet, a few pixels in from its edge)
+function within(g, x, y, w, h, draw) { g.save(); g.beginPath(); g.rect(x + 3, y + 3, w - 6, h - 6); g.clip(); g.translate(x, y); draw(); g.restore(); }
+
+// A spray of leaves, W across: along twigs from the middle of the card outward, and in a rosette at the end of each.
+// `long` and `wide`: the leaf's shape, as parts of the card (a mango's long and narrow, an almond's broad and rounded
+// at its tip). Grey to white, to be coloured by the tree's own green; the midrib a little darker.
+function drawSpray(g, W, { twigs = 7, perTwig = 7, long = 0.2, wide = 0.05, round = 0, seed = 0 } = {}) {
+  const leaf = (x, y, a, L, Wd, shade) => {
+    g.save(); g.translate(x, y); g.rotate(a);
+    g.fillStyle = `rgb(${shade},${shade},${shade})`;
+    // from its stalk at (0, 0) to its tip at (L, 0): widest a third of the way along (or, `round`, near the tip)
+    const at = L * (0.35 + 0.3 * round);
+    g.beginPath(); g.moveTo(0, 0);
+    g.bezierCurveTo(at * 0.6, -Wd, at + (L - at) * 0.5, -Wd * (0.9 + round * 0.3), L, 0);
+    g.bezierCurveTo(at + (L - at) * 0.5, Wd * (0.9 + round * 0.3), at * 0.6, Wd, 0, 0);
+    g.fill();
+    g.strokeStyle = 'rgba(70,70,70,0.5)'; g.lineWidth = Math.max(1, Wd * 0.14);
+    g.beginPath(); g.moveTo(0, 0); g.lineTo(L * 0.94, 0); g.stroke();
+    g.restore();
+  };
+  for (let t = 0; t < twigs; t += 1) {
+    const r = (k) => noise(t * 7.3 + seed, k * 3.1 + seed * 0.7);
+    const a = (t / twigs) * Math.PI * 2 + (r(1) - 0.5) * 0.7, reach = (0.3 + r(2) * 0.14) * W;
+    const ex = W / 2 + Math.cos(a) * reach, ey = W / 2 + Math.sin(a) * reach;
+    // (the twig itself is hidden by its leaves: only they are drawn)
+    for (let k = 0; k < perTwig; k += 1) {
+      const q = (j) => noise(t * 13.1 + k * 5.7 + seed, j * 2.3);
+      const along = k / perTwig, side = k % 2 ? 1 : -1, end = k >= perTwig - 3;
+      const x = W / 2 + (ex - W / 2) * (end ? 1 : 0.25 + along * 0.7), y = W / 2 + (ey - W / 2) * (end ? 1 : 0.25 + along * 0.7);
+      const turn = end ? a + (k - perTwig + 2) * 0.75 + (q(1) - 0.5) * 0.4 : a + side * (0.7 + q(2) * 0.5);
+      const L = long * (0.75 + q(3) * 0.5) * W, Wd = wide * (0.8 + q(4) * 0.4) * W;
+      leaf(x, y, turn, L, Wd, Math.round(150 + q(5) * 105));
+    }
+  }
+}
+// A palm frond's leaflets, W across and H long: its rib down the middle (its tip at the top), the leaflets either
+// side reaching out and forward toward the tip, longest in the frond's middle.
+function drawFrond(g, W, H, { seed = 0, stiff = 0 } = {}) {
+  const rib = W / 2;
+  for (let y = 10; y < H - 6; y += 4) {
+    const t = y / H, reach = (W / 2 - 4) * Math.pow(Math.sin(Math.PI * Math.min(1, 0.08 + t * 0.95)), 0.55);
+    for (const side of [-1, 1]) {
+      const shade = Math.round(165 + noise(y + seed, side + 5) * 90);
+      const forward = (10 + noise(y, side + 9 + seed) * 14) * (1 - stiff * 0.6);
+      g.strokeStyle = `rgb(${shade},${shade},${shade})`; g.lineWidth = 3.4 + noise(y, side + 2) * 1.4;
+      g.beginPath(); g.moveTo(rib, y); g.quadraticCurveTo(rib + side * reach * 0.55, y - forward * 0.25, rib + side * reach, y - forward); g.stroke();
+    }
+  }
+  g.fillStyle = 'rgb(170,160,120)'; g.fillRect(rib - 2, 0, 4, H);
+}
+const sprays = () => sheet(512, 256, (g) => {
+  within(g, 0, 0, 256, 256, () => drawSpray(g, 256, { twigs: 7, perTwig: 8, long: 0.19, wide: 0.045, seed: 1 }));
+  within(g, 256, 0, 256, 256, () => drawSpray(g, 256, { twigs: 6, perTwig: 6, long: 0.17, wide: 0.075, round: 1, seed: 2 }));
+});
+const fronds = () => sheet(256, 512, (g) => {
+  within(g, 0, 0, 128, 512, () => drawFrond(g, 128, 512, { seed: 0 }));
+  within(g, 128, 0, 128, 512, () => drawFrond(g, 128, 512, { seed: 3, stiff: 1 }));
+});
+
+// ---------------------------------------------------------------------------------------------- the builder --
+
+// Positions, normals, picture coordinates and colours, grown as leaves are added.
+class Leaves {
+  constructor() { this.p = []; this.n = []; this.uv = []; this.c = []; }
+  vertex(x, y, z, nx, ny, nz, u, v, col) { this.p.push(x, y, z); this.n.push(nx, ny, nz); this.uv.push(u, v); this.c.push(col.r, col.g, col.b); }
+  get triangles() { return this.p.length / 9; }
+  build(material) {
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+    geo.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
+    geo.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+    geo.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    geo.computeBoundingSphere();
+    this.p = this.n = this.uv = this.c = null;
+    return new THREE.Mesh(geo, material);
+  }
+}
+
+const FRONT = [0, 1, 2, 0, 2, 3], BACK = [0, 2, 1, 0, 3, 2], CORNER = [[0, 0], [1, 0], [1, 1], [0, 1]];
+
+class Foliage {
+  constructor() { this.parts = new Map(); }       // `${sheet}:${square}` -> Leaves
+  at(kind, x, z) {
+    const key = `${kind}:${Math.floor(x / SIZE)},${Math.floor(z / SIZE)}`;
+    let part = this.parts.get(key);
+    if (!part) { part = new Leaves(); part.kind = kind; this.parts.set(key, part); }
+    return part;
+  }
+  // One spray: a card `size` across centred at (x, y, z), turned `yaw` about the upright and tipped `tilt`, lit as
+  // if its face looked along (nx, ny, nz) (outward from its crown's middle), from both sides. `kind`: which picture.
+  spray(kind, x, y, z, size, yaw, tilt, nx, ny, nz, hex, shade = 1) {
+    const pic = PICTURES[kind], part = this.at(pic.sheet, x, z), col = linear(hex).multiplyScalar(shade), du = pic.u1 - pic.u0;
+    const h = size / 2, cy = Math.cos(yaw), sy = Math.sin(yaw), ct = Math.cos(tilt), st = Math.sin(tilt);
+    const ax = cy * h, az = -sy * h;                                   // across: level, turned by yaw
+    const ux = sy * st * h, uy = ct * h, uz = cy * st * h;             // up: tipped by tilt
+    const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+    const q = [[-1, -1], [1, -1], [1, 1], [-1, 1]].map(([i, j]) => [x + ax * i + ux * j, y + uy * j, z + az * i + uz * j]);
+    for (const order of [FRONT, BACK]) for (const k of order) part.vertex(q[k][0], q[k][1], q[k][2], nx, ny, nz, pic.u0 + CORNER[k][0] * du, CORNER[k][1], col);
+  }
+  // A palm frond: its ribbon (`points` along it from the crown, each with its left and right edges and how far along
+  // it is), with the frond's picture along it; each piece lit by which way it faces.
+  frond(kind, points, hex, shade = 1) {
+    const [x0, , z0] = points[0].p;
+    const pic = PICTURES[kind], part = this.at(pic.sheet, x0, z0), col = linear(hex).multiplyScalar(shade), du = pic.u1 - pic.u0;
+    for (let i = 0; i + 1 < points.length; i += 1) {
+      const a = points[i], b = points[i + 1];
+      const q = [a.l, a.r, b.r, b.l], t = [[0, a.v], [1, a.v], [1, b.v], [0, b.v]];
+      // its face's own normal (the side that is seen is lit as the side that faces the eye: see the material)
+      const ex = q[1][0] - q[0][0], ey = q[1][1] - q[0][1], ez = q[1][2] - q[0][2];
+      const fx = q[3][0] - q[0][0], fy = q[3][1] - q[0][1], fz = q[3][2] - q[0][2];
+      let nx = ey * fz - ez * fy, ny = ez * fx - ex * fz, nz = ex * fy - ey * fx;
+      const l = Math.hypot(nx, ny, nz) || 1; nx /= l; ny /= l; nz /= l;
+      for (const k of FRONT) part.vertex(q[k][0], q[k][1], q[k][2], nx, ny, nz, pic.u0 + t[k][0] * du, t[k][1], col);
+    }
+  }
+  get empty() { return this.parts.size === 0; }
+  get triangles() { let n = 0; for (const part of this.parts.values()) n += part.triangles; return n; }
+  // One mesh for each sheet of leaves in each square (sprays, fronds), each casting the shadow of its leaves.
+  build(materials = foliageMaterials()) {
+    return [...this.parts.values()].map((part) => {
+      const material = materials[part.kind];
+      const mesh = part.build(material);
+      mesh.name = `leaves-${part.kind}`;
+      mesh.castShadow = true; mesh.receiveShadow = true;
+      mesh.customDepthMaterial = material.userData.depth;
+      return mesh;
+    });
+  }
+}
+
+// ---------------------------------------------------------------------------------------------- the trees --
+
+// A palm frond as it grows (its rib rising from the crown and drooping at the tip), turned `a` about the upright at
+// (x, y, z): the points along it, each with its left and right edges, for Foliage.frond.
+function frondPoints(x, y, z, a, length, width, rise, droop) {
+  const steps = 7, out = [];
+  const at = (t) => ({ r: length * t * (1 - 0.2 * t), y: rise * t - droop * t * t, w: width * Math.pow(Math.sin(Math.PI * (0.1 + 0.88 * t)), 0.6) });
+  const ca = Math.cos(a), sa = Math.sin(a);
+  const world = (lx, ly, lz) => [x + lx * ca + lz * sa, y + ly, z - lx * sa + lz * ca];
+  for (let i = 0; i <= steps; i += 1) {
+    const t = i / steps, p = at(t);
+    // (the leaflets hang a little either side of the rib, so the frond is a shallow V, not flat)
+    out.push({ p: world(0, p.y, p.r), l: world(-p.w, p.y - p.w * 0.3, p.r), r: world(p.w, p.y - p.w * 0.3, p.r), v: t });
+  }
+  return out;
+}
+
+// A round crown of sprays: `count` of them over the outside of an ellipsoid (radius `rx` across, `ry` up) centred at
+// (x, y, z), most on its upper part, each lit as if the crown were round, and darker underneath and further in.
+function crown(foliage, kind, x, y, z, rx, ry, count, size, colours, jitter, { from = 0.62, under = 1.75 } = {}) {
+  for (let i = 0; i < count; i += 1) {
+    const u = jitter(i * 3 + 1), v = jitter(i * 3 + 2), w = jitter(i * 3 + 3);
+    const theta = u * Math.PI * 2, cosPhi = 1 - under * v;            // (from the top down to a little below the middle)
+    const sinPhi = Math.sqrt(Math.max(0, 1 - cosPhi * cosPhi)), shell = from + (1 - from) * w;
+    const dx = sinPhi * Math.cos(theta), dy = cosPhi, dz = sinPhi * Math.sin(theta);
+    const nx = dx / rx, ny = dy / ry, nz = dz / rx, nl = Math.hypot(nx, ny, nz) || 1;
+    const shade = (0.86 + jitter(i * 3 + 43) * 0.24) * (0.8 + 0.2 * shell) * (0.82 + 0.18 * (dy + 1) / 2);
+    foliage.spray(kind, x + dx * rx * shell, y + dy * ry * shell, z + dz * rx * shell, size * (0.8 + 0.45 * jitter(i * 3 + 40)),
+      theta + (jitter(i * 3 + 41) - 0.5) * 1.6, (jitter(i * 3 + 42) - 0.5) * 1.3,
+      nx / nl, ny / nl * 0.8 + 0.2, nz / nl, colours[i % colours.length], shade);
+  }
+}
+
+// The leaves of one tree, `t` (render-world.js addTree has drawn its trunk and branches): `s` its size, `jitter` its
+// own numbers, `top` where its trunk ends.
+function treeLeaves(foliage, t, s, jitter, top) {
+  if (t.kind === 'palm') {
+    // coconut palm: long arching fronds, a few rising, most hanging
+    for (let i = 0; i < 15; i += 1) {
+      const a = t.turn + (i * Math.PI * 2) / 15 + jitter(i) * 0.3, up = i % 3 === 0;
+      foliage.frond('frond', frondPoints(top.x, top.y - 0.05, t.z, a, (3.5 + jitter(i + 20) * 0.9) * s, 0.66 * s, (up ? 1.9 : 0.75) * s, (up ? 1.7 : 2.5) * s), i % 2 ? 0x5f9038 : 0x72a344, 0.86 + jitter(i + 40) * 0.24);
+    }
+  } else if (t.kind === 'oilpalm') {
+    // oil palm: a full round head of stiffer fronds in three tiers, the lowest hanging
+    for (let i = 0; i < 21; i += 1) {
+      const a = t.turn + (i * Math.PI * 2) / 21 + jitter(i) * 0.25, tier = i % 3;
+      foliage.frond('oilfrond', frondPoints(t.x, top.y - 0.1, t.z, a, (3.0 + jitter(i + 9) * 0.6) * s, 0.58 * s, [2.1, 1.1, 0.3][tier] * s, [1.4, 1.9, 2.2][tier] * s), [0x4a7f36, 0x55903f, 0x426f31][tier], 0.88 + jitter(i + 30) * 0.22);
+    }
+  } else if (t.kind === 'mango') {
+    // a dense dome of long dark leaves: an outer shell, and a smaller one inside it so that it is not hollow
+    crown(foliage, 'mango', t.x, 4.6 * s, t.z, 3.0 * s, 2.35 * s, 96, 1.55 * s, [0x2f6b34, 0x377a3a, 0x2b6130, 0x3d8040], jitter, { under: 1.85 });
+    crown(foliage, 'mango', t.x, 4.5 * s, t.z, 1.9 * s, 1.5 * s, 30, 1.45 * s, [0x285c2c, 0x2f6b34], (k) => jitter(k + 500), { from: 0.3 });
+  } else {
+    // tropical almond: flat tiers of broad leaves on its level branches, widest at the bottom
+    [[2.9, 3.0], [2.3, 4.0], [1.6, 4.9], [0.9, 5.6]].forEach(([r, y], tier) => {
+      const n = Math.round(9 + r * 6);
+      for (let k = 0; k < n; k += 1) {
+        const j = (m) => jitter(tier * 50 + k * 7 + m);
+        const a = t.turn + tier + (k / n) * Math.PI * 2 + j(0) * 0.4, d = r * s * (0.3 + 0.7 * Math.sqrt(j(1)));
+        // (lying nearly level, each tipped a little, and lit as the tier's top and its rim are)
+        foliage.spray('almond', t.x + Math.cos(a) * d, y * s + (j(2) - 0.5) * 0.35 * s, t.z + Math.sin(a) * d, (1.25 + j(3) * 0.5) * s,
+          -a, Math.PI / 2 - 0.22 + (j(4) - 0.5) * 0.5, Math.cos(a) * 0.35 * d / (r * s), 0.95, Math.sin(a) * 0.35 * d / (r * s),
+          [0x4f8c3c, 0x5a9a44, 0x66a84c, 0x5a9a44][tier], (0.86 + j(5) * 0.24) * (0.9 + 0.1 * tier / 3));
+      }
+    });
+  }
+}
+
+// A low shrub of the same leaves as the mango's: a small round crown standing on the ground at (x, y, z).
+function bush(foliage, x, y, z, r, jitter, colours = [0x3f7a35, 0x4d8a3c, 0x447f38]) {
+  crown(foliage, 'mango', x, y + r * 0.75, z, r, r * 0.8, 9, r * 0.95, colours, jitter, { from: 0.35, under: 1.6 });
+}
+
+// ---------------------------------------------------------------------------------------------- the materials --
+
+// The wind: every leaf moves with it a little, the tips of a frond and the top of a crown more than the rest, now and
+// then in a gust, each tree a moment apart from the next. One clock for all of them (`setWind`).
+const wind = { value: 0 };
+const setWind = (seconds) => { wind.value = seconds % 3600; };
+// (the tests: the wind's clock, and which kinds of leaf there are)
+const foliageState = () => ({ wind: wind.value, kinds: made ? Object.keys(made) : [] });
+function sway(material, kind) {
+  const frond = kind === 'frond';
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = wind;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        float phase = transformed.x * 0.21 + transformed.z * 0.17;
+        float gust = 0.6 + 0.4 * sin(uWind * 0.23 + phase * 0.05);
+        ${frond ? 'float flex = uv.y * uv.y * 0.16;' : 'float flex = clamp((transformed.y - 2.0) / 7.0, 0.0, 1.0) * 0.05;'}
+        transformed.x += (sin(uWind * 1.3 + phase) + 0.3 * sin(uWind * 3.1 + phase * 3.0)) * flex * gust;
+        transformed.z += cos(uWind * 1.1 + phase * 1.3) * flex * 0.8 * gust;
+        transformed.y += sin(uWind * 1.7 + phase * 2.0) * flex * 0.35 * gust;
+      }`);
+  };
+  material.customProgramCacheKey = () => `pcw-leaves-${frond ? 'frond' : 'spray'}`;
+  return material;
+}
+
+let made = null;
+function foliageMaterials() {
+  if (made) return made;
+  const pictures = { spray: sprays(), frond: fronds() };
+  made = {};
+  const lite = isLite();
+  for (const [kind, map] of Object.entries(pictures)) {
+    const frond = kind === 'frond';
+    const cut = frond ? 0.35 : 0.42;
+    // (a spray is drawn from both sides by its own two faces, each lit as the crown is; a frond from both sides of
+    // its one face, its underside dark as a leaf's is). Matte, lit at its corners: a leaf has no gloss to speak of
+    // from where it is seen, and a gloss worked out from the crown's light rather than the card's own face turned a
+    // card white seen from beneath it.
+    const m = sway(new THREE.MeshLambertMaterial({ map, vertexColors: true, alphaTest: cut, alphaToCoverage: !lite, side: frond ? THREE.DoubleSide : THREE.FrontSide }), kind);
+    m.userData.depth = sway(new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map, alphaTest: cut }), kind);
+    made[kind] = m;
+  }
+  return made;
+}
+
+return { Foliage, frondPoints, crown, treeLeaves, bush, setWind, foliageState, foliageMaterials };
+})();
+
 // ---- client/render-city.js ----
 __modules["client/render-city.js"] = (function () {
 // The first city block (src/sim/zones/atani-city.js), drawn: Market Road as a boulevard between the Registry Road
@@ -15601,7 +16384,8 @@ __modules["client/render-city.js"] = (function () {
 //   const city = buildCity(scene, { glowMaterial, lite });   then city.tick(dt, { night }) each frame
 const { BOULEVARD, PAVEMENTS, LANDINGS, CROSSINGS, STOP_LINES, LAWN, LAWN_TREES, LAWN_SHRUBS, CITY_FURNITURE, CITY_BUILDINGS, KERB, cityGroundY, signalState } = __modules["sim/zone.js"];
 const { Batch, place, linear, noise, grassTexture, textTexture, surface } = __modules["client/render-kit.js"];
-const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
+const { Foliage, bush, foliageMaterials } = __modules["client/render-foliage.js"];
+const { reflects, weathers } = __modules["client/render-finish.js"];
 
 const ROAD_TOP = 0.08;                // the top of the town's roads (render-world.js)
 const CROWN = 0.05;                   // how much higher the middle of the boulevard is than its edges
@@ -15894,18 +16678,16 @@ function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
   wallRun(L.x0, L.z0, L.x0, L.z1);
   B.grass.box(L.x1 - L.x0 - L.wall, 0.06, L.z1 - L.z0 - L.wall, place((L.x0 + L.x1) / 2, lawnTop - 0.03, (L.z0 + L.z1) / 2), 0x6d9a45);
   B.solid.box(L.x1 - L.x0 - L.wall, lawnTop - 0.05, L.z1 - L.z0 - L.wall, place((L.x0 + L.x1) / 2, (lawnTop - 0.05) / 2, (L.z0 + L.z1) / 2), 0x5a4632);
-  const treeSolid = new Batch(), treeLeaves = new Batch();
-  for (const [i, t] of LAWN_TREES.entries()) addTree(treeSolid, treeLeaves, { x: t.x, z: t.z, kind: 'mango', size: 0.9 + hash(i, 4) * 0.25, turn: hash(i, 9) * 6 });
-  for (const [i, s] of LAWN_SHRUBS.entries()) {
-    for (let k = 0; k < 4; k += 1) B.leaves.round(new THREE.IcosahedronGeometry(0.42 + hash(i, k) * 0.2, 1), place(s.x + (hash(k, i) - 0.5) * 0.7, lawnTop + 0.35 + hash(i + k, 3) * 0.2, s.z + (hash(i, k + 5) - 0.5) * 0.7), k % 2 ? 0x3f7a35 : 0x4d8a3c, 0.9 + hash(k, i) * 0.2);
-  }
+  const treeSolid = new Batch(), foliage = new Foliage();
+  for (const [i, t] of LAWN_TREES.entries()) addTree(treeSolid, foliage, { x: t.x, z: t.z, kind: 'mango', size: 0.9 + hash(i, 4) * 0.25, turn: hash(i, 9) * 6 });
+  // the shrubs: low round bushes of the same leaves
+  for (const [i, s] of LAWN_SHRUBS.entries()) bush(foliage, s.x, lawnTop, s.z, 0.62 + hash(i, 2) * 0.2, (k) => hash(i * 17 + k, 23));
 
   // ------------------------------------------------------------- buildings
   const signs = [];
   for (const b of CITY_BUILDINGS) buildBuilding(B, b, { lite, signs });
 
   // ------------------------------------------------------------- materials
-  const env = () => vehicleEnvironment();
   const materials = {
     road: surface({ vertexColors: true, map: tex.asphalt, roughness: 0.93, metalness: 0 }),
     paint: surface({ vertexColors: true, roughness: 0.72, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
@@ -15921,6 +16703,11 @@ function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
     leaves: surface({ vertexColors: true, roughness: 0.9, metalness: 0 }),
     solid: surface({ vertexColors: true, roughness: 0.8, metalness: 0.05 }),
   };
+  // (the glass and the steel give back the sky; out in the rain the street is darker, and its tarmac and paving glossy:
+  // render-finish.js)
+  reflects(materials.glass, 1.1); reflects(materials.metal, 0.6);
+  weathers(materials.road, { darken: 0.42, gloss: 0.66, sheen: 1 }); weathers(materials.paving, { darken: 0.25, gloss: 0.32, sheen: 0.25 });
+  for (const name of ['concrete', 'brick', 'stone', 'render']) weathers(materials[name], { darken: 0.18 });
   const meshes = [];
   for (const [name, batch] of Object.entries(B)) {
     if (batch.empty) continue;
@@ -15930,8 +16717,9 @@ function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
     mesh.name = `city-${name}`;
     scene.add(mesh); meshes.push(mesh);
   }
-  for (const batch of [treeSolid, treeLeaves]) if (!batch.empty) {
-    const mesh = batch.build(batch === treeLeaves ? surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide }) : materials.solid);
+  for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); meshes.push(mesh); }
+  for (const batch of [treeSolid]) if (!batch.empty) {
+    const mesh = batch.build(materials.solid);
     mesh.castShadow = true; mesh.receiveShadow = true; scene.add(mesh); meshes.push(mesh);
   }
   for (const s of signs) scene.add(s);
@@ -15950,11 +16738,10 @@ function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
     lampMeshes.push({ colour, phase, material, mesh });
   });
   // the lights follow the town's own clock (atani-city.js signalState), the same one its traffic stops by
-  let clock = 0, envSet = false;
+  let clock = 0;
   function tick(dt, now = null) {
     clock = now === null ? clock + dt : now;
     for (const l of lampMeshes) l.material.emissiveIntensity = signalState(l.phase, clock) === l.colour ? 2.4 : 0;
-    if (!envSet && env() && !lite) { materials.glass.envMap = env(); materials.glass.needsUpdate = true; envSet = true; }
   }
   tick(0);
   return { tick, meshes, signal: (phase) => signalState(phase, clock), textures: tex };
@@ -16144,6 +16931,8 @@ const { addVehicle } = __modules["client/render-vehicles.js"];
 const { makeVehicleModel } = __modules["client/vehicle-models.js"];
 const { buildShowroom } = __modules["client/render-holaris.js"];
 const { buildCity } = __modules["client/render-city.js"];
+const { Foliage, treeLeaves, foliageMaterials, setWind } = __modules["client/render-foliage.js"];
+const { reflects, weathers } = __modules["client/render-finish.js"];
 
 const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
@@ -16251,26 +17040,19 @@ function buildGrass() {
 
 // ------------------------------------------------------------------ trees --
 
-// A palm frond: a ribbon that rises from the crown and droops at the tip.
-function frondGeometry(length, width, rise, droop) {
-  const steps = 6;
-  const positions = [];
-  const at = (t) => ({ r: length * t * (1 - 0.2 * t), y: rise * t - droop * t * t, w: width * Math.pow(Math.sin(Math.PI * (0.12 + 0.86 * t)), 0.7) });
-  for (let i = 0; i < steps; i += 1) {
-    const a = at(i / steps);
-    const b = at((i + 1) / steps);
-    for (const side of [-1, 1]) {
-      const quad = [[0, a.y, a.r], [side * a.w, a.y - a.w * 0.35, a.r], [side * b.w, b.y - b.w * 0.35, b.r], [0, b.y, b.r]];
-      for (const k of [0, 1, 2, 0, 2, 3]) positions.push(...quad[k]);
-    }
-  }
-  const geometry = new THREE.BufferGeometry();
-  geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-  geometry.computeVertexNormals();
-  return geometry;
+// A limb: a tapered round branch from (x, y, z) outward along `a` (an angle on the ground) and up, `tilt` from the
+// upright, `length` long, `r0` thick at its base and `r1` at its end. Gives where it ends.
+const UP = new THREE.Vector3(0, 1, 0);
+function limb(solid, x, y, z, a, tilt, length, r0, r1, colour) {
+  const dir = new THREE.Vector3(Math.sin(tilt) * Math.cos(a), Math.cos(tilt), Math.sin(tilt) * Math.sin(a));
+  const at = new THREE.Vector3(x, y, z).addScaledVector(dir, length / 2);
+  solid.round(new THREE.CylinderGeometry(r1, r0, length, 7), new THREE.Matrix4().compose(at, new THREE.Quaternion().setFromUnitVectors(UP, dir), new THREE.Vector3(1, 1, 1)), colour);
+  return { x: x + dir.x * length, y: y + dir.y * length, z: z + dir.z * length };
 }
 
-function addTree(solid, leaves, t) {
+// A tree: its trunk and branches into `solid`, its leaves into `foliage` (render-foliage.js: leaves drawn from pictures
+// of leaves, the air between them see-through, moving in the wind).
+function addTree(solid, foliage, t) {
   const s = t.size;
   const jitter = (k) => noise(t.x * 3.1 + k, t.z * 1.7);
   if (t.kind === 'palm') {
@@ -16287,11 +17069,7 @@ function addTree(solid, leaves, t) {
       solid.round(new THREE.CylinderGeometry(r0 - 0.014 * s, r0, height / segments + 0.02, 9), place(x, y + height / segments / 2, t.z, 0, 1, 1, 1, 0, -lean * 2 * k), i % 2 ? 0x8f7a5e : 0x7c684e);
       topX = t.x + lean * height * (k + 1 / segments) * (k + 1 / segments);
     }
-    for (let i = 0; i < 12; i += 1) {
-      const a = t.turn + (i * Math.PI * 2) / 12 + jitter(i) * 0.3;
-      const up = i % 3 === 0;
-      leaves.add(frondGeometry((3.3 + jitter(i + 20) * 0.9) * s, 0.52 * s, (up ? 1.9 : 0.8) * s, (up ? 1.8 : 2.4) * s), place(topX, height - 0.05, t.z, a), i % 2 ? 0x4c8a36 : 0x5f9f45, 0.9 + jitter(i + 40) * 0.2);
-    }
+    treeLeaves(foliage, t, s, jitter, { x: topX, y: height });
     for (let i = 0; i < 4; i += 1) solid.round(new THREE.SphereGeometry(0.17 * s, 8, 6), place(topX + Math.cos(i * 1.7) * 0.24, height - 0.3, t.z + Math.sin(i * 1.7) * 0.24), 0x5f6b2c);
   } else if (t.kind === 'oilpalm') {
     // oil palm: a short stout trunk rough with leaf bases, and a full round crown
@@ -16300,36 +17078,27 @@ function addTree(solid, leaves, t) {
       const y = (height * i) / 6;
       solid.add(new THREE.CylinderGeometry((0.3 + (i % 2) * 0.05) * s, (0.36 + (i % 2) * 0.04) * s, height / 6 + 0.02, 8), place(t.x, y + height / 12, t.z, i * 0.5), i % 2 ? 0x5a4a37 : 0x6a5842);
     }
-    for (let i = 0; i < 18; i += 1) {
-      const a = t.turn + (i * Math.PI * 2) / 18 + jitter(i) * 0.25;
-      const tier = i % 3;
-      leaves.add(frondGeometry((2.9 + jitter(i + 9) * 0.6) * s, 0.5 * s, [2.1, 1.1, 0.3][tier] * s, [1.5, 2.0, 2.3][tier] * s), place(t.x, height - 0.1, t.z, a), [0x3f7a33, 0x4a8a3a, 0x386e2f][tier], 0.9 + jitter(i + 30) * 0.2);
-    }
+    treeLeaves(foliage, t, s, jitter, { x: t.x, y: height });
     solid.round(new THREE.SphereGeometry(0.32 * s, 8, 6), place(t.x + 0.3, height - 0.35, t.z + 0.2, 0, 1, 1.2, 1), 0x7a2c1c);
     solid.round(new THREE.SphereGeometry(0.27 * s, 8, 6), place(t.x - 0.28, height - 0.4, t.z - 0.22, 0, 1, 1.2, 1), 0x8a3a1e);
   } else if (t.kind === 'mango') {
-    // mango: a dense rounded dome on a short forked trunk
-    solid.round(new THREE.CylinderGeometry(0.26 * s, 0.42 * s, 2.6 * s, 9), place(t.x, 1.3 * s, t.z), 0x5f4a36);
+    // mango: a short trunk forking into three limbs that reach up and out, each forking again, into a dense dome of
+    // leaves (seen between them)
+    solid.round(new THREE.CylinderGeometry(0.28 * s, 0.42 * s, 2.3 * s, 9), place(t.x, 1.15 * s, t.z), 0x5f4a36);
     for (let i = 0; i < 3; i += 1) {
-      const a = t.turn + i * 2.1;
-      solid.round(new THREE.CylinderGeometry(0.12 * s, 0.2 * s, 2.2 * s, 7), place(t.x + Math.cos(a) * 0.6 * s, 3.2 * s, t.z + Math.sin(a) * 0.6 * s, -a, 1, 1, 1, 0, 0.6), 0x5f4a36);
+      const a = t.turn + i * 2.1 + (jitter(i + 60) - 0.5) * 0.5;
+      const end = limb(solid, t.x, 2.1 * s, t.z, a, 0.55 + jitter(i + 63) * 0.2, 2.0 * s, 0.22 * s, 0.13 * s, 0x5f4a36);
+      for (const side of [-1, 1]) limb(solid, end.x, end.y, end.z, a + side * 0.6, 0.8 + jitter(i * 2 + side + 66) * 0.35, 1.6 * s, 0.11 * s, 0.05 * s, 0x5a4633);
     }
-    const blobs = 9;
-    for (let i = 0; i < blobs; i += 1) {
-      const a = t.turn + (i * Math.PI * 2) / (blobs - 2);
-      const top = i >= blobs - 2;
-      const r = (top ? 2.0 : 1.75 + jitter(i) * 0.5) * s;
-      const out = top ? (i === blobs - 1 ? 0.4 : 0.7) * s : 1.75 * s;
-      leaves.round(new THREE.IcosahedronGeometry(r, 1), place(t.x + Math.cos(a) * out, (top ? 5.6 : 4.3 + jitter(i + 5) * 0.5) * s, t.z + Math.sin(a) * out, a, 1, 0.82, 1), [0x2f6b34, 0x377a3a, 0x2b6130, 0x3d8040][i % 4], 0.92 + jitter(i + 12) * 0.16);
-    }
+    treeLeaves(foliage, t, s, jitter, null);
   } else {
-    // tropical almond: a straight trunk with flat tiers of leaf
+    // tropical almond: a straight trunk with level branches in tiers, the leaves lying flat on them
     solid.round(new THREE.CylinderGeometry(0.16 * s, 0.26 * s, 5.0 * s, 8), place(t.x, 2.5 * s, t.z), 0x74604a);
     const tiers = [[2.9, 3.0], [2.3, 4.0], [1.6, 4.9], [0.9, 5.6]];
     tiers.forEach(([r, y], i) => {
-      leaves.round(new THREE.SphereGeometry(r * s, 12, 6), place(t.x, y * s, t.z, t.turn + i * 0.6, 1, 0.16, 1), [0x4f8c3c, 0x5a9a44, 0x66a84c, 0x5a9a44][i]);
-      for (let k = 0; k < 5; k += 1) { const a = t.turn + i + k * 1.26; solid.round(new THREE.CylinderGeometry(0.03 * s, 0.05 * s, r * s, 5), place(t.x + Math.cos(a) * r * s * 0.45, y * s - 0.08, t.z + Math.sin(a) * r * s * 0.45, -a, 1, 1, 1, 0, Math.PI / 2 - 0.12), 0x74604a); }
+      for (let k = 0; k < 5; k += 1) { const a = t.turn + i + k * 1.26; limb(solid, t.x, y * s - 0.2, t.z, a, Math.PI / 2 - 0.12, r * s * 0.95, 0.06 * s, 0.025 * s, 0x74604a); }
     });
+    treeLeaves(foliage, t, s, jitter, null);
   }
 }
 
@@ -16497,7 +17266,9 @@ function buildWorld(scene) {
   const signs = [];
   const B = { solid, walls, roofs, roads, leaves, glow };
 
-  scene.add(buildGround());
+  const ground = buildGround();
+  weathers(ground.material, { darken: 0.16 });
+  scene.add(ground);
   const sight = createSight();
   const grass = buildGrass();
   for (const mesh of grass) { scene.add(mesh); sight.add(mesh, 150); }
@@ -16529,7 +17300,8 @@ function buildWorld(scene) {
   for (const b of ZONE_BUILDINGS) if (b.kind !== 'city') addBuilding(B, signs, b);          // (the city block's are render-city.js's)
   // the glass showroom: its own few meshes
   const showrooms = ZONE_BUILDINGS.filter((b) => b.kind === 'showroom').map((b) => { const shop = ZONE_SHOPS.find((sh) => sh.building === b.id); const made = buildShowroom(b, { storeys: shop ? shop.storeys : 3 }); scene.add(made.group); return made; });
-  for (const t of ZONE_TREES) addTree(solid, leaves, t);
+  const foliage = new Foliage();
+  for (const t of ZONE_TREES) addTree(solid, foliage, t);
   // parked coaches and kekes are the supplied models, each stepping through its levels of detail with distance
   const parkedVehicles = [];
   for (const v of ZONE_VEHICLES) {
@@ -16630,12 +17402,18 @@ function buildWorld(scene) {
   cast(solid.build(kit.solid));
   cast(walls.build(kit.walls));
   cast(roofs.build(kit.roofs));
-  cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));
-  const roadMesh = roads.build(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }));
+  // (the walls and roofs out in the weather: render-finish.js)
+  weathers(kit.walls, { darken: 0.2 });
+  weathers(reflects(kit.roofs, 0.5), { darken: 0.14, gloss: 0.3 });
+  cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));      // (the market's umbrellas)
+  for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
+  // (tarmac and laterite: in the rain darker, and the tarmac glossy, giving back the sky)
+  const roadMesh = roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
   roadMesh.receiveShadow = true;
   scene.add(roadMesh);
 
-  const glowMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.25, metalness: 0.2, emissive: linear(0xffc66b), emissiveIntensity: 0 });
+  // window glass and lamp covers: by day the glass gives back the sky (render-finish.js), at night it is lit from within
+  const glowMaterial = reflects(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.1, metalness: 0.3, emissive: linear(0xffc66b), emissiveIntensity: 0 }), 1);
   // the first city block: Market Road's boulevard and its buildings (render-city.js)
   const city = buildCity(scene, { glowMaterial, lite: isLite(), addTree });
   for (const mesh of glow.build(glowMaterial)) { scene.add(mesh); sight.add(mesh); }
@@ -16649,7 +17427,8 @@ function buildWorld(scene) {
   const farEdge = 150 + ZONE_PROPS.water.width;
   const ripples = rippleNormalTexture();
   ripples.repeat.set(60, 9);
-  const waterMaterial = new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.55, 0.55), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 });
+  // (the river gives back the sky, broken by its ripples: render-finish.js)
+  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5);
   const water = new THREE.Mesh(new THREE.PlaneGeometry(1500, farEdge - nearEdge + 8, 1, 1), waterMaterial);
   water.rotation.x = -Math.PI / 2;
   water.position.set(0, -0.32, (nearEdge + farEdge + 8) / 2);
@@ -16670,7 +17449,8 @@ function buildWorld(scene) {
   scene.add(far.build(surface({ vertexColors: true, roughness: 1, metalness: 0 })));
 
   // the river moves: its ripples drift downstream
-  const tick = (dt, now = null) => { ripples.offset.x += dt * 0.012; ripples.offset.y += dt * 0.004; city.tick(dt, now); };
+  let breeze = 0;
+  const tick = (dt, now = null) => { ripples.offset.x += dt * 0.012; ripples.offset.y += dt * 0.004; breeze += dt; setWind(breeze); city.tick(dt, now); };
 
   // a weak device gets thinner grass, then none
   let quality = 0;
@@ -16685,7 +17465,7 @@ function buildWorld(scene) {
       if (v.model.group.visible) v.model.setDistance(d, undefined, VEHICLE_BIAS[quality]);
     }
   }
-  return { glowMaterial, waterMaterial, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
+  return { glowMaterial, waterMaterial, roadMaterial: roadMesh.material, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
 }
 
 return { addTree, buildWorld };
@@ -16706,6 +17486,8 @@ __modules["client/render-outskirts.js"] = (function () {
 const { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_LAMPS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } = __modules["sim/zone.js"];
 const { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } = __modules["client/render-kit.js"];
 const { addTree } = __modules["client/render-world.js"];
+const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
+const { reflects, weathers } = __modules["client/render-finish.js"];
 
 const STEEL = 0x8f9499, STEEL_DARK = 0x5f656b, CONCRETE = 0xb3a48a, CONCRETE_OLD = 0x9c8a6c, TAR = 0x56555a, LINE = 0xe6e2d6, YELLOW = 0xd8b33a;
 
@@ -17020,7 +17802,7 @@ function buildOutskirts(scene, { glowMaterial }) {
   const roofs = new Chunked({ uv: 'plan', scale: 2.0 });
   const roads = new Chunked({ uv: 'plan', scale: 5 });
   const paint = new Chunked();
-  const leaves = new Chunked();
+  const leaves = new Foliage();
   const glow = new Chunked();
   const glass = new Chunked();
   const fence = new Chunked({ uv: 'wall', scale: 1 });
@@ -17055,11 +17837,11 @@ function buildOutskirts(scene, { glowMaterial }) {
   add(solid.build(kit.solid));
   add(walls.build(kit.walls));
   add(roofs.build(kit.roofs));
-  add(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));
+  for (const mesh of leaves.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
   const tarmac = grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 7 });
-  add(roads.build(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 })), false);
+  add(roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 })), false);
   add(paint.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })), false);
-  add(glass.build(surface({ vertexColors: true, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false })), false);
+  add(glass.build(reflects(surface({ vertexColors: true, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false }), 1)), false);
   add(fence.build(new THREE.MeshLambertMaterial({ map: chainLink(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })), false);
   for (const mesh of glow.build(glowMaterial)) { scene.add(mesh); sight.add(mesh); }
   for (const sign of signs) { scene.add(sign); sight.add(sign, 260, { x: sign.position.x, z: sign.position.z, radius: 14 }); }
@@ -18142,7 +18924,8 @@ function buildTown(scene, glowMaterial) {
 
   // houses, a quarter at a time so that what is out of sight is not drawn
   const quarters = new Map();
-  for (const hs of ZONE_HOUSES) { if (!quarters.has(hs.quarter)) quarters.set(hs.quarter, batches()); addHouse(quarters.get(hs.quarter), hs); }
+  // (a house that has given way to one of the owner's buildings is drawn by render-town-buildings.js)
+  for (const hs of ZONE_HOUSES) { if (hs.model || hs.tower) continue; if (!quarters.has(hs.quarter)) quarters.set(hs.quarter, batches()); addHouse(quarters.get(hs.quarter), hs); }
   for (const set of quarters.values()) add(set);
 
   const sheds = { solid: new Chunked(), walls: new Chunked({ uv: 'wall', scale: 3.2 }), roofs: new Chunked({ uv: 'plan', scale: 2.0 }), glow: new Chunked() };
@@ -18629,6 +19412,16 @@ async function fetchKept(url) {
   return fetch(url);
 }
 
+// A picture read for the graphics card (an ImageBitmap) is held twice: by the page and by the card. Once the card has
+// it, the page's copy is let go (a 4096-pixel picture is 64 MB, and a building has up to three). Only for a model
+// drawn by the town's own renderer alone: a car's or a motorcycle's pictures are kept, since the market's viewer
+// (asset-view.js, a renderer of its own) may need them too. A picture drawn on a canvas (a name painted over) is
+// kept: the tests look at it.
+function letGoOnceDrawn(texture) {
+  texture.onUpdate = () => { texture.onUpdate = null; const image = texture.image; if (image && typeof image.close === 'function') image.close(); };
+  return texture;
+}
+
 const TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
 
@@ -18822,7 +19615,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
   return { figure, clips, ready: Promise.all(ready), height: box.max.y - box.min.y, triangles: geometry.index.count / 3, geometry, material };
 }
 
-return { fetchKept, parseGLB, boneName, animationLabel, figureLabels, modelFromGLB };
+return { fetchKept, letGoOnceDrawn, parseGLB, boneName, animationLabel, figureLabels, modelFromGLB };
 })();
 
 // ---- client/seat-pose.js ----
@@ -22549,7 +23342,7 @@ __modules["client/town-map.js"] = (function () {
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS } = __modules["sim/zone.js"];
 const { gridToTrue, trueToGrid } = __modules["sim/geo.js"];
 
 const MAP_STYLE = Object.freeze({
@@ -22772,6 +23565,8 @@ function createTownMap({ h, view, way = () => null, waypoint = () => null, listi
       quad(hs.x - hs.w / 2, hs.z - hs.d / 2, hs.x + hs.w / 2, hs.z + hs.d / 2); g.fillStyle = MAP_STYLE.house; g.fill();
       if (outline) { g.strokeStyle = MAP_STYLE.houseEdge; g.stroke(); }
     }
+    // the owner's towers (town-buildings.js): drawn as buildings are
+    for (const tw of TOWN_TOWERS) { if (!onScreen(tw.x - tw.w / 2, tw.z - tw.d / 2, tw.x + tw.w / 2, tw.z + tw.d / 2)) continue; quad(tw.x - tw.w / 2, tw.z - tw.d / 2, tw.x + tw.w / 2, tw.z + tw.d / 2); g.fillStyle = MAP_STYLE.building; g.fill(); if (outline) { g.strokeStyle = MAP_STYLE.houseEdge; g.stroke(); } }
     if (state.k > 1.3) for (const sh of ZONE_SHEDS) { quad(sh.x - 2.5, sh.z - 2.5, sh.x + 2.5, sh.z + 2.5); g.fillStyle = MAP_STYLE.house; g.fill(); if (outline) { g.strokeStyle = MAP_STYLE.houseEdge; g.stroke(); } }
     for (const k of ZONE_COMPOUNDS) for (const bd of k.buildings) {
       if (!onScreen(bd.x0, bd.z0, bd.x1, bd.z1)) continue;
@@ -31935,7 +32730,7 @@ __modules["client/radar.js"] = (function () {
 // The town itself is drawn once into a picture and only turned and moved each frame; the marks are drawn
 // over it. Nothing here decides anything: it draws what the view says.
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS } = __modules["sim/zone.js"];
 const { trueToGrid } = __modules["sim/geo.js"];
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -31970,6 +32765,7 @@ function drawTownPicture(owned) {
   for (const sh of ZONE_SHEDS) rect(sh.x - 2.5, sh.z - 2.5, sh.x + 2.5, sh.z + 2.5);
   g.fillStyle = RADAR_COLOURS.building;
   for (const bd of ZONE_BUILDINGS) rect(bd.x - bd.w / 2, bd.z - bd.d / 2, bd.x + bd.w / 2, bd.z + bd.d / 2);
+  for (const tw of TOWN_TOWERS) rect(tw.x - tw.w / 2, tw.z - tw.d / 2, tw.x + tw.w / 2, tw.z + tw.d / 2);          // the owner's towers
   for (const k of ZONE_COMPOUNDS) for (const bd of k.buildings) rect(bd.x0, bd.z0, bd.x1, bd.z1);
   return c;
 }
@@ -34263,6 +35059,106 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
 return { SPRINGS, createCarView };
 })();
 
+// ---- client/supplied-model.js ----
+__modules["client/supplied-model.js"] = (function () {
+// One of the owner's single-mesh models (a building, a vehicle), read as it is: its one mesh, its pictures (colour,
+// and where the file has them, normal and metal and roughness), its material's own finish. Nothing in the file is
+// changed. (Moved here from render-carshow.js, which reads its buildings with it, on 17 October 2026.)
+//
+// What was written on a building (another company's name) can be painted over in the colour picture the graphics
+// card is given (`brand`: rectangles of the picture, and where beside each to take its own surface from), feathered
+// at its edges. Each picture is handed to the graphics card no larger than `maxTexture` and never larger than it is:
+// the owner's pictures are 8192 pixels square, and a browser cannot hold many of those at once (a few hundred
+// megabytes each once drawn); the file keeps them whole.
+
+const { parseGLB, fetchKept, letGoOnceDrawn } = __modules["client/glb.js"];
+const { surface } = __modules["client/render-kit.js"];
+const { reflects } = __modules["client/render-finish.js"];
+
+// One large picture taken in at a time, whichever building or vehicle it is for. A model carries up to three pictures
+// of 8192 pixels, each of which can take a quarter of a gigabyte while it is read; the town, the car showroom and the
+// owner's vehicles each fetch their models, and all of them read at once were more than a browser's page is allowed
+// (in a test the page fell over).
+let reading = Promise.resolve();
+function oneAtATime(task) { const run = reading.then(task, task); reading = run.then(() => {}, () => {}); return run; }
+
+async function loadSuppliedMesh(file, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9 } = {}) {
+  const response = await fetchKept(file);
+  if (!response.ok) throw new Error(`${file}: ${response.status}`);
+  const { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
+  const prim = json.meshes[0].primitives[0], at = prim.attributes;
+  const geometry = new THREE.BufferGeometry();
+  // (each list copied out of the file, so that the file itself, mostly its pictures, is let go once read)
+  const put = (key, attr) => { if (at[attr] === undefined) return; const a = accessor(at[attr]); geometry.setAttribute(key, new THREE.BufferAttribute(a.array.slice(), a.width, a.normalized)); };
+  put('position', 'POSITION'); put('normal', 'NORMAL'); put('uv', 'TEXCOORD_0');
+  if (prim.indices !== undefined) geometry.setIndex(new THREE.BufferAttribute(accessor(prim.indices).array.slice(), 1));
+  if (!at.NORMAL) geometry.computeVertexNormals();
+  geometry.computeBoundingSphere();
+  const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
+  const pictureOf = async (info, colour, paint = null) => {
+    if (!info) return null;
+    const image = json.images[json.textures[info.index].source];
+    const raw = bytes(image.bufferView);
+    const blob = new Blob([raw], { type: image.mimeType || 'image/jpeg' });
+    // (drawn no larger than `maxTexture`, and never larger than it is)
+    const own = pictureSize(raw);
+    const most = Math.min(maxTexture || 4096, own ? Math.max(own.width, own.height) : Infinity);
+    const wide = own ? Math.round((most * own.width) / Math.max(own.width, own.height)) : most, high = own ? Math.round((most * own.height) / Math.max(own.width, own.height)) : most;
+    let picture = await oneAtATime(async () => {
+      const made = typeof createImageBitmap === 'function' ? await createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null;
+      return made || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); });
+    });
+    if (paint && paint.length) {
+      const c = document.createElement('canvas'); c.width = picture.width; c.height = picture.height;
+      const g = c.getContext('2d'); g.drawImage(picture, 0, 0);
+      for (const { at: [u0, v0, u1, v1], from: [fu, fv] } of paint) {
+        const W = c.width, Hh = c.height, w = (u1 - u0) * W, h = (v1 - v0) * Hh, pad = Math.max(2, Math.min(w, h) * 0.12);
+        // the surface from beside it, laid over it, its edges blended into what is round it
+        const patch = document.createElement('canvas'); patch.width = Math.ceil(w + 2 * pad); patch.height = Math.ceil(h + 2 * pad);
+        const pg = patch.getContext('2d');
+        pg.drawImage(c, fu * W - pad, fv * Hh - pad, patch.width, patch.height, 0, 0, patch.width, patch.height);
+        pg.globalCompositeOperation = 'destination-in';
+        const fade = (a, b) => { const m = pg.createLinearGradient(...a); m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(Math.min(0.45, pad / b), 'rgba(0,0,0,1)'); m.addColorStop(1 - Math.min(0.45, pad / b), 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)'); pg.fillStyle = m; pg.fillRect(0, 0, patch.width, patch.height); };
+        fade([0, 0, patch.width, 0], patch.width); fade([0, 0, 0, patch.height], patch.height);
+        g.drawImage(patch, u0 * W - pad, v0 * Hh - pad);
+      }
+      picture = c;
+    }
+    const t = new THREE.Texture(picture);
+    t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
+    // (once the graphics card has the picture, the page's own copy is let go: see glb.js)
+    letGoOnceDrawn(t);
+    return t;
+  };
+  const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, brand), pictureOf(mat.normalTexture, false), pictureOf(pbr.metallicRoughnessTexture, false)]);
+  const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
+  // the glass, the cladding and the paint reflect the sky (render-city.js's glass does the same)
+  const material = surface({ map, normalMap, roughnessMap: rm, metalnessMap: rm, color: colour, roughness: rm ? 1 : (pbr.roughnessFactor ?? 1), metalness: rm ? 1 : (pbr.metallicFactor ?? 1), envMap: env || null, envMapIntensity, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+  if (normalMap && material.normalScale) material.normalScale.set(1, -1);
+  // (and gives back less of it under cloud, and hardly any at night: render-finish.js)
+  if (env) reflects(material, envMapIntensity);
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.castShadow = true; mesh.receiveShadow = true;
+  mesh.name = name;
+  return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
+}
+
+// How large a picture is, read from its first bytes (a PNG's header, or a JPEG's frame marker): null if neither.
+function pictureSize(b) {
+  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50) return { width: (b[16] << 24 | b[17] << 16 | b[18] << 8 | b[19]) >>> 0, height: (b[20] << 24 | b[21] << 16 | b[22] << 8 | b[23]) >>> 0 };
+  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
+  for (let i = 2; i + 9 < b.length;) {
+    if (b[i] !== 0xff) { i += 1; continue; }
+    const marker = b[i + 1];
+    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return { height: b[i + 5] << 8 | b[i + 6], width: b[i + 7] << 8 | b[i + 8] };
+    i += 2 + (b[i + 2] << 8 | b[i + 3]);
+  }
+  return null;
+}
+
+return { loadSuppliedMesh, pictureSize };
+})();
+
 // ---- client/car-impostors.js ----
 __modules["client/car-impostors.js"] = (function () {
 // Written by tools/vehicles/car_impostors.mjs: do not edit by hand.
@@ -34303,12 +35199,14 @@ __modules["client/render-carshow.js"] = (function () {
 const { CARSHOW, onBuilding, carshowGateBoxes } = __modules["sim/zone.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
 const { trText } = __modules["sim/ledger.js"];
-const { parseGLB, fetchKept } = __modules["client/glb.js"];
+const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
 const { Batch, place, surface } = __modules["client/render-kit.js"];
 const { loadCar, carLoaded } = __modules["client/car-model.js"];
 const { CAR_IMPOSTOR } = __modules["client/car-impostors.js"];
 const { COVER } = __modules["client/brand-data.js"];
 const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
+const { addTree } = __modules["client/render-world.js"];
+const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
 
 const P = CARSHOW, C = CARSHOW.compound, G = CARSHOW.gate, H = CARSHOW.hall, S = CARSHOW.showroom;
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -34564,78 +35462,10 @@ function turnCameras(cams, dt, now, people) {
 
 // ------------------------------------------------------------------------------------------- the buildings --
 
-// One of the owner's buildings, read as it is: its one mesh, its pictures (colour, and where the file has them,
-// normal and metal and roughness), its material's own finish. What was written on it is painted over in the colour
-// picture the graphics card is given (`brand`: rectangles of the picture, and where beside each to take the
-// building's own surface from), feathered at its edges; the file is not changed.
-async function loadBuilding(b, { maxTexture, env }) {
-  const response = await fetchKept(b.file);
-  if (!response.ok) throw new Error(`${b.file}: ${response.status}`);
-  const { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
-  const prim = json.meshes[0].primitives[0], at = prim.attributes;
-  const geometry = new THREE.BufferGeometry();
-  const put = (name, key) => { if (at[key] === undefined) return; const a = accessor(at[key]); geometry.setAttribute(name, new THREE.BufferAttribute(a.array, a.width, a.normalized)); };
-  put('position', 'POSITION'); put('normal', 'NORMAL'); put('uv', 'TEXCOORD_0');
-  if (prim.indices !== undefined) geometry.setIndex(new THREE.BufferAttribute(accessor(prim.indices).array, 1));
-  if (!at.NORMAL) geometry.computeVertexNormals();
-  geometry.computeBoundingSphere();
-  const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
-  const pictureOf = async (info, colour, paint = null) => {
-    if (!info) return null;
-    const image = json.images[json.textures[info.index].source];
-    const raw = bytes(image.bufferView);
-    const blob = new Blob([raw], { type: image.mimeType || 'image/jpeg' });
-    // (drawn no larger than `maxTexture`, and never larger than it is)
-    const own = pictureSize(raw);
-    const most = Math.min(maxTexture || 4096, own ? Math.max(own.width, own.height) : Infinity);
-    const wide = own ? Math.round((most * own.width) / Math.max(own.width, own.height)) : most, high = own ? Math.round((most * own.height) / Math.max(own.width, own.height)) : most;
-    let picture = await (typeof createImageBitmap === 'function' ? createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null);
-    if (!picture) picture = await new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); });
-    if (paint && paint.length) {
-      const c = document.createElement('canvas'); c.width = picture.width; c.height = picture.height;
-      const g = c.getContext('2d'); g.drawImage(picture, 0, 0);
-      for (const { at: [u0, v0, u1, v1], from: [fu, fv] } of paint) {
-        const W = c.width, Hh = c.height, w = (u1 - u0) * W, h = (v1 - v0) * Hh, pad = Math.max(2, Math.min(w, h) * 0.12);
-        // the surface from beside it, laid over it, its edges blended into what is round it
-        const patch = document.createElement('canvas'); patch.width = Math.ceil(w + 2 * pad); patch.height = Math.ceil(h + 2 * pad);
-        const pg = patch.getContext('2d');
-        pg.drawImage(c, fu * W - pad, fv * Hh - pad, patch.width, patch.height, 0, 0, patch.width, patch.height);
-        const mask = pg.createLinearGradient(0, 0, patch.width, 0);
-        pg.globalCompositeOperation = 'destination-in';
-        const fade = (a, b) => { const m = pg.createLinearGradient(...a); m.addColorStop(0, 'rgba(0,0,0,0)'); m.addColorStop(Math.min(0.45, pad / b), 'rgba(0,0,0,1)'); m.addColorStop(1 - Math.min(0.45, pad / b), 'rgba(0,0,0,1)'); m.addColorStop(1, 'rgba(0,0,0,0)'); pg.fillStyle = m; pg.fillRect(0, 0, patch.width, patch.height); };
-        void mask;
-        fade([0, 0, patch.width, 0], patch.width); fade([0, 0, 0, patch.height], patch.height);
-        g.drawImage(patch, u0 * W - pad, v0 * Hh - pad);
-      }
-      picture = c;
-    }
-    const t = new THREE.Texture(picture);
-    t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
-    return t;
-  };
-  const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, b.brand), pictureOf(mat.normalTexture, false), pictureOf(pbr.metallicRoughnessTexture, false)]);
-  const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
-  // the glass and the cladding of a tower reflect the sky (render-city.js's glass does the same)
-  const material = surface({ map, normalMap, roughnessMap: rm, metalnessMap: rm, color: colour, roughness: rm ? 1 : (pbr.roughnessFactor ?? 1), metalness: rm ? 1 : (pbr.metallicFactor ?? 1), envMap: env || null, envMapIntensity: 0.9, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
-  if (normalMap && material.normalScale) material.normalScale.set(1, -1);
-  const mesh = new THREE.Mesh(geometry, material);
-  mesh.castShadow = true; mesh.receiveShadow = true;
-  mesh.name = `carshow-${b.id}`;
-  return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
-}
-
-// How large a picture is, read from its first bytes (a PNG's header, or a JPEG's frame marker): null if neither.
-function pictureSize(b) {
-  if (b.length > 24 && b[0] === 0x89 && b[1] === 0x50) return { width: (b[16] << 24 | b[17] << 16 | b[18] << 8 | b[19]) >>> 0, height: (b[20] << 24 | b[21] << 16 | b[22] << 8 | b[23]) >>> 0 };
-  if (b[0] !== 0xff || b[1] !== 0xd8) return null;
-  for (let i = 2; i + 9 < b.length;) {
-    if (b[i] !== 0xff) { i += 1; continue; }
-    const marker = b[i + 1];
-    if (marker >= 0xc0 && marker <= 0xcf && marker !== 0xc4 && marker !== 0xc8 && marker !== 0xcc) return { height: b[i + 5] << 8 | b[i + 6], width: b[i + 7] << 8 | b[i + 8] };
-    i += 2 + (b[i + 2] << 8 | b[i + 3]);
-  }
-  return null;
-}
+// One of the owner's buildings, read as it is (supplied-model.js): its one mesh, its pictures, its material's own
+// finish, with what was written on it painted over in the picture the graphics card is given (`brand`); the file is
+// not changed.
+const loadBuilding = (b, { maxTexture, env }) => loadSuppliedMesh(b.file, { maxTexture, env, brand: b.brand, name: `carshow-${b.id}` });
 
 // What stands where a building is until its model has come: its outline, raised to about its height, plain.
 function standIn(b) {
@@ -34773,11 +35603,11 @@ function buildForecourt(group, { lite }) {
     return { m, geo, base: geo.attributes.position.array.slice(), seed: f.k * 1.7 };
   });
   // palms in round planters along the front of the forecourt, and lamps along the drive
-  const palms = new Batch(), fronds = new Batch(), lamps = new Batch(), heads = [];
-  for (const q of P.forecourt.palms) {
+  // (each palm the town's own coconut palm, render-world.js addTree, its crown as high as the planter and its trunk)
+  const palms = new Batch(), fronds = new Foliage(), lamps = new Batch(), heads = [];
+  for (const [k, q] of P.forecourt.palms.entries()) {
     palms.round(new THREE.CylinderGeometry(q.r * 0.88, q.r, 0.6, 24), place(q.x, 0.3, q.z), 0xd6d0c4);
-    palms.round(new THREE.CylinderGeometry(0.15, 0.22, q.h, 10), place(q.x, q.h / 2 + 0.3, q.z), 0x7b6a55);
-    for (let k = 0; k < 9; k += 1) { const a = (k / 9) * Math.PI * 2; fronds.box(0.5, 0.04, 2.6, place(q.x + Math.sin(a) * 1.1, q.h + 0.1, q.z + Math.cos(a) * 1.1, a, 1, 1, 1, 0.35), k % 2 ? 0x3c7a35 : 0x4f8f3e); }
+    addTree(palms, fronds, { x: q.x, z: q.z, kind: 'palm', size: (q.h + 0.3) / 7.2, turn: k * 1.9 });
   }
   for (const q of P.forecourt.lamps) {
     lamps.round(new THREE.CylinderGeometry(0.06, 0.09, 6, 10), place(q.x, 3, q.z), 0x34383d);
@@ -34785,7 +35615,7 @@ function buildForecourt(group, { lite }) {
     heads.push({ x: q.x - q.side * 0.3, z: q.z });
   }
   const palmMesh = palms.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })); palmMesh.castShadow = true; group.add(palmMesh);
-  const frondMesh = fronds.build(surface({ vertexColors: true, roughness: 0.7, metalness: 0, side: THREE.DoubleSide })); frondMesh.castShadow = true; group.add(frondMesh);
+  for (const mesh of fronds.build(foliageMaterials())) group.add(mesh);
   const lampMesh = lamps.build(surface({ vertexColors: true, roughness: 0.5, metalness: 0.5 })); lampMesh.castShadow = true; group.add(lampMesh);
   const lampGlow = new Batch();
   for (const h of heads) lampGlow.box(0.5, 0.03, 0.2, place(h.x, 5.95, h.z), 0xfff1c9);
@@ -35012,10 +35842,10 @@ function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   // What can be seen from (x, z), `reach` being how far the town is drawn just now (from inside a hall, only what its
   // glass front shows): the compound itself (its paving, railings, gate and cameras) within that reach of its railings,
   // and each building within it too; the towers, standing above the town, from further off; never through the haze
-  // (beyond the fog's far edge whatever is drawn is drawn unseen). From inside PostCivilWar PowerBike's hall, 300 m
-  // away, the towers were drawn behind its walls.
+  // (beyond the fog's far edge whatever is drawn is drawn unseen); from inside a hall (`tall` 0) no further than the
+  // rest. From inside PostCivilWar PowerBike's hall, 300 m away, the towers were drawn behind its walls.
   const TALL = 220;
-  function see(x, z, reach) {
+  function see(x, z, reach, tall = TALL) {
     const haze = scene.fog ? scene.fog.far : Infinity;
     const dx = Math.max(C.x0 - x, 0, x - C.x1), dz = Math.max(C.z0 - z, 0, z - C.z1);
     outside.visible = Math.hypot(dx, dz) < Math.min(haze, reach + 40);
@@ -35026,7 +35856,7 @@ function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       for (const mesh of r.meshes) mesh.visible = near;
     }
     for (const e of buildings) {
-      e.seen = Math.hypot(e.b.x - x, e.b.z - z) - e.radius < Math.min(haze, reach + (e.b.id === 'villa' ? 40 : TALL));
+      e.seen = Math.hypot(e.b.x - x, e.b.z - z) - e.radius < Math.min(haze, reach + (e.b.id === 'villa' ? 40 : tall));
       if (e.b.id === 'villa' && e.mesh) continue;            // (the villa, once here: see `tick`)
       if (e.mesh) e.mesh.visible = e.seen; else e.stand.visible = e.seen;
     }
@@ -35199,6 +36029,322 @@ function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
 return { buildCarshow };
 })();
 
+// ---- client/render-supplied.js ----
+__modules["client/render-supplied.js"] = (function () {
+// The owner's vehicles of 17 October 2026 where they stand or go (supplied-vehicles.js says which and where): each the
+// supplied model exactly as it is (its one mesh, its pictures, its material's own finish), turned to face the way it
+// should and drawn at its own size.
+//
+// The jet and the two trucks stand where they are put. Each is fetched as someone comes within `reach` of it, and
+// let go again (its pictures handed back) when they are far beyond it; until it has come a plain box of its size
+// stands in its place, since it is solid there all along. The ambulance is the hospital's van that the simulation
+// drives (care.js): its model is fetched once the town is ready, and until then the van the town always had stands
+// in for it. Its lamps flash on the light bar on its roof while it is on a call.
+
+const { SUPPLIED_VEHICLES } = __modules["sim/zone.js"];
+const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
+const { surface } = __modules["client/render-kit.js"];
+
+// The model turned so that its front is toward +z, its middle over the origin and its wheels on the ground, at the
+// scale that makes it `length` long. Returns the group to place, and its size.
+function fitVehicle(mesh, v) {
+  const pos = mesh.geometry.attributes.position, c = Math.cos(v.front), s = Math.sin(v.front);
+  let u0 = Infinity, u1 = -Infinity, w0 = Infinity, w1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (let i = 0; i < pos.count; i += 1) {
+    const x = pos.getX(i), y = pos.getY(i), z = pos.getZ(i);
+    const u = x * c - z * s, w = x * s + z * c;          // across it (its left +), and along it (its front +)
+    if (u < u0) u0 = u; if (u > u1) u1 = u;
+    if (w < w0) w0 = w; if (w > w1) w1 = w;
+    if (y < y0) y0 = y; if (y > y1) y1 = y;
+  }
+  const k = v.length / (w1 - w0);
+  mesh.rotation.y = -v.front;
+  const fit = new THREE.Group();
+  fit.scale.setScalar(k);
+  fit.position.set((-(u0 + u1) / 2) * k, -y0 * k, (-(w0 + w1) / 2) * k);
+  fit.add(mesh);
+  return { fit, scale: k, size: { length: v.length, width: (u1 - u0) * k, height: (y1 - y0) * k }, frame: { c, s, u0, u1, w0, w1, y0, y1, k } };
+}
+
+// The front edge of its roof, in its own frame (front +z): where an ambulance's light bar is.
+function roofFront(mesh, frame) {
+  const pos = mesh.geometry.attributes.position, { c, s, u0, u1, w0, w1, y0, y1, k } = frame;
+  const high = y1 - (y1 - y0) * 0.06;
+  let front = -Infinity;
+  for (let i = 0; i < pos.count; i += 1) {
+    const y = pos.getY(i); if (y < high) continue;
+    const w = pos.getX(i) * s + pos.getZ(i) * c;
+    if (w > front) front = w;
+  }
+  return { z: (front - (w0 + w1) / 2) * k, y: (y1 - y0) * k, half: ((u1 - u0) / 2) * k };
+}
+
+const STAND_IN = 0x3a3f46;
+// (a copy of the page opened from the disk cannot fetch a model: there the plain shapes stand in for them)
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
+const FROM_DISK = 'This copy of the page is opened from the disk, where the model cannot be fetched.';
+
+function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } = {}) {
+  // (parked things, mostly seen from across a car park: their pictures at 2048 on a computer, 1024 on a phone)
+  const most = Math.min(lite ? 1024 : 2048, maxTexture || 2048);
+  const parked = ['jet', 'boxTruck', 'heavyTruck'].map((id) => {
+    const v = SUPPLIED_VEHICLES[id];
+    const holder = new THREE.Group();
+    holder.position.set(v.x, 0, v.z); holder.rotation.y = v.heading;
+    holder.name = `supplied-${id}`;
+    // (the jet's stand-in is its fuselage only: a box as wide as its wings would be a wall)
+    const standIn = new THREE.Mesh(new THREE.BoxGeometry(id === 'jet' ? 2.8 : v.width, id === 'jet' ? 2.8 : v.height * 0.92, v.length), surface({ color: STAND_IN, roughness: 0.6, metalness: 0.2 }));
+    standIn.position.y = (id === 'jet' ? 2.8 : v.height * 0.92) / 2; standIn.castShadow = true;
+    holder.add(standIn);
+    scene.add(holder);
+    return { id, v, holder, standIn, model: null, loading: null, failed: null, triangles: 0 };
+  });
+
+  function load(p) {
+    if (p.model || p.loading) return p.loading;
+    if (ON_DISK) { p.failed = FROM_DISK; return null; }
+    p.failed = null;
+    p.loading = loadSuppliedMesh(p.v.file, { maxTexture: most, env, name: `supplied-${p.id}` })
+      .then(({ mesh, triangles }) => {
+        const { fit } = fitVehicle(mesh, p.v);
+        p.model = fit; p.triangles = triangles;
+        p.holder.add(fit); p.standIn.visible = false;
+      })
+      .catch((error) => { p.failed = String(error.message || error); p.failedAt = performance.now(); })
+      .finally(() => { p.loading = null; });
+    return p.loading;
+  }
+  function release(p) {
+    if (!p.model) return;
+    p.holder.remove(p.model);
+    p.model.traverse((o) => { if (o.isMesh) { o.geometry.dispose(); for (const key of ['map', 'normalMap', 'roughnessMap']) if (o.material[key]) o.material[key].dispose(); o.material.dispose(); } });
+    p.model = null; p.standIn.visible = true;
+  }
+
+  // ---- the ambulance ----
+  let ambulance = null;          // { mesh, fit, lamps } once its model has come
+  let ambulanceLoading = null;
+  let ambulanceFailedAt = 0;
+  function loadAmbulance() {
+    // (one that could not be fetched is asked for again half a minute later; from the disk, never)
+    if (ambulance && ambulance.failed && !ON_DISK && performance.now() - ambulanceFailedAt > 30000) ambulance = null;
+    if (ambulance || ambulanceLoading) return ambulanceLoading;
+    if (ON_DISK) { ambulance = { failed: FROM_DISK }; return null; }
+    const v = SUPPLIED_VEHICLES.ambulance;
+    ambulanceLoading = loadSuppliedMesh(v.file, { maxTexture: most, env, name: 'supplied-ambulance' })
+      .then(({ mesh, triangles }) => {
+        const { fit, frame } = fitVehicle(mesh, v);
+        const roof = roofFront(mesh, frame);
+        ambulance = { fit, roof, triangles };
+      })
+      .catch((error) => { ambulance = { failed: String(error.message || error) }; ambulanceFailedAt = performance.now(); })
+      .finally(() => { ambulanceLoading = null; });
+    return ambulanceLoading;
+  }
+  // Puts the model into the van's group, in place of the van, with two lamps at the front of its roof. Returns the
+  // lamps (to be lit by whoever drives it), or null while the model has not come.
+  function dressAmbulance(van) {
+    if (!ambulance || ambulance.failed || van.dressed) return van.dressed || null;
+    van.group.add(ambulance.fit);
+    for (const child of van.group.children) if (child !== ambulance.fit) child.visible = false;
+    const lamps = [];
+    for (const side of [-1, 1]) {
+      const material = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, emissive: side < 0 ? 0xff2020 : 0x2f6fff, emissiveIntensity: 0, roughness: 0.3 });
+      const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.36, 0.14, 0.24), material);
+      lamp.position.set(side * Math.min(0.62, ambulance.roof.half * 0.55), ambulance.roof.y + 0.02, ambulance.roof.z - 0.2);
+      van.group.add(lamp);
+      lamps.push({ side, lamp, material });
+    }
+    van.dressed = { lamps };
+    return van.dressed;
+  }
+
+  function tick(eye) {
+    for (const p of parked) {
+      const d = Math.hypot(eye.x - p.v.x, eye.z - p.v.z);
+      // (one that could not be fetched is asked for again half a minute later; from the disk, never)
+      if (d < p.v.reach && (!p.failed || (!ON_DISK && performance.now() - (p.failedAt || 0) > 30000))) load(p);
+      else if (d > p.v.reach * 1.6) release(p);
+    }
+  }
+  const state = () => ({
+    parked: parked.map((p) => ({ id: p.id, loaded: !!p.model, loading: !!p.loading, failed: p.failed, triangles: p.triangles, standIn: p.standIn.visible, at: [p.holder.position.x, p.holder.position.z], heading: p.holder.rotation.y })),
+    ambulance: ambulance ? { loaded: !ambulance.failed, failed: ambulance.failed || null, triangles: ambulance.triangles || 0 } : { loaded: false, loading: !!ambulanceLoading },
+  });
+  return { tick, load: (id) => load(parked.find((p) => p.id === id)), loadAmbulance, dressAmbulance, state, parked };
+}
+
+return { fitVehicle, createSupplied };
+})();
+
+// ---- client/render-town-buildings.js ----
+__modules["client/render-town-buildings.js"] = (function () {
+// The owner's buildings in town (town-buildings.js says which and where): their houses on the plots of the plain
+// houses they replaced, and their towers on the city side. Each is the supplied model exactly as it is (its one mesh,
+// its picture, its material's own finish: supplied-model.js), turned so that its front faces the lane or the road,
+// and drawn at one uniform scale; nothing in its file is changed.
+//
+// A model is fetched when the first building drawn from it comes within sight, the nearest first, one or two at a
+// time (each file carries an 8192-pixel picture, and decoding one takes a moment and a good deal of memory); every
+// building of that model then shares its one mesh and picture. Its picture is handed to the graphics card at 2048
+// pixels on a computer and 1024 on a phone (the file keeps its 8192): nineteen buildings at their full size would
+// need several gigabytes of graphics memory.
+//
+// What it costs to draw. Each model is about ten thousand triangles; the plain houses were a few dozen. So:
+//   - the houses of one model are drawn together, in one go (an instanced mesh), and only those near enough to be
+//     seen as more than a block (`HOUSE_SIGHT`); further off, out to where the town is drawn at all, each house is a
+//     plain block of its size and colour, all of them in one go, as is a house whose model has not come yet;
+//   - a tower is always drawn from its model, from further off than the rest of the town (it stands above it).
+
+const { ZONE_HOUSES, TOWN_TOWERS, TOWN_MODELS } = __modules["sim/zone.js"];
+const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
+const { surface } = __modules["client/render-kit.js"];
+
+const HOUSE_BLOCK = 0xdcd8cf;      // a house seen from afar: the owner's houses are white and pale grey
+const TOWER_BLOCK = 0x2f3946;
+const TOWER_SIGHT = 220;           // metres beyond the town's own reach at which a tower is still drawn
+// (a copy of the page opened from the disk cannot fetch a model: there each building is its plain block)
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
+
+// Where a building's model is drawn: its own frame turned so that its front faces +z, the middle of its foot at the
+// origin, scaled, then turned to its heading and set on its plot.
+function modelMatrix(e, m) {
+  const turn = new THREE.Matrix4().makeRotationY(-m.front);
+  const scale = new THREE.Matrix4().makeScale(e.k, e.k, e.k);
+  const centre = new THREE.Matrix4().makeTranslation(-m.mid[0] * e.k, 0, -m.mid[1] * e.k);
+  const place = new THREE.Matrix4().makeRotationY(e.heading).setPosition(e.x, 0, e.z);
+  return place.multiply(centre).multiply(scale).multiply(turn);
+}
+// Its plain block: the footprint's box (world axes), a little lower than the building
+function blockMatrix(e) {
+  return new THREE.Matrix4().compose(new THREE.Vector3(e.x, 0, e.z), new THREE.Quaternion(), new THREE.Vector3(e.w, e.h * (e.kind === 'house' ? 0.8 : 0.9), e.d));
+}
+
+function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = null } = {}) {
+  const most = Math.min(lite ? 1024 : 2048, maxTexture || 2048);
+  const HOUSE_SIGHT = lite ? 110 : 170;
+  const at = (b) => ({ ...b, radius: Math.hypot(b.w, b.d) / 2, drawn: false, mesh: null });
+  const houses = ZONE_HOUSES.filter((h) => h.model).map((h) => at({ id: h.id, model: h.model, x: h.x, z: h.z, heading: h.heading, k: h.k, w: h.w, d: h.d, h: h.h, kind: 'house' }));
+  const towers = TOWN_TOWERS.map((t) => at({ id: t.id, model: t.model, x: t.x, z: t.z, heading: t.heading, k: t.k, w: t.w, d: t.d, h: t.h, kind: 'tower' }));
+  const entries = [...houses, ...towers];
+  for (const e of entries) { e.matrix = modelMatrix(e, TOWN_MODELS[e.model]); e.block = blockMatrix(e); }
+
+  // the plain blocks: one box, drawn wherever a building is not drawn from its model
+  const box = new THREE.BoxGeometry(1, 1, 1); box.translate(0, 0.5, 0);
+  const blocks = (colour, capacity, roughness, metalness) => {
+    const mesh = new THREE.InstancedMesh(box, surface({ color: colour, roughness, metalness }), capacity);
+    mesh.count = 0; mesh.frustumCulled = false; mesh.castShadow = true; mesh.receiveShadow = true;
+    mesh.name = 'town-blocks';
+    scene.add(mesh);
+    return mesh;
+  };
+  const houseBlocks = blocks(HOUSE_BLOCK, houses.length, 0.85, 0);
+  const towerBlocks = blocks(TOWER_BLOCK, towers.length, 0.35, 0.4);
+
+  // the models, each with its houses (drawn together) and its towers (each on its own, so that what is out of view is
+  // not drawn)
+  const models = new Map(Object.keys(TOWN_MODELS).map((id) => [id, { id, m: TOWN_MODELS[id], state: 'idle', mesh: null, triangles: 0, failed: null, houses: houses.filter((e) => e.model === id), towers: towers.filter((e) => e.model === id), instanced: null }]));
+  const busy = () => [...models.values()].filter((r) => r.state === 'loading').length;
+  const atOnce = lite ? 1 : 2;
+  let queue = [];
+  function pump() {
+    queue = queue.filter((r) => r.state === 'idle');
+    while (queue.length && busy() < atOnce) load(queue.shift());
+  }
+  function load(record) {
+    record.state = 'loading';
+    const m = record.m;
+    loadSuppliedMesh(m.file, { maxTexture: most, env, brand: m.brand || null, name: `town-${m.id}` })
+      .then(({ mesh, triangles }) => {
+        record.mesh = mesh; record.triangles = triangles; record.state = 'ready';
+        if (record.houses.length) {
+          const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, record.houses.length);
+          inst.count = 0; inst.frustumCulled = false; inst.castShadow = true; inst.receiveShadow = true;
+          inst.name = `town-${m.id}`;
+          scene.add(inst);
+          record.instanced = inst;
+        }
+        for (const e of record.towers) {
+          const t = new THREE.Mesh(mesh.geometry, mesh.material);
+          t.matrixAutoUpdate = false; t.matrix.copy(e.matrix); t.updateMatrixWorld(true);
+          t.castShadow = true; t.receiveShadow = true; t.visible = false;
+          t.name = `town-${m.id}`;
+          scene.add(t);
+          e.mesh = t;
+        }
+        refresh();
+      })
+      .catch((error) => { record.state = 'failed'; record.failed = String(error.message || error); record.failedAt = performance.now(); })
+      .finally(pump);
+  }
+
+  // Which building is drawn how, from where the eye is: written into the instanced meshes.
+  let last = { x: 0, z: 0, reach: 0, tall: TOWER_SIGHT };
+  function refresh() {
+    const { x, z, reach, tall } = last;
+    // (a tower stands above the town and is seen from further off than it, but never through the haze: beyond the fog's
+    // far edge whatever is drawn is drawn unseen)
+    const haze = scene.fog ? scene.fog.far : Infinity;
+    let nb = 0, nt = 0;
+    for (const r of models.values()) {
+      let n = 0;
+      for (const e of r.houses) {
+        const gap = Math.hypot(e.x - x, e.z - z) - e.radius;
+        e.drawn = false;
+        if (gap > reach) continue;
+        if (r.instanced && gap < HOUSE_SIGHT) { r.instanced.setMatrixAt(n, e.matrix); n += 1; e.drawn = true; }
+        else { houseBlocks.setMatrixAt(nb, e.block); nb += 1; }
+      }
+      if (r.instanced) { r.instanced.count = n; r.instanced.instanceMatrix.needsUpdate = true; }
+      for (const e of r.towers) {
+        const seen = Math.hypot(e.x - x, e.z - z) - e.radius < Math.min(haze, reach + tall);
+        e.drawn = seen && !!e.mesh;
+        if (e.mesh) e.mesh.visible = seen;
+        else if (seen) { towerBlocks.setMatrixAt(nt, e.block); nt += 1; }
+      }
+    }
+    houseBlocks.count = nb; houseBlocks.instanceMatrix.needsUpdate = true;
+    towerBlocks.count = nt; towerBlocks.instanceMatrix.needsUpdate = true;
+  }
+
+  // What is in sight from (x, z): drawn; and, when `fetch` (once the town is ready), the models wanted there fetched,
+  // the nearest first: a house's once it is nearly near enough to be drawn from it, a tower's once it is in sight.
+  // (`tall`: how much further off than the town a tower is seen; from inside a hall, 0)
+  function see(x, z, reach, fetch = true, tall = TOWER_SIGHT) {
+    last = { x, z, reach, tall };
+    refresh();
+    if (!fetch || ON_DISK) return;
+    const wanted = [];
+    for (const r of models.values()) {
+      // (one that could not be fetched is asked for again half a minute later)
+      if (r.state === 'failed' && performance.now() - (r.failedAt || 0) > 30000) r.state = 'idle';
+      if (r.state !== 'idle') continue;
+      let gap = Infinity;
+      for (const e of r.houses) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - HOUSE_SIGHT - 40);
+      for (const e of r.towers) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - Math.min(scene.fog ? scene.fog.far : Infinity, reach + tall));
+      if (gap < 0) wanted.push({ r, gap });
+    }
+    wanted.sort((a, b) => a.gap - b.gap);
+    queue = [...new Set([...wanted.map((w) => w.r), ...queue])];
+    pump();
+  }
+  // (for whoever needs every one of them: the tests; still one or two at a time)
+  function loadAll() { if (ON_DISK) return; queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
+  const state = () => ({
+    models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed })),
+    drawn: entries.filter((e) => e.drawn).length,
+    blocks: houseBlocks.count + towerBlocks.count,
+    entries: entries.length,
+    houseSight: HOUSE_SIGHT,
+  });
+  // (the tests: the geometry of the model a building is drawn from; `e.matrix` is where)
+  const geometryOf = (id) => { const r = models.get(id); return r && r.mesh ? r.mesh.geometry : null; };
+  return { see, loadAll, state, entries, geometryOf, refresh: () => refresh() };
+}
+
+return { createTownBuildings };
+})();
+
 // ---- client/bike-impostors.js ----
 __modules["client/bike-impostors.js"] = (function () {
 // Written by tools/vehicles/bike_impostors.mjs: do not edit by hand.
@@ -35238,8 +36384,9 @@ __modules["client/render-powerbike.js"] = (function () {
 const { POWERBIKE } = __modules["sim/zone.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 const { trText } = __modules["sim/ledger.js"];
-const { parseGLB, fetchKept } = __modules["client/glb.js"];
+const { parseGLB, fetchKept, letGoOnceDrawn } = __modules["client/glb.js"];
 const { Batch, place, surface, linear } = __modules["client/render-kit.js"];
+const { reflects } = __modules["client/render-finish.js"];
 const { makeDealMarker } = __modules["client/render-holaris.js"];
 const { loadBike, bikeLoaded } = __modules["client/bike-model.js"];
 const { BIKE_IMPOSTOR } = __modules["client/bike-impostors.js"];
@@ -35418,9 +36565,11 @@ async function loadTower({ maxTexture }) {
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
     map.flipY = false; map.encoding = THREE.sRGBEncoding; map.anisotropy = 8; map.needsUpdate = true;
+    letGoOnceDrawn(map);
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
-  const material = surface({ map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
+  // (its glass and cladding give back a little of the sky: render-finish.js)
+  const material = reflects(surface({ map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide }), 0.8);
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = 'powerbike-tower';
@@ -36189,7 +37338,7 @@ const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
 const { linear, setLite } = __modules["client/render-kit.js"];
 const { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } = __modules["client/render-actors.js"];
-const { initVehicles, setVehicleDaylight, vehicleWarmJobs } = __modules["client/vehicle-models.js"];
+const { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment } = __modules["client/vehicle-models.js"];
 const { vehicleMeta } = __modules["client/vehicle-kit.js"];
 const { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionNames, reactionLength } = __modules["client/render-people.js"];
 const { createSky } = __modules["client/render-sky.js"];
@@ -36234,6 +37383,10 @@ const { createOwnBikeView } = __modules["client/own-bike-view.js"];
 const { createCarView } = __modules["client/car-view.js"];
 const { setCarDaylight } = __modules["client/car-model.js"];
 const { buildCarshow } = __modules["client/render-carshow.js"];
+const { createSupplied } = __modules["client/render-supplied.js"];
+const { createTownBuildings } = __modules["client/render-town-buildings.js"];
+const { updateFinishes, finishState } = __modules["client/render-finish.js"];
+const { foliageState } = __modules["client/render-foliage.js"];
 const { buildPowerbike } = __modules["client/render-powerbike.js"];
 const { createSalesman } = __modules["sim/salesman.js"];
 const { talkGesture } = __modules["client/talk-gestures.js"];
@@ -37050,6 +38203,11 @@ function start(carried) {
   // looking after one side of the floor (salesman.js); and asking one of them about a car, which is the market's own
   // conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
   const carshowView = buildCarshow(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize });
+  // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
+  // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
+  const supplied = createSupplied(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize, env: LITE ? null : vehicleEnvironment() });
+  // The owner's houses and towers (render-town-buildings.js), in place of the town's plain houses and on the city side
+  const townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: renderer.capabilities.maxTextureSize, env: LITE ? null : vehicleEnvironment() });
   // two of the game's own figures, dressed for the showroom floor: a white shirt and a navy tie; a white blouse and a
   // navy skirt
   const CAR_STAFF_LOOKS = Object.freeze({
@@ -38786,9 +39944,16 @@ function start(carried) {
     g.position.x += (a.x - g.position.x) * Math.min(1, dt * 9);
     g.position.z += (a.z - g.position.z) * Math.min(1, dt * 9);
     g.rotation.y += angleGap(a.h, g.rotation.y) * Math.min(1, dt * 7);
-    // the lamp on the roof turns blue and white while it is on a call
-    ambulance.beacon.emissive.setHex(a.siren && Math.floor(clock * 4) % 2 ? 0x3a7bff : a.siren ? 0xffffff : 0x000000);
-    ambulance.beacon.emissiveIntensity = a.siren ? 2.2 : 0;
+    // the lamp on the roof turns blue and white while it is on a call; on the owner's ambulance (once its model has
+    // come, render-supplied.js), the two lamps at the front of its roof flash red and blue in turn
+    const dressed = supplied.dressAmbulance(ambulance);
+    if (dressed) {
+      const beat = Math.floor(clock * 5) % 2;
+      for (const l of dressed.lamps) l.material.emissiveIntensity = a.siren && (l.side < 0) === (beat === 0) ? 3.2 : 0;
+    } else {
+      ambulance.beacon.emissive.setHex(a.siren && Math.floor(clock * 4) % 2 ? 0x3a7bff : a.siren ? 0xffffff : 0x000000);
+      ambulance.beacon.emissiveIntensity = a.siren ? 2.2 : 0;
+    }
     ambulance.siren = a.siren ? { x: g.position.x, z: g.position.z } : null;
   }
 
@@ -39092,6 +40257,8 @@ blood.update(dt, view.blood || []);
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
+    // (glass, the river and zinc give back the sky by day; in the rain the ground is wet, and dries after it)
+    updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
@@ -39119,13 +40286,19 @@ blood.update(dt, view.blood || []);
       // town, behind its walls, is not drawn)
       const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.level], scene.fog.far * 0.82);
       world.see(cam.target.x, cam.target.z, reach);
+      // (the owner's houses and towers: each model fetched once the town is ready, for someone who can see it, or at
+      // once for someone right by one; not from inside a hall)
+      townBuildings.see(cam.target.x, cam.target.z, reach, playing && warm.stage >= 5 && !hall, hall ? 0 : undefined);
       // (PostCivilWar PowerBike's tower: the owner's model, fetched once the town is ready, or at once for someone near it)
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();
       // (the car showroom's buildings: the owner's models, each fetched once the town is ready, for someone near
       // enough to see it; render-carshow.js says how near; not while in PowerBike's hall, from where none is seen); and
       // each drawn only where it can be seen from
       if (playing && !showroom.inside && (warm.stage >= 5 || Math.hypot(predicted.x - CARSHOW.doors.x, predicted.z - CARSHOW.doors.z) < 400)) carshowView.load(predicted.x, predicted.z);
-      carshowView.see(cam.target.x, cam.target.z, reach);
+      carshowView.see(cam.target.x, cam.target.z, reach, hall ? 0 : undefined);
+      // (the owner's vehicles: the parked ones as someone comes near each, the ambulance's once the town is ready; and,
+      // like the houses and towers above, nothing fetched from inside a hall, from where none of them is seen)
+      if (playing && !hall) { supplied.tick(predicted); if (warm.stage >= 5) supplied.loadAmbulance(); }
       // (beyond the town: built a few seconds into play once the town is warmed up, or at once for someone already out there)
       if (!outskirts.ready && playing) {
         beyondWait += 0.5;      // (this is looked at twice a second)
@@ -39184,6 +40357,7 @@ blood.update(dt, view.blood || []);
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
     heldModels,
+    supplied, townBuildings, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
