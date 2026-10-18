@@ -259,8 +259,11 @@ check('a typed question goes up at once and is answered from what is so', pendin
 // conversation showed on the figure; written down with the result, so that a failure says what was seen)
 const myLine = await page.evaluate(() => { const l = window.__nlw.showroom.lines.filter((x) => x.who === 'me').at(-1); if (!l) return null; const f = window.__talkFrames.frames.filter((q) => q.now >= l.from - 1 && q.now <= l.to + 1); return { length: +(l.to - l.from).toFixed(2), frames: f.map((q) => [+(q.now - l.from).toFixed(2), q.hand === null ? null : +q.hand.toFixed(3), +q.player.toFixed(2)]) }; });
 // (looked for in the frames drawn while it was said, as they were drawn: the test's own looking, a round trip to a
-// page drawing a frame every second or two, can begin after the sentence has ended)
-const roseInLine = !!myLine && quiet.me !== null && myLine.frames.some(([at, hand]) => at >= -0.25 && at <= myLine.length + 0.35 && hand !== null && hand > quiet.me + 0.05);
+// page drawing a frame every second or two, can begin after the sentence has ended. Without a graphics card a frame
+// in this hall, every motorcycle in it its model, takes seconds, and a question is said in at most four and a half:
+// one frame may fall in it, as the hand begins to rise. In such a frame, with the figure in its speaking pose, the
+// hand a clear 3 cm above where it rested is enough; at rest it moves by less than one)
+const roseInLine = !!myLine && quiet.me !== null && myLine.frames.some(([at, hand, amount]) => at >= -0.25 && at <= myLine.length + 0.35 && hand !== null && amount > 0.5 && hand > quiet.me + (myLine.frames.length > 3 ? 0.05 : 0.03));
 check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && (rose || roseInLine), { quiet, speaking, myLine });
 const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => `${l.who}@${l.from.toFixed(2)}-${l.to.toFixed(2)}`));
 // (his greeting, then the player's question, then his answer: each begins once the one before has ended)
