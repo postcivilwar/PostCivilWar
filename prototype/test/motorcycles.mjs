@@ -56,7 +56,7 @@ await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null,
 const listed = await page.evaluate(async () => { const r = await window.__nlw.market.list('motorcycle'); return r.ok ? r.listings.map((l) => ({ id: l.id, model: l.asset.model, name: l.asset.name, price: l.price, place: l.place })) : r; });
 check('the showroom lists the seventeen motorcycles', Array.isArray(listed) && listed.length === 17, Array.isArray(listed) ? listed.map((l) => `${l.name} ${l.price / TR}`) : listed);
 const cheapest = listed.find((l) => l.model === 'bike:streetfighter');
-check('the cheapest is 1,000 TR, the dearest 10,000 TR', cheapest.price === 1000 * TR && Math.max(...listed.map((l) => l.price)) === 10000 * TR, null);
+check('the cheapest is 300 TR (the Streetfighter among them), the dearest 3,000 TR (the owner\'s prices of 18 October 2026)', cheapest.price === 300 * TR && Math.min(...listed.map((l) => l.price)) === 300 * TR && Math.max(...listed.map((l) => l.price)) === 3000 * TR, listed.map((l) => `${l.name} ${l.price / TR}`));
 // its page: photographs, and its engine heard there: the key, Rev held, Horn held; quiet when the page is left
 await page.evaluate((id) => window.__nlw.ui.openPhone('property', { market: true, asset: id }), cheapest.id);
 await page.waitForSelector('#bike-ignition', { timeout: 30000 });
@@ -141,7 +141,7 @@ const bought = await page.evaluate(async (l) => {
   await n.market.mine();
   return { ok: r.ok, status: r.offer && r.offer.status, code: r.code, balance: r.balance, starter: r.starter, mine: n.market.state.mine.holdings.map((h) => h.asset.model) };
 }, cheapest);
-check('a new player buys the Streetfighter with arrival money', bought.ok && bought.status === 'accepted' && bought.balance === 1000 * TR && bought.mine.includes('bike:streetfighter'), bought);
+check('a new player buys the Streetfighter with arrival money (2,000 TR less its 300, all of it arrival money)', bought.ok && bought.status === 'accepted' && bought.balance === 1700 * TR && bought.starter === 1700 * TR && bought.mine.includes('bike:streetfighter'), bought);
 await page.waitForFunction(() => window.__nlw.view.self.ownBikes && window.__nlw.view.self.ownBikes.bikes.includes('streetfighter'), null, { timeout: 30000 }).catch(() => {});
 check('the town is told it is theirs', await page.evaluate(() => window.__nlw.view.self.ownBikes.bikes.includes('streetfighter')), null);
 
