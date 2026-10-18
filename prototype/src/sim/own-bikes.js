@@ -71,7 +71,8 @@ export function createOwnBikes({ state, hub, obstacles }) {
   // What the rider's page says the bike is doing, for others to see and hear (lamps, flames, the engine's note):
   // nothing here depends on it, so it is only kept within sensible bounds.
   const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
-  const rideOf = (step, top) => ({ lean: Math.round(num(step.lean, -0.9, 0.9) * 100) / 100, speed: Math.round(num(step.speed, -3, top) * 10) / 10, throttle: Math.round(num(step.throttle, 0, 1) * 10) / 10, brake: step.brake ? 1 : 0, rev: Math.round(num(step.rev, 0, 1) * 100) / 100 });
+  // (with how far the bars are turned, so that others see the front wheel steer: 18 October 2026)
+  const rideOf = (step, top) => ({ lean: Math.round(num(step.lean, -0.9, 0.9) * 100) / 100, speed: Math.round(num(step.speed, -3, top) * 10) / 10, throttle: Math.round(num(step.throttle, 0, 1) * 10) / 10, brake: step.brake ? 1 : 0, rev: Math.round(num(step.rev, 0, 1) * 100) / 100, steer: Math.round(num(step.steer, -0.7, 0.7) * 100) / 100 });
   function drive(p, { x, z, heading, ...step }) {
     if (![x, z, heading].every(Number.isFinite)) throw new GameError('BAD_MOVE', 'Invalid position.');
     const b = p.pbike;

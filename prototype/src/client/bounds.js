@@ -3,8 +3,9 @@
 // mesh whenever the mesh is turned: a motorcycle whose front end is put straight by the game (bike-model.js) seemed a
 // third wider than it is, and its pictures and the market's view of it were framed round that.)
 //   exactBox(object, { only })      only(mesh): which meshes count (all that are drawn, by default)
-const at = new THREE.Vector3();
+let at = null;
 export function exactBox(object, { only = (mesh) => mesh.visible } = {}, box = new THREE.Box3()) {
+  at = at || new THREE.Vector3();
   box.makeEmpty();
   object.updateMatrixWorld(true);
   object.traverse((o) => {

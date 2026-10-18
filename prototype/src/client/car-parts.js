@@ -140,6 +140,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "black-grand-convertible-rm-512.webp"
   },
   "sha256": "d9efddc6a2df74c1fcd7e6e77b1806ee160ad6b54e4215d86ea7e3b5a98998b8",
+  "driver": {
+   "hip": [
+    0.07542,
+    0.11827,
+    -0.03326
+   ],
+   "wheel": [
+    0.07542,
+    0.1811,
+    0.05913
+   ],
+   "radius": 0.03141,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.0939,
+     0.0887,
+     0.09794
+    ],
+    [
+     0.05694,
+     0.0887,
+     0.09794
+    ]
+   ],
+   "roof": null,
+   "seen": true
+  },
   "bytes": {
    "lite": 3914363,
    "full": 7843496
@@ -283,6 +311,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "black-luxury-suv-rm-512.webp"
   },
   "sha256": "8090a90e88eb78ad38fc65739709576756fe3f1ac99ef90de1248dd4c82ab158",
+  "driver": {
+   "hip": [
+    0.09672,
+    0.17895,
+    -0.01171
+   ],
+   "wheel": [
+    0.09672,
+    0.24111,
+    0.07117
+   ],
+   "radius": 0.03391,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.11556,
+     0.13751,
+     0.11073
+    ],
+    [
+     0.07788,
+     0.13751,
+     0.11073
+    ]
+   ],
+   "roof": 0.3908,
+   "seen": false
+  },
   "bytes": {
    "lite": 4750645,
    "full": 8960897
@@ -416,6 +472,34 @@ export const CAR_PARTS = Object.freeze({
    "color512": "black-pickup-color-512.jpg"
   },
   "sha256": "4af3c89ccf52a1be8166b3b6e3afd40fceefdacce58c8b0d2f536984ad6d2b51",
+  "driver": {
+   "hip": [
+    0.08579,
+    0.16956,
+    -0.02556
+   ],
+   "wheel": [
+    0.08579,
+    0.22846,
+    0.05297
+   ],
+   "radius": 0.03213,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.10364,
+     0.13029,
+     0.09045
+    ],
+    [
+     0.06794,
+     0.13029,
+     0.09045
+    ]
+   ],
+   "roof": 0.38247,
+   "seen": false
+  },
   "bytes": {
    "lite": 941974,
    "full": 2064217
@@ -549,6 +633,34 @@ export const CAR_PARTS = Object.freeze({
    "color512": "black-square-suv-color-512.jpg"
   },
   "sha256": "416c70a0a25c9f7d6e5e1dd52f0b46ec9b8fbf0a4762a205f63ae33761ea5f58",
+  "driver": {
+   "hip": [
+    0.09899,
+    0.20203,
+    -0.03329
+   ],
+   "wheel": [
+    0.09899,
+    0.2722,
+    0.06028
+   ],
+   "radius": 0.03828,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.12026,
+     0.15524,
+     0.10494
+    ],
+    [
+     0.07773,
+     0.15524,
+     0.10494
+    ]
+   ],
+   "roof": 0.43618,
+   "seen": false
+  },
   "bytes": {
    "lite": 1035806,
    "full": 2326493
@@ -682,6 +794,34 @@ export const CAR_PARTS = Object.freeze({
    "color512": "blue-off-roader-color-512.jpg"
   },
   "sha256": "1e046dce2aebfd65f0cfd58a6e0903710dc89d810edd62ed7faf0167337a5264",
+  "driver": {
+   "hip": [
+    0.1084,
+    0.15279,
+    -0.04081
+   ],
+   "wheel": [
+    0.1084,
+    0.22449,
+    0.05479
+   ],
+   "radius": 0.03911,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.13013,
+     0.10499,
+     0.10042
+    ],
+    [
+     0.08668,
+     0.10499,
+     0.10042
+    ]
+   ],
+   "roof": 0.37172,
+   "seen": false
+  },
   "bytes": {
    "lite": 1182528,
    "full": 2496075
@@ -825,6 +965,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "bronze-spyder-rm-512.webp"
   },
   "sha256": "785bf7085af2a5bf0ef68879f4c86a5140c064e75c5e7951069bdc724b8c8992",
+  "driver": {
+   "hip": [
+    0.08671,
+    0.11408,
+    -0.02798
+   ],
+   "wheel": [
+    0.08671,
+    0.1722,
+    0.07964
+   ],
+   "radius": 0.03659,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.10824,
+     0.0818,
+     0.127
+    ],
+    [
+     0.06519,
+     0.0818,
+     0.127
+    ]
+   ],
+   "roof": null,
+   "seen": true
+  },
   "bytes": {
    "lite": 4384756,
    "full": 8797493
@@ -968,6 +1136,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "camo-expedition-rm-512.webp"
   },
   "sha256": "2208151246a1d960b7b555576236310b0e23e9487b6faa93ddf33af3fad070cb",
+  "driver": {
+   "hip": [
+    0.09245,
+    0.18563,
+    -0.05527
+   ],
+   "wheel": [
+    0.09245,
+    0.25011,
+    0.03071
+   ],
+   "radius": 0.03517,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.11199,
+     0.14264,
+     0.07174
+    ],
+    [
+     0.07291,
+     0.14264,
+     0.07174
+    ]
+   ],
+   "roof": 0.5058,
+   "seen": false
+  },
   "bytes": {
    "lite": 4420333,
    "full": 8631409
@@ -1111,6 +1307,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "classic-two-tone-rm-512.webp"
   },
   "sha256": "ec23e0a806f7d74dba5960941fefd56a6379ed591c79a625b402e97138b9129d",
+  "driver": {
+   "hip": [
+    0.0781,
+    0.12911,
+    0.08803
+   ],
+   "wheel": [
+    0.0781,
+    0.18975,
+    0.16432
+   ],
+   "radius": 0.03912,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.09767,
+     0.07629,
+     0.2054
+    ],
+    [
+     0.05854,
+     0.07629,
+     0.2054
+    ]
+   ],
+   "roof": 0.30407,
+   "seen": true
+  },
   "bytes": {
    "lite": 4243604,
    "full": 8103919
@@ -1254,6 +1478,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "gold-hypercar-rm-512.webp"
   },
   "sha256": "a29227def49be479335b7d5d76966326f195f9958705da37ec7f6f528a7a8068",
+  "driver": {
+   "hip": [
+    0.10945,
+    0.12062,
+    -0.05407
+   ],
+   "wheel": [
+    0.10945,
+    0.20172,
+    0.01664
+   ],
+   "radius": 0.03327,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.13025,
+     0.09982,
+     0.10606
+    ],
+    [
+     0.08865,
+     0.09982,
+     0.10606
+    ]
+   ],
+   "roof": 0.29305,
+   "seen": true
+  },
   "bytes": {
    "lite": 4114720,
    "full": 8601198
@@ -1397,6 +1649,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "grey-grand-tourer-rm-512.webp"
   },
   "sha256": "643fca7d4e2f16257a42429cee7bbdfb469742e49bd6d4ab57c322116389baba",
+  "driver": {
+   "hip": [
+    0.09108,
+    0.10082,
+    -0.00461
+   ],
+   "wheel": [
+    0.09108,
+    0.16683,
+    0.08341
+   ],
+   "radius": 0.03601,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.11109,
+     0.05681,
+     0.12541
+    ],
+    [
+     0.07108,
+     0.05681,
+     0.12541
+    ]
+   ],
+   "roof": 0.30419,
+   "seen": false
+  },
   "bytes": {
    "lite": 3998600,
    "full": 8557791
@@ -1530,6 +1810,34 @@ export const CAR_PARTS = Object.freeze({
    "color512": "grey-saloon-color-512.jpg"
   },
   "sha256": "95533b178cba5eba754dec13293bf67246439688fbac17eb4128e062f5b7763b",
+  "driver": {
+   "hip": [
+    0.08879,
+    0.11208,
+    -0.00672
+   ],
+   "wheel": [
+    0.08879,
+    0.18009,
+    0.08396
+   ],
+   "radius": 0.03709,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.10939,
+     0.06674,
+     0.12724
+    ],
+    [
+     0.06818,
+     0.06674,
+     0.12724
+    ]
+   ],
+   "roof": 0.32265,
+   "seen": false
+  },
   "bytes": {
    "lite": 1044540,
    "full": 2385476
@@ -1673,6 +1981,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "midnight-saloon-rm-512.webp"
   },
   "sha256": "32feb3e7ae247d1a9603772772fad172d5f9f81572f946028bd4db40c6bcdeac",
+  "driver": {
+   "hip": [
+    0.08979,
+    0.12381,
+    -0.0057
+   ],
+   "wheel": [
+    0.08979,
+    0.18699,
+    0.07854
+   ],
+   "radius": 0.03446,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.10894,
+     0.08168,
+     0.11875
+    ],
+    [
+     0.07064,
+     0.08168,
+     0.11875
+    ]
+   ],
+   "roof": 0.32199,
+   "seen": false
+  },
   "bytes": {
    "lite": 4156606,
    "full": 8521527
@@ -1806,6 +2142,34 @@ export const CAR_PARTS = Object.freeze({
    "color512": "mint-sports-coupe-color-512.jpg"
   },
   "sha256": "525ac8cebf8edef0ec60885f7a484b27d526b71ddf21e9ebdbb5b970a602449d",
+  "driver": {
+   "hip": [
+    0.09781,
+    0.06663,
+    -0.04365
+   ],
+   "wheel": [
+    0.09781,
+    0.13993,
+    0.05408
+   ],
+   "radius": 0.03998,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.12002,
+     0.06219,
+     0.14515
+    ],
+    [
+     0.07559,
+     0.06219,
+     0.14515
+    ]
+   ],
+   "roof": 0.27082,
+   "seen": false
+  },
   "bytes": {
    "lite": 1059520,
    "full": 2260853
@@ -1949,6 +2313,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "peach-suv-rm-512.webp"
   },
   "sha256": "da7e2d1a64ad5d426bb72d94aa2cfde2f13ad9121a7c0850af07703fccb8256e",
+  "driver": {
+   "hip": [
+    0.09028,
+    0.17442,
+    0.02156
+   ],
+   "wheel": [
+    0.09028,
+    0.23518,
+    0.08819
+   ],
+   "radius": 0.03332,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.10988,
+     0.13915,
+     0.15678
+    ],
+    [
+     0.07068,
+     0.13915,
+     0.15678
+    ]
+   ],
+   "roof": 0.35175,
+   "seen": true
+  },
   "bytes": {
    "lite": 4244448,
    "full": 8337235
@@ -2092,6 +2484,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "pearl-convertible-rm-512.webp"
   },
   "sha256": "a92f0d635e8fef732d4c1b2886b170aef2cf925b501ada67b4c205acd29ae6d3",
+  "driver": {
+   "hip": [
+    0.08153,
+    0.11448,
+    -0.06869
+   ],
+   "wheel": [
+    0.08153,
+    0.18317,
+    0.03122
+   ],
+   "radius": 0.03539,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.10234,
+     0.09367,
+     0.09159
+    ],
+    [
+     0.06071,
+     0.09367,
+     0.09159
+    ]
+   ],
+   "roof": null,
+   "seen": true
+  },
   "bytes": {
    "lite": 4377537,
    "full": 10236277
@@ -2235,6 +2655,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "red-winged-supercar-rm-512.webp"
   },
   "sha256": "e97afb51dbc3105c0d0388e89d3e5797686cdea5164ac43d76bab2d98ccfc31a",
+  "driver": {
+   "hip": [
+    0.08881,
+    0.08244,
+    0.00446
+   ],
+   "wheel": [
+    0.08881,
+    0.15152,
+    0.11141
+   ],
+   "radius": 0.03342,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.11109,
+     0.07353,
+     0.1894
+    ],
+    [
+     0.06652,
+     0.07353,
+     0.1894
+    ]
+   ],
+   "roof": 0.24613,
+   "seen": true
+  },
   "bytes": {
    "lite": 4267471,
    "full": 7802518
@@ -2368,6 +2816,34 @@ export const CAR_PARTS = Object.freeze({
    "color512": "state-limousine-color-512.jpg"
   },
   "sha256": "aabb43427517119ef6c8b2832b627c8415812dfb33a9b137c2cc7c1bceec19a5",
+  "driver": {
+   "hip": [
+    0.08622,
+    0.15837,
+    -0.03619
+   ],
+   "wheel": [
+    0.08622,
+    0.21524,
+    0.03963
+   ],
+   "radius": 0.03102,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.10346,
+     0.12046,
+     0.07582
+    ],
+    [
+     0.06899,
+     0.12046,
+     0.07582
+    ]
+   ],
+   "roof": 0.34104,
+   "seen": false
+  },
   "bytes": {
    "lite": 912435,
    "full": 1977321
@@ -2501,6 +2977,34 @@ export const CAR_PARTS = Object.freeze({
    "color512": "white-roadster-color-512.jpg"
   },
   "sha256": "06e8bc6337702bae311a6e31d192114f0ff165a01924337cb40f58a093b56849",
+  "driver": {
+   "hip": [
+    0.09719,
+    0.10661,
+    -0.07774
+   ],
+   "wheel": [
+    0.09719,
+    0.17769,
+    0.00888
+   ],
+   "radius": 0.03776,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.1194,
+     0.07774,
+     0.08662
+    ],
+    [
+     0.07498,
+     0.07774,
+     0.08662
+    ]
+   ],
+   "roof": null,
+   "seen": true
+  },
   "bytes": {
    "lite": 1071022,
    "full": 2394857
@@ -2644,6 +3148,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "white-square-suv-rm-512.webp"
   },
   "sha256": "edb1dea10abd6e3a74de61313501e51061bd33bdfcf485faf445efcb577f9879",
+  "driver": {
+   "hip": [
+    0.09401,
+    0.19963,
+    -0.00807
+   ],
+   "wheel": [
+    0.09401,
+    0.25811,
+    0.06453
+   ],
+   "radius": 0.03428,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.11418,
+     0.16334,
+     0.13107
+    ],
+    [
+     0.07385,
+     0.16334,
+     0.13107
+    ]
+   ],
+   "roof": 0.40074,
+   "seen": true
+  },
   "bytes": {
    "lite": 4926474,
    "full": 9098565
@@ -2787,6 +3319,34 @@ export const CAR_PARTS = Object.freeze({
    "rm512": "yellow-classic-roadster-rm-512.webp"
   },
   "sha256": "d589f8c674bece930e90a55080fdef9d22d2f9bb942520a7eb4008cfb5142157",
+  "driver": {
+   "hip": [
+    0.09057,
+    0.13457,
+    -0.14325
+   ],
+   "wheel": [
+    0.09057,
+    0.20185,
+    -0.04341
+   ],
+   "radius": 0.04124,
+   "tilt": 0.38,
+   "feet": [
+    [
+     0.11227,
+     0.10418,
+     0.01519
+    ],
+    [
+     0.06886,
+     0.10418,
+     0.01519
+    ]
+   ],
+   "roof": null,
+   "seen": true
+  },
   "bytes": {
    "lite": 4569603,
    "full": 9248696

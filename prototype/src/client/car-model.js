@@ -245,8 +245,13 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   const lampFrame = new THREE.Group(); lampFrame.position.set(0, -spec.height * 0.35, 0); springs.add(lampFrame);
   const fx = lampsOf(spec, lampFrame);
   const toBody = (v) => v;           // (the lamps are on the body: they pitch and roll with it)
+  // the cabin: where the driver sits and the steering wheel is (the model's units, measured from the ground, as the
+  // body is drawn: tools/vehicles/driver_seats.py), on the body, so that whoever is in it pitches and rolls with it
+  const cabin = new THREE.Group(); cabin.position.set(0, -spec.height * 0.35, 0); springs.add(cabin);
   return {
-    id, group, scale, spec, frame, toBody,
+    id, group, scale, spec, frame, toBody, cabin,
+    // { hip, wheel, radius, tilt, feet, roof, seen } in the model's units, or null (car-view.js seats the driver by it)
+    driver: spec.driver || null,
     // metres: how long, wide and high it is drawn
     size: { length, width: spec.body * scale, height: spec.height * scale },
     // travelled: metres the car has rolled (the wheels turn by it); steerAngle: radians the front wheels are turned

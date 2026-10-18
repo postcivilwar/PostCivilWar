@@ -38,6 +38,7 @@ import { reach } from './animated.js';
 const OUT_SECONDS = 0.85;        // from the press to the phone held up
 const AWAY_SECONDS = 0.6;
 const POCKET = 0.42;             // the part of the way out at which the hand is in the pocket
+const CHEST_TURN = 0.08;         // radians the chest turns towards the phone in the hand, seated on a bike or in a car
 // what the screen is showing, as the colour of the light it throws: [r, g, b] in 0..1
 const SCREENS = Object.freeze({ home: [1, 0.78, 0.6], camera: [0.75, 0.86, 1], music: [1, 0.55, 0.5], deal: [0.55, 0.95, 0.8], page: [0.8, 0.86, 1] });
 
@@ -230,6 +231,19 @@ export function createPhoneHold({ scene, lite }) {
       v.target.x -= Math.sin(u * Math.PI) * 0.05 * H;       // out of the pocket and round, not through the hip
     }
     const held = smooth((out - pocketAt) / (1 - pocketAt));
+    // seated, the chest turns a little towards the hand that holds it (the other hand stays where it holds on: a turn
+    // this small moves it a centimetre or two)
+    if (seated) {
+      const chest = rig.bones.get('spine_03') || rig.bones.get('spine_02');
+      if (chest) {
+        const note = baseOf(chest);
+        holder.localToWorld(v.up.set(0, 1, 0)).sub(holder.localToWorld(v.zero.set(0, 0, 0))).normalize();
+        chest.parent.getWorldQuaternion(q.p).invert();
+        chest.quaternion.premultiply(q.a.setFromAxisAngle(v.look.copy(v.up).applyQuaternion(q.p), -k * CHEST_TURN * smooth(out)));
+        note.set.copy(chest.quaternion);
+        chest.updateMatrixWorld(true);
+      }
+    }
     holder.localToWorld(v.hand.copy(v.target));
     // (the elbow out and down to its own side)
     holder.localToWorld(v.pole.set(-0.7 * k, -1, -0.5)).sub(holder.localToWorld(v.zero.set(0, 0, 0)));
@@ -364,6 +378,12 @@ export function createPhoneHold({ scene, lite }) {
     get atEar() { return ear; },
     // while the phone's own camera takes its picture, neither the handset nor its glow is in it
     hideForPicture(on) { if (on) { hidden = [screenGlow.visible, faceGlow.visible]; prop.visible = false; screenGlow.visible = false; faceGlow.visible = false; } else if (hidden) { [screenGlow.visible, faceGlow.visible] = hidden; hidden = null; } },
-    dispose() { scene.remove(prop, screenGlow, faceGlow); if (lamp) scene.remove(lamp); },
+    // (everything it made let go: one is made for each other player seen with their phone out)
+    dispose() {
+      release();
+      scene.remove(prop, screenGlow, faceGlow); if (lamp) scene.remove(lamp);
+      for (const m of [body, glass, back]) { m.geometry.dispose(); m.material.dispose(); }
+      texture.dispose(); glowMap.dispose(); screenGlow.material.dispose(); faceGlow.material.dispose();
+    },
   };
 }

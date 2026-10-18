@@ -248,6 +248,8 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
     gripWorld: (k, out = new THREE.Vector3()) => gripAt[k].getWorldPosition(out),
     pegs: [new THREE.Vector3(spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale), new THREE.Vector3(-spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale)],
     lean, frame,
+    // how far its bars are turned now (radians, left positive), as pose() last turned them
+    get steerAngle() { return steer.rotation.y; },
     // travelled: metres the bike has rolled (the wheels turn by it); steer: radians the bars are turned (left
     // positive); tilt: radians it leans (right positive, as the game keeps it)
     pose({ travelled = 0, steerAngle = 0, tilt = 0, dive = 0, bob = 0 } = {}) {

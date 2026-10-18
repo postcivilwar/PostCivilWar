@@ -87,6 +87,29 @@ test('their own motorcycles standing near them are seen; nothing made up or out 
   assert.ok(q.kekes[0].plate.length <= 14 && q.kekes[0].look.paint === 'yellow' && q.kekes[0].look.wear === 1 && q.kekes[0].look.slogan.length <= 32, 'every field checked');
 });
 
+test('a motorcycle\'s steering and the phone in a player\'s hand travel with them, and are checked when heard', () => {
+  const self = { name: 'Rider', x: 0, z: 100, heading: 0, look: {}, astride: { n: 'pb:cafe-racer', model: 'cafe-racer', ride: { lean: 0.2, speed: 9, throttle: 0.5, brake: 0, rev: 0.4, steer: 0.31 }, horns: 0 }, phone: 1 };
+  const state = encodePlayer(self, ZONE_ID);
+  assert.equal(state.mb.st, 0.31);
+  assert.equal(state.ph, 1);
+  const data = decodePlayer(state, ZONE_ID);
+  assert.equal(data.ride.steer, 0.31);
+  assert.equal(data.phone, 1);
+  const b = town(['Watcher Ebi']);
+  b.place(b.p, 2, 100);
+  b.g.visitors.seen('peer-ph', data);
+  let q = b.g.view(b.id).players.find((o) => o.name === 'Rider');
+  assert.equal(q.ride.steer, 0.31, 'the front wheel is seen turned as theirs is');
+  assert.equal(q.phone, 1, 'and their phone in their hand');
+  // on a call, and the phone put away; a made-up value is no phone at all, and the bars turned past the lock are held to it
+  for (const [ph, want] of [[2, 2], [0, 0], [7, 0], ['1', 0]]) { b.g.visitors.seen('peer-ph', { ...data, phone: ph }); q = b.g.view(b.id).players.find((o) => o.name === 'Rider'); assert.equal(q.phone, want, `phone ${ph}`); }
+  b.g.visitors.seen('peer-ph', { ...data, ride: { ...data.ride, steer: 5 } });
+  q = b.g.view(b.id).players.find((o) => o.name === 'Rider');
+  assert.equal(q.ride.steer, 0.7);
+  // a player without the phone out sends nothing for it
+  assert.equal(encodePlayer({ ...self, phone: 0 }, ZONE_ID).ph, undefined);
+});
+
 test('a vehicle\'s speed travels with it; the link works it out from where the player is', () => {
   const hub = createLoopbackHub();
   const me = { name: 'Mover', x: 0, z: 100, heading: Math.PI / 2, look: {}, astride: { n: 3 } };
@@ -153,8 +176,12 @@ function path(t) {
   return { x: 60 + r, z: r + d, h: 0, vx: 0, vz: sp };
 }
 
-for (const conditions of [{ name: 'a good connection', latency: 0.08, jitter: 0.04, loss: 0 }, { name: 'a poor mobile connection', latency: 0.35, jitter: 0.3, loss: 0.15 }]) {
-  test(`another player's keke over ${conditions.name}: shown where it is, smoothly, never jumping, and stopping where it stops`, async () => {
+// (a keke, one of the player's own cars, one of their own motorcycles: each says what it is in its own field. Before
+// 18 October 2026 a car was not carried on between words at all: it was moved in steps from where it had been heard)
+const KINDS = [['keke', { vh: { k: 'keke' } }], ['car', { mc: { i: 'grey-saloon', s: 0, v: 18, t: 0.5, k: 0, r: 0.4, l: 0, hn: 0 } }], ['motorcycle', { mb: { i: 'cafe-racer', l: 0, s: 18, t: 0.5, k: 0, r: 0.4, st: 0, hn: 0 } }]];
+const turnGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); };
+for (const [kind, field] of KINDS) for (const conditions of [{ name: 'a good connection', latency: 0.08, jitter: 0.04, loss: 0 }, { name: 'a poor mobile connection', latency: 0.35, jitter: 0.3, loss: 0.15 }]) {
+  test(`another player's ${kind} over ${conditions.name}: shown where it is and facing the way it goes, smoothly, never jumping, and stopping where it stops`, async () => {
     const net = network(conditions);
     const ta = createWebTransport({ online: net.online('a'), zone: ZONE_ID, now: net.now, every: net.every, never: () => {} });
     const tb = createWebTransport({ online: net.online('b'), zone: ZONE_ID, now: net.now, every: net.every, never: () => {} });
@@ -165,17 +192,17 @@ for (const conditions of [{ name: 'a good connection', latency: 0.08, jitter: 0.
     const mine = { v: 1, zn: ZONE_ID, n: 'Watcher', x: 30, z: 10, h: 0 };
     tb.publish(mine);
     // (first they find each other: alone in town a game asks only every ten seconds)
-    ta.publish({ v: 1, zn: ZONE_ID, n: 'Driver', x: 0, z: 0, h: Math.PI / 2, vh: { k: 'keke' }, vl: [0, 0] });
+    ta.publish({ v: 1, zn: ZONE_ID, n: 'Driver', x: 0, z: 0, h: Math.PI / 2, ...field, vl: [0, 0] });
     for (let i = 0; i < 12 && !(seenByA.length && shown.length); i += 1) await net.advance(10);
     assert.ok(shown.some((o) => o.state.n === 'Driver') && seenByA.length, 'each sees the other');
     await net.advance(3);
     const trace = [];
     const dt = 1 / 30;
     let t = 0;
-    let worst = 0, worstJump = 0, last = null;
+    let worst = 0, worstJump = 0, last = null, worstTurn = 0;
     for (; t < 16; t += dt) {
       const p = path(t);
-      ta.publish({ v: 1, zn: ZONE_ID, n: 'Driver', x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10, h: Math.round(p.h * 100) / 100, vh: { k: 'keke' }, vl: [Math.round(p.vx * 100) / 100, Math.round(p.vz * 100) / 100] });
+      ta.publish({ v: 1, zn: ZONE_ID, n: 'Driver', x: Math.round(p.x * 10) / 10, z: Math.round(p.z * 10) / 10, h: Math.round(p.h * 100) / 100, ...field, vl: [Math.round(p.vx * 100) / 100, Math.round(p.vz * 100) / 100] });
       await net.advance(dt);
       const heard = shown.find((o) => o.state.n === 'Driver');
       if (!heard) continue;
@@ -185,6 +212,7 @@ for (const conditions of [{ name: 'a good connection', latency: 0.08, jitter: 0.
       const truth = path(t + dt);
       const err = Math.hypot(them.state.x - truth.x, them.state.z - truth.z);
       if (t > 2) worst = Math.max(worst, err);
+      if (t > 2) worstTurn = Math.max(worstTurn, turnGap(them.state.h, truth.h));
       if (last) worstJump = Math.max(worstJump, Math.hypot(them.state.x - last.x, them.state.z - last.z));
       last = { x: them.state.x, z: them.state.z };
       trace.push(err);
@@ -193,11 +221,14 @@ for (const conditions of [{ name: 'a good connection', latency: 0.08, jitter: 0.
     // between words, and put there at once if that was more than 25 m): 15 to 23 m behind on average, and jumping
     // up to 40 m. Now: within a metre or so on a good connection, a few metres on a poor one, and never a jump.
     const mean = trace.slice(60).reduce((a, b) => a + b, 0) / trace.slice(60).length;
-    if (process.env.TRACE) console.log('SUMMARY', conditions.name, worst.toFixed(2), mean.toFixed(2), worstJump.toFixed(2));
+    if (process.env.TRACE) console.log('SUMMARY', kind, conditions.name, worst.toFixed(2), mean.toFixed(2), worstJump.toFixed(2), worstTurn.toFixed(2));
     const limits = conditions.loss ? { worst: 30, mean: 6, step: 4.5 } : { worst: 6, mean: 1.5, step: 1.5 };
     assert.ok(worstJump < limits.step, `never jumps: the largest step shown from one frame to the next was ${worstJump.toFixed(2)} m (it really moves 0.6 m a frame)`);
     assert.ok(worst < limits.worst, `close to where it really is: at worst ${worst.toFixed(2)} m out`);
     assert.ok(mean < limits.mean, `on average ${mean.toFixed(2)} m out`);
+    // facing the way it goes, round the bend too (it turns as it was turning when last heard: before, it faced the way
+    // it had last been heard to face, 0.6 rad out in the bend on a good connection and 0.95 on a poor one)
+    assert.ok(worstTurn < (conditions.loss ? 0.85 : 0.52), `facing the way it goes: at worst ${worstTurn.toFixed(2)} rad out`);
     // stopped: shown where it stopped, not carried on past it
     await net.advance(3);
     const end = path(100), them = shown.find((o) => o.state.n === 'Driver');

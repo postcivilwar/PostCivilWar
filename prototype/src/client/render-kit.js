@@ -371,6 +371,29 @@ function paintPixels(ctx, size, fn) {
 // Surface textures are near-white grain. They are multiplied by each
 // surface's own colour, so one texture serves every wall or every road.
 
+// A tower's glass curtain wall, for a tower drawn as its plain shape (from afar, or while its model is on its way):
+// panes of sky-blue glass, each a little its own shade, between pale mullions and spandrels, `across` panes by `up`
+// floors to the picture, near-white so that each shape's own colour tints it (18 October 2026, the owner's brief: a
+// building seen from afar kept its shape and its surface, and was not a dark slab like its own shadow).
+const facades = new Map();
+export function facadeTexture(across = 8, up = 24) {
+  const key = `${across}x${up}`;
+  if (facades.has(key)) return facades.get(key);
+  const t = canvasTexture(256, (g, size) => {
+    const w = size / across, h = size / up;
+    g.fillStyle = '#e9edf1'; g.fillRect(0, 0, size, size);
+    for (let j = 0; j < up; j += 1) {
+      for (let i = 0; i < across; i += 1) {
+        const k = 0.78 + noise(i * 3.1, j * 7.7) * 0.22;
+        g.fillStyle = `rgb(${Math.round(150 * k)},${Math.round(176 * k)},${Math.round(198 * k)})`;
+        g.fillRect(i * w + w * 0.08, j * h + h * 0.16, w * 0.84, h * 0.7);
+      }
+    }
+  });
+  facades.set(key, t);
+  return t;
+}
+
 // Fine mottled grain: plaster, earth, tarmac.
 export function grainTexture({ size = 256, low = 0.72, coarse = 0.5, speck = 0.25, seed = 0 } = {}) {
   return canvasTexture(size, (ctx) => paintPixels(ctx, size, (x, y) => {

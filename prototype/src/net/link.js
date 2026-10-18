@@ -20,7 +20,10 @@ export function encodePlayer(self, zoneId) {
   if (self.said) out.say = { q: self.said.seq, t: self.said.text, l: self.said.lang };
   // on one of their own motorcycles: which, and what it is doing (lamps, flames and the engine's note follow it)
   const a = self.astride;
-  if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, hn: a.horns || 0 }; }
+  if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, st: r.steer || 0, hn: a.horns || 0 }; }
+  // the phone in their hand (18 October 2026): 1 held to be read, 2 on a call, 3 held up to take a picture; so that
+  // others see them take it out and hold it as they do, on foot, on a motorcycle or at the wheel
+  if (self.phone) out.ph = self.phone;
   // Vehicles. Each copy of the town has its own; what this player drives, rides or has left standing exists only in
   // theirs. So it travels with them, and every other player's game draws it where they are: the keke they drive
   // (its plate and paint), the okada they ride or sit on the back of, and their own motorcycles and kekes standing
@@ -67,7 +70,7 @@ export function decodePlayer(state, zoneId) {
   const lk = state.lk && typeof state.lk === 'object' ? state.lk : {};
   const say = state.say && typeof state.say === 'object' ? { seq: state.say.q, text: state.say.t, lang: state.say.l } : null;
   const mb = state.mb && typeof state.mb === 'object' ? state.mb : null;
-  const ride = mb ? { bike: mb.i, lean: mb.l, speed: mb.s, throttle: mb.t, brake: mb.k, rev: mb.r, horns: mb.hn } : null;
+  const ride = mb ? { bike: mb.i, lean: mb.l, speed: mb.s, throttle: mb.t, brake: mb.k, rev: mb.r, steer: mb.st, horns: mb.hn } : null;
   const vh = state.vh && typeof state.vh === 'object' ? state.vh : null;
   const vehicle = vh ? { kind: vh.k, id: vh.id, plate: vh.pl, look: unpackLook(vh.lk), fleet: !!vh.f, back: !!vh.b, driver: vh.dp, horns: vh.hn } : null;
   const parked = Array.isArray(state.pk) ? state.pk.map((b) => (Array.isArray(b) ? { bike: b[0], x: b[1], z: b[2], h: b[3], fallen: !!b[4] } : null)) : [];
@@ -78,7 +81,8 @@ export function decodePlayer(state, zoneId) {
   const car = mc ? { car: mc.i, steer: mc.s, speed: mc.v, throttle: mc.t, brake: mc.k, rev: mc.r, lamps: mc.l, horns: mc.hn } : null;
   const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3] } : null)) : [];
   const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
-  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk };
+  const phone = [1, 2, 3].includes(state.ph) ? state.ph : 0;
+  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

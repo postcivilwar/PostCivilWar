@@ -68,6 +68,7 @@ import { createConfirm } from './confirm.js';
 import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
 import { createCarView } from './car-view.js';
+import { createStandins } from './vehicle-standins.js';
 import { setCarDaylight, carsHeld } from './car-model.js';
 import { bikesHeld } from './bike-model.js';
 import { buildCarshow } from './render-carshow.js';
@@ -188,6 +189,26 @@ function start(carried) {
   const peerBikeView = createOwnBikeView(scene, { lite: LITE });
   // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
   const carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
+  // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
+  const standins = createStandins(scene, { lite: LITE });
+  const PEER_STANDIN = 260;          // metres within which another player's vehicle is drawn at all
+  // the phone in other players' hands (phone-hold.js, one each, made when one is first seen with it out; no lamp)
+  const peerPhones = new Map();      // id -> { hold, idle }
+  function updatePeerPhones(dt) {
+    const near = new Set();
+    for (const q of shownPeers) {
+      const close = Math.hypot(q.x - predicted.x, q.z - predicted.z) < 45;
+      let e = peerPhones.get(q.id);
+      if (!e && (!q.phone || !close || peerPhones.size >= 8)) continue;
+      const rig = crowd.rigOf(`p:${q.id}`);
+      if (!e) { e = { hold: createPhoneHold({ scene, lite: true }), idle: 0 }; peerPhones.set(q.id, e); }
+      near.add(q.id);
+      const side = q.car ? 'r' : q.ride || (q.vehicle && !q.vehicle.back) ? 'l' : q.vehicle ? 'r' : null;
+      e.hold.update(dt, rig, { use: q.phone === 1 || q.phone === 3, able: !!rig && close, night, screen: q.phone === 3 ? 'camera' : 'page', call: q.phone === 2, seated: side ? { side } : null });
+      e.idle = e.hold.out > 0 ? 0 : e.idle + dt;
+    }
+    for (const [id, e] of peerPhones) if (!near.has(id) || e.idle > 8) { e.hold.dispose(); peerPhones.delete(id); }
+  }
   let peerRides = [];
   let carsHeard = [];                // other players' cars near enough to be heard: { key, car, x, z, rev, throttle }
   let shownPeers = [];
@@ -456,11 +477,15 @@ function start(carried) {
   let twin = null;                    // a second world in this page, for testing two players
   // what this player's game tells the others: the simulation's own view of them, and, while they ask the showroom's
   // salesman about a motorcycle, which one and for how long (salesman.js goes to whoever began first)
+  // what this player's link tells the others: where they are and what they are doing (link.js), with the phone in
+  // their hand (`phoneShown`, from the frame: 1 held to be read, 2 on a call, 3 held up for a picture)
+  let phoneShown = 0;
   function linkSelf() {
     if (!view) return null;
-    if (carshow.talk && carshow.inside) return { ...view.self, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
-    if (!showroom.talk || !showroom.inside) return view.self;
-    return { ...view.self, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
+    const me = phoneShown ? { ...view.self, phone: phoneShown } : view.self;
+    if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
+    if (!showroom.talk || !showroom.inside) return me;
+    return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
   }
   function relink() {
     if (link) { link.close(); link = null; }
@@ -1119,7 +1144,7 @@ function start(carried) {
     let facing = 'back', wait = 0;
     function draw(dt) {
       const canvas = document.getElementById('phone-cam');
-      if (!canvas || !me) return;
+      if (!canvas || !me || contextLost) return;
       wait -= dt;
       if (wait > 0) return;
       wait = LITE ? 1 / 9 : 1 / 14;
@@ -2211,10 +2236,13 @@ function start(carried) {
 
   // Driving: the client works out the next step from the controls and asks the
   // simulation for it, the same way walking does.
+  // (with the phone in the hand the vehicle is still driven: only a page over the whole screen takes the controls
+  // away, as it does on foot; 18 October 2026, the owner's brief: the phone used while riding or driving, the
+  // vehicle still under control. Until then the phone in the hand let go of the throttle, the brake and the steering)
   function driveVehicle(dt) {
     const v = view.self.driving;
     const k = VEHICLE_KINDS[v.kind];
-    const axes = ui.isOpen() ? { forward: 0, strafe: 0 } : controls.axes();
+    const axes = uiBlocks() ? { forward: 0, strafe: 0 } : controls.axes();
     const throttle = axes.forward;
     const steer = axes.strafe;
     car.steer = steer;
@@ -2285,7 +2313,7 @@ function start(carried) {
   }
   // A power bike under the player's hands: it leans into a turn and turns by leaning (power-bikes.js).
   function drivePowerBike(dt, bike) {
-    const input = ui.isOpen() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    const input = uiBlocks() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
     const handling = handlingOf(bike);
     bikeState.heading = predicted.heading;
     const tar = motoSpeedAt(predicted.x, predicted.z, false) === MOTO.speedRoad;
@@ -2300,7 +2328,7 @@ function start(carried) {
     // into something solid: it stops there, and does not go through
     if (!zoneWalkable(nx, nz, structureBoxes(), handling.radius)) { crashOrStop(); return 0; }
     // (with what the bike is doing, for other players to see and hear: its lean, speed, throttle, brake and revs)
-    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: bikeState.heading, lean: bikeState.lean, speed: bikeState.speed, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(bikeState.speed, bikeState.throttle, handling) });
+    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: bikeState.heading, lean: bikeState.lean, speed: bikeState.speed, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(bikeState.speed, bikeState.throttle, handling), steer: bikeState.steer });
     if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = bikeState.heading; if (result.hit) bikeState.speed = 0; }
     else if (result.code === 'BLOCKED') { crashOrStop(); return 0; }
     else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; bikeState.speed = 0; }
@@ -2312,7 +2340,7 @@ function start(carried) {
   function driveMoto(dt) {
     const bike = powerBike();
     if (bike) return drivePowerBike(dt, bike);
-    const axes = ui.isOpen() ? { forward: 0, strafe: 0 } : controls.axes();
+    const axes = uiBlocks() ? { forward: 0, strafe: 0 } : controls.axes();
     const top = motoSpeedAt(predicted.x, predicted.z, view.weather.wet);
     const target = axes.forward > 0.1 ? top * axes.forward : axes.forward < -0.1 ? MOTO.reverse * axes.forward : 0;
     const braking = target === 0 || Math.sign(target) !== Math.sign(moto.speed || target);
@@ -2365,7 +2393,7 @@ function start(carried) {
   // A car under the player's hands (power-cars.js): it turns about its back wheels, no harder than its tyres grip,
   // and the whole of it is checked against what is solid, not only its middle (own-cars.js, `carFits`).
   function driveOwnCar(dt, spec) {
-    const input = ui.isOpen() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    const input = uiBlocks() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
     const handling = carHandlingOf(spec);
     carState.heading = predicted.heading;
     const tar = motoSpeedAt(predicted.x, predicted.z, false) === MOTO.speedRoad;
@@ -2647,7 +2675,21 @@ function start(carried) {
   }
 
   let last = performance.now();
+  // The game's loop. The next frame is asked for before this one is drawn, and a mistake in drawing one frame is
+  // written to the console and counted (`frameErrors`) rather than left to end the loop (18 October 2026, the owner's
+  // brief: the game sometimes froze. Until now the next frame was asked for at the end of this one, so any error
+  // thrown on the way, however rare, stopped the game where it stood, the last picture left on the screen). The
+  // browser tests fail on any such error in the console, so none is hidden from them.
+  let frameErrors = 0;
   function frame(now) {
+    requestAnimationFrame(frame);
+    try { drawFrame(now); } catch (error) {
+      frameErrors += 1;
+      if (frameErrors <= 5 || frameErrors % 600 === 0) console.error(`PostCivilWar: a frame could not be drawn (${frameErrors})`, error);
+      monitor.count('frame error');
+    }
+  }
+  function drawFrame(now) {
     const elapsed = (now - last) / 1000;
     const dt = Math.min(0.5, Math.max(0.001, elapsed));
     last = now;
@@ -2720,19 +2762,20 @@ function start(carried) {
       } else { me.group.position.x = wantX; me.group.position.z = wantZ; }
       if (holding && prompt.intent.type === 'site.work') { const parcel = ZONE_PARCELS.find((p) => p.id === prompt.intent.parcelId); predicted.heading += angleGap(Math.atan2(parcel.cx - predicted.x, parcel.cz - predicted.z), predicted.heading) * Math.min(1, dt * 8); }
       if (holding && prompt.intent.type === 'job.mould') predicted.heading += angleGap(Math.PI, predicted.heading) * Math.min(1, dt * 8);
-      me.group.rotation.y = predicted.heading;
-      me.group.rotation.z = astride ? moto.lean : 0;      // (positive: over to the right, into a right turn)
+      // (all three: a seat in a car turns the figure with the car's body as it pitches and rolls, car-view.js)
+      me.group.rotation.set(0, predicted.heading, astride ? moto.lean : 0);      // (lean positive: over to the right, into a right turn)
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
-      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else { standCharacter(me); me.group.position.y = groundY; }
+      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
       // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
       const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
       ownBikeView.update(dt, { ridden: ownRide, parked: (self.ownBikes && self.ownBikes.parked) || [], groundY: zoneGroundY, from: predicted, night, now: clock });
       if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
       // in one of the player's own cars: the car is drawn where they are (car-view.js), with the other players' cars
-      // near them, and every car of theirs and others' left standing within sight; the figure is inside, unseen
+      // near them, and every car of theirs and others' left standing within sight; the player sits at its wheel, seen
+      // where its cabin can be seen into (car-view.js says where), unseen in a closed one
       const ownDrive = incar && ownCar() ? { id: ownCar().id, x: predicted.x, z: predicted.z, h: predicted.heading, speed: carState.speed, steer: carState.steer, throttle: carState.throttle, brake: carState.braking } : null;
       const peerCars = [], parkedCars = ((self.ownCars && self.ownCars.parked) || []).map((c) => ({ ...c }));
       for (const q of shownPeers) {
@@ -2740,17 +2783,22 @@ function start(carried) {
         for (const c of q.cars || []) parkedCars.push({ ...c, key: `cpark:${q.id}:${c.car}` });
       }
       carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, groundY: zoneGroundY, from: predicted, night });
+      const carSeated = !!ownDrive && carView.seat(me, ownDrive);
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       if (taking) poseTaking(me, taking.step, taking.progress);
       else if (self.fight || me.strike) poseFighter(me, clock, { guard: !!self.fight, block: blocking && !!self.fight });
-      // the phone, in the hand of someone on their feet: out of the pocket, held up, looked at
-      // (on a call it is held to the ear; the call is ended by anything that takes the phone out of the hand)
-      const phoneAble = !driving && !riding && !astride && !incar && !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried;
+      // the phone, in the hand of someone on their feet: out of the pocket, held up, looked at (on a call it is held to
+      // the ear). On a motorcycle or a keke's handlebars, the left hand comes off them for it (the right keeps the
+      // throttle); at the wheel of a car, the right (the left keeps the wheel); on the back of a motorcycle, the right.
+      // Getting on or off, a fall, a crash, a fight: the phone is put away at once, and a call is ended.
+      const phoneSide = incar ? 'r' : driving || astride ? 'l' : riding ? 'r' : null;
+      const phoneAble = !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried;
       if (!phoneAble && ui.calling()) ui.hangUp();
       // (asking the showroom's salesman about a motorcycle, the player talks to him face to face: the phone's screen
       // is the conversation, and the handset is not held up in the town)
       const talking = (!!showroom.talk && showroom.inside) || (!!carshow.talk && carshow.inside);
-      phoneHold.update(dt, me, { use: ui.usingPhone() && !talking, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : 'page', call: ui.calling() });
+      phoneHold.update(dt, me, { use: ui.usingPhone() && !talking, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });
+      phoneShown = !phoneAble ? 0 : ui.calling() ? 2 : ui.usingPhone() && !talking ? (ui.phoneOut() && ui.phoneScreen() === 'camera' ? 3 : 1) : 0;
       tickTalkPose(dt, speed);
       tickCarTalkPose(dt, speed);
       // knocked down by a vehicle, or killed: flat on the ground quickly, and up again more slowly
@@ -2765,8 +2813,8 @@ function start(carried) {
       layCharacter(me, me.fall, me.fellHow || 'hard');
       if (me.swimming) { me.group.position.y = me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5; if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
-      // in the ambulance, in a car, or with the eye inside its own head, the figure is not drawn
-      me.group.visible = !aboard && !incar && !rig.hidesPlayer;
+      // in the ambulance, in a closed car (or one not yet drawn), or with the eye inside its own head, the figure is not drawn
+      me.group.visible = !aboard && (!incar || carSeated) && !rig.hidesPlayer;
       ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
       // one of the player's own motorcycles: its own speedometer, scaled to its engine (speedometer.js)
       if (astride && powerBike()) {
@@ -2865,20 +2913,36 @@ blood.update(dt, view.blood || []);
         const rig = crowd.rigOf(`p:${q.id}`);
         if (!rig) continue;
         const g = rig.group;
-        peerRides.push({ key: q.id, id: q.ride.bike, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.ride.lean, speed: q.ride.speed, throttle: q.ride.throttle, brake: q.ride.brake, rev: q.ride.rev, rig });
+        peerRides.push({ key: q.id, id: q.ride.bike, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.ride.lean, speed: q.ride.speed, steer: q.ride.steer || 0, throttle: q.ride.throttle, brake: q.ride.brake, rev: q.ride.rev, rig });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.bikeHornAt(POWER_BIKES[q.ride.bike].horn, g.position.x, g.position.z); }
       }
       const peerParked = [];
       for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}` });
       peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
+      // another player at the wheel of their car: seen in their seat where its cabin can be seen into, as the player is
+      // (car-view.js); unseen in a closed one, or while their car is not drawn (its picture stands in for it, below)
+      const standing = [];
       for (const q of shownPeers) {
         if (!q.car) continue;
         const rig = crowd.rigOf(`p:${q.id}`);
-        if (rig) rig.group.visible = false;
+        if (rig) { seatCharacter(rig); rig.group.visible = carView.seat(rig, { steer: q.car.steer }, `peer:${q.id}`); }
+        if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: zoneGroundY(q.x, q.z), z: q.z, h: q.heading });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
       }
       updatePeerKekes(dt);
-      for (const r of peerRides) { seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0; peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`); }
+      for (const r of peerRides) {
+        seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0;
+        if (peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`)) continue;
+        // their motorcycle not drawn as its model (on its way, or beyond the nearest few): its picture stands in for
+        // it, and they sit where its saddle is, rather than on nothing
+        const fx = Math.sin(r.h), fz = Math.cos(r.h), gy = zoneGroundY(r.x, r.z);
+        r.rig.group.position.set(r.x - fx * 0.17, gy - 0.15 * r.rig.scale, r.z - fz * 0.17);
+        if (Math.hypot(r.x - predicted.x, r.z - predicted.z) < PEER_STANDIN) standing.push({ key: `b:${r.key}`, kind: 'bike', id: r.id, x: r.x, y: gy, z: r.z, h: r.h });
+        else r.rig.group.visible = false;
+      }
+      standins.update(standing, camera.position, performance.now() / 1000);
+      // the phone in other players' hands, as they hold it: on foot, on a motorcycle (the left hand), at the wheel (the right)
+      updatePeerPhones(dt);
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
@@ -3022,7 +3086,9 @@ blood.update(dt, view.blood || []);
     // a page of the phone covers the town entirely, so the town is not drawn behind it
     const paged = playing && ui.usingPhone() && !ui.phoneOut();
     if (playing && !NO_DRAW && ui.phoneScreen() === 'camera') monitor.time('phone camera', () => phoneCam.draw(dt));
-    if (!NO_DRAW && !covered && !paged && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
+    // (nothing is drawn once the browser has taken the graphics away: what the graphics card held is gone, and the
+    // page let its own copies go once the card had them, so the picture cannot be made again without a reload)
+    if (!NO_DRAW && !covered && !paged && !contextLost && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame
@@ -3036,9 +3102,25 @@ blood.update(dt, view.blood || []);
     if (playing && view) bubbles.update(view.speech, headOf, project, predicted, `p:${playerId}`, viewW, viewH);
     monitor.end(elapsed * 1000);
     if (clock > 4 && !document.hidden) governor.frame(elapsed * 1000, dt);
-    requestAnimationFrame(frame);
   }
 
+  // The picture taken away (18 October 2026, the owner's brief: the game froze, closed or restarted on phones). A
+  // browser short of graphics memory, most often a phone's, may take a page's drawing away from it (its WebGL context
+  // is lost); until now the game simply stopped there. Now the game is saved at once, the town's sounds stop, and the
+  // player is told what happened and offered to reload the page to carry on: that is theirs to choose (the game never
+  // reloads itself). The pictures the graphics card held cannot be made again in place (once the card has a picture
+  // the page lets its own copy go, to save memory), so carrying on needs the page loaded afresh. Each time it happens
+  // is counted (`contextLost`) for the frame monitor and the tests.
+  let contextLost = 0;
+  canvas.addEventListener('webglcontextlost', (event) => {
+    event.preventDefault();
+    contextLost += 1;
+    monitor.count('graphics context lost');
+    if (playing) { try { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } catch (error) { /* saved as far as it could be */ } }
+    audio.suspend();
+    confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', run: async () => { location.reload(); return { ok: true }; } });
+  }, false);
+  canvas.addEventListener('webglcontextrestored', () => { monitor.count('graphics context restored'); }, false);
   document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {
     window.claude.hot.snapshot(() => (playing ? { host: host.save(), playerId } : {}));
@@ -3066,7 +3148,7 @@ blood.update(dt, view.blood || []);
     // the Post Civil War Car Showroom: the compound and its hall, the two who sell the cars, and asking about one; the
     // player's own cars and driving them
     carshowView, carSalesmen, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
-    carView, carState, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
+    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },

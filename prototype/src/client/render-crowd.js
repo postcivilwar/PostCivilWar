@@ -478,14 +478,15 @@ export function createCrowd(scene) {
       let gap = Math.hypot(gx, gz);
       // in or on a vehicle: where their game says the vehicle is, carried on between words at its speed (main.js),
       // so it is not left trailing behind as someone walking would be; and facing the way the vehicle faces
-      const vh = q.vehicle || null, seated = !!vh || !!q.ride;
+      const vh = q.vehicle || null, seated = !!vh || !!q.ride || !!q.car;
       if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }
       else {
         if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
         other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
       }
       other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : zoneGroundY(other.x, other.z), other.z);
-      other.rig.group.rotation.y = other.h;
+      // (all three: in a car they are turned with its body as it pitches and rolls, car-view.js)
+      other.rig.group.rotation.set(0, other.h, 0);
       const stance = frame.others ? frame.others[q.id] : null;
       // another player in the river swims, with their own figure's swim, floating at the surface
       other.rig.swimming = !!(stance && stance.swimming);

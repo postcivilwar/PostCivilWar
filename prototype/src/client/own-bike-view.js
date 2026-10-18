@@ -30,7 +30,7 @@ const v = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3
 // figure's (character.js: Hips, Hand_L, ...) under those names, so that anyone can sit on a bike.
 const KIT_NAMES = { pelvis: 'Hips', spine_01: 'Spine', spine_02: 'Chest', neck_01: 'Neck', head: 'Head' };
 for (const [s, S] of [['l', 'L'], ['r', 'R']]) Object.assign(KIT_NAMES, { [`upperarm_${s}`]: `UpperArm_${S}`, [`lowerarm_${s}`]: `Forearm_${S}`, [`hand_${s}`]: `Hand_${S}`, [`thigh_${s}`]: `Thigh_${S}`, [`calf_${s}`]: `Shin_${S}`, [`foot_${s}`]: `Foot_${S}` });
-function bonesOf(figure) {
+export function bonesOf(figure) {
   if (typeof figure.bones.get === 'function') return figure.bones;
   if (!figure.kitBones) { const byName = new Map(figure.bones.map((b) => [b.name, b])); figure.kitBones = { get: (name) => byName.get(KIT_NAMES[name]) || null }; }
   return figure.kitBones;

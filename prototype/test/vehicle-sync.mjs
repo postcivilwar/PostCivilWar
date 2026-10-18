@@ -5,6 +5,9 @@
 //     really is, moving smoothly, its lamps at night; the hire fleet's keke is no longer also shown in its bay;
 //   - the driver gets out and walks off: the keke is seen standing where it was left, and gone with them;
 //   - someone on an okada, and on the back of one, is seen on it (from a visitor's word, as the link gives it);
+//   - another player on their own motorcycle is seen on it, its bars turned as theirs are, their phone in their left
+//     hand; another in their open car is seen at its wheel with the phone in their right; one in a closed car is not
+//     seen through it; more motorcycles about than are drawn as models are their pictures, each with its rider on it;
 //   - nothing goes wrong in either page.
 //   ../server/with-postgres.sh node test/vehicle-sync.mjs [shots folder]
 import { createRequire } from 'node:module';
@@ -145,6 +148,71 @@ check('someone on an okada and someone on the back of one are seen on their mach
 await B.page.evaluate(() => { const n = window.__nlw; n.cam.yaw = Math.PI; n.cam.dist = 7; n.cam.pitch = 0.25; });
 await B.page.waitForTimeout(600);
 await B.shot('03-okadas');
+
+// ---- other players on their own motorcycles and in their own cars, with their phones (each as its link hands it on) ----
+// (kept told of every half second, as a link does; a motorcycle's bars turned, a phone held up)
+await B.page.evaluate(() => {
+  const n = window.__nlw, me = n.view.self;
+  const at = { x: me.x, z: me.z };
+  const peers = [
+    ['bike-phone', { name: 'Bike_Phone', look: { figure: 'W1' }, x: at.x + 5, z: at.z + 4, heading: 0.5, ride: { bike: 'red-superbike', lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0, steer: 0.45 }, phone: 1 }],
+    ['open-car', { name: 'Open_Car', look: { figure: 'M1' }, x: at.x - 7, z: at.z + 6, heading: 2.2, car: { car: 'white-roadster', steer: 0.3, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }, phone: 1 }],
+    ['closed-car', { name: 'Closed_Car', look: { figure: 'W1' }, x: at.x + 9, z: at.z - 7, heading: -1, car: { car: 'grey-saloon', steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 } }],
+    // more motorcycles than are drawn as models: the furthest stand in as their pictures
+    ...['streetfighter', 'chopper', 'cafe-racer', 'gold-tourer'].map((bike, k) => [`bike-${k}`, { name: `Bike_${k}`, x: at.x - 14 - k * 4, z: at.z - 12 - k * 3, heading: 0.3 * k, ride: { bike, lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0, steer: 0 } }]),
+  ];
+  // (each with one of the game's own figures, as every player now has: a figure the phone can be held by)
+  const tell = () => { for (const [id, d] of peers) n.host.game.visitors.seen(id, { look: {}, vel: [0, 0], ...d }); };
+  tell();
+  window.__keepPeers = setInterval(tell, 500);
+});
+await B.page.waitForFunction(() => {
+  const n = window.__nlw; const id = (name) => (n.shownPeers.find((q) => q.name === name) || {}).id;
+  // (and their own figures come, with the bones that hold the bars, the wheel and the phone)
+  const ready = (name) => { const r = n.crowd.rigOf(`p:${id(name)}`); return !!(r && r.animated && r.bones && typeof r.bones.get === 'function'); };
+  return n.peerBikeView.ridden(`peer:${id('Bike_Phone')}`) && n.carView.driven(`peer:${id('Open_Car')}`) && n.carView.driven(`peer:${id('Closed_Car')}`) && ready('Bike_Phone') && ready('Open_Car');
+}, null, { timeout: 300000 }).catch(() => {});
+await B.page.waitForTimeout(2500);
+const peerVehicles = await B.page.evaluate(() => {
+  const n = window.__nlw, P = (name) => n.shownPeers.find((q) => q.name === name);
+  const pos = (rig, bone) => { const b = rig && rig.bones && typeof rig.bones.get === 'function' && rig.bones.get(bone); return b ? b.getWorldPosition(new THREE.Vector3()) : new THREE.Vector3(1e6, 1e6, 1e6); };
+  const out = {};
+  // the motorcycle: its bars turned as theirs are, them in its saddle, the phone in their left hand
+  const bp = P('Bike_Phone'), bike = bp && n.peerBikeView.ridden(`peer:${bp.id}`), rigB = bp && n.crowd.rigOf(`p:${bp.id}`);
+  const phoneB = bp && n.peerPhones.get(bp.id);
+  out.bike = bike ? { steer: +bike.steerAngle.toFixed(2), seat: +pos(rigB, 'pelvis').distanceTo(bike.group.localToWorld(bike.seat.clone())).toFixed(2), rightGrip: +pos(rigB, 'hand_r').distanceTo(bike.gripWorld(1)).toFixed(2), visible: rigB.group.visible } : null;
+  out.bikePhone = phoneB ? { out: +phoneB.hold.out.toFixed(2), side: phoneB.hold.side, shown: phoneB.hold.prop.visible, toLeft: +phoneB.hold.prop.getWorldPosition(new THREE.Vector3()).distanceTo(pos(rigB, 'middle_01_l')).toFixed(2) } : null;
+  // the open car: drawn, them at its wheel, seen; the phone in their right hand
+  const oc = P('Open_Car'), car = oc && n.carView.driven(`peer:${oc.id}`), rigC = oc && n.crowd.rigOf(`p:${oc.id}`);
+  const phoneC = oc && n.peerPhones.get(oc.id);
+  out.openCar = car ? { visible: rigC.group.visible, hips: +pos(rigC, 'pelvis').distanceTo(car.cabin.localToWorld(new THREE.Vector3(...car.driver.hip))).toFixed(2) } : null;
+  out.carPhone = phoneC ? { out: +phoneC.hold.out.toFixed(2), side: phoneC.hold.side, toRight: +phoneC.hold.prop.getWorldPosition(new THREE.Vector3()).distanceTo(pos(rigC, 'middle_01_r')).toFixed(2) } : null;
+  // the closed car: drawn, with no one seen in it
+  const cc = P('Closed_Car'), closed = cc && n.carView.driven(`peer:${cc.id}`), rigX = cc && n.crowd.rigOf(`p:${cc.id}`);
+  out.closedCar = { drawn: !!closed, driverSeen: rigX ? rigX.group.visible : null };
+  // the motorcycles beyond the nearest few: their pictures, with their riders on them
+  const models = n.peerBikeView.keys().filter((k) => k.startsWith('peer:')).length;
+  const pictures = n.standins.shown().filter((e) => e.kind === 'bike');
+  const riders = n.shownPeers.filter((q) => /^Bike_\d$/.test(q.name)).map((q) => { const r = n.crowd.rigOf(`p:${q.id}`); return r ? { name: q.name, visible: r.group.visible, model: !!n.peerBikeView.ridden(`peer:${q.id}`), picture: pictures.some((e) => e.key === `b:${q.id}`), sits: +(r.group.position.y - n.ground(r.group.position.x, r.group.position.z)).toFixed(2) } : null; });
+  out.many = { models, pictures: pictures.length, drawn: pictures.filter((e) => e.drawn).length, riders };
+  return out;
+});
+check('another player on their motorcycle: its bars turned as theirs are, them in its saddle (as far forward as its bars ask) with a hand on the right grip', !!peerVehicles.bike && Math.abs(peerVehicles.bike.steer - 0.45) < 0.01 && peerVehicles.bike.seat < 0.45 && peerVehicles.bike.rightGrip < 0.1 && peerVehicles.bike.visible, peerVehicles.bike);
+check('and their phone out: held in their left hand, off the grip', !!peerVehicles.bikePhone && peerVehicles.bikePhone.out > 0.97 && peerVehicles.bikePhone.side === 'l' && peerVehicles.bikePhone.shown && peerVehicles.bikePhone.toLeft < 0.12, peerVehicles.bikePhone);
+check('another player in their open car: the car drawn, them seen at its wheel, the phone in their right hand', !!peerVehicles.openCar && peerVehicles.openCar.visible && peerVehicles.openCar.hips < 0.15 && !!peerVehicles.carPhone && peerVehicles.carPhone.out > 0.97 && peerVehicles.carPhone.side === 'r' && peerVehicles.carPhone.toRight < 0.12, { car: peerVehicles.openCar, phone: peerVehicles.carPhone });
+check('another in a closed car: the car drawn, no one floating beside it or showing through it', peerVehicles.closedCar.drawn && peerVehicles.closedCar.driverSeen === false, peerVehicles.closedCar);
+check('with more motorcycles about than are drawn as models, the rest are their pictures, each with its rider on it: no one rides nothing',
+  peerVehicles.many.models <= 4 && peerVehicles.many.pictures >= 1 && peerVehicles.many.riders.every((r) => r && r.visible && (r.model || r.picture)) && peerVehicles.many.drawn === peerVehicles.many.pictures, peerVehicles.many);
+await B.page.evaluate(() => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === 'Bike_Phone'); n.cam.yaw = Math.atan2(q.x - n.view.self.x, q.z - n.view.self.z) + Math.PI; n.cam.dist = 6; n.cam.pitch = 0.22; });
+await B.page.waitForTimeout(1200);
+await B.shot('04-other-player-on-a-motorcycle-with-the-phone');
+await B.page.evaluate(() => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === 'Open_Car'); n.cam.yaw = Math.atan2(q.x - n.view.self.x, q.z - n.view.self.z) + Math.PI; n.cam.dist = 8; n.cam.pitch = 0.3; });
+await B.page.waitForTimeout(1200);
+await B.shot('05-other-player-at-the-wheel-with-the-phone');
+await B.page.evaluate(() => { const n = window.__nlw; n.cam.yaw = Math.PI * 1.25; n.cam.dist = 22; n.cam.pitch = 0.35; });
+await B.page.waitForTimeout(1500);
+await B.shot('06-the-motorcycles-beyond-the-nearest-four');
+await B.page.evaluate(() => { clearInterval(window.__keepPeers); });
 
 // ---- A walks off out of sight: their keke goes with them ----
 await A.page.evaluate(() => { const n = window.__nlw; n.place(n.view.self.x - 120, n.view.self.z); });

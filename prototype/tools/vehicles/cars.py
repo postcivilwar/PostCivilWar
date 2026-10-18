@@ -279,9 +279,10 @@ def build(car_id):
 
 
 def write_js(manifest):
-    """The same numbers for the game's own code: each car's parts, its size, where its wheels and lamps are."""
-    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'body', 'wheels', 'lamps', 'metallic', 'roughness', 'normalScale', 'files', 'sha256')
-    body = {k: {f: v[f] for f in keep} for k, v in sorted(manifest.items())}
+    """The same numbers for the game's own code: each car's parts, its size, where its wheels and lamps are, and where its
+    driver sits (driver_seats.py)"""
+    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'body', 'wheels', 'lamps', 'metallic', 'roughness', 'normalScale', 'files', 'sha256', 'driver')
+    body = {k: {f: v[f] for f in keep if f in v} for k, v in sorted(manifest.items())}
     game = os.path.join(SRC, 'game')
     for k, v in body.items():
         size = lambda name: os.path.getsize(os.path.join(game, v['files'][name])) if name in v['files'] else 0
@@ -300,8 +301,11 @@ if __name__ == '__main__':
     KNOWN.update(manifest)
     if '--js' not in sys.argv:
         for car_id in (args or sorted(SOURCES)):
+            seat = manifest.get(car_id, {}).get('driver')
             manifest[car_id] = build(car_id)
             c = manifest[car_id]
+            # (where its driver sits is measured from its cabin by driver_seats.py, which is run after this: kept until then)
+            if seat: c['driver'] = seat
             print(car_id, c['triangles'], 'tris; parts', c['parts'], 'L', c['length'], 'W', c['width'], 'body', c['body'], 'H', c['height'], 'wheels', [(w['z'], w['r']) for w in c['wheels']], flush=True)
         json.dump(dict(sorted(manifest.items())), open(manifest_path, 'w'), indent=1)
     write_js(manifest)

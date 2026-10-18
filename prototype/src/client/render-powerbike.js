@@ -221,7 +221,8 @@ async function loadTower({ maxTexture }) {
 // off the model (atani-powerbike.js; the towers are where the model has them).
 function standIn() {
   const B = new Batch();
-  const glass = 0x1f2632, stone = 0x8a8c90;
+  // (glass the colour of the tower's own, not near black: from across the town it looked like a shadow)
+  const glass = 0x5b6f86, stone = 0x8a8c90;
   const f = P.footprint;
   B.box(f.x1 - f.x0, M.podiumTop * M.scale, (M.podiumFace + 0.30) * M.scale, place((f.x0 + f.x1) / 2, (M.podiumTop * M.scale) / 2, M.z + ((M.podiumFace - 0.30) / 2) * M.scale), stone);
   const t = onModel(M.tower.x, 0, M.tower.z);

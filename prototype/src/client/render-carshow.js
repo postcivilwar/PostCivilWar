@@ -301,7 +301,9 @@ function standIn(b) {
   const tall = b.id === 'villa' ? 9 : b.id === 'showroom' ? b.scale * (b.podium || 0.2) : b.scale * 0.9;
   const geo = new THREE.ExtrudeGeometry(shape, { depth: tall, bevelEnabled: false });
   geo.rotateX(-Math.PI / 2);
-  const mesh = new THREE.Mesh(geo, surface({ color: b.id === 'villa' ? 0xd9d6cf : 0x2b3442, roughness: 0.35, metalness: 0.4 }));
+  // (a pale stone for the villa, and glass for the rest: it was a dark slate, and from the road a building whose model
+  // had not yet come looked like a shadow on the ground)
+  const mesh = new THREE.Mesh(geo, surface({ color: b.id === 'villa' ? 0xd9d6cf : 0x8797a8, roughness: 0.35, metalness: 0.3 }));
   mesh.castShadow = true;
   const group = new THREE.Group(); group.add(mesh);
   if (b.tower) {
@@ -692,10 +694,13 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   function load(x, z) {
     ensureOutside();
     for (const e of buildings) {
-      if (e.mesh || e.requested || ON_DISK) continue;
-      if (performance.now() < e.retryAt) continue;
       // the villa is the largest file (76 MB): fetched only by someone near the compound
       const reach = e.b.id === 'villa' ? 320 : 900;
+      // (and each let go again by someone gone well beyond that, its plain shape put back in its place: 18 October
+      // 2026, the owner's brief, the memory the game held grew the longer it was played)
+      if (e.mesh && x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach + 250) { letGo(e); continue; }
+      if (e.mesh || e.requested || ON_DISK) continue;
+      if (performance.now() < e.retryAt) continue;
       if (x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach) continue;
       e.requested = true;
       // (five buildings stand here together, each with an 8192 picture: drawn at 4096 on a computer and 2048 on a phone,
@@ -712,6 +717,16 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
         })
         .catch((error) => { e.failed = String((error && error.message) || error); e.requested = false; e.retryAt = performance.now() + (error && error.offline ? 5000 : 30000); });
     }
+  }
+  function letGo(e) {
+    const mesh = e.mesh;
+    exterior.remove(mesh);
+    const m = mesh.material;
+    for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => m[key]).filter(Boolean))) t.dispose();
+    m.dispose(); mesh.geometry.dispose();
+    e.mesh = null; e.requested = false; e.triangles = 0; e.released = (e.released || 0) + 1;
+    if (e.b.id !== 'villa') { e.stand = standIn(e.b); exterior.add(e.stand); }
+    e.stand.visible = e.seen;
   }
 
   // the name: standing on the podium over the doors, and at the top of the tower, facing the forecourt and the road
@@ -829,7 +844,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   let gateShown = 0, doorsOpen = 0;
   return {
     exterior, outside,
-    get buildings() { return buildings.map((e) => ({ id: e.b.id, loaded: !!e.mesh, failed: e.failed, triangles: e.triangles })); },
+    get buildings() { return buildings.map((e) => ({ id: e.b.id, loaded: !!e.mesh, failed: e.failed, triangles: e.triangles, released: e.released || 0 })); },
     get hall() { return hall; },
     get inside() { return inside; },
     signs,

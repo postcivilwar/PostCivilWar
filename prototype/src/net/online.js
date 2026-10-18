@@ -142,7 +142,9 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
   // is moved from where they were shown to where they were heard, over the time between two words, as is anyone
   // whose game does not say how fast it is going.
   const speedOf = (st) => (Array.isArray(st.vl) ? Math.hypot(Number(st.vl[0]) || 0, Number(st.vl[1]) || 0) : 0);
-  const carriedOn = (st) => Array.isArray(st.vl) && !!(st.vh || st.mb);
+  // (a keke or an okada, one of their own motorcycles, or one of their own cars: 18 October 2026, the cars were left
+  // out when they came, and another player's car was moved in steps from where it had been heard to where it was)
+  const carriedOn = (st) => Array.isArray(st.vl) && !!(st.vh || st.mb || st.mc);
   // from a state, `ahead` seconds on: { x, z, vx, vz }
   function carry(st, ahead, motion) {
     let x = st.x, z = st.z;
@@ -158,15 +160,16 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
       sp = next;
       if (sp === 0) break;
     }
-    return { x, z, vx: Math.sin(ang) * sp, vz: Math.cos(ang) * sp };
+    return { x, z, vx: Math.sin(ang) * sp, vz: Math.cos(ang) * sp, turned: ang - Math.atan2(Number(st.vl[0]) || 0, Number(st.vl[1]) || 0) };
   }
   function placeOf(p, t) {
     const dt = Math.max(0, t - p.at);
     if (carriedOn(p.to)) {
       const settle = p.settle || ONLINE.settle, ahead = Math.min(dt + p.age, ONLINE.carryOn), fade = Math.exp(-dt / settle);
       const c = carry(p.to, ahead, p.motion);
-      // (with the speed and way it is going now, the settling included, so the game carries it on from here the same way)
-      return { x: c.x + p.err.x * fade, z: c.z + p.err.z * fade, h: turn(p.from.h || 0, p.to.h || 0, Math.min(1, dt / 0.25)), vl: [Math.round((c.vx - (p.err.x * fade) / settle) * 100) / 100, Math.round((c.vz - (p.err.z * fade) / settle) * 100) / 100] };
+      // (with the speed and way it is going now, the settling included, so the game carries it on from here the same way;
+      // and facing the way it has turned since, round a bend as it goes)
+      return { x: c.x + p.err.x * fade, z: c.z + p.err.z * fade, h: turn(p.from.h || 0, (p.to.h || 0) + c.turned, Math.min(1, dt / 0.25)), vl: [Math.round((c.vx - (p.err.x * fade) / settle) * 100) / 100, Math.round((c.vz - (p.err.z * fade) / settle) * 100) / 100] };
     }
     const k = Math.max(0, Math.min(1, dt / p.span));
     return { x: lerp(p.from.x, p.to.x, k), z: lerp(p.from.z, p.to.z, k), h: turn(p.from.h || 0, p.to.h || 0, k) };
