@@ -187,7 +187,8 @@ await page.evaluate(() => {
   const look = () => {
     if (rec.stop) return;
     const now = Date.now() / 1000;
-    rec.frames.push({ now, his: n.showroom.him.speaking, him: n.showroom.him.amount, player: n.showroom.amount, playerSpeaking: n.showroom.lines.some((l) => l.who === 'me' && now >= l.from && now <= l.to) });
+    const hb = n.me.bones && n.me.bones.get('hand_r');
+    rec.frames.push({ now, his: n.showroom.him.speaking, him: n.showroom.him.amount, player: n.showroom.amount, playerSpeaking: n.showroom.lines.some((l) => l.who === 'me' && now >= l.from && now <= l.to), hand: hb ? hb.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null });
     requestAnimationFrame(look);
   };
   requestAnimationFrame(look);
@@ -209,7 +210,10 @@ await page.evaluate((was) => window.__nlw.renderer.setPixelRatio(was), ratio);
 await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /212 km\/h/.test(m.textContent)), null, { timeout: 90000 });
 const said = await page.evaluate(() => [...document.querySelectorAll('#deal-log .msg')].slice(-2).map((m) => m.className + ': ' + m.textContent));
 check('a typed question goes up at once and is answered from what is so', pending.pending && /212 km\/h/.test(said[1] || ''), said);
-check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && rose, { quiet, speaking });
+// (what was drawn while the question was said: each frame's moment within the line, the hand's height, how much the
+// conversation showed on the figure; written down with the result, so that a failure says what was seen)
+const myLine = await page.evaluate(() => { const l = window.__nlw.showroom.lines.filter((x) => x.who === 'me').at(-1); if (!l) return null; const f = window.__talkFrames.frames.filter((q) => q.now >= l.from - 1 && q.now <= l.to + 1); return { length: +(l.to - l.from).toFixed(2), frames: f.map((q) => [+(q.now - l.from).toFixed(2), q.hand === null ? null : +q.hand.toFixed(3), +q.player.toFixed(2)]) }; });
+check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && rose, { quiet, speaking, myLine });
 const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => `${l.who}@${l.from.toFixed(2)}-${l.to.toFixed(2)}`));
 // (his greeting, then the player's question, then his answer: each begins once the one before has ended)
 const turns = lines1.map((l) => { const [who, span] = l.split('@'); const [from, to] = span.split('-').map(Number); return { who, from, to }; });
