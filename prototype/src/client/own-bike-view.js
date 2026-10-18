@@ -161,10 +161,12 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
     const arm = (s) => { const u = bones.get(`upperarm_${s}`), l = bones.get(`lowerarm_${s}`), h = bones.get(`hand_${s}`); return u && l && h ? { u, l, h, length: u.getWorldPosition(new THREE.Vector3()).distanceTo(l.getWorldPosition(new THREE.Vector3())) + l.getWorldPosition(new THREE.Vector3()).distanceTo(h.getWorldPosition(new THREE.Vector3())) } : null; };
     const arms = { l: arm('l'), r: arm('r') };
     const grips = { l: bike.grips[0], r: bike.grips[1] };
+    // where a grip is in the world now: carried round with the bars as they turn, where the bike says so
+    const gripWorld = (s) => (bike.gripWorld ? bike.gripWorld(s === 'l' ? 0 : 1, new THREE.Vector3()) : world(grips[s]).clone());
     if (spine && arms.l && arms.r) {
       v.axis.copy(dir(1, 0, 0));
       // how much further the farther grip is than the arm reaches (nothing when both are within reach)
-      const short = () => Math.max(...['l', 'r'].map((s) => arms[s].u.getWorldPosition(new THREE.Vector3()).distanceTo(world(grips[s]).clone().add(off(0, 0.01, -0.05))) - arms[s].length * 0.96));
+      const short = () => Math.max(...['l', 'r'].map((s) => arms[s].u.getWorldPosition(new THREE.Vector3()).distanceTo(gripWorld(s).add(off(0, 0.01, -0.05))) - arms[s].length * 0.96));
       const turn = (angle) => {
         // (a turn about the rider's own left-to-right line, put into the bone's own frame)
         const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion());
@@ -208,7 +210,7 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
       const a = arms[s];
       if (!a) continue;
       const side = s === 'l' ? 1 : -1;
-      const target = world(grips[s]).clone().add(off(0, 0.01, -0.05));
+      const target = gripWorld(s).add(off(0, 0.01, -0.05));
       reach(a.u, a.l, a.h, target, dir(side * 0.9, -0.6, -0.2));
     }
     // the neck and head: looking where the bike is going, turned into the turn and kept nearly level as the body

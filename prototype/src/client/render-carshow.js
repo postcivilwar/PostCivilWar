@@ -640,7 +640,7 @@ function showFrame(d, k) {
 
 // ------------------------------------------------------------------------------------------------ together --
 
-// `maxTexture`: the largest picture the graphics take (or a phone's 2048); `lite`: a phone.
+// `maxTexture`: the size its buildings' pictures are drawn at (budget.js); `lite`: a phone.
 export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   const exterior = new THREE.Group(); exterior.name = 'carshow';
   scene.add(exterior);
@@ -699,7 +699,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       // (five buildings stand here together, each with an 8192 picture: drawn at 4096 on a computer and 2048 on a phone,
       // as the motorcycles' and the cars' largest pictures are, they fit in a device's memory all at once; the
       // files are as supplied)
-      loadBuilding(e.b, { maxTexture: Math.min(lite ? 2048 : 4096, maxTexture || 4096), env })
+      loadBuilding(e.b, { maxTexture: maxTexture || (lite ? 1024 : 2048), env })
         .then(({ mesh, triangles }) => {
           mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale); mesh.visible = e.seen;
           exterior.add(mesh);

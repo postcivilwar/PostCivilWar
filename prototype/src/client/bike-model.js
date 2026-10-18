@@ -5,49 +5,59 @@
 //   const bike = await loadBike('red-superbike', { base: 'bikes/', lite });
 //   scene.add(bike.group); bike.pose({ wheel: travelled, steer, lean });
 //
-// The bike is drawn at its real length (`length`, metres) by one uniform scale. On a phone (`lite`) its pictures
-// are the 2048 set; elsewhere the 4096 set. The supplied files are not changed or replaced by either.
+// The bike is drawn at its real length (`length`, metres) by one uniform scale. Its pictures are a set of one size
+// (`tier`: '1k', '2k' or '4k'; budget.js says which for what): on the road the 2048 set on a computer and the 1024 set
+// on a phone; in the showroom the one the player stands at is given more. The supplied files are not changed or
+// replaced by any of them (tools/vehicles/bikes.py and smaller.py make the sets).
 import { BIKE_PARTS } from './bike-parts.js';
 import { surface } from './render-kit.js';
-import { fetchKept } from './glb.js';
+import { fetchKept, letGoOnceDrawn } from './glb.js';
+import { deviceKind, PICTURES } from './budget.js';
 
-const cache = new Map();          // one geometry and material a bike, however many are drawn (most recently used last)
+const cache = new Map();          // one geometry and material a bike and set of pictures, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
-const KEEP = 3;                   // bikes kept ready when none of them is drawn: their 4096 pictures are large
+const KEEP = deviceKind() === 'lite' ? 1 : 2;      // bikes kept ready when none of them is drawn
 
+function free({ geometries, material }) {
+  for (const g of geometries) g.dispose();
+  for (const t of [material.map, material.normalMap, material.roughnessMap]) if (t) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); }
+  material.dispose();
+}
 // Lets go of the bikes nobody is drawing, oldest first, beyond the few kept ready.
 function trim() {
   for (const [key, made] of cache) {
     if (cache.size <= KEEP) break;
     if (users.get(key)) continue;
     cache.delete(key);
-    made.then(({ geometries, material }) => {
-      for (const g of geometries) g.dispose();
-      for (const t of [material.map, material.normalMap, material.roughnessMap]) if (t) t.dispose();
-      material.dispose();
-    }, () => {});
+    made.then(free, () => {});
   }
 }
 
-function picture(url, colour) {
+// (once the graphics card has a picture of the shared set, the page lets its own copy go: glb.js; the market's
+// viewer, a renderer of its own, is given a copy of its own, `own`, which keeps its pictures)
+function picture(url, colour, own) {
   const map = new THREE.Texture();
   map.flipY = false; map.anisotropy = 4;
   if (colour) map.encoding = THREE.sRGBEncoding;
   const ready = fetchKept(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
-    .then((image) => { map.image = image; map.needsUpdate = true; return map; });
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map); return map; });
   return { map, ready };
 }
+// which file each picture of a set comes from (the 4096 set: its colour at 4096, its relief and finish at 2048)
+const SETS = Object.freeze({ '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
+const tierOf = (lite, tier) => tier || PICTURES[lite ? 'lite' : 'full'].vehicle;
 
-async function partsOf(id, { base, lite }) {
-  const key = `${id}:${lite ? 2 : 4}`;
-  if (cache.has(key)) return cache.get(key);
+async function partsOf(id, { base, tier, own = false }) {
+  const key = `${id}:${tier}`;
+  if (!own && cache.has(key)) return cache.get(key);
   const spec = BIKE_PARTS[id];
   if (!spec) throw new Error(`There is no motorcycle ${id}.`);
   const made = (async () => {
-    const f = spec.files, tier = lite ? '2k' : '4k';
+    const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     // (a bike made with few triangles may come with its colour picture only: then it has no other to fetch)
-    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour]) => (f[`${name}${tier}`] ? picture(base + f[`${name}${tier}`], colour) : null));
+    const file = (name, size) => f[`${name}${size}`] || f[`${name}${size === '1k' ? '2k' : '4k'}`] || f[`${name}2k`];
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own) : null));
     const response = await fetchKept(base + f.mesh);
     if (!response.ok) throw new Error(`${f.mesh}: ${response.status}`);
     const buf = await response.arrayBuffer();
@@ -72,6 +82,7 @@ async function partsOf(id, { base, lite }) {
     const material = surface({ map: color, normalMap, normalScale: new THREE.Vector2(spec.normalScale, -spec.normalScale), roughnessMap: rm, metalnessMap: rm, roughness: spec.roughness, metalness: spec.metallic, envMapIntensity: 1.1 });
     return { spec, geometries, material };
   })();
+  if (own) return made;
   cache.set(key, made);
   made.catch(() => cache.delete(key));
   return made;
@@ -132,12 +143,15 @@ function lampsOf(spec, frame) {
   };
 }
 
-// One motorcycle to put in the scene. `length` is its real length in metres.
-export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1 } = {}) {
-  const { spec, geometries, material } = await partsOf(id, { base, lite });
-  const key = `${id}:${lite ? 2 : 4}`;
-  users.set(key, (users.get(key) || 0) + 1);
-  if (cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
+// One motorcycle to put in the scene. `length` is its real length in metres; `tier` its set of pictures (or the one
+// for the road on this kind of device); `own`: a copy of its own, for a renderer other than the town's.
+export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false } = {}) {
+  const set = tierOf(lite, tier);
+  const parts = await partsOf(id, { base, tier: set, own });
+  const { spec, geometries, material } = parts;
+  const key = `${id}:${set}`;
+  if (!own) users.set(key, (users.get(key) || 0) + 1);
+  if (!own && cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
   let held = true;
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `bike:${id}`;
@@ -145,16 +159,25 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
   const frame = new THREE.Group(); frame.scale.setScalar(scale); lean.add(frame);
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
   frame.add(mesh(geometries[0]));
-  // the front: the steering turns about the fork's own line, leaning back by the rake, through the front axle
+  // the front: the steering turns about the fork's own line, leaning back by the rake, through the front axle. A bike
+  // whose bars are turned in its file (`steered`, radians about that line) has its front end put straight first, and
+  // the front wheel turns about its own axle after that (tools/vehicles/wheelfit.py).
   const F = spec.front, R = spec.rear;
-  const steerAt = new THREE.Group(); steerAt.position.set(0, F.y, F.z); steerAt.rotation.x = -spec.rake; frame.add(steerAt);
+  const fx0 = F.x || 0, rx0 = R.x || 0;          // (a wheel's middle, across: some bikes' wheels are not on their middle line)
+  const steerAt = new THREE.Group(); steerAt.position.set(fx0, F.y, F.z); steerAt.rotation.x = -spec.rake; frame.add(steerAt);
   const steer = new THREE.Group(); steerAt.add(steer);
   const unrake = new THREE.Group(); unrake.rotation.x = spec.rake; steer.add(unrake);
-  const steerMesh = mesh(geometries[1]); steerMesh.position.set(0, -F.y, -F.z); unrake.add(steerMesh);
+  const line = new THREE.Vector3(0, Math.cos(spec.rake), -Math.sin(spec.rake));
+  const straightened = () => { const g = new THREE.Group(); if (spec.steered) g.quaternion.setFromAxisAngle(line, -spec.steered); return g; };
+  const steerStraight = straightened(); unrake.add(steerStraight);
+  const steerMesh = mesh(geometries[1]); steerMesh.position.set(-fx0, -F.y, -F.z); steerStraight.add(steerMesh);
   const frontSpin = new THREE.Group(); unrake.add(frontSpin);
-  const frontMesh = mesh(geometries[2]); frontMesh.position.set(0, -F.y, -F.z); frontSpin.add(frontMesh);
-  const rearSpin = new THREE.Group(); rearSpin.position.set(0, R.y, R.z); frame.add(rearSpin);
-  const rearMesh = mesh(geometries[3]); rearMesh.position.set(0, -R.y, -R.z); rearSpin.add(rearMesh);
+  const frontStraight = straightened(); frontSpin.add(frontStraight);
+  const frontMesh = mesh(geometries[2]); frontMesh.position.set(-fx0, -F.y, -F.z); frontStraight.add(frontMesh);
+  const rearSpin = new THREE.Group(); rearSpin.position.set(rx0, R.y, R.z); frame.add(rearSpin);
+  const rearMesh = mesh(geometries[3]); rearMesh.position.set(-rx0, -R.y, -R.z); rearSpin.add(rearMesh);
+  // where the grips are as the bars turn: two points carried round with the steering (the rider's hands follow them)
+  const gripAt = [1, -1].map((side) => { const o = new THREE.Object3D(); o.position.set(side * spec.grip[0] - fx0, spec.grip[1] - F.y, spec.grip[2] - F.z); unrake.add(o); return o; });
   // the lamps and the exhaust flames, where the model has its headlamp, tail lamp and silencers (bikes.py):
   // drawn by the game over the model, which is not changed
   const fx = lampsOf(spec, frame);
@@ -165,6 +188,8 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
     // where a rider's hands, seat and feet go, in the bike's own frame (metres; +x is the bike's left)
     seat: new THREE.Vector3(...spec.seat).multiplyScalar(scale),
     grips: [new THREE.Vector3(spec.grip[0], spec.grip[1], spec.grip[2]).multiplyScalar(scale), new THREE.Vector3(-spec.grip[0], spec.grip[1], spec.grip[2]).multiplyScalar(scale)],
+    // where each grip is in the world now, the bars turned as they are (0: the left grip, 1: the right)
+    gripWorld: (k, out = new THREE.Vector3()) => gripAt[k].getWorldPosition(out),
     pegs: [new THREE.Vector3(spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale), new THREE.Vector3(-spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale)],
     lean, frame,
     // travelled: metres the bike has rolled (the wheels turn by it); steer: radians the bars are turned (left
@@ -182,8 +207,10 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
     // where its headlamp is in the world (for a light that follows it)
     headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
     headlamp: fx.head,
-    dispose() { fx.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; users.set(key, users.get(key) - 1); trim(); } },
+    dispose() { fx.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
   };
 }
 
-export const bikeLoaded = (id, lite) => cache.has(`${id}:${lite ? 2 : 4}`);
+export const bikeLoaded = (id, tier) => cache.has(`${id}:${tier}`);
+// (for the tests: the bikes kept, by set)
+export const bikesHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(users) });

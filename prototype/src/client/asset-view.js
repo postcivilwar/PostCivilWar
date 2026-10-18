@@ -223,8 +223,8 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
       // a motorcycle or a car: its own parts, at its real length, stood in the middle on its wheels
       if (onProgress) onProgress(0, 1);
       const bike = model.car
-        ? await loadCar(model.car, { base: base || 'cars/', lite, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6 })
-        : await loadBike(model.bike, { base: base || 'bikes/', lite, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1 });
+        ? await loadCar(model.car, { base: base || 'cars/', lite, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6, own: true })
+        : await loadBike(model.bike, { base: base || 'bikes/', lite, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1, own: true });
       if (closed) { bike.dispose(); return null; }
       shownBike = bike;
       bike.pose({});

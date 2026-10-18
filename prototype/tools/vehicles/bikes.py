@@ -22,6 +22,12 @@ set (phones). The masters stay in assets/vehicles/bikes/ untouched, and their ch
 import hashlib, io, json, os, struct, sys
 import numpy as np
 from PIL import Image
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import wheelfit
+
+# `--mesh`: only the meshes (the pictures already written are kept as they are)
+MESH_ONLY = '--mesh' in sys.argv
+KNOWN = {}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -252,19 +258,20 @@ def build(bike_id):
     shift = np.array([-(P[:, 0].max() + P[:, 0].min()) / 2, -min(front['y'] - front['r'], rear['y'] - rear['r']), -(front['z'] + rear['z']) / 2])
     P = P + shift
     for w in (front, rear): w['z'] += shift[2]; w['y'] += shift[1]
-    rake = 0.44                                      # radians the fork leans back from upright (about 25 degrees)
-    part = parts_of(P, idx, front, rear, rake)
-    order = np.argsort(part, kind='stable')
-    idx = idx[order]; part = part[order]
-    counts = [int((part == k).sum()) for k in range(4)]
+    rake = 0.44                                      # radians the fork leans back from upright (about 25 degrees): a first guess
     an = anchors(P, front, rear)
+    # (18 October 2026) each wheel found again as it really is and cut out of the bike exactly where it ends, and what
+    # turns with the bars (the mudguard, the fork, the bars) cut out round them, about the fork's own line (wheelfit.py)
+    P, N, uv, idx, counts, front, rear, rake, steered, an = wheelfit.bike_parts(P, N, uv, idx, front, rear, an, rake, bike_id, anchors_of=lambda Ps: anchors(Ps, front, rear))
     os.makedirs(OUT, exist_ok=True)
     # geometry: positions (float32), normals (int16, of 32767), texture places (float32), triangles (uint32)
     n16 = np.round(np.clip(N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9), -1, 1) * 32767).astype(np.int16)
     blob = P.astype(np.float32).tobytes() + n16.tobytes() + (b'\0\0' * (len(P) % 2)) + uv.astype(np.float32).tobytes() + idx.astype(np.uint32).tobytes()
     open(os.path.join(OUT, f'{bike_id}.bin'), 'wb').write(blob)
     files = {'mesh': f'{bike_id}.bin'}
-    for name, picture in m['images'].items():
+    if MESH_ONLY and bike_id in KNOWN:
+        files = KNOWN[bike_id]['files']
+    for name, picture in ([] if MESH_ONLY and bike_id in KNOWN else m['images'].items()):
         if picture is None: continue
         data, mime = picture
         im = Image.open(io.BytesIO(data)); size = im.width
@@ -284,7 +291,7 @@ def build(bike_id):
         'master': f'{bike_id}.glb', 'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw),
         'unit': unit, 'vertices': int(len(P)), 'triangles': int(len(idx)), 'parts': counts, 'quarterTurns': quarter % 4,
         'length': r4(P[:, 2].max() - P[:, 2].min()), 'height': r4(P[:, 1].max()), 'width': r4(P[:, 0].max() - P[:, 0].min()),
-        'front': {k: r4(v) for k, v in front.items()}, 'rear': {k: r4(v) for k, v in rear.items()}, 'rake': rake,
+        'front': {k: r4(v) for k, v in front.items()}, 'rear': {k: r4(v) for k, v in rear.items()}, 'rake': rake, 'steered': steered,
         'grip': [r4(v) for v in an['grip']], 'seat': [r4(v) for v in an['seat']], 'peg': [r4(v) for v in an['peg']],
         'head': [r4(v) for v in an['head']], 'tail': [r4(v) for v in an['tail']], 'pipes': [[r4(v) for v in p] for p in an['pipes']],
         'metallic': m['metallic'], 'roughness': m['roughness'], 'normalScale': m['normalScale'], 'files': files,
@@ -293,8 +300,8 @@ def build(bike_id):
 
 def write_js(manifest):
     """The same numbers for the game's own code (what each bike's parts are and where its wheels and rider go)."""
-    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'front', 'rear', 'rake', 'grip', 'seat', 'peg', 'head', 'tail', 'pipes', 'metallic', 'roughness', 'normalScale', 'files', 'sha256')
-    body = {k: {f: v[f] for f in keep} for k, v in sorted(manifest.items())}
+    keep = ('vertices', 'triangles', 'parts', 'length', 'height', 'width', 'front', 'rear', 'rake', 'steered', 'grip', 'seat', 'peg', 'head', 'tail', 'pipes', 'metallic', 'roughness', 'normalScale', 'files', 'sha256')
+    body = {k: {f: v.get(f, 0) for f in keep} for k, v in sorted(manifest.items())}
     # what a player's device fetches to draw each one: on a phone (the 2048 pictures) and elsewhere (the 4096)
     game = os.path.join(SRC, 'game')
     for k, v in body.items():
@@ -310,6 +317,7 @@ if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     manifest_path = os.path.join(SRC, 'bikes.json')
     manifest = json.load(open(manifest_path)) if os.path.exists(manifest_path) else {}
+    KNOWN.update(manifest)
     if '--js' not in sys.argv:
         ids = args or sorted(f[:-4] for f in os.listdir(SRC) if f.endswith('.glb'))
         for bike_id in ids:

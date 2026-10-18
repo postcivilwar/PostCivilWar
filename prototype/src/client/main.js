@@ -75,6 +75,7 @@ import { createTownBuildings } from './render-town-buildings.js';
 import { updateFinishes, finishState } from './render-finish.js';
 import { foliageState } from './render-foliage.js';
 import { buildPowerbike } from './render-powerbike.js';
+import { pictureSize } from './budget.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
 
@@ -692,7 +693,7 @@ function start(carried) {
   // it): its one pink column, which takes a player in; the hall, where the fifteen motorcycles stand; the mat by the
   // doors, which takes them out again; Obi, the salesman (salesman.js); and asking him about a motorcycle, which is
   // the market's own conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
-  const powerbike = buildPowerbike(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize });
+  const powerbike = buildPowerbike(scene, { lite: LITE, maxTexture: pictureSize('tower', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
   const salesman = createSalesman();
   // one of the game's own figures, dressed for the showroom floor: a white shirt, a dark red tie, dark trousers
   const salesmanActor = makeCharacter({ body: 'm', skin: 0x4a2c17, build: 1, wear: { outfit: 'shirt', hair: 'fade', face: 83, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x8c1d2c, bottom: 0x1e2229, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } }, POWERBIKE.salesman, true, 1);
@@ -889,12 +890,12 @@ function start(carried) {
   // twenty cars stand; the mat inside the doors, which takes them out again; Tochi and Oluchi, who sell the cars, each
   // looking after one side of the floor (salesman.js); and asking one of them about a car, which is the market's own
   // conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
-  const carshowView = buildCarshow(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize });
+  const carshowView = buildCarshow(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
   // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
   // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
-  const supplied = createSupplied(scene, { lite: LITE, maxTexture: LITE ? 2048 : renderer.capabilities.maxTextureSize, env: LITE ? null : vehicleEnvironment() });
+  const supplied = createSupplied(scene, { lite: LITE, maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
   // The owner's houses and towers (render-town-buildings.js), in place of the town's plain houses and on the city side
-  const townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: renderer.capabilities.maxTextureSize, env: LITE ? null : vehicleEnvironment() });
+  const townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
   // two of the game's own figures, dressed for the showroom floor: a white shirt and a navy tie; a white blouse and a
   // navy skirt
   const CAR_STAFF_LOOKS = Object.freeze({

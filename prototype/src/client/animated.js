@@ -12,6 +12,7 @@ import { parseGLB, modelFromGLB, figureLabels, boneName } from './glb.js';
 import { nameTexture, surface } from './render-kit.js';
 import { SEAT_POSE } from './seat-pose.js';
 import { borrowedFor, seatFor } from './figure-moves.js';
+import { pictureSize } from './budget.js';
 
 // Which supplied animated figures there are, where each file is, and how tall a person it is. The files are
 // made one unit tall; they are drawn at a person's height, the same all over, nothing else changed.
@@ -134,8 +135,8 @@ function releaseModel(id) {
 }
 // (for the tests: which models are held)
 export const heldModels = () => ({ loaded: [...loading.keys()], users: Object.fromEntries(users), unused: [...unused] });
-// a touch-first device draws the supplied textures at half size (see glb.js); '#full' in the address keeps them whole
-const liteTexture = () => { try { const coarse = typeof matchMedia === 'function' && matchMedia('(pointer: coarse)').matches; return coarse && !String(location.hash).includes('full') ? 2048 : 0; } catch (error) { return 0; } };
+// a figure's pictures are drawn at 2048 on a computer and 1024 on a phone (budget.js): its files keep their 4096
+const liteTexture = () => pictureSize('figure');
 function bytesOf(spec) {
   if (!figureHere(spec.id)) return Promise.reject(new Error(`${spec.file} is not in this copy of the game`));
   // started by the page's first script, on a worker (template.html); otherwise fetched and decoded here

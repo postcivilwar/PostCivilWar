@@ -28,6 +28,12 @@ in centimetres), the file kept is named in SOURCES; the other is the same car an
 import hashlib, io, json, os, shutil, struct, sys
 import numpy as np
 from PIL import Image
+sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
+import wheelfit
+
+# `--mesh`: only the meshes (the pictures already written are kept as they are)
+MESH_ONLY = '--mesh' in sys.argv
+KNOWN = {}
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, '..', '..'))
@@ -237,17 +243,18 @@ def build(car_id):
     small, big = sorted((1, -1), key=lambda sz: axles[sz]['r'])
     if axles[big]['r'] > 1.15 * axles[small]['r'] and big not in given: axles[big] = fit_axle(P, big, L, half, most=1.1 * axles[small]['r'])
     wheels = [fit_wheel(P, sx, axles[sz], L, half) for sz, sx in ((1, 1), (1, -1), (-1, 1), (-1, -1))]
-    part = parts_of(P, idx, wheels, L)
-    order = np.argsort(part, kind='stable')
-    idx = idx[order]; part = part[order]
-    counts = [int((part == k).sum()) for k in range(5)]
+    # (18 October 2026) each wheel found again as it really is, from these first guesses, and cut out of the car
+    # exactly where it ends (wheelfit.py); the first sort (parts_of) is kept only to say what it was
+    P, N, uv, idx, counts, wheels = wheelfit.car_parts(P, N, uv, idx, wheels, car_id)
     os.makedirs(OUT, exist_ok=True)
     # geometry: positions (float32), normals (int16, of 32767), texture places (float32), triangles (uint32)
     n16 = np.round(np.clip(N / np.maximum(np.linalg.norm(N, axis=1, keepdims=True), 1e-9), -1, 1) * 32767).astype(np.int16)
     blob = P.astype(np.float32).tobytes() + n16.tobytes() + (b'\0\0' * (len(P) % 2)) + uv.astype(np.float32).tobytes() + idx.astype(np.uint32).tobytes()
     open(os.path.join(OUT, f'{car_id}.bin'), 'wb').write(blob)
     files = {'mesh': f'{car_id}.bin'}
-    for kind, picture in m['images'].items():
+    if MESH_ONLY and car_id in KNOWN:
+        files = KNOWN[car_id]['files']
+    for kind, picture in ([] if MESH_ONLY and car_id in KNOWN else m['images'].items()):
         if picture is None: continue
         data, mime = picture
         im = Image.open(io.BytesIO(data)); size = im.width
@@ -266,7 +273,7 @@ def build(car_id):
         'master': f'{car_id}.glb', 'source': name, 'sha256': hashlib.sha256(raw).hexdigest(), 'bytes': len(raw),
         'unit': unit, 'front': front, 'vertices': int(len(P)), 'triangles': int(len(idx)), 'parts': counts,
         'length': r4(L), 'height': r4(H), 'width': r4(P[:, 0].max() - P[:, 0].min()), 'body': r4(2 * half),
-        'wheels': [{k: r4(v) for k, v in w.items()} for w in wheels], 'lamps': lamps(P, L, half, H),
+        'wheels': wheels, 'lamps': lamps(P, L, half, H),
         'metallic': m['metallic'], 'roughness': m['roughness'], 'normalScale': m['normalScale'], 'files': files,
     }
 
@@ -290,6 +297,7 @@ if __name__ == '__main__':
     args = [a for a in sys.argv[1:] if not a.startswith('--')]
     manifest_path = os.path.join(SRC, 'cars.json')
     manifest = json.load(open(manifest_path)) if os.path.exists(manifest_path) else {}
+    KNOWN.update(manifest)
     if '--js' not in sys.argv:
         for car_id in (args or sorted(SOURCES)):
             manifest[car_id] = build(car_id)

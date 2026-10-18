@@ -4,31 +4,36 @@
   "sha256": "2643fca03c4b5f3ee5badd696613e7d1d8056af4f12e790c504d9e5c91b899a9",
   "bytes": 30352400,
   "unit": 100.0,
-  "vertices": 127503,
-  "triangles": 132026,
+  "vertices": 129962,
+  "triangles": 136270,
   "parts": [
-   54403,
-   7513,
-   28379,
-   41731
+   50698,
+   12415,
+   32256,
+   40901
   ],
   "quarterTurns": 0,
   "length": 0.9791,
   "height": 0.5886,
   "width": 0.5596,
   "front": {
-   "z": 0.356,
-   "y": 0.118,
-   "r": 0.118,
-   "half": 0.0364
+   "x": 0.0014,
+   "z": 0.3565,
+   "y": 0.1262,
+   "r": 0.1272,
+   "tread": 0.1268,
+   "half": 0.0344
   },
   "rear": {
-   "z": -0.356,
-   "y": 0.126,
-   "r": 0.126,
-   "half": 0.065
+   "x": 0.0044,
+   "z": -0.355,
+   "y": 0.1297,
+   "r": 0.1309,
+   "tread": 0.1295,
+   "half": 0.0516
   },
-  "rake": 0.44,
+  "rake": 0.289,
+  "steered": 0.0,
   "grip": [
    0.2169,
    0.5086,
@@ -79,72 +84,66 @@
    "rmSize": 4096,
    "normal4k": "black-bobber-normal-4k.png",
    "normal2k": "black-bobber-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "black-bobber-color-1k.jpg",
+   "normal1k": "black-bobber-normal-1k.webp",
+   "rm1k": "black-bobber-rm-1k.webp"
   }
  },
  "black-cruiser": {
   "master": "black-cruiser.glb",
   "sha256": "7fcd26c2904bfc6d57a32c3e8c768f6834f1d8b273c221e77d248ec47cbf85ca",
   "bytes": 25299436,
-  "vertices": 98507,
-  "triangles": 114420,
+  "unit": 1.0,
+  "vertices": 101412,
+  "triangles": 119236,
   "parts": [
-   74558,
-   4656,
-   12469,
-   22737
+   66245,
+   21843,
+   12280,
+   18868
   ],
   "quarterTurns": 2,
   "length": 0.9773,
   "height": 0.6206,
   "width": 0.4433,
   "front": {
-   "z": 0.3428,
-   "y": 0.1283,
-   "r": 0.12,
-   "half": 0.0723
+   "x": 0.0102,
+   "z": 0.3332,
+   "y": 0.1419,
+   "r": 0.1365,
+   "tread": 0.1354,
+   "half": 0.0221
   },
   "rear": {
-   "z": -0.3428,
-   "y": 0.138,
-   "r": 0.138,
-   "half": 0.0892
+   "x": -0.0465,
+   "z": -0.3442,
+   "y": 0.1394,
+   "r": 0.1402,
+   "tread": 0.1391,
+   "half": 0.0416
   },
   "rake": 0.44,
+  "steered": 0.5629,
   "grip": [
-   0.18,
-   0.4719,
-   0.0439
+   0.179,
+   0.5043,
+   0.0717
   ],
   "seat": [
    0.0,
-   0.3481,
-   -0.1987
+   0.3513,
+   -0.1741
   ],
   "peg": [
-   0.1091,
+   0.1094,
    0.0962,
-   -0.0787
+   -0.0541
   ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "black-cruiser.bin",
-   "color4k": "black-cruiser-color-4k.jpg",
-   "color2k": "black-cruiser-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "black-cruiser-rm-4k.webp",
-   "rm2k": "black-cruiser-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "black-cruiser-normal-4k.png",
-   "normal2k": "black-cruiser-normal-2k.webp",
-   "normalSize": 4096
-  },
   "head": [
    0.0,
-   0.2887,
-   0.3665
+   0.2928,
+   0.3847
   ],
   "tail": [
    0.0,
@@ -163,37 +162,60 @@
     -0.5074
    ]
   ],
-  "unit": 1.0
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "black-cruiser.bin",
+   "color4k": "black-cruiser-color-4k.jpg",
+   "color2k": "black-cruiser-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "black-cruiser-rm-4k.webp",
+   "rm2k": "black-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "black-cruiser-normal-4k.png",
+   "normal2k": "black-cruiser-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "black-cruiser-color-1k.jpg",
+   "normal1k": "black-cruiser-normal-1k.webp",
+   "rm1k": "black-cruiser-rm-1k.webp"
+  }
  },
  "black-gold-superbike": {
   "master": "black-gold-superbike.glb",
   "sha256": "1a6c98fb0e9d268c893298a159e1f00f97d01b4ee41b8beead37ac415045f6a0",
   "bytes": 21637044,
-  "vertices": 84388,
-  "triangles": 106057,
+  "unit": 1.0,
+  "vertices": 86794,
+  "triangles": 110231,
   "parts": [
-   70452,
-   7248,
-   16262,
-   12095
+   66918,
+   16833,
+   16151,
+   10329
   ],
   "quarterTurns": 2,
   "length": 0.9788,
   "height": 0.5409,
   "width": 0.4328,
   "front": {
-   "z": 0.3468,
-   "y": 0.1344,
-   "r": 0.128,
-   "half": 0.0269
+   "x": -0.0002,
+   "z": 0.3456,
+   "y": 0.1382,
+   "r": 0.1319,
+   "tread": 0.1316,
+   "half": 0.0266
   },
   "rear": {
-   "z": -0.3468,
-   "y": 0.147,
-   "r": 0.147,
-   "half": 0.0744
+   "x": -0.0167,
+   "z": -0.3446,
+   "y": 0.1479,
+   "r": 0.1485,
+   "tread": 0.1478,
+   "half": 0.0537
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1559,
    0.394,
@@ -209,21 +231,6 @@
    0.1008,
    0.002
   ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "black-gold-superbike.bin",
-   "color4k": "black-gold-superbike-color-4k.jpg",
-   "color2k": "black-gold-superbike-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "black-gold-superbike-rm-4k.webp",
-   "rm2k": "black-gold-superbike-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "black-gold-superbike-normal-4k.png",
-   "normal2k": "black-gold-superbike-normal-2k.webp",
-   "normalSize": 4096
-  },
   "head": [
    0.0,
    0.3413,
@@ -246,38 +253,60 @@
     -0.4916
    ]
   ],
-  "unit": 1.0
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "black-gold-superbike.bin",
+   "color4k": "black-gold-superbike-color-4k.jpg",
+   "color2k": "black-gold-superbike-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "black-gold-superbike-rm-4k.webp",
+   "rm2k": "black-gold-superbike-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "black-gold-superbike-normal-4k.png",
+   "normal2k": "black-gold-superbike-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "black-gold-superbike-color-1k.jpg",
+   "normal1k": "black-gold-superbike-normal-1k.webp",
+   "rm1k": "black-gold-superbike-rm-1k.webp"
+  }
  },
  "cafe-racer": {
   "master": "cafe-racer.glb",
   "sha256": "590a8501b2b58161b3d19375d420342d5be1bb45e883f0402ebde64c22fdbbf4",
   "bytes": 23709452,
   "unit": 1.0,
-  "vertices": 94742,
-  "triangles": 111391,
+  "vertices": 98535,
+  "triangles": 117817,
   "parts": [
-   78985,
-   6194,
-   14881,
-   11331
+   69006,
+   25927,
+   11529,
+   11355
   ],
   "quarterTurns": 2,
   "length": 0.9788,
   "height": 0.4809,
   "width": 0.346,
   "front": {
-   "z": 0.3449,
-   "y": 0.1534,
-   "r": 0.152,
-   "half": 0.0271
+   "x": 0.0004,
+   "z": 0.337,
+   "y": 0.1479,
+   "r": 0.1467,
+   "tread": 0.1461,
+   "half": 0.0264
   },
   "rear": {
-   "z": -0.3449,
-   "y": 0.145,
-   "r": 0.145,
-   "half": 0.0356
+   "x": 0.0002,
+   "z": -0.3448,
+   "y": 0.1484,
+   "r": 0.1484,
+   "tread": 0.1474,
+   "half": 0.0353
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1539,
    0.4017,
@@ -328,38 +357,47 @@
    "rmSize": 4096,
    "normal4k": "cafe-racer-normal-4k.png",
    "normal2k": "cafe-racer-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "cafe-racer-color-1k.jpg",
+   "normal1k": "cafe-racer-normal-1k.webp",
+   "rm1k": "cafe-racer-rm-1k.webp"
   }
  },
  "chopper": {
   "master": "chopper.glb",
   "sha256": "54c928c2e4a12b56249feb45ff85ced85fa80df1bdc85b8f09d225b951186b83",
   "bytes": 25148332,
-  "vertices": 98719,
-  "triangles": 113465,
+  "unit": 1.0,
+  "vertices": 101460,
+  "triangles": 117989,
   "parts": [
-   55698,
-   16332,
-   15408,
-   26027
+   63404,
+   25008,
+   14060,
+   15517
   ],
   "quarterTurns": 0,
   "length": 0.978,
   "height": 0.5522,
   "width": 0.5691,
   "front": {
-   "z": 0.3464,
-   "y": 0.139,
-   "r": 0.139,
-   "half": 0.0216
+   "x": 0.0002,
+   "z": 0.349,
+   "y": 0.1411,
+   "r": 0.1415,
+   "tread": 0.141,
+   "half": 0.0211
   },
   "rear": {
-   "z": -0.3464,
-   "y": 0.1272,
-   "r": 0.127,
-   "half": 0.0876
+   "x": 0.004,
+   "z": -0.344,
+   "y": 0.1294,
+   "r": 0.1295,
+   "tread": 0.1289,
+   "half": 0.0335
   },
-  "rake": 0.44,
+  "rake": 0.3173,
+  "steered": 0.0,
   "grip": [
    0.2342,
    0.4801,
@@ -375,21 +413,6 @@
    0.1043,
    -0.0536
   ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "chopper.bin",
-   "color4k": "chopper-color-4k.jpg",
-   "color2k": "chopper-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "chopper-rm-4k.webp",
-   "rm2k": "chopper-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "chopper-normal-4k.png",
-   "normal2k": "chopper-normal-2k.webp",
-   "normalSize": 4096
-  },
   "head": [
    0.0,
    0.2699,
@@ -412,38 +435,60 @@
     -0.4577
    ]
   ],
-  "unit": 1.0
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "chopper.bin",
+   "color4k": "chopper-color-4k.jpg",
+   "color2k": "chopper-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "chopper-rm-4k.webp",
+   "rm2k": "chopper-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "chopper-normal-4k.png",
+   "normal2k": "chopper-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "chopper-color-1k.jpg",
+   "normal1k": "chopper-normal-1k.webp",
+   "rm1k": "chopper-rm-1k.webp"
+  }
  },
  "chrome-concept": {
   "master": "chrome-concept.glb",
   "sha256": "59b76eddeff29be477b1608c7d576fc578545a8cffe3625d8f164617a7e8e70e",
   "bytes": 26045196,
   "unit": 1.0,
-  "vertices": 78521,
-  "triangles": 99434,
+  "vertices": 82294,
+  "triangles": 106072,
   "parts": [
-   71633,
-   6785,
-   10363,
-   10653
+   74212,
+   23193,
+   2912,
+   5755
   ],
   "quarterTurns": 2,
   "length": 0.9792,
   "height": 0.4498,
   "width": 0.3468,
   "front": {
-   "z": 0.3626,
-   "y": 0.1237,
-   "r": 0.12,
-   "half": 0.0834
+   "x": 0.0015,
+   "z": 0.3635,
+   "y": 0.1134,
+   "r": 0.1109,
+   "tread": 0.1091,
+   "half": 0.0618
   },
   "rear": {
-   "z": -0.3626,
-   "y": 0.133,
-   "r": 0.133,
-   "half": 0.0932
+   "x": 0.0019,
+   "z": -0.3623,
+   "y": 0.1292,
+   "r": 0.1296,
+   "tread": 0.1284,
+   "half": 0.0751
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1106,
    0.2613,
@@ -494,7 +539,10 @@
    "rmSize": 4096,
    "normal4k": "chrome-concept-normal-4k.png",
    "normal2k": "chrome-concept-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "chrome-concept-color-1k.jpg",
+   "normal1k": "chrome-concept-normal-1k.webp",
+   "rm1k": "chrome-concept-rm-1k.webp"
   }
  },
  "civil-war-tourer": {
@@ -502,31 +550,36 @@
   "sha256": "9ca8d0b0b80874296207cb997c5b0ee20c4175861d4e96ba5e8553de83d88b68",
   "bytes": 9511752,
   "unit": 1.0,
-  "vertices": 14045,
-  "triangles": 10766,
+  "vertices": 14859,
+  "triangles": 11994,
   "parts": [
-   8007,
-   877,
-   1054,
-   828
+   7493,
+   2509,
+   1084,
+   908
   ],
   "quarterTurns": 3,
   "length": 0.9995,
   "height": 0.6577,
   "width": 0.4692,
   "front": {
-   "z": 0.3385,
-   "y": 0.1435,
-   "r": 0.142,
+   "x": 0.0,
+   "z": 0.3381,
+   "y": 0.1438,
+   "r": 0.1424,
+   "tread": 0.1401,
    "half": 0.0315
   },
   "rear": {
-   "z": -0.3385,
+   "x": 0.0,
+   "z": -0.3388,
    "y": 0.144,
-   "r": 0.144,
+   "r": 0.1451,
+   "tread": 0.1413,
    "half": 0.0432
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.2085,
    0.5049,
@@ -571,7 +624,8 @@
    "mesh": "civil-war-tourer.bin",
    "color4k": "civil-war-tourer-color-4k.jpg",
    "color2k": "civil-war-tourer-color-2k.jpg",
-   "colorSize": 8192
+   "colorSize": 8192,
+   "color1k": "civil-war-tourer-color-1k.jpg"
   }
  },
  "gold-roadster": {
@@ -579,31 +633,36 @@
   "sha256": "a24fb606cb9c2a1f3ddac0133633d4ba71f2ccbe3939b74168304ed8f844b2ca",
   "bytes": 24739220,
   "unit": 1.0,
-  "vertices": 76566,
-  "triangles": 95681,
+  "vertices": 78982,
+  "triangles": 99893,
   "parts": [
-   62336,
-   6741,
-   14079,
-   12525
+   53679,
+   16374,
+   14793,
+   15047
   ],
   "quarterTurns": 2,
   "length": 0.9759,
   "height": 0.5014,
   "width": 0.4322,
   "front": {
-   "z": 0.3539,
-   "y": 0.1229,
-   "r": 0.121,
-   "half": 0.0328
+   "x": -0.0,
+   "z": 0.3557,
+   "y": 0.13,
+   "r": 0.1285,
+   "tread": 0.1274,
+   "half": 0.0325
   },
   "rear": {
-   "z": -0.3539,
-   "y": 0.126,
-   "r": 0.126,
-   "half": 0.0357
+   "x": -0.0002,
+   "z": -0.3512,
+   "y": 0.1309,
+   "r": 0.1316,
+   "tread": 0.1307,
+   "half": 0.0353
   },
-  "rake": 0.44,
+  "rake": 0.3325,
+  "steered": 0.0,
   "grip": [
    0.1741,
    0.4383,
@@ -654,38 +713,47 @@
    "rmSize": 4096,
    "normal4k": "gold-roadster-normal-4k.png",
    "normal2k": "gold-roadster-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "gold-roadster-color-1k.jpg",
+   "normal1k": "gold-roadster-normal-1k.webp",
+   "rm1k": "gold-roadster-rm-1k.webp"
   }
  },
  "gold-tourer": {
   "master": "gold-tourer.glb",
   "sha256": "2993d194a76554d44480be76951bf3944e7c42487d8b50622c737f092e8ee657",
   "bytes": 26882512,
-  "vertices": 84891,
-  "triangles": 106825,
+  "unit": 1.0,
+  "vertices": 91215,
+  "triangles": 116831,
   "parts": [
-   64511,
-   4654,
-   24547,
-   13113
+   62734,
+   32830,
+   13009,
+   8258
   ],
   "quarterTurns": 0,
   "length": 0.9785,
   "height": 0.5384,
   "width": 0.3629,
   "front": {
-   "z": 0.326,
-   "y": 0.1226,
-   "r": 0.122,
-   "half": 0.0313
+   "x": -0.0006,
+   "z": 0.3257,
+   "y": 0.1144,
+   "r": 0.1139,
+   "tread": 0.1135,
+   "half": 0.0219
   },
   "rear": {
-   "z": -0.326,
-   "y": 0.113,
-   "r": 0.113,
-   "half": 0.0997
+   "x": -0.0007,
+   "z": -0.323,
+   "y": 0.1129,
+   "r": 0.1129,
+   "tread": 0.1123,
+   "half": 0.0321
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1426,
    0.4146,
@@ -701,21 +769,6 @@
    0.092,
    -0.027
   ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "gold-tourer.bin",
-   "color4k": "gold-tourer-color-4k.jpg",
-   "color2k": "gold-tourer-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "gold-tourer-rm-4k.webp",
-   "rm2k": "gold-tourer-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "gold-tourer-normal-4k.png",
-   "normal2k": "gold-tourer-normal-2k.webp",
-   "normalSize": 4096
-  },
   "head": [
    0.0,
    0.2484,
@@ -738,38 +791,60 @@
     -0.4956
    ]
   ],
-  "unit": 1.0
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "gold-tourer.bin",
+   "color4k": "gold-tourer-color-4k.jpg",
+   "color2k": "gold-tourer-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "gold-tourer-rm-4k.webp",
+   "rm2k": "gold-tourer-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "gold-tourer-normal-4k.png",
+   "normal2k": "gold-tourer-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "gold-tourer-color-1k.jpg",
+   "normal1k": "gold-tourer-normal-1k.webp",
+   "rm1k": "gold-tourer-rm-1k.webp"
+  }
  },
  "midnight-cruiser": {
   "master": "midnight-cruiser.glb",
   "sha256": "5ca2593b79c7c3d1de3529c74f38d559b3492e4c0f9867a759422eb5dc30c3ce",
   "bytes": 24846336,
   "unit": 1.0,
-  "vertices": 127447,
-  "triangles": 132054,
+  "vertices": 129969,
+  "triangles": 136390,
   "parts": [
-   54405,
-   7513,
-   28381,
-   41755
+   50803,
+   12281,
+   32506,
+   40800
   ],
   "quarterTurns": 3,
   "length": 0.9791,
   "height": 0.5886,
   "width": 0.5596,
   "front": {
-   "z": 0.356,
-   "y": 0.118,
-   "r": 0.118,
-   "half": 0.0364
+   "x": 0.0014,
+   "z": 0.3566,
+   "y": 0.1266,
+   "r": 0.1275,
+   "tread": 0.1273,
+   "half": 0.0344
   },
   "rear": {
-   "z": -0.356,
-   "y": 0.126,
-   "r": 0.126,
-   "half": 0.065
+   "x": 0.0044,
+   "z": -0.355,
+   "y": 0.1292,
+   "r": 0.1305,
+   "tread": 0.1293,
+   "half": 0.0516
   },
-  "rake": 0.44,
+  "rake": 0.2875,
+  "steered": 0.0,
   "grip": [
    0.2169,
    0.5086,
@@ -820,7 +895,10 @@
    "rmSize": 4096,
    "normal4k": "midnight-cruiser-normal-4k.png",
    "normal2k": "midnight-cruiser-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "midnight-cruiser-color-1k.jpg",
+   "normal1k": "midnight-cruiser-normal-1k.webp",
+   "rm1k": "midnight-cruiser-rm-1k.webp"
   }
  },
  "olive-cruiser": {
@@ -828,31 +906,36 @@
   "sha256": "8590db45f7383b0dbb879385d3cfc6549c2bf2affa3972519d01d336a947cde2",
   "bytes": 25445576,
   "unit": 1.0,
-  "vertices": 90633,
-  "triangles": 107206,
+  "vertices": 95196,
+  "triangles": 114628,
   "parts": [
-   72975,
-   2595,
-   20350,
-   11286
+   69131,
+   20059,
+   13967,
+   11471
   ],
   "quarterTurns": 3,
   "length": 0.977,
   "height": 0.5259,
   "width": 0.3373,
   "front": {
-   "z": 0.3566,
-   "y": 0.1451,
-   "r": 0.125,
-   "half": 0.0347
+   "x": 0.0002,
+   "z": 0.3571,
+   "y": 0.1378,
+   "r": 0.1181,
+   "tread": 0.1175,
+   "half": 0.0238
   },
   "rear": {
-   "z": -0.3566,
-   "y": 0.122,
-   "r": 0.122,
-   "half": 0.032
+   "x": 0.0005,
+   "z": -0.356,
+   "y": 0.1274,
+   "r": 0.1274,
+   "tread": 0.126,
+   "half": 0.0314
   },
-  "rake": 0.44,
+  "rake": 0.4229,
+  "steered": 0.0,
   "grip": [
    0.1208,
    0.4454,
@@ -903,7 +986,10 @@
    "rmSize": 4096,
    "normal4k": "olive-cruiser-normal-4k.png",
    "normal2k": "olive-cruiser-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "olive-cruiser-color-1k.jpg",
+   "normal1k": "olive-cruiser-normal-1k.webp",
+   "rm1k": "olive-cruiser-rm-1k.webp"
   }
  },
  "power-cruiser": {
@@ -911,31 +997,36 @@
   "sha256": "8cc9514f139acff15b6dc6c3c3aa227f79e293b226a6cf6f8d2826300a8065da",
   "bytes": 26281676,
   "unit": 1.0,
-  "vertices": 96350,
-  "triangles": 110565,
+  "vertices": 98154,
+  "triangles": 113735,
   "parts": [
-   57475,
-   7291,
-   21459,
-   24340
+   63265,
+   10184,
+   19742,
+   20544
   ],
   "quarterTurns": 0,
   "length": 0.9788,
   "height": 0.4974,
   "width": 0.3785,
   "front": {
-   "z": 0.3508,
-   "y": 0.133,
-   "r": 0.133,
-   "half": 0.065
+   "x": -0.0002,
+   "z": 0.3502,
+   "y": 0.1286,
+   "r": 0.1313,
+   "tread": 0.1303,
+   "half": 0.0529
   },
   "rear": {
-   "z": -0.3508,
-   "y": 0.148,
-   "r": 0.144,
-   "half": 0.0254
+   "x": -0.0005,
+   "z": -0.3499,
+   "y": 0.1505,
+   "r": 0.1471,
+   "tread": 0.1464,
+   "half": 0.0243
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1623,
    0.4221,
@@ -986,7 +1077,10 @@
    "rmSize": 4096,
    "normal4k": "power-cruiser-normal-4k.png",
    "normal2k": "power-cruiser-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "power-cruiser-color-1k.jpg",
+   "normal1k": "power-cruiser-normal-1k.webp",
+   "rm1k": "power-cruiser-rm-1k.webp"
   }
  },
  "purple-sport": {
@@ -994,31 +1088,36 @@
   "sha256": "c1431c32254cf317c7569e39c826b44804fba9b9854d996879d82a6ef096b7ac",
   "bytes": 25456352,
   "unit": 1.0,
-  "vertices": 89992,
-  "triangles": 109373,
+  "vertices": 92540,
+  "triangles": 113837,
   "parts": [
-   75885,
-   13964,
-   14369,
-   5155
+   71921,
+   28974,
+   7808,
+   5134
   ],
   "quarterTurns": 0,
   "length": 0.9786,
   "height": 0.5555,
   "width": 0.4389,
   "front": {
-   "z": 0.3243,
-   "y": 0.145,
-   "r": 0.145,
-   "half": 0.0274
+   "x": -0.0002,
+   "z": 0.3286,
+   "y": 0.1423,
+   "r": 0.1429,
+   "tread": 0.1424,
+   "half": 0.0271
   },
   "rear": {
-   "z": -0.3243,
-   "y": 0.1406,
-   "r": 0.14,
-   "half": 0.0278
+   "x": -0.0001,
+   "z": -0.322,
+   "y": 0.1411,
+   "r": 0.1412,
+   "tread": 0.1404,
+   "half": 0.0274
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1731,
    0.4321,
@@ -1069,7 +1168,10 @@
    "rmSize": 4096,
    "normal4k": "purple-sport-normal-4k.png",
    "normal2k": "purple-sport-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "purple-sport-color-1k.jpg",
+   "normal1k": "purple-sport-normal-1k.webp",
+   "rm1k": "purple-sport-rm-1k.webp"
   }
  },
  "red-superbike": {
@@ -1077,31 +1179,36 @@
   "sha256": "10373b3b4488bbea9410501f6e28c1b1ed182c4e104e14d1bb16df5818f19f35",
   "bytes": 23783348,
   "unit": 1.0,
-  "vertices": 91479,
-  "triangles": 109400,
+  "vertices": 96964,
+  "triangles": 118470,
   "parts": [
-   63427,
-   9679,
-   20824,
-   15470
+   57533,
+   27401,
+   17838,
+   15698
   ],
   "quarterTurns": 2,
   "length": 0.9787,
   "height": 0.5475,
   "width": 0.4319,
   "front": {
-   "z": 0.3401,
-   "y": 0.1415,
-   "r": 0.138,
-   "half": 0.0283
+   "x": 0.0004,
+   "z": 0.3399,
+   "y": 0.1448,
+   "r": 0.1422,
+   "tread": 0.1414,
+   "half": 0.0271
   },
   "rear": {
-   "z": -0.3401,
-   "y": 0.157,
-   "r": 0.157,
-   "half": 0.0513
+   "x": -0.0001,
+   "z": -0.3378,
+   "y": 0.1561,
+   "r": 0.156,
+   "tread": 0.1554,
+   "half": 0.0508
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1486,
    0.4036,
@@ -1152,7 +1259,10 @@
    "rmSize": 4096,
    "normal4k": "red-superbike-normal-4k.png",
    "normal2k": "red-superbike-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "red-superbike-color-1k.jpg",
+   "normal1k": "red-superbike-normal-1k.webp",
+   "rm1k": "red-superbike-rm-1k.webp"
   }
  },
  "streetfighter": {
@@ -1160,31 +1270,36 @@
   "sha256": "efce25fb860777b584c6584326a86919d79a0a444e4bb20f995f80829161bc4e",
   "bytes": 24477520,
   "unit": 1.0,
-  "vertices": 95114,
-  "triangles": 111539,
+  "vertices": 98580,
+  "triangles": 117579,
   "parts": [
-   63860,
-   10360,
-   20893,
-   16426
+   56129,
+   30575,
+   15110,
+   15765
   ],
   "quarterTurns": 2,
   "length": 0.9785,
   "height": 0.5348,
   "width": 0.2847,
   "front": {
-   "z": 0.3418,
-   "y": 0.1351,
-   "r": 0.134,
-   "half": 0.0241
+   "x": -0.0004,
+   "z": 0.3455,
+   "y": 0.1444,
+   "r": 0.1432,
+   "tread": 0.1424,
+   "half": 0.0234
   },
   "rear": {
-   "z": -0.3418,
-   "y": 0.145,
-   "r": 0.145,
-   "half": 0.0349
+   "x": -0.0009,
+   "z": -0.3404,
+   "y": 0.1477,
+   "r": 0.1478,
+   "tread": 0.1465,
+   "half": 0.0336
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1228,
    0.4459,
@@ -1235,7 +1350,10 @@
    "rmSize": 4096,
    "normal4k": "streetfighter-normal-4k.png",
    "normal2k": "streetfighter-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "streetfighter-color-1k.jpg",
+   "normal1k": "streetfighter-normal-1k.webp",
+   "rm1k": "streetfighter-rm-1k.webp"
   }
  },
  "white-sport": {
@@ -1243,50 +1361,55 @@
   "sha256": "fa894ae88ae88022c4a804200150b939fdb8079f01024e962611b86ba918fd46",
   "bytes": 21647968,
   "unit": 1.0,
-  "vertices": 95942,
-  "triangles": 113522,
+  "vertices": 99143,
+  "triangles": 119030,
   "parts": [
-   74713,
-   2859,
-   25687,
-   10263
+   75563,
+   19694,
+   15047,
+   8726
   ],
   "quarterTurns": 2,
   "length": 0.9789,
   "height": 0.5559,
   "width": 0.3623,
   "front": {
-   "z": 0.3306,
-   "y": 0.1477,
-   "r": 0.13,
-   "half": 0.0425
+   "x": -0.0117,
+   "z": 0.3315,
+   "y": 0.1412,
+   "r": 0.1235,
+   "tread": 0.1229,
+   "half": 0.0257
   },
   "rear": {
-   "z": -0.3306,
-   "y": 0.122,
-   "r": 0.122,
-   "half": 0.0269
+   "x": -0.0005,
+   "z": -0.3312,
+   "y": 0.1271,
+   "r": 0.1274,
+   "tread": 0.1269,
+   "half": 0.0262
   },
   "rake": 0.44,
+  "steered": 0.096,
   "grip": [
-   0.1197,
-   0.3684,
-   0.1228
+   0.1213,
+   0.3653,
+   0.1283
   ],
   "seat": [
    0.0,
-   0.3407,
-   -0.1912
+   0.3489,
+   -0.1816
   ],
   "peg": [
-   0.0876,
+   0.0832,
    0.1108,
-   -0.0712
+   -0.0616
   ],
   "head": [
    0.0,
-   0.265,
-   0.3679
+   0.2656,
+   0.3697
   ],
   "tail": [
    0.0,
@@ -1318,7 +1441,10 @@
    "rmSize": 4096,
    "normal4k": "white-sport-normal-4k.png",
    "normal2k": "white-sport-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "white-sport-color-1k.jpg",
+   "normal1k": "white-sport-normal-1k.webp",
+   "rm1k": "white-sport-rm-1k.webp"
   }
  },
  "yellow-adventure": {
@@ -1326,31 +1452,36 @@
   "sha256": "93bda61452d793600cbdfac925c0c2d3510544750ef0860cddce1f8771dc4d3a",
   "bytes": 24368020,
   "unit": 1.0,
-  "vertices": 103838,
-  "triangles": 117158,
+  "vertices": 105853,
+  "triangles": 120618,
   "parts": [
-   82869,
-   9551,
-   17027,
-   7711
+   75493,
+   32816,
+   6719,
+   5590
   ],
   "quarterTurns": 2,
   "length": 0.9758,
   "height": 0.6345,
   "width": 0.5093,
   "front": {
-   "z": 0.3449,
-   "y": 0.117,
-   "r": 0.116,
-   "half": 0.0216
+   "x": 0.0008,
+   "z": 0.3406,
+   "y": 0.1314,
+   "r": 0.1306,
+   "tread": 0.1304,
+   "half": 0.0205
   },
   "rear": {
-   "z": -0.3449,
-   "y": 0.122,
-   "r": 0.122,
-   "half": 0.025
+   "x": 0.0013,
+   "z": -0.3475,
+   "y": 0.1306,
+   "r": 0.1307,
+   "tread": 0.13,
+   "half": 0.0235
   },
   "rake": 0.44,
+  "steered": 0.0,
   "grip": [
    0.1894,
    0.5023,
@@ -1401,7 +1532,10 @@
    "rmSize": 4096,
    "normal4k": "yellow-adventure-normal-4k.png",
    "normal2k": "yellow-adventure-normal-2k.webp",
-   "normalSize": 4096
+   "normalSize": 4096,
+   "color1k": "yellow-adventure-color-1k.jpg",
+   "normal1k": "yellow-adventure-normal-1k.webp",
+   "rm1k": "yellow-adventure-rm-1k.webp"
   }
  }
 }

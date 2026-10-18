@@ -411,7 +411,7 @@ function showFrame(d, k) {
 
 // ------------------------------------------------------------------------------------------------ together --
 
-// `maxTexture`: the largest picture the graphics take (or a phone's 2048); `lite`: a phone, which draws the nearest
+// `maxTexture`: the size its tower's picture is drawn at (budget.js); `lite`: a phone, which draws the nearest
 // bikes with their 2048 pictures and keeps fewer of them at once.
 export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
   const exterior = new THREE.Group(); exterior.name = 'powerbike';
@@ -476,7 +476,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
     // (with no connection, and nothing kept, the plain shape stands there until there is one: asked again a little later)
     if (performance.now() < retryAt) return;
     requested = true;
-    loadTower({ maxTexture: lite ? Math.min(2048, maxTexture || 2048) : maxTexture && maxTexture < 8192 ? maxTexture : 0 })
+    loadTower({ maxTexture: maxTexture || (lite ? 1024 : 2048) })
       .then(({ mesh, triangles }) => {
         mesh.position.set(M.x, 0, M.z); mesh.rotation.y = M.heading; mesh.scale.setScalar(M.scale);
         exterior.add(mesh); exterior.remove(stand); stand.geometry.dispose(); stand.material.dispose();
