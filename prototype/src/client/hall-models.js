@@ -11,15 +11,26 @@
 //     blank, and only one comes in a frame (its pictures go to the graphics card then, not all at once);
 //   - one goes down to a smaller set only after the player has been further from it for a while, and with room to
 //     spare, so that walking along the edge of a distance does not swap it back and forth;
-//   - all of them are let go once the player has left the hall and gone away from its doors.
+//   - all of them are let go once the player has left the hall and gone away from its doors;
+//   - only the ones near the player cast the sun's shadow (`castShadows`); the rest have a soft shadow under them, as
+//     their pictures do. Every model in the hall casting its own was most of what a frame there cost: the sun's
+//     shadow is drawn from all of the hall at once, every vehicle in it whole, wherever the player looks.
 //
 //   const models = hallModels({ items, load, lite, ranges });
 //   each frame: models.update({ gaps, now, mode })      gaps: metres from the player (inside) or the doors (outside)
 //   models.modelOf(k), models.tierOf(k)                   what item k is drawn as now (null: its picture)
+//   castShadows(model, on)                                whether a model's pieces cast the sun's shadow
 import { HALL } from './budget.js';
 
 const ORDER = ['512', '1k', '2k', '4k'];
 const rankOf = (tier) => (tier ? ORDER.indexOf(tier) : -1);
+
+// whether a model's pieces cast the sun's shadow (set only when it changes: `model.casts`)
+export function castShadows(model, on) {
+  if (!model || model.casts === on) return;
+  model.casts = on;
+  model.group.traverse((o) => { if (o.isMesh) o.castShadow = on; });
+}
 
 // items: [{ id }] in the hall's order; load(k, tier) → a promise of a model ({ group, dispose }); put(k, model) puts it
 // in the hall (and takes away the one it replaces, if any); ranges: { inspect, near, mid } metres; lite: a phone.

@@ -29,7 +29,7 @@ import { Batch, place, surface, linear } from './render-kit.js';
 import { reflects } from './render-finish.js';
 import { makeDealMarker } from './render-holaris.js';
 import { loadBike, bikeLoaded } from './bike-model.js';
-import { hallModels } from './hall-models.js';
+import { hallModels, castShadows } from './hall-models.js';
 import { BIKE_IMPOSTOR } from './bike-impostors.js';
 import { COVER } from './brand-data.js';
 
@@ -544,7 +544,8 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
 
   // Each bike as its model (hall-models.js says with which pictures), or its picture while its model is not here (and,
   // on a phone, across the hall). `level`: how much the device is struggling (0 not at all): the largest pictures are
-  // given up first.
+  // given up first. The bikes within SHADOW_NEAR metres of the player cast the sun's shadow (hall-models.js says why).
+  const SHADOW_NEAR = 7, SHADOW_KEEP = 8.5;
   function updateDisplays(dt, { eye, player, now, level = 0 }) {
     const gaps = displays.map((d) => Math.max(0, Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r));
     const clock = performance.now() / 1000;          // (seconds, for how long things have waited: not the town's clock)
@@ -555,8 +556,13 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
       d.model = models.modelOf(k); d.tier = models.tierOf(k);
       d.holder.rotation.y = d.heading;
       const shown = !!d.model;
+      // (the sun's shadow is cast only by the bikes near the player, kept a little further than it is begun so that it
+      // does not come and go at the edge; the others have the soft shadow under them that their pictures have)
+      d.casts = shown && gaps[k] < (d.casts ? SHADOW_KEEP : SHADOW_NEAR);
+      castShadows(d.model, d.casts);
+      const casts = d.casts;
       d.picture.visible = !shown;
-      d.shadow.visible = !shown;
+      d.shadow.visible = !casts;
       if (!shown) {
         d.sheet.want(clock);
         // the picture: where the model's middle would be, turned to the eye about the upright
@@ -607,7 +613,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
       else prepare(player);
     },
     // for the checks: what is drawn as a model (with which pictures) and what as a picture
-    shown() { return displays.map((d) => ({ bike: d.display.bike, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: !!d.tier && bikeLoaded(d.display.bike, d.tier) })); },
+    shown() { return displays.map((d) => ({ bike: d.display.bike, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: !!d.tier && bikeLoaded(d.display.bike, d.tier), casts: !!d.casts, soft: d.shadow.visible })); },
     models: () => (models ? models.state() : null),
   };
 }

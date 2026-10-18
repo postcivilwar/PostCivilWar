@@ -1836,7 +1836,10 @@ player stands at with its 4096 pictures (on a phone 1024), the next few nearest 
 far end 512; on a phone the far end is the picture of it from all round. The sets nearest the doors are made ready as
 the player comes up to them, one model handed to the graphics card a frame; a downgrade waits until the player has
 moved on, so nothing flickers; all of it is let go once the player is well away. Each vehicle's pictures and the
-market's view of it are framed by the exact bounds of what is drawn (`src/client/bounds.js`).
+market's view of it are framed by the exact bounds of what is drawn (`src/client/bounds.js`). Only the vehicles near
+the player (within 7 m of a motorcycle's stand, 12 m of a car's) cast the sun's shadow; the rest have the soft shadow
+under them that their pictures always had. The sun's shadow is drawn from the whole hall at once, every vehicle in it
+whole wherever the player looks, so every model casting it was most of what a frame in a hall cost.
 
 ### The driver at the wheel (`tools/vehicles/driver_seats.py`, `src/client/car-view.js`)
 

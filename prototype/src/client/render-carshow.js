@@ -28,7 +28,7 @@ import { trText } from '../sim/ledger.js';
 import { loadSuppliedMesh } from './supplied-model.js';
 import { Batch, place, surface } from './render-kit.js';
 import { loadCar, carLoaded } from './car-model.js';
-import { hallModels } from './hall-models.js';
+import { hallModels, castShadows } from './hall-models.js';
 import { CAR_IMPOSTOR } from './car-impostors.js';
 import { COVER } from './brand-data.js';
 import { vehicleEnvironment } from './vehicle-models.js';
@@ -807,7 +807,8 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   }
   // Each car as its model (hall-models.js says with which pictures), or its picture while its model is not here (and,
   // on a phone, across the hall). `level`: how much the device is struggling (0 not at all): the largest pictures are
-  // given up first.
+  // given up first. The cars within SHADOW_NEAR metres of the player cast the sun's shadow (hall-models.js says why).
+  const SHADOW_NEAR = 12, SHADOW_KEEP = 14;
   function updateDisplays(dt, { eye, player, now, level = 0 }) {
     const clock = performance.now() / 1000;          // (seconds, for how long things have waited: not the town's clock)
     const gaps = displays.map((d) => Math.max(0, Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r));
@@ -817,6 +818,10 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
       d.model = models.modelOf(k); d.tier = models.tierOf(k);
       d.holder.rotation.y = d.heading;
       const shown = !!d.model;
+      // (the sun's shadow is cast only by the cars near the player, kept a little further than it is begun so that it
+      // does not come and go at the edge; every car has the soft shadow under it as well)
+      d.casts = shown && gaps[k] < (d.casts ? SHADOW_KEEP : SHADOW_NEAR);
+      castShadows(d.model, d.casts);
       d.picture.visible = !shown;
       if (!shown) {
         d.sheet.want(clock);
@@ -889,7 +894,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
     },
     gateBoxes: () => carshowGateBoxes(gateShown),
     // for the checks: what is drawn as a model and what as a picture
-    shown() { return displays.map((d) => ({ car: d.display.car, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: !!d.tier && carLoaded(d.display.car, d.tier) })); },
+    shown() { return displays.map((d) => ({ car: d.display.car, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: !!d.tier && carLoaded(d.display.car, d.tier), casts: !!d.casts, soft: d.shadow.visible })); },
     models: () => (models ? models.state() : null),
     state: () => ({ built: !!court, gate: gateShown, doors: doorsOpen, cams: cams.map((c) => ({ yaw: +c.yaw.toFixed(3), lit: c.glow.material.opacity > 0 })) }),
   };
