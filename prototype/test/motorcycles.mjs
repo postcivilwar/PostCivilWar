@@ -81,7 +81,9 @@ await page.mouse.down();
 const climb = [];
 for (let i = 0; i < 8; i += 1) { await page.waitForTimeout(200); climb.push((await pv()).preview.rev); }
 const held = await pv();
-check('Rev held: lit green, the revs climb smoothly towards the red line', held.revLit && held.preview.revving && climb.every((r, i) => i === 0 || (r >= climb[i - 1] - 0.01 && r - climb[i - 1] < 0.3)) && climb[climb.length - 1] > 0.9 && idleRev < 0.05, { climb, held });
+// (looked at every 200 ms; without a graphics card a frame can take longer than that, so a step between two looks
+// may be more than a frame's: smoothly here means rising, never at the red line at once, never a leap)
+check('Rev held: lit green, the revs climb smoothly towards the red line', held.revLit && held.preview.revving && climb[0] < 0.6 && climb.every((r, i) => i === 0 || (r >= climb[i - 1] - 0.01 && r - climb[i - 1] < 0.45)) && climb[climb.length - 1] > 0.9 && idleRev < 0.05, { climb, held });
 await page.mouse.up();
 const revFall = [];
 for (let i = 0; i < 6; i += 1) { await page.waitForTimeout(250); revFall.push((await pv()).preview.rev); }
@@ -250,7 +252,9 @@ await page.waitForFunction(() => window.__nlw.view.self.ownBikes && window.__nlw
 check('after loading the page again, it is still theirs', await page.evaluate(() => window.__nlw.view.self.ownBikes.bikes.includes('streetfighter')), null);
 
 // ---- coming off: ridden into a wall at speed ----
-await page.evaluate(() => { const n = window.__nlw; n.place(48, -92); n.face(0); });
+// (just behind the registry, facing its back wall: north of it the owner's group of five towers now stands, where
+// this ride began)
+await page.evaluate(() => { const n = window.__nlw; n.place(48, -81); n.face(0); });
 await page.waitForTimeout(400);
 await page.evaluate(() => window.__nlw.rideBike('streetfighter'));
 await page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 300000 });
