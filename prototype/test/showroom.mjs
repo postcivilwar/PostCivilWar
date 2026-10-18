@@ -193,11 +193,6 @@ await page.evaluate(() => {
   };
   requestAnimationFrame(look);
 });
-// (a browser without a graphics card draws this hall at a frame every second or two, and the page's clock moves at
-// most half a second a frame: a sentence's gestures then get two or three frames, perhaps none of them the one with
-// the hand up. For the length of the player's question the hall is drawn at a quarter of its pixels, so that more
-// of its frames are drawn; the hands are what is looked at, not the picture)
-const ratio = await page.evaluate(() => { const r = window.__nlw.renderer, was = r.getPixelRatio(); r.setPixelRatio(was / 2); return was; });
 const QUESTION = 'How fast does the Red Superbike go when you open it right up on a long straight road?';
 await page.click('#deal-text');
 await page.keyboard.type(QUESTION);
@@ -206,7 +201,6 @@ const pending = await page.evaluate(() => ({ pending: !!document.querySelector('
 // while the words are said the player's right hand comes up (looked for frame by frame)
 const rose = await page.waitForFunction((q) => { const n = window.__nlw; const b = n.me.bones.get('hand_r'); return b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y > q + 0.05; }, quiet.me, { timeout: 20000 }).then(() => true, () => false);
 const speaking = await handHeight();
-await page.evaluate((was) => window.__nlw.renderer.setPixelRatio(was), ratio);
 await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /212 km\/h/.test(m.textContent)), null, { timeout: 90000 });
 const said = await page.evaluate(() => [...document.querySelectorAll('#deal-log .msg')].slice(-2).map((m) => m.className + ': ' + m.textContent));
 check('a typed question goes up at once and is answered from what is so', pending.pending && /212 km\/h/.test(said[1] || ''), said);
