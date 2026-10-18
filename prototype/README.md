@@ -1799,7 +1799,7 @@ The owner asked for the town to look real: glass that reflects, finishes as they
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 347 headless tests
+node --test test/*.test.mjs                        # 349 headless tests
 ../server/with-postgres.sh node --test ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
@@ -1817,6 +1817,9 @@ node test/figures.mjs out/                         # every supplied figure: chos
 ../server/with-postgres.sh node test/carshow.mjs out/    # the Post Civil War Car Showroom: the compound, the gate, the cameras, in and out by the doors, the cars, Tochi and Oluchi, asking and buying with earned TR, driving (the engine, the speedometer, steering, the brake, the gate, getting out), the lamps at night, another player's car
 node test/bike.mjs out/                            # the power bike's controls and engines (with nothing to ride yet)
 node test/outskirts.mjs out/                       # the road to Onitsha, the airport and the bridge, walked
+../server/with-postgres.sh node test/supplied.mjs out/   # the owner's vehicles: each at its place, fetched near it, solid; the ambulance on a call, its lamps
+../server/with-postgres.sh node test/town-buildings.mjs out/   # the owner's houses and towers: every model whole, each on its plot at its size, drawn near, solid; the hotel's facade
+../server/with-postgres.sh node test/realism.mjs out/   # the leaves, the wind, their shadows; glass and the river giving back the sky, not at night; rain on the roads, and drying
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings
 ```
 
