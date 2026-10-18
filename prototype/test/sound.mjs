@@ -36,7 +36,10 @@ const measure = async (label, seconds = 8) => {
 };
 const go = (x, z, hours = 0, kind = 'clear') => page.evaluate(([px, pz, h, k]) => { if (h) window.__nlw.skip(h); window.__nlw.host.game.state.weather = { kind: k, until: 1e15 }; window.__nlw.place(px, pz); }, [x, z, hours, kind]);
 await go(150, 150, 3); await page.waitForTimeout(3000); await measure('edge of town, dry', 10);
-await go(8, 58); await page.waitForTimeout(3000); await measure('market, mid-morning');
+// (the dry market is measured once no okada is going by within 45 m: one passing just then is as loud as the rain, and
+// whether one does depends on the moment the test gets there, which depends on how fast the machine is)
+const quietRoad = () => page.waitForFunction(() => { const n = window.__nlw, s = n.view.self; return ![...n.crowd.bikes()].some((b) => b.truth && b.truth.moving && Math.hypot(b.x - s.x, b.z - s.z) < 45); }, null, { timeout: 60000, polling: 250 }).catch(() => {});
+await go(8, 58); await page.waitForTimeout(3000); await quietRoad(); await measure('market, mid-morning');
 await go(44, 47); await page.waitForTimeout(3000); await measure('25 m from the DJ');
 await go(44, 26); await page.waitForTimeout(3000); await measure('beside the DJ');
 await go(-50, 74); await page.waitForTimeout(3000); await measure('motor park radio');
