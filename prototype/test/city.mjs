@@ -46,8 +46,15 @@ check('the city block is drawn: road, paint, paving, kerbs, the buildings\' wall
 await view('01-west-pavement-looking-north', { x: -8.6, z: -10, h: 0, yaw: 0.12, dist: 4.5, pitch: 0.1 });
 const up = await page.evaluate(() => { const n = window.__nlw; return { feet: +n.me.group.position.y.toFixed(3), ground: n.ground(n.view.self.x, n.view.self.z) }; });
 check('on the pavement the walker stands a kerb above the road', Math.abs(up.feet - up.ground) < 0.02 && up.ground > 0.1, up);
+// (every frame's time written down while walking, and who was near on the way: a failure says whether the walk was
+// slowed by slow frames or stopped by someone in the way)
+await page.evaluate(() => { const rec = window.__walkFrames = { t: [], stop: false }; let last = 0; const step = (now) => { if (rec.stop) return; if (last) rec.t.push(Math.round(now - last)); last = now; requestAnimationFrame(step); }; requestAnimationFrame(step); });
 await page.keyboard.down('w'); await page.waitForTimeout(2500); await page.keyboard.up('w');
-const walked = await page.evaluate(() => ({ z: window.__nlw.view.self.z, x: window.__nlw.view.self.x }));
+const walked = await page.evaluate(() => {
+  const n = window.__nlw, s = n.view.self, rec = window.__walkFrames; rec.stop = true;
+  const near = (n.view.people || []).concat(n.view.residents || [], n.view.players || []).filter((q) => q && Number.isFinite(q.x) && Math.hypot(q.x - s.x, q.z - s.z) < 2).map((q) => [+q.x.toFixed(2), +q.z.toFixed(2)]);
+  return { z: s.z, x: s.x, frames: rec.t.length, slowest: Math.max(0, ...rec.t), near };
+});
 check('walking along the pavement goes freely', walked.z > -8, walked);
 await view('02-west-pavement-looking-south', { x: -8.6, z: 45, h: Math.PI, yaw: 3.0, dist: 5, pitch: 0.1 });
 await view('03-east-pavement-arcade', { x: 8.6, z: -25, h: 0, yaw: -0.2, dist: 5, pitch: 0.12 });
