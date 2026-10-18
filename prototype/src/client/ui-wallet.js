@@ -87,7 +87,7 @@ export function createWalletUI(kit) {
         row('Earned TR (eligible)', parts.eligible, 'wallet-eligible'),
         parts.held > 0 ? row('Set aside for your offers', parts.held, 'wallet-held') : null,
         parts.adHeld > 0 ? row('Held for advertising under review', parts.adHeld, 'wallet-ad-held') : null),
-      h('p', { class: 'small' }, 'Starter TR is the 2,000 TR you arrived with. It pays fines, the ambulance, hospital bills, levies, permits, fares, food and fuel. It cannot be sent to another player and does not buy assets (land, vehicles, building materials, things in the market) or a character upgrade.'),
+      h('p', { class: 'small' }, 'Starter TR is the 2,000 TR you arrived with. It pays fines, the ambulance, hospital bills, levies, permits, fares, food and fuel, and a new motorcycle or car from the showrooms. It cannot be sent to another player and does not buy other assets (land, other vehicles, building materials, other things in the market) or a character upgrade.'),
       h('p', { class: 'small' }, 'Earned TR is what you are paid for work in town, what other players send you, and what you sell things for. It can be sent and spent on anything.'));
   }
 

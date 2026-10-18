@@ -644,7 +644,7 @@ test('the database itself keeps the books: a balance changes only by an entry, h
   // an entry in a player's wallet that does not say which TR it moves is not written
   await assert.rejects(() => movement('TR-NOKINDATALL', 'transfer', [[p, -10, null], [q, 10, null]]), /says which TR it moves/);
   // and starter TR does not move between players, whatever asks: a transfer, a hold, a sale, an upgrade
-  for (const kind of ['transfer', 'hold', 'upgrade', 'release', 'refund']) await assert.rejects(() => movement(`TR-STARTER${kind.toUpperCase().slice(0, 4)}`, kind, [[q, -100, 'starter'], [p, 100, 'earned']]), /starter TR pays the town's charges and costs and for a motorcycle, and nothing else/, kind);
+  for (const kind of ['transfer', 'hold', 'upgrade', 'release', 'refund']) await assert.rejects(() => movement(`TR-STARTER${kind.toUpperCase().slice(0, 4)}`, kind, [[q, -100, 'starter'], [p, 100, 'earned']]), /starter TR pays the town's charges and costs and for a motorcycle or a car, and nothing else/, kind);
   await assert.rejects(() => movement('TR-STARTERSALE', 'sale', [[q, -100, 'starter'], [p, 100, 'earned']]), /starter TR pays the town's charges/);
   // (a sale that says it is a motorcycle from the showroom may take it, but only to the bank, never to a player)
   const saidMotorcycle = (ref, sides) => sql.begin(async (tx) => {
@@ -652,6 +652,12 @@ test('the database itself keeps the books: a balance changes only by an entry, h
     for (const [who, amount, bucket] of sides) await tx.unsafe(`insert into pcw.wallet_entries (tx_id, wallet_id, amount, bucket) select $1, id, $3, $4 from pcw.wallets where account_id = (select id from pcw.accounts where username = $2)`, [t[0].id, who.username, amount, bucket]);
   });
   await assert.rejects(() => saidMotorcycle('TR-STARTERMOTO', [[q, -100, 'starter'], [p, 100, 'earned']]), /paid to the town/);
+  // (and so may a sale that says it is a car from the car showroom, since 18 October 2026: to the bank, never to a player)
+  const saidCar = (ref, sides) => sql.begin(async (tx) => {
+    const t = await tx.unsafe(`insert into pcw.wallet_tx (ref, kind, meta) values ($1, 'sale', '{"starterFor":"car"}'::jsonb) returning id`, [ref]);
+    for (const [who, amount, bucket] of sides) await tx.unsafe(`insert into pcw.wallet_entries (tx_id, wallet_id, amount, bucket) select $1, id, $3, $4 from pcw.wallets where account_id = (select id from pcw.accounts where username = $2)`, [t[0].id, who.username, amount, bucket]);
+  });
+  await assert.rejects(() => saidCar('TR-STARTERCARS', [[q, -100, 'starter'], [p, 100, 'earned']]), /paid to the town/);
   // nor is it made out of earned TR, or out of nothing
   await assert.rejects(() => movement('TR-MAKESTARTER', 'transfer', [[p, -100, 'earned'], [q, 100, 'starter']]), /starter TR is not made that way/);
   assert.deepEqual(await parts(p), { balance: START, starter: STARTER, earned: EARNED, illicit: 0, eligible: EARNED });

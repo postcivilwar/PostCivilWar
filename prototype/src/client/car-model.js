@@ -26,9 +26,72 @@ const KEEP = deviceKind() === 'lite' ? 1 : 2;
 const live = new Set();           // the materials of cars drawn now (their reflection follows the daylight)
 let daylight = 1;
 
-function free({ geometries, material }) {
-  for (const g of geometries) g.dispose();
-  for (const t of [material.map, material.normalMap, material.roughnessMap]) if (t) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); }
+// One shape a car, whichever of its sets of pictures it is drawn with (a showroom changes a car's set as the player
+// comes up to it: its shape is not fetched or handed to the graphics card again): its geometry, and how many sets hold it.
+const shapes = new Map();
+function shapeOf(id, base, spec) {
+  let s = shapes.get(id);
+  if (!s) {
+    s = { made: buildShape(base, spec), holders: 0 };
+    shapes.set(id, s);
+    const mine = s;
+    s.made.catch(() => { if (shapes.get(id) === mine) shapes.delete(id); });
+  }
+  s.holders += 1;
+  return s.made;
+}
+function letShapeGo(id) {
+  const s = shapes.get(id);
+  if (!s || --s.holders > 0) return;
+  shapes.delete(id);
+  s.made.then((geometries) => { for (const g of geometries) g.dispose(); }, () => {});
+}
+async function buildShape(base, spec) {
+  const response = await fetchKept(base + spec.files.mesh);
+  if (!response.ok) throw new Error(`${spec.files.mesh}: ${response.status}`);
+  const buf = await response.arrayBuffer();
+  const n = spec.vertices;
+  let at = 0;
+  const position = new Float32Array(buf, at, n * 3); at += n * 12;
+  const normal = new Int16Array(buf, at, n * 3); at += n * 6 + (n % 2) * 2;
+  const uv = new Float32Array(buf, at, n * 2); at += n * 8;
+  const index = new Uint32Array(buf, at, spec.triangles * 3);
+  const attrs = { position: new THREE.BufferAttribute(position, 3), normal: new THREE.BufferAttribute(normal, 3, true), uv: new THREE.BufferAttribute(uv, 2) };
+  const geometries = [];
+  let first = 0;
+  for (const count of spec.parts) {
+    const g = new THREE.BufferGeometry();
+    for (const [name, a] of Object.entries(attrs)) g.setAttribute(name, a);
+    const own = index.subarray(first * 3, (first + count) * 3);
+    g.setIndex(new THREE.BufferAttribute(own, 1));
+    bound(g, own, position);
+    geometries.push(g);
+    first += count;
+  }
+  return geometries;
+}
+// A part's own bounds: of the points its triangles use. (The parts share one list of points, the whole model's; three.js
+// would bound each part by all of them, and a part turned in the drawing (a wheel put straight, a front end) then
+// seemed to carry the whole model round with it: the showroom's pictures were framed round a model twice its size, and
+// the market's viewer stood it off its middle.)
+function bound(g, index, position) {
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < index.length; i += 1) {
+    const j = index[i] * 3;
+    for (let a = 0; a < 3; a += 1) { const v = position[j + a]; if (v < lo[a]) lo[a] = v; if (v > hi[a]) hi[a] = v; }
+  }
+  if (!index.length) { g.computeBoundingBox(); g.computeBoundingSphere(); return; }
+  g.boundingBox = new THREE.Box3(new THREE.Vector3(lo[0], lo[1], lo[2]), new THREE.Vector3(hi[0], hi[1], hi[2]));
+  const c = g.boundingBox.getCenter(new THREE.Vector3());
+  let r2 = 0;
+  for (let i = 0; i < index.length; i += 1) { const j = index[i] * 3; const dx = position[j] - c.x, dy = position[j + 1] - c.y, dz = position[j + 2] - c.z; const d = dx * dx + dy * dy + dz * dz; if (d > r2) r2 = d; }
+  g.boundingSphere = new THREE.Sphere(c, Math.sqrt(r2));
+}
+const letPicturesGo = (maps) => { for (const t of maps) if (t) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); } };
+
+function free({ id, geometries, material, shared }) {
+  if (shared) letShapeGo(id); else for (const g of geometries) g.dispose();
+  letPicturesGo([material.map, material.normalMap, material.roughnessMap]);
   live.delete(material);
   material.dispose();
 }
@@ -88,29 +151,18 @@ async function partsOf(id, { base, lite, tier, own = false }) {
     // files do not have is taken from the next larger)
     const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
     const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own) : null));
-    const response = await fetchKept(base + f.mesh);
-    if (!response.ok) throw new Error(`${f.mesh}: ${response.status}`);
-    const buf = await response.arrayBuffer();
-    const n = spec.vertices;
-    let at = 0;
-    const position = new Float32Array(buf, at, n * 3); at += n * 12;
-    const normal = new Int16Array(buf, at, n * 3); at += n * 6 + (n % 2) * 2;
-    const uv = new Float32Array(buf, at, n * 2); at += n * 8;
-    const index = new Uint32Array(buf, at, spec.triangles * 3);
-    const attrs = { position: new THREE.BufferAttribute(position, 3), normal: new THREE.BufferAttribute(normal, 3, true), uv: new THREE.BufferAttribute(uv, 2) };
-    const geometries = [];
-    let first = 0;
-    for (const count of spec.parts) {
-      const g = new THREE.BufferGeometry();
-      for (const [name, a] of Object.entries(attrs)) g.setAttribute(name, a);
-      g.setIndex(new THREE.BufferAttribute(index.subarray(first * 3, (first + count) * 3), 1));
-      g.computeBoundingSphere();
-      geometries.push(g);
-      first += count;
+    // (the market's viewer, with a renderer of its own, has a shape of its own too)
+    let geometries;
+    try { geometries = own ? await buildShape(base, spec) : await shapeOf(id, base, spec); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
+    try {
+      const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
+      const material = finish(spec, { color, normalMap, rm, lite });
+      return { id, spec, geometries, material, shared: !own };
+    } catch (error) {
+      if (own) for (const g of geometries) g.dispose(); else letShapeGo(id);
+      textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {}));
+      throw error;
     }
-    const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
-    const material = finish(spec, { color, normalMap, rm, lite });
-    return { spec, geometries, material };
   })();
   if (own) return made;
   cache.set(key, made);
@@ -215,5 +267,5 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
 }
 
 export const carLoaded = (id, tier) => cache.has(`${id}:${tier}`);
-// (for the tests: the cars kept, by set)
-export const carsHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(users) });
+// (for the tests: the cars kept, by set, and the shapes held, by car)
+export const carsHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(users), shapes: Object.fromEntries([...shapes].map(([id, s]) => [id, s.holders])) });

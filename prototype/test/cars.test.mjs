@@ -16,12 +16,12 @@ import { carProfile, carHornOf } from '../src/client/car-audio.js';
 const IDS = Object.keys(POWER_CARS);
 const G = CARSHOW.gate;
 
-test('the twenty cars: each is the owner\'s model in five parts (every triangle kept), priced from 2,000 TR, with its own top speed', () => {
+test('the twenty cars: each is the owner\'s model in five parts (every triangle kept), priced from 600 TR to 6,000 TR (the owner\'s of 18 October 2026), with its own top speed', () => {
   assert.equal(IDS.length, 20);
   assert.deepEqual([...IDS].sort(), Object.keys(CAR_PARTS).sort());
   for (const id of IDS) {
     const c = POWER_CARS[id], parts = CAR_PARTS[id];
-    assert.ok(c.price >= 2000 && c.price % 500 === 0, `${id}: ${c.price}`);
+    assert.ok(c.price >= 600 && c.price <= 6000 && c.price % 50 === 0, `${id}: ${c.price}`);
     assert.equal(parts.parts.length, 5, `${id}: the body and four wheels`);
     assert.equal(parts.parts.reduce((a, n) => a + n, 0), parts.triangles, `${id}: every triangle kept`);
     assert.equal(parts.wheels.length, 4);
@@ -35,7 +35,10 @@ test('the twenty cars: each is the owner\'s model in five parts (every triangle 
     assert.equal(Math.round(carHandlingOf(c).top * 3.6), c.kmh, `${id}: its speedometer reads its top speed`);
     assert.ok(c.blurb && !/\b(cc|hp|bhp|litre|cylinder|v8|v12|turbo)\b/i.test(c.blurb), `${id}: nothing said of its engine`);
   }
-  assert.equal(Math.min(...IDS.map((id) => POWER_CARS[id].price)), 2000);
+  assert.equal(Math.min(...IDS.map((id) => POWER_CARS[id].price)), 600);
+  assert.equal(Math.max(...IDS.map((id) => POWER_CARS[id].price)), 6000);
+  // dearer as the list goes, as it always was (its order is the owner's)
+  for (let i = 1; i < IDS.length; i += 1) assert.ok(POWER_CARS[IDS[i]].price >= POWER_CARS[IDS[i - 1]].price, IDS[i]);
   assert.equal(Math.round(CAR_FASTEST * 3.6), 350);
   assert.equal(new Set(IDS.map((id) => POWER_CARS[id].name)).size, 20);
 });

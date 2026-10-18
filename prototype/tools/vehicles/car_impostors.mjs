@@ -29,6 +29,7 @@ const TYPES = { '.js': 'text/javascript', '.jpg': 'image/jpeg', '.png': 'image/p
 const page_html = `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#000"><canvas id="c" width="${FRAME * 2}" height="${FRAME * 2}"></canvas>
 <script src="/vendor/three.min.js"></script><script type="module">
 import { loadCar } from '/src/client/car-model.js';
+import { exactBox } from '/src/client/bounds.js';
 const blobOf = (c, type, q) => new Promise((r) => c.toBlob(r, type, q));
 const b64 = async (blob) => { const bytes = new Uint8Array(await blob.arrayBuffer()); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
 const canvas = document.getElementById('c');
@@ -47,8 +48,8 @@ window.take = async (id, length) => {
   scene.add(car.group);
   car.group.updateMatrixWorld(true);
   // (the car itself: not its lamps' glows, which are not drawn standing still)
-  const box = new THREE.Box3();
-  car.group.traverse((o) => { if (o.isMesh && o.castShadow) box.expandByObject(o); });
+  // (to the point: every point of its own triangles, where each part is drawn: bounds.js)
+  const box = exactBox(car.group, { only: (o) => o.castShadow });
   const centre = box.getCenter(new THREE.Vector3()), size = box.getSize(new THREE.Vector3());
   // the frame: square, holding the car whole from every side at this height
   const across = Math.hypot(size.x, size.z) / 2;

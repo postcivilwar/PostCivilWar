@@ -17,6 +17,12 @@
 // the pocket the grip is eased in; as it goes back it is eased out, and the fingers are left as the figure's
 // own animation has them.
 //
+// On a motorcycle or in a car (18 October 2026, the owner's brief): the hand that holds it comes off the bars or the
+// wheel, not out of a pocket: on a motorcycle the left (the right keeps the throttle), in a car the right (the left
+// keeps the wheel). It brings the handset up in front of the chest to be read, the head bends to it and turns a
+// little, and as it is put away the hand goes back to its grip or the wheel, where the riding or driving pose has
+// it. The other hand stays where it is. A fall, a crash or getting on or off takes the phone away at once.
+//
 // A call. While the player is talking to someone on the phone the hand takes the handset from in front of the
 // chest up to the ear, the glass against the cheek, and brings it back down when the call ends. The figure's own
 // call animation plays on the rest of the body while it stands (animated.js: react('call')); the right arm is
@@ -45,10 +51,13 @@ const CURL = Object.freeze({ index: [0.10, 0.95, 1.5], middle: [0.12, 1.0, 1.55]
 // run (wrist to middle knuckle), which way lies across the palm (little finger to forefinger) and which way the
 // palm faces. They are the same whatever the hand is doing, since the knuckles do not move in the hand.
 const grips = new WeakMap();
-function gripOf(rig, hand) {
-  if (grips.has(rig)) return grips.get(rig);
+// (`s`: which hand, 'r' or 'l'; a left hand is the right's mirror, so its palm is the other way from across and along)
+function gripOf(rig, hand, s = 'r') {
+  let both = grips.get(rig);
+  if (!both) { both = {}; grips.set(rig, both); }
+  if (s in both) return both[s];
   const bone = (name) => rig.bones.get(name);
-  const middle = bone('middle_01_r'), index = bone('index_01_r'), pinky = bone('pinky_01_r');
+  const middle = bone(`middle_01_${s}`), index = bone(`index_01_${s}`), pinky = bone(`pinky_01_${s}`);
   let grip = null;
   if (middle && index && pinky) {
     hand.updateMatrixWorld(true);
@@ -56,12 +65,13 @@ function gripOf(rig, hand) {
     const f = at(middle).normalize();
     const side = at(index).sub(at(pinky));
     side.addScaledVector(f, -side.dot(f)).normalize();
-    const n = new THREE.Vector3().crossVectors(side, f).normalize();      // a right hand: across, then along, gives the way the palm faces
+    // a right hand: across, then along, gives the way the palm faces; a left hand: along, then across
+    const n = s === 'r' ? new THREE.Vector3().crossVectors(side, f).normalize() : new THREE.Vector3().crossVectors(f, side).normalize();
     const local = new THREE.Matrix4().makeBasis(f, side, n);
-    const chain = (name) => [1, 2, 3].map((i) => bone(`${name}_0${i}_r`)).filter(Boolean);
+    const chain = (name) => [1, 2, 3].map((i) => bone(`${name}_0${i}_${s}`)).filter(Boolean);
     grip = { toLocal: local.clone().transpose(), fingers: Object.keys(CURL).map((name) => ({ name, bones: chain(name) })).filter((c) => c.bones.length === 3), thumb: chain('thumb') };
   }
-  grips.set(rig, grip);
+  both[s] = grip;
   return grip;
 }
 
@@ -109,6 +119,7 @@ export function createPhoneHold({ scene, lite }) {
   paint('home');
 
   let out = 0;                    // 0 away .. 1 held up
+  let side = 'r';                 // the hand it is in
   let hidden = null;
   let raise = 0;                  // 0 held to read .. 1 held up to take a picture
   let ear = 0;                    // 0 held to read .. 1 at the ear, on a call
@@ -158,15 +169,20 @@ export function createPhoneHold({ scene, lite }) {
     posed.clear();
   }
 
-  // rig: the player's figure (animated.js). use: is the phone out. able: is the figure standing or walking (not
-  // at a wheel, in the water, on the ground). night: 0 at noon .. 1 in the dark. screen: what the phone shows.
-  // call: is the player talking to someone on it now
-  function update(dt, rig, { use, able, night = 0, screen = 'home', call = false }) {
+  // rig: the player's figure (animated.js). use: is the phone out. able: may the figure hold it (standing or
+  // walking; or seated on a motorcycle or in a car, with `seated`: not in the water, not on the ground, not getting
+  // on or off). night: 0 at noon .. 1 in the dark. screen: what the phone shows. call: is the player talking to
+  // someone on it now. seated: { side: 'l' | 'r' } on a motorcycle or in a car: which hand leaves its grip or the
+  // wheel for the phone (it is called after the riding or driving pose has put both hands where they hold on)
+  function update(dt, rig, { use, able, night = 0, screen = 'home', call = false, seated = null }) {
     const want = (use || call) && able ? 1 : 0;
     out += Math.max(-dt / AWAY_SECONDS, Math.min(dt / OUT_SECONDS, want - out));
     if (!able) out = 0;
-    // to the ear once the phone is out, back down when the call ends
-    const onCall = call && able && out > 0.97;
+    // (seated, the other hand: a change of hands puts the phone away first)
+    const s = seated ? (seated.side === 'l' ? 'l' : 'r') : 'r';
+    if (s !== side) { if (out > 0.001) { release(); out = 0; } side = s; }
+    // to the ear once the phone is out, back down when the call ends (on foot: seated, it is read, not held to the ear)
+    const onCall = call && able && !seated && out > 0.97;
     ear += ((onCall ? 1 : 0) - ear) * Math.min(1, dt * (onCall ? 4 : 5));
     if (ear < 0.002) ear = 0;
     // the figure's own call animation, on its body, while it stands and talks (it is ended when the call is)
@@ -175,45 +191,60 @@ export function createPhoneHold({ scene, lite }) {
     if (out <= 0.001 || !rig || !rig.animated || !rig.bones || !rig.group.visible) { hide(); return; }
     const holder = rig.body;
     const H = rig.spec.height;
-    const upper = rig.bones.get('upperarm_r'), lower = rig.bones.get('lowerarm_r'), hand = rig.bones.get('hand_r'), head = rig.bones.get('head'), neck = rig.bones.get('neck_01');
+    const upper = rig.bones.get(`upperarm_${s}`), lower = rig.bones.get(`lowerarm_${s}`), hand = rig.bones.get(`hand_${s}`), head = rig.bones.get('head'), neck = rig.bones.get('neck_01');
     if (!upper || !lower || !hand || !head) { hide(); return; }
     holder.updateMatrixWorld(true);
-    // where the animation has the hand now, where the pocket is and where the phone is held, in the figure's own
-    // frame (it faces +z and its right is -x), sized to the figure
+    // (+1 for the right hand, -1 for the left: the figure's frame faces +z and its right is -x)
+    const k = s === 'r' ? 1 : -1;
+    // where the animation (or the riding pose) has the hand now, where the pocket is and where the phone is held, in
+    // the figure's own frame, sized to the figure
     hand.getWorldPosition(v.from);
     holder.worldToLocal(v.from);
     v.pocket.set(-0.118 * H, 0.5 * H, 0.03 * H);
     // to read: in front of the chest. To take a picture: up at the eyes, at arm's length
     raise += ((screen === 'camera' ? 1 : 0) - raise) * Math.min(1, dt * 6);
     // (the wrist: the handset itself lies across the fingers, a hand's breadth further in towards the middle of the body)
-    v.hold.set((-0.085 - 0.02 * raise) * H, (0.71 + 0.18 * raise) * H, (0.19 + 0.12 * raise) * H);
+    v.hold.set(k * (-0.085 - 0.02 * raise) * H, (0.71 + 0.18 * raise) * H, (0.19 + 0.12 * raise) * H);
+    if (seated) {
+      // seated, leaning to the bars or sitting at the wheel: in front of the chest where the body is now, a little
+      // to the side of the hand that holds it, low enough to be read over (from the head: forward, down, aside)
+      head.getWorldPosition(v.eye); holder.worldToLocal(v.eye);
+      v.hold.set(v.eye.x - k * 0.075 * H, v.eye.y - 0.27 * H + 0.12 * raise * H, v.eye.z + 0.25 * H + 0.08 * raise * H);
+    }
     // on a call: the wrist below and in front of the right ear, so that the handset in the palm lies along the cheek
     if (ear > 0) {
       head.getWorldPosition(v.eye); holder.worldToLocal(v.eye);
       v.look.set(v.eye.x - 0.062 * H, v.eye.y - 0.085 * H, v.eye.z + 0.02 * H);
       v.hold.lerp(v.look, smooth(ear));
     }
-    if (out < POCKET) v.target.lerpVectors(v.from, v.pocket, smooth(out / POCKET));
+    // seated: straight off the grip or the wheel and up (there is no pocket to go to), and back the same way
+    const pocketAt = seated ? 0.12 : POCKET;
+    if (seated) {
+      const u = smooth(out);
+      v.target.lerpVectors(v.from, v.hold, u);
+      v.target.y += Math.sin(u * Math.PI) * 0.03 * H;          // (up and over the bars, not through them)
+    } else if (out < POCKET) v.target.lerpVectors(v.from, v.pocket, smooth(out / POCKET));
     else {
       const u = smooth((out - POCKET) / (1 - POCKET));
       v.target.lerpVectors(v.pocket, v.hold, u);
       v.target.x -= Math.sin(u * Math.PI) * 0.05 * H;       // out of the pocket and round, not through the hip
     }
-    const held = smooth((out - POCKET) / (1 - POCKET));
+    const held = smooth((out - pocketAt) / (1 - pocketAt));
     holder.localToWorld(v.hand.copy(v.target));
-    holder.localToWorld(v.pole.set(-0.7, -1, -0.5)).sub(holder.localToWorld(v.zero.set(0, 0, 0)));
+    // (the elbow out and down to its own side)
+    holder.localToWorld(v.pole.set(-0.7 * k, -1, -0.5)).sub(holder.localToWorld(v.zero.set(0, 0, 0)));
     reach(upper, lower, hand, v.hand, v.pole);
     hand.getWorldPosition(v.hand);
     head.getWorldPosition(v.head);
 
-    // the handset: from the moment the hand is in the pocket
-    prop.visible = out >= POCKET * 0.9;
+    // the handset: from the moment the hand is in the pocket (seated: as the hand leaves its hold)
+    prop.visible = out >= pocketAt * 0.9;
     holder.localToWorld(v.up.set(0, 1, 0)).sub(holder.localToWorld(v.zero.set(0, 0, 0))).normalize();
-    const grip = gripOf(rig, hand);
+    const grip = gripOf(rig, hand, s);
     if (grip && held > 0.001) {
       // The palm's frame, as it should be with the handset in it: the palm to the eyes, the fingers running
       // across the body towards its other side and a little upward, the forefinger's side of the hand on top.
-      holder.localToWorld(grp.left.set(1, 0, 0)).sub(holder.localToWorld(v.zero.set(0, 0, 0))).normalize();
+      holder.localToWorld(grp.left.set(k, 0, 0)).sub(holder.localToWorld(v.zero.set(0, 0, 0))).normalize();
       v.eye.copy(v.head).addScaledVector(v.up, 0.06 * H);
       grp.n.copy(v.eye).sub(v.hand).normalize();
       grp.f.copy(grp.left).multiplyScalar(Math.cos(0.42)).addScaledVector(v.up, Math.sin(0.42));
@@ -227,7 +258,8 @@ export function createPhoneHold({ scene, lite }) {
         grp.f.lerp(grp.b, k);
       }
       grp.f.addScaledVector(grp.n, -grp.f.dot(grp.n)).normalize();
-      grp.side.crossVectors(grp.f, grp.n).normalize();
+      // (across the palm, from the little finger to the forefinger: the other way round for the left hand)
+      if (s === 'r') grp.side.crossVectors(grp.f, grp.n).normalize(); else grp.side.crossVectors(grp.n, grp.f).normalize();
       grp.m.makeBasis(grp.f, grp.side, grp.n).multiply(grip.toLocal);
       grp.grip.setFromRotationMatrix(grp.m);
       turnTo(hand, grp.grip, held);
@@ -322,6 +354,8 @@ export function createPhoneHold({ scene, lite }) {
   return {
     update,
     get out() { return out; },
+    // which hand it is in ('r' on foot and in a car, 'l' on a motorcycle)
+    get side() { return side; },
     // where the handset is and which way its glass faces, for the phone's own camera
     get prop() { return prop; },
     get ready() { return out > 0.97; },

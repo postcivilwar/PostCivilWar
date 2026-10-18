@@ -5,10 +5,12 @@
 //   - the gate: shut with nobody near; walked up to, its glass leaves slide apart slowly; it waits, then closes;
 //   - walked up to, the showroom's doors open and take the player in: the screen goes dark and comes back inside;
 //     the buildings are not drawn round the hall, the hall is, and the camera stays inside it;
-//   - the twenty cars on their stands: the nearest drawn as the owner's models, the rest as pictures of them;
+//   - the twenty cars on their stands: on a computer every one of them the owner's model, with the pictures its
+//     distance asks for (the one the player stands at the largest, the far end of the hall the smallest:
+//     hall-models.js); gone well away from the doors, every model let go;
 //   - Tochi and Oluchi, each looking after one side of the floor: the one whose side the player is on comes over;
 //   - asked about a car: the phone's conversation opens with whoever sells it (its card, its top speed, its price);
-//     arrival money is refused for a car; paid TR that was earned, it is bought;
+//     the arrival money buys it (since 18 October 2026, as it does a motorcycle), at the owner's new price;
 //   - another player asking about a car on the other side of the floor is looked after by the other;
 //   - out by the mat at the doors; the car brought from Property; driven (its engine heard, its speedometer, its
 //     wheels and steering, its brake lamps), the gate opening ahead of it from further off; out of it, it stands
@@ -16,15 +18,15 @@
 //   - another player's car, driven past: seen and heard here;
 //   - nothing goes wrong in the page.
 //   ../server/with-postgres.sh node test/carshow.mjs [shots folder]
-//
-// The player is paid TR they can spend by an account of the test's own, whose earnings the bank is told of as a
-// game tells it (as the site test does): no player's TR is used, and nobody's balance is written to.
+
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown } from './start.mjs';
+import { CARSHOW } from '../src/sim/zones/asaba-carshow.js';
+import { HALL as SETS } from '../src/client/budget.js';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
@@ -40,27 +42,6 @@ const check = (name, ok, detail) => { results.push(ok); console.log(ok ? 'ok  ' 
 const TR = 2;
 const tag = Math.random().toString(36).slice(2, 6);
 
-// the test's own account, which has earned TR in the ordinary way (the bank told of it with a save) and pays it on
-const teller = await (async () => {
-  let cookie = '';
-  const call = async (op, body = {}) => {
-    const r = await fetch(`${origin}/api/game`, { method: 'POST', headers: { 'content-type': 'application/json', 'x-pcw': '1', origin, ...(cookie ? { cookie } : {}) }, body: JSON.stringify({ op, ...body }) });
-    const set = r.headers.get('set-cookie'); if (set) cookie = set.split(';')[0];
-    const json = await r.json();
-    if (!json.ok) throw new Error(`the test's own account: ${op}: ${r.status} ${json.code || ''} ${json.message || ''}`);
-    return json;
-  };
-  const username = `CarTeller_${tag}`;
-  await call('signup', { username, password: 'a password for the car teller' });
-  const { database } = require('../../api/_lib/db.js');
-  const sql = await database();
-  const units = 4000 * TR;
-  await sql.unsafe('update pcw.wallets w set earn_room = earn_room + $2 from pcw.accounts a where a.id = w.account_id and a.username_key = $1', [username.toLowerCase(), units]);
-  const now = await call('save.get');
-  const kept = await call('save.put', { baseRev: now.rev || 0, enc: 'json', data: JSON.stringify({ host: { test: true } }), summary: { name: 'The Car Teller', figure: 'W1' }, wallet: { v: 2, from: now.wallet.mark, upto: now.wallet.mark + 1, in: { lawful: units, illicit: 0 }, out: { cost: 0, restitution: 0, asset: 0 } } });
-  if (kept.wallet.refused) throw new Error('the bank refused what the test\'s own account said it earned');
-  return { pay: (to, tr, note) => call('wallet.send', { username: to, amount: String(tr), note, key: randomUUID() }) };
-})();
 
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
 const page = await context.newPage(); page.setDefaultTimeout(240000);
@@ -170,15 +151,40 @@ await page.waitForTimeout(2500);
 await shot('06-inside-the-doors');
 
 // ---- the floor: the twenty cars ----
-await go(-421.8, -164.4, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.5, pitch: 0.2, dist: 7.5 });
-await page.waitForFunction(() => window.__nlw.carshowView.shown().filter((d) => d.model).length >= 2, null, { timeout: 300000 }).catch(() => {});
-await page.waitForTimeout(2500);
-const floor = await page.evaluate(() => window.__nlw.carshowView.shown());
-const models = floor.filter((d) => d.model), pictures = floor.filter((d) => d.picture);
-// (how many are drawn as models follows the device: three on a computer, two on a phone or on a computer that is
-// struggling, one on one struggling more; a software-drawn browser struggles)
-const wantModels = await page.evaluate(() => { const n = window.__nlw; return n.quality >= 2 ? 1 : n.lite || n.quality >= 1 ? 2 : 3; });
-check('the nearest cars are the owner\'s models (as many as the device draws); the rest are pictures of them; all twenty are shown', models.length === wantModels && models.length + pictures.length === 20, { want: wantModels, models: models.map((d) => `${d.car}:${d.tier}`), pictures: pictures.length });
+// The set of pictures each car should be drawn with, the player at (x, z): as hall-models.js chooses them (budget.js,
+// HALL), the largest given up first on a device that is struggling (`level`), worked out here on its own.
+const ORDER = ['512', '1k', '2k', '4k'], CAP = ['4k', '2k', '1k', '512'];
+const hallTiers = (at, { lite, level }, ranges = { inspect: 4, near: 12, mid: 24 }) => {
+  const plan = SETS[lite ? 'lite' : 'full'];
+  const gaps = CARSHOW.displays.map((d) => Math.max(0, Math.hypot(d.x - at.x, d.z - at.z) - d.r));
+  const tiers = [];
+  gaps.map((gap, k) => [gap, k]).sort((a, b) => a[0] - b[0]).forEach(([gap, k], rank) => {
+    let t = rank === 0 && gap < ranges.inspect ? plan.inspect : rank < plan.nearRanks && gap < ranges.near ? plan.near : gap < ranges.mid ? plan.mid : plan.far;
+    const cap = CAP[Math.max(0, Math.min(3, level))];
+    if (t && ORDER.indexOf(t) > ORDER.indexOf(cap)) t = cap;
+    tiers[k] = t;
+  });
+  return tiers;
+};
+// (waits until the cars are drawn with the sets the player's place asks for; gives what is drawn, and what was asked)
+const settled = async (at, limit = 900000) => {
+  const t0 = Date.now();
+  let got = null;
+  while (Date.now() - t0 < limit) {
+    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.carshowView.shown(), state: n.carshowView.models(), level: n.quality, lite: !!n.lite }; });
+    const want = hallTiers(at, got);
+    if (got.shown.every((d, k) => d.tier === want[k] && (d.model ? !d.picture : d.picture))) return { ...got, want, ok: true };
+    await page.waitForTimeout(1000);
+  }
+  return { ...got, want: got && hallTiers(at, got), ok: false };
+};
+const FLOOR = { x: -421.8, z: -164.4 };
+await go(FLOOR.x, FLOOR.z, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.5, pitch: 0.2, dist: 7.5 });
+const floor = await settled(FLOOR);
+const models = floor.shown.filter((d) => d.model), pictures = floor.shown.filter((d) => d.picture);
+check('every car is the owner\'s model, drawn with the pictures its distance from the player asks for (the one the player stands at the largest); each is drawn once, as its model or (on a phone, across the hall) as a picture of it',
+  floor.ok && models.length + pictures.length === 20 && floor.shown.every((d) => d.model !== d.picture) && (floor.lite || models.length === 20),
+  { ok: floor.ok, level: floor.level, lite: floor.lite, drawn: floor.shown.map((d) => `${d.car}:${d.model ? d.tier : 'picture'}`), asked: floor.want, state: floor.state });
 const camInside = await page.evaluate(() => { const c = window.__nlw.camera.position; return [c.x, c.y, c.z]; });
 check('the camera stays inside the hall, under its ceiling', camInside[0] > HALL.x0 && camInside[0] < HALL.x1 && camInside[2] > HALL.z0 && camInside[2] < HALL.z1 && camInside[1] < 7.2, camInside);
 await shot('07-the-floor');
@@ -215,32 +221,24 @@ const opened = await page.evaluate(() => {
     talk: window.__nlw.carshow.talk, placeholder: q('#deal-text').placeholder,
   };
 });
-check('the conversation opens with Tochi: the car\'s card with its top speed and its price, and nothing said of an engine', opened.head === 'Tochi' && opened.brand === 'Post Civil War Car Showroom' && opened.card === 'Grey Saloon' && opened.chips.includes('170 km/h') && !opened.chips.some((c) => /cc|CC/.test(c)) && /2,000 TR/.test(opened.price) && opened.placeholder === 'Ask Tochi about the car', opened);
+check('the conversation opens with Tochi: the car\'s card with its top speed and its price, and nothing said of an engine', opened.head === 'Tochi' && opened.brand === 'Post Civil War Car Showroom' && opened.card === 'Grey Saloon' && opened.chips.includes('170 km/h') && !opened.chips.some((c) => /cc|CC/.test(c)) && /\b600 TR/.test(opened.price) && opened.placeholder === 'Ask Tochi about the car', opened);
 check('Tochi greets the player about this car, and says the answers are automatic', /Tochi/.test(opened.hello) && /automatic/.test(opened.hello) && /Grey Saloon/.test(opened.hello) && /170 km\/h/.test(opened.hello), opened.hello);
 check('questions to tap are offered (none about an engine)', opened.quick.length >= 5 && !opened.quick.some((q) => /engine/i.test(q)), opened.quick);
 await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state; return t.mode === 'talk' && t.speed < 0.2; }, null, { timeout: 60000 }).catch(() => {});
 await page.waitForTimeout(1500);
 await shot('10-asking-tochi');
 await page.click('#deal-quick button[data-ask="Arrival money?"]');
-await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /Arrival money doesn't buy a car/.test(m.textContent)), null, { timeout: 90000 });
-check('asked, Tochi says arrival money does not buy a car', true, null);
-// tried anyway: refused, in the bank's words, and nothing is taken
+await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /arrival TR included: a car from the showroom is one thing arrival money can buy/.test(m.textContent)), null, { timeout: 90000 }).catch(() => {});
+const arrival = await page.evaluate(() => [...document.querySelectorAll('#deal-log .msg.shop')].map((m) => m.textContent).find((t) => /arrival/i.test(t)) || null);
+check('asked, Tochi says the arrival money pays for a car', /arrival TR included: a car from the showroom is one thing arrival money can buy/.test(arrival || ''), arrival);
+// bought with nothing but the arrival money: it is theirs, and the 600 TR came out of the arrival money
 await page.click('#deal-buy');
 await page.waitForSelector('#deal-yes', { timeout: 30000 });
-await page.click('#deal-yes');
-await page.waitForSelector('.dealnote', { timeout: 60000 }).catch(() => {});
-const refused = await page.evaluate(() => { const e = document.querySelector('.dealnote'); return { note: e ? e.textContent : null, done: !!document.querySelector('#deal-done') }; });
-check('with only arrival money, buying the car is refused, and the player is told why', !refused.done && /earn|starter|Starter/i.test(refused.note || ''), refused);
-// paid by another account TR they can spend: then it is theirs
-const paid = await teller.pay(username, 2500, 'For the car');
-check('another account pays the player 2,500 TR', paid.ok, null);
-await page.waitForTimeout(1500);
-await page.click('#deal-buy');
-await page.waitForSelector('#deal-yes', { timeout: 30000 });
+const asked = await page.evaluate(() => document.querySelector('.dealask') ? document.querySelector('.dealask').textContent : (document.querySelector('#deal-yes').closest('div') || {}).textContent || '');
 await page.click('#deal-yes');
 await page.waitForSelector('#deal-done', { timeout: 60000 });
 const done = await page.evaluate(async () => { const n = window.__nlw; await n.market.mine(); return { text: document.querySelector('#deal-done').textContent, mine: n.market.state.mine.holdings.map((h) => h.asset.model) }; });
-check('paid with earned TR, the Grey Saloon is bought: it is the player\'s', /yours/.test(done.text) && done.mine.includes('car:grey-saloon'), done);
+check('with only the arrival money, the Grey Saloon is bought for 600 TR: it is the player\'s', /yours/.test(done.text) && done.mine.includes('car:grey-saloon') && /600 TR/.test(asked), { ...done, asked });
 await shot('11-bought');
 await page.keyboard.press('Escape');
 await page.waitForTimeout(500);
@@ -270,6 +268,17 @@ await page.keyboard.up('w');
 await page.waitForFunction(() => !document.getElementById('fade').classList.contains('on'), null, { timeout: 20000 });
 const outside = await page.evaluate(() => { const n = window.__nlw, c = n.carshowView; return { at: [+n.predicted.x.toFixed(2), +n.predicted.z.toFixed(2)], hall: c.hall.group.visible, exterior: c.exterior.visible, staff: n.carSalesmen.some((s) => s.actor.group.visible) }; });
 check('the mat inside the doors takes the player out before them; the buildings are drawn again, the hall is not', left && Math.hypot(outside.at[0] - DOORS.x, outside.at[1] - (DOORS.z + 4.6)) < 0.6 && !outside.hall && outside.exterior && !outside.staff, outside);
+// gone well away from the doors (and back again: the car is fetched from the doors' side), every car's model let go
+{
+  const kept = await page.evaluate(() => window.__nlw.carshowView.models().tiers.filter(Boolean).length);
+  const back = await page.evaluate(() => [window.__nlw.predicted.x, window.__nlw.predicted.z]);
+  await go(DOORS.x, DOORS.z + 200, 0, { yaw: 0, pitch: 0.2, dist: 6 });
+  await page.waitForFunction(() => window.__nlw.carshowView.models().tiers.every((t) => !t), null, { timeout: 30000 }).catch(() => {});
+  const away = await page.evaluate(() => ({ state: window.__nlw.carshowView.models(), held: window.__nlw.carsHeld() }));
+  check('just outside the doors the cars\' models are kept (for stepping back in); gone well away from the doors, every one is let go', kept > 0 && away.state.tiers.every((t) => !t) && away.state.running === 0 && away.state.waiting === 0, { kept, ...away });
+  await go(back[0], back[1], 0, { yaw: 0, pitch: 0.2, dist: 6 });
+  await page.waitForTimeout(1000);
+}
 
 // ---- driving it ----
 await page.evaluate(() => window.__nlw.ui.openPhone('property', {}));

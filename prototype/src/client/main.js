@@ -68,7 +68,8 @@ import { createConfirm } from './confirm.js';
 import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
 import { createCarView } from './car-view.js';
-import { setCarDaylight } from './car-model.js';
+import { setCarDaylight, carsHeld } from './car-model.js';
+import { bikesHeld } from './bike-model.js';
 import { buildCarshow } from './render-carshow.js';
 import { createSupplied } from './render-supplied.js';
 import { createTownBuildings } from './render-town-buildings.js';
@@ -693,7 +694,7 @@ function start(carried) {
   // it): its one pink column, which takes a player in; the hall, where the fifteen motorcycles stand; the mat by the
   // doors, which takes them out again; Obi, the salesman (salesman.js); and asking him about a motorcycle, which is
   // the market's own conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
-  const powerbike = buildPowerbike(scene, { lite: LITE, maxTexture: pictureSize('tower', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
+  const powerbike = buildPowerbike(scene, { lite: LITE, renderer, maxTexture: pictureSize('tower', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
   const salesman = createSalesman();
   // one of the game's own figures, dressed for the showroom floor: a white shirt, a dark red tie, dark trousers
   const salesmanActor = makeCharacter({ body: 'm', skin: 0x4a2c17, build: 1, wear: { outfit: 'shirt', hair: 'fade', face: 83, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x8c1d2c, bottom: 0x1e2229, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } }, POWERBIKE.salesman, true, 1);
@@ -890,7 +891,7 @@ function start(carried) {
   // twenty cars stand; the mat inside the doors, which takes them out again; Tochi and Oluchi, who sell the cars, each
   // looking after one side of the floor (salesman.js); and asking one of them about a car, which is the market's own
   // conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
-  const carshowView = buildCarshow(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
+  const carshowView = buildCarshow(scene, { lite: LITE, renderer, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
   // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
   // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
   const supplied = createSupplied(scene, { lite: LITE, maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
@@ -2937,11 +2938,12 @@ blood.update(dt, view.blood || []);
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
     const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0);
-    // (the motorcycles drawn as models in the hall: fewer on a phone, and fewer again on a device that is struggling)
-    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, models: quality.level >= 2 ? 1 : LITE || quality.level >= 1 ? 2 : 3 });
+    // (the motorcycles in the hall, each its model with the pictures its distance asks for: smaller ones on a device
+    // that is struggling; made ready as the player comes up to the doors, let go once the player is well away)
+    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level });
     // (the car showroom: its gate as far open as the town has it, its doors, its cameras, its flags; in its hall the
-    // cars nearest drawn as models, fewer on a phone and on a device that is struggling)
-    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, models: quality.level >= 2 ? 1 : LITE || quality.level >= 1 ? 2 : 3 });
+    // cars, as the motorcycles are in theirs)
+    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.level });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
@@ -3044,7 +3046,7 @@ blood.update(dt, view.blood || []);
   // Debug handle for automated play-testing. It reaches into the simulation
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
-    heldModels,
+    heldModels, carsHeld, bikesHeld,
     supplied, townBuildings, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,

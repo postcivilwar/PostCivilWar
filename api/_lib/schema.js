@@ -45,30 +45,32 @@ const FIRST_FIGURES = ['W1', 'M1'];
 // The motorcycle showroom (13 October 2026): the owner's twelve motorcycles, sold new, one of each to an account.
 // Its markers stand in two rows of six on open ground by Waterside Road, west of the motor park.
 // The list is the game's own (prototype/src/sim/power-bikes.js: names and prices in TR); it is copied here because
-// the server is not built from the game's code. A test checks the two agree.
-// A motorcycle may be paid for with starter TR (the owner's word, 13 October 2026): it is the one thing to own that
-// arrival money buys. What starter TR paid for one is starter TR again if it is sold on (holdings.starter_basis).
+// the server is not built from the game's code. A test checks the two agree. (The prices are the owner's of 18 October
+// 2026, set on the showroom's listings by migration 14: a database made new has them from the first.)
+// A motorcycle may be paid for with starter TR (the owner's word, 13 October 2026), and since 18 October 2026 so may a
+// car from the car showroom: they are the things to own that arrival money buys. What starter TR paid for one is
+// starter TR again if it is sold on (holdings.starter_basis).
 const SHOWROOM = { shop: 'motors', name: 'Motorcycle Showroom', x0: -63, z: 98, step: 4, zone: 'NG-AN-OGB-Z1' };
 const MOTORCYCLES = [
-  ['streetfighter', 'Streetfighter', 1000, 'A light naked street bike in red and white, upright and quick to turn.'],
-  ['cafe-racer', 'Café Racer', 1000, 'A grey café racer with an orange seat and an open frame.'],
-  ['white-sport', 'White Sport Tourer', 1000, 'A white half-faired sport tourer, easy to live with.'],
-  ['black-cruiser', 'Black Cruiser', 1500, 'A classic black cruiser with chrome, wire wheels and a low seat.'],
-  ['chopper', 'Chopper', 1500, 'A long chopper with high bars and a stepped seat.'],
-  ['purple-sport', 'Purple Sport', 1500, 'A fully faired sport bike in deep purple.'],
-  ['olive-cruiser', 'Olive Muscle Cruiser', 2500, 'A heavy muscle cruiser in military olive.'],
-  ['yellow-adventure', 'Yellow Adventure Tourer', 2500, 'A tall adventure tourer in yellow, at home off the tar as on it.'],
-  ['red-superbike', 'Red Superbike', 4000, 'A red superbike with a full race fairing.'],
-  ['black-gold-superbike', 'Black & Gold Superbike', 4000, 'A black superbike on gold wheels.'],
-  ['gold-tourer', 'Gold Grand Tourer', 6000, 'A full-dress touring bike in gold, with a fairing and hard luggage.'],
-  ['chrome-concept', 'Chrome V-Concept', 10000, 'A chrome show machine with twin wheels at each end and an engine down its length.'],
+  ['streetfighter', 'Streetfighter', 300, 'A light naked street bike in red and white, upright and quick to turn.'],
+  ['cafe-racer', 'Café Racer', 300, 'A grey café racer with an orange seat and an open frame.'],
+  ['white-sport', 'White Sport Tourer', 300, 'A white half-faired sport tourer, easy to live with.'],
+  ['black-cruiser', 'Black Cruiser', 450, 'A classic black cruiser with chrome, wire wheels and a low seat.'],
+  ['chopper', 'Chopper', 450, 'A long chopper with high bars and a stepped seat.'],
+  ['purple-sport', 'Purple Sport', 450, 'A fully faired sport bike in deep purple.'],
+  ['olive-cruiser', 'Olive Muscle Cruiser', 750, 'A heavy muscle cruiser in military olive.'],
+  ['yellow-adventure', 'Yellow Adventure Tourer', 750, 'A tall adventure tourer in yellow, at home off the tar as on it.'],
+  ['red-superbike', 'Red Superbike', 1200, 'A red superbike with a full race fairing.'],
+  ['black-gold-superbike', 'Black & Gold Superbike', 1200, 'A black superbike on gold wheels.'],
+  ['gold-tourer', 'Gold Grand Tourer', 1800, 'A full-dress touring bike in gold, with a fairing and hard luggage.'],
+  ['chrome-concept', 'Chrome V-Concept', 3000, 'A chrome show machine with twin wheels at each end and an engine down its length.'],
   // the owner's three of 16 October 2026, in a third row
-  ['gold-roadster', 'Gold Muscle Roadster', 4000, 'A big gold muscle roadster with a three-pipe engine on show.'],
-  ['black-bobber', 'Black Bobber', 1500, 'A black bobber with a fat front tyre, a solid tank and a low solo seat.'],
-  ['power-cruiser', 'Dark Power Cruiser', 2500, 'A long, low custom power cruiser in black on gold-spoked wheels.'],
+  ['gold-roadster', 'Gold Muscle Roadster', 1200, 'A big gold muscle roadster with a three-pipe engine on show.'],
+  ['black-bobber', 'Black Bobber', 450, 'A black bobber with a fat front tyre, a solid tank and a low solo seat.'],
+  ['power-cruiser', 'Dark Power Cruiser', 750, 'A long, low custom power cruiser in black on gold-spoked wheels.'],
   // the owner's two of 17 October 2026, in a fourth row at the back of PowerBike's hall (migration 12)
-  ['midnight-cruiser', 'Midnight Cruiser', 1500, 'A dark cruiser on spoked wheels, low and wide, its twin-cylinder engine in black and chrome.'],
-  ['civil-war-tourer', 'PostCivilWar Tourer', 1500, 'A white touring bike in the PostCivilWar colours, with a tall screen and hard luggage at the back.'],
+  ['midnight-cruiser', 'Midnight Cruiser', 450, 'A dark cruiser on spoked wheels, low and wide, its twin-cylinder engine in black and chrome.'],
+  ['civil-war-tourer', 'PostCivilWar Tourer', 450, 'A white touring bike in the PostCivilWar colours, with a tall screen and hard luggage at the back.'],
 ].map(([id, name, tr, blurb], i) => ({ id, name, price: tr * 2, blurb, asset: `motorcycle-${id}`, listing: `00000000-0000-4000-8000-0000000002${String(i + 1).padStart(2, '0')}`, x: SHOWROOM.x0 + (i % 6) * SHOWROOM.step, z: SHOWROOM.z + (i < 6 ? -2.5 : i < 12 ? 2.5 : 7.5) }));
 const MOTORCYCLE_STOCK = 1000000;          // new from the showroom: not a numbered edition, and not going to run out
 
@@ -91,30 +93,32 @@ const POWERBIKE_STANDS = {
 // prices in TR, classes and the market's line for each) is the game's own (prototype/src/sim/power-cars.js), and so
 // are the stands, their sides and each car's top speed (prototype/src/sim/zones/asaba-carshow.js, `displays`); they
 // are copied here because the server is not built from the game's code, and a test checks they agree.
-// A car is a thing to own like any other: earned TR pays for it, and the arrival money does not. (A motorcycle is
-// the one thing to own that starter TR may buy: migration 6.)
+// Until 18 October 2026 a car was paid for with earned TR only; since then (the owner's brief: a newcomer can buy a car
+// or a motorcycle with the money they start with, the 2,000 TR of arrival money included) starter TR pays for a car
+// from the showroom as it does for a motorcycle (migration 14). The prices are the owner's of that day, set on the
+// listings by migration 14.
 const CARSHOW = { shop: 'cars', name: 'Post Civil War Car Showroom', label: 'Post Civil War Car Showroom, Kwale Road, Asaba', zone: 'NG-AN-OGB-Z1', salesmen: { west: 'Tochi', east: 'Oluchi' } };
 const CARS = [
-  ['grey-saloon', 'Grey Saloon', 2000, 'saloon', 'A modern grey saloon with a fastback roof: easy, comfortable, and the place to start.'],
-  ['classic-two-tone', 'Classic Two-Tone', 2500, 'classic', 'A long fifties saloon in black and white, chrome bumpers, a big grille and tail fins.'],
-  ['black-pickup', 'Black Pickup', 3000, 'pickup', 'A full-size black pickup with a hard top over its load bed: works all week, still looks sharp.'],
-  ['yellow-classic-roadster', 'Yellow Classic Roadster', 3500, 'classic', 'A classic open roadster in pale yellow, long bonnet, chrome and white-wall tyres.'],
-  ['blue-off-roader', 'Blue Off-Roader', 4000, 'offroad', 'A wild blue off-roader on huge tyres, roof rack and lamps: built for the bush tracks.'],
-  ['black-square-suv', 'Black Square SUV', 4500, 'suv', 'A square-cut black SUV, boxy and tough, with a wide stance and dark wheels.'],
-  ['camo-expedition', 'Camo Expedition SUV', 5000, 'offroad', 'An expedition SUV in camouflage, a tent box on its roof, spot lamps and a snorkel.'],
-  ['mint-sports-coupe', 'Mint Sports Coupé', 5000, 'sports', 'A low mint-green sports coupé with a dark roof: light, quick and sharp in the turns.'],
-  ['white-roadster', 'White Roadster', 5500, 'sports', 'A white two-seat convertible, roof down, red-trimmed wheels and a sculpted tail.'],
-  ['peach-suv', 'Peach Luxury SUV', 6000, 'suv', 'A tall luxury SUV in peach, its wheels painted to match, smooth as a saloon on the road.'],
-  ['black-luxury-suv', 'Black Luxury SUV', 6500, 'suv', 'A full-size black luxury SUV, three rows, a chrome grille and room for everyone.'],
-  ['white-square-suv', 'White Square SUV', 7000, 'suv', 'A white square-cut SUV with a black bonnet, a spare wheel on its back door and a bull bar.'],
-  ['grey-grand-tourer', 'Grey Grand Tourer', 7500, 'luxury', 'A grey grand tourer coupé: long, low and fast, for crossing the country in comfort.'],
-  ['black-grand-convertible', 'Black Grand Convertible', 8000, 'luxury', 'A black grand convertible with white leather and white wheels: quiet, stately, roof down.'],
-  ['pearl-convertible', 'Pearl Convertible', 8500, 'luxury', 'A pearl-white luxury convertible with a dark bonnet and black wheels.'],
-  ['midnight-saloon', 'Midnight Saloon', 10000, 'luxury', 'A midnight-blue grand saloon, chrome on its grille and its flanks: the quietest car on the floor.'],
-  ['state-limousine', 'State Limousine', 12000, 'limousine', 'A black armoured state limousine with flags on its wings: heavy, slow to stop, and impressive.'],
-  ['bronze-spyder', 'Bronze Spyder', 12000, 'super', 'A bronze open supercar, low and wide, with flying buttresses behind its seats.'],
-  ['red-winged-supercar', 'Red Winged Supercar', 14000, 'super', 'A legend in red: a low wedge of a supercar with a great wing across its tail.'],
-  ['gold-hypercar', 'Gold Hypercar', 18000, 'super', 'A gold hypercar with its doors raised to the sky: the crown of the showroom, and the fastest car in town.'],
+  ['grey-saloon', 'Grey Saloon', 600, 'saloon', 'A modern grey saloon with a fastback roof: easy, comfortable, and the place to start.'],
+  ['classic-two-tone', 'Classic Two-Tone', 750, 'classic', 'A long fifties saloon in black and white, chrome bumpers, a big grille and tail fins.'],
+  ['black-pickup', 'Black Pickup', 950, 'pickup', 'A full-size black pickup with a hard top over its load bed: works all week, still looks sharp.'],
+  ['yellow-classic-roadster', 'Yellow Classic Roadster', 1100, 'classic', 'A classic open roadster in pale yellow, long bonnet, chrome and white-wall tyres.'],
+  ['blue-off-roader', 'Blue Off-Roader', 1300, 'offroad', 'A wild blue off-roader on huge tyres, roof rack and lamps: built for the bush tracks.'],
+  ['black-square-suv', 'Black Square SUV', 1450, 'suv', 'A square-cut black SUV, boxy and tough, with a wide stance and dark wheels.'],
+  ['camo-expedition', 'Camo Expedition SUV', 1600, 'offroad', 'An expedition SUV in camouflage, a tent box on its roof, spot lamps and a snorkel.'],
+  ['mint-sports-coupe', 'Mint Sports Coupé', 1600, 'sports', 'A low mint-green sports coupé with a dark roof: light, quick and sharp in the turns.'],
+  ['white-roadster', 'White Roadster', 1800, 'sports', 'A white two-seat convertible, roof down, red-trimmed wheels and a sculpted tail.'],
+  ['peach-suv', 'Peach Luxury SUV', 1950, 'suv', 'A tall luxury SUV in peach, its wheels painted to match, smooth as a saloon on the road.'],
+  ['black-luxury-suv', 'Black Luxury SUV', 2100, 'suv', 'A full-size black luxury SUV, three rows, a chrome grille and room for everyone.'],
+  ['white-square-suv', 'White Square SUV', 2300, 'suv', 'A white square-cut SUV with a black bonnet, a spare wheel on its back door and a bull bar.'],
+  ['grey-grand-tourer', 'Grey Grand Tourer', 2450, 'luxury', 'A grey grand tourer coupé: long, low and fast, for crossing the country in comfort.'],
+  ['black-grand-convertible', 'Black Grand Convertible', 2650, 'luxury', 'A black grand convertible with white leather and white wheels: quiet, stately, roof down.'],
+  ['pearl-convertible', 'Pearl Convertible', 2800, 'luxury', 'A pearl-white luxury convertible with a dark bonnet and black wheels.'],
+  ['midnight-saloon', 'Midnight Saloon', 3300, 'luxury', 'A midnight-blue grand saloon, chrome on its grille and its flanks: the quietest car on the floor.'],
+  ['state-limousine', 'State Limousine', 4000, 'limousine', 'A black armoured state limousine with flags on its wings: heavy, slow to stop, and impressive.'],
+  ['bronze-spyder', 'Bronze Spyder', 4000, 'super', 'A bronze open supercar, low and wide, with flying buttresses behind its seats.'],
+  ['red-winged-supercar', 'Red Winged Supercar', 4650, 'super', 'A legend in red: a low wedge of a supercar with a great wing across its tail.'],
+  ['gold-hypercar', 'Gold Hypercar', 6000, 'super', 'A gold hypercar with its doors raised to the sky: the crown of the showroom, and the fastest car in town.'],
 ].map(([id, name, tr, cls, blurb], i) => ({ id, name, price: tr * 2, class: cls, blurb, asset: `car-${id}`, listing: `00000000-0000-4000-8000-0000000003${String(i + 1).padStart(2, '0')}` }));
 const CAR_STOCK = 1000000;                 // new from the showroom: not a numbered edition, and not going to run out
 // Where each car stands in the hall (x, z), its top speed in km/h (which its salesman tells a buyer: market.js), and
@@ -835,6 +839,44 @@ const MIGRATIONS = [
       ...CARS.map((c) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${c.listing}', '${c.asset}', 'primary', '${CARSHOW.shop}', '${CARSHOW.name.replace(/'/g, "''")}', ${c.price}, ${CAR_STOCK}, '${CARSHOW.zone}', ${CAR_STANDS[c.id][0]}, ${CAR_STANDS[c.id][1]}, '${CARSHOW.label.replace(/'/g, "''")}') on conflict (id) do nothing`),
       // one of each car to an account (the market also refuses a second, with a reason)
       `create unique index holdings_one_car on ${S}.holdings(owner_id, asset_id) where asset_id like 'car-%'`,
+    ],
+  },
+  {
+    id: 14,
+    name: 'the owner\'s prices of 18 October 2026 (cars 600 to 6,000 TR, motorcycles 300 to 3,000 TR), and starter TR pays for a car as for a motorcycle',
+    statements: [
+      // each showroom listing at the game's price (power-bikes.js, power-cars.js): the same price for everyone, set here
+      // and nowhere else; what a player asks for one they own and sell on is theirs, and is not touched
+      ...MOTORCYCLES.map((m) => `update ${S}.listings set price = ${m.price} where id = '${m.listing}' and kind = 'primary'`),
+      ...CARS.map((c) => `update ${S}.listings set price = ${c.price} where id = '${c.listing}' and kind = 'primary'`),
+      // starter TR leaves a wallet for the town's charges and costs, for a motorcycle and now for a car from the showrooms
+      // (a sale that says so, made by this server: see market.js, settle); the price of either goes to the town and to
+      // no player. Otherwise this is migration 6's rule, unchanged.
+      `create or replace function ${S}.wallet_entry_applies() returns trigger language plpgsql as $f$
+       declare whose text; why text; what text;
+       begin
+         select kind into whose from ${S}.wallets where id = new.wallet_id;
+         if not found then raise exception 'no such wallet' using errcode = 'P0001'; end if;
+         if whose = 'system' then
+           if new.bucket is not null then raise exception 'the bank''s own wallets hold TR of no kind' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+           return new;
+         end if;
+         if new.bucket is null then raise exception 'an entry in a player''s wallet says which TR it moves' using errcode = 'P0001'; end if;
+         select kind, coalesce(meta->>'starterFor', '') into why, what from ${S}.wallet_tx where id = new.tx_id;
+         -- (a motorcycle's or a car's price goes to the town and to no player)
+         if what in ('motorcycle', 'car') and new.amount > 0 then raise exception 'a motorcycle or a car from the showroom is paid to the town' using errcode = 'P0001'; end if;
+         if new.bucket = 'starter' then
+           if new.amount < 0 and why <> 'game' and not (why = 'sale' and what in ('motorcycle', 'car')) then raise exception 'starter TR pays the town''s charges and costs and for a motorcycle or a car, and nothing else' using errcode = 'P0001'; end if;
+           if new.amount > 0 and why not in ('grant', 'sale') then raise exception 'starter TR is not made that way' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount, starter = starter + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         elsif new.bucket = 'illicit' then
+           update ${S}.wallets set balance = balance + new.amount, illicit = illicit + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         else
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         end if;
+         return new;
+       end $f$`,
     ],
   },
 ];

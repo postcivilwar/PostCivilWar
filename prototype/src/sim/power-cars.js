@@ -5,10 +5,15 @@
 // tools/vehicles/cars.py). A car whose model is a real maker's car is sold under a plain name of the game's own: the
 // game shows no maker's name or badge. Each is sold new at its price; a player may own one of each.
 //
-// The price follows the car's class, read from how it looks, as the motorcycles' does: from about 2,000 TR (the
-// owner's word) for an everyday saloon, up through the classics, the pickups and off-roaders, the SUVs, the luxury
-// cars and the sports cars, to the supercars. Nothing is claimed about any car's engine: the files say nothing of it,
-// and neither does the game. Its top speed and how hard it pulls follow its class.
+// The price follows the car's class, read from how it looks, as the motorcycles' does: from the everyday saloon, up
+// through the classics, the pickups and off-roaders, the SUVs, the luxury cars and the sports cars, to the supercars.
+// Nothing is claimed about any car's engine: the files say nothing of it, and neither does the game. Its top speed and
+// how hard it pulls follow its class.
+//
+// The owner's prices of 18 October 2026: from 600 TR for the saloon to 6,000 TR for the hypercar, every car in
+// proportion to where it stood before (600 TR and a 0.3375 share of each TR it was above 2,000, to the 50 TR), its
+// order kept; a newcomer's 2,000 TR of arrival money buys any of the first ten. The server sells each at this price
+// (api/_lib/schema.js, migration 14; a test checks the two agree).
 //
 // An entry:
 //   id                  how the game knows it (and its model, assets/vehicles/cars/<id>.glb)
@@ -65,26 +70,26 @@ const car = (id, name, cls, price, kmh, length, width, height, engine, blurb) =>
 
 // The cars on sale, cheapest first. (width and height are the model's own, measured by cars.py at the length given.)
 export const POWER_CARS = Object.freeze(Object.fromEntries([
-  car('grey-saloon', 'Grey Saloon', 'saloon', 2000, 170, 4.85, 2.1, 1.59, 'four', 'A modern grey saloon with a fastback roof: easy, comfortable, and the place to start.'),
-  car('classic-two-tone', 'Classic Two-Tone', 'classic', 2500, 145, 5.0, 1.95, 1.68, 'v8', 'A long fifties saloon in black and white, chrome bumpers, a big grille and tail fins.'),
-  car('black-pickup', 'Black Pickup', 'pickup', 3000, 165, 5.6, 2.2, 2.25, 'v8', 'A full-size black pickup with a hard top over its load bed: works all week, still looks sharp.'),
-  car('yellow-classic-roadster', 'Yellow Classic Roadster', 'classic', 3500, 200, 4.5, 2.0, 1.32, 'six', 'A classic open roadster in pale yellow, long bonnet, chrome and white-wall tyres.'),
-  car('blue-off-roader', 'Blue Off-Roader', 'offroad', 4000, 175, 4.6, 2.3, 1.92, 'v8', 'A wild blue off-roader on huge tyres, roof rack and lamps: built for the bush tracks.'),
-  car('black-square-suv', 'Black Square SUV', 'suv', 4500, 190, 4.7, 2.2, 2.12, 'v8', 'A square-cut black SUV, boxy and tough, with a wide stance and dark wheels.'),
-  car('camo-expedition', 'Camo Expedition SUV', 'offroad', 5000, 165, 5.0, 2.25, 2.55, 'diesel', 'An expedition SUV in camouflage, a tent box on its roof, spot lamps and a snorkel.'),
-  car('mint-sports-coupe', 'Mint Sports Coupé', 'sports', 5000, 260, 4.5, 2.1, 1.24, 'six', 'A low mint-green sports coupé with a dark roof: light, quick and sharp in the turns.'),
-  car('white-roadster', 'White Roadster', 'sports', 5500, 250, 4.5, 2.1, 1.31, 'six', 'A white two-seat convertible, roof down, red-trimmed wheels and a sculpted tail.'),
-  car('peach-suv', 'Peach Luxury SUV', 'suv', 6000, 220, 5.0, 2.2, 1.97, 'six', 'A tall luxury SUV in peach, its wheels painted to match, smooth as a saloon on the road.'),
-  car('black-luxury-suv', 'Black Luxury SUV', 'suv', 6500, 200, 5.2, 2.4, 2.13, 'bigv8', 'A full-size black luxury SUV, three rows, a chrome grille and room for everyone.'),
-  car('white-square-suv', 'White Square SUV', 'suv', 7000, 220, 4.85, 2.2, 2.12, 'bigv8', 'A white square-cut SUV with a black bonnet, a spare wheel on its back door and a bull bar.'),
-  car('grey-grand-tourer', 'Grey Grand Tourer', 'luxury', 7500, 300, 4.9, 2.2, 1.55, 'v12', 'A grey grand tourer coupé: long, low and fast, for crossing the country in comfort.'),
-  car('black-grand-convertible', 'Black Grand Convertible', 'luxury', 8000, 250, 5.3, 2.0, 1.56, 'v12', 'A black grand convertible with white leather and white wheels: quiet, stately, roof down.'),
-  car('pearl-convertible', 'Pearl Convertible', 'luxury', 8500, 290, 4.7, 1.9, 1.42, 'sportv8', 'A pearl-white luxury convertible with a dark bonnet and black wheels.'),
-  car('midnight-saloon', 'Midnight Saloon', 'luxury', 10000, 250, 5.1, 2.2, 1.67, 'v12', 'A midnight-blue grand saloon, chrome on its grille and its flanks: the quietest car on the floor.'),
-  car('state-limousine', 'State Limousine', 'limousine', 12000, 180, 5.8, 2.4, 2.0, 'diesel', 'A black armoured state limousine with flags on its wings: heavy, slow to stop, and impressive.'),
-  car('bronze-spyder', 'Bronze Spyder', 'super', 12000, 330, 4.55, 1.95, 1.27, 'sportv8', 'A bronze open supercar, low and wide, with flying buttresses behind its seats.'),
-  car('red-winged-supercar', 'Red Winged Supercar', 'super', 14000, 320, 4.4, 1.92, 1.17, 'sportv8', 'A legend in red: a low wedge of a supercar with a great wing across its tail.'),
-  car('gold-hypercar', 'Gold Hypercar', 'super', 18000, 350, 4.7, 2.2, 1.6, 'v12', 'A gold hypercar with its doors raised to the sky: the crown of the showroom, and the fastest car in town.'),
+  car('grey-saloon', 'Grey Saloon', 'saloon', 600, 170, 4.85, 2.1, 1.59, 'four', 'A modern grey saloon with a fastback roof: easy, comfortable, and the place to start.'),
+  car('classic-two-tone', 'Classic Two-Tone', 'classic', 750, 145, 5.0, 1.95, 1.68, 'v8', 'A long fifties saloon in black and white, chrome bumpers, a big grille and tail fins.'),
+  car('black-pickup', 'Black Pickup', 'pickup', 950, 165, 5.6, 2.2, 2.25, 'v8', 'A full-size black pickup with a hard top over its load bed: works all week, still looks sharp.'),
+  car('yellow-classic-roadster', 'Yellow Classic Roadster', 'classic', 1100, 200, 4.5, 2.0, 1.32, 'six', 'A classic open roadster in pale yellow, long bonnet, chrome and white-wall tyres.'),
+  car('blue-off-roader', 'Blue Off-Roader', 'offroad', 1300, 175, 4.6, 2.3, 1.92, 'v8', 'A wild blue off-roader on huge tyres, roof rack and lamps: built for the bush tracks.'),
+  car('black-square-suv', 'Black Square SUV', 'suv', 1450, 190, 4.7, 2.2, 2.12, 'v8', 'A square-cut black SUV, boxy and tough, with a wide stance and dark wheels.'),
+  car('camo-expedition', 'Camo Expedition SUV', 'offroad', 1600, 165, 5.0, 2.25, 2.55, 'diesel', 'An expedition SUV in camouflage, a tent box on its roof, spot lamps and a snorkel.'),
+  car('mint-sports-coupe', 'Mint Sports Coupé', 'sports', 1600, 260, 4.5, 2.1, 1.24, 'six', 'A low mint-green sports coupé with a dark roof: light, quick and sharp in the turns.'),
+  car('white-roadster', 'White Roadster', 'sports', 1800, 250, 4.5, 2.1, 1.31, 'six', 'A white two-seat convertible, roof down, red-trimmed wheels and a sculpted tail.'),
+  car('peach-suv', 'Peach Luxury SUV', 'suv', 1950, 220, 5.0, 2.2, 1.97, 'six', 'A tall luxury SUV in peach, its wheels painted to match, smooth as a saloon on the road.'),
+  car('black-luxury-suv', 'Black Luxury SUV', 'suv', 2100, 200, 5.2, 2.4, 2.13, 'bigv8', 'A full-size black luxury SUV, three rows, a chrome grille and room for everyone.'),
+  car('white-square-suv', 'White Square SUV', 'suv', 2300, 220, 4.85, 2.2, 2.12, 'bigv8', 'A white square-cut SUV with a black bonnet, a spare wheel on its back door and a bull bar.'),
+  car('grey-grand-tourer', 'Grey Grand Tourer', 'luxury', 2450, 300, 4.9, 2.2, 1.55, 'v12', 'A grey grand tourer coupé: long, low and fast, for crossing the country in comfort.'),
+  car('black-grand-convertible', 'Black Grand Convertible', 'luxury', 2650, 250, 5.3, 2.0, 1.56, 'v12', 'A black grand convertible with white leather and white wheels: quiet, stately, roof down.'),
+  car('pearl-convertible', 'Pearl Convertible', 'luxury', 2800, 290, 4.7, 1.9, 1.42, 'sportv8', 'A pearl-white luxury convertible with a dark bonnet and black wheels.'),
+  car('midnight-saloon', 'Midnight Saloon', 'luxury', 3300, 250, 5.1, 2.2, 1.67, 'v12', 'A midnight-blue grand saloon, chrome on its grille and its flanks: the quietest car on the floor.'),
+  car('state-limousine', 'State Limousine', 'limousine', 4000, 180, 5.8, 2.4, 2.0, 'diesel', 'A black armoured state limousine with flags on its wings: heavy, slow to stop, and impressive.'),
+  car('bronze-spyder', 'Bronze Spyder', 'super', 4000, 330, 4.55, 1.95, 1.27, 'sportv8', 'A bronze open supercar, low and wide, with flying buttresses behind its seats.'),
+  car('red-winged-supercar', 'Red Winged Supercar', 'super', 4650, 320, 4.4, 1.92, 1.17, 'sportv8', 'A legend in red: a low wedge of a supercar with a great wing across its tail.'),
+  car('gold-hypercar', 'Gold Hypercar', 'super', 6000, 350, 4.7, 2.2, 1.6, 'v12', 'A gold hypercar with its doors raised to the sky: the crown of the showroom, and the fastest car in town.'),
 ].map((c) => [c.id, c])));
 
 // How a car goes: its class's handling, at its own top speed (m/s on tar).

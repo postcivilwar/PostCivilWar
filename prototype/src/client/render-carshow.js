@@ -28,6 +28,7 @@ import { trText } from '../sim/ledger.js';
 import { loadSuppliedMesh } from './supplied-model.js';
 import { Batch, place, surface } from './render-kit.js';
 import { loadCar, carLoaded } from './car-model.js';
+import { hallModels } from './hall-models.js';
 import { CAR_IMPOSTOR } from './car-impostors.js';
 import { COVER } from './brand-data.js';
 import { vehicleEnvironment } from './vehicle-models.js';
@@ -620,7 +621,7 @@ function makeDisplay(display, group, standTop, sheet) {
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(car.width * 1.1, car.length * 1.05), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
   holder.add(shadow);
-  return { display, car, imp, picture, holder, shadow, standTop, frame: -1, model: null, loading: null, tier: null, heading: display.h };
+  return { display, car, imp, picture, holder, shadow, standTop, sheet, frame: -1, model: null, tier: null, heading: display.h };
 }
 function pickFrame(d, ex, ez) {
   const n = CAR_IMPOSTOR.frames;
@@ -640,8 +641,9 @@ function showFrame(d, k) {
 
 // ------------------------------------------------------------------------------------------------ together --
 
-// `maxTexture`: the size its buildings' pictures are drawn at (budget.js); `lite`: a phone.
-export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
+// `maxTexture`: the size its buildings' pictures are drawn at (budget.js); `lite`: a phone; `renderer`: the town's (the
+// cars' pictures are handed to it one car at a time as they come, hall-models.js).
+export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = null } = {}) {
   const exterior = new THREE.Group(); exterior.name = 'carshow';
   scene.add(exterior);
   const outside = new THREE.Group(); outside.name = 'carshow-compound';            // what stays drawn from inside, through the glass
@@ -738,56 +740,71 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
   // ---- inside ----
   let hall = null, displays = [], inside = false;
   const sheets = new Map();
+  // a car's pictures from all round (its impostor): fetched the first time it is to be drawn (while its model is on its
+  // way, or on a phone across the hall), let go when it has not been drawn for a while (`idle`)
   const sheetOf = (id) => {
     if (sheets.has(id)) return sheets.get(id);
     const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
-    const img = new Image();
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
-    img.onload = () => {
-      let picture = img;
-      if (lite) { const c = document.createElement('canvas'); c.width = img.width / 2; c.height = img.height / 2; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height); picture = c; }
-      texture.image = picture; texture.needsUpdate = true; material.visible = true;
+    let asked = false, generation = 0, wantedAt = 0;
+    const sheet = {
+      texture, material,
+      want(now) {
+        wantedAt = now;
+        if (asked || ON_DISK) return;
+        asked = true;
+        const mine = ++generation;
+        const img = new Image();
+        img.onload = () => {
+          if (!asked || generation !== mine) return;
+          // (a phone keeps each sheet at half its size: a quarter of the memory, for cars seen across the hall)
+          let picture = img;
+          if (lite) { const c = document.createElement('canvas'); c.width = img.width / 2; c.height = img.height / 2; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height); picture = c; }
+          texture.image = picture; texture.needsUpdate = true; material.visible = true;
+        };
+        img.src = `assets/car-${id}-impostor.webp`;
+      },
+      idle(now, after = 20) {
+        if (!asked || now - wantedAt < after) return;
+        asked = false; generation += 1; material.visible = false; texture.dispose(); texture.image = undefined;
+      },
     };
-    if (!ON_DISK) img.src = `assets/car-${id}-impostor.webp`;
-    const sheet = { texture, material };
     sheets.set(id, sheet);
     return sheet;
   };
+  let models = null;
   function ensureHall() {
     if (hall) return hall;
     hall = buildHall();
     hall.group.visible = inside;
     scene.add(hall.group);
     displays = hall.stands.map((s) => makeDisplay(s.display, hall.group, s.top, sheetOf(s.display.car)));
+    // each car its model, with the pictures its distance from the player asks for (hall-models.js): the one the player
+    // stands at (within 4 m of its stand), the next nearest (12 m), those across the hall (24 m), the far end
+    models = hallModels({
+      items: displays.map((d) => ({ id: d.display.car })), lite, renderer,
+      ranges: { inspect: 4, near: 12, mid: 24 },
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadCar(displays[k].display.car, { base: 'cars/', tier, length: displays[k].car.length })),
+      put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
+    });
     return hall;
   }
-  // The models near the player: the nearest within `NEAR` at the device's own detail, the next at a phone's, the
-  // rest pictures. One that is left far behind is let go.
-  const NEAR = 12, FAR = 15;
-  function updateDisplays(dt, { eye, player, now, models = lite ? 2 : 3 }) {
-    const ranked = displays.map((d) => ({ d, gap: Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r })).sort((a, b) => a.gap - b.gap);
-    ranked.forEach(({ d, gap }, rank) => {
+  // Each car as its model (hall-models.js says with which pictures), or its picture while its model is not here (and,
+  // on a phone, across the hall). `level`: how much the device is struggling (0 not at all): the largest pictures are
+  // given up first.
+  function updateDisplays(dt, { eye, player, now, level = 0 }) {
+    const clock = performance.now() / 1000;          // (seconds, for how long things have waited: not the town's clock)
+    const gaps = displays.map((d) => Math.max(0, Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r));
+    models.update({ gaps, now: clock, mode: 'inside', level });
+    displays.forEach((d, k) => {
       d.heading = d.display.stand === 'turntable' ? d.display.h + now * 0.18 : d.display.h;
-      const want = !ON_DISK && rank < models && gap < NEAR ? (rank === 0 && !lite ? 'full' : 'lite') : null;
-      const keep = d.model && rank < models + 1 && gap < FAR;
-      if (want && (!d.model || (d.tier !== want && !d.loading)) && !d.loading && !(d.failedAt && performance.now() - d.failedAt < 15000)) {
-        const tier = want;
-        d.loading = loadCar(d.display.car, { base: 'cars/', lite: tier === 'lite', length: d.car.length })
-          .then((model) => {
-            d.loading = null;
-            if (!inside || !hall) { model.dispose(); return; }
-            if (d.model) d.model.dispose();
-            d.model = model; d.tier = tier;
-            model.pose({});
-            d.holder.add(model.group);
-          })
-          .catch(() => { d.loading = null; d.failed = true; d.failedAt = performance.now(); });
-      } else if (d.model && !want && !keep) { d.model.dispose(); d.model = null; d.tier = null; }
+      d.model = models.modelOf(k); d.tier = models.tierOf(k);
       d.holder.rotation.y = d.heading;
       const shown = !!d.model;
       d.picture.visible = !shown;
       if (!shown) {
+        d.sheet.want(clock);
         const c = d.imp.centre, ch = Math.cos(d.heading), sh = Math.sin(d.heading);
         const wx = d.display.x + c[0] * ch + c[2] * sh, wz = d.display.z - c[0] * sh + c[2] * ch;
         d.picture.position.set(wx, d.standTop + c[1], wz);
@@ -795,9 +812,19 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
         showFrame(d, pickFrame(d, eye.x, eye.z));
       }
     });
+    for (const [id, sheet] of sheets) if (!displays.some((d) => d.display.car === id && d.picture.visible)) sheet.idle(clock);
     if (hall) hall.spin.rotation.y = displays.find((d) => d.display.stand === 'turntable').heading;
   }
-  function dropModels() { for (const d of displays) { if (d.model) { d.model.dispose(); d.model = null; d.tier = null; } } }
+  // Outside: as the player comes up to the doors the cars nearest them are made ready; once the player has gone well
+  // away (`RELEASE` metres from the doors), all of them are let go.
+  const READY = 60, RELEASE = 150;
+  function prepare(player) {
+    if (!models) return;
+    const clock = performance.now() / 1000;
+    const away = Math.hypot(player.x - P.doors.x, player.z - P.doors.z);
+    if (away > RELEASE) { models.update({ gaps: [], now: clock, mode: 'far' }); for (const d of displays) { d.model = null; d.tier = null; } for (const sheet of sheets.values()) sheet.idle(clock, 0); return; }
+    if (away < READY) models.update({ gaps: displays.map((d) => Math.hypot(d.display.x - P.doors.x, d.display.z - P.doors.z)), now: clock, mode: 'near', ahead: lite ? 24 : Infinity });
+  }
 
   let gateShown = 0, doorsOpen = 0;
   return {
@@ -816,13 +843,12 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
       if (on) ensureHall();
       if (hall) hall.group.visible = on;
       exterior.visible = !on;
-      if (!on) dropModels();
     },
     // the first time someone comes near the doors, the hall is made (so that stepping in does not wait for it)
     near(x, z) { if (!hall && Math.hypot(x - P.doors.x, z - P.doors.z) < 60) { ensureOutside(); ensureHall(); } },
     // each frame: the gate (how far open the simulation has it, eased), the doors (open while someone is at them),
     // the cameras, the flags; inside, the cars
-    tick(dt, { eye, player, now, people = [], gateOpen = 0, models }) {
+    tick(dt, { eye, player, now, people = [], gateOpen = 0, level = 0 }) {
       const nearCompound = !!court && Math.hypot(player.x - G.x, player.z - (C.z0 + C.z1) / 2) < 420;
       // The villa is two million triangles, two hundred times the other buildings: it is drawn from its model by
       // whoever is near enough to see it as more than a white house among palms (VILLA_SIGHT), and as its plain
@@ -843,11 +869,13 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0 } = {}) {
         turnCameras(cams, dt, now, people);
         if (!lite || Math.round(now * 30) % 2 === 0) waveFlags(court.flags, now);
       }
-      if (inside && hall) updateDisplays(dt, { eye, player, now, models });
+      if (inside && hall) updateDisplays(dt, { eye, player, now, level });
+      else prepare(player);
     },
     gateBoxes: () => carshowGateBoxes(gateShown),
     // for the checks: what is drawn as a model and what as a picture
-    shown() { return displays.map((d) => ({ car: d.display.car, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: carLoaded(d.display.car, d.tier === 'lite') })); },
+    shown() { return displays.map((d) => ({ car: d.display.car, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: !!d.tier && carLoaded(d.display.car, d.tier) })); },
+    models: () => (models ? models.state() : null),
     state: () => ({ built: !!court, gate: gateShown, doors: doorsOpen, cams: cams.map((c) => ({ yaw: +c.yaw.toFixed(3), lit: c.glow.material.opacity > 0 })) }),
   };
 }

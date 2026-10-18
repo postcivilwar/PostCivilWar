@@ -4,8 +4,9 @@
 //     HOLARIS (whose own column is still there);
 //   - walked into the column: the screen goes dark and comes back inside, at the doors; the building is not drawn
 //     round the hall, the hall is; the camera stays inside it;
-//   - the seventeen motorcycles: the nearest drawn as the owner's models, the rest as pictures of them, every one
-//     where it stands, with room to walk all round;
+//   - the seventeen motorcycles: on a computer every one of them the owner's model, with the pictures its distance asks
+//     for (the one the player stands at the largest, the far end of the hall the smallest: hall-models.js), every one
+//     where it stands, with room to walk all round; walked across the hall, the sets follow the player;
 //   - the salesman comes to the player and stands with them at a motorcycle;
 //   - asked about the motorcycle: the phone's conversation opens on it (its card, its engine and speed, its price),
 //     the player turns to him, and what each says moves their hands and heads, one after the other;
@@ -13,7 +14,7 @@
 //   - on a phone's screen the conversation fits, with everything a finger's size;
 //   - a second player (a second copy of the town in the page) in the hall: asked about a bike first, the salesman
 //     is theirs; three or more, he walks the floor;
-//   - out by the mat at the doors: back outside, beside the column;
+//   - out by the mat at the doors: back outside, beside the column; gone well away, every motorcycle's model let go;
 //   - nothing goes wrong in the page.
 //   ../server/with-postgres.sh node test/showroom.mjs [shots folder]
 import { createRequire } from 'node:module';
@@ -21,6 +22,8 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown } from './start.mjs';
+import { POWERBIKE } from '../src/sim/zones/atani-powerbike.js';
+import { HALL } from '../src/client/budget.js';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
@@ -104,17 +107,48 @@ await page.waitForTimeout(2500);
 await shot('04-inside-the-doors');
 
 // ---- the floor: the motorcycles ----
-await go(-61.2, 46.0, Math.PI * 0.75, { yaw: Math.PI * 0.8, pitch: 0.2, dist: 6.5 });
-await page.waitForFunction(() => window.__nlw.powerbike.shown().filter((d) => d.model).length >= 3, null, { timeout: 240000 }).catch(() => {});
-await page.waitForTimeout(2000);
-const floor = await page.evaluate(() => window.__nlw.powerbike.shown());
-const models = floor.filter((d) => d.model), pictures = floor.filter((d) => d.picture);
-check('the nearest motorcycles are the owner\'s models; the rest are pictures of them; every one is shown', models.length >= 2 && models.length <= 3 && models.length + pictures.length === 17, { models: models.map((d) => `${d.bike}:${d.tier}`), pictures: pictures.length });
+// The set of pictures each bike should be drawn with, the player at (x, z): as hall-models.js chooses them (budget.js,
+// HALL), the largest given up first on a device that is struggling (`level`), worked out here on its own.
+const ORDER = ['512', '1k', '2k', '4k'], CAP = ['4k', '2k', '1k', '512'];
+const hallTiers = (at, { lite, level }, ranges = { inspect: 2.5, near: 7, mid: 14 }) => {
+  const plan = HALL[lite ? 'lite' : 'full'];
+  const gaps = POWERBIKE.displays.map((d) => Math.max(0, Math.hypot(d.x - at.x, d.z - at.z) - d.r));
+  const tiers = [];
+  gaps.map((gap, k) => [gap, k]).sort((a, b) => a[0] - b[0]).forEach(([gap, k], rank) => {
+    let t = rank === 0 && gap < ranges.inspect ? plan.inspect : rank < plan.nearRanks && gap < ranges.near ? plan.near : gap < ranges.mid ? plan.mid : plan.far;
+    const cap = CAP[Math.max(0, Math.min(3, level))];
+    if (t && ORDER.indexOf(t) > ORDER.indexOf(cap)) t = cap;
+    tiers[k] = t;
+  });
+  return tiers;
+};
+// (waits until the bikes are drawn with the sets the player's place asks for; gives what is drawn, and what was asked)
+const settled = async (at, limit = 600000) => {
+  const t0 = Date.now();
+  let got = null;
+  while (Date.now() - t0 < limit) {
+    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.powerbike.shown(), state: n.powerbike.models(), level: n.quality, lite: !!n.lite }; });
+    const want = hallTiers(at, got);
+    if (got.shown.every((d, k) => d.tier === want[k] && (d.model ? !d.picture : d.picture))) return { ...got, want, ok: true };
+    await page.waitForTimeout(1000);
+  }
+  return { ...got, want: got && hallTiers(at, got), ok: false };
+};
+const FLOOR = { x: -61.2, z: 46.0 };
+await go(FLOOR.x, FLOOR.z, Math.PI * 0.75, { yaw: Math.PI * 0.8, pitch: 0.2, dist: 6.5 });
+const floor = await settled(FLOOR);
+const models = floor.shown.filter((d) => d.model), pictures = floor.shown.filter((d) => d.picture);
+check('every motorcycle is the owner\'s model, drawn with the pictures its distance from the player asks for (the one the player stands at the largest); each is drawn once, as its model or (on a phone, across the hall) as a picture of it',
+  floor.ok && models.length + pictures.length === 17 && floor.shown.every((d) => d.model !== d.picture) && (floor.lite || models.length === 17),
+  { ok: floor.ok, level: floor.level, lite: floor.lite, drawn: floor.shown.map((d) => `${d.bike}:${d.model ? d.tier : 'picture'}`), asked: floor.want, state: floor.state });
 const camInside = await page.evaluate(() => { const c = window.__nlw.camera.position; return [c.x, c.y, c.z]; });
 check('the camera is inside the hall', camInside[0] > -78.6 && camInside[0] < -45.4 && camInside[2] > 27.6 && camInside[2] < 53.9 && camInside[1] < 6.6, camInside);
 await shot('05-the-floor');
-await go(-52, 46.0, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.1, pitch: 0.22, dist: 7.4 });
-await page.waitForTimeout(3000);
+const ACROSS = { x: -52, z: 46.0 };
+await go(ACROSS.x, ACROSS.z, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.1, pitch: 0.22, dist: 7.4 });
+const across = await settled(ACROSS);
+check('walked across the hall, the sets follow the player: the bikes now near given the larger, those left behind the smaller, and nothing left without its model', across.ok && across.shown.every((d) => d.model !== d.picture) && (across.lite || across.shown.every((d) => d.model)),
+  { ok: across.ok, level: across.level, drawn: across.shown.map((d) => `${d.bike}:${d.model ? d.tier : 'picture'}`), asked: across.want });
 await shot('06-across-the-hall');
 
 // ---- the salesman comes to the player at a motorcycle ----
@@ -334,6 +368,12 @@ const outside = await page.evaluate(() => { const n = window.__nlw, p = n.powerb
 check('the mat at the doors takes the player out, beside the column; the building is drawn again and the hall is not', left && outside.at[0] === -60 && outside.at[1] === 58.4 && !outside.hall && outside.exterior && outside.portal && !outside.salesman, outside);
 await page.waitForTimeout(2000);
 await shot('15-back-outside');
+// ---- gone well away: every motorcycle's model let go ----
+const kept = await page.evaluate(() => window.__nlw.powerbike.models().tiers.filter(Boolean).length);
+await go(-63.6, 59.6 + 160, 0, { yaw: 0, pitch: 0.2, dist: 6 });
+await page.waitForFunction(() => window.__nlw.powerbike.models().tiers.every((t) => !t), null, { timeout: 30000 }).catch(() => {});
+const away = await page.evaluate(() => ({ state: window.__nlw.powerbike.models(), held: window.__nlw.bikesHeld ? window.__nlw.bikesHeld() : null }));
+check('just outside the doors the models are kept (for stepping back in); gone well away from the doors, every one is let go', kept > 0 && away.state.tiers.every((t) => !t) && away.state.running === 0 && away.state.waiting === 0, { kept, ...away });
 
 await browser.close();
 server.close();

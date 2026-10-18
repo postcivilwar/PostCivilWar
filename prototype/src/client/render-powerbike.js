@@ -29,6 +29,7 @@ import { Batch, place, surface, linear } from './render-kit.js';
 import { reflects } from './render-finish.js';
 import { makeDealMarker } from './render-holaris.js';
 import { loadBike, bikeLoaded } from './bike-model.js';
+import { hallModels } from './hall-models.js';
 import { BIKE_IMPOSTOR } from './bike-impostors.js';
 import { COVER } from './brand-data.js';
 
@@ -390,7 +391,7 @@ function makeDisplay(display, group, standTop, sheet) {
   const shadow = new THREE.Mesh(new THREE.PlaneGeometry(0.78, bike.length * 1.05), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
   shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
   holder.add(shadow);
-  return { display, bike, imp, picture, holder, shadow, standTop, frame: -1, model: null, loading: null, tier: null, heading: display.h };
+  return { display, bike, imp, picture, holder, shadow, standTop, sheet, frame: -1, model: null, tier: null, heading: display.h };
 }
 // which of the twenty-four pictures, for an eye at (ex, ez)
 function pickFrame(d, ex, ez) {
@@ -411,9 +412,9 @@ function showFrame(d, k) {
 
 // ------------------------------------------------------------------------------------------------ together --
 
-// `maxTexture`: the size its tower's picture is drawn at (budget.js); `lite`: a phone, which draws the nearest
-// bikes with their 2048 pictures and keeps fewer of them at once.
-export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
+// `maxTexture`: the size its tower's picture is drawn at (budget.js); `lite`: a phone; `renderer`: the town's (the
+// bikes' pictures are handed to it one bike at a time as they come, hall-models.js).
+export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer = null } = {}) {
   const exterior = new THREE.Group(); exterior.name = 'powerbike';
   scene.add(exterior);
   // the plain shape until the model is here
@@ -487,64 +488,76 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
 
   // ---- inside ----
   let hall = null, displays = [], sheets = new Map(), inside = false;
+  // a bike's pictures from all round (its impostor): fetched the first time it is to be drawn (while its model is on
+  // its way, or on a phone across the hall), let go when it has not been drawn for a while (`idle`)
   const sheetOf = (id) => {
     if (sheets.has(id)) return sheets.get(id);
     const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
-    const img = new Image();
-    img.onload = () => {
-      // (a phone keeps each sheet at half its size: a quarter of the memory, for bikes seen across the hall)
-      let picture = img;
-      if (lite) { const c = document.createElement('canvas'); c.width = img.width / 2; c.height = img.height / 2; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height); picture = c; }
-      texture.image = picture; texture.needsUpdate = true; material.visible = true;
-    };
-    if (!ON_DISK) img.src = `assets/bike-${id}-impostor.webp`;
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
-    const sheet = { texture, material };
+    let asked = false, generation = 0, wantedAt = 0;
+    const sheet = {
+      texture, material,
+      want(now) {
+        wantedAt = now;
+        if (asked || ON_DISK) return;
+        asked = true;
+        const mine = ++generation;
+        const img = new Image();
+        img.onload = () => {
+          if (!asked || generation !== mine) return;
+          // (a phone keeps each sheet at half its size: a quarter of the memory, for bikes seen across the hall)
+          let picture = img;
+          if (lite) { const c = document.createElement('canvas'); c.width = img.width / 2; c.height = img.height / 2; const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height); picture = c; }
+          texture.image = picture; texture.needsUpdate = true; material.visible = true;
+        };
+        img.src = `assets/bike-${id}-impostor.webp`;
+      },
+      idle(now, after = 20) {
+        if (!asked || now - wantedAt < after) return;
+        asked = false; generation += 1; material.visible = false; texture.dispose(); texture.image = undefined;
+      },
+    };
     sheets.set(id, sheet);
     return sheet;
   };
+  let models = null;
   function ensureHall() {
     if (hall) return hall;
     hall = buildHall();
     hall.group.visible = inside;
     scene.add(hall.group);
     displays = hall.stands.map((s) => makeDisplay(s.display, hall.group, s.top, sheetOf(s.display.bike)));
+    // each bike its model, with the pictures its distance from the player asks for (hall-models.js): the one the player
+    // stands at (within 2.5 m of its stand), the next nearest (7 m), those across the hall (14 m), the far end
+    models = hallModels({
+      items: displays.map((d) => ({ id: d.display.bike })), lite, renderer,
+      ranges: { inspect: 2.5, near: 7, mid: 14 },
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadBike(displays[k].display.bike, { base: 'bikes/', tier, length: displays[k].bike.length })),
+      put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
+    });
     // the pictures on the walls: the market's own photographs of each bike
     if (!ON_DISK) for (const p of hall.posters) { const img = new Image(); img.onload = () => { const t = new THREE.Texture(img); t.encoding = THREE.sRGBEncoding; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true; }; img.src = `assets/bike-${p.bike}-poster.webp`; }
     return hall;
   }
 
-  // The models near the player: the nearest within `NEAR` at the device's own detail, the next at a phone's, the
-  // rest pictures. One that is left far behind is let go.
-  // (`models`: how many may be models at once: the page asks for fewer when the device is struggling)
-  const NEAR = 6.5, FAR = 8.5;
-  function updateDisplays(dt, { eye, player, now, models = lite ? 2 : 3 }) {
-    const ranked = displays.map((d) => ({ d, gap: Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r })).sort((a, b) => a.gap - b.gap);
-    ranked.forEach(({ d, gap }, rank) => {
+  // Each bike as its model (hall-models.js says with which pictures), or its picture while its model is not here (and,
+  // on a phone, across the hall). `level`: how much the device is struggling (0 not at all): the largest pictures are
+  // given up first.
+  function updateDisplays(dt, { eye, player, now, level = 0 }) {
+    const gaps = displays.map((d) => Math.max(0, Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r));
+    const clock = performance.now() / 1000;          // (seconds, for how long things have waited: not the town's clock)
+    models.update({ gaps, now: clock, mode: 'inside', level });
+    displays.forEach((d, k) => {
       // the turntable turns, slowly
       d.heading = d.display.stand === 'turntable' ? d.display.h + now * 0.22 : d.display.h;
-      const want = !ON_DISK && rank < models && gap < NEAR ? (rank === 0 && !lite ? 'full' : 'lite') : null;
-      const keep = d.model && rank < models + 1 && gap < FAR;
-      // (a model that would not come, for want of a connection or otherwise, is not asked for again at once)
-      if (want && (!d.model || (d.tier !== want && !d.loading)) && !d.loading && !(d.failedAt && performance.now() - d.failedAt < 15000)) {
-        const tier = want;
-        d.loading = loadBike(d.display.bike, { base: 'bikes/', lite: tier === 'lite', length: d.bike.length })
-          .then((model) => {
-            d.loading = null;
-            if (!inside || !hall) { model.dispose(); return; }
-            if (d.model) d.model.dispose();
-            d.model = model; d.tier = tier;
-            model.pose({});
-            d.holder.add(model.group);
-          })
-          .catch(() => { d.loading = null; d.failed = true; d.failedAt = performance.now(); });
-      } else if (d.model && !want && !keep) { d.model.dispose(); d.model = null; d.tier = null; }
+      d.model = models.modelOf(k); d.tier = models.tierOf(k);
       d.holder.rotation.y = d.heading;
       const shown = !!d.model;
       d.picture.visible = !shown;
       d.shadow.visible = !shown;
       if (!shown) {
+        d.sheet.want(clock);
         // the picture: where the model's middle would be, turned to the eye about the upright
         const c = d.imp.centre, ch = Math.cos(d.heading), sh = Math.sin(d.heading);
         const wx = d.display.x + c[0] * ch + c[2] * sh, wz = d.display.z - c[0] * sh + c[2] * ch;
@@ -553,9 +566,20 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
         showFrame(d, pickFrame(d, eye.x, eye.z));
       }
     });
+    // (a bike's picture, not drawn for a while, is let go: its model is here)
+    for (const [id, sheet] of sheets) if (!displays.some((d) => d.display.bike === id && d.picture.visible)) sheet.idle(clock);
     if (hall) hall.spin.rotation.y = displays.find((d) => d.display.stand === 'turntable').heading;
   }
-  function dropModels() { for (const d of displays) { if (d.model) { d.model.dispose(); d.model = null; d.tier = null; } } }
+  // Outside: as the player comes up to the doors the bikes nearest them are made ready; once the player has gone well
+  // away (`RELEASE` metres from the doors), all of them are let go.
+  const READY = 45, RELEASE = 110;
+  function prepare(player) {
+    if (!models) return;
+    const clock = performance.now() / 1000;
+    const away = Math.hypot(player.x - P.doors.x, player.z - P.doors.z);
+    if (away > RELEASE) { models.update({ gaps: [], now: clock, mode: 'far' }); for (const d of displays) { d.model = null; d.tier = null; } for (const sheet of sheets.values()) sheet.idle(clock, 0); return; }
+    if (away < READY) models.update({ gaps: displays.map((d) => Math.hypot(d.display.x - P.doors.x, d.display.z - P.doors.z)), now: clock, mode: 'near', ahead: lite ? 14 : Infinity });
+  }
 
   return {
     exterior, portal,
@@ -573,15 +597,16 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0 } = {}) {
       if (hall) hall.group.visible = on;
       exterior.visible = !on;
       portal.group.visible = !on;
-      if (!on) dropModels();
     },
     // the first time someone comes near, the hall is made (so that stepping in does not wait for it)
     near(x, z) { if (!hall && Math.hypot(x - P.portal.x, z - P.portal.z) < 45) ensureHall(); },
-    tick(dt, { eye, player, now, models }) {
+    tick(dt, { eye, player, now, level = 0 }) {
       if (!inside && Math.hypot(player.x - P.portal.x, player.z - P.portal.z) < 110) portal.tick(dt);
-      if (inside && hall) updateDisplays(dt, { eye, player, now, models });
+      if (inside && hall) updateDisplays(dt, { eye, player, now, level });
+      else prepare(player);
     },
-    // for the checks: what is drawn as a model and what as a picture
-    shown() { return displays.map((d) => ({ bike: d.display.bike, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: bikeLoaded(d.display.bike, d.tier === 'lite') })); },
+    // for the checks: what is drawn as a model (with which pictures) and what as a picture
+    shown() { return displays.map((d) => ({ bike: d.display.bike, model: !!d.model, tier: d.tier, picture: d.picture.visible, frame: d.frame, loaded: !!d.tier && bikeLoaded(d.display.bike, d.tier) })); },
+    models: () => (models ? models.state() : null),
   };
 }

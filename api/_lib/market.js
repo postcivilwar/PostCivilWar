@@ -256,6 +256,8 @@ function bikeFacts(listing) {
   return { id, cc: stand ? stand[2] : null, kmh: stand ? stand[3] : null, blurb: (m && m.blurb) || listing.blurb || '' };
 }
 const lowerFirst = (text) => (text ? text.charAt(0).toLowerCase() + text.slice(1) : text);
+// (the first bikes he points a newcomer to are the lightest three: their price, the showroom's)
+const BIKE_FIRST = MOTORCYCLES.find((m) => m.id === 'streetfighter');
 function salesmanGreeting(listing) {
   const f = bikeFacts(listing);
   return `Welcome to ${POWERBIKE.name}! I'm ${POWERBIKE.salesman}, the salesman here (one of the game's people: my answers are automatic). This is the ${listing.asset_name}${f.cc ? `: ${f.cc.toLocaleString('en-GB')} cc, about ${f.kmh} km/h flat out` : ''}. It's ${trText(listing.price)}. Ask me anything about it, or press Buy when you're ready.`;
@@ -282,7 +284,7 @@ function salesmanReply(listing, text) {
   if (has(/\b(deliver|delivery|collect|pick it up|where do i get|get it|bring)\b/)) return `Once it's yours it's in Property on your phone. Step outside, choose to ride it there, and it's brought to wherever you're standing.`;
   if (has(/\b(colou?r|paint|look|style|design|seat|wheels?|chrome)\b/)) return f.blurb || `Have a walk round it: it looks even better close up.`;
   if (has(/\b(how many|stock|left|available|in stock|sold out|own)\b/)) return `It's new from the showroom, and there's no shortage: you can own one of each of our motorcycles.`;
-  if (has(/\b(other|another|recommend|best|which one|suggest|first bike|beginner)\b/)) return `Every bike here has a plate with its engine, top speed and price. For a first bike the Streetfighter, the Café Racer and the White Sport Tourer are ${trText(1000 * TR)} each; the Chrome V-Concept on the turntable is our flagship.`;
+  if (has(/\b(other|another|recommend|best|which one|suggest|first bike|beginner)\b/)) return `Every bike here has a plate with its engine, top speed and price. For a first bike the Streetfighter, the Café Racer and the White Sport Tourer are ${trText(BIKE_FIRST.price)} each; the Chrome V-Concept on the turntable is our flagship.`;
   if (has(/\b(buy|take it|i want it|i'?ll take|purchase)\b/)) return `Good choice. Press Buy and it's yours for ${trText(price)}.`;
   if (has(/\b(thank|thanks|cheers|great|nice|cool|ok|okay|alright)\b/)) return `You're welcome! Take your time: I'm right here if you have any questions.`;
   if (has(/\b(hi|hello|hey|good (morning|afternoon|evening)|kedu|bawo|sannu)\b/)) return `Hello! What would you like to know about the ${name}? Its engine, its top speed, its price?`;
@@ -320,7 +322,7 @@ function carSalesmanReply(listing, text) {
   // ("motor" is not here: in town a motor is a car, and "how much is this motor?" asks its price)
   const aboutEngine = has(/\d\s*(cc|hp|bhp|litres?|liters?)\b|\b(cc|engines?|cylinders?|v6|v8|v10|v12|turbo\w*|power(ful)?|horse ?power|hp|bhp|torque|displacement|litres?|liters?|petrol|diesel)\b/);
   const aboutSpeed = has(/\d\s*(km|kmh|km\/h|mph)\b|\b(fast|faster|fastest|speed|top|km|kmh|km\/h|mph|quick|quicker|quickest|slow|slower)\b/);
-  // a sum is an offer; a figure under ten is not ("a 4x4?", "5 seats?"): no car here costs less than 2,000 TR
+  // a sum is an offer; a figure under ten is not ("a 4x4?", "5 seats?"): no car here costs less than 600 TR
   if (figure && Number(figure) >= 10 && !aboutEngine && !aboutSpeed) {
     const offered = Math.round(Number(figure) * TR);
     return offered < price ? `The ${name} is ${trText(price)}, the same for everyone: I can't take less. Press Buy when you're ready.` : `${trText(price)} it is. Press Buy to pay, and it's yours.`;
@@ -333,7 +335,7 @@ function carSalesmanReply(listing, text) {
     const remark = f.kmh >= CAR_FASTEST ? ': the fastest car in town' : f.kmh >= 300 ? ': one of the fastest cars on our floor' : f.kmh <= 170 ? ': one of the gentlest cars on our floor' : '';
     return `Flat out, the ${name} does about ${f.kmh} km/h${remark}.`;
   }
-  if (has(/\b(starter|arrival|pay with|payment|card|cash|wallet|afford|earned)\b/)) return `Earned TR pays for it. Arrival money doesn't buy a car: that's only for the town's charges and costs, and for a motorcycle. The ${name} is ${trText(price)}.`;
+  if (has(/\b(starter|arrival|pay with|payment|card|cash|wallet|afford|earned)\b/)) return `Any TR in your wallet pays for it, your arrival TR included: a car from the showroom is one thing arrival money can buy. The ${name} is ${trText(price)}.`;
   if (has(/\b(price|cost|costs|how much|expensive|cheap|tr)\b/)) return `The ${name} is ${trText(price)}. That's the showroom's price, the same for everyone.`;
   if (has(/\b(test|try|test drive|drive it|demo|spin)\b/)) return `Not off the floor, I'm afraid: the cars stay on their stands. Once it's yours: step outside, open Property on your phone and choose to drive it, and it's brought to you.`;
   if (has(/\b(deliver|delivery|collect|pick it up|where do i get|get it|bring|keys?)\b/)) return `Once it's yours: step outside, open Property on your phone and choose to drive it, and it's brought to you.`;
@@ -391,14 +393,14 @@ async function settle(tx, listing, offer, thread, amount) {
   };
   if (listing.status !== 'open' || listing.sold >= listing.stock) return decline('It has been sold.');
   let holdingId, serial = null, edition = null, starterBasis = 0;
-  const motorcycle = listing.category === 'motorcycle';
+  // a motorcycle or a car from its showroom: either may be paid for with starter TR (18 October 2026: a car too)
+  const vehicle = listing.category === 'motorcycle' || listing.category === 'car';
   let paidLegs = null, paidStarter = 0;
   if (listing.kind === 'primary') {
-    // (a motorcycle may be paid for with starter TR: what that much was is kept with it, so that selling it on
-    // gives back starter TR, not earned)
-    if (motorcycle) { const buyer = await wallet.walletOf(tx, offer.buyer_id, true); const paid = wallet.motorcycleLegs(buyer, amount); paidLegs = paid.legs; paidStarter = paid.drawn.starter; }
+    // (what of it was starter TR is kept with it, so that selling it on gives back starter TR, not earned)
+    if (vehicle) { const buyer = await wallet.walletOf(tx, offer.buyer_id, true); const paid = wallet.vehicleLegs(buyer, amount); paidLegs = paid.legs; paidStarter = paid.drawn.starter; }
     // (a motorcycle or a car is not one of a numbered edition: each is new from its showroom)
-    if (!motorcycle && listing.category !== 'car') { serial = listing.sold + 1; edition = listing.stock; }
+    if (!vehicle) { serial = listing.sold + 1; edition = listing.stock; }
     holdingId = (await tx.unsafe(`insert into ${S}.holdings (asset_id, owner_id, serial, edition, origin_listing, starter_basis) values ($1, $2, $3, $4, $5, $6) returning id`, [listing.asset_id, offer.buyer_id, serial, edition, listing.id, paidStarter]))[0].id;
   } else {
     // (what the seller's own purchase of it cost in arrival money, if it was bought before starter TR was kept apart)
@@ -421,12 +423,12 @@ async function settle(tx, listing, offer, thread, amount) {
   // the money, with the thing: in this same transaction, so that neither moves without the other
   const meta = { sale: sale.id, offer: offer.id, what: name, buyer: offer.buyer_id, seller: listing.seller_id || null, shop: listing.kind === 'primary' ? listing.shop_name : null };
   const held = Number(offer.held) || 0;
-  if (listing.kind === 'primary' && motorcycle) {
+  if (listing.kind === 'primary' && vehicle) {
     paidLegs.push({ wallet: await wallet.systemWallet(tx, 'world'), amount });
-    await wallet.post(tx, { kind: 'sale', actor: offer.buyer_id, key: `sale:${offer.id}`, note: `Bought: ${name}`, meta: { ...meta, starterFor: 'motorcycle', starter: paidStarter }, legs: paidLegs });
+    await wallet.post(tx, { kind: 'sale', actor: offer.buyer_id, key: `sale:${offer.id}`, note: `Bought: ${name}`, meta: { ...meta, starterFor: listing.category, starter: paidStarter }, legs: paidLegs });
   } else if (listing.kind === 'primary') {
-    // a thing to own is paid for with earned TR: the arrival money does not buy it (a car included: of the things to
-    // own, only a motorcycle may be bought with that)
+    // a thing to own is paid for with earned TR: the arrival money does not buy it (of the things to own, only a
+    // motorcycle or a car from its showroom may be bought with that)
     const buyer = await wallet.walletOf(tx, offer.buyer_id, true);
     wallet.mustBeEligible(buyer, amount, 'asset');
     const { legs } = wallet.eligibleLegs(buyer, amount);
@@ -495,8 +497,8 @@ async function offer(sql, me, body) {
     const mine = await wallet.walletOf(tx, me.id, true);
     // one of each motorcycle, and one of each car, to an account (new or second-hand)
     if ((listing.category === 'motorcycle' || listing.category === 'car') && (await tx.unsafe(`select 1 from ${S}.holdings where owner_id = $1 and asset_id = $2`, [me.id, listing.asset_id])).length) throw new ApiError(409, 'OWNED', `You already own the ${listing.asset_name}. One of each ${listing.category} to an account.`);
-    if (listing.kind === 'primary' && listing.category === 'motorcycle') {
-      // starter TR may buy a motorcycle: the whole balance counts
+    if (listing.kind === 'primary' && (listing.category === 'motorcycle' || listing.category === 'car')) {
+      // starter TR may buy a motorcycle or a car from its showroom: the whole balance counts
       const price = Number(listing.price);
       if (amount >= price && mine.balance < price) throw new ApiError(409, 'FUNDS', `You do not have that much. Your balance is ${trText(mine.balance)}.`, { balance: mine.balance });
     } else if (listing.kind === 'primary') {

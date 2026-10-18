@@ -22,7 +22,7 @@ async function buy(p, id, amount) {
   return p.call('market.offer', { thread: thread.id, offer: uuid(), amount: amount === undefined ? l.price : amount });
 }
 
-test('the showroom sells the seventeen motorcycles, each at the game\'s own price, from 1,000 TR up', async () => {
+test('the showroom sells the seventeen motorcycles, each at the game\'s own price, from 300 TR to 3,000 TR (the owner\'s prices of 18 October 2026)', async () => {
   const guest = person();
   const list = await showroom(guest);
   assert.equal(list.length, 17);
@@ -38,8 +38,9 @@ test('the showroom sells the seventeen motorcycles, each at the game\'s own pric
     assert.equal(l.shop, POWERBIKE.shop);
     assert.deepEqual([l.place.x, l.place.z], POWERBIKE_STANDS[id].slice(0, 2), id);
     assert.equal(l.place.label, 'PostCivilWar PowerBike, north of the motor park, Asaba');
-    assert.ok(l.price >= 1000 * TR);
+    assert.ok(l.price >= 300 * TR && l.price <= 3000 * TR, `${id}: ${l.price / TR} TR`);
   }
+  assert.deepEqual([Math.min(...list.map((l) => l.price)), Math.max(...list.map((l) => l.price))], [300 * TR, 3000 * TR]);
   // the server's own list and the game's agree
   assert.deepEqual(MOTORCYCLES.map((m) => [m.id, m.name, m.price]), Object.values(POWER_BIKES).map((b) => [b.id, b.name, b.price * TR]));
   // prices rise with the class, never fall
@@ -51,22 +52,22 @@ test('arrival money buys a motorcycle: once each, at the showroom\'s price, and 
   const p = await newPlayer('Rider');
   assert.deepEqual(await parts(p), { balance: 2000 * TR, starter: 2000 * TR, eligible: 0 });
   // below the price: refused, and nothing moves
-  const low = await buy(p, 'streetfighter', 900 * TR);
+  const low = await buy(p, 'streetfighter', 250 * TR);
   assert.equal(low.body.offer.status, 'declined');
   assert.equal((await parts(p)).balance, 2000 * TR);
   // more than the price pays the price and no more
-  const sold = await buy(p, 'streetfighter', 1200 * TR);
+  const sold = await buy(p, 'streetfighter', 400 * TR);
   assert.equal(sold.status, 200, JSON.stringify(sold.body));
   assert.equal(sold.body.offer.status, 'accepted');
-  assert.equal(sold.body.sale.amount, 1000 * TR);
-  assert.deepEqual(await parts(p), { balance: 1000 * TR, starter: 1000 * TR, eligible: 0 });
+  assert.equal(sold.body.sale.amount, 300 * TR);
+  assert.deepEqual(await parts(p), { balance: 1700 * TR, starter: 1700 * TR, eligible: 0 });
   // one of each to an account
   const again = await buy(p, 'streetfighter');
   assert.equal(again.body.code, 'OWNED');
-  // not more than there is
-  const dear = await buy(p, 'black-cruiser');
+  // not more than there is: the show machine is 3,000 TR
+  const dear = await buy(p, 'chrome-concept');
   assert.equal(dear.body.code, 'FUNDS');
-  assert.deepEqual(await parts(p), { balance: 1000 * TR, starter: 1000 * TR, eligible: 0 });
+  assert.deepEqual(await parts(p), { balance: 1700 * TR, starter: 1700 * TR, eligible: 0 });
   // the rest of the arrival money is as restricted as it was: no watch, no transfer
   const { thread } = await p.ok('market.open', { listing: HOLARIS.listing, at: NEAR_HOLARIS });
   assert.equal((await p.call('market.offer', { thread: thread.id, offer: uuid(), amount: 100 * TR })).body.code, 'STARTER_FUNDS');
@@ -95,35 +96,35 @@ test('asked for twice at once, a motorcycle is bought once', async () => {
   const answers = await Promise.all([p.call('market.offer', { thread: thread.id, offer: uuid(), amount: l.price }), p.call('market.offer', { thread: t2.id, offer: uuid(), amount: l.price })]);
   assert.equal(answers.filter((a) => a.body.ok && a.body.offer.status === 'accepted').length, 1, JSON.stringify(answers.map((a) => a.body.code || a.body.offer.status)));
   assert.equal((await p.ok('market.mine')).holdings.length, 1);
-  assert.equal((await parts(p)).balance, 1000 * TR);
+  assert.equal((await parts(p)).balance, 1700 * TR);
   await clean();
 });
 
 test('earned TR pays the rest; sold on, what starter TR paid comes back as starter TR', async () => {
   const seller = await earner('Seller', 4000);         // 2,000 TR starter and 2,000 TR earned
-  const sale = await buy(seller, 'black-cruiser');      // 1,500 TR: all of it starter
+  const sale = await buy(seller, 'black-cruiser');      // 450 TR: all of it starter
   assert.equal(sale.body.offer.status, 'accepted');
-  assert.deepEqual(await parts(seller), { balance: 2500 * TR, starter: 500 * TR, eligible: 2000 * TR });
-  const second = await buy(seller, 'purple-sport');     // 1,500 TR: 500 starter, then 1,000 earned
+  assert.deepEqual(await parts(seller), { balance: 3550 * TR, starter: 1550 * TR, eligible: 2000 * TR });
+  const second = await buy(seller, 'chrome-concept');   // 3,000 TR: 1,550 starter, then 1,450 earned
   assert.equal(second.body.offer.status, 'accepted');
-  assert.deepEqual(await parts(seller), { balance: 1000 * TR, starter: 0, eligible: 1000 * TR });
-  // sold on to another player for 1,600 TR: 1,500 of it is starter TR again
+  assert.deepEqual(await parts(seller), { balance: 550 * TR, starter: 0, eligible: 550 * TR });
+  // sold on to another player for 500 TR: 450 of it is starter TR again
   const holding = (await seller.ok('market.mine')).holdings.find((h) => h.asset.model === 'bike:black-cruiser');
-  const { listing } = await seller.ok('market.sell', { holding: holding.id, price: 1600 * TR, place: { x: 41, z: -10, label: 'Market Road' }, zone: 'NG-AN-OGB-Z1' });
+  const { listing } = await seller.ok('market.sell', { holding: holding.id, price: 500 * TR, place: { x: 41, z: -10, label: 'Market Road' }, zone: 'NG-AN-OGB-Z1' });
   const buyer = await earner('Buyer', 4000);
   const { thread } = await buyer.ok('market.open', { listing: listing.id, at: { x: 41, z: -11 } });
   const offerId = uuid();
-  await buyer.ok('market.offer', { thread: thread.id, offer: offerId, amount: 1600 * TR });
-  const done = await seller.ok('market.decide', { offer: offerId, accept: true, amount: 1600 * TR });
+  await buyer.ok('market.offer', { thread: thread.id, offer: offerId, amount: 500 * TR });
+  const done = await seller.ok('market.decide', { offer: offerId, accept: true, amount: 500 * TR });
   assert.equal(done.offer.status, 'accepted');
-  assert.deepEqual(await parts(seller), { balance: 2600 * TR, starter: 1500 * TR, eligible: 1100 * TR });
+  assert.deepEqual(await parts(seller), { balance: 1050 * TR, starter: 450 * TR, eligible: 600 * TR });
   assert.deepEqual((await buyer.ok('market.mine')).holdings.map((h) => h.asset.model), ['bike:black-cruiser']);
   // and someone who already has that motorcycle cannot buy a second one second-hand
-  const { listing: again } = await buyer.ok('market.sell', { holding: (await buyer.ok('market.mine')).holdings[0].id, price: 1700 * TR, place: { x: 41, z: -10, label: 'Market Road' }, zone: 'NG-AN-OGB-Z1' });
+  const { listing: again } = await buyer.ok('market.sell', { holding: (await buyer.ok('market.mine')).holdings[0].id, price: 550 * TR, place: { x: 41, z: -10, label: 'Market Road' }, zone: 'NG-AN-OGB-Z1' });
   const owner2 = await earner('Owner', 6000);
   assert.equal((await buy(owner2, 'black-cruiser')).body.offer.status, 'accepted');
   const t = (await owner2.ok('market.open', { listing: again.id, at: { x: 41, z: -11 } })).thread;
-  assert.equal((await owner2.call('market.offer', { thread: t.id, offer: uuid(), amount: 1700 * TR })).body.code, 'OWNED');
+  assert.equal((await owner2.call('market.offer', { thread: t.id, offer: uuid(), amount: 550 * TR })).body.code, 'OWNED');
   await clean();
 });
 
@@ -151,15 +152,16 @@ test('PostCivilWar PowerBike\'s salesman: says who he is, answers about the bike
   // asking costs nothing and buys nothing
   assert.deepEqual(await parts(p), { balance: 2000 * TR, starter: 2000 * TR, eligible: 0 });
   assert.equal((await p.ok('market.mine')).holdings.length, 0);
-  // the price is the price: Buy pays it, and it is theirs
+  // the price is the price: Buy pays it, and it is theirs (the superbike's 1,200 TR, out of the arrival money)
   const bought = await p.call('market.offer', { thread: thread.id, offer: uuid(), amount: l.price });
-  assert.equal(bought.body.code, 'FUNDS', `a ${price} bike is more than the arrival money`);
+  assert.equal(bought.body.offer.status, 'accepted', JSON.stringify(bought.body));
+  assert.deepEqual(await parts(p), { balance: 2000 * TR - l.price, starter: 2000 * TR - l.price, eligible: 0 });
   const cheap = (await showroom(p)).find((x) => x.asset.model === 'bike:white-sport');
   const second = await p.ok('market.open', { listing: cheap.id, at: { x: cheap.place.x, z: cheap.place.z - 1.6 } });
   assert.ok(second.messages[second.messages.length - 1].body.includes('500 cc'));
   const paid = await p.call('market.offer', { thread: second.thread.id, offer: uuid(), amount: cheap.price });
   assert.equal(paid.body.offer.status, 'accepted', JSON.stringify(paid.body));
-  assert.deepEqual((await p.ok('market.mine')).holdings.map((h) => h.asset.model), ['bike:white-sport']);
+  assert.deepEqual((await p.ok('market.mine')).holdings.map((h) => h.asset.model).sort(), ['bike:red-superbike', 'bike:white-sport']);
   await clean();
 });
 

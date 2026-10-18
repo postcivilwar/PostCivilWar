@@ -10,6 +10,11 @@
 // claimed about any bike's engine: the files say nothing of it, and neither does the game. A bike's handling
 // is set by its class in the same way.
 //
+// The owner's prices of 18 October 2026: from 300 TR for the lightest bikes to 3,000 TR for the show machine, every
+// bike in proportion to where it stood before (three tenths of its old price, its order kept), so that a newcomer's
+// 2,000 TR of arrival money buys any of them but the show machine; the server sells each at this price
+// (api/_lib/schema.js, migration 14; a test checks the two agree).
+//
 // An entry:
 //   id                      how the game knows it (and its model, assets/vehicles/bikes/<id>.glb)
 //   name                    what a player sees
@@ -23,11 +28,11 @@
 //   blurb                   a line for the market
 
 export const BIKE_TIERS = Object.freeze({
-  1: Object.freeze({ name: 'Entry', price: 1000 }),
-  2: Object.freeze({ name: 'Standard', price: 1500 }),
-  3: Object.freeze({ name: 'Premium', price: 2500 }),
-  4: Object.freeze({ name: 'Superbike', price: 4000 }),
-  5: Object.freeze({ name: 'Flagship', price: 6000 }),
+  1: Object.freeze({ name: 'Entry', price: 300 }),
+  2: Object.freeze({ name: 'Standard', price: 450 }),
+  3: Object.freeze({ name: 'Premium', price: 750 }),
+  4: Object.freeze({ name: 'Superbike', price: 1200 }),
+  5: Object.freeze({ name: 'Flagship', price: 1800 }),
 });
 
 const bike = (id, name, tier, length, sound, horn, handling, blurb, price = BIKE_TIERS[tier].price, cc = 0) => Object.freeze({ id, name, tier, price: price === undefined ? BIKE_TIERS[tier].price : price, cc, topKmh: topKmhOfCc(cc), length, sound, tone: Object.freeze(TONES[id] || {}), horn, handling: Object.freeze(handling), blurb });
@@ -79,7 +84,7 @@ export const POWER_BIKES = Object.freeze({
   'red-superbike': bike('red-superbike', 'Red Superbike', 4, 2.1, 'four1000', 'dual', withCc(2500, { leanMax: 0.7 }), 'A red superbike with a full race fairing.', undefined, 2500),
   'black-gold-superbike': bike('black-gold-superbike', 'Black & Gold Superbike', 4, 2.1, 'four1000', 'dual', withCc(2000, { leanMax: 0.7 }), 'A black superbike on gold wheels.', undefined, 2000),
   'gold-tourer': bike('gold-tourer', 'Gold Grand Tourer', 5, 2.55, 'vtwin1200', 'dual', withCc(2800, { leanMax: 0.5, wheelbase: 1.75 }), 'A full-dress touring bike in gold, with a fairing and hard luggage.', undefined, 2800),
-  'chrome-concept': bike('chrome-concept', 'Chrome V-Concept', 5, 2.6, 'four1000', 'dual', withCc(3000, { leanMax: 0.55, wheelbase: 1.9 }), 'A chrome show machine with twin wheels at each end and an engine down its length.', 10000, 3000),
+  'chrome-concept': bike('chrome-concept', 'Chrome V-Concept', 5, 2.6, 'four1000', 'dual', withCc(3000, { leanMax: 0.55, wheelbase: 1.9 }), 'A chrome show machine with twin wheels at each end and an engine down its length.', 3000, 3000),
   // the owner's three of 16 October 2026
   'gold-roadster': bike('gold-roadster', 'Gold Muscle Roadster', 4, 2.3, 'four1000', 'dual', withCc(2300, {}), 'A big gold muscle roadster with a three-pipe engine on show.', undefined, 2300),
   'black-bobber': bike('black-bobber', 'Black Bobber', 2, 2.3, 'vtwin1200', 'dual', withCc(1650, { leanMax: 0.5, wheelbase: 1.6 }), 'A black bobber with a fat front tyre, a solid tank and a low solo seat.', undefined, 1650),

@@ -19,6 +19,8 @@ import { loadBike } from './bike-model.js';
 import { CAR_PARTS } from './car-parts.js';
 import { loadCar } from './car-model.js';
 import { isLite } from './render-kit.js';
+import { PICTURES } from './budget.js';
+import { exactBox } from './bounds.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
 import { POWER_CARS } from '../sim/power-cars.js';
 
@@ -220,18 +222,19 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
     const model = ASSET_MODELS[modelId];
     if (!model) throw new Error('There is no model of that.');
     if (model.bike || model.car) {
-      // a motorcycle or a car: its own parts, at its real length, stood in the middle on its wheels
+      // a motorcycle or a car: its own parts, at its real length, stood in the middle on its wheels, with the pictures
+      // for looking at it close to (budget.js: its 4096 colour on a computer, the 2048 set on a phone)
       if (onProgress) onProgress(0, 1);
       const bike = model.car
-        ? await loadCar(model.car, { base: base || 'cars/', lite, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6, own: true })
-        : await loadBike(model.bike, { base: base || 'bikes/', lite, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1, own: true });
+        ? await loadCar(model.car, { base: base || 'cars/', lite, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6, own: true })
+        : await loadBike(model.bike, { base: base || 'bikes/', lite, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1, own: true });
       if (closed) { bike.dispose(); return null; }
       shownBike = bike;
       bike.pose({});
       // (its size is what is drawn of it: a lamp's glow or a flame that is not lit is left out)
-      const box = new THREE.Box3(), part = new THREE.Box3();
-      bike.group.updateMatrixWorld(true);
-      bike.group.traverseVisible((o) => { if (!o.isMesh || !o.geometry) return; if (!o.geometry.boundingBox) o.geometry.computeBoundingBox(); box.union(part.copy(o.geometry.boundingBox).applyMatrix4(o.matrixWorld)); });
+      const box = new THREE.Box3();
+      const isDrawn = (o) => { for (let x = o; x; x = x.parent) if (!x.visible) return false; return true; };
+      exactBox(bike.group, { only: isDrawn }, box);
       const centre = box.getCenter(new THREE.Vector3());
       bike.group.position.sub(centre);
       radius = box.getBoundingSphere(new THREE.Sphere()).radius;

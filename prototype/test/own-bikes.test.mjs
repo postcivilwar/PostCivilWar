@@ -7,13 +7,13 @@ import { POWER_BIKES, handlingOf, BIKE_CCS, topKmhOfCc, stepPowerBike, FASTEST }
 import { crashHarm, CRASH } from '../src/sim/own-bikes.js';
 import { BIKE_PARTS } from '../src/client/bike-parts.js';
 
-test('the seventeen motorcycles: each has its model\'s parts, a price from 1,000 TR, an engine size from the owner\'s list, and its own tuned engine', () => {
+test('the seventeen motorcycles: each has its model\'s parts, a price from 300 TR to 3,000 TR (the owner\'s of 18 October 2026), an engine size from the owner\'s list, and its own tuned engine', () => {
   const ids = Object.keys(POWER_BIKES);
   assert.equal(ids.length, 17);
   assert.deepEqual([...ids].sort(), Object.keys(BIKE_PARTS).sort());
   for (const id of ids) {
     const b = POWER_BIKES[id], parts = BIKE_PARTS[id];
-    assert.ok(b.price >= 1000, id);
+    assert.ok(b.price >= 300 && b.price <= 3000, id);
     assert.equal(parts.parts.length, 4, `${id}: body, fork, front wheel, rear wheel`);
     assert.equal(parts.parts.reduce((a, c) => a + c, 0), parts.triangles, `${id}: every triangle kept`);
     assert.ok(parts.front.z > 0 && parts.rear.z < 0 && parts.front.r > 0 && parts.rear.r > 0, `${id}: wheels`);

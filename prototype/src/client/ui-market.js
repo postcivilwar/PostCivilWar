@@ -286,7 +286,7 @@ export function createMarketUI(kit) {
     }
     if (carOf(l.asset.model)) {
       const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
-      root.append(h('p', { class: 'small', id: 'car-terms' }, owned ? 'You own this car. One of each to an account: drive yours from Property.' : 'A car is paid for with TR you have earned: arrival money does not buy a car. One of each car to an account.'));
+      root.append(h('p', { class: 'small', id: 'car-terms' }, owned ? 'You own this car. One of each to an account: drive yours from Property.' : l.kind === 'primary' ? 'A car may be paid for with any of your TR, the arrival money included. One of each car to an account.' : 'Bought from another player, a car is paid for with TR you have earned.'));
     }
     const self = app.view().self;
     const far = Math.round(Math.hypot(l.place.x - self.x, l.place.z - self.z));
@@ -560,7 +560,7 @@ export function createMarketUI(kit) {
     else if (offer) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Your offer is with the seller'), h('b', null, tr(offer.amount))),
       h('button', { class: 'hx small', type: 'button', id: 'deal-withdraw', disabled: d.busy, onclick: async () => { d.busy = true; drawDeal(); await market().withdraw(offer.id); d.busy = false; await poll(d); drawDeal(); } }, 'Withdraw'));
     else if (d.thread.automatic) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Price'), h('b', null, tr(l.price))),
-      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: l.asset && l.asset.category === 'motorcycle' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a motorcycle.` : l.asset && l.asset.category === 'car' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR, which is what pays for a car.` : `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
+      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: l.asset && l.asset.category === 'motorcycle' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a motorcycle.` : l.asset && l.asset.category === 'car' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a car.` : `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
     else {
       const amount = h('input', { class: 'field', id: 'deal-amount', type: 'number', inputmode: 'decimal', min: '0.5', step: '0.5', value: d.amount || trPlain(l.price), 'aria-label': 'Your offer in TR' });
       amount.addEventListener('input', () => { d.amount = amount.value; });
