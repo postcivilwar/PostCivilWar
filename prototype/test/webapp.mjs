@@ -61,8 +61,10 @@ const context = await chromium.launchPersistentContext(profile, {
 });
 const page = context.pages()[0] || await context.newPage();
 page.setDefaultTimeout(120000);
-let offline = false;
-page.on('console', (m) => { if (m.type() === 'error') bad(`console${offline ? ' (offline)' : ''}: ${m.text()}`); });
+let offline = false, cutting = false;
+// (the browser's own line for a request cut off as the connection went is weighed against those requests below)
+let cutOff = 0, cutLines = 0;
+page.on('console', (m) => { if (m.type() !== 'error') return; if (/^Failed to load resource: net::ERR_INTERNET_DISCONNECTED$/.test(m.text())) { cutLines += 1; return; } bad(`console${offline ? ' (offline)' : ''}: ${m.text()}`); });
 page.on('pageerror', (e) => bad(`page error: ${e.message}`));
 // (a question to the game's server that the page was asking as it was navigated away from is not a failure of anything;
 // nor is a file that was still coming when the connection was taken away, and the page reloaded: the game asking, with
@@ -72,10 +74,18 @@ page.on('request', (r) => { if (offline) begunOffline.add(r); });
 page.on('requestfailed', (r) => {
   const why = r.failure() ? r.failure().errorText : '';
   if (/\/api\/game$/.test(r.url()) && why === 'net::ERR_ABORTED') return;
-  if (offline && !begunOffline.has(r)) { say(`   (still coming when the connection went, and cut off: ${r.url()}, ${why})`); return; }
+  if ((offline || cutting) && !begunOffline.has(r)) { cutOff += 1; say(`   (still coming when the connection went, and cut off: ${r.url()}, ${why})`); return; }
   bad(`request failed${offline ? ' (offline)' : ''}: ${r.url()} (${why})`);
 });
 
+// Taking the connection away. What the page had begun asking as it went is cut off, which is not the page asking for
+// what it cannot have: it is held to that once it has been told the connection is gone (navigator.onLine).
+const goOffline = async () => {
+  serverUp = false; cutting = true;
+  await context.setOffline(true);
+  await page.waitForFunction(() => navigator.onLine === false, null, { timeout: 10000 }).catch(() => {});
+  offline = true; cutting = false;
+};
 // the game's own word that the town is made and can be entered (the button exists before the game has started)
 const townReady = () => page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
 const figureHere = (id) => page.evaluate((which) => Promise.resolve(window.__PCW_FIGURE_BYTES[which]).then((b) => b.byteLength, (e) => `failed: ${e.message}`), id);
@@ -170,8 +180,7 @@ await page.evaluate(() => { window.__nlw.saveNow(); });
 
 // ---- 4. no connection: the game still opens, with the player's character ----
 say('4. no connection');
-serverUp = false; offline = true;
-await context.setOffline(true);
+await goOffline();
 const before = sent.length;
 await page.goto(`${origin}/`, { timeout: 300000 }).catch((e) => bad(`with no connection the page did not open: ${e.message}`));
 await page.waitForSelector('#intro[data-stage="splash"] .wordmark', { timeout: 120000 }).catch(() => bad('with no connection the opening did not appear'));
@@ -211,8 +220,7 @@ await townReady();
 if (bytesOf('/three.min.js') !== sentBefore.three || bytesOf('/woman.b64.txt') !== sentBefore.woman) bad('a file that had not changed was sent again');
 await page.waitForTimeout(1500);
 // and without one, the newest it has seen
-serverUp = false; offline = true;
-await context.setOffline(true);
+await goOffline();
 await page.reload({ timeout: 300000 }).catch((e) => bad(`offline after an update: ${e.message}`));
 const buildOff = await page.evaluate(() => (document.querySelector('meta[name=pcw-build]') || {}).content || null);
 if (buildOff !== 'two') bad(`with no connection the page was not the newest seen (${buildOff})`);
@@ -224,6 +232,7 @@ server.close();
 await require('../../api/_lib/db.js').closeDatabase();
 rmSync(profile, { recursive: true, force: true });
 say(`sent in full by the server: the page ${bytesOf('/')} times, the 3D library ${bytesOf('/three.min.js')}, the woman ${bytesOf('/woman.b64.txt')}, the man ${bytesOf('/man.b64.txt')}`);
+if (cutLines > cutOff) bad(`the browser said ${cutLines} request(s) failed with no connection, ${cutLines - cutOff} more than were cut off as it went`);
 if (problems.length) { console.log(`\n${problems.length} problem(s):`); for (const p of problems) console.log(` - ${p}`); process.exit(1); }
 console.log('\nThe website installs, keeps itself, asks for an account, and then plays with no connection.');
 process.exit(0);
