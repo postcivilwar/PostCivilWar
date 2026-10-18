@@ -49,7 +49,12 @@ check('on the pavement the walker stands a kerb above the road', Math.abs(up.fee
 // (every frame's time written down while walking, and who was near on the way: a failure says whether the walk was
 // slowed by slow frames or stopped by someone in the way)
 await page.evaluate(() => { const rec = window.__walkFrames = { t: [], stop: false }; let last = 0; const step = (now) => { if (rec.stop) return; if (last) rec.t.push(Math.round(now - last)); last = now; requestAnimationFrame(step); }; requestAnimationFrame(step); });
-await page.keyboard.down('w'); await page.waitForTimeout(2500); await page.keyboard.up('w');
+// (walked until two metres on, or for as long as twenty seconds: without a graphics card a frame here takes seconds,
+// and the game moves the walker by at most half a second's walk a frame, so a fixed time held says nothing; something
+// in the way would hold the walker short however long it is held)
+await page.keyboard.down('w');
+await page.waitForFunction(() => window.__nlw.view.self.z > -8, null, { timeout: 20000 }).catch(() => {});
+await page.keyboard.up('w');
 const walked = await page.evaluate(() => {
   const n = window.__nlw, s = n.view.self, rec = window.__walkFrames; rec.stop = true;
   const near = (n.view.people || []).concat(n.view.residents || [], n.view.players || []).filter((q) => q && Number.isFinite(q.x) && Math.hypot(q.x - s.x, q.z - s.z) < 2).map((q) => [+q.x.toFixed(2), +q.z.toFixed(2)]);
