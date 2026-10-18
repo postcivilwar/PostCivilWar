@@ -128,7 +128,7 @@ const settled = async (at, limit = 600000) => {
   const t0 = Date.now();
   let got = null;
   while (Date.now() - t0 < limit) {
-    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.powerbike.shown(), state: n.powerbike.models(), level: n.quality, lite: !!n.lite }; });
+    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.powerbike.shown(), state: n.powerbike.models(), level: n.quality, lite: !!n.lite, sun: n.sunShadows }; });
     // (each with what its distance asks for, or a set it already had that it keeps while it is within a quarter of
     // that set's distance again: hall-models.js gives a vehicle a smaller set only once it is clearly further off, so
     // that nothing flickers between two sets at the edge of one)
@@ -150,8 +150,9 @@ check('every motorcycle is the owner\'s model, drawn with the pictures its dista
 // the sun's shadow: cast by the bikes near the player (within 7 m of a stand, kept to 8.5 m; a little either side of
 // those is not judged, the player's own place being a few centimetres from where it was put), every other with the
 // soft shadow under it that a picture has (the sun's shadow is drawn from the whole hall at once, every model whole)
-const shadowsOk = (at, shown) => shown.every((d, k) => { const p = POWERBIKE.displays[k]; const gap = Math.max(0, Math.hypot(p.x - at.x, p.z - at.z) - p.r); return d.soft === !d.casts && (!d.model ? !d.casts : gap < 6.8 ? d.casts : gap > 8.7 ? !d.casts : true); });
-check('only the motorcycles near the player cast the sun\'s shadow; the others have a soft shadow under them', shadowsOk(FLOOR, floor.shown) && floor.shown.some((d) => d.casts), floor.shown.map((d) => `${d.bike}:${d.casts ? 'casts' : d.soft ? 'soft' : 'none'}`));
+// (with the sun's shadows given up, on a device that is struggling, none casts and every one has the soft shadow)
+const shadowsOk = (at, shown, sun) => shown.every((d, k) => { const p = POWERBIKE.displays[k]; const gap = Math.max(0, Math.hypot(p.x - at.x, p.z - at.z) - p.r); return d.soft === !d.casts && (!d.model || !sun ? !d.casts : gap < 6.8 ? d.casts : gap > 8.7 ? !d.casts : true); });
+check('only the motorcycles near the player cast the sun\'s shadow; the others have a soft shadow under them', shadowsOk(FLOOR, floor.shown, floor.sun) && (!floor.sun || floor.shown.some((d) => d.casts)), { sun: floor.sun, shadows: floor.shown.map((d) => `${d.bike}:${d.casts ? 'casts' : d.soft ? 'soft' : 'none'}`) });
 const camInside = await page.evaluate(() => { const c = window.__nlw.camera.position; return [c.x, c.y, c.z]; });
 check('the camera is inside the hall', camInside[0] > -78.6 && camInside[0] < -45.4 && camInside[2] > 27.6 && camInside[2] < 53.9 && camInside[1] < 6.6, camInside);
 await shot('05-the-floor');

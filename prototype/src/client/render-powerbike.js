@@ -546,7 +546,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
   // on a phone, across the hall). `level`: how much the device is struggling (0 not at all): the largest pictures are
   // given up first. The bikes within SHADOW_NEAR metres of the player cast the sun's shadow (hall-models.js says why).
   const SHADOW_NEAR = 7, SHADOW_KEEP = 8.5;
-  function updateDisplays(dt, { eye, player, now, level = 0 }) {
+  function updateDisplays(dt, { eye, player, now, level = 0, sun = true }) {
     const gaps = displays.map((d) => Math.max(0, Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r));
     const clock = performance.now() / 1000;          // (seconds, for how long things have waited: not the town's clock)
     models.update({ gaps, now: clock, mode: 'inside', level });
@@ -558,7 +558,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
       const shown = !!d.model;
       // (the sun's shadow is cast only by the bikes near the player, kept a little further than it is begun so that it
       // does not come and go at the edge; the others have the soft shadow under them that their pictures have)
-      d.casts = shown && gaps[k] < (d.casts ? SHADOW_KEEP : SHADOW_NEAR);
+      d.casts = sun && shown && gaps[k] < (d.casts ? SHADOW_KEEP : SHADOW_NEAR);
       castShadows(d.model, d.casts);
       const casts = d.casts;
       d.picture.visible = !shown;
@@ -607,9 +607,9 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
     },
     // the first time someone comes near, the hall is made (so that stepping in does not wait for it)
     near(x, z) { if (!hall && Math.hypot(x - P.portal.x, z - P.portal.z) < 45) ensureHall(); },
-    tick(dt, { eye, player, now, level = 0 }) {
+    tick(dt, { eye, player, now, level = 0, sun = true }) {
       if (!inside && Math.hypot(player.x - P.portal.x, player.z - P.portal.z) < 110) portal.tick(dt);
-      if (inside && hall) updateDisplays(dt, { eye, player, now, level });
+      if (inside && hall) updateDisplays(dt, { eye, player, now, level, sun });
       else prepare(player);
     },
     // for the checks: what is drawn as a model (with which pictures) and what as a picture

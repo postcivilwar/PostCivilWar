@@ -3003,10 +3003,10 @@ blood.update(dt, view.blood || []);
     const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0);
     // (the motorcycles in the hall, each its model with the pictures its distance asks for: smaller ones on a device
     // that is struggling; made ready as the player comes up to the doors, let go once the player is well away)
-    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level });
+    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level, sun: sky.sun.castShadow });
     // (the car showroom: its gate as far open as the town has it, its doors, its cameras, its flags; in its hall the
     // cars, as the motorcycles are in theirs)
-    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.level });
+    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.level, sun: sky.sun.castShadow });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
@@ -3140,7 +3140,7 @@ blood.update(dt, view.blood || []);
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
-    get quality() { return quality.level; }, governor, scene, renderer, world, warmUp, get ready() { return isReady; },
+    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, world, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },

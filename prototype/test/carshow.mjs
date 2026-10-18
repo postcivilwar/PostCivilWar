@@ -172,7 +172,7 @@ const settled = async (at, limit = 900000) => {
   const t0 = Date.now();
   let got = null;
   while (Date.now() - t0 < limit) {
-    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.carshowView.shown(), state: n.carshowView.models(), level: n.quality, lite: !!n.lite }; });
+    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.carshowView.shown(), state: n.carshowView.models(), level: n.quality, lite: !!n.lite, sun: n.sunShadows }; });
     // (each with what its distance asks for, or a set it already had that it keeps while it is within a quarter of
     // that set's distance again: hall-models.js gives a vehicle a smaller set only once it is clearly further off, so
     // that nothing flickers between two sets at the edge of one)
@@ -193,8 +193,9 @@ check('every car is the owner\'s model, drawn with the pictures its distance fro
   { ok: floor.ok, level: floor.level, lite: floor.lite, drawn: floor.shown.map((d) => `${d.car}:${d.model ? d.tier : 'picture'}`), asked: floor.want, state: floor.state });
 // the sun's shadow: cast by the cars near the player (within 12 m of a stand, kept to 14 m); every car has a soft
 // shadow under it as well (the sun's shadow is drawn from the whole hall at once, every model in it whole)
-const carShadowsOk = floor.shown.every((d, k) => { const p = CARSHOW.displays[k]; const gap = Math.max(0, Math.hypot(p.x - FLOOR.x, p.z - FLOOR.z) - p.r); return d.soft && (!d.model ? !d.casts : gap < 11.8 ? d.casts : gap > 14.2 ? !d.casts : true); });
-check('only the cars near the player cast the sun\'s shadow; every car has a soft shadow under it', carShadowsOk && floor.shown.some((d) => d.casts) && floor.shown.some((d) => d.model && !d.casts), floor.shown.map((d) => `${d.car}:${d.casts ? 'casts' : d.soft ? 'soft' : 'none'}`));
+// (with the sun's shadows given up, on a device that is struggling, none casts)
+const carShadowsOk = floor.shown.every((d, k) => { const p = CARSHOW.displays[k]; const gap = Math.max(0, Math.hypot(p.x - FLOOR.x, p.z - FLOOR.z) - p.r); return d.soft && (!d.model || !floor.sun ? !d.casts : gap < 11.8 ? d.casts : gap > 14.2 ? !d.casts : true); });
+check('only the cars near the player cast the sun\'s shadow; every car has a soft shadow under it', carShadowsOk && (!floor.sun || (floor.shown.some((d) => d.casts) && floor.shown.some((d) => d.model && !d.casts))), { sun: floor.sun, shadows: floor.shown.map((d) => `${d.car}:${d.casts ? 'casts' : d.soft ? 'soft' : 'none'}`) });
 const camInside = await page.evaluate(() => { const c = window.__nlw.camera.position; return [c.x, c.y, c.z]; });
 check('the camera stays inside the hall, under its ceiling', camInside[0] > HALL.x0 && camInside[0] < HALL.x1 && camInside[2] > HALL.z0 && camInside[2] < HALL.z1 && camInside[1] < 7.2, camInside);
 await shot('07-the-floor');

@@ -809,7 +809,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   // on a phone, across the hall). `level`: how much the device is struggling (0 not at all): the largest pictures are
   // given up first. The cars within SHADOW_NEAR metres of the player cast the sun's shadow (hall-models.js says why).
   const SHADOW_NEAR = 12, SHADOW_KEEP = 14;
-  function updateDisplays(dt, { eye, player, now, level = 0 }) {
+  function updateDisplays(dt, { eye, player, now, level = 0, sun = true }) {
     const clock = performance.now() / 1000;          // (seconds, for how long things have waited: not the town's clock)
     const gaps = displays.map((d) => Math.max(0, Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r));
     models.update({ gaps, now: clock, mode: 'inside', level });
@@ -820,7 +820,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
       const shown = !!d.model;
       // (the sun's shadow is cast only by the cars near the player, kept a little further than it is begun so that it
       // does not come and go at the edge; every car has the soft shadow under it as well)
-      d.casts = shown && gaps[k] < (d.casts ? SHADOW_KEEP : SHADOW_NEAR);
+      d.casts = sun && shown && gaps[k] < (d.casts ? SHADOW_KEEP : SHADOW_NEAR);
       castShadows(d.model, d.casts);
       d.picture.visible = !shown;
       if (!shown) {
@@ -868,7 +868,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
     near(x, z) { if (!hall && Math.hypot(x - P.doors.x, z - P.doors.z) < 60) { ensureOutside(); ensureHall(); } },
     // each frame: the gate (how far open the simulation has it, eased), the doors (open while someone is at them),
     // the cameras, the flags; inside, the cars
-    tick(dt, { eye, player, now, people = [], gateOpen = 0, level = 0 }) {
+    tick(dt, { eye, player, now, people = [], gateOpen = 0, level = 0, sun = true }) {
       const nearCompound = !!court && Math.hypot(player.x - G.x, player.z - (C.z0 + C.z1) / 2) < 420;
       // The villa is two million triangles, two hundred times the other buildings: it is drawn from its model by
       // whoever is near enough to see it as more than a white house among palms (VILLA_SIGHT), and as its plain
@@ -889,7 +889,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
         turnCameras(cams, dt, now, people);
         if (!lite || Math.round(now * 30) % 2 === 0) waveFlags(court.flags, now);
       }
-      if (inside && hall) updateDisplays(dt, { eye, player, now, level });
+      if (inside && hall) updateDisplays(dt, { eye, player, now, level, sun });
       else prepare(player);
     },
     gateBoxes: () => carshowGateBoxes(gateShown),
