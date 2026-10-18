@@ -10,7 +10,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
-import { pastQuestion, enterTown } from './start.mjs';
+import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 import { TOWN_MODELS, TOWN_TOWERS } from '../src/sim/zones/town-buildings.js';
 import { ZONE_HOUSES } from '../src/sim/zone.js';
 const require = createRequire(import.meta.url);
@@ -25,6 +25,7 @@ const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable
 const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(ok ? 'ok  ' : 'FAIL', name, detail === undefined ? '' : JSON.stringify(detail)); };
 const context = await browser.newContext({ viewport: { width: 1000, height: 640 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+await watchPictures(context);
 const page = await context.newPage(); page.setDefaultTimeout(300000);
 page.on('pageerror', (e) => check('no error in the page', false, e.message));
 await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
@@ -155,6 +156,7 @@ for (const [name, x, z, h, cam] of views) {
 }
 console.log('drawn', JSON.stringify(drawn));
 
+{ const lost = await lostPictures(page); check('no picture was handed to the graphics card after the page had let it go of it (no vehicle or building drawn black)', lost === 0, lost); }
 const passed = results.filter(Boolean).length;
 console.log(`${passed} of ${results.length} checks passed`);
 await browser.close();

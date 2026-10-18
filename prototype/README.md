@@ -1841,6 +1841,14 @@ the player (within 7 m of a motorcycle's stand, 12 m of a car's) cast the sun's 
 under them that their pictures always had. The sun's shadow is drawn from the whole hall at once, every vehicle in it
 whole wherever the player looks, so every model casting it was most of what a frame in a hall cost.
 
+**Vehicles drawn black.** Walking about a hall, many of its motorcycles were drawn solid black. A vehicle's set of
+pictures was counted as wanted only once it had come; while it was still on its way, another vehicle being put away
+let go of every set nobody was counted as drawing, this one included, and it then came with its pictures already
+given up (the page lets its own copy of a picture go once the graphics card has it, so one handed over again is
+empty). Now a set is counted as wanted from the moment it is asked for (`bike-model.js`, `car-model.js`). The browser
+tests now watch every picture handed to the graphics card for one the page had already let go (`test/start.mjs`,
+`watchPictures`), so a vehicle or building drawn black fails them.
+
 ### The driver at the wheel (`tools/vehicles/driver_seats.py`, `src/client/car-view.js`)
 
 Most of the owner's cars are a closed shell, their windows painted on and nothing inside: no one in them can be seen,

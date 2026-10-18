@@ -213,10 +213,14 @@ function lampsOf(spec, frame) {
 // road on this kind of device); `own`: a copy of its own, for a renderer other than the town's (the market's viewer).
 export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = null, own = false } = {}) {
   const set = tierOf(lite, tier);
-  const parts = await partsOf(id, { base, lite, tier: set, own });
-  const { spec, geometries, material } = parts;
   const key = `${id}:${set}`;
+  // (counted as wanted from the moment it is asked for, not once it has come: a set still on its way, with nobody yet
+  // counted as drawing it, was let go by another car being put away meanwhile, and came with its pictures already
+  // given up: a car drawn black)
   if (!own) users.set(key, (users.get(key) || 0) + 1);
+  let parts;
+  try { parts = await partsOf(id, { base, lite, tier: set, own }); } catch (error) { if (!own) { users.set(key, users.get(key) - 1); trim(); } throw error; }
+  const { spec, geometries, material } = parts;
   if (!own && cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
   let held = true;
   const scale = length / spec.length;

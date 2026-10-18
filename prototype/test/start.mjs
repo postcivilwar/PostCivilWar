@@ -46,3 +46,23 @@ export const overTown = () => {
 
 // The opening is over and put away (it is hidden, not removed: the question may be asked later).
 export const openingOver = () => { const i = document.querySelector('#intro'); return !i || i.hidden; };
+
+// Every picture handed to the graphics card, watched for one the page had already let go of (glb.js lets a picture's
+// own copy go once the card has it: handed over again after that, it is empty, and what it covers is drawn black).
+// Call on a browser context before its pages open; `lostPictures(page)` then gives how many there have been.
+export async function watchPictures(context) {
+  await context.addInitScript(() => {
+    window.__lostPictures = 0;
+    for (const C of [window.WebGLRenderingContext, window.WebGL2RenderingContext]) {
+      if (!C) continue;
+      for (const name of ['texImage2D', 'texSubImage2D']) {
+        const orig = C.prototype[name];
+        C.prototype[name] = function (...args) {
+          for (const a of args) if (typeof ImageBitmap !== 'undefined' && a instanceof ImageBitmap && (a.width === 0 || a.height === 0)) window.__lostPictures += 1;
+          return orig.apply(this, args);
+        };
+      }
+    }
+  });
+}
+export const lostPictures = (page) => page.evaluate(() => window.__lostPictures || 0);

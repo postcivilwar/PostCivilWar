@@ -24,7 +24,7 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { createDevServer } from '../../server/dev.mjs';
-import { pastQuestion, enterTown } from './start.mjs';
+import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 import { CARSHOW } from '../src/sim/zones/asaba-carshow.js';
 import { HALL as SETS } from '../src/client/budget.js';
 const require = createRequire(import.meta.url);
@@ -44,6 +44,7 @@ const tag = Math.random().toString(36).slice(2, 6);
 
 
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+await watchPictures(context);
 const page = await context.newPage(); page.setDefaultTimeout(240000);
 page.on('pageerror', (e) => check('no error in the page', false, e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check('no error in the console', false, m.text()); });
@@ -413,6 +414,7 @@ const gone = await page.evaluate(() => ({ keys: window.__nlw.carView.keys(), hea
 check('out of it, their car is no longer driven here and its engine is let go; it is seen standing where they left it', !gone.keys.some((k) => k.startsWith('peer:')) && gone.heard === 0 && gone.keys.some((k) => k.startsWith('cpark:') && k.endsWith(':red-winged-supercar')), gone);
 
 await page.evaluate(() => { const n = window.__nlw; if (n.view.self.incar) n.server.send({ type: 'car.leave' }); });
+{ const lost = await lostPictures(page); check('no picture was handed to the graphics card after the page had let it go of it (no vehicle or building drawn black)', lost === 0, lost); }
 await browser.close();
 server.close();
 const failed = results.filter((r) => !r).length;

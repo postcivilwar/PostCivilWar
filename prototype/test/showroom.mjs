@@ -21,7 +21,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
-import { pastQuestion, enterTown } from './start.mjs';
+import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 import { POWERBIKE } from '../src/sim/zones/atani-powerbike.js';
 import { HALL } from '../src/client/budget.js';
 const require = createRequire(import.meta.url);
@@ -37,6 +37,7 @@ const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(ok ? 'ok  ' : 'FAIL', name, detail === undefined ? '' : JSON.stringify(detail)); };
 
 const context = await browser.newContext({ viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+await watchPictures(context);
 const page = await context.newPage(); page.setDefaultTimeout(240000);
 page.on('pageerror', (e) => check('no error in the page', false, e.message));
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check('no error in the console', false, m.text()); });
@@ -391,6 +392,7 @@ await page.waitForFunction(() => window.__nlw.powerbike.models().tiers.every((t)
 const away = await page.evaluate(() => ({ state: window.__nlw.powerbike.models(), held: window.__nlw.bikesHeld ? window.__nlw.bikesHeld() : null }));
 check('just outside the doors the models are kept (for stepping back in); gone well away from the doors, every one is let go', kept > 0 && away.state.tiers.every((t) => !t) && away.state.running === 0 && away.state.waiting === 0, { kept, ...away });
 
+{ const lost = await lostPictures(page); check('no picture was handed to the graphics card after the page had let it go of it (no vehicle or building drawn black)', lost === 0, lost); }
 await browser.close();
 server.close();
 const failed = results.filter((r) => !r).length;

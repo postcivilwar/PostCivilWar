@@ -14,7 +14,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
-import { pastQuestion, enterTown } from './start.mjs';
+import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
@@ -30,6 +30,7 @@ const LATENCY = 220;          // ms each way
 
 async function player(label, size) {
   const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1, serviceWorkers: 'block' });
+  await watchPictures(context);
   const page = await context.newPage(); page.setDefaultTimeout(240000);
   page.on('pageerror', (e) => check(`no error in ${label}'s page`, false, `${e.message} ${(e.stack || '').split('\n').slice(0, 4).join(' | ')}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check(`no error in ${label}'s console`, false, m.text()); });
@@ -221,6 +222,7 @@ await B.page.waitForTimeout(800);
 const gone = await B.page.evaluate((id) => ({ kekes: window.__nlw.peerKekes.size, bayShown: window.__nlw.vehicleActors.get(id) ? window.__nlw.vehicleActors.get(id).group.visible : null }), hired.id);
 check('when the driver has gone off, nothing of theirs is left drawn, and the hire fleet\'s keke is in its bay again', gone.kekes === 0, gone);
 
+{ const lost = (await lostPictures(A.page)) + (await lostPictures(B.page)); check('no picture was handed to the graphics card after the page had let it go of it (no vehicle or building drawn black)', lost === 0, lost); }
 const failed = results.filter((r) => !r).length;
 console.log(failed ? `\n${failed} of ${results.length} checks failed` : `\nAll ${results.length} checks passed.`);
 await browser.close(); server.close();
