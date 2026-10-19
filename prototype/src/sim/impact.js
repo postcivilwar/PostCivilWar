@@ -384,9 +384,10 @@ export function createImpact({ state, players, population, actors, conflict, tal
     if (p.involvedNpc && book.npc[p.involvedNpc.i]) involved.push({ kind: 'npc', id: p.involvedNpc.i, name: p.involvedNpc.name, health: book.npc[p.involvedNpc.i].health, dead: !!book.npc[p.involvedNpc.i].dead });
     return {
       // (how long ago it began, how long on the ground and getting up, and from where: the page shows the fall and
-      // the getting up from these, falls.js, and tells other players' pages, link.js)
-      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h, ...(p.down.by === 'crash' ? { by: 'crash' } : {}), age: Math.max(0, Number((now - p.down.at).toFixed(3))), lie: Number((p.down.until - p.down.at).toFixed(3)), rise: Number((p.down.upAt - p.down.until).toFixed(3)), hard: !!p.down.hard || (p.down.into || 0) > 9, from: p.down.from ? { x: Math.round(p.down.from.x * 100) / 100, z: Math.round(p.down.from.z * 100) / 100 } : null, over: p.down.over || null } : null,
-      dead: p.dead ? { by: p.dead.byName, left: Math.max(0, Math.ceil(p.dead.wakeAt - now)), vehicle: p.dead.vehicle, age: Math.max(0, Number((now - p.dead.at).toFixed(3))) } : null,
+      // the getting up from these, falls.js, and tells other players' pages, link.js; `id`, this fall's own number,
+      // so that every word of it is known for the same fall however late it comes)
+      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h, ...(p.down.by === 'crash' ? { by: 'crash' } : {}), age: Math.max(0, Number((now - p.down.at).toFixed(3))), lie: Number((p.down.until - p.down.at).toFixed(3)), rise: Number((p.down.upAt - p.down.until).toFixed(3)), hard: !!p.down.hard || (p.down.into || 0) > 9, from: p.down.from ? { x: Math.round(p.down.from.x * 100) / 100, z: Math.round(p.down.from.z * 100) / 100 } : null, over: p.down.over || null, id: Math.round(p.down.at * 100) } : null,
+      dead: p.dead ? { by: p.dead.byName, left: Math.max(0, Math.ceil(p.dead.wakeAt - now)), vehicle: p.dead.vehicle, age: Math.max(0, Number((now - p.dead.at).toFixed(3))), id: Math.round(p.dead.at * 100) } : null,
       involved,
     };
   }

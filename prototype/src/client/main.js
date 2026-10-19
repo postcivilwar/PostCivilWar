@@ -441,7 +441,8 @@ function start(carried) {
   let builtForCamera = [];
   const builtAt = (x, z, y) => { if (y > 3.4) return false; for (const b of builtForCamera) if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > b.z0 - 0.25 && z < b.z1 + 0.25) return true; return false; };
   const rig = createCameraRig(camera, {
-    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25)) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
+    // (a roadblock or the fence at the edge of the land is low: the camera looks over it)
+    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
     tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
   });

@@ -490,13 +490,16 @@ export function createCrowd(scene) {
       let fallPlace = null;
       if (pd) {
         if (other.fallFacing === null || other.fallFacing === undefined) other.fallFacing = other.h;
-        const ds = { ...pd, facing: other.fallFacing, to: { x: q.x, z: q.z }, lie: pd.kind === 'dead' ? 1e6 : pd.lie || 2.4, rise: pd.kind === 'dead' ? 0 : pd.rise || 2.7, thrown: pd.from ? Math.hypot(q.x - pd.from.x, q.z - pd.from.z) : 1 };
+        // (where they lie: as their game said at the first word of the fall; they may be up and away on their own
+        // screen while the getting up is still shown here)
+        const lies = pd.at && Number.isFinite(pd.at.x) ? pd.at : { x: q.x, z: q.z };
+        const ds = { ...pd, facing: other.fallFacing, to: lies, lie: pd.kind === 'dead' ? 1e6 : pd.lie || 2.4, rise: pd.kind === 'dead' ? 0 : pd.rise || 2.7, thrown: pd.from ? Math.hypot(lies.x - pd.from.x, lies.z - pd.from.z) : 1 };
         other.rig.downState = ds;
         if (pd.from && pd.kind !== 'dead' && ds.age < fallTime(ds)) {
           if (pd.kind === 'crash') fallPlace = flightAt(ds, ds.age, zoneGroundY(pd.from.x, pd.from.z));
-          else { const u = Math.min(1, ds.age / fallTime(ds)), e = u * u * (3 - 2 * u); fallPlace = { x: pd.from.x + (q.x - pd.from.x) * e, z: pd.from.z + (q.z - pd.from.z) * e }; }
+          else { const u = Math.min(1, ds.age / fallTime(ds)), e = u * u * (3 - 2 * u); fallPlace = { x: pd.from.x + (lies.x - pd.from.x) * e, z: pd.from.z + (lies.z - pd.from.z) * e }; }
         }
-        const at = fallPlace || q;
+        const at = fallPlace || lies;
         other.x = at.x; other.z = at.z; gap = 0;
       } else { other.fallFacing = null; other.rig.downState = null; }
       if (pd) { /* where the fall has them */ } else if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }

@@ -24,6 +24,9 @@ export const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLe
 
 const hash = (a, b = 0, c = 0) => { let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
 const lowerFirst = (text) => text.charAt(0).toLowerCase() + text.slice(1);
+// Seconds: another player's fall (or their motorcycle going down) first heard of within this of its beginning is shown
+// from its beginning (visitorSeen).
+const FRESH = 2.5;
 const ROOM_OF = new Map(ZONE_ROOMS.map((r) => [r.id, r]));
 
 // Takes what a person typed and makes it safe to show to someone else: no
@@ -296,14 +299,17 @@ export function createTalk({ state, population, residents, players, weather, hub
     // a vehicle under them (a keke they drive, an okada they ride or ride on the back of), the motorcycles and kekes of
     // theirs standing near them, and how fast they are going: each field checked, a bad one dropped
     v.vehicle = vehicleIn(data.vehicle);
-    // (one that came down in a crash: when, by this town's clock, kept from the first word of it as a fall is)
+    // (one that came down in a crash: when, by this town's clock, kept from the first word of it as a fall is, and
+    // seen going over from the start if that word came soon after: FRESH)
     v.parked = (Array.isArray(data.parked) ? data.parked : []).slice(0, 3).map((b) => {
       if (!(b && POWER_BIKES[b.bike] && near(b, x, z))) return null;
       const out = { bike: b.bike, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen };
       if (out.fallen && Number.isFinite(Number(b.ago))) {
         const began = now() - n(b.ago, 0, 600);
+        // (down in the last word too: the same fall of it, however late either word came)
         const was = old && (old.parked || []).find((o) => o.bike === b.bike && o.fallen && Number.isFinite(o.since));
-        out.since = was && Math.abs(was.since - began) < 1.5 ? was.since : began;
+        out.began = was ? was.began : began;
+        out.since = was ? was.since : Number(b.ago) <= FRESH ? now() : began;
       }
       return out;
     }).filter(Boolean);
@@ -320,18 +326,25 @@ export function createTalk({ state, population, residents, players, weather, hub
     // and asking one of the car showroom's salesmen about one of its cars: only in its hall, only one of its cars
     const tc = data.carTalk && typeof data.carTalk === 'object' && POWER_CARS[data.carTalk.car] && inCarHall(x, z) ? data.carTalk : null;
     v.carTalk = tc ? { car: tc.car, since: old && old.carTalk && old.carTalk.car === tc.car ? old.carTalk.since : now() - n(tc.ago, 0, 3600) } : null;
-    // knocked down, thrown from a motorcycle, or killed (19 October 2026): when it began by this town's clock (kept from
-    // the first word of it, so that it does not drift), how long on the ground and getting up, which way the blow sent
-    // them, and where it began (only near where they are): within bounds, or nothing
+    // knocked down, thrown from a motorcycle, or killed (19 October 2026): when it began (kept from the first word of it,
+    // so that it does not drift, and one word after another is the same fall, not a new one), how long on the ground
+    // and getting up, which way the blow sent them, where it began (only near where they are) and where they lie:
+    // within bounds, or nothing. Everything of theirs is seen a moment late (the word takes its time to come), and so
+    // is a fall: one first heard of soon after it began (FRESH) is shown from its beginning, so that none of it is
+    // missed; and one still being shown here when their own screen has them up again is let finish (never stood up
+    // before it is over). One first heard of long after (coming into view) is shown as it is now.
     const dn = data.down && typeof data.down === 'object' && ['knock', 'crash', 'dead'].includes(data.down.kind) ? data.down : null;
     if (dn) {
       const began = now() - n(dn.age, 0, 120);
-      const same = old && old.down && old.down.kind === dn.kind && Math.abs(old.down.since - began) < 1.5;
+      // (the same fall: its own number the same; from a game that gives none, begun at about the same time)
+      const id = Number.isFinite(Number(dn.id)) && dn.id !== null ? Number(dn.id) : null;
+      const same = old && old.down && old.down.kind === dn.kind && (id !== null && old.down.id !== null ? old.down.id === id : Math.abs(old.down.began - began) < 1.5);
       const from = dn.from && Number.isFinite(Number(dn.from.x)) && Number.isFinite(Number(dn.from.z)) && Math.hypot(Number(dn.from.x) - x, Number(dn.from.z) - z) < 8 ? { x: Number(dn.from.x), z: Number(dn.from.z) } : null;
       // (thrown over something low: where along the way from `from` it lay, within the way)
       const over = from && dn.over && Number.isFinite(Number(dn.over.a)) && Number.isFinite(Number(dn.over.b)) ? { a: n(dn.over.a, 0, 8), b: n(dn.over.b, 0, 8) } : null;
-      v.down = { kind: dn.kind, since: same ? old.down.since : began, lie: n(dn.lie, 0, 30), rise: n(dn.rise, 0, 6), push: n(dn.push, -10, 10), hard: !!dn.hard, from, over: over && over.b >= over.a ? over : null };
-    } else v.down = null;
+      v.down = { kind: dn.kind, id, began: same ? old.down.began : began, since: same ? old.down.since : Number(dn.age) <= FRESH ? now() : began, at: same ? old.down.at : { x, z }, lie: n(dn.lie, 0, 30), rise: n(dn.rise, 0, 6), push: n(dn.push, -10, 10), hard: !!dn.hard, from, over: over && over.b >= over.a ? over : null };
+    } else if (old && old.down && old.down.kind !== 'dead' && now() - old.down.since < old.down.lie + old.down.rise) v.down = old.down;
+    else v.down = null;
     const horns = r ? n(r.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
@@ -373,7 +386,7 @@ export function createTalk({ state, population, residents, players, weather, hub
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
       speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
     }
-    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, parked: (o.parked || []).map((b) => (Number.isFinite(b.since) ? { bike: b.bike, x: b.x, z: b.z, h: b.h, fallen: b.fallen, ago: Math.max(0, Math.round((real - b.since) * 100) / 100) } : b)), down: o.down ? { kind: o.down.kind, age: Math.max(0, Math.round((real - o.down.since) * 1000) / 1000), lie: o.down.lie, rise: o.down.rise, push: o.down.push, hard: o.down.hard, from: o.down.from, over: o.down.over || null } : null, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
+    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, parked: (o.parked || []).map((b) => (Number.isFinite(b.since) ? { bike: b.bike, x: b.x, z: b.z, h: b.h, fallen: b.fallen, ago: Math.max(0, Math.round((real - b.since) * 100) / 100) } : b)), down: o.down && (o.down.kind === 'dead' || real - o.down.since < o.down.lie + o.down.rise + 1) ? { kind: o.down.kind, age: Math.max(0, Math.round((real - o.down.since) * 1000) / 1000), lie: o.down.lie, rise: o.down.rise, push: o.down.push, hard: o.down.hard, from: o.down.from, over: o.down.over || null, at: o.down.at || null } : null, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }

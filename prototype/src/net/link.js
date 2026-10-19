@@ -54,9 +54,10 @@ export function encodePlayer(self, zoneId) {
   // ago, how long on the ground and getting up, which way the blow sent them, a hard blow, and where it began, so that
   // the others see them fall and get up as they do (falls.js) rather than walk from where they were struck
   const d = self.down, k = self.dead;
-  // (and, thrown over something low on the way down, where along the way it lay: the body is lifted over it)
-  if (d && Number.isFinite(d.age)) out.dn = [d.by === 'crash' ? 1 : 0, Math.round(d.age * 100) / 100, Math.round((d.lie || 0) * 100) / 100, Math.round((d.rise || 0) * 100) / 100, r2(d.h || 0), d.hard ? 1 : 0, d.from ? r2(d.from.x) : null, d.from ? r2(d.from.z) : null, ...(d.over ? [r2(d.over.a), r2(d.over.b)] : [])];
-  else if (k && Number.isFinite(k.age)) out.dn = [2, Math.round(k.age * 100) / 100, 0, 0, 0, 0, null, null];
+  // (and, thrown over something low on the way down, where along the way it lay: the body is lifted over it; and the
+  // fall's own number, so that each word of it is known for the same fall, never a new one, however late it comes)
+  if (d && Number.isFinite(d.age)) out.dn = [d.by === 'crash' ? 1 : 0, Math.round(d.age * 100) / 100, Math.round((d.lie || 0) * 100) / 100, Math.round((d.rise || 0) * 100) / 100, r2(d.h || 0), d.hard ? 1 : 0, d.from ? r2(d.from.x) : null, d.from ? r2(d.from.z) : null, d.over ? r2(d.over.a) : null, d.over ? r2(d.over.b) : null, Number.isFinite(d.id) ? d.id : null];
+  else if (k && Number.isFinite(k.age)) out.dn = [2, Math.round(k.age * 100) / 100, 0, 0, 0, 0, null, null, null, null, Number.isFinite(k.id) ? k.id : null];
   return out;
 }
 
@@ -91,7 +92,7 @@ export function decodePlayer(state, zoneId) {
   const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
   const phone = [1, 2, 3].includes(state.ph) ? state.ph : 0;
   const dn = Array.isArray(state.dn) ? state.dn : null;
-  const down = dn ? { kind: ['knock', 'crash', 'dead'][dn[0]] || null, age: dn[1], lie: dn[2], rise: dn[3], push: dn[4], hard: !!dn[5], from: Number.isFinite(dn[6]) && Number.isFinite(dn[7]) ? { x: dn[6], z: dn[7] } : null, over: Number.isFinite(dn[8]) && Number.isFinite(dn[9]) ? { a: dn[8], b: dn[9] } : null } : null;
+  const down = dn ? { kind: ['knock', 'crash', 'dead'][dn[0]] || null, age: dn[1], lie: dn[2], rise: dn[3], push: dn[4], hard: !!dn[5], from: Number.isFinite(dn[6]) && Number.isFinite(dn[7]) ? { x: dn[6], z: dn[7] } : null, over: Number.isFinite(dn[8]) && Number.isFinite(dn[9]) ? { a: dn[8], b: dn[9] } : null, id: Number.isFinite(dn[10]) ? dn[10] : null } : null;
   return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone };
 }
 

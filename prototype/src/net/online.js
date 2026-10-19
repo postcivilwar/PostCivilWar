@@ -249,7 +249,13 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
   return {
     kind: 'web',
     get failed() { return failed; },
-    publish(state) { mine = state; },
+    // (a fall begun or ended, getting on or off a vehicle: told at once, not at the next usual time, so that the others
+    // see it as soon as can be)
+    publish(state) {
+      const was = mine;
+      mine = state;
+      if (was && state && (!!was.dn !== !!state.dn || !!was.mb !== !!state.mb || !!was.mc !== !!state.mc || !!was.vh !== !!state.vh)) last = -10;
+    },
     subscribe(fn) { handler = fn; return () => { handler = null; }; },
     close() { closed = true; never(timer); peers.clear(); if (online.signedIn) online.ask('presence', { zone, state: null }, { keepalive: true, timeout: 4000 }); },
   };

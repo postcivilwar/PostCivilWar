@@ -609,14 +609,17 @@ function indexBoxes(boxes) {
   }
   return cells;
 }
-function blockedIn(cells, x, z, radius) {
+// (`above`: a height; what is low (a roadblock's boards, a fence: `barrier`, none of it higher than BARRIER_TOP) does not
+// stand in the way of anything above it, such as the camera's eye)
+const BARRIER_TOP = 1.4;
+function blockedIn(cells, x, z, radius, above = -Infinity) {
   const i0 = Math.floor((x - radius) / CELL), i1 = Math.floor((x + radius) / CELL);
   const j0 = Math.floor((z - radius) / CELL), j1 = Math.floor((z + radius) / CELL);
   for (let i = i0; i <= i1; i += 1) {
     for (let j = j0; j <= j1; j += 1) {
       const list = cells.get(i * 4096 + j);
       if (!list) continue;
-      for (const c of list) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return true;
+      for (const c of list) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius && !(c.barrier && above > BARRIER_TOP)) return true;
     }
   }
   return false;
@@ -932,8 +935,8 @@ const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 // `extra` is a list of additional boxes: structures players have built.
 // Is this point inside something that stands up from the ground: a wall, a tree, a parked coach?
 // (Water and the edge of the map are not solid; they are only not for walking on.)
-export function zoneSolid(x, z, radius = 0.2) {
-  return blockedIn(COLLIDER_INDEX, x, z, radius);
+export function zoneSolid(x, z, radius = 0.2, above = -Infinity) {
+  return blockedIn(COLLIDER_INDEX, x, z, radius, above);
 }
 
 // Is this ground at all: the town's land (not the river) or the land beyond it that can be walked.
