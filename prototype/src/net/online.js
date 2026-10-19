@@ -129,6 +129,8 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
   let handler = null;
   let busy = false, failed = false, closed = false;
   let last = -10;                       // when the server was last asked
+  // (how often it has been asked and has answered, and when it last did: what the link reports, for the tests)
+  const counts = { asked: 0, answered: 0, answeredAt: -1 };
   const peers = new Map();              // id -> { from, to, at, span }
   const lerp = (a, b, k) => a + (b - a) * k;
   const turn = (a, b, k) => { let d = (b - a) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return a + d * k; };
@@ -203,6 +205,7 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     if (busy || closed || !mine || !online.signedIn) return;
     busy = true; last = now();
     const asked = last;
+    counts.asked += 1;
     const answer = await online.ask('presence', { zone, state: mine }, { timeout: 6000 });
     busy = false;
     if (closed) return;
@@ -210,6 +213,7 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     // (an answer lost on the way: asked again at once, not after the usual wait)
     if (!answer.ok) { last = -10; return; }
     const t = now();
+    counts.answered += 1; counts.answeredAt = t;
     const here = new Set();
     for (const peer of Array.isArray(answer.peers) ? answer.peers : []) {
       if (!peer || typeof peer.id !== 'string' || !peer.state || typeof peer.state !== 'object') continue;
@@ -252,6 +256,7 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
   return {
     kind: 'web',
     get failed() { return failed; },
+    get counts() { return { asked: counts.asked, answered: counts.answered, quiet: counts.answeredAt < 0 ? null : Math.round((now() - counts.answeredAt) * 10) / 10 }; },
     // (a fall begun or ended, getting on or off a vehicle: told at once, not at the next usual time, so that the others
     // see it as soon as can be)
     publish(state) {

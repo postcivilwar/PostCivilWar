@@ -30,7 +30,7 @@ export const CAMERA_VIEWS = Object.freeze({
 // `riseWant`: how much room behind the player the view needs before it rises over what is in the way rather than
 // coming in toward them. `run`: on foot at a run, how much closer (a share of the distance) and lower it comes.
 export const CAMERA_VIEW = Object.freeze({
-  street: Object.freeze({ name: 'On the street', dist: null, scale: 1, pitch: null, turn: 0, shift: 0, lift: -0.12, fov: 60, follow: false, riseWant: 1.4, run: Object.freeze({ closer: 0.2, lower: 0.025 }), sway: true }),
+  street: Object.freeze({ name: 'On the street', dist: null, scale: 1, pitch: null, turn: 0, shift: 0, lift: -0.12, fov: 60, follow: false, riseWant: 1.1, run: Object.freeze({ closer: 0.2, lower: 0.025 }), sway: true }),
   behind: Object.freeze({ name: 'Further back', dist: null, scale: 2.1, pitch: null, pitchAdd: 0.17, turn: 0, shift: 0, lift: 0, follow: false }),
   close: Object.freeze({ name: 'Close', dist: 4.4, pitch: 0.2, turn: 0, shift: 0, lift: 0, follow: false }),
   shoulder: Object.freeze({ name: 'Over the shoulder', dist: 2.7, pitch: 0.1, turn: 0, shift: 0.6, lift: 0.12, fov: 58, follow: true, riseWant: 1.4 }),
@@ -49,6 +49,10 @@ export const STREET = Object.freeze({ dist: 3.9, pitch: 0.1, nearest: 2.4 });
 const NEAR = 1.6;
 // How much room behind the player the camera looks for before it rises over what is in the way.
 const RISE_WANT = 3.2;
+// How much higher it tries, in turn, for that room: the least that gives it (in small steps, so that a wall close
+// behind tips the view down only as far as it must, and the street ahead stays in it; 19 October 2026, a tall wall a
+// step behind the player sent it to looking straight down)
+const RISE_STEPS = Object.freeze([0.15, 0.3, 0.45, 0.6, 0.75, 0.9, 1.05, 1.2, 1.35]);
 const BASE_FOV = 55;
 const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 // how far toward where it is going something gets in `dt` seconds, at `rate` (per second): the same at any frame rate
@@ -75,18 +79,26 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   let close = false;
 
   // How far along the line from the target a camera can stand before it is inside something.
+  // (`blocked` already keeps a camera's width off what is solid; it stands OFF_WALL nearer still. Where the line first
+  // meets something is found to a few centimetres, between the last step that was clear and the first that was not:
+  // 19 October 2026, the steps alone put it up to half a metre short, so that a wall a step behind sent the view up
+  // over the player's head when there was room behind them)
+  const OFF_WALL = 0.1;
   function clearance(tx, ty, tz, dx, dy, dz, dist) {
     if (!blocked) return dist;
+    const hit = (d) => {
+      const x = tx + dx * d, y = ty + dy * d, z = tz + dz * d;
+      // above the eaves: nothing up there to be inside, but a tower
+      if (y > wallHeight && (!tall || y > tall(x, z))) return false;
+      return blocked(x, z, y);
+    };
     const steps = Math.max(2, Math.ceil(dist / 0.45));
     for (let i = 2; i <= steps; i += 1) {
       const d = (dist * i) / steps;
-      const x = tx + dx * d, y = ty + dy * d, z = tz + dz * d;
-      if (y > wallHeight) {
-        // above the eaves: nothing up there to be inside, but a tower
-        if (!tall) break;
-        if (y > tall(x, z)) continue;
-      }
-      if (blocked(x, z, y)) return Math.max(0.2, (dist * (i - 1)) / steps - 0.25);
+      if (!hit(d)) continue;
+      let clear = (dist * (i - 1)) / steps, met = d;
+      for (let k = 0; k < 4; k += 1) { const mid = (clear + met) / 2; if (hit(mid)) met = mid; else clear = mid; }
+      return Math.max(0.2, clear - OFF_WALL);
     }
     return dist;
   }
@@ -167,7 +179,7 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
       let need = 0;
       if (clearAt(live.pitch) < Math.min(live.dist, riseWant)) {
         need = Math.max(0, 1.45 - live.pitch);
-        for (const step of [0.25, 0.5, 0.75, 1.0, 1.2]) { const p = Math.min(1.45, live.pitch + step); if (clearAt(p) >= Math.min(live.dist, riseWant)) { need = p - live.pitch; break; } }
+        for (const step of RISE_STEPS) { const p = Math.min(1.45, live.pitch + step); if (clearAt(p) >= Math.min(live.dist, riseWant)) { need = p - live.pitch; break; } }
       }
       live.rise += (need - live.rise) * toward(need > live.rise ? 6 : 1.5, dt);
     } else live.rise += (0 - live.rise) * toward(6, dt);

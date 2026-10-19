@@ -74,6 +74,8 @@ await B.page.evaluate((h) => { const n = window.__nlw; n.place(h.x + 14, h.z + 6
 await B.page.waitForFunction((name) => (window.__nlw.view.players || []).some((q) => q.name === name && q.vehicle), A.username, { timeout: 60000 }).catch(() => {});
 const first = await B.page.evaluate((name) => { const q = (window.__nlw.view.players || []).find((o) => o.name === name); return q ? { vehicle: q.vehicle, x: q.x, z: q.z } : null; }, A.username);
 check('the watcher is told the driver is at the wheel of a keke, with its plate and paint', first && first.vehicle && first.vehicle.kind === 'keke' && first.vehicle.plate === hired.plate && first.vehicle.look.paint === hired.look.paint && first.vehicle.fleet, first);
+// (if not: how often each page has asked the website who is about, and how long since it last had an answer)
+if (!(first && first.vehicle)) console.log('     what each page\'s link says:', JSON.stringify({ driver: await A.page.evaluate(() => window.__nlw.link), watcher: await B.page.evaluate(() => window.__nlw.link) }));
 await B.page.waitForTimeout(1500);
 const drawn = await B.page.evaluate(({ name, id }) => {
   const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name);
@@ -173,6 +175,15 @@ await B.page.waitForFunction(() => {
   const ready = (name) => { const r = n.crowd.rigOf(`p:${id(name)}`); return !!(r && r.animated && r.bones && typeof r.bones.get === 'function'); };
   return n.peerBikeView.ridden(`peer:${id('Bike_Phone')}`) && n.carView.driven(`peer:${id('Open_Car')}`) && n.carView.driven(`peer:${id('Closed_Car')}`) && ready('Bike_Phone') && ready('Open_Car');
 }, null, { timeout: 300000 }).catch(() => {});
+{
+  // (if not all came: which did not)
+  const came = await B.page.evaluate(() => {
+    const n = window.__nlw; const id = (name) => (n.shownPeers.find((q) => q.name === name) || {}).id;
+    const ready = (name) => { const r = n.crowd.rigOf(`p:${id(name)}`); return !!(r && r.animated && r.bones && typeof r.bones.get === 'function'); };
+    return { bike: !!n.peerBikeView.ridden(`peer:${id('Bike_Phone')}`), openCar: !!n.carView.driven(`peer:${id('Open_Car')}`), closedCar: !!n.carView.driven(`peer:${id('Closed_Car')}`), figureW1: ready('Bike_Phone'), figureM1: ready('Open_Car') };
+  });
+  if (!Object.values(came).every(Boolean)) console.log('     after five minutes, what had come:', JSON.stringify(came));
+}
 await B.page.waitForTimeout(2500);
 const peerVehicles = await B.page.evaluate(() => {
   const n = window.__nlw, P = (name) => n.shownPeers.find((q) => q.name === name);

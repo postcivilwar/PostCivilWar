@@ -133,7 +133,7 @@ export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
       last = text;
       transport.publish(state);
     },
-    status: () => ({ kind: transport.kind, peers, failed: !!transport.failed }),
+    status: () => ({ kind: transport.kind, peers, failed: !!transport.failed, ...(transport.counts || {}) }),
     close() { off(); for (const id of known) game.visitors.gone(id); known = new Set(); transport.close(); },
   };
 }

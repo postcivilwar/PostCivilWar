@@ -181,7 +181,7 @@ test('camera: it glides from one view to the next; it never jumps', () => {
   assert.equal(rig.hidesPlayer, false);
 });
 
-test('camera: with a wall behind, it never stands inside it; pressed right up, it rises over the wall and the player is still drawn', () => {
+test('camera: with a wall behind, it never stands inside it; pressed right up, it rises and looks down, and the player is still drawn', () => {
   const camera = fakeCamera();
   // a wall across the world, 4.2 m high (the rig's wall height): everything beyond z = -3 is solid below that
   const wall = (x, z, y = 0) => z < -3 && y <= 4.2;
@@ -193,11 +193,18 @@ test('camera: with a wall behind, it never stands inside it; pressed right up, i
   assert.ok(camera.position.z < -1.0, 'with three metres of room it stays behind the player');
   assert.equal(rig.hidesPlayer, false);
   // the player backs up against the wall: no room behind at head height, so the camera goes up and looks down
+  // (as far up as it must for an arm's length and a little more from the head: on the street view, 1.1 m)
   film(rig, 3, { cam, target: { x: 0, y: 1.5, z: -2.6 }, heading: 0 });
   assert.ok(!wall(camera.position.x, camera.position.z, camera.position.y), `still not inside the wall (${camera.position.x.toFixed(2)}, ${camera.position.y.toFixed(2)}, ${camera.position.z.toFixed(2)})`);
   assert.equal(rig.hidesPlayer, false, 'on foot the figure is always drawn');
-  assert.ok(Math.hypot(camera.position.x, camera.position.y - 1.5, camera.position.z + 2.6) > 2.0, 'the eye is not in the player\'s head');
-  assert.ok(camera.position.y > 4.2, 'it has risen above the wall');
+  assert.ok(Math.hypot(camera.position.x, camera.position.y - 1.5, camera.position.z + 2.6) > 1.05, 'the eye is not in the player\'s head');
+  assert.ok(camera.position.y > 2.4 && camera.aim.y < camera.position.y - 1, `it has risen (${camera.position.y.toFixed(2)} m) and looks down at the player`);
+  // and so from further back (the view behind, which wants more room): over the wall
+  rig.view = 'behind';
+  film(rig, 3, { cam, target: { x: 0, y: 1.5, z: -2.6 }, heading: 0 });
+  assert.ok(!wall(camera.position.x, camera.position.z, camera.position.y), 'from further back, not inside the wall either');
+  assert.ok(camera.position.y > 4.2, `from further back it has risen above the wall (${camera.position.y.toFixed(2)} m)`);
+  rig.view = 'street';
   // and walks out into the open again: the camera comes back down and out, gradually
   film(rig, 0.2, { cam, target: { x: 0, y: 1.5, z: 20 }, heading: 0 });
   const soon = camera.position.y;
@@ -278,6 +285,30 @@ test('camera: on the street view it comes in toward the player before a wall rat
   assert.ok(!wall(camera.position.x, camera.position.z, camera.position.y), 'not inside the wall');
   assert.ok(camera.position.y < 2.4, `it came in, at head height (${camera.position.y.toFixed(2)} m), rather than rising`);
   assert.ok(-camera.position.z > 1.1 && -camera.position.z < 2.5, `${(-camera.position.z).toFixed(2)} m behind`);
+});
+
+test('camera: on the street view, with a tall wall a step or two behind, it comes in first and tips down only as far as it must', () => {
+  // a tower's wall `W` m behind the player (solid at any height; `blocked` keeps a camera's width, 0.25 m, off it)
+  const at = (W) => {
+    const camera = fakeCamera();
+    const blocked = (x, z) => z < -(W - 0.25);
+    const rig = createCameraRig(camera, { blocked, tall: () => 200 });
+    const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist };
+    rig.snap(cam);
+    film(rig, 4, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0 });
+    assert.ok(!blocked(camera.position.x, camera.position.z), `with the wall ${W} m behind, the eye is not inside it`);
+    assert.ok(Math.hypot(camera.position.z, camera.position.y - 1.43) > 1.05, `with the wall ${W} m behind, the eye is not in the player's head`);
+    return { back: -camera.position.z, down: Math.atan2(camera.position.y - 1.43, -camera.position.z) };
+  };
+  // a metre and a half: room enough to come in, at the height of the head, without tipping down at all
+  const roomy = at(1.5);
+  assert.ok(roomy.back > 1.05 && roomy.down < 0.2, `1.5 m: ${roomy.back.toFixed(2)} m behind, looking down ${(roomy.down * 57.3).toFixed(0)}°`);
+  // a little over a metre: in, and tipped a little (it used to look down at 63°)
+  const near = at(1.2);
+  assert.ok(near.down < 0.8, `1.2 m: looking down ${(near.down * 57.3).toFixed(0)}°`);
+  // and the closer the wall, the more it tips, never past looking straight down
+  const tight = at(0.7);
+  assert.ok(tight.down >= near.down && tight.down < 1.5, `0.7 m: looking down ${(tight.down * 57.3).toFixed(0)}°`);
 });
 
 test('camera: on the street view a turn swings it out a little and lets it settle; the eye never goes under the ground', () => {
