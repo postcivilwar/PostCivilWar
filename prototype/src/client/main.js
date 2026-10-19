@@ -3187,7 +3187,7 @@ blood.update(dt, view.blood || []);
     // (glass, the river and zinc give back the sky by day; in the rain the ground is wet, and dries after it)
     updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
-    closures.update(dt, night);
+    closures.update(dt, night, cam.target);
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
     for (const showroom of world.showrooms) showroom.setNight(night);

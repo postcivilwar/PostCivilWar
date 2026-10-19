@@ -222,7 +222,9 @@ check('the graphics taken away: the game says so and offers to reload, and does 
 await page.click('#confirm-no');
 await page.waitForTimeout(400);
 const putOff = await page.evaluate(() => document.getElementById('confirm').hidden);
-await page.mouse.click(550, 330);
+// (on the picture itself: somewhere the notice that the town is not showing, at the top, does not cover)
+const onPicture = await page.evaluate(() => { for (const [x, y] of [[550, 330], [550, 480], [200, 520], [900, 520], [150, 300]]) { const el = document.elementFromPoint(x, y); if (el && el.id === 'view') return [x, y]; } return [550, 330]; });
+await page.mouse.click(onPicture[0], onPicture[1]);
 await page.waitForTimeout(800);
 const askedAgain = await page.evaluate(() => { const box = document.getElementById('confirm'); return { shown: !box.hidden && /picture was lost/i.test(box.textContent), stillHere: !!window.__stillHere }; });
 check('"Not now" puts the question away; a tap on the lost picture asks it again, and nothing reloads', putOff && askedAgain.shown && askedAgain.stillHere, { putOff, ...askedAgain });

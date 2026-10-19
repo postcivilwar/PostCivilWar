@@ -8,8 +8,7 @@
 // and a ROAD CLOSED board saying why, its face lit. The edge of the land: timber posts every three metres with two
 // striped rails, and a board now and then saying that the land beyond is under construction.
 //
-// What it costs: every board, drum, cone and rail of all of it is one mesh for each material (a few draw calls in
-// all), and the fence's posts one instanced mesh.
+// What it costs: see FENCE_CHUNK below.
 
 import { ZONE_CLOSURES, ZONE_EDGE_FENCES, CLOSURE_KIT, EDGE_FENCE, zoneGroundY } from '../sim/zone.js';
 import { textTexture, surface } from './render-kit.js';
@@ -79,6 +78,13 @@ class Pile {
 // a matrix: at (x, y, z), turned `ry` about the vertical, then `rx` about its own x and `rz` about its own z
 const at = (x, y, z, ry = 0, rx = 0, rz = 0) => new THREE.Matrix4().compose(new THREE.Vector3(x, y, z), new THREE.Quaternion().setFromEuler(new THREE.Euler(rx, ry, rz, 'YXZ')), new THREE.Vector3(1, 1, 1));
 
+// What it costs (measured 19 October 2026: drawn as one mesh a material for the whole map, the fence alone was some
+// 70,000 triangles in every frame, shadows included, wherever the player was): each roadblock, and each sixty metres
+// of fence, is its own few meshes (one a material), so that only those in view are drawn at all, and none further off
+// than it can be made out.
+const FENCE_CHUNK = 20;              // panels of fence (three metres each) in one piece
+const SEE_FENCE = 170, SEE_BLOCK = 320;   // metres beyond which a piece of fence, and a roadblock, is not drawn
+
 export function buildClosures(scene, { lite = false } = {}) {
   const stripeMap = stripes(), glowMap = stripeGlow();
   const materials = {
@@ -91,13 +97,18 @@ export function buildClosures(scene, { lite = false } = {}) {
     collar: surface({ color: 0xf2f2ee, roughness: 0.4, metalness: 0, emissive: new THREE.Color(0xffffff), emissiveIntensity: 0.04 }),
     lens: new THREE.MeshStandardMaterial({ color: 0x5a3a08, emissive: new THREE.Color(0xffa31a), emissiveIntensity: 0.4, roughness: 0.3, metalness: 0 }),
   };
-  const piles = Object.fromEntries(Object.keys(materials).map((k) => [k, new Pile()]));
-  const signs = new Map();       // the faces of the boards, by what they say
+  materials.posts = materials.timber;
+  // the pieces: { see (metres it is drawn from), piles (by material), faces (the boards' faces, by what they say) }
+  const pieces = [];
+  const piece = (see) => { const p = { see, piles: {}, faces: new Map(), meshes: [], x: 0, z: 0, r: 0 }; pieces.push(p); return p; };
+  const pile = (p, k) => p.piles[k] || (p.piles[k] = new Pile());
+  const face = (p, lines, place) => { const words = lines.join('\n'); if (!p.faces.has(words)) p.faces.set(words, { lines, at: [] }); p.faces.get(words).at.push(place); };
   const box = (w, h, d) => new THREE.BoxGeometry(w, h, d);
   const K = CLOSURE_KIT;
 
   // ---- each roadblock ----
   for (const c of ZONE_CLOSURES) {
+    const P = piece(SEE_BLOCK);
     const len = Math.hypot(c.b.x - c.a.x, c.b.z - c.a.z);
     const ux = (c.b.x - c.a.x) / len, uz = (c.b.z - c.a.z) / len;
     const fx = Math.sin(c.facing), fz = Math.cos(c.facing);
@@ -114,115 +125,123 @@ export function buildClosures(scene, { lite = false } = {}) {
         // (a leg on the front leans its top back, one on the back leans it forward: they meet at the top. The board's own
         // z, turned with it, points `toFront` times the front)
         const toFront = Math.sign(fx * Math.sin(along) + fz * Math.cos(along)) || 1;
-        for (const lean of [-1, 1]) piles.timber.add(box(0.07, K.height + 0.05, 0.07), at(lx + fx * lean * 0.14, y + K.height / 2, lz + fz * lean * 0.14, along, -lean * toFront * 0.24));
-        piles.timber.add(box(0.08, 0.06, K.depth), at(lx, y + 0.03, lz, along));
+        for (const lean of [-1, 1]) pile(P, 'timber').add(box(0.07, K.height + 0.05, 0.07), at(lx + fx * lean * 0.14, y + K.height / 2, lz + fz * lean * 0.14, along, -lean * toFront * 0.24));
+        pile(P, 'timber').add(box(0.08, 0.06, K.depth), at(lx, y + 0.03, lz, along));
       }
       // three boards, striped
-      for (const h of [0.42, 0.74, 1.06]) piles.striped.add(box(K.barricade, 0.2, 0.035), at(x + fx * 0.04, y + h, z + fz * 0.04, along), [K.barricade / STRIPE, 1]);
+      for (const h of [0.42, 0.74, 1.06]) pile(P, 'striped').add(box(K.barricade, 0.2, 0.035), at(x + fx * 0.04, y + h, z + fz * 0.04, along), [K.barricade / STRIPE, 1]);
       // an amber lamp on every other one
       if (i % 2 === 0) {
         const px = x + ux * (K.barricade / 2 - 0.25), pz = z + uz * (K.barricade / 2 - 0.25);
-        piles.steel.add(box(0.12, 0.16, 0.1), at(px, y + K.height + 0.1, pz, along));
-        piles.lens.add(new THREE.CylinderGeometry(0.075, 0.075, 0.04, 14), at(px + fx * 0.06, y + K.height + 0.12, pz + fz * 0.06, c.facing, Math.PI / 2));
+        pile(P, 'steel').add(box(0.12, 0.16, 0.1), at(px, y + K.height + 0.1, pz, along));
+        pile(P, 'lens').add(new THREE.CylinderGeometry(0.075, 0.075, 0.04, 14), at(px + fx * 0.06, y + K.height + 0.12, pz + fz * 0.06, c.facing, Math.PI / 2));
       }
     }
     // a painted oil drum at each end
-    for (const [p, s] of [[c.a, -1], [c.b, 1]]) {
-      const x = p.x + ux * s * (K.drum / 2 + 0.05), z = p.z + uz * s * (K.drum / 2 + 0.05), y = zoneGroundY(x, z);
-      piles.drum.add(new THREE.CylinderGeometry(0.29, 0.29, 0.88, 16, 1, false), at(x, y + 0.44, z));
+    for (const [pt, s] of [[c.a, -1], [c.b, 1]]) {
+      const x = pt.x + ux * s * (K.drum / 2 + 0.05), z = pt.z + uz * s * (K.drum / 2 + 0.05), y = zoneGroundY(x, z);
+      pile(P, 'drum').add(new THREE.CylinderGeometry(0.29, 0.29, 0.88, 16, 1, false), at(x, y + 0.44, z));
     }
     // cones in a line before it, across the road
     for (let i = 0; i < K.cones; i += 1) {
       const d = len * (i + 0.5) / K.cones;
       const x = c.a.x + ux * d + fx * K.coneAhead, z = c.a.z + uz * d + fz * K.coneAhead, y = zoneGroundY(x, z);
-      piles.cone.add(new THREE.ConeGeometry(0.17, 0.7, 14), at(x, y + 0.39, z));
-      piles.cone.add(box(0.42, 0.04, 0.42), at(x, y + 0.02, z));
-      piles.collar.add(new THREE.CylinderGeometry(0.105, 0.125, 0.1, 14, 1, true), at(x, y + 0.48, z));
+      pile(P, 'cone').add(new THREE.ConeGeometry(0.17, 0.7, 14), at(x, y + 0.39, z));
+      pile(P, 'cone').add(box(0.42, 0.04, 0.42), at(x, y + 0.02, z));
+      pile(P, 'collar').add(new THREE.CylinderGeometry(0.105, 0.125, 0.1, 14, 1, true), at(x, y + 0.48, z));
     }
     // the board: ROAD CLOSED and why, on two posts in the middle, before the barricades, facing what comes
     const mx = (c.a.x + c.b.x) / 2 + fx * 1.1, mz = (c.a.z + c.b.z) / 2 + fz * 1.1, my = zoneGroundY(mx, mz);
-    for (const s of [-1, 1]) piles.steel.add(box(0.08, 2.5, 0.08), at(mx + ux * s * 1.0, my + 1.25, mz + uz * s * 1.0));
-    piles.steel.add(box(2.5, 1.1, 0.05), at(mx - fx * 0.03, my + 2.0, mz - fz * 0.03, c.facing));
-    const words = c.sign.join('\n');
-    if (!signs.has(words)) signs.set(words, { lines: c.sign, at: [] });
-    signs.get(words).at.push({ x: mx + fx * 0.005, y: my + 2.0, z: mz + fz * 0.005, facing: c.facing, w: 2.4, h: 1.0 });
+    for (const s of [-1, 1]) pile(P, 'steel').add(box(0.08, 2.5, 0.08), at(mx + ux * s * 1.0, my + 1.25, mz + uz * s * 1.0));
+    pile(P, 'steel').add(box(2.5, 1.1, 0.05), at(mx - fx * 0.03, my + 2.0, mz - fz * 0.03, c.facing));
+    face(P, c.sign, { x: mx + fx * 0.005, y: my + 2.0, z: mz + fz * 0.005, facing: c.facing, w: 2.4, h: 1.0 });
   }
 
   // ---- the edge of the land: posts, two striped rails, and a board every so often ----
-  const posts = [];
+  let posts = 0;
   const fenceBoard = ['UNDER CONSTRUCTION', 'No way through: this land is not built yet'];
-  signs.set(fenceBoard.join('\n'), { lines: fenceBoard, at: [] });
   for (const r of ZONE_EDGE_FENCES) {
     const len = Math.hypot(r.b.x - r.a.x, r.b.z - r.a.z);
     const ux = (r.b.x - r.a.x) / len, uz = (r.b.z - r.a.z) / len;
     const along = Math.atan2(-uz, ux);
     const count = Math.max(1, Math.round(len / EDGE_FENCE.post));
-    for (let i = 0; i <= count; i += 1) { const x = r.a.x + (ux * len * i) / count, z = r.a.z + (uz * len * i) / count; posts.push([x, zoneGroundY(x, z), z]); }
+    const span = len / count;
+    const pieceAt = [];          // the piece each stretch of FENCE_CHUNK panels is in
+    const pieceOf = (i) => pieceAt[Math.floor(Math.min(count - 1, Math.max(0, i)) / FENCE_CHUNK)] || (pieceAt[Math.floor(Math.min(count - 1, Math.max(0, i)) / FENCE_CHUNK)] = piece(SEE_FENCE));
+    const post = (i) => { const x = r.a.x + (ux * len * i) / count, z = r.a.z + (uz * len * i) / count, y = zoneGroundY(x, z); pile(pieceOf(Math.min(i, count - 1)), 'posts').add(box(0.11, EDGE_FENCE.height + 0.1, 0.11), at(x, y + (EDGE_FENCE.height + 0.1) / 2, z, along)); posts += 1; };
+    for (let i = 0; i <= count; i += 1) post(i);
     // the rails, a length of them between each pair of posts (so that they follow the ground where it rises)
     for (let i = 0; i < count; i += 1) {
       const x0 = r.a.x + (ux * len * i) / count, z0 = r.a.z + (uz * len * i) / count, x1 = r.a.x + (ux * len * (i + 1)) / count, z1 = r.a.z + (uz * len * (i + 1)) / count;
-      const y0 = zoneGroundY(x0, z0), y1 = zoneGroundY(x1, z1), span = len / count;
+      const y0 = zoneGroundY(x0, z0), y1 = zoneGroundY(x1, z1);
       const tilt = Math.atan2(y1 - y0, span);
-      for (const h of [0.5, 0.98]) piles.striped.add(box(span, 0.11, 0.03), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt), [span / STRIPE, 0.6]);
+      for (const h of [0.5, 0.98]) pile(pieceOf(i), 'striped').add(box(span, 0.11, 0.03), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt), [span / STRIPE, 0.6]);
     }
     // a board facing in, every hundred and forty metres or so (and one on a short run)
     const boards = Math.max(1, Math.round(len / 140));
     const inward = Math.atan2(-r.out.x, -r.out.z);
     for (let k = 0; k < boards; k += 1) {
       const d = (len * (k + 0.5)) / boards;
+      const P = pieceOf(Math.floor(d / span));
       const x = r.a.x + ux * d - r.out.x * 0.2, z = r.a.z + uz * d - r.out.z * 0.2, y = zoneGroundY(x, z);
-      for (const s of [-1, 1]) piles.steel.add(box(0.07, 1.9, 0.07), at(x + ux * s * 0.85, y + 0.95, z + uz * s * 0.85));
-      piles.steel.add(box(1.9, 0.8, 0.04), at(x + r.out.x * 0.025, y + 1.45, z + r.out.z * 0.025, inward));
-      signs.get(fenceBoard.join('\n')).at.push({ x: x - r.out.x * 0.0, y: y + 1.45, z: z - r.out.z * 0.0, facing: inward, w: 1.8, h: 0.72 });
+      for (const sgn of [-1, 1]) pile(P, 'steel').add(box(0.07, 1.9, 0.07), at(x + ux * sgn * 0.85, y + 0.95, z + uz * sgn * 0.85));
+      pile(P, 'steel').add(box(1.9, 0.8, 0.04), at(x + r.out.x * 0.025, y + 1.45, z + r.out.z * 0.025, inward));
+      face(P, fenceBoard, { x, y: y + 1.45, z, facing: inward, w: 1.8, h: 0.72 });
     }
   }
 
-  const meshes = [];
-  const shadows = !lite;
-  for (const [k, pile] of Object.entries(piles)) {
-    if (!pile.parts.length) continue;
-    const mesh = pile.build(materials[k]);
-    mesh.name = `closures-${k}`;
-    mesh.castShadow = shadows && k !== 'lens' && k !== 'collar'; mesh.receiveShadow = true;
-    scene.add(mesh); meshes.push(mesh);
-  }
-  // the posts, one instanced mesh
-  if (posts.length) {
-    const post = box(0.11, EDGE_FENCE.height + 0.1, 0.11); post.translate(0, (EDGE_FENCE.height + 0.1) / 2, 0);
-    const mesh = new THREE.InstancedMesh(post, materials.timber, posts.length);
-    const m = new THREE.Matrix4();
-    posts.forEach(([x, y, z], i) => mesh.setMatrixAt(i, m.makeTranslation(x, y, z)));
-    mesh.instanceMatrix.needsUpdate = true;
-    // (drawn wherever it is: an instanced mesh's own bounds are one post's, at the origin)
-    mesh.name = 'closures-posts'; mesh.castShadow = shadows; mesh.receiveShadow = true; mesh.frustumCulled = false;
-    scene.add(mesh); meshes.push(mesh);
-  }
-  // the boards' faces: one mesh for each wording, lit by their own light (read at night as by day)
-  for (const { lines, at: places } of signs.values()) {
-    if (!places.length) continue;
-    const face = new Pile();
-    const w = places[0].w, h = places[0].h;
-    for (const p of places) face.add(new THREE.PlaneGeometry(p.w, p.h), at(p.x, p.y, p.z, p.facing));
+  // the boards' faces: a material for each wording (made once), lit by its own light (read at night as by day)
+  const faceMaterials = new Map();
+  const faceMaterial = (lines, w, h) => {
+    const words = lines.join('\n');
+    if (faceMaterials.has(words)) return faceMaterials.get(words);
     const wide = Math.round((1024 * h) / w / 32) * 32 || 256;
     // (the first line large and red, what follows smaller and black, all well inside the board's red edge)
     const rows = lines.map((text, i) => (i === 0 ? { text, size: 104, colour: RED } : { text, size: 66, colour: '#161616' }));
     const map = textTexture(rows, { width: 1024, height: wide, background: '#f5f3ea', colour: '#161616', border: RED, size: 80 });
-    const mesh = face.build(new THREE.MeshBasicMaterial({ map, toneMapped: false }));
-    mesh.name = 'closures-signs';
-    scene.add(mesh); meshes.push(mesh);
+    const m = new THREE.MeshBasicMaterial({ map, toneMapped: false });
+    faceMaterials.set(words, m);
+    return m;
+  };
+
+  const meshes = [];
+  const shadows = !lite;
+  const sphere = new THREE.Sphere();
+  for (const P of pieces) {
+    const box3 = new THREE.Box3();
+    for (const [k, pl] of Object.entries(P.piles)) {
+      if (!pl.parts.length) continue;
+      const mesh = pl.build(materials[k]);
+      mesh.name = `closures-${k}`;
+      mesh.castShadow = shadows && k !== 'lens' && k !== 'collar'; mesh.receiveShadow = true;
+      mesh.geometry.computeBoundingBox(); box3.union(mesh.geometry.boundingBox);
+      scene.add(mesh); meshes.push(mesh); P.meshes.push(mesh);
+    }
+    for (const { lines, at: places } of P.faces.values()) {
+      const f = new Pile();
+      for (const pl of places) f.add(new THREE.PlaneGeometry(pl.w, pl.h), at(pl.x, pl.y, pl.z, pl.facing));
+      const mesh = f.build(faceMaterial(lines, places[0].w, places[0].h));
+      mesh.name = 'closures-signs';
+      scene.add(mesh); meshes.push(mesh); P.meshes.push(mesh);
+    }
+    box3.getBoundingSphere(sphere);
+    P.x = sphere.center.x; P.z = sphere.center.z; P.r = sphere.radius;
   }
 
   let blink = 0;
   return {
     meshes,
     // After dark the stripes and the cones' collars give back light, and the lamps blink; by day the lamps glow faintly.
-    update(dt, night) {
+    // `near` (where the camera looks): what is too far off to be made out is not drawn.
+    update(dt, night, near = null) {
       blink += dt;
       const on = Math.floor(blink * 1.25) % 2 === 0;
       materials.striped.emissiveIntensity = 0.04 + night * 0.42;
       materials.collar.emissiveIntensity = 0.04 + night * 0.5;
       materials.lens.emissiveIntensity = on ? 0.6 + night * 2.4 : 0.15;
+      if (near) for (const P of pieces) { const shown = Math.hypot(P.x - near.x, P.z - near.z) - P.r < P.see; if (P.meshes[0] && P.meshes[0].visible !== shown) for (const m of P.meshes) m.visible = shown; }
     },
-    get posts() { return posts.length; },
+    get posts() { return posts; },
+    get pieces() { return pieces.length; },
   };
 }
