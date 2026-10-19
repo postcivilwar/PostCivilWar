@@ -156,10 +156,11 @@ are in `assets/characters/figures/README.md`.
   the phone's Jobs app, or a place picked on the phone's map) is a marker with a line to it.
 - **The life bar**: slim and heavy-edged; green, orange from 60%, red from 20%.
 - **Touch buttons**: each has its own ring, black by day and white by night, never touching another. The
-  camera button is offered only in a vehicle. The stick lets go whenever its finger leaves the glass, even
+  camera (View) button is offered on foot and in a vehicle (on foot since 19 October 2026). The stick lets go whenever its finger leaves the glass, even
   if the phone's web view loses the release (it used to stick, and the player walked on alone).
 - **The camera on foot** never goes inside the player's head: with a wall, a bus or a stall behind, it
-  rises over it and looks down, and the player is always drawn (they used to vanish at the motor park).
+  comes in close behind and then rises over it and looks down, and the player is always drawn (they used to vanish
+  at the motor park).
 - **Nobody walks through anybody**: a player cannot step into another player, a townsperson or a resident
   (the simulation refuses it and the client steps round them); townspeople are eased apart on screen.
 - **Talk**: one speech bubble at a time; names over heads are small.

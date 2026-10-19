@@ -1025,7 +1025,7 @@ for (const [name, size] of [['sideways', { width: 760, height: 360, touch: true 
     if (!/On foot/.test(way) || !/\d+ m/.test(way)) bad('the map gives no distance or time to the hospital');
     await page.tap('button:has-text("Mark it in the town")'); await page.waitForTimeout(300);
     await nlw(page, () => window.__nlw.ui.close());
-    await check('08-waypoint', ['Run']);
+    await check('08-waypoint', ['Run', 'View']);
     if (!(await page.isVisible('#waypoint'))) bad('no waypoint line after marking a place');
   });
 }
