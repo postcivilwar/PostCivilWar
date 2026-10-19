@@ -34419,10 +34419,13 @@ function createWarmUp(renderer, scene) {
     if (twins.length) {
       for (const twin of twins) stage.add(twin);
       const before = renderer.getRenderTarget();
+      // (put back whatever happens: left on the small picture, every frame of the town after it would be drawn there
+      // and the screen left black, the game played on behind it; 19 October 2026)
       renderer.setRenderTarget(target);
-      renderer.render(stage, eye);
-      renderer.setRenderTarget(before);
-      for (const twin of twins) stage.remove(twin);
+      try { renderer.render(stage, eye); } finally {
+        renderer.setRenderTarget(before);
+        for (const twin of twins) stage.remove(twin);
+      }
     }
     const took = performance.now() - t;
     if (took > stats.slowestMs) stats.slowestMs = took;
@@ -37002,7 +37005,9 @@ function createConfirm() {
   // keys typed while it is up are its own: the game behind it does not hear them
   for (const type of ['keyup', 'keypress']) box.addEventListener(type, (event) => event.stopPropagation());
 
-  function ask({ title: heading, body: text = '', rows = null, note = '', confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, run = async () => ({ ok: true }) }) {
+  function ask({ title: heading, body: text = '', rows = null, note = '', confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, urgent = false, run = async () => ({ ok: true }) }) {
+    // (a question that cannot wait, the picture lost, takes the place of one still open rather than being dropped)
+    if (open && urgent && !open.busy) close(false);
     if (open) return Promise.resolve(false);
     return new Promise((resolve) => {
       open = { resolve, run, opener: document.activeElement, busy: false, words: { confirm, busy } };
@@ -40134,6 +40139,128 @@ function talkGesture(rig, { t, amount = 1, speaking = 0, look = 0 }) {
 return { talkGesture };
 })();
 
+// ---- client/picture-watch.js ----
+__modules["client/picture-watch.js"] = (function () {
+// The picture watched (19 October 2026, the owner: on his phone the game played on, the bar and the buttons there,
+// behind a picture purely black). What the town needs in order to be seen is checked while it is played:
+//  - that frames are drawn (the browser may stop calling, or every frame may fail part way);
+//  - that drawing a frame does not fail (the error is kept);
+//  - that the browser still lets the page draw (its WebGL context not lost);
+//  - that the camera is somewhere real (a position or a turn that is not a number draws nothing);
+//  - every few seconds, a few points of the picture just drawn are read back: black at every point, time after time,
+//    is not the town at any hour (the night sky and the lamps are never black to the last bit).
+// When the town cannot be seen the player is told on the screen, with what was found (the error the browser gave, the
+// device's graphics, what was drawn), so that it can be photographed and sent; reloading the page is offered and is
+// theirs to choose (the game never reloads itself). Errors written to the console and errors nothing caught are kept
+// too (the last few), since a shader the device could not build is only ever written there.
+const LOOK_EVERY = 3000;     // ms between reading the picture back
+const BLACK_LOOKS = 4;       // looks in a row black at every point before it is said
+const STILL_FOR = 6000;      // ms with nothing drawn, while the town should be, before it is said
+const FAILS_FOR = 3;         // frames failed in a row before it is said
+
+function watchPicture({ renderer, camera, canvas, reload, lost, errors }) {
+  const kept = [];
+  const keep = (text) => { try { kept.push(String(text).replace(/\s+/g, ' ').slice(0, 240)); if (kept.length > 5) kept.shift(); } catch (e) { /* kept as far as it could be */ } };
+  const describe = (value) => (value instanceof Error ? `${value.name}: ${value.message}${value.stack ? ` @ ${String(value.stack).split('\n').find((l) => /\.js|@|at /.test(l) && !/^\w*Error/.test(l)) || ''}` : ''}` : typeof value === 'object' && value ? (() => { try { return JSON.stringify(value).slice(0, 200); } catch (e) { return String(value); } })() : String(value));
+  const written = console.error;
+  console.error = function (...args) { keep(args.map(describe).join(' ')); return written.apply(this, args); };
+  window.addEventListener('error', (event) => keep(`page: ${event.message || ''} ${event.filename ? `${String(event.filename).split('/').pop()}:${event.lineno}` : ''}`));
+  window.addEventListener('unhandledrejection', (event) => keep(`promise: ${describe(event.reason)}`));
+
+  let gl = null;
+  try { gl = renderer.getContext(); } catch (e) { gl = null; }
+  const device = (() => {
+    try {
+      const info = gl && gl.getExtension('WEBGL_debug_renderer_info');
+      const card = info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl ? gl.getParameter(gl.RENDERER) : 'none';
+      return `${card}; ${gl ? `WebGL${typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext ? '2' : '1'}, textures ${gl.getParameter(gl.MAX_TEXTURE_IMAGE_UNITS)}/${gl.getParameter(gl.MAX_TEXTURE_SIZE)}` : ''}`;
+    } catch (e) { return 'unknown'; }
+  })();
+
+  const state = { lastDrawn: 0, wanted: 0, failsInRow: 0, lastError: '', black: 0, lookAt: 0, said: '', hidden: false, shown: 0, shownAt: 0 };
+  const pixel = new Uint8Array(4);
+  // (five points: the middle and the four quarters; read back straight after drawing, before the browser shows it)
+  const looksBlack = () => {
+    if (!gl || gl.isContextLost()) return false;
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    if (!w || !h) return false;
+    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+      gl.readPixels(Math.floor(w * fx), Math.floor(h * fy), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
+      if (pixel[0] + pixel[1] + pixel[2] > 3) return false;
+    }
+    return true;
+  };
+
+  let box = null;
+  const show = (reason) => {
+    state.said = reason;
+    if (state.hidden) return;
+    if (!box) {
+      box = document.createElement('div');
+      box.id = 'picture-watch';
+      box.setAttribute('role', 'alert');
+      box.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100000;max-width:min(560px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;border-radius:12px;background:rgba(20,22,28,0.94);color:#f4f1ea;font:14px/1.4 system-ui,-apple-system,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,0.5);pointer-events:auto;';
+      box.innerHTML = '<div style="font-weight:600;font-size:16px;margin-bottom:4px">The town is not showing</div>'
+        + '<div data-say style="margin-bottom:8px"></div>'
+        + '<div style="margin-bottom:8px">Your game is saved. Reloading the page usually brings the town back. If it keeps happening, please take a screenshot of this message and send it to us.</div>'
+        + '<div data-detail style="font:11px/1.35 ui-monospace,Menlo,monospace;opacity:0.8;word-break:break-word;max-height:30vh;overflow:auto;margin-bottom:10px"></div>'
+        + '<div style="display:flex;gap:8px;justify-content:flex-end"><button data-hide type="button" style="padding:8px 14px;border-radius:8px;border:1px solid #666;background:transparent;color:inherit;font:inherit">Hide</button><button data-reload type="button" style="padding:8px 14px;border-radius:8px;border:0;background:#e8a23a;color:#1a1a1a;font:inherit;font-weight:600">Reload the page</button></div>';
+      for (const type of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown', 'keyup', 'wheel']) box.addEventListener(type, (event) => event.stopPropagation());
+      box.querySelector('[data-hide]').addEventListener('click', () => { state.hidden = true; box.hidden = true; });
+      box.querySelector('[data-reload]').addEventListener('click', () => reload());
+      document.body.appendChild(box);
+    }
+    box.querySelector('[data-say]').textContent = reason;
+    const p = camera.position;
+    const info = renderer.info && renderer.info.render ? renderer.info.render : {};
+    box.querySelector('[data-detail]').textContent = [
+      `graphics: ${device}`,
+      `drawn: ${info.calls || 0} calls, ${info.triangles || 0} triangles; context ${gl && gl.isContextLost() ? 'LOST' : 'kept'} (lost ${lost()} times); frames failed ${errors()}`,
+      `camera: ${[p.x, p.y, p.z].map((v) => (Number.isFinite(v) ? v.toFixed(1) : String(v))).join(', ')}; screen ${canvas.width}x${canvas.height} at ${(window.devicePixelRatio || 1).toFixed(2)}`,
+      state.lastError ? `error: ${state.lastError}` : '',
+      ...kept.filter((k) => k !== state.lastError).map((k) => `console: ${k}`),
+      `browser: ${navigator.userAgent}`,
+    ].filter(Boolean).join('\n');
+    box.style.whiteSpace = 'normal';
+    box.querySelector('[data-detail]').style.whiteSpace = 'pre-wrap';
+    box.hidden = false;
+    state.shown += 1;
+  };
+  const clear = () => { state.said = ''; if (box) box.hidden = true; };
+
+  return {
+    // a frame drawn: read back now and then (the read is made straight after drawing, while the picture is there)
+    drawn(now) {
+      state.lastDrawn = now;
+      state.failsInRow = 0;
+      if (now >= state.lookAt) { state.lookAt = now + LOOK_EVERY; try { state.black = looksBlack() ? state.black + 1 : 0; } catch (e) { state.black = 0; } }
+    },
+    failed(error) { state.failsInRow += 1; state.lastError = describe(error); },
+    // every frame: should the town be on the screen, and is it?
+    frame(now, wanted) {
+      if (!wanted) { state.wanted = 0; if (state.said && !lost()) clear(); return; }
+      if (!state.wanted) { state.wanted = now; state.lastDrawn = Math.max(state.lastDrawn, now); state.black = 0; }
+      const p = camera.position;
+      let reason = '';
+      if (lost() || (gl && gl.isContextLost())) reason = 'The browser took the game\'s graphics away (this device ran short of memory for them).';
+      else if (state.failsInRow >= FAILS_FOR) reason = 'Drawing the town failed on this device.';
+      else if (!(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z))) reason = 'The camera was lost (its position is not a number).';
+      else if (now - state.lastDrawn > STILL_FOR) reason = 'The town stopped being drawn.';
+      else if (state.black >= BLACK_LOOKS) reason = 'The town is being drawn black on this device.';
+      // (what was found is written afresh every two seconds while it is up)
+      if (reason) { if (reason !== state.said || now - state.shownAt > 2000) { state.shownAt = now; show(reason); } }
+      else if (state.said) clear();
+    },
+    get said() { return state.said; },
+    get kept() { return kept.slice(); },
+    get black() { return state.black; },
+    device,
+  };
+}
+
+return { watchPicture };
+})();
+
 // ---- client/main.js ----
 __modules["client/main.js"] = (function () {
 // Client entry point: input, camera, prediction, drawing and sound.
@@ -40218,6 +40345,7 @@ const { buildPowerbike } = __modules["client/render-powerbike.js"];
 const { pictureSize } = __modules["client/budget.js"];
 const { createSalesman } = __modules["sim/salesman.js"];
 const { talkGesture } = __modules["client/talk-gestures.js"];
+const { watchPicture } = __modules["client/picture-watch.js"];
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -41303,10 +41431,12 @@ function start(carried) {
       // the handset and its glow are not in its own picture; the figure is, even when the game's own eye is inside its head
       const shown = me.group.visible, handset = phoneHold.prop.visible, shadows = renderer.shadowMap.autoUpdate;
       me.group.visible = true; phoneHold.hideForPicture(true); renderer.shadowMap.autoUpdate = false;
+      // (put back whatever happens: left on the phone's picture, the town would be drawn there and the screen left black)
       renderer.setRenderTarget(target);
-      renderer.render(scene, eye);
-      renderer.setRenderTarget(null);
-      renderer.shadowMap.autoUpdate = shadows; me.group.visible = shown; phoneHold.hideForPicture(false); phoneHold.prop.visible = handset;
+      try { renderer.render(scene, eye); } finally {
+        renderer.setRenderTarget(null);
+        renderer.shadowMap.autoUpdate = shadows; me.group.visible = shown; phoneHold.hideForPicture(false); phoneHold.prop.visible = handset;
+      }
       renderer.readRenderTargetPixels(target, 0, 0, W, H, pixels);
       // what was drawn comes back last row first
       const data = image.data, row = W * 4;
@@ -42818,13 +42948,28 @@ function start(carried) {
   // thrown on the way, however rare, stopped the game where it stood, the last picture left on the screen). The
   // browser tests fail on any such error in the console, so none is hidden from them.
   let frameErrors = 0;
+  // The picture watched (19 October 2026, the owner: on his phone the game played on behind a picture purely black).
+  // What the town needs to be seen is checked as it is played: that frames are being drawn, that drawing them does not
+  // fail, that the browser still lets the page draw, that the camera is somewhere real, and, every few seconds, a few
+  // points of what was drawn read back (a picture black at every point, held for a while, is not the town at any
+  // hour). When the town cannot be seen the player is told so on the screen, with what was found (the error the
+  // browser gave, the device's graphics), so that it can be photographed and sent; reloading the page is offered, and
+  // is theirs to choose (the game never reloads itself).
+  let townWanted = false;
+  const watch = watchPicture({ renderer, camera, canvas, reload: () => location.reload(), lost: () => contextLost, errors: () => frameErrors });
   function frame(now) {
     requestAnimationFrame(frame);
     try { drawFrame(now); } catch (error) {
       frameErrors += 1;
+      // (a frame that failed part way through a picture drawn elsewhere, the phone's or the warm-up's, must not leave
+      // the town to be drawn there from then on: the screen would stay black with the game going on behind it)
+      try { if (renderer.getRenderTarget() !== null) renderer.setRenderTarget(null); } catch (e) { /* the context is gone */ }
       if (frameErrors <= 5 || frameErrors % 600 === 0) console.error(`PostCivilWar: a frame could not be drawn (${frameErrors})`, error);
       monitor.count('frame error');
+      watch.failed(error);
     }
+    // (looked at after the frame, whether it was drawn or failed on the way: should the town be on the screen, and is it)
+    try { watch.frame(now, townWanted); } catch (error) { /* the watch never stops the game */ }
   }
   function drawFrame(now) {
     const elapsed = (now - last) / 1000;
@@ -43225,7 +43370,8 @@ blood.update(dt, view.blood || []);
     if (playing && !NO_DRAW && ui.phoneScreen() === 'camera') monitor.time('phone camera', () => phoneCam.draw(dt));
     // (nothing is drawn once the browser has taken the graphics away: what the graphics card held is gone, and the
     // page let its own copies go once the card had them, so the picture cannot be made again without a reload)
-    if (!NO_DRAW && !covered && !paged && !contextLost && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
+    townWanted = playing && !NO_DRAW && !covered && !paged && !(intro.active() && warm.stage >= 5);
+    if (!NO_DRAW && !covered && !paged && !contextLost && !(intro.active() && warm.stage >= 5)) { renderer.render(scene, camera); watch.drawn(now); }
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame
@@ -43250,7 +43396,7 @@ blood.update(dt, view.blood || []);
   // is counted (`contextLost`) for the frame monitor and the tests.
   let contextLost = 0;
   // (asked again whenever the player comes back to the page while the picture is still lost, having said "Not now")
-  const askReload = () => confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', run: async () => { location.reload(); return { ok: true }; } });
+  const askReload = () => confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', urgent: true, run: async () => { location.reload(); return { ok: true }; } });
   canvas.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
     contextLost += 1;
@@ -43278,7 +43424,7 @@ blood.update(dt, view.blood || []);
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
-    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, world, warmUp, get ready() { return isReady; },
+    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, world, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
@@ -43288,7 +43434,7 @@ blood.update(dt, view.blood || []);
     // the Post Civil War Car Showroom: the compound and its hall, the two who sell the cars, and asking about one; the
     // player's own cars and driving them
     carshowView, carSalesmen, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
-    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
+    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },

@@ -87,10 +87,13 @@ export function createWarmUp(renderer, scene) {
     if (twins.length) {
       for (const twin of twins) stage.add(twin);
       const before = renderer.getRenderTarget();
+      // (put back whatever happens: left on the small picture, every frame of the town after it would be drawn there
+      // and the screen left black, the game played on behind it; 19 October 2026)
       renderer.setRenderTarget(target);
-      renderer.render(stage, eye);
-      renderer.setRenderTarget(before);
-      for (const twin of twins) stage.remove(twin);
+      try { renderer.render(stage, eye); } finally {
+        renderer.setRenderTarget(before);
+        for (const twin of twins) stage.remove(twin);
+      }
     }
     const took = performance.now() - t;
     if (took > stats.slowestMs) stats.slowestMs = took;

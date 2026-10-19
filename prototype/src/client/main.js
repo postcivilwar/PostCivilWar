@@ -80,6 +80,7 @@ import { buildPowerbike } from './render-powerbike.js';
 import { pictureSize } from './budget.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
+import { watchPicture } from './picture-watch.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -1165,10 +1166,12 @@ function start(carried) {
       // the handset and its glow are not in its own picture; the figure is, even when the game's own eye is inside its head
       const shown = me.group.visible, handset = phoneHold.prop.visible, shadows = renderer.shadowMap.autoUpdate;
       me.group.visible = true; phoneHold.hideForPicture(true); renderer.shadowMap.autoUpdate = false;
+      // (put back whatever happens: left on the phone's picture, the town would be drawn there and the screen left black)
       renderer.setRenderTarget(target);
-      renderer.render(scene, eye);
-      renderer.setRenderTarget(null);
-      renderer.shadowMap.autoUpdate = shadows; me.group.visible = shown; phoneHold.hideForPicture(false); phoneHold.prop.visible = handset;
+      try { renderer.render(scene, eye); } finally {
+        renderer.setRenderTarget(null);
+        renderer.shadowMap.autoUpdate = shadows; me.group.visible = shown; phoneHold.hideForPicture(false); phoneHold.prop.visible = handset;
+      }
       renderer.readRenderTargetPixels(target, 0, 0, W, H, pixels);
       // what was drawn comes back last row first
       const data = image.data, row = W * 4;
@@ -2680,13 +2683,28 @@ function start(carried) {
   // thrown on the way, however rare, stopped the game where it stood, the last picture left on the screen). The
   // browser tests fail on any such error in the console, so none is hidden from them.
   let frameErrors = 0;
+  // The picture watched (19 October 2026, the owner: on his phone the game played on behind a picture purely black).
+  // What the town needs to be seen is checked as it is played: that frames are being drawn, that drawing them does not
+  // fail, that the browser still lets the page draw, that the camera is somewhere real, and, every few seconds, a few
+  // points of what was drawn read back (a picture black at every point, held for a while, is not the town at any
+  // hour). When the town cannot be seen the player is told so on the screen, with what was found (the error the
+  // browser gave, the device's graphics), so that it can be photographed and sent; reloading the page is offered, and
+  // is theirs to choose (the game never reloads itself).
+  let townWanted = false;
+  const watch = watchPicture({ renderer, camera, canvas, reload: () => location.reload(), lost: () => contextLost, errors: () => frameErrors });
   function frame(now) {
     requestAnimationFrame(frame);
     try { drawFrame(now); } catch (error) {
       frameErrors += 1;
+      // (a frame that failed part way through a picture drawn elsewhere, the phone's or the warm-up's, must not leave
+      // the town to be drawn there from then on: the screen would stay black with the game going on behind it)
+      try { if (renderer.getRenderTarget() !== null) renderer.setRenderTarget(null); } catch (e) { /* the context is gone */ }
       if (frameErrors <= 5 || frameErrors % 600 === 0) console.error(`PostCivilWar: a frame could not be drawn (${frameErrors})`, error);
       monitor.count('frame error');
+      watch.failed(error);
     }
+    // (looked at after the frame, whether it was drawn or failed on the way: should the town be on the screen, and is it)
+    try { watch.frame(now, townWanted); } catch (error) { /* the watch never stops the game */ }
   }
   function drawFrame(now) {
     const elapsed = (now - last) / 1000;
@@ -3087,7 +3105,8 @@ blood.update(dt, view.blood || []);
     if (playing && !NO_DRAW && ui.phoneScreen() === 'camera') monitor.time('phone camera', () => phoneCam.draw(dt));
     // (nothing is drawn once the browser has taken the graphics away: what the graphics card held is gone, and the
     // page let its own copies go once the card had them, so the picture cannot be made again without a reload)
-    if (!NO_DRAW && !covered && !paged && !contextLost && !(intro.active() && warm.stage >= 5)) renderer.render(scene, camera);
+    townWanted = playing && !NO_DRAW && !covered && !paged && !(intro.active() && warm.stage >= 5);
+    if (!NO_DRAW && !covered && !paged && !contextLost && !(intro.active() && warm.stage >= 5)) { renderer.render(scene, camera); watch.drawn(now); }
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame
@@ -3112,7 +3131,7 @@ blood.update(dt, view.blood || []);
   // is counted (`contextLost`) for the frame monitor and the tests.
   let contextLost = 0;
   // (asked again whenever the player comes back to the page while the picture is still lost, having said "Not now")
-  const askReload = () => confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', run: async () => { location.reload(); return { ok: true }; } });
+  const askReload = () => confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', urgent: true, run: async () => { location.reload(); return { ok: true }; } });
   canvas.addEventListener('webglcontextlost', (event) => {
     event.preventDefault();
     contextLost += 1;
@@ -3140,7 +3159,7 @@ blood.update(dt, view.blood || []);
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
-    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, world, warmUp, get ready() { return isReady; },
+    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, world, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
@@ -3150,7 +3169,7 @@ blood.update(dt, view.blood || []);
     // the Post Civil War Car Showroom: the compound and its hall, the two who sell the cars, and asking about one; the
     // player's own cars and driving them
     carshowView, carSalesmen, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
-    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
+    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },

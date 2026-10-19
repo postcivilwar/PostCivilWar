@@ -71,7 +71,9 @@ export function createConfirm() {
   // keys typed while it is up are its own: the game behind it does not hear them
   for (const type of ['keyup', 'keypress']) box.addEventListener(type, (event) => event.stopPropagation());
 
-  function ask({ title: heading, body: text = '', rows = null, note = '', confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, run = async () => ({ ok: true }) }) {
+  function ask({ title: heading, body: text = '', rows = null, note = '', confirm = 'Yes', cancel = 'Cancel', busy = 'Working...', danger = false, urgent = false, run = async () => ({ ok: true }) }) {
+    // (a question that cannot wait, the picture lost, takes the place of one still open rather than being dropped)
+    if (open && urgent && !open.busy) close(false);
     if (open) return Promise.resolve(false);
     return new Promise((resolve) => {
       open = { resolve, run, opener: document.activeElement, busy: false, words: { confirm, busy } };
