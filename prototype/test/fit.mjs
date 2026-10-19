@@ -234,7 +234,10 @@ await everySize('exit the game?', { whole: ['#confirm-title', '#confirm-no', '#c
 await page.setViewportSize({ width: 390, height: 844 });
 await page.tap('#confirm-yes');
 await page.waitForSelector('#resume-play', { state: 'visible', timeout: 120000 });
-await everySize('the game saved, out of the town', { whole: ['#resume-title', '#resume-play'], reach: ['#resume-text', '#start h1'], words: ['#start h1', ...BUTTONS] }, { before: () => top('#start') });
+await everySize('the game saved, out of the town', { reach: ['#resume-title', '#resume-text', '#resume-play', '#start h1'], words: ['#start h1', ...BUTTONS] }, { before: () => top('#start') });
+// (on every screen but the smallest phone on its side, which scrolls, as the rest of the start screen does there:
+// Play is on the screen with the words above it, without scrolling)
+await everySize('the game saved, out of the town, at once', { whole: ['#resume-title', '#resume-play'] }, { sizes: SIZES.filter(([, , h]) => h >= 360), before: () => top('#start') });
 await page.setViewportSize({ width: 390, height: 844 });
 await page.tap('#resume-play');
 await page.waitForFunction(() => !document.querySelector('#hud').hidden, null, { timeout: 120000 });
