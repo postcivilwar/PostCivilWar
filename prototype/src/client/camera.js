@@ -127,8 +127,9 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     live.shift += ((v.shift || 0) - live.shift) * ease;
     live.lift += ((v.lift || 0) - live.lift) * ease;
     live.seat += ((v.seat ? 1 : 0) - live.seat) * toward(6, dt);
-    // how wide it sees: wider on the street, as the game it is modelled on does, without the stretch of a wide lens
-    const wantFov = v.fov || BASE_FOV;
+    // how wide it sees: wider on the street, as the game it is modelled on does, without the stretch of a wide lens; in a
+    // showroom's hall as it was (the hall's own views were made for it, and a wider lens there only draws more of it)
+    const wantFov = room ? BASE_FOV : v.fov || BASE_FOV;
     live.fov += (wantFov - live.fov) * toward(4, dt);
     if (camera.isPerspectiveCamera && Math.abs(camera.fov - live.fov) > 0.01) { camera.fov = live.fov; camera.updateProjectionMatrix(); }
     // In a view that follows the heading, a drag looks about and then lets go.
