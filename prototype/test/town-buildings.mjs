@@ -12,7 +12,7 @@ import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 import { TOWN_MODELS, TOWN_TOWERS } from '../src/sim/zones/town-buildings.js';
-import { ZONE_HOUSES } from '../src/sim/zone.js';
+import { ZONE_HOUSES, zoneBlockKind } from '../src/sim/zone.js';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
@@ -110,13 +110,19 @@ const pushInto = async (x, z, heading, ms = 2000) => {
   await page.waitForTimeout(300);
   return page.evaluate(() => ({ x: +window.__nlw.predicted.x.toFixed(2), z: +window.__nlw.predicted.z.toFixed(2) }));
 };
+// (a building is solid where its model stands on the ground, measured from the model: 19 October 2026, no longer
+// the box round the whole of it, eaves and all. Where a push meets it is the first point along the way that is
+// solid: the player stops a body's width short of that)
+const wallAlong = (x, z, dx, dz) => { for (let d = 0; d < 30; d += 0.02) if (zoneBlockKind(x + dx * d, z + dz * d, [], 0.01) === 'solid') return { x: +(x + dx * d).toFixed(2), z: +(z + dz * d).toFixed(2) }; return null; };
 const house = ZONE_HOUSES.find((h) => h.model && h.door === 's' && h.quarter === 'Umuezei');
+const behindWall = wallAlong(house.x, house.z - house.d / 2 - 0.9, 0, 1), sideWall = wallAlong(house.x - house.w / 2 - 0.9, house.z, 1, 0);
 const fromBehind = await pushInto(house.x, house.z - house.d / 2 - 0.9, 0);
 const fromSide = await pushInto(house.x - house.w / 2 - 0.9, house.z, Math.PI / 2);
-check('pushed against from behind and from the side, a house holds: the player stays outside its walls', fromBehind.z < house.z - house.d / 2 - 0.2 && fromSide.x < house.x - house.w / 2 - 0.2, { fromBehind, fromSide, back: house.z - house.d / 2, side: house.x - house.w / 2 });
+check('pushed against from behind and from the side, a house holds: the player stays outside its walls', !!behindWall && !!sideWall && fromBehind.z < behindWall.z - 0.2 && fromSide.x < sideWall.x - 0.2 && fromBehind.z > house.z - house.d / 2 - 3 && fromSide.x > house.x - house.w / 2 - 3, { fromBehind, fromSide, behindWall, sideWall });
 const tower = TOWN_TOWERS.find((t) => t.id === 'registry-towers');
+const frontWall = wallAlong(tower.x, tower.z + tower.d / 2 + 0.9, 0, -1);
 const atTower = await pushInto(tower.x, tower.z + tower.d / 2 + 0.9, Math.PI);
-check('and so does a tower', atTower.z > tower.z + tower.d / 2 + 0.2, { atTower, front: tower.z + tower.d / 2 });
+check('and so does a tower', !!frontWall && atTower.z > frontWall.z + 0.2 && atTower.z < tower.z + tower.d / 2 + 3, { atTower, frontWall });
 
 // ---- far from every lane for a while: the house models are let go (their houses are plain blocks), the towers kept;
 // back in a lane, its houses' model is fetched again ----
