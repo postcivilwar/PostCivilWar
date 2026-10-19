@@ -223,6 +223,22 @@ for (const [size, width, height] of [['phone-tall', 390, 844], ['phone-side-wide
 }
 await page.setViewportSize({ width: 390, height: 844 });
 
+// ---- Exit game (19 October 2026): first in Settings, its question, and the start screen with Play ----
+await page.evaluate(() => window.__nlw.ui.openPhone('settings'));
+await page.waitForSelector('#exit-game');
+await everySize('Settings, the Game section first', { whole: ['#exit-game', '#erase-save'], words: BUTTONS }, { before: () => top('.page .screen') });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.evaluate(() => document.querySelector('#exit-game').click());
+await page.waitForSelector('#confirm:not([hidden])');
+await everySize('exit the game?', { whole: ['#confirm-title', '#confirm-no', '#confirm-yes'], reach: ['#confirm-body'], words: ['#confirm .hx'] });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.tap('#confirm-yes');
+await page.waitForSelector('#resume-play', { state: 'visible', timeout: 120000 });
+await everySize('the game saved, out of the town', { whole: ['#resume-title', '#resume-play'], reach: ['#resume-text', '#start h1'], words: ['#start h1', ...BUTTONS] }, { before: () => top('#start') });
+await page.setViewportSize({ width: 390, height: 844 });
+await page.tap('#resume-play');
+await page.waitForFunction(() => !document.querySelector('#hud').hidden, null, { timeout: 120000 });
+
 // ---- logging out and erasing: the two questions ----
 await page.evaluate(() => window.__nlw.ui.openPhone('settings'));
 await page.waitForSelector('#erase-save');

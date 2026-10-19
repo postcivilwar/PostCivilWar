@@ -881,16 +881,40 @@ On the website nobody enters the town without an account.
 - A copy of the game with no server (opened from a disk, or the published
   artifact) has no accounts and no gate.
 
-### Logging out, and erasing a saved game
+### Exiting the game, logging out, and erasing a saved game (restarting)
 
-Both ask first (`confirm.js`: a dialog with a title, what will happen, and two
+Each asks first (`confirm.js`: a dialog with a title, what will happen, and two
 buttons; Escape and Cancel change nothing; the keyboard stays inside it; it
 is announced to a screen reader).
+
+The game is saved on the device (every twenty seconds while playing, whenever
+the page is hidden or the graphics are lost, and at a journey's start, a
+purchase and the like) and, on the website, with the account (every minute
+while playing, four seconds after anything to do with TR or the market,
+whenever the page is hidden, and before logging out). Each save to the account
+is numbered and the server keeps the newest: a copy played on since on another
+device is the one loaded. TR and what is owned are the bank's, not the save's.
+Opening the game again (and pressing PLAY) carries on where the player was.
+
+The phone's Settings app opens on its **Game** section (19 October 2026, the
+owner): **Exit game** and **Restart game**, side by side.
+
+- **Exit game**: "Exit the game?" with Cancel and Save and Exit. The game is
+  saved on the device and with the account (its answer is waited for, up to
+  fifteen seconds: a save still on its way after that, or one that cannot be
+  sent, is kept on the device and goes to the account when there is a
+  connection, and the player is told so). The player leaves the town for the
+  start screen ("Your game is saved", with **Play**, which carries on from
+  where they were); other players stop seeing them; the town's sounds stop;
+  they stay signed in. A page cannot close its own tab: from there the player
+  closes the app or the tab, or plays on (`exitGame` in `main.js`).
+- **Restart game** is the erasing below, moved up from the foot of Settings
+  (it was "Erase this save and start again"), with the same question.
 
 - **Log out**: "Log out of your account?" with Cancel and Log Out. Logging
   out sends the character to the account, ends the session on the server and
   clears this device.
-- **Erase** (Settings, "Saved game"): "Erase your saved game?" with Cancel
+- **Erase** (Settings, "Restart game"): "Erase your saved game?" with Cancel
   and Erase Save and Restart. It deletes the character and its town on the
   server and on the device and goes back to the start. **It does not touch
   the wallet**: the TR, the history, the beneficiaries and what was bought in
@@ -2094,6 +2118,7 @@ node test/figures.mjs out/                         # every supplied figure: chos
 ../server/with-postgres.sh node test/vehicle-sync.mjs out/   # two players: a keke, okadas, another's motorcycle with its bars turned and the phone in the left hand, another at the wheel of an open car with the phone in the right, a closed car not seen through, more motorcycles than are drawn as models standing in as their pictures, each with its rider
 ../server/with-postgres.sh node test/falls.mjs out/          # riding (a road, the runway, the grass by the purple tower where the owner's rider came off), a roadblock met slowly and at 50 km/h, thrown over it and getting up (watched in slow motion), knocked down three ways, the street camera and its views
 ../server/with-postgres.sh node test/falls-sync.mjs out/     # two players: one thrown at a roadblock, the other watching: the fall, the lying and the getting up, once, where it happened; the motorcycle going down
+../server/with-postgres.sh node test/exit.mjs out/          # Exit game and Restart game from the phone's Settings: asked first, saved with the account, the start screen and Play, back where they were on another device, a new journey with the TR kept
 node test/camera.mjs out/                          # the street camera through the owner's list: standing, walking, toward it, turning, running, the View button, dragging, a wall behind at four distances, another player, a phone upright and sideways; framed as in his recording
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night

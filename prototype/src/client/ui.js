@@ -562,6 +562,17 @@ export function createUI(app) {
   }
 
   function settings(root, viewNames) {
+    // The game itself, first (19 October 2026, the owner: an Exit game button in Settings, and a restart): leaving
+    // the town with the game saved, and starting again. Restart is the erasing that was at the foot of this page
+    // ("Erase this save and start again"), asked about in the same words.
+    const kept = !!(app.online && app.online.available);
+    root.append(section('Game'));
+    root.append(h('div', { class: 'actions gameacts' },
+      h('button', { class: 'btn primary', type: 'button', id: 'exit-game', onclick: () => app.exitGame() }, 'Exit game'),
+      h('button', { class: 'btn quiet', type: 'button', id: 'erase-save', onclick: () => app.erase() }, 'Restart game')));
+    root.append(h('p', { class: 'small', id: 'game-note' }, kept
+      ? 'Exit saves your game, on this device and with your account, and takes you out of the town: Play carries on from where you were. Restart erases this character for good and begins a new journey; your account, your username, your TR and everything you own in the market are kept.'
+      : 'Exit saves your game on this device and takes you out of the town: Play carries on from where you were. Restart erases this character for good and begins a new journey.'));
     // On the website: the account this character is kept with. (Nobody plays there without one.)
     if (app.online && app.online.available) {
       const st = app.online.status();
@@ -678,10 +689,6 @@ export function createUI(app) {
     measure();
     current.refresh = measure;
     root.append(measured, hitches);
-
-    root.append(section('Saved game'));
-    root.append(h('p', { class: 'small' }, 'Erasing puts this character away for good and begins a new journey. Your account, your username, your TR and everything you own in the market are kept.'));
-    root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', id: 'erase-save', onclick: () => app.erase() }, 'Erase this save and start again')));
 
     root.append(section('About'));
     root.append(h('div', { class: 'about', id: 'about' }, ABOUT.map((text) => h('p', null, text))));

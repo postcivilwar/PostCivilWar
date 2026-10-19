@@ -414,6 +414,8 @@ function start(carried) {
   let host = newHost({ saved: stored ? stored.host : null });
   let playerId = stored && host.game.hasPlayer(stored.playerId) ? stored.playerId : null;
   let playing = false;
+  let exited = false;                 // left the town by Exit game (Settings): out of it until Play is pressed
+  let exitNote = '';                  // what is to be said about where the game was saved, on the way out
   let intro = null;                   // the opening (intro.js); it can also put the one question again, later
   let gallery = false;                // looking at the characters, from inside the game: nothing is being played meanwhile
   let characterTrouble = '';          // why the character kept with the account could not be brought here, if it could not
@@ -568,7 +570,7 @@ function start(carried) {
   });
   // The character leaves this device: it was erased, or its player has logged out.
   function forgetCharacter(why) {
-    clearSave(); playing = false; gallery = false; ui.close(); if (why !== 'erased') walletClient.reset(); showStart(true); route();
+    clearSave(); playing = false; gallery = false; exited = false; exitNote = ''; ui.close(); if (why !== 'erased') walletClient.reset(); showStart(true); route();
   }
   const accountSync = createAccountSync({
     online, pack: packSave, unpack: unpackSave, read: savedNow,
@@ -1216,6 +1218,7 @@ function start(carried) {
     send: (intent) => { const r = server.send(intent); refreshView(); return r; },
     view: () => view,
     erase: () => eraseSave(),
+    exitGame: () => exitGame(),
     // the characters, to look at; and which one the player is
     gallery: () => openGallery(),
     character: () => { const id = myFigure(); return id ? { figure: id, name: figureName(id) } : null; },
@@ -1298,6 +1301,51 @@ function start(carried) {
       return done;
     });
   }
+  // "Exit game" (Settings; 19 October 2026, the owner): asked about first. The game is saved on this device and, on
+  // the website, with the account (its answer is waited for, a little while), and the player leaves the town for the
+  // start screen, where Play carries on from where they were. Other players stop seeing them and the town's sounds
+  // stop; they stay signed in. A save that cannot reach the account just now is kept on this device and goes to the
+  // account when there is a connection again (as any save does), and the player is told so. A page cannot close
+  // its own tab: from the start screen the player closes the app or the tab, or plays on.
+  function exitGame() {
+    if (!playing || !playerId) return Promise.resolve(false);
+    let note = '';
+    return confirm.ask({
+      title: 'Exit the game?',
+      body: online.available
+        ? 'Your game will be saved, on this device and with your account, and you will leave the town. Press Play to carry on from where you are.'
+        : 'Your game will be saved on this device, and you will leave the town. Press Play to carry on from where you are.',
+      confirm: 'Save and Exit', cancel: 'Cancel', busy: 'Saving...',
+      run: async () => {
+        writeStored(SAVE_KEY, { host: host.save(), playerId });
+        if (online.available) {
+          // (on a slow connection the save is not waited for past fifteen seconds: it goes on its way, and is kept here)
+          const sent = online.signedIn ? await Promise.race([accountSync.upload(), new Promise((done) => { setTimeout(() => done('slow'), 15000); })]) : null;
+          if (sent === 'slow') note = 'It is saved on this device, and is still on its way to your account.';
+          else if (!sent || (!sent.ok && (sent.code === 'OFFLINE' || sent.code === 'SERVER'))) note = 'It is saved on this device, and goes to your account as soon as there is a connection.';
+        }
+        return { ok: true };
+      },
+    }).then((done) => { if (done) leaveTown(note); return done; });
+  }
+  function leaveTown(note) {
+    if (!playing) return;
+    exited = true; exitNote = note || '';
+    letGo();
+    playing = false;
+    ui.close();
+    audio.suspend();
+    showStart(false);
+    $('start').scrollTop = 0;
+    if (!$('resume-play').hidden) $('resume-play').focus({ preventScroll: true });
+  }
+  // Play, on the start screen after Exit game: back into the town where the player left it.
+  $('resume-play').addEventListener('click', () => {
+    if (!exited) return;
+    exited = false; exitNote = '';
+    if (prefs.sound) audio.start();
+    route();
+  });
   online.onChange(() => onlineChanged());
   // Is there a server, and is this browser signed in? If so, which copy of the character is the one to play.
   // Asked when the page opens, and again now and then for as long as the server cannot be reached.
@@ -1614,6 +1662,16 @@ function start(carried) {
     if (gallery) { setScreen('gallery'); $('start-title').textContent = 'Characters'; return; }
     const waiting = !!playerId || expectsCharacter();
     setScreen(waiting ? 'resume' : 'create');
+    $('resume-play').hidden = !(waiting && exited && playerId);
+    if (waiting && exited && playerId) {
+      // left by Exit game: the game is saved, and Play carries on
+      const who = host.game.view(playerId).self.name;
+      $('resume-title').textContent = 'Your game is saved';
+      $('resume-text').textContent = `${who ? `${who} is` : 'Your character is'} where you left the town. ${exitNote ? `${exitNote} ` : ''}Press Play to carry on.`;
+      $('resume-wait').hidden = true;
+      $('resume-retry').hidden = true;
+      return;
+    }
     if (waiting) {
       const name = playerId ? host.game.view(playerId).self.name : (online.status().save && online.status().save.name) || '';
       $('resume-title').textContent = name ? `Welcome back, ${name}` : 'Welcome back';
@@ -1648,7 +1706,7 @@ function start(carried) {
     if (playing || gallery) return;
     if (!intro || (intro.active() && !intro.asking())) return;         // the opening is still on the screen
     if (!accountUI.mayPlay()) { if (!$('start').hidden) drawStart(); return; }  // the website, signed out: the start screen is shut (account-ui.js)
-    if (playerId) { if (isReady) enterWorld(); else drawStart(); return; }
+    if (playerId) { if (isReady && !exited) enterWorld(); else drawStart(); return; }
     if (expectsCharacter()) { drawStart(); return; }
     // nobody's character is here: a new journey. The one question is asked first, if it has never been answered
     if (!knownPath()) {
@@ -1671,6 +1729,7 @@ function start(carried) {
 
   function enterWorld() {
     gallery = false;
+    exited = false; exitNote = '';
     wearCharacter();
     predicted = { x: view.self.x, z: view.self.z, heading: view.self.heading };
     car.speed = 0;
@@ -3327,7 +3386,7 @@ blood.update(dt, view.blood || []);
     // player's own cars and driving them
     carshowView, carSalesmen, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
     carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
-    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
+    online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
