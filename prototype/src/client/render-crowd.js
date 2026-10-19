@@ -14,6 +14,7 @@ import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showNam
 import { poseFighter } from './combat-view.js';
 import { zoneGroundY } from '../sim/zone.js';
 import { vehicleMeta } from './vehicle-kit.js';
+import { fallTime, flightAt } from './falls.js';
 
 const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
 const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
@@ -479,12 +480,29 @@ export function createCrowd(scene) {
       // in or on a vehicle: where their game says the vehicle is, carried on between words at its speed (main.js),
       // so it is not left trailing behind as someone walking would be; and facing the way the vehicle faces
       const vh = q.vehicle || null, seated = !!vh || !!q.ride || !!q.car;
-      if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }
+      // knocked down, thrown from a motorcycle or killed (19 October 2026): from their game (`down`, link.js), or from
+      // this town if they are in it (a stance): they fall the way the blow sent them, from where it began, lie and get
+      // up as they do on their own screen (falls.js); they are not walked from where they were struck to where they lay
+      const st0 = frame.others ? frame.others[q.id] : null;
+      const pd = q.down ? q.down : st0 && (st0.down || st0.rising || st0.dead) && Number.isFinite(st0.fallAge) ? { kind: st0.kind || (st0.dead ? 'dead' : 'knock'), age: st0.fallAge, lie: st0.lie, rise: st0.rise, push: st0.fell, hard: st0.hard, from: null } : null;
+      let fallPlace = null;
+      if (pd) {
+        if (other.fallFacing === null || other.fallFacing === undefined) other.fallFacing = other.h;
+        const ds = { ...pd, facing: other.fallFacing, to: { x: q.x, z: q.z }, lie: pd.kind === 'dead' ? 1e6 : pd.lie || 2.4, rise: pd.kind === 'dead' ? 0 : pd.rise || 2.7, thrown: pd.from ? Math.hypot(q.x - pd.from.x, q.z - pd.from.z) : 1 };
+        other.rig.downState = ds;
+        if (pd.from && pd.kind !== 'dead' && ds.age < fallTime(ds)) {
+          if (pd.kind === 'crash') fallPlace = flightAt({ ...ds, seat: 0.75 }, ds.age, zoneGroundY(pd.from.x, pd.from.z));
+          else { const u = Math.min(1, ds.age / fallTime(ds)), e = u * u * (3 - 2 * u); fallPlace = { x: pd.from.x + (q.x - pd.from.x) * e, z: pd.from.z + (q.z - pd.from.z) * e }; }
+        }
+        const at = fallPlace || q;
+        other.x = at.x; other.z = at.z; gap = 0;
+      } else { other.fallFacing = null; other.rig.downState = null; }
+      if (pd) { /* where the fall has them */ } else if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }
       else {
         if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
         other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
       }
-      other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : zoneGroundY(other.x, other.z), other.z);
+      other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : fallPlace && fallPlace.y !== undefined ? fallPlace.y : zoneGroundY(other.x, other.z), other.z);
       // (all three: in a car they are turned with its body as it pitches and rolls, car-view.js)
       other.rig.group.rotation.set(0, other.h, 0);
       const stance = frame.others ? frame.others[q.id] : null;
@@ -508,7 +526,7 @@ export function createCrowd(scene) {
       const flat = !!(stance && (stance.down || stance.dead)) || (other.rig.swimming && !other.rig.animated);
       other.fall = (other.fall || 0) + ((flat ? 1 : 0) - (other.fall || 0)) * Math.min(1, dt * (flat ? 12 : 4));
       // (a supplied figure falls with its own fall: the harder one when killed or bowled over on the move)
-      layCharacter(other.rig, other.fall, (stance && stance.dead) || other.rig.speed > 1.5 ? 'hard' : 'soft');
+      if (!other.rig.fallDriver) layCharacter(other.rig, other.fall, (stance && stance.dead) || other.rig.speed > 1.5 ? 'hard' : 'soft');
       if (other.rig.swimming) other.rig.group.position.y = other.rig.animated ? -(other.rig.spec.height * 0.58) - 0.22 : -0.5; else if (other.wasSwimming) other.rig.group.position.y = zoneGroundY(other.x, other.z);
       other.wasSwimming = other.rig.swimming;
       if (other.rig.strike || (stance && stance.fighting)) poseFighter(other.rig, frame.clock || 0, { guard: !!(stance && stance.fighting), block: !!(stance && stance.blocking) });

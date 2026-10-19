@@ -37,7 +37,8 @@ export const IMPACT = Object.freeze({
   grace: 0.9,              // real seconds after a blow in which the same person cannot be struck again, by anything
   downed: 0.6,             // the share of the harm that counts on someone already on the ground
   down: Object.freeze([2.4, 3.6]),     // real seconds on the ground, light blow to heavy
-  rise: 0.7,               // real seconds getting up, in which they still cannot act
+  // (19 October 2026: time enough to get up as a person does, onto the hands, a knee, a foot, and up: falls.js)
+  rise: 2.7,               // real seconds getting up, in which they still cannot act
   throw: Object.freeze([0.6, 2.6]),    // metres thrown forward, light blow to heavy
   stall: 0.7,              // real seconds the vehicle is stopped by what it hit
   gather: 9,               // metres a second each second: the fastest any vehicle here can gain speed
@@ -175,6 +176,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     q.struckByVehicleAt = now;
     const lost = conflict.injure(q, harm);
     q.blood = Math.min(IMPACT.bleed.most, (q.blood && now - (q.bloodAt || 0) < 60 ? q.blood : 0) + harm * IMPACT.bleed.perHarm); q.bloodAt = now;
+    const from = { x: q.x, z: q.z };
     const to = thrown(q.x, q.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
     q.x = to.x; q.z = to.z; q.lastMoveAt = now;
     conflict.stop(q);
@@ -189,7 +191,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
       emit(driver.id, { type: 'alert', title: 'You have killed someone', text: `${q.name} is dead under your wheels.` });
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
-      q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: driver.id, h: heading };
+      // (`from`: where they were struck, to be carried from as they fall; `hard`: a heavy blow, down at once)
+      q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: driver.id, h: heading, from, hard: weight > 0.6 };
       emit(q.id, { type: 'alert', title: 'Knocked down', text: `${driver.name} hit you with a ${VEHICLE_WORD[vehicle.kind] || 'keke'}. Health ${q.health}.` });
     }
     show({ kind: killed ? 'killed' : 'knock', by: { kind: 'player', id: driver.id }, on: { kind: 'player', id: q.id }, x: q.x, z: q.z, speed: Math.round(speed * 10) / 10, harm: lost, vehicle: vehicle.kind });
@@ -380,14 +383,16 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const involved = Object.keys(p.involved).filter((id) => players[id]).map((id) => ({ kind: 'player', id, name: players[id].name, health: players[id].health, dead: !!players[id].dead }));
     if (p.involvedNpc && book.npc[p.involvedNpc.i]) involved.push({ kind: 'npc', id: p.involvedNpc.i, name: p.involvedNpc.name, health: book.npc[p.involvedNpc.i].health, dead: !!book.npc[p.involvedNpc.i].dead });
     return {
-      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h, ...(p.down.by === 'crash' ? { by: 'crash' } : {}) } : null,
-      dead: p.dead ? { by: p.dead.byName, left: Math.max(0, Math.ceil(p.dead.wakeAt - now)), vehicle: p.dead.vehicle } : null,
+      // (how long ago it began, how long on the ground and getting up, and from where: the page shows the fall and
+      // the getting up from these, falls.js, and tells other players' pages, link.js)
+      down: p.down ? { rising: now >= p.down.until, left: Math.max(0, Number((p.down.upAt - now).toFixed(2))), h: p.down.h, ...(p.down.by === 'crash' ? { by: 'crash' } : {}), age: Math.max(0, Number((now - p.down.at).toFixed(3))), lie: Number((p.down.until - p.down.at).toFixed(3)), rise: Number((p.down.upAt - p.down.until).toFixed(3)), hard: !!p.down.hard || (p.down.into || 0) > 9, from: p.down.from ? { x: Math.round(p.down.from.x * 100) / 100, z: Math.round(p.down.from.z * 100) / 100 } : null } : null,
+      dead: p.dead ? { by: p.dead.byName, left: Math.max(0, Math.ceil(p.dead.wakeAt - now)), vehicle: p.dead.vehicle, age: Math.max(0, Number((now - p.dead.at).toFixed(3))) } : null,
       involved,
     };
   }
 
   // How another player looks from outside: on the ground, getting up, dead. Never a number.
-  const stanceOf = (q) => ({ down: !!q.down && real() < q.down.until, rising: !!q.down && real() >= q.down.until, dead: !!q.dead, fell: q.down ? q.down.h : q.dead ? 0 : null });
+  const stanceOf = (q) => ({ down: !!q.down && real() < q.down.until, rising: !!q.down && real() >= q.down.until, dead: !!q.dead, fell: q.down ? q.down.h : q.dead ? 0 : null, ...(q.down ? { fallAge: real() - q.down.at, lie: q.down.until - q.down.at, rise: q.down.upAt - q.down.until, kind: q.down.by === 'crash' ? 'crash' : 'knock', hard: !!q.down.hard || (q.down.into || 0) > 9 } : q.dead ? { fallAge: real() - q.dead.at, kind: 'dead' } : {}) });
   // May `p` be shown `q`'s health?
   const maySee = (p, q) => !!(p.involved[q.id] || (p.fight && p.fight.target.kind === 'player' && p.fight.target.id === q.id) || (q.fight && q.fight.target.kind === 'player' && q.fight.target.id === p.id));
   // What happened within sight, for everyone near to see and hear. How much it hurt is left out: that is nobody's business but theirs.

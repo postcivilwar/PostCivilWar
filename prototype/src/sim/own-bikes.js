@@ -26,8 +26,8 @@ const ROOM = 0.7;                     // metres it takes up, for walls and kerbs
 export const CRASH = Object.freeze({
   least: 5.5,                 // m/s (about 20 km/h): slower than this, a bump and no fall
   most: 0.05,                 // the share of full health lost at the top speed of the biggest engine
-  lie: Object.freeze([1.6, 4.0]),     // real seconds on the ground, slowest fall to fastest
-  rise: 0.9,                  // real seconds getting up
+  lie: Object.freeze([2.2, 4.4]),     // real seconds from the blow to getting up: through the air, down, and still
+  rise: 2.7,                  // real seconds getting up, as a person does (falls.js), before the rider can act
   thrown: Object.freeze([0.8, 4.5]),  // metres thrown forward
 });
 export const crashHarm = (speed, max = 100) => max * CRASH.most * Math.min(1, Math.max(0, speed) / FASTEST);
@@ -132,7 +132,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     if (c.outcome !== 'crash') return { fell: false, outcome: c.outcome, into: Math.round(c.into * 10) / 10 };
     const share = crashShare(c.into, hit.kind);
     const now = state.real;
-    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true };
+    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now };
     p.astride = null; p.pbike = null;
     // thrown on ahead, to the last place there is room for a body before anything solid
     const far = CRASH.thrown[0] + (CRASH.thrown[1] - CRASH.thrown[0]) * share;
@@ -168,7 +168,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
 
   // What the player sees of their own bikes: which they own, which they are on, and where the others stand.
   function selfView(p) {
-    return { bikes: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ bike: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000, ...(s.fallen ? { fallen: true } : {}) })) };
+    return { bikes: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ bike: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000, ...(s.fallen ? { fallen: true, ago: Number.isFinite(s.at) ? Math.round((state.real - s.at) * 100) / 100 : 99 } : {}) })) };
   }
 
   return { setOwned, mount, drive, crash, leave, unseat, selfView, isOwnBike };

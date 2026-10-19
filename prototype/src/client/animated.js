@@ -13,6 +13,7 @@ import { nameTexture, surface } from './render-kit.js';
 import { SEAT_POSE } from './seat-pose.js';
 import { borrowedFor, seatFor } from './figure-moves.js';
 import { pictureSize } from './budget.js';
+import { carryFalls, createFallDriver, FALL_BONES } from './falls.js';
 
 // Which supplied animated figures there are, where each file is, and how tall a person it is. The files are
 // made one unit tall; they are drawn at a person's height, the same all over, nothing else changed.
@@ -203,6 +204,20 @@ export function reach(upper, lower, hand, target, pole) {
   const elbow = S.clone().add(dir.clone().multiplyScalar(a)).add(side.multiplyScalar(h));
   aim(upper, lower, elbow);
   aim(lower, hand, S.clone().add(dir.multiplyScalar(d)));
+}
+
+// A clip's first pose for the body's bones, in the order falls.js keeps them (four numbers a bone; none for a bone
+// the clip does not turn): what a figure stands in when it has got up.
+function poseOfClip(clip, bones) {
+  const out = new Float32Array(FALL_BONES.length * 4);
+  if (!clip) { FALL_BONES.forEach((n, k) => { const b = bones.get(n); if (b) b.quaternion.toArray(out, k * 4); }); return out; }
+  FALL_BONES.forEach((n, k) => {
+    const b = bones.get(n);
+    if (!b) return;
+    const track = clip.tracks.find((t) => t.name === `${b.name}.quaternion`);
+    if (track) { const v = track.createInterpolant(new Float32Array(4)).evaluate(0); out.set(v, k * 4); new THREE.Quaternion().fromArray(out, k * 4).normalize().toArray(out, k * 4); } else b.quaternion.toArray(out, k * 4);
+  });
+  return out;
 }
 
 // A movement borrowed from another figure's file (figure-moves.js), as a clip for this figure's bones.
@@ -462,6 +477,24 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
     }
     // what the file lacks, borrowed (not offered as a skill: it is not the figure's own)
     for (const [as, b] of Object.entries(borrowedFor(spec.file))) { const a = rig.mixer.clipAction(borrowedClip(`~${as}`, b)); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(`~${as}`, a); }
+    // Falling, lying and getting up (falls.js, 19 October 2026): the stored motion carried onto this figure's own
+    // bones, once, from how it was bound (before anything has moved it), and its standing pose to come up into
+    try {
+      const skeleton = mesh.skeleton;
+      const bind = new Map();
+      for (const n of FALL_BONES) {
+        const b = rig.bones.get(n);
+        const i = b ? skeleton.bones.indexOf(b) : -1;
+        if (i < 0) continue;
+        const q = new THREE.Quaternion();
+        skeleton.boneInverses[i].clone().invert().decompose(new THREE.Vector3(), q, new THREE.Vector3());
+        bind.set(n, q);
+      }
+      const carried = carryFalls({ root, bones: rig.bones, bind });
+      const stillClip = rig.actions.has(spec.still) ? rig.actions.get(spec.still).getClip() : null;
+      const standPose = poseOfClip(stillClip, rig.bones);
+      rig.fallDriver = createFallDriver({ rig, holder, lift, carried, standPose, height: spec.height });
+    } catch (error) { rig.fallDriver = null; rig.fallFailed = String(error && error.message || error); }
     // (a clip chosen for another figure that this one does not have: it stands instead)
     const first = rig.chosen && rig.actions.has(rig.chosen) ? rig.chosen : spec.still;
     rig.chosen = null; rig.play(first, 0);
@@ -477,6 +510,13 @@ export function driveAnimated(rig, dt, speed) {
   rig.speed += (speed - rig.speed) * Math.min(1, dt * 6.5);
   if (!rig.mixer) return;
   rig.idleTime += dt;
+  // knocked down, thrown or killed, and getting up: falls.js has the figure (`downState`, set by whoever draws it)
+  if (rig.fallDriver) {
+    const was = rig.fallDriver.phase;
+    if (rig.fallDriver.drive(dt, rig.downState || null)) { rig.lying = null; rig.doing = null; rig.byHand = null; if (rig.emoting) rig.endEmote(); return; }
+    // up again: standing, from the start of its standing, as the getting up left it
+    if (was) { const still = rig.actions.get(rig.spec.still); if (still) { still.reset(); if (rig.current && rig.current !== still) rig.current.stop(); still.play(); still.setEffectiveWeight(1); rig.current = still; rig.chosen = rig.spec.still; } }
+  }
   // on the ground: the fall plays to its end and stays there until the figure is got up
   if (rig.lying) { rig.mixer.update(dt); rig.afterClips(dt); return; }
   // something shown for a blow or a call: it runs to its end; walking off, or getting into a seat or the water, ends it

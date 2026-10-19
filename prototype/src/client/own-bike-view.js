@@ -24,6 +24,7 @@ const PARKED_LEAN = -0.07;           // radians: a parked bike leans a little to
 // bike's own lean, added to it), the head turned into the turn and kept nearly level
 export const RIDE = Object.freeze({ forward: 0.22, tuck: 0.2, roll: 0.45, rollSign: 1, look: 0.55, level: 0.6 });
 const FALLEN_LEAN = -1.25;          // radians: one that came down in a crash lies on its left side until it is ridden again
+const TIP = 0.55, TIP_SLIDE = 0.6;   // seconds it takes to go over, and metres it slides on as it does
 const v = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), e: new THREE.Euler(0, 0, 0, 'XYZ'), q: new THREE.Quaternion(), axis: new THREE.Vector3() };
 
 // A figure's bones by the names the supplied figures use (pelvis, hand_l, ...): theirs as they are, or the game's own
@@ -116,10 +117,21 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
       const key = p.key || `park:${p.bike}`;
       wanted.add(key);
       const e = entry(key, p.bike);
+      // one that has just come down in a crash goes over (19 October 2026): it tips onto its side, quicker as it goes,
+      // sliding on a little the way it was going, and settles with a small bounce; one already lying is as it lies
+      if (p.fallen && !e.fallenAt) e.fallenAt = e.seenAt === undefined ? -10 : now;
+      if (!p.fallen) e.fallenAt = 0;
+      e.seenAt = now;
       if (e.bike) {
-        e.bike.group.position.set(p.x, groundY(p.x, p.z), p.z);
+        // (how long since it came down: the town says, for the player's own; otherwise since it was first seen down)
+        const t = !p.fallen ? 10 : Number.isFinite(p.ago) ? p.ago : e.fallenAt > 0 ? Math.max(0, now - e.fallenAt) : 10;
+        const over = Math.min(1, t / TIP), slide = TIP_SLIDE * (1 - Math.min(1, t / (TIP * 1.3)));
+        // (falling, it gathers speed: the square of the time; then a little bounce as it lands)
+        const k = over < 1 ? over * over : 1 + Math.sin(Math.min(1, (t - TIP) / 0.3) * Math.PI) * 0.06 * Math.max(0, 1 - (t - TIP) / 0.3);
+        const tilt = p.fallen ? PARKED_LEAN + (FALLEN_LEAN - PARKED_LEAN) * k : PARKED_LEAN;
+        e.bike.group.position.set(p.x - Math.sin(p.h) * slide, groundY(p.x, p.z), p.z - Math.cos(p.h) * slide);
         e.bike.group.rotation.set(0, p.h, 0);
-        e.bike.pose({ travelled: e.travelled, steerAngle: 0.25, tilt: p.fallen ? FALLEN_LEAN : PARKED_LEAN });
+        e.bike.pose({ travelled: e.travelled, steerAngle: 0.25, tilt });
       }
     }
     for (const [key, e] of shown) if (!wanted.has(key)) { if (e.bike) e.bike.dispose(); shown.delete(key); }

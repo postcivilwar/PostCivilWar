@@ -82,6 +82,7 @@ import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
 import { watchPicture } from './picture-watch.js';
 import { buildClosures } from './render-closures.js';
+import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
@@ -1413,6 +1414,18 @@ function start(carried) {
     try { if (navigator.vibrate) navigator.vibrate(60); } catch (error) { /* no buzzer */ }
   }
 
+  // What falls.js needs of the player's own fall (the town's `down` or `dead`), or null on their feet: how (struck,
+  // thrown from a motorcycle, killed), how long ago, how long on the ground and getting up, which way the blow sent
+  // them and which way they faced when it came, and from where to where.
+  let fallFacing = null;
+  function playerDown(self, facing) {
+    const d = self.down, k = self.dead;
+    if (!d && !k) { fallFacing = null; return null; }
+    if (fallFacing === null) fallFacing = facing;
+    if (k) return { kind: 'dead', age: k.age || 0, lie: 1e6, rise: 0, push: fallFacing + Math.PI, facing: fallFacing, hard: true, from: null };
+    return { kind: d.by === 'crash' ? 'crash' : 'knock', age: d.age || 0, lie: d.lie || 2.4, rise: d.rise || 2.7, push: Number.isFinite(d.h) ? d.h : fallFacing, facing: fallFacing, hard: !!d.hard, from: d.from || null, to: { x: self.x, z: self.z }, thrown: d.from ? Math.hypot(self.x - d.from.x, self.z - d.from.z) : 1 };
+  }
+
   // Is the player being moved by the simulation and not by their own hands? (walked in by an officer, carried, held)
   const led = () => !!view && (!!view.self.law.arrest || !!view.self.carried || !!view.self.hijack || !!view.self.down || !!view.self.dead || (view.self.fight && view.self.fight.held));
 
@@ -1944,6 +1957,8 @@ function start(carried) {
   function findPrompt() {
     if (!view) return null;
     if (view.self.law.arrest || view.self.carried || view.self.hijack) return null;
+    // (on the ground, or getting up: nothing to be done until up again, so nothing is offered, 19 October 2026)
+    if (view.self.down || view.self.dead) return null;
     if (view.self.driving) return findDrivingPrompt();
     if (view.self.incar) return Math.abs(carState.speed) > 1.5 ? null : { short: 'Get out', text: ownCar() ? `Get out of the ${ownCar().name}` : 'Get out of the car', run: leaveOwnCar };
     if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
@@ -2878,7 +2893,24 @@ function start(carried) {
         const seat = taking.kind === 'okada' ? view.okadas.find((o) => o.n === taking.id) : view.vehicles.find((v) => v.id === taking.id);
         if (seat) { const k = Math.min(1, Math.max(0, (taking.progress - 0.62) / 0.38)); wantX += (seat.x - wantX) * k; wantZ += (seat.z - wantZ) * k; }
       }
-      if (led()) {
+      // knocked down, thrown from a motorcycle, killed (falls.js, 19 October 2026): the figure falls the way the blow
+      // sent it, from where it was struck (through the air, thrown over the handlebars), lies, and gets up; it is not
+      // walked from where it was struck to where it landed
+      const downState = playerDown(self, predicted.heading);
+      me.downState = downState;
+      let fallPlace = null;
+      if (downState && downState.from && downState.kind !== 'dead') {
+        const t = fallTime(downState);
+        if (downState.age < t) {
+          if (downState.kind === 'crash') fallPlace = flightAt({ ...downState, seat: 0.75 }, downState.age, zoneGroundY(downState.from.x, downState.from.z));
+          else { const u = Math.min(1, downState.age / t), e = u * u * (3 - 2 * u); fallPlace = { x: downState.from.x + (downState.to.x - downState.from.x) * e, z: downState.from.z + (downState.to.z - downState.from.z) * e }; }
+        }
+      }
+      if (downState) {
+        const p = fallPlace || { x: self.x, z: self.z };
+        me.group.position.x = p.x; me.group.position.z = p.z;
+        speed = 0;
+      } else if (led()) {
         // moved by the simulation: the figure walks to where it has been put, and its pace is whatever that takes
         const gx = wantX - me.group.position.x, gz = wantZ - me.group.position.z;
         const gap = Math.hypot(gx, gz);
@@ -2896,6 +2928,8 @@ function start(carried) {
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
       if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
+      // (through the air, thrown over the handlebars)
+      if (fallPlace && fallPlace.y !== undefined) me.group.position.y = fallPlace.y;
       // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
       const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
       ownBikeView.update(dt, { ridden: ownRide, parked: (self.ownBikes && self.ownBikes.parked) || [], groundY: zoneGroundY, from: predicted, night, now: clock });
@@ -2937,7 +2971,7 @@ function start(carried) {
       // (a supplied figure falls with its own fall: the harder one when killed, or bowled over on the move)
       if (lying && !me.fellHow) me.fellHow = self.dead || (self.down && self.down.by === 'crash') || (me.speed || 0) > 1.5 ? 'hard' : 'soft';
       if (!lying && me.fall < 0.02) me.fellHow = null;
-      layCharacter(me, me.fall, me.fellHow || 'hard');
+      if (!me.fallDriver) layCharacter(me, me.fall, me.fellHow || 'hard');
       if (me.swimming) { me.group.position.y = me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5; if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
       // in the ambulance, in a closed car (or one not yet drawn), or with the eye inside its own head, the figure is not drawn

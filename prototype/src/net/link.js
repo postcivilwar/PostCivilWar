@@ -49,6 +49,12 @@ export function encodePlayer(self, zoneId) {
   if (self.talk && typeof self.talk.bike === 'string') out.tk = [self.talk.bike, Math.round(Math.max(0, self.talk.ago || 0) * 10) / 10];
   // and in the car showroom, asking a salesman about one of its cars
   if (self.carTalk && typeof self.carTalk.car === 'string') out.tc = [self.carTalk.car, Math.round(Math.max(0, self.carTalk.ago || 0) * 10) / 10];
+  // knocked down, thrown from a motorcycle, or killed (19 October 2026): how (0 struck, 1 thrown, 2 killed), how long
+  // ago, how long on the ground and getting up, which way the blow sent them, a hard blow, and where it began, so that
+  // the others see them fall and get up as they do (falls.js) rather than walk from where they were struck
+  const d = self.down, k = self.dead;
+  if (d && Number.isFinite(d.age)) out.dn = [d.by === 'crash' ? 1 : 0, Math.round(d.age * 100) / 100, Math.round((d.lie || 0) * 100) / 100, Math.round((d.rise || 0) * 100) / 100, r2(d.h || 0), d.hard ? 1 : 0, d.from ? r2(d.from.x) : null, d.from ? r2(d.from.z) : null];
+  else if (k && Number.isFinite(k.age)) out.dn = [2, Math.round(k.age * 100) / 100, 0, 0, 0, 0, null, null];
   return out;
 }
 
@@ -82,7 +88,9 @@ export function decodePlayer(state, zoneId) {
   const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3] } : null)) : [];
   const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
   const phone = [1, 2, 3].includes(state.ph) ? state.ph : 0;
-  return { name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone };
+  const dn = Array.isArray(state.dn) ? state.dn : null;
+  const down = dn ? { kind: ['knock', 'crash', 'dead'][dn[0]] || null, age: dn[1], lie: dn[2], rise: dn[3], push: dn[4], hard: !!dn[5], from: Number.isFinite(dn[6]) && Number.isFinite(dn[7]) ? { x: dn[6], z: dn[7] } : null } : null;
+  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
