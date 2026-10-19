@@ -2025,8 +2025,8 @@ knock as the bike stops (more the harder it hit).
 
 The game opens on the street view: close behind the player, the eye a little above the head, looking slightly down,
 the figure in the lower middle of the picture and the street ahead above it, the lens a little wider (60°). Measured
-against the owner's Vice City recording, walking: his head at 0.43 of the picture's height, feet 0.80, the horizon
-0.42; ours 0.44, 0.79 and 0.44.
+against the owner's Vice City recording, walking (the same shape of picture): the top of his head at 0.43 of the
+picture's height, his feet at 0.80, the horizon at 0.42; ours 0.46, 0.80 and 0.41 (3.9 m behind, the eye 1.8 m up).
 
 - It swings round behind as the player walks or runs, a little slower than they turn (a quicker follow at a run); as it
   comes round, the eye swings out a little to the outside of the turn (at most a fifth of a metre, no roll) and settles
@@ -2038,8 +2038,11 @@ against the owner's Vice City recording, walking: his head at 0.43 of the pictur
 - Dragging (a finger or the mouse) still turns it; a pinch or the wheel brings it in or takes it back.
 - **The View button (C) on foot as well as in vehicles**: on the street, further back, over the shoulder, from above,
   and round again. In a vehicle the views are as they were.
-- In the way of a wall, it rises over it or comes in toward the player rather than going through it; it never goes
-  under the ground.
+- In the way of a wall it comes in close behind the player first, at the height of the head (as near as a little over a
+  metre from it), and only when the wall is closer still tips down over them, as little as it must (by the purple
+  tower, with 2 m and 1.3 m of open ground behind the player it comes in to 2.0 m and 1.3 m, level; with 0.9 m it
+  looks down about 30°; with 0.5 m, about 65°). Where the line from the player first meets the wall is found to a few centimetres. It looks
+  over a roadblock and the fence. It never goes through a wall or under the ground.
 - Each player's camera is their own and follows their own figure.
 
 ### Another player's fall
@@ -2090,6 +2093,7 @@ node test/figures.mjs out/                         # every supplied figure: chos
 ../server/with-postgres.sh node test/vehicle-sync.mjs out/   # two players: a keke, okadas, another's motorcycle with its bars turned and the phone in the left hand, another at the wheel of an open car with the phone in the right, a closed car not seen through, more motorcycles than are drawn as models standing in as their pictures, each with its rider
 ../server/with-postgres.sh node test/falls.mjs out/          # riding (a road, the runway, the grass by the purple tower where the owner's rider came off), a roadblock met slowly and at 50 km/h, thrown over it and getting up (watched in slow motion), knocked down three ways, the street camera and its views
 ../server/with-postgres.sh node test/falls-sync.mjs out/     # two players: one thrown at a roadblock, the other watching: the fall, the lying and the getting up, once, where it happened; the motorcycle going down
+node test/camera.mjs out/                          # the street camera through the owner's list: standing, walking, toward it, turning, running, the View button, dragging, a wall behind at four distances, another player, a phone upright and sideways; framed as in his recording
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown
