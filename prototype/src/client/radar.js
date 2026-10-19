@@ -7,7 +7,7 @@
 // The town itself is drawn once into a picture and only turned and moved each frame; the marks are drawn
 // over it. Nothing here decides anything: it draws what the view says.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES } from '../sim/zone.js';
 import { trueToGrid } from '../sim/geo.js';
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -15,6 +15,7 @@ export const RADAR_COLOURS = Object.freeze({
   land: '#45573a', farm: '#55663d', water: '#2c5b80', bank: '#3a4f33', asphalt: '#c8c8c2', laterite: '#b39069',
   building: '#7b7670', house: '#8b7e70', compound: 'rgba(255,255,255,0.06)', mine: '#ffffff', sale: 'rgba(255,255,255,0.35)',
   route: '#f2c230', target: '#f2c230', police: ['#ff3b30', '#2f7bff'], keke: '#ffffff', ambulance: '#ff3b30',
+  closed: '#e8382f', fence: 'rgba(232,56,47,0.75)',
 });
 
 // The town, drawn once (and again when who owns which plot changes).
@@ -85,6 +86,18 @@ export function createRadar(canvas) {
     for (const r of [AIRPORT.runway, AIRPORT.taxiway, ...AIRPORT.links, AIRPORT.apron, ...OUTSKIRT_ROADS]) if (near(r)) shape(r);
     g.fillStyle = RADAR_COLOURS.building;
     if (near(AIRPORT.terminal)) shape(AIRPORT.terminal);
+    // what is not open (closures.js): the edge of the built land as a thin red line, and each road closed as a
+    // red bar across it, with white ends
+    const nearLine = (l) => Math.min(l.a.x, l.b.x) < s.x + range * 1.5 && Math.max(l.a.x, l.b.x) > s.x - range * 1.5 && Math.min(l.a.z, l.b.z) < s.z + range * 1.5 && Math.max(l.a.z, l.b.z) > s.z - range * 1.5;
+    g.lineCap = 'butt';
+    g.strokeStyle = RADAR_COLOURS.fence; g.lineWidth = 1.6 / k; g.setLineDash([4 / k, 3 / k]);
+    g.beginPath();
+    for (const f of ZONE_EDGE_FENCES) if (nearLine(f)) { g.moveTo(f.a.x - s.x, f.a.z - s.z); g.lineTo(f.b.x - s.x, f.b.z - s.z); }
+    g.stroke(); g.setLineDash([]);
+    for (const c of ZONE_CLOSURES) {
+      if (!nearLine(c)) continue;
+      for (const [colour, width] of [['#ffffff', 6], [RADAR_COLOURS.closed, 4]]) { g.strokeStyle = colour; g.lineWidth = width / k; g.beginPath(); g.moveTo(c.a.x - s.x, c.a.z - s.z); g.lineTo(c.b.x - s.x, c.b.z - s.z); g.stroke(); }
+    }
     // the way to go: thick, dark-edged, along the roads
     if (s.route && s.route.length > 1) {
       g.lineJoin = 'round'; g.lineCap = 'round';

@@ -23,7 +23,7 @@
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES } from '../sim/zone.js';
 import { gridToTrue, trueToGrid } from '../sim/geo.js';
 
 export const MAP_STYLE = Object.freeze({
@@ -237,6 +237,20 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
     }
   }
 
+  // What is not open (closures.js, 19 October 2026): the edge of the built land as a red dashed line, and each road
+  // closed as a red bar across it with white ends, so that a road that stops is seen to stop on the map as in the town.
+  function closures() {
+    g.lineCap = 'butt';
+    g.strokeStyle = 'rgba(214,52,44,0.8)'; g.lineWidth = Math.max(1, 0.35 * state.k); g.setLineDash([4, 3]);
+    g.beginPath();
+    for (const f of ZONE_EDGE_FENCES) { const [ax, ay] = P(f.a.x, f.a.z), [bx, by] = P(f.b.x, f.b.z); g.moveTo(ax, ay); g.lineTo(bx, by); }
+    g.stroke(); g.setLineDash([]);
+    for (const c of ZONE_CLOSURES) {
+      const [ax, ay] = P(c.a.x, c.a.z), [bx, by] = P(c.b.x, c.b.z);
+      for (const [colour, width] of [['#ffffff', 5], ['#d6342c', 3]]) { g.strokeStyle = colour; g.lineWidth = Math.max(width, width * 0.4 * state.k); g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke(); }
+    }
+  }
+
   function footprints() {
     const outline = state.k > 1.1;
     g.lineWidth = 1; g.lineJoin = 'miter';
@@ -398,7 +412,7 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
     taken = []; picks = [];
     // (the buttons and the scale are not written over)
     taken.push([W - 58, 0, W, 58], [W - 58, H - 164, W, H], [0, H - 34, 150, H]);
-    ground(); plots(v); trees(); roads(); footprints();
+    ground(); plots(v); trees(); roads(); closures(); footprints();
     wayLine();
     roadNames(); placeNames();
     overlay(v);

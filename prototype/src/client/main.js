@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -81,6 +81,8 @@ import { pictureSize } from './budget.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
 import { watchPicture } from './picture-watch.js';
+import { buildClosures } from './render-closures.js';
+import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -143,6 +145,9 @@ function start(carried) {
   const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 2000);
   initVehicles(renderer);
   const world = buildWorld(scene);
+  // the roads not open yet and the edge of the built land: roadblocks and a fence, solid where they are drawn
+  // (render-closures.js, closures.js; 19 October 2026)
+  const closures = buildClosures(scene, { lite: LITE });
   // Beyond the town: the road to Onitsha, the airport, the bridge (render-outskirts.js). Built once the player is in
   // town and the town has been warmed up, not while the page is starting: it is a kilometre away from where anyone
   // arrives, and starting is what the owner asked to be quick. Its lamps then join the town's.
@@ -1397,6 +1402,10 @@ function start(carried) {
       if (mine) { jolt(); if (e.on.id === playerId) flash = 1; }
     }
   }
+  // A knock felt in the view: the camera pushed a few centimetres back off what was hit and let go, dying away in a
+  // fraction of a second (19 October 2026, the owner's brief: restrained impact feedback). `amount` 0..1.
+  const camKick = { at: -10, amount: 0, x: 0, z: 0 };
+  function kick(amount, normal) { camKick.at = clock; camKick.amount = Math.max(0, Math.min(1, amount)); camKick.x = normal ? normal.x : 0; camKick.z = normal ? normal.z : 0; }
   // The picture shakes once: a short, small movement of the whole view, and a buzz where the device has one.
   function jolt() {
     const el = $('view');
@@ -2308,18 +2317,68 @@ function start(carried) {
     const r = server.send({ type: 'bikes.owned', bikes: ids });
     if (r.ok) bikesSent = key;
   }
-  // Into something solid: at speed the rider is thrown off (the town decides how hard, own-bikes.js `crash`);
-  // slower, the bike only stops against it.
-  function crashOrStop() {
-    const speed = Math.abs(bikeState.speed);
-    bikeState.speed = 0; moto.speed = 0; bikeState.lean = 0; moto.lean = 0;
-    if (speed < CRASH.least) return;
-    const r = server.send({ type: 'moto.crash', speed });
-    if (r.ok && r.fell) {
-      predicted.x = r.x; predicted.z = r.z;
-      ui.toast({ type: 'alert', title: 'Thrown off', text: `You came off at ${r.kmh} km/h${r.lost ? ` and lost ${r.lost} health` : ''}. Your ${POWER_BIKES[r.bike.id].name} is where it fell.` });
-      refreshView();
+  // Meeting something on a power bike (19 October 2026, the owner's brief and video: a rider was thrown off on open
+  // grass with nothing in front of him; contact.js says why that cannot happen now). What comes of it is how hard the
+  // bike goes INTO what it meets: brushing along a wall it scrapes along, a little slower, turned a little to follow
+  // it; a knock stops it dead with a jolt and a step back, the rider still on; only a real crash throws the rider, and
+  // the town decides that (own-bikes.js `crash`), from what it knows. The edge of what is built (the end of the map,
+  // the river's bank) is never something to be thrown by. Returns where the bike goes on to, sliding, or null.
+  let scrapedAt = -10;
+  function meetWithBike(dt, nx, nz, boxes, handling, forced = null) {
+    const r = handling.radius;
+    const free = (x, z) => zoneWalkable(x, z, boxes, r);
+    const kind = forced || zoneBlockKind(nx, nz, boxes, r) || 'solid';
+    const normal = contactNormal(free, predicted.x, predicted.z, nx, nz);
+    const c = contactOutcome({ speed: bikeState.speed, heading: bikeState.heading, normal, kind });
+    if (c.outcome === 'slide' && !forced) {
+      const sx = predicted.x + c.alongX * CONTACT.slideLoss * dt, sz = predicted.z + c.alongZ * CONTACT.slideLoss * dt;
+      if (c.along > 0.25 && free(sx, sz)) {
+        const way = Math.atan2(c.alongX, c.alongZ) + (bikeState.speed < 0 ? Math.PI : 0);
+        bikeState.heading += angleGap(way, bikeState.heading) * Math.min(1, dt * 5);
+        bikeState.speed = Math.sign(bikeState.speed) * c.along * CONTACT.slideLoss;
+        moto.speed = bikeState.speed;
+        if (c.into > 0.8 && clock - scrapedAt > 0.4) { scrapedAt = clock; audio.blow('block', predicted.x, predicted.z); }
+        return { x: sx, z: sz };
+      }
+      bikeState.speed = 0; moto.speed = 0;
+      return null;
     }
+    if (c.outcome === 'crash') { crashOrStop(c, normal, kind); return null; }
+    knockBike(c, normal, kind, handling);
+    return null;
+  }
+  // Stopped dead against it: a jolt and a step back off it, as far as there is room (a hand's width to a third of a
+  // metre, by how hard); the rider stays on.
+  function knockBike(c, normal, kind, handling) {
+    bikeState.speed = 0; moto.speed = 0; bikeState.lean *= 0.3; moto.lean = bikeState.lean;
+    if (c.into < CONTACT.scrape * 0.6) return;
+    const back = Math.min(0.35, 0.06 + c.into * 0.045);
+    const bx = predicted.x + normal.x * back, bz = predicted.z + normal.z * back;
+    if (zoneWalkable(bx, bz, structureBoxes(), handling.radius)) {
+      const r = server.send({ type: 'moto.drive', x: bx, z: bz, heading: bikeState.heading, lean: 0, speed: 0, throttle: 0, brake: true, rev: 0, steer: bikeState.steer });
+      if (r.ok) { predicted.x = bx; predicted.z = bz; }
+    }
+    kick(Math.min(1, c.into / CONTACT.knock), normal);
+    audio.blow(kind === 'barrier' ? 'shove' : 'block', predicted.x, predicted.z);
+    if (c.into > CONTACT.scrape) jolt();
+  }
+  // A crash: the town is asked, and decides (own-bikes.js `crash`: it looks for itself at what is there and how fast it
+  // saw the bike go). Thrown, the rider goes over the bars and lands ahead (falls.js shows it); not thrown, a knock.
+  function crashOrStop(c, normal, kind) {
+    const speed = bikeState.speed, heading = bikeState.heading;
+    const handling = handlingOf(powerBike() || {});
+    const r = server.send({ type: 'moto.crash', speed, heading });
+    if (r.ok && r.fell) {
+      bikeState.speed = 0; moto.speed = 0; bikeState.lean = 0; moto.lean = 0;
+      predicted.x = r.x; predicted.z = r.z;
+      kick(1, normal);
+      jolt();
+      audio.blow('fall', r.bike.x, r.bike.z);
+      ui.toast({ type: 'alert', title: 'Thrown off', text: `You hit it at ${r.kmh} km/h and were thrown off${r.lost ? `, losing ${r.lost} health` : ''}. Your ${POWER_BIKES[r.bike.id].name} is where it fell.` });
+      refreshView();
+      return;
+    }
+    knockBike(c, normal, kind, handling);
   }
   // A power bike under the player's hands: it leans into a turn and turns by leaning (power-bikes.js).
   function drivePowerBike(dt, bike) {
@@ -2333,14 +2392,20 @@ function start(carried) {
     bikeState.steer += (input.steer * 0.42 * Math.max(0.08, 1 - Math.abs(bikeState.speed) / 7) - bikeState.steer) * Math.min(1, dt * 8);
     moto.speed = bikeState.speed; moto.lean = bikeState.lean;
     if (Math.abs(bikeState.speed) < 0.03) return 0;
-    const nx = predicted.x + Math.sin(bikeState.heading) * bikeState.speed * dt;
-    const nz = predicted.z + Math.cos(bikeState.heading) * bikeState.speed * dt;
-    // into something solid: it stops there, and does not go through
-    if (!zoneWalkable(nx, nz, structureBoxes(), handling.radius)) { crashOrStop(); return 0; }
+    let nx = predicted.x + Math.sin(bikeState.heading) * bikeState.speed * dt;
+    let nz = predicted.z + Math.cos(bikeState.heading) * bikeState.speed * dt;
+    // into something: along it, against it, or a crash (meetWithBike); never through it
+    const boxes = structureBoxes();
+    if (!zoneWalkable(nx, nz, boxes, handling.radius)) {
+      const on = meetWithBike(dt, nx, nz, boxes, handling);
+      if (!on) return 0;
+      nx = on.x; nz = on.z;
+    }
     // (with what the bike is doing, for other players to see and hear: its lean, speed, throttle, brake and revs)
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: bikeState.heading, lean: bikeState.lean, speed: bikeState.speed, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(bikeState.speed, bikeState.throttle, handling), steer: bikeState.steer });
     if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = bikeState.heading; if (result.hit) bikeState.speed = 0; }
-    else if (result.code === 'BLOCKED') { crashOrStop(); return 0; }
+    // (the town saw something in the way that the page did not: a vehicle, a gate)
+    else if (result.code === 'BLOCKED') { meetWithBike(dt, nx, nz, boxes, handling, 'solid'); return 0; }
     else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; bikeState.speed = 0; }
     if (clock - cam.lastDrag > 1.5 && bikeState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.2);
     return Math.abs(bikeState.speed);
@@ -2393,12 +2458,36 @@ function start(carried) {
   }
   // Into something solid: at speed it hurts the driver (the town decides how much: own-cars.js, `crash`); slower,
   // the car only stops against it.
-  function carCrashOrStop() {
-    const speed = Math.abs(carState.speed);
+  // (19 October 2026: as on a motorcycle, contact.js decides: along a wall it scrapes along, a knock stops it, only a
+  // real crash hurts the driver, the town deciding; the edge of the map hurts nobody. Returns where the car goes on to,
+  // sliding, or null.)
+  function meetWithCar(dt, spec, nx, nz, boxes, forced = null) {
+    const free = (x, z) => carFits(spec.id, x, z, carState.heading, boxes, 0.2);
+    const way = Math.sign(carState.speed) || 1;
+    const ex = nx + Math.sin(carState.heading) * (spec.length / 2) * way, ez = nz + Math.cos(carState.heading) * (spec.length / 2) * way;
+    const kind = forced || zoneBlockKind(ex, ez, boxes, 0.6) || 'solid';
+    const normal = contactNormal(free, predicted.x, predicted.z, nx, nz);
+    const c = contactOutcome({ speed: carState.speed, heading: carState.heading, normal, kind });
+    if (c.outcome === 'slide' && !forced) {
+      const sx = predicted.x + c.alongX * CONTACT.slideLoss * dt, sz = predicted.z + c.alongZ * CONTACT.slideLoss * dt;
+      if (c.along > 0.25 && free(sx, sz)) {
+        carState.speed = Math.sign(carState.speed) * c.along * CONTACT.slideLoss;
+        if (c.into > 0.8 && clock - scrapedAt > 0.4) { scrapedAt = clock; audio.blow('block', predicted.x, predicted.z); }
+        return { x: sx, z: sz };
+      }
+      carState.speed = 0;
+      return null;
+    }
+    if (c.outcome === 'crash') {
+      const r = server.send({ type: 'car.crash', speed: carState.speed, heading: carState.heading });
+      carState.speed = 0;
+      kick(r.ok && r.hurt ? 1 : 0.6, normal); jolt(); audio.blow('fall', predicted.x, predicted.z);
+      if (r.ok && r.hurt) { flash = 1; ui.toast({ type: 'alert', title: 'Crash', text: `You hit it at ${r.kmh} km/h${r.lost ? ` and lost ${r.lost} health` : ''}.` }); refreshView(); }
+      return null;
+    }
     carState.speed = 0;
-    if (speed < CAR_CRASH.least) return;
-    const r = server.send({ type: 'car.crash', speed });
-    if (r.ok && r.hurt) { flash = 1; ui.toast({ type: 'alert', title: 'Crash', text: `You hit something at ${r.kmh} km/h${r.lost ? ` and lost ${r.lost} health` : ''}.` }); refreshView(); }
+    if (c.into > CONTACT.scrape * 0.6) { kick(Math.min(1, c.into / CONTACT.knock), normal); audio.blow(kind === 'barrier' ? 'shove' : 'block', predicted.x, predicted.z); if (c.into > CONTACT.scrape) jolt(); }
+    return null;
   }
   // A car under the player's hands (power-cars.js): it turns about its back wheels, no harder than its tyres grip,
   // and the whole of it is checked against what is solid, not only its middle (own-cars.js, `carFits`).
@@ -2410,14 +2499,19 @@ function start(carried) {
     stepPowerCar(carState, input, dt, { handling, onTar: tar, wet: view.weather.wet });
     carState.throttle = input.throttle; carState.braking = input.brake > 0;
     if (Math.abs(carState.speed) < 0.03) return 0;
-    const nx = predicted.x + Math.sin(carState.heading) * carState.speed * dt;
-    const nz = predicted.z + Math.cos(carState.heading) * carState.speed * dt;
-    // into something solid: it stops there, and does not go through
-    if (!carFits(spec.id, nx, nz, carState.heading, structureBoxes(), 0.2)) { carCrashOrStop(); return 0; }
+    let nx = predicted.x + Math.sin(carState.heading) * carState.speed * dt;
+    let nz = predicted.z + Math.cos(carState.heading) * carState.speed * dt;
+    // into something: along it, against it, or a crash (meetWithCar); never through it
+    const boxes = structureBoxes();
+    if (!carFits(spec.id, nx, nz, carState.heading, boxes, 0.2)) {
+      const on = meetWithCar(dt, spec, nx, nz, boxes);
+      if (!on) return 0;
+      nx = on.x; nz = on.z;
+    }
     // (with what the car is doing, for other players to see and hear: its steering, speed, throttle, brake, revs, lamps)
     const result = server.send({ type: 'car.drive', x: nx, z: nz, heading: carState.heading, steer: carState.steer, speed: carState.speed, throttle: carState.throttle, brake: carState.braking, rev: carRevs(carState.speed, carState.throttle, handling), lamps: night > 0.25 });
     if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = carState.heading; if (result.hit) carState.speed = 0; }
-    else if (result.code === 'BLOCKED') { carCrashOrStop(); return 0; }
+    else if (result.code === 'BLOCKED') { meetWithCar(dt, spec, nx, nz, boxes, 'solid'); return 0; }
     else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; carState.speed = 0; }
     // the view swings round behind the car as it goes (not while it backs up)
     if (clock - cam.lastDrag > 1.5 && carState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.0);
@@ -3021,6 +3115,9 @@ blood.update(dt, view.blood || []);
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
       longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : 0,
     });
+    // a knock: the view pushed back off what was hit, a few centimetres, and let go
+    const sinceKick = clock - camKick.at;
+    if (sinceKick < 0.5 && camKick.amount > 0) { const k = camKick.amount * 0.07 * Math.exp(-sinceKick * 9) * Math.cos(sinceKick * 26); camera.position.x += camKick.x * k; camera.position.z += camKick.z * k; camera.position.y -= Math.abs(k) * 0.4; }
     // fast on a motorcycle: the view shakes a little, more the nearer it is to its top speed (never much)
     const bikeNow = playing && view && view.self.astride && powerBike() ? powerBike() : null;
     if (bikeNow) {
@@ -3049,6 +3146,7 @@ blood.update(dt, view.blood || []);
     // (glass, the river and zinc give back the sky by day; in the rain the ground is wet, and dries after it)
     updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
+    closures.update(dt, night);
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
     for (const showroom of world.showrooms) showroom.setNight(night);
@@ -3195,7 +3293,7 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)
-    get beyond() { return outskirts.ready; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(),
+    get beyond() { return outskirts.ready; }, closures, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(),
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },

@@ -30,6 +30,7 @@ import { SUPPLIED_VEHICLE_COLLIDERS } from './supplied-vehicles.js';
 export * from './supplied-vehicles.js';
 import { TOWN_TREES } from './atani-trees.js';
 import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
+import { openClosures, closureColliders, edgeFences, fenceColliders } from './closures.js';
 export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
@@ -917,8 +918,14 @@ export const zoneGroundY = (x, z) => cityGroundY(x, z) || outskirtsGroundY(x, z)
 
 // The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
 // (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)
-const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], billboard: b.id })));
-export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS].map(Object.freeze));
+const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], barrier: false, billboard: b.id })));
+// The roads not open yet, and the edge of the built land (closures.js, 19 October 2026): each roadblock and each run
+// of the fence along the edge, where they stand. (They are barriers, which give a little: contact.js.)
+export * from './closures.js';
+export const ZONE_CLOSURES = Object.freeze(openClosures());
+export const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z)));
+const CLOSURE_COLLIDERS = [...closureColliders(ZONE_CLOSURES), ...fenceColliders(ZONE_EDGE_FENCES)];
+export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 // True when a person of the given radius can stand at (x, z).
