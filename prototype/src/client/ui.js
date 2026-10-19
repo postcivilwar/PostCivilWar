@@ -966,7 +966,8 @@ export function createUI(app) {
     chip.hidden = law === 'normal';
     if (law !== 'normal') { chip.className = law; chip.textContent = LAW_CHIP[law] || law; }
     $('taking').hidden = !taking && !fallen;
-    if (fallen) { $('taking-text').textContent = self.dead ? `Killed by ${self.dead.by}. You come round at the hospital in ${self.dead.left} s` : self.down.rising ? 'Getting up' : 'Knocked down'; $('taking-fill').style.width = self.dead ? `${Math.round((1 - self.dead.left / 8) * 100)}%` : '0%'; } else if (taking) { $('taking-text').textContent = (TAKING[taking.kind] && TAKING[taking.kind][taking.step]) || 'Taking it'; $('taking-fill').style.width = `${Math.round(taking.progress * 100)}%`; }
+    // (thrown from a motorcycle, or knocked down; getting up, the bar fills as they get up)
+    if (fallen) { $('taking-text').textContent = self.dead ? `Killed by ${self.dead.by}. You come round at the hospital in ${self.dead.left} s` : self.down.rising ? 'Getting up' : self.down.by === 'crash' ? 'Thrown off' : 'Knocked down'; $('taking-fill').style.width = self.dead ? `${Math.round((1 - self.dead.left / 8) * 100)}%` : self.down.rising && self.down.rise > 0 ? `${Math.round(Math.max(0, Math.min(1, 1 - self.down.left / self.down.rise)) * 100)}%` : '0%'; } else if (taking) { $('taking-text').textContent = (TAKING[taking.kind] && TAKING[taking.kind][taking.step]) || 'Taking it'; $('taking-fill').style.width = `${Math.round(taking.progress * 100)}%`; }
     const badge = $('phone-badge');
     badge.hidden = !unread;
     if (unread) badge.textContent = String(unread);

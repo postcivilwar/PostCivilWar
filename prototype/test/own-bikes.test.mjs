@@ -199,6 +199,54 @@ test('only a real blow throws a rider (19 October 2026, the owner\'s video): not
   assert.equal(r.outcome, 'stop');
 });
 
+test('where a thrown rider comes down (19 October 2026): over a roadblock when there is ground beyond it; beside the bike against a wall, or the fence at the end of the land; the whole body always on open ground, never in anything', () => {
+  const w = town(['Rider Six']);
+  const { p, id, send, place } = w;
+  send(id, { type: 'bikes.owned', bikes: ['white-sport'] });
+  const LIE = { ahead: 0.85, behind: 0.95 };
+  // the body lying along the way it was going, from the feet to the hands: nothing there, all of it on the land
+  const bodyClear = (h) => { for (let k = -LIE.behind; k <= LIE.ahead + 1e-6; k += 0.15) { const x = p.x + Math.sin(h) * k, z = p.z + Math.cos(h) * k; const kind = zoneBlockKind(x, z, [], 0.2); if (kind) return `${kind} at ${x.toFixed(2)}, ${z.toFixed(2)}`; } return ''; };
+  // ridden at `speed` along `h` for `steps` twentieths of a second (the town sees every step), to `end`, and into it
+  const crash = (end, h, speed, steps) => {
+    const ux = Math.sin(h), uz = Math.cos(h), d = speed * 0.05;
+    place(p, end.x - ux * d * steps, end.z - uz * d * steps, h);
+    const on = send(id, { type: 'bikes.ride', bike: 'white-sport' });
+    assert.equal(on.ok, true, JSON.stringify(on));
+    for (let i = 1; i <= steps; i += 1) { run(w.host, 0.05); const step = send(id, { type: 'moto.drive', x: end.x - ux * d * (steps - i), z: end.z - uz * d * (steps - i), heading: h, speed }); assert.equal(step.ok, true, `step ${i}: ${JSON.stringify(step)}`); }
+    const at = { x: p.x, z: p.z };
+    const r = send(id, { type: 'moto.crash', speed, heading: h });
+    return { r, at, down: w.g.view(id).self.down };
+  };
+  const up = () => { run(w.host, CRASH.lie[1] + CRASH.rise + 1); assert.equal(w.g.view(id).self.down, null); };
+  // into the roadblock at the south end of Waterside Road at 50 km/h: over the bars and over the boards, down on the
+  // road beyond them (still the town's land, inside its fence), the body clear of the boards
+  let c = crash({ x: -241.3, z: 113 }, -Math.PI / 2, 14, 24);
+  assert.equal(c.r.fell, true, JSON.stringify(c.r));
+  assert.ok(p.x < -243.35 - LIE.behind, `beyond the boards: ${p.x}`);
+  assert.ok(p.x > -248.6 + LIE.ahead, `short of the fence at the end of the land: ${p.x}`);
+  assert.ok(c.down.over && c.down.over.a > 0.3 && c.down.over.b > c.down.over.a && c.down.over.b < Math.hypot(p.x - c.at.x, p.z - c.at.z), `what it went over, along the way: ${JSON.stringify(c.down.over)}`);
+  assert.equal(bodyClear(-Math.PI / 2), '');
+  up();
+  // head on into the purple tower's wall at 50 km/h: no way on: down beside the bike, alongside it, on its right (it
+  // goes down on its left), the hands short of the wall
+  c = crash({ x: -101.5, z: 104.0 }, Math.PI, 14, 18);
+  assert.equal(c.r.fell, true, JSON.stringify(c.r));
+  assert.equal(c.down.over, null);
+  const right = { x: -Math.cos(Math.PI), z: Math.sin(Math.PI) };
+  const sideways = (p.x - c.at.x) * right.x + (p.z - c.at.z) * right.z;
+  assert.ok(sideways > 0.8 && sideways < 1.6, `beside the bike, on its right: ${sideways}`);
+  assert.equal(bodyClear(Math.PI), '');
+  up();
+  // the fence along the end of the land, ridden straight at hard: it is not gone over (there is no land beyond it)
+  assert.equal(zoneBlockKind(-248.6, 40, [], 0.6), 'barrier', 'the fence stands there');
+  c = crash({ x: -247.6, z: 40 }, -Math.PI / 2, 14, 18);
+  assert.equal(c.r.fell, true, JSON.stringify(c.r));
+  assert.ok(p.x > -248.45, `not over the fence: ${p.x}`);
+  assert.equal(c.down.over, null);
+  assert.equal(bodyClear(-Math.PI / 2), '');
+  up();
+});
+
 test('another player on their motorcycle, from another copy of the town: seen out at the airport too, with what the bike is doing (within bounds) and a horn when it is newly sounded', () => {
   const w = town(['Rider Four']);
   const { p, id, place } = w;

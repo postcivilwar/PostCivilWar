@@ -56,3 +56,47 @@ export function crashShare(into, kind = 'solid', full = 30) {
   const least = kind === 'barrier' ? CONTACT.barrier : CONTACT.knock;
   return Math.max(0, Math.min(1, (into - least) / Math.max(1, full - least)));
 }
+
+// Where a rider thrown over the handlebars comes down (19 October 2026). On along the way the bike was going (`ux`,
+// `uz`, a unit vector, from `x`, `z`), as far as the throw carries (`far`), with room on the ground for the whole body
+// lying along that way: the hands ahead of the hips, the feet behind them (LYING, as falls.js lays a figure on its
+// front). Pitched over something low in the way (a roadblock's boards, a fence: what `kind` calls 'barrier', none of
+// it higher than THROW.over) when there is ground with room beyond it, as a rider over the bars is; never through a
+// wall or anything else solid, and never off the land. Where the way on is shut, the body comes down beside the bike,
+// against what it hit, lying alongside it: on its right, as the bike goes down on its left (own-bike-view.js), unless
+// there is no room there. `kind(x, z, r)` says what is at a point: 'edge', 'barrier', 'solid' or null.
+// Gives { x, z, d (how far on), over } where `over` is null or { a, b }: the metres along the way, from the bike, over
+// which the low thing it went over lies (the page lifts the body over it, falls.js).
+export const LYING = Object.freeze({ ahead: 0.85, behind: 0.95, radius: 0.28 });
+export const THROW = Object.freeze({ over: 1.3, nearest: 1.5, step: 0.2, beside: Object.freeze([1.0, 1.4, -1.75, -2.1]) });
+export function throwLanding({ x, z, ux, uz, far, kind }) {
+  const rx = -uz, rz = ux;                       // to the right of the way
+  const lies = (px, pz) => { for (let k = -LYING.behind; k <= LYING.ahead + 1e-6; k += 0.3) if (kind(px + ux * k, pz + uz * k, LYING.radius)) return false; return true; };
+  // the way there, a body's breadth wide: open, or low (and gone over); nothing solid on it, and all of it on the land
+  const way = (px, pz) => {
+    const len = Math.hypot(px - x, pz - z);
+    let over = null;
+    for (let s = 0.3; s <= len + 1e-6; s += 0.15) {
+      const k = kind(x + ((px - x) * s) / len, z + ((pz - z) * s) / len, 0.15);
+      if (k === 'solid' || k === 'edge') return null;
+      if (k === 'barrier') over = over ? { a: over.a, b: s } : { a: s, b: s };
+    }
+    return { over: over ? { a: Math.round(over.a * 100) / 100, b: Math.round(over.b * 100) / 100 } : null };
+  };
+  for (let d = far; d >= THROW.nearest - 1e-6; d -= THROW.step) {
+    const px = x + ux * d, pz = z + uz * d;
+    if (!lies(px, pz)) continue;
+    const w = way(px, pz);
+    if (w) return { x: px, z: pz, d, over: w.over };
+  }
+  // shut ahead: beside the bike, as far on as there is room for the body (its hands short of what was hit)
+  for (const side of THROW.beside) {
+    for (let d = 0.6; d >= -1.0 - 1e-6; d -= THROW.step) {
+      const px = x + ux * d + rx * side, pz = z + uz * d + rz * side;
+      if (!lies(px, pz)) continue;
+      const w = way(px, pz);
+      if (w && !w.over) return { x: px, z: pz, d, over: null };
+    }
+  }
+  return { x, z, d: 0, over: null };
+}

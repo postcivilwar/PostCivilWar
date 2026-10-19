@@ -296,7 +296,17 @@ export function createTalk({ state, population, residents, players, weather, hub
     // a vehicle under them (a keke they drive, an okada they ride or ride on the back of), the motorcycles and kekes of
     // theirs standing near them, and how fast they are going: each field checked, a bad one dropped
     v.vehicle = vehicleIn(data.vehicle);
-    v.parked = (Array.isArray(data.parked) ? data.parked : []).slice(0, 3).map((b) => (b && POWER_BIKES[b.bike] && near(b, x, z) ? { bike: b.bike, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen } : null)).filter(Boolean);
+    // (one that came down in a crash: when, by this town's clock, kept from the first word of it as a fall is)
+    v.parked = (Array.isArray(data.parked) ? data.parked : []).slice(0, 3).map((b) => {
+      if (!(b && POWER_BIKES[b.bike] && near(b, x, z))) return null;
+      const out = { bike: b.bike, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen };
+      if (out.fallen && Number.isFinite(Number(b.ago))) {
+        const began = now() - n(b.ago, 0, 600);
+        const was = old && (old.parked || []).find((o) => o.bike === b.bike && o.fallen && Number.isFinite(o.since));
+        out.since = was && Math.abs(was.since - began) < 1.5 ? was.since : began;
+      }
+      return out;
+    }).filter(Boolean);
     v.kekes = (Array.isArray(data.kekes) ? data.kekes : []).slice(0, 2).map((k) => (k && near(k, x, z) && lookIn(k.look) ? { id: cleanText(String(k.id || ''), 12), x: Number(k.x), z: Number(k.z), heading: n(k.heading, -10, 10), plate: cleanText(String(k.plate || ''), 14), look: lookIn(k.look), fleet: !!k.fleet } : null)).filter(Boolean);
     v.vel = Array.isArray(data.vel) ? [n(data.vel[0], -100, 100), n(data.vel[1], -100, 100)] : [0, 0];
     // in one of their own cars (one of the game's own) and what it is doing, within bounds; their cars standing near
@@ -317,7 +327,10 @@ export function createTalk({ state, population, residents, players, weather, hub
     if (dn) {
       const began = now() - n(dn.age, 0, 120);
       const same = old && old.down && old.down.kind === dn.kind && Math.abs(old.down.since - began) < 1.5;
-      v.down = { kind: dn.kind, since: same ? old.down.since : began, lie: n(dn.lie, 0, 30), rise: n(dn.rise, 0, 6), push: n(dn.push, -10, 10), hard: !!dn.hard, from: dn.from && Number.isFinite(Number(dn.from.x)) && Number.isFinite(Number(dn.from.z)) && Math.hypot(Number(dn.from.x) - x, Number(dn.from.z) - z) < 8 ? { x: Number(dn.from.x), z: Number(dn.from.z) } : null };
+      const from = dn.from && Number.isFinite(Number(dn.from.x)) && Number.isFinite(Number(dn.from.z)) && Math.hypot(Number(dn.from.x) - x, Number(dn.from.z) - z) < 8 ? { x: Number(dn.from.x), z: Number(dn.from.z) } : null;
+      // (thrown over something low: where along the way from `from` it lay, within the way)
+      const over = from && dn.over && Number.isFinite(Number(dn.over.a)) && Number.isFinite(Number(dn.over.b)) ? { a: n(dn.over.a, 0, 8), b: n(dn.over.b, 0, 8) } : null;
+      v.down = { kind: dn.kind, since: same ? old.down.since : began, lie: n(dn.lie, 0, 30), rise: n(dn.rise, 0, 6), push: n(dn.push, -10, 10), hard: !!dn.hard, from, over: over && over.b >= over.a ? over : null };
     } else v.down = null;
     const horns = r ? n(r.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
@@ -360,7 +373,7 @@ export function createTalk({ state, population, residents, players, weather, hub
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
       speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
     }
-    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, down: o.down ? { kind: o.down.kind, age: Math.max(0, Math.round((real - o.down.since) * 1000) / 1000), lie: o.down.lie, rise: o.down.rise, push: o.down.push, hard: o.down.hard, from: o.down.from } : null, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
+    const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, parked: (o.parked || []).map((b) => (Number.isFinite(b.since) ? { bike: b.bike, x: b.x, z: b.z, h: b.h, fallen: b.fallen, ago: Math.max(0, Math.round((real - b.since) * 100) / 100) } : b)), down: o.down ? { kind: o.down.kind, age: Math.max(0, Math.round((real - o.down.since) * 1000) / 1000), lie: o.down.lie, rise: o.down.rise, push: o.down.push, hard: o.down.hard, from: o.down.from, over: o.down.over || null } : null, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }

@@ -888,11 +888,14 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
   await shot('04-hospital-paid');
   await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   await nlw(page, () => { const g = window.__nlw.host.game; g.internals.conflict.heal(g.state.players[window.__nlw.playerId], 100); });
-  // --- on foot there are no views to change: the camera follows from behind (the views are for vehicles) ---
+  // --- on foot C goes round the views on foot: on the street close behind, further back, over the shoulder, from
+  // above (the owner's brief of 19 October 2026: the camera button kept, and the street view first) ---
   await nlw(page, () => { const n = window.__nlw; n.place(0, 60); n.cam.yaw = Math.PI; });
   const views = [];
   for (let i = 0; i < 5; i += 1) { await page.waitForTimeout(1500); views.push(await nlw(page, () => window.__nlw.rig.view)); await shot(`05-view-${views[i]}`); await page.keyboard.press('c'); }
-  if (views.some((v) => v !== 'behind')) bad(`on foot there is one view, from behind; C went through ${views.join(', ')}`);
+  const FOOT_VIEWS = ['street', 'behind', 'shoulder', 'high'];
+  if (new Set(views).size !== 4 || !views.every((v, i) => FOOT_VIEWS.includes(v) && (i === 0 || FOOT_VIEWS.indexOf(v) === (FOOT_VIEWS.indexOf(views[i - 1]) + 1) % 4))) bad(`on foot C should go round ${FOOT_VIEWS.join(', ')}; it went through ${views.join(', ')}`);
+  await nlw(page, () => { window.__nlw.rig.view = 'street'; });
   // --- a fight: squaring up, blows, blocking; then the police ---
   const who = await someone(page, 0, 60);
   await faceUp(page, who);
@@ -991,21 +994,21 @@ for (const [name, size] of [['sideways', { width: 760, height: 360, touch: true 
       await shot(label);
       const s = await now(page);
       for (const b of want) if (!s.pad.includes(b)) bad(`${label}: no ${b} button (${s.pad.join(', ')})`);
-      if (!want.includes('View') && s.pad.includes('View')) bad(`${label}: a View button on foot`);
+      if (!want.includes('View') && s.pad.includes('View')) bad(`${label}: a View button where there should be none`);
       for (const c of await clashes(page)) bad(`${label}: ${c}`);
       if (await nlw(page, () => document.documentElement.scrollWidth > document.documentElement.clientWidth)) bad(`${label}: the page scrolls sideways`);
       return s;
     };
     await nlw(page, () => { const n = window.__nlw; n.place(0, 60); n.cam.yaw = Math.PI; });
-    await check('01-walking', ['Run']);
+    await check('01-walking', ['Run', 'View']);
     const who = await someone(page, 0, 60);
     await faceUp(page, who);
-    await check('02-someone-near', ['Run', 'Fight']);
+    await check('02-someone-near', ['Run', 'Fight', 'View']);
     await nlw(page, () => window.__nlw.act('fight'));
     const fight = await check('03-fight', ['Punch', 'Heavy', 'Kick', 'Block', 'Dodge', 'Shove', 'Grab', 'Leave']);
     if (fight.pad.includes('Run')) bad('Run is still shown in a fight');
     await nlw(page, () => { const n = window.__nlw; const g = n.host.game; n.act('leave'); g.internals.conflict.hurt(g.state.players[n.playerId], 85); n.place(-120, 150); });
-    const hurt = await check('04-critical', ['Help']);
+    const hurt = await check('04-critical', ['Help', 'View']);
     if (hurt.pad.includes('Run') || hurt.pad.includes('Fight')) bad(`critical: ${hurt.pad.join(', ')}`);
     await nlw(page, () => { const n = window.__nlw; const g = n.host.game; g.internals.conflict.heal(g.state.players[n.playerId], 100); const v = g.state.vehicles.list['V-0001']; v.hire = { playerId: n.playerId, until: g.state.t + 86400, txn: null }; n.place(v.x - 2.2, v.z + 2.2); g.intent(n.playerId, { type: 'vehicle.enter', vehicleId: v.id }); n.park(-12, 113, Math.PI / 2); });
     const drive = await check('05-driving', ['Accelerate', 'Brake', 'Horn']);

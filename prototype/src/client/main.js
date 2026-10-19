@@ -1422,8 +1422,10 @@ function start(carried) {
     const d = self.down, k = self.dead;
     if (!d && !k) { fallFacing = null; return null; }
     if (fallFacing === null) fallFacing = facing;
-    if (k) return { kind: 'dead', age: k.age || 0, lie: 1e6, rise: 0, push: fallFacing + Math.PI, facing: fallFacing, hard: true, from: null };
-    return { kind: d.by === 'crash' ? 'crash' : 'knock', age: d.age || 0, lie: d.lie || 2.4, rise: d.rise || 2.7, push: Number.isFinite(d.h) ? d.h : fallFacing, facing: fallFacing, hard: !!d.hard, from: d.from || null, to: { x: self.x, z: self.z }, thrown: d.from ? Math.hypot(self.x - d.from.x, self.z - d.from.z) : 1 };
+    // (the town's word comes ten times a second: its age is carried on to this frame, so that the fall flows)
+    const ahead = Math.max(0, clock - viewAt);
+    if (k) return { kind: 'dead', age: (k.age || 0) + ahead, lie: 1e6, rise: 0, push: fallFacing + Math.PI, facing: fallFacing, hard: true, from: null };
+    return { kind: d.by === 'crash' ? 'crash' : 'knock', age: (d.age || 0) + ahead, lie: d.lie || 2.4, rise: d.rise || 2.7, push: Number.isFinite(d.h) ? d.h : fallFacing, facing: fallFacing, hard: !!d.hard, from: d.from || null, over: d.over || null, to: { x: self.x, z: self.z }, thrown: d.from ? Math.hypot(self.x - d.from.x, self.z - d.from.z) : 1 };
   }
 
   // Is the player being moved by the simulation and not by their own hands? (walked in by an officer, carried, held)
@@ -2802,6 +2804,8 @@ function start(carried) {
   }
 
   let last = performance.now();
+  // (the game's clock against the real one: 1, unless a browser test slows everything down to look at it closely)
+  let timeScale = 1;
   // The game's loop. The next frame is asked for before this one is drawn, and a mistake in drawing one frame is
   // written to the console and counted (`frameErrors`) rather than left to end the loop (18 October 2026, the owner's
   // brief: the game sometimes froze. Until now the next frame was asked for at the end of this one, so any error
@@ -2833,11 +2837,11 @@ function start(carried) {
   }
   function drawFrame(now) {
     const elapsed = (now - last) / 1000;
-    const dt = Math.min(0.5, Math.max(0.001, elapsed));
+    const frameDt = Math.min(0.5, Math.max(0.001, elapsed)), dt = frameDt * timeScale;
     last = now;
     clock += dt;
     monitor.begin();
-    perf.fps += (1 / dt - perf.fps) * Math.min(1, dt * 2);
+    perf.fps += (1 / frameDt - perf.fps) * Math.min(1, frameDt * 2);
     let hour = 7.4;
     let weather = { kind: 'clear', wet: false, intensity: 0 };
     let ownEngine = null;
@@ -2902,7 +2906,7 @@ function start(carried) {
       if (downState && downState.from && downState.kind !== 'dead') {
         const t = fallTime(downState);
         if (downState.age < t) {
-          if (downState.kind === 'crash') fallPlace = flightAt({ ...downState, seat: 0.75 }, downState.age, zoneGroundY(downState.from.x, downState.from.z));
+          if (downState.kind === 'crash') fallPlace = flightAt(downState, downState.age, zoneGroundY(downState.from.x, downState.from.z));
           else { const u = Math.min(1, downState.age / t), e = u * u * (3 - 2 * u); fallPlace = { x: downState.from.x + (downState.to.x - downState.from.x) * e, z: downState.from.z + (downState.to.z - downState.from.z) * e }; }
         }
       }
@@ -2932,7 +2936,9 @@ function start(carried) {
       if (fallPlace && fallPlace.y !== undefined) me.group.position.y = fallPlace.y;
       // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
       const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
-      ownBikeView.update(dt, { ridden: ownRide, parked: (self.ownBikes && self.ownBikes.parked) || [], groundY: zoneGroundY, from: predicted, night, now: clock });
+      // (one that has just come down carried on to this frame from the town's last word, as a fall is)
+      const ownParked = ((self.ownBikes && self.ownBikes.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
+      ownBikeView.update(dt, { ridden: ownRide, parked: ownParked, groundY: zoneGroundY, from: predicted, night, now: clock });
       if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
       // in one of the player's own cars: the car is drawn where they are (car-view.js), with the other players' cars
       // near them, and every car of theirs and others' left standing within sight; the player sits at its wheel, seen
@@ -3064,7 +3070,7 @@ blood.update(dt, view.blood || []);
             crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, others: view.others,
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
-        maxRigs: MAX_RIGS[quality.level], detail: FIGURE_DETAIL[quality.level], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts });
+        maxRigs: MAX_RIGS[quality.level], detail: FIGURE_DETAIL[quality.level], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
       // other players on their own motorcycles: the bike under them and them on it, with its lamps and flames
       // (own-bike-view.js), from what their game says the bike is doing; its engine and horn are heard where it is
       peerRides = [];
@@ -3078,7 +3084,7 @@ blood.update(dt, view.blood || []);
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.bikeHornAt(POWER_BIKES[q.ride.bike].horn, g.position.x, g.position.z); }
       }
       const peerParked = [];
-      for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}` });
+      for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}`, ...(b.fallen && Number.isFinite(b.ago) ? { ago: b.ago + Math.max(0, clock - viewAt) } : {}) });
       peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
       // another player at the wheel of their car: seen in their seat where its cabin can be seen into, as the player is
       // (car-view.js); unseen in a closed one, or while their car is not drawn (its picture stands in for it, below)
@@ -3331,6 +3337,8 @@ blood.update(dt, view.blood || []);
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
+    // everything at a share of its speed (a fall seen frame by frame in a slow headless browser), and back to 1
+    slow(share = 1) { timeScale = Math.max(0.02, Math.min(1, Number(share) || 1)); return timeScale; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
     // A second player, in a second copy of the world in this page, joined to
     // this one by the loopback transport: the same path two devices take.

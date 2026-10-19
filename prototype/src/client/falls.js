@@ -59,23 +59,54 @@ export const FALL = Object.freeze({
   front: Object.freeze([['prone', 0], ['prone', 0.08], ['pushup', 0.3], ['halfKneel', 0.57], ['stand', 0.82], ['idle', 1]]),
   back: Object.freeze([['supine', 0], ['supine', 0.08], ['situp', 0.32], ['halfKneel', 0.6], ['stand', 0.84], ['idle', 1]]),
 });
-// How long the fall itself takes, before it lies still: through the air for a thrown rider (longer the further they
-// are thrown), otherwise its fall played a little quicker than the file's (quicker still after a hard blow), always
-// leaving it a moment on the ground before it starts to get up.
+// How long the fall itself takes, before it lies still: through the air for a thrown rider (flightTimes), otherwise its
+// fall played a little quicker than the file's (quicker still after a hard blow), always leaving it a moment on the
+// ground before it starts to get up.
 export function fallTime(down, how = fallKind(down)) {
-  if (how.fall === 'thrown') return Math.min(0.8, 0.32 + (down.thrown || 1) * 0.11);
+  if (how.fall === 'thrown') { const f = flightTimes(down); return f.up + f.down; }
   const len = how.fall === 'back' ? FALL_MOVES.clips.fallBack.duration : FALL_MOVES.clips.fallFwd.duration;
   return Math.max(0.5, Math.min(Math.max(down.lie, 0.6) - FALL.settle - 0.25, len / (down.hard ? 1.45 : 1.2)));
 }
-// Where a rider thrown over the handlebars is, `age` seconds after it: carried through the air from the seat to where
-// the town put them, rising a little and coming down. `from` and `to` are { x, z } and `seat` the seat's height.
+// A rider thrown over the handlebars goes from the motorcycle to where the town put them on the ground (`from`, `to`),
+// the lowest of the body (at first the feet, on the pegs, PEGS high; soon the body itself, laid level) on a curve:
+//   - in the open, or down beside the bike: a body under gravity, carried along the ground at a steady pace, rising a
+//     little over the straight line down (more the further they go: `peak`) and coming down onto the ground;
+//   - over something low in the way (a roadblock's boards, a fence: `over`, the metres along the way it lies from the
+//     bike, contact.js): pitched up over the bars, high enough to pass over its top (OVER_TOP: the boards are 1.25 m
+//     high, closures.js) by the time its far side is reached, and from there falling under gravity to the ground
+//     beyond, going on at the pace it went over at.
+const GRAVITY = 9.8;
+export const PEGS = 0.32;
+const OVER_TOP = 1.32;
+const flightDist = (down) => (down.from && down.to ? Math.hypot(down.to.x - down.from.x, down.to.z - down.from.z) : 1);
+const overOf = (down) => (down.over && Number.isFinite(down.over.b) && down.over.b > 0 && down.over.b < flightDist(down) - 0.3 ? down.over : null);
+export function flightTimes(down) {
+  const dist = flightDist(down), over = overOf(down);
+  if (!over) { const peak = 0.2 + 0.07 * dist; return { up: 0, down: Math.max(0.35, Math.min(1.15, Math.sqrt((8 * peak) / GRAVITY))), peak }; }
+  // the fall from over its top, and the pitch up over it, taken at the pace it goes on at
+  const fall = Math.sqrt((2 * OVER_TOP) / GRAVITY);
+  const up = Math.max(0.22, Math.min(0.45, (2 * over.b * fall) / Math.max(0.3, dist - over.b)));
+  return { up, down: fall, peak: OVER_TOP };
+}
+// Where a thrown rider is, `age` seconds after the blow: { x, y, z } (y the height of the lowest of the body: the fall
+// driver lays the body on it), and whether they have come down.
 export function flightAt(down, age, ground) {
-  const t = fallTime(down);
-  const u = smooth(age / t);
   const f = down.from, to = down.to;
-  const dist = Math.hypot(to.x - f.x, to.z - f.z);
-  const peak = 0.2 + 0.07 * dist;
-  return { x: f.x + (to.x - f.x) * u, y: ground + (down.seat || 0.8) * (1 - u) + peak * 4 * u * (1 - u), z: f.z + (to.z - f.z) * u, done: age >= t };
+  const dist = flightDist(down), over = overOf(down);
+  const t = flightTimes(down);
+  let s, y;
+  if (!over) {
+    const k = Math.max(0, Math.min(1, age / t.down));
+    s = k; y = PEGS * (1 - k) + t.peak * 4 * k * (1 - k);
+  } else if (age < t.up) {
+    // up and over the bars: rising fast and slowing at the top, going on slowly at first and then quicker
+    const k = age / t.up, s1 = over.b / dist;
+    s = s1 * k * k; y = PEGS + (OVER_TOP - PEGS) * (1 - (1 - k) ** 3);
+  } else {
+    const k = Math.min(1, (age - t.up) / t.down), s1 = over.b / dist;
+    s = s1 + (1 - s1) * k; y = OVER_TOP * (1 - k * k);
+  }
+  return { x: f.x + (to.x - f.x) * s, y: ground + y, z: f.z + (to.z - f.z) * s, done: age >= t.up + t.down };
 }
 // How it falls, from how it was pushed: `push` the way the blow sent the body, `facing` the way the figure faced.
 // A rider thrown from a motorcycle goes over the handlebars.
@@ -146,7 +177,7 @@ export function createFallDriver({ rig, holder, lift, carried, standPose, height
   const poses = { ...carried.poses, stand: standPose, idle: standPose };
   // the sit-up, made from lying on the back: the body raised from the hips, the knees drawn up, the hands behind
   poses.situp = sitUp(rig, holder, carried.poses.supine, height);
-  const state = { on: false, kind: null, age: 0, anchor: null };
+  const state = { on: false, kind: null, age: 0, anchor: null, restedAt: null, riseFrom: null };
 
   const write = (q) => { bones.forEach((b, k) => { if (b && (q[k * 4] || q[k * 4 + 1] || q[k * 4 + 2] || q[k * 4 + 3])) b.quaternion.fromArray(q, k * 4); }); };
   const read = (out) => { bones.forEach((b, k) => { if (b) b.quaternion.toArray(out, k * 4); }); return out; };
@@ -212,7 +243,9 @@ export function createFallDriver({ rig, holder, lift, carried, standPose, height
       }
       write(buf);
       lift.rotation.y = turn * smooth(age / (FALL.blow * 1.5));
-    } else if (age < lie) {
+    } else if (age < Math.min(lie + 0.4, Math.max(lie, state.restedAt === null ? Infinity : state.restedAt + 0.15))) {
+      // (it starts to get up only once it is lying on the ground: at the latest a moment after the town's time for it,
+      // so that it is never left there)
       phase = 'lie';
       // the end of the fall settles into lying still
       if (!state.fallEnd) state.fallEnd = read(new Float32Array(BODY.length * 4));
@@ -221,8 +254,9 @@ export function createFallDriver({ rig, holder, lift, carried, standPose, height
       lift.rotation.y = turn;
     } else if (age < lie + rise && down.kind !== 'dead') {
       phase = 'rise';
+      if (state.riseFrom === null) state.riseFrom = Math.max(lie, Math.min(age, lie + 0.4));
       const steps = lands === 'back' ? FALL.back : FALL.front;
-      const s = Math.min(1, (age - lie) / rise);
+      const s = Math.min(1, (age - state.riseFrom) / Math.max(0.5, lie + rise - state.riseFrom));
       let i = 0; while (i < steps.length - 2 && s >= steps[i + 1][1]) i += 1;
       const [p0, t0] = steps[i], [p1, t1] = steps[i + 1];
       mix(poses[p0], poses[p1], smooth((s - t0) / Math.max(1e-3, t1 - t0)), buf);
@@ -239,6 +273,8 @@ export function createFallDriver({ rig, holder, lift, carried, standPose, height
     const { low, at } = lowest();
     const want = 0.035 - (low - lift.position.y);
     lift.position.y += (want - lift.position.y) * Math.min(1, dt * (want < lift.position.y ? 22 : 10));
+    // (lying on the ground, and settled there: from now it may get up)
+    if (phase === 'lie' && state.restedAt === null && Math.abs(want - lift.position.y) < 0.03 && age >= falling + FALL.settle * 0.5) state.restedAt = age;
     // what bears weight stays where it is put: while the same part rests on the ground, the body moves over it
     if (phase === 'rise' || phase === 'lie') {
       if (at && low - lift.position.y < 0.07) {
@@ -252,14 +288,14 @@ export function createFallDriver({ rig, holder, lift, carried, standPose, height
         state.anchor = { n: at.n, x: v.x, z: v.z };
       }
       // and comes back over its own place as it stands, a step's worth
-      if (phase === 'rise') { const s = (down.age - lie) / rise; if (s > 0.8) { const k = Math.min(1, dt * 4); lift.position.x -= lift.position.x * k; lift.position.z -= lift.position.z * k; } }
+      if (phase === 'rise') { const s = (down.age - state.riseFrom) / Math.max(0.5, lie + rise - state.riseFrom); if (s > 0.8) { const k = Math.min(1, dt * 4); lift.position.x -= lift.position.x * k; lift.position.z -= lift.position.z * k; } }
     } else if (phase === 'up') { const k = Math.min(1, dt * 6); lift.position.x -= lift.position.x * k; lift.position.z -= lift.position.z * k; }
     else state.anchor = null;
     state.phase = phase;
     return true;
   }
   function begin(down) {
-    state.on = true; state.kind = down.kind; state.anchor = null; state.fallEnd = null;
+    state.on = true; state.kind = down.kind; state.anchor = null; state.fallEnd = null; state.restedAt = null; state.riseFrom = null;
     state.how = fallKind(down);
     // as it was when struck (or, seen first already down, as it lies)
     state.caught = read(caught);

@@ -10,7 +10,7 @@
 // the same answer. A ridden bike strikes whoever is in its way as any motorcycle does (impact.js).
 import { POWER_BIKES, handlingOf, FASTEST } from './power-bikes.js';
 import { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind } from './zone.js';
-import { contactNormal, contactOutcome, crashShare } from './contact.js';
+import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
 import { GameError } from './registry.js';
 
 export const isOwnBike = (astride) => typeof astride === 'string' && astride.startsWith('pb:');
@@ -28,7 +28,8 @@ export const CRASH = Object.freeze({
   most: 0.05,                 // the share of full health lost at the top speed of the biggest engine
   lie: Object.freeze([2.2, 4.4]),     // real seconds from the blow to getting up: through the air, down, and still
   rise: 2.7,                  // real seconds getting up, as a person does (falls.js), before the rider can act
-  thrown: Object.freeze([0.8, 4.5]),  // metres thrown forward
+  thrown: Object.freeze([0.8, 6]),    // metres thrown forward: at least, and at most
+  carry: 0.3,                 // metres further for every m/s the bike went into what it hit
 });
 export const crashHarm = (speed, max = 100) => max * CRASH.most * Math.min(1, Math.max(0, speed) / FASTEST);
 
@@ -134,18 +135,18 @@ export function createOwnBikes({ state, hub, obstacles }) {
     const now = state.real;
     if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now };
     p.astride = null; p.pbike = null;
-    // thrown on ahead, to the last place there is room for a body before anything solid
-    const far = CRASH.thrown[0] + (CRASH.thrown[1] - CRASH.thrown[0]) * share;
-    let at = { x: b.x, z: b.z };
-    for (let d = 0.4; d <= far + 1e-6; d += 0.4) { const q = { x: b.x + Math.sin(h) * d * way, z: b.z + Math.cos(h) * d * way }; if (!zoneWalkable(q.x, q.z, boxes, 0.3)) break; at = q; }
-    if (at.x === b.x && at.z === b.z) { const side = { x: b.x + Math.cos(h), z: b.z - Math.sin(h) }; if (zoneWalkable(side.x, side.z, boxes, 0.3)) at = side; }
+    // thrown on over the bars, as far as the blow carries: where there is room on the ground for the body to lie, over
+    // a low roadblock or fence when there is ground beyond it, never through anything solid; or, the way on shut, down
+    // beside the bike against what it hit (contact.js `throwLanding`)
+    const far = Math.min(CRASH.thrown[1], CRASH.thrown[0] + CRASH.carry * c.into);
+    const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(h) * way, uz: Math.cos(h) * way, far: Math.max(far, THROW.nearest), kind: (x, z, r) => zoneBlockKind(x, z, boxes, r) });
     p.x = at.x; p.z = at.z; p.lastMoveAt = now;
     const harm = crashHarm(c.into, 100);
     const before = p.health;
     if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
     const lie = CRASH.lie[0] + (CRASH.lie[1] - CRASH.lie[0]) * share;
     // (`fall`: thrown forward over the bars, which way the body goes and how it lands: the page shows it, falls.js)
-    p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h: way > 0 ? h : h + Math.PI, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z } };
+    p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h: way > 0 ? h : h + Math.PI, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z }, over: at.over };
     p.stats.crashes = (p.stats.crashes || 0) + 1;
     return { fell: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(c.into * 10) / 10, lost: before - p.health, health: p.health, x: at.x, z: at.z, bike: { id: b.id, x: b.x, z: b.z, h: b.h }, lie };
   }

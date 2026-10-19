@@ -484,14 +484,16 @@ export function createCrowd(scene) {
       // this town if they are in it (a stance): they fall the way the blow sent them, from where it began, lie and get
       // up as they do on their own screen (falls.js); they are not walked from where they were struck to where they lay
       const st0 = frame.others ? frame.others[q.id] : null;
-      const pd = q.down ? q.down : st0 && (st0.down || st0.rising || st0.dead) && Number.isFinite(st0.fallAge) ? { kind: st0.kind || (st0.dead ? 'dead' : 'knock'), age: st0.fallAge, lie: st0.lie, rise: st0.rise, push: st0.fell, hard: st0.hard, from: null } : null;
+      // (how long ago it began, carried on to this frame from the town's last word, so that the fall flows)
+      const pd0 = q.down ? q.down : st0 && (st0.down || st0.rising || st0.dead) && Number.isFinite(st0.fallAge) ? { kind: st0.kind || (st0.dead ? 'dead' : 'knock'), age: st0.fallAge, lie: st0.lie, rise: st0.rise, push: st0.fell, hard: st0.hard, from: null } : null;
+      const pd = pd0 && Number.isFinite(pd0.age) ? { ...pd0, age: pd0.age + (frame.ahead || 0) } : pd0;
       let fallPlace = null;
       if (pd) {
         if (other.fallFacing === null || other.fallFacing === undefined) other.fallFacing = other.h;
         const ds = { ...pd, facing: other.fallFacing, to: { x: q.x, z: q.z }, lie: pd.kind === 'dead' ? 1e6 : pd.lie || 2.4, rise: pd.kind === 'dead' ? 0 : pd.rise || 2.7, thrown: pd.from ? Math.hypot(q.x - pd.from.x, q.z - pd.from.z) : 1 };
         other.rig.downState = ds;
         if (pd.from && pd.kind !== 'dead' && ds.age < fallTime(ds)) {
-          if (pd.kind === 'crash') fallPlace = flightAt({ ...ds, seat: 0.75 }, ds.age, zoneGroundY(pd.from.x, pd.from.z));
+          if (pd.kind === 'crash') fallPlace = flightAt(ds, ds.age, zoneGroundY(pd.from.x, pd.from.z));
           else { const u = Math.min(1, ds.age / fallTime(ds)), e = u * u * (3 - 2 * u); fallPlace = { x: pd.from.x + (q.x - pd.from.x) * e, z: pd.from.z + (q.z - pd.from.z) * e }; }
         }
         const at = fallPlace || q;

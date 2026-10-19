@@ -87,6 +87,43 @@ test('their own motorcycles standing near them are seen; nothing made up or out 
   assert.ok(q.kekes[0].plate.length <= 14 && q.kekes[0].look.paint === 'yellow' && q.kekes[0].look.wear === 1 && q.kekes[0].look.slogan.length <= 32, 'every field checked');
 });
 
+test('thrown from a motorcycle (19 October 2026): the fall, how long ago it began and from where, and the motorcycle lying where it stopped, travel to every other player; told again, it is the same fall, not a new one', () => {
+  const self = { name: 'Thrown', x: -236.5, z: 112, heading: -Math.PI / 2, look: {},
+    down: { by: 'crash', age: 0.4, lie: 3.1, rise: 2.7, h: -Math.PI / 2, hard: true, from: { x: -241.2, z: 112.3 } },
+    ownBikes: { parked: [{ bike: 'white-sport', x: -241.2, z: 112.3, h: -Math.PI / 2, fallen: true, ago: 0.4 }] } };
+  const state = encodePlayer(self, ZONE_ID);
+  assert.deepEqual(state.dn, [1, 0.4, 3.1, 2.7, -1.57, 1, -241.2, 112.3]);
+  assert.deepEqual(state.pk, [['white-sport', -241.2, 112.3, -1.57, 1, 0.4]]);
+  assert.ok(JSON.stringify(state).length < 1500, 'within what the server takes');
+  const b = town(['Watcher Ebi']);
+  b.place(b.p, -232, 116);
+  b.g.visitors.seen('peer-t', decodePlayer(state, ZONE_ID));
+  let q = b.g.view(b.id).players.find((o) => o.name === 'Thrown');
+  assert.equal(q.down.kind, 'crash');
+  assert.ok(Math.abs(q.down.age - 0.4) < 0.01 && q.down.lie === 3.1 && q.down.rise === 2.7 && q.down.hard, JSON.stringify(q.down));
+  assert.deepEqual(q.down.from, { x: -241.2, z: 112.3 });
+  assert.equal(q.parked.length, 1);
+  assert.ok(q.parked[0].fallen && Math.abs(q.parked[0].ago - 0.4) < 0.01, JSON.stringify(q.parked[0]));
+  // a second later, told again (its age a second on, a little late as words are): the same fall, begun when it began
+  // here, not again
+  const real0 = b.g.state.real;
+  run(b.host, 1);
+  const later = b.g.state.real - real0;
+  b.g.visitors.seen('peer-t', decodePlayer(encodePlayer({ ...self, down: { ...self.down, age: 1.3 }, ownBikes: { parked: [{ ...self.ownBikes.parked[0], ago: 1.3 }] } }, ZONE_ID), ZONE_ID));
+  q = b.g.view(b.id).players.find((o) => o.name === 'Thrown');
+  assert.ok(Math.abs(q.down.age - (0.4 + later)) < 0.01, `the fall's age carried on from its first word: ${q.down.age}, ${0.4 + later}`);
+  assert.ok(Math.abs(q.parked[0].ago - (0.4 + later)) < 0.01, `the motorcycle's too: ${q.parked[0].ago}`);
+  // up again: no fall
+  b.g.visitors.seen('peer-t', decodePlayer(encodePlayer({ ...self, down: null, ownBikes: { parked: [{ bike: 'white-sport', x: -241.2, z: 112.3, h: -Math.PI / 2, fallen: true, ago: 9 }] } }, ZONE_ID), ZONE_ID));
+  q = b.g.view(b.id).players.find((o) => o.name === 'Thrown');
+  assert.equal(q.down, null);
+  // what cannot be: a fall that began far from where they are is shown without where it began
+  const far = decodePlayer(encodePlayer({ ...self, down: { ...self.down, from: { x: 100, z: 100 } } }, ZONE_ID), ZONE_ID);
+  b.g.visitors.seen('peer-t', far);
+  q = b.g.view(b.id).players.find((o) => o.name === 'Thrown');
+  assert.equal(q.down.from, null);
+});
+
 test('a motorcycle\'s steering and the phone in a player\'s hand travel with them, and are checked when heard', () => {
   const self = { name: 'Rider', x: 0, z: 100, heading: 0, look: {}, astride: { n: 'pb:cafe-racer', model: 'cafe-racer', ride: { lean: 0.2, speed: 9, throttle: 0.5, brake: 0, rev: 0.4, steer: 0.31 }, horns: 0 }, phone: 1 };
   const state = encodePlayer(self, ZONE_ID);
