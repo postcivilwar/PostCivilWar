@@ -5,6 +5,7 @@ import assert from 'node:assert/strict';
 import { town, run } from './world.mjs';
 import { POWER_BIKES, handlingOf, BIKE_CCS, topKmhOfCc, stepPowerBike, FASTEST } from '../src/sim/power-bikes.js';
 import { crashHarm, CRASH } from '../src/sim/own-bikes.js';
+import { zoneWalkable } from '../src/sim/zone.js';
 import { BIKE_PARTS } from '../src/client/bike-parts.js';
 
 test('the seventeen motorcycles: each has its model\'s parts, a price from 300 TR to 3,000 TR (the owner\'s of 18 October 2026), an engine size from the owner\'s list, and its own tuned engine', () => {
@@ -107,7 +108,8 @@ test('a motorcycle is not brought indoors or into a wall', () => {
 test('running into something at speed throws the rider: down on the ground, the life lost by the speed, the bike lying where it stopped', () => {
   const w = town(['Rider Three']);
   const { p, id, send, place } = w;
-  place(p, -50, 98, Math.PI / 2);
+  // facing the purple tower's curved wall across the grass from Waterside Road, just short of it
+  place(p, -101.5, 104.2, Math.PI);
   send(id, { type: 'bikes.owned', bikes: ['chrome-concept', 'streetfighter'] });
   assert.equal(send(id, { type: 'bikes.ride', bike: 'streetfighter' }).ok, true);
   // a bump at walking pace: no fall
@@ -135,11 +137,57 @@ test('running into something at speed throws the rider: down on the ground, the 
   assert.equal(w.g.view(id).self.down, null, 'up again');
   // the biggest engine at its top speed: 5 in 100
   p.health = 100;
-  place(p, -50, 98, Math.PI / 2);
+  place(p, -101.5, 104.2, Math.PI);
   assert.equal(send(id, { type: 'bikes.ride', bike: 'chrome-concept' }).ok, true);
   const hard = send(id, { type: 'moto.crash', speed: FASTEST });
   assert.equal(hard.lost, 5);
   assert.equal(p.health, 95);
+});
+
+test('only a real blow throws a rider (19 October 2026, the owner\'s video): nothing in the way, a scrape along a wall, a knock, the edge of the map: nobody falls', () => {
+  const w = town(['Rider Five']);
+  const { p, id, send, place } = w;
+  send(id, { type: 'bikes.owned', bikes: ['white-sport'] });
+  const ride = (x, z, h) => { place(p, x, z, h); const r = send(id, { type: 'bikes.ride', bike: 'white-sport' }); assert.equal(r.ok, true, JSON.stringify(r)); };
+  const off = () => { if (w.g.view(id).self.astride) send(id, { type: 'moto.leave' }); };
+  // where the owner's rider came off: on the grass between Waterside Road and the purple tower, the curved wall
+  // metres away, the old box round its roof right there. Nothing is in the way any more: the page would not stop, and
+  // a page that said it had crashed there is not believed.
+  ride(-108, 105.2, -Math.PI / 2);
+  assert.ok(zoneWalkable(-108, 103.5, [], 0.6) && zoneWalkable(-110, 103.5, [], 0.6), 'under the tower\'s roof, short of its wall, is open ground now');
+  let r = send(id, { type: 'moto.crash', speed: 7.8, heading: -Math.PI / 2 });
+  assert.equal(r.ok, true); assert.equal(r.fell, false); assert.equal(r.outcome, 'none');
+  assert.ok(w.g.view(id).self.astride, 'still riding');
+  off();
+  // brushing along the tower's wall at speed: a scrape, not a fall (going along x beside the curved podium's north tip)
+  ride(-101.5, 103.8, -Math.PI / 2 - 0.12);
+  r = send(id, { type: 'moto.crash', speed: 10, heading: -Math.PI / 2 - 0.12 });
+  assert.equal(r.fell, false, JSON.stringify(r));
+  assert.ok(['slide', 'none'].includes(r.outcome), r.outcome);
+  off();
+  // head on at a little under 23 km/h: a knock, the bike stops, the rider stays on
+  ride(-101.5, 104.2, Math.PI);
+  r = send(id, { type: 'moto.crash', speed: 6.0, heading: Math.PI });
+  assert.equal(r.fell, false); assert.equal(r.outcome, 'stop');
+  // the same head on at 30 km/h: thrown
+  r = send(id, { type: 'moto.crash', speed: 8.4, heading: Math.PI });
+  assert.equal(r.fell, true, JSON.stringify(r));
+  assert.equal(w.g.view(id).self.down.by, 'crash');
+  run(w.host, CRASH.lie[1] + CRASH.rise + 1);
+  // the end of the map is not a thing to be thrown by: at the east end of Waterside Road, straight at it
+  ride(247.8, 113, Math.PI / 2);
+  assert.equal(zoneWalkable(249.2, 113, [], 0.6), false, 'the ground ends there');
+  r = send(id, { type: 'moto.crash', speed: 20, heading: Math.PI / 2 });
+  assert.equal(r.fell, false, JSON.stringify(r));
+  assert.equal(r.outcome, 'stop');
+  off();
+  // and a crash is judged at no more than the town saw the bike going: steps of 3 m/s, then a page that says 25
+  ride(-101.5, 107.5, Math.PI);
+  for (let i = 1; i <= 22; i += 1) { run(w.host, 0.05); const step = send(id, { type: 'moto.drive', x: -101.5, z: 107.5 - i * 0.15, heading: Math.PI, speed: 3 }); assert.equal(step.ok, true, JSON.stringify(step)); }
+  r = send(id, { type: 'moto.crash', speed: 25, heading: Math.PI });
+  assert.equal(r.ok, true);
+  assert.equal(r.fell, false, `a page that says 25 m/s, of a bike the town saw going at 3: ${JSON.stringify(r)}`);
+  assert.equal(r.outcome, 'stop');
 });
 
 test('another player on their motorcycle, from another copy of the town: seen out at the airport too, with what the bike is doing (within bounds) and a horn when it is newly sounded', () => {

@@ -134,7 +134,7 @@ class V3 {
   lerp(v, t) { return this.set(this.x + (v.x - this.x) * t, this.y + (v.y - this.y) * t, this.z + (v.z - this.z) * t); }
 }
 globalThis.THREE = { Vector3: V3 };
-const { CAMERA_VIEWS, CAMERA_VIEW, nextView, viewFor, createCameraRig } = await import('../src/client/camera.js');
+const { CAMERA_VIEWS, CAMERA_VIEW, STREET, nextView, viewFor, createCameraRig } = await import('../src/client/camera.js');
 const fakeCamera = () => { const c = { position: new V3(), aim: new V3(), lookAt(v) { c.aim.copy(v); }, updateMatrixWorld() {} }; return c; };
 // Runs the rig for some seconds at sixty frames a second.
 function film(rig, seconds, frame) { for (let t = 0; t < seconds; t += 1 / 60) rig.update(1 / 60, frame); }
@@ -149,23 +149,25 @@ test('camera: C goes round every view for where the player is, and a view that d
     assert.ok(CAMERA_VIEWS[where].length >= 4);
     for (const name of CAMERA_VIEWS[where]) assert.ok(CAMERA_VIEW[name] && CAMERA_VIEW[name].name, `${name} is described`);
   }
-  assert.equal(viewFor('driver', 'foot'), 'behind', 'the driver\'s-side view is not kept on foot');
-  assert.equal(viewFor('seat', 'foot'), 'behind');
+  assert.equal(CAMERA_VIEWS.foot[0], 'street', 'on foot the street view comes first: the one the game starts with');
+  assert.equal(viewFor('driver', 'foot'), 'street', 'the driver\'s-side view is not kept on foot');
+  assert.equal(viewFor('seat', 'foot'), 'street');
   assert.equal(viewFor('high', 'vehicle'), 'high', 'a view that exists in both is kept');
   assert.equal(viewFor('shoulder', 'vehicle'), 'chase');
-  assert.equal(viewFor('bonnet', 'foot'), 'behind');
+  assert.equal(viewFor('bonnet', 'foot'), 'street');
+  assert.equal(viewFor('behind', 'foot'), 'behind', 'further back is still there on foot');
 });
 
 test('camera: it glides from one view to the next; it never jumps', () => {
   const camera = fakeCamera();
   const rig = createCameraRig(camera, { blocked: () => false });
-  const cam = { yaw: 0, pitch: 0.27, dist: 8 };
+  const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist };
   const frame = { cam, target: { x: 0, y: 1.5, z: 0 }, heading: 0 };
   rig.snap(cam);
   film(rig, 1, frame);
   let last = { x: camera.position.x, y: camera.position.y, z: camera.position.z };
   let worst = 0;
-  for (const view of ['close', 'shoulder', 'high', 'side', 'behind']) {
+  for (const view of ['close', 'shoulder', 'high', 'side', 'behind', 'street']) {
     rig.view = view;
     for (let t = 0; t < 2; t += 1 / 60) {
       rig.update(1 / 60, frame);
@@ -242,6 +244,71 @@ test('camera: someone under a low roof is looked at from under it, not through i
   // standing well clear of it with the camera high over open ground: untouched
   film(rig, 3, { cam, target: { x: 0, y: 1.5, z: 30 }, heading: 0 });
   assert.ok(Math.hypot(camera.position.z - 30, camera.position.y - 1.5) > 7.5, 'out in the open the camera is at its full distance');
+});
+
+test('camera: on the street view the player stands in the lower middle, a few metres ahead, the eye about their head\'s height', () => {
+  const camera = fakeCamera();
+  const rig = createCameraRig(camera, { blocked: () => false });
+  const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist };
+  rig.snap(cam);
+  assert.equal(rig.view, 'street', 'the view the game starts with');
+  // the player at the origin, their target 1.55 m up (as main.js keeps it), facing +z
+  film(rig, 3, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0 });
+  const back = -camera.position.z;
+  assert.ok(back > 3.2 && back < 4.4, `${back.toFixed(2)} m behind`);
+  assert.ok(camera.position.y > 1.6 && camera.position.y < 2.2, `the eye ${camera.position.y.toFixed(2)} m up: about the height of a head`);
+  // looking a little down, at the chest, so the head is above the middle of the picture and the feet well below it
+  assert.ok(camera.aim.y > 1.3 && camera.aim.y < 1.5, `looking at ${camera.aim.y.toFixed(2)} m`);
+  assert.ok(camera.position.y > camera.aim.y, 'down, not up');
+  // at a run it comes a little closer and lower, and goes back out when the player slows
+  film(rig, 3, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0, running: 1 });
+  const atRun = -camera.position.z;
+  assert.ok(atRun < back - 0.4 && atRun > 2.4, `at a run ${atRun.toFixed(2)} m behind (walking ${back.toFixed(2)})`);
+  film(rig, 4, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0, running: 0 });
+  assert.ok(Math.abs(-camera.position.z - back) < 0.1, 'and back out');
+});
+
+test('camera: on the street view it comes in toward the player before a wall rather than rising over it', () => {
+  const camera = fakeCamera();
+  const wall = (x, z, y = 0) => z < -2.5 && y <= 4.2;
+  const rig = createCameraRig(camera, { blocked: wall });
+  const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist };
+  rig.snap(cam);
+  film(rig, 3, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0 });
+  assert.ok(!wall(camera.position.x, camera.position.z, camera.position.y), 'not inside the wall');
+  assert.ok(camera.position.y < 2.4, `it came in, at head height (${camera.position.y.toFixed(2)} m), rather than rising`);
+  assert.ok(-camera.position.z > 1.1 && -camera.position.z < 2.5, `${(-camera.position.z).toFixed(2)} m behind`);
+});
+
+test('camera: on the street view a turn swings it out a little and lets it settle; the eye never goes under the ground', () => {
+  const camera = fakeCamera();
+  // a slope rising behind the player: the eye keeps above it
+  const rig = createCameraRig(camera, { blocked: () => false, ground: (x, z) => (z < -1 ? (-1 - z) * 0.6 : 0) });
+  const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist };
+  rig.snap(cam);
+  film(rig, 2, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0 });
+  const g = (-1 - camera.position.z) * 0.6;
+  assert.ok(camera.position.y >= g + 0.3, `the eye ${camera.position.y.toFixed(2)} m is above the slope (${g.toFixed(2)} m there)`);
+  // the yaw turned steadily (the player going round to the left): the sway is to the outside of the turn, small
+  for (let t = 0; t < 1; t += 1 / 60) { cam.yaw += 1.2 / 60; rig.update(1 / 60, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: cam.yaw }); }
+  const sway = rig.live.sway;
+  assert.ok(sway > 0.05 && sway <= 0.22, `swung out by ${sway.toFixed(3)} m`);
+  film(rig, 3, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: cam.yaw });
+  assert.ok(Math.abs(rig.live.sway) < 0.01, 'and settles when the turn ends');
+});
+
+test('camera: it moves the same at 20 frames a second as at 60', () => {
+  const run = (fps) => {
+    const camera = fakeCamera();
+    const rig = createCameraRig(camera, { blocked: () => false });
+    const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist };
+    rig.snap(cam);
+    rig.view = 'high';
+    for (let t = 0; t < 0.5; t += 1 / fps) rig.update(1 / fps, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0 });
+    return { y: camera.position.y, z: camera.position.z };
+  };
+  const a = run(60), b = run(20);
+  assert.ok(Math.hypot(a.y - b.y, a.z - b.z) < 0.6, `half a second into a change of view: ${JSON.stringify(a)} at 60, ${JSON.stringify(b)} at 20`);
 });
 
 // --- skills ---------------------------------------------------------------------------------

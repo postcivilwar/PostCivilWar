@@ -15,6 +15,8 @@
 //
 // This file is content, read by the simulation (where each stands and what is in the way) and by the drawing.
 
+import { TOWN_FOOTPRINTS } from './town-footprints.js';
+
 const deg = (d) => (d * Math.PI) / 180;
 const box = (x0, z0, x1, z1) => Object.freeze({ x0, z0, x1, z1 });
 
@@ -92,7 +94,19 @@ export const TOWN_TOWERS = Object.freeze([
   site('market-hotel', 'hotel', -62, -136, -32, -82, Math.PI / 2),
   site('police-offices', 'glass-offices', -82, -30, -63, -2, Math.PI),
 ]);
-export const TOWER_COLLIDERS = Object.freeze(TOWN_TOWERS.map((t) => box(t.x - t.w / 2, t.z - t.d / 2, t.x + t.w / 2, t.z + t.d / 2)));
+// What is in the way at each: where the building really stands at the height of a person or a rider, its walls,
+// posts and steps and what they enclose (town-footprints.js, measured from the model as it is drawn by
+// tools/buildings/footprints.mjs), not the box round the whole model. (19 October 2026, the owner's video: a rider
+// was thrown off on open grass beside Waterside Road, two to seventeen metres short of the purple tower's curved
+// wall, where its roof reaches out overhead; the box round the whole model, roof and all, stood in the way there.)
+// A building with no measured footprint is its box, as before.
+export function standsAt(id, x0, z0, x1, z1) {
+  const own = TOWN_FOOTPRINTS[id];
+  return own && own.length ? own.map(([a, b, c, d]) => box(a, b, c, d)) : [box(x0, z0, x1, z1)];
+}
+export const TOWER_COLLIDERS = Object.freeze(TOWN_TOWERS.flatMap((t) => standsAt(t.id, t.x - t.w / 2, t.z - t.d / 2, t.x + t.w / 2, t.z + t.d / 2)));
+// (the box round the whole of each, for what is kept clear around a building: trees are not planted under a roof)
+export const TOWER_BOXES = Object.freeze(TOWN_TOWERS.map((t) => box(t.x - t.w / 2, t.z - t.d / 2, t.x + t.w / 2, t.z + t.d / 2)));
 
 // ---------------------------------------------------------------------------------------------- the houses --
 // The owner's houses, in turn along each row so that no two neighbours are alike, each on the plot of the plain

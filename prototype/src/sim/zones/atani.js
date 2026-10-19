@@ -29,7 +29,7 @@ export * from './asaba-carshow.js';
 import { SUPPLIED_VEHICLE_COLLIDERS } from './supplied-vehicles.js';
 export * from './supplied-vehicles.js';
 import { TOWN_TREES } from './atani-trees.js';
-import { TOWER_COLLIDERS } from './town-buildings.js';
+import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
 export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
@@ -572,7 +572,8 @@ function buildFixedColliders() {
   const sh = ZONE_PROPS.shelter;
   boxes.push({ x0: sh.x - 6, x1: sh.x + 6, z0: sh.z - 2.5, z1: sh.z + 2.5 });   // motor park shelter posts
   boxes.push({ x0: -64, x1: -50, z0: -196, z1: -176 });                          // cured block stacks
-  for (const h of ZONE_HOUSES) if (!h.tower) boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2));
+  // (each of the owner's houses where it really stands, not the box round its roof: town-buildings.js `standsAt`)
+  for (const h of ZONE_HOUSES) if (!h.tower) { if (h.model) { const b = boxOf(h.x, h.z, h.w / 2, h.d / 2); boxes.push(...standsAt(h.id, b.x0, b.z0, b.x1, b.z1)); } else boxes.push(boxOf(h.x, h.z, h.w / 2, h.d / 2)); }
   boxes.push(...TOWER_COLLIDERS);                                                // the owner's towers (town-buildings.js)
   for (const s of ZONE_SHEDS) boxes.push(...zoneShedWalls(s));
   for (const c of ZONE_COMPOUNDS) {
@@ -904,7 +905,7 @@ const inCityWay = (t) => [...PAVEMENTS, { x0: BOULEVARD.x0, x1: BOULEVARD.x1, z0
 // (none where the showroom tower stands, or by its pink column: the others are where they were)
 const byPowerbike = (t) => { const f = POWERBIKE.footprint, p = POWERBIKE.portal; return (t.x > f.x0 - 3 && t.x < f.x1 + 3 && t.z > f.z0 - 3 && t.z < f.z1 + 3) || Math.hypot(t.x - p.x, t.z - p.z) < 6; };
 // (none where one of the owner's buildings now stands, or one of their vehicles: town-buildings.js, supplied-vehicles.js)
-const byNewBuilding = (t) => [...TOWER_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...TOWN_HOUSES.filter((h) => h.model).map((h) => boxOf(h.x, h.z, h.w / 2, h.d / 2))].some((b) => t.x > b.x0 - 2 && t.x < b.x1 + 2 && t.z > b.z0 - 2 && t.z < b.z1 + 2);
+const byNewBuilding = (t) => [...TOWER_BOXES, ...SUPPLIED_VEHICLE_COLLIDERS, ...TOWN_HOUSES.filter((h) => h.model).map((h) => boxOf(h.x, h.z, h.w / 2, h.d / 2))].some((b) => t.x > b.x0 - 2 && t.x < b.x1 + 2 && t.z > b.z0 - 2 && t.z < b.z1 + 2);
 // (the trees as they stood on 17 October 2026, atani-trees.js: scattered again, every one would have moved)
 export const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t) && !inCityWay(t) && !byPowerbike(t) && !byNewBuilding(t)));
 
@@ -936,4 +937,24 @@ export function zoneWalkable(x, z, extra = [], radius = 0.4) {
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
   for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
   return true;
+}
+
+// What stops something of the given radius at (x, z), if anything does (19 October 2026: what a vehicle runs into
+// decides what comes of it, contact.js): 'edge' where the ground ends (the end of the map, the river's bank, the bush
+// beyond the roads: not a thing that is hit), 'barrier' for a roadblock's boards, drums and fences (closures.js),
+// 'solid' for anything else (a wall, a post, a parked vehicle, something built), or null where nothing does.
+export function zoneBlockKind(x, z, extra = [], radius = 0.4) {
+  if (!onGround(x, z) && !onOutskirts(x, z)) return 'edge';
+  let kind = null;
+  const i0 = Math.floor((x - radius) / CELL), i1 = Math.floor((x + radius) / CELL);
+  const j0 = Math.floor((z - radius) / CELL), j1 = Math.floor((z + radius) / CELL);
+  for (let i = i0; i <= i1; i += 1) {
+    for (let j = j0; j <= j1; j += 1) {
+      const list = COLLIDER_INDEX.get(i * 4096 + j);
+      if (!list) continue;
+      for (const c of list) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) { if (!c.barrier) return 'solid'; kind = 'barrier'; }
+    }
+  }
+  for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return 'solid';
+  return kind;
 }

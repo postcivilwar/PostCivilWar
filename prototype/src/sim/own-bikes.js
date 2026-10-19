@@ -9,7 +9,8 @@
 // already asks "is this player on a motorcycle?" (fights, arrests, treatment, what may be done meanwhile) gets
 // the same answer. A ridden bike strikes whoever is in its way as any motorcycle does (impact.js).
 import { POWER_BIKES, handlingOf, FASTEST } from './power-bikes.js';
-import { zoneWalkable, zoneRoomAt, inPowerbikeHall } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind } from './zone.js';
+import { contactNormal, contactOutcome, crashShare } from './contact.js';
 import { GameError } from './registry.js';
 
 export const isOwnBike = (astride) => typeof astride === 'string' && astride.startsWith('pb:');
@@ -18,6 +19,10 @@ const ROOM = 0.7;                     // metres it takes up, for walls and kerbs
 // Coming off (16 October 2026, the owner's rule): running into something at speed throws the rider. The faster,
 // the harder: the life lost is in proportion to the speed, and is at most 5 in 100 (the top speed of the biggest
 // engine there is); slower than CRASH.least it is only a bump, and the bike stops.
+// (19 October 2026, the owner's brief and video: the speed that counts is how hard the bike goes INTO what it meets,
+// contact.js; brushing along a wall scrapes and slows it, a knock stops it, and only a real crash throws the rider.
+// The edge of the map, the river's bank and the bush are not things it is thrown by. `least` is kept as the speed
+// below which nothing at all can throw a rider.)
 export const CRASH = Object.freeze({
   least: 5.5,                 // m/s (about 20 km/h): slower than this, a bump and no fall
   most: 0.05,                 // the share of full health lost at the top speed of the biggest engine
@@ -86,6 +91,9 @@ export function createOwnBikes({ state, hub, obstacles }) {
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, ROOM - 0.1)) throw new GameError('BLOCKED', 'Movement rejected.');
     const fromX = b.x, fromZ = b.z;
+    // (how fast the town itself saw it go, over the last steps: a crash is judged at no more than this, whatever the
+    // page says)
+    if (elapsed > 0.004) b.seen = Number.isFinite(b.seen) ? b.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
     b.x = x; b.z = z; b.h = heading; b.movedAt = state.real;
     b.ride = rideOf(step, handling.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
@@ -94,34 +102,52 @@ export function createOwnBikes({ state, hub, obstacles }) {
     return hit.length ? { hit } : {};
   }
 
-  // Thrown off: the bike ran into something solid at `speed` (as the rider's page found it: it moves the bike, and
-  // the town checks every step of it). The bike is left lying where it stopped; the rider is thrown on ahead, as
-  // far as there is room, and lies there, then gets up. What it costs in health follows the speed (crashHarm).
-  function crash(p, { speed }) {
+  // Thrown off: the bike ran into something at `speed` along `heading` (as the rider's page found it: it moves the
+  // bike, and the town checks every step of it). The town judges it again for itself (contact.js): something must be
+  // in the bike's way within a step or two of where the town last saw it; the speed is no more than the town saw it
+  // going; and only a hard enough blow INTO it throws the rider. Short of that the answer is what it was instead (a
+  // scrape or a stop), and nobody falls. Thrown, the bike is left lying where it stopped; the rider goes on over the
+  // bars, as far as there is room, and lies there, then gets up. What it costs in health follows how hard it was.
+  function crash(p, { speed, heading } = {}) {
     const b = p.pbike;
     if (!isOwnBike(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.');
     const handling = handlingOf(POWER_BIKES[b.id]);
-    const v = Math.max(0, Math.min(handling.top, Number(speed) || 0));
-    if (v < CRASH.least) return { fell: false };
-    const share = Math.min(1, (v - CRASH.least) / Math.max(1, FASTEST - CRASH.least));
+    const seen = Number.isFinite(b.seen) ? b.seen : handling.top;
+    const most = Math.min(handling.top, seen * 1.35 + 1.5);
+    const v = Math.max(-handling.reverse - 0.5, Math.min(most, Number(speed) || 0));
+    if (Math.abs(v) < CRASH.least) return { fell: false, outcome: 'stop' };
+    const h = Number.isFinite(heading) ? heading : b.h;
+    // what it ran into: the first thing in its way within a step or two ahead (behind, backing up)
+    const boxes = obstacles();
+    const way = Math.sign(v) || 1;
+    let hit = null;
+    for (let d = 0.2; d <= 1.41; d += 0.2) {
+      const qx = b.x + Math.sin(h) * d * way, qz = b.z + Math.cos(h) * d * way;
+      const kind = zoneBlockKind(qx, qz, boxes, ROOM - 0.1);
+      if (kind) { hit = { x: qx, z: qz, kind }; break; }
+    }
+    if (!hit) return { fell: false, outcome: 'none' };
+    const normal = contactNormal((x, z) => zoneWalkable(x, z, boxes, ROOM - 0.1), b.x, b.z, hit.x, hit.z);
+    const c = contactOutcome({ speed: v, heading: h, normal, kind: hit.kind });
+    if (c.outcome !== 'crash') return { fell: false, outcome: c.outcome, into: Math.round(c.into * 10) / 10 };
+    const share = crashShare(c.into, hit.kind);
     const now = state.real;
-    const h = b.h;
     if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true };
     p.astride = null; p.pbike = null;
     // thrown on ahead, to the last place there is room for a body before anything solid
-    const boxes = obstacles();
     const far = CRASH.thrown[0] + (CRASH.thrown[1] - CRASH.thrown[0]) * share;
     let at = { x: b.x, z: b.z };
-    for (let d = 0.4; d <= far + 1e-6; d += 0.4) { const q = { x: b.x + Math.sin(h) * d, z: b.z + Math.cos(h) * d }; if (!zoneWalkable(q.x, q.z, boxes, 0.3)) break; at = q; }
+    for (let d = 0.4; d <= far + 1e-6; d += 0.4) { const q = { x: b.x + Math.sin(h) * d * way, z: b.z + Math.cos(h) * d * way }; if (!zoneWalkable(q.x, q.z, boxes, 0.3)) break; at = q; }
     if (at.x === b.x && at.z === b.z) { const side = { x: b.x + Math.cos(h), z: b.z - Math.sin(h) }; if (zoneWalkable(side.x, side.z, boxes, 0.3)) at = side; }
     p.x = at.x; p.z = at.z; p.lastMoveAt = now;
-    const harm = crashHarm(v, 100);
+    const harm = crashHarm(c.into, 100);
     const before = p.health;
     if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
     const lie = CRASH.lie[0] + (CRASH.lie[1] - CRASH.lie[0]) * share;
-    p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h, speed: Math.round(v * 10) / 10 };
+    // (`fall`: thrown forward over the bars, which way the body goes and how it lands: the page shows it, falls.js)
+    p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h: way > 0 ? h : h + Math.PI, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z } };
     p.stats.crashes = (p.stats.crashes || 0) + 1;
-    return { fell: true, kmh: Math.round(v * 3.6), lost: before - p.health, health: p.health, x: at.x, z: at.z, bike: { id: b.id, x: b.x, z: b.z, h: b.h }, lie };
+    return { fell: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(c.into * 10) / 10, lost: before - p.health, health: p.health, x: at.x, z: at.z, bike: { id: b.id, x: b.x, z: b.z, h: b.h }, lie };
   }
 
   // Off: the rider steps down beside it, and it stays where it stands.

@@ -45,7 +45,7 @@ import { POWER_CARS, carHandlingOf, stepPowerCar, carRevs, carBoxes } from '../s
 import { CAR_CRASH, carFits } from '../sim/own-cars.js';
 import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz } from './bike-audio.js';
 import { startStrike, poseFighter, poseTaking, soundOf } from './combat-view.js';
-import { createCameraRig, nextView, viewFor, CAMERA_VIEW } from './camera.js';
+import { createCameraRig, nextView, viewFor, CAMERA_VIEW, STREET } from './camera.js';
 import { createIntro } from './intro.js';
 import { PROMPT_ICON, icon } from './icons.js';
 import { createCreator } from './creator.js';
@@ -430,8 +430,13 @@ function start(carried) {
   // (in PostCivilWar PowerBike's hall only its walls stand in the camera's way: the stands and the furniture are low,
   // under the camera's line; and the tower over it is solid to its top)
   const towerAt = POWERBIKE.footprint;
+  // (what players have built stands in the camera's way too, as high as its walls: the boxes are gathered once a
+  // frame, before the camera is placed, rather than at every point it tries)
+  let builtForCamera = [];
+  const builtAt = (x, z, y) => { if (y > 3.4) return false; for (const b of builtForCamera) if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > b.z0 - 0.25 && z < b.z1 + 0.25) return true; return false; };
   const rig = createCameraRig(camera, {
-    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25)) || (y > 1.95 && underLowRoof(x, z)),
+    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25)) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
+    ground: (x, z) => zoneGroundY(x, z),
     tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
@@ -441,7 +446,7 @@ function start(carried) {
   const coarse = TOUCH_FIRST;      // a touch screen: hints speak of the stick and the buttons
   // An id for one press of a button that spends or takes money: the simulation answers it once, however often it arrives.
   const requestId = (what) => `${what}-${Date.now().toString(36)}-${(requestSeq += 1)}`;
-  const cam = { yaw: Math.PI, pitch: 0.27, dist: 8, target: new THREE.Vector3(ZONE.spawn.x, 1.5, ZONE.spawn.z), lastDrag: -10 };
+  const cam = { yaw: Math.PI, pitch: STREET.pitch, dist: STREET.dist, target: new THREE.Vector3(ZONE.spawn.x, 1.5, ZONE.spawn.z), lastDrag: -10 };
   const controls = createControls({ stick: $('stick'), pad: $('pad') });
   // the speedometer at the front of the screen, while one of the player's own motorcycles is ridden
   const speedo = createSpeedometer($('speedo'));
@@ -760,7 +765,7 @@ function start(carried) {
         predicted.x = r.x; predicted.z = r.z; predicted.heading = r.heading;
         if (me) me.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
         // the eye behind them, looking the way they face: into the hall, or out at the town
-        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : 0.27; cam.dist = way === 'in' ? 6.2 : 8;
+        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : STREET.dist;
         cam.target.set(r.x, 1.55 + zoneGroundY(r.x, r.z), r.z);
         rig.snap(cam);
         refreshView();
@@ -969,7 +974,7 @@ function start(carried) {
       if (r.ok) {
         predicted.x = r.x; predicted.z = r.z; predicted.heading = r.heading;
         if (me) me.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
-        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : 0.24; cam.dist = way === 'in' ? 6.2 : 8;
+        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : STREET.dist;
         cam.target.set(r.x, 1.55 + zoneGroundY(r.x, r.z), r.z);
         rig.snap(cam);
         refreshView();
@@ -1645,7 +1650,8 @@ function start(carried) {
     predicted = { x: view.self.x, z: view.self.z, heading: view.self.heading };
     car.speed = 0;
     cam.target.set(predicted.x, 1.5 + zoneGroundY(predicted.x, predicted.z), predicted.z);
-    cam.yaw = Math.PI; cam.pitch = 0.27; cam.dist = view.self.driving ? 11 : 8;
+    // (on the street view, close behind the player: the view the game starts with, 19 October 2026)
+    cam.yaw = Math.PI; cam.pitch = STREET.pitch; cam.dist = STREET.dist; rig.view = 'street';
     $('start').hidden = true;
     $('hud').hidden = false;
     if (coarse) $('touch').hidden = false;
@@ -1867,19 +1873,19 @@ function start(carried) {
     p.x = event.clientX; p.y = event.clientY;
     if (pointers.size === 1) {
       if (!rig.drag(-dx * 0.0055)) cam.yaw -= dx * 0.0055;
-      cam.pitch = Math.max(0.08, Math.min(1.25, cam.pitch + dy * 0.004));
+      cam.pitch = Math.max(0.02, Math.min(1.25, cam.pitch + dy * 0.004));
       cam.lastDrag = clock;
     } else if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const gap = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch) cam.dist = Math.max(3.5, Math.min(60, cam.dist * (pinch / gap)));
+      if (pinch) cam.dist = Math.max(STREET.nearest, Math.min(60, cam.dist * (pinch / gap)));
       pinch = gap;
     }
   });
   const release = (event) => { pointers.delete(event.pointerId); pinch = 0; };
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('wheel', (event) => { event.preventDefault(); cam.dist = Math.max(3.5, Math.min(60, cam.dist * (1 + Math.sign(event.deltaY) * 0.1))); }, { passive: false });
+  canvas.addEventListener('wheel', (event) => { event.preventDefault(); cam.dist = Math.max(STREET.nearest, Math.min(60, cam.dist * (1 + Math.sign(event.deltaY) * 0.1))); }, { passive: false });
 
   // touch controls: the stick and the buttons live in controls.js; what each does is in act(), below
   controls.on((id, phase) => act(id, phase));
@@ -2120,7 +2126,9 @@ function start(carried) {
       if (near.steal && !self.critical) list.push({ id: 'steal', key: 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
       if (self.critical) list.push({ id: 'ambulance', key: 'h', label: 'Help', hint: 'Call an ambulance' });
       if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
-      // no view button on foot: the camera follows behind and is turned by dragging; the views are for vehicles
+      // the view (19 October 2026, the owner's brief: the camera button kept, and on foot too): on the street close
+      // behind, further back, over the shoulder, from above. Dragging still turns it.
+      list.push(look);
       return list;
     }
     if (m === 'combat') {
@@ -2515,9 +2523,17 @@ function start(carried) {
       return 0;
     }
     if (result.ok) { predicted.x = nx; predicted.z = nz; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; going.speed = 0; }
-    // steer the camera gently when walking sideways, so the keyboard alone can turn
-    const aside = angleGap(wanted, cam.yaw);
-    if (steering && clock - cam.lastDrag > 1.2 && Math.abs(aside) > 0.2 && Math.abs(aside) < 2.2) cam.yaw += aside * Math.min(1, dt * 0.9);
+    // On the street view (19 October 2026): the camera goes round behind the way the player is going, unhurried,
+    // a little quicker at a run, as the classic open-world games do; never round toward someone walking or running at
+    // the screen (they come toward it, and it gives way), and not while the player is holding it round themselves.
+    // In the other views, as before: turned gently when walking sideways, so the keyboard alone can turn.
+    if (rig.view === 'street') {
+      const behind = angleGap(predicted.heading, cam.yaw);
+      if (speed > 0.4 && clock - cam.lastDrag > 1.2 && Math.abs(behind) < 2.0) cam.yaw += behind * (1 - Math.exp(-dt * (run ? 2.1 : 1.3) * Math.min(1, speed / 1.2)));
+    } else {
+      const aside = angleGap(wanted, cam.yaw);
+      if (steering && clock - cam.lastDrag > 1.2 && Math.abs(aside) > 0.2 && Math.abs(aside) < 2.2) cam.yaw += aside * Math.min(1, dt * 0.9);
+    }
     return speed;
   }
 
@@ -2975,7 +2991,7 @@ blood.update(dt, view.blood || []);
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
-      if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z); else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), Math.min(1, dt * 9));
+      if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z); else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), 1 - Math.exp(-dt * 9));
       if (!cam.free) { frameTalk(dt); frameCarTalk(dt); }
     } else {
       // the start screen circles the town centre
@@ -2994,8 +3010,10 @@ blood.update(dt, view.blood || []);
     const sitting = playing && view && (view.self.driving || view.self.riding || view.self.astride || view.self.incar);
     // (in PostCivilWar PowerBike's hall, and in the car showroom's, the camera stays inside its walls and under its ceiling)
     const hall = playing && (showroom.inside || carshow.inside);
+    builtForCamera = playing ? builtBoxes() : [];
+    const runShare = playing && view && !sitting && !view.self.swimming ? Math.max(0, Math.min(1, (going.speed - SPEED.walk) / Math.max(0.1, SPEED.run - SPEED.walk))) : 0;
     rig.update(dt, {
-      cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw,
+      cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
       room: hall ? (carshow.inside ? CAR_HALL_ROOM : HALL_ROOM) : null,
       dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,

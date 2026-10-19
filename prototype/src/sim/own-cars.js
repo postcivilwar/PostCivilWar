@@ -10,7 +10,8 @@
 // in motion strikes whoever is in its way as any vehicle does (impact.js), with its own length and width; a car
 // standing where it was left is in everybody's way (`boxes`), as a parked keke is.
 import { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } from './power-cars.js';
-import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind } from './zone.js';
+import { contactNormal, contactOutcome } from './contact.js';
 import { GameError } from './registry.js';
 
 export const isOwnCar = (incar) => typeof incar === 'string' && incar.startsWith('pc:');
@@ -98,6 +99,8 @@ export function createOwnCars({ state, hub, obstacles }) {
       if (!carFits(c.id, c.x + (x - c.x) * k, c.z + (z - c.z) * k, hh, boxes, 0.2)) throw new GameError('BLOCKED', 'Movement rejected.');
     }
     const fromX = c.x, fromZ = c.z;
+    // (how fast the town itself saw it go: a crash is judged at no more than this, whatever the page says)
+    if (elapsed > 0.004) c.seen = Number.isFinite(c.seen) ? c.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
     c.x = x; c.z = z; c.h = heading; c.movedAt = state.real;
     c.drive = driveOf(step, handling.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
@@ -108,21 +111,43 @@ export function createOwnCars({ state, hub, obstacles }) {
     return hit.length ? { hit } : {};
   }
 
-  // Run into something solid at `speed` (as the driver's page found it: it moves the car, and the town checks
-  // every step of it). The car stops there; the driver stays in it, hurt in proportion to the speed (and taken out
-  // of it if that is the end of them).
-  function crash(p, { speed }) {
+  // Run into something at `speed` along `heading` (as the driver's page found it: it moves the car, and the town
+  // checks every step of it). The town judges it again for itself (contact.js, 19 October 2026): something must be in
+  // the car's way within a step or two of where the town last saw it, the speed no more than the town saw it going,
+  // and only a hard enough blow INTO it hurts the driver; a scrape along a wall, a knock, or the edge of the map does
+  // not. The car stops there; the driver stays in it, hurt in proportion to how hard it was (and taken out of it if
+  // that is the end of them).
+  function crash(p, { speed, heading } = {}) {
     const c = p.pcar;
     if (!isOwnCar(p.incar) || !c) throw new GameError('NOT_DRIVING', 'You are not in a car.');
     const handling = carHandlingOf(POWER_CARS[c.id]);
-    const v = Math.max(0, Math.min(handling.top, Number(speed) || 0));
-    if (v < CAR_CRASH.least) return { hurt: false };
-    const harm = Math.round(carCrashHarm(v, 100) * 10) / 10;
+    const seen = Number.isFinite(c.seen) ? c.seen : handling.top;
+    const v = Math.max(-handling.top, Math.min(Math.min(handling.top, seen * 1.35 + 1.5), Number(speed) || 0));
+    if (Math.abs(v) < CAR_CRASH.least) return { hurt: false, outcome: 'stop' };
+    const h = Number.isFinite(heading) ? heading : c.h;
+    const spec = POWER_CARS[c.id] || { length: 4.6 };
+    const boxes = [...obstacles(), ...othersParked(p, c.id)];
+    const way = Math.sign(v) || 1;
+    const free = (x, z) => carFits(c.id, x, z, h, boxes, 0.2);
+    let hit = null;
+    for (let d = 0.2; d <= 1.41; d += 0.2) {
+      const qx = c.x + Math.sin(h) * d * way, qz = c.z + Math.cos(h) * d * way;
+      if (!free(qx, qz)) {
+        // what is there, at the end of the car that meets it
+        const ex = qx + Math.sin(h) * (spec.length / 2) * way, ez = qz + Math.cos(h) * (spec.length / 2) * way;
+        hit = { x: qx, z: qz, kind: zoneBlockKind(ex, ez, boxes, 0.6) || 'solid' };
+        break;
+      }
+    }
+    if (!hit) return { hurt: false, outcome: 'none' };
+    const out = contactOutcome({ speed: v, heading: h, normal: contactNormal(free, c.x, c.z, hit.x, hit.z), kind: hit.kind });
+    if (out.outcome !== 'crash' || out.into < CAR_CRASH.least) return { hurt: false, outcome: out.outcome === 'crash' ? 'stop' : out.outcome, into: Math.round(out.into * 10) / 10 };
+    const harm = Math.round(carCrashHarm(out.into, 100) * 10) / 10;
     const before = p.health;
     if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
     p.stats.crashes = (p.stats.crashes || 0) + 1;
     if (p.health <= 0) leave(p);
-    return { hurt: true, kmh: Math.round(v * 3.6), lost: before - p.health, health: p.health };
+    return { hurt: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(out.into * 10) / 10, lost: before - p.health, health: p.health };
   }
 
   // Out: the driver steps out on their side (the left: the town drives on the right), and the car stays where it
