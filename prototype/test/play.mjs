@@ -139,13 +139,18 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   const through = await page.evaluate(() => { const r = document.querySelector('#enter').getBoundingClientRect(); const pts = [[innerWidth / 2, innerHeight / 2], [innerWidth * 0.25, innerHeight * 0.75], [innerWidth * 0.75, innerHeight * 0.25]]; if (r.top >= 0 && r.top < innerHeight - 5) pts.push([r.left + 5, r.top + 5]); return pts.every(([x, y]) => { const top = document.elementFromPoint(x, y); return top && !!top.closest('#intro'); }); });
   if (!through) { const what = await page.evaluate(() => { const r = document.querySelector('#enter').getBoundingClientRect(); const top = document.elementFromPoint(r.left + 5, r.top + 5); return { at: [r.left, r.top], top: top && [...(function* (e) { while (e) { yield e.id || e.className || e.tagName; e = e.parentElement; } })(top)].join('<') }; }); bad(`the start screen can be reached past the question (${JSON.stringify(what)})`); }
   const before = await page.evaluate(() => window.__nlw.audio.status().voices.short);
+  // (each sound of the choice the opening asks for is written down as it is asked for, and whether it started: the
+  // town is being built behind the question, and on a machine without a graphics card that can hold the page for
+  // longer than the sound lasts, so that by the time the test looks it has started and ended)
+  await page.evaluate(() => { const a = window.__nlw.audio, was = a.choose; window.__chose = []; a.choose = (path) => { const r = was(path); window.__chose.push([path, r]); return r; }; });
   await page.click('.pick[data-path="villain"]');
   await page.waitForTimeout(250);
   // (the page may be busy building the town just then: the sound is given a moment longer to start)
-  await page.waitForFunction((b) => { const s = window.__nlw.audio.status(); return s.voices.short > b || s.level > 0.0005; }, before, { timeout: 1500 }).catch(() => {});
+  await page.waitForFunction((b) => { const s = window.__nlw.audio.status(); return s.voices.short > b || s.level > 0.0005 || window.__chose.some(([p, r]) => p === 'villain' && r); }, before, { timeout: 5000 }).catch(() => {});
   const chosen = await page.evaluate(() => ({ chosen: [...document.querySelectorAll('.pick.chosen')].map((b) => b.dataset.path), path: window.__nlw.intro.log.path, sound: window.__nlw.audio.status() }));
   if (chosen.chosen.join() !== 'villain' || chosen.path !== 'villain') bad(`chose villain, got ${JSON.stringify(chosen.chosen)} ${chosen.path}`);
-  if (!(chosen.sound.voices.short > before || chosen.sound.level > 0.0005)) bad(`choosing made no sound (${JSON.stringify({ before, state: chosen.sound.state, muted: chosen.sound.muted, voices: chosen.sound.voices, level: chosen.sound.level })})`);
+  const rang = await page.evaluate(() => window.__chose);
+  if (!(chosen.sound.voices.short > before || chosen.sound.level > 0.0005 || rang.some(([p, r]) => p === 'villain' && r))) bad(`choosing made no sound (${JSON.stringify({ before, state: chosen.sound.state, muted: chosen.sound.muted, voices: chosen.sound.voices, level: chosen.sound.level, asked: rang })})`);
   await shot('05-chosen');
   await page.waitForFunction(openingOver, null, { timeout: 60000 });
   await page.waitForFunction(() => { const b = document.querySelector('#enter'); return b && !b.disabled; }, null, { timeout: 300000 });
