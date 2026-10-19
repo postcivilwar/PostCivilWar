@@ -1926,11 +1926,153 @@ a second or more a frame): that needs real phones and computers.
   0x2b3442, PowerBike's 0x1f2632), so from across town a tower looked like its own shadow. They are now glass with
   panes and the sky in it, the colour of the buildings they stand for.
 
+## Falls, roadblocks, getting up, and the camera on the street (19 October 2026)
+
+The owner's two briefs of 19 October 2026, with his videos. In the first a rider on the White Sport Tourer, at 28 km/h
+on the grass between Waterside Road and the purple tower, is thrown off with nothing in front of him, and gets up "like
+a robot". The second asks for the close follow camera of GTA Vice City on a phone.
+
+### Why the rider came off
+
+Three things, all found and measured before anything was changed:
+
+- **An invisible wall.** Each of the owner's buildings was made solid as one box round its whole model. The purple
+  tower's roof reaches far out over the ground, so its box stood out on the grass, 2 to 17 metres in front of the
+  wall that is seen: the rider in the video ran into it.
+- **Any stop threw the rider.** Any step the bike could not take at more than about 20 km/h threw the rider off,
+  whatever stopped it and however it was met: a wall met head on, a wall brushed along its length, the invisible end
+  of the map and the river's bank all alike.
+- **The town took the page's word for the speed.**
+
+### What it is now
+
+- **Solid where it stands.** Every one of the owner's buildings is solid where it really stands on the ground, measured
+  from its own model between 15 cm and 2.3 m up, on a half-metre grid (`tools/buildings/footprints.mjs` writes
+  `src/sim/zones/town-footprints.js`: 95 buildings, 1,215 boxes). The purple tower's foot is about half of its old box;
+  its overhanging roof is open ground under it, as it looks.
+- **What comes of meeting something** depends on what it is and how hard the vehicle goes into it: the part of its
+  speed that goes INTO it (head on, all of it; along a wall, almost none) (`src/sim/contact.js`). A glancing touch
+  scrapes along it, a little slower; harder, it stops dead against it with a jolt and a small step back, the rider
+  still on (up to 23 km/h into a wall or a vehicle, 30 km/h into a roadblock, which gives a little); harder still, a
+  crash. The edge of the land (the end of the map, the river's bank, the bush beyond the roads) is never something a
+  rider is thrown by: the bike slides along it or stops at it.
+- **The town judges a crash for itself** (`own-bikes.js`, `own-cars.js`): something must be in the bike's way within a
+  step or two of where the town last saw it, the speed is no more than the town saw it going, and only a hard enough
+  blow into it throws the rider. A page that says it crashed where nothing is in the way is not believed. A crash
+  throws once: the rider is off the bike, and a second word of it finds nobody riding.
+- **Where a thrown rider comes down** (`throwLanding`, `contact.js`): on along the way the bike was going, as far as
+  the blow carries (0.8 m, and 0.3 m more for every m/s the bike went into what it hit, up to 6 m), with room on the
+  ground for the whole body lying there; over a low roadblock or fence when there is ground with room beyond it, as a
+  rider over the bars is; never through a wall or anything solid, never off the land. Where the way on is shut (a wall
+  head on, the fence at the end of the land), the body comes down beside the bike, alongside it, on its right (the
+  bike goes down on its left).
+- **The motorcycle** stops where it hit and goes down on its left side, quicker as it goes, coming back a little off
+  what it hit, and settles with a small bounce (`own-bike-view.js`). It stays there until it is ridden again. Getting
+  back on is the player's to do: walk to it and Ride.
+
+### Roadblocks and the edge of the land
+
+`src/sim/zones/closures.js` says what is not open, and why; the town (what is in the way), the drawing, the radar and
+the town map all read it.
+
+- Every part of the land is in one of four states (`AREA_STATE`): open, closed for a while, under construction, or
+  restricted. **To open a road when the land beyond it is built, set its state to `open`** (its roadblock and what
+  makes it solid go with it); to close one, add it.
+- **Five roadblocks**: Waterside Road's south and north ends, Registry Road's and Campus Road's north ends, College
+  Road's west end. Each stands across the whole road and both verges, a little before the road ends: striped
+  barricades on trestles with amber lamps that blink at night, a painted oil drum at each end, cones before it, and a
+  ROAD CLOSED board saying why ("Road works ahead", "Road not yet built"). The stripes glow at night as reflective
+  stripes do.
+- **A fence along the edge of the built land** (timber posts, striped rails, a board now and then), wherever the land
+  really ends just beyond it: round the town, along the road to Kwale and its end, round the airport's land, the far
+  bank either side of the bridge. Nobody rides on into the end of the world and meets nothing there.
+- Each is solid where it is drawn and no wider (a `barrier`: it gives a little more than a wall). None of the town's
+  paths (people and vehicles) crosses any of them.
+- Shown on the radar and the town map: the fence as a dashed red line, the roadblocks as red and white bars.
+
+### Falling and getting up (`src/client/falls.js`)
+
+Until now a figure knocked off its feet played its file's own fall if it had one (fewer than half have), lay there,
+and was then crossfaded from lying to standing in half a second: it rose off the ground like a plank swinging up. None
+of the supplied figures has a getting up. Now every animated figure falls and gets up the same way, with motion taken
+from the supplied figures' own files (`tools/characters/falls.mjs` writes `src/client/fall-moves.js`, 20 KB: the
+woman's fall back, the man in the paper mask's stumble forward and onto his front, the zombie survivor's dive, and five
+poses: lying on the front, on the back, the arms straight under the shoulders, one knee down and the other foot
+forward, squatting), carried onto each figure's own bones as it is loaded, whatever its bones are called:
+
+1. **The blow.** The figure is caught as it was (walking, standing, on a motorcycle) and taken into the fall within a
+   fifth of a second; struck from the side, it is turned with the blow.
+2. **The fall,** the way it was pushed: forward (a stumble, down onto a knee, onto the front), back (a stagger with the
+   arms out, onto the back). A rider thrown over the handlebars goes through the air under gravity, the body level
+   and the arms out ahead, over the roadblock if the town put them beyond it (lifted high enough to pass over its
+   boards), and down onto the front.
+3. **On the ground:** let down until its lowest part rests on the ground (never through it), and still. It does not
+   start to get up until it is lying there.
+4. **Getting up,** by how it lies: on its front it brings its hands under its shoulders and pushes up, brings a knee
+   forward under itself, rises onto that foot and stands; on its back it bends its knees, sits up on its hands, turns
+   onto a knee and stands. Whatever is on the ground stays where it is put while it bears weight (the body moves over
+   it; it does not slide), and the figure comes back over its own place as it stands, then settles into standing.
+
+Every stage follows from how long ago the fall began, what kind of fall it was and how the town says the player lies,
+so the player's own screen and everyone else's show the same fall (below). Control comes back when the town says the
+player is up (`impact.js`, `own-bikes.js`), which is when the getting up ends. While down, the bar at the foot of the
+screen says "Thrown off" or "Knocked down", then "Getting up", filling as they get up.
+
+The camera follows the figure through the air and as it lies and gets up, steady at its usual height, with a short
+knock as the bike stops (more the harder it hit).
+
+### The camera on the street (`src/client/camera.js`)
+
+The game opens on the street view: close behind the player, the eye a little above the head, looking slightly down,
+the figure in the lower middle of the picture and the street ahead above it, the lens a little wider (60°). Measured
+against the owner's Vice City recording, walking: his head at 0.43 of the picture's height, feet 0.80, the horizon
+0.42; ours 0.44, 0.79 and 0.44.
+
+- It swings round behind as the player walks or runs, a little slower than they turn (a quicker follow at a run); as it
+  comes round, the eye swings out a little to the outside of the turn (at most a fifth of a metre, no roll) and settles
+  back. It does not swing round when the player walks toward it, nor for a second after the player has turned it by
+  hand.
+- At a run it comes in a fifth closer and a little lower.
+- Every easing is by the time that has passed (an exponential), so it is the same at 20 frames a second as at 60;
+  angles are eased the short way round.
+- Dragging (a finger or the mouse) still turns it; a pinch or the wheel brings it in or takes it back.
+- **The View button (C) on foot as well as in vehicles**: on the street, further back, over the shoulder, from above,
+  and round again. In a vehicle the views are as they were.
+- In the way of a wall, it rises over it or comes in toward the player rather than going through it; it never goes
+  under the ground.
+- Each player's camera is their own and follows their own figure.
+
+### Another player's fall
+
+What another player's game says of a fall travels with them (`link.js`): when it began, how long they lie and get up,
+which way the blow sent them, where it began, what they were thrown over, where they lie, and the fall's own number;
+and their motorcycle down on its side, and how long ago. A fall begun (or ended), or getting on or off a vehicle, is
+told at once rather than at the next usual time (`online.js`). Everything of another player is seen a moment late
+(the word takes its time to come), and so is a fall: one first heard of within 2.5 seconds of its beginning is shown
+from its beginning, so that none of it is missed; every word of it, however late it comes, is known by its number for
+the same fall, never begun again; and if their own screen has them up while the getting up is still being shown here,
+it is let finish where they lay, and then they walk on to where they are (`talk.js`, `render-crowd.js`). One first
+seen long after (coming into view) is shown as it is by then.
+
+### A save whose answer was lost (found while testing two players)
+
+With the network made slow, a save took longer to be answered than the page waited for it (30 seconds). The server
+had kept it; the page did not know, and its next save was refused as "played on another device since": the page then
+put the game back to that save, minutes old, and said so. Now each save carries its own mark; one sent without an
+answer is remembered, and a copy the server has that is one of those is known for this game's own: the game here is
+kept, saved again from where it is, and the bank told what that save had already reported (`market.js`,
+`createAccountSync`). The page now waits a minute and a half for a save's answer. A copy really played on another
+device is still taken, as before.
+
+### Tests
+
+TESTS-PLACEHOLDER
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 354 headless tests
-../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 91 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+node --test test/*.test.mjs                        # 365 headless tests
+../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
@@ -1946,6 +2088,8 @@ node test/figures.mjs out/                         # every supplied figure: chos
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
 ../server/with-postgres.sh node test/seats.mjs out/      # at the wheel and on the bars: bought with arrival money, the driver seen with both hands on the rim, turning it; the phone in the right hand at the wheel and the left on a motorcycle, the vehicle still driven; the graphics lost and nothing reloaded
 ../server/with-postgres.sh node test/vehicle-sync.mjs out/   # two players: a keke, okadas, another's motorcycle with its bars turned and the phone in the left hand, another at the wheel of an open car with the phone in the right, a closed car not seen through, more motorcycles than are drawn as models standing in as their pictures, each with its rider
+../server/with-postgres.sh node test/falls.mjs out/          # riding (a road, the runway, the grass by the purple tower where the owner's rider came off), a roadblock met slowly and at 50 km/h, thrown over it and getting up (watched in slow motion), knocked down three ways, the street camera and its views
+../server/with-postgres.sh node test/falls-sync.mjs out/     # two players: one thrown at a roadblock, the other watching: the fall, the lying and the getting up, once, where it happened; the motorcycle going down
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown

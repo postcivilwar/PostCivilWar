@@ -11,7 +11,7 @@
 // speaker's head. Nothing here plays a voice: a line carries its language and
 // its text, which is what a voice service would be given later.
 
-import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround, inPowerbikeHall, inCarHall } from './zone.js';
+import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround, zoneWalkable, inPowerbikeHall, inCarHall } from './zone.js';
 import { LANGUAGES, EXCHANGES, PEOPLES, phrase, greetingId, dayPart, sharedLanguage } from './culture.js';
 import { POSE, RANGE } from './population.js';
 import { GameError } from './registry.js';
@@ -342,9 +342,14 @@ export function createTalk({ state, population, residents, players, weather, hub
       const from = dn.from && Number.isFinite(Number(dn.from.x)) && Number.isFinite(Number(dn.from.z)) && Math.hypot(Number(dn.from.x) - x, Number(dn.from.z) - z) < 8 ? { x: Number(dn.from.x), z: Number(dn.from.z) } : null;
       // (thrown over something low: where along the way from `from` it lay, within the way)
       const over = from && dn.over && Number.isFinite(Number(dn.over.a)) && Number.isFinite(Number(dn.over.b)) ? { a: n(dn.over.a, 0, 8), b: n(dn.over.b, 0, 8) } : null;
-      v.down = { kind: dn.kind, id, began: same ? old.down.began : began, since: same ? old.down.since : Number(dn.age) <= FRESH ? now() : began, at: same ? old.down.at : { x, z }, lie: n(dn.lie, 0, 30), rise: n(dn.rise, 0, 6), push: n(dn.push, -10, 10), hard: !!dn.hard, from, over: over && over.b >= over.a ? over : null };
+      // (where they lie: as their game says, if it says, and that is near where they are shown)
+      const lies = dn.at && Number.isFinite(Number(dn.at.x)) && Number.isFinite(Number(dn.at.z)) && Math.hypot(Number(dn.at.x) - x, Number(dn.at.z) - z) < 25 ? { x: Number(dn.at.x), z: Number(dn.at.z) } : { x, z };
+      v.down = { kind: dn.kind, id, began: same ? old.down.began : began, since: same ? old.down.since : Number(dn.age) <= FRESH ? now() : began, at: same ? old.down.at : lies, lie: n(dn.lie, 0, 30), rise: n(dn.rise, 0, 6), push: n(dn.push, -10, 10), hard: !!dn.hard, from, over: over && over.b >= over.a ? over : null };
     } else if (old && old.down && old.down.kind !== 'dead' && now() - old.down.since < old.down.lie + old.down.rise) v.down = old.down;
     else v.down = null;
+    // (a vehicle is carried on between words at the speed it was going, online.js: it is not shown going through anything
+    // solid, but held where it last stood clear, until the next word says where it really is)
+    if ((v.ride || v.car || v.vehicle) && old && !zoneWalkable(x, z, [], 0.3) && zoneWalkable(old.x, old.z, [], 0.3)) { v.x = old.x; v.z = old.z; }
     const horns = r ? n(r.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;

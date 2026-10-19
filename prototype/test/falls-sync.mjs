@@ -81,14 +81,16 @@ const stood = await watcherAt();
 check('the watcher sees the rider on the White Sport Tourer (standing where they were put, by the road near its end)', !!before && before.ride === 'white-sport' && before.drawn && Math.hypot(stood.x + 236, stood.z - 103.5) < 0.5, { before, watcher: stood });
 await B.shot('H1-watcher-sees-the-rider');
 
-// ---- into the roadblock at 50 km/h; the watcher watches every frame ----
+// ---- into the roadblock at 50 km/h; the watcher watches every frame (their game slowed to a quarter of its speed,
+// so that a headless browser's few frames a second see each part of the fall: the rider's game runs as it is) ----
+await B.page.evaluate(() => window.__nlw.slow(0.25));
 const watching = B.page.evaluate(async (name) => {
   const n = window.__nlw, THREE = n.THREE, v = new THREE.Vector3();
   const names = ['head', 'neck_01', 'spine_03', 'spine_01', 'pelvis', 'hand_l', 'hand_r', 'lowerarm_l', 'lowerarm_r', 'calf_l', 'calf_r', 'foot_l', 'foot_r'];
   const seen = [];
   const t0 = performance.now();
   let fellAt = null;
-  while (performance.now() - t0 < 60000) {
+  while (performance.now() - t0 < 90000) {
     await new Promise((r) => requestAnimationFrame(r));
     const q = n.shownPeers.find((o) => o.name === name);
     const rig = q && n.crowd.rigOf(`p:${q.id}`);
@@ -118,6 +120,7 @@ const crashed = await A.page.evaluate(async () => {
 check('the rider runs into the roadblock at 50 km/h and is thrown, over it, onto the road beyond', !!crashed.down && crashed.down.by === 'crash' && !!crashed.down.over && crashed.x < -244 && crashed.crashes === 1, crashed);
 for (let i = 0; i < 5; i += 1) { await B.page.waitForTimeout(900); await B.shot(`H2-watcher-sees-the-fall-${i}`); }
 const film = await watching;
+await B.page.evaluate(() => window.__nlw.slow(1));
 // the rider's own end of it: up again, and when
 const riderUp = await A.page.evaluate(async () => { const n = window.__nlw; const t0 = performance.now(); while (n.view.self.down && performance.now() - t0 < 30000) await new Promise((r) => requestAnimationFrame(r)); return { up: !n.view.self.down, x: +n.view.self.x.toFixed(2), z: +n.view.self.z.toFixed(2), crashes: n.host.game.state.players[n.playerId].stats.crashes || 0 }; });
 const phases = film.map((f) => f.phase).filter((p, i, a) => p && p !== a[i - 1]);

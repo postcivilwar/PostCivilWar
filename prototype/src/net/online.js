@@ -229,7 +229,10 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
       if (same) continue;
       // (a bigger difference is let go over longer, so that it is never seen to snap)
       const settle = Math.min(0.9, ONLINE.settle + Math.hypot(err.x, err.z) / 15);
-      peers.set(peer.id, { from: jumped || !old ? peer.state : at, to: peer.state, at: t, age, said, motion, settle, span: Math.max(0.4, Math.min(4.5, old ? t - old.heard : 1)), heard: t, err: jumped || !old ? { x: 0, z: 0 } : err });
+      // (a fall begun: shown where they are at once, not slid back from where they were carried on to; the game shows
+      // the fall itself, falls.js)
+      const fell = !!peer.state.dn && !(old && old.to && old.to.dn);
+      peers.set(peer.id, { from: jumped || !old || fell ? peer.state : at, to: peer.state, at: t, age, said, motion, settle, span: Math.max(0.4, Math.min(4.5, old ? t - old.heard : 1)), heard: t, err: jumped || !old || fell ? { x: 0, z: 0 } : err });
     }
     for (const id of [...peers.keys()]) if (!here.has(id)) peers.delete(id);
   }

@@ -92,7 +92,7 @@ test('thrown from a motorcycle (19 October 2026): the fall, from where, and the 
     down: { by: 'crash', age: 0.4, lie: 3.1, rise: 2.7, h: -Math.PI / 2, hard: true, from: { x: -241.9, z: 113 }, over: { a: 0.75, b: 1.5 } },
     ownBikes: { parked: [{ bike: 'white-sport', x: -241.9, z: 113, h: -Math.PI / 2, fallen: true, ago: 0.4 }] } };
   const state = encodePlayer(self, ZONE_ID);
-  assert.deepEqual(state.dn, [1, 0.4, 3.1, 2.7, -1.57, 1, -241.9, 113, 0.75, 1.5, null]);
+  assert.deepEqual(state.dn, [1, 0.4, 3.1, 2.7, -1.57, 1, -241.9, 113, 0.75, 1.5, null, -246.4, 113]);
   assert.deepEqual(state.pk, [['white-sport', -241.9, 113, -1.57, 1, 0.4]]);
   assert.ok(JSON.stringify(state).length < 1500, 'within what the server takes');
   const b = town(['Watcher Ebi']);
@@ -129,6 +129,11 @@ test('thrown from a motorcycle (19 October 2026): the fall, from where, and the 
   b.g.visitors.seen('peer-u', decodePlayer(encodePlayer({ ...self, name: 'Lying', down: { ...self.down, age: 3.5 } }, ZONE_ID), ZONE_ID));
   q = b.g.view(b.id).players.find((o) => o.name === 'Lying');
   assert.ok(Math.abs(q.down.age - 3.5) < 0.01, `${q.down.age}`);
+  // where they lie is as their game says, though where they are shown was carried on past it (they were riding fast)
+  const carried = decodePlayer(encodePlayer({ ...self, name: 'Carried' }, ZONE_ID), ZONE_ID);
+  b.g.visitors.seen('peer-c', { ...carried, x: -249.7 });
+  q = b.g.view(b.id).players.find((o) => o.name === 'Carried');
+  assert.deepEqual(q.down.at, { x: -246.4, z: 113 });
   // every word of the same fall is known by its own number, however late it comes; a new number is a new fall
   const numbered = { ...self, name: 'Numbered', down: { ...self.down, age: 0.2, id: 4242 } };
   b.g.visitors.seen('peer-n', decodePlayer(encodePlayer(numbered, ZONE_ID), ZONE_ID));
@@ -145,6 +150,22 @@ test('thrown from a motorcycle (19 October 2026): the fall, from where, and the 
   q = b.g.view(b.id).players.find((o) => o.name === 'Far');
   assert.equal(q.down.from, null);
   assert.equal(q.down.over, null);
+});
+
+test('a vehicle carried on between words is not shown through anything solid: held where it last stood clear', () => {
+  const b = town(['Watcher Femi']);
+  b.place(b.p, -236, 104);
+  const riding = (x) => ({ name: 'Rider_X', x, z: 113, heading: -Math.PI / 2, look: {}, ride: { bike: 'white-sport', lean: 0, speed: 13.9, throttle: 1, brake: 0, rev: 0.8, steer: 0 }, vel: [-13.9, 0] });
+  b.g.visitors.seen('peer-x', riding(-241.6));
+  b.g.visitors.seen('peer-x', riding(-243.0));     // (carried on into the roadblock's boards)
+  let q = b.g.view(b.id).players.find((o) => o.name === 'Rider_X');
+  assert.equal(q.x, -241.6, 'held short of the boards');
+  b.g.visitors.seen('peer-x', riding(-238));        // (a word: where they really are)
+  q = b.g.view(b.id).players.find((o) => o.name === 'Rider_X');
+  assert.equal(q.x, -238);
+  // on foot, nobody is carried on: shown where they are said to be
+  b.g.visitors.seen('peer-y', { name: 'Walker_Y', x: -230, z: 104, heading: 0, look: {} });
+  assert.equal(b.g.view(b.id).players.find((o) => o.name === 'Walker_Y').x, -230);
 });
 
 test('a motorcycle\'s steering and the phone in a player\'s hand travel with them, and are checked when heard', () => {
