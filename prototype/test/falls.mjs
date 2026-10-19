@@ -91,7 +91,11 @@ await page.waitForFunction(() => window.__nlw.view.self.ownBikes && window.__nlw
 await page.keyboard.press('Escape');
 
 // ---- helpers ----
+// (a person run down on the way is a crime, and the police come for the rider: that is the game, but not what is
+// tested here, so anything held against the rider is let go between the parts of this test)
+const clean = () => page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; const was = p.law ? p.law.state : 'normal'; if (p.law && p.law.state === 'wanted') { p.law.state = 'normal'; p.law.crimes = []; } return was; });
 const ride = async (x, z, h) => {
+  await clean();
   const r = await page.evaluate(([x, z, h]) => {
     const n = window.__nlw;
     if (n.view.self.astride) n.server.send({ type: 'moto.leave' });
@@ -121,16 +125,16 @@ const rideOn = (speed, heading, until, limit = 20) => page.evaluate(async ([spee
 }, [speed, String(heading), String(until), limit]);
 const brake = async () => { await page.keyboard.up('w'); await page.keyboard.down('s'); await page.waitForFunction(() => Math.abs(window.__nlw.bikeState.speed) < 0.3 || !window.__nlw.view.self.astride, null, { timeout: 60000 }).catch(() => {}); await page.keyboard.up('s'); };
 
-// ---- A: a paved road slowly and at town speed; the airport's runway flat out ----
-let r = await ride(-20, 113, -Math.PI / 2);
-check('A: on the White Sport Tourer on Waterside Road', !!(r && r.ok), r);
+// ---- A: a paved road slowly and at town speed (the Asaba-Kwale Road, out of town); the airport's runway flat out ----
+let r = await ride(-300, -40, -Math.PI / 2);
+check('A: on the White Sport Tourer on the Asaba-Kwale Road', !!(r && r.ok), r);
 await page.keyboard.down('w');
-const slow = await rideOn(2.8, -Math.PI / 2, 'x < -32');
-const town = await rideOn(13.9, -Math.PI / 2, 'x < -75');
-await shot('A-waterside-road-50kmh');
+const slow = await rideOn(2.8, -Math.PI / 2, 'x < -312');
+const town = await rideOn(13.9, -Math.PI / 2, 'x < -380');
+await shot('A-kwale-road-50kmh');
 await brake();
 let s = await state();
-check('A: along Waterside Road at 10 km/h and at 50 km/h: nobody falls', s.astride && !s.down && s.crashes === 0 && slow.length > 3 && town.some((f) => f.v > 13.5), { slow: slow.length, town: Math.max(...town.map((f) => f.v)), ...s });
+check('A: along the Asaba-Kwale Road at 10 km/h and at 50 km/h: nobody falls', s.astride && !s.down && s.crashes === 0 && slow.length > 3 && town.some((f) => f.v > 13.5), { slow: slow.length, town: Math.max(...town.map((f) => f.v)), ...s });
 r = await ride(-600, -454, -Math.PI / 2);
 await page.keyboard.down('w');
 const runway = await rideOn(27.5, -Math.PI / 2, 'x < -760');
@@ -232,6 +236,7 @@ check('E: the motorcycle lies on its side where it stopped, short of the boards;
 
 // ---- F: knocked down from behind, from in front, from the side (as the town knocks a player down: impact.js) ----
 const knocked = async (rel, name) => {
+  await clean();
   await page.evaluate(() => { const n = window.__nlw; n.place(-30, 100); n.face(0.4); n.cam.yaw = 0.4 + 1.3; n.cam.dist = 4.6; n.cam.pitch = 0.18; n.cam.lastDrag = 1e9; });
   await page.waitForTimeout(1200);
   await page.evaluate(() => window.__nlw.slow(0.25));

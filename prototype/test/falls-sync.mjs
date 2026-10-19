@@ -52,6 +52,9 @@ async function player(label, size) {
 
 const A = await player('Rider', { width: 560, height: 360 });
 const B = await player('Watcher', { width: 960, height: 540 });
+// (the watcher goes to the end of Waterside Road at once: the buildings there are fetched over the slow network while
+// the rider shops, and the website's answers about who is in town are not kept waiting behind them for long)
+await B.page.evaluate(() => { const n = window.__nlw; n.place(-236, 103.5); n.face(-Math.PI / 2); });
 
 // ---- the rider buys the White Sport Tourer with arrival money; the watcher stands by Waterside Road, near its end ----
 const bought = await A.page.evaluate(async () => {
@@ -75,7 +78,7 @@ const on = await A.page.evaluate(() => { const n = window.__nlw; n.place(-222, 1
 check('the rider is on it on Waterside Road', !!(on && on.ok), on);
 await A.page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 300000 });
 // (the watcher is told of them, and of the bike under them)
-await B.page.waitForFunction((name) => { const n = window.__nlw; const q = n.shownPeers.find((o) => o.name === name); return !!(q && q.ride && n.peerBikeView.ridden(`peer:${q.id}`)); }, A.username, { timeout: 180000 }).catch(() => {});
+await B.page.waitForFunction((name) => { const n = window.__nlw; const q = n.shownPeers.find((o) => o.name === name); return !!(q && q.ride && n.peerBikeView.ridden(`peer:${q.id}`)); }, A.username, { timeout: 600000 }).catch(() => {});
 const before = await B.page.evaluate((name) => { const n = window.__nlw; const q = n.shownPeers.find((o) => o.name === name); return q ? { ride: q.ride && q.ride.bike, drawn: !!n.peerBikeView.ridden(`peer:${q.id}`), x: q.x } : null; }, A.username);
 const stood = await watcherAt();
 check('the watcher sees the rider on the White Sport Tourer (standing where they were put, by the road near its end)', !!before && before.ride === 'white-sport' && before.drawn && Math.hypot(stood.x + 236, stood.z - 103.5) < 0.5, { before, watcher: stood });
@@ -125,7 +128,8 @@ await B.page.evaluate(() => window.__nlw.slow(1));
 const riderUp = await A.page.evaluate(async () => { const n = window.__nlw; const t0 = performance.now(); while (n.view.self.down && performance.now() - t0 < 30000) await new Promise((r) => requestAnimationFrame(r)); return { up: !n.view.self.down, x: +n.view.self.x.toFixed(2), z: +n.view.self.z.toFixed(2), crashes: n.host.game.state.players[n.playerId].stats.crashes || 0 }; });
 const phases = film.map((f) => f.phase).filter((p, i, a) => p && p !== a[i - 1]);
 const starts = film.filter((f, i) => f.phase === 'fall' && (i === 0 || film[i - 1].phase !== 'fall')).length;
-check('the watcher sees the rider thrown, lying and getting up, once: no fall begun again by a later word of the same one', phases.join(',') === 'fall,lie,rise' && starts === 1, { phases, starts, frames: film.length });
+// (and, up, a moment standing still before the town's word of the fall is let go: 'up')
+check('the watcher sees the rider thrown, lying and getting up, once: no fall begun again by a later word of the same one', ['fall,lie,rise', 'fall,lie,rise,up'].includes(phases.join(',')) && starts === 1, { phases, starts, frames: film.length });
 const lying = film.filter((f) => f.phase === 'lie' || f.phase === 'rise');
 check('as the watcher sees it, the body is on the ground and never in it, where the rider really is (beyond the boards)', lying.length > 3 && Math.min(...lying.map((f) => f.low)) > -0.06 && lying.every((f) => Math.abs(f.x - crashed.x) < 0.8), { lowest: lying.length ? Math.min(...lying.map((f) => f.low)) : null, seenAt: lying.length ? lying[0].x : null, riderAt: crashed.x });
 const tipped = film.filter((f) => f.bike && f.bike.fallen);

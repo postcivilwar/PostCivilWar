@@ -217,7 +217,9 @@ await B.page.evaluate(() => { clearInterval(window.__keepPeers); });
 
 // ---- A walks off out of sight: their keke goes with them ----
 await A.page.evaluate(() => { const n = window.__nlw; n.place(n.view.self.x - 120, n.view.self.z); });
-await B.page.waitForFunction((name) => { const q = (window.__nlw.view.players || []).find((o) => o.name === name); return !q || !(q.kekes || []).length; }, A.username, { timeout: 40000 }).catch(() => {});
+// (the website is asked about who is where at most every few seconds; on the slow network, with the watcher's page
+// still fetching the vehicles it has just been shown, an answer can take a while)
+await B.page.waitForFunction((name) => { const q = (window.__nlw.view.players || []).find((o) => o.name === name); return !q || !(q.kekes || []).length; }, A.username, { timeout: 120000 }).catch(() => {});
 await B.page.waitForTimeout(800);
 const gone = await B.page.evaluate((id) => ({ kekes: window.__nlw.peerKekes.size, bayShown: window.__nlw.vehicleActors.get(id) ? window.__nlw.vehicleActors.get(id).group.visible : null }), hired.id);
 check('when the driver has gone off, nothing of theirs is left drawn, and the hire fleet\'s keke is in its bay again', gone.kekes === 0, gone);
