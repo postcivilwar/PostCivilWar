@@ -47,7 +47,7 @@ const measure = () => {
   const cur = me.current ? me.current.getClip().name : null;
   const head = me.bones.get('head').getWorldPosition(new THREE.Vector3());
   const pelvis = me.bones.get('pelvis').getWorldPosition(new THREE.Vector3());
-  return { clip: cur, time: me.current ? +me.current.time.toFixed(2) : 0, running: !!(me.current && me.current.isRunning()), low: +low.toFixed(2), high: +high.toFixed(2), head: +head.y.toFixed(2), pelvis: +pelvis.y.toFixed(2), ground: +me.group.position.y.toFixed(2), doing: me.doing ? me.doing.kind : null, byHand: me.byHand ? me.byHand.kind : null, lying: me.lying ? me.lying.name : null, drop: +me.drop.toFixed(2), tipped: +me.body.rotation.x.toFixed(2) };
+  return { clip: cur, time: me.current ? +me.current.time.toFixed(2) : 0, running: !!(me.current && me.current.isRunning()), low: +low.toFixed(2), high: +high.toFixed(2), head: +head.y.toFixed(2), pelvis: +pelvis.y.toFixed(2), ground: +me.group.position.y.toFixed(2), doing: me.doing ? me.doing.kind : null, byHand: me.byHand ? me.byHand.kind : null, lying: me.lying ? me.lying.name : null, drop: +me.drop.toFixed(2), tipped: +me.body.rotation.x.toFixed(2), fall: me.fallDriver ? me.fallDriver.phase || null : null };
 };
 
 // every figure a player may be: the women, then the men, in the order the selection screen offers them
@@ -195,10 +195,11 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   const gameTime = (s) => page.waitForFunction((t) => window.__nlw.host.game.state.real >= t, s, { timeout: 180000 });
   await gameTime(downAt + 3.6);
   m = await page.evaluate(measure);
-  if (spec.falls) {
-    check(`${label}: knocked down, it falls with its own fall`, !!m.lying && m.tipped === 0, m);
-    check(`${label}: and lies on the ground, not in the air`, m.pelvis < 0.45 && m.head < 0.55 && m.low > -0.15, m);
-  } else check(`${label}: knocked down (no fall in its file), it is laid flat`, m.tipped < -1.2, m);
+  // (every figure falls and gets up the same way now, with motion taken from the supplied figures' own files,
+  // carried onto its own bones: falls.js, 19 October 2026. Before, a figure with a fall in its file played it and one
+  // without was tipped over flat, and both were crossfaded back up)
+  check(`${label}: knocked down, it falls and lies there (the falls made from the supplied figures' own motion)`, !!m.fall && m.fall !== 'up' && !m.lying && m.tipped === 0, m);
+  check(`${label}: and lies on the ground, not in the air and not in it`, m.high < 0.6 && m.pelvis < 0.45 && m.head < 0.55 && m.low > -0.15, m);
   await shot('7-down');
   await gameTime(downAt + 11.6);
   m = await page.evaluate(measure);
