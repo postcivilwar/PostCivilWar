@@ -1667,7 +1667,7 @@ function start(carried) {
       // left by Exit game: the game is saved, and Play carries on
       const who = host.game.view(playerId).self.name;
       $('resume-title').textContent = 'Your game is saved';
-      $('resume-text').textContent = `${who ? `${who} is` : 'Your character is'} where you left the town. ${exitNote ? `${exitNote} ` : ''}Press Play to carry on.`;
+      $('resume-text').textContent = `${who || 'Your character'} is waiting where you left off. ${exitNote ? `${exitNote} ` : ''}Press Play to carry on.`;
       $('resume-wait').hidden = true;
       $('resume-retry').hidden = true;
       return;

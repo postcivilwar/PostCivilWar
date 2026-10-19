@@ -571,8 +571,8 @@ export function createUI(app) {
       h('button', { class: 'btn primary', type: 'button', id: 'exit-game', onclick: () => app.exitGame() }, 'Exit game'),
       h('button', { class: 'btn quiet', type: 'button', id: 'erase-save', onclick: () => app.erase() }, 'Restart game')));
     root.append(h('p', { class: 'small', id: 'game-note' }, kept
-      ? 'Exit saves your game, on this device and with your account, and takes you out of the town: Play carries on from where you were. Restart erases this character for good and begins a new journey; your account, your username, your TR and everything you own in the market are kept.'
-      : 'Exit saves your game on this device and takes you out of the town: Play carries on from where you were. Restart erases this character for good and begins a new journey.'));
+      ? 'Exit saves your game, on this device and with your account, and takes you out of town; Play carries on where you left off. Restart erases this character for good and begins a new journey; your account, your TR and everything you own are kept.'
+      : 'Exit saves your game on this device and takes you out of town; Play carries on where you left off. Restart erases this character for good and begins a new journey.'));
     // On the website: the account this character is kept with. (Nobody plays there without one.)
     if (app.online && app.online.available) {
       const st = app.online.status();

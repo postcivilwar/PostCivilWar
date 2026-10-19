@@ -93,7 +93,8 @@ check('still signed in, as on the start screen', left.state === 'in' && screen.s
 
 // ---- another device: everything this one kept wiped, the page loaded again ----
 await page.evaluate(() => localStorage.clear());
-await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
+// (loaded again: the same address with the same ending would not be loaded again by going to it)
+await page.reload({ timeout: 300000 });
 await page.waitForFunction(() => window.__nlw && window.__nlw.playing && window.__nlw.view && window.__nlw.view.self, null, { timeout: 300000 }).catch(() => {});
 await page.waitForTimeout(1500);
 const elsewhere = await where();
