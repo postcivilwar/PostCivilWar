@@ -187,6 +187,45 @@ test('what is earned and spent in town reaches the bank with the save; another d
   await books();
 });
 
+test('the answer to a save is lost on its way back (19 October 2026): the copy the server kept is known for this game\'s own; the game played on here is kept, not put back to it, and every wage reaches the bank once', async () => {
+  const phone = await player('Lost', 'Lost Answer', 0);
+  phone.earn(2);
+  // this save arrives and is kept, but its answer never comes back (a poor connection, a busy server)
+  let lost = 0;
+  phone.web.net.lose = (body) => body.op === 'save.put' && (lost += 1) === 1;
+  const cut = await phone.sync.upload();
+  assert.equal(cut.ok, false);
+  assert.equal(lost, 1);
+  assert.equal(phone.sync.rev, 1, 'the page does not know the server kept it');
+  // played on here: a third wage, and where they now stand
+  phone.earn(1);
+  const here = phone.host.game.view(phone.playerId).self;
+  // the next save is told the server's copy is newer: it is this game's own, so nothing is swapped
+  const next = await phone.sync.upload();
+  assert.equal(next.code, 'NEWER');
+  assert.equal(phone.adopted || 0, 0, 'not put back to the copy the server kept');
+  assert.ok(!phone.events.some((e) => e.type === 'newer'), 'and not told it was played on another device');
+  assert.equal(phone.sync.rev, 2, 'the account is at that copy now');
+  const still = phone.host.game.view(phone.playerId).self;
+  assert.deepEqual([still.x, still.z], [here.x, here.z]);
+  // saved again from here: kept, and the bank told of the three wages once each
+  assert.equal((await phone.sync.upload()).ok, true);
+  assert.equal(phone.sync.rev, 3);
+  await phone.inStep(ARRIVAL_FUNDS + 3 * WAGE);
+  // a copy truly played on another device is still taken, as before
+  const laptop = device();
+  await laptop.online.check();
+  assert.equal((await laptop.sync.logIn(phone.username, phone.password)).adopted, true);
+  laptop.earn(1);
+  assert.equal((await laptop.sync.upload()).ok, true);
+  phone.earn(1);
+  assert.equal((await phone.sync.upload()).code, 'NEWER');
+  assert.equal(phone.adopted, 1, 'the laptop\'s copy, played on since, is taken');
+  assert.ok(phone.events.some((e) => e.type === 'newer'));
+  await phone.inStep(ARRIVAL_FUNDS + 4 * WAGE);
+  await books();
+});
+
 test('a page that says it earned a fortune is believed only as far as a person could have earned, and is put right', async () => {
   const d = await player('Cheat', 'Too Rich');
   // a tampered game gives itself a thousand million TR in its own ledger

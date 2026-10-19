@@ -180,6 +180,11 @@ export function createMarket({ online, bridge, playerId, zone, notify = () => {}
 //   pack / unpack    packSave and unpackSave
 export function createAccountSync({ online, read, adopt, forget, summary, applied, wallet = () => null, mark, pack, unpack, notify = () => {}, every = 60 }) {
   let since = 0, busy = null, soonAt = 0;
+  // Saves whose answer never came back (cut off, or too slow on a poor connection): the server may well have kept
+  // them. Each save carries its own mark (`nonce`), so that a copy the server has which is one of these is known
+  // for this game's own, and not taken for one played on another device (19 October 2026: found when a save on a
+  // slow connection took longer than the page waited, and the game was then put back to that save, minutes old).
+  let lost = [];
   const who = () => (online.account ? online.account.username.toLowerCase() : null);
   const marked = () => { const m = mark.get(); return m && m.user === who() ? m : null; };
   // where a save from this device starts counting from: its own last save, or, for a character that has
@@ -199,6 +204,17 @@ export function createAccountSync({ online, read, adopt, forget, summary, applie
     if (!answer.save) return { ok: true, adopted: false };
     const saved = await unpack(answer.save);
     if (!saved || !saved.host) return { ok: false, code: 'UNREADABLE', message: 'The character kept with your account could not be read on this device.' };
+    // this game's own save, kept though its answer was lost: the game here has gone on from it, and is kept. The
+    // account is at that copy now, and so is the bank (it has taken what that save reported); saved again shortly.
+    if (saved.nonce && lost.includes(saved.nonce) && read()) {
+      lost = [];
+      mark.set({ user: who(), rev: answer.save.rev });
+      online.noteSave(answer.save.rev);
+      const w = wallet();
+      if (w && answer.wallet) w.took(answer.wallet);
+      soonAt = 1;
+      return { ok: true, adopted: false, own: true };
+    }
     // a character written by a newer version of the game than this page is: left alone, and never overwritten
     if (adopt(saved, why) === false) return { ok: false, code: 'UNREADABLE', message: 'The character kept with your account was made by a newer version of the game. Reload the page to play it.' };
     mark.set({ user: who(), rev: answer.save.rev });
@@ -218,11 +234,17 @@ export function createAccountSync({ online, read, adopt, forget, summary, applie
     const report = w ? w.report() : null;
     busy = (async () => {
       try {
-        const packed = await pack(saved);
-        const answer = await online.ask('save.put', { baseRev: base(), ...packed, summary: summary(), applied: applied(), ...(report ? { wallet: report } : {}) }, { keepalive: !!options.keepalive && packed.data.length < 60000, timeout: 30000 });
+        const nonce = newId();
+        const packed = await pack({ ...saved, nonce });
+        // (on a poor connection, or with the server busy, it is given a minute and a half to be answered)
+        const answer = await online.ask('save.put', { baseRev: base(), ...packed, summary: summary(), applied: applied(), ...(report ? { wallet: report } : {}) }, { keepalive: !!options.keepalive && packed.data.length < 60000, timeout: 90000 });
         if (answer.ok) {
+          lost = [];
           mark.set({ user: who(), rev: answer.rev }); online.noteSave(answer.rev);
           if (w && answer.wallet) w.took(answer.wallet);
+        } else if (answer.code === 'OFFLINE' || answer.code === 'SERVER') {
+          // sent, perhaps kept, but no answer: remembered, in case the server has it
+          lost = [...lost.slice(-7), nonce];
         } else if (answer.code === 'NEWER' || answer.code === 'OUT_OF_STEP') {
           const got = await fetchAndAdopt('newer');
           if (got.ok && got.adopted) notify({ type: 'newer' });

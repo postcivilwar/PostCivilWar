@@ -70,13 +70,15 @@ check('the rider buys the White Sport Tourer with arrival money', bought.ok && b
 await A.page.waitForFunction(() => window.__nlw.view.self.ownBikes && window.__nlw.view.self.ownBikes.bikes.includes('white-sport'), null, { timeout: 60000 }).catch(() => {});
 await A.page.keyboard.press('Escape');
 await B.page.evaluate(() => { const n = window.__nlw; n.place(-236, 103.5); n.face(-Math.PI / 2); n.cam.yaw = -Math.PI / 2 + 0.9; n.cam.dist = 7.5; n.cam.pitch = 0.2; n.cam.lastDrag = 1e9; });
+const watcherAt = () => B.page.evaluate(() => { const s = window.__nlw.view.self; return { x: +s.x.toFixed(1), z: +s.z.toFixed(1) }; });
 const on = await A.page.evaluate(() => { const n = window.__nlw; n.place(-222, 113); n.face(-Math.PI / 2); return n.rideBike('white-sport'); });
 check('the rider is on it on Waterside Road', !!(on && on.ok), on);
 await A.page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 300000 });
 // (the watcher is told of them, and of the bike under them)
 await B.page.waitForFunction((name) => { const n = window.__nlw; const q = n.shownPeers.find((o) => o.name === name); return !!(q && q.ride && n.peerBikeView.ridden(`peer:${q.id}`)); }, A.username, { timeout: 180000 }).catch(() => {});
 const before = await B.page.evaluate((name) => { const n = window.__nlw; const q = n.shownPeers.find((o) => o.name === name); return q ? { ride: q.ride && q.ride.bike, drawn: !!n.peerBikeView.ridden(`peer:${q.id}`), x: q.x } : null; }, A.username);
-check('the watcher sees the rider on the White Sport Tourer', !!before && before.ride === 'white-sport' && before.drawn, before);
+const stood = await watcherAt();
+check('the watcher sees the rider on the White Sport Tourer (standing where they were put, by the road near its end)', !!before && before.ride === 'white-sport' && before.drawn && Math.hypot(stood.x + 236, stood.z - 103.5) < 0.5, { before, watcher: stood });
 await B.shot('H1-watcher-sees-the-rider');
 
 // ---- into the roadblock at 50 km/h; the watcher watches every frame ----

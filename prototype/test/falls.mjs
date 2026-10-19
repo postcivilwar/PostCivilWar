@@ -99,7 +99,7 @@ const ride = async (x, z, h) => {
     return n.rideBike('white-sport');
   }, [x, z, h]);
   await page.waitForFunction(() => window.__nlw.ownBikeView.ready() || window.__nlw.ownBikeView.failed(), null, { timeout: 300000 });
-  await page.evaluate((h) => { const n = window.__nlw; n.cam.yaw = h; n.cam.lastDrag = -10; n.rig.view = 'street'; }, h);
+  await page.evaluate((h) => { const n = window.__nlw; n.cam.yaw = h; n.cam.lastDrag = -10; }, h);
   return r;
 };
 const state = () => page.evaluate(() => { const n = window.__nlw, s = n.view.self; return { x: +s.x.toFixed(2), z: +s.z.toFixed(2), astride: !!s.astride, down: s.down ? { by: s.down.by || 'knock' } : null, kmh: Math.round(Math.abs(n.bikeState.speed) * 3.6), crashes: n.host.game.state.players[n.playerId].stats.crashes || 0 }; });
@@ -171,7 +171,8 @@ await shot('D-stopped-at-the-roadblock');
 
 // ---- E: into it at 50 km/h, in slow motion ----
 r = await ride(-222, 113, -Math.PI / 2);
-await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = -Math.PI / 2 - 1.15; n.cam.dist = 6.5; n.cam.pitch = 0.16; n.cam.lastDrag = 1e9; });
+// (seen from the side, behind: the street view held where it is put, for the pictures)
+await page.evaluate(() => { const n = window.__nlw; n.rig.view = 'street'; n.cam.yaw = -Math.PI / 2 - 1.15; n.cam.dist = 6.5; n.cam.pitch = 0.16; n.cam.lastDrag = 1e9; });
 await page.waitForTimeout(1500);
 const health0 = await page.evaluate(() => window.__nlw.view.self.health);
 await page.evaluate(() => window.__nlw.slow(0.2));
