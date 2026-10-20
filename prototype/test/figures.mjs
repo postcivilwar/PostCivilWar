@@ -1,4 +1,5 @@
-// The supplied animated figures in a headless browser, on the website as it is served: each is in the right list
+// The supplied animated figures in a headless browser, on the website as it is served (each as the light copy the
+// build makes from the owner's file): each is in the right list
 // (women with the women, men with the men), is chosen on the selection screen the way a player chooses, is drawn
 // at a person's height standing on the ground, stands, walks and runs with clips that are really playing, sits in
 // a seat, reacts by itself to a blow that lands on it in a fight, falls when it is knocked down (onto the ground,
@@ -61,7 +62,7 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check(`${label}: no error in the console`, false, m.text()); });
   const shot = (what) => page.screenshot({ path: resolve(out, `${id}-${what}.png`) });
   await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
   await signUp(page, 'Fig');
   await pastQuestion(page);
 
@@ -72,8 +73,11 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   await page.waitForTimeout(500);
   const pressed = await page.evaluate(() => [...document.querySelectorAll('#genders [data-gender]')].find((b) => b.getAttribute('aria-pressed') === 'true').dataset.gender);
   check(`${label}: listed as ${gender === 'f' ? 'a woman' : 'a man'}`, pressed === gender, pressed);
-  // the figure drawn on the selection screen arrives (the file is 5 to 36 MB)
-  await page.waitForFunction(() => { const c = window.__nlw.creator; return !c || !c.loading || !c.loading(); }, null, { timeout: 240000 }).catch(() => {});
+  // the figure drawn on the selection screen arrives: its light copy, made from the owner's file by the build (1 to 3 MB
+  // to a computer; the file itself is 5 to 36 MB, and is never sent)
+  await page.waitForFunction((want) => (window.__nlw.figureLog() || []).some((r) => r.id === want && (r.readyMs !== undefined || r.failed)), id, { timeout: 240000 }).catch(() => {});
+  const fetched = await page.evaluate((want) => { const r = (window.__nlw.figureLog() || []).find((x) => x.id === want && x.readyMs !== undefined); const f = window.__PCW_FIGURES.figures[want]; return { log: r || null, model: f ? f.model.split('?')[0] : null }; }, id);
+  check(`${label}: fetched as its light copy, at most 6 MB`, !!(fetched.log && fetched.log.bytes <= 6 * 1048576 && /^figures\//.test(fetched.model)), fetched);
   await page.waitForTimeout(1500);
   await shot('1-chosen');
   await page.fill('#name', `${name} Test`);

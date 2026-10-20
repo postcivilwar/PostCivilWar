@@ -2,20 +2,21 @@
 // behind a picture purely black). What the town needs in order to be seen is checked while it is played:
 //  - that frames are drawn (the browser may stop calling, or every frame may fail part way);
 //  - that drawing a frame does not fail (the error is kept);
-//  - that the browser still lets the page draw (its WebGL context not lost);
 //  - that the camera is somewhere real (a position or a turn that is not a number draws nothing);
 //  - every few seconds, a few points of the picture just drawn are read back: black at every point, time after time,
 //    is not the town at any hour (the night sky and the lamps are never black to the last bit).
-// When the town cannot be seen the player is told on the screen, with what was found (the error the browser gave, the
-// device's graphics, what was drawn), so that it can be photographed and sent; reloading the page is offered and is
-// theirs to choose (the game never reloads itself). Errors written to the console and errors nothing caught are kept
-// too (the last few), since a shader the device could not build is only ever written there.
+// When the town cannot be seen, `tell` is told so, and the game says it on its own calm card, in plain words, with one
+// thing to press (20 October 2026, the owner's brief: never a wall of text, never the words for how the browser
+// works). What was found in detail (the error the browser gave, the device's graphics, what was drawn) is kept here,
+// for the readout the owner can open on a phone (#stats). A drawing surface taken away is not this watch's to tell:
+// the game brings it back itself (main.js), and `lost` says when it is away. Errors written to the console and errors
+// nothing caught are kept too (the last few), since a shader the device could not build is only ever written there.
 const LOOK_EVERY = 3000;     // ms between reading the picture back
 const BLACK_LOOKS = 4;       // looks in a row black at every point before it is said
 const STILL_FOR = 6000;      // ms with nothing drawn, while the town should be, before it is said
 const FAILS_FOR = 3;         // frames failed in a row before it is said
 
-export function watchPicture({ renderer, camera, canvas, reload, lost, errors }) {
+export function watchPicture({ renderer, camera, canvas, lost, errors, tell = () => {} }) {
   const kept = [];
   const keep = (text) => { try { kept.push(String(text).replace(/\s+/g, ' ').slice(0, 240)); if (kept.length > 5) kept.shift(); } catch (e) { /* kept as far as it could be */ } };
   const describe = (value) => (value instanceof Error ? `${value.name}: ${value.message}${value.stack ? ` @ ${String(value.stack).split('\n').find((l) => /\.js|@|at /.test(l) && !/^\w*Error/.test(l)) || ''}` : ''}` : typeof value === 'object' && value ? (() => { try { return JSON.stringify(value).slice(0, 200); } catch (e) { return String(value); } })() : String(value));
@@ -34,7 +35,7 @@ export function watchPicture({ renderer, camera, canvas, reload, lost, errors })
     } catch (e) { return 'unknown'; }
   })();
 
-  const state = { lastDrawn: 0, wanted: 0, failsInRow: 0, lastError: '', black: 0, lookAt: 0, said: '', hidden: false, shown: 0, shownAt: 0 };
+  const state = { lastDrawn: 0, wanted: 0, failsInRow: 0, lastError: '', black: 0, lookAt: 0, said: '', hidden: false, shown: 0, shownAt: 0, told: false };
   const pixel = new Uint8Array(4);
   // (five points: the middle and the four quarters; read back straight after drawing, before the browser shows it)
   const looksBlack = () => {
@@ -48,42 +49,24 @@ export function watchPicture({ renderer, camera, canvas, reload, lost, errors })
     return true;
   };
 
-  let box = null;
+  // what was found, in detail, for the readout
+  let detail = '';
   const show = (reason) => {
     state.said = reason;
-    if (state.hidden) return;
-    if (!box) {
-      box = document.createElement('div');
-      box.id = 'picture-watch';
-      box.setAttribute('role', 'alert');
-      box.style.cssText = 'position:fixed;left:50%;top:12px;transform:translateX(-50%);z-index:100000;max-width:min(560px,calc(100vw - 32px));box-sizing:border-box;padding:14px 16px;border-radius:12px;background:rgba(20,22,28,0.94);color:#f4f1ea;font:14px/1.4 system-ui,-apple-system,sans-serif;box-shadow:0 6px 24px rgba(0,0,0,0.5);pointer-events:auto;';
-      box.innerHTML = '<div style="font-weight:600;font-size:16px;margin-bottom:4px">The town is not showing</div>'
-        + '<div data-say style="margin-bottom:8px"></div>'
-        + '<div style="margin-bottom:8px">Your game is saved. Reloading the page usually brings the town back. If it keeps happening, take a screenshot of this message: the lines below say what went wrong on this device.</div>'
-        + '<div data-detail style="font:11px/1.35 ui-monospace,Menlo,monospace;opacity:0.8;word-break:break-word;max-height:30vh;overflow:auto;margin-bottom:10px"></div>'
-        + '<div style="display:flex;gap:8px;justify-content:flex-end"><button data-hide type="button" style="padding:8px 14px;border-radius:8px;border:1px solid #666;background:transparent;color:inherit;font:inherit">Hide</button><button data-reload type="button" style="padding:8px 14px;border-radius:8px;border:0;background:#e8a23a;color:#1a1a1a;font:inherit;font-weight:600">Reload the page</button></div>';
-      for (const type of ['pointerdown', 'pointerup', 'touchstart', 'touchend', 'click', 'keydown', 'keyup', 'wheel']) box.addEventListener(type, (event) => event.stopPropagation());
-      box.querySelector('[data-hide]').addEventListener('click', () => { state.hidden = true; box.hidden = true; });
-      box.querySelector('[data-reload]').addEventListener('click', () => reload());
-      document.body.appendChild(box);
-    }
-    box.querySelector('[data-say]').textContent = reason;
     const p = camera.position;
     const info = renderer.info && renderer.info.render ? renderer.info.render : {};
-    box.querySelector('[data-detail]').textContent = [
+    detail = [
+      `found: ${reason}`,
       `graphics: ${device}`,
-      `drawn: ${info.calls || 0} calls, ${info.triangles || 0} triangles; context ${gl && gl.isContextLost() ? 'LOST' : 'kept'} (lost ${lost()} times); frames failed ${errors()}`,
+      `drawn: ${info.calls || 0} calls, ${info.triangles || 0} triangles; frames failed ${errors()}`,
       `camera: ${[p.x, p.y, p.z].map((v) => (Number.isFinite(v) ? v.toFixed(1) : String(v))).join(', ')}; screen ${canvas.width}x${canvas.height} at ${(window.devicePixelRatio || 1).toFixed(2)}`,
       state.lastError ? `error: ${state.lastError}` : '',
       ...kept.filter((k) => k !== state.lastError).map((k) => `console: ${k}`),
-      `browser: ${navigator.userAgent}`,
     ].filter(Boolean).join('\n');
-    box.style.whiteSpace = 'normal';
-    box.querySelector('[data-detail]').style.whiteSpace = 'pre-wrap';
-    box.hidden = false;
+    if (!state.hidden && !state.told) { state.told = true; tell(reason); }
     state.shown += 1;
   };
-  const clear = () => { state.said = ''; if (box) box.hidden = true; };
+  const clear = () => { state.said = ''; if (state.told) { state.told = false; tell(''); } };
 
   return {
     // a frame drawn: read back now and then (the read is made straight after drawing, while the picture is there)
@@ -95,12 +78,11 @@ export function watchPicture({ renderer, camera, canvas, reload, lost, errors })
     failed(error) { state.failsInRow += 1; state.lastError = describe(error); },
     // every frame: should the town be on the screen, and is it?
     frame(now, wanted) {
-      if (!wanted) { state.wanted = 0; if (state.said && !lost()) clear(); return; }
+      if (!wanted || lost()) { state.wanted = 0; if (state.said) clear(); return; }
       if (!state.wanted) { state.wanted = now; state.lastDrawn = Math.max(state.lastDrawn, now); state.black = 0; }
       const p = camera.position;
       let reason = '';
-      if (lost() || (gl && gl.isContextLost())) reason = 'The browser took the game\'s graphics away (this device ran short of memory for them).';
-      else if (state.failsInRow >= FAILS_FOR) reason = 'Drawing the town failed on this device.';
+      if (state.failsInRow >= FAILS_FOR) reason = 'Drawing the town failed on this device.';
       else if (!(Number.isFinite(p.x) && Number.isFinite(p.y) && Number.isFinite(p.z))) reason = 'The camera was lost (its position is not a number).';
       else if (now - state.lastDrawn > STILL_FOR) reason = 'The town stopped being drawn.';
       else if (state.black >= BLACK_LOOKS) reason = 'The town is being drawn black on this device.';
@@ -109,6 +91,7 @@ export function watchPicture({ renderer, camera, canvas, reload, lost, errors })
       else if (state.said) clear();
     },
     get said() { return state.said; },
+    get detail() { return detail; },
     get kept() { return kept.slice(); },
     get black() { return state.black; },
     device,

@@ -9,8 +9,8 @@
 //     the grips;
 //   - getting off with the phone out puts it away from the bars (on foot it is taken out of the pocket again);
 //   - ridden into a wall with the phone in hand: thrown off, and the phone is put away at once;
-//   - the graphics taken away (as a phone short of memory does): the game says so, offers a reload, and does not
-//     reload by itself.
+//   - the graphics taken away (as a phone short of memory does): the game says only "One moment" on its calm card, puts
+//     no question, and when the browser gives the graphics back carries on where it was, nothing reloaded.
 //   ../server/with-postgres.sh node test/seats.mjs [shots folder]
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -38,7 +38,7 @@ const shot = (name) => page.screenshot({ path: resolve(out, `${name}.png`) });
 const username = `Seat_${Math.random().toString(36).slice(2, 8)}`;
 
 await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
 await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
 await page.click('#open-signup');
 await page.fill('#account-username', username); await page.fill('#account-password', 'a password for the seats test');
@@ -213,23 +213,17 @@ await page.evaluate(() => window.__nlw.ui.close());
 await page.waitForFunction(() => !window.__nlw.view.self.down, null, { timeout: 30000 }).catch(() => {});
 
 // ---- the picture lost: the browser takes the graphics away (as a phone short of memory does) ----
-// The game is saved, the player is told and offered to reload; it does not reload itself.
-await page.evaluate(() => { window.__stillHere = true; window.__lose = window.__nlw.renderer ? null : null; const c = document.getElementById('view').getContext('webgl2') || document.getElementById('view').getContext('webgl'); window.__lose = c && c.getExtension('WEBGL_lose_context'); window.__lose.loseContext(); });
-await page.waitForTimeout(4000);
-const lost = await page.evaluate(() => { const box = document.getElementById('confirm'); return { stillHere: !!window.__stillHere, counted: window.__nlw.contextLost, asked: box && !box.hidden ? box.textContent.replace(/\s+/g, ' ').trim() : null }; });
-check('the graphics taken away: the game says so and offers to reload, and does not reload by itself', lost.stillHere && lost.counted === 1 && /picture was lost/i.test(lost.asked || '') && /Reload the page/.test(lost.asked || '') && /saved/i.test(lost.asked || ''), lost);
-// "Not now": the question goes; a tap on the lost picture asks it again (and the page is still not reloaded)
-await page.click('#confirm-no');
-await page.waitForTimeout(400);
-const putOff = await page.evaluate(() => document.getElementById('confirm').hidden);
-// (on the picture itself: somewhere the notice that the town is not showing, at the top, does not cover)
-const onPicture = await page.evaluate(() => { for (const [x, y] of [[550, 330], [550, 480], [200, 520], [900, 520], [150, 300]]) { const el = document.elementFromPoint(x, y); if (el && el.id === 'view') return [x, y]; } return [550, 330]; });
-await page.mouse.click(onPicture[0], onPicture[1]);
-await page.waitForTimeout(800);
-const askedAgain = await page.evaluate(() => { const box = document.getElementById('confirm'); return { shown: !box.hidden && /picture was lost/i.test(box.textContent), stillHere: !!window.__stillHere }; });
-check('"Not now" puts the question away; a tap on the lost picture asks it again, and nothing reloads', putOff && askedAgain.shown && askedAgain.stillHere, { putOff, ...askedAgain });
-await page.evaluate(() => { window.__lose.restoreContext(); });
+// The game is saved and says only "One moment" (since 20 October 2026 it asks nothing: test/context.mjs has the rest);
+// given back, it carries on where it was, and nothing is reloaded.
+await page.evaluate(() => { window.__stillHere = true; const c = document.getElementById('view').getContext('webgl2') || document.getElementById('view').getContext('webgl'); window.__lose = c && c.getExtension('WEBGL_lose_context'); window.__lose.loseContext(); });
 await page.waitForTimeout(1500);
+const lost = await page.evaluate(() => { const box = document.getElementById('confirm'), card = document.getElementById('loading'); return { stillHere: !!window.__stillHere, counted: window.__nlw.contextLost, card: card && !card.hidden ? `${document.getElementById('loading-title').textContent} / ${document.getElementById('loading-note').textContent}` : null, asked: box && !box.hidden ? box.textContent.replace(/\s+/g, ' ').trim() : null }; });
+check('the graphics taken away: the calm card says "One moment", no question is put, and nothing reloads', lost.stillHere && lost.counted === 1 && lost.card === 'One moment / Bringing the picture back' && !lost.asked, lost);
+await page.evaluate(() => { window.__lose.restoreContext(); });
+const givenBack = await page.waitForFunction(() => !window.__nlw.pictureGone && document.getElementById('loading').hidden, null, { timeout: 120000 }).then(() => true, () => false);
+await page.waitForTimeout(1500);
+const carriedOn = await page.evaluate(() => ({ stillHere: !!window.__stillHere, restored: window.__nlw.restored, playing: window.__nlw.playing }));
+check('given back, the card goes and the game carries on where it was, nothing reloaded', givenBack && carriedOn.stillHere && carriedOn.playing && !!carriedOn.restored, carriedOn);
 
 { const lost = await lostPictures(page); check('no picture was handed to the graphics card after the page had let it go of it (no vehicle or building drawn black)', lost === 0, lost); }
 const failed = results.filter((ok) => !ok).length;

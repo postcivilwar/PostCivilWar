@@ -15,15 +15,17 @@
 import { FIGURES, FIGURE_ORDER, FIGURE_SWATCHES } from '../sim/figures.js';
 import { createChoice } from './choice.js';
 import { makeCharacter, animateCharacter } from './character.js';
-import { figureHere } from './animated.js';
+import { figureHere, figureTurn, figureProgress, warmFigures } from './animated.js';
+import { sharedRenderer, drawIn } from './shared-view.js';
 
 const PART_NAMES = { skin: 'Skin', hair: 'Hair', top: 'Top', bottom: 'Bottom', shoes: 'Shoes', hat: 'Hat' };
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
 
-// `lazy`: someone who already has a character may never look at this screen. Its own 3D view (a second
-// drawing surface, with the figure's textures sent to the graphics card a second time) is then not made until
-// the screen is actually on show; until then this costs nothing but the buttons.
-export function createCreator({ canvas, root, nameField, onPick, onView = () => {}, saved, lazy = false }) {
+// `lazy`: someone who already has a character may never look at this screen: its view (the turntable, its lights, the
+// figure on it) is not made until the screen is actually on show; until then this costs nothing but the buttons.
+// `held`: while it says so (the opening is on the screen in front of this one), nothing here is made or fetched: the
+// first figure is not fetched before the player has pressed PLAY (20 October 2026, the owner's brief).
+export function createCreator({ canvas, root, nameField, onPick, onView = () => {}, saved, lazy = false, held = () => false }) {
   const choice = createChoice(saved);
   let mode = 'choose';
   const $ = (id) => document.getElementById(id);
@@ -31,13 +33,19 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
   nameField.addEventListener('input', () => { named = nameField.value.trim().length > 0; });
 
   // ------------------------------------------------------------------ the view --
-  let renderer = null, scene = null, camera = null, turntable = null;
+  // Drawn by the town's renderer, the page's one drawing surface (shared-view.js, 20 October 2026), on the town's own
+  // canvas, put in this view's box under this view's canvas (which stays clear, and takes the touches). Only a page
+  // without the town's renderer gives this view's canvas a renderer of its own.
+  let renderer = null, scene = null, camera = null, turntable = null, shared = false;
   // made the first time it is needed: at once, or (lazy) when the screen is first on show
   function ensure() {
     if (renderer) return;
-    renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    if (sharedRenderer()) { renderer = sharedRenderer(); shared = true; }
+    else {
+      renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
+      renderer.outputEncoding = THREE.sRGBEncoding;
+    }
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(26, 1, 0.1, 50);
     scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75));
@@ -49,6 +57,73 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
     ring.rotation.x = -Math.PI / 2; ring.position.y = 0.002; scene.add(ring);
     turntable = new THREE.Group(); scene.add(turntable);
     show(0);
+  }
+
+  // ---------------------------------------------------------------- on its way --
+  // A character asked for is shown at once (20 October 2026, the owner's brief: on a phone the next character took a
+  // minute or more to appear): its picture from all round (tools/characters/previews.mjs), turned with the turntable,
+  // with a soft light passing over it and a thin line for how much of the figure has come, until the figure itself is
+  // here; then the picture fades and the figure stands where it was. Where even the picture has not come yet, the
+  // outline of a person stands in for it. Nothing here waits: the arrows go on to the next one whenever pressed.
+  const box = canvas.parentElement;
+  const preview = document.createElement('div'); preview.className = 'fig-preview'; preview.setAttribute('aria-hidden', 'true');
+  const shine = document.createElement('i'); shine.className = 'shine'; preview.append(shine);
+  const waitLine = document.createElement('div'); waitLine.className = 'fig-wait'; waitLine.setAttribute('aria-hidden', 'true');
+  const waitFill = document.createElement('i'); waitLine.append(waitFill);
+  const trouble = document.createElement('div'); trouble.className = 'fig-trouble'; trouble.hidden = true; trouble.setAttribute('role', 'status');
+  const troubleText = document.createElement('p'); troubleText.textContent = 'This character could not be fetched just now.';
+  const troubleRetry = document.createElement('button'); troubleRetry.type = 'button'; troubleRetry.className = 'hx small'; troubleRetry.textContent = 'Try again';
+  troubleRetry.addEventListener('click', () => { trouble.hidden = true; if (shown) { dispose(shown); shown = build(); turntable.add(shown.rig.group); } });
+  trouble.append(troubleText, troubleRetry);
+  if (box) box.append(preview, waitLine, trouble);
+  const pictures = new Map();           // turntable url -> 'loading' | 'here' | 'failed'
+  function fetchPicture(url) {
+    if (!url || pictures.has(url)) return;
+    pictures.set(url, 'loading');
+    const img = new Image();
+    img.onload = () => { pictures.set(url, 'here'); };
+    img.onerror = () => { pictures.set(url, 'failed'); };
+    img.src = url;
+  }
+  // the characters either side of this one (their pictures at once, small; their figures once this one has come)
+  function neighbours() { const n = EVERYONE.length, i = placeOf(); return n > 1 ? [EVERYONE[(i + 1) % n].id, EVERYONE[(i - 1 + n) % n].id] : []; }
+  let previewShown = null;              // which figure the picture is showing, or null
+  function drawPreview(entry, cam, w, h) {
+    const rig = entry && entry.rig;
+    const waiting = !!(rig && rig.animated && !rig.mixer && !rig.failed && !rig.stopped);
+    const turn = waiting ? figureTurn(entry.id) : null;
+    if (turn) fetchPicture(turn.url);
+    const failed = !!(rig && rig.failed);
+    if (trouble.hidden === failed) trouble.hidden = !failed;
+    if (!waiting) {
+      if (previewShown) { preview.classList.remove('on'); waitLine.classList.remove('on'); previewShown = null; }
+      return;
+    }
+    // where the figure stands on the screen: its band from the ground up, as the camera sees it
+    const x = rig.group.position.x;
+    const low = new THREE.Vector3(x, turn ? turn.band[0] : -0.08, 0).project(cam), high = new THREE.Vector3(x, turn ? turn.band[1] : 2.0, 0).project(cam);
+    const top = (1 - (high.y + 1) / 2) * h, bottom = (1 - (low.y + 1) / 2) * h;
+    const tall = Math.max(1, bottom - top), wide = tall * (turn ? turn.frame[0] / turn.frame[1] : 2 / 3);
+    const centre = ((low.x + 1) / 2) * w;
+    preview.style.left = `${(centre - wide / 2).toFixed(1)}px`; preview.style.top = `${top.toFixed(1)}px`;
+    preview.style.width = `${wide.toFixed(1)}px`; preview.style.height = `${tall.toFixed(1)}px`;
+    const here = turn && pictures.get(turn.url) === 'here';
+    if (here) {
+      const k = ((Math.round(yaw / ((Math.PI * 2) / turn.frames)) % turn.frames) + turn.frames) % turn.frames;
+      const col = k % turn.cols, row = Math.floor(k / turn.cols);
+      const size = `${turn.cols * 100}% ${turn.rows * 100}%`, at = `${turn.cols > 1 ? (col / (turn.cols - 1)) * 100 : 0}% ${turn.rows > 1 ? (row / (turn.rows - 1)) * 100 : 0}%`;
+      if (preview.dataset.url !== turn.url) { preview.dataset.url = turn.url; preview.style.backgroundImage = `url("${turn.url}")`; shine.style.webkitMaskImage = shine.style.maskImage = `url("${turn.url}")`; }
+      preview.style.backgroundSize = size; preview.style.backgroundPosition = at;
+      shine.style.webkitMaskSize = shine.style.maskSize = size; shine.style.webkitMaskPosition = shine.style.maskPosition = at;
+      preview.classList.remove('outline');
+    } else if (preview.dataset.url !== 'outline') {
+      // (the picture itself not here yet: the outline of a person)
+      preview.dataset.url = 'outline'; preview.style.backgroundImage = ''; shine.style.webkitMaskImage = shine.style.maskImage = '';
+      preview.classList.add('outline');
+    }
+    if (previewShown !== entry.id) { previewShown = entry.id; preview.classList.add('on'); waitLine.classList.add('on'); }
+    const p = figureProgress(entry.id);
+    waitFill.style.width = `${p && p.of ? Math.min(100, (100 * p.got) / p.of).toFixed(1) : 4}%`;
   }
 
   let shown = null;          // { rig, id, key }
@@ -67,7 +142,13 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
       // a figure with its own animations plays the one the player picks, where it stands
       rig.held = true;
       rig.play(anim || rig.spec.still, 0);
-      rig.loaded.then(() => { if (shown && shown.rig === rig) drawAnims(); });
+      rig.loaded.then(() => {
+        if (!shown || shown.rig !== rig) return;
+        drawAnims();
+        // the figures either side, fetched ahead into the browser's cache, quietly
+        warmFigures(neighbours());
+      }, () => { if (shown && shown.rig === rig) drawAnims(); });
+      if (typeof navigator === 'undefined' || navigator.onLine !== false) for (const id of neighbours()) { const t = figureTurn(id); if (t) fetchPicture(t.url); }
     }
     return { rig, id: look.figure, key: lookKey() };
   }
@@ -86,10 +167,11 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
   function frame(now) {
     const raw = Math.max(0, (now - last) / 1000), dt = Math.min(0.05, raw); last = now;
     if (!root.isConnected) return;
-    if (root.offsetParent === null || root.hidden) { requestAnimationFrame(frame); return; }
+    if (root.offsetParent === null || root.hidden || held()) { requestAnimationFrame(frame); return; }
     const w = canvas.clientWidth, h = canvas.clientHeight;
     if (!renderer) { if (w > 0 && h > 0) ensure(); else { requestAnimationFrame(frame); return; } }
-    if (w > 0 && h > 0 && (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio()))) {
+    if (shared) { if (w > 0 && h > 0) { camera.aspect = w / h; camera.updateProjectionMatrix(); } }
+    else if (w > 0 && h > 0 && (canvas.width !== Math.round(w * renderer.getPixelRatio()) || canvas.height !== Math.round(h * renderer.getPixelRatio()))) {
       renderer.setSize(w, h, false); camera.aspect = w / h; camera.updateProjectionMatrix();
     }
     // the whole figure fits between the switch at the top and the name at the foot, whichever way the screen is turned
@@ -114,7 +196,9 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
       animateCharacter(leaving.rig, dt, 0, false);
       if (slide === 0) { dispose(leaving); leaving = null; }
     }
-    renderer.render(scene, camera);
+    drawPreview(shown, camera, w, h);
+    if (shared) drawIn(canvas.parentElement, scene, camera, { pixelRatio: Math.min(window.devicePixelRatio || 1, 2) });
+    else renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }
 
@@ -193,10 +277,18 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
       b.setAttribute('aria-pressed', String(name === playing));
       b.addEventListener('click', () => { anim = name; shown.rig.play(name, 0.35); drawAnims(); });
       return b;
-    }) : [Object.assign(document.createElement('span'), { className: 'small', textContent: 'Loading the animations…' })]));
+    }) : skeletonPills()));
   }
+  // while a figure's animations are on their way: their places, as pills with a soft light passing over them
+  function skeletonPills() {
+    const failed = rig_failed();
+    if (failed) return [Object.assign(document.createElement('span'), { className: 'small', textContent: 'The animations will be here when the character is.' })];
+    return [52, 64, 44, 70, 56, 48].map((w) => { const b = document.createElement('span'); b.className = 'part skeleton'; b.style.width = `${w}px`; b.setAttribute('aria-hidden', 'true'); return b; });
+  }
+  const rig_failed = () => !!(shown && shown.rig && shown.rig.failed);
   // (only a new player's choosing is remembered; looking is not choosing)
-  function changed(dir) { drawControls(); show(dir); if (mode === 'choose' && onPick) onPick(choice.look()); onView(choice.figure.id); }
+  // (the animations are drawn again once the new figure is on the turntable: until it has come, their places)
+  function changed(dir) { drawControls(); show(dir); if (choice.figure.animated) drawAnims(); if (mode === 'choose' && onPick) onPick(choice.look()); onView(choice.figure.id); }
   // (a copy of the game opened from a file on disk carries only the first two figures inside it, and can fetch
   // nothing: there only those are offered; on the website every one is)
   const EVERYONE = Object.keys(FIGURE_ORDER).flatMap((gender) => FIGURE_ORDER[gender].map((id, index) => ({ gender, index, id }))).filter((e) => figureHere(e.id));
@@ -211,7 +303,7 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
     const to = EVERYONE[at];
     if (to.gender !== choice.gender) choice.setGender(to.gender);
     choice.go(to.index);
-    drawControls(); show(0); onView(choice.figure.id);
+    drawControls(); show(0); if (choice.figure.animated) drawAnims(); onView(choice.figure.id);
     return true;
   }
   function setMode(next, figure = null) {
@@ -229,7 +321,7 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
   });
 
   drawControls();
-  if (!lazy) ensure();
+  if (!lazy && !held()) ensure();
   requestAnimationFrame(frame);
   return {
     look: () => choice.look(),
@@ -237,7 +329,7 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
     get mode() { return mode; },
     figure: () => choice.figure.id,
     // for the checks: what is on the turntable
-    get shown() { return shown ? { id: shown.id, key: shown.key, triangles: shown.rig.triangles, yaw, animation: shown.rig.animated && shown.rig.current ? shown.rig.current.getClip().name : null } : null; },
+    get shown() { return shown ? { id: shown.id, key: shown.key, triangles: shown.rig.triangles, yaw, animation: shown.rig.animated && shown.rig.current ? shown.rig.current.getClip().name : null, preview: previewShown === shown.id ? (preview.classList.contains('outline') ? 'outline' : 'picture') : null, failed: shown.rig.failed || null } : null; },
     playing: () => (shown && shown.rig.animated && shown.rig.current ? shown.rig.current.getClip().name : null),
     step, go: (i) => { choice.go(i); changed(1); }, setGender: (g) => { choice.setGender(g); changed(1); }, colour: (p, c) => { choice.colour(p, c); drawControls(); show(0); },
     get rig() { return shown ? shown.rig : null; },

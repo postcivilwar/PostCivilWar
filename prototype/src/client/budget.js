@@ -46,3 +46,18 @@ export function pictureSize(kind, { lite = deviceKind() === 'lite', most = Infin
   const want = PICTURES[lite ? 'lite' : 'full'][kind];
   return typeof want === 'number' ? Math.min(want, most || want) : want;
 }
+
+// The most the pictures and drawing buffers on the graphics card may come to, in MB, before the game lets go of all it
+// keeps ready but is not drawing (main.js, counted by graphics-count.js). A phone's browser gives a page far less than a
+// computer's, and takes the drawing surface away when it is short (20 October 2026, the owner's brief).
+export const GRAPHICS_BUDGET_MB = Object.freeze({ full: 700, lite: 150 });
+
+// Which copy of one of the owner's models this device fetches (his buildings, the town's vehicles, the market's watch).
+// On the website each is served as a copy made from his file by the build (tools/models/lighter.py: his pictures of
+// 8192 pixels made the size they are drawn at, nothing else changed): by its own name, a copy with its pictures no larger
+// than a computer draws them; beside it, one with them the size a phone draws them, which a phone fetches instead
+// (window.__PCW_MODELS names each). The copy of the game on disk has no such table: the file as it is named.
+export function modelFile(file, { lite = deviceKind() === 'lite' } = {}) {
+  const table = typeof window !== 'undefined' ? window.__PCW_MODELS : null;
+  return (lite && table && table[file]) || file;
+}

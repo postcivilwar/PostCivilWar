@@ -37,7 +37,7 @@ for (const size of [{ width: 800, height: 360 }, { width: 390, height: 844 }]) {
   const page = await context.newPage(); page.setDefaultTimeout(240000);
   page.on('pageerror', (e) => check(`${label}: no error in the page`, false, e.message));
   await page.goto(`${origin}/#nointro-gameclock-lite`, { timeout: 300000 });
-  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
   await signUp(page, 'Bike');
   await pastQuestion(page);
   await page.fill('#name', 'Bike Test');

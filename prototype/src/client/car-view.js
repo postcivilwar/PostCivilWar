@@ -43,7 +43,8 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       e = { id, car: null, loading: true, travelled: 0, failed: false, fx: null };
       shown.set(key, e);
       const spec = POWER_CARS[id];
-      loadCar(id, { base, lite, length: spec ? spec.length : 4.6 }).then((car) => {
+      // (another player's car is asked for after the small picture that stands in for it meanwhile, vehicle-standins.js)
+      loadCar(id, { base, lite, length: spec ? spec.length : 4.6, priority: String(key).startsWith('peer:') ? 'low' : undefined }).then((car) => {
         if (shown.get(key) !== e) { car.dispose(); return; }
         e.car = car; e.loading = false; scene.add(car.group);
       }, (error) => { e.loading = false; e.failed = true; onError(error); });

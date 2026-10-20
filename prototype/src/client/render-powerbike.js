@@ -24,7 +24,8 @@
 import { POWERBIKE } from '../sim/zone.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
 import { trText } from '../sim/ledger.js';
-import { parseGLB, fetchKept, letGoOnceDrawn } from './glb.js';
+import { parseGLB, fetchKept, letGoOnceDrawn, pictureFromFile } from './glb.js';
+import { modelFile } from './budget.js';
 import { Batch, place, surface, linear } from './render-kit.js';
 import { reflects } from './render-finish.js';
 import { makeDealMarker } from './render-holaris.js';
@@ -185,8 +186,10 @@ function floorTexture() {
 // file beside the page). `maxTexture`: the largest picture this device's graphics take, and on a phone a copy at
 // 2048 is what is handed to them (the file is unchanged).
 async function loadTower({ maxTexture }) {
-  const response = await fetchKept(M.file);
-  if (!response.ok) throw new Error(`${M.file}: ${response.status}`);
+  // (on a phone, the website's copy with its picture the size a phone draws it: budget.js)
+  const file = modelFile(M.file);
+  const response = await fetchKept(file);
+  if (!response.ok) throw new Error(`${file}: ${response.status}`);
   const parsed = parseGLB(await response.arrayBuffer());
   const { json, accessor, bytes } = parsed;
   const prim = json.meshes[0].primitives[0], at = prim.attributes;
@@ -206,7 +209,7 @@ async function loadTower({ maxTexture }) {
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
     map.flipY = false; map.encoding = THREE.sRGBEncoding; map.anisotropy = 8; map.needsUpdate = true;
-    letGoOnceDrawn(map);
+    letGoOnceDrawn(map, () => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, maxTexture));
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   // (its glass and cladding give back a little of the sky: render-finish.js)

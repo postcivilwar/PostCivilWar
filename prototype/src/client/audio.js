@@ -445,7 +445,8 @@ export function createAudio() {
   // fetched and decoded the first time a bike that plays it is heard, then shared by every engine that plays it.
   const decoded = new Map();
   const fetchBuffer = (url) => {
-    if (!decoded.has(url)) decoded.set(url, fetch(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }).then((data) => ctx.decodeAudioData(data)));
+    // (asked for after what is to be seen: the recordings are a few MB, and the engine is heard once they are here)
+    if (!decoded.has(url)) decoded.set(url, fetch(url, { priority: 'low' }).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }).then((data) => ctx.decodeAudioData(data)));
     return decoded.get(url);
   };
   const recordingSets = new Map();          // kind -> { buffers, failed }

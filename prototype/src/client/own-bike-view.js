@@ -37,7 +37,9 @@ export function bonesOf(figure) {
   return figure.kitBones;
 }
 
-export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () => {} } = {}) {
+// (`priority`: how the files of a bike not yet here are asked for; another player's are asked for after the small
+// pictures that stand in for them meanwhile, vehicle-standins.js)
+export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () => {}, priority } = {}) {
   const shown = new Map();          // key -> { id, bike, loading, travelled }
   const frozen = new Set();         // figures whose bones seat() set by hand this frame
 
@@ -48,7 +50,7 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
       e = { id, bike: null, loading: true, travelled: 0, failed: false };
       shown.set(key, e);
       const spec = POWER_BIKES[id];
-      loadBike(id, { base, lite, length: spec ? spec.length : 2.1 }).then((bike) => {
+      loadBike(id, { base, lite, length: spec ? spec.length : 2.1, priority }).then((bike) => {
         if (shown.get(key) !== e) { bike.dispose(); return; }
         e.bike = bike; e.loading = false; scene.add(bike.group);
       }, (error) => { e.loading = false; e.failed = true; onError(error); });

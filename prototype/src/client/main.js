@@ -23,9 +23,10 @@ import { buildOutskirts } from './render-outskirts.js';
 import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
-import { linear, setLite } from './render-kit.js';
+import { linear, setLite, restoreGeometry } from './render-kit.js';
+import { restorePictures } from './glb.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
-import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment } from './vehicle-models.js';
+import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionNames, reactionLength } from './render-people.js';
 import { createSky } from './render-sky.js';
@@ -49,6 +50,10 @@ import { createCameraRig, nextView, viewFor, CAMERA_VIEW, STREET } from './camer
 import { createIntro } from './intro.js';
 import { PROMPT_ICON, icon } from './icons.js';
 import { createCreator } from './creator.js';
+import { loadPack, packProgress } from './packs.js';
+import { createLoadingCard } from './loading.js';
+import { REACTIONS } from './reaction-data.js';
+import { shareRenderer, renewViews, canvasAway, canvasHome } from './shared-view.js';
 import { createRadar } from './radar.js';
 import { createBlood } from './blood.js';
 import { createSkills } from './skills.js';
@@ -57,7 +62,7 @@ import { createFitter } from './fit.js';
 import { QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
 import { createPhoneHold } from './phone-hold.js';
-import { ANIMATED, heldModels } from './animated.js';
+import { ANIMATED, heldModels, warmFigures, lightFiles, dropUnusedFigures, figureLog } from './animated.js';
 import { createMusic } from './music.js';
 import { trText, trAmount, TR } from '../sim/ledger.js';
 import { createOnline, createWebTransport, packSave, unpackSave } from '../net/online.js';
@@ -69,15 +74,17 @@ import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
 import { createCarView } from './car-view.js';
 import { createStandins } from './vehicle-standins.js';
-import { setCarDaylight, carsHeld } from './car-model.js';
-import { bikesHeld } from './bike-model.js';
+import { setCarDaylight, carsHeld, trimCars } from './car-model.js';
+import { bikesHeld, trimBikes } from './bike-model.js';
 import { buildCarshow } from './render-carshow.js';
 import { createSupplied } from './render-supplied.js';
 import { createTownBuildings } from './render-town-buildings.js';
 import { updateFinishes, finishState } from './render-finish.js';
 import { foliageState } from './render-foliage.js';
 import { buildPowerbike } from './render-powerbike.js';
-import { pictureSize } from './budget.js';
+import { pictureSize, GRAPHICS_BUDGET_MB } from './budget.js';
+import { countGraphics } from './graphics-count.js';
+import { frameClock, statsLines, showStats } from './stats.js';
 import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
 import { watchPicture } from './picture-watch.js';
@@ -136,7 +143,18 @@ function dressPage() {
 function start(carried) {
   dressPage();
   const canvas = $('view');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, powerPreference: 'high-performance' });
+  // The page's one drawing surface (shared-view.js): the town, and the character screen's turntable and the market's
+  // viewer drawn by it in turn. It can be see-through (alpha), for those two, whose backgrounds are the page's; the
+  // town is drawn over a clear that is not (setClearColor below).
+  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  renderer.setClearColor(0x000000, 1);
+  // (while the town is not being played in, the turntable may have the canvas sized to itself: enterWorld sizes it for
+  // the town again)
+  shareRenderer(renderer, { idle: () => !playing, paused: () => pictureGone });
+  // what the page holds on the graphics card, counted as it is handed over (graphics-count.js), against its budget
+  const graphics = countGraphics(renderer.getContext(), { antialias: true });
+  const graphicsBudgetMB = GRAPHICS_BUDGET_MB[LITE ? 'lite' : 'full'];
+  let graphicsTrims = 0;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LITE ? 1.25 : 2));
   renderer.shadowMap.enabled = true;
   renderer.shadowMap.type = LITE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
@@ -144,11 +162,21 @@ function start(carried) {
   renderer.outputEncoding = THREE.sRGBEncoding;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 2000);
-  initVehicles(renderer);
-  const world = buildWorld(scene);
-  // the roads not open yet and the edge of the built land: roadblocks and a fence, solid where they are drawn
-  // (render-closures.js, closures.js; 19 October 2026)
-  const closures = buildClosures(scene, { lite: LITE });
+  // The town is built when the player goes into it, not while the page starts (20 October 2026, the owner's brief: on
+  // a phone the town was built and warmed up while the character screen was up, which froze the screen for seconds at
+  // a time, and took the phone's graphics memory before a figure was even shown). Each piece of it is a step here,
+  // where it always was in this file; prepareTown runs them, one a frame, behind the loading card, once a character
+  // is chosen (or, for someone who has one, once PLAY is pressed). Until then, these are all null.
+  const townSteps = [];          // [what it is, () => build it]
+  let townBuilt = false;
+  let world = null, closures = null;
+  townSteps.push(['the ground and the roads', () => {
+    initVehicles(renderer);
+    world = buildWorld(scene);
+    // the roads not open yet and the edge of the built land: roadblocks and a fence, solid where they are drawn
+    // (render-closures.js, closures.js; 19 October 2026)
+    closures = buildClosures(scene, { lite: LITE });
+  }]);
   // Beyond the town: the road to Onitsha, the airport, the bridge (render-outskirts.js). Built once the player is in
   // town and the town has been warmed up, not while the page is starting: it is a kilometre away from where anyone
   // arrives, and starting is what the owner asked to be quick. Its lamps then join the town's.
@@ -180,24 +208,30 @@ function start(carried) {
     world.lampHeads.push(...outskirts.lampHeads);
     lampPools.place();
   }
-  const town = buildTown(scene, world.glowMaterial);
-  const crowd = createCrowd(scene);
-  const blood = createBlood(scene);
-  const sky = createSky(scene, renderer);
-  const parcelLayer = createParcelLayer(scene);
-  const siteLayer = createSiteLayer(scene);
-  const yardStacks = createYardStacks(scene);
+  let town = null, crowd = null, blood = null, sky = null, parcelLayer = null, siteLayer = null, yardStacks = null;
+  townSteps.push(['the buildings', () => { town = buildTown(scene, world.glowMaterial); }]);
+  townSteps.push(['the people, the sky and the plots', () => {
+    crowd = createCrowd(scene);
+    blood = createBlood(scene);
+    sky = createSky(scene, renderer);
+    parcelLayer = createParcelLayer(scene);
+    siteLayer = createSiteLayer(scene);
+    yardStacks = createYardStacks(scene);
+  }]);
   const audio = createAudio();
-  // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
-  const phoneHold = createPhoneHold({ scene, lite: LITE });
-  // the player's own motorcycles: the one ridden and the ones left standing (own-bike-view.js)
-  const ownBikeView = createOwnBikeView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your motorcycle could not be fetched. Check the connection.' }); } });
-  // other players' motorcycles, seen from here (the same drawing, without anything to fetch until one is near)
-  const peerBikeView = createOwnBikeView(scene, { lite: LITE });
-  // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
-  const carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
-  // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
-  const standins = createStandins(scene, { lite: LITE });
+  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null;
+  townSteps.push(['the phones, the motorcycles and the cars', () => {
+    // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
+    phoneHold = createPhoneHold({ scene, lite: LITE });
+    // the player's own motorcycles: the one ridden and the ones left standing (own-bike-view.js)
+    ownBikeView = createOwnBikeView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your motorcycle could not be fetched. Check the connection.' }); } });
+    // other players' motorcycles, seen from here (the same drawing, without anything to fetch until one is near)
+    peerBikeView = createOwnBikeView(scene, { lite: LITE, priority: 'low' });
+    // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
+    carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
+    // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
+    standins = createStandins(scene, { lite: LITE });
+  }]);
   const PEER_STANDIN = 260;          // metres within which another player's vehicle is drawn at all
   // the phone in other players' hands (phone-hold.js, one each, made when one is first seen with it out; no lamp)
   const peerPhones = new Map();      // id -> { hold, idle }
@@ -271,15 +305,17 @@ function start(carried) {
   const peerHorned = new Map();
   let peerHornsHeard = 0;
   // the ridden bike's headlamp: one light, following it, on at night (a lamp's glow is drawn on every bike)
-  const headlight = new THREE.SpotLight(0xfff1d6, 0, 38, 0.42, 0.55, 1.6);
-  headlight.castShadow = false; scene.add(headlight); scene.add(headlight.target);
-
+  let headlight = null;
   // Street lamps at night. Every light of this kind is worked out for every pixel of everything, lit or
   // not, at any hour, so there are few: the two lamps nearest the player on a desktop, none on a phone.
   // What every lamp does have is a pool of light painted on the ground under it, which costs next to nothing.
   const lampLights = [];
+  let lampPools = null;
+  townSteps.push(['the lamps', () => {
+  headlight = new THREE.SpotLight(0xfff1d6, 0, 38, 0.42, 0.55, 1.6);
+  headlight.castShadow = false; scene.add(headlight); scene.add(headlight.target);
   for (let i = 0; i < (LITE ? 0 : 2); i += 1) { const light = new THREE.PointLight(0xffc98a, 0, 30, 1.6); light.position.y = 4.8; scene.add(light); lampLights.push(light); }
-  const lampPools = (() => {
+  lampPools = (() => {
     const size = 64;
     const canvas2 = document.createElement('canvas');
     canvas2.width = size; canvas2.height = size;
@@ -301,6 +337,7 @@ function start(carried) {
     scene.add(mesh);
     return { mesh, material, place };
   })();
+  }]);
   // What is marked for the player in the town is marked in white: the game's interface has no colour of its own.
   const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
   const beaconMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.3, depthWrite: false, side: THREE.DoubleSide });
@@ -520,8 +557,9 @@ function start(carried) {
 
   // On the website the game can be put on a device and kept there; anywhere else this offers nothing.
   // (each figure's file beside the page: the first six as base64 text, the eighteen of 16 October as they are)
-  const FIGURE_TEXT = Object.fromEntries(Object.values(ANIMATED).map((spec) => [spec.id, spec.text || spec.file]));
-  const webapp = createWebApp({ figures: FIGURE_TEXT, figure: () => (prefs.look && FIGURE_TEXT[prefs.look.figure] ? prefs.look.figure : 'W1') });
+  // the files of a figure the web app's worker keeps for this device: its light copy at the size this device draws it
+  const figureFiles = (id) => { const f = lightFiles(id); return f ? [f.model, ...f.pictures.map((p) => p.url), ...(f.moves ? [f.moves[0]] : [])].map((u) => String(u).split('?')[0]) : []; };
+  const webapp = createWebApp({ figures: figureFiles, figure: () => (prefs.look && FIGURES[prefs.look.figure] ? prefs.look.figure : 'W1') });
 
   // Music on the phone (music.js): the game's own pieces, and on the website the songs listed in music/library.json.
   const music = createMusic({
@@ -707,14 +745,17 @@ function start(carried) {
     }
   }
   // A shop's own person, standing where the shop says: there to be seen and faced; the dealing is on the phone.
-  const shopActors = ZONE_SHOPS.map((shop) => {
-    const actor = makeCharacter(shop.attendant.look, shop.attendant.name, false, 1);
-    actor.group.position.set(shop.attendant.x, 0, shop.attendant.z);
-    actor.group.rotation.y = shop.attendant.facing;
-    actor.group.visible = false;
-    scene.add(actor.group);
-    return { shop, actor };
-  });
+  let shopActors = [];
+  townSteps.push(['the shopkeepers', () => {
+    shopActors = ZONE_SHOPS.map((shop) => {
+      const actor = makeCharacter(shop.attendant.look, shop.attendant.name, false, 1);
+      actor.group.position.set(shop.attendant.x, 0, shop.attendant.z);
+      actor.group.rotation.y = shop.attendant.facing;
+      actor.group.visible = false;
+      scene.add(actor.group);
+      return { shop, actor };
+    });
+  }]);
   function tickShopActors(dt) {
     for (const s of shopActors) {
       const far = Math.hypot(s.shop.attendant.x - predicted.x, s.shop.attendant.z - predicted.z);
@@ -733,12 +774,15 @@ function start(carried) {
   // it): its one pink column, which takes a player in; the hall, where the fifteen motorcycles stand; the mat by the
   // doors, which takes them out again; Obi, the salesman (salesman.js); and asking him about a motorcycle, which is
   // the market's own conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
-  const powerbike = buildPowerbike(scene, { lite: LITE, renderer, maxTexture: pictureSize('tower', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
+  let powerbike = null, salesmanActor = null;
   const salesman = createSalesman();
+  townSteps.push(['the motorcycle showroom', () => {
+  powerbike = buildPowerbike(scene, { lite: LITE, renderer, maxTexture: pictureSize('tower', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
   // one of the game's own figures, dressed for the showroom floor: a white shirt, a dark red tie, dark trousers
-  const salesmanActor = makeCharacter({ body: 'm', skin: 0x4a2c17, build: 1, wear: { outfit: 'shirt', hair: 'fade', face: 83, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x8c1d2c, bottom: 0x1e2229, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } }, POWERBIKE.salesman, true, 1);
+  salesmanActor = makeCharacter({ body: 'm', skin: 0x4a2c17, build: 1, wear: { outfit: 'shirt', hair: 'fade', face: 83, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x8c1d2c, bottom: 0x1e2229, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } }, POWERBIKE.salesman, true, 1);
   salesmanActor.group.visible = false;
   scene.add(salesmanActor.group);
+  }]);
   const HALL_ROOM = Object.freeze({ x0: POWERBIKE.hall.x0, z0: POWERBIKE.hall.z0, x1: POWERBIKE.hall.x1, z1: POWERBIKE.hall.z1, top: POWERBIKE.hall.ceiling });
   const HALL_VIEW = Object.freeze({ pitch: 0.04, maxPitch: 1.05, dist: 7.5 });
   const HALL_SIGHT = 60;            // metres of the town drawn while the player is in the hall (what its glass front shows)
@@ -930,26 +974,32 @@ function start(carried) {
   // twenty cars stand; the mat inside the doors, which takes them out again; Tochi and Oluchi, who sell the cars, each
   // looking after one side of the floor (salesman.js); and asking one of them about a car, which is the market's own
   // conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
-  const carshowView = buildCarshow(scene, { lite: LITE, renderer, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
-  // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
-  // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
-  const supplied = createSupplied(scene, { lite: LITE, maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
-  // The owner's houses and towers (render-town-buildings.js), in place of the town's plain houses and on the city side
-  const townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
+  let carshowView = null, supplied = null, townBuildings = null;
+  townSteps.push(['the car showroom', () => { carshowView = buildCarshow(scene, { lite: LITE, renderer, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }) }); }]);
+  townSteps.push(['the owner\'s buildings and vehicles', () => {
+    // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
+    // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
+    supplied = createSupplied(scene, { lite: LITE, maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
+    // The owner's houses and towers (render-town-buildings.js), in place of the town's plain houses and on the city side
+    townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
+  }]);
   // two of the game's own figures, dressed for the showroom floor: a white shirt and a navy tie; a white blouse and a
   // navy skirt
   const CAR_STAFF_LOOKS = Object.freeze({
     tochi: { body: 'm', skin: 0x5b3a22, build: 1, wear: { outfit: 'shirt', hair: 'low', face: 31, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x1d3557, bottom: 0x23262c, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } },
     oluchi: { body: 'f', skin: 0x6b4226, build: 1, wear: { outfit: 'shirt-skirt', hair: 'bun', face: 64, extras: ['watch'], colours: { top: 0xf5f6f8, bottom: 0x1d3557, shoe: 0x141210 } } },
   });
-  const carSalesmen = CARSHOW.salesmen.map((spec) => {
-    const actor = makeCharacter(CAR_STAFF_LOOKS[spec.id], spec.name, true, 1);
-    actor.group.visible = false;
-    scene.add(actor.group);
-    // each looks after the customers on their own side of the floor, and anyone asking about one of their cars
-    const mine = (c) => (c.talking ? carshowSideOf(c.talking) === spec.side : carshowSideAt(c.x) === spec.side);
-    return { spec, actor, sim: createSalesman({ floor: 'carshow', home: spec.home, round: spec.round, mine }), him: { amount: 0, speaking: 0 } };
-  });
+  let carSalesmen = [];
+  townSteps.push(['the car showroom\'s staff', () => {
+    carSalesmen = CARSHOW.salesmen.map((spec) => {
+      const actor = makeCharacter(CAR_STAFF_LOOKS[spec.id], spec.name, true, 1);
+      actor.group.visible = false;
+      scene.add(actor.group);
+      // each looks after the customers on their own side of the floor, and anyone asking about one of their cars
+      const mine = (c) => (c.talking ? carshowSideOf(c.talking) === spec.side : carshowSideAt(c.x) === spec.side);
+      return { spec, actor, sim: createSalesman({ floor: 'carshow', home: spec.home, round: spec.round, mine }), him: { amount: 0, speaking: 0 } };
+    });
+  }]);
   // who sells a car: the one whose side of the floor it stands on
   const sellerOf = (car) => carSalesmen.find((s) => s.spec.side === carshowSideOf(car)) || carSalesmen[0];
   const CAR_HALL_ROOM = Object.freeze({ x0: CARSHOW.hall.x0, z0: CARSHOW.hall.z0, x1: CARSHOW.hall.x1, z1: CARSHOW.hall.z1, top: CARSHOW.hall.ceiling });
@@ -1158,7 +1208,7 @@ function start(carried) {
     let facing = 'back', wait = 0;
     function draw(dt) {
       const canvas = document.getElementById('phone-cam');
-      if (!canvas || !me || contextLost) return;
+      if (!canvas || !me || pictureGone) return;
       wait -= dt;
       if (wait > 0) return;
       wait = LITE ? 1 / 9 : 1 / 14;
@@ -1256,6 +1306,8 @@ function start(carried) {
     dealSaid: (said) => dealSaid(said),
     realWeather: () => realWeather,
     realClock: REAL_CLOCK,
+    // (Settings, Measured on this device: the readout's lines, but for the frames, which it has of its own)
+    readout: () => statsLines(statsNow()).filter(([label]) => label !== 'Frames' && label !== 'Game'),
     perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
   });
   audio.setMuted(!prefs.sound);
@@ -1370,12 +1422,14 @@ function start(carried) {
   greetServer();
   window.addEventListener('online', () => { if (online.status().state === 'down') greetServer(); });
 
-  for (const r of ZONE_RESIDENTS) {
-    const actor = makeCharacter(r.look, r.name, false, 1);
-    actor.group.visible = false;
-    scene.add(actor.group);
-    residentActors.set(r.id, actor);
-  }
+  townSteps.push(['the townspeople', () => {
+    for (const r of ZONE_RESIDENTS) {
+      const actor = makeCharacter(r.look, r.name, false, 1);
+      actor.group.visible = false;
+      scene.add(actor.group);
+      residentActors.set(r.id, actor);
+    }
+  }]);
 
   function drawZone(zone) {
     parcelLayer.update(zone.parcels);
@@ -1589,6 +1643,8 @@ function start(carried) {
     saved: prefs.look || {},
     // someone with a character here is going into town, not choosing one: the screen's own view waits until it is shown
     lazy: !!playerId,
+    // (and nothing of it is made or fetched while the opening is in front of it)
+    held: () => { const opening = document.getElementById('intro'); return !!opening && !opening.hidden; },
     onPick: (look) => { prefs.look = look; writeStored(PREFS_KEY, prefs); },
     onView: (figure) => drawGallery(figure),
   });
@@ -1652,7 +1708,7 @@ function start(carried) {
     if (fresh) { host = newHost(); playerId = null; view = null; known.clear(); if (me) { scene.remove(me.group); me = null; } }
     for (const mesh of markers.values()) scene.remove(mesh);
     markers.clear();
-    drawSpectator();
+    if (townBuilt) drawSpectator();
     drawStart();
   }
 
@@ -1706,7 +1762,12 @@ function start(carried) {
     if (playing || gallery) return;
     if (!intro || (intro.active() && !intro.asking())) return;         // the opening is still on the screen
     if (!accountUI.mayPlay()) { if (!$('start').hidden) drawStart(); return; }  // the website, signed out: the start screen is shut (account-ui.js)
-    if (playerId) { if (isReady && !exited) enterWorld(); else drawStart(); return; }
+    if (playerId) {
+      if (exited || isReady) { if (isReady && !exited) enterWorld(); else drawStart(); return; }
+      drawStart();
+      prepareTown().then(() => route());
+      return;
+    }
     if (expectsCharacter()) { drawStart(); return; }
     // nobody's character is here: a new journey. The one question is asked first, if it has never been answered
     if (!knownPath()) {
@@ -1725,11 +1786,16 @@ function start(carried) {
     me = makeCharacter(view.self.look, null, true);
     scene.add(me.group);
     skillsFor(me);
+    // (the player's own figure: once it is drawn, the device keeps its files, so that the game opens without a connection)
+    const own = me;
+    if (own.animated && own.loaded) own.loaded.then(() => { if (me === own) webapp.keepFigure(own.animated); }, () => {});
   }
 
   function enterWorld() {
     gallery = false;
     exited = false; exitNote = '';
+    // (the turntable may have had the canvas to itself: the town's size and sharpness again)
+    applyQuality(quality.level);
     wearCharacter();
     predicted = { x: view.self.x, z: view.self.z, heading: view.self.heading };
     car.speed = 0;
@@ -1785,6 +1851,8 @@ function start(carried) {
         if (!sure) return;
         figure = accountFigure() || picked;
       }
+      // the town is built now, behind the loading card, for the character just chosen
+      await prepareTown();
       const fresh = newHost();
       const id = fresh.game.join({ name, path: knownPath() || pathChosen, look: { ...creator.look(), figure, body: FIGURES[figure].gender } });
       host = fresh; playerId = id;
@@ -1948,7 +2016,7 @@ function start(carried) {
 
   const pointers = new Map();
   let pinch = 0;
-  canvas.addEventListener('pointerdown', (event) => { canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (contextLost) askReload(); else if (playing && prefs.sound) audio.start(); });
+  canvas.addEventListener('pointerdown', (event) => { canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (playing && prefs.sound && !pictureGone) audio.start(); });
   canvas.addEventListener('pointermove', (event) => {
     const p = pointers.get(event.pointerId);
     if (!p) return;
@@ -2719,6 +2787,7 @@ function start(carried) {
   const PIXEL_RATIO = LITE ? [1.25, 1.25, 1.25, 1] : [2, 1, 1, 0.75];
   const SHADOW_MAP = LITE ? [1024, 1024, 1024, 1024] : [2048, 2048, 1024, 1024];
   function applyQuality(level) {
+    if (!townBuilt) return;          // (applied when the town is built)
     world.setQuality(level);
     town.setQuality(level);
     renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PIXEL_RATIO[level]));
@@ -2785,14 +2854,26 @@ function start(carried) {
     return crowd.anchor(key, known);
   }
 
-  // The start screen is also the loading screen: while it is up, everything
-  // that is slow the first time is done (see warmup.js). Entering waits for it.
+  // Warming up (warmup.js), in town: one piece of the vehicle kit unpacked a frame, then the town's meshes, a few a
+  // frame. What has to be done all at once (the programs the town needs) is done behind the loading card, when the
+  // town is built (prepareTown).
   function warmStep() {
+    if (warm.stage !== 4) return;
     warm.frames += 1;
     try {
-      // the character on the start screen comes first: the warming up waits until it is drawn (or six seconds)
-      const figureUp = !creator || !creator.rig || !creator.rig.animated || !!creator.rig.mixer;
-      if (warm.stage === 0 && warm.frames >= 3 && (figureUp || clock > 6)) {
+      if (!warm.jobs) warm.jobs = vehicleWarmJobs();
+      if (warm.jobs.length) warmUp.add(warm.jobs.pop()());
+      if (!warmUp.step() && !warm.jobs.length) warm.stage = 5;
+    } catch (error) {
+      // warming up is a kindness, not a need: without it the town still draws, with a hitch here and there
+      warm.stage = 5;
+    }
+  }
+  // The programs every material in the town needs, with the sun's shadow (`half` 1) and without it (2), compiled
+  // behind the loading card so that nothing is compiled in the middle of play.
+  function warmPrograms(half) {
+    try {
+      if (half === 1) {
         // one of each thing otherwise first made in play: a figure that casts a shadow and carries a name, and the markers
         const figure = makeCharacter({ skin: SKINS[2], top: TOPS[0], bottom: 0x2c3440, build: 1, body: 'm' }, 'Name', true);
         figure.label.visible = true; figure.label.material.opacity = 1;
@@ -2803,38 +2884,96 @@ function start(carried) {
         warm.extras = [figure.group, ring, column];
         warm.figure = figure;
         for (const o of warm.extras) scene.add(o);
-        warm.stage = 1;
-      } else if (warm.stage === 1) {
         monitor.note('programs compiled ahead', warmUp.compile(camera));
-        warm.stage = 2;
-      } else if (warm.stage === 2) {
+      } else {
         monitor.note('programs compiled ahead', warmUp.compileWithout(sky.sun, camera));
-        warm.stage = 3;
-      } else if (warm.stage === 3) {
         for (const o of warm.extras) scene.remove(o);
-        warm.figure.dispose(); warm.extras[1].geometry.dispose(); warm.extras[2].geometry.dispose();
-        warm.extras = [];
+        if (warm.figure) { warm.figure.dispose(); warm.extras[1].geometry.dispose(); warm.extras[2].geometry.dispose(); }
+        warm.extras = []; warm.figure = null;
         warmUp.pin();
-        warm.stage = 4;
-        ready();
-      } else if (warm.stage === 4) {
-        // one piece of the vehicle kit unpacked a frame, then the town's meshes, a few a frame
-        if (!warm.jobs) warm.jobs = vehicleWarmJobs();
-        if (warm.jobs.length) warmUp.add(warm.jobs.pop()());
-        if (!warmUp.step() && !warm.jobs.length) warm.stage = 5;
       }
     } catch (error) {
-      // warming up is a kindness, not a need: without it the town still draws, with a hitch here and there
       for (const o of warm.extras) scene.remove(o);
-      warm.extras = [];
-      warm.stage = 5;
-      ready();
+      warm.extras = []; warm.figure = null;
     }
   }
   let isReady = false;
-  function ready() { isReady = true; $('enter').disabled = false; $('enter').textContent = `Enter ${ZONE.name}`; route(); }
-  $('enter').disabled = true; $('enter').textContent = 'Preparing the town…';
-  if (NO_DRAW) ready();
+  // The kits the town is built from (packs.js): asked for once the player is choosing a character, quietly, behind the
+  // figure being looked at, so that they are here by the time Enter is pressed. Someone who has a character asks for
+  // them when the town is prepared.
+  let packsAsked = false;
+  function askPacks() { if (packsAsked) return; packsAsked = true; loadPack('kit').catch(() => {}); loadPack('vehicles').catch(() => {}); }
+  const loading = createLoadingCard();
+  // after the browser has drawn what is on the screen (the loading card, as it now stands)
+  const painted = () => new Promise((resolve) => requestAnimationFrame(() => setTimeout(resolve, 0)));
+  let preparing = null;
+  // The townspeople's reactions (character.js): on the website a file of their own (build.mjs), fetched with the town.
+  let reactionsJob = null;
+  function loadReactions() {
+    const address = window.__PCW_FILES && window.__PCW_FILES.reactions;
+    if (!address || Object.keys(REACTIONS).length) return Promise.resolve();
+    if (!reactionsJob) {
+      reactionsJob = fetch(address, { credentials: 'same-origin' }).then((r) => { if (!r.ok) throw new Error(`${address}: ${r.status}`); return r.json(); }).then((all) => { Object.assign(REACTIONS, all); });
+      reactionsJob.catch(() => { reactionsJob = null; });
+    }
+    return reactionsJob;
+  }
+  // The town, built for the player going into it (townSteps): the kits fetched, if they have not come already; the
+  // pieces of the town built, one a frame, behind the loading card, its line moving as they are; and the programs it
+  // needs compiled. Done once; asked for again while it is under way, it is the same doing. Nothing here gives up: if
+  // the kits do not come, the player is told so and can try again, and the promise is kept only once the town is built.
+  function prepareTown() {
+    if (isReady) return Promise.resolve();
+    if (preparing) return preparing;
+    preparing = (async () => {
+      const kits = ['kit', 'vehicles'];
+      loading.show(`Entering ${ZONE.name}`, 'Fetching the town');
+      askPacks();
+      for (;;) {
+        const all = Promise.all([...kits.map((k) => loadPack(k)), loadReactions()]);
+        let settled = false;
+        all.then(() => { settled = true; }, () => { settled = true; });
+        while (!settled) {
+          const p = kits.map((k) => packProgress(k));
+          const got = p.reduce((n, x) => n + x.got, 0), of = p.reduce((n, x) => n + x.of, 0);
+          loading.progress(of ? (0.35 * got) / of : 0);
+          await new Promise((resolve) => setTimeout(resolve, 120));
+        }
+        try { await all; break; } catch (error) {
+          await new Promise((resolve) => loading.trouble('The town did not arrive', 'Check your connection, then try again.', 'Try again', () => { loading.show(`Entering ${ZONE.name}`, 'Fetching the town'); resolve(); }));
+        }
+      }
+      const steps = townSteps.splice(0);
+      try {
+        for (let i = 0; i < steps.length; i += 1) {
+          loading.progress(0.35 + (0.5 * i) / steps.length, `Building the town: ${steps[i][0]}`);
+          await painted();
+          steps[i][1]();
+        }
+        townBuilt = true;
+        resize();
+        applyQuality(quality.level);
+        if (!NO_DRAW) {
+          loading.progress(0.88, 'Getting the picture ready');
+          await painted();
+          warmPrograms(1);
+          loading.progress(0.95);
+          await painted();
+          warmPrograms(2);
+        }
+        warm.stage = 4;
+        isReady = true;
+        loading.progress(1);
+        await painted();
+        loading.hide();
+      } catch (error) {
+        console.error('PostCivilWar: the town could not be built', error);
+        // (a step that failed half way cannot be done again in this page: the game is loaded afresh, by the player)
+        await new Promise(() => loading.trouble('Something went wrong', 'The town could not be put together on this device just now. Your game is saved.', 'Continue', () => location.reload()));
+      }
+    })();
+    return preparing;
+  }
 
   // The hospital's ambulance: one van that the simulation drives about town.
   const camGoal = new THREE.Vector3();
@@ -2880,9 +3019,12 @@ function start(carried) {
   // browser gave, the device's graphics), so that it can be photographed and sent; reloading the page is offered, and
   // is theirs to choose (the game never reloads itself).
   let townWanted = false;
-  const watch = watchPicture({ renderer, camera, canvas, reload: () => location.reload(), lost: () => contextLost, errors: () => frameErrors });
+  // (what it finds wrong is said on the loading card, plainly, with Continue; what it found in detail is in the readout)
+  const watch = watchPicture({ renderer, camera, canvas, lost: () => pictureGone, errors: () => frameErrors, tell: (trouble) => { if (trouble) loading.trouble('The picture stopped', 'Your game is saved where you are. Continue to carry on from there.', 'Continue', carryOnAfresh); else if (loading.kind === 'trouble' && !pictureGone) loading.hide(); } });
   function frame(now) {
     requestAnimationFrame(frame);
+    // (the kits the town is built from, asked for once a figure is on the character screen: see askPacks)
+    if (!packsAsked && creator.rig && creator.rig.mixer && !$('start').hidden) askPacks();
     try { drawFrame(now); } catch (error) {
       frameErrors += 1;
       // (a frame that failed part way through a picture drawn elsewhere, the phone's or the warm-up's, must not leave
@@ -2900,6 +3042,8 @@ function start(carried) {
     const frameDt = Math.min(0.5, Math.max(0.001, elapsed)), dt = frameDt * timeScale;
     last = now;
     clock += dt;
+    // (until the town is built there is nothing of it to move or draw: the opening and the start screen are the page's)
+    if (!townBuilt) return;
     monitor.begin();
     perf.fps += (1 / frameDt - perf.fps) * Math.min(1, frameDt * 2);
     let hour = 7.4;
@@ -3312,7 +3456,7 @@ blood.update(dt, view.blood || []);
     monitor.mark('drawing');
     // behind the opening nothing of the town can be seen: once it is warmed up, it is not drawn at all
     // the start screen covers the town entirely: once it is warmed, it is not drawn behind it for nobody
-    const covered = !playing && startEl && !startEl.hidden && warm.stage >= 5;
+    const covered = !playing && startEl && !startEl.hidden;
     // The phone held up covers the right of the screen: the picture is moved over so the character is not behind it.
     phoneShift += ((playing ? ui.phoneWidth() : 0) / 2 - phoneShift) * Math.min(1, dt * 7);
     if (phoneShift > 0.5) camera.setViewOffset(viewW, viewH, phoneShift, 0, viewW, viewH); else if (camera.view && camera.view.enabled) camera.clearViewOffset();
@@ -3321,8 +3465,11 @@ blood.update(dt, view.blood || []);
     if (playing && !NO_DRAW && ui.phoneScreen() === 'camera') monitor.time('phone camera', () => phoneCam.draw(dt));
     // (nothing is drawn once the browser has taken the graphics away: what the graphics card held is gone, and the
     // page let its own copies go once the card had them, so the picture cannot be made again without a reload)
-    townWanted = playing && !NO_DRAW && !covered && !paged && !(intro.active() && warm.stage >= 5);
-    if (!NO_DRAW && !covered && !paged && !contextLost && !(intro.active() && warm.stage >= 5)) { renderer.render(scene, camera); watch.drawn(now); }
+    // (the character screen draws on the town's canvas, put in its turntable's box: back where it lives, and the town's
+    // size again, the moment the start screen is gone: shared-view.js)
+    if (!covered && canvasAway()) { canvasHome(); if (townBuilt) applyQuality(quality.level); else resize(); }
+    townWanted = playing && !NO_DRAW && !covered && !paged && !intro.active();
+    if (!NO_DRAW && !covered && !paged && !pictureGone && !intro.active()) { renderer.render(scene, camera); watch.drawn(now); }
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame
@@ -3338,54 +3485,109 @@ blood.update(dt, view.blood || []);
     if (clock > 4 && !document.hidden) governor.frame(elapsed * 1000, dt);
   }
 
-  // The picture taken away (18 October 2026, the owner's brief: the game froze, closed or restarted on phones). A
-  // browser short of graphics memory, most often a phone's, may take a page's drawing away from it (its WebGL context
-  // is lost); until now the game simply stopped there. Now the game is saved at once, the town's sounds stop, and the
-  // player is told what happened and offered to reload the page to carry on: that is theirs to choose (the game never
-  // reloads itself). The pictures the graphics card held cannot be made again in place (once the card has a picture
-  // the page lets its own copy go, to save memory), so carrying on needs the page loaded afresh. Each time it happens
-  // is counted (`contextLost`) for the frame monitor and the tests.
+  // The picture taken away (18 October 2026, and again 20 October: "players must never see a notice like 'The picture
+  // was lost'"). A browser short of graphics memory, most often a phone's, may take a page's drawing surface (its WebGL
+  // context) away, and give it back a moment later. The game is saved at once, and a calm card says only that the
+  // picture is coming back. When the browser gives it back, everything the graphics card held is handed to it again
+  // where the game still has it, and made again where it let its own copy go (the town's numbers kept aside:
+  // render-kit.js; every picture from its file: glb.js; the vehicles' sky: vehicle-models.js), and the game carries
+  // on where it was, nothing reloaded. Only if the browser has not given it back within five seconds is the player
+  // given one thing to press, Continue, which opens the game afresh straight into the town where they were (the
+  // game never reloads itself: the player chooses). Each time it is taken is counted (`contextLost`).
   let contextLost = 0;
-  // (asked again whenever the player comes back to the page while the picture is still lost, having said "Not now")
-  const askReload = () => confirm.ask({ title: 'The picture was lost', body: 'This device ran short of memory for the game\'s graphics, and the browser stopped drawing it. Your game is saved. Reload the page to carry on playing; it will start where you were.', confirm: 'Reload the page', cancel: 'Not now', urgent: true, run: async () => { location.reload(); return { ok: true }; } });
+  let pictureGone = false;            // taken away and not given back yet: nothing is drawn meanwhile
+  let lostTimer = 0;
+  const carryOnAfresh = () => {
+    if (playing) { try { writeStored(SAVE_KEY, { host: host.save(), playerId }); } catch (error) { /* saved as far as it could be */ } }
+    // (the game opened afresh goes straight into the town, past the opening: intro.js)
+    try { sessionStorage.setItem('pcw-carry-on', String(Date.now())); } catch (error) { /* a browser that keeps nothing: the opening is shown */ }
+    location.reload();
+  };
+  const goneTrouble = () => loading.trouble('The picture stopped', 'Your game is saved where you are. Continue to carry on from there.', 'Continue', carryOnAfresh);
   canvas.addEventListener('webglcontextlost', (event) => {
-    event.preventDefault();
+    event.preventDefault();          // (so that the browser gives it back)
     contextLost += 1;
+    pictureGone = true;
+    graphics.lost();
     monitor.count('graphics context lost');
     if (playing) { try { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } catch (error) { /* saved as far as it could be */ } }
-    audio.suspend();
-    askReload();
+    loading.show('One moment', 'Bringing the picture back');
+    clearTimeout(lostTimer);
+    lostTimer = setTimeout(() => { if (pictureGone) goneTrouble(); }, 5000);
   }, false);
-  canvas.addEventListener('webglcontextrestored', () => { monitor.count('graphics context restored'); }, false);
-  // (with the picture lost, the town's sounds stay off when the page is shown again, and the reload is offered again)
-  document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound && !contextLost) audio.start(); if (!document.hidden && contextLost) askReload(); last = performance.now(); monitor.pause(); });
+  canvas.addEventListener('webglcontextrestored', async () => {
+    monitor.count('graphics context restored');
+    clearTimeout(lostTimer);
+    if (!loading.open || loading.kind !== 'wait') loading.show('One moment', 'Bringing the picture back');
+    try {
+      // (three.js has made itself ready again already: its own listener comes first; the programs are compiled again
+      // as each is first drawn)
+      const numbers = await restoreGeometry();
+      loading.progress(0.4);
+      const pictures = await restorePictures();
+      loading.progress(0.85);
+      const reflections = townBuilt ? renewEnvironment(renderer, scene) : 0;
+      const views = renewViews();
+      warmUp.restart();
+      restored = { at: Math.round(performance.now()), numbers, pictures, reflections, views };
+      restoredTimes += 1;
+      pictureGone = false;
+      loading.progress(1);
+      await painted();
+      if (!preparing || isReady) loading.hide();
+    } catch (error) {
+      console.error('PostCivilWar: the picture could not be brought back', error);
+      goneTrouble();
+    }
+  }, false);
+  let restored = null;                // what the last giving back did (for the checks and the readout)
+  let restoredTimes = 0;
+
+  // Over the budget for the graphics card (budget.js): everything kept ready but not being drawn is let go (figures
+  // looked at on the character screen, motorcycles and cars no longer in sight). Looked at every two seconds.
+  setInterval(() => {
+    if (pictureGone || graphics.unwatched || (graphics.pictures + graphics.buffers) / 1048576 <= graphicsBudgetMB) return;
+    const freed = dropUnusedFigures() + trimBikes() + trimCars();
+    if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); }
+  }, 2000);
+
+  // The readout (stats.js): the address ending in #stats shows it in a corner of every screen; Settings shows the same.
+  const build = (() => { try { const src = (document.querySelector('script[src*="game.js"]') || {}).src; return src ? `game ${new URL(src).searchParams.get('v') || ''}`.trim() : 'one page'; } catch (error) { return 'one page'; } })();
+  const screenName = () => (!intro || intro.active() ? 'the opening' : loading.open ? `the loading card: ${document.getElementById('loading-title').textContent}` : playing ? 'the town' : $('start') && !$('start').hidden ? (($('start').dataset.screen === 'create' ? 'the character screen' : `the start screen (${$('start').dataset.screen || ''})`)) : 'between screens');
+  const heapNow = () => { try { const m = performance.memory; return m && m.usedJSHeapSize ? { used: m.usedJSHeapSize, limit: m.jsHeapSizeLimit } : null; } catch (error) { return null; } };
+  const frameTimes = HASH.includes('stats') ? frameClock().start() : null;
+  const statsNow = () => ({ build, screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
+  // (the readout never holds the game up: anything it cannot say this second, it says the next)
+  if (frameTimes) { const box = showStats(); const draw = () => { try { box.update(statsLines(statsNow())); } catch (error) { /* said next second */ } }; setTimeout(draw, 0); setInterval(draw, 1000); }
+  // (the town's sounds stop while the page is out of sight, and start again when it is back)
+  document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {
     window.claude.hot.snapshot(() => (playing ? { host: host.save(), playerId } : {}));
   }
   // Debug handle for automated play-testing. It reaches into the simulation
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
-    heldModels, carsHeld, bikesHeld,
-    supplied, townBuildings, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
+    heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
+    get supplied() { return supplied; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, crowd, audio, ownBikeView, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), peerBikeView, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, headlight, server, prompt: () => findPrompt(), town, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
-    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, world, warmUp, get ready() { return isReady; },
+    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
-    phoneHold, camera,
+    get phoneHold() { return phoneHold; }, camera,
     // PostCivilWar PowerBike: the building, the salesman, and asking about a motorcycle
-    powerbike, salesman, salesmanActor, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),
+    get powerbike() { return powerbike; }, salesman, get salesmanActor() { return salesmanActor; }, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),
     // the Post Civil War Car Showroom: the compound and its hall, the two who sell the cars, and asking about one; the
     // player's own cars and driving them
-    carshowView, carSalesmen, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
-    carView, carState, standins, peerPhones, get contextLost() { return contextLost; }, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
+    get carshowView() { return carshowView; }, get carSalesmen() { return carSalesmen; }, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
+    get carView() { return carView; }, carState, get standins() { return standins; }, peerPhones, get contextLost() { return contextLost; }, get pictureGone() { return pictureGone; }, get restored() { return restored; }, loading, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },
@@ -3393,7 +3595,7 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)
-    get beyond() { return outskirts.ready; }, closures, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(),
+    get beyond() { return outskirts.ready; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(),
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
@@ -3433,6 +3635,9 @@ blood.update(dt, view.blood || []);
     sound: { on: () => !!prefs.sound, toggle: () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); writeStored(PREFS_KEY, prefs); } },
     ask: () => !online.available && !knownPath(),
     onDone: (path) => { if (path) choosePath(path); setTimeout(route, 0); },
+    // the cover is up, and PLAY with it: the figure the character screen opens on is fetched now, quietly, into the
+    // browser's cache, while the player looks at the cover (never before: the opening comes first)
+    onCover: () => { if (!playerId) warmFigures([creator.figure()]); },
   });
   window.__nlw.intro = intro;
   requestAnimationFrame(frame);
@@ -3447,23 +3652,8 @@ if (typeof THREE === 'undefined') {
   if (opening) opening.remove();
 } else {
   const begin = () => { if (window.claude && window.claude.hot && typeof window.claude.hot.ready === 'function') window.claude.hot.ready(start); else start((window.claude && window.claude.hot && window.claude.hot.data) || {}); };
-  // Building the town holds the page for a moment. The brand is drawing itself on screen just then, so the
-  // town waits until it has: the opening is ten seconds long, and the town is ready well inside that.
-  const shown = typeof window.__introAt === 'number' ? performance.now() - window.__introAt : Infinity;
-  const whenShown = () => { const now = typeof window.__introAt === 'number' ? performance.now() - window.__introAt : Infinity; if (NO_INTRO || !document.getElementById('intro') || now > 1900) begin(); else setTimeout(begin, 1900 - now); };
-  // On the website the character and vehicle kits come as files of their own (begun by the page's first
-  // script): the town is built once both are here. Without them nothing can be drawn, and the player is told.
-  const packs = window.__PCW_PACKS;
-  if (!packs) { if (NO_INTRO || !document.getElementById('intro') || shown > 1900) begin(); else setTimeout(begin, 1900 - shown); }
-  else {
-    Promise.all(Object.keys(packs).map((name) => packs[name].then((buf) => [name, new Uint8Array(buf)])))
-      .then((pairs) => { window.__PCW_PACK_BYTES = Object.fromEntries(pairs); whenShown(); })
-      .catch(() => {
-        $('start-error').hidden = false;
-        $('start-error').textContent = 'Some of the game\'s files did not arrive, so the town cannot be built. Check the connection and reload the page.';
-        $('enter').disabled = true;
-        const opening = document.getElementById('intro');
-        if (opening) opening.remove();
-      });
-  }
+  // The game starts the moment its script is here (20 October 2026): the town is built only when the player goes into
+  // it (prepareTown), and what it is built from is fetched only when it is wanted (packs.js), so nothing holds the
+  // opening up. The brand has its moment on the screen (intro.js), and PLAY follows it.
+  begin();
 }

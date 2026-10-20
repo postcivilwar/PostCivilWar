@@ -24,8 +24,10 @@ if (!existsSync(resolve(site, 'sw.js'))) { console.error('dist/site/ is not buil
 if (!process.env.PCW_DATABASE_URL) { console.error('PCW_DATABASE_URL is not set: run this with ../server/with-postgres.sh'); process.exit(2); }
 const game = require('../../api/game.js');      // the very function the host runs
 
-// ---- the host, in small: each file with its type, a fingerprint to ask again by, and the host's caching rules ----
-const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json' };
+// ---- the host, in small: each file with its type, a fingerprint to ask again by, and the host's caching rules
+// (vercel.json: the files the page asks for by their fingerprint are kept by the browser for a year) ----
+const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'application/javascript; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webmanifest': 'application/manifest+json', '.webp': 'image/webp', '.jpg': 'image/jpeg', '.json': 'application/json', '.gz': 'application/gzip', '.glb': 'model/gltf-binary' };
+const cacheRule = (name) => (/^(reactions\.json|three\.min\.js|game\.js|.*\.bin\.gz|cover\/.*|figures\/.*)$/.test(name) ? 'public, max-age=31536000, immutable' : name.startsWith('assets/') ? 'public, max-age=604800' : 'public, max-age=0, must-revalidate');
 const overrides = new Map();          // a file changed on the server, as a new build would
 const sent = [];                      // every answer: [path, status, bytes]
 let serverUp = true;
@@ -39,7 +41,7 @@ const server = createServer((req, res) => {
   if (name.includes('..') || !(overrides.has(name) || existsSync(file))) { sent.push([path, 404, 0]); res.writeHead(404, { 'content-type': 'text/plain' }); res.end('not found'); return; }
   const body = overrides.has(name) ? Buffer.from(overrides.get(name)) : readFileSync(file);
   const etag = `"${createHash('sha1').update(body).digest('hex')}"`;
-  const headers = { 'content-type': TYPES[extname(name)] || 'application/octet-stream', etag, 'cache-control': name.endsWith('.b64.txt') ? 'public, max-age=3600' : 'public, max-age=0, must-revalidate' };
+  const headers = { 'content-type': TYPES[extname(name)] || 'application/octet-stream', etag, 'cache-control': cacheRule(name) };
   if (req.headers['if-none-match'] === etag) { sent.push([path, 304, 0]); res.writeHead(304, headers); res.end(); return; }
   sent.push([path, 200, body.length]);
   res.writeHead(200, headers); res.end(body);
@@ -86,9 +88,13 @@ const goOffline = async () => {
   await page.waitForFunction(() => navigator.onLine === false, null, { timeout: 10000 }).catch(() => {});
   offline = true; cutting = false;
 };
-// the game's own word that the town is made and can be entered (the button exists before the game has started)
+// the game's own word that the town is made (since 20 October 2026 it is built once the player goes into it)
 const townReady = () => page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
-const figureHere = (id) => page.evaluate((which) => Promise.resolve(window.__PCW_FIGURE_BYTES[which]).then((b) => b.byteLength, (e) => `failed: ${e.message}`), id);
+// a figure's light copy (build.mjs): the files a phone fetches for it, beside the page, and how many bytes they are
+const lightOf = (id) => page.evaluate((which) => { const f = window.__PCW_FIGURES.figures[which]; const bare = (u) => u.split('?')[0]; const pictures = f.pictures.map((p) => { const sizes = Object.keys(p.sizes).map(Number).sort((a, b) => a - b); return p.sizes[sizes.filter((n) => n <= 1024).pop() || sizes[0]]; }); return { files: [bare(f.model), ...pictures.map(([u]) => bare(u)), bare(f.moves[0])], bytes: f.bytes + pictures.reduce((n, [, b]) => n + b, 0) }; }, id);
+// has the figure arrived, whole, on this page: what the game's own record of each figure it fetched says
+const figureHere = (id) => page.waitForFunction((which) => (window.__nlw.figureLog() || []).find((r) => r.id === which && (r.readyMs !== undefined || r.failed)), id, { timeout: 300000 }).then((h) => h.jsonValue(), () => null);
+const figureOfFile = (path) => { const m = /^\/figures\/([^.]+)\./.exec(path); return m ? m[1] : null; };
 const keptByWorker = () => page.evaluate(() => new Promise((resolve) => {
   navigator.serviceWorker.ready.then((r) => { const c = new MessageChannel(); c.port1.onmessage = (e) => resolve(e.data.paths.slice().sort()); r.active.postMessage({ type: 'kept' }, [c.port2]); });
   setTimeout(() => resolve(null), 8000);
@@ -111,16 +117,22 @@ if (doc.three !== 'object' || doc.revision !== '128') bad(`the 3D library: ${doc
 if (doc.scripts.some((s) => !s.startsWith(origin))) bad(`a script from another site: ${doc.scripts}`);
 if (doc.framed) bad('the page thinks it is in a frame');
 if (doc.overscroll !== 'none') bad(`pulling down would reload the page (${doc.overscroll})`);
-await townReady();
-const first = await figureHere('W1');
-if (first !== 9852308) bad(`the woman arrived as ${first} bytes, not the 9,852,308 that were supplied`);
-const kept1 = await waitKept('woman.b64.txt');
+// the first figure, the woman (W1), as her light copy (a phone's: her pictures at 1024): fetched ahead once the cover
+// is up, and kept; she is drawn once the player is past the account gate (below)
+const woman = await lightOf('W1');
+if (woman.bytes > 3 * 1048576) bad(`the woman's light copy is ${woman.bytes} bytes`);
+const coverFiles = await page.evaluate(() => [...document.querySelectorAll('link[rel="preload"][as="image"]')].map((l) => l.getAttribute('href').split('?')[0]));
+const kept1 = await waitKept(woman.files[0]);
 say(`   kept after the first visit: ${JSON.stringify(kept1)}`);
-for (const need of ['', 'three.min.js', 'woman.b64.txt', 'manifest.webmanifest', 'icon-192.png']) if (!kept1 || !kept1.includes(need)) bad(`not kept after the first visit: ${need || 'the page'}`);
-if (kept1 && kept1.includes('man.b64.txt')) bad('the man was kept though he was never used');
-if (bytesOf('/man.b64.txt')) bad('the man was fetched though he was never used');
-// nothing large was sent twice: the worker asked again and was told it had not changed
-for (const path of ['/', '/three.min.js', '/woman.b64.txt']) if (bytesOf(path) !== 1) bad(`${path} was sent in full ${bytesOf(path)} times on a first visit`);
+for (const need of ['', 'three.min.js', 'game.js', 'manifest.webmanifest', 'icon-192.png', ...coverFiles, ...woman.files]) if (!kept1 || !kept1.includes(need)) bad(`not kept after the first visit: ${need || 'the page'}`);
+// the figures either side of her are fetched ahead (the brief: "prefetch the next and previous figures") but not kept;
+// no other figure is fetched at all
+const fetchedFigures = [...new Set(sent.filter(([p, st]) => st === 200 && figureOfFile(p)).map(([p]) => figureOfFile(p)))];
+const womanStem = woman.files[0].split('/')[1].split('.')[0];
+if (!fetchedFigures.includes(womanStem) || fetchedFigures.length > 3) bad(`figures fetched on the first visit: ${fetchedFigures.join(', ')}`);
+if (kept1 && kept1.some((k) => k.startsWith('figures/') && !woman.files.includes(k))) bad(`a figure was kept though it is not hers: ${kept1.filter((k) => k.startsWith('figures/') && !woman.files.includes(k))}`);
+// nothing was sent twice: the worker keeps what the page fetched, as the page fetched it
+for (const path of ['/', '/three.min.js', '/game.js', ...coverFiles.map((f) => `/${f}`), ...woman.files.map((f) => `/${f}`)]) if (bytesOf(path) !== 1) bad(`${path} was sent in full ${bytesOf(path)} times on a first visit`);
 await page.screenshot({ path: resolve(out, 'webapp-01-first-visit.png') });
 
 // ---- 2. would the browser install it ----
@@ -155,10 +167,18 @@ await page.waitForFunction(() => window.__nlw.online.status().state === 'in', nu
 await page.waitForSelector('#account', { state: 'hidden' });
 // a new account: hero or villain, once; then the character, once, and asked to be sure
 await pastQuestion(page, 'hero');
+const first = await figureHere('W1');
+if (!first || first.failed || first.bytes !== woman.bytes) bad(`the woman arrived as ${JSON.stringify(first)}, not the ${woman.bytes} bytes of her light copy`);
+for (const path of woman.files.map((f) => `/${f}`)) if (bytesOf(path) !== 1) bad(`${path} was sent in full ${bytesOf(path)} times (she was fetched ahead and kept: drawing her fetches nothing again)`);
 await page.fill('#name', 'Adaeze Okeke');
 const sure = await enterTown(page, { tap: true });
 if (sure.title !== 'Choose Adaeze?' || sure.yes !== 'Choose This Character') bad(`choosing a character asked ${JSON.stringify(sure)}`);
-await page.waitForFunction(() => window.__nlw && window.__nlw.view && window.__nlw.view.self && !document.querySelector('#hud').hidden, null, { timeout: 120000 });
+await page.waitForFunction(() => window.__nlw && window.__nlw.view && window.__nlw.view.self && !document.querySelector('#hud').hidden, null, { timeout: 300000 });
+await townReady();
+// the town is built from the two kits and the townspeople's reactions, files of their own beside the page, kept too
+const kept2 = await waitKept('reactions.json');
+for (const need of ['kit.bin.gz', 'vehicles.bin.gz', 'reactions.json']) if (!kept2 || !kept2.includes(need)) bad(`not kept once in town: ${need}`);
+for (const path of ['/kit.bin.gz', '/vehicles.bin.gz', '/reactions.json']) if (bytesOf(path) !== 1) bad(`${path} was sent in full ${bytesOf(path)} times`);
 await page.evaluate(() => window.__nlw.ui.openPhone('settings'));
 await page.waitForSelector('#ondevice');
 await page.waitForFunction(() => /Plays without a connection\s*Yes/.test(document.querySelector('#ondevice').textContent), null, { timeout: 30000 }).catch(() => {});
@@ -185,9 +205,6 @@ const before = sent.length;
 await page.goto(`${origin}/`, { timeout: 300000 }).catch((e) => bad(`with no connection the page did not open: ${e.message}`));
 await page.waitForSelector('#intro[data-stage="splash"] .wordmark', { timeout: 120000 }).catch(() => bad('with no connection the opening did not appear'));
 await page.screenshot({ path: resolve(out, 'webapp-04-offline-opening.png') });
-await townReady().catch(() => bad('with no connection the town was never ready'));
-const again = await figureHere('W1');
-if (again !== 9852308) bad(`with no connection the woman arrived as ${again}`);
 // someone who has signed in on this device may carry on with their own character; they are told how things stand
 await page.waitForFunction(() => window.__nlw.online.status().state === 'down', null, { timeout: 60000 }).catch(() => bad('with no connection the game does not notice the server is out of reach'));
 const back = await page.evaluate(() => ({ three: typeof THREE, gate: document.querySelector('#start').dataset.gate, may: window.__nlw.mayEnter(), note: document.querySelector('#account-note').hidden ? '' : document.querySelector('#account-note').textContent }));
@@ -198,7 +215,10 @@ await page.waitForSelector('#intro[data-stage="cover"] #cover-play', { timeout: 
 await page.screenshot({ path: resolve(out, 'webapp-05-offline-ready.png') });
 // PLAY: their own character, as they left it, straight into the town. Nothing to choose and nothing asked.
 await page.tap('#cover-play');
-await page.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 180000 }).catch(() => bad('with no connection the player was not taken into the town'));
+await page.waitForFunction(() => window.__nlw.view && window.__nlw.playerId && !document.querySelector('#hud').hidden, null, { timeout: 300000 }).catch(() => bad('with no connection the player was not taken into the town'));
+await townReady().catch(() => bad('with no connection the town was never ready'));
+const again = await figureHere('W1');
+if (!again || again.failed || again.bytes !== woman.bytes) bad(`with no connection the woman arrived as ${JSON.stringify(again)}`);
 const home = await page.evaluate(() => ({ name: window.__nlw.view ? window.__nlw.view.self.name : null, figure: window.__nlw.view ? window.__nlw.view.self.look.figure : null, start: !document.querySelector('#start').hidden, asked: window.__nlw.intro.log.path }));
 if (home.name !== 'Adaeze Okeke' || home.figure !== 'W1' || home.start || home.asked !== null) bad(`with no connection the player came back as ${JSON.stringify(home)}`);
 { const over = await page.evaluate(overTown); if (over) bad(`with no connection the player is in town, but ${over}`); }
@@ -212,12 +232,12 @@ const pageNow = readFileSync(resolve(site, 'index.html'), 'utf8');
 overrides.set('index.html', pageNow.replace('<title>PostCivilWar</title>', '<title>PostCivilWar</title><meta name="pcw-build" content="two">'));
 serverUp = true;
 await context.setOffline(false);
-const sentBefore = { three: bytesOf('/three.min.js'), woman: bytesOf('/woman.b64.txt') };
+const sentBefore = { three: bytesOf('/three.min.js'), game: bytesOf('/game.js'), woman: bytesOf(`/${woman.files[0]}`) };
 await page.goto(`${origin}/?again=1#nointro`, { timeout: 300000 });
 const build = await page.evaluate(() => (document.querySelector('meta[name=pcw-build]') || {}).content || null);
 if (build !== 'two') bad('with a connection the page was not the newest');
 await townReady();
-if (bytesOf('/three.min.js') !== sentBefore.three || bytesOf('/woman.b64.txt') !== sentBefore.woman) bad('a file that had not changed was sent again');
+if (bytesOf('/three.min.js') !== sentBefore.three || bytesOf('/game.js') !== sentBefore.game || bytesOf(`/${woman.files[0]}`) !== sentBefore.woman) bad('a file that had not changed was sent again');
 await page.waitForTimeout(1500);
 // and without one, the newest it has seen
 await goOffline();
@@ -231,7 +251,7 @@ await context.close();
 server.close();
 await require('../../api/_lib/db.js').closeDatabase();
 rmSync(profile, { recursive: true, force: true });
-say(`sent in full by the server: the page ${bytesOf('/')} times, the 3D library ${bytesOf('/three.min.js')}, the woman ${bytesOf('/woman.b64.txt')}, the man ${bytesOf('/man.b64.txt')}`);
+say(`sent in full by the server: the page ${bytesOf('/')} times, the 3D library ${bytesOf('/three.min.js')}, the game's script ${bytesOf('/game.js')}, the woman's model ${bytesOf(`/${woman.files[0]}`)}, the kits ${bytesOf('/kit.bin.gz')} and ${bytesOf('/vehicles.bin.gz')}`);
 if (cutLines > cutOff) bad(`the browser said ${cutLines} request(s) failed with no connection, ${cutLines - cutOff} more than were cut off as it went`);
 if (problems.length) { console.log(`\n${problems.length} problem(s):`); for (const p of problems) console.log(` - ${p}`); process.exit(1); }
 console.log('\nThe website installs, keeps itself, asks for an account, and then plays with no connection.');

@@ -19,10 +19,11 @@ import { loadBike } from './bike-model.js';
 import { CAR_PARTS } from './car-parts.js';
 import { loadCar } from './car-model.js';
 import { isLite } from './render-kit.js';
-import { PICTURES } from './budget.js';
+import { PICTURES, modelFile } from './budget.js';
 import { exactBox } from './bounds.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
 import { POWER_CARS } from '../sim/power-cars.js';
+import { sharedRenderer, drawInto, onRestored } from './shared-view.js';
 
 // The motorcycles (13 October 2026): the owner's twelve, drawn from the same triangles and pictures the game rides
 // them with (bike-model.js), which are what is fetched to see one in 3D: 5 MB or so on a phone, 10 elsewhere.
@@ -162,17 +163,25 @@ function studio(renderer) {
 // The model on a canvas of its own, turned by dragging and brought nearer by the wheel or two fingers.
 //   const view = createModelView(canvas); await view.load('watch', (done, total) => ...); view.dispose()
 // `shot(yaw, pitch)` draws it once from a given side and is what the turntable's photographs are taken with.
+// In the game the model is drawn by the town's renderer, the page's one drawing surface (shared-view.js, 20 October
+// 2026), and copied onto `canvas`, a plain 2D canvas; a page with no town (the tools that photograph the models) gives
+// the view a renderer of its own, as before.
 export function createModelView(canvas, { transparent = true, pixelRatio = Math.min(2, window.devicePixelRatio || 1) } = {}) {
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: transparent, preserveDrawingBuffer: true, powerPreference: 'high-performance' });
-  renderer.setPixelRatio(pixelRatio);
-  renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.toneMapping = THREE.ACESFilmicToneMapping;
-  renderer.toneMappingExposure = 0.92;
-  renderer.setClearColor(0x000000, transparent ? 0 : 1);
+  const own = !sharedRenderer();
+  const renderer = own ? new THREE.WebGLRenderer({ canvas, antialias: true, alpha: transparent, preserveDrawingBuffer: true, powerPreference: 'high-performance' }) : sharedRenderer();
+  if (own) {
+    renderer.setPixelRatio(pixelRatio);
+    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.toneMapping = THREE.ACESFilmicToneMapping;
+    renderer.toneMappingExposure = 0.92;
+    renderer.setClearColor(0x000000, transparent ? 0 : 1);
+  }
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 50);
-  const env = studio(renderer);
+  let env = studio(renderer);
   scene.environment = env.texture;
+  // (drawn by the town's renderer: its reflection made again when the browser gives the drawing surface back)
+  const offRestored = own ? () => {} : onRestored(() => { const old = env; env = studio(renderer); scene.environment = env.texture; old.dispose(); });
   const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(2.5, 4, 3); scene.add(key);
   scene.add(new THREE.AmbientLight(0xffffff, 0.25));
   const holder = new THREE.Group();
@@ -182,7 +191,7 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
 
   function fit() {
     const w = canvas.clientWidth || canvas.width, h = canvas.clientHeight || canvas.height;
-    if (canvas.width !== Math.round(w * pixelRatio) || canvas.height !== Math.round(h * pixelRatio)) renderer.setSize(w, h, false);
+    if (own && (canvas.width !== Math.round(w * pixelRatio) || canvas.height !== Math.round(h * pixelRatio))) renderer.setSize(w, h, false);
     camera.aspect = w / Math.max(1, h); camera.updateProjectionMatrix();
   }
   function draw() {
@@ -190,7 +199,8 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
     const d = look.dist * radius;
     camera.position.set(Math.sin(look.yaw) * Math.cos(look.pitch) * d, Math.sin(look.pitch) * d, Math.cos(look.yaw) * Math.cos(look.pitch) * d);
     camera.lookAt(0, 0, 0);
-    renderer.render(scene, camera);
+    if (own) renderer.render(scene, camera);
+    else drawInto(canvas, scene, camera, { pixelRatio, toneMapping: THREE.ACESFilmicToneMapping, exposure: 0.92 });
   }
   let last = 0;
   function loop(now) {
@@ -244,7 +254,7 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
     }
     let buffer = source;
     if (!buffer) {
-      const response = await fetch(model.file);
+      const response = await fetch(modelFile(model.file));
       if (!response.ok) throw new Error('The model could not be fetched. Check the connection and try again.');
       const total = Number(response.headers.get('Content-Length')) || model.megabytes * 1048576;
       if (response.body && typeof response.body.getReader === 'function') {
@@ -291,9 +301,13 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
       if (shownBike) { shownBike.dispose(); shownBike = null; }
       if (mesh) { mesh.geometry.dispose(); for (const t of [mesh.material.map, mesh.material.roughnessMap, mesh.material.normalMap]) if (t) t.dispose(); mesh.material.dispose(); }
       env.dispose();
-      renderer.dispose();
-      const lose = renderer.getContext().getExtension('WEBGL_lose_context');
-      if (lose) lose.loseContext();
+      offRestored();
+      // (a renderer of its own is done with; the page's own is not)
+      if (own) {
+        renderer.dispose();
+        const lose = renderer.getContext().getExtension('WEBGL_lose_context');
+        if (lose) lose.loseContext();
+      }
     },
   };
 }

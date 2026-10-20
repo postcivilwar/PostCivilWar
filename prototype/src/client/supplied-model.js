@@ -8,7 +8,8 @@
 // the owner's pictures are 8192 pixels square, and a browser cannot hold many of those at once (a few hundred
 // megabytes each once drawn); the file keeps them whole.
 
-import { parseGLB, fetchKept, letGoOnceDrawn } from './glb.js';
+import { parseGLB, fetchKept, letGoOnceDrawn, rereadFile } from './glb.js';
+import { modelFile } from './budget.js';
 import { surface } from './render-kit.js';
 import { reflects } from './render-finish.js';
 
@@ -19,7 +20,9 @@ import { reflects } from './render-finish.js';
 let reading = Promise.resolve();
 function oneAtATime(task) { const run = reading.then(task, task); reading = run.then(() => {}, () => {}); return run; }
 
-export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9 } = {}) {
+export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9 } = {}) {
+  // (on a phone, the website's copy with its pictures the size a phone draws them: budget.js)
+  const file = modelFile(named);
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
   const { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
@@ -34,8 +37,17 @@ export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = n
   const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
   const pictureOf = async (info, colour, paint = null) => {
     if (!info) return null;
-    const image = json.images[json.textures[info.index].source];
-    const raw = bytes(image.bufferView);
+    const index = json.textures[info.index].source;
+    const image = json.images[index];
+    const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint));
+    t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
+    // (once the graphics card has the picture, the page's own copy is let go: see glb.js; should the card's copy be
+    // lost, it is made again the same way from the file, which the browser has kept)
+    letGoOnceDrawn(t, () => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint)));
+    return t;
+  };
+  // a picture as it is drawn: no larger than `maxTexture`, and anything painted over it painted
+  async function makePicture(raw, image, paint) {
     const blob = new Blob([raw], { type: image.mimeType || 'image/jpeg' });
     // (drawn no larger than `maxTexture`, and never larger than it is)
     const own = pictureSize(raw);
@@ -61,12 +73,8 @@ export async function loadSuppliedMesh(file, { maxTexture, env = null, brand = n
       }
       picture = c;
     }
-    const t = new THREE.Texture(picture);
-    t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
-    // (once the graphics card has the picture, the page's own copy is let go: see glb.js)
-    letGoOnceDrawn(t);
-    return t;
-  };
+    return picture;
+  }
   const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, brand), pictureOf(mat.normalTexture, false), pictureOf(pbr.metallicRoughnessTexture, false)]);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   // the glass, the cladding and the paint reflect the sky (render-city.js's glass does the same)

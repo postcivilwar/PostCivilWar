@@ -6,12 +6,16 @@
 // that nothing that writes to them breaks; this figure does not read them.
 //
 // The file is large, so it is fetched once, beside the page, and shared by every figure made from it. Until it
-// has arrived a figure is an empty place in the world.
+// has arrived a figure is an empty place in the world (the character screen shows its picture meanwhile: creator.js).
+// On the website what is fetched is the figure's light copy (tools/characters/light.py: the same figure, a tenth of the
+// size, its pictures at the size a phone or a computer draws them), read on the page's worker (figure-worker.js).
 
-import { parseGLB, modelFromGLB, figureLabels, boneName } from './glb.js';
+import { parseGLB, parsedParts, modelFromGLB, figureLabels, boneName } from './glb.js';
+import { splitGLB } from './glb-read.js';
+import { gunzip } from './inflate.js';
 import { nameTexture, surface } from './render-kit.js';
 import { SEAT_POSE } from './seat-pose.js';
-import { borrowedFor, seatFor } from './figure-moves.js';
+import { borrowedFor, seatFor, loadMoves } from './figure-moves.js';
 import { pictureSize } from './budget.js';
 import { carryFalls, createFallDriver, FALL_BONES } from './falls.js';
 
@@ -109,40 +113,51 @@ const GRIP = { x: 0.25, y: 0.3, z: 0.38 };
 
 const loading = new Map();
 // Each figure's model (its shape and pictures, shared by every figure drawn from it) is kept while a figure on the
-// screen is drawn from it, and one more besides; beyond that, the one let go longest ago is freed. A figure's pictures
-// are up to half a gigabyte of graphics memory at full size, and a player looking through thirty characters on the
-// choosing screen otherwise kept every one they had looked at, until the page fell over (17 October 2026).
+// screen is drawn from it, and, on a computer, one more besides; beyond that, the one let go longest ago is freed. A
+// player looking through thirty characters on the choosing screen otherwise kept every one they had looked at, until
+// the page fell over (17 October 2026). On a phone none is kept that is not drawn (20 October 2026: the light copies
+// are quick to fetch again, and a phone's graphics memory is not to be spent on a figure nobody sees); and one still
+// on its way when it stops being wanted is stopped where it is, not fetched to the end.
 const users = new Map();          // id -> how many figures on the screen are drawn from it
 const unused = [];                // ids drawn by none, the longest unused first
-const KEEP_UNUSED = 1;
+const KEEP_UNUSED = () => (pictureSize('figure') <= 1024 ? 0 : 1);
+const jobs = new Map();           // id -> the worker's job fetching it (to stop it)
+const progress = new Map();       // id -> { got, of }: bytes come of a figure being fetched, and how many there are
 function useModel(id) {
   users.set(id, (users.get(id) || 0) + 1);
   const i = unused.indexOf(id); if (i >= 0) unused.splice(i, 1);
 }
+function freeModel(id) {
+  const held = loading.get(id);
+  loading.delete(id);
+  const job = jobs.get(id);
+  if (job) { jobs.delete(id); if (typeof window !== 'undefined' && window.__PCW_WORKER) window.__PCW_WORKER.cancel(job); }
+  if (held) held.then(({ model }) => {
+    model.geometry.dispose();
+    const m = model.material;
+    for (const t of new Set([m.map, m.normalMap, m.roughnessMap, m.metalnessMap].filter(Boolean))) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); }
+    m.dispose();
+  }, () => {});
+}
 function releaseModel(id) {
   const n = (users.get(id) || 1) - 1;
   if (n > 0) { users.set(id, n); return; }
-  users.delete(id); unused.push(id);
-  while (unused.length > KEEP_UNUSED) {
-    const old = unused.shift(), held = loading.get(old);
-    loading.delete(old);
-    if (held) held.then(({ model }) => {
-      model.geometry.dispose();
-      const m = model.material;
-      for (const t of new Set([m.map, m.normalMap, m.roughnessMap, m.metalnessMap].filter(Boolean))) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); }
-      m.dispose();
-    }, () => {});
-  }
+  users.delete(id);
+  // still on its way: stopped, not kept
+  if (jobs.has(id)) { freeModel(id); return; }
+  unused.push(id);
+  while (unused.length > KEEP_UNUSED()) freeModel(unused.shift());
 }
-// (for the tests: which models are held)
-export const heldModels = () => ({ loaded: [...loading.keys()], users: Object.fromEntries(users), unused: [...unused] });
-// a figure's pictures are drawn at 2048 on a computer and 1024 on a phone (budget.js): its files keep their 4096
+// (over the page's budget for the graphics card, main.js: every figure kept ready but not drawn is let go; gives how many)
+export function dropUnusedFigures() { const n = unused.length; while (unused.length) freeModel(unused.shift()); return n; }
+// (for the tests: which models are held, and which are being fetched)
+export const heldModels = () => ({ loaded: [...loading.keys()], users: Object.fromEntries(users), unused: [...unused], fetching: [...jobs.keys()] });
+// How much of a figure being fetched has come: { got, of } in bytes, or null when it is not being fetched.
+export const figureProgress = (id) => (jobs.has(id) ? progress.get(id) || { got: 0, of: 0 } : null);
+// a figure's pictures are drawn at 2048 on a computer and 1024 on a phone (budget.js)
 const liteTexture = () => pictureSize('figure');
 function bytesOf(spec) {
   if (!figureHere(spec.id)) return Promise.reject(new Error(`${spec.file} is not in this copy of the game`));
-  // started by the page's first script, on a worker (template.html); otherwise fetched and decoded here
-  const early = typeof window !== 'undefined' && (window.__PCW_LOAD_FIGURE ? window.__PCW_LOAD_FIGURE(spec.id) : window.__PCW_FIGURE_BYTES && window.__PCW_FIGURE_BYTES[spec.id]);
-  if (early) return early.catch(() => bytesHere(spec));
   return bytesHere(spec);
 }
 // Can this copy of the game draw that figure? On the website, any; opened from a file on disk, which can fetch
@@ -169,15 +184,104 @@ function bytesHere(spec) {
     .then((b) => { if (new DataView(b).getUint32(0, true) !== 0x46546c67) throw new Error('not the file'); return b; })
     .catch((error) => { if (!spec.text) throw error; return fetch(spec.text).then((r) => { if (!r.ok) throw new Error(`${spec.text}: ${r.status}`); return r.text(); }).then(decode); });
 }
+
+// The website's light copy of a figure (build.mjs writes the table into the page: window.__PCW_FIGURES), or null.
+export function lightCopy(id) {
+  const table = typeof window !== 'undefined' && window.__PCW_FIGURES;
+  const entry = table && table.figures && table.figures[id];
+  return entry && entry.model ? entry : null;
+}
+// A figure's turntable: its light copy drawn from all round (tools/characters/previews.mjs), shown the instant it is
+// asked for until the figure itself has come. { url, frames, cols, rows, frame: [w, h], band: [low, high] } or null.
+export function figureTurn(id) {
+  const table = typeof window !== 'undefined' && window.__PCW_FIGURES;
+  const entry = lightCopy(id);
+  if (!entry || !entry.turn || !table.turn) return null;
+  const t = table.turn;
+  return { url: entry.turn[0], bytes: entry.turn[1], frames: t.frames, cols: t.cols, rows: Math.ceil(t.frames / t.cols), frame: t.frame, band: t.band };
+}
+// What fetching a light copy fetches here: the model, and each picture at the size this device draws it. In bytes too.
+export function lightFiles(id, size = liteTexture()) {
+  const entry = lightCopy(id);
+  if (!entry) return null;
+  const pictures = entry.pictures.map((p) => {
+    const sizes = Object.keys(p.sizes).map(Number).sort((a, b) => a - b);
+    const pick = sizes.filter((n) => n <= size).pop() || sizes[0];
+    const [url, bytes] = p.sizes[pick];
+    return { index: p.index, url, bytes, size: pick };
+  });
+  return { model: entry.model, modelBytes: entry.bytes, pictures, moves: entry.moves || null, turn: entry.turn || null, bytes: entry.bytes + pictures.reduce((n, p) => n + p.bytes, 0) };
+}
+const here = (url) => new URL(url, location.href).href;
+// Fetched and read on the page's worker; where there is no worker, here (the slow way: it holds the page meanwhile).
+function partsOf(id) {
+  const files = lightFiles(id);
+  const worker = typeof window !== 'undefined' && window.__PCW_WORKER;
+  progress.set(id, { got: 0, of: files.bytes });
+  if (worker) {
+    const job = worker.ask({ type: 'figure', model: here(files.model), bytes: files.bytes, pictures: files.pictures.map((p) => ({ index: p.index, url: here(p.url), type: 'image/webp' })) }, (got, of) => progress.set(id, { got, of: of || files.bytes }));
+    jobs.set(id, job.id);
+    return job;
+  }
+  const get = (url) => fetch(here(url)).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); });
+  jobs.set(id, null);
+  return Promise.all([get(files.model), ...files.pictures.map((p) => get(p.url).then((b) => ({ index: p.index, blob: new Blob([b], { type: 'image/webp' }), bitmap: null })))]).then(async ([gz, ...pictures]) => {
+    const glb = typeof DecompressionStream === 'function'
+      ? new Uint8Array(await new Response(new Blob([gz]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer())
+      : gunzip(new Uint8Array(gz));
+    const { json, arrays } = splitGLB(glb.buffer);
+    return { json, arrays, pictures };
+  });
+}
+// The figures fetched on this page, the latest last, for the readout (main.js, #stats): how many bytes, how long they
+// took to arrive and to be ready to draw (ms), the size their pictures were fetched at; or that one was stopped.
+const fetched = [];
+export const figureLog = () => fetched.slice();
+const logged = (row) => { fetched.push(row); if (fetched.length > 40) fetched.shift(); };
 export function loadAnimated(id) {
   if (!loading.has(id)) {
     const spec = ANIMATED[id];
-    loading.set(id, bytesOf(spec).then((buffer) => {
-      const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture() });
-      return model.ready.then(() => { const words = figureLabels(model.clips.map((c) => c.name)); return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })) }; });
-    }));
+    let job;
+    if (lightCopy(id)) {
+      const began = performance.now(), files = lightFiles(id);
+      job = Promise.all([partsOf(id), loadMoves(spec.file)]).then(([parts]) => {
+        jobs.delete(id);
+        const arrived = performance.now();
+        const pictures = [];
+        for (const p of parts.pictures) pictures[p.index] = p;
+        const model = modelFromGLB(parsedParts(parts), { surface, pictures });
+        return model.ready.then(() => {
+          logged({ id, bytes: files.bytes, size: files.pictures.length ? files.pictures[0].size : 0, arrivedMs: Math.round(arrived - began), readyMs: Math.round(performance.now() - began) });
+          const words = figureLabels(model.clips.map((c) => c.name));
+          return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })), light: true };
+        });
+      }, (error) => { jobs.delete(id); if (loading.get(id) === job) loading.delete(id); logged({ id, bytes: files.bytes, stopped: !!(error && error.stopped), failed: !(error && error.stopped), afterMs: Math.round(performance.now() - began) }); throw error; });
+    } else {
+      job = Promise.all([bytesOf(spec), loadMoves(spec.file)]).then(([buffer]) => {
+        const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture() });
+        return model.ready.then(() => { const words = figureLabels(model.clips.map((c) => c.name)); return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })) }; });
+      });
+    }
+    loading.set(id, job);
   }
   return loading.get(id);
+}
+// The figures either side of the one looked at, fetched into the browser's cache ahead (on the worker, quietly: it
+// stops the moment a figure is asked for). Nothing is decoded or kept on the page.
+export function warmFigures(ids) {
+  const worker = typeof window !== 'undefined' && window.__PCW_WORKER;
+  // (with no connection there is nothing to fetch ahead: only what the device has kept can be had)
+  if (!worker || (typeof navigator !== 'undefined' && navigator.onLine === false)) return;
+  // (their turntable pictures are fetched by the character screen itself, at once: creator.js)
+  const urls = [];
+  for (const id of ids) {
+    const files = lightFiles(id);
+    if (!files || loading.has(id)) continue;
+    urls.push(here(files.model), ...files.pictures.map((p) => here(p.url)));
+    // (its movements on the page itself, where loadAnimated asks for them: one fetch, waited for again if need be)
+    if (files.moves) loadMoves(ANIMATED[id].file, { ahead: true }).catch(() => {});
+  }
+  if (urls.length) worker.warm(urls);
 }
 
 const control = () => ({ rotation: { x: 0, y: 0, z: 0 } });
@@ -457,7 +561,8 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
     }
   }
 
-  rig.loaded = loadAnimated(id).catch((error) => { rig.failed = String(error && error.message || error); throw error; }).then(({ model, labels }) => {
+  // (a figure stopped on its way because nobody wants it any more has not failed: it is `stopped`)
+  rig.loaded = loadAnimated(id).catch((error) => { if (error && error.stopped) rig.stopped = true; else rig.failed = String(error && error.message || error); throw error; }).then(({ model, labels }) => {
     const { root, mesh } = model.figure();
     mesh.castShadow = shadow;
     const k = spec.height / model.height;

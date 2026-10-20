@@ -1,0 +1,1698 @@
+{
+ "copies": {
+  "assets__watch.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/market/watch.glb",
+   "md5": "440b261d3d721b0a14a76e3e8e67b57f",
+   "most": 2048,
+   "bytes": 57554684,
+   "sha256": "935b7e524f1f75f2cd687c6f43297588f7b0fe744492be5076b6118851d70699",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      3795836,
+      881256
+     ]
+    },
+    {
+     "image": 1,
+     "mime": "image/jpeg",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      2195363,
+      466569
+     ]
+    },
+    {
+     "image": 2,
+     "mime": "image/png",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      3969987,
+      1509680
+     ]
+    }
+   ]
+  },
+  "carshow-deck.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/architectural_3d_model_1.glb",
+   "md5": "935e54e1b4c0aba5c213e1140c5750e9",
+   "most": 1024,
+   "bytes": 767040,
+   "sha256": "2edb2be361f2ebd56b08a56cdc724af0cad45dcf23a364a3412d4d571374f0d9",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      15085018,
+      346085
+     ]
+    }
+   ]
+  },
+  "carshow-deck.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/architectural_3d_model_1.glb",
+   "md5": "935e54e1b4c0aba5c213e1140c5750e9",
+   "most": 2048,
+   "bytes": 1549656,
+   "sha256": "8a08c7fc65a722e17ad4f58b9a7e22072f5c5f0d2324b6bc2eb50bae2a1de36b",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      15085018,
+      1128693
+     ]
+    }
+   ]
+  },
+  "carshow-showroom.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/tall_glass_skyscraper_3d_model.glb",
+   "md5": "53864f0d728a7c47ac301066866907c8",
+   "most": 1024,
+   "bytes": 881968,
+   "sha256": "d2c039a5d9a4e83681a2c045e15d2a5eaec8f767b0808c784f87d9bc8bedacd4",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      12911932,
+      352234
+     ]
+    }
+   ]
+  },
+  "carshow-showroom.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/tall_glass_skyscraper_3d_model.glb",
+   "md5": "53864f0d728a7c47ac301066866907c8",
+   "most": 2048,
+   "bytes": 1603376,
+   "sha256": "dbf7d80149998275beacb91c7427118aff4cb410962d85fadb0d957daaf424c9",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      12911932,
+      1073640
+     ]
+    }
+   ]
+  },
+  "carshow-stacked.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/modern_skyscraper_3d_model_4.glb",
+   "md5": "bfc1d7a3c416ee1103578d392e448ca4",
+   "most": 1024,
+   "bytes": 811716,
+   "sha256": "3289b1479dad3dc0ad7f1eafe62c24fd53b1177072383f776130a695fab3fd4d",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      17616394,
+      372271
+     ]
+    }
+   ]
+  },
+  "carshow-stacked.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/modern_skyscraper_3d_model_4.glb",
+   "md5": "bfc1d7a3c416ee1103578d392e448ca4",
+   "most": 2048,
+   "bytes": 1690164,
+   "sha256": "6e8cef8e0df420faa4f715902264febff224e094d7beb46125c6392a1b68c402",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      17616394,
+      1250716
+     ]
+    }
+   ]
+  },
+  "carshow-twisting.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/twisting_skyscraper_3d_model.glb",
+   "md5": "5c6a9d50f2be512fac47878248fd36b1",
+   "most": 1024,
+   "bytes": 854388,
+   "sha256": "0d64b974b1ac90e50480d5380fb7b62d797d503cfe4720773f1bf745e2e57bb3",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      13659469,
+      358830
+     ]
+    }
+   ]
+  },
+  "carshow-twisting.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/twisting_skyscraper_3d_model.glb",
+   "md5": "5c6a9d50f2be512fac47878248fd36b1",
+   "most": 2048,
+   "bytes": 1623604,
+   "sha256": "8a67c7468d699c201a0aa2efb5a3357ae99619d03e025fda4ed0bf5dffe6e5b3",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      13659469,
+      1128042
+     ]
+    }
+   ]
+  },
+  "carshow-villa.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/modern_villa_3d_model.glb",
+   "md5": "886fbdac4cbc0bfcf29e45203c93d630",
+   "most": 1024,
+   "bytes": 58858752,
+   "sha256": "df979fa4b9cf33e421065ec2599291c713bc2bf1f4a1adfbaac000f8f5c86bde",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      11869047,
+      352545
+     ]
+    },
+    {
+     "image": 1,
+     "mime": "image/jpeg",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      2750419,
+      266317
+     ]
+    },
+    {
+     "image": 2,
+     "mime": "image/png",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      3820426,
+      487534
+     ]
+    }
+   ]
+  },
+  "carshow-villa.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/carshow/modern_villa_3d_model.glb",
+   "md5": "886fbdac4cbc0bfcf29e45203c93d630",
+   "most": 2048,
+   "bytes": 60886428,
+   "sha256": "780cef0469bf2a42027cb3594d2af8190419544c115bfbd14be107e1b070a290",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      11869047,
+      1008807
+     ]
+    },
+    {
+     "image": 1,
+     "mime": "image/jpeg",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      2750419,
+      680884
+     ]
+    },
+    {
+     "image": 2,
+     "mime": "image/png",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      3820426,
+      1444382
+     ]
+    }
+   ]
+  },
+  "powerbike.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/powerbike/skyscraper.glb",
+   "md5": "d71cb66bbe11951ca07134812327bd9c",
+   "most": 1024,
+   "bytes": 742340,
+   "sha256": "97c916adbf629acfeae95b8d8367dfd7edd4a1890371d48781ce4c7350f5f4b5",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      13053301,
+      296341
+     ]
+    }
+   ]
+  },
+  "powerbike.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/powerbike/skyscraper.glb",
+   "md5": "d71cb66bbe11951ca07134812327bd9c",
+   "most": 2048,
+   "bytes": 1414860,
+   "sha256": "ed20df8342e5182cf4721bd1adb9cfb3475e11d04371f433e7598bb11c46eeeb",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      13053301,
+      968859
+     ]
+    }
+   ]
+  },
+  "town-black-tower.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicspeaker3dmodel.glb",
+   "md5": "b697e20c876a8c02c869bf6deaa2ae42",
+   "most": 1024,
+   "bytes": 554228,
+   "sha256": "b7edbc1b380a08bfc90cf4282b889aaaa6b86bcf1f69328ec2407c58a58837d2",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      9393424,
+      180032
+     ]
+    }
+   ]
+  },
+  "town-black-tower.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicspeaker3dmodel.glb",
+   "md5": "b697e20c876a8c02c869bf6deaa2ae42",
+   "most": 2048,
+   "bytes": 947996,
+   "sha256": "ab55523c32f37c8b32e2b92883303ca220f5fdf550a0a66cc00dbabd09638359",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      9393424,
+      573798
+     ]
+    }
+   ]
+  },
+  "town-copper-tower.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_skyscraper_3d_model_2.glb",
+   "md5": "5d1382e3fef22f41df7ae16d1ac938bb",
+   "most": 1024,
+   "bytes": 795076,
+   "sha256": "ccfee4fd5fa9db9ee44e52abfbf45acf525c966f44d802ed71353667e07139d5",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      13914428,
+      286723
+     ]
+    }
+   ]
+  },
+  "town-copper-tower.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_skyscraper_3d_model_2.glb",
+   "md5": "5d1382e3fef22f41df7ae16d1ac938bb",
+   "most": 2048,
+   "bytes": 1471936,
+   "sha256": "68219e46dc8ef96491f3d5214a0f537bbab79764744e65a189bc9a202bc2ad8b",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      13914428,
+      963580
+     ]
+    }
+   ]
+  },
+  "town-curved-house.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/curvedmodernhouse3dmodel.glb",
+   "md5": "b87ecfaaa41fc5f9392cb434806e584c",
+   "most": 1024,
+   "bytes": 730388,
+   "sha256": "49915c42b211ef3c5ad482c743da7b84bda59ae92faff184447f087ecde0b7e9",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      11959381,
+      199296
+     ]
+    }
+   ]
+  },
+  "town-curved-house.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/curvedmodernhouse3dmodel.glb",
+   "md5": "b87ecfaaa41fc5f9392cb434806e584c",
+   "most": 2048,
+   "bytes": 1172216,
+   "sha256": "1ea13fac2c7844fea4f7a377b626f1b8be2dc350cad02e50db942b4c5feaea67",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      11959381,
+      641121
+     ]
+    }
+   ]
+  },
+  "town-curved-tower.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristic_curved_skyscraper_3d_model.glb",
+   "md5": "d416a476f88915ae2cebb7ba3b041141",
+   "most": 1024,
+   "bytes": 861076,
+   "sha256": "57c80d62d16004431cfc23c1b524d1cdfd6b57f9ccc4f1557eb57b3635a0ce7f",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      14453361,
+      347862
+     ]
+    }
+   ]
+  },
+  "town-curved-tower.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristic_curved_skyscraper_3d_model.glb",
+   "md5": "d416a476f88915ae2cebb7ba3b041141",
+   "most": 2048,
+   "bytes": 1636172,
+   "sha256": "24b18f44b3e7491bcb45d402306c771c2d3bf3e0d841de0e45e35c0f73df4d48",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      14453361,
+      1122951
+     ]
+    }
+   ]
+  },
+  "town-glass-house.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/curvedglassbuilding3dmodel.glb",
+   "md5": "d7725f0ddf67206a1adc97fc4f4c23ee",
+   "most": 1024,
+   "bytes": 524428,
+   "sha256": "54216b594466ac4a7aa15da1a1309478aeab75fbf87a127042f87c5de88b4e7c",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      9079928,
+      194914
+     ]
+    }
+   ]
+  },
+  "town-glass-house.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/curvedglassbuilding3dmodel.glb",
+   "md5": "d7725f0ddf67206a1adc97fc4f4c23ee",
+   "most": 2048,
+   "bytes": 921512,
+   "sha256": "904f39a365213affff03f97148db335f12433c4c833dc53447ec0d2309efe1c5",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      9079928,
+      592000
+     ]
+    }
+   ]
+  },
+  "town-glass-offices.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_glass_building_3d_model.glb",
+   "md5": "49c36d9c4389faf23482183bfc96b8bb",
+   "most": 1024,
+   "bytes": 751176,
+   "sha256": "8d91ef122d592838413cb20e57bd25261b5a0b7ca665e4293cd06b43c05bbce2",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      9644232,
+      249568
+     ]
+    }
+   ]
+  },
+  "town-glass-offices.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_glass_building_3d_model.glb",
+   "md5": "49c36d9c4389faf23482183bfc96b8bb",
+   "most": 2048,
+   "bytes": 1222528,
+   "sha256": "694ce83d9dc6cd1a9bb2e954b31ed61698fd8abe34bfacb2839c8eb599d48292",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      9644232,
+      720915
+     ]
+    }
+   ]
+  },
+  "town-grey-villa.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modernvilla3dmodel_1.glb",
+   "md5": "0c2120bc8eb1a78c16b144328987b95a",
+   "most": 1024,
+   "bytes": 656704,
+   "sha256": "5e5f531335dfdd45e0e4e814792d079ff20bce4b833d0025fa04a7a46dc71ed4",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      10244621,
+      248004
+     ]
+    }
+   ]
+  },
+  "town-grey-villa.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modernvilla3dmodel_1.glb",
+   "md5": "0c2120bc8eb1a78c16b144328987b95a",
+   "most": 2048,
+   "bytes": 1157832,
+   "sha256": "d8256729ec12ba7cac8f05e2ab37d7c1c3a42a4b05961fd6f59ecbaa8fb97aed",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      10244621,
+      749132
+     ]
+    }
+   ]
+  },
+  "town-hotel.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/luxury_hotel_3d_model.glb",
+   "md5": "0b4931dff91c0d1dc341140426d79465",
+   "most": 1024,
+   "bytes": 780060,
+   "sha256": "de661242478b0b9855c7f53f5f91a2b5af055feef56c46d98703298cc5145da9",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      13288224,
+      306285
+     ]
+    }
+   ]
+  },
+  "town-hotel.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/luxury_hotel_3d_model.glb",
+   "md5": "0b4931dff91c0d1dc341140426d79465",
+   "most": 2048,
+   "bytes": 1428216,
+   "sha256": "9834bc9d6d9a30fc70b6da76d1101396755c1447d123289da455e7608d8ee7b0",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      13288224,
+      954440
+     ]
+    }
+   ]
+  },
+  "town-office-tower.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_skyscraper_3d_model_3.glb",
+   "md5": "90c2918112614495ec3f4edb2723b86d",
+   "most": 1024,
+   "bytes": 736008,
+   "sha256": "9ef05e9856b931e98f75c6ef126990f9eb56bd1f1c9cf98f2d1fc700f00420c1",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      11282290,
+      266661
+     ]
+    }
+   ]
+  },
+  "town-office-tower.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_skyscraper_3d_model_3.glb",
+   "md5": "90c2918112614495ec3f4edb2723b86d",
+   "most": 2048,
+   "bytes": 1319904,
+   "sha256": "2a306777cdd88154d9d94efabd607ef74020711bf791ed8d20f1222115d4b912",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      11282290,
+      850555
+     ]
+    }
+   ]
+  },
+  "town-pink-tower.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/pink_angular_building_3d_model.glb",
+   "md5": "e8df16ef62214d8d781105537faba1fd",
+   "most": 1024,
+   "bytes": 650904,
+   "sha256": "5b33fe161c92e6602e4f396fb496368d808522c839f4ac3aa980c48d927e8f10",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      16931128,
+      277043
+     ]
+    }
+   ]
+  },
+  "town-pink-tower.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/pink_angular_building_3d_model.glb",
+   "md5": "e8df16ef62214d8d781105537faba1fd",
+   "most": 2048,
+   "bytes": 1329436,
+   "sha256": "9f8568a596b999a28c3bae9e60b16fe421254ef92302aa1d1236a4b3bf63224a",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      16931128,
+      955572
+     ]
+    }
+   ]
+  },
+  "town-pod-house.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicbuilding3dmodel.glb",
+   "md5": "dfa4d1b1ce6043319134dc355b56092d",
+   "most": 1024,
+   "bytes": 601076,
+   "sha256": "3794a90abb4d70f18de8af78dbebfc636ec3eb114236952808a74a2b7ed0e0de",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      10551483,
+      271931
+     ]
+    }
+   ]
+  },
+  "town-pod-house.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicbuilding3dmodel.glb",
+   "md5": "dfa4d1b1ce6043319134dc355b56092d",
+   "most": 2048,
+   "bytes": 1137368,
+   "sha256": "f80bca9fff25ec1f0dade39affecf13c3d55fca68dedd2f6e2c89c0ef1939109",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      10551483,
+      808221
+     ]
+    }
+   ]
+  },
+  "town-purple-tower.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristictower3dmodel.glb",
+   "md5": "ec38388c70fa067151105db859648dfc",
+   "most": 1024,
+   "bytes": 769048,
+   "sha256": "313d3d8d6601564e8356216ea4443381c7ced9b7a3a57adaf2cd2d45ac154b2d",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      15037255,
+      390920
+     ]
+    }
+   ]
+  },
+  "town-purple-tower.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristictower3dmodel.glb",
+   "md5": "ec38388c70fa067151105db859648dfc",
+   "most": 2048,
+   "bytes": 1568460,
+   "sha256": "3228af118675af7162295c8585938ec0159cd8e9cc8204f82f5f3b007cc4a061",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      15037255,
+      1190331
+     ]
+    }
+   ]
+  },
+  "town-purple-twin.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristic_tower_3d_model.glb",
+   "md5": "8241384b6637976ce5a89b22b1a4d06b",
+   "most": 1024,
+   "bytes": 829184,
+   "sha256": "c3c0011c777cd85ebd92d86f593dd9c98c377d0e00f9cb3ee95403000d9c1339",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      15037255,
+      390920
+     ]
+    }
+   ]
+  },
+  "town-purple-twin.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristic_tower_3d_model.glb",
+   "md5": "8241384b6637976ce5a89b22b1a4d06b",
+   "most": 2048,
+   "bytes": 1628600,
+   "sha256": "d33533b4c0ebeeaa5dd299baa3be0e37d416cb8fc509509a28e69439d67bcd02",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      15037255,
+      1190331
+     ]
+    }
+   ]
+  },
+  "town-spiral-house.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicarchitecture3dmodel.glb",
+   "md5": "cd8ba0e9cb4f50bbda769ca67dd60991",
+   "most": 1024,
+   "bytes": 571272,
+   "sha256": "885a13379fd6c9e33f092ad7efd7441748f386041802d5afe5ba3650cfd5abbe",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      10225054,
+      199578
+     ]
+    }
+   ]
+  },
+  "town-spiral-house.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicarchitecture3dmodel.glb",
+   "md5": "cd8ba0e9cb4f50bbda769ca67dd60991",
+   "most": 2048,
+   "bytes": 983964,
+   "sha256": "d9773a5a86d4acba7f59af5f22cba7b2b4a4a49744645dbe7fd1f56f91284648",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      10225054,
+      612269
+     ]
+    }
+   ]
+  },
+  "town-stacked-tower.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_stacked_building_3d_model.glb",
+   "md5": "373a3ba626de163f3a54588875e3e90b",
+   "most": 1024,
+   "bytes": 759896,
+   "sha256": "28a61411365f52f5bdabb088a77b07d1239baf6fd4c2da12c16367e705a7b8bb",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      9153800,
+      242339
+     ]
+    }
+   ]
+  },
+  "town-stacked-tower.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_stacked_building_3d_model.glb",
+   "md5": "373a3ba626de163f3a54588875e3e90b",
+   "most": 2048,
+   "bytes": 1226316,
+   "sha256": "25897be0a8871a403757bdcb8639688ba06d04f6e91148aec4e001f3e6d4dbaa",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      9153800,
+      708755
+     ]
+    }
+   ]
+  },
+  "town-tower-group.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_skyscraper_3d_model.glb",
+   "md5": "d71cb66bbe11951ca07134812327bd9c",
+   "most": 1024,
+   "bytes": 742340,
+   "sha256": "97c916adbf629acfeae95b8d8367dfd7edd4a1890371d48781ce4c7350f5f4b5",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      13053301,
+      296341
+     ]
+    }
+   ]
+  },
+  "town-tower-group.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modern_skyscraper_3d_model.glb",
+   "md5": "d71cb66bbe11951ca07134812327bd9c",
+   "most": 2048,
+   "bytes": 1414860,
+   "sha256": "ed20df8342e5182cf4721bd1adb9cfb3475e11d04371f433e7598bb11c46eeeb",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      13053301,
+      968859
+     ]
+    }
+   ]
+  },
+  "town-villa.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modernvilla3dmodel.glb",
+   "md5": "aae85e18f900406218c98b1aff1d1d45",
+   "most": 1024,
+   "bytes": 724096,
+   "sha256": "66b4ba64968ada3d51268449b6ec18015f5d1a2ec1963267cffbb178829f5331",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      10444007,
+      272574
+     ]
+    }
+   ]
+  },
+  "town-villa.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modernvilla3dmodel.glb",
+   "md5": "aae85e18f900406218c98b1aff1d1d45",
+   "most": 2048,
+   "bytes": 1243264,
+   "sha256": "9e83979649f584c194dbc861362dc273d1892248ccc43eb0e4f3d67bd4dcdf62",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      10444007,
+      791742
+     ]
+    }
+   ]
+  },
+  "town-white-block.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicbuilding3dmodel_1.glb",
+   "md5": "eaaddf9bdd66fa8bb2c71d041c2d36f5",
+   "most": 1024,
+   "bytes": 562992,
+   "sha256": "7e0139adb247e4f542ee813224dd1a7eb1ab428d32d4381751601da47323ca97",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      7470677,
+      192526
+     ]
+    }
+   ]
+  },
+  "town-white-block.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/futuristicbuilding3dmodel_1.glb",
+   "md5": "eaaddf9bdd66fa8bb2c71d041c2d36f5",
+   "most": 2048,
+   "bytes": 899228,
+   "sha256": "391ffb872354c9643cc128056e98ad0ce50f2ca1676460d00d54413761aae3a5",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      7470677,
+      528763
+     ]
+    }
+   ]
+  },
+  "town-white-house.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modernhouse3dmodel.glb",
+   "md5": "ff8796f20f1ef2a0926338fd2ee476e2",
+   "most": 1024,
+   "bytes": 651444,
+   "sha256": "43d3d65a31cf703c8c2b0823147e41517b58e32f3614d4db19b768534203ea01",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      9679431,
+      248734
+     ]
+    }
+   ]
+  },
+  "town-white-house.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/buildings/town/modernhouse3dmodel.glb",
+   "md5": "ff8796f20f1ef2a0926338fd2ee476e2",
+   "most": 2048,
+   "bytes": 1107680,
+   "sha256": "2b4e36b0f007e89f5c786d474262036099bb79f9b1e944f71769b005c99da6d5",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      9679431,
+      704969
+     ]
+    }
+   ]
+  },
+  "vehicle-ambulance.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/ambulance3dmodel.glb",
+   "md5": "397484007f64408bf3f7ad15c27570a2",
+   "most": 1024,
+   "bytes": 747176,
+   "sha256": "3aca5cc848549c8c641572e5d02d75a01f40d83f043e109b8c2535e3d5d8e377",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      8885501,
+      288745
+     ]
+    }
+   ]
+  },
+  "vehicle-ambulance.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/ambulance3dmodel.glb",
+   "md5": "397484007f64408bf3f7ad15c27570a2",
+   "most": 2048,
+   "bytes": 1223140,
+   "sha256": "47f370f797f662c7a83448fa90a40bf411a72dd96ee84e3f66bbd73370f1ce2e",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      8885501,
+      764712
+     ]
+    }
+   ]
+  },
+  "vehicle-box-truck.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/red_box_truck_3d_model.glb",
+   "md5": "a27530ee381ea3a7e66acefafe24fb31",
+   "most": 1024,
+   "bytes": 748060,
+   "sha256": "18ad27f54be9c982db9fe81e79d7d67aeba72644054e9b0c42eaf74c1b1f96f4",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      8890407,
+      263440
+     ]
+    }
+   ]
+  },
+  "vehicle-box-truck.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/red_box_truck_3d_model.glb",
+   "md5": "a27530ee381ea3a7e66acefafe24fb31",
+   "most": 2048,
+   "bytes": 1219448,
+   "sha256": "e3e12b47ab1d96ced7903e5c2a17eb4121a029be665d55ee7641046e062e1451",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      8890407,
+      734825
+     ]
+    }
+   ]
+  },
+  "vehicle-heavy-truck.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/heavytruck3dmodel.glb",
+   "md5": "c6cea3d44f37c371ffe0a1417eabfd12",
+   "most": 1024,
+   "bytes": 4601768,
+   "sha256": "0c05e3a53c5cf7b91d926b5a02be570042e32966c52dd7bedfe6cb027a2d74c6",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/png",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      1975790,
+      294209
+     ]
+    },
+    {
+     "image": 1,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      2267873,
+      145552
+     ]
+    },
+    {
+     "image": 2,
+     "mime": "image/png",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      5669865,
+      614357
+     ]
+    }
+   ]
+  },
+  "vehicle-heavy-truck.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/heavytruck3dmodel.glb",
+   "md5": "c6cea3d44f37c371ffe0a1417eabfd12",
+   "most": 2048,
+   "bytes": 6297872,
+   "sha256": "6c685ee000c9d683dd79d30d52c0c83e4cf3c7d554958ef06f0ef949295a03b4",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/png",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      1975790,
+      768892
+     ]
+    },
+    {
+     "image": 1,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      2267873,
+      434560
+     ]
+    },
+    {
+     "image": 2,
+     "mime": "image/png",
+     "was": [
+      4096,
+      4096
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      5669865,
+      1546771
+     ]
+    }
+   ]
+  },
+  "vehicle-jet.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/privatejet3dmodel.glb",
+   "md5": "318a01478bab931fc23283c37fa913ff",
+   "most": 1024,
+   "bytes": 644192,
+   "sha256": "76e11decf7f963157e67f669b9178ef9204058ae2a9088f1b3b03b2f3d7abe65",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      8137061,
+      261279
+     ]
+    }
+   ]
+  },
+  "vehicle-jet.2048.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/vehicles/town/privatejet3dmodel.glb",
+   "md5": "318a01478bab931fc23283c37fa913ff",
+   "most": 2048,
+   "bytes": 1081096,
+   "sha256": "b607c20ec3bd833222b23b21102bd3f767b6540b917af27e1ce72e25bb3b6348",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      8192,
+      8192
+     ],
+     "now": [
+      2048,
+      2048
+     ],
+     "bytes": [
+      8137061,
+      698184
+     ]
+    }
+   ]
+  }
+ }
+}

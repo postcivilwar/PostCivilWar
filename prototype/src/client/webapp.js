@@ -5,8 +5,8 @@
 // (src/site/manifest.webmanifest) and a worker that keeps its files (src/site/sw.js); the page published as an
 // artifact and the copy opened from a disk have neither, and there this stands idle and offers nothing.
 //
-// What it does: starts the worker; tells it which of the two large figures this player has used, so that one
-// is kept; asks the browser to keep the player's character safe once the game is installed; and answers three
+// What it does: starts the worker; tells it which figure this player is, so that that figure's files are kept (and
+// no other: a player looking through the characters fetches many); asks the browser to keep the player's character safe once the game is installed; and answers three
 // questions for Settings: can it be installed here and how, is it installed, does it play without a connection.
 
 // How this browser lets the game be installed.
@@ -30,11 +30,12 @@ export function playsOffline({ worker, kept = [], needs = [] }) {
   return needs.every((path) => kept.includes(path)) ? 'yes' : 'not yet';
 }
 
-const idle = Object.freeze({ site: false, state: () => ({ site: false, way: null, offline: 'no' }), refresh: () => Promise.resolve(), install: () => Promise.resolve(false) });
+const idle = Object.freeze({ site: false, state: () => ({ site: false, way: null, offline: 'no' }), refresh: () => Promise.resolve(), keepFigure: () => {}, install: () => Promise.resolve(false) });
 
-// figures: which file each supplied figure is fetched from, by id ({ W1: 'woman.b64.txt', ... })
+// figures: the files a figure is fetched from, by its id (on the website its light copy: animated.js, lightFiles), as
+//          paths beside the page; [] for a figure there are none of
 // figure:  the id of the figure this player is using just now
-export function createWebApp({ win = typeof window === 'undefined' ? null : window, figures = {}, figure = () => null, library = 'three.min.js' } = {}) {
+export function createWebApp({ win = typeof window === 'undefined' ? null : window, figures = () => [], figure = () => null, library = 'three.min.js' } = {}) {
   if (!win || !win.document) return idle;
   const doc = win.document, nav = win.navigator || {};
   if (!doc.querySelector('link[rel="manifest"]')) return idle;
@@ -48,6 +49,7 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
 
   let registration = null;
   let kept = [];
+  let pendingKeep = null;
   const worker = () => (registration && (registration.active || registration.waiting || registration.installing)) || null;
   const tell = (message, transfer) => { const w = registration && registration.active; if (w) w.postMessage(message, transfer || []); };
 
@@ -63,26 +65,16 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
     });
   }
 
-  // Each figure the page has fetched is 10 MB or more and was fetched before the worker could see it (the page's
-  // first script begins it). Once it has arrived the worker is told to keep it; the browser still has it, so
-  // nothing is fetched twice. A figure never used is never kept.
+  // The player's own figure, once it is drawn (main.js says so): the worker is told to keep its files. The browser
+  // has them already, so nothing is fetched twice. A figure only looked at is never kept.
   const told = new Set();
   function keepFigure(id) {
-    const path = figures[id];
-    const arriving = win.__PCW_FIGURE_BYTES && win.__PCW_FIGURE_BYTES[id];
-    // only the player's own: one looked at among the characters, or seen on someone else, is not kept
-    if (!path || !arriving || told.has(id) || id !== figure()) return;
+    const paths = figures(id);
+    if (!paths.length || told.has(id) || id !== figure()) return;
     told.add(id);
-    Promise.resolve(arriving).then(() => { tell({ type: 'keep', paths: [path] }); }).catch(() => { told.delete(id); });
+    tell({ type: 'keep', paths });
   }
-  function watchFigures() {
-    for (const id of Object.keys(win.__PCW_FIGURE_BYTES || {})) keepFigure(id);
-    const load = win.__PCW_LOAD_FIGURE;
-    if (typeof load !== 'function' || load.__kept) return;
-    const wrapped = function (id) { const result = load(id); keepFigure(id); return result; };
-    wrapped.__kept = true;
-    win.__PCW_LOAD_FIGURE = wrapped;
-  }
+  function watchFigures() { if (figure()) keepFigure(figure()); }
 
   // An installed game is where a player's character lives. Ask the browser not to clear it away when the
   // device runs short of room. Asked only of an installed game: some browsers put a question to the player.
@@ -95,6 +87,7 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
       nav.serviceWorker.register('sw.js').then((made) => { registration = made; return nav.serviceWorker.ready; }).then((ready) => {
         registration = ready;
         watchFigures();
+        if (pendingKeep) { keepFigure(pendingKeep); pendingKeep = null; }
         return refresh();
       }).catch(() => { /* no worker: the game plays as it always has, from the network */ });
     };
@@ -107,12 +100,19 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
     site: true,
     state() {
       const way = installWay({ site: true, standalone: standalone || win.__PCW_INSTALLED === true, offered: !!win.__PCW_INSTALL, userAgent: nav.userAgent, platform: nav.platform, touchPoints: nav.maxTouchPoints });
-      // (on the website the two kits are files of their own, and are needed as much as the page)
-      const packs = Object.values((win && win.__PCW_PACK_FILES) || {}).map((address) => String(address).split('?')[0]);
-      const needs = ['', library].concat(packs, figures[figure()] ? [figures[figure()]] : []);
+      // (on the website the game's script, the two kits, the townspeople's reactions and the cover's pictures are files
+      // of their own, and are needed as much as the page)
+      const bare = (address) => String(address).split('?')[0];
+      const packs = Object.values((win && win.__PCW_PACK_FILES) || {}).map((entry) => bare((entry && entry.url) || entry));
+      const others = Object.values((win && win.__PCW_FILES) || {}).map(bare);
+      const cover = typeof doc.querySelectorAll === 'function' ? Array.from(doc.querySelectorAll('link[rel="preload"][as="image"]')).map((link) => bare(link.getAttribute('href') || '')).filter(Boolean) : [];
+      const script = typeof doc.querySelector === 'function' && doc.querySelector('script[src^="game.js"]') ? ['game.js'] : [];
+      const needs = ['', library].concat(script, packs, others, cover, figure() ? figures(figure()) : []);
       return { site: true, way, offline: playsOffline({ worker: !!worker(), kept, needs }) };
     },
     refresh,
+    // the player's own figure is drawn: its files are to be kept
+    keepFigure: (id) => { if (registration && registration.active) keepFigure(id); else pendingKeep = id; },
     // The browser's own question. True if the player said yes.
     async install() {
       const offer = win.__PCW_INSTALL;

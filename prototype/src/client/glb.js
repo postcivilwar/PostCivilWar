@@ -6,12 +6,18 @@
 // is refused by name rather than drawn wrong.
 //
 // Nothing read is changed. A model's instances share its geometry and texture; each has its own bones.
+//
+// The website sends a figure as its light copy (tools/characters/light.py): the same figure, its numbers stored in
+// fewer bits and its pictures as files of their own, read and decoded on the figures' worker (figure-worker.js) and
+// handed over here (`parsedParts`, `pictures`).
+
+import { readGLB, readAccessor, readAnimations, textureSource } from './glb-read.js';
 
 // A file beside the page (a model, its pictures). With a connection: fetched as any file is (the web app's service
 // worker hands over its kept copy if it has one). With none (navigator.onLine false): the copy the web app kept, if
 // it kept one, and otherwise the network is not asked at all, since the request could only fail; the error says so
 // (`offline`), and whoever asked tries again later.
-export async function fetchKept(url) {
+export async function fetchKept(url, init = undefined) {
   if (typeof navigator !== 'undefined' && navigator.onLine === false) {
     let kept = null;
     try { kept = typeof caches !== 'undefined' ? await caches.match(new URL(url, location.href).href, { ignoreSearch: true, ignoreVary: true }) : null; } catch (error) { kept = null; }
@@ -20,59 +26,89 @@ export async function fetchKept(url) {
     error.offline = true;
     throw error;
   }
-  return fetch(url);
+  return init ? fetch(url, init) : fetch(url);
 }
 
 // A picture read for the graphics card (an ImageBitmap) is held twice: by the page and by the card. Once the card has
 // it, the page's copy is let go (a 4096-pixel picture is 64 MB, and a building has up to three). Only for a model
-// drawn by the town's own renderer alone: a car's or a motorcycle's pictures are kept, since the market's viewer
-// (asset-view.js, a renderer of its own) may need them too. A picture drawn on a canvas (a name painted over) is
-// kept: the tests look at it.
-export function letGoOnceDrawn(texture) {
+// drawn by the town's own renderer alone. A picture drawn on a canvas (a name painted over) is kept: the tests look at it.
+// `restore`, where given, makes the picture again (from its file, which the browser has kept): the graphics card's
+// copy goes with the drawing surface if the browser ever takes that away, and `restorePictures` then makes again
+// every picture that was let go and is still in use (20 October 2026: the game carries on where it was instead of
+// asking to be reloaded).
+const restorable = new Map();         // texture -> how to make its picture again
+export function letGoOnceDrawn(texture, restore = null) {
   texture.onUpdate = () => { texture.onUpdate = null; const image = texture.image; if (image && typeof image.close === 'function') image.close(); };
+  if (restore && !restorable.has(texture)) {
+    restorable.set(texture, restore);
+    texture.addEventListener('dispose', () => restorable.delete(texture));
+  }
   return texture;
 }
-
-const TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
-const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 };
-
-// The file's two parts: its description and its binary data. Pure: runs without a page.
-export function parseGLB(buffer) {
-  const view = new DataView(buffer);
-  if (view.getUint32(0, true) !== 0x46546c67) throw new Error('not a GLB file');
-  if (view.getUint32(4, true) !== 2) throw new Error('not glTF 2.0');
-  let at = 12, json = null, bin = null;
-  while (at < view.byteLength) {
-    const length = view.getUint32(at, true), type = view.getUint32(at + 4, true);
-    if (type === 0x4e4f534a) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, at + 8, length)));
-    else if (type === 0x004e4942) bin = new Uint8Array(buffer, at + 8, length);
-    at += 8 + length;
+// (a picture let go: an ImageBitmap closed, which leaves it 0 by 0)
+const gone = (image) => !image || (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap && (image.width === 0 || image.height === 0));
+// Every picture that was let go and is still in use, made again and handed to the graphics card afresh (and let go
+// again once it has it). Gives how many there were, and how many could not be made.
+export async function restorePictures() {
+  let made = 0, failed = 0;
+  await Promise.all([...restorable].map(async ([texture, restore]) => {
+    if (!gone(texture.image)) { texture.needsUpdate = true; return; }
+    try {
+      const image = await restore();
+      if (!image) { failed += 1; return; }
+      texture.image = image; texture.needsUpdate = true;
+      letGoOnceDrawn(texture);
+      made += 1;
+    } catch (error) { failed += 1; }
+  }));
+  return { made, failed, held: restorable.size };
+}
+export const picturesHeld = () => restorable.size;
+// A picture inside a GLB file beside the page, made again: the file fetched (from the device's or the browser's kept
+// copy), read, and that one picture decoded, made no larger than `size` across if given. For restoring a picture that
+// was let go (letGoOnceDrawn): a file asked for by several pictures at once is fetched and read once.
+const reread = new Map();            // file -> promise of it read (kept for a few seconds)
+export function rereadFile(file) {
+  if (!reread.has(file)) {
+    const job = fetchKept(file).then((r) => { if (!r.ok) throw new Error(`${file}: ${r.status}`); return r.arrayBuffer(); }).then((b) => parseGLB(b));
+    job.catch(() => reread.delete(file));
+    reread.set(file, job);
+    setTimeout(() => { if (reread.get(file) === job) reread.delete(file); }, 15000);
   }
-  if (!json || !bin) throw new Error('GLB without its description or its data');
-  for (const ext of json.extensionsRequired || []) throw new Error(`the file needs ${ext}, which this reader does not have`);
-  const accessor = (i) => {
-    const a = json.accessors[i], bv = json.bufferViews[a.bufferView];
-    const T = TYPES[a.componentType], n = WIDTH[a.type];
-    if (bv.byteStride && bv.byteStride !== T.BYTES_PER_ELEMENT * n) throw new Error('interleaved data is not read here');
-    const start = bin.byteOffset + (bv.byteOffset || 0) + (a.byteOffset || 0);
-    // copied, so that the arrays do not hold on to the whole file and are aligned however the file was packed
-    const out = new T(a.count * n);
-    out.set(new T(bin.buffer.slice(start, start + a.count * n * T.BYTES_PER_ELEMENT)));
-    return { array: out, width: n, count: a.count, normalized: !!a.normalized };
-  };
+  return reread.get(file);
+}
+export function pictureFromFile(file, image, size = 0) {
+  return rereadFile(file).then((parsed) => {
+    const img = parsed.json.images[image];
+    const blob = new Blob([parsed.bytes(img.bufferView)], { type: img.mimeType || 'image/jpeg' });
+    return size ? createImageBitmap(blob, { resizeWidth: size, resizeHeight: size, resizeQuality: 'high' }) : createImageBitmap(blob);
+  });
+}
+
+// The file's two parts: its description and its binary data, and a reader for each accessor. Pure: runs without a
+// page. (glb-read.js reads them; the figures' worker reads a file the same way.)
+export function parseGLB(buffer) {
+  const { json, bin } = readGLB(buffer);
+  const accessor = (i, float = false) => readAccessor(json, bin, i, float);
   const bytes = (bufferView) => { const bv = json.bufferViews[bufferView]; return bin.slice(bv.byteOffset || 0, (bv.byteOffset || 0) + bv.byteLength); };
   // the animations, as plain data: a name, a length, and per node the keyed values
-  const animations = (json.animations || []).map((a) => {
-    let length = 0;
-    const tracks = a.channels.map((c) => {
-      const s = a.samplers[c.sampler];
-      const times = accessor(s.input).array, values = accessor(s.output).array;
-      length = Math.max(length, times[times.length - 1]);
-      return { node: json.nodes[c.target.node].name, path: c.target.path, times, values, step: s.interpolation === 'STEP' };
-    });
-    return { name: a.name, length, tracks };
-  });
+  const animations = readAnimations(json, accessor);
   return { json, accessor, bytes, animations };
+}
+
+// A file the figures' worker has already read (figure-worker.js: `splitGLB`): the same handles as parseGLB, over the
+// arrays it handed over. Its pictures are files of their own, decoded there too (`pictures`, by image).
+export function parsedParts({ json, arrays }) {
+  const accessor = (i, float = false) => {
+    const a = json.accessors[i];
+    const array = arrays[i];
+    if (!array) throw new Error(`accessor ${i} was not handed over`);
+    const width = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4, MAT4: 16 }[a.type];
+    // (the worker made every animation's numbers floats already)
+    return { array, width, count: a.count, normalized: !float && !!a.normalized && !(array instanceof Float32Array) };
+  };
+  const bytes = () => { throw new Error('a file read by the worker keeps no bytes of its own'); };
+  return { json, accessor, bytes, animations: readAnimations(json, accessor) };
 }
 
 // A node's name as three.js can bind an animation to it: some files name their bones with characters it keeps for
@@ -132,7 +168,10 @@ export function figureLabels(names) {
 
 // The three.js side: one model, from which any number of figures are made. `surface` makes the material,
 // so that a phone draws it the lighter way like everything else.
-export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
+// `pictures`, for a file whose pictures are files of their own (a light copy): by image, what the worker made of each,
+// { bitmap, blob } (a browser whose worker cannot decode pictures sends the blob alone, decoded here). Each picture's
+// own copy is let go once the graphics card has it, and made again from its blob should the card's copy be lost.
+export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
   const { json, accessor, bytes } = parsed;
   if ((json.meshes || []).length !== 1 || json.meshes[0].primitives.length !== 1) throw new Error('one mesh with one part is read here');
   const prim = json.meshes[0].primitives[0];
@@ -142,7 +181,14 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
   put('position', 'POSITION'); put('normal', 'NORMAL'); put('uv', 'TEXCOORD_0'); put('skinIndex', 'JOINTS_0'); put('skinWeight', 'WEIGHTS_0');
   geometry.setIndex(new THREE.BufferAttribute(accessor(prim.indices).array, 1));
   if (!at.NORMAL) geometry.computeVertexNormals();
-  geometry.computeBoundingBox(); geometry.computeBoundingSphere();
+  // A light copy's positions are 16-bit numbers that its skin turns back into the file's units (light.py): their
+  // box is the one the copy records from the file (three.js would measure the 16-bit numbers themselves).
+  const box = json.meshes[0].extras && json.meshes[0].extras.box;
+  if (geometry.attributes.position.normalized && Array.isArray(box) && box.length === 6) {
+    geometry.boundingBox = new THREE.Box3(new THREE.Vector3(box[0], box[1], box[2]), new THREE.Vector3(box[3], box[4], box[5]));
+    geometry.boundingSphere = geometry.boundingBox.getBoundingSphere(new THREE.Sphere());
+  } else if (geometry.attributes.position.normalized) throw new Error('a light copy without the box of its figure');
+  else { geometry.computeBoundingBox(); geometry.computeBoundingSphere(); }
 
   // the material: its textures as they were packed, the way glTF lays textures (no flip). A file may carry, beside
   // its colour picture, a picture of how the surface is bent (normal) and one of how rough and how metal each part
@@ -159,13 +205,27 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
     c.getContext('2d').drawImage(picture, 0, 0, c.width, c.height);
     return c;
   };
+  const decode = (blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }) : Promise.reject(new Error('no createImageBitmap')));
   function textureOf(ref, colour) {
     if (!ref) return null;
-    const image = json.images[json.textures[ref.index].source];
-    const blob = new Blob([bytes(image.bufferView)], { type: image.mimeType || 'image/jpeg' });
+    const index = textureSource(json, ref.index);
+    const image = json.images[index];
     const map = new THREE.Texture();
     map.flipY = false; map.anisotropy = 4;
     if (colour) map.encoding = THREE.sRGBEncoding;
+    if (image.uri !== undefined) {
+      // a picture of its own beside the model (a light copy), already fetched and decoded by the worker
+      const got = pictures && pictures[index];
+      if (!got) throw new Error(`the picture ${image.uri} was not handed over`);
+      const viaImage = () => new Promise((resolve) => { const img = new Image(); img.onload = () => { map.image = img; map.needsUpdate = true; resolve(); }; img.onerror = () => resolve(); img.src = URL.createObjectURL(got.blob); });
+      const given = got.bitmap ? Promise.resolve(got.bitmap) : decode(got.blob);
+      ready.push(given.then((bmp) => { map.image = bmp; map.needsUpdate = true; }).catch(viaImage));
+      // (drawn by the one renderer there is: the page's copy is let go once the card has it, and made again from the
+      // picture's file should the card's copy be lost)
+      if (got.blob) letGoOnceDrawn(map, () => decode(got.blob));
+      return map;
+    }
+    const blob = new Blob([bytes(image.bufferView)], { type: image.mimeType || 'image/jpeg' });
     const img = new Image();
     // decoded (and made smaller, on a phone) away from the page's own thread where the browser can; the
     // picture is the file's, unchanged
@@ -222,6 +282,6 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0 }) {
     mesh.bind(new THREE.Skeleton(bones, inverses), mesh.matrixWorld);
     return { root, mesh, bones };
   }
-  const box = geometry.boundingBox;
-  return { figure, clips, ready: Promise.all(ready), height: box.max.y - box.min.y, triangles: geometry.index.count / 3, geometry, material };
+  const bounds = geometry.boundingBox;
+  return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material };
 }

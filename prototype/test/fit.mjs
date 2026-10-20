@@ -81,7 +81,7 @@ const top = (sel) => page.evaluate((s) => { const e = document.querySelector(s);
 const BUTTONS = ['.hx', '.btn'];
 
 await page.goto(`${origin}/`, { timeout: 300000 });
-await page.waitForFunction(() => window.__nlw && window.__nlw.intro && window.__nlw.intro.ready() && window.__nlw.ready, null, { timeout: 300000 });
+await page.waitForFunction(() => window.__nlw && window.__nlw.intro && window.__nlw.intro.ready(), null, { timeout: 300000 });
 
 // ---- the cover ----
 await everySize('the cover', { whole: ['#cover-logo', '#cover-play'], words: [] });

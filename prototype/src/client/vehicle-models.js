@@ -27,6 +27,11 @@ const shared = { env: null, textures: new Map(), daylight: 1, live: new Set() };
 // with the renderer; without it vehicles are drawn with their metal toned down.
 export function initVehicles(renderer) {
   if (shared.env || !renderer || location.hash.includes('noenv')) return;
+  shared.env = skyPicture(renderer);
+}
+// The picture itself, made on the graphics card (so it is not there after the browser has taken the card's pictures
+// away and given the drawing surface back: renewEnvironment makes it again).
+function skyPicture(renderer) {
   try {
     const sky = new THREE.Scene();
     const dome = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.ShaderMaterial({
@@ -36,10 +41,24 @@ export function initVehicles(renderer) {
     }));
     sky.add(dome);
     const pmrem = new THREE.PMREMGenerator(renderer);
-    shared.env = pmrem.fromScene(sky, 0.03).texture;
+    const made = pmrem.fromScene(sky, 0.03).texture;
     pmrem.dispose();
     dome.geometry.dispose(); dome.material.dispose();
-  } catch (error) { shared.env = null; }
+    return made;
+  } catch (error) { return null; }
+}
+// After the drawing surface is given back (main.js): the sky picture made again, and everything in `scene` that
+// reflected the old one reflecting the new. Gives how many materials were changed.
+export function renewEnvironment(renderer, scene) {
+  if (!shared.env) return 0;
+  const old = shared.env;
+  const made = skyPicture(renderer);
+  if (!made) return 0;
+  shared.env = made;
+  let n = 0;
+  const seen = new Set();
+  scene.traverse((o) => { for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) { if (!seen.has(m) && m.envMap === old) { m.envMap = made; m.needsUpdate = true; n += 1; } seen.add(m); } });
+  return n;
 }
 
 // What vehicles reflect (null until initVehicles has made it): the city's glass reflects it too.

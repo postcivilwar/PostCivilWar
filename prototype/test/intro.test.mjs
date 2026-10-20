@@ -11,8 +11,8 @@ import { createHost } from '../src/sim/host.js';
 
 const here = (path) => new URL(`../${path}`, import.meta.url);
 
-test('the splash is five seconds, and nothing on it is pressed: the cover and its PLAY come after it', () => {
-  assert.equal(INTRO_TIMES.splash, 5000);
+test('the splash is a little over a second (it was five until 20 October 2026), and nothing on it is pressed: the cover and its PLAY come after it', () => {
+  assert.equal(INTRO_TIMES.splash, 1200);
   assert.deepEqual(PATHS, ['hero', 'villain']);
   const page = readFileSync(here('src/client/template.html'), 'utf8');
   assert.ok(!page.includes('intro-play'), 'the splash has no PLAY of its own');
@@ -24,7 +24,7 @@ test('the splash is five seconds, and nothing on it is pressed: the cover and it
 test('the cover is the supplied picture: kept as supplied, and carried in the page in four pieces', () => {
   assert.ok(existsSync(here('assets/brand/cover/cover-master.jpg')), 'the picture as it was supplied');
   for (const piece of ['plate.jpg', 'logo.png', 'words.png', 'play.png', 'cover.json']) assert.ok(existsSync(here(`assets/brand/cover/${piece}`)), piece);
-  assert.ok(COVER.plate.startsWith('data:image/jpeg;base64,'));
+  assert.ok(COVER.plate.startsWith('data:image/webp;base64,'));
   for (const piece of ['logo', 'words', 'play']) {
     assert.ok(COVER[piece].src.startsWith('data:image/webp;base64,'), `${piece} travels inside the page`);
     for (const key of ['x', 'y', 'w', 'h']) assert.ok(COVER[piece][key] > 0 && COVER[piece][key] < 1, `${piece}.${key}`);

@@ -34,7 +34,7 @@ const context = await browser.newContext({ viewport: { width: 1000, height: 640 
 const page = await context.newPage(); page.setDefaultTimeout(240000);
 page.on('pageerror', (e) => check('no error in the page', false, e.message));
 await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
 await signUp(page, 'World');
 await pastQuestion(page);
 await page.fill('#name', 'World Test');

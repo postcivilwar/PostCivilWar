@@ -8,15 +8,18 @@
 //   The page itself: the network first, so a player with a connection always has the newest game; the copy
 //   kept here when there is no connection, or when none answers within a few seconds.
 //
-//   Every other file (the 3D library, the two figures, the icons): the copy kept here, if there is one. Each
-//   is kept under the fingerprint of its contents, so a file that changes is fetched again and a file that
-//   does not is never fetched again, however often the game is brought up to date.
+//   Every other file (the 3D library, the game's script, the kits, the figures, the icons): the copy kept here, if
+//   there is one. Each is kept under the fingerprint of its contents, so a file that changes is fetched again and a
+//   file that does not is never fetched again, however often the game is brought up to date.
 //
-// The figures are 5 to 38 MB each. Only the one a player actually uses is kept (the page says which).
+// A file is fetched the way the page asks for it (with its fingerprint, `?v=`), from the browser's own cache where it
+// is already there: a file the page has just fetched is not fetched a second time to be kept (20 October 2026; until
+// then, on a first visit, the kits were fetched twice). Of the figures (their light copies, a few MB each) only the
+// player's own is kept (the page says which).
 
 const FILES = /*@@FILES@@*/{};        // path beside the page -> fingerprint of the file's contents
 const FIRST = /*@@FIRST@@*/[];        // kept as soon as this is installed: the page and the small files
-const ASKED = new Set(/*@@ASKED@@*/[]);  // kept only when the page asks: the figures (each 5 to 38 MB), the player's own
+const ASKED = new Set(/*@@ASKED@@*/[]);  // kept only when the page asks: the figures' light copies, the player's own
 const PAGE = '';                      // the page's own path: the folder this file is in
 const CACHE = 'pcw-files-v1';
 const WAIT = 4000;                    // how long the network has to answer for the page before the kept copy is shown (ms)
@@ -34,7 +37,8 @@ function pathOf(address) {
 }
 // Only a whole, ordinary answer from this site is worth keeping: not an error page, not a redirect elsewhere.
 const good = (response) => !!response && response.ok && response.status === 200 && response.type !== 'opaque' && response.type !== 'opaqueredirect' && !response.redirected;
-const fresh = (path) => fetch(new Request(urlOf(path), { cache: 'no-cache', credentials: 'same-origin' }));
+// (the page itself: always asked afresh; any other file: by its fingerprint, which the browser's cache may answer)
+const fresh = (path) => fetch(new Request(path === PAGE ? urlOf(path) : `${urlOf(path)}?v=${FILES[path]}`, { cache: path === PAGE ? 'no-cache' : 'default', credentials: 'same-origin' }));
 const drop = (response) => { try { if (response && response.body) response.body.cancel().catch(() => {}); } catch (error) { /* already read */ } };
 
 // A file kept under its fingerprint: from here if it is here, otherwise fetched, kept and handed on. A page may

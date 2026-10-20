@@ -29,7 +29,7 @@ await watchPictures(context);
 const page = await context.newPage(); page.setDefaultTimeout(300000);
 page.on('pageerror', (e) => check('no error in the page', false, e.message));
 await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
 await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
 await page.click('#open-signup');
 await page.waitForSelector('#account:not([hidden])');

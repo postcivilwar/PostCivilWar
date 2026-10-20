@@ -41,7 +41,7 @@ const username = `Moto_${Math.random().toString(36).slice(2, 8)}`;
 const password = 'a password for the motorcycle test';
 
 await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
 await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
 await page.click('#open-signup');
 await page.fill('#account-username', username); await page.fill('#account-password', password);
@@ -400,7 +400,7 @@ const phone = await browser.newContext({ viewport: { width: 844, height: 390 }, 
 const pp = await phone.newPage(); pp.setDefaultTimeout(240000);
 pp.on('pageerror', (e) => check('no error on the phone', false, e.message));
 await pp.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-await pp.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await pp.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
 await pp.waitForSelector('#open-login', { state: 'visible', timeout: 300000 });
 await pp.tap('#open-login');
 await pp.fill('#account-username', username); await pp.fill('#account-password', password);
@@ -418,10 +418,10 @@ const layout = await pp.evaluate(() => {
   const dial = box(document.querySelector('#speedo'));
   const pads = [...document.querySelectorAll('.pad')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => ({ id: e.dataset.id, shape: e.dataset.shape, ...box(e), shadow: getComputedStyle(e).boxShadow }));
   const over = (a, b) => a.l < b.r && b.l < a.r && a.t < b.b && b.t < a.b;
-  return { dial, shown: !document.querySelector('#speedo').hidden, clash: pads.filter((p) => over(p, dial)).map((p) => p.id), pads: pads.map((p) => [p.id, p.shape, p.shadow.includes('rgb(92, 176, 255)')]) };
+  return { dial, shown: !document.querySelector('#speedo').hidden, clash: pads.filter((p) => over(p, dial)).map((p) => p.id), pads: pads.map((p) => [p.id, p.shape, p.shadow.includes('rgb(178, 190, 181)')]) };
 });
 await pp.screenshot({ path: resolve(out, '07-phone-riding.png') });
-check('on a phone: the speedometer is shown and no button is under it; every riding button is in the blue design', layout.shown && layout.clash.length === 0 && layout.pads.every((p) => p[2]) && layout.pads.some((p) => p[0] === 'throttle' && p[1] === 'pedal-tall'), layout);
+check('on a phone: the speedometer is shown and no button is under it; every riding button is in the design of the controls (ash grey)', layout.shown && layout.clash.length === 0 && layout.pads.every((p) => p[2]) && layout.pads.some((p) => p[0] === 'throttle' && p[1] === 'pedal-tall'), layout);
 await phone.close();
 
 const failed = results.filter((r) => !r).length;

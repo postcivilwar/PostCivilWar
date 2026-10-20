@@ -35,7 +35,9 @@ def main():
     scale = PLATE_WIDTH / W
     total = 0
     plate = Image.open(os.path.join(COVER, 'plate.jpg')).convert('RGB').resize((PLATE_WIDTH, round(H * scale)), Image.LANCZOS)
-    src, size = uri(plate, 'JPEG', quality=86, optimize=True, progressive=True)
+    # (as WebP since 20 October 2026: 149 KB where the same picture as JPEG was 267 KB, and the cover is what a phone
+    # waits for before PLAY)
+    src, size = uri(plate, 'WEBP', quality=86, method=6)
     total += size
     cover = {
         'alt': 'Post Civil War. A woman and a man stand on a quay between a yacht and a jet. Find work. Buy a plot. Build the walls. Start again.',

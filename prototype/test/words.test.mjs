@@ -87,7 +87,7 @@ test('a character upgrade is confirmed in the words that were asked for', () => 
 
 test('the screen where a character is made does not ask hero or villain', () => {
   const page = read('src/client/template.html');
-  const from = page.indexOf('<div id="start"'), to = page.indexOf('id="intro"', from);
+  const from = page.indexOf('<div id="start"'), to = page.indexOf('<div id="account"', from);
   assert.ok(from > 0 && to > from, 'the start screen was not found in the page');
   const start = page.slice(from, to);
   assert.ok(start.length > 500, 'the start screen was not found in the page');

@@ -682,7 +682,7 @@ export function createUI(app) {
         ['Drawing', now.lite ? 'The lighter way, for a phone or tablet' : 'In full, for a desktop'],
         ['Detail level', `${LEVELS[now.quality]}${now.detail === 'auto' ? ', chosen automatically' : ', set by you'}`],
         ['Last change', changed ? `${LEVELS[changed.from]} to ${LEVELS[changed.to]}: ${changed.why}` : 'none'],
-        ['Sound', now.sound]].map(([a, b]) => line(a, b)));
+        ['Sound', now.sound], ...(app.readout ? app.readout() : [])].map(([a, b]) => line(a, b)));
       hitches.hidden = !f.recent.length;
       hitches.textContent = f.recent.length ? `Latest hitches: ${f.recent.slice(-3).map((x) => `${x.ms} ms (${x.where})`).join('; ')}.` : '';
     };

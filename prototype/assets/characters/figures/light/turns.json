@@ -1,0 +1,134 @@
+{
+ "figures": {
+  "athlete.glb": {
+   "madeFrom": "eb28224ae23b82d2",
+   "bytes": 90446
+  },
+  "athletic_outfit.glb": {
+   "madeFrom": "9d5961300c68c05e",
+   "bytes": 77558
+  },
+  "camouflage_bikini.glb": {
+   "madeFrom": "aa3e29c99d36e84c",
+   "bytes": 64332
+  },
+  "fashion_model_1.glb": {
+   "madeFrom": "8b7cb6164ba2ac0e",
+   "bytes": 90462
+  },
+  "fashion_model_2.glb": {
+   "madeFrom": "e39b6a5bb5766401",
+   "bytes": 57796
+  },
+  "fashion_model_3.glb": {
+   "madeFrom": "b9885424b7229b09",
+   "bytes": 93020
+  },
+  "fashion_model_5.glb": {
+   "madeFrom": "37548cabb807c000",
+   "bytes": 90036
+  },
+  "fashion_model_6.glb": {
+   "madeFrom": "d14c93e189595be8",
+   "bytes": 80216
+  },
+  "fashion_model_7.glb": {
+   "madeFrom": "5389035188f24152",
+   "bytes": 81884
+  },
+  "female_character_2.glb": {
+   "madeFrom": "9bd9dfdeaba2ae41",
+   "bytes": 70568
+  },
+  "female_figure.glb": {
+   "madeFrom": "7142767ea297581d",
+   "bytes": 86426
+  },
+  "hobo_character.glb": {
+   "madeFrom": "28bad38c73f1a23f",
+   "bytes": 83860
+  },
+  "horror_character.glb": {
+   "madeFrom": "d9586b151631e386",
+   "bytes": 72608
+  },
+  "horror_nurse.glb": {
+   "madeFrom": "5f99895f130a2dde",
+   "bytes": 92398
+  },
+  "human_character.glb": {
+   "madeFrom": "3b396426427a4b88",
+   "bytes": 85024
+  },
+  "male_figure.glb": {
+   "madeFrom": "7239fba12acad003",
+   "bytes": 75456
+  },
+  "muscular_male.glb": {
+   "madeFrom": "baca4b1bf88ed65e",
+   "bytes": 74828
+  },
+  "nigerian_traditional.glb": {
+   "madeFrom": "51244e86a9b200f9",
+   "bytes": 56936
+  },
+  "ninja_armor.glb": {
+   "madeFrom": "ee78c9682792fe97",
+   "bytes": 100480
+  },
+  "ninja_warrior.glb": {
+   "madeFrom": "2f9437f8a7d664f4",
+   "bytes": 97892
+  },
+  "patchwork_shirt.glb": {
+   "madeFrom": "f57751fff24aad33",
+   "bytes": 69602
+  },
+  "police.glb": {
+   "madeFrom": "e8c37dcaf41b1943",
+   "bytes": 68518
+  },
+  "priest.glb": {
+   "madeFrom": "ff7f3408a7425ea5",
+   "bytes": 99382
+  },
+  "swimwear_model.glb": {
+   "madeFrom": "677c4184b446a7c8",
+   "bytes": 62516
+  },
+  "urban_streetwear.glb": {
+   "madeFrom": "1ec86ed087886247",
+   "bytes": 87884
+  },
+  "warrior.glb": {
+   "madeFrom": "3940ee66fa0a0a68",
+   "bytes": 80400
+  },
+  "woman.glb": {
+   "madeFrom": "f94fe803f63d9c4b",
+   "bytes": 72306
+  },
+  "zombie.glb": {
+   "madeFrom": "ae22bf18413f57ad",
+   "bytes": 64680
+  },
+  "zombie_character.glb": {
+   "madeFrom": "4390f814f5d098ae",
+   "bytes": 76406
+  },
+  "zombie_survivor.glb": {
+   "madeFrom": "c3a04485439ce1d0",
+   "bytes": 72570
+  }
+ },
+ "frames": 16,
+ "cols": 4,
+ "frame": [
+  256,
+  384
+ ],
+ "band": [
+  -0.08,
+  2
+ ]
+}

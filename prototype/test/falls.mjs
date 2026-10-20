@@ -40,7 +40,7 @@ let shotN = 0;
 const shot = (name) => page.screenshot({ path: resolve(out, `${String(++shotN).padStart(2, '0')}-${name}.png`) });
 
 await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
 await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
 await page.click('#open-signup');
 await page.fill('#account-username', `Falls_${Math.random().toString(36).slice(2, 8)}`);

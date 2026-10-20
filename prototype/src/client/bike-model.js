@@ -21,10 +21,10 @@ const KEEP = deviceKind() === 'lite' ? 1 : 2;      // bikes kept ready when none
 // One shape a bike, whichever of its sets of pictures it is drawn with (the showroom changes a bike's set as the player
 // comes up to it: its shape is not fetched or handed to the graphics card again): its geometry, and how many sets hold it.
 const shapes = new Map();
-function shapeOf(id, base, spec) {
+function shapeOf(id, base, spec, priority) {
   let s = shapes.get(id);
   if (!s) {
-    s = { made: buildShape(base, spec), holders: 0 };
+    s = { made: buildShape(base, spec, priority), holders: 0 };
     shapes.set(id, s);
     const mine = s;
     s.made.catch(() => { if (shapes.get(id) === mine) shapes.delete(id); });
@@ -38,8 +38,8 @@ function letShapeGo(id) {
   shapes.delete(id);
   s.made.then((geometries) => { for (const g of geometries) g.dispose(); }, () => {});
 }
-async function buildShape(base, spec) {
-  const response = await fetchKept(base + spec.files.mesh);
+async function buildShape(base, spec, priority) {
+  const response = await fetchKept(base + spec.files.mesh, priority ? { priority } : undefined);
   if (!response.ok) throw new Error(`${spec.files.mesh}: ${response.status}`);
   const buf = await response.arrayBuffer();
   const n = spec.vertices;
@@ -87,24 +87,29 @@ function free({ id, geometries, material, shared }) {
   material.dispose();
 }
 // Lets go of the bikes nobody is drawing, oldest first, beyond the few kept ready.
-function trim() {
+function trim(keep = KEEP) {
+  let n = 0;
   for (const [key, made] of cache) {
-    if (cache.size <= KEEP) break;
+    if (cache.size <= keep) break;
     if (users.get(key)) continue;
     cache.delete(key);
     made.then(free, () => {});
+    n += 1;
   }
+  return n;
 }
+// (over the page's budget for the graphics card, main.js: every one kept ready but not drawn is let go; gives how many)
+export const trimBikes = () => trim(0);
 
 // (once the graphics card has a picture of the shared set, the page lets its own copy go: glb.js; the market's
 // viewer, a renderer of its own, is given a copy of its own, `own`, which keeps its pictures)
-function picture(url, colour, own) {
+function picture(url, colour, own, priority) {
   const map = new THREE.Texture();
   map.flipY = false; map.anisotropy = 4;
   if (colour) map.encoding = THREE.sRGBEncoding;
-  const ready = fetchKept(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
+  const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
-    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map); return map; });
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });
   return { map, ready };
 }
 // which file each picture of a set comes from (the 4096 set: its colour at 4096, its relief and finish at 2048)
@@ -112,7 +117,7 @@ const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1
 const LARGER = ['512', '1k', '2k', '4k'];
 const tierOf = (lite, tier) => tier || PICTURES[lite ? 'lite' : 'full'].vehicle;
 
-async function partsOf(id, { base, tier, own = false }) {
+async function partsOf(id, { base, tier, own = false, priority }) {
   const key = `${id}:${tier}`;
   if (!own && cache.has(key)) return cache.get(key);
   const spec = BIKE_PARTS[id];
@@ -121,10 +126,10 @@ async function partsOf(id, { base, tier, own = false }) {
     const f = spec.files, sizes = SETS[tier] || SETS['2k'];
     // (a bike made with few triangles may come with its colour picture only: then it has no other to fetch)
     const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
-    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own) : null));
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
     // (the market's viewer, with a renderer of its own, has a shape of its own too)
     let geometries;
-    try { geometries = own ? await buildShape(base, spec) : await shapeOf(id, base, spec); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
+    try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
     try {
       const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
       const material = surface({ map: color, normalMap, normalScale: new THREE.Vector2(spec.normalScale, -spec.normalScale), roughnessMap: rm, metalnessMap: rm, roughness: spec.roughness, metalness: spec.metallic, envMapIntensity: 1.1 });
@@ -201,7 +206,7 @@ function lampsOf(spec, frame, bars) {
 
 // One motorcycle to put in the scene. `length` is its real length in metres; `tier` its set of pictures (or the one
 // for the road on this kind of device); `own`: a copy of its own, for a renderer other than the town's.
-export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false } = {}) {
+export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false, priority } = {}) {
   const set = tierOf(lite, tier);
   const key = `${id}:${set}`;
   // (counted as wanted from the moment it is asked for, not once it has come: a set still on its way, with nobody yet
@@ -209,7 +214,7 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
   // given up: a bike drawn black, as the showroom's were once its sets began to change as the player walked about)
   if (!own) users.set(key, (users.get(key) || 0) + 1);
   let parts;
-  try { parts = await partsOf(id, { base, tier: set, own }); } catch (error) { if (!own) { users.set(key, users.get(key) - 1); trim(); } throw error; }
+  try { parts = await partsOf(id, { base, tier: set, own, priority }); } catch (error) { if (!own) { users.set(key, users.get(key) - 1); trim(); } throw error; }
   const { spec, geometries, material } = parts;
   if (!own && cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
   let held = true;

@@ -65,7 +65,9 @@ test('the website\'s page is a whole document: read at the phone\'s width, by th
   for (const m of head.matchAll(/(?:href)="([^"]+)"/g)) if (m[1] !== 'manifest.webmanifest') assert.ok(existsSync(here(`assets/brand/icons/${m[1]}`)), `${m[1]} exists`);
   const build = read('build.mjs');
   assert.ok(build.includes('<!doctype html>\\n<html lang="en">'), 'the build writes a doctype');
-  assert.ok(build.includes('<script src="three.min.js">'), 'the 3D library comes from beside the page');
+  // the 3D library and the game's script come from beside the page, by their fingerprints, read once the page has been
+  assert.ok(build.includes('<script defer src="three.min.js?v=${fingerprint(three)}"'), 'the 3D library comes from beside the page');
+  assert.ok(build.includes('<script defer src="game.js?v='), 'the game\'s script comes from beside the page');
 });
 
 test('how the game can be installed is said only where it is true', () => {
@@ -149,6 +151,7 @@ function runWorker(site, device, net) {
   const fetchFake = async (request) => {
     const url = new URL(request.url || request);
     net.asked.push(url.pathname + url.search);
+    (net.modes || (net.modes = [])).push(request.cache || 'default');
     if (net.delay) await new Promise((resolve) => setTimeout(resolve, net.delay));
     if (!net.online) throw new TypeError('Failed to fetch');
     const name = url.pathname === '/' ? 'index.html' : url.pathname.slice(1);
@@ -178,8 +181,13 @@ test('the worker: installed, it keeps the page and the small files; with no conn
   const site = makeSite(FILES_V1), device = makeDevice(), net = { online: true, asked: [] };
   const w = runWorker(site, device, net);
   await w.install(); await w.activate();
-  // the page and the library were fetched; neither figure was (they are 10 MB and 13 MB)
-  assert.deepEqual(net.asked.sort(), ['/', '/three.min.js']);
+  // the page and the library were fetched; neither figure was. The library is asked for as the page asks for it, by its
+  // fingerprint, so that on a first visit the browser's own cache answers what the page has just fetched (until
+  // 20 October 2026 the worker asked afresh, and a first visit fetched it twice)
+  const asked = Object.fromEntries(net.asked.map((path, i) => [path, net.modes[i]]));
+  assert.deepEqual(Object.keys(asked).sort(), ['/', `/three.min.js?v=${sha('the 3D library')}`]);
+  // (the page itself always afresh; the library as the page asks for it, which the browser's cache may answer)
+  assert.deepEqual(asked, { '/': 'no-cache', [`/three.min.js?v=${sha('the 3D library')}`]: 'default' });
   net.online = false; net.asked.length = 0;
   assert.equal((await w.get('./')).text, 'the game, version one');
   assert.equal((await w.get('./index.html')).text, 'the game, version one');
@@ -275,7 +283,7 @@ test('the worker: when a file changes it is fetched again, and what did not chan
   assert.equal((await two.get('./three.min.js')).text, 'the 3D library');
   assert.deepEqual(net.asked, []);
   assert.equal((await two.get('./man.b64.txt')).text, 'the man, changed');
-  assert.deepEqual(net.asked, ['/man.b64.txt']);
+  assert.deepEqual(net.asked, [`/man.b64.txt?v=${sha('the man, changed')}`]);
   // the old man is gone from the device, not left behind
   const keys = [...device.stores.get('pcw-files-v1').keys()];
   assert.equal(keys.filter((k) => k.includes('/man.b64.txt')).length, 1);
@@ -303,35 +311,73 @@ test('what is served is one build: every file the worker in site/ lists is there
   const worker = readFileSync(new URL('sw.js', served), 'utf8');
   const table = JSON.parse(worker.match(/const FILES = (\{[^;]*\});/)[1]);
   const first = JSON.parse(worker.match(/const FIRST = (\[[^;]*\]);/)[1]);
+  const asked = new Set(JSON.parse(worker.match(/const ASKED = new Set\((\[[^;]*\])\);/)[1]));
+  const print = (bytes) => createHash('sha256').update(bytes).digest('hex').slice(0, 16);
   assert.ok(Object.keys(table).length >= 8);
-  for (const [name, print] of Object.entries(table)) assert.equal(createHash('sha256').update(readFileSync(new URL(name, served))).digest('hex').slice(0, 16), print, name);
+  for (const [name, fingerprint] of Object.entries(table)) assert.equal(print(readFileSync(new URL(name, served))), fingerprint, name);
   for (const name of first) assert.ok(name === '' || table[name], `${name} is kept first and is in the table`);
   const page = readFileSync(new URL('index.html', served), 'utf8');
   assert.ok(page.startsWith('<!doctype html>\n<html lang="en">\n<head>\n<meta charset="utf-8">'));
-  assert.ok(page.includes('<script src="three.min.js"></script>'));
+  // the page is small (it was 4 MB until 20 October 2026); the 3D library and the game's script come after it, beside
+  // it, by their fingerprints, and are read once the page has been
+  assert.ok(page.length < 300 * 1024, `the page is ${page.length} bytes`);
+  assert.ok(page.includes(`<script defer src="three.min.js?v=${table['three.min.js']}"`), 'the 3D library, by its fingerprint');
+  assert.ok(page.includes(`<script defer src="game.js?v=${table['game.js']}"`), 'the game\'s script, by its fingerprint');
   assert.ok(!/<script src="https?:/.test(page), 'no script comes from another site');
-  // the figures are the owner's files, byte for byte, written as text
-  for (const [text, file] of [['man.b64.txt', 'muscular_male.glb'], ['woman.b64.txt', 'woman.glb']]) {
-    const supplied = readFileSync(here(`assets/characters/figures/animated/${file}`));
-    assert.ok(Buffer.from(readFileSync(new URL(text, served), 'latin1'), 'base64').equals(supplied), `${text} is ${file}, unchanged`);
+  // the figures: light copies made from the owner's files (assets/characters/figures/light/made.json), never the files
+  // themselves; every file of each is there, by the fingerprint the page names, and is kept on a device only when the
+  // page asks (the player's own)
+  const figures = JSON.parse(page.match(/window\.__PCW_FIGURES = (\{[^\n]*?\});/)[1]).figures;
+  const made = JSON.parse(read('assets/characters/figures/light/made.json')).figures;
+  const supplied = new Set();
+  for (const [id, f] of Object.entries(figures)) {
+    const original = readFileSync(here(`assets/characters/figures/animated/${f.file}`));
+    supplied.add(print(original));
+    assert.equal(made[f.file].md5, createHash('md5').update(original).digest('hex'), `${id}'s light copy was made from the owner's ${f.file} as it is`);
+    const urls = [f.model, f.moves[0], ...(f.turn ? [f.turn[0]] : []), ...f.pictures.flatMap((p) => Object.values(p.sizes).map(([url]) => url))];
+    for (const url of urls) {
+      const [name, v] = url.split('?v=');
+      assert.equal(table[name], v, `${name} is there, by the fingerprint the page names`);
+      assert.ok(asked.has(name), `${name} is kept only when the page asks`);
+    }
   }
-  // the wristwatch is the owner's model, byte for byte; it is beside the page and is not one of the files the worker keeps
+  assert.equal(Object.keys(figures).length, 30);
+  // no file the website sends is one of the owner's figures (each 5 to 38 MB)
+  const all = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? all(new URL(`${e.name}/`, dir)) : [new URL(e.name, dir)]));
+  for (const file of all(served)) if (/\.glb$/.test(file.pathname)) assert.ok(!supplied.has(print(readFileSync(file))), `${file.pathname} is one of the owner's figures`);
+  // his buildings, the town's vehicles and the watch: the copies tools/models/lighter.py made from his files as they
+  // are (assets/models-light/made.json), and beside each the phone's copy, which the page names
+  const models = JSON.parse(page.match(/window\.__PCW_MODELS = (\{[^\n]*?\});/)[1]);
+  const copies = JSON.parse(read('assets/models-light/made.json')).copies;
+  assert.ok(Object.keys(models).length >= 25);
+  for (const [name, lite] of Object.entries(models)) {
+    assert.equal(lite, name.replace(/\.glb$/, '.lite.glb'));
+    assert.ok(existsSync(new URL(name, served)) && existsSync(new URL(lite, served)), name);
+    // (two of his files are the same model, PowerBike's tower and a tower in town: their copies are the same too)
+    const sha = createHash('sha256').update(readFileSync(new URL(lite, served))).digest('hex');
+    const of = Object.values(copies).filter((c) => c.sha256 === sha);
+    assert.ok(of.length >= 1, `${lite} is a copy made by the build`);
+    for (const c of of) assert.equal(c.md5, createHash('md5').update(readFileSync(here(c.from))).digest('hex'), `${lite} was made from the owner's ${c.from} as it is`);
+  }
+  // the wristwatch: the owner's model as supplied, for a computer, and a lighter copy for a phone; both beside the page,
+  // and neither is one of the files the worker keeps
   assert.ok(readFileSync(new URL('assets/watch.glb', served)).equals(readFileSync(here('assets/market/watch.glb'))), 'the watch on the site is the supplied model, unchanged');
   assert.equal(table['assets/watch.glb'], undefined);
+  assert.equal(table['assets/watch.lite.glb'], undefined);
   assert.ok(table['assets/watch-turn.webp'] && table['assets/watch-poster.webp']);
   // the list of songs is always asked for afresh, and every song it names is there
   const songs = JSON.parse(readFileSync(new URL('music/library.json', served), 'utf8')).tracks;
   assert.ok(Array.isArray(songs));
   for (const song of songs) assert.ok(existsSync(new URL(`music/${song.file}`, served)), `music/${song.file}`);
   assert.ok(Object.keys(table).every((name) => !name.startsWith('music/')));
-  // and nothing else is lying about in the folder, or in the two folders inside it
   // which build this is: the page's own fingerprint, in a file that is asked for on the live address after a deployment
   const version = JSON.parse(readFileSync(new URL('version.json', served), 'utf8'));
   const pageBytes = readFileSync(new URL('index.html', served));
   assert.equal(version.page, createHash('sha256').update(pageBytes).digest('hex').slice(0, 16), 'version.json names the page that is served with it');
   assert.equal(version.bytes, pageBytes.length);
   assert.equal(table['version.json'], undefined, 'and is always asked for afresh');
-  const expected = new Set([...Object.keys(table), 'index.html', 'sw.js', 'version.json', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb', 'music/library.json', ...songs.flatMap((song) => [song.file, song.cover].filter(Boolean).map((name) => `music/${name}`))]);
-  const there = readdirSync(served, { withFileTypes: true }).flatMap((entry) => (entry.isDirectory() ? readdirSync(new URL(`${entry.name}/`, served)).map((name) => `${entry.name}/${name}`) : [entry.name]));
+  // and nothing else is lying about in the folder, or in the folders inside it
+  const expected = new Set([...Object.keys(table), 'index.html', 'sw.js', 'version.json', 'THREE-LICENSE.txt', 'share.png', 'assets/watch.glb', 'assets/watch.lite.glb', 'music/library.json', ...songs.flatMap((song) => [song.file, song.cover].filter(Boolean).map((name) => `music/${name}`))]);
+  const there = all(served).map((file) => file.pathname.slice(served.pathname.length));
   assert.deepEqual(there.filter((name) => !expected.has(name)), []);
 });

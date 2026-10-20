@@ -48,7 +48,7 @@ async function device(label, size, mobile = false) {
   let hush = null;                    // (an error the test itself is causing just now, and so expects)
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource.*40[01349]|status of 4(00|01|03|04|09|29)/.test(m.text()) && !(hush && hush.test(m.text()))) bad(`${label}: console: ${m.text()}`); });
   await page.goto(`${origin}/#nointro-lite`, { timeout: 300000 });
-  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
   await page.waitForFunction(() => window.__nlw.online.status().state !== 'checking');
   { const st = await page.evaluate(() => { const x = window.__nlw.online.status(); return { state: x.state, message: x.message }; }); if (st.state === 'down') { bad(`${label}: on opening the page the game says the server cannot be reached ("${st.message}")`); await page.click('#account-retry'); await page.waitForFunction(() => window.__nlw.online.status().state !== 'down', null, { timeout: 60000 }); } }
   const press = (selector) => (mobile ? page.tap(selector) : page.click(selector));
@@ -620,7 +620,8 @@ say('9. The buyer logs in on a computer: straight into town as the same characte
   // the model itself, fetched only when asked for
   await p.click('.assetcard'); await p.waitForSelector('#load-model');
   const fetched = [];
-  p.on('request', (r) => { if (/watch\.glb/.test(r.url())) fetched.push(r.url()); });
+  // (a phone fetches the watch's copy with its pictures at 2048, watch.lite.glb; a computer the file as supplied)
+  p.on('request', (r) => { if (/watch(\.lite)?\.glb/.test(r.url())) fetched.push(r.url()); });
   await p.click('#load-model');
   const live = await p.waitForSelector('.viewer.live canvas', { timeout: 420000 }).then(() => true, () => false);
   if (!live) bad(`the model itself was not shown: "${await p.textContent('#model-status').catch(() => '')}"`);
@@ -704,7 +705,7 @@ say('9. The buyer logs in on a computer: straight into town as the same characte
   if (backed.hud) bad('after logging out, going back shows the town');
   // logging in again: the same character and the progress, and again nothing is asked
   await p.goto(`${origin}/#nointro-lite`, { timeout: 300000 });
-  await p.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await p.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
   await p.waitForFunction(() => window.__nlw.online.status().state === 'out', null, { timeout: 300000 });
   await watchStart(other);
   await p.click('#open-login'); await p.fill('#account-username', buyerName); await p.fill('#account-password', 'a password for the buyer'); await p.click('#account-submit');

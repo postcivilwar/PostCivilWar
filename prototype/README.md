@@ -99,11 +99,13 @@ Things to do, in no order:
 that it is on screen before the game's own script has been read.
 
 1. **Splash**, black: the mark (a rising sun) draws itself and POST CIVIL WAR
-   arrives a letter at a time on one line at every screen size. For five
-   seconds, counted from when it first appears, a row of thirty-two marks
-   lights in turn while the game gets ready. The mark and the name are white;
-   the sun's disc is the one touch of yellow. **The splash has no button**:
-   when the five seconds are over the cover takes its place by itself.
+   arrives a letter at a time on one line at every screen size, while one thin
+   amber line under it fills as the game's files really arrive (the page's own
+   markup, style and lettering are the first 36 KB of the page, so the splash is
+   painted within half a second). The mark and the name are white; the sun's
+   disc is the one touch of yellow. **The splash has no button**: once it has
+   been seen for a little over a second (it was five seconds until 20 October
+   2026) and the game is ready, the cover takes its place by itself.
 2. **The cover**: the owner's supplied picture (11 October 2026), which took
    the place of the five story slides. Its own painted **PLAY** button is the
    button: a click, a tap, Enter or Space. The picture is carried in four
@@ -693,9 +695,10 @@ it is the game in `dist/index.html`; what differs is what surrounds it.
   live; the copy kept from last time when there is no connection, or when
   none answers in four seconds. Every other file: the kept copy, held under
   the fingerprint of its contents, so a file is fetched again only when it
-  has changed. The two figures are 10 MB and 13 MB as text; only one a player
-  has used is kept. The owner's GLB files are not touched by any of this: the
-  text beside the page is those bytes, and a test compares them.
+  has changed. The figures are light copies made from the owner's files (1 to
+  2.4 MB each to a phone: "Characters in a flash", below); only the one a
+  player uses is kept. The owner's GLB files are not touched by any of this,
+  and a test compares each with the MD5 it had when it was supplied.
 - **In Settings, "This device"** (`src/client/webapp.js`): whether the game
   plays without a connection (asked of the worker, not assumed), and an
   Install button only when the browser has offered to install. On an iPhone
@@ -1224,8 +1227,8 @@ real device and the script times say more):
 | of which: working out the town's paths | 0.27 s | 0.10 s |
 | a returning player, from opening the page to being in town | 14.0 to 15.0 s | 11.8 to 12.8 s |
 
-**What is still slow, and why.** The opening shows its splash for five seconds by design; a returning player
-waits for that before PLAY. A first visit downloads the woman's figure (7.8 MB as sent) and the page and kits
+**What is still slow, and why** (as it was on 12 October; see "Characters in a flash" for 20 October). The opening
+showed its splash for five seconds by design; a returning player waited for that before PLAY. A first visit downloads the woman's figure (7.8 MB as sent) and the page and kits
 (3.7 MB): the owner's figure files are used exactly as supplied, so they are not made smaller. Each shader the
 town uses (68 of them) is compiled once at start; on a phone that is a second or two the first time.
 
@@ -2171,6 +2174,153 @@ by the time the test looked); the start screen after Exit, like the rest of the 
 phone on its side (fit); knocked down, every figure falls and gets up by the new falls, watched at a quarter of the
 speed (figures).
 
+## Characters in a flash, the picture that comes back, a light opening (20 October 2026)
+
+The owner, 20 October, from his iPhone: pressing the arrow on the character screen took a very long time before the
+next character appeared, and its animations longer; then the game stopped with "The picture was lost – this device ran
+short of memory for the game's graphics" and had to be reloaded; and the opening hung, its name and its PLAY slow to
+come. Measured on the live build first (a phone's screen, the browser's "Slow 4G" link of 1.6 Mbit/s with 150 ms
+before each answer, the processor slowed four times): the splash painted after 1.2 s and PLAY after 54.7 s (5.1 MB
+before it); the character screen 87.6 s after opening; one arrow press 19.1 MB and 125 s before anything of the next
+character was seen; two drawing surfaces (WebGL contexts), 115 MB on the graphics card and 142 MB of script memory
+after two presses. What each thing was, and what it is now:
+
+### Light copies of the figures (`tools/characters/light.py`, `src/client/glb-read.js`, `figure-worker.js`)
+
+Each supplied figure is 7 to 27 MB (its pictures up to 8192 pixels, three at 4096 or 8192 for most), and every press of
+the arrow fetched the whole file, then read it and decoded every picture at full size on the page's own thread before
+anything was shown. **The owner's files stay in `assets/` exactly as supplied** (`test/originals.test.mjs` compares
+each with the MD5 it had then). What a device fetches is a copy the build makes from each (`node build.mjs` runs
+`light.py` for any copy that is missing or made from a file that has since changed; the copies are kept in
+`assets/characters/figures/light/`):
+
+- its shape, skeleton and **every** animation in one small file: positions, normals, texture places, joints and
+  weights stored as small whole numbers (glTF's KHR_mesh_quantization; the scale folded into the skeleton's own
+  matrices, so the figure is drawn exactly where it was), each animation's keys kept where they change the pose by more
+  than a hair (0.0008 radian), then gzipped: 0.7 to 1.9 MB;
+- its pictures beside it, as WebP: colour at 1024 for a phone and 2048 for a computer, its relief and finish at 1024;
+- its borrowed movements and how it sits (`figures/<name>.moves.json`), and a turntable picture (`<name>.turn.webp`:
+  16 views from all round, `tools/characters/previews.mjs`).
+
+**To a phone each figure is now 0.8 to 2.4 MB** (all thirty: 50 MB, against 544 MB before), to a computer 1.0 to 3.0
+MB. No figure picture larger than 1024 is fetched or decoded on a phone, or 2048 on a computer. Nothing is decimated:
+every triangle is kept. Each copy was compared with its original drawn the same way at the same size on the screen
+(`previews.mjs compare`): the same figure (W14, W1, M16 and W6 looked at side by side; the pictures within 1 to 2
+levels of 255 on average).
+
+### The character screen never waits (`creator.js`, `animated.js`, `figure-worker.js`)
+
+- The arrow is answered in the same frame: the next character's turntable picture is shown at once (or its outline,
+  until that picture has come), with a soft shine across it while the figure itself arrives, and the movements' names
+  as grey pills until they are known. The arrows always work.
+- A press while a figure is still arriving moves on at once and **stops** that download where it is; downloads never
+  queue. The figures either side of the one looked at are fetched ahead, quietly, behind everything else, and taken
+  over (not fetched again) if the player goes to one of them.
+- The file is fetched, unzipped and read, and its pictures decoded, on a worker, off the page's own thread.
+- A figure that leaves the screen is let go entirely (shape, pictures, the decoded pictures closed). A phone keeps
+  none it is not showing (`KEEP_UNUSED`).
+
+### One drawing surface, and no town built behind the character screen (`shared-view.js`, `main.js`)
+
+- The page has one WebGL context. The turntable is drawn by the town's own renderer, on the town's own canvas, which
+  is put inside the turntable's box while the town is not being shown (and back the moment it is). Copying the picture
+  onto a canvas of the turntable's own instead made the page wait every frame for the graphics card (53 ms a frame in
+  the test browser), so it is not done. The market's viewer still copies (it is looked at still, for a moment).
+- The town is built **after** the character is chosen, behind the loading card, in steps (the ground and the roads,
+  the buildings, the people, ... the townspeople), each named on the card as it is done, and its shaders compiled
+  there. Nothing of the town is built, unpacked or compiled while the character screen is up.
+
+### A light opening (`build.mjs`, `template.html`, `intro.js`, `sw.js`)
+
+- The page is 245 KB (it was 4.15 MB). Its first 36 KB are the splash: its markup, its style, the mark and the
+  lettering, so it is painted within half a second. The 3D library and the game's own script (2.3 MB, 0.57 MB as sent)
+  come after it, read once the page has been. The game's script no longer carries its data: the character kit and the
+  vehicle kit are files of their own as numbers (not base64 text), gzipped (1.1 MB and 0.6 MB), fetched once a
+  character is on the screen; the townspeople's reactions with the town; the cover's four pictures as files, the plate
+  as WebP (149 KB, it was 267 KB as JPEG).
+- The splash is seen for a little over a second (it was five), its one amber line filling as the files really arrive;
+  the 1.9 s wait before building the town is gone (the town is built later anyway). The first figure is not fetched
+  until the cover is up.
+- The service worker asks for each file as the page asks for it (by its fingerprint), so on a first visit the browser's
+  cache answers it: nothing is fetched twice (the kits were fetched twice before).
+- The shortest ways through the town are worked out without making an object for every step (`src/sim/graph.js`; the
+  same ways, every one checked), which was part of what held the page before PLAY.
+
+### The owner's buildings and vehicles: no 8192-pixel picture sent anywhere (`tools/models/lighter.py`)
+
+Each of his twenty-nine houses, towers, showroom buildings and town vehicles is almost all one colour picture of 8192
+pixels (10 to 17 MB of a 10 to 18 MB file), which the game never draws larger than 2048 on a computer or 1024 on a
+phone: every device fetched it and decoded it whole (a quarter of a gigabyte each) to make it smaller. The build now
+sends copies made from his files with each picture made the size it is drawn at and nothing else changed (the same
+shapes, byte for byte, checked as each copy is made): under the file's own name for a computer (0.9 to 1.6 MB), and a
+`.lite.glb` beside it for a phone (0.5 to 0.8 MB), which a phone fetches instead (`modelFile`, `budget.js`). The watch
+keeps its 4096 pictures for a computer (it is looked at close to) and has a 2048 copy for a phone. The car showroom's
+villa (58 MB) and the watch (55 MB) are still large: most of each is its shape, not its pictures.
+
+### The picture that comes back (`main.js`, `render-kit.js`, `glb.js`, `vehicle-models.js`, `loading.js`)
+
+A phone's browser short of graphics memory may take a page's drawing surface away. The game no longer asks the player
+anything when it does. It saves at once, shows the calm card "One moment / Bringing the picture back", and when the
+browser gives the surface back it hands the graphics card everything again (the town's shapes it had let go of, every
+picture made again from its file, the sky's reflections, the turntable's and the market viewer's) and carries on where
+it was, nothing reloaded. Only if the browser has not given it back within five seconds: "The picture stopped / Your
+game is saved where you are. Continue to carry on from there." with one button, Continue, which opens the game afresh
+straight into the town where the player was, past the opening. The old dialog ("The picture was lost / Not now /
+Reload the page") is gone; so is the technical notice of the picture watch, which now says what it found on the same
+calm card, the detail kept for the readout.
+
+To make it less likely to happen at all: figures' pictures at 1024 on a phone, the buildings' pictures fetched at the
+size they are drawn, one drawing surface, and **a budget for the graphics card**: everything handed to it is counted
+as it goes (`graphics-count.js`), and above 150 MB on a phone (700 MB on a computer) the game lets go of everything it
+keeps ready but is not drawing (figures, motorcycles and cars no longer in sight).
+
+### The loading card (`loading.js`, `template.html`)
+
+One card for every wait and every trouble: a dark glass card with the sun mark, the game's lettering, one thin amber
+line that fills by real progress (bytes come of bytes there are, or the pieces of the town built), a few plain words
+("Entering Asaba", "Fetching the town", "Building the town: the buildings"), and at most one button ("Try again",
+"Continue"); never the words for how the browser works. It keeps clear of a phone's notch and home bar, upright and on
+its side, and moves nothing for a player who has asked their device for less motion.
+
+### The readout for the owner's phones (`stats.js`)
+
+The address ending in **#stats** (postcivilwar.com/#stats) shows, in a corner of every screen, written afresh each
+second: the device's graphics, its screen and the size the game draws at; what is on the graphics card (pictures and
+drawing buffers, the most so far, the budget); the script's memory (Chrome and Android only: Safari does not say); the
+frame times; how often the picture was taken away and given back; and each figure fetched, its size and how long it
+took to arrive and to be ready. Settings, "Measured on this device", shows the same lines in town.
+
+### Ash-grey controls (`template.html`)
+
+The owner, with the same brief: the control buttons' main colour is ash grey (#b2beb5) where it was blue (92, 176,
+255): the stick, the pads, Run and the action buttons, their outlines, glow and icons, the swimming stick. Held, a
+button still turns green, and goes back to ash grey when let go (`test/touch.mjs`, `test/motorcycles.mjs`).
+
+### Measured after (the same test: `test/opening.mjs`, Slow 4G, the processor slowed four times, a phone's screen)
+
+| | live before | now |
+|---|---|---|
+| splash painted | 1.2 s | 0.4 s |
+| PLAY, first visit | 54.7 s (5.1 MB before it) | 7.3 to 7.4 s (0.98 MB) |
+| PLAY, coming back | 16.8 s | 2.4 to 2.7 s |
+| the character screen | 87.6 s | 9.1 s |
+| one arrow press: fetched | 6.9 to 19.1 MB | 0.3 to 0.7 MB |
+| one arrow press: the next character on the screen, from the touch | 40 to 125 s | 0.26 to 0.52 s (its picture from all round) |
+| one arrow press: the whole figure | 40 to 125 s | 4.9 to 16.7 s (2.2 to 4.8 s on ordinary 4G) |
+| drawing surfaces | 2 | 1 |
+| on the graphics card, two presses in | 115 MB | 5.3 MB |
+| script memory | 130 to 142 MB | 30 to 34 MB |
+| longest freeze before PLAY | 7.9 s | 1.9 to 2.0 s |
+| everything a first visit fetched (opening, character screen, four presses) | | 16.7 MB, nothing twice |
+
+The test browser has no graphics card: the processor draws every pixel, and a touch waits for the frame being drawn
+(0.25 to 0.5 s here, slowed four times); the page then shows the next character's picture in the very next frame it
+paints (25 to 37 ms later). A press made while another figure was still arriving was on the screen 63 to 94 ms after
+the touch, and that download was stopped. On Slow 4G a whole figure takes 5 to 17 s to arrive (2 MB at 200 KB/s), its
+picture there meanwhile; on ordinary 4G (9 Mbit/s, 85 ms) PLAY came after 3.3 to 3.9 s on a first visit (2.4 to 2.5
+s coming back) and each whole figure 2.2 to 4.8 s after the press.
+
+
 ## Tests
 
 ```
@@ -2216,7 +2366,7 @@ and the slides are gone, where the cover's pieces go on twenty screen sizes
 (the whole name, both figures and PLAY in view, PLAY big enough to press),
 the font, and that the answer is kept by the simulation and changes nothing
 it decides. The `opening` session of `play.mjs` walks the opening itself in a
-browser: the five seconds, the cover, its PLAY, the sound button and that it
+browser: the splash's second or so, the cover, its PLAY, the sound button and that it
 is remembered, the question with neither answer marked, the sound, the
 answer on the phone, and a returning player who is not asked again. It then
 opens the page at five more sizes (a small phone, a tall one, a phone on its
@@ -2259,12 +2409,25 @@ installing is offered only where it is true; the worker, run against a
 pretend network and a pretend store (what it keeps, what it gives back with
 no connection, that the page is the newest when there is a connection, that
 a slow network does not hold the game up, that a changed file is fetched
-again and an unchanged one is not, that an error page is never kept); and
-that `site/` is one build, with the figures in it the owner's files byte for
-byte. `webapp.mjs` does it in a browser on a phone-sized screen: a first
-visit, what the browser says stands in the way of installing (nothing), the
-Settings section, then no connection at all: the opening, the town and the
-player's character all come back, and nothing large is ever sent twice.
+again and an unchanged one is not, that an error page is never kept, and
+that it asks for a file the way the page does, so that a first visit fetches
+nothing twice); and that `site/` is one build, its figures and the owner's
+other models copies made from his files as they are. `webapp.mjs` does it in a
+browser on a phone-sized screen: a first visit, what the browser says stands
+in the way of installing (nothing), the Settings section, then no connection
+at all: the opening, the town and the player's character all come back, and
+nothing large is ever sent twice.
+
+`originals.test.mjs` compares every one of the owner's 97 model files in
+`assets/` with the MD5 it had when it was supplied, and checks that the copies
+the website sends were made from them as they are. `site-budget.test.mjs`
+holds `site/` to the owner's budget: each figure at most 3 MB to a phone and
+6 MB to a computer, no figure's picture larger than the device draws it, no
+picture of 8192 anywhere, the page small with the opening at its start.
+`context.mjs` takes the page's drawing surface away in a browser (on the
+character screen and in town) and gives it back, then leaves it away; and
+`opening.mjs` measures the opening and the character screen on a slowed link
+and processor (see "Characters in a flash").
 
 `town.test.mjs` covers: the map and every door; the 1,000 people and their
 roles; weekday, Saturday and Sunday routines; school, hospital, church and

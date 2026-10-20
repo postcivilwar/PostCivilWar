@@ -21,7 +21,9 @@
 
 import { COVER } from './brand-data.js';
 
-export const INTRO_TIMES = { splash: 5000, chosen: 950, leave: 450, play: 220 };
+// (the splash: how long the brand has on the screen at the least, counted from when it first appeared: 1.2 seconds since
+// 20 October 2026, the owner's brief; it was five, and the game's own starting then held it up for longer still)
+export const INTRO_TIMES = { splash: 1200, chosen: 950, leave: 450, play: 220 };
 export const PATHS = ['hero', 'villain'];
 
 // Which key answers the question, if any: the first letter of either word.
@@ -80,7 +82,7 @@ export function coverLayout(W, H, cover = COVER, inset = {}) {
   return out;
 }
 
-export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = INTRO_TIMES }) {
+export function createIntro({ audio, sound, ask, onDone, onCover = () => {}, cover = COVER, times = INTRO_TIMES }) {
   const root = document.getElementById('intro');
   // (the opening is put away, not thrown away: the question may still have to be asked)
   const done = (path) => { if (root) { root.hidden = true; root.classList.remove('leaving', 'ready'); root.dataset.stage = 'done'; } onDone(path); };
@@ -88,7 +90,11 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
   let later = null;              // (filled in below: how the question is put again)
   const closed = { stage: () => 'done', active: () => false, ready: () => false, question: () => (later ? later() : Promise.resolve(null)), asking: () => !!asking };
   if (!root) { onDone(null); return closed; }
-  const skipped = location.hash.includes('nointro');
+  // (no opening for the game opened afresh by the player's own Continue, after the picture stopped: main.js; they go
+  // straight back to where they were)
+  let carryingOn = false;
+  try { const at = Number(sessionStorage.getItem('pcw-carry-on')); sessionStorage.removeItem('pcw-carry-on'); carryingOn = at > 0 && Date.now() - at < 120000; } catch (error) { carryingOn = false; }
+  const skipped = location.hash.includes('nointro') || carryingOn;
 
   const $ = (id) => document.getElementById(id);
   const stageBox = root.querySelector('.gamecover');
@@ -109,6 +115,10 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
     img.draggable = false;
     return (img.decode ? img.decode() : Promise.resolve()).catch(() => {});
   }));
+  // the line under the name on the splash (template.html): the game's script is here; then the cover, and it is full
+  const arrived = (share) => { if (typeof window.__pcwStage === 'function') window.__pcwStage(share); };
+  arrived(0.75);
+  decoded.then(() => arrived(1));
 
   // What the device keeps for itself at the edges, read from the page's own style (env() cannot be read directly).
   const probe = document.createElement('div');
@@ -167,6 +177,7 @@ export function createIntro({ audio, sound, ask, onDone, cover = COVER, times = 
     root.classList.add('ready');
     play.tabIndex = 0;
     log.coverAt = Math.round(performance.now() - startedAt);
+    try { onCover(); } catch (error) { /* (what is done for the cover never holds it up) */ }
   }
 
   // PLAY was pressed. It is the page's first touch, so the sound is started here; the game goes on a moment

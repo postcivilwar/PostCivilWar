@@ -12,7 +12,24 @@ export function place(x, y, z, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0) {
   return m;
 }
 
-function letGo() { this.array = null; }
+// Once the graphics card has a batch's numbers, the page lets its own go (the town is some eighty megabytes of them):
+// they are kept aside as a Blob, which the browser holds outside the page's own memory, so that they can be handed
+// to the card again if the browser takes the drawing surface away and gives it back (20 October 2026: the game then
+// carries on where it was; restoreGeometry, main.js).
+const sentAway = new Map();          // attribute -> { blob, type }
+function letGo() { if (this.array && !sentAway.has(this)) sentAway.set(this, { blob: new Blob([this.array]), type: this.array.constructor }); this.array = null; }
+// Every batch's numbers handed back, for the graphics card to be given them again. Gives how many.
+export async function restoreGeometry() {
+  let n = 0;
+  await Promise.all([...sentAway].map(async ([attribute, kept]) => {
+    if (attribute.array) return;
+    attribute.array = new kept.type(await kept.blob.arrayBuffer());
+    attribute.needsUpdate = true;
+    n += 1;
+  }));
+  return n;
+}
+export const geometryKeptAside = () => sentAway.size;
 
 // A list of numbers that grows as it is added to, kept as the 32-bit floats the graphics card is given. (The
 // town is some forty million of them. They were once gathered in ordinary lists, a number at a time, at twice

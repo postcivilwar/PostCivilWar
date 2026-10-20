@@ -37,7 +37,7 @@ const shot = (name) => page.screenshot({ path: resolve(out, `${String(++shotN).p
 const where = () => page.evaluate(() => { const n = window.__nlw, s = n.view && n.view.self; return s ? { x: +s.x.toFixed(2), z: +s.z.toFixed(2), playing: n.playing, exited: n.exited, hud: !document.querySelector('#hud').hidden, link: n.link, rev: n.online.status().save ? n.online.status().save.rev : null, state: n.online.status().state } : null; });
 
 await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
 await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
 await page.click('#open-signup');
 const username = `Exit_${Math.random().toString(36).slice(2, 8)}`;

@@ -48,6 +48,8 @@ export function createStandins(scene, { lite = false } = {}) {
     };
     // (one that could not be fetched is asked for again half a minute later, not every frame)
     img.onerror = () => { if (s.generation !== mine) return; s.asked = false; s.retryAt = performance.now() / 1000 + 30; };
+    // (asked for before the vehicle's own files, which take longer: this is what is seen until they are here)
+    try { img.fetchPriority = 'high'; } catch (error) { /* an older browser: as it comes */ }
     img.src = `assets/${kind}-${id}-impostor.webp`;
   }
   function frameOf(e, k) {

@@ -41,8 +41,9 @@ async function session(name, viewport, script) {
 
 const nlw = (page, fn, arg) => page.evaluate(fn, arg);
 
-// The opening, as a new player meets it: the brand and a loading mark for five seconds, PLAY, the story in
-// five pictures with a shutter on each, the question, and the answer going with the character into the town.
+// The opening, as a new player meets it: the brand drawing itself, with a thin line of the loading's real progress,
+// for a little over a second (five seconds until 20 October 2026), then the cover and PLAY, the question, and the
+// answer going with the character into the town.
 // Then the same page again, as that player coming back. The same opening is then looked at on small, tall,
 // sideways and tablet screens for the things a wide desk never shows: the name on one line, the two answers
 // side by side, and nothing off the edge.
@@ -69,15 +70,15 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
   if (!/PCW Arcade/.test(early.face)) bad(`the name is set in ${early.face}`);
   await page.waitForFunction(() => window.__nlw && window.__nlw.intro, null, { timeout: 300000 });
   if (!(await page.evaluate(() => document.fonts.check('20px "PCW Arcade"')))) bad('the arcade font did not load');
-  // five seconds from the first sight of it, and not before
+  // a little over a second from the first sight of it (INTRO_TIMES.splash), and not before
   const held = await page.evaluate(() => ({ since: performance.now() - window.__introAt, stage: window.__nlw.intro.stage() }));
-  if (held.since < 4800 && held.stage !== 'splash') bad(`the splash gave way after ${Math.round(held.since)} ms`);
-  await page.waitForFunction(() => performance.now() - window.__introAt > 5400, null, { timeout: 120000 });
-  // The splash has loading marks and nothing to press. It gives way by itself to the cover, the supplied
-  // picture, and there the game waits: PLAY, on the cover, is the one way on.
-  const onSplash = await page.evaluate(() => ({ buttons: [...document.querySelectorAll('#intro .splash button')].length, ticks: document.querySelectorAll('.load .ticks i').length, play: !!document.querySelector('#intro-play') }));
+  if (held.since < 1100 && held.stage !== 'splash') bad(`the splash gave way after ${Math.round(held.since)} ms`);
+  await page.waitForFunction(() => performance.now() - window.__introAt > 1700, null, { timeout: 120000 });
+  // The splash has one thin loading line (no row of ticks) and nothing to press. It gives way by itself to the
+  // cover, the supplied picture, and there the game waits: PLAY, on the cover, is the one way on.
+  const onSplash = await page.evaluate(() => ({ buttons: [...document.querySelectorAll('#intro .splash button')].length, line: !!document.querySelector('#intro .splash .load .load-line'), ticks: document.querySelectorAll('.load .ticks i').length, play: !!document.querySelector('#intro-play') }));
   if (onSplash.buttons || onSplash.play) bad('the splash still has a button on it');
-  if (onSplash.ticks < 12) bad('the splash has no loading marks');
+  if (!onSplash.line || onSplash.ticks) bad(`the splash has ${onSplash.line ? '' : 'no loading line'}${onSplash.ticks ? ' a row of ticks' : ''}`);
   await page.waitForFunction(() => window.__nlw.intro.ready(), null, { timeout: 120000 });
   await page.waitForTimeout(2200);
   const waiting = await page.evaluate(() => {
@@ -90,7 +91,7 @@ await session('opening', { width: 1280, height: 760 }, async (page, shot) => {
       boxes: { plate: box('#cover-plate'), logo: box('#cover-logo'), play: box('#cover-play') }, words: vis('#cover-words'), w: innerWidth, h: innerHeight,
       sound: window.__nlw.audio.running, soundOn: document.querySelector('#intro-mute').getAttribute('aria-pressed'), mute: [mute.left, mute.top], played: window.__nlw.intro.log.played, layout: window.__nlw.intro.log.layout.mode };
   });
-  if (waiting.since < 4800) bad(`the cover came after ${Math.round(waiting.since)} ms`);
+  if (waiting.since < 1100) bad(`the cover came after ${Math.round(waiting.since)} ms`);
   if (waiting.stage !== 'cover' || !waiting.play || waiting.disabled || waiting.played) bad(`after the splash, untouched: ${JSON.stringify({ stage: waiting.stage, play: waiting.play, disabled: waiting.disabled, played: waiting.played })}`);
   if (waiting.splash) bad('the splash is still showing under the cover');
   if (waiting.slides) bad('the story in pictures is still in the page');

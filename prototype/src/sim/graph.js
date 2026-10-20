@@ -39,6 +39,11 @@ for (const [a, b] of ZONE_EDGES) {
 }
 
 const trees = [new Map(), new Map()];
+// The heap the nearest node is taken from: costs and nodes side by side in typed arrays, grown as needed (until
+// 20 October 2026 each entry was an array of its own, made and thrown away by the hundred thousand while the town
+// was first worked out, before PLAY could appear). Taken from and added to exactly as before, so that among ways of
+// the same length the same one is found.
+let heapCost = new Float64Array(1024), heapNode = new Int32Array(1024);
 function treeFrom(source, roads) {
   const cache = trees[roads ? 1 : 0];
   let tree = cache.get(source);
@@ -46,35 +51,49 @@ function treeFrom(source, roads) {
   const adjacency = roads ? ROADS : ALL;
   const dist = new Float64Array(COUNT).fill(Infinity);
   const prev = new Int16Array(COUNT).fill(-1);
-  const heap = [[0, source]];
+  let size = 1;
+  heapCost[0] = 0; heapNode[0] = source;
   dist[source] = 0;
-  while (heap.length) {
+  while (size) {
     // pop the nearest
-    const top = heap[0];
-    const last = heap.pop();
-    if (heap.length) {
-      heap[0] = last;
+    const d = heapCost[0], node = heapNode[0];
+    size -= 1;
+    if (size) {
+      heapCost[0] = heapCost[size]; heapNode[0] = heapNode[size];
       let i = 0;
       for (;;) {
         const l = i * 2 + 1, r = l + 1;
         let m = i;
-        if (l < heap.length && heap[l][0] < heap[m][0]) m = l;
-        if (r < heap.length && heap[r][0] < heap[m][0]) m = r;
+        if (l < size && heapCost[l] < heapCost[m]) m = l;
+        if (r < size && heapCost[r] < heapCost[m]) m = r;
         if (m === i) break;
-        [heap[i], heap[m]] = [heap[m], heap[i]];
+        const c = heapCost[i], n = heapNode[i];
+        heapCost[i] = heapCost[m]; heapNode[i] = heapNode[m];
+        heapCost[m] = c; heapNode[m] = n;
         i = m;
       }
     }
-    const [d, node] = top;
     if (d > dist[node]) continue;
     for (const [next, length] of adjacency[node]) {
       const cost = d + length;
       if (cost < dist[next]) {
         dist[next] = cost;
         prev[next] = node;
-        heap.push([cost, next]);
-        let i = heap.length - 1;
-        while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; }
+        if (size === heapCost.length) {
+          const c = new Float64Array(size * 2); c.set(heapCost); heapCost = c;
+          const n = new Int32Array(size * 2); n.set(heapNode); heapNode = n;
+        }
+        heapCost[size] = cost; heapNode[size] = next;
+        let i = size;
+        size += 1;
+        while (i > 0) {
+          const p = (i - 1) >> 1;
+          if (heapCost[p] <= heapCost[i]) break;
+          const c = heapCost[i], n = heapNode[i];
+          heapCost[i] = heapCost[p]; heapNode[i] = heapNode[p];
+          heapCost[p] = c; heapNode[p] = n;
+          i = p;
+        }
       }
     }
   }

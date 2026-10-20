@@ -32,7 +32,7 @@ async function player(label, size) {
   page.on('pageerror', (e) => check(`no error in ${label}'s page`, false, `${e.message} ${(e.stack || '').split('\n').slice(0, 4).join(' | ')}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check(`no error in ${label}'s console`, false, m.text()); });
   await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
-  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.ready), null, { timeout: 300000 });
+  await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
   await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
   await page.click('#open-signup');
   const username = `${label}_${Math.random().toString(36).slice(2, 7)}`;
