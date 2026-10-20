@@ -127,7 +127,10 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   // seventh of the figure's height from it)
   if (await page.evaluate(() => window.__nlw.view.self.law.state === 'normal')) {
     await page.evaluate(() => window.__nlw.ui.openPhone('contacts', { contact: 'svc:police' }));
-    await page.waitForTimeout(800);
+    // (its button waited for, at most twenty seconds: on this machine, with a heavy figure in view, the phone's page can
+    // take longer than the moment it used to be given)
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((e) => /Ask the desk/.test(e.textContent) && e.offsetParent), null, { timeout: 20000 }).catch(() => {});
+    await page.waitForTimeout(300);
     const called = await page.evaluate(() => { const b = [...document.querySelectorAll('button')].find((e) => /Ask the desk/.test(e.textContent) && e.offsetParent); if (!b) return false; b.click(); return true; });
     await page.waitForTimeout(400);
     // the phone's page put away, the call goes on with the town in view
@@ -143,7 +146,7 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
       window.__ear = e;
       return e.called && e.atEar > 0.95 && e.toHead < 0.14 * e.height && e.toKnuckle < 0.1 ? e : false;
     }, null, { timeout: 30000 }).then((handle) => handle.jsonValue(), () => page.evaluate(() => window.__ear));
-    check(`${label}: on a call the handset is at the ear, still in the palm (${ear.doing || 'no call clip'})`, called && ear.called && ear.atEar > 0.95 && ear.toHead < 0.14 * ear.height && ear.toKnuckle < 0.1, ear);
+    check(`${label}: on a call the handset is at the ear, still in the palm (${ear.doing || 'no call clip'})`, called && ear.called && ear.atEar > 0.95 && ear.toHead < 0.14 * ear.height && ear.toKnuckle < 0.1, { button: called, ...ear });
     await shot('9-call');
     await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 5; });
     await page.waitForFunction(() => !window.__nlw.ui.calling(), null, { timeout: 20000 }).catch(() => {});
