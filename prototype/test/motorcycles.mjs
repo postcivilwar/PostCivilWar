@@ -279,6 +279,11 @@ const all = only.length ? only : listed.map((l) => l.model.slice(5));
 // (the Streetfighter stays theirs: it is ridden again at night below; and the road is dry for the bikes' runs: in
 // the rain a bike's top speed is lower, and flat out there its engine is short of its red line, as it should be)
 await page.evaluate(() => { const g = window.__nlw.host.game; g.state.weather = { kind: 'clear', until: g.state.t + 6 * 3600 }; });
+// (given them all here, after the page has passed on to the town what the server says this player owns: that answer,
+// coming later, would put the list back to the one they bought. Since the page was loaded again above, it may be on
+// its way still.)
+await page.waitForFunction(() => { const m = window.__nlw.market.state.mine; return !!m && m.holdings.some((h) => h.asset.model === 'bike:streetfighter'); }, null, { timeout: 120000 }).catch(() => {});
+await page.waitForTimeout(1500);
 await page.evaluate((ids) => window.__nlw.server.send({ type: 'bikes.owned', bikes: [...new Set(['streetfighter', ...ids])] }), all);
 for (const id of all) {
   // (the bikes already ridden are put away, out of the way of this one's run down the runway)

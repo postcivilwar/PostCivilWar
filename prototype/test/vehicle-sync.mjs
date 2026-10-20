@@ -45,6 +45,10 @@ async function player(label, size) {
   await pastQuestion(page);
   await page.fill('#name', label);
   await enterTown(page);
+  // (by day and dry, as the other driving tests have it: a keke's hire ends at six in the morning, and a page's clock
+  // that happened to pass six while the test ran sent the hired keke back to its bay before it could be seen standing)
+  await page.waitForFunction(() => window.__nlw.view && window.__nlw.view.clock, null, { timeout: 60000 }).catch(() => {});
+  await page.evaluate(() => { const n = window.__nlw; const g = n.host.game; g.state.weather = { kind: 'clear', until: g.state.t + 8 * 3600 }; const hour = n.view.clock.hourFloat; if (hour < 9 || hour > 14) n.skip((24 + 10 - hour) % 24); });
   // the network made slow, as on a mobile connection
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');

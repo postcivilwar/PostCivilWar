@@ -49,6 +49,9 @@ await page.fill('#name', 'Seat Test');
 await enterTown(page);
 await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 240000 });
 await page.evaluate(() => { const n = window.__nlw; const hour = n.view.clock.hourFloat; if (hour < 9 || hour > 16) n.skip((24 + 11 - hour) % 24); });
+// (dry, as the other driving tests have it: in the rain the car grips less, and its turn would take it onto the pavement
+// between two bollards, where it could not back up; the weather comes from Asaba's own, whatever it is that day)
+await page.evaluate(() => { const g = window.__nlw.host.game; g.state.weather = { kind: 'clear', until: g.state.t + 6 * 3600 }; });
 
 // ---- bought with the arrival money, through the market as the phone buys (the server checks and records it) ----
 const buy = (model) => page.evaluate(async (model) => {
@@ -142,7 +145,10 @@ await shot('02-phone-at-the-wheel');
 // still driven with the phone out (the small phone leaves the keys to the car): on the brake, then backed up (ahead
 // of it, after the turn, may be the kerb)
 const before = await page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z }));
-await page.keyboard.down('s'); await page.waitForTimeout(3000);
+// (held until it has backed up a little, at most twelve seconds: the car's own time goes by frame by frame, and this
+// machine, drawing without a graphics card, draws a frame at the wheel only every half second or so)
+await page.keyboard.down('s');
+await page.waitForFunction((b) => { const n = window.__nlw; return n.carState.speed < -0.3 && Math.hypot(n.predicted.x - b.x, n.predicted.z - b.z) > 0.35; }, before, { timeout: 12000 }).catch(() => {});
 const moved = await page.evaluate(() => { const n = window.__nlw; return { x: n.predicted.x, z: n.predicted.z, speed: n.carState.speed, braking: n.carState.braking, out: n.phoneHold.out, phoneOut: n.ui.phoneOut(), keys: [...n.controls.state.keys] }; });
 await page.keyboard.up('s');
 check('with the phone in hand the car can still be driven: its brake held, it backs up', moved.speed < -0.3 && Math.hypot(moved.x - before.x, moved.z - before.z) > 0.3 && moved.out > 0.9 && moved.phoneOut, { before, moved });

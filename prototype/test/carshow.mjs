@@ -213,8 +213,9 @@ const by = { x: saloon.x + saloon.r + 0.95, z: saloon.z };
 await go(by.x, by.z, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.6, pitch: 0.16, dist: 6.5 });
 // (Oluchi may still be walking back to her desk from the player's look at the hypercar, on her side of the floor)
 await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state, o = n.carSalesmen[1]; return t.with && Math.hypot(t.x - n.predicted.x, t.z - n.predicted.z) < 2.2 && t.speed < 0.2 && Math.hypot(o.sim.state.x - o.spec.home.x, o.sim.state.z - o.spec.home.z) < 0.6; }, null, { timeout: 150000 }).catch(() => {});
-const staff = await page.evaluate(() => { const n = window.__nlw; return n.carSalesmen.map((s) => ({ name: s.spec.name, mode: s.sim.state.mode, d: +Math.hypot(s.sim.state.x - n.predicted.x, s.sim.state.z - n.predicted.z).toFixed(2), home: +Math.hypot(s.sim.state.x - s.spec.home.x, s.sim.state.z - s.spec.home.z).toFixed(2), shown: s.actor.group.visible })); });
-check('on Tochi\'s side of the floor, Tochi comes over to the player at the car; Oluchi stays at her desk', staff[0].shown && staff[1].shown && staff[0].mode === 'assist' && staff[0].d < 2.2 && staff[1].home < 0.6, staff);
+// (each distance is judged as measured, and shown rounded: 0.597 m from her desk is at it, though shown as 0.6)
+const staff = await page.evaluate(() => { const n = window.__nlw; return n.carSalesmen.map((s) => { const d = Math.hypot(s.sim.state.x - n.predicted.x, s.sim.state.z - n.predicted.z), home = Math.hypot(s.sim.state.x - s.spec.home.x, s.sim.state.z - s.spec.home.z); return { name: s.spec.name, mode: s.sim.state.mode, d: +d.toFixed(3), near: d < 2.2, home: +home.toFixed(3), atDesk: home < 0.6, shown: s.actor.group.visible }; }); });
+check('on Tochi\'s side of the floor, Tochi comes over to the player at the car; Oluchi stays at her desk', staff[0].shown && staff[1].shown && staff[0].mode === 'assist' && staff[0].near && staff[1].atDesk, staff);
 await shot('09-tochi-comes');
 
 // ---- asking about the Grey Saloon ----
