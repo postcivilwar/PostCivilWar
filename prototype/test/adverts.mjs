@@ -60,7 +60,12 @@ await page.waitForFunction(() => window.__nlw.online.status().state === 'in', nu
 await pastQuestion(page);
 await page.fill('#name', 'Advert Test');
 await enterTown(page);
-await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer && window.__nlw.beyond && window.__nlw.billboards, null, { timeout: 240000 });
+// (the billboards are put in with the land beyond the town, once the town has been warmed up: its meshes sent to the
+// graphics card a few a frame, fewer when a frame is slow. Without a graphics card that takes minutes here: waited for,
+// and how long noted)
+const beyondFrom = Date.now();
+await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer && window.__nlw.beyond && window.__nlw.billboards, null, { timeout: 480000 });
+console.log('the billboards put in after', Math.round((Date.now() - beyondFrom) / 1000), 's; the warm-up', JSON.stringify(await page.evaluate(() => window.__nlw.warmUp.stats)));
 // (noon, so that the pictures can be seen)
 await page.evaluate(() => { const g = window.__nlw.host.game; const day = Math.floor(g.state.t / 86400); g.state.t = day * 86400 + 12 * 3600; });
 
