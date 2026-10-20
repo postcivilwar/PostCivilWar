@@ -23,7 +23,7 @@
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_DECKS } from '../sim/zone.js';
 import { gridToTrue, trueToGrid } from '../sim/geo.js';
 
 export const MAP_STYLE = Object.freeze({
@@ -46,13 +46,15 @@ export const roadRank = (road) => (road.surface === 'asphalt' ? 0 : road.surface
 
 // The town in the map's own measure: metres east and south of the middle of the grid, north up.
 const T = (x, z) => gridToTrue(x, z, ZONE.gridBearing);
-// The roads on the map: the town's, and those beyond it to Onitsha, the airport and over the bridge.
-const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS]);
+// The roads on the map: the town's, and those beyond it to Onitsha, the airport and over the bridge, and Waterside Road
+// on north up the river to the habitation's car park (20 October 2026).
+const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS, UPRIVER.road, UPRIVER.park]);
 export function mapExtent() {
   const b = ZONE.bounds;
   // (out as far as the road works on the Onitsha road, the airport's fence and the bridge's far end)
-  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0), maxZ = Math.max(b.maxZ, BRIDGE.end);
-  const pts = [T(minX, minZ), T(b.maxX, minZ), T(minX, maxZ), T(b.maxX, maxZ)];
+  // (and north up the river as far as the habitation reaches)
+  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
+  const pts = [T(minX, minZ), T(maxX, minZ), T(minX, maxZ), T(maxX, maxZ)];
   return { minE: Math.min(...pts.map((p) => p.e)), maxE: Math.max(...pts.map((p) => p.e)), minS: Math.min(...pts.map((p) => p.s)), maxS: Math.max(...pts.map((p) => p.s)) };
 }
 
@@ -63,6 +65,9 @@ function namesOf() {
   const add = (text, x, z, kind, from) => { const key = text.toLowerCase(); if (!text || seen.has(key)) return; seen.add(key); out.push({ text, x, z, kind, from }); };
   for (const [text, x, z, align] of [...ZONE_PROPS.mapLabels, ...OUTSKIRT_MAP_LABELS]) add(text, x, z, align === 'vertical' ? 'water' : 'place', /River|Market|Motor park|Hospital|Registry/.test(text) ? 0 : 1.15);
   for (const k of ZONE_COMPOUNDS) add(k.name, (k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2, 'place', 2.4);
+  // up the river: the habitation, and the road to it
+  add('The Habitation', 2200, 180, 'place', 0);
+  add('Waterside Road', 1050, 113, 'place', 0.9);
   // a building is called what the town calls it: the name of the office or the shop in it, or else what its sign says
   const called = (b) => { const office = ZONE_SERVICES.find((sv) => sv.id === b.id); const shop = ZONE_SHOPS.find((sh) => sh.id === b.id); return (office && office.name) || (shop && shop.name) || titled(b.sign); };
   for (const b of ZONE_BUILDINGS) if (b.sign) add(called(b), b.x, b.z, 'place', 2.4);
@@ -166,6 +171,28 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
         if (z > b.maxZ + 40) continue;
         const [ax, ay] = P(x, z), [bx, by] = P(x + 16, z);
         g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+      }
+    }
+    // up the river (20 October 2026): the land north of the town, the river on to its lagoon between its banks, and in
+    // the habitation its waters, its streams, its paths and its boardwalks and bridges
+    {
+      const x0 = b.maxX, x1 = HABITATION.bounds.x1 + 300;
+      if (onScreen(x0, b.minZ - 600, x1, b.maxZ + 600, 40)) {
+        quad(x0, b.minZ - 600, x1, b.maxZ + 600); g.fillStyle = MAP_STYLE.land; g.fill();
+        g.fillStyle = MAP_STYLE.water; g.beginPath();
+        let [qx, qy] = P(x0, RIVER_FAR); g.moveTo(qx, qy);
+        for (let x = x0; x <= RIVER_HEAD + 10; x += 6) { [qx, qy] = P(x, riverShore(x)); g.lineTo(qx, qy); }
+        [qx, qy] = P(RIVER_HEAD + 10, RIVER_FAR); g.lineTo(qx, qy); g.closePath(); g.fill();
+        const poly = (pts2) => { g.beginPath(); pts2.forEach(([x, z], i) => { const [a, c] = P(x, z); if (i) g.lineTo(a, c); else g.moveTo(a, c); }); g.closePath(); g.fill(); };
+        const line = (pts2, width, colour) => { g.strokeStyle = colour; g.lineWidth = Math.max(1.2, width * state.k); g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath(); pts2.forEach(([x, z], i) => { const [a, c] = P(x, z); if (i) g.lineTo(a, c); else g.moveTo(a, c); }); g.stroke(); };
+        for (const w of HABITATION_WATERS) poly(w.outline);
+        for (const st of HABITATION_STREAMS) line(st.line, st.width, MAP_STYLE.water);
+        g.fillStyle = MAP_STYLE.land;
+        for (const w of HABITATION_WATERS) for (const isle of w.islands || []) poly(isle.outline);
+        if (state.k > 0.5) {
+          for (const p of HABITATION_PATHS) line(p.line, p.width, p.surface === 'sand' ? '#efe2b8' : MAP_STYLE.lane);
+          for (const d of HABITATION_DECKS) line(d.line, d.width, MAP_STYLE.jetty);
+        }
       }
     }
     // farmland, in furrows

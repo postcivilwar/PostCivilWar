@@ -108,6 +108,24 @@ test('the owner\'s buildings, the town\'s vehicles and the watch: no picture lar
   }
 });
 
+test('the habitation: no picture larger than 1024 in what a phone fetches of it, and all of it under 24 MB to a phone', { skip: !there }, () => {
+  // (20 October 2026, the owner's brief for the habitation: "phone textures no larger than 1024")
+  const dir = new URL('habitation/', served);
+  const names = readdirSync(dir).sort();
+  const lite = names.filter((n) => n.includes('.lite.'));
+  assert.ok(lite.filter((n) => n.endsWith('.glb')).length >= 49, `${lite.length} phone copies`);
+  let phone = 0, computer = 0;
+  for (const name of names) {
+    const bytes = readFileSync(new URL(name, dir));
+    const sizes = name.endsWith('.glb') ? glbPictures(bytes) : [pictureSize(bytes.subarray(0, 1 << 18))];
+    const most = name.includes('.lite.') ? 1024 : 2048;
+    for (const size of sizes) assert.ok(size && Math.max(...size) <= most, `habitation/${name}: ${size && size.join('x')}`);
+    if (name.includes('.lite.')) phone += bytes.length; else computer += bytes.length;
+  }
+  console.log(`  the habitation: ${(phone / MB).toFixed(1)} MB to a phone, ${(computer / MB).toFixed(1)} MB to a computer`);
+  assert.ok(phone <= 24 * MB, `${(phone / MB).toFixed(1)} MB to a phone`);
+});
+
 test('the page is small, and the opening is at its very start', { skip: !there }, () => {
   assert.ok(page.length <= 300 * 1024, `the page is ${(page.length / 1024).toFixed(0)} KB`);
   // the opening's markup, its style and the mark, then the rest of the page's style (template.html)

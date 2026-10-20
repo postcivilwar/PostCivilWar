@@ -25,6 +25,7 @@ import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor, B
 import { POWER_BIKES } from '../sim/power-bikes.js';
 import { POWER_CARS } from '../sim/power-cars.js';
 import { carProfile, carHornOf } from './car-audio.js';
+import { BIRD_SONGS, FROG_CALLS, cricket } from './bird-songs.js';
 
 // How each kind of engine sounds: lowest pitch, how far it climbs, its
 // character. Only the keke and the okada move in this build; the rest are
@@ -211,6 +212,8 @@ const KINDS = Object.freeze({
   footstep: { limit: 2, rank: 1 }, knock: { limit: 1, rank: 0 }, bird: { limit: 1, rank: 0 }, beep: { limit: 1, rank: 0 }, bell: { limit: 1, rank: 1 },
   horn: { limit: 2, rank: 2 }, blow: { limit: 3, rank: 2 }, whistle: { limit: 1, rank: 3 }, shout: { limit: 2, rank: 2 }, door: { limit: 2, rank: 1 }, ui: { limit: 2, rank: 3 },
   shutter: { limit: 2, rank: 3 }, choose: { limit: 1, rank: 3 },
+  // the habitation's birds, frogs and crickets (bird-songs.js)
+  birdsong: { limit: 3, rank: 0 }, frog: { limit: 2, rank: 0 }, cricket: { limit: 2, rank: 0 },
 });
 const MOST_AT_ONCE = 10;         // short sounds, of every kind together
 const NEAREST = Object.freeze({ music: 2, generator: 2, engine: 3 });
@@ -361,6 +364,78 @@ export function createAudio() {
 
   // Something that matters is sounding: music and background step back for a moment.
   function focus(seconds = 1.2) { if (ctx) ducks.focusUntil = Math.max(ducks.focusUntil, ctx.currentTime + seconds); }
+
+  // The habitation (20 October 2026): its birds as they sing, each from where it is (bird-songs.js); its waterfalls,
+  // the nearest two heard from where they fall, louder the nearer; the nearest stream's babble; little waves at the
+  // lagoon's edge; the wind in its trees; and at night its frogs by the water and crickets all round. `h`: { wild (0 to
+  // 1: how far into it), calls, falls: [{ id, x, y, z, size }], stream: { x, y, z, rapids } | null, shore (metres to
+  // the lagoon's edge), frogs: [{ x, z, kind }], gust (0 to 1), night }.
+  const habitat = { falls: new Map(), stream: null, waves: null, leaves: null, cricketAt: 0, frogAt: 0, heard: { songs: 0, kinds: new Set(), frogs: 0, crickets: 0 } };
+  function habitatSounds(h, now, L, rain) {
+    const wild = h ? h.wild : 0;
+    const quiet = (n) => { if (n) n.gain.gain.setTargetAtTime(0, now, 0.5); };
+    if (!h || wild <= 0.01) {
+      for (const [id, n] of habitat.falls) { n.low.src.stop(); n.hiss.src.stop(); n.p.disconnect(); habitat.falls.delete(id); }
+      quiet(habitat.stream); quiet(habitat.waves); quiet(habitat.leaves);
+      return;
+    }
+    const night = h.night || 0;
+    // birds
+    // (taken as they are played: the list is the game's own, filled as the birds sing)
+    for (const c of (h.calls || []).splice(0)) {
+      const song = BIRD_SONGS[c.song];
+      if (!song || night > 0.6 || Math.hypot(c.x - L.x, c.z - L.z) > 140) continue;
+      if (!claim('birdsong', 1.6)) break;
+      const p = panner(90);
+      move(p, c.x, c.y, c.z);
+      p.connect(nodes.ambient);
+      const len = song(ctx, p, now + 0.02 + Math.random() * 0.25, nodes.white, Math.random);
+      setTimeout(() => p.disconnect(), (len + 1.5) * 1000);
+      habitat.heard.songs += 1; habitat.heard.kinds.add(c.song);
+    }
+    // the waterfalls: a deep roar and a hiss of spray, from the foot of each of the nearest two
+    const near = (h.falls || []).map((f) => ({ f, d: Math.hypot(f.x - L.x, f.z - L.z) })).filter((e) => e.d < 280).sort((a, b) => a.d - b.d).slice(0, 2);
+    const keep = new Set();
+    for (const { f } of near) {
+      keep.add(f.id);
+      let n = habitat.falls.get(f.id);
+      if (!n) { const p = panner(f.size > 0.7 ? 170 : 100); const low = looped(nodes.brown, 'lowpass', 650); const hiss = looped(nodes.white, 'bandpass', 2600, 0.5); low.gain.connect(p); hiss.gain.connect(p); p.connect(nodes.ambient); n = { p, low, hiss }; habitat.falls.set(f.id, n); }
+      move(n.p, f.x, f.y, f.z);
+      n.low.gain.gain.setTargetAtTime(0.42 * f.size * wild, now, 0.6);
+      n.hiss.gain.gain.setTargetAtTime(0.1 * f.size * wild, now, 0.6);
+    }
+    for (const [id, n] of habitat.falls) if (!keep.has(id)) { n.low.gain.gain.setTargetAtTime(0, now, 0.3); n.hiss.gain.gain.setTargetAtTime(0, now, 0.3); const gone = n; setTimeout(() => { gone.low.src.stop(); gone.hiss.src.stop(); gone.p.disconnect(); }, 1500); habitat.falls.delete(id); }
+    // the nearest stream: water over stones (its pitch wandering, as a stream's does)
+    if (!habitat.stream) { habitat.stream = looped(nodes.white, 'bandpass', 900, 1.4); habitat.streamPan = panner(45); habitat.stream.gain.connect(habitat.streamPan); habitat.streamPan.connect(nodes.ambient); }
+    const st = h.stream;
+    if (st) {
+      move(habitat.streamPan, st.x, st.y, st.z);
+      habitat.stream.filter.frequency.setTargetAtTime(700 + Math.random() * 900, now, 0.06);
+      habitat.stream.gain.gain.setTargetAtTime((st.rapids ? 0.2 : 0.11) * wild * (0.75 + Math.random() * 0.25), now, 0.08);
+    } else habitat.stream.gain.gain.setTargetAtTime(0, now, 0.5);
+    // little waves at the lagoon's edge, in and out
+    if (!habitat.waves) { habitat.waves = looped(nodes.brown, 'lowpass', 900); habitat.waves.gain.connect(nodes.ambient); }
+    const lap = Math.max(0, 1 - (h.shore === undefined ? 99 : h.shore) / 30);
+    habitat.waves.gain.gain.setTargetAtTime(lap * wild * (0.04 + 0.05 * Math.max(0, Math.sin(now * 0.9))), now, 0.25);
+    // the wind in the leaves, in gusts
+    if (!habitat.leaves) { habitat.leaves = looped(nodes.white, 'bandpass', 5200, 0.6); habitat.leaves.gain.connect(nodes.ambient); }
+    habitat.leaves.gain.gain.setTargetAtTime(wild * (0.012 + 0.03 * (h.gust || 0)) * (1 - night * 0.4) * (1 + rain), now, 0.5);
+    // at night: crickets all round, and the frogs by the water
+    if (night > 0.45 && rain < 0.5) {
+      if (now > habitat.cricketAt) {
+        habitat.cricketAt = now + 0.12 + Math.random() * 0.35;
+        const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 22;
+        if (at(L.x + Math.cos(a) * r, L.z + Math.sin(a) * r, 40, 'cricket', 0.2, 'ambient', (out, t) => cricket(ctx, out, t, Math.random, 0.012 * night))) habitat.heard.crickets += 1;
+      }
+      const frogs = h.frogs || [];
+      if (frogs.length && now > habitat.frogAt) {
+        habitat.frogAt = now + 0.5 + Math.random() * 1.6;
+        const f = frogs[Math.floor(Math.random() * frogs.length)];
+        const call = FROG_CALLS[f.kind] || FROG_CALLS.ribbit;
+        if (at(f.x, f.z, 70, 'frog', 0.8, 'ambient', (out, t) => call(ctx, out, t, nodes.white, Math.random))) habitat.heard.frogs += 1;
+      }
+    }
+  }
 
   // a short sound from a place in the world, into one of the groups
   function at(x, z, reach, kind, seconds, into, build) {
@@ -647,10 +722,12 @@ export function createAudio() {
     nodes.rain.filter.type = L.indoors ? 'bandpass' : 'highpass';
     set(nodes.river, Math.max(0, 1 - scene.shore / 60) * 0.1 * inside);
     set(nodes.people, Math.min(1, scene.crowd / 22) * 0.32 * (0.85 + 0.15 * Math.sin(now * 1.7)));
-    nodes.insects.gain.setTargetAtTime(scene.night * (1 - rain) * 0.007 * inside, now, 1.5);
+    const wild = scene.habitat ? scene.habitat.wild : 0;
+    nodes.insects.gain.setTargetAtTime(scene.night * (1 - rain) * 0.007 * inside * (1 + wild * 1.8), now, 1.5);
+    habitatSounds(scene.habitat || null, now, L, rain);
 
-    // birds, by day and in the dry
-    if (now > birdAt && scene.night < 0.3 && rain < 0.2 && !L.indoors) {
+    // birds, by day and in the dry (in the habitation its own birds sing instead: habitatSounds)
+    if (now > birdAt && scene.night < 0.3 && rain < 0.2 && !L.indoors && wild < 0.5) {
       birdAt = now + 2.5 + Math.random() * 6;
       if (claim('bird', 0.6)) {
         const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
@@ -900,6 +977,8 @@ export function createAudio() {
       peerBikes: ctx ? [...nodes.peerBikes].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, recording: !!e.engine && !!e.engine.recording, rev: e.engine ? e.engine.rev : 0 })) : [],
       car: ctx && nodes.car ? { id: nodes.car.id, running: !!nodes.car.engine && nodes.car.engine.running, rev: nodes.car.engine ? nodes.car.engine.rev : 0 } : null,
       peerCars: ctx ? [...nodes.peerCars].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, rev: e.engine ? e.engine.rev : 0 })) : [],
-      recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])) }),
+      recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])),
+      // the habitation's: how many songs, of which birds, frogs and crickets have been played; the waterfalls heard now
+      habitat: { songs: habitat.heard.songs, kinds: [...habitat.heard.kinds], frogs: habitat.heard.frogs, crickets: habitat.heard.crickets, falls: [...habitat.falls.keys()], fallsLevel: ctx ? [...habitat.falls.values()].map((n) => +n.low.gain.gain.value.toFixed(3)) : [], stream: ctx && habitat.stream ? +habitat.stream.gain.gain.value.toFixed(3) : 0 } }),
   };
 }

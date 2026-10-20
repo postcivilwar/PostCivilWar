@@ -24,6 +24,8 @@ export function encodePlayer(self, zoneId) {
   // the phone in their hand (18 October 2026): 1 held to be read, 2 on a call, 3 held up to take a picture; so that
   // others see them take it out and hold it as they do, on foot, on a motorcycle or at the wheel
   if (self.phone) out.ph = self.phone;
+  // and its torch on (20 October 2026): the others see the beam from where the phone is
+  if (self.phone && self.torch) out.to = 1;
   // Vehicles. Each copy of the town has its own; what this player drives, rides or has left standing exists only in
   // theirs. So it travels with them, and every other player's game draws it where they are: the keke they drive
   // (its plate and paint), the okada they ride or sit on the back of, and their own motorcycles and kekes standing
@@ -93,9 +95,10 @@ export function decodePlayer(state, zoneId) {
   const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3] } : null)) : [];
   const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
   const phone = [1, 2, 3].includes(state.ph) ? state.ph : 0;
+  const torch = phone && state.to === 1 ? 1 : 0;
   const dn = Array.isArray(state.dn) ? state.dn : null;
   const down = dn ? { kind: ['knock', 'crash', 'dead'][dn[0]] || null, age: dn[1], lie: dn[2], rise: dn[3], push: dn[4], hard: !!dn[5], from: Number.isFinite(dn[6]) && Number.isFinite(dn[7]) ? { x: dn[6], z: dn[7] } : null, over: Number.isFinite(dn[8]) && Number.isFinite(dn[9]) ? { a: dn[8], b: dn[9] } : null, id: Number.isFinite(dn[10]) ? dn[10] : null, at: Number.isFinite(dn[11]) && Number.isFinite(dn[12]) ? { x: dn[11], z: dn[12] } : null } : null;
-  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone };
+  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

@@ -444,6 +444,11 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #actbar > * { pointer-events: auto; }
 /* Nothing over the town blurs what is behind it: a blur makes the device read the picture back every frame, and phones pay for that. */
 #prompt { background: rgba(0, 0, 0, 0.58); border-radius: 9px; padding: 6px 11px; font-size: 13px; display: flex; gap: 9px; align-items: center; white-space: nowrap; max-width: 100%; overflow: hidden; text-overflow: ellipsis; }
+/* a vehicle stopped at a bridge, a boardwalk or a jetty (the habitation): the message, and the button to get off */
+#bridge-stop { position: absolute; left: 50%; top: 38%; transform: translate(-50%, -50%); z-index: 30; display: flex; flex-direction: column; align-items: center; gap: 12px; padding: 16px 20px 18px; max-width: min(92vw, 420px); background: rgba(10, 12, 14, 0.82); border: 1px solid rgba(255, 255, 255, 0.22); border-radius: 14px; text-align: center; box-shadow: 0 10px 32px rgba(0, 0, 0, 0.45); pointer-events: auto; }
+#bridge-stop[hidden] { display: none; }
+#bridge-stop p { margin: 0; font-size: 17px; font-weight: 700; line-height: 1.3; color: #fff; }
+#bridge-stop .btn { min-width: 150px; }
 #prompt .ring { width: 70px; height: 2px; background: rgba(255, 255, 255, 0.22); border-radius: 1px; overflow: hidden; }
 #prompt .ring i { display: block; height: 100%; width: 0; background: var(--white); }
 #keys { display: flex; flex-wrap: wrap; justify-content: center; gap: 5px; }
@@ -1013,6 +1018,9 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 #sheet.mini .app { font-size: 10.5px; font-weight: 500; gap: 5px; min-height: 74px; text-shadow: 0 1px 3px rgba(0, 0, 0, 0.55); }
 #sheet.mini .app .icon { width: 54px; height: 54px; border-radius: 14px; box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.45), inset 0 -8px 12px rgba(0, 0, 0, 0.12), 0 4px 10px rgba(0, 0, 0, 0.35); }
 #sheet.mini .app .icon svg { width: 28px; height: 28px; stroke: currentColor; stroke-width: 1.9; }
+/* the torch, switched on: its tile lit */
+.app.on .icon { box-shadow: 0 0 0 2px #ffe08a, 0 0 16px rgba(255, 224, 138, 0.85), inset 0 1px 0 rgba(255, 255, 255, 0.45); }
+.app.on .icon svg { fill: rgba(255, 224, 138, 0.35); }
 #sheet.mini .app:active .icon { transform: scale(0.92); filter: brightness(0.85); }
 #sheet.mini .app:disabled { opacity: 0.4; }
 #sheet.mini .app .count { top: -4px; right: 6px; }
@@ -1632,6 +1640,7 @@ canvas.map.nation { border-radius: 14px; }
     </div>
     <div class="dash" id="hud-dash" hidden><span class="eyebrow" id="dash-plate"></span><span id="dash-speed"></span><span id="dash-fuel"></span><span id="dash-load"></span></div>
     <div id="notices" aria-live="polite"></div>
+    <div id="bridge-stop" role="alert" hidden><p id="bridge-stop-text">Get off your vehicle to cross the bridge</p><button class="btn primary" id="bridge-stop-off" type="button">Get off</button></div>
     <button id="chat-btn" type="button" aria-label="Chat with the players near you" hidden><svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 4c-4.7 0-8.5 3.1-8.5 7 0 2.2 1.2 4.1 3.1 5.4L6 20l4-2.2c.6.1 1.3.2 2 .2 4.7 0 8.5-3.1 8.5-7S16.7 4 12 4z"></path></svg><span id="chat-count"></span></button>
     <form id="chat-bar" hidden autocomplete="off"><input id="chat-input" maxlength="140" placeholder="Say something" aria-label="Say something to the players near you" enterkeyhint="send"><button class="btn primary" type="submit">Say</button></form>
     <div id="actbar">
@@ -1852,6 +1861,6 @@ canvas.map.nation { border-radius: 14px; }
 </script>
 
 <script defer src="three.min.js?v=9274bbcec8d96168" fetchpriority="high" onload="window.__pcwStage && __pcwStage(0.35)"></script>
-<script defer src="game.js?v=f2ba77e19c98d906" fetchpriority="high"></script>
+<script defer src="game.js?v=cfb483a4b8e18ae6" fetchpriority="high"></script>
 </body>
 </html>

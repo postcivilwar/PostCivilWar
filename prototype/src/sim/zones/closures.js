@@ -28,7 +28,8 @@ export const ROAD_CLOSURES = Object.freeze([
   // Waterside Road runs out of the town to the south and to the north: neither is built on yet
   closure('waterside-south', 'Waterside Road, south end', AREA_STATE.BUILDING, { x: -243, z: 105.6 }, { x: -243, z: 120.4 }, Math.PI / 2,
     ['ROAD CLOSED', 'Road works ahead'], 'Asaba is still being built beyond this point.'),
-  closure('waterside-north', 'Waterside Road, north end', AREA_STATE.BUILDING, { x: 243, z: 105.6 }, { x: 243, z: 120.4 }, -Math.PI / 2,
+  // (open since 20 October 2026: it goes on up the river to the habitation, habitation.js)
+  closure('waterside-north', 'Waterside Road, north end', AREA_STATE.OPEN, { x: 243, z: 105.6 }, { x: 243, z: 120.4 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road works ahead'], 'Asaba is still being built beyond this point.'),
   // Registry Road ends in open ground to the north: the way on is not laid yet
   closure('registry-north', 'Registry Road, north end', AREA_STATE.BUILDING, { x: 241.5, z: -47.4 }, { x: 241.5, z: -32.6 }, -Math.PI / 2,
@@ -61,7 +62,7 @@ export function closureColliders(list = openClosures()) {
 // it wherever the land really does end just beyond it, and nowhere it goes on (where the town meets the road to Kwale,
 // say). `ground(x, z)` is the town's own test of where its ground is (atani.js).
 const INSET = 1.4;
-const line = (id, a, b, out) => Object.freeze({ id, a: Object.freeze(a), b: Object.freeze(b), out: Object.freeze(out) });
+const line = (id, a, b, out, style = 'tape') => Object.freeze({ id, a: Object.freeze(a), b: Object.freeze(b), out: Object.freeze(out), style });
 export const EDGE_LINES = Object.freeze([
   // the town's own land: its west (true south), east (true north) and inland (true west) edges; its fourth is the river
   line('town-south', { x: -250 + INSET, z: -480 + INSET }, { x: -250 + INSET, z: 185 }, { x: -1, z: 0 }),
@@ -78,6 +79,15 @@ export const EDGE_LINES = Object.freeze([
   // the far bank of the Niger, either side of where the bridge comes down (its far end has its barrier)
   line('farbank-south', { x: -236 + INSET, z: 322 }, { x: -236 + INSET, z: 383.4 }, { x: -1, z: 0 }),
   line('farbank-north', { x: -174 - INSET, z: 322 }, { x: -174 - INSET, z: 383.4 }, { x: 1, z: 0 }),
+  // the road up the river to the habitation: its verges' outer edges, and round its car park (open where the gate's
+  // footbridge goes over the stream into the habitation); a plain wooden rail fence, as along a country road and at a
+  // park's entrance (the riverside beyond it is countryside, and beyond the car park is the habitation)
+  line('upriver-river', { x: 250, z: 122 - INSET }, { x: 1846, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
+  line('upriver-inland', { x: 250, z: 104 + INSET }, { x: 1832, z: 104 + INSET }, { x: 0, z: -1 }, 'wood'),
+  line('park-south', { x: 1832 + INSET, z: 64 + INSET }, { x: 1832 + INSET, z: 104 }, { x: -1, z: 0 }, 'wood'),
+  line('park-inland', { x: 1832, z: 64 + INSET }, { x: 1882, z: 64 + INSET }, { x: 0, z: -1 }, 'wood'),
+  line('park-river', { x: 1846, z: 122 - INSET }, { x: 1882, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
+  line('park-gate', { x: 1882 - INSET, z: 64 }, { x: 1882 - INSET, z: 122 }, { x: 1, z: 0 }, 'wood'),
 ]);
 export const EDGE_FENCE = Object.freeze({ post: 3, height: 1.15, depth: 0.3, step: 0.5, beyond: 2.6, least: 3 });
 // The runs of fence: along each line, wherever the line is on the land and the land ends just beyond it.
@@ -87,7 +97,7 @@ export function edgeFences(ground) {
     const len = Math.hypot(l.b.x - l.a.x, l.b.z - l.a.z);
     const n = Math.floor(len / EDGE_FENCE.step);
     let start = null, last = null;
-    const close = () => { if (start !== null && last - start >= EDGE_FENCE.least) runs.push(Object.freeze({ line: l.id, a: Object.freeze(at(start)), b: Object.freeze(at(last)), out: l.out })); start = null; };
+    const close = () => { if (start !== null && last - start >= EDGE_FENCE.least) runs.push(Object.freeze({ line: l.id, a: Object.freeze(at(start)), b: Object.freeze(at(last)), out: l.out, style: l.style })); start = null; };
     const at = (d) => ({ x: +(l.a.x + ((l.b.x - l.a.x) * d) / len).toFixed(2), z: +(l.a.z + ((l.b.z - l.a.z) * d) / len).toFixed(2) });
     for (let i = 0; i <= n; i += 1) {
       const d = i * EDGE_FENCE.step;

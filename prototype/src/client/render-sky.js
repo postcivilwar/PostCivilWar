@@ -57,8 +57,53 @@ export function createSky(scene, renderer) {
   const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
   scene.add(stars);
 
+  // Far from the town's lights (the habitation, 20 October 2026: "night properly dark, with the moon and stars") the
+  // fainter stars come out too.
+  const faintGeometry = new THREE.BufferGeometry();
+  const faintPositions = [];
+  for (let i = 0; i < 1100; i += 1) {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.acos(Math.random() * 0.97 + 0.03);
+    faintPositions.push(Math.sin(v) * Math.cos(u) * 840, Math.cos(v) * 840, Math.sin(v) * Math.sin(u) * 840);
+  }
+  faintGeometry.setAttribute('position', new THREE.Float32BufferAttribute(faintPositions, 3));
+  const faint = new THREE.Points(faintGeometry, new THREE.PointsMaterial({ color: 0xdfe6ff, size: 1.3, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+  faint.visible = false;
+  scene.add(faint);
+
   const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(26, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff2c8, fog: false, toneMapped: false }));
   scene.add(sunDisc);
+
+  // The moon: where the night's light comes from, a pale disc with its darker seas, and a faint ring of light round it.
+  const moonCanvas = document.createElement('canvas');
+  moonCanvas.width = moonCanvas.height = 128;
+  const mctx = moonCanvas.getContext('2d');
+  mctx.fillStyle = '#000'; mctx.fillRect(0, 0, 128, 128);
+  const face = mctx.createRadialGradient(56, 54, 8, 64, 64, 60);
+  face.addColorStop(0, '#f6f4ea'); face.addColorStop(0.85, '#e4e0d0'); face.addColorStop(1, '#cfcab6');
+  mctx.fillStyle = face; mctx.beginPath(); mctx.arc(64, 64, 60, 0, Math.PI * 2); mctx.fill();
+  // (the seas: soft grey patches where the old maps put them)
+  for (const [x, y, r, a] of [[48, 44, 17, 0.32], [70, 40, 12, 0.26], [80, 60, 15, 0.28], [58, 70, 11, 0.22], [44, 80, 9, 0.2], [86, 82, 7, 0.16], [66, 92, 6, 0.14]]) {
+    const sea = mctx.createRadialGradient(x, y, 0, x, y, r);
+    sea.addColorStop(0, `rgba(120,118,108,${a})`); sea.addColorStop(1, 'rgba(120,118,108,0)');
+    mctx.fillStyle = sea; mctx.beginPath(); mctx.arc(x, y, r, 0, Math.PI * 2); mctx.fill();
+  }
+  const moonMap = new THREE.CanvasTexture(moonCanvas);
+  moonMap.encoding = THREE.sRGBEncoding;
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonMap, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, opacity: 0 }));
+  moon.scale.set(30, 30, 1);
+  moon.renderOrder = -8;
+  scene.add(moon);
+  const moonGlowCanvas = document.createElement('canvas');
+  moonGlowCanvas.width = moonGlowCanvas.height = 128;
+  const gctx = moonGlowCanvas.getContext('2d');
+  const ring = gctx.createRadialGradient(64, 64, 6, 64, 64, 64);
+  ring.addColorStop(0, 'rgba(210,222,255,0.55)'); ring.addColorStop(0.3, 'rgba(190,205,255,0.16)'); ring.addColorStop(1, 'rgba(180,200,255,0)');
+  gctx.fillStyle = ring; gctx.fillRect(0, 0, 128, 128);
+  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(moonGlowCanvas), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, opacity: 0 }));
+  moonGlow.scale.set(150, 150, 1);
+  moonGlow.renderOrder = -9;
+  scene.add(moonGlow);
 
   // a soft halo round the sun
   const haloCanvas = document.createElement('canvas');
@@ -116,10 +161,13 @@ export function createSky(scene, renderer) {
   let cover = 0;
   let flash = 0;
   const tmp = new THREE.Vector3();
+  const moonWay = new THREE.Vector3();
 
   // `indoor` (0 to 1): how far the light is a hall's own (PostCivilWar PowerBike): its ceiling's panels, white, from
   // above and all round, the same by day and by night; and no rain falling.
-  function update(dt, hour, weather, focus, camera, indoor = 0) {
+  // `wild` (0 to 1): how far from the town's lights the eye is (the habitation): its nights are darker, lit by the
+  // moon and the stars only.
+  function update(dt, hour, weather, focus, camera, indoor = 0, wild = 0) {
     const s = sample(hour);
     const targetCover = { clear: 0.12, cloudy: 0.75, rain: 0.92, storm: 1 }[weather.kind];
     cover += (targetCover - cover) * Math.min(1, dt * 0.9);
@@ -133,6 +181,9 @@ export function createSky(scene, renderer) {
     if (weather.kind === 'storm' && Math.random() < dt * 0.25) flash = 1;
     flash = Math.max(0, flash - dt * 4);
 
+    // (far from the town, the night sky has no glow of lamps at its edge, and the air is darker)
+    const dark = night * Math.max(0, Math.min(1, wild)) * (1 - indoor);
+    if (dark > 0) { s.top.multiplyScalar(1 - 0.45 * dark); s.horizon.multiplyScalar(1 - 0.6 * dark); }
     uniforms.top.value.copy(s.top);
     uniforms.horizon.value.copy(s.horizon).lerp(new THREE.Color(1, 1, 1), flash * 0.5);
     scene.fog.color.copy(uniforms.horizon.value);
@@ -158,6 +209,8 @@ export function createSky(scene, renderer) {
     hemi.intensity = s.ambient * (1 - dull * 0.25) + flash * 0.6;
     hemi.color.copy(s.top).lerp(new THREE.Color(1, 1, 1), 0.55);
     hemi.groundColor.copy(linear(0x8a7a5a)).multiplyScalar(0.7 + s.ambient * 0.5);
+    // (the moon's light alone: a little less of it reaching the ground under the trees, and much less from all round)
+    if (dark > 0) { sun.intensity *= 1 - 0.3 * dark; hemi.intensity *= 1 - 0.6 * dark; }
     if (indoor > 0) {
       sun.color.lerp(WHITE, indoor); sun.intensity += (HALL_LIGHT.key - sun.intensity) * indoor;
       hemi.color.lerp(WHITE, indoor); hemi.groundColor.lerp(HALL_FLOOR, indoor); hemi.intensity += (HALL_LIGHT.all - hemi.intensity) * indoor;
@@ -166,6 +219,17 @@ export function createSky(scene, renderer) {
     dome.position.copy(camera.position);
     stars.position.copy(camera.position);
     stars.material.opacity = night * (1 - dull);
+    faint.position.copy(camera.position);
+    faint.material.opacity = dark * (1 - dull) * 0.85;
+    faint.visible = faint.material.opacity > 0.01;
+    // the moon, where the night's light comes from (behind the cloud on a dull night)
+    const moonDir = trueToGrid(-0.45, 0.4, ZONE.gridBearing);
+    const moonAt = moonWay.set(moonDir.x, 0.8, moonDir.z).normalize();
+    moon.position.copy(camera.position).addScaledVector(moonAt, 780);
+    moonGlow.position.copy(moon.position);
+    moon.material.opacity = Math.max(0, night - 0.15) / 0.85 * (1 - dull * 0.85) * (1 - indoor);
+    moonGlow.material.opacity = moon.material.opacity * (0.55 + 0.45 * dark);
+    moon.visible = moonGlow.visible = moon.material.opacity > 0.01;
     sunDisc.visible = isDay && dull < 0.7;
     sunDisc.position.copy(camera.position).addScaledVector(dir, 800);
     sunDisc.material.color.copy(s.sun).lerp(new THREE.Color(1, 1, 1), 0.5);
@@ -197,5 +261,9 @@ export function createSky(scene, renderer) {
     return { night, wetness, dull };
   }
 
-  return { update, sun };
+  return {
+    update, sun,
+    // (for the tests: the moon and the stars as they are drawn now)
+    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +sun.intensity.toFixed(3), all: +hemi.intensity.toFixed(3) }),
+  };
 }

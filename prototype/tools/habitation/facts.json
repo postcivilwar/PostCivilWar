@@ -1,0 +1,786 @@
+{
+ "palmtree3dmodel_2.glb": {
+  "kind": "palm",
+  "height": 0.999,
+  "base": [
+   -0.0906,
+   0.0005,
+   0.1074
+  ],
+  "base_r": 0.0586,
+  "trunk_r": 0.0245,
+  "crown_r": 0.3481,
+  "across": [
+   0.6235,
+   0.5933
+  ]
+ },
+ "palmtree3dmodel_3.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0354,
+   0.0,
+   -0.0017
+  ],
+  "base_r": 0.0293,
+  "trunk_r": 0.0195,
+  "crown_r": 0.2476,
+  "across": [
+   0.5005,
+   0.5474
+  ]
+ },
+ "palmtree3dmodel_4.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.3093,
+   0.0,
+   0.0706
+  ],
+  "base_r": 0.0498,
+  "trunk_r": 0.0282,
+  "crown_r": 0.5855,
+  "across": [
+   0.7544,
+   0.5942
+  ]
+ },
+ "palmtree3dmodel_5.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0359,
+   0.0,
+   0.011
+  ],
+  "base_r": 0.0273,
+  "trunk_r": 0.0177,
+  "crown_r": 0.2081,
+  "across": [
+   0.5005,
+   0.561
+  ]
+ },
+ "palmtree3dmodel_6.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0193,
+   0.0,
+   0.0173
+  ],
+  "base_r": 0.0294,
+  "trunk_r": 0.0187,
+  "crown_r": 0.3329,
+  "across": [
+   0.6958,
+   0.6958
+  ]
+ },
+ "palmtree3dmodel_7.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   -0.0422,
+   0.0,
+   -0.0017
+  ],
+  "base_r": 0.0301,
+  "trunk_r": 0.0173,
+  "crown_r": 0.2754,
+  "across": [
+   0.6118,
+   0.5913
+  ]
+ },
+ "palmtree3dmodel_8.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0088,
+   0.0,
+   0.0168
+  ],
+  "base_r": 0.0247,
+  "trunk_r": 0.0173,
+  "crown_r": 0.2792,
+  "across": [
+   0.6177,
+   0.6411
+  ]
+ },
+ "palmtree3dmodel_9.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   -0.0481,
+   0.0,
+   0.4363
+  ],
+  "base_r": 0.0591,
+  "trunk_r": 0.0681,
+  "crown_r": 0.8753,
+  "across": [
+   0.937,
+   0.9985
+  ]
+ },
+ "coconutpalm3dmodel.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   -0.0076,
+   0.0,
+   -0.2029
+  ],
+  "base_r": 0.079,
+  "trunk_r": 0.1159,
+  "crown_r": 0.5429,
+  "across": [
+   0.8442,
+   0.8423
+  ]
+ },
+ "coconutpalmtree3dmodel.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0095,
+   0.0,
+   0.0417
+  ],
+  "base_r": 0.0253,
+  "trunk_r": 0.0197,
+  "crown_r": 0.3624,
+  "across": [
+   0.7651,
+   0.8188
+  ]
+ },
+ "coconutpalmtree3dmodel_1.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0056,
+   0.0,
+   -0.0017
+  ],
+  "base_r": 0.0464,
+  "trunk_r": 0.0266,
+  "crown_r": 0.245,
+  "across": [
+   0.5005,
+   0.5073
+  ]
+ },
+ "coconutpalmtree3dmodel_2.glb": {
+  "kind": "palm",
+  "height": 0.9624,
+  "base": [
+   -0.052,
+   0.0,
+   -0.0061
+  ],
+  "base_r": 0.0493,
+  "trunk_r": 0.0307,
+  "crown_r": 0.3428,
+  "across": [
+   0.7427,
+   0.7056
+  ]
+ },
+ "coconutpalmtree3dmodel_3.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0042,
+   0.0,
+   -0.0027
+  ],
+  "base_r": 0.0376,
+  "trunk_r": 0.0254,
+  "crown_r": 0.4319,
+  "across": [
+   0.9536,
+   0.8813
+  ]
+ },
+ "coconutpalmtree3dmodel_4.glb": {
+  "kind": "palm",
+  "height": 0.9995,
+  "base": [
+   0.0222,
+   0.0,
+   -0.011
+  ],
+  "base_r": 0.0409,
+  "trunk_r": 0.0209,
+  "crown_r": 0.3238,
+  "across": [
+   0.7319,
+   0.6851
+  ]
+ },
+ "palmtree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.051,
+   0.0,
+   -0.0002
+  ],
+  "base_r": 0.0399,
+  "trunk_r": 0.0171,
+  "crown_r": 0.241,
+  "across": [
+   0.4497,
+   0.5161
+  ]
+ },
+ "palmtree3dmodel_1.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.0627,
+   0.0,
+   -0.0002
+  ],
+  "base_r": 0.0346,
+  "trunk_r": 0.0174,
+  "crown_r": 0.2508,
+  "across": [
+   0.4614,
+   0.5024
+  ]
+ },
+ "bananaplant3dmodel.glb": {
+  "kind": "banana",
+  "height": 0.8647,
+  "base": [
+   0.0002,
+   0.0,
+   0.0872
+  ],
+  "base_r": 0.0656,
+  "trunk_r": 0.0591,
+  "crown_r": 0.4551,
+  "across": [
+   0.9995,
+   0.8765
+  ]
+ },
+ "bananaplant3dmodel_1.glb": {
+  "kind": "banana",
+  "height": 0.98,
+  "base": [
+   -0.1042,
+   0.0,
+   0.0144
+  ],
+  "base_r": 0.0412,
+  "trunk_r": 0.0495,
+  "crown_r": 0.5189,
+  "across": [
+   0.9927,
+   0.9995
+  ]
+ },
+ "bananaplant3dmodel_2.glb": {
+  "kind": "banana",
+  "height": 0.9976,
+  "base": [
+   -0.0071,
+   0.0,
+   -0.0295
+  ],
+  "base_r": 0.1781,
+  "trunk_r": 0.2273,
+  "crown_r": 0.4817,
+  "across": [
+   0.9644,
+   0.9995
+  ]
+ },
+ "palmplant3dmodel.glb": {
+  "kind": "herb",
+  "height": 0.9868,
+  "base": [
+   0.0154,
+   0.0,
+   -0.0505
+  ],
+  "base_r": 0.0596,
+  "trunk_r": 0.059,
+  "crown_r": 0.4628,
+  "across": [
+   0.9995,
+   0.9702
+  ]
+ },
+ "monsteraplant3dmodel.glb": {
+  "kind": "herb",
+  "height": 0.9995,
+  "base": [
+   -0.0251,
+   0.0,
+   0.0002
+  ],
+  "base_r": 0.0891,
+  "trunk_r": 0.2682,
+  "crown_r": 0.434,
+  "across": [
+   0.5776,
+   0.9653
+  ]
+ },
+ "monsteraplant3dmodel_1.glb": {
+  "kind": "herb",
+  "height": 0.9897,
+  "base": [
+   -0.0066,
+   0.0,
+   0.0671
+  ],
+  "base_r": 0.0257,
+  "trunk_r": 0.0592,
+  "crown_r": 0.5226,
+  "across": [
+   0.9253,
+   0.9995
+  ]
+ },
+ "monsteraplant3dmodel_2.glb": {
+  "kind": "herb",
+  "height": 0.9995,
+  "base": [
+   0.0315,
+   0.0,
+   -0.0974
+  ],
+  "base_r": 0.0596,
+  "trunk_r": 0.0746,
+  "crown_r": 0.5289,
+  "across": [
+   0.9761,
+   0.9761
+  ]
+ },
+ "fernplant3dmodel.glb": {
+  "kind": "herb",
+  "height": 0.7397,
+  "base": [
+   -0.0007,
+   0.0,
+   0.0134
+  ],
+  "base_r": 0.4743,
+  "trunk_r": 0.4486,
+  "crown_r": 0.4951,
+  "across": [
+   0.9995,
+   0.9761
+  ]
+ },
+ "fanpalmshrub3dmodel.glb": {
+  "kind": "herb",
+  "height": 0.9419,
+  "base": [
+   -0.0247,
+   0.0,
+   -0.0242
+  ],
+  "base_r": 0.0395,
+  "trunk_r": 0.0709,
+  "crown_r": 0.4675,
+  "across": [
+   0.9556,
+   0.9995
+  ]
+ },
+ "fernplant3dmodel_1.glb": {
+  "kind": "fern",
+  "height": 0.9312,
+  "base": [
+   0.0398,
+   0.0,
+   0.0339
+  ],
+  "base_r": 0.1416,
+  "trunk_r": 0.0947,
+  "crown_r": 0.482,
+  "across": [
+   0.9673,
+   0.9819
+  ]
+ },
+ "fernclump3dmodel.glb": {
+  "kind": "fern",
+  "height": 0.8271,
+  "base": [
+   0.0869,
+   0.0,
+   0.0515
+  ],
+  "base_r": 0.1865,
+  "trunk_r": 0.2268,
+  "crown_r": 0.4186,
+  "across": [
+   0.7896,
+   0.9995
+  ]
+ },
+ "roundshrub3dmodel.glb": {
+  "kind": "shrub",
+  "height": 0.7944,
+  "base": [
+   0.1638,
+   0.0,
+   0.0696
+  ],
+  "base_r": 0.413,
+  "trunk_r": 0.4347,
+  "crown_r": 0.6019,
+  "across": [
+   0.9976,
+   0.9995
+  ]
+ },
+ "roundleafyshrub3dmodel.glb": {
+  "kind": "shrub",
+  "height": 0.7275,
+  "base": [
+   0.0171,
+   0.0,
+   0.0061
+  ],
+  "base_r": 0.3858,
+  "trunk_r": 0.4192,
+  "crown_r": 0.4759,
+  "across": [
+   0.9995,
+   0.9897
+  ]
+ },
+ "oaktree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.7954,
+  "base": [
+   -0.0002,
+   0.0,
+   -0.0002
+  ],
+  "base_r": 0.1946,
+  "trunk_r": 0.0766,
+  "crown_r": 0.4925,
+  "across": [
+   0.9995,
+   0.9995
+  ]
+ },
+ "tree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.011,
+   0.0,
+   0.0164
+  ],
+  "base_r": 0.2584,
+  "trunk_r": 0.0764,
+  "crown_r": 0.2915,
+  "across": [
+   0.5874,
+   0.6255
+  ]
+ },
+ "tree3dmodel_1.glb": {
+  "kind": "tree",
+  "height": 0.9819,
+  "base": [
+   0.3435,
+   0.0,
+   -0.1936
+  ],
+  "base_r": 0.8461,
+  "trunk_r": 0.2514,
+  "crown_r": 0.7266,
+  "across": [
+   0.9683,
+   0.9995
+  ]
+ },
+ "treeonhill3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.1589,
+   0.0,
+   0.05
+  ],
+  "base_r": 0.1218,
+  "trunk_r": 0.1287,
+  "crown_r": 0.5275,
+  "across": [
+   0.8247,
+   0.9399
+  ]
+ },
+ "talltree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   -0.0183,
+   0.0,
+   -0.0061
+  ],
+  "base_r": 0.0277,
+  "trunk_r": 0.0126,
+  "crown_r": 0.2313,
+  "across": [
+   0.5073,
+   0.5015
+  ]
+ },
+ "slimtree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   -0.011,
+   0.0,
+   0.0012
+  ],
+  "base_r": 0.0863,
+  "trunk_r": 0.0256,
+  "crown_r": 0.1348,
+  "across": [
+   0.2935,
+   0.2661
+  ]
+ },
+ "foresttree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9429,
+  "base": [
+   0.1306,
+   0.0,
+   0.0503
+  ],
+  "base_r": 0.4879,
+  "trunk_r": 0.199,
+  "crown_r": 0.5048,
+  "across": [
+   0.939,
+   0.9995
+  ]
+ },
+ "buttress-roottree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.1147,
+   0.0,
+   0.1462
+  ],
+  "base_r": 0.4717,
+  "trunk_r": 0.3039,
+  "crown_r": 0.5538,
+  "across": [
+   0.8403,
+   0.9673
+  ]
+ },
+ "giantbuttress-roottree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.1125,
+   0.0,
+   -0.0254
+  ],
+  "base_r": 0.3327,
+  "trunk_r": 0.1778,
+  "crown_r": 0.4344,
+  "across": [
+   0.7388,
+   0.9995
+  ]
+ },
+ "buttressedtree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.1008,
+   0.0,
+   -0.011
+  ],
+  "base_r": 0.2878,
+  "trunk_r": 0.1402,
+  "crown_r": 0.468,
+  "across": [
+   0.9722,
+   0.9614
+  ]
+ },
+ "mangrovetree3dmodel.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   -0.0066,
+   0.0,
+   0.0002
+  ],
+  "base_r": 0.4166,
+  "trunk_r": 0.2654,
+  "crown_r": 0.4615,
+  "across": [
+   0.979,
+   0.9644
+  ]
+ },
+ "mangrovetree3dmodel_1.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   0.0002,
+   0.0,
+   0.0686
+  ],
+  "base_r": 0.3732,
+  "trunk_r": 0.2441,
+  "crown_r": 0.5074,
+  "across": [
+   0.9517,
+   0.9878
+  ]
+ },
+ "mangrovetree3dmodel_2.glb": {
+  "kind": "tree",
+  "height": 0.9849,
+  "base": [
+   0.0015,
+   0.0,
+   -0.0168
+  ],
+  "base_r": 0.281,
+  "trunk_r": 0.195,
+  "crown_r": 0.3899,
+  "across": [
+   0.4976,
+   0.9995
+  ]
+ },
+ "mangrovetree3dmodel_3.glb": {
+  "kind": "tree",
+  "height": 0.9995,
+  "base": [
+   -0.0122,
+   0.0,
+   -0.0276
+  ],
+  "base_r": 0.3659,
+  "trunk_r": 0.2743,
+  "crown_r": 0.4234,
+  "across": [
+   0.9438,
+   0.9526
+  ]
+ },
+ "tropicalgazebo3dmodel.glb": {
+  "kind": "structure",
+  "height": 0.7104,
+  "base": [
+   0.0388,
+   0.0,
+   0.1204
+  ],
+  "base_r": 0.4632,
+  "trunk_r": 0.4443,
+  "crown_r": 0.6602,
+  "across": [
+   0.9653,
+   0.9995
+  ]
+ },
+ "tropicalpooldeck3dmodel.glb": {
+  "kind": "structure",
+  "height": 0.6919,
+  "base": [
+   -0.1477,
+   0.0,
+   -0.3357
+  ],
+  "base_r": 0.2634,
+  "trunk_r": 0.2793,
+  "crown_r": 0.8239,
+  "across": [
+   0.8257,
+   0.9995
+  ]
+ },
+ "woodenboardwalk3dmodel.glb": {
+  "kind": "structure",
+  "height": 0.313,
+  "base": [
+   0.4778,
+   0.0,
+   0.1086
+  ],
+  "base_r": 0.343,
+  "trunk_r": 0.2003,
+  "crown_r": 1.0677,
+  "across": [
+   0.9995,
+   0.9585
+  ]
+ },
+ "suspensionbridge3dmodel.glb": {
+  "kind": "bridge",
+  "height": 0.1519,
+  "base": [
+   0.0281,
+   0.0,
+   0.1399
+  ],
+  "base_r": 0.0234,
+  "trunk_r": 0.1633,
+  "crown_r": 0.6592,
+  "across": [
+   0.5991,
+   0.9995
+  ]
+ },
+ "sceniclandscape3dmodel.glb": {
+  "kind": "structure",
+  "height": 0.8003,
+  "base": [
+   -0.0125,
+   0.0,
+   0.4509
+  ],
+  "base_r": 0.3054,
+  "trunk_r": 0.2776,
+  "crown_r": 0.341,
+  "across": [
+   0.1294,
+   0.9995
+  ]
+ },
+ "waterfalllandscape3dmodel.glb": {
+  "kind": "cliff",
+  "height": 0.6255,
+  "base": [
+   0.4338,
+   0.0,
+   0.2083
+  ],
+  "base_r": 0.1062,
+  "trunk_r": 0.235,
+  "crown_r": 0.8254,
+  "across": [
+   0.8677,
+   0.8706
+  ]
+ }
+}

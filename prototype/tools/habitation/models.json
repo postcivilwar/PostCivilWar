@@ -1,0 +1,413 @@
+{
+ "_": "The owner's 49 habitation models (assets/habitation, as supplied): what each is, how dress.py makes it real, and its size where it stands (metres: its height, or its length for a bridge or a boardwalk). `full`: the computer's copy (its pictures at most this size), `lite`: the phone's.",
+ "kinds": {
+  "palm": {
+   "full": 512,
+   "lite": 256
+  },
+  "banana": {
+   "full": 1024,
+   "lite": 512
+  },
+  "shrub": {
+   "full": 512,
+   "lite": 256
+  },
+  "tree": {
+   "full": 512,
+   "lite": 256
+  },
+  "herb": {
+   "full": 512,
+   "lite": 256
+  },
+  "fern": {
+   "full": 512,
+   "lite": 256
+  },
+  "structure": {
+   "full": 1024,
+   "lite": 512
+  },
+  "bridge": {
+   "full": 1024,
+   "lite": 512
+  },
+  "cliff": {
+   "full": 1024,
+   "lite": 512
+  }
+ },
+ "models": {
+  "palmtree3dmodel_2.glb": {
+   "kind": "palm",
+   "species": "coconut palm (Cocos nucifera)",
+   "height": 14,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "palmtree3dmodel_3.glb": {
+   "kind": "palm",
+   "species": "coconut palm",
+   "height": 13,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "palmtree3dmodel_4.glb": {
+   "kind": "palm",
+   "species": "coconut palm, leaning",
+   "height": 15,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "palmtree3dmodel_5.glb": {
+   "kind": "palm",
+   "species": "coconut palm",
+   "height": 13,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "palmtree3dmodel_6.glb": {
+   "kind": "palm",
+   "species": "oil palm (Elaeis guineensis)",
+   "height": 11,
+   "opts": {
+    "frond": "oil",
+    "narrow": 0.4
+   }
+  },
+  "palmtree3dmodel_7.glb": {
+   "kind": "palm",
+   "species": "oil palm",
+   "height": 12,
+   "opts": {
+    "frond": "oil",
+    "narrow": 0.4
+   }
+  },
+  "palmtree3dmodel_8.glb": {
+   "kind": "palm",
+   "species": "oil palm",
+   "height": 11,
+   "opts": {
+    "frond": "oil",
+    "narrow": 0.4
+   }
+  },
+  "palmtree3dmodel_9.glb": {
+   "kind": "palm",
+   "species": "coconut palm, curved",
+   "height": 9,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "coconutpalm3dmodel.glb": {
+   "kind": "palm",
+   "species": "coconut palm, bent low, a nut at its foot",
+   "height": 8,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "coconutpalmtree3dmodel.glb": {
+   "kind": "palm",
+   "species": "coconut palm",
+   "height": 14,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "coconutpalmtree3dmodel_1.glb": {
+   "kind": "palm",
+   "species": "coconut palm",
+   "height": 15,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "coconutpalmtree3dmodel_2.glb": {
+   "kind": "palm",
+   "species": "coconut palm",
+   "height": 13,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "coconutpalmtree3dmodel_3.glb": {
+   "kind": "palm",
+   "species": "coconut palm",
+   "height": 12,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "coconutpalmtree3dmodel_4.glb": {
+   "kind": "palm",
+   "species": "coconut palm",
+   "height": 14,
+   "opts": {
+    "frond": "coconut"
+   }
+  },
+  "palmtree3dmodel.glb": {
+   "kind": "tree",
+   "species": "umbrella tree (Musanga cecropioides)",
+   "height": 18,
+   "opts": {
+    "leaf": "broad",
+    "spray": 0.07
+   }
+  },
+  "palmtree3dmodel_1.glb": {
+   "kind": "tree",
+   "species": "umbrella tree (Musanga cecropioides)",
+   "height": 17,
+   "opts": {
+    "leaf": "broad",
+    "spray": 0.07
+   }
+  },
+  "bananaplant3dmodel.glb": {
+   "kind": "banana",
+   "species": "banana (Musa)",
+   "height": 4.5
+  },
+  "bananaplant3dmodel_1.glb": {
+   "kind": "banana",
+   "species": "banana",
+   "height": 4.0
+  },
+  "bananaplant3dmodel_2.glb": {
+   "kind": "banana",
+   "species": "banana",
+   "height": 3.8
+  },
+  "palmplant3dmodel.glb": {
+   "kind": "herb",
+   "species": "elephant ear (Alocasia)",
+   "height": 2.2
+  },
+  "monsteraplant3dmodel.glb": {
+   "kind": "herb",
+   "species": "monstera (Monstera deliciosa)",
+   "height": 1.8
+  },
+  "monsteraplant3dmodel_1.glb": {
+   "kind": "herb",
+   "species": "monstera",
+   "height": 2.2
+  },
+  "monsteraplant3dmodel_2.glb": {
+   "kind": "herb",
+   "species": "monstera",
+   "height": 2.0
+  },
+  "fernplant3dmodel.glb": {
+   "kind": "herb",
+   "species": "bird's nest fern (Asplenium nidus)",
+   "height": 1.3
+  },
+  "fanpalmshrub3dmodel.glb": {
+   "kind": "herb",
+   "species": "ruffled fan palm (Licuala)",
+   "height": 2.0
+  },
+  "fernplant3dmodel_1.glb": {
+   "kind": "fern",
+   "species": "sword fern (Nephrolepis)",
+   "height": 1.4,
+   "opts": {
+    "frond": "fern",
+    "base": 1,
+    "narrow": 0.28,
+    "widest": 0.4,
+    "lift": 0.45,
+    "fill": 1,
+    "gap": 18
+   }
+  },
+  "fernclump3dmodel.glb": {
+   "kind": "fern",
+   "species": "fern clump (Nephrolepis)",
+   "height": 1.1,
+   "opts": {
+    "frond": "fern",
+    "base": 1,
+    "narrow": 0.28,
+    "widest": 0.4,
+    "lift": 0.45,
+    "fill": 1,
+    "gap": 18
+   }
+  },
+  "roundshrub3dmodel.glb": {
+   "kind": "shrub",
+   "species": "round leafy shrub",
+   "height": 1.6
+  },
+  "roundleafyshrub3dmodel.glb": {
+   "kind": "shrub",
+   "species": "round leafy shrub",
+   "height": 1.4,
+   "opts": {
+    "kind": "round"
+   }
+  },
+  "oaktree3dmodel.glb": {
+   "kind": "tree",
+   "species": "tropical almond (Terminalia catappa), its crown in tiers",
+   "height": 15,
+   "opts": {
+    "leaf": "broad"
+   }
+  },
+  "tree3dmodel.glb": {
+   "kind": "tree",
+   "species": "silk-cotton tree (Ceiba pentandra)",
+   "height": 28,
+   "opts": {
+    "leaf": "small"
+   }
+  },
+  "tree3dmodel_1.glb": {
+   "kind": "tree",
+   "species": "flowering tree on its own grass",
+   "height": 12,
+   "opts": {
+    "leaf": "broad"
+   }
+  },
+  "treeonhill3dmodel.glb": {
+   "kind": "tree",
+   "species": "spreading tree on its knoll (the entrance hill's)",
+   "height": 14,
+   "opts": {
+    "leaf": "broad"
+   }
+  },
+  "talltree3dmodel.glb": {
+   "kind": "tree",
+   "species": "tall forest tree",
+   "height": 18,
+   "opts": {
+    "leaf": "small"
+   }
+  },
+  "slimtree3dmodel.glb": {
+   "kind": "tree",
+   "species": "slender forest tree",
+   "height": 14,
+   "opts": {
+    "leaf": "small"
+   }
+  },
+  "foresttree3dmodel.glb": {
+   "kind": "tree",
+   "species": "forest tree with buttress roots",
+   "height": 20,
+   "opts": {
+    "leaf": "round"
+   }
+  },
+  "buttress-roottree3dmodel.glb": {
+   "kind": "tree",
+   "species": "buttress-rooted forest tree",
+   "height": 22,
+   "opts": {
+    "leaf": "broad"
+   }
+  },
+  "giantbuttress-roottree3dmodel.glb": {
+   "kind": "tree",
+   "species": "giant buttress-rooted tree",
+   "height": 32,
+   "opts": {
+    "leaf": "broad"
+   }
+  },
+  "buttressedtree3dmodel.glb": {
+   "kind": "tree",
+   "species": "buttressed forest tree",
+   "height": 25,
+   "opts": {
+    "leaf": "broad"
+   }
+  },
+  "mangrovetree3dmodel.glb": {
+   "kind": "tree",
+   "species": "red mangrove (Rhizophora racemosa)",
+   "height": 8,
+   "opts": {
+    "leaf": "small"
+   }
+  },
+  "mangrovetree3dmodel_1.glb": {
+   "kind": "tree",
+   "species": "red mangrove",
+   "height": 7,
+   "opts": {
+    "leaf": "small"
+   }
+  },
+  "mangrovetree3dmodel_2.glb": {
+   "kind": "tree",
+   "species": "red mangrove",
+   "height": 6,
+   "opts": {
+    "leaf": "small"
+   }
+  },
+  "mangrovetree3dmodel_3.glb": {
+   "kind": "tree",
+   "species": "red mangrove",
+   "height": 7,
+   "opts": {
+    "leaf": "small"
+   }
+  },
+  "tropicalgazebo3dmodel.glb": {
+   "kind": "structure",
+   "species": "wooden gazebo with a thatched roof",
+   "height": 4.6
+  },
+  "tropicalpooldeck3dmodel.glb": {
+   "kind": "structure",
+   "species": "pool deck with palms",
+   "length": 10
+  },
+  "woodenboardwalk3dmodel.glb": {
+   "kind": "structure",
+   "species": "boardwalk with its round platform",
+   "length": 34
+  },
+  "suspensionbridge3dmodel.glb": {
+   "kind": "bridge",
+   "species": "suspension footbridge",
+   "length": 16,
+   "opts": {
+    "length": 16
+   }
+  },
+  "sceniclandscape3dmodel.glb": {
+   "kind": "structure",
+   "species": "wooden bench",
+   "length": 1.8,
+   "opts": {
+    "drop_above": 0.3
+   }
+  },
+  "waterfalllandscape3dmodel.glb": {
+   "kind": "cliff",
+   "species": "cliff with its waterfall, stream and fences",
+   "length": 30,
+   "opts": {
+    "relief": 5
+   }
+  }
+ }
+}

@@ -241,7 +241,7 @@ export function createTalk({ state, population, residents, players, weather, hub
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, down: v.down || null });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -296,6 +296,8 @@ export function createTalk({ state, population, residents, players, weather, hub
     v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1), steer: n(r.steer, -0.7, 0.7) } : null;
     // the phone in their hand: held to be read (1), on a call (2), held up for a picture (3), or not out (0)
     v.phone = [1, 2, 3].includes(data.phone) ? data.phone : 0;
+    // its torch, lit (only with the phone in hand)
+    v.torch = v.phone && data.torch ? 1 : 0;
     // a vehicle under them (a keke they drive, an okada they ride or ride on the back of), the motorcycles and kekes of
     // theirs standing near them, and how fast they are going: each field checked, a bad one dropped
     v.vehicle = vehicleIn(data.vehicle);

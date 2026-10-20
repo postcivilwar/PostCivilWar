@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -89,6 +89,10 @@ import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
 import { watchPicture } from './picture-watch.js';
 import { buildClosures } from './render-closures.js';
+import { createHabitation } from './render-habitation.js';
+import { createHabitationLife } from './render-habitation-life.js';
+import { habitationWind } from './habitation-plants.js';
+import { createTorchBeams } from './torch-beams.js';
 import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
 
@@ -306,6 +310,28 @@ function start(carried) {
   let peerHornsHeard = 0;
   // the ridden bike's headlamp: one light, following it, on at night (a lamp's glow is drawn on every bike)
   let headlight = null;
+  // The phone's torch (20 October 2026, the owner's brief: a "Torch" button on the phone; the light from the back of
+  // the phone, beside its camera, pointing forward, a soft cone that fades with distance and moves with the player; and
+  // other players see the beam). While it is on the character keeps the phone in hand, held out in front, as anyone
+  // walking by a phone's torch does. Its lamp is the one the motorcycles' and cars' headlamps use: one light, always in
+  // the scene, so that switching it on makes nothing be worked out again; a headlamp, when one is lit, comes first.
+  const TORCH = Object.freeze({ intensity: 3.4, distance: 30, angle: 0.5, penumbra: 0.85, decay: 1.7, colour: 0xf2f5ff });
+  const HEADLAMP = Object.freeze({ distance: 38, angle: 0.42, penumbra: 0.55, decay: 1.6, colour: 0xfff1d6 });
+  const torch = { on: false, held: false, lit: false, self: { from: new THREE.Vector3(), dir: new THREE.Vector3() } };
+  const torchWork = { back: new THREE.Vector3(), q: new THREE.Quaternion() };
+  function setTorch(on) { torch.on = !!on; audio.chime('tap'); }
+  // where a phone's torch shines from (the lens beside its camera, on the handset's back) and which way: forward, where
+  // its holder faces, and a little down, onto the ground ahead
+  function torchOf(hold, heading, out) {
+    const prop = hold.prop;
+    prop.updateMatrixWorld();
+    out.from.set(0.018, 0.052, -0.012).applyMatrix4(prop.matrixWorld);
+    const back = torchWork.back.set(0, 0, -1).applyQuaternion(prop.getWorldQuaternion(torchWork.q));
+    out.dir.set(Math.sin(heading), 0, Math.cos(heading)).multiplyScalar(0.75).addScaledVector(back, 0.25);
+    out.dir.y = Math.min(out.dir.y, 0) - 0.24;
+    out.dir.normalize();
+    return out;
+  }
   // Street lamps at night. Every light of this kind is worked out for every pixel of everything, lit or
   // not, at any hour, so there are few: the two lamps nearest the player on a desktop, none on a phone.
   // What every lamp does have is a pool of light painted on the ground under it, which costs next to nothing.
@@ -533,7 +559,7 @@ function start(carried) {
   let phoneShown = 0;
   function linkSelf() {
     if (!view) return null;
-    const me = phoneShown ? { ...view.self, phone: phoneShown } : view.self;
+    const me = phoneShown ? { ...view.self, phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : view.self;
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
     return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
@@ -983,6 +1009,62 @@ function start(carried) {
     // The owner's houses and towers (render-town-buildings.js), in place of the town's plain houses and on the city side
     townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
   }]);
+  // The road up the river and the habitation at its far end (render-habitation.js, 20 October 2026): nothing of it is
+  // drawn or fetched until the player goes up the road (the river and the road beyond the town a little way out; the
+  // habitation itself, and the owner's models in it, once they are well on the way), and it is all let go again when
+  // they come back. Its fish, birds and fireflies (render-habitation-life.js) live while it is there.
+  let habitation = null, habitationLife = null, torchBeams = null, habitationTold = false;
+  townSteps.push(['the road up the river', () => {
+    habitation = createHabitation(scene, { lite: LITE, renderer, riverMaterial: world.waterMaterial, onError: () => { if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } } });
+    // other players' torches, seen as beams (torch-beams.js)
+    torchBeams = createTorchBeams(scene, { lite: LITE });
+  }]);
+  // the birds that have sung, waiting to be heard (audio.js takes them as it plays them)
+  const habitatCalls = [];
+  // who is in the habitation now, for its fish and birds (and their footprints in its sand)
+  function habitationPeople() {
+    const b = HABITATION.bounds, out = [];
+    const near = (x, z) => x > b.x0 - 10 && x < b.x1 + 10 && z > b.z0 - 10 && z < b.z1 + 10;
+    if (playing && view && near(predicted.x, predicted.z)) out.push({ key: 'me', x: predicted.x, z: predicted.z, y: zoneGroundY(predicted.x, predicted.z), riding: !!(view.self.driving || view.self.incar || view.self.astride || view.self.riding) });
+    if (playing) for (const q of shownPeers) if (near(q.x, q.z)) out.push({ key: `p:${q.id}`, x: q.x, z: q.z, y: zoneGroundY(q.x, q.z), riding: !!(q.vehicle || q.ride || q.car) });
+    return out;
+  }
+  // What is heard of the habitation from where the player is (audio.js habitatSounds): its waterfalls, the nearest
+  // stream, the lagoon's edge, the frogs by the water, the wind; worked out a few times a second.
+  const HABITAT_FALLS = HABITATION_FALLS.map((f) => ({ id: f.id, x: f.foot[0], y: f.foot[2], z: f.foot[1], size: f.id === 'big' ? 1 : f.id === 'thin' ? 0.35 : 0.7 }));
+  // (the frogs' places: round the edges of the lagoon, the swamp and the pools, and along the gorge's stream)
+  const HABITAT_FROGS = (() => {
+    const kinds = ['tree', 'ribbit', 'bull', 'ribbit'];
+    const out = [];
+    for (const w of HABITATION_WATERS) w.outline.forEach(([x, z], i) => out.push({ x, z, kind: w.kind === 'swamp' ? kinds[(i + 2) % 3] : kinds[i % kinds.length] }));
+    for (const st of HABITATION_STREAMS) if (!st.rapids && !st.deep) st.line.forEach(([x, z], i) => out.push({ x, z, kind: i % 2 ? 'tree' : 'ribbit' }));
+    return out;
+  })();
+  const habitatHeard = { at: -1, value: null };
+  function habitatSound() {
+    if (!habitation || !playing || !view) return null;
+    const x = predicted.x, z = predicted.z, b = HABITATION.bounds;
+    const wild = Math.max(0, Math.min(1, (x - (b.x0 - 80)) / 80));
+    if (wild <= 0) return null;
+    if (habitatHeard.value && clock - habitatHeard.at < 0.25) { habitatHeard.value.night = night; return habitatHeard.value; }
+    habitatHeard.at = clock;
+    // the nearest point of any stream, within 50 m
+    let stream = null, best = 50;
+    for (const st of HABITATION_STREAMS) for (let i = 0; i + 1 < st.line.length; i += 1) {
+      const [ax, az] = st.line[i], [bx, bz] = st.line[i + 1], dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz || 1;
+      const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)), px = ax + dx * u, pz = az + dz * u, d = Math.hypot(px - x, pz - z);
+      if (d < best) { best = d; const h0 = st.heights[i], h1 = st.heights[i + 1] !== undefined ? st.heights[i + 1] : h0; stream = { x: px, y: h0 + (h1 - h0) * u, z: pz, rapids: !!st.rapids }; }
+    }
+    // how far it is to the lagoon's (or a pool's) edge, looked for round the player
+    let shore = 99;
+    const wet = (w) => w && (w.id === 'lagoon' || w.kind === 'pool');
+    if (wet(habitationWaterAt(x, z))) shore = 0;
+    else for (const r of [4, 10, 20, 30]) { for (let k = 0; k < 8 && shore === 99; k += 1) { const a = (k / 8) * Math.PI * 2; if (wet(habitationWaterAt(x + Math.cos(a) * r, z + Math.sin(a) * r))) shore = r; } if (shore !== 99) break; }
+    const frogs = HABITAT_FROGS.filter((f) => Math.hypot(f.x - x, f.z - z) < 70).sort((p, q) => Math.hypot(p.x - x, p.z - z) - Math.hypot(q.x - x, q.z - z)).slice(0, 4);
+    const t = habitationWind();
+    habitatHeard.value = { wild, calls: habitatCalls, falls: HABITAT_FALLS, stream, shore, frogs, gust: 0.55 + 0.45 * Math.sin(t * 0.21), night };
+    return habitatHeard.value;
+  }
   // two of the game's own figures, dressed for the showroom floor: a white shirt and a navy tie; a white blouse and a
   // navy skirt
   const CAR_STAFF_LOOKS = Object.freeze({
@@ -1289,6 +1371,7 @@ function start(carried) {
     shutter: () => audio.shutter(),
     music,
     phoneCam,
+    torch: { on: () => torch.on, toggle: () => setTorch(!torch.on) },
     online, market, wallet: walletClient,
     rideBike: (id) => rideOwnBike(id),
     driveCar: (id) => enterOwnCar(id),
@@ -2065,6 +2148,33 @@ function start(carried) {
     say(result);
   }
 
+  // A bridge, a boardwalk, a jetty or stairs are walked, never driven (the habitation, 20 October 2026): a vehicle
+  // whose front comes to one is stopped there, and the player is told to get off and given the button to. The vehicle
+  // stays where it stopped.
+  let bridgeStop = null;            // { at, deck, x, z } while a vehicle is stopped at one
+  function stopsAtBridge(x, z, heading, reach) {
+    const d = habitationFootOnly(x + Math.sin(heading) * reach, z + Math.cos(heading) * reach) || habitationFootOnly(x, z);
+    if (!d) return false;
+    bridgeStop = { at: clock, deck: d, x, z };
+    return true;
+  }
+  // (the message and its button stay until the player gets off, or rides or drives away from the bridge: letting go
+  // of the throttle does not take them away)
+  const atBridge = () => {
+    if (!bridgeStop) return false;
+    const on = !!(view && (view.self.driving || view.self.incar || view.self.astride));
+    if (!on || Math.hypot(view.self.x - bridgeStop.x, view.self.z - bridgeStop.z) > 4) { bridgeStop = null; return false; }
+    return true;
+  };
+  function getOffHere() {
+    if (view.self.driving) return leaveVehicle();
+    if (view.self.incar) return leaveOwnCar();
+    if (view.self.astride) { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); }
+    return null;
+  }
+  const BRIDGE_PROMPT = { short: 'Get off', text: 'Get off your vehicle to cross the bridge', run: () => getOffHere() };
+  { const off = $('bridge-stop-off'); if (off) off.addEventListener('click', () => { if (atBridge()) { getOffHere(); bridgeStop = null; $('bridge-stop').hidden = true; } }); }
+
   // While driving there is one thing E does: the job in front of you, or stepping out.
   function findDrivingPrompt() {
     const v = view.self.driving;
@@ -2089,6 +2199,7 @@ function start(carried) {
     if (view.self.law.arrest || view.self.carried || view.self.hijack) return null;
     // (on the ground, or getting up: nothing to be done until up again, so nothing is offered, 19 October 2026)
     if (view.self.down || view.self.dead) return null;
+    if (atBridge()) return BRIDGE_PROMPT;
     if (view.self.driving) return findDrivingPrompt();
     if (view.self.incar) return Math.abs(carState.speed) > 1.5 ? null : { short: 'Get out', text: ownCar() ? `Get out of the ${ownCar().name}` : 'Get out of the car', run: leaveOwnCar };
     if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
@@ -2422,6 +2533,7 @@ function start(carried) {
     predicted.heading -= steer * 1.9 * Math.min(1, Math.abs(car.speed) / 3) * Math.sign(car.speed) * dt;
     const nx = predicted.x + Math.sin(predicted.heading) * car.speed * dt;
     const nz = predicted.z + Math.cos(predicted.heading) * car.speed * dt;
+    if (stopsAtBridge(nx, nz, predicted.heading + (car.speed < 0 ? Math.PI : 0), 1.7)) { car.speed = 0; return 0; }
     const others = view.vehicles.filter((o) => o.id !== v.id);
     if (!vehicleFits(v.kind, nx, nz, builtBoxes(), others)) { car.speed = 0; return 0; }
     const result = server.send({ type: 'vehicle.drive', x: nx, z: nz, heading: predicted.heading });
@@ -2539,6 +2651,7 @@ function start(carried) {
     if (Math.abs(bikeState.speed) < 0.03) return 0;
     let nx = predicted.x + Math.sin(bikeState.heading) * bikeState.speed * dt;
     let nz = predicted.z + Math.cos(bikeState.heading) * bikeState.speed * dt;
+    if (stopsAtBridge(nx, nz, bikeState.heading + (bikeState.speed < 0 ? Math.PI : 0), 1.2)) { bikeState.speed = 0; moto.speed = 0; return 0; }
     // into something: along it, against it, or a crash (meetWithBike); never through it
     const boxes = structureBoxes();
     if (!zoneWalkable(nx, nz, boxes, handling.radius)) {
@@ -2571,6 +2684,7 @@ function start(carried) {
     predicted.heading -= axes.strafe * 2.3 * Math.min(1, Math.abs(moto.speed) / 3) * Math.sign(moto.speed) * dt;
     const nx = predicted.x + Math.sin(predicted.heading) * moto.speed * dt;
     const nz = predicted.z + Math.cos(predicted.heading) * moto.speed * dt;
+    if (stopsAtBridge(nx, nz, predicted.heading + (moto.speed < 0 ? Math.PI : 0), 1.1)) { moto.speed = 0; return 0; }
     if (!zoneWalkable(nx, nz, structureBoxes(), MOTO.radius)) { moto.speed = 0; return 0; }
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: predicted.heading });
     if (result.ok) { predicted.x = nx; predicted.z = nz; if (result.hit) moto.speed = 0; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; moto.speed = 0; }
@@ -2646,6 +2760,7 @@ function start(carried) {
     if (Math.abs(carState.speed) < 0.03) return 0;
     let nx = predicted.x + Math.sin(carState.heading) * carState.speed * dt;
     let nz = predicted.z + Math.cos(carState.heading) * carState.speed * dt;
+    if (stopsAtBridge(nx, nz, carState.heading + (carState.speed < 0 ? Math.PI : 0), (spec.length || 4.6) / 2 + 0.3)) { carState.speed = 0; return 0; }
     // into something: along it, against it, or a crash (meetWithCar); never through it
     const boxes = structureBoxes();
     if (!carFits(spec.id, nx, nz, carState.heading, boxes, 0.2)) {
@@ -3074,6 +3189,8 @@ function start(carried) {
       const holding = acting() && prompt && prompt.hold && !ui.isOpen();
       if (holding) { holdProgress += dt / HOLD_SECONDS; if (holdProgress >= 1) { holdProgress = 0; completeHold(); } } else holdProgress = 0;
       ui.setPrompt(prompt, holdProgress);
+      // (stopped at a bridge on a vehicle: the message and its button, until the player is off it or drives away)
+      { const box = $('bridge-stop'), show = atBridge(); if (box && box.hidden === show) box.hidden = !show; }
       showControls();
 
       const self = view.self;
@@ -3168,8 +3285,10 @@ function start(carried) {
       // (asking the showroom's salesman about a motorcycle, the player talks to him face to face: the phone's screen
       // is the conversation, and the handset is not held up in the town)
       const talking = (!!showroom.talk && showroom.inside) || (!!carshow.talk && carshow.inside);
-      phoneHold.update(dt, me, { use: ui.usingPhone() && !talking, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });
-      phoneShown = !phoneAble ? 0 : ui.calling() ? 2 : ui.usingPhone() && !talking ? (ui.phoneOut() && ui.phoneScreen() === 'camera' ? 3 : 1) : 0;
+      // (the torch on, on foot: the phone stays in the hand, held out in front, when the phone's screen is put away)
+      torch.held = torch.on && phoneAble && !phoneSide && !talking && !ui.calling();
+      phoneHold.update(dt, me, { use: (ui.usingPhone() && !talking) || torch.held, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : torch.held && !ui.usingPhone() ? 'home' : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });
+      phoneShown = !phoneAble ? 0 : ui.calling() ? 2 : (ui.usingPhone() && !talking) || torch.held ? (ui.phoneOut() && ui.phoneScreen() === 'camera' ? 3 : 1) : 0;
       tickTalkPose(dt, speed);
       tickCarTalkPose(dt, speed);
       // knocked down by a vehicle, or killed: flat on the ground quickly, and up again more slowly
@@ -3372,12 +3491,31 @@ blood.update(dt, view.blood || []);
     // its headlamp at night
     const lit = !!bikeNow && night > 0.25 && ownBikeView.ridden() && ownBikeView.ridden().headlamp;
     const carLit = !lit && playing && view && view.self.incar && night > 0.25 && carView.driven();
-    headlight.intensity = lit ? 2.2 : carLit ? 2.8 : 0;
+    const torchLit = !lit && !carLit && playing && torch.held && !!phoneHold && phoneHold.out > 0.85;
+    torch.lit = torchLit;
+    headlight.intensity = lit ? 2.2 : carLit ? 2.8 : torchLit ? TORCH.intensity : 0;
+    { const lamp = torchLit ? TORCH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
+    if (torchLit) { const t = torchOf(phoneHold, predicted.heading, torch.self); headlight.position.copy(t.from); headlight.target.position.copy(t.from).addScaledVector(t.dir, 10); headlight.target.updateMatrixWorld(); }
+    // the beams of the torches, as the others see them (and, faintly, the player's own)
+    if (torchBeams) {
+      const beams = [];
+      if (torchLit) beams.push({ key: 'me', self: true, from: torch.self.from, dir: torch.self.dir, ground: zoneGroundY(predicted.x, predicted.z) });
+      if (playing) for (const q of shownPeers) {
+        if (!q.torch) continue;
+        const e = peerPhones.get(q.id), r = crowd.rigOf(`p:${q.id}`);
+        if (!e || !r || e.hold.out < 0.85) continue;
+        if (!e.torch) e.torch = { from: new THREE.Vector3(), dir: new THREE.Vector3() };
+        const t = torchOf(e.hold, r.group.rotation.y, e.torch);
+        beams.push({ key: q.id, from: t.from, dir: t.dir, ground: zoneGroundY(q.x, q.z), d: Math.hypot(q.x - predicted.x, q.z - predicted.z) });
+      }
+      beams.sort((a, b) => (a.self ? -1 : b.self ? 1 : a.d - b.d));
+      torchBeams.update(beams, night);
+    }
     if (lit) { const b = ownBikeView.ridden(); b.headlampAt(headlight.position); headlight.target.position.copy(b.lean.localToWorld(shakeAim.set(0, 0.2, 12))); headlight.target.updateMatrixWorld(); }
     else if (carLit) { const c = carView.driven(); c.group.localToWorld(headlight.position.set(0, 0.75, c.size.length / 2 - 0.2)); headlight.target.position.copy(c.group.localToWorld(shakeAim.set(0, 0, 18))); headlight.target.updateMatrixWorld(); }
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
-    const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0);
+    const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0, playing ? Math.max(0, Math.min(1, (predicted.x - 450) / 1300)) : 0);
     // (the motorcycles in the hall, each its model with the pictures its distance asks for: smaller ones on a device
     // that is struggling; made ready as the player comes up to the doors, let go once the player is well away)
     powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level, sun: sky.sun.castShadow });
@@ -3391,6 +3529,16 @@ blood.update(dt, view.blood || []);
     updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
+    if (habitation) {
+      habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night });
+      if (habitation.built && !habitationLife) habitationLife = createHabitationLife(scene, { lite: LITE });
+      else if (!habitation.built && habitationLife) { habitationLife.dispose(); habitationLife = null; }
+      if (habitationLife) {
+        habitationLife.update(dt, { eye: camera.position, night, people: habitationPeople() });
+        habitatCalls.push(...habitationLife.calls());
+        if (habitatCalls.length > 24) habitatCalls.splice(0, habitatCalls.length - 24);
+      }
+    }
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
     for (const showroom of world.showrooms) showroom.setNight(night);
@@ -3448,7 +3596,7 @@ blood.update(dt, view.blood || []);
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
-      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null });
+      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
     }
 
     monitor.mark('warming up');
@@ -3567,6 +3715,8 @@ blood.update(dt, view.blood || []);
   // Debug handle for automated play-testing. It reaches into the simulation
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
+    // the habitation (20 October 2026): what is built of it, its fish and birds, the torch and the others' beams, the sky
+    get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
     get supplied() { return supplied; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,

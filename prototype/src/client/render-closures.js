@@ -175,9 +175,12 @@ export function buildClosures(scene, { lite = false } = {}) {
       const x0 = r.a.x + (ux * len * i) / count, z0 = r.a.z + (uz * len * i) / count, x1 = r.a.x + (ux * len * (i + 1)) / count, z1 = r.a.z + (uz * len * (i + 1)) / count;
       const y0 = zoneGroundY(x0, z0), y1 = zoneGroundY(x1, z1);
       const tilt = Math.atan2(y1 - y0, span);
-      for (const h of [0.5, 0.98]) pile(pieceOf(i), 'striped').add(box(span, 0.11, 0.03), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt), [span / STRIPE, 0.6]);
+      if (r.style === 'wood') for (const h of [0.45, 0.95]) pile(pieceOf(i), 'timber').add(box(span, 0.13, 0.06), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt));
+      else for (const h of [0.5, 0.98]) pile(pieceOf(i), 'striped').add(box(span, 0.11, 0.03), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt), [span / STRIPE, 0.6]);
     }
-    // a board facing in, every hundred and forty metres or so (and one on a short run)
+    // a board facing in, every hundred and forty metres or so (and one on a short run); none on a wooden fence (the
+    // habitation's side of its car park: the land beyond is built)
+    if (r.style === 'wood') continue;
     const boards = Math.max(1, Math.round(len / 140));
     const inward = Math.atan2(-r.out.x, -r.out.z);
     for (let k = 0; k < boards; k += 1) {

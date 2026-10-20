@@ -7,7 +7,7 @@
 // The town itself is drawn once into a picture and only turned and moved each frame; the marks are drawn
 // over it. Nothing here decides anything: it draws what the view says.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_DECKS } from '../sim/zone.js';
 import { trueToGrid } from '../sim/geo.js';
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -16,6 +16,7 @@ export const RADAR_COLOURS = Object.freeze({
   building: '#7b7670', house: '#8b7e70', compound: 'rgba(255,255,255,0.06)', mine: '#ffffff', sale: 'rgba(255,255,255,0.35)',
   route: '#f2c230', target: '#f2c230', police: ['#ff3b30', '#2f7bff'], keke: '#ffffff', ambulance: '#ff3b30',
   closed: '#e8382f', fence: 'rgba(232,56,47,0.75)',
+  sand: '#cdbb8a', stone: '#9a968c', deck: '#8a6a48',
 });
 
 // The town, drawn once (and again when who owns which plot changes).
@@ -86,6 +87,31 @@ export function createRadar(canvas) {
     for (const r of [AIRPORT.runway, AIRPORT.taxiway, ...AIRPORT.links, AIRPORT.apron, ...OUTSKIRT_ROADS]) if (near(r)) shape(r);
     g.fillStyle = RADAR_COLOURS.building;
     if (near(AIRPORT.terminal)) shape(AIRPORT.terminal);
+    // up the river (20 October 2026): the river on north to its lagoon, Waterside Road and the car park at the
+    // habitation's gate; and in the habitation its waters, its streams, its paths and its boardwalks and bridges
+    const reach = range * 1.6;
+    if (s.x > ZONE.bounds.maxX - reach) {
+      const x0 = Math.max(ZONE.bounds.maxX - 2, s.x - reach), x1 = Math.min(RIVER_HEAD + 12, s.x + reach);
+      if (x1 > x0) {
+        g.fillStyle = RADAR_COLOURS.water; g.beginPath(); g.moveTo(x0 - s.x, RIVER_FAR - s.z);
+        for (let x = x0; x <= x1; x += 6) g.lineTo(x - s.x, riverShore(x) - s.z);
+        g.lineTo(x1 - s.x, riverShore(x1) - s.z); g.lineTo(x1 - s.x, RIVER_FAR - s.z); g.closePath(); g.fill();
+      }
+      g.fillStyle = RADAR_COLOURS.asphalt;
+      for (const r of [UPRIVER.road, UPRIVER.park]) if (near(r)) shape(r);
+      const hb = HABITATION.bounds;
+      if (s.x + reach > hb.x0 && s.x - reach < hb.x1 && s.z + reach > hb.z0 - 40 && s.z - reach < hb.z1) {
+        const poly = (pts) => { g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(x - s.x, z - s.z) : g.moveTo(x - s.x, z - s.z))); g.closePath(); g.fill(); };
+        const line = (pts, width, colour) => { g.strokeStyle = colour; g.lineWidth = width; g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(x - s.x, z - s.z) : g.moveTo(x - s.x, z - s.z))); g.stroke(); };
+        g.fillStyle = RADAR_COLOURS.water;
+        for (const w of HABITATION_WATERS) poly(w.outline);
+        for (const st of HABITATION_STREAMS) line(st.line, st.width, RADAR_COLOURS.water);
+        g.fillStyle = RADAR_COLOURS.land;
+        for (const w of HABITATION_WATERS) for (const isle of w.islands || []) poly(isle.outline);
+        for (const p of HABITATION_PATHS) line(p.line, Math.max(2.4, p.width), p.surface === 'sand' ? RADAR_COLOURS.sand : p.surface === 'stone' ? RADAR_COLOURS.stone : RADAR_COLOURS.laterite);
+        for (const d of HABITATION_DECKS) line(d.line, Math.max(2, d.width), RADAR_COLOURS.deck);
+      }
+    }
     // what is not open (closures.js): the edge of the built land as a thin red line, and each road closed as a
     // red bar across it, with white ends
     const nearLine = (l) => Math.min(l.a.x, l.b.x) < s.x + range * 1.5 && Math.max(l.a.x, l.b.x) > s.x - range * 1.5 && Math.min(l.a.z, l.b.z) < s.z + range * 1.5 && Math.max(l.a.z, l.b.z) > s.z - range * 1.5;

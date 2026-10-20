@@ -122,18 +122,90 @@ const SUPPLIED = {
   'assets/vehicles/cars/yellow-classic-roadster.glb': 'b120cd2b4b90cdb2104f8b88db7a9bf9',
   // the wristwatch
   'assets/market/watch.glb': '440b261d3d721b0a14a76e3e8e67b57f',
+  // the habitation (20 October 2026): the owner's 49 models, as he sent them (each against the MD5 it had when it arrived)
+  'assets/habitation/bananaplant3dmodel.glb': '56cacb22e38f1b8d0647a0813814a216',
+  'assets/habitation/bananaplant3dmodel_1.glb': 'faf256259cb2944850e9f89c6eadaac3',
+  'assets/habitation/bananaplant3dmodel_2.glb': '2bf444d760e9dbaf1ca362f5a0fb6505',
+  'assets/habitation/buttress-roottree3dmodel.glb': 'eed76510231b269e2ad5045217e91d7b',
+  'assets/habitation/buttressedtree3dmodel.glb': '823308828dd19c9d40c3315e1c17946d',
+  'assets/habitation/coconutpalm3dmodel.glb': '8f74bbb638a0c5f1d805f2f0fdd0dc1b',
+  'assets/habitation/coconutpalmtree3dmodel.glb': '02ed2b4ed432295342a642907db8fcde',
+  'assets/habitation/coconutpalmtree3dmodel_1.glb': 'd06c0873c2902f59e31b5b37d7e1440b',
+  'assets/habitation/coconutpalmtree3dmodel_2.glb': '116161ddde59c4a9f6aa9491deacbe37',
+  'assets/habitation/coconutpalmtree3dmodel_3.glb': '1ce1572744417261576dd5023db8ec4f',
+  'assets/habitation/coconutpalmtree3dmodel_4.glb': '53d5020fe353e74a1306cc4c0e9dbbb6',
+  'assets/habitation/fanpalmshrub3dmodel.glb': '24676187526b8eaab3d708853d02c7b2',
+  'assets/habitation/fernclump3dmodel.glb': '3e2708a214689806a3cd616f4761a590',
+  'assets/habitation/fernplant3dmodel.glb': '61d672770ebfba29e830f10aa4617d65',
+  'assets/habitation/fernplant3dmodel_1.glb': '3476aeb18698e8b8f8ad120797c0205b',
+  'assets/habitation/foresttree3dmodel.glb': 'd7b110c67177169b7b018a6e364fb1f0',
+  'assets/habitation/giantbuttress-roottree3dmodel.glb': 'da4d49cde643c078483e234fdde7c8d9',
+  'assets/habitation/mangrovetree3dmodel.glb': 'c9f459ebd691ffab9463b0cfdb9ec48e',
+  'assets/habitation/mangrovetree3dmodel_1.glb': '9d3f50f5c54a2bbcc5a98e6ec1b0f875',
+  'assets/habitation/mangrovetree3dmodel_2.glb': 'dc77312c50e22008f430d432e4444528',
+  'assets/habitation/mangrovetree3dmodel_3.glb': 'b91122aaa5095aadeb3e69b1410c840d',
+  'assets/habitation/monsteraplant3dmodel.glb': 'f91fa0b28f958bdf737611a4d369da88',
+  'assets/habitation/monsteraplant3dmodel_1.glb': '4af16a1c48ff2463d4cef3063d9460ed',
+  'assets/habitation/monsteraplant3dmodel_2.glb': '0a17c0b63a3707af1d9332a0b57611cd',
+  'assets/habitation/oaktree3dmodel.glb': 'ab15450a245920414484ccd64ffb8980',
+  'assets/habitation/palmplant3dmodel.glb': 'acbaefe4b9c5f030d8ee451eb1dadc83',
+  'assets/habitation/palmtree3dmodel.glb': '9e52b9767cc4c834efebbc7f29681d89',
+  'assets/habitation/palmtree3dmodel_1.glb': '0711699476750e29a213a7fff82e615a',
+  'assets/habitation/palmtree3dmodel_2.glb': '5478ca3eb590235f5dfa7cc1bb88a4dd',
+  'assets/habitation/palmtree3dmodel_3.glb': '5f73af77906b215beab2da6f46a10a9f',
+  'assets/habitation/palmtree3dmodel_4.glb': '85230bed90a0f79bad01e7c29fe47560',
+  'assets/habitation/palmtree3dmodel_5.glb': 'c6b6861b16a24ea1cc329fdd73142cc2',
+  'assets/habitation/palmtree3dmodel_6.glb': 'af1ed44e23907ee9e117a14c418a07d6',
+  'assets/habitation/palmtree3dmodel_7.glb': 'c38df8bf60eea17ce2a84681b0e8cc74',
+  'assets/habitation/palmtree3dmodel_8.glb': 'b305cd1c9f0583a6421c9051d4f939a0',
+  'assets/habitation/palmtree3dmodel_9.glb': '56e253b2fcec30d66b17122dac3884ad',
+  'assets/habitation/roundleafyshrub3dmodel.glb': '859ee5c837e26aa7bf8a3fa0fd01532c',
+  'assets/habitation/roundshrub3dmodel.glb': '306d9b51daa3d00ca45edce3d92b0d55',
+  'assets/habitation/sceniclandscape3dmodel.glb': '26e5f9e84cdb3f40efbd99304740a6bb',
+  'assets/habitation/slimtree3dmodel.glb': '93d6ae7a3576630a6138fd180226f1f1',
+  'assets/habitation/suspensionbridge3dmodel.glb': 'c44128d31412b3d913cb070d03fb6e82',
+  'assets/habitation/talltree3dmodel.glb': '9efafed57ff809ad4d7032b5a1b8eabc',
+  'assets/habitation/tree3dmodel.glb': '060f5bec82bdd5dab4643906a664031b',
+  'assets/habitation/tree3dmodel_1.glb': '7f2726fe47f654ac479e418bbe9090b7',
+  'assets/habitation/treeonhill3dmodel.glb': '7a1f4e712e747c69d67442c5c7c9de4d',
+  'assets/habitation/tropicalgazebo3dmodel.glb': '230e69fa0ece9bcf01746183b67bacfa',
+  'assets/habitation/tropicalpooldeck3dmodel.glb': '150bc6daf1c1daf11216dba77f0b6f90',
+  'assets/habitation/waterfalllandscape3dmodel.glb': '1b0e3f9c2a5e4490c859f33ed5a3cda7',
+  'assets/habitation/woodenboardwalk3dmodel.glb': '9337b47fadc8ebad2943ec9dca32e446',
+  // and the nineteen pictures of the habitation he sent with them, to build it from
+  'assets/habitation/reference/01-image.png': '211a88ac809bdcc9510f0abb1115c5bf',
+  'assets/habitation/reference/02-image.png': '459669182f524190d54078027373e258',
+  'assets/habitation/reference/03-image.png': 'c067de6463ef583e79cc51f4037c84e7',
+  'assets/habitation/reference/04-image.png': 'bd79d47e5d138fa5a5027c29f9e91f31',
+  'assets/habitation/reference/05-image.png': 'e4a9c2af78246772d04ddb623b54f572',
+  'assets/habitation/reference/06-image.png': 'e017b6318967ef2114f355abfe59a570',
+  'assets/habitation/reference/07-image.png': 'c7501d15348230d2c538ae6019c9aca6',
+  'assets/habitation/reference/08-image.png': 'ffe8d0f3cc63ebd630d74131e01d0b4d',
+  'assets/habitation/reference/09-image.png': '8bf172305fb56d168523d2ed33bb16b4',
+  'assets/habitation/reference/10-image.jpg': 'd9872fc5c4bde2f3bbe08c99b90c7d2c',
+  'assets/habitation/reference/11-image.jpg': '406c35071fed37507d6a87783b55955d',
+  'assets/habitation/reference/12-image.jpg': 'b5c41020d6f221c91a92b2704bb08459',
+  'assets/habitation/reference/13-image.jpg': 'dafa2031ccb0220193f11a9501ce3a30',
+  'assets/habitation/reference/14-image.png': '77a9e42da097eb849b54ba713de81ff1',
+  'assets/habitation/reference/15-image.png': '245b5e0fc2e63fd7f4e399021f410275',
+  'assets/habitation/reference/16-image.png': 'cfba5e934b6c77fe18a674e5f7bd2380',
+  'assets/habitation/reference/17-image.png': 'ea82dd883c69d401ddecd4d0885a6201',
+  'assets/habitation/reference/18-image.png': 'ffd73aa79e3708f88f87cde512c6653e',
+  'assets/habitation/reference/19-image.png': 'b2cb0ded7e937fc5e5d349290c8faa13',
 };
 
 test('every one of the owner\'s model files is byte for byte as he supplied it', () => {
-  assert.equal(Object.keys(SUPPLIED).length, 97);
+  assert.equal(Object.keys(SUPPLIED).length, 97 + 49 + 19);
   for (const [path, sum] of Object.entries(SUPPLIED)) assert.equal(md5(path), sum, `${path} is not as it was supplied`);
 });
 
 test('and none is missing or added unannounced: each folder holds just these models', () => {
-  for (const folder of ['assets/characters/figures/animated/', 'assets/buildings/town/', 'assets/buildings/carshow/', 'assets/buildings/powerbike/', 'assets/vehicles/town/', 'assets/vehicles/bikes/', 'assets/vehicles/cars/']) {
+  for (const folder of ['assets/characters/figures/animated/', 'assets/buildings/town/', 'assets/buildings/carshow/', 'assets/buildings/powerbike/', 'assets/vehicles/town/', 'assets/vehicles/bikes/', 'assets/vehicles/cars/', 'assets/habitation/']) {
     const there = readdirSync(here(folder)).filter((name) => name.endsWith('.glb')).map((name) => folder + name).sort();
-    assert.deepEqual(there, Object.keys(SUPPLIED).filter((path) => path.startsWith(folder)).sort(), folder);
+    assert.deepEqual(there, Object.keys(SUPPLIED).filter((path) => path.startsWith(folder) && path.endsWith('.glb')).sort(), folder);
   }
+  const pictures = readdirSync(here('assets/habitation/reference/')).map((name) => `assets/habitation/reference/${name}`).sort();
+  assert.deepEqual(pictures, Object.keys(SUPPLIED).filter((path) => path.startsWith('assets/habitation/reference/')).sort());
 });
 
 test('the copies the website sends were made from these very files', () => {
@@ -149,4 +221,13 @@ test('the copies the website sends were made from these very files', () => {
     assert.ok(existsSync(here(`assets/models-light/${name}`)), name);
     assert.equal(createHash('sha256').update(readFileSync(here(`assets/models-light/${name}`))).digest('hex'), made.sha256, `${name} is the copy that was made`);
   }
+  // the habitation's models made real (tools/habitation/dress.py): a computer's copy and a phone's of each of the 49
+  const dressed = JSON.parse(readFileSync(here('assets/habitation-dressed/made.json'), 'utf8')).copies;
+  assert.equal(Object.keys(dressed).length, 98);
+  for (const [name, made] of Object.entries(dressed)) {
+    assert.equal(made.md5, SUPPLIED[`assets/habitation/${made.source}`], `${name} was made from ${made.source} as it is`);
+    assert.ok(existsSync(here(`assets/habitation-dressed/${name}.glb`)), name);
+  }
+  const sources = new Set(Object.values(dressed).map((made) => made.source));
+  assert.equal(sources.size, 49, 'every one of the 49 is made into the habitation');
 });

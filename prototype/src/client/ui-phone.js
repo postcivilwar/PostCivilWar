@@ -38,6 +38,7 @@ const ICONS = Object.freeze({
   music: ['M9 17.5V6l10-2v11.5', 'M9 17.5a2.5 2.5 0 1 1-2.5-2.5', 'M19 15.5a2.5 2.5 0 1 1-2.5-2.5'],
   ads: ['M3 5h18v10H3z', 'M11 15v6', 'M13 15v6', 'M7 9h4', 'M7 11.5h7'],
   admin: ['M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z', 'M12 8v5', 'M9.5 10.5h5'],
+  torch: ['M8.5 3h7l-1.2 5.2H9.7z', 'M9.8 8.2h4.4V20a1 1 0 0 1-1 1h-2.4a1 1 0 0 1-1-1z', 'M12 11.5v2.6'],
 });
 // each tile: the two ends of its colour, and the colour of its drawing
 const TILES = Object.freeze({
@@ -45,7 +46,7 @@ const TILES = Object.freeze({
   map: ['#7ed6a4', '#2a8fd6', '#fff'], wallet: ['#3a3a3e', '#0b0b0c', '#ffd166'], property: ['#34d6b7', '#0a8f7a', '#fff'], contacts: ['#c9c9ce', '#8a8a92', '#fff'],
   health: ['#ffffff', '#f0e9ea', '#ff3b55'], police: ['#4a7bf0', '#1a3a9c', '#fff'], transport: ['#ffd23f', '#f59e0b', '#1c1c1f'], jobs: ['#c08a5a', '#7a4a22', '#fff'],
   people: ['#b07cf7', '#6a2fd0', '#fff'], notices: ['#ff7a59', '#e0341a', '#fff'], settings: ['#9a9aa2', '#55555c', '#fff'],
-  ads: ['#ffb347', '#e8590c', '#fff'], admin: ['#2b2d42', '#0d0e17', '#7cf0c8'],
+  ads: ['#ffb347', '#e8590c', '#fff'], admin: ['#2b2d42', '#0d0e17', '#7cf0c8'], torch: ['#4b4b53', '#18181c', '#ffe08a'],
 });
 // `held`: works in custody too. `dock`: kept in the row at the foot of the home screen.
 const APPS = Object.freeze([
@@ -54,6 +55,8 @@ const APPS = Object.freeze([
   { id: 'camera', name: 'Camera', dock: true },
   { id: 'music', name: 'Music', dock: true },
   { id: 'map', name: 'Map', held: true },
+  // the light on the back of the handset (20 October 2026): a switch, not a page (main.js holds the light)
+  { id: 'torch', name: 'Torch', held: true, toggle: true },
   { id: 'wallet', name: 'Wallet' },
   { id: 'property', name: 'Property' },
   { id: 'contacts', name: 'Contacts', held: true },
@@ -119,7 +122,7 @@ export function createPhone(kit) {
 
   function show(appId = null, state = {}) {
     if (screen === 'deal' && appId !== 'deal') marketUI.closeDeal();
-    screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId && (!a.admin || isAdmin()))) ? appId : 'home';
+    screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId && !a.toggle && (!a.admin || isAdmin()))) ? appId : 'home';
     sub = state; said = null; drawn = null; rising = true; looking = null;
     open(app.view().self.name, 'Phone', render, null, { device: true });
   }
@@ -134,6 +137,12 @@ export function createPhone(kit) {
 
   const tile = (a, counts, held) => {
     const [from, to, ink] = TILES[a.id];
+    // (the torch is switched on and off from its tile, and the phone stays on its home screen)
+    if (a.toggle) {
+      const on = !!(app.torch && app.torch.on());
+      return h('button', { class: `app${on ? ' on' : ''}`, type: 'button', 'data-app': a.id, 'aria-pressed': on ? 'true' : 'false', 'aria-label': `${a.name}, ${on ? 'on' : 'off'}`, onclick: () => { if (app.torch) app.torch.toggle(); redraw(); } },
+        h('span', { class: 'icon', style: `background:linear-gradient(160deg,${from},${to});color:${ink}` }, svg(a.id)), h('span', null, on ? `${a.name} on` : a.name));
+    }
     return h('button', { class: 'app', type: 'button', disabled: held && !a.held, 'data-app': a.id, 'aria-label': counts[a.id] ? `${a.name}, ${counts[a.id]} new` : a.name, onclick: () => go(a.id) },
       h('span', { class: 'icon', style: `background:linear-gradient(160deg,${from},${to});color:${ink}` }, svg(a.id)), h('span', null, a.name), counts[a.id] ? h('span', { class: 'count' }, String(counts[a.id])) : null);
   };

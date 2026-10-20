@@ -1804,7 +1804,7 @@ const closure = (id, name, state, a, b, facing, sign, why) => Object.freeze({ id
 const ROAD_CLOSURES = Object.freeze([
   closure('waterside-south', 'Waterside Road, south end', AREA_STATE.BUILDING, { x: -243, z: 105.6 }, { x: -243, z: 120.4 }, Math.PI / 2,
     ['ROAD CLOSED', 'Road works ahead'], 'Asaba is still being built beyond this point.'),
-  closure('waterside-north', 'Waterside Road, north end', AREA_STATE.BUILDING, { x: 243, z: 105.6 }, { x: 243, z: 120.4 }, -Math.PI / 2,
+  closure('waterside-north', 'Waterside Road, north end', AREA_STATE.OPEN, { x: 243, z: 105.6 }, { x: 243, z: 120.4 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road works ahead'], 'Asaba is still being built beyond this point.'),
   closure('registry-north', 'Registry Road, north end', AREA_STATE.BUILDING, { x: 241.5, z: -47.4 }, { x: 241.5, z: -32.6 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road not yet built'], 'The road is not built on from here.'),
@@ -1827,7 +1827,7 @@ function closureColliders(list = openClosures()) {
 }
 
 const INSET = 1.4;
-const line = (id, a, b, out) => Object.freeze({ id, a: Object.freeze(a), b: Object.freeze(b), out: Object.freeze(out) });
+const line = (id, a, b, out, style = 'tape') => Object.freeze({ id, a: Object.freeze(a), b: Object.freeze(b), out: Object.freeze(out), style });
 const EDGE_LINES = Object.freeze([
   line('town-south', { x: -250 + INSET, z: -480 + INSET }, { x: -250 + INSET, z: 185 }, { x: -1, z: 0 }),
   line('town-north', { x: 250 - INSET, z: -480 + INSET }, { x: 250 - INSET, z: 185 }, { x: 1, z: 0 }),
@@ -1840,6 +1840,12 @@ const EDGE_LINES = Object.freeze([
   line('airport-north', { x: -560 - INSET, z: -510 + INSET }, { x: -560 - INSET, z: -60 }, { x: 1, z: 0 }),
   line('farbank-south', { x: -236 + INSET, z: 322 }, { x: -236 + INSET, z: 383.4 }, { x: -1, z: 0 }),
   line('farbank-north', { x: -174 - INSET, z: 322 }, { x: -174 - INSET, z: 383.4 }, { x: 1, z: 0 }),
+  line('upriver-river', { x: 250, z: 122 - INSET }, { x: 1846, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
+  line('upriver-inland', { x: 250, z: 104 + INSET }, { x: 1832, z: 104 + INSET }, { x: 0, z: -1 }, 'wood'),
+  line('park-south', { x: 1832 + INSET, z: 64 + INSET }, { x: 1832 + INSET, z: 104 }, { x: -1, z: 0 }, 'wood'),
+  line('park-inland', { x: 1832, z: 64 + INSET }, { x: 1882, z: 64 + INSET }, { x: 0, z: -1 }, 'wood'),
+  line('park-river', { x: 1846, z: 122 - INSET }, { x: 1882, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
+  line('park-gate', { x: 1882 - INSET, z: 64 }, { x: 1882 - INSET, z: 122 }, { x: 1, z: 0 }, 'wood'),
 ]);
 const EDGE_FENCE = Object.freeze({ post: 3, height: 1.15, depth: 0.3, step: 0.5, beyond: 2.6, least: 3 });
 function edgeFences(ground) {
@@ -1848,7 +1854,7 @@ function edgeFences(ground) {
     const len = Math.hypot(l.b.x - l.a.x, l.b.z - l.a.z);
     const n = Math.floor(len / EDGE_FENCE.step);
     let start = null, last = null;
-    const close = () => { if (start !== null && last - start >= EDGE_FENCE.least) runs.push(Object.freeze({ line: l.id, a: Object.freeze(at(start)), b: Object.freeze(at(last)), out: l.out })); start = null; };
+    const close = () => { if (start !== null && last - start >= EDGE_FENCE.least) runs.push(Object.freeze({ line: l.id, a: Object.freeze(at(start)), b: Object.freeze(at(last)), out: l.out, style: l.style })); start = null; };
     const at = (d) => ({ x: +(l.a.x + ((l.b.x - l.a.x) * d) / len).toFixed(2), z: +(l.a.z + ((l.b.z - l.a.z) * d) / len).toFixed(2) });
     for (let i = 0; i <= n; i += 1) {
       const d = i * EDGE_FENCE.step;
@@ -1866,6 +1872,2568 @@ function fenceColliders(runs) {
 }
 
 return { AREA_STATE, ROAD_CLOSURES, openClosures, CLOSURE_KIT, closureColliders, EDGE_LINES, EDGE_FENCE, edgeFences, fenceColliders };
+})();
+
+__modules["sim/zones/habitation-scene.js"] = (function () {
+const rows = [
+  ["tropicalgazebo", 2168, 389, null, -1.371, 4.6, 0, "gazebo"],
+  ["tropicalpooldeck", 2138, 418, null, 2.356, 10, 0, "pooldeck"],
+  ["sceniclandscape", 1929, 22, null, 2.499, 1.8, 0.5, "bench"],
+  ["waterfalllandscape", 2486, -14, null, 2.413, 30, 0, "gorge-head"],
+  ["woodenboardwalk", 2060, -82, null, 0.35, 34, 0, "swamp-walk"],
+  ["suspensionbridge", 2387, 222.5, null, -0.087, 23, 0, "suspension-bridge"],
+  ["treeonhill", 1943, 4, null, 0.6, 14, 0.9, "hill"],
+  ["tree_1", 1966, -14, null, 2.1, 11, 2.6, "hill"],
+  ["rock-mossy-1", 1918, 6, null, 0.494, 1.4, 0.59, "rock"],
+  ["rock-mossy-2", 1951.32, 30.31, null, 6.27, 1.1, 0.46, "rock"],
+  ["rock-mossy-1", 1923.7, 39.02, null, 2.853, 0.9, 0.38, "rock"],
+  ["rock-mossy-0", 1949, -6, null, 0.765, 1.6, 0.67, "rock"],
+  ["rock-mossy-0", 1916, 26, null, 4.138, 0.8, 0.34, "rock"],
+  ["talltree", 1939.97, 49.67, null, 2.673, 19.48, 0.25, "hill"],
+  ["talltree", 1964.32, 32.19, null, 2.377, 19.99, 0.25, "hill"],
+  ["slimtree", 1949.07, 41.77, null, 0.788, 12.84, 0.33, "hill"],
+  ["coconutpalmtree_1", 1934.43, -14.73, null, 0.018, 14.05, 0.37, "hill"],
+  ["coconutpalmtree_1", 1970.71, 25.44, null, 4.279, 16.09, 0.43, "hill"],
+  ["palmtree_3", 1901.43, 21.52, null, 3.669, 14.73, 0.29, "hill"],
+  ["slimtree", 1907.61, 3.24, null, 4.458, 15.35, 0.39, "hill"],
+  ["palmtree_3", 1959.79, 23.63, null, 6.199, 12.81, 0.25, "hill"],
+  ["palmtree_5", 1911.66, -5.27, null, 4.561, 13.13, 0.23, "hill"],
+  ["slimtree", 1962.35, 12.26, null, 5.598, 15.48, 0.4, "hill"],
+  ["tree", 2003.02, 52.35, null, 1.669, 25.67, 1.96, "forest"],
+  ["buttress-roottree", 1995.7, 70.65, null, 2.38, 24.72, 2.6, "forest"],
+  ["buttressedtree", 2009.99, 78.55, null, 0.836, 26.01, 2.6, "forest"],
+  ["tree", 2023.11, 65.44, null, 4.198, 25.01, 1.91, "forest"],
+  ["buttressedtree", 2036.87, 92.76, null, 2.554, 27.32, 2.6, "forest"],
+  ["buttressedtree", 2066.35, 85.22, null, 5.816, 24.47, 2.6, "forest"],
+  ["foresttree", 2057.75, 104.34, null, 2.029, 17.61, 2.6, "forest"],
+  ["foresttree", 2085.87, 91.06, null, 0.405, 19.83, 2.6, "forest"],
+  ["giantbuttress-roottree", 2077.74, 111.4, null, 2.993, 36.48, 2.6, "forest"],
+  ["foresttree", 2095.34, 116.15, null, 2.366, 19.36, 2.6, "forest"],
+  ["buttressedtree", 2124, 109.15, null, 4.572, 25.13, 2.6, "forest"],
+  ["giantbuttress-roottree", 1988.44, 47.55, null, 5.072, 30.61, 2.6, "hill-down"],
+  ["tree", 2008.06, 38.61, null, 0.494, 27.19, 2.08, "to-swamp"],
+  ["buttressedtree", 2007.55, 25.68, null, 1.416, 25.61, 2.6, "to-swamp"],
+  ["foresttree", 2027.56, 28.76, null, 5.234, 17.75, 2.6, "to-swamp"],
+  ["giantbuttress-roottree", 2010.99, 8.78, null, 0.751, 27.43, 2.6, "to-swamp"],
+  ["tree", 2033.61, 12.01, null, 2.751, 26.64, 2.04, "to-swamp"],
+  ["buttressedtree", 2035.83, -0.95, null, 1.091, 21.47, 2.6, "to-swamp"],
+  ["tree", 2016.52, -14.63, null, 4.488, 31.65, 2.42, "to-swamp"],
+  ["foresttree", 2102.92, -26.82, null, 3.258, 19.19, 2.6, "from-swamp"],
+  ["giantbuttress-roottree", 2085.17, -22.72, null, 3.353, 33.42, 2.6, "from-swamp"],
+  ["tree", 2108.93, 8.98, null, 3.026, 24.92, 1.9, "from-swamp"],
+  ["giantbuttress-roottree", 2107.68, 31.45, null, 1.291, 31.56, 2.6, "from-swamp"],
+  ["buttressedtree", 2087.48, 28.92, null, 2.727, 22.32, 2.6, "from-swamp"],
+  ["giantbuttress-roottree", 2102.68, 49.57, null, 4.437, 34.96, 2.6, "from-swamp"],
+  ["foresttree", 2084.36, 46.86, null, 1.456, 19.76, 2.6, "from-swamp"],
+  ["buttressedtree", 2098.04, 73.82, null, 5.242, 22.14, 2.6, "from-swamp"],
+  ["buttressedtree", 2075.84, 65.28, null, 3.666, 21.51, 2.6, "from-swamp"],
+  ["buttress-roottree", 2033.93, 104.05, null, 3.987, 22.5, 2.6, "to-mangroves"],
+  ["coconutpalmtree_3", 2020.45, 99.15, null, 0.045, 11, 0.28, "to-mangroves"],
+  ["palmtree_5", 2026.56, 113.29, null, 6.155, 14.31, 0.25, "to-mangroves"],
+  ["coconutpalmtree", 2016.57, 108.29, null, 6.002, 15.35, 0.3, "to-mangroves"],
+  ["tree", 2020.84, 125.04, null, 5.992, 26.75, 2.04, "to-mangroves"],
+  ["buttress-roottree", 2008.38, 119.7, null, 6.241, 22.67, 2.6, "to-mangroves"],
+  ["fanpalmshrub", 1997.37, 58.78, null, 5.659, 2.03, 0, "forest"],
+  ["monsteraplant_2", 1994.55, 65.84, null, 4.117, 2.08, 0, "forest"],
+  ["fernplant_1", 2003.66, 61.91, null, 4.563, 1.44, 0, "forest"],
+  ["monsteraplant_2", 2005.96, 63.4, null, 2.062, 1.71, 0, "forest"],
+  ["monsteraplant_2", 2003.88, 68.59, null, 0.795, 2.25, 0, "forest"],
+  ["fernclump", 2008.94, 64.48, null, 0.197, 1.15, 0, "forest"],
+  ["fernplant", 2009.76, 72.54, null, 6.264, 1.37, 0, "forest"],
+  ["roundshrub", 2018.38, 67.66, null, 0.435, 1.49, 0.58, "forest"],
+  ["monsteraplant_2", 2015.15, 74.13, null, 1.727, 1.86, 0, "forest"],
+  ["fernclump", 2019.09, 75.36, null, 4.484, 1.15, 0, "forest"],
+  ["fernplant_1", 2024.86, 72.1, null, 0.492, 1.37, 0, "forest"],
+  ["roundleafyshrub", 2026.08, 79.47, null, 1.468, 1.56, 0.62, "forest"],
+  ["fernclump", 2031.47, 75.78, null, 6.267, 1.12, 0, "forest"],
+  ["bananaplant", 2028.8, 81.13, null, 4.669, 4.49, 0.31, "forest"],
+  ["roundshrub", 2034.71, 76.05, null, 5.256, 1.68, 0.65, "forest"],
+  ["roundshrub", 2035.56, 84.09, null, 3.491, 1.47, 0.57, "forest"],
+  ["bananaplant_2", 2037.48, 86.53, null, 4.311, 4.24, 0.97, "forest"],
+  ["roundleafyshrub", 2043.96, 80.81, null, 0.373, 1.49, 0.59, "forest"],
+  ["roundleafyshrub", 2040.95, 86.83, null, 0.945, 1.61, 0.64, "forest"],
+  ["palmplant", 2047.79, 82.44, null, 1.103, 2.28, 0, "forest"],
+  ["fanpalmshrub", 2047.69, 91.45, null, 2.114, 2.27, 0, "forest"],
+  ["fernclump", 2053.25, 86.25, null, 5.431, 1.02, 0, "forest"],
+  ["fernclump", 2050.56, 91.65, null, 2.486, 1.11, 0, "forest"],
+  ["monsteraplant_2", 2053.1, 92.55, null, 3.314, 2.02, 0, "forest"],
+  ["fernplant_1", 2058.74, 88.76, null, 5.574, 1.31, 0, "forest"],
+  ["bananaplant_2", 2061.73, 88.92, null, 0.421, 3.82, 0.87, "forest"],
+  ["bananaplant", 2058.57, 95.94, null, 0.696, 4.97, 0.34, "forest"],
+  ["palmplant", 2065.5, 91.58, null, 4.416, 1.88, 0, "forest"],
+  ["monsteraplant_1", 2062.95, 97.23, null, 0.891, 2.46, 0, "forest"],
+  ["fernclump", 2069.27, 92.16, null, 0.817, 1.16, 0, "forest"],
+  ["monsteraplant_1", 2068.5, 100.51, null, 3.835, 2.51, 0, "forest"],
+  ["roundshrub", 2072.91, 102.88, null, 6.194, 1.77, 0.69, "forest"],
+  ["fernplant", 2078.43, 97.89, null, 2.71, 1.36, 0, "forest"],
+  ["fanpalmshrub", 2075.97, 104.03, null, 4.184, 1.97, 0, "forest"],
+  ["monsteraplant_1", 2081.42, 98.27, null, 3.651, 2.21, 0, "forest"],
+  ["bananaplant", 2078.61, 105.31, null, 3.846, 5.03, 0.34, "forest"],
+  ["monsteraplant_2", 2088.16, 101.25, null, 0.323, 1.9, 0, "forest"],
+  ["bananaplant_1", 2090.47, 102.3, null, 1.585, 3.73, 0.19, "forest"],
+  ["roundshrub", 2088.25, 107.85, null, 1.311, 1.73, 0.68, "forest"],
+  ["monsteraplant_1", 2094.12, 103.12, null, 1.95, 2.06, 0, "forest"],
+  ["monsteraplant_1", 2091.53, 109.59, null, 4.879, 2.16, 0, "forest"],
+  ["fanpalmshrub", 2093.7, 110.46, null, 2.667, 2.03, 0, "forest"],
+  ["monsteraplant_2", 2099.87, 105.53, null, 0.472, 1.86, 0, "forest"],
+  ["monsteraplant", 2103.67, 107.15, null, 0.004, 1.88, 0, "forest"],
+  ["bananaplant", 2100.9, 113.37, null, 0.206, 4.64, 0.32, "forest"],
+  ["fanpalmshrub", 2107.24, 109.52, null, 4.255, 1.95, 0, "forest"],
+  ["monsteraplant_1", 2104.33, 116.06, null, 6.079, 2.06, 0, "forest"],
+  ["roundshrub", 2110.32, 111.05, null, 0.099, 1.47, 0.57, "forest"],
+  ["bananaplant_2", 2107.84, 116.63, null, 5.289, 3.66, 0.83, "forest"],
+  ["bananaplant_1", 2110.49, 118.23, null, 0.352, 3.65, 0.18, "forest"],
+  ["roundshrub", 2114.01, 119.04, null, 3.818, 1.42, 0.55, "forest"],
+  ["fernplant", 2118.96, 114.37, null, 4.22, 1.26, 0, "forest"],
+  ["fernplant_1", 2116.43, 120.28, null, 4.239, 1.54, 0, "forest"],
+  ["bananaplant_1", 2122.32, 115.8, null, 4.175, 4.59, 0.23, "forest"],
+  ["fernplant", 2119.45, 122.49, null, 3.002, 1.33, 0, "forest"],
+  ["rock-mossy-0", 1999.57, 67.78, null, 0.261, 1.8, 0.76, "rock"],
+  ["rock-mossy-2", 2009.38, 71.47, null, 2.23, 0.69, 0.29, "rock"],
+  ["rock-mossy-2", 2021.13, 77.4, null, 0.154, 0.75, 0.32, "rock"],
+  ["rock-mossy-1", 2044.13, 81.71, null, 2.981, 1.3, 0.55, "rock"],
+  ["rock-mossy-2", 2049.82, 84.54, null, 2.875, 1.14, 0.48, "rock"],
+  ["rock-mossy-1", 2070.66, 94.28, null, 5.365, 1.56, 0.66, "rock"],
+  ["rock-mossy-2", 2083.99, 99.3, null, 6.197, 1.36, 0.57, "rock"],
+  ["rock-mossy-0", 2095.28, 110.88, null, 5.133, 0.74, 0.31, "rock"],
+  ["rock-mossy-0", 2106.34, 116.48, null, 2.473, 1.55, 0.65, "rock"],
+  ["rock-mossy-1", 2121.41, 115.19, null, 4.512, 1.15, 0.48, "rock"],
+  ["monsteraplant", 2011.21, 66.09, null, 6.224, 1.76, 0, "to-swamp"],
+  ["bananaplant", 2010.92, 62.5, null, 0.655, 4.74, 0.32, "to-swamp"],
+  ["roundleafyshrub", 2018.81, 63.49, null, 5.754, 1.36, 0.54, "to-swamp"],
+  ["roundshrub", 2018.35, 59.22, null, 2.407, 1.54, 0.6, "to-swamp"],
+  ["bananaplant_2", 2012.19, 55.04, null, 3.79, 4.34, 0.99, "to-swamp"],
+  ["fanpalmshrub", 2012.45, 50.99, null, 0.238, 2.3, 0, "to-swamp"],
+  ["fanpalmshrub", 2014, 46.63, null, 0.591, 2.07, 0, "to-swamp"],
+  ["fanpalmshrub", 2019.74, 47.35, null, 2.615, 2.07, 0, "to-swamp"],
+  ["fernplant_1", 2014.92, 42.61, null, 5.764, 1.47, 0, "to-swamp"],
+  ["fernplant", 2019.83, 43.36, null, 4.916, 1.18, 0, "to-swamp"],
+  ["monsteraplant", 2015.25, 39.76, null, 4.396, 1.63, 0, "to-swamp"],
+  ["bananaplant_1", 2020.21, 40.52, null, 3.199, 4.42, 0.22, "to-swamp"],
+  ["fernplant_1", 2016.09, 35.77, null, 4.933, 1.2, 0, "to-swamp"],
+  ["monsteraplant_2", 2020.61, 36.47, null, 1.112, 2.05, 0, "to-swamp"],
+  ["monsteraplant_2", 2015.04, 32.11, null, 0.126, 1.86, 0, "to-swamp"],
+  ["palmplant", 2015.66, 29.45, null, 1.541, 2.22, 0, "to-swamp"],
+  ["monsteraplant_2", 2022.17, 30.46, null, 4.223, 2.27, 0, "to-swamp"],
+  ["bananaplant_2", 2016.11, 26.13, null, 4.696, 3.26, 0.74, "to-swamp"],
+  ["monsteraplant_2", 2022.55, 27.12, null, 4.608, 2.22, 0, "to-swamp"],
+  ["fernclump", 2017.49, 23.22, null, 6.281, 1.05, 0, "to-swamp"],
+  ["bananaplant_1", 2023.34, 24.12, null, 3.057, 3.67, 0.19, "to-swamp"],
+  ["monsteraplant", 2017.45, 18.34, null, 6.083, 1.61, 0, "to-swamp"],
+  ["fernplant_1", 2018.17, 14.81, null, 5.61, 1.26, 0, "to-swamp"],
+  ["fernplant_1", 2024.79, 15.76, null, 5.384, 1.3, 0, "to-swamp"],
+  ["bananaplant_2", 2018.24, 11.56, null, 3.398, 3.64, 0.83, "to-swamp"],
+  ["roundshrub", 2025.17, 12.55, null, 1.388, 1.79, 0.7, "to-swamp"],
+  ["monsteraplant_2", 2025.33, 5.18, null, 2.227, 1.95, 0, "to-swamp"],
+  ["fanpalmshrub", 2027.46, 1.58, null, 3.503, 2.29, 0, "to-swamp"],
+  ["roundleafyshrub", 2027.82, -2.09, null, 3.689, 1.2, 0.48, "to-swamp"],
+  ["palmplant", 2021.56, -7.31, null, 3.807, 2.3, 0, "to-swamp"],
+  ["fernplant_1", 2027.45, -6.47, null, 5.338, 1.22, 0, "to-swamp"],
+  ["monsteraplant_2", 2028.49, -8.45, null, 5.116, 2.11, 0, "to-swamp"],
+  ["roundleafyshrub", 2021.84, -13.63, null, 4.472, 1.36, 0.54, "to-swamp"],
+  ["monsteraplant", 2029.65, -12.46, null, 4.084, 1.56, 0, "to-swamp"],
+  ["monsteraplant_2", 2022.69, -16.07, null, 5.661, 1.75, 0, "to-swamp"],
+  ["monsteraplant", 2028.33, -15.22, null, 4.748, 1.93, 0, "to-swamp"],
+  ["monsteraplant_1", 2022.82, -19.68, null, 5.14, 2.1, 0, "to-swamp"],
+  ["fernclump", 2023.38, -22.54, null, 0.133, 1.03, 0, "to-swamp"],
+  ["fernplant_1", 2030.74, -25.13, null, 1.108, 1.54, 0, "to-swamp"],
+  ["rock-mossy-2", 2012.67, 62.06, null, 2.378, 0.82, 0.34, "rock"],
+  ["rock-mossy-2", 2013.76, 49.94, null, 4.295, 1.36, 0.57, "rock"],
+  ["rock-mossy-0", 2014.91, 44.31, null, 4.922, 0.65, 0.27, "rock"],
+  ["rock-mossy-0", 2016.31, 34.02, null, 2.722, 0.61, 0.26, "rock"],
+  ["rock-mossy-1", 2024.04, 15.73, null, 0.604, 1.06, 0.44, "rock"],
+  ["rock-mossy-1", 2026.09, 4.35, null, 1.483, 1.23, 0.52, "rock"],
+  ["rock-mossy-1", 2021.58, -4.19, null, 3.228, 1.1, 0.46, "rock"],
+  ["fernplant_1", 2093.54, -38.54, null, 2.497, 1.48, 0, "from-swamp"],
+  ["fernclump", 2086.74, -36.97, null, 6.063, 1.17, 0, "from-swamp"],
+  ["fernclump", 2093.97, -34.42, null, 5.957, 1.17, 0, "from-swamp"],
+  ["bananaplant", 2089.03, -33.28, null, 1.648, 4.91, 0.34, "from-swamp"],
+  ["bananaplant_1", 2095.34, -31.39, null, 6.132, 4.45, 0.22, "from-swamp"],
+  ["bananaplant_2", 2089.07, -29.94, null, 1.823, 3.7, 0.84, "from-swamp"],
+  ["fanpalmshrub", 2096.37, -28.64, null, 0.305, 2.25, 0, "from-swamp"],
+  ["roundshrub", 2089.93, -27.15, null, 4.988, 1.57, 0.61, "from-swamp"],
+  ["fernclump", 2095.86, -24.12, null, 0.597, 1.11, 0, "from-swamp"],
+  ["fernclump", 2089.98, -22.77, null, 5.158, 1.05, 0, "from-swamp"],
+  ["roundleafyshrub", 2097.84, -20, null, 5.566, 1.21, 0.48, "from-swamp"],
+  ["roundshrub", 2092.16, -18.69, null, 5.994, 1.74, 0.68, "from-swamp"],
+  ["fanpalmshrub", 2099.63, -12.99, null, 3.49, 1.75, 0, "from-swamp"],
+  ["bananaplant_1", 2092.39, -12.54, null, 4.641, 4.51, 0.23, "from-swamp"],
+  ["monsteraplant", 2100.04, -9.86, null, 5.457, 1.96, 0, "from-swamp"],
+  ["bananaplant", 2092.93, -9.42, null, 3.653, 4.56, 0.31, "from-swamp"],
+  ["bananaplant_1", 2098.63, -6.9, null, 2.404, 4.52, 0.23, "from-swamp"],
+  ["palmplant", 2093.62, -6.59, null, 0.284, 2.09, 0, "from-swamp"],
+  ["fernplant_1", 2100.55, -3.83, null, 4.644, 1.39, 0, "from-swamp"],
+  ["palmplant", 2099.39, 3.02, null, 4.501, 2.36, 0, "from-swamp"],
+  ["fernplant", 2099.93, 6.37, null, 2.101, 1.32, 0, "from-swamp"],
+  ["bananaplant_1", 2093.48, 6.77, null, 0.231, 4.53, 0.23, "from-swamp"],
+  ["monsteraplant_2", 2093.97, 10.97, null, 6.197, 2.16, 0, "from-swamp"],
+  ["roundshrub", 2100.38, 13.5, null, 4.768, 1.7, 0.66, "from-swamp"],
+  ["bananaplant_2", 2094.99, 13.84, null, 2.571, 3.34, 0.76, "from-swamp"],
+  ["monsteraplant_2", 2100.47, 16.56, null, 2.154, 1.79, 0, "from-swamp"],
+  ["fernplant_1", 2094.29, 16.95, null, 4.76, 1.29, 0, "from-swamp"],
+  ["monsteraplant_1", 2100.2, 21.47, null, 1.322, 2.43, 0, "from-swamp"],
+  ["fernclump", 2095.15, 20.84, null, 0.432, 1.09, 0, "from-swamp"],
+  ["fanpalmshrub", 2100.9, 24.85, null, 5.558, 1.84, 0, "from-swamp"],
+  ["fernplant", 2093.99, 23.99, null, 4.704, 1.28, 0, "from-swamp"],
+  ["bananaplant_1", 2100.39, 28.27, null, 0.673, 4.34, 0.22, "from-swamp"],
+  ["monsteraplant", 2092.99, 27.35, null, 1.263, 2.05, 0, "from-swamp"],
+  ["monsteraplant", 2099.84, 32.31, null, 4.117, 1.77, 0, "from-swamp"],
+  ["monsteraplant_1", 2093.68, 31.55, null, 1.645, 1.94, 0, "from-swamp"],
+  ["fernplant", 2098.95, 36.26, null, 3.57, 1.49, 0, "from-swamp"],
+  ["bananaplant_2", 2091.81, 35.37, null, 0.489, 3.7, 0.84, "from-swamp"],
+  ["monsteraplant", 2098.08, 40.46, null, 5.68, 1.76, 0, "from-swamp"],
+  ["monsteraplant_1", 2098.2, 44.27, null, 0.69, 2.26, 0, "from-swamp"],
+  ["bananaplant_2", 2091.43, 43.42, null, 1.398, 3.78, 0.86, "from-swamp"],
+  ["roundleafyshrub", 2090.58, 46.95, null, 3.166, 1.36, 0.54, "from-swamp"],
+  ["fanpalmshrub", 2090.59, 50.95, null, 2.93, 1.79, 0, "from-swamp"],
+  ["fernplant", 2095.71, 55.93, null, 4.071, 1.39, 0, "from-swamp"],
+  ["roundshrub", 2089.58, 53.57, null, 0.476, 1.58, 0.62, "from-swamp"],
+  ["monsteraplant_2", 2093.36, 58.49, null, 4.54, 1.7, 0, "from-swamp"],
+  ["roundshrub", 2087.77, 56.34, null, 1.518, 1.79, 0.7, "from-swamp"],
+  ["fernplant_1", 2093.09, 63.15, null, 4.148, 1.38, 0, "from-swamp"],
+  ["bananaplant", 2087.09, 60.84, null, 5.983, 4.2, 0.29, "from-swamp"],
+  ["monsteraplant_2", 2091.19, 65.15, null, 5.909, 1.9, 0, "from-swamp"],
+  ["fernplant_1", 2091.12, 67.87, null, 4.149, 1.59, 0, "from-swamp"],
+  ["fanpalmshrub", 2084.26, 65.24, null, 0.095, 1.91, 0, "from-swamp"],
+  ["palmplant", 2088.84, 69.84, null, 4.868, 2.3, 0, "from-swamp"],
+  ["monsteraplant_1", 2084, 67.98, null, 0.542, 2.36, 0, "from-swamp"],
+  ["fernclump", 2087.85, 73.84, null, 3.763, 1.11, 0, "from-swamp"],
+  ["fernclump", 2083.13, 72.03, null, 1.687, 1.15, 0, "from-swamp"],
+  ["roundshrub", 2086.17, 79.25, null, 2.463, 1.73, 0.68, "from-swamp"],
+  ["monsteraplant_1", 2080.12, 76.61, null, 1.57, 2.01, 0, "from-swamp"],
+  ["bananaplant", 2083.67, 83.1, null, 3.246, 4.37, 0.3, "from-swamp"],
+  ["fernclump", 2078.42, 80.81, null, 3.98, 1.08, 0, "from-swamp"],
+  ["fernclump", 2083.31, 87.02, null, 2.263, 1.05, 0, "from-swamp"],
+  ["bananaplant_2", 2077.33, 84.42, null, 3.555, 3.34, 0.76, "from-swamp"],
+  ["roundshrub", 2074.37, 87.86, null, 2.651, 1.51, 0.59, "from-swamp"],
+  ["fanpalmshrub", 2080.05, 93.11, null, 4.166, 2.08, 0, "from-swamp"],
+  ["roundleafyshrub", 2073.91, 90.44, null, 0.162, 1.27, 0.5, "from-swamp"],
+  ["monsteraplant", 2072.49, 94.8, null, 2.692, 1.58, 0, "from-swamp"],
+  ["rock-mossy-1", 2089.63, -28.9, null, 1.048, 1.58, 0.66, "rock"],
+  ["rock-mossy-1", 2100.21, 0.06, null, 4.119, 1.08, 0.45, "rock"],
+  ["rock-mossy-0", 2094.99, 9.62, null, 1.227, 0.77, 0.33, "rock"],
+  ["rock-mossy-2", 2099.92, 23.75, null, 3.158, 0.75, 0.31, "rock"],
+  ["rock-mossy-1", 2092.47, 62.53, null, 1.73, 0.64, 0.27, "rock"],
+  ["rock-mossy-1", 2085.8, 77.45, null, 4.716, 0.65, 0.27, "rock"],
+  ["rock-mossy-2", 2075.32, 87.27, null, 4.543, 1.49, 0.63, "rock"],
+  ["roundleafyshrub", 1959.17, 30.85, null, 2.404, 1.33, 0.53, "hill-down"],
+  ["monsteraplant_2", 1953.58, 35.93, null, 0.202, 2.3, 0, "hill-down"],
+  ["monsteraplant_2", 1960.3, 33.3, null, 3.743, 1.87, 0, "hill-down"],
+  ["bananaplant", 1962.94, 36.23, null, 1.27, 4.39, 0.3, "hill-down"],
+  ["monsteraplant_1", 1965.72, 39.82, null, 5.13, 2.26, 0, "hill-down"],
+  ["monsteraplant_1", 1960.99, 44.12, null, 2.046, 2.1, 0, "hill-down"],
+  ["bananaplant", 1968.65, 41.34, null, 1.852, 4.5, 0.31, "hill-down"],
+  ["fernplant", 1964.91, 46.32, null, 2.313, 1.36, 0, "hill-down"],
+  ["roundleafyshrub", 1968.04, 49.27, null, 3.622, 1.23, 0.49, "hill-down"],
+  ["roundshrub", 1974.65, 46.44, null, 1.432, 1.78, 0.69, "hill-down"],
+  ["palmplant", 1977.73, 49.59, null, 5.885, 2.41, 0, "hill-down"],
+  ["monsteraplant_2", 1974.75, 53.57, null, 3.046, 1.91, 0, "hill-down"],
+  ["fernplant", 1979.73, 50.07, null, 0.509, 1.37, 0, "hill-down"],
+  ["fernplant", 1976.82, 55.24, null, 5.46, 1.23, 0, "hill-down"],
+  ["fernplant", 1983.23, 51.13, null, 0.946, 1.38, 0, "hill-down"],
+  ["palmplant", 1986.62, 53.28, null, 3.904, 2.38, 0, "hill-down"],
+  ["bananaplant_1", 1982.71, 60.23, null, 3.423, 3.53, 0.18, "hill-down"],
+  ["fernclump", 1989.14, 56.63, null, 0.184, 1.26, 0, "hill-down"],
+  ["fernplant", 1986.06, 62.11, null, 6.235, 1.27, 0, "hill-down"],
+  ["palmplant", 1991.74, 58.15, null, 4.619, 2, 0, "hill-down"],
+  ["fanpalmshrub", 1988.8, 63.38, null, 5.428, 2.23, 0, "hill-down"],
+  ["bananaplant_2", 1995.13, 58.26, null, 5.073, 4.25, 0.97, "hill-down"],
+  ["bananaplant_1", 1991.43, 64.83, null, 0.294, 3.96, 0.2, "hill-down"],
+  ["rock-mossy-2", 1969.43, 43.17, null, 1.238, 0.66, 0.28, "rock"],
+  ["rock-mossy-1", 1982.09, 51.74, null, 5.994, 1.78, 0.75, "rock"],
+  ["rock-mossy-1", 1987.68, 55.44, null, 1.702, 1, 0.42, "rock"],
+  ["rock-mossy-0", 1993.06, 57.5, null, 3.439, 0.82, 0.35, "rock"],
+  ["bananaplant_2", 2028.17, 85.19, null, 5.689, 3.97, 0.9, "to-mangroves"],
+  ["fernplant_1", 2032.42, 91.3, null, 5.954, 1.27, 0, "to-mangroves"],
+  ["palmplant", 2026.97, 89.32, null, 0.198, 2.47, 0, "to-mangroves"],
+  ["monsteraplant_1", 2032.21, 95.57, null, 2.976, 1.93, 0, "to-mangroves"],
+  ["fernplant_1", 2026.46, 93.48, null, 6.146, 1.26, 0, "to-mangroves"],
+  ["monsteraplant_1", 2025.14, 96.95, null, 3.673, 2.19, 0, "to-mangroves"],
+  ["monsteraplant_1", 2023.99, 100.31, null, 0.504, 1.96, 0, "to-mangroves"],
+  ["monsteraplant_1", 2028.44, 105.5, null, 4.148, 2.02, 0, "to-mangroves"],
+  ["monsteraplant_2", 2026.86, 109.1, null, 0.415, 2.19, 0, "to-mangroves"],
+  ["bananaplant", 2019.69, 105.51, null, 0.36, 4.32, 0.29, "to-mangroves"],
+  ["fernplant", 2022.56, 115.24, null, 1.968, 1.35, 0, "to-mangroves"],
+  ["roundshrub", 2017.63, 112.78, null, 0.671, 1.64, 0.64, "to-mangroves"],
+  ["fanpalmshrub", 2015.61, 115.23, null, 3.084, 1.88, 0, "to-mangroves"],
+  ["palmplant", 2020.5, 120.58, null, 3.462, 2.43, 0, "to-mangroves"],
+  ["fernplant_1", 2015.32, 117.99, null, 6.092, 1.51, 0, "to-mangroves"],
+  ["bananaplant_2", 2012.05, 122.04, null, 1.529, 4.15, 0.95, "to-mangroves"],
+  ["bananaplant_1", 2011.94, 125.27, null, 1.009, 3.88, 0.2, "to-mangroves"],
+  ["monsteraplant", 2014.86, 130.42, null, 1.479, 1.85, 0, "to-mangroves"],
+  ["palmplant", 2010.74, 128.66, null, 3.32, 1.95, 0, "to-mangroves"],
+  ["roundshrub", 2013.95, 133.68, null, 5.914, 1.38, 0.54, "to-mangroves"],
+  ["monsteraplant_1", 2008.84, 131.49, null, 5.762, 2.08, 0, "to-mangroves"],
+  ["rock-mossy-0", 2033.58, 89.36, null, 1.905, 1.47, 0.62, "rock"],
+  ["rock-mossy-2", 2026.4, 107.34, null, 3.886, 1.33, 0.56, "rock"],
+  ["rock-mossy-1", 2023.13, 113.25, null, 5.458, 0.91, 0.38, "rock"],
+  ["rock-mossy-1", 2010.27, 127.72, null, 4.877, 1.08, 0.46, "rock"],
+  ["rock-mossy-1", 2013.25, 135.39, null, 1.251, 1.75, 0.73, "rock"],
+  ["palmtree_2", 2114.47, 102.28, null, 1.736, 16.04, 0.39, "forest-edge"],
+  ["palmtree_2", 2121.68, 97.93, null, 4.617, 15.95, 0.39, "forest-edge"],
+  ["coconutpalmtree_2", 2099.05, 99.33, null, 2.348, 14.83, 0.47, "forest-edge"],
+  ["coconutpalmtree", 2105.27, 97.33, null, 6.105, 12.64, 0.25, "forest-edge"],
+  ["buttressedtree", 2048, -104, null, 0.607, 24, 2.6, "swamp"],
+  ["tree", 2018, -84, null, 5.017, 26, 1.99, "swamp"],
+  ["buttress-roottree", 2088, -96, null, 3.812, 20, 2.6, "swamp"],
+  ["foresttree", 2006, -110, null, 4.756, 18, 2.6, "swamp"],
+  ["fernplant", 2044, -88, null, 3.203, 1.58, 0, "fern-island"],
+  ["fernclump", 2041, -92, null, 5.803, 1.1, 0, "fern-island"],
+  ["fernclump", 2047, -94, null, 1.023, 1.57, 0, "fern-island"],
+  ["rock-mossy-1", 2044, -91, null, 1.334, 3.2, 1.34, "rock"],
+  ["monsteraplant_1", 2004.93, -118.35, null, 5.804, 2.08, 0, "swamp"],
+  ["bananaplant", 2016.81, -38.19, null, 4.88, 4.8, 0.33, "swamp"],
+  ["monsteraplant_2", 1997.41, -109.55, null, 3.576, 2.1, 0, "swamp"],
+  ["monsteraplant_1", 1994.31, -44.46, null, 1.342, 2.1, 0, "swamp"],
+  ["fanpalmshrub", 2010.95, -38.51, null, 2.69, 2.05, 0, "swamp"],
+  ["bananaplant", 2067.04, -41.99, null, 4.783, 4.48, 0.31, "swamp"],
+  ["monsteraplant_2", 2044.64, -134.44, null, 4.905, 1.81, 0, "swamp"],
+  ["fernplant_1", 1990.28, -86.71, null, 3.085, 1.49, 0, "swamp"],
+  ["palmplant", 2037.96, -131.99, null, 5.408, 2.04, 0, "swamp"],
+  ["bananaplant_1", 2058.01, -133.47, null, 5.074, 4.54, 0.23, "swamp"],
+  ["fernplant_1", 2013.72, -125.98, null, 1.81, 1.39, 0, "swamp"],
+  ["bananaplant_2", 2050.74, -37.65, null, 5.618, 3.4, 0.78, "swamp"],
+  ["fernclump", 1991.12, -90.45, null, 3.928, 1.12, 0, "swamp"],
+  ["bananaplant", 2030.31, -131.39, null, 3.744, 4.84, 0.33, "swamp"],
+  ["fernclump", 1992.31, -95.73, null, 0.098, 1.17, 0, "swamp"],
+  ["fernplant_1", 2057.47, -39.76, null, 1.099, 1.39, 0, "swamp"],
+  ["bananaplant", 2088, -60.27, null, 2.789, 4.75, 0.32, "swamp"],
+  ["monsteraplant_1", 2065.8, -129.17, null, 2.205, 2.3, 0, "swamp"],
+  ["fernplant", 1993.61, -103.05, null, 4.634, 1.22, 0, "swamp"],
+  ["monsteraplant_1", 2078.22, -52.67, null, 4.963, 2.11, 0, "swamp"],
+  ["palmplant", 2091.6, -64.63, null, 4.703, 2.15, 0, "swamp"],
+  ["monsteraplant_2", 2009.79, -121.96, null, 0.821, 2.16, 0, "swamp"],
+  ["fernplant", 1999.41, -40.94, null, 2.941, 1.13, 0, "swamp"],
+  ["fernplant_1", 2073.57, -47.84, null, 1.232, 1.45, 0, "swamp"],
+  ["mangrovetree_1", 2098.42, 160.84, null, 1.941, 5.24, 1.28, "mangroves"],
+  ["mangrovetree_2", 2061.95, 146.87, null, 2.71, 6.17, 1.22, "mangroves"],
+  ["mangrovetree_3", 2027.33, 147.05, null, 3.217, 7.09, 1.95, "mangroves"],
+  ["mangrovetree", 2033.23, 145.79, null, 6.143, 8.94, 2.37, "mangroves"],
+  ["mangrovetree", 2046.61, 148.57, null, 0.006, 8.85, 2.35, "mangroves"],
+  ["mangrovetree", 2022.56, 161.65, null, 4.491, 6.96, 1.85, "mangroves"],
+  ["mangrovetree_1", 2111.78, 173.6, null, 5.256, 6.38, 1.56, "mangroves"],
+  ["mangrovetree_2", 2015.85, 156.63, null, 3.777, 6.24, 1.24, "mangroves"],
+  ["mangrovetree_1", 1990.28, 154.4, null, 0.909, 6.05, 1.48, "mangroves"],
+  ["mangrovetree_1", 2117.23, 155.9, null, 2.842, 8.25, 2.02, "mangroves"],
+  ["mangrovetree_1", 2074.15, 152.8, null, 6.116, 8.65, 2.11, "mangroves"],
+  ["mangrovetree", 2011.53, 149.62, null, 5.027, 6.67, 1.77, "mangroves"],
+  ["mangrovetree_3", 1999.77, 156.68, null, 4.016, 8.13, 2.23, "mangroves"],
+  ["mangrovetree_3", 2007.74, 163.31, null, 5.658, 5.49, 1.51, "mangroves"],
+  ["mangrovetree", 2067.8, 157.04, null, 3.931, 8.09, 2.15, "mangroves"],
+  ["mangrovetree_2", 2106.84, 167.6, null, 0.421, 6.08, 1.2, "mangroves"],
+  ["mangrovetree", 2100.51, 169.85, null, 0.903, 6.22, 1.65, "mangroves"],
+  ["mangrovetree_1", 2055.38, 153.34, null, 3.188, 8.32, 2.03, "mangroves"],
+  ["mangrovetree", 2109.29, 157.01, null, 1.072, 5.37, 1.43, "mangroves"],
+  ["mangrovetree_1", 2039.75, 148.46, null, 5.004, 6.13, 1.5, "mangroves"],
+  ["mangrovetree_1", 2094.45, 166.16, null, 3.884, 6.15, 1.5, "mangroves"],
+  ["mangrovetree", 2110.28, 149.21, null, 3.615, 6.5, 1.73, "mangroves"],
+  ["mangrovetree_2", 2060.99, 156.62, null, 4.823, 7.74, 1.53, "mangroves"],
+  ["mangrovetree_2", 2042.72, 153.79, null, 0.081, 6.04, 1.2, "mangroves"],
+  ["mangrovetree_2", 2002.77, 149.78, null, 4.683, 7.04, 1.39, "mangroves"],
+  ["mangrovetree_2", 2092.58, 153.07, null, 1.554, 6.24, 1.24, "mangroves"],
+  ["mangrovetree_3", 1999.83, 163.24, null, 0.357, 8.49, 2.33, "mangroves"],
+  ["mangrovetree_3", 2110.87, 162.95, null, 2.489, 5.13, 1.41, "mangroves"],
+  ["mangrovetree", 2099.82, 143.75, null, 3.557, 8.64, 2.29, "mangroves"],
+  ["mangrovetree", 2113.44, 181.15, null, 0.767, 5.59, 1.49, "mangroves"],
+  ["mangrovetree_2", 2119.04, 140.88, null, 1.427, 8.85, 1.75, "mangroves"],
+  ["mangrovetree_3", 2074.28, 161.84, null, 1.55, 5.34, 1.47, "mangroves"],
+  ["mangrovetree_2", 2118.54, 162.02, null, 3.079, 7.08, 1.4, "mangroves"],
+  ["mangrovetree_1", 2064.83, 162.74, null, 3.98, 6.73, 1.64, "mangroves"],
+  ["coconutpalmtree_4", 2042.99, 123, null, 2.495, 12.53, 0.26, "mangroves"],
+  ["palmtree_4", 2080.04, 127.8, null, 5.762, 14.59, 0.41, "mangroves"],
+  ["coconutpalmtree_2", 2073.91, 138.29, null, 5.134, 14.4, 0.46, "mangroves"],
+  ["palmtree_2", 1994.73, 124.07, null, 5.955, 13.78, 0.34, "mangroves"],
+  ["palmtree_5", 2058.69, 118.49, null, 2.212, 11.46, 0.2, "mangroves"],
+  ["coconutpalmtree_2", 2034.94, 123.65, null, 4.66, 11.24, 0.36, "mangroves"],
+  ["palmtree_4", 2027.37, 138.78, null, 3.858, 16.56, 0.47, "mangroves"],
+  ["coconutpalmtree_1", 2065.59, 125.34, null, 3.726, 12.91, 0.34, "mangroves"],
+  ["palmtree_9", 2129.2, 126.86, null, 4.526, 9.75, 0.66, "west-beach"],
+  ["palmtree_9", 2139.57, 110.05, null, 1.848, 12.67, 0.86, "west-beach"],
+  ["palmtree_9", 2170.32, 109.01, null, 6.21, 10.96, 0.75, "west-beach"],
+  ["coconutpalm", 2193.22, 104.13, null, 6.271, 11.27, 1.31, "west-beach"],
+  ["coconutpalmtree_3", 2211.63, 106.55, null, 3.925, 13.84, 0.35, "west-beach"],
+  ["palmtree_9", 2235.15, 109.16, null, 1.171, 10.66, 0.73, "west-beach"],
+  ["coconutpalm", 2270.7, 117.25, null, 3.6, 13.88, 1.61, "west-beach"],
+  ["palmtree_4", 2301.74, 132.06, null, 3.809, 12.79, 0.36, "west-beach"],
+  ["palmplant", 2290.8, 120.64, null, 1.707, 2.09, 0, "beach-back"],
+  ["palmplant", 2141.47, 103.13, null, 1.263, 2.35, 0, "beach-back"],
+  ["fernclump", 2246.32, 105.03, null, 2.404, 1.17, 0, "beach-back"],
+  ["fernplant_1", 2282.06, 114.61, null, 2.454, 1.49, 0, "beach-back"],
+  ["fernclump", 2286.17, 94.52, null, 1.894, 1.19, 0, "beach-back"],
+  ["fernclump", 2136.18, 92.23, null, 0.953, 1.24, 0, "beach-back"],
+  ["fernclump", 2258.72, 100.29, null, 1.866, 0.94, 0, "beach-back"],
+  ["fanpalmshrub", 2162.34, 92.32, null, 5.715, 1.81, 0, "beach-back"],
+  ["roundshrub", 2161.31, 101.29, null, 3.805, 1.59, 0.62, "beach-back"],
+  ["palmplant", 2192.08, 95.43, null, 4.279, 2.34, 0, "beach-back"],
+  ["fernplant", 2152.69, 96.7, null, 3.67, 1.41, 0, "beach-back"],
+  ["palmplant", 2293.34, 111.97, null, 1.619, 2.34, 0, "beach-back"],
+  ["roundleafyshrub", 2177.43, 95.3, null, 1.709, 1.3, 0.52, "beach-back"],
+  ["palmplant", 2269.42, 94.28, null, 4.625, 2.32, 0, "beach-back"],
+  ["palmplant", 2218.99, 98.84, null, 2.83, 2.43, 0, "beach-back"],
+  ["palmplant", 2272.75, 106.89, null, 3.285, 2.41, 0, "beach-back"],
+  ["roundshrub", 2130.73, 99.19, null, 0.796, 1.57, 0.61, "beach-back"],
+  ["roundshrub", 2216.36, 100.89, null, 2.34, 1.78, 0.69, "beach-back"],
+  ["fernclump", 2298.46, 103.34, null, 3.708, 1.12, 0, "beach-back"],
+  ["roundleafyshrub", 2188.48, 101.41, null, 5.456, 1.33, 0.53, "beach-back"],
+  ["roundleafyshrub", 2226.36, 101.83, null, 3.96, 1.4, 0.56, "beach-back"],
+  ["fernplant", 2293.11, 107.78, null, 3.744, 1.35, 0, "beach-back"],
+  ["oaktree", 2214.49, 73.92, null, 1.826, 13.34, 1.28, "beach-back"],
+  ["oaktree", 2234.03, 75.92, null, 5.787, 13.22, 1.27, "beach-back"],
+  ["oaktree", 2194.71, 81.34, null, 5.894, 15.28, 1.47, "beach-back"],
+  ["oaktree", 2273.88, 78.56, null, 5.942, 12.78, 1.23, "beach-back"],
+  ["oaktree", 2236.22, 393.14, null, 0.099, 14.08, 1.36, "east-woods"],
+  ["oaktree", 2101.51, 392.08, null, 3.192, 12.85, 1.24, "east-woods"],
+  ["oaktree", 2229.11, 459.3, null, 0.097, 14.85, 1.43, "east-woods"],
+  ["palmtree_4", 2202, 200, null, 5.383, 13, 0.37, "island"],
+  ["coconutpalmtree_3", 2211, 210, null, 3.886, 12, 0.3, "island"],
+  ["palmtree_9", 2196, 212, null, 5.315, 9, 0.61, "island"],
+  ["coconutpalm", 2214, 198, null, 3.409, 8, 0.93, "island"],
+  ["palmtree_2", 2207, 216, null, 5.029, 11, 0.27, "island"],
+  ["fernplant", 2200, 206, null, 5.591, 1.23, 0, "island"],
+  ["roundshrub", 2212, 204, null, 5.521, 1.69, 0.66, "island"],
+  ["roundshrub", 2205, 196, null, 1.774, 1.49, 0.58, "island"],
+  ["palmtree_3", 2269.55, 267.11, 25.8, 0.922, 9.42, 0, "pillar:pillar-a"],
+  ["fernplant", 2264.73, 264.86, 25.8, 2.6, 1.99, 0, "pillar:pillar-a"],
+  ["roundshrub", 2268.65, 267.13, 25.8, 4.566, 1.82, 0, "pillar:pillar-a"],
+  ["fernplant_1", 2265.86, 271.49, 25.8, 3.372, 2.37, 0, "pillar:pillar-a"],
+  ["palmtree_5", 2240.37, 297.77, 17.8, 0.476, 9.72, 0, "pillar:pillar-b"],
+  ["fanpalmshrub", 2242.45, 293.87, 17.8, 2.372, 2.16, 0, "pillar:pillar-b"],
+  ["fanpalmshrub", 2242.04, 298.79, 17.8, 5.342, 2.09, 0, "pillar:pillar-b"],
+  ["fernclump", 2241.74, 295.87, 17.8, 1.618, 1.58, 0, "pillar:pillar-b"],
+  ["roundshrub", 2292.22, 234.93, 13.8, 5.463, 1.87, 0, "pillar:pillar-c"],
+  ["fanpalmshrub", 2291.4, 237.32, 13.8, 1.989, 2.09, 0, "pillar:pillar-c"],
+  ["palmtree_5", 2160.26, 305.46, 8.8, 1.632, 9.13, 0, "pillar:islet-a"],
+  ["roundshrub", 2162.76, 303.86, 8.8, 1.389, 2.3, 0, "pillar:islet-a"],
+  ["fanpalmshrub", 2162.82, 304.73, 8.8, 5.462, 1.53, 0, "pillar:islet-a"],
+  ["roundshrub", 2162.31, 305.56, 8.8, 2.489, 1.65, 0, "pillar:islet-a"],
+  ["fernplant_1", 2232.63, 167.57, 2.4, 0.202, 2.18, 0, "pillar:islet-b"],
+  ["roundleafyshrub", 2231.47, 169.38, 2.4, 0.525, 1.73, 0, "pillar:islet-b"],
+  ["fernclump", 2303.47, 289.57, 19.8, 5.185, 2.16, 0, "pillar:pillar-d"],
+  ["roundleafyshrub", 2302.76, 291.46, 19.8, 4.966, 1.42, 0, "pillar:pillar-d"],
+  ["palmtree_9", 2252, 342, null, 4.351, 9, 0.61, "sunset"],
+  ["coconutpalm", 2244, 348, null, 5.078, 8, 0.93, "sunset"],
+  ["palmtree_2", 2160, 344, null, 0.129, 12, 0.29, "sunset"],
+  ["palmtree_4", 2171, 352, null, 5.508, 13, 0.37, "sunset"],
+  ["fernclump", 2141.83, 357.85, null, 3.933, 1.18, 0, "sunset"],
+  ["fernplant", 2240.09, 361.94, null, 1.299, 1.12, 0, "sunset"],
+  ["fernplant", 2252.43, 363.17, null, 5.684, 1.18, 0, "sunset"],
+  ["roundshrub", 2172.79, 363.1, null, 0.165, 1.7, 0.66, "sunset"],
+  ["roundleafyshrub", 2247.46, 352.5, null, 4.294, 1.27, 0.5, "sunset"],
+  ["fernplant_1", 2182.79, 366.32, null, 2.231, 1.4, 0, "sunset"],
+  ["roundshrub", 2190.85, 361.18, null, 3.829, 1.41, 0.55, "sunset"],
+  ["roundshrub", 2157.95, 354.22, null, 4.783, 1.63, 0.64, "sunset"],
+  ["roundshrub", 2143.36, 353.08, null, 2.791, 1.64, 0.64, "sunset"],
+  ["fernclump", 2144.98, 358.63, null, 2.937, 1, 0, "sunset"],
+  ["roundshrub", 2145.15, 350.31, null, 2.977, 1.39, 0.54, "sunset"],
+  ["roundleafyshrub", 2165.07, 357.68, null, 3.68, 1.55, 0.62, "sunset"],
+  ["fernplant", 2145.54, 366.73, null, 2.834, 1.35, 0, "sunset"],
+  ["fernplant_1", 2186.91, 366.91, null, 1.049, 1.39, 0, "sunset"],
+  ["rock-mossy-1", 2426.19, 56.57, null, 1.603, 2.92, 1.23, "rock"],
+  ["rock-mossy-1", 2451.12, 24.02, null, 4.362, 1.46, 0.61, "rock"],
+  ["rock-mossy-1", 2448.4, 36.74, null, 4.245, 2.26, 0.95, "rock"],
+  ["rock-mossy-2", 2450.42, 24.94, null, 1.609, 0.96, 0.4, "rock"],
+  ["rock-mossy-0", 2434.19, 48.8, null, 4.006, 2.11, 0.89, "rock"],
+  ["rock-mossy-2", 2337.14, 123.33, null, 1.91, 1.12, 0.47, "rock"],
+  ["rock-mossy-1", 2398, 80.74, null, 3.878, 0.88, 0.37, "rock"],
+  ["rock-mossy-1", 2463.73, 14.85, null, 1.534, 1.17, 0.49, "rock"],
+  ["rock-mossy-2", 2310.19, 132.39, null, 2.975, 1.07, 0.45, "rock"],
+  ["rock-mossy-1", 2356.45, 98.06, null, 1.695, 1.82, 0.76, "rock"],
+  ["rock-mossy-2", 2344.88, 119.21, null, 0.628, 2.51, 1.05, "rock"],
+  ["rock-mossy-0", 2442.58, 31.87, null, 1.748, 1.49, 0.63, "rock"],
+  ["rock-mossy-1", 2402.78, 73.64, null, 3.256, 1.35, 0.56, "rock"],
+  ["rock-mossy-2", 2384.55, 87.75, null, 4.792, 1.56, 0.66, "rock"],
+  ["rock-mossy-1", 2471.85, 1.78, null, 0.249, 0.66, 0.28, "rock"],
+  ["rock-mossy-2", 2328.54, 133.98, null, 3.442, 3.01, 1.27, "rock"],
+  ["rock-mossy-0", 2447.02, 22.83, null, 5.449, 2.29, 0.96, "rock"],
+  ["rock-mossy-1", 2404.11, 63.84, null, 1.113, 2.23, 0.94, "rock"],
+  ["rock-mossy-2", 2449.56, 17.1, null, 0.991, 1.15, 0.48, "rock"],
+  ["rock-mossy-1", 2407.32, 69.97, null, 1.632, 0.92, 0.39, "rock"],
+  ["rock-mossy-1", 2458.06, 13.46, null, 5.205, 1.51, 0.63, "rock"],
+  ["rock-mossy-2", 2347.89, 114.96, null, 2.886, 1.19, 0.5, "rock"],
+  ["rock-mossy-0", 2409.89, 58.63, null, 5.449, 2.57, 1.08, "rock"],
+  ["rock-mossy-1", 2335.37, 112.78, null, 2.618, 1.6, 0.67, "rock"],
+  ["rock-mossy-2", 2329.27, 128.55, null, 1.085, 0.83, 0.35, "rock"],
+  ["rock-mossy-2", 2414.44, 69.68, null, 2.834, 1.01, 0.43, "rock"],
+  ["rock-mossy-0", 2341.48, 122.87, null, 0.874, 2.67, 1.12, "rock"],
+  ["rock-mossy-0", 2329.59, 118.86, null, 5.129, 0.8, 0.34, "rock"],
+  ["rock-mossy-2", 2412.18, 60.7, null, 5.967, 0.73, 0.31, "rock"],
+  ["rock-mossy-1", 2384.23, 89.75, null, 4.21, 1.56, 0.66, "rock"],
+  ["rock-mossy-1", 2426.23, 53.46, null, 6.11, 1.49, 0.63, "rock"],
+  ["rock-mossy-1", 2434.82, 36.89, null, 2.83, 1.05, 0.44, "rock"],
+  ["rock-mossy-0", 2382.44, 78.14, null, 3.487, 2.88, 1.21, "rock"],
+  ["rock-mossy-2", 2418.68, 50.16, null, 0.438, 2.2, 0.92, "rock"],
+  ["rock-mossy-0", 2389.96, 73.29, null, 1.365, 0.93, 0.39, "rock"],
+  ["rock-mossy-0", 2397.7, 84.47, null, 3.265, 3.33, 1.4, "rock"],
+  ["rock-mossy-0", 2428.17, 39.09, null, 3.048, 2.33, 0.98, "rock"],
+  ["rock-mossy-2", 2414.36, 62.21, null, 5.35, 0.62, 0.26, "rock"],
+  ["rock-mossy-0", 2358.64, 110.05, null, 5.934, 1.16, 0.49, "rock"],
+  ["rock-mossy-0", 2381.92, 93.74, null, 3.9, 1.15, 0.48, "rock"],
+  ["rock-mossy-1", 2474.82, -2.36, null, 4.526, 1.58, 0.67, "rock"],
+  ["rock-mossy-2", 2380, 85.18, null, 3.616, 0.69, 0.29, "rock"],
+  ["rock-mossy-2", 2331.91, 116.76, null, 4.052, 3.23, 1.36, "rock"],
+  ["rock-mossy-0", 2330.7, 119.96, null, 3.486, 1.54, 0.65, "rock"],
+  ["rock-mossy-0", 2385.04, 77.89, null, 6.262, 0.87, 0.37, "rock"],
+  ["rock-mossy-1", 2337, 125.32, null, 0.376, 1.48, 0.62, "rock"],
+  ["rock-mossy-0", 2404.52, 66.61, null, 5.877, 0.87, 0.37, "rock"],
+  ["rock-mossy-2", 2458.34, 26.08, null, 5.948, 1.22, 0.51, "rock"],
+  ["rock-mossy-1", 2406.2, 62.19, null, 3.635, 2.08, 0.88, "rock"],
+  ["rock-mossy-1", 2389.6, 89.86, null, 0.107, 2.25, 0.95, "rock"],
+  ["rock-mossy-2", 2313.5, 129.56, null, 1.822, 3.07, 1.29, "rock"],
+  ["rock-mossy-2", 2322.25, 137.37, null, 1.438, 2.56, 1.08, "rock"],
+  ["rock-mossy-1", 2412.42, 56.31, null, 6.182, 0.98, 0.41, "rock"],
+  ["rock-mossy-0", 2344, 124, null, 0.648, 5.5, 2.31, "rock"],
+  ["fanpalmshrub", 2462.98, 66.99, null, 1.401, 2.25, 0, "gorge"],
+  ["bananaplant_2", 2357.74, 7.81, null, 0.239, 4.21, 0.96, "gorge"],
+  ["monsteraplant_2", 2343.66, -9.76, null, 3.937, 2.17, 0, "gorge"],
+  ["palmplant", 2467.05, 104.8, null, 0.428, 2.19, 0, "gorge"],
+  ["monsteraplant_2", 2435.42, 128.48, null, 0.37, 1.94, 0, "gorge"],
+  ["fernplant_1", 2456.77, 127.52, null, 2.02, 1.59, 0, "gorge"],
+  ["bananaplant", 2321.84, 21, null, 1.773, 4.21, 0.29, "gorge"],
+  ["fanpalmshrub", 2435.6, 60.53, null, 5.517, 1.9, 0, "gorge"],
+  ["fanpalmshrub", 2386.94, 127.76, null, 5.454, 2.1, 0, "gorge"],
+  ["monsteraplant", 2428.92, 6.57, null, 4.947, 1.61, 0, "gorge"],
+  ["monsteraplant_1", 2422.14, 75.39, null, 5.748, 2.47, 0, "gorge"],
+  ["fanpalmshrub", 2340.01, 74.47, null, 0.393, 1.87, 0, "gorge"],
+  ["monsteraplant_2", 2389.87, 135.72, null, 5.975, 1.79, 0, "gorge"],
+  ["monsteraplant_1", 2419.21, 146.48, null, 5.218, 1.91, 0, "gorge"],
+  ["bananaplant_1", 2457.43, 123.41, null, 2.719, 3.82, 0.19, "gorge"],
+  ["palmplant", 2392.66, 139.51, null, 2.038, 2.48, 0, "gorge"],
+  ["monsteraplant_2", 2373.99, -14.7, null, 6.26, 1.79, 0, "gorge"],
+  ["fernplant_1", 2455.24, 114.13, null, 3.213, 1.23, 0, "gorge"],
+  ["palmplant", 2373.97, 45.23, null, 0.357, 2.17, 0, "gorge"],
+  ["bananaplant_2", 2381.58, 60.17, null, 2.445, 3.41, 0.78, "gorge"],
+  ["fernplant_1", 2441.53, 4.49, null, 5.442, 1.57, 0, "gorge"],
+  ["fernplant_1", 2383.27, -16.92, null, 5.074, 1.38, 0, "gorge"],
+  ["bananaplant_1", 2398.78, 46.9, null, 0.818, 4.03, 0.2, "gorge"],
+  ["fanpalmshrub", 2409.8, 0.34, null, 5.532, 2.03, 0, "gorge"],
+  ["monsteraplant_2", 2440.71, 135.2, null, 5.135, 2.09, 0, "gorge"],
+  ["monsteraplant_2", 2461.4, 3.57, null, 1.44, 2.24, 0, "gorge"],
+  ["monsteraplant_1", 2417.48, -10.16, null, 4.385, 2.12, 0, "gorge"],
+  ["fernplant_1", 2424.62, 147.2, null, 1.773, 1.5, 0, "gorge"],
+  ["monsteraplant_1", 2452.5, 62.48, null, 2.331, 2.52, 0, "gorge"],
+  ["bananaplant_1", 2403.19, 28.47, null, 1.44, 3.71, 0.19, "gorge"],
+  ["fanpalmshrub", 2388.2, 52.79, null, 0.238, 2, 0, "gorge"],
+  ["fernclump", 2339.91, 25.51, null, 4.54, 0.97, 0, "gorge"],
+  ["fernclump", 2421.16, 101.39, null, 3.121, 1.23, 0, "gorge"],
+  ["fernplant_1", 2463.46, -17.45, null, 2.233, 1.27, 0, "gorge"],
+  ["fernclump", 2431.93, 101.86, null, 5.105, 1.1, 0, "gorge"],
+  ["fernplant_1", 2326.78, 93.73, null, 5.214, 1.39, 0, "gorge"],
+  ["bananaplant_2", 2446.92, 50.55, null, 5.681, 4.33, 0.99, "gorge"],
+  ["bananaplant_1", 2403.8, -14.59, null, 0.264, 3.6, 0.18, "gorge"],
+  ["monsteraplant_2", 2460.02, 147.5, null, 0.836, 1.99, 0, "gorge"],
+  ["fernclump", 2451.36, 80.92, null, 3.956, 1.17, 0, "gorge"],
+  ["fernplant", 2362.32, 129.35, null, 4.261, 1.34, 0, "gorge"],
+  ["bananaplant_1", 2380.15, 102.12, null, 5.232, 3.43, 0.17, "gorge"],
+  ["palmplant", 2329.33, 146.87, null, 6.266, 2.2, 0, "gorge"],
+  ["monsteraplant_2", 2328.3, 121.54, null, 3.124, 2.1, 0, "gorge"],
+  ["bananaplant", 2350.77, 69.02, null, 1.656, 4.43, 0.3, "gorge"],
+  ["fernplant_1", 2361.81, 78.35, null, 2.05, 1.44, 0, "gorge"],
+  ["fernplant_1", 2351.03, 137.73, null, 3.327, 1.59, 0, "gorge"],
+  ["bananaplant_2", 2363.91, 69.41, null, 2.947, 3.91, 0.89, "gorge"],
+  ["bananaplant_2", 2411.88, 40.7, null, 4.75, 4.03, 0.92, "gorge"],
+  ["bananaplant", 2457.69, 63.08, null, 6.022, 4.13, 0.28, "gorge"],
+  ["monsteraplant_1", 2453.52, 97.11, null, 3.895, 2.18, 0, "gorge"],
+  ["fanpalmshrub", 2362.88, 118.49, null, 0.497, 2.21, 0, "gorge"],
+  ["monsteraplant_1", 2316.6, 73.72, null, 1.903, 2.4, 0, "gorge"],
+  ["fanpalmshrub", 2439.25, 60.56, null, 3.132, 1.75, 0, "gorge"],
+  ["fernplant", 2466.35, 136.34, null, 6.062, 1.36, 0, "gorge"],
+  ["monsteraplant_2", 2376.18, 17.34, null, 5.489, 1.79, 0, "gorge"],
+  ["palmplant", 2421.11, 127.72, null, 1.706, 2.14, 0, "gorge"],
+  ["fernplant", 2360.75, 138.66, null, 2.645, 1.49, 0, "gorge"],
+  ["monsteraplant", 2350.1, 40.57, null, 5.093, 1.96, 0, "gorge"],
+  ["monsteraplant_1", 2370.03, 52.03, null, 1.832, 2.06, 0, "gorge"],
+  ["palmtree_2", 2313.5, -2.33, null, 5.511, 15.65, 0.38, "gorge-rim"],
+  ["palmtree_1", 2417.73, -21.82, null, 3.856, 17.7, 0.31, "gorge-rim"],
+  ["palmtree_5", 2396.39, -34.99, null, 1.549, 14.04, 0.25, "gorge-rim"],
+  ["coconutpalmtree", 2306.79, 35.29, null, 4.399, 13.91, 0.27, "gorge-rim"],
+  ["palmtree_4", 2436.9, 86.69, null, 2.853, 13.48, 0.38, "gorge-rim"],
+  ["palmtree_1", 2471.81, 96.01, null, 5.459, 18.98, 0.33, "gorge-rim"],
+  ["palmtree_3", 2371.05, 147.82, null, 5.686, 11.97, 0.23, "gorge-rim"],
+  ["palmtree_2", 2303.23, 80.83, null, 2.24, 15.68, 0.38, "gorge-rim"],
+  ["palmtree_1", 2456.86, -29.58, null, 0.573, 18.51, 0.32, "gorge-rim"],
+  ["coconutpalmtree_2", 2341.45, 1.4, null, 0.7, 13.14, 0.42, "gorge-rim"],
+  ["coconutpalmtree_1", 2382.07, -34.27, null, 1.929, 15.56, 0.41, "gorge-rim"],
+  ["talltree", 2408.69, -44.43, null, 1.062, 17.28, 0.22, "gorge-rim"],
+  ["palmtree_1", 2375.81, -54.28, null, 3.763, 19.19, 0.33, "gorge-rim"],
+  ["slimtree", 2327.15, -30.63, null, 5.294, 12.62, 0.32, "gorge-rim"],
+  ["talltree", 2464.32, 43.06, null, 5.33, 16.55, 0.21, "gorge-rim"],
+  ["palmtree_3", 2447.3, -32.39, null, 1.26, 14.08, 0.27, "gorge-rim"],
+  ["palmtree_3", 2440.67, 144.46, null, 4.822, 14.18, 0.28, "gorge-rim"],
+  ["palmtree_2", 2379.45, 27.17, null, 0.534, 12.74, 0.31, "gorge-rim"],
+  ["palmtree_1", 2338.34, -41.82, null, 1.364, 14.89, 0.26, "gorge-rim"],
+  ["palmtree_1", 2361.98, -37.03, null, 4.321, 18.55, 0.32, "gorge-rim"],
+  ["slimtree", 2338.01, 97.9, null, 5.451, 12.97, 0.33, "gorge-rim"],
+  ["slimtree", 2343.99, 149.27, null, 3.861, 15.69, 0.4, "gorge-rim"],
+  ["palmtree_2", 2429.87, -45.75, null, 5.062, 12.63, 0.31, "gorge-rim"],
+  ["slimtree", 2447.68, -15.19, null, 1.613, 14.43, 0.37, "gorge-rim"],
+  ["coconutpalmtree_4", 2323.97, 62.88, null, 3.255, 11.96, 0.25, "gorge-rim"],
+  ["coconutpalmtree_3", 2351.43, 90.25, null, 5.252, 13.77, 0.35, "gorge-rim"],
+  ["palmtree_2", 2373.5, 68.26, null, 0.421, 12.38, 0.3, "gorge-rim"],
+  ["coconutpalmtree_2", 2434.16, 151.48, null, 4.537, 14.23, 0.45, "gorge-rim"],
+  ["coconutpalmtree", 2357.85, 19.84, null, 4.772, 15.55, 0.31, "gorge-rim"],
+  ["coconutpalmtree_2", 2372.82, -24.36, null, 5.049, 14.73, 0.47, "gorge-rim"],
+  ["monsteraplant", 2456.52, 200.8, null, 4.453, 1.9, 0, "big-fall"],
+  ["bananaplant_1", 2475.98, 258.25, null, 2.183, 4.28, 0.22, "big-fall"],
+  ["fernplant", 2469.58, 201.61, null, 4.912, 1.22, 0, "big-fall"],
+  ["monsteraplant_1", 2497.82, 235.06, null, 2.07, 1.92, 0, "big-fall"],
+  ["fernplant", 2491.99, 198.86, null, 0.849, 1.48, 0, "big-fall"],
+  ["fanpalmshrub", 2495.37, 205.96, null, 4.114, 1.98, 0, "big-fall"],
+  ["bananaplant", 2435.93, 241.39, null, 4.738, 4.03, 0.28, "big-fall"],
+  ["monsteraplant", 2486.95, 221.55, null, 2.568, 1.93, 0, "big-fall"],
+  ["fernplant_1", 2480.01, 189.81, null, 5.716, 1.49, 0, "big-fall"],
+  ["fernplant", 2462.92, 201.27, null, 2.4, 1.25, 0, "big-fall"],
+  ["fernplant", 2452.62, 191.12, null, 1.318, 1.42, 0, "big-fall"],
+  ["palmplant", 2494.79, 240.36, null, 5.672, 2.12, 0, "big-fall"],
+  ["monsteraplant_1", 2471.79, 188.25, null, 4.677, 2.16, 0, "big-fall"],
+  ["monsteraplant", 2442.15, 199.14, null, 4.928, 2, 0, "big-fall"],
+  ["palmplant", 2424.92, 216.77, null, 1.234, 1.98, 0, "big-fall"],
+  ["palmplant", 2486.55, 198.21, null, 0.752, 2.06, 0, "big-fall"],
+  ["fernclump", 2451.93, 201.71, null, 4.944, 1.16, 0, "big-fall"],
+  ["fernplant_1", 2479.92, 208.69, null, 5.51, 1.45, 0, "big-fall"],
+  ["bananaplant_1", 2496.1, 227.01, null, 1.154, 4.51, 0.23, "big-fall"],
+  ["bananaplant_1", 2437.59, 207.82, null, 1.961, 3.63, 0.18, "big-fall"],
+  ["bananaplant_2", 2443.58, 212.7, null, 3.423, 3.45, 0.79, "big-fall"],
+  ["fernplant", 2464.81, 192.53, null, 5.935, 1.29, 0, "big-fall"],
+  ["fernplant", 2445.28, 199.8, null, 4.867, 1.29, 0, "big-fall"],
+  ["fernplant", 2434.74, 232.88, null, 1.574, 1.13, 0, "big-fall"],
+  ["fernplant_1", 2500.69, 213.85, null, 3.433, 1.48, 0, "big-fall"],
+  ["bananaplant_1", 2460.02, 244.37, null, 3.7, 4.32, 0.22, "big-fall"],
+  ["fanpalmshrub", 2436.69, 246.15, null, 4.003, 1.94, 0, "big-fall"],
+  ["monsteraplant_1", 2439.14, 200.53, null, 4.434, 2.19, 0, "big-fall"],
+  ["giantbuttress-roottree", 2437.15, 167.4, null, 3.675, 29.07, 2.6, "big-fall-top"],
+  ["slimtree", 2407.85, 237.82, null, 5.42, 12.98, 0.33, "big-fall-top"],
+  ["coconutpalmtree_3", 2469.89, 289.72, null, 3.972, 10.82, 0.27, "big-fall-top"],
+  ["talltree", 2481.73, 174.56, null, 5.598, 17.53, 0.22, "big-fall-top"],
+  ["foresttree", 2488.71, 284.96, null, 3.434, 17.5, 2.6, "big-fall-top"],
+  ["palmtree_3", 2492.61, 178.97, null, 0.21, 11.25, 0.22, "big-fall-top"],
+  ["giantbuttress-roottree", 2443.43, 266.7, null, 5.761, 36.19, 2.6, "big-fall-top"],
+  ["buttress-roottree", 2466.7, 262.91, null, 1.035, 19.81, 2.6, "big-fall-top"],
+  ["palmtree_2", 2415.68, 246.29, null, 0.849, 15.94, 0.39, "big-fall-top"],
+  ["palmtree", 2461.63, 172.95, null, 5.24, 17.89, 0.31, "big-fall-top"],
+  ["coconutpalmtree_2", 2512.02, 200.23, null, 4.098, 11.55, 0.37, "big-fall-top"],
+  ["palmtree_2", 2413.75, 267.34, null, 0.651, 12.28, 0.3, "big-fall-top"],
+  ["giantbuttress-roottree", 2424.28, 270.59, null, 6.178, 28.68, 2.6, "big-fall-top"],
+  ["foresttree", 2455.46, 287.36, null, 5.836, 21.82, 2.6, "big-fall-top"],
+  ["giantbuttress-roottree", 2512.33, 180.92, null, 4.855, 29.92, 2.6, "big-fall-top"],
+  ["tree", 2491.44, 254.23, null, 0.529, 26.62, 2.04, "big-fall-top"],
+  ["coconutpalmtree_1", 2508.25, 167.73, null, 3.939, 14.7, 0.39, "big-fall-top"],
+  ["coconutpalmtree_3", 2502.3, 187.75, null, 0.552, 11.55, 0.29, "big-fall-top"],
+  ["rock-granite-2", 2442, 214, null, 1.788, 2.2, 0, "flat"],
+  ["rock-granite-2", 2446, 236, null, 1.962, 2.6, 0, "flat"],
+  ["rock-granite-0", 2436, 220, null, 6.003, 1.6, 0, "flat"],
+  ["rock-granite-1", 2438, 230, null, 0.778, 1.8, 0, "flat"],
+  ["rock-granite-2", 2450, 214, null, 0.493, 1.4, 0, "flat"],
+  ["rock-granite-2", 2363.39, 222.63, null, 0.35, 1.32, 0.55, "rock"],
+  ["rock-granite-0", 2399.79, 226.18, null, 1.165, 3.67, 1.54, "rock"],
+  ["rock-granite-2", 2341.91, 218.92, null, 4.582, 2.35, 0.99, "rock"],
+  ["rock-granite-0", 2403.57, 223.73, null, 5.1, 3.01, 1.26, "rock"],
+  ["rock-granite-2", 2367.9, 223.84, null, 0.635, 2.38, 1, "rock"],
+  ["rock-granite-1", 2358.59, 222.41, null, 4.628, 2.97, 1.25, "rock"],
+  ["rock-granite-0", 2345.4, 219.48, null, 3.051, 1.48, 0.62, "rock"],
+  ["rock-granite-2", 2412.54, 227.28, null, 6.195, 1.37, 0.57, "rock"],
+  ["rock-granite-1", 2428, 227.39, null, 4.085, 2.84, 1.19, "rock"],
+  ["rock-granite-0", 2368.47, 219.84, null, 0.584, 2.08, 0.87, "rock"],
+  ["rock-granite-1", 2353.67, 218.42, null, 4.302, 1.94, 0.81, "rock"],
+  ["rock-granite-1", 2425.56, 225.26, null, 0.687, 2.97, 1.25, "rock"],
+  ["rock-granite-1", 2416.39, 220.44, null, 4.436, 1.82, 0.76, "rock"],
+  ["rock-granite-1", 2417.94, 222.16, null, 2.948, 2.22, 0.93, "rock"],
+  ["rock-granite-0", 2420.34, 228.08, null, 0.759, 1.84, 0.77, "rock"],
+  ["rock-granite-2", 2407.87, 225.31, null, 2.988, 3.32, 1.39, "rock"],
+  ["rock-granite-1", 2412.8, 224.82, null, 1.753, 1.97, 0.83, "rock"],
+  ["palmtree_4", 2368.59, 237.49, null, 1.636, 15.83, 0.45, "bridge-ends"],
+  ["coconutpalmtree", 2373.61, 203.52, null, 5.205, 16.05, 0.32, "bridge-ends"],
+  ["palmtree_5", 2373.84, 224.92, null, 0.132, 13.27, 0.23, "bridge-ends"],
+  ["palmtree_4", 2363.95, 239.01, null, 5.223, 15.1, 0.43, "bridge-ends"],
+  ["palmtree_4", 2367.83, 215.16, null, 4.897, 16.7, 0.47, "bridge-ends"],
+  ["coconutpalmtree_3", 2404.13, 246.08, null, 4.262, 11.42, 0.29, "bridge-ends"],
+  ["coconutpalmtree", 2394.33, 194.27, null, 4.143, 14.93, 0.29, "bridge-ends"],
+  ["fernplant_1", 2394.65, 229.41, null, 4.801, 1.59, 0, "bridge-ends"],
+  ["palmplant", 2398.55, 211.22, null, 0.403, 2.08, 0, "bridge-ends"],
+  ["coconutpalmtree_3", 2363.55, 233.66, null, 3.217, 10.73, 0.27, "bridge-ends"],
+  ["palmplant", 2398.59, 215.32, null, 0.891, 1.9, 0, "bridge-ends"],
+  ["coconutpalmtree_1", 2379.91, 198.27, null, 4.859, 14.48, 0.39, "bridge-ends"],
+  ["coconutpalmtree_1", 2388.49, 245.67, null, 2.212, 15.68, 0.42, "bridge-ends"],
+  ["fernplant_1", 2379.62, 236.23, null, 1.996, 1.55, 0, "bridge-ends"],
+  ["coconutpalmtree_1", 2409.52, 217.77, null, 4.447, 15.54, 0.41, "bridge-ends"],
+  ["coconutpalmtree_1", 2398.62, 235.92, null, 2.951, 13.03, 0.35, "bridge-ends"],
+  ["fernplant", 2372.26, 325.63, null, 4.358, 1.48, 0, "falls-pool"],
+  ["fernclump", 2347.71, 304.97, null, 4.876, 0.98, 0, "falls-pool"],
+  ["monsteraplant", 2362.07, 310.1, null, 6.041, 1.58, 0, "falls-pool"],
+  ["monsteraplant", 2367.8, 309.08, null, 0.95, 1.61, 0, "falls-pool"],
+  ["monsteraplant_2", 2367.57, 338.91, null, 2.657, 1.82, 0, "falls-pool"],
+  ["fernclump", 2323.38, 327.37, null, 0.134, 1.26, 0, "falls-pool"],
+  ["fernclump", 2326.74, 331.26, null, 1.33, 1.17, 0, "falls-pool"],
+  ["fernplant", 2368.71, 333.66, null, 1.481, 1.32, 0, "falls-pool"],
+  ["fernplant_1", 2326.23, 335.76, null, 5.614, 1.2, 0, "falls-pool"],
+  ["monsteraplant", 2347.52, 351.1, null, 5.404, 1.69, 0, "falls-pool"],
+  ["fernclump", 2334.42, 304.81, null, 1.161, 1.12, 0, "falls-pool"],
+  ["fernplant_1", 2328.25, 319.72, null, 3.682, 1.46, 0, "falls-pool"],
+  ["fernplant_1", 2373.01, 311.98, null, 5.164, 1.58, 0, "falls-pool"],
+  ["fernplant", 2353.28, 310.36, null, 5.611, 1.34, 0, "falls-pool"],
+  ["palmtree_5", 2270, 376, null, 2.909, 12, 0.21, "overlook"],
+  ["coconutpalmtree_1", 2232, 378, null, 5.105, 13, 0.35, "overlook"],
+  ["fernplant_1", 2243.96, 384.64, null, 3.752, 1.41, 0, "overlook"],
+  ["fernplant", 2239.2, 392.51, null, 4.873, 1.18, 0, "overlook"],
+  ["roundshrub", 2256.14, 392.45, null, 0.107, 1.67, 0.65, "overlook"],
+  ["fernclump", 2253.52, 393.82, null, 6.279, 1.11, 0, "overlook"],
+  ["fernclump", 2248.78, 390.63, null, 5.197, 1.1, 0, "overlook"],
+  ["roundshrub", 2240.32, 380.54, null, 0.839, 1.79, 0.7, "overlook"],
+  ["fernplant", 2246.01, 379.14, null, 2.13, 1.29, 0, "overlook"],
+  ["fernplant", 2247.32, 396.82, null, 1.48, 1.49, 0, "overlook"],
+  ["fernplant_1", 2249.54, 384.92, null, 3.628, 1.47, 0, "overlook"],
+  ["roundshrub", 2238.12, 390.21, null, 5.584, 1.46, 0.57, "overlook"],
+  ["fanpalmshrub", 2188.98, 385.26, null, 5.843, 1.72, 0, "garden"],
+  ["roundleafyshrub", 2183.01, 425.31, null, 5.849, 1.48, 0.59, "garden"],
+  ["bananaplant", 2134.34, 403.21, null, 0.669, 4.38, 0.3, "garden"],
+  ["monsteraplant_1", 2140.1, 391.64, null, 0.261, 2.37, 0, "garden"],
+  ["fernclump", 2127.25, 397.45, null, 3.255, 0.97, 0, "garden"],
+  ["bananaplant_2", 2157.63, 431.29, null, 3.152, 3.85, 0.88, "garden"],
+  ["bananaplant_2", 2188.09, 394.73, null, 1.213, 4.31, 0.98, "garden"],
+  ["monsteraplant", 2135.35, 379.85, null, 2.726, 1.92, 0, "garden"],
+  ["monsteraplant_2", 2191.38, 411.39, null, 4.352, 2.21, 0, "garden"],
+  ["bananaplant", 2194.48, 400.54, null, 0.645, 5.15, 0.35, "garden"],
+  ["bananaplant", 2162.48, 377.11, null, 0.176, 5.01, 0.34, "garden"],
+  ["bananaplant_2", 2175.36, 390.93, null, 0.538, 4.06, 0.93, "garden"],
+  ["bananaplant_1", 2188.04, 421.28, null, 3.114, 4.5, 0.23, "garden"],
+  ["fernplant", 2184.61, 372.85, null, 0.822, 1.21, 0, "garden"],
+  ["roundleafyshrub", 2166.87, 422.5, null, 0.839, 1.56, 0.62, "garden"],
+  ["bananaplant_1", 2199.05, 416.07, null, 1.981, 3.66, 0.18, "garden"],
+  ["fanpalmshrub", 2136.86, 398.62, null, 1.502, 2.12, 0, "garden"],
+  ["bananaplant_2", 2154.47, 382.65, null, 0.831, 3.62, 0.82, "garden"],
+  ["bananaplant", 2182.7, 427.74, null, 1.736, 4.08, 0.28, "garden"],
+  ["roundshrub", 2172.71, 424.28, null, 0.284, 1.56, 0.61, "garden"],
+  ["palmplant", 2162.56, 424.4, null, 2.515, 2.09, 0, "garden"],
+  ["monsteraplant", 2129.31, 399.61, null, 4.568, 1.94, 0, "garden"],
+  ["roundshrub", 2180.49, 426.84, null, 3.479, 1.47, 0.57, "garden"],
+  ["bananaplant", 2132.71, 393.45, null, 1.347, 4.75, 0.32, "garden"],
+  ["fernclump", 2149.62, 381.6, null, 4.547, 1.09, 0, "garden"],
+  ["palmplant", 2165.52, 420.37, null, 2.388, 1.93, 0, "garden"],
+  ["roundleafyshrub", 2192.68, 391.23, null, 0.775, 1.56, 0.62, "garden"],
+  ["fernplant_1", 2138.45, 402.98, null, 3.428, 1.6, 0, "garden"],
+  ["fernclump", 2136.69, 386.92, null, 5.878, 1.23, 0, "garden"],
+  ["monsteraplant_2", 2186.28, 429.23, null, 0.714, 1.71, 0, "garden"],
+  ["rock-mossy-2", 2152, 392, null, 2.474, 1.4, 0.59, "rock"],
+  ["rock-mossy-0", 2142, 404, null, 1.885, 1.1, 0.46, "rock"],
+  ["rock-mossy-1", 2174, 414, null, 3.612, 1.6, 0.67, "rock"],
+  ["rock-mossy-0", 2160, 386, null, 0.858, 0.9, 0.38, "rock"],
+  ["buttressedtree", 2054.99, -14.06, null, 2.765, 22.35, 2.6, "woods"],
+  ["palmtree_1", 1900.09, -27.48, null, 2.342, 15.8, 0.28, "woods"],
+  ["slimtree", 2182.65, -166.98, null, 2.061, 13.25, 0.34, "woods"],
+  ["tree", 1974.99, 119.71, null, 3.175, 28.69, 2.19, "woods"],
+  ["buttress-roottree", 2094.09, -135.12, null, 5.117, 18.78, 2.6, "woods"],
+  ["buttress-roottree", 1927.15, -46.89, null, 2.881, 23.43, 2.6, "woods"],
+  ["palmtree_6", 2229.39, -59.9, null, 1.938, 10.97, 0.21, "woods"],
+  ["palmtree_1", 1983.76, -149.09, null, 2.241, 16.89, 0.29, "woods"],
+  ["palmtree_8", 1936.98, -152.13, null, 1.197, 12.36, 0.21, "woods"],
+  ["palmtree_1", 2171.97, -87.54, null, 1.315, 16.59, 0.29, "woods"],
+  ["foresttree", 2143.25, -84.5, null, 2.56, 22.2, 2.6, "woods"],
+  ["palmtree", 2229.08, 51.18, null, 4.843, 19.24, 0.33, "woods"],
+  ["palmtree_7", 2262.27, -33.25, null, 3.845, 12.45, 0.22, "woods"],
+  ["talltree", 2105.57, -115, null, 4.552, 17.24, 0.22, "woods"],
+  ["palmtree_1", 2060.04, 48.25, null, 5.045, 15.67, 0.27, "woods"],
+  ["slimtree", 1936.68, -74.24, null, 4.604, 12.15, 0.31, "woods"],
+  ["palmtree", 1988.14, 96, null, 3.056, 18.37, 0.31, "woods"],
+  ["palmtree", 1921.63, 104.29, null, 2.234, 18.63, 0.32, "woods"],
+  ["slimtree", 1919.21, -170.98, null, 2.281, 14.79, 0.38, "woods"],
+  ["giantbuttress-roottree", 2298.5, 13.76, null, 5.156, 35.96, 2.6, "woods"],
+  ["foresttree", 2048.51, -151.48, null, 3.855, 22.38, 2.6, "woods"],
+  ["foresttree", 1943.97, 105.64, null, 4.43, 21.67, 2.6, "woods"],
+  ["buttress-roottree", 1970.13, 97.85, null, 1.889, 22.48, 2.6, "woods"],
+  ["palmtree_8", 1986.47, 18.46, null, 5.3, 12.11, 0.21, "woods"],
+  ["giantbuttress-roottree", 2063.46, 35.96, null, 3.716, 30.82, 2.6, "woods"],
+  ["palmtree", 2279.56, -135.47, null, 3.993, 15.82, 0.27, "woods"],
+  ["buttressedtree", 2119.27, -162.8, null, 0.025, 28.66, 2.6, "woods"],
+  ["giantbuttress-roottree", 2148.24, 58.26, null, 4.839, 36.64, 2.6, "woods"],
+  ["palmtree", 2206.84, 44.05, null, 5.491, 20.37, 0.35, "woods"],
+  ["buttress-roottree", 1968.85, -118.83, null, 4.221, 19.17, 2.6, "woods"],
+  ["palmtree_7", 2234.44, -75.94, null, 0.659, 12.35, 0.21, "woods"],
+  ["palmtree_7", 1968.95, 75.59, null, 4.781, 13.68, 0.24, "woods"],
+  ["slimtree", 2070.56, -145.85, null, 3.834, 12.58, 0.32, "woods"],
+  ["tree", 1896.61, -84.81, null, 4.687, 29.14, 2.23, "woods"],
+  ["tree", 2250.41, -59.52, null, 2.149, 24.46, 1.87, "woods"],
+  ["slimtree", 2282.92, 39.15, null, 0.672, 15.68, 0.4, "woods"],
+  ["palmtree_1", 2085.63, -172.23, null, 5.471, 17.48, 0.3, "woods"],
+  ["foresttree", 2236.39, -116.35, null, 0.314, 21.71, 2.6, "woods"],
+  ["foresttree", 2234.03, 18.34, null, 5.195, 21.01, 2.6, "woods"],
+  ["talltree", 2296.19, -58.3, null, 0.436, 16.99, 0.21, "woods"],
+  ["palmtree", 2131.66, 18.8, null, 2.808, 18.76, 0.32, "woods"],
+  ["giantbuttress-roottree", 1990.3, -127.53, null, 0.523, 32.83, 2.6, "woods"],
+  ["palmtree_8", 1904.2, 37.35, null, 0.058, 11.88, 0.21, "woods"],
+  ["tree", 2296.11, -140.96, null, 1.945, 27.74, 2.12, "woods"],
+  ["palmtree", 2192.16, -34.42, null, 5.439, 18.96, 0.32, "woods"],
+  ["palmtree_6", 2247.28, -15.68, null, 4.256, 11.57, 0.22, "woods"],
+  ["palmtree_1", 2155.44, -56.71, null, 3.501, 16.04, 0.28, "woods"],
+  ["palmtree_7", 2250.81, 34.48, null, 5.712, 13.32, 0.23, "woods"],
+  ["foresttree", 1975.69, -161.25, null, 2.915, 18.89, 2.6, "woods"],
+  ["slimtree", 2260.15, -157.89, null, 1.65, 15.68, 0.4, "woods"],
+  ["palmtree", 2128.3, 36.9, null, 4.804, 17.95, 0.31, "woods"],
+  ["palmtree_7", 2071.55, -163.28, null, 2.991, 12.92, 0.22, "woods"],
+  ["slimtree", 2189.35, -11.95, null, 0.974, 13.31, 0.34, "woods"],
+  ["talltree", 2173.59, -132.79, null, 4.131, 18.14, 0.23, "woods"],
+  ["buttress-roottree", 2179.79, 20.45, null, 4.785, 24.97, 2.6, "woods"],
+  ["buttress-roottree", 2169.64, -103.86, null, 1.189, 23.21, 2.6, "woods"],
+  ["slimtree", 2265.17, -96.2, null, 1.644, 12.97, 0.33, "woods"],
+  ["tree", 2160.3, -157.04, null, 1.751, 23.98, 1.83, "woods"],
+  ["slimtree", 2122.76, 58.67, null, 0.071, 12.46, 0.32, "woods"],
+  ["giantbuttress-roottree", 1910.14, -39.01, null, 1.635, 34.76, 2.6, "woods"],
+  ["tree", 1922.14, -30.74, null, 5.32, 24.21, 1.85, "woods"],
+  ["tree", 2276.14, -19.64, null, 4.795, 28.34, 2.17, "woods"],
+  ["giantbuttress-roottree", 2156.45, 9.18, null, 3.845, 35.83, 2.6, "woods"],
+  ["palmtree_6", 2183.76, -117.8, null, 3.707, 10.61, 0.2, "woods"],
+  ["tree", 2229.03, -139.33, null, 4.739, 28.04, 2.14, "woods"],
+  ["buttressedtree", 1957.39, -170.62, null, 4.186, 21.46, 2.6, "woods"],
+  ["palmtree_1", 2103.23, -166.89, null, 5.045, 16.04, 0.28, "woods"],
+  ["palmtree_1", 2035.9, 39.89, null, 0.727, 19.01, 0.33, "woods"],
+  ["palmtree_8", 2273.34, 61.52, null, 3.259, 10.91, 0.19, "woods"],
+  ["slimtree", 2019.13, -166.35, null, 6.27, 15.77, 0.4, "woods"],
+  ["palmtree_6", 2243.1, -153.57, null, 1.483, 12.26, 0.23, "woods"],
+  ["giantbuttress-roottree", 2199.42, -88.46, null, 0.841, 28.49, 2.6, "woods"],
+  ["palmtree_1", 2070.22, 2.24, null, 0.063, 15.68, 0.27, "woods"],
+  ["palmtree_7", 2121.45, -122.52, null, 5.559, 11.81, 0.2, "woods"],
+  ["palmtree", 2229.54, -46.94, null, 2.605, 16.1, 0.28, "woods"],
+  ["palmtree_1", 2141.76, -130.62, null, 5.502, 18.61, 0.32, "woods"],
+  ["talltree", 2280.69, -33.7, null, 3.168, 15.88, 0.2, "woods"],
+  ["buttress-roottree", 2258.95, 88.64, null, 2.804, 20.87, 2.6, "woods"],
+  ["palmtree_1", 1989.81, -1.28, null, 1.662, 16.11, 0.28, "woods"],
+  ["buttressedtree", 2295.6, 38.41, null, 3.166, 27.63, 2.6, "woods"],
+  ["buttressedtree", 2172.78, -49.03, null, 3.212, 25.02, 2.6, "woods"],
+  ["foresttree", 1942.82, 92.84, null, 1.034, 20.44, 2.6, "woods"],
+  ["palmtree_8", 2191.83, -69.07, null, 5.831, 9.58, 0.17, "woods"],
+  ["giantbuttress-roottree", 2136.18, -172.37, null, 1.06, 34.23, 2.6, "woods"],
+  ["palmtree_6", 2126.03, -4.15, null, 4.336, 11.5, 0.22, "woods"],
+  ["palmtree_6", 2275.62, -163.76, null, 4.169, 12.63, 0.24, "woods"],
+  ["buttressedtree", 2204.52, -56.82, null, 1.355, 27.32, 2.6, "woods"],
+  ["palmtree_7", 2168.6, 67.45, null, 5.577, 13.3, 0.23, "woods"],
+  ["giantbuttress-roottree", 2257.22, 22.23, null, 3.683, 34.36, 2.6, "woods"],
+  ["palmtree", 1956.92, -53.1, null, 4.365, 16.63, 0.28, "woods"],
+  ["palmtree", 2205.77, -101.16, null, 4.052, 15.53, 0.27, "woods"],
+  ["palmtree_7", 2049.72, 22.12, null, 5.107, 11.49, 0.2, "woods"],
+  ["giantbuttress-roottree", 2218.02, -76.36, null, 4.571, 33.02, 2.6, "woods"],
+  ["buttress-roottree", 2273.56, -109.65, null, 1.996, 19.56, 2.6, "woods"],
+  ["buttress-roottree", 2279.55, -58.49, null, 4.671, 22.96, 2.6, "woods"],
+  ["giantbuttress-roottree", 1900.79, -131, null, 1.201, 31.65, 2.6, "woods"],
+  ["slimtree", 2265.55, -1.4, null, 4.101, 14.4, 0.37, "woods"],
+  ["palmtree", 1891.28, 59.85, null, 4.306, 15.71, 0.27, "woods"],
+  ["foresttree", 2213.05, 18.44, null, 5.65, 22.73, 2.6, "woods"],
+  ["palmtree_8", 1895.18, 5.11, null, 2.674, 10.55, 0.18, "woods"],
+  ["buttress-roottree", 1938.53, -165.8, null, 5.874, 22.9, 2.6, "woods"],
+  ["buttressedtree", 2085.41, -148.82, null, 2.192, 23.18, 2.6, "woods"],
+  ["palmtree_7", 1943.82, 118.08, null, 4.908, 11.89, 0.21, "woods"],
+  ["tree", 2266.89, -121.48, null, 5.31, 28.01, 2.14, "woods"],
+  ["palmtree_6", 1944.72, 60.53, null, 2.166, 9.35, 0.18, "woods"],
+  ["talltree", 1961.73, 62.99, null, 0.309, 19.95, 0.25, "woods"],
+  ["palmtree_7", 2227.95, -0.95, null, 0.41, 12.91, 0.22, "woods"],
+  ["palmtree_7", 1958.32, -37.34, null, 6.083, 11.9, 0.21, "woods"],
+  ["slimtree", 2133.51, 48.69, null, 1.204, 15.16, 0.39, "woods"],
+  ["buttressedtree", 2258.29, -44.89, null, 0.832, 22.97, 2.6, "woods"],
+  ["palmtree_8", 2232.61, -164.53, null, 3.063, 10.66, 0.18, "woods"],
+  ["giantbuttress-roottree", 2252.27, -171.88, null, 4.101, 27.94, 2.6, "woods"],
+  ["talltree", 1983.05, 107.47, null, 5.611, 16.05, 0.2, "woods"],
+  ["tree", 1899.93, 105.83, null, 2.199, 27.31, 2.09, "woods"],
+  ["palmtree_1", 2240.78, -41.11, null, 2.41, 16.3, 0.28, "woods"],
+  ["tree", 2046.46, 46.84, null, 2.717, 29.58, 2.26, "woods"],
+  ["giantbuttress-roottree", 1948.16, -22.84, null, 2.777, 32.25, 2.6, "woods"],
+  ["palmtree_6", 1912.22, -62.45, null, 2.821, 11.42, 0.21, "woods"],
+  ["buttress-roottree", 1920.2, -104.79, null, 4.648, 21.22, 2.6, "woods"],
+  ["slimtree", 2224.54, -102.54, null, 1.047, 12.03, 0.31, "woods"],
+  ["palmtree", 2191.47, -51.95, null, 4.966, 16.83, 0.29, "woods"],
+  ["slimtree", 2172.84, -33.27, null, 6.036, 13.46, 0.34, "woods"],
+  ["foresttree", 2199.21, -158.55, null, 4.537, 17.44, 2.6, "woods"],
+  ["palmtree_7", 2289.12, 3.94, null, 1.885, 12.62, 0.22, "woods"],
+  ["palmtree_1", 2003.33, -24.43, null, 2.106, 15.92, 0.28, "woods"],
+  ["buttressedtree", 1902.25, 68.12, null, 0.293, 27.34, 2.6, "woods"],
+  ["buttress-roottree", 2147.78, 44.89, null, 5.118, 23.93, 2.6, "woods"],
+  ["palmtree_1", 1930.61, -141.08, null, 6.109, 18.97, 0.33, "woods"],
+  ["buttress-roottree", 1954.04, -95.45, null, 1.601, 23.41, 2.6, "woods"],
+  ["palmtree_6", 1995.78, -141.05, null, 1.912, 11.36, 0.21, "woods"],
+  ["talltree", 1923.58, -77.1, null, 4.432, 17.65, 0.22, "woods"],
+  ["giantbuttress-roottree", 2153.53, -75.33, null, 5.49, 33.2, 2.6, "woods"],
+  ["foresttree", 1929.34, -119.12, null, 5.068, 19.01, 2.6, "woods"],
+  ["tree", 2264.54, 47.86, null, 5.198, 29.14, 2.23, "woods"],
+  ["palmtree_8", 2112.62, -42.46, null, 5.597, 11.49, 0.2, "woods"],
+  ["palmtree", 1952.61, -113.63, null, 2.318, 16.85, 0.29, "woods"],
+  ["buttress-roottree", 2216.6, -124.84, null, 3.004, 19.95, 2.6, "woods"],
+  ["palmtree_7", 1939.62, -91.41, null, 3.148, 11.69, 0.2, "woods"],
+  ["talltree", 2238.7, -129.54, null, 3.399, 16.92, 0.21, "woods"],
+  ["giantbuttress-roottree", 2273.87, -76.54, null, 5.639, 29.47, 2.6, "woods"],
+  ["foresttree", 2037.94, 56.13, null, 2.588, 19.25, 2.6, "woods"],
+  ["palmtree_1", 1944.54, -142.2, null, 2.015, 18.69, 0.33, "woods"],
+  ["palmtree", 1908.64, -148.78, null, 5.629, 16.9, 0.29, "woods"],
+  ["palmtree_1", 1989.02, -167.33, null, 5.064, 19.46, 0.34, "woods"],
+  ["palmtree_1", 2241.94, -97.38, null, 3.78, 17.83, 0.31, "woods"],
+  ["palmtree_6", 2003.36, 107.92, null, 3.599, 10.04, 0.19, "woods"],
+  ["talltree", 2265.07, -60.25, null, 4.779, 15.56, 0.2, "woods"],
+  ["tree", 2189.78, 46.27, null, 2.619, 24.55, 1.88, "woods"],
+  ["giantbuttress-roottree", 1916.79, -131.47, null, 2.902, 29.95, 2.6, "woods"],
+  ["buttress-roottree", 2251.42, -76.05, null, 0.744, 23.91, 2.6, "woods"],
+  ["buttress-roottree", 1950.56, -83.47, null, 0.925, 23.13, 2.6, "woods"],
+  ["palmtree_7", 1897.69, 49.57, null, 5.105, 10.9, 0.19, "woods"],
+  ["buttress-roottree", 2209.39, -16.19, null, 0.151, 20.16, 2.6, "woods"],
+  ["palmtree_6", 2118.72, 19.65, null, 4.989, 10.23, 0.19, "woods"],
+  ["palmtree_6", 2178.77, 40.8, null, 2.529, 11.25, 0.21, "woods"],
+  ["talltree", 2082.88, -129.73, null, 0.129, 16.56, 0.21, "woods"],
+  ["buttressedtree", 2250.09, -141.66, null, 4.483, 21.61, 2.6, "woods"],
+  ["palmtree_1", 2127.57, -76.32, null, 1.615, 17.15, 0.3, "woods"],
+  ["palmtree_8", 1922.65, -90.34, null, 1.701, 12.44, 0.22, "woods"],
+  ["slimtree", 2199.57, 19.57, null, 1.717, 15.93, 0.41, "woods"],
+  ["talltree", 2149.49, -140.02, null, 4.061, 19.35, 0.24, "woods"],
+  ["palmtree_7", 1947.67, 77.08, null, 3.843, 11.39, 0.2, "woods"],
+  ["palmtree_1", 1956.96, 91.54, null, 3.005, 17.18, 0.3, "woods"],
+  ["foresttree", 2151.78, -167.63, null, 4.847, 21.18, 2.6, "woods"],
+  ["palmtree_1", 1908.68, -75.86, null, 2.694, 16.97, 0.3, "woods"],
+  ["slimtree", 2152.12, -93.14, null, 1.327, 13.36, 0.34, "woods"],
+  ["tree", 2240.52, 4.15, null, 2.061, 27, 2.06, "woods"],
+  ["buttressedtree", 2224.04, 67.32, null, 1.197, 26.58, 2.6, "woods"],
+  ["foresttree", 2160.21, -12.79, null, 1.169, 22.66, 2.6, "woods"],
+  ["slimtree", 2170.9, -169.85, null, 1.843, 12.9, 0.33, "woods"],
+  ["talltree", 2206.97, 91, null, 5.609, 17.58, 0.22, "woods"],
+  ["palmtree_7", 2293.4, -123.1, null, 4.874, 10.39, 0.18, "woods"],
+  ["slimtree", 1897.8, 79.68, null, 1.195, 13.06, 0.33, "woods"],
+  ["giantbuttress-roottree", 2098.79, -50.14, null, 6.227, 31.93, 2.6, "woods"],
+  ["tree", 1962.86, -107.24, null, 1.961, 29.04, 2.22, "woods"],
+  ["giantbuttress-roottree", 2172.77, -10.9, null, 2.723, 35.2, 2.6, "woods"],
+  ["palmtree", 2052.78, 0.38, null, 0.635, 16.01, 0.27, "woods"],
+  ["tree", 2157.68, 32.23, null, 4.569, 25.78, 1.97, "woods"],
+  ["palmtree", 1926.99, -6.27, null, 1.484, 16.21, 0.28, "woods"],
+  ["talltree", 2066.71, 22.7, null, 1.979, 19.16, 0.24, "woods"],
+  ["palmtree_7", 2221.64, 34.4, null, 2.708, 12.9, 0.22, "woods"],
+  ["foresttree", 2295.31, -72.62, null, 2.653, 22.09, 2.6, "woods"],
+  ["buttress-roottree", 1933.33, 69.69, null, 3.83, 18.92, 2.6, "woods"],
+  ["buttress-roottree", 2058.25, 12.77, null, 6.035, 19.2, 2.6, "woods"],
+  ["palmtree", 2230.93, 88.95, null, 4.98, 19.81, 0.34, "woods"],
+  ["foresttree", 2257.36, -107.43, null, 1.479, 22.71, 2.6, "woods"],
+  ["palmtree_7", 1962.53, -140.45, null, 4.212, 11.61, 0.2, "woods"],
+  ["palmtree_1", 2215.9, -45.64, null, 2.553, 15.1, 0.26, "woods"],
+  ["palmtree_7", 1982.59, -61.11, null, 3.628, 11.52, 0.2, "woods"],
+  ["tree", 2129.27, -101.13, null, 4.314, 30.54, 2.33, "woods"],
+  ["palmtree_8", 2211.2, 61.44, null, 1.168, 11.2, 0.19, "woods"],
+  ["palmtree_7", 2225.72, -28.58, null, 4.203, 12.09, 0.21, "woods"],
+  ["palmtree", 1937.75, -105.33, null, 5.546, 16.04, 0.27, "woods"],
+  ["palmtree_6", 2049.65, 60.42, null, 2.13, 10.16, 0.19, "woods"],
+  ["palmtree_1", 1985.87, -15.82, null, 3.134, 19.02, 0.33, "woods"],
+  ["palmtree_7", 2145.86, -14.85, null, 4.549, 10.49, 0.18, "woods"],
+  ["palmtree_7", 2171.11, -67.42, null, 4.003, 12.88, 0.22, "woods"],
+  ["palmtree_7", 2242.82, 47.25, null, 3.166, 13.03, 0.23, "woods"],
+  ["foresttree", 1928.03, -64.67, null, 2.395, 20.79, 2.6, "woods"],
+  ["palmtree_8", 2268.14, 29.7, null, 2.404, 12.54, 0.22, "woods"],
+  ["palmtree", 2105.7, -63.35, null, 5.122, 17.78, 0.3, "woods"],
+  ["buttressedtree", 1939.07, -42.68, null, 4.689, 21.94, 2.6, "woods"],
+  ["slimtree", 2012.25, -152.05, null, 0.603, 12.87, 0.33, "woods"],
+  ["giantbuttress-roottree", 2138.58, -69.75, null, 3.77, 28.29, 2.6, "woods"],
+  ["palmtree_1", 2299.63, 65.45, null, 5.792, 16.89, 0.29, "woods"],
+  ["buttressedtree", 2172.16, 85.09, null, 6.153, 25.94, 2.6, "woods"],
+  ["palmtree", 2007.27, 92.15, null, 0.722, 17.37, 0.3, "woods"],
+  ["palmtree_8", 2155.9, -30.45, null, 2.146, 9.9, 0.17, "woods"],
+  ["foresttree", 2131.1, -52.35, null, 3.779, 17.75, 2.6, "woods"],
+  ["buttressedtree", 1971.39, -30.95, null, 3.742, 28.66, 2.6, "woods"],
+  ["tree", 1991.9, 29.83, null, 4.041, 31.21, 2.39, "woods"],
+  ["palmtree_1", 2139.13, -157.36, null, 2.321, 14.72, 0.26, "woods"],
+  ["palmtree_6", 2220.71, -154.26, null, 1.014, 12.36, 0.23, "woods"],
+  ["tree", 2115.54, -16.88, null, 5.034, 30.43, 2.33, "woods"],
+  ["talltree", 1977.4, -132.22, null, 2.966, 19.78, 0.25, "woods"],
+  ["giantbuttress-roottree", 2169.09, 1.7, null, 1.521, 31.6, 2.6, "woods"],
+  ["slimtree", 1904.6, -118.26, null, 4.353, 13.58, 0.35, "woods"],
+  ["tree", 2196.81, -0.14, null, 3.829, 26, 1.99, "woods"],
+  ["palmtree", 1911.9, 111.99, null, 2.472, 19.36, 0.33, "woods"],
+  ["talltree", 1973.04, -74.1, null, 2.166, 17.5, 0.22, "woods"],
+  ["tree", 2289.6, -46.74, null, 0.047, 28.35, 2.17, "woods"],
+  ["talltree", 2136.78, 62.29, null, 5.689, 18.08, 0.23, "woods"],
+  ["giantbuttress-roottree", 2297.91, -161.22, null, 5.289, 34.76, 2.6, "woods"],
+  ["giantbuttress-roottree", 2198.69, -132.21, null, 2.246, 34.41, 2.6, "woods"],
+  ["giantbuttress-roottree", 1969.21, -62.49, null, 2.74, 35.06, 2.6, "woods"],
+  ["palmtree_6", 2275.59, 12.29, null, 4.4, 9.66, 0.18, "woods"],
+  ["buttressedtree", 2259.23, 71.39, null, 6.255, 21.91, 2.6, "woods"],
+  ["palmtree_7", 2146.85, 78.93, null, 1.523, 13.68, 0.24, "woods"],
+  ["talltree", 2014.86, -138.3, null, 4.537, 17.58, 0.22, "woods"],
+  ["palmtree_1", 2147.42, 23.47, null, 2.398, 17.82, 0.31, "woods"],
+  ["slimtree", 2240.23, 65.66, null, 0.431, 15.88, 0.41, "woods"],
+  ["buttress-roottree", 2187.59, -150.43, null, 4.935, 24.35, 2.6, "woods"],
+  ["giantbuttress-roottree", 2053.01, 72.14, null, 3.74, 31.53, 2.6, "woods"],
+  ["palmtree", 2159.74, 76.81, null, 2.338, 19.13, 0.33, "woods"],
+  ["palmtree", 2211.38, -32.29, null, 5.965, 15.34, 0.26, "woods"],
+  ["tree", 2124.56, -138.87, null, 0.247, 29.86, 2.28, "woods"],
+  ["giantbuttress-roottree", 2112.08, 80.2, null, 2.79, 28.5, 2.6, "woods"],
+  ["palmtree_7", 2145.58, -41.9, null, 1.594, 10.26, 0.18, "woods"],
+  ["palmtree_6", 2169.06, 27.66, null, 3.961, 11.54, 0.22, "woods"],
+  ["palmtree_8", 2151.82, -2.34, null, 5.046, 10.47, 0.18, "woods"],
+  ["palmtree", 1987.95, 81.4, null, 1.427, 17.13, 0.29, "woods"],
+  ["giantbuttress-roottree", 2250.19, -125.92, null, 5.655, 35.54, 2.6, "woods"],
+  ["palmtree", 2192.24, 63.89, null, 0.124, 17.85, 0.31, "woods"],
+  ["palmtree_7", 2182.79, 5.64, null, 3.524, 11.67, 0.2, "woods"],
+  ["slimtree", 2192.28, -102.21, null, 4.013, 12.67, 0.32, "woods"],
+  ["slimtree", 1915.56, 93.77, null, 4.139, 13.92, 0.36, "woods"],
+  ["foresttree", 2261, -84.86, null, 1.212, 18.38, 2.6, "woods"],
+  ["palmtree_8", 1972.04, -92.79, null, 2.111, 12.62, 0.22, "woods"],
+  ["buttressedtree", 2039.83, -34.92, null, 5.911, 21.29, 2.6, "woods"],
+  ["slimtree", 1890.35, -104.85, null, 5.535, 12.71, 0.33, "woods"],
+  ["palmtree", 2214.78, -64.43, null, 1.133, 19.71, 0.34, "woods"],
+  ["buttress-roottree", 2137.94, -143.75, null, 4.037, 19.11, 2.6, "woods"],
+  ["palmtree_1", 2292.28, 75.97, null, 5.766, 15.85, 0.28, "woods"],
+  ["palmtree_7", 1936.76, -28.71, null, 3.52, 11.08, 0.19, "woods"],
+  ["buttressedtree", 2127.02, -23.29, null, 0.842, 25.01, 2.6, "woods"],
+  ["palmtree_8", 1919.54, -157.88, null, 4.753, 10.89, 0.19, "woods"],
+  ["slimtree", 2086.84, -116.21, null, 5.293, 15.54, 0.4, "woods"],
+  ["slimtree", 2117.31, 47.74, null, 6.098, 13.83, 0.35, "woods"],
+  ["talltree", 2226.29, -14.99, null, 1.044, 19.52, 0.25, "woods"],
+  ["giantbuttress-roottree", 1911.22, -22.1, null, 4.561, 27.63, 2.6, "woods"],
+  ["palmtree_7", 2108.8, 63.34, null, 1.52, 12.52, 0.22, "woods"],
+  ["palmtree_1", 1946.22, -128.81, null, 4.944, 17.73, 0.31, "woods"],
+  ["talltree", 2287.33, -84.7, null, 2.377, 18.79, 0.24, "woods"],
+  ["talltree", 2044.53, 109.97, null, 5.808, 15.69, 0.2, "woods"],
+  ["palmtree", 2293.48, 25.25, null, 4.054, 16.91, 0.29, "woods"],
+  ["buttressedtree", 2132.46, 78.6, null, 3.76, 24.42, 2.6, "woods"],
+  ["palmtree_8", 2267.27, -172.58, null, 2.953, 9.49, 0.16, "woods"],
+  ["buttressedtree", 2132.62, -115.78, null, 3.694, 25.6, 2.6, "woods"],
+  ["buttress-roottree", 2038.78, -162.97, null, 1.526, 21.22, 2.6, "woods"],
+  ["palmtree_1", 1961.1, 115.4, null, 6.089, 18.96, 0.33, "woods"],
+  ["palmtree", 2279.81, -120.87, null, 2.032, 17.23, 0.29, "woods"],
+  ["palmtree_7", 2298.72, -19.92, null, 5.226, 11, 0.19, "woods"],
+  ["slimtree", 2001.35, -162.24, null, 2.163, 13.03, 0.33, "woods"],
+  ["foresttree", 2113.35, -97.49, null, 0.599, 18.46, 2.6, "woods"],
+  ["slimtree", 2176.37, 57.57, null, 6.096, 15, 0.38, "woods"],
+  ["buttressedtree", 1896.73, -63.72, null, 3.765, 22.82, 2.6, "woods"],
+  ["buttressedtree", 2206.36, -144.43, null, 4.287, 27.15, 2.6, "woods"],
+  ["palmtree_7", 1894.47, -44.16, null, 2.51, 10.58, 0.18, "woods"],
+  ["foresttree", 2255.61, 57.93, null, 1.278, 19.58, 2.6, "woods"],
+  ["giantbuttress-roottree", 1959.96, -156.03, null, 1.961, 32.11, 2.6, "woods"],
+  ["tree", 1974.8, -106.03, null, 1.516, 29.02, 2.22, "woods"],
+  ["buttress-roottree", 2106.21, -127.39, null, 5.548, 20.65, 2.6, "woods"],
+  ["palmtree", 2250.61, -3.04, null, 0.517, 18.56, 0.32, "woods"],
+  ["palmtree_8", 2215.84, 1.69, null, 0.16, 10.32, 0.18, "woods"],
+  ["slimtree", 2069.28, -26.21, null, 1.52, 15.58, 0.4, "woods"],
+  ["palmtree_6", 2102.82, -86.06, null, 4.951, 11.23, 0.21, "woods"],
+  ["palmtree_1", 2173.98, -148.05, null, 5.585, 18.17, 0.32, "woods"],
+  ["foresttree", 2061.92, -172.39, null, 0.594, 19.87, 2.6, "woods"],
+  ["slimtree", 2257.23, 8.71, null, 3.623, 15.07, 0.39, "woods"],
+  ["buttress-roottree", 2187.26, -136.1, null, 2.86, 24.04, 2.6, "woods"],
+  ["buttressedtree", 2164, 43.63, null, 3.371, 28.3, 2.6, "woods"],
+  ["giantbuttress-roottree", 1927.27, 58.41, null, 2.627, 33.08, 2.6, "woods"],
+  ["buttress-roottree", 2162.53, -127.74, null, 2.023, 20.47, 2.6, "woods"],
+  ["palmtree_8", 2111.16, -152.49, null, 5.118, 11.32, 0.2, "woods"],
+  ["palmtree_1", 1900, -158.03, null, 2.1, 19.17, 0.33, "woods"],
+  ["palmtree_8", 1911.87, -96.07, null, 2.571, 12.46, 0.22, "woods"],
+  ["slimtree", 2283.77, -151.7, null, 4.919, 13.27, 0.34, "woods"],
+  ["palmtree_7", 1971.45, -47.38, null, 5.745, 12.37, 0.21, "woods"],
+  ["foresttree", 1997.53, 10.19, null, 2.926, 17.42, 2.6, "woods"],
+  ["giantbuttress-roottree", 2288.6, -111.47, null, 1.896, 30.74, 2.6, "woods"],
+  ["palmtree_8", 2182.49, -25.97, null, 1.713, 11.29, 0.2, "woods"],
+  ["palmtree_8", 1904.48, -169.84, null, 5.653, 12.38, 0.21, "woods"],
+  ["tree", 2034.82, -151.4, null, 4.413, 23.85, 1.82, "woods"],
+  ["palmtree_1", 2075.45, 35.33, null, 0.7, 18.68, 0.33, "woods"],
+  ["talltree", 1895.48, -10.91, null, 3.749, 19.16, 0.24, "woods"],
+  ["foresttree", 2264.08, -17.47, null, 3.861, 17.05, 2.6, "woods"],
+  ["foresttree", 2142.18, -99.89, null, 3.14, 22.69, 2.6, "woods"],
+  ["tree", 2198.94, -116.25, null, 3.364, 24.67, 1.89, "woods"],
+  ["palmtree_1", 2298.72, 52.84, null, 2.612, 16.88, 0.29, "woods"],
+  ["tree", 1978.83, 4.97, null, 5.604, 24.11, 1.84, "woods"],
+  ["giantbuttress-roottree", 2171.66, -115.77, null, 3.708, 34.66, 2.6, "woods"],
+  ["talltree", 1959.75, -128.08, null, 3.954, 17.28, 0.22, "woods"],
+  ["palmtree_6", 2149.69, -109.99, null, 4.769, 11.56, 0.22, "woods"],
+  ["buttress-roottree", 2198.47, -22.07, null, 3.849, 19.08, 2.6, "woods"],
+  ["palmtree_7", 2118.91, -67.05, null, 4.414, 11.28, 0.2, "woods"],
+  ["talltree", 2204.13, 30.79, null, 2.899, 20.16, 0.25, "woods"],
+  ["palmtree_1", 2139.98, -25.73, null, 2.46, 17.52, 0.31, "woods"],
+  ["foresttree", 2267.03, -134.39, null, 5.997, 19.6, 2.6, "woods"],
+  ["buttressedtree", 2297.87, -93.79, null, 5.45, 24.07, 2.6, "woods"],
+  ["palmtree_6", 2212.81, -90.25, null, 4.561, 11.81, 0.22, "woods"],
+  ["giantbuttress-roottree", 2248.94, -27.77, null, 0.821, 31.12, 2.6, "woods"],
+  ["talltree", 1981.99, -40.83, null, 0.692, 16.44, 0.21, "woods"],
+  ["buttress-roottree", 2097.07, -151.66, null, 5.041, 21.09, 2.6, "woods"],
+  ["palmtree_6", 2074.97, 13.67, null, 2.955, 12.63, 0.24, "woods"],
+  ["palmtree", 1911.14, 50.53, null, 5.437, 15.38, 0.26, "woods"],
+  ["palmtree_7", 1929.21, 91.48, null, 1.456, 11.55, 0.2, "woods"],
+  ["buttressedtree", 2212.91, -111.54, null, 1.168, 27.07, 2.6, "woods"],
+  ["palmtree_8", 2205.85, -76.51, null, 1.166, 9.88, 0.17, "woods"],
+  ["foresttree", 2115.85, -84.44, null, 5.03, 18.38, 2.6, "woods"],
+  ["slimtree", 2189.37, -81.02, null, 1.682, 14.71, 0.38, "woods"],
+  ["palmtree", 1891.76, -122.84, null, 4.563, 19.4, 0.33, "woods"],
+  ["buttress-roottree", 2247.04, 77.76, null, 6.029, 20.32, 2.6, "woods"],
+  ["palmtree_6", 2271.8, -49.23, null, 5.463, 12.01, 0.22, "woods"],
+  ["palmtree_6", 2214.3, -171.87, null, 0.851, 10.19, 0.19, "woods"],
+  ["buttressedtree", 2229.26, -91.19, null, 3.943, 27.77, 2.6, "woods"],
+  ["tree", 2073.21, -13.25, null, 1.792, 31.18, 2.38, "woods"],
+  ["buttressedtree", 1931.78, 114.31, null, 4.313, 28.01, 2.6, "woods"],
+  ["tree", 2125.02, -151.83, null, 4.437, 29.72, 2.27, "woods"],
+  ["foresttree", 1890.28, -145.16, null, 5.263, 17.23, 2.6, "woods"],
+  ["giantbuttress-roottree", 2295.58, -34.12, null, 2.673, 29.1, 2.6, "woods"],
+  ["buttress-roottree", 2142.15, 9.12, null, 1.41, 19, 2.6, "woods"],
+  ["palmtree_1", 2122.38, 72.07, null, 2.461, 18.62, 0.32, "woods"],
+  ["tree", 1901.81, 118.58, null, 0.563, 25.31, 1.93, "woods"],
+  ["giantbuttress-roottree", 1984.45, -28.66, null, 0.986, 35.94, 2.6, "woods"],
+  ["giantbuttress-roottree", 1915.55, 78.09, null, 4.884, 30.03, 2.6, "woods"],
+  ["slimtree", 2187.61, 32.49, null, 0.229, 15.38, 0.39, "woods"],
+  ["buttress-roottree", 2278.06, -5.86, null, 6.115, 18.71, 2.6, "woods"],
+  ["palmtree_8", 2054.65, -26.4, null, 5.143, 12.4, 0.21, "woods"],
+  ["palmtree_6", 2218.06, 85.42, null, 2.363, 11.1, 0.21, "woods"],
+  ["buttress-roottree", 2158.21, -45.03, null, 4.403, 21.3, 2.6, "woods"],
+  ["palmtree_1", 2298.89, 91.35, null, 3.266, 19.03, 0.33, "woods"],
+  ["tree", 1944.75, -62.44, null, 0.72, 28.72, 2.2, "woods"],
+  ["palmtree_8", 2162.41, -140.12, null, 1.483, 12.19, 0.21, "woods"],
+  ["palmtree_7", 2124.18, -37.3, null, 4.902, 13.49, 0.23, "woods"],
+  ["buttressedtree", 2200.23, 54.73, null, 4.472, 24.47, 2.6, "woods"],
+  ["tree", 2183.73, 79.95, null, 6.176, 29.88, 2.28, "woods"],
+  ["giantbuttress-roottree", 2277.3, -93.24, null, 2.555, 34.5, 2.6, "woods"],
+  ["palmtree", 2286.97, 57.21, null, 3.065, 16.67, 0.29, "woods"],
+  ["foresttree", 2026.89, -142.06, null, 3.029, 22.32, 2.6, "woods"],
+  ["talltree", 2101.31, -103.42, null, 6.123, 18.1, 0.23, "woods"],
+  ["palmtree_7", 2124.63, 8.98, null, 6.261, 12.78, 0.22, "woods"],
+  ["tree", 2167.97, 13.71, null, 1.769, 25.22, 1.93, "woods"],
+  ["tree", 1891.94, 29.41, null, 0.675, 31.54, 2.41, "woods"],
+  ["foresttree", 2042.38, -17.6, null, 1.441, 18.8, 2.6, "woods"],
+  ["talltree", 2233.7, 34.06, null, 1.081, 16.58, 0.21, "woods"],
+  ["talltree", 2130.8, -89.12, null, 4.357, 17.27, 0.22, "woods"],
+  ["buttress-roottree", 1984.72, -115.63, null, 1.474, 19.25, 2.6, "woods"],
+  ["palmtree_1", 2118.4, -53.85, null, 1.347, 18.35, 0.32, "woods"],
+  ["buttress-roottree", 2119.19, -109.38, null, 4.972, 21.34, 2.6, "woods"],
+  ["palmtree_8", 2002.97, -130.68, null, 3.644, 12.15, 0.21, "woods"],
+  ["foresttree", 2290.59, -172.5, null, 6.011, 19.02, 2.6, "woods"],
+  ["foresttree", 2095.98, -75.92, null, 4.078, 22.92, 2.6, "woods"],
+  ["buttressedtree", 2244.54, 93.83, null, 1.231, 24.29, 2.6, "woods"],
+  ["buttress-roottree", 2201.83, 71.89, null, 0.721, 22.32, 2.6, "woods"],
+  ["palmtree_8", 1956.02, -68.85, null, 4.565, 12.53, 0.22, "woods"],
+  ["palmtree_6", 2269.44, -146.48, null, 5.617, 9.77, 0.18, "woods"],
+  ["giantbuttress-roottree", 2000.62, -8.99, null, 3.922, 35.94, 2.6, "woods"],
+  ["buttress-roottree", 2150.96, -122.76, null, 2.344, 20.24, 2.6, "woods"],
+  ["buttressedtree", 2279.02, 24.38, null, 4.504, 25.49, 2.6, "woods"],
+  ["giantbuttress-roottree", 2160.57, 57.68, null, 2.297, 29.95, 2.6, "woods"],
+  ["foresttree", 2288, -13.51, null, 0.966, 20.93, 2.6, "woods"],
+  ["giantbuttress-roottree", 1971.38, -172.69, null, 1.279, 33.14, 2.6, "woods"],
+  ["giantbuttress-roottree", 1974.77, 86.78, null, 3.423, 27.85, 2.6, "woods"],
+  ["foresttree", 2048.8, 34.27, null, 2.774, 22.42, 2.6, "woods"],
+  ["palmtree_8", 2052.71, -164.34, null, 3.539, 12.1, 0.21, "woods"],
+  ["giantbuttress-roottree", 2008.49, -172.08, null, 2.76, 31.49, 2.6, "woods"],
+  ["buttressedtree", 2081.82, -0.95, null, 5.805, 23.19, 2.6, "woods"],
+  ["foresttree", 1978.41, 34.51, null, 1.939, 22.14, 2.6, "woods"],
+  ["palmtree", 2197.64, -171.65, null, 3.02, 16.94, 0.29, "woods"],
+  ["palmtree_7", 2109.11, -140.33, null, 5.553, 11.81, 0.2, "woods"],
+  ["palmtree_8", 1935.79, 37, null, 0.657, 11.15, 0.19, "woods"],
+  ["tree", 2246.44, 14.89, null, 5.971, 26.55, 2.03, "woods"],
+  ["buttress-roottree", 2184.18, -91.96, null, 6.201, 25.29, 2.6, "woods"],
+  ["foresttree", 2474.5, -41.23, null, 1.94, 22.12, 2.6, "north-woods"],
+  ["palmtree", 2353.42, 181.94, null, 2.641, 19.7, 0.34, "north-woods"],
+  ["palmtree_5", 2427.03, -57.33, null, 3.546, 11.17, 0.2, "north-woods"],
+  ["coconutpalmtree_3", 2513.42, 58.98, null, 2.673, 11.7, 0.3, "north-woods"],
+  ["buttress-roottree", 2363.38, -64.73, null, 2.293, 19.83, 2.6, "north-woods"],
+  ["coconutpalmtree", 2517.26, 292.88, null, 5.5, 15.98, 0.32, "north-woods"],
+  ["palmtree_8", 2483.99, 34.09, null, 3.098, 10.89, 0.19, "north-woods"],
+  ["tree", 2478.57, 137.45, null, 3.768, 31.92, 2.44, "north-woods"],
+  ["foresttree", 2498.03, 57.32, null, 5.872, 19.35, 2.6, "north-woods"],
+  ["palmtree_3", 2421.56, 13.66, null, 1.644, 13.4, 0.26, "north-woods"],
+  ["buttressedtree", 2493.84, 4.97, null, 1.045, 22.47, 2.6, "north-woods"],
+  ["palmtree_2", 2511.37, -50.46, null, 2.575, 12.7, 0.31, "north-woods"],
+  ["palmtree_8", 2360.63, -15.5, null, 0.481, 12.19, 0.21, "north-woods"],
+  ["slimtree", 2409.52, -71.06, null, 0.857, 13.32, 0.34, "north-woods"],
+  ["buttressedtree", 2314.08, 90.73, null, 5.598, 26.69, 2.6, "north-woods"],
+  ["coconutpalmtree", 2353.06, -42.44, null, 3.861, 13.13, 0.26, "north-woods"],
+  ["coconutpalmtree_4", 2311.97, -32.07, null, 3.622, 13.99, 0.29, "north-woods"],
+  ["buttress-roottree", 2465.22, -60.61, null, 0.694, 24.77, 2.6, "north-woods"],
+  ["coconutpalmtree", 2523.37, 271.26, null, 0.919, 12.33, 0.24, "north-woods"],
+  ["buttressedtree", 2366.5, 194.89, null, 4.215, 24.01, 2.6, "north-woods"],
+  ["coconutpalmtree_1", 2514.34, 302.52, null, 2.141, 12.89, 0.34, "north-woods"],
+  ["palmtree_8", 2396.79, 113.95, null, 3.884, 12.47, 0.22, "north-woods"],
+  ["slimtree", 2355.29, 198.59, null, 4.611, 15.76, 0.4, "north-woods"],
+  ["buttressedtree", 2316.83, 46.07, null, 5.677, 23.34, 2.6, "north-woods"],
+  ["buttress-roottree", 2380.55, -8.22, null, 2.365, 19.72, 2.6, "north-woods"],
+  ["tree", 2417.64, 86.46, null, 3.01, 31.48, 2.41, "north-woods"],
+  ["giantbuttress-roottree", 2451.66, 296.57, null, 3.288, 29, 2.6, "north-woods"],
+  ["palmtree_6", 2491.39, 24.16, null, 4.377, 12.14, 0.23, "north-woods"],
+  ["coconutpalmtree", 2470.02, 83.93, null, 5.286, 15.96, 0.31, "north-woods"],
+  ["palmtree", 2441.74, 290.83, null, 6.027, 19.65, 0.34, "north-woods"],
+  ["palmtree_1", 2485.82, 53.51, null, 0.884, 18.05, 0.31, "north-woods"],
+  ["palmtree_8", 2387.98, 150.47, null, 0.638, 9.63, 0.17, "north-woods"],
+  ["palmtree_3", 2505.63, 1.06, null, 3.359, 14.8, 0.29, "north-woods"],
+  ["palmtree_7", 2474.36, 303.25, null, 3.248, 13.41, 0.23, "north-woods"],
+  ["palmtree_6", 2406.35, 174.18, null, 5.395, 9.82, 0.18, "north-woods"],
+  ["palmtree_4", 2347.03, 31.67, null, 1.851, 12.79, 0.36, "north-woods"],
+  ["palmtree_5", 2363.92, 264.71, null, 2.507, 12.81, 0.23, "north-woods"],
+  ["tree", 2491.93, -35.24, null, 5.226, 27.74, 2.12, "north-woods"],
+  ["coconutpalmtree_3", 2322.25, -64.09, null, 2.07, 12.63, 0.32, "north-woods"],
+  ["palmtree_2", 2339.13, 163.32, null, 0.203, 12.65, 0.31, "north-woods"],
+  ["palmtree_1", 2392.54, 288.9, null, 3.421, 15.01, 0.26, "north-woods"],
+  ["coconutpalmtree", 2511.48, 135.23, null, 0.011, 15.48, 0.31, "north-woods"],
+  ["palmtree_5", 2432.64, 325.33, null, 4.775, 11.42, 0.2, "north-woods"],
+  ["talltree", 2500.76, 111.19, null, 1.548, 17.67, 0.22, "north-woods"],
+  ["coconutpalmtree_1", 2485.79, 319.07, null, 2.409, 12.98, 0.35, "north-woods"],
+  ["coconutpalmtree_4", 2522.84, -59.52, null, 1.934, 14.74, 0.31, "north-woods"],
+  ["foresttree", 2411.76, 114.22, null, 5.473, 22.7, 2.6, "north-woods"],
+  ["palmtree_8", 2448.78, 318.37, null, 3.534, 11.5, 0.2, "north-woods"],
+  ["palmtree_3", 2526.54, 22.55, null, 1.839, 11.88, 0.23, "north-woods"],
+  ["palmtree_3", 2372.89, -1.64, null, 6.007, 14.33, 0.28, "north-woods"],
+  ["palmtree", 2431.99, 293.43, null, 2.475, 19.91, 0.34, "north-woods"],
+  ["palmtree_5", 2407.35, 96.38, null, 4.871, 12.08, 0.21, "north-woods"],
+  ["talltree", 2369.8, -42.25, null, 0.165, 19.03, 0.24, "north-woods"],
+  ["palmtree_6", 2491.19, 41.59, null, 1.929, 9.68, 0.18, "north-woods"],
+  ["palmtree", 2421.6, 186.1, null, 2.374, 20.57, 0.35, "north-woods"],
+  ["talltree", 2388.52, 34.09, null, 0.023, 19.56, 0.25, "north-woods"],
+  ["palmtree_6", 2486.86, -55.43, null, 2.219, 12.22, 0.23, "north-woods"],
+  ["palmtree_8", 2344.7, -80.19, null, 4.082, 12.54, 0.22, "north-woods"],
+  ["palmtree_4", 2488.8, 106.23, null, 2.56, 13.83, 0.39, "north-woods"],
+  ["slimtree", 2316.36, -54.37, null, 5.368, 13.24, 0.34, "north-woods"],
+  ["giantbuttress-roottree", 2384.13, 272.05, null, 4.082, 35.78, 2.6, "north-woods"],
+  ["buttressedtree", 2359.45, 250.16, null, 6.131, 23.84, 2.6, "north-woods"],
+  ["buttress-roottree", 2519.73, 262.16, null, 2.498, 22.24, 2.6, "north-woods"],
+  ["palmtree_8", 2447.78, 159.75, null, 3.707, 10.99, 0.19, "north-woods"],
+  ["palmtree_1", 2496.38, 304.03, null, 2.494, 15.8, 0.28, "north-woods"],
+  ["giantbuttress-roottree", 2526, 300.37, null, 1.756, 36.07, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2518.96, 3.83, null, 3.327, 27.54, 2.6, "north-woods"],
+  ["palmtree_4", 2420.08, 172.48, null, 1.262, 12.92, 0.36, "north-woods"],
+  ["tree", 2315.26, 108.34, null, 2.997, 24.37, 1.86, "north-woods"],
+  ["foresttree", 2513.14, -67.56, null, 3.642, 21.35, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2321.64, -83.73, null, 0.48, 27.87, 2.6, "north-woods"],
+  ["tree", 2363.58, -53.86, null, 0.523, 31.87, 2.44, "north-woods"],
+  ["coconutpalmtree_2", 2424.42, 238.76, null, 6.244, 13.71, 0.44, "north-woods"],
+  ["tree", 2421.64, 297.37, null, 4.167, 28.44, 2.17, "north-woods"],
+  ["coconutpalmtree_4", 2441.08, -44.48, null, 0.098, 13.1, 0.27, "north-woods"],
+  ["palmtree_7", 2408.82, 292.52, null, 3.995, 11.95, 0.21, "north-woods"],
+  ["palmtree_7", 2501.29, 285.5, null, 2.801, 12.51, 0.22, "north-woods"],
+  ["buttressedtree", 2437.05, 306.79, null, 0.166, 22.75, 2.6, "north-woods"],
+  ["palmtree_8", 2461.34, 304.61, null, 6.164, 9.6, 0.17, "north-woods"],
+  ["coconutpalmtree_4", 2505.54, 93.87, null, 2.672, 14.36, 0.3, "north-woods"],
+  ["palmtree_8", 2400.79, 256.59, null, 0.673, 9.9, 0.17, "north-woods"],
+  ["coconutpalmtree_4", 2411, 158.87, null, 3.211, 13.81, 0.29, "north-woods"],
+  ["palmtree_4", 2526.81, 119.94, null, 5.16, 13.93, 0.39, "north-woods"],
+  ["buttressedtree", 2518.33, 107.96, null, 2.962, 21.41, 2.6, "north-woods"],
+  ["palmtree_8", 2421.95, -71.72, null, 0.471, 11.29, 0.2, "north-woods"],
+  ["palmtree_2", 2393.51, 12.32, null, 5.473, 15.38, 0.38, "north-woods"],
+  ["coconutpalmtree_3", 2513.39, -17.48, null, 5.151, 12.91, 0.33, "north-woods"],
+  ["palmtree_1", 2373.99, 164.92, null, 5.976, 15.48, 0.27, "north-woods"],
+  ["foresttree", 2514.9, 87.44, null, 5.829, 22.95, 2.6, "north-woods"],
+  ["foresttree", 2365.08, 176.71, null, 0.349, 18.69, 2.6, "north-woods"],
+  ["slimtree", 2385.72, -51.87, null, 1.735, 14.99, 0.38, "north-woods"],
+  ["palmtree_7", 2510.7, 67.79, null, 2.094, 11.4, 0.2, "north-woods"],
+  ["buttress-roottree", 2441.27, 100.24, null, 5.882, 22.85, 2.6, "north-woods"],
+  ["buttress-roottree", 2416.75, 323.36, null, 4.95, 22.47, 2.6, "north-woods"],
+  ["foresttree", 2521.22, 38.2, null, 1.805, 18.76, 2.6, "north-woods"],
+  ["talltree", 2432.93, -18.57, null, 2.495, 18.44, 0.23, "north-woods"],
+  ["giantbuttress-roottree", 2346.12, -53.36, null, 4.775, 31.56, 2.6, "north-woods"],
+  ["palmtree_4", 2487.36, 266.29, null, 4.664, 16.88, 0.48, "north-woods"],
+  ["coconutpalmtree_3", 2392.02, 169.21, null, 4.722, 11.66, 0.3, "north-woods"],
+  ["palmtree_3", 2525.96, 288.99, null, 5.952, 11.18, 0.22, "north-woods"],
+  ["palmtree", 2326.64, -18.38, null, 0.793, 18.42, 0.32, "north-woods"],
+  ["palmtree_8", 2438.3, 317.53, null, 6.168, 9.86, 0.17, "north-woods"],
+  ["palmtree_6", 2474.41, 48.28, null, 5.07, 10.58, 0.2, "north-woods"],
+  ["palmtree_2", 2495.76, 314.53, null, 6.01, 14.73, 0.36, "north-woods"],
+  ["coconutpalmtree", 2449.04, 71.31, null, 2.356, 13.97, 0.28, "north-woods"],
+  ["palmtree_2", 2399.35, -48.1, null, 5.968, 14.51, 0.36, "north-woods"],
+  ["foresttree", 2354.56, -73.21, null, 4.679, 20.07, 2.6, "north-woods"],
+  ["coconutpalmtree", 2463.43, 275.34, null, 3.128, 14.4, 0.28, "north-woods"],
+  ["palmtree_6", 2413.86, 282.38, null, 0.229, 9.98, 0.19, "north-woods"],
+  ["coconutpalmtree_2", 2342.35, 185.52, null, 5.195, 12.79, 0.41, "north-woods"],
+  ["foresttree", 2396.12, -68.16, null, 4.614, 17.75, 2.6, "north-woods"],
+  ["palmtree_7", 2330.9, -1.54, null, 3.735, 13.62, 0.24, "north-woods"],
+  ["palmtree_6", 2484.79, 276.66, null, 1.865, 10.84, 0.2, "north-woods"],
+  ["foresttree", 2459.79, 315.34, null, 0.963, 17.52, 2.6, "north-woods"],
+  ["palmtree_6", 2499.86, 153.34, null, 0.749, 9.66, 0.18, "north-woods"],
+  ["foresttree", 2522.93, -30.11, null, 0.655, 18.03, 2.6, "north-woods"],
+  ["coconutpalmtree_3", 2384.59, 6.63, null, 3.446, 13.23, 0.34, "north-woods"],
+  ["palmtree", 2464.95, -47.81, null, 4.034, 17.55, 0.3, "north-woods"],
+  ["palmtree_2", 2410.02, 133.72, null, 3.887, 13.99, 0.34, "north-woods"],
+  ["palmtree_2", 2519.62, 152.19, null, 4.368, 12.39, 0.3, "north-woods"],
+  ["palmtree_3", 2373.34, 120.38, null, 3.807, 14.19, 0.28, "north-woods"],
+  ["palmtree_6", 2522.62, -13.33, null, 3.44, 11.49, 0.21, "north-woods"],
+  ["giantbuttress-roottree", 2515.33, 250.98, null, 2.594, 28.47, 2.6, "north-woods"],
+  ["palmtree_7", 2354.76, 55.13, null, 0.727, 11.04, 0.19, "north-woods"],
+  ["coconutpalmtree_3", 2350.91, 243.37, null, 1.605, 12.59, 0.32, "north-woods"],
+  ["palmtree_7", 2508.33, 261.49, null, 4.268, 11.49, 0.2, "north-woods"],
+  ["slimtree", 2354.83, 168.41, null, 3.016, 11.96, 0.31, "north-woods"],
+  ["palmtree_8", 2526.23, 88.99, null, 4.484, 11.31, 0.2, "north-woods"],
+  ["coconutpalmtree_1", 2335.89, -62.62, null, 2.366, 16.74, 0.45, "north-woods"],
+  ["palmtree_7", 2514.13, 27.39, null, 0.627, 12.33, 0.21, "north-woods"],
+  ["coconutpalmtree_2", 2446.78, -4.65, null, 5.623, 11.99, 0.38, "north-woods"],
+  ["palmtree_4", 2427.13, 24.2, null, 1.867, 14.08, 0.4, "north-woods"],
+  ["palmtree_2", 2525.74, 254.31, null, 2.933, 14.25, 0.35, "north-woods"],
+  ["coconutpalmtree_1", 2517.77, 238.62, null, 3.717, 13.5, 0.36, "north-woods"],
+  ["palmtree_6", 2330.64, 157.91, null, 0.358, 10.52, 0.2, "north-woods"],
+  ["coconutpalmtree_1", 2389.19, 329.09, null, 3.43, 13.81, 0.37, "north-woods"],
+  ["palmtree_7", 2501.31, 46.69, null, 2.047, 12.3, 0.21, "north-woods"],
+  ["buttressedtree", 2453.22, -42.66, null, 1.585, 27.64, 2.6, "north-woods"],
+  ["palmtree_2", 2368.32, 32.17, null, 1.227, 12.42, 0.3, "north-woods"],
+  ["coconutpalmtree_2", 2417.49, -31.19, null, 3.117, 11.79, 0.38, "north-woods"],
+  ["foresttree", 2392.02, -7.14, null, 3.067, 20.36, 2.6, "north-woods"],
+  ["foresttree", 2472.25, -84.87, null, 0.964, 17.48, 2.6, "north-woods"],
+  ["palmtree_2", 2521.18, 322.41, null, 0.208, 12.27, 0.3, "north-woods"],
+  ["palmtree_3", 2406.92, 195.47, null, 1.854, 11.73, 0.23, "north-woods"],
+  ["palmtree_8", 2510.4, -35.58, null, 2.332, 12.13, 0.21, "north-woods"],
+  ["palmtree_1", 2486.36, 115.31, null, 6.002, 16.5, 0.29, "north-woods"],
+  ["tree", 2482.52, -47.45, null, 5.054, 26.95, 2.06, "north-woods"],
+  ["palmtree_1", 2331.62, 39.55, null, 4.952, 17.68, 0.31, "north-woods"],
+  ["palmtree_1", 2493.18, -46.6, null, 6.183, 18.03, 0.31, "north-woods"],
+  ["palmtree_3", 2405.68, 11.84, null, 0.401, 13.84, 0.27, "north-woods"],
+  ["coconutpalmtree_4", 2464.59, -71.64, null, 3.605, 16.03, 0.34, "north-woods"],
+  ["palmtree_7", 2431.1, 71.31, null, 1.085, 13.4, 0.23, "north-woods"],
+  ["tree", 2524.09, 194.87, null, 6.214, 28.57, 2.18, "north-woods"],
+  ["coconutpalmtree_2", 2512.96, 218.81, null, 1.812, 11.19, 0.36, "north-woods"],
+  ["coconutpalmtree_1", 2357.51, 147.94, null, 2.429, 12.83, 0.34, "north-woods"],
+  ["palmtree_6", 2522.05, -74.15, null, 3.242, 12.03, 0.23, "north-woods"],
+  ["giantbuttress-roottree", 2475.61, 120.48, null, 4.432, 30.58, 2.6, "north-woods"],
+  ["palmtree_3", 2359.89, 206.81, null, 6.234, 11.86, 0.23, "north-woods"],
+  ["coconutpalmtree_3", 2476.97, 269.62, null, 0.481, 10.35, 0.26, "north-woods"],
+  ["coconutpalmtree_4", 2352.78, 259.7, null, 4.851, 14.72, 0.31, "north-woods"],
+  ["palmtree_7", 2499.54, 170.84, null, 2.961, 13.11, 0.23, "north-woods"],
+  ["palmtree_1", 2423.38, 138.09, null, 0.3, 17.13, 0.3, "north-woods"],
+  ["giantbuttress-roottree", 2477.98, 26.13, null, 4.553, 36.22, 2.6, "north-woods"],
+  ["coconutpalmtree_2", 2429.57, -8.43, null, 1.889, 12.3, 0.39, "north-woods"],
+  ["tree", 2514.41, 284.31, null, 1.164, 31.65, 2.42, "north-woods"],
+  ["buttressedtree", 2471.34, 155.2, null, 0.306, 25.42, 2.6, "north-woods"],
+  ["slimtree", 2467.7, 126.98, null, 4.088, 15.38, 0.39, "north-woods"],
+  ["palmtree_2", 2369.76, -83.72, null, 3.286, 16.03, 0.39, "north-woods"],
+  ["coconutpalmtree_2", 2455.65, 48.25, null, 0.465, 12.22, 0.39, "north-woods"],
+  ["slimtree", 2345.35, 82.17, null, 4.377, 12.84, 0.33, "north-woods"],
+  ["palmtree_7", 2452.62, 309.5, null, 1.415, 13.74, 0.24, "north-woods"],
+  ["coconutpalmtree", 2508.18, -80.06, null, 4.012, 12.22, 0.24, "north-woods"],
+  ["coconutpalmtree_2", 2511.3, 271.01, null, 2.34, 14.71, 0.47, "north-woods"],
+  ["talltree", 2327.8, -47.59, null, 4.265, 19.07, 0.24, "north-woods"],
+  ["coconutpalmtree", 2519.76, 139.63, null, 2.059, 12.42, 0.24, "north-woods"],
+  ["palmtree_2", 2373.94, -63.83, null, 5.461, 15.89, 0.39, "north-woods"],
+  ["palmtree", 2519.74, 206, null, 5.836, 15.43, 0.26, "north-woods"],
+  ["palmtree_8", 2442.11, 78.15, null, 6.157, 10.38, 0.18, "north-woods"],
+  ["palmtree_7", 2341.98, -24.45, null, 6.24, 13.1, 0.23, "north-woods"],
+  ["palmtree_2", 2512.04, 159, null, 4.057, 14.3, 0.35, "north-woods"],
+  ["palmtree_5", 2469.75, 60.43, null, 4.382, 14.01, 0.25, "north-woods"],
+  ["palmtree_7", 2494.32, 129.89, null, 5.175, 13.19, 0.23, "north-woods"],
+  ["buttress-roottree", 2379.14, 153.43, null, 0.847, 22.45, 2.6, "north-woods"],
+  ["palmtree_6", 2509.58, 324.14, null, 4.68, 10.83, 0.2, "north-woods"],
+  ["slimtree", 2504.02, -21.26, null, 4.005, 14.53, 0.37, "north-woods"],
+  ["coconutpalmtree_1", 2435.61, 20.06, null, 1.787, 14.83, 0.39, "north-woods"],
+  ["coconutpalmtree_1", 2452.68, -79.99, null, 2.161, 15.32, 0.41, "north-woods"],
+  ["coconutpalmtree", 2405.82, 303.88, null, 3.808, 12.85, 0.25, "north-woods"],
+  ["palmtree_7", 2451.59, 174.4, null, 2.907, 11.03, 0.19, "north-woods"],
+  ["coconutpalmtree", 2360.77, 40.41, null, 1.58, 13.36, 0.26, "north-woods"],
+  ["coconutpalmtree_1", 2478.8, 311.68, null, 0.017, 17.18, 0.46, "north-woods"],
+  ["foresttree", 2496.49, 16.55, null, 4.144, 21.51, 2.6, "north-woods"],
+  ["palmtree_2", 2314.77, 62, null, 4.81, 13.66, 0.34, "north-woods"],
+  ["palmtree_7", 2473.6, 72.29, null, 5.254, 12.98, 0.22, "north-woods"],
+  ["coconutpalmtree_3", 2480.41, 156.84, null, 0.101, 13.11, 0.33, "north-woods"],
+  ["palmtree_7", 2347.46, 203.13, null, 3.403, 12.74, 0.22, "north-woods"],
+  ["buttress-roottree", 2324.3, 33.04, null, 0.03, 24.47, 2.6, "north-woods"],
+  ["palmtree_8", 2394.81, -17.99, null, 4.394, 12.26, 0.21, "north-woods"],
+  ["tree", 2482.76, -63.86, null, 2.217, 31.6, 2.42, "north-woods"],
+  ["palmtree_4", 2372.05, 7.51, null, 6.08, 15.99, 0.45, "north-woods"],
+  ["tree", 2398.16, 97.96, null, 2.687, 30.42, 2.32, "north-woods"],
+  ["coconutpalmtree_3", 2507.61, 124.42, null, 2.579, 10.94, 0.28, "north-woods"],
+  ["palmtree_3", 2338.42, 58.69, null, 0.327, 14.01, 0.27, "north-woods"],
+  ["palmtree_3", 2373.86, 189.16, null, 4.728, 11.43, 0.22, "north-woods"],
+  ["coconutpalmtree_3", 2463.01, 160.36, null, 0.625, 12, 0.31, "north-woods"],
+  ["buttress-roottree", 2407.95, -84.77, null, 1.467, 23.64, 2.6, "north-woods"],
+  ["palmtree_6", 2324.64, 109.31, null, 2.441, 10.53, 0.2, "north-woods"],
+  ["palmtree_2", 2504.64, -43.58, null, 2.621, 11.95, 0.29, "north-woods"],
+  ["palmtree_8", 2326.24, 84.21, null, 1.975, 11.64, 0.2, "north-woods"],
+  ["palmtree_2", 2394.4, -77.91, null, 5.653, 15.56, 0.38, "north-woods"],
+  ["palmtree_8", 2433.85, 284.23, null, 3.044, 11.72, 0.2, "north-woods"],
+  ["coconutpalmtree", 2382.91, -84.03, null, 3.934, 11.96, 0.24, "north-woods"],
+  ["buttressedtree", 2340.53, -70.95, null, 0.484, 23.61, 2.6, "north-woods"],
+  ["coconutpalmtree_4", 2497.94, -73.7, null, 0.605, 14.96, 0.31, "north-woods"],
+  ["palmtree_4", 2518.11, -40.97, null, 6.096, 13.76, 0.39, "north-woods"],
+  ["buttressedtree", 2485.82, 89.51, null, 2.634, 27.97, 2.6, "north-woods"],
+  ["coconutpalmtree_2", 2449.84, -69.06, null, 0.825, 12.44, 0.4, "north-woods"],
+  ["buttressedtree", 2329.96, 15.46, null, 1.028, 27.41, 2.6, "north-woods"],
+  ["foresttree", 2512, 45.53, null, 2.751, 21.38, 2.6, "north-woods"],
+  ["palmtree_2", 2443.09, 120.47, null, 3.066, 11.95, 0.29, "north-woods"],
+  ["palmtree_6", 2465.56, 114.57, null, 0.512, 10.14, 0.19, "north-woods"],
+  ["giantbuttress-roottree", 2444.9, -58.87, null, 2.458, 35.73, 2.6, "north-woods"],
+  ["coconutpalmtree_2", 2412.21, 29.73, null, 1.186, 11.9, 0.38, "north-woods"],
+  ["coconutpalmtree_3", 2317.91, 9.57, null, 4.581, 12.65, 0.32, "north-woods"],
+  ["coconutpalmtree_1", 2356.51, -28.27, null, 0.875, 15.65, 0.42, "north-woods"],
+  ["coconutpalmtree", 2523.2, 56.62, null, 3.061, 14.63, 0.29, "north-woods"],
+  ["palmtree_1", 2525.02, 218.08, null, 1.64, 15, 0.26, "north-woods"],
+  ["buttressedtree", 2361.25, 160.1, null, 1.135, 27.1, 2.6, "north-woods"],
+  ["coconutpalmtree_4", 2444.09, 281.77, null, 2.267, 15.91, 0.33, "north-woods"],
+  ["palmtree_2", 2334.61, -84.01, null, 5.167, 15.62, 0.38, "north-woods"],
+  ["giantbuttress-roottree", 2408.85, 185.73, null, 4.139, 27.55, 2.6, "north-woods"],
+  ["coconutpalmtree", 2519.69, 225.69, null, 2.581, 12.21, 0.24, "north-woods"],
+  ["palmtree_3", 2522.25, 166.43, null, 2.496, 12.68, 0.25, "north-woods"],
+  ["coconutpalmtree_4", 2327.31, 52.64, null, 5.515, 14.46, 0.3, "north-woods"],
+  ["giantbuttress-roottree", 2405.51, 275.61, null, 0.17, 31.38, 2.6, "north-woods"],
+  ["palmtree_8", 2494.42, 82.34, null, 4.821, 12.26, 0.21, "north-woods"],
+  ["buttressedtree", 2490.5, 155.96, null, 4.548, 22.46, 2.6, "north-woods"],
+  ["buttressedtree", 2390.57, 62.02, null, 5.335, 22.14, 2.6, "north-woods"],
+  ["palmtree_7", 2377.35, 131.5, null, 0.263, 10.34, 0.18, "north-woods"],
+  ["palmtree_4", 2400.78, -4.37, null, 2.457, 14.69, 0.41, "north-woods"],
+  ["slimtree", 2499.21, -59.02, null, 2.931, 11.98, 0.31, "north-woods"],
+  ["buttress-roottree", 2440.94, 110.51, null, 3.793, 20.11, 2.6, "north-woods"],
+  ["coconutpalmtree", 2485.79, 305.74, null, 0.289, 12.71, 0.25, "north-woods"],
+  ["palmtree_7", 2395.44, 267.52, null, 0.129, 11.56, 0.2, "north-woods"],
+  ["tree", 2510.57, 148.53, null, 0.642, 24.92, 1.9, "north-woods"],
+  ["palmtree_3", 2525.4, 13, null, 4.284, 12.26, 0.24, "north-woods"],
+  ["palmtree_3", 2455.28, -59.46, null, 0.962, 12.19, 0.24, "north-woods"],
+  ["coconutpalmtree_2", 2415.91, 206.13, null, 1.136, 11.4, 0.36, "north-woods"],
+  ["palmtree_6", 2399.3, 184.78, null, 6.156, 11.76, 0.22, "north-woods"],
+  ["palmtree_4", 2441.28, -75.18, null, 0.621, 16.05, 0.45, "north-woods"],
+  ["giantbuttress-roottree", 2446.66, 90.36, null, 6.232, 33.07, 2.6, "north-woods"],
+  ["palmtree_4", 2525.04, 76.39, null, 2.987, 14.16, 0.4, "north-woods"],
+  ["tree", 2507.27, 243.51, null, 3.288, 30.59, 2.34, "north-woods"],
+  ["palmtree_6", 2364.97, -75.87, null, 0.6, 10.15, 0.19, "north-woods"],
+  ["buttressedtree", 2370.86, 137.99, null, 1.61, 21.85, 2.6, "north-woods"],
+  ["slimtree", 2460.51, 82.74, null, 3.375, 14.71, 0.38, "north-woods"],
+  ["coconutpalmtree_1", 2367.64, 255.46, null, 1.261, 16.62, 0.44, "north-woods"],
+  ["coconutpalmtree_4", 2511.03, 312.67, null, 1.516, 14.29, 0.3, "north-woods"],
+  ["coconutpalmtree", 2418.54, -41.42, null, 0.174, 12.34, 0.24, "north-woods"],
+  ["coconutpalmtree_3", 2465.44, -7.63, null, 4.824, 12.52, 0.32, "north-woods"],
+  ["palmtree_4", 2437.91, -31.07, null, 5.129, 13.2, 0.37, "north-woods"],
+  ["tree", 2466.65, -35.51, null, 0.987, 26.88, 2.05, "north-woods"],
+  ["palmtree_4", 2511.85, 100.47, null, 0.224, 14.04, 0.4, "north-woods"],
+  ["coconutpalmtree_1", 2473.31, 165.18, null, 4.523, 16.72, 0.44, "north-woods"],
+  ["palmtree_6", 2496.85, 71.57, null, 0.6, 11.27, 0.21, "north-woods"],
+  ["slimtree", 2527.09, -47.39, null, 0.62, 15.12, 0.39, "north-woods"],
+  ["palmtree", 2506.8, 293.54, null, 4.516, 16.92, 0.29, "north-woods"],
+  ["palmtree_6", 2486.66, -85.79, null, 6.214, 9.58, 0.18, "north-woods"],
+  ["palmtree_3", 2485.95, 13.88, null, 2.695, 12.23, 0.24, "north-woods"],
+  ["palmtree_1", 2527.37, 232.33, null, 4.881, 18.37, 0.32, "north-woods"],
+  ["talltree", 2347.07, 14.06, null, 0.394, 17.8, 0.22, "north-woods"],
+  ["palmtree_6", 2476.32, 110.06, null, 1.205, 11.12, 0.21, "north-woods"],
+  ["coconutpalmtree_2", 2424.64, 312.91, null, 1.102, 14.68, 0.47, "north-woods"],
+  ["buttress-roottree", 2396.87, 153.03, null, 2.19, 19.51, 2.6, "north-woods"],
+  ["slimtree", 2499.4, 142.34, null, 1.755, 15.5, 0.4, "north-woods"],
+  ["coconutpalmtree", 2446.25, 183.12, null, 5.675, 14.59, 0.29, "north-woods"],
+  ["slimtree", 2406.74, 122.72, null, 5.328, 14.28, 0.37, "north-woods"],
+  ["palmtree_1", 2350.7, 158.82, null, 3.392, 16.59, 0.29, "north-woods"],
+  ["palmtree_3", 2433.85, -63.44, null, 4.299, 11.97, 0.23, "north-woods"],
+  ["coconutpalmtree", 2357.19, -85.68, null, 4.393, 14.7, 0.29, "north-woods"],
+  ["palmtree_8", 2468.74, 317.2, null, 2.168, 12.46, 0.22, "north-woods"],
+  ["palmtree_5", 2506.43, -10.93, null, 0.832, 11.57, 0.2, "north-woods"],
+  ["palmtree_7", 2387.38, -71.25, null, 4.716, 12.63, 0.22, "north-woods"],
+  ["palmtree_6", 2406.28, -23.3, null, 0.921, 10.67, 0.2, "north-woods"],
+  ["palmtree_8", 2321.14, -73.25, null, 2.62, 12.36, 0.21, "north-woods"],
+  ["coconutpalmtree_4", 2497.01, 274.72, null, 5.507, 14.86, 0.31, "north-woods"],
+  ["slimtree", 2434.8, 272.38, null, 3.036, 11.91, 0.3, "north-woods"],
+  ["palmtree_5", 2342.08, 135.96, null, 4.071, 13.35, 0.24, "north-woods"],
+  ["slimtree", 2382.07, 172.43, null, 1.313, 13.83, 0.35, "north-woods"],
+  ["slimtree", 2512.29, 16.59, null, 3.505, 13.52, 0.35, "north-woods"],
+  ["slimtree", 2475.42, -56.34, null, 2.611, 14.77, 0.38, "north-woods"],
+  ["palmtree_4", 2391.08, 103.67, null, 4.537, 14.17, 0.4, "north-woods"],
+  ["palmtree_8", 2526.55, 176.67, null, 0.597, 11.99, 0.21, "north-woods"],
+  ["palmtree_5", 2402.97, 328.91, null, 2.693, 11.27, 0.2, "north-woods"],
+  ["palmtree_4", 2521.25, 129.88, null, 0.404, 14.93, 0.42, "north-woods"],
+  ["palmtree_8", 2422.44, -1.72, null, 5.835, 10.15, 0.18, "north-woods"],
+  ["coconutpalmtree_3", 2382.95, 189.57, null, 2.88, 11.8, 0.3, "north-woods"],
+  ["giantbuttress-roottree", 2364.83, -7.38, null, 3.553, 34.85, 2.6, "north-woods"],
+  ["coconutpalmtree_2", 2410.93, 19.59, null, 5.505, 13.13, 0.42, "north-woods"],
+  ["coconutpalmtree_4", 2425.89, 90.11, null, 0.56, 15.12, 0.32, "north-woods"],
+  ["palmtree_1", 2354.22, -60.11, null, 5.966, 19.49, 0.34, "north-woods"],
+  ["palmtree_2", 2496.13, 263.5, null, 0.911, 15.65, 0.38, "north-woods"],
+  ["tree", 2399.66, -59.63, null, 3.921, 30.08, 2.3, "north-woods"],
+  ["coconutpalmtree_2", 2404.08, 107.72, null, 0.056, 14.29, 0.46, "north-woods"],
+  ["coconutpalmtree_3", 2505.83, 81.77, null, 4.251, 13.14, 0.33, "north-woods"],
+  ["palmtree_6", 2407.42, -32.9, null, 4.606, 12.65, 0.24, "north-woods"],
+  ["palmtree_4", 2505.56, 24.01, null, 3.738, 16.03, 0.45, "north-woods"],
+  ["slimtree", 2461.83, 295.48, null, 5.44, 13.56, 0.35, "north-woods"],
+  ["buttressedtree", 2501.72, 36.64, null, 1.152, 26.71, 2.6, "north-woods"],
+  ["tree", 2485.91, -74.64, null, 1.499, 31.62, 2.42, "north-woods"],
+  ["coconutpalmtree_4", 2487.45, 167.38, null, 1.093, 12.41, 0.26, "north-woods"],
+  ["coconutpalmtree_1", 2474.87, 325.97, null, 1.18, 14.6, 0.39, "north-woods"],
+  ["palmtree_2", 2389.52, 22.12, null, 1.216, 14.36, 0.35, "north-woods"],
+  ["tree", 2493.18, 96.69, null, 0.353, 29.66, 2.27, "north-woods"],
+  ["palmtree_7", 2318.44, 118.22, null, 0.58, 11.92, 0.21, "north-woods"],
+  ["palmtree_3", 2486.63, 72.19, null, 1.095, 13.48, 0.26, "north-woods"],
+  ["buttress-roottree", 2344.38, 235.07, null, 1.205, 20.35, 2.6, "north-woods"],
+  ["palmtree_5", 2337.85, 48.84, null, 4.427, 11.47, 0.2, "north-woods"],
+  ["palmtree_2", 2428.49, 202.26, null, 2.127, 13.56, 0.33, "north-woods"],
+  ["coconutpalmtree", 2437.21, -83.53, null, 6.217, 14.51, 0.29, "north-woods"],
+  ["coconutpalmtree_3", 2520.25, -84.09, null, 5.144, 11.85, 0.3, "north-woods"],
+  ["coconutpalmtree", 2366.37, 15.97, null, 5.593, 13.53, 0.27, "north-woods"],
+  ["palmtree_7", 2480.93, -33.22, null, 4.883, 11.32, 0.2, "north-woods"],
+  ["tree", 2397.3, 299.61, null, 5.634, 27.17, 2.08, "north-woods"],
+  ["palmtree_2", 2474.93, -71.09, null, 1.792, 13.8, 0.34, "north-woods"],
+  ["coconutpalmtree_2", 2424.54, -84.15, null, 1.524, 14.59, 0.47, "north-woods"],
+  ["palmtree_7", 2491.28, 295.77, null, 2.527, 12.29, 0.21, "north-woods"],
+  ["coconutpalmtree_4", 2389.14, -43.51, null, 6.112, 12.32, 0.26, "north-woods"],
+  ["buttressedtree", 2487.86, 142.04, null, 4.24, 22.86, 2.6, "north-woods"],
+  ["palmtree_3", 2476.75, 281.3, null, 5.746, 12.27, 0.24, "north-woods"],
+  ["coconutpalmtree_2", 2470.57, 34.15, null, 1.779, 12.22, 0.39, "north-woods"],
+  ["palmtree_6", 2473.29, 12.37, null, 0.283, 11.29, 0.21, "north-woods"],
+  ["palmtree_1", 2427.4, 119.48, null, 3.068, 15.41, 0.27, "north-woods"],
+  ["palmtree_6", 2386.12, 281, null, 2.058, 10.66, 0.2, "north-woods"],
+  ["buttressedtree", 2348.28, -32.86, null, 3.406, 21.93, 2.6, "north-woods"],
+  ["palmtree_2", 2454, 263.62, null, 0.081, 15.21, 0.37, "north-woods"],
+  ["coconutpalmtree", 2499.13, -85.48, null, 2.884, 12.57, 0.25, "north-woods"],
+  ["foresttree", 2386.15, 180.57, null, 4.924, 19.61, 2.6, "north-woods"],
+  ["foresttree", 2389.91, 254.68, null, 4.945, 17.26, 2.6, "north-woods"],
+  ["palmtree_3", 2505.92, 227.64, null, 6.099, 12.77, 0.25, "north-woods"],
+  ["palmtree_1", 2401.77, 284.71, null, 1.931, 17.75, 0.31, "north-woods"],
+  ["giantbuttress-roottree", 2326.75, 75.13, null, 2.595, 36.68, 2.6, "north-woods"],
+  ["coconutpalmtree_4", 2424.4, 110.4, null, 1.639, 13.83, 0.29, "north-woods"],
+  ["talltree", 2335.52, -15.45, null, 0.626, 17.45, 0.22, "north-woods"],
+  ["tree", 2414.85, -58.26, null, 1.471, 29.86, 2.28, "north-woods"],
+  ["coconutpalmtree", 2317.83, -40.56, null, 4.545, 14.24, 0.28, "north-woods"],
+  ["buttressedtree", 2344.75, 172.55, null, 3.088, 28.17, 2.6, "north-woods"],
+  ["palmtree_3", 2373.51, 248.07, null, 5.161, 14.06, 0.27, "north-woods"],
+  ["palmtree_1", 2352.88, -9.39, null, 1.433, 18.25, 0.32, "north-woods"],
+  ["giantbuttress-roottree", 2523.49, 313.11, null, 1.419, 31.49, 2.6, "north-woods"],
+  ["palmtree_8", 2451.26, 144.85, null, 1.704, 9.44, 0.16, "north-woods"],
+  ["palmtree_1", 2314.34, -13.3, null, 0.127, 15.7, 0.27, "north-woods"],
+  ["foresttree", 2361.38, 187.2, null, 5.954, 21.92, 2.6, "north-woods"],
+  ["coconutpalmtree_2", 2335.25, 173.01, null, 2.467, 12.2, 0.39, "north-woods"],
+  ["coconutpalmtree_3", 2439.18, -11.46, null, 4.09, 12.5, 0.32, "north-woods"],
+  ["palmtree_3", 2471.92, -27.27, null, 4.102, 11.1, 0.22, "north-woods"],
+  ["slimtree", 2400.56, 163.53, null, 0.618, 13.51, 0.35, "north-woods"],
+  ["coconutpalmtree_4", 2496.37, 120.72, null, 1.219, 13.54, 0.28, "north-woods"],
+  ["tree", 2469.54, 179.4, null, 4.646, 29.12, 2.23, "north-woods"],
+  ["buttressedtree", 2490.15, 188.94, null, 2.639, 26.73, 2.6, "north-woods"],
+  ["palmtree_8", 2435.86, -53.69, null, 4.587, 11.23, 0.19, "north-woods"],
+  ["tree", 2481.82, 296.19, null, 3.146, 28.72, 2.2, "north-woods"],
+  ["coconutpalmtree_4", 2408.39, 314.96, null, 3.535, 15.8, 0.33, "north-woods"],
+  ["tree", 2422.22, 286.79, null, 4.047, 28.41, 2.17, "north-woods"],
+  ["palmtree_8", 2470.37, 144.83, null, 0.875, 11.16, 0.19, "north-woods"],
+  ["palmtree_4", 2353.06, 124.17, null, 5.647, 15.77, 0.45, "north-woods"],
+  ["palmtree_8", 2389.44, -26.34, null, 4.958, 11.68, 0.2, "north-woods"],
+  ["coconutpalmtree_2", 2498.04, 323.6, null, 3.256, 11.11, 0.35, "north-woods"],
+  ["coconutpalmtree", 2514.02, 191.33, null, 2.017, 13.56, 0.27, "north-woods"],
+  ["tree", 2430.87, 187.12, null, 2.092, 27.49, 2.1, "north-woods"],
+  ["palmtree_3", 2427.31, -28.05, null, 3.725, 12.3, 0.24, "north-woods"],
+  ["talltree", 2482.41, 129.09, null, 1.287, 16.21, 0.2, "north-woods"],
+  ["coconutpalmtree_1", 2385.83, 160.69, null, 4.234, 15.73, 0.42, "north-woods"],
+  ["palmtree_1", 2527.97, 242.41, null, 2.136, 16.59, 0.29, "north-woods"],
+  ["palmtree_6", 2383.25, 44.46, null, 3.159, 12.4, 0.23, "north-woods"],
+  ["coconutpalmtree_1", 2376.02, -74.78, null, 6.181, 16.07, 0.43, "north-woods"],
+  ["palmtree_8", 2338.29, 88.45, null, 2.601, 11.49, 0.2, "north-woods"],
+  ["talltree", 2402.03, 145.02, null, 4.104, 17.25, 0.22, "north-woods"],
+  ["foresttree", 2372.61, 77.84, null, 3.824, 17.38, 2.6, "north-woods"],
+  ["talltree", 2318.35, -24.4, null, 0.871, 20.5, 0.26, "north-woods"],
+  ["palmtree_4", 2380.84, 140.98, null, 5.592, 16.87, 0.48, "north-woods"],
+  ["coconutpalmtree", 2454.84, -8.91, null, 3.461, 13.99, 0.28, "north-woods"],
+  ["coconutpalmtree_2", 2452.48, 276.61, null, 3.762, 12.24, 0.39, "north-woods"],
+  ["coconutpalmtree_2", 2454.38, 326.35, null, 4.114, 13.4, 0.43, "north-woods"],
+  ["foresttree", 2374.06, 178.49, null, 5.021, 20.39, 2.6, "north-woods"],
+  ["foresttree", 2462.18, -85.3, null, 1.8, 21.71, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2423.46, 253, null, 5.776, 33.82, 2.6, "north-woods"],
+  ["palmtree_4", 2378.98, 211.92, null, 0.219, 15.05, 0.42, "north-woods"],
+  ["palmtree_7", 2336.34, -51.98, null, 3.895, 13.29, 0.23, "north-woods"],
+  ["coconutpalmtree_4", 2526.76, -0.75, null, 1.318, 14.3, 0.3, "north-woods"],
+  ["palmtree_4", 2330.46, -72.73, null, 3.585, 12.98, 0.37, "north-woods"],
+  ["buttress-roottree", 2320, 100.25, null, 5.275, 23.72, 2.6, "north-woods"],
+  ["palmtree_5", 2481.23, 79.88, null, 3.81, 11.74, 0.21, "north-woods"],
+  ["buttressedtree", 2374.56, 278.21, null, 5.994, 25.07, 2.6, "north-woods"],
+  ["coconutpalmtree_3", 2414.75, 305.38, null, 0.271, 13.25, 0.34, "north-woods"],
+  ["foresttree", 2501.33, -34.67, null, 3.131, 17.55, 2.6, "north-woods"],
+  ["palmtree_4", 2525.97, 65.93, null, 4.787, 17.12, 0.48, "north-woods"],
+  ["foresttree", 2351, 0.05, null, 4.658, 19.64, 2.6, "north-woods"],
+  ["palmtree_8", 2514.7, 116.99, null, 1.937, 10.92, 0.19, "north-woods"],
+  ["slimtree", 2383.4, -61.59, null, 5.409, 13.38, 0.34, "north-woods"],
+  ["palmtree_5", 2514.81, -7.27, null, 5.645, 13.24, 0.23, "north-woods"],
+  ["palmtree_2", 2429.76, 81.1, null, 0.745, 11.92, 0.29, "north-woods"],
+  ["tree", 2350.15, 190.58, null, 3.06, 28.31, 2.16, "north-woods"],
+  ["slimtree", 2464.3, 52.42, null, 1.546, 14.02, 0.36, "north-woods"],
+  ["palmtree_4", 2527.43, 157.43, null, 5.905, 13.78, 0.39, "north-woods"],
+  ["palmtree_3", 2392.76, 2.34, null, 5.354, 11.07, 0.22, "north-woods"],
+  ["palmtree_7", 2482.26, 61.79, null, 0.925, 11.11, 0.19, "north-woods"],
+  ["coconutpalmtree_1", 2460.56, 184.53, null, 5.527, 14.44, 0.38, "north-woods"],
+  ["buttressedtree", 2356.37, 30.46, null, 1.536, 24.03, 2.6, "north-woods"],
+  ["palmtree_8", 2501.44, 254.81, null, 5.018, 10.49, 0.18, "north-woods"],
+  ["tree", 2335.95, -32.59, null, 4.927, 23.82, 1.82, "north-woods"],
+  ["foresttree", 2388.73, 202.03, null, 4.613, 21.91, 2.6, "north-woods"],
+  ["coconutpalmtree", 2432.17, -73.85, null, 2.78, 12.75, 0.25, "north-woods"],
+  ["slimtree", 2378.62, -45.22, null, 2.666, 13.74, 0.35, "north-woods"],
+  ["palmtree", 2416.24, 193.4, null, 6.152, 18.91, 0.32, "north-woods"],
+  ["buttressedtree", 2342.3, 195.11, null, 0.153, 23.21, 2.6, "north-woods"],
+  ["palmtree_2", 2420.2, -50.64, null, 2.625, 12.99, 0.32, "north-woods"],
+  ["palmtree_5", 2094.03, 400.31, null, 4.72, 11.78, 0.21, "east-woods"],
+  ["palmtree_4", 2416.17, 370.5, null, 2.727, 13.34, 0.38, "east-woods"],
+  ["slimtree", 2276.36, 452.17, null, 5.165, 15.95, 0.41, "east-woods"],
+  ["palmtree_4", 2104.17, 414.27, null, 4.831, 13.89, 0.39, "east-woods"],
+  ["coconutpalmtree_1", 2301.93, 440.61, null, 5.869, 16, 0.43, "east-woods"],
+  ["palmtree_6", 2136.92, 448.71, null, 3.55, 12.41, 0.23, "east-woods"],
+  ["slimtree", 2115.8, 422.43, null, 0.514, 13.3, 0.34, "east-woods"],
+  ["coconutpalmtree_4", 2363.11, 387.66, null, 2.571, 11.98, 0.25, "east-woods"],
+  ["coconutpalmtree_3", 2198.93, 452.11, null, 3.358, 11.27, 0.29, "east-woods"],
+  ["palmtree_1", 2343.29, 395.11, null, 4.258, 15.94, 0.28, "east-woods"],
+  ["palmtree_2", 2168.41, 465.35, null, 2.836, 14.85, 0.36, "east-woods"],
+  ["coconutpalmtree_4", 2297.83, 366.09, null, 0.435, 13.47, 0.28, "east-woods"],
+  ["slimtree", 2357.05, 369.12, null, 3.717, 12.96, 0.33, "east-woods"],
+  ["coconutpalmtree_3", 2250.18, 436.15, null, 0.308, 13.68, 0.35, "east-woods"],
+  ["coconutpalmtree_1", 2405.03, 434.36, null, 1.257, 13.21, 0.35, "east-woods"],
+  ["coconutpalmtree_4", 2402.19, 377.48, null, 6.183, 14.98, 0.31, "east-woods"],
+  ["palmtree_4", 2248.68, 422.13, null, 2.273, 13.48, 0.38, "east-woods"],
+  ["palmtree_1", 2305.65, 453.47, null, 1.525, 15.46, 0.27, "east-woods"],
+  ["palmtree_1", 2344.2, 419, null, 5.888, 18.98, 0.33, "east-woods"],
+  ["palmtree_5", 2412.13, 467.09, null, 5.067, 13.03, 0.23, "east-woods"],
+  ["coconutpalmtree_1", 2219.04, 402.69, null, 0.308, 15.55, 0.41, "east-woods"],
+  ["palmtree", 2191.98, 440.82, null, 1.883, 16.84, 0.29, "east-woods"],
+  ["palmtree", 2363.44, 429.18, null, 4.979, 18, 0.31, "east-woods"],
+  ["palmtree_3", 2375.25, 424.34, null, 0.791, 12.14, 0.24, "east-woods"],
+  ["palmtree_2", 2313.08, 413.07, null, 1.242, 13.8, 0.34, "east-woods"],
+  ["talltree", 2301.75, 417.09, null, 0.909, 17.21, 0.22, "east-woods"],
+  ["talltree", 2101.59, 461.62, null, 0.777, 19.18, 0.24, "east-woods"],
+  ["palmtree_4", 2315.52, 430.95, null, 0.395, 17.15, 0.48, "east-woods"],
+  ["palmtree_6", 2375.35, 371.64, null, 2.864, 10.41, 0.19, "east-woods"],
+  ["coconutpalmtree_2", 2326.61, 446.88, null, 1.666, 13.83, 0.44, "east-woods"],
+  ["slimtree", 2387.6, 423.55, null, 0.565, 12.43, 0.32, "east-woods"],
+  ["palmtree_1", 2225.09, 449.45, null, 5.044, 19.03, 0.33, "east-woods"],
+  ["palmtree_3", 2283.49, 396.23, null, 5.331, 14.89, 0.29, "east-woods"],
+  ["palmtree_3", 2395, 435.57, null, 5.07, 11.27, 0.22, "east-woods"],
+  ["palmtree", 2335.45, 422.09, null, 2.151, 18.1, 0.31, "east-woods"],
+  ["palmtree_8", 2320.07, 402.75, null, 1.27, 10.79, 0.19, "east-woods"],
+  ["coconutpalmtree_3", 2308.97, 386.54, null, 4.691, 10.31, 0.26, "east-woods"],
+  ["palmtree_7", 2330.53, 378.18, null, 5.921, 11.49, 0.2, "east-woods"],
+  ["coconutpalmtree_4", 2123.06, 441.22, null, 3.173, 11.94, 0.25, "east-woods"],
+  ["slimtree", 2165.99, 450.12, null, 1.084, 12.43, 0.32, "east-woods"],
+  ["slimtree", 2284.18, 462.02, null, 1.623, 14.54, 0.37, "east-woods"],
+  ["palmtree_2", 2091.74, 379.81, null, 1.226, 13.39, 0.33, "east-woods"],
+  ["coconutpalmtree_1", 2256.11, 451.38, null, 2.13, 14.7, 0.39, "east-woods"],
+  ["coconutpalmtree_2", 2381.91, 363.86, null, 0.27, 11.71, 0.37, "east-woods"],
+  ["palmtree_6", 2267.14, 412.51, null, 4.368, 9.77, 0.18, "east-woods"],
+  ["palmtree_7", 2396.1, 409.06, null, 0.041, 10.58, 0.18, "east-woods"],
+  ["palmtree", 2107.17, 442.83, null, 2.21, 18.47, 0.32, "east-woods"],
+  ["palmtree_7", 2263.07, 439.94, null, 0.08, 12.66, 0.22, "east-woods"],
+  ["palmtree_1", 2245.86, 411.16, null, 2.264, 18.59, 0.32, "east-woods"],
+  ["coconutpalmtree_2", 2218.29, 428.43, null, 5.888, 14.35, 0.46, "east-woods"],
+  ["palmtree_7", 2270.76, 395.22, null, 5.845, 12.28, 0.21, "east-woods"],
+  ["palmtree", 2416.19, 401.12, null, 4.417, 19.78, 0.34, "east-woods"],
+  ["coconutpalmtree", 2337.18, 464.42, null, 1.057, 12.47, 0.25, "east-woods"],
+  ["slimtree", 2335.83, 389.87, null, 4.982, 13.33, 0.34, "east-woods"],
+  ["coconutpalmtree", 2380.85, 458.9, null, 5.632, 12.43, 0.24, "east-woods"],
+  ["coconutpalmtree_3", 2209.36, 462.4, null, 0.108, 10.9, 0.28, "east-woods"],
+  ["coconutpalmtree_2", 2298.63, 461.76, null, 3.685, 14.07, 0.45, "east-woods"],
+  ["palmtree_5", 2290.82, 451.19, null, 5.785, 11.25, 0.2, "east-woods"],
+  ["palmtree_5", 2273.83, 364.36, null, 3.202, 13.56, 0.24, "east-woods"],
+  ["palmtree_7", 2311.48, 439.65, null, 3.226, 10.89, 0.19, "east-woods"],
+  ["palmtree_3", 2334.74, 433.53, null, 5.134, 11.18, 0.22, "east-woods"],
+  ["palmtree_4", 2114.75, 407.91, null, 5.269, 13.86, 0.39, "east-woods"],
+  ["palmtree_8", 2377.96, 403.98, null, 6.065, 10.8, 0.19, "east-woods"],
+  ["coconutpalmtree_4", 2404.77, 457.28, null, 0.048, 15.99, 0.33, "east-woods"],
+  ["coconutpalmtree", 2209.48, 452.74, null, 4.283, 15.23, 0.3, "east-woods"],
+  ["palmtree_4", 2210.91, 380.77, null, 3.268, 13.3, 0.38, "east-woods"],
+  ["palmtree_2", 2222.94, 440.45, null, 3.181, 14.78, 0.36, "east-woods"],
+  ["coconutpalmtree", 2116.09, 397.61, null, 0.337, 11.98, 0.24, "east-woods"],
+  ["palmtree", 2387.32, 374.58, null, 1.656, 17.41, 0.3, "east-woods"],
+  ["palmtree", 2228.59, 411, null, 2.451, 18.13, 0.31, "east-woods"],
+  ["palmtree_2", 2287.31, 415.67, null, 0.209, 11.98, 0.29, "east-woods"],
+  ["palmtree_5", 2180.25, 440.71, null, 2.753, 12.92, 0.23, "east-woods"],
+  ["coconutpalmtree", 2234.13, 403.49, null, 2.822, 13.41, 0.26, "east-woods"],
+  ["coconutpalmtree_1", 2293.85, 384.15, null, 3.341, 15.4, 0.41, "east-woods"],
+  ["palmtree_7", 2217.19, 369.93, null, 0.6, 12.62, 0.22, "east-woods"],
+  ["coconutpalmtree_2", 2338.38, 365.95, null, 0.115, 13.91, 0.44, "east-woods"],
+  ["palmtree_6", 2149.39, 457.95, null, 2.47, 11.26, 0.21, "east-woods"],
+  ["palmtree_6", 2299.21, 396.09, null, 1.266, 12.31, 0.23, "east-woods"],
+  ["palmtree_2", 2277.08, 431.29, null, 2.461, 13.6, 0.33, "east-woods"],
+  ["coconutpalmtree_2", 2293.88, 407.14, null, 4.449, 14.31, 0.46, "east-woods"],
+  ["palmtree", 2378.35, 383.95, null, 3.654, 15.68, 0.27, "east-woods"],
+  ["coconutpalmtree_1", 2350.94, 412.71, null, 5.294, 16.12, 0.43, "east-woods"],
+  ["coconutpalmtree_1", 2373.03, 392.25, null, 5.028, 15.99, 0.43, "east-woods"],
+  ["coconutpalmtree_4", 2375.94, 442.36, null, 3.315, 14.43, 0.3, "east-woods"],
+  ["coconutpalmtree_1", 2366.52, 403.5, null, 3.51, 16.5, 0.44, "east-woods"],
+  ["talltree", 2414.2, 430.42, null, 5.832, 17.93, 0.23, "east-woods"],
+  ["coconutpalmtree", 2406.93, 419.92, null, 0.385, 15.2, 0.3, "east-woods"],
+  ["palmtree_5", 2354.59, 443.26, null, 3.019, 14.65, 0.26, "east-woods"],
+  ["palmtree_5", 2347.71, 361.14, null, 1.378, 11.74, 0.21, "east-woods"],
+  ["slimtree", 2109.81, 430.63, null, 2.603, 14.38, 0.37, "east-woods"],
+  ["coconutpalmtree_2", 2303.21, 404.58, null, 4.346, 11.7, 0.37, "east-woods"],
+  ["palmtree_5", 2318.3, 454.42, null, 0.93, 13.21, 0.23, "east-woods"],
+  ["palmtree", 2190.34, 458.63, null, 4.012, 17.34, 0.3, "east-woods"],
+  ["palmtree", 2311.25, 465.6, null, 3.476, 15.86, 0.27, "east-woods"],
+  ["palmtree_5", 2374.38, 413.24, null, 3.416, 14.45, 0.26, "east-woods"],
+  ["coconutpalmtree_3", 2282.35, 423.39, null, 1.807, 13.26, 0.34, "east-woods"],
+  ["palmtree_1", 2116.46, 459.73, null, 2.779, 17.18, 0.3, "east-woods"],
+  ["palmtree_7", 2261.89, 426.04, null, 4.33, 10.46, 0.18, "east-woods"],
+  ["coconutpalmtree_4", 2341.62, 408.32, null, 5.185, 15.31, 0.32, "east-woods"],
+  ["coconutpalmtree_1", 2241.2, 449.46, null, 3.217, 15.93, 0.42, "east-woods"],
+  ["palmtree_2", 2353.06, 380.86, null, 4.81, 15.05, 0.37, "east-woods"],
+  ["palmtree", 2372.74, 453.75, null, 5.328, 17.5, 0.3, "east-woods"],
+  ["coconutpalmtree_3", 2234.55, 440.71, null, 4.011, 13.15, 0.33, "east-woods"],
+  ["palmtree_5", 2206.07, 442.15, null, 4.789, 11.25, 0.2, "east-woods"],
+  ["coconutpalmtree_4", 2338.16, 442.34, null, 6.102, 15.96, 0.33, "east-woods"],
+  ["coconutpalmtree_3", 2397.65, 450.58, null, 0.602, 11.82, 0.3, "east-woods"],
+  ["coconutpalmtree_4", 2322.5, 390.75, null, 3.103, 12.42, 0.26, "east-woods"],
+  ["palmtree_8", 2351.19, 453.59, null, 5.202, 9.75, 0.17, "east-woods"],
+  ["coconutpalmtree_2", 2315.79, 375.22, null, 2.893, 12.21, 0.39, "east-woods"],
+  ["coconutpalmtree_4", 2363.04, 452.34, null, 0.4, 13.47, 0.28, "east-woods"],
+  ["palmtree_5", 2326.56, 410.81, null, 3.206, 11.84, 0.21, "east-woods"],
+  ["palmtree_2", 2297.47, 425.44, null, 5.905, 15.08, 0.37, "east-woods"],
+  ["palmtree_7", 2350.73, 466.54, null, 4.144, 11.02, 0.19, "east-woods"],
+  ["coconutpalmtree", 2262.6, 463.63, null, 3.795, 14.29, 0.28, "east-woods"],
+  ["palmtree_8", 2148.32, 446.54, null, 2.619, 10.12, 0.18, "east-woods"],
+  ["palmtree_2", 2283.67, 407.07, null, 1.979, 14.95, 0.37, "east-woods"],
+  ["palmtree_7", 2192.88, 467.36, null, 3.757, 11.98, 0.21, "east-woods"],
+  ["coconutpalmtree_4", 2400.37, 396.33, null, 5.699, 15.45, 0.32, "east-woods"],
+  ["coconutpalmtree_3", 2361.68, 417.96, null, 2.223, 12.84, 0.33, "east-woods"],
+  ["palmtree_3", 2219.42, 419.34, null, 2.338, 13.78, 0.27, "east-woods"],
+  ["coconutpalmtree_2", 2344.34, 378.51, null, 1.877, 11.53, 0.37, "east-woods"],
+  ["palmtree_3", 2157.3, 467.46, null, 3.356, 13.28, 0.26, "east-woods"],
+  ["palmtree_2", 2126.79, 432.06, null, 4.992, 14.88, 0.36, "east-woods"],
+  ["palmtree_8", 2116.04, 382.12, null, 2.597, 11.71, 0.2, "east-woods"],
+  ["palmtree_1", 2087.76, 444.14, null, 1.162, 16.52, 0.29, "east-woods"],
+  ["palmtree_3", 2088.81, 423.09, null, 2.398, 11.59, 0.23, "east-woods"],
+  ["palmtree_5", 2229.09, 433.54, null, 5.322, 12.37, 0.22, "east-woods"],
+  ["palmtree_4", 2311.68, 396.22, null, 1.294, 16.74, 0.47, "east-woods"],
+  ["coconutpalmtree_3", 2140.01, 435.75, null, 4.982, 11.82, 0.3, "east-woods"],
+  ["palmtree_4", 2346.35, 428.43, null, 2.052, 15.79, 0.45, "east-woods"],
+  ["coconutpalmtree", 2176.02, 458.88, null, 0.526, 14.63, 0.29, "east-woods"],
+  ["coconutpalmtree", 2208.57, 407.83, null, 2.475, 15.33, 0.3, "east-woods"],
+  ["coconutpalmtree_1", 2275.15, 461.16, null, 3.177, 15.27, 0.41, "east-woods"],
+  ["palmtree_4", 2095.02, 409.26, null, 1.414, 13.71, 0.39, "east-woods"],
+  ["palmtree", 2363.88, 362.66, null, 3.102, 20.31, 0.35, "east-woods"],
+  ["coconutpalmtree_3", 2260.61, 383.15, null, 4.92, 11.1, 0.28, "east-woods"],
+  ["palmtree_6", 2393.15, 386.47, null, 2.795, 10.88, 0.2, "east-woods"],
+  ["slimtree", 2391.72, 400.22, null, 2.134, 13.75, 0.35, "east-woods"],
+  ["slimtree", 2283.4, 386.9, null, 4.302, 12.47, 0.32, "east-woods"],
+  ["coconutpalmtree", 2415.1, 390.82, null, 2.277, 12.47, 0.25, "east-woods"],
+  ["palmtree_8", 2368.71, 378.99, null, 0.704, 10.86, 0.19, "east-woods"],
+  ["talltree", 2166.33, 440.73, null, 4.986, 16.95, 0.21, "east-woods"],
+  ["coconutpalmtree_1", 2122.25, 467.88, null, 3.441, 16.66, 0.44, "east-woods"],
+  ["coconutpalmtree_2", 2381.53, 434.17, null, 5.236, 12.28, 0.39, "east-woods"],
+  ["palmtree_8", 2226.7, 367.24, null, 2.744, 10.85, 0.19, "east-woods"],
+  ["palmtree_1", 2283.24, 443.26, null, 0.977, 18.65, 0.32, "east-woods"],
+  ["palmtree_2", 2325.76, 368.95, null, 4.996, 14.24, 0.35, "east-woods"],
+  ["palmtree_1", 2390.15, 467.85, null, 3.181, 16.46, 0.29, "east-woods"],
+  ["palmtree_1", 2090.43, 466.49, null, 0.541, 15.42, 0.27, "east-woods"],
+  ["palmtree_1", 2125.3, 455.5, null, 3.435, 19.01, 0.33, "east-woods"],
+  ["palmtree_4", 2113.53, 450.91, null, 1.577, 16.62, 0.47, "east-woods"],
+  ["palmtree_3", 2412.06, 381.88, null, 0.216, 11.67, 0.23, "east-woods"],
+  ["talltree", 2415.51, 449.97, null, 1.223, 16.87, 0.21, "east-woods"],
+  ["palmtree_3", 2135.59, 460.58, null, 0.973, 13.9, 0.27, "east-woods"],
+  ["coconutpalmtree_1", 2403.19, 366.84, null, 2.61, 14.93, 0.4, "east-woods"],
+  ["palmtree_6", 2246.96, 458.79, null, 3.052, 9.72, 0.18, "east-woods"],
+  ["palmtree_4", 2157.99, 445.78, null, 4.168, 12.97, 0.37, "east-woods"],
+  ["coconutpalmtree", 2251.32, 466.88, null, 1.197, 15.53, 0.31, "east-woods"],
+  ["palmtree_5", 2224.85, 395.56, null, 4.729, 14.81, 0.26, "east-woods"],
+  ["coconutpalmtree_1", 2417.87, 360.9, null, 4.157, 13.18, 0.35, "east-woods"],
+  ["coconutpalmtree_3", 2287.01, 367.09, null, 4.14, 12.9, 0.33, "east-woods"],
+  ["palmtree_8", 2322.53, 424.04, null, 2.848, 11.86, 0.21, "east-woods"],
+  ["palmtree_2", 2240.35, 432.28, null, 5.868, 11.91, 0.29, "east-woods"],
+  ["palmtree_8", 2086.37, 387.81, null, 2.207, 9.48, 0.16, "east-woods"],
+  ["talltree", 2264.53, 403.75, null, 5.506, 19.8, 0.25, "east-woods"],
+  ["palmtree_4", 2289.66, 436.61, null, 3.602, 13.89, 0.39, "east-woods"],
+  ["palmtree_1", 2208.43, 420.38, null, 0.295, 14.6, 0.25, "east-woods"],
+  ["palmtree_8", 2365.93, 463.29, null, 4.412, 11.64, 0.2, "east-woods"],
+  ["palmtree_6", 2414.45, 411.71, null, 1.872, 9.89, 0.19, "east-woods"],
+  ["coconutpalmtree_1", 2098.49, 426.61, null, 5.971, 13.59, 0.36, "east-woods"],
+  ["palmtree_6", 2398.2, 423.82, null, 5.478, 11.73, 0.22, "east-woods"],
+  ["palmtree_8", 2228.84, 423.66, null, 2.536, 11.76, 0.2, "east-woods"],
+  ["coconutpalmtree_3", 2330.52, 400.39, null, 1.21, 11.76, 0.3, "east-woods"],
+  ["slimtree", 2211.32, 390.84, null, 2.689, 12.44, 0.32, "east-woods"],
+  ["palmtree_4", 2382.59, 395.3, null, 3.658, 14.01, 0.4, "east-woods"],
+  ["palmtree_8", 2091.19, 434.36, null, 3.768, 10.63, 0.18, "east-woods"],
+  ["palmtree_8", 2221.05, 382.7, null, 0.296, 9.7, 0.17, "east-woods"],
+  ["coconutpalmtree_1", 2355.04, 399.87, null, 3.473, 14.09, 0.37, "east-woods"],
+  ["palmtree_6", 2399.99, 467.83, null, 4.062, 11.03, 0.21, "east-woods"],
+  ["palmtree_3", 2097.83, 452.34, null, 0.405, 12.97, 0.25, "east-woods"],
+  ["coconutpalmtree_1", 2305.15, 430.18, null, 0.173, 14.15, 0.38, "east-woods"],
+  ["coconutpalmtree", 2367.03, 438.66, null, 0.533, 13.65, 0.27, "east-woods"],
+  ["palmtree_2", 2393.86, 361.5, null, 3.251, 13, 0.32, "east-woods"],
+  ["coconutpalmtree", 2208.36, 430.75, null, 3.409, 12.18, 0.24, "east-woods"],
+  ["coconutpalmtree_1", 2182.42, 467.68, null, 3.805, 14.35, 0.38, "east-woods"],
+  ["slimtree", 2253.8, 406.05, null, 0.538, 12.86, 0.33, "east-woods"],
+  ["coconutpalmtree_3", 2121.76, 414.96, null, 0.615, 11.78, 0.3, "east-woods"],
+  ["talltree", 2387.14, 410.58, null, 5.256, 20.41, 0.26, "east-woods"],
+  ["palmtree_1", 2386.09, 446.54, null, 3.193, 15.51, 0.27, "east-woods"],
+  ["palmtree_1", 2328.28, 460.32, null, 5.554, 15.05, 0.26, "east-woods"],
+  ["palmtree_1", 2404.69, 387.49, null, 5.54, 15.46, 0.27, "east-woods"],
+  ["coconutpalmtree_1", 2311.16, 422.95, null, 4.716, 15.66, 0.42, "east-woods"],
+  ["coconutpalmtree_1", 2181.68, 450.36, null, 4.534, 15.74, 0.42, "east-woods"],
+  ["palmtree_8", 2377.51, 467.71, null, 4.358, 10.72, 0.19, "east-woods"],
+  ["palmtree_1", 2237.21, 419.31, null, 5.974, 17.25, 0.3, "east-woods"],
+  ["palmtree", 2106.45, 381.9, null, 4.764, 17.51, 0.3, "east-woods"],
+  ["talltree", 2143.04, 467.28, null, 0.46, 19, 0.24, "east-woods"],
+  ["palmtree_7", 2339.78, 452.67, null, 1.144, 10.5, 0.18, "east-woods"],
+  ["coconutpalmtree", 2354.31, 433.77, null, 3.495, 12.26, 0.24, "east-woods"],
+  ["coconutpalmtree", 2277.35, 415.04, null, 3.153, 11.91, 0.23, "east-woods"],
+  ["palmtree_2", 2104.54, 402.98, null, 0.58, 14.23, 0.35, "east-woods"],
+  ["palmtree_7", 2321.5, 466.96, null, 0.575, 11.36, 0.2, "east-woods"],
+  ["coconutpalmtree_1", 2218.67, 464.06, null, 4.314, 16.1, 0.43, "east-woods"],
+  ["palmtree_3", 2238.47, 463.53, null, 5.028, 13.98, 0.27, "east-woods"],
+  ["palmtree_5", 2372.77, 360.32, null, 2.992, 11.22, 0.2, "east-woods"],
+  ["palmtree_6", 2405.2, 407.98, null, 4.013, 11.27, 0.21, "east-woods"],
+  ["palmtree", 2305.57, 360.13, null, 1.783, 20.05, 0.34, "east-woods"],
+  ["palmtree_8", 2415.21, 439.4, null, 6.071, 9.97, 0.17, "east-woods"],
+  ["palmtree_2", 2389.89, 456.15, null, 1.063, 14.55, 0.36, "east-woods"],
+  ["palmtree_6", 2270.79, 445.05, null, 3.325, 9.86, 0.18, "east-woods"],
+  ["palmtree_2", 2330.68, 360.61, null, 2.79, 12.92, 0.32, "east-woods"],
+  ["palmtree_6", 2304.3, 378.72, null, 2.584, 12.09, 0.23, "east-woods"],
+  ["palmtree_7", 2271.59, 422.76, null, 6.161, 12.98, 0.22, "east-woods"],
+  ["coconutpalmtree", 2121.45, 389.85, null, 5.936, 12.48, 0.25, "east-woods"],
+  ["talltree", 2088.55, 456.13, null, 3.794, 17.91, 0.23, "east-woods"],
+  ["coconutpalmtree_4", 2096.88, 443.1, null, 0.848, 15.45, 0.32, "east-woods"],
+  ["palmtree_5", 2416.88, 459.17, null, 4.363, 14.59, 0.26, "east-woods"],
+  ["palmtree_2", 2262.58, 360.35, null, 5.294, 12.76, 0.31, "east-woods"],
+  ["palmtree_2", 2325.4, 437.1, null, 3.897, 12.99, 0.32, "east-woods"],
+  ["palmtree_8", 2351.31, 390.07, null, 1.749, 9.81, 0.17, "east-woods"],
+  ["coconutpalmtree_2", 2405.61, 444.43, null, 5.756, 11.43, 0.36, "east-woods"],
+  ["palmtree_3", 2266.32, 453.91, null, 5.812, 11.56, 0.23, "east-woods"],
+  ["palmtree_1", 2206.76, 370.04, null, 2.309, 17.37, 0.3, "east-woods"],
+  ["coconutpalmtree", 2354.5, 424.55, null, 3.889, 15.66, 0.31, "east-woods"],
+  ["coconutpalm", 2280.4, 103.03, null, 4.817, 10.72, 1.24, "lagoon-palms"],
+  ["coconutpalm", 2203.43, 104.93, null, 4.244, 13.25, 1.54, "lagoon-palms"],
+  ["coconutpalmtree_4", 2137.31, 125.43, null, 0.804, 9.86, 0.21, "lagoon-palms"],
+  ["palmtree_9", 2301.59, 114.63, null, 1.775, 9.29, 0.63, "lagoon-palms"],
+  ["palmtree_4", 2276.87, 96.45, null, 1.907, 13.36, 0.38, "lagoon-palms"],
+  ["coconutpalmtree_2", 2265.63, 110.06, null, 3.593, 10.36, 0.33, "lagoon-palms"],
+  ["palmtree_2", 2103.72, 135.66, null, 1.179, 11.43, 0.28, "lagoon-palms"],
+  ["palmtree_2", 2169.41, 97.04, null, 2.673, 10.06, 0.25, "lagoon-palms"],
+  ["palmtree_9", 2110.77, 125.54, null, 5.194, 11.9, 0.81, "lagoon-palms"],
+  ["palmtree_9", 2152.21, 107.41, null, 1.826, 10.27, 0.7, "lagoon-palms"],
+  ["palmtree_9", 2306.04, 121.14, null, 5.598, 12.22, 0.83, "lagoon-palms"],
+  ["coconutpalmtree_4", 2233.47, 97.86, null, 0.482, 8.46, 0.18, "lagoon-palms"],
+  ["palmtree_2", 2161.03, 108.33, null, 3.775, 11.81, 0.29, "lagoon-palms"],
+  ["palmtree_2", 2255.25, 109.32, null, 5.354, 8.29, 0.2, "lagoon-palms"],
+  ["coconutpalmtree_3", 2148.65, 123.11, null, 5.408, 9.4, 0.24, "lagoon-palms"],
+  ["coconutpalmtree_1", 2304.59, 99.32, null, 2.966, 8.66, 0.23, "lagoon-palms"],
+  ["coconutpalmtree", 2265.7, 101.85, null, 0.178, 12.74, 0.25, "lagoon-palms"],
+  ["palmtree_4", 2099.87, 126.75, null, 3.851, 10.56, 0.3, "lagoon-palms"],
+  ["coconutpalmtree_4", 2179.37, 103.28, null, 1.159, 12.46, 0.26, "lagoon-palms"],
+  ["coconutpalmtree_3", 2096.58, 137.23, null, 4.236, 10.8, 0.27, "lagoon-palms"],
+  ["coconutpalmtree_4", 2111.42, 132.56, null, 3.278, 8.9, 0.19, "lagoon-palms"],
+  ["palmtree_5", 2308.7, 105.42, null, 3.957, 11.47, 0.2, "lagoon-palms"],
+  ["palmtree_2", 2295.98, 126.93, null, 2.154, 11.06, 0.27, "lagoon-palms"],
+  ["palmtree_3", 2289.71, 100.59, null, 1.797, 12.87, 0.25, "lagoon-palms"],
+  ["palmtree_2", 2198.48, 118.19, null, 0.147, 11.26, 0.28, "lagoon-palms"],
+  ["coconutpalmtree_4", 2246.39, 112.54, null, 2.777, 11.04, 0.23, "lagoon-palms"],
+  ["coconutpalmtree_3", 2226.3, 109.07, null, 4.561, 11.93, 0.3, "lagoon-palms"],
+  ["coconutpalmtree_1", 2219.07, 108.21, null, 5.756, 13.09, 0.35, "lagoon-palms"],
+  ["palmtree_4", 2308.78, 114.47, null, 5.555, 9.61, 0.27, "lagoon-palms"],
+  ["coconutpalmtree_2", 2239.02, 103.26, null, 1.681, 10.42, 0.33, "lagoon-palms"],
+  ["palmtree_9", 2146.69, 112.33, null, 0.028, 13.18, 0.9, "lagoon-palms"],
+  ["palmtree_4", 2285.01, 125.06, null, 0.988, 10.38, 0.29, "lagoon-palms"],
+  ["palmtree_4", 2294.51, 347.98, null, 5.185, 12.4, 0.35, "lagoon-palms"],
+  ["coconutpalmtree_1", 2181.64, 348.24, null, 0.796, 10.42, 0.28, "lagoon-palms"],
+  ["palmtree_2", 2138.98, 332.04, null, 3.455, 10.82, 0.27, "lagoon-palms"],
+  ["coconutpalmtree_3", 2218.3, 347.82, null, 4.943, 10.37, 0.26, "lagoon-palms"],
+  ["palmtree_3", 2298.97, 355.38, null, 4.092, 13.98, 0.27, "lagoon-palms"],
+  ["coconutpalmtree_4", 2282.94, 355.31, null, 4.872, 13.64, 0.29, "lagoon-palms"],
+  ["coconutpalmtree", 2197.32, 368.73, null, 2.042, 11.98, 0.24, "lagoon-palms"],
+  ["coconutpalmtree_3", 2200.94, 359.37, null, 2.876, 9.63, 0.24, "lagoon-palms"],
+  ["coconutpalmtree_2", 2139.18, 342.98, null, 2.483, 12.84, 0.41, "lagoon-palms"],
+  ["coconutpalmtree_4", 2231.66, 343.43, null, 5.237, 13.98, 0.29, "lagoon-palms"],
+  ["palmtree_2", 2231, 354.47, null, 2.813, 9.13, 0.22, "lagoon-palms"],
+  ["palmtree_4", 2190.62, 344.2, null, 1.052, 11.27, 0.32, "lagoon-palms"],
+  ["coconutpalmtree_1", 2129.79, 356.91, null, 5.159, 10.07, 0.27, "lagoon-palms"],
+  ["palmtree_9", 2286.61, 333.41, null, 5.919, 12.1, 0.82, "lagoon-palms"],
+  ["palmtree_5", 2261.45, 351, null, 5.556, 11.12, 0.2, "lagoon-palms"],
+  ["palmtree_2", 2267.67, 338.38, null, 5.394, 11.21, 0.27, "lagoon-palms"],
+  ["palmtree_3", 2135.5, 369.82, null, 1.477, 13.2, 0.26, "lagoon-palms"],
+  ["coconutpalm", 2291.01, 360.06, null, 2.933, 10.56, 1.22, "lagoon-palms"],
+  ["coconutpalmtree_4", 2126.05, 328.48, null, 2.306, 9.88, 0.21, "lagoon-palms"],
+  ["coconutpalmtree_4", 2146.13, 337.76, null, 5.415, 9.61, 0.2, "lagoon-palms"],
+  ["palmtree_9", 2123.38, 349.67, null, 2.421, 13.8, 0.94, "lagoon-palms"],
+  ["coconutpalmtree_4", 2129.82, 341.08, null, 0.71, 8.16, 0.17, "lagoon-palms"],
+  ["palmtree_9", 2210.42, 349.4, null, 5.754, 13.38, 0.91, "lagoon-palms"],
+  ["palmtree_9", 2120.4, 333.38, null, 2.832, 11.57, 0.79, "lagoon-palms"],
+  ["coconutpalmtree_4", 2152.66, 359.14, null, 6.035, 10.14, 0.21, "lagoon-palms"],
+  ["palmtree_4", 2222.37, 355.62, null, 0.731, 9.74, 0.27, "lagoon-palms"],
+  ["coconutpalmtree_2", 2124.66, 361.84, null, 2.465, 13.01, 0.42, "lagoon-palms"],
+  ["palmtree_2", 2283.81, 343.79, null, 1.381, 11.33, 0.28, "lagoon-palms"],
+  ["palmtree_4", 2294.06, 334.35, null, 1.186, 9.81, 0.28, "lagoon-palms"],
+  ["palmtree_4", 2261.25, 341.86, null, 1.44, 12.91, 0.36, "lagoon-palms"],
+  ["monsteraplant_2", 1944.04, -47.26, null, 2.036, 1.88, 0, "woods-floor"],
+  ["bananaplant_2", 2268.72, 19.78, null, 4.66, 3.7, 0.84, "woods-floor"],
+  ["fernplant_1", 2212.32, -138.45, null, 6.056, 1.59, 0, "woods-floor"],
+  ["monsteraplant", 2108.53, 54.75, null, 0.247, 1.88, 0, "woods-floor"],
+  ["roundleafyshrub", 2061.79, -137.73, null, 3.398, 1.41, 0.56, "woods-floor"],
+  ["fernplant_1", 1929.77, 75.71, null, 3.712, 1.53, 0, "woods-floor"],
+  ["bananaplant_2", 1955.32, -103.85, null, 3.118, 3.77, 0.86, "woods-floor"],
+  ["fernplant_1", 2258.26, -145.99, null, 5.641, 1.3, 0, "woods-floor"],
+  ["bananaplant", 2155.1, 81.67, null, 3.13, 4.18, 0.29, "woods-floor"],
+  ["palmplant", 2067.14, 70.48, null, 6.272, 2, 0, "woods-floor"],
+  ["monsteraplant_1", 1988.04, -121.11, null, 1.07, 1.91, 0, "woods-floor"],
+  ["bananaplant_2", 1900.23, -3.16, null, 2.066, 3.49, 0.8, "woods-floor"],
+  ["roundleafyshrub", 1930.31, -37.86, null, 2.599, 1.61, 0.64, "woods-floor"],
+  ["palmplant", 1916.15, 45.99, null, 5.032, 2.49, 0, "woods-floor"],
+  ["palmplant", 2128.98, -66.58, null, 0.351, 2.33, 0, "woods-floor"],
+  ["bananaplant_2", 2126.49, -112.82, null, 3.478, 4.3, 0.98, "woods-floor"],
+  ["monsteraplant", 1968.57, 83.3, null, 4.181, 1.83, 0, "woods-floor"],
+  ["fanpalmshrub", 2249.59, 8.33, null, 3.25, 2.16, 0, "woods-floor"],
+  ["fanpalmshrub", 2048.94, 13.18, null, 3.862, 1.93, 0, "woods-floor"],
+  ["palmplant", 1910.03, -31, null, 1.573, 2.2, 0, "woods-floor"],
+  ["palmplant", 1977.48, -46.68, null, 0.7, 2.47, 0, "woods-floor"],
+  ["monsteraplant", 1920.58, -58.6, null, 3.697, 1.71, 0, "woods-floor"],
+  ["fernplant_1", 2064.15, -162.48, null, 2.088, 1.43, 0, "woods-floor"],
+  ["monsteraplant_1", 2103.76, 79.21, null, 2.306, 1.92, 0, "woods-floor"],
+  ["bananaplant_2", 1967.08, -149.89, null, 2.16, 4.29, 0.98, "woods-floor"],
+  ["bananaplant", 2065.96, 60.15, null, 1.293, 4.95, 0.34, "woods-floor"],
+  ["fernplant_1", 2237.14, -20.72, null, 1.547, 1.47, 0, "woods-floor"],
+  ["bananaplant_1", 1924.1, 96.82, null, 3.573, 4.19, 0.21, "woods-floor"],
+  ["monsteraplant_1", 2182.93, -55.75, null, 1.586, 2.07, 0, "woods-floor"],
+  ["fernplant_1", 2154.14, -22.4, null, 3.26, 1.29, 0, "woods-floor"],
+  ["fernplant", 2190.18, -114.35, null, 3.512, 1.2, 0, "woods-floor"],
+  ["bananaplant_1", 1894.45, -21.01, null, 1.072, 3.43, 0.17, "woods-floor"],
+  ["monsteraplant_1", 2250.04, -40.16, null, 0.296, 2.5, 0, "woods-floor"],
+  ["monsteraplant_2", 1906.05, 54.97, null, 2.694, 2.13, 0, "woods-floor"],
+  ["monsteraplant_2", 2047.06, -32.16, null, 0.303, 1.83, 0, "woods-floor"],
+  ["monsteraplant", 1948.94, -71.85, null, 1.713, 2.03, 0, "woods-floor"],
+  ["monsteraplant_1", 1947.47, 111.36, null, 0.196, 1.91, 0, "woods-floor"],
+  ["monsteraplant_1", 1993.74, 88.09, null, 4.955, 1.87, 0, "woods-floor"],
+  ["roundleafyshrub", 2148.32, -72.11, null, 4.215, 1.27, 0.5, "woods-floor"],
+  ["monsteraplant_1", 2170.36, 50.54, null, 2.498, 2.06, 0, "woods-floor"],
+  ["monsteraplant_1", 2109.99, -120.68, null, 2.278, 2.43, 0, "woods-floor"],
+  ["bananaplant_2", 2289.29, 86.51, null, 5.216, 3.24, 0.74, "woods-floor"],
+  ["monsteraplant_1", 2111.31, -26.73, null, 3.441, 2.4, 0, "woods-floor"],
+  ["monsteraplant", 2026.47, -157.39, null, 2.179, 1.81, 0, "woods-floor"],
+  ["palmplant", 2239.82, -59.77, null, 5.506, 2.14, 0, "woods-floor"],
+  ["monsteraplant_2", 2186.75, -46.72, null, 1.577, 1.86, 0, "woods-floor"],
+  ["fanpalmshrub", 1971.31, 11.33, null, 2.976, 2.26, 0, "woods-floor"],
+  ["bananaplant", 2288.46, -129.75, null, 0.257, 4.69, 0.32, "woods-floor"],
+  ["palmplant", 2065.24, -11.16, null, 2.579, 2.24, 0, "woods-floor"],
+  ["roundleafyshrub", 1983.42, -170.21, null, 1.567, 1.38, 0.55, "woods-floor"],
+  ["bananaplant_1", 2299.18, -150.39, null, 3.416, 3.64, 0.18, "woods-floor"],
+  ["palmplant", 2145.66, -50.5, null, 2.499, 1.89, 0, "woods-floor"],
+  ["monsteraplant", 2158.36, -170.85, null, 1.756, 1.86, 0, "woods-floor"],
+  ["monsteraplant", 1998.9, -35.28, null, 3.236, 1.56, 0, "woods-floor"],
+  ["roundshrub", 1899.39, 42.01, null, 2.712, 1.49, 0.58, "woods-floor"],
+  ["fernclump", 1947.77, 87.51, null, 1.466, 1.03, 0, "woods-floor"],
+  ["monsteraplant", 2063.47, -145.55, null, 3.539, 1.72, 0, "woods-floor"],
+  ["fanpalmshrub", 2117.95, -91.13, null, 4.343, 2.09, 0, "woods-floor"],
+  ["roundleafyshrub", 2244.89, -48.49, null, 2.517, 1.55, 0.62, "woods-floor"],
+  ["fernplant", 2124.92, 49.67, null, 2.255, 1.3, 0, "woods-floor"],
+  ["monsteraplant_1", 2116.89, 109.42, null, 2.155, 2.02, 0, "woods-floor"],
+  ["bananaplant_1", 2196.58, -10.42, null, 5.923, 4.19, 0.21, "woods-floor"],
+  ["fernplant", 2197.7, 32.64, null, 2.391, 1.13, 0, "woods-floor"],
+  ["bananaplant_1", 2091.41, -126.33, null, 5.484, 3.73, 0.19, "woods-floor"],
+  ["fernclump", 2132.08, 56.69, null, 4.013, 1.07, 0, "woods-floor"],
+  ["fernplant_1", 2253.5, 51.31, null, 3.406, 1.42, 0, "woods-floor"],
+  ["bananaplant", 1962.3, 102.34, null, 4.017, 4.75, 0.32, "woods-floor"],
+  ["palmplant", 1934.53, -159.45, null, 5.486, 2.05, 0, "woods-floor"],
+  ["monsteraplant_2", 2057.14, -140.28, null, 3.995, 2.13, 0, "woods-floor"],
+  ["bananaplant", 2128.69, 65.58, null, 1.648, 4.66, 0.32, "woods-floor"],
+  ["palmplant", 2221.34, -85.27, null, 0.057, 2.35, 0, "woods-floor"],
+  ["fernclump", 1965.69, -131.3, null, 1.296, 1.16, 0, "woods-floor"],
+  ["bananaplant", 2152.78, 52.7, null, 2.802, 5.12, 0.35, "woods-floor"],
+  ["monsteraplant", 2222.06, 77.32, null, 0.677, 2.01, 0, "woods-floor"],
+  ["bananaplant_1", 2291.36, 18.81, null, 1.008, 4.31, 0.22, "woods-floor"],
+  ["monsteraplant_2", 2181.35, -67.96, null, 2.351, 1.89, 0, "woods-floor"],
+  ["bananaplant_2", 2072.06, -32.69, null, 1.949, 3.77, 0.86, "woods-floor"],
+  ["roundleafyshrub", 2133.93, 4.76, null, 4.047, 1.52, 0.61, "woods-floor"],
+  ["monsteraplant_1", 2178, -154.88, null, 4.362, 2.04, 0, "woods-floor"],
+  ["roundleafyshrub", 2147.84, -25.55, null, 0.259, 1.38, 0.55, "woods-floor"],
+  ["monsteraplant_1", 2223.59, -80.47, null, 0.363, 1.88, 0, "woods-floor"],
+  ["roundleafyshrub", 2123.82, -29.29, null, 3.703, 1.44, 0.57, "woods-floor"],
+  ["fernclump", 2147.03, 65.99, null, 1.685, 1.02, 0, "woods-floor"],
+  ["palmplant", 2026.44, -166.04, null, 0.107, 2.34, 0, "woods-floor"],
+  ["fernplant", 2042.59, 17.49, null, 4.841, 1.31, 0, "woods-floor"],
+  ["fernplant", 2211.37, -5.97, null, 1.561, 1.27, 0, "woods-floor"],
+  ["monsteraplant", 2044.58, -26.27, null, 0.931, 1.75, 0, "woods-floor"],
+  ["fernplant_1", 2112.56, -33.53, null, 5.612, 1.34, 0, "woods-floor"],
+  ["fernclump", 2119.05, -153.54, null, 3.576, 1.13, 0, "woods-floor"],
+  ["roundleafyshrub", 1941.03, -83.45, null, 4.772, 1.45, 0.58, "woods-floor"],
+  ["fernplant", 2231.21, 104.63, null, 1.757, 1.13, 0, "woods-floor"],
+  ["fernclump", 1896.6, -50.2, null, 5.561, 1.15, 0, "woods-floor"],
+  ["palmplant", 2184.14, 92.83, null, 1.043, 2.14, 0, "woods-floor"],
+  ["fernclump", 1935.68, -60.32, null, 3.172, 1, 0, "woods-floor"],
+  ["bananaplant_1", 2043.77, 97.14, null, 5.674, 3.47, 0.18, "woods-floor"],
+  ["bananaplant_2", 2176.15, 68.59, null, 0.764, 3.44, 0.78, "woods-floor"],
+  ["palmplant", 1982.74, -96.51, null, 0.999, 2.48, 0, "woods-floor"],
+  ["roundshrub", 2257.84, 43.28, null, 3.582, 1.82, 0.71, "woods-floor"],
+  ["roundleafyshrub", 2259.38, -132.23, null, 1.369, 1.27, 0.5, "woods-floor"],
+  ["fanpalmshrub", 2252.29, -153.49, null, 2.263, 1.99, 0, "woods-floor"],
+  ["fanpalmshrub", 2264.02, -113.03, null, 1.155, 1.98, 0, "woods-floor"],
+  ["fanpalmshrub", 2270.15, -160.38, null, 3.088, 2.01, 0, "woods-floor"],
+  ["roundleafyshrub", 1965.87, -158.58, null, 5.282, 1.55, 0.62, "woods-floor"],
+  ["palmplant", 2240.54, -103.96, null, 4.946, 2.31, 0, "woods-floor"],
+  ["roundleafyshrub", 2210.58, 24.48, null, 2.386, 1.33, 0.53, "woods-floor"],
+  ["monsteraplant_1", 2289.37, -67.45, null, 3.819, 2.34, 0, "woods-floor"],
+  ["bananaplant_1", 2279.04, -101.43, null, 2.467, 4.42, 0.22, "woods-floor"],
+  ["fernclump", 2105.62, -43.05, null, 3.972, 1.2, 0, "woods-floor"],
+  ["fernplant", 2209.25, -60.88, null, 4.974, 1.22, 0, "woods-floor"],
+  ["bananaplant_2", 1985.46, 6, null, 4.439, 4.36, 0.99, "woods-floor"],
+  ["bananaplant_2", 1896.27, 66.23, null, 2.709, 3.99, 0.91, "woods-floor"],
+  ["fanpalmshrub", 1899.24, 11.23, null, 3.173, 2.26, 0, "woods-floor"],
+  ["monsteraplant_2", 2000.49, -145.28, null, 0.628, 1.91, 0, "woods-floor"],
+  ["palmplant", 2177.63, -171.45, null, 1.815, 2.46, 0, "woods-floor"],
+  ["bananaplant_2", 2123.04, 41.77, null, 5.058, 3.77, 0.86, "woods-floor"],
+  ["monsteraplant_2", 1996.77, -127.93, null, 0.885, 2.1, 0, "woods-floor"],
+  ["bananaplant_1", 2005.09, 0.46, null, 3.114, 3.73, 0.19, "woods-floor"],
+  ["bananaplant_1", 2226.01, 23.63, null, 1.711, 3.41, 0.17, "woods-floor"],
+  ["fanpalmshrub", 1917.91, -43.18, null, 3.247, 1.73, 0, "woods-floor"],
+  ["fernplant", 2011.94, -22.35, null, 4.912, 1.38, 0, "woods-floor"],
+  ["monsteraplant_2", 2206.52, 66.36, null, 1.07, 1.99, 0, "woods-floor"],
+  ["bananaplant_2", 2030.94, 50.01, null, 1.268, 3.65, 0.83, "woods-floor"],
+  ["roundshrub", 1938.18, 44.41, null, 3.961, 1.48, 0.58, "woods-floor"],
+  ["monsteraplant_2", 2163.17, -62.74, null, 1.656, 1.99, 0, "woods-floor"],
+  ["monsteraplant_2", 1956.33, -122.56, null, 0.999, 1.93, 0, "woods-floor"],
+  ["bananaplant_1", 1969.14, -138.53, null, 1.624, 4.51, 0.23, "woods-floor"],
+  ["roundshrub", 2286.15, -30.25, null, 0.546, 1.49, 0.58, "woods-floor"],
+  ["fernclump", 1996.94, 98.29, null, 2.192, 1.11, 0, "woods-floor"],
+  ["bananaplant_1", 2127.71, -12.84, null, 2.04, 3.69, 0.19, "woods-floor"],
+  ["bananaplant_1", 2267.19, -153.78, null, 5.351, 3.85, 0.19, "woods-floor"],
+  ["monsteraplant", 2144.12, -58.31, null, 6.037, 1.87, 0, "woods-floor"],
+  ["monsteraplant_1", 2291.42, -77.38, null, 6.101, 2.34, 0, "woods-floor"],
+  ["fernclump", 2288.41, -73.27, null, 2.097, 0.97, 0, "woods-floor"],
+  ["monsteraplant_2", 1952.25, 49.84, null, 5.588, 1.82, 0, "woods-floor"],
+  ["monsteraplant", 2075.73, -167.69, null, 1.236, 1.53, 0, "woods-floor"],
+  ["bananaplant_2", 2119.83, -32.58, null, 2.301, 4.07, 0.93, "woods-floor"],
+  ["bananaplant_1", 1982.03, -123.98, null, 6.172, 3.71, 0.19, "woods-floor"],
+  ["fanpalmshrub", 1901.09, -52.58, null, 2.121, 2.28, 0, "woods-floor"],
+  ["fernplant_1", 2000.1, 38.87, null, 4.79, 1.46, 0, "woods-floor"],
+  ["fernclump", 2132.08, 85.62, null, 0.024, 1.14, 0, "woods-floor"],
+  ["monsteraplant_1", 2238.27, 10.08, null, 3.93, 2.48, 0, "woods-floor"],
+  ["fernclump", 2237.85, 25.35, null, 2.32, 1.03, 0, "woods-floor"],
+  ["monsteraplant_2", 2257.98, -58.58, null, 5.6, 1.94, 0, "woods-floor"],
+  ["fernclump", 2107.31, -79.38, null, 1.585, 1.14, 0, "woods-floor"],
+  ["fanpalmshrub", 1971.97, 64.93, null, 0.58, 2.19, 0, "woods-floor"],
+  ["bananaplant", 2226.69, -53.17, null, 2.571, 5.09, 0.35, "woods-floor"],
+  ["fernplant", 1959.22, 82.22, null, 5.178, 1.39, 0, "woods-floor"],
+  ["palmplant", 2252.23, 102.27, null, 1.765, 2.18, 0, "woods-floor"],
+  ["roundshrub", 1901.87, 74.49, null, 5.409, 1.79, 0.7, "woods-floor"],
+  ["bananaplant_2", 2065.67, -36.58, null, 1.015, 3.48, 0.79, "woods-floor"],
+  ["monsteraplant", 2043.81, 63.07, null, 3.762, 1.94, 0, "woods-floor"],
+  ["fernplant", 1947.45, 52, null, 1.867, 1.42, 0, "woods-floor"],
+  ["monsteraplant", 1975.53, -123.02, null, 0.888, 1.66, 0, "woods-floor"],
+  ["roundleafyshrub", 2198.38, 10.15, null, 3.207, 1.2, 0.48, "woods-floor"],
+  ["palmplant", 2210.53, 51.91, null, 1.699, 2.44, 0, "woods-floor"],
+  ["monsteraplant", 1904.05, -107.66, null, 5.545, 1.65, 0, "woods-floor"],
+  ["roundshrub", 2036.46, 115.47, null, 1.157, 1.81, 0.7, "woods-floor"],
+  ["bananaplant_1", 2086.04, 10.35, null, 5.619, 4.16, 0.21, "woods-floor"],
+  ["roundshrub", 2272.07, -116.77, null, 6.05, 1.41, 0.55, "woods-floor"],
+  ["palmplant", 2258.96, -167.71, null, 0.506, 1.92, 0, "woods-floor"],
+  ["palmplant", 2103.38, -136.86, null, 4.054, 1.98, 0, "woods-floor"],
+  ["monsteraplant", 1905.62, -125.4, null, 5.617, 1.87, 0, "woods-floor"],
+  ["fernclump", 2270.77, -32.36, null, 3.089, 1.15, 0, "woods-floor"],
+  ["roundleafyshrub", 2254.26, -161.94, null, 0.466, 1.22, 0.48, "woods-floor"],
+  ["bananaplant", 1963.88, 79.65, null, 0.11, 5, 0.34, "woods-floor"],
+  ["roundshrub", 2245.33, -76.69, null, 1.328, 1.4, 0.54, "woods-floor"],
+  ["fanpalmshrub", 2281.24, 69.48, null, 4.331, 2.24, 0, "woods-floor"],
+  ["monsteraplant_1", 1907.28, 97.36, null, 1.254, 2.1, 0, "woods-floor"],
+  ["monsteraplant_1", 2159.6, -36.57, null, 4.484, 2.45, 0, "woods-floor"],
+  ["fanpalmshrub", 1985.04, -102.35, null, 5.892, 2.13, 0, "woods-floor"],
+  ["roundleafyshrub", 2098.52, -67.79, null, 3.14, 1.39, 0.55, "woods-floor"],
+  ["monsteraplant_2", 2042.6, -155.4, null, 1.844, 2.04, 0, "woods-floor"],
+  ["roundshrub", 2074.14, 53.35, null, 5.775, 1.59, 0.62, "woods-floor"],
+  ["bananaplant_1", 2294.81, -117.17, null, 5.44, 3.87, 0.2, "woods-floor"],
+  ["fernplant_1", 2140.13, 55.9, null, 3.514, 1.29, 0, "woods-floor"],
+  ["bananaplant_2", 2143.38, -9.31, null, 4.48, 3.48, 0.79, "woods-floor"],
+  ["palmplant", 2067.12, -3.41, null, 0.121, 2.3, 0, "woods-floor"],
+  ["roundshrub", 2180.03, 75.21, null, 5.135, 1.69, 0.66, "woods-floor"],
+  ["monsteraplant_1", 1954.21, -146.95, null, 6.257, 2.44, 0, "woods-floor"],
+  ["palmplant", 2216.08, -11.38, null, 0.27, 2.1, 0, "woods-floor"],
+  ["roundleafyshrub", 1986.52, -137.69, null, 3.387, 1.35, 0.54, "woods-floor"],
+  ["monsteraplant_2", 1962.8, -84.86, null, 3.961, 1.78, 0, "woods-floor"],
+  ["bananaplant_1", 1937.77, 85.32, null, 5.57, 3.6, 0.18, "woods-floor"],
+  ["monsteraplant", 2250.3, -104.48, null, 0.889, 1.94, 0, "woods-floor"],
+  ["bananaplant_1", 1915.47, 12.85, null, 5.144, 4.4, 0.22, "woods-floor"],
+  ["monsteraplant_1", 2075.76, -131.77, null, 0.344, 2.14, 0, "woods-floor"],
+  ["roundshrub", 2036, 49.42, null, 6.122, 1.59, 0.62, "woods-floor"],
+  ["bananaplant_1", 2170.74, 20.89, null, 1.365, 3.45, 0.17, "woods-floor"],
+  ["bananaplant", 2275.92, 115.27, null, 0.896, 4.06, 0.28, "woods-floor"],
+  ["bananaplant_2", 2114.15, 72.28, null, 2.804, 4.27, 0.97, "woods-floor"],
+  ["bananaplant_2", 2153.92, 43.08, null, 0.407, 3.6, 0.82, "woods-floor"],
+  ["fernclump", 2020.82, 85.79, null, 4.319, 0.97, 0, "woods-floor"],
+  ["bananaplant_1", 2269.08, -81.24, null, 5.909, 3.42, 0.17, "woods-floor"],
+  ["bananaplant_2", 2246.33, -169.96, null, 3.941, 3.75, 0.85, "woods-floor"],
+  ["monsteraplant", 1934.19, 97.08, null, 3.388, 1.94, 0, "woods-floor"],
+  ["fernplant_1", 2169.65, 58.88, null, 3.042, 1.52, 0, "woods-floor"],
+  ["roundshrub", 2143.77, 89.06, null, 5.833, 1.67, 0.65, "woods-floor"],
+  ["bananaplant", 2201.2, -8.11, null, 2.259, 4.23, 0.29, "woods-floor"],
+  ["monsteraplant_2", 2000.05, 87.39, null, 3.176, 2.27, 0, "woods-floor"],
+  ["roundleafyshrub", 1974.37, -114.87, null, 0.103, 1.42, 0.56, "woods-floor"],
+  ["fanpalmshrub", 2073.57, -5.12, null, 5.755, 2.25, 0, "woods-floor"],
+  ["fanpalmshrub", 2297.12, -26.18, null, 1.88, 2.22, 0, "woods-floor"],
+  ["bananaplant_1", 2222.48, 61.17, null, 3.554, 4.02, 0.2, "woods-floor"],
+  ["monsteraplant_1", 2264.79, -89.73, null, 0.095, 1.97, 0, "woods-floor"],
+  ["fernplant", 2164, -173, null, 2.165, 1.32, 0, "woods-floor"],
+  ["monsteraplant_1", 2111.03, 47.8, null, 5.994, 2.46, 0, "woods-floor"],
+  ["monsteraplant_1", 1921.17, -2.13, null, 3.364, 1.96, 0, "woods-floor"],
+  ["roundshrub", 2116.19, -140.66, null, 0.756, 1.78, 0.69, "woods-floor"],
+  ["bananaplant", 2054.71, -152.57, null, 0.076, 3.85, 0.26, "woods-floor"],
+  ["bananaplant", 2013.84, 93.25, null, 1.379, 5.09, 0.35, "woods-floor"],
+  ["palmplant", 1975.93, 24.95, null, 5.452, 2.06, 0, "woods-floor"],
+  ["roundleafyshrub", 2039.52, 24.03, null, 0.711, 1.28, 0.51, "woods-floor"],
+  ["bananaplant", 1972.09, -148.14, null, 2.885, 4.17, 0.29, "woods-floor"],
+  ["roundleafyshrub", 1937.82, -123.81, null, 5.104, 1.48, 0.59, "woods-floor"],
+  ["fernplant_1", 1893.51, -172.85, null, 0.677, 1.25, 0, "woods-floor"],
+  ["bananaplant_1", 2126.45, -144.59, null, 5.11, 3.55, 0.18, "woods-floor"],
+  ["palmplant", 2248.15, -84.77, null, 3.067, 2.41, 0, "woods-floor"],
+  ["fanpalmshrub", 2156.02, 63.59, null, 2.23, 2.25, 0, "woods-floor"],
+  ["fernplant_1", 1983.41, -50.67, null, 5.891, 1.23, 0, "woods-floor"],
+  ["fernplant", 2175.71, -5.49, null, 5.942, 1.36, 0, "woods-floor"],
+  ["palmplant", 2366.52, 343.01, null, 3.562, 4.11, 0, "wall:falls-bowl"],
+  ["fernclump", 2360.96, 346.63, null, 0.48, 1.95, 0, "wall:falls-bowl"],
+  ["fernclump", 2334.88, 340.2, null, 1.862, 2.65, 0, "wall:falls-bowl"],
+  ["palmplant", 2373.59, 338.87, null, 5, 5.36, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2369.53, 341.6, null, 2.512, 3.62, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2372.09, 335.99, null, 2.054, 3.11, 0, "wall:falls-bowl"],
+  ["fernclump", 2341.93, 345.46, null, 4.199, 2.4, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2357.4, 348.38, null, 1.544, 2.44, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2373.2, 332.8, null, 3.652, 3.22, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2338.09, 344.24, null, 1.03, 3.27, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2372.3, 329.3, null, 1.148, 4.28, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2354.11, 347.9, null, 0.888, 2.89, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2370.89, 318.81, null, 1.326, 2.47, 0, "wall:falls-bowl"],
+  ["palmplant", 2345.93, 346.79, null, 4.236, 3.9, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2329.64, 329.85, null, 2.815, 2.91, 0, "wall:falls-bowl"],
+  ["fanpalmshrub", 2348.98, 347.9, null, 1.016, 3.99, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2364.41, 347.02, null, 6.031, 3.78, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2367.64, 346.1, null, 0.288, 2.81, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2335.32, 336.66, null, 5.93, 3.15, 0, "wall:falls-bowl"],
+  ["fernclump", 2430.82, 241.82, null, 0.745, 1.89, 0, "wall:big-bowl"],
+  ["fernclump", 2455.72, 255.62, null, 0.151, 2.51, 0, "wall:big-bowl"],
+  ["monsteraplant", 2479.59, 245.21, null, 3.273, 3.89, 0, "wall:big-bowl"],
+  ["fernplant_1", 2433.77, 204.73, null, 1.882, 3.56, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2488.01, 239.43, null, 4.039, 3.25, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2487.28, 234.74, null, 0.692, 4.82, 0, "wall:big-bowl"],
+  ["fernclump", 2430.26, 215.32, null, 0.554, 1.9, 0, "wall:big-bowl"],
+  ["fernplant_1", 2448.39, 196, null, 4.521, 3.61, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2461.7, 195.37, null, 4.697, 3.29, 0, "wall:big-bowl"],
+  ["fernclump", 2469.36, 252.41, null, 2.019, 2.69, 0, "wall:big-bowl"],
+  ["monsteraplant", 2472.99, 251.26, null, 1.931, 4.18, 0, "wall:big-bowl"],
+  ["monsteraplant", 2488.43, 208.61, null, 4.977, 3.73, 0, "wall:big-bowl"],
+  ["fernclump", 2432.23, 210.71, null, 3.526, 1.86, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2471.83, 197.21, null, 4.806, 3.82, 0, "wall:big-bowl"],
+  ["fernplant_1", 2430.6, 235.1, null, 5.12, 2.74, 0, "wall:big-bowl"],
+  ["fernplant_1", 2457.33, 252.81, null, 5.532, 2.53, 0, "wall:big-bowl"],
+  ["fernclump", 2483.38, 247.2, null, 1.632, 2.78, 0, "wall:big-bowl"],
+  ["monsteraplant", 2444.08, 251.85, null, 1.128, 4.33, 0, "wall:big-bowl"],
+  ["fernclump", 2429.61, 230.52, null, 1.633, 2.19, 0, "wall:big-bowl"],
+  ["palmplant", 2461.1, 254.72, null, 5.318, 4.65, 0, "wall:big-bowl"],
+  ["fernclump", 2464.46, 255.92, null, 0.145, 2.56, 0, "wall:big-bowl"],
+  ["fernplant_1", 2489, 230.37, null, 0.647, 2.29, 0, "wall:big-bowl"],
+  ["fernplant_1", 2490, 213.93, null, 4.035, 3.1, 0, "wall:big-bowl"],
+  ["fernclump", 2481.05, 200.5, null, 5.914, 2.06, 0, "wall:big-bowl"],
+  ["fernplant_1", 2486.73, 211.56, null, 2.286, 2.37, 0, "wall:big-bowl"],
+  ["palmplant", 2485.16, 208.21, null, 2.725, 5.35, 0, "wall:big-bowl"],
+  ["fernplant_1", 2440.58, 251.76, null, 0.985, 3.12, 0, "wall:big-bowl"],
+  ["palmplant", 2431.38, 238.65, null, 4.654, 5.03, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2477.06, 200.99, null, 1.003, 3.69, 0, "wall:big-bowl"],
+  ["fernclump", 2492.3, 220.64, null, 0.179, 1.81, 0, "wall:big-bowl"],
+  ["fernplant_1", 2477.26, 250.74, null, 2.693, 2.83, 0, "wall:big-bowl"],
+  ["palmplant", 2480.52, 205.42, null, 3.213, 4.11, 0, "wall:big-bowl"],
+  ["palmplant", 2465.07, 252.21, null, 4.223, 3.62, 0, "wall:big-bowl"],
+  ["fernclump", 2489.32, 243.13, null, 0.485, 2.1, 0, "wall:big-bowl"],
+  ["fernplant_1", 2438.74, 248.64, null, 4.265, 2.87, 0, "wall:big-bowl"],
+  ["fernclump", 2465.85, 197.85, null, 2.31, 2.83, 0, "wall:big-bowl"],
+  ["monsteraplant", 2493.6, 230.87, null, 0.952, 4.04, 0, "wall:big-bowl"],
+  ["monsteraplant", 2485.77, 242.41, null, 4.385, 4.26, 0, "wall:big-bowl"],
+  ["fernclump", 2484.74, 202.47, null, 4.817, 1.81, 0, "wall:big-bowl"],
+  ["fernplant_1", 2447.6, 253.04, null, 5.286, 3.57, 0, "wall:big-bowl"],
+  ["fernplant_1", 2475.87, 247.33, null, 0.875, 3.23, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2451.85, 197.2, null, 0.577, 4.01, 0, "wall:big-bowl"],
+  ["fernclump", 2429.26, 211.91, null, 0.172, 2.5, 0, "wall:big-bowl"],
+  ["fernclump", 2435.19, 200.86, null, 1.059, 2.4, 0, "wall:big-bowl"],
+  ["fernclump", 2431.16, 207.42, null, 5.009, 2.76, 0, "wall:big-bowl"],
+  ["fernplant_1", 2490.59, 225.52, null, 2.84, 2.47, 0, "wall:big-bowl"],
+  ["fernplant_1", 2475.18, 197.57, null, 3.079, 3.15, 0, "wall:big-bowl"],
+  ["monsteraplant", 2473.14, 200.49, null, 0.45, 4.11, 0, "wall:big-bowl"],
+  ["fernclump", 2457.39, 194.27, null, 2.687, 2.16, 0, "wall:big-bowl"],
+  ["fernclump", 2432.9, 246.8, null, 6.275, 1.88, 0, "wall:big-bowl"],
+  ["fernplant_1", 2491.94, 234.36, null, 2.187, 2.72, 0, "wall:big-bowl"],
+  ["fernclump", 2435.12, 249.27, null, 5.531, 2.56, 0, "wall:big-bowl"],
+  ["monsteraplant", 2427.38, 234.63, null, 2.272, 3.5, 0, "wall:big-bowl"],
+  ["palmplant", 2488.65, 218.36, null, 4.818, 3.81, 0, "wall:big-bowl"],
+  ["palmplant", 2494.52, 223.03, null, 5.027, 5.52, 0, "wall:big-bowl"],
+  ["fernclump", 2357.67, 118.96, null, 3.386, 2.58, 0, "wall:gorge"],
+  ["fernplant_1", 2331.79, 112.36, null, 1.824, 2.86, 0, "wall:gorge"],
+  ["monsteraplant", 2414.29, 77.1, null, 0.399, 4.45, 0, "wall:gorge"],
+  ["fernclump", 2413.86, 48.85, null, 0.251, 2.08, 0, "wall:gorge"],
+  ["fernplant_1", 2347.24, 123.57, null, 1.906, 2.56, 0, "wall:gorge"],
+  ["fanpalmshrub", 2359.88, 92.02, null, 2.515, 3.69, 0, "wall:gorge"],
+  ["fernplant_1", 2442.07, 21.56, null, 4.917, 3.39, 0, "wall:gorge"],
+  ["fernplant_1", 2406.65, 54.32, null, 3.43, 2.34, 0, "wall:gorge"],
+  ["fernclump", 2462.92, 26.16, null, 3.814, 2.1, 0, "wall:gorge"],
+  ["fernplant_1", 2315.13, 149.4, null, 5.497, 2.88, 0, "wall:gorge"],
+  ["fernplant_1", 2376.11, 102.51, null, 1.37, 3.4, 0, "wall:gorge"],
+  ["palmplant", 2444.46, 17.52, null, 5.218, 3.74, 0, "wall:gorge"],
+  ["fernplant_1", 2420.07, 43.39, null, 1.325, 3.41, 0, "wall:gorge"],
+  ["fernplant_1", 2419.29, 70.07, null, 4.71, 3.51, 0, "wall:gorge"],
+  ["monsteraplant", 2372.83, 81.09, null, 4.523, 4, 0, "wall:gorge"],
+  ["palmplant", 2362.51, 112.09, null, 1.367, 4.68, 0, "wall:gorge"],
+  ["fanpalmshrub", 2327.33, 141.77, null, 5.166, 4.19, 0, "wall:gorge"],
+  ["palmplant", 2406.43, 80.6, null, 1.571, 3.56, 0, "wall:gorge"],
+  ["fernplant_1", 2324.27, 140.3, null, 2.645, 2.26, 0, "wall:gorge"],
+  ["fernclump", 2432.42, 30.96, null, 1.229, 1.84, 0, "wall:gorge"],
+  ["fernclump", 2332.38, 134.14, null, 0.875, 2.84, 0, "wall:gorge"],
+  ["fernclump", 2455.15, 33.42, null, 5.167, 1.76, 0, "wall:gorge"],
+  ["fernplant_1", 2343.46, 128.61, null, 2.631, 2.59, 0, "wall:gorge"],
+  ["palmplant", 2461.27, 30.86, null, 1.055, 4.51, 0, "wall:gorge"],
+  ["fernplant_1", 2446.77, 15.07, null, 0.108, 3.18, 0, "wall:gorge"],
+  ["fernclump", 2329.04, 137.67, null, 5.031, 2.61, 0, "wall:gorge"],
+  ["palmplant", 2478.57, 14.57, null, 1.07, 3.6, 0, "wall:gorge"],
+  ["fernclump", 2367.7, 86.71, null, 4.763, 2.39, 0, "wall:gorge"],
+  ["fanpalmshrub", 2446.44, 43.94, null, 4.885, 4.3, 0, "wall:gorge"],
+  ["monsteraplant", 2429.28, 59, null, 5.499, 3.13, 0, "wall:gorge"],
+  ["fanpalmshrub", 2388.59, 93.99, null, 3.585, 3.82, 0, "wall:gorge"],
+  ["fernclump", 2472, -11.07, null, 1.637, 2.35, 0, "wall:gorge"],
+  ["monsteraplant", 2394.34, 65.72, null, 4.905, 3.22, 0, "wall:gorge"],
+  ["fernclump", 2321.69, 144.98, null, 3.744, 2.07, 0, "wall:gorge"],
+  ["fernclump", 2336.8, 132.15, null, 1.189, 2.77, 0, "wall:gorge"],
+  ["fanpalmshrub", 2481.69, 10.01, null, 5.668, 4.5, 0, "wall:gorge"],
+  ["fanpalmshrub", 2403.52, 85.66, null, 6.088, 3.62, 0, "wall:gorge"],
+  ["fernplant_1", 2352.29, 120.55, null, 3.743, 2.76, 0, "wall:gorge"],
+  ["fernclump", 2370.2, 109.91, null, 0.069, 2.11, 0, "wall:gorge"],
+  ["monsteraplant", 2435.68, 53.16, null, 1.961, 3.93, 0, "wall:gorge"],
+];
+const HABITATION_STANDING = Object.freeze(rows.map(([m, x, z, y, r, s, solid, tag]) => Object.freeze({ m, x, z, y, r, s, solid, tag })));
+const HABITATION_MODELS = Object.freeze({"bananaplant":{"unit":0.8647,"base":[0.0002,0,0.0872],"kind":"banana"},"bananaplant_1":{"unit":0.98,"base":[-0.1042,0,0.0144],"kind":"banana"},"bananaplant_2":{"unit":0.9976,"base":[-0.0071,0,-0.0295],"kind":"banana"},"buttress-roottree":{"unit":0.9995,"base":[0.1147,0,0.1462],"kind":"tree"},"buttressedtree":{"unit":0.9995,"base":[0.1008,0,-0.011],"kind":"tree"},"coconutpalm":{"unit":0.9995,"base":[-0.0076,0,-0.2029],"kind":"palm"},"coconutpalmtree":{"unit":0.9995,"base":[0.0095,0,0.0417],"kind":"palm"},"coconutpalmtree_1":{"unit":0.9995,"base":[0.0056,0,-0.0017],"kind":"palm"},"coconutpalmtree_2":{"unit":0.9624,"base":[-0.052,0,-0.0061],"kind":"palm"},"coconutpalmtree_3":{"unit":0.9995,"base":[0.0042,0,-0.0027],"kind":"palm"},"coconutpalmtree_4":{"unit":0.9995,"base":[0.0222,0,-0.011],"kind":"palm"},"fanpalmshrub":{"unit":0.9419,"base":[-0.0247,0,-0.0242],"kind":"herb"},"fernclump":{"unit":0.8271,"base":[0.0869,0,0.0515],"kind":"fern"},"fernplant":{"unit":0.7397,"base":[-0.0007,0,0.0134],"kind":"herb"},"fernplant_1":{"unit":0.9312,"base":[0.0398,0,0.0339],"kind":"fern"},"foresttree":{"unit":0.9429,"base":[0.1306,0,0.0503],"kind":"tree"},"giantbuttress-roottree":{"unit":0.9995,"base":[0.1125,0,-0.0254],"kind":"tree"},"mangrovetree":{"unit":0.9995,"base":[-0.0066,0,0.0002],"kind":"tree"},"mangrovetree_1":{"unit":0.9995,"base":[0.0002,0,0.0686],"kind":"tree"},"mangrovetree_2":{"unit":0.9849,"base":[0.0015,0,-0.0168],"kind":"tree"},"mangrovetree_3":{"unit":0.9995,"base":[-0.0122,0,-0.0276],"kind":"tree"},"monsteraplant":{"unit":0.9995,"base":[-0.0251,0,0.0002],"kind":"herb"},"monsteraplant_1":{"unit":0.9897,"base":[-0.0066,0,0.0671],"kind":"herb"},"monsteraplant_2":{"unit":0.9995,"base":[0.0315,0,-0.0974],"kind":"herb"},"oaktree":{"unit":0.7954,"base":[-0.0002,0,-0.0002],"kind":"tree"},"palmplant":{"unit":0.9868,"base":[0.0154,0,-0.0505],"kind":"herb"},"palmtree":{"unit":0.9995,"base":[0.051,0,-0.0002],"kind":"tree"},"palmtree_1":{"unit":0.9995,"base":[0.0627,0,-0.0002],"kind":"tree"},"palmtree_2":{"unit":0.999,"base":[-0.0906,0.0005,0.1074],"kind":"palm"},"palmtree_3":{"unit":0.9995,"base":[0.0354,0,-0.0017],"kind":"palm"},"palmtree_4":{"unit":0.9995,"base":[0.3093,0,0.0706],"kind":"palm"},"palmtree_5":{"unit":0.9995,"base":[0.0359,0,0.011],"kind":"palm"},"palmtree_6":{"unit":0.9995,"base":[0.0193,0,0.0173],"kind":"palm"},"palmtree_7":{"unit":0.9995,"base":[-0.0422,0,-0.0017],"kind":"palm"},"palmtree_8":{"unit":0.9995,"base":[0.0088,0,0.0168],"kind":"palm"},"palmtree_9":{"unit":0.9995,"base":[-0.0481,0,0.4363],"kind":"palm"},"rock-granite-0":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-granite-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-granite-2":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-0":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-2":{"unit":1,"base":[0,0,0],"kind":"rock"},"roundleafyshrub":{"unit":0.7275,"base":[0.0171,0,0.0061],"kind":"shrub"},"roundshrub":{"unit":0.7944,"base":[0.1638,0,0.0696],"kind":"shrub"},"sceniclandscape":{"unit":0.9995,"base":[-0.0125,0,0.4509],"kind":"structure"},"slimtree":{"unit":0.9995,"base":[-0.011,0,0.0012],"kind":"tree"},"suspensionbridge":{"unit":0.9995,"base":[0.0281,0,0.1399],"kind":"bridge"},"talltree":{"unit":0.9995,"base":[-0.0183,0,-0.0061],"kind":"tree"},"tree":{"unit":0.9995,"base":[0.011,0,0.0164],"kind":"tree"},"tree_1":{"unit":0.9819,"base":[0.3435,0,-0.1936],"kind":"tree"},"treeonhill":{"unit":0.9995,"base":[0.1589,0,0.05],"kind":"tree"},"tropicalgazebo":{"unit":0.7104,"base":[0.0388,0,0.1204],"kind":"structure"},"tropicalpooldeck":{"unit":0.9995,"base":[-0.1477,0,-0.3357],"kind":"structure"},"waterfalllandscape":{"unit":0.8706,"base":[0.4338,0,0.2083],"kind":"cliff"},"woodenboardwalk":{"unit":0.9585,"base":[0.4778,0,0.1086],"kind":"structure"}});
+
+return { HABITATION_STANDING, HABITATION_MODELS };
+})();
+
+__modules["sim/zones/habitation.js"] = (function () {
+
+const WATER = -0.32;
+const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
+const pts = (list) => Object.freeze(list.map(([x, z]) => Object.freeze([x, z])));
+
+
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const smooth = (t) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 * u); };
+function hash(i, j) { let h = (i * 374761393 + j * 668265263) | 0; h = (h ^ (h >>> 13)) * 1274126177 | 0; return ((h ^ (h >>> 16)) >>> 0) / 4294967295; }
+function noise(x, z) {
+  const i = Math.floor(x), j = Math.floor(z), fx = x - i, fz = z - j;
+  const u = fx * fx * (3 - 2 * fx), v = fz * fz * (3 - 2 * fz);
+  const a = hash(i, j), b = hash(i + 1, j), c = hash(i, j + 1), d = hash(i + 1, j + 1);
+  return a + (b - a) * u + (c - a) * v + (a - b - c + d) * u * v;
+}
+const habitationNoise = noise;
+const fbm = (x, z) => noise(x, z) * 0.55 + noise(x * 2.1 + 17, z * 2.1 + 9) * 0.3 + noise(x * 4.3 + 3, z * 4.3 + 41) * 0.15;
+
+function nearLine(line, x, z) {
+  let best = Infinity, at = 0, run = 0, seg = 0, t = 0;
+  for (let i = 0; i + 1 < line.length; i += 1) {
+    const [ax, az] = line[i], [bx, bz] = line[i + 1];
+    const dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz || 1e-9, len = Math.sqrt(len2);
+    const u = clamp(((x - ax) * dx + (z - az) * dz) / len2, 0, 1);
+    const qx = ax + dx * u - x, qz = az + dz * u - z, d = Math.sqrt(qx * qx + qz * qz);
+    if (d < best) { best = d; at = run + u * len; seg = i; t = u; }
+    run += len;
+  }
+  return { d: best, at, seg, t, length: run };
+}
+const lineLength = (line) => { let s = 0; for (let i = 0; i + 1 < line.length; i += 1) s += Math.hypot(line[i + 1][0] - line[i][0], line[i + 1][1] - line[i][1]); return s; };
+function inside(poly, x, z) {
+  let c = false;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i, i += 1) {
+    const [xi, zi] = poly[i], [xj, zj] = poly[j];
+    if ((zi > z) !== (zj > z) && x < ((xj - xi) * (z - zi)) / (zj - zi) + xi) c = !c;
+  }
+  return c;
+}
+function edgeDistance(poly, x, z) {
+  let best = Infinity;
+  for (let i = 0, j = poly.length - 1; i < poly.length; j = i, i += 1) {
+    const [ax, az] = poly[j], [bx, bz] = poly[i];
+    const dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz || 1e-9;
+    const u = clamp(((x - ax) * dx + (z - az) * dz) / len2, 0, 1);
+    best = Math.min(best, Math.hypot(ax + dx * u - x, az + dz * u - z));
+  }
+  return best;
+}
+const signedDistance = (poly, x, z) => (inside(poly, x, z) ? -edgeDistance(poly, x, z) : edgeDistance(poly, x, z));
+const boundsOf = (poly, pad = 0) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const [x, z] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); } return box(x0 - pad, z0 - pad, x1 + pad, z1 + pad); };
+const circle = (cx, cz, r, n = 18, wobble = 0, seed = 0) => pts(Array.from({ length: n }, (_, k) => { const a = (k / n) * Math.PI * 2, rr = r * (1 + wobble * (noise(k * 1.7 + seed, seed * 0.3) - 0.5) * 2); return [cx + Math.cos(a) * rr, cz + Math.sin(a) * rr]; }));
+
+const UPRIVER = Object.freeze({
+  road: Object.freeze({ id: 'upriver', name: 'Waterside Road', x0: 243, z0: 108, x1: 1846, z1: 118, surface: 'asphalt', lanes: 2, edgeLines: true }),
+  park: Object.freeze({ id: 'habitation-park', name: 'Habitation car park', x0: 1832, z0: 64, x1: 1880, z1: 118, surface: 'asphalt', bays: true }),
+  verge: 4,
+  signs: Object.freeze([
+    Object.freeze({ id: 'habitation-way', lines: ['THE HABITATION', 'North, along the river'], x: 262, z: 104, facing: -Math.PI / 2, width: 6.4, height: 2.1, palette: ['#ffffff', '#1f5a3a'] }),
+    Object.freeze({ id: 'habitation-near', lines: ['THE HABITATION', 'Car park ahead'], x: 1760, z: 104, facing: -Math.PI / 2, width: 6, height: 2.1, palette: ['#ffffff', '#1f5a3a'] }),
+  ]),
+});
+const RIVER_HEAD = 2086;                     // grid x where the river opens into the lagoon
+const riverShore = (x) => 150 + 5 * Math.sin(x / 37) + 3 * Math.sin(x / 11 + 1);
+const RIVER_FAR = 300;
+
+const HABITATION = Object.freeze({
+  name: 'The Habitation',
+  bounds: box(1872, -175, 2530, 470),          // (from the gate's footbridge, which starts at the car park's edge)
+  gate: Object.freeze({ x: 1888, z: 91 }),
+  places: Object.freeze([
+    { id: 'entrance-hill', name: 'Entrance hill', x: 1934, z: 16, pictures: [10] },
+    { id: 'forest-path', name: 'Forest path', x: 2045, z: 86, pictures: [4, 15] },
+    { id: 'swamp', name: 'Swamp boardwalk', x: 2050, z: -82, pictures: [12] },
+    { id: 'mangroves', name: 'Mangrove boardwalk', x: 2060, z: 162, pictures: [5] },
+    { id: 'lagoon', name: 'The lagoon', x: 2210, z: 230, pictures: [6, 2, 8, 16, 18] },
+    { id: 'gorge', name: 'Rocky stream gorge', x: 2370, z: 95, pictures: [1, 7] },
+    { id: 'big-waterfall', name: 'Big waterfall', x: 2468, z: 225, pictures: [11] },
+    { id: 'suspension-bridge', name: 'Suspension bridge', x: 2386, z: 221, pictures: [9, 13] },
+    { id: 'waterfall-pool', name: 'Waterfall pool', x: 2350, z: 326, pictures: [3] },
+    { id: 'overlook', name: 'Overlook', x: 2252, z: 370, pictures: [17] },
+    { id: 'gazebo-garden', name: 'Gazebo garden', x: 2160, z: 408, pictures: [19] },
+    { id: 'sunset-beach', name: 'Sunset beach', x: 2192, z: 348, pictures: [14] },
+  ].map(Object.freeze)),
+});
+
+const water = (id, kind, outline, level, deepest, slope, extra = {}) => Object.freeze({ id, kind, outline: pts(outline), level, deepest, slope, bounds: boundsOf(outline, 12), ...extra });
+const HABITATION_WATERS = Object.freeze([
+  water('lagoon', 'lagoon', [
+    [2086, 151], [2104, 140], [2126, 129], [2160, 121], [2200, 118], [2240, 121], [2274, 131], [2302, 146], [2322, 168],
+    [2333, 196], [2336, 226], [2330, 258], [2318, 286], [2300, 310], [2276, 328], [2246, 341], [2214, 345], [2180, 343],
+    [2148, 336], [2118, 322], [2096, 308], [2086, 300],
+  ], WATER, 3.2, 0.09, { beach: 9, islands: Object.freeze([Object.freeze({ id: 'palm-island', outline: circle(2206, 205, 15, 16, 0.12, 11), top: 1.6 })]) }),
+  water('big-pool', 'pool', circle(2464, 225, 21, 22, 0.08, 3), 3.6, 2.6, 0.22, { beach: 0 }),
+  water('falls-pool', 'pool', circle(2352, 328, 17, 20, 0.1, 7), 1.1, 2.0, 0.18, { beach: 8 }),
+  water('swamp', 'swamp', [[1994, -42], [2028, -34], [2066, -40], [2092, -62], [2096, -92], [2084, -122], [2054, -136], [2016, -130], [1994, -108], [1987, -74]], 0.35, 1.1, 0.25, { beach: 0 }),
+  water('garden-pool', 'pond', [[2148, 396], [2166, 394], [2174, 402], [2168, 412], [2150, 413], [2143, 405]], 6.05, 0.9, 0.5, { beach: 0 }),
+]);
+const stream = (id, line, width, depth, heights, extra = {}) => Object.freeze({ id, line: pts(line), width, depth, heights: Object.freeze(heights), bounds: boundsOf(line, width + 14), length: lineLength(line), ...extra });
+const HABITATION_STREAMS = Object.freeze([
+  stream('moat', [[1897, -176], [1894, -110], [1891, -40], [1889, 30], [1887, 90], [1885, 130], [1884, 156]], 5.5, 1.3, [0.2, 0.1, 0.0, -0.1, -0.2, -0.3, WATER], { deep: true }),
+  stream('gorge', [[2482, -6], [2452, 24], [2424, 52], [2398, 76], [2376, 92], [2356, 106], [2336, 120], [2318, 134], [2306, 144]], 7, 0.35, [14, 12.2, 10.4, 8.6, 5.0, 3.4, 2.0, 0.6, WATER], { stones: true, banks: 4.5, walls: 2.6 }),
+  stream('outflow', [[2444, 225], [2424, 224], [2404, 222], [2386, 221], [2366, 220], [2348, 221], [2334, 222]], 9, 0.9, [3.6, 3.0, 2.2, 1.5, 0.9, 0.3, WATER], { rapids: true, banks: 1.5, walls: 2.4 }),
+  stream('falls-run', [[2340, 316], [2328, 306], [2316, 298]], 6, 0.3, [1.1, 0.5, WATER], { banks: 2, walls: 1.2 }),
+]);
+const HABITATION_FALLS = Object.freeze([
+  Object.freeze({ id: 'big', top: Object.freeze([2492, 225, 25.5]), foot: Object.freeze([2481, 225, 3.6]), width: 7, pool: 'big-pool' }),
+  Object.freeze({ id: 'pool', top: Object.freeze([2370, 340, 19.5]), foot: Object.freeze([2362, 335, 1.1]), width: 4.5, pool: 'falls-pool' }),
+  Object.freeze({ id: 'gorge', top: Object.freeze([2395, 78, 8.4]), foot: Object.freeze([2384, 87, 5.4]), width: 6, stream: 'gorge' }),
+  Object.freeze({ id: 'thin', top: Object.freeze([2342, 182, 14.5]), foot: Object.freeze([2334, 182, WATER]), width: 2.2, pool: 'lagoon' }),
+]);
+
+const hill = (x, z, r, h) => Object.freeze({ x, z, r, h });
+const HABITATION_HILLS = Object.freeze([
+  hill(1934, 14, 46, 9.5),       // the entrance hill, its great tree on top
+  hill(1962, -78, 60, 5),        // the rise west of the swamp
+  hill(2050, 34, 40, 2.4),       // the forest's floor, rising a little from the swamp to the beach
+  hill(2220, 40, 90, 4),         // the forest behind the west beach, rising toward the gorge
+]);
+const highland = (id, outline, top, rise, edge, rock, extra = {}) => Object.freeze({ id, outline: pts(outline), top, rise, edge, rock, bounds: boundsOf(outline, edge + 2), ...extra });
+const HABITATION_HIGHLANDS = Object.freeze([
+  highland('north', [[2318, -90], [2560, -90], [2560, 330], [2410, 330], [2392, 300], [2372, 282], [2352, 264], [2340, 244], [2338, 220], [2338, 192], [2330, 168], [2318, 150], [2312, 128], [2312, 60], [2310, 0], [2312, -50]], 12, 0.085, 5, 'mossy',
+    { rocks: Object.freeze([[2420, 'redstone'], [2380, 'granite']]) }),
+  highland('east', [[2342, 312], [2420, 330], [2420, 480], [2084, 480], [2084, 378], [2116, 372], [2126, 372], [2126, 412], [2148, 436], [2200, 432], [2208, 400], [2202, 366], [2214, 364], [2252, 358], [2284, 346], [2314, 330]], 20, 0.0, 4.5, 'limestone'),
+  highland('garden', [[2128, 372], [2196, 366], [2204, 400], [2196, 428], [2150, 432], [2126, 410]], 6.0, 0, 3, 'mossy', { flat: true }),
+]);
+const bowl = (id, outline, floor, walls, rock) => Object.freeze({ id, outline: pts(outline), floor, walls, rock, bounds: boundsOf(outline, 40) });
+const HABITATION_BOWLS = Object.freeze([
+  bowl('big-bowl', [[2436, 204], [2450, 198], [2468, 199], [2484, 208], [2490, 225], [2484, 242], [2468, 251], [2450, 252], [2436, 246], [2430, 232], [2430, 218]], 3.0, 4.5, 'redstone'),
+  bowl('falls-bowl', [[2336, 316], [2344, 312], [2360, 312], [2370, 320], [2372, 334], [2364, 344], [2350, 346], [2338, 340], [2332, 328]], 0.6, 4, 'limestone'),
+]);
+const HABITATION_PILLARS = Object.freeze([
+  { id: 'pillar-a', x: 2268, z: 268, r: 8.5, h: 26 }, { id: 'pillar-b', x: 2243, z: 297, r: 6, h: 18 },
+  { id: 'pillar-c', x: 2292, z: 236, r: 5, h: 14 }, { id: 'islet-a', x: 2163, z: 303, r: 7, h: 9 },
+  { id: 'islet-b', x: 2232, z: 168, r: 3, h: 2.6 }, { id: 'pillar-d', x: 2302, z: 290, r: 4, h: 20 },
+].map(Object.freeze));
+
+const path = (id, line, width, surface, extra = {}) => Object.freeze({ id, line: pts(line), width, surface, bounds: boundsOf(line, width + 12), ...extra });
+const HABITATION_PATHS = Object.freeze([
+  path('hill-up', [[1897, 91], [1906, 82], [1914, 66], [1921, 52], [1927, 38], [1932, 25], [1936, 17]], 3.2, 'earth'),
+  path('hill-top', [[1936, 17], [1944, 12], [1950, 20], [1956, 33]], 4, 'earth'),
+  path('hill-down', [[1956, 33], [1966, 44], [1978, 53], [1994, 62]], 3.2, 'earth'),
+  path('forest', [[1994, 62], [2014, 70], [2034, 80], [2054, 90], [2074, 99], [2094, 107], [2112, 115], [2126, 121]], 3.6, 'mud', { puddles: true }),
+  path('to-swamp', [[2014, 70], [2017, 46], [2021, 20], [2025, -8], [2028, -28]], 3, 'mud', { puddles: true }),
+  path('from-swamp', [[2090, -40], [2096, -14], [2098, 18], [2094, 50], [2084, 76], [2074, 99]], 3, 'mud', { puddles: true }),
+  path('to-mangroves', [[2034, 80], [2026, 102], [2016, 122], [2010, 136]], 3, 'earth'),
+  path('west-beach', [[2126, 121], [2160, 116], [2200, 113], [2240, 116], [2272, 125], [2296, 137], [2310, 140]], 5, 'sand'),
+  path('gorge-west', [[2310, 140], [2324, 128], [2338, 118], [2350, 110], [2362, 104]], 3, 'stone', { heights: [0.4, 1.5, 2.7, 3.7, 4.5] }),
+  path('gorge-east', [[2376, 108], [2386, 116], [2398, 130], [2412, 148], [2426, 166], [2436, 180], [2440, 192]], 3, 'earth', { heights: [4.8, 7.5, 11, 14.5, 17.5, 20.2, 21.6], steps: true }),
+  path('pool-shore', [[2448, 211], [2446, 215], [2444, 218]], 3.4, 'stone', { heights: [4.3, 4.3, 4.3] }),
+  path('outflow-west', [[2440, 192], [2430, 195], [2416, 200], [2400, 206], [2388, 211]], 3, 'earth', { heights: [21.6, 20.8, 19.8, 18.6, 17.6] }),
+  path('pool-east', [[2440, 232], [2448, 240], [2456, 248], [2448, 257], [2434, 262], [2420, 262]], 3, 'earth', { heights: [4.4, 8, 12, 16, 19, 20.2], steps: true }),
+  path('east-rim', [[2420, 262], [2404, 252], [2392, 242], [2386, 234]], 3, 'earth', { heights: [20.2, 19.2, 18.2, 17.6] }),
+  path('to-falls-pool', [[2386, 234], [2380, 248], [2372, 266], [2364, 286], [2356, 302], [2346, 310]], 3, 'earth', { heights: [17.6, 15, 11, 7, 3.2, 1.5] }),
+  path('falls-pool-beach', [[2346, 310], [2336, 318], [2334, 330]], 5, 'sand', { heights: [1.5, 1.3, 1.4] }),
+  path('to-overlook', [[2334, 330], [2324, 352], [2310, 370], [2292, 378], [2274, 374], [2264, 370]], 3, 'earth', { heights: [1.4, 6, 11, 16, 19.6, 20.2] }),
+  path('overlook-terrace', [[2238, 371], [2266, 369]], 9, 'stone', { heights: [20.2, 20.2] }),
+  path('overlook-garden', [[2240, 374], [2228, 386], [2212, 398], [2194, 406], [2176, 408]], 3.2, 'earth', { heights: [20.2, 17, 12.5, 8.4, 6.3] }),
+  path('garden', [[2176, 408], [2166, 404], [2156, 400], [2148, 392], [2146, 382]], 2.6, 'stone', { heights: [6.3, 6.2, 6.2, 6.1, 5.8] }),
+  path('to-sunset', [[2146, 382], [2150, 372], [2160, 364], [2174, 357], [2188, 352], [2198, 349]], 3, 'earth', { heights: [5.8, 4.3, 2.8, 1.6, 0.8, 0.45] }),
+  path('overlook-steps', [[2238, 366], [2228, 362], [2218, 358], [2208, 353]], 2.4, 'stone', { heights: [20.2, 13.6, 7.0, 0.7] }),
+  path('stairs-foot', [[2208, 353], [2200, 350]], 3, 'sand'),
+]);
+const HABITATION_GRASS = Object.freeze([
+  Object.freeze({ id: 'meadow', outline: circle(1938, 16, 22, 16, 0.18, 2) }),
+  Object.freeze({ id: 'garden-lawn', outline: pts([[2140, 410], [2160, 420], [2186, 418], [2190, 404], [2176, 392], [2152, 386], [2138, 394]]) }),
+  Object.freeze({ id: 'overlook-top', outline: circle(2252, 378, 6, 12, 0.1, 5) }),
+]).map((g) => Object.freeze({ ...g, bounds: boundsOf(g.outline, 2) }));
+const HABITATION_SAND = Object.freeze([
+  Object.freeze({ id: 'west-beach', outline: pts([[2116, 128], [2130, 112], [2170, 104], [2210, 103], [2250, 107], [2282, 118], [2308, 131], [2320, 146], [2300, 150], [2260, 132], [2210, 124], [2160, 128], [2126, 136]]) }),
+  Object.freeze({ id: 'island', outline: circle(2206, 205, 15, 16, 0.12, 11) }),
+  Object.freeze({ id: 'sunset-beach', outline: pts([[2150, 338], [2176, 352], [2210, 356], [2240, 352], [2262, 340], [2250, 334], [2214, 340], [2178, 338]]) }),
+  Object.freeze({ id: 'falls-pool-beach', outline: pts([[2330, 312], [2342, 304], [2352, 310], [2346, 322], [2336, 330], [2328, 324]]) }),
+]).map((g) => Object.freeze({ ...g, bounds: boundsOf(g.outline, 2) }));
+
+const deck = (id, kind, line, width, heights, extra = {}) => Object.freeze({ id, kind, line: pts(line), width, heights: Object.freeze(heights), bounds: boundsOf(line, width + 2), length: lineLength(line), rails: true, ...extra });
+const HABITATION_DECKS = Object.freeze([
+  deck('gate-bridge', 'bridge', [[1876, 91], [1886, 91], [1898, 91]], 2.6, [0.25, 0.75, 0.3], { entrance: true, model: 'woodenboardwalk' }),
+  deck('swamp-walk', 'boardwalk', [[2028, -28], [2032, -46], [2040, -60], [2052, -72], [2060, -84], [2070, -96], [2072, -112], [2062, -124], [2050, -118], [2058, -100], [2072, -80], [2082, -62], [2090, -40]], 2.4, [1.0], { over: 0.7, platform: Object.freeze({ x: 2060, z: -84, r: 5 }), model: 'woodenboardwalk', ropes: true }),
+  deck('mangrove-walk', 'boardwalk', [[2010, 136], [2024, 150], [2042, 162], [2062, 168], [2082, 164], [2098, 154], [2110, 142], [2120, 132]], 2.4, [1.0], { over: 1.0, model: 'woodenboardwalk' }),
+  deck('island-walk', 'boardwalk', [[2192, 118], [2196, 140], [2200, 164], [2203, 188]], 2.2, [0.9], { over: 0.8, ropes: true, model: 'woodenboardwalk' }),
+  deck('gorge-bridge', 'bridge', [[2362, 104], [2369, 106], [2376, 108]], 2.4, [4.6, 5.0, 4.8], { model: 'woodenboardwalk', piers: true }),
+  deck('falls-stairs', 'stairs', [[2440, 192], [2452, 194], [2460, 200], [2456, 207], [2448, 211]], 2.2, [21.6, 17, 12, 8, 4.3], { model: 'woodenboardwalk' }),
+  deck('outflow-bridge', 'bridge', [[2444, 218], [2441, 225], [2440, 232]], 2.4, [4.3, 4.5, 4.3], { model: 'woodenboardwalk' }),
+  deck('suspension-bridge', 'suspension', [[2388, 211], [2387, 222], [2386, 234]], 1.55, [17.6, 16.85, 17.6], { model: 'suspensionbridge' }),
+  deck('overlook-stairs', 'stairs', [[2238, 366], [2228, 362], [2218, 358], [2208, 353]], 2.4, [20.2, 13.6, 7.0, 0.7], { stone: true }),
+  deck('sunset-jetty', 'jetty', [[2196, 350], [2196, 340], [2196, 330]], 2.4, [0.75], { over: 0.7, ropes: true, model: 'woodenboardwalk' }),
+  deck('gazebo-floor', 'platform', [[2168, 392], [2168, 386]], 6, [6.6], { rails: false, model: 'tropicalgazebo' }),
+]);
+
+function landAt(x, z) {
+  let y = 1.0 + (fbm(x / 70, z / 70) - 0.5) * 2.4 + (fbm(x / 18 + 50, z / 18) - 0.5) * 0.6;
+  for (const h of HABITATION_HILLS) { const d2 = ((x - h.x) ** 2 + (z - h.z) ** 2) / (h.r * h.r); if (d2 < 9) y += h.h * Math.exp(-d2 * 1.6); }
+  for (const g of HABITATION_HIGHLANDS) {
+    if (x < g.bounds.x0 || x > g.bounds.x1 || z < g.bounds.z0 || z > g.bounds.z1) continue;
+    const s = signedDistance(g.outline, x, z) + (noise(x / 11, z / 11) - 0.5) * 4;
+    if (s > g.edge) continue;
+    const top = g.top + g.rise * Math.max(0, x - g.bounds.x0) + (fbm(x / 24 + 9, z / 24) - 0.5) * (g.flat ? 0.4 : 3);
+    const k = smooth((g.edge - s) / (g.edge * 2));
+    y = Math.max(y, y + (top - y) * k);
+  }
+  return y;
+}
+function pathLevel(p, n) {
+  const i = n.seg, a = p.heights[i], b = p.heights[i + 1] !== undefined ? p.heights[i + 1] : a;
+  return a + (b - a) * n.t;
+}
+function shaped(x, z) {
+  let y = landAt(x, z);
+  for (const b of HABITATION_BOWLS) {
+    if (x < b.bounds.x0 || x > b.bounds.x1 || z < b.bounds.z0 || z > b.bounds.z1) continue;
+    const s = signedDistance(b.outline, x, z) + (noise(x / 6 + 3, z / 6) - 0.5) * 2;
+    y = Math.min(y, b.floor + Math.max(0, s) * b.walls);
+  }
+  for (const s of HABITATION_STREAMS) {
+    if (x < s.bounds.x0 - 40 || x > s.bounds.x1 + 40 || z < s.bounds.z0 - 40 || z > s.bounds.z1 + 40) continue;
+    const n = nearLine(s.line, x, z);
+    const half = s.width / 2, banks = s.banks || 0;
+    const surface = streamLevel(s, n);
+    if (n.d < half) { y = Math.min(y, surface - s.depth + (s.depth * 0.7) * (n.d / half) ** 2); continue; }
+    if (n.d < half + banks) { y = Math.min(y, surface + 0.25 + (n.d - half) * 0.12); continue; }
+    if (s.walls) y = Math.min(y, surface + 0.25 + banks * 0.12 + (n.d - half - banks) * s.walls * (0.8 + 0.4 * noise(x / 5, z / 5)));
+    else if (n.d < half + 10) y = Math.min(y, surface + 0.15 + (y - surface - 0.15) * smooth((n.d - half) / 10));
+  }
+  for (const w of HABITATION_WATERS) {
+    if (x < w.bounds.x0 || x > w.bounds.x1 || z < w.bounds.z0 || z > w.bounds.z1) continue;
+    let s = signedDistance(w.outline, x, z);
+    if (w.islands) {
+      let isle = null, si = Infinity;
+      for (const i of w.islands) { const d = signedDistance(i.outline, x, z); if (d < si) { si = d; isle = i; } }
+      if (si < 0) { y = w.level + 0.05 + (isle.top - w.level) * smooth(-si / 8) + (noise(x / 4, z / 4) - 0.5) * 0.2; continue; }
+      if (s < 0) s = -Math.min(-s, si);         // (shallower toward the island too)
+    }
+    if (s < 0) { y = Math.min(y, w.level - Math.min(w.deepest, 0.04 - s * w.slope)); continue; }
+    const beach = w.beach || 1.5;
+    if (s < beach) y = Math.min(y, w.level + 0.05 + (y - w.level - 0.05) * smooth(s / beach));
+  }
+  if (x < RIVER_HEAD + 12 && z > 100 && z < RIVER_FAR + 40) {
+    const shore = riverShore(x), into = z - shore, across = RIVER_FAR - z;
+    if (into > 0 && across > 0) y = Math.min(y, WATER - Math.min(3.2, 0.04 + Math.min(into, across) * 0.16));
+    else if (into > -14 && into <= 0) y = Math.min(y, WATER + 0.05 + (y - WATER - 0.05) * smooth(-into / 14));
+    else if (across <= 0 && across > -14) y = Math.min(y, WATER + 0.05 + (y - WATER - 0.05) * smooth(-across / 14));
+  }
+  for (const p of HABITATION_PATHS) {
+    if (x < p.bounds.x0 || x > p.bounds.x1 || z < p.bounds.z0 || z > p.bounds.z1) continue;
+    const n = nearLine(p.line, x, z);
+    if (p.heights) {
+      if (n.d > p.width / 2 + 10) continue;
+      const level = pathLevel(p, n);
+      if (n.d <= p.width / 2 + 0.6) { y = level; continue; }
+      const bank = (n.d - p.width / 2 - 0.6);
+      y = y > level ? Math.min(y, level + bank * 1.8) : Math.max(y, level - bank * 1.2);
+      continue;
+    }
+    if (n.d > p.width / 2 + 2) continue;
+    const [ax, az] = p.line[n.seg], [bx, bz] = p.line[n.seg + 1];
+    const along = landAt(ax + (bx - ax) * n.t, az + (bz - az) * n.t);
+    const k = 1 - smooth((n.d - p.width / 2) / 2);
+    y = y + (Math.max(along, y - 3) - y) * k * 0.85;
+  }
+  const inward = x - HABITATION.bounds.x0;
+  if (inward < 24 && y > 0) y *= smooth(inward / 24);
+  return y;
+}
+const streamLevel = (s, n) => {
+  const i = n.seg, a = s.heights[i], b = s.heights[i + 1] !== undefined ? s.heights[i + 1] : a;
+  return a + (b - a) * n.t;
+};
+const TILE = 16;
+const tiles = new Map();
+function heightTile(i, j) {
+  const key = i * 100003 + j;
+  let t = tiles.get(key);
+  if (t) return t;
+  t = new Float32Array((TILE + 1) * (TILE + 1));
+  for (let b = 0; b <= TILE; b += 1) for (let a = 0; a <= TILE; a += 1) t[b * (TILE + 1) + a] = shaped(i * TILE + a, j * TILE + b);
+  if (tiles.size > 4000) tiles.clear();
+  tiles.set(key, t);
+  return t;
+}
+function habitationLand(x, z) {
+  const i = Math.floor(x / TILE), j = Math.floor(z / TILE);
+  const t = heightTile(i, j);
+  const fx = x - i * TILE, fz = z - j * TILE;
+  const a = Math.min(TILE - 1, Math.floor(fx)), b = Math.min(TILE - 1, Math.floor(fz));
+  const u = fx - a, v = fz - b, W = TILE + 1;
+  const h00 = t[b * W + a], h10 = t[b * W + a + 1], h01 = t[(b + 1) * W + a], h11 = t[(b + 1) * W + a + 1];
+  return h00 + (h10 - h00) * u + (h01 - h00) * v + (h00 - h10 - h01 + h11) * u * v;
+}
+const habitationShape = shaped;          // (for drawing: the same ground, not from the squares)
+
+function habitationWaterAt(x, z) {
+  const ground = habitationLand(x, z);
+  for (const w of HABITATION_WATERS) {
+    if (x < w.bounds.x0 || x > w.bounds.x1 || z < w.bounds.z0 || z > w.bounds.z1) continue;
+    if (inside(w.outline, x, z) && ground < w.level && !(w.islands && w.islands.some((i) => inside(i.outline, x, z) && ground > w.level - 0.02))) return { id: w.id, kind: w.kind, level: w.level, depth: w.level - ground };
+  }
+  for (const s of HABITATION_STREAMS) {
+    if (x < s.bounds.x0 || x > s.bounds.x1 || z < s.bounds.z0 || z > s.bounds.z1) continue;
+    const n = nearLine(s.line, x, z);
+    if (n.d < s.width / 2) { const level = streamLevel(s, n); if (ground < level) return { id: s.id, kind: s.rapids ? 'rapids' : 'stream', level, depth: s.deep ? Math.max(1, level - ground) : level - ground }; }
+  }
+  if (x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR && ground < WATER) return { id: 'niger', kind: 'river', level: WATER, depth: WATER - ground };
+  return null;
+}
+function habitationDeckAt(x, z) {
+  for (const d of HABITATION_DECKS) {
+    if (x < d.bounds.x0 || x > d.bounds.x1 || z < d.bounds.z0 || z > d.bounds.z1) continue;
+    const n = nearLine(d.line, x, z);
+    const onPlatform = d.platform && Math.hypot(x - d.platform.x, z - d.platform.z) < d.platform.r;
+    if (n.d > d.width / 2 && !onPlatform) continue;
+    return { deck: d, y: deckHeight(d, n, x, z), along: n.at, of: n.length };
+  }
+  return null;
+}
+function deckHeight(d, n, x, z) {
+  if (d.over !== undefined) {
+    const w = habitationWaterAt(x, z);
+    return Math.max(w ? w.level : -Infinity, habitationLand(x, z)) + d.over;
+  }
+  const h = d.heights;
+  if (h.length === 1) return h[0];
+  const t = n.at / (n.length || 1);
+  const k = t * (h.length - 1), i = Math.min(h.length - 2, Math.floor(k));
+  return h[i] + (h[i + 1] - h[i]) * (k - i);
+}
+
+const WADE = 0.55;
+function habitationFooting(x, z) {
+  const b = HABITATION.bounds;
+  if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) return null;
+  const deckHere = habitationDeckAt(x, z);
+  if (deckHere) return { walk: true, footOnly: true, kind: deckHere.deck.kind, deck: deckHere.deck.id, y: deckHere.y };
+  const w = habitationWaterAt(x, z);
+  if (w) return w.depth <= WADE && w.kind !== 'rapids' && w.kind !== 'swamp' ? { walk: true, kind: 'shallows', water: w.id, y: w.level - w.depth } : { walk: false, kind: 'water', water: w.id, depth: w.depth };
+  for (const p of HABITATION_PATHS) {
+    if (x < p.bounds.x0 || x > p.bounds.x1 || z < p.bounds.z0 || z > p.bounds.z1) continue;
+    if (nearLine(p.line, x, z).d <= p.width / 2) return { walk: true, kind: 'path', surface: p.surface, path: p.id };
+  }
+  for (const s of HABITATION_SAND) if (x >= s.bounds.x0 && x <= s.bounds.x1 && z >= s.bounds.z0 && z <= s.bounds.z1 && inside(s.outline, x, z)) return { walk: true, kind: 'sand', area: s.id };
+  for (const g of HABITATION_GRASS) if (x >= g.bounds.x0 && x <= g.bounds.x1 && z >= g.bounds.z0 && z <= g.bounds.z1 && inside(g.outline, x, z)) return { walk: true, kind: 'grass', area: g.id };
+  return { walk: false, kind: 'forest' };
+}
+const onHabitation = (x, z) => { const f = habitationFooting(x, z); return !!(f && f.walk); };
+function habitationFootOnly(x, z) {
+  const b = HABITATION.bounds;
+  if (x < b.x0 - 4 || x > b.x1 || z < b.z0 || z > b.z1) return null;
+  const d = habitationDeckAt(x, z);
+  return d ? { id: d.deck.id, kind: d.deck.kind, entrance: !!d.deck.entrance } : null;
+}
+function habitationGroundY(x, z) {
+  const f = habitationFooting(x, z);
+  if (!f) return 0;
+  if (f.y !== undefined) return f.y;
+  return habitationLand(x, z);
+}
+
+const R = UPRIVER.road, PARK = UPRIVER.park, V = UPRIVER.verge;
+const onUpriver = (x, z) => (x > R.x0 - 1 && x < R.x1 && z > R.z0 - V && z < R.z1 + V) || (x > PARK.x0 && x < PARK.x1 + 2 && z > PARK.z0 && z < PARK.z1 + V);
+const upriverGroundY = (x, z) => 0;
+
+const { HABITATION_STANDING, HABITATION_MODELS } = __modules["sim/zones/habitation-scene.js"];
+
+const GAZEBO_SOLID = [
+  [-0.288, -0.291, 0.03], [-0.3, 0.3, 0.03], [0.286, -0.271, 0.03], [0.287, 0.289, 0.03], [0.004, 0.133, 0.07],
+  ...[-0.2, -0.12, -0.04, 0.04, 0.12, 0.2].map((z) => [-0.293, z, 0.045]),
+];
+const GAZEBO = HABITATION_STANDING.find((s) => s.m === 'tropicalgazebo');
+const HABITATION_GAZEBO_SOLID = Object.freeze(GAZEBO ? GAZEBO_SOLID.map(([mx, mz, half]) => {
+  const { unit, base } = HABITATION_MODELS.tropicalgazebo, k = GAZEBO.s / unit;
+  const lx = k * (mx - base[0]), lz = k * (mz - base[2]), c = Math.cos(GAZEBO.r), sn = Math.sin(GAZEBO.r);
+  return Object.freeze({ x: GAZEBO.x + lx * c + lz * sn, z: GAZEBO.z - lx * sn + lz * c, half: k * half });
+}) : []);
+const HABITATION_COLLIDERS = Object.freeze([
+  ...HABITATION_STANDING.filter((s) => s.solid > 0).map((s) => box(s.x - s.solid, s.z - s.solid, s.x + s.solid, s.z + s.solid)),
+  ...HABITATION_GAZEBO_SOLID.map((p) => box(p.x - p.half, p.z - p.half, p.x + p.half, p.z + p.half)),
+]);
+const HABITATION_GATE_SIGN = Object.freeze({ id: 'habitation-gate', lines: ['THE HABITATION', 'On foot from here'], x: 1874, z: 97, facing: -Math.PI / 2, width: 5.2, height: 1.8, palette: ['#ffffff', '#1f5a3a'] });
+
+return { ...__modules["sim/zones/habitation-scene.js"], WATER, habitationNoise, UPRIVER, RIVER_HEAD, riverShore, RIVER_FAR, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_FALLS, HABITATION_HILLS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_SAND, HABITATION_DECKS, habitationLand, habitationShape, habitationWaterAt, habitationDeckAt, habitationFooting, onHabitation, habitationFootOnly, habitationGroundY, onUpriver, upriverGroundY, HABITATION_GAZEBO_SOLID, HABITATION_COLLIDERS, HABITATION_GATE_SIGN };
 })();
 
 __modules["sim/zones/atani-town.js"] = (function () {
@@ -2269,6 +4837,8 @@ const { SUPPLIED_VEHICLE_COLLIDERS } = __modules["sim/zones/supplied-vehicles.js
 const { TOWN_TREES } = __modules["sim/zones/atani-trees.js"];
 const { TOWER_COLLIDERS, TOWER_BOXES, standsAt } = __modules["sim/zones/town-buildings.js"];
 const { openClosures, closureColliders, edgeFences, fenceColliders } = __modules["sim/zones/closures.js"];
+const { HABITATION, onUpriver, onHabitation, habitationGroundY, HABITATION_COLLIDERS } = __modules["sim/zones/habitation.js"];
+
 
 const { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } = __modules["sim/zones/atani-town.js"];
 
@@ -3052,31 +5622,32 @@ const byNewBuilding = (t) => [...TOWER_BOXES, ...SUPPLIED_VEHICLE_COLLIDERS, ...
 const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t) && !inCityWay(t) && !byPowerbike(t) && !byNewBuilding(t)));
 
 
-const zoneGroundY = (x, z) => cityGroundY(x, z) || outskirtsGroundY(x, z);
+const inHabitation = (x, z) => x > HABITATION.bounds.x0 - 6 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1;
+const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z));
 
 const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Object.freeze({ x0: f[0], z0: f[1], x1: f[2], z1: f[3], barrier: false, billboard: b.id })));
 
 const ZONE_CLOSURES = Object.freeze(openClosures());
-const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z)));
+const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z)));
 const CLOSURE_COLLIDERS = [...closureColliders(ZONE_CLOSURES), ...fenceColliders(ZONE_EDGE_FENCES)];
-const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS].map(Object.freeze));
+const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 function zoneSolid(x, z, radius = 0.2, above = -Infinity) {
   return blockedIn(COLLIDER_INDEX, x, z, radius, above);
 }
 
-const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z);
+const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z);
 
 function zoneWalkable(x, z, extra = [], radius = 0.4) {
-  if (!onGround(x, z) && !onOutskirts(x, z)) return false;
+  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return false;
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
   for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
   return true;
 }
 
 function zoneBlockKind(x, z, extra = [], radius = 0.4) {
-  if (!onGround(x, z) && !onOutskirts(x, z)) return 'edge';
+  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return 'edge';
   let kind = null;
   const i0 = Math.floor((x - radius) / CELL), i1 = Math.floor((x + radius) / CELL);
   const j0 = Math.floor((z - radius) / CELL), j1 = Math.floor((z + radius) / CELL);
@@ -3091,7 +5662,7 @@ function zoneBlockKind(x, z, extra = [], radius = 0.4) {
   return kind;
 }
 
-return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/supplied-vehicles.js"], ...__modules["sim/zones/town-buildings.js"], ...__modules["sim/zones/atani-outskirts.js"], ...__modules["sim/zones/closures.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, zoneResident, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, zoneRoomAt, ZONE_TREES, zoneGroundY, ZONE_CLOSURES, ZONE_EDGE_FENCES, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable, zoneBlockKind };
+return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/supplied-vehicles.js"], ...__modules["sim/zones/habitation.js"], ...__modules["sim/zones/town-buildings.js"], ...__modules["sim/zones/atani-outskirts.js"], ...__modules["sim/zones/closures.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, zoneResident, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, zoneRoomAt, ZONE_TREES, zoneGroundY, ZONE_CLOSURES, ZONE_EDGE_FENCES, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable, zoneBlockKind };
 })();
 
 __modules["sim/zone.js"] = (function () {
@@ -4159,7 +6730,7 @@ return { GOODS, countOf, BUSINESSES, DESIGNS, PAINT_COLOURS, ENERGY, MASON_RATE,
 
 __modules["sim/vehicles.js"] = (function () {
 
-const { ZONE, ZONE_TEXT, ZONE_ROADS, OUTSKIRT_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident } = __modules["sim/zone.js"];
+const { ZONE, ZONE_TEXT, ZONE_ROADS, OUTSKIRT_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident, habitationFootOnly } = __modules["sim/zone.js"];
 const { GameError } = __modules["sim/registry.js"];
 const { LedgerError } = __modules["sim/ledger.js"];
 const { KEKE_PAINTS, VEHICLE_MODELS, kekeLook, footprintBox } = __modules["sim/vehicle-looks.js"];
@@ -4404,6 +6975,7 @@ function createVehicles({ state, ledger, issuanceAccount, economy, clock, weathe
     for (let i = 1; i <= steps; i += 1) {
       if (!vehicleFits(v.kind, v.x + ((x - v.x) * i) / steps, v.z + ((z - v.z) * i) / steps, boxes, others)) throw new GameError('BLOCKED', 'Movement rejected.');
     }
+    if (habitationFootOnly(x, z)) throw new GameError('FOOT_ONLY', 'Get off your vehicle to cross the bridge.');
     const fromX = v.x, fromZ = v.z;
     v.x = x; v.z = z; v.heading = heading;
     v.fuel = Math.max(0, v.fuel - gap / k.metresPerLitre);
@@ -6913,7 +9485,7 @@ return { CONTACT, contactNormal, contactOutcome, crashShare, LYING, THROW, throw
 
 __modules["sim/own-bikes.js"] = (function () {
 const { POWER_BIKES, handlingOf, FASTEST } = __modules["sim/power-bikes.js"];
-const { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind } = __modules["sim/zone.js"];
+const { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind, onHabitation, habitationFootOnly } = __modules["sim/zone.js"];
 const { contactNormal, contactOutcome, crashShare, throwLanding, THROW } = __modules["sim/contact.js"];
 const { GameError } = __modules["sim/registry.js"];
 
@@ -6955,6 +9527,7 @@ function createOwnBikes({ state, hub, obstacles }) {
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < 3) at = parked;
     else {
       if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
+      if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your motorcycle is brought to you at its car park.');
       if (!zoneWalkable(p.x, p.z, obstacles(), ROOM)) throw new GameError('NO_ROOM', 'There is no room for a motorcycle here. Go out to the road.');
       at = { x: p.x, z: p.z, h: p.heading || 0 };
     }
@@ -6979,6 +9552,7 @@ function createOwnBikes({ state, hub, obstacles }) {
     const boxes = obstacles();
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, ROOM - 0.1)) throw new GameError('BLOCKED', 'Movement rejected.');
+    if (habitationFootOnly(x, z)) throw new GameError('FOOT_ONLY', 'Get off your vehicle to cross the bridge.');
     const fromX = b.x, fromZ = b.z;
     if (elapsed > 0.004) b.seen = Number.isFinite(b.seen) ? b.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
     b.x = x; b.z = z; b.h = heading; b.movedAt = state.real;
@@ -7171,7 +9745,7 @@ return { CAR_CLASSES, CAR_HANDLING, POWER_CARS, carHandlingOf, CAR_FASTEST, topK
 
 __modules["sim/own-cars.js"] = (function () {
 const { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } = __modules["sim/power-cars.js"];
-const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind } = __modules["sim/zone.js"];
+const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind, onHabitation, habitationFootOnly } = __modules["sim/zone.js"];
 const { contactNormal, contactOutcome } = __modules["sim/contact.js"];
 const { GameError } = __modules["sim/registry.js"];
 
@@ -7214,6 +9788,7 @@ function createOwnCars({ state, hub, obstacles }) {
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < spec.length / 2 + 2.5) at = parked;
     else {
       if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your car is brought to you there.');
+      if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your car is brought to you at its car park.');
       const boxes = [...obstacles(), ...othersParked(p, id)];
       const h0 = p.heading || 0;
       const turns = [0, Math.PI, Math.PI / 2, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, (3 * Math.PI) / 4, (-3 * Math.PI) / 4];
@@ -7245,6 +9820,8 @@ function createOwnCars({ state, hub, obstacles }) {
       const k = i / steps;
       const hh = c.h + wrap(heading - c.h) * k;
       if (!carFits(c.id, c.x + (x - c.x) * k, c.z + (z - c.z) * k, hh, boxes, 0.2)) throw new GameError('BLOCKED', 'Movement rejected.');
+      const front = POWER_CARS[c.id].length / 2;
+      if (habitationFootOnly(c.x + (x - c.x) * k + Math.sin(hh) * front, c.z + (z - c.z) * k + Math.cos(hh) * front)) throw new GameError('FOOT_ONLY', 'Get off your vehicle to cross the bridge.');
     }
     const fromX = c.x, fromZ = c.z;
     if (elapsed > 0.004) c.seen = Number.isFinite(c.seen) ? c.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
@@ -7541,7 +10118,7 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, down: v.down || null });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -7588,6 +10165,7 @@ function createTalk({ state, population, residents, players, weather, hub = {} }
     const n = (value, lo, hi) => { const k = Number(value); return Number.isFinite(k) ? Math.max(lo, Math.min(hi, k)) : 0; };
     v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1), steer: n(r.steer, -0.7, 0.7) } : null;
     v.phone = [1, 2, 3].includes(data.phone) ? data.phone : 0;
+    v.torch = v.phone && data.torch ? 1 : 0;
     v.vehicle = vehicleIn(data.vehicle);
     v.parked = (Array.isArray(data.parked) ? data.parked : []).slice(0, 3).map((b) => {
       if (!(b && POWER_BIKES[b.bike] && near(b, x, z))) return null;
@@ -11155,6 +13733,7 @@ function encodePlayer(self, zoneId) {
   const a = self.astride;
   if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, st: r.steer || 0, hn: a.horns || 0 }; }
   if (self.phone) out.ph = self.phone;
+  if (self.phone && self.torch) out.to = 1;
   const r2 = (v) => Math.round(v * 100) / 100;
   if (self.driving) out.vh = { k: 'keke', id: self.driving.id, pl: self.driving.plate, lk: packLook(self.driving.look), f: self.driving.ownerName && !self.driving.owned ? 1 : 0, hn: self.horns || 0 };
   else if (a && !a.model) out.vh = { k: 'okada', hn: self.horns || 0 };
@@ -11205,9 +13784,10 @@ function decodePlayer(state, zoneId) {
   const cars = Array.isArray(state.pc) ? state.pc.map((p) => (Array.isArray(p) ? { car: p[0], x: p[1], z: p[2], h: p[3] } : null)) : [];
   const carTalk = Array.isArray(state.tc) ? { car: state.tc[0], ago: state.tc[1] } : null;
   const phone = [1, 2, 3].includes(state.ph) ? state.ph : 0;
+  const torch = phone && state.to === 1 ? 1 : 0;
   const dn = Array.isArray(state.dn) ? state.dn : null;
   const down = dn ? { kind: ['knock', 'crash', 'dead'][dn[0]] || null, age: dn[1], lie: dn[2], rise: dn[3], push: dn[4], hard: !!dn[5], from: Number.isFinite(dn[6]) && Number.isFinite(dn[7]) ? { x: dn[6], z: dn[7] } : null, over: Number.isFinite(dn[8]) && Number.isFinite(dn[9]) ? { a: dn[8], b: dn[9] } : null, id: Number.isFinite(dn[10]) ? dn[10] : null, at: Number.isFinite(dn[11]) && Number.isFinite(dn[12]) ? { x: dn[11], z: dn[12] } : null } : null;
-  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone };
+  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch };
 }
 
 function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
@@ -18256,8 +20836,49 @@ function createSky(scene, renderer) {
   const stars = new THREE.Points(starGeometry, new THREE.PointsMaterial({ color: 0xffffff, size: 2.2, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
   scene.add(stars);
 
+  const faintGeometry = new THREE.BufferGeometry();
+  const faintPositions = [];
+  for (let i = 0; i < 1100; i += 1) {
+    const u = Math.random() * Math.PI * 2;
+    const v = Math.acos(Math.random() * 0.97 + 0.03);
+    faintPositions.push(Math.sin(v) * Math.cos(u) * 840, Math.cos(v) * 840, Math.sin(v) * Math.sin(u) * 840);
+  }
+  faintGeometry.setAttribute('position', new THREE.Float32BufferAttribute(faintPositions, 3));
+  const faint = new THREE.Points(faintGeometry, new THREE.PointsMaterial({ color: 0xdfe6ff, size: 1.3, sizeAttenuation: false, transparent: true, opacity: 0, fog: false, depthWrite: false }));
+  faint.visible = false;
+  scene.add(faint);
+
   const sunDisc = new THREE.Mesh(new THREE.SphereGeometry(26, 16, 12), new THREE.MeshBasicMaterial({ color: 0xfff2c8, fog: false, toneMapped: false }));
   scene.add(sunDisc);
+
+  const moonCanvas = document.createElement('canvas');
+  moonCanvas.width = moonCanvas.height = 128;
+  const mctx = moonCanvas.getContext('2d');
+  mctx.fillStyle = '#000'; mctx.fillRect(0, 0, 128, 128);
+  const face = mctx.createRadialGradient(56, 54, 8, 64, 64, 60);
+  face.addColorStop(0, '#f6f4ea'); face.addColorStop(0.85, '#e4e0d0'); face.addColorStop(1, '#cfcab6');
+  mctx.fillStyle = face; mctx.beginPath(); mctx.arc(64, 64, 60, 0, Math.PI * 2); mctx.fill();
+  for (const [x, y, r, a] of [[48, 44, 17, 0.32], [70, 40, 12, 0.26], [80, 60, 15, 0.28], [58, 70, 11, 0.22], [44, 80, 9, 0.2], [86, 82, 7, 0.16], [66, 92, 6, 0.14]]) {
+    const sea = mctx.createRadialGradient(x, y, 0, x, y, r);
+    sea.addColorStop(0, `rgba(120,118,108,${a})`); sea.addColorStop(1, 'rgba(120,118,108,0)');
+    mctx.fillStyle = sea; mctx.beginPath(); mctx.arc(x, y, r, 0, Math.PI * 2); mctx.fill();
+  }
+  const moonMap = new THREE.CanvasTexture(moonCanvas);
+  moonMap.encoding = THREE.sRGBEncoding;
+  const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonMap, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, opacity: 0 }));
+  moon.scale.set(30, 30, 1);
+  moon.renderOrder = -8;
+  scene.add(moon);
+  const moonGlowCanvas = document.createElement('canvas');
+  moonGlowCanvas.width = moonGlowCanvas.height = 128;
+  const gctx = moonGlowCanvas.getContext('2d');
+  const ring = gctx.createRadialGradient(64, 64, 6, 64, 64, 64);
+  ring.addColorStop(0, 'rgba(210,222,255,0.55)'); ring.addColorStop(0.3, 'rgba(190,205,255,0.16)'); ring.addColorStop(1, 'rgba(180,200,255,0)');
+  gctx.fillStyle = ring; gctx.fillRect(0, 0, 128, 128);
+  const moonGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(moonGlowCanvas), transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, opacity: 0 }));
+  moonGlow.scale.set(150, 150, 1);
+  moonGlow.renderOrder = -9;
+  scene.add(moonGlow);
 
   const haloCanvas = document.createElement('canvas');
   haloCanvas.width = 128; haloCanvas.height = 128;
@@ -18312,8 +20933,9 @@ function createSky(scene, renderer) {
   let cover = 0;
   let flash = 0;
   const tmp = new THREE.Vector3();
+  const moonWay = new THREE.Vector3();
 
-  function update(dt, hour, weather, focus, camera, indoor = 0) {
+  function update(dt, hour, weather, focus, camera, indoor = 0, wild = 0) {
     const s = sample(hour);
     const targetCover = { clear: 0.12, cloudy: 0.75, rain: 0.92, storm: 1 }[weather.kind];
     cover += (targetCover - cover) * Math.min(1, dt * 0.9);
@@ -18327,6 +20949,8 @@ function createSky(scene, renderer) {
     if (weather.kind === 'storm' && Math.random() < dt * 0.25) flash = 1;
     flash = Math.max(0, flash - dt * 4);
 
+    const dark = night * Math.max(0, Math.min(1, wild)) * (1 - indoor);
+    if (dark > 0) { s.top.multiplyScalar(1 - 0.45 * dark); s.horizon.multiplyScalar(1 - 0.6 * dark); }
     uniforms.top.value.copy(s.top);
     uniforms.horizon.value.copy(s.horizon).lerp(new THREE.Color(1, 1, 1), flash * 0.5);
     scene.fog.color.copy(uniforms.horizon.value);
@@ -18347,6 +20971,7 @@ function createSky(scene, renderer) {
     hemi.intensity = s.ambient * (1 - dull * 0.25) + flash * 0.6;
     hemi.color.copy(s.top).lerp(new THREE.Color(1, 1, 1), 0.55);
     hemi.groundColor.copy(linear(0x8a7a5a)).multiplyScalar(0.7 + s.ambient * 0.5);
+    if (dark > 0) { sun.intensity *= 1 - 0.3 * dark; hemi.intensity *= 1 - 0.6 * dark; }
     if (indoor > 0) {
       sun.color.lerp(WHITE, indoor); sun.intensity += (HALL_LIGHT.key - sun.intensity) * indoor;
       hemi.color.lerp(WHITE, indoor); hemi.groundColor.lerp(HALL_FLOOR, indoor); hemi.intensity += (HALL_LIGHT.all - hemi.intensity) * indoor;
@@ -18355,6 +20980,16 @@ function createSky(scene, renderer) {
     dome.position.copy(camera.position);
     stars.position.copy(camera.position);
     stars.material.opacity = night * (1 - dull);
+    faint.position.copy(camera.position);
+    faint.material.opacity = dark * (1 - dull) * 0.85;
+    faint.visible = faint.material.opacity > 0.01;
+    const moonDir = trueToGrid(-0.45, 0.4, ZONE.gridBearing);
+    const moonAt = moonWay.set(moonDir.x, 0.8, moonDir.z).normalize();
+    moon.position.copy(camera.position).addScaledVector(moonAt, 780);
+    moonGlow.position.copy(moon.position);
+    moon.material.opacity = Math.max(0, night - 0.15) / 0.85 * (1 - dull * 0.85) * (1 - indoor);
+    moonGlow.material.opacity = moon.material.opacity * (0.55 + 0.45 * dark);
+    moon.visible = moonGlow.visible = moon.material.opacity > 0.01;
     sunDisc.visible = isDay && dull < 0.7;
     sunDisc.position.copy(camera.position).addScaledVector(dir, 800);
     sunDisc.material.color.copy(s.sun).lerp(new THREE.Color(1, 1, 1), 0.5);
@@ -18386,7 +21021,10 @@ function createSky(scene, renderer) {
     return { night, wetness, dull };
   }
 
-  return { update, sun };
+  return {
+    update, sun,
+    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +sun.intensity.toFixed(3), all: +hemi.intensity.toFixed(3) }),
+  };
 }
 
 return { createSky };
@@ -18770,12 +21408,150 @@ const carHornOf = (car) => CAR_HORNS[(car && HORN_OF_CLASS[car.class]) || 'town'
 return { carProfile, CAR_HORNS, carHornOf };
 })();
 
+__modules["client/bird-songs.js"] = (function () {
+
+function note(ctx, out, t, { f0, f1 = f0, len, level = 0.05, wave = 'sine', attack = 0.008, vibrato = 0, vibratoRate = 30, bend = 'exp', filter = null }) {
+  const osc = ctx.createOscillator(), g = ctx.createGain();
+  osc.type = wave;
+  osc.frequency.setValueAtTime(f0, t);
+  if (bend === 'exp') osc.frequency.exponentialRampToValueAtTime(Math.max(20, f1), t + len); else osc.frequency.linearRampToValueAtTime(f1, t + len);
+  let tail = osc;
+  if (vibrato) { const lfo = ctx.createOscillator(), depth = ctx.createGain(); lfo.frequency.value = vibratoRate; depth.gain.value = vibrato; lfo.connect(depth); depth.connect(osc.frequency); lfo.start(t); lfo.stop(t + len + 0.05); }
+  if (filter) { const f = ctx.createBiquadFilter(); f.type = filter.type || 'bandpass'; f.frequency.value = filter.f; f.Q.value = filter.q || 1; osc.connect(f); tail = f; }
+  g.gain.setValueAtTime(0.0001, t);
+  g.gain.exponentialRampToValueAtTime(level, t + Math.min(attack, len * 0.4));
+  g.gain.setValueAtTime(level, t + Math.max(attack, len * 0.55));
+  g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  tail.connect(g); g.connect(out);
+  osc.start(t); osc.stop(t + len + 0.05);
+}
+function rasp(ctx, out, noise, t, { f, q = 2, len, level = 0.05, offset = 0 }) {
+  const src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), g = ctx.createGain();
+  src.buffer = noise; filter.type = 'bandpass'; filter.frequency.value = f; filter.Q.value = q;
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(level, t + 0.01); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  src.connect(filter); filter.connect(g); g.connect(out);
+  src.start(t, offset % Math.max(0.1, noise.duration - len - 0.1)); src.stop(t + len + 0.05);
+}
+
+const BIRD_SONGS = Object.freeze({
+  'grey-parrot'(ctx, out, t, noise, r) {
+    const pick = r();
+    if (pick < 0.45) { note(ctx, out, t, { f0: 1100 + r() * 300, f1: 2300 + r() * 500, len: 0.26, level: 0.06 }); note(ctx, out, t + 0.32, { f0: 2400, f1: 1300, len: 0.3, level: 0.05 }); return 0.7; }
+    if (pick < 0.75) { for (let i = 0; i < 3; i += 1) note(ctx, out, t + i * 0.18, { f0: 1800 + i * 200, f1: 1500 + i * 250, len: 0.12, level: 0.05, vibrato: 60 }); return 0.6; }
+    note(ctx, out, t, { f0: 700, f1: 520, len: 0.22, level: 0.06, wave: 'sawtooth', filter: { f: 1400, q: 3 } }); rasp(ctx, out, noise, t, { f: 2200, q: 1.5, len: 0.2, level: 0.035, offset: r() * 1.5 });
+    return 0.3;
+  },
+  'senegal-parrot'(ctx, out, t, noise, r) {
+    const n = 2 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i += 1) note(ctx, out, t + i * 0.16, { f0: 2600 + r() * 400, f1: 3300 + r() * 300, len: 0.08, level: 0.04, wave: 'square', filter: { f: 3000, q: 4 } });
+    return n * 0.16;
+  },
+  parakeet(ctx, out, t, noise, r) {
+    const n = 2 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i += 1) { note(ctx, out, t + i * 0.22, { f0: 3600, f1: 2500, len: 0.14, level: 0.05, wave: 'sawtooth', filter: { f: 3100, q: 3 } }); }
+    return n * 0.22;
+  },
+  'blue-turaco'(ctx, out, t, noise, r) {
+    let at = t, gap = 0.32;
+    const n = 6 + Math.floor(r() * 5);
+    for (let i = 0; i < n; i += 1) { note(ctx, out, at, { f0: 420, f1: 360, len: 0.11, level: 0.07, wave: 'triangle', filter: { f: 520, q: 2 } }); at += gap; gap = Math.max(0.09, gap * 0.85); }
+    note(ctx, out, at, { f0: 380, f1: 330, len: 0.6, level: 0.05, wave: 'triangle', vibrato: 40, vibratoRate: 22 });
+    return at - t + 0.6;
+  },
+  'violet-turaco'(ctx, out, t, noise, r) {
+    const n = 5 + Math.floor(r() * 4);
+    for (let i = 0; i < n; i += 1) note(ctx, out, t + i * 0.24, { f0: 640, f1: 560, len: 0.16, level: 0.05, wave: 'sine' });
+    return n * 0.24;
+  },
+  hornbill(ctx, out, t, noise, r) {
+    const n = 6 + Math.floor(r() * 4);
+    for (let i = 0; i < n; i += 1) note(ctx, out, t + i * 0.19, { f0: 1750 - i * 35, f1: 1500 - i * 35, len: 0.12, level: 0.05 });
+    return n * 0.19;
+  },
+  'pied-crow'(ctx, out, t, noise, r) {
+    const n = 1 + Math.floor(r() * 3);
+    for (let i = 0; i < n; i += 1) { note(ctx, out, t + i * 0.42, { f0: 560, f1: 430, len: 0.3, level: 0.07, wave: 'sawtooth', filter: { f: 950, q: 2.5 } }); rasp(ctx, out, noise, t + i * 0.42, { f: 1300, q: 1.2, len: 0.28, level: 0.04, offset: r() * 1.5 }); }
+    return n * 0.42;
+  },
+  bulbul(ctx, out, t, noise, r) {
+    const phrase = [[1500, 1900, 0.07], [1500, 1900, 0.07], [2100, 1700, 0.09], [1600, 2200, 0.08], [1900, 1400, 0.12]];
+    let at = t;
+    for (const [a, b, len] of phrase) { note(ctx, out, at, { f0: a * (0.95 + r() * 0.1), f1: b, len, level: 0.045 }); at += len + 0.04; }
+    return at - t;
+  },
+  sunbird(ctx, out, t, noise, r) {
+    const n = 10 + Math.floor(r() * 12);
+    let at = t;
+    for (let i = 0; i < n; i += 1) { const f = 4200 + r() * 2200; note(ctx, out, at, { f0: f, f1: f * (0.85 + r() * 0.3), len: 0.04, level: 0.025 }); at += 0.05 + r() * 0.03; }
+    return at - t;
+  },
+  weaver(ctx, out, t, noise, r) {
+    let at = t;
+    const n = 8 + Math.floor(r() * 8);
+    for (let i = 0; i < n; i += 1) {
+      if (r() < 0.4) rasp(ctx, out, noise, at, { f: 4500 + r() * 1500, q: 3, len: 0.09, level: 0.025, offset: r() * 1.5 });
+      else note(ctx, out, at, { f0: 2600 + r() * 1400, f1: 2200 + r() * 1200, len: 0.05, level: 0.025 });
+      at += 0.06 + r() * 0.05;
+    }
+    return at - t;
+  },
+  kingfisher(ctx, out, t, noise, r) {
+    const n = 2 + Math.floor(r() * 2);
+    for (let i = 0; i < n; i += 1) note(ctx, out, t + i * 0.14, { f0: 6400, f1: 6900, len: 0.07, level: 0.03 });
+    return n * 0.14;
+  },
+  egret(ctx, out, t, noise, r) {
+    note(ctx, out, t, { f0: 320, f1: 240, len: 0.35, level: 0.05, wave: 'sawtooth', filter: { f: 700, q: 2 } });
+    return 0.4;
+  },
+  ibis(ctx, out, t, noise, r) {
+    const n = 3 + Math.floor(r() * 2);
+    let at = t;
+    for (let i = 0; i < n; i += 1) { note(ctx, out, at, { f0: 640, f1: 520, len: 0.3, level: 0.06, wave: 'sawtooth', filter: { f: 1150, q: 3 } }); at += 0.38; }
+    note(ctx, out, at, { f0: 560, f1: 600, len: 0.16, level: 0.05, wave: 'sawtooth', filter: { f: 1150, q: 3 } });
+    note(ctx, out, at + 0.2, { f0: 600, f1: 460, len: 0.3, level: 0.055, wave: 'sawtooth', filter: { f: 1100, q: 3 } });
+    return at - t + 0.5;
+  },
+  'fish-eagle'(ctx, out, t, noise, r) {
+    note(ctx, out, t, { f0: 1350, f1: 1650, len: 0.35, level: 0.06, wave: 'triangle' });
+    note(ctx, out, t + 0.36, { f0: 1650, f1: 1050, len: 0.4, level: 0.055, wave: 'triangle' });
+    for (let i = 0; i < 3; i += 1) note(ctx, out, t + 0.9 + i * 0.2, { f0: 1300, f1: 1100, len: 0.13, level: 0.05, wave: 'triangle' });
+    return 1.6;
+  },
+});
+
+const FROG_CALLS = Object.freeze({
+  tree(ctx, out, t, noise, r) {
+    const n = 4 + Math.floor(r() * 6);
+    for (let i = 0; i < n; i += 1) note(ctx, out, t + i * 0.07, { f0: 2100 + r() * 200, f1: 1900, len: 0.03, level: 0.03, wave: 'square', filter: { f: 2200, q: 5 } });
+    return n * 0.07;
+  },
+  ribbit(ctx, out, t, noise, r) {
+    for (let i = 0; i < 2; i += 1) note(ctx, out, t + i * 0.18, { f0: 520 + r() * 60, f1: 420, len: 0.13, level: 0.05, wave: 'sawtooth', vibrato: 90, vibratoRate: 38, filter: { f: 900, q: 3 } });
+    return 0.4;
+  },
+  bull(ctx, out, t, noise, r) {
+    note(ctx, out, t, { f0: 150, f1: 120, len: 0.55, level: 0.08, wave: 'sawtooth', vibrato: 12, vibratoRate: 18, filter: { f: 300, q: 2, type: 'lowpass' } });
+    return 0.6;
+  },
+});
+
+function cricket(ctx, out, t, r, level = 0.012) {
+  const f = 4300 + r() * 600;
+  for (let i = 0; i < 3; i += 1) note(ctx, out, t + i * 0.035, { f0: f, len: 0.025, level, attack: 0.003 });
+  return 0.12;
+}
+
+return { BIRD_SONGS, FROG_CALLS, cricket };
+})();
+
 __modules["client/audio.js"] = (function () {
 
 const { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor, BIKE_RECORDINGS, recordingKindOf, recordingPitchOf, createRecordedEngine, holdBikeHorn } = __modules["client/bike-audio.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
 const { carProfile, carHornOf } = __modules["client/car-audio.js"];
+const { BIRD_SONGS, FROG_CALLS, cricket } = __modules["client/bird-songs.js"];
 
 const ENGINE_VOICES = Object.freeze({
   keke: Object.freeze({ low: 58, climb: 92, wave: 'sawtooth', putter: 13, bright: 7, level: 0.34 }),
@@ -18947,6 +21723,7 @@ const KINDS = Object.freeze({
   footstep: { limit: 2, rank: 1 }, knock: { limit: 1, rank: 0 }, bird: { limit: 1, rank: 0 }, beep: { limit: 1, rank: 0 }, bell: { limit: 1, rank: 1 },
   horn: { limit: 2, rank: 2 }, blow: { limit: 3, rank: 2 }, whistle: { limit: 1, rank: 3 }, shout: { limit: 2, rank: 2 }, door: { limit: 2, rank: 1 }, ui: { limit: 2, rank: 3 },
   shutter: { limit: 2, rank: 3 }, choose: { limit: 1, rank: 3 },
+  birdsong: { limit: 3, rank: 0 }, frog: { limit: 2, rank: 0 }, cricket: { limit: 2, rank: 0 },
 });
 const MOST_AT_ONCE = 10;         // short sounds, of every kind together
 const NEAREST = Object.freeze({ music: 2, generator: 2, engine: 3 });
@@ -19089,6 +21866,66 @@ function createAudio() {
   }
 
   function focus(seconds = 1.2) { if (ctx) ducks.focusUntil = Math.max(ducks.focusUntil, ctx.currentTime + seconds); }
+
+  const habitat = { falls: new Map(), stream: null, waves: null, leaves: null, cricketAt: 0, frogAt: 0, heard: { songs: 0, kinds: new Set(), frogs: 0, crickets: 0 } };
+  function habitatSounds(h, now, L, rain) {
+    const wild = h ? h.wild : 0;
+    const quiet = (n) => { if (n) n.gain.gain.setTargetAtTime(0, now, 0.5); };
+    if (!h || wild <= 0.01) {
+      for (const [id, n] of habitat.falls) { n.low.src.stop(); n.hiss.src.stop(); n.p.disconnect(); habitat.falls.delete(id); }
+      quiet(habitat.stream); quiet(habitat.waves); quiet(habitat.leaves);
+      return;
+    }
+    const night = h.night || 0;
+    for (const c of (h.calls || []).splice(0)) {
+      const song = BIRD_SONGS[c.song];
+      if (!song || night > 0.6 || Math.hypot(c.x - L.x, c.z - L.z) > 140) continue;
+      if (!claim('birdsong', 1.6)) break;
+      const p = panner(90);
+      move(p, c.x, c.y, c.z);
+      p.connect(nodes.ambient);
+      const len = song(ctx, p, now + 0.02 + Math.random() * 0.25, nodes.white, Math.random);
+      setTimeout(() => p.disconnect(), (len + 1.5) * 1000);
+      habitat.heard.songs += 1; habitat.heard.kinds.add(c.song);
+    }
+    const near = (h.falls || []).map((f) => ({ f, d: Math.hypot(f.x - L.x, f.z - L.z) })).filter((e) => e.d < 280).sort((a, b) => a.d - b.d).slice(0, 2);
+    const keep = new Set();
+    for (const { f } of near) {
+      keep.add(f.id);
+      let n = habitat.falls.get(f.id);
+      if (!n) { const p = panner(f.size > 0.7 ? 170 : 100); const low = looped(nodes.brown, 'lowpass', 650); const hiss = looped(nodes.white, 'bandpass', 2600, 0.5); low.gain.connect(p); hiss.gain.connect(p); p.connect(nodes.ambient); n = { p, low, hiss }; habitat.falls.set(f.id, n); }
+      move(n.p, f.x, f.y, f.z);
+      n.low.gain.gain.setTargetAtTime(0.42 * f.size * wild, now, 0.6);
+      n.hiss.gain.gain.setTargetAtTime(0.1 * f.size * wild, now, 0.6);
+    }
+    for (const [id, n] of habitat.falls) if (!keep.has(id)) { n.low.gain.gain.setTargetAtTime(0, now, 0.3); n.hiss.gain.gain.setTargetAtTime(0, now, 0.3); const gone = n; setTimeout(() => { gone.low.src.stop(); gone.hiss.src.stop(); gone.p.disconnect(); }, 1500); habitat.falls.delete(id); }
+    if (!habitat.stream) { habitat.stream = looped(nodes.white, 'bandpass', 900, 1.4); habitat.streamPan = panner(45); habitat.stream.gain.connect(habitat.streamPan); habitat.streamPan.connect(nodes.ambient); }
+    const st = h.stream;
+    if (st) {
+      move(habitat.streamPan, st.x, st.y, st.z);
+      habitat.stream.filter.frequency.setTargetAtTime(700 + Math.random() * 900, now, 0.06);
+      habitat.stream.gain.gain.setTargetAtTime((st.rapids ? 0.2 : 0.11) * wild * (0.75 + Math.random() * 0.25), now, 0.08);
+    } else habitat.stream.gain.gain.setTargetAtTime(0, now, 0.5);
+    if (!habitat.waves) { habitat.waves = looped(nodes.brown, 'lowpass', 900); habitat.waves.gain.connect(nodes.ambient); }
+    const lap = Math.max(0, 1 - (h.shore === undefined ? 99 : h.shore) / 30);
+    habitat.waves.gain.gain.setTargetAtTime(lap * wild * (0.04 + 0.05 * Math.max(0, Math.sin(now * 0.9))), now, 0.25);
+    if (!habitat.leaves) { habitat.leaves = looped(nodes.white, 'bandpass', 5200, 0.6); habitat.leaves.gain.connect(nodes.ambient); }
+    habitat.leaves.gain.gain.setTargetAtTime(wild * (0.012 + 0.03 * (h.gust || 0)) * (1 - night * 0.4) * (1 + rain), now, 0.5);
+    if (night > 0.45 && rain < 0.5) {
+      if (now > habitat.cricketAt) {
+        habitat.cricketAt = now + 0.12 + Math.random() * 0.35;
+        const a = Math.random() * Math.PI * 2, r = 4 + Math.random() * 22;
+        if (at(L.x + Math.cos(a) * r, L.z + Math.sin(a) * r, 40, 'cricket', 0.2, 'ambient', (out, t) => cricket(ctx, out, t, Math.random, 0.012 * night))) habitat.heard.crickets += 1;
+      }
+      const frogs = h.frogs || [];
+      if (frogs.length && now > habitat.frogAt) {
+        habitat.frogAt = now + 0.5 + Math.random() * 1.6;
+        const f = frogs[Math.floor(Math.random() * frogs.length)];
+        const call = FROG_CALLS[f.kind] || FROG_CALLS.ribbit;
+        if (at(f.x, f.z, 70, 'frog', 0.8, 'ambient', (out, t) => call(ctx, out, t, nodes.white, Math.random))) habitat.heard.frogs += 1;
+      }
+    }
+  }
 
   function at(x, z, reach, kind, seconds, into, build) {
     if (!ctx || muted || ctx.state !== 'running') return false;
@@ -19344,9 +22181,11 @@ function createAudio() {
     nodes.rain.filter.type = L.indoors ? 'bandpass' : 'highpass';
     set(nodes.river, Math.max(0, 1 - scene.shore / 60) * 0.1 * inside);
     set(nodes.people, Math.min(1, scene.crowd / 22) * 0.32 * (0.85 + 0.15 * Math.sin(now * 1.7)));
-    nodes.insects.gain.setTargetAtTime(scene.night * (1 - rain) * 0.007 * inside, now, 1.5);
+    const wild = scene.habitat ? scene.habitat.wild : 0;
+    nodes.insects.gain.setTargetAtTime(scene.night * (1 - rain) * 0.007 * inside * (1 + wild * 1.8), now, 1.5);
+    habitatSounds(scene.habitat || null, now, L, rain);
 
-    if (now > birdAt && scene.night < 0.3 && rain < 0.2 && !L.indoors) {
+    if (now > birdAt && scene.night < 0.3 && rain < 0.2 && !L.indoors && wild < 0.5) {
       birdAt = now + 2.5 + Math.random() * 6;
       if (claim('bird', 0.6)) {
         const pan = ctx.createStereoPanner ? ctx.createStereoPanner() : null;
@@ -19576,7 +22415,8 @@ function createAudio() {
       peerBikes: ctx ? [...nodes.peerBikes].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, recording: !!e.engine && !!e.engine.recording, rev: e.engine ? e.engine.rev : 0 })) : [],
       car: ctx && nodes.car ? { id: nodes.car.id, running: !!nodes.car.engine && nodes.car.engine.running, rev: nodes.car.engine ? nodes.car.engine.rev : 0 } : null,
       peerCars: ctx ? [...nodes.peerCars].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, rev: e.engine ? e.engine.rev : 0 })) : [],
-      recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])) }),
+      recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])),
+      habitat: { songs: habitat.heard.songs, kinds: [...habitat.heard.kinds], frogs: habitat.heard.frogs, crickets: habitat.heard.crickets, falls: [...habitat.falls.keys()], fallsLevel: ctx ? [...habitat.falls.values()].map((n) => +n.low.gain.gain.value.toFixed(3)) : [], stream: ctx && habitat.stream ? +habitat.stream.gain.gain.value.toFixed(3) : 0 } }),
   };
 }
 
@@ -19638,7 +22478,7 @@ return { NIGERIA_STATES, NIGERIA_ZONES, stateByCode };
 
 __modules["client/town-map.js"] = (function () {
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_DECKS } = __modules["sim/zone.js"];
 const { gridToTrue, trueToGrid } = __modules["sim/geo.js"];
 
 const MAP_STYLE = Object.freeze({
@@ -19658,11 +22498,11 @@ const titled = (text) => String(text || '').toLowerCase().replace(/(^|[\s.'-])([
 const roadRank = (road) => (road.surface === 'asphalt' ? 0 : road.surface === 'laterite' ? 1 : 2);
 
 const T = (x, z) => gridToTrue(x, z, ZONE.gridBearing);
-const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS]);
+const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS, UPRIVER.road, UPRIVER.park]);
 function mapExtent() {
   const b = ZONE.bounds;
-  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0), maxZ = Math.max(b.maxZ, BRIDGE.end);
-  const pts = [T(minX, minZ), T(b.maxX, minZ), T(minX, maxZ), T(b.maxX, maxZ)];
+  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
+  const pts = [T(minX, minZ), T(maxX, minZ), T(minX, maxZ), T(maxX, maxZ)];
   return { minE: Math.min(...pts.map((p) => p.e)), maxE: Math.max(...pts.map((p) => p.e)), minS: Math.min(...pts.map((p) => p.s)), maxS: Math.max(...pts.map((p) => p.s)) };
 }
 
@@ -19672,6 +22512,8 @@ function namesOf() {
   const add = (text, x, z, kind, from) => { const key = text.toLowerCase(); if (!text || seen.has(key)) return; seen.add(key); out.push({ text, x, z, kind, from }); };
   for (const [text, x, z, align] of [...ZONE_PROPS.mapLabels, ...OUTSKIRT_MAP_LABELS]) add(text, x, z, align === 'vertical' ? 'water' : 'place', /River|Market|Motor park|Hospital|Registry/.test(text) ? 0 : 1.15);
   for (const k of ZONE_COMPOUNDS) add(k.name, (k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2, 'place', 2.4);
+  add('The Habitation', 2200, 180, 'place', 0);
+  add('Waterside Road', 1050, 113, 'place', 0.9);
   const called = (b) => { const office = ZONE_SERVICES.find((sv) => sv.id === b.id); const shop = ZONE_SHOPS.find((sh) => sh.id === b.id); return (office && office.name) || (shop && shop.name) || titled(b.sign); };
   for (const b of ZONE_BUILDINGS) if (b.sign) add(called(b), b.x, b.z, 'place', 2.4);
   return out;
@@ -19764,6 +22606,26 @@ function createTownMap({ h, view, way = () => null, waypoint = () => null, listi
         if (z > b.maxZ + 40) continue;
         const [ax, ay] = P(x, z), [bx, by] = P(x + 16, z);
         g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
+      }
+    }
+    {
+      const x0 = b.maxX, x1 = HABITATION.bounds.x1 + 300;
+      if (onScreen(x0, b.minZ - 600, x1, b.maxZ + 600, 40)) {
+        quad(x0, b.minZ - 600, x1, b.maxZ + 600); g.fillStyle = MAP_STYLE.land; g.fill();
+        g.fillStyle = MAP_STYLE.water; g.beginPath();
+        let [qx, qy] = P(x0, RIVER_FAR); g.moveTo(qx, qy);
+        for (let x = x0; x <= RIVER_HEAD + 10; x += 6) { [qx, qy] = P(x, riverShore(x)); g.lineTo(qx, qy); }
+        [qx, qy] = P(RIVER_HEAD + 10, RIVER_FAR); g.lineTo(qx, qy); g.closePath(); g.fill();
+        const poly = (pts2) => { g.beginPath(); pts2.forEach(([x, z], i) => { const [a, c] = P(x, z); if (i) g.lineTo(a, c); else g.moveTo(a, c); }); g.closePath(); g.fill(); };
+        const line = (pts2, width, colour) => { g.strokeStyle = colour; g.lineWidth = Math.max(1.2, width * state.k); g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath(); pts2.forEach(([x, z], i) => { const [a, c] = P(x, z); if (i) g.lineTo(a, c); else g.moveTo(a, c); }); g.stroke(); };
+        for (const w of HABITATION_WATERS) poly(w.outline);
+        for (const st of HABITATION_STREAMS) line(st.line, st.width, MAP_STYLE.water);
+        g.fillStyle = MAP_STYLE.land;
+        for (const w of HABITATION_WATERS) for (const isle of w.islands || []) poly(isle.outline);
+        if (state.k > 0.5) {
+          for (const p of HABITATION_PATHS) line(p.line, p.width, p.surface === 'sand' ? '#efe2b8' : MAP_STYLE.lane);
+          for (const d of HABITATION_DECKS) line(d.line, d.width, MAP_STYLE.jetty);
+        }
       }
     }
     const f = ZONE_FARMLAND;
@@ -27751,13 +30613,14 @@ const ICONS = Object.freeze({
   music: ['M9 17.5V6l10-2v11.5', 'M9 17.5a2.5 2.5 0 1 1-2.5-2.5', 'M19 15.5a2.5 2.5 0 1 1-2.5-2.5'],
   ads: ['M3 5h18v10H3z', 'M11 15v6', 'M13 15v6', 'M7 9h4', 'M7 11.5h7'],
   admin: ['M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z', 'M12 8v5', 'M9.5 10.5h5'],
+  torch: ['M8.5 3h7l-1.2 5.2H9.7z', 'M9.8 8.2h4.4V20a1 1 0 0 1-1 1h-2.4a1 1 0 0 1-1-1z', 'M12 11.5v2.6'],
 });
 const TILES = Object.freeze({
   calls: ['#5ee06a', '#12a833', '#fff'], messages: ['#6fe37c', '#1fb141', '#fff'], camera: ['#e9e9ec', '#a9a9b0', '#1c1c1f'], music: ['#ff6b81', '#e0143c', '#fff'],
   map: ['#7ed6a4', '#2a8fd6', '#fff'], wallet: ['#3a3a3e', '#0b0b0c', '#ffd166'], property: ['#34d6b7', '#0a8f7a', '#fff'], contacts: ['#c9c9ce', '#8a8a92', '#fff'],
   health: ['#ffffff', '#f0e9ea', '#ff3b55'], police: ['#4a7bf0', '#1a3a9c', '#fff'], transport: ['#ffd23f', '#f59e0b', '#1c1c1f'], jobs: ['#c08a5a', '#7a4a22', '#fff'],
   people: ['#b07cf7', '#6a2fd0', '#fff'], notices: ['#ff7a59', '#e0341a', '#fff'], settings: ['#9a9aa2', '#55555c', '#fff'],
-  ads: ['#ffb347', '#e8590c', '#fff'], admin: ['#2b2d42', '#0d0e17', '#7cf0c8'],
+  ads: ['#ffb347', '#e8590c', '#fff'], admin: ['#2b2d42', '#0d0e17', '#7cf0c8'], torch: ['#4b4b53', '#18181c', '#ffe08a'],
 });
 const APPS = Object.freeze([
   { id: 'calls', name: 'Calls', held: true, dock: true },
@@ -27765,6 +30628,7 @@ const APPS = Object.freeze([
   { id: 'camera', name: 'Camera', dock: true },
   { id: 'music', name: 'Music', dock: true },
   { id: 'map', name: 'Map', held: true },
+  { id: 'torch', name: 'Torch', held: true, toggle: true },
   { id: 'wallet', name: 'Wallet' },
   { id: 'property', name: 'Property' },
   { id: 'contacts', name: 'Contacts', held: true },
@@ -27822,7 +30686,7 @@ function createPhone(kit) {
 
   function show(appId = null, state = {}) {
     if (screen === 'deal' && appId !== 'deal') marketUI.closeDeal();
-    screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId && (!a.admin || isAdmin()))) ? appId : 'home';
+    screen = appId === 'deal' || (appId && APPS.some((a) => a.id === appId && !a.toggle && (!a.admin || isAdmin()))) ? appId : 'home';
     sub = state; said = null; drawn = null; rising = true; looking = null;
     open(app.view().self.name, 'Phone', render, null, { device: true });
   }
@@ -27836,6 +30700,11 @@ function createPhone(kit) {
 
   const tile = (a, counts, held) => {
     const [from, to, ink] = TILES[a.id];
+    if (a.toggle) {
+      const on = !!(app.torch && app.torch.on());
+      return h('button', { class: `app${on ? ' on' : ''}`, type: 'button', 'data-app': a.id, 'aria-pressed': on ? 'true' : 'false', 'aria-label': `${a.name}, ${on ? 'on' : 'off'}`, onclick: () => { if (app.torch) app.torch.toggle(); redraw(); } },
+        h('span', { class: 'icon', style: `background:linear-gradient(160deg,${from},${to});color:${ink}` }, svg(a.id)), h('span', null, on ? `${a.name} on` : a.name));
+    }
     return h('button', { class: 'app', type: 'button', disabled: held && !a.held, 'data-app': a.id, 'aria-label': counts[a.id] ? `${a.name}, ${counts[a.id]} new` : a.name, onclick: () => go(a.id) },
       h('span', { class: 'icon', style: `background:linear-gradient(160deg,${from},${to});color:${ink}` }, svg(a.id)), h('span', null, a.name), counts[a.id] ? h('span', { class: 'count' }, String(counts[a.id])) : null);
   };
@@ -30734,7 +33603,7 @@ return { createLoadingCard };
 
 __modules["client/radar.js"] = (function () {
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_DECKS } = __modules["sim/zone.js"];
 const { trueToGrid } = __modules["sim/geo.js"];
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -30743,6 +33612,7 @@ const RADAR_COLOURS = Object.freeze({
   building: '#7b7670', house: '#8b7e70', compound: 'rgba(255,255,255,0.06)', mine: '#ffffff', sale: 'rgba(255,255,255,0.35)',
   route: '#f2c230', target: '#f2c230', police: ['#ff3b30', '#2f7bff'], keke: '#ffffff', ambulance: '#ff3b30',
   closed: '#e8382f', fence: 'rgba(232,56,47,0.75)',
+  sand: '#cdbb8a', stone: '#9a968c', deck: '#8a6a48',
 });
 
 function drawTownPicture(owned) {
@@ -30805,6 +33675,29 @@ function createRadar(canvas) {
     for (const r of [AIRPORT.runway, AIRPORT.taxiway, ...AIRPORT.links, AIRPORT.apron, ...OUTSKIRT_ROADS]) if (near(r)) shape(r);
     g.fillStyle = RADAR_COLOURS.building;
     if (near(AIRPORT.terminal)) shape(AIRPORT.terminal);
+    const reach = range * 1.6;
+    if (s.x > ZONE.bounds.maxX - reach) {
+      const x0 = Math.max(ZONE.bounds.maxX - 2, s.x - reach), x1 = Math.min(RIVER_HEAD + 12, s.x + reach);
+      if (x1 > x0) {
+        g.fillStyle = RADAR_COLOURS.water; g.beginPath(); g.moveTo(x0 - s.x, RIVER_FAR - s.z);
+        for (let x = x0; x <= x1; x += 6) g.lineTo(x - s.x, riverShore(x) - s.z);
+        g.lineTo(x1 - s.x, riverShore(x1) - s.z); g.lineTo(x1 - s.x, RIVER_FAR - s.z); g.closePath(); g.fill();
+      }
+      g.fillStyle = RADAR_COLOURS.asphalt;
+      for (const r of [UPRIVER.road, UPRIVER.park]) if (near(r)) shape(r);
+      const hb = HABITATION.bounds;
+      if (s.x + reach > hb.x0 && s.x - reach < hb.x1 && s.z + reach > hb.z0 - 40 && s.z - reach < hb.z1) {
+        const poly = (pts) => { g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(x - s.x, z - s.z) : g.moveTo(x - s.x, z - s.z))); g.closePath(); g.fill(); };
+        const line = (pts, width, colour) => { g.strokeStyle = colour; g.lineWidth = width; g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath(); pts.forEach(([x, z], i) => (i ? g.lineTo(x - s.x, z - s.z) : g.moveTo(x - s.x, z - s.z))); g.stroke(); };
+        g.fillStyle = RADAR_COLOURS.water;
+        for (const w of HABITATION_WATERS) poly(w.outline);
+        for (const st of HABITATION_STREAMS) line(st.line, st.width, RADAR_COLOURS.water);
+        g.fillStyle = RADAR_COLOURS.land;
+        for (const w of HABITATION_WATERS) for (const isle of w.islands || []) poly(isle.outline);
+        for (const p of HABITATION_PATHS) line(p.line, Math.max(2.4, p.width), p.surface === 'sand' ? RADAR_COLOURS.sand : p.surface === 'stone' ? RADAR_COLOURS.stone : RADAR_COLOURS.laterite);
+        for (const d of HABITATION_DECKS) line(d.line, Math.max(2, d.width), RADAR_COLOURS.deck);
+      }
+    }
     const nearLine = (l) => Math.min(l.a.x, l.b.x) < s.x + range * 1.5 && Math.max(l.a.x, l.b.x) > s.x - range * 1.5 && Math.min(l.a.z, l.b.z) < s.z + range * 1.5 && Math.max(l.a.z, l.b.z) > s.z - range * 1.5;
     g.lineCap = 'butt';
     g.strokeStyle = RADAR_COLOURS.fence; g.lineWidth = 1.6 / k; g.setLineDash([4 / k, 3 / k]);
@@ -35330,8 +38223,10 @@ function buildClosures(scene, { lite = false } = {}) {
       const x0 = r.a.x + (ux * len * i) / count, z0 = r.a.z + (uz * len * i) / count, x1 = r.a.x + (ux * len * (i + 1)) / count, z1 = r.a.z + (uz * len * (i + 1)) / count;
       const y0 = zoneGroundY(x0, z0), y1 = zoneGroundY(x1, z1);
       const tilt = Math.atan2(y1 - y0, span);
-      for (const h of [0.5, 0.98]) pile(pieceOf(i), 'striped').add(box(span, 0.11, 0.03), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt), [span / STRIPE, 0.6]);
+      if (r.style === 'wood') for (const h of [0.45, 0.95]) pile(pieceOf(i), 'timber').add(box(span, 0.13, 0.06), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt));
+      else for (const h of [0.5, 0.98]) pile(pieceOf(i), 'striped').add(box(span, 0.11, 0.03), at((x0 + x1) / 2, (y0 + y1) / 2 + h, (z0 + z1) / 2, along, 0, tilt), [span / STRIPE, 0.6]);
     }
+    if (r.style === 'wood') continue;
     const boards = Math.max(1, Math.round(len / 140));
     const inward = Math.atan2(-r.out.x, -r.out.z);
     for (let k = 0; k < boards; k += 1) {
@@ -35399,10 +38294,2045 @@ function buildClosures(scene, { lite = false } = {}) {
 return { buildClosures };
 })();
 
+__modules["client/habitation-plants.js"] = (function () {
+
+const TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
+const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
+const MAX = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
+
+const wind = { value: 0 };
+const setHabitationWind = (seconds) => { wind.value = seconds % 3600; };
+const habitationWind = () => wind.value;
+
+function readGLBParts(buffer) {
+  const dv = new DataView(buffer);
+  if (dv.getUint32(0, true) !== 0x46546c67) throw new Error('not a GLB file');
+  let at = 12, json = null, bin = null;
+  while (at < dv.byteLength) {
+    const len = dv.getUint32(at, true), type = dv.getUint32(at + 4, true);
+    if (type === 0x4e4f534a) json = JSON.parse(new TextDecoder().decode(new Uint8Array(buffer, at + 8, len)));
+    else if (type === 0x004e4942) bin = new Uint8Array(buffer, at + 8, len);
+    at += 8 + len;
+  }
+  return { json, bin };
+}
+function accessor(json, bin, k, float = true) {
+  const a = json.accessors[k], v = json.bufferViews[a.bufferView], T = TYPES[a.componentType], w = WIDTH[a.type];
+  const off = bin.byteOffset + (v.byteOffset || 0) + (a.byteOffset || 0), n = a.count * w;
+  const raw = new T(bin.buffer.slice(off, off + n * T.BYTES_PER_ELEMENT));
+  if (!float || T === Float32Array) return raw;
+  const out = new Float32Array(n), m = a.normalized ? MAX[a.componentType] : 1;
+  for (let i = 0; i < n; i += 1) out[i] = Math.max(raw[i] / m, -1);
+  return out;
+}
+async function pictureOf(json, bin, index, colour, shared = null) {
+  const tx = json.textures[index];
+  const source = tx.source !== undefined ? tx.source : tx.extensions && tx.extensions.EXT_texture_webp && tx.extensions.EXT_texture_webp.source;
+  const img = json.images[source];
+  if (img.uri) {
+    if (!shared) throw new Error(`the model needs ${img.uri}, and nothing gives it`);
+    return shared(img.uri, colour);
+  }
+  const v = json.bufferViews[img.bufferView];
+  const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (v.byteOffset || 0), v.byteLength)], { type: img.mimeType });
+  const bitmap = await createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' });
+  const t = new THREE.Texture(bitmap);
+  t.flipY = false;
+  if (colour) t.encoding = THREE.sRGBEncoding;
+  t.anisotropy = 4;
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.needsUpdate = true;
+  return t;
+}
+
+
+function leafMaterial({ map, alphaTest = 0.4, amount = 0.035, glow = 0.55 }) {
+  const m = new THREE.MeshLambertMaterial({ map, vertexColors: true, alphaTest, side: THREE.DoubleSide });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = wind;
+    shader.uniforms.uAmount = { value: amount };
+    shader.uniforms.uGlow = { value: glow };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float sway;\nuniform float uWind;\nuniform float uAmount;\nuniform float uGlow;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        /* (each plant its own moment: where it stands, from its model matrix) */
+        #ifdef USE_INSTANCING
+          float seed = (modelMatrix * instanceMatrix[3]).x * 0.37 + (modelMatrix * instanceMatrix[3]).z * 0.23;
+        #else
+          float seed = modelMatrix[3].x * 0.37 + modelMatrix[3].z * 0.23;
+        #endif
+        float phase = seed + position.x * 2.1 + position.z * 1.7;
+        float gust = 0.55 + 0.45 * sin(uWind * 0.21 + seed * 0.31);
+        float flex = sway * sway * uAmount;
+        transformed.x += (sin(uWind * 1.35 + phase) + 0.35 * sin(uWind * 3.3 + phase * 2.7)) * flex * gust;
+        transformed.z += cos(uWind * 1.1 + phase * 1.3) * flex * 0.8 * gust;
+        transformed.y += sin(uWind * 1.9 + phase * 2.2) * flex * 0.45 * gust;
+      }`)
+      .replace('#include <lights_lambert_vertex>', `#include <lights_lambert_vertex>
+      #if NUM_DIR_LIGHTS > 0
+      {
+        /* the sun through the leaf: bright where it is behind the leaf as seen from the eye */
+        vec3 toEye = normalize(-mvPosition.xyz);
+        float through = pow(max(dot(-toEye, directionalLights[0].direction), 0.0), 3.0);
+        vec3 glowLight = directionalLights[0].color * through * uGlow;
+        vLightFront += glowLight;
+        #ifdef DOUBLE_SIDED
+          vLightBack += glowLight;
+        #endif
+      }
+      #endif`);
+  };
+  m.customProgramCacheKey = () => 'pcw-habitation-leaf';
+  return m;
+}
+function leafDepth(map, alphaTest, amount) {
+  const m = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking, map, alphaTest });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = wind;
+    shader.uniforms.uAmount = { value: amount };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float sway;\nuniform float uWind;\nuniform float uAmount;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        #ifdef USE_INSTANCING
+          float seed = (modelMatrix * instanceMatrix[3]).x * 0.37 + (modelMatrix * instanceMatrix[3]).z * 0.23;
+        #else
+          float seed = modelMatrix[3].x * 0.37 + modelMatrix[3].z * 0.23;
+        #endif
+        float phase = seed + position.x * 2.1 + position.z * 1.7;
+        float gust = 0.55 + 0.45 * sin(uWind * 0.21 + seed * 0.31);
+        float flex = sway * sway * uAmount;
+        transformed.x += (sin(uWind * 1.35 + phase) + 0.35 * sin(uWind * 3.3 + phase * 2.7)) * flex * gust;
+        transformed.z += cos(uWind * 1.1 + phase * 1.3) * flex * 0.8 * gust;
+        transformed.y += sin(uWind * 1.9 + phase * 2.2) * flex * 0.45 * gust;
+      }`);
+  };
+  m.customProgramCacheKey = () => 'pcw-habitation-leaf-depth';
+  return m;
+}
+
+
+function stoneMaterial({ map, normalMap, roughnessMap, scale = 1.6, relief = 1 }) {
+  const m = new THREE.MeshStandardMaterial({ map, normalMap, roughnessMap, roughness: 1, metalness: 0, vertexColors: true });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTri = { value: scale };
+    shader.uniforms.uRelief = { value: relief };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nvarying vec3 vTriPos;\nvarying vec3 vTriNormal;\nvarying vec3 vTriX;\nvarying vec3 vTriY;\nvarying vec3 vTriZ;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTriPos = position;\nvTriNormal = normal;\nvTriX = normalMatrix * vec3(1.0, 0.0, 0.0);\nvTriY = normalMatrix * vec3(0.0, 1.0, 0.0);\nvTriZ = normalMatrix * vec3(0.0, 0.0, 1.0);');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+      varying vec3 vTriPos;
+      varying vec3 vTriNormal;
+      varying vec3 vTriX;
+      varying vec3 vTriY;
+      varying vec3 vTriZ;
+      uniform float uTri;
+      uniform float uRelief;
+      vec3 triWeights() { vec3 w = pow(abs(normalize(vTriNormal)), vec3(4.0)); return w / (w.x + w.y + w.z); }
+      vec4 triSample(sampler2D t) {
+        vec3 w = triWeights();
+        return texture2D(t, vTriPos.zy * uTri) * w.x + texture2D(t, vTriPos.xz * uTri) * w.y + texture2D(t, vTriPos.xy * uTri) * w.z;
+      }`)
+      .replace('#include <map_fragment>', `
+      #ifdef USE_MAP
+        vec4 texelColor = mapTexelToLinear(triSample(map));
+        diffuseColor *= texelColor;
+      #endif`)
+      .replace('#include <roughnessmap_fragment>', `
+      float roughnessFactor = roughness;
+      #ifdef USE_ROUGHNESSMAP
+        roughnessFactor *= triSample(roughnessMap).g;
+      #endif`)
+      .replace('#include <normal_fragment_maps>', `
+      #ifdef USE_NORMALMAP
+      {
+        /* each side's relief turned onto the way that side faces, blended, and brought into the eye's frame */
+        vec3 w = triWeights();
+        vec3 sn = sign(vTriNormal);
+        vec3 tx = texture2D(normalMap, vTriPos.zy * uTri).xyz * 2.0 - 1.0;
+        vec3 ty = texture2D(normalMap, vTriPos.xz * uTri).xyz * 2.0 - 1.0;
+        vec3 tz = texture2D(normalMap, vTriPos.xy * uTri).xyz * 2.0 - 1.0;
+        vec3 n = normalize(vTriNormal);
+        n += uRelief * (w.x * vec3(0.0, tx.y, tx.x) + w.y * vec3(ty.x, 0.0, ty.y) + w.z * vec3(tz.x, tz.y, 0.0));
+        n = normalize(n);
+        normal = normalize(n.x * vTriX + n.y * vTriY + n.z * vTriZ);
+        normal = normal * faceDirection;
+      }
+      #endif`);
+  };
+  m.customProgramCacheKey = () => 'pcw-habitation-stone';
+  return m;
+}
+
+
+async function readDressed(buffer, { lite = false, shared = null } = {}) {
+  const { json, bin } = readGLBParts(buffer);
+  const pictures = new Map();
+  const picture = (index, colour) => { const key = `${index}:${colour}`; if (!pictures.has(key)) pictures.set(key, pictureOf(json, bin, index, colour, shared)); return pictures.get(key); };
+  const parts = [];
+  const notes = (json.extras && json.extras.dressed) || {};
+  for (const node of json.nodes || []) {
+    if (node.mesh === undefined) continue;
+    for (const p of json.meshes[node.mesh].primitives) {
+      const g = new THREE.BufferGeometry();
+      g.setAttribute('position', new THREE.BufferAttribute(accessor(json, bin, p.attributes.POSITION), 3));
+      if (p.attributes.NORMAL !== undefined) g.setAttribute('normal', new THREE.BufferAttribute(accessor(json, bin, p.attributes.NORMAL), 3));
+      if (p.attributes.TEXCOORD_0 !== undefined) g.setAttribute('uv', new THREE.BufferAttribute(accessor(json, bin, p.attributes.TEXCOORD_0), 2));
+      if (p.attributes.COLOR_0 !== undefined) g.setAttribute('color', new THREE.BufferAttribute(accessor(json, bin, p.attributes.COLOR_0), json.accessors[p.attributes.COLOR_0].type === 'VEC4' ? 4 : 3));
+      g.setAttribute('sway', new THREE.BufferAttribute(p.attributes._SWAY !== undefined ? accessor(json, bin, p.attributes._SWAY) : new Float32Array(g.attributes.position.count), 1));
+      if (p.indices !== undefined) g.setIndex(new THREE.BufferAttribute(accessor(json, bin, p.indices, false), 1));
+      if (!g.attributes.normal) g.computeVertexNormals();
+      g.computeBoundingSphere(); g.computeBoundingBox();
+      const md = json.materials[p.material || 0] || {}, pbr = md.pbrMetallicRoughness || {};
+      const part = (md.extras && md.extras.part) || 'surface';
+      let material, depth = null;
+      if (part === 'stone') {
+        material = stoneMaterial({
+          map: pbr.baseColorTexture ? await picture(pbr.baseColorTexture.index, true) : null,
+          normalMap: md.normalTexture ? await picture(md.normalTexture.index, false) : null,
+          roughnessMap: pbr.metallicRoughnessTexture ? await picture(pbr.metallicRoughnessTexture.index, false) : null,
+          scale: (md.extras && md.extras.triplanar) || 1.6,
+        });
+      } else if (part === 'leaves') {
+        const map = pbr.baseColorTexture ? await picture(pbr.baseColorTexture.index, true) : null;
+        const amount = (md.extras && md.extras.sway) || 0.035;
+        material = leafMaterial({ map, alphaTest: md.alphaCutoff || 0.4, amount });
+        depth = leafDepth(map, md.alphaCutoff || 0.4, amount);
+      } else {
+        material = new THREE.MeshStandardMaterial({ roughness: pbr.roughnessFactor !== undefined ? pbr.roughnessFactor : 0.9, metalness: pbr.metallicFactor || 0, side: md.doubleSided ? THREE.DoubleSide : THREE.FrontSide, vertexColors: !!g.attributes.color });
+        if (pbr.baseColorTexture) material.map = await picture(pbr.baseColorTexture.index, true);
+        if (md.normalTexture) { material.normalMap = await picture(md.normalTexture.index, false); const s = md.normalTexture.scale || 1; material.normalScale.set(s, -s); }
+        if (pbr.metallicRoughnessTexture) material.roughnessMap = await picture(pbr.metallicRoughnessTexture.index, false);
+        if (md.alphaMode === 'MASK') material.alphaTest = md.alphaCutoff || 0.5;
+      }
+      parts.push({ geometry: g, material, depth, part });
+    }
+  }
+  const box = new THREE.Box3();
+  for (const p of parts) box.union(p.geometry.boundingBox);
+  return {
+    notes, box, parts,
+    make() {
+      const group = new THREE.Group();
+      for (const p of parts) {
+        const mesh = new THREE.Mesh(p.geometry, p.material);
+        mesh.castShadow = true; mesh.receiveShadow = true;
+        if (p.depth) mesh.customDepthMaterial = p.depth;
+        mesh.name = p.part;
+        group.add(mesh);
+      }
+      return group;
+    },
+    dispose() {
+      for (const p of parts) {
+        p.geometry.dispose();
+        for (const k of ['map', 'normalMap', 'roughnessMap']) if (p.material[k] && !(p.material[k].userData && p.material[k].userData.shared)) p.material[k].dispose();
+        p.material.dispose(); if (p.depth) p.depth.dispose();
+      }
+    },
+  };
+}
+
+return { setHabitationWind, habitationWind, leafMaterial, stoneMaterial, readDressed };
+})();
+
+__modules["client/render-habitation.js"] = (function () {
+
+const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN } = __modules["sim/zone.js"];
+const { linear, grainTexture, rippleNormalTexture, Chunked, textTexture, buildingKit } = __modules["client/render-kit.js"];
+const { addTree } = __modules["client/render-world.js"];
+const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
+const { reflects } = __modules["client/render-finish.js"];
+const { readDressed, setHabitationWind, habitationWind, stoneMaterial } = __modules["client/habitation-plants.js"];
+
+const COME = 1250, GO = 950;          // grid x: built when a player is north of COME, let go south of GO
+const v3 = new THREE.Vector3();
+
+
+const GROUND = {
+  grass: 0x6f8f3a, grassDry: 0x9a9a52, floor: 0x3e3a22, moss: 0x3f5a26, earth: 0x9a5434, mud: 0x4e3a28, stone: 0x8c877c,
+  sand: 0xdccaa0, sandWet: 0xb9a57c, bed: 0xc9b98e, silt: 0x2c2a1c, pebbles: 0x8a8070,
+  rock: { mossy: 0x6e6d62, limestone: 0xb5ae9c, granite: 0xa8a097, redstone: 0x9a5c40 },
+};
+function rockKindAt(x, z) {
+  for (const b of HABITATION_BOWLS) if (x > b.bounds.x0 && x < b.bounds.x1 && z > b.bounds.z0 && z < b.bounds.z1) return b.rock;
+  const near = (id, far) => { const s = HABITATION_STREAMS.find((q) => q.id === id); if (!s) return false; let best = Infinity; for (const [px, pz] of s.line) best = Math.min(best, Math.hypot(px - x, pz - z)); return best < far; };
+  if (near('outflow', 34)) return 'granite';
+  if (near('gorge', 30)) return 'mossy';
+  for (const g of HABITATION_HIGHLANDS) if (x > g.bounds.x0 && x < g.bounds.x1 && z > g.bounds.z0 && z < g.bounds.z1) return g.rock;
+  return 'mossy';
+}
+function stoneTexture(size = 256) {
+  const c = document.createElement('canvas'); c.width = c.height = size;
+  const g = c.getContext('2d');
+  const img = g.createImageData(size, size);
+  const lumps = (x, y, cells, seed) => {
+    const fx = (x / size) * cells, fy = (y / size) * cells, i = Math.floor(fx), j = Math.floor(fy), u = fx - i, v = fy - j;
+    const h = (a, b) => habitationNoise(((a % cells) + cells) % cells + seed * 31.7, ((b % cells) + cells) % cells + seed * 17.3);
+    const s = (t) => t * t * (3 - 2 * t);
+    return h(i, j) * (1 - s(u)) * (1 - s(v)) + h(i + 1, j) * s(u) * (1 - s(v)) + h(i, j + 1) * (1 - s(u)) * s(v) + h(i + 1, j + 1) * s(u) * s(v);
+  };
+  for (let y = 0; y < size; y += 1) for (let x = 0; x < size; x += 1) {
+    const n = lumps(x, y, 4, 1) * 0.45 + lumps(x, y, 11, 2) * 0.3 + lumps(x, y, 32, 3) * 0.17 + lumps(x, y, 90, 4) * 0.08;
+    const k = (y * size + x) * 4, v = Math.round(255 * Math.min(1, 0.45 + n * 0.55));
+    img.data[k] = v; img.data[k + 1] = Math.round(v * 0.98); img.data[k + 2] = Math.round(v * 0.95); img.data[k + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+  g.strokeStyle = 'rgba(40,38,34,0.55)'; g.lineWidth = Math.max(1, size / 256);
+  for (let i = 0; i < 9; i += 1) {
+    let x = habitationNoise(i * 3.1, 7) * size, y = habitationNoise(i * 5.7, 11) * size, a = habitationNoise(i, 13) * 6.28;
+    for (const [ox, oy] of [[0, 0], [size, 0], [-size, 0], [0, size], [0, -size]]) {
+      g.beginPath(); let px = x + ox, py = y + oy; g.moveTo(px, py);
+      let aa = a;
+      for (let k = 0; k < 10; k += 1) { aa += (habitationNoise(i * 9 + k, 3) - 0.5) * 1.2; px += Math.cos(aa) * size / 22; py += Math.sin(aa) * size / 22; g.lineTo(px, py); }
+      g.stroke();
+    }
+  }
+  const t = new THREE.CanvasTexture(c);
+  t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  return t;
+}
+function pillarGeometry(p, lite) {
+  const rings = lite ? 10 : 18, sides = lite ? 12 : 20;
+  const pos = [], idx = [];
+  const bottom = WATER - 3;
+  for (let i = 0; i <= rings; i += 1) {
+    const t = i / rings, y = bottom + (p.h - bottom) * t;
+    const worn = 1 - 0.18 * Math.exp(-(((y - WATER) / 2.5) ** 2));
+    const shape = t < 0.85 ? 0.9 + 0.15 * Math.sin(t * Math.PI * 0.9) : 1.05 * Math.sqrt(Math.max(0, 1 - ((t - 0.85) / 0.15) ** 2) * 0.9 + 0.1);
+    for (let k = 0; k <= sides; k += 1) {
+      const a = (k / sides) * Math.PI * 2;
+      const bump = 0.82 + 0.36 * habitationNoise(Math.cos(a) * 2.2 + p.x * 0.01, y / 4 + Math.sin(a) * 2.2) + 0.1 * habitationNoise(a * 3 + 9, y / 1.5);
+      const r = p.r * worn * shape * bump;
+      pos.push(p.x + Math.cos(a) * r, y, p.z + Math.sin(a) * r);
+    }
+    if (i > 0) for (let k = 0; k < sides; k += 1) { const a0 = (i - 1) * (sides + 1) + k, b0 = i * (sides + 1) + k; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
+  }
+  const topCentre = pos.length / 3;
+  pos.push(p.x, p.h + 0.4, p.z);
+  for (let k = 0; k < sides; k += 1) { const a0 = rings * (sides + 1) + k; idx.push(a0, topCentre, a0 + 1); }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx); g.computeVertexNormals();
+  const n = pos.length / 3, col = new Float32Array(n * 3), cc = new THREE.Color();
+  for (let i = 0; i < n; i += 1) {
+    const y = pos[i * 3 + 1], ny = g.attributes.normal.getY(i);
+    const px = pos[i * 3], pz = pos[i * 3 + 2], a = Math.atan2(pz - p.z, px - p.x);
+    cc.copy(linear(0xd6cfbb)).multiplyScalar(0.85 + 0.25 * habitationNoise(px / 3, y / 3));
+    cc.multiplyScalar(0.86 + 0.16 * Math.sin(y * 1.9 + 2.5 * habitationNoise(a * 1.5, y / 9)));
+    const streak = habitationNoise(a * 7 + p.x, 0.5) * habitationNoise(a * 13, y / 14);
+    if (streak > 0.3) cc.lerp(linear(0x6e6a5e), Math.min(0.55, (streak - 0.3) * 1.6));
+    const moss = habitationNoise(px / 2.5 + 7, y / 2.5) * (y > WATER + 1 ? 1 : 0);
+    if (moss > 0.58) cc.lerp(linear(0x56703a), Math.min(0.75, (moss - 0.58) * 3));
+    if (ny > 0.35 && y > p.h * 0.6) cc.lerp(linear(0x4c6a2c), Math.min(1, (ny - 0.35) * 2));
+    if (Math.abs(y - WATER) < 1.2) cc.multiplyScalar(0.55 + 0.45 * Math.min(1, Math.abs(y - WATER) / 1.2));
+    col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b;
+  }
+  g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+  return g;
+}
+const PAVED = new Set(['overlook-terrace', 'overlook-steps', 'garden']);
+function buildGround(step, lite) {
+  const b = HABITATION.bounds;
+  const pad = 30;                          // (a little past its edges, under the forest that hides them)
+  const x0 = b.x0 - pad, z0 = b.z0 - pad, x1 = b.x1 + pad, z1 = b.z1 + pad;
+  const nx = Math.ceil((x1 - x0) / step) + 1, nz = Math.ceil((z1 - z0) / step) + 1;
+  const count = nx * nz;
+  const position = new Float32Array(count * 3), colour = new Float32Array(count * 3), rocky = new Float32Array(count), paved = new Float32Array(count);
+  const heights = new Float32Array(count);
+  const P = UPRIVER.park;
+  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) {
+    const x = x0 + i * step, z = z0 + j * step;
+    let y = habitationLand(x, z);
+    if (x < b.x0) y = Math.min(y, upriverGround(x, z) - 0.12);
+    if (x < P.x1 + 1.5 && z > P.z0 - 1.5 && z < P.z1 + 1.5) y = Math.min(y, -0.08);
+    heights[j * nx + i] = y;
+  }
+  const c = new THREE.Color(), t = new THREE.Color();
+  const col = (hex) => t.copy(linear(hex));
+  for (let j = 0; j < nz; j += 1) {
+    for (let i = 0; i < nx; i += 1) {
+      const k = j * nx + i, x = x0 + i * step, z = z0 + j * step, y = heights[k];
+      position[k * 3] = x; position[k * 3 + 1] = y; position[k * 3 + 2] = z;
+      const hx = heights[j * nx + Math.min(nx - 1, i + 1)] - heights[j * nx + Math.max(0, i - 1)];
+      const hz = heights[Math.min(nz - 1, j + 1) * nx + i] - heights[Math.max(0, j - 1) * nx + i];
+      const slope = Math.hypot(hx, hz) / (2 * step);
+      const f = habitationFooting(x, z);
+      const n1 = habitationNoise(x / 7, z / 7), n2 = habitationNoise(x / 23 + 40, z / 23);
+      const kind = f ? f.kind : 'forest';
+      if (kind === 'path') {
+        if (f.surface === 'stone' && PAVED.has(f.path)) paved[k] = 1;
+        c.copy(linear(f.surface === 'mud' ? GROUND.mud : f.surface === 'stone' ? GROUND.stone : f.surface === 'sand' ? GROUND.sand : GROUND.earth));
+        c.multiplyScalar(0.9 + 0.2 * n1);
+        if (f.surface === 'mud' && n2 > 0.62) c.lerp(col(0x2a2a20), 0.5);          // (puddles: dark, wet)
+      } else if (kind === 'sand') {
+        c.copy(linear(GROUND.sand)).multiplyScalar(0.94 + 0.12 * n1);
+      } else if (kind === 'grass') {
+        c.copy(linear(GROUND.grass)).lerp(col(GROUND.grassDry), Math.max(0, n2 - 0.45) * 1.2).multiplyScalar(0.9 + 0.2 * n1);
+      } else if (kind === 'shallows' || kind === 'water') {
+        const w = habitationWaterAt(x, z);
+        const bed = w && w.kind === 'swamp' ? GROUND.silt : w && (w.kind === 'stream' || w.kind === 'rapids') ? GROUND.pebbles : GROUND.bed;
+        c.copy(linear(bed)).multiplyScalar(0.9 + 0.2 * n1);
+      } else {
+        c.copy(linear(GROUND.floor)).lerp(col(GROUND.moss), n2 * 0.7).lerp(col(GROUND.grass), Math.max(0, n1 - 0.6) * 0.8).multiplyScalar(0.85 + 0.3 * n1);
+      }
+      if (kind === 'sand' && y < WATER + 0.25) c.lerp(col(GROUND.sandWet), 0.6);
+      const rock = Math.max(0, Math.min(1, (slope - 0.75) / 0.5));
+      if (rock > 0) {
+        const kindOfRock = rockKindAt(x, z);
+        t.copy(linear(GROUND.rock[kindOfRock])).multiplyScalar(0.86 + 0.14 * (0.5 + 0.5 * Math.sin(y * (kindOfRock === 'redstone' ? 3.1 : 1.7) + 3 * habitationNoise(x / 25, z / 25))));
+        t.multiplyScalar(0.78 + 0.3 * habitationNoise(x / 6 + 11, z / 6 - 7));
+        const moss = habitationNoise(x / 5 + 3, z / 5 + y / 4);
+        const cling = Math.max(0, Math.min(1, Math.max(0, (moss - 0.45) / 0.2) * 0.9 + (1 - rock) * 0.8));
+        t.lerp(linear(moss > 0.62 ? 0x35521f : 0x4d6a2e), Math.min(0.85, cling));
+        c.lerp(t, rock);
+      }
+      rocky[k] = rock;
+      colour[k * 3] = c.r; colour[k * 3 + 1] = c.g; colour[k * 3 + 2] = c.b;
+    }
+  }
+  const index = new (count > 65535 ? Uint32Array : Uint16Array)((nx - 1) * (nz - 1) * 6);
+  let n = 0;
+  for (let j = 0; j + 1 < nz; j += 1) for (let i = 0; i + 1 < nx; i += 1) {
+    const a = j * nx + i, b2 = a + 1, c2 = a + nx, d = c2 + 1;
+    index[n++] = a; index[n++] = c2; index[n++] = b2; index[n++] = b2; index[n++] = c2; index[n++] = d;
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.BufferAttribute(position, 3));
+  g.setAttribute('color', new THREE.BufferAttribute(colour, 3));
+  g.setAttribute('rocky', new THREE.BufferAttribute(rocky, 1));
+  g.setAttribute('paved', new THREE.BufferAttribute(paved, 1));
+  g.setIndex(new THREE.BufferAttribute(index, 1));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  return g;
+}
+function groundMaterial({ grain, stone, lite }) {
+  const m = new THREE.MeshStandardMaterial({ vertexColors: true, map: grain, roughness: 1, metalness: 0 });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uStone = { value: stone };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float rocky;\nattribute float paved;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRocky = rocky;\nvPaved = paved;\nvWorld = (modelMatrix * vec4(position, 1.0)).xyz;\nvWorldNormal = normal;')
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (modelMatrix * vec4(position, 1.0)).xz / 2.6;\n#endif');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uStone;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;\nfloat paveHash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }')
+      .replace('#include <map_fragment>', `
+      #ifdef USE_MAP
+        vec4 texelColor = mapTexelToLinear(texture2D(map, vUv));
+        ${lite ? '' : `
+        if (vRocky > 0.01) {
+          vec3 w = pow(abs(normalize(vWorldNormal)), vec3(4.0)); w /= (w.x + w.y + w.z);
+          vec4 s = texture2D(uStone, vWorld.zy / 4.0) * w.x + texture2D(uStone, vWorld.xz / 4.0) * w.y + texture2D(uStone, vWorld.xy / 4.0) * w.z;
+          texelColor = mix(texelColor, mapTexelToLinear(s) * 1.25, vRocky);
+        }`}
+        diffuseColor *= texelColor;
+        /* paving: flat stones laid in rows, each its own shade, the joints between them dark */
+        if (vPaved > 0.01) {
+          vec2 q = vWorld.xz / vec2(0.85, 0.6);
+          q.x += 0.5 * mod(floor(q.y), 2.0);
+          vec2 cellId = floor(q), f = fract(q);
+          float joint = smoothstep(0.0, 0.07, min(min(f.x, 1.0 - f.x), min(f.y, 1.0 - f.y)));
+          float shade = 0.82 + 0.3 * paveHash(cellId);
+          diffuseColor.rgb *= mix(1.0, mix(0.45, shade, joint), vPaved);
+        }
+        /* bare rock: its beds faintly, and the streaks where water runs down it, dark and long (the stone's own grain,
+           drawn out downward, on whichever way the face looks) */
+        diffuseColor.rgb *= mix(1.0, 0.88 + 0.14 * (0.5 + 0.5 * sin(vWorld.y * 2.7 + 2.0 * sin(vWorld.x * 0.13 + vWorld.z * 0.09))), vRocky);
+        ${lite ? '' : `
+        if (vRocky > 0.01) {
+          vec3 wn = abs(normalize(vWorldNormal));
+          float u = (vWorld.z * wn.x + vWorld.x * wn.z) / max(0.001, wn.x + wn.z);
+          float s = 0.5 + 0.5 * sin(u * 1.9 + 2.3 * sin(u * 0.37) + 0.8 * sin(vWorld.y * 0.15 + u * 0.11));
+          float fade = 0.5 + 0.5 * sin(vWorld.y * 0.21 + u * 0.05);
+          diffuseColor.rgb *= 1.0 - 0.45 * pow(s, 6.0) * fade * vRocky * smoothstep(0.3, 0.8, 1.0 - wn.y);
+        }`}
+      #endif`);
+  };
+  m.customProgramCacheKey = () => `pcw-habitation-ground-${lite ? 'lite' : 'full'}`;
+  return m;
+}
+
+
+const WATER_LOOK = {
+  lagoon: { shallow: 0x9fe3d4, deep: 0x0f7f8f, deeper: 0x0b4f6a, deepAt: 2.6, clear: 0.18, still: 0.55 },
+  pool: { shallow: 0x9fd8bf, deep: 0x1f7f6a, deeper: 0x16524a, deepAt: 2.0, clear: 0.22, still: 0.5 },
+  pond: { shallow: 0x6f9a74, deep: 0x2c5240, deeper: 0x1c3a2e, deepAt: 0.7, clear: 0.45, still: 0.2 },
+  swamp: { shallow: 0x3f4628, deep: 0x2c331e, deeper: 0x1e2416, deepAt: 0.6, clear: 0.8, still: 0.15 },
+  stream: { shallow: 0xb9e6dc, deep: 0x3f9a8a, deeper: 0x2a6a60, deepAt: 0.6, clear: 0.15, still: 1 },
+  rapids: { shallow: 0xd6efea, deep: 0x5aa69a, deeper: 0x3a7a70, deepAt: 0.8, clear: 0.35, still: 1.4 },
+};
+const waterClock = { value: 0 };
+function waterMaterial(kind, { ripples, lite }) {
+  const look = WATER_LOOK[kind];
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: kind === 'swamp' ? 0.06 : 0.1, metalness: 0.0, transparent: true, depthWrite: false, normalMap: ripples, normalScale: new THREE.Vector2(0.35, 0.35) });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.uTime = waterClock;
+    shader.uniforms.uShallow = { value: linear(look.shallow) };
+    shader.uniforms.uDeep = { value: linear(look.deep) };
+    shader.uniforms.uDeeper = { value: linear(look.deeper) };
+    shader.uniforms.uDeepAt = { value: look.deepAt };
+    shader.uniforms.uClear = { value: look.clear };
+    shader.uniforms.uStill = { value: look.still };
+    shader.uniforms.uRiver = { value: linear(0x7d8a62) };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float depth;\nattribute float rush;\nattribute vec2 flow;\nvarying float vDepth;\nvarying float vRush;\nvarying vec2 vFlow;\nvarying vec3 vWorldPos;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDepth = depth;\nvRush = rush;\nvFlow = flow;\nvWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', `#include <common>
+      uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep; uniform vec3 uDeeper; uniform float uDeepAt; uniform float uClear; uniform float uStill; uniform vec3 uRiver;
+      varying float vDepth; varying float vRush; varying vec2 vFlow; varying vec3 vWorldPos;
+      float wn(vec2 p) { return fract(sin(dot(floor(p), vec2(12.9898, 78.233))) * 43758.5453); }
+      float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(wn(i), wn(i + vec2(1.0, 0.0)), u.x), mix(wn(i + vec2(0.0, 1.0)), wn(i + vec2(1.0, 1.0)), u.x), u.y); }`)
+      .replace('#include <color_fragment>', `#include <color_fragment>
+      {
+        float d = clamp(vDepth / uDeepAt, 0.0, 1.0);
+        vec3 c = mix(uShallow, uDeep, smoothstep(0.0, 0.55, d));
+        c = mix(c, uDeeper, smoothstep(0.55, 1.0, d));
+        /* (where the lagoon meets the river it takes the river's own colour) */
+        c = mix(c, uRiver, smoothstep(2128.0, 2088.0, vWorldPos.x) * step(2080.0, vWorldPos.x) * step(vWorldPos.z, 305.0) * step(140.0, vWorldPos.z));
+        diffuseColor.rgb = c;
+        /* see-through where shallow, more and more solid where deep */
+        diffuseColor.a = mix(uClear, 0.94, smoothstep(0.0, 1.0, pow(d, 0.7)));
+        /* foam: a broken line where it meets the shore, and in a stream wherever it rushes */
+        float edge = 1.0 - smoothstep(0.0, 0.12, vDepth);
+        float n = vnoise(vWorldPos.xz * 1.7 + vec2(uTime * 0.3, uTime * 0.2)) * vnoise(vWorldPos.xz * 4.1 - vec2(uTime * 0.5, 0.0));
+        float rushFoam = vRush * smoothstep(0.25, 0.7, vnoise(vWorldPos.xz * 0.9 + vFlow * uTime * 1.6) + 0.3 * vnoise(vWorldPos.xz * 3.0 + vFlow * uTime * 2.4));
+        float foam = clamp(edge * smoothstep(0.35, 0.7, n) * 1.4 + rushFoam, 0.0, 1.0);
+        diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.92, 0.95, 0.95), foam * 0.85);
+        diffuseColor.a = max(diffuseColor.a, foam * 0.9);
+      }`)
+      .replace('#include <normal_fragment_maps>', `
+      #ifdef USE_NORMALMAP
+      {
+        /* two sets of ripples, each drifting its own way (downstream in a stream), the still swamp hardly moving */
+        vec2 drift = (length(vFlow) > 0.01 ? vFlow : vec2(0.7, 0.4)) * uTime * 0.05 * uStill;
+        vec3 n1 = texture2D(normalMap, vWorldPos.xz / 9.0 + drift).xyz * 2.0 - 1.0;
+        vec3 n2 = texture2D(normalMap, vWorldPos.zx / 4.3 - drift * 1.7 + vec2(0.37, 0.11)).xyz * 2.0 - 1.0;
+        vec3 mapN = normalize(vec3((n1.xy + n2.xy) * normalScale * (0.6 + vRush), 1.0));
+        normal = perturbNormal2Arb(-vViewPosition, normal, mapN, faceDirection);
+      }
+      #endif`);
+  };
+  m.customProgramCacheKey = () => `pcw-habitation-water-${kind}-${lite ? 'lite' : 'full'}`;
+  return reflects(m, kind === 'swamp' ? 0.75 : 0.55);
+}
+function lilyTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 4, 64, 64, 62);
+  grad.addColorStop(0, '#6f9a3c'); grad.addColorStop(0.75, '#4d7a2a'); grad.addColorStop(1, '#2f5419');
+  g.fillStyle = grad;
+  g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 62, 0.22, Math.PI * 2 - 0.22); g.closePath(); g.fill();
+  g.strokeStyle = 'rgba(30,55,16,0.45)'; g.lineWidth = 1.2;
+  for (let a = 0.4; a < Math.PI * 2 - 0.3; a += 0.42) { g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * 58, 64 + Math.sin(a) * 58); g.stroke(); }
+  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  return t;
+}
+function buildLilies(lite) {
+  const pads = [], flowers = [];
+  const deckNear = (x, z) => HABITATION_DECKS.some((d) => {
+    for (let i = 0; i + 1 < d.line.length; i += 1) {
+      const [ax, az] = d.line[i], [bx, bz] = d.line[i + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+      const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2));
+      if (Math.hypot(ax + dx * t - x, az + dz * t - z) < d.width / 2 + 1.4) return true;
+    }
+    return false;
+  });
+  for (const [id, want] of [['swamp', lite ? 240 : 520], ['garden-pool', lite ? 14 : 26]]) {
+    const w = HABITATION_WATERS.find((q) => q.id === id);
+    if (!w) continue;
+    let n = 0;
+    for (let k = 0; k < want * 12 && n < want; k += 1) {
+      const x = w.bounds.x0 + habitationNoise(k * 1.31 + 0.2, 7.7) * (w.bounds.x1 - w.bounds.x0);
+      const z = w.bounds.z0 + habitationNoise(k * 0.77 + 0.6, 3.3) * (w.bounds.z1 - w.bounds.z0);
+      const at = habitationWaterAt(x, z);
+      if (!at || at.id !== id || at.depth < 0.12 || deckNear(x, z)) continue;
+      if (habitationNoise(x / 9 + 4, z / 9) < 0.42) continue;
+      const r = 0.32 + habitationNoise(x * 3.1, z * 2.7) * 0.42;
+      pads.push([x, at.level + 0.012, z, r, habitationNoise(x * 7.3, z * 5.1) * Math.PI * 2]);
+      if (habitationNoise(x * 4.1 + 2, z * 3.9) > 0.86) flowers.push([x + r * 0.2, at.level + 0.06, z - r * 0.15, habitationNoise(x, z * 9.1) > 0.5]);
+      n += 1;
+    }
+  }
+  const map = lilyTexture();
+  const disc = new THREE.CircleGeometry(1, 12); disc.rotateX(-Math.PI / 2);
+  const padMat = new THREE.MeshStandardMaterial({ map, alphaTest: 0.5, roughness: 0.55, metalness: 0, side: THREE.DoubleSide });
+  const padMesh = new THREE.InstancedMesh(disc, padMat, Math.max(1, pads.length));
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0);
+  pads.forEach(([x, y, z, r, turn], i) => { q.setFromAxisAngle(up, turn); m4.compose(new THREE.Vector3(x, y, z), q, new THREE.Vector3(r, 1, r)); padMesh.setMatrixAt(i, m4); });
+  padMesh.count = pads.length; padMesh.name = 'lilies'; padMesh.receiveShadow = true;
+  const cup = new THREE.ConeGeometry(0.11, 0.09, 7, 1, true); cup.rotateX(Math.PI);
+  const flowerMat = new THREE.MeshStandardMaterial({ vertexColors: false, color: 0xffffff, roughness: 0.5, metalness: 0, side: THREE.DoubleSide });
+  const flowerMesh = new THREE.InstancedMesh(cup, flowerMat, Math.max(1, flowers.length));
+  const pink = new THREE.Color(0xf2a6c4), white = new THREE.Color(0xf6f2ea);
+  flowers.forEach(([x, y, z, isPink], i) => { m4.makeTranslation(x, y, z); flowerMesh.setMatrixAt(i, m4); flowerMesh.setColorAt(i, isPink ? pink : white); });
+  flowerMesh.count = flowers.length; flowerMesh.name = 'lily-flowers';
+  return { meshes: [padMesh, flowerMesh], pads: pads.length, flowers: flowers.length, dispose() { disc.dispose(); cup.dispose(); padMat.dispose(); flowerMat.dispose(); map.dispose(); } };          // (the meshes' own buffers go with the group: letGo)
+}
+
+function buildStill(w, step) {
+  const b = w.bounds;
+  const nx = Math.ceil((b.x1 - b.x0) / step) + 1, nz = Math.ceil((b.z1 - b.z0) / step) + 1;
+  const pos = [], depth = [], keep = new Int32Array(nx * nz).fill(-1), idx = [];
+  const ground = (x, z) => habitationLand(x, z);
+  const wet = new Uint8Array(nx * nz);
+  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) {
+    const x = b.x0 + i * step, z = b.z0 + j * step;
+    const g = ground(x, z);
+    const here = habitationWaterAt(x, z);
+    wet[j * nx + i] = (here && here.id === w.id) || (g < w.level + 0.05 && insideOutline(w, x, z, step * 1.5)) ? 1 : 0;
+  }
+  for (let j = 0; j + 1 < nz; j += 1) for (let i = 0; i + 1 < nx; i += 1) {
+    const a = j * nx + i, b1 = a + 1, c = a + nx, d = c + 1;
+    if (!(wet[a] || wet[b1] || wet[c] || wet[d])) continue;
+    for (const k of [a, b1, c, d]) if (keep[k] < 0) {
+      const ii = k % nx, jj = Math.floor(k / nx), x = b.x0 + ii * step, z = b.z0 + jj * step;
+      keep[k] = pos.length / 3; pos.push(x, w.level, z); depth.push(Math.max(0, w.level - ground(x, z)));
+    }
+    idx.push(keep[a], keep[c], keep[b1], keep[b1], keep[c], keep[d]);
+  }
+  return waterGeometry(pos, depth, idx, null, null);
+}
+const insideOutline = (w, x, z, pad) => {
+  const b = w.bounds;
+  return x > b.x0 - pad && x < b.x1 + pad && z > b.z0 - pad && z < b.z1 + pad;
+};
+function waterGeometry(pos, depth, idx, rush, flow) {
+  const g = new THREE.BufferGeometry();
+  const n = pos.length / 3;
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('normal', new THREE.Float32BufferAttribute(new Float32Array(n * 3).map((_, i) => (i % 3 === 1 ? 1 : 0)), 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(new Float32Array(n * 2).map((_, i) => (i % 2 ? pos[Math.floor(i / 2) * 3 + 2] : pos[Math.floor(i / 2) * 3]) / 9), 2));
+  g.setAttribute('depth', new THREE.Float32BufferAttribute(depth, 1));
+  g.setAttribute('rush', new THREE.Float32BufferAttribute(rush || new Float32Array(n), 1));
+  g.setAttribute('flow', new THREE.Float32BufferAttribute(flow || new Float32Array(n * 2), 2));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
+  return g;
+}
+function buildStream(s, step = 1.5) {
+  const pos = [], depth = [], rush = [], flow = [], idx = [];
+  const L = s.length, n = Math.max(2, Math.ceil(L / step));
+  let prev = null;
+  for (let k = 0; k <= n; k += 1) {
+    const at = (k / n) * L;
+    let run = 0, seg = 0, t = 0;
+    for (let i = 0; i + 1 < s.line.length; i += 1) {
+      const len = Math.hypot(s.line[i + 1][0] - s.line[i][0], s.line[i + 1][1] - s.line[i][1]);
+      if (run + len >= at || i === s.line.length - 2) { seg = i; t = Math.min(1, (at - run) / (len || 1)); break; }
+      run += len;
+    }
+    const [ax, az] = s.line[seg], [bx, bz] = s.line[seg + 1];
+    const x = ax + (bx - ax) * t, z = az + (bz - az) * t;
+    const dx = bx - ax, dz = bz - az, dl = Math.hypot(dx, dz) || 1;
+    const level = s.heights[seg] + ((s.heights[seg + 1] !== undefined ? s.heights[seg + 1] : s.heights[seg]) - s.heights[seg]) * t;
+    const drop = prev === null ? 0 : Math.max(0, prev - level) / step;
+    prev = level;
+    const half = s.width / 2 + 0.6, sx = -dz / dl, sz = dx / dl;
+    const r = Math.min(1, drop * 3 + (s.rapids ? 0.55 : 0.12));
+    for (const side of [-1, 0, 1]) {
+      const px = x + sx * half * side, pz = z + sz * half * side;
+      pos.push(px, level + 0.02, pz);
+      depth.push(Math.max(0.02, level - habitationLand(px, pz)));
+      rush.push(side === 0 ? r : r * 0.6);
+      flow.push(dx / dl, dz / dl);
+    }
+    if (k > 0) {
+      const a = (k - 1) * 3, b2 = k * 3;
+      idx.push(a, b2, a + 1, a + 1, b2, b2 + 1, a + 1, b2 + 1, a + 2, a + 2, b2 + 1, b2 + 2);
+    }
+  }
+  return waterGeometry(pos, depth, idx, rush, flow);
+}
+
+
+function fallTextures() {
+  const c = document.createElement('canvas'); c.width = 128; c.height = 256;
+  const g = c.getContext('2d');
+  g.clearRect(0, 0, 128, 256);
+  for (let x = 0; x < 128; x += 1) {
+    const thick = 0.18 + 0.22 * habitationNoise(x / 9, 3.3) + 0.12 * habitationNoise(x / 3, 7.1);
+    g.fillStyle = `rgba(214,236,240,${thick.toFixed(2)})`;
+    g.fillRect(x, 0, 1, 256);
+  }
+  for (let i = 0; i < 300; i += 1) {
+    const x = (i * 37.13) % 128, w = 1 + ((i * 7) % 4), a = 0.25 + ((i * 13) % 10) / 14;
+    g.fillStyle = `rgba(255,255,255,${a.toFixed(2)})`;
+    const y = (i * 53) % 256, h = 40 + ((i * 29) % 160);
+    for (const oy of [-256, 0, 256]) g.fillRect(x, y + oy, w, h);
+  }
+  const fade = g.createLinearGradient(0, 0, 128, 0);
+  fade.addColorStop(0, 'rgba(0,0,0,1)'); fade.addColorStop(0.16, 'rgba(0,0,0,0)'); fade.addColorStop(0.84, 'rgba(0,0,0,0)'); fade.addColorStop(1, 'rgba(0,0,0,1)');
+  g.globalCompositeOperation = 'destination-out'; g.fillStyle = fade; g.fillRect(0, 0, 128, 256); g.globalCompositeOperation = 'source-over';
+  const sheet = new THREE.CanvasTexture(c); sheet.wrapS = sheet.wrapT = THREE.RepeatWrapping;
+  const f = document.createElement('canvas'); f.width = f.height = 128;
+  const fg = f.getContext('2d');
+  for (let i = 0; i < 160; i += 1) {
+    const a = habitationNoise(i, 1.3) * Math.PI * 2, r = 10 + habitationNoise(i, 2.9) * 52, s2 = 2 + habitationNoise(i, 4.1) * 7;
+    fg.fillStyle = `rgba(255,255,255,${(0.25 + 0.6 * (1 - r / 64)).toFixed(2)})`;
+    fg.beginPath(); fg.arc(64 + Math.cos(a) * r, 64 + Math.sin(a) * r, s2, 0, Math.PI * 2); fg.fill();
+  }
+  const foam = new THREE.CanvasTexture(f);
+  const p = document.createElement('canvas'); p.width = p.height = 64;
+  const q = p.getContext('2d'); const r = q.createRadialGradient(32, 32, 2, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,0.9)'); r.addColorStop(0.5, 'rgba(255,255,255,0.35)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  q.fillStyle = r; q.fillRect(0, 0, 64, 64);
+  const puff = new THREE.CanvasTexture(p);
+  return { sheet, puff, foam };
+}
+function buildFall(f, textures) {
+  const [tx, tz, ty] = f.top, [fx, fz, fy] = [f.foot[0], f.foot[1], f.foot[2]];
+  const out = new THREE.Vector3(fx - tx, 0, fz - tz); const away = out.length() || 1; out.normalize();
+  const across = new THREE.Vector3(-out.z, 0, out.x);
+  const seg = 14, pos = [], uv = [], idx = [];
+  for (let i = 0; i <= seg; i += 1) {
+    const t = i / seg;
+    const fall = ty + (fy - ty) * t, reach = away * Math.sqrt(t);
+    const width = f.width * (1 + 0.35 * t);
+    for (const s of [-0.5, 0.5]) {
+      pos.push(tx + out.x * reach + across.x * width * s, fall, tz + out.z * reach + across.z * width * s);
+      uv.push(s + 0.5, t * (ty - fy) / 6);
+    }
+    if (i > 0) { const a = (i - 1) * 2; idx.push(a, a + 2, a + 1, a + 1, a + 2, a + 3); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.setIndex(idx); g.computeVertexNormals();
+  const map = textures.sheet.clone(); map.needsUpdate = true; map.repeat.set(1, 1);
+  const mat = new THREE.MeshBasicMaterial({ map, color: 0xf2fbff, transparent: true, opacity: 0.9, depthWrite: false, side: THREE.DoubleSide, fog: true });
+  const sheet = new THREE.Mesh(g, mat);
+  sheet.name = `waterfall:${f.id}`;
+  sheet.renderOrder = 3;
+  const front = map.clone(); front.needsUpdate = true; front.repeat.set(0.8, 1.3); front.offset.x = 0.37;
+  const veil = new THREE.Mesh(g, new THREE.MeshBasicMaterial({ map: front, color: 0xffffff, transparent: true, opacity: 0.55, depthWrite: false, side: THREE.DoubleSide, fog: true }));
+  veil.position.copy(out).multiplyScalar(0.25); veil.renderOrder = 4;
+  sheet.add(veil);
+  const foamMat = new THREE.MeshBasicMaterial({ map: textures.foam, transparent: true, opacity: 0.8, depthWrite: false, fog: true });
+  const foam = new THREE.Mesh(new THREE.CircleGeometry(f.width * 1.25, 24), foamMat);
+  foam.rotation.x = -Math.PI / 2; foam.position.set(fx + out.x * Math.min(away, 1.5), fy + 0.04, fz + out.z * Math.min(away, 1.5)); foam.renderOrder = 3;
+  sheet.add(foam); foam.position.sub(sheet.position);
+  const spray = new THREE.Group();
+  const puffs = [];
+  const puffMat = new THREE.SpriteMaterial({ map: textures.puff, color: 0xffffff, transparent: true, opacity: 0.5, depthWrite: false, fog: true });
+  for (let i = 0; i < 14; i += 1) {
+    const s = new THREE.Sprite(puffMat.clone());
+    s.userData = { phase: i / 14, spread: f.width * (0.6 + 0.8 * ((i * 7) % 5) / 5), turn: i * 2.39 };
+    spray.add(s); puffs.push(s);
+  }
+  spray.position.set(fx + out.x * Math.min(away, 1.5), fy, fz + out.z * Math.min(away, 1.5));
+  return { sheet, spray, map, puffs, height: ty - fy, veil, foam, update(dt, time) {
+    map.offset.y = -time * 0.9;
+    front.offset.y = -time * 1.25;
+    foam.rotation.z = time * 0.12; foam.scale.setScalar(1 + 0.06 * Math.sin(time * 2.3));
+    for (const s of puffs) {
+      const k = (s.userData.phase + time * 0.18) % 1;
+      const a = s.userData.turn + time * 0.2;
+      s.position.set(Math.cos(a) * s.userData.spread * (0.4 + k), 0.2 + k * Math.min(6, (ty - fy) * 0.35), Math.sin(a) * s.userData.spread * (0.4 + k));
+      const size = (0.8 + k * 3.2) * Math.min(1.6, f.width / 3);
+      s.scale.set(size, size, 1);
+      s.material.opacity = 0.55 * (1 - k) * (k < 0.1 ? k / 0.1 : 1);
+    }
+  } };
+}
+
+
+class Pieces {
+  constructor() { this.p = []; this.n = []; this.uv = []; this.c = []; this.i = []; }
+  box(cx, cy, cz, ax, ay, az, sx, sy, sz, shade = 1, uvScale = 1, uvAt = null) {
+    const ou = uvAt ? uvAt[0] : 0, ov = uvAt ? uvAt[1] : 0;
+    const o = this.p.length / 3;
+    const faces = [[ay, ax, az, sy, sx, sz], [ay.clone().negate(), ax, az.clone().negate(), sy, sx, sz], [az, ax, ay, sz, sx, sy], [az.clone().negate(), ax, ay.clone().negate(), sz, sx, sy], [ax, az, ay, sx, sz, sy], [ax.clone().negate(), az.clone().negate(), ay, sx, sz, sy]];
+    let f = 0;
+    for (const [n, u, v, dn, du, dv] of faces) {
+      const base = o + f * 4; f += 1;
+      for (const [i, j] of [[-1, -1], [1, -1], [1, 1], [-1, 1]]) {
+        this.p.push(cx + n.x * dn / 2 + u.x * du / 2 * i + v.x * dv / 2 * j, cy + n.y * dn / 2 + u.y * du / 2 * i + v.y * dv / 2 * j, cz + n.z * dn / 2 + u.z * du / 2 * i + v.z * dv / 2 * j);
+        this.n.push(n.x, n.y, n.z); this.uv.push(ou + (i + 1) / 2 * du * uvScale, ov + (j + 1) / 2 * dv * uvScale); this.c.push(shade, shade, shade);
+      }
+      const cr = new THREE.Vector3().crossVectors(u, v).dot(n);
+      if (cr > 0) this.i.push(base, base + 1, base + 2, base, base + 2, base + 3); else this.i.push(base, base + 2, base + 1, base, base + 3, base + 2);
+    }
+  }
+  tube(points, radius, sides = 6, shade = 1) {
+    const o = this.p.length / 3;
+    for (let k = 0; k < points.length; k += 1) {
+      const p = points[k], q = points[Math.min(k + 1, points.length - 1)], r = points[Math.max(k - 1, 0)];
+      const t = v3.set(q.x - r.x, q.y - r.y, q.z - r.z).normalize();
+      const a = Math.abs(t.y) < 0.9 ? new THREE.Vector3(0, 1, 0).cross(t).normalize() : new THREE.Vector3(1, 0, 0).cross(t).normalize();
+      const b = new THREE.Vector3().crossVectors(t, a);
+      for (let s = 0; s <= sides; s += 1) {
+        const ang = (s / sides) * Math.PI * 2, nx = a.x * Math.cos(ang) + b.x * Math.sin(ang), ny = a.y * Math.cos(ang) + b.y * Math.sin(ang), nz = a.z * Math.cos(ang) + b.z * Math.sin(ang);
+        this.p.push(p.x + nx * radius, p.y + ny * radius, p.z + nz * radius); this.n.push(nx, ny, nz); this.uv.push(k * 0.5, s / sides); this.c.push(shade, shade, shade);
+      }
+    }
+    for (let k = 0; k + 1 < points.length; k += 1) for (let s = 0; s < sides; s += 1) {
+      const a = o + k * (sides + 1) + s, b = o + (k + 1) * (sides + 1) + s;
+      this.i.push(a, b, b + 1, a, b + 1, a + 1);
+    }
+  }
+  build(material) {
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.Float32BufferAttribute(this.p, 3));
+    g.setAttribute('normal', new THREE.Float32BufferAttribute(this.n, 3));
+    g.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
+    g.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
+    g.setIndex(this.i.length > 65535 ? new THREE.Uint32BufferAttribute(this.i, 1) : new THREE.Uint16BufferAttribute(this.i, 1));
+    g.computeBoundingSphere();
+    const mesh = new THREE.Mesh(g, material);
+    mesh.castShadow = true; mesh.receiveShadow = true;
+    return mesh;
+  }
+}
+function boardsAt(d, x, z) {
+  const f = habitationFooting(x, z);
+  if (f && f.deck === d.id) return f.y;
+  return null;
+}
+function buildDecks(woodMat, ropeMat, stoneMat) {
+  const wood = new Pieces(), rope = new Pieces(), stone = new Pieces();
+  const up = new THREE.Vector3(0, 1, 0);
+  for (const d of HABITATION_DECKS) {
+    if (d.kind === 'suspension' || d.kind === 'platform') continue;          // (the owner's own models: placeModels)
+    const L = d.length;
+    const at = (s) => {
+      let run = 0;
+      for (let i = 0; i + 1 < d.line.length; i += 1) {
+        const [ax, az] = d.line[i], [bx, bz] = d.line[i + 1], len = Math.hypot(bx - ax, bz - az);
+        if (run + len >= s || i === d.line.length - 2) { const t = Math.min(1, Math.max(0, (s - run) / (len || 1))); return { x: ax + (bx - ax) * t, z: az + (bz - az) * t, dx: (bx - ax) / (len || 1), dz: (bz - az) / (len || 1) }; }
+        run += len;
+      }
+      return null;
+    };
+    const heightAt = (x, z, fallback) => { const y = boardsAt(d, x, z); return y === null ? fallback : y; };
+    const stair = d.kind === 'stairs';
+    const pitch = stair ? 0.32 : 0.24;
+    let last = d.heights[0];
+    const posts = [];
+    for (let s = pitch / 2; s < L; s += pitch) {
+      const p = at(s);
+      const y = heightAt(p.x, p.z, last); last = y;
+      const along = new THREE.Vector3(p.dx, 0, p.dz), across = new THREE.Vector3(-p.dz, 0, p.dx);
+      const shade = 0.85 + 0.3 * habitationNoise(s * 3.1, d.id.length);
+      if (d.stone) stone.box(p.x, y - 0.12, p.z, across, up, along, d.width, 0.24, pitch * 0.98, shade, 0.5);
+      else wood.box(p.x, y - 0.025, p.z, across, up, along, d.width * (0.97 + 0.06 * habitationNoise(s * 7, 3)), 0.05, pitch * (stair ? 0.95 : 0.82), shade, 0.5, [habitationNoise(s * 5.3, 1.7) * 7, habitationNoise(s * 3.7, 9.1) * 7]);
+    }
+    const rails = [[], []];
+    for (let s = 0.1; s <= L; s += 2.4) {
+      const p = at(Math.min(s, L - 0.05));
+      const y = heightAt(p.x, p.z, last);
+      const ground = Math.min(habitationLand(p.x, p.z), (habitationWaterAt(p.x, p.z) || { level: y }).level) - 0.4;
+      [-1, 1].forEach((side, k) => {
+        const px = p.x - p.dz * side * (d.width / 2 + 0.05), pz = p.z + p.dx * side * (d.width / 2 + 0.05);
+        const top = y + (d.rails ? 1.0 : 0.15), bottom = Math.min(ground, y - 0.3);
+        if (!d.stone) wood.box(px, (top + bottom) / 2, pz, new THREE.Vector3(1, 0, 0), up, new THREE.Vector3(0, 0, 1), 0.12, top - bottom, 0.12, 0.8, 0.5);
+        else stone.box(px, (top + y) / 2, pz, new THREE.Vector3(1, 0, 0), up, new THREE.Vector3(0, 0, 1), 0.22, top - y, 0.22, 0.9, 0.5);
+        rails[k].push(new THREE.Vector3(px, y + 0.95, pz));
+      });
+      posts.push(s);
+    }
+    if (d.rails) for (const line of rails) {
+      if (line.length < 2) continue;
+      if (d.ropes) {
+        const pts = [];
+        for (let k = 0; k + 1 < line.length; k += 1) for (let t = 0; t < 1; t += 0.25) { const a = line[k], b = line[k + 1]; pts.push(new THREE.Vector3(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t - Math.sin(Math.PI * t) * 0.08, a.z + (b.z - a.z) * t)); }
+        pts.push(line[line.length - 1]);
+        rope.tube(pts, 0.025, 6, 1);
+      } else {
+        for (const drop of [0, 0.45]) wood.tube(line.map((p) => new THREE.Vector3(p.x, p.y - drop, p.z)), drop ? 0.04 : 0.055, 6, 0.9);
+      }
+    }
+  }
+  const out = [wood.build(woodMat), rope.build(ropeMat)];
+  if (stone.p.length) out.push(stone.build(stoneMat));
+  return out;
+}
+
+
+function upriverGround(x, z) {
+  const shore = riverShore(x);
+  const taper = Math.max(0, Math.min(1, (HABITATION.bounds.x0 - x) / 24));
+  let y = 0.03 + (habitationNoise(x / 40, z / 40) - 0.5) * 0.5 * taper;
+  if (z > 98 && z < 128) y = Math.min(y, -0.03);
+  if (x > UPRIVER.park.x0 - 6 && z > UPRIVER.park.z0 - 6 && z < UPRIVER.park.z1 + 6) y = Math.min(y, -0.03);
+  if (z > shore - 16 && z < shore + 2) y = Math.min(y, WATER + 0.05 + (shore - z) * 0.03);
+  if (z > RIVER_FAR - 2 && z < RIVER_FAR + 16) y = Math.min(y, WATER + 0.05 + (z - RIVER_FAR) * 0.05);
+  if (z < 100 && z > 70) y = Math.min(y, 0.0);
+  return y;
+}
+
+function buildUpriver(riverMaterial, lite) {
+  const group = new THREE.Group(); group.name = 'upriver';
+  const from = 740, to = RIVER_HEAD;
+  if (riverMaterial) {
+    const river = new THREE.Mesh(new THREE.PlaneGeometry(to - from, RIVER_FAR - 120 + 8, 1, 1), riverMaterial);
+    river.rotation.x = -Math.PI / 2;
+    river.position.set((from + to) / 2, WATER, (120 + RIVER_FAR + 8) / 2);
+    river.receiveShadow = true;
+    group.add(river);
+  }
+  const strip = (z0, z1) => {
+    const g = new THREE.PlaneGeometry(HABITATION.bounds.x0 - 460, z1 - z0, Math.ceil((HABITATION.bounds.x0 - 460) / 12), Math.ceil((z1 - z0) / 12));
+    g.rotateX(-Math.PI / 2); g.translate((460 + HABITATION.bounds.x0) / 2, 0, (z0 + z1) / 2);
+    const P = g.attributes.position, col = new Float32Array(P.count * 3), c = new THREE.Color();
+    for (let i = 0; i < P.count; i += 1) {
+      const x = P.getX(i), z = P.getZ(i);
+      const shore = riverShore(x);
+      P.setY(i, upriverGround(x, z));
+      c.copy(linear(0x5f8a3c)).lerp(linear(0x8aa35a), habitationNoise(x / 30 + 5, z / 30));
+      if ((z > shore - 14 && z < shore + 1) || (z > RIVER_FAR - 1 && z < RIVER_FAR + 12)) c.lerp(linear(0xcdb98a), 0.7);
+      col[i * 3] = c.r; col[i * 3 + 1] = c.g; col[i * 3 + 2] = c.b;
+    }
+    g.setAttribute('color', new THREE.BufferAttribute(col, 3));
+    g.computeVertexNormals();
+    const mesh = new THREE.Mesh(g, new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 1, metalness: 0 }));
+    mesh.receiveShadow = true;
+    return mesh;
+  };
+  group.add(strip(-420, 186), strip(RIVER_FAR - 6, 720));
+  const r = UPRIVER.road, p = UPRIVER.park;
+  const road = new Pieces();
+  const ax = new THREE.Vector3(1, 0, 0), ay = new THREE.Vector3(0, 1, 0), az = new THREE.Vector3(0, 0, 1);
+  const x0 = 250;
+  road.box((x0 + r.x1) / 2, 0.02, (r.z0 + r.z1) / 2, ax, ay, az, r.x1 - x0, 0.04, r.z1 - r.z0 + 2.6, 1);
+  road.box((p.x0 + p.x1) / 2, 0.02, (p.z0 + p.z1) / 2, ax, ay, az, p.x1 - p.x0 + 2, 0.04, p.z1 - p.z0 + 2, 1);
+  const shoulder = road.build(new THREE.MeshStandardMaterial({ color: linear(0x9a5434), roughness: 1, metalness: 0 }));
+  const tar = new Pieces();
+  tar.box((x0 + r.x1) / 2, 0.05, (r.z0 + r.z1) / 2, ax, ay, az, r.x1 - x0, 0.06, r.z1 - r.z0, 1);
+  tar.box((p.x0 + p.x1) / 2, 0.05, (p.z0 + p.z1) / 2, ax, ay, az, p.x1 - p.x0, 0.06, p.z1 - p.z0, 1);
+  const tarMesh = tar.build(new THREE.MeshStandardMaterial({ color: linear(0x56555a), roughness: 0.94, metalness: 0, map: grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 3 }) }));
+  const paint = new Pieces();
+  for (let x = x0 + 2; x < r.x1 - 2; x += 9) paint.box(x + 1.5, 0.085, (r.z0 + r.z1) / 2, ax, ay, az, 3, 0.02, 0.14, 1);
+  for (const z of [r.z0 + 0.25, r.z1 - 0.25]) paint.box((x0 + r.x1) / 2, 0.085, z, ax, ay, az, r.x1 - x0, 0.02, 0.12, 1);
+  for (let x = p.x0 + 3; x < p.x1 - 2; x += 2.6) for (const z of [p.z0 + 3, p.z1 - 14]) paint.box(x, 0.085, z, ax, ay, az, 0.12, 0.02, 5, 1);
+  const paintMesh = paint.build(new THREE.MeshStandardMaterial({ color: linear(0xe6e2d6), roughness: 0.8, metalness: 0 }));
+  shoulder.castShadow = tarMesh.castShadow = paintMesh.castShadow = false;
+  group.add(shoulder, tarMesh, paintMesh);
+  const { meshes, sight } = roadsideTrees(lite);
+  for (const mesh of meshes) group.add(mesh);
+  group.userData.sight = sight;
+  for (const sign of [...UPRIVER.signs, HABITATION_GATE_SIGN]) group.add(roadSign(sign));
+  return group;
+}
+
+function roadsideTrees(lite) {
+  const solid = new Chunked(), leaves = new Foliage();
+  const want = lite ? 70 : 150;
+  const R = UPRIVER.road, P = UPRIVER.park;
+  let made = 0;
+  for (let i = 0; made < want && i < 4000; i += 1) {
+    const x = 300 + habitationNoise(i * 1.37 + 0.5, 5.5) * (R.x1 - 340);
+    const side = habitationNoise(i * 0.71 + 0.3, 17.5);
+    let z;
+    if (side < 0.55) z = 99 - habitationNoise(i * 0.53 + 0.2, 23.5) * 95;                 // inland, back from the verge
+    else if (side < 0.7) z = 128 + habitationNoise(i * 0.61 + 0.4, 29.5) * Math.max(0, riverShore(x) - 140);   // by the water
+    else z = RIVER_FAR + 10 + habitationNoise(i * 0.67 + 0.6, 31.5) * 90;                 // the far bank
+    if (x > P.x0 - 10 && z > P.z0 - 10 && z < P.z1 + 10) continue;
+    const r = habitationNoise(i * 0.83 + 0.1, 41.5);
+    addTree(solid, leaves, { x, z, kind: r < 0.4 ? 'palm' : r < 0.65 ? 'oilpalm' : r < 0.85 ? 'mango' : 'almond', size: 0.8 + habitationNoise(i, 43.5) * 0.5, turn: habitationNoise(i, 47.5) * 6.28 });
+    made += 1;
+  }
+  const meshes = [...solid.build(buildingKit().solid), ...leaves.build(foliageMaterials())];
+  for (const mesh of meshes) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'upriver-trees'; }
+  return { meshes, sight: lite ? 260 : 420 };
+}
+
+function roadSign(s) {
+  const group = new THREE.Group(); group.name = `sign:${s.id}`;
+  const [ink, ground] = s.palette;
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ map: textTexture(s.lines.map((text, i) => ({ text, size: i === 0 ? 88 : 60 })), { width: 1024, height: Math.round((1024 * s.height) / s.width / 32) * 32, background: ground, colour: ink, border: ink, size: 70 }), roughness: 0.6, metalness: 0 }));
+  board.position.set(0, 1.3 + s.height / 2, 0);
+  const back = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ color: linear(0x6a6f72), roughness: 0.7, metalness: 0.3 }));
+  back.position.set(0, 1.3 + s.height / 2, -0.03); back.rotation.y = Math.PI;
+  group.add(board, back);
+  for (const side of [-1, 1]) {
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3 + s.height, 8), new THREE.MeshStandardMaterial({ color: linear(0x8a8f92), roughness: 0.5, metalness: 0.6 }));
+    post.position.set(side * (s.width / 2 - 0.3), (1.3 + s.height) / 2, -0.06);
+    post.castShadow = true;
+    group.add(post);
+  }
+  group.position.set(s.x, 0, s.z);
+  group.rotation.y = s.facing;
+  return group;
+}
+
+
+const BANDS = {                     // metres within which a copy is drawn as the model: [a computer, a phone]
+  tree: [150, 85], palm: [150, 85], banana: [80, 48], shrub: [75, 45], herb: [60, 38], fern: [60, 38], rock: [130, 70],
+  structure: [420, 300], bridge: [420, 300], cliff: [700, 500],
+};
+const PICTURED = new Set(['tree', 'palm']);         // drawn as their picture beyond their band
+const PICTURE_REACH = [720, 420];                   // and as far as this
+const SLOT = { full: [256, 512], lite: [128, 256] };
+const COLS = 8, ROWS = 4;
+function createImpostors(renderer, scene, lite) {
+  const [sw, sh] = SLOT[lite ? 'lite' : 'full'];
+  const target = new THREE.WebGLRenderTarget(sw * COLS, sh * ROWS, { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: true, depthBuffer: true });
+  target.texture.encoding = THREE.sRGBEncoding;
+  const slots = new Map();
+  const studio = new THREE.Scene();
+  const key = new THREE.DirectionalLight(0xfff4e0, 1.25); key.position.set(0.4, 1, 1); studio.add(key);
+  studio.add(new THREE.HemisphereLight(0xdfeaff, 0x5a5040, 0.75));
+  const lens = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
+  const card = new THREE.PlaneGeometry(1, 1); card.translate(0, 0.5, 0);
+  const geometry = new THREE.InstancedBufferGeometry();
+  geometry.index = card.index; geometry.setAttribute('position', card.attributes.position); geometry.setAttribute('uv', card.attributes.uv);
+  const MOST = 2200;
+  const at = new Float32Array(MOST * 4), slot = new Float32Array(MOST * 4);
+  geometry.setAttribute('impAt', new THREE.InstancedBufferAttribute(at, 4));
+  geometry.setAttribute('impSlot', new THREE.InstancedBufferAttribute(slot, 4));
+  geometry.instanceCount = 0;
+  const material = new THREE.MeshBasicMaterial({ map: target.texture, alphaTest: 0.5, side: THREE.DoubleSide });
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute vec4 impAt;\nattribute vec4 impSlot;')
+      .replace('#include <uv_vertex>', `#include <uv_vertex>\n#ifdef USE_UV\nvUv = impSlot.xy + vec2(impSlot.w > 0.0 ? uv.x : 1.0 - uv.x, uv.y) * vec2(${(1 / COLS).toFixed(6)}, ${(1 / ROWS).toFixed(6)});\n#endif`)
+      .replace('#include <project_vertex>', `
+        vec3 toEye = cameraPosition - impAt.xyz; toEye.y = 0.0; toEye = normalize(toEye + vec3(1e-5));
+        vec3 across = vec3(toEye.z, 0.0, -toEye.x);
+        float h = impAt.w, w = h * abs(impSlot.w);
+        vec3 p = impAt.xyz + across * (position.x * w) + vec3(0.0, position.y * h, 0.0);
+        vec4 mvPosition = viewMatrix * vec4(p, 1.0);
+        gl_Position = projectionMatrix * mvPosition;`);
+  };
+  material.customProgramCacheKey = () => 'pcw-habitation-impostor';
+  const mesh = new THREE.Mesh(geometry, material);
+  mesh.name = 'habitation-impostors'; mesh.frustumCulled = false; mesh.castShadow = false; mesh.receiveShadow = false;
+  scene.add(mesh);
+  function take(name, model) {
+    if (slots.size >= COLS * ROWS) return null;
+    const index = slots.size, cx = index % COLS, cy = Math.floor(index / COLS);
+    const box = model.box, size = box.getSize(new THREE.Vector3()), mid = box.getCenter(new THREE.Vector3());
+    const wide = Math.max(size.x, size.z), high = size.y;
+    const frameH = Math.max(high, wide * (sh / sw)), frameW = frameH * (sw / sh);
+    lens.left = -frameW / 2; lens.right = frameW / 2; lens.top = frameH; lens.bottom = 0; lens.updateProjectionMatrix();
+    lens.position.set(mid.x, box.min.y, mid.z + 50); lens.lookAt(mid.x, box.min.y, mid.z);
+    const copy = model.make();
+    studio.add(copy);
+    const before = renderer.getRenderTarget(), clear = renderer.getClearColor(new THREE.Color()), alpha = renderer.getClearAlpha(), auto = renderer.autoClear, shadows = renderer.shadowMap.autoUpdate;
+    renderer.shadowMap.autoUpdate = false;
+    target.viewport.set(cx * sw, cy * sh, sw, sh); target.scissor.set(cx * sw, cy * sh, sw, sh); target.scissorTest = true;
+    renderer.setRenderTarget(target);
+    renderer.setClearColor(0x30402a, 0);
+    renderer.autoClear = false; renderer.clear(true, true, false);
+    renderer.render(studio, lens);
+    target.scissorTest = false; target.viewport.set(0, 0, sw * COLS, sh * ROWS);
+    renderer.setRenderTarget(before); renderer.setClearColor(clear, alpha); renderer.autoClear = auto; renderer.shadowMap.autoUpdate = shadows;
+    studio.remove(copy);
+    const s = { u: cx / COLS, v: cy / ROWS, du: 1 / COLS, dv: 1 / ROWS, aspect: frameW / frameH, height: frameH, base: box.min.y, centre: [mid.x, mid.z] };
+    slots.set(name, s);
+    return s;
+  }
+  let shown = 0;
+  return {
+    mesh, take, slots, target,
+    show(list, brightness) {
+      shown = Math.min(MOST, list.length);
+      for (let i = 0; i < shown; i += 1) {
+        const p = list[i], s = p.slot;
+        at[i * 4] = p.x; at[i * 4 + 1] = p.y + s.base * p.scale; at[i * 4 + 2] = p.z; at[i * 4 + 3] = s.height * p.scale;
+        slot[i * 4] = s.u; slot[i * 4 + 1] = s.v; slot[i * 4 + 2] = s.du; slot[i * 4 + 3] = s.aspect * (p.flip ? -1 : 1);
+      }
+      geometry.instanceCount = shown;
+      geometry.attributes.impAt.needsUpdate = true; geometry.attributes.impSlot.needsUpdate = true;
+      material.color.setScalar(brightness);
+    },
+    get shown() { return shown; },
+    dispose() { scene.remove(mesh); geometry.dispose(); card.dispose(); material.dispose(); target.dispose(); },
+  };
+}
+
+function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () => {} }) {
+  const byModel = new Map();
+  for (const p of HABITATION_STANDING) { if (!byModel.has(p.m)) byModel.set(p.m, []); byModel.get(p.m).push(p); }
+  const placed = { models: new Map(), fetched: 0, bytes: 0, instances: 0, list: [] };
+  const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), at = new THREE.Vector3(), off = new THREE.Vector3(), m4 = new THREE.Matrix4();
+  const order = [...byModel.keys()].sort((a, b) => Math.min(...byModel.get(a).map((p) => Math.hypot(p.x - HABITATION.gate.x, p.z - HABITATION.gate.z))) - Math.min(...byModel.get(b).map((p) => Math.hypot(p.x - HABITATION.gate.x, p.z - HABITATION.gate.z))));
+  placed.loading = (async () => {
+    for (const m of order) {
+      if (placed.stopped) return;
+      const list = byModel.get(m);
+      const info = HABITATION_MODELS[m];
+      let model;
+      try {
+        const res = await fetchFile(`habitation/${m}.${lite ? 'lite' : 'full'}.glb`);
+        if (!res.ok) throw new Error(`${m}: ${res.status}`);
+        const buf = await res.arrayBuffer();
+        placed.bytes += buf.byteLength;
+        model = await readDressed(buf, { lite, shared });
+      } catch (error) { onModel(m, error); continue; }
+      if (placed.stopped) { model.dispose(); return; }
+      placed.fetched += 1;
+      const kind = info ? info.kind : 'tree';
+      const copies = list.map((p) => {
+        const scale = p.s / (info ? info.unit : 1);
+        const base = info ? info.base : [0, 0, 0];
+        const y = p.y !== null ? p.y : habitationLand(p.x, p.z);
+        q.setFromAxisAngle(up, p.r);
+        sc.setScalar(scale);
+        off.set(base[0] * scale, base[1] * scale, base[2] * scale).applyQuaternion(q);
+        at.set(p.x - off.x, y - off.y - 0.04 * Math.min(1, scale * 0.05), p.z - off.z);
+        m4.compose(at, q, sc);
+        const sphere = model.box.getBoundingSphere(new THREE.Sphere()).applyMatrix4(m4);
+        return { matrix: Float32Array.from(m4.elements), sphere, x: p.x, y, z: p.z, scale, flip: (p.r * 7.3) % 1 > 0.5 };
+      });
+      const meshes = model.parts.map((part) => {
+        const mesh = new THREE.InstancedMesh(part.geometry, part.material, copies.length);
+        mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+        mesh.name = `${m}:${part.part}`;
+        mesh.castShadow = part.part !== 'inside' && (!lite || !['herb', 'fern', 'shrub', 'banana', 'rock'].includes(kind)); mesh.receiveShadow = true;
+        if (part.depth) mesh.customDepthMaterial = part.depth;
+        mesh.frustumCulled = false;
+        mesh.count = 0;
+        group.add(mesh);
+        return mesh;
+      });
+      const slot = impostors && PICTURED.has(kind) ? impostors.take(m, model) : null;
+      const entry = { name: m, kind, model, copies, meshes, slot, band: BANDS[kind] || BANDS.tree, chosen: '' };
+      placed.models.set(m, entry);
+      placed.list.push(entry);
+      placed.instances += copies.length;
+      onModel(m, null);
+    }
+  })();
+  return placed;
+}
+
+const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), margin = new THREE.Sphere();
+function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
+  if (!camera) return;
+  camera.updateMatrixWorld();
+  camera.matrixWorldInverse.copy(camera.matrixWorld).invert();
+  viewProjection.multiplyMatrices(camera.projectionMatrix, camera.matrixWorldInverse);
+  frustum.setFromProjectionMatrix(viewProjection);
+  const ex = camera.position.x, ez = camera.position.z;
+  const far = PICTURE_REACH[lite ? 1 : 0];
+  const pictures = [];
+  counts.models = 0; counts.copies = 0;
+  for (const e of placed.list) {
+    const near = e.band[lite ? 1 : 0];
+    let n = 0, chosen = '';
+    for (let i = 0; i < e.copies.length; i += 1) {
+      const c = e.copies[i];
+      const d = Math.hypot(c.x - ex, c.z - ez);
+      if (d - c.sphere.radius > near) {
+        if (e.slot && d < far && frustum.intersectsSphere(c.sphere)) pictures.push({ x: c.x, y: c.y, z: c.z, scale: c.scale, slot: e.slot, flip: c.flip });
+        continue;
+      }
+      margin.center.copy(c.sphere.center); margin.radius = c.sphere.radius + 8;
+      if (!frustum.intersectsSphere(margin)) continue;
+      if (n < 64) chosen += `${i},`; else if (n === 64) chosen += `+${e.copies.length}`;
+      for (const mesh of e.meshes) mesh.instanceMatrix.array.set(c.matrix, n * 16);
+      n += 1;
+    }
+    chosen += `:${n}`;
+    if (chosen !== e.chosen || e.meshes[0] && e.meshes[0].count !== n) {
+      e.chosen = chosen;
+      for (const mesh of e.meshes) { mesh.count = n; if (n) { mesh.instanceMatrix.updateRange.offset = 0; mesh.instanceMatrix.updateRange.count = n * 16; mesh.instanceMatrix.needsUpdate = true; } }
+    }
+    if (n) { counts.models += 1; counts.copies += n; }
+  }
+  counts.pictures = pictures.length;
+  if (impostors) impostors.show(pictures, brightness);
+}
+
+
+function createHabitation(scene, { lite = false, renderer = null, riverMaterial = null, fetchFile = (url) => fetch(url), onError = () => {} } = {}) {
+  const sharedPictures = new Map();
+  const shared = (uri, colour) => {
+    if (!sharedPictures.has(uri)) sharedPictures.set(uri, (async () => {
+      const res = await fetchFile(`habitation/${uri}`);
+      const bitmap = await createImageBitmap(await res.blob(), { imageOrientation: 'none', premultiplyAlpha: 'none' });
+      const t = new THREE.Texture(bitmap); t.flipY = false; if (colour) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      return t;
+    })());
+    return sharedPictures.get(uri);
+  };
+  const root = new THREE.Group(); root.name = 'habitation';
+  let upriver = null;
+  let built = null;             // { group, waters, falls, ... } while near
+  let building = false;
+  let time = 0;
+  const stats = { builds: 0, letGo: 0, buildMs: 0, triangles: 0 };
+  const drawn = { models: 0, copies: 0, pictures: 0 };
+
+  function ensureUpriver() {
+    if (upriver) return;
+    upriver = buildUpriver(riverMaterial, lite);
+    scene.add(upriver);
+  }
+  function build() {
+    if (built || building) return;
+    building = true;
+    const t0 = performance.now();
+    const group = new THREE.Group(); group.name = 'habitation-near';
+    const grain = grainTexture({ low: 0.6, coarse: 0.35, speck: 0.35, seed: 11 });
+    grain.wrapS = grain.wrapT = THREE.RepeatWrapping;
+    const ripples = rippleNormalTexture(lite ? 128 : 256);
+    ripples.wrapS = ripples.wrapT = THREE.RepeatWrapping;
+    const stone = stoneTexture(lite ? 256 : 512);
+    const ground = new THREE.Mesh(buildGround(lite ? 5 : 2.5, lite), groundMaterial({ grain, stone, lite }));
+    ground.name = 'habitation-ground'; ground.receiveShadow = true;
+    group.add(ground);
+    const waters = [];
+    const materials = {};
+    const matFor = (kind) => materials[kind] || (materials[kind] = waterMaterial(kind, { ripples, lite }));
+    for (const w of HABITATION_WATERS) {
+      const mesh = new THREE.Mesh(buildStill(w, lite ? 4 : 2), matFor(w.kind));
+      mesh.name = `water:${w.id}`; mesh.renderOrder = 2; mesh.receiveShadow = true;
+      group.add(mesh); waters.push(mesh);
+    }
+    for (const s of HABITATION_STREAMS) {
+      const mesh = new THREE.Mesh(buildStream(s, lite ? 2.5 : 1.5), matFor(s.rapids ? 'rapids' : 'stream'));
+      mesh.name = `stream:${s.id}`; mesh.renderOrder = 2;
+      group.add(mesh); waters.push(mesh);
+    }
+    const pillarMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.25 });
+    for (const p of HABITATION_PILLARS) {
+      const mesh = new THREE.Mesh(pillarGeometry(p, lite), pillarMat);
+      mesh.name = `pillar:${p.id}`; mesh.castShadow = true; mesh.receiveShadow = true;
+      group.add(mesh);
+    }
+    const textures = fallTextures();
+    const falls = HABITATION_FALLS.map((f) => buildFall(f, textures));
+    for (const f of falls) group.add(f.sheet, f.spray);
+    const woodMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0x8a6a48), roughness: 0.85, metalness: 0 });
+    shared(`deck-wood.${lite ? 'lite' : 'full'}.webp`, true).then((t) => {
+      if (!built || built.woodMat !== woodMat) return;
+      t.wrapS = t.wrapT = THREE.RepeatWrapping; t.needsUpdate = true;
+      woodMat.map = t; woodMat.color.copy(linear(0xf2ece4)); woodMat.needsUpdate = true;
+    }, () => {});
+    const ropeMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xa08a62), roughness: 0.95, metalness: 0 });
+    const stoneMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xc8c0ae), roughness: 0.9, metalness: 0 });
+    for (const mesh of buildDecks(woodMat, ropeMat, stoneMat)) group.add(mesh);
+    const lilies = buildLilies(lite);
+    for (const mesh of lilies.meshes) group.add(mesh);
+    root.add(group);
+    if (!root.parent) scene.add(root);
+    const impostors = renderer ? createImpostors(renderer, group, lite) : null;
+    const meadow = createMeadow(group, { lite });
+    const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) onError(error); } });
+    let triangles = 0;
+    group.traverse((o) => { if (o.isMesh && o.geometry.index && !o.isInstancedMesh) triangles += o.geometry.index.count / 3; });
+    built = { group, waters, falls, ground, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies };
+    placed.loading.then(() => { if (!placed.stopped) stats.modelsMs = Math.round(performance.now() - t0); });
+    stats.builds += 1; stats.buildMs = Math.round(performance.now() - t0); stats.triangles = triangles;
+    building = false;
+  }
+  function letGo() {
+    if (!built) return;
+    const gone = built;
+    built = null;
+    root.remove(gone.group);
+    gone.group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); else if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
+    for (const m of Object.values(gone.materials)) m.dispose();
+    for (const m of [gone.woodMat, gone.ropeMat, gone.stoneMat, gone.pillarMat, gone.ground.material]) m.dispose();
+    for (const t of [gone.grain, gone.ripples, gone.stone, gone.textures.sheet, gone.textures.puff, gone.textures.foam]) t.dispose();
+    for (const f of gone.falls) { f.map.dispose(); f.sheet.material.dispose(); f.veil.material.map.dispose(); f.veil.material.dispose(); f.foam.material.dispose(); f.foam.geometry.dispose(); for (const s of f.puffs) s.material.dispose(); }
+    if (gone.impostors) gone.impostors.dispose();
+    gone.meadow.dispose();
+    gone.lilies.dispose();
+    const placed = gone.placed;
+    if (placed) { placed.stopped = true; for (const e of placed.models.values()) e.model.dispose(); }
+    for (const p of sharedPictures.values()) p.then((t) => t.dispose(), () => {});
+    sharedPictures.clear();
+    stats.letGo += 1;
+  }
+
+  function update(dt, { at = null, eye = null, camera = null, night = 0 } = {}) {
+    time += dt;
+    waterClock.value = time % 1000;
+    setHabitationWind(time);
+    const x = at ? at.x : 0;
+    if (x > 200) ensureUpriver();
+    else if (upriver && x < 120) {
+      scene.remove(upriver);
+      upriver.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material && o.material !== riverMaterial && o.name !== 'upriver-trees') { if (o.material.map) o.material.map.dispose(); o.material.dispose(); } });
+      upriver = null;
+    }
+    if (upriver && eye && upriver.userData.sight) for (const mesh of upriver.children) if (mesh.name === 'upriver-trees') { if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere(); const c = mesh.geometry.boundingSphere.center; mesh.visible = Math.hypot(c.x - eye.x, c.z - eye.z) - mesh.geometry.boundingSphere.radius < upriver.userData.sight; }
+    if (!built && !building && x > COME) { try { build(); } catch (error) { building = false; onError(error); } }
+    if (built && x < GO) letGo();
+    if (built) {
+      for (const f of built.falls) f.update(dt, time);
+      if (built.placed) chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn);
+      built.meadow.update(eye);
+    }
+  }
+
+  return {
+    update,
+    get built() { return !!built; },
+    get root() { return root; },
+    get impostors() { return built ? built.impostors : null; },
+    build, letGo,
+    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2) }),
+  };
+}
+
+
+function createMeadow(scene, { lite = false } = {}) {
+  const MOST = lite ? 2600 : 7000, NEAR = lite ? 32 : 55;
+  const pos = [], sway = [], col = [];
+  for (let i = 0; i < 7; i += 1) {
+    const a = i * 2.4, out = 0.03 + (i % 3) * 0.05, bx = Math.cos(a) * out, bz = Math.sin(a) * out, tall = 0.22 + ((i * 5) % 4) * 0.06;
+    pos.push(bx - Math.sin(a) * 0.02, 0, bz + Math.cos(a) * 0.02, bx + Math.sin(a) * 0.02, 0, bz - Math.cos(a) * 0.02, bx * 2.6, tall, bz * 2.6);
+    sway.push(0, 0, 1);
+    col.push(0.7, 0.72, 0.6, 0.7, 0.72, 0.6, 1, 1, 1);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('sway', new THREE.Float32BufferAttribute(sway, 1));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.computeVertexNormals();
+  const material = new THREE.MeshLambertMaterial({ side: THREE.DoubleSide, vertexColors: true });
+  material.onBeforeCompile = (shader) => {
+    shader.uniforms.uWind = { get value() { return habitationWind(); } };
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float sway;\nuniform float uWind;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      {
+        float seed = (modelMatrix * instanceMatrix[3]).x * 0.71 + (modelMatrix * instanceMatrix[3]).z * 0.53;
+        float gust = 0.6 + 0.4 * sin(uWind * 0.21 + seed * 0.05);
+        transformed.x += sin(uWind * 2.1 + seed) * 0.05 * sway * gust;
+        transformed.z += cos(uWind * 1.7 + seed * 1.3) * 0.04 * sway * gust;
+      }`);
+  };
+  material.customProgramCacheKey = () => 'pcw-habitation-grass';
+  const mesh = new THREE.InstancedMesh(g, material, MOST);
+  mesh.name = 'habitation-grass'; mesh.frustumCulled = false; mesh.castShadow = false; mesh.receiveShadow = true; mesh.count = 0;
+  mesh.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(mesh);
+  const SQ = 8, squares = new Map();
+  const b = HABITATION.bounds;
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), at = new THREE.Vector3(), sc = new THREE.Vector3(), c = new THREE.Color();
+  const green = [linear(0x6f9f48), linear(0x8cb655), linear(0x5f8a3a), linear(0xa9ad5c)];
+  const flower = [linear(0xf4f2ea), linear(0xf2d24a), linear(0xe8e4f0)];
+  const grows = (x, z) => {
+    const f = habitationFooting(x, z);
+    if (f && f.kind === 'grass') return 1;
+    if (f && f.walk) return 0;                 // (not on paths, decks, sand or in water)
+    for (const p of HABITATION_PATHS) {
+      if (p.surface === 'sand' || x < p.bounds.x0 || x > p.bounds.x1 || z < p.bounds.z0 || z > p.bounds.z1) continue;
+      for (let i = 0; i + 1 < p.line.length; i += 1) {
+        const [ax, az] = p.line[i], [bx, bz] = p.line[i + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1;
+        const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)), d = Math.hypot(ax + dx * u - x, az + dz * u - z) - p.width / 2;
+        if (d > 0 && d < 2.2) return 0.8;
+      }
+    }
+    return 0;
+  };
+  let made = 0;
+  const places = [];
+  for (const a of HABITATION_GRASS) places.push({ kind: 'area', a, n: Math.round(((a.bounds.x1 - a.bounds.x0) * (a.bounds.z1 - a.bounds.z0)) * (lite ? 0.9 : 2.2)) });
+  for (const p of HABITATION_PATHS) if (p.surface !== 'sand') places.push({ kind: 'path', p, n: Math.round(p.line.slice(1).reduce((s2, [x2, z2], k2) => s2 + Math.hypot(x2 - p.line[k2][0], z2 - p.line[k2][1]), 0) * (lite ? 2.2 : 5)) });
+  const candidates = [];
+  let seq = 0;
+  for (const pl of places) for (let k2 = 0; k2 < pl.n; k2 += 1) {
+    seq += 1;
+    const r1 = habitationNoise(seq * 0.913 + 0.17, 3.7), r2 = habitationNoise(seq * 0.771 + 0.29, 8.3);
+    if (pl.kind === 'area') candidates.push([pl.a.bounds.x0 + r1 * (pl.a.bounds.x1 - pl.a.bounds.x0), pl.a.bounds.z0 + r2 * (pl.a.bounds.z1 - pl.a.bounds.z0)]);
+    else {
+      const line = pl.p.line, seg = Math.floor(r1 * (line.length - 1)), t = (r1 * (line.length - 1)) % 1;
+      const [ax, az] = line[seg], [bx, bz] = line[seg + 1], len = Math.hypot(bx - ax, bz - az) || 1;
+      const side = r2 < 0.5 ? -1 : 1, off = pl.p.width / 2 + 0.15 + ((r2 * 2) % 1) * 2.1;
+      candidates.push([ax + (bx - ax) * t - ((bz - az) / len) * off * side, az + (bz - az) * t + ((bx - ax) / len) * off * side]);
+    }
+  }
+  for (let i = 0; i < candidates.length && made < (lite ? 26000 : 60000); i += 1) {
+    const [x, z] = candidates[i];
+    const k = grows(x, z);
+    if (!k || habitationNoise(x / 6, z / 6) > 0.35 + k * 0.5) continue;
+    const y = habitationLand(x, z);
+    const s = 0.8 + habitationNoise(i, 5.1) * 0.9;
+    q.setFromAxisAngle(up, habitationNoise(i, 7.3) * 6.28);
+    m4.compose(at.set(x, y - 0.02, z), q, sc.set(s, s * (0.8 + habitationNoise(i, 9.1) * 0.7), s));
+    const bloom = habitationNoise(i * 1.3, 11.9) > 0.86;
+    c.copy(bloom ? flower[i % flower.length] : green[i % green.length]).lerp(green[(i + 1) % green.length], habitationNoise(i, 13.3) * 0.6);
+    const key = `${Math.floor(x / SQ)},${Math.floor(z / SQ)}`;
+    if (!squares.has(key)) squares.set(key, []);
+    squares.get(key).push({ e: Float32Array.from(m4.elements), r: c.r, g: c.g, b: c.b, x, z });
+    made += 1;
+  }
+  const colours = new Float32Array(MOST * 3);
+  mesh.instanceColor = new THREE.InstancedBufferAttribute(colours, 3);
+  mesh.instanceColor.setUsage(THREE.DynamicDrawUsage);
+  let lastX = Infinity, lastZ = Infinity;
+  return {
+    mesh,
+    get tufts() { return made; },
+    update(eye) {
+      if (!eye || Math.hypot(eye.x - lastX, eye.z - lastZ) < 3) return;
+      lastX = eye.x; lastZ = eye.z;
+      let n = 0;
+      const r = Math.ceil(NEAR / SQ), ci = Math.floor(eye.x / SQ), cj = Math.floor(eye.z / SQ);
+      for (let dj = -r; dj <= r && n < MOST; dj += 1) for (let di = -r; di <= r && n < MOST; di += 1) {
+        const list = squares.get(`${ci + di},${cj + dj}`);
+        if (!list) continue;
+        for (const t of list) {
+          if (n >= MOST) break;
+          if (Math.hypot(t.x - eye.x, t.z - eye.z) > NEAR) continue;
+          mesh.instanceMatrix.array.set(t.e, n * 16);
+          colours[n * 3] = t.r; colours[n * 3 + 1] = t.g; colours[n * 3 + 2] = t.b;
+          n += 1;
+        }
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true; mesh.instanceColor.needsUpdate = true;
+    },
+    dispose() { scene.remove(mesh); g.dispose(); material.dispose(); mesh.dispose(); },
+  };
+}
+
+return { createHabitation, createMeadow };
+})();
+
+__modules["client/render-habitation-life.js"] = (function () {
+
+const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, habitationWaterAt, habitationLand, habitationFooting } = __modules["sim/zone.js"];
+const { linear } = __modules["client/render-kit.js"];
+
+function dice(seed) {
+  let a = seed >>> 0;
+  return () => { a = (a + 0x6d2b79f5) >>> 0; let t = a; t = Math.imul(t ^ (t >>> 15), t | 1); t ^= t + Math.imul(t ^ (t >>> 7), t | 61); return ((t ^ (t >>> 14)) >>> 0) / 4294967296; };
+}
+const TAU = Math.PI * 2;
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const angleTo = (a, b) => { let d = (b - a) % TAU; if (d > Math.PI) d -= TAU; if (d < -Math.PI) d += TAU; return d; };
+
+
+const BIRD_KINDS = Object.freeze({
+  'grey-parrot': { name: 'African grey parrot', span: 0.5, c: [0x8a8e93, 0x6a6e74, 0xb6babe, 0x9a9ea3, 0xc4242a, 0x1e1e20], tail: 0.7, bill: 1.2, hook: 1, ways: 'perch', speed: 11, flap: 10, song: 'grey-parrot' },
+  'senegal-parrot': { name: 'Senegal parrot', span: 0.42, c: [0x3f9a3a, 0x3a8e36, 0x5a5e64, 0xe3a326, 0x3f9a3a, 0x2a2a2c], tail: 0.6, bill: 1.1, hook: 1, ways: 'perch', speed: 11, flap: 11, song: 'senegal-parrot' },
+  parakeet: { name: 'Rose-ringed parakeet', span: 0.42, c: [0x79c64a, 0x5fae3a, 0x8ad45a, 0xa8dc78, 0x6cbf46, 0xc62a2a], tail: 2.2, bill: 1.0, hook: 1, ways: 'flock', speed: 13, flap: 12, song: 'parakeet' },
+  'blue-turaco': { name: 'Great blue turaco', span: 0.75, c: [0x2d5ea8, 0x2a559a, 0x2f64b0, 0xaebf3a, 0x2d5ea8, 0xe8c21e], tail: 1.6, bill: 1.0, crest: 1, ways: 'perch', speed: 8, flap: 6, song: 'blue-turaco' },
+  'violet-turaco': { name: 'Violet turaco', span: 0.55, c: [0x45286a, 0xb3122e, 0x3a2058, 0x45286a, 0x45286a, 0xf08a1c], tail: 1.4, bill: 1.0, crest: 1, ways: 'perch', speed: 9, flap: 7, song: 'violet-turaco' },
+  hornbill: { name: 'African pied hornbill', span: 0.9, c: [0x1f1f21, 0x232325, 0x1f1f21, 0xeeeeea, 0x1f1f21, 0xd8c89a], tail: 1.3, bill: 2.6, ways: 'perch', speed: 10, flap: 6, song: 'hornbill' },
+  'pied-crow': { name: 'Pied crow', span: 0.95, c: [0x18181a, 0x1c1c1e, 0x18181a, 0xe8e8e6, 0x18181a, 0x18181a], tail: 1.0, bill: 1.3, ways: 'perch', speed: 11, flap: 5, song: 'pied-crow' },
+  bulbul: { name: 'Common bulbul', span: 0.28, c: [0x7a6a54, 0x6e5e4a, 0x3a3230, 0xcdbfa6, 0x6e5e4a, 0x1e1e20], tail: 1.1, bill: 0.8, ways: 'low', speed: 9, flap: 15, song: 'bulbul' },
+  sunbird: { name: 'Splendid sunbird', span: 0.17, c: [0x1b7f72, 0x214a6e, 0x2b2a7a, 0xb8243a, 0x1b4f6e, 0x161616], tail: 1.0, bill: 1.7, ways: 'low', speed: 9, flap: 20, song: 'sunbird' },
+  weaver: { name: 'Village weaver', span: 0.24, c: [0xeec11e, 0x6a5a1e, 0x1c1c1c, 0xf4cc2a, 0x8a7a2a, 0x1c1c1c], tail: 0.8, bill: 0.9, ways: 'flock', speed: 10, flap: 16, song: 'weaver' },
+  kingfisher: { name: 'Malachite kingfisher', span: 0.2, c: [0x1f6fd0, 0x1a5fb8, 0x2a80dc, 0xe2782e, 0x1f6fd0, 0xd8261e], tail: 0.6, bill: 1.9, ways: 'kingfisher', speed: 12, flap: 18, song: 'kingfisher' },
+  egret: { name: 'Little egret', span: 0.95, c: [0xf3f1ea, 0xf6f4ee, 0xf3f1ea, 0xf3f1ea, 0xf3f1ea, 0x1c1c1c], tail: 0.7, bill: 2.0, legs: 1, neck: 1, ways: 'wade', speed: 8, flap: 4, song: 'egret' },
+  ibis: { name: 'Hadada ibis', span: 1.0, c: [0x6b6150, 0x5a6a52, 0x5e5648, 0x6b6150, 0x5e5648, 0x2a2622], tail: 0.7, bill: 2.4, curve: 1, legs: 1, ways: 'wade', speed: 9, flap: 5, song: 'ibis' },
+  'fish-eagle': { name: 'African fish eagle', span: 2.0, c: [0x5a3420, 0x3a2618, 0xf2f0ea, 0x6a3a22, 0xf2f0ea, 0xe8c21e], tail: 0.9, bill: 1.2, hook: 1, ways: 'soar', speed: 9, flap: 3, song: 'fish-eagle' },
+});
+
+const HOMES = [
+  ['entrance-hill', [['bulbul', 2], ['pied-crow', 2], ['weaver', 6], ['sunbird', 1]]],
+  ['forest-path', [['grey-parrot', 3], ['blue-turaco', 2], ['hornbill', 2], ['bulbul', 1]]],
+  ['swamp', [['ibis', 2], ['kingfisher', 1], ['violet-turaco', 1], ['grey-parrot', 2]]],
+  ['mangroves', [['egret', 3], ['kingfisher', 1], ['senegal-parrot', 2]]],
+  ['lagoon', [['egret', 2], ['parakeet', 6], ['senegal-parrot', 2], ['fish-eagle', 1], ['pied-crow', 1]]],
+  ['gorge', [['kingfisher', 1], ['bulbul', 1], ['sunbird', 2], ['blue-turaco', 1]]],
+  ['big-waterfall', [['pied-crow', 1], ['fish-eagle', 1], ['violet-turaco', 1]]],
+  ['waterfall-pool', [['sunbird', 2], ['violet-turaco', 1], ['kingfisher', 1]]],
+  ['overlook', [['hornbill', 1], ['parakeet', 4]]],
+  ['gazebo-garden', [['sunbird', 2], ['bulbul', 1], ['weaver', 5]]],
+  ['sunset-beach', [['egret', 1], ['ibis', 1], ['grey-parrot', 2]]],
+];
+
+function birdGeometry(kind) {
+  const k = BIRD_KINDS[kind];
+  const col = k.c.map((h) => linear(h));
+  const [back, wingC, head, belly, tailC, billC] = col;
+  const pos = [], colr = [], wing = [];
+  const tri = (a, b, c, cA, cB = cA, cC = cA, w = 0) => { pos.push(...a, ...b, ...c); for (const cc of [cA, cB, cC]) colr.push(cc.r, cc.g, cc.b); wing.push(w, w, w); };
+  const neck = k.neck ? 0.06 : 0;
+  const rings = [[-0.19, 0.022], [-0.11, 0.05], [0.0, 0.062], [0.08, 0.055], [0.14 + neck, 0.033]];
+  const S = 6;
+  const ring = (z, r, j) => { const a = (j / S) * TAU; return [Math.cos(a) * r, Math.sin(a) * r * 0.9, z]; };
+  for (let i = 0; i + 1 < rings.length; i += 1) for (let j = 0; j < S; j += 1) {
+    const a = ring(rings[i][0], rings[i][1], j), b = ring(rings[i][0], rings[i][1], j + 1), c = ring(rings[i + 1][0], rings[i + 1][1], j), d = ring(rings[i + 1][0], rings[i + 1][1], j + 1);
+    const ca = a[1] >= 0 ? back : belly, cb = b[1] >= 0 ? back : belly, cc = c[1] >= 0 ? back : belly, cd = d[1] >= 0 ? back : belly;
+    tri(a, c, b, ca, cc, cb); tri(b, c, d, cb, cc, cd);
+  }
+  const hz = 0.19 + neck, hr = 0.042, hy = 0.03 + neck * 0.5;
+  const top = [0, hy + hr, hz], bottom = [0, hy - hr, hz], front = [0, hy, hz + hr], rear = [0, hy, hz - hr], left = [-hr * 0.85, hy, hz], right = [hr * 0.85, hy, hz];
+  for (const [a, b] of [[front, right], [right, rear], [rear, left], [left, front]]) { tri(top, a, b, head); tri(bottom, b, a, head); }
+  if (k.crest) tri([0, hy + hr, hz + 0.01], [0, hy + hr * 2.1, hz - 0.03], [0, hy + hr * 0.6, hz - 0.05], head);
+  const bl = 0.045 * (k.bill || 1), bw = 0.014 * Math.min(1.6, k.bill || 1);
+  const by = hy - (k.hook ? 0.008 : 0.002), bz = hz + hr * 0.8;
+  const tip = [0, by - (k.curve ? bl * 0.45 : k.hook ? bl * 0.35 : bl * 0.1), bz + bl];
+  tri([-bw, by, bz], [bw, by, bz], tip, billC); tri([bw, by, bz], [0, by + bw * 1.2, bz], tip, billC); tri([0, by + bw * 1.2, bz], [-bw, by, bz], tip, billC);
+  const tl = 0.11 * (k.tail || 1), tz = -0.18;
+  tri([-0.025, 0.012, tz], [0.025, 0.012, tz], [0.05 * Math.min(1.4, 0.8 + (k.tail || 1) * 0.25), 0.0, tz - tl], tailC);
+  tri([-0.025, 0.012, tz], [0.05 * Math.min(1.4, 0.8 + (k.tail || 1) * 0.25), 0.0, tz - tl], [-0.05 * Math.min(1.4, 0.8 + (k.tail || 1) * 0.25), 0.0, tz - tl], tailC);
+  if (k.legs) for (const s of [-1, 1]) { const x = s * 0.018; tri([x - 0.006, -0.03, 0.0], [x + 0.006, -0.03, 0.0], [x, -0.26, 0.02], billC); tri([x, -0.03, -0.006], [x, -0.03, 0.006], [x, -0.26, 0.02], billC); }
+  const tipC = wingC.clone().multiplyScalar(0.7);
+  for (const s of [-1, 1]) {
+    const r0 = [s * 0.04, 0.03, 0.07], r1 = [s * 0.04, 0.03, -0.07];
+    const m0 = [s * 0.27, 0.04, 0.06], m1 = [s * 0.27, 0.04, -0.09];
+    const t0 = [s * 0.5, 0.03, -0.04], t1 = [s * 0.46, 0.03, -0.12];
+    const add = (a, b, c, ca, cb, cc) => (s > 0 ? tri(a, b, c, ca, cb, cc, 1) : tri(a, c, b, ca, cc, cb, 1));
+    add(r0, m0, r1, wingC, wingC, wingC); add(r1, m0, m1, wingC, wingC, wingC);
+    add(m0, t0, m1, wingC, tipC, wingC); add(m1, t0, t1, wingC, tipC, tipC);
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(colr, 3));
+  g.setAttribute('birdWing', new THREE.Float32BufferAttribute(wing, 1));
+  g.computeVertexNormals();
+  return g;
+}
+
+function birdMaterial(clock) {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.birdTime = clock;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float birdWing;\nattribute vec4 birdState;\nuniform float birdTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      if (birdWing > 0.5) {
+        float r = abs(transformed.x), s = sign(transformed.x);
+        float a = birdState.y * sin(birdTime * birdState.x + birdState.z);
+        float fold = birdState.w;
+        float rr = mix(r, 0.05 + r * 0.12, fold);
+        transformed.z = mix(transformed.z, transformed.z - r * 0.32, fold);
+        transformed.x = s * rr * cos(a);
+        transformed.y += rr * sin(a) + fold * 0.012;
+      }`);
+  };
+  m.customProgramCacheKey = () => 'pcw-habitation-bird';
+  return m;
+}
+
+
+function fishGeometry(backHex, bellyHex, finHex) {
+  const back = linear(backHex), belly = linear(bellyHex), fin = linear(finHex);
+  const pos = [], col = [], bend = [];
+  const push = (p, c, b) => { pos.push(...p); col.push(c.r, c.g, c.b); bend.push(b); };
+  const rings = [[0.5, 0.0], [0.38, 0.07], [0.15, 0.11], [-0.12, 0.09], [-0.3, 0.035]];
+  const S = 6;
+  for (let i = 0; i + 1 < rings.length; i += 1) for (let j = 0; j < S; j += 1) {
+    const p = (ri, jj) => { const a = (jj / S) * TAU; const [z, r] = rings[ri]; return [Math.cos(a) * r * 0.55, Math.sin(a) * r, z]; };
+    const a = p(i, j), b = p(i, j + 1), c = p(i + 1, j), d = p(i + 1, j + 1);
+    const cOf = (q) => (q[1] >= 0 ? back : belly), bOf = (q) => clamp((0.5 - q[2]) / 0.9, 0, 1);
+    for (const q of [a, c, b, b, c, d]) push(q, cOf(q), bOf(q));
+  }
+  for (const q of [[0, 0, -0.28], [0, 0.13, -0.48], [0, -0.13, -0.48]]) push(q, fin, 1);
+  for (const q of [[0, 0.1, 0.1], [0, 0.17, -0.02], [0, 0.08, -0.12]]) push(q, back, 0.3);
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('fishBend', new THREE.Float32BufferAttribute(bend, 1));
+  g.computeVertexNormals();
+  return g;
+}
+function fishMaterial(clock) {
+  const m = new THREE.MeshLambertMaterial({ vertexColors: true, side: THREE.DoubleSide });
+  m.onBeforeCompile = (shader) => {
+    shader.uniforms.fishTime = clock;
+    shader.vertexShader = shader.vertexShader
+      .replace('#include <common>', '#include <common>\nattribute float fishBend;\nattribute vec3 fishState;\nuniform float fishTime;')
+      .replace('#include <begin_vertex>', `#include <begin_vertex>
+      transformed.x += sin(fishTime * fishState.x + fishState.z - transformed.z * 7.0) * fishState.y * fishBend * fishBend;`);
+  };
+  m.customProgramCacheKey = () => 'pcw-habitation-fish';
+  return m;
+}
+const FISH_KINDS = Object.freeze({
+  tilapia: { back: 0x4a5a52, belly: 0xc9cfc6, fin: 0x5a6a5a, size: [0.16, 0.28] },
+  minnow: { back: 0x5a5a44, belly: 0xd8d4c0, fin: 0x6a6a52, size: [0.07, 0.12] },
+  gold: { back: 0xd8661c, belly: 0xf2c060, fin: 0xe88a3a, size: [0.18, 0.3] },
+});
+const SHOALS = [
+  { water: 'lagoon', near: [2168, 132], fish: 9, kind: 'tilapia' },
+  { water: 'lagoon', near: [2232, 132], fish: 8, kind: 'tilapia' },
+  { water: 'lagoon', near: [2198, 172], fish: 9, kind: 'minnow' },
+  { water: 'lagoon', near: [2210, 230], fish: 7, kind: 'tilapia' },
+  { water: 'lagoon', near: [2196, 326], fish: 9, kind: 'minnow' },
+  { water: 'lagoon', near: [2236, 334], fish: 7, kind: 'tilapia' },
+  { water: 'lagoon', near: [2290, 146], fish: 6, kind: 'tilapia' },
+  { water: 'falls-pool', near: [2346, 322], fish: 7, kind: 'tilapia' },
+  { water: 'falls-pool', near: [2356, 334], fish: 6, kind: 'minnow' },
+  { water: 'big-pool', near: [2456, 222], fish: 7, kind: 'tilapia' },
+  { water: 'garden-pool', near: [2158, 404], fish: 5, kind: 'gold' },
+  { water: 'gorge', near: [2340, 118], fish: 5, kind: 'minnow' },
+  { water: 'gorge', near: [2402, 74], fish: 4, kind: 'minnow' },
+  { water: 'falls-run', near: [2328, 306], fish: 4, kind: 'minnow' },
+];
+
+
+function footprintTexture() {
+  const c = document.createElement('canvas'); c.width = 32; c.height = 64;
+  const g = c.getContext('2d');
+  g.fillStyle = 'rgba(0,0,0,0)'; g.fillRect(0, 0, 32, 64);
+  const blob = (x, y, rx, ry, a) => { const r = g.createRadialGradient(x, y, 0, x, y, Math.max(rx, ry)); r.addColorStop(0, `rgba(255,255,255,${a})`); r.addColorStop(0.7, `rgba(255,255,255,${a * 0.75})`); r.addColorStop(1, 'rgba(255,255,255,0)'); g.save(); g.translate(x, y); g.scale(rx / Math.max(rx, ry), ry / Math.max(rx, ry)); g.translate(-x, -y); g.fillStyle = r; g.beginPath(); g.arc(x, y, Math.max(rx, ry), 0, TAU); g.fill(); g.restore(); };
+  blob(16, 50, 8, 10, 0.9);       // the heel
+  blob(17, 30, 9, 13, 0.8);       // the ball of the foot
+  for (const [x, y, r] of [[11, 13, 3.5], [16, 11, 3], [20, 12, 2.6], [23.5, 14, 2.2], [26, 17, 2]]) blob(x, y, r, r, 0.85);
+  const t = new THREE.CanvasTexture(c);
+  return t;
+}
+
+
+function createHabitationLife(scene, { lite = false } = {}) {
+  const rand = dice(20261020);
+  const group = new THREE.Group(); group.name = 'habitation-life';
+  scene.add(group);
+  const clock = { value: 0 };
+  let time = 0;
+  const share = lite ? 0.6 : 1;
+
+  const crowns = [], bushes = [], waterside = [], wading = [];
+  for (const p of HABITATION_STANDING) {
+    const info = HABITATION_MODELS[p.m];
+    if (!info) continue;
+    const ground = p.y !== null ? p.y : habitationLand(p.x, p.z);
+    if (info.kind === 'tree' || info.kind === 'palm') crowns.push({ x: p.x, y: ground + p.s * (info.kind === 'palm' ? 0.93 : 0.86), z: p.z, high: p.s });
+    else if (info.kind === 'shrub' || info.kind === 'banana' || info.kind === 'herb') bushes.push({ x: p.x, y: ground + p.s * 0.92, z: p.z, high: p.s });
+    else if (info.kind === 'rock') { const w = habitationWaterAt(p.x + 1.5, p.z) || habitationWaterAt(p.x - 1.5, p.z) || habitationWaterAt(p.x, p.z + 1.5) || habitationWaterAt(p.x, p.z - 1.5); if (w && w.kind !== 'river') waterside.push({ x: p.x, y: ground + p.s * 0.85, z: p.z, water: w }); }
+  }
+  for (let i = 0; i < 2400 && wading.length < 160; i += 1) {
+    const b = HABITATION.bounds;
+    const x = b.x0 + rand() * (b.x1 - b.x0), z = b.z0 + rand() * (b.z1 - b.z0);
+    const w = habitationWaterAt(x, z);
+    if (w && w.kind !== 'river' && w.kind !== 'rapids' && w.depth > 0.03 && w.depth < 0.22) wading.push({ x, y: w.level - w.depth, z, water: w.id });
+  }
+  const placeOf = (id) => HABITATION.places.find((p) => p.id === id);
+  const nearest = (list, x, z, within, filter = () => true) => { const out = []; for (const p of list) { const d = Math.hypot(p.x - x, p.z - z); if (d < within && filter(p)) out.push(p); } return out; };
+
+  const kinds = Object.keys(BIRD_KINDS);
+  const birdMat = birdMaterial(clock);
+  const birdMeshes = new Map();       // kind -> { mesh, state, list }
+  const birds = [];
+  for (const [placeId, list] of HOMES) {
+    const place = placeOf(placeId);
+    if (!place) continue;
+    for (const [kind, many] of list) {
+      const n = Math.max(1, Math.round(many * share));
+      const k = BIRD_KINDS[kind];
+      const flockOf = k.ways === 'flock' ? { leader: null, members: [] } : null;
+      for (let i = 0; i < n; i += 1) {
+        const b = { kind, k, home: place, x: place.x, y: 8, z: place.z, h: rand() * TAU, pitch: 0, mode: 'rest', wait: rand() * 8, from: null, to: null, ctrl: null, t: 0, dur: 1, flap: 0, fold: 1, phase: rand() * TAU, rate: k.flap * (0.9 + rand() * 0.2), songAt: rand() * 12, flock: flockOf, spot: null, roost: false };
+        if (flockOf) { if (!flockOf.leader) flockOf.leader = b; else flockOf.members.push(b); b.offset = [(rand() - 0.5) * 6, (rand() - 0.5) * 2, (rand() - 0.5) * 6]; }
+        birds.push(b);
+      }
+    }
+  }
+  const spotFor = (b, from = b.home, within = 90) => {
+    const k = b.k;
+    let list;
+    if (k.ways === 'wade') list = nearest(wading, from.x, from.z, within);
+    else if (k.ways === 'kingfisher') list = nearest(waterside, from.x, from.z, within * 1.6);
+    else if (k.ways === 'low') list = nearest(bushes, from.x, from.z, within, (p) => p.high > 1.0);
+    else list = nearest(crowns, from.x, from.z, within, (p) => p.high > (k.span > 0.7 ? 9 : 5));
+    if (!list.length) list = nearest(crowns, from.x, from.z, within * 2);
+    if (!list.length) return { x: from.x, y: habitationLand(from.x, from.z) + 8, z: from.z };
+    const p = list[Math.floor(rand() * list.length)];
+    if (k.ways === 'wade') return { x: p.x, y: p.y + 0.24 * k.span, z: p.z, water: p.water };
+    const spread = k.ways === 'wade' ? 0 : Math.min(2.4, 0.6 + (p.high || 2) * 0.08);
+    const a = rand() * TAU;
+    return { x: p.x + Math.cos(a) * spread * rand(), y: p.y, z: p.z + Math.sin(a) * spread * rand(), water: p.water };
+  };
+  for (const b of birds) {
+    if (b.k.ways === 'soar') { b.mode = 'soar'; b.circle = { x: b.home.x + (rand() - 0.5) * 60, z: b.home.z + (rand() - 0.5) * 60, r: 34 + rand() * 30, y: 48 + rand() * 30, dir: rand() < 0.5 ? 1 : -1 }; b.a = rand() * TAU; continue; }
+    const s = b.flock && b.flock.leader !== b ? null : spotFor(b);
+    if (s) { b.x = s.x; b.y = s.y; b.z = s.z; b.spot = s; }
+  }
+  for (const b of birds) if (b.flock && b.flock.leader !== b) { const L = b.flock.leader; b.x = L.x + b.offset[0] * 0.3; b.y = L.y; b.z = L.z + b.offset[2] * 0.3; b.spot = { x: b.x, y: b.y, z: b.z }; }
+  for (const kind of kinds) {
+    const list = birds.filter((b) => b.kind === kind);
+    if (!list.length) continue;
+    const geometry = birdGeometry(kind);
+    const state = new Float32Array(list.length * 4);
+    geometry.setAttribute('birdState', new THREE.InstancedBufferAttribute(state, 4));
+    const mesh = new THREE.InstancedMesh(geometry, birdMat, list.length);
+    mesh.name = `bird:${kind}`; mesh.frustumCulled = false; mesh.castShadow = false;
+    group.add(mesh);
+    birdMeshes.set(kind, { mesh, state, list });
+  }
+
+  function fly(b, to, { low = false } = {}) {
+    const from = { x: b.x, y: b.y, z: b.z };
+    const d = Math.hypot(to.x - from.x, to.z - from.z);
+    let top = Math.max(from.y, to.y) + (low ? 0.8 : 2 + Math.min(10, d * 0.12));
+    for (let i = 1; i < 6; i += 1) { const u = i / 6; top = Math.max(top, habitationLand(from.x + (to.x - from.x) * u, from.z + (to.z - from.z) * u) + (low ? 2 : 6)); }
+    b.from = from; b.to = to; b.ctrl = { x: (from.x + to.x) / 2, y: top + (top - (from.y + to.y) / 2) * 0.6, z: (from.z + to.z) / 2 };
+    b.t = 0; b.dur = Math.max(1.2, (d + Math.abs(to.y - from.y) * 0.5) / b.k.speed);
+    b.mode = 'fly';
+  }
+  const bez = (a, c, b, u) => (1 - u) * (1 - u) * a + 2 * (1 - u) * u * c + u * u * b;
+
+  const fishMat = fishMaterial(clock);
+  const fishMeshes = new Map();
+  const shoals = [];
+  const waterKinds = new Map(HABITATION_WATERS.map((w) => [w.id, w]));
+  for (const s of SHOALS) {
+    const n = Math.max(2, Math.round(s.fish * share));
+    const spots = [];
+    for (let i = 0; i < 600 && spots.length < 40; i += 1) {
+      const x = s.near[0] + (rand() - 0.5) * 36, z = s.near[1] + (rand() - 0.5) * 36;
+      const w = habitationWaterAt(x, z);
+      if (w && w.id === s.water && w.depth > 0.28 && w.depth < 2.6) spots.push({ x, z });
+    }
+    if (spots.length < 3) continue;
+    const kind = FISH_KINDS[s.kind];
+    const shoal = { water: s.water, spots, at: { ...spots[0] }, goal: spots[1], scare: 0, fish: [] };
+    for (let i = 0; i < n; i += 1) {
+      const size = kind.size[0] + rand() * (kind.size[1] - kind.size[0]);
+      const w0 = waterKinds.get(s.water) || HABITATION_STREAMS.find((q) => q.id === s.water);
+      const at0 = habitationWaterAt(shoal.at.x, shoal.at.z);
+      shoal.fish.push({ kind: s.kind, size, x: shoal.at.x, z: shoal.at.z, y: 0, h: rand() * TAU, v: 0.3, off: [(rand() - 0.5) * 3.2, (rand() - 0.5) * 3.2], scare: 0, rate: 9 + rand() * 4, phase: rand() * TAU, check: rand() * 0.3, ok: true, level: at0 ? at0.level : w0 && w0.level !== undefined ? w0.level : 0, depth: at0 ? at0.depth : 0.6 });
+    }
+    shoals.push(shoal);
+  }
+  for (const [kindId, kind] of Object.entries(FISH_KINDS)) {
+    const list = shoals.flatMap((s) => s.fish.filter((f) => f.kind === kindId).map((f) => ({ f, s })));
+    if (!list.length) continue;
+    const geometry = fishGeometry(kind.back, kind.belly, kind.fin);
+    const state = new Float32Array(list.length * 3);
+    geometry.setAttribute('fishState', new THREE.InstancedBufferAttribute(state, 3));
+    const mesh = new THREE.InstancedMesh(geometry, fishMat, list.length);
+    mesh.name = `fish:${kindId}`; mesh.frustumCulled = false; mesh.castShadow = false;
+    group.add(mesh);
+    fishMeshes.set(kindId, { mesh, state, list });
+  }
+
+  const FLY_AREAS = [[2040, -80, 40], [2030, 70, 30], [2070, 150, 30], [2160, 400, 22], [1990, 40, 26]];
+  const flyCount = lite ? 40 : 90;
+  const flies = [];
+  for (let i = 0; i < flyCount; i += 1) { const a = FLY_AREAS[i % FLY_AREAS.length]; const x = a[0] + (rand() - 0.5) * 2 * a[2], z = a[1] + (rand() - 0.5) * 2 * a[2]; flies.push({ x, z, y: 0.6 + rand() * 2.2, base: habitationLand(x, z), a: rand() * TAU, s: 0.3 + rand() * 0.5, blink: rand() * 10, rate: 0.35 + rand() * 0.5 }); }
+  const flyPos = new Float32Array(flyCount * 3), flyCol = new Float32Array(flyCount * 3);
+  const flyGeom = new THREE.BufferGeometry();
+  flyGeom.setAttribute('position', new THREE.BufferAttribute(flyPos, 3));
+  flyGeom.setAttribute('color', new THREE.BufferAttribute(flyCol, 3));
+  const dot = (() => { const c = document.createElement('canvas'); c.width = c.height = 32; const g = c.getContext('2d'); const r = g.createRadialGradient(16, 16, 0, 16, 16, 16); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.3, 'rgba(255,255,255,0.6)'); r.addColorStop(1, 'rgba(255,255,255,0)'); g.fillStyle = r; g.fillRect(0, 0, 32, 32); return new THREE.CanvasTexture(c); })();
+  const fireflies = new THREE.Points(flyGeom, new THREE.PointsMaterial({ size: 0.32, map: dot, vertexColors: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, fog: false, toneMapped: false }));
+  fireflies.name = 'fireflies'; fireflies.frustumCulled = false; fireflies.visible = false;
+  group.add(fireflies);
+
+  const PRINTS = lite ? 90 : 180;
+  const printTex = footprintTexture();
+  const printGeom = new THREE.PlaneGeometry(0.13, 0.28); printGeom.rotateX(-Math.PI / 2);
+  const printFade = new Float32Array(PRINTS);
+  printGeom.setAttribute('printFade', new THREE.InstancedBufferAttribute(printFade, 1));
+  const printMat = new THREE.MeshBasicMaterial({ map: printTex, color: linear(0x6e5a3e), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  printMat.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float printFade;\nvarying float vPrintFade;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPrintFade = printFade;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPrintFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = texture2D(map, vUv).r * 0.42 * vPrintFade;');
+  };
+  printMat.customProgramCacheKey = () => 'pcw-habitation-print';
+  const prints = new THREE.InstancedMesh(printGeom, printMat, PRINTS);
+  prints.name = 'footprints'; prints.frustumCulled = false; prints.count = 0; prints.renderOrder = 1;
+  group.add(prints);
+  const printList = [];            // { x, y, z, h, side, age }
+  const walkers = new Map();       // key -> { x, z, gone, side }
+  const PRINT_LIFE = 90;           // seconds before a print has faded away
+
+  const calls = [];
+  const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), sc = new THREE.Vector3(), at = new THREE.Vector3();
+  const stats = { birds: birds.length, fish: shoals.reduce((n, s) => n + s.fish.length, 0), shoals: shoals.length, kinds: birdMeshes.size, flying: 0, sitting: 0, wading: 0, soaring: 0, scattered: 0, prints: 0, fireflies: 0, flushed: 0 };
+
+  function updateBirds(dt, people, night, eye) {
+    const roost = night > 0.55;
+    stats.flying = stats.sitting = stats.wading = stats.soaring = 0;
+    for (const b of birds) {
+      const k = b.k;
+      if (b.mode === 'soar') {
+        if (roost) { const s = spotFor(b, b, 160); fly(b, s); b.roost = true; continue; }
+        b.a += dt * (k.speed / b.circle.r) * b.circle.dir;
+        b.circle.x += Math.sin(time * 0.013 + b.phase) * dt * 0.8; b.circle.z += Math.cos(time * 0.011 + b.phase) * dt * 0.8;
+        const nx = b.circle.x + Math.cos(b.a) * b.circle.r, nz = b.circle.z + Math.sin(b.a) * b.circle.r;
+        const ny = b.circle.y + Math.sin(time * 0.2 + b.phase) * 3;
+        b.h = Math.atan2(nx - b.x, nz - b.z); b.pitch = 0; b.x = nx; b.y = ny; b.z = nz;
+        b.flap = Math.sin(time * 0.35 + b.phase) > 0.85 ? 0.5 : 0.04; b.fold = 0;
+        stats.soaring += 1;
+      } else if (b.mode === 'fly') {
+        b.t += dt / b.dur;
+        const u = Math.min(1, b.t), eu = u < 0.85 ? u : 0.85 + (1 - Math.pow(1 - (u - 0.85) / 0.15, 2)) * 0.15;
+        const nx = bez(b.from.x, b.ctrl.x, b.to.x, eu), ny = bez(b.from.y, b.ctrl.y, b.to.y, eu), nz = bez(b.from.z, b.ctrl.z, b.to.z, eu);
+        const dx = nx - b.x, dz = nz - b.z, dy = ny - b.y;
+        if (Math.hypot(dx, dz) > 1e-4) b.h = Math.atan2(dx, dz);
+        b.pitch = clamp(-Math.atan2(dy, Math.hypot(dx, dz) + 1e-4), -0.5, 0.5);
+        b.x = nx; b.y = ny; b.z = nz;
+        b.flap = u > 0.88 ? 0.9 : dy > 0.02 ? 0.8 : 0.45 + 0.25 * Math.sin(time * 0.9 + b.phase); b.fold = 0;
+        if (u >= 1) {
+          if (k.ways === 'soar' && !b.roost) { b.mode = 'soar'; b.a = Math.atan2(b.z - b.circle.z, b.x - b.circle.x); }
+          else { b.mode = k.ways === 'wade' && b.to.water ? 'wade' : 'rest'; b.spot = b.to; b.wait = (k.ways === 'flock' ? 6 : 10) + rand() * (k.ways === 'wade' ? 30 : 22); b.pitch = 0; }
+        }
+        stats.flying += 1;
+      } else {
+        b.fold = Math.min(1, b.fold + dt * 3); b.flap = 0;
+        if (b.mode === 'wade') {
+          stats.wading += 1;
+          if (b.step) { const d = Math.hypot(b.step.x - b.x, b.step.z - b.z); if (d < 0.05) b.step = null; else { const s = Math.min(d, dt * 0.35); b.h = Math.atan2(b.step.x - b.x, b.step.z - b.z); b.x += ((b.step.x - b.x) / d) * s; b.z += ((b.step.z - b.z) / d) * s; } }
+          else if (rand() < dt * 0.15) { const a = rand() * TAU, r = 0.6 + rand() * 1.4, x = b.x + Math.cos(a) * r, z = b.z + Math.sin(a) * r, w = habitationWaterAt(x, z); if (w && w.depth < 0.25) b.step = { x, z }; }
+          const w = habitationWaterAt(b.x, b.z);
+          if (w) b.y = w.level - Math.min(0.22, w.depth) + 0.24 * k.span;
+        } else stats.sitting += 1;
+        const shy = k.ways === 'wade' ? 9 : k.ways === 'kingfisher' ? 6 : k.ways === 'low' ? 3.5 : 0;
+        let flushed = false;
+        if (shy) for (const p of people) if (Math.hypot(p.x - b.x, p.z - b.z) < shy && Math.abs((p.y || 0) - b.y) < 6) { flushed = true; break; }
+        b.wait -= dt;
+        if (flushed && !roost) { stats.flushed += 1; fly(b, spotFor(b, b, 70), { low: k.ways === 'wade' }); continue; }
+        if (k.ways === 'soar' && b.wait <= 0 && !roost) {
+          b.roost = false;
+          fly(b, { x: b.circle.x + Math.cos(b.a) * b.circle.r, y: b.circle.y, z: b.circle.z + Math.sin(b.a) * b.circle.r });
+          continue;
+        }
+        if (b.wait <= 0 && !roost && !(b.flock && b.flock.leader !== b)) {
+          if (k.ways === 'kingfisher' && rand() < 0.5 && b.spot) { const a = rand() * TAU, x = b.x + Math.cos(a) * 4, z = b.z + Math.sin(a) * 4, w = habitationWaterAt(x, z); if (w) { const back = { ...b.spot }; fly(b, { x, y: w.level + 0.05, z }, { low: true }); b.then = back; continue; } }
+          const from = Math.hypot(b.x - b.home.x, b.z - b.home.z) > 70 ? b.home : b;
+          fly(b, spotFor(b, from, 70), { low: k.ways === 'wade' });
+          if (b.flock) for (const m of b.flock.members) { const t = { x: b.to.x + m.offset[0] * 0.25, y: b.to.y + Math.abs(m.offset[1]) * 0.2, z: b.to.z + m.offset[2] * 0.25 }; fly(m, t); m.dur = b.dur * (0.95 + rand() * 0.1); }
+        }
+        if (b.then && b.mode === 'rest') { const back = b.then; b.then = null; b.wait = 0; fly(b, back, { low: true }); }
+      }
+      if (!roost && time > b.songAt) {
+        b.songAt = time + (k.ways === 'flock' ? 2 + rand() * 6 : k.ways === 'soar' ? 25 + rand() * 40 : 6 + rand() * 18);
+        if (eye && Math.hypot(b.x - eye.x, b.z - eye.z) < 130 && calls.length < 24) calls.push({ song: k.song, kind: b.kind, x: b.x, y: b.y, z: b.z });
+      }
+    }
+    for (const { mesh, state, list } of birdMeshes.values()) {
+      let n = 0;
+      for (const b of list) {
+        if (eye && Math.hypot(b.x - eye.x, b.z - eye.z) > (lite ? 220 : 340)) continue;
+        e.set(b.pitch, b.h, b.mode === 'soar' ? -0.25 * b.circle.dir : 0);
+        q.setFromEuler(e);
+        const s = b.k.span;
+        at.set(b.x, b.y + (b.mode === 'rest' ? s * 0.04 : 0), b.z);
+        m4.compose(at, q, sc.set(s, s, s));
+        mesh.setMatrixAt(n, m4);
+        state[n * 4] = b.rate; state[n * 4 + 1] = b.flap; state[n * 4 + 2] = b.phase; state[n * 4 + 3] = b.fold;
+        n += 1;
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.geometry.attributes.birdState.needsUpdate = true;
+    }
+  }
+
+  function updateFish(dt, people, eye) {
+    stats.scattered = 0;
+    for (const s of shoals) {
+      let fright = null;
+      for (const f of s.fish) for (const p of people) { const d = Math.hypot(p.x - f.x, p.z - f.z); if (d < 4.2) { fright = p; break; } }
+      if (fright && s.scare <= 0) {
+        s.scare = 3.5;
+        let best = null, far = -1;
+        for (let i = 0; i < 8; i += 1) { const c = s.spots[Math.floor(rand() * s.spots.length)]; const d = Math.hypot(c.x - fright.x, c.z - fright.z); if (d > far) { far = d; best = c; } }
+        s.goal = best;
+        for (const f of s.fish) { const d = Math.hypot(f.x - fright.x, f.z - fright.z) || 1; f.scare = 1.4 + rand() * 0.6; f.away = [(f.x - fright.x) / d, (f.z - fright.z) / d]; }
+      }
+      s.scare = Math.max(0, s.scare - dt);
+      if (s.scare > 0) stats.scattered += 1;
+      const gx = s.goal.x - s.at.x, gz = s.goal.z - s.at.z, gd = Math.hypot(gx, gz);
+      if (gd < 0.8) s.goal = s.spots[Math.floor(rand() * s.spots.length)];
+      else { const v = (s.scare > 0 ? 2.6 : 0.35) * dt; s.at.x += (gx / gd) * Math.min(gd, v); s.at.z += (gz / gd) * Math.min(gd, v); }
+      for (const f of s.fish) {
+        let tx, tz, speed;
+        if (f.scare > 0) { f.scare -= dt; tx = f.x + f.away[0] * 3; tz = f.z + f.away[1] * 3; speed = 3.4; }
+        else { const a = time * 0.15 + f.phase; tx = s.at.x + f.off[0] + Math.cos(a) * 0.6; tz = s.at.z + f.off[1] + Math.sin(a) * 0.6; speed = Math.min(0.9, 0.25 + Math.hypot(tx - f.x, tz - f.z) * 0.35); }
+        const want = Math.atan2(tx - f.x, tz - f.z);
+        f.h += clamp(angleTo(f.h, want), -dt * (f.scare > 0 ? 9 : 2.4), dt * (f.scare > 0 ? 9 : 2.4));
+        f.v += (speed - f.v) * Math.min(1, dt * (f.scare > 0 ? 6 : 1.5));
+        const nx = f.x + Math.sin(f.h) * f.v * dt, nz = f.z + Math.cos(f.h) * f.v * dt;
+        f.check -= dt;
+        if (f.check <= 0) { f.check = 0.25; const w = habitationWaterAt(nx, nz); f.ok = !!w && w.id === s.water && w.depth > 0.18; f.level = w ? w.level : f.level; f.depth = w ? w.depth : f.depth; }
+        if (f.ok) { f.x = nx; f.z = nz; } else { f.h += Math.PI * 0.6; f.check = 0; }
+        const depth = f.depth || 0.5;
+        f.y = (f.level !== undefined ? f.level : 0) - clamp(depth * 0.45, 0.1, 0.8);
+      }
+    }
+    for (const { mesh, state, list } of fishMeshes.values()) {
+      let n = 0;
+      for (const { f } of list) {
+        if (eye && Math.hypot(f.x - eye.x, f.z - eye.z) > (lite ? 45 : 70)) continue;
+        e.set(0, f.h, 0); q.setFromEuler(e);
+        m4.compose(at.set(f.x, f.y, f.z), q, sc.set(f.size, f.size, f.size));
+        mesh.setMatrixAt(n, m4);
+        state[n * 3] = f.rate * (f.scare > 0 ? 2.2 : 1); state[n * 3 + 1] = f.scare > 0 ? 0.12 : 0.06 + f.v * 0.05; state[n * 3 + 2] = f.phase;
+        n += 1;
+      }
+      mesh.count = n;
+      mesh.instanceMatrix.needsUpdate = true;
+      mesh.geometry.attributes.fishState.needsUpdate = true;
+    }
+  }
+
+  function updateFireflies(dt, night, eye) {
+    const on = night > 0.5;
+    fireflies.visible = on;
+    stats.fireflies = on ? flyCount : 0;
+    if (!on) return;
+    for (let i = 0; i < flyCount; i += 1) {
+      const f = flies[i];
+      f.a += dt * f.s * (0.6 + 0.4 * Math.sin(time * 0.3 + i));
+      f.x += Math.cos(f.a) * dt * f.s; f.z += Math.sin(f.a) * dt * f.s;
+      const y = f.base + f.y + Math.sin(time * 0.7 + i) * 0.3;
+      flyPos[i * 3] = f.x; flyPos[i * 3 + 1] = y; flyPos[i * 3 + 2] = f.z;
+      const cyc = (time * f.rate + f.blink) % 3.2, glow = cyc < 0.9 ? Math.sin((cyc / 0.9) * Math.PI) : 0;
+      const k = glow * night * (eye && Math.hypot(f.x - eye.x, f.z - eye.z) < 90 ? 1 : 0);
+      flyCol[i * 3] = 0.75 * k; flyCol[i * 3 + 1] = 1.0 * k; flyCol[i * 3 + 2] = 0.35 * k;
+    }
+    flyGeom.attributes.position.needsUpdate = true; flyGeom.attributes.color.needsUpdate = true;
+  }
+
+  function updatePrints(dt, people) {
+    const seen = new Set();
+    for (const p of people) {
+      if (!p.key || p.riding) continue;
+      seen.add(p.key);
+      let w = walkers.get(p.key);
+      if (!w) { w = { x: p.x, z: p.z, side: 1 }; walkers.set(p.key, w); continue; }
+      const d = Math.hypot(p.x - w.x, p.z - w.z);
+      if (d > 6) { w.x = p.x; w.z = p.z; continue; }
+      if (d < 0.68) continue;
+      const h = Math.atan2(p.x - w.x, p.z - w.z);
+      w.x = p.x; w.z = p.z; w.side = -w.side;
+      const f = habitationFooting(p.x, p.z);
+      if (!f || (f.kind !== 'sand' && !(f.kind === 'path' && f.surface === 'sand'))) continue;
+      const px = p.x + Math.cos(h) * 0.11 * w.side, pz = p.z - Math.sin(h) * 0.11 * w.side;
+      printList.push({ x: px, y: habitationLand(px, pz) + 0.015, z: pz, h, age: 0 });
+      if (printList.length > PRINTS) printList.shift();
+    }
+    for (const key of walkers.keys()) if (!seen.has(key)) walkers.delete(key);
+    let n = 0;
+    for (let i = printList.length - 1; i >= 0; i -= 1) { const pr = printList[i]; pr.age += dt; if (pr.age > PRINT_LIFE) printList.splice(i, 1); }
+    for (const pr of printList) {
+      e.set(0, pr.h, 0); q.setFromEuler(e);
+      m4.compose(at.set(pr.x, pr.y, pr.z), q, sc.set(1, 1, 1));
+      prints.setMatrixAt(n, m4);
+      printFade[n] = 1 - Math.max(0, (pr.age - PRINT_LIFE * 0.5) / (PRINT_LIFE * 0.5));
+      n += 1;
+    }
+    prints.count = n; stats.prints = n;
+    prints.instanceMatrix.needsUpdate = true;
+    printGeom.attributes.printFade.needsUpdate = true;
+  }
+
+  function update(dt, { eye = null, people = [], night = 0 } = {}) {
+    time += dt;
+    clock.value = time % 3600;
+    updateBirds(dt, people, night, eye);
+    updateFish(dt, people, eye);
+    updateFireflies(dt, night, eye);
+    updatePrints(dt, people);
+  }
+
+  return {
+    update,
+    group,
+    calls() { const out = calls.splice(0); return out; },
+    state: () => ({ ...stats, kindsSeen: [...birdMeshes.keys()], birdsNow: birds.map((b) => ({ kind: b.kind, mode: b.mode, x: +b.x.toFixed(1), y: +b.y.toFixed(1), z: +b.z.toFixed(1) })), fishNow: shoals.map((s) => ({ water: s.water, scared: s.scare > 0, fish: s.fish.map((f) => ({ x: +f.x.toFixed(2), z: +f.z.toFixed(2), y: +f.y.toFixed(2) })) })) }),
+    dispose() {
+      scene.remove(group);
+      for (const { mesh } of birdMeshes.values()) { mesh.geometry.dispose(); mesh.dispose(); }
+      for (const { mesh } of fishMeshes.values()) { mesh.geometry.dispose(); mesh.dispose(); }
+      birdMat.dispose(); fishMat.dispose();
+      flyGeom.dispose(); fireflies.material.dispose(); dot.dispose();
+      printGeom.dispose(); printMat.dispose(); printTex.dispose(); prints.dispose();
+    },
+  };
+}
+
+return { BIRD_KINDS, createHabitationLife };
+})();
+
+__modules["client/torch-beams.js"] = (function () {
+
+const LENGTH = 11;         // metres: how far the beam is seen to reach
+const SPREAD = 0.42;       // radians: half the cone's width
+
+function beamMaterial() {
+  return new THREE.ShaderMaterial({
+    transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, fog: false,
+    uniforms: { strength: { value: 0 }, colour: { value: new THREE.Color(0.95, 0.96, 1.0) } },
+    vertexShader: `
+      varying float vAlong;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        vAlong = position.z / ${LENGTH.toFixed(1)};
+        vec4 mv = modelViewMatrix * vec4(position, 1.0);
+        vNormal = normalize(normalMatrix * normal);
+        vView = normalize(-mv.xyz);
+        gl_Position = projectionMatrix * mv;
+      }`,
+    fragmentShader: `
+      uniform float strength;
+      uniform vec3 colour;
+      varying float vAlong;
+      varying vec3 vNormal;
+      varying vec3 vView;
+      void main() {
+        /* brightest by the phone, fading along the beam; soft at its edges (where the cone is seen side-on it is thin) */
+        float along = pow(1.0 - clamp(vAlong, 0.0, 1.0), 1.6);
+        float edge = pow(abs(dot(normalize(vNormal), normalize(vView))), 1.5);
+        gl_FragColor = vec4(colour * strength * along * edge * 0.22, 1.0);
+      }`,
+  });
+}
+function poolTexture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 0, 32, 32, 32);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.45, 'rgba(255,255,255,0.45)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+
+function createTorchBeams(scene, { lite = false } = {}) {
+  const MOST = lite ? 4 : 8;
+  const cone = new THREE.ConeGeometry(Math.tan(SPREAD) * LENGTH, LENGTH, lite ? 14 : 22, 1, true);
+  cone.translate(0, -LENGTH / 2, 0); cone.rotateX(-Math.PI / 2);
+  const disc = new THREE.PlaneGeometry(1, 1); disc.rotateX(-Math.PI / 2);
+  const poolMap = poolTexture();
+  const pool = [];
+  for (let i = 0; i < MOST; i += 1) {
+    const material = beamMaterial();
+    const beam = new THREE.Mesh(cone, material);
+    beam.name = 'torch-beam'; beam.visible = false; beam.renderOrder = 3; beam.frustumCulled = false;
+    const patch = new THREE.Mesh(disc, new THREE.MeshBasicMaterial({ map: poolMap, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, color: 0xf2f4ff, opacity: 0, polygonOffset: true, polygonOffsetFactor: -3, polygonOffsetUnits: -3, fog: false, toneMapped: false }));
+    patch.name = 'torch-pool'; patch.visible = false; patch.renderOrder = 2;
+    scene.add(beam, patch);
+    pool.push({ beam, patch, material });
+  }
+  const look = new THREE.Vector3(), hit = new THREE.Vector3();
+  let shown = 0;
+  function update(list, night) {
+    shown = 0;
+    const k = 0.15 + 0.85 * Math.max(0, Math.min(1, night));
+    for (let i = 0; i < MOST; i += 1) {
+      const slot = pool[i], t = list[i];
+      if (!t) { slot.beam.visible = false; slot.patch.visible = false; continue; }
+      slot.beam.position.copy(t.from);
+      slot.beam.lookAt(look.copy(t.from).add(t.dir));
+      slot.material.uniforms.strength.value = k * (t.self ? 0.45 : 1);
+      slot.beam.visible = true;
+      const down = -t.dir.y;
+      if (down > 0.05) {
+        const reach = Math.min(LENGTH * 1.2, (t.from.y - t.ground) / down);
+        hit.copy(t.from).addScaledVector(t.dir, reach);
+        slot.patch.position.set(hit.x, t.ground + 0.03, hit.z);
+        const width = Math.max(1.2, Math.tan(SPREAD) * reach * 2);
+        slot.patch.scale.set(width, 1, width / Math.max(0.35, down));
+        slot.patch.rotation.y = Math.atan2(t.dir.x, t.dir.z);
+        slot.patch.material.opacity = k * 0.5 * Math.max(0.25, 1 - reach / (LENGTH * 1.2));
+        slot.patch.visible = true;
+      } else slot.patch.visible = false;
+      shown += 1;
+    }
+  }
+  return {
+    update,
+    get shown() { return shown; },
+    dispose() { for (const s of pool) { scene.remove(s.beam, s.patch); s.material.dispose(); s.patch.material.dispose(); } cone.dispose(); disc.dispose(); poolMap.dispose(); },
+  };
+}
+
+return { createTorchBeams };
+})();
+
 __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
-const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind } = __modules["sim/zone.js"];
+const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt } = __modules["sim/zone.js"];
 const { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } = __modules["sim/sim.js"];
 const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
@@ -35481,6 +40411,10 @@ const { createSalesman } = __modules["sim/salesman.js"];
 const { talkGesture } = __modules["client/talk-gestures.js"];
 const { watchPicture } = __modules["client/picture-watch.js"];
 const { buildClosures } = __modules["client/render-closures.js"];
+const { createHabitation } = __modules["client/render-habitation.js"];
+const { createHabitationLife } = __modules["client/render-habitation-life.js"];
+const { habitationWind } = __modules["client/habitation-plants.js"];
+const { createTorchBeams } = __modules["client/torch-beams.js"];
 const { fallTime, flightAt } = __modules["client/falls.js"];
 const { CONTACT, contactNormal, contactOutcome } = __modules["sim/contact.js"];
 
@@ -35658,6 +40592,21 @@ function start(carried) {
   const peerHorned = new Map();
   let peerHornsHeard = 0;
   let headlight = null;
+  const TORCH = Object.freeze({ intensity: 3.4, distance: 30, angle: 0.5, penumbra: 0.85, decay: 1.7, colour: 0xf2f5ff });
+  const HEADLAMP = Object.freeze({ distance: 38, angle: 0.42, penumbra: 0.55, decay: 1.6, colour: 0xfff1d6 });
+  const torch = { on: false, held: false, lit: false, self: { from: new THREE.Vector3(), dir: new THREE.Vector3() } };
+  const torchWork = { back: new THREE.Vector3(), q: new THREE.Quaternion() };
+  function setTorch(on) { torch.on = !!on; audio.chime('tap'); }
+  function torchOf(hold, heading, out) {
+    const prop = hold.prop;
+    prop.updateMatrixWorld();
+    out.from.set(0.018, 0.052, -0.012).applyMatrix4(prop.matrixWorld);
+    const back = torchWork.back.set(0, 0, -1).applyQuaternion(prop.getWorldQuaternion(torchWork.q));
+    out.dir.set(Math.sin(heading), 0, Math.cos(heading)).multiplyScalar(0.75).addScaledVector(back, 0.25);
+    out.dir.y = Math.min(out.dir.y, 0) - 0.24;
+    out.dir.normalize();
+    return out;
+  }
   const lampLights = [];
   let lampPools = null;
   townSteps.push(['the lamps', () => {
@@ -35857,7 +40806,7 @@ function start(carried) {
   let phoneShown = 0;
   function linkSelf() {
     if (!view) return null;
-    const me = phoneShown ? { ...view.self, phone: phoneShown } : view.self;
+    const me = phoneShown ? { ...view.self, phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : view.self;
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
     return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
@@ -36240,6 +41189,50 @@ function start(carried) {
     supplied = createSupplied(scene, { lite: LITE, maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
     townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
   }]);
+  let habitation = null, habitationLife = null, torchBeams = null, habitationTold = false;
+  townSteps.push(['the road up the river', () => {
+    habitation = createHabitation(scene, { lite: LITE, renderer, riverMaterial: world.waterMaterial, onError: () => { if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } } });
+    torchBeams = createTorchBeams(scene, { lite: LITE });
+  }]);
+  const habitatCalls = [];
+  function habitationPeople() {
+    const b = HABITATION.bounds, out = [];
+    const near = (x, z) => x > b.x0 - 10 && x < b.x1 + 10 && z > b.z0 - 10 && z < b.z1 + 10;
+    if (playing && view && near(predicted.x, predicted.z)) out.push({ key: 'me', x: predicted.x, z: predicted.z, y: zoneGroundY(predicted.x, predicted.z), riding: !!(view.self.driving || view.self.incar || view.self.astride || view.self.riding) });
+    if (playing) for (const q of shownPeers) if (near(q.x, q.z)) out.push({ key: `p:${q.id}`, x: q.x, z: q.z, y: zoneGroundY(q.x, q.z), riding: !!(q.vehicle || q.ride || q.car) });
+    return out;
+  }
+  const HABITAT_FALLS = HABITATION_FALLS.map((f) => ({ id: f.id, x: f.foot[0], y: f.foot[2], z: f.foot[1], size: f.id === 'big' ? 1 : f.id === 'thin' ? 0.35 : 0.7 }));
+  const HABITAT_FROGS = (() => {
+    const kinds = ['tree', 'ribbit', 'bull', 'ribbit'];
+    const out = [];
+    for (const w of HABITATION_WATERS) w.outline.forEach(([x, z], i) => out.push({ x, z, kind: w.kind === 'swamp' ? kinds[(i + 2) % 3] : kinds[i % kinds.length] }));
+    for (const st of HABITATION_STREAMS) if (!st.rapids && !st.deep) st.line.forEach(([x, z], i) => out.push({ x, z, kind: i % 2 ? 'tree' : 'ribbit' }));
+    return out;
+  })();
+  const habitatHeard = { at: -1, value: null };
+  function habitatSound() {
+    if (!habitation || !playing || !view) return null;
+    const x = predicted.x, z = predicted.z, b = HABITATION.bounds;
+    const wild = Math.max(0, Math.min(1, (x - (b.x0 - 80)) / 80));
+    if (wild <= 0) return null;
+    if (habitatHeard.value && clock - habitatHeard.at < 0.25) { habitatHeard.value.night = night; return habitatHeard.value; }
+    habitatHeard.at = clock;
+    let stream = null, best = 50;
+    for (const st of HABITATION_STREAMS) for (let i = 0; i + 1 < st.line.length; i += 1) {
+      const [ax, az] = st.line[i], [bx, bz] = st.line[i + 1], dx = bx - ax, dz = bz - az, len2 = dx * dx + dz * dz || 1;
+      const u = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / len2)), px = ax + dx * u, pz = az + dz * u, d = Math.hypot(px - x, pz - z);
+      if (d < best) { best = d; const h0 = st.heights[i], h1 = st.heights[i + 1] !== undefined ? st.heights[i + 1] : h0; stream = { x: px, y: h0 + (h1 - h0) * u, z: pz, rapids: !!st.rapids }; }
+    }
+    let shore = 99;
+    const wet = (w) => w && (w.id === 'lagoon' || w.kind === 'pool');
+    if (wet(habitationWaterAt(x, z))) shore = 0;
+    else for (const r of [4, 10, 20, 30]) { for (let k = 0; k < 8 && shore === 99; k += 1) { const a = (k / 8) * Math.PI * 2; if (wet(habitationWaterAt(x + Math.cos(a) * r, z + Math.sin(a) * r))) shore = r; } if (shore !== 99) break; }
+    const frogs = HABITAT_FROGS.filter((f) => Math.hypot(f.x - x, f.z - z) < 70).sort((p, q) => Math.hypot(p.x - x, p.z - z) - Math.hypot(q.x - x, q.z - z)).slice(0, 4);
+    const t = habitationWind();
+    habitatHeard.value = { wild, calls: habitatCalls, falls: HABITAT_FALLS, stream, shore, frogs, gust: 0.55 + 0.45 * Math.sin(t * 0.21), night };
+    return habitatHeard.value;
+  }
   const CAR_STAFF_LOOKS = Object.freeze({
     tochi: { body: 'm', skin: 0x5b3a22, build: 1, wear: { outfit: 'shirt', hair: 'low', face: 31, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x1d3557, bottom: 0x23262c, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } },
     oluchi: { body: 'f', skin: 0x6b4226, build: 1, wear: { outfit: 'shirt-skirt', hair: 'bun', face: 64, extras: ['watch'], colours: { top: 0xf5f6f8, bottom: 0x1d3557, shoe: 0x141210 } } },
@@ -36515,6 +41508,7 @@ function start(carried) {
     shutter: () => audio.shutter(),
     music,
     phoneCam,
+    torch: { on: () => torch.on, toggle: () => setTorch(!torch.on) },
     online, market, wallet: walletClient,
     rideBike: (id) => rideOwnBike(id),
     driveCar: (id) => enterOwnCar(id),
@@ -37200,6 +42194,28 @@ function start(carried) {
     say(result);
   }
 
+  let bridgeStop = null;            // { at, deck, x, z } while a vehicle is stopped at one
+  function stopsAtBridge(x, z, heading, reach) {
+    const d = habitationFootOnly(x + Math.sin(heading) * reach, z + Math.cos(heading) * reach) || habitationFootOnly(x, z);
+    if (!d) return false;
+    bridgeStop = { at: clock, deck: d, x, z };
+    return true;
+  }
+  const atBridge = () => {
+    if (!bridgeStop) return false;
+    const on = !!(view && (view.self.driving || view.self.incar || view.self.astride));
+    if (!on || Math.hypot(view.self.x - bridgeStop.x, view.self.z - bridgeStop.z) > 4) { bridgeStop = null; return false; }
+    return true;
+  };
+  function getOffHere() {
+    if (view.self.driving) return leaveVehicle();
+    if (view.self.incar) return leaveOwnCar();
+    if (view.self.astride) { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); }
+    return null;
+  }
+  const BRIDGE_PROMPT = { short: 'Get off', text: 'Get off your vehicle to cross the bridge', run: () => getOffHere() };
+  { const off = $('bridge-stop-off'); if (off) off.addEventListener('click', () => { if (atBridge()) { getOffHere(); bridgeStop = null; $('bridge-stop').hidden = true; } }); }
+
   function findDrivingPrompt() {
     const v = view.self.driving;
     const run = view.self.run;
@@ -37222,6 +42238,7 @@ function start(carried) {
     if (!view) return null;
     if (view.self.law.arrest || view.self.carried || view.self.hijack) return null;
     if (view.self.down || view.self.dead) return null;
+    if (atBridge()) return BRIDGE_PROMPT;
     if (view.self.driving) return findDrivingPrompt();
     if (view.self.incar) return Math.abs(carState.speed) > 1.5 ? null : { short: 'Get out', text: ownCar() ? `Get out of the ${ownCar().name}` : 'Get out of the car', run: leaveOwnCar };
     if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
@@ -37510,6 +42527,7 @@ function start(carried) {
     predicted.heading -= steer * 1.9 * Math.min(1, Math.abs(car.speed) / 3) * Math.sign(car.speed) * dt;
     const nx = predicted.x + Math.sin(predicted.heading) * car.speed * dt;
     const nz = predicted.z + Math.cos(predicted.heading) * car.speed * dt;
+    if (stopsAtBridge(nx, nz, predicted.heading + (car.speed < 0 ? Math.PI : 0), 1.7)) { car.speed = 0; return 0; }
     const others = view.vehicles.filter((o) => o.id !== v.id);
     if (!vehicleFits(v.kind, nx, nz, builtBoxes(), others)) { car.speed = 0; return 0; }
     const result = server.send({ type: 'vehicle.drive', x: nx, z: nz, heading: predicted.heading });
@@ -37609,6 +42627,7 @@ function start(carried) {
     if (Math.abs(bikeState.speed) < 0.03) return 0;
     let nx = predicted.x + Math.sin(bikeState.heading) * bikeState.speed * dt;
     let nz = predicted.z + Math.cos(bikeState.heading) * bikeState.speed * dt;
+    if (stopsAtBridge(nx, nz, bikeState.heading + (bikeState.speed < 0 ? Math.PI : 0), 1.2)) { bikeState.speed = 0; moto.speed = 0; return 0; }
     const boxes = structureBoxes();
     if (!zoneWalkable(nx, nz, boxes, handling.radius)) {
       const on = meetWithBike(dt, nx, nz, boxes, handling);
@@ -37637,6 +42656,7 @@ function start(carried) {
     predicted.heading -= axes.strafe * 2.3 * Math.min(1, Math.abs(moto.speed) / 3) * Math.sign(moto.speed) * dt;
     const nx = predicted.x + Math.sin(predicted.heading) * moto.speed * dt;
     const nz = predicted.z + Math.cos(predicted.heading) * moto.speed * dt;
+    if (stopsAtBridge(nx, nz, predicted.heading + (moto.speed < 0 ? Math.PI : 0), 1.1)) { moto.speed = 0; return 0; }
     if (!zoneWalkable(nx, nz, structureBoxes(), MOTO.radius)) { moto.speed = 0; return 0; }
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: predicted.heading });
     if (result.ok) { predicted.x = nx; predicted.z = nz; if (result.hit) moto.speed = 0; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; moto.speed = 0; }
@@ -37700,6 +42720,7 @@ function start(carried) {
     if (Math.abs(carState.speed) < 0.03) return 0;
     let nx = predicted.x + Math.sin(carState.heading) * carState.speed * dt;
     let nz = predicted.z + Math.cos(carState.heading) * carState.speed * dt;
+    if (stopsAtBridge(nx, nz, carState.heading + (carState.speed < 0 ? Math.PI : 0), (spec.length || 4.6) / 2 + 0.3)) { carState.speed = 0; return 0; }
     const boxes = structureBoxes();
     if (!carFits(spec.id, nx, nz, carState.heading, boxes, 0.2)) {
       const on = meetWithCar(dt, spec, nx, nz, boxes);
@@ -38051,6 +43072,7 @@ function start(carried) {
       const holding = acting() && prompt && prompt.hold && !ui.isOpen();
       if (holding) { holdProgress += dt / HOLD_SECONDS; if (holdProgress >= 1) { holdProgress = 0; completeHold(); } } else holdProgress = 0;
       ui.setPrompt(prompt, holdProgress);
+      { const box = $('bridge-stop'), show = atBridge(); if (box && box.hidden === show) box.hidden = !show; }
       showControls();
 
       const self = view.self;
@@ -38123,8 +43145,9 @@ function start(carried) {
       const phoneAble = !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried;
       if (!phoneAble && ui.calling()) ui.hangUp();
       const talking = (!!showroom.talk && showroom.inside) || (!!carshow.talk && carshow.inside);
-      phoneHold.update(dt, me, { use: ui.usingPhone() && !talking, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });
-      phoneShown = !phoneAble ? 0 : ui.calling() ? 2 : ui.usingPhone() && !talking ? (ui.phoneOut() && ui.phoneScreen() === 'camera' ? 3 : 1) : 0;
+      torch.held = torch.on && phoneAble && !phoneSide && !talking && !ui.calling();
+      phoneHold.update(dt, me, { use: (ui.usingPhone() && !talking) || torch.held, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : torch.held && !ui.usingPhone() ? 'home' : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });
+      phoneShown = !phoneAble ? 0 : ui.calling() ? 2 : (ui.usingPhone() && !talking) || torch.held ? (ui.phoneOut() && ui.phoneScreen() === 'camera' ? 3 : 1) : 0;
       tickTalkPose(dt, speed);
       tickCarTalkPose(dt, speed);
       me.swimming = !!self.swimming;
@@ -38299,12 +43322,30 @@ blood.update(dt, view.blood || []);
     }
     const lit = !!bikeNow && night > 0.25 && ownBikeView.ridden() && ownBikeView.ridden().headlamp;
     const carLit = !lit && playing && view && view.self.incar && night > 0.25 && carView.driven();
-    headlight.intensity = lit ? 2.2 : carLit ? 2.8 : 0;
+    const torchLit = !lit && !carLit && playing && torch.held && !!phoneHold && phoneHold.out > 0.85;
+    torch.lit = torchLit;
+    headlight.intensity = lit ? 2.2 : carLit ? 2.8 : torchLit ? TORCH.intensity : 0;
+    { const lamp = torchLit ? TORCH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
+    if (torchLit) { const t = torchOf(phoneHold, predicted.heading, torch.self); headlight.position.copy(t.from); headlight.target.position.copy(t.from).addScaledVector(t.dir, 10); headlight.target.updateMatrixWorld(); }
+    if (torchBeams) {
+      const beams = [];
+      if (torchLit) beams.push({ key: 'me', self: true, from: torch.self.from, dir: torch.self.dir, ground: zoneGroundY(predicted.x, predicted.z) });
+      if (playing) for (const q of shownPeers) {
+        if (!q.torch) continue;
+        const e = peerPhones.get(q.id), r = crowd.rigOf(`p:${q.id}`);
+        if (!e || !r || e.hold.out < 0.85) continue;
+        if (!e.torch) e.torch = { from: new THREE.Vector3(), dir: new THREE.Vector3() };
+        const t = torchOf(e.hold, r.group.rotation.y, e.torch);
+        beams.push({ key: q.id, from: t.from, dir: t.dir, ground: zoneGroundY(q.x, q.z), d: Math.hypot(q.x - predicted.x, q.z - predicted.z) });
+      }
+      beams.sort((a, b) => (a.self ? -1 : b.self ? 1 : a.d - b.d));
+      torchBeams.update(beams, night);
+    }
     if (lit) { const b = ownBikeView.ridden(); b.headlampAt(headlight.position); headlight.target.position.copy(b.lean.localToWorld(shakeAim.set(0, 0.2, 12))); headlight.target.updateMatrixWorld(); }
     else if (carLit) { const c = carView.driven(); c.group.localToWorld(headlight.position.set(0, 0.75, c.size.length / 2 - 0.2)); headlight.target.position.copy(c.group.localToWorld(shakeAim.set(0, 0, 18))); headlight.target.updateMatrixWorld(); }
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
-    const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0);
+    const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0, playing ? Math.max(0, Math.min(1, (predicted.x - 450) / 1300)) : 0);
     powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level, sun: sky.sun.castShadow });
     if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.level, sun: sky.sun.castShadow });
     night = skyState.night;
@@ -38313,6 +43354,16 @@ blood.update(dt, view.blood || []);
     updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
+    if (habitation) {
+      habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night });
+      if (habitation.built && !habitationLife) habitationLife = createHabitationLife(scene, { lite: LITE });
+      else if (!habitation.built && habitationLife) { habitationLife.dispose(); habitationLife = null; }
+      if (habitationLife) {
+        habitationLife.update(dt, { eye: camera.position, night, people: habitationPeople() });
+        habitatCalls.push(...habitationLife.calls());
+        if (habitatCalls.length > 24) habitatCalls.splice(0, habitatCalls.length - 24);
+      }
+    }
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
     for (const showroom of world.showrooms) showroom.setNight(night);
@@ -38357,7 +43408,7 @@ blood.update(dt, view.blood || []);
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
-      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null });
+      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
     }
 
     monitor.mark('warming up');
@@ -38448,6 +43499,7 @@ blood.update(dt, view.blood || []);
     window.claude.hot.snapshot(() => (playing ? { host: host.save(), playerId } : {}));
   }
   window.__nlw = {
+    get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
     get supplied() { return supplied; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,

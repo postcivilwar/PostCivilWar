@@ -372,6 +372,28 @@ for (const name of readdirSync(resolve(root, 'assets/vehicles/cars/game')).sort(
 // towers in town (17 October 2026), where render-town-buildings.js fetches each model as the first building drawn from
 // it comes within sight. These, the car showroom's buildings, PowerBike's tower and the watch: their lighter copies.
 for (const [name, bytes] of modelFiles) put(name, bytes);
+// The habitation at the far end of the River Niger (20 October 2026): the owner's 49 models made real by
+// tools/habitation/dress.py (each made from his own file, which stays in assets/habitation/ exactly as he sent it), a
+// computer's copy and a phone's (.lite.glb), and the leaves' pictures they share, beside the page, where
+// render-habitation.js fetches them as the player comes up the road to it. Made again by tools/habitation/dress-all.py
+// (it needs Python, numpy and Pillow); made.json says from which file each was made, and a copy whose file has changed
+// since is not sent.
+{
+  const dressed = resolve(root, 'assets/habitation-dressed');
+  const made = JSON.parse(readFileSync(resolve(dressed, 'made.json'), 'utf8'));
+  for (const [name, copy] of Object.entries(made.copies)) {
+    const md5 = createHash('md5').update(readFileSync(resolve(root, 'assets/habitation', copy.source))).digest('hex');
+    if (md5 !== copy.md5) throw new Error(`assets/habitation-dressed/${name}.glb was made from another ${copy.source}: run python3 tools/habitation/dress-all.py`);
+    if (!existsSync(resolve(dressed, `${name}.glb`))) throw new Error(`assets/habitation-dressed/${name}.glb is missing: run python3 tools/habitation/dress-all.py`);
+  }
+  // (and the wood of the boardwalks and bridges, cut from his boardwalk model's own picture: tools/habitation/deck-wood.py)
+  for (const [name, copy] of Object.entries(made.decks || {})) {
+    const md5 = createHash('md5').update(readFileSync(resolve(root, 'assets/habitation', copy.source))).digest('hex');
+    if (md5 !== copy.md5) throw new Error(`assets/habitation-dressed/${name}.webp was made from another ${copy.source}: run python3 tools/habitation/deck-wood.py`);
+    if (!existsSync(resolve(dressed, `${name}.webp`))) throw new Error(`assets/habitation-dressed/${name}.webp is missing: run python3 tools/habitation/deck-wood.py`);
+  }
+  for (const name of readdirSync(dressed).filter((n) => /\.(glb|webp)$/.test(n)).sort()) put(`habitation/${name}`, readFileSync(resolve(dressed, name)));
+}
 for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^car-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
 // Songs for the phone's Music app: the list, and every file the list names (assets/music/README.md).
 {

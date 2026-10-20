@@ -2321,6 +2321,116 @@ picture there meanwhile; on ordinary 4G (9 Mbit/s, 85 ms) PLAY came after 3.3 to
 s coming back) and each whole figure 2.2 to 4.8 s after the press.
 
 
+## The habitation at the far end of the River Niger (20 October 2026)
+
+The owner's brief of 20 October, with his 49 models (`assets/habitation/`) and nineteen pictures of how it should look
+(`assets/habitation/reference/`): a habitation at the far end of the River Niger, reached by road, walked on foot,
+built like the pictures from his models, with water, waterfalls, fish, birds, their sounds, a dark night with the moon
+and the stars, and a torch on the phone.
+
+### Getting there
+
+- **The river.** The River Niger now runs on north past where it used to stop (at x 750) to the habitation's lagoon
+  (x 2086): longer, not wider (the same water, the same width, `riverShore`); the River Niger bridge is exactly as it
+  was (`test/habitation.test.mjs` compares it with what it was).
+- **The road.** Waterside Road goes on north out of the town along the river, 1.6 km, to the habitation's car park.
+  A sign at the town's end ("THE HABITATION, north, along the river"), one on the way, one at the car park. Its verges
+  and the car park are fenced with wooden rails (the land beside it is not built); the car park's side toward the
+  habitation has a wooden fence too, open at the gate.
+- **The gate.** From the car park it is on foot, over a plank footbridge across the stream. Every bridge, boardwalk,
+  jetty and stair in the habitation is walked, never driven: a motorcycle or car whose front comes to one stops there,
+  and the player is told **"Get off your vehicle to cross the bridge"** with a **Get off** button (and E). The vehicle
+  stays where it stopped. The message stays until the player gets off or moves away (`own-cars.js`, `vehicles.js`:
+  the town refuses the step, `FOOT_ONLY`; `main.js` shows the message).
+- **When it is built.** Nothing of it is fetched or drawn in the town: the road and the river beyond the town are put
+  in as the player goes up Waterside Road (past x 200) and let go back in the town (below x 120); the habitation
+  itself is built as the player comes near it and let go as they leave, its models fetched nearest the gate first.
+
+### The places, after the pictures
+
+Twelve places, joined by paths, each made after the owner's pictures of it (the picture numbers in brackets): the
+entrance hill with its great tree and bench (10); the forest path among buttress roots (4, 15); the swamp boardwalk
+with its water lilies (12); the mangrove boardwalk (5); the lagoon, its beaches, its rock pillars and the palm island
+with its boardwalk (6, 2, 8, 16, 18); the rocky stream gorge with its stepping stones and wooden bridge (1, 7); the big
+waterfall into its red-rock pool, its stairs and its bridge (11); the suspension bridge over the outflow's gorge (9,
+13); the waterfall pool (3); the overlook, a paved terrace on the cliff with stone steps down to the beach (17); the
+sunset beach and its jetty (14, 18); the gazebo garden on its shelf below the east cliffs, with its pond (19). The
+layout is `src/sim/zones/habitation.js` (the land, the waters, the paths, the decks, what is walked) and
+`habitation-scene.js` (where each model stands, written by `tools/habitation/place.mjs`).
+
+### The owner's models
+
+- **All 49 are in it, and nothing else stands in for them** — 2,170 placed (624 trees, 657 palms, 128 banana plants,
+  91 bushes, 359 broad-leaved plants, 186 ferns, the suspension bridge, the boardwalk, the gazebo, the pool deck, the
+  two landscape pieces), each repeated, turned and sized as such things grow, at its real size. Forty-three of them
+  have leaves or fronds that sway in the wind.
+- **His files stay exactly as he sent them** (`test/originals.test.mjs` checks each against its MD5). What a device
+  fetches is a copy made from each by `tools/habitation/dress-all.py` (`dress.py`, `leaves.py`): the same shape, its
+  pictures made smaller (a computer at most 1024 pixels, a phone at most 512), its leaves cut out of their cards with
+  their own picture, bark, wood and stone given their grain. The copies are in `assets/habitation-dressed/`
+  (`made.json` says from which file each was made; the build refuses a copy made from another file).
+- **Rocks:** none of his 49 files is a rock, so twelve were made for the habitation (`tools/habitation/rocks.py`: four
+  stones — mossy, limestone, granite, the big waterfall's red stone — three shapes each).
+- **The boardwalks and bridges.** His boardwalk is one curved piece with a round platform at its end: it stands at the
+  swamp. The paths' other boardwalks, bridges, the jetty and the stairs are laid plank by plank along them, in his
+  boardwalk's own wood (cut from its picture by `tools/habitation/deck-wood.py`), with posts and rails (rope on the
+  swamp's, the island's and the jetty's). The suspension bridge is his.
+- **Far off**, trees and palms are drawn as pictures of themselves made in the page from his models (`createImpostors`),
+  each kind of thing drawn as a model only within its distance (palms and trees 150 m, ferns 60 m on a computer; less
+  on a phone).
+
+### Walking
+
+Only paths, boardwalks, bridges, sand, open grass and shallow water are walked (`habitationFooting`); trees, palms,
+banana plants, bushes, rocks, the gazebo's posts, its back wall and the post in its middle, and the cliffs stop a
+walker at their real size (1,617 solid places). Paths are 2.4 to 9 m wide; nothing solid stands on one. Every place
+can be walked to from the gate (`test/habitation.test.mjs` walks the whole of it).
+
+### Water, sand, life, sound, night
+
+- **Water:** clear in the shallows (the sand and stones under it seen through it), darker as it deepens, moving, giving
+  back the sky; each water its own colour (the lagoon's turquoise, the pools', the swamp's dark green, the garden
+  pond's); four waterfalls with their veil, foam where they land, spray and mist; streams that run, with rapids; the
+  shallows walked.
+- **Sand:** footprints where the player walks on it, fading in a minute and a half.
+- **Plants** sway in the wind (their leaves and fronds bend, each from its heart out); grass and flowers on the open
+  ground.
+- **Fish** (tilapia, minnows, golden fish) in the lagoon, the pools, the garden pond and the gorge's stream, none in
+  the Niger, darting away when someone wades near.
+- **Birds:** fourteen kinds — African grey and Senegal parrots, rose-ringed parakeets, great blue and violet turacos,
+  pied hornbills, pied crows, bulbuls, sunbirds, weavers, malachite kingfishers, little egrets, hadada ibises and the
+  African fish eagle — high and low, perching, flocking, wading, soaring, landing and taking off, flushed by a walker,
+  at rest at night; only in the habitation.
+- **Sound** (made in the page, no recordings): each kind of bird its own song from where it is; the waterfalls,
+  louder the nearer; the streams; the lagoon's water at its edge; the wind in the leaves; at night crickets all round
+  and frogs by the water. Fireflies at night.
+- **Night** in the habitation is dark (no town lights), with the moon and the stars. The phone has a **Torch** app: on,
+  the player holds the phone out and a light comes from the back of the handset beside its camera, a soft cone ahead
+  and down that moves with them; other players see its beam (a soft cone and its pool of light on the ground).
+
+### What it costs
+
+@@COSTS@@
+
+### Files
+
+Sim: `zones/habitation.js` (new), `zones/habitation-scene.js` (new, generated), `zone.js`, `own-cars.js`,
+`vehicles.js`, `talk.js`, `zones/closures.js`. Client: `render-habitation.js`, `render-habitation-life.js`,
+`habitation-plants.js`, `bird-songs.js`, `torch-beams.js` (new), `audio.js`, `render-sky.js`, `main.js`,
+`ui-phone.js`, `radar.js`, `town-map.js`, `render-closures.js`, `template.html`. Net: `link.js`. Tools:
+`tools/habitation/` (new: `dress-all.py`, `dress.py`, `leaves.py`, `rocks.py`, `deck-wood.py`, `glbio.py`,
+`place.mjs`, `lab.mjs`, `models.json`). Build: `build.mjs`. Tests: `test/habitation.test.mjs`, `test/habitation.mjs`
+(new); `originals`, `site-budget`, `closures`, `map` tests updated.
+
+### Limitations
+
+- It is drawn with the game's own means (three.js, a phone's budget): it is not the photographs. The comparison
+  sheets put each picture beside the game's view of the same place.
+- The birds and fish are simple shapes made in the page (no models of them were supplied); the sounds are made in the
+  page, not recordings.
+- Frame rates on real phones (an iPhone and a mid-range Android) cannot be measured on this machine, which has no
+  graphics card; what each place costs to draw is measured instead (above).
+
 ## Tests
 
 ```
@@ -2337,6 +2447,7 @@ node test/play.mjs out/ town                       # one session: opening, deskt
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
 node test/hold.mjs                                 # the handset in the hand, measured on both figures
 node test/sound.mjs                                # how loud each group of sounds is
+../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players: the road, the bridge stop, walking, the models, fish, birds, sounds, night, the torch, each picture's view, what it costs
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
 ../server/with-postgres.sh node test/seats.mjs out/      # at the wheel and on the bars: bought with arrival money, the driver seen with both hands on the rim, turning it; the phone in the right hand at the wheel and the left on a motorcycle, the vehicle still driven; the graphics lost and nothing reloaded

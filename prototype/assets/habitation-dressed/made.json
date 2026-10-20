@@ -1,0 +1,1747 @@
+{
+ "tool": "dress 4",
+ "copies": {
+  "palmtree_4.full": {
+   "source": "palmtree3dmodel_4.glb",
+   "md5": "85230bed90a0f79bad01e7c29fe47560",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 173668,
+   "seconds": 1.2,
+   "notes": {
+    "source": "palmtree3dmodel_4.glb",
+    "kind": "palm",
+    "crown": [
+     -0.07930695064484126,
+     0.689453125,
+     -0.005429222470238095
+    ],
+    "fronds": 26,
+    "kept_triangles": 420,
+    "frond_triangles": 1664,
+    "bytes": 173668
+   }
+  },
+  "palmtree_4.lite": {
+   "source": "palmtree3dmodel_4.glb",
+   "md5": "85230bed90a0f79bad01e7c29fe47560",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 100728,
+   "seconds": 0.9,
+   "notes": {
+    "source": "palmtree3dmodel_4.glb",
+    "kind": "palm",
+    "crown": [
+     -0.07930695064484126,
+     0.689453125,
+     -0.005429222470238095
+    ],
+    "fronds": 26,
+    "kept_triangles": 420,
+    "frond_triangles": 1664,
+    "bytes": 100728
+   }
+  },
+  "bananaplant.full": {
+   "source": "bananaplant3dmodel.glb",
+   "md5": "56cacb22e38f1b8d0647a0813814a216",
+   "kind": "banana",
+   "most": 1024,
+   "bytes": 545408,
+   "seconds": 5.7,
+   "notes": {
+    "source": "bananaplant3dmodel.glb",
+    "kind": "banana",
+    "leaves": 56,
+    "axis": [
+     0.000244140625,
+     0.0,
+     0.079345703125
+    ],
+    "bytes": 545408
+   }
+  },
+  "bananaplant.lite": {
+   "source": "bananaplant3dmodel.glb",
+   "md5": "56cacb22e38f1b8d0647a0813814a216",
+   "kind": "banana",
+   "most": 512,
+   "bytes": 410808,
+   "seconds": 4.0,
+   "notes": {
+    "source": "bananaplant3dmodel.glb",
+    "kind": "banana",
+    "leaves": 56,
+    "axis": [
+     0.000244140625,
+     0.0,
+     0.079345703125
+    ],
+    "bytes": 410808
+   }
+  },
+  "monsteraplant_1.full": {
+   "source": "monsteraplant3dmodel_1.glb",
+   "md5": "4af16a1c48ff2463d4cef3063d9460ed",
+   "kind": "herb",
+   "most": 512,
+   "bytes": 207012,
+   "seconds": 0.4,
+   "notes": {
+    "source": "monsteraplant3dmodel_1.glb",
+    "kind": "herb",
+    "leaf_triangles": 3399,
+    "other_triangles": 150,
+    "bytes": 207012
+   }
+  },
+  "monsteraplant_1.lite": {
+   "source": "monsteraplant3dmodel_1.glb",
+   "md5": "4af16a1c48ff2463d4cef3063d9460ed",
+   "kind": "herb",
+   "most": 256,
+   "bytes": 188124,
+   "seconds": 0.3,
+   "notes": {
+    "source": "monsteraplant3dmodel_1.glb",
+    "kind": "herb",
+    "leaf_triangles": 3399,
+    "other_triangles": 150,
+    "bytes": 188124
+   }
+  },
+  "fernclump.full": {
+   "source": "fernclump3dmodel.glb",
+   "md5": "3e2708a214689806a3cd616f4761a590",
+   "kind": "fern",
+   "most": 512,
+   "bytes": 24660,
+   "seconds": 0.7,
+   "notes": {
+    "source": "fernclump3dmodel.glb",
+    "kind": "fern",
+    "crown": [
+     0.074951171875,
+     0.0330859375,
+     0.037841796875
+    ],
+    "fronds": 10,
+    "kept_triangles": 0,
+    "frond_triangles": 640,
+    "bytes": 24660
+   }
+  },
+  "fernclump.lite": {
+   "source": "fernclump3dmodel.glb",
+   "md5": "3e2708a214689806a3cd616f4761a590",
+   "kind": "fern",
+   "most": 256,
+   "bytes": 24660,
+   "seconds": 0.5,
+   "notes": {
+    "source": "fernclump3dmodel.glb",
+    "kind": "fern",
+    "crown": [
+     0.074951171875,
+     0.0330859375,
+     0.037841796875
+    ],
+    "fronds": 10,
+    "kept_triangles": 0,
+    "frond_triangles": 640,
+    "bytes": 24660
+   }
+  },
+  "roundshrub.full": {
+   "source": "roundshrub3dmodel.glb",
+   "md5": "306d9b51daa3d00ca45edce3d92b0d55",
+   "kind": "shrub",
+   "most": 512,
+   "bytes": 227964,
+   "seconds": 0.6,
+   "notes": {
+    "source": "roundshrub3dmodel.glb",
+    "kind": "shrub",
+    "sprays": 185,
+    "mass_triangles": 320,
+    "leaf_triangles": 2406,
+    "bytes": 227964
+   }
+  },
+  "roundshrub.lite": {
+   "source": "roundshrub3dmodel.glb",
+   "md5": "306d9b51daa3d00ca45edce3d92b0d55",
+   "kind": "shrub",
+   "most": 256,
+   "bytes": 208824,
+   "seconds": 0.4,
+   "notes": {
+    "source": "roundshrub3dmodel.glb",
+    "kind": "shrub",
+    "sprays": 185,
+    "mass_triangles": 320,
+    "leaf_triangles": 2406,
+    "bytes": 208824
+   }
+  },
+  "oaktree.full": {
+   "source": "oaktree3dmodel.glb",
+   "md5": "ab15450a245920414484ccd64ffb8980",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 791040,
+   "seconds": 0.9,
+   "notes": {
+    "source": "oaktree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 810,
+    "crown_triangles": 7182,
+    "wood_triangles": 2004,
+    "bytes": 791040
+   }
+  },
+  "oaktree.lite": {
+   "source": "oaktree3dmodel.glb",
+   "md5": "ab15450a245920414484ccd64ffb8980",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 725740,
+   "seconds": 0.8,
+   "notes": {
+    "source": "oaktree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 810,
+    "crown_triangles": 7182,
+    "wood_triangles": 2004,
+    "bytes": 725740
+   }
+  },
+  "buttress-roottree.full": {
+   "source": "buttress-roottree3dmodel.glb",
+   "md5": "eed76510231b269e2ad5045217e91d7b",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 318316,
+   "seconds": 0.6,
+   "notes": {
+    "source": "buttress-roottree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 330,
+    "crown_triangles": 2767,
+    "wood_triangles": 603,
+    "bytes": 318316
+   }
+  },
+  "buttress-roottree.lite": {
+   "source": "buttress-roottree3dmodel.glb",
+   "md5": "eed76510231b269e2ad5045217e91d7b",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 278560,
+   "seconds": 0.6,
+   "notes": {
+    "source": "buttress-roottree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 330,
+    "crown_triangles": 2767,
+    "wood_triangles": 603,
+    "bytes": 278560
+   }
+  },
+  "palmtree_2.full": {
+   "source": "palmtree3dmodel_2.glb",
+   "md5": "5478ca3eb590235f5dfa7cc1bb88a4dd",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 168796,
+   "seconds": 2.8,
+   "notes": {
+    "source": "palmtree3dmodel_2.glb",
+    "kind": "palm",
+    "crown": [
+     -0.035986328125,
+     0.71533203125,
+     -0.006640625
+    ],
+    "fronds": 26,
+    "kept_triangles": 320,
+    "frond_triangles": 1664,
+    "bytes": 168796
+   }
+  },
+  "palmtree_2.lite": {
+   "source": "palmtree3dmodel_2.glb",
+   "md5": "5478ca3eb590235f5dfa7cc1bb88a4dd",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 99556,
+   "seconds": 2.4,
+   "notes": {
+    "source": "palmtree3dmodel_2.glb",
+    "kind": "palm",
+    "crown": [
+     -0.035986328125,
+     0.71533203125,
+     -0.006640625
+    ],
+    "fronds": 26,
+    "kept_triangles": 320,
+    "frond_triangles": 1664,
+    "bytes": 99556
+   }
+  },
+  "palmtree_3.full": {
+   "source": "palmtree3dmodel_3.glb",
+   "md5": "5f73af77906b215beab2da6f46a10a9f",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 187876,
+   "seconds": 1.0,
+   "notes": {
+    "source": "palmtree3dmodel_3.glb",
+    "kind": "palm",
+    "crown": [
+     0.004691150700934579,
+     0.81689453125,
+     0.0006662529205607476
+    ],
+    "fronds": 27,
+    "kept_triangles": 648,
+    "frond_triangles": 1728,
+    "bytes": 187876
+   }
+  },
+  "palmtree_3.lite": {
+   "source": "palmtree3dmodel_3.glb",
+   "md5": "5f73af77906b215beab2da6f46a10a9f",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 109516,
+   "seconds": 0.8,
+   "notes": {
+    "source": "palmtree3dmodel_3.glb",
+    "kind": "palm",
+    "crown": [
+     0.004691150700934579,
+     0.81689453125,
+     0.0006662529205607476
+    ],
+    "fronds": 27,
+    "kept_triangles": 648,
+    "frond_triangles": 1728,
+    "bytes": 109516
+   }
+  },
+  "palmtree_5.full": {
+   "source": "palmtree3dmodel_5.glb",
+   "md5": "c6b6861b16a24ea1cc329fdd73142cc2",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 214024,
+   "seconds": 1.2,
+   "notes": {
+    "source": "palmtree3dmodel_5.glb",
+    "kind": "palm",
+    "crown": [
+     0.016262147484756097,
+     0.76171875,
+     -0.0019709889481707315
+    ],
+    "fronds": 23,
+    "kept_triangles": 1851,
+    "frond_triangles": 1472,
+    "bytes": 214024
+   }
+  },
+  "palmtree_5.lite": {
+   "source": "palmtree3dmodel_5.glb",
+   "md5": "c6b6861b16a24ea1cc329fdd73142cc2",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 138108,
+   "seconds": 1.0,
+   "notes": {
+    "source": "palmtree3dmodel_5.glb",
+    "kind": "palm",
+    "crown": [
+     0.016262147484756097,
+     0.76171875,
+     -0.0019709889481707315
+    ],
+    "fronds": 23,
+    "kept_triangles": 1851,
+    "frond_triangles": 1472,
+    "bytes": 138108
+   }
+  },
+  "palmtree_6.full": {
+   "source": "palmtree3dmodel_6.glb",
+   "md5": "af1ed44e23907ee9e117a14c418a07d6",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 82836,
+   "seconds": 0.6,
+   "notes": {
+    "source": "palmtree3dmodel_6.glb",
+    "kind": "palm",
+    "crown": [
+     -0.002197265625,
+     0.99755859375,
+     -0.009033203125
+    ],
+    "fronds": 5,
+    "kept_triangles": 513,
+    "frond_triangles": 320,
+    "bytes": 82836
+   }
+  },
+  "palmtree_6.lite": {
+   "source": "palmtree3dmodel_6.glb",
+   "md5": "af1ed44e23907ee9e117a14c418a07d6",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 51256,
+   "seconds": 0.5,
+   "notes": {
+    "source": "palmtree3dmodel_6.glb",
+    "kind": "palm",
+    "crown": [
+     -0.002197265625,
+     0.99755859375,
+     -0.009033203125
+    ],
+    "fronds": 5,
+    "kept_triangles": 513,
+    "frond_triangles": 320,
+    "bytes": 51256
+   }
+  },
+  "palmtree_7.full": {
+   "source": "palmtree3dmodel_7.glb",
+   "md5": "c38df8bf60eea17ce2a84681b0e8cc74",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 146364,
+   "seconds": 0.9,
+   "notes": {
+    "source": "palmtree3dmodel_7.glb",
+    "kind": "palm",
+    "crown": [
+     -0.04296875,
+     0.744140625,
+     -0.02197265625
+    ],
+    "fronds": 23,
+    "kept_triangles": 792,
+    "frond_triangles": 1472,
+    "bytes": 146364
+   }
+  },
+  "palmtree_7.lite": {
+   "source": "palmtree3dmodel_7.glb",
+   "md5": "c38df8bf60eea17ce2a84681b0e8cc74",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 100284,
+   "seconds": 0.6,
+   "notes": {
+    "source": "palmtree3dmodel_7.glb",
+    "kind": "palm",
+    "crown": [
+     -0.04296875,
+     0.744140625,
+     -0.02197265625
+    ],
+    "fronds": 23,
+    "kept_triangles": 792,
+    "frond_triangles": 1472,
+    "bytes": 100284
+   }
+  },
+  "palmtree_8.full": {
+   "source": "palmtree3dmodel_8.glb",
+   "md5": "b305cd1c9f0583a6421c9051d4f939a0",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 139844,
+   "seconds": 0.6,
+   "notes": {
+    "source": "palmtree3dmodel_8.glb",
+    "kind": "palm",
+    "crown": [
+     0.00936226222826087,
+     0.75,
+     0.011750594429347826
+    ],
+    "fronds": 31,
+    "kept_triangles": 601,
+    "frond_triangles": 1984,
+    "bytes": 139844
+   }
+  },
+  "palmtree_8.lite": {
+   "source": "palmtree3dmodel_8.glb",
+   "md5": "b305cd1c9f0583a6421c9051d4f939a0",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 107488,
+   "seconds": 0.5,
+   "notes": {
+    "source": "palmtree3dmodel_8.glb",
+    "kind": "palm",
+    "crown": [
+     0.00936226222826087,
+     0.75,
+     0.011750594429347826
+    ],
+    "fronds": 31,
+    "kept_triangles": 601,
+    "frond_triangles": 1984,
+    "bytes": 107488
+   }
+  },
+  "palmtree_9.full": {
+   "source": "palmtree3dmodel_9.glb",
+   "md5": "56e253b2fcec30d66b17122dac3884ad",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 89256,
+   "seconds": 0.7,
+   "notes": {
+    "source": "palmtree3dmodel_9.glb",
+    "kind": "palm",
+    "crown": [
+     -0.010146484375,
+     0.5537109375,
+     -0.100927734375
+    ],
+    "fronds": 22,
+    "kept_triangles": 211,
+    "frond_triangles": 1408,
+    "bytes": 89256
+   }
+  },
+  "palmtree_9.lite": {
+   "source": "palmtree3dmodel_9.glb",
+   "md5": "56e253b2fcec30d66b17122dac3884ad",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 71772,
+   "seconds": 0.4,
+   "notes": {
+    "source": "palmtree3dmodel_9.glb",
+    "kind": "palm",
+    "crown": [
+     -0.010146484375,
+     0.5537109375,
+     -0.100927734375
+    ],
+    "fronds": 22,
+    "kept_triangles": 211,
+    "frond_triangles": 1408,
+    "bytes": 71772
+   }
+  },
+  "coconutpalm.full": {
+   "source": "coconutpalm3dmodel.glb",
+   "md5": "8f74bbb638a0c5f1d805f2f0fdd0dc1b",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 121416,
+   "seconds": 0.6,
+   "notes": {
+    "source": "coconutpalm3dmodel.glb",
+    "kind": "palm",
+    "crown": [
+     -0.061116536458333336,
+     0.69677734375,
+     0.028401692708333332
+    ],
+    "fronds": 22,
+    "kept_triangles": 592,
+    "frond_triangles": 1408,
+    "bytes": 121416
+   }
+  },
+  "coconutpalm.lite": {
+   "source": "coconutpalm3dmodel.glb",
+   "md5": "8f74bbb638a0c5f1d805f2f0fdd0dc1b",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 95092,
+   "seconds": 0.5,
+   "notes": {
+    "source": "coconutpalm3dmodel.glb",
+    "kind": "palm",
+    "crown": [
+     -0.061116536458333336,
+     0.69677734375,
+     0.028401692708333332
+    ],
+    "fronds": 22,
+    "kept_triangles": 592,
+    "frond_triangles": 1408,
+    "bytes": 95092
+   }
+  },
+  "coconutpalmtree.full": {
+   "source": "coconutpalmtree3dmodel.glb",
+   "md5": "02ed2b4ed432295342a642907db8fcde",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 114904,
+   "seconds": 0.6,
+   "notes": {
+    "source": "coconutpalmtree3dmodel.glb",
+    "kind": "palm",
+    "crown": [
+     -0.0010875355113636363,
+     0.67919921875,
+     0.03297378077651515
+    ],
+    "fronds": 24,
+    "kept_triangles": 309,
+    "frond_triangles": 1536,
+    "bytes": 114904
+   }
+  },
+  "coconutpalmtree.lite": {
+   "source": "coconutpalmtree3dmodel.glb",
+   "md5": "02ed2b4ed432295342a642907db8fcde",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 83444,
+   "seconds": 0.5,
+   "notes": {
+    "source": "coconutpalmtree3dmodel.glb",
+    "kind": "palm",
+    "crown": [
+     -0.0010875355113636363,
+     0.67919921875,
+     0.03297378077651515
+    ],
+    "fronds": 24,
+    "kept_triangles": 309,
+    "frond_triangles": 1536,
+    "bytes": 83444
+   }
+  },
+  "coconutpalmtree_1.full": {
+   "source": "coconutpalmtree3dmodel_1.glb",
+   "md5": "d06c0873c2902f59e31b5b37d7e1440b",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 144704,
+   "seconds": 0.6,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_1.glb",
+    "kind": "palm",
+    "crown": [
+     -0.019775390625,
+     0.75732421875,
+     0.0
+    ],
+    "fronds": 32,
+    "kept_triangles": 581,
+    "frond_triangles": 2048,
+    "bytes": 144704
+   }
+  },
+  "coconutpalmtree_1.lite": {
+   "source": "coconutpalmtree3dmodel_1.glb",
+   "md5": "d06c0873c2902f59e31b5b37d7e1440b",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 114396,
+   "seconds": 0.5,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_1.glb",
+    "kind": "palm",
+    "crown": [
+     -0.019775390625,
+     0.75732421875,
+     0.0
+    ],
+    "fronds": 32,
+    "kept_triangles": 581,
+    "frond_triangles": 2048,
+    "bytes": 114396
+   }
+  },
+  "coconutpalmtree_2.full": {
+   "source": "coconutpalmtree3dmodel_2.glb",
+   "md5": "116161ddde59c4a9f6aa9491deacbe37",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 119052,
+   "seconds": 0.6,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_2.glb",
+    "kind": "palm",
+    "crown": [
+     -0.03771391369047619,
+     0.703125,
+     -0.012892950148809524
+    ],
+    "fronds": 30,
+    "kept_triangles": 414,
+    "frond_triangles": 1920,
+    "bytes": 119052
+   }
+  },
+  "coconutpalmtree_2.lite": {
+   "source": "coconutpalmtree3dmodel_2.glb",
+   "md5": "116161ddde59c4a9f6aa9491deacbe37",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 96192,
+   "seconds": 0.5,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_2.glb",
+    "kind": "palm",
+    "crown": [
+     -0.03771391369047619,
+     0.703125,
+     -0.012892950148809524
+    ],
+    "fronds": 30,
+    "kept_triangles": 414,
+    "frond_triangles": 1920,
+    "bytes": 96192
+   }
+  },
+  "coconutpalmtree_3.full": {
+   "source": "coconutpalmtree3dmodel_3.glb",
+   "md5": "1ce1572744417261576dd5023db8ec4f",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 71712,
+   "seconds": 0.8,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_3.glb",
+    "kind": "palm",
+    "crown": [
+     0.0093994140625,
+     0.48193359375,
+     -0.0235595703125
+    ],
+    "fronds": 10,
+    "kept_triangles": 284,
+    "frond_triangles": 640,
+    "bytes": 71712
+   }
+  },
+  "coconutpalmtree_3.lite": {
+   "source": "coconutpalmtree3dmodel_3.glb",
+   "md5": "1ce1572744417261576dd5023db8ec4f",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 50796,
+   "seconds": 0.4,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_3.glb",
+    "kind": "palm",
+    "crown": [
+     0.0093994140625,
+     0.48193359375,
+     -0.0235595703125
+    ],
+    "fronds": 10,
+    "kept_triangles": 284,
+    "frond_triangles": 640,
+    "bytes": 50796
+   }
+  },
+  "coconutpalmtree_4.full": {
+   "source": "coconutpalmtree3dmodel_4.glb",
+   "md5": "53d5020fe353e74a1306cc4c0e9dbbb6",
+   "kind": "palm",
+   "most": 512,
+   "bytes": 102920,
+   "seconds": 0.5,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_4.glb",
+    "kind": "palm",
+    "crown": [
+     0.012715657552083334,
+     0.54443359375,
+     -0.006744384765625
+    ],
+    "fronds": 14,
+    "kept_triangles": 359,
+    "frond_triangles": 896,
+    "bytes": 102920
+   }
+  },
+  "coconutpalmtree_4.lite": {
+   "source": "coconutpalmtree3dmodel_4.glb",
+   "md5": "53d5020fe353e74a1306cc4c0e9dbbb6",
+   "kind": "palm",
+   "most": 256,
+   "bytes": 74372,
+   "seconds": 0.4,
+   "notes": {
+    "source": "coconutpalmtree3dmodel_4.glb",
+    "kind": "palm",
+    "crown": [
+     0.012715657552083334,
+     0.54443359375,
+     -0.006744384765625
+    ],
+    "fronds": 14,
+    "kept_triangles": 359,
+    "frond_triangles": 896,
+    "bytes": 74372
+   }
+  },
+  "palmtree.full": {
+   "source": "palmtree3dmodel.glb",
+   "md5": "9e52b9767cc4c834efebbc7f29681d89",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 436888,
+   "seconds": 0.6,
+   "notes": {
+    "source": "palmtree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 121,
+    "crown_triangles": 5641,
+    "wood_triangles": 1459,
+    "bytes": 436888
+   }
+  },
+  "palmtree.lite": {
+   "source": "palmtree3dmodel.glb",
+   "md5": "9e52b9767cc4c834efebbc7f29681d89",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 378604,
+   "seconds": 0.4,
+   "notes": {
+    "source": "palmtree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 121,
+    "crown_triangles": 5641,
+    "wood_triangles": 1459,
+    "bytes": 378604
+   }
+  },
+  "palmtree_1.full": {
+   "source": "palmtree3dmodel_1.glb",
+   "md5": "0711699476750e29a213a7fff82e615a",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 462628,
+   "seconds": 0.5,
+   "notes": {
+    "source": "palmtree3dmodel_1.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 5607,
+    "wood_triangles": 1225,
+    "bytes": 462628
+   }
+  },
+  "palmtree_1.lite": {
+   "source": "palmtree3dmodel_1.glb",
+   "md5": "0711699476750e29a213a7fff82e615a",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 401592,
+   "seconds": 0.4,
+   "notes": {
+    "source": "palmtree3dmodel_1.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 5607,
+    "wood_triangles": 1225,
+    "bytes": 401592
+   }
+  },
+  "bananaplant_1.full": {
+   "source": "bananaplant3dmodel_1.glb",
+   "md5": "faf256259cb2944850e9f89c6eadaac3",
+   "kind": "banana",
+   "most": 1024,
+   "bytes": 344924,
+   "seconds": 3.0,
+   "notes": {
+    "source": "bananaplant3dmodel_1.glb",
+    "kind": "banana",
+    "leaves": 27,
+    "axis": [
+     -0.067626953125,
+     0.0,
+     0.033935546875
+    ],
+    "bytes": 344924
+   }
+  },
+  "bananaplant_1.lite": {
+   "source": "bananaplant3dmodel_1.glb",
+   "md5": "faf256259cb2944850e9f89c6eadaac3",
+   "kind": "banana",
+   "most": 512,
+   "bytes": 266412,
+   "seconds": 1.7,
+   "notes": {
+    "source": "bananaplant3dmodel_1.glb",
+    "kind": "banana",
+    "leaves": 27,
+    "axis": [
+     -0.067626953125,
+     0.0,
+     0.033935546875
+    ],
+    "bytes": 266412
+   }
+  },
+  "bananaplant_2.full": {
+   "source": "bananaplant3dmodel_2.glb",
+   "md5": "2bf444d760e9dbaf1ca362f5a0fb6505",
+   "kind": "banana",
+   "most": 1024,
+   "bytes": 295000,
+   "seconds": 2.9,
+   "notes": {
+    "source": "bananaplant3dmodel_2.glb",
+    "kind": "banana",
+    "leaves": 17,
+    "axis": [
+     -0.007080078125,
+     0.0,
+     -0.015380859375
+    ],
+    "bytes": 295000
+   }
+  },
+  "bananaplant_2.lite": {
+   "source": "bananaplant3dmodel_2.glb",
+   "md5": "2bf444d760e9dbaf1ca362f5a0fb6505",
+   "kind": "banana",
+   "most": 512,
+   "bytes": 235664,
+   "seconds": 1.5,
+   "notes": {
+    "source": "bananaplant3dmodel_2.glb",
+    "kind": "banana",
+    "leaves": 17,
+    "axis": [
+     -0.007080078125,
+     0.0,
+     -0.015380859375
+    ],
+    "bytes": 235664
+   }
+  },
+  "palmplant.full": {
+   "source": "palmplant3dmodel.glb",
+   "md5": "acbaefe4b9c5f030d8ee451eb1dadc83",
+   "kind": "herb",
+   "most": 512,
+   "bytes": 230880,
+   "seconds": 0.5,
+   "notes": {
+    "source": "palmplant3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 3243,
+    "other_triangles": 302,
+    "bytes": 230880
+   }
+  },
+  "palmplant.lite": {
+   "source": "palmplant3dmodel.glb",
+   "md5": "acbaefe4b9c5f030d8ee451eb1dadc83",
+   "kind": "herb",
+   "most": 256,
+   "bytes": 209580,
+   "seconds": 0.3,
+   "notes": {
+    "source": "palmplant3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 3243,
+    "other_triangles": 302,
+    "bytes": 209580
+   }
+  },
+  "monsteraplant.full": {
+   "source": "monsteraplant3dmodel.glb",
+   "md5": "f91fa0b28f958bdf737611a4d369da88",
+   "kind": "herb",
+   "most": 512,
+   "bytes": 54940,
+   "seconds": 0.5,
+   "notes": {
+    "source": "monsteraplant3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 302,
+    "other_triangles": 28,
+    "bytes": 54940
+   }
+  },
+  "monsteraplant.lite": {
+   "source": "monsteraplant3dmodel.glb",
+   "md5": "f91fa0b28f958bdf737611a4d369da88",
+   "kind": "herb",
+   "most": 256,
+   "bytes": 33560,
+   "seconds": 0.3,
+   "notes": {
+    "source": "monsteraplant3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 302,
+    "other_triangles": 28,
+    "bytes": 33560
+   }
+  },
+  "monsteraplant_2.full": {
+   "source": "monsteraplant3dmodel_2.glb",
+   "md5": "0a17c0b63a3707af1d9332a0b57611cd",
+   "kind": "herb",
+   "most": 512,
+   "bytes": 188728,
+   "seconds": 0.5,
+   "notes": {
+    "source": "monsteraplant3dmodel_2.glb",
+    "kind": "herb",
+    "leaf_triangles": 3116,
+    "other_triangles": 0,
+    "bytes": 188728
+   }
+  },
+  "monsteraplant_2.lite": {
+   "source": "monsteraplant3dmodel_2.glb",
+   "md5": "0a17c0b63a3707af1d9332a0b57611cd",
+   "kind": "herb",
+   "most": 256,
+   "bytes": 171428,
+   "seconds": 0.3,
+   "notes": {
+    "source": "monsteraplant3dmodel_2.glb",
+    "kind": "herb",
+    "leaf_triangles": 3116,
+    "other_triangles": 0,
+    "bytes": 171428
+   }
+  },
+  "fernplant.full": {
+   "source": "fernplant3dmodel.glb",
+   "md5": "61d672770ebfba29e830f10aa4617d65",
+   "kind": "herb",
+   "most": 512,
+   "bytes": 532164,
+   "seconds": 0.8,
+   "notes": {
+    "source": "fernplant3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 9911,
+    "other_triangles": 298,
+    "bytes": 532164
+   }
+  },
+  "fernplant.lite": {
+   "source": "fernplant3dmodel.glb",
+   "md5": "61d672770ebfba29e830f10aa4617d65",
+   "kind": "herb",
+   "most": 256,
+   "bytes": 486192,
+   "seconds": 0.5,
+   "notes": {
+    "source": "fernplant3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 9911,
+    "other_triangles": 298,
+    "bytes": 486192
+   }
+  },
+  "fanpalmshrub.full": {
+   "source": "fanpalmshrub3dmodel.glb",
+   "md5": "24676187526b8eaab3d708853d02c7b2",
+   "kind": "herb",
+   "most": 512,
+   "bytes": 214588,
+   "seconds": 0.5,
+   "notes": {
+    "source": "fanpalmshrub3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 3024,
+    "other_triangles": 181,
+    "bytes": 214588
+   }
+  },
+  "fanpalmshrub.lite": {
+   "source": "fanpalmshrub3dmodel.glb",
+   "md5": "24676187526b8eaab3d708853d02c7b2",
+   "kind": "herb",
+   "most": 256,
+   "bytes": 195072,
+   "seconds": 0.3,
+   "notes": {
+    "source": "fanpalmshrub3dmodel.glb",
+    "kind": "herb",
+    "leaf_triangles": 3024,
+    "other_triangles": 181,
+    "bytes": 195072
+   }
+  },
+  "fernplant_1.full": {
+   "source": "fernplant3dmodel_1.glb",
+   "md5": "3476aeb18698e8b8f8ad120797c0205b",
+   "kind": "fern",
+   "most": 512,
+   "bytes": 4208,
+   "seconds": 0.6,
+   "notes": {
+    "source": "fernplant3dmodel_1.glb",
+    "kind": "fern",
+    "crown": [
+     0.039306640625,
+     0.03724609375,
+     0.014892578125
+    ],
+    "fronds": 1,
+    "kept_triangles": 0,
+    "frond_triangles": 64,
+    "bytes": 4208
+   }
+  },
+  "fernplant_1.lite": {
+   "source": "fernplant3dmodel_1.glb",
+   "md5": "3476aeb18698e8b8f8ad120797c0205b",
+   "kind": "fern",
+   "most": 256,
+   "bytes": 4208,
+   "seconds": 0.4,
+   "notes": {
+    "source": "fernplant3dmodel_1.glb",
+    "kind": "fern",
+    "crown": [
+     0.039306640625,
+     0.03724609375,
+     0.014892578125
+    ],
+    "fronds": 1,
+    "kept_triangles": 0,
+    "frond_triangles": 64,
+    "bytes": 4208
+   }
+  },
+  "roundleafyshrub.full": {
+   "source": "roundleafyshrub3dmodel.glb",
+   "md5": "859ee5c837e26aa7bf8a3fa0fd01532c",
+   "kind": "shrub",
+   "most": 512,
+   "bytes": 253652,
+   "seconds": 0.6,
+   "notes": {
+    "source": "roundleafyshrub3dmodel.glb",
+    "kind": "shrub",
+    "sprays": 183,
+    "mass_triangles": 144,
+    "leaf_triangles": 2323,
+    "bytes": 253652
+   }
+  },
+  "roundleafyshrub.lite": {
+   "source": "roundleafyshrub3dmodel.glb",
+   "md5": "859ee5c837e26aa7bf8a3fa0fd01532c",
+   "kind": "shrub",
+   "most": 256,
+   "bytes": 238516,
+   "seconds": 0.3,
+   "notes": {
+    "source": "roundleafyshrub3dmodel.glb",
+    "kind": "shrub",
+    "sprays": 183,
+    "mass_triangles": 144,
+    "leaf_triangles": 2323,
+    "bytes": 238516
+   }
+  },
+  "tree.full": {
+   "source": "tree3dmodel.glb",
+   "md5": "060f5bec82bdd5dab4643906a664031b",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 635236,
+   "seconds": 0.8,
+   "notes": {
+    "source": "tree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 245,
+    "crown_triangles": 8478,
+    "wood_triangles": 288,
+    "bytes": 635236
+   }
+  },
+  "tree.lite": {
+   "source": "tree3dmodel.glb",
+   "md5": "060f5bec82bdd5dab4643906a664031b",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 564180,
+   "seconds": 0.7,
+   "notes": {
+    "source": "tree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 245,
+    "crown_triangles": 8478,
+    "wood_triangles": 288,
+    "bytes": 564180
+   }
+  },
+  "tree_1.full": {
+   "source": "tree3dmodel_1.glb",
+   "md5": "7f2726fe47f654ac479e418bbe9090b7",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 223116,
+   "seconds": 0.5,
+   "notes": {
+    "source": "tree3dmodel_1.glb",
+    "kind": "tree",
+    "sprays": 432,
+    "crown_triangles": 544,
+    "wood_triangles": 1495,
+    "bytes": 223116
+   }
+  },
+  "tree_1.lite": {
+   "source": "tree3dmodel_1.glb",
+   "md5": "7f2726fe47f654ac479e418bbe9090b7",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 201360,
+   "seconds": 0.4,
+   "notes": {
+    "source": "tree3dmodel_1.glb",
+    "kind": "tree",
+    "sprays": 432,
+    "crown_triangles": 544,
+    "wood_triangles": 1495,
+    "bytes": 201360
+   }
+  },
+  "treeonhill.full": {
+   "source": "treeonhill3dmodel.glb",
+   "md5": "7a1f4e712e747c69d67442c5c7c9de4d",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 169784,
+   "seconds": 0.5,
+   "notes": {
+    "source": "treeonhill3dmodel.glb",
+    "kind": "tree",
+    "sprays": 285,
+    "crown_triangles": 986,
+    "wood_triangles": 501,
+    "bytes": 169784
+   }
+  },
+  "treeonhill.lite": {
+   "source": "treeonhill3dmodel.glb",
+   "md5": "7a1f4e712e747c69d67442c5c7c9de4d",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 154280,
+   "seconds": 0.4,
+   "notes": {
+    "source": "treeonhill3dmodel.glb",
+    "kind": "tree",
+    "sprays": 285,
+    "crown_triangles": 986,
+    "wood_triangles": 501,
+    "bytes": 154280
+   }
+  },
+  "talltree.full": {
+   "source": "talltree3dmodel.glb",
+   "md5": "9efafed57ff809ad4d7032b5a1b8eabc",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 293484,
+   "seconds": 0.5,
+   "notes": {
+    "source": "talltree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 2210,
+    "wood_triangles": 754,
+    "bytes": 293484
+   }
+  },
+  "talltree.lite": {
+   "source": "talltree3dmodel.glb",
+   "md5": "9efafed57ff809ad4d7032b5a1b8eabc",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 246376,
+   "seconds": 0.4,
+   "notes": {
+    "source": "talltree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 2210,
+    "wood_triangles": 754,
+    "bytes": 246376
+   }
+  },
+  "slimtree.full": {
+   "source": "slimtree3dmodel.glb",
+   "md5": "93d6ae7a3576630a6138fd180226f1f1",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 265928,
+   "seconds": 0.6,
+   "notes": {
+    "source": "slimtree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 1823,
+    "wood_triangles": 1315,
+    "bytes": 265928
+   }
+  },
+  "slimtree.lite": {
+   "source": "slimtree3dmodel.glb",
+   "md5": "93d6ae7a3576630a6138fd180226f1f1",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 221060,
+   "seconds": 0.4,
+   "notes": {
+    "source": "slimtree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 1823,
+    "wood_triangles": 1315,
+    "bytes": 221060
+   }
+  },
+  "foresttree.full": {
+   "source": "foresttree3dmodel.glb",
+   "md5": "d7b110c67177169b7b018a6e364fb1f0",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 373924,
+   "seconds": 0.9,
+   "notes": {
+    "source": "foresttree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 222,
+    "crown_triangles": 1453,
+    "wood_triangles": 2980,
+    "bytes": 373924
+   }
+  },
+  "foresttree.lite": {
+   "source": "foresttree3dmodel.glb",
+   "md5": "d7b110c67177169b7b018a6e364fb1f0",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 337872,
+   "seconds": 0.5,
+   "notes": {
+    "source": "foresttree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 222,
+    "crown_triangles": 1453,
+    "wood_triangles": 2980,
+    "bytes": 337872
+   }
+  },
+  "giantbuttress-roottree.full": {
+   "source": "giantbuttress-roottree3dmodel.glb",
+   "md5": "da4d49cde643c078483e234fdde7c8d9",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 395312,
+   "seconds": 0.5,
+   "notes": {
+    "source": "giantbuttress-roottree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 320,
+    "crown_triangles": 2154,
+    "wood_triangles": 2620,
+    "bytes": 395312
+   }
+  },
+  "giantbuttress-roottree.lite": {
+   "source": "giantbuttress-roottree3dmodel.glb",
+   "md5": "da4d49cde643c078483e234fdde7c8d9",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 362552,
+   "seconds": 0.4,
+   "notes": {
+    "source": "giantbuttress-roottree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 320,
+    "crown_triangles": 2154,
+    "wood_triangles": 2620,
+    "bytes": 362552
+   }
+  },
+  "buttressedtree.full": {
+   "source": "buttressedtree3dmodel.glb",
+   "md5": "823308828dd19c9d40c3315e1c17946d",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 449004,
+   "seconds": 0.6,
+   "notes": {
+    "source": "buttressedtree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 357,
+    "crown_triangles": 3022,
+    "wood_triangles": 2085,
+    "bytes": 449004
+   }
+  },
+  "buttressedtree.lite": {
+   "source": "buttressedtree3dmodel.glb",
+   "md5": "823308828dd19c9d40c3315e1c17946d",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 424192,
+   "seconds": 0.4,
+   "notes": {
+    "source": "buttressedtree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 357,
+    "crown_triangles": 3022,
+    "wood_triangles": 2085,
+    "bytes": 424192
+   }
+  },
+  "mangrovetree.full": {
+   "source": "mangrovetree3dmodel.glb",
+   "md5": "c9f459ebd691ffab9463b0cfdb9ec48e",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 659528,
+   "seconds": 0.8,
+   "notes": {
+    "source": "mangrovetree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 563,
+    "crown_triangles": 5502,
+    "wood_triangles": 3191,
+    "bytes": 659528
+   }
+  },
+  "mangrovetree.lite": {
+   "source": "mangrovetree3dmodel.glb",
+   "md5": "c9f459ebd691ffab9463b0cfdb9ec48e",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 603564,
+   "seconds": 0.6,
+   "notes": {
+    "source": "mangrovetree3dmodel.glb",
+    "kind": "tree",
+    "sprays": 563,
+    "crown_triangles": 5502,
+    "wood_triangles": 3191,
+    "bytes": 603564
+   }
+  },
+  "mangrovetree_1.full": {
+   "source": "mangrovetree3dmodel_1.glb",
+   "md5": "9d3f50f5c54a2bbcc5a98e6ec1b0f875",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 589600,
+   "seconds": 0.7,
+   "notes": {
+    "source": "mangrovetree3dmodel_1.glb",
+    "kind": "tree",
+    "sprays": 279,
+    "crown_triangles": 4566,
+    "wood_triangles": 3974,
+    "bytes": 589600
+   }
+  },
+  "mangrovetree_1.lite": {
+   "source": "mangrovetree3dmodel_1.glb",
+   "md5": "9d3f50f5c54a2bbcc5a98e6ec1b0f875",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 531532,
+   "seconds": 0.5,
+   "notes": {
+    "source": "mangrovetree3dmodel_1.glb",
+    "kind": "tree",
+    "sprays": 279,
+    "crown_triangles": 4566,
+    "wood_triangles": 3974,
+    "bytes": 531532
+   }
+  },
+  "mangrovetree_2.full": {
+   "source": "mangrovetree3dmodel_2.glb",
+   "md5": "dc77312c50e22008f430d432e4444528",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 286520,
+   "seconds": 0.5,
+   "notes": {
+    "source": "mangrovetree3dmodel_2.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 1321,
+    "wood_triangles": 2124,
+    "bytes": 286520
+   }
+  },
+  "mangrovetree_2.lite": {
+   "source": "mangrovetree3dmodel_2.glb",
+   "md5": "dc77312c50e22008f430d432e4444528",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 243712,
+   "seconds": 0.5,
+   "notes": {
+    "source": "mangrovetree3dmodel_2.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 1321,
+    "wood_triangles": 2124,
+    "bytes": 243712
+   }
+  },
+  "mangrovetree_3.full": {
+   "source": "mangrovetree3dmodel_3.glb",
+   "md5": "b91122aaa5095aadeb3e69b1410c840d",
+   "kind": "tree",
+   "most": 512,
+   "bytes": 301240,
+   "seconds": 0.6,
+   "notes": {
+    "source": "mangrovetree3dmodel_3.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 1452,
+    "wood_triangles": 2133,
+    "bytes": 301240
+   }
+  },
+  "mangrovetree_3.lite": {
+   "source": "mangrovetree3dmodel_3.glb",
+   "md5": "b91122aaa5095aadeb3e69b1410c840d",
+   "kind": "tree",
+   "most": 256,
+   "bytes": 263984,
+   "seconds": 0.4,
+   "notes": {
+    "source": "mangrovetree3dmodel_3.glb",
+    "kind": "tree",
+    "sprays": 120,
+    "crown_triangles": 1452,
+    "wood_triangles": 2133,
+    "bytes": 263984
+   }
+  },
+  "tropicalgazebo.full": {
+   "source": "tropicalgazebo3dmodel.glb",
+   "md5": "230e69fa0ece9bcf01746183b67bacfa",
+   "kind": "structure",
+   "most": 1024,
+   "bytes": 334868,
+   "seconds": 0.8,
+   "notes": {
+    "source": "tropicalgazebo3dmodel.glb",
+    "kind": "structure",
+    "bytes": 334868
+   }
+  },
+  "tropicalgazebo.lite": {
+   "source": "tropicalgazebo3dmodel.glb",
+   "md5": "230e69fa0ece9bcf01746183b67bacfa",
+   "kind": "structure",
+   "most": 512,
+   "bytes": 215396,
+   "seconds": 0.5,
+   "notes": {
+    "source": "tropicalgazebo3dmodel.glb",
+    "kind": "structure",
+    "bytes": 215396
+   }
+  },
+  "tropicalpooldeck.full": {
+   "source": "tropicalpooldeck3dmodel.glb",
+   "md5": "150bc6daf1c1daf11216dba77f0b6f90",
+   "kind": "structure",
+   "most": 1024,
+   "bytes": 605500,
+   "seconds": 1.1,
+   "notes": {
+    "source": "tropicalpooldeck3dmodel.glb",
+    "kind": "structure",
+    "bytes": 605500
+   }
+  },
+  "tropicalpooldeck.lite": {
+   "source": "tropicalpooldeck3dmodel.glb",
+   "md5": "150bc6daf1c1daf11216dba77f0b6f90",
+   "kind": "structure",
+   "most": 512,
+   "bytes": 418952,
+   "seconds": 0.7,
+   "notes": {
+    "source": "tropicalpooldeck3dmodel.glb",
+    "kind": "structure",
+    "bytes": 418952
+   }
+  },
+  "woodenboardwalk.full": {
+   "source": "woodenboardwalk3dmodel.glb",
+   "md5": "9337b47fadc8ebad2943ec9dca32e446",
+   "kind": "structure",
+   "most": 1024,
+   "bytes": 526168,
+   "seconds": 1.1,
+   "notes": {
+    "source": "woodenboardwalk3dmodel.glb",
+    "kind": "structure",
+    "bytes": 526168
+   }
+  },
+  "woodenboardwalk.lite": {
+   "source": "woodenboardwalk3dmodel.glb",
+   "md5": "9337b47fadc8ebad2943ec9dca32e446",
+   "kind": "structure",
+   "most": 512,
+   "bytes": 332632,
+   "seconds": 0.7,
+   "notes": {
+    "source": "woodenboardwalk3dmodel.glb",
+    "kind": "structure",
+    "bytes": 332632
+   }
+  },
+  "suspensionbridge.full": {
+   "source": "suspensionbridge3dmodel.glb",
+   "md5": "c44128d31412b3d913cb070d03fb6e82",
+   "kind": "bridge",
+   "most": 1024,
+   "bytes": 601252,
+   "seconds": 1.2,
+   "notes": {
+    "source": "suspensionbridge3dmodel.glb",
+    "kind": "bridge",
+    "length_m": 16,
+    "width_m": 1.558210398195249,
+    "planks": 52,
+    "sag_m": 0.7320090824887306,
+    "bytes": 601252
+   }
+  },
+  "suspensionbridge.lite": {
+   "source": "suspensionbridge3dmodel.glb",
+   "md5": "c44128d31412b3d913cb070d03fb6e82",
+   "kind": "bridge",
+   "most": 512,
+   "bytes": 425692,
+   "seconds": 0.8,
+   "notes": {
+    "source": "suspensionbridge3dmodel.glb",
+    "kind": "bridge",
+    "length_m": 16,
+    "width_m": 1.558210398195249,
+    "planks": 52,
+    "sag_m": 0.7320090824887306,
+    "bytes": 425692
+   }
+  },
+  "sceniclandscape.full": {
+   "source": "sceniclandscape3dmodel.glb",
+   "md5": "26e5f9e84cdb3f40efbd99304740a6bb",
+   "kind": "structure",
+   "most": 1024,
+   "bytes": 450980,
+   "seconds": 1.1,
+   "notes": {
+    "source": "sceniclandscape3dmodel.glb",
+    "kind": "structure",
+    "bytes": 450980
+   }
+  },
+  "sceniclandscape.lite": {
+   "source": "sceniclandscape3dmodel.glb",
+   "md5": "26e5f9e84cdb3f40efbd99304740a6bb",
+   "kind": "structure",
+   "most": 512,
+   "bytes": 260316,
+   "seconds": 0.6,
+   "notes": {
+    "source": "sceniclandscape3dmodel.glb",
+    "kind": "structure",
+    "bytes": 260316
+   }
+  },
+  "waterfalllandscape.full": {
+   "source": "waterfalllandscape3dmodel.glb",
+   "md5": "1b0e3f9c2a5e4490c859f33ed5a3cda7",
+   "kind": "cliff",
+   "most": 1024,
+   "bytes": 621216,
+   "seconds": 1.6,
+   "notes": {
+    "source": "waterfalllandscape3dmodel.glb",
+    "kind": "cliff",
+    "bytes": 621216
+   }
+  },
+  "waterfalllandscape.lite": {
+   "source": "waterfalllandscape3dmodel.glb",
+   "md5": "1b0e3f9c2a5e4490c859f33ed5a3cda7",
+   "kind": "cliff",
+   "most": 512,
+   "bytes": 303460,
+   "seconds": 1.1,
+   "notes": {
+    "source": "waterfalllandscape3dmodel.glb",
+    "kind": "cliff",
+    "bytes": 303460
+   }
+  }
+ },
+ "leaves": "dress 4",
+ "rocks": "dress 4",
+ "decks": {
+  "deck-wood.full": {
+   "source": "woodenboardwalk3dmodel.glb",
+   "md5": "9337b47fadc8ebad2943ec9dca32e446",
+   "size": [
+    512,
+    256
+   ],
+   "bytes": 11162,
+   "region": [
+    0.785,
+    0.165,
+    0.875,
+    0.245
+   ],
+   "grain": 31.0
+  },
+  "deck-wood.lite": {
+   "source": "woodenboardwalk3dmodel.glb",
+   "md5": "9337b47fadc8ebad2943ec9dca32e446",
+   "size": [
+    256,
+    128
+   ],
+   "bytes": 4134,
+   "region": [
+    0.785,
+    0.165,
+    0.875,
+    0.245
+   ],
+   "grain": 31.0
+  }
+ }
+}

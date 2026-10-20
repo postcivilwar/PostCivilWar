@@ -10,7 +10,7 @@
 // in motion strikes whoever is in its way as any vehicle does (impact.js), with its own length and width; a car
 // standing where it was left is in everybody's way (`boxes`), as a parked keke is.
 import { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } from './power-cars.js';
-import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind, onHabitation, habitationFootOnly } from './zone.js';
 import { contactNormal, contactOutcome } from './contact.js';
 import { GameError } from './registry.js';
 
@@ -62,6 +62,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < spec.length / 2 + 2.5) at = parked;
     else {
       if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your car is brought to you there.');
+      if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your car is brought to you at its car park.');
       const boxes = [...obstacles(), ...othersParked(p, id)];
       const h0 = p.heading || 0;
       const turns = [0, Math.PI, Math.PI / 2, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, (3 * Math.PI) / 4, (-3 * Math.PI) / 4];
@@ -97,6 +98,9 @@ export function createOwnCars({ state, hub, obstacles }) {
       const k = i / steps;
       const hh = c.h + wrap(heading - c.h) * k;
       if (!carFits(c.id, c.x + (x - c.x) * k, c.z + (z - c.z) * k, hh, boxes, 0.2)) throw new GameError('BLOCKED', 'Movement rejected.');
+      // (a bridge, a boardwalk, a jetty: walked, never driven onto; the car's front is what reaches it)
+      const front = POWER_CARS[c.id].length / 2;
+      if (habitationFootOnly(c.x + (x - c.x) * k + Math.sin(hh) * front, c.z + (z - c.z) * k + Math.cos(hh) * front)) throw new GameError('FOOT_ONLY', 'Get off your vehicle to cross the bridge.');
     }
     const fromX = c.x, fromZ = c.z;
     // (how fast the town itself saw it go: a crash is judged at no more than this, whatever the page says)

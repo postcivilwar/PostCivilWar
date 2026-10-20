@@ -13,11 +13,13 @@ test('every part of the land is in one of four states; the roads closed now are 
   assert.deepEqual(Object.values(AREA_STATE).sort(), ['closed', 'open', 'restricted', 'under construction']);
   for (const c of ROAD_CLOSURES) assert.ok(Object.values(AREA_STATE).includes(c.state), c.id);
   assert.deepEqual(ROAD_CLOSURES.map((c) => c.id), ['waterside-south', 'waterside-north', 'registry-north', 'campus-north', 'college-west']);
-  assert.ok(ROAD_CLOSURES.every((c) => c.state === AREA_STATE.BUILDING && c.sign[0] === 'ROAD CLOSED' && c.why.length > 10));
+  // (Waterside Road's north end is open since 20 October 2026: it goes on up the river to the habitation)
+  assert.equal(ROAD_CLOSURES.find((c) => c.id === 'waterside-north').state, AREA_STATE.OPEN);
+  assert.ok(ROAD_CLOSURES.filter((c) => c.state !== AREA_STATE.OPEN).every((c) => c.state === AREA_STATE.BUILDING && c.sign[0] === 'ROAD CLOSED' && c.why.length > 10));
   // what is closed is what is not open: one that is opened has no roadblock and nothing solid
   assert.deepEqual(ZONE_CLOSURES.map((c) => c.id), openClosures().map((c) => c.id));
   const opened = ROAD_CLOSURES.map((c) => (c.id === 'waterside-south' ? { ...c, state: AREA_STATE.OPEN } : c)).filter((c) => c.state !== AREA_STATE.OPEN);
-  assert.equal(closureColliders(opened).length, ROAD_CLOSURES.length - 1);
+  assert.equal(closureColliders(opened).length, ROAD_CLOSURES.filter((c) => c.state !== AREA_STATE.OPEN).length - 1);
   assert.ok(!closureColliders(opened).some((b) => b.closure === 'waterside-south'));
 });
 

@@ -31,6 +31,9 @@ export * from './supplied-vehicles.js';
 import { TOWN_TREES } from './atani-trees.js';
 import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
 import { openClosures, closureColliders, edgeFences, fenceColliders } from './closures.js';
+// the habitation at the far end of the River Niger, and the road up the river to it (20 October 2026)
+import { HABITATION, onUpriver, onHabitation, habitationGroundY, HABITATION_COLLIDERS } from './habitation.js';
+export * from './habitation.js';
 export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
 
@@ -917,7 +920,9 @@ export const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t)
 // driven on like the town's own ground, and their walls are walls; the town's own layout is unchanged by them.
 export * from './atani-outskirts.js';
 // (the bridge and the far bank; and in the city block, the pavements, a kerb above the road)
-export const zoneGroundY = (x, z) => cityGroundY(x, z) || outskirtsGroundY(x, z);
+const inHabitation = (x, z) => x > HABITATION.bounds.x0 - 6 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1;
+// (the road up the river and its car park lie level with the town; the habitation has its own hills, decks and shallows)
+export const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z));
 
 // The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
 // (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)
@@ -926,9 +931,9 @@ const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Obj
 // of the fence along the edge, where they stand. (They are barriers, which give a little: contact.js.)
 export * from './closures.js';
 export const ZONE_CLOSURES = Object.freeze(openClosures());
-export const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z)));
+export const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z)));
 const CLOSURE_COLLIDERS = [...closureColliders(ZONE_CLOSURES), ...fenceColliders(ZONE_EDGE_FENCES)];
-export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS].map(Object.freeze));
+export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 // True when a person of the given radius can stand at (x, z).
@@ -940,10 +945,10 @@ export function zoneSolid(x, z, radius = 0.2, above = -Infinity) {
 }
 
 // Is this ground at all: the town's land (not the river) or the land beyond it that can be walked.
-export const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z);
+export const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z);
 
 export function zoneWalkable(x, z, extra = [], radius = 0.4) {
-  if (!onGround(x, z) && !onOutskirts(x, z)) return false;
+  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return false;
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
   for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
   return true;
@@ -954,7 +959,7 @@ export function zoneWalkable(x, z, extra = [], radius = 0.4) {
 // beyond the roads: not a thing that is hit), 'barrier' for a roadblock's boards, drums and fences (closures.js),
 // 'solid' for anything else (a wall, a post, a parked vehicle, something built), or null where nothing does.
 export function zoneBlockKind(x, z, extra = [], radius = 0.4) {
-  if (!onGround(x, z) && !onOutskirts(x, z)) return 'edge';
+  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return 'edge';
   let kind = null;
   const i0 = Math.floor((x - radius) / CELL), i1 = Math.floor((x + radius) / CELL);
   const j0 = Math.floor((z - radius) / CELL), j1 = Math.floor((z + radius) / CELL);
