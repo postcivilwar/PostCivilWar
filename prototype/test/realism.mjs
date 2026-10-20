@@ -96,7 +96,10 @@ costs.laneDrawn = await page.evaluate(() => window.__nlw.townBuildings.state().d
 
 // ---- the rain, and after it ----
 await page.evaluate(() => window.__nlw.host.game.setWeather('rain'));
+// (the ground wets as the town's time goes by, frame by frame: waited for, at most a minute, rather than nine seconds,
+// as a frame here can take a second or more)
 await page.waitForTimeout(9000);
+await page.waitForFunction(() => window.__nlw.finishes().wet > 0.6, null, { timeout: 60000 }).catch(() => {});
 const rain = await page.evaluate(() => { const n = window.__nlw, road = n.world.roadMaterial; return { finishes: n.finishes(), road: { roughness: +(road.roughness || 0).toFixed(2), sheen: +(road.envMapIntensity || 0).toFixed(2), env: !!road.envMap }, lite: n.lite === true }; });
 check('in the rain the ground is wet, and the tarmac glossy', rain.finishes.wet > 0.6 && (rain.lite || (rain.road && rain.road.roughness < 0.6 && rain.road.sheen > 0.2)), rain);
 costs.rain = await view('08-rain-on-the-road', { x: 6, z: -40, h: 0, dist: 7, pitch: 0.08, wait: 3000 });
