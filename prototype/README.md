@@ -2094,12 +2094,87 @@ device is still taken, as before.
 
 ### Tests
 
-TESTS-PLACEHOLDER
+`test/falls.mjs` (the website with its server; a new account buys the White Sport Tourer with its arrival money, as a
+player does), 21 checks, each of the owner's tests in turn:
+
+- **G, the camera:** the game starts on the street view (3.9 m back, the eye 1.8 m up, the 60° lens); the View key is
+  offered on foot; on foot it goes round further back, over the shoulder, from above and back to the street; at a
+  run it comes in to 3.25 m.
+- **A, riding a finished road:** along the Asaba–Kwale Road at 10 km/h and at 50 km/h, and down the airport's runway
+  flat out (100 km/h): nobody falls.
+- **B, road to grass, where the owner's rider came off:** across the verge onto the grass by the purple tower and
+  along it, inside where the old box stood, at 28 km/h the whole way: nobody falls.
+- **C, the unfinished road:** the roadblocks and the fence are drawn; the bike does not go through the roadblock at
+  the south end of Waterside Road.
+- **D, slowly into a roadblock:** at 10 km/h it stops there, the rider still on.
+- **E, hard into it:** at 50 km/h the rider is thrown, through the air, down, and up again, each once; over the bars
+  and over the boards, the lowest of the body above them as it passes (they are 1.25 m high), down on the road
+  beyond; on the ground and getting up, never through it (the lowest of the body at most 3.5 cm in); the hips rise
+  smoothly without a jump and nothing slides (at most 1.34 m/s up, 0.52 m/s along); the motorcycle on its side
+  where it stopped, short of the boards; a little health lost; up and on foot at the end. Watched in slow motion
+  (a fifth of the speed), every frame.
+- **F, knocked down three ways** (the brief's G): from behind, forward onto the front and up through the hands and a
+  knee; from in front, back onto the back and up by sitting up and onto a knee; from the side, turned with the blow
+  and down, and up again; never in the ground.
+
+`test/falls-sync.mjs` (the owner's test H: two players on the website, the network made slow), 8 checks: the watcher
+sees the rider on the White Sport Tourer; the rider runs into the roadblock at 50 km/h and is thrown over it; the
+watcher sees the fall, the lying and the getting up once (no fall begun again by a later word of the same one); the
+body on the ground and never in it, where the rider really is; the motorcycle down on its side where it stopped
+from the moment it came down; only the rider fell, once.
+
+Headless: `test/closures.test.mjs` (new: every part of the land in one of four states; each roadblock across the
+whole of its road and both verges, on the land, solid there and no wider; the fence where the land ends, crossing
+none of the town's paths; the road to Kwale left open; the camera looks over a roadblock and not through a
+building), and in `own-bikes`, `cars`, `client`, `vehicle-sync` and `server/test/play.test.mjs`: what comes of
+meeting each kind of thing at each speed, where a thrown rider lands, the town judging a crash for itself, a fall's
+number and where they lie carried by the link, a vehicle held short of a wall between words, a save whose answer was
+lost.
+
+**What a frame costs**, against the version live before this one, at the same four places (the motor park; Waterside
+Road by the roadblock; the grass by the purple tower; the car showroom's compound), each version from the view it
+starts with, on this machine (no graphics card, 640 × 400): the same or less at each (the time between frames
+1,777–2,052 ms live, 1,881–1,967 ms now at the motor park; 550–568 against 422 by the roadblock; 387–399 against 369
+by the tower; 520–524 against 482 in the compound). Where the roadblocks or the fence are in view they add 10 to 36
+draw calls. Real phones' frame rates cannot be measured here.
+
+`test/camera.mjs` (new; the page as a player has it, the shape of the owner's recording), 17 checks, the camera
+brief's list: framed as in the recording (head 0.46, feet 0.80, horizon 0.41 against his 0.43, 0.80, 0.42);
+walking the same; turning, the sway to the outside of the turn, at most 0.22 m; walking toward it, it does not swing
+round; running, closer and lower; running while turning; stopping, settled with no sway; the View button round its
+views; dragging, and walking on brings it round behind; a wall behind at four distances (never past its face; with
+2 m and 1.3 m of ground it comes in level, 0.9 m about 30° down, 0.5 m about 65°); another player in front; a
+phone upright and on its side; no error.
+
+`test/exit.mjs` (new; the website with its server, a phone held upright), 14 checks: Settings opens on the Game
+section, Exit game and Restart game in view without scrolling; Exit asks first, and Cancel changes nothing; Save and
+Exit saves with the account (its copy one newer), closes the link, stops the town's sounds, and shows "Your game is
+saved" with Play, still signed in; on another device (everything this one kept wiped) the player is in the town where
+they left it; Play takes them back where they were, the link open again; Restart asks the owner's question, Cancel
+changes nothing, and yes begins a new journey with the account's TR kept.
+
+**Run on the released build** (every browser test against this very build of the site, one at a time): 367 headless
+and 92 server tests; falls 21/21, two-player falls 8/8, camera 17/17, Exit and Restart 14/14; the play-through's
+sessions (opening, desktop, town, phone, action, sideways, upright), touch 39/39, fit (13 sizes, upright and sideways),
+motorcycles 108/108, the owner's buildings 10/10, the owner's vehicles 11/11, outskirts 12/12, city 5/5, realism 7/7,
+adverts 17/17, bike 34/34, the figures W1 and M1 37/37, hold 36/36, sound, webapp (installs, keeps itself, plays with no connection), picture 8/8, the site (every step: the account, the market, a deal, the Wallet, a second device, the upgrade, logging out and erasing), seats 17/17; and the roadblocks and the fence looked at by night. The motorcycle showroom 35/36: the one check that did not pass watches the player's
+hand rise while a question is said (four and a half seconds), and in the showroom's hall, every motorcycle drawn as
+its model, this machine draws a frame every five seconds or so: the two frames it drew fell either side of the line
+(the same check fell short the same way on the build before this work, 18 October). On the build just before Exit
+and Restart were added (the same falls and camera, the same vehicles): vehicle sync 13/13, car showroom 42/42.
+
+Tests changed to match what was asked for: the View button is offered on foot now (the touch test and the phone
+play-throughs expect it); a building holds where its measured walls are, not at the box round its whole model (town
+buildings); the opening's choice is heard as it is asked for, written down as it starts (with the town being built
+behind the question, this machine could hold the page longer than the sound lasts, so that it had started and ended
+by the time the test looked); the start screen after Exit, like the rest of the start screen, scrolls on the smallest
+phone on its side (fit); knocked down, every figure falls and gets up by the new falls, watched at a quarter of the
+speed (figures).
 
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 365 headless tests
+node --test test/*.test.mjs                        # 367 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
