@@ -189,11 +189,14 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   // knocked down: on the ground, and up again
   await page.evaluate(() => { const n = window.__nlw; n.place(-2, 80); n.face(0); n.cam.yaw = Math.PI / 2; n.cam.dist = 5; n.cam.pitch = 0.25; });
   await page.waitForTimeout(1500);
+  // (watched at a quarter of the speed: without a graphics card this machine draws a frame every second or so, and
+  // the looking can come a frame or two after the moment waited for, when the figure has begun to get up)
+  await page.evaluate(() => window.__nlw.slow(0.25));
   const downAt = await page.evaluate(() => { const g = window.__nlw.host.game; const p = g.state.players[window.__nlw.playerId]; const now = g.state.real; p.down = { at: now, until: now + 4, upAt: now + 5, by: 'test', h: 0 }; return now; });
   // (waited for by the game's own time, not the clock's: a page that draws slowly, on a busy machine, runs the game
   // slower than the clock, and the fall would be looked at before it had happened)
   const gameTime = (s) => page.waitForFunction((t) => window.__nlw.host.game.state.real >= t, s, { timeout: 180000 });
-  await gameTime(downAt + 3.6);
+  await gameTime(downAt + 3.2);
   m = await page.evaluate(measure);
   // (every figure falls and gets up the same way now, with motion taken from the supplied figures' own files,
   // carried onto its own bones: falls.js, 19 October 2026. Before, a figure with a fall in its file played it and one
@@ -201,6 +204,7 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   check(`${label}: knocked down, it falls and lies there (the falls made from the supplied figures' own motion)`, !!m.fall && m.fall !== 'up' && !m.lying && m.tipped === 0, m);
   check(`${label}: and lies on the ground, not in the air and not in it`, m.high < 0.6 && m.pelvis < 0.45 && m.head < 0.55 && m.low > -0.15, m);
   await shot('7-down');
+  await page.evaluate(() => window.__nlw.slow(1));
   await gameTime(downAt + 11.6);
   m = await page.evaluate(measure);
   check(`${label}: up again, standing on its feet`, !m.lying && m.tipped > -0.05 && m.head > spec.height * 0.78 && Math.abs(m.low) < 0.2, m);
