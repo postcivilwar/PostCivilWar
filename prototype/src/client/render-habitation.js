@@ -20,7 +20,7 @@ import { linear, grainTexture, rippleNormalTexture, Chunked, textTexture, buildi
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { reflects } from './render-finish.js';
-import { readDressed, setHabitationWind, habitationWind, stoneMaterial } from './habitation-plants.js';
+import { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture } from './habitation-plants.js';
 
 const COME = 1250, GO = 950;          // grid x: built when a player is north of COME, let go south of GO
 const v3 = new THREE.Vector3();
@@ -1021,13 +1021,34 @@ function createImpostors(renderer, scene, lite) {
 function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () => {} }) {
   const byModel = new Map();
   for (const p of HABITATION_STANDING) { if (!byModel.has(p.m)) byModel.set(p.m, []); byModel.get(p.m).push(p); }
-  const placed = { models: new Map(), fetched: 0, bytes: 0, instances: 0, list: [] };
+  const placed = { models: new Map(), fetched: 0, bytes: 0, instances: 0, list: [], retried: new Set() };
   const q = new THREE.Quaternion(), up = new THREE.Vector3(0, 1, 0), sc = new THREE.Vector3(), at = new THREE.Vector3(), off = new THREE.Vector3(), m4 = new THREE.Matrix4();
   // (one at a time, those nearest the way in first: a phone is not asked to read them all at once, and what is near the
   // gate is there first)
   const order = [...byModel.keys()].sort((a, b) => Math.min(...byModel.get(a).map((p) => Math.hypot(p.x - HABITATION.gate.x, p.z - HABITATION.gate.z))) - Math.min(...byModel.get(b).map((p) => Math.hypot(p.x - HABITATION.gate.x, p.z - HABITATION.gate.z))));
+  // one model fetched and read; one that has not come within two minutes is given up for now (and asked for again once
+  // the rest have come), so that it never holds up the others
+  // (the next one's file is fetched while this one is read)
+  const fetchBytes = (m) => { const p = fetchFile(`habitation/${m}.${lite ? 'lite' : 'full'}.glb`).then((res) => { if (!res.ok) throw new Error(`${m}: ${res.status}`); return res.arrayBuffer(); }); p.catch(() => {}); return p; };
+  let ahead = null;
+  const bytesOf = (m) => { if (ahead && ahead.m === m) { const p = ahead.bytes; ahead = null; return p; } return fetchBytes(m); };
+  const readOne = (m, next) => new Promise((resolve, reject) => {
+    let late = false;
+    const timer = setTimeout(() => { late = true; reject(new Error(`${m}: not read within two minutes`)); }, 120000);
+    (async () => {
+      const mine = bytesOf(m);
+      if (next && !ahead) ahead = { m: next, bytes: fetchBytes(next) };
+      const buf = await mine;
+      placed.now.step = 'read';
+      const model = await readDressed(buf, { lite, shared });
+      return { model, bytes: buf.byteLength };
+    })().then((got) => { clearTimeout(timer); if (late) got.model.dispose(); else resolve(got); }, (error) => { clearTimeout(timer); if (!late) reject(error); });
+  });
   placed.loading = (async () => {
-    for (const m of order) {
+    // (one that did not come is asked for once more, after the rest)
+    const queue = [...order];
+    while (queue.length) {
+      const m = queue.shift();
       if (placed.stopped) return;
       const list = byModel.get(m);
       const info = HABITATION_MODELS[m];
@@ -1035,15 +1056,10 @@ function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () =
       // (which is being read, and how far it has got: for the tests, should one never arrive)
       placed.now = { model: m, step: 'asked' };
       try {
-        const res = await fetchFile(`habitation/${m}.${lite ? 'lite' : 'full'}.glb`);
-        if (!res.ok) throw new Error(`${m}: ${res.status}`);
-        placed.now.step = 'answered';
-        const buf = await res.arrayBuffer();
-        placed.bytes += buf.byteLength;
-        placed.now.step = 'read';
-        model = await readDressed(buf, { lite, shared });
+        const got = await readOne(m, queue[0]);
+        model = got.model; placed.bytes += got.bytes;
         placed.now.step = 'made';
-      } catch (error) { onModel(m, error); continue; }
+      } catch (error) { onModel(m, error); if (!placed.retried.has(m)) { placed.retried.add(m); queue.push(m); } continue; }
       if (placed.stopped) { model.dispose(); return; }
       placed.fetched += 1;
       const kind = info ? info.kind : 'tree';
@@ -1134,11 +1150,14 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
   const shared = (uri, colour) => {
     if (!sharedPictures.has(uri)) sharedPictures.set(uri, (async () => {
       const res = await fetchFile(`habitation/${uri}`);
-      const bitmap = await createImageBitmap(await res.blob(), { imageOrientation: 'none', premultiplyAlpha: 'none' });
-      const t = new THREE.Texture(bitmap); t.flipY = false; if (colour) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      if (!res.ok) throw new Error(`${uri}: ${res.status}`);
+      const t = new THREE.Texture(await decodePicture(await res.blob())); t.flipY = false; if (colour) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
       return t;
     })());
-    return sharedPictures.get(uri);
+    const p = sharedPictures.get(uri);
+    // (one that could not be had is asked for afresh next time)
+    p.catch(() => { if (sharedPictures.get(uri) === p) sharedPictures.delete(uri); });
+    return p;
   };
   const root = new THREE.Group(); root.name = 'habitation';
   let upriver = null;

@@ -228,9 +228,9 @@ export const HABITATION_PATHS = Object.freeze([
   // from the outflow's footbridge down the west rim of its gorge to the suspension bridge
   path('outflow-west', [[2440, 192], [2430, 195], [2416, 200], [2400, 206], [2388, 211]], 3, 'earth', { heights: [21.6, 20.8, 19.8, 18.6, 17.6] }),
   path('pool-east', [[2440, 232], [2448, 240], [2456, 248], [2448, 257], [2434, 262], [2420, 262]], 3, 'earth', { heights: [4.4, 8, 12, 16, 19, 20.2], steps: true }),
-  path('east-rim', [[2420, 262], [2404, 252], [2392, 242], [2386, 234]], 3, 'earth', { heights: [20.2, 19.2, 18.2, 17.6] }),
+  path('east-rim', [[2420, 262], [2404, 252], [2392, 242], [2386, 234]], 3, 'earth', { heights: [20.2, 19.2, 18.2, 16.75] }),
   // over the suspension bridge (a deck) and away from its east end to the waterfall pool
-  path('to-falls-pool', [[2386, 234], [2380, 248], [2372, 266], [2364, 286], [2356, 302], [2346, 310]], 3, 'earth', { heights: [17.6, 15, 11, 7, 3.2, 1.5] }),
+  path('to-falls-pool', [[2386, 234], [2380, 248], [2372, 266], [2364, 286], [2356, 302], [2346, 310]], 3, 'earth', { heights: [16.75, 15, 11, 7, 3.2, 1.5] }),
   // round the waterfall pool's beach (sand) and up to the overlook
   path('falls-pool-beach', [[2346, 310], [2336, 318], [2334, 330]], 5, 'sand', { heights: [1.5, 1.3, 1.4] }),
   path('to-overlook', [[2334, 330], [2324, 352], [2310, 370], [2292, 378], [2274, 374], [2264, 370]], 3, 'earth', { heights: [1.4, 6, 11, 16, 19.6, 20.2] }),
@@ -280,7 +280,9 @@ export const HABITATION_DECKS = Object.freeze([
   // the footbridge over the outflow at the pool's foot (picture 11)
   deck('outflow-bridge', 'bridge', [[2444, 218], [2441, 225], [2440, 232]], 2.4, [4.3, 4.5, 4.3], { model: 'woodenboardwalk' }),
   // the suspension bridge over the outflow's gorge (pictures 9, 13): the owner's model, its span on its own sag
-  deck('suspension-bridge', 'suspension', [[2388, 211], [2387, 222], [2386, 234]], 1.55, [17.6, 16.85, 17.6], { model: 'suspensionbridge' }),
+  // (its boards where the owner's bridge's own planks are, as the model is placed (tools/habitation/place.mjs): they sag to
+  // the middle and one end is lower than the other, as his model has them; as wide as its deck between its ropes)
+  deck('suspension-bridge', 'suspension', [[2388, 211], [2387, 222], [2386, 234]], 2.4, [17.6, 17.6, 17.2, 16.92, 16.63, 16.42, 16.29, 16.2, 16.22, 16.34, 16.49, 16.74, 16.73], { model: 'suspensionbridge' }),
   // the overlook's stone stairs down the cliff's face to the bay, with handrails (picture 17)
   deck('overlook-stairs', 'stairs', [[2238, 366], [2228, 362], [2218, 358], [2208, 353]], 2.4, [20.2, 13.6, 7.0, 0.7], { stone: true }),
   // the sunset beach's jetty, rope rails (pictures 14, 18)
@@ -308,6 +310,15 @@ function landAt(x, z) {
   return y;
 }
 // the height a path is given where it has its own (climbing a cliff, down into a gorge): along it, between its points
+// whether a deck (a bridge, a boardwalk) goes on from a path's first point and from its last
+const opens = new Map();
+function openEnds(p) {
+  if (!opens.has(p.id)) {
+    const near = (pt) => HABITATION_DECKS.some((d) => [d.line[0], d.line[d.line.length - 1]].some((e) => Math.hypot(e[0] - pt[0], e[1] - pt[1]) < 2.5));
+    opens.set(p.id, [near(p.line[0]), near(p.line[p.line.length - 1])]);
+  }
+  return opens.get(p.id);
+}
 function pathLevel(p, n) {
   const i = n.seg, a = p.heights[i], b = p.heights[i + 1] !== undefined ? p.heights[i + 1] : a;
   return a + (b - a) * n.t;
@@ -361,6 +372,9 @@ function shaped(x, z) {
       if (n.d > p.width / 2 + 10) continue;
       const level = pathLevel(p, n);
       if (n.d <= p.width / 2 + 0.6) { y = level; continue; }
+      // (beyond an end where a bridge goes on from it, the ground is left as it is: the gorge it crosses is not filled)
+      const [startOpen, endOpen] = openEnds(p);
+      if ((startOpen && n.seg === 0 && n.t <= 0) || (endOpen && n.seg === p.line.length - 2 && n.t >= 1)) continue;
       const bank = (n.d - p.width / 2 - 0.6);
       // (a cutting: the ground above the path falls to it at a steep slope; an embankment below rises to it)
       y = y > level ? Math.min(y, level + bank * 1.8) : Math.max(y, level - bank * 1.2);

@@ -2360,8 +2360,8 @@ layout is `src/sim/zones/habitation.js` (the land, the waters, the paths, the de
 
 ### The owner's models
 
-- **All 49 are in it, and nothing else stands in for them** — 2,170 placed (624 trees, 657 palms, 128 banana plants,
-  91 bushes, 359 broad-leaved plants, 186 ferns, the suspension bridge, the boardwalk, the gazebo, the pool deck, the
+- **All 49 are in it, and nothing else stands in for them** — 2,046 placed (659 trees, 619 palms, 127 banana plants,
+  88 bushes, 369 broad-leaved plants, 178 ferns, the suspension bridge, the boardwalk, the gazebo, the pool deck, the
   two landscape pieces), each repeated, turned and sized as such things grow, at its real size. Forty-three of them
   have leaves or fronds that sway in the wind.
 - **His files stay exactly as he sent them** (`test/originals.test.mjs` checks each against its MD5). What a device
@@ -2369,8 +2369,10 @@ layout is `src/sim/zones/habitation.js` (the land, the waters, the paths, the de
   pictures made smaller (a computer at most 1024 pixels, a phone at most 512), its leaves cut out of their cards with
   their own picture, bark, wood and stone given their grain. The copies are in `assets/habitation-dressed/`
   (`made.json` says from which file each was made; the build refuses a copy made from another file).
-- **Rocks:** none of his 49 files is a rock, so twelve were made for the habitation (`tools/habitation/rocks.py`: four
-  stones — mossy, limestone, granite, the big waterfall's red stone — three shapes each).
+- **Rocks:** none of his 49 files is a rock, so rocks were made for the habitation (`tools/habitation/rocks.py`: four
+  stones, three shapes each), 121 of them placed: mossy boulders in the forest, on the hill and by the gorge's stream,
+  granite down the gorges, flat slabs of the big waterfall's red stone where its outflow leaves the pool, pale
+  limestone on the waterfall pool's sand. Only the shapes placed are sent (the build leaves the other two out).
 - **The boardwalks and bridges.** His boardwalk is one curved piece with a round platform at its end: it stands at the
   swamp. The paths' other boardwalks, bridges, the jetty and the stairs are laid plank by plank along them, in his
   boardwalk's own wood (cut from its picture by `tools/habitation/deck-wood.py`), with posts and rails (rope on the
@@ -2383,7 +2385,7 @@ layout is `src/sim/zones/habitation.js` (the land, the waters, the paths, the de
 
 Only paths, boardwalks, bridges, sand, open grass and shallow water are walked (`habitationFooting`); trees, palms,
 banana plants, bushes, rocks, the gazebo's posts, its back wall and the post in its middle, and the cliffs stop a
-walker at their real size (1,617 solid places). Paths are 2.4 to 9 m wide; nothing solid stands on one. Every place
+walker at their real size (1,601 solid places). Paths are 2.4 to 9 m wide; nothing solid stands on one. Every place
 can be walked to from the gate (`test/habitation.test.mjs` walks the whole of it).
 
 ### Water, sand, life, sound, night
@@ -2404,6 +2406,12 @@ can be walked to from the gate (`test/habitation.test.mjs` walks the whole of it
 - **Sound** (made in the page, no recordings): each kind of bird its own song from where it is; the waterfalls,
   louder the nearer; the streams; the lagoon's water at its edge; the wind in the leaves; at night crickets all round
   and frogs by the water. Fireflies at night.
+- **The pillars and the hills.** Limestone towers rise out of the lagoon (up to 40 m), fluted, stepping in and out,
+  green on their ledges and palms and bushes on their tops, a darker line where the water laps at them and the water
+  darker round their feet; one stands off the sunset beach. Far off all round, 1.15 and 1.5 km out, two rings of steep
+  karst hills (open where the river's valley runs back to the town), in the colour of the air between, dark at night.
+  Out here the air is clearer than over the town (the haze begins at 160 m and is whole at 640 m; over the town 110
+  and 480 m), so the far side of the lagoon is seen.
 - **Night** in the habitation is dark (no town lights), with the moon and the stars. The phone has a **Torch** app: on,
   the player holds the phone out and a light comes from the back of the handset beside its camera, a soft cone ahead
   and down that moves with them; other players see its beam (a soft cone and its pool of light on the ground).

@@ -46,6 +46,27 @@ function accessor(json, bin, k, float = true) {
 }
 // A picture shared by many models (the leaves' sheet, named in each file by `uri`): fetched once, by whoever reads
 // the models (`shared(uri)` gives its texture).
+// A picture decoded: away from the page's thread where the browser can (createImageBitmap), and if that has not
+// answered within a while (on a page busy with a great deal, it was once seen never to answer: 21 October 2026), by an
+// image element instead; an error if neither can read it.
+export function decodePicture(blob, { wait = 15000 } = {}) {
+  const viaImage = () => new Promise((resolve, reject) => {
+    const img = new Image(), url = URL.createObjectURL(blob);
+    const done = (ok) => { clearTimeout(timer); URL.revokeObjectURL(url); if (ok) resolve(img); else reject(new Error('a picture of the habitation could not be read')); };
+    const timer = setTimeout(() => done(false), 60000);
+    img.onload = () => done(true); img.onerror = () => done(false);
+    img.src = url;
+  });
+  if (typeof createImageBitmap !== 'function') return viaImage();
+  return new Promise((resolve, reject) => {
+    let settled = false;
+    const timer = setTimeout(() => { if (!settled) { settled = true; viaImage().then(resolve, reject); } }, wait);
+    createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' }).then((bitmap) => {
+      if (settled) { if (bitmap.close) bitmap.close(); return; }
+      settled = true; clearTimeout(timer); resolve(bitmap);
+    }, () => { if (settled) return; settled = true; clearTimeout(timer); viaImage().then(resolve, reject); });
+  });
+}
 async function pictureOf(json, bin, index, colour, shared = null) {
   const tx = json.textures[index];
   const source = tx.source !== undefined ? tx.source : tx.extensions && tx.extensions.EXT_texture_webp && tx.extensions.EXT_texture_webp.source;
@@ -56,8 +77,7 @@ async function pictureOf(json, bin, index, colour, shared = null) {
   }
   const v = json.bufferViews[img.bufferView];
   const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (v.byteOffset || 0), v.byteLength)], { type: img.mimeType });
-  const bitmap = await createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' });
-  const t = new THREE.Texture(bitmap);
+  const t = new THREE.Texture(await decodePicture(blob));
   t.flipY = false;
   if (colour) t.encoding = THREE.sRGBEncoding;
   t.anisotropy = 4;
@@ -203,6 +223,14 @@ export async function readDressed(buffer, { lite = false, shared = null } = {}) 
   const { json, bin } = readGLBParts(buffer);
   const pictures = new Map();
   const picture = (index, colour) => { const key = `${index}:${colour}`; if (!pictures.has(key)) pictures.set(key, pictureOf(json, bin, index, colour, shared)); return pictures.get(key); };
+  // (every picture it has asked for at once, so that they are decoded together rather than one after another: each
+  // answer comes between two frames, and on a slow device a frame is long)
+  for (const md of json.materials || []) {
+    const pbr = md.pbrMetallicRoughness || {};
+    if (pbr.baseColorTexture) picture(pbr.baseColorTexture.index, true).catch(() => {});
+    if (md.normalTexture) picture(md.normalTexture.index, false).catch(() => {});
+    if (pbr.metallicRoughnessTexture) picture(pbr.metallicRoughnessTexture.index, false).catch(() => {});
+  }
   const parts = [];
   const notes = (json.extras && json.extras.dressed) || {};
   for (const node of json.nodes || []) {

@@ -193,7 +193,25 @@ put('waterfalllandscape', 2486, -14, { size: 30, turn: Math.atan2(2420 - 2486, 6
 // the boardwalk with its round platform in the swamp, the owner's (picture 12): its walk is the swamp's deck
 put('woodenboardwalk', 2060, -82, { size: 34, turn: 0.35, solid: 0, keep: 8, tag: 'swamp-walk' });
 // the suspension bridge across the outflow's gorge (pictures 9, 13): its deck is the bridge's (habitation.js)
-put('suspensionbridge', 2387, 222.5, { size: 23, turn: Math.atan2(2386 - 2388, 234 - 211), solid: 0, keep: 3, tag: 'suspension-bridge' });
+{
+  // His suspension bridge across the outflow's gorge: its own deck lies across the model at an angle (from x -0.18,
+  // z -0.456 to x 0.145, z 0.352 in its own units, its planks' top from 0.066 at that end to 0.034 at this, lowest
+  // 0.013 a little past its middle), so it is turned and placed so that its planks run from one path's end to the
+  // other's, and made long enough to span the gorge (26.5 m along its length; as supplied, 16 m); the walk on it
+  // (habitation.js, 'suspension-bridge') follows its planks.
+  const a = [-0.1795, -0.4563], b = [0.1452, 0.3516], from = [2388, 211], to = [2386, 234];
+  const unitLength = Math.hypot(b[0] - a[0], b[1] - a[1]), span = Math.hypot(to[0] - from[0], to[1] - from[1]);
+  const scale = span / unitLength;
+  const turn = Math.atan2(to[0] - from[0], to[1] - from[1]) - Math.atan2(b[0] - a[0], b[1] - a[1]);
+  // (put stands the model's foot, its `base`, on the point given: the point where that must be for the planks' middle to
+  // be the gorge's)
+  const f = FACT.suspensionbridge, mid = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
+  const dx = (f.base[0] - mid[0]) * scale, dz = (f.base[2] - mid[1]) * scale;
+  const cx = (from[0] + to[0]) / 2, cz = (from[1] + to[1]) / 2;
+  const px = cx + dx * Math.cos(turn) + dz * Math.sin(turn), pz = cz - dx * Math.sin(turn) + dz * Math.cos(turn);
+  // its foot so low that its planks' top at the north end is the path's there (17.6 m)
+  put('suspensionbridge', px, pz, { size: scale * f.across[1], turn, y: 17.6 - 0.0664 * scale + 0.04, solid: 0, keep: 3, tag: 'suspension-bridge' });
+}
 
 // ---- the entrance hill (picture 10): the great spreading tree on top, the bench, boulders, trees round its edges
 put('treeonhill', 1943, 4, { size: 14, turn: 0.6, solid: 0.9, keep: 8, tag: 'hill' });

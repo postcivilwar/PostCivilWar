@@ -61,7 +61,7 @@ async function player(name, { lite = false } = {}) {
   await page.waitForFunction(() => window.__nlw.online.status().state === 'in', null, { timeout: 120000 });
   await pastQuestion(page);
   await page.fill('#name', `Habitation ${name}`);
-  await enterTown(page, { tap: lite });
+  await enterTown(page, { tap: lite, wait: 900000 });
   await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 240000 });
   await page.evaluate(() => { const n = window.__nlw; const g = n.host.game; g.state.weather = { kind: 'clear', until: g.state.t + 12 * 3600 }; const hour = n.view.clock.hourFloat; if (hour < 9 || hour > 14) n.skip((24 + 10 - hour) % 24); n.audio.start(); });
   return { page, context };
@@ -179,7 +179,15 @@ for (const kind of ['tree', 'palm', 'rock']) {
 }
 
 // ---- D: the owner's models, and what it costs to draw ----
-const arrived = await page.waitForFunction(() => { const h = window.__nlw.habitation.state(); return h.built && h.models >= h.of; }, null, { timeout: 600000 }).then(() => true, () => false);
+// (on this machine, which draws a frame of the habitation in a second or two, its models come in over minutes: how
+// many have come is written down each minute; a phone's graphics chip draws a frame in a few hundredths)
+let arrived = false;
+for (let waited = 0; waited < 900; waited += 15) {
+  const h = await page.evaluate(() => window.__nlw.habitation.state());
+  if (h.built && h.models >= h.of) { arrived = true; break; }
+  if (waited % 60 === 0) console.log(`  the habitation's models: ${h.models} of ${h.of} after ${waited} s (${h.now ? `${h.now.model}: ${h.now.step}` : ''})`);
+  await page.waitForTimeout(15000);
+}
 const hab = await page.evaluate(() => window.__nlw.habitation.state());
 check('D: every one of the owner\'s models (and the rocks) is fetched and stands in the habitation', arrived && hab.models === hab.of && hab.instances > 1400 && hab.pictures >= 25, hab);
 // the plants sway: their leaves and fronds made to bend (each point by how far out on its leaf it is), in a wind that
@@ -207,7 +215,7 @@ const PICTURE_AT = {
   '01': [[2336, 113], [2384, 87], 0.08], '02': [[2262.6, 133.5], [2338, 184]], '03': [[2338, 318], [2366, 338]], '04': [[2036, 79], [2110, 112]],
   '05': [[2016, 141], [2062, 168]], '06': [[2240, 371], [2225, 250], 0.22], '07': [[2348, 104], [2364, 100.4], 0.06], '08': [[2232, 124], [2336, 182]],
   '09': [[2387.8, 214], [2386, 236], 0.05], '10': [[1927, 38], [1943, 4], 0.05], '11': [[2446, 216], [2490, 225], 0.02], '12': [[2031, -40], [2052, -72]],
-  '13': [[2416, 200], [2387, 222], 0.08], '14': [[2200, 352], [2150, 240]], '15': [[2060, 92], [2020, 74]], '16': [[2246, 368], [2205, 205], 0.32],
+  '13': [[2390.9, 209.1], [2368, 232], 0.12], '14': [[2200, 352], [2150, 240]], '15': [[2060, 92], [2020, 74]], '16': [[2246, 368], [2205, 205], 0.32],
   '17': [[2262, 368], [2214, 334], 0.28], '18': [[2205.9, 355.5], [2190, 320]], '19': [[2166, 404], [2168, 389], 0.16],
 };
 const cost = async (p = page) => p.evaluate(() => { const n = window.__nlw, g = n.graphics; return { calls: n.drawn.calls, triangles: n.drawn.triangles, drawn: n.habitation.state().drawn, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(0) }; });
@@ -279,6 +287,9 @@ const furtherFall = await page.evaluate(() => window.__nlw.audio.status().habita
 check('G: the big waterfall is heard from where it falls (its sound placed there: louder the nearer)', nearFall.falls.includes('big') && nearFall.fallsLevel.some((v) => v > 0.2), { nearFall, furtherFall });
 
 // ---- H: night, the moon and the stars, the torch; the other player sees its beam ----
+// (while the second player comes into the town, the first looks down at its feet: this machine draws both pages, and
+// the first's view of the habitation takes it a second or more a frame)
+await page.evaluate(() => { const n = window.__nlw; n.cam.pitch = 1.3; n.cam.dist = 3; });
 const B = await player('B', { lite: true });
 const pageB = B.page;
 await page.evaluate(() => { const n = window.__nlw; n.skip(0); });

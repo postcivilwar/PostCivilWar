@@ -20,14 +20,16 @@ export async function pastQuestion(page, path = 'hero') {
 }
 
 // Enter, and the question that follows it: "Choose this character?". Gives what the question said.
-export async function enterTown(page, { tap = false, answer = 'yes' } = {}) {
+// (`wait`: how long the town may take to be built and shown: longer for a second player brought in while another page
+// on this machine is drawing a heavy scene)
+export async function enterTown(page, { tap = false, answer = 'yes', wait = 180000 } = {}) {
   const press = (sel) => (tap ? page.tap(sel) : page.click(sel));
   await press('#enter');
   await page.waitForSelector('#confirm:not([hidden])', { timeout: 60000 });
   const asked = await page.evaluate(() => ({ title: document.querySelector('#confirm-title').textContent, body: document.querySelector('#confirm-body').textContent, yes: document.querySelector('#confirm-yes').textContent.trim(), no: document.querySelector('#confirm-no').textContent.trim(), hud: !document.querySelector('#hud').hidden }));
   if (answer === 'no') { await press('#confirm-no'); await page.waitForSelector('#confirm', { state: 'hidden' }); return asked; }
   await press('#confirm-yes');
-  await page.waitForFunction(() => !document.querySelector('#hud').hidden && window.__nlw.view && window.__nlw.playerId, null, { timeout: 180000 });
+  await page.waitForFunction(() => !document.querySelector('#hud').hidden && window.__nlw.view && window.__nlw.playerId, null, { timeout: wait });
   const over = await page.evaluate(overTown);
   if (over) throw new Error(`entered the town, but ${over}`);
   return asked;
