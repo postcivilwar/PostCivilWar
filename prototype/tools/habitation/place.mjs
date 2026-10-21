@@ -269,11 +269,11 @@ scatter([...FERNS, ...SHRUBS], 14, rect(2140, 344, 2270, 368), { clear: 1.5, spa
 scatter([...FERNS, ...BROAD], 60, rect(2310, -20, 2470, 150), { clear: 1.2, spacing: 2.5, steep: 2.5, tag: 'gorge' });
 scatter([...TALL, ...PALMS], 30, rect(2300, -60, 2480, 160), { clear: 3, spacing: 9, steep: 1.2, tag: 'gorge-rim' });
 
-// ---- the big waterfall (picture 11): ferns and broad leaves on its ledges, palms on its cliff tops, flat slabs where
-// its outflow leaves the pool
+// ---- the big waterfall (picture 11): ferns and broad leaves on its ledges, palms on its cliff tops, flat slabs of its
+// red stone where its outflow leaves the pool
 scatter([...FERNS, ...BROAD], 28, disc(2464, 225, 40), { clear: 1.2, spacing: 3, steep: 3, tag: 'big-fall' });
 scatter([...PALMS, ...TALL, ...BIG], 18, disc(2468, 225, 70), { clear: 3, spacing: 10, steep: 1.0, above: 14, tag: 'big-fall-top' });
-for (const [x, z, s] of [[2442, 214, 2.2], [2446, 236, 2.6], [2436, 220, 1.6], [2438, 230, 1.8], [2450, 214, 1.4]]) rock('granite', x, z, s, { flat: true });
+for (const [x, z, s] of [[2442, 214, 2.2], [2446, 236, 2.6], [2436, 220, 1.6], [2438, 230, 1.8], [2450, 214, 1.4]]) rock('redstone', x, z, s, { flat: true });
 
 // ---- the suspension bridge (pictures 9, 13): granite boulders down its gorge, palms and ferns at its ends
 {
@@ -356,6 +356,12 @@ for (const [id, count] of [['falls-bowl', 45], ['big-bowl', 55]]) {
     if (s.walls && onWall(px, pz, nx, nz, s.walls, ground(px, pz), 'wall:gorge')) n += 1;
   }
 }
+
+// ---- stones on the waterfall pool's sand at the water's edge (picture 3), pale limestone like its cliffs: put by hand,
+// last, each turned and sized as given (no chance taken, so nothing put before them moves), where there is room
+[[2348.6, 312.4, 0.8, 0.4], [2346.6, 314.8, 0.5, 2.1], [2338.4, 322.6, 0.9, 4.0], [2338.8, 325.6, 0.45, 1.2], [2331.2, 316.2, 0.6, 5.3], [2330.6, 324.4, 0.7, 3.1]].forEach(([x, z, s, r], k) => {
+  if (standsAt(x, z, { clear: s * 0.45 + 0.3, spacing: s * 0.8, steep: 2, open: true })) put(ROCK.limestone[k % 3], x, z, { size: s, turn: r, solid: s * 0.42, tag: 'falls-pool' });
+});
 
 // ======================================================================================== written out ==
 const used = new Set(placed.map((p) => p.m));

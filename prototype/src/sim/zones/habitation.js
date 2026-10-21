@@ -147,7 +147,7 @@ export const HABITATION_STREAMS = Object.freeze([
   // the stream round the habitation's south side, which the gate's footbridge crosses into it (too deep to wade)
   stream('moat', [[1897, -176], [1894, -110], [1891, -40], [1889, 30], [1887, 90], [1885, 130], [1884, 156]], 5.5, 1.3, [0.2, 0.1, 0.0, -0.1, -0.2, -0.3, WATER], { deep: true }),
   // the rocky gorge's stream, down from the north-west into the lagoon, over stones and a cascade (waded)
-  stream('gorge', [[2482, -6], [2452, 24], [2424, 52], [2398, 76], [2376, 92], [2356, 106], [2336, 120], [2318, 134], [2306, 144]], 7, 0.35, [14, 12.2, 10.4, 8.6, 5.0, 3.4, 2.0, 0.6, WATER], { stones: true, banks: 4.5, walls: 2.6 }),
+  stream('gorge', [[2482, -6], [2452, 24], [2424, 52], [2398, 76], [2376, 92], [2356, 106], [2336, 120], [2318, 134], [2306, 144]], 7, 0.5, [14, 12.2, 10.4, 8.6, 5.0, 3.4, 2.0, 0.6, WATER], { stones: true, banks: 4.5, walls: 2.6 }),
   // the big waterfall's outflow, a rocky gorge with rapids down to the lagoon (too fast to wade)
   stream('outflow', [[2444, 225], [2424, 224], [2404, 222], [2386, 221], [2366, 220], [2348, 221], [2334, 222]], 9, 0.9, [3.6, 3.0, 2.2, 1.5, 0.9, 0.3, WATER], { rapids: true, banks: 1.5, walls: 2.4 }),
   // the waterfall pool's cascade into the lagoon
@@ -195,9 +195,9 @@ export const HABITATION_BOWLS = Object.freeze([
 ]);
 // the rock pillars and islets out in the lagoon (limestone, with plants on their tops: habitation-scene.js)
 export const HABITATION_PILLARS = Object.freeze([
-  { id: 'pillar-a', x: 2268, z: 268, r: 8.5, h: 26 }, { id: 'pillar-b', x: 2243, z: 297, r: 6, h: 18 },
-  { id: 'pillar-c', x: 2292, z: 236, r: 5, h: 14 }, { id: 'islet-a', x: 2163, z: 303, r: 7, h: 9 },
-  { id: 'islet-b', x: 2232, z: 168, r: 3, h: 2.6 }, { id: 'pillar-d', x: 2302, z: 290, r: 4, h: 20 },
+  { id: 'pillar-a', x: 2268, z: 268, r: 8.5, h: 40 }, { id: 'pillar-b', x: 2243, z: 297, r: 6, h: 30 },
+  { id: 'pillar-c', x: 2292, z: 236, r: 5, h: 24 }, { id: 'pillar-e', x: 2163, z: 303, r: 5.6, h: 26 },
+  { id: 'islet-b', x: 2232, z: 168, r: 3, h: 2.6 }, { id: 'pillar-d', x: 2302, z: 290, r: 4, h: 32 },
 ].map(Object.freeze));
 
 // ----------------------------------------------------------------------------------- where one walks --
@@ -219,9 +219,10 @@ export const HABITATION_PATHS = Object.freeze([
   // along the lagoon's west beach and north to the gorge's mouth (on sand)
   path('west-beach', [[2126, 121], [2160, 116], [2200, 113], [2240, 116], [2272, 125], [2296, 137], [2310, 140]], 5, 'sand'),
   // up the gorge on its west bank, to its footbridge
-  path('gorge-west', [[2310, 140], [2324, 128], [2338, 118], [2350, 110], [2362, 104]], 3, 'stone', { heights: [0.4, 1.5, 2.7, 3.7, 4.5] }),
+  // (along the stream's bank, a few metres from its water, up to the bridge that crosses it)
+  path('gorge-west', [[2310, 140], [2322, 124], [2336, 113], [2348, 104], [2357, 97], [2359.2, 94]], 3, 'stone', { heights: [0.4, 1.8, 2.9, 3.8, 4.5, 4.95] }),
   // across the gorge's footbridge and up its east bank by stone steps, then on to the big waterfall's cliff top
-  path('gorge-east', [[2376, 108], [2386, 116], [2398, 130], [2412, 148], [2426, 166], [2436, 180], [2440, 192]], 3, 'earth', { heights: [4.8, 7.5, 11, 14.5, 17.5, 20.2, 21.6], steps: true }),
+  path('gorge-east', [[2368.8, 106.8], [2376, 108], [2386, 116], [2398, 130], [2412, 148], [2426, 166], [2436, 180], [2440, 192]], 3, 'earth', { heights: [5.1, 5.4, 7.5, 11, 14.5, 17.5, 20.2, 21.6], steps: true }),
   // down the wooden stairs (a deck, below) to the big pool's shore, and along it to the outflow's footbridge
   path('pool-shore', [[2448, 211], [2446, 215], [2444, 218]], 3.4, 'stone', { heights: [4.3, 4.3, 4.3] }),
   // from the outflow's footbridge down the west rim of its gorge to the suspension bridge
@@ -272,7 +273,8 @@ export const HABITATION_DECKS = Object.freeze([
   // to the palm island over the lagoon, rope rails (picture 16)
   deck('island-walk', 'boardwalk', [[2192, 118], [2196, 140], [2200, 164], [2203, 188]], 2.2, [0.9], { over: 0.8, ropes: true, model: 'woodenboardwalk' }),
   // the gorge's flat footbridge on stone supports (pictures 1, 7)
-  deck('gorge-bridge', 'bridge', [[2362, 104], [2369, 106], [2376, 108]], 2.4, [4.6, 5.0, 4.8], { model: 'woodenboardwalk', piers: true }),
+  // (straight across the stream, from bank to bank, a metre above its water)
+  deck('gorge-bridge', 'bridge', [[2359.2, 94], [2364, 100.4], [2368.8, 106.8]], 2.4, [4.95, 5.25, 5.1], { model: 'woodenboardwalk', piers: true }),
   // the wooden stairs down the big waterfall's west side to its pool (picture 11)
   deck('falls-stairs', 'stairs', [[2440, 192], [2452, 194], [2460, 200], [2456, 207], [2448, 211]], 2.2, [21.6, 17, 12, 8, 4.3], { model: 'woodenboardwalk' }),
   // the footbridge over the outflow at the pool's foot (picture 11)

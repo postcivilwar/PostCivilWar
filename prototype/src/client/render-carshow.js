@@ -26,7 +26,7 @@ import { CARSHOW, onBuilding, carshowGateBoxes } from '../sim/zone.js';
 import { POWER_CARS } from '../sim/power-cars.js';
 import { trText } from '../sim/ledger.js';
 import { loadSuppliedMesh } from './supplied-model.js';
-import { Batch, place, surface } from './render-kit.js';
+import { Batch, place, surface, isLite } from './render-kit.js';
 import { loadCar, carLoaded } from './car-model.js';
 import { hallModels, castShadows } from './hall-models.js';
 import { CAR_IMPOSTOR } from './car-impostors.js';
@@ -46,13 +46,17 @@ let logoImage = null;
 const logo = () => { if (!logoImage) logoImage = new Promise((resolve) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => resolve(null); img.src = COVER.logo.src; }); return logoImage; };
 const SUN_SHARE = 0.315;            // of the logo's height: the sun, its rays and its three ground lines
 
+// (on a phone at half the size, set out the same: on its screen it looks the same, and takes a quarter of the graphics
+// memory — the name over the doors was 21.3 MB there)
 function canvasTexture(width, height, draw, { repeat = false } = {}) {
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  const k = isLite() ? 0.5 : 1;
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
   texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   const g = canvas.getContext('2d');
+  g.scale(k, k);
   logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
   return texture;
 }

@@ -19,7 +19,9 @@
 // computers the longer it was played). A house model fetched for a lane the player has since left far behind is let
 // go again (its shape, its pictures: `RELEASE` metres beyond where it is drawn from its model, after it has gone
 // unneeded for `RELEASE_AFTER` seconds), and its houses are the plain blocks they are from afar; it is fetched again
-// (from the copy the browser keeps) if the player comes back. The towers, seen from all over town, are kept.
+// (from the copy the browser keeps) if the player comes back. The towers, seen from all over town, are kept while the
+// player is in or near the town; one whose towers are all over 1.2 km away (`TOWER_LET_GO`: up the road to the
+// habitation, 21 October 2026, where a phone needs the room) is let go the same way, and fetched again on the way back.
 
 import { ZONE_HOUSES, TOWN_TOWERS, TOWN_MODELS } from '../sim/zone.js';
 import { loadSuppliedMesh } from './supplied-model.js';
@@ -30,6 +32,7 @@ const HOUSE_BLOCK = 0xdcd8cf;      // a house seen from afar: the owner's houses
 // afar a tower whose model had not come looked like its own shadow)
 const TOWER_BLOCK = 0x8fa3b8;
 const TOWER_SIGHT = 220;           // metres beyond the town's own reach at which a tower is still drawn
+const TOWER_LET_GO = 1200;         // metres from the nearest of its towers beyond which a tower's model is let go
 // (a copy of the page opened from the disk cannot fetch a model: there each building is its plain block)
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 
@@ -144,9 +147,10 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     // (`fetch`), where what is let go can be fetched again
     const now = performance.now() / 1000;
     for (const r of models.values()) {
-      if (!fetch || keepAll || r.state !== 'ready' || r.towers.length || !r.houses.length) continue;
-      const gap = Math.min(...r.houses.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius));
-      if (gap < HOUSE_SIGHT + RELEASE) { r.neededAt = now; continue; }
+      if (!fetch || keepAll || r.state !== 'ready') continue;
+      const gap = r.houses.length ? Math.min(...r.houses.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius)) : Infinity;
+      const far = r.towers.length ? Math.min(...r.towers.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius)) : Infinity;
+      if (gap < HOUSE_SIGHT + RELEASE || far < TOWER_LET_GO) { r.neededAt = now; continue; }
       if (now - r.neededAt > RELEASE_AFTER) release(r);
     }
     refresh();
@@ -165,9 +169,11 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     queue = [...new Set([...wanted.map((w) => w.r), ...queue])];
     pump();
   }
-  // A house model let go: its instanced houses taken from the scene, its shape and its pictures freed.
+  // A model let go: its instanced houses and its towers taken from the scene, its shape and its pictures freed (its
+  // houses and towers drawn as their blocks, should any be in sight).
   function release(r) {
     if (r.instanced) { scene.remove(r.instanced); r.instanced.dispose && r.instanced.dispose(); r.instanced = null; }
+    for (const e of r.towers) if (e.mesh) { scene.remove(e.mesh); e.mesh = null; e.drawn = false; }
     const material = r.mesh.material;
     for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => material[key]).filter(Boolean))) t.dispose();
     material.dispose(); r.mesh.geometry.dispose();

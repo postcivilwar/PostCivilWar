@@ -201,7 +201,7 @@ export function buildClosures(scene, { lite = false } = {}) {
     const wide = Math.round((1024 * h) / w / 32) * 32 || 256;
     // (the first line large and red, what follows smaller and black, all well inside the board's red edge)
     const rows = lines.map((text, i) => (i === 0 ? { text, size: 104, colour: RED } : { text, size: 66, colour: '#161616' }));
-    const map = textTexture(rows, { width: 1024, height: wide, background: '#f5f3ea', colour: '#161616', border: RED, size: 80 });
+    const map = textTexture(rows, { width: 1024, height: wide, background: '#f5f3ea', colour: '#161616', border: RED, size: 80, scale: lite ? 0.5 : 1 });
     const m = new THREE.MeshBasicMaterial({ map, toneMapped: false });
     faceMaterials.set(words, m);
     return m;

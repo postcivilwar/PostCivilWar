@@ -71,7 +71,7 @@ export const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS
 // would hide whoever stands under it. `tall(x, z)`, if given, is how high a building far taller than the
 // eaves stands there (0 where there is none): up to its top, it is solid too. `ground(x, z)`, if given, is the
 // height of the ground: the eye keeps above it.
-export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null } = {}) {
+export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null } = {}) {
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
   const eye = new THREE.Vector3(), aim = new THREE.Vector3();
   let view = 'street';
@@ -85,9 +85,12 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   // over the player's head when there was room behind them)
   const OFF_WALL = 0.1;
   function clearance(tx, ty, tz, dx, dy, dz, dist) {
-    if (!blocked) return dist;
+    if (!blocked && !terrain) return dist;
     const hit = (d) => {
       const x = tx + dx * d, y = ty + dy * d, z = tz + dz * d;
+      // land rising between the player and the eye (a cliff, a slope, the side of a gorge: the habitation's hills),
+      // whatever its height: the eye comes in short of it, or rises over it
+      if (terrain) { const g = terrain(x, z); if (Number.isFinite(g) && y < g + 0.3) return true; }
       // above the eaves: nothing up there to be inside, but a tower
       if (y > wallHeight && (!tall || y > tall(x, z))) return false;
       return blocked(x, z, y);

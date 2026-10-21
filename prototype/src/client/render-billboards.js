@@ -275,10 +275,11 @@ function buildKind(t) {
 
 // ----------------------------------------------------------------------------------------- the faces --
 // What an empty face says: PLACE YOUR ADS, and its own size, on dark board.
-function emptyFace(width, height, { tv = false, sides = 1 } = {}) {
+function emptyFace(width, height, { tv = false, sides = 1, lite = false } = {}) {
   const canvas = document.createElement('canvas');
-  // about 80 pixels a metre, 1,024 at most along its long side: the words can be read from the road
-  const k = Math.min(80, (tv ? 640 : 1024) / Math.max(width, height));
+  // about 80 pixels a metre, 1,024 at most along its long side: the words can be read from the road (on a phone half
+  // that: on its screen they read the same, and the faces take a quarter of the graphics memory)
+  const k = Math.min(lite ? 40 : 80, (tv ? 640 : 1024) / (lite ? 2 : 1) / Math.max(width, height));
   canvas.width = Math.max(64, Math.round(width * k)); canvas.height = Math.max(32, Math.round(height * k));
   const g = canvas.getContext('2d');
   const draw = (phase = 0) => {
@@ -332,7 +333,7 @@ export function buildBillboards(scene, { glowMaterial, lite = false, boards = ZO
     if (t.tv) { screens.push(makeScreen(b)); continue; }
     const key = `${b.width}x${b.height}`;
     if (!faceSets.has(key)) {
-      const face = emptyFace(b.width, b.height);
+      const face = emptyFace(b.width, b.height, { lite });
       const material = surface({ map: face.texture, emissive: 0xffffff, emissiveMap: face.texture, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 });
       const im = new THREE.InstancedMesh(plane, material, all.filter((x) => !x.t.tv && x.width === b.width && x.height === b.height).length);
       im.count = 0; im.frustumCulled = false; im.receiveShadow = true;
@@ -347,7 +348,7 @@ export function buildBillboards(scene, { glowMaterial, lite = false, boards = ZO
   // A digital screen: its own picture (a canvas drawn again while it is near), on each of its faces.
   function makeScreen(b) {
     const t = b.t;
-    const face = emptyFace(b.width, b.height, { tv: true, sides: t.sides || 1 });
+    const face = emptyFace(b.width, b.height, { tv: true, sides: t.sides || 1, lite });
     const material = new THREE.MeshBasicMaterial({ map: face.texture, toneMapped: false });
     const holder = new THREE.Group();
     holder.matrixAutoUpdate = false; holder.matrix.copy(b.matrix);
@@ -420,7 +421,7 @@ export function buildBillboards(scene, { glowMaterial, lite = false, boards = ZO
       pictureOf(c.art[0]).then((img) => {
         if (!next.has(id) || b.art) return;
         // (drawn into a canvas first: a picture decoded as an ImageBitmap would be put on the face upside down)
-        const canvas = document.createElement('canvas'); canvas.width = Math.min(2048, img.width); canvas.height = Math.round(canvas.width * img.height / img.width);
+        const canvas = document.createElement('canvas'); canvas.width = Math.min(lite ? 1024 : 2048, img.width); canvas.height = Math.round(canvas.width * img.height / img.width);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
         const m = new THREE.Mesh(plane, surface({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 }));

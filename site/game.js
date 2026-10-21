@@ -1859,7 +1859,9 @@ function edgeFences(ground) {
     for (let i = 0; i <= n; i += 1) {
       const d = i * EDGE_FENCE.step;
       const p = at(d);
-      const edge = ground(p.x, p.z) && !ground(p.x + l.out.x * EDGE_FENCE.beyond, p.z + l.out.z * EDGE_FENCE.beyond);
+      const by = l.style === 'wood' ? 1 : 0, ux = (l.b.x - l.a.x) / len, uz = (l.b.z - l.a.z) / len;
+      const beyond = (k) => ground(p.x + ux * k + l.out.x * EDGE_FENCE.beyond, p.z + uz * k + l.out.z * EDGE_FENCE.beyond);
+      const edge = ground(p.x, p.z) && !beyond(0) && !(by && (beyond(by) || beyond(-by)));
       if (edge) { if (start === null) start = d; last = d; } else close();
     }
     close();
@@ -2292,24 +2294,24 @@ const rows = [
   ["fernplant", 2200, 206, null, 5.591, 1.23, 0, "island"],
   ["roundshrub", 2212, 204, null, 5.521, 1.69, 0.66, "island"],
   ["roundshrub", 2205, 196, null, 1.774, 1.49, 0.58, "island"],
-  ["palmtree_3", 2269.55, 267.11, 25.8, 0.922, 9.42, 0, "pillar:pillar-a"],
-  ["fernplant", 2264.73, 264.86, 25.8, 2.6, 1.99, 0, "pillar:pillar-a"],
-  ["roundshrub", 2268.65, 267.13, 25.8, 4.566, 1.82, 0, "pillar:pillar-a"],
-  ["fernplant_1", 2265.86, 271.49, 25.8, 3.372, 2.37, 0, "pillar:pillar-a"],
-  ["palmtree_5", 2240.37, 297.77, 17.8, 0.476, 9.72, 0, "pillar:pillar-b"],
-  ["fanpalmshrub", 2242.45, 293.87, 17.8, 2.372, 2.16, 0, "pillar:pillar-b"],
-  ["fanpalmshrub", 2242.04, 298.79, 17.8, 5.342, 2.09, 0, "pillar:pillar-b"],
-  ["fernclump", 2241.74, 295.87, 17.8, 1.618, 1.58, 0, "pillar:pillar-b"],
-  ["roundshrub", 2292.22, 234.93, 13.8, 5.463, 1.87, 0, "pillar:pillar-c"],
-  ["fanpalmshrub", 2291.4, 237.32, 13.8, 1.989, 2.09, 0, "pillar:pillar-c"],
-  ["palmtree_5", 2160.26, 305.46, 8.8, 1.632, 9.13, 0, "pillar:islet-a"],
-  ["roundshrub", 2162.76, 303.86, 8.8, 1.389, 2.3, 0, "pillar:islet-a"],
-  ["fanpalmshrub", 2162.82, 304.73, 8.8, 5.462, 1.53, 0, "pillar:islet-a"],
-  ["roundshrub", 2162.31, 305.56, 8.8, 2.489, 1.65, 0, "pillar:islet-a"],
+  ["palmtree_3", 2269.55, 267.11, 39.8, 0.922, 9.42, 0, "pillar:pillar-a"],
+  ["fernplant", 2264.73, 264.86, 39.8, 2.6, 1.99, 0, "pillar:pillar-a"],
+  ["roundshrub", 2268.65, 267.13, 39.8, 4.566, 1.82, 0, "pillar:pillar-a"],
+  ["fernplant_1", 2265.86, 271.49, 39.8, 3.372, 2.37, 0, "pillar:pillar-a"],
+  ["palmtree_5", 2240.37, 297.77, 29.8, 0.476, 9.72, 0, "pillar:pillar-b"],
+  ["fanpalmshrub", 2242.45, 293.87, 29.8, 2.372, 2.16, 0, "pillar:pillar-b"],
+  ["fanpalmshrub", 2242.04, 298.79, 29.8, 5.342, 2.09, 0, "pillar:pillar-b"],
+  ["fernclump", 2241.74, 295.87, 29.8, 1.618, 1.58, 0, "pillar:pillar-b"],
+  ["roundshrub", 2292.22, 234.93, 23.8, 5.463, 1.87, 0, "pillar:pillar-c"],
+  ["fanpalmshrub", 2291.4, 237.32, 23.8, 1.989, 2.09, 0, "pillar:pillar-c"],
+  ["palmtree_5", 2160.81, 304.97, 25.8, 1.632, 9.13, 0, "pillar:pillar-e"],
+  ["roundshrub", 2162.81, 303.69, 25.8, 1.389, 2.3, 0, "pillar:pillar-e"],
+  ["fanpalmshrub", 2162.86, 304.38, 25.8, 5.462, 1.53, 0, "pillar:pillar-e"],
+  ["roundshrub", 2162.45, 305.05, 25.8, 2.489, 1.65, 0, "pillar:pillar-e"],
   ["fernplant_1", 2232.63, 167.57, 2.4, 0.202, 2.18, 0, "pillar:islet-b"],
   ["roundleafyshrub", 2231.47, 169.38, 2.4, 0.525, 1.73, 0, "pillar:islet-b"],
-  ["fernclump", 2303.47, 289.57, 19.8, 5.185, 2.16, 0, "pillar:pillar-d"],
-  ["roundleafyshrub", 2302.76, 291.46, 19.8, 4.966, 1.42, 0, "pillar:pillar-d"],
+  ["fernclump", 2303.47, 289.57, 31.8, 5.185, 2.16, 0, "pillar:pillar-d"],
+  ["roundleafyshrub", 2302.76, 291.46, 31.8, 4.966, 1.42, 0, "pillar:pillar-d"],
   ["palmtree_9", 2252, 342, null, 4.351, 9, 0.61, "sunset"],
   ["coconutpalm", 2244, 348, null, 5.078, 8, 0.93, "sunset"],
   ["palmtree_2", 2160, 344, null, 0.129, 12, 0.29, "sunset"],
@@ -2337,55 +2339,55 @@ const rows = [
   ["rock-mossy-1", 2398, 80.74, null, 3.878, 0.88, 0.37, "rock"],
   ["rock-mossy-1", 2463.73, 14.85, null, 1.534, 1.17, 0.49, "rock"],
   ["rock-mossy-2", 2310.19, 132.39, null, 2.975, 1.07, 0.45, "rock"],
-  ["rock-mossy-1", 2356.45, 98.06, null, 1.695, 1.82, 0.76, "rock"],
-  ["rock-mossy-2", 2344.88, 119.21, null, 0.628, 2.51, 1.05, "rock"],
-  ["rock-mossy-0", 2442.58, 31.87, null, 1.748, 1.49, 0.63, "rock"],
-  ["rock-mossy-1", 2402.78, 73.64, null, 3.256, 1.35, 0.56, "rock"],
-  ["rock-mossy-2", 2384.55, 87.75, null, 4.792, 1.56, 0.66, "rock"],
-  ["rock-mossy-1", 2471.85, 1.78, null, 0.249, 0.66, 0.28, "rock"],
-  ["rock-mossy-2", 2328.54, 133.98, null, 3.442, 3.01, 1.27, "rock"],
-  ["rock-mossy-0", 2447.02, 22.83, null, 5.449, 2.29, 0.96, "rock"],
+  ["rock-mossy-1", 2367.67, 91.58, null, 4.135, 1.33, 0.56, "rock"],
+  ["rock-mossy-0", 2318.28, 136.78, null, 5.609, 1.54, 0.65, "rock"],
+  ["rock-mossy-0", 2478.19, 6.88, null, 4.682, 1.8, 0.76, "rock"],
+  ["rock-mossy-2", 2420.97, 46.94, null, 1.782, 3.32, 1.39, "rock"],
+  ["rock-mossy-0", 2456.99, 22.18, null, 0.383, 1.31, 0.55, "rock"],
+  ["rock-mossy-2", 2394.33, 72.78, null, 5.351, 1.89, 0.79, "rock"],
+  ["rock-mossy-1", 2326.45, 128.07, null, 3.594, 1.36, 0.57, "rock"],
+  ["rock-mossy-0", 2399.42, 70.61, null, 2.489, 0.96, 0.4, "rock"],
   ["rock-mossy-1", 2404.11, 63.84, null, 1.113, 2.23, 0.94, "rock"],
-  ["rock-mossy-2", 2449.56, 17.1, null, 0.991, 1.15, 0.48, "rock"],
-  ["rock-mossy-1", 2407.32, 69.97, null, 1.632, 0.92, 0.39, "rock"],
-  ["rock-mossy-1", 2458.06, 13.46, null, 5.205, 1.51, 0.63, "rock"],
-  ["rock-mossy-2", 2347.89, 114.96, null, 2.886, 1.19, 0.5, "rock"],
-  ["rock-mossy-0", 2409.89, 58.63, null, 5.449, 2.57, 1.08, "rock"],
-  ["rock-mossy-1", 2335.37, 112.78, null, 2.618, 1.6, 0.67, "rock"],
-  ["rock-mossy-2", 2329.27, 128.55, null, 1.085, 0.83, 0.35, "rock"],
-  ["rock-mossy-2", 2414.44, 69.68, null, 2.834, 1.01, 0.43, "rock"],
-  ["rock-mossy-0", 2341.48, 122.87, null, 0.874, 2.67, 1.12, "rock"],
-  ["rock-mossy-0", 2329.59, 118.86, null, 5.129, 0.8, 0.34, "rock"],
+  ["rock-mossy-0", 2318.32, 133.51, null, 5.816, 1.42, 0.6, "rock"],
+  ["rock-mossy-1", 2324.5, 137.9, null, 4.34, 1.21, 0.51, "rock"],
+  ["rock-mossy-2", 2477.18, 4.33, null, 2.518, 1.48, 0.62, "rock"],
+  ["rock-mossy-2", 2474.81, 0.03, null, 2.655, 1.32, 0.56, "rock"],
+  ["rock-mossy-0", 2408.88, 72.5, null, 2.253, 2.06, 0.86, "rock"],
+  ["rock-mossy-1", 2362.67, 104.26, null, 3.94, 1.02, 0.43, "rock"],
+  ["rock-mossy-2", 2341.99, 121.6, null, 2.911, 1.88, 0.79, "rock"],
+  ["rock-mossy-0", 2475.25, 8.19, null, 3.376, 1.25, 0.52, "rock"],
+  ["rock-mossy-2", 2404.93, 76.6, null, 3.598, 1.97, 0.83, "rock"],
+  ["rock-mossy-2", 2381.04, 86.54, null, 1.202, 0.74, 0.31, "rock"],
   ["rock-mossy-2", 2412.18, 60.7, null, 5.967, 0.73, 0.31, "rock"],
   ["rock-mossy-1", 2384.23, 89.75, null, 4.21, 1.56, 0.66, "rock"],
   ["rock-mossy-1", 2426.23, 53.46, null, 6.11, 1.49, 0.63, "rock"],
   ["rock-mossy-1", 2434.82, 36.89, null, 2.83, 1.05, 0.44, "rock"],
   ["rock-mossy-0", 2382.44, 78.14, null, 3.487, 2.88, 1.21, "rock"],
   ["rock-mossy-2", 2418.68, 50.16, null, 0.438, 2.2, 0.92, "rock"],
-  ["rock-mossy-0", 2389.96, 73.29, null, 1.365, 0.93, 0.39, "rock"],
-  ["rock-mossy-0", 2397.7, 84.47, null, 3.265, 3.33, 1.4, "rock"],
-  ["rock-mossy-0", 2428.17, 39.09, null, 3.048, 2.33, 0.98, "rock"],
-  ["rock-mossy-2", 2414.36, 62.21, null, 5.35, 0.62, 0.26, "rock"],
-  ["rock-mossy-0", 2358.64, 110.05, null, 5.934, 1.16, 0.49, "rock"],
-  ["rock-mossy-0", 2381.92, 93.74, null, 3.9, 1.15, 0.48, "rock"],
-  ["rock-mossy-1", 2474.82, -2.36, null, 4.526, 1.58, 0.67, "rock"],
-  ["rock-mossy-2", 2380, 85.18, null, 3.616, 0.69, 0.29, "rock"],
-  ["rock-mossy-2", 2331.91, 116.76, null, 4.052, 3.23, 1.36, "rock"],
-  ["rock-mossy-0", 2330.7, 119.96, null, 3.486, 1.54, 0.65, "rock"],
-  ["rock-mossy-0", 2385.04, 77.89, null, 6.262, 0.87, 0.37, "rock"],
-  ["rock-mossy-1", 2337, 125.32, null, 0.376, 1.48, 0.62, "rock"],
-  ["rock-mossy-0", 2404.52, 66.61, null, 5.877, 0.87, 0.37, "rock"],
-  ["rock-mossy-2", 2458.34, 26.08, null, 5.948, 1.22, 0.51, "rock"],
+  ["rock-mossy-1", 2324.99, 129.23, null, 1.133, 0.77, 0.33, "rock"],
+  ["rock-mossy-1", 2308.48, 145.08, null, 1.207, 0.82, 0.34, "rock"],
+  ["rock-mossy-0", 2425.9, 47.78, null, 4.366, 1.12, 0.47, "rock"],
+  ["rock-mossy-2", 2339.17, 117.05, null, 0.728, 1.09, 0.46, "rock"],
+  ["rock-mossy-0", 2433.18, 40, null, 0.809, 1, 0.42, "rock"],
+  ["rock-mossy-0", 2450.28, 18.73, null, 4.043, 0.82, 0.34, "rock"],
+  ["rock-mossy-0", 2447.78, 23.22, null, 4.098, 3.04, 1.28, "rock"],
+  ["rock-mossy-1", 2444.15, 31.53, null, 2.099, 0.78, 0.33, "rock"],
+  ["rock-mossy-2", 2351.62, 117.69, null, 0.341, 2.3, 0.96, "rock"],
+  ["rock-mossy-2", 2353.9, 105.78, null, 0.359, 0.74, 0.31, "rock"],
+  ["rock-mossy-2", 2430.29, 37.16, null, 2.757, 1.27, 0.54, "rock"],
+  ["rock-mossy-2", 2322.37, 132.66, null, 0.683, 1.6, 0.67, "rock"],
+  ["rock-mossy-1", 2464.85, 15.33, null, 4.301, 0.66, 0.28, "rock"],
+  ["rock-mossy-0", 2350.42, 112.1, null, 5.837, 1.54, 0.64, "rock"],
   ["rock-mossy-1", 2406.2, 62.19, null, 3.635, 2.08, 0.88, "rock"],
   ["rock-mossy-1", 2389.6, 89.86, null, 0.107, 2.25, 0.95, "rock"],
   ["rock-mossy-2", 2313.5, 129.56, null, 1.822, 3.07, 1.29, "rock"],
   ["rock-mossy-2", 2322.25, 137.37, null, 1.438, 2.56, 1.08, "rock"],
   ["rock-mossy-1", 2412.42, 56.31, null, 6.182, 0.98, 0.41, "rock"],
-  ["rock-mossy-0", 2344, 124, null, 0.648, 5.5, 2.31, "rock"],
-  ["fanpalmshrub", 2462.98, 66.99, null, 1.401, 2.25, 0, "gorge"],
-  ["bananaplant_2", 2357.74, 7.81, null, 0.239, 4.21, 0.96, "gorge"],
-  ["monsteraplant_2", 2343.66, -9.76, null, 3.937, 2.17, 0, "gorge"],
-  ["palmplant", 2467.05, 104.8, null, 0.428, 2.19, 0, "gorge"],
+  ["rock-mossy-0", 2353.61, 109.13, null, 0.648, 1.05, 0.44, "rock"],
+  ["rock-mossy-2", 2344, 124, null, 3.215, 5.5, 2.31, "rock"],
+  ["fernplant", 2412.36, 136.45, null, 1.028, 1.22, 0, "gorge"],
+  ["fernclump", 2465.25, 126.06, null, 0.378, 1, 0, "gorge"],
+  ["palmplant", 2390.67, 112.78, null, 4.612, 2.52, 0, "gorge"],
   ["monsteraplant_2", 2435.42, 128.48, null, 0.37, 1.94, 0, "gorge"],
   ["fernplant_1", 2456.77, 127.52, null, 2.02, 1.59, 0, "gorge"],
   ["bananaplant", 2321.84, 21, null, 1.773, 4.21, 0.29, "gorge"],
@@ -2425,9 +2427,9 @@ const rows = [
   ["fernplant", 2362.32, 129.35, null, 4.261, 1.34, 0, "gorge"],
   ["bananaplant_1", 2380.15, 102.12, null, 5.232, 3.43, 0.17, "gorge"],
   ["palmplant", 2329.33, 146.87, null, 6.266, 2.2, 0, "gorge"],
-  ["monsteraplant_2", 2328.3, 121.54, null, 3.124, 2.1, 0, "gorge"],
-  ["bananaplant", 2350.77, 69.02, null, 1.656, 4.43, 0.3, "gorge"],
-  ["fernplant_1", 2361.81, 78.35, null, 2.05, 1.44, 0, "gorge"],
+  ["fernplant", 2416.3, 64.51, null, 5.07, 1.31, 0, "gorge"],
+  ["monsteraplant", 2382.16, 24.82, null, 0.788, 1.84, 0, "gorge"],
+  ["monsteraplant_2", 2404.96, 35.46, null, 6.068, 2, 0, "gorge"],
   ["fernplant_1", 2351.03, 137.73, null, 3.327, 1.59, 0, "gorge"],
   ["bananaplant_2", 2363.91, 69.41, null, 2.947, 3.91, 0.89, "gorge"],
   ["bananaplant_2", 2411.88, 40.7, null, 4.75, 4.03, 0.92, "gorge"],
@@ -2442,7 +2444,7 @@ const rows = [
   ["fernplant", 2360.75, 138.66, null, 2.645, 1.49, 0, "gorge"],
   ["monsteraplant", 2350.1, 40.57, null, 5.093, 1.96, 0, "gorge"],
   ["monsteraplant_1", 2370.03, 52.03, null, 1.832, 2.06, 0, "gorge"],
-  ["palmtree_2", 2313.5, -2.33, null, 5.511, 15.65, 0.38, "gorge-rim"],
+  ["bananaplant_1", 2397.79, 12.51, null, 1.647, 3.49, 0.18, "gorge"],
   ["palmtree_1", 2417.73, -21.82, null, 3.856, 17.7, 0.31, "gorge-rim"],
   ["palmtree_5", 2396.39, -34.99, null, 1.549, 14.04, 0.25, "gorge-rim"],
   ["coconutpalmtree", 2306.79, 35.29, null, 4.399, 13.91, 0.27, "gorge-rim"],
@@ -2459,19 +2461,22 @@ const rows = [
   ["talltree", 2464.32, 43.06, null, 5.33, 16.55, 0.21, "gorge-rim"],
   ["palmtree_3", 2447.3, -32.39, null, 1.26, 14.08, 0.27, "gorge-rim"],
   ["palmtree_3", 2440.67, 144.46, null, 4.822, 14.18, 0.28, "gorge-rim"],
-  ["palmtree_2", 2379.45, 27.17, null, 0.534, 12.74, 0.31, "gorge-rim"],
-  ["palmtree_1", 2338.34, -41.82, null, 1.364, 14.89, 0.26, "gorge-rim"],
+  ["palmtree", 2336.19, -41.31, null, 1.602, 15.75, 0.27, "gorge-rim"],
+  ["talltree", 2315.67, -12.23, null, 5.134, 17.79, 0.22, "gorge-rim"],
   ["palmtree_1", 2361.98, -37.03, null, 4.321, 18.55, 0.32, "gorge-rim"],
   ["slimtree", 2338.01, 97.9, null, 5.451, 12.97, 0.33, "gorge-rim"],
   ["slimtree", 2343.99, 149.27, null, 3.861, 15.69, 0.4, "gorge-rim"],
-  ["palmtree_2", 2429.87, -45.75, null, 5.062, 12.63, 0.31, "gorge-rim"],
+  ["slimtree", 2380.02, 35.79, null, 0.407, 14.93, 0.38, "gorge-rim"],
+  ["coconutpalmtree_2", 2355.53, -21.59, null, 0.638, 12.82, 0.41, "gorge-rim"],
+  ["palmtree_2", 2383.99, 151.82, null, 5.821, 13.13, 0.32, "gorge-rim"],
+  ["coconutpalmtree_2", 2399.38, -46.38, null, 0.728, 11.49, 0.37, "gorge-rim"],
   ["slimtree", 2447.68, -15.19, null, 1.613, 14.43, 0.37, "gorge-rim"],
   ["coconutpalmtree_4", 2323.97, 62.88, null, 3.255, 11.96, 0.25, "gorge-rim"],
   ["coconutpalmtree_3", 2351.43, 90.25, null, 5.252, 13.77, 0.35, "gorge-rim"],
   ["palmtree_2", 2373.5, 68.26, null, 0.421, 12.38, 0.3, "gorge-rim"],
   ["coconutpalmtree_2", 2434.16, 151.48, null, 4.537, 14.23, 0.45, "gorge-rim"],
-  ["coconutpalmtree", 2357.85, 19.84, null, 4.772, 15.55, 0.31, "gorge-rim"],
-  ["coconutpalmtree_2", 2372.82, -24.36, null, 5.049, 14.73, 0.47, "gorge-rim"],
+  ["monsteraplant_1", 2487.89, 199.61, null, 5.292, 1.98, 0, "big-fall"],
+  ["monsteraplant_2", 2497.68, 212.69, null, 3.635, 1.72, 0, "big-fall"],
   ["monsteraplant", 2456.52, 200.8, null, 4.453, 1.9, 0, "big-fall"],
   ["bananaplant_1", 2475.98, 258.25, null, 2.183, 4.28, 0.22, "big-fall"],
   ["fernplant", 2469.58, 201.61, null, 4.912, 1.22, 0, "big-fall"],
@@ -2487,10 +2492,7 @@ const rows = [
   ["monsteraplant_1", 2471.79, 188.25, null, 4.677, 2.16, 0, "big-fall"],
   ["monsteraplant", 2442.15, 199.14, null, 4.928, 2, 0, "big-fall"],
   ["palmplant", 2424.92, 216.77, null, 1.234, 1.98, 0, "big-fall"],
-  ["palmplant", 2486.55, 198.21, null, 0.752, 2.06, 0, "big-fall"],
-  ["fernclump", 2451.93, 201.71, null, 4.944, 1.16, 0, "big-fall"],
-  ["fernplant_1", 2479.92, 208.69, null, 5.51, 1.45, 0, "big-fall"],
-  ["bananaplant_1", 2496.1, 227.01, null, 1.154, 4.51, 0.23, "big-fall"],
+  ["bananaplant_1", 2486.72, 247.2, null, 4.061, 3.41, 0.17, "big-fall"],
   ["bananaplant_1", 2437.59, 207.82, null, 1.961, 3.63, 0.18, "big-fall"],
   ["bananaplant_2", 2443.58, 212.7, null, 3.423, 3.45, 0.79, "big-fall"],
   ["fernplant", 2464.81, 192.53, null, 5.935, 1.29, 0, "big-fall"],
@@ -2500,11 +2502,11 @@ const rows = [
   ["bananaplant_1", 2460.02, 244.37, null, 3.7, 4.32, 0.22, "big-fall"],
   ["fanpalmshrub", 2436.69, 246.15, null, 4.003, 1.94, 0, "big-fall"],
   ["monsteraplant_1", 2439.14, 200.53, null, 4.434, 2.19, 0, "big-fall"],
-  ["giantbuttress-roottree", 2437.15, 167.4, null, 3.675, 29.07, 2.6, "big-fall-top"],
+  ["bananaplant_1", 2474.43, 253.76, null, 1.082, 3.44, 0.17, "big-fall"],
   ["slimtree", 2407.85, 237.82, null, 5.42, 12.98, 0.33, "big-fall-top"],
   ["coconutpalmtree_3", 2469.89, 289.72, null, 3.972, 10.82, 0.27, "big-fall-top"],
   ["talltree", 2481.73, 174.56, null, 5.598, 17.53, 0.22, "big-fall-top"],
-  ["foresttree", 2488.71, 284.96, null, 3.434, 17.5, 2.6, "big-fall-top"],
+  ["talltree", 2442.67, 163.72, null, 1.11, 15.48, 0.2, "big-fall-top"],
   ["palmtree_3", 2492.61, 178.97, null, 0.21, 11.25, 0.22, "big-fall-top"],
   ["giantbuttress-roottree", 2443.43, 266.7, null, 5.761, 36.19, 2.6, "big-fall-top"],
   ["buttress-roottree", 2466.7, 262.91, null, 1.035, 19.81, 2.6, "big-fall-top"],
@@ -2515,16 +2517,15 @@ const rows = [
   ["giantbuttress-roottree", 2424.28, 270.59, null, 6.178, 28.68, 2.6, "big-fall-top"],
   ["foresttree", 2455.46, 287.36, null, 5.836, 21.82, 2.6, "big-fall-top"],
   ["giantbuttress-roottree", 2512.33, 180.92, null, 4.855, 29.92, 2.6, "big-fall-top"],
-  ["tree", 2491.44, 254.23, null, 0.529, 26.62, 2.04, "big-fall-top"],
+  ["palmtree_1", 2510.37, 225.39, null, 5.008, 19.49, 0.34, "big-fall-top"],
   ["coconutpalmtree_1", 2508.25, 167.73, null, 3.939, 14.7, 0.39, "big-fall-top"],
   ["coconutpalmtree_3", 2502.3, 187.75, null, 0.552, 11.55, 0.29, "big-fall-top"],
-  ["rock-granite-2", 2442, 214, null, 1.788, 2.2, 0, "flat"],
-  ["rock-granite-2", 2446, 236, null, 1.962, 2.6, 0, "flat"],
-  ["rock-granite-0", 2436, 220, null, 6.003, 1.6, 0, "flat"],
-  ["rock-granite-1", 2438, 230, null, 0.778, 1.8, 0, "flat"],
-  ["rock-granite-2", 2450, 214, null, 0.493, 1.4, 0, "flat"],
-  ["rock-granite-2", 2363.39, 222.63, null, 0.35, 1.32, 0.55, "rock"],
-  ["rock-granite-0", 2399.79, 226.18, null, 1.165, 3.67, 1.54, "rock"],
+  ["palmtree_4", 2520.17, 253.06, null, 2.081, 13.85, 0.39, "big-fall-top"],
+  ["rock-redstone-0", 2442, 214, null, 5.123, 2.2, 0, "flat"],
+  ["rock-redstone-0", 2446, 236, null, 3.697, 2.6, 0, "flat"],
+  ["rock-redstone-0", 2436, 220, null, 2.198, 1.6, 0, "flat"],
+  ["rock-redstone-1", 2438, 230, null, 4.859, 1.8, 0, "flat"],
+  ["rock-redstone-1", 2450, 214, null, 1.383, 1.4, 0, "flat"],
   ["rock-granite-2", 2341.91, 218.92, null, 4.582, 2.35, 0.99, "rock"],
   ["rock-granite-0", 2403.57, 223.73, null, 5.1, 3.01, 1.26, "rock"],
   ["rock-granite-2", 2367.9, 223.84, null, 0.635, 2.38, 1, "rock"],
@@ -2540,8 +2541,9 @@ const rows = [
   ["rock-granite-0", 2420.34, 228.08, null, 0.759, 1.84, 0.77, "rock"],
   ["rock-granite-2", 2407.87, 225.31, null, 2.988, 3.32, 1.39, "rock"],
   ["rock-granite-1", 2412.8, 224.82, null, 1.753, 1.97, 0.83, "rock"],
-  ["palmtree_4", 2368.59, 237.49, null, 1.636, 15.83, 0.45, "bridge-ends"],
-  ["coconutpalmtree", 2373.61, 203.52, null, 5.205, 16.05, 0.32, "bridge-ends"],
+  ["rock-granite-0", 2378.29, 219.33, null, 4.085, 3.06, 1.28, "rock"],
+  ["palmplant", 2372.8, 214.38, null, 6.034, 2.42, 0, "bridge-ends"],
+  ["coconutpalmtree_2", 2377.19, 206, null, 1.655, 13.5, 0.43, "bridge-ends"],
   ["palmtree_5", 2373.84, 224.92, null, 0.132, 13.27, 0.23, "bridge-ends"],
   ["palmtree_4", 2363.95, 239.01, null, 5.223, 15.1, 0.43, "bridge-ends"],
   ["palmtree_4", 2367.83, 215.16, null, 4.897, 16.7, 0.47, "bridge-ends"],
@@ -2550,7 +2552,7 @@ const rows = [
   ["fernplant_1", 2394.65, 229.41, null, 4.801, 1.59, 0, "bridge-ends"],
   ["palmplant", 2398.55, 211.22, null, 0.403, 2.08, 0, "bridge-ends"],
   ["coconutpalmtree_3", 2363.55, 233.66, null, 3.217, 10.73, 0.27, "bridge-ends"],
-  ["palmplant", 2398.59, 215.32, null, 0.891, 1.9, 0, "bridge-ends"],
+  ["palmtree_2", 2373.85, 203.62, null, 1.249, 15.75, 0.39, "bridge-ends"],
   ["coconutpalmtree_1", 2379.91, 198.27, null, 4.859, 14.48, 0.39, "bridge-ends"],
   ["coconutpalmtree_1", 2388.49, 245.67, null, 2.212, 15.68, 0.42, "bridge-ends"],
   ["fernplant_1", 2379.62, 236.23, null, 1.996, 1.55, 0, "bridge-ends"],
@@ -3019,9 +3021,9 @@ const rows = [
   ["tree", 2478.57, 137.45, null, 3.768, 31.92, 2.44, "north-woods"],
   ["foresttree", 2498.03, 57.32, null, 5.872, 19.35, 2.6, "north-woods"],
   ["palmtree_3", 2421.56, 13.66, null, 1.644, 13.4, 0.26, "north-woods"],
-  ["buttressedtree", 2493.84, 4.97, null, 1.045, 22.47, 2.6, "north-woods"],
+  ["tree", 2349.49, 23.12, null, 1.421, 30.82, 2.36, "north-woods"],
   ["palmtree_2", 2511.37, -50.46, null, 2.575, 12.7, 0.31, "north-woods"],
-  ["palmtree_8", 2360.63, -15.5, null, 0.481, 12.19, 0.21, "north-woods"],
+  ["palmtree_7", 2499.07, -57.88, null, 5.296, 12, 0.21, "north-woods"],
   ["slimtree", 2409.52, -71.06, null, 0.857, 13.32, 0.34, "north-woods"],
   ["buttressedtree", 2314.08, 90.73, null, 5.598, 26.69, 2.6, "north-woods"],
   ["coconutpalmtree", 2353.06, -42.44, null, 3.861, 13.13, 0.26, "north-woods"],
@@ -3030,29 +3032,26 @@ const rows = [
   ["coconutpalmtree", 2523.37, 271.26, null, 0.919, 12.33, 0.24, "north-woods"],
   ["buttressedtree", 2366.5, 194.89, null, 4.215, 24.01, 2.6, "north-woods"],
   ["coconutpalmtree_1", 2514.34, 302.52, null, 2.141, 12.89, 0.34, "north-woods"],
-  ["palmtree_8", 2396.79, 113.95, null, 3.884, 12.47, 0.22, "north-woods"],
-  ["slimtree", 2355.29, 198.59, null, 4.611, 15.76, 0.4, "north-woods"],
-  ["buttressedtree", 2316.83, 46.07, null, 5.677, 23.34, 2.6, "north-woods"],
-  ["buttress-roottree", 2380.55, -8.22, null, 2.365, 19.72, 2.6, "north-woods"],
+  ["palmtree_6", 2518.23, 169.64, null, 0.448, 11.62, 0.22, "north-woods"],
+  ["talltree", 2362.27, 41.86, null, 5.526, 17.05, 0.21, "north-woods"],
+  ["palmtree_1", 2352.84, 241.8, null, 4.472, 16.37, 0.28, "north-woods"],
+  ["coconutpalmtree_4", 2429.48, -23.12, null, 5.512, 12.86, 0.27, "north-woods"],
   ["tree", 2417.64, 86.46, null, 3.01, 31.48, 2.41, "north-woods"],
   ["giantbuttress-roottree", 2451.66, 296.57, null, 3.288, 29, 2.6, "north-woods"],
   ["palmtree_6", 2491.39, 24.16, null, 4.377, 12.14, 0.23, "north-woods"],
   ["coconutpalmtree", 2470.02, 83.93, null, 5.286, 15.96, 0.31, "north-woods"],
   ["palmtree", 2441.74, 290.83, null, 6.027, 19.65, 0.34, "north-woods"],
   ["palmtree_1", 2485.82, 53.51, null, 0.884, 18.05, 0.31, "north-woods"],
-  ["palmtree_8", 2387.98, 150.47, null, 0.638, 9.63, 0.17, "north-woods"],
+  ["buttressedtree", 2328.86, -47.38, null, 0.774, 26.95, 2.6, "north-woods"],
   ["palmtree_3", 2505.63, 1.06, null, 3.359, 14.8, 0.29, "north-woods"],
   ["palmtree_7", 2474.36, 303.25, null, 3.248, 13.41, 0.23, "north-woods"],
   ["palmtree_6", 2406.35, 174.18, null, 5.395, 9.82, 0.18, "north-woods"],
-  ["palmtree_4", 2347.03, 31.67, null, 1.851, 12.79, 0.36, "north-woods"],
-  ["palmtree_5", 2363.92, 264.71, null, 2.507, 12.81, 0.23, "north-woods"],
-  ["tree", 2491.93, -35.24, null, 5.226, 27.74, 2.12, "north-woods"],
-  ["coconutpalmtree_3", 2322.25, -64.09, null, 2.07, 12.63, 0.32, "north-woods"],
-  ["palmtree_2", 2339.13, 163.32, null, 0.203, 12.65, 0.31, "north-woods"],
+  ["palmtree_4", 2495.8, 111.27, null, 4.236, 14.55, 0.41, "north-woods"],
+  ["giantbuttress-roottree", 2415, 19.92, null, 6.042, 28.45, 2.6, "north-woods"],
   ["palmtree_1", 2392.54, 288.9, null, 3.421, 15.01, 0.26, "north-woods"],
   ["coconutpalmtree", 2511.48, 135.23, null, 0.011, 15.48, 0.31, "north-woods"],
   ["palmtree_5", 2432.64, 325.33, null, 4.775, 11.42, 0.2, "north-woods"],
-  ["talltree", 2500.76, 111.19, null, 1.548, 17.67, 0.22, "north-woods"],
+  ["palmtree_3", 2379.23, -81.58, null, 1.454, 14.92, 0.29, "north-woods"],
   ["coconutpalmtree_1", 2485.79, 319.07, null, 2.409, 12.98, 0.35, "north-woods"],
   ["coconutpalmtree_4", 2522.84, -59.52, null, 1.934, 14.74, 0.31, "north-woods"],
   ["foresttree", 2411.76, 114.22, null, 5.473, 22.7, 2.6, "north-woods"],
@@ -3064,21 +3063,21 @@ const rows = [
   ["talltree", 2369.8, -42.25, null, 0.165, 19.03, 0.24, "north-woods"],
   ["palmtree_6", 2491.19, 41.59, null, 1.929, 9.68, 0.18, "north-woods"],
   ["palmtree", 2421.6, 186.1, null, 2.374, 20.57, 0.35, "north-woods"],
-  ["talltree", 2388.52, 34.09, null, 0.023, 19.56, 0.25, "north-woods"],
-  ["palmtree_6", 2486.86, -55.43, null, 2.219, 12.22, 0.23, "north-woods"],
-  ["palmtree_8", 2344.7, -80.19, null, 4.082, 12.54, 0.22, "north-woods"],
-  ["palmtree_4", 2488.8, 106.23, null, 2.56, 13.83, 0.39, "north-woods"],
-  ["slimtree", 2316.36, -54.37, null, 5.368, 13.24, 0.34, "north-woods"],
-  ["giantbuttress-roottree", 2384.13, 272.05, null, 4.082, 35.78, 2.6, "north-woods"],
+  ["buttress-roottree", 2505.03, -71.36, null, 1.352, 19.24, 2.6, "north-woods"],
+  ["tree", 2315.14, 46.45, null, 1.051, 29.26, 2.24, "north-woods"],
+  ["palmtree_1", 2416.88, 279.33, null, 2.379, 16.46, 0.29, "north-woods"],
+  ["talltree", 2362.83, 81.15, null, 0.578, 15.76, 0.2, "north-woods"],
+  ["foresttree", 2380.43, 268.84, null, 0.204, 19.01, 2.6, "north-woods"],
+  ["buttressedtree", 2460.05, 310.42, null, 0.933, 26.8, 2.6, "north-woods"],
   ["buttressedtree", 2359.45, 250.16, null, 6.131, 23.84, 2.6, "north-woods"],
   ["buttress-roottree", 2519.73, 262.16, null, 2.498, 22.24, 2.6, "north-woods"],
-  ["palmtree_8", 2447.78, 159.75, null, 3.707, 10.99, 0.19, "north-woods"],
-  ["palmtree_1", 2496.38, 304.03, null, 2.494, 15.8, 0.28, "north-woods"],
-  ["giantbuttress-roottree", 2526, 300.37, null, 1.756, 36.07, 2.6, "north-woods"],
-  ["giantbuttress-roottree", 2518.96, 3.83, null, 3.327, 27.54, 2.6, "north-woods"],
-  ["palmtree_4", 2420.08, 172.48, null, 1.262, 12.92, 0.36, "north-woods"],
-  ["tree", 2315.26, 108.34, null, 2.997, 24.37, 1.86, "north-woods"],
-  ["foresttree", 2513.14, -67.56, null, 3.642, 21.35, 2.6, "north-woods"],
+  ["palmtree_7", 2516.4, -20.31, null, 5.126, 11.63, 0.2, "north-woods"],
+  ["coconutpalmtree_4", 2384.67, 10.58, null, 5.968, 15.09, 0.32, "north-woods"],
+  ["coconutpalmtree_3", 2497.7, 224.46, null, 3.144, 10.54, 0.27, "north-woods"],
+  ["talltree", 2447.49, 103.97, null, 2.19, 16.39, 0.21, "north-woods"],
+  ["slimtree", 2458.84, -52.38, null, 2.519, 15.39, 0.39, "north-woods"],
+  ["palmtree_3", 2496.14, -42.37, null, 2.967, 11.14, 0.22, "north-woods"],
+  ["slimtree", 2469.38, 153.45, null, 4.98, 12.48, 0.32, "north-woods"],
   ["giantbuttress-roottree", 2321.64, -83.73, null, 0.48, 27.87, 2.6, "north-woods"],
   ["tree", 2363.58, -53.86, null, 0.523, 31.87, 2.44, "north-woods"],
   ["coconutpalmtree_2", 2424.42, 238.76, null, 6.244, 13.71, 0.44, "north-woods"],
@@ -3086,63 +3085,66 @@ const rows = [
   ["coconutpalmtree_4", 2441.08, -44.48, null, 0.098, 13.1, 0.27, "north-woods"],
   ["palmtree_7", 2408.82, 292.52, null, 3.995, 11.95, 0.21, "north-woods"],
   ["palmtree_7", 2501.29, 285.5, null, 2.801, 12.51, 0.22, "north-woods"],
-  ["buttressedtree", 2437.05, 306.79, null, 0.166, 22.75, 2.6, "north-woods"],
-  ["palmtree_8", 2461.34, 304.61, null, 6.164, 9.6, 0.17, "north-woods"],
+  ["foresttree", 2491.64, 305.83, null, 5.936, 20.47, 2.6, "north-woods"],
+  ["coconutpalmtree_2", 2515.62, 217.4, null, 5.793, 13.88, 0.44, "north-woods"],
   ["coconutpalmtree_4", 2505.54, 93.87, null, 2.672, 14.36, 0.3, "north-woods"],
   ["palmtree_8", 2400.79, 256.59, null, 0.673, 9.9, 0.17, "north-woods"],
   ["coconutpalmtree_4", 2411, 158.87, null, 3.211, 13.81, 0.29, "north-woods"],
   ["palmtree_4", 2526.81, 119.94, null, 5.16, 13.93, 0.39, "north-woods"],
   ["buttressedtree", 2518.33, 107.96, null, 2.962, 21.41, 2.6, "north-woods"],
   ["palmtree_8", 2421.95, -71.72, null, 0.471, 11.29, 0.2, "north-woods"],
-  ["palmtree_2", 2393.51, 12.32, null, 5.473, 15.38, 0.38, "north-woods"],
-  ["coconutpalmtree_3", 2513.39, -17.48, null, 5.151, 12.91, 0.33, "north-woods"],
+  ["palmtree_5", 2492.46, 275.82, null, 4.201, 11.65, 0.21, "north-woods"],
+  ["palmtree_5", 2359.79, 169.32, null, 3.464, 12.74, 0.23, "north-woods"],
   ["palmtree_1", 2373.99, 164.92, null, 5.976, 15.48, 0.27, "north-woods"],
   ["foresttree", 2514.9, 87.44, null, 5.829, 22.95, 2.6, "north-woods"],
   ["foresttree", 2365.08, 176.71, null, 0.349, 18.69, 2.6, "north-woods"],
   ["slimtree", 2385.72, -51.87, null, 1.735, 14.99, 0.38, "north-woods"],
-  ["palmtree_7", 2510.7, 67.79, null, 2.094, 11.4, 0.2, "north-woods"],
-  ["buttress-roottree", 2441.27, 100.24, null, 5.882, 22.85, 2.6, "north-woods"],
-  ["buttress-roottree", 2416.75, 323.36, null, 4.95, 22.47, 2.6, "north-woods"],
-  ["foresttree", 2521.22, 38.2, null, 1.805, 18.76, 2.6, "north-woods"],
-  ["talltree", 2432.93, -18.57, null, 2.495, 18.44, 0.23, "north-woods"],
-  ["giantbuttress-roottree", 2346.12, -53.36, null, 4.775, 31.56, 2.6, "north-woods"],
-  ["palmtree_4", 2487.36, 266.29, null, 4.664, 16.88, 0.48, "north-woods"],
-  ["coconutpalmtree_3", 2392.02, 169.21, null, 4.722, 11.66, 0.3, "north-woods"],
-  ["palmtree_3", 2525.96, 288.99, null, 5.952, 11.18, 0.22, "north-woods"],
-  ["palmtree", 2326.64, -18.38, null, 0.793, 18.42, 0.32, "north-woods"],
-  ["palmtree_8", 2438.3, 317.53, null, 6.168, 9.86, 0.17, "north-woods"],
-  ["palmtree_6", 2474.41, 48.28, null, 5.07, 10.58, 0.2, "north-woods"],
-  ["palmtree_2", 2495.76, 314.53, null, 6.01, 14.73, 0.36, "north-woods"],
-  ["coconutpalmtree", 2449.04, 71.31, null, 2.356, 13.97, 0.28, "north-woods"],
-  ["palmtree_2", 2399.35, -48.1, null, 5.968, 14.51, 0.36, "north-woods"],
-  ["foresttree", 2354.56, -73.21, null, 4.679, 20.07, 2.6, "north-woods"],
-  ["coconutpalmtree", 2463.43, 275.34, null, 3.128, 14.4, 0.28, "north-woods"],
-  ["palmtree_6", 2413.86, 282.38, null, 0.229, 9.98, 0.19, "north-woods"],
+  ["giantbuttress-roottree", 2485.94, 259.53, null, 3.32, 28.56, 2.6, "north-woods"],
+  ["coconutpalmtree", 2526.52, 242.58, null, 6.032, 15.21, 0.3, "north-woods"],
+  ["palmtree_4", 2515.14, 0.42, null, 3.067, 16.43, 0.46, "north-woods"],
+  ["coconutpalmtree_4", 2489.92, 100.84, null, 1.731, 15.17, 0.32, "north-woods"],
+  ["palmtree_5", 2382.54, -6.96, null, 5.065, 14.19, 0.25, "north-woods"],
+  ["palmtree_2", 2326.5, 53.06, null, 5.969, 14.11, 0.35, "north-woods"],
+  ["palmtree_2", 2504.27, 260.35, null, 4.333, 14.49, 0.36, "north-woods"],
+  ["talltree", 2508.52, 75.29, null, 1.268, 20.42, 0.26, "north-woods"],
+  ["tree", 2373.41, -24.61, null, 3.574, 27.56, 2.11, "north-woods"],
+  ["buttress-roottree", 2353.13, 66.43, null, 3.509, 22.48, 2.6, "north-woods"],
+  ["palmtree", 2344.97, -80.89, null, 3.068, 15.95, 0.27, "north-woods"],
+  ["coconutpalmtree_1", 2392.09, -85.54, null, 4.482, 15.26, 0.41, "north-woods"],
+  ["coconutpalmtree_2", 2488.09, 63.13, null, 3.54, 12.55, 0.4, "north-woods"],
+  ["talltree", 2451.82, -4.94, null, 3.217, 20.35, 0.26, "north-woods"],
+  ["coconutpalmtree_2", 2351.9, -74.71, null, 1.759, 12.3, 0.39, "north-woods"],
   ["coconutpalmtree_2", 2342.35, 185.52, null, 5.195, 12.79, 0.41, "north-woods"],
   ["foresttree", 2396.12, -68.16, null, 4.614, 17.75, 2.6, "north-woods"],
-  ["palmtree_7", 2330.9, -1.54, null, 3.735, 13.62, 0.24, "north-woods"],
-  ["palmtree_6", 2484.79, 276.66, null, 1.865, 10.84, 0.2, "north-woods"],
-  ["foresttree", 2459.79, 315.34, null, 0.963, 17.52, 2.6, "north-woods"],
-  ["palmtree_6", 2499.86, 153.34, null, 0.749, 9.66, 0.18, "north-woods"],
-  ["foresttree", 2522.93, -30.11, null, 0.655, 18.03, 2.6, "north-woods"],
-  ["coconutpalmtree_3", 2384.59, 6.63, null, 3.446, 13.23, 0.34, "north-woods"],
-  ["palmtree", 2464.95, -47.81, null, 4.034, 17.55, 0.3, "north-woods"],
-  ["palmtree_2", 2410.02, 133.72, null, 3.887, 13.99, 0.34, "north-woods"],
-  ["palmtree_2", 2519.62, 152.19, null, 4.368, 12.39, 0.3, "north-woods"],
-  ["palmtree_3", 2373.34, 120.38, null, 3.807, 14.19, 0.28, "north-woods"],
-  ["palmtree_6", 2522.62, -13.33, null, 3.44, 11.49, 0.21, "north-woods"],
-  ["giantbuttress-roottree", 2515.33, 250.98, null, 2.594, 28.47, 2.6, "north-woods"],
-  ["palmtree_7", 2354.76, 55.13, null, 0.727, 11.04, 0.19, "north-woods"],
-  ["coconutpalmtree_3", 2350.91, 243.37, null, 1.605, 12.59, 0.32, "north-woods"],
-  ["palmtree_7", 2508.33, 261.49, null, 4.268, 11.49, 0.2, "north-woods"],
-  ["slimtree", 2354.83, 168.41, null, 3.016, 11.96, 0.31, "north-woods"],
-  ["palmtree_8", 2526.23, 88.99, null, 4.484, 11.31, 0.2, "north-woods"],
+  ["palmtree_2", 2520.57, 45.21, null, 1.96, 12, 0.29, "north-woods"],
+  ["coconutpalmtree_3", 2478.6, -54.99, null, 5.786, 13.67, 0.35, "north-woods"],
+  ["palmtree", 2495.1, 140.36, null, 1.563, 16.46, 0.28, "north-woods"],
+  ["coconutpalmtree", 2446.09, -84.99, null, 5.987, 15, 0.3, "north-woods"],
+  ["coconutpalmtree_1", 2525.61, 33.78, null, 3.388, 15.28, 0.41, "north-woods"],
+  ["tree", 2519.01, -39.17, null, 1.546, 27.18, 2.08, "north-woods"],
+  ["coconutpalmtree_2", 2350.16, -6.2, null, 3.577, 13.19, 0.42, "north-woods"],
+  ["buttressedtree", 2405.58, 190.69, null, 4.078, 26.76, 2.6, "north-woods"],
+  ["palmtree_5", 2496.9, 251.56, null, 4.198, 13.95, 0.25, "north-woods"],
+  ["palmtree_2", 2465.87, 109.35, null, 1.673, 13.48, 0.33, "north-woods"],
+  ["palmtree_8", 2480.59, 25.46, null, 2.244, 11.73, 0.2, "north-woods"],
+  ["coconutpalmtree_3", 2346.05, 51.38, null, 1.886, 13.73, 0.35, "north-woods"],
+  ["coconutpalmtree", 2430.8, 312.88, null, 2.881, 14.74, 0.29, "north-woods"],
+  ["palmtree_4", 2399.58, 118.46, null, 4.075, 13.26, 0.37, "north-woods"],
+  ["giantbuttress-roottree", 2461.22, 162.16, null, 1.063, 30.32, 2.6, "north-woods"],
+  ["tree", 2453.28, 266, null, 4.193, 26.02, 1.99, "north-woods"],
+  ["giantbuttress-roottree", 2526.32, 319.82, null, 2.141, 35.4, 2.6, "north-woods"],
+  ["palmtree_2", 2320.19, -60.26, null, 3.353, 14.75, 0.36, "north-woods"],
+  ["coconutpalmtree_2", 2448.57, 152.71, null, 2.2, 11.86, 0.38, "north-woods"],
+  ["palmtree_2", 2456.37, 72.11, null, 0.264, 14.8, 0.36, "north-woods"],
   ["coconutpalmtree_1", 2335.89, -62.62, null, 2.366, 16.74, 0.45, "north-woods"],
   ["palmtree_7", 2514.13, 27.39, null, 0.627, 12.33, 0.21, "north-woods"],
-  ["coconutpalmtree_2", 2446.78, -4.65, null, 5.623, 11.99, 0.38, "north-woods"],
+  ["coconutpalmtree_4", 2427.88, -38.73, null, 4.603, 13.46, 0.28, "north-woods"],
+  ["palmtree_5", 2397.11, -20.72, null, 5.38, 14.39, 0.25, "north-woods"],
+  ["palmtree_8", 2483.41, 293.8, null, 5.372, 10.97, 0.19, "north-woods"],
+  ["buttressedtree", 2388.11, 257, null, 1.316, 25.26, 2.6, "north-woods"],
   ["palmtree_4", 2427.13, 24.2, null, 1.867, 14.08, 0.4, "north-woods"],
-  ["palmtree_2", 2525.74, 254.31, null, 2.933, 14.25, 0.35, "north-woods"],
-  ["coconutpalmtree_1", 2517.77, 238.62, null, 3.717, 13.5, 0.36, "north-woods"],
+  ["palmtree_1", 2482.13, 150.91, null, 0.637, 17.47, 0.3, "north-woods"],
+  ["foresttree", 2434.52, 280.43, null, 3.468, 18.65, 2.6, "north-woods"],
   ["palmtree_6", 2330.64, 157.91, null, 0.358, 10.52, 0.2, "north-woods"],
   ["coconutpalmtree_1", 2389.19, 329.09, null, 3.43, 13.81, 0.37, "north-woods"],
   ["palmtree_7", 2501.31, 46.69, null, 2.047, 12.3, 0.21, "north-woods"],
@@ -3151,282 +3153,282 @@ const rows = [
   ["coconutpalmtree_2", 2417.49, -31.19, null, 3.117, 11.79, 0.38, "north-woods"],
   ["foresttree", 2392.02, -7.14, null, 3.067, 20.36, 2.6, "north-woods"],
   ["foresttree", 2472.25, -84.87, null, 0.964, 17.48, 2.6, "north-woods"],
-  ["palmtree_2", 2521.18, 322.41, null, 0.208, 12.27, 0.3, "north-woods"],
-  ["palmtree_3", 2406.92, 195.47, null, 1.854, 11.73, 0.23, "north-woods"],
-  ["palmtree_8", 2510.4, -35.58, null, 2.332, 12.13, 0.21, "north-woods"],
-  ["palmtree_1", 2486.36, 115.31, null, 6.002, 16.5, 0.29, "north-woods"],
-  ["tree", 2482.52, -47.45, null, 5.054, 26.95, 2.06, "north-woods"],
-  ["palmtree_1", 2331.62, 39.55, null, 4.952, 17.68, 0.31, "north-woods"],
-  ["palmtree_1", 2493.18, -46.6, null, 6.183, 18.03, 0.31, "north-woods"],
-  ["palmtree_3", 2405.68, 11.84, null, 0.401, 13.84, 0.27, "north-woods"],
-  ["coconutpalmtree_4", 2464.59, -71.64, null, 3.605, 16.03, 0.34, "north-woods"],
+  ["talltree", 2342.99, -17.97, null, 1.746, 16.55, 0.21, "north-woods"],
+  ["buttress-roottree", 2387.36, 179.42, null, 2.918, 22.86, 2.6, "north-woods"],
+  ["palmtree_2", 2378.43, -72.25, null, 4.254, 15.84, 0.39, "north-woods"],
+  ["buttress-roottree", 2357.84, 264.55, null, 6.17, 25.04, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2338.5, 38.68, null, 5.81, 30.76, 2.6, "north-woods"],
+  ["palmtree", 2509.31, 239.36, null, 2.354, 20.46, 0.35, "north-woods"],
+  ["palmtree_4", 2486.95, 160.17, null, 0.54, 16.67, 0.47, "north-woods"],
+  ["buttress-roottree", 2482.43, -79.16, null, 6.01, 19.91, 2.6, "north-woods"],
+  ["talltree", 2489.85, -85.85, null, 4.911, 20.45, 0.26, "north-woods"],
+  ["palmtree_4", 2464.44, 323.29, null, 2.585, 13.84, 0.39, "north-woods"],
+  ["coconutpalmtree_3", 2364.72, -86.59, null, 4.494, 10.36, 0.26, "north-woods"],
+  ["palmtree_3", 2526.36, 150.99, null, 5.497, 11.73, 0.23, "north-woods"],
   ["palmtree_7", 2431.1, 71.31, null, 1.085, 13.4, 0.23, "north-woods"],
-  ["tree", 2524.09, 194.87, null, 6.214, 28.57, 2.18, "north-woods"],
-  ["coconutpalmtree_2", 2512.96, 218.81, null, 1.812, 11.19, 0.36, "north-woods"],
-  ["coconutpalmtree_1", 2357.51, 147.94, null, 2.429, 12.83, 0.34, "north-woods"],
-  ["palmtree_6", 2522.05, -74.15, null, 3.242, 12.03, 0.23, "north-woods"],
+  ["palmtree_7", 2525.74, 83.78, null, 1.077, 11.78, 0.2, "north-woods"],
+  ["palmtree_1", 2317.68, 31.12, null, 0.292, 19.48, 0.34, "north-woods"],
+  ["coconutpalmtree_4", 2493.21, 11.1, null, 5.246, 12.62, 0.26, "north-woods"],
+  ["coconutpalmtree_2", 2475.93, -31.63, null, 5.558, 11.55, 0.37, "north-woods"],
+  ["palmtree_6", 2509.05, 37.94, null, 2.27, 11.2, 0.21, "north-woods"],
+  ["palmtree_6", 2473.28, 48.55, null, 5.681, 11.95, 0.22, "north-woods"],
+  ["coconutpalmtree", 2319.66, 0.7, null, 0.117, 14.5, 0.29, "north-woods"],
   ["giantbuttress-roottree", 2475.61, 120.48, null, 4.432, 30.58, 2.6, "north-woods"],
   ["palmtree_3", 2359.89, 206.81, null, 6.234, 11.86, 0.23, "north-woods"],
   ["coconutpalmtree_3", 2476.97, 269.62, null, 0.481, 10.35, 0.26, "north-woods"],
-  ["coconutpalmtree_4", 2352.78, 259.7, null, 4.851, 14.72, 0.31, "north-woods"],
-  ["palmtree_7", 2499.54, 170.84, null, 2.961, 13.11, 0.23, "north-woods"],
-  ["palmtree_1", 2423.38, 138.09, null, 0.3, 17.13, 0.3, "north-woods"],
-  ["giantbuttress-roottree", 2477.98, 26.13, null, 4.553, 36.22, 2.6, "north-woods"],
-  ["coconutpalmtree_2", 2429.57, -8.43, null, 1.889, 12.3, 0.39, "north-woods"],
-  ["tree", 2514.41, 284.31, null, 1.164, 31.65, 2.42, "north-woods"],
-  ["buttressedtree", 2471.34, 155.2, null, 0.306, 25.42, 2.6, "north-woods"],
-  ["slimtree", 2467.7, 126.98, null, 4.088, 15.38, 0.39, "north-woods"],
-  ["palmtree_2", 2369.76, -83.72, null, 3.286, 16.03, 0.39, "north-woods"],
+  ["talltree", 2333.29, -21.85, null, 2.12, 19.5, 0.25, "north-woods"],
+  ["palmtree_1", 2322.14, -71.25, null, 2.453, 14.51, 0.25, "north-woods"],
+  ["palmtree_1", 2523.78, 161.43, null, 1.128, 19.52, 0.34, "north-woods"],
+  ["coconutpalmtree", 2472.15, 69.62, null, 4.098, 12.72, 0.25, "north-woods"],
+  ["foresttree", 2506.07, 323.24, null, 2.176, 18.11, 2.6, "north-woods"],
+  ["coconutpalmtree_2", 2352.61, -59.4, null, 0.094, 12.11, 0.39, "north-woods"],
   ["coconutpalmtree_2", 2455.65, 48.25, null, 0.465, 12.22, 0.39, "north-woods"],
   ["slimtree", 2345.35, 82.17, null, 4.377, 12.84, 0.33, "north-woods"],
-  ["palmtree_7", 2452.62, 309.5, null, 1.415, 13.74, 0.24, "north-woods"],
-  ["coconutpalmtree", 2508.18, -80.06, null, 4.012, 12.22, 0.24, "north-woods"],
+  ["buttressedtree", 2526.49, 4.62, null, 3.37, 21.43, 2.6, "north-woods"],
+  ["coconutpalmtree_1", 2506.33, -36.07, null, 1.496, 14.29, 0.38, "north-woods"],
   ["coconutpalmtree_2", 2511.3, 271.01, null, 2.34, 14.71, 0.47, "north-woods"],
-  ["talltree", 2327.8, -47.59, null, 4.265, 19.07, 0.24, "north-woods"],
-  ["coconutpalmtree", 2519.76, 139.63, null, 2.059, 12.42, 0.24, "north-woods"],
-  ["palmtree_2", 2373.94, -63.83, null, 5.461, 15.89, 0.39, "north-woods"],
-  ["palmtree", 2519.74, 206, null, 5.836, 15.43, 0.26, "north-woods"],
-  ["palmtree_8", 2442.11, 78.15, null, 6.157, 10.38, 0.18, "north-woods"],
-  ["palmtree_7", 2341.98, -24.45, null, 6.24, 13.1, 0.23, "north-woods"],
-  ["palmtree_2", 2512.04, 159, null, 4.057, 14.3, 0.35, "north-woods"],
-  ["palmtree_5", 2469.75, 60.43, null, 4.382, 14.01, 0.25, "north-woods"],
-  ["palmtree_7", 2494.32, 129.89, null, 5.175, 13.19, 0.23, "north-woods"],
-  ["buttress-roottree", 2379.14, 153.43, null, 0.847, 22.45, 2.6, "north-woods"],
-  ["palmtree_6", 2509.58, 324.14, null, 4.68, 10.83, 0.2, "north-woods"],
-  ["slimtree", 2504.02, -21.26, null, 4.005, 14.53, 0.37, "north-woods"],
-  ["coconutpalmtree_1", 2435.61, 20.06, null, 1.787, 14.83, 0.39, "north-woods"],
-  ["coconutpalmtree_1", 2452.68, -79.99, null, 2.161, 15.32, 0.41, "north-woods"],
-  ["coconutpalmtree", 2405.82, 303.88, null, 3.808, 12.85, 0.25, "north-woods"],
-  ["palmtree_7", 2451.59, 174.4, null, 2.907, 11.03, 0.19, "north-woods"],
-  ["coconutpalmtree", 2360.77, 40.41, null, 1.58, 13.36, 0.26, "north-woods"],
-  ["coconutpalmtree_1", 2478.8, 311.68, null, 0.017, 17.18, 0.46, "north-woods"],
-  ["foresttree", 2496.49, 16.55, null, 4.144, 21.51, 2.6, "north-woods"],
-  ["palmtree_2", 2314.77, 62, null, 4.81, 13.66, 0.34, "north-woods"],
-  ["palmtree_7", 2473.6, 72.29, null, 5.254, 12.98, 0.22, "north-woods"],
-  ["coconutpalmtree_3", 2480.41, 156.84, null, 0.101, 13.11, 0.33, "north-woods"],
-  ["palmtree_7", 2347.46, 203.13, null, 3.403, 12.74, 0.22, "north-woods"],
-  ["buttress-roottree", 2324.3, 33.04, null, 0.03, 24.47, 2.6, "north-woods"],
-  ["palmtree_8", 2394.81, -17.99, null, 4.394, 12.26, 0.21, "north-woods"],
+  ["palmtree", 2430.28, 140.08, null, 3.3, 17.07, 0.29, "north-woods"],
+  ["coconutpalmtree_2", 2523.92, -81.68, null, 5.872, 13.61, 0.43, "north-woods"],
+  ["palmtree_3", 2384.03, 162.21, null, 1.955, 12.27, 0.24, "north-woods"],
+  ["giantbuttress-roottree", 2525.59, -9.54, null, 0.913, 28.12, 2.6, "north-woods"],
+  ["foresttree", 2514.79, -74.22, null, 0.247, 22.65, 2.6, "north-woods"],
+  ["palmtree_2", 2526.08, 214.98, null, 4.767, 14.08, 0.35, "north-woods"],
+  ["palmtree_1", 2469.81, 280.4, null, 3.933, 14.83, 0.26, "north-woods"],
+  ["giantbuttress-roottree", 2450.24, -75.1, null, 3.588, 28.42, 2.6, "north-woods"],
+  ["talltree", 2372.56, 182.39, null, 3.593, 18.47, 0.23, "north-woods"],
+  ["coconutpalmtree_2", 2407.44, 304.29, null, 0.796, 14.51, 0.46, "north-woods"],
+  ["coconutpalmtree_2", 2413.64, 180.31, null, 1.453, 12.02, 0.38, "north-woods"],
+  ["palmtree_1", 2384.66, 277.58, null, 2.778, 17.62, 0.31, "north-woods"],
+  ["tree", 2366.47, 14.39, null, 0.231, 24.09, 1.84, "north-woods"],
+  ["palmtree_5", 2372.52, 118.29, null, 4.061, 12.74, 0.23, "north-woods"],
+  ["slimtree", 2455.09, 137.42, null, 0.136, 15.68, 0.4, "north-woods"],
+  ["palmtree_6", 2436.36, -82.26, null, 0.245, 9.72, 0.18, "north-woods"],
   ["tree", 2482.76, -63.86, null, 2.217, 31.6, 2.42, "north-woods"],
-  ["palmtree_4", 2372.05, 7.51, null, 6.08, 15.99, 0.45, "north-woods"],
-  ["tree", 2398.16, 97.96, null, 2.687, 30.42, 2.32, "north-woods"],
-  ["coconutpalmtree_3", 2507.61, 124.42, null, 2.579, 10.94, 0.28, "north-woods"],
-  ["palmtree_3", 2338.42, 58.69, null, 0.327, 14.01, 0.27, "north-woods"],
-  ["palmtree_3", 2373.86, 189.16, null, 4.728, 11.43, 0.22, "north-woods"],
-  ["coconutpalmtree_3", 2463.01, 160.36, null, 0.625, 12, 0.31, "north-woods"],
-  ["buttress-roottree", 2407.95, -84.77, null, 1.467, 23.64, 2.6, "north-woods"],
-  ["palmtree_6", 2324.64, 109.31, null, 2.441, 10.53, 0.2, "north-woods"],
-  ["palmtree_2", 2504.64, -43.58, null, 2.621, 11.95, 0.29, "north-woods"],
+  ["palmtree_7", 2336.23, -7.67, null, 4.821, 13.54, 0.23, "north-woods"],
+  ["giantbuttress-roottree", 2437.98, -69.61, null, 2.725, 36.77, 2.6, "north-woods"],
+  ["talltree", 2408.72, -58.24, null, 2.518, 17.69, 0.22, "north-woods"],
+  ["palmtree_8", 2417.98, -52.44, null, 4.765, 9.45, 0.16, "north-woods"],
+  ["palmtree_3", 2343.85, 63.94, null, 2.668, 14.59, 0.28, "north-woods"],
+  ["buttress-roottree", 2520.24, 205.22, null, 2.18, 21.8, 2.6, "north-woods"],
+  ["palmtree_7", 2498.89, 84.98, null, 4.26, 12.44, 0.22, "north-woods"],
+  ["slimtree", 2323.87, 8.83, null, 1.226, 14.53, 0.37, "north-woods"],
+  ["coconutpalmtree_3", 2423.62, 175.53, null, 3.814, 10.57, 0.27, "north-woods"],
   ["palmtree_8", 2326.24, 84.21, null, 1.975, 11.64, 0.2, "north-woods"],
-  ["palmtree_2", 2394.4, -77.91, null, 5.653, 15.56, 0.38, "north-woods"],
-  ["palmtree_8", 2433.85, 284.23, null, 3.044, 11.72, 0.2, "north-woods"],
-  ["coconutpalmtree", 2382.91, -84.03, null, 3.934, 11.96, 0.24, "north-woods"],
-  ["buttressedtree", 2340.53, -70.95, null, 0.484, 23.61, 2.6, "north-woods"],
-  ["coconutpalmtree_4", 2497.94, -73.7, null, 0.605, 14.96, 0.31, "north-woods"],
-  ["palmtree_4", 2518.11, -40.97, null, 6.096, 13.76, 0.39, "north-woods"],
-  ["buttressedtree", 2485.82, 89.51, null, 2.634, 27.97, 2.6, "north-woods"],
-  ["coconutpalmtree_2", 2449.84, -69.06, null, 0.825, 12.44, 0.4, "north-woods"],
+  ["coconutpalmtree_2", 2358.36, 156.92, null, 0.656, 14.58, 0.47, "north-woods"],
+  ["palmtree_2", 2316.62, 105.18, null, 5.227, 15.47, 0.38, "north-woods"],
+  ["giantbuttress-roottree", 2524.4, 303.33, null, 4.807, 36.07, 2.6, "north-woods"],
+  ["tree", 2439.7, -26.83, null, 3.243, 25.42, 1.94, "north-woods"],
+  ["coconutpalmtree_1", 2338.78, -50.64, null, 0.965, 12.89, 0.34, "north-woods"],
+  ["palmtree_6", 2431.09, -7.05, null, 3.858, 10.18, 0.19, "north-woods"],
+  ["palmtree_6", 2525.71, 101.6, null, 3.184, 12.29, 0.23, "north-woods"],
+  ["talltree", 2509.07, -85.71, null, 0.047, 20.24, 0.26, "north-woods"],
+  ["buttressedtree", 2404.03, 284.55, null, 4.235, 24.39, 2.6, "north-woods"],
+  ["slimtree", 2406.23, -33.49, null, 2.663, 11.92, 0.31, "north-woods"],
+  ["coconutpalmtree_2", 2504.78, 109.82, null, 3.065, 12.49, 0.4, "north-woods"],
+  ["palmtree_8", 2352.9, 77.24, null, 2.719, 11.62, 0.2, "north-woods"],
+  ["palmtree_4", 2399.95, 153.93, null, 5.934, 14.96, 0.42, "north-woods"],
+  ["giantbuttress-roottree", 2507.96, 118.67, null, 2.475, 31.38, 2.6, "north-woods"],
+  ["palmtree_6", 2520.76, 282.62, null, 4.758, 11.87, 0.22, "north-woods"],
+  ["coconutpalmtree_1", 2496.96, 161.59, null, 5.347, 14.19, 0.38, "north-woods"],
+  ["palmtree_1", 2436.59, 17.56, null, 3.524, 18.9, 0.33, "north-woods"],
   ["buttressedtree", 2329.96, 15.46, null, 1.028, 27.41, 2.6, "north-woods"],
-  ["foresttree", 2512, 45.53, null, 2.751, 21.38, 2.6, "north-woods"],
-  ["palmtree_2", 2443.09, 120.47, null, 3.066, 11.95, 0.29, "north-woods"],
-  ["palmtree_6", 2465.56, 114.57, null, 0.512, 10.14, 0.19, "north-woods"],
-  ["giantbuttress-roottree", 2444.9, -58.87, null, 2.458, 35.73, 2.6, "north-woods"],
-  ["coconutpalmtree_2", 2412.21, 29.73, null, 1.186, 11.9, 0.38, "north-woods"],
-  ["coconutpalmtree_3", 2317.91, 9.57, null, 4.581, 12.65, 0.32, "north-woods"],
-  ["coconutpalmtree_1", 2356.51, -28.27, null, 0.875, 15.65, 0.42, "north-woods"],
+  ["coconutpalmtree_3", 2499.57, 311.91, null, 1.37, 12.93, 0.33, "north-woods"],
+  ["palmtree_4", 2347.68, 166.94, null, 3.778, 14.01, 0.4, "north-woods"],
+  ["tree", 2493.1, 289.75, null, 2.151, 26.43, 2.02, "north-woods"],
+  ["slimtree", 2356, 10.12, null, 0.715, 13.58, 0.35, "north-woods"],
+  ["coconutpalmtree", 2471.22, 59.1, null, 0.007, 11.93, 0.24, "north-woods"],
+  ["coconutpalmtree", 2442.17, 311.06, null, 1.723, 12.24, 0.24, "north-woods"],
+  ["giantbuttress-roottree", 2328, -11.79, null, 3.73, 30.64, 2.6, "north-woods"],
+  ["palmtree_3", 2501.07, 17.47, null, 4.91, 12.34, 0.24, "north-woods"],
+  ["palmtree_7", 2403.91, 105.13, null, 1.367, 12.45, 0.22, "north-woods"],
+  ["palmtree_8", 2502.63, 148.26, null, 2.339, 11.51, 0.2, "north-woods"],
   ["coconutpalmtree", 2523.2, 56.62, null, 3.061, 14.63, 0.29, "north-woods"],
-  ["palmtree_1", 2525.02, 218.08, null, 1.64, 15, 0.26, "north-woods"],
-  ["buttressedtree", 2361.25, 160.1, null, 1.135, 27.1, 2.6, "north-woods"],
-  ["coconutpalmtree_4", 2444.09, 281.77, null, 2.267, 15.91, 0.33, "north-woods"],
   ["palmtree_2", 2334.61, -84.01, null, 5.167, 15.62, 0.38, "north-woods"],
-  ["giantbuttress-roottree", 2408.85, 185.73, null, 4.139, 27.55, 2.6, "north-woods"],
-  ["coconutpalmtree", 2519.69, 225.69, null, 2.581, 12.21, 0.24, "north-woods"],
-  ["palmtree_3", 2522.25, 166.43, null, 2.496, 12.68, 0.25, "north-woods"],
-  ["coconutpalmtree_4", 2327.31, 52.64, null, 5.515, 14.46, 0.3, "north-woods"],
+  ["talltree", 2487.86, 121.93, null, 2.535, 17.25, 0.22, "north-woods"],
+  ["coconutpalmtree_2", 2492.32, -74.58, null, 1.818, 12.66, 0.4, "north-woods"],
+  ["palmtree_3", 2362.08, -11.78, null, 2.322, 12.48, 0.24, "north-woods"],
+  ["palmtree_6", 2444.18, 278.66, null, 4.383, 10.73, 0.2, "north-woods"],
+  ["palmtree_8", 2527.87, -29.14, null, 5.815, 12.23, 0.21, "north-woods"],
+  ["foresttree", 2514.39, 315.96, null, 5.118, 19.03, 2.6, "north-woods"],
+  ["palmtree", 2441.25, 71.05, null, 5.081, 18.57, 0.32, "north-woods"],
   ["giantbuttress-roottree", 2405.51, 275.61, null, 0.17, 31.38, 2.6, "north-woods"],
-  ["palmtree_8", 2494.42, 82.34, null, 4.821, 12.26, 0.21, "north-woods"],
-  ["buttressedtree", 2490.5, 155.96, null, 4.548, 22.46, 2.6, "north-woods"],
+  ["palmtree_8", 2415.93, 320.99, null, 3.48, 12.63, 0.22, "north-woods"],
+  ["buttressedtree", 2427.2, -48.07, null, 3.68, 27.4, 2.6, "north-woods"],
   ["buttressedtree", 2390.57, 62.02, null, 5.335, 22.14, 2.6, "north-woods"],
   ["palmtree_7", 2377.35, 131.5, null, 0.263, 10.34, 0.18, "north-woods"],
   ["palmtree_4", 2400.78, -4.37, null, 2.457, 14.69, 0.41, "north-woods"],
-  ["slimtree", 2499.21, -59.02, null, 2.931, 11.98, 0.31, "north-woods"],
+  ["coconutpalmtree", 2512.74, -63.16, null, 3.096, 15.41, 0.3, "north-woods"],
+  ["coconutpalmtree", 2447.53, 179.4, null, 4.207, 14.18, 0.28, "north-woods"],
+  ["palmtree_8", 2381.74, 187.43, null, 5.903, 11.6, 0.2, "north-woods"],
+  ["coconutpalmtree_3", 2355.76, 197.52, null, 1.984, 12.36, 0.31, "north-woods"],
   ["buttress-roottree", 2440.94, 110.51, null, 3.793, 20.11, 2.6, "north-woods"],
-  ["coconutpalmtree", 2485.79, 305.74, null, 0.289, 12.71, 0.25, "north-woods"],
+  ["coconutpalmtree_1", 2480, 109.02, null, 2.717, 14.94, 0.4, "north-woods"],
   ["palmtree_7", 2395.44, 267.52, null, 0.129, 11.56, 0.2, "north-woods"],
-  ["tree", 2510.57, 148.53, null, 0.642, 24.92, 1.9, "north-woods"],
-  ["palmtree_3", 2525.4, 13, null, 4.284, 12.26, 0.24, "north-woods"],
-  ["palmtree_3", 2455.28, -59.46, null, 0.962, 12.19, 0.24, "north-woods"],
-  ["coconutpalmtree_2", 2415.91, 206.13, null, 1.136, 11.4, 0.36, "north-woods"],
-  ["palmtree_6", 2399.3, 184.78, null, 6.156, 11.76, 0.22, "north-woods"],
-  ["palmtree_4", 2441.28, -75.18, null, 0.621, 16.05, 0.45, "north-woods"],
-  ["giantbuttress-roottree", 2446.66, 90.36, null, 6.232, 33.07, 2.6, "north-woods"],
-  ["palmtree_4", 2525.04, 76.39, null, 2.987, 14.16, 0.4, "north-woods"],
-  ["tree", 2507.27, 243.51, null, 3.288, 30.59, 2.34, "north-woods"],
-  ["palmtree_6", 2364.97, -75.87, null, 0.6, 10.15, 0.19, "north-woods"],
-  ["buttressedtree", 2370.86, 137.99, null, 1.61, 21.85, 2.6, "north-woods"],
+  ["palmtree_3", 2405.42, -82.6, null, 2.875, 14.28, 0.28, "north-woods"],
+  ["palmtree_1", 2448.77, -52.27, null, 1.802, 18.47, 0.32, "north-woods"],
+  ["palmtree_3", 2508.05, 249.5, null, 5.99, 14.17, 0.28, "north-woods"],
+  ["palmtree_4", 2343.76, 209.4, null, 3.708, 16.1, 0.45, "north-woods"],
+  ["slimtree", 2367.47, -76.28, null, 0.183, 12.17, 0.31, "north-woods"],
+  ["coconutpalmtree_2", 2507.33, -11.46, null, 3.368, 11.12, 0.35, "north-woods"],
+  ["palmtree_7", 2369.2, 156.78, null, 5.146, 13.53, 0.23, "north-woods"],
+  ["coconutpalmtree", 2329.82, 42.8, null, 0.495, 14.11, 0.28, "north-woods"],
   ["slimtree", 2460.51, 82.74, null, 3.375, 14.71, 0.38, "north-woods"],
   ["coconutpalmtree_1", 2367.64, 255.46, null, 1.261, 16.62, 0.44, "north-woods"],
-  ["coconutpalmtree_4", 2511.03, 312.67, null, 1.516, 14.29, 0.3, "north-woods"],
+  ["talltree", 2486.35, -45.69, null, 0.566, 17.38, 0.22, "north-woods"],
   ["coconutpalmtree", 2418.54, -41.42, null, 0.174, 12.34, 0.24, "north-woods"],
   ["coconutpalmtree_3", 2465.44, -7.63, null, 4.824, 12.52, 0.32, "north-woods"],
-  ["palmtree_4", 2437.91, -31.07, null, 5.129, 13.2, 0.37, "north-woods"],
+  ["coconutpalmtree_2", 2519.33, 236.5, null, 6.034, 12.72, 0.41, "north-woods"],
   ["tree", 2466.65, -35.51, null, 0.987, 26.88, 2.05, "north-woods"],
-  ["palmtree_4", 2511.85, 100.47, null, 0.224, 14.04, 0.4, "north-woods"],
+  ["palmtree_8", 2407.55, 127.65, null, 2.849, 12.38, 0.21, "north-woods"],
   ["coconutpalmtree_1", 2473.31, 165.18, null, 4.523, 16.72, 0.44, "north-woods"],
   ["palmtree_6", 2496.85, 71.57, null, 0.6, 11.27, 0.21, "north-woods"],
-  ["slimtree", 2527.09, -47.39, null, 0.62, 15.12, 0.39, "north-woods"],
-  ["palmtree", 2506.8, 293.54, null, 4.516, 16.92, 0.29, "north-woods"],
-  ["palmtree_6", 2486.66, -85.79, null, 6.214, 9.58, 0.18, "north-woods"],
-  ["palmtree_3", 2485.95, 13.88, null, 2.695, 12.23, 0.24, "north-woods"],
-  ["palmtree_1", 2527.37, 232.33, null, 4.881, 18.37, 0.32, "north-woods"],
-  ["talltree", 2347.07, 14.06, null, 0.394, 17.8, 0.22, "north-woods"],
-  ["palmtree_6", 2476.32, 110.06, null, 1.205, 11.12, 0.21, "north-woods"],
-  ["coconutpalmtree_2", 2424.64, 312.91, null, 1.102, 14.68, 0.47, "north-woods"],
-  ["buttress-roottree", 2396.87, 153.03, null, 2.19, 19.51, 2.6, "north-woods"],
-  ["slimtree", 2499.4, 142.34, null, 1.755, 15.5, 0.4, "north-woods"],
-  ["coconutpalmtree", 2446.25, 183.12, null, 5.675, 14.59, 0.29, "north-woods"],
-  ["slimtree", 2406.74, 122.72, null, 5.328, 14.28, 0.37, "north-woods"],
-  ["palmtree_1", 2350.7, 158.82, null, 3.392, 16.59, 0.29, "north-woods"],
-  ["palmtree_3", 2433.85, -63.44, null, 4.299, 11.97, 0.23, "north-woods"],
-  ["coconutpalmtree", 2357.19, -85.68, null, 4.393, 14.7, 0.29, "north-woods"],
-  ["palmtree_8", 2468.74, 317.2, null, 2.168, 12.46, 0.22, "north-woods"],
-  ["palmtree_5", 2506.43, -10.93, null, 0.832, 11.57, 0.2, "north-woods"],
+  ["coconutpalmtree_2", 2338.31, 167.78, null, 2.218, 12.45, 0.4, "north-woods"],
+  ["palmtree_8", 2488.14, 131.28, null, 1.922, 11.23, 0.19, "north-woods"],
+  ["palmtree_1", 2506.63, 297.61, null, 0.285, 17.44, 0.3, "north-woods"],
+  ["buttressedtree", 2333.15, 65.51, null, 5.178, 24.88, 2.6, "north-woods"],
+  ["slimtree", 2312.2, 7.54, null, 0.564, 16.05, 0.41, "north-woods"],
+  ["coconutpalmtree_4", 2337.7, -30.34, null, 5.099, 14.76, 0.31, "north-woods"],
+  ["tree", 2425.14, 109.5, null, 1.163, 30.25, 2.31, "north-woods"],
+  ["buttressedtree", 2527.31, 293.08, null, 4.146, 27.21, 2.6, "north-woods"],
+  ["slimtree", 2505.13, -20.26, null, 5.453, 13.32, 0.34, "north-woods"],
+  ["palmtree_7", 2399.77, 297.81, null, 0.56, 11.55, 0.2, "north-woods"],
+  ["palmtree_4", 2446.95, -63.49, null, 0.628, 14.24, 0.4, "north-woods"],
+  ["coconutpalmtree", 2347.35, 233.68, null, 2.61, 12.62, 0.25, "north-woods"],
+  ["palmtree_7", 2336.84, 88.56, null, 5.31, 11.94, 0.21, "north-woods"],
+  ["tree", 2395.72, 33.49, null, 1.311, 30.54, 2.33, "north-woods"],
+  ["foresttree", 2428.69, 121.04, null, 2.05, 21.93, 2.6, "north-woods"],
+  ["coconutpalmtree_1", 2436.58, -58.34, null, 4.184, 15.43, 0.41, "north-woods"],
+  ["coconutpalmtree_3", 2452.08, 168.99, null, 5.11, 13.59, 0.35, "north-woods"],
   ["palmtree_7", 2387.38, -71.25, null, 4.716, 12.63, 0.22, "north-woods"],
   ["palmtree_6", 2406.28, -23.3, null, 0.921, 10.67, 0.2, "north-woods"],
-  ["palmtree_8", 2321.14, -73.25, null, 2.62, 12.36, 0.21, "north-woods"],
-  ["coconutpalmtree_4", 2497.01, 274.72, null, 5.507, 14.86, 0.31, "north-woods"],
-  ["slimtree", 2434.8, 272.38, null, 3.036, 11.91, 0.3, "north-woods"],
   ["palmtree_5", 2342.08, 135.96, null, 4.071, 13.35, 0.24, "north-woods"],
-  ["slimtree", 2382.07, 172.43, null, 1.313, 13.83, 0.35, "north-woods"],
+  ["coconutpalmtree", 2427.6, 83.1, null, 3.409, 14.96, 0.29, "north-woods"],
   ["slimtree", 2512.29, 16.59, null, 3.505, 13.52, 0.35, "north-woods"],
-  ["slimtree", 2475.42, -56.34, null, 2.611, 14.77, 0.38, "north-woods"],
-  ["palmtree_4", 2391.08, 103.67, null, 4.537, 14.17, 0.4, "north-woods"],
-  ["palmtree_8", 2526.55, 176.67, null, 0.597, 11.99, 0.21, "north-woods"],
+  ["coconutpalmtree_3", 2520.47, 134.36, null, 0.503, 12.91, 0.33, "north-woods"],
+  ["palmtree_8", 2364.3, -25.65, null, 3.341, 12.5, 0.22, "north-woods"],
+  ["palmtree", 2472.23, 29.5, null, 1.592, 20.45, 0.35, "north-woods"],
   ["palmtree_5", 2402.97, 328.91, null, 2.693, 11.27, 0.2, "north-woods"],
-  ["palmtree_4", 2521.25, 129.88, null, 0.404, 14.93, 0.42, "north-woods"],
+  ["tree", 2416.6, -62.98, null, 5.661, 26.79, 2.05, "north-woods"],
   ["palmtree_8", 2422.44, -1.72, null, 5.835, 10.15, 0.18, "north-woods"],
-  ["coconutpalmtree_3", 2382.95, 189.57, null, 2.88, 11.8, 0.3, "north-woods"],
-  ["giantbuttress-roottree", 2364.83, -7.38, null, 3.553, 34.85, 2.6, "north-woods"],
-  ["coconutpalmtree_2", 2410.93, 19.59, null, 5.505, 13.13, 0.42, "north-woods"],
-  ["coconutpalmtree_4", 2425.89, 90.11, null, 0.56, 15.12, 0.32, "north-woods"],
-  ["palmtree_1", 2354.22, -60.11, null, 5.966, 19.49, 0.34, "north-woods"],
-  ["palmtree_2", 2496.13, 263.5, null, 0.911, 15.65, 0.38, "north-woods"],
-  ["tree", 2399.66, -59.63, null, 3.921, 30.08, 2.3, "north-woods"],
-  ["coconutpalmtree_2", 2404.08, 107.72, null, 0.056, 14.29, 0.46, "north-woods"],
-  ["coconutpalmtree_3", 2505.83, 81.77, null, 4.251, 13.14, 0.33, "north-woods"],
-  ["palmtree_6", 2407.42, -32.9, null, 4.606, 12.65, 0.24, "north-woods"],
-  ["palmtree_4", 2505.56, 24.01, null, 3.738, 16.03, 0.45, "north-woods"],
-  ["slimtree", 2461.83, 295.48, null, 5.44, 13.56, 0.35, "north-woods"],
-  ["buttressedtree", 2501.72, 36.64, null, 1.152, 26.71, 2.6, "north-woods"],
-  ["tree", 2485.91, -74.64, null, 1.499, 31.62, 2.42, "north-woods"],
-  ["coconutpalmtree_4", 2487.45, 167.38, null, 1.093, 12.41, 0.26, "north-woods"],
+  ["coconutpalmtree", 2457.68, -68.09, null, 4.808, 12.99, 0.26, "north-woods"],
+  ["palmtree_6", 2489.42, 79.7, null, 3.087, 12.25, 0.23, "north-woods"],
+  ["slimtree", 2349.72, -32.67, null, 5.903, 11.91, 0.3, "north-woods"],
+  ["coconutpalmtree_4", 2330.74, 28, null, 4.499, 13.57, 0.28, "north-woods"],
+  ["palmtree_3", 2385.56, 43.68, null, 0.743, 12.38, 0.24, "north-woods"],
+  ["palmtree_4", 2392.26, 20.37, null, 4.893, 13.45, 0.38, "north-woods"],
+  ["palmtree_3", 2466.09, 297.98, null, 5.09, 12.84, 0.25, "north-woods"],
+  ["coconutpalmtree_1", 2394.64, 102.2, null, 2.956, 14.37, 0.38, "north-woods"],
+  ["buttress-roottree", 2456.3, 274.86, null, 4.249, 23.94, 2.6, "north-woods"],
+  ["coconutpalmtree", 2398.61, 92.86, null, 1.891, 14.1, 0.28, "north-woods"],
+  ["giantbuttress-roottree", 2417.69, 308.87, null, 4.219, 27.26, 2.6, "north-woods"],
+  ["palmtree_6", 2419.27, 288.41, null, 4.9, 10.58, 0.2, "north-woods"],
   ["coconutpalmtree_1", 2474.87, 325.97, null, 1.18, 14.6, 0.39, "north-woods"],
-  ["palmtree_2", 2389.52, 22.12, null, 1.216, 14.36, 0.35, "north-woods"],
-  ["tree", 2493.18, 96.69, null, 0.353, 29.66, 2.27, "north-woods"],
-  ["palmtree_7", 2318.44, 118.22, null, 0.58, 11.92, 0.21, "north-woods"],
-  ["palmtree_3", 2486.63, 72.19, null, 1.095, 13.48, 0.26, "north-woods"],
-  ["buttress-roottree", 2344.38, 235.07, null, 1.205, 20.35, 2.6, "north-woods"],
-  ["palmtree_5", 2337.85, 48.84, null, 4.427, 11.47, 0.2, "north-woods"],
-  ["palmtree_2", 2428.49, 202.26, null, 2.127, 13.56, 0.33, "north-woods"],
-  ["coconutpalmtree", 2437.21, -83.53, null, 6.217, 14.51, 0.29, "north-woods"],
-  ["coconutpalmtree_3", 2520.25, -84.09, null, 5.144, 11.85, 0.3, "north-woods"],
-  ["coconutpalmtree", 2366.37, 15.97, null, 5.593, 13.53, 0.27, "north-woods"],
-  ["palmtree_7", 2480.93, -33.22, null, 4.883, 11.32, 0.2, "north-woods"],
-  ["tree", 2397.3, 299.61, null, 5.634, 27.17, 2.08, "north-woods"],
-  ["palmtree_2", 2474.93, -71.09, null, 1.792, 13.8, 0.34, "north-woods"],
-  ["coconutpalmtree_2", 2424.54, -84.15, null, 1.524, 14.59, 0.47, "north-woods"],
-  ["palmtree_7", 2491.28, 295.77, null, 2.527, 12.29, 0.21, "north-woods"],
-  ["coconutpalmtree_4", 2389.14, -43.51, null, 6.112, 12.32, 0.26, "north-woods"],
-  ["buttressedtree", 2487.86, 142.04, null, 4.24, 22.86, 2.6, "north-woods"],
-  ["palmtree_3", 2476.75, 281.3, null, 5.746, 12.27, 0.24, "north-woods"],
-  ["coconutpalmtree_2", 2470.57, 34.15, null, 1.779, 12.22, 0.39, "north-woods"],
-  ["palmtree_6", 2473.29, 12.37, null, 0.283, 11.29, 0.21, "north-woods"],
-  ["palmtree_1", 2427.4, 119.48, null, 3.068, 15.41, 0.27, "north-woods"],
-  ["palmtree_6", 2386.12, 281, null, 2.058, 10.66, 0.2, "north-woods"],
-  ["buttressedtree", 2348.28, -32.86, null, 3.406, 21.93, 2.6, "north-woods"],
-  ["palmtree_2", 2454, 263.62, null, 0.081, 15.21, 0.37, "north-woods"],
+  ["palmtree_5", 2339.44, 11.02, null, 3.126, 12.67, 0.22, "north-woods"],
+  ["palmtree_7", 2483.13, 91.05, null, 4.596, 11.02, 0.19, "north-woods"],
+  ["palmtree_2", 2522.85, 182.48, null, 4.392, 13.68, 0.34, "north-woods"],
+  ["coconutpalmtree_2", 2433.45, 269.06, null, 2.811, 14.93, 0.48, "north-woods"],
+  ["slimtree", 2443.32, 302.07, null, 3.078, 14.14, 0.36, "north-woods"],
+  ["palmtree", 2503.39, 176.52, null, 1.211, 18.47, 0.32, "north-woods"],
+  ["palmtree_3", 2513.65, -29.99, null, 4.372, 14.91, 0.29, "north-woods"],
+  ["palmtree_7", 2346.48, 175.91, null, 3.345, 12.98, 0.22, "north-woods"],
+  ["coconutpalmtree_3", 2395.6, 165.11, null, 5.046, 11.7, 0.3, "north-woods"],
+  ["palmtree_4", 2515.55, 125.26, null, 2.455, 14.5, 0.41, "north-woods"],
+  ["buttress-roottree", 2415.29, 170.37, null, 0.882, 21.26, 2.6, "north-woods"],
+  ["slimtree", 2329.52, 103.48, null, 4.66, 12.53, 0.32, "north-woods"],
+  ["tree", 2435.05, 255.1, null, 3.12, 27.42, 2.1, "north-woods"],
+  ["palmtree_1", 2392.57, 3.59, null, 2.108, 17.91, 0.31, "north-woods"],
+  ["coconutpalmtree_1", 2358.52, 22.5, null, 4.966, 16.34, 0.43, "north-woods"],
+  ["palmtree_2", 2501.34, 27.87, null, 3.219, 12.68, 0.31, "north-woods"],
+  ["buttress-roottree", 2418.88, 29.04, null, 2.719, 22.97, 2.6, "north-woods"],
+  ["buttressedtree", 2358.09, 57.29, null, 2.652, 22.7, 2.6, "north-woods"],
+  ["palmtree_4", 2350.53, 253.61, null, 2.467, 14.28, 0.4, "north-woods"],
+  ["palmtree_1", 2395.63, -55.05, null, 4.741, 17.39, 0.3, "north-woods"],
+  ["palmtree_7", 2317.66, -45.11, null, 1.391, 10.5, 0.18, "north-woods"],
+  ["talltree", 2315.11, 119.61, null, 5.029, 17.54, 0.22, "north-woods"],
+  ["palmtree_1", 2398.38, 179.81, null, 2.586, 16.64, 0.29, "north-woods"],
+  ["palmtree_3", 2513.21, 148.62, null, 5.41, 11.58, 0.23, "north-woods"],
+  ["coconutpalmtree_2", 2437.28, 172.05, null, 4.016, 13.12, 0.42, "north-woods"],
+  ["palmtree_4", 2417.26, -84.19, null, 2.759, 16.72, 0.47, "north-woods"],
+  ["coconutpalmtree_1", 2444.54, 123.76, null, 1.892, 14.75, 0.39, "north-woods"],
+  ["giantbuttress-roottree", 2497.56, 131.28, null, 4.428, 27.8, 2.6, "north-woods"],
+  ["buttressedtree", 2347.25, 200.69, null, 5.031, 25.78, 2.6, "north-woods"],
+  ["coconutpalmtree_4", 2469.59, 311.53, null, 1.023, 13.73, 0.29, "north-woods"],
+  ["slimtree", 2457.99, 181.94, null, 4.135, 14.66, 0.38, "north-woods"],
+  ["coconutpalmtree_2", 2464.14, -77, null, 0.695, 12, 0.38, "north-woods"],
+  ["palmtree_1", 2510.52, 283.13, null, 0.033, 14.84, 0.26, "north-woods"],
+  ["tree", 2505.17, 65.03, null, 4.51, 28.81, 2.2, "north-woods"],
+  ["palmtree_4", 2343.49, -67.9, null, 2.344, 13.43, 0.38, "north-woods"],
+  ["palmtree_5", 2486.13, 283.65, null, 1.8, 11.72, 0.21, "north-woods"],
   ["coconutpalmtree", 2499.13, -85.48, null, 2.884, 12.57, 0.25, "north-woods"],
-  ["foresttree", 2386.15, 180.57, null, 4.924, 19.61, 2.6, "north-woods"],
-  ["foresttree", 2389.91, 254.68, null, 4.945, 17.26, 2.6, "north-woods"],
-  ["palmtree_3", 2505.92, 227.64, null, 6.099, 12.77, 0.25, "north-woods"],
-  ["palmtree_1", 2401.77, 284.71, null, 1.931, 17.75, 0.31, "north-woods"],
+  ["giantbuttress-roottree", 2331.74, -71.83, null, 0.865, 33.27, 2.6, "north-woods"],
+  ["tree", 2358.51, 32.41, null, 0.436, 32.18, 2.46, "north-woods"],
+  ["buttressedtree", 2527.99, 72.7, null, 3.141, 27.14, 2.6, "north-woods"],
+  ["palmtree_3", 2433.62, 163.03, null, 1.224, 14.13, 0.28, "north-woods"],
   ["giantbuttress-roottree", 2326.75, 75.13, null, 2.595, 36.68, 2.6, "north-woods"],
-  ["coconutpalmtree_4", 2424.4, 110.4, null, 1.639, 13.83, 0.29, "north-woods"],
-  ["talltree", 2335.52, -15.45, null, 0.626, 17.45, 0.22, "north-woods"],
-  ["tree", 2414.85, -58.26, null, 1.471, 29.86, 2.28, "north-woods"],
-  ["coconutpalmtree", 2317.83, -40.56, null, 4.545, 14.24, 0.28, "north-woods"],
-  ["buttressedtree", 2344.75, 172.55, null, 3.088, 28.17, 2.6, "north-woods"],
+  ["palmtree_6", 2316.3, 55.91, null, 3.971, 11.64, 0.22, "north-woods"],
+  ["palmtree_2", 2375.34, 7.64, null, 2.195, 13.74, 0.34, "north-woods"],
+  ["coconutpalmtree_2", 2507.04, 157.86, null, 3.972, 12.67, 0.4, "north-woods"],
+  ["coconutpalmtree", 2462.05, 91.78, null, 0.865, 12.39, 0.24, "north-woods"],
+  ["palmtree", 2343.85, 246.23, null, 3.873, 19.22, 0.33, "north-woods"],
   ["palmtree_3", 2373.51, 248.07, null, 5.161, 14.06, 0.27, "north-woods"],
-  ["palmtree_1", 2352.88, -9.39, null, 1.433, 18.25, 0.32, "north-woods"],
-  ["giantbuttress-roottree", 2523.49, 313.11, null, 1.419, 31.49, 2.6, "north-woods"],
-  ["palmtree_8", 2451.26, 144.85, null, 1.704, 9.44, 0.16, "north-woods"],
-  ["palmtree_1", 2314.34, -13.3, null, 0.127, 15.7, 0.27, "north-woods"],
+  ["coconutpalmtree_3", 2475.29, -72.4, null, 5.806, 12.32, 0.31, "north-woods"],
+  ["slimtree", 2467.29, -48.58, null, 0.606, 14.69, 0.38, "north-woods"],
+  ["palmtree_5", 2405.71, 314.06, null, 1.039, 11.17, 0.2, "north-woods"],
+  ["buttress-roottree", 2527.1, -46.4, null, 1.883, 21.61, 2.6, "north-woods"],
   ["foresttree", 2361.38, 187.2, null, 5.954, 21.92, 2.6, "north-woods"],
-  ["coconutpalmtree_2", 2335.25, 173.01, null, 2.467, 12.2, 0.39, "north-woods"],
+  ["tree", 2502.34, 275.75, null, 6.001, 24.49, 1.87, "north-woods"],
   ["coconutpalmtree_3", 2439.18, -11.46, null, 4.09, 12.5, 0.32, "north-woods"],
-  ["palmtree_3", 2471.92, -27.27, null, 4.102, 11.1, 0.22, "north-woods"],
-  ["slimtree", 2400.56, 163.53, null, 0.618, 13.51, 0.35, "north-woods"],
-  ["coconutpalmtree_4", 2496.37, 120.72, null, 1.219, 13.54, 0.28, "north-woods"],
   ["tree", 2469.54, 179.4, null, 4.646, 29.12, 2.23, "north-woods"],
-  ["buttressedtree", 2490.15, 188.94, null, 2.639, 26.73, 2.6, "north-woods"],
-  ["palmtree_8", 2435.86, -53.69, null, 4.587, 11.23, 0.19, "north-woods"],
-  ["tree", 2481.82, 296.19, null, 3.146, 28.72, 2.2, "north-woods"],
-  ["coconutpalmtree_4", 2408.39, 314.96, null, 3.535, 15.8, 0.33, "north-woods"],
-  ["tree", 2422.22, 286.79, null, 4.047, 28.41, 2.17, "north-woods"],
-  ["palmtree_8", 2470.37, 144.83, null, 0.875, 11.16, 0.19, "north-woods"],
-  ["palmtree_4", 2353.06, 124.17, null, 5.647, 15.77, 0.45, "north-woods"],
+  ["palmtree_7", 2526.48, 141.63, null, 2.111, 12.41, 0.21, "north-woods"],
+  ["palmtree_5", 2527.18, 194.95, null, 2.668, 14.77, 0.26, "north-woods"],
+  ["palmtree_4", 2516.46, 98.04, null, 0.029, 13.91, 0.39, "north-woods"],
+  ["palmtree_1", 2495.27, 262.57, null, 3.516, 17.56, 0.31, "north-woods"],
+  ["foresttree", 2324.18, 111.66, null, 4.506, 21.78, 2.6, "north-woods"],
+  ["buttress-roottree", 2524.87, 227.64, null, 2.212, 20.21, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2499.12, -28.58, null, 1.418, 29.84, 2.6, "north-woods"],
+  ["buttress-roottree", 2364.4, 3.35, null, 5.969, 20.37, 2.6, "north-woods"],
+  ["coconutpalmtree_3", 2515.83, 189.62, null, 2.478, 11.02, 0.28, "north-woods"],
+  ["palmtree", 2379.68, 174.17, null, 3.421, 16.81, 0.29, "north-woods"],
   ["palmtree_8", 2389.44, -26.34, null, 4.958, 11.68, 0.2, "north-woods"],
-  ["coconutpalmtree_2", 2498.04, 323.6, null, 3.256, 11.11, 0.35, "north-woods"],
-  ["coconutpalmtree", 2514.02, 191.33, null, 2.017, 13.56, 0.27, "north-woods"],
-  ["tree", 2430.87, 187.12, null, 2.092, 27.49, 2.1, "north-woods"],
-  ["palmtree_3", 2427.31, -28.05, null, 3.725, 12.3, 0.24, "north-woods"],
-  ["talltree", 2482.41, 129.09, null, 1.287, 16.21, 0.2, "north-woods"],
-  ["coconutpalmtree_1", 2385.83, 160.69, null, 4.234, 15.73, 0.42, "north-woods"],
-  ["palmtree_1", 2527.97, 242.41, null, 2.136, 16.59, 0.29, "north-woods"],
-  ["palmtree_6", 2383.25, 44.46, null, 3.159, 12.4, 0.23, "north-woods"],
-  ["coconutpalmtree_1", 2376.02, -74.78, null, 6.181, 16.07, 0.43, "north-woods"],
-  ["palmtree_8", 2338.29, 88.45, null, 2.601, 11.49, 0.2, "north-woods"],
-  ["talltree", 2402.03, 145.02, null, 4.104, 17.25, 0.22, "north-woods"],
+  ["buttressedtree", 2463.89, 33.43, null, 3.021, 24.49, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2390.5, -42.97, null, 4.214, 36.43, 2.6, "north-woods"],
+  ["talltree", 2407.32, 12.89, null, 2.113, 18.24, 0.23, "north-woods"],
+  ["coconutpalmtree_4", 2323.22, -20.07, null, 5.114, 15.1, 0.32, "north-woods"],
+  ["palmtree", 2379.56, 143.46, null, 0.147, 16.79, 0.29, "north-woods"],
   ["foresttree", 2372.61, 77.84, null, 3.824, 17.38, 2.6, "north-woods"],
-  ["talltree", 2318.35, -24.4, null, 0.871, 20.5, 0.26, "north-woods"],
-  ["palmtree_4", 2380.84, 140.98, null, 5.592, 16.87, 0.48, "north-woods"],
-  ["coconutpalmtree", 2454.84, -8.91, null, 3.461, 13.99, 0.28, "north-woods"],
-  ["coconutpalmtree_2", 2452.48, 276.61, null, 3.762, 12.24, 0.39, "north-woods"],
-  ["coconutpalmtree_2", 2454.38, 326.35, null, 4.114, 13.4, 0.43, "north-woods"],
-  ["foresttree", 2374.06, 178.49, null, 5.021, 20.39, 2.6, "north-woods"],
-  ["foresttree", 2462.18, -85.3, null, 1.8, 21.71, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2420.4, 208.62, null, 5.59, 36.5, 2.6, "north-woods"],
+  ["palmtree_7", 2387.59, -62.23, null, 0.989, 12.68, 0.22, "north-woods"],
+  ["coconutpalmtree_4", 2527.78, 173.46, null, 0.46, 15.37, 0.32, "north-woods"],
+  ["coconutpalmtree_1", 2478.03, 77.55, null, 3.758, 15.04, 0.4, "north-woods"],
   ["giantbuttress-roottree", 2423.46, 253, null, 5.776, 33.82, 2.6, "north-woods"],
-  ["palmtree_4", 2378.98, 211.92, null, 0.219, 15.05, 0.42, "north-woods"],
-  ["palmtree_7", 2336.34, -51.98, null, 3.895, 13.29, 0.23, "north-woods"],
-  ["coconutpalmtree_4", 2526.76, -0.75, null, 1.318, 14.3, 0.3, "north-woods"],
-  ["palmtree_4", 2330.46, -72.73, null, 3.585, 12.98, 0.37, "north-woods"],
-  ["buttress-roottree", 2320, 100.25, null, 5.275, 23.72, 2.6, "north-woods"],
-  ["palmtree_5", 2481.23, 79.88, null, 3.81, 11.74, 0.21, "north-woods"],
-  ["buttressedtree", 2374.56, 278.21, null, 5.994, 25.07, 2.6, "north-woods"],
-  ["coconutpalmtree_3", 2414.75, 305.38, null, 0.271, 13.25, 0.34, "north-woods"],
-  ["foresttree", 2501.33, -34.67, null, 3.131, 17.55, 2.6, "north-woods"],
-  ["palmtree_4", 2525.97, 65.93, null, 4.787, 17.12, 0.48, "north-woods"],
-  ["foresttree", 2351, 0.05, null, 4.658, 19.64, 2.6, "north-woods"],
-  ["palmtree_8", 2514.7, 116.99, null, 1.937, 10.92, 0.19, "north-woods"],
-  ["slimtree", 2383.4, -61.59, null, 5.409, 13.38, 0.34, "north-woods"],
-  ["palmtree_5", 2514.81, -7.27, null, 5.645, 13.24, 0.23, "north-woods"],
-  ["palmtree_2", 2429.76, 81.1, null, 0.745, 11.92, 0.29, "north-woods"],
-  ["tree", 2350.15, 190.58, null, 3.06, 28.31, 2.16, "north-woods"],
-  ["slimtree", 2464.3, 52.42, null, 1.546, 14.02, 0.36, "north-woods"],
-  ["palmtree_4", 2527.43, 157.43, null, 5.905, 13.78, 0.39, "north-woods"],
-  ["palmtree_3", 2392.76, 2.34, null, 5.354, 11.07, 0.22, "north-woods"],
-  ["palmtree_7", 2482.26, 61.79, null, 0.925, 11.11, 0.19, "north-woods"],
-  ["coconutpalmtree_1", 2460.56, 184.53, null, 5.527, 14.44, 0.38, "north-woods"],
-  ["buttressedtree", 2356.37, 30.46, null, 1.536, 24.03, 2.6, "north-woods"],
-  ["palmtree_8", 2501.44, 254.81, null, 5.018, 10.49, 0.18, "north-woods"],
-  ["tree", 2335.95, -32.59, null, 4.927, 23.82, 1.82, "north-woods"],
+  ["foresttree", 2380.07, -44.7, null, 0.183, 18.48, 2.6, "north-woods"],
+  ["buttressedtree", 2427.33, -81.1, null, 0.525, 26.17, 2.6, "north-woods"],
+  ["palmtree_8", 2489.77, 169.45, null, 6.241, 9.57, 0.17, "north-woods"],
+  ["buttress-roottree", 2473.04, 39.37, null, 4.743, 23.89, 2.6, "north-woods"],
+  ["giantbuttress-roottree", 2353.47, 149.26, null, 5.784, 35.82, 2.6, "north-woods"],
+  ["palmtree_5", 2493.74, 150.44, null, 2.019, 14.11, 0.25, "north-woods"],
+  ["palmtree", 2524.07, -69.18, null, 1.838, 18.27, 0.31, "north-woods"],
+  ["giantbuttress-roottree", 2338.22, 55.97, null, 1.07, 36.61, 2.6, "north-woods"],
+  ["buttress-roottree", 2499.54, 100.89, null, 5.772, 20.74, 2.6, "north-woods"],
+  ["palmtree_8", 2521.42, 65.97, null, 5.596, 12.48, 0.22, "north-woods"],
+  ["buttressedtree", 2509.95, 210.26, null, 1.539, 27.16, 2.6, "north-woods"],
+  ["coconutpalmtree_4", 2464.68, 52.8, null, 2.79, 11.99, 0.25, "north-woods"],
+  ["giantbuttress-roottree", 2454.1, 326.5, null, 1.501, 32.89, 2.6, "north-woods"],
+  ["palmtree_1", 2480.58, 309.83, null, 4.542, 15.45, 0.27, "north-woods"],
+  ["buttressedtree", 2485.27, 16.84, null, 5.783, 24.87, 2.6, "north-woods"],
+  ["palmtree", 2495.94, 320.6, null, 4.488, 19.56, 0.33, "north-woods"],
+  ["giantbuttress-roottree", 2518.37, 324.55, null, 2.541, 35.77, 2.6, "north-woods"],
+  ["buttress-roottree", 2431.61, 187.06, null, 6.195, 21.98, 2.6, "north-woods"],
   ["foresttree", 2388.73, 202.03, null, 4.613, 21.91, 2.6, "north-woods"],
-  ["coconutpalmtree", 2432.17, -73.85, null, 2.78, 12.75, 0.25, "north-woods"],
-  ["slimtree", 2378.62, -45.22, null, 2.666, 13.74, 0.35, "north-woods"],
+  ["palmtree_5", 2400.7, 144.81, null, 4.617, 11.72, 0.21, "north-woods"],
+  ["slimtree", 2489.38, 187.84, null, 0.72, 14.02, 0.36, "north-woods"],
+  ["palmtree_3", 2461.88, 101.25, null, 4.02, 11.54, 0.23, "north-woods"],
+  ["palmtree_5", 2516.47, -11.28, null, 4.713, 14.55, 0.26, "north-woods"],
+  ["palmtree_1", 2520.18, 12.03, null, 4.104, 17.18, 0.3, "north-woods"],
   ["palmtree", 2416.24, 193.4, null, 6.152, 18.91, 0.32, "north-woods"],
-  ["buttressedtree", 2342.3, 195.11, null, 0.153, 23.21, 2.6, "north-woods"],
-  ["palmtree_2", 2420.2, -50.64, null, 2.625, 12.99, 0.32, "north-woods"],
-  ["palmtree_5", 2094.03, 400.31, null, 4.72, 11.78, 0.21, "east-woods"],
+  ["foresttree", 2525.46, -19.6, null, 0.435, 18.26, 2.6, "north-woods"],
+  ["palmtree_6", 2395.05, 277.65, null, 5.628, 9.65, 0.18, "north-woods"],
+  ["coconutpalmtree_3", 2450.89, 308.03, null, 1.044, 12.2, 0.31, "north-woods"],
   ["palmtree_4", 2416.17, 370.5, null, 2.727, 13.34, 0.38, "east-woods"],
   ["slimtree", 2276.36, 452.17, null, 5.165, 15.95, 0.41, "east-woods"],
   ["palmtree_4", 2104.17, 414.27, null, 4.831, 13.89, 0.39, "east-woods"],
@@ -3452,19 +3454,19 @@ const rows = [
   ["palmtree_3", 2375.25, 424.34, null, 0.791, 12.14, 0.24, "east-woods"],
   ["palmtree_2", 2313.08, 413.07, null, 1.242, 13.8, 0.34, "east-woods"],
   ["talltree", 2301.75, 417.09, null, 0.909, 17.21, 0.22, "east-woods"],
-  ["talltree", 2101.59, 461.62, null, 0.777, 19.18, 0.24, "east-woods"],
-  ["palmtree_4", 2315.52, 430.95, null, 0.395, 17.15, 0.48, "east-woods"],
-  ["palmtree_6", 2375.35, 371.64, null, 2.864, 10.41, 0.19, "east-woods"],
+  ["palmtree_7", 2090.92, 397.82, null, 5.804, 10.39, 0.18, "east-woods"],
+  ["palmtree_3", 2279.55, 438.99, null, 4.052, 13.74, 0.27, "east-woods"],
+  ["palmtree_3", 2140.8, 467.55, null, 0.665, 14.43, 0.28, "east-woods"],
   ["coconutpalmtree_2", 2326.61, 446.88, null, 1.666, 13.83, 0.44, "east-woods"],
   ["slimtree", 2387.6, 423.55, null, 0.565, 12.43, 0.32, "east-woods"],
   ["palmtree_1", 2225.09, 449.45, null, 5.044, 19.03, 0.33, "east-woods"],
   ["palmtree_3", 2283.49, 396.23, null, 5.331, 14.89, 0.29, "east-woods"],
   ["palmtree_3", 2395, 435.57, null, 5.07, 11.27, 0.22, "east-woods"],
-  ["palmtree", 2335.45, 422.09, null, 2.151, 18.1, 0.31, "east-woods"],
-  ["palmtree_8", 2320.07, 402.75, null, 1.27, 10.79, 0.19, "east-woods"],
-  ["coconutpalmtree_3", 2308.97, 386.54, null, 4.691, 10.31, 0.26, "east-woods"],
-  ["palmtree_7", 2330.53, 378.18, null, 5.921, 11.49, 0.2, "east-woods"],
-  ["coconutpalmtree_4", 2123.06, 441.22, null, 3.173, 11.94, 0.25, "east-woods"],
+  ["palmtree_6", 2094, 459.77, null, 3.547, 11.82, 0.22, "east-woods"],
+  ["coconutpalmtree_1", 2331.8, 417.08, null, 1.873, 15.01, 0.4, "east-woods"],
+  ["coconutpalmtree_2", 2217.1, 437.28, null, 2.744, 14.79, 0.47, "east-woods"],
+  ["palmtree_5", 2151.89, 462.09, null, 4.207, 14.12, 0.25, "east-woods"],
+  ["palmtree_4", 2334.87, 440.71, null, 2.256, 16.94, 0.48, "east-woods"],
   ["slimtree", 2165.99, 450.12, null, 1.084, 12.43, 0.32, "east-woods"],
   ["slimtree", 2284.18, 462.02, null, 1.623, 14.54, 0.37, "east-woods"],
   ["palmtree_2", 2091.74, 379.81, null, 1.226, 13.39, 0.33, "east-woods"],
@@ -3475,257 +3477,242 @@ const rows = [
   ["palmtree", 2107.17, 442.83, null, 2.21, 18.47, 0.32, "east-woods"],
   ["palmtree_7", 2263.07, 439.94, null, 0.08, 12.66, 0.22, "east-woods"],
   ["palmtree_1", 2245.86, 411.16, null, 2.264, 18.59, 0.32, "east-woods"],
-  ["coconutpalmtree_2", 2218.29, 428.43, null, 5.888, 14.35, 0.46, "east-woods"],
-  ["palmtree_7", 2270.76, 395.22, null, 5.845, 12.28, 0.21, "east-woods"],
-  ["palmtree", 2416.19, 401.12, null, 4.417, 19.78, 0.34, "east-woods"],
-  ["coconutpalmtree", 2337.18, 464.42, null, 1.057, 12.47, 0.25, "east-woods"],
+  ["coconutpalmtree_4", 2368.3, 463.08, null, 5.566, 13.24, 0.28, "east-woods"],
+  ["palmtree_4", 2320.2, 386.18, null, 5.844, 13.7, 0.39, "east-woods"],
+  ["palmtree_4", 2402.96, 391.72, null, 6.262, 13.51, 0.38, "east-woods"],
+  ["palmtree_7", 2120.61, 379.67, null, 3.52, 10.33, 0.18, "east-woods"],
   ["slimtree", 2335.83, 389.87, null, 4.982, 13.33, 0.34, "east-woods"],
   ["coconutpalmtree", 2380.85, 458.9, null, 5.632, 12.43, 0.24, "east-woods"],
   ["coconutpalmtree_3", 2209.36, 462.4, null, 0.108, 10.9, 0.28, "east-woods"],
   ["coconutpalmtree_2", 2298.63, 461.76, null, 3.685, 14.07, 0.45, "east-woods"],
   ["palmtree_5", 2290.82, 451.19, null, 5.785, 11.25, 0.2, "east-woods"],
   ["palmtree_5", 2273.83, 364.36, null, 3.202, 13.56, 0.24, "east-woods"],
-  ["palmtree_7", 2311.48, 439.65, null, 3.226, 10.89, 0.19, "east-woods"],
-  ["palmtree_3", 2334.74, 433.53, null, 5.134, 11.18, 0.22, "east-woods"],
-  ["palmtree_4", 2114.75, 407.91, null, 5.269, 13.86, 0.39, "east-woods"],
+  ["palmtree_3", 2369.08, 371.27, null, 4.55, 13.69, 0.27, "east-woods"],
+  ["coconutpalmtree_4", 2383.67, 381.01, null, 0.168, 14.81, 0.31, "east-woods"],
+  ["slimtree", 2372.73, 442.09, null, 0.217, 12.18, 0.31, "east-woods"],
   ["palmtree_8", 2377.96, 403.98, null, 6.065, 10.8, 0.19, "east-woods"],
   ["coconutpalmtree_4", 2404.77, 457.28, null, 0.048, 15.99, 0.33, "east-woods"],
-  ["coconutpalmtree", 2209.48, 452.74, null, 4.283, 15.23, 0.3, "east-woods"],
-  ["palmtree_4", 2210.91, 380.77, null, 3.268, 13.3, 0.38, "east-woods"],
-  ["palmtree_2", 2222.94, 440.45, null, 3.181, 14.78, 0.36, "east-woods"],
-  ["coconutpalmtree", 2116.09, 397.61, null, 0.337, 11.98, 0.24, "east-woods"],
-  ["palmtree", 2387.32, 374.58, null, 1.656, 17.41, 0.3, "east-woods"],
-  ["palmtree", 2228.59, 411, null, 2.451, 18.13, 0.31, "east-woods"],
-  ["palmtree_2", 2287.31, 415.67, null, 0.209, 11.98, 0.29, "east-woods"],
-  ["palmtree_5", 2180.25, 440.71, null, 2.753, 12.92, 0.23, "east-woods"],
-  ["coconutpalmtree", 2234.13, 403.49, null, 2.822, 13.41, 0.26, "east-woods"],
-  ["coconutpalmtree_1", 2293.85, 384.15, null, 3.341, 15.4, 0.41, "east-woods"],
+  ["palmtree_4", 2320.58, 423.74, null, 5.297, 14.43, 0.41, "east-woods"],
+  ["slimtree", 2182.91, 447.15, null, 1.187, 13.49, 0.35, "east-woods"],
+  ["palmtree_8", 2329.99, 456.26, null, 5.672, 11.53, 0.2, "east-woods"],
+  ["coconutpalmtree_2", 2128.54, 442.37, null, 0.928, 12.08, 0.39, "east-woods"],
+  ["coconutpalmtree_4", 2239.79, 436.98, null, 0, 13.54, 0.28, "east-woods"],
+  ["palmtree_1", 2232.06, 423.55, null, 1.8, 18.7, 0.33, "east-woods"],
+  ["coconutpalmtree_2", 2231.23, 409.15, null, 2.262, 12.05, 0.38, "east-woods"],
   ["palmtree_7", 2217.19, 369.93, null, 0.6, 12.62, 0.22, "east-woods"],
   ["coconutpalmtree_2", 2338.38, 365.95, null, 0.115, 13.91, 0.44, "east-woods"],
-  ["palmtree_6", 2149.39, 457.95, null, 2.47, 11.26, 0.21, "east-woods"],
+  ["palmtree_1", 2348.11, 446.03, null, 4.603, 14.67, 0.26, "east-woods"],
   ["palmtree_6", 2299.21, 396.09, null, 1.266, 12.31, 0.23, "east-woods"],
-  ["palmtree_2", 2277.08, 431.29, null, 2.461, 13.6, 0.33, "east-woods"],
-  ["coconutpalmtree_2", 2293.88, 407.14, null, 4.449, 14.31, 0.46, "east-woods"],
-  ["palmtree", 2378.35, 383.95, null, 3.654, 15.68, 0.27, "east-woods"],
-  ["coconutpalmtree_1", 2350.94, 412.71, null, 5.294, 16.12, 0.43, "east-woods"],
-  ["coconutpalmtree_1", 2373.03, 392.25, null, 5.028, 15.99, 0.43, "east-woods"],
-  ["coconutpalmtree_4", 2375.94, 442.36, null, 3.315, 14.43, 0.3, "east-woods"],
-  ["coconutpalmtree_1", 2366.52, 403.5, null, 3.51, 16.5, 0.44, "east-woods"],
-  ["talltree", 2414.2, 430.42, null, 5.832, 17.93, 0.23, "east-woods"],
-  ["coconutpalmtree", 2406.93, 419.92, null, 0.385, 15.2, 0.3, "east-woods"],
-  ["palmtree_5", 2354.59, 443.26, null, 3.019, 14.65, 0.26, "east-woods"],
-  ["palmtree_5", 2347.71, 361.14, null, 1.378, 11.74, 0.21, "east-woods"],
-  ["slimtree", 2109.81, 430.63, null, 2.603, 14.38, 0.37, "east-woods"],
-  ["coconutpalmtree_2", 2303.21, 404.58, null, 4.346, 11.7, 0.37, "east-woods"],
-  ["palmtree_5", 2318.3, 454.42, null, 0.93, 13.21, 0.23, "east-woods"],
-  ["palmtree", 2190.34, 458.63, null, 4.012, 17.34, 0.3, "east-woods"],
+  ["palmtree", 2310.49, 424.82, null, 3.274, 20.02, 0.34, "east-woods"],
+  ["slimtree", 2259.9, 423.21, null, 2.538, 12.07, 0.31, "east-woods"],
+  ["palmtree", 2213.13, 451.9, null, 1.823, 15.73, 0.27, "east-woods"],
+  ["palmtree_5", 2187.41, 456.37, null, 0.445, 13.82, 0.24, "east-woods"],
+  ["palmtree_6", 2202.18, 442.45, null, 1.65, 11.2, 0.21, "east-woods"],
+  ["coconutpalmtree_1", 2320.67, 406.61, null, 4.704, 16.66, 0.44, "east-woods"],
+  ["talltree", 2311.49, 389.45, null, 2.485, 19.84, 0.25, "east-woods"],
+  ["coconutpalmtree_4", 2107.82, 403.5, null, 1.861, 13.29, 0.28, "east-woods"],
+  ["palmtree_7", 2285.02, 413.56, null, 3.874, 13.16, 0.23, "east-woods"],
+  ["palmtree_4", 2405.95, 400.72, null, 3.19, 15.85, 0.45, "east-woods"],
+  ["palmtree_1", 2267.03, 393.51, null, 1.201, 14.76, 0.26, "east-woods"],
+  ["palmtree_7", 2245.47, 466.35, null, 4.931, 12.39, 0.21, "east-woods"],
+  ["coconutpalmtree_2", 2295.82, 424.91, null, 3.531, 12.07, 0.39, "east-woods"],
+  ["palmtree_4", 2314.15, 445.3, null, 5.393, 15.89, 0.45, "east-woods"],
+  ["palmtree_6", 2211.17, 430.23, null, 0.142, 11.19, 0.21, "east-woods"],
   ["palmtree", 2311.25, 465.6, null, 3.476, 15.86, 0.27, "east-woods"],
   ["palmtree_5", 2374.38, 413.24, null, 3.416, 14.45, 0.26, "east-woods"],
-  ["coconutpalmtree_3", 2282.35, 423.39, null, 1.807, 13.26, 0.34, "east-woods"],
-  ["palmtree_1", 2116.46, 459.73, null, 2.779, 17.18, 0.3, "east-woods"],
-  ["palmtree_7", 2261.89, 426.04, null, 4.33, 10.46, 0.18, "east-woods"],
-  ["coconutpalmtree_4", 2341.62, 408.32, null, 5.185, 15.31, 0.32, "east-woods"],
-  ["coconutpalmtree_1", 2241.2, 449.46, null, 3.217, 15.93, 0.42, "east-woods"],
-  ["palmtree_2", 2353.06, 380.86, null, 4.81, 15.05, 0.37, "east-woods"],
-  ["palmtree", 2372.74, 453.75, null, 5.328, 17.5, 0.3, "east-woods"],
-  ["coconutpalmtree_3", 2234.55, 440.71, null, 4.011, 13.15, 0.33, "east-woods"],
-  ["palmtree_5", 2206.07, 442.15, null, 4.789, 11.25, 0.2, "east-woods"],
-  ["coconutpalmtree_4", 2338.16, 442.34, null, 6.102, 15.96, 0.33, "east-woods"],
-  ["coconutpalmtree_3", 2397.65, 450.58, null, 0.602, 11.82, 0.3, "east-woods"],
-  ["coconutpalmtree_4", 2322.5, 390.75, null, 3.103, 12.42, 0.26, "east-woods"],
-  ["palmtree_8", 2351.19, 453.59, null, 5.202, 9.75, 0.17, "east-woods"],
+  ["palmtree_8", 2364.09, 404.82, null, 2.555, 10.77, 0.19, "east-woods"],
+  ["coconutpalmtree_1", 2117.74, 398.53, null, 1.1, 14.9, 0.4, "east-woods"],
+  ["coconutpalmtree", 2336.76, 404.09, null, 5.912, 11.92, 0.23, "east-woods"],
+  ["coconutpalmtree_4", 2349.97, 429.38, null, 1.445, 15.57, 0.33, "east-woods"],
+  ["palmtree_6", 2346.23, 386.4, null, 3.147, 11.3, 0.21, "east-woods"],
+  ["palmtree_1", 2104.35, 457.96, null, 1.192, 18.53, 0.32, "east-woods"],
+  ["coconutpalmtree_3", 2215.85, 380.82, null, 5.306, 13.59, 0.35, "east-woods"],
+  ["palmtree", 2400.07, 361.19, null, 5.399, 20.15, 0.34, "east-woods"],
+  ["coconutpalmtree_3", 2397.65, 467.52, null, 1.816, 12.83, 0.33, "east-woods"],
+  ["coconutpalmtree_3", 2360.69, 414.45, null, 4.46, 10.54, 0.27, "east-woods"],
   ["coconutpalmtree_2", 2315.79, 375.22, null, 2.893, 12.21, 0.39, "east-woods"],
   ["coconutpalmtree_4", 2363.04, 452.34, null, 0.4, 13.47, 0.28, "east-woods"],
-  ["palmtree_5", 2326.56, 410.81, null, 3.206, 11.84, 0.21, "east-woods"],
-  ["palmtree_2", 2297.47, 425.44, null, 5.905, 15.08, 0.37, "east-woods"],
-  ["palmtree_7", 2350.73, 466.54, null, 4.144, 11.02, 0.19, "east-woods"],
-  ["coconutpalmtree", 2262.6, 463.63, null, 3.795, 14.29, 0.28, "east-woods"],
-  ["palmtree_8", 2148.32, 446.54, null, 2.619, 10.12, 0.18, "east-woods"],
-  ["palmtree_2", 2283.67, 407.07, null, 1.979, 14.95, 0.37, "east-woods"],
-  ["palmtree_7", 2192.88, 467.36, null, 3.757, 11.98, 0.21, "east-woods"],
-  ["coconutpalmtree_4", 2400.37, 396.33, null, 5.699, 15.45, 0.32, "east-woods"],
-  ["coconutpalmtree_3", 2361.68, 417.96, null, 2.223, 12.84, 0.33, "east-woods"],
-  ["palmtree_3", 2219.42, 419.34, null, 2.338, 13.78, 0.27, "east-woods"],
-  ["coconutpalmtree_2", 2344.34, 378.51, null, 1.877, 11.53, 0.37, "east-woods"],
-  ["palmtree_3", 2157.3, 467.46, null, 3.356, 13.28, 0.26, "east-woods"],
-  ["palmtree_2", 2126.79, 432.06, null, 4.992, 14.88, 0.36, "east-woods"],
-  ["palmtree_8", 2116.04, 382.12, null, 2.597, 11.71, 0.2, "east-woods"],
+  ["palmtree_1", 2381.96, 444.77, null, 2.902, 18.13, 0.32, "east-woods"],
+  ["palmtree_6", 2328.45, 376.53, null, 5.479, 9.66, 0.18, "east-woods"],
+  ["palmtree_3", 2143.41, 457.24, null, 1.762, 11.93, 0.23, "east-woods"],
+  ["palmtree_1", 2283.88, 360.48, null, 2.744, 19.24, 0.33, "east-woods"],
+  ["palmtree_8", 2396.29, 418.47, null, 3.571, 10.27, 0.18, "east-woods"],
+  ["coconutpalmtree_2", 2341.93, 457, null, 1.979, 11.94, 0.38, "east-woods"],
+  ["coconutpalmtree", 2153.83, 451.94, null, 2.583, 12.98, 0.26, "east-woods"],
+  ["palmtree_4", 2252.68, 404.17, null, 5.628, 16.31, 0.46, "east-woods"],
+  ["palmtree", 2276.04, 418.75, null, 1.772, 20.48, 0.35, "east-woods"],
+  ["palmtree_8", 2117.51, 389.13, null, 4.511, 10.62, 0.18, "east-woods"],
+  ["coconutpalmtree_3", 2262.84, 466.64, null, 5.997, 11.68, 0.3, "east-woods"],
   ["palmtree_1", 2087.76, 444.14, null, 1.162, 16.52, 0.29, "east-woods"],
-  ["palmtree_3", 2088.81, 423.09, null, 2.398, 11.59, 0.23, "east-woods"],
-  ["palmtree_5", 2229.09, 433.54, null, 5.322, 12.37, 0.22, "east-woods"],
-  ["palmtree_4", 2311.68, 396.22, null, 1.294, 16.74, 0.47, "east-woods"],
+  ["palmtree_2", 2348.43, 407.17, null, 0.201, 11.96, 0.29, "east-woods"],
+  ["coconutpalmtree_2", 2094.04, 427.36, null, 0.382, 11.97, 0.38, "east-woods"],
+  ["coconutpalmtree_1", 2119.55, 438.28, null, 3.102, 14.63, 0.39, "east-woods"],
   ["coconutpalmtree_3", 2140.01, 435.75, null, 4.982, 11.82, 0.3, "east-woods"],
-  ["palmtree_4", 2346.35, 428.43, null, 2.052, 15.79, 0.45, "east-woods"],
-  ["coconutpalmtree", 2176.02, 458.88, null, 0.526, 14.63, 0.29, "east-woods"],
-  ["coconutpalmtree", 2208.57, 407.83, null, 2.475, 15.33, 0.3, "east-woods"],
-  ["coconutpalmtree_1", 2275.15, 461.16, null, 3.177, 15.27, 0.41, "east-woods"],
-  ["palmtree_4", 2095.02, 409.26, null, 1.414, 13.71, 0.39, "east-woods"],
+  ["coconutpalmtree", 2358.26, 437.47, null, 1.736, 15.68, 0.31, "east-woods"],
+  ["palmtree_7", 2216.34, 422.58, null, 3.523, 11.35, 0.2, "east-woods"],
+  ["palmtree", 2121.3, 462.57, null, 3.631, 19.39, 0.33, "east-woods"],
+  ["palmtree_3", 2408.57, 411.64, null, 0.954, 13.74, 0.27, "east-woods"],
+  ["coconutpalmtree_1", 2348.5, 365.3, null, 2.814, 12.9, 0.34, "east-woods"],
   ["palmtree", 2363.88, 362.66, null, 3.102, 20.31, 0.35, "east-woods"],
   ["coconutpalmtree_3", 2260.61, 383.15, null, 4.92, 11.1, 0.28, "east-woods"],
   ["palmtree_6", 2393.15, 386.47, null, 2.795, 10.88, 0.2, "east-woods"],
   ["slimtree", 2391.72, 400.22, null, 2.134, 13.75, 0.35, "east-woods"],
+  ["palmtree_6", 2089.15, 407.81, null, 6.197, 11.25, 0.21, "east-woods"],
+  ["palmtree_6", 2273.4, 386.99, null, 2.668, 9.49, 0.18, "east-woods"],
+  ["palmtree_8", 2385.94, 409.53, null, 5.96, 9.49, 0.16, "east-woods"],
   ["slimtree", 2283.4, 386.9, null, 4.302, 12.47, 0.32, "east-woods"],
   ["coconutpalmtree", 2415.1, 390.82, null, 2.277, 12.47, 0.25, "east-woods"],
-  ["palmtree_8", 2368.71, 378.99, null, 0.704, 10.86, 0.19, "east-woods"],
-  ["talltree", 2166.33, 440.73, null, 4.986, 16.95, 0.21, "east-woods"],
-  ["coconutpalmtree_1", 2122.25, 467.88, null, 3.441, 16.66, 0.44, "east-woods"],
-  ["coconutpalmtree_2", 2381.53, 434.17, null, 5.236, 12.28, 0.39, "east-woods"],
+  ["palmtree_8", 2380.31, 391.04, null, 5.577, 11.69, 0.2, "east-woods"],
+  ["palmtree_4", 2266.6, 453.21, null, 2.882, 17.22, 0.49, "east-woods"],
+  ["palmtree", 2297.42, 386.95, null, 1.924, 18.62, 0.32, "east-woods"],
+  ["coconutpalmtree_3", 2218.67, 461.4, null, 5.838, 11.99, 0.3, "east-woods"],
+  ["palmtree_5", 2223.34, 428.96, null, 4.624, 11.93, 0.21, "east-woods"],
+  ["palmtree_7", 2320.35, 463.5, null, 2.704, 12.63, 0.22, "east-woods"],
+  ["coconutpalmtree_1", 2200.07, 465.98, null, 1.274, 15.34, 0.41, "east-woods"],
   ["palmtree_8", 2226.7, 367.24, null, 2.744, 10.85, 0.19, "east-woods"],
-  ["palmtree_1", 2283.24, 443.26, null, 0.977, 18.65, 0.32, "east-woods"],
-  ["palmtree_2", 2325.76, 368.95, null, 4.996, 14.24, 0.35, "east-woods"],
-  ["palmtree_1", 2390.15, 467.85, null, 3.181, 16.46, 0.29, "east-woods"],
-  ["palmtree_1", 2090.43, 466.49, null, 0.541, 15.42, 0.27, "east-woods"],
-  ["palmtree_1", 2125.3, 455.5, null, 3.435, 19.01, 0.33, "east-woods"],
-  ["palmtree_4", 2113.53, 450.91, null, 1.577, 16.62, 0.47, "east-woods"],
+  ["palmtree_7", 2416.32, 426.12, null, 2.835, 13.37, 0.23, "east-woods"],
+  ["coconutpalmtree_3", 2214.42, 410.65, null, 0.436, 10.9, 0.28, "east-woods"],
+  ["palmtree", 2328.1, 396.53, null, 2.719, 19.35, 0.33, "east-woods"],
   ["palmtree_3", 2412.06, 381.88, null, 0.216, 11.67, 0.23, "east-woods"],
-  ["talltree", 2415.51, 449.97, null, 1.223, 16.87, 0.21, "east-woods"],
-  ["palmtree_3", 2135.59, 460.58, null, 0.973, 13.9, 0.27, "east-woods"],
-  ["coconutpalmtree_1", 2403.19, 366.84, null, 2.61, 14.93, 0.4, "east-woods"],
-  ["palmtree_6", 2246.96, 458.79, null, 3.052, 9.72, 0.18, "east-woods"],
-  ["palmtree_4", 2157.99, 445.78, null, 4.168, 12.97, 0.37, "east-woods"],
-  ["coconutpalmtree", 2251.32, 466.88, null, 1.197, 15.53, 0.31, "east-woods"],
+  ["coconutpalmtree_3", 2127.08, 455.05, null, 6.224, 13.09, 0.33, "east-woods"],
+  ["slimtree", 2097.03, 437.11, null, 6.199, 13.32, 0.34, "east-woods"],
+  ["palmtree_4", 2394.65, 451.63, null, 0.627, 14.28, 0.4, "east-woods"],
+  ["palmtree", 2391.22, 370.28, null, 5.969, 16.14, 0.28, "east-woods"],
+  ["palmtree_3", 2230.07, 441.76, null, 2.448, 11.1, 0.22, "east-woods"],
+  ["palmtree_3", 2318.28, 436.28, null, 6.256, 13.49, 0.26, "east-woods"],
+  ["palmtree_1", 2356.03, 397.46, null, 5.414, 15.17, 0.26, "east-woods"],
+  ["palmtree_6", 2317.59, 454.05, null, 3.157, 12.43, 0.23, "east-woods"],
+  ["coconutpalmtree_1", 2415.94, 437.8, null, 3.222, 16.07, 0.43, "east-woods"],
   ["palmtree_5", 2224.85, 395.56, null, 4.729, 14.81, 0.26, "east-woods"],
-  ["coconutpalmtree_1", 2417.87, 360.9, null, 4.157, 13.18, 0.35, "east-woods"],
-  ["coconutpalmtree_3", 2287.01, 367.09, null, 4.14, 12.9, 0.33, "east-woods"],
-  ["palmtree_8", 2322.53, 424.04, null, 2.848, 11.86, 0.21, "east-woods"],
-  ["palmtree_2", 2240.35, 432.28, null, 5.868, 11.91, 0.29, "east-woods"],
+  ["palmtree", 2415.91, 406.07, null, 4.701, 15.98, 0.27, "east-woods"],
+  ["slimtree", 2181.49, 436.96, null, 2.794, 14.58, 0.37, "east-woods"],
+  ["talltree", 2410.57, 449.51, null, 5.654, 16.42, 0.21, "east-woods"],
+  ["coconutpalmtree_2", 2351.53, 461.33, null, 0.906, 11.17, 0.36, "east-woods"],
   ["palmtree_8", 2086.37, 387.81, null, 2.207, 9.48, 0.16, "east-woods"],
-  ["talltree", 2264.53, 403.75, null, 5.506, 19.8, 0.25, "east-woods"],
+  ["slimtree", 2162.41, 439.97, null, 3.352, 15.58, 0.4, "east-woods"],
   ["palmtree_4", 2289.66, 436.61, null, 3.602, 13.89, 0.39, "east-woods"],
-  ["palmtree_1", 2208.43, 420.38, null, 0.295, 14.6, 0.25, "east-woods"],
-  ["palmtree_8", 2365.93, 463.29, null, 4.412, 11.64, 0.2, "east-woods"],
-  ["palmtree_6", 2414.45, 411.71, null, 1.872, 9.89, 0.19, "east-woods"],
-  ["coconutpalmtree_1", 2098.49, 426.61, null, 5.971, 13.59, 0.36, "east-woods"],
-  ["palmtree_6", 2398.2, 423.82, null, 5.478, 11.73, 0.22, "east-woods"],
-  ["palmtree_8", 2228.84, 423.66, null, 2.536, 11.76, 0.2, "east-woods"],
-  ["coconutpalmtree_3", 2330.52, 400.39, null, 1.21, 11.76, 0.3, "east-woods"],
+  ["coconutpalmtree_1", 2406.09, 424.35, null, 1.731, 15.77, 0.42, "east-woods"],
+  ["palmtree_4", 2241.94, 451.57, null, 0.916, 14.09, 0.4, "east-woods"],
+  ["palmtree", 2115.75, 410.17, null, 5.594, 16.07, 0.27, "east-woods"],
+  ["palmtree", 2296.86, 406.52, null, 1.568, 16.31, 0.28, "east-woods"],
   ["slimtree", 2211.32, 390.84, null, 2.689, 12.44, 0.32, "east-woods"],
-  ["palmtree_4", 2382.59, 395.3, null, 3.658, 14.01, 0.4, "east-woods"],
-  ["palmtree_8", 2091.19, 434.36, null, 3.768, 10.63, 0.18, "east-woods"],
-  ["palmtree_8", 2221.05, 382.7, null, 0.296, 9.7, 0.17, "east-woods"],
-  ["coconutpalmtree_1", 2355.04, 399.87, null, 3.473, 14.09, 0.37, "east-woods"],
-  ["palmtree_6", 2399.99, 467.83, null, 4.062, 11.03, 0.21, "east-woods"],
-  ["palmtree_3", 2097.83, 452.34, null, 0.405, 12.97, 0.25, "east-woods"],
-  ["coconutpalmtree_1", 2305.15, 430.18, null, 0.173, 14.15, 0.38, "east-woods"],
-  ["coconutpalmtree", 2367.03, 438.66, null, 0.533, 13.65, 0.27, "east-woods"],
-  ["palmtree_2", 2393.86, 361.5, null, 3.251, 13, 0.32, "east-woods"],
-  ["coconutpalmtree", 2208.36, 430.75, null, 3.409, 12.18, 0.24, "east-woods"],
-  ["coconutpalmtree_1", 2182.42, 467.68, null, 3.805, 14.35, 0.38, "east-woods"],
-  ["slimtree", 2253.8, 406.05, null, 0.538, 12.86, 0.33, "east-woods"],
-  ["coconutpalmtree_3", 2121.76, 414.96, null, 0.615, 11.78, 0.3, "east-woods"],
-  ["talltree", 2387.14, 410.58, null, 5.256, 20.41, 0.26, "east-woods"],
-  ["palmtree_1", 2386.09, 446.54, null, 3.193, 15.51, 0.27, "east-woods"],
-  ["palmtree_1", 2328.28, 460.32, null, 5.554, 15.05, 0.26, "east-woods"],
-  ["palmtree_1", 2404.69, 387.49, null, 5.54, 15.46, 0.27, "east-woods"],
-  ["coconutpalmtree_1", 2311.16, 422.95, null, 4.716, 15.66, 0.42, "east-woods"],
-  ["coconutpalmtree_1", 2181.68, 450.36, null, 4.534, 15.74, 0.42, "east-woods"],
+  ["palmtree_5", 2151.47, 442.82, null, 5.495, 14.84, 0.26, "east-woods"],
+  ["slimtree", 2376.87, 433.96, null, 5.832, 15.84, 0.41, "east-woods"],
+  ["palmtree_6", 2315.32, 398.77, null, 0.975, 9.97, 0.19, "east-woods"],
+  ["palmtree_5", 2160.95, 458.22, null, 3.735, 11.57, 0.2, "east-woods"],
+  ["coconutpalmtree_4", 2350.75, 376.87, null, 4.107, 12.76, 0.27, "east-woods"],
+  ["palmtree", 2272.99, 467.67, null, 0.653, 18.53, 0.32, "east-woods"],
+  ["coconutpalmtree", 2388.87, 463.91, null, 4.685, 13.27, 0.26, "east-woods"],
+  ["coconutpalmtree_3", 2099.69, 467.41, null, 4.057, 10.47, 0.27, "east-woods"],
+  ["coconutpalmtree_2", 2127.46, 432.64, null, 1.168, 13.02, 0.42, "east-woods"],
+  ["palmtree_2", 2369.75, 396.69, null, 0.697, 14.22, 0.35, "east-woods"],
+  ["palmtree", 2109.91, 381.62, null, 4.962, 20.12, 0.34, "east-woods"],
+  ["coconutpalmtree", 2329.71, 362.02, null, 1.612, 12.31, 0.24, "east-woods"],
+  ["palmtree", 2333.33, 465.85, null, 0.412, 18.55, 0.32, "east-woods"],
+  ["coconutpalmtree_3", 2106.96, 426.99, null, 0.044, 11.63, 0.3, "east-woods"],
+  ["slimtree", 2130.51, 464.31, null, 0.561, 13.88, 0.36, "east-woods"],
+  ["coconutpalmtree_2", 2177.71, 458.75, null, 0.301, 13.03, 0.42, "east-woods"],
+  ["palmtree_3", 2239.96, 402.85, null, 3.572, 13.88, 0.27, "east-woods"],
+  ["palmtree", 2337.8, 378.02, null, 1.814, 19.77, 0.34, "east-woods"],
+  ["palmtree_2", 2284.5, 428.57, null, 2.752, 15.93, 0.39, "east-woods"],
+  ["coconutpalmtree_3", 2330.62, 427.72, null, 2.37, 13.13, 0.33, "east-woods"],
+  ["palmtree_3", 2186.38, 467.82, null, 1.776, 14.45, 0.28, "east-woods"],
+  ["palmtree_3", 2306.15, 403.9, null, 0.949, 11.23, 0.22, "east-woods"],
+  ["palmtree_8", 2305.97, 360.73, null, 0.741, 11.41, 0.2, "east-woods"],
+  ["palmtree_3", 2113.04, 452.86, null, 6.189, 14.86, 0.29, "east-woods"],
+  ["palmtree_3", 2343.82, 467.83, null, 5.539, 12.31, 0.24, "east-woods"],
   ["palmtree_8", 2377.51, 467.71, null, 4.358, 10.72, 0.19, "east-woods"],
-  ["palmtree_1", 2237.21, 419.31, null, 5.974, 17.25, 0.3, "east-woods"],
-  ["palmtree", 2106.45, 381.9, null, 4.764, 17.51, 0.3, "east-woods"],
-  ["talltree", 2143.04, 467.28, null, 0.46, 19, 0.24, "east-woods"],
-  ["palmtree_7", 2339.78, 452.67, null, 1.144, 10.5, 0.18, "east-woods"],
-  ["coconutpalmtree", 2354.31, 433.77, null, 3.495, 12.26, 0.24, "east-woods"],
-  ["coconutpalmtree", 2277.35, 415.04, null, 3.153, 11.91, 0.23, "east-woods"],
-  ["palmtree_2", 2104.54, 402.98, null, 0.58, 14.23, 0.35, "east-woods"],
-  ["palmtree_7", 2321.5, 466.96, null, 0.575, 11.36, 0.2, "east-woods"],
-  ["coconutpalmtree_1", 2218.67, 464.06, null, 4.314, 16.1, 0.43, "east-woods"],
-  ["palmtree_3", 2238.47, 463.53, null, 5.028, 13.98, 0.27, "east-woods"],
-  ["palmtree_5", 2372.77, 360.32, null, 2.992, 11.22, 0.2, "east-woods"],
-  ["palmtree_6", 2405.2, 407.98, null, 4.013, 11.27, 0.21, "east-woods"],
-  ["palmtree", 2305.57, 360.13, null, 1.783, 20.05, 0.34, "east-woods"],
-  ["palmtree_8", 2415.21, 439.4, null, 6.071, 9.97, 0.17, "east-woods"],
-  ["palmtree_2", 2389.89, 456.15, null, 1.063, 14.55, 0.36, "east-woods"],
+  ["coconutpalmtree_3", 2273.11, 428.68, null, 1.277, 11.1, 0.28, "east-woods"],
+  ["palmtree_6", 2307.19, 433.2, null, 2.144, 11.63, 0.22, "east-woods"],
+  ["coconutpalmtree_1", 2225.39, 417.07, null, 0.235, 16.65, 0.44, "east-woods"],
+  ["coconutpalmtree_2", 2110.67, 466.8, null, 3.95, 11.36, 0.36, "east-woods"],
+  ["palmtree_1", 2092.41, 416.86, null, 1.963, 14.52, 0.25, "east-woods"],
+  ["coconutpalmtree_4", 2374.2, 452.46, null, 6.198, 14.23, 0.3, "east-woods"],
+  ["talltree", 2269.89, 402.34, null, 1.844, 16.32, 0.21, "east-woods"],
+  ["palmtree", 2340.82, 431.43, null, 0.419, 20.63, 0.35, "east-woods"],
+  ["palmtree_4", 2254.86, 414.07, null, 2.7, 13.04, 0.37, "east-woods"],
+  ["palmtree_5", 2371.72, 383.18, null, 4.375, 12.79, 0.23, "east-woods"],
+  ["talltree", 2289.19, 368.62, null, 4.439, 17.58, 0.22, "east-woods"],
+  ["slimtree", 2208.11, 375.73, null, 5.492, 15.72, 0.4, "east-woods"],
   ["palmtree_6", 2270.79, 445.05, null, 3.325, 9.86, 0.18, "east-woods"],
-  ["palmtree_2", 2330.68, 360.61, null, 2.79, 12.92, 0.32, "east-woods"],
+  ["palmtree_1", 2100.75, 379.84, null, 2.246, 17.49, 0.3, "east-woods"],
   ["palmtree_6", 2304.3, 378.72, null, 2.584, 12.09, 0.23, "east-woods"],
-  ["palmtree_7", 2271.59, 422.76, null, 6.161, 12.98, 0.22, "east-woods"],
-  ["coconutpalmtree", 2121.45, 389.85, null, 5.936, 12.48, 0.25, "east-woods"],
-  ["talltree", 2088.55, 456.13, null, 3.794, 17.91, 0.23, "east-woods"],
-  ["coconutpalmtree_4", 2096.88, 443.1, null, 0.848, 15.45, 0.32, "east-woods"],
-  ["palmtree_5", 2416.88, 459.17, null, 4.363, 14.59, 0.26, "east-woods"],
-  ["palmtree_2", 2262.58, 360.35, null, 5.294, 12.76, 0.31, "east-woods"],
-  ["palmtree_2", 2325.4, 437.1, null, 3.897, 12.99, 0.32, "east-woods"],
-  ["palmtree_8", 2351.31, 390.07, null, 1.749, 9.81, 0.17, "east-woods"],
-  ["coconutpalmtree_2", 2405.61, 444.43, null, 5.756, 11.43, 0.36, "east-woods"],
-  ["palmtree_3", 2266.32, 453.91, null, 5.812, 11.56, 0.23, "east-woods"],
-  ["palmtree_1", 2206.76, 370.04, null, 2.309, 17.37, 0.3, "east-woods"],
-  ["coconutpalmtree", 2354.5, 424.55, null, 3.889, 15.66, 0.31, "east-woods"],
+  ["palmtree_5", 2249.17, 445.53, null, 4.128, 13.16, 0.23, "east-woods"],
+  ["palmtree_8", 2235.52, 465.89, null, 5.323, 11.95, 0.21, "east-woods"],
+  ["coconutpalmtree_1", 2171.48, 441.07, null, 4.566, 13.29, 0.35, "east-woods"],
+  ["palmtree_3", 2379.23, 372.95, null, 3.532, 13.63, 0.27, "east-woods"],
+  ["palmtree", 2401.79, 444.82, null, 3.835, 15.77, 0.27, "east-woods"],
+  ["coconutpalmtree_3", 2239.71, 418.61, null, 3.79, 10.29, 0.26, "east-woods"],
+  ["palmtree_3", 2254.31, 463.49, null, 2.204, 11.64, 0.23, "east-woods"],
+  ["coconutpalmtree_3", 2414.86, 361.18, null, 1.449, 10.41, 0.26, "east-woods"],
+  ["coconutpalmtree_4", 2098.31, 403.49, null, 3.366, 15.09, 0.32, "east-woods"],
+  ["coconutpalmtree_3", 2265.07, 360.4, null, 1.722, 10.87, 0.28, "east-woods"],
+  ["coconutpalmtree_2", 2415.09, 457.49, null, 2.578, 14.87, 0.47, "east-woods"],
+  ["palmtree_3", 2208.02, 417.41, null, 4.622, 12.08, 0.24, "east-woods"],
+  ["coconutpalmtree_1", 2359.25, 466.78, null, 5.396, 13.25, 0.35, "east-woods"],
+  ["palmtree_3", 2303.98, 118.64, null, 4.606, 13.32, 0.26, "lagoon-palms"],
+  ["palmtree_4", 2178.52, 107.74, null, 5.345, 9.26, 0.26, "lagoon-palms"],
   ["coconutpalm", 2280.4, 103.03, null, 4.817, 10.72, 1.24, "lagoon-palms"],
   ["coconutpalm", 2203.43, 104.93, null, 4.244, 13.25, 1.54, "lagoon-palms"],
   ["coconutpalmtree_4", 2137.31, 125.43, null, 0.804, 9.86, 0.21, "lagoon-palms"],
-  ["palmtree_9", 2301.59, 114.63, null, 1.775, 9.29, 0.63, "lagoon-palms"],
-  ["palmtree_4", 2276.87, 96.45, null, 1.907, 13.36, 0.38, "lagoon-palms"],
+  ["palmtree_2", 2098.29, 125.51, null, 3.051, 9.82, 0.24, "lagoon-palms"],
+  ["coconutpalmtree_1", 2146.84, 107.94, null, 5.179, 12.54, 0.33, "lagoon-palms"],
   ["coconutpalmtree_2", 2265.63, 110.06, null, 3.593, 10.36, 0.33, "lagoon-palms"],
   ["palmtree_2", 2103.72, 135.66, null, 1.179, 11.43, 0.28, "lagoon-palms"],
-  ["palmtree_2", 2169.41, 97.04, null, 2.673, 10.06, 0.25, "lagoon-palms"],
+  ["palmtree_4", 2303.38, 110.02, null, 5.425, 11.94, 0.34, "lagoon-palms"],
+  ["palmtree_4", 2255.38, 110.95, null, 0.558, 10.07, 0.28, "lagoon-palms"],
+  ["coconutpalmtree_4", 2294.93, 126.36, null, 2.258, 12.44, 0.26, "lagoon-palms"],
+  ["coconutpalmtree", 2145.13, 97.14, null, 4.106, 11.92, 0.23, "lagoon-palms"],
   ["palmtree_9", 2110.77, 125.54, null, 5.194, 11.9, 0.81, "lagoon-palms"],
-  ["palmtree_9", 2152.21, 107.41, null, 1.826, 10.27, 0.7, "lagoon-palms"],
-  ["palmtree_9", 2306.04, 121.14, null, 5.598, 12.22, 0.83, "lagoon-palms"],
+  ["palmtree_5", 2167.56, 97.04, null, 3.528, 12.4, 0.22, "lagoon-palms"],
+  ["coconutpalmtree_2", 2154.99, 105.61, null, 3.228, 13.17, 0.42, "lagoon-palms"],
   ["coconutpalmtree_4", 2233.47, 97.86, null, 0.482, 8.46, 0.18, "lagoon-palms"],
-  ["palmtree_2", 2161.03, 108.33, null, 3.775, 11.81, 0.29, "lagoon-palms"],
-  ["palmtree_2", 2255.25, 109.32, null, 5.354, 8.29, 0.2, "lagoon-palms"],
-  ["coconutpalmtree_3", 2148.65, 123.11, null, 5.408, 9.4, 0.24, "lagoon-palms"],
-  ["coconutpalmtree_1", 2304.59, 99.32, null, 2.966, 8.66, 0.23, "lagoon-palms"],
-  ["coconutpalmtree", 2265.7, 101.85, null, 0.178, 12.74, 0.25, "lagoon-palms"],
-  ["palmtree_4", 2099.87, 126.75, null, 3.851, 10.56, 0.3, "lagoon-palms"],
-  ["coconutpalmtree_4", 2179.37, 103.28, null, 1.159, 12.46, 0.26, "lagoon-palms"],
-  ["coconutpalmtree_3", 2096.58, 137.23, null, 4.236, 10.8, 0.27, "lagoon-palms"],
+  ["palmtree_4", 2161.41, 109.38, null, 5.953, 13.35, 0.38, "lagoon-palms"],
+  ["coconutpalmtree", 2148.34, 123.38, null, 1.718, 12.55, 0.25, "lagoon-palms"],
+  ["coconutpalmtree_3", 2240.11, 101.47, null, 5.88, 11.83, 0.3, "lagoon-palms"],
+  ["coconutpalmtree_1", 2199.22, 118.09, null, 1.861, 11.15, 0.3, "lagoon-palms"],
+  ["coconutpalmtree_3", 2306.58, 102.23, null, 3.8, 9.24, 0.23, "lagoon-palms"],
   ["coconutpalmtree_4", 2111.42, 132.56, null, 3.278, 8.9, 0.19, "lagoon-palms"],
-  ["palmtree_5", 2308.7, 105.42, null, 3.957, 11.47, 0.2, "lagoon-palms"],
-  ["palmtree_2", 2295.98, 126.93, null, 2.154, 11.06, 0.27, "lagoon-palms"],
-  ["palmtree_3", 2289.71, 100.59, null, 1.797, 12.87, 0.25, "lagoon-palms"],
-  ["palmtree_2", 2198.48, 118.19, null, 0.147, 11.26, 0.28, "lagoon-palms"],
-  ["coconutpalmtree_4", 2246.39, 112.54, null, 2.777, 11.04, 0.23, "lagoon-palms"],
-  ["coconutpalmtree_3", 2226.3, 109.07, null, 4.561, 11.93, 0.3, "lagoon-palms"],
-  ["coconutpalmtree_1", 2219.07, 108.21, null, 5.756, 13.09, 0.35, "lagoon-palms"],
-  ["palmtree_4", 2308.78, 114.47, null, 5.555, 9.61, 0.27, "lagoon-palms"],
-  ["coconutpalmtree_2", 2239.02, 103.26, null, 1.681, 10.42, 0.33, "lagoon-palms"],
-  ["palmtree_9", 2146.69, 112.33, null, 0.028, 13.18, 0.9, "lagoon-palms"],
-  ["palmtree_4", 2285.01, 125.06, null, 0.988, 10.38, 0.29, "lagoon-palms"],
+  ["palmtree_4", 2097.24, 132.77, null, 3.45, 13.44, 0.38, "lagoon-palms"],
+  ["coconutpalmtree_2", 2251.71, 100.34, null, 3.749, 8.5, 0.27, "lagoon-palms"],
+  ["palmtree_2", 2319.98, 96.12, null, 0.165, 13.45, 0.33, "lagoon-palms"],
+  ["coconutpalmtree_1", 2260.96, 115.57, null, 3.11, 11.33, 0.3, "lagoon-palms"],
+  ["coconutpalmtree_3", 2225.29, 109.56, null, 3.084, 12.86, 0.33, "lagoon-palms"],
+  ["coconutpalmtree_2", 2186.58, 108.27, null, 3.287, 8.79, 0.28, "lagoon-palms"],
+  ["palmtree_9", 2288.6, 101.38, null, 2.674, 8.45, 0.58, "lagoon-palms"],
+  ["coconutpalm", 2306.42, 125.85, null, 4.937, 10.24, 1.19, "lagoon-palms"],
   ["palmtree_4", 2294.51, 347.98, null, 5.185, 12.4, 0.35, "lagoon-palms"],
   ["coconutpalmtree_1", 2181.64, 348.24, null, 0.796, 10.42, 0.28, "lagoon-palms"],
   ["palmtree_2", 2138.98, 332.04, null, 3.455, 10.82, 0.27, "lagoon-palms"],
   ["coconutpalmtree_3", 2218.3, 347.82, null, 4.943, 10.37, 0.26, "lagoon-palms"],
   ["palmtree_3", 2298.97, 355.38, null, 4.092, 13.98, 0.27, "lagoon-palms"],
-  ["coconutpalmtree_4", 2282.94, 355.31, null, 4.872, 13.64, 0.29, "lagoon-palms"],
-  ["coconutpalmtree", 2197.32, 368.73, null, 2.042, 11.98, 0.24, "lagoon-palms"],
-  ["coconutpalmtree_3", 2200.94, 359.37, null, 2.876, 9.63, 0.24, "lagoon-palms"],
-  ["coconutpalmtree_2", 2139.18, 342.98, null, 2.483, 12.84, 0.41, "lagoon-palms"],
-  ["coconutpalmtree_4", 2231.66, 343.43, null, 5.237, 13.98, 0.29, "lagoon-palms"],
-  ["palmtree_2", 2231, 354.47, null, 2.813, 9.13, 0.22, "lagoon-palms"],
-  ["palmtree_4", 2190.62, 344.2, null, 1.052, 11.27, 0.32, "lagoon-palms"],
-  ["coconutpalmtree_1", 2129.79, 356.91, null, 5.159, 10.07, 0.27, "lagoon-palms"],
+  ["palmtree_4", 2286.61, 341.9, null, 2.586, 9.95, 0.28, "lagoon-palms"],
+  ["coconutpalmtree_2", 2125.91, 338.03, null, 6.03, 12.28, 0.39, "lagoon-palms"],
+  ["palmtree_3", 2205.59, 363.26, null, 3.78, 11.7, 0.23, "lagoon-palms"],
+  ["coconutpalmtree_2", 2277.95, 336.29, null, 2.313, 10.35, 0.33, "lagoon-palms"],
+  ["palmtree_4", 2137.55, 344.44, null, 5.691, 9.72, 0.27, "lagoon-palms"],
   ["palmtree_9", 2286.61, 333.41, null, 5.919, 12.1, 0.82, "lagoon-palms"],
-  ["palmtree_5", 2261.45, 351, null, 5.556, 11.12, 0.2, "lagoon-palms"],
+  ["coconutpalm", 2229.95, 348.48, null, 1.074, 11.41, 1.32, "lagoon-palms"],
   ["palmtree_2", 2267.67, 338.38, null, 5.394, 11.21, 0.27, "lagoon-palms"],
   ["palmtree_3", 2135.5, 369.82, null, 1.477, 13.2, 0.26, "lagoon-palms"],
   ["coconutpalm", 2291.01, 360.06, null, 2.933, 10.56, 1.22, "lagoon-palms"],
   ["coconutpalmtree_4", 2126.05, 328.48, null, 2.306, 9.88, 0.21, "lagoon-palms"],
   ["coconutpalmtree_4", 2146.13, 337.76, null, 5.415, 9.61, 0.2, "lagoon-palms"],
-  ["palmtree_9", 2123.38, 349.67, null, 2.421, 13.8, 0.94, "lagoon-palms"],
-  ["coconutpalmtree_4", 2129.82, 341.08, null, 0.71, 8.16, 0.17, "lagoon-palms"],
+  ["palmtree_4", 2131.36, 361.53, null, 6.035, 12.96, 0.37, "lagoon-palms"],
+  ["palmtree_2", 2133.86, 352.22, null, 1.404, 9.32, 0.23, "lagoon-palms"],
   ["palmtree_9", 2210.42, 349.4, null, 5.754, 13.38, 0.91, "lagoon-palms"],
-  ["palmtree_9", 2120.4, 333.38, null, 2.832, 11.57, 0.79, "lagoon-palms"],
-  ["coconutpalmtree_4", 2152.66, 359.14, null, 6.035, 10.14, 0.21, "lagoon-palms"],
-  ["palmtree_4", 2222.37, 355.62, null, 0.731, 9.74, 0.27, "lagoon-palms"],
-  ["coconutpalmtree_2", 2124.66, 361.84, null, 2.465, 13.01, 0.42, "lagoon-palms"],
-  ["palmtree_2", 2283.81, 343.79, null, 1.381, 11.33, 0.28, "lagoon-palms"],
-  ["palmtree_4", 2294.06, 334.35, null, 1.186, 9.81, 0.28, "lagoon-palms"],
-  ["palmtree_4", 2261.25, 341.86, null, 1.44, 12.91, 0.36, "lagoon-palms"],
-  ["monsteraplant_2", 1944.04, -47.26, null, 2.036, 1.88, 0, "woods-floor"],
-  ["bananaplant_2", 2268.72, 19.78, null, 4.66, 3.7, 0.84, "woods-floor"],
-  ["fernplant_1", 2212.32, -138.45, null, 6.056, 1.59, 0, "woods-floor"],
-  ["monsteraplant", 2108.53, 54.75, null, 0.247, 1.88, 0, "woods-floor"],
-  ["roundleafyshrub", 2061.79, -137.73, null, 3.398, 1.41, 0.56, "woods-floor"],
-  ["fernplant_1", 1929.77, 75.71, null, 3.712, 1.53, 0, "woods-floor"],
-  ["bananaplant_2", 1955.32, -103.85, null, 3.118, 3.77, 0.86, "woods-floor"],
-  ["fernplant_1", 2258.26, -145.99, null, 5.641, 1.3, 0, "woods-floor"],
-  ["bananaplant", 2155.1, 81.67, null, 3.13, 4.18, 0.29, "woods-floor"],
-  ["palmplant", 2067.14, 70.48, null, 6.272, 2, 0, "woods-floor"],
-  ["monsteraplant_1", 1988.04, -121.11, null, 1.07, 1.91, 0, "woods-floor"],
-  ["bananaplant_2", 1900.23, -3.16, null, 2.066, 3.49, 0.8, "woods-floor"],
-  ["roundleafyshrub", 1930.31, -37.86, null, 2.599, 1.61, 0.64, "woods-floor"],
-  ["palmplant", 1916.15, 45.99, null, 5.032, 2.49, 0, "woods-floor"],
+  ["palmtree_2", 2227.97, 356.58, null, 0.268, 8.07, 0.2, "lagoon-palms"],
+  ["coconutpalmtree_1", 2265.75, 348.36, null, 0.081, 8.41, 0.22, "lagoon-palms"],
+  ["palmtree_2", 2125.42, 352.29, null, 3.233, 11.71, 0.29, "lagoon-palms"],
+  ["coconutpalmtree_1", 2198.48, 359.39, null, 3.174, 12.49, 0.33, "lagoon-palms"],
+  ["palmtree_2", 2174.77, 342.26, null, 2.768, 11.96, 0.29, "lagoon-palms"],
+  ["coconutpalmtree_3", 2120.28, 366.83, null, 1.862, 11.88, 0.3, "lagoon-palms"],
+  ["coconutpalmtree_3", 2152.44, 359.64, null, 3.097, 12.67, 0.32, "lagoon-palms"],
+  ["palmtree_2", 2281.6, 370.41, null, 2.883, 11.96, 0.29, "lagoon-palms"],
+  ["palmtree_9", 2285.39, 350.84, null, 0.618, 10.43, 0.71, "lagoon-palms"],
+  ["coconutpalmtree_3", 2163.17, 370.14, null, 3.208, 12.92, 0.33, "lagoon-palms"],
+  ["roundleafyshrub", 2197.14, 38.47, null, 5.937, 1.53, 0.61, "woods-floor"],
+  ["fanpalmshrub", 2152.25, -153.54, null, 0.162, 1.96, 0, "woods-floor"],
   ["palmplant", 2128.98, -66.58, null, 0.351, 2.33, 0, "woods-floor"],
   ["bananaplant_2", 2126.49, -112.82, null, 3.478, 4.3, 0.98, "woods-floor"],
   ["monsteraplant", 1968.57, 83.3, null, 4.181, 1.83, 0, "woods-floor"],
@@ -3833,7 +3820,7 @@ const rows = [
   ["fanpalmshrub", 1917.91, -43.18, null, 3.247, 1.73, 0, "woods-floor"],
   ["fernplant", 2011.94, -22.35, null, 4.912, 1.38, 0, "woods-floor"],
   ["monsteraplant_2", 2206.52, 66.36, null, 1.07, 1.99, 0, "woods-floor"],
-  ["bananaplant_2", 2030.94, 50.01, null, 1.268, 3.65, 0.83, "woods-floor"],
+  ["bananaplant", 2215.8, -139.52, null, 4.792, 4.29, 0.29, "woods-floor"],
   ["roundshrub", 1938.18, 44.41, null, 3.961, 1.48, 0.58, "woods-floor"],
   ["monsteraplant_2", 2163.17, -62.74, null, 1.656, 1.99, 0, "woods-floor"],
   ["monsteraplant_2", 1956.33, -122.56, null, 0.999, 1.93, 0, "woods-floor"],
@@ -3846,9 +3833,12 @@ const rows = [
   ["monsteraplant_1", 2291.42, -77.38, null, 6.101, 2.34, 0, "woods-floor"],
   ["fernclump", 2288.41, -73.27, null, 2.097, 0.97, 0, "woods-floor"],
   ["monsteraplant_2", 1952.25, 49.84, null, 5.588, 1.82, 0, "woods-floor"],
-  ["monsteraplant", 2075.73, -167.69, null, 1.236, 1.53, 0, "woods-floor"],
-  ["bananaplant_2", 2119.83, -32.58, null, 2.301, 4.07, 0.93, "woods-floor"],
-  ["bananaplant_1", 1982.03, -123.98, null, 6.172, 3.71, 0.19, "woods-floor"],
+  ["monsteraplant_2", 2030.68, 51.15, null, 2.59, 2.08, 0, "woods-floor"],
+  ["fernplant", 2099.47, -172.42, null, 3.033, 1.32, 0, "woods-floor"],
+  ["bananaplant_1", 2075.33, 41.47, null, 0.139, 3.81, 0.19, "woods-floor"],
+  ["bananaplant_1", 2219.53, -20.84, null, 2.49, 4.22, 0.21, "woods-floor"],
+  ["fernplant", 2081.11, -15.21, null, 1.962, 1.17, 0, "woods-floor"],
+  ["bananaplant_1", 1994.94, 114.79, null, 2.494, 3.61, 0.18, "woods-floor"],
   ["fanpalmshrub", 1901.09, -52.58, null, 2.121, 2.28, 0, "woods-floor"],
   ["fernplant_1", 2000.1, 38.87, null, 4.79, 1.46, 0, "woods-floor"],
   ["fernclump", 2132.08, 85.62, null, 0.024, 1.14, 0, "woods-floor"],
@@ -3859,19 +3849,19 @@ const rows = [
   ["fanpalmshrub", 1971.97, 64.93, null, 0.58, 2.19, 0, "woods-floor"],
   ["bananaplant", 2226.69, -53.17, null, 2.571, 5.09, 0.35, "woods-floor"],
   ["fernplant", 1959.22, 82.22, null, 5.178, 1.39, 0, "woods-floor"],
-  ["palmplant", 2252.23, 102.27, null, 1.765, 2.18, 0, "woods-floor"],
-  ["roundshrub", 1901.87, 74.49, null, 5.409, 1.79, 0.7, "woods-floor"],
-  ["bananaplant_2", 2065.67, -36.58, null, 1.015, 3.48, 0.79, "woods-floor"],
-  ["monsteraplant", 2043.81, 63.07, null, 3.762, 1.94, 0, "woods-floor"],
+  ["bananaplant_1", 2190.38, -41.21, null, 3.872, 3.51, 0.18, "woods-floor"],
+  ["palmplant", 1956.22, -101.88, null, 1.006, 2.01, 0, "woods-floor"],
+  ["bananaplant_1", 2052.78, 109.61, null, 3.099, 4.37, 0.22, "woods-floor"],
+  ["fernplant_1", 2151.11, 91.32, null, 0.009, 1.23, 0, "woods-floor"],
   ["fernplant", 1947.45, 52, null, 1.867, 1.42, 0, "woods-floor"],
   ["monsteraplant", 1975.53, -123.02, null, 0.888, 1.66, 0, "woods-floor"],
   ["roundleafyshrub", 2198.38, 10.15, null, 3.207, 1.2, 0.48, "woods-floor"],
   ["palmplant", 2210.53, 51.91, null, 1.699, 2.44, 0, "woods-floor"],
   ["monsteraplant", 1904.05, -107.66, null, 5.545, 1.65, 0, "woods-floor"],
-  ["roundshrub", 2036.46, 115.47, null, 1.157, 1.81, 0.7, "woods-floor"],
-  ["bananaplant_1", 2086.04, 10.35, null, 5.619, 4.16, 0.21, "woods-floor"],
-  ["roundshrub", 2272.07, -116.77, null, 6.05, 1.41, 0.55, "woods-floor"],
-  ["palmplant", 2258.96, -167.71, null, 0.506, 1.92, 0, "woods-floor"],
+  ["palmplant", 2274.5, 98.7, null, 4.804, 1.95, 0, "woods-floor"],
+  ["roundleafyshrub", 1906.46, -69.62, null, 5.861, 1.55, 0.62, "woods-floor"],
+  ["monsteraplant_1", 1965.5, 68.79, null, 3.202, 2, 0, "woods-floor"],
+  ["monsteraplant_2", 2147.6, -78.69, null, 5.678, 2.24, 0, "woods-floor"],
   ["palmplant", 2103.38, -136.86, null, 4.054, 1.98, 0, "woods-floor"],
   ["monsteraplant", 1905.62, -125.4, null, 5.617, 1.87, 0, "woods-floor"],
   ["fernclump", 2270.77, -32.36, null, 3.089, 1.15, 0, "woods-floor"],
@@ -3889,7 +3879,7 @@ const rows = [
   ["fernplant_1", 2140.13, 55.9, null, 3.514, 1.29, 0, "woods-floor"],
   ["bananaplant_2", 2143.38, -9.31, null, 4.48, 3.48, 0.79, "woods-floor"],
   ["palmplant", 2067.12, -3.41, null, 0.121, 2.3, 0, "woods-floor"],
-  ["roundshrub", 2180.03, 75.21, null, 5.135, 1.69, 0.66, "woods-floor"],
+  ["bananaplant_1", 1897.74, -5.28, null, 5.329, 4.25, 0.21, "woods-floor"],
   ["monsteraplant_1", 1954.21, -146.95, null, 6.257, 2.44, 0, "woods-floor"],
   ["palmplant", 2216.08, -11.38, null, 0.27, 2.1, 0, "woods-floor"],
   ["roundleafyshrub", 1986.52, -137.69, null, 3.387, 1.35, 0.54, "woods-floor"],
@@ -3900,9 +3890,12 @@ const rows = [
   ["monsteraplant_1", 2075.76, -131.77, null, 0.344, 2.14, 0, "woods-floor"],
   ["roundshrub", 2036, 49.42, null, 6.122, 1.59, 0.62, "woods-floor"],
   ["bananaplant_1", 2170.74, 20.89, null, 1.365, 3.45, 0.17, "woods-floor"],
-  ["bananaplant", 2275.92, 115.27, null, 0.896, 4.06, 0.28, "woods-floor"],
-  ["bananaplant_2", 2114.15, 72.28, null, 2.804, 4.27, 0.97, "woods-floor"],
-  ["bananaplant_2", 2153.92, 43.08, null, 0.407, 3.6, 0.82, "woods-floor"],
+  ["monsteraplant", 2261.18, -165.61, null, 4.551, 1.61, 0, "woods-floor"],
+  ["fernplant", 2065.59, -134.97, null, 3.845, 1.47, 0, "woods-floor"],
+  ["fernplant", 2293.42, -85.77, null, 6.263, 1.16, 0, "woods-floor"],
+  ["roundshrub", 2233.67, -40.96, null, 4.045, 1.57, 0.61, "woods-floor"],
+  ["bananaplant_1", 2193.09, -58.35, null, 5.466, 3.48, 0.18, "woods-floor"],
+  ["bananaplant", 2159.52, -69.54, null, 0.928, 4.68, 0.32, "woods-floor"],
   ["fernclump", 2020.82, 85.79, null, 4.319, 0.97, 0, "woods-floor"],
   ["bananaplant_1", 2269.08, -81.24, null, 5.909, 3.42, 0.17, "woods-floor"],
   ["bananaplant_2", 2246.33, -169.96, null, 3.941, 3.75, 0.85, "woods-floor"],
@@ -3932,123 +3925,129 @@ const rows = [
   ["fanpalmshrub", 2156.02, 63.59, null, 2.23, 2.25, 0, "woods-floor"],
   ["fernplant_1", 1983.41, -50.67, null, 5.891, 1.23, 0, "woods-floor"],
   ["fernplant", 2175.71, -5.49, null, 5.942, 1.36, 0, "woods-floor"],
-  ["palmplant", 2366.52, 343.01, null, 3.562, 4.11, 0, "wall:falls-bowl"],
-  ["fernclump", 2360.96, 346.63, null, 0.48, 1.95, 0, "wall:falls-bowl"],
-  ["fernclump", 2334.88, 340.2, null, 1.862, 2.65, 0, "wall:falls-bowl"],
-  ["palmplant", 2373.59, 338.87, null, 5, 5.36, 0, "wall:falls-bowl"],
-  ["fernplant_1", 2369.53, 341.6, null, 2.512, 3.62, 0, "wall:falls-bowl"],
-  ["fernplant_1", 2372.09, 335.99, null, 2.054, 3.11, 0, "wall:falls-bowl"],
-  ["fernclump", 2341.93, 345.46, null, 4.199, 2.4, 0, "wall:falls-bowl"],
-  ["fernplant_1", 2357.4, 348.38, null, 1.544, 2.44, 0, "wall:falls-bowl"],
-  ["monsteraplant", 2373.2, 332.8, null, 3.652, 3.22, 0, "wall:falls-bowl"],
-  ["monsteraplant", 2338.09, 344.24, null, 1.03, 3.27, 0, "wall:falls-bowl"],
+  ["bananaplant_1", 2276.95, 114.87, null, 1.575, 4.03, 0.2, "woods-floor"],
+  ["fanpalmshrub", 2165.89, -162.88, null, 0.494, 2.06, 0, "woods-floor"],
+  ["monsteraplant", 2232.73, 59.75, null, 3.037, 1.87, 0, "woods-floor"],
+  ["monsteraplant_2", 1969.84, -3.17, null, 0.221, 1.98, 0, "woods-floor"],
+  ["bananaplant_2", 1948.86, -102.53, null, 3.646, 4.26, 0.97, "woods-floor"],
+  ["monsteraplant_2", 2213.25, -83.49, null, 4.943, 1.73, 0, "woods-floor"],
+  ["fernclump", 2366.4, 343.23, null, 4.794, 2.82, 0, "wall:falls-bowl"],
+  ["fanpalmshrub", 2372.85, 338.79, null, 4.652, 5.16, 0, "wall:falls-bowl"],
+  ["fanpalmshrub", 2338.24, 344.26, null, 1.785, 5.02, 0, "wall:falls-bowl"],
+  ["monsteraplant", 2373.78, 333.26, null, 0.538, 3.49, 0, "wall:falls-bowl"],
+  ["fanpalmshrub", 2355.45, 348.37, null, 4.656, 5.13, 0, "wall:falls-bowl"],
   ["monsteraplant", 2372.3, 329.3, null, 1.148, 4.28, 0, "wall:falls-bowl"],
-  ["monsteraplant", 2354.11, 347.9, null, 0.888, 2.89, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2362.97, 344.62, null, 0.784, 2.69, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2336.04, 338.32, null, 4.244, 3.14, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2358.65, 348.37, null, 1.6, 3.03, 0, "wall:falls-bowl"],
   ["fernplant_1", 2370.89, 318.81, null, 1.326, 2.47, 0, "wall:falls-bowl"],
+  ["fernclump", 2351.56, 349.03, null, 4.574, 2.17, 0, "wall:falls-bowl"],
   ["palmplant", 2345.93, 346.79, null, 4.236, 3.9, 0, "wall:falls-bowl"],
   ["monsteraplant", 2329.64, 329.85, null, 2.815, 2.91, 0, "wall:falls-bowl"],
-  ["fanpalmshrub", 2348.98, 347.9, null, 1.016, 3.99, 0, "wall:falls-bowl"],
-  ["monsteraplant", 2364.41, 347.02, null, 6.031, 3.78, 0, "wall:falls-bowl"],
-  ["fernplant_1", 2367.64, 346.1, null, 0.288, 2.81, 0, "wall:falls-bowl"],
-  ["monsteraplant", 2335.32, 336.66, null, 5.93, 3.15, 0, "wall:falls-bowl"],
-  ["fernclump", 2430.82, 241.82, null, 0.745, 1.89, 0, "wall:big-bowl"],
-  ["fernclump", 2455.72, 255.62, null, 0.151, 2.51, 0, "wall:big-bowl"],
-  ["monsteraplant", 2479.59, 245.21, null, 3.273, 3.89, 0, "wall:big-bowl"],
-  ["fernplant_1", 2433.77, 204.73, null, 1.882, 3.56, 0, "wall:big-bowl"],
-  ["fanpalmshrub", 2488.01, 239.43, null, 4.039, 3.25, 0, "wall:big-bowl"],
-  ["fanpalmshrub", 2487.28, 234.74, null, 0.692, 4.82, 0, "wall:big-bowl"],
-  ["fernclump", 2430.26, 215.32, null, 0.554, 1.9, 0, "wall:big-bowl"],
-  ["fernplant_1", 2448.39, 196, null, 4.521, 3.61, 0, "wall:big-bowl"],
-  ["fanpalmshrub", 2461.7, 195.37, null, 4.697, 3.29, 0, "wall:big-bowl"],
-  ["fernclump", 2469.36, 252.41, null, 2.019, 2.69, 0, "wall:big-bowl"],
-  ["monsteraplant", 2472.99, 251.26, null, 1.931, 4.18, 0, "wall:big-bowl"],
-  ["monsteraplant", 2488.43, 208.61, null, 4.977, 3.73, 0, "wall:big-bowl"],
-  ["fernclump", 2432.23, 210.71, null, 3.526, 1.86, 0, "wall:big-bowl"],
+  ["fernclump", 2342.77, 344.49, null, 4.81, 2.83, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2363.07, 348.34, null, 5.177, 2.72, 0, "wall:falls-bowl"],
+  ["fernclump", 2333.86, 341.73, null, 6.202, 2.63, 0, "wall:falls-bowl"],
+  ["fernplant_1", 2370.09, 342.83, null, 2.186, 2.95, 0, "wall:falls-bowl"],
+  ["fernclump", 2441.49, 249.94, null, 1.835, 2.14, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2488.3, 243.02, null, 5.762, 4.64, 0, "wall:big-bowl"],
+  ["fernclump", 2463.81, 255.89, null, 4.757, 2.7, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2477.51, 199.2, null, 6.021, 3.27, 0, "wall:big-bowl"],
+  ["fernclump", 2462.64, 197.93, null, 0.189, 2.38, 0, "wall:big-bowl"],
+  ["fernplant_1", 2493.23, 228.82, null, 2.986, 2.46, 0, "wall:big-bowl"],
+  ["palmplant", 2479.96, 245.79, null, 6.099, 4.03, 0, "wall:big-bowl"],
+  ["monsteraplant", 2462.88, 252.09, null, 2.974, 3.8, 0, "wall:big-bowl"],
   ["fanpalmshrub", 2471.83, 197.21, null, 4.806, 3.82, 0, "wall:big-bowl"],
   ["fernplant_1", 2430.6, 235.1, null, 5.12, 2.74, 0, "wall:big-bowl"],
   ["fernplant_1", 2457.33, 252.81, null, 5.532, 2.53, 0, "wall:big-bowl"],
   ["fernclump", 2483.38, 247.2, null, 1.632, 2.78, 0, "wall:big-bowl"],
   ["monsteraplant", 2444.08, 251.85, null, 1.128, 4.33, 0, "wall:big-bowl"],
-  ["fernclump", 2429.61, 230.52, null, 1.633, 2.19, 0, "wall:big-bowl"],
-  ["palmplant", 2461.1, 254.72, null, 5.318, 4.65, 0, "wall:big-bowl"],
-  ["fernclump", 2464.46, 255.92, null, 0.145, 2.56, 0, "wall:big-bowl"],
-  ["fernplant_1", 2489, 230.37, null, 0.647, 2.29, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2429.61, 215.26, null, 3.199, 5.2, 0, "wall:big-bowl"],
+  ["fernplant_1", 2429.17, 231, null, 2.212, 2.37, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2459.18, 194.67, null, 4.987, 3.21, 0, "wall:big-bowl"],
+  ["palmplant", 2430.69, 208.41, null, 4.119, 5.27, 0, "wall:big-bowl"],
+  ["monsteraplant", 2487.11, 208.61, null, 6.226, 3.96, 0, "wall:big-bowl"],
+  ["fernclump", 2435.25, 201.1, null, 0.448, 1.84, 0, "wall:big-bowl"],
+  ["monsteraplant", 2434.17, 206.08, null, 4.008, 4.44, 0, "wall:big-bowl"],
   ["fernplant_1", 2490, 213.93, null, 4.035, 3.1, 0, "wall:big-bowl"],
-  ["fernclump", 2481.05, 200.5, null, 5.914, 2.06, 0, "wall:big-bowl"],
-  ["fernplant_1", 2486.73, 211.56, null, 2.286, 2.37, 0, "wall:big-bowl"],
-  ["palmplant", 2485.16, 208.21, null, 2.725, 5.35, 0, "wall:big-bowl"],
-  ["fernplant_1", 2440.58, 251.76, null, 0.985, 3.12, 0, "wall:big-bowl"],
-  ["palmplant", 2431.38, 238.65, null, 4.654, 5.03, 0, "wall:big-bowl"],
-  ["fanpalmshrub", 2477.06, 200.99, null, 1.003, 3.69, 0, "wall:big-bowl"],
-  ["fernclump", 2492.3, 220.64, null, 0.179, 1.81, 0, "wall:big-bowl"],
-  ["fernplant_1", 2477.26, 250.74, null, 2.693, 2.83, 0, "wall:big-bowl"],
+  ["palmplant", 2466.6, 252.59, null, 1.551, 5.14, 0, "wall:big-bowl"],
+  ["fernclump", 2484.62, 202.69, null, 3.902, 2.61, 0, "wall:big-bowl"],
+  ["palmplant", 2451.24, 197.29, null, 1.283, 4.19, 0, "wall:big-bowl"],
+  ["fernplant_1", 2473.93, 248.52, null, 4.576, 2.7, 0, "wall:big-bowl"],
+  ["fernclump", 2431.66, 240.66, null, 6.249, 2.57, 0, "wall:big-bowl"],
+  ["palmplant", 2478.87, 250.02, null, 3.419, 5.24, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2486.62, 212.17, null, 5.219, 4.75, 0, "wall:big-bowl"],
+  ["monsteraplant", 2493.31, 218.87, null, 6.019, 4.21, 0, "wall:big-bowl"],
+  ["fernplant_1", 2460.31, 255.98, null, 0.181, 2.63, 0, "wall:big-bowl"],
+  ["palmplant", 2487.8, 233.87, null, 5.313, 5.01, 0, "wall:big-bowl"],
   ["palmplant", 2480.52, 205.42, null, 3.213, 4.11, 0, "wall:big-bowl"],
-  ["palmplant", 2465.07, 252.21, null, 4.223, 3.62, 0, "wall:big-bowl"],
-  ["fernclump", 2489.32, 243.13, null, 0.485, 2.1, 0, "wall:big-bowl"],
-  ["fernplant_1", 2438.74, 248.64, null, 4.265, 2.87, 0, "wall:big-bowl"],
+  ["fernclump", 2488.22, 239.79, null, 0.396, 2.83, 0, "wall:big-bowl"],
+  ["fernplant_1", 2490.7, 220.82, null, 0.981, 3.62, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2494.78, 222.16, null, 2.754, 3.22, 0, "wall:big-bowl"],
   ["fernclump", 2465.85, 197.85, null, 2.31, 2.83, 0, "wall:big-bowl"],
-  ["monsteraplant", 2493.6, 230.87, null, 0.952, 4.04, 0, "wall:big-bowl"],
-  ["monsteraplant", 2485.77, 242.41, null, 4.385, 4.26, 0, "wall:big-bowl"],
-  ["fernclump", 2484.74, 202.47, null, 4.817, 1.81, 0, "wall:big-bowl"],
-  ["fernplant_1", 2447.6, 253.04, null, 5.286, 3.57, 0, "wall:big-bowl"],
-  ["fernplant_1", 2475.87, 247.33, null, 0.875, 3.23, 0, "wall:big-bowl"],
-  ["fanpalmshrub", 2451.85, 197.2, null, 0.577, 4.01, 0, "wall:big-bowl"],
-  ["fernclump", 2429.26, 211.91, null, 0.172, 2.5, 0, "wall:big-bowl"],
-  ["fernclump", 2435.19, 200.86, null, 1.059, 2.4, 0, "wall:big-bowl"],
-  ["fernclump", 2431.16, 207.42, null, 5.009, 2.76, 0, "wall:big-bowl"],
+  ["fernclump", 2470.39, 253.38, null, 0.057, 1.99, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2453.51, 255.2, null, 4.303, 4.78, 0, "wall:big-bowl"],
+  ["palmplant", 2490.41, 231.26, null, 2.34, 5.37, 0, "wall:big-bowl"],
+  ["palmplant", 2447.34, 251.31, null, 2.064, 4.25, 0, "wall:big-bowl"],
+  ["fernclump", 2438.19, 249.15, null, 5.944, 2.08, 0, "wall:big-bowl"],
+  ["monsteraplant", 2474.77, 202.38, null, 6.25, 2.92, 0, "wall:big-bowl"],
   ["fernplant_1", 2490.59, 225.52, null, 2.84, 2.47, 0, "wall:big-bowl"],
-  ["fernplant_1", 2475.18, 197.57, null, 3.079, 3.15, 0, "wall:big-bowl"],
-  ["monsteraplant", 2473.14, 200.49, null, 0.45, 4.11, 0, "wall:big-bowl"],
-  ["fernclump", 2457.39, 194.27, null, 2.687, 2.16, 0, "wall:big-bowl"],
+  ["fernclump", 2484.56, 206.23, null, 1.564, 2.76, 0, "wall:big-bowl"],
+  ["monsteraplant", 2446.71, 195.57, null, 5.972, 4.27, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2490.38, 217.22, null, 3.417, 4.07, 0, "wall:big-bowl"],
   ["fernclump", 2432.9, 246.8, null, 6.275, 1.88, 0, "wall:big-bowl"],
+  ["palmplant", 2478.19, 203.18, null, 3.529, 5.67, 0, "wall:big-bowl"],
   ["fernplant_1", 2491.94, 234.36, null, 2.187, 2.72, 0, "wall:big-bowl"],
-  ["fernclump", 2435.12, 249.27, null, 5.531, 2.56, 0, "wall:big-bowl"],
+  ["fernplant_1", 2428.96, 238.1, null, 2.961, 3.37, 0, "wall:big-bowl"],
   ["monsteraplant", 2427.38, 234.63, null, 2.272, 3.5, 0, "wall:big-bowl"],
-  ["palmplant", 2488.65, 218.36, null, 4.818, 3.81, 0, "wall:big-bowl"],
-  ["palmplant", 2494.52, 223.03, null, 5.027, 5.52, 0, "wall:big-bowl"],
-  ["fernclump", 2357.67, 118.96, null, 3.386, 2.58, 0, "wall:gorge"],
-  ["fernplant_1", 2331.79, 112.36, null, 1.824, 2.86, 0, "wall:gorge"],
-  ["monsteraplant", 2414.29, 77.1, null, 0.399, 4.45, 0, "wall:gorge"],
-  ["fernclump", 2413.86, 48.85, null, 0.251, 2.08, 0, "wall:gorge"],
-  ["fernplant_1", 2347.24, 123.57, null, 1.906, 2.56, 0, "wall:gorge"],
-  ["fanpalmshrub", 2359.88, 92.02, null, 2.515, 3.69, 0, "wall:gorge"],
-  ["fernplant_1", 2442.07, 21.56, null, 4.917, 3.39, 0, "wall:gorge"],
-  ["fernplant_1", 2406.65, 54.32, null, 3.43, 2.34, 0, "wall:gorge"],
-  ["fernclump", 2462.92, 26.16, null, 3.814, 2.1, 0, "wall:gorge"],
-  ["fernplant_1", 2315.13, 149.4, null, 5.497, 2.88, 0, "wall:gorge"],
-  ["fernplant_1", 2376.11, 102.51, null, 1.37, 3.4, 0, "wall:gorge"],
-  ["palmplant", 2444.46, 17.52, null, 5.218, 3.74, 0, "wall:gorge"],
-  ["fernplant_1", 2420.07, 43.39, null, 1.325, 3.41, 0, "wall:gorge"],
-  ["fernplant_1", 2419.29, 70.07, null, 4.71, 3.51, 0, "wall:gorge"],
-  ["monsteraplant", 2372.83, 81.09, null, 4.523, 4, 0, "wall:gorge"],
-  ["palmplant", 2362.51, 112.09, null, 1.367, 4.68, 0, "wall:gorge"],
-  ["fanpalmshrub", 2327.33, 141.77, null, 5.166, 4.19, 0, "wall:gorge"],
-  ["palmplant", 2406.43, 80.6, null, 1.571, 3.56, 0, "wall:gorge"],
-  ["fernplant_1", 2324.27, 140.3, null, 2.645, 2.26, 0, "wall:gorge"],
-  ["fernclump", 2432.42, 30.96, null, 1.229, 1.84, 0, "wall:gorge"],
-  ["fernclump", 2332.38, 134.14, null, 0.875, 2.84, 0, "wall:gorge"],
-  ["fernclump", 2455.15, 33.42, null, 5.167, 1.76, 0, "wall:gorge"],
-  ["fernplant_1", 2343.46, 128.61, null, 2.631, 2.59, 0, "wall:gorge"],
-  ["palmplant", 2461.27, 30.86, null, 1.055, 4.51, 0, "wall:gorge"],
-  ["fernplant_1", 2446.77, 15.07, null, 0.108, 3.18, 0, "wall:gorge"],
-  ["fernclump", 2329.04, 137.67, null, 5.031, 2.61, 0, "wall:gorge"],
-  ["palmplant", 2478.57, 14.57, null, 1.07, 3.6, 0, "wall:gorge"],
-  ["fernclump", 2367.7, 86.71, null, 4.763, 2.39, 0, "wall:gorge"],
-  ["fanpalmshrub", 2446.44, 43.94, null, 4.885, 4.3, 0, "wall:gorge"],
-  ["monsteraplant", 2429.28, 59, null, 5.499, 3.13, 0, "wall:gorge"],
-  ["fanpalmshrub", 2388.59, 93.99, null, 3.585, 3.82, 0, "wall:gorge"],
-  ["fernclump", 2472, -11.07, null, 1.637, 2.35, 0, "wall:gorge"],
-  ["monsteraplant", 2394.34, 65.72, null, 4.905, 3.22, 0, "wall:gorge"],
-  ["fernclump", 2321.69, 144.98, null, 3.744, 2.07, 0, "wall:gorge"],
-  ["fernclump", 2336.8, 132.15, null, 1.189, 2.77, 0, "wall:gorge"],
-  ["fanpalmshrub", 2481.69, 10.01, null, 5.668, 4.5, 0, "wall:gorge"],
-  ["fanpalmshrub", 2403.52, 85.66, null, 6.088, 3.62, 0, "wall:gorge"],
-  ["fernplant_1", 2352.29, 120.55, null, 3.743, 2.76, 0, "wall:gorge"],
-  ["fernclump", 2370.2, 109.91, null, 0.069, 2.11, 0, "wall:gorge"],
-  ["monsteraplant", 2435.68, 53.16, null, 1.961, 3.93, 0, "wall:gorge"],
+  ["fanpalmshrub", 2431.9, 211.65, null, 2.677, 3.8, 0, "wall:big-bowl"],
+  ["fanpalmshrub", 2481.38, 200.77, null, 2.688, 4.78, 0, "wall:big-bowl"],
+  ["palmplant", 2446.24, 254.72, null, 2.909, 3.62, 0, "wall:big-bowl"],
+  ["fernclump", 2456.82, 256.19, null, 3.018, 2.4, 0, "wall:big-bowl"],
+  ["monsteraplant", 2482.19, 7.87, null, 5.708, 3.27, 0, "wall:gorge"],
+  ["fernplant_1", 2351.91, 96.17, null, 3.576, 3.58, 0, "wall:gorge"],
+  ["fernplant_1", 2362.38, 88.96, null, 3.808, 3.17, 0, "wall:gorge"],
+  ["fernclump", 2403.22, 59.25, null, 5.625, 2.51, 0, "wall:gorge"],
+  ["fanpalmshrub", 2446.11, 42.78, null, 1.008, 3.51, 0, "wall:gorge"],
+  ["fernclump", 2376.12, 78.14, null, 1.826, 2.12, 0, "wall:gorge"],
+  ["fernplant_1", 2372.51, 83.16, null, 2.346, 2.78, 0, "wall:gorge"],
+  ["fernplant_1", 2393.6, 66.11, null, 1.375, 2.69, 0, "wall:gorge"],
+  ["fernplant_1", 2415.59, 76.27, null, 5.868, 3.48, 0, "wall:gorge"],
+  ["fernclump", 2441.01, 21.95, null, 4.282, 2.78, 0, "wall:gorge"],
+  ["fernplant_1", 2366.46, 112.22, null, 1.959, 2.91, 0, "wall:gorge"],
+  ["fanpalmshrub", 2392.02, 69.21, null, 6.222, 4.98, 0, "wall:gorge"],
+  ["fernplant_1", 2469.84, -6.41, null, 2.588, 3.58, 0, "wall:gorge"],
+  ["fanpalmshrub", 2435.97, 26.52, null, 0.799, 5.07, 0, "wall:gorge"],
+  ["monsteraplant", 2343.59, 103, null, 0.416, 3.26, 0, "wall:gorge"],
+  ["monsteraplant", 2439.01, 53.93, null, 3.86, 3.14, 0, "wall:gorge"],
+  ["fernclump", 2415.29, 46.88, null, 0.604, 2.6, 0, "wall:gorge"],
+  ["fernclump", 2339.17, 104.99, null, 2.14, 1.93, 0, "wall:gorge"],
+  ["fernplant_1", 2442.63, 18.92, null, 6.091, 3.18, 0, "wall:gorge"],
+  ["fernplant_1", 2320.74, 145.86, null, 4.436, 2.9, 0, "wall:gorge"],
+  ["fernplant_1", 2325.39, 143.58, null, 5.742, 2.96, 0, "wall:gorge"],
+  ["fernclump", 2409.5, 78.64, null, 0.426, 2.54, 0, "wall:gorge"],
+  ["fernplant_1", 2453.01, 10.15, null, 3.906, 2.61, 0, "wall:gorge"],
+  ["palmplant", 2355.74, 92.27, null, 5.938, 4.34, 0, "wall:gorge"],
+  ["fernclump", 2333, 135.02, null, 1.181, 1.96, 0, "wall:gorge"],
+  ["palmplant", 2330.46, 138.8, null, 1.121, 4.89, 0, "wall:gorge"],
+  ["fernclump", 2315.83, 149.6, null, 2.397, 2.36, 0, "wall:gorge"],
+  ["fernclump", 2384.95, 74.29, null, 2.964, 2.45, 0, "wall:gorge"],
+  ["fernplant_1", 2416.39, 72.6, null, 4.591, 2.94, 0, "wall:gorge"],
+  ["fernplant_1", 2427.27, 34.16, null, 0.355, 2.58, 0, "wall:gorge"],
+  ["fernplant_1", 2488.49, 2.21, null, 3.04, 3.12, 0, "wall:gorge"],
+  ["fernplant_1", 2337.43, 134.41, null, 3.331, 2.63, 0, "wall:gorge"],
+  ["monsteraplant", 2429.06, 60.06, null, 3.506, 4.37, 0, "wall:gorge"],
+  ["monsteraplant", 2351.1, 120.91, null, 2, 4.06, 0, "wall:gorge"],
+  ["fernclump", 2401.18, 86.02, null, 5.184, 2.76, 0, "wall:gorge"],
+  ["fanpalmshrub", 2450.46, 39.74, null, 1.241, 4.16, 0, "wall:gorge"],
+  ["fanpalmshrub", 2480.92, 11.07, null, 5.177, 4.98, 0, "wall:gorge"],
+  ["fernplant_1", 2466.47, 21.93, null, 2.018, 2.27, 0, "wall:gorge"],
+  ["fanpalmshrub", 2471.27, -9.75, null, 2.131, 3.89, 0, "wall:gorge"],
+  ["fernclump", 2331.35, 112.24, null, 0.594, 2.66, 0, "wall:gorge"],
+  ["rock-limestone-1", 2331.2, 316.2, null, 5.3, 0.6, 0.25, "falls-pool"],
+  ["rock-limestone-2", 2330.6, 324.4, null, 3.1, 0.7, 0.29, "falls-pool"],
 ];
 const HABITATION_STANDING = Object.freeze(rows.map(([m, x, z, y, r, s, solid, tag]) => Object.freeze({ m, x, z, y, r, s, solid, tag })));
-const HABITATION_MODELS = Object.freeze({"bananaplant":{"unit":0.8647,"base":[0.0002,0,0.0872],"kind":"banana"},"bananaplant_1":{"unit":0.98,"base":[-0.1042,0,0.0144],"kind":"banana"},"bananaplant_2":{"unit":0.9976,"base":[-0.0071,0,-0.0295],"kind":"banana"},"buttress-roottree":{"unit":0.9995,"base":[0.1147,0,0.1462],"kind":"tree"},"buttressedtree":{"unit":0.9995,"base":[0.1008,0,-0.011],"kind":"tree"},"coconutpalm":{"unit":0.9995,"base":[-0.0076,0,-0.2029],"kind":"palm"},"coconutpalmtree":{"unit":0.9995,"base":[0.0095,0,0.0417],"kind":"palm"},"coconutpalmtree_1":{"unit":0.9995,"base":[0.0056,0,-0.0017],"kind":"palm"},"coconutpalmtree_2":{"unit":0.9624,"base":[-0.052,0,-0.0061],"kind":"palm"},"coconutpalmtree_3":{"unit":0.9995,"base":[0.0042,0,-0.0027],"kind":"palm"},"coconutpalmtree_4":{"unit":0.9995,"base":[0.0222,0,-0.011],"kind":"palm"},"fanpalmshrub":{"unit":0.9419,"base":[-0.0247,0,-0.0242],"kind":"herb"},"fernclump":{"unit":0.8271,"base":[0.0869,0,0.0515],"kind":"fern"},"fernplant":{"unit":0.7397,"base":[-0.0007,0,0.0134],"kind":"herb"},"fernplant_1":{"unit":0.9312,"base":[0.0398,0,0.0339],"kind":"fern"},"foresttree":{"unit":0.9429,"base":[0.1306,0,0.0503],"kind":"tree"},"giantbuttress-roottree":{"unit":0.9995,"base":[0.1125,0,-0.0254],"kind":"tree"},"mangrovetree":{"unit":0.9995,"base":[-0.0066,0,0.0002],"kind":"tree"},"mangrovetree_1":{"unit":0.9995,"base":[0.0002,0,0.0686],"kind":"tree"},"mangrovetree_2":{"unit":0.9849,"base":[0.0015,0,-0.0168],"kind":"tree"},"mangrovetree_3":{"unit":0.9995,"base":[-0.0122,0,-0.0276],"kind":"tree"},"monsteraplant":{"unit":0.9995,"base":[-0.0251,0,0.0002],"kind":"herb"},"monsteraplant_1":{"unit":0.9897,"base":[-0.0066,0,0.0671],"kind":"herb"},"monsteraplant_2":{"unit":0.9995,"base":[0.0315,0,-0.0974],"kind":"herb"},"oaktree":{"unit":0.7954,"base":[-0.0002,0,-0.0002],"kind":"tree"},"palmplant":{"unit":0.9868,"base":[0.0154,0,-0.0505],"kind":"herb"},"palmtree":{"unit":0.9995,"base":[0.051,0,-0.0002],"kind":"tree"},"palmtree_1":{"unit":0.9995,"base":[0.0627,0,-0.0002],"kind":"tree"},"palmtree_2":{"unit":0.999,"base":[-0.0906,0.0005,0.1074],"kind":"palm"},"palmtree_3":{"unit":0.9995,"base":[0.0354,0,-0.0017],"kind":"palm"},"palmtree_4":{"unit":0.9995,"base":[0.3093,0,0.0706],"kind":"palm"},"palmtree_5":{"unit":0.9995,"base":[0.0359,0,0.011],"kind":"palm"},"palmtree_6":{"unit":0.9995,"base":[0.0193,0,0.0173],"kind":"palm"},"palmtree_7":{"unit":0.9995,"base":[-0.0422,0,-0.0017],"kind":"palm"},"palmtree_8":{"unit":0.9995,"base":[0.0088,0,0.0168],"kind":"palm"},"palmtree_9":{"unit":0.9995,"base":[-0.0481,0,0.4363],"kind":"palm"},"rock-granite-0":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-granite-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-granite-2":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-0":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-2":{"unit":1,"base":[0,0,0],"kind":"rock"},"roundleafyshrub":{"unit":0.7275,"base":[0.0171,0,0.0061],"kind":"shrub"},"roundshrub":{"unit":0.7944,"base":[0.1638,0,0.0696],"kind":"shrub"},"sceniclandscape":{"unit":0.9995,"base":[-0.0125,0,0.4509],"kind":"structure"},"slimtree":{"unit":0.9995,"base":[-0.011,0,0.0012],"kind":"tree"},"suspensionbridge":{"unit":0.9995,"base":[0.0281,0,0.1399],"kind":"bridge"},"talltree":{"unit":0.9995,"base":[-0.0183,0,-0.0061],"kind":"tree"},"tree":{"unit":0.9995,"base":[0.011,0,0.0164],"kind":"tree"},"tree_1":{"unit":0.9819,"base":[0.3435,0,-0.1936],"kind":"tree"},"treeonhill":{"unit":0.9995,"base":[0.1589,0,0.05],"kind":"tree"},"tropicalgazebo":{"unit":0.7104,"base":[0.0388,0,0.1204],"kind":"structure"},"tropicalpooldeck":{"unit":0.9995,"base":[-0.1477,0,-0.3357],"kind":"structure"},"waterfalllandscape":{"unit":0.8706,"base":[0.4338,0,0.2083],"kind":"cliff"},"woodenboardwalk":{"unit":0.9585,"base":[0.4778,0,0.1086],"kind":"structure"}});
+const HABITATION_MODELS = Object.freeze({"bananaplant":{"unit":0.8647,"base":[0.0002,0,0.0872],"kind":"banana"},"bananaplant_1":{"unit":0.98,"base":[-0.1042,0,0.0144],"kind":"banana"},"bananaplant_2":{"unit":0.9976,"base":[-0.0071,0,-0.0295],"kind":"banana"},"buttress-roottree":{"unit":0.9995,"base":[0.1147,0,0.1462],"kind":"tree"},"buttressedtree":{"unit":0.9995,"base":[0.1008,0,-0.011],"kind":"tree"},"coconutpalm":{"unit":0.9995,"base":[-0.0076,0,-0.2029],"kind":"palm"},"coconutpalmtree":{"unit":0.9995,"base":[0.0095,0,0.0417],"kind":"palm"},"coconutpalmtree_1":{"unit":0.9995,"base":[0.0056,0,-0.0017],"kind":"palm"},"coconutpalmtree_2":{"unit":0.9624,"base":[-0.052,0,-0.0061],"kind":"palm"},"coconutpalmtree_3":{"unit":0.9995,"base":[0.0042,0,-0.0027],"kind":"palm"},"coconutpalmtree_4":{"unit":0.9995,"base":[0.0222,0,-0.011],"kind":"palm"},"fanpalmshrub":{"unit":0.9419,"base":[-0.0247,0,-0.0242],"kind":"herb"},"fernclump":{"unit":0.8271,"base":[0.0869,0,0.0515],"kind":"fern"},"fernplant":{"unit":0.7397,"base":[-0.0007,0,0.0134],"kind":"herb"},"fernplant_1":{"unit":0.9312,"base":[0.0398,0,0.0339],"kind":"fern"},"foresttree":{"unit":0.9429,"base":[0.1306,0,0.0503],"kind":"tree"},"giantbuttress-roottree":{"unit":0.9995,"base":[0.1125,0,-0.0254],"kind":"tree"},"mangrovetree":{"unit":0.9995,"base":[-0.0066,0,0.0002],"kind":"tree"},"mangrovetree_1":{"unit":0.9995,"base":[0.0002,0,0.0686],"kind":"tree"},"mangrovetree_2":{"unit":0.9849,"base":[0.0015,0,-0.0168],"kind":"tree"},"mangrovetree_3":{"unit":0.9995,"base":[-0.0122,0,-0.0276],"kind":"tree"},"monsteraplant":{"unit":0.9995,"base":[-0.0251,0,0.0002],"kind":"herb"},"monsteraplant_1":{"unit":0.9897,"base":[-0.0066,0,0.0671],"kind":"herb"},"monsteraplant_2":{"unit":0.9995,"base":[0.0315,0,-0.0974],"kind":"herb"},"oaktree":{"unit":0.7954,"base":[-0.0002,0,-0.0002],"kind":"tree"},"palmplant":{"unit":0.9868,"base":[0.0154,0,-0.0505],"kind":"herb"},"palmtree":{"unit":0.9995,"base":[0.051,0,-0.0002],"kind":"tree"},"palmtree_1":{"unit":0.9995,"base":[0.0627,0,-0.0002],"kind":"tree"},"palmtree_2":{"unit":0.999,"base":[-0.0906,0.0005,0.1074],"kind":"palm"},"palmtree_3":{"unit":0.9995,"base":[0.0354,0,-0.0017],"kind":"palm"},"palmtree_4":{"unit":0.9995,"base":[0.3093,0,0.0706],"kind":"palm"},"palmtree_5":{"unit":0.9995,"base":[0.0359,0,0.011],"kind":"palm"},"palmtree_6":{"unit":0.9995,"base":[0.0193,0,0.0173],"kind":"palm"},"palmtree_7":{"unit":0.9995,"base":[-0.0422,0,-0.0017],"kind":"palm"},"palmtree_8":{"unit":0.9995,"base":[0.0088,0,0.0168],"kind":"palm"},"palmtree_9":{"unit":0.9995,"base":[-0.0481,0,0.4363],"kind":"palm"},"rock-granite-0":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-granite-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-granite-2":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-limestone-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-limestone-2":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-0":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-mossy-2":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-redstone-0":{"unit":1,"base":[0,0,0],"kind":"rock"},"rock-redstone-1":{"unit":1,"base":[0,0,0],"kind":"rock"},"roundleafyshrub":{"unit":0.7275,"base":[0.0171,0,0.0061],"kind":"shrub"},"roundshrub":{"unit":0.7944,"base":[0.1638,0,0.0696],"kind":"shrub"},"sceniclandscape":{"unit":0.9995,"base":[-0.0125,0,0.4509],"kind":"structure"},"slimtree":{"unit":0.9995,"base":[-0.011,0,0.0012],"kind":"tree"},"suspensionbridge":{"unit":0.9995,"base":[0.0281,0,0.1399],"kind":"bridge"},"talltree":{"unit":0.9995,"base":[-0.0183,0,-0.0061],"kind":"tree"},"tree":{"unit":0.9995,"base":[0.011,0,0.0164],"kind":"tree"},"tree_1":{"unit":0.9819,"base":[0.3435,0,-0.1936],"kind":"tree"},"treeonhill":{"unit":0.9995,"base":[0.1589,0,0.05],"kind":"tree"},"tropicalgazebo":{"unit":0.7104,"base":[0.0388,0,0.1204],"kind":"structure"},"tropicalpooldeck":{"unit":0.9995,"base":[-0.1477,0,-0.3357],"kind":"structure"},"waterfalllandscape":{"unit":0.8706,"base":[0.4338,0,0.2083],"kind":"cliff"},"woodenboardwalk":{"unit":0.9585,"base":[0.4778,0,0.1086],"kind":"structure"}});
 
 return { HABITATION_STANDING, HABITATION_MODELS };
 })();
@@ -4155,7 +4154,7 @@ const HABITATION_WATERS = Object.freeze([
 const stream = (id, line, width, depth, heights, extra = {}) => Object.freeze({ id, line: pts(line), width, depth, heights: Object.freeze(heights), bounds: boundsOf(line, width + 14), length: lineLength(line), ...extra });
 const HABITATION_STREAMS = Object.freeze([
   stream('moat', [[1897, -176], [1894, -110], [1891, -40], [1889, 30], [1887, 90], [1885, 130], [1884, 156]], 5.5, 1.3, [0.2, 0.1, 0.0, -0.1, -0.2, -0.3, WATER], { deep: true }),
-  stream('gorge', [[2482, -6], [2452, 24], [2424, 52], [2398, 76], [2376, 92], [2356, 106], [2336, 120], [2318, 134], [2306, 144]], 7, 0.35, [14, 12.2, 10.4, 8.6, 5.0, 3.4, 2.0, 0.6, WATER], { stones: true, banks: 4.5, walls: 2.6 }),
+  stream('gorge', [[2482, -6], [2452, 24], [2424, 52], [2398, 76], [2376, 92], [2356, 106], [2336, 120], [2318, 134], [2306, 144]], 7, 0.5, [14, 12.2, 10.4, 8.6, 5.0, 3.4, 2.0, 0.6, WATER], { stones: true, banks: 4.5, walls: 2.6 }),
   stream('outflow', [[2444, 225], [2424, 224], [2404, 222], [2386, 221], [2366, 220], [2348, 221], [2334, 222]], 9, 0.9, [3.6, 3.0, 2.2, 1.5, 0.9, 0.3, WATER], { rapids: true, banks: 1.5, walls: 2.4 }),
   stream('falls-run', [[2340, 316], [2328, 306], [2316, 298]], 6, 0.3, [1.1, 0.5, WATER], { banks: 2, walls: 1.2 }),
 ]);
@@ -4186,9 +4185,9 @@ const HABITATION_BOWLS = Object.freeze([
   bowl('falls-bowl', [[2336, 316], [2344, 312], [2360, 312], [2370, 320], [2372, 334], [2364, 344], [2350, 346], [2338, 340], [2332, 328]], 0.6, 4, 'limestone'),
 ]);
 const HABITATION_PILLARS = Object.freeze([
-  { id: 'pillar-a', x: 2268, z: 268, r: 8.5, h: 26 }, { id: 'pillar-b', x: 2243, z: 297, r: 6, h: 18 },
-  { id: 'pillar-c', x: 2292, z: 236, r: 5, h: 14 }, { id: 'islet-a', x: 2163, z: 303, r: 7, h: 9 },
-  { id: 'islet-b', x: 2232, z: 168, r: 3, h: 2.6 }, { id: 'pillar-d', x: 2302, z: 290, r: 4, h: 20 },
+  { id: 'pillar-a', x: 2268, z: 268, r: 8.5, h: 40 }, { id: 'pillar-b', x: 2243, z: 297, r: 6, h: 30 },
+  { id: 'pillar-c', x: 2292, z: 236, r: 5, h: 24 }, { id: 'pillar-e', x: 2163, z: 303, r: 5.6, h: 26 },
+  { id: 'islet-b', x: 2232, z: 168, r: 3, h: 2.6 }, { id: 'pillar-d', x: 2302, z: 290, r: 4, h: 32 },
 ].map(Object.freeze));
 
 const path = (id, line, width, surface, extra = {}) => Object.freeze({ id, line: pts(line), width, surface, bounds: boundsOf(line, width + 12), ...extra });
@@ -4201,8 +4200,8 @@ const HABITATION_PATHS = Object.freeze([
   path('from-swamp', [[2090, -40], [2096, -14], [2098, 18], [2094, 50], [2084, 76], [2074, 99]], 3, 'mud', { puddles: true }),
   path('to-mangroves', [[2034, 80], [2026, 102], [2016, 122], [2010, 136]], 3, 'earth'),
   path('west-beach', [[2126, 121], [2160, 116], [2200, 113], [2240, 116], [2272, 125], [2296, 137], [2310, 140]], 5, 'sand'),
-  path('gorge-west', [[2310, 140], [2324, 128], [2338, 118], [2350, 110], [2362, 104]], 3, 'stone', { heights: [0.4, 1.5, 2.7, 3.7, 4.5] }),
-  path('gorge-east', [[2376, 108], [2386, 116], [2398, 130], [2412, 148], [2426, 166], [2436, 180], [2440, 192]], 3, 'earth', { heights: [4.8, 7.5, 11, 14.5, 17.5, 20.2, 21.6], steps: true }),
+  path('gorge-west', [[2310, 140], [2322, 124], [2336, 113], [2348, 104], [2357, 97], [2359.2, 94]], 3, 'stone', { heights: [0.4, 1.8, 2.9, 3.8, 4.5, 4.95] }),
+  path('gorge-east', [[2368.8, 106.8], [2376, 108], [2386, 116], [2398, 130], [2412, 148], [2426, 166], [2436, 180], [2440, 192]], 3, 'earth', { heights: [5.1, 5.4, 7.5, 11, 14.5, 17.5, 20.2, 21.6], steps: true }),
   path('pool-shore', [[2448, 211], [2446, 215], [2444, 218]], 3.4, 'stone', { heights: [4.3, 4.3, 4.3] }),
   path('outflow-west', [[2440, 192], [2430, 195], [2416, 200], [2400, 206], [2388, 211]], 3, 'earth', { heights: [21.6, 20.8, 19.8, 18.6, 17.6] }),
   path('pool-east', [[2440, 232], [2448, 240], [2456, 248], [2448, 257], [2434, 262], [2420, 262]], 3, 'earth', { heights: [4.4, 8, 12, 16, 19, 20.2], steps: true }),
@@ -4235,7 +4234,7 @@ const HABITATION_DECKS = Object.freeze([
   deck('swamp-walk', 'boardwalk', [[2028, -28], [2032, -46], [2040, -60], [2052, -72], [2060, -84], [2070, -96], [2072, -112], [2062, -124], [2050, -118], [2058, -100], [2072, -80], [2082, -62], [2090, -40]], 2.4, [1.0], { over: 0.7, platform: Object.freeze({ x: 2060, z: -84, r: 5 }), model: 'woodenboardwalk', ropes: true }),
   deck('mangrove-walk', 'boardwalk', [[2010, 136], [2024, 150], [2042, 162], [2062, 168], [2082, 164], [2098, 154], [2110, 142], [2120, 132]], 2.4, [1.0], { over: 1.0, model: 'woodenboardwalk' }),
   deck('island-walk', 'boardwalk', [[2192, 118], [2196, 140], [2200, 164], [2203, 188]], 2.2, [0.9], { over: 0.8, ropes: true, model: 'woodenboardwalk' }),
-  deck('gorge-bridge', 'bridge', [[2362, 104], [2369, 106], [2376, 108]], 2.4, [4.6, 5.0, 4.8], { model: 'woodenboardwalk', piers: true }),
+  deck('gorge-bridge', 'bridge', [[2359.2, 94], [2364, 100.4], [2368.8, 106.8]], 2.4, [4.95, 5.25, 5.1], { model: 'woodenboardwalk', piers: true }),
   deck('falls-stairs', 'stairs', [[2440, 192], [2452, 194], [2460, 200], [2456, 207], [2448, 211]], 2.2, [21.6, 17, 12, 8, 4.3], { model: 'woodenboardwalk' }),
   deck('outflow-bridge', 'bridge', [[2444, 218], [2441, 225], [2440, 232]], 2.4, [4.3, 4.5, 4.3], { model: 'woodenboardwalk' }),
   deck('suspension-bridge', 'suspension', [[2388, 211], [2387, 222], [2386, 234]], 1.55, [17.6, 16.85, 17.6], { model: 'suspensionbridge' }),
@@ -14085,15 +14084,16 @@ function nameTexture(text, { width = 512, height = 96, size = 46 } = {}) {
   return texture;
 }
 
-function textTexture(lines, { width = 512, height = 128, background = '#f3ecdc', colour = '#171a2e', border = null, size = 54 } = {}) {
+function textTexture(lines, { width = 512, height = 128, background = '#f3ecdc', colour = '#171a2e', border = null, size = 54, scale = 1 } = {}) {
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
   const texture = new THREE.CanvasTexture(canvas);
   texture.encoding = THREE.sRGBEncoding;
   texture.anisotropy = 4;
   const draw = () => {
     const ctx = canvas.getContext('2d');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, width, height);
     if (border) { ctx.strokeStyle = border; ctx.lineWidth = 10; ctx.strokeRect(5, 5, width - 10, height - 10); }
@@ -17097,9 +17097,9 @@ function buildKind(t) {
   return { body: B, glow: G, far: F };
 }
 
-function emptyFace(width, height, { tv = false, sides = 1 } = {}) {
+function emptyFace(width, height, { tv = false, sides = 1, lite = false } = {}) {
   const canvas = document.createElement('canvas');
-  const k = Math.min(80, (tv ? 640 : 1024) / Math.max(width, height));
+  const k = Math.min(lite ? 40 : 80, (tv ? 640 : 1024) / (lite ? 2 : 1) / Math.max(width, height));
   canvas.width = Math.max(64, Math.round(width * k)); canvas.height = Math.max(32, Math.round(height * k));
   const g = canvas.getContext('2d');
   const draw = (phase = 0) => {
@@ -17150,7 +17150,7 @@ function buildBillboards(scene, { glowMaterial, lite = false, boards = ZONE_BILL
     if (t.tv) { screens.push(makeScreen(b)); continue; }
     const key = `${b.width}x${b.height}`;
     if (!faceSets.has(key)) {
-      const face = emptyFace(b.width, b.height);
+      const face = emptyFace(b.width, b.height, { lite });
       const material = surface({ map: face.texture, emissive: 0xffffff, emissiveMap: face.texture, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 });
       const im = new THREE.InstancedMesh(plane, material, all.filter((x) => !x.t.tv && x.width === b.width && x.height === b.height).length);
       im.count = 0; im.frustumCulled = false; im.receiveShadow = true;
@@ -17163,7 +17163,7 @@ function buildBillboards(scene, { glowMaterial, lite = false, boards = ZONE_BILL
 
   function makeScreen(b) {
     const t = b.t;
-    const face = emptyFace(b.width, b.height, { tv: true, sides: t.sides || 1 });
+    const face = emptyFace(b.width, b.height, { tv: true, sides: t.sides || 1, lite });
     const material = new THREE.MeshBasicMaterial({ map: face.texture, toneMapped: false });
     const holder = new THREE.Group();
     holder.matrixAutoUpdate = false; holder.matrix.copy(b.matrix);
@@ -17232,7 +17232,7 @@ function buildBillboards(scene, { glowMaterial, lite = false, boards = ZONE_BILL
       if (!b || b.t.tv || (campaigns.get(id) && campaigns.get(id).id === c.id && b.art)) continue;
       pictureOf(c.art[0]).then((img) => {
         if (!next.has(id) || b.art) return;
-        const canvas = document.createElement('canvas'); canvas.width = Math.min(2048, img.width); canvas.height = Math.round(canvas.width * img.height / img.width);
+        const canvas = document.createElement('canvas'); canvas.width = Math.min(lite ? 1024 : 2048, img.width); canvas.height = Math.round(canvas.width * img.height / img.width);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
         const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
         const m = new THREE.Mesh(plane, surface({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 }));
@@ -20954,8 +20954,9 @@ function createSky(scene, renderer) {
     uniforms.top.value.copy(s.top);
     uniforms.horizon.value.copy(s.horizon).lerp(new THREE.Color(1, 1, 1), flash * 0.5);
     scene.fog.color.copy(uniforms.horizon.value);
-    scene.fog.near = 110 - wetness * 80;
-    scene.fog.far = 480 - wetness * 270 - dull * 90;
+    const clearer = Math.max(0, Math.min(1, wild)) * (1 - indoor);
+    scene.fog.near = 110 + 50 * clearer - wetness * 80;
+    scene.fog.far = 480 + 160 * clearer - wetness * 270 - dull * 90;
 
     const dayAngle = ((hour - 6.2) / 12.4) * Math.PI;
     const up = Math.sin(dayAngle);
@@ -22982,7 +22983,7 @@ function nextView(current, where) {
 }
 const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).includes(current) ? current : (CAMERA_VIEWS[where] || CAMERA_VIEWS.foot)[0]);
 
-function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null } = {}) {
+function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null } = {}) {
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
   const eye = new THREE.Vector3(), aim = new THREE.Vector3();
   let view = 'street';
@@ -22991,9 +22992,10 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
 
   const OFF_WALL = 0.1;
   function clearance(tx, ty, tz, dx, dy, dz, dist) {
-    if (!blocked) return dist;
+    if (!blocked && !terrain) return dist;
     const hit = (d) => {
       const x = tx + dx * d, y = ty + dy * d, z = tz + dz * d;
+      if (terrain) { const g = terrain(x, z); if (Number.isFinite(g) && y < g + 0.3) return true; }
       if (y > wallHeight && (!tall || y > tall(x, z))) return false;
       return blocked(x, z, y);
     };
@@ -35992,7 +35994,7 @@ const { CARSHOW, onBuilding, carshowGateBoxes } = __modules["sim/zone.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
 const { trText } = __modules["sim/ledger.js"];
 const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
-const { Batch, place, surface } = __modules["client/render-kit.js"];
+const { Batch, place, surface, isLite } = __modules["client/render-kit.js"];
 const { loadCar, carLoaded } = __modules["client/car-model.js"];
 const { hallModels, castShadows } = __modules["client/hall-models.js"];
 const { CAR_IMPOSTOR } = __modules["client/car-impostors.js"];
@@ -36013,11 +36015,13 @@ const SUN_SHARE = 0.315;            // of the logo's height: the sun, its rays a
 
 function canvasTexture(width, height, draw, { repeat = false } = {}) {
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  const k = isLite() ? 0.5 : 1;
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
   texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   const g = canvas.getContext('2d');
+  g.scale(k, k);
   logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
   return texture;
 }
@@ -36891,6 +36895,7 @@ const { surface, facadeTexture } = __modules["client/render-kit.js"];
 const HOUSE_BLOCK = 0xdcd8cf;      // a house seen from afar: the owner's houses are white and pale grey
 const TOWER_BLOCK = 0x8fa3b8;
 const TOWER_SIGHT = 220;           // metres beyond the town's own reach at which a tower is still drawn
+const TOWER_LET_GO = 1200;         // metres from the nearest of its towers beyond which a tower's model is let go
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 
 function modelMatrix(e, m) {
@@ -36990,9 +36995,10 @@ function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = nul
     last = { x, z, reach, tall };
     const now = performance.now() / 1000;
     for (const r of models.values()) {
-      if (!fetch || keepAll || r.state !== 'ready' || r.towers.length || !r.houses.length) continue;
-      const gap = Math.min(...r.houses.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius));
-      if (gap < HOUSE_SIGHT + RELEASE) { r.neededAt = now; continue; }
+      if (!fetch || keepAll || r.state !== 'ready') continue;
+      const gap = r.houses.length ? Math.min(...r.houses.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius)) : Infinity;
+      const far = r.towers.length ? Math.min(...r.towers.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius)) : Infinity;
+      if (gap < HOUSE_SIGHT + RELEASE || far < TOWER_LET_GO) { r.neededAt = now; continue; }
       if (now - r.neededAt > RELEASE_AFTER) release(r);
     }
     refresh();
@@ -37012,6 +37018,7 @@ function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = nul
   }
   function release(r) {
     if (r.instanced) { scene.remove(r.instanced); r.instanced.dispose && r.instanced.dispose(); r.instanced = null; }
+    for (const e of r.towers) if (e.mesh) { scene.remove(e.mesh); e.mesh = null; e.drawn = false; }
     const material = r.mesh.material;
     for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => material[key]).filter(Boolean))) t.dispose();
     material.dispose(); r.mesh.geometry.dispose();
@@ -37040,7 +37047,7 @@ const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 const { trText } = __modules["sim/ledger.js"];
 const { parseGLB, fetchKept, letGoOnceDrawn, pictureFromFile } = __modules["client/glb.js"];
 const { modelFile } = __modules["client/budget.js"];
-const { Batch, place, surface, linear } = __modules["client/render-kit.js"];
+const { Batch, place, surface, linear, isLite } = __modules["client/render-kit.js"];
 const { reflects } = __modules["client/render-finish.js"];
 const { makeDealMarker } = __modules["client/render-holaris.js"];
 const { loadBike, bikeLoaded } = __modules["client/bike-model.js"];
@@ -37087,10 +37094,12 @@ function powerWord(g, text, x, y, px, most, { stroke = '#16171a', line = 0 } = {
 
 function canvasTexture(width, height, draw) {
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  const k = isLite() ? 0.5 : 1;
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
   texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
   const g = canvas.getContext('2d');
+  g.scale(k, k);
   logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
   return texture;
 }
@@ -38245,7 +38254,7 @@ function buildClosures(scene, { lite = false } = {}) {
     if (faceMaterials.has(words)) return faceMaterials.get(words);
     const wide = Math.round((1024 * h) / w / 32) * 32 || 256;
     const rows = lines.map((text, i) => (i === 0 ? { text, size: 104, colour: RED } : { text, size: 66, colour: '#161616' }));
-    const map = textTexture(rows, { width: 1024, height: wide, background: '#f5f3ea', colour: '#161616', border: RED, size: 80 });
+    const map = textTexture(rows, { width: 1024, height: wide, background: '#f5f3ea', colour: '#161616', border: RED, size: 80, scale: lite ? 0.5 : 1 });
     const m = new THREE.MeshBasicMaterial({ map, toneMapped: false });
     faceMaterials.set(words, m);
     return m;
@@ -38595,17 +38604,26 @@ function stoneTexture(size = 256) {
   return t;
 }
 function pillarGeometry(p, lite) {
-  const rings = lite ? 10 : 18, sides = lite ? 12 : 20;
+  const rings = lite ? 16 : 30, sides = lite ? 16 : 32;
   const pos = [], idx = [];
   const bottom = WATER - 3;
+  const islet = p.h < 10;
   for (let i = 0; i <= rings; i += 1) {
     const t = i / rings, y = bottom + (p.h - bottom) * t;
-    const worn = 1 - 0.18 * Math.exp(-(((y - WATER) / 2.5) ** 2));
-    const shape = t < 0.85 ? 0.9 + 0.15 * Math.sin(t * Math.PI * 0.9) : 1.05 * Math.sqrt(Math.max(0, 1 - ((t - 0.85) / 0.15) ** 2) * 0.9 + 0.1);
+    const u = Math.max(0, (y - WATER) / (p.h - WATER));            // 0 at the water, 1 at the top
+    let shape;
+    if (islet) shape = y < WATER ? 1.1 : 1.06 * Math.sqrt(Math.max(0.36, 1 - u ** 2.2));
+    else {
+      shape = y < WATER ? 1.08 + (WATER - y) * 0.04 : 1.04 - 0.16 * u + 0.05 * Math.max(0, 1 - u * 6);
+      shape *= 1 + 0.045 * Math.sin(u * 11 + p.x * 0.37) + 0.03 * Math.sin(u * 23 + p.z * 0.11);
+      if (u > 0.88) shape *= 0.62 + 0.38 * Math.sqrt(Math.max(0, 1 - ((u - 0.88) / 0.12) ** 2));
+    }
     for (let k = 0; k <= sides; k += 1) {
       const a = (k / sides) * Math.PI * 2;
-      const bump = 0.82 + 0.36 * habitationNoise(Math.cos(a) * 2.2 + p.x * 0.01, y / 4 + Math.sin(a) * 2.2) + 0.1 * habitationNoise(a * 3 + 9, y / 1.5);
-      const r = p.r * worn * shape * bump;
+      const flute = habitationNoise(Math.cos(a) * 5.5 + p.x * 0.013, Math.sin(a) * 5.5 + y / 16);
+      const bulk = habitationNoise(Math.cos(a) * 1.6 + p.z * 0.01, y / 7 + Math.sin(a) * 1.6);
+      const bump = 0.8 + 0.3 * bulk + (islet ? 0.06 : 0.16) * flute;
+      const r = p.r * shape * bump;
       pos.push(p.x + Math.cos(a) * r, y, p.z + Math.sin(a) * r);
     }
     if (i > 0) for (let k = 0; k < sides; k += 1) { const a0 = (i - 1) * (sides + 1) + k, b0 = i * (sides + 1) + k; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
@@ -38626,12 +38644,35 @@ function pillarGeometry(p, lite) {
     if (streak > 0.3) cc.lerp(linear(0x6e6a5e), Math.min(0.55, (streak - 0.3) * 1.6));
     const moss = habitationNoise(px / 2.5 + 7, y / 2.5) * (y > WATER + 1 ? 1 : 0);
     if (moss > 0.58) cc.lerp(linear(0x56703a), Math.min(0.75, (moss - 0.58) * 3));
-    if (ny > 0.35 && y > p.h * 0.6) cc.lerp(linear(0x4c6a2c), Math.min(1, (ny - 0.35) * 2));
-    if (Math.abs(y - WATER) < 1.2) cc.multiplyScalar(0.55 + 0.45 * Math.min(1, Math.abs(y - WATER) / 1.2));
+    if (ny > 0.22 && y > WATER + (p.h < 10 ? 0.8 : 3)) cc.lerp(linear(ny > 0.6 ? 0x3f5f26 : 0x4c6a2c), Math.min(1, (ny - 0.22) * 2.4));
+    if (y > WATER - 0.5 && y < WATER + 1.2) cc.multiplyScalar(y < WATER + 0.5 ? 0.62 : 0.62 + 0.38 * (y - WATER - 0.5) / 0.7);
     col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
+}
+function pillarContact() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(18,40,38,0.75)'); grad.addColorStop(0.42, 'rgba(18,40,38,0.6)'); grad.addColorStop(0.7, 'rgba(20,48,46,0.22)'); grad.addColorStop(1, 'rgba(20,48,46,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  const map = new THREE.CanvasTexture(c);
+  const pos = [], uv = [], idx = [];
+  for (const p of HABITATION_PILLARS) {
+    const r = p.r * 2.1, y = WATER + 0.03, n = pos.length / 3;
+    pos.push(p.x - r, y, p.z - r, p.x + r, y, p.z - r, p.x + r, y, p.z + r, p.x - r, y, p.z + r);
+    uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    idx.push(n, n + 2, n + 1, n, n + 3, n + 2);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(idx); geometry.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false }));
+  mesh.name = 'pillar-water'; mesh.renderOrder = 3;
+  mesh.userData.map = map;
+  return mesh;
 }
 const PAVED = new Set(['overlook-terrace', 'overlook-steps', 'garden']);
 function buildGround(step, lite) {
@@ -38761,13 +38802,14 @@ const WATER_LOOK = {
   pool: { shallow: 0x9fd8bf, deep: 0x1f7f6a, deeper: 0x16524a, deepAt: 2.0, clear: 0.22, still: 0.5 },
   pond: { shallow: 0x6f9a74, deep: 0x2c5240, deeper: 0x1c3a2e, deepAt: 0.7, clear: 0.45, still: 0.2 },
   swamp: { shallow: 0x3f4628, deep: 0x2c331e, deeper: 0x1e2416, deepAt: 0.6, clear: 0.8, still: 0.15 },
-  stream: { shallow: 0xb9e6dc, deep: 0x3f9a8a, deeper: 0x2a6a60, deepAt: 0.6, clear: 0.15, still: 1 },
+  stream: { shallow: 0x9cc4b0, deep: 0x3f8a76, deeper: 0x2b6656, deepAt: 0.7, clear: 0.2, still: 1, most: 0.72 },
   rapids: { shallow: 0xd6efea, deep: 0x5aa69a, deeper: 0x3a7a70, deepAt: 0.8, clear: 0.35, still: 1.4 },
 };
 const waterClock = { value: 0 };
 function waterMaterial(kind, { ripples, lite }) {
   const look = WATER_LOOK[kind];
-  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: kind === 'swamp' ? 0.06 : 0.1, metalness: 0.0, transparent: true, depthWrite: false, normalMap: ripples, normalScale: new THREE.Vector2(0.35, 0.35) });
+  const still = kind === 'swamp' || kind === 'pond';
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: still ? 0.22 : 0.1, metalness: 0.0, transparent: true, depthWrite: false, normalMap: ripples, normalScale: new THREE.Vector2(still ? 0.1 : 0.35, still ? 0.1 : 0.35) });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = waterClock;
     shader.uniforms.uShallow = { value: linear(look.shallow) };
@@ -38775,6 +38817,7 @@ function waterMaterial(kind, { ripples, lite }) {
     shader.uniforms.uDeeper = { value: linear(look.deeper) };
     shader.uniforms.uDeepAt = { value: look.deepAt };
     shader.uniforms.uClear = { value: look.clear };
+    shader.uniforms.uMost = { value: look.most || 0.94 };
     shader.uniforms.uStill = { value: look.still };
     shader.uniforms.uRiver = { value: linear(0x7d8a62) };
     shader.vertexShader = shader.vertexShader
@@ -38782,7 +38825,7 @@ function waterMaterial(kind, { ripples, lite }) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDepth = depth;\nvRush = rush;\nvFlow = flow;\nvWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-      uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep; uniform vec3 uDeeper; uniform float uDeepAt; uniform float uClear; uniform float uStill; uniform vec3 uRiver;
+      uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep; uniform vec3 uDeeper; uniform float uDeepAt; uniform float uClear; uniform float uMost; uniform float uStill; uniform vec3 uRiver;
       varying float vDepth; varying float vRush; varying vec2 vFlow; varying vec3 vWorldPos;
       float wn(vec2 p) { return fract(sin(dot(floor(p), vec2(12.9898, 78.233))) * 43758.5453); }
       float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(wn(i), wn(i + vec2(1.0, 0.0)), u.x), mix(wn(i + vec2(0.0, 1.0)), wn(i + vec2(1.0, 1.0)), u.x), u.y); }`)
@@ -38795,7 +38838,7 @@ function waterMaterial(kind, { ripples, lite }) {
         c = mix(c, uRiver, smoothstep(2128.0, 2088.0, vWorldPos.x) * step(2080.0, vWorldPos.x) * step(vWorldPos.z, 305.0) * step(140.0, vWorldPos.z));
         diffuseColor.rgb = c;
         /* see-through where shallow, more and more solid where deep */
-        diffuseColor.a = mix(uClear, 0.94, smoothstep(0.0, 1.0, pow(d, 0.7)));
+        diffuseColor.a = mix(uClear, uMost, smoothstep(0.0, 1.0, pow(d, 0.7)));
         /* foam: a broken line where it meets the shore, and in a stream wherever it rushes */
         float edge = 1.0 - smoothstep(0.0, 0.12, vDepth);
         float n = vnoise(vWorldPos.xz * 1.7 + vec2(uTime * 0.3, uTime * 0.2)) * vnoise(vWorldPos.xz * 4.1 - vec2(uTime * 0.5, 0.0));
@@ -38817,7 +38860,7 @@ function waterMaterial(kind, { ripples, lite }) {
       #endif`);
   };
   m.customProgramCacheKey = () => `pcw-habitation-water-${kind}-${lite ? 'lite' : 'full'}`;
-  return reflects(m, kind === 'swamp' ? 0.75 : 0.55);
+  return reflects(m, still ? 0.12 : 0.55);
 }
 function lilyTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -38942,7 +38985,7 @@ function buildStream(s, step = 1.5) {
     }
     if (k > 0) {
       const a = (k - 1) * 3, b2 = k * 3;
-      idx.push(a, b2, a + 1, a + 1, b2, b2 + 1, a + 1, b2 + 1, a + 2, a + 2, b2 + 1, b2 + 2);
+      idx.push(a, a + 1, b2, a + 1, b2 + 1, b2, a + 1, a + 2, b2 + 1, a + 2, b2 + 2, b2 + 1);
     }
   }
   return waterGeometry(pos, depth, idx, rush, flow);
@@ -39214,7 +39257,7 @@ function buildUpriver(riverMaterial, lite) {
   const { meshes, sight } = roadsideTrees(lite);
   for (const mesh of meshes) group.add(mesh);
   group.userData.sight = sight;
-  for (const sign of [...UPRIVER.signs, HABITATION_GATE_SIGN]) group.add(roadSign(sign));
+  for (const sign of [...UPRIVER.signs, HABITATION_GATE_SIGN]) group.add(roadSign(sign, lite));
   return group;
 }
 
@@ -39240,10 +39283,10 @@ function roadsideTrees(lite) {
   return { meshes, sight: lite ? 260 : 420 };
 }
 
-function roadSign(s) {
+function roadSign(s, lite = false) {
   const group = new THREE.Group(); group.name = `sign:${s.id}`;
   const [ink, ground] = s.palette;
-  const board = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ map: textTexture(s.lines.map((text, i) => ({ text, size: i === 0 ? 88 : 60 })), { width: 1024, height: Math.round((1024 * s.height) / s.width / 32) * 32, background: ground, colour: ink, border: ink, size: 70 }), roughness: 0.6, metalness: 0 }));
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ map: textTexture(s.lines.map((text, i) => ({ text, size: i === 0 ? 88 : 60 })), { width: 1024, height: Math.round((1024 * s.height) / s.width / 32) * 32, background: ground, colour: ink, border: ink, size: 70, scale: lite ? 0.5 : 1 }), roughness: 0.6, metalness: 0 }));
   board.position.set(0, 1.3 + s.height / 2, 0);
   const back = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ color: linear(0x6a6f72), roughness: 0.7, metalness: 0.3 }));
   back.position.set(0, 1.3 + s.height / 2, -0.03); back.rotation.y = Math.PI;
@@ -39256,6 +39299,53 @@ function roadSign(s) {
   }
   group.position.set(s.x, 0, s.z);
   group.rotation.y = s.facing;
+  return group;
+}
+
+
+const HILLS = { x: 2200, z: 150, valley: Math.PI, gap: 0.3 };
+function hillRing(radius, peaks, tallest, seed, lite) {
+  const N = lite ? 360 : 720;
+  const list = [];
+  for (let i = 0; i < peaks; i += 1) {
+    const a = (i / peaks) * Math.PI * 2 + (habitationNoise(i * 1.7 + seed, seed) - 0.5) * 0.12;
+    list.push({ a, w: 0.014 + 0.04 * habitationNoise(i * 3.1, seed + 5), h: tallest * (0.3 + 0.7 * habitationNoise(i * 0.9 + seed, 11)), lean: (habitationNoise(i * 2.3, seed + 9) - 0.5) * 0.6 });
+  }
+  const pos = [], idx = [];
+  for (let k = 0; k <= N; k += 1) {
+    const a = (k / N) * Math.PI * 2;
+    const off = Math.abs(Math.atan2(Math.sin(a - HILLS.valley), Math.cos(a - HILLS.valley)));
+    const open = Math.max(0, Math.min(1, (off - HILLS.gap) / 0.12));
+    let h = tallest * 0.12 * habitationNoise(a * 9 + seed, 3);
+    for (const p of list) {
+      const sd = Math.atan2(Math.sin(a - p.a), Math.cos(a - p.a)) / p.w, d = Math.abs(sd);
+      if (d < 1) h = Math.max(h, p.h * Math.pow(1 - Math.pow(d, 5), 0.5) * (1 + p.lean * sd * 0.5) * (0.94 + 0.06 * habitationNoise(a * 140 + seed, 5)));
+    }
+    h *= open;
+    const x = HILLS.x + Math.cos(a) * radius, z = HILLS.z + Math.sin(a) * radius;
+    pos.push(x, -60, z, x, Math.max(-40, h - 20), z);
+    if (k > 0) { const a0 = (k - 1) * 2, b0 = k * 2; idx.push(a0, a0 + 1, b0, b0, a0 + 1, b0 + 1); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
+  return g;
+}
+function buildHills(lite) {
+  const group = new THREE.Group(); group.name = 'habitation-hills';
+  const rings = [
+    { radius: 1500, peaks: 80, tallest: 300, seed: 7, tint: 0x7f96a6, air: 0.62 },
+    { radius: 1150, peaks: 70, tallest: 200, seed: 3, tint: 0x3a5642, air: 0.4 },
+  ];
+  for (const r of rings) {
+    const m = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(hillRing(r.radius, r.peaks, r.tallest, r.seed, lite), m);
+    mesh.userData = { tint: linear(r.tint), air: r.air };
+    mesh.renderOrder = -1;
+    group.add(mesh);
+  }
+  group.userData.tone = (horizon) => { for (const mesh of group.children) mesh.material.color.copy(mesh.userData.tint).lerp(horizon, mesh.userData.air); };
   return group;
 }
 
@@ -39357,12 +39447,16 @@ function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () =
       const list = byModel.get(m);
       const info = HABITATION_MODELS[m];
       let model;
+      placed.now = { model: m, step: 'asked' };
       try {
         const res = await fetchFile(`habitation/${m}.${lite ? 'lite' : 'full'}.glb`);
         if (!res.ok) throw new Error(`${m}: ${res.status}`);
+        placed.now.step = 'answered';
         const buf = await res.arrayBuffer();
         placed.bytes += buf.byteLength;
+        placed.now.step = 'read';
         model = await readDressed(buf, { lite, shared });
+        placed.now.step = 'made';
       } catch (error) { onModel(m, error); continue; }
       if (placed.stopped) { model.dispose(); return; }
       placed.fetched += 1;
@@ -39490,12 +39584,16 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
       mesh.name = `stream:${s.id}`; mesh.renderOrder = 2;
       group.add(mesh); waters.push(mesh);
     }
+    const hills = buildHills(lite);
+    group.add(hills);
     const pillarMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.25 });
     for (const p of HABITATION_PILLARS) {
       const mesh = new THREE.Mesh(pillarGeometry(p, lite), pillarMat);
       mesh.name = `pillar:${p.id}`; mesh.castShadow = true; mesh.receiveShadow = true;
       group.add(mesh);
     }
+    const contact = pillarContact();
+    group.add(contact);
     const textures = fallTextures();
     const falls = HABITATION_FALLS.map((f) => buildFall(f, textures));
     for (const f of falls) group.add(f.sheet, f.spray);
@@ -39506,7 +39604,8 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
       woodMat.map = t; woodMat.color.copy(linear(0xf2ece4)); woodMat.needsUpdate = true;
     }, () => {});
     const ropeMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xa08a62), roughness: 0.95, metalness: 0 });
-    const stoneMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xc8c0ae), roughness: 0.9, metalness: 0 });
+    const stoneMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.45 });
+    stoneMat.color.copy(linear(0xb9b09c));
     for (const mesh of buildDecks(woodMat, ropeMat, stoneMat)) group.add(mesh);
     const lilies = buildLilies(lite);
     for (const mesh of lilies.meshes) group.add(mesh);
@@ -39514,10 +39613,10 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     if (!root.parent) scene.add(root);
     const impostors = renderer ? createImpostors(renderer, group, lite) : null;
     const meadow = createMeadow(group, { lite });
-    const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) onError(error); } });
+    const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) { placed.failed = (placed.failed || []).concat(m); onError(error, m); } } });
     let triangles = 0;
     group.traverse((o) => { if (o.isMesh && o.geometry.index && !o.isInstancedMesh) triangles += o.geometry.index.count / 3; });
-    built = { group, waters, falls, ground, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies };
+    built = { group, waters, falls, ground, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies, hills, contact };
     placed.loading.then(() => { if (!placed.stopped) stats.modelsMs = Math.round(performance.now() - t0); });
     stats.builds += 1; stats.buildMs = Math.round(performance.now() - t0); stats.triangles = triangles;
     building = false;
@@ -39535,6 +39634,8 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     if (gone.impostors) gone.impostors.dispose();
     gone.meadow.dispose();
     gone.lilies.dispose();
+    for (const mesh of gone.hills.children) mesh.material.dispose();
+    gone.contact.userData.map.dispose(); gone.contact.material.dispose();
     const placed = gone.placed;
     if (placed) { placed.stopped = true; for (const e of placed.models.values()) e.model.dispose(); }
     for (const p of sharedPictures.values()) p.then((t) => t.dispose(), () => {});
@@ -39560,6 +39661,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
       for (const f of built.falls) f.update(dt, time);
       if (built.placed) chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn);
       built.meadow.update(eye);
+      if (scene.fog) built.hills.userData.tone(scene.fog.color);
     }
   }
 
@@ -39569,7 +39671,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     get root() { return root; },
     get impostors() { return built ? built.impostors : null; },
     build, letGo,
-    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2) }),
+    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
   };
 }
 
@@ -40332,7 +40434,7 @@ return { createTorchBeams };
 __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
-const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt } = __modules["sim/zone.js"];
+const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationLand } = __modules["sim/zone.js"];
 const { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } = __modules["sim/sim.js"];
 const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
@@ -40763,6 +40865,7 @@ function start(carried) {
   const rig = createCameraRig(camera, {
     blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
+    terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationLand(x, z) : NaN),
     tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
@@ -41191,7 +41294,7 @@ function start(carried) {
   }]);
   let habitation = null, habitationLife = null, torchBeams = null, habitationTold = false;
   townSteps.push(['the road up the river', () => {
-    habitation = createHabitation(scene, { lite: LITE, renderer, riverMaterial: world.waterMaterial, onError: () => { if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } } });
+    habitation = createHabitation(scene, { lite: LITE, renderer, riverMaterial: world.waterMaterial, onError: (error, what) => { console.warn('PostCivilWar: part of the habitation could not be read', what || '', error && error.message ? error.message : error); if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } } });
     torchBeams = createTorchBeams(scene, { lite: LITE });
   }]);
   const habitatCalls = [];

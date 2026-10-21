@@ -26,7 +26,7 @@ import { POWER_BIKES } from '../sim/power-bikes.js';
 import { trText } from '../sim/ledger.js';
 import { parseGLB, fetchKept, letGoOnceDrawn, pictureFromFile } from './glb.js';
 import { modelFile } from './budget.js';
-import { Batch, place, surface, linear } from './render-kit.js';
+import { Batch, place, surface, linear, isLite } from './render-kit.js';
 import { reflects } from './render-finish.js';
 import { makeDealMarker } from './render-holaris.js';
 import { loadBike, bikeLoaded } from './bike-model.js';
@@ -79,12 +79,16 @@ function powerWord(g, text, x, y, px, most, { stroke = '#16171a', line = 0 } = {
   return w;
 }
 
+// (on a phone at half the size, set out the same: on its screen it looks the same, and takes a quarter of the graphics
+// memory — the name on the tower was 10.7 MB there)
 function canvasTexture(width, height, draw) {
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  const k = isLite() ? 0.5 : 1;
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
   texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
   const g = canvas.getContext('2d');
+  g.scale(k, k);
   logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
   return texture;
 }

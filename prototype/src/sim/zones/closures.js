@@ -102,7 +102,11 @@ export function edgeFences(ground) {
     for (let i = 0; i <= n; i += 1) {
       const d = i * EDGE_FENCE.step;
       const p = at(d);
-      const edge = ground(p.x, p.z) && !ground(p.x + l.out.x * EDGE_FENCE.beyond, p.z + l.out.z * EDGE_FENCE.beyond);
+      // (where the land goes on beyond it the fence stops; a wooden fence, at the habitation's footbridge, a metre short
+      // of the way on either side, so that whoever comes to the bridge a little to one side of its middle walks on to it)
+      const by = l.style === 'wood' ? 1 : 0, ux = (l.b.x - l.a.x) / len, uz = (l.b.z - l.a.z) / len;
+      const beyond = (k) => ground(p.x + ux * k + l.out.x * EDGE_FENCE.beyond, p.z + uz * k + l.out.z * EDGE_FENCE.beyond);
+      const edge = ground(p.x, p.z) && !beyond(0) && !(by && (beyond(by) || beyond(-by)));
       if (edge) { if (start === null) start = d; last = d; } else close();
     }
     close();

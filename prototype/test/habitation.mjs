@@ -49,6 +49,8 @@ async function player(name, { lite = false } = {}) {
   page.setDefaultTimeout(300000);
   page.on('pageerror', (e) => check(`no error in ${name}'s page`, false, e.message));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check(`no error in ${name}'s console`, false, m.text()); });
+  // (what of the habitation could not be read, and why: written down with the results)
+  page.on('console', (m) => { if (m.type() === 'warning' && /habitation/.test(m.text())) console.log(`${name}'s page:`, m.text()); });
   await page.goto(`${origin}/#nointro-gameclock${lite ? '-lite' : ''}`, { timeout: 300000 });
   await page.waitForFunction(() => !!(window.__nlw && window.__nlw.intro), null, { timeout: 300000 });
   await page.waitForSelector('#open-signup', { state: 'visible', timeout: 300000 });
@@ -202,10 +204,10 @@ const VIEWS = Object.fromEntries(Object.entries(VIEW_AT).map(([k, [eye, to]]) =>
 // and each of the owner's nineteen pictures: where in the habitation it is, seen from a place the player can stand
 // (on its path, boardwalk, stairs, beach or in its shallows), looking as the picture looks; the sunset at sunset
 const PICTURE_AT = {
-  '01': [[2324, 128], [2384, 88]], '02': [[2262.6, 133.5], [2338, 184]], '03': [[2338, 318], [2366, 338]], '04': [[2036, 79], [2110, 112]],
-  '05': [[2016, 141], [2062, 168]], '06': [[2228, 362], [2300, 210], 0.3], '07': [[2365.6, 95.7], [2369, 106]], '08': [[2232, 124], [2336, 182]],
-  '09': [[2389, 209.1], [2386, 236]], '10': [[1922, 8], [1940, 18]], '11': [[2446, 216], [2490, 225], 0.02], '12': [[2031, -40], [2052, -72]],
-  '13': [[2416, 200], [2387, 222], 0.3], '14': [[2200, 352], [2150, 240]], '15': [[2060, 92], [2020, 74]], '16': [[2246, 368], [2205, 205], 0.32],
+  '01': [[2336, 113], [2384, 87], 0.08], '02': [[2262.6, 133.5], [2338, 184]], '03': [[2338, 318], [2366, 338]], '04': [[2036, 79], [2110, 112]],
+  '05': [[2016, 141], [2062, 168]], '06': [[2240, 371], [2225, 250], 0.22], '07': [[2348, 104], [2364, 100.4], 0.06], '08': [[2232, 124], [2336, 182]],
+  '09': [[2387.8, 214], [2386, 236], 0.05], '10': [[1927, 38], [1943, 4], 0.05], '11': [[2446, 216], [2490, 225], 0.02], '12': [[2031, -40], [2052, -72]],
+  '13': [[2416, 200], [2387, 222], 0.08], '14': [[2200, 352], [2150, 240]], '15': [[2060, 92], [2020, 74]], '16': [[2246, 368], [2205, 205], 0.32],
   '17': [[2262, 368], [2214, 334], 0.28], '18': [[2205.9, 355.5], [2190, 320]], '19': [[2166, 404], [2168, 389], 0.16],
 };
 const cost = async (p = page) => p.evaluate(() => { const n = window.__nlw, g = n.graphics; return { calls: n.drawn.calls, triangles: n.drawn.triangles, drawn: n.habitation.state().drawn, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(0) }; });
@@ -226,17 +228,27 @@ check('D: on a computer, what is drawn stays in hand everywhere in the habitatio
 const fishWater = await page.evaluate(() => window.__nlw.habitationLife.state().fishNow.map((s) => s.water));
 check('E: fish in the habitation\'s waters (the lagoon, the pools, the gorge\'s stream), none in the Niger', fishWater.length >= 10 && !fishWater.includes('niger') && fishWater.includes('lagoon'), fishWater);
 {
-  // stand on the west beach by a shoal, then wade toward it
-  const shoal = await page.evaluate(() => { const s = window.__nlw.habitationLife.state().fishNow.find((q) => q.water === 'lagoon'); return s; });
-  const fx = shoal.fish.reduce((a, f) => a + f.x, 0) / shoal.fish.length, fz = shoal.fish.reduce((a, f) => a + f.z, 0) / shoal.fish.length;
-  // (the nearest place to stand, on the beach or in the shallows, 9 m off)
-  let from = null;
-  for (let a = 0; a < Math.PI * 2 && !from; a += Math.PI / 12) { const x = fx + Math.cos(a) * 9, z = fz + Math.sin(a) * 9, f = habitationFooting(x, z); if (f && f.walk && (f.kind === 'sand' || f.kind === 'shallows')) from = { x, z, heading: Math.atan2(fx - x, fz - z) }; }
-  if (!from) check('E: somewhere to stand by a shoal in the lagoon', false, { fx, fz });
+  // stand on the beach or in the shallows by a shoal of the lagoon's, then wade toward it. (A shoal swims where the
+  // water is from a hand's depth to over a man's head, and moves about: the one taken is one that can be waded up to
+  // now, from a place to stand 7 to 12 m off, every step of the way to within 4 m of it on sand or in the shallows.)
+  const shoals = await page.evaluate(() => window.__nlw.habitationLife.state().fishNow.filter((q) => q.water !== 'niger').sort((p, q) => (p.water === 'lagoon' ? 0 : 1) - (q.water === 'lagoon' ? 0 : 1)));
+  const standing = (x, z) => { const f = habitationFooting(x, z); return !!f && f.walk && (f.kind === 'sand' || f.kind === 'shallows'); };
+  let from = null, fx = 0, fz = 0;
+  for (const shoal of shoals) {
+    const cx = shoal.fish.reduce((a, f) => a + f.x, 0) / shoal.fish.length, cz = shoal.fish.reduce((a, f) => a + f.z, 0) / shoal.fish.length;
+    for (let r = 7; r <= 12 && !from; r += 1) for (let a = 0; a < Math.PI * 2 && !from; a += Math.PI / 18) {
+      const x = cx + Math.cos(a) * r, z = cz + Math.sin(a) * r;
+      let way = true;
+      for (let d = r; d >= 3.6 && way; d -= 0.6) way = standing(cx + Math.cos(a) * d, cz + Math.sin(a) * d);
+      if (way) { from = { x, z, heading: Math.atan2(cx - x, cz - z) }; fx = cx; fz = cz; }
+    }
+    if (from) break;
+  }
+  if (!from) check('E: somewhere to stand by a shoal, and wade up to it', false, shoals.map((q) => ({ at: [q.fish[0].x, q.fish[0].z] })));
   else {
     await at(from.x, from.z, from.heading);
     await page.waitForTimeout(1500);
-    const before = await page.evaluate(([fx, fz]) => { const s = window.__nlw.habitationLife.state().fishNow.find((q) => q.water === 'lagoon' && Math.hypot(q.fish[0].x - fx, q.fish[0].z - fz) < 12); return s ? { scared: s.scared } : null; }, [fx, fz]);
+    const before = await page.evaluate(([fx, fz]) => { const s = window.__nlw.habitationLife.state().fishNow.find((q) => q.water !== 'niger' && Math.hypot(q.fish[0].x - fx, q.fish[0].z - fz) < 12); return s ? { scared: s.scared } : null; }, [fx, fz]);
     await shot('fish-in-the-shallows');
     await page.keyboard.down('w');
     let scattered = false;
@@ -271,16 +283,19 @@ const B = await player('B', { lite: true });
 const pageB = B.page;
 await page.evaluate(() => { const n = window.__nlw; n.skip(0); });
 const dayFile = await (async () => { await at(1934, 18, 0.9); await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 6.5; n.cam.pitch = 0.12; }); await settle(4); await page.waitForTimeout(800); return shot('hill-by-day'); })();
-await page.evaluate(() => { const n = window.__nlw; const hour = n.view.clock.hourFloat; n.skip((24 + 23 - hour) % 24); });
-await pageB.evaluate(() => { const n = window.__nlw; const hour = n.view.clock.hourFloat; n.skip((24 + 23 - hour) % 24); });
+// (to eleven at night, and a clear night: the hours skipped can have brought cloud, and a cloudy night hides the stars,
+// as it should)
+for (const p of [page, pageB]) await p.evaluate(() => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip((24 + 23 - hour) % 24); g.state.weather = { kind: 'clear', until: g.state.t + 8 * 3600 }; });
+// (the stars come out over a few seconds of the town's time, frame by frame: waited for, at most a minute)
+await page.waitForFunction(() => { const s = window.__nlw.sky.state(); return s.stars > 0.8 && s.faint > 0.5; }, null, { timeout: 60000 }).catch(() => {});
 await settle(4); await page.waitForTimeout(800);
 const nightFile = await shot('hill-at-night');
 const sky = await page.evaluate(() => ({ night: window.__nlw.night, ...window.__nlw.sky.state() }));
 const lum = { day: brightness(dayFile), night: brightness(nightFile) };
 check('H: the habitation\'s night is dark, the moon and the stars out', sky.night > 0.9 && sky.moon && sky.stars > 0.8 && sky.faint > 0.5 && lum.night < lum.day * 0.25 && lum.night < 40, { sky, lum });
-await page.waitForFunction((c0) => { const h = window.__nlw.audio.status().habitat; return h.crickets > c0 + 3 && h.frogs >= 1; }, (await page.evaluate(() => window.__nlw.audio.status().habitat.crickets)), { timeout: 60000 }).catch(() => {});
+await page.waitForFunction((c0) => window.__nlw.audio.status().habitat.crickets > c0 + 3, (await page.evaluate(() => window.__nlw.audio.status().habitat.crickets)), { timeout: 60000 }).catch(() => {});
 const nightSounds = await page.evaluate(() => window.__nlw.audio.status().habitat);
-check('G: at night, crickets all round and frogs by the water', nightSounds.crickets > 3 && nightSounds.frogs >= 1, nightSounds);
+check('G: at night, crickets all round', nightSounds.crickets > 3, nightSounds);
 // the torch: on from the phone, the light from the back of the handset, ahead and down, a soft cone
 const darkFile = await shot('night-no-torch');
 await page.evaluate(() => window.__nlw.ui.openPhone());
@@ -312,27 +327,42 @@ await page.evaluate(() => window.__nlw.ui.close());
 await page.waitForTimeout(1500);
 const offAgain = await page.evaluate(() => ({ lit: window.__nlw.torch.lit, intensity: window.__nlw.headlight.intensity }));
 check('H: Torch off again: the light goes out', !offAgain.lit && offAgain.intensity === 0, offAgain);
+// frogs by the water at night: on the swamp's boardwalk
+await at(2031, -40, Math.PI * 0.8);
+const frogs0 = await page.evaluate(() => window.__nlw.audio.status().habitat.frogs);
+await page.waitForFunction((f0) => window.__nlw.audio.status().habitat.frogs > f0 + 1, frogs0, { timeout: 90000 }).catch(() => {});
+const swampNight = await page.evaluate(() => window.__nlw.audio.status().habitat);
+check('G: at night, frogs calling by the water (the swamp)', swampNight.frogs > frogs0 + 1, { before: frogs0, after: swampNight.frogs, crickets: swampNight.crickets });
 
 // ---- D (a phone): the second player's costs, by day ----
 await pageB.evaluate(() => { const n = window.__nlw; const hour = n.view.clock.hourFloat; n.skip((24 + 11 - hour) % 24); });
 await pageB.waitForFunction(() => { const h = window.__nlw.habitation.state(); return h.built && h.models >= h.of; }, null, { timeout: 600000 }).catch(() => {});
 const habB = await pageB.evaluate(() => window.__nlw.habitation.state());
 measures.phone = { buildMs: habB.buildMs, modelsMs: habB.modelsMs, modelBytes: habB.modelBytes, places: {} };
+await settle(8, pageB);
 for (const name of ['gate', 'hill', 'forest', 'lagoon', 'bigfall', 'garden']) {
   const v = VIEWS[name];
   await pageB.evaluate(([x, z, h]) => { const n = window.__nlw; n.place(x, z); n.face(h); n.cam.yaw = h; n.cam.dist = 6.5; n.cam.pitch = 0.12; }, [v.eye[0], v.eye[1], v.look]);
-  await settle(4, pageB); await pageB.waitForTimeout(800);
+  await settle(6, pageB); await pageB.waitForTimeout(800);
   measures.phone.places[name] = await cost(pageB);
+  await shot(`phone-${name}`, pageB);
 }
-await shot('phone-lagoon', pageB);
-const phoneWorst = Object.entries(measures.phone.places).sort((a, b) => b[1].triangles - a[1].triangles)[0];
-check('D: on a phone (#lite), what is drawn stays within what a mid-range phone draws: under 260 draw calls and 900,000 triangles, graphics memory under its budget', Object.values(measures.phone.places).every((c) => c.calls < 260 && c.triangles < 9e5 && c.gpuMB < 150), { phoneWorst, modelBytes: habB.modelBytes });
+const phoneWorst = Object.entries(measures.phone.places).sort((a, b) => b[1].gpuMB - a[1].gpuMB)[0];
+check('D: on a phone (#lite), what is drawn stays within what a mid-range phone draws: under 260 draw calls and 900,000 triangles, and under the phone\'s budget of 150 MB on the graphics card (budget.js)', Object.values(measures.phone.places).every((c) => c.calls < 260 && c.triangles < 9e5 && c.gpuMB < 150), { phoneWorst, modelBytes: habB.modelBytes });
+// (the town's towers, 1.7 km off and out of sight, are let go up here: a phone needs the room)
+const towersB = await pageB.evaluate(() => { const tb = window.__nlw.townBuildings, ids = new Set(tb.entries.filter((e) => e.kind === 'tower').map((e) => e.model)); return tb.state().models.filter((m) => ids.has(m.id)).map((m) => `${m.id}:${m.state}:${m.released}`); });
+measures.phone.townTowers = towersB;
+check('D: up at the habitation the town\'s towers (out of sight) are let go', towersB.length > 0 && towersB.every((t) => /:idle:/.test(t)), towersB);
 
 // ---- back in the town: the habitation, and the road and river beyond the town, let go ----
 await at(60, 113, -Math.PI / 2);
 const gone = await page.waitForFunction(() => { const h = window.__nlw.habitation.state(); return !h.built && !h.upriver; }, null, { timeout: 30000 }).then(() => true, () => false);
 const left = await page.evaluate(() => { const n = window.__nlw, h = n.habitation.state(); let named = 0; n.scene.traverse((o) => { if (o.name === 'habitation-near' || o.name === 'upriver') named += 1; }); return { built: h.built, upriver: h.upriver, letGo: h.letGo, inScene: named, calls: n.drawn.calls }; });
 check('back in the town, the habitation and the road beyond the town are let go: nothing of them left drawn or held', gone && !left.built && !left.upriver && left.inScene === 0 && left.letGo >= 1, left);
+// and the town's towers, let go while it was up at the habitation, drawn from their models again
+const towersBack = await page.waitForFunction(() => { const tb = window.__nlw.townBuildings, ids = new Set(tb.entries.filter((e) => e.kind === 'tower').map((e) => e.model)); return tb.state().models.filter((m) => ids.has(m.id)).every((m) => m.state === 'ready'); }, null, { timeout: 600000 }).then(() => true, () => false);
+const towersA = await page.evaluate(() => { const tb = window.__nlw.townBuildings, ids = new Set(tb.entries.filter((e) => e.kind === 'tower').map((e) => e.model)); return tb.state().models.filter((m) => ids.has(m.id)).map((m) => `${m.id}:${m.state}:${m.released}`); });
+check('back in the town, its towers (let go up at the habitation) are fetched and drawn from their models again', towersBack && towersA.some((t) => /:ready:[1-9]/.test(t)), towersA);
 
 writeFileSync(resolve(out, 'measures.json'), `${JSON.stringify(measures, null, 1)}\n`);
 console.log('measures', JSON.stringify(measures));

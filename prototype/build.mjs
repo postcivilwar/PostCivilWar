@@ -14,6 +14,7 @@
 
 import { SUPPLIED_VEHICLES } from './src/sim/zones/supplied-vehicles.js';
 import { TOWN_MODELS } from './src/sim/zones/town-buildings.js';
+import { HABITATION_STANDING } from './src/sim/zones/habitation-scene.js';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync, cpSync, existsSync, statSync } from 'node:fs';
 import { createHash } from 'node:crypto';
 import { gzipSync, gunzipSync } from 'node:zlib';
@@ -392,7 +393,11 @@ for (const [name, bytes] of modelFiles) put(name, bytes);
     if (md5 !== copy.md5) throw new Error(`assets/habitation-dressed/${name}.webp was made from another ${copy.source}: run python3 tools/habitation/deck-wood.py`);
     if (!existsSync(resolve(dressed, `${name}.webp`))) throw new Error(`assets/habitation-dressed/${name}.webp is missing: run python3 tools/habitation/deck-wood.py`);
   }
-  for (const name of readdirSync(dressed).filter((n) => /\.(glb|webp)$/.test(n)).sort()) put(`habitation/${name}`, readFileSync(resolve(dressed, name)));
+  // (only the models the habitation places: a rock made but not put anywhere is not sent; every shared picture is)
+  const placed = new Set(HABITATION_STANDING.map((p) => p.m));
+  const wanted = (n) => n.endsWith('.webp') || placed.has(n.replace(/\.(full|lite)\.glb$/, ''));
+  for (const name of readdirSync(dressed).filter((n) => /\.(glb|webp)$/.test(n) && wanted(n)).sort()) put(`habitation/${name}`, readFileSync(resolve(dressed, name)));
+  for (const m of placed) for (const v of ['full', 'lite']) if (!existsSync(resolve(dressed, `${m}.${v}.glb`))) throw new Error(`assets/habitation-dressed/${m}.${v}.glb is missing (the habitation places ${m})`);
 }
 for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^car-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
 // Songs for the phone's Music app: the list, and every file the list names (assets/music/README.md).

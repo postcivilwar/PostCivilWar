@@ -301,15 +301,18 @@ export function nameTexture(text, { width = 512, height = 96, size = 46 } = {}) 
   return texture;
 }
 
-export function textTexture(lines, { width = 512, height = 128, background = '#f3ecdc', colour = '#171a2e', border = null, size = 54 } = {}) {
+// (`scale`: the picture made that much smaller than `width` by `height`, the words set out the same: a phone's signs at
+// half the size, which on its screen look the same and take a quarter of the graphics memory)
+export function textTexture(lines, { width = 512, height = 128, background = '#f3ecdc', colour = '#171a2e', border = null, size = 54, scale = 1 } = {}) {
   const canvas = document.createElement('canvas');
-  canvas.width = width;
-  canvas.height = height;
+  canvas.width = Math.max(1, Math.round(width * scale));
+  canvas.height = Math.max(1, Math.round(height * scale));
   const texture = new THREE.CanvasTexture(canvas);
   texture.encoding = THREE.sRGBEncoding;
   texture.anisotropy = 4;
   const draw = () => {
     const ctx = canvas.getContext('2d');
+    ctx.setTransform(scale, 0, 0, scale, 0, 0);
     ctx.fillStyle = background;
     ctx.fillRect(0, 0, width, height);
     if (border) { ctx.strokeStyle = border; ctx.lineWidth = 10; ctx.strokeRect(5, 5, width - 10, height - 10); }

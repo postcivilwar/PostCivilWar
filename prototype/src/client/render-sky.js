@@ -187,9 +187,11 @@ export function createSky(scene, renderer) {
     uniforms.top.value.copy(s.top);
     uniforms.horizon.value.copy(s.horizon).lerp(new THREE.Color(1, 1, 1), flash * 0.5);
     scene.fog.color.copy(uniforms.horizon.value);
-    // the air over the river is hazy: beyond a few hundred metres the town fades out
-    scene.fog.near = 110 - wetness * 80;
-    scene.fog.far = 480 - wetness * 270 - dull * 90;
+    // the air over the river is hazy: beyond a few hundred metres the town fades out. Out in the wild (the habitation,
+    // 21 October 2026) it is clearer, so that the far side of the lagoon is seen as the owner's pictures see it.
+    const clearer = Math.max(0, Math.min(1, wild)) * (1 - indoor);
+    scene.fog.near = 110 + 50 * clearer - wetness * 80;
+    scene.fog.far = 480 + 160 * clearer - wetness * 270 - dull * 90;
 
     // The sun rises in the true east, is high and slightly south at noon, and
     // sets in the true west. The scene is in the zone's site grid, so the

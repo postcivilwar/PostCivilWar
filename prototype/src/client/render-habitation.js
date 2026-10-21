@@ -77,18 +77,32 @@ function stoneTexture(size = 256) {
 // A rock pillar out in the lagoon: a tall broken column of pale limestone, narrower at its foot where the water has
 // worn it, its top rounded and overhung; drawn with the stone's grain painted on from each side.
 function pillarGeometry(p, lite) {
-  const rings = lite ? 10 : 18, sides = lite ? 12 : 20;
+  const rings = lite ? 16 : 30, sides = lite ? 16 : 32;
   const pos = [], idx = [];
   const bottom = WATER - 3;
+  // a low islet is a mound, rounded from the water up; a pillar is a tower of limestone, its walls steep and fluted, a
+  // little narrower toward its top and rounding over onto it, broad where it goes into the water (never narrower
+  // there: a pillar worn thin at the water looks as if it floats)
+  const islet = p.h < 10;
   for (let i = 0; i <= rings; i += 1) {
     const t = i / rings, y = bottom + (p.h - bottom) * t;
-    // narrower at the waterline (worn), widest a little below the top, rounding over at the top
-    const worn = 1 - 0.18 * Math.exp(-(((y - WATER) / 2.5) ** 2));
-    const shape = t < 0.85 ? 0.9 + 0.15 * Math.sin(t * Math.PI * 0.9) : 1.05 * Math.sqrt(Math.max(0, 1 - ((t - 0.85) / 0.15) ** 2) * 0.9 + 0.1);
+    const u = Math.max(0, (y - WATER) / (p.h - WATER));            // 0 at the water, 1 at the top
+    let shape;
+    if (islet) shape = y < WATER ? 1.1 : 1.06 * Math.sqrt(Math.max(0.36, 1 - u ** 2.2));
+    else {
+      shape = y < WATER ? 1.08 + (WATER - y) * 0.04 : 1.04 - 0.16 * u + 0.05 * Math.max(0, 1 - u * 6);
+      // its ledges: the rock stepping in and out at a few heights (plants on them)
+      shape *= 1 + 0.045 * Math.sin(u * 11 + p.x * 0.37) + 0.03 * Math.sin(u * 23 + p.z * 0.11);
+      // rounding over onto its top
+      if (u > 0.88) shape *= 0.62 + 0.38 * Math.sqrt(Math.max(0, 1 - ((u - 0.88) / 0.12) ** 2));
+    }
     for (let k = 0; k <= sides; k += 1) {
       const a = (k / sides) * Math.PI * 2;
-      const bump = 0.82 + 0.36 * habitationNoise(Math.cos(a) * 2.2 + p.x * 0.01, y / 4 + Math.sin(a) * 2.2) + 0.1 * habitationNoise(a * 3 + 9, y / 1.5);
-      const r = p.r * worn * shape * bump;
+      // fluted: grooves down its walls (the noise changes fast round it and slowly up it), and its bulk uneven
+      const flute = habitationNoise(Math.cos(a) * 5.5 + p.x * 0.013, Math.sin(a) * 5.5 + y / 16);
+      const bulk = habitationNoise(Math.cos(a) * 1.6 + p.z * 0.01, y / 7 + Math.sin(a) * 1.6);
+      const bump = 0.8 + 0.3 * bulk + (islet ? 0.06 : 0.16) * flute;
+      const r = p.r * shape * bump;
       pos.push(p.x + Math.cos(a) * r, y, p.z + Math.sin(a) * r);
     }
     if (i > 0) for (let k = 0; k < sides; k += 1) { const a0 = (i - 1) * (sides + 1) + k, b0 = i * (sides + 1) + k; idx.push(a0, b0, a0 + 1, a0 + 1, b0, b0 + 1); }
@@ -100,7 +114,7 @@ function pillarGeometry(p, lite) {
   const g = new THREE.BufferGeometry();
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx); g.computeVertexNormals();
-  // (moss and plants' green on its top, the stone's own colour below; a dark band where the water wears it)
+  // (moss and plants' green on its ledges and its top, the stone's own colour below, a little darker where it is wet)
   const n = pos.length / 3, col = new Float32Array(n * 3), cc = new THREE.Color();
   for (let i = 0; i < n; i += 1) {
     const y = pos[i * 3 + 1], ny = g.attributes.normal.getY(i);
@@ -112,12 +126,40 @@ function pillarGeometry(p, lite) {
     if (streak > 0.3) cc.lerp(linear(0x6e6a5e), Math.min(0.55, (streak - 0.3) * 1.6));
     const moss = habitationNoise(px / 2.5 + 7, y / 2.5) * (y > WATER + 1 ? 1 : 0);
     if (moss > 0.58) cc.lerp(linear(0x56703a), Math.min(0.75, (moss - 0.58) * 3));
-    if (ny > 0.35 && y > p.h * 0.6) cc.lerp(linear(0x4c6a2c), Math.min(1, (ny - 0.35) * 2));
-    if (Math.abs(y - WATER) < 1.2) cc.multiplyScalar(0.55 + 0.45 * Math.min(1, Math.abs(y - WATER) / 1.2));
+    // (plants on its ledges and over its top, as the pictures have them; an islet green nearly to the water)
+    if (ny > 0.22 && y > WATER + (p.h < 10 ? 0.8 : 3)) cc.lerp(linear(ny > 0.6 ? 0x3f5f26 : 0x4c6a2c), Math.min(1, (ny - 0.22) * 2.4));
+    // (wet, a little darker, just above the water)
+    // (and a darker line where the water laps at it: where it goes into the water is seen at once)
+    if (y > WATER - 0.5 && y < WATER + 1.2) cc.multiplyScalar(y < WATER + 0.5 ? 0.62 : 0.62 + 0.38 * (y - WATER - 0.5) / 0.7);
     col[i * 3] = cc.r; col[i * 3 + 1] = cc.g; col[i * 3 + 2] = cc.b;
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   return g;
+}
+// The water round the foot of each pillar, darker: one flat square on the water for each, a picture of a soft ring
+// (dark at the rock, clear a pillar's width out), all of them in one mesh.
+function pillarContact() {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const g = c.getContext('2d');
+  const grad = g.createRadialGradient(64, 64, 0, 64, 64, 64);
+  grad.addColorStop(0, 'rgba(18,40,38,0.75)'); grad.addColorStop(0.42, 'rgba(18,40,38,0.6)'); grad.addColorStop(0.7, 'rgba(20,48,46,0.22)'); grad.addColorStop(1, 'rgba(20,48,46,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, 128, 128);
+  const map = new THREE.CanvasTexture(c);
+  const pos = [], uv = [], idx = [];
+  for (const p of HABITATION_PILLARS) {
+    const r = p.r * 2.1, y = WATER + 0.03, n = pos.length / 3;
+    pos.push(p.x - r, y, p.z - r, p.x + r, y, p.z - r, p.x + r, y, p.z + r, p.x - r, y, p.z + r);
+    uv.push(0, 0, 1, 0, 1, 1, 0, 1);
+    idx.push(n, n + 2, n + 1, n, n + 3, n + 2);
+  }
+  const geometry = new THREE.BufferGeometry();
+  geometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  geometry.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  geometry.setIndex(idx); geometry.computeBoundingSphere();
+  const mesh = new THREE.Mesh(geometry, new THREE.MeshBasicMaterial({ map, transparent: true, depthWrite: false }));
+  mesh.name = 'pillar-water'; mesh.renderOrder = 3;
+  mesh.userData.map = map;
+  return mesh;
 }
 // The ground over the habitation: a grid `step` metres apart, each point coloured for what is there, with how much of
 // it is bare rock (`rocky`: drawn with the stone's own grain, painted on from the side it faces).
@@ -257,14 +299,16 @@ function groundMaterial({ grain, stone, lite }) {
 
 // ------------------------------------------------------------------------------------------- the water --
 
-// Each kind of water's colours (sRGB): where it is shallow, where it is deep, and how deep "deep" is.
+// Each kind of water's colours (sRGB): where it is shallow, where it is deep, and how deep "deep" is; how see-through
+// it is where shallowest (`clear`) and where deepest (`most`, solid as it gets: 0.94 if not given).
 const WATER_LOOK = {
   lagoon: { shallow: 0x9fe3d4, deep: 0x0f7f8f, deeper: 0x0b4f6a, deepAt: 2.6, clear: 0.18, still: 0.55 },
   pool: { shallow: 0x9fd8bf, deep: 0x1f7f6a, deeper: 0x16524a, deepAt: 2.0, clear: 0.22, still: 0.5 },
   // (the garden's still pond: dark, green, the stones of its bed seen only at its edge)
   pond: { shallow: 0x6f9a74, deep: 0x2c5240, deeper: 0x1c3a2e, deepAt: 0.7, clear: 0.45, still: 0.2 },
   swamp: { shallow: 0x3f4628, deep: 0x2c331e, deeper: 0x1e2416, deepAt: 0.6, clear: 0.8, still: 0.15 },
-  stream: { shallow: 0xb9e6dc, deep: 0x3f9a8a, deeper: 0x2a6a60, deepAt: 0.6, clear: 0.15, still: 1 },
+  // (a clear stream over its pebbles, as the pictures have it: green where it is deepest, never quite hiding its bed)
+  stream: { shallow: 0x9cc4b0, deep: 0x3f8a76, deeper: 0x2b6656, deepAt: 0.7, clear: 0.2, still: 1, most: 0.72 },
   rapids: { shallow: 0xd6efea, deep: 0x5aa69a, deeper: 0x3a7a70, deepAt: 0.8, clear: 0.35, still: 1.4 },
 };
 const waterClock = { value: 0 };
@@ -274,7 +318,10 @@ const waterClock = { value: 0 };
 // in a stream the ripples run downstream and it is white where it rushes.
 function waterMaterial(kind, { ripples, lite }) {
   const look = WATER_LOOK[kind];
-  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: kind === 'swamp' ? 0.06 : 0.1, metalness: 0.0, transparent: true, depthWrite: false, normalMap: ripples, normalScale: new THREE.Vector2(0.35, 0.35) });
+  // (the swamp and the garden's pond lie still and dark, as in the pictures: hardly a ripple, and the sky only faintly in
+  // them, where the open water gives it back brightly)
+  const still = kind === 'swamp' || kind === 'pond';
+  const m = new THREE.MeshStandardMaterial({ color: 0xffffff, roughness: still ? 0.22 : 0.1, metalness: 0.0, transparent: true, depthWrite: false, normalMap: ripples, normalScale: new THREE.Vector2(still ? 0.1 : 0.35, still ? 0.1 : 0.35) });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uTime = waterClock;
     shader.uniforms.uShallow = { value: linear(look.shallow) };
@@ -282,6 +329,7 @@ function waterMaterial(kind, { ripples, lite }) {
     shader.uniforms.uDeeper = { value: linear(look.deeper) };
     shader.uniforms.uDeepAt = { value: look.deepAt };
     shader.uniforms.uClear = { value: look.clear };
+    shader.uniforms.uMost = { value: look.most || 0.94 };
     shader.uniforms.uStill = { value: look.still };
     shader.uniforms.uRiver = { value: linear(0x7d8a62) };
     shader.vertexShader = shader.vertexShader
@@ -289,7 +337,7 @@ function waterMaterial(kind, { ripples, lite }) {
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvDepth = depth;\nvRush = rush;\nvFlow = flow;\nvWorldPos = (modelMatrix * vec4(position, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', `#include <common>
-      uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep; uniform vec3 uDeeper; uniform float uDeepAt; uniform float uClear; uniform float uStill; uniform vec3 uRiver;
+      uniform float uTime; uniform vec3 uShallow; uniform vec3 uDeep; uniform vec3 uDeeper; uniform float uDeepAt; uniform float uClear; uniform float uMost; uniform float uStill; uniform vec3 uRiver;
       varying float vDepth; varying float vRush; varying vec2 vFlow; varying vec3 vWorldPos;
       float wn(vec2 p) { return fract(sin(dot(floor(p), vec2(12.9898, 78.233))) * 43758.5453); }
       float vnoise(vec2 p) { vec2 i = floor(p), f = fract(p); vec2 u = f * f * (3.0 - 2.0 * f); return mix(mix(wn(i), wn(i + vec2(1.0, 0.0)), u.x), mix(wn(i + vec2(0.0, 1.0)), wn(i + vec2(1.0, 1.0)), u.x), u.y); }`)
@@ -302,7 +350,7 @@ function waterMaterial(kind, { ripples, lite }) {
         c = mix(c, uRiver, smoothstep(2128.0, 2088.0, vWorldPos.x) * step(2080.0, vWorldPos.x) * step(vWorldPos.z, 305.0) * step(140.0, vWorldPos.z));
         diffuseColor.rgb = c;
         /* see-through where shallow, more and more solid where deep */
-        diffuseColor.a = mix(uClear, 0.94, smoothstep(0.0, 1.0, pow(d, 0.7)));
+        diffuseColor.a = mix(uClear, uMost, smoothstep(0.0, 1.0, pow(d, 0.7)));
         /* foam: a broken line where it meets the shore, and in a stream wherever it rushes */
         float edge = 1.0 - smoothstep(0.0, 0.12, vDepth);
         float n = vnoise(vWorldPos.xz * 1.7 + vec2(uTime * 0.3, uTime * 0.2)) * vnoise(vWorldPos.xz * 4.1 - vec2(uTime * 0.5, 0.0));
@@ -324,7 +372,7 @@ function waterMaterial(kind, { ripples, lite }) {
       #endif`);
   };
   m.customProgramCacheKey = () => `pcw-habitation-water-${kind}-${lite ? 'lite' : 'full'}`;
-  return reflects(m, kind === 'swamp' ? 0.75 : 0.55);
+  return reflects(m, still ? 0.12 : 0.55);
 }
 // Water lilies on the swamp and the garden's pond (picture 12): round pads with their notch, each its own size and
 // turned its own way, lying on the water clear of the boardwalk, and here and there a flower, pink or white. Drawn in
@@ -461,7 +509,8 @@ function buildStream(s, step = 1.5) {
     }
     if (k > 0) {
       const a = (k - 1) * 3, b2 = k * 3;
-      idx.push(a, b2, a + 1, a + 1, b2, b2 + 1, a + 1, b2 + 1, a + 2, a + 2, b2 + 1, b2 + 2);
+      // (wound so that its face is up: seen from above, as it always is)
+      idx.push(a, a + 1, b2, a + 1, b2 + 1, b2, a + 1, a + 2, b2 + 1, a + 2, b2 + 2, b2 + 1);
     }
   }
   return waterGeometry(pos, depth, idx, rush, flow);
@@ -763,7 +812,7 @@ function buildUpriver(riverMaterial, lite) {
   const { meshes, sight } = roadsideTrees(lite);
   for (const mesh of meshes) group.add(mesh);
   group.userData.sight = sight;
-  for (const sign of [...UPRIVER.signs, HABITATION_GATE_SIGN]) group.add(roadSign(sign));
+  for (const sign of [...UPRIVER.signs, HABITATION_GATE_SIGN]) group.add(roadSign(sign, lite));
   return group;
 }
 
@@ -793,10 +842,10 @@ function roadsideTrees(lite) {
 }
 
 // A road sign on two posts: green, white letters, as the town's are (habitation.js says where and what).
-function roadSign(s) {
+function roadSign(s, lite = false) {
   const group = new THREE.Group(); group.name = `sign:${s.id}`;
   const [ink, ground] = s.palette;
-  const board = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ map: textTexture(s.lines.map((text, i) => ({ text, size: i === 0 ? 88 : 60 })), { width: 1024, height: Math.round((1024 * s.height) / s.width / 32) * 32, background: ground, colour: ink, border: ink, size: 70 }), roughness: 0.6, metalness: 0 }));
+  const board = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ map: textTexture(s.lines.map((text, i) => ({ text, size: i === 0 ? 88 : 60 })), { width: 1024, height: Math.round((1024 * s.height) / s.width / 32) * 32, background: ground, colour: ink, border: ink, size: 70, scale: lite ? 0.5 : 1 }), roughness: 0.6, metalness: 0 }));
   board.position.set(0, 1.3 + s.height / 2, 0);
   const back = new THREE.Mesh(new THREE.PlaneGeometry(s.width, s.height), new THREE.MeshStandardMaterial({ color: linear(0x6a6f72), roughness: 0.7, metalness: 0.3 }));
   back.position.set(0, 1.3 + s.height / 2, -0.03); back.rotation.y = Math.PI;
@@ -809,6 +858,63 @@ function roadSign(s) {
   }
   group.position.set(s.x, 0, s.z);
   group.rotation.y = s.facing;
+  return group;
+}
+
+// ----------------------------------------------------------------------------------- the distant hills --
+
+// Far beyond the habitation, all round it but for the river's valley back toward the town, the karst hills of the
+// owner's pictures (6, 16, 17, 18): two rings of steep, round-topped hills, the nearer greener, the further paler,
+// drawn in the colour of the air between (the horizon's, which they follow from day to night: dark by night). Not in
+// the haze (they stand beyond it): one shape each, a few thousand triangles.
+const HILLS = { x: 2200, z: 150, valley: Math.PI, gap: 0.3 };
+function hillRing(radius, peaks, tallest, seed, lite) {
+  const N = lite ? 360 : 720;
+  // the peaks: where round the ring, how wide (radians), how high; steep sides and a rounded top, as limestone weathers
+  const list = [];
+  for (let i = 0; i < peaks; i += 1) {
+    const a = (i / peaks) * Math.PI * 2 + (habitationNoise(i * 1.7 + seed, seed) - 0.5) * 0.12;
+    list.push({ a, w: 0.014 + 0.04 * habitationNoise(i * 3.1, seed + 5), h: tallest * (0.3 + 0.7 * habitationNoise(i * 0.9 + seed, 11)), lean: (habitationNoise(i * 2.3, seed + 9) - 0.5) * 0.6 });
+  }
+  const pos = [], idx = [];
+  for (let k = 0; k <= N; k += 1) {
+    const a = (k / N) * Math.PI * 2;
+    // (none in the valley the river comes up from the town by)
+    const off = Math.abs(Math.atan2(Math.sin(a - HILLS.valley), Math.cos(a - HILLS.valley)));
+    const open = Math.max(0, Math.min(1, (off - HILLS.gap) / 0.12));
+    let h = tallest * 0.12 * habitationNoise(a * 9 + seed, 3);
+    for (const p of list) {
+      // (a tower of limestone: near-sheer sides, its top rounded and uneven, one side a little higher)
+      const sd = Math.atan2(Math.sin(a - p.a), Math.cos(a - p.a)) / p.w, d = Math.abs(sd);
+      if (d < 1) h = Math.max(h, p.h * Math.pow(1 - Math.pow(d, 5), 0.5) * (1 + p.lean * sd * 0.5) * (0.94 + 0.06 * habitationNoise(a * 140 + seed, 5)));
+    }
+    h *= open;
+    const x = HILLS.x + Math.cos(a) * radius, z = HILLS.z + Math.sin(a) * radius;
+    pos.push(x, -60, z, x, Math.max(-40, h - 20), z);
+    if (k > 0) { const a0 = (k - 1) * 2, b0 = k * 2; idx.push(a0, a0 + 1, b0, b0, a0 + 1, b0 + 1); }
+  }
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setIndex(idx);
+  g.computeBoundingSphere();
+  return g;
+}
+function buildHills(lite) {
+  const group = new THREE.Group(); group.name = 'habitation-hills';
+  const rings = [
+    { radius: 1500, peaks: 80, tallest: 300, seed: 7, tint: 0x7f96a6, air: 0.62 },
+    { radius: 1150, peaks: 70, tallest: 200, seed: 3, tint: 0x3a5642, air: 0.4 },
+  ];
+  for (const r of rings) {
+    const m = new THREE.MeshBasicMaterial({ color: 0xffffff, fog: false, side: THREE.DoubleSide });
+    const mesh = new THREE.Mesh(hillRing(r.radius, r.peaks, r.tallest, r.seed, lite), m);
+    mesh.userData = { tint: linear(r.tint), air: r.air };
+    // (behind everything in the habitation: drawn first, and nothing of the habitation is ever further off)
+    mesh.renderOrder = -1;
+    group.add(mesh);
+  }
+  // each frame: the colour of the air between, the horizon's (dark at night)
+  group.userData.tone = (horizon) => { for (const mesh of group.children) mesh.material.color.copy(mesh.userData.tint).lerp(horizon, mesh.userData.air); };
   return group;
 }
 
@@ -926,12 +1032,17 @@ function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () =
       const list = byModel.get(m);
       const info = HABITATION_MODELS[m];
       let model;
+      // (which is being read, and how far it has got: for the tests, should one never arrive)
+      placed.now = { model: m, step: 'asked' };
       try {
         const res = await fetchFile(`habitation/${m}.${lite ? 'lite' : 'full'}.glb`);
         if (!res.ok) throw new Error(`${m}: ${res.status}`);
+        placed.now.step = 'answered';
         const buf = await res.arrayBuffer();
         placed.bytes += buf.byteLength;
+        placed.now.step = 'read';
         model = await readDressed(buf, { lite, shared });
+        placed.now.step = 'made';
       } catch (error) { onModel(m, error); continue; }
       if (placed.stopped) { model.dispose(); return; }
       placed.fetched += 1;
@@ -1069,6 +1180,9 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
       mesh.name = `stream:${s.id}`; mesh.renderOrder = 2;
       group.add(mesh); waters.push(mesh);
     }
+    // the hills far off all round it
+    const hills = buildHills(lite);
+    group.add(hills);
     // the rock pillars and islets out in the lagoon
     const pillarMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.25 });
     for (const p of HABITATION_PILLARS) {
@@ -1076,6 +1190,10 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
       mesh.name = `pillar:${p.id}`; mesh.castShadow = true; mesh.receiveShadow = true;
       group.add(mesh);
     }
+    // and where each meets the water, the water darker round it (its shadow and its reflection in the water, as the
+    // pictures have them: without it, seen from above, a pillar looks as if it floats)
+    const contact = pillarContact();
+    group.add(contact);
     const textures = fallTextures();
     const falls = HABITATION_FALLS.map((f) => buildFall(f, textures));
     for (const f of falls) group.add(f.sheet, f.spray);
@@ -1088,7 +1206,9 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
       woodMat.map = t; woodMat.color.copy(linear(0xf2ece4)); woodMat.needsUpdate = true;
     }, () => {});
     const ropeMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xa08a62), roughness: 0.95, metalness: 0 });
-    const stoneMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xc8c0ae), roughness: 0.9, metalness: 0 });
+    // (the overlook's stone stairs: the same weathered stone as the cliffs and the pillars, not plain cream)
+    const stoneMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.45 });
+    stoneMat.color.copy(linear(0xb9b09c));
     for (const mesh of buildDecks(woodMat, ropeMat, stoneMat)) group.add(mesh);
     const lilies = buildLilies(lite);
     for (const mesh of lilies.meshes) group.add(mesh);
@@ -1099,10 +1219,10 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     // the grass on the open ground and along the paths
     const meadow = createMeadow(group, { lite });
     // the owner's models where they stand, put in as they come (nearest the gate first)
-    const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) onError(error); } });
+    const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) { placed.failed = (placed.failed || []).concat(m); onError(error, m); } } });
     let triangles = 0;
     group.traverse((o) => { if (o.isMesh && o.geometry.index && !o.isInstancedMesh) triangles += o.geometry.index.count / 3; });
-    built = { group, waters, falls, ground, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies };
+    built = { group, waters, falls, ground, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies, hills, contact };
     placed.loading.then(() => { if (!placed.stopped) stats.modelsMs = Math.round(performance.now() - t0); });
     stats.builds += 1; stats.buildMs = Math.round(performance.now() - t0); stats.triangles = triangles;
     building = false;
@@ -1121,6 +1241,8 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     if (gone.impostors) gone.impostors.dispose();
     gone.meadow.dispose();
     gone.lilies.dispose();
+    for (const mesh of gone.hills.children) mesh.material.dispose();
+    gone.contact.userData.map.dispose(); gone.contact.material.dispose();
     const placed = gone.placed;
     if (placed) { placed.stopped = true; for (const e of placed.models.values()) e.model.dispose(); }
     for (const p of sharedPictures.values()) p.then((t) => t.dispose(), () => {});
@@ -1149,6 +1271,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
       for (const f of built.falls) f.update(dt, time);
       if (built.placed) chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn);
       built.meadow.update(eye);
+      if (scene.fog) built.hills.userData.tone(scene.fog.color);
     }
   }
 
@@ -1160,7 +1283,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     get impostors() { return built ? built.impostors : null; },
     build, letGo,
     // (for the tests and the measurements: what is built, what has arrived, what is drawn now)
-    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2) }),
+    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
   };
 }
 
