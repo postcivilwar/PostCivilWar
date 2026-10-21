@@ -34097,7 +34097,7 @@ function playsOffline({ worker, kept = [], needs = [] }) {
   return needs.every((path) => kept.includes(path)) ? 'yes' : 'not yet';
 }
 
-const idle = Object.freeze({ site: false, state: () => ({ site: false, way: null, offline: 'no' }), refresh: () => Promise.resolve(), keepFigure: () => {}, install: () => Promise.resolve(false) });
+const idle = Object.freeze({ site: false, state: () => ({ site: false, way: null, offline: 'no' }), refresh: () => Promise.resolve(), keepFigure: () => {}, keepFiles: () => {}, install: () => Promise.resolve(false) });
 
 function createWebApp({ win = typeof window === 'undefined' ? null : window, figures = () => [], figure = () => null, library = 'three.min.js' } = {}) {
   if (!win || !win.document) return idle;
@@ -34135,6 +34135,11 @@ function createWebApp({ win = typeof window === 'undefined' ? null : window, fig
     tell({ type: 'keep', paths });
   }
   function watchFigures() { if (figure()) keepFigure(figure()); }
+  const filesToKeep = new Set();
+  function keepFiles(addresses) {
+    for (const address of addresses) if (address) filesToKeep.add(String(address).split('?')[0]);
+    if (filesToKeep.size) tell({ type: 'keep', paths: [...filesToKeep] });
+  }
 
   function keepSaves() {
     try { if (nav.storage && typeof nav.storage.persist === 'function') nav.storage.persist().catch(() => {}); } catch (error) { /* not offered here */ }
@@ -34145,6 +34150,7 @@ function createWebApp({ win = typeof window === 'undefined' ? null : window, fig
       nav.serviceWorker.register('sw.js').then((made) => { registration = made; return nav.serviceWorker.ready; }).then((ready) => {
         registration = ready;
         watchFigures();
+        if (filesToKeep.size) keepFiles([]);
         if (pendingKeep) { keepFigure(pendingKeep); pendingKeep = null; }
         return refresh();
       }).catch(() => { /* no worker: the game plays as it always has, from the network */ });
@@ -34168,6 +34174,7 @@ function createWebApp({ win = typeof window === 'undefined' ? null : window, fig
     },
     refresh,
     keepFigure: (id) => { if (registration && registration.active) keepFigure(id); else pendingKeep = id; },
+    keepFiles,
     async install() {
       const offer = win.__PCW_INSTALL;
       if (!offer || typeof offer.prompt !== 'function') return false;
@@ -39265,7 +39272,7 @@ function start(carried) {
     townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
   }]);
   let habitation = null, habitationLife = null, torchBeams = null, habitationTold = false;
-  let habitationKit = null, habitationAsked = false, habitationRetryAt = 0;
+  let habitationKit = null, habitationAsked = false, habitationRetryAt = 0, habitationKept = false;
   const partNotRead = (error, what) => { console.warn('PostCivilWar: part of the habitation could not be read', what || '', error && error.message ? error.message : error); if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } };
   function askForHabitation() {
     habitationAsked = true;
@@ -41450,6 +41457,7 @@ blood.update(dt, view.blood || []);
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
     if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || predicted.x > 100)) askForHabitation();
+    if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation]); }
     if (habitation) {
       habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night });
       if (habitation.built && !habitationLife) habitationLife = habitationKit.createHabitationLife(scene, { lite: LITE });

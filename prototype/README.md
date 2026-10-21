@@ -2429,12 +2429,12 @@ and drawing buffers, counted as they are handed over: `graphics-count.js`).
 |---|---|---|
 | draw calls, the most at any place measured | 283 (the forest path, picture 15) | 204 (the forest path) |
 | triangles, the most | 1.41 million (picture 15) | 506,000 (the garden) |
-| on the graphics card, up at the habitation | 431–498 MB (its budget 700) | 132–137 MB (its budget 150) |
+| on the graphics card, up at the habitation | 431–522 MB (its budget 700) | 132–137 MB (its budget 150) |
 | fetched for it: its models, and the leaves and wood they share | 18.0 MB + 0.96 MB | 12.7 MB + 0.4 MB |
-| its ground, water and waterfalls built | 3.2 s | 3.0 s |
+| its ground, water and waterfalls built | 3.2 to 4.5 s | 3.0 to 3.5 s |
 
 Its models arrive one after another, nearest the gate first, from the moment it is built (600 m before the car park):
-on this machine all of them took nine to ten minutes, because each model's pictures are answered between two frames
+on this machine all of them took nine to eleven minutes, because each model's pictures are answered between two frames
 and here a frame of the habitation takes a second or two; a phone's graphics chip draws one in a few hundredths.
 
 **The town, before and after** (the same view, by the market at noon, once the town has warmed up and its towers have
@@ -2462,7 +2462,9 @@ Sim: `zones/habitation.js` (new), `zones/habitation-scene.js` (new, generated), 
 and `render-town-buildings.js` (far-off towers let go). Net: `link.js`. Tools: `tools/habitation/` (new:
 `dress-all.py`, `dress.py`, `leaves.py`, `rocks.py`, `deck-wood.py`, `glbio.py`, `place.mjs`, `lab.mjs`,
 `models.json`). Build: `build.mjs`. Tests: `test/habitation.test.mjs`, `test/habitation.mjs` (new); `originals`,
-`site-budget`, `closures`, `map`, `town-buildings` tests updated; `start.mjs` (more time for a second player).
+`site-budget`, `closures`, `map`, `town-buildings` tests updated; `start.mjs` (more time for a second player). On the
+website the habitation's drawing is a script of its own, `habitation-code.js` (made by `build.mjs` from
+`src/client/habitation-code.js`); the web app keeps it for playing without a connection (`webapp.js`, `keepFiles`).
 
 ### Limitations
 
@@ -2489,7 +2491,7 @@ node test/play.mjs out/ town                       # one session: opening, deskt
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
 node test/hold.mjs                                 # the handset in the hand, measured on both figures
 node test/sound.mjs                                # how loud each group of sounds is
-../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players: the road, the bridge stop, walking, the models, fish, birds, sounds, night, the torch, each picture's view, what it costs
+../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players (26 checks): the road, the bridge stop, walking, the models, fish, birds, sounds, night, the torch, each picture's view, what it costs on a computer and on a phone
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
 ../server/with-postgres.sh node test/seats.mjs out/      # at the wheel and on the bars: bought with arrival money, the driver seen with both hands on the rim, turning it; the phone in the right hand at the wheel and the left on a motorcycle, the vehicle still driven; the graphics lost and nothing reloaded
