@@ -2342,9 +2342,12 @@ and the stars, and a torch on the phone.
   and the player is told **"Get off your vehicle to cross the bridge"** with a **Get off** button (and E). The vehicle
   stays where it stopped. The message stays until the player gets off or moves away (`own-cars.js`, `vehicles.js`:
   the town refuses the step, `FOOT_ONLY`; `main.js` shows the message).
-- **When it is built.** Nothing of it is fetched or drawn in the town: the road and the river beyond the town are put
-  in as the player goes up Waterside Road (past x 200) and let go back in the town (below x 120); the habitation
-  itself is built as the player comes near it and let go as they leave, its models fetched nearest the gate first.
+- **When it is built.** Nothing of it is fetched or drawn in the town: its drawing is a script of its own beside the
+  page (`habitation-code.js`, 36 KB as sent; `src/client/habitation-code.js`), asked for once the town is up and
+  warmed, or at once for someone on the road north, so that the opening does not wait for it; the road and the river
+  beyond the town are put in as the player goes up Waterside Road (past x 200) and let go back in the town (below
+  x 120); the habitation itself is built as the player comes near it and let go as they leave, its models fetched
+  nearest the gate first.
 
 ### The places, after the pictures
 
@@ -2418,17 +2421,48 @@ can be walked to from the gate (`test/habitation.test.mjs` walks the whole of it
 
 ### What it costs
 
-@@COSTS@@
+Measured on this machine, which has no graphics card (the processor draws every pixel, so its frame rates say nothing
+about a phone's): what one frame draws (draw calls, triangles) and what the page holds on the graphics card (pictures
+and drawing buffers, counted as they are handed over: `graphics-count.js`).
+
+| | a computer | a phone (`#lite`) |
+|---|---|---|
+| draw calls, the most at any place measured | 283 (the forest path, picture 15) | 204 (the forest path) |
+| triangles, the most | 1.41 million (picture 15) | 506,000 (the garden) |
+| on the graphics card, up at the habitation | 431–498 MB (its budget 700) | 132–137 MB (its budget 150) |
+| fetched for it: its models, and the leaves and wood they share | 18.0 MB + 0.96 MB | 12.7 MB + 0.4 MB |
+| its ground, water and waterfalls built | 3.2 s | 3.0 s |
+
+Its models arrive one after another, nearest the gate first, from the moment it is built (600 m before the car park):
+on this machine all of them took nine to ten minutes, because each model's pictures are answered between two frames
+and here a frame of the habitation takes a second or two; a phone's graphics chip draws one in a few hundredths.
+
+**The town, before and after** (the same view, by the market at noon, once the town has warmed up and its towers have
+come): on a phone 187.6 MB on the graphics card before (over its 150 MB budget), 121.9 MB now (209 draw calls and
+468,000 triangles before, 201 and 465,000 now); on a computer 459 MB before, 435 MB now. What a phone saves: every
+sign made at half its size (the town's street and shop signs, the showrooms' names, the billboards' faces, the
+roadblocks' boards: they look the same on a phone's screen, and a computer's are as they were), and the town's towers
+let go while the player is over 1.2 km from them and fetched again on the way back. Up at the habitation a phone holds
+131.9 MB (the town's towers and the car showroom's buildings let go, the habitation's own 46 MB of pictures held). The
+habitation's own pictures on a phone: its rocks' stone at half size and the trees' far pictures in smaller slots.
+
+The opening is as it was: the habitation's drawing and models are not fetched before the town is up, and what the
+game's script carries of it (the land, where each model stands: what walking needs) adds 0.05 MB before PLAY
+(`test/opening.mjs`, a phone on Slow 4G, the processor slowed four times, run in turn with the live build on the same
+machine: PLAY on a first visit 8.0 and 7.9 s, the live build 7.4 and 8.1 s; coming back 2.4 and 2.8 s, the live build
+2.5 and 2.3 s; 1.03 MB sent before PLAY, the live build 0.98 MB).
 
 ### Files
 
 Sim: `zones/habitation.js` (new), `zones/habitation-scene.js` (new, generated), `zone.js`, `own-cars.js`,
 `vehicles.js`, `talk.js`, `zones/closures.js`. Client: `render-habitation.js`, `render-habitation-life.js`,
-`habitation-plants.js`, `bird-songs.js`, `torch-beams.js` (new), `audio.js`, `render-sky.js`, `main.js`,
-`ui-phone.js`, `radar.js`, `town-map.js`, `render-closures.js`, `template.html`. Net: `link.js`. Tools:
-`tools/habitation/` (new: `dress-all.py`, `dress.py`, `leaves.py`, `rocks.py`, `deck-wood.py`, `glbio.py`,
-`place.mjs`, `lab.mjs`, `models.json`). Build: `build.mjs`. Tests: `test/habitation.test.mjs`, `test/habitation.mjs`
-(new); `originals`, `site-budget`, `closures`, `map` tests updated.
+`habitation-plants.js`, `bird-songs.js`, `torch-beams.js` (new), `audio.js`, `render-sky.js`, `main.js`, `camera.js`,
+`ui-phone.js`, `radar.js`, `town-map.js`, `render-closures.js`, `template.html`; for a phone's graphics memory
+`render-kit.js` (signs), `render-billboards.js`, `render-carshow.js`, `render-powerbike.js` (their signs and faces)
+and `render-town-buildings.js` (far-off towers let go). Net: `link.js`. Tools: `tools/habitation/` (new:
+`dress-all.py`, `dress.py`, `leaves.py`, `rocks.py`, `deck-wood.py`, `glbio.py`, `place.mjs`, `lab.mjs`,
+`models.json`). Build: `build.mjs`. Tests: `test/habitation.test.mjs`, `test/habitation.mjs` (new); `originals`,
+`site-budget`, `closures`, `map`, `town-buildings` tests updated; `start.mjs` (more time for a second player).
 
 ### Limitations
 
@@ -2442,7 +2476,7 @@ Sim: `zones/habitation.js` (new), `zones/habitation-scene.js` (new, generated), 
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 367 headless tests
+node --test test/*.test.mjs                        # 385 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach

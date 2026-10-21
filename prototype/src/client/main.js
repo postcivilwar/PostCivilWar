@@ -89,9 +89,6 @@ import { createSalesman } from '../sim/salesman.js';
 import { talkGesture } from './talk-gestures.js';
 import { watchPicture } from './picture-watch.js';
 import { buildClosures } from './render-closures.js';
-import { createHabitation } from './render-habitation.js';
-import { createHabitationLife } from './render-habitation-life.js';
-import { habitationWind } from './habitation-plants.js';
 import { createTorchBeams } from './torch-beams.js';
 import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
@@ -1016,8 +1013,33 @@ function start(carried) {
   // habitation itself, and the owner's models in it, once they are well on the way), and it is all let go again when
   // they come back. Its fish, birds and fireflies (render-habitation-life.js) live while it is there.
   let habitation = null, habitationLife = null, torchBeams = null, habitationTold = false;
+  // Its code (render-habitation.js and its kin, habitation-code.js) is not in the game's script: on the website it is a
+  // script of its own, asked for once the town is up and warmed, or at once for someone on the road north (21 October
+  // 2026: carried in the game's script, it made PLAY a second later on a slow phone connection). Until it has come,
+  // nothing of the habitation is drawn; one that could not be fetched is asked for again half a minute later.
+  let habitationKit = null, habitationAsked = false, habitationRetryAt = 0;
+  const partNotRead = (error, what) => { console.warn('PostCivilWar: part of the habitation could not be read', what || '', error && error.message ? error.message : error); if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } };
+  function askForHabitation() {
+    habitationAsked = true;
+    new Promise((resolve, reject) => {
+      if (window.__pcwHabitationCode) { resolve(window.__pcwHabitationCode); return; }
+      const script = document.createElement('script');
+      script.src = (window.__PCW_FILES && window.__PCW_FILES.habitation) || 'habitation-code.js';
+      script.async = true;
+      script.onload = () => (window.__pcwHabitationCode ? resolve(window.__pcwHabitationCode) : reject(new Error('its script did not start')));
+      script.onerror = () => { script.remove(); reject(new Error('its script could not be fetched')); };
+      document.head.appendChild(script);
+    }).then((kit) => {
+      if (habitation) return;
+      habitationKit = kit;
+      habitation = kit.createHabitation(scene, { lite: LITE, renderer, riverMaterial: world.waterMaterial, onError: partNotRead });
+    }, (error) => {
+      // (asked for again in half a minute; told once, only to someone already on the road north)
+      habitationAsked = false; habitationRetryAt = performance.now() + 30000;
+      if (playing && predicted.x > 150) partNotRead(error, 'its drawing');
+    });
+  }
   townSteps.push(['the road up the river', () => {
-    habitation = createHabitation(scene, { lite: LITE, renderer, riverMaterial: world.waterMaterial, onError: (error, what) => { console.warn('PostCivilWar: part of the habitation could not be read', what || '', error && error.message ? error.message : error); if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } } });
     // other players' torches, seen as beams (torch-beams.js)
     torchBeams = createTorchBeams(scene, { lite: LITE });
   }]);
@@ -1063,7 +1085,7 @@ function start(carried) {
     if (wet(habitationWaterAt(x, z))) shore = 0;
     else for (const r of [4, 10, 20, 30]) { for (let k = 0; k < 8 && shore === 99; k += 1) { const a = (k / 8) * Math.PI * 2; if (wet(habitationWaterAt(x + Math.cos(a) * r, z + Math.sin(a) * r))) shore = r; } if (shore !== 99) break; }
     const frogs = HABITAT_FROGS.filter((f) => Math.hypot(f.x - x, f.z - z) < 70).sort((p, q) => Math.hypot(p.x - x, p.z - z) - Math.hypot(q.x - x, q.z - z)).slice(0, 4);
-    const t = habitationWind();
+    const t = habitationKit.habitationWind();
     habitatHeard.value = { wild, calls: habitatCalls, falls: HABITAT_FALLS, stream, shore, frogs, gust: 0.55 + 0.45 * Math.sin(t * 0.21), night };
     return habitatHeard.value;
   }
@@ -3531,9 +3553,10 @@ blood.update(dt, view.blood || []);
     updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
+    if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || predicted.x > 100)) askForHabitation();
     if (habitation) {
       habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night });
-      if (habitation.built && !habitationLife) habitationLife = createHabitationLife(scene, { lite: LITE });
+      if (habitation.built && !habitationLife) habitationLife = habitationKit.createHabitationLife(scene, { lite: LITE });
       else if (!habitation.built && habitationLife) { habitationLife.dispose(); habitationLife = null; }
       if (habitationLife) {
         habitationLife.update(dt, { eye: camera.position, night, people: habitationPeople() });

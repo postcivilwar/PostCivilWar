@@ -30,10 +30,11 @@ const IMPORT = /^import\s+\{([^}]+)\}\s+from\s+'([^']+)';?[ \t]*$/gm;
 const REEXPORT = /^export\s+\*\s+from\s+'([^']+)';?[ \t]*$/gm;
 const id = (file) => relative(resolve(root, 'src'), file);
 
-// Everything reachable from one entry file, as one script.
-function bundleFrom(entry) {
+// Everything reachable from one entry file, as one script. `after`: the files of a script already on the page, which
+// this one uses as they are there and does not carry again (a script of its own beside the game's: the habitation's).
+function bundleFrom(entry, { after = null } = {}) {
   const order = [];
-  const seen = new Set();
+  const seen = new Set(after || []);
   function visit(file) {
     if (seen.has(file)) return;
     seen.add(file);
@@ -43,7 +44,7 @@ function bundleFrom(entry) {
     order.push(file);
   }
   visit(entry);
-  let bundle = '"use strict";\nconst __modules = {};\n';
+  let bundle = after ? '"use strict";\n' : '"use strict";\nconst __modules = {};\n';
   for (const file of order) {
     let source = readFileSync(file, 'utf8');
     if (/^import\s/m.test(source.replace(IMPORT, ''))) throw new Error(`${id(file)}: only single-line named imports are supported`);
@@ -59,9 +60,13 @@ function bundleFrom(entry) {
   // as long as the page is open: seven megabytes for nothing. Written as escapes, such characters mean the
   // same in any string, template or regular expression, and the script stays at one byte a character.
   const narrow = bundle.replace(/[\u0100-\uffff]/g, (c) => `\\u${c.charCodeAt(0).toString(16).padStart(4, '0')}`);
-  return { bundle: narrow.replace(/<\/script/gi, '<\\/script'), modules: order.length };
+  return { bundle: narrow.replace(/<\/script/gi, '<\\/script'), modules: order.length, files: order };
 }
-const { bundle, modules } = bundleFrom(resolve(root, 'src/client/main.js'));
+const { bundle, modules, files: gameFiles } = bundleFrom(resolve(root, 'src/client/main.js'));
+// The habitation's drawing: a script of its own (src/client/habitation-code.js and what it uses that the game's script
+// does not carry), asked for by the game once the town is up (main.js, askForHabitation)
+const habitationScript = bundleFrom(resolve(root, 'src/client/habitation-code.js'), { after: gameFiles });
+if (gameFiles.some((f) => /render-habitation\.js$|render-habitation-life\.js$|habitation-plants\.js$/.test(f))) throw new Error('the game\'s script carries the habitation\'s drawing: it should come in its own script (habitation-code.js)');
 
 // The brand's display face travels inside the page: the host allows no font files of its own.
 const font = readFileSync(resolve(root, 'assets/brand/pcw-arcade.ttf')).toString('base64');
@@ -86,7 +91,8 @@ const templateFor = (figures) => {
   return filled;
 };
 const template = templateFor({ figures: {} });
-const page = (three) => `${template}\n<script src="${three}"></script>\n<script>\n${bundle}</script>\n`;
+// (the page copied to a disk carries the habitation's drawing too, after the game's script)
+const page = (three) => `${template}\n<script src="${three}"></script>\n<script>\n${bundle}</script>\n<script>\n${habitationScript.bundle}</script>\n`;
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist/index.html'), page('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'));
 // The published page is wrapped in a document skeleton by the host. The local
@@ -324,7 +330,11 @@ if (!reactionsFound) throw new Error('the bundle has no REACTIONS to take out');
 JSON.parse(reactionsFound[1]);
 put('reactions.json', reactionsFound[1]);
 siteBundle = siteBundle.replace(reactionsFound[0], 'const REACTIONS = {};\n');
-const extras = { reactions: `reactions.json?v=${fingerprint(siteFiles.get('reactions.json'))}` };
+// (and the habitation's drawing, a script of its own: main.js asks for it once the town is up)
+const habitationSite = stripCommentLines(habitationScript.bundle);
+try { new Function(habitationSite); } catch (error) { throw new Error(`habitation-code.js does not read: ${error.message}`); }
+put('habitation-code.js', habitationSite);
+const extras = { reactions: `reactions.json?v=${fingerprint(siteFiles.get('reactions.json'))}`, habitation: `habitation-code.js?v=${fingerprint(siteFiles.get('habitation-code.js'))}` };
 const packScript = `<script>window.__PCW_PACK_FILES = ${JSON.stringify(packFiles)}; window.__PCW_FILES = ${JSON.stringify(extras)}; window.__PCW_MODELS = ${JSON.stringify(modelsTable)};</script>\n${coverFiles.map((f) => `<link rel="preload" as="image" href="${f}" fetchpriority="low">`).join('\n')}\n`;
 // the game's own script, a file of its own beside the page, read once the page has been (defer): the page itself
 // is then small, and the opening is on the screen before the script has even arrived. It goes without the source's
