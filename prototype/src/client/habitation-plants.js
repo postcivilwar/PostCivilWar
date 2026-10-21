@@ -46,6 +46,18 @@ function accessor(json, bin, k, float = true) {
 }
 // A picture shared by many models (the leaves' sheet, named in each file by `uri`): fetched once, by whoever reads
 // the models (`shared(uri)` gives its texture).
+// A texture's picture made half its size (once): drawn into a canvas half as wide and high.
+const halvedOnce = new WeakSet();
+function halved(t) {
+  if (!t || halvedOnce.has(t) || !t.image || !(t.image.width > 16)) return t;
+  const c = document.createElement('canvas');
+  c.width = Math.max(1, Math.round(t.image.width / 2)); c.height = Math.max(1, Math.round(t.image.height / 2));
+  c.getContext('2d').drawImage(t.image, 0, 0, c.width, c.height);
+  if (t.image.close) t.image.close();
+  t.image = c; t.needsUpdate = true;
+  halvedOnce.add(t);
+  return t;
+}
 // A picture decoded: away from the page's thread where the browser can (createImageBitmap), and if that has not
 // answered within a while (on a page busy with a great deal, it was once seen never to answer: 21 October 2026), by an
 // image element instead; an error if neither can read it.
@@ -249,10 +261,13 @@ export async function readDressed(buffer, { lite = false, shared = null } = {}) 
       const part = (md.extras && md.extras.part) || 'surface';
       let material, depth = null;
       if (part === 'stone') {
+        // (on a phone a rock's stone at half its pictures' size: it is laid on in small squares over the rock, and so
+        // looks the same, for a quarter of the graphics memory)
+        const stone = (t) => (lite ? halved(t) : t);
         material = stoneMaterial({
-          map: pbr.baseColorTexture ? await picture(pbr.baseColorTexture.index, true) : null,
-          normalMap: md.normalTexture ? await picture(md.normalTexture.index, false) : null,
-          roughnessMap: pbr.metallicRoughnessTexture ? await picture(pbr.metallicRoughnessTexture.index, false) : null,
+          map: pbr.baseColorTexture ? stone(await picture(pbr.baseColorTexture.index, true)) : null,
+          normalMap: md.normalTexture ? stone(await picture(md.normalTexture.index, false)) : null,
+          roughnessMap: pbr.metallicRoughnessTexture ? stone(await picture(pbr.metallicRoughnessTexture.index, false)) : null,
           scale: (md.extras && md.extras.triplanar) || 1.6,
         });
       } else if (part === 'leaves') {

@@ -932,7 +932,8 @@ const BANDS = {                     // metres within which a copy is drawn as th
 const PICTURED = new Set(['tree', 'palm']);         // drawn as their picture beyond their band
 const PICTURE_REACH = [720, 420];                   // and as far as this
 // The pictures of the trees and palms: one sheet, a slot each, made from the model itself as it arrives.
-const SLOT = { full: [256, 512], lite: [128, 256] };
+// (on a phone, a tree's picture is drawn only beyond 85 m, a hundred-odd pixels tall at most: its slot is as big as that)
+const SLOT = { full: [256, 512], lite: [64, 128] };
 const COLS = 8, ROWS = 4;
 function createImpostors(renderer, scene, lite) {
   const [sw, sh] = SLOT[lite ? 'lite' : 'full'];

@@ -141,6 +141,19 @@ await page.waitForFunction(() => { const tb = window.__nlw.townBuildings; const 
 const back = await page.evaluate(() => { const tb = window.__nlw.townBuildings; const e = tb.entries.find((x) => x.kind === 'house' && Math.hypot(x.x + 170, x.z - 67) < 60); return e ? { id: e.id, model: e.model, drawn: e.drawn, state: (tb.state().models.find((m) => m.id === e.model) || {}).state } : null; });
 check('back in the lane, its houses are drawn from their model again', !!back && back.drawn && back.state === 'ready', back);
 
+// ---- far up the road north for a while, over 1.2 km from every tower (21 October 2026: up at the habitation a phone
+// needs the room): the towers' models are let go too, their towers gone from the scene; back in the town they are
+// fetched and drawn from their models again ----
+const towerStates = () => page.evaluate(() => { const tb = window.__nlw.townBuildings, ids = new Set(tb.entries.filter((e) => e.kind === 'tower').map((e) => e.model)); return { models: tb.state().models.filter((m) => ids.has(m.id)).map((m) => `${m.id}:${m.state}:${m.released}`), towers: tb.entries.filter((e) => e.kind === 'tower').length, withMesh: tb.entries.filter((e) => e.kind === 'tower' && e.mesh).length }; });
+await go(1400, 113, Math.PI / 2, { dist: 10, pitch: 0.1 });
+await page.waitForTimeout(26000);
+const farOff = await towerStates();
+check('far up the road north for a while (over 1.2 km from every tower), the towers\' models are let go too', farOff.models.length > 0 && farOff.models.every((t) => /:idle:[1-9]/.test(t)) && farOff.withMesh === 0, farOff);
+await go(45, 80, Math.PI / 2, { yaw: Math.PI / 2 + 0.2, dist: 12, pitch: 0.05 });
+const allBack = await page.waitForFunction(() => { const tb = window.__nlw.townBuildings, ids = new Set(tb.entries.filter((e) => e.kind === 'tower').map((e) => e.model)); return tb.state().models.filter((m) => ids.has(m.id)).every((m) => m.state === 'ready') && tb.entries.filter((e) => e.kind === 'tower').every((e) => e.drawn); }, null, { timeout: 600000 }).then(() => true, () => false);
+const backAgain = await towerStates();
+check('back in the town, the towers are fetched again and drawn from their models', allBack && backAgain.models.every((t) => /:ready:[1-9]/.test(t)) && backAgain.withMesh === backAgain.towers, backAgain);
+
 // ---- pictures, and what is drawn ----
 const views = [
   ['1-umuezei-lane', -170, 67, Math.PI / 2, { yaw: Math.PI / 2 + 0.35, dist: 10, pitch: 0.16 }],

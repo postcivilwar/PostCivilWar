@@ -301,9 +301,11 @@ export function nameTexture(text, { width = 512, height = 96, size = 46 } = {}) 
   return texture;
 }
 
-// (`scale`: the picture made that much smaller than `width` by `height`, the words set out the same: a phone's signs at
-// half the size, which on its screen look the same and take a quarter of the graphics memory)
-export function textTexture(lines, { width = 512, height = 128, background = '#f3ecdc', colour = '#171a2e', border = null, size = 54, scale = 1 } = {}) {
+// (`scale`: the picture made that much smaller than `width` by `height`, the words set out the same. On a phone every
+// sign is made at half the size, which on its screen looks the same and takes a quarter of the graphics memory: the
+// town's signs held 40 MB of it there, 21 October 2026)
+export function textTexture(lines, { width = 512, height = 128, background = '#f3ecdc', colour = '#171a2e', border = null, size = 54, scale = null } = {}) {
+  if (scale === null) scale = lite ? 0.5 : 1;
   const canvas = document.createElement('canvas');
   canvas.width = Math.max(1, Math.round(width * scale));
   canvas.height = Math.max(1, Math.round(height * scale));

@@ -2366,8 +2366,8 @@ layout is `src/sim/zones/habitation.js` (the land, the waters, the paths, the de
   have leaves or fronds that sway in the wind.
 - **His files stay exactly as he sent them** (`test/originals.test.mjs` checks each against its MD5). What a device
   fetches is a copy made from each by `tools/habitation/dress-all.py` (`dress.py`, `leaves.py`): the same shape, its
-  pictures made smaller (a computer at most 1024 pixels, a phone at most 512), its leaves cut out of their cards with
-  their own picture, bark, wood and stone given their grain. The copies are in `assets/habitation-dressed/`
+  pictures made smaller (a computer at most 1024 pixels, a phone at most 512; the one sheet of leaves they all share
+  2048 and 1024), its leaves cut out of their cards with their own picture, bark, wood and stone given their grain. The copies are in `assets/habitation-dressed/`
   (`made.json` says from which file each was made; the build refuses a copy made from another file).
 - **Rocks:** none of his 49 files is a rock, so rocks were made for the habitation (`tools/habitation/rocks.py`: four
   stones, three shapes each), 121 of them placed: mossy boulders in the forest, on the hill and by the gorge's stream,
