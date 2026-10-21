@@ -1017,7 +1017,7 @@ function start(carried) {
   // script of its own, asked for once the town is up and warmed, or at once for someone on the road north (21 October
   // 2026: carried in the game's script, it made PLAY a second later on a slow phone connection). Until it has come,
   // nothing of the habitation is drawn; one that could not be fetched is asked for again half a minute later.
-  let habitationKit = null, habitationAsked = false, habitationRetryAt = 0;
+  let habitationKit = null, habitationAsked = false, habitationRetryAt = 0, habitationKept = false;
   const partNotRead = (error, what) => { console.warn('PostCivilWar: part of the habitation could not be read', what || '', error && error.message ? error.message : error); if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } };
   function askForHabitation() {
     habitationAsked = true;
@@ -3554,6 +3554,8 @@ blood.update(dt, view.blood || []);
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
     if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || predicted.x > 100)) askForHabitation();
+    // (and the worker keeps it from the start, so that the game plays the habitation with no connection too)
+    if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation]); }
     if (habitation) {
       habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night });
       if (habitation.built && !habitationLife) habitationLife = habitationKit.createHabitationLife(scene, { lite: LITE });

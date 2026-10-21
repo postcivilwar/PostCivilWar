@@ -30,7 +30,7 @@ export function playsOffline({ worker, kept = [], needs = [] }) {
   return needs.every((path) => kept.includes(path)) ? 'yes' : 'not yet';
 }
 
-const idle = Object.freeze({ site: false, state: () => ({ site: false, way: null, offline: 'no' }), refresh: () => Promise.resolve(), keepFigure: () => {}, install: () => Promise.resolve(false) });
+const idle = Object.freeze({ site: false, state: () => ({ site: false, way: null, offline: 'no' }), refresh: () => Promise.resolve(), keepFigure: () => {}, keepFiles: () => {}, install: () => Promise.resolve(false) });
 
 // figures: the files a figure is fetched from, by its id (on the website its light copy: animated.js, lightFiles), as
 //          paths beside the page; [] for a figure there are none of
@@ -75,6 +75,14 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
     tell({ type: 'keep', paths });
   }
   function watchFigures() { if (figure()) keepFigure(figure()); }
+  // Files the game will want later and keeps for playing without a connection (the habitation's script, asked for by
+  // the page only once the town is up): the worker is told to keep them, and fetches any it has not got itself, in
+  // its own time; the page fetching it later is then answered from what is kept, not sent twice.
+  const filesToKeep = new Set();
+  function keepFiles(addresses) {
+    for (const address of addresses) if (address) filesToKeep.add(String(address).split('?')[0]);
+    if (filesToKeep.size) tell({ type: 'keep', paths: [...filesToKeep] });
+  }
 
   // An installed game is where a player's character lives. Ask the browser not to clear it away when the
   // device runs short of room. Asked only of an installed game: some browsers put a question to the player.
@@ -87,6 +95,7 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
       nav.serviceWorker.register('sw.js').then((made) => { registration = made; return nav.serviceWorker.ready; }).then((ready) => {
         registration = ready;
         watchFigures();
+        if (filesToKeep.size) keepFiles([]);
         if (pendingKeep) { keepFigure(pendingKeep); pendingKeep = null; }
         return refresh();
       }).catch(() => { /* no worker: the game plays as it always has, from the network */ });
@@ -113,6 +122,7 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
     refresh,
     // the player's own figure is drawn: its files are to be kept
     keepFigure: (id) => { if (registration && registration.active) keepFigure(id); else pendingKeep = id; },
+    keepFiles,
     // The browser's own question. True if the player said yes.
     async install() {
       const offer = win.__PCW_INSTALL;
