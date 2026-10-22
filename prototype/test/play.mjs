@@ -610,7 +610,9 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   });
   if (!person) bad('nobody is standing near enough to talk to');
   else {
-    await page.waitForTimeout(1500);
+    // (the prompt comes with the next frames after the player is put there: on this machine a frame can take a second
+    // or more, so it is waited for, up to fifteen seconds, not looked at after a second and a half)
+    await page.waitForFunction(() => /Talk to/.test((document.getElementById('prompt-text') || {}).textContent || ''), null, { timeout: 15000 }).catch(() => {});
     const prompt = await page.textContent('#prompt-text');
     if (!/Talk to/.test(prompt || '')) bad(`the prompt beside a townsperson reads "${prompt}"`);
     await page.keyboard.press('e');
