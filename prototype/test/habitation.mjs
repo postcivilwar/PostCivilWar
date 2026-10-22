@@ -657,6 +657,8 @@ check('D: on a phone (#lite), what is drawn stays within what a mid-range phone 
       await page.waitForTimeout(500);
       const q = await page.evaluate(() => { const n = window.__nlw, c = n.camera.position; return { x: n.predicted.x, z: n.predicted.z, y: n.me.group.position.y, cam: [c.x, c.y, c.z], clip: n.me.current ? n.me.current.getClip().name : null, climbing: !!n.me.climbing, stairs: n.me.spec ? n.me.spec.stairs : null }; });
       got.push(q);
+      // (a picture of the climb, the first time it is seen)
+      if (dir < 0 && q.climbing && q.clip === q.stairs && !got.some((g) => g.shot)) { q.shot = true; await shot('climbing-the-stairs'); }
       if (Math.hypot(q.x - end[0], q.z - end[1]) < 1.3) break;
     }
     await page.keyboard.up('w');
