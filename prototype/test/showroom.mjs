@@ -200,7 +200,7 @@ const opened = await page.evaluate(() => {
     card: q('.dealitem.bike .what b').textContent, chips: [...document.querySelectorAll('.dealitem .spec')].map((c) => c.textContent), price: q('.dealitem .price').textContent,
     hello: [...document.querySelectorAll('#deal-log .msg.shop')].map((m) => m.textContent)[0] || '',
     quick: [...document.querySelectorAll('#deal-quick button')].map((b) => b.textContent),
-    talk: window.__nlw.showroom.talk, phoneHeld: window.__nlw.phoneHold.raised,
+    talk: window.__nlw.showroom.talk, phoneHeld: window.__nlw.phoneHold.out,
     expected: (() => { const l = window.__nlw.market.state.all.find((x) => x.asset && x.asset.model === 'bike:red-superbike'); return l ? `${(l.price / 2).toLocaleString('en-GB')} TR` : null; })(),
   };
 });
@@ -209,9 +209,10 @@ check('he greets the player about this bike, and says his answers are automatic'
 check('questions to tap are offered', opened.quick.length >= 5, opened.quick);
 if (STAFF) check('talking face to face: the phone is not held up in the town', opened.talk && opened.talk.bike === 'red-superbike' && opened.phoneHeld < 0.2, { talk: opened.talk, raised: opened.phoneHeld });
 else {
-  const held = await page.waitForFunction(() => window.__nlw.phoneHold.raised > 0.8, null, { timeout: 30000 }).then(() => true, () => false);
-  const raised = await page.evaluate(() => window.__nlw.phoneHold.raised);
-  check('with nobody on the floor the conversation is on the phone: the player holds it up', opened.talk && opened.talk.bike === 'red-superbike' && held, { talk: opened.talk, raised });
+  // (the handset out of the pocket and held in front, as for anything on the phone: phone-hold.js `out`)
+  const held = await page.waitForFunction(() => window.__nlw.phoneHold.out > 0.8, null, { timeout: 30000 }).then(() => true, () => false);
+  const out = await page.evaluate(() => window.__nlw.phoneHold.out);
+  check('with nobody on the floor the conversation is on the phone: the player holds it up', opened.talk && opened.talk.bike === 'red-superbike' && held, { talk: opened.talk, out });
 }
 if (STAFF) {
   // (looked for frame by frame, as long as it takes: without a graphics card a frame here can take seconds)
