@@ -14,6 +14,9 @@
 //   G  the big waterfall heard, louder near it; at night frogs and crickets
 //   H  night: dark, the moon and the stars out; the phone's Torch lights the way ahead; the other player sees its beam
 //   I  each place, beside the owner's picture of it (screenshots)
+//   L  22 October 2026: feet on the ground drawn, on a phone too (the sandy bank); the legs seen in the shallows, and deep
+//      water stopping the walker with a word why, the big signs; a bridge's rails and posts in the way; the big
+//      waterfall's stairs walked down in their cutting and back up with the figure's own climb; a jump, seen by the other
 //   ../server/with-postgres.sh node test/habitation.mjs [shots folder]
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
@@ -21,7 +24,7 @@ import { resolve } from 'node:path';
 import { spawnSync } from 'node:child_process';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown } from './start.mjs';
-import { HABITATION, HABITATION_STANDING, HABITATION_MODELS, HABITATION_DECKS, HABITATION_SHIFT, UPRIVER, HOT_RIVER_SIGNS, habitationFooting, habitationDeckAt, hotRiverNear, habitationRootAt, zoneWalkable, zoneStep } from '../src/sim/zone.js';
+import { HABITATION, HABITATION_STANDING, HABITATION_MODELS, HABITATION_DECKS, HABITATION_SHIFT, UPRIVER, HOT_RIVER_SIGNS, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, habitationFooting, habitationDeckAt, habitationGroundAt, habitationWaterAt, hotRiverNear, habitationRootAt, zoneWalkable, zoneStep } from '../src/sim/zone.js';
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
@@ -552,6 +555,158 @@ check('D: deep in the habitation the town\'s towers (over 650 m off, hidden by t
 
 const phoneWorst = Object.entries(measures.phone.places).sort((a, b) => b[1].gpuMB - a[1].gpuMB)[0];
 check('D: on a phone (#lite), what is drawn stays within what a mid-range phone draws: under 260 draw calls and 900,000 triangles, and under the phone\'s budget of 150 MB on the graphics card (budget.js)', Object.values(measures.phone.places).every((c) => c.calls < 260 && c.triangles < 9e5 && c.gpuMB < 150), { phoneWorst, calls: Object.fromEntries(Object.entries(measures.phone.places).map(([k, v]) => [k, v.calls])), modelBytes: habB.modelBytes });
+
+// ---- L: the owner's brief of 22 October 2026 (four screen recordings) ----
+// L1 feet on the ground as drawn, never in it: on a phone, on the sandy bank of the lagoon's west beach where the owner's
+// walker was drawn sunk into it; the phone's ground the same triangles as the walker's (its coarser one only from afar)
+{
+  const where = (p) => p.evaluate(() => {
+    const n = window.__nlw, me = n.me, v = new n.THREE.Vector3();
+    let low = Infinity;
+    for (const b of ['foot_l', 'foot_r', 'ball_l', 'ball_r']) { const bone = me.bones && me.bones.get(b); if (bone) { bone.getWorldPosition(v); low = Math.min(low, v.y); } }
+    const h = n.habitation.state(), c = n.camera.position;
+    return { x: n.predicted.x, z: n.predicted.z, y: me.group.position.y, low, every: h.groundEvery, cam: [c.x, c.y, c.z] };
+  });
+  // (the town's east end first: from there a phone draws the habitation's ground from every other point)
+  await pageB.evaluate(() => { const n = window.__nlw; n.place(200, 113); n.face(Math.PI / 2); });
+  await settle(4, pageB);
+  const far = await pageB.evaluate(() => window.__nlw.habitation.state().groundEvery);
+  await pageB.evaluate(([x, z]) => { const n = window.__nlw; n.place(x, z); n.face(0.3); n.cam.yaw = 0.3; n.cam.dist = 4.5; n.cam.pitch = 0.1; }, [2232 + S, 116]);
+  await settle(6, pageB); await pageB.waitForTimeout(800);
+  const near = await where(pageB);
+  // the mesh drawn: its points where the simulation's ground is (a sample of them)
+  const points = await pageB.evaluate(() => { const g = window.__nlw.scene.getObjectByName('habitation-ground'), out = []; if (g) g.traverse((o) => { if (o.isMesh) { const p = o.geometry.attributes.position; for (let i = 0; i < p.count; i += 1777) out.push([p.getX(i), p.getY(i), p.getZ(i)]); } }); return out; });
+  const off = Math.max(...points.map(([x, y, z]) => Math.abs(habitationGroundAt(x, z) - y)));
+  // walked along the bank and down to the water and back, a sample every step
+  const samples = [];
+  for (const h of [1.2, -0.4, 2.6]) {
+    await pageB.evaluate((h) => { const n = window.__nlw; n.face(h); n.cam.yaw = h; }, h);
+    await pageB.keyboard.down('w');
+    for (let i = 0; i < 8; i += 1) { await pageB.waitForTimeout(500); samples.push(await where(pageB)); }
+    await pageB.keyboard.up('w');
+  }
+  const on = samples.filter((q) => { const f = habitationFooting(q.x, q.z); return f && f.walk && !f.deck && f.kind !== 'shallows'; });
+  const sunk = on.filter((q) => q.low < habitationGroundAt(q.x, q.z) - 0.05 || Math.abs(q.y - habitationGroundAt(q.x, q.z)) > 0.02);
+  const camUnder = samples.filter((q) => q.cam[1] < habitationGroundAt(q.cam[0], q.cam[2]) + 0.15);
+  await pageB.evaluate(() => { const n = window.__nlw; n.cam.dist = 4.5; n.cam.pitch = 0.08; });
+  await settle(4, pageB); await pageB.waitForTimeout(600);
+  await shot('phone-feet-on-the-sandy-bank', pageB);
+  check('L: on a phone the habitation\'s ground is drawn from the walker\'s own triangles (every point near it, every other one only from the town\'s east end)', far === 2 && near.every === 1 && points.length > 30 && off < 0.002, { far, near: near.every, points: points.length, off: +off.toFixed(4) });
+  check('L: on the sandy bank of the lagoon\'s beach the walker\'s feet are on the ground drawn, never in it, and the eye never under it', on.length >= 10 && sunk.length === 0 && camUnder.length === 0 && near.low >= habitationGroundAt(near.x, near.z) - 0.05, { walked: samples.length, onGround: on.length, sunk: sunk.length, camUnder: camUnder.length, feet: +(near.low - habitationGroundAt(near.x, near.z)).toFixed(3) });
+}
+// L2 in the shallows the legs are seen through the water, faintly; walked on out, deep water stops the walker and says why;
+// the big sign at the beach
+{
+  const x = 2180 + S;
+  await at(x, 121, 0);
+  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 4; n.cam.pitch = 0.12; });
+  const s = await walkUntilStopped(40000);
+  const f = habitationFooting(s.x, s.z), ahead = habitationFooting(s.x, s.z + 0.8);
+  const note = await page.evaluate(() => document.getElementById('notices').textContent);
+  check('L: walking out from the lagoon\'s beach the shallows are waded, and where it gets too deep the walker is stopped and told: "Swimming in the swamps is not advisable"', f && f.kind === 'shallows' && ahead && ahead.kind === 'water' && /not advisable/.test(note), { at: [+s.x.toFixed(1), +s.z.toFixed(1)], footing: f && f.kind, ahead: ahead && ahead.kind, depth: f && f.y !== undefined ? +(habitationWaterAt(s.x, s.z).level - f.y).toFixed(2) : null, note });
+  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 3.2; n.cam.pitch = 0.05; n.cam.yaw = Math.PI * 0.75; });
+  await settle(4); await page.waitForTimeout(600);
+  await shot('legs-in-the-shallows');
+  const sign = HABITATION_SWIM_SIGNS.find((q) => q.id === 'swim-lagoon-west-1');
+  await at(sign.x + Math.sin(sign.facing) * 9, sign.z + Math.cos(sign.facing) * 9, sign.facing + Math.PI);
+  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 3; n.cam.pitch = 0.06; });
+  await settle(4); await page.waitForTimeout(800);
+  const signs = await page.evaluate(() => window.__nlw.habitation.state().swimSigns);
+  await shot('swimming-is-not-advisable');
+  check('L: big signs stand where one wades in and it soon gets deep, saying swimming in the swamps is not advisable', signs === HABITATION_SWIM_SIGNS.length && signs >= 10, { signs });
+}
+// L3 a bridge's rails and posts stand in the way: from the middle of the gorge's bridge, walked at its side; and from
+// the bank beside it, walked at it
+{
+  const d = HABITATION_DECKS.find((q) => q.id === 'gorge-bridge');
+  const a = d.line[0], b = d.line[d.line.length - 1], L = Math.hypot(b[0] - a[0], b[1] - a[1]), ux = (b[0] - a[0]) / L, uz = (b[1] - a[1]) / L;
+  const mid = [a[0] + ux * L * 0.45, a[1] + uz * L * 0.45], side = Math.atan2(-uz, ux);
+  await at(mid[0], mid[1], side);
+  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 4.5; n.cam.pitch = 0.2; });
+  const s = await walkUntilStopped(25000);
+  const fromLine = Math.abs(-(s.x - a[0]) * uz + (s.z - a[1]) * ux);
+  const post = Math.min(...HABITATION_DECK_POSTS.filter((p) => p.deck === d.id).map((p) => Math.hypot(p.x - s.x, p.z - s.z)));
+  await page.evaluate((yaw) => { const n = window.__nlw; n.cam.yaw = yaw; n.cam.dist = 3.5; n.cam.pitch = 0.15; }, side + 2.4);
+  await settle(4); await page.waitForTimeout(600);
+  await shot('stopped-by-a-bridges-rail');
+  check('L: on a bridge, walked at its side, the walker is stopped short of its rail and posts, half a metre in from its edge', fromLine <= d.width / 2 - 0.45 && fromLine > 0.3 && post > 0.4, { fromLine: +fromLine.toFixed(2), halfWidth: d.width / 2, nearestPost: +post.toFixed(2) });
+  // from the bank beside it (the forest at its east end, a few metres to its side), walked at it
+  let start = null;
+  for (let k = 3.5; k < 9 && !start; k += 0.5) for (const sgn of [1, -1]) { const along = L - 2.5, x = a[0] + ux * along - uz * sgn * k, z = a[1] + uz * along + ux * sgn * k; if (zoneWalkable(x, z, [], 0.4) && !habitationDeckAt(x, z)) { start = { x, z, heading: Math.atan2(uz * sgn, -ux * sgn) }; break; } }
+  if (!start) check('L: somewhere to stand beside the gorge\'s bridge', false);
+  else {
+    await at(start.x, start.z, start.heading);
+    const t = await walkUntilStopped(25000);
+    const gap = Math.abs(-(t.x - a[0]) * uz + (t.z - a[1]) * ux), deck = habitationDeckAt(t.x, t.z);
+    check('L: walked at a bridge from beside it, the walker is stopped outside its rails: onto it only past its ends', !deck && gap >= d.width / 2 + 0.45, { gap: +gap.toFixed(2), onIt: !!deck });
+  }
+}
+// L4 the big waterfall's wooden stairs: seen going down from the cliff's top in their cutting, walked down end to end
+// on their boards (never through the ground, the eye never under it), and back up with the figure's own climb
+{
+  const st = HABITATION_DECKS.find((q) => q.id === 'falls-stairs');
+  // (as a player steers down a flight that turns: toward its next corner, and on to the one after once there)
+  const steer = (to) => page.evaluate(([x, z]) => { const n = window.__nlw, p = n.predicted; n.cam.yaw = Math.atan2(x - p.x, z - p.z); return Math.hypot(x - p.x, z - p.z); }, to);
+  const walkAlong = async (dir) => {
+    const got = [], end = st.line[dir > 0 ? st.line.length - 1 : 0];
+    let next = dir > 0 ? 1 : st.line.length - 2;
+    await page.keyboard.down('w');
+    for (let i = 0; i < 200; i += 1) {
+      const gap = await steer(st.line[next]);
+      if (gap < 1.2 && next !== (dir > 0 ? st.line.length - 1 : 0)) { next += dir; await steer(st.line[next]); }
+      await page.waitForTimeout(500);
+      const q = await page.evaluate(() => { const n = window.__nlw, c = n.camera.position; return { x: n.predicted.x, z: n.predicted.z, y: n.me.group.position.y, cam: [c.x, c.y, c.z], clip: n.me.current ? n.me.current.getClip().name : null, climbing: !!n.me.climbing, stairs: n.me.spec ? n.me.spec.stairs : null }; });
+      got.push(q);
+      if (Math.hypot(q.x - end[0], q.z - end[1]) < 1.3) break;
+    }
+    await page.keyboard.up('w');
+    return got;
+  };
+  const [ax, az] = st.line[0], [bx, bz] = st.line[1], l0 = Math.hypot(bx - ax, bz - az);
+  await at(ax - ((bx - ax) / l0) * 1.5, az - ((bz - az) / l0) * 1.5, Math.atan2(bx - ax, bz - az));
+  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 6; n.cam.pitch = 0.42; });
+  await settle(4); await page.waitForTimeout(800);
+  await shot('the-waterfall-stairs-from-the-top');
+  const down = await walkAlong(1);
+  const onBoards = down.filter((q) => habitationDeckAt(q.x, q.z));
+  const off = onBoards.filter((q) => Math.abs(q.y - habitationDeckAt(q.x, q.z).y) > 0.05);
+  const under = down.filter((q) => q.cam[1] < habitationGroundAt(q.cam[0], q.cam[2]) + 0.15 || q.y < habitationGroundAt(q.x, q.z) - 0.02);
+  const last = down[down.length - 1], bottom = st.line[st.line.length - 1];
+  check('L: the big waterfall\'s stairs are walked down from the cliff\'s top to the pool, on their boards all the way (never through the ground, the eye never under it)', Math.hypot(last.x - bottom[0], last.z - bottom[1]) < 1.5 && onBoards.length > 10 && off.length === 0 && under.length === 0, { steps: down.length, onBoards: onBoards.length, off: off.length, under: under.length, end: [+last.x.toFixed(1), +last.z.toFixed(1), +last.y.toFixed(2)] });
+  await page.evaluate((yaw) => { const n = window.__nlw; n.cam.yaw = yaw; n.cam.dist = 9; n.cam.pitch = 0.3; }, Math.atan2(ax - bottom[0], az - bottom[1]));
+  await settle(4); await page.waitForTimeout(800);
+  await shot('the-waterfall-stairs-from-the-pool');
+  const upAgain = await walkAlong(-1);
+  const climbing = upAgain.filter((q) => q.climbing && q.clip === q.stairs);
+  check('L: walking back up the stairs the figure climbs them with its own climb up stairs (its own where its file has one, borrowed where not)', climbing.length >= 3 && Math.hypot(upAgain[upAgain.length - 1].x - ax, upAgain[upAgain.length - 1].z - az) < 1.5, { steps: upAgain.length, climbing: climbing.length, clip: upAgain.map((q) => q.clip).find((c) => c && c !== 'walk.001') });
+}
+// L5 a jump: Space (a button on a phone), the figure's own leap, the body off the ground and down again; seen by the other
+// player, near
+{
+  await atHab(2170, 119, 0.3);
+  await pageB.evaluate(([x, z]) => { const n = window.__nlw; n.place(x, z); n.face(Math.PI); n.cam.yaw = Math.PI + 0.3; n.cam.dist = 7; n.cam.pitch = 0.12; }, [2172 + S, 123]);
+  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 4.5; n.cam.pitch = 0.1; n.cam.yaw = 1.8; });
+  await settle(4); await settle(4, pageB);
+  const buttons = await page.evaluate(() => window.__nlw.controls.shown.map((b) => b.id));
+  const buttonsB = await pageB.evaluate(() => window.__nlw.controls.shown.map((b) => b.id));
+  const idA = await page.evaluate(() => window.__nlw.playerId);
+  for (const p of [page, pageB]) await p.evaluate(() => window.__nlw.slow(0.08));
+  await page.keyboard.press('Space');
+  const lifts = [], seenB = [];
+  for (let i = 0; i < 60; i += 1) {
+    await page.waitForTimeout(600);
+    const l = await page.evaluate(() => { const n = window.__nlw; return { lift: n.me.jumpLift, jumping: !!n.me.jumping, t: n.me.current ? n.me.current.time : 0, clip: n.me.current ? n.me.current.getClip().name : null, jump: n.me.spec ? n.me.spec.jump : null }; });
+    lifts.push(l);
+    const b = await pageB.evaluate((id) => { const r = window.__nlw.crowd.rigOf(`p:${id}`); return r ? { lift: r.jumpLift || 0, jumping: !!r.jumping } : null; }, idA);
+    if (b) seenB.push(b);
+    if (l.jumping && l.lift > 0.3 && !lifts.some((q) => q.shot)) { l.shot = true; await shot('a-jump'); await shot('a-jump-seen-by-the-other', pageB); }
+    if (!l.jumping && i > 2) break;
+  }
+  for (const p of [page, pageB]) await p.evaluate(() => window.__nlw.slow(1));
+  const top = Math.max(...lifts.map((q) => q.lift)), lowest = Math.min(...lifts.map((q) => q.lift));
+  check('L: Space jumps (and on a phone a Jump button): the figure\'s own leap, the body lifted off the ground in an arc and down again', buttons.includes('jump') && buttonsB.includes('jump') && lifts.some((q) => q.jumping && q.clip === q.jump) && top > 0.3 && lowest < -0.1 && !lifts[lifts.length - 1].jumping, { buttons, buttonsB, top: +top.toFixed(2), crouch: +lowest.toFixed(2), clip: lifts.map((q) => q.clip).find((c) => c && /jump|leap/.test(c)), samples: lifts.length });
+  check('L: the other player sees the jump', seenB.some((q) => q.jumping) && Math.max(...seenB.map((q) => q.lift)) > 0.2, { seen: seenB.filter((q) => q.jumping).length, top: seenB.length ? +Math.max(...seenB.map((q) => q.lift)).toFixed(2) : null });
+}
 
 // ---- back across the town: the habitation, and the road's end and its car park, let go ----
 await at(-230, 113, -Math.PI / 2);

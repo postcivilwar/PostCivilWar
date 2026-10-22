@@ -93,6 +93,8 @@ export const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
 // Swimming in the river (8 October 2026). Slower than walking; a stroke held makes it faster. One goes in from
 // the bank and comes out at the bank; while in the water nothing else can be done.
 export const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
+// (a jump lasts about a second and a half on the screen: another, not before it is over)
+export const JUMP_EVERY = 1.4;
 const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
 // `wallClock`: the real clock, as `wallSeconds` gives it. With one, the town keeps the player's own time: the
@@ -411,6 +413,18 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (p.hijack) throw new GameError('BUSY', 'You have your hands full.');
       p.emote = { name, at: state.real };
       return { name };
+    },
+    // A jump (22 October 2026, the owner: "add jumping animation"): the player's figure leaps where it stands or as
+    // it goes, for others to see. Only a movement of the body: nothing is jumped over or onto, nobody is touched.
+    jump(p) {
+      if (p.driving || p.incar || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined)) throw new GameError('DRIVING', 'Not from a vehicle.');
+      if (p.swimming) throw new GameError('SWIMMING', 'Not in the water.');
+      if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
+      if (p.dead || (p.down && state.real < (p.down.upAt || p.down.until || 0)) || state.real < (p.heldUntil || 0)) throw new GameError('HELD', 'You cannot jump just now.');
+      if (p.jump && state.real - p.jump.at < JUMP_EVERY) throw new GameError('NOT_READY', 'Already in the air.');
+      p.jump = { at: state.real };
+      if (p.emote) p.emote = null;
+      return {};
     },
     // Into the river from the bank: a few steps from the water, on foot and able.
     'swim.in'(p) {
@@ -1036,7 +1050,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth) },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
-      others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
+      others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
     };
   }

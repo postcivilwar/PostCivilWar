@@ -22,7 +22,7 @@
 //   life.calls()                                                         the birds that sang since it was last asked
 //   life.dispose()
 
-import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_PATHS, HABITATION_SHIFT, habitationWaterAt, habitationLand, habitationFooting } from '../sim/zone.js';
+import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_PATHS, HABITATION_SHIFT, habitationWaterAt, habitationLand, habitationGroundAt, habitationFooting } from '../sim/zone.js';
 import { linear } from './render-kit.js';
 
 // a repeatable dice: the same fish and birds in the same places for everyone who comes
@@ -246,7 +246,7 @@ export function createHabitationLife(scene, { lite = false } = {}) {
   for (const p of HABITATION_STANDING) {
     const info = HABITATION_MODELS[p.m];
     if (!info) continue;
-    const ground = p.y !== null ? p.y : habitationLand(p.x, p.z);
+    const ground = p.y !== null ? p.y : habitationGroundAt(p.x, p.z);
     if (info.kind === 'tree' || info.kind === 'palm') crowns.push({ x: p.x, y: ground + p.s * (info.kind === 'palm' ? 0.93 : 0.86), z: p.z, high: p.s });
     else if (info.kind === 'shrub' || info.kind === 'banana' || info.kind === 'herb') bushes.push({ x: p.x, y: ground + p.s * 0.92, z: p.z, high: p.s });
     else if (info.kind === 'rock') { const w = habitationWaterAt(p.x + 1.5, p.z) || habitationWaterAt(p.x - 1.5, p.z) || habitationWaterAt(p.x, p.z + 1.5) || habitationWaterAt(p.x, p.z - 1.5); if (w && w.kind !== 'river') waterside.push({ x: p.x, y: ground + p.s * 0.85, z: p.z, water: w }); }
@@ -261,7 +261,7 @@ export function createHabitationLife(scene, { lite = false } = {}) {
     for (let d = 2; d < len; d += 5) for (const side of [-1, 1]) {
       const off = p.width / 2 + 1.5 + rand() * 3, x = ax + ((bx - ax) * d) / len - ((bz - az) / len) * side * off, z = az + ((bz - az) * d) / len + ((bx - ax) / len) * side * off;
       const f = habitationFooting(x, z);
-      if (f && f.walk && !f.deck && f.kind !== 'shallows') verges.push({ x, y: habitationLand(x, z), z, ground: true });
+      if (f && f.walk && !f.deck && f.kind !== 'shallows') verges.push({ x, y: habitationGroundAt(x, z), z, ground: true });
     }
   }
   // places in the shallows (a hand's depth) for the waders to walk, by the beaches, the island, the swamp and the pools
@@ -646,7 +646,7 @@ export function createHabitationLife(scene, { lite = false } = {}) {
       const f = habitationFooting(p.x, p.z);
       if (!f || (f.kind !== 'sand' && !(f.kind === 'path' && f.surface === 'sand'))) continue;
       const px = p.x + Math.cos(h) * 0.11 * w.side, pz = p.z - Math.sin(h) * 0.11 * w.side;
-      printList.push({ x: px, y: habitationLand(px, pz) + 0.015, z: pz, h, age: 0 });
+      printList.push({ x: px, y: habitationGroundAt(px, pz) + 0.015, z: pz, h, age: 0 });
       if (printList.length > PRINTS) printList.shift();
     }
     for (const key of walkers.keys()) if (!seen.has(key)) walkers.delete(key);

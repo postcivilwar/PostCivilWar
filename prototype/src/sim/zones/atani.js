@@ -32,7 +32,7 @@ import { TOWN_TREES } from './atani-trees.js';
 import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
 import { openClosures, closureColliders, edgeFences, fenceColliders } from './closures.js';
 // the habitation at the far end of the River Niger, and the road up the river to it (20 October 2026)
-import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt } from './habitation.js';
+import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt } from './habitation.js';
 export * from './habitation.js';
 export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
@@ -955,6 +955,8 @@ export function zoneWalkable(x, z, extra = [], radius = 0.4) {
   if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return false;
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
   if (habitationRootAt(x, z, radius)) return false;
+  // (a habitation deck's rails, whatever ground is beside them: the gate's footbridge begins over the car park's edge)
+  if (habitationRailsAt(x, z)) return false;
   for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
   return true;
 }

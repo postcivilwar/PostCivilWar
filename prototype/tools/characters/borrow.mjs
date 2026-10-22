@@ -68,6 +68,18 @@ for (const [file, gender] of NEW_FIGURES) {
   for (const move of ['walk', 'run', 'swim']) if (!hasOwn(file, move)) { const [from, clip, fps] = SOURCES[gender][move]; JOBS.push({ to: file, as: move, from, clip, fps }); }
   if (!hasOwn(file, 'idle')) JOBS.push({ to: file, as: 'idle', from: 'police.glb', clip: 'idle.001', fps: 10 });
 }
+// A jump, and going up stairs (22 October 2026, the owner: "add jumping animation ... those animations that depict
+// jumping, or climbing stairs; if the character has none, add it"): every figure's own where its file has them (the
+// woman's and the ninja warrior's "jump down", seven figures' "run upstairs"), otherwise the woman's (for a woman) or
+// the ninja warrior's (for a man), carried onto its own bones as the walks are. (The man of the first two figures is
+// the muscular man's file.)
+const EVERY_FIGURE = [['muscular_male.glb', 'm'], ['woman.glb', 'f'], ['athlete.glb', 'f'], ['police.glb', 'f'], ['priest.glb', 'm'], ['warrior.glb', 'm'], ...NEW_FIGURES];
+// (borrowed as `leap`: a figure's own `jump` is something else, hopping where it stands)
+const MORE = { leap: ['jump_down', 'jump_down.001', 20], stairs: ['run_upstairs', 'run_upstairs.001', 30] };
+const MORE_FROM = { f: 'woman.glb', m: 'ninja_warrior.glb' };
+for (const [file, gender] of EVERY_FIGURE) {
+  for (const [as, [own, clip, fps]] of Object.entries(MORE)) if (!hasOwn(file, own)) JOBS.push({ to: file, as, from: MORE_FROM[gender], clip, fps });
+}
 // the sitting pose (the woman's sit.001 at 1 s, as src/client/seat-pose.js has it for the first two)
 const SEATS = ['athlete.glb', 'police.glb', 'priest.glb', 'warrior.glb', ...NEW_FIGURES.map(([file]) => file)];
 

@@ -4701,7 +4701,7 @@ const HABITATION_PILLARS = Object.freeze([
 
 const path = (id, line, width, surface, extra = {}) => { const at = pts(line); return Object.freeze({ id, line: at, width, surface, bounds: boundsOf(at, width + 12), ...extra }); };
 const HABITATION_PATHS = Object.freeze([
-  path('hill-up', [[1897, 91], [1906, 82], [1914, 66], [1921, 52], [1927, 38], [1932, 25], [1936, 17]], 3.2, 'earth'),
+  path('hill-up', [[1897, 91], [1900.5, 90.4], [1906, 82], [1914, 66], [1921, 52], [1927, 38], [1932, 25], [1936, 17]], 3.2, 'earth'),
   path('hill-top', [[1936, 17], [1944, 12], [1950, 20], [1956, 33]], 4, 'earth'),
   path('hill-down', [[1956, 33], [1966, 44], [1978, 53], [1994, 62]], 3.2, 'earth'),
   path('forest', [[1994, 62], [2014, 70], [2034, 80], [2054, 90], [2074, 99], [2094, 107], [2112, 115], [2126, 121]], 3.6, 'mud', { puddles: true }),
@@ -4709,7 +4709,7 @@ const HABITATION_PATHS = Object.freeze([
   path('from-swamp', [[2090, -40], [2096, -14], [2098, 18], [2094, 50], [2084, 76], [2074, 99]], 3, 'mud', { puddles: true }),
   path('to-mangroves', [[2034, 80], [2026, 102], [2016, 122], [2010, 136]], 3, 'earth'),
   path('west-beach', [[2126, 121], [2160, 116], [2200, 113], [2240, 116], [2272, 125], [2296, 137], [2310, 140]], 5, 'sand'),
-  path('gorge-west', [[2310, 140], [2322, 124], [2336, 113], [2348, 104], [2357, 97], [2359.2, 94]], 3, 'stone', { heights: [0.4, 1.8, 2.9, 3.8, 4.5, 4.95] }),
+  path('gorge-west', [[2310, 140], [2322, 124], [2336, 113], [2348, 104], [2357, 97], [2358.3, 92.8]], 3, 'stone', { heights: [0.4, 1.8, 2.9, 3.8, 4.5, 4.95] }),
   path('gorge-east', [[2368.8, 106.8], [2376, 108], [2386, 116], [2398, 130], [2412, 148], [2426, 166], [2436, 180], [2440, 192]], 3, 'earth', { heights: [5.1, 5.4, 7.5, 11, 14.5, 17.5, 20.2, 21.6], steps: true }),
   path('pool-shore', [[2448, 211], [2446, 215], [2444, 218]], 3.4, 'stone', { heights: [4.3, 4.3, 4.3] }),
   path('outflow-west', [[2440, 192], [2430, 195], [2416, 200], [2400, 206], [2388, 211]], 3, 'earth', { heights: [21.6, 20.8, 19.8, 18.6, 17.6] }),
@@ -4739,7 +4739,7 @@ const HABITATION_SAND = Object.freeze([
 
 const deck = (id, kind, line, width, heights, extra = {}) => { const at = pts(line); return Object.freeze({ id, kind, line: at, width, heights: Object.freeze(heights), bounds: boundsOf(at, width + 2), length: lineLength(at), rails: true, ...extra, ...(extra.platform ? { platform: Object.freeze({ ...extra.platform, x: extra.platform.x + S }) } : {}) }); };
 const HABITATION_DECKS = Object.freeze([
-  deck('gate-bridge', 'bridge', [[1876, 91], [1886, 91], [1898, 91]], 2.6, [0.25, 0.75, 0.3], { entrance: true, model: 'woodenboardwalk' }),
+  deck('gate-bridge', 'bridge', [[1876, 91], [1886, 91], [1898, 91]], 2.6, [0.25, 0.75, 0.56], { entrance: true, model: 'woodenboardwalk' }),
   deck('swamp-walk', 'boardwalk', [[2028, -28], [2032, -46], [2040, -60], [2052, -72], [2060, -84], [2070, -96], [2072, -112], [2062, -124], [2050, -118], [2058, -100], [2072, -80], [2082, -62], [2090, -40]], 2.4, [1.0], { over: 0.7, platform: Object.freeze({ x: 2060, z: -84, r: 5 }), model: 'woodenboardwalk', ropes: true }),
   deck('mangrove-walk', 'boardwalk', [[2010, 136], [2024, 150], [2042, 162], [2062, 168], [2082, 164], [2098, 154], [2110, 142], [2120, 132]], 2.4, [1.0], { over: 1.0, model: 'woodenboardwalk' }),
   deck('island-walk', 'boardwalk', [[2192, 118], [2196, 140], [2200, 164], [2203, 188]], 2.2, [0.9], { over: 0.8, ropes: true, model: 'woodenboardwalk' }),
@@ -4748,9 +4748,15 @@ const HABITATION_DECKS = Object.freeze([
   deck('outflow-bridge', 'bridge', [[2444, 218], [2441, 225], [2440, 232]], 2.4, [4.3, 4.5, 4.3], { model: 'woodenboardwalk' }),
   deck('suspension-bridge', 'suspension', [[2388, 211], [2387, 222], [2386, 234]], 2.4, [17.6, 17.6, 17.2, 16.92, 16.63, 16.42, 16.29, 16.2, 16.22, 16.34, 16.49, 16.74, 16.73], { model: 'suspensionbridge' }),
   deck('overlook-stairs', 'stairs', [[2238, 366], [2228, 362], [2218, 358], [2208, 353]], 2.4, [20.2, 13.6, 7.0, 0.7], { stone: true }),
-  deck('sunset-jetty', 'jetty', [[2196, 350], [2196, 340], [2196, 330]], 2.4, [0.75], { over: 0.7, ropes: true, model: 'woodenboardwalk' }),
+  deck('sunset-jetty', 'jetty', [[2196, 348.4], [2196, 340], [2196, 330]], 2.4, [0.75], { over: 0.7, ropes: true, model: 'woodenboardwalk' }),
   deck('gazebo-floor', 'platform', [[2168, 392], [2168, 386]], 6, [6.6], { rails: false, model: 'tropicalgazebo' }),
 ]);
+const CUT_UNDER = Object.freeze({ stairs: 0.35, other: 0.16 }), CUT_SIDE = 2.6, CUT_WALL = 1.6, CUT_TAPER = 2.5, CUT_PAST = 2.6;
+const CUT_DECKS = HABITATION_DECKS.filter((d) => d.over === undefined && d.kind !== 'platform').map((d) => ({ ...d, cutBounds: boundsOf(d.line, d.width / 2 + CUT_SIDE + 16) }));
+const RAIL_IN = 0.5, RAIL_OUT = 0.5;
+const END_CLEAR = 0.8;
+const HABITATION_RAILS = Object.freeze({ inside: RAIL_IN, outside: RAIL_OUT, stairs: CUT_SIDE });
+const POST_EVERY = 2.4, POST_OUT = 0.05;
 
 function landAt(x, z) {
   const u = drawn(x);
@@ -4834,6 +4840,21 @@ function shaped(x, z) {
     const k = 1 - smooth((n.d - p.width / 2) / 2);
     y = y + (Math.max(along, y - 3) - y) * k * 0.85;
   }
+  for (const d of CUT_DECKS) {
+    const c = d.cutBounds;
+    if (x < c.x0 || x > c.x1 || z < c.z0 || z > c.z1) continue;
+    const n = nearLine(d.line, x, z);
+    if (n.at <= 0 || n.at >= n.length) {
+      const first = n.at <= 0, [px, pz] = first ? d.line[0] : d.line[d.line.length - 1], [qx, qz] = first ? d.line[1] : d.line[d.line.length - 2];
+      const len = Math.hypot(px - qx, pz - qz) || 1, ux = (px - qx) / len, uz = (pz - qz) / len;
+      const e = (x - px) * ux + (z - pz) * uz, l = Math.abs((z - pz) * ux - (x - px) * uz);
+      if (e <= CUT_PAST && l <= d.width / 2 + CUT_SIDE) y = Math.min(y, deckHeight(d, n, x, z) - 0.08 + Math.max(0, e) * 0.2);
+      continue;
+    }
+    const ends = Math.max(0.5, Math.min(1, n.at / CUT_TAPER, (n.length - n.at) / CUT_TAPER));
+    const floor = deckHeight(d, n, x, z) - (d.kind === 'stairs' ? CUT_UNDER.stairs : CUT_UNDER.other) * ends;
+    y = Math.min(y, floor + Math.max(0, n.d - d.width / 2 - CUT_SIDE) * CUT_WALL);
+  }
   const inward = x - HABITATION.bounds.x0;
   if (inward < 24 && y > 0) y *= smooth(inward / 24);
   const b = HABITATION.bounds, out = Math.min(b.x1 - x, z - b.z0, b.z1 - z);
@@ -4867,6 +4888,57 @@ function habitationLand(x, z) {
 }
 const habitationShape = shaped;          // (for drawing: the same ground, not from the squares)
 
+const HABITATION_GROUND = Object.freeze({ step: 2.5, pad: 30, x0: HABITATION.bounds.x0 - 30, z0: HABITATION.bounds.z0 - 30, x1: HABITATION.bounds.x1 + 30, z1: HABITATION.bounds.z1 + 30 });
+const GN = Object.freeze({ x: Math.ceil((HABITATION_GROUND.x1 - HABITATION_GROUND.x0) / HABITATION_GROUND.step) + 1, z: Math.ceil((HABITATION_GROUND.z1 - HABITATION_GROUND.z0) / HABITATION_GROUND.step) + 1 });
+const groundPoints = new Float32Array(GN.x * GN.z).fill(NaN);
+function habitationGroundPoint(i, j) {
+  const k = j * GN.x + i;
+  if (i >= 0 && j >= 0 && i < GN.x && j < GN.z && !Number.isNaN(groundPoints[k])) return groundPoints[k];
+  const G = HABITATION_GROUND, x = G.x0 + i * G.step, z = G.z0 + j * G.step;
+  let y = habitationLand(x, z);
+  if (x < HABITATION.bounds.x0) y = Math.min(y, -0.12);
+  const P = UPRIVER.park;
+  if (x < P.x1 + 1.5 && z > P.z0 - 1.5 && z < P.z1 + 1.5) y = Math.min(y, -0.08);
+  if (i >= 0 && j >= 0 && i < GN.x && j < GN.z) { const f = endFill().get(k); if (f !== undefined && y < f) y = f; groundPoints[k] = y; }
+  return y;
+}
+const END_FILL = Object.freeze({ stairs: 0.4, other: 0.25 });
+let endFills = null;
+function endFill() {
+  if (endFills) return endFills;
+  endFills = new Map();
+  const G = HABITATION_GROUND;
+  for (const d of CUT_DECKS) {
+    for (const last of [false, true]) {
+      if (d.entrance && !last) continue;
+      const [ex, ez] = d.line[last ? d.line.length - 1 : 0], [nx, nz] = d.line[last ? d.line.length - 2 : 1];
+      const l = Math.hypot(nx - ex, nz - ez) || 1, ix = (nx - ex) / l, iz = (nz - ez) / l, half = d.width / 2 - RAIL_IN + 0.2;
+      const top = deckHeight(d, nearLine(d.line, ex + ix * 0.01, ez + iz * 0.01), ex, ez);
+      for (let b = -0.3; b <= 1.5 + 1e-9; b += 0.1) for (let s0 = -half; s0 <= half + 1e-9; s0 += 0.1) {
+        const x = ex - ix * b - iz * s0, z = ez - iz * b + ix * s0;
+        const fi = (x - G.x0) / G.step, fj = (z - G.z0) / G.step, i = Math.floor(fi), j = Math.floor(fj);
+        for (const [ci, cj] of fi - i + (fj - j) <= 1 ? [[i, j], [i + 1, j], [i, j + 1]] : [[i + 1, j + 1], [i, j + 1], [i + 1, j]]) {
+          if (ci < 0 || cj < 0 || ci >= GN.x || cj >= GN.z) continue;
+          const vx = G.x0 + ci * G.step, vz = G.z0 + cj * G.step;
+          if (habitationWaterAt(vx, vz)) continue;
+          const want = Math.min(top, deckHeight(d, nearLine(d.line, vx, vz), vx, vz)) - (d.kind === 'stairs' ? END_FILL.stairs : END_FILL.other), k = cj * GN.x + ci;
+          if (!(endFills.get(k) >= want)) endFills.set(k, want);
+        }
+      }
+    }
+  }
+  return endFills;
+}
+const HABITATION_GROUND_POINTS = GN;
+function habitationGroundAt(x, z) {
+  const G = HABITATION_GROUND, fi = (x - G.x0) / G.step, fj = (z - G.z0) / G.step;
+  const i = Math.floor(fi), j = Math.floor(fj), u = fi - i, v = fj - j;
+  const a = habitationGroundPoint(i, j), b = habitationGroundPoint(i + 1, j), c = habitationGroundPoint(i, j + 1);
+  if (u + v <= 1) return a + (b - a) * u + (c - a) * v;
+  const d = habitationGroundPoint(i + 1, j + 1);
+  return d + (c - d) * (1 - u) + (b - d) * (1 - v);
+}
+
 function habitationWaterAt(x, z) {
   const ground = habitationLand(x, z);
   for (const w of HABITATION_WATERS) {
@@ -4898,14 +4970,118 @@ function habitationDeckAt(x, z) {
     const n = nearLine(d.line, x, z);
     const onPlatform = d.platform && Math.hypot(x - d.platform.x, z - d.platform.z) < d.platform.r;
     if (n.d > d.width / 2 && !onPlatform) continue;
+    if (!onPlatform && d.kind !== 'platform' && (n.at <= 1e-6 || n.at >= n.length - 1e-6)) continue;
     return { deck: d, y: deckHeight(d, n, x, z), along: n.at, of: n.length };
   }
   return null;
 }
+function habitationRailsAt(x, z) {
+  for (const d of HABITATION_DECKS) {
+    if (!d.rails) continue;
+    const out = d.kind === 'stairs' ? CUT_SIDE : RAIL_OUT;
+    if (x < d.bounds.x0 - out || x > d.bounds.x1 + out || z < d.bounds.z0 - out || z > d.bounds.z1 + out) continue;
+    const n = nearLine(d.line, x, z);
+    const along = n.at > 1e-6 && n.at < n.length - 1e-6;
+    const p = d.platform ? Math.hypot(x - d.platform.x, z - d.platform.z) : Infinity;
+    if ((along ? n.d <= d.width / 2 - RAIL_IN : n.d <= d.width / 2) || (d.platform && p <= d.platform.r - RAIL_IN)) continue;
+    if ((along && n.d <= d.width / 2 + out) || p <= (d.platform ? d.platform.r + RAIL_OUT : -1)) return d;
+  }
+  return null;
+}
+function habitationClimbing(x, z, heading) {
+  const d = habitationDeckAt(x, z);
+  if (!d || d.deck.kind !== 'stairs') return false;
+  const ahead = habitationDeckAt(x + Math.sin(heading) * 0.8, z + Math.cos(heading) * 0.8);
+  return !!ahead && ahead.deck === d.deck && ahead.y > d.y + 0.15;
+}
+function habitationAlongDeck(x, z, dx, dz, ok = null) {
+  const step = Math.hypot(dx, dz);
+  if (step < 1e-6) return null;
+  for (const t of deckTurns(x, z, dx, dz, step)) if (t && (!ok || ok(x + t.dx, z + t.dz))) return t;
+  return null;
+}
+function deckTurns(x, z, dx, dz, step) {
+  const toward = (tx, tz) => { const gx = tx - x, gz = tz - z, g = Math.hypot(gx, gz); if (g < 1e-6) return null; const k = Math.min(step, g) / g; return { dx: gx * k, dz: gz * k }; };
+  const here = habitationDeckAt(x, z);
+  if (here && !pastEnd(here.deck, x, z)) {
+    const line = here.deck.line, n = nearLine(line, x, z);
+    const [ax, az] = line[n.seg], [bx, bz] = line[n.seg + 1];
+    const len = Math.hypot(bx - ax, bz - az) || 1, tx = (bx - ax) / len, tz = (bz - az) / len;
+    const along = dx * tx + dz * tz;
+    const cx = ax + (bx - ax) * n.t - x, cz = az + (bz - az) * n.t - z, off = Math.hypot(cx, cz);
+    const pull = off > 1e-6 ? Math.min(off, Math.abs(along) * 0.35) / off : 0;
+    return [{ dx: tx * along + cx * pull, dz: tz * along + cz * pull }, toward(x + cx, z + cz)];
+  }
+  for (const d of HABITATION_DECKS) {
+    if (!d.rails || x < d.bounds.x0 - 3 || x > d.bounds.x1 + 3 || z < d.bounds.z0 - 3 || z > d.bounds.z1 + 3) continue;
+    for (const last of [false, true]) {
+      const [ex, ez] = d.line[last ? d.line.length - 1 : 0], [nx, nz] = d.line[last ? d.line.length - 2 : 1];
+      const l = Math.hypot(nx - ex, nz - ez) || 1, ix = (nx - ex) / l, iz = (nz - ez) / l;
+      const behind = (ex - x) * ix + (ez - z) * iz, side = (x - ex) * -iz + (z - ez) * ix;
+      if (behind < -1e-3 || behind > 2.5 || Math.abs(side) > d.width / 2 + 2.5 || dx * ix + dz * iz < 0.3 * step) continue;
+      return [Math.abs(side) <= d.width / 2 - RAIL_IN - 0.05 ? toward(ex + ix * 0.8, ez + iz * 0.8) : null,
+        toward(ex - ix * behind, ez - iz * behind), toward(ex - ix * END_CLEAR, ez - iz * END_CLEAR), toward(x - ix, z - iz)];
+    }
+  }
+  return [];
+}
+const pastEnd = (d, x, z) => { const n = nearLine(d.line, x, z); return n.at <= 1e-6 || n.at >= n.length - 1e-6; };
+const awayFrom = (d, x, z, seg) => {
+  let best = Infinity;
+  for (let i = 0; i + 1 < d.line.length; i += 1) {
+    if (i === seg) continue;
+    const [ax, az] = d.line[i], [bx, bz] = d.line[i + 1], dx = bx - ax, dz = bz - az, l2 = dx * dx + dz * dz || 1e-9;
+    const u = clamp(((x - ax) * dx + (z - az) * dz) / l2, 0, 1);
+    best = Math.min(best, Math.hypot(ax + dx * u - x, az + dz * u - z));
+  }
+  return best;
+};
+const HABITATION_DECK_POSTS = Object.freeze(HABITATION_DECKS.filter((d) => d.kind !== 'suspension' && d.kind !== 'platform').flatMap((d) => {
+  const out = [], half = d.stone ? 0.11 : 0.06, runs = [0, 0], open = [true, true];
+  for (let s0 = 0.1; s0 <= d.length; s0 += POST_EVERY) {
+    const at = Math.min(s0, d.length - 0.05);
+    let run = 0;
+    for (let i = 0; i + 1 < d.line.length; i += 1) {
+      const [ax, az] = d.line[i], [bx, bz] = d.line[i + 1], len = Math.hypot(bx - ax, bz - az);
+      if (run + len >= at || i === d.line.length - 2) {
+        const t = Math.min(1, Math.max(0, (at - run) / (len || 1))), dx = (bx - ax) / (len || 1), dz = (bz - az) / (len || 1);
+        const px = ax + (bx - ax) * t, pz = az + (bz - az) * t;
+        [-1, 1].forEach((side, k) => {
+          const x = px - dz * side * (d.width / 2 + POST_OUT), z = pz + dx * side * (d.width / 2 + POST_OUT);
+          const onWay = (d.platform && Math.hypot(x - d.platform.x, z - d.platform.z) < d.platform.r + 0.2) || awayFrom(d, x, z, i) < d.width / 2 - RAIL_IN + 0.46;
+          if (onWay) { if (open[k]) { runs[k] += 1; open[k] = false; } return; }
+          open[k] = true;
+          out.push(Object.freeze({ deck: d.id, s: at, side, run: runs[k], x, z, half, end: s0 < 1 || s0 + POST_EVERY > d.length }));
+        });
+        break;
+      }
+      run += len;
+    }
+  }
+  return out;
+}));
+const OVER_RAMP = 4, OVER_END = 0.06;
+const endsLand = new Map();
+function endLands(d, last) {
+  const key = `${d.id}:${last ? 1 : 0}`;
+  if (!endsLand.has(key)) {
+    const [ex, ez] = d.line[last ? d.line.length - 1 : 0], [nx, nz] = d.line[last ? d.line.length - 2 : 1], l = Math.hypot(nx - ex, nz - ez) || 1;
+    const f = landFooting(ex - ((nx - ex) / l) * 1.2, ez - ((nz - ez) / l) * 1.2);
+    endsLand.set(key, !!(f && f.walk));
+  }
+  return endsLand.get(key);
+}
 function deckHeight(d, n, x, z) {
   if (d.over !== undefined) {
-    const w = habitationWaterAt(x, z);
-    return Math.max(w ? w.level : -Infinity, habitationLand(x, z)) + d.over;
+    const [ax, az] = d.line[n.seg], [bx, bz] = d.line[n.seg + 1], len = Math.hypot(bx - ax, bz - az) || 1;
+    const px = ax + (bx - ax) * n.t, pz = az + (bz - az) * n.t, sx = (-(bz - az) / len) * (d.width / 2), sz = ((bx - ax) / len) * (d.width / 2);
+    let under = -Infinity;
+    for (const k of [-1, 0, 1]) {
+      const qx = px + sx * k, qz = pz + sz * k, w = habitationWaterAt(qx, qz);
+      under = Math.max(under, w ? w.level : -Infinity, habitationGroundAt(qx, qz));
+    }
+    const from = Math.min(endLands(d, false) ? n.at : Infinity, endLands(d, true) ? n.length - n.at : Infinity);
+    return under + OVER_END + (d.over - OVER_END) * smooth(from / OVER_RAMP);
   }
   const h = d.heights;
   if (h.length === 1) return h[0];
@@ -4917,14 +5093,24 @@ function deckHeight(d, n, x, z) {
 const WADE = 0.55;
 const STEEP = 1.0;            // a slope steeper than this (metres up for each metre along) is a cliff's face: not stood on
 function habitationSteep(x, z) {
-  const gx = habitationLand(x + 0.5, z) - habitationLand(x - 0.5, z), gz = habitationLand(x, z + 0.5) - habitationLand(x, z - 0.5);
+  const gx = habitationGroundAt(x + 0.5, z) - habitationGroundAt(x - 0.5, z), gz = habitationGroundAt(x, z + 0.5) - habitationGroundAt(x, z - 0.5);
   return Math.hypot(gx, gz) > STEEP;
 }
 function habitationFooting(x, z) {
   const b = HABITATION.bounds;
   if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) return null;
   const deckHere = habitationDeckAt(x, z);
+  const rails = habitationRailsAt(x, z);
+  if (rails) return { walk: false, kind: 'rail', deck: rails.id, ...(deckHere ? { footOnly: true, y: deckHere.y } : {}) };
   if (deckHere) return { walk: true, footOnly: true, kind: deckHere.deck.kind, deck: deckHere.deck.id, y: deckHere.y };
+  return landFooting(x, z);
+}
+function habitationGroundKind(x, z) {
+  const b = HABITATION.bounds;
+  if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) return null;
+  return landFooting(x, z);
+}
+function landFooting(x, z) {
   const w = habitationWaterAt(x, z);
   if (w) {
     if (w.hot) return { walk: false, kind: 'hot', water: w.id, depth: w.depth };
@@ -4941,17 +5127,17 @@ function habitationFooting(x, z) {
   return habitationSteep(x, z) ? { walk: false, kind: 'cliff' } : { walk: true, kind: 'forest' };
 }
 const onHabitation = (x, z) => { const f = habitationFooting(x, z); return !!(f && f.walk); };
-const DECK_END = 2.5, DECK_STEP = 1.1, LAND_STEP = 0.9;
-function deckEnd(d, x, z) { if (!d.deck.rails) return true; return d.along < DECK_END || d.along > d.of - DECK_END; }
+const DECK_STEP = 1.1, LAND_STEP = 0.9;
 function habitationStep(ax, az, bx, bz) {
   const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.4));
   let px = ax, pz = az, pd = habitationDeckAt(ax, az), py = pd ? pd.y : habitationGroundY(ax, az);
   for (let i = 1; i <= n; i += 1) {
     const x = ax + ((bx - ax) * i) / n, z = az + ((bz - az) * i) / n;
+    if (habitationRailsAt(x, z)) return false;
     const d = habitationDeckAt(x, z), y = d ? d.y : habitationGroundY(x, z);
     if (pd && d && pd.deck === d.deck) { /* along the same deck */ }
     else if (pd || d) {
-      if ((pd && !deckEnd(pd, px, pz)) || (d && !deckEnd(d, x, z)) || Math.abs(y - py) > DECK_STEP) return false;
+      if ((pd && pd.deck.rails && !pastEnd(pd.deck, x, z)) || (d && d.deck.rails && !pastEnd(d.deck, px, pz)) || Math.abs(y - py) > DECK_STEP) return false;
     } else if (Math.abs(y - py) > LAND_STEP) return false;
     px = x; pz = z; pd = d; py = y;
   }
@@ -4969,8 +5155,8 @@ const footOnlySaid = (f) => (f && f.kind === 'land' ? 'Get off your vehicle: the
 function habitationGroundY(x, z) {
   const f = habitationFooting(x, z);
   if (!f) return 0;
-  if (f.y !== undefined) return f.y;
-  return habitationLand(x, z);
+  if (f.footOnly) return f.y;
+  return habitationGroundAt(x, z);
 }
 
 const R = UPRIVER.road, PARK = UPRIVER.park, V = UPRIVER.verge;
@@ -4989,10 +5175,6 @@ const HABITATION_GAZEBO_SOLID = Object.freeze(GAZEBO ? GAZEBO_SOLID.map(([mx, mz
   const lx = k * (mx - base[0]), lz = k * (mz - base[2]), c = Math.cos(GAZEBO.r), sn = Math.sin(GAZEBO.r);
   return Object.freeze({ x: GAZEBO.x + lx * c + lz * sn, z: GAZEBO.z - lx * sn + lz * c, half: k * half });
 }) : []);
-const HABITATION_COLLIDERS = Object.freeze([
-  ...HABITATION_STANDING.filter((s) => s.solid > 0).map((s) => box(s.x - s.solid, s.z - s.solid, s.x + s.solid, s.z + s.solid)),
-  ...HABITATION_GAZEBO_SOLID.map((p) => box(p.x - p.half, p.z - p.half, p.x + p.half, p.z + p.half)),
-]);
 const { HABITATION_ROOTS, HABITATION_ROOT_CELL } = __modules["sim/zones/habitation-roots.js"];
 const RG = 0.5, RB = HABITATION.bounds;
 const RNX = Math.ceil((RB.x1 - RB.x0) / RG) + 1, RNZ = Math.ceil((RB.z1 - RB.z0) / RG) + 1;
@@ -5050,8 +5232,25 @@ const HOT_RIVER_SIGNS = Object.freeze([
   ...[-40, 97, 261].map((z, i) => warn(`hot-north-${i + 1}`, 2493, z, -Math.PI / 2)),
   ...[2138, 2270, 2405].map((x, i) => warn(`hot-east-${i + 1}`, x, 441, Math.PI)),
 ]);
+const SWIM = Object.freeze([{ text: 'SWIMMING IN THE SWAMPS', size: 96 }, { text: 'IS NOT ADVISABLE', size: 96 }, { text: 'The water is deep beyond the shallows', size: 58 }]);
+const swim = (id, x, z, facing) => Object.freeze({ id, lines: SWIM, x: x + S, z, facing, width: 5, height: 2.4, palette: Object.freeze(['#ffffff', '#b3261e']), ground: true });
+const HABITATION_SWIM_SIGNS = Object.freeze([
+  swim('swim-lagoon-west-1', 2180.5, 117.5, -2.945), swim('swim-lagoon-west-2', 2260.5, 125, 2.945), swim('swim-island', 2204.5, 193.5, 0.393),
+  swim('swim-sunset-1', 2168, 343.5, 0.196), swim('swim-sunset-2', 2236, 345.5, 0.393), swim('swim-falls-pool', 2358, 310, 3.142),
+  swim('swim-swamp-1', 2024, -31.5, 0), swim('swim-swamp-2', 2098.5, -85.5, 1.571), swim('swim-niger-south', 1959.5, 142.5, 2.945),
+  swim('swim-niger-north', 2000, 303, 0.393), swim('swim-lagoon-east', 2336, 239.5, 1.374),
+]);
+const habitationSignPosts = (s) => [-1, 1].map((side) => [s.x + Math.cos(s.facing) * side * (s.width / 2 - 0.3), s.z - Math.sin(s.facing) * side * (s.width / 2 - 0.3)]);
 
-return { ...__modules["sim/zones/habitation-scene.js"], WATER, HABITATION_SHIFT, habitationNoise, UPRIVER, RIVER_HEAD, riverShore, RIVER_FAR, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, habitationHome, habitationAway, HABITATION_FALLS, HABITATION_HILLS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_SAND, HABITATION_DECKS, habitationLand, habitationShape, habitationWaterAt, hotRiverNear, habitationDeckAt, habitationSteep, habitationFooting, onHabitation, habitationStep, habitationFootOnly, footOnlySaid, habitationGroundY, onUpriver, upriverGroundY, HABITATION_GAZEBO_SOLID, HABITATION_COLLIDERS, HABITATION_ROOT_SQUARES, HABITATION_ROOTS_MADE, habitationRootAt, HABITATION_GATE_SIGN, HOT_RIVER_SIGNS };
+const thin = (x, z, half) => Object.freeze({ ...box(x - half, z - half, x + half, z + half), barrier: true });
+const HABITATION_COLLIDERS = Object.freeze([
+  ...HABITATION_STANDING.filter((s) => s.solid > 0).map((s) => box(s.x - s.solid, s.z - s.solid, s.x + s.solid, s.z + s.solid)),
+  ...HABITATION_GAZEBO_SOLID.map((p) => box(p.x - p.half, p.z - p.half, p.x + p.half, p.z + p.half)),
+  ...HABITATION_DECK_POSTS.filter((p) => p.end).map((p) => thin(p.x, p.z, p.half)),
+  ...[...HOT_RIVER_SIGNS, ...HABITATION_SWIM_SIGNS].flatMap((sign) => habitationSignPosts(sign).map(([x, z]) => thin(x, z, 0.08))),
+]);
+
+return { ...__modules["sim/zones/habitation-scene.js"], WATER, HABITATION_SHIFT, habitationNoise, UPRIVER, RIVER_HEAD, riverShore, RIVER_FAR, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, habitationHome, habitationAway, HABITATION_FALLS, HABITATION_HILLS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_SAND, HABITATION_DECKS, HABITATION_RAILS, habitationLand, habitationShape, HABITATION_GROUND, habitationGroundPoint, HABITATION_GROUND_POINTS, habitationGroundAt, habitationWaterAt, hotRiverNear, habitationDeckAt, habitationRailsAt, habitationClimbing, habitationAlongDeck, HABITATION_DECK_POSTS, habitationSteep, habitationFooting, habitationGroundKind, onHabitation, habitationStep, habitationFootOnly, footOnlySaid, habitationGroundY, onUpriver, upriverGroundY, HABITATION_GAZEBO_SOLID, HABITATION_ROOT_SQUARES, HABITATION_ROOTS_MADE, habitationRootAt, HABITATION_GATE_SIGN, HOT_RIVER_SIGNS, HABITATION_SWIM_SIGNS, habitationSignPosts, HABITATION_COLLIDERS };
 })();
 
 __modules["sim/zones/closures.js"] = (function () {
@@ -5537,7 +5736,7 @@ const { SUPPLIED_VEHICLE_COLLIDERS } = __modules["sim/zones/supplied-vehicles.js
 const { TOWN_TREES } = __modules["sim/zones/atani-trees.js"];
 const { TOWER_COLLIDERS, TOWER_BOXES, standsAt } = __modules["sim/zones/town-buildings.js"];
 const { openClosures, closureColliders, edgeFences, fenceColliders } = __modules["sim/zones/closures.js"];
-const { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt } = __modules["sim/zones/habitation.js"];
+const { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt } = __modules["sim/zones/habitation.js"];
 
 
 const { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } = __modules["sim/zones/atani-town.js"];
@@ -6344,6 +6543,7 @@ function zoneWalkable(x, z, extra = [], radius = 0.4) {
   if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return false;
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
   if (habitationRootAt(x, z, radius)) return false;
+  if (habitationRailsAt(x, z)) return false;
   for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
   return true;
 }
@@ -13494,6 +13694,7 @@ const UPGRADE = Object.freeze({ above: ARRIVAL_FUNDS, parts: 4 });
 const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
 
 const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
+const JUMP_EVERY = 1.4;
 const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
 function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved, wallClock = null }) {
@@ -13764,6 +13965,16 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       if (p.hijack) throw new GameError('BUSY', 'You have your hands full.');
       p.emote = { name, at: state.real };
       return { name };
+    },
+    jump(p) {
+      if (p.driving || p.incar || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined)) throw new GameError('DRIVING', 'Not from a vehicle.');
+      if (p.swimming) throw new GameError('SWIMMING', 'Not in the water.');
+      if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
+      if (p.dead || (p.down && state.real < (p.down.upAt || p.down.until || 0)) || state.real < (p.heldUntil || 0)) throw new GameError('HELD', 'You cannot jump just now.');
+      if (p.jump && state.real - p.jump.at < JUMP_EVERY) throw new GameError('NOT_READY', 'Already in the air.');
+      p.jump = { at: state.real };
+      if (p.emote) p.emote = null;
+      return {};
     },
     'swim.in'(p) {
       if (p.fight) throw new GameError('FIGHTING', 'You are in a fight.');
@@ -14339,7 +14550,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth) },
-      others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
+      others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
     };
   }
@@ -14362,7 +14573,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
 
 const GAME_REFERENCE = Object.freeze({ GOODS, DESIGNS, PAINT_COLOURS, ENERGY, HEALTH, MOVES, COMBAT, LAW, CARE, HIJACK, IMPACT, BODY });
 
-return { TIME_SCALE, SIM_START, SPEED, WALL_EPOCH, wallSeconds, dateOf, clockOf, structureFootprint, ARRIVAL_FUNDS, UPGRADE, upgradeFee, SWIM, createGameSim, GAME_REFERENCE };
+return { TIME_SCALE, SIM_START, SPEED, WALL_EPOCH, wallSeconds, dateOf, clockOf, structureFootprint, ARRIVAL_FUNDS, UPGRADE, upgradeFee, SWIM, JUMP_EVERY, createGameSim, GAME_REFERENCE };
 })();
 
 __modules["sim/host.js"] = (function () {
@@ -16680,7 +16891,7 @@ return { buildCity };
 
 __modules["client/render-world.js"] = (function () {
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE , HABITATION, RIVER_HEAD, UPRIVER } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER } = __modules["sim/zone.js"];
 const { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } = __modules["client/render-kit.js"];
 const { addVehicle } = __modules["client/render-vehicles.js"];
 const { makeVehicleModel } = __modules["client/vehicle-models.js"];
@@ -17140,6 +17351,16 @@ function buildWorld(scene) {
   const ripples = rippleNormalTexture();
   ripples.repeat.set(60, 9);
   const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5);
+  waterMaterial.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vRiverAt;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvRiverAt = (modelMatrix * vec4(position, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vRiverAt;').replace('#include <color_fragment>', `#include <color_fragment>
+      if (vRiverAt.x > ${HABITATION_EDGE.toFixed(1)}) {
+        float shore = 150.0 + 5.0 * sin(vRiverAt.x / 37.0) + 3.0 * sin(vRiverAt.x / 11.0 + 1.0);
+        float depth = min(3.2, 0.04 + max(0.0, min(vRiverAt.z - shore, ${RIVER_FAR.toFixed(1)} - vRiverAt.z)) * 0.16);
+        diffuseColor.a = min(diffuseColor.a, mix(0.5, 1.0, smoothstep(0.55, 0.9, depth)));
+      }`);
+  };
+  waterMaterial.customProgramCacheKey = () => 'pcw-river-shallows';
   const riverFrom = -750, riverTo = RIVER_HEAD;
   const water = new THREE.Mesh(new THREE.PlaneGeometry(riverTo - riverFrom, farEdge - nearEdge + 8, 1, 1), waterMaterial);
   water.rotation.x = -Math.PI / 2;
@@ -19676,29 +19897,29 @@ const { pictureSize } = __modules["client/budget.js"];
 const { carryFalls, createFallDriver, FALL_BONES } = __modules["client/falls.js"];
 
 const ANIMATED = Object.freeze({
-  W1: Object.freeze({ id: 'W1', file: 'woman.glb', text: 'woman.b64.txt', inline: '__PCW_WOMAN_B64', height: 1.70, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', walkSpeed: 1.3, runSpeed: 4.4,
+  W1: Object.freeze({ id: 'W1', file: 'woman.glb', text: 'woman.b64.txt', inline: '__PCW_WOMAN_B64', height: 1.70, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', jump: 'jump_down.001', stairs: 'run_upstairs.001', walkSpeed: 1.3, runSpeed: 4.4,
     react: Object.freeze({ hit: [], fall: ['fall.001', 'defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }) }),
-  M1: Object.freeze({ id: 'M1', file: 'man.glb', text: 'man.b64.txt', inline: '__PCW_MAN_B64', height: 1.80, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', walkSpeed: 1.35, runSpeed: 4.6,
+  M1: Object.freeze({ id: 'M1', file: 'man.glb', moves: 'muscular_male.glb', text: 'man.b64.txt', inline: '__PCW_MAN_B64', height: 1.80, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', jump: '~leap', stairs: '~stairs', walkSpeed: 1.35, runSpeed: 4.6,
     react: Object.freeze({ hit: ['hit_to_head.001'], fall: [], punch: [], heavy: [], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_01.001', 'make_a_call_02.001'] }) }),
-  W2: Object.freeze({ id: 'W2', file: 'athlete.glb', text: 'athlete.b64.txt', inline: '__PCW_ATHLETE_B64', height: 1.72, rig: 'ue', walk: 'walk.001', run: 'run.001', still: '~idle', swim: 'swim.001', walkSpeed: 1.3, runSpeed: 4.6,
+  W2: Object.freeze({ id: 'W2', file: 'athlete.glb', text: 'athlete.b64.txt', inline: '__PCW_ATHLETE_B64', height: 1.72, rig: 'ue', walk: 'walk.001', run: 'run.001', still: '~idle', swim: 'swim.001', jump: '~leap', stairs: '~stairs', walkSpeed: 1.3, runSpeed: 4.6,
     react: Object.freeze({ hit: [], fall: ['fall.001'], punch: [], heavy: [], kick: [], call: ['make_a_call_02.001'] }) }),
-  W3: Object.freeze({ id: 'W3', file: 'police.glb', text: 'police.b64.txt', inline: '__PCW_POLICE_B64', height: 1.80, rig: 'ue', walk: '~walk', run: '~run', still: 'idle.001', swim: '~swim', walkSpeed: 1.35, runSpeed: 4.6,
+  W3: Object.freeze({ id: 'W3', file: 'police.glb', text: 'police.b64.txt', inline: '__PCW_POLICE_B64', height: 1.80, rig: 'ue', walk: '~walk', run: '~run', still: 'idle.001', swim: '~swim', jump: '~leap', stairs: '~stairs', walkSpeed: 1.35, runSpeed: 4.6,
     react: Object.freeze({ hit: [], fall: ['fall.001', 'defeat_03.001'], punch: [], heavy: [], kick: [], call: ['make_a_call_02.001'] }) }),
-  M4: Object.freeze({ id: 'M4', file: 'priest.glb', text: 'priest.b64.txt', inline: '__PCW_PRIEST_B64', height: 1.78, rig: 'mixamo', walk: 'walk', run: '~run', still: '~idle', swim: '~swim', walkSpeed: 1.25, runSpeed: 4.2,
+  M4: Object.freeze({ id: 'M4', file: 'priest.glb', text: 'priest.b64.txt', inline: '__PCW_PRIEST_B64', height: 1.78, rig: 'mixamo', walk: 'walk', run: '~run', still: '~idle', swim: '~swim', jump: '~leap', stairs: '~stairs', walkSpeed: 1.25, runSpeed: 4.2,
     react: Object.freeze({ hit: [], fall: ['fall', 'defeat_03'], punch: [], heavy: [], kick: [], call: ['make_a_call_02'] }) }),
-  M5: Object.freeze({ id: 'M5', file: 'warrior.glb', text: 'warrior.b64.txt', inline: '__PCW_WARRIOR_B64', height: 1.82, rig: 'mixamo', walk: 'walk.001', run: 'run.001', still: '~idle', swim: '~swim', walkSpeed: 1.35, runSpeed: 4.8,
+  M5: Object.freeze({ id: 'M5', file: 'warrior.glb', text: 'warrior.b64.txt', inline: '__PCW_WARRIOR_B64', height: 1.82, rig: 'mixamo', walk: 'walk.001', run: 'run.001', still: '~idle', swim: '~swim', jump: '~leap', stairs: '~stairs', walkSpeed: 1.35, runSpeed: 4.8,
     react: Object.freeze({ hit: ['hit_to_head.001'], fall: [], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }) }),
   ...newFigures([
     ['W4', 'female_figure.glb', 1.68, { swim: 'swim.001' }, { hit: ['hit_to_stomach.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'] }],
     ['W5', 'athletic_outfit.glb', 1.70, { swim: 'swim.001' }, { hit: ['hit_to_stomach.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['W6', 'fashion_model_3.glb', 1.72, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'] }],
-    ['W7', 'zombie_survivor.glb', 1.68, { run: 'run.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'], call: ['make_a_call_02.001'] }],
-    ['W8', 'female_character_2.glb', 1.70, { run: 'run.001', swim: 'swim.001' }, { punch: ['box_01.001'], kick: ['front_kick_02.001'] }],
+    ['W7', 'zombie_survivor.glb', 1.68, { run: 'run.001', swim: 'swim.001', stairs: 'run_upstairs.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'], call: ['make_a_call_02.001'] }],
+    ['W8', 'female_character_2.glb', 1.70, { run: 'run.001', swim: 'swim.001', stairs: 'run_upstairs.001' }, { punch: ['box_01.001'], kick: ['front_kick_02.001'] }],
     ['W9', 'horror_nurse.glb', 1.70, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['W10', 'camouflage_bikini.glb', 1.70, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001'] }],
     ['W11', 'swimwear_model.glb', 1.72, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001'] }],
     ['W12', 'fashion_model_2.glb', 1.74, { swim: 'swim.001' }, { punch: ['box_01.001'] }],
-    ['W13', 'fashion_model_1.glb', 1.68, { swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['W13', 'fashion_model_1.glb', 1.68, { swim: 'swim.001', stairs: 'run_upstairs.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['M6', 'male_figure.glb', 1.82, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M7', 'zombie.glb', 1.80, { walk: 'walk.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['M8', 'horror_character.glb', 1.85, { run: 'run.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
@@ -19706,13 +19927,13 @@ const ANIMATED = Object.freeze({
     ['M10', 'zombie_character.glb', 1.80, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
     ['M11', 'human_character.glb', 1.80, {}, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M12', 'ninja_armor.glb', 1.83, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
-    ['M13', 'ninja_warrior.glb', 1.85, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],          // (its defeat_02, "Slump", ends on its knees, not on the ground: not a fall)
+    ['M13', 'ninja_warrior.glb', 1.85, { walk: 'walk.001', run: 'run.001', swim: 'swim.001', jump: 'jump_down.001', stairs: 'run_upstairs.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],          // (its defeat_02, "Slump", ends on its knees, not on the ground: not a fall)
     ['W14', 'fashion_model_7.glb', 1.72, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'] }],
     ['W15', 'fashion_model_5.glb', 1.66, {}, { hit: ['hit_to_stomach.001', 'hit_to_head.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
     ['M14', 'fashion_model_6.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
-    ['M15', 'patchwork_shirt.glb', 1.82, { swim: 'swim.001' }, { punch: ['box_01.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M15', 'patchwork_shirt.glb', 1.82, { swim: 'swim.001', stairs: 'run_upstairs.001' }, { punch: ['box_01.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['M16', 'nigerian_traditional.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
-    ['M17', 'urban_streetwear.glb', 1.78, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M17', 'urban_streetwear.glb', 1.78, { swim: 'swim.001', stairs: 'run_upstairs.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
   ]),
 });
 function newFigures(list) {
@@ -19720,7 +19941,7 @@ function newFigures(list) {
     const woman = id.startsWith('W');
     return [id, Object.freeze({
       id, file, text: null, inline: null, height, rig: 'mixamo',
-      walk: own.walk || '~walk', run: own.run || '~run', still: '~idle', swim: own.swim || '~swim',
+      walk: own.walk || '~walk', run: own.run || '~run', still: '~idle', swim: own.swim || '~swim', jump: own.jump || '~leap', stairs: own.stairs || '~stairs',
       walkSpeed: woman ? 1.3 : 1.35, runSpeed: woman ? 4.5 : 4.7,
       react: Object.freeze({ hit: [], fall: [], punch: [], heavy: [], kick: [], call: [], ...react }),
     })];
@@ -19740,6 +19961,9 @@ for (const [ue, side] of [['l', 'Left'], ['r', 'Right']]) {
 
 const PRIORITY = Object.freeze({ skill: 1, call: 2, shoot: 3, punch: 3, heavy: 3, kick: 3, shove: 3, hit: 4, fall: 5 });
 const PACE = Object.freeze({ punch: 1.9, heavy: 1.5, kick: 1.35, hit: 1.4, fall: 1.15, call: 1 });
+const JUMP = Object.freeze({ from: 0.85, off: 1.36, on: 2.12, to: 3.05, pace: 1.55, high: 0.45 });
+const STAIRS_PACE = 1.4;
+const FEET = ['foot_l', 'foot_r', 'ball_l', 'ball_r'];
 
 const SEATED_HEIGHT = 0.845;
 const GRIP = { x: 0.25, y: 0.3, z: 0.38 };
@@ -19855,7 +20079,7 @@ function loadAnimated(id) {
     let job;
     if (lightCopy(id)) {
       const began = performance.now(), files = lightFiles(id);
-      job = Promise.all([partsOf(id), loadMoves(spec.file)]).then(([parts]) => {
+      job = Promise.all([partsOf(id), loadMoves(spec.moves || spec.file)]).then(([parts]) => {
         jobs.delete(id);
         const arrived = performance.now();
         const pictures = [];
@@ -19868,7 +20092,7 @@ function loadAnimated(id) {
         });
       }, (error) => { jobs.delete(id); if (loading.get(id) === job) loading.delete(id); logged({ id, bytes: files.bytes, stopped: !!(error && error.stopped), failed: !(error && error.stopped), afterMs: Math.round(performance.now() - began) }); throw error; });
     } else {
-      job = Promise.all([bytesOf(spec), loadMoves(spec.file)]).then(([buffer]) => {
+      job = Promise.all([bytesOf(spec), loadMoves(spec.moves || spec.file)]).then(([buffer]) => {
         const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture() });
         return model.ready.then(() => { const words = figureLabels(model.clips.map((c) => c.name)); return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })) }; });
       });
@@ -19885,7 +20109,7 @@ function warmFigures(ids) {
     const files = lightFiles(id);
     if (!files || loading.has(id)) continue;
     urls.push(here(files.model), ...files.pictures.map((p) => here(p.url)));
-    if (files.moves) loadMoves(ANIMATED[id].file, { ahead: true }).catch(() => {});
+    if (files.moves) loadMoves(ANIMATED[id].moves || ANIMATED[id].file, { ahead: true }).catch(() => {});
   }
   if (urls.length) worker.warm(urls);
 }
@@ -19940,11 +20164,11 @@ function borrowedClip(name, b) {
   return new THREE.AnimationClip(name, b.duration, tracks);
 }
 
-function inPlace(clip, hips, rest) {
+function inPlace(clip, hips, rest, upright = false) {
   const tracks = clip.tracks.map((t) => {
     if (t.name !== `${hips}.position`) return t;
     const values = t.values.slice();
-    for (let i = 0; i < values.length; i += 3) { values[i] = rest.x; values[i + 2] = rest.z; }
+    for (let i = 0; i < values.length; i += 3) { values[i] = rest.x; values[i + 2] = rest.z; if (upright) values[i + 1] = rest.y; }
     return new THREE.VectorKeyframeTrack(t.name, t.times, values);
   });
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
@@ -19980,6 +20204,7 @@ function makeAnimatedRig(id, labelText, shadow = false) {
     loaded: null, bones: null, seated: false,
     doing: null, byHand: null,
     lying: null, drop: 0,
+    jumping: null, jumpLift: 0, climbing: false,
     play(name, fade = 0.3, once = false) {
       rig.chosen = name;
       if (!rig.mixer) return;
@@ -19990,6 +20215,26 @@ function makeAnimatedRig(id, labelText, shadow = false) {
       next.reset(); next.setEffectiveTimeScale(1); next.setEffectiveWeight(1); next.enabled = true; next.play();
       if (rig.current) rig.current.crossFadeTo(next, fade, false);
       rig.current = next;
+    },
+    jump(ago = 0) {
+      const name = spec.jump;
+      if (!rig.mixer || !name || !rig.actions.has(name) || rig.lying || rig.seated || rig.swimming || (rig.doing && !rig.doneDoing())) return false;
+      const t = JUMP.from + Math.max(0, ago) * JUMP.pace;
+      if (t >= JUMP.to) return false;
+      if (rig.emoting) rig.endEmote();
+      rig.doing = null; rig.byHand = null;
+      const at = feetLow();
+      rig.play(name, 0.1, true);
+      const a = rig.actions.get(name);
+      a.time = t; a.setEffectiveTimeScale(JUMP.pace);
+      rig.jumping = { name, at };
+      return true;
+    },
+    endJump(fade = 0.2) {
+      const a = rig.jumping && rig.actions.get(rig.jumping.name);
+      rig.jumping = null;
+      if (a) { a.setLoop(THREE.LoopRepeat, Infinity); a.clampWhenFinished = false; a.paused = false; a.setEffectiveTimeScale(1); }
+      rig.fadeNext = fade;
     },
     clipFor(kind) { const list = (spec.react && spec.react[kind]) || []; return list.find((n) => rig.actions.has(n)) || null; },
     react(kind, { length = 0.4 } = {}) {
@@ -20032,7 +20277,7 @@ function makeAnimatedRig(id, labelText, shadow = false) {
       if (amount > 0.02 && !rig.lying) {
         const name = how === 'hard' || falls.length < 2 ? falls[0] : falls[1];
         if (rig.emoting) rig.endEmote();
-        rig.doing = null; rig.byHand = null;
+        rig.doing = null; rig.byHand = null; rig.jumping = null; rig.jumpLift = 0;
         rig.lying = { name, amount };
         rig.play(name, 0.15, true);
         if (rig.current) rig.current.setEffectiveTimeScale(Math.max(PACE.fall, rig.current.getClip().duration / 2.2));
@@ -20087,11 +20332,34 @@ function makeAnimatedRig(id, labelText, shadow = false) {
       }
       rig.drop += (want - rig.drop) * Math.min(1, dt * (want < rig.drop ? 14 : 3));
       if (Math.abs(rig.drop) < 1e-4) rig.drop = 0;
-      if (!rig.seated) lift.position.y = rig.drop;
+      let jumped = 0;
+      const j = rig.jumping;
+      if (j && rig.bones && !rig.seated && !rig.lying) {
+        const a = rig.actions.get(j.name), t = a ? a.time : JUMP.to;
+        const low = feetLow();
+        if (low < Infinity) {
+          if (j.at === null) j.at = low;
+          const up = low - j.at;                        // how far its feet are drawn up from where they stood
+          const u = Math.max(0, Math.min(1, (t - JUMP.off) / (JUMP.on - JUMP.off))), w = 4 * u * (1 - u);
+          jumped = -up * (1 - w) + JUMP.high * (spec.height / 1.75) * w;
+        }
+      }
+      rig.jumpLift = j ? jumped : rig.jumpLift * Math.max(0, 1 - dt * 10);
+      if (Math.abs(rig.jumpLift) < 1e-4) rig.jumpLift = 0;
+      if (!rig.seated) lift.position.y = rig.drop + rig.jumpLift;
     },
     dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } if (!released) { released = true; releaseModel(id); } },
   };
 
+  function feetLow() {
+    if (!rig.bones) return Infinity;
+    const was = lift.position.y;
+    lift.position.y = 0; holder.updateMatrixWorld(true);
+    let low = Infinity;
+    for (const n of FEET) { const b = rig.bones.get(n); if (b) { holder.worldToLocal(b.getWorldPosition(tmp.a)); low = Math.min(low, tmp.a.y); } }
+    lift.position.y = was;
+    return low;
+  }
   function bend(name, axis, angle) {
     const b = rig.bones.get(name);
     if (!b || !angle) return;
@@ -20139,9 +20407,10 @@ function makeAnimatedRig(id, labelText, shadow = false) {
     const rest = hipBone ? hipBone.position.clone() : new THREE.Vector3();
     for (let clip of model.clips) {
       if (spec.rig === 'mixamo' && (clip.name === spec.walk || clip.name === spec.run)) clip = inPlace(clip, hips, rest);
+      if (spec.rig === 'mixamo' && (clip.name === spec.jump || clip.name === spec.stairs)) clip = inPlace(clip, hips, rest, true);
       const a = rig.mixer.clipAction(clip); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(clip.name, a);
     }
-    for (const [as, b] of Object.entries(borrowedFor(spec.file))) { const a = rig.mixer.clipAction(borrowedClip(`~${as}`, b)); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(`~${as}`, a); }
+    for (const [as, b] of Object.entries(borrowedFor(spec.moves || spec.file))) { const a = rig.mixer.clipAction(borrowedClip(`~${as}`, b)); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(`~${as}`, a); }
     try {
       const skeleton = mesh.skeleton;
       const bind = new Map();
@@ -20172,10 +20441,15 @@ function driveAnimated(rig, dt, speed) {
   rig.idleTime += dt;
   if (rig.fallDriver) {
     const was = rig.fallDriver.phase;
-    if (rig.fallDriver.drive(dt, rig.downState || null)) { rig.lying = null; rig.doing = null; rig.byHand = null; if (rig.emoting) rig.endEmote(); return; }
+    if (rig.fallDriver.drive(dt, rig.downState || null)) { rig.lying = null; rig.doing = null; rig.byHand = null; rig.jumping = null; rig.jumpLift = 0; if (rig.emoting) rig.endEmote(); return; }
     if (was) { const still = rig.actions.get(rig.spec.still); if (still) { still.reset(); if (rig.current && rig.current !== still) rig.current.stop(); still.play(); still.setEffectiveWeight(1); rig.current = still; rig.chosen = rig.spec.still; } }
   }
   if (rig.lying) { rig.mixer.update(dt); rig.afterClips(dt); return; }
+  if (rig.jumping) {
+    const a = rig.actions.get(rig.jumping.name);
+    if (!a || a !== rig.current || rig.held || rig.swimming || rig.seated || a.time >= JUMP.to) rig.endJump();
+    else { rig.mixer.update(dt); rig.afterClips(dt); return; }
+  }
   if (rig.doing) {
     if (rig.held || rig.swimming || rig.seated || (speed > 1.0 && rig.doing.priority < PRIORITY.fall) || rig.doneDoing()) rig.endDoing();
     else { rig.mixer.update(dt); rig.afterClips(dt); return; }
@@ -20195,15 +20469,15 @@ function driveAnimated(rig, dt, speed) {
     if (rig.current) rig.current.setEffectiveTimeScale(Math.max(0.45, Math.min(1.4, 0.45 + rig.speed / 1.6)));
   } else if (!rig.held) {
     const v = rig.speed, s = rig.spec;
-    const want = v > 3.0 ? s.run : v > 0.25 ? s.walk : s.still;
+    const want = rig.climbing && v > 0.25 && s.stairs && rig.actions.has(s.stairs) ? s.stairs : v > 3.0 ? s.run : v > 0.25 ? s.walk : s.still;
     rig.play(want, fade);
-    if (rig.current) rig.current.setEffectiveTimeScale(want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1);
+    if (rig.current) rig.current.setEffectiveTimeScale(want === s.stairs ? Math.max(0.6, Math.min(1.8, v / STAIRS_PACE)) : want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1);
   }
   rig.mixer.update(dt);
   rig.afterClips(dt);
 }
 
-return { ANIMATED, PRIORITY, dropUnusedFigures, heldModels, figureProgress, figureHere, lightCopy, figureTurn, lightFiles, figureLog, loadAnimated, warmFigures, reach, makeAnimatedRig, driveAnimated };
+return { ANIMATED, PRIORITY, JUMP, dropUnusedFigures, heldModels, figureProgress, figureHere, lightCopy, figureTurn, lightFiles, figureLog, loadAnimated, warmFigures, reach, makeAnimatedRig, driveAnimated };
 })();
 
 __modules["client/character.js"] = (function () {
@@ -20731,7 +21005,7 @@ __modules["client/render-crowd.js"] = (function () {
 const { Batch, place, linear, surface } = __modules["client/render-kit.js"];
 const { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } = __modules["client/render-people.js"];
 const { poseFighter } = __modules["client/combat-view.js"];
-const { zoneGroundY } = __modules["sim/zone.js"];
+const { zoneGroundY, habitationClimbing } = __modules["sim/zone.js"];
 const { vehicleMeta } = __modules["client/vehicle-kit.js"];
 const { fallTime, flightAt } = __modules["client/falls.js"];
 
@@ -21180,6 +21454,9 @@ function createCrowd(scene) {
       const em = stance && stance.emote;
       if (em && (!other.emote || other.emote.name !== em.name || em.ago < other.emote.ago - 0.5)) { if (other.rig.animated) other.rig.emote(em.name); other.emoteStart = clockNow - em.ago; }
       other.emote = em || null;
+      const jp = stance ? stance.jump : null;
+      if (jp !== null && jp !== undefined && other.rig.animated && (other.jumpFrom === undefined || Math.abs(clockNow - jp - other.jumpFrom) > 0.4)) { other.jumpFrom = clockNow - jp; other.rig.jump(jp); }
+      other.rig.climbing = !!other.rig.animated && !seated && gap > 0.12 && habitationClimbing(other.x, other.z, other.h);
       if (!other.rig.animated) {
         const len = em ? reactionLength(em.name) : 0;
         const t = em ? clockNow - other.emoteStart : 0;
@@ -33219,6 +33496,7 @@ const ICONS = Object.freeze({
   hand: [PALM, ...FINGERS, { s: 'M3 22.2c1.5-.9 3-.9 4.5 0s3 .9 4.5 0 3-.9 4.5 0 3 .9 4.5 0', w: 1.8 }],
   swim: [[16.8, 6.6, 2.3], { s: 'M3.6 12.2l5-3.2 3.6 2.6 3.4-1.8', w: 2.8 }, { s: 'M8.6 9l2.4-3.6 4.2 1', w: 2.8 }, { s: 'M2.4 16.4c1.6-1 3.2-1 4.8 0s3.2 1 4.8 0 3.2-1 4.8 0 3.2 1 4.8 0', w: 2.2 }, { s: 'M2.4 20.4c1.6-1 3.2-1 4.8 0s3.2 1 4.8 0 3.2-1 4.8 0 3.2 1 4.8 0', w: 2.2 }],
   climb: ['M3 21.4v-3.6h5.6v-3.6h5.6v-3.6h5.6v10.8z', { s: 'M14.6 7.6V2.6', w: 2.6 }, { s: 'M12.2 4.8l2.4-2.4 2.4 2.4', w: 2.6 }],
+  jump: [[12, 3.6, 2.2], { s: 'M12 7.4v5', w: 2.9 }, { s: 'M12 8.6L8.2 5.8', w: 2.6 }, { s: 'M12 8.6l3.8-2.8', w: 2.6 }, { s: 'M12 12.4l-3.4 1.8 1.4 3.2', w: 2.7 }, { s: 'M12 12.4l3.4 1.8-1.4 3.2', w: 2.7 }, { s: 'M3.6 21.2h16.8', w: 2.2 }],
   skills: ['M12.00 1.80 L13.91 7.38 L19.21 4.79 L16.62 10.09 L22.20 12.00 L16.62 13.91 L19.21 19.21 L13.91 16.62 L12.00 22.20 L10.09 16.62 L4.79 19.21 L7.38 13.91 L1.80 12.00 L7.38 10.09 L4.79 4.79 L10.09 7.38Z M12 8.6 L13.2 10.8 L15.4 12 L13.2 13.2 L12 15.4 L10.8 13.2 L8.6 12 L10.8 10.8Z'],
   dance: FIG([12.6, 3.8, 2.2], 'M12.4 7.2l-.8 6.6', 'M12.2 8.6L7.4 5.4', 'M12.2 8.6l4.4 2.4 1.8-2.8', 'M11.6 13.8l-3.8 3 1.2 4', 'M11.6 13.8l3.6 3.2-2 3.6'),
   laugh: [FACE + EYES + ' M7.2 12.8h9.6a4.8 4.8 0 0 1-9.6 0z'],
@@ -39221,7 +39499,7 @@ return { createTorchBeams };
 __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
-const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationLand, habitationAway } = __modules["sim/zone.js"];
+const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway } = __modules["sim/zone.js"];
 const { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } = __modules["sim/sim.js"];
 const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
@@ -39649,7 +39927,7 @@ function start(carried) {
   const rig = createCameraRig(camera, {
     blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
-    terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationLand(x, z) : NaN),
+    terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationGroundAt(x, z) : NaN),
     tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
@@ -41312,6 +41590,7 @@ function start(carried) {
     if (m === 'walking') {
       const list = [main];
       if (!self.critical) list.push({ id: 'run', key: 'Shift', label: 'Run', kind: 'toggle', pressed: input.run, hint: 'Hold Shift, or switch Run on' });
+      if (!self.critical && me && me.animated) list.push({ id: 'jump', key: 'Space', label: 'Jump', icon: 'jump', hint: 'Jump (Space)' });
       if (self.byWater && !self.critical) {
         list.push({ id: 'swim', key: 'q', label: 'Swim', icon: 'swim', hint: 'Go into the river' });
         if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
@@ -41375,6 +41654,19 @@ function start(carried) {
     else if (result.reaction === 'down') ui.toast({ type: 'note', text: `${result.target.name} has had enough.` });
   }
 
+  function jump() {
+    if (mode !== 'walking' || !me || !me.animated || view.self.swimming) return;
+    const result = server.send({ type: 'jump' });
+    if (result.ok) me.jump(0);
+  }
+  let deepToldAt = -99;
+  function deepAhead(x, z) {
+    if (clock - deepToldAt < 30) return;
+    const f = habitationFooting(x, z);
+    if (!f || f.kind !== 'water') return;
+    deepToldAt = clock;
+    ui.toast({ type: 'note', text: 'The water is too deep to wade on here. Swimming in the swamps is not advisable.' });
+  }
   function act(id, phase) {
     if (!playing || !view) return;
     if (id === 'block') {
@@ -41387,6 +41679,7 @@ function start(carried) {
     switch (id) {
       case 'act': pressAct(); break;
       case 'run': controls.setRun(!input.run); break;
+      case 'jump': jump(); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
       case 'horn': { if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
@@ -41717,7 +42010,10 @@ function start(carried) {
       if (after < 0.62 && after < before && before > 1e-3) { const ox = (s.x - predicted.x) / before, oz = (s.z - predicted.z) / before, along = (nx - predicted.x) * ox + (nz - predicted.z) * oz; nx -= ox * along; nz -= oz * along; }
     }
     const ok = (x, z) => zoneWalkable(x, z, boxes) && zoneStep(predicted.x, predicted.z, x, z);
+    const slide = !ok(nx, nz) ? habitationAlongDeck(predicted.x, predicted.z, nx - predicted.x, nz - predicted.z, ok) : null;
+    if (slide) { nx = predicted.x + slide.dx; nz = predicted.z + slide.dz; }
     if (!ok(nx, nz)) {
+      deepAhead(nx, nz);
       if (ok(nx, predicted.z)) nz = predicted.z;
       else if (ok(predicted.x, nz)) nx = predicted.x;
       else { going.speed = 0; return 0; }
@@ -42035,6 +42331,7 @@ function start(carried) {
       if (holding && prompt.intent.type === 'site.work') { const parcel = ZONE_PARCELS.find((p) => p.id === prompt.intent.parcelId); predicted.heading += angleGap(Math.atan2(parcel.cx - predicted.x, parcel.cz - predicted.z), predicted.heading) * Math.min(1, dt * 8); }
       if (holding && prompt.intent.type === 'job.mould') predicted.heading += angleGap(Math.PI, predicted.heading) * Math.min(1, dt * 8);
       me.group.rotation.set(0, predicted.heading, astride ? moto.lean : 0);      // (lean positive: over to the right, into a right turn)
+      me.climbing = !!me.animated && !driving && !riding && !astride && !incar && speed > 0.3 && habitationClimbing(me.group.position.x, me.group.position.z, predicted.heading);
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);

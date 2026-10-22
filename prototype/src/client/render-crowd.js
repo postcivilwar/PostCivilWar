@@ -12,7 +12,7 @@
 import { Batch, place, linear, surface } from './render-kit.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } from './render-people.js';
 import { poseFighter } from './combat-view.js';
-import { zoneGroundY } from '../sim/zone.js';
+import { zoneGroundY, habitationClimbing } from '../sim/zone.js';
 import { vehicleMeta } from './vehicle-kit.js';
 import { fallTime, flightAt } from './falls.js';
 
@@ -518,6 +518,11 @@ export function createCrowd(scene) {
       const em = stance && stance.emote;
       if (em && (!other.emote || other.emote.name !== em.name || em.ago < other.emote.ago - 0.5)) { if (other.rig.animated) other.rig.emote(em.name); other.emoteStart = clockNow - em.ago; }
       other.emote = em || null;
+      // a jump another player has made: their figure's own, from where it has got to in it
+      const jp = stance ? stance.jump : null;
+      if (jp !== null && jp !== undefined && other.rig.animated && (other.jumpFrom === undefined || Math.abs(clockNow - jp - other.jumpFrom) > 0.4)) { other.jumpFrom = clockNow - jp; other.rig.jump(jp); }
+      // (going up the habitation's stairs: their figure's own climb up them)
+      other.rig.climbing = !!other.rig.animated && !seated && gap > 0.12 && habitationClimbing(other.x, other.z, other.h);
       if (!other.rig.animated) {
         const len = em ? reactionLength(em.name) : 0;
         const t = em ? clockNow - other.emoteStart : 0;

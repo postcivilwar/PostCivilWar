@@ -30,17 +30,17 @@ import { carryFalls, createFallDriver, FALL_BONES } from './falls.js';
 //   punch  it throws a punch      heavy  a heavy one      kick  it kicks      call  it talks on the phone
 // A figure with no clip for one of these is moved by hand instead (a flinch, an arm thrown out, laid down flat).
 export const ANIMATED = Object.freeze({
-  W1: Object.freeze({ id: 'W1', file: 'woman.glb', text: 'woman.b64.txt', inline: '__PCW_WOMAN_B64', height: 1.70, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', walkSpeed: 1.3, runSpeed: 4.4,
+  W1: Object.freeze({ id: 'W1', file: 'woman.glb', text: 'woman.b64.txt', inline: '__PCW_WOMAN_B64', height: 1.70, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', jump: 'jump_down.001', stairs: 'run_upstairs.001', walkSpeed: 1.3, runSpeed: 4.4,
     react: Object.freeze({ hit: [], fall: ['fall.001', 'defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }) }),
-  M1: Object.freeze({ id: 'M1', file: 'man.glb', text: 'man.b64.txt', inline: '__PCW_MAN_B64', height: 1.80, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', walkSpeed: 1.35, runSpeed: 4.6,
+  M1: Object.freeze({ id: 'M1', file: 'man.glb', moves: 'muscular_male.glb', text: 'man.b64.txt', inline: '__PCW_MAN_B64', height: 1.80, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', jump: '~leap', stairs: '~stairs', walkSpeed: 1.35, runSpeed: 4.6,
     react: Object.freeze({ hit: ['hit_to_head.001'], fall: [], punch: [], heavy: [], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_01.001', 'make_a_call_02.001'] }) }),
-  W2: Object.freeze({ id: 'W2', file: 'athlete.glb', text: 'athlete.b64.txt', inline: '__PCW_ATHLETE_B64', height: 1.72, rig: 'ue', walk: 'walk.001', run: 'run.001', still: '~idle', swim: 'swim.001', walkSpeed: 1.3, runSpeed: 4.6,
+  W2: Object.freeze({ id: 'W2', file: 'athlete.glb', text: 'athlete.b64.txt', inline: '__PCW_ATHLETE_B64', height: 1.72, rig: 'ue', walk: 'walk.001', run: 'run.001', still: '~idle', swim: 'swim.001', jump: '~leap', stairs: '~stairs', walkSpeed: 1.3, runSpeed: 4.6,
     react: Object.freeze({ hit: [], fall: ['fall.001'], punch: [], heavy: [], kick: [], call: ['make_a_call_02.001'] }) }),
-  W3: Object.freeze({ id: 'W3', file: 'police.glb', text: 'police.b64.txt', inline: '__PCW_POLICE_B64', height: 1.80, rig: 'ue', walk: '~walk', run: '~run', still: 'idle.001', swim: '~swim', walkSpeed: 1.35, runSpeed: 4.6,
+  W3: Object.freeze({ id: 'W3', file: 'police.glb', text: 'police.b64.txt', inline: '__PCW_POLICE_B64', height: 1.80, rig: 'ue', walk: '~walk', run: '~run', still: 'idle.001', swim: '~swim', jump: '~leap', stairs: '~stairs', walkSpeed: 1.35, runSpeed: 4.6,
     react: Object.freeze({ hit: [], fall: ['fall.001', 'defeat_03.001'], punch: [], heavy: [], kick: [], call: ['make_a_call_02.001'] }) }),
-  M4: Object.freeze({ id: 'M4', file: 'priest.glb', text: 'priest.b64.txt', inline: '__PCW_PRIEST_B64', height: 1.78, rig: 'mixamo', walk: 'walk', run: '~run', still: '~idle', swim: '~swim', walkSpeed: 1.25, runSpeed: 4.2,
+  M4: Object.freeze({ id: 'M4', file: 'priest.glb', text: 'priest.b64.txt', inline: '__PCW_PRIEST_B64', height: 1.78, rig: 'mixamo', walk: 'walk', run: '~run', still: '~idle', swim: '~swim', jump: '~leap', stairs: '~stairs', walkSpeed: 1.25, runSpeed: 4.2,
     react: Object.freeze({ hit: [], fall: ['fall', 'defeat_03'], punch: [], heavy: [], kick: [], call: ['make_a_call_02'] }) }),
-  M5: Object.freeze({ id: 'M5', file: 'warrior.glb', text: 'warrior.b64.txt', inline: '__PCW_WARRIOR_B64', height: 1.82, rig: 'mixamo', walk: 'walk.001', run: 'run.001', still: '~idle', swim: '~swim', walkSpeed: 1.35, runSpeed: 4.8,
+  M5: Object.freeze({ id: 'M5', file: 'warrior.glb', text: 'warrior.b64.txt', inline: '__PCW_WARRIOR_B64', height: 1.82, rig: 'mixamo', walk: 'walk.001', run: 'run.001', still: '~idle', swim: '~swim', jump: '~leap', stairs: '~stairs', walkSpeed: 1.35, runSpeed: 4.8,
     react: Object.freeze({ hit: ['hit_to_head.001'], fall: [], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }) }),
   // The eighteen of 16 October 2026 (src/sim/figures.js). The website serves each file as it is (no copy as text:
   // `text` is null), and the copy of the game on disk carries none of them (`inline` is null).
@@ -48,13 +48,13 @@ export const ANIMATED = Object.freeze({
     ['W4', 'female_figure.glb', 1.68, { swim: 'swim.001' }, { hit: ['hit_to_stomach.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'] }],
     ['W5', 'athletic_outfit.glb', 1.70, { swim: 'swim.001' }, { hit: ['hit_to_stomach.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['W6', 'fashion_model_3.glb', 1.72, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'] }],
-    ['W7', 'zombie_survivor.glb', 1.68, { run: 'run.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'], call: ['make_a_call_02.001'] }],
-    ['W8', 'female_character_2.glb', 1.70, { run: 'run.001', swim: 'swim.001' }, { punch: ['box_01.001'], kick: ['front_kick_02.001'] }],
+    ['W7', 'zombie_survivor.glb', 1.68, { run: 'run.001', swim: 'swim.001', stairs: 'run_upstairs.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'], call: ['make_a_call_02.001'] }],
+    ['W8', 'female_character_2.glb', 1.70, { run: 'run.001', swim: 'swim.001', stairs: 'run_upstairs.001' }, { punch: ['box_01.001'], kick: ['front_kick_02.001'] }],
     ['W9', 'horror_nurse.glb', 1.70, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['W10', 'camouflage_bikini.glb', 1.70, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001'] }],
     ['W11', 'swimwear_model.glb', 1.72, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001'] }],
     ['W12', 'fashion_model_2.glb', 1.74, { swim: 'swim.001' }, { punch: ['box_01.001'] }],
-    ['W13', 'fashion_model_1.glb', 1.68, { swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['W13', 'fashion_model_1.glb', 1.68, { swim: 'swim.001', stairs: 'run_upstairs.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['M6', 'male_figure.glb', 1.82, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M7', 'zombie.glb', 1.80, { walk: 'walk.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['M8', 'horror_character.glb', 1.85, { run: 'run.001', swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
@@ -62,14 +62,14 @@ export const ANIMATED = Object.freeze({
     ['M10', 'zombie_character.glb', 1.80, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
     ['M11', 'human_character.glb', 1.80, {}, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
     ['M12', 'ninja_armor.glb', 1.83, {}, { fall: ['defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'] }],
-    ['M13', 'ninja_warrior.glb', 1.85, { walk: 'walk.001', run: 'run.001', swim: 'swim.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],          // (its defeat_02, "Slump", ends on its knees, not on the ground: not a fall)
+    ['M13', 'ninja_warrior.glb', 1.85, { walk: 'walk.001', run: 'run.001', swim: 'swim.001', jump: 'jump_down.001', stairs: 'run_upstairs.001' }, { hit: ['hit_to_head.001', 'hit_to_body_01.001'], fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],          // (its defeat_02, "Slump", ends on its knees, not on the ground: not a fall)
     // the six of 17 October 2026
     ['W14', 'fashion_model_7.glb', 1.72, { swim: 'swim.001' }, { fall: ['fall.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'] }],
     ['W15', 'fashion_model_5.glb', 1.66, {}, { hit: ['hit_to_stomach.001', 'hit_to_head.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001'] }],
     ['M14', 'fashion_model_6.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
-    ['M15', 'patchwork_shirt.glb', 1.82, { swim: 'swim.001' }, { punch: ['box_01.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M15', 'patchwork_shirt.glb', 1.82, { swim: 'swim.001', stairs: 'run_upstairs.001' }, { punch: ['box_01.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['M16', 'nigerian_traditional.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
-    ['M17', 'urban_streetwear.glb', 1.78, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
+    ['M17', 'urban_streetwear.glb', 1.78, { swim: 'swim.001', stairs: 'run_upstairs.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
   ]),
 });
 // [id, file, height, its own walk/run/swim clips (what it lacks is borrowed: ~walk, ~run, ~swim), what shows what
@@ -79,7 +79,7 @@ function newFigures(list) {
     const woman = id.startsWith('W');
     return [id, Object.freeze({
       id, file, text: null, inline: null, height, rig: 'mixamo',
-      walk: own.walk || '~walk', run: own.run || '~run', still: '~idle', swim: own.swim || '~swim',
+      walk: own.walk || '~walk', run: own.run || '~run', still: '~idle', swim: own.swim || '~swim', jump: own.jump || '~leap', stairs: own.stairs || '~stairs',
       walkSpeed: woman ? 1.3 : 1.35, runSpeed: woman ? 4.5 : 4.7,
       react: Object.freeze({ hit: [], fall: [], punch: [], heavy: [], kick: [], call: [], ...react }),
     })];
@@ -104,6 +104,17 @@ for (const [ue, side] of [['l', 'Left'], ['r', 'Right']]) {
 export const PRIORITY = Object.freeze({ skill: 1, call: 2, shoot: 3, punch: 3, heavy: 3, kick: 3, shove: 3, hit: 4, fall: 5 });
 // how fast a clip shown for a blow is played: the files' fighting clips are slower than a blow in the game
 const PACE = Object.freeze({ punch: 1.9, heavy: 1.5, kick: 1.35, hit: 1.4, fall: 1.15, call: 1 });
+// A jump (22 October 2026, the owner: "add jumping animation; if the character has none, add it"): the figure's own
+// "jump down" where its file has one (the woman's, the ninja warrior's), otherwise one of theirs carried onto its own
+// bones (`~leap`), every figure the same way. Played from its crouch (`from`, in the clip's own seconds) to where it
+// stands again (`to`), `pace` times as fast as the file has it, its hips' own travel left out; the feet kept on the
+// ground before it leaves it (`off`) and after it lands (`on`), and between them the body lifted in an arc, `high`
+// metres at its top for a figure 1.75 m tall (afterClips). About 1.4 seconds from the press to standing again.
+export const JUMP = Object.freeze({ from: 0.85, off: 1.36, on: 2.12, to: 3.05, pace: 1.55, high: 0.45 });
+// how quickly the stairs clip goes with the walker's pace (metres a second along the stairs for once through it)
+const STAIRS_PACE = 1.4;
+// the bones the lowest of which is where a figure's feet are
+const FEET = ['foot_l', 'foot_r', 'ball_l', 'ball_r'];
 
 // How high above its own feet a seated figure's seat is, for a figure of height 1: the same number the town
 // uses to put anyone in a seat, so the supplied figures sit where everyone else does.
@@ -244,7 +255,7 @@ export function loadAnimated(id) {
     let job;
     if (lightCopy(id)) {
       const began = performance.now(), files = lightFiles(id);
-      job = Promise.all([partsOf(id), loadMoves(spec.file)]).then(([parts]) => {
+      job = Promise.all([partsOf(id), loadMoves(spec.moves || spec.file)]).then(([parts]) => {
         jobs.delete(id);
         const arrived = performance.now();
         const pictures = [];
@@ -257,7 +268,7 @@ export function loadAnimated(id) {
         });
       }, (error) => { jobs.delete(id); if (loading.get(id) === job) loading.delete(id); logged({ id, bytes: files.bytes, stopped: !!(error && error.stopped), failed: !(error && error.stopped), afterMs: Math.round(performance.now() - began) }); throw error; });
     } else {
-      job = Promise.all([bytesOf(spec), loadMoves(spec.file)]).then(([buffer]) => {
+      job = Promise.all([bytesOf(spec), loadMoves(spec.moves || spec.file)]).then(([buffer]) => {
         const model = modelFromGLB(parseGLB(buffer), { surface, maxTexture: liteTexture() });
         return model.ready.then(() => { const words = figureLabels(model.clips.map((c) => c.name)); return { spec, model, labels: model.clips.map((c, i) => ({ name: c.name, label: words[i] })) }; });
       });
@@ -279,7 +290,7 @@ export function warmFigures(ids) {
     if (!files || loading.has(id)) continue;
     urls.push(here(files.model), ...files.pictures.map((p) => here(p.url)));
     // (its movements on the page itself, where loadAnimated asks for them: one fetch, waited for again if need be)
-    if (files.moves) loadMoves(ANIMATED[id].file, { ahead: true }).catch(() => {});
+    if (files.moves) loadMoves(ANIMATED[id].moves || ANIMATED[id].file, { ahead: true }).catch(() => {});
   }
   if (urls.length) worker.warm(urls);
 }
@@ -342,11 +353,11 @@ function borrowedClip(name, b) {
 // A walk or a run is played where the figure is: a file that carries its figure forward (or holds it a step ahead
 // of its feet) along the ground has that taken out, so that the game alone says where the figure is. Up and down
 // are kept: the body still rises and falls with the stride.
-function inPlace(clip, hips, rest) {
+function inPlace(clip, hips, rest, upright = false) {
   const tracks = clip.tracks.map((t) => {
     if (t.name !== `${hips}.position`) return t;
     const values = t.values.slice();
-    for (let i = 0; i < values.length; i += 3) { values[i] = rest.x; values[i + 2] = rest.z; }
+    for (let i = 0; i < values.length; i += 3) { values[i] = rest.x; values[i + 2] = rest.z; if (upright) values[i + 1] = rest.y; }
     return new THREE.VectorKeyframeTrack(t.name, t.times, values);
   });
   return new THREE.AnimationClip(clip.name, clip.duration, tracks);
@@ -386,6 +397,9 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
     doing: null, byHand: null,
     // lying on the ground: { name, amount } while knocked down, with the clip that took it there (or none)
     lying: null, drop: 0,
+    // in the air, or getting ready to be: { name, at: how high its feet were as it stood } (JUMP), and how far
+    // its body is lifted for it (`jumpLift`); going up stairs (`climbing`, set by whoever draws it)
+    jumping: null, jumpLift: 0, climbing: false,
     // plays one of the file's animations by its name, fading from whatever was playing
     play(name, fade = 0.3, once = false) {
       rig.chosen = name;
@@ -398,6 +412,29 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
       next.reset(); next.setEffectiveTimeScale(1); next.setEffectiveWeight(1); next.enabled = true; next.play();
       if (rig.current) rig.current.crossFadeTo(next, fade, false);
       rig.current = next;
+    },
+    // A jump, from its start (`ago`: seconds since it began, for one seen on another player's screen). Not lying,
+    // seated or in the water, nor in the middle of a blow; a skill being played is ended by it.
+    jump(ago = 0) {
+      const name = spec.jump;
+      if (!rig.mixer || !name || !rig.actions.has(name) || rig.lying || rig.seated || rig.swimming || (rig.doing && !rig.doneDoing())) return false;
+      const t = JUMP.from + Math.max(0, ago) * JUMP.pace;
+      if (t >= JUMP.to) return false;
+      if (rig.emoting) rig.endEmote();
+      rig.doing = null; rig.byHand = null;
+      // (where its feet are as it stands or walks now, before the jump's crouch: the ground, for all of it)
+      const at = feetLow();
+      rig.play(name, 0.1, true);
+      const a = rig.actions.get(name);
+      a.time = t; a.setEffectiveTimeScale(JUMP.pace);
+      rig.jumping = { name, at };
+      return true;
+    },
+    endJump(fade = 0.2) {
+      const a = rig.jumping && rig.actions.get(rig.jumping.name);
+      rig.jumping = null;
+      if (a) { a.setLoop(THREE.LoopRepeat, Infinity); a.clampWhenFinished = false; a.paused = false; a.setEffectiveTimeScale(1); }
+      rig.fadeNext = fade;
     },
     // which of the figure's own clips shows `kind` (PRIORITY), if it has one
     clipFor(kind) { const list = (spec.react && spec.react[kind]) || []; return list.find((n) => rig.actions.has(n)) || null; },
@@ -449,7 +486,7 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
       if (amount > 0.02 && !rig.lying) {
         const name = how === 'hard' || falls.length < 2 ? falls[0] : falls[1];
         if (rig.emoting) rig.endEmote();
-        rig.doing = null; rig.byHand = null;
+        rig.doing = null; rig.byHand = null; rig.jumping = null; rig.jumpLift = 0;
         rig.lying = { name, amount };
         rig.play(name, 0.15, true);
         // down on the ground in a little over two seconds, however long the file's fall is: a knock-down lasts
@@ -518,11 +555,41 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
       }
       rig.drop += (want - rig.drop) * Math.min(1, dt * (want < rig.drop ? 14 : 3));
       if (Math.abs(rig.drop) < 1e-4) rig.drop = 0;
-      if (!rig.seated) lift.position.y = rig.drop;
+      // a jump: the feet where they stood, until it leaves the ground; through the air, the body lifted in an arc;
+      // landing, the feet on the ground again as the knees take it (the clip is played where the figure is: its own
+      // hips do not rise or fall)
+      let jumped = 0;
+      const j = rig.jumping;
+      if (j && rig.bones && !rig.seated && !rig.lying) {
+        const a = rig.actions.get(j.name), t = a ? a.time : JUMP.to;
+        const low = feetLow();
+        if (low < Infinity) {
+          if (j.at === null) j.at = low;
+          const up = low - j.at;                        // how far its feet are drawn up from where they stood
+          // (in the air: from the feet on the ground as it leaves it, to the body `high` up at the top, and down to the
+          // feet on the ground again as it lands; whatever the frames, the same arc)
+          const u = Math.max(0, Math.min(1, (t - JUMP.off) / (JUMP.on - JUMP.off))), w = 4 * u * (1 - u);
+          jumped = -up * (1 - w) + JUMP.high * (spec.height / 1.75) * w;
+        }
+      }
+      // (eased back to the ground over a moment once it is over)
+      rig.jumpLift = j ? jumped : rig.jumpLift * Math.max(0, 1 - dt * 10);
+      if (Math.abs(rig.jumpLift) < 1e-4) rig.jumpLift = 0;
+      if (!rig.seated) lift.position.y = rig.drop + rig.jumpLift;
     },
     dispose() { if (rig.mixer) rig.mixer.stopAllAction(); blob.geometry.dispose(); blob.material.dispose(); if (label) { label.material.map.dispose(); label.material.dispose(); } if (!released) { released = true; releaseModel(id); } },
   };
 
+  // How high the lowest of its feet is in its own frame, as it is posed now, before it is lifted or let down at all.
+  function feetLow() {
+    if (!rig.bones) return Infinity;
+    const was = lift.position.y;
+    lift.position.y = 0; holder.updateMatrixWorld(true);
+    let low = Infinity;
+    for (const n of FEET) { const b = rig.bones.get(n); if (b) { holder.worldToLocal(b.getWorldPosition(tmp.a)); low = Math.min(low, tmp.a.y); } }
+    lift.position.y = was;
+    return low;
+  }
   // Turns a bone about an axis given in the figure's own frame (x its left, y up, z ahead), on top of its pose.
   function bend(name, axis, angle) {
     const b = rig.bones.get(name);
@@ -578,10 +645,13 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
     const rest = hipBone ? hipBone.position.clone() : new THREE.Vector3();
     for (let clip of model.clips) {
       if (spec.rig === 'mixamo' && (clip.name === spec.walk || clip.name === spec.run)) clip = inPlace(clip, hips, rest);
+      // (a jump and going up stairs where the figure is: its hips' own travel up, down and along in the file left out;
+      // the body is lifted for a jump by `afterClips`, and the stairs' own height is the ground's)
+      if (spec.rig === 'mixamo' && (clip.name === spec.jump || clip.name === spec.stairs)) clip = inPlace(clip, hips, rest, true);
       const a = rig.mixer.clipAction(clip); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(clip.name, a);
     }
     // what the file lacks, borrowed (not offered as a skill: it is not the figure's own)
-    for (const [as, b] of Object.entries(borrowedFor(spec.file))) { const a = rig.mixer.clipAction(borrowedClip(`~${as}`, b)); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(`~${as}`, a); }
+    for (const [as, b] of Object.entries(borrowedFor(spec.moves || spec.file))) { const a = rig.mixer.clipAction(borrowedClip(`~${as}`, b)); a.setLoop(THREE.LoopRepeat, Infinity); rig.actions.set(`~${as}`, a); }
     // Falling, lying and getting up (falls.js, 19 October 2026): the stored motion carried onto this figure's own
     // bones, once, from how it was bound (before anything has moved it), and its standing pose to come up into
     try {
@@ -618,12 +688,18 @@ export function driveAnimated(rig, dt, speed) {
   // knocked down, thrown or killed, and getting up: falls.js has the figure (`downState`, set by whoever draws it)
   if (rig.fallDriver) {
     const was = rig.fallDriver.phase;
-    if (rig.fallDriver.drive(dt, rig.downState || null)) { rig.lying = null; rig.doing = null; rig.byHand = null; if (rig.emoting) rig.endEmote(); return; }
+    if (rig.fallDriver.drive(dt, rig.downState || null)) { rig.lying = null; rig.doing = null; rig.byHand = null; rig.jumping = null; rig.jumpLift = 0; if (rig.emoting) rig.endEmote(); return; }
     // up again: standing, from the start of its standing, as the getting up left it
     if (was) { const still = rig.actions.get(rig.spec.still); if (still) { still.reset(); if (rig.current && rig.current !== still) rig.current.stop(); still.play(); still.setEffectiveWeight(1); rig.current = still; rig.chosen = rig.spec.still; } }
   }
   // on the ground: the fall plays to its end and stays there until the figure is got up
   if (rig.lying) { rig.mixer.update(dt); rig.afterClips(dt); return; }
+  // a jump: it plays to its end, walking or running on under it; a seat, the water or a fall ends it
+  if (rig.jumping) {
+    const a = rig.actions.get(rig.jumping.name);
+    if (!a || a !== rig.current || rig.held || rig.swimming || rig.seated || a.time >= JUMP.to) rig.endJump();
+    else { rig.mixer.update(dt); rig.afterClips(dt); return; }
+  }
   // something shown for a blow or a call: it runs to its end; walking off, or getting into a seat or the water, ends it
   if (rig.doing) {
     if (rig.held || rig.swimming || rig.seated || (speed > 1.0 && rig.doing.priority < PRIORITY.fall) || rig.doneDoing()) rig.endDoing();
@@ -647,9 +723,10 @@ export function driveAnimated(rig, dt, speed) {
     if (rig.current) rig.current.setEffectiveTimeScale(Math.max(0.45, Math.min(1.4, 0.45 + rig.speed / 1.6)));
   } else if (!rig.held) {
     const v = rig.speed, s = rig.spec;
-    const want = v > 3.0 ? s.run : v > 0.25 ? s.walk : s.still;
+    // (going up stairs: the figure's own climb up them, or one borrowed, at the pace it goes)
+    const want = rig.climbing && v > 0.25 && s.stairs && rig.actions.has(s.stairs) ? s.stairs : v > 3.0 ? s.run : v > 0.25 ? s.walk : s.still;
     rig.play(want, fade);
-    if (rig.current) rig.current.setEffectiveTimeScale(want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1);
+    if (rig.current) rig.current.setEffectiveTimeScale(want === s.stairs ? Math.max(0.6, Math.min(1.8, v / STAIRS_PACE)) : want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1);
   }
   rig.mixer.update(dt);
   rig.afterClips(dt);

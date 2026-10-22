@@ -281,7 +281,7 @@ return { setHabitationWind, habitationWind, decodePicture, leafMaterial, stoneMa
 
 __modules["client/render-habitation.js"] = (function () {
 
-const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } = __modules["sim/zone.js"];
+const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } = __modules["sim/zone.js"];
 const { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit } = __modules["client/render-kit.js"];
 const { addTree } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
@@ -289,6 +289,7 @@ const { reflects } = __modules["client/render-finish.js"];
 const { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture } = __modules["client/habitation-plants.js"];
 
 const COME = { full: 260, lite: 180 }, GO = { full: 400, lite: 240 };
+const NEAR_GROUND = Object.freeze({ come: 60, go: 90 });
 const ROAD_COME = 380, ROAD_GO = 480;
 const v3 = new THREE.Vector3();
 
@@ -409,39 +410,33 @@ function pillarContact() {
   return mesh;
 }
 const PAVED = new Set(['overlook-terrace', 'overlook-steps', 'garden']);
-function buildGround(step, lite) {
-  const b = HABITATION.bounds;
-  const pad = 30;                          // (a little past its edges, under the forest that hides them)
-  const x0 = b.x0 - pad, z0 = b.z0 - pad, x1 = b.x1 + pad, z1 = b.z1 + pad;
-  const nx = Math.ceil((x1 - x0) / step) + 1, nz = Math.ceil((z1 - z0) / step) + 1;
+function groundData() {
+  const G = HABITATION_GROUND, nx = HABITATION_GROUND_POINTS.x, nz = HABITATION_GROUND_POINTS.z, step = G.step;
   const count = nx * nz;
-  const position = new Float32Array(count * 3), colour = new Float32Array(count * 3), rocky = new Float32Array(count), paved = new Float32Array(count);
-  const heights = new Float32Array(count);
-  const P = UPRIVER.park;
-  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) {
-    const x = x0 + i * step, z = z0 + j * step;
-    let y = habitationLand(x, z);
-    if (x < b.x0) y = Math.min(y, -0.12);
-    if (x < P.x1 + 1.5 && z > P.z0 - 1.5 && z < P.z1 + 1.5) y = Math.min(y, -0.08);
-    heights[j * nx + i] = y;
-  }
+  const heights = new Float32Array(count), tint = new Uint8Array(count * 4), normal = new Int8Array(count * 4);
+  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) heights[j * nx + i] = habitationGroundPoint(i, j);
   const c = new THREE.Color(), t = new THREE.Color();
   const col = (hex) => t.copy(linear(hex));
+  const h = (i, j) => heights[Math.max(0, Math.min(nz - 1, j)) * nx + Math.max(0, Math.min(nx - 1, i))];
   for (let j = 0; j < nz; j += 1) {
     for (let i = 0; i < nx; i += 1) {
-      const k = j * nx + i, x = x0 + i * step, z = z0 + j * step, y = heights[k];
-      position[k * 3] = x; position[k * 3 + 1] = y; position[k * 3 + 2] = z;
-      const hx = heights[j * nx + Math.min(nx - 1, i + 1)] - heights[j * nx + Math.max(0, i - 1)];
-      const hz = heights[Math.min(nz - 1, j + 1) * nx + i] - heights[Math.max(0, j - 1) * nx + i];
+      const k = j * nx + i, x = G.x0 + i * step, z = G.z0 + j * step, y = heights[k];
+      const hx = h(i + 1, j) - h(i - 1, j), hz = h(i, j + 1) - h(i, j - 1);
       const slope = Math.hypot(hx, hz) / (2 * step);
-      const f = habitationFooting(x, z);
+      const nl = Math.hypot(hx / (2 * step), 1, hz / (2 * step));
+      normal[k * 4] = Math.round((-hx / (2 * step) / nl) * 127); normal[k * 4 + 1] = Math.round((1 / nl) * 127); normal[k * 4 + 2] = Math.round((-hz / (2 * step) / nl) * 127);
+      const f = habitationGroundKind(x, z);
+      const rails = habitationRailsAt(x, z);
       const n1 = habitationNoise(x / 7, z / 7), n2 = habitationNoise(x / 23 + 40, z / 23);
-      const kind = f ? f.kind : 'forest';
+      const kind = rails && rails.kind === 'stairs' && f && f.walk ? 'cutting' : f ? f.kind : 'forest';
+      let paved = 0;
       if (kind === 'path') {
-        if (f.surface === 'stone' && PAVED.has(f.path)) paved[k] = 1;
+        if (f.surface === 'stone' && PAVED.has(f.path)) paved = 1;
         c.copy(linear(f.surface === 'mud' ? GROUND.mud : f.surface === 'stone' ? GROUND.stone : f.surface === 'sand' ? GROUND.sand : GROUND.earth));
         c.multiplyScalar(0.9 + 0.2 * n1);
         if (f.surface === 'mud' && n2 > 0.62) c.lerp(col(0x2a2a20), 0.5);          // (puddles: dark, wet)
+      } else if (kind === 'cutting') {
+        c.copy(linear(GROUND.stone)).lerp(col(GROUND.earth), 0.25 * n2).multiplyScalar(0.82 + 0.2 * n1);
       } else if (kind === 'sand') {
         c.copy(linear(GROUND.sand)).multiplyScalar(0.94 + 0.12 * n1);
       } else if (kind === 'grass') {
@@ -456,7 +451,7 @@ function buildGround(step, lite) {
         c.copy(linear(GROUND.floor)).lerp(col(GROUND.moss), n2 * 0.7).lerp(col(GROUND.grass), Math.max(0, n1 - 0.6) * 0.8).multiplyScalar(0.85 + 0.3 * n1);
       }
       if (kind === 'sand' && y < WATER + 0.25) c.lerp(col(GROUND.sandWet), 0.6);
-      if (kind !== 'hot') { const h = hotRiverNear(x, z); if (h.d < 6) c.lerp(col(GROUND.sinter), (1 - h.d / 6) * 0.85).lerp(col(GROUND.rust), Math.max(0, n2 - 0.62) * (1 - h.d / 6)); }
+      if (kind !== 'hot') { const hr = hotRiverNear(x, z); if (hr.d < 6) c.lerp(col(GROUND.sinter), (1 - hr.d / 6) * 0.85).lerp(col(GROUND.rust), Math.max(0, n2 - 0.62) * (1 - hr.d / 6)); }
       const rock = Math.max(0, Math.min(1, (slope - 0.75) / 0.5));
       if (rock > 0) {
         const kindOfRock = rockKindAt(x, z);
@@ -467,36 +462,55 @@ function buildGround(step, lite) {
         t.lerp(linear(moss > 0.62 ? 0x35521f : 0x4d6a2e), Math.min(0.85, cling));
         c.lerp(t, rock);
       }
-      rocky[k] = rock;
-      colour[k * 3] = c.r; colour[k * 3 + 1] = c.g; colour[k * 3 + 2] = c.b;
+      c.convertLinearToSRGB();
+      tint[k * 4] = Math.round(Math.max(0, Math.min(1, c.r)) * 255); tint[k * 4 + 1] = Math.round(Math.max(0, Math.min(1, c.g)) * 255); tint[k * 4 + 2] = Math.round(Math.max(0, Math.min(1, c.b)) * 255);
+      tint[k * 4 + 3] = (paved ? 128 : 0) + Math.round(rock * 127);
     }
   }
-  const index = new (count > 65535 ? Uint32Array : Uint16Array)((nx - 1) * (nz - 1) * 6);
-  let n = 0;
-  for (let j = 0; j + 1 < nz; j += 1) for (let i = 0; i + 1 < nx; i += 1) {
-    const a = j * nx + i, b2 = a + 1, c2 = a + nx, d = c2 + 1;
-    index[n++] = a; index[n++] = c2; index[n++] = b2; index[n++] = b2; index[n++] = c2; index[n++] = d;
+  return { nx, nz, step, x0: G.x0, z0: G.z0, heights, tint, normal };
+}
+function groundPieces(data, every, material) {
+  const nx = Math.floor((data.nx - 1) / every) + 1, nz = Math.floor((data.nz - 1) / every) + 1;
+  const rows = Math.floor(65535 / nx);
+  const group = new THREE.Group(); group.name = 'habitation-ground';
+  group.userData.every = every;
+  for (let r0 = 0; r0 < nz - 1; r0 += rows - 1) {
+    const r1 = Math.min(nz - 1, r0 + rows - 1), n = (r1 - r0 + 1) * nx;
+    const position = new Float32Array(n * 3), tint = new Uint8Array(n * 4), normal = new Int8Array(n * 4);
+    for (let r = r0; r <= r1; r += 1) for (let i = 0; i < nx; i += 1) {
+      const k = (r - r0) * nx + i, src = r * every * data.nx + i * every;
+      position[k * 3] = data.x0 + i * every * data.step; position[k * 3 + 1] = data.heights[src]; position[k * 3 + 2] = data.z0 + r * every * data.step;
+      for (let q = 0; q < 4; q += 1) { tint[k * 4 + q] = data.tint[src * 4 + q]; normal[k * 4 + q] = data.normal[src * 4 + q]; }
+    }
+    const index = new Uint16Array((r1 - r0) * (nx - 1) * 6);
+    let m = 0;
+    for (let r = 0; r < r1 - r0; r += 1) for (let i = 0; i + 1 < nx; i += 1) {
+      const a = r * nx + i, b2 = a + 1, c2 = a + nx, d = c2 + 1;
+      index[m++] = a; index[m++] = c2; index[m++] = b2; index[m++] = b2; index[m++] = c2; index[m++] = d;
+    }
+    const g = new THREE.BufferGeometry();
+    g.setAttribute('position', new THREE.BufferAttribute(position, 3));
+    g.setAttribute('normal', new THREE.BufferAttribute(normal, 4, true));
+    g.setAttribute('tint', new THREE.BufferAttribute(tint, 4, true));
+    g.setIndex(new THREE.BufferAttribute(index, 1));
+    g.computeBoundingSphere();
+    const mesh = new THREE.Mesh(g, material);
+    mesh.name = 'habitation-ground'; mesh.receiveShadow = true;
+    group.add(mesh);
   }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.BufferAttribute(position, 3));
-  g.setAttribute('color', new THREE.BufferAttribute(colour, 3));
-  g.setAttribute('rocky', new THREE.BufferAttribute(rocky, 1));
-  g.setAttribute('paved', new THREE.BufferAttribute(paved, 1));
-  g.setIndex(new THREE.BufferAttribute(index, 1));
-  g.computeVertexNormals();
-  g.computeBoundingSphere();
-  return g;
+  return group;
 }
 function groundMaterial({ grain, stone, lite }) {
-  const m = new THREE.MeshStandardMaterial({ vertexColors: true, map: grain, roughness: 1, metalness: 0 });
+  const m = new THREE.MeshStandardMaterial({ map: grain, roughness: 1, metalness: 0 });
   m.onBeforeCompile = (shader) => {
     shader.uniforms.uStone = { value: stone };
     shader.vertexShader = shader.vertexShader
-      .replace('#include <common>', '#include <common>\nattribute float rocky;\nattribute float paved;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;')
-      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvRocky = rocky;\nvPaved = paved;\nvWorld = (modelMatrix * vec4(position, 1.0)).xyz;\nvWorldNormal = normal;')
+      .replace('#include <common>', '#include <common>\nattribute vec4 tint;\nvarying vec3 vTint;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;')
+      .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTint = mix(tint.rgb / 12.92, pow((tint.rgb + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), tint.rgb));\nfloat packed = floor(tint.a * 255.0 + 0.5);\nvPaved = step(127.5, packed);\nvRocky = (packed - 128.0 * vPaved) / 127.0;\nvWorld = (modelMatrix * vec4(position, 1.0)).xyz;\nvWorldNormal = normal;')
       .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (modelMatrix * vec4(position, 1.0)).xz / 2.6;\n#endif');
     shader.fragmentShader = shader.fragmentShader
-      .replace('#include <common>', '#include <common>\nuniform sampler2D uStone;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;\nfloat paveHash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }')
+      .replace('#include <common>', '#include <common>\nuniform sampler2D uStone;\nvarying vec3 vTint;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;\nfloat paveHash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }')
+      .replace('#include <color_fragment>', 'diffuseColor.rgb *= vTint;')
       .replace('#include <map_fragment>', `
       #ifdef USE_MAP
         vec4 texelColor = mapTexelToLinear(texture2D(map, vUv));
@@ -576,6 +590,9 @@ function waterMaterial(kind, { ripples, lite }) {
         diffuseColor.rgb = c;
         /* see-through where shallow, more and more solid where deep */
         diffuseColor.a = mix(uClear, uMost, smoothstep(0.0, 1.0, pow(d, 0.7)));
+        /* and wherever it can be waded (up to 0.55 m), never more than half solid: a walker's legs are seen in it, faintly
+           (22 October 2026, the owner: "players' feet must be seen always, except in water: there, at low opacity") */
+        diffuseColor.a = min(diffuseColor.a, mix(0.5, 1.0, smoothstep(0.55, 0.9, vDepth)));
         /* foam: a broken line where it meets the shore, and in a stream wherever it rushes */
         float edge = 1.0 - smoothstep(0.0, 0.12, vDepth);
         float n = vnoise(vWorldPos.xz * 1.7 + vec2(uTime * 0.3, uTime * 0.2)) * vnoise(vWorldPos.xz * 4.1 - vec2(uTime * 0.5, 0.0));
@@ -657,7 +674,7 @@ function buildStill(w, step) {
   const b = w.bounds;
   const nx = Math.ceil((b.x1 - b.x0) / step) + 1, nz = Math.ceil((b.z1 - b.z0) / step) + 1;
   const pos = [], depth = [], keep = new Int32Array(nx * nz).fill(-1), idx = [];
-  const ground = (x, z) => habitationLand(x, z);
+  const ground = (x, z) => habitationGroundAt(x, z);
   const wet = new Uint8Array(nx * nz);
   for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) {
     const x = b.x0 + i * step, z = b.z0 + j * step;
@@ -716,7 +733,7 @@ function buildStream(s, step = 1.5) {
     for (const side of [-1, 0, 1]) {
       const px = x + sx * half * side, pz = z + sz * half * side;
       pos.push(px, level + 0.02, pz);
-      depth.push(Math.max(0.02, level - habitationLand(px, pz)));
+      depth.push(Math.max(0.02, level - habitationGroundAt(px, pz)));
       rush.push(side === 0 ? r : r * 0.6);
       flow.push(dx / dl, dz / dl);
     }
@@ -822,7 +839,7 @@ function buildHotRiver(step) {
     for (const side of [-1, -0.5, 0, 0.5, 1]) {
       const px = x + sx * half * side, pz = z + sz * half * side;
       pos.push(px, level + 0.02, pz);
-      depth.push(Math.max(0.02, level - habitationLand(px, pz)));
+      depth.push(Math.max(0.02, level - habitationGroundAt(px, pz)));
     }
     if (k > 0) {
       const a = (k - 1) * 5, b2 = k * 5;
@@ -1156,21 +1173,22 @@ function buildDecks(woodMat, ropeMat, stoneMat) {
       if (d.stone) stone.box(p.x, y - 0.12, p.z, across, up, along, d.width, 0.24, pitch * 0.98, shade, 0.5);
       else wood.box(p.x, y - 0.025, p.z, across, up, along, d.width * (0.97 + 0.06 * habitationNoise(s * 7, 3)), 0.05, pitch * (stair ? 0.95 : 0.82), shade, 0.5, [habitationNoise(s * 5.3, 1.7) * 7, habitationNoise(s * 3.7, 9.1) * 7]);
     }
-    const rails = [[], []];
-    for (let s = 0.1; s <= L; s += 2.4) {
-      const p = at(Math.min(s, L - 0.05));
+    const rails = new Map();
+    for (const post of HABITATION_DECK_POSTS) {
+      if (post.deck !== d.id) continue;
+      const p = at(post.s);
       const y = heightAt(p.x, p.z, last);
-      const ground = Math.min(habitationLand(p.x, p.z), (habitationWaterAt(p.x, p.z) || { level: y }).level) - 0.4;
-      [-1, 1].forEach((side, k) => {
-        const px = p.x - p.dz * side * (d.width / 2 + 0.05), pz = p.z + p.dx * side * (d.width / 2 + 0.05);
-        const top = y + (d.rails ? 1.0 : 0.15), bottom = Math.min(ground, y - 0.3);
-        if (!d.stone) wood.box(px, (top + bottom) / 2, pz, new THREE.Vector3(1, 0, 0), up, new THREE.Vector3(0, 0, 1), 0.12, top - bottom, 0.12, 0.8, 0.5);
-        else stone.box(px, (top + y) / 2, pz, new THREE.Vector3(1, 0, 0), up, new THREE.Vector3(0, 0, 1), 0.22, top - y, 0.22, 0.9, 0.5);
-        rails[k].push(new THREE.Vector3(px, y + 0.95, pz));
-      });
-      posts.push(s);
+      const ground = Math.min(habitationGroundAt(p.x, p.z), (habitationWaterAt(p.x, p.z) || { level: y }).level) - 0.4;
+      const px = post.x, pz = post.z;
+      const top = y + (d.rails ? 1.0 : 0.15), bottom = Math.min(ground, y - 0.3);
+      if (!d.stone) wood.box(px, (top + bottom) / 2, pz, new THREE.Vector3(1, 0, 0), up, new THREE.Vector3(0, 0, 1), 0.12, top - bottom, 0.12, 0.8, 0.5);
+      else stone.box(px, (top + y) / 2, pz, new THREE.Vector3(1, 0, 0), up, new THREE.Vector3(0, 0, 1), 0.22, top - y, 0.22, 0.9, 0.5);
+      const key = `${post.side}:${post.run}`;
+      if (!rails.has(key)) rails.set(key, []);
+      rails.get(key).push(new THREE.Vector3(px, y + 0.95, pz));
+      posts.push(post.s);
     }
-    if (d.rails) for (const line of rails) {
+    if (d.rails) for (const line of rails.values()) {
       if (line.length < 2) continue;
       if (d.ropes) {
         const pts = [];
@@ -1213,12 +1231,13 @@ function buildUpriver(lite) {
 }
 
 const signPictures = new Map();
+const signLines = (s) => s.lines.map((line, i) => (typeof line === 'string' ? { text: line, size: i === 0 ? 88 : 60 } : line));
 function signPicture(s, lite) {
-  const key = `${s.lines.join('|')}|${s.palette.join('|')}|${s.width}x${s.height}|${lite ? 'lite' : 'full'}`;
+  const key = `${signLines(s).map((l) => `${l.text}@${l.size}`).join('|')}|${s.palette.join('|')}|${s.width}x${s.height}|${lite ? 'lite' : 'full'}`;
   let texture = signPictures.get(key);
   if (!texture) {
     const [ink, ground] = s.palette;
-    texture = textTexture(s.lines.map((text, i) => ({ text, size: i === 0 ? 88 : 60 })), { width: 1024, height: Math.round((1024 * s.height) / s.width / 32) * 32, background: ground, colour: ink, border: ink, size: 70, scale: lite ? 0.5 : 1 });
+    texture = textTexture(signLines(s), { width: 1024, height: Math.round((1024 * s.height) / s.width / 32) * 32, background: ground, colour: ink, border: ink, size: 70, scale: lite ? 0.5 : 1 });
     signPictures.set(key, texture);
   }
   return texture;
@@ -1239,21 +1258,22 @@ function roadSign(s, lite = false) {
   back.position.set(0, 1.3 + s.height / 2, -0.03); back.rotation.y = Math.PI;
   group.add(board, back);
   for (const side of [-1, 1]) {
-    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.3 + s.height, 8), new THREE.MeshStandardMaterial({ color: linear(0x8a8f92), roughness: 0.5, metalness: 0.6 }));
-    post.position.set(side * (s.width / 2 - 0.3), (1.3 + s.height) / 2, -0.06);
+    const post = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.9 + s.height, 8), new THREE.MeshStandardMaterial({ color: linear(0x8a8f92), roughness: 0.5, metalness: 0.6 }));
+    post.position.set(side * (s.width / 2 - 0.3), (1.3 + s.height) / 2 - 0.3, -0.06);
     post.castShadow = true;
     group.add(post);
   }
-  group.position.set(s.x, s.ground ? habitationLand(s.x, s.z) - 0.1 : 0, s.z);
+  group.position.set(s.x, s.ground ? habitationGroundAt(s.x, s.z) - 0.1 : 0, s.z);
   group.rotation.y = s.facing;
   return group;
 }
 
-function hotSignsMerged(lite) {
+function hotSignsMerged(lite) { return signsMerged(HOT_RIVER_SIGNS, 'hot', lite); }
+function signsMerged(list, name, lite) {
   const boards = new Batch({ uv: 'keep' }), steel = new Batch({ uv: 'keep' });
-  const group = new THREE.Group(); group.name = 'hot-signs';
+  const group = new THREE.Group(); group.name = `${name}-signs`;
   let boardMaterial = null;
-  for (const s of HOT_RIVER_SIGNS) {
+  for (const s of list) {
     const sign = roadSign(s, lite);
     sign.updateMatrixWorld(true);
     for (const part of sign.children) {
@@ -1264,8 +1284,8 @@ function hotSignsMerged(lite) {
     const marker = new THREE.Object3D(); marker.name = sign.name; marker.position.copy(sign.position); marker.rotation.copy(sign.rotation);
     group.add(marker);
   }
-  const board = boards.build(boardMaterial); board.name = 'hot-sign-boards';
-  const posts = steel.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.45 })); posts.name = 'hot-sign-posts'; posts.castShadow = true;
+  const board = boards.build(boardMaterial); board.name = `${name}-sign-boards`;
+  const posts = steel.build(new THREE.MeshStandardMaterial({ vertexColors: true, roughness: 0.6, metalness: 0.45 })); posts.name = `${name}-sign-posts`; posts.castShadow = true;
   group.add(board, posts);
   return group;
 }
@@ -1469,7 +1489,7 @@ function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () =
       const copies = list.map((p) => {
         const scale = p.s / (info ? info.unit : 1);
         const base = info ? info.base : [0, 0, 0];
-        const y = p.y !== null ? p.y : habitationLand(p.x, p.z);
+        const y = p.y !== null ? p.y : habitationGroundAt(p.x, p.z);
         q.setFromAxisAngle(up, p.r);
         sc.setScalar(scale);
         off.set(base[0] * scale, base[1] * scale, base[2] * scale).applyQuaternion(q);
@@ -1600,7 +1620,15 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     upriver = buildUpriver(lite);
     scene.add(upriver);
   }
-  function build() {
+  function swapGround(every) {
+    const old = built.ground;
+    const next = groundPieces(built.groundPoints, every, built.groundMat);
+    built.group.add(next); built.group.remove(old);
+    old.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
+    built.ground = next;
+    stats.groundSwaps = (stats.groundSwaps || 0) + 1;
+  }
+  function build(away = 0) {
     if (built || building) return;
     building = true;
     const t0 = performance.now();
@@ -1610,8 +1638,9 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     const ripples = rippleNormalTexture(lite ? 128 : 256);
     ripples.wrapS = ripples.wrapT = THREE.RepeatWrapping;
     const stone = stoneTexture(lite ? 256 : 512);
-    const ground = new THREE.Mesh(buildGround(lite ? 5 : 2.5, lite), groundMaterial({ grain, stone, lite }));
-    ground.name = 'habitation-ground'; ground.receiveShadow = true;
+    const groundPoints = groundData();
+    const groundMat = groundMaterial({ grain, stone, lite });
+    const ground = groundPieces(groundPoints, lite && away > NEAR_GROUND.come ? 2 : 1, groundMat);
     group.add(ground);
     const waters = [];
     const materials = {};
@@ -1634,6 +1663,8 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     group.add(steam.mesh);
     const hotSigns = hotSignsMerged(lite);
     group.add(hotSigns);
+    const swimSigns = signsMerged(HABITATION_SWIM_SIGNS, 'swim', lite);
+    group.add(swimSigns);
     const apron = buildApron(lite);
     group.add(apron);
     const hills = buildHills(lite);
@@ -1668,7 +1699,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) { placed.failed = (placed.failed || []).concat(m); onError(error, m); } } });
     let triangles = 0;
     group.traverse((o) => { if (o.isMesh && o.geometry.index && !o.isInstancedMesh) triangles += o.geometry.index.count / 3; });
-    built = { group, waters, falls, ground, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies, hills, contact, hotMaterial, steam, hotSigns, apron };
+    built = { group, waters, falls, ground, groundPoints, groundMat, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies, hills, contact, hotMaterial, steam, hotSigns, swimSigns, apron };
     placed.loading.then(() => { if (!placed.stopped) stats.modelsMs = Math.round(performance.now() - t0); });
     stats.builds += 1; stats.buildMs = Math.round(performance.now() - t0); stats.triangles = triangles;
     building = false;
@@ -1680,7 +1711,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     root.remove(gone.group);
     gone.group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); else if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
     for (const m of Object.values(gone.materials)) m.dispose();
-    for (const m of [gone.woodMat, gone.ropeMat, gone.stoneMat, gone.pillarMat, gone.ground.material]) m.dispose();
+    for (const m of [gone.woodMat, gone.ropeMat, gone.stoneMat, gone.pillarMat, gone.groundMat]) m.dispose();
     for (const t of [gone.grain, gone.ripples, gone.stone, gone.textures.sheet, gone.textures.puff, gone.textures.foam]) t.dispose();
     for (const f of gone.falls) { f.map.dispose(); f.sheet.material.dispose(); f.veil.material.map.dispose(); f.veil.material.dispose(); f.foam.material.dispose(); f.foam.geometry.dispose(); for (const s of f.puffs) s.material.dispose(); }
     if (gone.impostors) gone.impostors.dispose();
@@ -1690,6 +1721,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     gone.contact.userData.map.dispose(); gone.contact.material.dispose();
     gone.hotMaterial.dispose(); gone.steam.dispose(); gone.apron.material.dispose();
     letSignsGo(gone.hotSigns);
+    letSignsGo(gone.swimSigns);
     const placed = gone.placed;
     if (placed) { placed.stopped = true; for (const e of placed.models.values()) e.model.dispose(); }
     for (const p of sharedPictures.values()) p.then((t) => t.dispose(), () => {});
@@ -1710,8 +1742,9 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
       letSignsGo(upriver);
       upriver = null;
     }
-    if (!built && !building && away < COME[lite ? 'lite' : 'full']) { try { build(); } catch (error) { building = false; onError(error); } }
+    if (!built && !building && away < COME[lite ? 'lite' : 'full']) { try { build(away); } catch (error) { building = false; onError(error); } }
     if (built && away > GO[lite ? 'lite' : 'full']) letGo();
+    if (built && lite) { const every = built.ground.userData.every; if (every === 2 && away < NEAR_GROUND.come) swapGround(1); else if (every === 1 && away > NEAR_GROUND.go) swapGround(2); }
     if (built) {
       for (const f of built.falls) f.update(dt, time);
       if (built.placed) { chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn); sleepModels(built.placed, sharedTextures); }
@@ -1728,7 +1761,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     get root() { return root; },
     get impostors() { return built ? built.impostors : null; },
     build, letGo,
-    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
+    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, swimSigns: built ? built.swimSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, groundEvery: built ? built.ground.userData.every : 0, groundPieces: built ? built.ground.children.length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
   };
 }
 
@@ -1805,7 +1838,7 @@ function createMeadow(scene, { lite = false } = {}) {
     const [x, z] = candidates[i];
     const k = grows(x, z);
     if (!k || habitationNoise(x / 6, z / 6) > 0.35 + k * 0.5) continue;
-    const y = habitationLand(x, z);
+    const y = habitationGroundAt(x, z);
     const s = 0.8 + habitationNoise(i, 5.1) * 0.9;
     q.setFromAxisAngle(up, habitationNoise(i, 7.3) * 6.28);
     m4.compose(at.set(x, y - 0.02, z), q, sc.set(s, s * (0.8 + habitationNoise(i, 9.1) * 0.7), s));
@@ -1851,7 +1884,7 @@ return { createHabitation, createMeadow };
 
 __modules["client/render-habitation-life.js"] = (function () {
 
-const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_PATHS, HABITATION_SHIFT, habitationWaterAt, habitationLand, habitationFooting } = __modules["sim/zone.js"];
+const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_PATHS, HABITATION_SHIFT, habitationWaterAt, habitationLand, habitationGroundAt, habitationFooting } = __modules["sim/zone.js"];
 const { linear } = __modules["client/render-kit.js"];
 
 function dice(seed) {
@@ -2042,7 +2075,7 @@ function createHabitationLife(scene, { lite = false } = {}) {
   for (const p of HABITATION_STANDING) {
     const info = HABITATION_MODELS[p.m];
     if (!info) continue;
-    const ground = p.y !== null ? p.y : habitationLand(p.x, p.z);
+    const ground = p.y !== null ? p.y : habitationGroundAt(p.x, p.z);
     if (info.kind === 'tree' || info.kind === 'palm') crowns.push({ x: p.x, y: ground + p.s * (info.kind === 'palm' ? 0.93 : 0.86), z: p.z, high: p.s });
     else if (info.kind === 'shrub' || info.kind === 'banana' || info.kind === 'herb') bushes.push({ x: p.x, y: ground + p.s * 0.92, z: p.z, high: p.s });
     else if (info.kind === 'rock') { const w = habitationWaterAt(p.x + 1.5, p.z) || habitationWaterAt(p.x - 1.5, p.z) || habitationWaterAt(p.x, p.z + 1.5) || habitationWaterAt(p.x, p.z - 1.5); if (w && w.kind !== 'river') waterside.push({ x: p.x, y: ground + p.s * 0.85, z: p.z, water: w }); }
@@ -2055,7 +2088,7 @@ function createHabitationLife(scene, { lite = false } = {}) {
     for (let d = 2; d < len; d += 5) for (const side of [-1, 1]) {
       const off = p.width / 2 + 1.5 + rand() * 3, x = ax + ((bx - ax) * d) / len - ((bz - az) / len) * side * off, z = az + ((bz - az) * d) / len + ((bx - ax) / len) * side * off;
       const f = habitationFooting(x, z);
-      if (f && f.walk && !f.deck && f.kind !== 'shallows') verges.push({ x, y: habitationLand(x, z), z, ground: true });
+      if (f && f.walk && !f.deck && f.kind !== 'shallows') verges.push({ x, y: habitationGroundAt(x, z), z, ground: true });
     }
   }
   for (let i = 0; i < 2400 && wading.length < 160; i += 1) {
@@ -2411,7 +2444,7 @@ function createHabitationLife(scene, { lite = false } = {}) {
       const f = habitationFooting(p.x, p.z);
       if (!f || (f.kind !== 'sand' && !(f.kind === 'path' && f.surface === 'sand'))) continue;
       const px = p.x + Math.cos(h) * 0.11 * w.side, pz = p.z - Math.sin(h) * 0.11 * w.side;
-      printList.push({ x: px, y: habitationLand(px, pz) + 0.015, z: pz, h, age: 0 });
+      printList.push({ x: px, y: habitationGroundAt(px, pz) + 0.015, z: pz, h, age: 0 });
       if (printList.length > PRINTS) printList.shift();
     }
     for (const key of walkers.keys()) if (!seen.has(key)) walkers.delete(key);

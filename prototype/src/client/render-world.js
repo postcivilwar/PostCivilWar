@@ -3,7 +3,7 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE , HABITATION, RIVER_HEAD, UPRIVER } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
@@ -521,6 +521,19 @@ export function buildWorld(scene) {
   ripples.repeat.set(60, 9);
   // (the river gives back the sky, broken by its ripples: render-finish.js)
   const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5);
+  // (where it runs through the habitation it is waded along its banks: there, as deep as one can wade, it is never more
+  // than half solid, so that a walker's legs are seen in it, faintly; its bed as the habitation's ground has it,
+  // zones/habitation.js `shaped`: 22 October 2026)
+  waterMaterial.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vRiverAt;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvRiverAt = (modelMatrix * vec4(position, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vRiverAt;').replace('#include <color_fragment>', `#include <color_fragment>
+      if (vRiverAt.x > ${HABITATION_EDGE.toFixed(1)}) {
+        float shore = 150.0 + 5.0 * sin(vRiverAt.x / 37.0) + 3.0 * sin(vRiverAt.x / 11.0 + 1.0);
+        float depth = min(3.2, 0.04 + max(0.0, min(vRiverAt.z - shore, ${RIVER_FAR.toFixed(1)} - vRiverAt.z)) * 0.16);
+        diffuseColor.a = min(diffuseColor.a, mix(0.5, 1.0, smoothstep(0.55, 0.9, depth)));
+      }`);
+  };
+  waterMaterial.customProgramCacheKey = () => 'pcw-river-shallows';
   // (from far beyond the town's south end up to where it opens into the habitation's lagoon)
   const riverFrom = -750, riverTo = RIVER_HEAD;
   const water = new THREE.Mesh(new THREE.PlaneGeometry(riverTo - riverFrom, farEdge - nearEdge + 8, 1, 1), waterMaterial);

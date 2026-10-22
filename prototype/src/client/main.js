@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationLand, habitationAway } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -507,7 +507,9 @@ function start(carried) {
     blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
     // (the habitation's land: its hills, cliffs and gorges stand between the camera and the player as walls do)
-    terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationLand(x, z) : NaN),
+    // (the ground as it is drawn: 22 October 2026, the eye kept above the simulation's own finer ground went under the
+    // coarser ground a phone drew, and the player saw the ground from below)
+    terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationGroundAt(x, z) : NaN),
     tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
@@ -2414,6 +2416,8 @@ function start(carried) {
     if (m === 'walking') {
       const list = [main];
       if (!self.critical) list.push({ id: 'run', key: 'Shift', label: 'Run', kind: 'toggle', pressed: input.run, hint: 'Hold Shift, or switch Run on' });
+      // (22 October 2026, the owner: a jump, every figure's own)
+      if (!self.critical && me && me.animated) list.push({ id: 'jump', key: 'Space', label: 'Jump', icon: 'jump', hint: 'Jump (Space)' });
       // at the water's edge: what the river needs, and nothing that does not (no fights, no taking vehicles)
       if (self.byWater && !self.critical) {
         list.push({ id: 'swim', key: 'q', label: 'Swim', icon: 'swim', hint: 'Go into the river' });
@@ -2495,6 +2499,23 @@ function start(carried) {
   }
 
   // Everything a button or its key can do.
+  // A jump (22 October 2026): the player's figure leaps where it is, or as it goes, for everyone near to see. Only a
+  // movement of the body: nothing is jumped over or onto (a deck's rails, deep water and the rest stay as they are).
+  function jump() {
+    if (mode !== 'walking' || !me || !me.animated || view.self.swimming) return;
+    const result = server.send({ type: 'jump' });
+    if (result.ok) me.jump(0);
+  }
+  // In the habitation, water too deep to wade stops whoever walks into it: they are told why, now and then (22 October
+  // 2026, the owner: the river was waded into, and then could not be gone on in, and nothing said why).
+  let deepToldAt = -99;
+  function deepAhead(x, z) {
+    if (clock - deepToldAt < 30) return;
+    const f = habitationFooting(x, z);
+    if (!f || f.kind !== 'water') return;
+    deepToldAt = clock;
+    ui.toast({ type: 'note', text: 'The water is too deep to wade on here. Swimming in the swamps is not advisable.' });
+  }
   function act(id, phase) {
     if (!playing || !view) return;
     if (id === 'block') {
@@ -2507,6 +2528,7 @@ function start(carried) {
     switch (id) {
       case 'act': pressAct(); break;
       case 'run': controls.setRun(!input.run); break;
+      case 'jump': jump(); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
       case 'horn': { if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
@@ -2892,7 +2914,12 @@ function start(carried) {
     }
     // (where one may stand, and a step there that one can take: not off the side of a bridge, nor down a drop)
     const ok = (x, z) => zoneWalkable(x, z, boxes) && zoneStep(predicted.x, predicted.z, x, z);
+    // (on a deck, a step into its rails goes on along it instead; at a deck's end, one into its end's posts goes round
+    // them to its way in: habitation.js habitationAlongDeck)
+    const slide = !ok(nx, nz) ? habitationAlongDeck(predicted.x, predicted.z, nx - predicted.x, nz - predicted.z, ok) : null;
+    if (slide) { nx = predicted.x + slide.dx; nz = predicted.z + slide.dz; }
     if (!ok(nx, nz)) {
+      deepAhead(nx, nz);
       if (ok(nx, predicted.z)) nz = predicted.z;
       else if (ok(predicted.x, nz)) nx = predicted.x;
       else { going.speed = 0; return 0; }
@@ -3284,6 +3311,8 @@ function start(carried) {
       if (holding && prompt.intent.type === 'job.mould') predicted.heading += angleGap(Math.PI, predicted.heading) * Math.min(1, dt * 8);
       // (all three: a seat in a car turns the figure with the car's body as it pitches and rolls, car-view.js)
       me.group.rotation.set(0, predicted.heading, astride ? moto.lean : 0);      // (lean positive: over to the right, into a right turn)
+      // (going up the habitation's stairs: the figure's own climb up them)
+      me.climbing = !!me.animated && !driving && !riding && !astride && !incar && speed > 0.3 && habitationClimbing(me.group.position.x, me.group.position.z, predicted.heading);
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
