@@ -3,7 +3,7 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE , HABITATION, RIVER_HEAD, UPRIVER } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
@@ -16,14 +16,18 @@ const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
 const wornAt = (x, z) => { let busiest = 0; for (const [wx, wz, radius] of ZONE_PROPS.worn) busiest = Math.max(busiest, 1 - Math.hypot(x - wx, z - wz) / radius); return busiest; };
 
+// (beyond the town's north end, from the habitation's edge on, the habitation draws its own ground: render-habitation.js.
+// Since 21 October 2026 it is at the end of the town's road, so the town's ground, river bank and far bank stop there.)
+const HABITATION_EDGE = HABITATION.bounds.x0;
 function buildGround() {
   const b = ZONE.bounds;
   const margin = 220;
-  const w = b.maxX - b.minX + margin * 2;
+  const gx0 = b.minX - margin, gx1 = Math.min(b.maxX + margin, HABITATION_EDGE);
+  const w = gx1 - gx0;
   const d = b.maxZ - b.minZ + margin * 2;
   const geometry = new THREE.PlaneGeometry(w, d, 170, 160);
   geometry.rotateX(-Math.PI / 2);
-  geometry.translate((b.minX + b.maxX) / 2, 0, (b.minZ + b.maxZ) / 2);
+  geometry.translate((gx0 + gx1) / 2, 0, (b.minZ + b.maxZ) / 2);
   const position = geometry.attributes.position;
   const colours = new Float32Array(position.count * 3);
   const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dryGrass = linear(0xa9a85a), earth = linear(ZONE_PROPS.earth), sand = linear(0xe2d2a2), bed = linear(0x6b6a4c);
@@ -45,6 +49,16 @@ function buildGround() {
     if (toShore < 0) { y = Math.max(-3.2, toShore * 0.16); c.lerp(bed, Math.min(1, -toShore / 10)); }
     const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
     if (outside > 0 && toShore > 0) y = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
+    // (level with the habitation's own ground where it begins)
+    if (x > b.maxX && toShore > 0) y *= Math.max(0, Math.min(1, (HABITATION_EDGE - x) / 40));
+    // (the road on from the town's end to the habitation's gate and its car park lie on the land: under them and a few
+    // metres round them the ground is no higher than they are, 21 October 2026)
+    {
+      const off = (q) => Math.hypot(Math.max(q.x0 - x, 0, x - q.x1), Math.max(q.z0 - z, 0, z - q.z1));
+      const near = Math.min(off(UPRIVER.road), off(UPRIVER.park));
+      // (wide enough that this coarse ground has a row of its points under the road and both its sides)
+      if (near < 16 && y > -0.06) { const k = Math.max(0, Math.min(1, (near - 6) / 10)); y = -0.06 + (y + 0.06) * k * k * (3 - 2 * k); }
+    }
     // beyond the town towards Onitsha the land is drawn by render-outskirts.js: this lies just under it
     if (x < b.minX - 6 && z > -650 && z < 140 && toShore > 0) y = -0.12;
     position.setY(i, y);
@@ -507,17 +521,22 @@ export function buildWorld(scene) {
   ripples.repeat.set(60, 9);
   // (the river gives back the sky, broken by its ripples: render-finish.js)
   const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5);
-  const water = new THREE.Mesh(new THREE.PlaneGeometry(1500, farEdge - nearEdge + 8, 1, 1), waterMaterial);
+  // (from far beyond the town's south end up to where it opens into the habitation's lagoon)
+  const riverFrom = -750, riverTo = RIVER_HEAD;
+  const water = new THREE.Mesh(new THREE.PlaneGeometry(riverTo - riverFrom, farEdge - nearEdge + 8, 1, 1), waterMaterial);
   water.rotation.x = -Math.PI / 2;
-  water.position.set(0, -0.32, (nearEdge + farEdge + 8) / 2);
+  water.position.set((riverFrom + riverTo) / 2, -0.32, (nearEdge + farEdge + 8) / 2);
   water.receiveShadow = true;
   scene.add(water);
 
   const far = new Batch();
-  far.box(1500, 3, 12, place(0, -1.3, farEdge + 4), 0xd9c79a);                 // sand at the water's edge
-  far.box(1500, 4, 640, place(0, -1.0, farEdge + 328), 0x5d8a44);              // bush behind it
+  // (the far bank up to the habitation's, which is its own)
+  const bankFrom = -750, bankTo = HABITATION_EDGE;
+  far.box(bankTo - bankFrom, 3, 12, place((bankFrom + bankTo) / 2, -1.3, farEdge + 4), 0xd9c79a);                 // sand at the water's edge
+  far.box(bankTo - bankFrom, 4, 640, place((bankFrom + bankTo) / 2, -1.0, farEdge + 328), 0x5d8a44);              // bush behind it
   for (let i = 0; i < 110; i += 1) {
     const x = zb.minX - 300 + noise(i, 3) * (zb.maxX - zb.minX + 600);
+    if (x > HABITATION_EDGE - 10) continue;
     const z = farEdge + 14 + noise(i, 7) * 90;
     const size = 1.1 + noise(i, 11) * 0.9;
     far.round(new THREE.CylinderGeometry(0.3 * size, 0.42 * size, 4 * size, 6), place(x, 1 + 2 * size, z), 0x5a4a38);

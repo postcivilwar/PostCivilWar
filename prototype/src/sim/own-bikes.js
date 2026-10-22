@@ -9,7 +9,7 @@
 // already asks "is this player on a motorcycle?" (fights, arrests, treatment, what may be done meanwhile) gets
 // the same answer. A ridden bike strikes whoever is in its way as any motorcycle does (impact.js).
 import { POWER_BIKES, handlingOf, FASTEST } from './power-bikes.js';
-import { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind, onHabitation, habitationFootOnly } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
 import { GameError } from './registry.js';
 
@@ -94,7 +94,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, ROOM - 0.1)) throw new GameError('BLOCKED', 'Movement rejected.');
     // a bridge, a boardwalk, a jetty: walked, never ridden onto
-    if (habitationFootOnly(x, z)) throw new GameError('FOOT_ONLY', 'Get off your vehicle to cross the bridge.');
+    { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
     const fromX = b.x, fromZ = b.z;
     // (how fast the town itself saw it go, over the last steps: a crash is judged at no more than this, whatever the
     // page says)

@@ -5,7 +5,7 @@
 // Node, or behind a network socket. It is given a gameplay ledger handle and
 // nothing else to do with money: it cannot make TR, and it cannot see the bank.
 
-import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, stepCarshowGate, carshowGateBoxes } from './zone.js';
+import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneStep, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, stepCarshowGate, carshowGateBoxes, HABITATION, HABITATION_SHIFT, UPRIVER } from './zone.js';
 import { createResidents } from './residents.js';
 import { createRegistry, GameError } from './registry.js';
 import { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON_RATE, countOf } from './economy.js';
@@ -395,6 +395,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       for (let i = 1; i <= steps; i += 1) {
         if (!zoneWalkable(p.x + ((x - p.x) * i) / steps, p.z + ((z - p.z) * i) / steps, boxes)) throw new GameError('BLOCKED', 'Movement rejected.');
       }
+      // (in the habitation: not off the side of a bridge or a boardwalk, nor down a drop: zone.js zoneStep)
+      if (!zoneStep(p.x, p.z, x, z)) throw new GameError('BLOCKED', 'Movement rejected.');
       p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real; p.stats.walked += gap;
       if (p.emote && gap > 0.05) p.emote = null;          // walking off ends a skill
       return {};
@@ -912,6 +914,35 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   }
   for (const p of Object.values(state.players)) grantArrival(p);
 
+  // Someone kept where nobody can now be (21 October 2026): the habitation was brought 1,552 m back down the river to the
+  // end of the town's road, and the road that went on up to it is gone, so whoever was kept up there is now in the bush
+  // beyond it; and in the habitation a tree's roots now stand where someone may have stood. On their own motorcycle or
+  // in their own car up there: at the habitation's car park, on it. On foot: where they were in the habitation as it
+  // now is, if they were in it; or else the nearest place to stand within 60 m; or else where everyone arrives.
+  {
+    const b = HABITATION.bounds, park = UPRIVER.park;
+    const upThere = (x, z) => x > park.x1 + 2 && x < b.x1 - HABITATION_SHIFT + 40 && z > b.z0 - 40 && z < b.z1 + 40;
+    const nearestStand = (x, z) => {
+      if (zoneWalkable(x, z)) return { x, z };
+      for (let r = 1; r <= 60; r += 1) for (let k = 0; k < 24; k += 1) { const a = (k / 24) * Math.PI * 2, px = x + Math.cos(a) * r, pz = z + Math.sin(a) * r; if (zoneWalkable(px, pz)) return { x: px, z: pz }; }
+      return null;
+    };
+    for (const p of Object.values(state.players)) {
+      const ride = p.pbike || p.pcar;
+      if (ride && (p.astride || p.incar)) {
+        if (!upThere(ride.x, ride.z)) continue;
+        ride.x = (park.x0 + park.x1) / 2; ride.z = (park.z0 + park.z1) / 2; ride.h = -Math.PI / 2;
+        p.x = ride.x; p.z = ride.z; p.heading = ride.h;
+        continue;
+      }
+      if (p.driving || (p.riding !== null && p.riding !== undefined) || p.swimming || zoneWalkable(p.x, p.z) || zoneSwimmable(p.x, p.z)) continue;
+      // (in the habitation where it stood before: the same place in it now)
+      const wasIn = p.x > b.x0 - HABITATION_SHIFT && p.x < b.x1 - HABITATION_SHIFT && p.z > b.z0 && p.z < b.z1;
+      const at = (wasIn && nearestStand(p.x + HABITATION_SHIFT, p.z)) || nearestStand(p.x, p.z) || { x: ZONE.spawn.x, z: ZONE.spawn.z };
+      p.x = at.x; p.z = at.z;
+    }
+  }
+
   // What an upgrade to `figure` would cost this player now, and whether it may be had. Worked out here, from
   // this world's own ledger: nothing a client says about its balance or the price is used.
   function upgradeQuote(p, figure) {
@@ -1003,7 +1034,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       ...zoneView(playerId),
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 },
+        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth) },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),

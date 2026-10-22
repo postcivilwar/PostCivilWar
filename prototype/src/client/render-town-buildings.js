@@ -20,8 +20,9 @@
 // go again (its shape, its pictures: `RELEASE` metres beyond where it is drawn from its model, after it has gone
 // unneeded for `RELEASE_AFTER` seconds), and its houses are the plain blocks they are from afar; it is fetched again
 // (from the copy the browser keeps) if the player comes back. The towers, seen from all over town, are kept while the
-// player is in or near the town; one whose towers are all over 1.2 km away (`TOWER_LET_GO`: up the road to the
-// habitation, 21 October 2026, where a phone needs the room) is let go the same way, and fetched again on the way back.
+// player is in or near the town; one whose towers are all over 1.2 km away (`TOWER_LET_GO`) is let go the same way, and
+// fetched again on the way back. On a phone, over 650 m (21 October 2026: the habitation is at the end of the town's
+// road, a phone needs the room there, and the haze is whole at 640 m, so that the towers are not seen from that far).
 
 import { ZONE_HOUSES, TOWN_TOWERS, TOWN_MODELS } from '../sim/zone.js';
 import { loadSuppliedMesh } from './supplied-model.js';
@@ -32,7 +33,7 @@ const HOUSE_BLOCK = 0xdcd8cf;      // a house seen from afar: the owner's houses
 // afar a tower whose model had not come looked like its own shadow)
 const TOWER_BLOCK = 0x8fa3b8;
 const TOWER_SIGHT = 220;           // metres beyond the town's own reach at which a tower is still drawn
-const TOWER_LET_GO = 1200;         // metres from the nearest of its towers beyond which a tower's model is let go
+const TOWER_LET_GO = { full: 1200, lite: 650 };   // metres from the nearest of its towers beyond which its model is let go
 // (a copy of the page opened from the disk cannot fetch a model: there each building is its plain block)
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 
@@ -82,12 +83,55 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     queue = queue.filter((r) => r.state === 'idle');
     while (queue.length && busy() < atOnce) load(queue.shift());
   }
+  // On a phone (21 October 2026: with the habitation at the end of the town's road, the town and it together were more
+  // than a phone holds, and the town alone was, at its east end and by the car showroom), a tower more than `THIN_FAR`
+  // metres off, or a house model none of whose houses is nearer than `HOUSE_THIN_FAR`, is drawn from its model with its
+  // pictures at 512, a phone's screen showing no more of it from there; nearer than `THIN_NEAR` (`HOUSE_THIN_NEAR`), at
+  // the town's own size again. One at a time, the copy in use kept until the other has come (`swap`), and none changed
+  // again within twenty seconds. And while the habitation is drawn (`setThin`), a house model is let go as soon as none
+  // of its houses is drawn from it.
+  const THIN_SIZE = Math.min(512, most), THIN_FAR = 100, THIN_NEAR = 70, HOUSE_THIN_FAR = 50, HOUSE_THIN_NEAR = 35;
+  const thinModels = lite;
+  const letGoTowers = lite ? TOWER_LET_GO.lite : TOWER_LET_GO.full;
+  let thin = false, swapping = null;
+  function sizeWanted(r, x, z) {
+    if (!thinModels) return most;
+    const list = r.houses.length ? r.houses : r.towers;
+    if (!list.length) return most;
+    const d = Math.min(...list.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius));
+    const [near, far] = r.houses.length ? [HOUSE_THIN_NEAR, HOUSE_THIN_FAR] : [THIN_NEAR, THIN_FAR];
+    if (d > far) return THIN_SIZE;
+    if (d < near) return most;
+    return r.size || most;
+  }
+  const disposeMesh = (mesh) => {
+    const material = mesh.material;
+    for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => material[key]).filter(Boolean))) t.dispose();
+    material.dispose(); mesh.geometry.dispose();
+  };
+  function swap(r, size) {
+    swapping = r;
+    const m = r.m;
+    loadSuppliedMesh(m.file, { maxTexture: size, env, brand: m.brand || null, name: `town-${m.id}` })
+      .then(({ mesh, triangles }) => {
+        // (let go meanwhile: this copy is not wanted either)
+        if (r.state !== 'ready' || !r.mesh) { disposeMesh(mesh); return; }
+        const old = r.mesh;
+        r.mesh = mesh; r.triangles = triangles; r.size = size; r.swaps = (r.swaps || 0) + 1; r.swappedAt = performance.now();
+        for (const e of r.towers) if (e.mesh) { e.mesh.geometry = mesh.geometry; e.mesh.material = mesh.material; }
+        if (r.instanced) { r.instanced.geometry = mesh.geometry; r.instanced.material = mesh.material; }
+        disposeMesh(old);
+      })
+      .catch(() => { r.swapFailedAt = performance.now(); })
+      .finally(() => { swapping = null; });
+  }
   function load(record) {
     record.state = 'loading';
     const m = record.m;
-    loadSuppliedMesh(m.file, { maxTexture: most, env, brand: m.brand || null, name: `town-${m.id}` })
+    const size = sizeWanted(record, last.x, last.z);
+    loadSuppliedMesh(m.file, { maxTexture: size, env, brand: m.brand || null, name: `town-${m.id}` })
       .then(({ mesh, triangles }) => {
-        record.mesh = mesh; record.triangles = triangles; record.state = 'ready'; record.neededAt = performance.now() / 1000;
+        record.mesh = mesh; record.triangles = triangles; record.state = 'ready'; record.neededAt = performance.now() / 1000; record.size = size;
         if (record.houses.length) {
           const inst = new THREE.InstancedMesh(mesh.geometry, mesh.material, record.houses.length);
           inst.count = 0; inst.frustumCulled = false; inst.castShadow = true; inst.receiveShadow = true;
@@ -126,7 +170,9 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
         if (r.instanced && gap < HOUSE_SIGHT) { r.instanced.setMatrixAt(n, e.matrix); n += 1; e.drawn = true; }
         else { houseBlocks.setMatrixAt(nb, e.block); nb += 1; }
       }
-      if (r.instanced) { r.instanced.count = n; r.instanced.instanceMatrix.needsUpdate = true; }
+      // (none of its houses drawn from the model: not drawn at all, so that its pictures are not handed to the graphics
+      // card for nothing)
+      if (r.instanced) { r.instanced.count = n; r.instanced.visible = n > 0; r.instanced.instanceMatrix.needsUpdate = true; }
       for (const e of r.towers) {
         const seen = Math.hypot(e.x - x, e.z - z) - e.radius < Math.min(haze, reach + tall);
         e.drawn = seen && !!e.mesh;
@@ -150,10 +196,21 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
       if (!fetch || keepAll || r.state !== 'ready') continue;
       const gap = r.houses.length ? Math.min(...r.houses.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius)) : Infinity;
       const far = r.towers.length ? Math.min(...r.towers.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius)) : Infinity;
-      if (gap < HOUSE_SIGHT + RELEASE || far < TOWER_LET_GO) { r.neededAt = now; continue; }
+      // (on a phone while the habitation is drawn, a house model is let go once none of its houses is drawn from it:
+      // they are its plain blocks from there, and the room is the habitation's)
+      if (gap < HOUSE_SIGHT + (thin ? 10 : RELEASE) || far < letGoTowers) { r.neededAt = now; continue; }
       if (now - r.neededAt > RELEASE_AFTER) release(r);
     }
     refresh();
+    // (a tower's copy for how far off it is, on a phone near the habitation: one at a time, half a minute after one that
+    // could not be had)
+    if (fetch && !swapping && !ON_DISK) {
+      for (const r of models.values()) {
+        if (r.state !== 'ready' || !r.mesh || performance.now() - (r.swapFailedAt || -1e9) < 30000 || performance.now() - (r.swappedAt || -1e9) < 20000) continue;
+        const want = sizeWanted(r, x, z);
+        if (want !== r.size) { swap(r, want); break; }
+      }
+    }
     if (!fetch || ON_DISK) return;
     const wanted = [];
     for (const r of models.values()) {
@@ -161,7 +218,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
       if (r.state === 'failed' && performance.now() - (r.failedAt || 0) > 30000) r.state = 'idle';
       if (r.state !== 'idle') continue;
       let gap = Infinity;
-      for (const e of r.houses) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - HOUSE_SIGHT - 40);
+      for (const e of r.houses) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - HOUSE_SIGHT - (thin ? 0 : 40));
       for (const e of r.towers) gap = Math.min(gap, Math.hypot(e.x - x, e.z - z) - e.radius - Math.min(scene.fog ? scene.fog.far : Infinity, reach + tall));
       if (gap < 0) wanted.push({ r, gap });
     }
@@ -174,17 +231,16 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   function release(r) {
     if (r.instanced) { scene.remove(r.instanced); r.instanced.dispose && r.instanced.dispose(); r.instanced = null; }
     for (const e of r.towers) if (e.mesh) { scene.remove(e.mesh); e.mesh = null; e.drawn = false; }
-    const material = r.mesh.material;
-    for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => material[key]).filter(Boolean))) t.dispose();
-    material.dispose(); r.mesh.geometry.dispose();
-    r.mesh = null; r.triangles = 0; r.state = 'idle'; r.released += 1;
+    disposeMesh(r.mesh);
+    r.mesh = null; r.triangles = 0; r.state = 'idle'; r.released += 1; r.size = 0;
   }
   // (for whoever needs every one of them: the tests; still one or two at a time; and all of them kept until `keepAll`
   // is let go again)
   let keepAll = false;
   function loadAll() { if (ON_DISK) return; keepAll = true; queue = [...new Set([...queue, ...[...models.values()].filter((r) => r.state === 'idle')])]; pump(); }
   const state = () => ({
-    models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed, released: r.released })),
+    models: [...models.values()].map((r) => ({ id: r.id, state: r.state, triangles: r.triangles, failed: r.failed, released: r.released, size: r.size || 0, swaps: r.swaps || 0 })),
+    thin,
     drawn: entries.filter((e) => e.drawn).length,
     blocks: houseBlocks.count + towerBlocks.count,
     entries: entries.length,
@@ -192,5 +248,5 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   });
   // (the tests: the geometry of the model a building is drawn from; `e.matrix` is where)
   const geometryOf = (id) => { const r = models.get(id); return r && r.mesh ? r.mesh.geometry : null; };
-  return { see, loadAll, letGoAgain: () => { keepAll = false; }, state, entries, geometryOf, refresh: () => refresh() };
+  return { see, loadAll, letGoAgain: () => { keepAll = false; }, state, entries, geometryOf, refresh: () => refresh(), setThin: (on) => { thin = !!on && lite; } };
 }

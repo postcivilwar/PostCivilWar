@@ -2328,6 +2328,10 @@ The owner's brief of 20 October, with his 49 models (`assets/habitation/`) and n
 built like the pictures from his models, with water, waterfalls, fish, birds, their sounds, a dark night with the moon
 and the stars, and a torch on the phone.
 
+(On 21 October it was brought down to the end of the town's road, made free to walk, and given a boiling river round
+its far end: the next section says what changed. Where this section says otherwise — the road 1.6 km long, walking
+only on paths and beaches, when it is built, what it costs — the next one is how it is now.)
+
 ### Getting there
 
 - **The river.** The River Niger now runs on north past where it used to stop (at x 750) to the habitation's lagoon
@@ -2475,10 +2479,121 @@ website the habitation's drawing is a script of its own, `habitation-code.js` (m
 - Frame rates on real phones (an iPhone and a mid-range Android) cannot be measured on this machine, which has no
   graphics card; what each place costs to draw is measured instead (above).
 
+## The habitation at the end of the town's road, free to walk, and its boiling river (21 October 2026)
+
+The owner's brief of 21 October, from his recording of the game: the habitation was too far from its sign; it should
+be close to the first sign, the one just past the end of the town's road, so that whoever rides there has to get off to
+go in; one should walk freely in it, stopped only by what is really in the way; at its far end a boiling river,
+steaming, plainly boiling, with signs telling people to keep away, and no Swim offered by it; every place in his
+pictures there, joined to the rest and visited (its bridges crossed, its waterfalls seen); and the birds seen flying
+and heard.
+
+- **Where it is.** The whole habitation, as it was laid out, is moved 1,552 m back down the river
+  (`HABITATION_SHIFT`, `zones/habitation.js`): its land, its waters, its paths and bridges, its places, every model
+  where it stood (`habitation-scene.js`), its waterfalls, its sounds and its life, the same to the metre among
+  themselves. Its edge is now 58 m past the first sign ("THE HABITATION / Park here: on foot from the gate", at x 262,
+  where the town's road ends) and its gate 74 m from it. Waterside Road goes on 51 m from the town's end to the car
+  park at the gate; the sign that stood half-way along the old 1.6 km is gone. The River Niger runs on into the
+  habitation's lagoon as it did.
+- **On foot only.** No vehicle goes anywhere into the habitation, not only onto its bridges: a motorcycle, a car, a
+  keke or an okada is stopped at its edge wherever it comes to it (off the car park's far side, round the moat), with
+  **"Get off your vehicle: the habitation is entered on foot"** and the **Get off** button; at the gate's footbridge
+  still **"Get off your vehicle to cross the bridge"** (`habitationFootOnly`, `footOnlySaid`; `own-bikes.js`,
+  `own-cars.js`, `vehicles.js`, `okada.js`). The vehicle stays where it stopped, at the car park.
+- **Free to walk.** Everywhere in the habitation is walked — the forest's floor, the land between the places, the
+  banks — except where something stands in the way: a tree's trunk, a palm, a plant, a rock, the gazebo's posts and
+  wall (each solid at its real size), a cliff's face (ground steeper than 1 in 1), deep or fast water, and the boiling
+  river. A step is never a drop or a climb of more than 0.9 m, and one gets on and off a bridge or a boardwalk at its
+  ends (`habitationFooting`, `habitationStep`; the town's `move` and the page's own walking both ask it, step by step).
+  From the gate the whole of it is walked to: `test/habitation.test.mjs` walks it a metre at a time, every place
+  reached, and over 70 % of all the ground one can stand on.
+- **A tree is in the way where its wood is.** The big trees' buttresses and the roots arching up from them reach out 5
+  to 15 m from their trunks (the giant buttress-rooted tree's, 15 m), and a mangrove's prop roots 3 m: a box at the
+  trunk's middle let a walker through them. Now wherever one of the owner's trees, palms or bananas has wood between
+  0.9 m (lower, a root is stepped over, as a step of the ground is) and 1.8 m above its foot, a walker is stopped
+  (`tools/habitation/roots.py` reads his files as supplied, leaves out the leaves by their colour, and writes each
+  model's half-metre squares of wood, `zones/habitation-roots.js`; `habitationRootAt` places them for every copy,
+  turned and sized as it is drawn). A path or a deck is never closed by them: within 0.8 m of one's edge a root is
+  walked over (twelve trees have wood over a path, 75 m² in all). They take 16,700 m² of the habitation (about
+  3 % of it). The camera keeps out of them too, and looks over them from above 2.2 m.
+- **Its edges.** The moat on the town's side (the gate's bridge crosses it) and the boiling river round the rest of it
+  close the habitation round; beyond them is the bush, seen and never reached (the moat now runs on to where the
+  boiling river rises, so that the two waters meet).
+- **The boiling river.** Round the habitation's three far sides, 2.1 km of it, 15 m wide, in a channel below its
+  banks: pale, milky water that heaves and churns with bubbles rising and bursting all over it (worked out on the
+  graphics card), froth at its edges, its banks pale with what the water leaves; steam rolling up off it — puffs
+  rising and swelling near whoever is there, and a curtain of vapour drifting up off it all along, seen from wherever
+  it is in sight — white by day, grey at dusk, faint at night. It is heard: a deep seethe, a hiss of steam, and
+  bubbles bursting, louder the nearer. Twelve yellow-and-black signs along its bank, facing whoever comes toward it
+  (each where nothing of the forest stands at it or in front of it):
+  **"DANGER: BOILING RIVER — The water is boiling hot. Keep away."** Nobody goes into it, nor the last four metres of
+  its bank (the water as drawn laps a little way up it); there is no Swim by it (nor anywhere up there: the Swim
+  button is the town's river's only). The forest goes on down to its bank (480 more trees and plants, all of the
+  owner's models, in a band round it).
+- **Birds, seen and heard.** As well as the birds about the habitation's places, flocks of parakeets, weavers and
+  parrots fly over in front of whoever is there every 16 to 34 seconds by day, calling as they go; perched birds sit
+  lower (bushes beside the paths) and nearer; they flush with an alarm call when someone comes close; each bird sings
+  every 4 to 16 seconds and is heard up to 150 m off, four times as loud as before (they were too quiet to hear over
+  the town's sounds).
+- **Someone kept up there.** Whoever was kept in the habitation before it was moved is put in the same place in it
+  as it now is; whoever was kept on the road that went on up to it (now the bush beyond it) at the nearest place to
+  stand within 60 m, or else where everyone arrives; on their own motorcycle or in their own car up there, at the
+  habitation's car park, still on it (`sim.js`, when a world is loaded).
+- **When it is drawn.** By distance from its ground (`habitationAway`): on a computer built as a player comes within
+  260 m of it, let go beyond 400 m; on a phone within 180 m (from the town's east end on), let go beyond 240 m; the
+  road's end, its car park and its signs within 380 m, let go beyond 480 m. A page opened from the disk (the play-through
+  test's) fetches none of its files: there it is drawn without the owner's models, as the town is without its towers.
+- **A phone's memory, with the habitation beside the town.** Measured on a phone's settings walking from the town's
+  market to its east end, the first sign, the gate and round the habitation (`phonemem`, the graphics card's pictures
+  and drawing buffers): before this the town and the habitation together came to 208 MB by the sign (the budget is
+  150 MB), and the town alone was already over it at its east end and by the car showroom. Now, on a phone:
+  - a habitation model none of whose copies has been drawn as the model for ten seconds (they are pictures from afar,
+    or out of sight) has its pictures taken off the graphics card, kept in the page and handed over again the moment
+    one of its copies is drawn; and a model none of whose copies is drawn is not drawn at all (three.js would otherwise
+    hand its pictures over every frame for nothing, which kept them all on the card);
+  - every tower more than 100 m off, and every house model none of whose houses is nearer than 50 m, is drawn from
+    its model with its pictures at 512 instead of 1024: from there a phone's screen has fewer pixels for it than that
+    picture has (100 m off, a phone's screen gives a tower about 5 pixels to each metre of it; the towers' pictures at
+    512 have 6 to 7 to the metre; 50 m off, a house about 9, and the houses' pictures at 512 have 12 to 22). Nearer
+    than 70 m (a house, 35 m) at 1024 again; one model at a time, the copy in use kept until the other has come, and
+    none changed again within twenty seconds. Towers more than 650 m off are let go (the haze in the habitation is
+    whole at 640 m);
+  - while the habitation is drawn, a house model is let go as soon as none of its houses is drawn from it;
+  - the car showroom's buildings are fetched within 520 m and let go past 550 m (the town's haze hides everything past
+    480 m; a computer: 900 m and 1,150 m, as before);
+  - the car showroom's name, the largest picture a phone held anywhere in the town (2048 by 512, 5.3 MB), is 1024 by
+    256 on a phone (its letters still over a hundred pixels high).
+  And on a phone and a computer alike, beyond the haze's far edge the town's vehicles and townspeople are not drawn at
+  all (they were drawn there unseen: from the habitation's garden on a phone the town's parked fleet and its people,
+  600 m and more off, were nearly ninety of the 269 draw calls), and the boiling river's twelve signs are drawn as
+  two things rather than forty-eight.
+  The same walk with these, on the released build (a phone's settings, all the habitation's models in): the town 119
+  MB; its east end 150.2 MB, at the budget's line (four house models have houses within 35 m of it and a fifth within
+  40 m: drawn from their 1024 pictures, as near houses are); the first sign 131 MB; the gate 110 MB; the entrance hill
+  113; the lagoon's beach 120; the big waterfall 109; the garden 113; the boiling river 111–117; back at the market
+  96 MB, and the west of the town, toward the car showroom, 118 MB (183–198 MB there earlier on 21 October, before the
+  towers' and houses' smaller pictures).
+- **Fixed on the way:** the boiling river's water stood above its banks (now in a channel below them); the cache of
+  the signs' pictures used a texture `userData` that three.js r128 does not have (the habitation would not build); the
+  town's ground rose over the road's last 51 m to the car park (now kept under it); a walker could stand at the very
+  edge of the boiling water, and then in its froth as drawn (now four metres of its bank are not stood on); the vapour
+  seen from far off made a pale band along the horizon (now it fades out with distance); in the forest the camera came
+  down inside a big tree's buttresses (now it keeps out of them).
+
+Files: `zones/habitation.js`, `zones/habitation-scene.js` (written again by `tools/habitation/place.mjs`),
+`zones/habitation-roots.js` (written by `tools/habitation/roots.py`),
+`zones/atani.js` (`zoneStep`; the roots in `zoneWalkable` and `zoneSolid`), `zones/closures.js`, `sim.js`, `own-bikes.js`, `own-cars.js`, `vehicles.js`,
+`okada.js`; `render-habitation.js` (the boiling river, its steam and signs, the bush beyond, the build distances),
+`render-habitation-life.js` (the flocks, the lower perches), `audio.js` (the boiling, the louder songs),
+`render-world.js` (the town's ground and river stop at the habitation, and lie under the road to it),
+`render-town-buildings.js` and `render-carshow.js` (a phone's pictures and what it holds), `main.js` (the haze),
+`radar.js`, `town-map.js`; tools `place.mjs`, `lab.mjs`, `roots.py`; tests `habitation.test.mjs` (15), `habitation.mjs`,
+`town-buildings.mjs`.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 385 headless tests
+node --test test/*.test.mjs                        # 391 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
@@ -2491,7 +2606,7 @@ node test/play.mjs out/ town                       # one session: opening, deskt
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
 node test/hold.mjs                                 # the handset in the hand, measured on both figures
 node test/sound.mjs                                # how loud each group of sounds is
-../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players (26 checks): the road, the bridge stop, walking, the models, fish, birds, sounds, night, the torch, each picture's view, what it costs on a computer and on a phone
+../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players: the first sign and the gate past it, the bridge stop, walking freely (off the paths, across the bridges, stopped at a big tree's roots), the models, fish, birds seen flying over and heard, sounds, the boiling river (its steam, its sound, its signs, stopped at its edge, no Swim), night, the torch, each picture's view, what it costs on a computer and on a phone
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
 ../server/with-postgres.sh node test/seats.mjs out/      # at the wheel and on the bars: bought with arrival money, the driver seen with both hands on the rim, turning it; the phone in the right hand at the wheel and the left on a motorcycle, the vehicle still driven; the graphics lost and nothing reloaded

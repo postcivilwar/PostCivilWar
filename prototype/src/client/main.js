@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationLand } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationLand, habitationAway } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -1036,7 +1036,7 @@ function start(carried) {
     }, (error) => {
       // (asked for again in half a minute; told once, only to someone already on the road north)
       habitationAsked = false; habitationRetryAt = performance.now() + 30000;
-      if (playing && predicted.x > 150) partNotRead(error, 'its drawing');
+      if (playing && habitationAway(predicted.x, predicted.z) < 200) partNotRead(error, 'its drawing');
     });
   }
   townSteps.push(['the road up the river', () => {
@@ -1065,10 +1065,14 @@ function start(carried) {
     return out;
   })();
   const habitatHeard = { at: -1, value: null };
+  const lookAhead = new THREE.Vector3();
+  // How far into the habitation's wild a point is: 0 in the town, 1 in the habitation (its nights darker, its air
+  // clearer, its own sounds). Since 21 October 2026 it is at the end of the town's road: from its own edge, 80 m.
+  const wildAt = (x, z) => { const b = HABITATION.bounds; return Math.max(0, Math.min(1, (x - (b.x0 - 80)) / 80, Math.min(z - (b.z0 - 80), b.z1 + 80 - z) / 80)); };
   function habitatSound() {
     if (!habitation || !playing || !view) return null;
-    const x = predicted.x, z = predicted.z, b = HABITATION.bounds;
-    const wild = Math.max(0, Math.min(1, (x - (b.x0 - 80)) / 80));
+    const x = predicted.x, z = predicted.z;
+    const wild = wildAt(x, z);
     if (wild <= 0) return null;
     if (habitatHeard.value && clock - habitatHeard.at < 0.25) { habitatHeard.value.night = night; return habitatHeard.value; }
     habitatHeard.at = clock;
@@ -1086,7 +1090,10 @@ function start(carried) {
     else for (const r of [4, 10, 20, 30]) { for (let k = 0; k < 8 && shore === 99; k += 1) { const a = (k / 8) * Math.PI * 2; if (wet(habitationWaterAt(x + Math.cos(a) * r, z + Math.sin(a) * r))) shore = r; } if (shore !== 99) break; }
     const frogs = HABITAT_FROGS.filter((f) => Math.hypot(f.x - x, f.z - z) < 70).sort((p, q) => Math.hypot(p.x - x, p.z - z) - Math.hypot(q.x - x, q.z - z)).slice(0, 4);
     const t = habitationKit.habitationWind();
-    habitatHeard.value = { wild, calls: habitatCalls, falls: HABITAT_FALLS, stream, shore, frogs, gust: 0.55 + 0.45 * Math.sin(t * 0.21), night };
+    // the boiling river: its nearest water, within 120 m (21 October 2026)
+    const hn = hotRiverNear(x, z);
+    const hot = hn.d < 120 ? (() => { const L = HABITATION_HOT_RIVER.line, [ax, az] = L[hn.seg], [bx, bz] = L[hn.seg + 1]; return { x: ax + (bx - ax) * hn.t, y: hn.level, z: az + (bz - az) * hn.t, d: hn.d }; })() : null;
+    habitatHeard.value = { wild, calls: habitatCalls, falls: HABITAT_FALLS, stream, shore, frogs, hot, gust: 0.55 + 0.45 * Math.sin(t * 0.21), night };
     return habitatHeard.value;
   }
   // two of the game's own figures, dressed for the showroom floor: a white shirt and a navy tie; a white blouse and a
@@ -2196,7 +2203,10 @@ function start(carried) {
     if (view.self.astride) { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); }
     return null;
   }
-  const BRIDGE_PROMPT = { short: 'Get off', text: 'Get off your vehicle to cross the bridge', run: () => getOffHere() };
+  // (at a bridge: to cross it; anywhere else at the habitation's edge: it is entered on foot)
+  const BRIDGE_TEXT = { bridge: 'Get off your vehicle to cross the bridge', land: 'Get off your vehicle: the habitation is entered on foot' };
+  const bridgeText = () => (bridgeStop && bridgeStop.deck && bridgeStop.deck.kind === 'land' ? BRIDGE_TEXT.land : BRIDGE_TEXT.bridge);
+  const BRIDGE_PROMPT = { short: 'Get off', get text() { return bridgeText(); }, run: () => getOffHere() };
   { const off = $('bridge-stop-off'); if (off) off.addEventListener('click', () => { if (atBridge()) { getOffHere(); bridgeStop = null; $('bridge-stop').hidden = true; } }); }
 
   // While driving there is one thing E does: the job in front of you, or stepping out.
@@ -2880,9 +2890,11 @@ function start(carried) {
       const before = Math.hypot(predicted.x - s.x, predicted.z - s.z), after = Math.hypot(nx - s.x, nz - s.z);
       if (after < 0.62 && after < before && before > 1e-3) { const ox = (s.x - predicted.x) / before, oz = (s.z - predicted.z) / before, along = (nx - predicted.x) * ox + (nz - predicted.z) * oz; nx -= ox * along; nz -= oz * along; }
     }
-    if (!zoneWalkable(nx, nz, boxes)) {
-      if (zoneWalkable(nx, predicted.z, boxes)) nz = predicted.z;
-      else if (zoneWalkable(predicted.x, nz, boxes)) nx = predicted.x;
+    // (where one may stand, and a step there that one can take: not off the side of a bridge, nor down a drop)
+    const ok = (x, z) => zoneWalkable(x, z, boxes) && zoneStep(predicted.x, predicted.z, x, z);
+    if (!ok(nx, nz)) {
+      if (ok(nx, predicted.z)) nz = predicted.z;
+      else if (ok(predicted.x, nz)) nx = predicted.x;
       else { going.speed = 0; return 0; }
     }
     let result = server.send({ type: 'move', x: nx, z: nz, heading: predicted.heading, run });
@@ -2895,7 +2907,7 @@ function start(carried) {
         const ox = (nearest.x - predicted.x) / nearest.d, oz = (nearest.z - predicted.z) / nearest.d;
         const side = dx * -oz + dz * ox >= 0 ? 1 : -1;
         const sx = predicted.x + (-oz * side - ox * 0.08) * speed * dt * 0.7, sz = predicted.z + (ox * side - oz * 0.08) * speed * dt * 0.7;
-        if (zoneWalkable(sx, sz, boxes)) { const slid = server.send({ type: 'move', x: sx, z: sz, heading: predicted.heading, run }); if (slid.ok) { predicted.x = sx; predicted.z = sz; going.speed = Math.min(going.speed, speed * 0.7); return going.speed; } }
+        if (ok(sx, sz)) { const slid = server.send({ type: 'move', x: sx, z: sz, heading: predicted.heading, run }); if (slid.ok) { predicted.x = sx; predicted.z = sz; going.speed = Math.min(going.speed, speed * 0.7); return going.speed; } }
       }
       going.speed = Math.min(going.speed, 0.6);
       return 0;
@@ -3214,7 +3226,7 @@ function start(carried) {
       if (holding) { holdProgress += dt / HOLD_SECONDS; if (holdProgress >= 1) { holdProgress = 0; completeHold(); } } else holdProgress = 0;
       ui.setPrompt(prompt, holdProgress);
       // (stopped at a bridge on a vehicle: the message and its button, until the player is off it or drives away)
-      { const box = $('bridge-stop'), show = atBridge(); if (box && box.hidden === show) box.hidden = !show; }
+      { const box = $('bridge-stop'), show = atBridge(); if (box && box.hidden === show) box.hidden = !show; if (show) { const t = $('bridge-stop-text'), said = bridgeText(); if (t && t.textContent !== said) t.textContent = said; } }
       showControls();
 
       const self = view.self;
@@ -3362,10 +3374,15 @@ function start(carried) {
       }
 
       if (!driving) car.steer = 0;
+      // (beyond the haze's far edge nothing is seen: a vehicle or a townsperson there is not drawn at all, rather than drawn
+      // unseen, 21 October 2026: from the habitation at the end of the road the town's fleet and its people, 600 m and
+      // more off, were most of what a phone drew)
+      const hazeFar = (scene.fog ? scene.fog.far : Infinity) + 25;
       for (const [id, actor] of vehicleActors) {
         const g = actor.group;
         const t = actor.truth;
         const mine = !!driving && driving.id === id;
+        if (!mine) g.visible = !claimedFleet.has(id) && Math.hypot(t.x - camera.position.x, t.z - camera.position.z) < hazeFar;
         const was = actor.was || (actor.was = { x: g.position.x, z: g.position.z, steer: 0 });
         if (mine) { g.position.x = predicted.x; g.position.z = predicted.z; g.rotation.y = predicted.heading; } else {
           if (Math.hypot(g.position.x - t.x, g.position.z - t.z) > 6) { g.position.x = t.x; g.position.z = t.z; g.rotation.y = t.heading; was.x = t.x; was.z = t.z; }
@@ -3392,7 +3409,7 @@ function start(carried) {
         const actor = residentActors.get(r.id);
         const g = actor.group;
         const wasVisible = g.visible;
-        g.visible = r.mode !== 'inside';
+        g.visible = r.mode !== 'inside' && Math.hypot(r.x - camera.position.x, r.z - camera.position.z) < hazeFar;
         if (!g.visible) continue;
         if (!wasVisible || Math.hypot(g.position.x - r.x, g.position.z - r.z) > 12) { g.position.x = r.x; g.position.z = r.z; g.rotation.y = r.heading; }
         const gx = r.x - g.position.x;
@@ -3539,7 +3556,7 @@ blood.update(dt, view.blood || []);
     else if (carLit) { const c = carView.driven(); c.group.localToWorld(headlight.position.set(0, 0.75, c.size.length / 2 - 0.2)); headlight.target.position.copy(c.group.localToWorld(shakeAim.set(0, 0, 18))); headlight.target.updateMatrixWorld(); }
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
-    const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0, playing ? Math.max(0, Math.min(1, (predicted.x - 450) / 1300)) : 0);
+    const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0, playing ? wildAt(predicted.x, predicted.z) : 0);
     // (the motorcycles in the hall, each its model with the pictures its distance asks for: smaller ones on a device
     // that is struggling; made ready as the player comes up to the doors, let go once the player is well away)
     powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level, sun: sky.sun.castShadow });
@@ -3553,7 +3570,7 @@ blood.update(dt, view.blood || []);
     updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
-    if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || predicted.x > 100)) askForHabitation();
+    if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || habitationAway(predicted.x, predicted.z) < 320)) askForHabitation();
     // (and the worker keeps it from the start, so that the game plays the habitation with no connection too)
     if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation]); }
     if (habitation) {
@@ -3561,7 +3578,8 @@ blood.update(dt, view.blood || []);
       if (habitation.built && !habitationLife) habitationLife = habitationKit.createHabitationLife(scene, { lite: LITE });
       else if (!habitation.built && habitationLife) { habitationLife.dispose(); habitationLife = null; }
       if (habitationLife) {
-        habitationLife.update(dt, { eye: camera.position, night, people: habitationPeople() });
+        camera.getWorldDirection(lookAhead);
+        habitationLife.update(dt, { eye: camera.position, look: { x: lookAhead.x, z: lookAhead.z }, night, people: habitationPeople() });
         habitatCalls.push(...habitationLife.calls());
         if (habitatCalls.length > 24) habitatCalls.splice(0, habitatCalls.length - 24);
       }
@@ -3594,6 +3612,9 @@ blood.update(dt, view.blood || []);
       world.see(cam.target.x, cam.target.z, reach);
       // (the owner's houses and towers: each model fetched once the town is ready, for someone who can see it, or at
       // once for someone right by one; not from inside a hall)
+      // (on a phone, while the habitation at the end of the road is drawn, the towers far off are drawn from their
+      // smaller pictures: render-town-buildings.js)
+      townBuildings.setThin(!!(habitation && habitation.built));
       townBuildings.see(cam.target.x, cam.target.z, reach, playing && warm.stage >= 5 && !hall, hall ? 0 : undefined);
       // (PostCivilWar PowerBike's tower: the owner's model, fetched once the town is ready, or at once for someone near it)
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();

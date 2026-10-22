@@ -23,7 +23,7 @@
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_DECKS } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS } from '../sim/zone.js';
 import { gridToTrue, trueToGrid } from '../sim/geo.js';
 
 export const MAP_STYLE = Object.freeze({
@@ -187,6 +187,8 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
         const line = (pts2, width, colour) => { g.strokeStyle = colour; g.lineWidth = Math.max(1.2, width * state.k); g.lineJoin = 'round'; g.lineCap = 'round'; g.beginPath(); pts2.forEach(([x, z], i) => { const [a, c] = P(x, z); if (i) g.lineTo(a, c); else g.moveTo(a, c); }); g.stroke(); };
         for (const w of HABITATION_WATERS) poly(w.outline);
         for (const st of HABITATION_STREAMS) line(st.line, st.width, MAP_STYLE.water);
+        // (the boiling river round its far sides: a hot, milky colour of its own, 21 October 2026)
+        line(HABITATION_HOT_RIVER.line, HABITATION_HOT_RIVER.width, '#d39a6a');
         g.fillStyle = MAP_STYLE.land;
         for (const w of HABITATION_WATERS) for (const isle of w.islands || []) poly(isle.outline);
         if (state.k > 0.5) {

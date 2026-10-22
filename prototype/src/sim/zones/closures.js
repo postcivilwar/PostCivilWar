@@ -16,7 +16,9 @@
 //
 // This file is content, read by the simulation (what is in the way, atani.js) and by the drawing
 // (render-closures.js), the radar and the town map. It imports nothing from the town (atani.js imports it), so the
-// edge of the land is worked out there, with the town's own idea of where its ground is (`edgeFences`).
+// edge of the land is worked out there, with the town's own idea of where its ground is (`edgeFences`). (The road up to
+// the habitation and its car park are habitation.js's, which imports nothing from the town either.)
+import { UPRIVER } from './habitation.js';
 
 export const AREA_STATE = Object.freeze({ OPEN: 'open', CLOSED: 'closed', BUILDING: 'under construction', RESTRICTED: 'restricted' });
 
@@ -62,6 +64,7 @@ export function closureColliders(list = openClosures()) {
 // it wherever the land really does end just beyond it, and nowhere it goes on (where the town meets the road to Kwale,
 // say). `ground(x, z)` is the town's own test of where its ground is (atani.js).
 const INSET = 1.4;
+const R = UPRIVER.road, P = UPRIVER.park;
 const line = (id, a, b, out, style = 'tape') => Object.freeze({ id, a: Object.freeze(a), b: Object.freeze(b), out: Object.freeze(out), style });
 export const EDGE_LINES = Object.freeze([
   // the town's own land: its west (true south), east (true north) and inland (true west) edges; its fourth is the river
@@ -82,12 +85,13 @@ export const EDGE_LINES = Object.freeze([
   // the road up the river to the habitation: its verges' outer edges, and round its car park (open where the gate's
   // footbridge goes over the stream into the habitation); a plain wooden rail fence, as along a country road and at a
   // park's entrance (the riverside beyond it is countryside, and beyond the car park is the habitation)
-  line('upriver-river', { x: 250, z: 122 - INSET }, { x: 1846, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
-  line('upriver-inland', { x: 250, z: 104 + INSET }, { x: 1832, z: 104 + INSET }, { x: 0, z: -1 }, 'wood'),
-  line('park-south', { x: 1832 + INSET, z: 64 + INSET }, { x: 1832 + INSET, z: 104 }, { x: -1, z: 0 }, 'wood'),
-  line('park-inland', { x: 1832, z: 64 + INSET }, { x: 1882, z: 64 + INSET }, { x: 0, z: -1 }, 'wood'),
-  line('park-river', { x: 1846, z: 122 - INSET }, { x: 1882, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
-  line('park-gate', { x: 1882 - INSET, z: 64 }, { x: 1882 - INSET, z: 122 }, { x: 1, z: 0 }, 'wood'),
+  // (since 21 October 2026 the habitation is at the end of the town's road: habitation.js UPRIVER)
+  line('upriver-river', { x: 250, z: 122 - INSET }, { x: R.x1, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
+  line('upriver-inland', { x: 250, z: 104 + INSET }, { x: P.x0, z: 104 + INSET }, { x: 0, z: -1 }, 'wood'),
+  line('park-south', { x: P.x0 + INSET, z: 64 + INSET }, { x: P.x0 + INSET, z: 104 }, { x: -1, z: 0 }, 'wood'),
+  line('park-inland', { x: P.x0, z: 64 + INSET }, { x: P.x1 + 2, z: 64 + INSET }, { x: 0, z: -1 }, 'wood'),
+  line('park-river', { x: R.x1, z: 122 - INSET }, { x: P.x1 + 2, z: 122 - INSET }, { x: 0, z: 1 }, 'wood'),
+  line('park-gate', { x: P.x1 + 2 - INSET, z: 64 }, { x: P.x1 + 2 - INSET, z: 122 }, { x: 1, z: 0 }, 'wood'),
 ]);
 export const EDGE_FENCE = Object.freeze({ post: 3, height: 1.15, depth: 0.3, step: 0.5, beyond: 2.6, least: 3 });
 // The runs of fence: along each line, wherever the line is on the land and the land ends just beyond it.

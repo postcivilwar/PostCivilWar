@@ -10,7 +10,7 @@
 // in motion strikes whoever is in its way as any vehicle does (impact.js), with its own length and width; a car
 // standing where it was left is in everybody's way (`boxes`), as a parked keke is.
 import { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } from './power-cars.js';
-import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind, onHabitation, habitationFootOnly } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome } from './contact.js';
 import { GameError } from './registry.js';
 
@@ -100,7 +100,7 @@ export function createOwnCars({ state, hub, obstacles }) {
       if (!carFits(c.id, c.x + (x - c.x) * k, c.z + (z - c.z) * k, hh, boxes, 0.2)) throw new GameError('BLOCKED', 'Movement rejected.');
       // (a bridge, a boardwalk, a jetty: walked, never driven onto; the car's front is what reaches it)
       const front = POWER_CARS[c.id].length / 2;
-      if (habitationFootOnly(c.x + (x - c.x) * k + Math.sin(hh) * front, c.z + (z - c.z) * k + Math.cos(hh) * front)) throw new GameError('FOOT_ONLY', 'Get off your vehicle to cross the bridge.');
+      { const f = habitationFootOnly(c.x + (x - c.x) * k + Math.sin(hh) * front, c.z + (z - c.z) * k + Math.cos(hh) * front); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
     }
     const fromX = c.x, fromZ = c.z;
     // (how fast the town itself saw it go: a crash is judged at no more than this, whatever the page says)

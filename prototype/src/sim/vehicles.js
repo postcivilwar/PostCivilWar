@@ -10,7 +10,7 @@
 // carrying your own goods instead of paying for delivery, and paid delivery
 // runs for the town's businesses.
 
-import { ZONE, ZONE_TEXT, ZONE_ROADS, OUTSKIRT_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident, habitationFootOnly } from './zone.js';
+import { ZONE, ZONE_TEXT, ZONE_ROADS, OUTSKIRT_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident, habitationFootOnly, footOnlySaid } from './zone.js';
 import { GameError } from './registry.js';
 import { LedgerError } from './ledger.js';
 import { KEKE_PAINTS, VEHICLE_MODELS, kekeLook, footprintBox } from './vehicle-looks.js';
@@ -278,7 +278,7 @@ export function createVehicles({ state, ledger, issuanceAccount, economy, clock,
       if (!vehicleFits(v.kind, v.x + ((x - v.x) * i) / steps, v.z + ((z - v.z) * i) / steps, boxes, others)) throw new GameError('BLOCKED', 'Movement rejected.');
     }
     // a bridge, a boardwalk, a jetty: walked, never driven onto
-    if (habitationFootOnly(x, z)) throw new GameError('FOOT_ONLY', 'Get off your vehicle to cross the bridge.');
+    { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
     const fromX = v.x, fromZ = v.z;
     v.x = x; v.z = z; v.heading = heading;
     v.fuel = Math.max(0, v.fuel - gap / k.metresPerLitre);

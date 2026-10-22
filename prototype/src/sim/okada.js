@@ -12,7 +12,7 @@
 // households; the riders pay a daily levy and take the rest home. The pool
 // is a simplification: residents do not yet have purses of their own.
 
-import { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, zoneWalkable, trafficHold, onBoulevard } from './zone.js';
+import { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, zoneWalkable, trafficHold, onBoulevard, habitationFootOnly, footOnlySaid } from './zone.js';
 import { graphRoute, graphDistance, graphNearest, graphPoint } from './graph.js';
 import { POSE, RIDE_SPEED } from './population.js';
 import { GameError } from './registry.js';
@@ -432,6 +432,8 @@ export function createOkada({ state, ledger, monetary, issuanceAccount, populati
     const boxes = obstacles();
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(r.x + ((x - r.x) * i) / steps, r.z + ((z - r.z) * i) / steps, boxes, MOTO.radius)) throw new GameError('BLOCKED', 'Movement rejected.');
+    // (the habitation's bridges and its land: walked, never ridden onto)
+    { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
     const fromX = r.x, fromZ = r.z;
     r.moving = gap > 0.01;
     r.x = x; r.z = z; r.h = heading; r.node = graphNearest(x, z, true); r.movedAt = state.real;

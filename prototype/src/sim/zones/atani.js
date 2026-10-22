@@ -32,7 +32,7 @@ import { TOWN_TREES } from './atani-trees.js';
 import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
 import { openClosures, closureColliders, edgeFences, fenceColliders } from './closures.js';
 // the habitation at the far end of the River Niger, and the road up the river to it (20 October 2026)
-import { HABITATION, onUpriver, onHabitation, habitationGroundY, HABITATION_COLLIDERS } from './habitation.js';
+import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt } from './habitation.js';
 export * from './habitation.js';
 export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
@@ -923,6 +923,9 @@ export * from './atani-outskirts.js';
 const inHabitation = (x, z) => x > HABITATION.bounds.x0 - 6 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1;
 // (the road up the river and its car park lie level with the town; the habitation has its own hills, decks and shallows)
 export const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z));
+// One step from (ax, az) to (bx, bz), as the simulation's `move` and the page's own walking take them: in the habitation,
+// not off a bridge's side nor down a drop (habitation.js habitationStep); anywhere else, any step that is on the ground.
+export const zoneStep = (ax, az, bx, bz) => (inHabitation(ax, az) || inHabitation(bx, bz) ? habitationStep(ax, az, bx, bz) : true);
 
 // The advertising billboards (atani-billboards.js): each one's poles, legs or base, which nobody walks through.
 // (Each box says it is a billboard's, so that the tool that places them can leave the old ones out.)
@@ -941,7 +944,8 @@ const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 // Is this point inside something that stands up from the ground: a wall, a tree, a parked coach?
 // (Water and the edge of the map are not solid; they are only not for walking on.)
 export function zoneSolid(x, z, radius = 0.2, above = -Infinity) {
-  return blockedIn(COLLIDER_INDEX, x, z, radius, above);
+  // (and in the habitation, a tree's buttresses and roots, up to 2.2 m above the ground: habitation.js)
+  return blockedIn(COLLIDER_INDEX, x, z, radius, above) || habitationRootAt(x, z, radius, above);
 }
 
 // Is this ground at all: the town's land (not the river) or the land beyond it that can be walked.
@@ -950,6 +954,7 @@ export const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z) || onU
 export function zoneWalkable(x, z, extra = [], radius = 0.4) {
   if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return false;
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
+  if (habitationRootAt(x, z, radius)) return false;
   for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
   return true;
 }

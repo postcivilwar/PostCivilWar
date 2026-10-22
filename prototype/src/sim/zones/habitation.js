@@ -1,9 +1,11 @@
 // The habitation at the far end of the River Niger (20 October 2026, the owner's brief and nineteen pictures).
 //
 // The river is made longer to the north (upstream; not wider): from where it went out of sight beyond the town it runs
-// on up to a lagoon, its head, fed by waterfalls from the cliffs round it. Waterside Road runs on north out of the town
-// along the river to a car park at the habitation's gate; from there it is on foot, over a footbridge across the
-// stream that rings the habitation. A vehicle is stopped at the bridge: "Get off your vehicle to cross the bridge".
+// on up to a lagoon, its head, fed by waterfalls from the cliffs round it. Waterside Road runs on out of the town's
+// north end, past the habitation's sign, to a car park at its gate; from there it is on foot, over a footbridge across
+// the stream along its south side. A vehicle is stopped at the bridge: "Get off your vehicle to cross the bridge".
+// (It was first laid out 1.6 km up the river; on 21 October 2026 the owner had it brought down to the first signboard,
+// at the end of the town's road: HABITATION_SHIFT, below.)
 //
 // Inside, eleven places, each as one of the owner's pictures shows it (pictures in brackets: assets/habitation/
 // reference): the entrance hill (10), the forest path (4, 15), the swamp boardwalk (12), the mangrove boardwalk (5),
@@ -11,8 +13,11 @@
 // waterfall (11), the suspension bridge over its outflow (9, 13), the waterfall pool (3), the overlook (17), the gazebo
 // garden (19) and the sunset beach (14).
 //
-// One walks only on its paths, boardwalks and bridges, on sand, on open grass and in shallow water; the trees, plants,
-// rocks and cliffs stand in the way as they are, and deep water and the forest are not walked into.
+// One walks anywhere on its land and in its shallow water (21 October 2026, the owner: "users must be able to move
+// freely in the habitation, as long as there's no object blocking user"): only what stands there stops a walker, the
+// trunks, plants, rocks and the gazebo as they are, a cliff's face, deep or fast water, and the boiling river round its
+// far sides (the owner, the same day: "on the extreme of the habitation should just be hot river"), which no one goes
+// into. One cannot step off a bridge or a boardwalk onto the ground far below it (habitationStep).
 //
 // Content only, like the town's other files: the simulation (where one may go, how high the ground is) and the
 // drawing (render-habitation.js) read it through ../zone.js. Directions are the site grid's (atani.js): +x is true
@@ -20,8 +25,14 @@
 // the river and the lagoon lie at WATER (a little under it).
 
 export const WATER = -0.32;
+// Where it stands: its outlines below are as they were drawn where it was first laid out, each moved this far along the
+// grid's x (toward the town) as it is read. The lie of its land (the noise its hills and hollows are made from) is still
+// worked out where it was drawn (`drawn`), so that it is the same land, only nearer.
+export const HABITATION_SHIFT = -1552;
+const S = HABITATION_SHIFT;
+const drawn = (x) => x - S;
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
-const pts = (list) => Object.freeze(list.map(([x, z]) => Object.freeze([x, z])));
+const pts = (list) => Object.freeze(list.map(([x, z]) => Object.freeze([x + S, z])));
 
 // ----------------------------------------------------------------------------------------- small sums --
 
@@ -73,34 +84,37 @@ function edgeDistance(poly, x, z) {
 }
 const signedDistance = (poly, x, z) => (inside(poly, x, z) ? -edgeDistance(poly, x, z) : edgeDistance(poly, x, z));
 const boundsOf = (poly, pad = 0) => { let x0 = Infinity, z0 = Infinity, x1 = -Infinity, z1 = -Infinity; for (const [x, z] of poly) { x0 = Math.min(x0, x); x1 = Math.max(x1, x); z0 = Math.min(z0, z); z1 = Math.max(z1, z); } return box(x0 - pad, z0 - pad, x1 + pad, z1 + pad); };
-const circle = (cx, cz, r, n = 18, wobble = 0, seed = 0) => pts(Array.from({ length: n }, (_, k) => { const a = (k / n) * Math.PI * 2, rr = r * (1 + wobble * (noise(k * 1.7 + seed, seed * 0.3) - 0.5) * 2); return [cx + Math.cos(a) * rr, cz + Math.sin(a) * rr]; }));
+const round = (cx, cz, r, n = 18, wobble = 0, seed = 0) => (Array.from({ length: n }, (_, k) => { const a = (k / n) * Math.PI * 2, rr = r * (1 + wobble * (noise(k * 1.7 + seed, seed * 0.3) - 0.5) * 2); return [cx + Math.cos(a) * rr, cz + Math.sin(a) * rr]; }));
+// (a round outline where it now stands; `round` gives it as it was drawn, for what moves its points itself)
+const circle = (cx, cz, r, n = 18, wobble = 0, seed = 0) => pts(round(cx, cz, r, n, wobble, seed));
 
 // -------------------------------------------------------------------------------- the road up the river --
-// Waterside Road on north out of the town, along the river, to the habitation's car park: tar with laterite shoulders,
-// as it is in the town.
+// Waterside Road on out of the town's north end, past the habitation's sign (the first thing after the town's own road),
+// into its car park at the gate: tar with laterite shoulders, as it is in the town. (Grid metres, where they are: these
+// are not moved by HABITATION_SHIFT.)
 export const UPRIVER = Object.freeze({
-  road: Object.freeze({ id: 'upriver', name: 'Waterside Road', x0: 243, z0: 108, x1: 1846, z1: 118, surface: 'asphalt', lanes: 2, edgeLines: true }),
+  road: Object.freeze({ id: 'upriver', name: 'Waterside Road', x0: 243, z0: 108, x1: 1846 + S, z1: 118, surface: 'asphalt', lanes: 2, edgeLines: true }),
   // the car park at the gate: bays along its two long sides
-  park: Object.freeze({ id: 'habitation-park', name: 'Habitation car park', x0: 1832, z0: 64, x1: 1880, z1: 118, surface: 'asphalt', bays: true }),
+  park: Object.freeze({ id: 'habitation-park', name: 'Habitation car park', x0: 1832 + S, z0: 64, x1: 1880 + S, z1: 118, surface: 'asphalt', bays: true }),
   // the verges that can be walked (the bush beyond them is not)
   verge: 4,
-  // a sign at the town's end of the road, and one at the gate
+  // the sign at the town's end of the road (and one at the gate: HABITATION_GATE_SIGN)
   signs: Object.freeze([
-    Object.freeze({ id: 'habitation-way', lines: ['THE HABITATION', 'North, along the river'], x: 262, z: 104, facing: -Math.PI / 2, width: 6.4, height: 2.1, palette: ['#ffffff', '#1f5a3a'] }),
-    Object.freeze({ id: 'habitation-near', lines: ['THE HABITATION', 'Car park ahead'], x: 1760, z: 104, facing: -Math.PI / 2, width: 6, height: 2.1, palette: ['#ffffff', '#1f5a3a'] }),
+    Object.freeze({ id: 'habitation-way', lines: ['THE HABITATION', 'Park here: on foot from the gate'], x: 262, z: 104, facing: -Math.PI / 2, width: 6.4, height: 2.1, palette: ['#ffffff', '#1f5a3a'] }),
   ]),
 });
 // The river runs on north to the lagoon: its western bank as it is along the town (atani.js zoneShoreZ), its far bank
 // where it is there, as wide all the way.
-export const RIVER_HEAD = 2086;                     // grid x where the river opens into the lagoon
+export const RIVER_HEAD = 2086 + S;                 // grid x where the river opens into the lagoon
 export const riverShore = (x) => 150 + 5 * Math.sin(x / 37) + 3 * Math.sin(x / 11 + 1);
 export const RIVER_FAR = 300;
 
 // -------------------------------------------------------------------------------------- the habitation --
 export const HABITATION = Object.freeze({
   name: 'The Habitation',
-  bounds: box(1872, -175, 2530, 470),          // (from the gate's footbridge, which starts at the car park's edge)
-  gate: Object.freeze({ x: 1888, z: 91 }),
+  // (from the gate's footbridge, which starts at the car park's edge, to the far banks of the boiling river round it)
+  bounds: box(1872 + S, -232, 2582 + S, 522),
+  gate: Object.freeze({ x: 1888 + S, z: 91 }),
   // the eleven places, where each is, and which of the owner's pictures it is made from
   places: Object.freeze([
     { id: 'entrance-hill', name: 'Entrance hill', x: 1934, z: 16, pictures: [10] },
@@ -115,14 +129,14 @@ export const HABITATION = Object.freeze({
     { id: 'overlook', name: 'Overlook', x: 2252, z: 370, pictures: [17] },
     { id: 'gazebo-garden', name: 'Gazebo garden', x: 2160, z: 408, pictures: [19] },
     { id: 'sunset-beach', name: 'Sunset beach', x: 2192, z: 348, pictures: [14] },
-  ].map(Object.freeze)),
+  ].map((p) => Object.freeze({ ...p, x: p.x + S }))),
 });
 
 // -------------------------------------------------------------------------------------------- water --
 // Each water: its outline, the level of its surface, how deep it gets and how fast (metres deeper for each metre in
 // from its edge), its look (lagoon: clear turquoise, shallows showing the sand; pool: green and clear; swamp: dark and
 // still; stream: moving), and the sand round it.
-const water = (id, kind, outline, level, deepest, slope, extra = {}) => Object.freeze({ id, kind, outline: pts(outline), level, deepest, slope, bounds: boundsOf(outline, 12), ...extra });
+const water = (id, kind, outline, level, deepest, slope, extra = {}) => { const at = pts(outline); return Object.freeze({ id, kind, outline: at, level, deepest, slope, bounds: boundsOf(at, 12), ...extra }); };
 export const HABITATION_WATERS = Object.freeze([
   // the lagoon, the river's head: from the river's mouth round by its west beach, the gorge's mouth, the outflow's
   // mouth, the waterfall pool's cascade and the sunset beach, back to the river's far bank
@@ -132,9 +146,9 @@ export const HABITATION_WATERS = Object.freeze([
     [2148, 336], [2118, 322], [2096, 308], [2086, 300],
   ], WATER, 3.2, 0.09, { beach: 9, islands: Object.freeze([Object.freeze({ id: 'palm-island', outline: circle(2206, 205, 15, 16, 0.12, 11), top: 1.6 })]) }),
   // the big waterfall's pool, under its cliffs
-  water('big-pool', 'pool', circle(2464, 225, 21, 22, 0.08, 3), 3.6, 2.6, 0.22, { beach: 0 }),
+  water('big-pool', 'pool', round(2464, 225, 21, 22, 0.08, 3), 3.6, 2.6, 0.22, { beach: 0 }),
   // the waterfall pool in its bowl of pale cliffs, its sand beach to the south-west
-  water('falls-pool', 'pool', circle(2352, 328, 17, 20, 0.1, 7), 1.1, 2.0, 0.18, { beach: 8 }),
+  water('falls-pool', 'pool', round(2352, 328, 17, 20, 0.1, 7), 1.1, 2.0, 0.18, { beach: 8 }),
   // the swamp: dark, still water among the great trees
   water('swamp', 'swamp', [[1994, -42], [2028, -34], [2066, -40], [2092, -62], [2096, -92], [2084, -122], [2054, -136], [2016, -130], [1994, -108], [1987, -74]], 0.35, 1.1, 0.25, { beach: 0 }),
   // the garden's still pool by the gazebo
@@ -142,10 +156,11 @@ export const HABITATION_WATERS = Object.freeze([
 ]);
 // Streams: a line from source to mouth, its width, the height of its water along the line (each point's own), and how
 // deep it runs (shallow ones are waded).
-const stream = (id, line, width, depth, heights, extra = {}) => Object.freeze({ id, line: pts(line), width, depth, heights: Object.freeze(heights), bounds: boundsOf(line, width + 14), length: lineLength(line), ...extra });
+const stream = (id, line, width, depth, heights, extra = {}) => { const at = pts(line); return Object.freeze({ id, line: at, width, depth, heights: Object.freeze(heights), bounds: boundsOf(at, width + 14), length: lineLength(at), ...extra }); };
 export const HABITATION_STREAMS = Object.freeze([
   // the stream round the habitation's south side, which the gate's footbridge crosses into it (too deep to wade)
-  stream('moat', [[1897, -176], [1894, -110], [1891, -40], [1889, 30], [1887, 90], [1885, 130], [1884, 156]], 5.5, 1.3, [0.2, 0.1, 0.0, -0.1, -0.2, -0.3, WATER], { deep: true }),
+  // (from where the boiling river rises, so that the two waters close the habitation round: 21 October 2026)
+  stream('moat', [[1902, -206], [1899, -190], [1897, -176], [1894, -110], [1891, -40], [1889, 30], [1887, 90], [1885, 130], [1884, 156]], 5.5, 1.3, [0.36, 0.28, 0.2, 0.1, 0.0, -0.1, -0.2, -0.3, WATER], { deep: true }),
   // the rocky gorge's stream, down from the north-west into the lagoon, over stones and a cascade (waded)
   stream('gorge', [[2482, -6], [2452, 24], [2424, 52], [2398, 76], [2376, 92], [2356, 106], [2336, 120], [2318, 134], [2306, 144]], 7, 0.5, [14, 12.2, 10.4, 8.6, 5.0, 3.4, 2.0, 0.6, WATER], { stones: true, banks: 4.5, walls: 2.6 }),
   // the big waterfall's outflow, a rocky gorge with rapids down to the lagoon (too fast to wade)
@@ -153,13 +168,39 @@ export const HABITATION_STREAMS = Object.freeze([
   // the waterfall pool's cascade into the lagoon
   stream('falls-run', [[2340, 316], [2328, 306], [2316, 298]], 6, 0.3, [1.1, 0.5, WATER], { banks: 2, walls: 1.2 }),
 ]);
+// The boiling river round its far sides (21 October 2026, the owner: "on the extreme of the habitation should just be hot
+// river, the river should be steaming, with clear evidence of the river boiling, then with signboard instructing user to
+// avoid river due to hotness of the river"). From a hot spring at the habitation's south-west corner it runs north along
+// its west side, across its far end, back along its east side and under the far bank of the Niger into it, in a valley
+// of its own: the high ground ends in cliffs above it, and beyond it is the bush. It steams and boils all along it
+// (render-habitation.js); no one goes into it, not even its edge, and there is no swimming in it; signs along its banks
+// say so (HOT_RIVER_SIGNS).
+export const HABITATION_HOT_RIVER = stream('hot-river', [
+  [1904, -214], [1940, -206], [1990, -209], [2050, -204], [2110, -208], [2170, -203], [2230, -207], [2290, -202], [2350, -206], [2410, -203], [2470, -207], [2520, -198], [2546, -176], [2552, -140], [2549, -80], [2553, -20], [2549, 40], [2553, 100], [2549, 160], [2553, 220], [2549, 280], [2553, 340], [2549, 400], [2540, 452], [2516, 484], [2470, 492], [2410, 488], [2350, 493], [2290, 489], [2230, 492], [2170, 488], [2110, 492], [2050, 488], [1990, 491], [1936, 486], [1904, 466], [1890, 420], [1886, 370], [1882, 330], [1880, 296],
+], 15, 1.6, [0.4, 0.3, 0.2, 0.1, 0.0, -0.1, -0.22, -0.23, -0.233, -0.236, -0.238, -0.241, -0.244, -0.247, -0.25, -0.253, -0.255, -0.258, -0.261, -0.264, -0.267, -0.269, -0.272, -0.275, -0.278, -0.281, -0.283, -0.286, -0.289, -0.292, -0.295, -0.297, -0.3, -0.303, -0.306, -0.309, -0.312, -0.314, -0.317, WATER], { hot: true, banks: 3.5, walls: 2.2 });
+// (the boiling river's bank for two and a half metres beyond its water is not stood on either, the water as drawn
+// lapping a little way up it: habitationWaterAt; and for walking, four metres of it, habitationFooting: 21 October 2026,
+// a walker stopped two and a half metres off it stood in its froth as drawn, the ground drawn coarser than its bank)
+const HOT_EDGE = 2.5, HOT_BANK = 4;
+// (the streams and the boiling river: each cuts its bed, its banks and, through high ground, its walls)
+const CARVED = [...HABITATION_STREAMS, HABITATION_HOT_RIVER];
+// The habitation's own ground: within the ring that the moat (its south side) and the boiling river (round the rest of
+// it) make, their middles joined. Beyond them is the bush (21 October 2026: the habitation is entered by its gate, and
+// the boiling river is its far end): the far banks, seen across the water and never reached, and the strip outside
+// the moat, which the gate's bridge crosses.
+const MOAT = HABITATION_STREAMS.find((s) => s.id === 'moat');
+const HOME = Object.freeze([...HABITATION_HOT_RIVER.line, ...[...MOAT.line].reverse()]);
+export const habitationHome = (x, z) => inside(HOME, x, z);
+// How far a point is from the habitation's ground (metres; 0 on it): what decides when it is drawn and let go.
+export const habitationAway = (x, z) => { const b = HABITATION.bounds; return Math.hypot(Math.max(b.x0 - x, 0, x - b.x1), Math.max(b.z0 - z, 0, z - b.z1)); };
 // Waterfalls: where the water leaves the cliff's top (a line across it) and where it lands; foam and spray at its foot.
+const at3 = ([x, z, y]) => Object.freeze([x + S, z, y]);
 export const HABITATION_FALLS = Object.freeze([
-  Object.freeze({ id: 'big', top: Object.freeze([2492, 225, 25.5]), foot: Object.freeze([2481, 225, 3.6]), width: 7, pool: 'big-pool' }),
-  Object.freeze({ id: 'pool', top: Object.freeze([2370, 340, 19.5]), foot: Object.freeze([2362, 335, 1.1]), width: 4.5, pool: 'falls-pool' }),
-  Object.freeze({ id: 'gorge', top: Object.freeze([2395, 78, 8.4]), foot: Object.freeze([2384, 87, 5.4]), width: 6, stream: 'gorge' }),
+  Object.freeze({ id: 'big', top: at3([2492, 225, 25.5]), foot: at3([2481, 225, 3.6]), width: 7, pool: 'big-pool' }),
+  Object.freeze({ id: 'pool', top: at3([2370, 340, 19.5]), foot: at3([2362, 335, 1.1]), width: 4.5, pool: 'falls-pool' }),
+  Object.freeze({ id: 'gorge', top: at3([2395, 78, 8.4]), foot: at3([2384, 87, 5.4]), width: 6, stream: 'gorge' }),
   // far off over the lagoon, the thin fall that the pictures show from its west beach
-  Object.freeze({ id: 'thin', top: Object.freeze([2342, 182, 14.5]), foot: Object.freeze([2334, 182, WATER]), width: 2.2, pool: 'lagoon' }),
+  Object.freeze({ id: 'thin', top: at3([2342, 182, 14.5]), foot: at3([2334, 182, WATER]), width: 2.2, pool: 'lagoon' }),
 ]);
 
 // ------------------------------------------------------------------------------------------- the land --
@@ -168,25 +209,27 @@ export const HABITATION_FALLS = Object.freeze([
 // cliff edge is (narrow: sheer), and its rock. Into the high ground are carved the big waterfall's bowl and the
 // waterfall pool's (a floor, and sheer walls round it), and the streams' gorges (their walls `walls` steep). The rock
 // pillars stand up out of the lagoon (drawn as rocks, not ground).
-const hill = (x, z, r, h) => Object.freeze({ x, z, r, h });
+const hill = (x, z, r, h) => Object.freeze({ x: x + S, z, r, h });
 export const HABITATION_HILLS = Object.freeze([
   hill(1934, 14, 46, 9.5),       // the entrance hill, its great tree on top
   hill(1962, -78, 60, 5),        // the rise west of the swamp
   hill(2050, 34, 40, 2.4),       // the forest's floor, rising a little from the swamp to the beach
   hill(2220, 40, 90, 4),         // the forest behind the west beach, rising toward the gorge
 ]);
-const highland = (id, outline, top, rise, edge, rock, extra = {}) => Object.freeze({ id, outline: pts(outline), top, rise, edge, rock, bounds: boundsOf(outline, edge + 2), ...extra });
+const highland = (id, outline, top, rise, edge, rock, extra = {}) => { const at = pts(outline); return Object.freeze({ id, outline: at, top, rise, edge, rock, bounds: boundsOf(at, edge + 2), ...extra }); };
 export const HABITATION_HIGHLANDS = Object.freeze([
   // north of the lagoon: the gorge's sides, the big waterfall's cliffs, the outflow's gorge
-  highland('north', [[2318, -90], [2560, -90], [2560, 330], [2410, 330], [2392, 300], [2372, 282], [2352, 264], [2340, 244], [2338, 220], [2338, 192], [2330, 168], [2318, 150], [2312, 128], [2312, 60], [2310, 0], [2312, -50]], 12, 0.085, 5, 'mossy',
+  // (its far side ends in a cliff over the boiling river's valley, 21 October 2026)
+  highland('north', [[2318, -90], [2505, -90], [2505, 330], [2410, 330], [2392, 300], [2372, 282], [2352, 264], [2340, 244], [2338, 220], [2338, 192], [2330, 168], [2318, 150], [2312, 128], [2312, 60], [2310, 0], [2312, -50]], 12, 0.085, 5, 'mossy',
     { rocks: Object.freeze([[2420, 'redstone'], [2380, 'granite']]) }),
   // east of the lagoon: the overlook's crag and the cliffs over the sunset beach
   // (round the gazebo garden's shelf below them: their cliffs stand behind it on three sides, and it is open to the lagoon)
-  highland('east', [[2342, 312], [2420, 330], [2420, 480], [2084, 480], [2084, 378], [2116, 372], [2126, 372], [2126, 412], [2148, 436], [2200, 432], [2208, 400], [2202, 366], [2214, 364], [2252, 358], [2284, 346], [2314, 330]], 20, 0.0, 4.5, 'limestone'),
+  // (its far side ends in a cliff over the boiling river's valley, 21 October 2026)
+  highland('east', [[2342, 312], [2420, 330], [2420, 452], [2084, 452], [2084, 378], [2116, 372], [2126, 372], [2126, 412], [2148, 436], [2200, 432], [2208, 400], [2202, 366], [2214, 364], [2252, 358], [2284, 346], [2314, 330]], 20, 0.0, 4.5, 'limestone'),
   // the gazebo garden's shelf, at the foot of the east cliffs: level, a few metres above the sunset beach
   highland('garden', [[2128, 372], [2196, 366], [2204, 400], [2196, 428], [2150, 432], [2126, 410]], 6.0, 0, 3, 'mossy', { flat: true }),
 ]);
-const bowl = (id, outline, floor, walls, rock) => Object.freeze({ id, outline: pts(outline), floor, walls, rock, bounds: boundsOf(outline, 40) });
+const bowl = (id, outline, floor, walls, rock) => { const at = pts(outline); return Object.freeze({ id, outline: at, floor, walls, rock, bounds: boundsOf(at, 40) }); };
 export const HABITATION_BOWLS = Object.freeze([
   // the big waterfall's horseshoe: open to the south, where its outflow leaves
   bowl('big-bowl', [[2436, 204], [2450, 198], [2468, 199], [2484, 208], [2490, 225], [2484, 242], [2468, 251], [2450, 252], [2436, 246], [2430, 232], [2430, 218]], 3.0, 4.5, 'redstone'),
@@ -198,12 +241,12 @@ export const HABITATION_PILLARS = Object.freeze([
   { id: 'pillar-a', x: 2268, z: 268, r: 8.5, h: 40 }, { id: 'pillar-b', x: 2243, z: 297, r: 6, h: 30 },
   { id: 'pillar-c', x: 2292, z: 236, r: 5, h: 24 }, { id: 'pillar-e', x: 2163, z: 303, r: 5.6, h: 26 },
   { id: 'islet-b', x: 2232, z: 168, r: 3, h: 2.6 }, { id: 'pillar-d', x: 2302, z: 290, r: 4, h: 32 },
-].map(Object.freeze));
+].map((p) => Object.freeze({ ...p, x: p.x + S })));
 
 // ----------------------------------------------------------------------------------- where one walks --
 // Paths: a line, its width, what it is (earth: red laterite; mud: the forest's, with puddles; stone: paving or flat
 // slabs; sand), and whether it keeps to the ground (every path does: its ground is made level across it).
-const path = (id, line, width, surface, extra = {}) => Object.freeze({ id, line: pts(line), width, surface, bounds: boundsOf(line, width + 12), ...extra });
+const path = (id, line, width, surface, extra = {}) => { const at = pts(line); return Object.freeze({ id, line: at, width, surface, bounds: boundsOf(at, width + 12), ...extra }); };
 export const HABITATION_PATHS = Object.freeze([
   // from the gate's footbridge up the entrance hill to the great tree, and down its north side into the forest
   path('hill-up', [[1897, 91], [1906, 82], [1914, 66], [1921, 52], [1927, 38], [1932, 25], [1936, 17]], 3.2, 'earth'),
@@ -262,7 +305,7 @@ export const HABITATION_SAND = Object.freeze([
 // Decks: boardwalks, bridges, jetties, platforms and stairs, walked on, never driven: a line, its width, the height of
 // its boards (each point's own, or `over`: so far above whatever is under it), rails or not, and what it is made of
 // (the owner's models where it is one of theirs: render-habitation.js).
-const deck = (id, kind, line, width, heights, extra = {}) => Object.freeze({ id, kind, line: pts(line), width, heights: Object.freeze(heights), bounds: boundsOf(line, width + 2), length: lineLength(line), rails: true, ...extra });
+const deck = (id, kind, line, width, heights, extra = {}) => { const at = pts(line); return Object.freeze({ id, kind, line: at, width, heights: Object.freeze(heights), bounds: boundsOf(at, width + 2), length: lineLength(at), rails: true, ...extra, ...(extra.platform ? { platform: Object.freeze({ ...extra.platform, x: extra.platform.x + S }) } : {}) }); };
 export const HABITATION_DECKS = Object.freeze([
   // the gate: a plank footbridge across the stream, from the car park into the habitation
   deck('gate-bridge', 'bridge', [[1876, 91], [1886, 91], [1898, 91]], 2.6, [0.25, 0.75, 0.3], { entrance: true, model: 'woodenboardwalk' }),
@@ -296,14 +339,15 @@ export const HABITATION_DECKS = Object.freeze([
 // down to them, the streams' beds, and the paths made level across. Kept, once worked out, in squares of 16 m.
 function landAt(x, z) {
   // the land: low and rolling, a metre or so above the water
-  let y = 1.0 + (fbm(x / 70, z / 70) - 0.5) * 2.4 + (fbm(x / 18 + 50, z / 18) - 0.5) * 0.6;
+  const u = drawn(x);
+  let y = 1.0 + (fbm(u / 70, z / 70) - 0.5) * 2.4 + (fbm(u / 18 + 50, z / 18) - 0.5) * 0.6;
   for (const h of HABITATION_HILLS) { const d2 = ((x - h.x) ** 2 + (z - h.z) ** 2) / (h.r * h.r); if (d2 < 9) y += h.h * Math.exp(-d2 * 1.6); }
   // the high ground: its height inside (broken a little), sheer at its edge, the edge itself ragged
   for (const g of HABITATION_HIGHLANDS) {
     if (x < g.bounds.x0 || x > g.bounds.x1 || z < g.bounds.z0 || z > g.bounds.z1) continue;
-    const s = signedDistance(g.outline, x, z) + (noise(x / 11, z / 11) - 0.5) * 4;
+    const s = signedDistance(g.outline, x, z) + (noise(u / 11, z / 11) - 0.5) * 4;
     if (s > g.edge) continue;
-    const top = g.top + g.rise * Math.max(0, x - g.bounds.x0) + (fbm(x / 24 + 9, z / 24) - 0.5) * (g.flat ? 0.4 : 3);
+    const top = g.top + g.rise * Math.max(0, x - g.bounds.x0) + (fbm(u / 24 + 9, z / 24) - 0.5) * (g.flat ? 0.4 : 3);
     const k = smooth((g.edge - s) / (g.edge * 2));
     y = Math.max(y, y + (top - y) * k);
   }
@@ -325,21 +369,22 @@ function pathLevel(p, n) {
 }
 function shaped(x, z) {
   let y = landAt(x, z);
+  const u = drawn(x);
   // the bowls carved into the high ground: a floor, and sheer walls up from it
   for (const b of HABITATION_BOWLS) {
     if (x < b.bounds.x0 || x > b.bounds.x1 || z < b.bounds.z0 || z > b.bounds.z1) continue;
-    const s = signedDistance(b.outline, x, z) + (noise(x / 6 + 3, z / 6) - 0.5) * 2;
+    const s = signedDistance(b.outline, x, z) + (noise(u / 6 + 3, z / 6) - 0.5) * 2;
     y = Math.min(y, b.floor + Math.max(0, s) * b.walls);
   }
-  // the streams: their beds, their banks, and where they run through high ground, its walls
-  for (const s of HABITATION_STREAMS) {
+  // the streams and the boiling river: their beds, their banks, and where they run through high ground, its walls
+  for (const s of CARVED) {
     if (x < s.bounds.x0 - 40 || x > s.bounds.x1 + 40 || z < s.bounds.z0 - 40 || z > s.bounds.z1 + 40) continue;
     const n = nearLine(s.line, x, z);
     const half = s.width / 2, banks = s.banks || 0;
     const surface = streamLevel(s, n);
     if (n.d < half) { y = Math.min(y, surface - s.depth + (s.depth * 0.7) * (n.d / half) ** 2); continue; }
     if (n.d < half + banks) { y = Math.min(y, surface + 0.25 + (n.d - half) * 0.12); continue; }
-    if (s.walls) y = Math.min(y, surface + 0.25 + banks * 0.12 + (n.d - half - banks) * s.walls * (0.8 + 0.4 * noise(x / 5, z / 5)));
+    if (s.walls) y = Math.min(y, surface + 0.25 + banks * 0.12 + (n.d - half - banks) * s.walls * (0.8 + 0.4 * noise(u / 5, z / 5)));
     else if (n.d < half + 10) y = Math.min(y, surface + 0.15 + (y - surface - 0.15) * smooth((n.d - half) / 10));
   }
   // the waters: their beds below their surface (an island in one is land), and the sand down to them
@@ -349,7 +394,7 @@ function shaped(x, z) {
     if (w.islands) {
       let isle = null, si = Infinity;
       for (const i of w.islands) { const d = signedDistance(i.outline, x, z); if (d < si) { si = d; isle = i; } }
-      if (si < 0) { y = w.level + 0.05 + (isle.top - w.level) * smooth(-si / 8) + (noise(x / 4, z / 4) - 0.5) * 0.2; continue; }
+      if (si < 0) { y = w.level + 0.05 + (isle.top - w.level) * smooth(-si / 8) + (noise(u / 4, z / 4) - 0.5) * 0.2; continue; }
       if (s < 0) s = -Math.min(-s, si);         // (shallower toward the island too)
     }
     if (s < 0) { y = Math.min(y, w.level - Math.min(w.deepest, 0.04 - s * w.slope)); continue; }
@@ -390,6 +435,9 @@ function shaped(x, z) {
   // river lie at the town's ground): level with it at the edge, rising to its own over the first 24 m in
   const inward = x - HABITATION.bounds.x0;
   if (inward < 24 && y > 0) y *= smooth(inward / 24);
+  // and at its far edges, beyond the boiling river, down to the level of the bush beyond it (render-habitation.js: apron)
+  const b = HABITATION.bounds, out = Math.min(b.x1 - x, z - b.z0, b.z1 - z);
+  if (out < 14 && y > 0) y *= smooth(out / 14);
   return y;
 }
 const streamLevel = (s, n) => {
@@ -429,13 +477,29 @@ export function habitationWaterAt(x, z) {
     if (x < w.bounds.x0 || x > w.bounds.x1 || z < w.bounds.z0 || z > w.bounds.z1) continue;
     if (inside(w.outline, x, z) && ground < w.level && !(w.islands && w.islands.some((i) => inside(i.outline, x, z) && ground > w.level - 0.02))) return { id: w.id, kind: w.kind, level: w.level, depth: w.level - ground };
   }
+  const niger = x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR && ground < WATER;
+  // the boiling river (where it runs into the Niger, the Niger; where the moat leaves it at its spring, still the boiling
+  // river): its water, and its bank for a little way beyond, so that whoever comes to it stands on its bank, never at
+  // the very edge of the water drawn
+  const h = HABITATION_HOT_RIVER;
+  if (!niger && x >= h.bounds.x0 && x <= h.bounds.x1 && z >= h.bounds.z0 && z <= h.bounds.z1) {
+    const n = nearLine(h.line, x, z);
+    if (n.d < h.width / 2 + HOT_EDGE) { const level = streamLevel(h, n); return { id: h.id, kind: 'hot', level, depth: Math.max(0.05, level - ground), hot: true }; }
+  }
   for (const s of HABITATION_STREAMS) {
     if (x < s.bounds.x0 || x > s.bounds.x1 || z < s.bounds.z0 || z > s.bounds.z1) continue;
     const n = nearLine(s.line, x, z);
     if (n.d < s.width / 2) { const level = streamLevel(s, n); if (ground < level) return { id: s.id, kind: s.rapids ? 'rapids' : 'stream', level, depth: s.deep ? Math.max(1, level - ground) : level - ground }; }
   }
-  if (x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR && ground < WATER) return { id: 'niger', kind: 'river', level: WATER, depth: WATER - ground };
+  if (niger) return { id: 'niger', kind: 'river', level: WATER, depth: WATER - ground };
   return null;
+}
+// How far a point is from the boiling river's water (metres; 0 in it), where along it, and its water's height there:
+// for its steam and its sound, and for keeping its banks clear.
+export function hotRiverNear(x, z) {
+  const h = HABITATION_HOT_RIVER;
+  const n = nearLine(h.line, x, z);
+  return { d: Math.max(0, n.d - h.width / 2), at: n.at, of: n.length, level: streamLevel(h, n), seg: n.seg, t: n.t };
 }
 // A deck at a point, if any: which, and the height of its boards there.
 export function habitationDeckAt(x, z) {
@@ -462,32 +526,74 @@ function deckHeight(d, n, x, z) {
   return h[i] + (h[i + 1] - h[i]) * (k - i);
 }
 
-// Where one may walk: on a path, a deck, sand, open grass, or in water shallow enough to wade; not in the forest, up
-// a cliff or in deep water. `footOnly`: a deck (no vehicle goes onto it).
+// Where one may walk (21 October 2026, the owner: free to go anywhere nothing stands in the way): on a deck, a path, sand,
+// open grass, the forest's floor and the rest of the land, and in water shallow enough to wade; not up a cliff's face,
+// in deep or fast water, anywhere in the boiling river, nor beyond it and the moat (the bush). (What stands there, a trunk, a plant, a rock, the gazebo, is
+// in the way as well: HABITATION_COLLIDERS.) `footOnly`: a deck (no vehicle goes onto it). `kind`: what is underfoot.
 const WADE = 0.55;
+const STEEP = 1.0;            // a slope steeper than this (metres up for each metre along) is a cliff's face: not stood on
+export function habitationSteep(x, z) {
+  const gx = habitationLand(x + 0.5, z) - habitationLand(x - 0.5, z), gz = habitationLand(x, z + 0.5) - habitationLand(x, z - 0.5);
+  return Math.hypot(gx, gz) > STEEP;
+}
 export function habitationFooting(x, z) {
   const b = HABITATION.bounds;
   if (x < b.x0 || x > b.x1 || z < b.z0 || z > b.z1) return null;
   const deckHere = habitationDeckAt(x, z);
   if (deckHere) return { walk: true, footOnly: true, kind: deckHere.deck.kind, deck: deckHere.deck.id, y: deckHere.y };
   const w = habitationWaterAt(x, z);
-  if (w) return w.depth <= WADE && w.kind !== 'rapids' && w.kind !== 'swamp' ? { walk: true, kind: 'shallows', water: w.id, y: w.level - w.depth } : { walk: false, kind: 'water', water: w.id, depth: w.depth };
+  if (w) {
+    if (w.hot) return { walk: false, kind: 'hot', water: w.id, depth: w.depth };
+    return w.depth <= WADE && w.kind !== 'rapids' ? { walk: true, kind: 'shallows', water: w.id, y: w.level - w.depth } : { walk: false, kind: 'water', water: w.id, depth: w.depth };
+  }
+  // (the boiling river's bank, four metres up from its water: not stood on; where it runs into the Niger, the Niger's)
+  { const h = HABITATION_HOT_RIVER; if (!(x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR) && nearLine(h.line, x, z).d < h.width / 2 + HOT_BANK) return { walk: false, kind: 'hot', water: h.id, bank: true, depth: 0 }; }
+  // (beyond the moat and the boiling river: the bush)
+  if (!inside(HOME, x, z)) return { walk: false, kind: 'beyond' };
   for (const p of HABITATION_PATHS) {
     if (x < p.bounds.x0 || x > p.bounds.x1 || z < p.bounds.z0 || z > p.bounds.z1) continue;
     if (nearLine(p.line, x, z).d <= p.width / 2) return { walk: true, kind: 'path', surface: p.surface, path: p.id };
   }
   for (const s of HABITATION_SAND) if (x >= s.bounds.x0 && x <= s.bounds.x1 && z >= s.bounds.z0 && z <= s.bounds.z1 && inside(s.outline, x, z)) return { walk: true, kind: 'sand', area: s.id };
   for (const g of HABITATION_GRASS) if (x >= g.bounds.x0 && x <= g.bounds.x1 && z >= g.bounds.z0 && z <= g.bounds.z1 && inside(g.outline, x, z)) return { walk: true, kind: 'grass', area: g.id };
-  return { walk: false, kind: 'forest' };
+  // the rest of the land, the forest's floor: walked, unless it is a cliff's face
+  return habitationSteep(x, z) ? { walk: false, kind: 'cliff' } : { walk: true, kind: 'forest' };
 }
 export const onHabitation = (x, z) => { const f = habitationFooting(x, z); return !!(f && f.walk); };
-// A deck under a point (no vehicle goes onto it): its id, its name for a sign, and whether it is the gate's bridge.
+// One step from (ax, az) to (bx, bz) in the habitation: onto or off a bridge, a boardwalk, a jetty or stairs only at its
+// ends (its rails are in the way along its sides; a deck without rails, anywhere), never down off it onto the ground or
+// the water far below, and on the land no drop or climb more than a stride can take. (The simulation's `move` and the
+// page's own walking both ask it, step by step.)
+const DECK_END = 2.5, DECK_STEP = 1.1, LAND_STEP = 0.9;
+function deckEnd(d, x, z) { if (!d.deck.rails) return true; return d.along < DECK_END || d.along > d.of - DECK_END; }
+export function habitationStep(ax, az, bx, bz) {
+  const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.4));
+  let px = ax, pz = az, pd = habitationDeckAt(ax, az), py = pd ? pd.y : habitationGroundY(ax, az);
+  for (let i = 1; i <= n; i += 1) {
+    const x = ax + ((bx - ax) * i) / n, z = az + ((bz - az) * i) / n;
+    const d = habitationDeckAt(x, z), y = d ? d.y : habitationGroundY(x, z);
+    if (pd && d && pd.deck === d.deck) { /* along the same deck */ }
+    else if (pd || d) {
+      // onto, off or between decks: at an end, and no higher a step than onto a low boardwalk
+      if ((pd && !deckEnd(pd, px, pz)) || (d && !deckEnd(d, x, z)) || Math.abs(y - py) > DECK_STEP) return false;
+    } else if (Math.abs(y - py) > LAND_STEP) return false;
+    px = x; pz = z; pd = d; py = y;
+  }
+  return true;
+}
+// Where no vehicle goes (21 October 2026, the owner: the habitation is entered on foot, the vehicle left at its car
+// park): a deck (its id, its name for a sign, and whether it is the gate's bridge), and the rest of the habitation's
+// land, anywhere beyond the car park and the road to it.
 export function habitationFootOnly(x, z) {
   const b = HABITATION.bounds;
   if (x < b.x0 - 4 || x > b.x1 || z < b.z0 || z > b.z1) return null;
   const d = habitationDeckAt(x, z);
-  return d ? { id: d.deck.id, kind: d.deck.kind, entrance: !!d.deck.entrance } : null;
+  if (d) return { id: d.deck.id, kind: d.deck.kind, entrance: !!d.deck.entrance };
+  if (x < b.x0 || onUpriver(x, z)) return null;
+  return { id: 'habitation', kind: 'land', entrance: false };
 }
+// What a vehicle stopped there is told.
+export const footOnlySaid = (f) => (f && f.kind === 'land' ? 'Get off your vehicle: the habitation is entered on foot.' : 'Get off your vehicle to cross the bridge.');
 // The ground's height where one stands: a deck's boards, the bed of shallow water, or the land.
 export function habitationGroundY(x, z) {
   const f = habitationFooting(x, z);
@@ -525,6 +631,83 @@ export const HABITATION_COLLIDERS = Object.freeze([
   ...HABITATION_STANDING.filter((s) => s.solid > 0).map((s) => box(s.x - s.solid, s.z - s.solid, s.x + s.solid, s.z + s.solid)),
   ...HABITATION_GAZEBO_SOLID.map((p) => box(p.x - p.half, p.z - p.half, p.x + p.half, p.z + p.half)),
 ]);
+// The wood of each tree, palm and banana at a walker's height (21 October 2026: the big trees' buttresses and roots
+// reach out 5 to 15 m from their trunks and were walked through; the box above is only its trunk's middle): the
+// half-metre squares of habitation-roots.js (made from the owner's files) for each copy, at its size and turned as it
+// stands, kept as one bit for each half-metre square of the habitation. None on a path or a deck or within 0.8 m of
+// one's edge (a root never closes a way), nor for a tree on a pillar's top. They stand 2.2 m high: a camera above that
+// looks over them.
+import { HABITATION_ROOTS, HABITATION_ROOT_CELL } from './habitation-roots.js';
+const RG = 0.5, RB = HABITATION.bounds;
+const RNX = Math.ceil((RB.x1 - RB.x0) / RG) + 1, RNZ = Math.ceil((RB.z1 - RB.z0) / RG) + 1;
+const ROOT_TOP = 2.2;
+const bitAt = (bits, i, j) => (i < 0 || j < 0 || i >= RNX || j >= RNZ ? 0 : (bits[(j * RNX + i) >>> 5] >>> ((j * RNX + i) & 31)) & 1);
+const setBit = (bits, i, j) => { if (i < 0 || j < 0 || i >= RNX || j >= RNZ) return; const k = j * RNX + i; bits[k >>> 5] |= 1 << (k & 31); };
+const rootBits = new Uint32Array(Math.ceil((RNX * RNZ) / 32));
+let rootSquares = 0;
+const rootsMade = Date.now();
+{
+  // (the ways first: every square whose middle is within 0.8 m of a path's or a deck's edge, along them every 0.4 m)
+  const wayBits = new Uint32Array(rootBits.length);
+  const mark = (x, z, reach) => {
+    const i0 = Math.floor((x - reach - RB.x0) / RG), i1 = Math.floor((x + reach - RB.x0) / RG);
+    const j0 = Math.floor((z - reach - RB.z0) / RG), j1 = Math.floor((z + reach - RB.z0) / RG);
+    for (let j = j0; j <= j1; j += 1) for (let i = i0; i <= i1; i += 1) {
+      const cx = RB.x0 + (i + 0.5) * RG, cz = RB.z0 + (j + 0.5) * RG;
+      if ((cx - x) * (cx - x) + (cz - z) * (cz - z) <= reach * reach) setBit(wayBits, i, j);
+    }
+  };
+  for (const w of [...HABITATION_PATHS, ...HABITATION_DECKS]) {
+    const reach = w.width / 2 + 0.8 + RG * 0.71;
+    for (let k = 0; k + 1 < w.line.length; k += 1) {
+      const [ax, az] = w.line[k], [bx, bz] = w.line[k + 1], n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.4));
+      for (let t = 0; t <= n; t += 1) mark(ax + ((bx - ax) * t) / n, az + ((bz - az) * t) / n, reach);
+    }
+    if (w.platform) mark(w.platform.x, w.platform.z, w.platform.r + 0.8 + RG * 0.71);
+  }
+  for (const p of HABITATION_STANDING) {
+    const R = HABITATION_ROOTS[p.m];
+    if (!R || !R.cells.length || p.y !== null) continue;
+    const k = p.s / R.ref, c = Math.cos(p.r), sn = Math.sin(p.r), size = HABITATION_ROOT_CELL * k;
+    for (const [ci, cj] of R.cells) {
+      const lx = (ci + 0.5) * size, lz = (cj + 0.5) * size;
+      // (where the square's middle stands, turned as the tree is: three.js's turn about the upright, as it is drawn;
+      // the habitation's square it falls in is its wood)
+      const x = p.x + lx * c + lz * sn, z = p.z - lx * sn + lz * c;
+      const i = Math.floor((x - RB.x0) / RG), j = Math.floor((z - RB.z0) / RG);
+      if (!bitAt(wayBits, i, j) && !bitAt(rootBits, i, j)) { setBit(rootBits, i, j); rootSquares += 1; }
+    }
+  }
+}
+// How many half-metre squares of the habitation its trees' wood takes at a walker's height (and how long it took to work
+// out, in milliseconds).
+export const HABITATION_ROOT_SQUARES = rootSquares;
+export const HABITATION_ROOTS_MADE = Date.now() - rootsMade;
+// Is there a tree's wood (a buttress, a root arching up, a prop root, its trunk) within `radius` of (x, z), at a
+// walker's height? `above`: how high above the ground the point is (a camera's eye): over 2.2 m, nothing of it.
+export function habitationRootAt(x, z, radius = 0.4, above = 0) {
+  if (above > ROOT_TOP || x < RB.x0 - radius || x > RB.x1 + radius || z < RB.z0 - radius || z > RB.z1 + radius) return false;
+  const i0 = Math.floor((x - radius - RB.x0) / RG), i1 = Math.floor((x + radius - RB.x0) / RG);
+  const j0 = Math.floor((z - radius - RB.z0) / RG), j1 = Math.floor((z + radius - RB.z0) / RG);
+  for (let j = j0; j <= j1; j += 1) for (let i = i0; i <= i1; i += 1) if (bitAt(rootBits, i, j)) return true;
+  return false;
+}
 // Filled in by habitation-scene.js (where each of the owner's models stands, and the rocks): each a solid box the size
 // of its trunk or stone at the ground.
-export const HABITATION_GATE_SIGN = Object.freeze({ id: 'habitation-gate', lines: ['THE HABITATION', 'On foot from here'], x: 1874, z: 97, facing: -Math.PI / 2, width: 5.2, height: 1.8, palette: ['#ffffff', '#1f5a3a'] });
+export const HABITATION_GATE_SIGN = Object.freeze({ id: 'habitation-gate', lines: ['THE HABITATION', 'On foot from here'], x: 1874 + S, z: 97, facing: -Math.PI / 2, width: 5.2, height: 1.8, palette: ['#ffffff', '#1f5a3a'] });
+// The signs along the boiling river (21 October 2026, the owner): on its near bank wherever one can walk to it, and at
+// the edges of the cliffs above it; each faces whoever comes toward the river. Black on amber, as a warning is.
+const WARN = Object.freeze(['DANGER: BOILING RIVER', 'The water is boiling hot. Keep away.']);
+const warn = (id, x, z, facing) => Object.freeze({ id, lines: WARN, x: x + S, z, facing, width: 3.4, height: 1.5, palette: Object.freeze(['#1a1a1a', '#f4c430']), ground: true });
+// (each where nothing of the forest stands at it or in front of it, so that it is read from the habitation's side:
+// test/habitation.test.mjs)
+export const HOT_RIVER_SIGNS = Object.freeze([
+  // the west bank (the river to the west of whoever reads them)
+  ...[1960, 2083, 2198, 2317, 2438].map((x, i) => warn(`hot-west-${i + 1}`, x, -187, 0)),
+  // the north-west corner
+  warn('hot-corner', 2522.6, -163.4, -Math.PI / 4),
+  // on the north cliffs' edge, the river below
+  ...[-40, 97, 261].map((z, i) => warn(`hot-north-${i + 1}`, 2493, z, -Math.PI / 2)),
+  // on the east cliffs' edge, the river below
+  ...[2138, 2270, 2405].map((x, i) => warn(`hot-east-${i + 1}`, x, 441, Math.PI)),
+]);

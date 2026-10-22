@@ -97,6 +97,15 @@ function thump(ctx, out, t, level = 0.5, from = 130, to = 48, length = 0.16) {
   osc.start(t); osc.stop(t + length + 0.02);
 }
 
+// A bubble bursting at the boiling river's surface: a short rising tone (the bubble's own ring as it closes) and a soft
+// plop under it. `r`: the dice.
+function bubble(ctx, out, t, r) {
+  const o = ctx.createOscillator(), g = ctx.createGain();
+  const f0 = 180 + r() * 260, len = 0.05 + r() * 0.07;
+  o.type = 'sine'; o.frequency.setValueAtTime(f0, t); o.frequency.exponentialRampToValueAtTime(f0 * (2.2 + r() * 1.6), t + len);
+  g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(0.32 + r() * 0.2, t + 0.008); g.gain.exponentialRampToValueAtTime(0.0001, t + len);
+  o.connect(g); g.connect(out); o.start(t); o.stop(t + len + 0.02);
+}
 function tick(ctx, out, t, freq, level = 0.12, length = 0.035) {
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
@@ -214,6 +223,8 @@ const KINDS = Object.freeze({
   shutter: { limit: 2, rank: 3 }, choose: { limit: 1, rank: 3 },
   // the habitation's birds, frogs and crickets (bird-songs.js)
   birdsong: { limit: 3, rank: 0 }, frog: { limit: 2, rank: 0 }, cricket: { limit: 2, rank: 0 },
+  // the boiling river's bubbles (21 October 2026)
+  boil: { limit: 3, rank: 0 },
 });
 const MOST_AT_ONCE = 10;         // short sounds, of every kind together
 const NEAREST = Object.freeze({ music: 2, generator: 2, engine: 3 });
@@ -370,13 +381,14 @@ export function createAudio() {
   // lagoon's edge; the wind in its trees; and at night its frogs by the water and crickets all round. `h`: { wild (0 to
   // 1: how far into it), calls, falls: [{ id, x, y, z, size }], stream: { x, y, z, rapids } | null, shore (metres to
   // the lagoon's edge), frogs: [{ x, z, kind }], gust (0 to 1), night }.
-  const habitat = { falls: new Map(), stream: null, waves: null, leaves: null, cricketAt: 0, frogAt: 0, heard: { songs: 0, kinds: new Set(), frogs: 0, crickets: 0 } };
+  const habitat = { falls: new Map(), stream: null, waves: null, leaves: null, boil: null, popAt: 0, cricketAt: 0, frogAt: 0, heard: { songs: 0, kinds: new Set(), frogs: 0, crickets: 0, pops: 0, boiling: 0 } };
   function habitatSounds(h, now, L, rain) {
     const wild = h ? h.wild : 0;
     const quiet = (n) => { if (n) n.gain.gain.setTargetAtTime(0, now, 0.5); };
     if (!h || wild <= 0.01) {
       for (const [id, n] of habitat.falls) { n.low.src.stop(); n.hiss.src.stop(); n.p.disconnect(); habitat.falls.delete(id); }
       quiet(habitat.stream); quiet(habitat.waves); quiet(habitat.leaves);
+      if (habitat.boil) { quiet(habitat.boil.seethe); quiet(habitat.boil.hiss); }
       return;
     }
     const night = h.night || 0;
@@ -386,11 +398,14 @@ export function createAudio() {
       const song = BIRD_SONGS[c.song];
       if (!song || night > 0.6 || Math.hypot(c.x - L.x, c.z - L.z) > 140) continue;
       if (!claim('birdsong', 1.6)) break;
-      const p = panner(90);
+      // (louder than the rest of the background, and heard further: 21 October 2026, the owner had not heard them
+      // over the rain and his own footsteps)
+      const p = panner(150), loud = ctx.createGain();
+      loud.gain.value = c.alarm ? 5 : 4;
       move(p, c.x, c.y, c.z);
-      p.connect(nodes.ambient);
-      const len = song(ctx, p, now + 0.02 + Math.random() * 0.25, nodes.white, Math.random);
-      setTimeout(() => p.disconnect(), (len + 1.5) * 1000);
+      loud.connect(p); p.connect(nodes.ambient);
+      const len = song(ctx, loud, now + 0.02 + Math.random() * 0.25, nodes.white, Math.random);
+      setTimeout(() => { loud.disconnect(); p.disconnect(); }, (len + 1.5) * 1000);
       habitat.heard.songs += 1; habitat.heard.kinds.add(c.song);
     }
     // the waterfalls: a deep roar and a hiss of spray, from the foot of each of the nearest two
@@ -420,6 +435,28 @@ export function createAudio() {
     // the wind in the leaves, in gusts
     if (!habitat.leaves) { habitat.leaves = looped(nodes.white, 'bandpass', 5200, 0.6); habitat.leaves.gain.connect(nodes.ambient); }
     habitat.leaves.gain.gain.setTargetAtTime(wild * (0.012 + 0.03 * (h.gust || 0)) * (1 - night * 0.4) * (1 + rain), now, 0.5);
+    // the boiling river (21 October 2026): a deep seethe and a hiss of steam from its nearest water, louder the nearer,
+    // and its bubbles bursting, a pop and a gurgle at a time, more of them close by
+    if (!habitat.boil) {
+      const p = panner(140);
+      const seethe = looped(nodes.brown, 'lowpass', 380, 0.9), hiss = looped(nodes.white, 'bandpass', 4200, 0.6);
+      seethe.gain.connect(p); hiss.gain.connect(p); p.connect(nodes.ambient);
+      habitat.boil = { p, seethe, hiss };
+    }
+    const hot = h.hot;
+    if (hot) {
+      move(habitat.boil.p, hot.x, hot.y, hot.z);
+      const k = wild * Math.max(0, 1 - hot.d / 120);
+      habitat.boil.seethe.filter.frequency.setTargetAtTime(300 + Math.random() * 180, now, 0.08);
+      habitat.boil.seethe.gain.gain.setTargetAtTime(0.55 * k, now, 0.3);
+      habitat.boil.hiss.gain.gain.setTargetAtTime(0.05 * k, now, 0.3);
+      if (k > 0.05) habitat.heard.boiling += 1;
+      if (hot.d < 70 && now > habitat.popAt) {
+        habitat.popAt = now + 0.04 + Math.random() * (0.12 + hot.d / 90);
+        const a = Math.random() * Math.PI * 2, r = Math.random() * 6;
+        if (at(hot.x + Math.cos(a) * r, hot.z + Math.sin(a) * r, 80, 'boil', 0.25, 'ambient', (out, t) => bubble(ctx, out, t, Math.random))) habitat.heard.pops += 1;
+      }
+    } else { quiet(habitat.boil.seethe); quiet(habitat.boil.hiss); }
     // at night: crickets all round, and the frogs by the water
     if (night > 0.45 && rain < 0.5) {
       if (now > habitat.cricketAt) {
@@ -979,6 +1016,6 @@ export function createAudio() {
       peerCars: ctx ? [...nodes.peerCars].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, rev: e.engine ? e.engine.rev : 0 })) : [],
       recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])),
       // the habitation's: how many songs, of which birds, frogs and crickets have been played; the waterfalls heard now
-      habitat: { songs: habitat.heard.songs, kinds: [...habitat.heard.kinds], frogs: habitat.heard.frogs, crickets: habitat.heard.crickets, falls: [...habitat.falls.keys()], fallsLevel: ctx ? [...habitat.falls.values()].map((n) => +n.low.gain.gain.value.toFixed(3)) : [], stream: ctx && habitat.stream ? +habitat.stream.gain.gain.value.toFixed(3) : 0 } }),
+      habitat: { songs: habitat.heard.songs, kinds: [...habitat.heard.kinds], frogs: habitat.heard.frogs, crickets: habitat.heard.crickets, falls: [...habitat.falls.keys()], fallsLevel: ctx ? [...habitat.falls.values()].map((n) => +n.low.gain.gain.value.toFixed(3)) : [], stream: ctx && habitat.stream ? +habitat.stream.gain.gain.value.toFixed(3) : 0, boiling: habitat.heard.boiling, pops: habitat.heard.pops, boil: ctx && habitat.boil ? +habitat.boil.seethe.gain.gain.value.toFixed(3) : 0 } }),
   };
 }

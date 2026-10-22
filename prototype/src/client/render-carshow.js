@@ -48,9 +48,9 @@ const SUN_SHARE = 0.315;            // of the logo's height: the sun, its rays a
 
 // (on a phone at half the size, set out the same: on its screen it looks the same, and takes a quarter of the graphics
 // memory — the name over the doors was 21.3 MB there)
-function canvasTexture(width, height, draw, { repeat = false } = {}) {
+function canvasTexture(width, height, draw, { repeat = false, lite = 0.5 } = {}) {
   const canvas = document.createElement('canvas');
-  const k = isLite() ? 0.5 : 1;
+  const k = isLite() ? lite : 1;
   canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
   texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
@@ -322,7 +322,9 @@ function standIn(b) {
 // ------------------------------------------------------------------------------------------- the signs --
 
 // POST CIVIL WAR over CAR SHOWROOM, standing letters with the rising sun before them: what stands on the podium
-// over the doors and at the top of the tower. Nothing behind the letters.
+// over the doors and at the top of the tower. Nothing behind the letters. (On a phone at a quarter of its size, 1024 by
+// 256, 21 October 2026: its letters are still over a hundred pixels high, and at 2048 it was the largest picture a phone
+// held in the town, 5.3 MB, from anywhere in it: the town's east end, with the habitation beside it, came to 150.2 MB.)
 const nameTexture = () => canvasTexture(4096, 1024, (g, img) => {
   g.textBaseline = 'alphabetic';
   const sunH = 900, sunW = img ? (img.width / (img.height * SUN_SHARE)) * sunH * SUN_SHARE * 1.0 : 0;
@@ -332,7 +334,7 @@ const nameTexture = () => canvasTexture(4096, 1024, (g, img) => {
   const room = 4096 - left - 60, mid = left + room / 2;
   heavy(g, 'POST CIVIL WAR', mid, 560, 470, room, CREAM, 0.05);
   heavy(g, 'CAR SHOWROOM', mid, 960, 330, room * 0.82, GOLD, 0.16);
-});
+}, { lite: 0.25 });
 // The wall behind the floor, inside: the logo, the name, and what is sold here.
 const wallTexture = () => canvasTexture(3072, 768, (g, img) => {
   const bg = g.createLinearGradient(0, 0, 3072, 0); bg.addColorStop(0, '#0d0f12'); bg.addColorStop(0.5, '#1c2026'); bg.addColorStop(1, '#0d0f12');
@@ -698,11 +700,13 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   function load(x, z) {
     ensureOutside();
     for (const e of buildings) {
-      // the villa is the largest file (76 MB): fetched only by someone near the compound
-      const reach = e.b.id === 'villa' ? 320 : 900;
+      // the villa is the largest file (76 MB): fetched only by someone near the compound. (On a phone, where the haze
+      // over the town hides everything past 480 m, each is fetched within 520 m and let go past 550 m: 21 October 2026,
+      // with the habitation at the end of the town's road, 560 m and more from here, a phone needs the room there.)
+      const reach = e.b.id === 'villa' ? (lite ? 300 : 320) : lite ? 520 : 900;
       // (and each let go again by someone gone well beyond that, its plain shape put back in its place: 18 October
       // 2026, the owner's brief, the memory the game held grew the longer it was played)
-      if (e.mesh && x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach + 250) { letGo(e); continue; }
+      if (e.mesh && x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach + (lite ? 30 : 250)) { letGo(e); continue; }
       if (e.mesh || e.requested || ON_DISK) continue;
       if (performance.now() < e.retryAt) continue;
       if (x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach) continue;

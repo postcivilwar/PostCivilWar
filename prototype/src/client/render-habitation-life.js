@@ -22,7 +22,7 @@
 //   life.calls()                                                         the birds that sang since it was last asked
 //   life.dispose()
 
-import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, habitationWaterAt, habitationLand, habitationFooting } from '../sim/zone.js';
+import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_PATHS, HABITATION_SHIFT, habitationWaterAt, habitationLand, habitationFooting } from '../sim/zone.js';
 import { linear } from './render-kit.js';
 
 // a repeatable dice: the same fish and birds in the same places for everyone who comes
@@ -58,19 +58,24 @@ export const BIRD_KINDS = Object.freeze({
 });
 
 // Where each kind lives, place by place (habitation.js HABITATION.places): how many, and a phone's share of them.
+// (21 October 2026, the owner: "I didn't even see the different birds flying and their noises/whistle": more of them, a
+// phone's share more too, and many low down by the paths where they are seen, not only up in the crowns)
 const HOMES = [
-  ['entrance-hill', [['bulbul', 2], ['pied-crow', 2], ['weaver', 6], ['sunbird', 1]]],
-  ['forest-path', [['grey-parrot', 3], ['blue-turaco', 2], ['hornbill', 2], ['bulbul', 1]]],
-  ['swamp', [['ibis', 2], ['kingfisher', 1], ['violet-turaco', 1], ['grey-parrot', 2]]],
-  ['mangroves', [['egret', 3], ['kingfisher', 1], ['senegal-parrot', 2]]],
-  ['lagoon', [['egret', 2], ['parakeet', 6], ['senegal-parrot', 2], ['fish-eagle', 1], ['pied-crow', 1]]],
-  ['gorge', [['kingfisher', 1], ['bulbul', 1], ['sunbird', 2], ['blue-turaco', 1]]],
-  ['big-waterfall', [['pied-crow', 1], ['fish-eagle', 1], ['violet-turaco', 1]]],
-  ['waterfall-pool', [['sunbird', 2], ['violet-turaco', 1], ['kingfisher', 1]]],
-  ['overlook', [['hornbill', 1], ['parakeet', 4]]],
-  ['gazebo-garden', [['sunbird', 2], ['bulbul', 1], ['weaver', 5]]],
-  ['sunset-beach', [['egret', 1], ['ibis', 1], ['grey-parrot', 2]]],
+  ['entrance-hill', [['bulbul', 3], ['pied-crow', 3], ['weaver', 8], ['sunbird', 2], ['grey-parrot', 2], ['hornbill', 1]]],
+  ['forest-path', [['grey-parrot', 4], ['blue-turaco', 3], ['hornbill', 3], ['bulbul', 2], ['violet-turaco', 2], ['sunbird', 2]]],
+  ['swamp', [['ibis', 3], ['kingfisher', 2], ['violet-turaco', 2], ['grey-parrot', 3], ['egret', 2]]],
+  ['mangroves', [['egret', 4], ['kingfisher', 2], ['senegal-parrot', 3], ['ibis', 1]]],
+  ['lagoon', [['egret', 3], ['parakeet', 8], ['senegal-parrot', 3], ['fish-eagle', 1], ['pied-crow', 2], ['kingfisher', 1]]],
+  ['gorge', [['kingfisher', 2], ['bulbul', 2], ['sunbird', 3], ['blue-turaco', 2], ['grey-parrot', 2]]],
+  ['big-waterfall', [['pied-crow', 2], ['fish-eagle', 1], ['violet-turaco', 2], ['parakeet', 4]]],
+  ['waterfall-pool', [['sunbird', 3], ['violet-turaco', 2], ['kingfisher', 1], ['bulbul', 2]]],
+  ['overlook', [['hornbill', 2], ['parakeet', 6], ['pied-crow', 1]]],
+  ['gazebo-garden', [['sunbird', 3], ['bulbul', 2], ['weaver', 6], ['senegal-parrot', 2]]],
+  ['sunset-beach', [['egret', 2], ['ibis', 2], ['grey-parrot', 3], ['pied-crow', 1]]],
 ];
+// The flocks that cross the sky wherever one is in the habitation (parakeets, weavers, parrots, now and then), calling
+// as they go over: seen and heard by anyone there, not only by whoever comes near a bird's home.
+const CROSSINGS = [['parakeet', 9], ['weaver', 10], ['grey-parrot', 4], ['senegal-parrot', 5]];
 
 // A bird drawn small: its body, head, bill, tail and two wings, coloured, for a wingspan of one metre (scaled to its
 // own). `wing` marks the wings' points (1), so that they can be beaten (and folded along the body when it sits).
@@ -194,6 +199,7 @@ const FISH_KINDS = Object.freeze({
 });
 // The shoals: in which water, near where (so that they are where people come: the beaches, the jetty, the island's
 // boardwalk, the pools), how many fish and of what kind.
+// (given where they were drawn: HABITATION_SHIFT moves them to where the habitation now is)
 const SHOALS = [
   { water: 'lagoon', near: [2168, 132], fish: 9, kind: 'tilapia' },
   { water: 'lagoon', near: [2232, 132], fish: 8, kind: 'tilapia' },
@@ -209,7 +215,7 @@ const SHOALS = [
   { water: 'gorge', near: [2340, 118], fish: 5, kind: 'minnow' },
   { water: 'gorge', near: [2402, 74], fish: 4, kind: 'minnow' },
   { water: 'falls-run', near: [2328, 306], fish: 4, kind: 'minnow' },
-];
+].map((s) => ({ ...s, near: [s.near[0] + HABITATION_SHIFT, s.near[1]] }));
 
 // --------------------------------------------------------------------------------------------- footprints --
 
@@ -233,7 +239,7 @@ export function createHabitationLife(scene, { lite = false } = {}) {
   scene.add(group);
   const clock = { value: 0 };
   let time = 0;
-  const share = lite ? 0.6 : 1;
+  const share = lite ? 0.8 : 1;
 
   // ---- the birds' places to sit: the crowns of the trees and palms, the tops of the bushes, rocks by the water
   const crowns = [], bushes = [], waterside = [], wading = [];
@@ -244,6 +250,19 @@ export function createHabitationLife(scene, { lite = false } = {}) {
     if (info.kind === 'tree' || info.kind === 'palm') crowns.push({ x: p.x, y: ground + p.s * (info.kind === 'palm' ? 0.93 : 0.86), z: p.z, high: p.s });
     else if (info.kind === 'shrub' || info.kind === 'banana' || info.kind === 'herb') bushes.push({ x: p.x, y: ground + p.s * 0.92, z: p.z, high: p.s });
     else if (info.kind === 'rock') { const w = habitationWaterAt(p.x + 1.5, p.z) || habitationWaterAt(p.x - 1.5, p.z) || habitationWaterAt(p.x, p.z + 1.5) || habitationWaterAt(p.x, p.z - 1.5); if (w && w.kind !== 'river') waterside.push({ x: p.x, y: ground + p.s * 0.85, z: p.z, water: w }); }
+  }
+  // low places by the paths, where a bird is seen: the tops of the bushes within a few metres of a path, and the ground
+  // at a path's edge (for those that walk about on it: crows, hornbills, ibises), each by where it is
+  const nearPath = (x, z, within) => HABITATION_PATHS.some((p) => p.line.some(([px, pz], i) => { if (i === 0) return false; const [ax, az] = p.line[i - 1], dx = px - ax, dz = pz - az, l2 = dx * dx + dz * dz || 1; const t = Math.max(0, Math.min(1, ((x - ax) * dx + (z - az) * dz) / l2)); return Math.hypot(ax + dx * t - x, az + dz * t - z) < p.width / 2 + within; }));
+  const lows = bushes.filter((b) => b.high < 4.5 && nearPath(b.x, b.z, 8));
+  const verges = [];
+  for (const p of HABITATION_PATHS) for (let i = 0; i + 1 < p.line.length; i += 1) {
+    const [ax, az] = p.line[i], [bx, bz] = p.line[i + 1], len = Math.hypot(bx - ax, bz - az) || 1;
+    for (let d = 2; d < len; d += 5) for (const side of [-1, 1]) {
+      const off = p.width / 2 + 1.5 + rand() * 3, x = ax + ((bx - ax) * d) / len - ((bz - az) / len) * side * off, z = az + ((bz - az) * d) / len + ((bx - ax) / len) * side * off;
+      const f = habitationFooting(x, z);
+      if (f && f.walk && !f.deck && f.kind !== 'shallows') verges.push({ x, y: habitationLand(x, z), z, ground: true });
+    }
   }
   // places in the shallows (a hand's depth) for the waders to walk, by the beaches, the island, the swamp and the pools
   for (let i = 0; i < 2400 && wading.length < 160; i += 1) {
@@ -273,30 +292,48 @@ export function createHabitationLife(scene, { lite = false } = {}) {
       }
     }
   }
+  // the flocks that cross the sky over whoever is there: idle (not drawn) until one goes over
+  const crossings = [];
+  for (const [kind, many] of CROSSINGS) {
+    const k = BIRD_KINDS[kind], n = Math.max(3, Math.round(many * share));
+    const flock = { kind, members: [], t: 0, dur: 1, from: null, to: null, ctrl: null, callAt: 0 };
+    for (let i = 0; i < n; i += 1) {
+      const b = { kind, k, home: HABITATION.places[0], x: 0, y: -1000, z: 0, h: 0, pitch: 0, mode: 'idle', wait: 0, flap: 0, fold: 0, phase: rand() * TAU, rate: k.flap * (0.9 + rand() * 0.2), songAt: Infinity, flock: null, spot: null, roost: false, cross: flock, offset: [(rand() - 0.5) * 9, (rand() - 0.5) * 3, (rand() - 0.5) * 9] };
+      flock.members.push(b); birds.push(b);
+    }
+    crossings.push(flock);
+  }
+  let nextCrossing = 6 + rand() * 6, crossingTurn = 0;
   // each bird's first place: sitting where its kind sits, at home
+  const GROUNDERS = new Set(['pied-crow', 'hornbill', 'ibis']);
   const spotFor = (b, from = b.home, within = 90) => {
     const k = b.k;
     let list;
     if (k.ways === 'wade') list = nearest(wading, from.x, from.z, within);
     else if (k.ways === 'kingfisher') list = nearest(waterside, from.x, from.z, within * 1.6);
-    else if (k.ways === 'low') list = nearest(bushes, from.x, from.z, within, (p) => p.high > 1.0);
+    else if (k.ways === 'low') list = nearest(rand() < 0.6 && lows.length ? lows : bushes, from.x, from.z, within, (p) => p.high > 1.0);
+    // (a parrot, a turaco, a crow, a hornbill: as often low by a path, on a bush or the ground, as up in a crown)
+    else if (k.ways === 'perch' && rand() < 0.5) list = GROUNDERS.has(b.kind) && rand() < 0.6 ? nearest(verges, from.x, from.z, within) : nearest(lows, from.x, from.z, within);
     else list = nearest(crowns, from.x, from.z, within, (p) => p.high > (k.span > 0.7 ? 9 : 5));
+    if (!list || !list.length) list = nearest(crowns, from.x, from.z, within, (p) => p.high > (k.span > 0.7 ? 9 : 5));
     if (!list.length) list = nearest(crowns, from.x, from.z, within * 2);
     if (!list.length) return { x: from.x, y: habitationLand(from.x, from.z) + 8, z: from.z };
     const p = list[Math.floor(rand() * list.length)];
-    // (a wader stands on the bed with its legs in the water)
+    // (a wader stands on the bed with its legs in the water; one on the ground stands on it)
     if (k.ways === 'wade') return { x: p.x, y: p.y + 0.24 * k.span, z: p.z, water: p.water };
+    if (p.ground) return { x: p.x, y: p.y + 0.2 * k.span, z: p.z, ground: true };
     // (a little apart on a crown: each its own place on the fronds)
     const spread = k.ways === 'wade' ? 0 : Math.min(2.4, 0.6 + (p.high || 2) * 0.08);
     const a = rand() * TAU;
     return { x: p.x + Math.cos(a) * spread * rand(), y: p.y, z: p.z + Math.sin(a) * spread * rand(), water: p.water };
   };
   for (const b of birds) {
+    if (b.cross) continue;
     if (b.k.ways === 'soar') { b.mode = 'soar'; b.circle = { x: b.home.x + (rand() - 0.5) * 60, z: b.home.z + (rand() - 0.5) * 60, r: 34 + rand() * 30, y: 48 + rand() * 30, dir: rand() < 0.5 ? 1 : -1 }; b.a = rand() * TAU; continue; }
     const s = b.flock && b.flock.leader !== b ? null : spotFor(b);
     if (s) { b.x = s.x; b.y = s.y; b.z = s.z; b.spot = s; }
   }
-  for (const b of birds) if (b.flock && b.flock.leader !== b) { const L = b.flock.leader; b.x = L.x + b.offset[0] * 0.3; b.y = L.y; b.z = L.z + b.offset[2] * 0.3; b.spot = { x: b.x, y: b.y, z: b.z }; }
+  for (const b of birds) if (!b.cross && b.flock && b.flock.leader !== b) { const L = b.flock.leader; b.x = L.x + b.offset[0] * 0.3; b.y = L.y; b.z = L.z + b.offset[2] * 0.3; b.spot = { x: b.x, y: b.y, z: b.z }; }
   for (const kind of kinds) {
     const list = birds.filter((b) => b.kind === kind);
     if (!list.length) continue;
@@ -359,7 +396,7 @@ export function createHabitationLife(scene, { lite = false } = {}) {
   }
 
   // ---- fireflies: over the swamp, the forest's edge by the path, the mangroves and the garden
-  const FLY_AREAS = [[2040, -80, 40], [2030, 70, 30], [2070, 150, 30], [2160, 400, 22], [1990, 40, 26]];
+  const FLY_AREAS = [[2040, -80, 40], [2030, 70, 30], [2070, 150, 30], [2160, 400, 22], [1990, 40, 26]].map(([x, z, r]) => [x + HABITATION_SHIFT, z, r]);
   const flyCount = lite ? 40 : 90;
   const flies = [];
   for (let i = 0; i < flyCount; i += 1) { const a = FLY_AREAS[i % FLY_AREAS.length]; const x = a[0] + (rand() - 0.5) * 2 * a[2], z = a[1] + (rand() - 0.5) * 2 * a[2]; flies.push({ x, z, y: 0.6 + rand() * 2.2, base: habitationLand(x, z), a: rand() * TAU, s: 0.3 + rand() * 0.5, blink: rand() * 10, rate: 0.35 + rand() * 0.5 }); }
@@ -395,11 +432,48 @@ export function createHabitationLife(scene, { lite = false } = {}) {
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), sc = new THREE.Vector3(), at = new THREE.Vector3();
   const stats = { birds: birds.length, fish: shoals.reduce((n, s) => n + s.fish.length, 0), shoals: shoals.length, kinds: birdMeshes.size, flying: 0, sitting: 0, wading: 0, soaring: 0, scattered: 0, prints: 0, fireflies: 0, flushed: 0 };
 
-  function updateBirds(dt, people, night, eye) {
+  // A flock going over: across in front of whoever is looking, from one side to the other, a little above the trees,
+  // calling as it goes.
+  function startCrossing(eye, look) {
+    const flock = crossings[crossingTurn % crossings.length]; crossingTurn += 1;
+    const fx = look ? look.x : 1, fz = look ? look.z : 0, fl = Math.hypot(fx, fz) || 1;
+    const ux = fx / fl, uz = fz / fl, rx = -uz, rz = ux;
+    const ahead = 28 + rand() * 30, wide = 70, side = rand() < 0.5 ? 1 : -1, slant = (rand() - 0.5) * 30;
+    const a = { x: eye.x + ux * (ahead + slant) - rx * wide * side, z: eye.z + uz * (ahead + slant) - rz * wide * side };
+    const c = { x: eye.x + ux * (ahead - slant) + rx * wide * side, z: eye.z + uz * (ahead - slant) + rz * wide * side };
+    let top = 0;
+    for (let i = 0; i <= 6; i += 1) { const u = i / 6; top = Math.max(top, habitationLand(a.x + (c.x - a.x) * u, a.z + (c.z - a.z) * u)); }
+    const y = Math.max(top, habitationLand(eye.x, eye.z)) + 9 + rand() * 7;
+    flock.from = { x: a.x, y: y + 4, z: a.z }; flock.to = { x: c.x, y: y + 2, z: c.z };
+    flock.ctrl = { x: (a.x + c.x) / 2 + ux * 6, y: y - 3, z: (a.z + c.z) / 2 + uz * 6 };
+    flock.t = 0; flock.dur = Math.hypot(c.x - a.x, c.z - a.z) / (BIRD_KINDS[flock.kind].speed * 1.1);
+    flock.callAt = 0.5;
+    for (const m of flock.members) m.mode = 'cross';
+    stats.crossings = (stats.crossings || 0) + 1;
+  }
+  function updateBirds(dt, people, night, eye, look) {
     const roost = night > 0.55;
     stats.flying = stats.sitting = stats.wading = stats.soaring = 0;
+    // a flock over now and then, by day, for whoever is in the habitation
+    const b0 = HABITATION.bounds, inside = eye && eye.x > b0.x0 && eye.x < b0.x1 && eye.z > b0.z0 && eye.z < b0.z1;
+    nextCrossing -= dt;
+    if (nextCrossing <= 0 && inside && !roost && !crossings.some((f) => f.members[0].mode === 'cross')) { startCrossing(eye, look); nextCrossing = 16 + rand() * 18; }
+    for (const f of crossings) {
+      if (f.members[0].mode !== 'cross') continue;
+      f.t += dt / f.dur;
+      const u = Math.min(1, f.t);
+      if (u > f.callAt && calls.length < 24) { const m = f.members[0]; calls.push({ song: BIRD_KINDS[f.kind].song, kind: f.kind, x: m.x, y: m.y, z: m.z }); f.callAt += 0.18 + rand() * 0.2; }
+      for (const m of f.members) {
+        const nx = bez(f.from.x, f.ctrl.x, f.to.x, u) + m.offset[0], ny = bez(f.from.y, f.ctrl.y, f.to.y, u) + m.offset[1], nz = bez(f.from.z, f.ctrl.z, f.to.z, u) + m.offset[2];
+        if (Math.hypot(nx - m.x, nz - m.z) > 1e-4 && m.y > -100) m.h = Math.atan2(nx - m.x, nz - m.z);
+        m.x = nx; m.y = ny; m.z = nz; m.flap = 0.75; m.fold = 0; m.pitch = 0;
+        if (u >= 1) { m.mode = 'idle'; m.y = -1000; }
+      }
+      stats.flying += f.members.length;
+    }
     for (const b of birds) {
       const k = b.k;
+      if (b.cross) continue;
       if (b.mode === 'soar') {
         if (roost) { const s = spotFor(b, b, 160); fly(b, s); b.roost = true; continue; }
         b.a += dt * (k.speed / b.circle.r) * b.circle.dir;
@@ -422,7 +496,7 @@ export function createHabitationLife(scene, { lite = false } = {}) {
         b.flap = u > 0.88 ? 0.9 : dy > 0.02 ? 0.8 : 0.45 + 0.25 * Math.sin(time * 0.9 + b.phase); b.fold = 0;
         if (u >= 1) {
           if (k.ways === 'soar' && !b.roost) { b.mode = 'soar'; b.a = Math.atan2(b.z - b.circle.z, b.x - b.circle.x); }
-          else { b.mode = k.ways === 'wade' && b.to.water ? 'wade' : 'rest'; b.spot = b.to; b.wait = (k.ways === 'flock' ? 6 : 10) + rand() * (k.ways === 'wade' ? 30 : 22); b.pitch = 0; }
+          else { b.mode = k.ways === 'wade' && b.to.water ? 'wade' : 'rest'; b.spot = b.to; b.wait = (k.ways === 'flock' ? 4 : 5) + rand() * (k.ways === 'wade' ? 24 : 12); b.pitch = 0; }
         }
         stats.flying += 1;
       } else {
@@ -436,11 +510,13 @@ export function createHabitationLife(scene, { lite = false } = {}) {
           if (w) b.y = w.level - Math.min(0.22, w.depth) + 0.24 * k.span;
         } else stats.sitting += 1;
         // someone close: up and away (a wader further off than a small bird among the leaves)
-        const shy = k.ways === 'wade' ? 9 : k.ways === 'kingfisher' ? 6 : k.ways === 'low' ? 3.5 : 0;
+        const low = b.spot && b.y - habitationLand(b.x, b.z) < 6;
+        const shy = k.ways === 'wade' ? 9 : k.ways === 'kingfisher' ? 6 : k.ways === 'low' ? 4 : low ? 7 : 0;
         let flushed = false;
         if (shy) for (const p of people) if (Math.hypot(p.x - b.x, p.z - b.z) < shy && Math.abs((p.y || 0) - b.y) < 6) { flushed = true; break; }
         b.wait -= dt;
-        if (flushed && !roost) { stats.flushed += 1; fly(b, spotFor(b, b, 70), { low: k.ways === 'wade' }); continue; }
+        // (and flies off calling, as a startled bird does)
+        if (flushed && !roost) { stats.flushed += 1; if (calls.length < 24) calls.push({ song: k.song, kind: b.kind, x: b.x, y: b.y, z: b.z, alarm: true }); fly(b, spotFor(b, b, 70), { low: k.ways === 'wade' }); continue; }
         if (k.ways === 'soar' && b.wait <= 0 && !roost) {
           // (an eagle that roosted for the night goes back up to circle once it is light)
           b.roost = false;
@@ -458,14 +534,15 @@ export function createHabitationLife(scene, { lite = false } = {}) {
       }
       // a song now and then, by day, from a bird that is near enough to be heard
       if (!roost && time > b.songAt) {
-        b.songAt = time + (k.ways === 'flock' ? 2 + rand() * 6 : k.ways === 'soar' ? 25 + rand() * 40 : 6 + rand() * 18);
-        if (eye && Math.hypot(b.x - eye.x, b.z - eye.z) < 130 && calls.length < 24) calls.push({ song: k.song, kind: b.kind, x: b.x, y: b.y, z: b.z });
+        b.songAt = time + (k.ways === 'flock' ? 2 + rand() * 5 : k.ways === 'soar' ? 18 + rand() * 30 : 4 + rand() * 12);
+        if (eye && Math.hypot(b.x - eye.x, b.z - eye.z) < 150 && calls.length < 24) calls.push({ song: k.song, kind: b.kind, x: b.x, y: b.y, z: b.z });
       }
     }
     // drawing: each kind's birds, where they are, those far off not at all
     for (const { mesh, state, list } of birdMeshes.values()) {
       let n = 0;
       for (const b of list) {
+        if (b.mode === 'idle') continue;
         if (eye && Math.hypot(b.x - eye.x, b.z - eye.z) > (lite ? 220 : 340)) continue;
         e.set(b.pitch, b.h, b.mode === 'soar' ? -0.25 * b.circle.dir : 0);
         q.setFromEuler(e);
@@ -587,10 +664,10 @@ export function createHabitationLife(scene, { lite = false } = {}) {
     printGeom.attributes.printFade.needsUpdate = true;
   }
 
-  function update(dt, { eye = null, people = [], night = 0 } = {}) {
+  function update(dt, { eye = null, look = null, people = [], night = 0 } = {}) {
     time += dt;
     clock.value = time % 3600;
-    updateBirds(dt, people, night, eye);
+    updateBirds(dt, people, night, eye, look);
     updateFish(dt, people, eye);
     updateFireflies(dt, night, eye);
     updatePrints(dt, people);

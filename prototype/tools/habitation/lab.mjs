@@ -12,6 +12,8 @@ import { dirname, resolve, extname } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 const require = createRequire(import.meta.url);
+// (the views are written where the habitation was laid out; it stands HABITATION_SHIFT metres along x from there)
+const { HABITATION_SHIFT: S } = await import('../../src/sim/zones/habitation.js');
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
@@ -69,6 +71,14 @@ export const VIEWS = {
   garden2: { eye: [2166, 404, 1.7], at: [2168, 389, 1] },
   gardenTop: { eye: [2200, 445, 30], at: [2160, 395, 0] },
   terrace: { eye: [2262, 368, 1.7], at: [2236, 374, 0] },
+  hotNorth: { eye: [2080, -180, 1.7], at: [2110, -214, 0] },
+  hotEast: { eye: [2500, 100, 1.7], at: [2560, 120, 0] },
+  hotCorner: { eye: [2500, -150, 1.7], at: [2546, -200, 0] },
+  hotSouth: { eye: [2280, 446, 1.7], at: [2290, 500, 0] },
+  hotAbove: { eye: [2420, -100, 60], at: [2540, -170, 0], fov: 55 },
+  road: { eye: [1690, 113, 1.7], at: [1880, 95, 3] },
+  top: { eye: [2228, 145, 640], at: [2229, 146, 0], fov: 68 },
+  hotBank: { eye: [2300, -186, 1.7], at: [2330, -206, 1] },
 };
 const names = opt('views', Object.keys(VIEWS).join(',')).split(',');
 const TYPES = { '.js': 'text/javascript', '.json': 'application/json', '.webp': 'image/webp', '.glb': 'model/gltf-binary', '.png': 'image/png', '.jpg': 'image/jpeg' };
@@ -126,7 +136,7 @@ window.pictures = () => {
   const by = {}; for (const e of list) { const k = e.owner.split(':')[0]; by[k] = +((by[k] || 0) + e.mb).toFixed(2); }
   return { count: list.length, totalMB: +list.reduce((s, e) => s + e.mb, 0).toFixed(1), top: list.slice(0, 25), byOwner: Object.entries(by).sort((a, b) => b[1] - a[1]).slice(0, 40) };
 };
-window.prepare = async () => { const t = performance.now(); habitation.update(0.016, { at: { x: 2000, z: 0 } }); while (!habitation.built || habitation.state().models < habitation.state().of) await new Promise((r) => setTimeout(r, 250)); life = createHabitationLife(scene, { lite: ${LITE} }); for (let i = 0; i < 20; i += 1) life.update(0.25, { eye: { x: 2100, z: 150 }, people: [], night: 0 }); return { ms: Math.round(performance.now() - t), state: habitation.state(), life: (({ birds, fish, shoals, kinds }) => ({ birds, fish, shoals, kinds }))(life.state()) }; };
+window.prepare = async () => { const t = performance.now(); habitation.update(0.016, { at: { x: ${2000 + S}, z: 0 } }); while (!habitation.built || habitation.state().models < habitation.state().of) await new Promise((r) => setTimeout(r, 250)); life = createHabitationLife(scene, { lite: ${LITE} }); for (let i = 0; i < 20; i += 1) life.update(0.25, { eye: { x: ${2100 + S}, z: 150 }, people: [], night: 0 }); return { ms: Math.round(performance.now() - t), state: habitation.state(), life: (({ birds, fish, shoals, kinds }) => ({ birds, fish, shoals, kinds }))(life.state()) }; };
 window.view = (v, hour, frames = 1) => {
   const ey = zoneGroundY(v.eye[0], v.eye[1]) + v.eye[2], ay = zoneGroundY(v.at[0], v.at[1]) + v.at[2];
   camera.fov = v.fov || 62; camera.updateProjectionMatrix();
@@ -135,7 +145,7 @@ window.view = (v, hour, frames = 1) => {
     const sk = sky.update(0.5, hour, { kind: 'clear', wet: false, intensity: 0 }, new THREE.Vector3(v.eye[0], ey, v.eye[1]), camera, 0, 1);
     updateFinishes(0.5, { daylight: 1 - sk.night });
     habitation.update(0.05, { at: { x: v.eye[0], z: v.eye[1] }, eye: camera.position, camera, night: sk.night });
-    if (life) life.update(0.05, { eye: camera.position, people: v.people || [], night: sk.night });
+    if (life) life.update(0.05, { eye: camera.position, look: { x: v.at[0] - v.eye[0], z: v.at[1] - v.eye[1] }, people: v.people || [], night: sk.night });
     renderer.render(scene, camera);
   }
   const info = renderer.info.render;
@@ -155,8 +165,9 @@ console.log('built', JSON.stringify(prepared));
 if (opt('pictures', '0') === '1') console.log('pictures', JSON.stringify(await page.evaluate(() => window.pictures())));
 if (opt('atlas', '0') === '1') { const url = await page.evaluate(() => window.atlas()); if (url) { const { writeFileSync } = await import('node:fs'); writeFileSync(resolve(out, 'atlas.png'), Buffer.from(url.split(',')[1], 'base64')); console.log('atlas written'); } }
 for (const name of names) {
-  const v = VIEWS[name];
-  if (!v) continue;
+  const authored = VIEWS[name];
+  if (!authored) continue;
+  const v = { ...authored, eye: [authored.eye[0] + S, authored.eye[1], authored.eye[2]], at: [authored.at[0] + S, authored.at[1], authored.at[2]] };
   const t = Date.now();
   const r = await page.evaluate(([v, hour, frames]) => window.view(v, hour, frames), [v, HOUR, Number(opt('frames', 2))]);
   await page.screenshot({ path: resolve(out, `${name}.png`), timeout: 0 });

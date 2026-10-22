@@ -15,7 +15,25 @@ const here = dirname(fileURLToPath(import.meta.url));
 const root = resolve(here, '../..');
 // (the scene file is written by this tool: an empty one first, so that the habitation can be read without it)
 const sceneFile = resolve(root, 'src/sim/zones/habitation-scene.js');
-const H = await import(resolve(root, 'src/sim/zones/habitation.js'));
+const HW = await import(resolve(root, 'src/sim/zones/habitation.js'));
+// The habitation as it was drawn, before it was brought down the river (habitation.js HABITATION_SHIFT, 21 October 2026):
+// every place below is given where it was drawn, and each placement is written out where it now stands.
+const S = HW.HABITATION_SHIFT;
+const lineBack = (line) => line.map(([x, z]) => [x - S, z]);
+const H = {
+  HABITATION: { ...HW.HABITATION, bounds: { ...HW.HABITATION.bounds, x0: HW.HABITATION.bounds.x0 - S, x1: HW.HABITATION.bounds.x1 - S }, gate: { ...HW.HABITATION.gate, x: HW.HABITATION.gate.x - S } },
+  HABITATION_PATHS: HW.HABITATION_PATHS.map((p) => ({ ...p, line: lineBack(p.line) })),
+  HABITATION_DECKS: HW.HABITATION_DECKS.map((d) => ({ ...d, line: lineBack(d.line), platform: d.platform ? { ...d.platform, x: d.platform.x - S } : undefined })),
+  HABITATION_STREAMS: HW.HABITATION_STREAMS.map((q) => ({ ...q, line: lineBack(q.line) })),
+  HABITATION_BOWLS: HW.HABITATION_BOWLS.map((b) => ({ ...b, outline: lineBack(b.outline) })),
+  HABITATION_PILLARS: HW.HABITATION_PILLARS.map((q) => ({ ...q, x: q.x - S })),
+  habitationLand: (x, z) => HW.habitationLand(x + S, z),
+  habitationWaterAt: (x, z) => HW.habitationWaterAt(x + S, z),
+  habitationFooting: (x, z) => HW.habitationFooting(x + S, z),
+  hotRiverNear: (x, z) => HW.hotRiverNear(x + S, z),
+  habitationHome: (x, z) => HW.habitationHome(x + S, z),
+  HABITATION_HOT_RIVER: { ...HW.HABITATION_HOT_RIVER, line: lineBack(HW.HABITATION_HOT_RIVER.line) },
+};
 const facts = JSON.parse(readFileSync(resolve(here, 'facts.json'), 'utf8'));
 const spec = JSON.parse(readFileSync(resolve(here, 'models.json'), 'utf8'));
 const stem = (name) => name.replace('3dmodel', '').replace('.glb', '');
@@ -381,6 +399,31 @@ for (const [id, count] of [['falls-bowl', 45], ['big-bowl', 55]]) {
   if (standsAt(x, z, { clear: s * 0.45 + 0.3, spacing: s * 0.8, steep: 2, open: true })) put(ROCK.limestone[k % 3], x, z, { size: s, turn: r, solid: s * 0.42, tag: 'falls-pool' });
 });
 
+// ---- beyond the boiling river (21 October 2026): its far banks, the bush and the forest going on, out of anyone's
+// reach (put after everything else, so that nothing placed before them moves)
+scatter([...BIG, ...TALL, ...OIL, ...PALMS], 70, rect(1900, -230, 2580, -216), { clear: 2, spacing: 9, steep: 1.4, tag: 'far-west' });
+scatter([...TALL, ...OIL, ...PALMS], 60, rect(2562, -230, 2580, 520), { clear: 2, spacing: 9, steep: 1.4, tag: 'far-north' });
+scatter([...PALMS, ...TALL, ...OIL], 60, rect(1960, 501, 2580, 520), { clear: 2, spacing: 9, steep: 1.4, tag: 'far-east' });
+// ---- and on this side of it, the forest going on down to its bank (21 October 2026: the ground between the
+// habitation's places and the boiling river was bare): trees and the plants under them, in a band from a few metres off
+// its water to sixty metres in, all round it (put last, so that nothing placed before them moves)
+const hotLine = H.HABITATION_HOT_RIVER.line;
+const hotLength = hotLine.slice(1).reduce((t, [x, z], i) => t + Math.hypot(x - hotLine[i][0], z - hotLine[i][1]), 0);
+const inBand = (from, to) => () => {
+  for (let k = 0; k < 20; k += 1) {
+    let d = between(0, hotLength), i = 0;
+    for (; i + 2 < hotLine.length; i += 1) { const l = Math.hypot(hotLine[i + 1][0] - hotLine[i][0], hotLine[i + 1][1] - hotLine[i][1]); if (d <= l) break; d -= l; }
+    const [ax, az] = hotLine[i], [bx, bz] = hotLine[i + 1], l = Math.hypot(bx - ax, bz - az) || 1, t = Math.min(1, d / l);
+    // (inward: the river runs round the habitation clockwise as the map is drawn, so the habitation is to its right)
+    const nx = -(bz - az) / l, nz = (bx - ax) / l, off = between(from, to);
+    const x = ax + (bx - ax) * t + nx * off, z = az + (bz - az) * t + nz * off;
+    if (H.habitationHome(x, z)) return [x, z];
+  }
+  return [0, 0];
+};
+scatter([...BIG, ...TALL, ...OIL, ...PALMS, ...PALMS], 320, inBand(13, 62), { clear: 2, spacing: 9, steep: 1.2, tag: 'hot-bank' });
+scatter([...UNDER, ...SHRUBS], 160, inBand(11, 50), { clear: 1.2, spacing: 5, steep: 1.2, tag: 'hot-bank-under' });
+
 // ======================================================================================== written out ==
 const used = new Set(placed.map((p) => p.m));
 const all = Object.keys(spec.models).map(stem);
@@ -388,7 +431,7 @@ const missing = all.filter((m) => !used.has(m));
 if (missing.length) { console.error('not used:', missing.join(', ')); process.exit(1); }
 const count = {};
 for (const p of placed) count[p.m] = (count[p.m] || 0) + 1;
-const lines = placed.map((p) => `  [${JSON.stringify(p.m)}, ${p.x}, ${p.z}, ${p.y === null ? 'null' : p.y}, ${p.r}, ${p.s}, ${p.solid}, ${JSON.stringify(p.tag)}],`);
+const lines = placed.map((p) => `  [${JSON.stringify(p.m)}, ${+(p.x + S).toFixed(2)}, ${p.z}, ${p.y === null ? 'null' : p.y}, ${p.r}, ${p.s}, ${p.solid}, ${JSON.stringify(p.tag)}],`);
 writeFileSync(sceneFile, `// Where each of the owner's habitation models stands, and the rocks: made by tools/habitation/place.mjs from
 // habitation.js and the models' own measures (tools/habitation/facts.json); not edited by hand. Each: the model, where
 // (grid x, z), the height it stands at where that is not the ground (a pillar's top), turned (radians), its size
