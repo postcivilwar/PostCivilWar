@@ -2773,7 +2773,7 @@ Files: `src/sim/zones/atani.js`, `atani-patrols.js`, `police-looks.js`, `populat
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 417 headless tests
+node --test test/*.test.mjs                        # 418 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
