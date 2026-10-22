@@ -599,10 +599,18 @@ check('D: on a phone (#lite), what is drawn stays within what a mid-range phone 
 {
   const x = 2180 + S;
   await at(x, 121, 0);
-  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 4; n.cam.pitch = 0.12; });
+  // (every word shown at the top while walking, however briefly: a passing word is on the screen for five seconds)
+  await page.evaluate(() => {
+    const n = window.__nlw, box = document.getElementById('notices');
+    n.cam.dist = 4; n.cam.pitch = 0.12;
+    window.__said = [];
+    if (window.__saidWatch) window.__saidWatch.disconnect();
+    window.__saidWatch = new MutationObserver(() => { const t = box.textContent.trim(); if (t && !window.__said.includes(t)) window.__said.push(t); });
+    window.__saidWatch.observe(box, { childList: true, subtree: true, characterData: true });
+  });
   const s = await walkUntilStopped(40000);
   const f = habitationFooting(s.x, s.z), ahead = habitationFooting(s.x, s.z + 0.8);
-  const note = await page.evaluate(() => document.getElementById('notices').textContent);
+  const note = await page.evaluate(() => { window.__saidWatch.disconnect(); return window.__said.join(' | '); });
   check('L: walking out from the lagoon\'s beach the shallows are waded, and where it gets too deep the walker is stopped and told: "Swimming in the swamps is not advisable"', f && f.kind === 'shallows' && ahead && ahead.kind === 'water' && /not advisable/.test(note), { at: [+s.x.toFixed(1), +s.z.toFixed(1)], footing: f && f.kind, ahead: ahead && ahead.kind, depth: f && f.y !== undefined ? +(habitationWaterAt(s.x, s.z).level - f.y).toFixed(2) : null, note });
   await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 3.2; n.cam.pitch = 0.05; n.cam.yaw = Math.PI * 0.75; });
   await settle(4); await page.waitForTimeout(600);
@@ -691,7 +699,9 @@ check('D: on a phone (#lite), what is drawn stays within what a mid-range phone 
   await settle(4); await settle(4, pageB);
   const buttons = await page.evaluate(() => window.__nlw.controls.shown.map((b) => b.id));
   const buttonsB = await pageB.evaluate(() => window.__nlw.controls.shown.map((b) => b.id));
-  const idA = await page.evaluate(() => window.__nlw.playerId);
+  // (the other player, as B's game knows them: the one other player near)
+  const nearestPeer = () => { const n = window.__nlw, p = n.predicted; const list = (n.shownPeers || []).map((q) => ({ q, d: Math.hypot(q.x - p.x, q.z - p.z) })).sort((a, b) => a.d - b.d); return list.length ? list[0].q.id : null; };
+  const idA = await pageB.evaluate(nearestPeer);
   for (const p of [page, pageB]) await p.evaluate(() => window.__nlw.slow(0.08));
   await page.keyboard.press('Space');
   const lifts = [], seenB = [];
@@ -699,7 +709,7 @@ check('D: on a phone (#lite), what is drawn stays within what a mid-range phone 
     await page.waitForTimeout(600);
     const l = await page.evaluate(() => { const n = window.__nlw; return { lift: n.me.jumpLift, jumping: !!n.me.jumping, t: n.me.current ? n.me.current.time : 0, clip: n.me.current ? n.me.current.getClip().name : null, jump: n.me.spec ? n.me.spec.jump : null }; });
     lifts.push(l);
-    const b = await pageB.evaluate((id) => { const r = window.__nlw.crowd.rigOf(`p:${id}`); return r ? { lift: r.jumpLift || 0, jumping: !!r.jumping } : null; }, idA);
+    const b = await pageB.evaluate((id) => { const r = id ? window.__nlw.crowd.rigOf(`p:${id}`) : null; return r ? { lift: r.jumpLift || 0, jumping: !!r.jumping } : null; }, idA);
     if (b) seenB.push(b);
     if (l.jumping && l.lift > 0.3 && !lifts.some((q) => q.shot)) { l.shot = true; await shot('a-jump'); await shot('a-jump-seen-by-the-other', pageB); }
     if (!l.jumping && i > 2) break;
@@ -707,7 +717,7 @@ check('D: on a phone (#lite), what is drawn stays within what a mid-range phone 
   for (const p of [page, pageB]) await p.evaluate(() => window.__nlw.slow(1));
   const top = Math.max(...lifts.map((q) => q.lift)), lowest = Math.min(...lifts.map((q) => q.lift));
   check('L: Space jumps (and on a phone a Jump button): the figure\'s own leap, the body lifted off the ground in an arc and down again', buttons.includes('jump') && buttonsB.includes('jump') && lifts.some((q) => q.jumping && q.clip === q.jump) && top > 0.3 && lowest < -0.1 && !lifts[lifts.length - 1].jumping, { buttons, buttonsB, top: +top.toFixed(2), crouch: +lowest.toFixed(2), clip: lifts.map((q) => q.clip).find((c) => c && /jump|leap/.test(c)), samples: lifts.length });
-  check('L: the other player sees the jump', seenB.some((q) => q.jumping) && Math.max(...seenB.map((q) => q.lift)) > 0.2, { seen: seenB.filter((q) => q.jumping).length, top: seenB.length ? +Math.max(...seenB.map((q) => q.lift)).toFixed(2) : null });
+  check('L: the other player sees the jump', seenB.some((q) => q.jumping) && Math.max(...seenB.map((q) => q.lift)) > 0.2, { other: idA, looked: seenB.length, seen: seenB.filter((q) => q.jumping).length, top: seenB.length ? +Math.max(...seenB.map((q) => q.lift)).toFixed(2) : null });
 }
 
 // ---- back across the town: the habitation, and the road's end and its car park, let go ----

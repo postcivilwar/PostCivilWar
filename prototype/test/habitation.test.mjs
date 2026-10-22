@@ -13,13 +13,14 @@ import { town, run, ok, refused } from './world.mjs';
 import { createHost } from '../src/sim/host.js';
 import { HABITATION_ROOTS, HABITATION_ROOT_CELL } from '../src/sim/zones/habitation-roots.js';
 import {
-  HABITATION, HABITATION_PATHS, HABITATION_DECKS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_WATERS, HABITATION_SAND, HABITATION_GRASS, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore,
+  ZONE, HABITATION, HABITATION_PATHS, HABITATION_DECKS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_WATERS, HABITATION_SAND, HABITATION_GRASS, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore,
   habitationFooting, habitationFootOnly, habitationWaterAt, habitationDeckAt, zoneWalkable, zoneStep, zoneGroundY, zoneBlockKind, zoneOnGround, zoneShoreZ, BRIDGE, ZONE_CLOSURES, ROAD_CLOSURES,
   HABITATION_SHIFT, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, HABITATION_STREAMS, hotRiverNear, habitationLand, habitationHome, onUpriver,
   habitationRootAt, zoneSolid, HABITATION_ROOT_SQUARES,
   HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundAt, habitationRailsAt, HABITATION_RAILS, HABITATION_DECK_POSTS, HABITATION_SWIM_SIGNS, habitationSignPosts, habitationClimbing, habitationAlongDeck,
 } from '../src/sim/zone.js';
 import { JUMP_EVERY } from '../src/sim/sim.js';
+import { encodePlayer, decodePlayer } from '../src/net/link.js';
 // (a place as it was drawn, before the habitation was brought down to the end of the town's road)
 const S = HABITATION_SHIFT;
 
@@ -729,6 +730,35 @@ test('a jump: on foot, seen by those near; never from a vehicle or in the water,
   w.place(q, 0, zoneShoreZ(0) - 2, 0); run(w.host, 0.2);
   ok(w.send(id2, { type: 'swim.in' }));
   refused(w.send(id2, { type: 'jump' }), 'SWIMMING');
+});
+
+test('a jump is seen by another player in their own game: it travels over the link with how far into it the jumper is, is shown from its beginning, is the same jump word after word, and is over when it is over', () => {
+  const j = town(['Jumper Link']);
+  j.place(j.p, 30, 60, 0); run(j.host, 0.2);
+  assert.equal(j.g.view(j.id).self.jump, null, 'not jumping yet');
+  assert.equal(encodePlayer(j.g.view(j.id).self, ZONE.id).jp, undefined);
+  ok(j.send(j.id, { type: 'jump' }));
+  run(j.host, 0.2);
+  const self = j.g.view(j.id).self;
+  assert.ok(self.jump >= 0.15 && self.jump < JUMP_EVERY, `${self.jump}`);
+  const heard = decodePlayer(JSON.parse(JSON.stringify(encodePlayer(self, ZONE.id))), ZONE.id);
+  assert.equal(heard.jump, self.jump);
+  // another player's own game: it hears of the jump, a moment late, and shows it from its beginning
+  const watcher = createHost();
+  const w = watcher.game.join({ name: 'Watcher Link', look: {} });
+  watcher.game.state.players[w].x = 32; watcher.game.state.players[w].z = 60;
+  watcher.game.visitors.seen('remote-jumper', heard);
+  const row = () => watcher.game.view(w).players.find((q) => q.visitor);
+  assert.equal(row().jump, 0, 'from its beginning');
+  run(watcher, 0.5);
+  // (the next word, further into the same jump: still the same jump, not begun again)
+  watcher.game.visitors.seen('remote-jumper', { ...heard, jump: 0.7 });
+  assert.ok(Math.abs(row().jump - 0.5) < 0.05, `${row().jump}`);
+  run(watcher, JUMP_EVERY);
+  watcher.game.visitors.seen('remote-jumper', { ...heard, jump: null });
+  assert.equal(row().jump, null, 'over');
+  // nonsense is not a jump
+  for (const bad of [-1, 99, 'high', Infinity]) { watcher.game.visitors.seen('remote-other', { ...heard, name: 'Other Link', jump: bad }); assert.equal(watcher.game.view(w).players.find((q) => q.name === 'Other Link').jump, null, String(bad)); }
 });
 
 test('going up the habitation\'s stairs is known where a walker is, for the figure\'s own climb up them', () => {

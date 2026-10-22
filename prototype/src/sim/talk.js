@@ -62,7 +62,7 @@ function partOf(person, spot) {
   return null;
 }
 
-export function createTalk({ state, population, residents, players, weather, hub = {} }) {
+export function createTalk({ state, population, residents, players, weather, hub = {}, jumpFor = 1.4 }) {
   if (!state.talk) state.talk = { lines: [], seq: 0, busy: {}, next: {} };
   const book = state.talk;
   const people = population.people;
@@ -241,7 +241,7 @@ export function createTalk({ state, population, residents, players, weather, hub
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -298,6 +298,14 @@ export function createTalk({ state, population, residents, players, weather, hub
     v.phone = [1, 2, 3].includes(data.phone) ? data.phone : 0;
     // its torch, lit (only with the phone in hand)
     v.torch = v.phone && data.torch ? 1 : 0;
+    // a jump (22 October 2026): when it began, by this town's clock, kept from the first word of it (one word after
+    // another is the same jump, not a new one); heard of soon after it began, shown from its beginning, so that the
+    // crouch before it is not missed
+    const jp = Number(data.jump);
+    if (data.jump !== null && data.jump !== undefined && Number.isFinite(jp) && jp >= 0 && jp < jumpFor) {
+      const began = now() - (jp < 0.5 ? 0 : jp);
+      v.jumpAt = old && Number.isFinite(old.jumpAt) && now() - old.jumpAt < jumpFor && Math.abs(old.jumpAt - (now() - jp)) < 0.8 ? old.jumpAt : began;
+    } else v.jumpAt = old && Number.isFinite(old.jumpAt) && now() - old.jumpAt < jumpFor ? old.jumpAt : null;
     // a vehicle under them (a keke they drive, an okada they ride or ride on the back of), the motorcycles and kekes of
     // theirs standing near them, and how fast they are going: each field checked, a bad one dropped
     v.vehicle = vehicleIn(data.vehicle);
