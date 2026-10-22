@@ -18,11 +18,12 @@
 // The few people who ride motorcycle taxis are the exception: a ride is
 // simulated, and okada.js tells this module where its passengers are.
 
-import { ZONE_SPOTS, ZONE_HOMES, ZONE_VENUES, ZONE_ROOMS, ZONE_POPULATION, ZONE_RESIDENTS, BOULEVARD } from './zone.js';
+import { ZONE_SPOTS, ZONE_HOMES, ZONE_VENUES, ZONE_ROOMS, ZONE_POPULATION, ZONE_RESIDENTS, ZONE_PATROLS, BOULEVARD } from './zone.js';
 import { PEOPLES, GIVEN_NAMES, TRAITS } from './culture.js';
 import { makeRng } from './rng.js';
 import { wearFor, configFromLook, figFor } from './characters.js';
 import { graphIndex, graphRoute, graphDistance, graphPoint, graphIsRoad, graphIsOpen } from './graph.js';
+import { policeLook, policeFig } from './police-looks.js';
 
 export const WALK_SPEED = 1.7;                 // metres per real second
 export const RIDE_SPEED = 6.5;
@@ -65,8 +66,16 @@ function pathBetween(a, b) {
   const B = ZONE_SPOTS[b];
   const pts = [[A.x, A.z, 0]];
   let nodes = null;
+  // two of a police beat's stops on the same line out of the town (atani-patrols.js): along the line, back as far as
+  // where the two part and on from there, not back into the town and out again
+  let shared = 0;
+  if (A.chain && B.chain && SPOT_NODE[a] === SPOT_NODE[b]) while (shared < A.via.length && shared < B.via.length && A.via[shared][0] === B.via[shared][0] && A.via[shared][1] === B.via[shared][1]) shared += 1;
   if (SPOT_NODE[a] === SPOT_NODE[b] && !A.via && !B.via) pts.push([B.x, B.z, 0]);
-  else {
+  else if (shared > 0) {
+    for (let i = A.via.length - 1; i >= shared; i -= 1) pts.push([A.via[i][0], A.via[i][1], 0]);
+    for (let i = shared; i < B.via.length; i += 1) pts.push([B.via[i][0], B.via[i][1], 0]);
+    pts.push([B.x, B.z, 0]);
+  } else {
     if (A.via) for (let i = A.via.length - 1; i >= 0; i -= 1) pts.push([A.via[i][0], A.via[i][1], 0]);
     nodes = graphRoute(SPOT_NODE[a], SPOT_NODE[b]) || [SPOT_NODE[b]];
     for (const n of nodes) { const [x, z] = graphPoint(n); pts.push([x, z, graphIsOpen(n) ? 1 : 0]); }
@@ -147,6 +156,13 @@ export const JOBS = Object.freeze({
 });
 const WHITE_COLLAR = new Set(['headteacher', 'teacher', 'principal', 'labtech', 'lecturer', 'officer', 'librarian', 'doctor', 'nurse', 'pharmacist', 'labscientist', 'records', 'priest', 'vicar', 'catechist', 'police', 'clerk', 'undergrad', 'student']);
 const OKADA_SHARE = { none: 0.1, low: 0.16, middle: 0.34, high: 0.5 };
+// The police's beats (atani-patrols.js), and who walks which when: the day's officers first, beat by beat, then the
+// night's. An officer's number among the police says which of these is hers.
+const PATROL_BY_ID = new Map((ZONE_PATROLS || []).map((b) => [b.id, b]));
+const PATROL_DUTIES = Object.freeze([
+  ...(ZONE_PATROLS || []).flatMap((b) => Array.from({ length: b.day }, () => Object.freeze({ beat: b.id, night: false }))),
+  ...(ZONE_PATROLS || []).flatMap((b) => Array.from({ length: b.night }, () => Object.freeze({ beat: b.id, night: true }))),
+]);
 
 // Small deterministic hashes, so a person's choices do not need storing.
 function mix(a, b = 0, c = 0) {
@@ -172,6 +188,8 @@ const HEADTIES = [0x1f5c4d, 0xd9a441, 0x2e6f73, 0xe0d6c3, 0x7b2d5b, 0xb3261e, 0x
 // What someone wears, from the work they do and who they are. The result is
 // a `look` for the full figure and a `fig` for the simple one seen far away.
 function dress(p, rng) {
+  // the town's police (22 October 2026): each of the sixteen in her own face, skin and uniform (police-looks.js)
+  if (p.looks === 'police') return { look: Object.freeze({ ...policeLook(p.k), age: p.age }), fig: Object.freeze(policeFig(p.k)) };
   const f = p.gender === 'f';
   const skin = rng.pick(SKINS);
   const old = p.age >= 60;
@@ -225,23 +243,33 @@ const rosters = new Map();
 
 // Everyone in the zone, made from the seed. `scale` multiplies the numbers,
 // for finding out how the simulation holds up with a bigger town.
-export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1) {
-  const cacheKey = `${seed}|${scale}`;
+// `jobs` is the town's own (ZONE_POPULATION.jobs) unless another list is given: the tests keep the townspeople's
+// systems working with the town as it was before its townspeople were taken out (test/helpers.mjs, FORMER_TOWN), ready
+// for the owner's own models of them.
+const jobsKeys = new WeakMap();
+const jobsKey = (jobs) => { if (jobs === ZONE_POPULATION.jobs) return 'town'; if (!jobsKeys.has(jobs)) jobsKeys.set(jobs, `jobs:${JSON.stringify(jobs)}`); return jobsKeys.get(jobs); };
+export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1, jobs = ZONE_POPULATION.jobs) {
+  const cacheKey = `${seed}|${scale}|${jobsKey(jobs)}`;
   if (rosters.has(cacheKey)) return rosters.get(cacheKey);
   const rng = makeRng(seed);
   const weighted = (list) => { let roll = rng.next(); for (const [value, share] of list) { roll -= share; if (roll <= 0) return value; } return list[0][0]; };
   const people = [];
-  for (const [jobId, count, venue] of ZONE_POPULATION.jobs) {
+  // are there okadas in this town at all? (none since 22 October 2026, the owner's brief: their riders are gone, and
+  // with them the motorcycles)
+  const OKADAS = jobs.some(([job]) => job === 'okada');
+  for (const [jobId, count, venue, more = {}] of jobs) {
     const J = JOBS[jobId];
     const n = Math.round(count * scale);
+    // (a town may say how many of those in a job are women: its police are all women, 22 October 2026)
+    const female = more.female !== undefined ? more.female : J.female;
     for (let k = 0; k < n; k += 1) {
-      const gender = rng.next() < J.female ? 'f' : 'm';
+      const gender = rng.next() < female ? 'f' : 'm';
       // children are spread evenly over the classes, so no class overflows
       const age = jobId === 'pupil' || jobId === 'student' ? J.ages[0] + Math.floor((k * 6) / n) : J.ages[0] + rng.int(J.ages[1] - J.ages[0] + 1);
       // those who work for a church are of a people whose members mostly belong to one
       let kin = weighted(ZONE_POPULATION.peoples);
       if ((venue === 'catholic' || venue === 'anglican') && PEOPLES[kin].faiths[0][0] === 'muslim') kin = ZONE_POPULATION.peoples[0][0];
-      people.push({ index: people.length, id: `n-${String(people.length + 1).padStart(4, '0')}`, job: jobId, venue, gender, age, people: kin, k, of: n, relations: [] });
+      people.push({ index: people.length, id: `n-${String(people.length + 1).padStart(4, '0')}`, job: jobId, venue, gender, age, people: kin, k, of: n, relations: [], looks: more.looks || null });
     }
   }
 
@@ -442,9 +470,12 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1) {
     if (p.faith !== 'other' && rng.next() < 0.14 && !traits.includes('devout')) traits[0] = 'devout';
     p.traits = Object.freeze(traits);
     p.income = p.job === 'trader' && p.k < 13 * scale ? 'middle' : J.income;
-    p.transport = p.age >= 16 && p.job !== 'okada' && rng.next() < (p.job === 'undergrad' || p.job === 'student' ? 0.2 : OKADA_SHARE[p.income]) ? 'okada' : 'walk';
+    // (nobody rides an okada in a town that has none; an officer on duty walks her beat)
+    p.transport = OKADAS && p.age >= 16 && p.job !== 'okada' && p.job !== 'police' && rng.next() < (p.job === 'undergrad' || p.job === 'student' ? 0.2 : OKADA_SHARE[p.income]) ? 'okada' : 'walk';
     // children half run everywhere; the old take their time
     p.pace = p.age < 6 ? 1.6 : p.age < 14 ? 2.3 : p.age < 18 ? 2.1 : p.age >= 65 ? 1.35 : 1.75 + rng.next() * 0.3;
+    // (an officer walks her beat at a patrol's pace, not a commuter's)
+    if (p.job === 'police') p.pace = 1.32 + (p.pace - 1.75) * 0.5;
     p.side = (rng.next() - 0.5) * 2.2;
     p.early = Math.floor(rng.next() * 16) * 60;
     p.night = !!J.shifts && (p.job === 'doctor' ? p.k === 4 : p.job === 'nurse' ? p.k >= 7 : p.k % 2 === 1);
@@ -455,10 +486,10 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1) {
   // those who live far from where their day is spent ride more often
   for (const p of people) {
     const to = p.post.seat !== undefined ? p.post.seat : p.post.work;
-    if (p.age < 12 || p.transport === 'okada' || p.job === 'okada' || to === undefined) continue;
+    if (!OKADAS || p.age < 12 || p.transport === 'okada' || p.job === 'okada' || p.job === 'police' || to === undefined) continue;
     if (graphDistance(SPOT_NODE[p.homeSpot], SPOT_NODE[to]) > 380 && rng.next() < 0.3) p.transport = 'okada';
   }
-  for (const p of people) { delete p.k; delete p.of; delete p.rel; delete p.parentOf; p.relations = Object.freeze(p.relations.map(Object.freeze)); Object.freeze(p.post); Object.freeze(p); }
+  for (const p of people) { delete p.k; delete p.of; delete p.rel; delete p.parentOf; delete p.looks; p.relations = Object.freeze(p.relations.map(Object.freeze)); Object.freeze(p.post); Object.freeze(p); }
   const roster = Object.freeze(people);
   rosters.set(cacheKey, roster);
   return roster;
@@ -545,7 +576,13 @@ function assignPosts(people, scale) {
     else if (J === 'fisher') { post.work = take([...slot('shore', 'fish'), ...slot('shore', 'jetty')], 'fish'); post.alt = take(slot('shore', 'mend'), 'mend'); }
     else if (J === 'okada') post.work = take(Object.values(ZONE_VENUES).filter((x) => x.kind === 'rank').flatMap((r) => slot(r.id, 'rank')), 'rank');
     else if (J === 'driver') { post.work = take([...slot('park', 'driver'), ...slot('park', 'hang')], 'driver'); post.eat = lunch(p); }
-    else if (J === 'police') { post.work = p.night && p.k !== 1 ? slot('police', 'inside')[0] : take(slot('police', 'beat'), 'beat'); post.beats = slot('police', 'beat'); }
+    else if (J === 'police') {
+      // her beat and her shift (atani-patrols.js), the day's officers first, beat by beat, then the night's: she
+      // reports for duty at the Police Post, walks her beat, and signs off there
+      const duty = PATROL_DUTIES.length ? PATROL_DUTIES[p.k % PATROL_DUTIES.length] : null;
+      post.work = slot('police', 'inside')[0];
+      if (duty) { post.patrol = duty.beat; post.officer = p.k; p.night = duty.night; } else post.beats = slot('police', 'beat');
+    }
     else if (J === 'clerk') { post.work = slot(p.k < 6 * scale ? 'secretariat' : 'registry', 'inside')[0]; post.eat = lunch(p); }
     else if (J === 'labourer') { post.work = take([...slot('yard', 'work'), ...slot('yard', 'site')], 'labour'); post.eat = lunch(p); }
     else if (J === 'hawker') post.round = [0, 1, 2, 3].map((n) => pickBy(slot('street', 'hawk'), p, 20 + n));
@@ -589,9 +626,60 @@ export function dayInfo(dayIndex) {
   return { index: dayIndex, weekday, name: WEEKDAYS[weekday], school: weekday >= 1 && weekday <= 5, sunday: weekday === 0, saturday: weekday === 6, friday: weekday === 5 };
 }
 
+// A police officer's day (22 October 2026). By day she reports at the Police Post at six, walks her beat until half
+// past six in the evening, round its stops in their order and standing a minute or so at each, and signs off at the
+// post; by night she is out from six in the evening until six in the morning. A night officer is at the first stop
+// of her beat at midnight, where the next day's plan finds her: nobody is moved in a jump. Every walk is timed the
+// way the day itself times it (the length of the way, her pace, and how many game seconds a real one is), so that
+// the stops are set off for when she has really got to the last one and stood her time there.
+function patrolDay(p, d, timeScale, { be, go, j }) {
+  const B = PATROL_BY_ID.get(p.post.patrol);
+  const order = B.round.map((k) => B.spots[k]);
+  const station = p.post.work;
+  const home = p.homeSpot;
+  const walk = (a, b) => (a === b ? 0 : (pathBetween(a, b).len / p.pace) * timeScale);
+  // how long she stands at a stop: half a minute to a minute and a quarter, in real seconds
+  const stand = (n) => Math.round((30 + unit(p.index, d.index * 131 + n, 77) * 45) * timeScale);
+  // Round the beat from `at`, setting off at `t`, for as long as she can still get from the stop after the next to
+  // `back` by `until`; gives where she is and when she is free.
+  const round = (at, t, n, until, back) => {
+    let time = t;
+    for (let count = 0; count < 5000; count += 1) {
+      const next = order[n % order.length];
+      const there = time + walk(at, next);
+      if (there + walk(next, back) > until) break;
+      go(time, next, 'On patrol');
+      time = there + stand(count);
+      at = next; n += 1;
+    }
+    return { at, time };
+  };
+  // to the Police Post to sign off, setting off so as to be there at `by` (or as soon as she can), and then home
+  const signOff = (from, by, homeAt) => {
+    const leave = Math.max(from.time, by - walk(from.at, station));
+    go(leave, station, 'Signing off at the Police Post');
+    go(Math.max(homeAt, leave + walk(from.at, station) + 10 * timeScale), home, 'At home');
+  };
+  // (two officers of one beat do not walk it together: each begins her round at a stop of her own)
+  const begin = (p.post.officer * 3 + d.index) % order.length;
+  if (!p.night) {
+    be(T(6), station, 'Reporting for duty at the Police Post');
+    signOff(round(station, T(6, 12) + j(6), begin, T(18, 40), station), T(18, 40), T(18, 55) + j(10));
+    return { start: home, startAct: 'Asleep at home' };
+  }
+  // by night: out from midnight, from the first stop of her round, until six in the morning; and again from six in the
+  // evening, back at that first stop before midnight
+  const first = order[0];
+  signOff(round(first, T(0, 1), 1, T(6, 10), station), T(6, 10), T(6, 30) + j(10));
+  be(T(18), station, 'Reporting for duty at the Police Post');
+  round(station, T(18, 12) + j(6), begin, T(23, 40), first);
+  be(T(23, 58), first, 'On patrol');
+  return { start: first, startAct: 'On patrol' };
+}
+
 // The stops of one person's day. `be` means be there by that time; `go`
 // means set off at that time.
-function routine(p, d, seed) {
+function routine(p, d, seed, timeScale = 30) {
   const stops = [];
   let calls = 0;
   const j = (minutes) => Math.floor(unit(p.index, seed + d.index, calls += 1) * minutes) * 60;
@@ -620,7 +708,7 @@ function routine(p, d, seed) {
   // someone who is ill today goes to the hospital instead of to work
   const sick = unit(p.index, seed + 11, d.index);
   const works = !['infant'].includes(p.job);
-  if (!d.sunday && works && p.venue !== 'hospital' && !J.clergy && sick < 0.034) {
+  if (!d.sunday && works && p.venue !== 'hospital' && !J.clergy && !post.patrol && sick < 0.034) {
     if (sick < 0.005) { be(T(7, 40) + j(40), any(slot('hospital', 'ward.bed'), 4), 'Admitted to hospital'); go(T(17) + j(30), home, 'Resting at home'); }
     else if (sick < 0.007) { be(T(9) + j(300), any(slot('hospital', 'emergency.bed'), 4), 'Being treated at the emergency room'); then(70, home, 'Resting at home'); }
     else {
@@ -633,6 +721,9 @@ function routine(p, d, seed) {
     }
     return { stops, start, startAct, ill: true };
   }
+
+  // a police officer's day: her beat, by day or by night, every day of the week
+  if (post.patrol) { const day = patrolDay(p, d, timeScale, { be, go, j }); return { stops, start: day.start, startAct: day.startAct }; }
 
   if (d.sunday && !['nurse', 'doctor', 'guard', 'police', 'okada', 'ambulance'].includes(p.job)) {
     if (p.job === 'priest') { be(T(6, 10), post.work, 'Saying Mass'); go(T(11, 5), post.desk, 'In the parish office'); go(T(12, 30), home, 'At the parish house'); go(T(17, 30), post.kneel, 'At evening prayer'); go(T(18, 30), home, 'At the parish house'); }
@@ -742,10 +833,14 @@ function plansFor(key, n) {
   return plans;
 }
 
-export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPULATION.seed }) {
-  const people = rosterOf(seed, scale);
+export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPULATION.seed, jobs = ZONE_POPULATION.jobs }) {
+  const people = rosterOf(seed, scale, jobs);
   const N = people.length;
-  if (!state.population) state.population = { seed, scale, rides: {} };
+  // Who this save was made with: a town saved before its people changed (ZONE_POPULATION.edition) is `renewed`, and
+  // what it held about the people it had is let go (sim.js, renew.js), so that nobody's number points at someone else.
+  const roster = `${jobs === ZONE_POPULATION.jobs ? ZONE_POPULATION.edition || 1 : `own:${jobs.length}`}|${seed}|${scale}|${N}`;
+  const renewed = !!state.population && state.population.roster !== roster;
+  if (!state.population || renewed) state.population = { seed, scale, rides: {}, roster };
   const book = state.population;
   const hooks = [];                // whoever else may say where someone is: the okada service for its riders and passengers, and so on
   const planKey = (day) => `${seed}|${scale}|${timeScale}|${day}`;
@@ -756,7 +851,7 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
 
   function compile(p, dayIndex) {
     const d = dayInfo(dayIndex);
-    const r = routine(p, d, seed);
+    const r = routine(p, d, seed, timeScale);
     r.stops.sort((a, b) => a.t - b.t);
     // nobody walks home only to turn round and leave again
     r.stops = r.stops.filter((stop, n) => !(stop.spot === p.homeSpot && r.stops[n + 1] && r.stops[n + 1].spot !== p.homeSpot && r.stops[n + 1].t - stop.t < 2700));
@@ -973,7 +1068,7 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
   }
 
   return {
-    people, count: N, total: N + ZONE_RESIDENTS.length, book,
+    people, count: N, total: N + ZONE_RESIDENTS.length, book, renewed,
     locate, around, within, describe, census, planOf, ridesOf, prepare, stats,
     spot: (id) => ZONE_SPOTS[id],
     forget(key) { sets.delete(key); },

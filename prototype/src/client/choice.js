@@ -6,7 +6,8 @@ import { FIGURES, FIGURE_ORDER, FIGURE_PARTS, FIGURE_DEFAULTS } from '../sim/fig
 export function createChoice(saved = {}) {
   const gender = saved.gender === 'm' ? 'm' : 'f';
   const at = { f: 0, m: 0 };
-  if (saved.figure && Object.hasOwn(FIGURES, saved.figure)) at[FIGURES[saved.figure].gender] = FIGURE_ORDER[FIGURES[saved.figure].gender].indexOf(saved.figure);
+  // (a figure no longer offered, the police officer: the list starts at its first)
+  if (saved.figure && Object.hasOwn(FIGURES, saved.figure)) at[FIGURES[saved.figure].gender] = Math.max(0, FIGURE_ORDER[FIGURES[saved.figure].gender].indexOf(saved.figure));
   const colours = { ...FIGURE_DEFAULTS };
   for (const part of FIGURE_PARTS) if (saved.colours && Number.isInteger(saved.colours[part])) colours[part] = saved.colours[part];
   const state = { gender: saved.figure && Object.hasOwn(FIGURES, saved.figure) ? FIGURES[saved.figure].gender : gender, at, colours };

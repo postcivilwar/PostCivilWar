@@ -36,6 +36,8 @@ import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep,
 export * from './habitation.js';
 export * from './town-buildings.js';
 import { TOWN_ROADS, TOWN_HOUSES, TOWN_BUILDINGS, TOWN_SHEDS, TOWN_COMPOUNDS, TOWN_FARMLAND, TOWN_SPOTS, TOWN_RANKS, TOWN_STOPS, TOWN_SOUNDS, TOWN_NOTICES } from './atani-town.js';
+// the police's beats (22 October 2026)
+import { TOWN_PATROLS } from './atani-patrols.js';
 
 export const ZONE = Object.freeze({
   id: 'NG-AN-OGB-Z1',
@@ -183,7 +185,19 @@ export const ZONE_BENCHES = Object.freeze([
   Object.freeze({ id: 'bench-shore', x: 44, z: 134, facing: 0 }),
 ]);
 
-export const ZONE_STALLS = Object.freeze([32, 44, 76, 88].flatMap((z) => [18, 30, 56, 68].map((x) => Object.freeze({ x, z }))));
+// The market's stalls. There were sixteen, in four rows (x 18, 30, 56, 68 by z 32, 44, 76, 88): taken away on 22
+// October 2026 with the sellers and what they sold, at the owner's word; the market's ground is open now.
+export const ZONE_STALLS = Object.freeze([]);
+
+// Which of the town's own people are drawn, by group (22 October 2026, the owner's brief: every NPC taken out of the
+// game but the named people at the counters, the mason and the police, until his own models come). A group switched
+// off is not drawn and does nothing that shows; where it stood, how it moves and everything players do with it (the
+// phone's conversation that buys a motorcycle, a car or a watch) are kept, so that it comes back the moment its
+// figures do.
+export const ZONE_CAST = Object.freeze({
+  shopAttendants: false,        // HOLARIS Watch's attendant (ZONE_SHOPS)
+  showroomStaff: false,         // Obi at PostCivilWar PowerBike; Tochi and Oluchi at the car showroom
+});
 
 // Parked scenery. The coaches stand at the motor park; the kekes here belong
 // to townspeople and are parked on the verges. Neither moves. (The kekes a
@@ -448,6 +462,21 @@ export const ZONE_RESIDENTS = Object.freeze([
       about: 'Foundations, walls, roofs. I am paid per stage, in advance, and I do not lay blocks in the rain.',
       tip: 'Hire me from the board on your own plot once your materials are on site.',
     }),
+  resident('rider', 'Ifeanyi Okoye', 'Ifeanyi', 'Keke rider and dealer', 'self', look(0x4b2e1b, 0xb8860b, 0x2a2a2a, 1.0, { body: 'm', outfit: 'shirt', hat: ['facecap', 0x1b1b1e], hair: 'low' }),
+    [['06:30', 'park'], ['13:20', 'lunch_a', 'leave'], ['14:10', 'park', 'leave'], ['19:40', 'home3', 'leave']], {
+      about: 'This is the motor park. Buses for Agbor, Benin and Warri leave from here, when there are roads to take them. The kekes are mine: I hire them out by the day, and I can bring a new one up from Warri if you want your own.',
+      tip: 'A rider with a keke never lacks work. Look at the runs on your phone: fish from the jetty, cartons off the bus, yam from the farms.',
+    }, 'park'),
+]);
+
+// Townspeople who were in the town until 22 October 2026, when every townsperson was taken out of the game but the named
+// people at the counters (and the mason, who builds, and the police: the owner's word, "keep the counters with named
+// person at the desk... keep number 5, the mason"): the block moulder, the fisherman, the two market traders and the
+// surveyor. They are no longer seen, met or spoken to. They are kept here for the town's books, which carry on as they
+// were (economy.js: the kitchen's fish and yam, the market's takings and levies, the moulder's piece wages for the blocks
+// the yard turns out, the surveyor's salary; and a debt a player still owes one of them), and for the day the owner's
+// own models bring them back.
+export const ZONE_FORMER_RESIDENTS = Object.freeze([
   resident('moulder', 'Chidi Okafor', 'Chidi', 'Block moulder', 'biz:yard', look(0x70482c, 0x3c6e47, 0x3a3a3a, 1.0, { body: 'm', outfit: 'singlet', hair: 'low', legs: 'shorts', shoes: 'sandal' }),
     [['06:55', 'mould3'], ['18:05', 'home6', 'leave']], {
       about: 'Fill the mould, tamp it, turn it out. Then again. The stack behind me is this week.',
@@ -468,11 +497,6 @@ export const ZONE_RESIDENTS = Object.freeze([
       about: 'Yam, cassava and garri from the farms along the river. Oranges and pawpaw when the lorry comes.',
       tip: 'The two big plots out past the school are farmland. Nobody has taken them yet.',
     }),
-  resident('rider', 'Ifeanyi Okoye', 'Ifeanyi', 'Keke rider and dealer', 'self', look(0x4b2e1b, 0xb8860b, 0x2a2a2a, 1.0, { body: 'm', outfit: 'shirt', hat: ['facecap', 0x1b1b1e], hair: 'low' }),
-    [['06:30', 'park'], ['13:20', 'lunch_a', 'leave'], ['14:10', 'park', 'leave'], ['19:40', 'home3', 'leave']], {
-      about: 'This is the motor park. Buses for Agbor, Benin and Warri leave from here, when there are roads to take them. The kekes are mine: I hire them out by the day, and I can bring a new one up from Warri if you want your own.',
-      tip: 'A rider with a keke never lacks work. Look at the runs on your phone: fish from the jetty, cartons off the bus, yam from the farms.',
-    }, 'park'),
   resident('surveyor', 'Surv. Ngozi Eze', 'Surv. Eze', 'Registered surveyor', 'self', look(0x65402a, 0xf2c200, 0x2c3440, 1.0, { body: 'f', outfit: 'hivis', sleeves: 'long', hat: ['helmet', 0xf5f5f5], hair: 'braids', height: 0.99 }),
     [['07:30', 'survey'], ['17:00', 'stroll_cross', 'leave'], ['18:00', 'home6', 'leave']], {
       about: 'I set out this layout: sixteen residential plots, six commercial, two farms. Every corner has a beacon and every plot a board.',
@@ -482,6 +506,12 @@ export const ZONE_RESIDENTS = Object.freeze([
 
 export function zoneResident(id) {
   return ZONE_RESIDENTS.find((r) => r.id === id) || null;
+}
+// Everyone with an account in the town's books: the residents, and those who were (ZONE_FORMER_RESIDENTS).
+export const ZONE_ACCOUNT_HOLDERS = Object.freeze([...ZONE_RESIDENTS, ...ZONE_FORMER_RESIDENTS]);
+// A resident or a former one, by id: for a name in the books (a debt, a payment), never for someone to be met.
+export function zoneAccountHolder(id) {
+  return ZONE_ACCOUNT_HOLDERS.find((r) => r.id === id) || null;
 }
 
 // Short lines of text that name places in this town.
@@ -504,9 +534,9 @@ export const ZONE_TEXT = Object.freeze({
 });
 
 
-// Who lives here, by the work they do: [job, how many, where]. With the named
-// residents above this makes a town of one thousand. The jobs themselves, and
-// what each does with its day, are not this town's business: see population.js.
+// Who lives here, by the work they do: [job, how many, where, and where the town says it: how many of them are women,
+// and that they are drawn as the town's police are (police-looks.js)]. The jobs themselves, and what each does with
+// its day, are not this town's business: see population.js.
 export const ZONE_POPULATION = Object.freeze({
   seed: 6017675,
   firstWeekday: 3,                    // day one is a Wednesday
@@ -520,24 +550,19 @@ export const ZONE_POPULATION = Object.freeze({
   secondIgbo: 0.4,
   // the peoples among whom an old man may be called Chief here
   chiefs: Object.freeze(['enuani', 'igbo', 'ika', 'ukwuani', 'urhobo', 'isoko', 'itsekiri', 'ijaw', 'edo']),
+  // Every townsperson was taken out of the game on 22 October 2026, at the owner's word, until his own models of them
+  // come; but for the police, sixteen women who walk the whole of the land (atani-patrols.js), each with her own face,
+  // skin and Nigerian Police uniform (police-looks.js). The town of a thousand people, by job, was:
+  //   infant 90, pupil 150, student 120, undergrad 110, teachers and school staff 39, lecturers and university staff
+  //   22, hospital 30, churches 10, traders 60, trades 44, farmers 45, fishermen 25, okada riders 26, drivers 12,
+  //   police 6, clerks and cleaners 10, labourers 24, apprentices 16, hawkers 25, looking for work 45, retired 45,
+  //   homemakers 30
+  // (git keeps the list itself). The people's days (population.js) are kept for them, ready.
+  // `edition` is counted up whenever who lives here changes: a town saved with the people before lets go of what it
+  // held about them (renew.js).
+  edition: 2,
   jobs: Object.freeze([
-    ['infant', 90, 'home'], ['pupil', 150, 'primary'], ['student', 120, 'secondary'],
-    ['undergrad', 50, 'university'], ['undergrad', 35, 'polytechnic'], ['undergrad', 25, 'college'],
-    ['headteacher', 1, 'primary'], ['teacher', 12, 'primary'], ['schoolstaff', 5, 'primary'],
-    ['principal', 1, 'secondary'], ['teacher', 14, 'secondary'], ['labtech', 1, 'secondary'], ['schoolstaff', 5, 'secondary'],
-    ['lecturer', 7, 'university'], ['officer', 3, 'university'], ['librarian', 1, 'university'], ['guard', 1, 'university'],
-    ['lecturer', 4, 'polytechnic'], ['officer', 1, 'polytechnic'], ['guard', 1, 'polytechnic'],
-    ['lecturer', 3, 'college'], ['officer', 1, 'college'],
-    ['doctor', 5, 'hospital'], ['nurse', 12, 'hospital'], ['pharmacist', 2, 'hospital'], ['labscientist', 1, 'hospital'], ['records', 4, 'hospital'], ['cleaner', 3, 'hospital'], ['guard', 2, 'hospital'], ['ambulance', 1, 'hospital'],
-    ['priest', 2, 'catholic'], ['catechist', 1, 'catholic'], ['sexton', 1, 'catholic'], ['churchworker', 2, 'catholic'],
-    ['vicar', 1, 'anglican'], ['churchworker', 3, 'anglican'],
-    ['trader', 60, 'market'],
-    ['tailor', 8, 'street'], ['barber', 8, 'street'], ['mechanic', 6, 'street'], ['carpenter', 6, 'street'], ['welder', 4, 'street'], ['foodvendor', 10, 'street'], ['baker', 2, 'street'],
-    ['farmer', 45, 'farm'], ['fisher', 25, 'shore'],
-    ['okada', 26, 'park'], ['driver', 12, 'park'],
-    ['police', 6, 'police'], ['clerk', 8, 'secretariat'], ['cleaner', 2, 'secretariat'],
-    ['labourer', 24, 'yard'], ['apprentice', 16, 'street'], ['hawker', 25, 'street'],
-    ['unemployed', 45, 'street'], ['retiree', 45, 'home'], ['homemaker', 30, 'home'],
+    ['police', 16, 'police', Object.freeze({ female: 1, looks: 'police' })],
   ].map(Object.freeze)),
 });
 
@@ -862,6 +887,20 @@ function buildTown() {
     if (!node) { node = nodeAt(s.x, s.z); if (!edges.some(([a, b]) => a === node || b === node)) attach(node, { max: 70, what: `${s.venue} ${s.slot}` }); }
     addSpot({ ...s, ctx: s.ctx || 'street', node });
   }
+  // The police's beats (atani-patrols.js, 22 October 2026). A stop in the town is on a path close by, as anything else
+  // in the open is; one beyond the town is on its line out of it (`via`), from the path node where that begins.
+  const patrols = [];
+  for (const b of TOWN_PATROLS) {
+    const ids = b.stops.map((s, k) => {
+      if (s.from) return addSpot({ venue: 'police', slot: 'patrol', beat: b.id, x: s.x, z: s.z, facing: s.facing, node: s.from, via: s.via, chain: true, ctx: 'street' });
+      let node = null;
+      let bestD = 15;
+      for (let n = 0; n < nodeNames.length; n += 1) { const nx = nodeX[n], nz = nodeZ[n]; const d = Math.hypot(nx - s.x, nz - s.z); if (d < bestD && openLine(s.x, s.z, nx, nz, 0.3)) { bestD = d; node = nodeNames[n]; } }
+      if (!node) { node = nodeAt(s.x, s.z); if (!edges.some(([p, q]) => p === node || q === node)) attach(node, { max: 70, what: `the ${b.id} beat's stop ${k}` }); }
+      return addSpot({ venue: 'police', slot: 'patrol', beat: b.id, x: s.x, z: s.z, facing: s.facing, node, ctx: 'street' });
+    });
+    patrols.push(Object.freeze({ id: b.id, where: b.where, day: b.day, night: b.night, round: b.round, spots: Object.freeze(ids) }));
+  }
   for (let i = 0; i < spots.length; i += 1) {
     if (spots[i].node) continue;
     const s = spots[i];
@@ -881,7 +920,7 @@ function buildTown() {
   for (const name of Object.keys(nodes)) if (!seen.has(name)) problems.push(`node ${name} cannot be reached`);
 
   for (const name of Object.keys(nodes)) Object.freeze(nodes[name]);
-  return { nodes: Object.freeze(nodes), edges: Object.freeze(edges.map(Object.freeze)), spots: Object.freeze(spots), rooms: Object.freeze(rooms.map(Object.freeze)), homes: Object.freeze(homes.map(Object.freeze)), venues: Object.freeze(venues), problems: Object.freeze(problems) };
+  return { nodes: Object.freeze(nodes), edges: Object.freeze(edges.map(Object.freeze)), spots: Object.freeze(spots), rooms: Object.freeze(rooms.map(Object.freeze)), homes: Object.freeze(homes.map(Object.freeze)), venues: Object.freeze(venues), patrols: Object.freeze(patrols), problems: Object.freeze(problems) };
 }
 
 const TOWN = buildTown();
@@ -892,6 +931,8 @@ export const ZONE_ROOMS = TOWN.rooms;
 export const ZONE_HOMES = TOWN.homes;
 export const ZONE_VENUES = TOWN.venues;
 export const ZONE_GRAPH_PROBLEMS = TOWN.problems;
+// The police's beats: each one's stops, as spots (ZONE_SPOTS), and the order she walks them in (atani-patrols.js).
+export const ZONE_PATROLS = TOWN.patrols;
 
 // The room a point is in, if it is inside a building people can enter.
 const ROOM_INDEX = indexBoxes(ZONE_ROOMS.map((r) => ({ ...r })));

@@ -62,7 +62,10 @@ const NEW_WOMEN = ['W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13
 const NEW_MEN = ['M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13', 'M14', 'M15', 'M16', 'M17'];
 
 test('fifteen women and fifteen men, each drawn from the file the owner supplied, which is kept unchanged', () => {
-  assert.deepEqual(FIGURE_ORDER.f, ['W1', 'W2', 'W3', ...NEW_WOMEN]);
+  // (the police officer, W3, is no longer offered since 22 October 2026: she is the town's police; she is kept for the
+  // players who have her)
+  assert.deepEqual(FIGURE_ORDER.f, ['W1', 'W2', ...NEW_WOMEN]);
+  assert.ok(FIGURES.W3 && FIGURES.W3.file === 'police.glb' && !FIGURE_ORDER.f.includes('W3'));
   assert.deepEqual(FIGURE_ORDER.m, ['M1', 'M4', 'M5', ...NEW_MEN]);
   assert.deepEqual(Object.keys(FIGURES).sort(), Object.keys(MASTERS).sort());
   // no figure is in the game twice: every file is a different figure (its mesh and its textures differ)
@@ -165,7 +168,7 @@ test('the choice on the start screen: a woman or a man, the arrows going round e
   const c = createChoice({});
   assert.equal(c.gender, 'f');
   assert.equal(c.figure.id, 'W1');
-  assert.deepEqual(Array.from({ length: FIGURE_ORDER.f.length }, () => c.step(1).id), ['W2', 'W3', ...NEW_WOMEN, 'W1'], 'the arrows go through the women only');
+  assert.deepEqual(Array.from({ length: FIGURE_ORDER.f.length }, () => c.step(1).id), ['W2', ...NEW_WOMEN, 'W1'], 'the arrows go through the women only');
   assert.equal(c.step(-1).id, FIGURE_ORDER.f.at(-1)); assert.equal(c.step(-1).id, FIGURE_ORDER.f.at(-2));
   c.step(1); c.step(1);
   assert.equal(c.step(1).id, 'W2');

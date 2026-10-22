@@ -29,6 +29,7 @@ import { cleanFigureLook, FIGURES } from './figures.js';
 import { createFunds, FUND_WORDS } from './funds.js';
 import { createReactions } from './reactions.js';
 import { makeRng } from './rng.js';
+import { renewTown } from './renew.js';
 
 export const TIME_SCALE = 30;                 // game seconds per real second (a 48-minute day)
 export const SIM_START = 7.5 * 3600;          // 07:30 on day one
@@ -102,7 +103,8 @@ const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\
 // skipped. What was made to take a while in play (a sentence served, being looked for, a bruise) takes as
 // long, in real minutes, as it did when a day went by in forty-eight: `span` turns those lengths into the
 // clock's. Without one (the tests, and anything that wants a quick day) the day is forty-eight minutes long.
-export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved, wallClock = null }) {
+// `people`: who lives in the town, by job, where it is not the town's own (ZONE_POPULATION.jobs): for the tests.
+export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved, wallClock = null, people = undefined }) {
   const scale = wallClock ? 1 : TIME_SCALE;
   const span = (gameSeconds) => (gameSeconds * scale) / TIME_SCALE;
   const state = saved || { version: 1, t: wallClock ? wallClock() : SIM_START, real: 0, playerCounter: 0, players: {}, weather: { kind: 'clear', until: 0 }, reports: [], structures: 0 };
@@ -126,7 +128,9 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const hub = { span };
   const vehicles = createVehicles({ state, ledger, issuanceAccount, economy, clock, weather, emit, structureBoxes: () => [...structureBoxes(), ...parkedCars()], hub });
   const fresh = !state.okada;
-  const population = createPopulation({ state, timeScale: scale });
+  const population = createPopulation({ state, timeScale: scale, jobs: people });
+  // a town saved with the people it had before 22 October 2026: what the save held about them is let go (renew.js)
+  if (population.renewed) renewTown(state);
   const okada = createOkada({ state, ledger, monetary, issuanceAccount, population, timeScale: scale, emit, players: state.players, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
   // a player is the base character; saves from before it say nothing about what they wear
   for (const id of Object.keys(state.players)) if (!state.players[id].look.outfit) state.players[id].look = { ...state.players[id].look, outfit: 'streetwear' };

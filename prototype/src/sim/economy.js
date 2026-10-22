@@ -8,7 +8,7 @@
 // or a service. The block yard, the store, the kitchen, the clinic and the
 // school below are five configurations of it.
 
-import { ZONE, ZONE_TEXT, ZONE_MOULD_STATIONS, ZONE_RESIDENTS, zoneParcel, zoneSiteLayout, zoneService, zoneResident } from './zone.js';
+import { ZONE, ZONE_TEXT, ZONE_MOULD_STATIONS, ZONE_ACCOUNT_HOLDERS, zoneParcel, zoneSiteLayout, zoneService, zoneResident } from './zone.js';
 import { nearestNode } from './graph.js';
 import { GameError } from './registry.js';
 import { LedgerError } from './ledger.js';
@@ -92,7 +92,7 @@ export function createEconomy({ state, ledger, monetary, issuanceAccount, regist
       const [kind, id] = who.split(':');
       grant(kind === 'business' ? accounts.business(id) : accounts.government(id), amount, who);
     }
-    for (const r of ZONE_RESIDENTS) grant(accounts.resident(r.id), RESIDENT_CAPITAL, `resident:${r.id}`);
+    for (const r of ZONE_ACCOUNT_HOLDERS) grant(accounts.resident(r.id), RESIDENT_CAPITAL, `resident:${r.id}`);
   }
   const eco = state.economy;
 
@@ -346,8 +346,10 @@ export function createEconomy({ state, ledger, monetary, issuanceAccount, regist
         emit(d.playerId, { type: 'delivery', text: `Delivered to Plot ${zoneParcel(d.parcelId).plot}: ${countOf(d.item, d.qty)}.` });
       }
     }
-    // the yard's own moulder
-    if (residents.isAt('moulder', 'mould3') && have('yard', 'block') < 600) {
+    // the yard's own moulding at its third mould, through its working hours: the moulder is no longer seen in the town
+    // (22 October 2026), and the yard turns out its blocks as it did, paying his piece wage as it did
+    const works = zoneService('yard');
+    if (hourOfDay >= works.opens && hourOfDay < works.closes && have('yard', 'block') < 600) {
       eco.mouldTimer += dtReal;
       while (eco.mouldTimer >= 14) {
         eco.mouldTimer -= 14;
@@ -406,7 +408,7 @@ export function createEconomy({ state, ledger, monetary, issuanceAccount, regist
     }
     if (hour === 8 || hour === 17) for (const id of ['lands', 'clerk', 'instructor']) tryPay('goods_purchase', accounts.resident(id), accounts.resident('rider'), 100, ZONE_TEXT.fare);
     if (hour === 13) {
-      for (const r of ZONE_RESIDENTS) {
+      for (const r of ZONE_ACCOUNT_HOLDERS) {
         if (r.id !== 'cook' && tryPay('goods_purchase', accounts.resident(r.id), accounts.business('kitchen'), BUSINESSES.kitchen.sells.meal, `Lunch at ${BUSINESSES.kitchen.name}`)) { bump(eco.made, 'meal', 1); bump(eco.used, 'meal', 1); }
       }
     }
@@ -418,7 +420,7 @@ export function createEconomy({ state, ledger, monetary, issuanceAccount, regist
       for (const id of ['yardowner', 'trader', 'cook']) tryPay('transfer', accounts.business({ yardowner: 'yard', trader: 'store', cook: 'kitchen' }[id]), accounts.resident(id), 500, 'Owner\'s drawings');
     }
     if (hour === 18) {
-      ZONE_RESIDENTS.forEach((r, index) => {
+      ZONE_ACCOUNT_HOLDERS.forEach((r, index) => {
         const trader = TRADERS[(index + dayNumber) % TRADERS.length];
         if (r.id !== trader) tryPay('goods_purchase', accounts.resident(r.id), accounts.resident(trader), 300, 'Household shopping at the market');
       });

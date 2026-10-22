@@ -14,13 +14,16 @@ import { dirname, resolve } from 'node:path';
 import { KIT_META, KIT_B64 } from '../src/client/character-kit-data.js';
 import { DRESS_OF, OUTFITS, FOOTWEAR, HAIR, HEADWEAR, EXTRAS, BODY_TYPES, PROTOTYPES, VARIATIONS, ANIMATION_SETS, characterSpec, configFromLook, wearFor, figFor, heightOf, partsUsed, printKey } from '../src/sim/characters.js';
 import { rosterOf } from '../src/sim/population.js';
-import { ZONE_RESIDENTS, ZONE_POPULATION } from '../src/sim/zone.js';
+import { ZONE_ACCOUNT_HOLDERS, ZONE_POPULATION } from '../src/sim/zone.js';
+import { FORMER_TOWN } from './helpers.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const bytes = Buffer.from(KIT_B64, 'base64');
 const part = (id) => KIT_META.parts[id];
 const triangles = (spec) => spec.parts.reduce((sum, p) => sum + part(p.id).lods[Math.min(spec.lod, part(p.id).lods.length - 1)].t, 0);
-const people = rosterOf(ZONE_POPULATION.seed, 1);
+// (the town as it was until 22 October 2026, when its townspeople were taken out: the rules that dress them are kept,
+// ready for the owner's own models, and judged on the thousand people the town had)
+const people = rosterOf(ZONE_POPULATION.seed, 1, FORMER_TOWN);
 const configOf = (p) => configFromLook(p.look);
 const signature = (c) => [c.outfit, c.hair, c.hat, c.body, c.skin, JSON.stringify(c.colours), JSON.stringify(c.prints), (c.extras || []).join('+')].join('|');
 
@@ -248,7 +251,7 @@ test('no crowd of clones: market women, and men, differ from one another', () =>
 });
 
 test('named residents and players: older looks are read as before', () => {
-  for (const r of ZONE_RESIDENTS) {
+  for (const r of ZONE_ACCOUNT_HOLDERS) {
     const config = configFromLook(r.look);
     assert.ok(OUTFITS[config.outfit], `${r.name}: ${config.outfit}`);
     for (const p of characterSpec(config, 1).parts) assert.ok(part(p.id), `${r.name} needs ${p.id}`);

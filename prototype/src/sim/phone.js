@@ -1,19 +1,20 @@
 // The phone: who a player can reach, what was said, and help with bail.
 //
 // Contacts are kept by the simulation, not by the phone. Emergency numbers
-// and the town's businesses are there from the start; a townsperson is added
-// when the player has spoken to them; another player is added by standing
-// next to them and asking.
+// and the town's businesses are there from the start; another player is added
+// by standing next to them and asking. (Townspeople were contacts too, once
+// spoken to, until 22 October 2026: the owner's word, the phone reaches only
+// players, "becos its only playable character one can phone".)
 //
 // From custody a player may use the phone only when the officer has allowed
 // it, and then only to reach people they know, a few messages at most.
 //
 // Someone asked to pay a fine is shown where the Police Post is, how far it
-// is and how long the walk will take. A townsperson who knows the player may
-// agree to go and pay; the player then owes them the money, and nothing is
-// taken back without the player choosing to repay.
+// is and how long the walk will take. Only another player can pay it now: a
+// townsperson no longer stands it. Money a player came to owe a townsperson who
+// paid a fine for them before then is still theirs to repay, whenever they choose.
 
-import { ZONE_SERVICES, ZONE_RESIDENTS, zoneService, zoneResident } from './zone.js';
+import { ZONE_SERVICES, zoneService, zoneResident, zoneAccountHolder } from './zone.js';
 import { GameError } from './registry.js';
 import { LedgerError, trText } from './ledger.js';
 import { nearestNode, graphNearest, graphDistance, graphRoute, graphPoint, graphSize, graphIsRoad } from './graph.js';
@@ -42,7 +43,6 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
   function contacts(p) {
     const out = EMERGENCY.map((e) => ({ ...e }));
     for (const s of ZONE_SERVICES) if (!EMERGENCY.some((e) => e.service === s.id)) out.push({ key: `svc:${s.id}`, kind: 'business', name: s.name, service: s.id, note: serviceState(s.id).open ? 'Open now' : 'Closed now' });
-    for (const id of Object.keys(p.met || {})) { const r = zoneResident(id); if (r) out.push({ key: `res:${id}`, kind: 'person', name: r.name, note: r.role, resident: id, owed: owedTo(p, id) }); }
     for (const [key, c] of Object.entries(mine(p))) { const q = players[c.id]; if (q) out.push({ key, kind: c.tag === 'family' ? 'family' : 'friend', name: q.name, player: q.id, note: c.tag === 'family' ? 'Family' : 'Friend', here: Math.hypot(q.x - p.x, q.z - p.z) < 60 }); }
     return out;
   }
@@ -225,27 +225,17 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
     return out;
   }
 
-  // --- a townsperson who stands the fine --------------------------------------------------------
+  // --- what is owed to a townsperson who stood a fine, before 22 October 2026 ---------------------
 
   const owedTo = (p, residentId) => Object.values(book.debts).filter((d) => d.player === p.id && d.to === residentId).reduce((sum, d) => sum + d.left, 0);
-  const debtsOf = (p) => Object.values(book.debts).filter((d) => d.player === p.id && d.left > 0).map((d) => ({ id: d.id, to: zoneResident(d.to).name, resident: d.to, amount: d.amount, left: d.left, at: d.at }));
+  const nameOf = (residentId) => { const r = zoneAccountHolder(residentId); return r ? r.name : 'a townsperson'; };
+  const debtsOf = (p) => Object.values(book.debts).filter((d) => d.player === p.id && d.left > 0).map((d) => ({ id: d.id, to: nameOf(d.to), resident: d.to, amount: d.amount, left: d.left, at: d.at }));
 
+  // (a townsperson no longer stands a player's fine: only another player can pay it, 22 October 2026)
   function askSurety(p, key) {
-    const c = reach(p, key);
-    if (!c.resident) throw new GameError('NO_CONTACT', 'Ask someone in town who knows you.');
+    void key;
     if (!p.custody) throw new GameError('NOT_IN_CUSTODY', 'You are not under arrest.');
-    const bail = hub.justice.bailFor(p.custody);
-    if (!bail || bail.status !== 'custody' || !bail.confirmed) throw new GameError('NOT_YET', 'Wait until you have been brought in and the fine is set.');
-    const r = zoneResident(c.resident);
-    if (book.sureties[p.custody]) throw new GameError('ASKED', `${zoneResident(book.sureties[p.custody].resident).short} is already on the way.`);
-    if (debtsOf(p).length) return { agreed: false, said: `${r.short}: "You have not paid back what you owe. I cannot help you this time."` };
-    const wallet = accounts.resident(c.resident);
-    if (ledger.balance(wallet) < bail.amount + PHONE.suretyMargin) return { agreed: false, said: `${r.short}: "I am sorry. I do not have that kind of money to spare."` };
-    const post = zoneService('police');
-    const place = { x: post.x + 1.4, z: post.z - 0.4, facing: 0, node: nearestNode(post.x, post.z), inside: false };
-    residents.send(c.resident, `surety:${p.custody}`, place);
-    book.sureties[p.custody] = { resident: c.resident, arrest: p.custody, player: p.id, askedAt: clock(), key: `surety:${p.custody}` };
-    return { agreed: true, said: `${r.short}: "Stay calm. I am coming to the Police Post now."`, amount: bail.amount };
+    throw new GameError('PLAYERS_ONLY', 'Only another player can pay your fine for you. Ask a friend or your family from your contacts, or pay it yourself.');
   }
 
   function repay(p, debtId, amount) {
@@ -253,42 +243,28 @@ export function createPhone({ state, players, ledger, accounts, residents, talk,
     if (!d || d.player !== p.id || d.left <= 0) throw new GameError('NO_DEBT', 'You owe nothing there.');
     const pay = Math.min(d.left, Math.max(1, Math.floor(Number(amount) || d.left)));
     d.paySeq = (d.paySeq || 0) + 1;
-    const txn = ledger.post({ key: `repay:${d.id}:${d.paySeq}`, kind: 'transfer', initiator: `player:${p.id}`, reason: `Repaid to ${zoneResident(d.to).name}`, legs: [{ account: p.wallet, amount: -pay }, { account: accounts.resident(d.to), amount: pay }], meta: { debt: d.id } });
+    const txn = ledger.post({ key: `repay:${d.id}:${d.paySeq}`, kind: 'transfer', initiator: `player:${p.id}`, reason: `Repaid to ${nameOf(d.to)}`, legs: [{ account: p.wallet, amount: -pay }, { account: accounts.resident(d.to), amount: pay }], meta: { debt: d.id } });
     d.left -= pay;
     return { paid: pay, left: d.left, txn: txn.id };
   }
 
   function tick() {
+    // a townsperson on the way to pay a fine when townspeople stopped standing them goes back to their day, and the
+    // prisoner is told (a save from before 22 October 2026)
     for (const key of Object.keys(book.sureties)) {
       const s = book.sureties[key];
-      const bail = hub.justice.bailFor(s.arrest);
-      if (!bail) { residents.release(s.resident); delete book.sureties[key]; continue; }      // paid some other way, or time served
-      if (s.done || !residents.isAt(s.resident, s.key)) continue;
-      const r = zoneResident(s.resident);
-      const live = residents.get(s.resident);
-      const p = players[s.player];
-      try {
-        const paid = hub.justice.payFine({ id: `npc:${s.resident}`, name: r.name, wallet: accounts.resident(s.resident), x: live.x, z: live.z }, s.arrest);
-        book.debtSeq += 1;
-        const id = `D-${String(book.debtSeq).padStart(5, '0')}`;
-        book.debts[id] = { id, player: s.player, to: s.resident, amount: paid.amount, left: paid.amount, at: clock(), arrest: s.arrest };
-        if (p) emit(p.id, { type: 'note', text: `${r.name} has paid your fine of ${trText(paid.amount)}. You owe it back: repay from your phone when you can.` });
-      } catch (error) {
-        if (!(error instanceof GameError) && !(error instanceof LedgerError)) throw error;
-        if (p) emit(p.id, { type: 'note', text: `${r.short} came, but could not pay after all.` });
-      }
-      residents.release(s.resident);
+      if (zoneResident(s.resident)) residents.release(s.resident);
+      if (players[s.player]) emit(s.player, { type: 'note', text: `${nameOf(s.resident)} cannot come to pay your fine after all. Ask another player to pay it, or pay it yourself.` });
       delete book.sureties[key];
     }
   }
 
   function selfView(p) {
-    return { unread: unread(p), requests: requests(p), debts: debtsOf(p), surety: p.custody && book.sureties[p.custody] ? zoneResident(book.sureties[p.custody].resident).name : null };
+    return { unread: unread(p), requests: requests(p), debts: debtsOf(p), surety: p.custody && book.sureties[p.custody] ? nameOf(book.sureties[p.custody].resident) : null };
   }
   function recent(p) { return { calls: book.calls.filter((c) => c.by === p.id).slice(-12).reverse() }; }
 
   const api = { contacts, addContact, tagContact, removeContact, call, message, thread, route, askBail, requests, askSurety, repay, tick, selfView, recent };
   hub.phone = api;
-  void ZONE_RESIDENTS;
   return api;
 }

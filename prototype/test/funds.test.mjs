@@ -11,6 +11,7 @@ import { BUSINESSES } from '../src/sim/economy.js';
 import { VEHICLE_KINDS } from '../src/sim/vehicles.js';
 import { TR } from '../src/sim/ledger.js';
 import { zoneService, ZONE_PARCELS, ZONE_MOULD_STATIONS } from '../src/sim/zone.js';
+import { FORMER_TOWN } from './helpers.mjs';
 
 const funds = (w, id = w.id) => w.g.view(id).self.funds;
 const at = (w, service, p = w.p) => { const s = zoneService(service); w.place(p, s.x, s.z); };
@@ -141,7 +142,8 @@ test('nothing in the wallet but starter TR: the words are the ones for starter T
 });
 
 test('what is taken from someone is kept apart: it is not starter TR, it is handed back first, and it never becomes starter TR', () => {
-  const w = town(['Emeka Light'], { funded: false, hour: 10 });
+  // (a townsperson's pocket: in the town as it was until 22 October 2026, FORMER_TOWN, whose systems are kept ready)
+  const w = town(['Emeka Light'], { funded: false, hour: 10, people: FORMER_TOWN });
   let got = null;
   for (const a of standing(w, 8, 58, { range: 120, not: ['police'] })) {
     beside(w, w.p, a, { behind: true, metres: 0.9 });

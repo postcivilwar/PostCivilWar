@@ -5,30 +5,38 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { town, standing, until, assault, run, ok, refused, post, whereIs, farFromPolice } from './world.mjs';
+import { town as ourTown, standing, until, assault, run, ok, refused, post, whereIs, farFromPolice } from './world.mjs';
 import { LAW } from '../src/sim/justice.js';
 import { HIJACK, driverSide } from '../src/sim/hijack.js';
 import { MOTO } from '../src/sim/okada.js';
-import { zoneService, zoneResident, ZONE_RESIDENTS, ZONE_VEHICLE_BAYS } from '../src/sim/zone.js';
+import { zoneService, zoneResident, zoneAccountHolder, ZONE_RESIDENTS, ZONE_FORMER_RESIDENTS, ZONE_VEHICLE_BAYS } from '../src/sim/zone.js';
+import { FORMER_TOWN } from './helpers.mjs';
 
+// The town as it is (its people: the police, and the named residents at the counters), and the town as it was until
+// 22 October 2026, with its thousand townspeople and its okadas (FORMER_TOWN): where a test needs a townsperson to be
+// struck, or an okada to be taken, it is the town as it was, whose systems are kept ready for the owner's own models.
+const town = (names, options = {}) => ourTown(names, options);
+const former = (names, options = {}) => ourTown(names, { people: FORMER_TOWN, ...options });
 const MARKET = [8, 58];
 const clean = (w) => assert.deepEqual(w.host.auditor.reconcile(), [], 'the ledger balances');
 const timid = (w) => standing(w, ...MARKET, { not: ['police'] }).find((a) => a.nerve < 0.4 && a.who.age < 55);
 const contactsOf = (w, id) => ok(w.send(id, { type: 'phone.contacts' })).contacts;
 const inCustody = (w, p) => { assault(w, p, timid(w)); until(w, () => p.law.state === 'custody', 600); return w.g.view(p.id).self.law.arrest; };
 
-test('contacts: emergency numbers and the town\'s businesses from the start; people as they are met', () => {
+test('contacts: emergency numbers and the town\'s businesses from the start; players as they are met, and nobody else', () => {
   const w = town(['Ada Caller', 'Bola Friend']);
   const [a, b] = w.players;
   const first = contactsOf(w, a.id);
   assert.deepEqual(first.filter((c) => c.kind === 'emergency').map((c) => c.key), ['svc:police', 'svc:hospital']);
   assert.ok(first.filter((c) => c.kind === 'business').length >= 7);
   assert.equal(first.filter((c) => c.kind === 'person' || c.kind === 'friend').length, 0);
-  // someone in town spoken to is a contact from then on
+  // someone in town spoken to is not a contact: the phone reaches players (22 October 2026, the owner's word: "its only
+  // playable character one can phone"), and the town's businesses and emergency numbers
   const r = ZONE_RESIDENTS.map((x) => ({ x, live: w.I.residents.get(x.id) })).find((e) => e.live.mode === 'at');
   w.place(a, r.live.x + 1, r.live.z);
   ok(w.send(a.id, { type: 'talk', residentId: r.x.id }));
-  assert.ok(contactsOf(w, a.id).some((c) => c.key === `res:${r.x.id}` && c.name === r.x.name));
+  assert.ok(!contactsOf(w, a.id).some((c) => c.key === `res:${r.x.id}` || c.kind === 'person'), 'a resident spoken to is no contact');
+  refused(w.send(a.id, { type: 'phone.call', key: `res:${r.x.id}` }), 'NO_CONTACT');
   // another player: only by standing next to them, and both get the number
   w.place(b, a.x + 30, a.z);
   refused(w.send(a.id, { type: 'contacts.add', playerId: b.id }), 'TOO_FAR');
@@ -60,12 +68,16 @@ test('calls: the police take a report, the hospital sends the ambulance, a busin
   const sent = ok(w.send(a.id, { type: 'phone.call', key: 'svc:hospital', about: 'ambulance' }));
   assert.equal(sent.call.fee, 0, 'free: their health is critical');
   assert.equal(w.g.view(a.id).ambulance.mode, 'out');
-  // a player who saw an offence reports it by phone
-  const w2 = town(['Wale Wrong', 'Sade Saw']);
-  const [x, s] = w2.players;
-  const victim = timid(w2);
-  w2.place(s, victim.x + 4, victim.z + 1);
-  assault(w2, x, victim);
+  // a player who was struck reports it by phone (only the police and the person wronged tell the police: a player who
+  // only saw it is no witness, 22 October 2026)
+  const w2 = town(['Wale Wrong', 'Sade Struck', 'Bisi Bystander']);
+  const [x, s, by] = w2.players;
+  const [qx, qz] = [w2.p.x, w2.p.z];
+  w2.place(s, qx + 0.9, qz, -Math.PI / 2); w2.place(x, qx, qz, Math.PI / 2); w2.place(by, qx + 4, qz + 2);
+  ok(w2.send(x.id, { type: 'combat.engage', target: { kind: 'player', id: s.id } }));
+  ok(w2.send(x.id, { type: 'combat.act', move: 'punch' }));
+  assert.equal(w2.g.view(by.id).self.law.seen.length, 0, 'the one who only saw it has nothing to report');
+  refused(w2.send(by.id, { type: 'phone.call', key: 'svc:police', about: 'report' }), 'NOTHING');
   assert.equal(w2.g.view(s.id).self.law.seen.length, 1);
   const told = ok(w2.send(s.id, { type: 'phone.call', key: 'svc:police', about: 'report' }));
   assert.equal(told.reports[0].identified, true);
@@ -116,7 +128,7 @@ test('the way to a place: along the paths, with how far and how long', () => {
 });
 
 test('from custody the phone is the officer\'s to allow: asked for, granted, and then only a few messages to people one knows', () => {
-  const w = town(['Wale Held', 'Femi Friend']);
+  const w = former(['Wale Held', 'Femi Friend']);
   const [x, f] = w.players;
   w.place(f, x.x + 2, x.z);
   ok(w.send(x.id, { type: 'contacts.add', playerId: f.id }));
@@ -162,7 +174,7 @@ test('from custody the phone is the officer\'s to allow: asked for, granted, and
 });
 
 test('a constable decides whether their prisoner may use the phone; silence is taken as yes', () => {
-  const w = town(['Ngozi Constable', 'Wale Held']);
+  const w = former(['Ngozi Constable', 'Wale Held']);
   const [n, x] = w.players;
   w.place(n, post().x, post().z - 1);
   ok(w.send(n.id, { type: 'police.enlist' }));
@@ -186,67 +198,57 @@ test('a constable decides whether their prisoner may use the phone; silence is t
   assert.equal(w.g.view(x.id).self.law.arrest.call.status, 'allowed');
 });
 
-test('someone in town who knows the player will walk to the Police Post and pay; the money is then owed to them', () => {
-  const w = town(['Wale Held']);
-  const x = w.p;
-  const r = ZONE_RESIDENTS.map((e) => ({ e, live: w.I.residents.get(e.id) })).find((e) => e.live.mode === 'at' && !['sergeant', 'corporal'].includes(e.e.id) && Math.hypot(e.live.x - post().x, e.live.z - post().z) > 40);
-  w.place(x, r.live.x + 1, r.live.z);
-  ok(w.send(x.id, { type: 'talk', residentId: r.e.id }));
-  const key = `res:${r.e.id}`;
-  refused(w.send(x.id, { type: 'phone.askSurety', key }), 'NOT_IN_CUSTODY');
-  const arrest = inCustody(w, x);
-  refused(w.send(x.id, { type: 'phone.askSurety', key }), 'NOT_ALLOWED');
-  ok(w.send(x.id, { type: 'custody.requestCall' }));
-  until(w, () => w.g.view(x.id).self.law.arrest.call.status === 'allowed', 10);
-  const wallet = w.I.economy.accounts.resident(r.e.id);
-  const theirs = w.host.auditor.balance(wallet), mine = w.balance(x), fine = LAW.offences.assault.fine;
-  const asked = ok(w.send(x.id, { type: 'phone.askSurety', key }));
-  assert.equal(asked.agreed, true, asked.said);
-  assert.equal(w.g.view(x.id).self.phone.surety, r.e.name);
-  refused(w.send(x.id, { type: 'phone.askSurety', key }), 'ASKED');
-  // they walk there: every step a step
-  let last = { x: r.live.x, z: r.live.z };
-  const took = until(w, () => x.law.state === 'released', 900, () => { const live = w.I.residents.get(r.e.id); assert.ok(Math.hypot(live.x - last.x, live.z - last.z) < 0.5); last = { x: live.x, z: live.z }; });
-  assert.ok(took > 10, `it took them ${took.toFixed(0)} s to get there`);
-  assert.equal(w.host.auditor.balance(wallet), theirs - fine, 'out of their own pocket');
-  assert.equal(w.balance(x), mine, 'and not the prisoner\'s');
-  const debts = w.g.view(x.id).self.phone.debts;
-  assert.equal(debts.length, 1);
-  assert.deepEqual([debts[0].to, debts[0].amount, debts[0].left], [r.e.name, fine, fine]);
-  assert.equal(w.g.intent(x.id, { type: 'police.status' }).record.arrests[0].payment.paidBy, r.e.name);
-  assert.equal(arrest.fine.amount, fine);
-  // nothing is taken back without the player choosing to repay; part now, the rest later
-  run(w.host, 120);
-  assert.equal(w.balance(x), mine);
-  const part = ok(w.send(x.id, { type: 'phone.repay', debtId: debts[0].id, amount: 8 }));
-  assert.deepEqual([part.paid, part.left], [8, fine - 8]);
-  const rest = ok(w.send(x.id, { type: 'phone.repay', debtId: debts[0].id }));
-  assert.deepEqual([rest.paid, rest.left], [fine - 8, 0]);
-  assert.equal(w.balance(x), mine - fine);
-  assert.equal(w.host.auditor.balance(wallet), theirs);
-  refused(w.send(x.id, { type: 'phone.repay', debtId: debts[0].id }), 'NO_DEBT');
-  clean(w);
-});
-
-test('someone still owed money will not stand a second fine', () => {
-  const w = town(['Wale Held']);
-  const x = w.p;
+test('only another player can pay a fine: a townsperson no longer stands it', () => {
+  const w = former(['Wale Held', 'Femi Friend']);
+  const [x, f] = w.players;
   const r = ZONE_RESIDENTS.map((e) => ({ e, live: w.I.residents.get(e.id) })).find((e) => e.live.mode === 'at' && !['sergeant', 'corporal'].includes(e.e.id));
   w.place(x, r.live.x + 1, r.live.z);
   ok(w.send(x.id, { type: 'talk', residentId: r.e.id }));
+  refused(w.send(x.id, { type: 'phone.askSurety', key: `res:${r.e.id}` }), 'NOT_IN_CUSTODY');
+  w.place(f, x.x + 2, x.z);
+  ok(w.send(x.id, { type: 'contacts.add', playerId: f.id }));
+  w.place(f, 120, 60);
   inCustody(w, x);
   ok(w.send(x.id, { type: 'custody.requestCall' }));
   until(w, () => w.g.view(x.id).self.law.arrest.call.status === 'allowed', 10);
-  ok(w.send(x.id, { type: 'phone.askSurety', key: `res:${r.e.id}` }));
-  until(w, () => x.law.state === 'released', 900);
-  run(w.host, LAW.released + 2);
-  inCustody(w, x);
-  ok(w.send(x.id, { type: 'custody.requestCall' }));
-  until(w, () => w.g.view(x.id).self.law.arrest.call.status === 'allowed', 10);
-  const again = ok(w.send(x.id, { type: 'phone.askSurety', key: `res:${r.e.id}` }));
-  assert.equal(again.agreed, false);
-  assert.match(again.said, /not paid back/);
-  assert.equal(zoneResident(r.e.id).name, r.e.name);
+  // the resident spoken to is not to be asked, and nobody in town is: only a player
+  const asked = refused(w.send(x.id, { type: 'phone.askSurety', key: `res:${r.e.id}` }), 'PLAYERS_ONLY');
+  assert.match(asked.message, /Only another player can pay your fine/);
+  assert.equal(w.g.view(x.id).self.phone.surety, null);
+  assert.equal(ok(w.send(x.id, { type: 'phone.askBail', key: `ply:${f.id}` })).asked, f.name);
+  run(w.host, 60);
+  assert.equal(x.law.state, 'custody', 'nobody in town came to pay');
+});
+
+test('money owed to a townsperson who paid a fine before 22 October 2026 is still the player\'s to repay, when they choose', () => {
+  // a game saved then: the fisherman (no longer seen in the town) had paid a 10 TR fine for the player, who owes it him
+  const w = town(['Wale Owing']);
+  const x = w.p;
+  const fisher = zoneAccountHolder('fisher');
+  assert.ok(fisher && !zoneResident('fisher') && ZONE_FORMER_RESIDENTS.some((r) => r.id === 'fisher'), 'one of the townspeople no longer seen');
+  const fine = LAW.offences.assault.fine;
+  w.g.state.phone.debtSeq = 1;
+  w.g.state.phone.debts['D-00001'] = { id: 'D-00001', player: x.id, to: 'fisher', amount: fine, left: fine, at: 0, arrest: 'AR-000001' };
+  // and he was on his way to pay a second: he does not come, and the player is told
+  w.g.state.phone.sureties['AR-000002'] = { resident: 'fisher', arrest: 'AR-000002', player: x.id, askedAt: 0, key: 'surety:AR-000002' };
+  run(w.host, 0.2);
+  assert.deepEqual(w.g.state.phone.sureties, {});
+  assert.ok(w.events(x.id).some((e) => /cannot come to pay your fine/.test(e.text || '')));
+  const debts = w.g.view(x.id).self.phone.debts;
+  assert.deepEqual(debts.map((d) => [d.to, d.left]), [[fisher.name, fine]]);
+  const wallet = w.I.economy.accounts.resident('fisher');
+  const theirs = w.host.auditor.balance(wallet), mine = w.balance(x);
+  run(w.host, 120);
+  assert.equal(w.balance(x), mine, 'nothing is taken back without the player choosing to repay');
+  const part = ok(w.send(x.id, { type: 'phone.repay', debtId: 'D-00001', amount: 8 }));
+  assert.deepEqual([part.paid, part.left], [8, fine - 8]);
+  const rest = ok(w.send(x.id, { type: 'phone.repay', debtId: 'D-00001' }));
+  assert.deepEqual([rest.paid, rest.left], [fine - 8, 0]);
+  assert.equal(w.balance(x), mine - fine);
+  assert.equal(w.host.auditor.balance(wallet), theirs + fine, 'into his own account');
+  refused(w.send(x.id, { type: 'phone.repay', debtId: 'D-00001' }), 'NO_DEBT');
+  assert.ok(w.host.auditor.transactions().some((t) => t.reason === `Repaid to ${fisher.name}`));
+  clean(w);
 });
 
 // ------------------------------------------------------------------ vehicles --
@@ -275,7 +277,7 @@ test('where to stand: beside the driver, never where the passenger sits', () => 
 });
 
 test('a motorcycle: taken only from beside a rider who has stopped, in steps that take time, and it is an offence', () => {
-  const w = town();
+  const w = former();
   const o = stoppedOkada(w);
   assert.ok(o, 'a rider is waiting somewhere');
   const riderName = w.pop.people[o.person].name;
@@ -334,7 +336,7 @@ test('a motorcycle: taken only from beside a rider who has stopped, in steps tha
 });
 
 test('a motorcycle left standing is not lost: its rider comes for it', () => {
-  const w = town();
+  const w = former();
   const o = stoppedOkada(w);
   const here = at({ x: o.rider.x, z: o.rider.z, h: o.rider.h }, -1.0, 0.3);
   w.place(w.p, here.x, here.z);

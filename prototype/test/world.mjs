@@ -10,8 +10,11 @@ export const refused = (result, code) => { if (result.ok) throw new Error(`expec
 // Everyone arrives with ARRIVAL_FUNDS. `broke: true` is for a test about having no money at all: each
 // player first leaves their arrival money with family, by an ordinary balanced ledger transfer (nothing is
 // written by hand), so that they start with nothing. Implies `funded: false`.
-export function town(names = ['Emeka Test'], { hour = 10, funded = true, broke = false } = {}) {
-  const host = createHost();
+// `people`: who lives in the town, where it is not the town's own (helpers.mjs, FORMER_TOWN: the town as it was, with
+// its thousand townspeople, for the tests of what townspeople do).
+// `seed`: the world's own dice, where a test needs another throw of them.
+export function town(names = ['Emeka Test'], { hour = 10, funded = true, broke = false, people = undefined, seed = undefined } = {}) {
+  const host = createHost({ people, seed });
   const g = host.game;
   const ids = names.map((name) => g.join({ name, look: {} }));
   if (broke) for (const id of ids) leaveArrivalMoney(host, g, g.state.players[id]);

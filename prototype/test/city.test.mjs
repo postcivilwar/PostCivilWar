@@ -6,6 +6,7 @@ import assert from 'node:assert/strict';
 import * as Z from '../src/sim/zone.js';
 import { createHost } from '../src/sim/host.js';
 import { graphIndex, graphRoute, graphPoint } from '../src/sim/graph.js';
+import { FORMER_TOWN } from './helpers.mjs';
 
 const C = Z;
 const inBox = (b, x, z, m = 0) => x > b.x0 - m && x < b.x1 + m && z > b.z0 - m && z < b.z1 + m;
@@ -98,8 +99,10 @@ test('people on foot walk the pavement, not down the middle of the road, and cro
   }
 });
 
+// (the townspeople's ways and the okadas are judged on the town as it was until 22 October 2026, FORMER_TOWN: the
+// town has no townspeople and no okadas now, and their systems are kept ready)
 test('someone about to cross the boulevard stops at the kerb first', () => {
-  const host = createHost();
+  const host = createHost({ people: FORMER_TOWN });
   const pop = host.game.internals.population;
   const t0 = host.game.state.t;
   // find people whose way today steps from the pavement onto the boulevard, and watch them there
@@ -138,7 +141,7 @@ test('the traffic signals: Market Road and Registry Road take turns, never green
 });
 
 test('the town\'s okadas ride in their lane on the boulevard and stop for the lights', () => {
-  const host = createHost();
+  const host = createHost({ people: FORMER_TOWN });
   const g = host.game;
   let onBlvd = 0, inLane = 0, heldAtRed = 0;
   for (let k = 0; k < 2400; k += 1) {

@@ -10,15 +10,19 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { town, standing, beside, whereIs, post, until, assault, run, ok, refused, farFromPolice, lead, quietSpot } from './world.mjs';
+import { town as makeTown, standing, beside, whereIs, post, until, assault, run, ok, refused, farFromPolice, lead, quietSpot } from './world.mjs';
 import { HEALTH, MOVES, COMBAT } from '../src/sim/conflict.js';
 import { LAW } from '../src/sim/justice.js';
 import { SPEED } from '../src/sim/sim.js';
 import { zoneService } from '../src/sim/zone.js';
-import { fund } from './helpers.mjs';
+import { fund, FORMER_TOWN } from './helpers.mjs';
 import { createLedger, LedgerError, fineShares, TR } from '../src/sim/ledger.js';
 import { createHost } from '../src/sim/host.js';
 
+// The town as it was until 22 October 2026, with its thousand townspeople (FORMER_TOWN): what townspeople do when they
+// are struck, robbed or see something is kept ready for the owner's own models of them, and judged on it. Only the
+// police are witnesses now, in that town as in this one. (test/police.test.mjs: the town's own police.)
+const town = (names, options = {}) => makeTown(names, { people: FORMER_TOWN, ...options });
 const MARKET = [8, 58];
 const clean = (w) => assert.deepEqual(w.host.auditor.reconcile(), [], 'the ledger balances');
 const government = (w) => w.host.auditor.balance(w.I.economy.accounts.government(post().jurisdiction));
@@ -196,9 +200,11 @@ test('someone who has had enough sits down, and cannot be struck again', () => {
   assert.equal(crime.type, 'assault_serious', 'and the offence is the graver one');
 });
 
-test('an offence is recorded where and when it happened, with who saw it', () => {
+test('an offence is recorded where and when it happened, with who saw it: only the police are witnesses', () => {
   const w = town();
   const a = timid(w);
+  const around = standing(w, a.x, a.z, { range: LAW.witness.range, adult: false }).filter((q) => q.i !== a.i);
+  assert.ok(around.length > 0, 'there are townspeople about, near enough to see');
   assault(w, w.p, a);
   const crimes = Object.values(w.g.state.justice.crimes);
   assert.equal(crimes.length, 1);
@@ -211,8 +217,19 @@ test('an offence is recorded where and when it happened, with who saw it', () =>
   assert.equal(c.status, 'open');
   assert.equal(c.arrest, null);
   assert.equal(c.detection, 'identified', 'the person struck knows who did it');
-  assert.ok(c.witnesses.length > 0, 'in the market at ten in the morning somebody saw');
-  for (const s of c.witnesses) { assert.ok(s.metres <= LAW.witness.range); assert.notEqual(s.id, a.i); }
+  // (22 October 2026, the owner's word: "remove witness. only police should serve as witness")
+  assert.deepEqual(c.witnesses, [], 'the townspeople who saw it are no witnesses; no officer was near');
+  // an officer standing near sees the next one
+  const b = standing(w, a.x, a.z, { range: 300, not: ['police'] }).find((q) => q.i !== a.i && q.who.age >= 18 && Math.hypot(q.x - a.x, q.z - a.z) > 4);
+  const officer = w.pop.people.find((q) => q.job === 'police' && whereIs(w, q.index).pose !== 4);
+  w.I.actors.take(officer.index, w.g.state.t);
+  const m = w.I.actors.get(officer.index); m.x = b.x + 6; m.z = b.z;
+  w.I.actors.hold(officer.index, 'On patrol', 0, w.g.state.real + 600);
+  const p2 = w.g.state.players[w.g.join({ name: 'Second Striker', look: {} })];
+  assault(w, p2, b);
+  const seen = Object.values(w.g.state.justice.crimes).find((x) => x.culprit === p2.id);
+  assert.ok(seen.witnesses.length >= 1 && seen.witnesses.every((s) => s.kind === 'npc' && s.police), JSON.stringify(seen.witnesses));
+  for (const s of seen.witnesses) { assert.ok(s.metres <= LAW.witness.range); assert.notEqual(s.id, b.i); }
   // more blows in the same fight are the same offence
   const again = Object.values(w.g.state.justice.crimes).length;
   beside(w, w.p, whereIs(w, a.i).x ? { ...whereIs(w, a.i), h: 0 } : a);
@@ -348,19 +365,24 @@ test('running from the police is an offence of its own; out of sight long enough
   assert.ok(Object.values(w.g.state.justice.crimes).every((c) => c.status === 'lapsed'));
 });
 
-test('stolen money: taken by a ledger transaction, and taken back and returned on arrest, to the last unit', () => {
-  const w = town();
-  const before = pool(w), mine = w.balance(w.p);
-  // work through the market until a pocket is picked without the owner feeling it
-  let got = null, tried = 0;
-  for (const a of farFromPolice(w, standing(w, ...MARKET, { range: 120, not: ['police'] }), 35)) {
+// A pocket picked in the market without its owner feeling it, at the first try: a try that is felt makes the culprit
+// wanted for it at once, and only the police are witnesses now (22 October 2026), so a pocket picked after one that
+// was felt would not be known before the arrest. Each try is in a town of its own, with its own throw of the dice.
+function pickPocket(options = {}) {
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const w = town(['Emeka Test'], { ...options, seed: 20261006 + attempt });
+    const before = pool(w), mine = w.balance(w.p);
+    const a = farFromPolice(w, standing(w, ...MARKET, { range: 120, not: ['police'] }), 35)[attempt % 4];
     beside(w, w.p, a, { behind: true, metres: 0.9 });
     const r = ok(w.send(w.id, { type: 'crime.steal', target: { kind: 'npc', id: a.i } }));
-    tried += 1;
     refused(w.send(w.id, { type: 'crime.steal', target: { kind: 'npc', id: a.i } }), 'NOTHING_LEFT');
-    if (r.taken > 0) { got = { ...r, a }; break; }
-    if (tried > 12) break;
+    if (r.taken > 0) return { w, got: { ...r, a }, before, mine };
   }
+  return { w: null, got: null };
+}
+
+test('stolen money: taken by a ledger transaction, and taken back and returned on arrest, to the last unit', () => {
+  const { w, got, before, mine } = pickPocket();
   assert.ok(got, 'a pocket was picked');
   assert.ok(got.taken >= LAW.steal.npc[0] && got.taken <= LAW.steal.npc[1]);
   assert.equal(w.balance(w.p), mine + got.taken);
@@ -395,16 +417,9 @@ test('stolen money: taken by a ledger transaction, and taken back and returned o
 });
 
 test('stolen money that has been spent: only what the culprit has is taken, the rest is owed, and nothing is made from nothing', () => {
-  const w = town(['Emeka Test'], { broke: true });       // the arrival money left with family
-  assert.equal(w.balance(w.p), 0);
-  const before = pool(w);
-  let got = null;
-  for (const a of standing(w, ...MARKET, { range: 120, not: ['police'] }).slice(0, 14)) {
-    beside(w, w.p, a, { behind: true, metres: 0.9 });
-    const r = ok(w.send(w.id, { type: 'crime.steal', target: { kind: 'npc', id: a.i } }));
-    if (r.taken > 0) { got = r; break; }
-  }
+  const { w, got, before, mine } = pickPocket({ broke: true });       // the arrival money left with family
   assert.ok(got);
+  assert.equal(mine, 0);
   // spend most of it: lunch
   const kitchen = zoneService('kitchen');
   w.place(w.p, kitchen.x, kitchen.z + 1);
@@ -454,8 +469,10 @@ test('player against player: nobody is made to fight, a player can be hurt only 
   const crime = Object.values(w.g.state.justice.crimes)[0];
   assert.equal(crime.culprit, a.id);
   assert.deepEqual(crime.victim, { kind: 'player', id: b.id, name: b.name });
-  assert.ok(crime.witnesses.some((s) => s.kind === 'player' && s.id === c.id), 'the third player saw it');
-  assert.ok(w.events(c.id).some((e) => e.type === 'witness'));
+  // (another player standing by is no witness: only the police are, 22 October 2026; the one struck knows who did it)
+  assert.ok(!crime.witnesses.some((s) => s.kind === 'player'), 'the third player is no witness');
+  assert.ok(!w.events(c.id).some((e) => e.type === 'witness'));
+  assert.equal(crime.detection, 'identified');
   assert.equal(c.health, HEALTH.max);
   // the one attacked may fight back, and commits no offence by it
   ok(w.send(b.id, { type: 'combat.engage', target: { kind: 'player', id: a.id } }));

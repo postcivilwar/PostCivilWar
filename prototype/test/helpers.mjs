@@ -4,8 +4,9 @@ import { shortestRoute, nearestNode } from '../src/sim/graph.js';
 import { SPEED } from '../src/sim/sim.js';
 import { vehicleSpeedAt } from '../src/sim/vehicles.js';
 
-export function newWorld(name = 'Amara Test') {
-  const host = createHost();
+// (`people`: who lives in the town, where it is not the town's own: FORMER_TOWN below)
+export function newWorld(name = 'Amara Test', { people = undefined } = {}) {
+  const host = createHost({ people });
   const id = host.game.join({ name, look: {} });
   return { host, id };
 }
@@ -150,3 +151,28 @@ export function driveTo(host, id, points) {
     }
   }
 }
+
+// The town as it was until 22 October 2026, when every townsperson was taken out of the game but the police (the
+// owner's brief): a thousand people by job (with the sixteen named residents). The tests of the townspeople's own
+// systems (their days, their dress, their talk, the okadas, what happens when one of them is struck or run down) are
+// run with it, so that those systems stay working and ready for the owner's own models of townspeople. The town
+// itself is ZONE_POPULATION (src/sim/zones/atani.js).
+export const FORMER_TOWN = Object.freeze([
+  ['infant', 90, 'home'], ['pupil', 150, 'primary'], ['student', 120, 'secondary'],
+  ['undergrad', 50, 'university'], ['undergrad', 35, 'polytechnic'], ['undergrad', 25, 'college'],
+  ['headteacher', 1, 'primary'], ['teacher', 12, 'primary'], ['schoolstaff', 5, 'primary'],
+  ['principal', 1, 'secondary'], ['teacher', 14, 'secondary'], ['labtech', 1, 'secondary'], ['schoolstaff', 5, 'secondary'],
+  ['lecturer', 7, 'university'], ['officer', 3, 'university'], ['librarian', 1, 'university'], ['guard', 1, 'university'],
+  ['lecturer', 4, 'polytechnic'], ['officer', 1, 'polytechnic'], ['guard', 1, 'polytechnic'],
+  ['lecturer', 3, 'college'], ['officer', 1, 'college'],
+  ['doctor', 5, 'hospital'], ['nurse', 12, 'hospital'], ['pharmacist', 2, 'hospital'], ['labscientist', 1, 'hospital'], ['records', 4, 'hospital'], ['cleaner', 3, 'hospital'], ['guard', 2, 'hospital'], ['ambulance', 1, 'hospital'],
+  ['priest', 2, 'catholic'], ['catechist', 1, 'catholic'], ['sexton', 1, 'catholic'], ['churchworker', 2, 'catholic'],
+  ['vicar', 1, 'anglican'], ['churchworker', 3, 'anglican'],
+  ['trader', 60, 'market'],
+  ['tailor', 8, 'street'], ['barber', 8, 'street'], ['mechanic', 6, 'street'], ['carpenter', 6, 'street'], ['welder', 4, 'street'], ['foodvendor', 10, 'street'], ['baker', 2, 'street'],
+  ['farmer', 45, 'farm'], ['fisher', 25, 'shore'],
+  ['okada', 26, 'park'], ['driver', 12, 'park'],
+  ['police', 6, 'police'], ['clerk', 8, 'secretariat'], ['cleaner', 2, 'secretariat'],
+  ['labourer', 24, 'yard'], ['apprentice', 16, 'street'], ['hawker', 25, 'street'],
+  ['unemployed', 45, 'street'], ['retiree', 45, 'home'], ['homemaker', 30, 'home'],
+].map(Object.freeze));

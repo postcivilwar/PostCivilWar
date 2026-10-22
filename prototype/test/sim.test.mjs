@@ -485,7 +485,8 @@ test('a living town: residents commute, are paid, eat and pay the levy; money an
     if (i % 20 === 0) for (const r of host.game.view(id).residents) if (r.mode === 'walking') seenWalking.add(r.id);
   }
   assert.equal(host.game.view(id).clock.day, 3);
-  assert.ok(seenWalking.size >= 14, `${seenWalking.size} residents were seen walking`);
+  // (the eleven named residents: those at the counters, and the mason; 22 October 2026)
+  assert.ok(seenWalking.size >= 10, `${seenWalking.size} residents were seen walking`);
   assert.ok(host.auditor.transactionCount() > 150);
   assert.ok(host.auditor.supply().TR <= supply, 'nothing is issued by daily life; imports retire currency');
   assert.equal(host.game.audit().missedPayments, 0);

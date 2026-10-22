@@ -18,6 +18,7 @@ import { POSE } from '../src/sim/population.js';
 import { vehicleSpeedAt } from '../src/sim/vehicles.js';
 import { zoneService, zoneWalkable } from '../src/sim/zone.js';
 import { createHost } from '../src/sim/host.js';
+import { FORMER_TOWN } from './helpers.mjs';
 
 const PARK = zoneService('park');
 
@@ -380,8 +381,10 @@ test('nobody is shown another player\'s health until they have something to do w
 
 // ---------------------------------------------------------------- townspeople --
 
+// (what townspeople do in the road is judged on the town as it was until 22 October 2026, FORMER_TOWN: the town has no
+// townspeople now but its police, and their systems are kept ready for the owner's own models)
 test('townspeople get out of the way of a vehicle that sounds its horn', () => {
-  const w = town(['Dayo Driver']);
+  const w = town(['Dayo Driver'], { people: FORMER_TOWN });
   const d = w.p;
   const someone = farFromPolice(w, standing(w, 8, 58, { range: 400, not: ['police'] })).find((a) => { for (let k = 2; k <= 16; k += 1) if (!zoneWalkable(a.x - k, a.z, [], 1.3)) return false; return zoneWalkable(a.x, a.z + 2.4) || zoneWalkable(a.x, a.z - 2.4); });
   assert.ok(someone, 'someone standing with a clear road in front of them');
@@ -394,7 +397,7 @@ test('townspeople get out of the way of a vehicle that sounds its horn', () => {
 });
 
 test('a townsperson who cannot get clear is knocked down, bleeds, and gets up; struck again and again, they die, lie there, and are taken away', () => {
-  const w = town(['Dayo Driver', 'Ebuka Careful']);
+  const w = town(['Dayo Driver', 'Ebuka Careful'], { people: FORMER_TOWN });
   const d = w.p;
   const [x, z] = runway(w, 40);
   const people = farFromPolice(w, standing(w, x, z, { range: 500, not: ['police'] }));
@@ -455,7 +458,7 @@ test('a townsperson who cannot get clear is knocked down, bleeds, and gets up; s
 });
 
 test('a child in the road is never struck: they jump clear', () => {
-  const w = town(['Dayo Driver']);
+  const w = town(['Dayo Driver'], { people: FORMER_TOWN });
   const d = w.p;
   const [x, z] = runway(w, 40);
   const child = w.pop.people.find((q) => q.age < IMPACT.minAge && q.age >= 6);
@@ -517,12 +520,20 @@ test('a killing that was seen makes the driver wanted for it, and he can be arre
   const [x, z] = runway(w, 40);
   atTheWheel(w, d, x, z, Math.PI / 2);
   w.I.conflict.injure(v, HEALTH.max - 4);
+  // a police officer on her beat stands a few metres off the road, and another player too (22 October 2026: only the
+  // police are witnesses, the owner's word)
+  const officer = w.pop.people.find((q) => q.job === 'police' && whereIs(w, q.index).pose !== POSE.hidden);
+  assert.ok(officer, 'an officer is out on her beat at ten in the morning');
+  w.I.actors.take(officer.index, w.g.state.t);
+  const m = w.I.actors.get(officer.index); m.x = x + 12; m.z = z + 6;
+  w.I.actors.hold(officer.index, 'On patrol', POSE.stand, w.g.state.real + 600);
   w.place(v, x + 14, z); w.place(o, x + 12, z + 9);
   const hits = driveAt(w, d, x + 14, z);
   assert.equal(hits[0].killed, true);
   const crime = Object.values(w.g.state.justice.crimes)[0];
-  assert.ok(crime.witnesses.some((e) => e.kind === 'player' && e.id === o.id), 'the watcher saw it');
-  assert.ok(w.events(o.id).some((e) => e.type === 'witness'));
+  assert.ok(crime.witnesses.some((e) => e.kind === 'npc' && e.id === officer.index && e.police), 'the officer saw it');
+  assert.ok(!crime.witnesses.some((e) => e.kind === 'player'), 'the other player is no witness');
+  assert.ok(!w.events(o.id).some((e) => e.type === 'witness'), 'and is not asked to be one');
   until(w, () => w.g.view(d.id).self.law.state !== 'normal', LAW.report[1] + 2);
   assert.deepEqual(w.g.view(d.id).self.law.wanted.map((c) => c.name), ['Causing death by dangerous driving']);
   // he gives himself up on foot, and an officer takes him

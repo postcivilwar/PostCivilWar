@@ -54,8 +54,11 @@ export const FIGURES = Object.freeze({
   M17: Object.freeze({ id: 'M17', gender: 'm', name: 'Somto', file: 'urban_streetwear.glb', animated: true, parts: Object.freeze([]) }),
 });
 
+// The figures a player chooses from, women and men. The police officer, W3 ("Amaka"), is not among them since 22
+// October 2026: at the owner's word she is the town's own police now (police-looks.js: sixteen women drawn from her).
+// A player who already has her keeps her; she is in FIGURES still, and a save that names her is drawn as she was.
 export const FIGURE_ORDER = Object.freeze({
-  f: Object.freeze(['W1', 'W2', 'W3', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'W14', 'W15']),
+  f: Object.freeze(['W1', 'W2', 'W4', 'W5', 'W6', 'W7', 'W8', 'W9', 'W10', 'W11', 'W12', 'W13', 'W14', 'W15']),
   m: Object.freeze(['M1', 'M4', 'M5', 'M6', 'M7', 'M8', 'M9', 'M10', 'M11', 'M12', 'M13', 'M14', 'M15', 'M16', 'M17']),
 });
 

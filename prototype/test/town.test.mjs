@@ -1,10 +1,14 @@
-// Tests for the town's people, their speech, the okadas and the players'
+// Tests for the townspeople's systems (who they are, their days, their speech, the okadas) and the players'
 // chat. Run with: node --test test/
+//
+// Since 22 October 2026 the town has no townspeople but its police (the owner's brief; test/police.test.mjs tests
+// them). The townspeople's systems are kept, ready for the owner's own models of them, and are tested here with the
+// town as it was until then (helpers.mjs, FORMER_TOWN): a thousand people, okadas and all.
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
-import { createHost } from '../src/sim/host.js';
-import { ZONE, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_COMPOUNDS, ZONE_POPULATION, ZONE_GRAPH_PROBLEMS, ZONE_NODES, ZONE_STOPS, ZONE_RESIDENTS, ZONE_VENUES, zoneWalkable, zoneRoomAt } from '../src/sim/zone.js';
+import { createHost as createWorldHost } from '../src/sim/host.js';
+import { ZONE, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_COMPOUNDS, ZONE_POPULATION, ZONE_GRAPH_PROBLEMS, ZONE_NODES, ZONE_STOPS, ZONE_RESIDENTS, ZONE_FORMER_RESIDENTS, ZONE_VENUES, zoneWalkable, zoneRoomAt } from '../src/sim/zone.js';
 import { createPopulation, rosterOf, JOBS, POSE, RANGE, dayInfo } from '../src/sim/population.js';
 import { LANGUAGES, PEOPLES, PHRASES, EXCHANGES, phrase, sharedLanguage, translatePhrase, createTranslator } from '../src/sim/culture.js';
 import { CHAT, cleanText } from '../src/sim/talk.js';
@@ -13,12 +17,15 @@ import { TIME_SCALE } from '../src/sim/sim.js';
 import { createLoopbackHub } from '../src/net/transport.js';
 import { createLink, encodePlayer, decodePlayer } from '../src/net/link.js';
 import { graphIndex, graphRoute } from '../src/sim/graph.js';
-import { newWorld, ok, walkTo, run, fund } from './helpers.mjs';
+import { newWorld as newTown, ok, walkTo, run, fund, FORMER_TOWN } from './helpers.mjs';
 import { leaveArrivalMoney } from './world.mjs';
 
 const refused = (result, code) => { assert.equal(result.ok, false, 'expected a refusal'); assert.equal(result.code, code, result.message); };
 const H = (hours, day = 0) => day * 86400 + hours * 3600;
-const town = () => createPopulation({ state: {}, timeScale: TIME_SCALE });
+const town = () => createPopulation({ state: {}, timeScale: TIME_SCALE, jobs: FORMER_TOWN });
+// a world with the town as it was (and a player in it)
+const newWorld = (name) => newTown(name, { people: FORMER_TOWN });
+const createHost = (options = {}) => createWorldHost({ ...options, people: FORMER_TOWN });
 const spotOf = (pop, i, t) => ZONE_SPOTS[pop.locate(i, t, {}).spot];
 const jobIs = (pop, job, venue = null) => pop.people.filter((p) => p.job === job && (!venue || p.venue === venue));
 // moves the clock of a world on to an hour of a day (day 0 is the first)
@@ -81,8 +88,8 @@ test('buildings can be walked into, through the door and not through the wall', 
 
 test('people: a thousand residents, each a whole person', () => {
   const pop = town();
-  assert.equal(pop.total, 1000);
-  assert.equal(pop.count + ZONE_RESIDENTS.length, 1000);
+  // (the sixteen named residents: those at the counters and the mason, and the five no longer seen in the town)
+  assert.equal(pop.count + ZONE_RESIDENTS.length + ZONE_FORMER_RESIDENTS.length, 1000);
   assert.equal(new Set(pop.people.map((p) => p.id)).size, pop.count);
   assert.equal(new Set(pop.people.map((p) => p.name)).size, pop.count, 'no two people share a name');
   const homes = new Set(ZONE_HOMES.map((h) => h.home));
@@ -121,13 +128,13 @@ test('people: a thousand residents, each a whole person', () => {
   const variety = new Set(pop.people.map((p) => `${p.look.outfit}|${p.look.top}|${p.look.skin}|${(p.look.hat || [])[0]}`));
   assert.ok(variety.size > 250, `${variety.size} different looks`);
   // the same seed makes the same town; another seed makes another
-  assert.equal(rosterOf(), pop.people);
-  assert.notEqual(rosterOf(ZONE_POPULATION.seed + 1)[0].name + rosterOf(ZONE_POPULATION.seed + 1)[5].name, pop.people[0].name + pop.people[5].name);
+  assert.equal(rosterOf(ZONE_POPULATION.seed, 1, FORMER_TOWN), pop.people);
+  assert.notEqual(rosterOf(ZONE_POPULATION.seed + 1, 1, FORMER_TOWN)[0].name + rosterOf(ZONE_POPULATION.seed + 1, 1, FORMER_TOWN)[5].name, pop.people[0].name + pop.people[5].name);
 });
 
 test('roles: the town has the workers it needs, each with a place to work', () => {
   const pop = town();
-  for (const [job, count, venue] of ZONE_POPULATION.jobs) assert.equal(jobIs(pop, job, venue).length, count, `${count} ${job} at ${venue}`);
+  for (const [job, count, venue] of FORMER_TOWN) assert.equal(jobIs(pop, job, venue).length, count, `${count} ${job} at ${venue}`);
   // a believable mix: children, students, people without work, the retired
   const share = (jobs) => pop.people.filter((p) => jobs.includes(p.job)).length / pop.count;
   assert.ok(share(['infant', 'pupil', 'student']) > 0.3 && share(['unemployed']) > 0.03 && share(['retiree']) > 0.03 && share(['trader', 'hawker', 'farmer', 'fisher', 'okada', 'labourer']) > 0.18);
@@ -711,7 +718,7 @@ test('levels of detail: near, middle and far, and what each costs', () => {
   console.log(`    1,000 people: ${each.toFixed(3)} ms a tick with a view every other tick; scan of the town ${(after.scanMs / after.scans).toFixed(2)} ms, view ${(after.viewMs / after.views).toFixed(3)} ms; ${v.people.length} in view`);
   assert.ok(each < 4, `a tick costs ${each.toFixed(2)} ms`);
   // and with ten times the people, to see where it goes
-  const big = createPopulation({ state: {}, timeScale: TIME_SCALE, scale: 10 });
+  const big = createPopulation({ state: {}, timeScale: TIME_SCALE, scale: 10, jobs: FORMER_TOWN });
   assert.ok(big.count > 9000);
   big.census(H(9.5));
   const t1 = performance.now();
