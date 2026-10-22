@@ -123,7 +123,9 @@ const [endTruth, endShown] = await Promise.all([
   B.page.evaluate((name) => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name); const e = q && n.peerKekes.get(`d:${q.id}`); return e ? { x: e.actor.group.position.x, z: e.actor.group.position.z } : null; }, A.username),
 ]);
 const endErr = endShown ? Math.hypot(endTruth.x - endShown.x, endTruth.z - endShown.z) : null;
-check('the watcher\'s keke follows the driver\'s along the road, never jumping, and stops where it really stopped', travelled > 8 && biggestStep <= 0 && endErr !== null && endErr < 2.5, { travelled: +travelled.toFixed(1), biggestStep: +biggestStep.toFixed(2), endErr: endErr && +endErr.toFixed(2) });
+// (what happened on the way, from the driver's own game: anyone struck, and the driver's standing with the police)
+const onTheWay = await A.page.evaluate(() => { const g = window.__nlw.host.game, s = window.__nlw.view.self; return { driving: !!s.driving, law: s.law && s.law.state, struck: (g.state.impact && g.state.impact.events || []).slice(-3).map((e) => ({ kind: e.kind, on: e.on, speed: e.speed, x: e.x, z: e.z })) }; });
+check('the watcher\'s keke follows the driver\'s along the road, never jumping, and stops where it really stopped', travelled > 8 && biggestStep <= 0 && endErr !== null && endErr < 2.5, { travelled: +travelled.toFixed(1), biggestStep: +biggestStep.toFixed(2), endErr: endErr && +endErr.toFixed(2), ...(endErr === null ? { onTheWay } : {}) });
 await B.page.evaluate((name) => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name); if (q) { n.cam.yaw = Math.atan2(q.x - n.view.self.x, q.z - n.view.self.z) + Math.PI; n.cam.dist = 7; } }, A.username);
 await B.page.waitForTimeout(600);
 await B.shot('02-watcher-sees-it-driven');
