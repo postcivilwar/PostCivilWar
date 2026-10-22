@@ -2691,10 +2691,89 @@ Files: `zones/habitation.js` (the ground drawn, the cuttings, the rails and post
 `render-crowd.js`, `render-town-buildings.js` (a phone's house pictures by the habitation), `main.js` (the Jump button, the slide along a deck, the word about deep water, the camera),
 `icons.js`; tests `habitation.test.mjs` (25, ten of them new), `figures.test.mjs`, `habitation.mjs` (L).
 
+## The town's NPCs taken out; sixteen policewomen walk the whole land (22 October 2026)
+
+The owner's brief of 22 October 12:12, and his answers at 12:32: every NPC out of the game (the townspeople walking,
+standing and sitting, everyone on a motorcycle with their motorcycle, every street and market seller with what they
+sell), everywhere, the habitation too; every vehicle, building, road, sign and showroom kept, and the players' own
+characters, motorcycles and cars. The named people at the counters kept, and the mason. The police officer (W3, Amaka)
+taken out of the women a player can choose and made the town's police: sixteen policewomen drawn from her, each with
+her own face ("some dark african skin, while some melanin skin, some ebony skin, while few is fair"), in the Nigerian
+Police's uniforms of his picture, patrolling "the whole of the delta state", arresting and fighting culprits as before.
+Witnesses: the police only. No okadas. Bail only from another player. The showroom staff not drawn until his own
+models come. The system that walks, places and animates the town's people kept ready for his own NPC models.
+
+**What is gone, and what is kept**
+
+- **The townspeople**: the town had a thousand people by job (schools, the hospital's staff, the churches, the market's
+  traders, farmers, fishers, the okada riders and the drivers). Now its people are its sixteen policewomen
+  (`ZONE_POPULATION`, `zones/atani.js`, `edition: 2`) and the eleven named people at the counters (`ZONE_RESIDENTS`:
+  the lands officer, the secretariat clerk, the police post's sergeant and corporal, the clinic's nurse, the trade
+  instructor, the block yard's owner, the building materials trader, Mama Nkechi, the mason, and the keke dealer). The
+  five other named people (the moulder, the fisherman, the cloth trader, the produce seller, the surveyor) are kept as
+  `ZONE_FORMER_RESIDENTS`, out of the game. The block yard still makes its blocks.
+- **The sellers' things**: the market's stalls with their tables and umbrellas (`ZONE_STALLS` is empty), the goods
+  and benches in the trade sheds (the sheds stand), the petty traders' mats and the hawkers' trays.
+- **The okadas**, their riders and the OKADA boards at the ranks; the phone's okada section; "By keke or okada" is
+  "By keke".
+- **The showroom staff and the watch shop's attendant** (Obi; Tochi and Oluchi; HOLARIS's attendant): not drawn
+  (`ZONE_CAST`). Where they stood, who sells which car and the conversation that sells it are kept: walk up to a
+  motorcycle or a car and the conversation opens on the phone, and the handset is held up in the town as for any
+  other use of the phone (it was not, while the salesman stood there to talk to).
+- **Kept**: every keke, bus and vehicle, the buildings, roads, signs and showrooms; the players' own characters,
+  motorcycles and cars. (No keke or bus was driven by the town's people: the drivers waited at the motor park, and
+  the coaches stand there as before; the kekes stand in the hire bays and wherever players leave them. The only
+  vehicles the town's people rode were the okadas.)
+
+**The police**
+
+- **Sixteen policewomen** (`src/sim/police-looks.js`), each drawn from the owner's police officer, her file
+  unchanged (`src/client/police-dress.js`): her own skin (dark 5, ebony 4, brown 4, fair 3), her own face (wider or
+  narrower, the jaw, the chin, the nose, the lips, the cheekbones, the brow, the head's size), her own height (about
+  1.64 to 1.76 m) and build, in one of three uniforms after his picture: black with a black beret (5), a sky-blue shirt
+  with black trousers and a peaked cap (5), blue camouflage with a navy beret (6), the figure's own body armour with
+  POLICE across it over each. How: a copy of the figure's positions with her head reshaped (everything else of the
+  figure is shared: its normals, texture coordinates, skin weights and triangles); her skin and her uniform from the
+  figure's own picture, its light and shade kept, told apart by colour (a skin's warm brown; the shirt's cool grey;
+  the trousers' olive; the yellow letters kept) and by which bones move each part (an arm's or the neck's points are
+  the shirt's only where they are nearer an arm or the neck than the body or a leg, so that a sleeve's colour is put on
+  the sleeves and the collar and not on the trousers by her hands, the armour's back or the hair at her nape); the
+  camouflage in blotches laid on the body's own shape; the hat made in code and set on her head bone. One shader for
+  all sixteen. What a phone holds for her beyond the figure itself: her positions (78 KB each).
+- **Taken out of the women a player can choose** (`FIGURE_ORDER`): a player who already has her keeps her.
+- **Their beats** (`src/sim/zones/atani-patrols.js`): the market and the motor park (two by day, one by night),
+  Registry Road and the Police Post (one and one), the waterfront and the bridge to its far end (one and one), the
+  west of the town (one by day), the east (one by day), Yard Lane, the layout, the campuses and the farms (one and
+  one), the Kwale road and the car showroom (one and one), the airport (one by day), and the road up the river into
+  the habitation to the lagoon's west beach (one and one): ten by day, 06:00 to 18:40, and six by night, 18:00 to
+  06:10. Each walks her beat's stops in order and stands a minute or so at each (`patrolDay`, `population.js`),
+  reporting for duty and signing off at the Police Post, by the website's real clock. Asked what she is doing: "On
+  patrol". Anyone in a game saved with the old town keeps what they did and own; what the save held about townspeople
+  is let go (`src/sim/renew.js`).
+- **The law**: only the police are witnesses (an officer within 15 m with a clear view always sees it; further, up
+  to 30 m, by how grave it was). The person wronged knows, and can report it by phone. The police come from their
+  beats, chase, fight and arrest as before; nobody appears from nowhere. They carry no guns yet (the owner's brief of
+  22 October 14:12: guns come with its first stage).
+- **The phone**: the town's people are not called (they have no numbers); a fine is paid by the player or by another
+  player, never by a townsperson.
+- **Where this copy of the game cannot have the supplied figure** (the copy on a disk carries none but two), each
+  officer is one of the game's own figures in her uniform's colours and a beret (`plain`).
+
+**Ready for the owner's own NPC models.** The system that gives the town's people their days, their places, their
+walking and their animation is all kept, and tested with the town as it was (`FORMER_TOWN`, `test/helpers.mjs`): the
+headless tests of the townspeople's days, dress, talk, fights, the okadas and what happens when a vehicle strikes one
+of them run against it. Switching a group back on is one line (`ZONE_CAST`; `ZONE_POPULATION.jobs`).
+
+Files: `src/sim/zones/atani.js`, `atani-patrols.js`, `police-looks.js`, `population.js`, `renew.js`, `justice.js`,
+`phone.js`, `economy.js`, `figures.js`, `sim.js`, `host.js`; `src/client/police-dress.js`, `animated.js`,
+`character.js`, `main.js`, `render-town.js`, `ui.js`, `ui-phone.js`, `choice.js`, `lab.js` (the police lineup:
+`lab.html#set=police`); tests `police.test.mjs` (9), `police-dress.test.mjs` (7), and the townspeople's tests against
+`FORMER_TOWN`.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 401 headless tests
+node --test test/*.test.mjs                        # 417 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
@@ -2711,7 +2790,7 @@ node test/sound.mjs                                # how loud each group of soun
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
 ../server/with-postgres.sh node test/seats.mjs out/      # at the wheel and on the bars: bought with arrival money, the driver seen with both hands on the rim, turning it; the phone in the right hand at the wheel and the left on a motorcycle, the vehicle still driven; the graphics lost and nothing reloaded
-../server/with-postgres.sh node test/vehicle-sync.mjs out/   # two players: a keke, okadas, another's motorcycle with its bars turned and the phone in the left hand, another at the wheel of an open car with the phone in the right, a closed car not seen through, more motorcycles than are drawn as models standing in as their pictures, each with its rider
+../server/with-postgres.sh node test/vehicle-sync.mjs out/   # two players: a keke (the okadas, while the town has them), another's motorcycle with its bars turned and the phone in the left hand, another at the wheel of an open car with the phone in the right, a closed car not seen through, more motorcycles than are drawn as models standing in as their pictures, each with its rider
 ../server/with-postgres.sh node test/falls.mjs out/          # riding (a road, the runway, the grass by the purple tower where the owner's rider came off), a roadblock met slowly and at 50 km/h, thrown over it and getting up (watched in slow motion), knocked down three ways, the street camera and its views
 ../server/with-postgres.sh node test/falls-sync.mjs out/     # two players: one thrown at a roadblock, the other watching: the fall, the lying and the getting up, once, where it happened; the motorcycle going down
 ../server/with-postgres.sh node test/exit.mjs out/          # Exit game and Restart game from the phone's Settings: asked first, saved with the account, the start screen and Play, back where they were on another device, a new journey with the TR kept
