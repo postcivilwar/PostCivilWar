@@ -7,13 +7,16 @@
 //   - the seventeen motorcycles: on a computer every one of them the owner's model, with the pictures its distance asks
 //     for (the one the player stands at the largest, the far end of the hall the smallest: hall-models.js), every one
 //     where it stands, with room to walk all round; walked across the hall, the sets follow the player;
-//   - the salesman comes to the player and stands with them at a motorcycle;
-//   - asked about the motorcycle: the phone's conversation opens on it (its card, its engine and speed, its price),
-//     the player turns to him, and what each says moves their hands and heads, one after the other;
+//   - the salesman comes to the player and stands with them at a motorcycle (while the showroom's staff are drawn,
+//     ZONE_CAST; since 22 October 2026 nobody stands on the floor until the owner's own figures come, and that is
+//     what is checked);
+//   - asked about the motorcycle: the phone's conversation opens on it (its card, its engine and speed, its price);
+//     with the salesman there, the player turns to him, and what each says moves their hands and heads, one after the
+//     other; with nobody there, the conversation is on the phone, held up;
 //   - a question tapped, a question typed, each answered; the motorcycle bought from the conversation;
 //   - on a phone's screen the conversation fits, with everything a finger's size;
 //   - a second player (a second copy of the town in the page) in the hall: asked about a bike first, the salesman
-//     is theirs; three or more, he walks the floor;
+//     is theirs; three or more, he walks the floor (with the salesman there);
 //   - out by the mat at the doors: back outside, beside the column; gone well away, every motorcycle's model let go;
 //   - nothing goes wrong in the page.
 //   ../server/with-postgres.sh node test/showroom.mjs [shots folder]
@@ -23,6 +26,9 @@ import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 import { POWERBIKE } from '../src/sim/zones/atani-powerbike.js';
+import { ZONE_CAST } from '../src/sim/zones/atani.js';
+// is the salesman drawn on the showroom's floor (ZONE_CAST)
+const STAFF = ZONE_CAST.showroomStaff;
 import { HALL } from '../src/client/budget.js';
 const require = createRequire(import.meta.url);
 let chromium;
@@ -168,15 +174,22 @@ await shot('06-across-the-hall');
 const red = { x: -63.6, z: 48.4, r: 1.45, h: 0.3 };
 const stand = { x: red.x + Math.sin(red.h + 0.9) * (red.r + 0.95), z: red.z + Math.cos(red.h + 0.9) * (red.r + 0.95) };
 await go(stand.x, stand.z, Math.atan2(red.x - stand.x, red.z - stand.z), { yaw: Math.atan2(red.x - stand.x, red.z - stand.z) - 0.5, pitch: 0.16, dist: 6 });
-await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; return s.with && Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 60000 }).catch(() => {});
-const came = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; return { mode: s.mode, with: s.with, d: +Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z).toFixed(2), shown: n.salesmanActor.group.visible }; });
-check('the salesman comes over and stands with the player at the motorcycle they are looking at', came.shown && came.mode === 'assist' && came.d > 0.9 && came.d < 2.2, came);
-await page.waitForTimeout(1200);
-await shot('07-the-salesman-comes');
+if (STAFF) {
+  await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; return s.with && Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 60000 }).catch(() => {});
+  const came = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; return { mode: s.mode, with: s.with, d: +Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z).toFixed(2), shown: n.salesmanActor.group.visible }; });
+  check('the salesman comes over and stands with the player at the motorcycle they are looking at', came.shown && came.mode === 'assist' && came.d > 0.9 && came.d < 2.2, came);
+  await page.waitForTimeout(1200);
+  await shot('07-the-salesman-comes');
+} else {
+  const floorStaff = await page.evaluate(() => ({ salesman: !!window.__nlw.salesmanActor }));
+  check('nobody stands on the showroom\'s floor to sell (the owner\'s own figure of the salesman is to come)', !floorStaff.salesman, floorStaff);
+  await page.waitForTimeout(1200);
+  await shot('07-at-the-red-superbike');
+}
 
 // ---- asking him about it: the conversation on the phone ----
 const asking = await page.evaluate(() => { const p = window.__nlw.prompt(); return p ? { short: p.short, text: p.text } : null; });
-check('at the motorcycle the player is offered to ask him about it', asking && asking.short === 'Ask' && /Obi about the Red Superbike/.test(asking.text), asking);
+check('at the motorcycle the player is offered to ask about it', asking && asking.short === 'Ask' && (STAFF ? /Obi about the Red Superbike/ : /^Ask about the Red Superbike$/).test(asking.text), asking);
 await page.keyboard.press('e');
 await page.waitForSelector('#deal-log .msg.shop', { timeout: 60000 });
 await page.waitForTimeout(1500);
@@ -194,22 +207,29 @@ const opened = await page.evaluate(() => {
 check('the conversation opens with him: his name, the bike\'s card with its engine, top speed and price', opened.head === 'Obi' && /Salesman/.test(opened.role) && opened.brand === 'PostCivilWar PowerBike' && opened.card === 'Red Superbike' && opened.chips.includes('2,500 cc') && opened.chips.includes('212 km/h') && !!opened.expected && opened.price.includes(opened.expected), opened);
 check('he greets the player about this bike, and says his answers are automatic', /Obi/.test(opened.hello) && /automatic/.test(opened.hello) && /Red Superbike/.test(opened.hello), opened.hello);
 check('questions to tap are offered', opened.quick.length >= 5, opened.quick);
-check('talking face to face: the phone is not held up in the town', opened.talk && opened.talk.bike === 'red-superbike' && opened.phoneHeld < 0.2, { talk: opened.talk, raised: opened.phoneHeld });
-// (looked for frame by frame, as long as it takes: without a graphics card a frame here can take seconds)
-await page.waitForFunction(() => {
-  const n = window.__nlw, s = n.salesman.state, me = n.me;
-  const gap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); };
-  return s.mode === 'talk' && s.speed < 0.2 && gap(Math.atan2(s.x - n.predicted.x, s.z - n.predicted.z), me.group.rotation.y) < 0.35 && gap(Math.atan2(n.predicted.x - s.x, n.predicted.z - s.z), s.heading) < 0.4;
-}, null, { timeout: 90000 }).catch(() => {});
-const facing = await page.evaluate(() => {
-  const n = window.__nlw, s = n.salesman.state, me = n.me;
-  const to = Math.atan2(s.x - n.predicted.x, s.z - n.predicted.z);
-  let d = (to - me.group.rotation.y) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
-  let e = (Math.atan2(n.predicted.x - s.x, n.predicted.z - s.z) - s.heading) % (Math.PI * 2); if (e > Math.PI) e -= Math.PI * 2; if (e < -Math.PI) e += Math.PI * 2;
-  return { player: +Math.abs(d).toFixed(2), him: +Math.abs(e).toFixed(2), mode: s.mode, apart: +Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z).toFixed(2) };
-});
-check('the player and the salesman face each other, a step apart', facing.player < 0.35 && facing.him < 0.4 && facing.mode === 'talk' && facing.apart > 0.9 && facing.apart < 2.3, facing);
-await shot('08-asking-about-the-red-superbike');
+if (STAFF) check('talking face to face: the phone is not held up in the town', opened.talk && opened.talk.bike === 'red-superbike' && opened.phoneHeld < 0.2, { talk: opened.talk, raised: opened.phoneHeld });
+else {
+  const held = await page.waitForFunction(() => window.__nlw.phoneHold.raised > 0.8, null, { timeout: 30000 }).then(() => true, () => false);
+  const raised = await page.evaluate(() => window.__nlw.phoneHold.raised);
+  check('with nobody on the floor the conversation is on the phone: the player holds it up', opened.talk && opened.talk.bike === 'red-superbike' && held, { talk: opened.talk, raised });
+}
+if (STAFF) {
+  // (looked for frame by frame, as long as it takes: without a graphics card a frame here can take seconds)
+  await page.waitForFunction(() => {
+    const n = window.__nlw, s = n.salesman.state, me = n.me;
+    const gap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return Math.abs(d); };
+    return s.mode === 'talk' && s.speed < 0.2 && gap(Math.atan2(s.x - n.predicted.x, s.z - n.predicted.z), me.group.rotation.y) < 0.35 && gap(Math.atan2(n.predicted.x - s.x, n.predicted.z - s.z), s.heading) < 0.4;
+  }, null, { timeout: 90000 }).catch(() => {});
+  const facing = await page.evaluate(() => {
+    const n = window.__nlw, s = n.salesman.state, me = n.me;
+    const to = Math.atan2(s.x - n.predicted.x, s.z - n.predicted.z);
+    let d = (to - me.group.rotation.y) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2;
+    let e = (Math.atan2(n.predicted.x - s.x, n.predicted.z - s.z) - s.heading) % (Math.PI * 2); if (e > Math.PI) e -= Math.PI * 2; if (e < -Math.PI) e += Math.PI * 2;
+    return { player: +Math.abs(d).toFixed(2), him: +Math.abs(e).toFixed(2), mode: s.mode, apart: +Math.hypot(s.x - n.predicted.x, s.z - n.predicted.z).toFixed(2) };
+  });
+  check('the player and the salesman face each other, a step apart', facing.player < 0.35 && facing.him < 0.4 && facing.mode === 'talk' && facing.apart > 0.9 && facing.apart < 2.3, facing);
+  await shot('08-asking-about-the-red-superbike');
+} else await shot('08-asking-about-the-red-superbike');
 
 // what is said moves the hands: typed, the player speaks; answered, he does
 const handHeight = () => page.evaluate(() => { const n = window.__nlw; const b = n.me.bones && n.me.bones.get('hand_r'); return { me: b ? b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null }; });
@@ -229,74 +249,81 @@ await page.waitForFunction(() => {
 // pictures, and taking those in, without a graphics card, holds the frames up for seconds, as the towers' do)
 await settled(stand);
 await page.waitForTimeout(1500);
-const quiet = await handHeight();
-// (every frame from here on is written down in the page: without a graphics card a frame can take seconds, and his
-// answer can be over before the test has finished looking at the player's question)
-await page.evaluate(() => {
-  const n = window.__nlw, rec = window.__talkFrames = { frames: [], stop: false };
-  const look = () => {
-    if (rec.stop) return;
-    const now = Date.now() / 1000;
-    const hb = n.me.bones && n.me.bones.get('hand_r');
-    rec.frames.push({ now, his: n.showroom.him.speaking, him: n.showroom.him.amount, player: n.showroom.amount, playerSpeaking: n.showroom.lines.some((l) => l.who === 'me' && now >= l.from && now <= l.to), hand: hb ? hb.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null });
+const quiet = STAFF ? await handHeight() : null;
+if (STAFF) {
+  // (every frame from here on is written down in the page: without a graphics card a frame can take seconds, and his
+  // answer can be over before the test has finished looking at the player's question)
+  await page.evaluate(() => {
+    const n = window.__nlw, rec = window.__talkFrames = { frames: [], stop: false };
+    const look = () => {
+      if (rec.stop) return;
+      const now = Date.now() / 1000;
+      const hb = n.me.bones && n.me.bones.get('hand_r');
+      rec.frames.push({ now, his: n.showroom.him.speaking, him: n.showroom.him.amount, player: n.showroom.amount, playerSpeaking: n.showroom.lines.some((l) => l.who === 'me' && now >= l.from && now <= l.to), hand: hb ? hb.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y : null });
+      requestAnimationFrame(look);
+    };
     requestAnimationFrame(look);
-  };
-  requestAnimationFrame(look);
-});
+  });
+}
 const QUESTION = 'How fast does the Red Superbike go when you open it right up on a long straight road?';
 // (put in whole, as a phone's keyboard suggestion would: without a graphics card each key pressed waits for a frame,
 // and a frame in this hall, every motorcycle drawn as its model, takes seconds)
 await page.fill('#deal-text', QUESTION);
 await page.keyboard.press('Enter');
 const pending = await page.evaluate(() => ({ pending: !!document.querySelector('#deal-log .msg.me.pending') || [...document.querySelectorAll('#deal-log .msg.me')].some((m) => /How fast/.test(m.textContent)) }));
-// while the words are said the player's right hand comes up (looked for frame by frame)
-const rose = await page.waitForFunction((q) => { const n = window.__nlw; const b = n.me.bones.get('hand_r'); return b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y > q + 0.05; }, quiet.me, { timeout: 20000 }).then(() => true, () => false);
-const speaking = await handHeight();
+let rose = false, speaking = null;
+if (STAFF) {
+  // while the words are said the player's right hand comes up (looked for frame by frame)
+  rose = await page.waitForFunction((q) => { const n = window.__nlw; const b = n.me.bones.get('hand_r'); return b.getWorldPosition(new THREE.Vector3()).y - n.me.group.position.y > q + 0.05; }, quiet.me, { timeout: 20000 }).then(() => true, () => false);
+  speaking = await handHeight();
+}
 await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /212 km\/h/.test(m.textContent)), null, { timeout: 90000 });
 const said = await page.evaluate(() => [...document.querySelectorAll('#deal-log .msg')].slice(-2).map((m) => m.className + ': ' + m.textContent));
 check('a typed question goes up at once and is answered from what is so', pending.pending && /212 km\/h/.test(said[1] || ''), said);
-// (what was drawn while the question was said: each frame's moment within the line, the hand's height, how much the
-// conversation showed on the figure; written down with the result, so that a failure says what was seen)
-const myLine = await page.evaluate(() => { const l = window.__nlw.showroom.lines.filter((x) => x.who === 'me').at(-1); if (!l) return null; const f = window.__talkFrames.frames.filter((q) => q.now >= l.from - 1 && q.now <= l.to + 1); return { length: +(l.to - l.from).toFixed(2), frames: f.map((q) => [+(q.now - l.from).toFixed(2), q.hand === null ? null : +q.hand.toFixed(3), +q.player.toFixed(2)]) }; });
-// (looked for in the frames drawn while it was said, as they were drawn: the test's own looking, a round trip to a
-// page drawing a frame every second or two, can begin after the sentence has ended. Without a graphics card a frame
-// in this hall, every motorcycle in it its model, takes seconds, and a question is said in at most four and a half:
-// one frame may fall in it, as the hand begins to rise. In such a frame, with the figure in its speaking pose, the
-// hand a clear 3 cm above where it rested is enough; at rest it moves by less than one)
-const roseInLine = !!myLine && quiet.me !== null && myLine.frames.some(([at, hand, amount]) => at >= -0.25 && at <= myLine.length + 0.35 && hand !== null && amount > 0.5 && hand > quiet.me + (myLine.frames.length > 3 ? 0.05 : 0.03));
-check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && (rose || roseInLine), { quiet, speaking, myLine });
-const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => `${l.who}@${l.from.toFixed(2)}-${l.to.toFixed(2)}`));
-// (his greeting, then the player's question, then his answer: each begins once the one before has ended)
-const turns = lines1.map((l) => { const [who, span] = l.split('@'); const [from, to] = span.split('-').map(Number); return { who, from, to }; });
-check('then he answers, after the player: one after the other, never both at once', turns.length >= 3 && turns.at(-2).who === 'me' && turns.at(-1).who === 'him' && turns.every((t, i) => i === 0 || t.from >= turns[i - 1].to), lines1);
-// while he answers he speaks with the hands, and the player listens: the frames drawn while his answer was said
-// (once it is over, and a frame after)
-const answer = turns.at(-1);
-await page.waitForFunction((end) => Date.now() / 1000 > end && window.__talkFrames.frames.some((f) => f.now > end), answer.to + 0.4, { timeout: 120000 }).catch(() => {});
-const answering = await page.evaluate(({ from, to }) => {
-  const rec = window.__talkFrames; rec.stop = true;
-  const during = rec.frames.filter((f) => f.now >= from - 0.25 && f.now <= to + 0.35);
-  const best = during.reduce((a, f) => (!a || f.his > a.his ? f : a), null);
-  return { frames: rec.frames.length, during: during.length, at: best && { his: +best.his.toFixed(2), him: +best.him.toFixed(2), player: +best.player.toFixed(2), playerSpeaking: best.playerSpeaking } };
-}, answer);
-check('while he answers he speaks (with the hands), and the player listens', !!answering.at && answering.at.his > 0.5 && answering.at.him > 0.8 && answering.at.player > 0.8 && !answering.at.playerSpeaking, answering);
-await shot('09-he-answers');
-// over a few seconds nobody stands still: the hands and heads keep moving
-const track = [];
-for (let i = 0; i < 8; i += 1) {
-  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-  track.push(await page.evaluate(() => {
-    const n = window.__nlw, hand = n.me.bones.get('hand_r'), head = n.me.bones.get('head');
-    return { hand: hand.getWorldPosition(new THREE.Vector3()).toArray(), head: head.getWorldQuaternion(new THREE.Quaternion()).toArray() };
-  }));
-}
-let handMoved = 0, headTurned = 0;
-for (const a of track) for (const b of track) {
-  handMoved = Math.max(handMoved, Math.hypot(a.hand[0] - b.hand[0], a.hand[1] - b.hand[1], a.hand[2] - b.hand[2]));
-  const dot = Math.abs(a.head[0] * b.head[0] + a.head[1] * b.head[1] + a.head[2] * b.head[2] + a.head[3] * b.head[3]);
-  headTurned = Math.max(headTurned, 2 * Math.acos(Math.min(1, dot)));
-}
-check('nobody is still: the player\'s hand and head move all the while', handMoved > 0.01 && headTurned > 0.02, { hand: +handMoved.toFixed(3), head: +headTurned.toFixed(3) });
+if (STAFF) {
+  // (what was drawn while the question was said: each frame's moment within the line, the hand's height, how much the
+  // conversation showed on the figure; written down with the result, so that a failure says what was seen)
+  const myLine = await page.evaluate(() => { const l = window.__nlw.showroom.lines.filter((x) => x.who === 'me').at(-1); if (!l) return null; const f = window.__talkFrames.frames.filter((q) => q.now >= l.from - 1 && q.now <= l.to + 1); return { length: +(l.to - l.from).toFixed(2), frames: f.map((q) => [+(q.now - l.from).toFixed(2), q.hand === null ? null : +q.hand.toFixed(3), +q.player.toFixed(2)]) }; });
+  // (looked for in the frames drawn while it was said, as they were drawn: the test's own looking, a round trip to a
+  // page drawing a frame every second or two, can begin after the sentence has ended. Without a graphics card a frame
+  // in this hall, every motorcycle in it its model, takes seconds, and a question is said in at most four and a half:
+  // one frame may fall in it, as the hand begins to rise. In such a frame, with the figure in its speaking pose, the
+  // hand a clear 3 cm above where it rested is enough; at rest it moves by less than one)
+  const roseInLine = !!myLine && quiet.me !== null && myLine.frames.some(([at, hand, amount]) => at >= -0.25 && at <= myLine.length + 0.35 && hand !== null && amount > 0.5 && hand > quiet.me + (myLine.frames.length > 3 ? 0.05 : 0.03));
+  check('the player speaks with the hands while saying it (the right hand comes up)', quiet.me !== null && (rose || roseInLine), { quiet, speaking, myLine });
+  const lines1 = await page.evaluate(() => window.__nlw.showroom.lines.map((l) => `${l.who}@${l.from.toFixed(2)}-${l.to.toFixed(2)}`));
+  // (his greeting, then the player's question, then his answer: each begins once the one before has ended)
+  const turns = lines1.map((l) => { const [who, span] = l.split('@'); const [from, to] = span.split('-').map(Number); return { who, from, to }; });
+  check('then he answers, after the player: one after the other, never both at once', turns.length >= 3 && turns.at(-2).who === 'me' && turns.at(-1).who === 'him' && turns.every((t, i) => i === 0 || t.from >= turns[i - 1].to), lines1);
+  // while he answers he speaks with the hands, and the player listens: the frames drawn while his answer was said
+  // (once it is over, and a frame after)
+  const answer = turns.at(-1);
+  await page.waitForFunction((end) => Date.now() / 1000 > end && window.__talkFrames.frames.some((f) => f.now > end), answer.to + 0.4, { timeout: 120000 }).catch(() => {});
+  const answering = await page.evaluate(({ from, to }) => {
+    const rec = window.__talkFrames; rec.stop = true;
+    const during = rec.frames.filter((f) => f.now >= from - 0.25 && f.now <= to + 0.35);
+    const best = during.reduce((a, f) => (!a || f.his > a.his ? f : a), null);
+    return { frames: rec.frames.length, during: during.length, at: best && { his: +best.his.toFixed(2), him: +best.him.toFixed(2), player: +best.player.toFixed(2), playerSpeaking: best.playerSpeaking } };
+  }, answer);
+  check('while he answers he speaks (with the hands), and the player listens', !!answering.at && answering.at.his > 0.5 && answering.at.him > 0.8 && answering.at.player > 0.8 && !answering.at.playerSpeaking, answering);
+  await shot('09-he-answers');
+  // over a few seconds nobody stands still: the hands and heads keep moving
+  const track = [];
+  for (let i = 0; i < 8; i += 1) {
+    await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+    track.push(await page.evaluate(() => {
+      const n = window.__nlw, hand = n.me.bones.get('hand_r'), head = n.me.bones.get('head');
+      return { hand: hand.getWorldPosition(new THREE.Vector3()).toArray(), head: head.getWorldQuaternion(new THREE.Quaternion()).toArray() };
+    }));
+  }
+  let handMoved = 0, headTurned = 0;
+  for (const a of track) for (const b of track) {
+    handMoved = Math.max(handMoved, Math.hypot(a.hand[0] - b.hand[0], a.hand[1] - b.hand[1], a.hand[2] - b.hand[2]));
+    const dot = Math.abs(a.head[0] * b.head[0] + a.head[1] * b.head[1] + a.head[2] * b.head[2] + a.head[3] * b.head[3]);
+    headTurned = Math.max(headTurned, 2 * Math.acos(Math.min(1, dot)));
+  }
+  check('nobody is still: the player\'s hand and head move all the while', handMoved > 0.01 && headTurned > 0.02, { hand: +handMoved.toFixed(3), head: +headTurned.toFixed(3) });
+} else await shot('09-answered');
 // a question tapped
 await page.click('#deal-quick button[data-ask="Discount?"]');
 await page.waitForFunction(() => [...document.querySelectorAll('#deal-log .msg.shop')].some((m) => /price is fixed/.test(m.textContent)), null, { timeout: 90000 });
@@ -351,32 +378,41 @@ await page.evaluate(() => { const n = window.__nlw; n.twin('Second Rider', -58.0
 await page.waitForFunction(() => (window.__nlw.view.players || []).some((q) => q.name === 'Second Rider'), null, { timeout: 90000 });
 await go(-63.6, 46.0, Math.PI, { yaw: Math.PI - 0.9, pitch: 0.2, dist: 7 });
 await page.evaluate(() => { const n = window.__nlw; n.second.face(-Math.PI / 2); n.second.ask('black-bobber'); });
-await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && q.talk && s.mode === 'talk' && s.with === `p:${q.id}`; }, null, { timeout: 90000 }).catch(() => {});
-const theirs = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { mode: s.mode, with: s.with, them: q && `p:${q.id}`, talk: q && q.talk }; });
-check('another player asks him about a motorcycle: he goes to them', theirs.mode === 'talk' && theirs.with === theirs.them && theirs.talk && theirs.talk.bike === 'black-bobber', theirs);
-await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && Math.hypot(s.x - q.x, s.z - q.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 90000 }).catch(() => {});
-await page.waitForFunction(() => { const n = window.__nlw; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && n.showroom.peers.has(q.id) && n.showroom.peers.get(q.id).amount > 0.5; }, null, { timeout: 60000 }).catch(() => {});
-const peerTalk = await page.evaluate(() => { const n = window.__nlw; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { gesturing: n.showroom.peers.has(q.id) && n.showroom.peers.get(q.id).amount > 0.5 }; });
-check('and they are seen talking with him', peerTalk.gesturing, peerTalk);
-await shot('13-another-player-asks');
-// the player asks too, after them: he stays with whoever asked first
-await page.evaluate(() => window.__nlw.askAbout('chrome-concept'));
-await page.waitForFunction(() => window.__nlw.showroom.talk && window.__nlw.ui.dealOpen() && document.querySelector('#deal-log .msg.shop'), null, { timeout: 90000 }).catch(() => {});
-await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
-const first = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { with: s.with, them: `p:${q.id}` }; });
-check('two asking at once: he stays with whoever began first', first.with === first.them, first);
-await page.keyboard.press('Escape');
-await page.evaluate(() => window.__nlw.second.ask(null));
-// three more in the hall, nobody asking: he walks the floor
-await page.evaluate(() => { const g = window.__nlw.host.game; for (const [k, x, z] of [['third', -72, 45.8], ['fourth', -55.2, 40.6]]) g.visitors.seen(k, { name: `Visitor ${k}`, x, z, heading: 0 }); });
-await page.waitForFunction(() => window.__nlw.salesman.state.mode === 'roam', null, { timeout: 60000 }).catch(() => {});
-const roam = await page.evaluate(() => ({ mode: window.__nlw.salesman.state.mode, customers: window.__nlw.hallCustomers().length }));
-check('with four in the hall he walks the floor, not after anyone in particular', roam.mode === 'roam' && roam.customers >= 4, roam);
-await page.waitForTimeout(1500);
-await shot('14-a-busy-floor');
+if (STAFF) {
+  await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && q.talk && s.mode === 'talk' && s.with === `p:${q.id}`; }, null, { timeout: 90000 }).catch(() => {});
+  const theirs = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { mode: s.mode, with: s.with, them: q && `p:${q.id}`, talk: q && q.talk }; });
+  check('another player asks him about a motorcycle: he goes to them', theirs.mode === 'talk' && theirs.with === theirs.them && theirs.talk && theirs.talk.bike === 'black-bobber', theirs);
+  await page.waitForFunction(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && Math.hypot(s.x - q.x, s.z - q.z) < 2.2 && s.speed < 0.2; }, null, { timeout: 90000 }).catch(() => {});
+  await page.waitForFunction(() => { const n = window.__nlw; const q = n.view.players.find((x) => x.name === 'Second Rider'); return q && n.showroom.peers.has(q.id) && n.showroom.peers.get(q.id).amount > 0.5; }, null, { timeout: 60000 }).catch(() => {});
+  const peerTalk = await page.evaluate(() => { const n = window.__nlw; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { gesturing: n.showroom.peers.has(q.id) && n.showroom.peers.get(q.id).amount > 0.5 }; });
+  check('and they are seen talking with him', peerTalk.gesturing, peerTalk);
+  await shot('13-another-player-asks');
+  // the player asks too, after them: he stays with whoever asked first
+  await page.evaluate(() => window.__nlw.askAbout('chrome-concept'));
+  await page.waitForFunction(() => window.__nlw.showroom.talk && window.__nlw.ui.dealOpen() && document.querySelector('#deal-log .msg.shop'), null, { timeout: 90000 }).catch(() => {});
+  await page.evaluate(() => new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))));
+  const first = await page.evaluate(() => { const n = window.__nlw, s = n.salesman.state; const q = n.view.players.find((x) => x.name === 'Second Rider'); return { with: s.with, them: `p:${q.id}` }; });
+  check('two asking at once: he stays with whoever began first', first.with === first.them, first);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.__nlw.second.ask(null));
+  // three more in the hall, nobody asking: he walks the floor
+  await page.evaluate(() => { const g = window.__nlw.host.game; for (const [k, x, z] of [['third', -72, 45.8], ['fourth', -55.2, 40.6]]) g.visitors.seen(k, { name: `Visitor ${k}`, x, z, heading: 0 }); });
+  await page.waitForFunction(() => window.__nlw.salesman.state.mode === 'roam', null, { timeout: 60000 }).catch(() => {});
+  const roam = await page.evaluate(() => ({ mode: window.__nlw.salesman.state.mode, customers: window.__nlw.hallCustomers().length }));
+  check('with four in the hall he walks the floor, not after anyone in particular', roam.mode === 'roam' && roam.customers >= 4, roam);
+  await page.waitForTimeout(1500);
+  await shot('14-a-busy-floor');
+} else {
+  // (with nobody on the floor: the other player's question is known to this town, and asked on their own phone)
+  await page.waitForFunction(() => { const q = window.__nlw.view.players.find((x) => x.name === 'Second Rider'); return q && q.talk && q.talk.bike === 'black-bobber'; }, null, { timeout: 90000 }).catch(() => {});
+  const theirs = await page.evaluate(() => { const q = window.__nlw.view.players.find((x) => x.name === 'Second Rider'); return { talk: q && q.talk, salesman: !!window.__nlw.salesmanActor }; });
+  check('another player asks about a motorcycle: their question is on their own phone, and nobody walks over', theirs.talk && theirs.talk.bike === 'black-bobber' && !theirs.salesman, theirs);
+  await shot('13-another-player-asks');
+  await page.evaluate(() => window.__nlw.second.ask(null));
+}
 
 // ---- out by the mat ----
-await page.evaluate(() => { const g = window.__nlw.host.game; g.visitors.gone('third'); g.visitors.gone('fourth'); });
+if (STAFF) await page.evaluate(() => { const g = window.__nlw.host.game; g.visitors.gone('third'); g.visitors.gone('fourth'); });
 await go(-63.6, 51.9, 0, { yaw: 0, pitch: 0.2, dist: 6 });
 await page.waitForTimeout(500);
 await page.keyboard.down('w');
@@ -384,7 +420,7 @@ let left = false;
 for (let i = 0; i < 300 && !left; i += 1) { await page.waitForTimeout(100); left = await page.evaluate(() => !window.__nlw.showroom.inside); }
 await page.keyboard.up('w');
 await page.waitForFunction(() => !document.getElementById('fade').classList.contains('on'), null, { timeout: 20000 });
-const outside = await page.evaluate(() => { const n = window.__nlw, p = n.powerbike; return { at: [n.predicted.x, n.predicted.z], hall: p.hall.group.visible, exterior: p.exterior.visible, portal: p.portal.group.visible, salesman: n.salesmanActor.group.visible }; });
+const outside = await page.evaluate(() => { const n = window.__nlw, p = n.powerbike; return { at: [n.predicted.x, n.predicted.z], hall: p.hall.group.visible, exterior: p.exterior.visible, portal: p.portal.group.visible, salesman: !!n.salesmanActor && n.salesmanActor.group.visible }; });
 check('the mat at the doors takes the player out, beside the column; the building is drawn again and the hall is not', left && outside.at[0] === -60 && outside.at[1] === 58.4 && !outside.hall && outside.exterior && outside.portal && !outside.salesman, outside);
 await page.waitForTimeout(2000);
 await shot('15-back-outside');

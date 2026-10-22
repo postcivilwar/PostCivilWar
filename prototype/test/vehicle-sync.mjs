@@ -4,7 +4,8 @@
 //   - one hires a keke and drives it: the other sees that keke (its plate and paint) with them at the wheel, where it
 //     really is, moving smoothly, its lamps at night; the hire fleet's keke is no longer also shown in its bay;
 //   - the driver gets out and walks off: the keke is seen standing where it was left, and gone with them;
-//   - someone on an okada, and on the back of one, is seen on it (from a visitor's word, as the link gives it);
+//   - someone on an okada, and on the back of one, is seen on it (from a visitor's word, as the link gives it), while the
+//     town has okadas (since 22 October 2026 it has none: nobody can be on one, and that is not looked for);
 //   - another player on their own motorcycle is seen on it, its bars turned as theirs are, their phone in their left
 //     hand; another in their open car is seen at its wheel with the phone in their right; one in a closed car is not
 //     seen through it; more motorcycles about than are drawn as models are their pictures, each with its rider on it;
@@ -15,6 +16,8 @@ import { mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
+import { ZONE_POPULATION } from '../src/sim/zones/atani.js';
+const OKADAS = ZONE_POPULATION.jobs.some(([job]) => job === 'okada');
 const require = createRequire(import.meta.url);
 let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
@@ -134,27 +137,29 @@ const standing = await B.page.evaluate(({ name, id }) => { const n = window.__nl
 check('out of it, the keke is seen standing where the driver left it (and not in its bay)', left.ok && standing.standing && !standing.driven && Math.hypot(standing.at[0] - left.x, standing.at[1] - left.z) < 0.5 && standing.bayShown === false, { left, standing });
 
 // ---- okadas: someone riding one, and someone on the back of one (a visitor's word, as the link hands it on) ----
-const okada = await B.page.evaluate(() => {
-  const n = window.__nlw, me = n.view.self;
-  const seen = n.host.game.visitors.seen;
-  seen('okada-rider', { name: 'Okada_Rider', x: me.x + 4, z: me.z + 3, heading: 1, look: {}, vehicle: { kind: 'okada' }, vel: [0, 0] });
-  const driver = (n.view.okadas.find((o) => typeof o.person === 'number') || {}).person;
-  seen('okada-back', { name: 'Back_Seat', x: me.x - 4, z: me.z + 3, heading: 2, look: {}, vehicle: { kind: 'okada', back: true, driver }, vel: [0, 0] });
-  return { driver };
-});
-await B.page.waitForTimeout(1500);
-const onOkadas = await B.page.evaluate(() => {
-  const n = window.__nlw;
-  const keep = () => { n.host.game.visitors.seen('okada-rider', { name: 'Okada_Rider', x: n.view.self.x + 4, z: n.view.self.z + 3, heading: 1, look: {}, vehicle: { kind: 'okada' } }); };
-  keep();
-  const rider = n.shownPeers.find((q) => q.name === 'Okada_Rider'), back = n.shownPeers.find((q) => q.name === 'Back_Seat');
-  const rigR = rider && n.crowd.rigOf(`p:${rider.id}`), rigB = back && n.crowd.rigOf(`p:${back.id}`);
-  return { rider: !!rider && rider.vehicle && rider.vehicle.kind, back: !!back && back.vehicle && back.vehicle.back, okadasDrawn: n.crowd.peerOkadas ? n.crowd.peerOkadas() : null, riderSeated: rigR ? rigR.group.position.y < n.ground(rigR.group.position.x, rigR.group.position.z) : null, backSeated: rigB ? rigB.group.position.y < n.ground(rigB.group.position.x, rigB.group.position.z) + 0.01 : null };
-});
-check('someone on an okada and someone on the back of one are seen on their machines, seated', onOkadas.rider === 'okada' && onOkadas.back === true && onOkadas.okadasDrawn === 2 && onOkadas.riderSeated, { okada, onOkadas });
-await B.page.evaluate(() => { const n = window.__nlw; n.cam.yaw = Math.PI; n.cam.dist = 7; n.cam.pitch = 0.25; });
-await B.page.waitForTimeout(600);
-await B.shot('03-okadas');
+if (OKADAS) {
+  const okada = await B.page.evaluate(() => {
+    const n = window.__nlw, me = n.view.self;
+    const seen = n.host.game.visitors.seen;
+    seen('okada-rider', { name: 'Okada_Rider', x: me.x + 4, z: me.z + 3, heading: 1, look: {}, vehicle: { kind: 'okada' }, vel: [0, 0] });
+    const driver = (n.view.okadas.find((o) => typeof o.person === 'number') || {}).person;
+    seen('okada-back', { name: 'Back_Seat', x: me.x - 4, z: me.z + 3, heading: 2, look: {}, vehicle: { kind: 'okada', back: true, driver }, vel: [0, 0] });
+    return { driver };
+  });
+  await B.page.waitForTimeout(1500);
+  const onOkadas = await B.page.evaluate(() => {
+    const n = window.__nlw;
+    const keep = () => { n.host.game.visitors.seen('okada-rider', { name: 'Okada_Rider', x: n.view.self.x + 4, z: n.view.self.z + 3, heading: 1, look: {}, vehicle: { kind: 'okada' } }); };
+    keep();
+    const rider = n.shownPeers.find((q) => q.name === 'Okada_Rider'), back = n.shownPeers.find((q) => q.name === 'Back_Seat');
+    const rigR = rider && n.crowd.rigOf(`p:${rider.id}`), rigB = back && n.crowd.rigOf(`p:${back.id}`);
+    return { rider: !!rider && rider.vehicle && rider.vehicle.kind, back: !!back && back.vehicle && back.vehicle.back, okadasDrawn: n.crowd.peerOkadas ? n.crowd.peerOkadas() : null, riderSeated: rigR ? rigR.group.position.y < n.ground(rigR.group.position.x, rigR.group.position.z) : null, backSeated: rigB ? rigB.group.position.y < n.ground(rigB.group.position.x, rigB.group.position.z) + 0.01 : null };
+  });
+  check('someone on an okada and someone on the back of one are seen on their machines, seated', onOkadas.rider === 'okada' && onOkadas.back === true && onOkadas.okadasDrawn === 2 && onOkadas.riderSeated, { okada, onOkadas });
+  await B.page.evaluate(() => { const n = window.__nlw; n.cam.yaw = Math.PI; n.cam.dist = 7; n.cam.pitch = 0.25; });
+  await B.page.waitForTimeout(600);
+  await B.shot('03-okadas');
+} else console.log('(no okadas in the town: nobody can be seen on one)');
 
 // ---- other players on their own motorcycles and in their own cars, with their phones (each as its link hands it on) ----
 // (kept told of every half second, as a link does; a motorcycle's bars turned, a phone held up)

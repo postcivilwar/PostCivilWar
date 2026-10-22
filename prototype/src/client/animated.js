@@ -18,6 +18,7 @@ import { SEAT_POSE } from './seat-pose.js';
 import { borrowedFor, seatFor, loadMoves } from './figure-moves.js';
 import { pictureSize } from './budget.js';
 import { carryFalls, createFallDriver, FALL_BONES } from './falls.js';
+import { dressPolice, undressPolice } from './police-dress.js';
 
 // Which supplied animated figures there are, where each file is, and how tall a person it is. The files are
 // made one unit tall; they are drawn at a person's height, the same all over, nothing else changed.
@@ -144,6 +145,7 @@ function freeModel(id) {
   const job = jobs.get(id);
   if (job) { jobs.delete(id); if (typeof window !== 'undefined' && window.__PCW_WORKER) window.__PCW_WORKER.cancel(job); }
   if (held) held.then(({ model }) => {
+    undressPolice(model);
     model.geometry.dispose();
     const m = model.material;
     for (const t of new Set([m.map, m.normalMap, m.roughnessMap, m.metalnessMap].filter(Boolean))) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); }
@@ -367,7 +369,9 @@ function inPlace(clip, hips, rest, upright = false) {
 const GROUNDED = ['head', 'neck_01', 'spine_03', 'spine_01', 'pelvis', 'hand_l', 'hand_r', 'lowerarm_l', 'lowerarm_r', 'calf_l', 'calf_r', 'foot_l', 'foot_r'];
 const smooth01 = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
 
-export function makeAnimatedRig(id, labelText, shadow = false) {
+// `police`: which of the town's sixteen policewomen the figure is (police-dress.js), when it is one of them; drawn from
+// the supplied police officer's model with her own face, skin, uniform and hat.
+export function makeAnimatedRig(id, labelText, shadow = false, police = null) {
   const spec = ANIMATED[id];
   useModel(id);
   let released = false;
@@ -636,6 +640,11 @@ export function makeAnimatedRig(id, labelText, shadow = false) {
     root.scale.setScalar(k);
     lift.add(root);
     rig.bones = new Map(); root.traverse((o) => { if (o.isBone) rig.bones.set(o.name, o); });
+    // one of the town's policewomen: her face, her skin, her uniform and her hat (or, should that fail, the figure as
+    // it was supplied, and why: rig.policeFailed)
+    if (typeof police === 'number') {
+      try { rig.police = dressPolice({ model, root, mesh, bones: rig.bones, k: police, shadow }); } catch (error) { rig.policeFailed = String(error && error.message || error); }
+    }
     // a Mixamo file's bones answer to the Unreal names the rest of the game reaches for
     if (spec.rig === 'mixamo') for (const [ue, mx] of Object.entries(MIXAMO)) { const b = rig.bones.get(boneName(`mixamorig:${mx}`)); if (b && !rig.bones.has(ue)) rig.bones.set(ue, b); }
     rig.mesh = mesh; rig.triangles = model.triangles; rig.labels = labels;

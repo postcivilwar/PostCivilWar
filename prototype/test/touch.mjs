@@ -146,8 +146,10 @@ await touch('touchEnd', []);
 const who = await page.evaluate(() => {
   const n = window.__nlw; const g = n.host.game; const pop = g.internals.population; const o = {}; let best = null;
   g.state.weather = { kind: 'clear', until: 1e15 };
+  // (anyone but the police; in a town whose only people are its police, since 22 October 2026, one of them)
+  const civilians = pop.people.some((w) => w.age >= 18 && w.job !== 'police');
   for (let i = 0; i < pop.count; i += 1) {
-    const w = pop.people[i]; if (w.age < 18 || w.job === 'police') continue;
+    const w = pop.people[i]; if (w.age < 18 || (civilians && w.job === 'police')) continue;
     pop.locate(i, g.state.t, o); if (o.pose !== 0 || o.moving) continue;
     let open = true; for (let k = 1; k <= 5; k += 1) if (!n.walkable(o.x + Math.sin(o.h) * k, o.z + Math.cos(o.h) * k)) open = false;
     if (!open) continue;

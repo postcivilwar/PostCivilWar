@@ -319,12 +319,13 @@ export function createPhone(kit) {
     if (!r.ok) { root.append(refused(r)); return; }
     if (sub.contact) { const c = r.contacts.find((x) => x.key === sub.contact); if (c) { contactCard(root, c, view, r, held); return; } sub = {}; }
     for (const req of r.requests) root.append(requestCard(req));
-    const groups = [['emergency', 'Emergency'], ['family', 'Family'], ['friend', 'Friends'], ['person', 'People in town'], ['business', 'Businesses and offices']];
+    // (players and the town's numbers: townspeople are not called, 22 October 2026)
+    const groups = [['emergency', 'Emergency'], ['family', 'Family'], ['friend', 'Friends'], ['business', 'Businesses and offices']];
     for (const [kind, title] of groups) {
       const list = r.contacts.filter((c) => c.kind === kind);
       if (!list.length && (kind === 'emergency' || kind === 'business')) continue;
       root.append(section(title));
-      if (!list.length) { root.append(h('p', { class: 'small' }, kind === 'person' ? 'Anyone in town you speak to is added here.' : kind === 'family' ? 'Nobody yet. A friend can be marked as family.' : 'Nobody yet. Stand next to another player to take their number.')); continue; }
+      if (!list.length) { root.append(h('p', { class: 'small' }, kind === 'family' ? 'Nobody yet. A friend can be marked as family.' : 'Nobody yet. Stand next to another player to take their number.')); continue; }
       root.append(h('div', { class: 'rows' }, list.map((c) => h('button', { class: 'contact', type: 'button', onclick: () => { sub = { contact: c.key }; said = null; redraw(); } }, face(c), h('span', null, c.name, h('small', null, c.owed ? `You owe ${tr(c.owed)}` : c.note)), h('span', { class: 'chev', 'aria-hidden': 'true' })))));
     }
     // another player standing close enough to swap numbers with
@@ -437,7 +438,7 @@ export function createPhone(kit) {
     if (way) {
       // the distance is the way shown, along the roads; on foot one may also cut straight across open ground
       const far = way.roadMetres || way.metres;
-      root.append(h('div', { class: 'rows', id: 'map-way' }, line(way.to.label || 'There', `${money(far)} m by road`), line('On foot', `about ${howLong(Math.round(way.walkSeconds * (far / Math.max(1, way.metres))))}`), way.driveSeconds ? line('By keke or okada', `about ${howLong(way.driveSeconds)}`) : null,
+      root.append(h('div', { class: 'rows', id: 'map-way' }, line(way.to.label || 'There', `${money(far)} m by road`), line('On foot', `about ${howLong(Math.round(way.walkSeconds * (far / Math.max(1, way.metres))))}`), way.driveSeconds ? line('By keke', `about ${howLong(way.driveSeconds)}`) : null,
         way.roadMetres && way.metres < way.roadMetres - 15 ? line('Straight across, on foot', `${money(way.metres)} m`) : null));
       const marked = app.waypoint() && Math.hypot(app.waypoint().x - way.to.x, app.waypoint().z - way.to.z) < 1;
       root.append(h('div', { class: 'actions' },
@@ -472,7 +473,7 @@ export function createPhone(kit) {
         h('button', { class: 'btn', type: 'button', onclick: () => { app.setWaypoint({ x: s.x, z: s.z, label: s.name }); go('map', { place: { x: s.x, z: s.z, label: s.name } }); } }, 'Way')));
     }
     root.append(section('Other ways to get there'));
-    root.append(h('p', { class: 'small' }, 'An okada will take you to the General Hospital stop for a fare. Your own keke will get you there too.'));
+    root.append(h('p', { class: 'small' }, 'A keke of your own, or one hired at the motor park, will get you there.'));
     root.append(h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', onclick: () => go('contacts', { contact: 'svc:hospital' }) }, 'Ambulance')));
   }
 
@@ -546,8 +547,6 @@ export function createPhone(kit) {
     root.append(section('Your kekes'));
     if (mine.ok && mine.vehicles.length) for (const v of mine.vehicles) { root.append(...legacy.vehicleLines(v)); root.append(h('div', { class: 'actions' }, h('button', { class: 'btn quiet', type: 'button', onclick: () => { app.setWaypoint({ x: v.x, z: v.z, label: `Keke ${v.plate}` }); go('map', { place: { x: v.x, z: v.z, label: `Keke ${v.plate}` } }); } }, 'Where is it?'))); }
     else root.append(h('p', null, 'None. Kekes are hired by the day and sold at the motor park.'));
-    root.append(section('Okada'));
-    root.append(h('p', null, `${view.okadas.filter((o) => o.free).length} riders are free near you. Walk up to one that is waiting and ask where he will take you; the fare is paid before you set off.`));
     root.append(section('What you can drive'));
     root.append(h('div', { class: 'rows' }, [['Keke', 'Hire or buy at the motor park'], ['Motorcycle', 'Not sold or hired yet'], ['Coach', 'Cannot be driven yet'], ['Car, bicycle', 'There are none in town yet']].map(([a, b]) => line(a, b))));
     root.append(h('div', { class: 'actions' }, h('button', { class: 'btn', type: 'button', onclick: () => { const s = zoneService('park'); go('map', { place: { x: s.x, z: s.z, label: s.name } }); } }, 'The way to the motor park')));

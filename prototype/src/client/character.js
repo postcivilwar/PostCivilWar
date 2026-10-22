@@ -22,7 +22,7 @@ import { kitPart, kitBones, kitPose, kitIdle, figureMeta, KIT_SHADE_ONE } from '
 import { characterSpec, configFromLook } from '../sim/characters.js';
 import { printTexture } from './character-looks.js';
 import { gaitPose } from './gait.js';
-import { ANIMATED, makeAnimatedRig, driveAnimated } from './animated.js';
+import { ANIMATED, makeAnimatedRig, driveAnimated, figureHere } from './animated.js';
 
 // ---------------------------------------------------------------- skeleton --
 
@@ -364,7 +364,12 @@ export function makeFigure(spec, labelText, shadow = false) {
 // The figure for a `look`, which is how the simulation describes a person. `lod` is 0 for the player, 1 near, 2 further off.
 export function makeCharacter(look, labelText, shadow = false, lod = 0) {
   // a supplied figure with its own skeleton and animations is drawn as it came
-  if (look && look.figure && ANIMATED[look.figure]) return makeAnimatedRig(look.figure, labelText, shadow);
+  if (look && look.figure && ANIMATED[look.figure]) {
+    // (one of the town's own people drawn from a supplied figure this copy of the game cannot have: as one of the
+    // game's own figures, in the look they have for that, `plain`)
+    if (look.plain && !figureHere(look.figure)) return makeFigure(characterSpec(configFromLook(look.plain), lod), labelText, shadow);
+    return makeAnimatedRig(look.figure, labelText, shadow, typeof look.police === 'number' ? look.police : null);
+  }
   return makeFigure(characterSpec(configFromLook(look), lod), labelText, shadow);
 }
 

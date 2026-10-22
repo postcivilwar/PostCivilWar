@@ -7,7 +7,7 @@
 // part of that one building is put away, so the room can be seen from above.
 // THREE is the global from three.min.js.
 
-import { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, CITY_AREA, zoneShedWalls } from '../sim/zone.js';
+import { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, ZONE_CAST, CITY_AREA, zoneShedWalls } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, textTexture, noise, shadeOf, addPitchedRoof, buildingKit } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 
@@ -422,7 +422,8 @@ function addShed(B, s, signs) {
   board.position.set(s.x + fx * ((alongX ? sz : sx) / 2 + 0.5), 2.85, s.z + fz * ((alongX ? sz : sx) / 2 + 0.5));
   board.rotation.y = Math.atan2(fx, fz);
   signs.push(board);
-  const prop = TRADE_PROPS[s.trade];
+  // (what was sold and worked with inside it: not since 22 October 2026, when its trader was taken out of the game)
+  const prop = ZONE_CAST.sellers ? TRADE_PROPS[s.trade] : null;
   if (prop) prop(B, s.x, s.z, -fz, fx, fx, fz, alongX ? sz : sx);
 }
 
@@ -477,14 +478,15 @@ export function buildTown(scene, glowMaterial) {
 
   const sheds = { solid: new Chunked(), walls: new Chunked({ uv: 'wall', scale: 3.2 }), roofs: new Chunked({ uv: 'plan', scale: 2.0 }), glow: new Chunked() };
   for (const s of ZONE_SHEDS) addShed(sheds, s, signs);
-  // the okada ranks: a post with a board
-  for (const r of ZONE_RANKS) { sheds.solid.box(0.1, 2.4, 0.1, place(r.x - r.dx * 1.2, 1.2, r.z - r.dz * 1.2 - (r.dx ? 0.9 : 0)), 0x5d4630); const board = sign('OKADA', 1.3, 0.4, ['#f5c518', '#171a2e']); board.position.set(r.x - r.dx * 1.2, 2.3, r.z - r.dz * 1.2 - (r.dx ? 0.9 : 0)); board.rotation.y = r.heading; signs.push(board); }
+  // the okada ranks: a post with a board (not since 22 October 2026: the okadas are gone)
+  for (const r of ZONE_CAST.okadas ? ZONE_RANKS : []) { sheds.solid.box(0.1, 2.4, 0.1, place(r.x - r.dx * 1.2, 1.2, r.z - r.dz * 1.2 - (r.dx ? 0.9 : 0)), 0x5d4630); const board = sign('OKADA', 1.3, 0.4, ['#f5c518', '#171a2e']); board.position.set(r.x - r.dx * 1.2, 2.3, r.z - r.dz * 1.2 - (r.dx ? 0.9 : 0)); board.rotation.y = r.heading; signs.push(board); }
   // anything with a dome
   for (const b of ZONE_BUILDINGS) if (b.dome) { sheds.solid.round(new THREE.SphereGeometry(2.1, 16, 10, 0, Math.PI * 2, 0, Math.PI / 2), place(b.x, 0.35 + b.h + 1.2, b.z), b.dome); sheds.solid.round(new THREE.CylinderGeometry(0.28, 0.36, b.h + 5, 10), place(b.x - b.w / 2 - 1.1, (b.h + 5) / 2, b.z + b.d / 2 - 0.6), 0xf1efe4); sheds.solid.round(new THREE.ConeGeometry(0.45, 1.1, 10), place(b.x - b.w / 2 - 1.1, b.h + 5.5, b.z + b.d / 2 - 0.6), b.dome); }
   // what the petty traders sell, set out on a mat at their feet, and the
   // tray a hawker sets down by the road
   const WARES = [0xc0392b, 0xe67e22, 0x7fb069, 0xd9d2bd, 0x6b4a2f, 0xf2c200];
-  for (const spot of ZONE_SPOTS) {
+  // (not since 22 October 2026: the traders and the hawkers are gone)
+  for (const spot of ZONE_CAST.sellers ? ZONE_SPOTS : []) {
     if (spot.slot !== 'petty' && spot.slot !== 'hawk') continue;
     const fx = Math.sin(spot.facing), fz = Math.cos(spot.facing);
     const x = spot.x + fx * 0.85, z = spot.z + fz * 0.85;

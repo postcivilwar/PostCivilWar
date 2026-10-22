@@ -1047,7 +1047,8 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
       id: p.id, index: i, name: p.name, short: p.short, age: p.age, gender: p.gender, role: roleOf(p), job: p.job, income: p.income,
       people: PEOPLES[p.people].name, tongue: PEOPLES[p.people].tongue, faith: p.faith, languages: p.langs, language: p.lang, traits: p.traits, transport: p.transport,
       home: p.quarter ? `${p.quarter} quarter` : ZONE_VENUES[p.venue] ? ZONE_VENUES[p.venue].name : 'town',
-      activity: at.moving ? (ZONE_SPOTS[at.spot].venue === 'home' ? 'Walking home' : goingTo && goingTo.kind !== 'street' && goingTo.kind !== 'shed' ? `Walking to ${goingTo.name}` : 'Out walking') : at.act,
+      // (an officer walking her beat, from one of its stops to the next, is on patrol, not on her way to the police post)
+      activity: at.moving ? (ZONE_SPOTS[at.spot].venue === 'home' ? 'Walking home' : ZONE_SPOTS[at.spot].slot === 'patrol' ? 'On patrol' : goingTo && goingTo.kind !== 'street' && goingTo.kind !== 'shed' ? `Walking to ${goingTo.name}` : 'Out walking') : at.act,
       needs, look: p.look, fig: p.fig,
       relations: p.relations.slice(0, 6).map(([other, kind]) => ({ kind, name: people[other].name })),
     };

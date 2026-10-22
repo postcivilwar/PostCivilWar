@@ -2,14 +2,18 @@
 // figures side by side, standing, walking, sitting or working, at any level
 // of detail, so a character can be judged before it is put in the town.
 //
-// The address can carry the view: #set=lineup&move=walk&lod=1&yaw=0.5&dist=5
+// The address can carry the view: #set=lineup&move=walk&lod=1&yaw=0.5&dist=5 (and lite=1: as a phone draws them)
 
-import { makeFigure, animateCharacter, seatCharacter, standCharacter } from './character.js';
+import { makeFigure, makeCharacter, animateCharacter, seatCharacter, standCharacter } from './character.js';
 import { labSets } from './character-looks.js';
+import { POLICE_LOOKS, policeLook } from '../sim/police-looks.js';
+import { setLite } from './render-kit.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new Map(location.hash.slice(1).split('&').filter(Boolean).map((p) => p.split('=').map(decodeURIComponent)));
 const num = (key, fallback) => (params.has(key) && !Number.isNaN(Number(params.get(key))) ? Number(params.get(key)) : fallback);
+// (#lite=1: the figures' surfaces as a phone draws them, render-kit.js)
+if (params.get('lite') === '1') setLite(true);
 
 const canvas = $('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
@@ -35,6 +39,8 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 const sets = labSets();
+// the town's sixteen policewomen (police-dress.js), after the supplied police officer they are drawn from, as she came
+sets.police = () => [{ name: 'Amaka', note: 'as supplied', look: { figure: 'W3' } }, ...POLICE_LOOKS.map((L, k) => ({ name: `Officer ${k + 1}`, note: `${L.skin}, ${L.uniform}`, look: policeLook(k) }))];
 const state = { set: params.get('set') || Object.keys(sets)[0], move: params.get('move') || 'stand', lod: num('lod', 0), spin: num('spin', 0) };
 const cam = { yaw: num('yaw', 0), pitch: num('pitch', 0.06), dist: num('dist', 0), x: num('x', 0), y: num('y', 0.95), z: num('z', 0), auto: !params.has('dist') };
 let figures = [];
@@ -48,7 +54,7 @@ function fill() {
   const gap = num('gap', 1.0);
   stats = { triangles: 0, figures: list.length };
   list.forEach((entry, i) => {
-    const rig = makeFigure(entry.spec, null, true);
+    const rig = entry.look ? makeCharacter(entry.look, null, true) : makeFigure(entry.spec, null, true);
     rig.group.position.set((i - (list.length - 1) / 2) * gap, 0, 0);
     rig.group.rotation.y = state.spin;
     scene.add(rig.group);

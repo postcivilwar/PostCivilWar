@@ -8,10 +8,13 @@
 //   - the twenty cars on their stands: on a computer every one of them the owner's model, with the pictures its
 //     distance asks for (the one the player stands at the largest, the far end of the hall the smallest:
 //     hall-models.js); gone well away from the doors, every model let go;
-//   - Tochi and Oluchi, each looking after one side of the floor: the one whose side the player is on comes over;
+//   - Tochi and Oluchi, each looking after one side of the floor: the one whose side the player is on comes over (while
+//     the showroom's staff are drawn, ZONE_CAST; since 22 October 2026 nobody stands on the floor until the owner's own
+//     figures come, and that is what is checked);
 //   - asked about a car: the phone's conversation opens with whoever sells it (its card, its top speed, its price);
 //     the arrival money buys it (since 18 October 2026, as it does a motorcycle), at the owner's new price;
-//   - another player asking about a car on the other side of the floor is looked after by the other;
+//   - another player asking about a car on the other side of the floor is looked after by the other (with the staff
+//     there; with nobody there, their question is on their own phone);
 //   - out by the mat at the doors; the car brought from Property; driven (its engine heard, its speedometer, its
 //     wheels and steering, its brake lamps), the gate opening ahead of it from further off; out of it, it stands
 //     where it was left; its headlamps at night;
@@ -26,6 +29,9 @@ import { randomUUID } from 'node:crypto';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 import { CARSHOW } from '../src/sim/zones/asaba-carshow.js';
+import { ZONE_CAST } from '../src/sim/zones/atani.js';
+// are Tochi and Oluchi drawn on the showroom's floor (ZONE_CAST)
+const STAFF = ZONE_CAST.showroomStaff;
 import { HALL as SETS } from '../src/client/budget.js';
 const require = createRequire(import.meta.url);
 let chromium;
@@ -211,16 +217,22 @@ await shot('08-the-hypercar');
 const saloon = { x: -426.11, z: -164.39, r: 3.3 };
 const by = { x: saloon.x + saloon.r + 0.95, z: saloon.z };
 await go(by.x, by.z, -Math.PI / 2, { yaw: -Math.PI / 2 - 0.6, pitch: 0.16, dist: 6.5 });
-// (Oluchi may still be walking back to her desk from the player's look at the hypercar, on her side of the floor)
-await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state, o = n.carSalesmen[1]; return t.with && Math.hypot(t.x - n.predicted.x, t.z - n.predicted.z) < 2.2 && t.speed < 0.2 && Math.hypot(o.sim.state.x - o.spec.home.x, o.sim.state.z - o.spec.home.z) < 0.6; }, null, { timeout: 150000 }).catch(() => {});
-// (each distance is judged as measured, and shown rounded: 0.597 m from her desk is at it, though shown as 0.6)
-const staff = await page.evaluate(() => { const n = window.__nlw; return n.carSalesmen.map((s) => { const d = Math.hypot(s.sim.state.x - n.predicted.x, s.sim.state.z - n.predicted.z), home = Math.hypot(s.sim.state.x - s.spec.home.x, s.sim.state.z - s.spec.home.z); return { name: s.spec.name, mode: s.sim.state.mode, d: +d.toFixed(3), near: d < 2.2, home: +home.toFixed(3), atDesk: home < 0.6, shown: s.actor.group.visible }; }); });
-check('on Tochi\'s side of the floor, Tochi comes over to the player at the car; Oluchi stays at her desk', staff[0].shown && staff[1].shown && staff[0].mode === 'assist' && staff[0].near && staff[1].atDesk, staff);
-await shot('09-tochi-comes');
+if (STAFF) {
+  // (Oluchi may still be walking back to her desk from the player's look at the hypercar, on her side of the floor)
+  await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state, o = n.carSalesmen[1]; return t.with && Math.hypot(t.x - n.predicted.x, t.z - n.predicted.z) < 2.2 && t.speed < 0.2 && Math.hypot(o.sim.state.x - o.spec.home.x, o.sim.state.z - o.spec.home.z) < 0.6; }, null, { timeout: 150000 }).catch(() => {});
+  // (each distance is judged as measured, and shown rounded: 0.597 m from her desk is at it, though shown as 0.6)
+  const staff = await page.evaluate(() => { const n = window.__nlw; return n.carSalesmen.map((s) => { const d = Math.hypot(s.sim.state.x - n.predicted.x, s.sim.state.z - n.predicted.z), home = Math.hypot(s.sim.state.x - s.spec.home.x, s.sim.state.z - s.spec.home.z); return { name: s.spec.name, mode: s.sim.state.mode, d: +d.toFixed(3), near: d < 2.2, home: +home.toFixed(3), atDesk: home < 0.6, shown: s.actor.group.visible }; }); });
+  check('on Tochi\'s side of the floor, Tochi comes over to the player at the car; Oluchi stays at her desk', staff[0].shown && staff[1].shown && staff[0].mode === 'assist' && staff[0].near && staff[1].atDesk, staff);
+  await shot('09-tochi-comes');
+} else {
+  const staff = await page.evaluate(() => window.__nlw.carSalesmen.map((s) => ({ name: s.spec.name, drawn: !!s.actor })));
+  check('nobody stands on the showroom\'s floor to sell (the owner\'s own figures of Tochi and Oluchi are to come)', staff.length === 2 && staff.every((s) => !s.drawn), staff);
+  await shot('09-at-the-grey-saloon');
+}
 
 // ---- asking about the Grey Saloon ----
 const asking = await page.evaluate(() => { const p = window.__nlw.prompt(); return p ? { short: p.short, text: p.text } : null; });
-check('at the car the player is offered to ask Tochi about it', asking && asking.short === 'Ask' && asking.text === 'Ask Tochi about the Grey Saloon', asking);
+check('at the car the player is offered to ask about it', asking && asking.short === 'Ask' && asking.text === (STAFF ? 'Ask Tochi about the Grey Saloon' : 'Ask about the Grey Saloon'), asking);
 await page.keyboard.press('e');
 await page.waitForSelector('#deal-log .msg.shop', { timeout: 60000 });
 await page.waitForTimeout(1500);
@@ -237,7 +249,7 @@ const opened = await page.evaluate(() => {
 check('the conversation opens with Tochi: the car\'s card with its top speed and its price, and nothing said of an engine', opened.head === 'Tochi' && opened.brand === 'Post Civil War Car Showroom' && opened.card === 'Grey Saloon' && opened.chips.includes('170 km/h') && !opened.chips.some((c) => /cc|CC/.test(c)) && /(^|[^\d,])600 TR/.test(opened.price) && opened.placeholder === 'Ask Tochi about the car', opened);
 check('Tochi greets the player about this car, and says the answers are automatic', /Tochi/.test(opened.hello) && /automatic/.test(opened.hello) && /Grey Saloon/.test(opened.hello) && /170 km\/h/.test(opened.hello), opened.hello);
 check('questions to tap are offered (none about an engine)', opened.quick.length >= 5 && !opened.quick.some((q) => /engine/i.test(q)), opened.quick);
-await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state; return t.mode === 'talk' && t.speed < 0.2; }, null, { timeout: 60000 }).catch(() => {});
+if (STAFF) await page.waitForFunction(() => { const n = window.__nlw, t = n.carSalesmen[0].sim.state; return t.mode === 'talk' && t.speed < 0.2; }, null, { timeout: 60000 }).catch(() => {});
 await page.waitForTimeout(1500);
 await shot('10-asking-tochi');
 await page.click('#deal-quick button[data-ask="Arrival money?"]');
@@ -263,9 +275,15 @@ check('the town is told it is theirs; and a car is not brought into the hall', i
 await page.evaluate(() => { const n = window.__nlw; n.twin('Second Buyer', -396.3, -176.4); });          // (in the aisle on Oluchi's side)
 await page.waitForFunction(() => (window.__nlw.view.players || []).some((q) => q.name === 'Second Buyer'), null, { timeout: 90000 });
 await page.evaluate(() => { const n = window.__nlw; n.second.face(-Math.PI / 2); n.second.askCar('black-luxury-suv'); });
-await page.waitForFunction(() => { const n = window.__nlw, s = n.carSalesmen[1].sim.state; const q = n.view.players.find((x) => x.name === 'Second Buyer'); return q && q.carTalk && s.mode === 'talk' && s.with === `p:${q.id}` && Math.hypot(s.x - q.x, s.z - q.z) < 2.4 && s.speed < 0.2; }, null, { timeout: 120000 }).catch(() => {});
-const theirs = await page.evaluate(() => { const n = window.__nlw, s = n.carSalesmen[1].sim.state, t = n.carSalesmen[0].sim.state; const q = n.view.players.find((x) => x.name === 'Second Buyer'); return { oluchi: s.mode, with: s.with, them: q && `p:${q.id}`, talk: q && q.carTalk, apart: q ? +Math.hypot(s.x - q.x, s.z - q.z).toFixed(2) : null, tochiWith: t.with }; });
-check('another player asking about a car on the other side: Oluchi looks after them, Tochi stays with the player', theirs.oluchi === 'talk' && theirs.with === theirs.them && theirs.talk && theirs.talk.car === 'black-luxury-suv' && theirs.apart < 2.4 && theirs.tochiWith && theirs.tochiWith !== theirs.them, theirs);
+if (STAFF) {
+  await page.waitForFunction(() => { const n = window.__nlw, s = n.carSalesmen[1].sim.state; const q = n.view.players.find((x) => x.name === 'Second Buyer'); return q && q.carTalk && s.mode === 'talk' && s.with === `p:${q.id}` && Math.hypot(s.x - q.x, s.z - q.z) < 2.4 && s.speed < 0.2; }, null, { timeout: 120000 }).catch(() => {});
+  const theirs = await page.evaluate(() => { const n = window.__nlw, s = n.carSalesmen[1].sim.state, t = n.carSalesmen[0].sim.state; const q = n.view.players.find((x) => x.name === 'Second Buyer'); return { oluchi: s.mode, with: s.with, them: q && `p:${q.id}`, talk: q && q.carTalk, apart: q ? +Math.hypot(s.x - q.x, s.z - q.z).toFixed(2) : null, tochiWith: t.with }; });
+  check('another player asking about a car on the other side: Oluchi looks after them, Tochi stays with the player', theirs.oluchi === 'talk' && theirs.with === theirs.them && theirs.talk && theirs.talk.car === 'black-luxury-suv' && theirs.apart < 2.4 && theirs.tochiWith && theirs.tochiWith !== theirs.them, theirs);
+} else {
+  await page.waitForFunction(() => { const q = window.__nlw.view.players.find((x) => x.name === 'Second Buyer'); return q && q.carTalk && q.carTalk.car === 'black-luxury-suv'; }, null, { timeout: 120000 }).catch(() => {});
+  const theirs = await page.evaluate(() => { const q = window.__nlw.view.players.find((x) => x.name === 'Second Buyer'); return { talk: q && q.carTalk, staff: window.__nlw.carSalesmen.some((s) => !!s.actor) }; });
+  check('another player asking about a car on the other side: their question is on their own phone, and nobody walks over', theirs.talk && theirs.talk.car === 'black-luxury-suv' && !theirs.staff, theirs);
+}
 await go(-405, -172, -Math.PI / 2, { yaw: -Math.PI / 2 + 0.6, pitch: 0.2, dist: 9 });
 await page.waitForTimeout(2500);
 await shot('12-oluchi-with-another-player');
@@ -279,7 +297,7 @@ let left = false;
 for (let i = 0; i < 300 && !left; i += 1) { await page.waitForTimeout(100); left = await page.evaluate(() => !window.__nlw.carshow.inside); }
 await page.keyboard.up('w');
 await page.waitForFunction(() => !document.getElementById('fade').classList.contains('on'), null, { timeout: 20000 });
-const outside = await page.evaluate(() => { const n = window.__nlw, c = n.carshowView; return { at: [+n.predicted.x.toFixed(2), +n.predicted.z.toFixed(2)], hall: c.hall.group.visible, exterior: c.exterior.visible, staff: n.carSalesmen.some((s) => s.actor.group.visible) }; });
+const outside = await page.evaluate(() => { const n = window.__nlw, c = n.carshowView; return { at: [+n.predicted.x.toFixed(2), +n.predicted.z.toFixed(2)], hall: c.hall.group.visible, exterior: c.exterior.visible, staff: n.carSalesmen.some((s) => s.actor && s.actor.group.visible) }; });
 check('the mat inside the doors takes the player out before them; the buildings are drawn again, the hall is not', left && Math.hypot(outside.at[0] - DOORS.x, outside.at[1] - (DOORS.z + 4.6)) < 0.6 && !outside.hall && outside.exterior && !outside.staff, outside);
 // gone well away from the doors (and back again: the car is fetched from the doors' side), every car's model let go
 {

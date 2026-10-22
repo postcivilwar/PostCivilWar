@@ -2,6 +2,10 @@
 //   node test/play.mjs <output-directory>
 // Needs Playwright with Chromium. Not part of the unit tests.
 import { pastQuestion, enterTown, openingOver, overTown } from './start.mjs';
+import { ZONE_RESIDENTS, ZONE_POPULATION } from '../src/sim/zones/atani.js';
+// the town's own people: since 22 October 2026 its police (sixteen policewomen walking their beats) and the named
+// people at the counters, until the owner's own figures come
+const TOWNSPEOPLE = ZONE_POPULATION.jobs.reduce((n, [, count]) => n + count, 0) + ZONE_RESIDENTS.length;
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -556,8 +560,8 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   if (audit.ledger.length || audit.goods.length || !audit.reserves || !audit.journal || audit.vehicles.count !== audit.vehicles.expected) problems.push(`desktop: audit failed ${JSON.stringify(audit)}`);
 });
 
-// The town: its people, what they say, another player, an okada, the inside
-// of the hospital, a school and the church, and the sound.
+// The town: its people (its police on their beats, since 22 October 2026: nobody else, and no okadas), another player,
+// the inside of the hospital, a school and the church, and the sound.
 await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   const bad = (text) => problems.push(`town: ${text}`);
   await page.fill('#name', 'Ifeoma Eze');
@@ -570,23 +574,22 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   const live = (seconds) => nlw(page, (seconds) => { const n = window.__nlw; for (let t = 0; t < seconds; t += 0.1) { n.host.tick(0.1); if (n.second) n.second.host.tick(0.1); } }, seconds);
   const bubbles = () => nlw(page, () => [...document.querySelectorAll('#bubbles .bubble')].filter((b) => !b.hidden).map((b) => { const r = b.getBoundingClientRect(); return { w: r.width, h: r.height, text: b.querySelector('.say').textContent, who: b.querySelector('.who').textContent, gloss: b.querySelector('.gloss') ? b.querySelector('.gloss').textContent : '', kind: b.className }; }));
 
-  // 1. the market in the morning: people about, and what they say to each other
+  // 1. the market in the morning: the police on their beat, and nobody else of the town's about
   await at(9.4);
   await look(43, 59, 1.2, 13, 0.34);
   await page.waitForTimeout(2500);
-  const town = await nlw(page, () => ({ people: window.__nlw.view.people.length, total: window.__nlw.view.population, crowd: window.__nlw.crowd.stats, okadas: window.__nlw.view.okadas.length }));
-  if (town.total !== 1000) bad(`the town has ${town.total} people`);
-  if (town.people < 40) bad(`only ${town.people} people are in view at the market`);
-  let overheard = [];
-  for (let i = 0; i < 14 && overheard.length === 0; i += 1) { await page.waitForTimeout(1500); overheard = (await bubbles()).filter((b) => /npc/.test(b.kind)); }
-  await shot('01-market-talk');
-  if (!overheard.length) bad('nothing was overheard at the market');
+  const town = await nlw(page, () => ({ people: window.__nlw.view.people.length, total: window.__nlw.view.population, crowd: window.__nlw.crowd.stats, okadas: window.__nlw.view.okadas.length, riders: window.__nlw.host.game.internals.okada.riders.length, jobs: [...new Set(window.__nlw.view.people.map((r) => window.__nlw.host.game.internals.population.people[r[0]].job))] }));
+  if (town.total !== TOWNSPEOPLE) bad(`the town has ${town.total} people, not ${TOWNSPEOPLE}`);
+  if (town.people < 1) bad('no police officer is in view at the market in the morning');
+  if (town.jobs.some((j) => j !== 'police')) bad(`someone other than the police is about: ${town.jobs.join(', ')}`);
+  if (town.okadas || town.riders) bad(`there are okadas (${town.okadas} in view, ${town.riders} riders)`);
+  await shot('01-market-police');
   const size = await bubbles();
   if (size.length > 1) bad(`${size.length} bubbles are shown at once: one at a time`);
   for (const b of size) if (b.w > 250 || b.h > 130) bad(`a bubble is ${Math.round(b.w)} by ${Math.round(b.h)} px`);
   if (await nlw(page, () => window.__nlw.ui.isOpen())) bad('a panel opened by itself');
 
-  // 2. talking to a townsperson, and to a named resident: a bubble, not a panel
+  // 2. talking to one of the town's people (a police officer on her beat): a bubble, not a panel
   const person = await nlw(page, () => { const n = window.__nlw; const a = [...n.crowd.actors()].filter((c) => c.pose !== 3 && c.pose !== 1 && n.known.has(c.i)).sort((p, q) => p.d - q.d)[0]; if (!a) return null; const row = n.view.people.find((r) => r[0] === a.i); n.place(row[1] + 1.3, row[2] + 0.6); return { i: a.i, name: n.known.get(a.i).short }; });
   if (!person) bad('nobody is standing near enough to talk to');
   else {
@@ -640,11 +643,13 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   const box = await nlw(page, () => { const r = document.getElementById('notices').getBoundingClientRect(); return (r.width * r.height) / (innerWidth * innerHeight); });
   if (box > 0.12) bad(`notices cover ${Math.round(box * 100)}% of the screen`);
 
-  // 5. an okada: pay the rider, ride pillion, get down at the other end
+  // 5. an okada (while the town has them: since 22 October 2026 it has none, and none waits at a rank)
   await at(10);
   const okada = await nlw(page, () => { const n = window.__nlw; const g = n.host.game; let found = null; for (const rank of ['rank-market', 'rank-park', 'rank-hospital']) { const s = n.spot(rank, 'rank'); if (!s) continue; n.place(s.x + 1.5, s.z + 1.5); const o = n.view.okadas.filter((k) => k.free && !k.moving).sort((a, b) => Math.hypot(a.x - s.x, a.z - s.z) - Math.hypot(b.x - s.x, b.z - s.z))[0]; if (o) { n.place(o.x + 1.4, o.z + 0.8); n.cam.yaw = 2.2; n.cam.dist = 8; n.cam.pitch = 0.3; found = { n: o.n, balance: n.view.self.balance }; break; } } return found; });
-  if (!okada) bad('no okada is waiting at a rank at ten');
-  else {
+  const okadasKept = ZONE_POPULATION.jobs.some(([job]) => job === 'okada');
+  if (!okada && okadasKept) bad('no okada is waiting at a rank at ten');
+  else if (okada && !okadasKept) bad('an okada is waiting at a rank, in a town that has none');
+  else if (okada) {
     await page.waitForTimeout(1500);
     await shot('06-okada-rank');
     await page.keyboard.press('e');
@@ -671,8 +676,8 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   // 6. inside the hospital, a classroom and the church
   await at(9.8);
   const rooms = await nlw(page, () => { const n = window.__nlw; return { reception: n.spot('hospital', 'reception.wait', 2), ward: n.spot('hospital', 'ward.bedside'), klass: n.spot('primary', 'classroom.seat', 10), lecture: n.spot('university', 'lecture.seat', 30), pew: n.spot('catholic', 'nave.pew', 40) }; });
-  const working = await nlw(page, () => { const n = window.__nlw; const pop = n.host.game.internals.population; const t = n.host.game.state.t; const count = (test) => pop.people.filter((p) => test(pop.describe(p.index, t), p)).length; return { seeing: count((d) => d.activity === 'Seeing patients'), teaching: count((d) => d.activity === 'Teaching'), inClass: count((d) => d.activity === 'In class'), patients: count((d, p) => p.venue !== 'hospital' && /hospital|doctor|medicine|treated|Admitted/i.test(d.activity)) }; });
-  if (working.seeing < 2 || working.teaching < 10 || working.inClass < 200) bad(`at ten to ten: ${JSON.stringify(working)}`);
+  // (nobody of the town's own works or sits in them now: the rooms stand ready for the owner's figures)
+  const working = await nlw(page, () => { const n = window.__nlw; const pop = n.host.game.internals.population; const t = n.host.game.state.t; const count = (test) => pop.people.filter((p) => test(pop.describe(p.index, t), p)).length; return { seeing: count((d) => d.activity === 'Seeing patients'), teaching: count((d) => d.activity === 'Teaching'), inClass: count((d) => d.activity === 'In class') }; });
   for (const [name, spot, yaw, dist, pitch, hour] of [['12-classroom', rooms.klass, 0.4, 9, 1.05, 0], ['13-lecture', rooms.lecture, 0.4, 10, 1.05, 0], ['10-hospital-reception', rooms.reception, 0.6, 9, 1.05, 11.1], ['11-hospital-ward', rooms.ward, 0.6, 9, 1.05, 0]]) {
     if (hour) await at(hour);
     if (!spot) { bad(`no place for ${name}`); continue; }
@@ -691,7 +696,7 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   await shot('14-sunday-mass');
   const mass = await nlw(page, () => ({ day: window.__nlw.view.calendar.weekday, inside: window.__nlw.inside, people: window.__nlw.view.people.length, sounds: window.__nlw.audio.status() }));
   if (mass.day !== 'Sunday') bad(`it is ${mass.day}, not Sunday`);
-  if (mass.people < 120) bad(`${mass.people} people in view at Sunday Mass`);
+  // (the pews are empty: nobody of the town's own goes to Mass until the owner's figures come)
   const front = await nlw(page, () => { const n = window.__nlw; return n.spot('catholic', 'nave.door') || n.spot('catholic', 'nave.stand'); });
   await look(front.x, front.z + 26, Math.PI, 20, 0.2);
   await page.waitForTimeout(3000);
@@ -819,8 +824,11 @@ const now = (page) => nlw(page, () => { const n = window.__nlw; const s = n.view
 // Someone grown, standing in the open with clear ground in front of them, nearest first.
 const someone = (page, x, z) => nlw(page, ([x, z]) => {
   const n = window.__nlw; const g = n.host.game; const pop = g.internals.population; const o = {}; let best = null;
+  // (anyone but the police; in a town whose only people are its police, since 22 October 2026, one of them: a fight
+  // with an officer is answered by the officer herself, as the police answer any)
+  const civilians = pop.people.some((w) => w.age >= 18 && w.job !== 'police');
   for (let i = 0; i < pop.count; i += 1) {
-    const w = pop.people[i]; if (w.age < 18 || w.job === 'police') continue;
+    const w = pop.people[i]; if (w.age < 18 || (civilians && w.job === 'police')) continue;
     pop.locate(i, g.state.t, o); if (o.pose !== 0 || o.moving) continue;
     // (left to their own day, and still standing there a while later: not someone being taken somewhere by something
     // that has happened, such as the one who came to help, nor someone stopped at a kerb only to look before crossing)

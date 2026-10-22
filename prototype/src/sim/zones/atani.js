@@ -197,6 +197,9 @@ export const ZONE_STALLS = Object.freeze([]);
 export const ZONE_CAST = Object.freeze({
   shopAttendants: false,        // HOLARIS Watch's attendant (ZONE_SHOPS)
   showroomStaff: false,         // Obi at PostCivilWar PowerBike; Tochi and Oluchi at the car showroom
+  sellers: false,               // what the street's and the market's sellers sold and worked with: the goods, tables and benches in
+                                // the trade sheds (the sheds themselves stand), the petty traders' mats and the hawkers' trays
+  okadas: false,                // the okada ranks' OKADA boards
 });
 
 // Parked scenery. The coaches stand at the motor park; the kekes here belong

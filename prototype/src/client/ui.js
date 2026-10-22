@@ -538,13 +538,13 @@ export function createUI(app) {
     root.append(line('Players elsewhere in town', String(view.players.length)));
     root.append(line('Close enough to talk', String(view.chat.near.length)));
     root.append(h('p', null, link.kind === 'none'
-      ? 'This copy of the page cannot reach other players, so you are alone in town. The townspeople are still here.'
+      ? 'This copy of the page cannot reach other players, so you are alone in town. The police and the people at the counters are still here.'
       : `Anyone who has this page open at the same time is in ${ZONE.name} with you. Walk within ${view.chat.radius} metres of another player and a Chat button appears. Each of you still has your own copy of the town: its clock, its money and its people are not shared yet.`));
     for (const q of view.players) root.append(line(q.name, `${Math.round(Math.hypot(q.x - view.self.x, q.z - view.self.z))} m · ${LANGUAGES[q.lang] ? LANGUAGES[q.lang].short : q.lang}`));
 
     root.append(section('The town'));
-    root.append(line('People living here', money(view.population)), line('Today', `${view.calendar.weekday}${view.calendar.school ? '' : ' · no school'}`), line('In sight just now', String(view.people.length)), line('Okadas on the road', String(view.okadas.length)));
-    root.append(h('p', null, 'Everyone in town has a name, a home, a family and something to do with the day. Walk up to anyone and press E to greet them.'));
+    root.append(line('Today', `${view.calendar.weekday}${view.calendar.school ? '' : ' · no school'}`), line('Police on duty in sight', String(view.people.length)));
+    root.append(h('p', null, 'The people at the counters keep their offices and shops. The police walk the town, the roads and the habitation by day and by night, each on her own beat: walk up to an officer and press E to greet her.'));
   }
 
   // A switch: on or off. It says which in three ways (where the knob is, the colour of the track, and the word
@@ -653,9 +653,9 @@ export function createUI(app) {
       ['Walk', 'W A S D or arrow keys · the stick'], ['Run', 'Hold Shift · the Run button switches it on and off'], ['Look around', 'Drag on the world'], ['Zoom', 'Mouse wheel or pinch'],
       ['Act, talk, work, enter', 'E (hold to work)'], ['Change the view', `C: ${viewNames.map((n) => n.toLowerCase()).join(', ')}`],
       ['Fight', 'F, facing someone close: you square up. Then F punch, G heavy punch, R kick, hold Q to block, Space to dodge, Z shove, X grab, V to step away'],
-      ['Take a vehicle', 'G, standing at the rider\'s side of a waiting motorcycle or the driver\'s side of an unlocked keke'], ['Pick a pocket', 'B, close behind someone'],
+      ['Take a vehicle', 'G, standing at the driver\'s side of an unlocked keke'], ['Pick a pocket', 'B, close behind someone'],
       ['Give yourself up', 'U, when you are wanted'], ['Drive a keke or a motorcycle', 'W and S to go and brake, A and D to steer, H for the horn, E to step out or get off'],
-      ['Okada', 'E beside a waiting rider; E again to get down'], ['Chat', 'T, when another player is close'], ['Phone', 'Tab or P'], ['Map', 'M'], ['Sound on and off', 'N'], ['Close', 'Esc'],
+      ['Chat', 'T, when another player is close'], ['Phone', 'Tab or P'], ['Map', 'M'], ['Sound on and off', 'N'], ['Close', 'Esc'],
     ].map(([a, b]) => line(a, b))));
     root.append(h('p', { class: 'small' }, 'Only the buttons that can be used just now are on screen. On a keyboard each has a key, shown beside it at the foot of the screen.'));
 

@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -747,9 +747,9 @@ function start(carried) {
     controls.release(); input.keys.clear();
     $('fade').classList.add('on');
     setTimeout(() => {
-      // face whoever is selling: the shop's own attendant, if it has one
+      // face whoever is selling: the shop's own attendant, if it has one and is drawn (ZONE_CAST)
       const shop = l.shop ? zoneShop(l.shop) : null;
-      if (shop && playing) {
+      if (shop && shop.attendant && ZONE_CAST.shopAttendants && playing) {
         predicted.heading = Math.atan2(shop.attendant.x - predicted.x, shop.attendant.z - predicted.z);
         server.send({ type: 'move', x: predicted.x, z: predicted.z, heading: predicted.heading, run: false });
         // the eye stands behind and to one side, so that both of them and the shop are in the picture
@@ -771,10 +771,11 @@ function start(carried) {
       else if (far < m.marker.radius - 0.2 && m.armed && onFoot && !ui.isOpen() && !fading && !accountUI.isOpen) { m.armed = false; enterDeal(m); }
     }
   }
-  // A shop's own person, standing where the shop says: there to be seen and faced; the dealing is on the phone.
+  // A shop's own person, standing where the shop says: there to be seen and faced; the dealing is on the phone. (None is
+  // drawn since 22 October 2026, ZONE_CAST: the dealing is on the phone as it was.)
   let shopActors = [];
   townSteps.push(['the shopkeepers', () => {
-    shopActors = ZONE_SHOPS.map((shop) => {
+    shopActors = (ZONE_CAST.shopAttendants ? ZONE_SHOPS.filter((shop) => shop.attendant) : []).map((shop) => {
       const actor = makeCharacter(shop.attendant.look, shop.attendant.name, false, 1);
       actor.group.position.set(shop.attendant.x, 0, shop.attendant.z);
       actor.group.rotation.y = shop.attendant.facing;
@@ -805,7 +806,9 @@ function start(carried) {
   const salesman = createSalesman();
   townSteps.push(['the motorcycle showroom', () => {
   powerbike = buildPowerbike(scene, { lite: LITE, renderer, maxTexture: pictureSize('tower', { lite: LITE, most: renderer.capabilities.maxTextureSize }) });
-  // one of the game's own figures, dressed for the showroom floor: a white shirt, a dark red tie, dark trousers
+  // one of the game's own figures, dressed for the showroom floor: a white shirt, a dark red tie, dark trousers (not drawn
+  // since 22 October 2026, ZONE_CAST: the owner's own model of him is to come; asking about a motorcycle is on the phone)
+  if (!ZONE_CAST.showroomStaff) return;
   salesmanActor = makeCharacter({ body: 'm', skin: 0x4a2c17, build: 1, wear: { outfit: 'shirt', hair: 'fade', face: 83, extras: ['tie', 'belt', 'watch'], colours: { top: 0xf5f6f8, accent: 0x8c1d2c, bottom: 0x1e2229, shoe: 0x141210, button: 0xdcdcdc, frame: 0xb9bec4 } } }, POWERBIKE.salesman, true, 1);
   salesmanActor.group.visible = false;
   scene.add(salesmanActor.group);
@@ -850,7 +853,7 @@ function start(carried) {
         rig.snap(cam);
         refreshView();
         audio.chime(way === 'in' ? 'ok' : 'tap');
-        if (way === 'in' && !showroom.welcomed) { showroom.welcomed = true; ui.toast({ type: 'note', text: `${POWERBIKE.name}. Walk up to any motorcycle to ask ${POWERBIKE.salesman}, the salesman, about it. The mat by the doors takes you back out.` }); }
+        if (way === 'in' && !showroom.welcomed) { showroom.welcomed = true; ui.toast({ type: 'note', text: ZONE_CAST.showroomStaff ? `${POWERBIKE.name}. Walk up to any motorcycle to ask ${POWERBIKE.salesman}, the salesman, about it. The mat by the doors takes you back out.` : `${POWERBIKE.name}. Walk up to any motorcycle to ask about it: the conversation opens on your phone. The mat by the doors takes you back out.` }); }
       } else if (r.message) ui.toast({ type: 'note', text: r.message });
       setTimeout(() => { $('fade').classList.remove('on'); fading = false; }, 320);
     }, 360);
@@ -861,7 +864,7 @@ function start(carried) {
   async function askAbout(display) {
     const bike = POWER_BIKES[display.bike];
     if (!bike) return;
-    if (!online.available) { ui.toast({ type: 'note', text: `${POWERBIKE.salesman} sells these through the market every player shares, and this copy of the game cannot reach it: the ${bike.name} cannot be bought here.` }); return; }
+    if (!online.available) { ui.toast({ type: 'note', text: `${ZONE_CAST.showroomStaff ? POWERBIKE.salesman : POWERBIKE.name} sells these through the market every player shares, and this copy of the game cannot reach it: the ${bike.name} cannot be bought here.` }); return; }
     if (!online.signedIn) { accountUI.open('signup', `To buy the ${bike.name} you need an account.`); return; }
     let l = showroomListing(display.bike);
     if (!l) { await market.all(); l = showroomListing(display.bike); }
@@ -900,7 +903,7 @@ function start(carried) {
   const turnOf = (t, seed) => { const u = Math.sin(t * 0.43 + seed) + 0.6 * Math.sin(t * 0.17 + seed * 2.1); return u > 0.25 ? 1 : u < -0.35 ? 0 : 0.35; };
 
   function tickShowroom(dt) {
-    if (!playing || !view) { salesmanActor.group.visible = false; powerbike.portal.group.visible = false; return; }
+    if (!playing || !view) { if (salesmanActor) salesmanActor.group.visible = false; powerbike.portal.group.visible = false; return; }
     const self = view.self;
     const inHall = inPowerbikeHall(predicted.x, predicted.z);
     if (inHall !== showroom.inside) {
@@ -920,7 +923,8 @@ function start(carried) {
     if (inHall && onFoot && !fading && !uiBlocks() && onPowerbikeExit(predicted.x, predicted.z)) { if (ui.isOpen()) ui.close(); endTalk(); goShowroom('out'); }
     // the conversation is over when it is closed
     if (showroom.talk && !ui.dealOpen()) endTalk();
-    if (!inHall) { salesmanActor.group.visible = false; return; }
+    if (!inHall) { if (salesmanActor) salesmanActor.group.visible = false; return; }
+    if (!salesmanActor) return;
 
     // the salesman: where he goes, the same on every device (salesman.js), and drawn there
     const customers = hallCustomers();
@@ -951,6 +955,7 @@ function start(carried) {
   // The player's own figure while asking about a motorcycle: turned to him (the town is told now and then, so that
   // other players see it), speaking with the hands when they have written something, listening when he answers.
   function tickTalkPose(dt, speed) {
+    if (!ZONE_CAST.showroomStaff) return;
     const want = showroom.talk && showroom.inside && speed < 0.3 && !ui.calling() ? 1 : 0;
     showroom.amount += (want - showroom.amount) * Math.min(1, dt * (want ? 2.5 : 6));
     if (showroom.amount < 0.01 || !me) return;
@@ -965,6 +970,7 @@ function start(carried) {
   }
   // Other players asking him about a motorcycle: turned to him, and talking with him by turns
   function tickPeerTalk(dt) {
+    if (!ZONE_CAST.showroomStaff) return;
     const s = salesman.state;
     const seen = new Set();
     if (showroom.inside) for (const q of shownPeers) {
@@ -982,6 +988,7 @@ function start(carried) {
   // In the conversation the eye stands where it sees the two of them, side on, a little behind the player (the
   // picture is moved over by the phone's width, so that neither is behind the phone). A drag looks about as usual.
   function frameTalk(dt) {
+    if (!ZONE_CAST.showroomStaff) return;
     if (!showroom.talk || !showroom.inside || showroom.amount < 0.05) return;
     const s = salesman.state;
     const mx = (predicted.x + s.x) / 2, mz = (predicted.z + s.z) / 2;
@@ -1107,9 +1114,10 @@ function start(carried) {
   let carSalesmen = [];
   townSteps.push(['the car showroom\'s staff', () => {
     carSalesmen = CARSHOW.salesmen.map((spec) => {
-      const actor = makeCharacter(CAR_STAFF_LOOKS[spec.id], spec.name, true, 1);
-      actor.group.visible = false;
-      scene.add(actor.group);
+      // (not drawn since 22 October 2026, ZONE_CAST: the owner's own models of them are to come; who sells which car,
+      // and asking about it on the phone, are as they were)
+      const actor = ZONE_CAST.showroomStaff ? makeCharacter(CAR_STAFF_LOOKS[spec.id], spec.name, true, 1) : null;
+      if (actor) { actor.group.visible = false; scene.add(actor.group); }
       // each looks after the customers on their own side of the floor, and anyone asking about one of their cars
       const mine = (c) => (c.talking ? carshowSideOf(c.talking) === spec.side : carshowSideAt(c.x) === spec.side);
       return { spec, actor, sim: createSalesman({ floor: 'carshow', home: spec.home, round: spec.round, mine }), him: { amount: 0, speaking: 0 } };
@@ -1153,7 +1161,7 @@ function start(carried) {
         rig.snap(cam);
         refreshView();
         audio.chime(way === 'in' ? 'ok' : 'tap');
-        if (way === 'in' && !carshow.welcomed) { carshow.welcomed = true; ui.toast({ type: 'note', text: `${CARSHOW.name}. Walk up to any car to ask about it: ${carSalesmen[0].spec.name} looks after the cars on your left as you come in, ${carSalesmen[1].spec.name} those on your right. The mat by the doors takes you back out.` }); }
+        if (way === 'in' && !carshow.welcomed) { carshow.welcomed = true; ui.toast({ type: 'note', text: ZONE_CAST.showroomStaff ? `${CARSHOW.name}. Walk up to any car to ask about it: ${carSalesmen[0].spec.name} looks after the cars on your left as you come in, ${carSalesmen[1].spec.name} those on your right. The mat by the doors takes you back out.` : `${CARSHOW.name}. Walk up to any car to ask about it: the conversation opens on your phone. The mat by the doors takes you back out.` }); }
       } else if (r.message) ui.toast({ type: 'note', text: r.message });
       setTimeout(() => { $('fade').classList.remove('on'); fading = false; }, 320);
     }, 360);
@@ -1164,7 +1172,7 @@ function start(carried) {
   async function askAboutCar(display) {
     const car = POWER_CARS[display.car];
     if (!car) return;
-    const who = sellerOf(display.car).spec.name;
+    const who = ZONE_CAST.showroomStaff ? sellerOf(display.car).spec.name : CARSHOW.name;
     if (!online.available) { ui.toast({ type: 'note', text: `${who} sells these through the market every player shares, and this copy of the game cannot reach it: the ${car.name} cannot be bought here.` }); return; }
     if (!online.signedIn) { accountUI.open('signup', `To buy the ${car.name} you need an account.`); return; }
     let l = carListing(display.car);
@@ -1179,7 +1187,7 @@ function start(carried) {
   function endCarTalk() { carshow.talk = null; carshow.lines = []; }
 
   function tickCarshow(dt) {
-    if (!playing || !view) { for (const s of carSalesmen) s.actor.group.visible = false; return; }
+    if (!playing || !view) { for (const s of carSalesmen) if (s.actor) s.actor.group.visible = false; return; }
     const self = view.self;
     const inHall = inCarHall(predicted.x, predicted.z);
     if (inHall !== carshow.inside) {
@@ -1198,7 +1206,8 @@ function start(carried) {
     else if (!inHall && far < e.radius - 0.2 && carshow.armed && onFoot && !ui.isOpen() && !fading && !accountUI.isOpen) { carshow.armed = false; goCarshow('in'); }
     if (inHall && onFoot && !fading && !uiBlocks() && onCarshowExit(predicted.x, predicted.z)) { if (ui.isOpen()) ui.close(); endCarTalk(); goCarshow('out'); }
     if (carshow.talk && !ui.dealOpen()) endCarTalk();
-    if (!inHall) { for (const s of carSalesmen) s.actor.group.visible = false; return; }
+    if (!inHall) { for (const s of carSalesmen) if (s.actor) s.actor.group.visible = false; return; }
+    if (!ZONE_CAST.showroomStaff) return;
 
     // the two of them: where each goes, the same on every device (salesman.js), and drawn there
     const customers = carHallCustomers();
@@ -1230,6 +1239,7 @@ function start(carried) {
   // The player's own figure while asking about a car: turned to whoever sells it, speaking with the hands when they
   // have written something, listening when they are answered.
   function tickCarTalkPose(dt, speed) {
+    if (!ZONE_CAST.showroomStaff) return;
     const want = carshow.talk && carshow.inside && speed < 0.3 && !ui.calling() ? 1 : 0;
     carshow.amount += (want - carshow.amount) * Math.min(1, dt * (want ? 2.5 : 6));
     if (carshow.amount < 0.01 || !me || !carshow.seller) return;
@@ -1244,6 +1254,7 @@ function start(carried) {
   }
   // Other players asking about a car: turned to whoever sells it, talking by turns
   function tickCarPeerTalk(dt) {
+    if (!ZONE_CAST.showroomStaff) return;
     const seen = new Set();
     if (carshow.inside) for (const q of shownPeers) {
       if (!q.carTalk || !POWER_CARS[q.carTalk.car] || !inCarHall(q.x, q.z)) continue;
@@ -1260,6 +1271,7 @@ function start(carried) {
   }
   // In the conversation the eye stands where it sees the two of them, side on, a little behind the player
   function frameCarTalk(dt) {
+    if (!ZONE_CAST.showroomStaff) return;
     if (!carshow.talk || !carshow.inside || carshow.amount < 0.05 || !carshow.seller) return;
     const s = carshow.seller.sim.state;
     const mx = (predicted.x + s.x) / 2, mz = (predicted.z + s.z) / 2;
@@ -1290,7 +1302,8 @@ function start(carried) {
       const at = inHall && stand ? { x: stand.x + Math.sin(stand.h) * (stand.r + 1.2), z: stand.z + Math.cos(stand.h) * (stand.r + 1.2) } : POWERBIKE.portal;
       setWaypoint({ x: at.x, z: at.z, label: inHall ? l.name : POWERBIKE.name });
       ui.close();
-      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ask ${POWERBIKE.salesman} about it.` : `${POWERBIKE.name} is marked, beside HOLARIS Watch. Follow the line on the map at the top left to the pink column before its doors and step into it: the ${l.name} is on the floor inside, and ${POWERBIKE.salesman} the salesman will help you.` });
+      const ask = ZONE_CAST.showroomStaff ? `ask ${POWERBIKE.salesman} about it` : 'ask about it on your phone';
+      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ${ask}.` : `${POWERBIKE.name} is marked, beside HOLARIS Watch. Follow the line on the map at the top left to the pink column before its doors and step into it: the ${l.name} is on the floor inside${ZONE_CAST.showroomStaff ? `, and ${POWERBIKE.salesman} the salesman will help you` : ''}.` });
       return;
     }
     if (l.shop === CARSHOW.shop) {
@@ -1301,7 +1314,8 @@ function start(carried) {
       const at = inHall && stand ? { x: stand.x + Math.sin(stand.h) * (stand.r + 1.2), z: stand.z + Math.cos(stand.h) * (stand.r + 1.2) } : CARSHOW.entry;
       setWaypoint({ x: at.x, z: at.z, label: inHall ? l.name : CARSHOW.name });
       ui.close();
-      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ask ${sellerOf(id).spec.name} about it.` : `${CARSHOW.name} is marked, ${CARSHOW.where}. Follow the line on the map at the top left through its gate to the showroom's glass doors and walk in: the ${l.name} is on the floor inside, and ${sellerOf(id).spec.name} will help you.` });
+      const ask = ZONE_CAST.showroomStaff ? `ask ${sellerOf(id).spec.name} about it` : 'ask about it on your phone';
+      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ${ask}.` : `${CARSHOW.name} is marked, ${CARSHOW.where}. Follow the line on the map at the top left through its gate to the showroom's glass doors and walk in: the ${l.name} is on the floor inside${ZONE_CAST.showroomStaff ? `, and ${sellerOf(id).spec.name} will help you` : ''}.` });
       return;
     }
     const shop = l.shop ? zoneShop(l.shop) : null;
@@ -2247,15 +2261,15 @@ function start(carried) {
     // in PostCivilWar PowerBike: the motorcycle on show nearest, to ask the salesman about; and the salesman himself
     if (showroom.inside) {
       const at = powerbikeDisplayNear(here.x, here.z, 1.7);
-      if (at && POWER_BIKES[at.display.bike]) options.push({ d: at.gap - 1, short: 'Ask', text: `Ask ${POWERBIKE.salesman} about the ${POWER_BIKES[at.display.bike].name}`, run: () => askAbout(at.display) });
+      if (at && POWER_BIKES[at.display.bike]) options.push({ d: at.gap - 1, short: 'Ask', text: ZONE_CAST.showroomStaff ? `Ask ${POWERBIKE.salesman} about the ${POWER_BIKES[at.display.bike].name}` : `Ask about the ${POWER_BIKES[at.display.bike].name}`, run: () => askAbout(at.display) });
       const s = salesman.state;
-      add(s.x, s.z, 2.4, { short: 'Talk', text: `Talk to ${POWERBIKE.salesman}, the salesman`, run: () => ui.toast({ type: 'note', text: `${POWERBIKE.salesman}: "Welcome to ${POWERBIKE.name}! Every bike on the floor is for sale. Walk up to the one you like and ask me about it, and I'll tell you everything."` }) });
+      if (ZONE_CAST.showroomStaff) add(s.x, s.z, 2.4, { short: 'Talk', text: `Talk to ${POWERBIKE.salesman}, the salesman`, run: () => ui.toast({ type: 'note', text: `${POWERBIKE.salesman}: "Welcome to ${POWERBIKE.name}! Every bike on the floor is for sale. Walk up to the one you like and ask me about it, and I'll tell you everything."` }) });
     }
     // in the Post Civil War Car Showroom: the car on show nearest, to ask about; and the two who sell them
     if (carshow.inside) {
       const at = carshowDisplayNear(here.x, here.z, 1.7);
-      if (at && POWER_CARS[at.display.car]) options.push({ d: at.gap - 1, short: 'Ask', text: `Ask ${sellerOf(at.display.car).spec.name} about the ${POWER_CARS[at.display.car].name}`, run: () => askAboutCar(at.display) });
-      for (const s of carSalesmen) {
+      if (at && POWER_CARS[at.display.car]) options.push({ d: at.gap - 1, short: 'Ask', text: ZONE_CAST.showroomStaff ? `Ask ${sellerOf(at.display.car).spec.name} about the ${POWER_CARS[at.display.car].name}` : `Ask about the ${POWER_CARS[at.display.car].name}`, run: () => askAboutCar(at.display) });
+      for (const s of ZONE_CAST.showroomStaff ? carSalesmen : []) {
         const other = carSalesmen.find((o) => o !== s).spec.name;
         add(s.sim.state.x, s.sim.state.z, 2.4, { short: 'Talk', text: `Talk to ${s.spec.name}`, run: () => ui.toast({ type: 'note', text: `${s.spec.name}: "Welcome to ${CARSHOW.name}! Every car on this floor is for sale. Walk up to the one you like and ask me about it. I look after this side of the hall, and ${other} the other."` }) });
       }
@@ -2908,7 +2922,7 @@ function start(carried) {
     let nz = predicted.z + dz * speed * dt;
     // nobody walks through the showroom's salesman (he is drawn on each device, not kept by the simulation): a step
     // into him keeps only its part past him
-    for (const s of showroom.inside ? [salesman.state] : carshow.inside ? carSalesmen.map((c) => c.sim.state) : []) {
+    for (const s of !ZONE_CAST.showroomStaff ? [] : showroom.inside ? [salesman.state] : carshow.inside ? carSalesmen.map((c) => c.sim.state) : []) {
       const before = Math.hypot(predicted.x - s.x, predicted.z - s.z), after = Math.hypot(nx - s.x, nz - s.z);
       if (after < 0.62 && after < before && before > 1e-3) { const ox = (s.x - predicted.x) / before, oz = (s.z - predicted.z) / before, along = (nx - predicted.x) * ox + (nz - predicted.z) * oz; nx -= ox * along; nz -= oz * along; }
     }
@@ -3348,8 +3362,9 @@ function start(carried) {
       const phoneAble = !taking && !aboard && !self.fight && !me.strike && !self.swimming && !self.dead && !self.down && !self.carried;
       if (!phoneAble && ui.calling()) ui.hangUp();
       // (asking the showroom's salesman about a motorcycle, the player talks to him face to face: the phone's screen
-      // is the conversation, and the handset is not held up in the town)
-      const talking = (!!showroom.talk && showroom.inside) || (!!carshow.talk && carshow.inside);
+      // is the conversation, and the handset is not held up in the town. With nobody on the showroom's floor, ZONE_CAST,
+      // the conversation is on the phone, held up as any other)
+      const talking = ZONE_CAST.showroomStaff && ((!!showroom.talk && showroom.inside) || (!!carshow.talk && carshow.inside));
       // (the torch on, on foot: the phone stays in the hand, held out in front, when the phone's screen is put away)
       torch.held = torch.on && phoneAble && !phoneSide && !talking && !ui.calling();
       phoneHold.update(dt, me, { use: (ui.usingPhone() && !talking) || torch.held, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : torch.held && !ui.usingPhone() ? 'home' : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });

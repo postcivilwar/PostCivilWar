@@ -56,8 +56,9 @@ test('the town\'s people: sixteen policewomen, and nobody else but the named res
   // no okadas, no market stalls
   assert.equal(Z.ZONE_STALLS.length, 0);
   assert.equal(Z.ZONE_POPULATION.jobs.some(([job]) => job === 'okada'), false);
-  // and the showroom staff and the watch shop's attendant are not drawn (their places are kept)
-  assert.deepEqual(Z.ZONE_CAST, { shopAttendants: false, showroomStaff: false });
+  // and the showroom staff, the watch shop's attendant, the sellers' goods and the okada boards are not drawn (their
+  // places are kept)
+  assert.deepEqual(Z.ZONE_CAST, { shopAttendants: false, showroomStaff: false, sellers: false, okadas: false });
   assert.ok(Z.ZONE_SHOPS[0].attendant && Z.CARSHOW.salesmen.length === 2);
 });
 
@@ -121,6 +122,9 @@ test('their days: on the beat through the shift, by day or by night, every step 
       }
       // (by the game's own clock a day is 48 minutes and a long beat is mostly walked to and from)
       assert.ok(onPatrol / shift > (timeScale === 1 ? 0.95 : 0.5), `${p.name} (${beat.id}${p.night ? ', by night' : ''}) on patrol ${(100 * onPatrol / shift).toFixed(0)}% of the shift`);
+      // and what anyone asking is told she is doing, in the middle of her shift by the website's clock: on patrol,
+      // walking or standing (by the game's own clock a long beat's officer is still walking back from it then)
+      if (timeScale === 1) for (const t of [H(p.night ? 2 : 11, 3), H(p.night ? 2.37 : 11.37, 3), H(p.night ? 3.1 : 14.2, 4)]) assert.equal(pop.describe(i, t).activity, 'On patrol', `${p.name} at ${((t % 86400) / 3600).toFixed(2)}`);
       // at midnight a night officer is out, at the first stop of her round; a day officer asleep at home
       const midnight = pop.locate(i, H(0, 4), {});
       if (p.night) { assert.equal(midnight.act, 'On patrol'); assert.equal(midnight.spot, beat.spots[beat.round[0]]); } else assert.equal(midnight.pose, POSE.hidden);

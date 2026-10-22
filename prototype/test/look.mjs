@@ -1,6 +1,7 @@
 // Close-up screenshots of people, vehicles and buildings, for judging the look.
 //   node test/look.mjs <output-directory>
 import { pastQuestion, enterTown } from './start.mjs';
+import { ZONE_RESIDENTS } from '../src/sim/zones/atani.js';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -24,7 +25,8 @@ await page.waitForTimeout(1200);
 await page.evaluate(() => { const n = window.__nlw; const g = n.host.game; n.skip(2.6); g.state.weather = { kind: 'clear', until: g.state.t + 9 * 3600 }; document.getElementById('toasts').style.display = 'none'; });
 
 // Portraits: the camera stands in front of a resident, with the player just behind it so the resident turns to look.
-const portraits = ['lands', 'clerk', 'sergeant', 'corporal', 'nurse', 'instructor', 'yardowner', 'trader', 'cook', 'mason', 'moulder', 'fisher', 'clothseller', 'produce', 'rider', 'surveyor'];
+// (the town's named people as they are now: since 22 October 2026 the people at the counters and the mason)
+const portraits = ZONE_RESIDENTS.map((r) => r.id);
 for (const id of portraits) {
   if (only && !only.some((k) => `face-${id}`.includes(k))) continue;
   const seen = await page.evaluate(([rid, full]) => {
@@ -40,6 +42,36 @@ for (const id of portraits) {
   if (!seen) { console.log(`${id}: indoors`); continue; }
   await page.waitForTimeout(1500);
   await page.screenshot({ path: resolve(out, `face-${id}.png`) });
+}
+
+// The police: each of the sixteen policewomen on her beat, from in front (looked for among the town's people near and
+// far, as the player is put beside each in turn)
+if (!only || only.some((k) => 'police'.includes(k) || k.startsWith('police'))) {
+  for (let k = 0; k < 16; k += 1) {
+    if (only && !only.some((o) => `police-${k + 1}`.includes(o) || o === 'police')) continue;
+    const at = await page.evaluate((kk) => {
+      const n = window.__nlw, g = n.host.game, pop = g.internals.population;
+      const i = pop.people.findIndex((q) => q.post && q.post.officer === kk);
+      if (i < 0) return null;
+      const here = pop.locate(i, g.state.t, {});
+      return here ? { x: here.x, z: here.z, i } : null;
+    }, k);
+    if (!at) { console.log(`police ${k + 1}: not found`); continue; }
+    await page.evaluate((a) => { const n = window.__nlw; n.place(a.x + 2.4, a.z + 2.4); }, at);
+    await page.waitForTimeout(2500);
+    const seen = await page.evaluate((a) => {
+      const n = window.__nlw;
+      const row = (n.view.people || []).find((r) => r[0] === a.i);
+      if (!row) return false;
+      const [, x, z, h] = row;
+      n.cam.free = { x, y: 1.0, z };
+      n.cam.yaw = h + Math.PI; n.cam.dist = 3.3; n.cam.pitch = 0.1; n.cam.lastDrag = 1e9;
+      return true;
+    }, at);
+    if (!seen) { console.log(`police ${k + 1}: not in view`); continue; }
+    await page.waitForTimeout(1800);
+    await page.screenshot({ path: resolve(out, `police-${k + 1}.png`) });
+  }
 }
 
 // Scenes: a point to look at, and where to look from.
