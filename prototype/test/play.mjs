@@ -590,7 +590,24 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   if (await nlw(page, () => window.__nlw.ui.isOpen())) bad('a panel opened by itself');
 
   // 2. talking to one of the town's people (a police officer on her beat): a bubble, not a panel
-  const person = await nlw(page, () => { const n = window.__nlw; const a = [...n.crowd.actors()].filter((c) => c.pose !== 3 && c.pose !== 1 && n.known.has(c.i)).sort((p, q) => p.d - q.d)[0]; if (!a) return null; const row = n.view.people.find((r) => r[0] === a.i); n.place(row[1] + 1.3, row[2] + 0.6); return { i: a.i, name: n.known.get(a.i).short }; });
+  // (an officer standing at one of her beat's stops, and still standing there a few seconds on: the player is put in
+  // front of her)
+  const person = await nlw(page, () => {
+    const n = window.__nlw, g = n.host.game, pop = g.internals.population, o = {};
+    let best = null;
+    for (let i = 0; i < pop.count; i += 1) {
+      pop.locate(i, g.state.t, o);
+      if (o.pose !== 0 || o.moving) continue;
+      const later = {}; pop.planned(i, g.state.t + 150, later);
+      if (later.pose !== 0 || later.moving || Math.hypot(later.x - o.x, later.z - o.z) > 0.3) continue;
+      const d = Math.hypot(o.x - n.view.self.x, o.z - n.view.self.z);
+      if (!best || d < best.d) best = { i, x: o.x, z: o.z, h: o.h, d };
+    }
+    if (!best) return null;
+    n.place(best.x + Math.sin(best.h) * 1.3, best.z + Math.cos(best.h) * 1.3);
+    n.face(best.h + Math.PI);
+    return { i: best.i, name: pop.people[best.i].short };
+  });
   if (!person) bad('nobody is standing near enough to talk to');
   else {
     await page.waitForTimeout(1500);
