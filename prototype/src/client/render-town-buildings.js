@@ -91,6 +91,11 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
   // again within twenty seconds. And while the habitation is drawn (`setThin`), a house model is let go as soon as none
   // of its houses is drawn from it.
   const THIN_SIZE = Math.min(512, most), THIN_FAR = 100, THIN_NEAR = 70, HOUSE_THIN_FAR = 50, HOUSE_THIN_NEAR = 35;
+  // (and while the habitation is drawn, the room being its, a house model is at 512 unless one of its houses is within
+  // 15 m (22 m to go back to 512): 22 October 2026, the town's east end had come to 150.9 MB with four house models near
+  // it at 1024. From 20 m a phone's screen gives a house at most about 22 pixels to each metre, as many as the houses'
+  // best pictures at 512 have; their least, 12, from 37 m)
+  const HOUSE_HAB_FAR = 22, HOUSE_HAB_NEAR = 15;
   const thinModels = lite;
   const letGoTowers = lite ? TOWER_LET_GO.lite : TOWER_LET_GO.full;
   let thin = false, swapping = null;
@@ -99,7 +104,7 @@ export function createTownBuildings(scene, { lite = false, maxTexture = 2048, en
     const list = r.houses.length ? r.houses : r.towers;
     if (!list.length) return most;
     const d = Math.min(...list.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius));
-    const [near, far] = r.houses.length ? [HOUSE_THIN_NEAR, HOUSE_THIN_FAR] : [THIN_NEAR, THIN_FAR];
+    const [near, far] = r.houses.length ? (thin ? [HOUSE_HAB_NEAR, HOUSE_HAB_FAR] : [HOUSE_THIN_NEAR, HOUSE_THIN_FAR]) : [THIN_NEAR, THIN_FAR];
     if (d > far) return THIN_SIZE;
     if (d < near) return most;
     return r.size || most;

@@ -37996,6 +37996,7 @@ function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = nul
     while (queue.length && busy() < atOnce) load(queue.shift());
   }
   const THIN_SIZE = Math.min(512, most), THIN_FAR = 100, THIN_NEAR = 70, HOUSE_THIN_FAR = 50, HOUSE_THIN_NEAR = 35;
+  const HOUSE_HAB_FAR = 22, HOUSE_HAB_NEAR = 15;
   const thinModels = lite;
   const letGoTowers = lite ? TOWER_LET_GO.lite : TOWER_LET_GO.full;
   let thin = false, swapping = null;
@@ -38004,7 +38005,7 @@ function createTownBuildings(scene, { lite = false, maxTexture = 2048, env = nul
     const list = r.houses.length ? r.houses : r.towers;
     if (!list.length) return most;
     const d = Math.min(...list.map((e) => Math.hypot(e.x - x, e.z - z) - e.radius));
-    const [near, far] = r.houses.length ? [HOUSE_THIN_NEAR, HOUSE_THIN_FAR] : [THIN_NEAR, THIN_FAR];
+    const [near, far] = r.houses.length ? (thin ? [HOUSE_HAB_NEAR, HOUSE_HAB_FAR] : [HOUSE_THIN_NEAR, HOUSE_THIN_FAR]) : [THIN_NEAR, THIN_FAR];
     if (d > far) return THIN_SIZE;
     if (d < near) return most;
     return r.size || most;
