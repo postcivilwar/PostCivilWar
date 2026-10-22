@@ -2590,10 +2590,111 @@ Files: `zones/habitation.js`, `zones/habitation-scene.js` (written again by `too
 `radar.js`, `town-map.js`; tools `place.mjs`, `lab.mjs`, `roots.py`; tests `habitation.test.mjs` (15), `habitation.mjs`,
 `town-buildings.mjs`.
 
+## The habitation's ground, decks and water as they are walked; a jump, and stairs climbed (22 October 2026)
+
+The owner's brief of 22 October, from four screen recordings made on his phone: a walker drawn sunk into a sandy bank
+to the knees and once to the head, the camera under the ground; walked out through the side of a bridge by its end;
+standing half inside a wooden bridge's posts and rails; the big waterfall's wooden stairs going into the ground at the
+cliff's top, the walker going through the ground and coming out under it; the river waded into and then not gone on
+in, with nothing said why. And: a jump, and the figures' own animations for jumping and for going up stairs, added
+where a figure has none.
+
+- **The ground a walker stands on is the ground drawn.** The habitation's ground is now one set of triangles, 2.5 m
+  across (`HABITATION_GROUND`, `habitationGroundAt`, `zones/habitation.js`): the simulation puts every walker on it
+  (`habitationGroundY`), and the page draws exactly it, on a phone too (`groundData`, `groundPieces`,
+  `render-habitation.js`). Before this a phone drew the ground from points 5 m apart while the walker stood on the
+  simulation's finer ground; at the foot of a steep bank the two were up to a walker's height apart. A phone draws every
+  other point (5 m) only while the habitation is more than 60 m off (from the town's east end, say), and every point
+  from 60 m in (`NEAR_GROUND`). Each point is 20 bytes on the graphics card (where it is; which way it faces; its colour
+  in sRGB with how rocky and whether paved in a fourth byte) in pieces of under 65,536 points: the whole ground at 2.5 m
+  is 3.1 MB (it was 6.5 MB on a computer; a phone's 5 m ground was 1.35 MB, its coarser one now 0.8 MB). What stands
+  on the ground stands on this ground: the owner's models, the signs, the decks' posts, the grass, footprints, the
+  birds on the ground; the camera's eye is kept above it.
+- **In the water.** Wherever the water can be waded (up to 0.55 m) it is never more than half solid, so a walker's legs
+  are seen in it, faintly; deeper, as before.
+- **Bridges and boardwalks are walked between their rails, and entered only at their ends.** On a deck with rails one
+  keeps half a metre in from its edges, and beside it half a metre out (`HABITATION_RAILS`, `habitationRailsAt`). Its
+  posts (461 of them, every 2.4 m along both edges, where they are drawn: `HABITATION_DECK_POSTS`) stand within that
+  reach, so nobody walks into one, and those at its ends, which one passes going on or off, are solid as well. A step
+  onto or off a deck with rails is taken only past its end, where its way goes on (`habitationStep`). A step into its
+  rails is turned along the deck instead, so a bending boardwalk is walked without stopping at every bend; and a walker
+  coming at its end from beside it is turned round in front of its end's posts to its way in, not stopped at them
+  (`habitationAlongDeck`). Where the swamp's boardwalk crosses itself, on its round platform, and on the inside of the
+  stairs' sharp turns, no posts or rails stand on the way. Three ways were met at a deck's end by a post: the gorge path
+  now ends in front of the gorge bridge's end, the path up the hill leaves the gate's bridge straight before it turns,
+  and the sunset beach's jetty begins at the beach's edge, clear of the path along it.
+- **Out past a deck's end one stands on the ground in front of it.** The boards had gone on, unseen, half the deck's
+  width past each end (`habitationDeckAt`), and a walker there stood on nothing: up to a metre above the sand in front
+  of the island's boardwalk, 2.3 m above the ground at the suspension bridge's south end. Now the boards end where they
+  are drawn. The boardwalks and the jetty laid well above what is under them (the swamp's, the mangroves', the
+  island's, the sunset jetty) come down, over their last 4 m, to 6 cm above the ground or the water at an end one walks
+  on from (`OVER_RAMP`), their boards level across as they are drawn, above the highest ground under them; along the
+  rest they stand as high as before. In front of every end the ground drawn is within a step of its boards: at the
+  suspension bridge's south end a triangle of the ground there had a corner deep in the gorge beside it, and dipped
+  2.3 m; the low corners of such triangles are raised to just below the boards over them, a shelf of rock the end rests
+  on (`endFill`).
+- **Where the ground is too steep to stand on is judged on the ground as drawn** (`habitationSteep`): a bank in the
+  finer ground the land is worked out on, under a gentle slope of the ground drawn, had stopped walkers unseen (beside
+  the outflow bridge's north end), and slopes drawn steep had been walked up.
+- **The big waterfall's stairs go down in a cutting.** For their first 17.5 m they ran inside the cliff's top, up to
+  8.8 m under it. The land is now cut down under every deck with heights of its own (`shaped`, `CUT_*`): a floor below
+  its boards from its middle to 2.6 m past its edges (the ground drawn is then under its boards everywhere on it), rock
+  walls from there up to the land, and in front of each end the land no higher than its boards. The stairs go down
+  from the cliff's top in a cutting open to the sky and on down its face to the pool; beside them, their cutting's
+  floor is not walked. Every deck's boards are now at least 4 cm above the ground drawn under them, all along and
+  right across (the gate's bridge had ended a quarter of a metre under the land: its east end is raised to it).
+- **Signs: swimming in the swamps is not advisable.** Eleven big boards (5 by 2.4 m, white on red: "SWIMMING IN THE
+  SWAMPS / IS NOT ADVISABLE / The water is deep beyond the shallows") where one wades in and the water soon gets too
+  deep: the lagoon's west beach (two), its island, the sunset beach (two), its east shore, the waterfall pool's south
+  shore where the path comes to it, the swamp (two) and both banks of the Niger (`HABITATION_SWIM_SIGNS`); each on
+  dry ground 2 to 6 m up from the shallows, facing whoever comes down to the water, nothing standing in front of it,
+  its posts in a walker's way. And a
+  walker stopped by deep water is told: "The water is too deep to wade on here. Swimming in the swamps is not
+  advisable." (at most every 30 seconds).
+- **A jump.** Space on a keyboard, and a Jump button on a phone, on foot. The figure's own "jump down" where its file has
+  one (the woman's, the ninja warrior's), otherwise one of theirs carried onto its own bones (`~leap`: a woman from the
+  woman, a man from the ninja warrior; 28 figures, `tools/characters/borrow.mjs`), played from its crouch to standing
+  again (`JUMP`, `animated.js`), its hips' own travel in the file left out; the feet kept on the ground through the
+  crouch and the landing, and between them the body lifted in an arc, 0.45 m at its top for a figure 1.75 m tall, about
+  1.4 s from the press to standing. Only a movement of the body: nothing is jumped onto or over. The simulation keeps it
+  (`jump`, `sim.js`: not from a vehicle or in the water, not again within 1.4 s) and the other players near see it: it
+  travels to their own games with how far into it the jumper is (`link.js`), and each keeps it from the first word of
+  it, shown from its beginning (`talk.js`).
+- **Going up stairs.** On the habitation's stairs, going up, the figure climbs with its own "run upstairs" where its file
+  has one (seven do), otherwise one carried onto its own bones (`~stairs`, 23 figures), at the pace it goes
+  (`habitationClimbing`).
+- **A phone's memory at the town's east end.** With the swimming signs' picture (0.7 MB) a phone there came to 150.9 MB,
+  over its budget of 150 (it had been 150.2, four house models near it drawn from their 1024 pictures). Now, while the
+  habitation is drawn, a house model on a phone is drawn from its 512 pictures unless one of its houses is within 15 m
+  (22 m to go back to 512): from 20 m a phone's screen gives a house at most about 22 pixels to each metre, as many as
+  the houses' best pictures at 512 have (`HOUSE_HAB_NEAR`, `render-town-buildings.js`).
+
+Measured on the build that went live (in a browser without a graphics card, so times are this machine's, not a
+phone's): on the lagoon's sandy bank the walker stands exactly on the ground drawn and its lowest foot is 1.8 to 2.4 cm
+above it, on a phone's settings and a computer's, and the camera never under it; the ground drawn and the
+simulation's agree at every point looked at. The big waterfall's stairs walked down from the cliff's top (21.2 m) to
+the pool's beach on their boards, the camera never under the ground, and back up with the figure's own "run upstairs"
+(12 of 13 looks during the climb); the gorge bridge gone onto from 2 m to the side of its end; on a bridge walked at
+its side, the walker stopped 0.7 m from its middle (its half-width 1.2 m), its nearest post 0.56 m off; walked at it
+from beside, stopped 1.71 m from its middle. Wading out from the lagoon's beach, stopped where it is 0.55 m deep and
+told so. A jump: the crouch, then off the ground (0.32 to 0.4 m up when looked at), the landing crouch, standing again
+about 1.4 s after the press; the other player, on a phone, saw it (7 of 14 looks during it, 0.44 m up). Every deck's
+boards at least 4.2 cm above the ground drawn; in front of every end the ground within half a metre of its boards.
+What it costs to draw (`habitation.mjs`): a computer at most 341 draw calls, 1.56 million triangles and 626 MB, a
+phone at most 231, 730,000 and 126 MB. A phone's graphics card (`phonemem`): the town 119 MB, its east end 134.9 (it
+came to 150.9 with the new signs; 150.2 before them), by the sign 123, the gate 114, the habitation 109 to 118, the
+market 96, the west of the town 117.
+
+Files: `zones/habitation.js` (the ground drawn, the cuttings, the rails and posts, the signs, the climb), `zones/atani.js`,
+`sim.js` (`jump`), `talk.js` and `net/link.js` (another player's jump), `render-habitation.js` (the ground's pieces, the water, the posts and rails, the signs),
+`render-habitation-life.js`, `animated.js` (the jump, the stairs), `figure-borrowed.js` (from `borrow.mjs`),
+`render-crowd.js`, `render-town-buildings.js` (a phone's house pictures by the habitation), `main.js` (the Jump button, the slide along a deck, the word about deep water, the camera),
+`icons.js`; tests `habitation.test.mjs` (25, ten of them new), `figures.test.mjs`, `habitation.mjs` (L).
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 391 headless tests
+node --test test/*.test.mjs                        # 401 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
@@ -2606,7 +2707,7 @@ node test/play.mjs out/ town                       # one session: opening, deskt
 node test/touch.mjs                                # real touch input: Run, the stick, Block, every change of buttons
 node test/hold.mjs                                 # the handset in the hand, measured on both figures
 node test/sound.mjs                                # how loud each group of sounds is
-../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players: the first sign and the gate past it, the bridge stop, walking freely (off the paths, across the bridges, stopped at a big tree's roots), the models, fish, birds seen flying over and heard, sounds, the boiling river (its steam, its sound, its signs, stopped at its edge, no Swim), night, the torch, each picture's view, what it costs on a computer and on a phone
+../server/with-postgres.sh node test/habitation.mjs out/   # the habitation, two players: the first sign and the gate past it, the bridge stop, walking freely (off the paths, across the bridges, stopped at a big tree's roots), the models, fish, birds seen flying over and heard, sounds, the boiling river (its steam, its sound, its signs, stopped at its edge, no Swim), night, the torch, each picture's view, what it costs on a computer and on a phone; feet on a phone's sandy bank, legs seen in the shallows, deep water stopped at and told, a bridge's rail, the waterfall's stairs walked down and climbed, a jump seen by the other player
 node test/figures.mjs out/                         # every supplied figure: chosen in its list, standing, walking, running, struck, knocked down, the phone
 ../server/with-postgres.sh node test/showroom.mjs out/   # PostCivilWar PowerBike: the tower and its signs, the one column, in and out, the bikes, the salesman, asking and buying, a phone's screen, a second player
 ../server/with-postgres.sh node test/seats.mjs out/      # at the wheel and on the bars: bought with arrival money, the driver seen with both hands on the rim, turning it; the phone in the right hand at the wheel and the left on a motorcycle, the vehicle still driven; the graphics lost and nothing reloaded
