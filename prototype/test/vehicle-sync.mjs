@@ -35,6 +35,15 @@ async function player(label, size) {
   const context = await browser.newContext({ viewport: size, deviceScaleFactor: 1, serviceWorkers: 'block' });
   await watchPictures(context);
   const page = await context.newPage(); page.setDefaultTimeout(240000);
+  // (each word this page has had through to the website about where it is, or not: told when a check fails)
+  // (and what else it fetched that took more than two seconds, with when it began and how long it took)
+  const told = [], slow = [], began = new Map();
+  const isPresence = (rq) => /"op":"presence"/.test(rq.postData() || '');
+  const clockOf = () => new Date().toISOString().slice(11, 19);
+  page.on('request', (rq) => { began.set(rq, { t: clockOf(), at: Date.now() }); });
+  const ended = (rq, how) => { const b = began.get(rq); began.delete(rq); if (!b || isPresence(rq)) return; const s = (Date.now() - b.at) / 1000; if (s > 2) { slow.push({ began: b.t, s: +s.toFixed(1), url: rq.url().replace(/^https?:\/\/[^/]+/, '').slice(0, 60), ...how }); if (slow.length > 40) slow.shift(); } };
+  page.on('requestfinished', async (rq) => { ended(rq, {}); if (!isPresence(rq)) return; const rs = await rq.response().catch(() => null); told.push({ t: clockOf(), status: rs ? rs.status() : null }); });
+  page.on('requestfailed', (rq) => { ended(rq, { failed: rq.failure() && rq.failure().errorText }); if (isPresence(rq)) told.push({ t: clockOf(), failed: rq.failure() && rq.failure().errorText }); });
   page.on('pageerror', (e) => check(`no error in ${label}'s page`, false, `${e.message} ${(e.stack || '').split('\n').slice(0, 4).join(' | ')}`));
   page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) check(`no error in ${label}'s console`, false, m.text()); });
   await page.goto(`${origin}/#nointro-gameclock`, { timeout: 300000 });
@@ -56,7 +65,7 @@ async function player(label, size) {
   const cdp = await context.newCDPSession(page);
   await cdp.send('Network.enable');
   await cdp.send('Network.emulateNetworkConditions', { offline: false, latency: LATENCY, downloadThroughput: 1.5e6 / 8, uploadThroughput: 750e3 / 8 });
-  return { context, page, username, shot: (name) => page.screenshot({ path: resolve(out, `${name}.png`) }) };
+  return { context, page, username, told, slow, shot: (name) => page.screenshot({ path: resolve(out, `${name}.png`) }) };
 }
 
 const A = await player('Driver', { width: 560, height: 360 });
@@ -118,14 +127,31 @@ await A.page.keyboard.up('w');
 // simulated network; here: that the watcher's keke goes where it goes, without jumping, and ends where it stops)
 const travelled = samples.length > 1 ? Math.hypot(samples[samples.length - 1].shown.x - samples[0].shown.x, samples[samples.length - 1].shown.z - samples[0].shown.z) : 0;
 await A.page.waitForTimeout(7000);
-const [endTruth, endShown] = await Promise.all([
-  A.page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z })),
-  B.page.evaluate((name) => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name); const e = q && n.peerKekes.get(`d:${q.id}`); return e ? { x: e.actor.group.position.x, z: e.actor.group.position.z } : null; }, A.username),
-]);
-const endErr = endShown ? Math.hypot(endTruth.x - endShown.x, endTruth.z - endShown.z) : null;
-// (what happened on the way, from the driver's own game: anyone struck, and the driver's standing with the police)
-const onTheWay = await A.page.evaluate(() => { const g = window.__nlw.host.game, s = window.__nlw.view.self; return { driving: !!s.driving, law: s.law && s.law.state, struck: (g.state.impact && g.state.impact.events || []).slice(-3).map((e) => ({ kind: e.kind, on: e.on, speed: e.speed, x: e.x, z: e.z })) }; });
-check('the watcher\'s keke follows the driver\'s along the road, never jumping, and stops where it really stopped', travelled > 8 && biggestStep <= 0 && endErr !== null && endErr < 2.5, { travelled: +travelled.toFixed(1), biggestStep: +biggestStep.toFixed(2), endErr: endErr && +endErr.toFixed(2), ...(endErr === null ? { onTheWay } : {}) });
+// Where the watcher shows it once the driver's game has had its word through. Here the website is served over HTTP/1.1
+// through a link slowed to a phone's, six requests to a host at a time: figures or models being fetched can hold all
+// six for longer than the server keeps a silent player in sight (14 s), and the watcher then has nobody to show until
+// the driver's next word comes through. The live site is served over HTTP/2, everything on one connection, a small
+// request never queued behind a big one. So the watcher is given up to 30 s more for that word: the check is that the
+// keke ends where it stopped, not how soon this machine says so. (What came through, and what was slow, is told.)
+let endTruth = null, endShown = null, endErr = null, waitedForWord = 0;
+for (;;) {
+  [endTruth, endShown] = await Promise.all([
+    A.page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z })),
+    B.page.evaluate((name) => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name); const e = q && n.peerKekes.get(`d:${q.id}`); return e ? { x: e.actor.group.position.x, z: e.actor.group.position.z } : null; }, A.username),
+  ]);
+  endErr = endShown ? Math.hypot(endTruth.x - endShown.x, endTruth.z - endShown.z) : null;
+  if ((endErr !== null && endErr < 2.5) || waitedForWord >= 30) break;
+  await A.page.waitForTimeout(1000); waitedForWord += 1;
+}
+// (what happened on the way, from the driver's own game: anyone struck, the driver's standing with the police, and
+// each word each page had through to the website, or not)
+const onTheWay = async () => ({
+  ...(await A.page.evaluate(() => { const g = window.__nlw.host.game, s = window.__nlw.view.self; return { driving: !!s.driving, law: s.law && s.law.state, struck: (g.state.impact && g.state.impact.events || []).slice(-3).map((e) => ({ kind: e.kind, on: e.on, speed: e.speed, x: e.x, z: e.z })), link: window.__nlw.link }; })),
+  watcherLink: await B.page.evaluate(() => window.__nlw.link), driverTold: A.told.slice(-12), watcherTold: B.told.slice(-6), driverSlow: A.slow.slice(-12),
+});
+const endOk = endErr !== null && endErr < 2.5;
+check('the watcher\'s keke follows the driver\'s along the road, never jumping, and stops where it really stopped', travelled > 8 && biggestStep <= 0 && endOk, { travelled: +travelled.toFixed(1), biggestStep: +biggestStep.toFixed(2), endErr: endErr && +endErr.toFixed(2), ...(waitedForWord ? { waitedForWord } : {}), ...(endOk ? {} : { onTheWay: await onTheWay() }) });
+if (endOk && waitedForWord) console.log('     (the driver\'s word was late:', JSON.stringify({ waitedForWord, driverTold: A.told.slice(-8), driverSlow: A.slow.slice(-8) }), ')');
 await B.page.evaluate((name) => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name); if (q) { n.cam.yaw = Math.atan2(q.x - n.view.self.x, q.z - n.view.self.z) + Math.PI; n.cam.dist = 7; } }, A.username);
 await B.page.waitForTimeout(600);
 await B.shot('02-watcher-sees-it-driven');
