@@ -71,7 +71,9 @@ v = await speed(); check('WALK -> RUN: running pace', v > 4.6 && v < 6.2, v.toFi
 // RUN -> WALK
 await touch('touchStart', [full, { ...run, id: 2 }]); await page.waitForTimeout(60); await touch('touchEnd', [{ ...run, id: 2 }]); await page.waitForTimeout(300);
 s = await st(); v = await speed(); check('RUN -> WALK: second tap goes back to a walk', s.run === false && v > 1.8 && v < 3.0, { ...s, v: v.toFixed(2) });
-// half stick walks slower, never runs
+// half stick walks slower, never runs (measured back at the start: by now the walk and the run have taken the player
+// some 35 m on, into the market, where the police walk their beat and one may be in the way)
+await page.evaluate(() => { window.__nlw.place(0, 60); });
 await touch('touchMove', [half]); await page.waitForTimeout(400); v = await speed(2); check('half stick: slow walk', v > 0.8 && v < 1.7, v.toFixed(2));
 // RUN -> STOP: let go of the stick
 await touch('touchStart', [half, { ...run, id: 2 }]); await page.waitForTimeout(60); await touch('touchEnd', [{ ...run, id: 2 }]); await touch('touchMove', [full]); await page.waitForTimeout(600);
