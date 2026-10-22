@@ -276,9 +276,13 @@ vec3 pdCamo(vec3 p) {
   vec3 bodyCloth = mix(gear, trousers, olive * smoothstep(0.17, 0.22, mx));
   /* on the shirt's part: its own cloth is grey or cool; olive there is the armour's, and a warm brown the hair's */
   float hairLike = clamp(step(hue, 38.0) + step(338.0, hue), 0.0, 1.0) * smoothstep(0.06, 0.1, sat);
+  /* on the legs everything but the darkest gear (the holster, the straps) is the trousers' own cloth, its seams,
+     stitching and wear too: in the trousers' colour, lighter or darker with the cloth's own light, not left light on
+     dark cloth */
+  float legCloth = max(olive * smoothstep(0.08, 0.12, mx), smoothstep(0.1, 0.17, mx));
   vec3 cloth = body * bodyCloth
     + shirt * mix(mix(sleeve, bodyCloth, olive), c, hairLike)
-    + legs * mix(gear, trousers, olive * smoothstep(0.08, 0.12, mx))
+    + legs * mix(gear, trousers, legCloth)
     + feet * mix(gear * 0.85, trousers, olive * smoothstep(0.08, 0.12, mx))
     + head * c;
   vec3 skin = uTone * clamp(l / uSkinRef, 0.2, 2.4);
