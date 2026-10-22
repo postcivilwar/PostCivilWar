@@ -261,12 +261,12 @@ vec3 pdCamo(vec3 p) {
   hue *= 60.0;
   float head = vZone.x, shirt = vZone.y, legs = vZone.z, feet = vZone.w;
   float body = max(0.0, 1.0 - head - shirt - legs - feet);
-  // the letters across the armour, kept as they are
+  /* the letters across the armour, kept as they are */
   float yellow = step(38.0, hue) * step(hue, 72.0) * smoothstep(0.5, 0.6, sat) * smoothstep(0.4, 0.5, mx);
-  // skin: a warm brown, saturated; on the head the hair is a warm brown too, but darker and duller
+  /* skin: a warm brown, saturated; on the head the hair is a warm brown too, but darker and duller */
   float warm = clamp(step(hue, 38.0) + step(338.0, hue), 0.0, 1.0) * smoothstep(0.22, 0.32, sat);
   pdSkin = warm * mix(smoothstep(0.02, 0.05, mx), smoothstep(0.1, 0.15, mx) * (1.0 - smoothstep(0.88, 0.96, mx)), head) * (1.0 - feet) * (1.0 - yellow);
-  // the trousers' olive (on the body itself only where it is light enough: the armour has darker olive straps)
+  /* the trousers' olive (on the body itself only where it is light enough: the armour has darker olive straps) */
   float olive = step(38.0, hue) * step(hue, 130.0) * smoothstep(0.05, 0.08, sat) * (1.0 - yellow);
   float l = dot(c, vec3(0.2126, 0.7152, 0.0722));
   vec3 camo = pdCamo(vBind);
@@ -274,7 +274,7 @@ vec3 pdCamo(vec3 p) {
   vec3 trousers = mix(uTrousers, camo, uCamo) * clamp(l / uTrousersRef, 0.3, 1.5);
   vec3 gear = c * 0.8;
   vec3 bodyCloth = mix(gear, trousers, olive * smoothstep(0.17, 0.22, mx));
-  // on the shirt's part: its own cloth is grey or cool; olive there is the armour's, and a warm brown the hair's
+  /* on the shirt's part: its own cloth is grey or cool; olive there is the armour's, and a warm brown the hair's */
   float hairLike = clamp(step(hue, 38.0) + step(338.0, hue), 0.0, 1.0) * smoothstep(0.06, 0.1, sat);
   vec3 cloth = body * bodyCloth
     + shirt * mix(mix(sleeve, bodyCloth, olive), c, hairLike)

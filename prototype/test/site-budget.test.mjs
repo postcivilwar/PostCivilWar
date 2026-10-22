@@ -139,6 +139,14 @@ test('the page is small, and the opening is at its very start', { skip: !there }
   assert.ok(firstScript > rest && /<script defer src=/.test(page.slice(firstScript, firstScript + 20)), 'a script is fetched before the opening');
 });
 
+// (22 October 2026: one line beginning // inside a shader's text kept every note in, 610 KB more of script to fetch and
+// read before PLAY; the opening test found it, PLAY on a first visit 8.3 s against 7.1)
+test('the game\'s script is sent without its notes: no piece of text in it holds a line beginning //, which would keep them all in', { skip: !there }, () => {
+  const game = fileOf('game.js').toString('utf8');
+  const notes = game.split('\n').filter((line) => /^\s*\/\//.test(line)).length;
+  assert.equal(notes, 0, `game.js holds ${notes} lines of notes (build.mjs leaves them all in when a piece of text holds a line beginning //)`);
+});
+
 test('what the website holds, in all', { skip: !there }, () => {
   const sizes = all(served).map((file) => readFileSync(file).length);
   const total = sizes.reduce((n, b) => n + b, 0);
