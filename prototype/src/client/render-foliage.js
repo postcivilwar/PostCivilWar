@@ -33,7 +33,7 @@ function sheet(w, h, draw) {
   g.clearRect(0, 0, w, h);
   draw(g, w, h);
   const t = new THREE.CanvasTexture(c);
-  t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
 // (each picture kept inside its own part of the sheet, a few pixels in from its edge)

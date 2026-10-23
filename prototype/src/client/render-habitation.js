@@ -20,6 +20,7 @@ import { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture,
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { reflects } from './render-finish.js';
+import { LIGHT } from './light.js';
 import { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture } from './habitation-plants.js';
 
 // (metres from its ground, habitationAway: built when a player comes within COME of it, let go beyond GO. Since 21
@@ -83,7 +84,7 @@ function stoneTexture(size = 256) {
     }
   }
   const t = new THREE.CanvasTexture(c);
-  t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
   return t;
 }
 // A rock pillar out in the lagoon: a tall broken column of pale limestone, narrower at its foot where the water has
@@ -301,18 +302,18 @@ function groundMaterial({ grain, stone, lite }) {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 tint;\nvarying vec3 vTint;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTint = mix(tint.rgb / 12.92, pow((tint.rgb + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), tint.rgb));\nfloat packed = floor(tint.a * 255.0 + 0.5);\nvPaved = step(127.5, packed);\nvRocky = (packed - 128.0 * vPaved) / 127.0;\nvWorld = (modelMatrix * vec4(position, 1.0)).xyz;\nvWorldNormal = normal;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (modelMatrix * vec4(position, 1.0)).xz / 2.6;\n#endif');
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv = (modelMatrix * vec4(position, 1.0)).xz / 2.6;\n#endif');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform sampler2D uStone;\nvarying vec3 vTint;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;\nfloat paveHash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }')
       .replace('#include <color_fragment>', 'diffuseColor.rgb *= vTint;')
       .replace('#include <map_fragment>', `
       #ifdef USE_MAP
-        vec4 texelColor = mapTexelToLinear(texture2D(map, vUv));
+        vec4 texelColor = texture2D(map, vMapUv);    /* (sRGB pictures are read as linear light by the graphics card) */
         ${lite ? '' : `
         if (vRocky > 0.01) {
           vec3 w = pow(abs(normalize(vWorldNormal)), vec3(4.0)); w /= (w.x + w.y + w.z);
           vec4 s = texture2D(uStone, vWorld.zy / 4.0) * w.x + texture2D(uStone, vWorld.xz / 4.0) * w.y + texture2D(uStone, vWorld.xy / 4.0) * w.z;
-          texelColor = mix(texelColor, mapTexelToLinear(s) * 1.25, vRocky);
+          texelColor = mix(texelColor, s * 1.25, vRocky);
         }`}
         diffuseColor *= texelColor;
         /* paving: flat stones laid in rows, each its own shade, the joints between them dark */
@@ -414,7 +415,7 @@ function waterMaterial(kind, { ripples, lite }) {
         vec3 n1 = texture2D(normalMap, vWorldPos.xz / 9.0 + drift).xyz * 2.0 - 1.0;
         vec3 n2 = texture2D(normalMap, vWorldPos.zx / 4.3 - drift * 1.7 + vec2(0.37, 0.11)).xyz * 2.0 - 1.0;
         vec3 mapN = normalize(vec3((n1.xy + n2.xy) * normalScale * (0.6 + vRush), 1.0));
-        normal = perturbNormal2Arb(-vViewPosition, normal, mapN, faceDirection);
+        normal = normalize(tbn * mapN);
       }
       #endif`);
   };
@@ -435,7 +436,7 @@ function lilyTexture() {
   // its veins, from the middle out
   g.strokeStyle = 'rgba(30,55,16,0.45)'; g.lineWidth = 1.2;
   for (let a = 0.4; a < Math.PI * 2 - 0.3; a += 0.42) { g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * 58, 64 + Math.sin(a) * 58); g.stroke(); }
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 function buildLilies(lite) {
@@ -636,7 +637,7 @@ function hotWaterMaterial(ripples, lite) {
         vec3 n1 = texture2D(normalMap, vWorldPos.xz / 5.0 + drift).xyz * 2.0 - 1.0;
         vec3 n2 = texture2D(normalMap, vWorldPos.zx / 2.3 - drift * 1.9 + vec2(0.37, 0.11)).xyz * 2.0 - 1.0;
         vec3 mapN = normalize(vec3((n1.xy + n2.xy) * normalScale, 1.0));
-        normal = perturbNormal2Arb(-vViewPosition, normal, mapN, faceDirection);
+        normal = normalize(tbn * mapN);
       }
       #endif`);
   };
@@ -1272,13 +1273,13 @@ const COLS = 8, ROWS = 4;
 function createImpostors(renderer, scene, lite) {
   const [sw, sh] = SLOT[lite ? 'lite' : 'full'];
   const target = new THREE.WebGLRenderTarget(sw * COLS, sh * ROWS, { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: true, depthBuffer: true });
-  target.texture.encoding = THREE.sRGBEncoding;
+  target.texture.colorSpace = THREE.SRGBColorSpace;
   // (where each model's picture is in the sheet; its width against its height)
   const slots = new Map();
   // the picture is taken in a little scene of its own: the model lit from the front and above, as by day
   const studio = new THREE.Scene();
-  const key = new THREE.DirectionalLight(0xfff4e0, 1.25); key.position.set(0.4, 1, 1); studio.add(key);
-  studio.add(new THREE.HemisphereLight(0xdfeaff, 0x5a5040, 0.75));
+  const key = new THREE.DirectionalLight(0xfff4e0, 1.25 * LIGHT); key.position.set(0.4, 1, 1); studio.add(key);
+  studio.add(new THREE.HemisphereLight(0xdfeaff, 0x5a5040, 0.75 * LIGHT));
   const lens = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   // the drawing of the pictures: a card standing upright, turned to the eye about its upright, its foot on the ground
   const card = new THREE.PlaneGeometry(1, 1); card.translate(0, 0.5, 0);
@@ -1293,7 +1294,7 @@ function createImpostors(renderer, scene, lite) {
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 impAt;\nattribute vec4 impSlot;')
-      .replace('#include <uv_vertex>', `#include <uv_vertex>\n#ifdef USE_UV\nvUv = impSlot.xy + vec2(impSlot.w > 0.0 ? uv.x : 1.0 - uv.x, uv.y) * vec2(${(1 / COLS).toFixed(6)}, ${(1 / ROWS).toFixed(6)});\n#endif`)
+      .replace('#include <uv_vertex>', `#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv = impSlot.xy + vec2(impSlot.w > 0.0 ? uv.x : 1.0 - uv.x, uv.y) * vec2(${(1 / COLS).toFixed(6)}, ${(1 / ROWS).toFixed(6)});\n#endif`)
       .replace('#include <project_vertex>', `
         vec3 toEye = cameraPosition - impAt.xyz; toEye.y = 0.0; toEye = normalize(toEye + vec3(1e-5));
         vec3 across = vec3(toEye.z, 0.0, -toEye.x);
@@ -1479,7 +1480,7 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
       e.chosen = chosen;
       // (a model none of whose copies is drawn is not drawn at all: three.js would still hand its pictures over, every
       // frame, for nothing; and so its pictures can be let go while it is not drawn: sleepModels)
-      for (const mesh of e.meshes) { mesh.count = n; mesh.visible = n > 0; if (n) { mesh.instanceMatrix.updateRange.offset = 0; mesh.instanceMatrix.updateRange.count = n * 16; mesh.instanceMatrix.needsUpdate = true; } }
+      for (const mesh of e.meshes) { mesh.count = n; mesh.visible = n > 0; if (n) { mesh.instanceMatrix.clearUpdateRanges(); mesh.instanceMatrix.addUpdateRange(0, n * 16); mesh.instanceMatrix.needsUpdate = true; } }
     }
     if (n) { counts.models += 1; counts.copies += n; }
   }
@@ -1533,7 +1534,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     if (!sharedPictures.has(uri)) sharedPictures.set(uri, (async () => {
       const res = await fetchFile(`habitation/${uri}`);
       if (!res.ok) throw new Error(`${uri}: ${res.status}`);
-      const t = new THREE.Texture(await decodePicture(await res.blob())); t.flipY = false; if (colour) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      const t = new THREE.Texture(await decodePicture(await res.blob())); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
       sharedTextures.add(t);
       return t;
     })());

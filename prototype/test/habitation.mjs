@@ -327,7 +327,27 @@ const PICTURE_AT = {
   '13': [[2390.9, 209.1], [2368, 232], 0.12], '14': [[2200, 352], [2150, 240]], '15': [[2060, 92], [2020, 74]], '16': [[2246, 368], [2205, 205], 0.32],
   '17': [[2262, 368], [2214, 334], 0.28], '18': [[2205.9, 355.5], [2190, 320]], '19': [[2166, 404], [2168, 389], 0.16],
 };
-const cost = async (p = page) => p.evaluate(() => { const n = window.__nlw, g = n.graphics; return { calls: n.drawn.calls, triangles: n.drawn.triangles, drawn: n.habitation.state().drawn, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(0) }; });
+// What a frame draws: the picture itself (calls, triangles), and apart from it the sun's shadow map (three.js r186 counts
+// both in renderer.info; r128, when the limits below were set, counted the picture's only), over two frames
+const cost = async (p = page) => p.evaluate(() => new Promise((done) => {
+  const n = window.__nlw, g = n.graphics, r = n.renderer, rbd = r.renderBufferDirect, render = r.render;
+  const c = { frames: 0, main: { calls: 0, tris: 0 }, shadow: { calls: 0, tris: 0 } };
+  r.render = function (...a) { if (r.getRenderTarget() === null) c.frames += 1; return render.apply(this, a); };
+  r.renderBufferDirect = function (camera, scene, geometry, material, object, group) {
+    const target = r.getRenderTarget();
+    const into = target === null ? c.main : material && (material.isMeshDepthMaterial || material.isMeshDistanceMaterial) ? c.shadow : null;
+    if (into) {
+      const idx = group && Number.isFinite(group.count) ? group.count : geometry.index ? geometry.index.count : geometry.attributes.position ? geometry.attributes.position.count : 0;
+      const copies = object.isInstancedMesh ? object.count : geometry.isInstancedBufferGeometry ? geometry.instanceCount : 1;
+      into.calls += 1;
+      if (object.isMesh) into.tris += Math.floor(idx / 3) * (Number.isFinite(copies) ? Math.max(0, copies) : 1);
+    }
+    return rbd.call(this, camera, scene, geometry, material, object, group);
+  };
+  let k = 0;
+  const f = () => { k += 1; if (k < 3) { requestAnimationFrame(f); return; } r.render = render; r.renderBufferDirect = rbd; const m = Math.max(1, c.frames); done({ calls: Math.round(c.main.calls / m), triangles: Math.round(c.main.tris / m), shadowCalls: Math.round(c.shadow.calls / m), shadowTriangles: Math.round(c.shadow.tris / m), drawn: n.habitation.state().drawn, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(0) }); };
+  requestAnimationFrame(f);
+}));
 const toHour = (hour, p = page) => p.evaluate((h) => { const n = window.__nlw, g = n.host.game; n.skip((24 + h - n.view.clock.hourFloat) % 24); g.state.weather = { kind: 'clear', until: g.state.t + 12 * 3600 }; }, hour);
 for (const [pic, [eye, to, pitch = 0.12]] of Object.entries(PICTURE_AT)) {
   if (pic === '14') await toHour(18.3);
@@ -554,7 +574,7 @@ check('D: deep in the habitation the town\'s towers (over 650 m off, hidden by t
 }
 
 const phoneWorst = Object.entries(measures.phone.places).sort((a, b) => b[1].gpuMB - a[1].gpuMB)[0];
-check('D: on a phone (#lite), what is drawn stays within what a mid-range phone draws: under 260 draw calls and 900,000 triangles, and under the phone\'s budget of 150 MB on the graphics card (budget.js)', Object.values(measures.phone.places).every((c) => c.calls < 260 && c.triangles < 9e5 && c.gpuMB < 150), { phoneWorst, calls: Object.fromEntries(Object.entries(measures.phone.places).map(([k, v]) => [k, v.calls])), modelBytes: habB.modelBytes });
+check('D: on a phone (#lite), what is drawn stays within what a mid-range phone draws: the picture under 260 draw calls and 900,000 triangles (the sun\'s shadow map counted apart, as when these limits were set), and under the phone\'s budget of 150 MB on the graphics card (budget.js)', Object.values(measures.phone.places).every((c) => c.calls < 260 && c.triangles < 9e5 && c.gpuMB < 150), { phoneWorst, calls: Object.fromEntries(Object.entries(measures.phone.places).map(([k, v]) => [k, `${v.calls} + ${v.shadowCalls} for the shadows`])), modelBytes: habB.modelBytes });
 
 // ---- L: the owner's brief of 22 October 2026 (four screen recordings) ----
 // L1 feet on the ground as drawn, never in it: on a phone, on the sandy bank of the lagoon's west beach where the owner's
@@ -701,7 +721,10 @@ check('D: on a phone (#lite), what is drawn stays within what a mid-range phone 
   const buttonsB = await pageB.evaluate(() => window.__nlw.controls.shown.map((b) => b.id));
   // (the other player, as B's game knows them: the one other player near)
   const nearestPeer = () => { const n = window.__nlw, p = n.predicted; const list = (n.shownPeers || []).map((q) => ({ q, d: Math.hypot(q.x - p.x, q.z - p.z) })).sort((a, b) => a.d - b.d); return list.length ? list[0].q.id : null; };
-  const idA = await pageB.evaluate(nearestPeer);
+  // (B's page, drawing a frame every few seconds on this machine at the habitation, may not have heard from A lately and
+  // have A out of sight for a while: the jump waits until A is in B's sight, as a player would wait to be seen)
+  let idA = await pageB.evaluate(nearestPeer);
+  for (let i = 0; i < 45 && !idA; i += 1) { await pageB.waitForTimeout(2000); idA = await pageB.evaluate(nearestPeer); }
   for (const p of [page, pageB]) await p.evaluate(() => window.__nlw.slow(0.08));
   await page.keyboard.press('Space');
   const lifts = [], seenB = [];

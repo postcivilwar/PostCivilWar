@@ -253,7 +253,7 @@ vec3 pdCamo(vec3 p) {
     .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 c = diffuseColor.rgb;
-  vec3 s = LinearTosRGB(vec4(max(c, vec3(0.0)), 1.0)).rgb;
+  vec3 s = sRGBTransferOETF(vec4(max(c, vec3(0.0)), 1.0)).rgb;
   float mx = max(s.r, max(s.g, s.b)), mn = min(s.r, min(s.g, s.b));
   float sat = (mx - mn) / max(mx, 1e-4);
   float hue = 0.0;

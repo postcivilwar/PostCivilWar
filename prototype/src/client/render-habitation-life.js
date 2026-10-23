@@ -418,7 +418,7 @@ export function createHabitationLife(scene, { lite = false } = {}) {
   const printMat = new THREE.MeshBasicMaterial({ map: printTex, color: linear(0x6e5a3e), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   printMat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float printFade;\nvarying float vPrintFade;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPrintFade = printFade;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPrintFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = texture2D(map, vUv).r * 0.42 * vPrintFade;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPrintFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = texture2D(map, vMapUv).r * 0.42 * vPrintFade;');
   };
   printMat.customProgramCacheKey = () => 'pcw-habitation-print';
   const prints = new THREE.InstancedMesh(printGeom, printMat, PRINTS);

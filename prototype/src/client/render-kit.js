@@ -296,7 +296,7 @@ export function nameTexture(text, { width = 512, height = 96, size = 46 } = {}) 
   ctx.fillStyle = '#ffffff';
   ctx.fillText(text, width / 2, height / 2 + 2);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   return texture;
 }
@@ -310,7 +310,7 @@ export function textTexture(lines, { width = 512, height = 128, background = '#f
   canvas.width = Math.max(1, Math.round(width * scale));
   canvas.height = Math.max(1, Math.round(height * scale));
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   const draw = () => {
     const ctx = canvas.getContext('2d');
@@ -371,7 +371,7 @@ function canvasTexture(size, paint, { repeat = true, srgb = true } = {}) {
   canvas.height = size;
   paint(canvas.getContext('2d'), size);
   const texture = new THREE.CanvasTexture(canvas);
-  if (srgb) texture.encoding = THREE.sRGBEncoding;
+  if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
   if (repeat) { texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; }
   texture.anisotropy = 4;
   return texture;

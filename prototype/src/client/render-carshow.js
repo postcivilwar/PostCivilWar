@@ -53,7 +53,7 @@ function canvasTexture(width, height, draw, { repeat = false, lite = 0.5 } = {})
   const k = isLite() ? lite : 1;
   canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
+  texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   const g = canvas.getContext('2d');
   g.scale(k, k);
@@ -130,7 +130,7 @@ function pavingTextures(size, { tone = [158, 154, 147], spread = 14, seed = 1 } 
     o[i] = Math.round((0.5 - dx / len / 2) * 255); o[i + 1] = Math.round((0.5 + dy / len / 2) * 255); o[i + 2] = Math.round((0.5 + 0.5 / len) * 255); o[i + 3] = 255;
   }
   nctx.putImageData(out, 0, 0);
-  const map = new THREE.CanvasTexture(colour); map.encoding = THREE.sRGBEncoding;
+  const map = new THREE.CanvasTexture(colour); map.colorSpace = THREE.SRGBColorSpace;
   const normalMap = new THREE.CanvasTexture(normal);
   for (const t of [map, normalMap]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
   return { map, normalMap };
@@ -175,6 +175,9 @@ function buildFence(group, { lite }) {
       const inst = new THREE.InstancedMesh(own, material, mine.length);
       mine.forEach(([x, z, ry], i) => inst.setMatrixAt(i, m.makeRotationY(ry + Math.PI / 4).setPosition(x, 0, z)));
       inst.instanceMatrix.needsUpdate = true;
+      // (a run out of view is not drawn, by its run's bounds: three.js since r151 tests a set of copies against the view,
+      // which r128 never did; left to it, the sphere would be the run's moved to each bar)
+      inst.boundingSphere = own.boundingSphere.clone();
       inst.castShadow = !lite; inst.receiveShadow = false; inst.name = 'carshow-bars';
       group.add(inst);
       return inst;
@@ -367,7 +370,7 @@ function plateTexture(car) {
   g.fillText(`Top speed ${car.kmh} km/h`, 22, 150);
   g.fillStyle = GOLD; g.font = '800 52px "Helvetica Neue", Helvetica, Arial, sans-serif';
   g.fillText(trText(car.price * 2).replace(/\.0$/, ''), 22, 222);
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   return texture;
 }
 // The hall's floor: large polished pale stone, with fine joints.
@@ -381,7 +384,7 @@ function floorTexture() {
   }
   g.strokeStyle = 'rgba(120,122,128,0.5)'; g.lineWidth = 2;
   for (let k = 0; k <= 2; k += 1) { g.beginPath(); g.moveTo(k * 256, 0); g.lineTo(k * 256, 512); g.stroke(); g.beginPath(); g.moveTo(0, k * 256); g.lineTo(512, k * 256); g.stroke(); }
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   return texture;
 }
@@ -532,7 +535,7 @@ function buildHall() {
     metal.box(0.04, 1.3, 0.04, place(door.x + s * 0.18, 1.15, dz - 0.12), BRASS);
   }
   // EXIT over the doors, lit
-  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.36), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; })(), toneMapped: false }));
+  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.36), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), toneMapped: false }));
   exitSign.position.set(door.x, door.height + 0.5, dz - 0.09); exitSign.rotation.y = Math.PI;
   group.add(exitSign);
   const e = P.exit;
@@ -767,7 +770,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   // way, or on a phone across the hall), let go when it has not been drawn for a while (`idle`)
   const sheetOf = (id) => {
     if (sheets.has(id)) return sheets.get(id);
-    const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+    const texture = new THREE.Texture(); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
     let asked = false, generation = 0, wantedAt = 0;

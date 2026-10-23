@@ -64,9 +64,9 @@ function makeBones(pose, figure = null) {
 let plain = null;
 const printed = new Map();
 function materialFor(print) {
-  if (!print) return plain || (plain = surface({ vertexColors: true, skinning: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide }));
+  if (!print) return plain || (plain = surface({ vertexColors: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide }));
   let m = printed.get(print);
-  if (!m) { m = surface({ vertexColors: true, skinning: true, roughness: 0.86, metalness: 0, side: THREE.DoubleSide, map: printTexture(print) }); printed.set(print, m); }
+  if (!m) { m = surface({ vertexColors: true, roughness: 0.86, metalness: 0, side: THREE.DoubleSide, map: printTexture(print) }); printed.set(print, m); }
   return m;
 }
 
@@ -319,6 +319,9 @@ export function makeFigure(spec, labelText, shadow = false) {
     }
   }
   const mesh = new THREE.SkinnedMesh(geometry, materials.length === 1 ? materials[0] : materials);
+  // (the sphere it is tested against the view by: the figure's own, round any pose, as before; three.js since r151
+  // would work one out from the first pose drawn, moving every point with its bones)
+  mesh.boundingBox = geometry.boundingBox.clone(); mesh.boundingSphere = geometry.boundingSphere.clone();
   mesh.add(root);
   mesh.bind(skeleton, new THREE.Matrix4());
   mesh.castShadow = shadow;

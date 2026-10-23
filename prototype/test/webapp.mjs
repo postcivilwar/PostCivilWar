@@ -113,7 +113,9 @@ if (doc.mode !== 'CSS1Compat') bad(`the page is read by the old rules (${doc.mod
 if (doc.width !== 390 || doc.layout !== 390) bad(`a phone 390 wide lays the page out ${doc.layout} wide (window ${doc.width})`);
 if (doc.margin !== '0px') bad(`the page has a margin of ${doc.margin}`);
 if (doc.title !== 'PostCivilWar' || doc.lang !== 'en' || doc.charset !== 'UTF-8') bad(`title, language, characters: ${doc.title}, ${doc.lang}, ${doc.charset}`);
-if (doc.three !== 'object' || doc.revision !== '128') bad(`the 3D library: ${doc.three} ${doc.revision}`);
+// (the library the build carries: three.js r186 since 23 October 2026, vendor/three.symbols.json)
+const carried = JSON.parse(readFileSync(resolve(here, '../vendor/three.symbols.json'), 'utf8')).revision;
+if (doc.three !== 'object' || doc.revision !== carried) bad(`the 3D library: ${doc.three} ${doc.revision}, where the build carries r${carried}`);
 if (doc.scripts.some((s) => !s.startsWith(origin))) bad(`a script from another site: ${doc.scripts}`);
 if (doc.framed) bad('the page thinks it is in a frame');
 if (doc.overscroll !== 'none') bad(`pulling down would reload the page (${doc.overscroll})`);

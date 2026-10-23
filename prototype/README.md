@@ -2770,10 +2770,166 @@ Files: `src/sim/zones/atani.js`, `atani-patrols.js`, `police-looks.js`, `populat
 `lab.html#set=police`); tests `police.test.mjs` (9), `police-dress.test.mjs` (7), and the townspeople's tests against
 `FORMER_TOWN`.
 
+## three.js r186: the game's 3D engine brought up to date, looking the same (23 October 2026)
+
+The owner's brief of 23 October 03:57, its first stage: the game was drawn by three.js r128 (2021), fetched from a CDN
+by some pages; it is now drawn by r186, the latest stable release (September 2026; no later one by 23 October),
+carried in the build, so that it starts fast and plays offline, and it looks as it did. Quality levels (the second
+stage) and more realism (the third) are built on it next.
+
+**The library** (`vendor/three.min.js`, made by `node tools/three/make.mjs` from three.js's own files, kept unchanged
+in `vendor/three-r186/` with their licence): one script that gives `THREE` to the page as before, holding only what
+the game uses of the library (96 names: 629 KB, 159 KB as sent compressed; r128 whole was 603 KB, 149 KB). The website
+serves it beside the page as before (`three.min.js`, kept on the device by the app's worker); the pages that loaded
+r128 from a CDN (`dist/index.html`, the character lab and the vehicle yard) load it from beside them. The build
+refuses a game that uses a name the script does not hold (`vendor/three.symbols.json`). WebGL 2 only (r186 has no
+WebGL 1): a browser without it is told so in plain words on the start screen.
+
+**What changed in three.js, and how the game answers each**
+
+- **Colours.** Since r152 three.js reads a colour written in a script as sRGB and turns it into linear light; every
+  colour of the game was chosen on the screen the old way, so the conversion is off (`ColorManagement.enabled =
+  false`, in the script): a colour means what it meant. Pictures marked sRGB are still read as sRGB (now by the
+  graphics card itself, `colorSpace`), and what is drawn is written out as sRGB (`outputColorSpace`).
+- **Light in physical units** (`src/client/light.js`). The sun, the sky's light and the studios' lights: their old
+  strength × π. The lamps (street lamps, headlamps, the torch, a phone's glow on its holder) fall away as real light
+  does in r186 (r128 faded them in a straight line to nothing at their reach); their strength, reach and fall-off are
+  worked out to light a surface as they did, over the distances where each is seen (`tools/three/fit-lights.mjs`: on
+  average within 3 to 5 per cent of each lamp's brightest).
+- **How a surface gives back its light.** r186 takes the share of the light that a surface's gloss reflects out of the
+  light it scatters (its colour), and adds a little to a rough metal's gloss: every surface of the town would be a few
+  per cent darker than it was chosen to be (1.5% in the picture, measured). The script lights them as r128 did (three
+  lines of three.js's shader, changed by `tools/three/make.mjs`, which stops if a later three.js no longer has them).
+- **Soft shadows.** r186 has one kind (`PCFShadowMap`, five samples round each point): made as soft as r128's softer
+  kind on a computer and its plain kind on a phone (`shadow.radius` 1.73 and 1.2).
+- **Lambert materials** (a phone's buildings, the leaves, the clouds) are lit at every point instead of at their
+  corners: the same light on a flat face; smoother on a curved one; a lamp's or the torch's pool of light shows on a
+  phone's ground as it does on a computer's.
+- **The game's own changes to three.js's shaders** (the habitation's ground, waters and boiling river, its tree
+  pictures, the footprints, the leaves' glow): r128's names gone in r186 replaced (`vUv` → `vMapUv`, the normal map's
+  frame `tbn`, `mapTexelToLinear` no longer needed); the leaves' glow added where r186 lights them, and kept out of
+  their shade as before.
+- **Sets of copies (instanced meshes) and skinned figures.** r128 drew every set of copies whether it was in view or
+  not; r186 leaves out a set wholly out of view, by a sphere round its copies, worked out the first time it is tested
+  and kept. Where the game had given a set's piece a sphere of its own (the grass's cells, the farm, the car
+  showroom's railings: each its whole set's, for the game's own list of what is near enough to draw), that sphere is
+  the set's; the block yard's stacks have theirs worked out round all their places, as only some are drawn at a time.
+  A skinned figure keeps its own sphere, as before (r186 would work one out from its first pose, moving every point of
+  it with its bones: a stutter on a phone for each figure).
+- **What is counted.** r186 counts the sun's shadow map's draws in its numbers (`renderer.info`), r128 did not: the
+  game's own readouts (Settings, Measured on this device) count both now. Compared object by object at the market, the
+  motor park and the PowerBike showroom, the two draw the same things, r186 a few grass cells fewer (out of view).
+- **See-through things seen from both sides** (glass, the waterfalls' sheets, the chain-link fence, the torch's beam):
+  r186 would draw each twice (its far side, then its near side); drawn once, as before, so that none costs twice what
+  it did.
+- **The order see-through things are drawn in.** r186 orders them by the middle of each one's shape, r128 by where
+  each stands; the town's glass, fences and water are drawn in large pieces that all stand at the town's own origin,
+  and so were drawn in the order they were made. Seen in the pictures at the airport: ordered r186's way, the
+  terminal's glass was drawn over the chain-link fence outside it, which was then barely seen. Put back as r128 had it
+  (the renderer's code, changed as the library is made: `tools/three/as-r128.mjs`).
+- **A solid surface's alpha.** r186 writes it as 1 for every surface that is not see-through, and so makes each kind
+  of surface twice, solid and see-through (a dozen or more programs more to compile in the town: a slower start). Put
+  back as r128 had it (the same file): what the surface's picture has, and as many programs as before (measured: 98 to
+  105 in the town where r128 had 96 to 101, and r186 unchanged 112 to 119).
+- **The habitation's far trees.** Beyond about 150 m each tree and palm is drawn as a picture of itself, taken by the
+  game as the model arrives. The pictures are the same in both (read back from the graphics card and compared: the
+  same to within a level or two of brightness, the same transparency at every smaller copy), and as many are drawn;
+  but r128 drew each narrower than the picture, squeezed thin, and r186 draws it at its true width, as wide as the
+  tree it is a picture of. Left as r186 draws it: the far trees in the garden, the lagoon and the forest are fuller
+  (the garden, before and after, in the PDF).
+- **The graphics card's count** (`#stats`, the budget): r186 makes a picture with all its smaller copies at once
+  (`texStorage2D`); counted once.
+- `#stats` says which engine draws the game.
+- **The tools that make pictures of the game's models** (the figures' turntables, the motorcycles' and cars' pictures
+  for the showrooms, the habitation's views) use the same library and light, so that a picture made again matches.
+
+**Checked, one by one** (the brief's list): the game's own GLB reader (`glb.js`: its pictures' colour, the sphere each
+figure is culled by), the character kit and the figures (the character screen, every figure's light copy in the town),
+the vehicle kits (the PowerBike and car showrooms' models and pictures, the vehicles in town, their lamps by night),
+the foliage (the town's trees and the habitation's plants, their glow, their shadows), the sky (sun, clouds, stars,
+the moon, the sky's light by the hour), the habitation (its ground, waters, waterfalls, boiling river, footprints, the
+trees' pictures for far off, the torch) and everything that makes a renderer: the game, the character lab, the vehicle
+yard, the model viewer, the character creator, and the five tools that make the models' pictures.
+
+**Before and after** (`tools/measure/places.mjs`: fifteen places, the character screen and the habitation, by day and
+by night, every place at the game's full detail, its level held; pictures side by side in the PDFs sent to the owner).
+This machine has no graphics card: it draws in software, a frame in one to five seconds, so its frame times compare
+the two builds and nothing more: on a computer's settings the new one's took about a sixth longer here (from a tenth
+less to a third more), on a phone's about the same (all thirty, taken together, within a hundredth); what a graphics
+card is given to draw, the draws and triangles, is the same or a little less. The graphics card holds about 4 MB more
+at each place (the sky that glass and vehicles give back is kept more finely, and the sun's shadow map has a depth
+picture where it had a depth buffer); differences of 10 MB or more are what had arrived by the moment of measuring; the script's memory goes up and down
+with when the browser last cleared away what was no longer used.
+Loading times vary by a few tenths of a second from one run to the next on this machine.
+
+**A computer**: PLAY on the screen 1.4 s → 1.5 s; the character screen 3.0 s → 3.1 s; into the town 24.3 s → 26.6 s;
+page errors 0 → 0.
+
+| place (noon) | frame, ms | draws: picture + shadows | triangles (k): picture + shadows | graphics card, MB | script, MB |
+|---|---|---|---|---|---|
+| character screen | 50 → 67 | 4 + — → 4 + — | 10 + — → 10 + — | 21.3 → 21.3 | 33.2 → 32.2 |
+| motor park | 2883 → 3383 | 485 + 50 → 481 + 49 | 868 + 268 → 862 + 267 | 430.7 → 435.1 | 140.1 → 140.6 |
+| market | 1400 → 1717 | 212 + 56 → 196 + 55 | 535 + 372 → 520 + 371 | 736.6 → 762.4 | 156.8 → 159.7 |
+| city boulevard | 1683 → 1917 | 220 + 62 → 205 + 61 | 520 + 350 → 497 + 348 | 757.9 → 762.4 | 158 → 160.7 |
+| PowerBike showroom | 2950 → 3433 | 397 + 73 → 389 + 72 | 946 + 442 → 939 + 440 | 774 → 778.4 | 183.8 → 182.2 |
+| car showroom gate | 1233 → 1550 | 205 + 52 → 193 + 51 | 306 + 139 → 294 + 129 | 831 → 835.4 | 274.1 → 277.7 |
+| airport | 1083 → 1433 | 113 + 17 → 103 + 16 | 137 + 33 → 135 + 31 | 596.4 → 600.8 | 271.8 → 275 |
+| town west | 767 → 750 | 104 + 40 → 91 + 39 | 293 + 222 → 285 + 220 | 768.2 → 772.7 | 258.5 → 260.9 |
+| town east end | 2000 → 2317 | 266 + 63 → 252 + 62 | 608 + 336 → 597 + 334 | 845.1 → 848.4 | 170.1 → 175.6 |
+| by the sign | 1950 → 2100 | 268 + 77 → 252 + 76 | 713 + 307 → 700 + 305 | 838.8 → 842 | 179.3 → 183.1 |
+| habitation gate | 3683 → 4267 | 271 + 92 → 257 + 91 | 1025 + 461 → 1018 + 460 | 898.8 → 902 | 194.2 → 199.6 |
+| entrance hill | 4400 → 4983 | 280 + 87 → 265 + 86 | 1114 + 476 → 1102 + 474 | 911.4 → 914.7 | 200.5 → 204.6 |
+| lagoon beach | 1633 → 1983 | 173 + 34 → 163 + 33 | 412 + 122 → 410 + 120 | 794.8 → 798 | 202 → 206.5 |
+| big waterfall | 2317 → 2533 | 161 + 70 → 149 + 69 | 707 + 331 → 697 + 329 | 637.4 → 640.7 | 193 → 198.2 |
+| garden | 2550 → 3017 | 221 + 56 → 212 + 55 | 605 + 225 → 602 + 223 | 638.8 → 642 | 194.7 → 200.8 |
+| boiling river | 833 → 750 | 114 + 30 → 102 + 29 | 322 + 91 → 314 + 89 | 580.8 → 584 | 183.3 → 188 |
+
+**A phone (its settings, the processor slowed four times)**: PLAY on the screen 2.2 s → 2.2 s; the character screen
+3.3 s → 4.0 s; into the town 38.7 s → 40.9 s; page errors 0 → 0.
+
+| place (noon) | frame, ms | draws: picture + shadows | triangles (k): picture + shadows | graphics card, MB | script, MB |
+|---|---|---|---|---|---|
+| character screen | 33 → 50 | 4 + — → 4 + — | 10 + — → 10 + — | 5.3 → 5.3 | 30.1 → 35.5 |
+| motor park | 2483 → 2500 | 447 + 46 → 444 + 45 | 745 + 201 → 740 + 200 | 126.7 → 136.5 | 124 → 128.6 |
+| market | 1100 → 1017 | 215 + 46 → 199 + 45 | 391 + 204 → 376 + 203 | 142.2 → 146.6 | 140.8 → 143.1 |
+| city boulevard | 1517 → 1617 | 234 + 51 → 220 + 50 | 410 + 208 → 391 + 206 | 138.2 → 142.6 | 139.7 → 142.8 |
+| PowerBike showroom | 2467 → 2483 | 365 + 65 → 357 + 64 | 762 + 282 → 755 + 281 | 154.2 → 164 | 157.4 → 160.8 |
+| car showroom gate | 2633 → 1017 | 167 + 27 → 155 + 26 | 2251 + 75 → 2239 + 73 | 145.5 → 155.3 | 255.5 → 257.1 |
+| airport | 500 → 583 | 102 + 13 → 90 + 12 | 124 + 26 → 122 + 24 | 125.6 → 139.3 | 253 → 255.2 |
+| town west | 500 → 583 | 91 + 17 → 78 + 16 | 143 + 66 → 135 + 64 | 125.8 → 130.3 | 235.3 → 238.1 |
+| town east end | 1250 → 1267 | 243 + 39 → 228 + 38 | 386 + 268 → 375 + 266 | 126.5 → 140.9 | 269.9 → 317.5 |
+| by the sign | 1500 → 1783 | 233 + 36 → 217 + 35 | 526 + 234 → 512 + 230 | 125.4 → 130.1 | 284.5 → 286.9 |
+| habitation gate | 2200 → 2483 | 217 + 37 → 203 + 36 | 528 + 153 → 521 + 152 | 122.9 → 128.9 | 289.3 → 293.4 |
+| entrance hill | 2800 → 3050 | 232 + 39 → 216 + 38 | 656 + 162 → 644 + 160 | 122.6 → 128.6 | 291.1 → 295.2 |
+| lagoon beach | 1217 → 1333 | 165 + 32 → 155 + 31 | 344 + 103 → 343 + 102 | 123.9 → 129.9 | 293.5 → 297 |
+| big waterfall | 1533 → 1500 | 148 + 38 → 136 + 37 | 527 + 149 → 522 + 147 | 124.4 → 127.7 | 275 → 278.1 |
+| garden | 2033 → 2183 | 237 + 31 → 228 + 30 | 561 + 123 → 561 + 121 | 127.9 → 131.2 | 275.8 → 278.4 |
+| boiling river | 800 → 833 | 109 + 34 → 97 + 33 | 315 + 89 → 311 + 88 | 117.9 → 121.2 | 275 → 277.6 |
+
+**WebGPU**: not yet. r186 can also draw with WebGPU (its `WebGPURenderer`, which falls back to WebGL 2 where a browser
+has no WebGPU), and WebGPU is now in every major browser: Chrome and Edge on computers since 2023, Chrome on Android
+12 and later (Qualcomm and ARM graphics) since January 2024, Safari 26 on iPhone, iPad and Mac since September 2025,
+Firefox 141 on Windows since July 2025 (web.dev, 25 November 2025). It would help later: many more copies of a thing
+drawn at once for less work by a phone's processor (a forest, a crowd, the owner's NPCs in numbers), and effects
+worked out on the graphics card itself (particles, water, the town's lamps). What it would cost now: every one of the
+game's own changes to three.js's shaders (about twenty: the habitation's ground, waters and boiling river, the leaves,
+the police's uniforms, the footprints, the torch's beams, the sky, the car showroom's dome and more) written again in
+three.js's new shading language; a library about twice the size to fetch; and many phones in use still without it
+(Android before 12, iPhones before iOS 26), which would draw through its WebGL 2 fallback, not this one. The levels
+and the realism of the next two stages do not need it; worth doing once the town holds many more people and things
+that move.
+
+Files: `vendor/three.min.js`, `vendor/three.symbols.json`, `vendor/three-r186/`, `tools/three/make.mjs`,
+`tools/three/as-r128.mjs`, `tools/three/fit-lights.mjs`, `tools/measure/places.mjs` and `sheets.py`, `build.mjs`;
+`src/client/light.js`, `main.js`, `render-sky.js`, `phone-hold.js`, `render-habitation.js`,
+`render-habitation-life.js`, `habitation-plants.js`, `graphics-count.js`, `stats.js`, `glb.js`, `character.js`,
+`render-actors.js`, `render-carshow.js`, `render-town.js`, `render-world.js`, and the pictures' colour in twenty
+files; test `engine.test.mjs`.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 418 headless tests
+node --test test/*.test.mjs                        # 427 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
@@ -2805,7 +2961,16 @@ node test/outskirts.mjs out/                       # the road to Onitsha, the ai
 ../server/with-postgres.sh node test/town-buildings.mjs out/   # the owner's houses and towers: every model whole, each on its plot at its size, drawn near, solid; the hotel's facade
 ../server/with-postgres.sh node test/realism.mjs out/   # the leaves, the wind, their shadows; glass and the river giving back the sky, not at night; rain on the roads, and drying
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings
+../server/with-postgres.sh node tools/measure/places.mjs out/ computer|phone [all|place,place] [site]   # the fifteen usual places, the character screen and the habitation, by day and night: frame time, draws, triangles, the graphics card's memory, the script's, loading times, pictures (a phone: its settings, the processor slowed four times); site: another build's dist/site to measure instead; PERF_LEVEL=n holds a graphics level, PERF_DAY_ONLY=1 by day only, TEXTURE_LIST=1 lists the pictures held by size
+python3 tools/measure/sheets.py before/ after/ computer|phone out.pdf   # two measurings' pictures side by side, a page a place, the numbers under each
 ```
+
+`engine.test.mjs` covers the 3D engine: that the library is r186 and holds every name the game, its tests and its
+tools use; a colour meaning what it is written as; a surface's light, the order of see-through things, a solid
+surface's alpha and see-through things drawn once, as r128 had them (each change found once in the library as made);
+every piece of three.js's shaders that the game changes still there, and none of r128's removed names left; the sun,
+the sky and the lamps in physical units, the lamps lighting the ground as they did; a picture counted once on the
+graphics card; and every page loading the library from beside it, never from elsewhere.
 
 `gait.test.mjs` covers walking and running without drawing anything: that a
 planted foot stays put, that the leg found really reaches it, that a knee

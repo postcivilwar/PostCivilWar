@@ -146,7 +146,7 @@ function addEnterable(lower, upper, inner, b, signs) {
   canvas.width = 256;
   canvas.height = 48 * rows;
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   const paint = () => {
     const ctx = canvas.getContext('2d');
     b.rooms.forEach((r, i) => {
@@ -522,6 +522,9 @@ export function buildTown(scene, glowMaterial) {
 
   mounds.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3((f.x0 + f.x1) / 2, 0, (f.z0 + f.z1) / 2), 90);
   plants.geometry.boundingSphere = mounds.geometry.boundingSphere;
+  // (out of view, not drawn: three.js since r151 tests a set of copies against the view, which r128 never did; by the
+  // farm's sphere, round all of it: left to three.js, it would be the farm's moved to each mound)
+  mounds.boundingSphere = mounds.geometry.boundingSphere.clone(); plants.boundingSphere = mounds.boundingSphere.clone();
   sight.add(mounds, 320);
   sight.add(plants, 200);
   let quality = 0;

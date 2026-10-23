@@ -36,13 +36,14 @@ export function frameClock() {
 const mb = (bytes) => (bytes / 1048576).toFixed(1);
 const s = (ms) => (ms / 1000).toFixed(1);
 
-// The lines, in plain words. `now`: { build, screen, device, pixelRatio, graphics (graphics-count.js), budgetMB, trims,
+// The lines, in plain words. `now`: { build, engine (three.js's revision), screen, device, pixelRatio, graphics
+// (graphics-count.js), budgetMB, trims,
 // heap ({ used, limit } in bytes, or null where the browser does not say), frames (frameClock().report()), lost,
 // restored, figures (animated.js, figureLog) }
 export function statsLines(now) {
   const lines = [];
   const scr = typeof screen !== 'undefined' ? `${window.innerWidth}×${window.innerHeight} at ${(window.devicePixelRatio || 1).toFixed(2)}` : '';
-  lines.push(['Game', `${now.build || 'this copy'} · ${now.screen}`]);
+  lines.push(['Game', `${now.build || 'this copy'}${now.engine ? ` · drawn by three.js r${now.engine}` : ''} · ${now.screen}`]);
   lines.push(['Device', `${now.device} · screen ${scr}, drawn at ${(now.pixelRatio || 1).toFixed(2)}`]);
   const g = now.graphics;
   lines.push(['Graphics card', g && !g.unwatched

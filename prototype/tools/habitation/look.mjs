@@ -47,7 +47,7 @@ const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
 const sharedPictures = new Map();
 function sharedPicture(i, uri, colour) {
   const key = i + ':' + uri;
-  if (!sharedPictures.has(key)) sharedPictures.set(key, (async () => { const blob = await (await fetch('/beside/' + i + '/' + uri)).blob(); const bmp = await createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' }); const t = new THREE.Texture(bmp); t.flipY = false; if (colour) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData.shared = true; return t; })());
+  if (!sharedPictures.has(key)) sharedPictures.set(key, (async () => { const blob = await (await fetch('/beside/' + i + '/' + uri)).blob(); const bmp = await createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' }); const t = new THREE.Texture(bmp); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; t.userData.shared = true; return t; })());
   return sharedPictures.get(key);
 }
 async function load(i) {
@@ -66,7 +66,7 @@ async function load(i) {
     const tx = json.textures[ti]; const img = json.images[tx.source ?? (tx.extensions && tx.extensions.EXT_texture_webp && tx.extensions.EXT_texture_webp.source)]; const v = json.bufferViews[img.bufferView];
     const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (v.byteOffset || 0), v.byteLength)], { type: img.mimeType });
     const bmp = await createImageBitmap(blob, { imageOrientation: 'none' });
-    const t = new THREE.Texture(bmp); t.flipY = false; if (colour) t.encoding = THREE.sRGBEncoding; t.anisotropy = 8; t.needsUpdate = true; return (textures[key] = t); };
+    const t = new THREE.Texture(bmp); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8; t.needsUpdate = true; return (textures[key] = t); };
   for (const node of json.nodes || []) {
     if (node.mesh === undefined) continue;
     for (const p of json.meshes[node.mesh].primitives) {
@@ -98,15 +98,16 @@ async function load(i) {
 window.draw = async function draw(n, yaw, pitch, size, cols, ground, zoom, aim) {
   const canvas = document.getElementById('c');
   const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-  renderer.outputEncoding = THREE.sRGBEncoding;
-  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap; renderer.setScissorTest(true);
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap; renderer.setScissorTest(true);
   for (let i = 0; i < n; i++) {
     const scene = new THREE.Scene(); scene.background = new THREE.Color(0xa9c9df);
     // the town's light at ten in the morning (render-sky.js): the sky's light, and the sun's
     const lin = (hex) => new THREE.Color(hex).convertSRGBToLinear();
-    const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.68); hemi.color.copy(lin(0x3f8fe0)).lerp(new THREE.Color(1, 1, 1), 0.55); hemi.groundColor.copy(lin(0x8a7a5a)).multiplyScalar(0.7 + 0.68 * 0.5);
+    // (three.js r186's units: π times r128's, src/client/light.js)
+    const hemi = new THREE.HemisphereLight(0xffffff, 0xffffff, 0.68 * Math.PI); hemi.color.copy(lin(0x3f8fe0)).lerp(new THREE.Color(1, 1, 1), 0.55); hemi.groundColor.copy(lin(0x8a7a5a)).multiplyScalar(0.7 + 0.68 * 0.5);
     scene.add(hemi);
-    const sun = new THREE.DirectionalLight(lin(0xfff4e0), 1.3); sun.position.set(3, 6, 4); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0006;
+    const sun = new THREE.DirectionalLight(lin(0xfff4e0), 1.3 * Math.PI); sun.position.set(3, 6, 4); sun.castShadow = true; sun.shadow.radius = 1.73; sun.shadow.mapSize.set(2048, 2048); sun.shadow.bias = -0.0006;
     scene.add(sun); scene.add(sun.target);
     const model = await load(i);
     const box = new THREE.Box3().setFromObject(model); const s = box.getSize(new THREE.Vector3()); const c = new THREE.Vector3(box.min.x + s.x * aim[0], box.min.y + s.y * aim[1], box.min.z + s.z * aim[2]);

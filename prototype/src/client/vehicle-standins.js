@@ -26,7 +26,7 @@ export function createStandins(scene, { lite = false } = {}) {
     const key = `${kind}:${id}`;
     let s = sheets.get(key);
     if (s) return s;
-    const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+    const texture = new THREE.Texture(); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
     s = { texture, material, wantedAt: 0, asked: false, generation: 0 };

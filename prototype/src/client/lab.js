@@ -8,6 +8,7 @@ import { makeFigure, makeCharacter, animateCharacter, seatCharacter, standCharac
 import { labSets } from './character-looks.js';
 import { POLICE_LOOKS, policeLook } from '../sim/police-looks.js';
 import { setLite } from './render-kit.js';
+import { LIGHT } from './light.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new Map(location.hash.slice(1).split('&').filter(Boolean).map((p) => p.split('=').map(decodeURIComponent)));
@@ -17,16 +18,16 @@ if (params.get('lite') === '1') setLite(true);
 
 const canvas = $('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;      /* (three.js r186 has one kind of soft shadow: PCFSoftShadowMap is gone) */
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x8e98a3);
 scene.fog = new THREE.Fog(0x8e98a3, 30, 70);
 const camera = new THREE.PerspectiveCamera(32, 1, 0.05, 200);
-scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x6f6658, 0.8));
-const sun = new THREE.DirectionalLight(0xfff1dc, 0.95);
+scene.add(new THREE.HemisphereLight(0xdfe8f5, 0x6f6658, 0.8 * LIGHT));
+const sun = new THREE.DirectionalLight(0xfff1dc, 0.95 * LIGHT);
 sun.position.set(3.5, 7, 5);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -58,7 +59,7 @@ function fill() {
     rig.group.position.set((i - (list.length - 1) / 2) * gap, 0, 0);
     rig.group.rotation.y = state.spin;
     scene.add(rig.group);
-    if (params.get('wire') === '1') { const wire = new THREE.SkinnedMesh(rig.mesh.geometry, new THREE.MeshBasicMaterial({ color: 0x101010, wireframe: true, skinning: true, transparent: true, opacity: 0.35 })); wire.bind(rig.skeleton, new THREE.Matrix4()); rig.body.add(wire); }
+    if (params.get('wire') === '1') { const wire = new THREE.SkinnedMesh(rig.mesh.geometry, new THREE.MeshBasicMaterial({ color: 0x101010, wireframe: true, transparent: true, opacity: 0.35 })); wire.bind(rig.skeleton, new THREE.Matrix4()); rig.body.add(wire); }
     const tag = document.createElement('div');
     tag.innerHTML = `${entry.name}<small>${entry.note || ''} ${rig.triangles.toLocaleString()} tris</small>`;
     $('names').append(tag);

@@ -3,9 +3,10 @@
 //   node prototype/build.mjs
 //   server/with-postgres.sh node server/dev.mjs [port]        then open http://localhost:8787/
 //
-// It serves prototype/dist/site/ (what `node build.mjs --site` copies to site/) and answers /api/game with the
-// very function the host runs (api/game.js). The database is whatever PCW_DATABASE_URL says; with none, the
-// page works as it does for a visitor to a site that has no accounts.
+// It serves prototype/dist/site/ (what `node build.mjs --site` copies to site/), or the folder PCW_SITE names (another
+// build of the site, to try the same test on both), and answers /api/game with the very function the host runs
+// (api/game.js). The database is whatever PCW_DATABASE_URL says; with none, the page works as it does for a visitor
+// to a site that has no accounts.
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { createReadStream, existsSync, statSync } from 'node:fs';
@@ -15,7 +16,7 @@ import { fileURLToPath } from 'node:url';
 const require = createRequire(import.meta.url);
 const game = require('../api/game.js');
 const here = dirname(fileURLToPath(import.meta.url));
-const site = resolve(here, '../prototype/dist/site');
+const site = resolve(process.env.PCW_SITE || resolve(here, '../prototype/dist/site'));
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.json': 'application/json; charset=utf-8', '.webmanifest': 'application/manifest+json; charset=utf-8', '.txt': 'text/plain; charset=utf-8', '.png': 'image/png', '.svg': 'image/svg+xml', '.webp': 'image/webp', '.glb': 'model/gltf-binary', '.mp3': 'audio/mpeg', '.m4a': 'audio/mp4', '.ogg': 'audio/ogg', '.wav': 'audio/wav', '.jpg': 'image/jpeg' };
 
 export function createDevServer() {

@@ -60,18 +60,19 @@ const page_html = (light) => `<!doctype html><meta charset="utf-8"><body style="
 <script>window.__PCW_FIGURES = ${light ? JSON.stringify({ figures: lightTable }) : '{}'};</script>
 <script src="/vendor/three.min.js"></script><script type="module">
 import { makeAnimatedRig, driveAnimated } from '/src/client/animated.js';
+import { LIGHT } from '/src/client/light.js';
 const blobOf = (c, type, q) => new Promise((r) => c.toBlob(r, type, q));
 const b64 = async (blob) => { const bytes = new Uint8Array(await blob.arrayBuffer()); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(1); renderer.setSize(${W * DPR}, ${H * DPR}, false);
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setClearColor(0x000000, 0);
 // lit as the character screen lights it (creator.js)
 const scene = new THREE.Scene();
-scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75));
-const key = new THREE.DirectionalLight(0xfff4e6, 1.15); key.position.set(2.2, 3.4, 3.0); scene.add(key);
-const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
+scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75 * LIGHT));
+const key = new THREE.DirectionalLight(0xfff4e6, 1.15 * LIGHT); key.position.set(2.2, 3.4, 3.0); scene.add(key);
+const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55 * LIGHT); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
 const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false }));
 floor.rotation.x = -Math.PI / 2;
 const ring = new THREE.Mesh(new THREE.RingGeometry(0.41, 0.418, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, depthWrite: false }));

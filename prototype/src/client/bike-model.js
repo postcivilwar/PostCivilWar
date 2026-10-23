@@ -106,7 +106,7 @@ export const trimBikes = () => trim(0);
 function picture(url, colour, own, priority) {
   const map = new THREE.Texture();
   map.flipY = false; map.anisotropy = 4;
-  if (colour) map.encoding = THREE.sRGBEncoding;
+  if (colour) map.colorSpace = THREE.SRGBColorSpace;
   const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
     .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });

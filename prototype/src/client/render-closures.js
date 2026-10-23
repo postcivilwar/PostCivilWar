@@ -22,7 +22,7 @@ function stripes() {
   g.fillStyle = WHITE; g.fillRect(0, 0, 128, 32);
   g.fillStyle = RED;
   for (let x = -64; x < 192; x += 64) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 32, 0); g.lineTo(x + 64, 0); g.lineTo(x + 32, 32); g.closePath(); g.fill(); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
 // what of the stripes gives back light at night: the white
@@ -41,7 +41,7 @@ function drumPaint() {
   const g = c.getContext('2d');
   for (let i = 0; i < 4; i += 1) { g.fillStyle = i % 2 ? WHITE : RED; g.fillRect(0, i * 32, 16, 32); }
   g.fillStyle = 'rgba(40,30,25,0.55)'; g.fillRect(0, 0, 16, 5); g.fillRect(0, 123, 16, 5);
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 

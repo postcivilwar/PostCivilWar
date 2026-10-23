@@ -27,7 +27,7 @@ function canvas(size, paint) {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 8;
-  t.encoding = THREE.sRGBEncoding;
+  t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 const hash = (a, b) => noise(a * 12.9898 + b * 3.11, b * 78.233 + a * 0.71);

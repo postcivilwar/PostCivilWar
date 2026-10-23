@@ -9,6 +9,7 @@ import { vehicleMeta } from './vehicle-kit.js';
 import { variantSheet, kekeLook, busLook, VEHICLE_MODELS, KEKE_TRIMS } from '../sim/vehicle-looks.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter } from './character.js';
 import { PROTOTYPES } from '../sim/characters.js';
+import { LIGHT } from './light.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new Map(location.hash.slice(1).split('&').filter(Boolean).map((p) => p.split('=').map(decodeURIComponent)));
@@ -16,18 +17,18 @@ const num = (key, fallback) => (params.has(key) && !Number.isNaN(Number(params.g
 
 const canvas = $('view');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.shadowMap.enabled = true;
-renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.shadowMap.type = THREE.PCFShadowMap;      /* (three.js r186 has one kind of soft shadow: PCFSoftShadowMap is gone) */
 renderer.setPixelRatio(Math.min(2, window.devicePixelRatio || 1));
 initVehicles(renderer);
 const scene = new THREE.Scene();
 scene.background = new THREE.Color(0x9aa3ad);
 scene.fog = new THREE.Fog(0x9aa3ad, 60, 160);
 const camera = new THREE.PerspectiveCamera(32, 1, 0.1, 400);
-const hemi = new THREE.HemisphereLight(0xdfe8f5, 0x6f6658, 0.8);
+const hemi = new THREE.HemisphereLight(0xdfe8f5, 0x6f6658, 0.8 * LIGHT);
 scene.add(hemi);
-const sun = new THREE.DirectionalLight(0xfff1dc, 0.95);
+const sun = new THREE.DirectionalLight(0xfff1dc, 0.95 * LIGHT);
 sun.position.set(9, 16, 12);
 sun.castShadow = true;
 sun.shadow.mapSize.set(2048, 2048);
@@ -97,7 +98,7 @@ function fill() {
 function apply() {
   const day = state.night ? 0.08 : 1;
   setVehicleDaylight(day);
-  hemi.intensity = 0.8 * (state.night ? 0.25 : 1); sun.intensity = 0.95 * (state.night ? 0.12 : 1);
+  hemi.intensity = 0.8 * LIGHT * (state.night ? 0.25 : 1); sun.intensity = 0.95 * LIGHT * (state.night ? 0.12 : 1);
   scene.background.set(state.night ? 0x151a26 : 0x9aa3ad); scene.fog.color.copy(scene.background);
   stats = { triangles: 0, vehicles: shown.length };
   for (const s of shown) {

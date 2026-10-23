@@ -15194,7 +15194,7 @@ function nameTexture(text, { width = 512, height = 96, size = 46 } = {}) {
   ctx.fillStyle = '#ffffff';
   ctx.fillText(text, width / 2, height / 2 + 2);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   return texture;
 }
@@ -15205,7 +15205,7 @@ function textTexture(lines, { width = 512, height = 128, background = '#f3ecdc',
   canvas.width = Math.max(1, Math.round(width * scale));
   canvas.height = Math.max(1, Math.round(height * scale));
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   const draw = () => {
     const ctx = canvas.getContext('2d');
@@ -15264,7 +15264,7 @@ function canvasTexture(size, paint, { repeat = true, srgb = true } = {}) {
   canvas.height = size;
   paint(canvas.getContext('2d'), size);
   const texture = new THREE.CanvasTexture(canvas);
-  if (srgb) texture.encoding = THREE.sRGBEncoding;
+  if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
   if (repeat) { texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; }
   texture.anisotropy = 4;
   return texture;
@@ -15769,7 +15769,7 @@ function skyPicture(renderer) {
     const dome = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.ShaderMaterial({
       side: THREE.BackSide,
       vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <encodings_fragment>\n}',
+      fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <colorspace_fragment>\n}',
     }));
     sky.add(dome);
     const pmrem = new THREE.PMREMGenerator(renderer);
@@ -15807,7 +15807,7 @@ function dataTexture(uri, srgb) {
   t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
   t.flipY = false;
   t.anisotropy = 4;
-  if (srgb) t.encoding = THREE.sRGBEncoding;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   shared.textures.set(uri, t);
   return t;
 }
@@ -15885,7 +15885,7 @@ function canvasTexture(width, height, paint) {
   canvas.width = width; canvas.height = height;
   paint(canvas.getContext('2d'), width, height);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
   return texture;
 }
@@ -16168,7 +16168,7 @@ function skyInGlass() {
   ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(64, 20); ctx.lineTo(64, 44); ctx.lineTo(0, 84); ctx.fill();
   ctx.beginPath(); ctx.moveTo(0, 150); ctx.lineTo(64, 110); ctx.lineTo(64, 120); ctx.lineTo(0, 160); ctx.fill();
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
@@ -16187,7 +16187,7 @@ function nameTexture(text, { width = 1024, height = 256, size = 170, colour = '#
   let x = (width - widthOf()) / 2;
   for (const ch of text) { ctx.fillText(ch, x, height / 2 + px * 0.04); x += ctx.measureText(ch).width + px * spacing; }
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   return texture;
 }
@@ -16361,7 +16361,7 @@ function sheet(w, h, draw) {
   g.clearRect(0, 0, w, h);
   draw(g, w, h);
   const t = new THREE.CanvasTexture(c);
-  t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
 function within(g, x, y, w, h, draw) { g.save(); g.beginPath(); g.rect(x + 3, y + 3, w - 6, h - 6); g.clip(); g.translate(x, y); draw(); g.restore(); }
@@ -16598,7 +16598,7 @@ function canvas(size, paint) {
   const t = new THREE.CanvasTexture(c);
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 8;
-  t.encoding = THREE.sRGBEncoding;
+  t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 const hash = (a, b) => noise(a * 12.9898 + b * 3.11, b * 78.233 + a * 0.71);
@@ -17168,6 +17168,7 @@ function buildGrass() {
     blade.computeVertexNormals();
     blade.boundingSphere = new THREE.Sphere(new THREE.Vector3((cx + 0.5) * cell, 0, (cz + 0.5) * cell), cell * 0.75);
     const mesh = new THREE.InstancedMesh(blade, material, spots.length);
+    mesh.boundingSphere = blade.boundingSphere.clone();
     spots.forEach(([x, z, i], index) => {
       const s = 0.8 + noise(i, 5) * 0.9;
       m.copy(place(x, 0, z, noise(i, 7) * 6.28, s, s * (0.8 + noise(i, 9) * 0.7), s));
@@ -18255,7 +18256,7 @@ function emptyFace(width, height, { tv = false, sides = 1, lite = false } = {}) 
   };
   draw(0);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   return { canvas, texture, draw };
 }
 
@@ -18371,7 +18372,7 @@ function buildBillboards(scene, { glowMaterial, lite = false, boards = ZONE_BILL
         if (!next.has(id) || b.art) return;
         const canvas = document.createElement('canvas'); canvas.width = Math.min(lite ? 1024 : 2048, img.width); canvas.height = Math.round(canvas.width * img.height / img.width);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+        const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
         const m = new THREE.Mesh(plane, surface({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 }));
         m.matrixAutoUpdate = false; m.matrix.copy(b.faceMatrix).multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.01));
         b.art = m; group.add(m);
@@ -18541,7 +18542,7 @@ function addEnterable(lower, upper, inner, b, signs) {
   canvas.width = 256;
   canvas.height = 48 * rows;
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   const paint = () => {
     const ctx = canvas.getContext('2d');
     b.rooms.forEach((r, i) => {
@@ -18888,6 +18889,7 @@ function buildTown(scene, glowMaterial) {
 
   mounds.geometry.boundingSphere = new THREE.Sphere(new THREE.Vector3((f.x0 + f.x1) / 2, 0, (f.z0 + f.z1) / 2), 90);
   plants.geometry.boundingSphere = mounds.geometry.boundingSphere;
+  mounds.boundingSphere = mounds.geometry.boundingSphere.clone(); plants.boundingSphere = mounds.boundingSphere.clone();
   sight.add(mounds, 320);
   sight.add(plants, 200);
   let quality = 0;
@@ -19056,7 +19058,7 @@ function printTexture(key) {
   const colours = list.split(',').map((c) => parseInt(c, 16));
   t = new THREE.CanvasTexture(paintPrint(kind, motif, colours, 128));
   t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
-  t.encoding = THREE.sRGBEncoding;
+  t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   textures.set(key, t);
   return t;
@@ -19470,7 +19472,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
     const image = json.images[index];
     const map = new THREE.Texture();
     map.flipY = false; map.anisotropy = 4;
-    if (colour) map.encoding = THREE.sRGBEncoding;
+    if (colour) map.colorSpace = THREE.SRGBColorSpace;
     if (image.uri !== undefined) {
       const got = pictures && pictures[index];
       if (!got) throw new Error(`the picture ${image.uri} was not handed over`);
@@ -19493,7 +19495,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
   const normalMap = textureOf(mat.normalTexture, false);
   const rough = textureOf(pbr.metallicRoughnessTexture, false);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
-  const options = { map, color: colour, skinning: true, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide };
+  const options = { map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide };
   if (normalMap) { options.normalMap = normalMap; if (mat.normalTexture.scale !== undefined) options.normalScale = new THREE.Vector2(mat.normalTexture.scale, mat.normalTexture.scale); }
   if (rough) { options.roughnessMap = rough; options.metalnessMap = rough; }
   const material = surface(options);
@@ -19526,6 +19528,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
     const mesh = new THREE.SkinnedMesh(geometry, material);
     mesh.name = boneName(json.nodes[meshNode].name);
     mesh.frustumCulled = false;
+    mesh.boundingBox = geometry.boundingBox.clone(); mesh.boundingSphere = geometry.boundingSphere.clone();
     objects[meshNode].add(mesh);
     const root = new THREE.Group();
     for (const r of sceneRoots) root.add(objects[r]);
@@ -20261,7 +20264,7 @@ vec3 pdCamo(vec3 p) {
     .replace('#include <map_fragment>', `#include <map_fragment>
 {
   vec3 c = diffuseColor.rgb;
-  vec3 s = LinearTosRGB(vec4(max(c, vec3(0.0)), 1.0)).rgb;
+  vec3 s = sRGBTransferOETF(vec4(max(c, vec3(0.0)), 1.0)).rgb;
   float mx = max(s.r, max(s.g, s.b)), mn = min(s.r, min(s.g, s.b));
   float sat = (mx - mn) / max(mx, 1e-4);
   float hue = 0.0;
@@ -21076,9 +21079,9 @@ function makeBones(pose, figure = null) {
 let plain = null;
 const printed = new Map();
 function materialFor(print) {
-  if (!print) return plain || (plain = surface({ vertexColors: true, skinning: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide }));
+  if (!print) return plain || (plain = surface({ vertexColors: true, roughness: 0.8, metalness: 0, side: THREE.DoubleSide }));
   let m = printed.get(print);
-  if (!m) { m = surface({ vertexColors: true, skinning: true, roughness: 0.86, metalness: 0, side: THREE.DoubleSide, map: printTexture(print) }); printed.set(print, m); }
+  if (!m) { m = surface({ vertexColors: true, roughness: 0.86, metalness: 0, side: THREE.DoubleSide, map: printTexture(print) }); printed.set(print, m); }
   return m;
 }
 
@@ -21311,6 +21314,7 @@ function makeFigure(spec, labelText, shadow = false) {
     }
   }
   const mesh = new THREE.SkinnedMesh(geometry, materials.length === 1 ? materials[0] : materials);
+  mesh.boundingBox = geometry.boundingBox.clone(); mesh.boundingSphere = geometry.boundingSphere.clone();
   mesh.add(root);
   mesh.bind(skeleton, new THREE.Matrix4());
   mesh.castShadow = shadow;
@@ -22343,6 +22347,7 @@ function createYardStacks(scene) {
       }
     }
   }
+  mesh.computeBoundingSphere();
   mesh.count = 0;
   scene.add(mesh);
   return { set(blocks) { const n = Math.min(capacity, Math.round(blocks / 2)); if (n !== mesh.count) mesh.count = n; } };
@@ -22351,9 +22356,22 @@ function createYardStacks(scene) {
 return { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks };
 })();
 
+__modules["client/light.js"] = (function () {
+
+const LIGHT = Math.PI;
+
+const STREET_LAMP = Object.freeze({ intensity: 6.23, distance: 27, decay: 0.48 });
+const HEADLAMP_LIGHT = Object.freeze({ car: 10.96, bike: 8.62, distance: 32.3, decay: 0.32 });
+const TORCH_LIGHT = Object.freeze({ intensity: 11.45, distance: 24.45, decay: 0.29 });
+const SCREEN_GLOW = Object.freeze({ times: 1.147, distance: 1.18, decay: 0.41 });
+
+return { LIGHT, STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT, SCREEN_GLOW };
+})();
+
 __modules["client/render-sky.js"] = (function () {
 
-const { linear } = __modules["client/render-kit.js"];
+const { linear, isLite } = __modules["client/render-kit.js"];
+const { LIGHT } = __modules["client/light.js"];
 const { ZONE } = __modules["sim/zone.js"];
 const { trueToGrid } = __modules["sim/geo.js"];
 
@@ -22435,7 +22453,7 @@ function createSky(scene, renderer) {
     mctx.fillStyle = sea; mctx.beginPath(); mctx.arc(x, y, r, 0, Math.PI * 2); mctx.fill();
   }
   const moonMap = new THREE.CanvasTexture(moonCanvas);
-  moonMap.encoding = THREE.sRGBEncoding;
+  moonMap.colorSpace = THREE.SRGBColorSpace;
   const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonMap, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, opacity: 0 }));
   moon.scale.set(30, 30, 1);
   moon.renderOrder = -8;
@@ -22462,9 +22480,9 @@ function createSky(scene, renderer) {
   halo.renderOrder = -9;
   scene.add(halo);
 
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x8a7a5a, 0.6);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x8a7a5a, 0.6 * LIGHT);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffffff, 1);
+  const sun = new THREE.DirectionalLight(0xffffff, LIGHT);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 10;
@@ -22473,6 +22491,7 @@ function createSky(scene, renderer) {
   sun.shadow.camera.left = -span; sun.shadow.camera.right = span; sun.shadow.camera.top = span; sun.shadow.camera.bottom = -span;
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.05;
+  sun.shadow.radius = isLite() ? 1.2 : 1.73;
   scene.add(sun, sun.target);
   scene.fog = new THREE.Fog(0xffffff, 120, 620);
 
@@ -22539,15 +22558,17 @@ function createSky(scene, renderer) {
     sun.position.copy(focus).addScaledVector(dir, 200);
     sun.target.position.copy(focus);
     sun.color.copy(s.sun);
-    sun.intensity = s.strength * (1 - dull * 0.62) + flash * 1.5;
-    hemi.intensity = s.ambient * (1 - dull * 0.25) + flash * 0.6;
+    let sunLight = s.strength * (1 - dull * 0.62) + flash * 1.5;
+    let allLight = s.ambient * (1 - dull * 0.25) + flash * 0.6;
     hemi.color.copy(s.top).lerp(new THREE.Color(1, 1, 1), 0.55);
     hemi.groundColor.copy(linear(0x8a7a5a)).multiplyScalar(0.7 + s.ambient * 0.5);
-    if (dark > 0) { sun.intensity *= 1 - 0.3 * dark; hemi.intensity *= 1 - 0.6 * dark; }
+    if (dark > 0) { sunLight *= 1 - 0.3 * dark; allLight *= 1 - 0.6 * dark; }
     if (indoor > 0) {
-      sun.color.lerp(WHITE, indoor); sun.intensity += (HALL_LIGHT.key - sun.intensity) * indoor;
-      hemi.color.lerp(WHITE, indoor); hemi.groundColor.lerp(HALL_FLOOR, indoor); hemi.intensity += (HALL_LIGHT.all - hemi.intensity) * indoor;
+      sun.color.lerp(WHITE, indoor); sunLight += (HALL_LIGHT.key - sunLight) * indoor;
+      hemi.color.lerp(WHITE, indoor); hemi.groundColor.lerp(HALL_FLOOR, indoor); allLight += (HALL_LIGHT.all - allLight) * indoor;
     }
+    sun.intensity = sunLight * LIGHT;
+    hemi.intensity = allLight * LIGHT;
 
     dome.position.copy(camera.position);
     stars.position.copy(camera.position);
@@ -22595,7 +22616,7 @@ function createSky(scene, renderer) {
 
   return {
     update, sun,
-    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +sun.intensity.toFixed(3), all: +hemi.intensity.toFixed(3) }),
+    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3) }),
   };
 }
 
@@ -26502,7 +26523,7 @@ const trimBikes = () => trim(0);
 function picture(url, colour, own, priority) {
   const map = new THREE.Texture();
   map.flipY = false; map.anisotropy = 4;
-  if (colour) map.encoding = THREE.sRGBEncoding;
+  if (colour) map.colorSpace = THREE.SRGBColorSpace;
   const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
     .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });
@@ -30099,7 +30120,7 @@ const trimCars = () => trim(0);
 function picture(url, colour, own, priority) {
   const map = new THREE.Texture();
   map.flipY = false; map.anisotropy = 8;
-  if (colour) map.encoding = THREE.sRGBEncoding;
+  if (colour) map.colorSpace = THREE.SRGBColorSpace;
   const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
     .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });
@@ -30382,6 +30403,7 @@ const { loadBike } = __modules["client/bike-model.js"];
 const { CAR_PARTS } = __modules["client/car-parts.js"];
 const { loadCar } = __modules["client/car-model.js"];
 const { isLite } = __modules["client/render-kit.js"];
+const { LIGHT } = __modules["client/light.js"];
 const { PICTURES, modelFile } = __modules["client/budget.js"];
 const { exactBox } = __modules["client/bounds.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
@@ -30482,7 +30504,7 @@ async function textureFrom(blob, srgb, most) {
   if (!blob) return null;
   const texture = new THREE.Texture();
   texture.flipY = false;                  // glTF lays a picture with its first row at the top
-  if (srgb) texture.encoding = THREE.sRGBEncoding;
+  if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
   let picture = null;
   if (typeof createImageBitmap === 'function') { try { picture = await createImageBitmap(blob); } catch (error) { picture = null; } }
@@ -30515,7 +30537,7 @@ function createModelView(canvas, { transparent = true, pixelRatio = Math.min(2, 
   const renderer = own ? new THREE.WebGLRenderer({ canvas, antialias: true, alpha: transparent, preserveDrawingBuffer: true, powerPreference: 'high-performance' }) : sharedRenderer();
   if (own) {
     renderer.setPixelRatio(pixelRatio);
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.92;
     renderer.setClearColor(0x000000, transparent ? 0 : 1);
@@ -30525,8 +30547,8 @@ function createModelView(canvas, { transparent = true, pixelRatio = Math.min(2, 
   let env = studio(renderer);
   scene.environment = env.texture;
   const offRestored = own ? () => {} : onRestored(() => { const old = env; env = studio(renderer); scene.environment = env.texture; old.dispose(); });
-  const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(2.5, 4, 3); scene.add(key);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9 * LIGHT); key.position.set(2.5, 4, 3); scene.add(key);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25 * LIGHT));
   const holder = new THREE.Group();
   scene.add(holder);
   let mesh = null, radius = 1, raf = 0, closed = false;
@@ -34825,6 +34847,7 @@ const { createChoice } = __modules["client/choice.js"];
 const { makeCharacter, animateCharacter } = __modules["client/character.js"];
 const { figureHere, figureTurn, figureProgress, warmFigures } = __modules["client/animated.js"];
 const { sharedRenderer, drawIn } = __modules["client/shared-view.js"];
+const { LIGHT } = __modules["client/light.js"];
 
 const PART_NAMES = { skin: 'Skin', hair: 'Hair', top: 'Top', bottom: 'Bottom', shoes: 'Shoes', hat: 'Hat' };
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -34843,13 +34866,13 @@ function createCreator({ canvas, root, nameField, onPick, onView = () => {}, sav
     else {
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(26, 1, 0.1, 50);
-    scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75));
-    const key = new THREE.DirectionalLight(0xfff4e6, 1.15); key.position.set(2.2, 3.4, 3.0); scene.add(key);
-    const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
+    scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75 * LIGHT));
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.15 * LIGHT); key.position.set(2.2, 3.4, 3.0); scene.add(key);
+    const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55 * LIGHT); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
     const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false }));
     floor.rotation.x = -Math.PI / 2; scene.add(floor);
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.41, 0.418, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, depthWrite: false }));
@@ -35784,6 +35807,7 @@ return { installWay, playsOffline, createWebApp };
 __modules["client/phone-hold.js"] = (function () {
 
 const { reach } = __modules["client/animated.js"];
+const { SCREEN_GLOW } = __modules["client/light.js"];
 
 const OUT_SECONDS = 0.85;        // from the press to the phone held up
 const AWAY_SECONDS = 0.6;
@@ -35843,7 +35867,7 @@ function createPhoneHold({ scene, lite }) {
   const screenGlow = glowOf(), faceGlow = glowOf();
   screenGlow.visible = false; faceGlow.visible = false;
   scene.add(screenGlow, faceGlow);
-  const lamp = lite ? null : new THREE.PointLight(0xffffff, 0, 1.5, 2);
+  const lamp = lite ? null : new THREE.PointLight(0xffffff, 0, SCREEN_GLOW.distance, SCREEN_GLOW.decay);
   if (lamp) scene.add(lamp);
 
   let shown = '';
@@ -36063,7 +36087,7 @@ function createPhoneHold({ scene, lite }) {
     if (lamp) {
       lamp.position.copy(prop.position).addScaledVector(v.eye, 0.12);
       lamp.color.setRGB(r, g, b);
-      lamp.intensity = held * (0.12 + 1.5 * night);
+      lamp.intensity = held * (0.12 + 1.5 * night) * SCREEN_GLOW.times;
     }
   }
 
@@ -37327,7 +37351,7 @@ function createStandins(scene, { lite = false } = {}) {
     const key = `${kind}:${id}`;
     let s = sheets.get(key);
     if (s) return s;
-    const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+    const texture = new THREE.Texture(); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
     s = { texture, material, wantedAt: 0, asked: false, generation: 0 };
@@ -37435,7 +37459,7 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
     const index = json.textures[info.index].source;
     const image = json.images[index];
     const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint));
-    t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
+    t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
     letGoOnceDrawn(t, () => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint)));
     return t;
   };
@@ -37627,7 +37651,7 @@ function canvasTexture(width, height, draw, { repeat = false, lite = 0.5 } = {})
   const k = isLite() ? lite : 1;
   canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
+  texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   const g = canvas.getContext('2d');
   g.scale(k, k);
@@ -37693,7 +37717,7 @@ function pavingTextures(size, { tone = [158, 154, 147], spread = 14, seed = 1 } 
     o[i] = Math.round((0.5 - dx / len / 2) * 255); o[i + 1] = Math.round((0.5 + dy / len / 2) * 255); o[i + 2] = Math.round((0.5 + 0.5 / len) * 255); o[i + 3] = 255;
   }
   nctx.putImageData(out, 0, 0);
-  const map = new THREE.CanvasTexture(colour); map.encoding = THREE.sRGBEncoding;
+  const map = new THREE.CanvasTexture(colour); map.colorSpace = THREE.SRGBColorSpace;
   const normalMap = new THREE.CanvasTexture(normal);
   for (const t of [map, normalMap]) { t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 8; }
   return { map, normalMap };
@@ -37731,6 +37755,7 @@ function buildFence(group, { lite }) {
       const inst = new THREE.InstancedMesh(own, material, mine.length);
       mine.forEach(([x, z, ry], i) => inst.setMatrixAt(i, m.makeRotationY(ry + Math.PI / 4).setPosition(x, 0, z)));
       inst.instanceMatrix.needsUpdate = true;
+      inst.boundingSphere = own.boundingSphere.clone();
       inst.castShadow = !lite; inst.receiveShadow = false; inst.name = 'carshow-bars';
       group.add(inst);
       return inst;
@@ -37895,7 +37920,7 @@ function plateTexture(car) {
   g.fillText(`Top speed ${car.kmh} km/h`, 22, 150);
   g.fillStyle = GOLD; g.font = '800 52px "Helvetica Neue", Helvetica, Arial, sans-serif';
   g.fillText(trText(car.price * 2).replace(/\.0$/, ''), 22, 222);
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   return texture;
 }
 function floorTexture() {
@@ -37908,7 +37933,7 @@ function floorTexture() {
   }
   g.strokeStyle = 'rgba(120,122,128,0.5)'; g.lineWidth = 2;
   for (let k = 0; k <= 2; k += 1) { g.beginPath(); g.moveTo(k * 256, 0); g.lineTo(k * 256, 512); g.stroke(); g.beginPath(); g.moveTo(0, k * 256); g.lineTo(512, k * 256); g.stroke(); }
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   return texture;
 }
@@ -38041,7 +38066,7 @@ function buildHall() {
     metal.box(0.06, door.height, 0.08, place(door.x + s * (door.width / 2), door.height / 2, dz - 0.02), GREY);
     metal.box(0.04, 1.3, 0.04, place(door.x + s * 0.18, 1.15, dz - 0.12), BRASS);
   }
-  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.36), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; })(), toneMapped: false }));
+  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.36), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), toneMapped: false }));
   exitSign.position.set(door.x, door.height + 0.5, dz - 0.09); exitSign.rotation.y = Math.PI;
   group.add(exitSign);
   const e = P.exit;
@@ -38244,7 +38269,7 @@ function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = null } =
   const sheets = new Map();
   const sheetOf = (id) => {
     if (sheets.has(id)) return sheets.get(id);
-    const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+    const texture = new THREE.Texture(); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
     let asked = false, generation = 0, wantedAt = 0;
@@ -38748,7 +38773,7 @@ function canvasTexture(width, height, draw) {
   const k = isLite() ? 0.5 : 1;
   canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   const g = canvas.getContext('2d');
   g.scale(k, k);
   logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
@@ -38817,7 +38842,7 @@ function plateTexture(bike) {
   g.fillText(`${bike.cc.toLocaleString('en-GB')} cc  ·  ${bike.topKmh} km/h`, 22, 150);
   g.fillStyle = GOLD; g.font = '800 52px "Helvetica Neue", Helvetica, Arial, sans-serif';
   g.fillText(trText(bike.price * 2).replace(/\.0$/, ''), 22, 222);
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   return texture;
 }
 function floorTexture() {
@@ -38831,7 +38856,7 @@ function floorTexture() {
   }
   g.strokeStyle = 'rgba(190,195,205,0.35)'; g.lineWidth = 2;
   for (let k = 0; k <= 4; k += 1) { g.beginPath(); g.moveTo(k * 128, 0); g.lineTo(k * 128, 512); g.stroke(); g.beginPath(); g.moveTo(0, k * 128); g.lineTo(512, k * 128); g.stroke(); }
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   return texture;
 }
@@ -38859,7 +38884,7 @@ async function loadTower({ maxTexture }) {
       ? (maxTexture ? createImageBitmap(blob, { resizeWidth: maxTexture, resizeHeight: maxTexture, resizeQuality: 'high' }) : createImageBitmap(blob))
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
-    map.flipY = false; map.encoding = THREE.sRGBEncoding; map.anisotropy = 8; map.needsUpdate = true;
+    map.flipY = false; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8; map.needsUpdate = true;
     letGoOnceDrawn(map, () => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, maxTexture));
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
@@ -38915,7 +38940,7 @@ function buildHall() {
     metal.box(0.04, 1.3, 0.04, place(door.x + s * 0.16, 1.15, dz - 0.12), BRASS);
   }
   metal.box(0.05, door.height, 0.08, place(door.x, door.height / 2, dz - 0.02), STEEL);
-  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.34), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; })(), toneMapped: false }));
+  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.34), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), toneMapped: false }));
   exitSign.position.set(door.x, door.height + 0.45, dz - 0.09); exitSign.rotation.y = Math.PI;
   group.add(exitSign);
   const e = P.exit;
@@ -39109,7 +39134,7 @@ function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer = null }
   let hall = null, displays = [], sheets = new Map(), inside = false;
   const sheetOf = (id) => {
     if (sheets.has(id)) return sheets.get(id);
-    const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+    const texture = new THREE.Texture(); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
     let asked = false, generation = 0, wantedAt = 0;
@@ -39150,7 +39175,7 @@ function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer = null }
       load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadBike(displays[k].display.bike, { base: 'bikes/', tier, length: displays[k].bike.length })),
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
-    if (!ON_DISK) for (const p of hall.posters) { const img = new Image(); img.onload = () => { const t = new THREE.Texture(img); t.encoding = THREE.sRGBEncoding; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true; }; img.src = `assets/bike-${p.bike}-poster.webp`; }
+    if (!ON_DISK) for (const p of hall.posters) { const img = new Image(); img.onload = () => { const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true; }; img.src = `assets/bike-${p.bike}-poster.webp`; }
     return hall;
   }
 
@@ -39269,12 +39294,12 @@ function countGraphics(gl, { antialias = false } = {}) {
   wrap('texStorage2D', (a) => {
     const texture = boundTo(a[0]);
     if (!texture) return;
-    const t = entry(texture); t.levels.clear(); t.mips = false;
+    const t = entry(texture); t.levels.clear(); t.mips = false; t.stored = true;
     let w = a[3], h = a[4], total = 0;
     for (let l = 0; l < a[1]; l += 1) { total += Math.max(1, w) * Math.max(1, h) * (BYTES[a[2]] || 4); w >>= 1; h >>= 1; }
     t.levels.set(0, total * (a[0] === CUBE ? 6 : 1)); sum();
   });
-  wrap('generateMipmap', (a) => { const texture = boundTo(a[0]); if (texture) { entry(texture).mips = true; sum(); } });
+  wrap('generateMipmap', (a) => { const texture = boundTo(a[0]); if (texture) { const t = entry(texture); if (!t.stored) { t.mips = true; sum(); } } });
   wrap('bindRenderbuffer', (a) => { buffer = a[1]; });
   wrap('deleteRenderbuffer', (a) => { if (buffers.delete(a[0])) sum(); });
   wrap('renderbufferStorage', (a) => { if (buffer) { buffers.set(buffer, a[2] * a[3] * (BYTES[a[1]] || 4)); sum(); } });
@@ -39318,7 +39343,7 @@ const s = (ms) => (ms / 1000).toFixed(1);
 function statsLines(now) {
   const lines = [];
   const scr = typeof screen !== 'undefined' ? `${window.innerWidth}×${window.innerHeight} at ${(window.devicePixelRatio || 1).toFixed(2)}` : '';
-  lines.push(['Game', `${now.build || 'this copy'} · ${now.screen}`]);
+  lines.push(['Game', `${now.build || 'this copy'}${now.engine ? ` · drawn by three.js r${now.engine}` : ''} · ${now.screen}`]);
   lines.push(['Device', `${now.device} · screen ${scr}, drawn at ${(now.pixelRatio || 1).toFixed(2)}`]);
   const g = now.graphics;
   lines.push(['Graphics card', g && !g.unwatched
@@ -39752,7 +39777,7 @@ function stripes() {
   g.fillStyle = WHITE; g.fillRect(0, 0, 128, 32);
   g.fillStyle = RED;
   for (let x = -64; x < 192; x += 64) { g.beginPath(); g.moveTo(x, 32); g.lineTo(x + 32, 0); g.lineTo(x + 64, 0); g.lineTo(x + 32, 32); g.closePath(); g.fill(); }
-  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.encoding = THREE.sRGBEncoding; t.anisotropy = 4;
+  const t = new THREE.CanvasTexture(c); t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.ClampToEdgeWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
   return t;
 }
 function stripeGlow() {
@@ -39769,7 +39794,7 @@ function drumPaint() {
   const g = c.getContext('2d');
   for (let i = 0; i < 4; i += 1) { g.fillStyle = i % 2 ? WHITE : RED; g.fillRect(0, i * 32, 16, 32); }
   g.fillStyle = 'rgba(40,30,25,0.55)'; g.fillRect(0, 0, 16, 5); g.fillRect(0, 123, 16, 5);
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 
@@ -40132,6 +40157,7 @@ const { talkGesture } = __modules["client/talk-gestures.js"];
 const { watchPicture } = __modules["client/picture-watch.js"];
 const { buildClosures } = __modules["client/render-closures.js"];
 const { createTorchBeams } = __modules["client/torch-beams.js"];
+const { STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT } = __modules["client/light.js"];
 const { fallTime, flightAt } = __modules["client/falls.js"];
 const { CONTACT, contactNormal, contactOutcome } = __modules["sim/contact.js"];
 
@@ -40177,7 +40203,15 @@ function dressPage() {
 function start(carried) {
   dressPage();
   const canvas = $('view');
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  let renderer = null;
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' }); } catch (error) {
+    $('start-error').hidden = false;
+    $('start-error').textContent = 'This browser cannot draw the game: it needs WebGL 2. Update the browser, or turn its graphics acceleration on, and reload the page.';
+    $('enter').disabled = true;
+    const opening = document.getElementById('intro');
+    if (opening) opening.remove();
+    return;
+  }
   renderer.setClearColor(0x000000, 1);
   shareRenderer(renderer, { idle: () => !playing, paused: () => pictureGone });
   const graphics = countGraphics(renderer.getContext(), { antialias: true });
@@ -40185,9 +40219,9 @@ function start(carried) {
   let graphicsTrims = 0;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LITE ? 1.25 : 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = LITE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   setLite(LITE);
-  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 2000);
   const townSteps = [];          // [what it is, () => build it]
@@ -40309,8 +40343,8 @@ function start(carried) {
   const peerHorned = new Map();
   let peerHornsHeard = 0;
   let headlight = null;
-  const TORCH = Object.freeze({ intensity: 3.4, distance: 30, angle: 0.5, penumbra: 0.85, decay: 1.7, colour: 0xf2f5ff });
-  const HEADLAMP = Object.freeze({ distance: 38, angle: 0.42, penumbra: 0.55, decay: 1.6, colour: 0xfff1d6 });
+  const TORCH = Object.freeze({ intensity: TORCH_LIGHT.intensity, distance: TORCH_LIGHT.distance, angle: 0.5, penumbra: 0.85, decay: TORCH_LIGHT.decay, colour: 0xf2f5ff });
+  const HEADLAMP = Object.freeze({ distance: HEADLAMP_LIGHT.distance, angle: 0.42, penumbra: 0.55, decay: HEADLAMP_LIGHT.decay, colour: 0xfff1d6 });
   const torch = { on: false, held: false, lit: false, self: { from: new THREE.Vector3(), dir: new THREE.Vector3() } };
   const torchWork = { back: new THREE.Vector3(), q: new THREE.Quaternion() };
   function setTorch(on) { torch.on = !!on; audio.chime('tap'); }
@@ -40327,9 +40361,9 @@ function start(carried) {
   const lampLights = [];
   let lampPools = null;
   townSteps.push(['the lamps', () => {
-  headlight = new THREE.SpotLight(0xfff1d6, 0, 38, 0.42, 0.55, 1.6);
+  headlight = new THREE.SpotLight(HEADLAMP.colour, 0, HEADLAMP.distance, HEADLAMP.angle, HEADLAMP.penumbra, HEADLAMP.decay);
   headlight.castShadow = false; scene.add(headlight); scene.add(headlight.target);
-  for (let i = 0; i < (LITE ? 0 : 2); i += 1) { const light = new THREE.PointLight(0xffc98a, 0, 30, 1.6); light.position.y = 4.8; scene.add(light); lampLights.push(light); }
+  for (let i = 0; i < (LITE ? 0 : 2); i += 1) { const light = new THREE.PointLight(0xffc98a, 0, STREET_LAMP.distance, STREET_LAMP.decay); light.position.y = 4.8; scene.add(light); lampLights.push(light); }
   lampPools = (() => {
     const size = 64;
     const canvas2 = document.createElement('canvas');
@@ -41191,7 +41225,7 @@ function start(carried) {
       if (wait > 0) return;
       wait = LITE ? 1 / 9 : 1 / 14;
       if (!target) {
-        target = new THREE.WebGLRenderTarget(W, H); target.texture.encoding = THREE.sRGBEncoding;
+        target = new THREE.WebGLRenderTarget(W, H); target.texture.colorSpace = THREE.SRGBColorSpace;
         pixels = new Uint8Array(W * H * 4);
         spare = document.createElement('canvas'); spare.width = W; spare.height = H;
         image = spare.getContext('2d').createImageData(W, H);
@@ -43100,7 +43134,7 @@ blood.update(dt, view.blood || []);
     const carLit = !lit && playing && view && view.self.incar && night > 0.25 && carView.driven();
     const torchLit = !lit && !carLit && playing && torch.held && !!phoneHold && phoneHold.out > 0.85;
     torch.lit = torchLit;
-    headlight.intensity = lit ? 2.2 : carLit ? 2.8 : torchLit ? TORCH.intensity : 0;
+    headlight.intensity = lit ? HEADLAMP_LIGHT.bike : carLit ? HEADLAMP_LIGHT.car : torchLit ? TORCH.intensity : 0;
     { const lamp = torchLit ? TORCH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
     if (torchLit) { const t = torchOf(phoneHold, predicted.heading, torch.self); headlight.position.copy(t.from); headlight.target.position.copy(t.from).addScaledVector(t.dir, 10); headlight.target.updateMatrixWorld(); }
     if (torchBeams) {
@@ -43154,7 +43188,7 @@ blood.update(dt, view.blood || []);
       const nearest = world.lampHeads.map((lamp) => ({ lamp, d: Math.hypot(lamp.x - cam.target.x, lamp.z - cam.target.z) })).sort((a, b) => a.d - b.d);
       lampLights.forEach((light, index) => { const item = nearest[index]; if (item) { light.position.x = item.lamp.x; light.position.z = item.lamp.z; light.position.y = 4.8 + zoneGroundY(item.lamp.x, item.lamp.z); } });
     }
-    for (const light of lampLights) light.intensity = hall ? 0 : night * 1.25;
+    for (const light of lampLights) light.intensity = hall ? 0 : night * STREET_LAMP.intensity;
     lampPools.mesh.visible = night > 0.02;
     lampPools.material.opacity = night * 0.5;
     markerMaterial.opacity = 0.55 + Math.sin(clock * 3) * 0.3;
@@ -43272,7 +43306,7 @@ blood.update(dt, view.blood || []);
   const screenName = () => (!intro || intro.active() ? 'the opening' : loading.open ? `the loading card: ${document.getElementById('loading-title').textContent}` : playing ? 'the town' : $('start') && !$('start').hidden ? (($('start').dataset.screen === 'create' ? 'the character screen' : `the start screen (${$('start').dataset.screen || ''})`)) : 'between screens');
   const heapNow = () => { try { const m = performance.memory; return m && m.usedJSHeapSize ? { used: m.usedJSHeapSize, limit: m.jsHeapSizeLimit } : null; } catch (error) { return null; } };
   const frameTimes = HASH.includes('stats') ? frameClock().start() : null;
-  const statsNow = () => ({ build, screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
+  const statsNow = () => ({ build, engine: THREE.REVISION, screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
   if (frameTimes) { const box = showStats(); const draw = () => { try { box.update(statsLines(statsNow())); } catch (error) { /* said next second */ } }; setTimeout(draw, 0); setInterval(draw, 1000); }
   document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {

@@ -90,6 +90,7 @@ import { talkGesture } from './talk-gestures.js';
 import { watchPicture } from './picture-watch.js';
 import { buildClosures } from './render-closures.js';
 import { createTorchBeams } from './torch-beams.js';
+import { STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT } from './light.js';
 import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
 
@@ -147,7 +148,17 @@ function start(carried) {
   // The page's one drawing surface (shared-view.js): the town, and the character screen's turntable and the market's
   // viewer drawn by it in turn. It can be see-through (alpha), for those two, whose backgrounds are the page's; the
   // town is drawn over a clear that is not (setClearColor below).
-  const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' });
+  // (three.js r186 draws with WebGL 2 alone, which every phone and computer of the last several years has; a browser
+  // without it, or with its graphics acceleration turned off, is told so, where r128 would have tried WebGL 1)
+  let renderer = null;
+  try { renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, powerPreference: 'high-performance' }); } catch (error) {
+    $('start-error').hidden = false;
+    $('start-error').textContent = 'This browser cannot draw the game: it needs WebGL 2. Update the browser, or turn its graphics acceleration on, and reload the page.';
+    $('enter').disabled = true;
+    const opening = document.getElementById('intro');
+    if (opening) opening.remove();
+    return;
+  }
   renderer.setClearColor(0x000000, 1);
   // (while the town is not being played in, the turntable may have the canvas sized to itself: enterWorld sizes it for
   // the town again)
@@ -158,9 +169,10 @@ function start(carried) {
   let graphicsTrims = 0;
   renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LITE ? 1.25 : 2));
   renderer.shadowMap.enabled = true;
-  renderer.shadowMap.type = LITE ? THREE.PCFShadowMap : THREE.PCFSoftShadowMap;
+  // (three.js r186 has one kind of soft shadow; how soft is the sun's own: render-sky.js)
+  renderer.shadowMap.type = THREE.PCFShadowMap;
   setLite(LITE);
-  renderer.outputEncoding = THREE.sRGBEncoding;
+  renderer.outputColorSpace = THREE.SRGBColorSpace;
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 2000);
   // The town is built when the player goes into it, not while the page starts (20 October 2026, the owner's brief: on
@@ -312,8 +324,9 @@ function start(carried) {
   // other players see the beam). While it is on the character keeps the phone in hand, held out in front, as anyone
   // walking by a phone's torch does. Its lamp is the one the motorcycles' and cars' headlamps use: one light, always in
   // the scene, so that switching it on makes nothing be worked out again; a headlamp, when one is lit, comes first.
-  const TORCH = Object.freeze({ intensity: 3.4, distance: 30, angle: 0.5, penumbra: 0.85, decay: 1.7, colour: 0xf2f5ff });
-  const HEADLAMP = Object.freeze({ distance: 38, angle: 0.42, penumbra: 0.55, decay: 1.6, colour: 0xfff1d6 });
+  // (its strength, reach and fall-off in three.js's units: light.js)
+  const TORCH = Object.freeze({ intensity: TORCH_LIGHT.intensity, distance: TORCH_LIGHT.distance, angle: 0.5, penumbra: 0.85, decay: TORCH_LIGHT.decay, colour: 0xf2f5ff });
+  const HEADLAMP = Object.freeze({ distance: HEADLAMP_LIGHT.distance, angle: 0.42, penumbra: 0.55, decay: HEADLAMP_LIGHT.decay, colour: 0xfff1d6 });
   const torch = { on: false, held: false, lit: false, self: { from: new THREE.Vector3(), dir: new THREE.Vector3() } };
   const torchWork = { back: new THREE.Vector3(), q: new THREE.Quaternion() };
   function setTorch(on) { torch.on = !!on; audio.chime('tap'); }
@@ -335,9 +348,9 @@ function start(carried) {
   const lampLights = [];
   let lampPools = null;
   townSteps.push(['the lamps', () => {
-  headlight = new THREE.SpotLight(0xfff1d6, 0, 38, 0.42, 0.55, 1.6);
+  headlight = new THREE.SpotLight(HEADLAMP.colour, 0, HEADLAMP.distance, HEADLAMP.angle, HEADLAMP.penumbra, HEADLAMP.decay);
   headlight.castShadow = false; scene.add(headlight); scene.add(headlight.target);
-  for (let i = 0; i < (LITE ? 0 : 2); i += 1) { const light = new THREE.PointLight(0xffc98a, 0, 30, 1.6); light.position.y = 4.8; scene.add(light); lampLights.push(light); }
+  for (let i = 0; i < (LITE ? 0 : 2); i += 1) { const light = new THREE.PointLight(0xffc98a, 0, STREET_LAMP.distance, STREET_LAMP.decay); light.position.y = 4.8; scene.add(light); lampLights.push(light); }
   lampPools = (() => {
     const size = 64;
     const canvas2 = document.createElement('canvas');
@@ -1342,7 +1355,7 @@ function start(carried) {
       if (wait > 0) return;
       wait = LITE ? 1 / 9 : 1 / 14;
       if (!target) {
-        target = new THREE.WebGLRenderTarget(W, H); target.texture.encoding = THREE.sRGBEncoding;
+        target = new THREE.WebGLRenderTarget(W, H); target.texture.colorSpace = THREE.SRGBColorSpace;
         pixels = new Uint8Array(W * H * 4);
         spare = document.createElement('canvas'); spare.width = W; spare.height = H;
         image = spare.getContext('2d').createImageData(W, H);
@@ -3578,7 +3591,7 @@ blood.update(dt, view.blood || []);
     const carLit = !lit && playing && view && view.self.incar && night > 0.25 && carView.driven();
     const torchLit = !lit && !carLit && playing && torch.held && !!phoneHold && phoneHold.out > 0.85;
     torch.lit = torchLit;
-    headlight.intensity = lit ? 2.2 : carLit ? 2.8 : torchLit ? TORCH.intensity : 0;
+    headlight.intensity = lit ? HEADLAMP_LIGHT.bike : carLit ? HEADLAMP_LIGHT.car : torchLit ? TORCH.intensity : 0;
     { const lamp = torchLit ? TORCH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
     if (torchLit) { const t = torchOf(phoneHold, predicted.heading, torch.self); headlight.position.copy(t.from); headlight.target.position.copy(t.from).addScaledVector(t.dir, 10); headlight.target.updateMatrixWorld(); }
     // the beams of the torches, as the others see them (and, faintly, the player's own)
@@ -3639,7 +3652,7 @@ blood.update(dt, view.blood || []);
       const nearest = world.lampHeads.map((lamp) => ({ lamp, d: Math.hypot(lamp.x - cam.target.x, lamp.z - cam.target.z) })).sort((a, b) => a.d - b.d);
       lampLights.forEach((light, index) => { const item = nearest[index]; if (item) { light.position.x = item.lamp.x; light.position.z = item.lamp.z; light.position.y = 4.8 + zoneGroundY(item.lamp.x, item.lamp.z); } });
     }
-    for (const light of lampLights) light.intensity = hall ? 0 : night * 1.25;
+    for (const light of lampLights) light.intensity = hall ? 0 : night * STREET_LAMP.intensity;
     lampPools.mesh.visible = night > 0.02;
     lampPools.material.opacity = night * 0.5;
     markerMaterial.opacity = 0.55 + Math.sin(clock * 3) * 0.3;
@@ -3796,7 +3809,7 @@ blood.update(dt, view.blood || []);
   const screenName = () => (!intro || intro.active() ? 'the opening' : loading.open ? `the loading card: ${document.getElementById('loading-title').textContent}` : playing ? 'the town' : $('start') && !$('start').hidden ? (($('start').dataset.screen === 'create' ? 'the character screen' : `the start screen (${$('start').dataset.screen || ''})`)) : 'between screens');
   const heapNow = () => { try { const m = performance.memory; return m && m.usedJSHeapSize ? { used: m.usedJSHeapSize, limit: m.jsHeapSizeLimit } : null; } catch (error) { return null; } };
   const frameTimes = HASH.includes('stats') ? frameClock().start() : null;
-  const statsNow = () => ({ build, screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
+  const statsNow = () => ({ build, engine: THREE.REVISION, screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
   // (the readout never holds the game up: anything it cannot say this second, it says the next)
   if (frameTimes) { const box = showStats(); const draw = () => { try { box.update(statsLines(statsNow())); } catch (error) { /* said next second */ } }; setTimeout(draw, 0); setInterval(draw, 1000); }
   // (the town's sounds stop while the page is out of sight, and start again when it is back)

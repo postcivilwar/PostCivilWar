@@ -91,7 +91,7 @@ async function pictureOf(json, bin, index, colour, shared = null) {
   const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (v.byteOffset || 0), v.byteLength)], { type: img.mimeType });
   const t = new THREE.Texture(await decodePicture(blob));
   t.flipY = false;
-  if (colour) t.encoding = THREE.sRGBEncoding;
+  if (colour) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.needsUpdate = true;
@@ -125,22 +125,24 @@ export function leafMaterial({ map, alphaTest = 0.4, amount = 0.035, glow = 0.55
         transformed.x += (sin(uWind * 1.35 + phase) + 0.35 * sin(uWind * 3.3 + phase * 2.7)) * flex * gust;
         transformed.z += cos(uWind * 1.1 + phase * 1.3) * flex * 0.8 * gust;
         transformed.y += sin(uWind * 1.9 + phase * 2.2) * flex * 0.45 * gust;
-      }`)
-      .replace('#include <lights_lambert_vertex>', `#include <lights_lambert_vertex>
+      }`);
+    // the sun through the leaf: bright where it is behind the leaf as seen from the eye, on either side of it, and not
+    // where the leaf is in shade. (In three.js r128 a Lambert material was lit at its corners and this was added to that
+    // light there; in r186 it is lit at every point, and the glow is added there, as much as before. `directLight` is
+    // the sun as it reaches this point, its shadow taken, lights_fragment_begin: three.js's units are π times the old,
+    // hence the RECIPROCAL_PI.)
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uGlow;')
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
       #if NUM_DIR_LIGHTS > 0
       {
-        /* the sun through the leaf: bright where it is behind the leaf as seen from the eye */
-        vec3 toEye = normalize(-mvPosition.xyz);
-        float through = pow(max(dot(-toEye, directionalLights[0].direction), 0.0), 3.0);
-        vec3 glowLight = directionalLights[0].color * through * uGlow;
-        vLightFront += glowLight;
-        #ifdef DOUBLE_SIDED
-          vLightBack += glowLight;
-        #endif
+        vec3 toEye = normalize(vViewPosition);
+        float through = pow(max(dot(-toEye, directLight.direction), 0.0), 3.0);
+        reflectedLight.directDiffuse += directLight.color * through * uGlow * RECIPROCAL_PI * BRDF_Lambert(diffuseColor.rgb);
       }
       #endif`);
   };
-  m.customProgramCacheKey = () => 'pcw-habitation-leaf';
+  m.customProgramCacheKey = () => 'pcw-habitation-leaf-2';
   return m;
 }
 // the shadow a leaf casts: the shape of its leaves, moving with them
@@ -199,7 +201,7 @@ export function stoneMaterial({ map, normalMap, roughnessMap, scale = 1.6, relie
       }`)
       .replace('#include <map_fragment>', `
       #ifdef USE_MAP
-        vec4 texelColor = mapTexelToLinear(triSample(map));
+        vec4 texelColor = triSample(map);    /* (an sRGB picture is read as linear light by the graphics card itself) */
         diffuseColor *= texelColor;
       #endif`)
       .replace('#include <roughnessmap_fragment>', `

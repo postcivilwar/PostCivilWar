@@ -3,8 +3,8 @@
 //   node build.mjs           writes dist/
 //   node build.mjs --site    writes dist/, then makes the repository's site/ folder the same as dist/site/
 //
-// Writes dist/index.html (loads three.js from cdnjs; this is the page
-// published as an artifact), dist/local.html (loads the vendored copy; works
+// Writes dist/index.html (loads the 3D library, vendor/three.min.js, from beside
+// it: dist/three.min.js), dist/local.html (loads the vendored copy; works
 // from a disk) and dist/site/ (the website: a whole document with its icons,
 // its manifest and the worker that keeps it on a device; see the end of this file).
 // There are no build dependencies. Source files are ES modules that use only
@@ -66,6 +66,11 @@ const { bundle, modules, files: gameFiles } = bundleFrom(resolve(root, 'src/clie
 // The habitation's drawing: a script of its own (src/client/habitation-code.js and what it uses that the game's script
 // does not carry), asked for by the game once the town is up (main.js, askForHabitation)
 const habitationScript = bundleFrom(resolve(root, 'src/client/habitation-code.js'), { after: gameFiles });
+// The 3D library is three.js, made for this game (tools/three/make.mjs: what the game uses of it, as one script):
+// a name the game uses that the script does not hold would be found missing only when that line runs, in a player's
+// hands, so it is found here.
+const threeHolds = new Set(JSON.parse(readFileSync(resolve(root, 'vendor/three.symbols.json'), 'utf8')).names);
+const threeNeeded = (script) => [...new Set([...script.matchAll(/\bTHREE\.([A-Za-z_][\w$]*)/g)].map((m) => m[1]))].filter((n) => !threeHolds.has(n));
 if (gameFiles.some((f) => /render-habitation\.js$|render-habitation-life\.js$|habitation-plants\.js$/.test(f))) throw new Error('the game\'s script carries the habitation\'s drawing: it should come in its own script (habitation-code.js)');
 
 // The brand's display face travels inside the page: the host allows no font files of its own.
@@ -94,7 +99,8 @@ const template = templateFor({ figures: {} });
 // (the page copied to a disk carries the habitation's drawing too, after the game's script)
 const page = (three) => `${template}\n<script src="${three}"></script>\n<script>\n${bundle}</script>\n<script>\n${habitationScript.bundle}</script>\n`;
 mkdirSync(resolve(root, 'dist'), { recursive: true });
-writeFileSync(resolve(root, 'dist/index.html'), page('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'));
+writeFileSync(resolve(root, 'dist/three.min.js'), readFileSync(resolve(root, 'vendor/three.min.js')));
+writeFileSync(resolve(root, 'dist/index.html'), page('three.min.js'));
 // The published page is wrapped in a document skeleton by the host. The local
 // copy carries an equivalent skeleton of its own.
 const skeleton = (content) => `<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover"><style>:root{color-scheme:light;padding:env(safe-area-inset-top,0px) 0 env(safe-area-inset-bottom,0px)}body{margin:0;font:14px system-ui,sans-serif}img{max-width:100%}[hidden]{display:none!important}</style></head><body>\n${content}</body></html>\n`;
@@ -124,7 +130,7 @@ console.log(`bundled ${modules} modules, ${(bundle.length / 1024).toFixed(0)} KB
 const lab = bundleFrom(resolve(root, 'src/client/lab.js'));
 const labTemplate = readFileSync(resolve(root, 'src/client/lab-template.html'), 'utf8');
 const labPage = (three) => `${labTemplate}\n<script src="${three}"></script>\n<script>\n${lab.bundle}</script>\n`;
-writeFileSync(resolve(root, 'dist/lab.html'), labPage('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'));
+writeFileSync(resolve(root, 'dist/lab.html'), labPage('three.min.js'));
 writeFileSync(resolve(root, 'dist/lab-local.html'), skeleton(labPage('../vendor/three.min.js')));
 console.log(`character lab: ${lab.modules} modules, ${(lab.bundle.length / 1024).toFixed(0)} KB of script`);
 
@@ -132,9 +138,13 @@ console.log(`character lab: ${lab.modules} modules, ${(lab.bundle.length / 1024)
 const yard = bundleFrom(resolve(root, 'src/client/yard.js'));
 const yardTemplate = readFileSync(resolve(root, 'src/client/yard-template.html'), 'utf8');
 const yardPage = (three) => `${yardTemplate}\n<script src="${three}"></script>\n<script>\n${yard.bundle}</script>\n`;
-writeFileSync(resolve(root, 'dist/yard.html'), yardPage('https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js'));
+writeFileSync(resolve(root, 'dist/yard.html'), yardPage('three.min.js'));
 writeFileSync(resolve(root, 'dist/yard-local.html'), skeleton(yardPage('../vendor/three.min.js')));
 console.log(`vehicle yard: ${yard.modules} modules, ${(yard.bundle.length / 1024).toFixed(0)} KB of script`);
+for (const [name, script] of [['the game', bundle], ['the habitation', habitationScript.bundle], ['the character lab', lab.bundle], ['the vehicle yard', yard.bundle]]) {
+  const missing = threeNeeded(script);
+  if (missing.length) throw new Error(`${name} uses THREE.${missing.join(', THREE.')}, which vendor/three.min.js does not hold: run node tools/three/make.mjs`);
+}
 
 // The website, postcivilwar.com: the same game as dist/index.html, as a page that stands on its own and can be
 // put on a device. It differs from the artifact's page in what surrounds the game, never in the game:

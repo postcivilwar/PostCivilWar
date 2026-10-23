@@ -29,19 +29,20 @@ const TYPES = { '.js': 'text/javascript', '.jpg': 'image/jpeg', '.png': 'image/p
 const page_html = `<!doctype html><meta charset="utf-8"><body style="margin:0;background:#000"><canvas id="c" width="${FRAME * 2}" height="${FRAME * 2}"></canvas>
 <script src="/vendor/three.min.js"></script><script type="module">
 import { loadCar } from '/src/client/car-model.js';
+import { LIGHT } from '/src/client/light.js';
 import { exactBox } from '/src/client/bounds.js';
 const blobOf = (c, type, q) => new Promise((r) => c.toBlob(r, type, q));
 const b64 = async (blob) => { const bytes = new Uint8Array(await blob.arrayBuffer()); let s = ''; for (let i = 0; i < bytes.length; i += 0x8000) s += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x8000)); return btoa(s); };
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true, preserveDrawingBuffer: true });
 renderer.setPixelRatio(1); renderer.setSize(${FRAME * 2}, ${FRAME * 2}, false);
-renderer.outputEncoding = THREE.sRGBEncoding;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
 renderer.setClearColor(0x000000, 0);
 // lit as the hall lights its floor (render-sky.js, indoors): the sky's light all round and a light from straight
 // above, the same from every side, so that a picture matches the model drawn there whichever way it stands
 const scene = new THREE.Scene();
-scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8478, 1.0));
-const key = new THREE.DirectionalLight(0xffffff, 0.75); key.position.set(0.001, 10, 0.001); scene.add(key);
+scene.add(new THREE.HemisphereLight(0xffffff, 0x8a8478, 1.0 * LIGHT));
+const key = new THREE.DirectionalLight(0xffffff, 0.75 * LIGHT); key.position.set(0.001, 10, 0.001); scene.add(key);
 window.take = async (id, length) => {
   const car = await loadCar(id, { base: '/assets/vehicles/cars/game/', lite: false, length });
   car.pose({});

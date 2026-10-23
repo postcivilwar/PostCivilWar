@@ -104,8 +104,8 @@ import { initVehicles } from '/src/client/vehicle-models.js';
 import { updateFinishes } from '/src/client/render-finish.js';
 const canvas = document.getElementById('c');
 const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, preserveDrawingBuffer: true });
-renderer.outputEncoding = THREE.sRGBEncoding;
-renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.PCFShadowMap;
 // (what is on the graphics card, counted as the game counts it: pictures and drawing buffers)
 const counted = countGraphics(renderer.getContext());
 const scene = new THREE.Scene();

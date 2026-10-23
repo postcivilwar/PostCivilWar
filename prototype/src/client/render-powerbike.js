@@ -86,7 +86,7 @@ function canvasTexture(width, height, draw) {
   const k = isLite() ? 0.5 : 1;
   canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   const g = canvas.getContext('2d');
   g.scale(k, k);
   logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
@@ -164,7 +164,7 @@ function plateTexture(bike) {
   g.fillText(`${bike.cc.toLocaleString('en-GB')} cc  ·  ${bike.topKmh} km/h`, 22, 150);
   g.fillStyle = GOLD; g.font = '800 52px "Helvetica Neue", Helvetica, Arial, sans-serif';
   g.fillText(trText(bike.price * 2).replace(/\.0$/, ''), 22, 222);
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   return texture;
 }
 // The floor: large polished tiles, dark, with fine joints.
@@ -179,7 +179,7 @@ function floorTexture() {
   }
   g.strokeStyle = 'rgba(190,195,205,0.35)'; g.lineWidth = 2;
   for (let k = 0; k <= 4; k += 1) { g.beginPath(); g.moveTo(k * 128, 0); g.lineTo(k * 128, 512); g.stroke(); g.beginPath(); g.moveTo(0, k * 128); g.lineTo(512, k * 128); g.stroke(); }
-  const texture = new THREE.CanvasTexture(canvas); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 8;
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   return texture;
 }
@@ -212,7 +212,7 @@ async function loadTower({ maxTexture }) {
       ? (maxTexture ? createImageBitmap(blob, { resizeWidth: maxTexture, resizeHeight: maxTexture, resizeQuality: 'high' }) : createImageBitmap(blob))
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
-    map.flipY = false; map.encoding = THREE.sRGBEncoding; map.anisotropy = 8; map.needsUpdate = true;
+    map.flipY = false; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8; map.needsUpdate = true;
     letGoOnceDrawn(map, () => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, maxTexture));
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
@@ -279,7 +279,7 @@ function buildHall() {
   }
   metal.box(0.05, door.height, 0.08, place(door.x, door.height / 2, dz - 0.02), STEEL);
   // EXIT over the doors, lit
-  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.34), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding; return t; })(), toneMapped: false }));
+  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.34), new THREE.MeshBasicMaterial({ map: (() => { const c = document.createElement('canvas'); c.width = 256; c.height = 80; const g = c.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace; return t; })(), toneMapped: false }));
   exitSign.position.set(door.x, door.height + 0.45, dz - 0.09); exitSign.rotation.y = Math.PI;
   group.add(exitSign);
   // the mat inside the doors
@@ -500,7 +500,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
   // its way, or on a phone across the hall), let go when it has not been drawn for a while (`idle`)
   const sheetOf = (id) => {
     if (sheets.has(id)) return sheets.get(id);
-    const texture = new THREE.Texture(); texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+    const texture = new THREE.Texture(); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
     const material = new THREE.MeshBasicMaterial({ map: texture, alphaTest: 0.5, toneMapped: false, side: THREE.DoubleSide });
     material.visible = false;
     let asked = false, generation = 0, wantedAt = 0;
@@ -545,7 +545,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
     // the pictures on the walls: the market's own photographs of each bike
-    if (!ON_DISK) for (const p of hall.posters) { const img = new Image(); img.onload = () => { const t = new THREE.Texture(img); t.encoding = THREE.sRGBEncoding; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true; }; img.src = `assets/bike-${p.bike}-poster.webp`; }
+    if (!ON_DISK) for (const p of hall.posters) { const img = new Image(); img.onload = () => { const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true; }; img.src = `assets/bike-${p.bike}-poster.webp`; }
     return hall;
   }
 

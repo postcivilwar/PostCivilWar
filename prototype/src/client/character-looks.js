@@ -67,7 +67,7 @@ export function printTexture(key) {
   const colours = list.split(',').map((c) => parseInt(c, 16));
   t = new THREE.CanvasTexture(paintPrint(kind, motif, colours, 128));
   t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
-  t.encoding = THREE.sRGBEncoding;
+  t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   textures.set(key, t);
   return t;

@@ -72,7 +72,7 @@ async function pictureOf(json, bin, index, colour, shared = null) {
   const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (v.byteOffset || 0), v.byteLength)], { type: img.mimeType });
   const t = new THREE.Texture(await decodePicture(blob));
   t.flipY = false;
-  if (colour) t.encoding = THREE.sRGBEncoding;
+  if (colour) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.needsUpdate = true;
@@ -102,22 +102,19 @@ function leafMaterial({ map, alphaTest = 0.4, amount = 0.035, glow = 0.55 }) {
         transformed.x += (sin(uWind * 1.35 + phase) + 0.35 * sin(uWind * 3.3 + phase * 2.7)) * flex * gust;
         transformed.z += cos(uWind * 1.1 + phase * 1.3) * flex * 0.8 * gust;
         transformed.y += sin(uWind * 1.9 + phase * 2.2) * flex * 0.45 * gust;
-      }`)
-      .replace('#include <lights_lambert_vertex>', `#include <lights_lambert_vertex>
+      }`);
+    shader.fragmentShader = shader.fragmentShader
+      .replace('#include <common>', '#include <common>\nuniform float uGlow;')
+      .replace('#include <lights_fragment_end>', `#include <lights_fragment_end>
       #if NUM_DIR_LIGHTS > 0
       {
-        /* the sun through the leaf: bright where it is behind the leaf as seen from the eye */
-        vec3 toEye = normalize(-mvPosition.xyz);
-        float through = pow(max(dot(-toEye, directionalLights[0].direction), 0.0), 3.0);
-        vec3 glowLight = directionalLights[0].color * through * uGlow;
-        vLightFront += glowLight;
-        #ifdef DOUBLE_SIDED
-          vLightBack += glowLight;
-        #endif
+        vec3 toEye = normalize(vViewPosition);
+        float through = pow(max(dot(-toEye, directLight.direction), 0.0), 3.0);
+        reflectedLight.directDiffuse += directLight.color * through * uGlow * RECIPROCAL_PI * BRDF_Lambert(diffuseColor.rgb);
       }
       #endif`);
   };
-  m.customProgramCacheKey = () => 'pcw-habitation-leaf';
+  m.customProgramCacheKey = () => 'pcw-habitation-leaf-2';
   return m;
 }
 function leafDepth(map, alphaTest, amount) {
@@ -171,7 +168,7 @@ function stoneMaterial({ map, normalMap, roughnessMap, scale = 1.6, relief = 1 }
       }`)
       .replace('#include <map_fragment>', `
       #ifdef USE_MAP
-        vec4 texelColor = mapTexelToLinear(triSample(map));
+        vec4 texelColor = triSample(map);    /* (an sRGB picture is read as linear light by the graphics card itself) */
         diffuseColor *= texelColor;
       #endif`)
       .replace('#include <roughnessmap_fragment>', `
@@ -286,6 +283,7 @@ const { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, 
 const { addTree } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
 const { reflects } = __modules["client/render-finish.js"];
+const { LIGHT } = __modules["client/light.js"];
 const { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture } = __modules["client/habitation-plants.js"];
 
 const COME = { full: 260, lite: 180 }, GO = { full: 400, lite: 240 };
@@ -335,7 +333,7 @@ function stoneTexture(size = 256) {
     }
   }
   const t = new THREE.CanvasTexture(c);
-  t.encoding = THREE.sRGBEncoding; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
+  t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; t.anisotropy = 4;
   return t;
 }
 function pillarGeometry(p, lite) {
@@ -507,18 +505,18 @@ function groundMaterial({ grain, stone, lite }) {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 tint;\nvarying vec3 vTint;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;')
       .replace('#include <begin_vertex>', '#include <begin_vertex>\nvTint = mix(tint.rgb / 12.92, pow((tint.rgb + 0.055) / 1.055, vec3(2.4)), step(vec3(0.04045), tint.rgb));\nfloat packed = floor(tint.a * 255.0 + 0.5);\nvPaved = step(127.5, packed);\nvRocky = (packed - 128.0 * vPaved) / 127.0;\nvWorld = (modelMatrix * vec4(position, 1.0)).xyz;\nvWorldNormal = normal;')
-      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_UV\nvUv = (modelMatrix * vec4(position, 1.0)).xz / 2.6;\n#endif');
+      .replace('#include <uv_vertex>', '#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv = (modelMatrix * vec4(position, 1.0)).xz / 2.6;\n#endif');
     shader.fragmentShader = shader.fragmentShader
       .replace('#include <common>', '#include <common>\nuniform sampler2D uStone;\nvarying vec3 vTint;\nvarying float vRocky;\nvarying float vPaved;\nvarying vec3 vWorld;\nvarying vec3 vWorldNormal;\nfloat paveHash(vec2 p) { return fract(sin(dot(p, vec2(41.3, 289.1))) * 43758.5453); }')
       .replace('#include <color_fragment>', 'diffuseColor.rgb *= vTint;')
       .replace('#include <map_fragment>', `
       #ifdef USE_MAP
-        vec4 texelColor = mapTexelToLinear(texture2D(map, vUv));
+        vec4 texelColor = texture2D(map, vMapUv);    /* (sRGB pictures are read as linear light by the graphics card) */
         ${lite ? '' : `
         if (vRocky > 0.01) {
           vec3 w = pow(abs(normalize(vWorldNormal)), vec3(4.0)); w /= (w.x + w.y + w.z);
           vec4 s = texture2D(uStone, vWorld.zy / 4.0) * w.x + texture2D(uStone, vWorld.xz / 4.0) * w.y + texture2D(uStone, vWorld.xy / 4.0) * w.z;
-          texelColor = mix(texelColor, mapTexelToLinear(s) * 1.25, vRocky);
+          texelColor = mix(texelColor, s * 1.25, vRocky);
         }`}
         diffuseColor *= texelColor;
         /* paving: flat stones laid in rows, each its own shade, the joints between them dark */
@@ -609,7 +607,7 @@ function waterMaterial(kind, { ripples, lite }) {
         vec3 n1 = texture2D(normalMap, vWorldPos.xz / 9.0 + drift).xyz * 2.0 - 1.0;
         vec3 n2 = texture2D(normalMap, vWorldPos.zx / 4.3 - drift * 1.7 + vec2(0.37, 0.11)).xyz * 2.0 - 1.0;
         vec3 mapN = normalize(vec3((n1.xy + n2.xy) * normalScale * (0.6 + vRush), 1.0));
-        normal = perturbNormal2Arb(-vViewPosition, normal, mapN, faceDirection);
+        normal = normalize(tbn * mapN);
       }
       #endif`);
   };
@@ -625,7 +623,7 @@ function lilyTexture() {
   g.beginPath(); g.moveTo(64, 64); g.arc(64, 64, 62, 0.22, Math.PI * 2 - 0.22); g.closePath(); g.fill();
   g.strokeStyle = 'rgba(30,55,16,0.45)'; g.lineWidth = 1.2;
   for (let a = 0.4; a < Math.PI * 2 - 0.3; a += 0.42) { g.beginPath(); g.moveTo(64, 64); g.lineTo(64 + Math.cos(a) * 58, 64 + Math.sin(a) * 58); g.stroke(); }
-  const t = new THREE.CanvasTexture(c); t.encoding = THREE.sRGBEncoding;
+  const t = new THREE.CanvasTexture(c); t.colorSpace = THREE.SRGBColorSpace;
   return t;
 }
 function buildLilies(lite) {
@@ -812,7 +810,7 @@ function hotWaterMaterial(ripples, lite) {
         vec3 n1 = texture2D(normalMap, vWorldPos.xz / 5.0 + drift).xyz * 2.0 - 1.0;
         vec3 n2 = texture2D(normalMap, vWorldPos.zx / 2.3 - drift * 1.9 + vec2(0.37, 0.11)).xyz * 2.0 - 1.0;
         vec3 mapN = normalize(vec3((n1.xy + n2.xy) * normalScale, 1.0));
-        normal = perturbNormal2Arb(-vViewPosition, normal, mapN, faceDirection);
+        normal = normalize(tbn * mapN);
       }
       #endif`);
   };
@@ -1372,11 +1370,11 @@ const COLS = 8, ROWS = 4;
 function createImpostors(renderer, scene, lite) {
   const [sw, sh] = SLOT[lite ? 'lite' : 'full'];
   const target = new THREE.WebGLRenderTarget(sw * COLS, sh * ROWS, { minFilter: THREE.LinearMipmapLinearFilter, magFilter: THREE.LinearFilter, generateMipmaps: true, depthBuffer: true });
-  target.texture.encoding = THREE.sRGBEncoding;
+  target.texture.colorSpace = THREE.SRGBColorSpace;
   const slots = new Map();
   const studio = new THREE.Scene();
-  const key = new THREE.DirectionalLight(0xfff4e0, 1.25); key.position.set(0.4, 1, 1); studio.add(key);
-  studio.add(new THREE.HemisphereLight(0xdfeaff, 0x5a5040, 0.75));
+  const key = new THREE.DirectionalLight(0xfff4e0, 1.25 * LIGHT); key.position.set(0.4, 1, 1); studio.add(key);
+  studio.add(new THREE.HemisphereLight(0xdfeaff, 0x5a5040, 0.75 * LIGHT));
   const lens = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 100);
   const card = new THREE.PlaneGeometry(1, 1); card.translate(0, 0.5, 0);
   const geometry = new THREE.InstancedBufferGeometry();
@@ -1390,7 +1388,7 @@ function createImpostors(renderer, scene, lite) {
   material.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader
       .replace('#include <common>', '#include <common>\nattribute vec4 impAt;\nattribute vec4 impSlot;')
-      .replace('#include <uv_vertex>', `#include <uv_vertex>\n#ifdef USE_UV\nvUv = impSlot.xy + vec2(impSlot.w > 0.0 ? uv.x : 1.0 - uv.x, uv.y) * vec2(${(1 / COLS).toFixed(6)}, ${(1 / ROWS).toFixed(6)});\n#endif`)
+      .replace('#include <uv_vertex>', `#include <uv_vertex>\n#ifdef USE_MAP\nvMapUv = impSlot.xy + vec2(impSlot.w > 0.0 ? uv.x : 1.0 - uv.x, uv.y) * vec2(${(1 / COLS).toFixed(6)}, ${(1 / ROWS).toFixed(6)});\n#endif`)
       .replace('#include <project_vertex>', `
         vec3 toEye = cameraPosition - impAt.xyz; toEye.y = 0.0; toEye = normalize(toEye + vec3(1e-5));
         vec3 across = vec3(toEye.z, 0.0, -toEye.x);
@@ -1552,7 +1550,7 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
     if (n) e.drawnAt = now;
     if (chosen !== e.chosen || e.meshes[0] && e.meshes[0].count !== n) {
       e.chosen = chosen;
-      for (const mesh of e.meshes) { mesh.count = n; mesh.visible = n > 0; if (n) { mesh.instanceMatrix.updateRange.offset = 0; mesh.instanceMatrix.updateRange.count = n * 16; mesh.instanceMatrix.needsUpdate = true; } }
+      for (const mesh of e.meshes) { mesh.count = n; mesh.visible = n > 0; if (n) { mesh.instanceMatrix.clearUpdateRanges(); mesh.instanceMatrix.addUpdateRange(0, n * 16); mesh.instanceMatrix.needsUpdate = true; } }
     }
     if (n) { counts.models += 1; counts.copies += n; }
   }
@@ -1598,7 +1596,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     if (!sharedPictures.has(uri)) sharedPictures.set(uri, (async () => {
       const res = await fetchFile(`habitation/${uri}`);
       if (!res.ok) throw new Error(`${uri}: ${res.status}`);
-      const t = new THREE.Texture(await decodePicture(await res.blob())); t.flipY = false; if (colour) t.encoding = THREE.sRGBEncoding; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      const t = new THREE.Texture(await decodePicture(await res.blob())); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
       sharedTextures.add(t);
       return t;
     })());
@@ -2234,7 +2232,7 @@ function createHabitationLife(scene, { lite = false } = {}) {
   const printMat = new THREE.MeshBasicMaterial({ map: printTex, color: linear(0x6e5a3e), transparent: true, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
   printMat.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nattribute float printFade;\nvarying float vPrintFade;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvPrintFade = printFade;');
-    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPrintFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = texture2D(map, vUv).r * 0.42 * vPrintFade;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying float vPrintFade;').replace('#include <map_fragment>', '#include <map_fragment>\ndiffuseColor.a = texture2D(map, vMapUv).r * 0.42 * vPrintFade;');
   };
   printMat.customProgramCacheKey = () => 'pcw-habitation-print';
   const prints = new THREE.InstancedMesh(printGeom, printMat, PRINTS);

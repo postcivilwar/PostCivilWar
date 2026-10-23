@@ -2,7 +2,8 @@
 // overall texture budget", and a readout he can open on his own phones). A browser does not say how much graphics
 // memory a page uses, and three.js counts only how many pictures it has made (renderer.info.memory.textures), not how
 // large they are. So the page's one drawing surface (its WebGL context) is watched as pictures are handed to it: each
-// picture's size and kind as it goes over (texImage2D), its smaller copies when they are made (generateMipmap), and
+// picture's size and kind as it goes over (texImage2D, or texStorage2D with all its levels), its smaller copies when
+// they are made (generateMipmap, for a picture handed over by texImage2D), and
 // each picture deleted. The drawing buffers made for pictures drawn off the screen (renderbuffers) are counted too.
 //
 //   const count = countGraphics(gl)   count.pictures (bytes), count.buffers (bytes), count.screen (bytes, the canvas's
@@ -61,12 +62,14 @@ export function countGraphics(gl, { antialias = false } = {}) {
   wrap('texStorage2D', (a) => {
     const texture = boundTo(a[0]);
     if (!texture) return;
-    const t = entry(texture); t.levels.clear(); t.mips = false;
+    // (all its levels made at once, its smaller copies with it: generateMipmap then fills them, adding nothing; three.js
+    // r186 makes nearly every picture so)
+    const t = entry(texture); t.levels.clear(); t.mips = false; t.stored = true;
     let w = a[3], h = a[4], total = 0;
     for (let l = 0; l < a[1]; l += 1) { total += Math.max(1, w) * Math.max(1, h) * (BYTES[a[2]] || 4); w >>= 1; h >>= 1; }
     t.levels.set(0, total * (a[0] === CUBE ? 6 : 1)); sum();
   });
-  wrap('generateMipmap', (a) => { const texture = boundTo(a[0]); if (texture) { entry(texture).mips = true; sum(); } });
+  wrap('generateMipmap', (a) => { const texture = boundTo(a[0]); if (texture) { const t = entry(texture); if (!t.stored) { t.mips = true; sum(); } } });
   wrap('bindRenderbuffer', (a) => { buffer = a[1]; });
   wrap('deleteRenderbuffer', (a) => { if (buffers.delete(a[0])) sum(); });
   wrap('renderbufferStorage', (a) => { if (buffer) { buffers.set(buffer, a[2] * a[3] * (BYTES[a[1]] || 4)); sum(); } });

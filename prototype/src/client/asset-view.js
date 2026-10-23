@@ -19,6 +19,7 @@ import { loadBike } from './bike-model.js';
 import { CAR_PARTS } from './car-parts.js';
 import { loadCar } from './car-model.js';
 import { isLite } from './render-kit.js';
+import { LIGHT } from './light.js';
 import { PICTURES, modelFile } from './budget.js';
 import { exactBox } from './bounds.js';
 import { POWER_BIKES } from '../sim/power-bikes.js';
@@ -130,7 +131,7 @@ async function textureFrom(blob, srgb, most) {
   if (!blob) return null;
   const texture = new THREE.Texture();
   texture.flipY = false;                  // glTF lays a picture with its first row at the top
-  if (srgb) texture.encoding = THREE.sRGBEncoding;
+  if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
   let picture = null;
   if (typeof createImageBitmap === 'function') { try { picture = await createImageBitmap(blob); } catch (error) { picture = null; } }
@@ -171,7 +172,7 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
   const renderer = own ? new THREE.WebGLRenderer({ canvas, antialias: true, alpha: transparent, preserveDrawingBuffer: true, powerPreference: 'high-performance' }) : sharedRenderer();
   if (own) {
     renderer.setPixelRatio(pixelRatio);
-    renderer.outputEncoding = THREE.sRGBEncoding;
+    renderer.outputColorSpace = THREE.SRGBColorSpace;
     renderer.toneMapping = THREE.ACESFilmicToneMapping;
     renderer.toneMappingExposure = 0.92;
     renderer.setClearColor(0x000000, transparent ? 0 : 1);
@@ -182,8 +183,8 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
   scene.environment = env.texture;
   // (drawn by the town's renderer: its reflection made again when the browser gives the drawing surface back)
   const offRestored = own ? () => {} : onRestored(() => { const old = env; env = studio(renderer); scene.environment = env.texture; old.dispose(); });
-  const key = new THREE.DirectionalLight(0xffffff, 0.9); key.position.set(2.5, 4, 3); scene.add(key);
-  scene.add(new THREE.AmbientLight(0xffffff, 0.25));
+  const key = new THREE.DirectionalLight(0xffffff, 0.9 * LIGHT); key.position.set(2.5, 4, 3); scene.add(key);
+  scene.add(new THREE.AmbientLight(0xffffff, 0.25 * LIGHT));
   const holder = new THREE.Group();
   scene.add(holder);
   let mesh = null, radius = 1, raf = 0, closed = false;

@@ -17,6 +17,7 @@ import { createChoice } from './choice.js';
 import { makeCharacter, animateCharacter } from './character.js';
 import { figureHere, figureTurn, figureProgress, warmFigures } from './animated.js';
 import { sharedRenderer, drawIn } from './shared-view.js';
+import { LIGHT } from './light.js';
 
 const PART_NAMES = { skin: 'Skin', hair: 'Hair', top: 'Top', bottom: 'Bottom', shoes: 'Shoes', hat: 'Hat' };
 const hex = (n) => `#${n.toString(16).padStart(6, '0')}`;
@@ -44,13 +45,13 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
     else {
       renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
       renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
-      renderer.outputEncoding = THREE.sRGBEncoding;
+      renderer.outputColorSpace = THREE.SRGBColorSpace;
     }
     scene = new THREE.Scene();
     camera = new THREE.PerspectiveCamera(26, 1, 0.1, 50);
-    scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75));
-    const key = new THREE.DirectionalLight(0xfff4e6, 1.15); key.position.set(2.2, 3.4, 3.0); scene.add(key);
-    const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
+    scene.add(new THREE.HemisphereLight(0xe8eef6, 0x2a2622, 0.75 * LIGHT));
+    const key = new THREE.DirectionalLight(0xfff4e6, 1.15 * LIGHT); key.position.set(2.2, 3.4, 3.0); scene.add(key);
+    const rim = new THREE.DirectionalLight(0xbfd2ff, 0.55 * LIGHT); rim.position.set(-2.6, 2.4, -2.8); scene.add(rim);
     const floor = new THREE.Mesh(new THREE.CircleGeometry(0.42, 48), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.06, depthWrite: false }));
     floor.rotation.x = -Math.PI / 2; scene.add(floor);
     const ring = new THREE.Mesh(new THREE.RingGeometry(0.41, 0.418, 64), new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.28, depthWrite: false }));

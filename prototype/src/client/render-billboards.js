@@ -298,7 +298,7 @@ function emptyFace(width, height, { tv = false, sides = 1, lite = false } = {}) 
   };
   draw(0);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding; texture.anisotropy = 4;
+  texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   return { canvas, texture, draw };
 }
 
@@ -423,7 +423,7 @@ export function buildBillboards(scene, { glowMaterial, lite = false, boards = ZO
         // (drawn into a canvas first: a picture decoded as an ImageBitmap would be put on the face upside down)
         const canvas = document.createElement('canvas'); canvas.width = Math.min(lite ? 1024 : 2048, img.width); canvas.height = Math.round(canvas.width * img.height / img.width);
         canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
-        const tex = new THREE.CanvasTexture(canvas); tex.encoding = THREE.sRGBEncoding; tex.anisotropy = 4;
+        const tex = new THREE.CanvasTexture(canvas); tex.colorSpace = THREE.SRGBColorSpace; tex.anisotropy = 4;
         const m = new THREE.Mesh(plane, surface({ map: tex, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 }));
         m.matrixAutoUpdate = false; m.matrix.copy(b.faceMatrix).multiply(new THREE.Matrix4().makeTranslation(0, 0, 0.01));
         b.art = m; group.add(m);

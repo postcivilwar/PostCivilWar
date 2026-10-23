@@ -115,6 +115,10 @@ function buildGrass() {
     blade.computeVertexNormals();
     blade.boundingSphere = new THREE.Sphere(new THREE.Vector3((cx + 0.5) * cell, 0, (cz + 0.5) * cell), cell * 0.75);
     const mesh = new THREE.InstancedMesh(blade, material, spots.length);
+    // (a cell out of view is not drawn: three.js since r151 tests a set of copies against the view, which r128 never did;
+    // by the cell's own sphere, round all its blades, which `blade` carries for the sight list. Left to three.js, the
+    // sphere would be the blade's moved to each copy: the cell's moved again, and nowhere near the grass)
+    mesh.boundingSphere = blade.boundingSphere.clone();
     spots.forEach(([x, z, i], index) => {
       const s = 0.8 + noise(i, 5) * 0.9;
       m.copy(place(x, 0, z, noise(i, 7) * 6.28, s, s * (0.8 + noise(i, 9) * 0.7), s));

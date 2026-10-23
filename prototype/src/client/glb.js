@@ -212,7 +212,7 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
     const image = json.images[index];
     const map = new THREE.Texture();
     map.flipY = false; map.anisotropy = 4;
-    if (colour) map.encoding = THREE.sRGBEncoding;
+    if (colour) map.colorSpace = THREE.SRGBColorSpace;
     if (image.uri !== undefined) {
       // a picture of its own beside the model (a light copy), already fetched and decoded by the worker
       const got = pictures && pictures[index];
@@ -241,7 +241,7 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
   // glTF keeps roughness in the green of this picture and metalness in its blue, which is how three.js reads both
   const rough = textureOf(pbr.metallicRoughnessTexture, false);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
-  const options = { map, color: colour, skinning: true, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide };
+  const options = { map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide };
   if (normalMap) { options.normalMap = normalMap; if (mat.normalTexture.scale !== undefined) options.normalScale = new THREE.Vector2(mat.normalTexture.scale, mat.normalTexture.scale); }
   if (rough) { options.roughnessMap = rough; options.metalnessMap = rough; }
   const material = surface(options);
@@ -275,6 +275,9 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
     const mesh = new THREE.SkinnedMesh(geometry, material);
     mesh.name = boneName(json.nodes[meshNode].name);
     mesh.frustumCulled = false;
+    // (three.js since r151 gives a skinned mesh a sphere of its own, worked out the first time it is drawn by moving
+    // every point of it with its bones, which on a phone is a stutter for each figure: the model's own sphere, as before)
+    mesh.boundingBox = geometry.boundingBox.clone(); mesh.boundingSphere = geometry.boundingSphere.clone();
     objects[meshNode].add(mesh);
     const root = new THREE.Group();
     for (const r of sceneRoots) root.add(objects[r]);

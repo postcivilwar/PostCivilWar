@@ -271,6 +271,10 @@ export function createYardStacks(scene) {
       }
     }
   }
+  // (three.js since r151 tests a set of copies against the view by a sphere round the copies drawn when it is first
+  // tested, kept after: worked out here round all of them, as they never move, so that the stacks are seen however
+  // few were drawn when the yard was first in view)
+  mesh.computeBoundingSphere();
   mesh.count = 0;
   scene.add(mesh);
   return { set(blocks) { const n = Math.min(capacity, Math.round(blocks / 2)); if (n !== mesh.count) mesh.count = n; } };

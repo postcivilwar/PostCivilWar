@@ -1,6 +1,7 @@
 // Sky, sun, night, cloud and rain. Driven by the simulation's clock and weather.
 
-import { linear } from './render-kit.js';
+import { linear, isLite } from './render-kit.js';
+import { LIGHT } from './light.js';
 import { ZONE } from '../sim/zone.js';
 import { trueToGrid } from '../sim/geo.js';
 
@@ -89,7 +90,7 @@ export function createSky(scene, renderer) {
     mctx.fillStyle = sea; mctx.beginPath(); mctx.arc(x, y, r, 0, Math.PI * 2); mctx.fill();
   }
   const moonMap = new THREE.CanvasTexture(moonCanvas);
-  moonMap.encoding = THREE.sRGBEncoding;
+  moonMap.colorSpace = THREE.SRGBColorSpace;
   const moon = new THREE.Sprite(new THREE.SpriteMaterial({ map: moonMap, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false, opacity: 0 }));
   moon.scale.set(30, 30, 1);
   moon.renderOrder = -8;
@@ -117,9 +118,9 @@ export function createSky(scene, renderer) {
   halo.renderOrder = -9;
   scene.add(halo);
 
-  const hemi = new THREE.HemisphereLight(0xffffff, 0x8a7a5a, 0.6);
+  const hemi = new THREE.HemisphereLight(0xffffff, 0x8a7a5a, 0.6 * LIGHT);
   scene.add(hemi);
-  const sun = new THREE.DirectionalLight(0xffffff, 1);
+  const sun = new THREE.DirectionalLight(0xffffff, LIGHT);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 10;
@@ -128,6 +129,9 @@ export function createSky(scene, renderer) {
   sun.shadow.camera.left = -span; sun.shadow.camera.right = span; sun.shadow.camera.top = span; sun.shadow.camera.bottom = -span;
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.05;
+  // (how soft a shadow's edge is: three.js r186 softens it by five samples round each point, `radius` texels out; this
+  // is as soft as r128's were, its softer kind on a computer and its plain one on a phone, neither of which r186 has)
+  sun.shadow.radius = isLite() ? 1.2 : 1.73;
   scene.add(sun, sun.target);
   scene.fog = new THREE.Fog(0xffffff, 120, 620);
 
@@ -207,16 +211,19 @@ export function createSky(scene, renderer) {
     sun.position.copy(focus).addScaledVector(dir, 200);
     sun.target.position.copy(focus);
     sun.color.copy(s.sun);
-    sun.intensity = s.strength * (1 - dull * 0.62) + flash * 1.5;
-    hemi.intensity = s.ambient * (1 - dull * 0.25) + flash * 0.6;
+    // (the sun's strength and the sky's all round, as they were set by eye; given to three.js in its units below)
+    let sunLight = s.strength * (1 - dull * 0.62) + flash * 1.5;
+    let allLight = s.ambient * (1 - dull * 0.25) + flash * 0.6;
     hemi.color.copy(s.top).lerp(new THREE.Color(1, 1, 1), 0.55);
     hemi.groundColor.copy(linear(0x8a7a5a)).multiplyScalar(0.7 + s.ambient * 0.5);
     // (the moon's light alone: a little less of it reaching the ground under the trees, and much less from all round)
-    if (dark > 0) { sun.intensity *= 1 - 0.3 * dark; hemi.intensity *= 1 - 0.6 * dark; }
+    if (dark > 0) { sunLight *= 1 - 0.3 * dark; allLight *= 1 - 0.6 * dark; }
     if (indoor > 0) {
-      sun.color.lerp(WHITE, indoor); sun.intensity += (HALL_LIGHT.key - sun.intensity) * indoor;
-      hemi.color.lerp(WHITE, indoor); hemi.groundColor.lerp(HALL_FLOOR, indoor); hemi.intensity += (HALL_LIGHT.all - hemi.intensity) * indoor;
+      sun.color.lerp(WHITE, indoor); sunLight += (HALL_LIGHT.key - sunLight) * indoor;
+      hemi.color.lerp(WHITE, indoor); hemi.groundColor.lerp(HALL_FLOOR, indoor); allLight += (HALL_LIGHT.all - allLight) * indoor;
     }
+    sun.intensity = sunLight * LIGHT;
+    hemi.intensity = allLight * LIGHT;
 
     dome.position.copy(camera.position);
     stars.position.copy(camera.position);
@@ -265,7 +272,7 @@ export function createSky(scene, renderer) {
 
   return {
     update, sun,
-    // (for the tests: the moon and the stars as they are drawn now)
-    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +sun.intensity.toFixed(3), all: +hemi.intensity.toFixed(3) }),
+    // (for the tests: the moon and the stars as they are drawn now; the sun's and the sky's light as set by eye, KEYS)
+    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3) }),
   };
 }

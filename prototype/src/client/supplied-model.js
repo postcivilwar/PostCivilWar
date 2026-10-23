@@ -40,7 +40,7 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
     const index = json.textures[info.index].source;
     const image = json.images[index];
     const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint));
-    t.flipY = false; t.anisotropy = 8; if (colour) t.encoding = THREE.sRGBEncoding; t.needsUpdate = true;
+    t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
     // (once the graphics card has the picture, the page's own copy is let go: see glb.js; should the card's copy be
     // lost, it is made again the same way from the file, which the browser has kept)
     letGoOnceDrawn(t, () => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint)));

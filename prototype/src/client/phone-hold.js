@@ -34,6 +34,7 @@
 // Either way it is stronger at night than at noon.
 
 import { reach } from './animated.js';
+import { SCREEN_GLOW } from './light.js';
 
 const OUT_SECONDS = 0.85;        // from the press to the phone held up
 const AWAY_SECONDS = 0.6;
@@ -102,7 +103,7 @@ export function createPhoneHold({ scene, lite }) {
   const screenGlow = glowOf(), faceGlow = glowOf();
   screenGlow.visible = false; faceGlow.visible = false;
   scene.add(screenGlow, faceGlow);
-  const lamp = lite ? null : new THREE.PointLight(0xffffff, 0, 1.5, 2);
+  const lamp = lite ? null : new THREE.PointLight(0xffffff, 0, SCREEN_GLOW.distance, SCREEN_GLOW.decay);
   if (lamp) scene.add(lamp);
 
   let shown = '';
@@ -361,7 +362,7 @@ export function createPhoneHold({ scene, lite }) {
     if (lamp) {
       lamp.position.copy(prop.position).addScaledVector(v.eye, 0.12);
       lamp.color.setRGB(r, g, b);
-      lamp.intensity = held * (0.12 + 1.5 * night);
+      lamp.intensity = held * (0.12 + 1.5 * night) * SCREEN_GLOW.times;
     }
   }
 

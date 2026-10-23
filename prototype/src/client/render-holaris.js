@@ -26,7 +26,7 @@ function skyInGlass() {
   ctx.beginPath(); ctx.moveTo(0, 60); ctx.lineTo(64, 20); ctx.lineTo(64, 44); ctx.lineTo(0, 84); ctx.fill();
   ctx.beginPath(); ctx.moveTo(0, 150); ctx.lineTo(64, 110); ctx.lineTo(64, 120); ctx.lineTo(0, 160); ctx.fill();
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
 }
 
@@ -45,7 +45,7 @@ function nameTexture(text, { width = 1024, height = 256, size = 170, colour = '#
   let x = (width - widthOf()) / 2;
   for (const ch of text) { ctx.fillText(ch, x, height / 2 + px * 0.04); x += ctx.measureText(ch).width + px * spacing; }
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
   return texture;
 }

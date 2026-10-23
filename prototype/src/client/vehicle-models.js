@@ -37,7 +37,7 @@ function skyPicture(renderer) {
     const dome = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.ShaderMaterial({
       side: THREE.BackSide,
       vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <encodings_fragment>\n}',
+      fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <colorspace_fragment>\n}',
     }));
     sky.add(dome);
     const pmrem = new THREE.PMREMGenerator(renderer);
@@ -79,7 +79,7 @@ function dataTexture(uri, srgb) {
   t.wrapS = THREE.RepeatWrapping; t.wrapT = THREE.RepeatWrapping;
   t.flipY = false;
   t.anisotropy = 4;
-  if (srgb) t.encoding = THREE.sRGBEncoding;
+  if (srgb) t.colorSpace = THREE.SRGBColorSpace;
   shared.textures.set(uri, t);
   return t;
 }
@@ -163,7 +163,7 @@ function canvasTexture(width, height, paint) {
   canvas.width = width; canvas.height = height;
   paint(canvas.getContext('2d'), width, height);
   const texture = new THREE.CanvasTexture(canvas);
-  texture.encoding = THREE.sRGBEncoding;
+  texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
   return texture;
 }
