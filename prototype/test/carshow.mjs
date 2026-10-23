@@ -179,7 +179,7 @@ const settled = async (at, limit = 900000) => {
   const t0 = Date.now();
   let got = null;
   while (Date.now() - t0 < limit) {
-    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.carshowView.shown(), state: n.carshowView.models(), level: n.quality, lite: !!n.lite, sun: n.sunShadows }; });
+    got = await page.evaluate(() => { const n = window.__nlw; return { shown: n.carshowView.shown(), state: n.carshowView.models(), level: n.qualityDetail, lite: !!n.lite, sun: n.sunShadows }; });
     // (each with what its distance asks for, or a set it already had that it keeps while it is within a quarter of
     // that set's distance again: hall-models.js gives a vehicle a smaller set only once it is clearly further off, so
     // that nothing flickers between two sets at the edge of one)

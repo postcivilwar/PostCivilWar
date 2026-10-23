@@ -36,8 +36,8 @@ export function frameClock() {
 const mb = (bytes) => (bytes / 1048576).toFixed(1);
 const s = (ms) => (ms / 1000).toFixed(1);
 
-// The lines, in plain words. `now`: { build, engine (three.js's revision), screen, device, pixelRatio, graphics
-// (graphics-count.js), budgetMB, trims,
+// The lines, in plain words. `now`: { build, engine (three.js's revision), level (the graphics level's name), levelAuto,
+// gpu (the graphics card's name), screen, device, pixelRatio, graphics (graphics-count.js), budgetMB, trims,
 // heap ({ used, limit } in bytes, or null where the browser does not say), frames (frameClock().report()), lost,
 // restored, figures (animated.js, figureLog) }
 export function statsLines(now) {
@@ -46,6 +46,8 @@ export function statsLines(now) {
   lines.push(['Game', `${now.build || 'this copy'}${now.engine ? ` · drawn by three.js r${now.engine}` : ''} · ${now.screen}`]);
   lines.push(['Device', `${now.device} · screen ${scr}, drawn at ${(now.pixelRatio || 1).toFixed(2)}`]);
   const g = now.graphics;
+  // (the graphics level, how fast, what the graphics card holds and which card it is, on one line: the owner's brief)
+  if (now.level) lines.push(['Graphics', `${now.level}${now.levelAuto ? ', Auto' : ', chosen'} · ${now.frames ? `${now.frames.fps} frames a second` : 'frames not counted yet'} · pictures ${g && !g.unwatched ? `${mb(g.pictures)} MB` : 'not counted'} · ${now.gpu || 'the graphics card does not say its name'}`]);
   lines.push(['Graphics card', g && !g.unwatched
     ? `pictures ${mb(g.pictures)} MB (${g.held}) · drawing buffers ${mb(g.buffers + g.screen)} MB · most ${mb(g.peak)} MB · budget ${now.budgetMB} MB${now.trims ? ` · let go of what was kept ready ${now.trims} times` : ''}`
     : 'not counted here']);

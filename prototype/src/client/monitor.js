@@ -102,8 +102,8 @@ export function createMonitor(now = () => performance.now()) {
 // gives back, a step at a time, once frames have been comfortably fast for a
 // while; a step that was tried and had to be undone is not tried again soon.
 export const QUALITY_RULES = Object.freeze({
-  levels: 4,              // 0 full, 3 lowest
-  slowMs: 1000 / 26,      // a typical frame slower than this, for `downAfter` seconds, steps down
+  levels: 4,              // 0 the most (Ultra), 3 the least (Low): graphics.js
+  slowMs: 1000 / 30,      // a typical frame slower than this (under thirty a second), for `downAfter` seconds, steps down
   fastMs: 1000 / 50,      // a typical frame faster than this, for `upAfter` seconds, steps up
   downAfter: 4,
   upAfter: 12,
@@ -114,7 +114,9 @@ export const QUALITY_RULES = Object.freeze({
 
 export function createGovernor(apply, rules = QUALITY_RULES) {
   const recent = [];
-  const state = { level: 0, slow: 0, fast: 0, settle: rules.settle, failedAt: new Array(rules.levels).fill(-Infinity), wait: new Array(rules.levels).fill(rules.retry), clock: 0, changes: [], held: false };
+  // (`ceiling`: the most it climbs to by itself; `quickUntil`: until then, on the clock, a slow device is stepped down
+  // sooner: the first seconds in the town, when Auto is finding this device's level)
+  const state = { level: 0, ceiling: 0, quickUntil: 0, slow: 0, fast: 0, settle: rules.settle, failedAt: new Array(rules.levels).fill(-Infinity), wait: new Array(rules.levels).fill(rules.retry), clock: 0, changes: [], held: false };
   const median = () => { const s = recent.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)] || 0; };
   function change(next, why) {
     if (next === state.level) return;
@@ -138,12 +140,13 @@ export function createGovernor(apply, rules = QUALITY_RULES) {
       if (recent.length < Math.min(rules.window, 20)) return;
       const typical = median();
       if (typical > rules.slowMs) { state.slow += dt; state.fast = 0; } else if (typical < rules.fastMs) { state.fast += dt; state.slow = Math.max(0, state.slow - dt); } else { state.slow = Math.max(0, state.slow - dt); state.fast = 0; }
-      if (state.slow >= rules.downAfter && state.level < rules.levels - 1) {
+      const downAfter = state.clock < state.quickUntil ? Math.min(rules.downAfter, 2) : rules.downAfter;
+      if (state.slow >= downAfter && state.level < rules.levels - 1) {
         // stepping down so soon after stepping up means the higher level was too much: remember that
         const last = state.changes[state.changes.length - 1];
         if (last && last.to < last.from && state.clock - last.at < 30) { state.failedAt[last.to] = state.clock; state.wait[last.to] = Math.min(900, state.wait[last.to] * 2); }
         change(state.level + 1, `typical frame ${typical.toFixed(0)} ms`);
-      } else if (state.fast >= rules.upAfter && state.level > 0 && state.clock - state.failedAt[state.level - 1] > state.wait[state.level - 1]) {
+      } else if (state.fast >= rules.upAfter && state.level > state.ceiling && state.clock - state.failedAt[state.level - 1] > state.wait[state.level - 1]) {
         change(state.level - 1, `typical frame ${typical.toFixed(0)} ms`);
       }
     },
@@ -152,5 +155,10 @@ export function createGovernor(apply, rules = QUALITY_RULES) {
     // keeps the level where it is (true) or lets it move again (false)
     hold(on) { state.held = !!on; },
     get held() { return state.held; },
+    // the most it climbs to by itself (the player can still choose more)
+    setCeiling(level) { state.ceiling = Math.max(0, Math.min(rules.levels - 1, level)); },
+    get ceiling() { return state.ceiling; },
+    // judges more quickly for the next `seconds`, settling sooner after a change too
+    quick(seconds) { state.quickUntil = state.clock + seconds; state.settle = Math.min(state.settle, 1); },
   };
 }

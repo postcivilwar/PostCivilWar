@@ -1,6 +1,7 @@
 // Everything drawn in HTML over the world: the HUD, the sheet that every
 // office and shop opens, receipts, the phone and the map.
 
+import { GRAPHICS_LEVELS, GRAPHICS_AUTO_LINE, GRAPHICS_NOTE, levelOf } from './graphics.js';
 import { SOUND_NAMES } from './audio.js';
 import { ZONE, ZONE_TEXT, zoneResident, zoneParcel, zoneService, POWERBIKE } from '../sim/zone.js';
 import { LANGUAGES } from '../sim/culture.js';
@@ -617,10 +618,13 @@ export function createUI(app) {
         : 'Morning, afternoon and night come when they come where you are. When the real weather where you are cannot be had, the town has weather of its own.'));
     }
 
+    // Graphics (graphics.js): Auto, or a level the player keeps; each with one line of what it gives
     const perf = app.perf();
-    root.append(section('Detail'));
-    root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
-    root.append(h('p', { class: 'small' }, 'Auto lowers detail only when frames are slow for several seconds on end, and raises it again when there is room. A single hitch never changes it.'));
+    root.append(section('Graphics'));
+    const CHOICES = [['auto', 'Auto'], ...GRAPHICS_LEVELS.slice().reverse().map((l) => [l.id, l.name])];
+    root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Graphics', id: 'graphics-choice' }, CHOICES.map(([value, label]) => h('button', { type: 'button', 'data-graphics': value, 'aria-pressed': String(perf.graphics === value), onclick: () => { app.setGraphics(value); redraw(); } }, label))));
+    root.append(h('div', { class: 'rows', id: 'graphics-lines' }, CHOICES.map(([value, label]) => line(label, value === 'auto' ? GRAPHICS_AUTO_LINE : GRAPHICS_LEVELS[levelOf(value)].line))));
+    root.append(h('p', { class: 'small' }, `${GRAPHICS_NOTE} A change is made at once, without reloading the game.`));
 
     // On the website only: the game on this device. Each line is there only when it is true.
     if (app.webapp && app.webapp.site) {
@@ -662,7 +666,7 @@ export function createUI(app) {
     // What the device is managing. These figures change every second; only they are drawn again, so a
     // slider being dragged or a place scrolled to is left alone.
     root.append(section('Measured on this device'));
-    const LEVELS = ['Full', 'Reduced', 'Low', 'Lowest'];
+    const LEVELS = GRAPHICS_LEVELS.map((l) => l.name);
     const measured = h('div', { class: 'rows' });
     const hitches = h('p', { class: 'small' });
     const measure = () => {
@@ -680,7 +684,7 @@ export function createUI(app) {
         ['Full figures · simple figures', `${now.rigs} · ${now.figures}`],
         ['Simulation, each view', `${now.viewMs.toFixed(2)} ms`], ['Simulation, each scan of the town', `${now.scanMs.toFixed(2)} ms`],
         ['Drawing', now.lite ? 'The lighter way, for a phone or tablet' : 'In full, for a desktop'],
-        ['Detail level', `${LEVELS[now.quality]}${now.detail === 'auto' ? ', chosen automatically' : ', set by you'}`],
+        ['Graphics', `${LEVELS[now.quality]}${now.graphics === 'auto' ? ', chosen automatically' : ', set by you'}`],
         ['Last change', changed ? `${LEVELS[changed.from]} to ${LEVELS[changed.to]}: ${changed.why}` : 'none'],
         ['Sound', now.sound], ...(app.readout ? app.readout() : [])].map(([a, b]) => line(a, b)));
       hitches.hidden = !f.recent.length;
