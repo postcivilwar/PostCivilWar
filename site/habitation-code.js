@@ -612,7 +612,7 @@ function waterMaterial(kind, { ripples, lite }) {
       #endif`);
   };
   m.customProgramCacheKey = () => `pcw-habitation-water-${kind}-${lite ? 'lite' : 'full'}`;
-  return reflects(m, still ? 0.12 : 0.55);
+  return reflects(m, still ? 0.12 : 0.55, 'water');
 }
 function lilyTexture() {
   const c = document.createElement('canvas'); c.width = c.height = 128;
@@ -815,7 +815,7 @@ function hotWaterMaterial(ripples, lite) {
       #endif`);
   };
   m.customProgramCacheKey = () => `pcw-habitation-hot-${lite ? 'lite' : 'full'}`;
-  return reflects(m, 0.25);
+  return reflects(m, 0.25, 'water');
 }
 function buildHotRiver(step) {
   const s = HABITATION_HOT_RIVER;

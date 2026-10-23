@@ -15742,10 +15742,58 @@ const vehicleTriangles = (ids, lod = 0) => (Array.isArray(ids) ? ids : [ids]).fi
 return { VEHICLE_SLOTS, vehicleMeta, vehicleHas, vehicleParts, VEHICLE_GROUPS, vehiclePart, vehicleGeometry, vehicleTriangles };
 })();
 
+__modules["client/soft-patch.js"] = (function () {
+
+let material = null, geometry = null;
+
+function patchPicture() {
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d');
+  const r = g.createRadialGradient(32, 32, 2, 32, 32, 31);
+  r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.55, 'rgba(255,255,255,0.75)'); r.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  return new THREE.CanvasTexture(c);
+}
+function shared() {
+  if (!material) {
+    material = new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: patchPicture(), transparent: true, opacity: 0.32, depthWrite: false });
+    material.visible = false;
+    geometry = new THREE.PlaneGeometry(1, 1); geometry.rotateX(-Math.PI / 2);
+  }
+  return { material, geometry };
+}
+
+function softPatch(group, { length, width, y = 0.035 } = {}) {
+  if (!group || !(length > 0) || !(width > 0)) return null;
+  const s = shared();
+  const mesh = new THREE.Mesh(s.geometry, s.material);
+  mesh.name = 'soft-patch';
+  mesh.scale.set(width * 1.25, 1, length * 1.15);
+  mesh.position.y = y;
+  mesh.castShadow = false; mesh.receiveShadow = false;
+  mesh.renderOrder = -1;
+  group.add(mesh);
+  return mesh;
+}
+function softPatchUnder(group, object = group) {
+  try {
+    const box = new THREE.Box3().setFromObject(object);
+    if (box.isEmpty()) return null;
+    const size = box.getSize(new THREE.Vector3());
+    return softPatch(group, { length: size.z, width: size.x });
+  } catch (error) { return null; }
+}
+function showSoftPatches(on) { shared().material.visible = !!on; }
+const softPatchesShown = () => !!(material && material.visible);
+
+return { softPatch, softPatchUnder, showSoftPatches, softPatchesShown };
+})();
+
 __modules["client/vehicle-models.js"] = (function () {
 
 const { VEHICLE_SLOTS, vehicleMeta, vehicleGeometry, vehicleTriangles } = __modules["client/vehicle-kit.js"];
 const { resolveLook } = __modules["sim/vehicle-looks.js"];
+const { softPatchUnder } = __modules["client/soft-patch.js"];
 
 const SLOT = Object.fromEntries(VEHICLE_SLOTS.map((name, i) => [name, i]));
 const N = VEHICLE_SLOTS.length;
@@ -15757,41 +15805,59 @@ const linear = (hex) => new THREE.Color(hex).convertSRGBToLinear();
 const css = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 
 
-const shared = { env: null, textures: new Map(), daylight: 1, live: new Set() };
+const shared = { env: null, cube: null, size: 256, textures: new Map(), daylight: 1, live: new Set() };
 
-function initVehicles(renderer) {
+function initVehicles(renderer, { lite = false } = {}) {
   if (shared.env || !renderer || location.hash.includes('noenv')) return;
+  shared.size = lite ? 128 : 256;
   shared.env = skyPicture(renderer);
+  shared.cube = skyCube(renderer);
+}
+function skyDome() {
+  const sky = new THREE.Scene();
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <colorspace_fragment>\n}',
+  }));
+  sky.add(dome);
+  return { sky, done() { dome.geometry.dispose(); dome.material.dispose(); } };
 }
 function skyPicture(renderer) {
   try {
-    const sky = new THREE.Scene();
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <colorspace_fragment>\n}',
-    }));
-    sky.add(dome);
+    const { sky, done } = skyDome();
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const made = pmrem.fromScene(sky, 0.03).texture;
+    const made = pmrem.fromScene(sky, 0.03, 0.1, 100, { size: shared.size }).texture;
     pmrem.dispose();
-    dome.geometry.dispose(); dome.material.dispose();
+    done();
     return made;
+  } catch (error) { return null; }
+}
+function skyCube(renderer) {
+  try {
+    const { sky, done } = skyDome();
+    const target = new THREE.WebGLCubeRenderTarget(64, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+    new THREE.CubeCamera(0.1, 50, target).update(renderer, sky);
+    done();
+    return target.texture;
   } catch (error) { return null; }
 }
 function renewEnvironment(renderer, scene) {
   if (!shared.env) return 0;
-  const old = shared.env;
+  const swaps = new Map();
   const made = skyPicture(renderer);
-  if (!made) return 0;
-  shared.env = made;
+  if (made) { swaps.set(shared.env, made); shared.env = made; }
+  const cube = shared.cube ? skyCube(renderer) : null;
+  if (cube) { swaps.set(shared.cube, cube); shared.cube = cube; }
+  if (!swaps.size) return 0;
   let n = 0;
   const seen = new Set();
-  scene.traverse((o) => { for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) { if (!seen.has(m) && m.envMap === old) { m.envMap = made; m.needsUpdate = true; n += 1; } seen.add(m); } });
+  scene.traverse((o) => { for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) { if (!seen.has(m) && swaps.has(m.envMap)) { m.envMap = swaps.get(m.envMap); m.needsUpdate = true; n += 1; } seen.add(m); } });
   return n;
 }
 
 const vehicleEnvironment = () => shared.env;
+const skyCubeEnvironment = () => shared.cube;
 
 function setVehicleDaylight(amount) {
   const value = Math.max(0.04, Math.min(1, amount));
@@ -15983,6 +16049,7 @@ function makeVehicleModel(look, { plate = null, region = '', level = 0, shadows 
   const shell = new THREE.Mesh(vehicleGeometry(ids(meta.parts.far), 0), materials);
   shell.receiveShadow = true;
   group.add(shell);
+  softPatchUnder(group, shell);
   const caster = shadows ? new THREE.Mesh(vehicleGeometry(ids(meta.parts.far), 0), shadowOnly()) : null;
   if (caster) { caster.castShadow = true; group.add(caster); }
 
@@ -16093,59 +16160,90 @@ function makeVehicleModel(look, { plate = null, region = '', level = 0, shadows 
   return api;
 }
 
-return { initVehicles, renewEnvironment, vehicleEnvironment, setVehicleDaylight, plateTexture, vehicleWarmJobs, VEHICLE_LEVELS, VEHICLE_RANGES, makeVehicleModel };
+return { initVehicles, renewEnvironment, vehicleEnvironment, skyCubeEnvironment, setVehicleDaylight, plateTexture, vehicleWarmJobs, VEHICLE_LEVELS, VEHICLE_RANGES, makeVehicleModel };
 })();
 
 __modules["client/render-finish.js"] = (function () {
 
 const { isLite } = __modules["client/render-kit.js"];
-const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
+const { vehicleEnvironment, skyCubeEnvironment } = __modules["client/vehicle-models.js"];
 
-const reflecting = new Map();     // material -> how strongly it gives back the sky, by full day
-const wetting = new Map();        // material -> { colour, roughness, darken, gloss, sheen }
+const reflecting = new Map();     // material -> { strength (how strongly it gives back the sky, by full day), kind }
+const wetting = new Map();        // material -> { colour, roughness, darken, gloss, sheen, standard, lambert }
+const ripples = new Map();        // a water's ripples (its normal map), kept while simple water goes without them
+const KINDS = Object.freeze({ full: new Set(['glass', 'water', 'metal']), simple: new Set(['glass', 'water']), none: new Set() });
+let reflectMode = isLite() ? 'none' : 'full';
+let waterMode = 'full';
 let envSet = false;
 let wet = 0;
 
-function reflects(material, strength = 1) {
-  if (!material || isLite() || !material.isMeshStandardMaterial) return material;
-  if (!reflecting.has(material)) material.addEventListener('dispose', () => reflecting.delete(material));
-  reflecting.set(material, strength);
-  given(material);
+function reflects(material, strength = 1, kind = 'glass') {
+  if (!material || !material.isMeshStandardMaterial) return material;
+  if (!reflecting.has(material)) material.addEventListener('dispose', () => { reflecting.delete(material); ripples.delete(material); });
+  reflecting.set(material, { strength, kind });
+  if (kind === 'water' && material.normalMap && !ripples.has(material)) ripples.set(material, material.normalMap);
+  settle(material);
   return material;
 }
 function weathers(material, { darken = 0.25, gloss = 0, sheen = 0 } = {}) {
   if (!material || wetting.has(material)) return material;
-  wetting.set(material, { colour: material.color.clone(), roughness: material.roughness, darken, gloss, sheen: material.isMeshStandardMaterial && !isLite() ? sheen : 0 });
+  wetting.set(material, { colour: material.color.clone(), roughness: material.roughness, darken, gloss, sheen, standard: !!material.isMeshStandardMaterial, lambert: !!material.isMeshLambertMaterial });
   material.addEventListener('dispose', () => wetting.delete(material));
-  if (wetting.get(material).sheen) given(material);
+  settle(material);
   return material;
 }
-function given(material) {
-  const env = envSet ? vehicleEnvironment() : null;
-  if (env && material.envMap !== env) { material.envMap = env; material.needsUpdate = true; }
+
+function settle(material) {
+  const r = reflecting.get(material), w = wetting.get(material);
+  if (r && ripples.has(material)) {
+    const want = waterMode === 'full' ? ripples.get(material) : null;
+    if (material.normalMap !== want) { material.normalMap = want; material.needsUpdate = true; }
+  }
+  if (!envSet) return;
+  let env = null;
+  if (r && KINDS[reflectMode].has(r.kind)) env = vehicleEnvironment();
+  else if (w && w.sheen && reflectMode === 'full') env = w.standard ? vehicleEnvironment() : w.lambert ? skyCubeEnvironment() : null;
+  if (material.envMap !== env) {
+    material.envMap = env;
+    if (env && w && w.lambert) { material.combine = THREE.MixOperation; material.reflectivity = 0; }
+    material.needsUpdate = true;
+  }
+}
+const everything = () => new Set([...reflecting.keys(), ...wetting.keys()]);
+
+function setReflections(mode) {
+  if (!KINDS[mode] || mode === reflectMode) return;
+  reflectMode = mode;
+  for (const material of everything()) settle(material);
+}
+function setWater(mode) {
+  if ((mode !== 'full' && mode !== 'simple') || mode === waterMode) return;
+  waterMode = mode;
+  for (const material of reflecting.keys()) settle(material);
 }
 
 function updateFinishes(dt, { daylight = 1, wetness = 0, dull = 0 } = {}) {
-  const env = vehicleEnvironment();
-  if (!envSet && env) {
-    for (const material of reflecting.keys()) { material.envMap = env; material.needsUpdate = true; }
-    for (const [material, w] of wetting) if (w.sheen && !reflecting.has(material)) { material.envMap = env; material.needsUpdate = true; }
+  if (!envSet && vehicleEnvironment()) {
     envSet = true;
+    for (const material of everything()) settle(material);
   }
   const raining = wetness > 0.05;
   wet += ((raining ? 1 : 0) - wet) * Math.min(1, dt * (raining ? 0.1 + wetness : 0.012));
   const sky = Math.max(0.04, Math.min(1, daylight)) * (1 - 0.45 * dull);
-  for (const [material, strength] of reflecting) material.envMapIntensity = strength * sky;
+  for (const [material, r] of reflecting) material.envMapIntensity = r.strength * sky;
   for (const [material, w] of wetting) {
     material.color.copy(w.colour).multiplyScalar(1 - w.darken * wet);
     if (typeof w.roughness === 'number') material.roughness = Math.max(0.05, w.roughness - w.gloss * wet);
-    if (w.sheen) material.envMapIntensity = (reflecting.get(material) || 0) * sky + w.sheen * wet * sky;
+    if (w.sheen && material.envMap) {
+      if (w.standard) material.envMapIntensity = ((reflecting.get(material) || {}).strength || 0) * sky + w.sheen * wet * sky;
+      else material.reflectivity = Math.min(0.45, w.sheen * wet * sky * 0.35);
+    }
   }
   return wet;
 }
-const finishState = () => ({ wet, reflecting: reflecting.size, weathering: wetting.size, envSet });
+const finishState = () => ({ wet, reflecting: reflecting.size, weathering: wetting.size, envSet, reflections: reflectMode, water: waterMode, withSky: [...everything()].filter((m) => m.envMap).length, rippling: [...ripples.keys()].filter((m) => m.normalMap).length, waters: ripples.size });
 
-return { reflects, weathers, updateFinishes, finishState };
+return { reflects, weathers, setReflections, setWater, updateFinishes, finishState };
 })();
 
 __modules["client/render-holaris.js"] = (function () {
@@ -16268,7 +16366,7 @@ function buildShowroom(b, { storeys = 3 } = {}) {
     for (let i = 0; i < 12; i += 1) frame.box(1.3, 0.07, 0.34, place(b.x + hw - 1.2, base + floorH * f + 0.2 + (i * floorH) / 12, b.z - hd + 1.6 + i * 0.5), 0xcfd3d6);
   }
 
-  const frameMesh = frame.build(reflects(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }), 0.7));
+  const frameMesh = frame.build(reflects(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }), 0.7, 'metal'));
   frameMesh.castShadow = true; frameMesh.receiveShadow = true;
   group.add(frameMesh);
 
@@ -16872,7 +16970,7 @@ function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
     leaves: surface({ vertexColors: true, roughness: 0.9, metalness: 0 }),
     solid: surface({ vertexColors: true, roughness: 0.8, metalness: 0.05 }),
   };
-  reflects(materials.glass, 1.1); reflects(materials.metal, 0.6);
+  reflects(materials.glass, 1.1); reflects(materials.metal, 0.6, 'metal');
   weathers(materials.road, { darken: 0.42, gloss: 0.66, sheen: 1 }); weathers(materials.paving, { darken: 0.25, gloss: 0.32, sheen: 0.25 });
   for (const name of ['concrete', 'brick', 'stone', 'render']) weathers(materials[name], { darken: 0.18 });
   const meshes = [];
@@ -17508,7 +17606,7 @@ function buildWorld(scene) {
   cast(walls.build(kit.walls));
   cast(roofs.build(kit.roofs));
   weathers(kit.walls, { darken: 0.2 });
-  weathers(reflects(kit.roofs, 0.5), { darken: 0.14, gloss: 0.3 });
+  weathers(reflects(kit.roofs, 0.5, 'metal'), { darken: 0.14, gloss: 0.3 });
   cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));      // (the market's umbrellas)
   for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
   const roadMesh = roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
@@ -17527,7 +17625,7 @@ function buildWorld(scene) {
   const farEdge = 150 + ZONE_PROPS.water.width;
   const ripples = rippleNormalTexture();
   ripples.repeat.set(60, 9);
-  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5);
+  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5, 'water');
   waterMaterial.onBeforeCompile = (shader) => {
     shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vRiverAt;').replace('#include <begin_vertex>', '#include <begin_vertex>\nvRiverAt = (modelMatrix * vec4(position, 1.0)).xyz;');
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vRiverAt;').replace('#include <color_fragment>', `#include <color_fragment>
@@ -19334,14 +19432,62 @@ async function fetchKept(url, init = undefined) {
   return init ? fetch(url, init) : fetch(url);
 }
 
-const restorable = new Map();         // texture -> how to make its picture again
+const restorable = new Map();         // texture -> how to make its picture again: restore(size), size 0 for as large as it is
 function letGoOnceDrawn(texture, restore = null) {
-  texture.onUpdate = () => { texture.onUpdate = null; const image = texture.image; if (image && typeof image.close === 'function') image.close(); };
+  texture.onUpdate = () => {
+    texture.onUpdate = null;
+    const image = texture.image;
+    if (image && image.width) texture.userData.drawn = Math.max(image.width, image.height);
+    if (image && typeof image.close === 'function') image.close();
+    if (most && texture.userData.drawn > most && restorable.has(texture) && !waiting.includes(texture)) waiting.push(texture);
+  };
   if (restore && !restorable.has(texture)) {
     restorable.set(texture, restore);
-    texture.addEventListener('dispose', () => restorable.delete(texture));
+    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) restorable.delete(texture); });
   }
   return texture;
+}
+
+let most = 0;
+const waiting = [];
+const remaking = new Set();
+const pictureMost = () => most;
+function setPictureMost(size) {
+  most = Math.max(0, size || 0);
+  waiting.length = 0;
+  for (const texture of restorable.keys()) {
+    const drawn = texture.userData.drawn || 0, cap = texture.userData.cap || 0;
+    if (!drawn) continue;                                   // (not drawn yet: made at the cap it was asked for, below)
+    if (most && drawn > most) waiting.push(texture);        // smaller
+    else if (cap && drawn >= cap && (!most || most > cap)) waiting.push(texture);   // larger again
+  }
+  return waiting.length;
+}
+function stepPictures() {
+  if (remaking.size || !waiting.length) return waiting.length;
+  const texture = waiting.shift();
+  const restore = restorable.get(texture);
+  if (!restore) return waiting.length;
+  const size = most;
+  remaking.add(texture);
+  Promise.resolve().then(() => restore(size)).then((image) => {
+    if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return; }
+    texture.dispose();
+    texture.image = image; texture.needsUpdate = true;
+    texture.userData.cap = size; texture.userData.drawn = 0;
+    letGoOnceDrawn(texture);
+    if (size !== most && !waiting.includes(texture)) waiting.push(texture);
+  }).catch(() => { /* kept as it is */ }).finally(() => { remaking.delete(texture); });
+  return waiting.length;
+}
+const picturesWaiting = () => waiting.length + remaking.size;
+async function decodeAtMost(blob, size = 0, options = undefined) {
+  const full = await (options ? createImageBitmap(blob, options) : createImageBitmap(blob));
+  if (!size || Math.max(full.width, full.height) <= size) return full;
+  const k = size / Math.max(full.width, full.height);
+  const small = await createImageBitmap(full, { ...(options || {}), resizeWidth: Math.max(1, Math.round(full.width * k)), resizeHeight: Math.max(1, Math.round(full.height * k)), resizeQuality: 'high' });
+  full.close();
+  return small;
 }
 const gone = (image) => !image || (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap && (image.width === 0 || image.height === 0));
 async function restorePictures() {
@@ -19349,9 +19495,10 @@ async function restorePictures() {
   await Promise.all([...restorable].map(async ([texture, restore]) => {
     if (!gone(texture.image)) { texture.needsUpdate = true; return; }
     try {
-      const image = await restore();
+      const image = await restore(most);
       if (!image) { failed += 1; return; }
       texture.image = image; texture.needsUpdate = true;
+      texture.userData.cap = most;
       letGoOnceDrawn(texture);
       made += 1;
     } catch (error) { failed += 1; }
@@ -19479,7 +19626,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
       const viaImage = () => new Promise((resolve) => { const img = new Image(); img.onload = () => { map.image = img; map.needsUpdate = true; resolve(); }; img.onerror = () => resolve(); img.src = URL.createObjectURL(got.blob); });
       const given = got.bitmap ? Promise.resolve(got.bitmap) : decode(got.blob);
       ready.push(given.then((bmp) => { map.image = bmp; map.needsUpdate = true; }).catch(viaImage));
-      if (got.blob) letGoOnceDrawn(map, () => decode(got.blob));
+      if (got.blob) letGoOnceDrawn(map, (size) => decodeAtMost(got.blob, size, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }));
       return map;
     }
     const blob = new Blob([bytes(image.bufferView)], { type: image.mimeType || 'image/jpeg' });
@@ -19540,7 +19687,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
   return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material };
 }
 
-return { fetchKept, letGoOnceDrawn, restorePictures, picturesHeld, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
+return { fetchKept, letGoOnceDrawn, pictureMost, setPictureMost, stepPictures, picturesWaiting, decodeAtMost, restorePictures, picturesHeld, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
 })();
 
 __modules["client/inflate.js"] = (function () {
@@ -22393,6 +22540,20 @@ const WHITE = new THREE.Color(1, 1, 1);
 const HALL_FLOOR = new THREE.Color(0x8a8478);
 const HALL_LIGHT = Object.freeze({ all: 1.0, key: 0.75 });
 
+const SHADOW_EDGE = Object.freeze({
+  was: 'return mix( 1.0, shadow, shadowIntensity );\n\t\t}\n\t#elif defined( SHADOWMAP_TYPE_VSM )',
+  now: 'float pcwEdge = max( abs( shadowCoord.x - 0.5 ), abs( shadowCoord.y - 0.5 ) ) * 2.0;\n\t\t\treturn mix( 1.0, shadow, shadowIntensity * ( 1.0 - smoothstep( 0.85, 1.0, pcwEdge ) ) );\n\t\t}\n\t#elif defined( SHADOWMAP_TYPE_VSM )',
+});
+const shadowEdgeFades = (() => {
+  try {
+    const chunk = THREE.ShaderChunk.shadowmap_pars_fragment;
+    if (chunk.includes('pcwEdge')) return true;
+    if (chunk.split(SHADOW_EDGE.was).length !== 2) return false;      // (a three.js not as expected: the shadows stop at their edge, as before)
+    THREE.ShaderChunk.shadowmap_pars_fragment = chunk.replace(SHADOW_EDGE.was, SHADOW_EDGE.now);
+    return true;
+  } catch (error) { return false; }
+})();
+
 function sample(hour) {
   let a = KEYS[0];
   let b = KEYS[KEYS.length - 1];
@@ -22487,8 +22648,14 @@ function createSky(scene, renderer) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 10;
   sun.shadow.camera.far = 420;
-  const span = 62;
-  sun.shadow.camera.left = -span; sun.shadow.camera.right = span; sun.shadow.camera.top = span; sun.shadow.camera.bottom = -span;
+  const reachShadows = (span) => {
+    const c = sun.shadow.camera;
+    if (c.right === span) return;
+    c.left = -span; c.right = span; c.top = span; c.bottom = -span;
+    c.updateProjectionMatrix();
+  };
+  reachShadows(62);
+  let view = 1;
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.05;
   sun.shadow.radius = isLite() ? 1.2 : 1.73;
@@ -22545,8 +22712,8 @@ function createSky(scene, renderer) {
     uniforms.horizon.value.copy(s.horizon).lerp(new THREE.Color(1, 1, 1), flash * 0.5);
     scene.fog.color.copy(uniforms.horizon.value);
     const clearer = Math.max(0, Math.min(1, wild)) * (1 - indoor);
-    scene.fog.near = 110 + 50 * clearer - wetness * 80;
-    scene.fog.far = 480 + 160 * clearer - wetness * 270 - dull * 90;
+    scene.fog.near = (110 + 50 * clearer - wetness * 80) * view;
+    scene.fog.far = (480 + 160 * clearer - wetness * 270 - dull * 90) * view;
 
     const dayAngle = ((hour - 6.2) / 12.4) * Math.PI;
     const up = Math.sin(dayAngle);
@@ -22616,11 +22783,12 @@ function createSky(scene, renderer) {
 
   return {
     update, sun,
+    reachShadows, setView(scale) { view = Math.max(0.3, Math.min(1, scale)); }, get view() { return view; },
     state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3) }),
   };
 }
 
-return { createSky };
+return { shadowEdgeFades, createSky };
 })();
 
 __modules["client/bubbles.js"] = (function () {
@@ -24044,6 +24212,58 @@ function createAudio() {
 }
 
 return { ENGINE_VOICES, MUSIC_STYLES, renderStyle, SOUND_GROUPS, SOUND_NAMES, DEFAULT_VOLUMES, createAudio };
+})();
+
+__modules["client/graphics.js"] = (function () {
+
+const GRAPHICS_LEVELS = Object.freeze([
+  Object.freeze({ id: 'ultra', name: 'Ultra', line: 'Everything at its best: the sharpest picture, the largest pictures, the most detail. For gaming computers.' }),
+  Object.freeze({ id: 'high', name: 'High', line: 'Pictures up to 2048, softer shadows further out, reflections in glass, water and wet roads. For good phones, laptops.' }),
+  Object.freeze({ id: 'medium', name: 'Medium', line: 'Pictures up to 1024, sun shadows nearby, simple reflections: the game as phones drew it. For most phones.' }),
+  Object.freeze({ id: 'low', name: 'Low', line: 'Small pictures, no sun shadows, simple water, a shorter view: the smoothest and lightest. For older phones.' }),
+]);
+const GRAPHICS_AUTO_LINE = 'Chooses the level for this device, and lowers it by itself if the game slows down.';
+const GRAPHICS_NOTE = 'Higher levels use more battery, and can make a phone warm.';
+const GRAPHICS_LOWERED = 'Graphics lowered to keep the game smooth';
+const ULTRA = 0, HIGH = 1, MEDIUM = 2, LOW = 3;
+
+const LEVEL_SETTINGS = Object.freeze({
+  pixelRatio: [2, 1.5, 1.25, 1],                 // the most pixels drawn for each of the screen's (never more than it has)
+  shadowMap: Object.freeze({ full: [2048, 2048, 1024, 0], lite: [2048, 1024, 1024, 0] }),
+  shadowReach: [62, 62, 40, 0],                  // metres from the player to the edge of the sun's shadows (they fade out there)
+  shadowSoft: [1.73, 1.73, 1.2, 1.2],            // how soft their edge, in the map's texels (render-sky.js)
+  pictureMost: [0, 2048, 1024, 512],             // the most pixels across any picture (0: as the device fetches them)
+  reflections: ['full', 'full', 'simple', 'none'], // the sky in glass, water, metal and wet roads; in glass and water; in none
+  water: ['full', 'full', 'full', 'simple'],     // with its ripples; without (render-finish.js)
+  view: [1, 1, 1, 0.75],                         // how far the air lets one see (the fog's distances), times this
+});
+const levelSetting = (key, level, lite = false) => { const s = LEVEL_SETTINGS[key]; return (Array.isArray(s) ? s : s[lite ? 'lite' : 'full'])[level]; };
+
+function autoStart({ lite, gpu = '', memory = null }) {
+  const card = String(gpu).toLowerCase();
+  if (/swiftshader|llvmpipe|software|softpipe|microsoft basic render/.test(card)) return LOW;
+  if (lite) return memory !== null && memory <= 2 ? LOW : MEDIUM;
+  if (/intel|uhd graphics|iris/.test(card) && !/arc/.test(card)) return HIGH;
+  return ULTRA;
+}
+const autoCeiling = ({ lite }) => (lite ? HIGH : ULTRA);
+
+const KEY = 'pcw-graphics-auto';
+function remembered(storage, gpu) {
+  try { const r = JSON.parse(storage.getItem(KEY) || 'null'); return r && r.gpu === String(gpu) && Number.isInteger(r.level) && r.level >= 0 && r.level <= 3 ? r.level : null; } catch (error) { return null; }
+}
+function remember(storage, gpu, level) {
+  try { storage.setItem(KEY, JSON.stringify({ gpu: String(gpu), level, at: Date.now() })); } catch (error) { /* not kept: measured again next time */ }
+}
+
+function levelOf(choice) {
+  const i = GRAPHICS_LEVELS.findIndex((l) => l.id === choice);
+  return i >= 0 ? i : null;
+}
+
+const memoryLimitMB = (budgetMB, lite) => (lite ? budgetMB * 0.9 : budgetMB * 1.5);
+
+return { GRAPHICS_LEVELS, GRAPHICS_AUTO_LINE, GRAPHICS_NOTE, GRAPHICS_LOWERED, ULTRA, LEVEL_SETTINGS, levelSetting, autoStart, autoCeiling, remembered, remember, levelOf, memoryLimitMB };
 })();
 
 __modules["sim/nigeria.js"] = (function () {
@@ -26436,9 +26656,10 @@ return { BIKE_PARTS };
 })();
 
 __modules["client/bike-model.js"] = (function () {
+const { softPatch } = __modules["client/soft-patch.js"];
 const { BIKE_PARTS } = __modules["client/bike-parts.js"];
 const { surface } = __modules["client/render-kit.js"];
-const { fetchKept, letGoOnceDrawn } = __modules["client/glb.js"];
+const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { deviceKind, PICTURES } = __modules["client/budget.js"];
 
 const cache = new Map();          // one geometry and material a bike and set of pictures, however many are drawn (most recently used last)
@@ -26526,7 +26747,7 @@ function picture(url, colour, own, priority) {
   if (colour) map.colorSpace = THREE.SRGBColorSpace;
   const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
-    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
   return { map, ready };
 }
 const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
@@ -26610,7 +26831,7 @@ function lampsOf(spec, frame, bars) {
   };
 }
 
-async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false, priority } = {}) {
+async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false, priority, patch = true } = {}) {
   const set = tierOf(lite, tier);
   const key = `${id}:${set}`;
   if (!own) users.set(key, (users.get(key) || 0) + 1);
@@ -26622,6 +26843,7 @@ async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier 
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `bike:${id}`;
   const lean = new THREE.Group(); group.add(lean);          // leans about the line its tyres touch the ground on
+  if (patch) softPatch(group, { length, width: 0.75 });
   const frame = new THREE.Group(); frame.scale.setScalar(scale); lean.add(frame);
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
   frame.add(mesh(geometries[0]));
@@ -30029,9 +30251,10 @@ return { CAR_PARTS };
 })();
 
 __modules["client/car-model.js"] = (function () {
+const { softPatch } = __modules["client/soft-patch.js"];
 const { CAR_PARTS } = __modules["client/car-parts.js"];
 const { surface } = __modules["client/render-kit.js"];
-const { fetchKept, letGoOnceDrawn } = __modules["client/glb.js"];
+const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
 const { deviceKind, PICTURES } = __modules["client/budget.js"];
 
@@ -30123,7 +30346,7 @@ function picture(url, colour, own, priority) {
   if (colour) map.colorSpace = THREE.SRGBColorSpace;
   const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
-    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
   return { map, ready };
 }
 const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
@@ -30209,7 +30432,7 @@ function lampsOf(spec, frame) {
   };
 }
 
-async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = null, own = false, priority } = {}) {
+async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = null, own = false, priority, patch = true } = {}) {
   const set = tierOf(lite, tier);
   const key = `${id}:${set}`;
   if (!own) users.set(key, (users.get(key) || 0) + 1);
@@ -30221,6 +30444,7 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `car:${id}`;
   const frame = new THREE.Group(); frame.scale.setScalar(scale); group.add(frame);
+  if (patch) softPatch(group, { length, width: spec.body * scale });
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
   const springs = new THREE.Group(); springs.position.set(0, spec.height * 0.35, 0); frame.add(springs);
   const body = mesh(geometries[0]); body.position.set(0, -spec.height * 0.35, 0); springs.add(body);
@@ -30598,8 +30822,8 @@ function createModelView(canvas, { transparent = true, pixelRatio = Math.min(2, 
     if (model.bike || model.car) {
       if (onProgress) onProgress(0, 1);
       const bike = model.car
-        ? await loadCar(model.car, { base: base || 'cars/', lite, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6, own: true })
-        : await loadBike(model.bike, { base: base || 'bikes/', lite, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1, own: true });
+        ? await loadCar(model.car, { base: base || 'cars/', lite, patch: false, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6, own: true })
+        : await loadBike(model.bike, { base: base || 'bikes/', lite, patch: false, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1, own: true });
       if (closed) { bike.dispose(); return null; }
       shownBike = bike;
       bike.pose({});
@@ -32966,6 +33190,7 @@ return { createPanels };
 
 __modules["client/ui.js"] = (function () {
 
+const { GRAPHICS_LEVELS, GRAPHICS_AUTO_LINE, GRAPHICS_NOTE, levelOf } = __modules["client/graphics.js"];
 const { SOUND_NAMES } = __modules["client/audio.js"];
 const { ZONE, ZONE_TEXT, zoneResident, zoneParcel, zoneService, POWERBIKE } = __modules["sim/zone.js"];
 const { LANGUAGES } = __modules["sim/culture.js"];
@@ -33546,9 +33771,11 @@ function createUI(app) {
     }
 
     const perf = app.perf();
-    root.append(section('Detail'));
-    root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Detail' }, [['auto', 'Auto'], [0, 'Full'], [1, 'Reduced'], [2, 'Low'], [3, 'Lowest']].map(([value, label]) => h('button', { type: 'button', 'aria-pressed': String(perf.detail === value), onclick: () => { app.setDetail(value); redraw(); } }, label))));
-    root.append(h('p', { class: 'small' }, 'Auto lowers detail only when frames are slow for several seconds on end, and raises it again when there is room. A single hitch never changes it.'));
+    root.append(section('Graphics'));
+    const CHOICES = [['auto', 'Auto'], ...GRAPHICS_LEVELS.slice().reverse().map((l) => [l.id, l.name])];
+    root.append(h('div', { class: 'segment', role: 'group', 'aria-label': 'Graphics', id: 'graphics-choice' }, CHOICES.map(([value, label]) => h('button', { type: 'button', 'data-graphics': value, 'aria-pressed': String(perf.graphics === value), onclick: () => { app.setGraphics(value); redraw(); } }, label))));
+    root.append(h('div', { class: 'rows', id: 'graphics-lines' }, CHOICES.map(([value, label]) => line(label, value === 'auto' ? GRAPHICS_AUTO_LINE : GRAPHICS_LEVELS[levelOf(value)].line))));
+    root.append(h('p', { class: 'small' }, `${GRAPHICS_NOTE} A change is made at once, without reloading the game.`));
 
     if (app.webapp && app.webapp.site) {
       const WAYS = { yes: 'Yes', 'not yet': 'Not yet', no: 'No' };
@@ -33586,7 +33813,7 @@ function createUI(app) {
     root.append(h('p', { class: 'small' }, 'Only the buttons that can be used just now are on screen. On a keyboard each has a key, shown beside it at the foot of the screen.'));
 
     root.append(section('Measured on this device'));
-    const LEVELS = ['Full', 'Reduced', 'Low', 'Lowest'];
+    const LEVELS = GRAPHICS_LEVELS.map((l) => l.name);
     const measured = h('div', { class: 'rows' });
     const hitches = h('p', { class: 'small' });
     const measure = () => {
@@ -33604,7 +33831,7 @@ function createUI(app) {
         ['Full figures · simple figures', `${now.rigs} · ${now.figures}`],
         ['Simulation, each view', `${now.viewMs.toFixed(2)} ms`], ['Simulation, each scan of the town', `${now.scanMs.toFixed(2)} ms`],
         ['Drawing', now.lite ? 'The lighter way, for a phone or tablet' : 'In full, for a desktop'],
-        ['Detail level', `${LEVELS[now.quality]}${now.detail === 'auto' ? ', chosen automatically' : ', set by you'}`],
+        ['Graphics', `${LEVELS[now.quality]}${now.graphics === 'auto' ? ', chosen automatically' : ', set by you'}`],
         ['Last change', changed ? `${LEVELS[changed.from]} to ${LEVELS[changed.to]}: ${changed.why}` : 'none'],
         ['Sound', now.sound], ...(app.readout ? app.readout() : [])].map(([a, b]) => line(a, b)));
       hitches.hidden = !f.recent.length;
@@ -34437,8 +34664,8 @@ function createMonitor(now = () => performance.now()) {
 }
 
 const QUALITY_RULES = Object.freeze({
-  levels: 4,              // 0 full, 3 lowest
-  slowMs: 1000 / 26,      // a typical frame slower than this, for `downAfter` seconds, steps down
+  levels: 4,              // 0 the most (Ultra), 3 the least (Low): graphics.js
+  slowMs: 1000 / 30,      // a typical frame slower than this (under thirty a second), for `downAfter` seconds, steps down
   fastMs: 1000 / 50,      // a typical frame faster than this, for `upAfter` seconds, steps up
   downAfter: 4,
   upAfter: 12,
@@ -34449,7 +34676,7 @@ const QUALITY_RULES = Object.freeze({
 
 function createGovernor(apply, rules = QUALITY_RULES) {
   const recent = [];
-  const state = { level: 0, slow: 0, fast: 0, settle: rules.settle, failedAt: new Array(rules.levels).fill(-Infinity), wait: new Array(rules.levels).fill(rules.retry), clock: 0, changes: [], held: false };
+  const state = { level: 0, ceiling: 0, quickUntil: 0, slow: 0, fast: 0, settle: rules.settle, failedAt: new Array(rules.levels).fill(-Infinity), wait: new Array(rules.levels).fill(rules.retry), clock: 0, changes: [], held: false };
   const median = () => { const s = recent.slice().sort((a, b) => a - b); return s[Math.floor(s.length / 2)] || 0; };
   function change(next, why) {
     if (next === state.level) return;
@@ -34471,17 +34698,28 @@ function createGovernor(apply, rules = QUALITY_RULES) {
       if (recent.length < Math.min(rules.window, 20)) return;
       const typical = median();
       if (typical > rules.slowMs) { state.slow += dt; state.fast = 0; } else if (typical < rules.fastMs) { state.fast += dt; state.slow = Math.max(0, state.slow - dt); } else { state.slow = Math.max(0, state.slow - dt); state.fast = 0; }
-      if (state.slow >= rules.downAfter && state.level < rules.levels - 1) {
+      const downAfter = state.clock < state.quickUntil ? Math.min(rules.downAfter, 2) : rules.downAfter;
+      if (state.slow >= downAfter && state.level < rules.levels - 1) {
         const last = state.changes[state.changes.length - 1];
         if (last && last.to < last.from && state.clock - last.at < 30) { state.failedAt[last.to] = state.clock; state.wait[last.to] = Math.min(900, state.wait[last.to] * 2); }
         change(state.level + 1, `typical frame ${typical.toFixed(0)} ms`);
-      } else if (state.fast >= rules.upAfter && state.level > 0 && state.clock - state.failedAt[state.level - 1] > state.wait[state.level - 1]) {
+      } else if (state.fast >= rules.upAfter && state.level > state.ceiling && state.clock - state.failedAt[state.level - 1] > state.wait[state.level - 1]) {
         change(state.level - 1, `typical frame ${typical.toFixed(0)} ms`);
       }
     },
     set(level, why = 'set by hand') { change(Math.max(0, Math.min(rules.levels - 1, level)), why); },
+    lower(why) {
+      if (state.level >= rules.levels - 1) return;
+      const from = state.level;
+      state.failedAt[from] = state.clock;
+      state.wait[from] = Math.min(900, state.wait[from] * 2);
+      change(from + 1, why);
+    },
     hold(on) { state.held = !!on; },
     get held() { return state.held; },
+    setCeiling(level) { state.ceiling = Math.max(0, Math.min(rules.levels - 1, level)); },
+    get ceiling() { return state.ceiling; },
+    quick(seconds) { state.quickUntil = state.clock + seconds; state.settle = Math.min(state.settle, 1); },
   };
 }
 
@@ -37433,7 +37671,7 @@ return { createStandins };
 
 __modules["client/supplied-model.js"] = (function () {
 
-const { parseGLB, fetchKept, letGoOnceDrawn, rereadFile } = __modules["client/glb.js"];
+const { parseGLB, fetchKept, letGoOnceDrawn, rereadFile, pictureMost } = __modules["client/glb.js"];
 const { modelFile } = __modules["client/budget.js"];
 const { surface } = __modules["client/render-kit.js"];
 const { reflects } = __modules["client/render-finish.js"];
@@ -37458,15 +37696,17 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
     if (!info) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
-    const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint));
+    const cap = pictureMost();
+    const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint, cap));
     t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
-    letGoOnceDrawn(t, () => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint)));
+    t.userData.cap = cap;
+    letGoOnceDrawn(t, (size) => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint, size)));
     return t;
   };
-  async function makePicture(raw, image, paint) {
+  async function makePicture(raw, image, paint, cap = 0) {
     const blob = new Blob([raw], { type: image.mimeType || 'image/jpeg' });
     const own = pictureSize(raw);
-    const most = Math.min(maxTexture || 4096, own ? Math.max(own.width, own.height) : Infinity);
+    const most = Math.min(maxTexture || 4096, cap || Infinity, own ? Math.max(own.width, own.height) : Infinity);
     const wide = own ? Math.round((most * own.width) / Math.max(own.width, own.height)) : most, high = own ? Math.round((most * own.height) / Math.max(own.width, own.height)) : most;
     let picture = await oneAtATime(async () => {
       const made = typeof createImageBitmap === 'function' ? await createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null;
@@ -38212,22 +38452,55 @@ function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = null } =
       if (e.mesh) e.mesh.visible = e.seen; else e.stand.visible = e.seen;
     }
   }
+  const fullSize = maxTexture || (lite ? 1024 : 2048);
+  const THIN = lite ? Object.freeze({ size: Math.min(512, fullSize), far: 150, near: 110 }) : null;
+  const sizeFor = (e, x, z) => {
+    if (!THIN || x === undefined) return fullSize;
+    const d = Math.hypot(e.b.x - x, e.b.z - z) - e.radius;
+    return d > THIN.far ? THIN.size : d < THIN.near ? fullSize : (e.size || fullSize);
+  };
+  let swapping = null;
+  const place3 = (e, mesh) => { mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale); mesh.visible = e.seen; };
+  const disposeMesh = (mesh) => {
+    const m = mesh.material;
+    for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => m[key]).filter(Boolean))) t.dispose();
+    m.dispose(); mesh.geometry.dispose();
+  };
+  function swap(e, size) {
+    swapping = e;
+    loadBuilding(e.b, { maxTexture: size, env })
+      .then(({ mesh, triangles }) => {
+        if (!e.mesh) { disposeMesh(mesh); return; }
+        place3(e, mesh);
+        exterior.add(mesh);
+        const old = e.mesh;
+        exterior.remove(old); disposeMesh(old);
+        e.mesh = mesh; e.triangles = triangles; e.size = size; e.swaps = (e.swaps || 0) + 1;
+      })
+      .catch(() => { /* the copy in use stays */ })
+      .finally(() => { e.swappedAt = performance.now(); swapping = null; });
+  }
   function load(x, z) {
     ensureOutside();
     for (const e of buildings) {
       const reach = e.b.id === 'villa' ? (lite ? 300 : 320) : lite ? 520 : 900;
       if (e.mesh && x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach + (lite ? 30 : 250)) { letGo(e); continue; }
+      if (e.mesh && THIN && x !== undefined && !swapping && performance.now() - (e.swappedAt || 0) > 20000) {
+        const want = sizeFor(e, x, z);
+        if (want !== e.size) swap(e, want);
+      }
       if (e.mesh || e.requested || ON_DISK) continue;
       if (performance.now() < e.retryAt) continue;
       if (x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach) continue;
       e.requested = true;
-      loadBuilding(e.b, { maxTexture: maxTexture || (lite ? 1024 : 2048), env })
+      const size = sizeFor(e, x, z);
+      loadBuilding(e.b, { maxTexture: size, env })
         .then(({ mesh, triangles }) => {
-          mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale); mesh.visible = e.seen;
+          place3(e, mesh);
           exterior.add(mesh);
           if (e.b.id === 'villa') e.stand.visible = false;
           else { exterior.remove(e.stand); e.stand.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
-          e.mesh = mesh; e.triangles = triangles; e.failed = null;
+          e.mesh = mesh; e.triangles = triangles; e.failed = null; e.size = size;
         })
         .catch((error) => { e.failed = String((error && error.message) || error); e.requested = false; e.retryAt = performance.now() + (error && error.offline ? 5000 : 30000); });
     }
@@ -38235,10 +38508,8 @@ function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = null } =
   function letGo(e) {
     const mesh = e.mesh;
     exterior.remove(mesh);
-    const m = mesh.material;
-    for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => m[key]).filter(Boolean))) t.dispose();
-    m.dispose(); mesh.geometry.dispose();
-    e.mesh = null; e.requested = false; e.triangles = 0; e.released = (e.released || 0) + 1;
+    disposeMesh(mesh);
+    e.mesh = null; e.requested = false; e.triangles = 0; e.size = null; e.released = (e.released || 0) + 1;
     if (e.b.id !== 'villa') { e.stand = standIn(e.b); exterior.add(e.stand); }
     e.stand.visible = e.seen;
   }
@@ -38307,7 +38578,7 @@ function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = null } =
     models = hallModels({
       items: displays.map((d) => ({ id: d.display.car })), lite, renderer,
       ranges: { inspect: 4, near: 12, mid: 24 },
-      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadCar(displays[k].display.car, { base: 'cars/', tier, length: displays[k].car.length })),
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadCar(displays[k].display.car, { base: 'cars/', tier, patch: false, length: displays[k].car.length })),
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
     return hall;
@@ -38349,7 +38620,7 @@ function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = null } =
   let gateShown = 0, doorsOpen = 0;
   return {
     exterior, outside,
-    get buildings() { return buildings.map((e) => ({ id: e.b.id, loaded: !!e.mesh, failed: e.failed, triangles: e.triangles, released: e.released || 0 })); },
+    get buildings() { return buildings.map((e) => ({ id: e.b.id, loaded: !!e.mesh, failed: e.failed, triangles: e.triangles, released: e.released || 0, size: e.size || null, swaps: e.swaps || 0 })); },
     get hall() { return hall; },
     get inside() { return inside; },
     signs,
@@ -38395,6 +38666,7 @@ return { buildCarshow };
 
 __modules["client/render-supplied.js"] = (function () {
 
+const { softPatch } = __modules["client/soft-patch.js"];
 const { SUPPLIED_VEHICLES } = __modules["sim/zone.js"];
 const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
 const { surface } = __modules["client/render-kit.js"];
@@ -38444,6 +38716,7 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
     const standIn = new THREE.Mesh(new THREE.BoxGeometry(id === 'jet' ? 2.8 : v.width, id === 'jet' ? 2.8 : v.height * 0.92, v.length), surface({ color: STAND_IN, roughness: 0.6, metalness: 0.2 }));
     standIn.position.y = (id === 'jet' ? 2.8 : v.height * 0.92) / 2; standIn.castShadow = true;
     holder.add(standIn);
+    softPatch(holder, { length: v.length, width: v.width });
     scene.add(holder);
     return { id, v, holder, standIn, model: null, loading: null, failed: null, triangles: 0 };
   });
@@ -38885,7 +39158,7 @@ async function loadTower({ maxTexture }) {
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
     map.flipY = false; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8; map.needsUpdate = true;
-    letGoOnceDrawn(map, () => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, maxTexture));
+    letGoOnceDrawn(map, (size) => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, size && maxTexture ? Math.min(size, maxTexture) : size || maxTexture));
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   const material = reflects(surface({ map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide }), 0.8);
@@ -39172,10 +39445,18 @@ function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer = null }
     models = hallModels({
       items: displays.map((d) => ({ id: d.display.bike })), lite, renderer,
       ranges: { inspect: 2.5, near: 7, mid: 14 },
-      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadBike(displays[k].display.bike, { base: 'bikes/', tier, length: displays[k].bike.length })),
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadBike(displays[k].display.bike, { base: 'bikes/', tier, patch: false, length: displays[k].bike.length })),
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
-    if (!ON_DISK) for (const p of hall.posters) { const img = new Image(); img.onload = () => { const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true; }; img.src = `assets/bike-${p.bike}-poster.webp`; }
+    if (!ON_DISK) for (const p of hall.posters) {
+      const img = new Image();
+      img.onload = () => {
+        let picture = img;
+        if (lite) { const c = document.createElement('canvas'); c.width = Math.round(img.width / 2); c.height = Math.round(img.height / 2); const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height); picture = c; }
+        const t = new THREE.Texture(picture); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true;
+      };
+      img.src = `assets/bike-${p.bike}-poster.webp`;
+    }
     return hall;
   }
 
@@ -39305,6 +39586,7 @@ function countGraphics(gl, { antialias = false } = {}) {
   wrap('renderbufferStorage', (a) => { if (buffer) { buffers.set(buffer, a[2] * a[3] * (BYTES[a[1]] || 4)); sum(); } });
   wrap('renderbufferStorageMultisample', (a) => { if (buffer) { buffers.set(buffer, a[3] * a[4] * (BYTES[a[2]] || 4) * Math.max(1, a[1])); sum(); } });
   function lost() { textures.clear(); buffers.clear(); bound2D.length = 0; boundCube.length = 0; unit = 0; buffer = null; sum(); }
+  count.list = () => [...textures.entries()].map(([texture, t]) => { let base = 0, all = 0; for (const [key, b] of t.levels) { all += b; if (key < 8) base += b; } return { texture, bytes: all + (t.mips ? Math.round(base / 3) : 0) }; });
   return count;
 }
 
@@ -39346,6 +39628,7 @@ function statsLines(now) {
   lines.push(['Game', `${now.build || 'this copy'}${now.engine ? ` · drawn by three.js r${now.engine}` : ''} · ${now.screen}`]);
   lines.push(['Device', `${now.device} · screen ${scr}, drawn at ${(now.pixelRatio || 1).toFixed(2)}`]);
   const g = now.graphics;
+  if (now.level) lines.push(['Graphics', `${now.level}${now.levelAuto ? ', Auto' : ', chosen'} · ${now.frames ? `${now.frames.fps} frames a second` : 'frames not counted yet'} · pictures ${g && !g.unwatched ? `${mb(g.pictures)} MB` : 'not counted'} · ${now.gpu || 'the graphics card does not say its name'}`]);
   lines.push(['Graphics card', g && !g.unwatched
     ? `pictures ${mb(g.pictures)} MB (${g.held}) · drawing buffers ${mb(g.buffers + g.screen)} MB · most ${mb(g.peak)} MB · budget ${now.budgetMB} MB${now.trims ? ` · let go of what was kept ready ${now.trims} times` : ''}`
     : 'not counted here']);
@@ -40091,7 +40374,7 @@ const { buildBillboards } = __modules["client/render-billboards.js"];
 const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
 const { linear, setLite, restoreGeometry } = __modules["client/render-kit.js"];
-const { restorePictures } = __modules["client/glb.js"];
+const { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost } = __modules["client/glb.js"];
 const { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } = __modules["client/render-actors.js"];
 const { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } = __modules["client/vehicle-models.js"];
 const { vehicleMeta } = __modules["client/vehicle-kit.js"];
@@ -40146,7 +40429,7 @@ const { bikesHeld, trimBikes } = __modules["client/bike-model.js"];
 const { buildCarshow } = __modules["client/render-carshow.js"];
 const { createSupplied } = __modules["client/render-supplied.js"];
 const { createTownBuildings } = __modules["client/render-town-buildings.js"];
-const { updateFinishes, finishState } = __modules["client/render-finish.js"];
+const { updateFinishes, finishState, setReflections, setWater } = __modules["client/render-finish.js"];
 const { foliageState } = __modules["client/render-foliage.js"];
 const { buildPowerbike } = __modules["client/render-powerbike.js"];
 const { pictureSize, GRAPHICS_BUDGET_MB } = __modules["client/budget.js"];
@@ -40158,6 +40441,8 @@ const { watchPicture } = __modules["client/picture-watch.js"];
 const { buildClosures } = __modules["client/render-closures.js"];
 const { createTorchBeams } = __modules["client/torch-beams.js"];
 const { STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT } = __modules["client/light.js"];
+const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } = __modules["client/graphics.js"];
+const { showSoftPatches, softPatchesShown } = __modules["client/soft-patch.js"];
 const { fallTime, flightAt } = __modules["client/falls.js"];
 const { CONTACT, contactNormal, contactOutcome } = __modules["sim/contact.js"];
 
@@ -40170,7 +40455,7 @@ const HASH = typeof location !== 'undefined' ? location.hash : '';
 const TOUCH_FIRST = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const LITE = !HASH.includes('full') && (TOUCH_FIRST || HASH.includes('lite'));
 const MAX_RIGS = LITE ? [14, 11, 8, 5] : [26, 18, 12, 6];
-const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must be for each level of detail, as quality drops
+const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must be for each step of detail (quality.detail), as quality drops
 const DRIVER_SEAT = vehicleMeta('keke').seats.driver;   // where the keke's driver sits, in the keke's own frame
 const SEATED_HEIGHT = 0.845;                 // how far above its own feet a seated figure's seat is, for a figure of height 1
 const FIGURE_DETAIL = LITE ? [44, 36, 28, 22] : [60, 45, 32, 24];      // metres within which a townsperson is drawn with limbs
@@ -40228,7 +40513,7 @@ function start(carried) {
   let townBuilt = false;
   let world = null, closures = null;
   townSteps.push(['the ground and the roads', () => {
-    initVehicles(renderer);
+    initVehicles(renderer, { lite: LITE });
     world = buildWorld(scene);
     closures = buildClosures(scene, { lite: LITE });
   }]);
@@ -40333,7 +40618,7 @@ function start(carried) {
       const along = (w.x - e.was.x) * Math.sin(w.h) + (w.z - e.was.z) * Math.cos(w.h);
       if (Math.abs(along) > 1e-4 && Math.abs(along) < 5) e.actor.model.roll(along);
       e.was.x = w.x; e.was.z = w.z;
-      e.actor.model.setDistance(Math.hypot(w.x - camera.position.x, w.z - camera.position.z), undefined, VEHICLE_BIAS[quality.level]);
+      e.actor.model.setDistance(Math.hypot(w.x - camera.position.x, w.z - camera.position.z), undefined, VEHICLE_BIAS[quality.detail]);
       const lit = w.driven && night > 0.45 ? 1 : 0;
       if (lit !== e.lit) { e.lit = lit; e.actor.model.lamps(lit, lit, 0, 0); }
     }
@@ -40479,7 +40764,7 @@ function start(carried) {
 
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
-  const prefs = { translate: true, sound: true, detail: 'auto', ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, sound: true, graphics: 'auto', ...(readStored(PREFS_KEY) || {}) };
   let realWeather = null;              // { kind, place, temperature, at } from the site's server
   const newHost = (options = {}) => {
     const made = createHost({ ...options, wallClock: REAL_CLOCK ? wallSeconds : null });
@@ -41287,7 +41572,7 @@ function start(carried) {
     requestId,
     waypoint: () => waypoint,
     setWaypoint: (mark) => setWaypoint(mark),
-    setDetail: (value) => setDetail(value),
+    setGraphics: (value) => setGraphics(value),
     volumes: () => audio.volumes(),
     setVolume: (name, value) => { audio.setVolumes({ [name]: value }); prefs.volumes = audio.volumes(); writeStored(PREFS_KEY, prefs); if (name === 'ui') audio.chime('ok'); },
     chime: (kind) => audio.chime(kind),
@@ -41310,8 +41595,8 @@ function start(carried) {
     dealSaid: (said) => dealSaid(said),
     realWeather: () => realWeather,
     realClock: REAL_CLOCK,
-    readout: () => statsLines(statsNow()).filter(([label]) => label !== 'Frames' && label !== 'Game'),
-    perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
+    readout: () => statsLines(statsNow()).filter(([label]) => label !== 'Frames' && label !== 'Game' && label !== 'Graphics'),
+    perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, graphics: prefs.graphics, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
   });
   audio.setMuted(!prefs.sound);
   audio.setVolumes({ ...DEFAULT_VOLUMES, ...(prefs.volumes || {}) });
@@ -42639,29 +42924,66 @@ function start(carried) {
     return speed;
   }
 
-  const PIXEL_RATIO = LITE ? [1.25, 1.25, 1.25, 1] : [2, 1, 1, 0.75];
-  const SHADOW_MAP = LITE ? [1024, 1024, 1024, 1024] : [2048, 2048, 1024, 1024];
+  const DETAIL_OF = LITE ? [0, 0, 0, 3] : [0, 1, 2, 3];
   function applyQuality(level) {
     if (!townBuilt) return;          // (applied when the town is built)
-    world.setQuality(level);
-    town.setQuality(level);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PIXEL_RATIO[level]));
-    const shadow = sky.sun.shadow;
-    if (shadow.mapSize.x !== SHADOW_MAP[level]) { shadow.mapSize.set(SHADOW_MAP[level], SHADOW_MAP[level]); if (shadow.map) { shadow.map.dispose(); shadow.map = null; } }
-    sky.sun.castShadow = level < (LITE ? 1 : 3);
+    const at = (key) => levelSetting(key, level, LITE);
+    world.setQuality(DETAIL_OF[level]);
+    town.setQuality(DETAIL_OF[level]);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, at('pixelRatio')));
+    const shadow = sky.sun.shadow, size = at('shadowMap');
+    if (size === 0 || shadow.mapSize.x !== size) { if (size) shadow.mapSize.set(size, size); if (shadow.map) { shadow.map.dispose(); shadow.map = null; } }
+    shadow.radius = at('shadowSoft');
+    if (size) sky.reachShadows(at('shadowReach'));
+    sky.sun.castShadow = size > 0;
+    showSoftPatches(size === 0);
+    setReflections(at('reflections'));
+    setWater(at('water'));
+    sky.setView(at('view'));
+    setPictureMost(at('pictureMost'));
     soundTimer = 1;      // look again at what is in reach
     resize();
-    monitor.count(`quality to ${level}`);
+    monitor.count(`graphics to ${GRAPHICS_LEVELS[level].name}`);
   }
-  const governor = createGovernor(applyQuality, LITE ? { ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 } : QUALITY_RULES);
-  function setDetail(value) {
-    prefs.detail = value === 'auto' ? 'auto' : Math.max(0, Math.min(3, Number(value) || 0));
+  let loweredSaid = false;
+  const governor = createGovernor((level, from) => {
+    applyQuality(level);
+    const last = governor.changes[governor.changes.length - 1];
+    if (level > from && last && /^typical frame|^the graphics card/.test(last.why) && townBuilt && ui && !loweredSaid) { loweredSaid = true; ui.toast({ type: 'note', text: GRAPHICS_LOWERED }); }
+  }, LITE ? { ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 } : QUALITY_RULES);
+  let gpuSaid = null;
+  const gpuName = () => { if (gpuSaid === null) { try { const gl = renderer.getContext(); const info = gl.getExtension('WEBGL_debug_renderer_info'); gpuSaid = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (error) { return ''; } } return gpuSaid; };
+  const deviceMemory = typeof navigator !== 'undefined' && Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null;
+  const storage = (() => { try { return window.localStorage; } catch (error) { return null; } })();
+  const autoLevel = () => { const known = storage ? remembered(storage, gpuName()) : null; return known !== null ? known : autoStart({ lite: LITE, gpu: gpuName(), memory: deviceMemory }); };
+  governor.setCeiling(autoCeiling({ lite: LITE }));
+  function setGraphics(value) {
+    const level = levelOf(value);
+    prefs.graphics = level === null ? 'auto' : value;
     writeStored(PREFS_KEY, prefs);
-    governor.hold(prefs.detail !== 'auto');
-    if (prefs.detail !== 'auto') governor.set(prefs.detail, 'chosen in Help');
+    governor.hold(level !== null);
+    if (level !== null) governor.set(level, `chosen in Settings: ${GRAPHICS_LEVELS[level].name}`);
+    else governor.set(Math.max(autoLevel(), governor.ceiling), 'Auto');
   }
-  if (prefs.detail !== 'auto') setDetail(prefs.detail);
-  const quality = { get level() { return governor.level; } };
+  if (!prefs.graphics || (prefs.graphics !== 'auto' && levelOf(prefs.graphics) === null)) prefs.graphics = 'auto';
+  if (prefs.graphics === 'auto') governor.set(Math.max(autoLevel(), governor.ceiling), 'Auto: where this device starts'); else setGraphics(prefs.graphics);
+  const typicalFrame = (n) => new Promise((resolve) => { const t = []; let last = null; const f = (now) => { if (last !== null) t.push(now - last); last = now; if (t.length >= n) { t.sort((a, b) => a - b); resolve(t[Math.floor(t.length / 2)]); } else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  async function silentTest() {
+    if (prefs.graphics !== 'auto') return;
+    for (let tries = 0; tries < 3 && governor.level < LOW; tries += 1) {
+      const ms = await typicalFrame(12);
+      if (!(ms > QUALITY_RULES.slowMs)) return;
+      governor.set(governor.level + 1, `the silent test while loading: a typical frame ${ms.toFixed(0)} ms`);
+      await painted(); await painted();
+    }
+  }
+  let testedAt = null;
+  function quickTest(clock) {
+    if (prefs.graphics !== 'auto') return;
+    if (testedAt === null) { testedAt = clock; governor.quick(30); return; }
+    if (clock - testedAt > 60 && storage) { remember(storage, gpuName(), governor.level); testedAt = Infinity; }
+  }
+  const quality = { get level() { return governor.level; }, get detail() { return DETAIL_OF[governor.level]; } };
 
   const onTar = (x, z) => ZONE_ROADS.some((r) => r.surface === 'asphalt' && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || OUTSKIRT_ROADS.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);
   const between = (hour, from, to) => hour >= from && hour < to;
@@ -42791,6 +43113,7 @@ function start(carried) {
           loading.progress(0.95);
           await painted();
           warmPrograms(2);
+          await silentTest();
         }
         warm.stage = 4;
         isReady = true;
@@ -43017,7 +43340,7 @@ function start(carried) {
         was.x = g.position.x; was.z = g.position.z;
         was.steer += ((mine ? -(car.steer || 0) * 0.5 : 0) - was.steer) * Math.min(1, dt * 8);
         actor.model.steer(was.steer);
-        if (mine) actor.model.setLevel(0); else actor.model.setDistance(Math.hypot(g.position.x - camera.position.x, g.position.z - camera.position.z), undefined, VEHICLE_BIAS[quality.level]);
+        if (mine) actor.model.setLevel(0); else actor.model.setDistance(Math.hypot(g.position.x - camera.position.x, g.position.z - camera.position.z), undefined, VEHICLE_BIAS[quality.detail]);
         const lit = t.driver && night > 0.45 ? 1 : 0;
         if (lit !== actor.lit) { actor.lit = lit; actor.model.lamps(lit, lit, 0, 0); }
       }
@@ -43050,7 +43373,7 @@ blood.update(dt, view.blood || []);
             crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, others: view.others,
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
-        maxRigs: MAX_RIGS[quality.level], detail: FIGURE_DETAIL[quality.level], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
+        maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
       peerRides = [];
       for (const q of shownPeers) {
         if (q.vehicle && q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.horn(q.x, q.z); }
@@ -43156,8 +43479,8 @@ blood.update(dt, view.blood || []);
 
     world.tick(dt, host && host.game ? host.game.state.real : null);
     const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0, playing ? wildAt(predicted.x, predicted.z) : 0);
-    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level, sun: sky.sun.castShadow });
-    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.level, sun: sky.sun.castShadow });
+    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.detail, sun: sky.sun.castShadow });
+    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.detail, sun: sky.sun.castShadow });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
@@ -43198,7 +43521,7 @@ blood.update(dt, view.blood || []);
     if (soundTimer > 0.5) {
       soundTimer = 0;
       sources = soundSources(hour, weather.wet);
-      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.level], scene.fog.far * 0.82);
+      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.detail], scene.fog.far * 0.82);
       world.see(cam.target.x, cam.target.z, reach);
       townBuildings.setThin(!!(habitation && habitation.built));
       townBuildings.see(cam.target.x, cam.target.z, reach, playing && warm.stage >= 5 && !hall, hall ? 0 : undefined);
@@ -43247,7 +43570,8 @@ blood.update(dt, view.blood || []);
     if (playing) { fitTimer -= dt; if (fitTimer <= 0) { fitTimer = 0.3; fitter.fit(); } }
     if (playing && view) bubbles.update(view.speech, headOf, project, predicted, `p:${playerId}`, viewW, viewH);
     monitor.end(elapsed * 1000);
-    if (clock > 4 && !document.hidden) governor.frame(elapsed * 1000, dt);
+    if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) quickTest(clock); }
+    stepPictures();
   }
 
   let contextLost = 0;
@@ -43285,6 +43609,7 @@ blood.update(dt, view.blood || []);
       restored = { at: Math.round(performance.now()), numbers, pictures, reflections, views };
       restoredTimes += 1;
       pictureGone = false;
+      if (townBuilt && prefs.graphics === 'auto' && governor.level < LOW) governor.set(governor.level + 1, 'the graphics card gave the picture up');
       loading.progress(1);
       await painted();
       if (!preparing || isReady) loading.hide();
@@ -43296,17 +43621,26 @@ blood.update(dt, view.blood || []);
   let restored = null;                // what the last giving back did (for the checks and the readout)
   let restoredTimes = 0;
 
+  let memoryStepAt = -Infinity;
+  const memoryLimit = memoryLimitMB(graphicsBudgetMB, LITE);
   setInterval(() => {
-    if (pictureGone || graphics.unwatched || (graphics.pictures + graphics.buffers) / 1048576 <= graphicsBudgetMB) return;
-    const freed = dropUnusedFigures() + trimBikes() + trimCars();
-    if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); }
+    if (pictureGone || graphics.unwatched) return;
+    const usedMB = (graphics.pictures + graphics.buffers) / 1048576;
+    if (usedMB > Math.min(graphicsBudgetMB, memoryLimit)) {
+      const freed = dropUnusedFigures() + trimBikes() + trimCars();
+      if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
+    }
+    if (townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
+      memoryStepAt = performance.now();
+      governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
+    }
   }, 2000);
 
   const build = (() => { try { const src = (document.querySelector('script[src*="game.js"]') || {}).src; return src ? `game ${new URL(src).searchParams.get('v') || ''}`.trim() : 'one page'; } catch (error) { return 'one page'; } })();
   const screenName = () => (!intro || intro.active() ? 'the opening' : loading.open ? `the loading card: ${document.getElementById('loading-title').textContent}` : playing ? 'the town' : $('start') && !$('start').hidden ? (($('start').dataset.screen === 'create' ? 'the character screen' : `the start screen (${$('start').dataset.screen || ''})`)) : 'between screens');
   const heapNow = () => { try { const m = performance.memory; return m && m.usedJSHeapSize ? { used: m.usedJSHeapSize, limit: m.jsHeapSizeLimit } : null; } catch (error) { return null; } };
   const frameTimes = HASH.includes('stats') ? frameClock().start() : null;
-  const statsNow = () => ({ build, engine: THREE.REVISION, screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
+  const statsNow = () => ({ build, engine: THREE.REVISION, level: GRAPHICS_LEVELS[governor.level].name, levelAuto: prefs.graphics === 'auto', gpu: gpuName(), screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
   if (frameTimes) { const box = showStats(); const draw = () => { try { box.update(statsLines(statsNow())); } catch (error) { /* said next second */ } }; setTimeout(draw, 0); setInterval(draw, 1000); }
   document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {
@@ -43323,7 +43657,8 @@ blood.update(dt, view.blood || []);
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
-    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting() }; }, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
     get phoneHold() { return phoneHold; }, camera,
