@@ -22,12 +22,15 @@ const css = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 
 // ------------------------------------------------------------- shared things --
 
-const shared = { env: null, cube: null, textures: new Map(), daylight: 1, live: new Set() };
+const shared = { env: null, cube: null, size: 256, textures: new Map(), daylight: 1, live: new Set() };
 
 // Gives vehicles something to reflect: a plain sky over plain ground. Call once
 // with the renderer; without it vehicles are drawn with their metal toned down.
-export function initVehicles(renderer) {
+// (`lite`, a phone: the picture 128 pixels a side, not 256: a soft sky on a small screen, a quarter of the graphics card's
+// memory, which three.js r186 has kept in half floats since, twice what r128 took)
+export function initVehicles(renderer, { lite = false } = {}) {
   if (shared.env || !renderer || location.hash.includes('noenv')) return;
+  shared.size = lite ? 128 : 256;
   shared.env = skyPicture(renderer);
   shared.cube = skyCube(renderer);
 }
@@ -48,7 +51,7 @@ function skyPicture(renderer) {
   try {
     const { sky, done } = skyDome();
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const made = pmrem.fromScene(sky, 0.03).texture;
+    const made = pmrem.fromScene(sky, 0.03, 0.1, 100, { size: shared.size }).texture;
     pmrem.dispose();
     done();
     return made;

@@ -186,7 +186,7 @@ function start(carried) {
   let townBuilt = false;
   let world = null, closures = null;
   townSteps.push(['the ground and the roads', () => {
-    initVehicles(renderer);
+    initVehicles(renderer, { lite: LITE });
     world = buildWorld(scene);
     // the roads not open yet and the edge of the built land: roadblocks and a fence, solid where they are drawn
     // (render-closures.js, closures.js; 19 October 2026)
