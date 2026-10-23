@@ -2,14 +2,16 @@
 """The before-and-after sheets for the owner: for each place, day and night, the r128 picture beside the r186 one, with
 the frame time, draw calls, triangles and graphics memory under each; a page per place, as a PDF.
 
-  python3 tools/measure/sheets.py <before dir> <after dir> phone|computer <out.pdf> [title]
-(the folders written by tools/measure/places.mjs)
+  python3 tools/measure/sheets.py <before dir> <after dir> phone|computer <out.pdf> [title] [before's name] [after's name]
+(the folders written by tools/measure/places.mjs; the names over each picture, by default "before (r128)" and "after (r186)")
 """
 import json, os, sys
 from PIL import Image, ImageDraw, ImageFont
 
 before_dir, after_dir, device, out = sys.argv[1:5]
 title = sys.argv[5] if len(sys.argv) > 5 else f'three.js r128 → r186, {device}'
+BEFORE = sys.argv[6] if len(sys.argv) > 6 else 'before (r128)'
+AFTER = sys.argv[7] if len(sys.argv) > 7 else 'after (r186)'
 B = json.load(open(os.path.join(before_dir, f'perf-{device}.json')))
 A = json.load(open(os.path.join(after_dir, f'perf-{device}.json')))
 
@@ -45,8 +47,8 @@ for place, b in bp.items():
     d.text((10, 42), title, font=F, fill=(200, 200, 200))
     y = 70
     for w, ib, ia, x, z in imgs:
-        d.text((10, y), f'{w}: before (r128)', font=FB, fill=(255, 210, 150))
-        d.text((20 + ib.size[0], y), f'{w}: after (r186)', font=FB, fill=(150, 210, 255))
+        d.text((10, y), f'{w}: {BEFORE}', font=FB, fill=(255, 210, 150))
+        d.text((20 + ib.size[0], y), f'{w}: {AFTER}', font=FB, fill=(150, 210, 255))
         y += 24
         page.paste(ib, (10, y)); page.paste(ia, (20 + ib.size[0], y))
         y += ib.size[1] + 6
