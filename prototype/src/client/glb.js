@@ -90,6 +90,8 @@ export function stepPictures() {
     texture.image = image; texture.needsUpdate = true;
     texture.userData.cap = size; texture.userData.drawn = 0;
     letGoOnceDrawn(texture);
+    // (the level changed again while it was being made: made again, at the size asked for now)
+    if (size !== most && !waiting.includes(texture)) waiting.push(texture);
   }).catch(() => { /* kept as it is */ }).finally(() => { remaking.delete(texture); });
   return waiting.length;
 }

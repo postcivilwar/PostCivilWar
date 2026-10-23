@@ -78,3 +78,16 @@ test('a picture that comes larger than the level\'s largest is made smaller in i
   assert.deepEqual(gone.asked, []);
   setPictureMost(0); await settle();
 });
+
+test('the level changed again while a picture was being made: it is made again at the size asked for now', async () => {
+  setPictureMost(0); await settle();
+  const a = made(2048);
+  setPictureMost(512);
+  stepPictures();                       // (being made at 512)
+  setPictureMost(1024);                 // (changed while it is being made)
+  await settle(); a.upload();
+  await settle(); a.upload();
+  assert.equal(a.texture.userData.drawn, 1024);
+  assert.deepEqual(a.asked, [512, 1024]);
+  setPictureMost(0); await settle();
+});
