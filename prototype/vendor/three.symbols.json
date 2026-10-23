@@ -19,6 +19,7 @@
   "Color",
   "ColorManagement",
   "ConeGeometry",
+  "CubeCamera",
   "CylinderGeometry",
   "DataTexture",
   "DirectionalLight",
@@ -56,6 +57,7 @@
   "MeshLambertMaterial",
   "MeshPhysicalMaterial",
   "MeshStandardMaterial",
+  "MixOperation",
   "NoColorSpace",
   "Object3D",
   "OrthographicCamera",
@@ -95,6 +97,7 @@
   "Vector3",
   "Vector4",
   "VectorKeyframeTrack",
+  "WebGLCubeRenderTarget",
   "WebGLRenderTarget",
   "WebGLRenderer"
  ]
