@@ -15805,9 +15805,10 @@ const linear = (hex) => new THREE.Color(hex).convertSRGBToLinear();
 const css = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 
 
-const shared = { env: null, cube: null, size: 256, textures: new Map(), daylight: 1, live: new Set() };
+const shared = { env: null, cube: null, size: 256, textures: new Map(), daylight: 1, live: new Set(), lite: false };
 
 function initVehicles(renderer, { lite = false } = {}) {
+  shared.lite = lite;
   if (shared.env || !renderer || location.hash.includes('noenv')) return;
   shared.size = lite ? 128 : 256;
   shared.env = skyPicture(renderer);
@@ -15947,9 +15948,12 @@ function glassMaterial(model, far) {
 
 
 function canvasTexture(width, height, paint) {
+  const k = shared.lite ? 0.5 : 1;
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
-  paint(canvas.getContext('2d'), width, height);
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
+  const g = canvas.getContext('2d');
+  g.scale(k, k);
+  paint(g, width, height);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
@@ -16248,7 +16252,7 @@ return { reflects, weathers, setReflections, setWater, updateFinishes, finishSta
 
 __modules["client/render-holaris.js"] = (function () {
 
-const { Batch, place, surface, linear } = __modules["client/render-kit.js"];
+const { Batch, place, surface, linear, isLite } = __modules["client/render-kit.js"];
 const { reflects } = __modules["client/render-finish.js"];
 
 const STEEL = 0x161b20;
@@ -16271,9 +16275,11 @@ function skyInGlass() {
 }
 
 function nameTexture(text, { width = 1024, height = 256, size = 170, colour = '#ffffff', spacing = 0.16, weight = 300 } = {}) {
+  const k = isLite() ? 0.5 : 1;
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const ctx = canvas.getContext('2d');
+  ctx.scale(k, k);
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = colour;
   ctx.textBaseline = 'middle';
@@ -19439,7 +19445,7 @@ function letGoOnceDrawn(texture, restore = null) {
     const image = texture.image;
     if (image && image.width) texture.userData.drawn = Math.max(image.width, image.height);
     if (image && typeof image.close === 'function') image.close();
-    if (most && texture.userData.drawn > most && restorable.has(texture) && !waiting.includes(texture)) waiting.push(texture);
+    if (restorable.has(texture) && toRemake(texture) && !waiting.includes(texture)) waiting.push(texture);
   };
   if (restore && !restorable.has(texture)) {
     restorable.set(texture, restore);
@@ -19452,23 +19458,35 @@ let most = 0;
 const waiting = [];
 const remaking = new Set();
 const pictureMost = () => most;
+function pictureWanted(texture) {
+  const want = (texture && texture.userData.want) || 0;
+  return most && want ? Math.min(most, want) : most || want;
+}
+function toRemake(texture) {
+  const drawn = texture.userData.drawn || 0, cap = texture.userData.cap || 0, target = pictureWanted(texture);
+  if (!drawn) return false;                                   // (not drawn yet: made at the cap it was asked for)
+  if (target && drawn > target) return true;                  // smaller
+  return !!(cap && drawn >= cap && (!target || target > cap));   // larger again
+}
+function wantPicture(texture, size) {
+  const want = Math.max(0, size || 0);
+  if (!texture || (texture.userData.want || 0) === want) return false;
+  texture.userData.want = want;
+  if (restorable.has(texture) && toRemake(texture) && !waiting.includes(texture)) waiting.push(texture);
+  return true;
+}
 function setPictureMost(size) {
   most = Math.max(0, size || 0);
   waiting.length = 0;
-  for (const texture of restorable.keys()) {
-    const drawn = texture.userData.drawn || 0, cap = texture.userData.cap || 0;
-    if (!drawn) continue;                                   // (not drawn yet: made at the cap it was asked for, below)
-    if (most && drawn > most) waiting.push(texture);        // smaller
-    else if (cap && drawn >= cap && (!most || most > cap)) waiting.push(texture);   // larger again
-  }
+  for (const texture of restorable.keys()) if (toRemake(texture)) waiting.push(texture);
   return waiting.length;
 }
 function stepPictures() {
   if (remaking.size || !waiting.length) return waiting.length;
   const texture = waiting.shift();
   const restore = restorable.get(texture);
-  if (!restore) return waiting.length;
-  const size = most;
+  if (!restore || !toRemake(texture)) return waiting.length;
+  const size = pictureWanted(texture);
   remaking.add(texture);
   Promise.resolve().then(() => restore(size)).then((image) => {
     if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return; }
@@ -19476,11 +19494,16 @@ function stepPictures() {
     texture.image = image; texture.needsUpdate = true;
     texture.userData.cap = size; texture.userData.drawn = 0;
     letGoOnceDrawn(texture);
-    if (size !== most && !waiting.includes(texture)) waiting.push(texture);
   }).catch(() => { /* kept as it is */ }).finally(() => { remaking.delete(texture); });
   return waiting.length;
 }
 const picturesWaiting = () => waiting.length + remaking.size;
+function pictureState() {
+  const sizes = {};
+  let undrawn = 0;
+  for (const texture of restorable.keys()) { const d = texture.userData.drawn || 0; if (!d) undrawn += 1; else sizes[d] = (sizes[d] || 0) + 1; }
+  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most };
+}
 async function decodeAtMost(blob, size = 0, options = undefined) {
   const full = await (options ? createImageBitmap(blob, options) : createImageBitmap(blob));
   if (!size || Math.max(full.width, full.height) <= size) return full;
@@ -19495,10 +19518,11 @@ async function restorePictures() {
   await Promise.all([...restorable].map(async ([texture, restore]) => {
     if (!gone(texture.image)) { texture.needsUpdate = true; return; }
     try {
-      const image = await restore(most);
+      const size = pictureWanted(texture);
+      const image = await restore(size);
       if (!image) { failed += 1; return; }
       texture.image = image; texture.needsUpdate = true;
-      texture.userData.cap = most;
+      texture.userData.cap = size;
       letGoOnceDrawn(texture);
       made += 1;
     } catch (error) { failed += 1; }
@@ -19506,6 +19530,7 @@ async function restorePictures() {
   return { made, failed, held: restorable.size };
 }
 const picturesHeld = () => restorable.size;
+const isRestorable = (texture) => restorable.has(texture);
 const reread = new Map();            // file -> promise of it read (kept for a few seconds)
 function rereadFile(file) {
   if (!reread.has(file)) {
@@ -19687,7 +19712,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
   return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material };
 }
 
-return { fetchKept, letGoOnceDrawn, pictureMost, setPictureMost, stepPictures, picturesWaiting, decodeAtMost, restorePictures, picturesHeld, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
+return { fetchKept, letGoOnceDrawn, pictureMost, pictureWanted, wantPicture, setPictureMost, stepPictures, picturesWaiting, pictureState, decodeAtMost, restorePictures, picturesHeld, isRestorable, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
 })();
 
 __modules["client/inflate.js"] = (function () {
@@ -22239,6 +22264,68 @@ function createCrowd(scene) {
 return { createCrowd };
 })();
 
+__modules["client/picture-keeper.js"] = (function () {
+
+const handable = (image) => !!image && ((typeof HTMLCanvasElement !== 'undefined' && image instanceof HTMLCanvasElement)
+  || (typeof HTMLImageElement !== 'undefined' && image instanceof HTMLImageElement && image.complete)
+  || (typeof OffscreenCanvas !== 'undefined' && image instanceof OffscreenCanvas));
+const KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap', 'aoMap', 'bumpMap', 'lightMap', 'specularMap'];
+
+function createPictureKeeper(scene, renderer, { keepMs = 30000, everyMs = 5000, skip = () => false } = {}) {
+  const shownAt = new WeakMap();          // a picture -> when one of its users was last seen shown
+  const recent = [];                      // (the last few let go: for the tests)
+  let next = 0, lastMs = 0, walks = 0;
+  const totals = { letGo: 0, bytes: 0 };
+  const onCard = (t) => { if (!renderer.properties.has(t)) return false; const p = renderer.properties.get(t); return !!p.__webglTexture; };
+  const sizeOf = (t) => { const img = t.image || {}; const w = img.width || 0, h = img.height || 0; return Math.round(w * h * 4 * (t.generateMipmaps ? 4 / 3 : 1)); };
+
+  function step(now) {
+    if (now < next) return 0;
+    next = now + everyMs;
+    const t0 = performance.now();
+    const shown = new Set(), hidden = new Set();
+    const walk = (o, visible, keep) => {
+      const v = visible && o.visible !== false, k = keep || !!(o.userData && o.userData.keepPictures);
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : null;
+      if (mats) for (const m of mats) {
+        if (!m) continue;
+        const used = v && m.visible !== false;
+        for (const key of KEYS) {
+          const t = m[key];
+          if (!t || !t.isTexture || t.isRenderTargetTexture) continue;
+          if (used || k) shown.add(t); else hidden.add(t);
+        }
+      }
+      const children = o.children;
+      for (let i = 0; i < children.length; i += 1) walk(children[i], v, k);
+    };
+    walk(scene, true, false);
+    let letGo = 0;
+    for (const t of shown) shownAt.set(t, now);
+    for (const t of hidden) {
+      if (shown.has(t)) continue;
+      const at = shownAt.get(t);
+      if (at === undefined) { shownAt.set(t, now); continue; }       // (first seen out of sight: from now)
+      if (now - at < keepMs || !handable(t.image) || skip(t) || !onCard(t)) continue;
+      totals.bytes += sizeOf(t);
+      t.dispose();
+      letGo += 1;
+      recent.push(t); if (recent.length > 8) recent.shift();
+      shownAt.set(t, now);
+    }
+    totals.letGo += letGo;
+    walks += 1;
+    lastMs = performance.now() - t0;
+    return letGo;
+  }
+
+  const state = () => ({ letGo: totals.letGo, MB: +(totals.bytes / 1048576).toFixed(1), walks, lastMs: +lastMs.toFixed(2), keepMs, everyMs });
+  return { step, state, get recent() { return recent.slice(); } };
+}
+
+return { createPictureKeeper };
+})();
+
 __modules["client/render-actors.js"] = (function () {
 
 const { ZONE_PARCELS, zoneSiteLayout } = __modules["sim/zone.js"];
@@ -24225,7 +24312,10 @@ const GRAPHICS_LEVELS = Object.freeze([
 const GRAPHICS_AUTO_LINE = 'Chooses the level for this device, and lowers it by itself if the game slows down.';
 const GRAPHICS_NOTE = 'Higher levels use more battery, and can make a phone warm.';
 const GRAPHICS_LOWERED = 'Graphics lowered to keep the game smooth';
-const ULTRA = 0, HIGH = 1, MEDIUM = 2, LOW = 3;
+const ULTRA = 0;
+const HIGH = 1;
+const MEDIUM = 2;
+const LOW = 3;
 
 const LEVEL_SETTINGS = Object.freeze({
   pixelRatio: [2, 1.5, 1.25, 1],                 // the most pixels drawn for each of the screen's (never more than it has)
@@ -24263,7 +24353,7 @@ function levelOf(choice) {
 
 const memoryLimitMB = (budgetMB, lite) => (lite ? budgetMB * 0.9 : budgetMB * 1.5);
 
-return { GRAPHICS_LEVELS, GRAPHICS_AUTO_LINE, GRAPHICS_NOTE, GRAPHICS_LOWERED, ULTRA, LEVEL_SETTINGS, levelSetting, autoStart, autoCeiling, remembered, remember, levelOf, memoryLimitMB };
+return { GRAPHICS_LEVELS, GRAPHICS_AUTO_LINE, GRAPHICS_NOTE, GRAPHICS_LOWERED, ULTRA, HIGH, MEDIUM, LOW, LEVEL_SETTINGS, levelSetting, autoStart, autoCeiling, remembered, remember, levelOf, memoryLimitMB };
 })();
 
 __modules["sim/nigeria.js"] = (function () {
@@ -37679,7 +37769,7 @@ const { reflects } = __modules["client/render-finish.js"];
 let reading = Promise.resolve();
 function oneAtATime(task) { const run = reading.then(task, task); reading = run.then(() => {}, () => {}); return run; }
 
-async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9 } = {}) {
+async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9, want = 0 } = {}) {
   const file = modelFile(named);
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
@@ -37696,10 +37786,10 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
     if (!info) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
-    const cap = pictureMost();
+    const level = pictureMost(), cap = level && want ? Math.min(level, want) : level || want;
     const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint, cap));
     t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
-    t.userData.cap = cap;
+    t.userData.cap = cap; t.userData.want = want;
     letGoOnceDrawn(t, (size) => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint, size)));
     return t;
   };
@@ -38281,6 +38371,7 @@ function buildDoors(group) {
 function buildHall() {
   const group = new THREE.Group();
   group.name = 'carshow-hall';
+  group.userData.keepPictures = true;
   const solid = new Batch(), gloss = new Batch(), metal = new Batch(), glow = new Batch(), glassB = new Batch(), overhead = new Batch();
   const W = H.x1 - H.x0, D = H.z1 - H.z0, cx = (H.x0 + H.x1) / 2, cz = (H.z0 + H.z1) / 2, top = H.ceiling;
   const WHITE = 0xf3f3f0, GREY = 0x2b2f35, BRASS = 0xc9a24a;
@@ -38670,6 +38761,7 @@ const { softPatch } = __modules["client/soft-patch.js"];
 const { SUPPLIED_VEHICLES } = __modules["sim/zone.js"];
 const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
 const { surface } = __modules["client/render-kit.js"];
+const { wantPicture } = __modules["client/glb.js"];
 
 function fitVehicle(mesh, v) {
   const pos = mesh.geometry.attributes.position, c = Math.cos(v.front), s = Math.sin(v.front);
@@ -38708,6 +38800,24 @@ const FROM_DISK = 'This copy of the page is opened from the disk, where the mode
 
 function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } = {}) {
   const most = Math.min(lite ? 1024 : 2048, maxTexture || 2048);
+  const THIN = lite ? Object.freeze({ size: Math.min(512, most), far: 60, near: 40, every: 10000 }) : null;
+  const thinFor = (v, d, now) => {
+    if (!THIN) return 0;
+    const k = Math.max(1, v.length / 7);
+    return d > THIN.far * k ? THIN.size : d < THIN.near * k ? 0 : now;
+  };
+  const picturesOf = (root) => {
+    const list = new Set();
+    root.traverse((o) => { if (o.isMesh && o.material) for (const key of ['map', 'normalMap', 'roughnessMap', 'metalnessMap']) if (o.material[key]) list.add(o.material[key]); });
+    return [...list];
+  };
+  function thinOut(thing, root, v, d) {
+    if (!THIN || !root) return;
+    const want = thinFor(v, d, thing.want || 0);
+    if (want === (thing.want || 0) || performance.now() - (thing.wantAt || -1e9) < THIN.every) return;
+    thing.want = want; thing.wantAt = performance.now(); thing.thinned = (thing.thinned || 0) + 1;
+    for (const t of picturesOf(root)) wantPicture(t, want);
+  }
   const parked = ['jet', 'boxTruck', 'heavyTruck'].map((id) => {
     const v = SUPPLIED_VEHICLES[id];
     const holder = new THREE.Group();
@@ -38718,14 +38828,15 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
     holder.add(standIn);
     softPatch(holder, { length: v.length, width: v.width });
     scene.add(holder);
-    return { id, v, holder, standIn, model: null, loading: null, failed: null, triangles: 0 };
+    return { id, v, holder, standIn, model: null, loading: null, failed: null, triangles: 0, want: 0 };
   });
 
-  function load(p) {
+  function load(p, d = 0) {
     if (p.model || p.loading) return p.loading;
     if (ON_DISK) { p.failed = FROM_DISK; return null; }
     p.failed = null;
-    p.loading = loadSuppliedMesh(p.v.file, { maxTexture: most, env, name: `supplied-${p.id}` })
+    p.want = thinFor(p.v, d, 0); p.wantAt = performance.now();
+    p.loading = loadSuppliedMesh(p.v.file, { maxTexture: most, env, name: `supplied-${p.id}`, want: p.want })
       .then(({ mesh, triangles }) => {
         const { fit } = fitVehicle(mesh, p.v);
         p.model = fit; p.triangles = triangles;
@@ -38750,11 +38861,12 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
     if (ambulance || ambulanceLoading) return ambulanceLoading;
     if (ON_DISK) { ambulance = { failed: FROM_DISK }; return null; }
     const v = SUPPLIED_VEHICLES.ambulance;
-    ambulanceLoading = loadSuppliedMesh(v.file, { maxTexture: most, env, name: 'supplied-ambulance' })
+    const want = THIN ? THIN.size : 0;
+    ambulanceLoading = loadSuppliedMesh(v.file, { maxTexture: most, env, name: 'supplied-ambulance', want })
       .then(({ mesh, triangles }) => {
         const { fit, frame } = fitVehicle(mesh, v);
         const roof = roofFront(mesh, frame);
-        ambulance = { fit, roof, triangles };
+        ambulance = { fit, roof, triangles, want, wantAt: performance.now() - 1e9, van: null };
       })
       .catch((error) => { ambulance = { failed: String(error.message || error) }; ambulanceFailedAt = performance.now(); })
       .finally(() => { ambulanceLoading = null; });
@@ -38763,6 +38875,7 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
   function dressAmbulance(van) {
     if (!ambulance || ambulance.failed || van.dressed) return van.dressed || null;
     van.group.add(ambulance.fit);
+    ambulance.van = van;
     for (const child of van.group.children) if (child !== ambulance.fit) child.visible = false;
     const lamps = [];
     for (const side of [-1, 1]) {
@@ -38779,13 +38892,18 @@ function createSupplied(scene, { lite = false, maxTexture = 4096, env = null } =
   function tick(eye) {
     for (const p of parked) {
       const d = Math.hypot(eye.x - p.v.x, eye.z - p.v.z);
-      if (d < p.v.reach && (!p.failed || (!ON_DISK && performance.now() - (p.failedAt || 0) > 30000))) load(p);
+      if (d < p.v.reach && (!p.failed || (!ON_DISK && performance.now() - (p.failedAt || 0) > 30000))) load(p, d);
       else if (d > p.v.reach * 1.6) release(p);
+      if (p.model) thinOut(p, p.model, p.v, d);
+    }
+    if (ambulance && ambulance.van && !ambulance.failed) {
+      const at = ambulance.van.group.position;
+      thinOut(ambulance, ambulance.fit, SUPPLIED_VEHICLES.ambulance, Math.hypot(eye.x - at.x, eye.z - at.z));
     }
   }
   const state = () => ({
-    parked: parked.map((p) => ({ id: p.id, loaded: !!p.model, loading: !!p.loading, failed: p.failed, triangles: p.triangles, standIn: p.standIn.visible, at: [p.holder.position.x, p.holder.position.z], heading: p.holder.rotation.y })),
-    ambulance: ambulance ? { loaded: !ambulance.failed, failed: ambulance.failed || null, triangles: ambulance.triangles || 0 } : { loaded: false, loading: !!ambulanceLoading },
+    parked: parked.map((p) => ({ id: p.id, loaded: !!p.model, loading: !!p.loading, failed: p.failed, triangles: p.triangles, standIn: p.standIn.visible, at: [p.holder.position.x, p.holder.position.z], heading: p.holder.rotation.y, want: p.want || 0, thinned: p.thinned || 0 })),
+    ambulance: ambulance ? { loaded: !ambulance.failed, failed: ambulance.failed || null, triangles: ambulance.triangles || 0, want: ambulance.want || 0, thinned: ambulance.thinned || 0 } : { loaded: false, loading: !!ambulanceLoading },
   });
   return { tick, load: (id) => load(parked.find((p) => p.id === id)), loadAmbulance, dressAmbulance, state, parked };
 }
@@ -39185,6 +39303,7 @@ function standIn() {
 function buildHall() {
   const group = new THREE.Group();
   group.name = 'powerbike-hall';
+  group.userData.keepPictures = true;
   const solid = new Batch(), gloss = new Batch(), metal = new Batch(), glow = new Batch(), glassB = new Batch(), overhead = new Batch();
   const W = H.x1 - H.x0, D = H.z1 - H.z0, cx = (H.x0 + H.x1) / 2, cz = (H.z0 + H.z1) / 2, top = H.ceiling;
   const WHITE = 0xf1f1ee, STEEL = 0x2b2f35, BRASS = 0xc9a24a;
@@ -40374,7 +40493,8 @@ const { buildBillboards } = __modules["client/render-billboards.js"];
 const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
 const { linear, setLite, restoreGeometry } = __modules["client/render-kit.js"];
-const { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost } = __modules["client/glb.js"];
+const { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable } = __modules["client/glb.js"];
+const { createPictureKeeper } = __modules["client/picture-keeper.js"];
 const { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } = __modules["client/render-actors.js"];
 const { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } = __modules["client/vehicle-models.js"];
 const { vehicleMeta } = __modules["client/vehicle-kit.js"];
@@ -40818,6 +40938,7 @@ function start(carried) {
   const perf = { fps: 60, calls: 0, triangles: 0, programs: 0, geometries: 0, textures: 0 };
   const monitor = createMonitor();
   const warmUp = createWarmUp(renderer, scene);
+  const keeper = LITE ? createPictureKeeper(scene, renderer, { skip: isRestorable }) : null;
   const warm = { stage: 0, frames: 0, extras: [] };
   const startEl = $('start');
   let prompt = null;
@@ -43572,6 +43693,7 @@ blood.update(dt, view.blood || []);
     monitor.end(elapsed * 1000);
     if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) quickTest(clock); }
     stepPictures();
+    if (keeper && townBuilt && !pictureGone) keeper.step(performance.now());
   }
 
   let contextLost = 0;
@@ -43623,9 +43745,10 @@ blood.update(dt, view.blood || []);
 
   let memoryStepAt = -Infinity;
   const memoryLimit = memoryLimitMB(graphicsBudgetMB, LITE);
+  const pretend = { extraMB: 0 };
   setInterval(() => {
     if (pictureGone || graphics.unwatched) return;
-    const usedMB = (graphics.pictures + graphics.buffers) / 1048576;
+    const usedMB = (graphics.pictures + graphics.buffers) / 1048576 + pretend.extraMB;
     if (usedMB > Math.min(graphicsBudgetMB, memoryLimit)) {
       const freed = dropUnusedFigures() + trimBikes() + trimCars();
       if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
@@ -43649,7 +43772,7 @@ blood.update(dt, view.blood || []);
   window.__nlw = {
     get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
-    get supplied() { return supplied; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
+    get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
@@ -43658,7 +43781,7 @@ blood.update(dt, view.blood || []);
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting() }; }, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
     get phoneHold() { return phoneHold; }, camera,
