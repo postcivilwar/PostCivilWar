@@ -545,8 +545,18 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
       load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadBike(displays[k].display.bike, { base: 'bikes/', tier, patch: false, length: displays[k].bike.length })),
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
-    // the pictures on the walls: the market's own photographs of each bike
-    if (!ON_DISK) for (const p of hall.posters) { const img = new Image(); img.onload = () => { const t = new THREE.Texture(img); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true; }; img.src = `assets/bike-${p.bike}-poster.webp`; }
+    // the pictures on the walls: the market's own photographs of each bike (a phone keeps each at half its size, 320
+    // across: a quarter of the memory, as many pixels as a phone's screen gives a poster 1.7 m wide from 3 m; the nine of
+    // them were 19 MB of a phone's 150 at full size, seen through the glass from outside too: 23 October 2026)
+    if (!ON_DISK) for (const p of hall.posters) {
+      const img = new Image();
+      img.onload = () => {
+        let picture = img;
+        if (lite) { const c = document.createElement('canvas'); c.width = Math.round(img.width / 2); c.height = Math.round(img.height / 2); const g = c.getContext('2d'); g.imageSmoothingQuality = 'high'; g.drawImage(img, 0, 0, c.width, c.height); picture = c; }
+        const t = new THREE.Texture(picture); t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true; p.pic.material.map = t; p.pic.material.needsUpdate = true;
+      };
+      img.src = `assets/bike-${p.bike}-poster.webp`;
+    }
     return hall;
   }
 

@@ -75,6 +75,8 @@ export function countGraphics(gl, { antialias = false } = {}) {
   wrap('renderbufferStorage', (a) => { if (buffer) { buffers.set(buffer, a[2] * a[3] * (BYTES[a[1]] || 4)); sum(); } });
   wrap('renderbufferStorageMultisample', (a) => { if (buffer) { buffers.set(buffer, a[3] * a[4] * (BYTES[a[2]] || 4) * Math.max(1, a[1])); sum(); } });
   function lost() { textures.clear(); buffers.clear(); bound2D.length = 0; boundCube.length = 0; unit = 0; buffer = null; sum(); }
+  // (for the measuring: every picture on the card with what it holds, in bytes, to be matched to what drew it)
+  count.list = () => [...textures.entries()].map(([texture, t]) => { let base = 0, all = 0; for (const [key, b] of t.levels) { all += b; if (key < 8) base += b; } return { texture, bytes: all + (t.mips ? Math.round(base / 3) : 0) }; });
   return count;
 }
 

@@ -3853,23 +3853,28 @@ blood.update(dt, view.blood || []);
   let restored = null;                // what the last giving back did (for the checks and the readout)
   let restoredTimes = 0;
 
-  // Over the budget for the graphics card (budget.js): everything kept ready but not being drawn is let go (figures
-  // looked at on the character screen, motorcycles and cars no longer in sight). Looked at every two seconds.
-  // Nearly full (graphics.js, memoryLimitMB: on a phone nine tenths of its budget), the graphics level is lowered a step
-  // (whether Auto or chosen: the picture is never lost to a level), and said; and the level is kept from climbing back
-  // for a while (the governor's own rule). (A step at most every ten seconds, and only once the pictures the last one
-  // made smaller have all been made: what a lower level lets go takes a moment to be let go.)
+  // Over the budget for the graphics card (budget.js), or nearly full (graphics.js, memoryLimitMB: on a phone nine
+  // tenths of its budget): first everything kept ready but not being drawn is let go (figures looked at on the character
+  // screen, motorcycles and cars no longer in sight). Looked at every two seconds. Still nearly full with nothing more to
+  // let go, the graphics level is lowered a step (whether Auto or chosen: the picture is never lost to a level), and said
+  // (once); and the level given up is not climbed back to for a while, longer each time (monitor.js, `lower`). (A step at
+  // most every ten seconds, and only once the pictures the last one made smaller have all been made: what a lower level
+  // lets go takes a moment to be let go.)
   let memoryStepAt = -Infinity;
   const memoryLimit = memoryLimitMB(graphicsBudgetMB, LITE);
   setInterval(() => {
+    if (pictureGone || graphics.unwatched) return;
     const usedMB = (graphics.pictures + graphics.buffers) / 1048576;
-    if (!pictureGone && !graphics.unwatched && townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
+    // (first what is kept ready and not drawn is let go, and the card counted again two seconds later; the level is
+    // lowered only when that was not enough)
+    if (usedMB > Math.min(graphicsBudgetMB, memoryLimit)) {
+      const freed = dropUnusedFigures() + trimBikes() + trimCars();
+      if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
+    }
+    if (townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
       memoryStepAt = performance.now();
       governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
     }
-    if (pictureGone || graphics.unwatched || usedMB <= graphicsBudgetMB) return;
-    const freed = dropUnusedFigures() + trimBikes() + trimCars();
-    if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); }
   }, 2000);
 
   // The readout (stats.js): the address ending in #stats shows it in a corner of every screen; Settings shows the same.
