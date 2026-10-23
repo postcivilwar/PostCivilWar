@@ -38,6 +38,9 @@ await page.waitForFunction(() => window.__nlw.online.status().state === 'in', nu
 await pastQuestion(page);
 await page.fill('#name', 'Tree Looker').catch(() => {});
 await enterTown(page);
+// (the realism looked at where the graphics level draws all of it, Ultra: Auto would choose Low for this machine, which
+// draws in software; what each level draws is graphics.mjs's)
+await page.evaluate(() => window.__nlw.setGraphics('ultra'));
 await page.waitForTimeout(2000);
 
 // a dry day, at eleven in the morning
