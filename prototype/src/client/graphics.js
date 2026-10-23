@@ -23,7 +23,11 @@ export const GRAPHICS_LEVELS = Object.freeze([
 export const GRAPHICS_AUTO_LINE = 'Chooses the level for this device, and lowers it by itself if the game slows down.';
 export const GRAPHICS_NOTE = 'Higher levels use more battery, and can make a phone warm.';
 export const GRAPHICS_LOWERED = 'Graphics lowered to keep the game smooth';
-export const ULTRA = 0, HIGH = 1, MEDIUM = 2, LOW = 3;
+// (one name to each export: the build gives the first name of an export only)
+export const ULTRA = 0;
+export const HIGH = 1;
+export const MEDIUM = 2;
+export const LOW = 3;
 
 // What each level draws (by level, 0 Ultra to 3 Low). The rest (how far the town is drawn, how many figures move
 // their limbs and how near, the grass and the garden plants, the showrooms' models) follows the device's own steps of

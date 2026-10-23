@@ -39,8 +39,8 @@ async function player(kind) {
   page.on('pageerror', (e) => { errors.push(e.message); console.log(`${kind} page error:`, e.message); });
   let loads = 0;
   page.on('load', () => { loads += 1; });
-  // (#stats: the readout in its corner; the toasts kept, so that what was said can be read after)
-  await page.addInitScript(() => { window.__said = []; new MutationObserver(() => { for (const t of document.querySelectorAll('#toasts .toast, #toasts > *')) { const s = t.textContent.trim(); if (s && !window.__said.includes(s)) window.__said.push(s); } }).observe(document, { subtree: true, childList: true, characterData: true }); });
+  // (#stats: the readout in its corner; the notices kept, so that what was said can be read after)
+  await page.addInitScript(() => { window.__said = []; new MutationObserver(() => { for (const t of document.querySelectorAll('#notices > *')) { const s = t.textContent.trim(); if (s && !window.__said.includes(s)) window.__said.push(s); } }).observe(document, { subtree: true, childList: true, characterData: true }); });
   await page.goto(`${origin}/#stats`);
   await page.waitForFunction(() => document.getElementById('intro').classList.contains('ready'), null, { timeout: 300000 });
   await page.evaluate(() => document.getElementById('cover-play').click());
@@ -129,7 +129,7 @@ for (const kind of ['phone', 'computer']) {
   // ---- and when the graphics card is nearly full (the game's count taken to hold its limit and a little more:
   // graphicsPretend; the count itself is redone as each picture goes to the card, and a test could not hold it there)
   // (the first notice gone from the screen first, so that what is said now is told apart from it)
-  await page.waitForFunction((text) => ![...document.querySelectorAll('#toasts *')].some((t) => t.textContent.includes(text)), GRAPHICS_LOWERED, { timeout: 60000 }).catch(() => {});
+  await page.waitForFunction((text) => ![...document.querySelectorAll('#notices > *')].some((t) => t.textContent.includes(text)), GRAPHICS_LOWERED, { timeout: 60000 }).catch(() => {});
   await page.evaluate(() => { const g = window.__nlw.governor; g.set(1, 'Auto: for the test'); g.hold(true); window.__said = []; });
   await settled();
   const budget = await page.evaluate(() => ({ budget: window.__nlw.graphicsBudget, limit: window.__nlw.memoryLimit }));

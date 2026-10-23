@@ -179,7 +179,7 @@ const t3 = Date.now();
 if (!process.env.PERF_QUICK) await page.waitForFunction(() => window.__nlw.beyond, null, { timeout: 900000 }).catch(() => {});
 result.loading.warmMs = Date.now() - t3;
 console.log('loading', JSON.stringify(result.loading));
-await page.evaluate(() => { const t = document.getElementById('toasts'); if (t) t.style.display = 'none'; });
+await page.evaluate(() => { for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } });
 
 const park = await page.evaluate(() => window.__nlw.service('park'));
 const PLACES = [
