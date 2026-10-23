@@ -40,7 +40,7 @@ async function player(kind) {
   let loads = 0;
   page.on('load', () => { loads += 1; });
   // (#stats: the readout in its corner; the notices kept, so that what was said can be read after)
-  await page.addInitScript(() => { window.__said = []; new MutationObserver(() => { for (const t of document.querySelectorAll('#notices > *')) { const s = t.textContent.trim(); if (s && !window.__said.includes(s)) window.__said.push(s); } }).observe(document, { subtree: true, childList: true, characterData: true }); });
+  await page.addInitScript(() => { window.__said = []; window.__lowered = 0; const seen = new WeakSet(); new MutationObserver(() => { for (const t of document.querySelectorAll('#notices > *')) { if (seen.has(t)) continue; const s = t.textContent.trim(); if (!s) continue; seen.add(t); window.__said.push(s); if (s.includes('Graphics lowered')) window.__lowered += 1; } }).observe(document, { subtree: true, childList: true, characterData: true }); });
   await page.goto(`${origin}/#stats`);
   await page.waitForFunction(() => document.getElementById('intro').classList.contains('ready'), null, { timeout: 300000 });
   await page.evaluate(() => document.getElementById('cover-play').click());
@@ -116,30 +116,33 @@ for (const kind of ['phone', 'computer']) {
   const back = await chooseAndSettle('ultra');
   check(`${kind}: raised from Low to Ultra again, the pictures made large again`, back.picturesMB > low.picturesMB && back.picturesMB > high.picturesMB * 0.8, { ultraMB: high.picturesMB, lowMB: low.picturesMB, backMB: back.picturesMB, backPictures: back.pictures });
   await page.screenshot({ path: resolve(out, `${kind}-ultra-again.png`) });
-  // ---- Auto lowers by itself when frames are slow, and says so. (This machine draws in software, a frame at Ultra in a
-  // second or more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being
-  // slow: so the frames it is given to judge here are frames of 45 ms, under thirty a second, one after another.)
-  await page.evaluate(() => { window.__nlw.setGraphics('auto'); });
-  await page.evaluate(() => { const g = window.__nlw.governor; g.set(0, 'Auto: for the test'); window.__said = []; });
+  // ---- Auto lowers by itself when frames are slow. (This machine draws in software, a frame at Ultra in a second or
+  // more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being slow:
+  // so the frames it is given to judge here are frames of 45 ms, under thirty a second, one after another; and the card
+  // is taken to hold little meanwhile, so that what lowers the level here is the frames, not the memory guard.)
+  await page.evaluate(() => { window.__nlw.setGraphics('auto'); window.__nlw.graphicsPretend.extraMB = -100000; });
+  await page.evaluate(() => { const g = window.__nlw.governor; g.set(0, 'Auto: for the test'); });
   await page.evaluate(() => new Promise((done) => { const g = window.__nlw.governor; let n = 0; const tick = () => { for (let i = 0; i < 20; i += 1) g.frame(45, 0.045); n += 1; if (window.__nlw.quality > 0 || n > 400) done(); else setTimeout(tick, 20); }; tick(); }));
+  await page.evaluate(() => { window.__nlw.graphicsPretend.extraMB = 0; });
   await page.waitForTimeout(1500);
   const slow = await state(page);
-  const said = await page.evaluate(() => window.__said.slice());
-  check(`${kind}: Auto lowers the level by itself when the frames are slow, and says "${GRAPHICS_LOWERED}"`, slow.level > 0 && slow.choice === 'auto' && said.some((s) => s.includes(GRAPHICS_LOWERED)) && /typical frame/.test(JSON.stringify(slow.changes)), { level: slow.level, changes: slow.changes, said });
+  check(`${kind}: Auto lowers the level by itself when the frames are slow (under thirty a second)`, slow.level > 0 && slow.choice === 'auto' && /typical frame/.test(JSON.stringify(slow.changes.slice(-1))), { level: slow.level, changes: slow.changes });
   // ---- and when the graphics card is nearly full (the game's count taken to hold its limit and a little more:
   // graphicsPretend; the count itself is redone as each picture goes to the card, and a test could not hold it there)
-  // (the first notice gone from the screen first, so that what is said now is told apart from it)
-  await page.waitForFunction((text) => ![...document.querySelectorAll('#notices > *')].some((t) => t.textContent.includes(text)), GRAPHICS_LOWERED, { timeout: 60000 }).catch(() => {});
-  await page.evaluate(() => { const g = window.__nlw.governor; g.set(1, 'Auto: for the test'); g.hold(true); window.__said = []; });
+  await page.evaluate(() => { const g = window.__nlw.governor; g.set(1, 'Auto: for the test'); g.hold(true); });
   await settled();
   const budget = await page.evaluate(() => ({ budget: window.__nlw.graphicsBudget, limit: window.__nlw.memoryLimit }));
   await page.evaluate((limit) => { const n = window.__nlw, g = n.graphics; n.graphicsPretend.extraMB = Math.max(0, limit * 1.05 - (g.pictures + g.buffers) / 1048576); }, budget.limit);
   await page.waitForFunction(() => window.__nlw.quality > 1, null, { timeout: 120000 }).catch(() => {});
   await page.evaluate(() => { window.__nlw.graphicsPretend.extraMB = 0; window.__nlw.governor.hold(false); });
   const full = await state(page);
-  const saidFull = await page.evaluate(() => window.__said.slice());
-  // (said once only: it was said above, for the slow frames)
-  check(`${kind}: the graphics card nearly full: the level lowered a step (not said a second time: the player is told once)`, full.level === 2 && !saidFull.some((s) => s.includes(GRAPHICS_LOWERED)) && /nearly full/.test(JSON.stringify(full.changes)), { budget, level: full.level, changes: full.changes, said: saidFull });
+  check(`${kind}: the graphics card nearly full: the level lowered a step`, full.level === 2 && /nearly full/.test(JSON.stringify(full.changes.slice(-1))), { budget, level: full.level, changes: full.changes });
+  // ---- the player told, once: "Graphics lowered to keep the game smooth", however many times the game lowered it by
+  // itself (here twice or more: for the frames, for the memory, and, on a phone at Ultra, for its own memory before that)
+  await page.waitForTimeout(1500);
+  const told = await page.evaluate(() => ({ lowered: window.__lowered, said: window.__said.filter((s) => /Graphics/.test(s)) }));
+  const byItself = full.changes.filter((c) => c.to > c.from && /typical frame|nearly full|gave the picture up/.test(c.why)).length;
+  check(`${kind}: the player is told once, "${GRAPHICS_LOWERED}", though the game lowered the level by itself ${byItself} times`, told.lowered === 1 && told.said.every((s) => s.includes(GRAPHICS_LOWERED)), { told, byItself });
   // ---- the #stats readout
   await page.waitForTimeout(1500);
   const stats = await page.evaluate(() => { const b = document.getElementById('stats'); return b ? b.textContent : null; });
