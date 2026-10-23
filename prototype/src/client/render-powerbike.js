@@ -213,7 +213,8 @@ async function loadTower({ maxTexture }) {
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
     map.flipY = false; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8; map.needsUpdate = true;
-    letGoOnceDrawn(map, () => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, maxTexture));
+    // (made again from its file should the card's copy be lost, or no larger than the graphics level's largest picture)
+    letGoOnceDrawn(map, (size) => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, size && maxTexture ? Math.min(size, maxTexture) : size || maxTexture));
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   // (its glass and cladding give back a little of the sky: render-finish.js)
@@ -541,7 +542,7 @@ export function buildPowerbike(scene, { lite = false, maxTexture = 0, renderer =
     models = hallModels({
       items: displays.map((d) => ({ id: d.display.bike })), lite, renderer,
       ranges: { inspect: 2.5, near: 7, mid: 14 },
-      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadBike(displays[k].display.bike, { base: 'bikes/', tier, length: displays[k].bike.length })),
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadBike(displays[k].display.bike, { base: 'bikes/', tier, patch: false, length: displays[k].bike.length })),
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
     // the pictures on the walls: the market's own photographs of each bike

@@ -332,7 +332,7 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
   };
   // (the glass and the steel give back the sky; out in the rain the street is darker, and its tarmac and paving glossy:
   // render-finish.js)
-  reflects(materials.glass, 1.1); reflects(materials.metal, 0.6);
+  reflects(materials.glass, 1.1); reflects(materials.metal, 0.6, 'metal');
   weathers(materials.road, { darken: 0.42, gloss: 0.66, sheen: 1 }); weathers(materials.paving, { darken: 0.25, gloss: 0.32, sheen: 0.25 });
   for (const name of ['concrete', 'brick', 'stone', 'render']) weathers(materials[name], { darken: 0.18 });
   const meshes = [];

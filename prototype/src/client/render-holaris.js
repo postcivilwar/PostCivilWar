@@ -139,7 +139,7 @@ export function buildShowroom(b, { storeys = 3 } = {}) {
     for (let i = 0; i < 12; i += 1) frame.box(1.3, 0.07, 0.34, place(b.x + hw - 1.2, base + floorH * f + 0.2 + (i * floorH) / 12, b.z - hd + 1.6 + i * 0.5), 0xcfd3d6);
   }
 
-  const frameMesh = frame.build(reflects(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }), 0.7));
+  const frameMesh = frame.build(reflects(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }), 0.7, 'metal'));
   frameMesh.castShadow = true; frameMesh.receiveShadow = true;
   group.add(frameMesh);
 

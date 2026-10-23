@@ -24,7 +24,7 @@ import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry } from './render-kit.js';
-import { restorePictures } from './glb.js';
+import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost } from './glb.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
 import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
@@ -79,7 +79,7 @@ import { bikesHeld, trimBikes } from './bike-model.js';
 import { buildCarshow } from './render-carshow.js';
 import { createSupplied } from './render-supplied.js';
 import { createTownBuildings } from './render-town-buildings.js';
-import { updateFinishes, finishState } from './render-finish.js';
+import { updateFinishes, finishState, setReflections, setWater } from './render-finish.js';
 import { foliageState } from './render-foliage.js';
 import { buildPowerbike } from './render-powerbike.js';
 import { pictureSize, GRAPHICS_BUDGET_MB } from './budget.js';
@@ -91,7 +91,8 @@ import { watchPicture } from './picture-watch.js';
 import { buildClosures } from './render-closures.js';
 import { createTorchBeams } from './torch-beams.js';
 import { STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT } from './light.js';
-import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LEVEL_SETTINGS, LOW, autoStart, autoCeiling, remembered, remember, levelOf } from './graphics.js';
+import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } from './graphics.js';
+import { showSoftPatches, softPatchesShown } from './soft-patch.js';
 import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
 
@@ -2987,23 +2988,35 @@ function start(carried) {
   // the town quickly (the silent test), steps down when the device truly cannot keep up (a typical frame slower than
   // a thirtieth of a second for a few seconds: monitor.js) or the graphics card is nearly full, and back up, slowly,
   // when there is room. A step down by itself is said once: "Graphics lowered to keep the game smooth".
-  //   Each level: the pixels drawn, the sun's shadows and how soft they are (LEVEL_SETTINGS); and the device's own steps
-  //   of detail (`quality.detail`: how many figures move their limbs and how near, how far the town is drawn, the grass,
-  //   the showrooms' models), which a phone keeps at its fullest from Medium up, as it was drawn before the levels, and
-  //   a computer at each level as its detail steps were (0 to 3).
+  //   Each level (graphics.js, LEVEL_SETTINGS): the pixels drawn; the sun's shadows, how far they reach and how soft they
+  //   are (none at Low, where every vehicle has its soft patch as every figure has); the largest picture; the sky in
+  //   glass, water, metal and wet roads; the waters' ripples; how far one sees; and the device's own steps of detail
+  //   (`quality.detail`: how many figures move their limbs and how near, how far the town is drawn, the grass, the
+  //   showrooms' models), which a phone keeps at its fullest from Medium up, as it was drawn before the levels, and a
+  //   computer at each level as its detail steps were (0 to 3).
   const DETAIL_OF = LITE ? [0, 0, 0, 3] : [0, 1, 2, 3];
   function applyQuality(level) {
     if (!townBuilt) return;          // (applied when the town is built)
+    const at = (key) => levelSetting(key, level, LITE);
     world.setQuality(DETAIL_OF[level]);
     town.setQuality(DETAIL_OF[level]);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, LEVEL_SETTINGS.pixelRatio[level]));
-    const shadow = sky.sun.shadow, size = LEVEL_SETTINGS.shadowMap[level];
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, at('pixelRatio')));
+    const shadow = sky.sun.shadow, size = at('shadowMap');
     // (the map let go when shadows go, and made again at its new size when they come back: memory freed at once)
     if (size === 0 || shadow.mapSize.x !== size) { if (size) shadow.mapSize.set(size, size); if (shadow.map) { shadow.map.dispose(); shadow.map = null; } }
-    shadow.radius = LEVEL_SETTINGS.shadowSoft[level];
+    shadow.radius = at('shadowSoft');
+    if (size) sky.reachShadows(at('shadowReach'));
     // Shadows go by telling the sun not to cast them. The renderer then moves each material to a
-    // program without shadows as it next draws it, and back again the same way.
+    // program without shadows as it next draws it, and back again the same way. Without them, every vehicle has its
+    // soft patch under it, as every figure always has (soft-patch.js).
     sky.sun.castShadow = size > 0;
+    showSoftPatches(size === 0);
+    // the sky in glass, water, metal and wet roads, or less; the waters' ripples; how far the air lets one see
+    setReflections(at('reflections'));
+    setWater(at('water'));
+    sky.setView(at('view'));
+    // the largest picture: those larger made again smaller, a few at a time (glb.js), freeing the graphics card's memory
+    setPictureMost(at('pictureMost'));
     soundTimer = 1;      // look again at what is in reach
     resize();
     monitor.count(`graphics to ${GRAPHICS_LEVELS[level].name}`);
@@ -3033,9 +3046,22 @@ function start(carried) {
   }
   if (!prefs.graphics || (prefs.graphics !== 'auto' && levelOf(prefs.graphics) === null)) prefs.graphics = 'auto';
   if (prefs.graphics === 'auto') governor.set(Math.max(autoLevel(), governor.ceiling), 'Auto: where this device starts'); else setGraphics(prefs.graphics);
-  // (Auto's silent test: the first half minute in the town judged quickly; the level it settles at kept for this device)
+  // Auto's silent test while loading (the owner's brief: "a short silent test while loading"): a dozen frames of the town
+  // drawn behind the loading card, timed; their typical frame slower than a thirtieth of a second, a level lower and
+  // again, at most three times (never said: it is the first choice, not a change while playing). Then, playing, the
+  // first half minute in the town judged quickly (quickTest); the level it settles at kept for this device.
+  const typicalFrame = (n) => new Promise((resolve) => { const t = []; let last = null; const f = (now) => { if (last !== null) t.push(now - last); last = now; if (t.length >= n) { t.sort((a, b) => a - b); resolve(t[Math.floor(t.length / 2)]); } else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  async function silentTest() {
+    if (prefs.graphics !== 'auto') return;
+    for (let tries = 0; tries < 3 && governor.level < LOW; tries += 1) {
+      const ms = await typicalFrame(12);
+      if (!(ms > QUALITY_RULES.slowMs)) return;
+      governor.set(governor.level + 1, `the silent test while loading: a typical frame ${ms.toFixed(0)} ms`);
+      await painted(); await painted();
+    }
+  }
   let testedAt = null;
-  function silentTest(clock) {
+  function quickTest(clock) {
     if (prefs.graphics !== 'auto') return;
     if (testedAt === null) { testedAt = clock; governor.quick(30); return; }
     if (clock - testedAt > 60 && storage) { remember(storage, gpuName(), governor.level); testedAt = Infinity; }
@@ -3189,6 +3215,7 @@ function start(carried) {
           loading.progress(0.95);
           await painted();
           warmPrograms(2);
+          await silentTest();
         }
         warm.stage = 4;
         isReady = true;
@@ -3759,7 +3786,9 @@ blood.update(dt, view.blood || []);
     if (playing) { fitTimer -= dt; if (fitTimer <= 0) { fitTimer = 0.3; fitter.fit(); } }
     if (playing && view) bubbles.update(view.speech, headOf, project, predicted, `p:${playerId}`, viewW, viewH);
     monitor.end(elapsed * 1000);
-    if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) silentTest(clock); }
+    if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) quickTest(clock); }
+    // (pictures the graphics level asked to be made another size: the next one, one at a time)
+    stepPictures();
   }
 
   // The picture taken away (18 October 2026, and again 20 October: "players must never see a notice like 'The picture
@@ -3809,6 +3838,8 @@ blood.update(dt, view.blood || []);
       restored = { at: Math.round(performance.now()), numbers, pictures, reflections, views };
       restoredTimes += 1;
       pictureGone = false;
+      // (Auto never keeps a level the device could not hold: the picture taken away in the town, a level lower, and said)
+      if (townBuilt && prefs.graphics === 'auto' && governor.level < LOW) governor.set(governor.level + 1, 'the graphics card gave the picture up');
       loading.progress(1);
       await painted();
       if (!preparing || isReady) loading.hide();
@@ -3822,13 +3853,15 @@ blood.update(dt, view.blood || []);
 
   // Over the budget for the graphics card (budget.js): everything kept ready but not being drawn is let go (figures
   // looked at on the character screen, motorcycles and cars no longer in sight). Looked at every two seconds.
-  // Nearly full (nine tenths of the budget), the graphics level is lowered a step (whether Auto or chosen: the picture is
-  // never lost to a level), and said; and the level is kept from climbing back for a while (the governor's own rule).
-  // (a step at most every ten seconds: what the lower level lets go takes a moment to be let go)
+  // Nearly full (graphics.js, memoryLimitMB: on a phone nine tenths of its budget), the graphics level is lowered a step
+  // (whether Auto or chosen: the picture is never lost to a level), and said; and the level is kept from climbing back
+  // for a while (the governor's own rule). (A step at most every ten seconds, and only once the pictures the last one
+  // made smaller have all been made: what a lower level lets go takes a moment to be let go.)
   let memoryStepAt = -Infinity;
+  const memoryLimit = memoryLimitMB(graphicsBudgetMB, LITE);
   setInterval(() => {
     const usedMB = (graphics.pictures + graphics.buffers) / 1048576;
-    if (!pictureGone && !graphics.unwatched && townBuilt && usedMB > graphicsBudgetMB * 0.9 && governor.level < LOW && performance.now() - memoryStepAt > 10000) {
+    if (!pictureGone && !graphics.unwatched && townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
       memoryStepAt = performance.now();
       governor.set(governor.level + 1, `the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
     }
@@ -3865,7 +3898,9 @@ blood.update(dt, view.blood || []);
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
-    get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
+    // (the graphics level as drawn now: for the tests)
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting() }; }, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },

@@ -19,7 +19,7 @@ try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = 
 const here = dirname(fileURLToPath(import.meta.url));
 const { createDevServer } = await import(resolve(here, '../../server/dev.mjs'));
 const { pastQuestion, enterTown } = await import(resolve(here, 'start.mjs'));
-const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LEVEL_SETTINGS, LOW, autoStart } = await import(resolve(here, '../src/client/graphics.js'));
+const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, autoStart } = await import(resolve(here, '../src/client/graphics.js'));
 const out = process.argv[2] || '/tmp/graphics-shots';
 mkdirSync(out, { recursive: true });
 const results = [];
@@ -57,7 +57,7 @@ async function player(kind) {
 }
 const state = (page) => page.evaluate(() => {
   const n = window.__nlw, g = n.graphics || {};
-  return { level: n.quality, detail: n.qualityDetail, choice: n.graphicsChoice, pixelRatio: n.renderer.getPixelRatio(), shadows: n.sunShadows, shadowMap: n.sky && n.sky.sun ? n.sky.sun.shadow.mapSize.x : null, shadowLive: !!(n.sky && n.sky.sun.shadow.map), heldMB: +(((g.pictures || 0) + (g.buffers || 0) + (g.screen || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), frames: n.frameCount !== undefined ? n.frameCount : null, changes: n.governor.changes.slice(-3), stored: (() => { try { return localStorage.getItem('pcw-graphics-auto'); } catch (e) { return null; } })() };
+  return { ...n.levelState, level: n.quality, detail: n.qualityDetail, choice: n.graphicsChoice, shadowLive: !!(n.sky && n.sky.sun.shadow.map), heldMB: +(((g.pictures || 0) + (g.buffers || 0) + (g.screen || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), frames: n.frameCount !== undefined ? n.frameCount : null, changes: n.governor.changes.slice(-3), stored: (() => { try { return localStorage.getItem('pcw-graphics-auto'); } catch (e) { return null; } })() };
 });
 const frames = (page) => page.evaluate(() => new Promise((done) => { let n = 0; const t0 = performance.now(); const f = () => { n += 1; if (n >= 3) done(performance.now() - t0); else requestAnimationFrame(f); }; requestAnimationFrame(f); }));
 
@@ -88,17 +88,33 @@ for (const kind of ['phone', 'computer']) {
     const s = await state(page);
     const level = GRAPHICS_LEVELS.findIndex((l) => l.id === id);
     const dpr = await page.evaluate(() => window.devicePixelRatio || 1);
-    seen.push({ id, ...s, ok: s.level === level && s.choice === id && Math.abs(s.pixelRatio - Math.min(dpr, LEVEL_SETTINGS.pixelRatio[level])) < 1e-6 && s.shadows === (LEVEL_SETTINGS.shadowMap[level] > 0) && (!s.shadows || s.shadowMap === LEVEL_SETTINGS.shadowMap[level]) });
+    const at = (key) => levelSetting(key, level, p.phone);
+    const shadowMap = at('shadowMap');
+    seen.push({ id, ...s, ok: s.level === level && s.choice === id && Math.abs(s.pixelRatio - Math.min(dpr, at('pixelRatio'))) < 1e-6
+      && s.shadows === (shadowMap > 0) && (!s.shadows || (s.shadowMap === shadowMap && s.shadowReach === at('shadowReach') && Math.abs(s.softness - at('shadowSoft')) < 1e-6))
+      && s.patches === !s.shadows && s.finish.reflections === at('reflections') && s.finish.water === at('water') && Math.abs(s.view - at('view')) < 1e-6 && s.pictureMost === at('pictureMost')
+      // (the waters' ripples and the sky in what gives it back, as the level has them)
+      && (at('water') === 'full' ? s.finish.rippling === s.finish.waters : s.finish.rippling === 0) && (at('reflections') === 'none' ? s.finish.withSky === 0 : s.finish.withSky > 0) });
   }
-  check(`${kind}: each level made at once, without reloading: its pixels, its sun shadows (none at Low), the frames going on`, seen.every((s) => s.ok) && p.loads() === 1 && p.errors.length === 0, { seen: seen.map(({ id, level, pixelRatio, shadows, shadowMap, ok }) => ({ id, level, pixelRatio, shadows, shadowMap, ok })), loads: p.loads(), errors: p.errors });
+  check(`${kind}: each level made at once, without reloading: its pixels, its sun shadows (how far, how soft; none at Low, a soft patch under each vehicle instead), its largest picture, the sky in glass and water, the waters' ripples, how far one sees`, seen.every((s) => s.ok) && p.loads() === 1 && p.errors.length === 0, { seen: seen.map(({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, finish, view, pictureMost, ok }) => ({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, reflections: finish.reflections, withSky: finish.withSky, water: finish.water, rippling: `${finish.rippling}/${finish.waters}`, view, pictureMost, ok })), loads: p.loads(), errors: p.errors });
   // ---- memory freed when lowering
+  // (each level's pictures all made before it is measured: glb.js makes them again one at a time)
+  const settled = () => page.waitForFunction(() => window.__nlw.levelState.picturesWaiting === 0, null, { timeout: 600000, polling: 1000 }).catch(() => {});
   await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="ultra"]').click());
+  await settled();
   for (let i = 0; i < 3; i += 1) { await frames(page); await page.waitForTimeout(1000); }
   const high = await state(page);
   await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="low"]').click());
+  await settled();
   for (let i = 0; i < 3; i += 1) { await frames(page); await page.waitForTimeout(1000); }
   const low = await state(page);
-  check(`${kind}: lowered from Ultra to Low, the graphics card holds less (the sun's shadow map let go, fewer pixels drawn)`, low.heldMB < high.heldMB - 3 && !low.shadowLive, { ultraMB: high.heldMB, lowMB: low.heldMB, shadowAfter: low.shadowLive });
+  check(`${kind}: lowered from Ultra to Low, the graphics card holds less: the pictures made smaller, the sun's shadow map let go, fewer pixels drawn`, low.heldMB < high.heldMB - 3 && low.picturesMB < high.picturesMB && !low.shadowLive && low.picturesWaiting === 0, { ultraMB: high.heldMB, lowMB: low.heldMB, ultraPicturesMB: high.picturesMB, lowPicturesMB: low.picturesMB, shadowAfter: low.shadowLive });
+  // and raised again: the pictures given back (as large as before, within a little: what was made meanwhile)
+  await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="ultra"]').click());
+  await settled();
+  for (let i = 0; i < 3; i += 1) { await frames(page); await page.waitForTimeout(1000); }
+  const back = await state(page);
+  check(`${kind}: raised from Low to Ultra again, the pictures made large again`, back.picturesMB > low.picturesMB && back.picturesMB > high.picturesMB * 0.8, { ultraMB: high.picturesMB, lowMB: low.picturesMB, backMB: back.picturesMB });
   await page.screenshot({ path: resolve(out, `${kind}-low.png`) });
   // ---- Auto lowers by itself when frames are slow (this machine draws in software: slow at Ultra), and says so
   await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="auto"]').click());
@@ -110,9 +126,10 @@ for (const kind of ['phone', 'computer']) {
   check(`${kind}: Auto lowers the level by itself when the frames are slow, and says "${GRAPHICS_LOWERED}"`, slow.level > 0 && slow.choice === 'auto' && said.some((s) => s.includes(GRAPHICS_LOWERED)) && /typical frame/.test(JSON.stringify(slow.changes)), { level: slow.level, changes: slow.changes, said });
   // ---- and when the graphics card is nearly full (the game's count made to read nine tenths and more of its budget)
   await page.evaluate(() => { const g = window.__nlw.governor; g.set(1, 'Auto: for the test'); g.hold(true); window.__said = []; });
-  const budget = await page.evaluate(() => window.__nlw.graphicsBudget || null);
-  await page.evaluate((mb) => { const g = window.__nlw.graphics; window.__fill = setInterval(() => { g.pictures = mb * 0.95 * 1048576; g.buffers = 0; }, 50); }, budget || 700);
-  await page.waitForFunction(() => window.__nlw.quality > 1, null, { timeout: 30000 }).catch(() => {});
+  await settled();
+  const budget = await page.evaluate(() => ({ budget: window.__nlw.graphicsBudget, limit: window.__nlw.memoryLimit }));
+  await page.evaluate((mb) => { const g = window.__nlw.graphics; window.__fill = setInterval(() => { g.pictures = mb * 1048576; g.buffers = 0; }, 50); }, budget.limit * 1.05);
+  await page.waitForFunction(() => window.__nlw.quality > 1, null, { timeout: 120000 }).catch(() => {});
   await page.evaluate(() => { clearInterval(window.__fill); window.__nlw.governor.hold(false); });
   const full = await state(page);
   const saidFull = await page.evaluate(() => window.__said.slice());

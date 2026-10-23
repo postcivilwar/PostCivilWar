@@ -8,6 +8,7 @@
 // drives (care.js): its model is fetched once the town is ready, and until then the van the town always had stands
 // in for it. Its lamps flash on the light bar on its roof while it is on a call.
 
+import { softPatch } from './soft-patch.js';
 import { SUPPLIED_VEHICLES } from '../sim/zone.js';
 import { loadSuppliedMesh } from './supplied-model.js';
 import { surface } from './render-kit.js';
@@ -63,6 +64,8 @@ export function createSupplied(scene, { lite = false, maxTexture = 4096, env = n
     const standIn = new THREE.Mesh(new THREE.BoxGeometry(id === 'jet' ? 2.8 : v.width, id === 'jet' ? 2.8 : v.height * 0.92, v.length), surface({ color: STAND_IN, roughness: 0.6, metalness: 0.2 }));
     standIn.position.y = (id === 'jet' ? 2.8 : v.height * 0.92) / 2; standIn.castShadow = true;
     holder.add(standIn);
+    // (the soft patch under it, while the sun casts no shadows: soft-patch.js)
+    softPatch(holder, { length: v.length, width: v.width });
     scene.add(holder);
     return { id, v, holder, standIn, model: null, loading: null, failed: null, triangles: 0 };
   });

@@ -5,7 +5,7 @@
 //   node --test test/graphics.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, GRAPHICS_NOTE, LEVEL_SETTINGS, ULTRA, HIGH, MEDIUM, LOW, autoStart, autoCeiling, remembered, remember, levelOf } from '../src/client/graphics.js';
+import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, GRAPHICS_NOTE, LEVEL_SETTINGS, ULTRA, HIGH, MEDIUM, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } from '../src/client/graphics.js';
 import { createGovernor, QUALITY_RULES } from '../src/client/monitor.js';
 
 test('four levels, Ultra to Low, each with one line; the words the owner asked for', () => {
@@ -17,17 +17,40 @@ test('four levels, Ultra to Low, each with one line; the words the owner asked f
   assert.equal(levelOf('ultra'), 0); assert.equal(levelOf('low'), 3); assert.equal(levelOf('auto'), null); assert.equal(levelOf('nonsense'), null);
 });
 
-test('each level draws less than the one above it: pixels, the sun\'s shadow map, no sun shadows at Low only', () => {
-  for (const key of ['pixelRatio', 'shadowMap', 'shadowSoft']) assert.equal(LEVEL_SETTINGS[key].length, 4, key);
+test('each level draws less than the one above it, in the owner\'s words for each', () => {
+  const at = (key, lite = false) => [0, 1, 2, 3].map((l) => levelSetting(key, l, lite));
+  for (const key of Object.keys(LEVEL_SETTINGS)) for (const lite of [false, true]) assert.equal(at(key, lite).length, 4, key);
   for (let i = 1; i < 4; i += 1) {
-    assert.ok(LEVEL_SETTINGS.pixelRatio[i] < LEVEL_SETTINGS.pixelRatio[i - 1]);
-    assert.ok(LEVEL_SETTINGS.shadowMap[i] <= LEVEL_SETTINGS.shadowMap[i - 1]);
+    assert.ok(at('pixelRatio')[i] < at('pixelRatio')[i - 1]);
+    for (const lite of [false, true]) assert.ok(at('shadowMap', lite)[i] <= at('shadowMap', lite)[i - 1]);
+    assert.ok(at('shadowReach')[i] <= at('shadowReach')[i - 1]);
+    assert.ok(at('view')[i] <= at('view')[i - 1]);
   }
-  assert.deepEqual(LEVEL_SETTINGS.shadowMap.map((s) => s > 0), [true, true, true, false]);
-  // Medium is a phone as it was drawn before the levels (1.25 pixels for each, a 1024 shadow map); Ultra a computer
-  assert.equal(LEVEL_SETTINGS.pixelRatio[MEDIUM], 1.25); assert.equal(LEVEL_SETTINGS.shadowMap[MEDIUM], 1024);
-  assert.equal(LEVEL_SETTINGS.pixelRatio[ULTRA], 2); assert.equal(LEVEL_SETTINGS.shadowMap[ULTRA], 2048);
-  assert.equal(LEVEL_SETTINGS.pixelRatio[LOW], 1, 'Low is never blurry: one pixel for each of the screen\'s at least');
+  // Low: small pictures, no sun shadows, simple water, a shorter view with fog
+  assert.equal(levelSetting('pictureMost', LOW), 512);
+  for (const lite of [false, true]) assert.equal(levelSetting('shadowMap', LOW, lite), 0);
+  assert.equal(levelSetting('water', LOW), 'simple'); assert.equal(levelSetting('reflections', LOW), 'none');
+  assert.ok(levelSetting('view', LOW) < 1);
+  // Medium: pictures up to 1024, sun shadows nearby, simple reflections, as a phone was drawn (1.25 pixels for each, a 1024 map)
+  assert.equal(levelSetting('pictureMost', MEDIUM), 1024);
+  assert.equal(levelSetting('reflections', MEDIUM), 'simple');
+  assert.ok(levelSetting('shadowReach', MEDIUM) < levelSetting('shadowReach', HIGH), 'nearby');
+  assert.equal(levelSetting('pixelRatio', MEDIUM), 1.25); assert.equal(levelSetting('shadowMap', MEDIUM, true), 1024);
+  // High: pictures up to 2048, softer and further shadows, reflections on glass, water and wet roads
+  assert.equal(levelSetting('pictureMost', HIGH), 2048);
+  assert.ok(levelSetting('shadowSoft', HIGH) > levelSetting('shadowSoft', MEDIUM), 'softer');
+  assert.equal(levelSetting('reflections', HIGH), 'full'); assert.equal(levelSetting('water', HIGH), 'full');
+  // Ultra: everything at its best (a computer as it was drawn before the levels: 2 pixels for each, a 2048 map)
+  assert.equal(levelSetting('pictureMost', ULTRA), 0, 'as fetched');
+  assert.equal(levelSetting('pixelRatio', ULTRA), 2); assert.equal(levelSetting('shadowMap', ULTRA), 2048);
+  assert.equal(levelSetting('pixelRatio', LOW), 1, 'Low is never blurry: one pixel for each of the screen\'s at least');
+  // a phone's graphics card holds a 1024 shadow map below Ultra
+  assert.equal(levelSetting('shadowMap', HIGH, true), 1024); assert.equal(levelSetting('shadowMap', HIGH, false), 2048);
+});
+
+test('the graphics card nearly full lowers the level: on a phone at nine tenths of its 150 MB, a computer far past its budget', () => {
+  assert.equal(memoryLimitMB(150, true), 135);
+  assert.ok(memoryLimitMB(700, false) > 700);
 });
 
 test('Auto starts a phone at Medium, a computer at Ultra; lower where the device says it is weak', () => {
@@ -81,4 +104,14 @@ test('the first seconds in the town are judged quickly (the silent test), then a
   const quickT = timeToStep(true), usualT = timeToStep(false);
   assert.ok(quickT < usualT - 1, `quick ${quickT.toFixed(1)} s, usual ${usualT.toFixed(1)} s`);
   void slow;
+});
+
+test('the sun\'s shadows fade out at the edge of their reach instead of stopping at a line (three.js\'s shadow function, changed once)', async () => {
+  const { createRequire } = await import('node:module');
+  globalThis.THREE = globalThis.THREE || createRequire(import.meta.url)('../vendor/three.min.js');
+  const { shadowEdgeFades } = await import('../src/client/render-sky.js');
+  assert.equal(shadowEdgeFades, true);
+  const chunk = THREE.ShaderChunk.shadowmap_pars_fragment;
+  assert.equal(chunk.split('pcwEdge').length - 1, 2, 'once, in the soft shadows\' function');
+  assert.ok(chunk.indexOf('pcwEdge') < chunk.indexOf('SHADOWMAP_TYPE_VSM'));
 });

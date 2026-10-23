@@ -9,9 +9,10 @@
 // (`tier`: '1k', '2k' or '4k'; budget.js says which for what): on the road the 2048 set on a computer and the 1024 set
 // on a phone; in the showroom the one the player stands at is given more. The supplied files are not changed or
 // replaced by any of them (tools/vehicles/bikes.py and smaller.py make the sets).
+import { softPatch } from './soft-patch.js';
 import { BIKE_PARTS } from './bike-parts.js';
 import { surface } from './render-kit.js';
-import { fetchKept, letGoOnceDrawn } from './glb.js';
+import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { deviceKind, PICTURES } from './budget.js';
 
 const cache = new Map();          // one geometry and material a bike and set of pictures, however many are drawn (most recently used last)
@@ -109,7 +110,7 @@ function picture(url, colour, own, priority) {
   if (colour) map.colorSpace = THREE.SRGBColorSpace;
   const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
-    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
   return { map, ready };
 }
 // which file each picture of a set comes from (the 4096 set: its colour at 4096, its relief and finish at 2048)
@@ -206,7 +207,7 @@ function lampsOf(spec, frame, bars) {
 
 // One motorcycle to put in the scene. `length` is its real length in metres; `tier` its set of pictures (or the one
 // for the road on this kind of device); `own`: a copy of its own, for a renderer other than the town's.
-export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false, priority } = {}) {
+export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false, priority, patch = true } = {}) {
   const set = tierOf(lite, tier);
   const key = `${id}:${set}`;
   // (counted as wanted from the moment it is asked for, not once it has come: a set still on its way, with nobody yet
@@ -221,6 +222,9 @@ export async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `bike:${id}`;
   const lean = new THREE.Group(); group.add(lean);          // leans about the line its tyres touch the ground on
+  // (the soft patch under it, while the sun casts no shadows: soft-patch.js; on the ground, not leaning with it; not in
+  // a showroom, whose halls have their own)
+  if (patch) softPatch(group, { length, width: 0.75 });
   const frame = new THREE.Group(); frame.scale.setScalar(scale); lean.add(frame);
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
   frame.add(mesh(geometries[0]));

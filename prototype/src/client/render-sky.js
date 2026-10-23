@@ -26,6 +26,23 @@ const WHITE = new THREE.Color(1, 1, 1);
 const HALL_FLOOR = new THREE.Color(0x8a8478);
 const HALL_LIGHT = Object.freeze({ all: 1.0, key: 0.75 });
 
+// The sun's shadows fade out over the last sixth or so of their reach, instead of stopping at a line on the ground (the graphics
+// levels, 23 October 2026: at Medium they reach 40 m from the player). three.js's own shadow function, changed once as the
+// game loads, before any surface is made: where its picture of the shadows ends, the shadow gives way to the sun.
+const SHADOW_EDGE = Object.freeze({
+  was: 'return mix( 1.0, shadow, shadowIntensity );\n\t\t}\n\t#elif defined( SHADOWMAP_TYPE_VSM )',
+  now: 'float pcwEdge = max( abs( shadowCoord.x - 0.5 ), abs( shadowCoord.y - 0.5 ) ) * 2.0;\n\t\t\treturn mix( 1.0, shadow, shadowIntensity * ( 1.0 - smoothstep( 0.85, 1.0, pcwEdge ) ) );\n\t\t}\n\t#elif defined( SHADOWMAP_TYPE_VSM )',
+});
+export const shadowEdgeFades = (() => {
+  try {
+    const chunk = THREE.ShaderChunk.shadowmap_pars_fragment;
+    if (chunk.includes('pcwEdge')) return true;
+    if (chunk.split(SHADOW_EDGE.was).length !== 2) return false;      // (a three.js not as expected: the shadows stop at their edge, as before)
+    THREE.ShaderChunk.shadowmap_pars_fragment = chunk.replace(SHADOW_EDGE.was, SHADOW_EDGE.now);
+    return true;
+  } catch (error) { return false; }
+})();
+
 function sample(hour) {
   let a = KEYS[0];
   let b = KEYS[KEYS.length - 1];
@@ -125,8 +142,16 @@ export function createSky(scene, renderer) {
   sun.shadow.mapSize.set(2048, 2048);
   sun.shadow.camera.near = 10;
   sun.shadow.camera.far = 420;
-  const span = 62;
-  sun.shadow.camera.left = -span; sun.shadow.camera.right = span; sun.shadow.camera.top = span; sun.shadow.camera.bottom = -span;
+  // (how far from the player the sun casts shadows: the graphics level's, shadowReach)
+  const reachShadows = (span) => {
+    const c = sun.shadow.camera;
+    if (c.right === span) return;
+    c.left = -span; c.right = span; c.top = span; c.bottom = -span;
+    c.updateProjectionMatrix();
+  };
+  reachShadows(62);
+  // (how far the air lets one see, times this: the graphics level's, 0.75 at Low)
+  let view = 1;
   sun.shadow.bias = -0.0006;
   sun.shadow.normalBias = 0.05;
   // (how soft a shadow's edge is: three.js r186 softens it by five samples round each point, `radius` texels out; this
@@ -194,8 +219,8 @@ export function createSky(scene, renderer) {
     // the air over the river is hazy: beyond a few hundred metres the town fades out. Out in the wild (the habitation,
     // 21 October 2026) it is clearer, so that the far side of the lagoon is seen as the owner's pictures see it.
     const clearer = Math.max(0, Math.min(1, wild)) * (1 - indoor);
-    scene.fog.near = 110 + 50 * clearer - wetness * 80;
-    scene.fog.far = 480 + 160 * clearer - wetness * 270 - dull * 90;
+    scene.fog.near = (110 + 50 * clearer - wetness * 80) * view;
+    scene.fog.far = (480 + 160 * clearer - wetness * 270 - dull * 90) * view;
 
     // The sun rises in the true east, is high and slightly south at noon, and
     // sets in the true west. The scene is in the zone's site grid, so the
@@ -272,6 +297,8 @@ export function createSky(scene, renderer) {
 
   return {
     update, sun,
+    // the graphics level's (graphics.js): how far from the player the sun casts shadows, and how far one sees
+    reachShadows, setView(scale) { view = Math.max(0.3, Math.min(1, scale)); }, get view() { return view; },
     // (for the tests: the moon and the stars as they are drawn now; the sun's and the sky's light as set by eye, KEYS)
     state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3) }),
   };

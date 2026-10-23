@@ -420,7 +420,7 @@ function waterMaterial(kind, { ripples, lite }) {
       #endif`);
   };
   m.customProgramCacheKey = () => `pcw-habitation-water-${kind}-${lite ? 'lite' : 'full'}`;
-  return reflects(m, still ? 0.12 : 0.55);
+  return reflects(m, still ? 0.12 : 0.55, 'water');
 }
 // Water lilies on the swamp and the garden's pond (picture 12): round pads with their notch, each its own size and
 // turned its own way, lying on the water clear of the boardwalk, and here and there a flower, pink or white. Drawn in
@@ -642,7 +642,7 @@ function hotWaterMaterial(ripples, lite) {
       #endif`);
   };
   m.customProgramCacheKey = () => `pcw-habitation-hot-${lite ? 'lite' : 'full'}`;
-  return reflects(m, 0.25);
+  return reflects(m, 0.25, 'water');
 }
 // Its surface: along its line, as wide as it is and a little into its banks, at its own level all along.
 function buildHotRiver(step) {

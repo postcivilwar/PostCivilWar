@@ -811,7 +811,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
     models = hallModels({
       items: displays.map((d) => ({ id: d.display.car })), lite, renderer,
       ranges: { inspect: 4, near: 12, mid: 24 },
-      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadCar(displays[k].display.car, { base: 'cars/', tier, length: displays[k].car.length })),
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadCar(displays[k].display.car, { base: 'cars/', tier, patch: false, length: displays[k].car.length })),
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
     return hall;

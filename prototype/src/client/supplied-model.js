@@ -8,7 +8,7 @@
 // the owner's pictures are 8192 pixels square, and a browser cannot hold many of those at once (a few hundred
 // megabytes each once drawn); the file keeps them whole.
 
-import { parseGLB, fetchKept, letGoOnceDrawn, rereadFile } from './glb.js';
+import { parseGLB, fetchKept, letGoOnceDrawn, rereadFile, pictureMost } from './glb.js';
 import { modelFile } from './budget.js';
 import { surface } from './render-kit.js';
 import { reflects } from './render-finish.js';
@@ -39,19 +39,24 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
     if (!info) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
-    const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint));
+    // (no larger than the graphics level's largest picture either: glb.js, pictureMost)
+    const cap = pictureMost();
+    const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint, cap));
     t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
+    t.userData.cap = cap;
     // (once the graphics card has the picture, the page's own copy is let go: see glb.js; should the card's copy be
-    // lost, it is made again the same way from the file, which the browser has kept)
-    letGoOnceDrawn(t, () => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint)));
+    // lost, or the graphics level ask for another size, it is made again the same way from the file, which the browser
+    // has kept)
+    letGoOnceDrawn(t, (size) => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint, size)));
     return t;
   };
-  // a picture as it is drawn: no larger than `maxTexture`, and anything painted over it painted
-  async function makePicture(raw, image, paint) {
+  // a picture as it is drawn: no larger than `maxTexture` (nor `cap`, the graphics level's largest, where given), and
+  // anything painted over it painted
+  async function makePicture(raw, image, paint, cap = 0) {
     const blob = new Blob([raw], { type: image.mimeType || 'image/jpeg' });
     // (drawn no larger than `maxTexture`, and never larger than it is)
     const own = pictureSize(raw);
-    const most = Math.min(maxTexture || 4096, own ? Math.max(own.width, own.height) : Infinity);
+    const most = Math.min(maxTexture || 4096, cap || Infinity, own ? Math.max(own.width, own.height) : Infinity);
     const wide = own ? Math.round((most * own.width) / Math.max(own.width, own.height)) : most, high = own ? Math.round((most * own.height) / Math.max(own.width, own.height)) : most;
     let picture = await oneAtATime(async () => {
       const made = typeof createImageBitmap === 'function' ? await createImageBitmap(blob, { resizeWidth: wide, resizeHeight: high, resizeQuality: 'high' }).catch(() => null) : null;
