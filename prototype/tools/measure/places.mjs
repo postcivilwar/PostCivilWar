@@ -174,7 +174,9 @@ result.loading.townMs = Date.now() - t2;
 // (every place measured at the game's full detail, its level 0: on this machine, which draws in software, the game would
 // otherwise step its detail down as it does on a slow device, and what is measured would depend on how long it had run)
 const LEVEL = process.env.PERF_LEVEL ? Number(process.env.PERF_LEVEL) : 0;
-await page.evaluate((level) => { const g = window.__nlw.governor; g.hold(true); g.set(level, 'measuring'); }, LEVEL);
+// (and the memory guard set aside, which would lower even a level held when the card is nearly full: what each level
+// holds is what is measured; whether that is past the guard's limit is in the numbers)
+await page.evaluate((level) => { const n = window.__nlw, g = n.governor; g.hold(true); g.set(level, 'measuring'); if (n.graphicsPretend) n.graphicsPretend.extraMB = -1e6; }, LEVEL);
 const t3 = Date.now();
 if (!process.env.PERF_QUICK) await page.waitForFunction(() => window.__nlw.beyond, null, { timeout: 900000 }).catch(() => {});
 result.loading.warmMs = Date.now() - t3;
