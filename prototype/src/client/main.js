@@ -3023,11 +3023,13 @@ function start(carried) {
   }
   // a phone is stepped down sooner when it cannot keep up; both climb back slowly, so that the picture does not flicker
   // between levels while walking about
+  let loweredSaid = false;
   const governor = createGovernor((level, from) => {
     applyQuality(level);
     const last = governor.changes[governor.changes.length - 1];
-    // (said when the game lowered it by itself, for slow frames or a full graphics card: never when the player chose)
-    if (level > from && last && /^typical frame|^the graphics card/.test(last.why) && townBuilt && ui) ui.toast({ type: 'note', text: GRAPHICS_LOWERED });
+    // (said when the game lowered it by itself while playing, for slow frames or a full graphics card, and only the first
+    // time (the owner: "tell the player once"); never when the player chose)
+    if (level > from && last && /^typical frame|^the graphics card/.test(last.why) && townBuilt && ui && !loweredSaid) { loweredSaid = true; ui.toast({ type: 'note', text: GRAPHICS_LOWERED }); }
   }, LITE ? { ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 } : QUALITY_RULES);
   let gpuSaid = null;
   const gpuName = () => { if (gpuSaid === null) { try { const gl = renderer.getContext(); const info = gl.getExtension('WEBGL_debug_renderer_info'); gpuSaid = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (error) { return ''; } } return gpuSaid; };
@@ -3863,7 +3865,7 @@ blood.update(dt, view.blood || []);
     const usedMB = (graphics.pictures + graphics.buffers) / 1048576;
     if (!pictureGone && !graphics.unwatched && townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
       memoryStepAt = performance.now();
-      governor.set(governor.level + 1, `the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
+      governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
     }
     if (pictureGone || graphics.unwatched || usedMB <= graphicsBudgetMB) return;
     const freed = dropUnusedFigures() + trimBikes() + trimCars();

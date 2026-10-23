@@ -6,8 +6,9 @@
 //   ../server/with-postgres.sh node tools/measure/places.mjs <out folder> phone|computer [places, comma separated|all] [site folder]
 // The site folder defaults to dist/site (node build.mjs makes it). PERF_LEVEL=n holds the graphics level at n (0, the
 // most, by default); PERF_QUICK=1 does not wait for the town to be wholly ready first; PERF_DAY_ONLY=1 measures by day
-// only. TEXTURE_LIST=1 lists the pictures by size at the last place; DUMP_IMPOSTORS=1, PROBE_MIPS=1 and PROBE_HAB=1 look
-// at the habitation's pictures of its far trees. Side by side: python3 tools/measure/sheets.py <before> <after>
+// only; PERF_DPR=n gives the screen n pixels to each of the page's (1 by default; a phone's are 2 to 3). TEXTURE_LIST=1
+// lists the pictures by size at the last place; DUMP_IMPOSTORS=1, PROBE_MIPS=1 and PROBE_HAB=1 look at the
+// habitation's pictures of its far trees. Side by side: python3 tools/measure/sheets.py <before> <after>
 // phone|computer <out.pdf> [title].
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, existsSync, statSync, createReadStream } from 'node:fs';
@@ -41,7 +42,10 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = `http://localhost:${server.address().port}`;
 
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-precise-memory-info', '--autoplay-policy=no-user-gesture-required'] });
-const context = await browser.newContext(PHONE ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, serviceWorkers: 'block' } : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+// (PERF_DPR: the screen's pixels to each of the page's; 1 unless asked: a phone's is 2 to 3, of which each graphics level
+// draws at most its own share)
+const DPR = Number(process.env.PERF_DPR) > 0 ? Number(process.env.PERF_DPR) : 1;
+const context = await browser.newContext(PHONE ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: DPR, isMobile: true, hasTouch: true, serviceWorkers: 'block' } : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: DPR, serviceWorkers: 'block' });
 const page = await context.newPage();
 page.setDefaultTimeout(600000);
 const errors = [];
@@ -49,6 +53,9 @@ page.on('pageerror', (e) => { errors.push(e.message); console.log('PAGE ERROR', 
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) { errors.push(m.text()); console.log('CONSOLE', m.text().slice(0, 300)); } });
 const cdp = await context.newCDPSession(page);
 if (PHONE) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+// (the page's own processor time: how long its main thread is busy, in all, by Chrome's count, the slowing included)
+await cdp.send('Performance.enable');
+const busy = async () => { const { metrics } = await cdp.send('Performance.getMetrics'); const m = Object.fromEntries(metrics.map((x) => [x.name, x.value])); return { task: m.TaskDuration || 0, script: m.ScriptDuration || 0 }; };
 // frames, counted from the start
 // (the same random numbers in every run, so that what is placed at random, the stars say, is placed alike)
 await page.addInitScript(() => { let s = 20261023; Math.random = () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; });
@@ -91,17 +98,24 @@ const quiet = async (most = 45000) => {
 const frames = async (n, most = 120000) => {
   // (frames counted from the start: the list keeps the last few hundred, __fbase how many it has let go)
   const k0 = await page.evaluate(() => window.__fbase + window.__ft.length);
-  await page.waitForFunction(([k0, n]) => window.__fbase + window.__ft.length >= k0 + n, [k0, n], { timeout: most }).catch(() => {});
+  const b0 = await busy();
+  // (looked at twice a second, not every frame: the looking is itself work for the page)
+  await page.waitForFunction(([k0, n]) => window.__fbase + window.__ft.length >= k0 + n, [k0, n], { timeout: most, polling: 500 }).catch(() => {});
+  const b1 = await busy();
   const t = await page.evaluate((k0) => window.__ft.slice(Math.max(0, k0 - window.__fbase)), k0);
   const d = []; for (let i = 1; i < t.length; i += 1) d.push(t[i] - t[i - 1]);
   d.sort((a, b) => a - b);
-  return { n: d.length, median: d.length ? Math.round(d[Math.floor(d.length / 2)]) : null, p90: d.length ? Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.9))]) : null };
+  // busyMs: the main thread's time for each frame (the game's script and its handing of the picture to the graphics
+  // card, not the drawing itself, which this machine does in another process): what a phone's processor would have to
+  // do each frame, slowed as set
+  const drawn = Math.max(1, t.length);
+  return { n: d.length, median: d.length ? Math.round(d[Math.floor(d.length / 2)]) : null, p90: d.length ? Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.9))]) : null, busyMs: +(((b1.task - b0.task) * 1000) / drawn).toFixed(1), scriptMs: +(((b1.script - b0.script) * 1000) / drawn).toFixed(1) };
 };
 const state = () => page.evaluate(() => {
   const n = window.__nlw, r = n.renderer, g = n.graphics || {};
   const mem = performance.memory || {};
   const safe = (f) => { try { return f(); } catch (e) { return null; } };
-  return { level: safe(() => n.quality), sunShadows: safe(() => n.sunShadows), calls: n.drawn ? n.drawn.calls : null, triangles: n.drawn ? n.drawn.triangles : null, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), buffersMB: +((g.buffers || 0) / 1048576).toFixed(1), textures: r ? r.info.memory.textures : null, geometries: r ? r.info.memory.geometries : null, programs: r && r.info.programs ? r.info.programs.length : null, heapMB: mem.usedJSHeapSize ? +(mem.usedJSHeapSize / 1048576).toFixed(1) : null };
+  return { level: safe(() => n.quality), sunShadows: safe(() => n.sunShadows), calls: n.drawn ? n.drawn.calls : null, triangles: n.drawn ? n.drawn.triangles : null, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), buffersMB: +((g.buffers || 0) / 1048576).toFixed(1), screenMB: +((g.screen || 0) / 1048576).toFixed(1), pixelRatio: r ? r.getPixelRatio() : null, textures: r ? r.info.memory.textures : null, geometries: r ? r.info.memory.geometries : null, programs: r && r.info.programs ? r.info.programs.length : null, heapMB: mem.usedJSHeapSize ? +(mem.usedJSHeapSize / 1048576).toFixed(1) : null };
 });
 // what the main picture and the sun's shadow map each draw, per frame, counted object by object over four frames (three.js
 // r186 counts the shadow map's draws in renderer.info, r128 did not: this counts both the same way on both)

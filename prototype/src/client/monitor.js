@@ -152,6 +152,16 @@ export function createGovernor(apply, rules = QUALITY_RULES) {
     },
     // for tests and for the player's own choice
     set(level, why = 'set by hand') { change(Math.max(0, Math.min(rules.levels - 1, level)), why); },
+    // a step down for a reason other than the frames (the graphics card nearly full): the level given up is not
+    // climbed back to for a while, longer each time it has to be given up again, so that it is not tried and undone
+    // over and over
+    lower(why) {
+      if (state.level >= rules.levels - 1) return;
+      const from = state.level;
+      state.failedAt[from] = state.clock;
+      state.wait[from] = Math.min(900, state.wait[from] * 2);
+      change(from + 1, why);
+    },
     // keeps the level where it is (true) or lets it move again (false)
     hold(on) { state.held = !!on; },
     get held() { return state.held; },

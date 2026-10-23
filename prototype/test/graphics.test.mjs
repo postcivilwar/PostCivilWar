@@ -98,6 +98,25 @@ test('Auto steps down under thirty frames a second, climbs back no higher than i
   assert.ok(g.level > ULTRA, 'stepped down from Ultra');
 });
 
+test('a level given up for a full graphics card is not climbed back to for a while, longer each time', () => {
+  const g = createGovernor(() => {});
+  g.set(MEDIUM);
+  g.setCeiling(MEDIUM);
+  g.lower('the graphics card nearly full (140 of 150 MB)');
+  assert.equal(g.level, LOW);
+  assert.match(g.changes[g.changes.length - 1].why, /nearly full/);
+  play(g, 120, () => 8);                          // very fast for two minutes: not back to Medium yet
+  assert.equal(g.level, LOW);
+  play(g, 120, () => 8);                          // three minutes and more: tried again
+  assert.equal(g.level, MEDIUM);
+  g.lower('the graphics card nearly full (141 of 150 MB)');
+  play(g, 300, () => 8);                          // given up a second time: five minutes are not enough now
+  assert.equal(g.level, LOW);
+  play(g, 120, () => 8);
+  assert.equal(g.level, MEDIUM);
+  const bottom = createGovernor(() => {}); bottom.set(LOW); bottom.lower('full'); assert.equal(bottom.level, LOW);   // (Low is the least)
+});
+
 test('the first seconds in the town are judged quickly (the silent test), then as usual', () => {
   const slow = () => 45;
   const timeToStep = (quick) => { const g = createGovernor(() => {}); g.set(HIGH); if (quick) g.quick(30); let t = 0; const at = g.level; while (g.level === at && t < 60) { g.frame(45, 0.045); t += 0.045; } return t; };

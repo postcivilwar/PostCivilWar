@@ -125,6 +125,8 @@ for (const kind of ['phone', 'computer']) {
   const said = await page.evaluate(() => window.__said.slice());
   check(`${kind}: Auto lowers the level by itself when the frames are slow, and says "${GRAPHICS_LOWERED}"`, slow.level > 0 && slow.choice === 'auto' && said.some((s) => s.includes(GRAPHICS_LOWERED)) && /typical frame/.test(JSON.stringify(slow.changes)), { level: slow.level, changes: slow.changes, said });
   // ---- and when the graphics card is nearly full (the game's count made to read nine tenths and more of its budget)
+  // (the first notice gone from the screen first, so that what is said now is told apart from it)
+  await page.waitForFunction((text) => ![...document.querySelectorAll('#toasts *')].some((t) => t.textContent.includes(text)), GRAPHICS_LOWERED, { timeout: 60000 }).catch(() => {});
   await page.evaluate(() => { const g = window.__nlw.governor; g.set(1, 'Auto: for the test'); g.hold(true); window.__said = []; });
   await settled();
   const budget = await page.evaluate(() => ({ budget: window.__nlw.graphicsBudget, limit: window.__nlw.memoryLimit }));
@@ -133,7 +135,8 @@ for (const kind of ['phone', 'computer']) {
   await page.evaluate(() => { clearInterval(window.__fill); window.__nlw.governor.hold(false); });
   const full = await state(page);
   const saidFull = await page.evaluate(() => window.__said.slice());
-  check(`${kind}: the graphics card nearly full: the level lowered a step, and said`, full.level === 2 && saidFull.some((s) => s.includes(GRAPHICS_LOWERED)) && /nearly full/.test(JSON.stringify(full.changes)), { budget, level: full.level, changes: full.changes, said: saidFull });
+  // (said once only: it was said above, for the slow frames)
+  check(`${kind}: the graphics card nearly full: the level lowered a step (not said a second time: the player is told once)`, full.level === 2 && !saidFull.some((s) => s.includes(GRAPHICS_LOWERED)) && /nearly full/.test(JSON.stringify(full.changes)), { budget, level: full.level, changes: full.changes, said: saidFull });
   // ---- the #stats readout
   await page.waitForTimeout(1500);
   const stats = await page.evaluate(() => { const b = document.getElementById('stats'); return b ? b.textContent : null; });
