@@ -96,6 +96,13 @@ export function stepPictures() {
   return waiting.length;
 }
 export const picturesWaiting = () => waiting.length + remaking.size;
+// (for the tests and the measuring: the pictures that can be made again, by the size each was last drawn at)
+export function pictureState() {
+  const sizes = {};
+  let undrawn = 0;
+  for (const texture of restorable.keys()) { const d = texture.userData.drawn || 0; if (!d) undrawn += 1; else sizes[d] = (sizes[d] || 0) + 1; }
+  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most };
+}
 // A picture decoded from its file (a Blob) no larger than `size` pixels across (0: as it is), keeping its shape.
 export async function decodeAtMost(blob, size = 0, options = undefined) {
   const full = await (options ? createImageBitmap(blob, options) : createImageBitmap(blob));

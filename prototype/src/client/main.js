@@ -24,7 +24,7 @@ import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry } from './render-kit.js';
-import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost } from './glb.js';
+import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState } from './glb.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
 import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
@@ -3862,9 +3862,11 @@ blood.update(dt, view.blood || []);
   // lets go takes a moment to be let go.)
   let memoryStepAt = -Infinity;
   const memoryLimit = memoryLimitMB(graphicsBudgetMB, LITE);
+  // (the tests: how much more than it holds the card is taken to hold, to try what nearly full does without filling it)
+  const pretend = { extraMB: 0 };
   setInterval(() => {
     if (pictureGone || graphics.unwatched) return;
-    const usedMB = (graphics.pictures + graphics.buffers) / 1048576;
+    const usedMB = (graphics.pictures + graphics.buffers) / 1048576 + pretend.extraMB;
     // (first what is kept ready and not drawn is let go, and the card counted again two seconds later; the level is
     // lowered only when that was not enough)
     if (usedMB > Math.min(graphicsBudgetMB, memoryLimit)) {
@@ -3907,7 +3909,7 @@ blood.update(dt, view.blood || []);
     get inside() { return inside ? inside.id : null; },
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
     // (the graphics level as drawn now: for the tests)
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting() }; }, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },

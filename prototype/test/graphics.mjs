@@ -98,41 +98,44 @@ for (const kind of ['phone', 'computer']) {
   }
   check(`${kind}: each level made at once, without reloading: its pixels, its sun shadows (how far, how soft; none at Low, a soft patch under each vehicle instead), its largest picture, the sky in glass and water, the waters' ripples, how far one sees`, seen.every((s) => s.ok) && p.loads() === 1 && p.errors.length === 0, { seen: seen.map(({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, finish, view, pictureMost, ok }) => ({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, reflections: finish.reflections, withSky: finish.withSky, water: finish.water, rippling: `${finish.rippling}/${finish.waters}`, view, pictureMost, ok })), loads: p.loads(), errors: p.errors });
   // ---- memory freed when lowering
-  // (each level's pictures all made before it is measured: glb.js makes them again one at a time)
-  const settled = () => page.waitForFunction(() => window.__nlw.levelState.picturesWaiting === 0, null, { timeout: 600000, polling: 1000 }).catch(() => {});
-  await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="ultra"]').click());
-  await settled();
-  for (let i = 0; i < 3; i += 1) { await frames(page); await page.waitForTimeout(1000); }
-  const high = await state(page);
-  await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="low"]').click());
-  await settled();
-  for (let i = 0; i < 3; i += 1) { await frames(page); await page.waitForTimeout(1000); }
-  const low = await state(page);
-  check(`${kind}: lowered from Ultra to Low, the graphics card holds less: the pictures made smaller, the sun's shadow map let go, fewer pixels drawn`, low.heldMB < high.heldMB - 3 && low.picturesMB < high.picturesMB && !low.shadowLive && low.picturesWaiting === 0, { ultraMB: high.heldMB, lowMB: low.heldMB, ultraPicturesMB: high.picturesMB, lowPicturesMB: low.picturesMB, shadowAfter: low.shadowLive });
-  // and raised again: the pictures given back (as large as before, within a little: what was made meanwhile)
-  await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="ultra"]').click());
-  await settled();
-  for (let i = 0; i < 3; i += 1) { await frames(page); await page.waitForTimeout(1000); }
-  const back = await state(page);
-  check(`${kind}: raised from Low to Ultra again, the pictures made large again`, back.picturesMB > low.picturesMB && back.picturesMB > high.picturesMB * 0.8, { ultraMB: high.picturesMB, lowMB: low.picturesMB, backMB: back.picturesMB });
-  await page.screenshot({ path: resolve(out, `${kind}-low.png`) });
-  // ---- Auto lowers by itself when frames are slow (this machine draws in software: slow at Ultra), and says so
-  await page.evaluate(() => document.querySelector('#graphics-choice button[data-graphics="auto"]').click());
+  // (with Settings shut, so that the town is drawn: a picture made again at another size goes to the graphics card when
+  // it is next drawn; and each level's pictures all made before it is measured: glb.js makes them one at a time)
   await page.evaluate(() => window.__nlw.ui.close());
+  const settled = () => page.waitForFunction(() => window.__nlw.levelState.picturesWaiting === 0, null, { timeout: 600000, polling: 1000 }).catch(() => {});
+  const chooseAndSettle = async (id) => {
+    await page.evaluate((v) => window.__nlw.setGraphics(v), id);
+    await settled();
+    for (let i = 0; i < 4; i += 1) { await frames(page); await page.waitForTimeout(1000); }
+    await settled();
+    return state(page);
+  };
+  const high = await chooseAndSettle('ultra');
+  const low = await chooseAndSettle('low');
+  check(`${kind}: lowered from Ultra to Low, the graphics card holds less: the pictures made smaller, the sun's shadow map let go, fewer pixels drawn`, low.heldMB < high.heldMB - 3 && low.picturesMB < high.picturesMB && !low.shadowLive && low.picturesWaiting === 0, { ultraMB: high.heldMB, lowMB: low.heldMB, ultraPicturesMB: high.picturesMB, lowPicturesMB: low.picturesMB, shadowAfter: low.shadowLive, ultraPictures: high.pictures, lowPictures: low.pictures });
+  // and raised again: the pictures given back (as large as before, within a little: what was made meanwhile)
+  const back = await chooseAndSettle('ultra');
+  check(`${kind}: raised from Low to Ultra again, the pictures made large again`, back.picturesMB > low.picturesMB && back.picturesMB > high.picturesMB * 0.8, { ultraMB: high.picturesMB, lowMB: low.picturesMB, backMB: back.picturesMB, backPictures: back.pictures });
+  await page.screenshot({ path: resolve(out, `${kind}-ultra-again.png`) });
+  // ---- Auto lowers by itself when frames are slow, and says so. (This machine draws in software, a frame at Ultra in a
+  // second or more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being
+  // slow: so the frames it is given to judge here are frames of 45 ms, under thirty a second, one after another.)
+  await page.evaluate(() => { window.__nlw.setGraphics('auto'); });
   await page.evaluate(() => { const g = window.__nlw.governor; g.set(0, 'Auto: for the test'); window.__said = []; });
-  await page.waitForFunction(() => window.__nlw.quality > 0, null, { timeout: 300000 }).catch(() => {});
+  await page.evaluate(() => new Promise((done) => { const g = window.__nlw.governor; let n = 0; const tick = () => { for (let i = 0; i < 20; i += 1) g.frame(45, 0.045); n += 1; if (window.__nlw.quality > 0 || n > 400) done(); else setTimeout(tick, 20); }; tick(); }));
+  await page.waitForTimeout(1500);
   const slow = await state(page);
   const said = await page.evaluate(() => window.__said.slice());
   check(`${kind}: Auto lowers the level by itself when the frames are slow, and says "${GRAPHICS_LOWERED}"`, slow.level > 0 && slow.choice === 'auto' && said.some((s) => s.includes(GRAPHICS_LOWERED)) && /typical frame/.test(JSON.stringify(slow.changes)), { level: slow.level, changes: slow.changes, said });
-  // ---- and when the graphics card is nearly full (the game's count made to read nine tenths and more of its budget)
+  // ---- and when the graphics card is nearly full (the game's count taken to hold its limit and a little more:
+  // graphicsPretend; the count itself is redone as each picture goes to the card, and a test could not hold it there)
   // (the first notice gone from the screen first, so that what is said now is told apart from it)
   await page.waitForFunction((text) => ![...document.querySelectorAll('#toasts *')].some((t) => t.textContent.includes(text)), GRAPHICS_LOWERED, { timeout: 60000 }).catch(() => {});
   await page.evaluate(() => { const g = window.__nlw.governor; g.set(1, 'Auto: for the test'); g.hold(true); window.__said = []; });
   await settled();
   const budget = await page.evaluate(() => ({ budget: window.__nlw.graphicsBudget, limit: window.__nlw.memoryLimit }));
-  await page.evaluate((mb) => { const g = window.__nlw.graphics; window.__fill = setInterval(() => { g.pictures = mb * 1048576; g.buffers = 0; }, 50); }, budget.limit * 1.05);
+  await page.evaluate((limit) => { const n = window.__nlw, g = n.graphics; n.graphicsPretend.extraMB = Math.max(0, limit * 1.05 - (g.pictures + g.buffers) / 1048576); }, budget.limit);
   await page.waitForFunction(() => window.__nlw.quality > 1, null, { timeout: 120000 }).catch(() => {});
-  await page.evaluate(() => { clearInterval(window.__fill); window.__nlw.governor.hold(false); });
+  await page.evaluate(() => { window.__nlw.graphicsPretend.extraMB = 0; window.__nlw.governor.hold(false); });
   const full = await state(page);
   const saidFull = await page.evaluate(() => window.__said.slice());
   // (said once only: it was said above, for the slow frames)
