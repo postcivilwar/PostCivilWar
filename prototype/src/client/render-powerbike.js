@@ -246,6 +246,8 @@ function standIn() {
 function buildHall() {
   const group = new THREE.Group();
   group.name = 'powerbike-hall';
+  // (its pictures kept on a phone's graphics card while it is out of sight: there the moment one steps in, picture-keeper.js)
+  group.userData.keepPictures = true;
   const solid = new Batch(), gloss = new Batch(), metal = new Batch(), glow = new Batch(), glassB = new Batch(), overhead = new Batch();
   const W = H.x1 - H.x0, D = H.z1 - H.z0, cx = (H.x0 + H.x1) / 2, cz = (H.z0 + H.z1) / 2, top = H.ceiling;
   const WHITE = 0xf1f1ee, STEEL = 0x2b2f35, BRASS = 0xc9a24a;

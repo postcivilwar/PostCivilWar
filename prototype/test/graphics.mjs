@@ -7,7 +7,9 @@
 //  - memory freed when the level is lowered (the game's own count of the graphics card);
 //  - Auto lowering the level by itself when frames are slow, and when the graphics card is nearly full, and saying so:
 //    "Graphics lowered to keep the game smooth";
-//  - the #stats readout: the level, the frames a second, the pictures on the graphics card, the card's name.
+//  - the #stats readout: the level, the frames a second, the pictures on the graphics card, the card's name;
+//  - on a phone, the owner's box truck drawn from 512 pictures from far off and at its own size near it, and the signs'
+//    pictures out of sight for half a minute let go from the graphics card.
 //   ../server/with-postgres.sh node test/graphics.mjs [shots folder]
 import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
@@ -18,8 +20,9 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const here = dirname(fileURLToPath(import.meta.url));
 const { createDevServer } = await import(resolve(here, '../../server/dev.mjs'));
-const { pastQuestion, enterTown } = await import(resolve(here, 'start.mjs'));
+const { pastQuestion, enterTown, watchPictures, lostPictures } = await import(resolve(here, 'start.mjs'));
 const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, autoStart } = await import(resolve(here, '../src/client/graphics.js'));
+const { SUPPLIED_VEHICLES } = await import(resolve(here, '../src/sim/zones/supplied-vehicles.js'));
 const out = process.argv[2] || '/tmp/graphics-shots';
 mkdirSync(out, { recursive: true });
 const results = [];
@@ -33,6 +36,8 @@ const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable
 async function player(kind) {
   const phone = kind === 'phone';
   const context = await browser.newContext(phone ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: 2, hasTouch: true, isMobile: true, serviceWorkers: 'block' } : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+  // (every picture handed to the graphics card watched for one the page had let go of: none is drawn black)
+  await watchPictures(context);
   const page = await context.newPage();
   page.setDefaultTimeout(300000);
   const errors = [];
@@ -116,6 +121,56 @@ for (const kind of ['phone', 'computer']) {
   const back = await chooseAndSettle('ultra');
   check(`${kind}: raised from Low to Ultra again, the pictures made large again`, back.picturesMB > low.picturesMB && back.picturesMB > high.picturesMB * 0.8, { ultraMB: high.picturesMB, lowMB: low.picturesMB, backMB: back.picturesMB, backPictures: back.pictures });
   await page.screenshot({ path: resolve(out, `${kind}-ultra-again.png`) });
+  // ---- a phone: the owner's box truck from far off (more than 60 m) drawn from its pictures at 512, near it (within 40 m)
+  // at their own size, and from far off again at 512 (render-supplied.js; none changed within ten seconds of the last)
+  if (p.phone) {
+    const T = SUPPLIED_VEHICLES.boxTruck;
+    const truck = () => page.evaluate(() => {
+      const n = window.__nlw, s = n.supplied.state().parked.find((q) => q.id === 'boxTruck');
+      let map = null; n.supplied.parked.find((q) => q.id === 'boxTruck').holder.traverse((o) => { if (o.isMesh && o.name.startsWith('supplied-') && o.material.map) map = o.material.map; });
+      return { loaded: s.loaded, want: s.want, thinned: s.thinned, drawn: map ? map.userData.drawn || 0 : null, cap: map ? map.userData.cap || 0 : null, waiting: n.levelState.picturesWaiting };
+    });
+    const until = async (test, ms) => { const t0 = Date.now(); let t = await truck(); while (!test(t) && Date.now() - t0 < ms) { await frames(page); await page.waitForTimeout(1000); t = await truck(); } return t; };
+    const goTo = (x, z, h) => page.evaluate(([px, pz, ph]) => { const n = window.__nlw; n.place(px, pz); n.face(ph); n.cam.yaw = ph; }, [x, z, h]);
+    // (at Medium, the memory guard kept off meanwhile: a phone's level is not lowered under the test)
+    await page.evaluate(() => { window.__nlw.setGraphics('medium'); window.__nlw.graphicsPretend.extraMB = -100000; });
+    // (from the town's east end, 187 m from it and within its reach, looking at it: a picture goes to the graphics card
+    // when what it is on is drawn)
+    const toTruck = Math.atan2(T.x - 200, T.z - 113);
+    await goTo(200, 113, toTruck);
+    const far = await until((t) => t.loaded && t.want === 512 && t.drawn === 512, 180000);
+    await goTo(T.x - 3, T.z + 14, Math.PI);            // (14 m from it)
+    const close = await until((t) => t.want === 0 && t.drawn > 512, 180000);
+    await page.screenshot({ path: resolve(out, `${kind}-truck-near.png`) });
+    await goTo(200, 113, toTruck);
+    const again = await until((t) => t.want === 512 && t.drawn === 512, 180000);
+    await page.evaluate(() => { window.__nlw.graphicsPretend.extraMB = 0; });
+    check(`${kind}: the box truck from far off drawn from its pictures at 512, near it at their own size, from far off again at 512`, far.want === 512 && far.drawn === 512 && close.want === 0 && close.drawn === 1024 && again.want === 512 && again.drawn === 512, { far, close, again });
+    // ---- a phone: the signs' pictures out of sight for half a minute let go from the graphics card, and handed to it
+    // again when next drawn (picture-keeper.js): none drawn black
+    const kept = (await state(page)).kept;
+    // (one of them drawn again, on a little picture of its own: three.js hands it to the card again, and it is drawn as
+    // it was painted, not black)
+    const again2 = await page.evaluate(() => {
+      const n = window.__nlw, T = n.THREE, r = n.renderer;
+      const held = (x) => !!(r.properties.has(x) && r.properties.get(x).__webglTexture);
+      const t = n.keeper.recent.reverse().find((x) => !held(x));
+      if (!t) return null;
+      const before = held(t);
+      const target = new T.WebGLRenderTarget(16, 16), scene = new T.Scene(), cam = new T.OrthographicCamera(-1, 1, 1, -1, 0, 1);
+      const plane = new T.Mesh(new T.PlaneGeometry(2, 2), new T.MeshBasicMaterial({ map: t, toneMapped: false }));
+      scene.add(plane);
+      const was = r.getRenderTarget();
+      r.setRenderTarget(target); r.render(scene, cam);
+      const px = new Uint8Array(16 * 16 * 4); r.readRenderTargetPixels(target, 0, 0, 16, 16, px);
+      r.setRenderTarget(was);
+      const after = held(t);
+      let lit = 0; for (let i = 0; i < px.length; i += 4) if (px[i] + px[i + 1] + px[i + 2] > 30) lit += 1;
+      plane.geometry.dispose(); plane.material.dispose(); target.dispose();
+      return { size: [t.image.width, t.image.height], onCardBefore: before, onCardAfter: after, litPixels: lit };
+    });
+    check(`${kind}: signs and boards out of sight for half a minute let go from the graphics card, and one drawn again handed back as painted`, !!kept && kept.letGo > 0 && kept.MB > 0 && !!again2 && !again2.onCardBefore && again2.onCardAfter && again2.litPixels > 0 && (await lostPictures(page)) === 0, { kept, again: again2, lost: await lostPictures(page) });
+  }
   // ---- Auto lowers by itself when frames are slow. (This machine draws in software, a frame at Ultra in a second or
   // more, and the game takes a frame of more than two seconds for the page being hidden, not for the game being slow:
   // so the frames it is given to judge here are frames of 45 ms, under thirty a second, one after another; and the card

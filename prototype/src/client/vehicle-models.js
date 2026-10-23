@@ -22,13 +22,14 @@ const css = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 
 // ------------------------------------------------------------- shared things --
 
-const shared = { env: null, cube: null, size: 256, textures: new Map(), daylight: 1, live: new Set() };
+const shared = { env: null, cube: null, size: 256, textures: new Map(), daylight: 1, live: new Set(), lite: false };
 
 // Gives vehicles something to reflect: a plain sky over plain ground. Call once
 // with the renderer; without it vehicles are drawn with their metal toned down.
 // (`lite`, a phone: the picture 128 pixels a side, not 256: a soft sky on a small screen, a quarter of the graphics card's
 // memory, which three.js r186 has kept in half floats since, twice what r128 took)
 export function initVehicles(renderer, { lite = false } = {}) {
+  shared.lite = lite;
   if (shared.env || !renderer || location.hash.includes('noenv')) return;
   shared.size = lite ? 128 : 256;
   shared.env = skyPicture(renderer);
@@ -184,10 +185,16 @@ function glassMaterial(model, far) {
 
 // ------------------------------------------------------------------ markings --
 
+// (on a phone at half the size, painted the same: on its screen it looks the same, and takes a quarter of the graphics
+// memory; the motor park's coaches and kekes held 17 MB of a phone's 150 in their words, adverts and plates, 23 October
+// 2026)
 function canvasTexture(width, height, paint) {
+  const k = shared.lite ? 0.5 : 1;
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
-  paint(canvas.getContext('2d'), width, height);
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
+  const g = canvas.getContext('2d');
+  g.scale(k, k);
+  paint(g, width, height);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;

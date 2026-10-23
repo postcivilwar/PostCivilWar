@@ -20,7 +20,9 @@ import { reflects } from './render-finish.js';
 let reading = Promise.resolve();
 function oneAtATime(task) { const run = reading.then(task, task); reading = run.then(() => {}, () => {}); return run; }
 
-export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9 } = {}) {
+// (`want`: its pictures' own largest, apart from the graphics level's, 0 for none: glb.js, wantPicture; a parked truck
+// fetched while it is far off, say, render-supplied.js)
+export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9, want = 0 } = {}) {
   // (on a phone, the website's copy with its pictures the size a phone draws them: budget.js)
   const file = modelFile(named);
   const response = await fetchKept(file);
@@ -39,11 +41,11 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
     if (!info) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
-    // (no larger than the graphics level's largest picture either: glb.js, pictureMost)
-    const cap = pictureMost();
+    // (no larger than the graphics level's largest picture either, nor its own where it has one: glb.js, pictureMost)
+    const level = pictureMost(), cap = level && want ? Math.min(level, want) : level || want;
     const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint, cap));
     t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
-    t.userData.cap = cap;
+    t.userData.cap = cap; t.userData.want = want;
     // (once the graphics card has the picture, the page's own copy is let go: see glb.js; should the card's copy be
     // lost, or the graphics level ask for another size, it is made again the same way from the file, which the browser
     // has kept)

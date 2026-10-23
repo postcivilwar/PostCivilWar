@@ -59,6 +59,27 @@ const busy = async () => { const { metrics } = await cdp.send('Performance.getMe
 // frames, counted from the start
 // (the same random numbers in every run, so that what is placed at random, the stars say, is placed alike)
 await page.addInitScript(() => { let s = 20261023; Math.random = () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; });
+// (TEXTURE_TRACE: every picture the 3D library makes remembered with where in the game's code it was made, so that the
+// list after each place (TEXTURE_LIST) says what made each, those nothing in the scene uses among them: each texture
+// is caught as its constructor gives it its id, `uuid`, through a setter put on Texture's prototype before the library
+// is read)
+if (process.env.TEXTURE_TRACE) await page.addInitScript(() => {
+  let T;
+  const made = window.__texturesMade = [];
+  Object.defineProperty(window, 'THREE', { configurable: true, get() { return T; }, set(v) {
+    T = v;
+    try {
+      Object.defineProperty(v.Texture.prototype, 'uuid', { configurable: true, get() { return this.__uuid; }, set(id) {
+        this.__uuid = id;
+        if (this.__madeAt === undefined) {
+          const lines = (new Error().stack || '').split('\n').slice(2).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\//, '')).filter((l) => !/three\.min\.js/.test(l));
+          Object.defineProperty(this, '__madeAt', { value: lines.slice(0, 4).join(' < '), enumerable: false });
+          made.push(new WeakRef(this));
+        }
+      } });
+    } catch (error) { console.log('TEXTURE_TRACE could not watch the textures:', error.message); }
+  } });
+});
 await page.addInitScript(() => { window.__ft = []; window.__fbase = 0; const f = (t) => { window.__ft.push(t); if (window.__ft.length > 600) { window.__ft.splice(0, 300); window.__fbase += 300; } requestAnimationFrame(f); }; requestAnimationFrame(f); });
 
 const result = { device: DEVICE, site: SITE, when: new Date().toISOString(), engine: null, loading: {}, places: [], errors };
@@ -231,9 +252,15 @@ const pictureList = async (place) => {
     const sun = n.sky && n.sky.sun && n.sky.sun.shadow && n.sky.sun.shadow.map;
     if (sun) { named.shadowMap = onCard.get(glOf(sun.texture)) || 0; if (sun.depthTexture) named.shadowDepth = onCard.get(glOf(sun.depthTexture)) || 0; for (const t of [sun.texture, sun.depthTexture]) { const gl = t && glOf(t); if (gl) matched.add(gl); } }
     const others = [...onCard.entries()].filter(([gl]) => !matched.has(gl)).map(([, bytes]) => bytes).sort((a, b) => b - a);
+    // (TEXTURE_TRACE: where each was made; and those nothing in the scene uses, each with what it is)
+    const traced = new Map();
+    for (const ref of window.__texturesMade || []) { const t = ref.deref(); const gl = t && glOf(t); if (gl) traced.set(gl, t); }
+    const describe = (t) => { const img = t.image || {}; return { name: t.name || '', type: t.constructor && t.constructor.name, rt: !!t.isRenderTargetTexture, cube: !!t.isCubeTexture, w: img.width || (t.renderTarget && t.renderTarget.width) || 0, h: img.height || (t.renderTarget && t.renderTarget.height) || 0, madeAt: t.__madeAt || '' }; };
+    const unused = [...onCard.entries()].filter(([gl]) => !matched.has(gl)).sort((a, b) => b[1] - a[1]).map(([gl, bytes]) => ({ bytes, ...(traced.has(gl) ? describe(traced.get(gl)) : { untraced: true }) }));
     return {
-      list: [...seen.values()].map(({ gl, ...e }) => ({ ...e, onCard: !!(gl && onCard.has(gl)), users: [...e.users].slice(0, 3), uses: e.users.size })).sort((a, b) => b.bytes - a.bytes),
+      list: [...seen.values()].map(({ gl, ...e }) => ({ ...e, madeAt: gl && traced.has(gl) ? traced.get(gl).__madeAt : undefined, onCard: !!(gl && onCard.has(gl)), users: [...e.users].slice(0, 3), uses: e.users.size })).sort((a, b) => b.bytes - a.bytes),
       card: { pictures: g.pictures || 0, held: onCard.size, ...named, others: others.reduce((s, b) => s + b, 0), otherCount: others.length, largestOthers: others.slice(0, 12) },
+      unused: unused.slice(0, 30),
     };
   });
   writeFileSync(resolve(out, `textures-${place.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`), JSON.stringify(found, null, 1));

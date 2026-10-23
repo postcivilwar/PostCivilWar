@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 globalThis.THREE = require('../vendor/three.min.js');
-const { letGoOnceDrawn, setPictureMost, stepPictures, picturesWaiting, pictureMost } = await import('../src/client/glb.js');
+const { letGoOnceDrawn, setPictureMost, stepPictures, picturesWaiting, pictureMost, wantPicture, pictureWanted } = await import('../src/client/glb.js');
 
 // a picture as the browser gives one (an ImageBitmap): its size, and closed once the graphics card has it
 const picture = (side, h = side) => ({ width: side, height: h, closed: false, close() { this.closed = true; this.width = 0; this.height = 0; } });
@@ -90,4 +90,56 @@ test('the level changed again while a picture was being made: it is made again a
   assert.equal(a.texture.userData.drawn, 1024);
   assert.deepEqual(a.asked, [512, 1024]);
   setPictureMost(0); await settle();
+});
+
+// A picture's own largest (wantPicture, 23 October 2026): a parked truck's pictures at 512 on a phone from more than 60 m
+// off (render-supplied.js), apart from the level's largest; what it is made at is the smaller of the two.
+test('a picture\'s own largest makes it smaller, and larger again once given up; the level\'s largest still holds', async () => {
+  setPictureMost(1024); await settle();
+  const truck = made(1024), other = made(1024);
+  assert.equal(truck.texture.userData.drawn, 1024);
+  assert.equal(wantPicture(truck.texture, 512), true);
+  assert.equal(pictureWanted(truck.texture), 512);
+  await settle(); truck.upload();
+  assert.equal(truck.texture.userData.drawn, 512, 'made again at its own largest');
+  assert.equal(other.asked.length, 0, 'the others left as they are');
+  assert.equal(truck.disposed(), 1, 'its old copy let go from the graphics card first');
+  // the level lowered below it: the smaller of the two
+  setPictureMost(256); await settle(); truck.upload(); other.upload();
+  assert.equal(truck.texture.userData.drawn, 256);
+  assert.equal(other.texture.userData.drawn, 256);
+  // the level raised again: its own largest holds it at 512, the other back to 1024
+  setPictureMost(1024); await settle(); truck.upload(); other.upload();
+  assert.equal(truck.texture.userData.drawn, 512);
+  assert.equal(other.texture.userData.drawn, 1024);
+  // its own largest given up (the eye near it again): the level's
+  wantPicture(truck.texture, 0); await settle(); truck.upload();
+  assert.equal(truck.texture.userData.drawn, 1024);
+  assert.deepEqual(truck.asked, [512, 256, 512, 1024]);
+  setPictureMost(0); await settle(); truck.upload(); other.upload();
+});
+
+test('a picture\'s own largest changed back before its turn: not made again; asked for again as it is: nothing done', async () => {
+  setPictureMost(0); await settle();
+  const busy = made(2048), truck = made(1024);
+  setPictureMost(1024);                 // (the 2048 being made at 1024: the truck waits its turn)
+  stepPictures();
+  wantPicture(truck.texture, 512);
+  wantPicture(truck.texture, 0);        // (changed back before its turn)
+  await settle(); busy.upload();
+  assert.deepEqual(truck.asked, [], 'not made again');
+  assert.equal(wantPicture(truck.texture, 0), false, 'asked for as it is: nothing to do');
+  setPictureMost(0); await settle(); busy.upload();
+});
+
+test('a picture made under a cap that was raised before the card had it is made larger once the card has it', async () => {
+  setPictureMost(512); await settle();
+  const late = made(2048);              // (taken in at 2048, larger than the level's 512: queued as the card took it)
+  stepPictures();                       // (being made at 512)
+  setPictureMost(1024);                 // (raised while it is being made)
+  await settle(); late.upload();        // (the card has the 512: larger again, in its turn)
+  await settle(); late.upload();
+  assert.equal(late.texture.userData.drawn, 1024);
+  assert.deepEqual(late.asked, [512, 1024]);
+  setPictureMost(0); await settle(); late.upload();
 });

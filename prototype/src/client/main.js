@@ -24,7 +24,8 @@ import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry } from './render-kit.js';
-import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState } from './glb.js';
+import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable } from './glb.js';
+import { createPictureKeeper } from './picture-keeper.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
 import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
@@ -545,6 +546,9 @@ function start(carried) {
   const perf = { fps: 60, calls: 0, triangles: 0, programs: 0, geometries: 0, textures: 0 };
   const monitor = createMonitor();
   const warmUp = createWarmUp(renderer, scene);
+  // (a phone: the pictures painted in the page that nothing drawn has used for half a minute let go from the graphics
+  // card, handed to it again when next drawn: picture-keeper.js)
+  const keeper = LITE ? createPictureKeeper(scene, renderer, { skip: isRestorable }) : null;
   const warm = { stage: 0, frames: 0, extras: [] };
   const startEl = $('start');
   let prompt = null;
@@ -3791,6 +3795,7 @@ blood.update(dt, view.blood || []);
     if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) quickTest(clock); }
     // (pictures the graphics level asked to be made another size: the next one, one at a time)
     stepPictures();
+    if (keeper && townBuilt && !pictureGone) keeper.step(performance.now());
   }
 
   // The picture taken away (18 October 2026, and again 20 October: "players must never see a notice like 'The picture
@@ -3898,7 +3903,7 @@ blood.update(dt, view.blood || []);
     // the habitation (20 October 2026): what is built of it, its fish and birds, the torch and the others' beams, the sky
     get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
-    get supplied() { return supplied; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
+    get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
@@ -3909,7 +3914,7 @@ blood.update(dt, view.blood || []);
     get inside() { return inside ? inside.id : null; },
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
     // (the graphics level as drawn now: for the tests)
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
