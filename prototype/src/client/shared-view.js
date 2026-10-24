@@ -17,6 +17,8 @@
 // the test browser, against half a millisecond to draw), so it is kept for the market's viewer, which is looked at
 // still, for a moment.
 
+import { withoutWorldShading } from './world-shading.js';
+
 let shared = null;
 let free = () => false;              // is the town's canvas free to be sized for a view (the town not being shown)?
 let away = () => false;              // is the drawing surface away just now (taken by the browser, being given back)?
@@ -77,7 +79,8 @@ export function drawIn(box, scene, camera, { pixelRatio = 2, toneMapping = null,
     r.clear(true, true, true);
     if (toneMapping !== null) r.toneMapping = toneMapping;
     if (exposure !== null) r.toneMappingExposure = exposure;
-    r.render(scene, camera);
+    // (none of the town's air in it: its clouds' shadows, haze and puddles: world-shading.js)
+    withoutWorldShading(() => r.render(scene, camera));
   } finally {
     r.setClearColor(keep.colour, before.alpha);
     r.autoClear = before.autoClear;
@@ -122,7 +125,7 @@ export function drawInto(target, scene, camera, { pixelRatio = 2, toneMapping = 
     r.clear(true, true, true);
     if (toneMapping !== null) r.toneMapping = toneMapping;
     if (exposure !== null) r.toneMappingExposure = exposure;
-    r.render(scene, camera);
+    withoutWorldShading(() => r.render(scene, camera));
     g.clearRect(0, 0, pw, ph);
     g.drawImage(r.domElement, 0, buffer.y - ph, pw, ph, 0, 0, pw, ph);
   } finally {

@@ -10,6 +10,7 @@
 // THREE is the global from three.min.js.
 
 import { Batch, place, linear, surface } from './render-kit.js';
+import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } from './render-people.js';
 import { poseFighter } from './combat-view.js';
 import { zoneGroundY, habitationClimbing } from '../sim/zone.js';
@@ -61,7 +62,8 @@ function figureParts() {
     thighL: make(down(0.075, 0.058, 0.44)), thighR: make(down(0.075, 0.058, 0.44)),
     shinL: make(mergeTwo(shin, foot)), shinR: make(mergeTwo(shin, foot)),
   };
-  const shade = new THREE.InstancedMesh(blob, new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.14, depthWrite: false }), MAX_FIGURES);
+  // (soft, darkest under the feet: the contact shadow, at every level; soft-patch.js)
+  const shade = new THREE.InstancedMesh(blob, new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }), MAX_FIGURES);
   shade.frustumCulled = false;
   shade.count = 0;
   shade.renderOrder = 1;

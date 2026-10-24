@@ -21,13 +21,22 @@ test('the library is three.js r186, made for the game, holding every name the ga
   assert.equal(THREE.REVISION, '186');
   const symbols = JSON.parse(readFileSync(resolve(root, 'vendor/three.symbols.json'), 'utf8'));
   assert.equal(symbols.revision, '186');
-  const held = new Set(symbols.names);
+  // (and what the add-ons' script adds, at the levels that fetch it: three-post.min.js)
+  const held = new Set([...symbols.names, ...(symbols.post || [])]);
   const used = new Set();
   const tools = files(resolve(root, 'tools')).filter((f) => /\.m?js$/.test(f) && !f.startsWith(resolve(root, 'tools/three')));
   for (const f of [...client, ...files(resolve(root, 'test')).filter((f) => /\.m?js$/.test(f)), ...tools]) for (const m of readFileSync(f, 'utf8').matchAll(/\bTHREE\.([A-Za-z_][\w$]*)/g)) used.add(m[1]);
   const missing = [...used].filter((n) => !held.has(n));
   assert.deepEqual(missing, [], 'run node tools/three/make.mjs');
-  for (const name of held) assert.ok(THREE[name] !== undefined, `THREE.${name}`);
+  for (const name of symbols.names) assert.ok(THREE[name] !== undefined, `THREE.${name}`);
+  // the add-ons' script: three.js's own GTAOPass, unchanged, taking the library from the page's THREE and adding its own
+  // name to it, nothing of the library carried twice
+  const post = readFileSync(resolve(root, 'vendor/three-post.min.js'), 'utf8');
+  assert.match(post.slice(0, 300), /three\.js r186 add-ons .*GTAOPass/);
+  assert.ok(post.length < 60000, `${post.length} bytes`);
+  assert.ok(!/WebGLRenderer|class \w+ extends Texture/.test(post), 'none of the library itself');
+  require('../vendor/three-post.min.js');
+  for (const name of symbols.post) assert.equal(typeof THREE[name], 'function', `THREE.${name}`);
   // (made from the authors' own files, kept unchanged beside it, with their licence)
   assert.match(readFileSync(resolve(root, 'vendor/three.min.js'), 'utf8').slice(0, 200), /three\.js r186/);
   assert.match(readFileSync(resolve(root, 'vendor/THREE-LICENSE.txt'), 'utf8'), /MIT License/);

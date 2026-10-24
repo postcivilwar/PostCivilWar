@@ -5,6 +5,12 @@
 //
 //   node tools/three/make.mjs [esbuild]          (esbuild: its path; by default the one on this machine)
 //
+// A second script, vendor/three-post.min.js: three.js r186's own add-ons for the soft darkening where things meet
+// (GTAOPass and what it uses, vendor/three-r186/addons/, as the three.js authors publish them, unchanged), fetched by the
+// game only at the graphics levels that draw it (High and Ultra), so that what every phone downloads does not grow. It
+// takes what it needs of the library from the page's THREE, which therefore holds every name the add-ons import, and
+// adds its own to it (THREE.GTAOPass).
+//
 // The names used are found by reading every `THREE.Name` in src/, test/ and tools/ (and the few below, used by name only in
 // the library's own setup); a name the library does not have stops it. vendor/three.symbols.json lists what the
 // script holds, and build.mjs refuses to build a game that uses a name the script does not hold (run this again).
@@ -57,11 +63,18 @@ const used = new Set(EXTRA);
 for (const file of [...files(resolve(root, 'src')), ...files(resolve(root, 'test')), ...files(resolve(root, 'tools')).filter((f) => !f.startsWith(resolve(root, 'tools/three')))].filter((f) => /\.(m?js|html)$/.test(f))) {
   for (const m of readFileSync(file, 'utf8').matchAll(/\bTHREE\.([A-Za-z_][\w$]*)/g)) used.add(m[1]);
 }
+// (the add-ons' own imports from the library: vendor/three-r186/addons/, POST below)
+const addons = resolve(lib, 'addons');
+const POST = { GTAOPass: 'postprocessing/GTAOPass.js' };
+for (const file of files(addons).filter((f) => f.endsWith('.js'))) {
+  for (const m of readFileSync(file, 'utf8').matchAll(/import\s*\{([^}]+)\}\s*from\s*'three'/g)) for (const name of m[1].split(',').map((n) => n.trim()).filter(Boolean)) used.add(name);
+}
 // (what three.module.js gives: its own names, and those it passes on from three.core.js)
 const module = readFileSync(resolve(lib, 'three.module.js'), 'utf8');
 const exportLists = [...module.matchAll(/^export\s*\{([^}]+)\}/gm)];
 if (!exportLists.length) throw new Error('three.module.js: its export lists were not found');
 const exported = new Set(exportLists.flatMap((m) => m[1].split(',').map((s) => s.trim().split(/\s+as\s+/).pop())).filter(Boolean));
+for (const name of Object.keys(POST)) used.delete(name);
 const missing = [...used].filter((n) => !exported.has(n)).sort();
 if (missing.length) throw new Error(`three.js r186 has none of: ${missing.join(', ')} (used in src/, test/ or tools/)`);
 const names = [...used].sort();
@@ -89,8 +102,19 @@ const footer = 'THREE.ColorManagement.enabled=false;' + asR128 + 'Object.defineP
 const run = spawnSync(esbuild, [entry, '--bundle', '--format=iife', '--global-name=THREE', '--minify', '--legal-comments=none', `--banner:js=${banner}`, `--footer:js=${footer}`, `--outfile=${out}`, '--log-level=warning'], { encoding: 'utf8' });
 if (run.status !== 0) { rmSync(work, { recursive: true, force: true }); throw new Error(`esbuild: ${run.stderr || run.error}`); }
 const script = readFileSync(out);
+// the add-ons' script: their imports of 'three' read from the page's THREE (a module that is that), their names added to it
+writeFileSync(join(work, 'three-global.cjs'), 'module.exports = globalThis.THREE;\n');
+const postEntry = join(work, 'post.js');
+writeFileSync(postEntry, Object.entries(POST).map(([name, file]) => `export { ${name} } from ${JSON.stringify(join(addons, file))};\n`).join(''));
+const postOut = join(work, 'three-post.min.js');
+const postBanner = `/* three.js r${revision} add-ons (https://threejs.org): ${Object.keys(POST).join(', ')}, as published, unchanged (tools/three/make.mjs). Copyright 2010-2026 three.js authors. SPDX-License-Identifier: MIT (THREE-LICENSE.txt) */`;
+const postRun = spawnSync(esbuild, [postEntry, '--bundle', '--format=iife', '--global-name=__pcwThreePost', '--minify', '--legal-comments=none', `--alias:three=${join(work, 'three-global.cjs')}`, `--banner:js=${postBanner}`, '--footer:js=Object.assign(THREE,__pcwThreePost);', `--outfile=${postOut}`, '--log-level=warning'], { encoding: 'utf8' });
+if (postRun.status !== 0) { rmSync(work, { recursive: true, force: true }); throw new Error(`esbuild (the add-ons): ${postRun.stderr || postRun.error}`); }
+const postScript = readFileSync(postOut);
 rmSync(work, { recursive: true, force: true });
+writeFileSync(resolve(root, 'vendor/three-post.min.js'), postScript);
 writeFileSync(resolve(root, 'vendor/three.min.js'), script);
-writeFileSync(resolve(root, 'vendor/three.symbols.json'), `${JSON.stringify({ revision, names }, null, 1)}\n`);
+writeFileSync(resolve(root, 'vendor/three.symbols.json'), `${JSON.stringify({ revision, names, post: Object.keys(POST) }, null, 1)}\n`);
 writeFileSync(resolve(root, 'vendor/THREE-LICENSE.txt'), readFileSync(resolve(lib, 'LICENSE')));
 console.log(`vendor/three.min.js: three.js r${revision}, ${names.length} names, ${(script.length / 1024).toFixed(0)} KB`);
+console.log(`vendor/three-post.min.js: ${Object.keys(POST).join(', ')}, ${(postScript.length / 1024).toFixed(0)} KB`);

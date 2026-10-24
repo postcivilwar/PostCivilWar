@@ -14,6 +14,7 @@ import { parseGLB, parsedParts, modelFromGLB, figureLabels, boneName } from './g
 import { splitGLB } from './glb-read.js';
 import { gunzip } from './inflate.js';
 import { nameTexture, surface } from './render-kit.js';
+import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
 import { SEAT_POSE } from './seat-pose.js';
 import { borrowedFor, seatFor, loadMoves } from './figure-moves.js';
 import { pictureSize } from './budget.js';
@@ -385,7 +386,8 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null) {
     label.scale.set(0.95, 0.18, 1); label.position.set(0, 2.14, 0); label.visible = false;
     group.add(label);
   }
-  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.13, depthWrite: false }));
+  // (soft, darkest under the feet: the contact shadow, at every level; soft-patch.js)
+  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }));
   blob.rotation.x = -Math.PI / 2; blob.position.y = 0.09; group.add(blob);
   const tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Quaternion(), p: new THREE.Quaternion(), axis: new THREE.Vector3() };
 

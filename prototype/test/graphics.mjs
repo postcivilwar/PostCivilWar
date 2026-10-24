@@ -42,6 +42,8 @@ async function player(kind) {
   page.setDefaultTimeout(300000);
   const errors = [];
   page.on('pageerror', (e) => { errors.push(e.message); console.log(`${kind} page error:`, e.message); });
+  // (and any of the 3D library's own complaints: a shader that would not compile, a picture it could not make)
+  page.on('console', (m) => { if (m.type() === 'error' && /THREE|shader|WebGL/i.test(m.text())) { errors.push(m.text().slice(0, 400)); console.log(`${kind} console:`, m.text().slice(0, 400)); } });
   let loads = 0;
   page.on('load', () => { loads += 1; });
   // (#stats: the readout in its corner; the notices kept, so that what was said can be read after)
@@ -66,6 +68,19 @@ const state = (page) => page.evaluate(() => {
 });
 const frames = (page) => page.evaluate(() => new Promise((done) => { let n = 0; const t0 = performance.now(); const f = () => { n += 1; if (n >= 3) done(performance.now() - t0); else requestAnimationFrame(f); }; requestAnimationFrame(f); }));
 
+// Stage 3's realism at a level (23 and 24 October 2026): every setting as the level has it; the light from the whole sky
+// from Medium up; the glow drawn from Medium up and let go at Low; the soft darkening fetched and drawn at High and
+// Ultra, let go below; the grade at every level.
+const STAGE3 = ['clouds', 'haze', 'mirage', 'glint', 'puddles', 'glow', 'glowWide', 'flare', 'dust', 'fireflies', 'wetTracks', 'ao', 'waves', 'foam', 'mirror'];
+function stage3(s, at) {
+  const settings = STAGE3.every((k) => s.airLevel && s.airLevel[k] === at(k));
+  const sky = s.skyLight === at('skyLight');
+  const glow = at('glow') > 0 ? !!s.glow && s.glow.applied > 0 && s.glow.width > 0 : !s.glow || s.glow.width === 0;
+  const ao = at('ao') > 0 ? !!s.occlusion && s.occlusion.loaded && s.occlusion.applied > 0 && s.occlusion.width > 0 : !s.occlusion || s.occlusion.width === 0;
+  const grade = s.toneMapping === 5;                         // (three.js's CustomToneMapping: the game's grade)
+  const river = s.river && s.river.waves === at('waves') && s.river.foam === at('foam');
+  return settings && sky && glow && ao && grade && river;
+}
 for (const kind of ['phone', 'computer']) {
   const p = await player(kind);
   const { page } = p;
@@ -97,11 +112,14 @@ for (const kind of ['phone', 'computer']) {
     const shadowMap = at('shadowMap');
     seen.push({ id, ...s, ok: s.level === level && s.choice === id && Math.abs(s.pixelRatio - Math.min(dpr, at('pixelRatio'))) < 1e-6
       && s.shadows === (shadowMap > 0) && (!s.shadows || (s.shadowMap === shadowMap && s.shadowReach === at('shadowReach') && Math.abs(s.softness - at('shadowSoft')) < 1e-6))
-      && s.patches === !s.shadows && s.finish.reflections === at('reflections') && s.finish.water === at('water') && Math.abs(s.view - at('view')) < 1e-6 && s.pictureMost === at('pictureMost')
+      // (the soft patch under each vehicle at every level since stage 3: as dark as before without the sun's shadows, lighter with them)
+      && s.patches === true && Math.abs(s.patchOpacity - (s.shadows ? 0.17 : 0.32)) < 1e-6 && s.finish.reflections === at('reflections') && s.finish.water === at('water') && Math.abs(s.view - at('view')) < 1e-6 && s.pictureMost === at('pictureMost')
       // (the waters' ripples and the sky in what gives it back, as the level has them)
-      && (at('water') === 'full' ? s.finish.rippling === s.finish.waters : s.finish.rippling === 0) && (at('reflections') === 'none' ? s.finish.withSky === 0 : s.finish.withSky > 0) });
+      && (at('water') === 'full' ? s.finish.rippling === s.finish.waters : s.finish.rippling === 0) && (at('reflections') === 'none' ? s.finish.withSky === 0 : s.finish.withSky > 0)
+      // (stage 3: the light from the whole sky, the air, the glow, the soft darkening, the river, as the level has them)
+      && stage3(s, at) });
   }
-  check(`${kind}: each level made at once, without reloading: its pixels, its sun shadows (how far, how soft; none at Low, a soft patch under each vehicle instead), its largest picture, the sky in glass and water, the waters' ripples, how far one sees`, seen.every((s) => s.ok) && p.loads() === 1 && p.errors.length === 0, { seen: seen.map(({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, finish, view, pictureMost, ok }) => ({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, reflections: finish.reflections, withSky: finish.withSky, water: finish.water, rippling: `${finish.rippling}/${finish.waters}`, view, pictureMost, ok })), loads: p.loads(), errors: p.errors });
+  check(`${kind}: each level made at once, without reloading: its pixels, its sun shadows (how far, how soft; none at Low), the soft patch under each vehicle (darker at Low), its largest picture, the sky in glass and water, the waters' ripples, how far one sees; and stage 3's light from the whole sky, air, glow, soft darkening and river as the level has them`, seen.every((s) => s.ok) && p.loads() === 1 && p.errors.length === 0, { seen: seen.map(({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, patchOpacity, finish, view, pictureMost, skyLight, toneMapping, glow, occlusion, river, air, ok }) => ({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, patchOpacity, reflections: finish.reflections, withSky: finish.withSky, water: finish.water, rippling: `${finish.rippling}/${finish.waters}`, view, pictureMost, skyLight, toneMapping, glow, occlusion, river, air, ok })), loads: p.loads(), errors: p.errors });
   // ---- memory freed when lowering
   // (with Settings shut, so that the town is drawn: a picture made again at another size goes to the graphics card when
   // it is next drawn; and each level's pictures all made before it is measured: glb.js makes them one at a time)

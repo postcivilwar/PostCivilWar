@@ -85,7 +85,9 @@ const habitationScript = bundleFrom(resolve(root, 'src/client/habitation-code.js
 // The 3D library is three.js, made for this game (tools/three/make.mjs: what the game uses of it, as one script):
 // a name the game uses that the script does not hold would be found missing only when that line runs, in a player's
 // hands, so it is found here.
-const threeHolds = new Set(JSON.parse(readFileSync(resolve(root, 'vendor/three.symbols.json'), 'utf8')).names);
+// (and the add-ons' script, fetched at the levels that draw with it: its names are THREE's once it is there)
+const threeSymbols = JSON.parse(readFileSync(resolve(root, 'vendor/three.symbols.json'), 'utf8'));
+const threeHolds = new Set([...threeSymbols.names, ...(threeSymbols.post || [])]);
 const threeNeeded = (script) => [...new Set([...script.matchAll(/\bTHREE\.([A-Za-z_][\w$]*)/g)].map((m) => m[1]))].filter((n) => !threeHolds.has(n));
 if (gameFiles.some((f) => /render-habitation\.js$|render-habitation-life\.js$|habitation-plants\.js$/.test(f))) throw new Error('the game\'s script carries the habitation\'s drawing: it should come in its own script (habitation-code.js)');
 
@@ -116,6 +118,7 @@ const template = templateFor({ figures: {} });
 const page = (three) => `${template}\n<script src="${three}"></script>\n<script>\n${bundle}</script>\n<script>\n${habitationScript.bundle}</script>\n`;
 mkdirSync(resolve(root, 'dist'), { recursive: true });
 writeFileSync(resolve(root, 'dist/three.min.js'), readFileSync(resolve(root, 'vendor/three.min.js')));
+writeFileSync(resolve(root, 'dist/three-post.min.js'), readFileSync(resolve(root, 'vendor/three-post.min.js')));
 writeFileSync(resolve(root, 'dist/index.html'), page('three.min.js'));
 // The published page is wrapped in a document skeleton by the host. The local
 // copy carries an equivalent skeleton of its own.
@@ -360,7 +363,9 @@ siteBundle = siteBundle.replace(reactionsFound[0], 'const REACTIONS = {};\n');
 const habitationSite = stripCommentLines(habitationScript.bundle);
 try { new Function(habitationSite); } catch (error) { throw new Error(`habitation-code.js does not read: ${error.message}`); }
 put('habitation-code.js', habitationSite);
-const extras = { reactions: `reactions.json?v=${fingerprint(siteFiles.get('reactions.json'))}`, habitation: `habitation-code.js?v=${fingerprint(siteFiles.get('habitation-code.js'))}` };
+// (three.js's add-ons for the soft darkening where things meet: fetched by the game only at High and Ultra)
+put('three-post.min.js', readFileSync(resolve(root, 'vendor/three-post.min.js')));
+const extras = { reactions: `reactions.json?v=${fingerprint(siteFiles.get('reactions.json'))}`, habitation: `habitation-code.js?v=${fingerprint(siteFiles.get('habitation-code.js'))}`, post: `three-post.min.js?v=${fingerprint(siteFiles.get('three-post.min.js'))}` };
 const packScript = `<script>window.__PCW_PACK_FILES = ${JSON.stringify(packFiles)}; window.__PCW_FILES = ${JSON.stringify(extras)}; window.__PCW_MODELS = ${JSON.stringify(modelsTable)};</script>\n${coverFiles.map((f) => `<link rel="preload" as="image" href="${f}" fetchpriority="low">`).join('\n')}\n`;
 // the game's own script, a file of its own beside the page, read once the page has been (defer): the page itself
 // is then small, and the opening is on the screen before the script has even arrived. It goes without the source's

@@ -18,6 +18,7 @@
 
 import { REACTIONS, REACTION_FPS } from './reaction-data.js';
 import { linear, nameTexture, surface } from './render-kit.js';
+import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
 import { kitPart, kitBones, kitPose, kitIdle, figureMeta, KIT_SHADE_ONE } from './character-kit.js';
 import { characterSpec, configFromLook } from '../sim/characters.js';
 import { printTexture } from './character-looks.js';
@@ -341,7 +342,8 @@ export function makeFigure(spec, labelText, shadow = false) {
     label.visible = false;
     group.add(label);
   }
-  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, transparent: true, opacity: 0.13, depthWrite: false }));
+  // (soft, darkest under the feet: the contact shadow, at every level; soft-patch.js)
+  const blob = new THREE.Mesh(new THREE.CircleGeometry(0.4, 18), new THREE.MeshBasicMaterial({ color: 0x000000, alphaMap: softShadowPicture(), transparent: true, opacity: FIGURE_PATCH, depthWrite: false }));
   blob.rotation.x = -Math.PI / 2;
   blob.position.y = 0.09;
   group.add(blob);

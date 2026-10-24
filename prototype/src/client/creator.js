@@ -198,7 +198,8 @@ export function createCreator({ canvas, root, nameField, onPick, onView = () => 
       if (slide === 0) { dispose(leaving); leaving = null; }
     }
     drawPreview(shown, camera, w, h);
-    if (shared) drawIn(canvas.parentElement, scene, camera, { pixelRatio: Math.min(window.devicePixelRatio || 1, 2) });
+    // (the character screen as it always was: the town's colour grade, grade.js, is the town's)
+    if (shared) drawIn(canvas.parentElement, scene, camera, { pixelRatio: Math.min(window.devicePixelRatio || 1, 2), toneMapping: THREE.NoToneMapping });
     else renderer.render(scene, camera);
     requestAnimationFrame(frame);
   }

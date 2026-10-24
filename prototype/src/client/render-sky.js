@@ -4,6 +4,8 @@ import { linear, isLite } from './render-kit.js';
 import { LIGHT } from './light.js';
 import { ZONE } from '../sim/zone.js';
 import { trueToGrid } from '../sim/geo.js';
+import { warmthAt } from './grade.js';
+import { skyHarmonics } from './sky-light.js';
 
 const KEYS = [
   // hour, sky top, horizon, sun colour, sun strength, ambient strength
@@ -59,7 +61,8 @@ export function createSky(scene, renderer) {
     new THREE.ShaderMaterial({
       uniforms, side: THREE.BackSide, depthWrite: false, fog: false,
       vertexShader: 'varying vec3 vDir; void main(){ vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'uniform vec3 top; uniform vec3 horizon; varying vec3 vDir; void main(){ float h = clamp(vDir.y * 1.6 + 0.08, 0.0, 1.0); vec3 c = mix(horizon, top, pow(h, 0.62)); gl_FragColor = vec4(pow(c, vec3(1.0 / 2.2)), 1.0); }',
+      // (graded as everything else drawn is, before its own gamma: grade.js)
+      fragmentShader: 'uniform vec3 top; uniform vec3 horizon; varying vec3 vDir; void main(){ float h = clamp(vDir.y * 1.6 + 0.08, 0.0, 1.0); vec3 c = mix(horizon, top, pow(h, 0.62));\n#ifdef TONE_MAPPING\nc = toneMapping(c);\n#endif\ngl_FragColor = vec4(pow(c, vec3(1.0 / 2.2)), 1.0); }',
     }));
   dome.renderOrder = -10;
   scene.add(dome);
@@ -137,6 +140,14 @@ export function createSky(scene, renderer) {
 
   const hemi = new THREE.HemisphereLight(0xffffff, 0x8a7a5a, 0.6 * LIGHT);
   scene.add(hemi);
+  // The light from the whole sky at Medium and up (sky-light.js), in the hemisphere light's place: always in the scene
+  // (at Low with nothing in it), so that changing the level never makes a surface's program again.
+  const probe = new THREE.LightProbe();
+  probe.intensity = 0;
+  scene.add(probe);
+  let skyLight = false;
+  const probeAt = { hour: -99, cover: -1, indoor: -1, dark: -1, light: -1 };
+  const groundSeen = new THREE.Color();
   const sun = new THREE.DirectionalLight(0xffffff, LIGHT);
   sun.castShadow = true;
   sun.shadow.mapSize.set(2048, 2048);
@@ -191,6 +202,7 @@ export function createSky(scene, renderer) {
   let flash = 0;
   const tmp = new THREE.Vector3();
   const moonWay = new THREE.Vector3();
+  let warmth = 0;
 
   // `indoor` (0 to 1): how far the light is a hall's own (PostCivilWar PowerBike): its ceiling's panels, white, from
   // above and all round, the same by day and by night; and no rain falling.
@@ -249,6 +261,29 @@ export function createSky(scene, renderer) {
     }
     sun.intensity = sunLight * LIGHT;
     hemi.intensity = allLight * LIGHT;
+    // the light from the whole sky (Medium and up): made again when the hour, the weather or where one is has moved on
+    // (or the lightning flashes), the hemisphere light keeping only a hall's own light
+    if (skyLight) {
+      if (flash > 0 || Math.abs(hour - probeAt.hour) > 0.02 || Math.abs(cover - probeAt.cover) > 0.02 || Math.abs(indoor - probeAt.indoor) > 0.05 || Math.abs(dark - probeAt.dark) > 0.05 || Math.abs(allLight - probeAt.light) > 0.01) {
+        const k = allLight * LIGHT;
+        const low = isDay ? 1 - Math.min(1, Math.max(0, (dir.y - 0.05) / 0.45)) : 0.6;
+        const glowScale = isDay ? 0.55 * (1 - dull * 0.8) : 0.25 * (1 - dull * 0.8);
+        groundSeen.copy(hemi.groundColor);
+        const sh = skyHarmonics({
+          top: [uniforms.top.value.r, uniforms.top.value.g, uniforms.top.value.b],
+          horizon: [uniforms.horizon.value.r, uniforms.horizon.value.g, uniforms.horizon.value.b],
+          sun: [dir.x, dir.y, dir.z], glow: [s.sun.r * glowScale, s.sun.g * glowScale, s.sun.b * glowScale], aureole: low,
+          ground: [groundSeen.r, groundSeen.g, groundSeen.b],
+        }, { up: [hemi.color.r * k, hemi.color.g * k, hemi.color.b * k], down: [hemi.groundColor.r * k, hemi.groundColor.g * k, hemi.groundColor.b * k] });
+        for (let j = 0; j < 9; j += 1) probe.sh.coefficients[j].set(sh[j][0], sh[j][1], sh[j][2]);
+        Object.assign(probeAt, { hour, cover, indoor, dark, light: allLight });
+      }
+      probe.intensity = 1 - indoor;
+      hemi.intensity = allLight * LIGHT * indoor;
+    } else probe.intensity = 0;
+    // the colour grade's warmth for the hour (grade.js): carried to every surface as three.js's exposure, 1 + w
+    warmth = warmthAt(hour, { dull, indoor });
+    if (renderer) renderer.toneMappingExposure = 1 + warmth;
 
     dome.position.copy(camera.position);
     stars.position.copy(camera.position);
@@ -292,14 +327,16 @@ export function createSky(scene, renderer) {
       }
       rainGeometry.attributes.position.needsUpdate = true;
     }
-    return { night, wetness, dull };
+    return { night, wetness, dull, cover, sunUp: up };
   }
 
   return {
     update, sun,
     // the graphics level's (graphics.js): how far from the player the sun casts shadows, and how far one sees
     reachShadows, setView(scale) { view = Math.max(0.3, Math.min(1, scale)); }, get view() { return view; },
+    // the graphics level's: the light from the whole sky (Medium and up), or the hemisphere light's (Low)
+    setSkyLight(on) { if (skyLight !== !!on) { skyLight = !!on; probeAt.hour = -99; } }, get skyLight() { return skyLight; }, probe,
     // (for the tests: the moon and the stars as they are drawn now; the sun's and the sky's light as set by eye, KEYS)
-    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3) }),
+    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3), warmth: +warmth.toFixed(3) }),
   };
 }

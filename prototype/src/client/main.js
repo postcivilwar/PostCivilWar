@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -26,6 +26,14 @@ import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry } from './render-kit.js';
 import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable } from './glb.js';
 import { createPictureKeeper } from './picture-keeper.js';
+import { gradeInstalled } from './grade.js';
+import { setWorldShading, airAt, worldShadingState, cloudShadeAt } from './world-shading.js';
+import { createScreenGlow } from './screen-glow.js';
+import { createAmbientOcclusion } from './ambient-occlusion.js';
+import { setRiver, createRiverMirror, riverState } from './river-water.js';
+import { createDust } from './dust.js';
+import { createFireflies } from './fireflies.js';
+import { createWetTracks } from './wet-tracks.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
 import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
@@ -93,7 +101,7 @@ import { buildClosures } from './render-closures.js';
 import { createTorchBeams } from './torch-beams.js';
 import { STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT } from './light.js';
 import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } from './graphics.js';
-import { showSoftPatches, softPatchesShown } from './soft-patch.js';
+import { showSoftPatches, softPatchesShown, softPatchOpacity } from './soft-patch.js';
 import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
 
@@ -176,6 +184,8 @@ function start(carried) {
   renderer.shadowMap.type = THREE.PCFShadowMap;
   setLite(LITE);
   renderer.outputColorSpace = THREE.SRGBColorSpace;
+  // (the colour grade, every level: grade.js; its warmth for the hour set by the sky each frame)
+  if (gradeInstalled) { renderer.toneMapping = THREE.CustomToneMapping; renderer.toneMappingExposure = 1; }
   const scene = new THREE.Scene();
   const camera = new THREE.PerspectiveCamera(55, 1, 0.3, 2000);
   // The town is built when the player goes into it, not while the page starts (20 October 2026, the owner's brief: on
@@ -225,11 +235,17 @@ function start(carried) {
     lampPools.place();
   }
   let town = null, crowd = null, blood = null, sky = null, parcelLayer = null, siteLayer = null, yardStacks = null;
+  // (stage 3's realism, 23 and 24 October 2026: dust on dirt, fireflies in the habitation at night, wet marks after rain,
+  // and the glow round what is brightest, with the sun's flare at Ultra)
+  let dust = null, fireflies = null, wetTracks = null, glow = null, occlusion = null, riverMirror = null;
   townSteps.push(['the buildings', () => { town = buildTown(scene, world.glowMaterial); }]);
   townSteps.push(['the people, the sky and the plots', () => {
     crowd = createCrowd(scene);
     blood = createBlood(scene);
     sky = createSky(scene, renderer);
+    dust = createDust(scene, { lite: LITE });
+    fireflies = createFireflies(scene, { lite: LITE });
+    wetTracks = createWetTracks(scene, { lite: LITE });
     parcelLayer = createParcelLayer(scene);
     siteLayer = createSiteLayer(scene);
     yardStacks = createYardStacks(scene);
@@ -2999,6 +3015,36 @@ function start(carried) {
   //   showrooms' models), which a phone keeps at its fullest from Medium up, as it was drawn before the levels, and a
   //   computer at each level as its detail steps were (0 to 3).
   const DETAIL_OF = LITE ? [0, 0, 0, 3] : [0, 1, 2, 3];
+  // Who and what moves over the ground this frame, for the dust and the wet marks: the player on foot or in or on a
+  // vehicle, the other players likewise, and the police walking near.
+  const moversNow = [];
+  function groundMovers(hallNow) {
+    moversNow.length = 0;
+    if (!playing || !view || hallNow) return moversNow;
+    const s = view.self;
+    const mine = s.incar ? 'car' : s.astride ? 'bike' : s.driving ? 'keke' : s.riding || s.swimming || s.carried || inside ? null : 'foot';
+    if (mine) moversNow.push({ key: 'me', x: predicted.x, z: predicted.z, heading: predicted.heading, kind: mine });
+    for (const q of shownPeers) {
+      const kind = q.car ? 'car' : q.ride ? 'bike' : q.vehicle ? (q.vehicle.kind === 'keke' && !q.vehicle.back ? 'keke' : null) : q.swimming ? null : 'foot';
+      if (kind && Math.hypot(q.x - predicted.x, q.z - predicted.z) < 80) moversNow.push({ key: `p:${q.id}`, x: q.x, z: q.z, heading: q.heading || 0, kind });
+    }
+    if (crowd) for (const a of crowd.actors()) if (a.d !== undefined && a.d < 60 && a.pose === 1) moversNow.push({ key: `a:${a.i}`, x: a.x, z: a.z, heading: a.h, kind: 'foot' });
+    return moversNow;
+  }
+  // bare red earth and the laterite lanes: neither tarmac, nor the city block's pavements, nor the showroom's yard, nor
+  // the habitation
+  const inBox = (b, x, z) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
+  const dirtAt = (x, z) => !onTar(x, z) && !inBox(CITY_AREA, x, z) && !inBox(CARSHOW.compound, x, z) && habitationAway(x, z) > 0 && !inBox(ZONE_JETTY, x, z);
+  const GROUND_WIND = Object.freeze({ x: -1.2, z: -0.5 });
+  const bufferSize = new THREE.Vector2(), sunWay = new THREE.Vector3(), sunSeen = new THREE.Vector3();
+  // where the sun is in the picture (0 to 1 across and up), for its flare: none at night, under a grey sky, or behind
+  function sunOnScreen(skyState) {
+    if (!(skyState.sunUp > 0.02) || skyState.dull > 0.7) return null;
+    sunSeen.copy(sky.sun.position).sub(sky.sun.target.position).normalize().multiplyScalar(800).add(camera.position).project(camera);
+    if (!(sunSeen.z > -1 && sunSeen.z < 1)) return null;
+    return { x: sunSeen.x * 0.5 + 0.5, y: sunSeen.y * 0.5 + 0.5, amount: airLevel.flare * Math.min(1, skyState.sunUp * 5) * (1 - skyState.dull) };
+  }
+  const airLevel = { clouds: 0, haze: 0, mirage: 0, glint: 0, puddles: 0, glow: 0, glowWide: false, flare: 0, dust: 0, fireflies: 0, wetTracks: 0, ao: 0, waves: 0, foam: 0, mirror: 0 };
   function applyQuality(level) {
     if (!townBuilt) return;          // (applied when the town is built)
     const at = (key) => levelSetting(key, level, LITE);
@@ -3019,6 +3065,15 @@ function start(carried) {
     setReflections(at('reflections'));
     setWater(at('water'));
     sky.setView(at('view'));
+    // the light from the whole sky by the hour (Medium and up), or the hemisphere light's two colours (Low)
+    sky.setSkyLight(at('skyLight'));
+    // the air: the clouds' shadows, the haze and the mirage (Medium and up), far gloss spread (every level), puddles (High
+    // and up): numbers for the shaders each frame, times these (world-shading.js)
+    for (const key of Object.keys(airLevel)) airLevel[key] = at(key);
+    // (the glow's pictures let go at a level without it)
+    if (!airLevel.glow && glow) glow.dispose();
+    if (!airLevel.ao && occlusion) occlusion.dispose();
+    if (!airLevel.mirror && riverMirror) riverMirror.dispose();
     // the largest picture: those larger made again smaller, a few at a time (glb.js), freeing the graphics card's memory
     setPictureMost(at('pictureMost'));
     soundTimer = 1;      // look again at what is in reach
@@ -3681,7 +3736,23 @@ blood.update(dt, view.blood || []);
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
     // (glass, the river and zinc give back the sky by day; in the rain the ground is wet, and dries after it)
-    updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
+    const groundWet = updateFinishes(dt, { daylight: 1 - night, wetness: skyState.wetness, dull: skyState.dull });
+    // (the air, by the hour, the weather and the level: the clouds' shadows drifting, the haze, the mirage on hot tarmac,
+    // far gloss spread, puddles after rain)
+    { const a = airAt({ sunUp: skyState.sunUp, cover: skyState.cover, wet: groundWet, indoor: hall ? 1 : 0, hour, clear: playing ? wildAt(predicted.x, predicted.z) : 0 }); setWorldShading({ t: clock, clouds: a.clouds * airLevel.clouds, threshold: a.threshold, haze: a.haze * airLevel.haze, glint: airLevel.glint, mirage: a.mirage * airLevel.mirage, puddles: a.puddles * airLevel.puddles }); }
+    // (the river's waves and foam: High and up)
+    setRiver({ waves: airLevel.waves, foam: airLevel.foam, t: clock });
+    // (what moves over the ground: dust lifted behind vehicles on dirt, wet footprints and tyre marks after rain; and the
+    // fireflies round the player in the habitation at night)
+    {
+      const movers = groundMovers(hall);
+      const bufferHeight = renderer.getDrawingBufferSize(bufferSize).y;
+      sunWay.copy(sky.sun.position).sub(sky.sun.target.position).normalize();
+      const sunny = skyState.sunUp > 0.02 ? Math.min(1, skyState.sunUp * 4) * (1 - skyState.dull) : 0;
+      if (dust) dust.update(dt, { amount: hall ? 0 : airLevel.dust, eye: playing ? predicted : null, camera, height: bufferHeight, sunDir: sunWay, daylight: sunny, wet: groundWet, dirt: dirtAt, ground: zoneGroundY, movers, wind: GROUND_WIND, light: 1 - night * 0.85 });
+      if (wetTracks) wetTracks.update(dt, { amount: hall ? 0 : airLevel.wetTracks, wet: groundWet, raining: skyState.wetness, ground: zoneGroundY, movers, eye: playing ? predicted : null });
+      if (fireflies) fireflies.update(dt, { amount: playing && !hall && habitationAway(predicted.x, predicted.z) <= 0 ? airLevel.fireflies * Math.max(0, Math.min(1, (night - 0.55) / 0.4)) * (1 - skyState.wetness) : 0, eye: playing ? predicted : null, camera, height: bufferHeight, ground: zoneGroundY });
+    }
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
     if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || habitationAway(predicted.x, predicted.z) < 320)) askForHabitation();
@@ -3779,7 +3850,23 @@ blood.update(dt, view.blood || []);
     // size again, the moment the start screen is gone: shared-view.js)
     if (!covered && canvasAway()) { canvasHome(); if (townBuilt) applyQuality(quality.level); else resize(); }
     townWanted = playing && !NO_DRAW && !covered && !paged && !intro.active();
-    if (!NO_DRAW && !covered && !paged && !pictureGone && !intro.active()) { renderer.render(scene, camera); watch.drawn(now); }
+    const drewTown = !NO_DRAW && !covered && !paged && !pictureGone && !intro.active();
+    // (at Ultra the town as the river gives it back, drawn first: river-water.js)
+    if (drewTown && airLevel.mirror > 0 && world && world.water) {
+      if (!riverMirror) riverMirror = createRiverMirror(renderer, scene, camera, world.water);
+      monitor.time('river mirror', () => riverMirror.render(hall ? 0 : airLevel.mirror));
+    }
+    if (drewTown) { renderer.render(scene, camera); watch.drawn(now); }
+    // the soft darkening where things meet (High and up: ambient-occlusion.js), outdoors and in the halls
+    if (drewTown && airLevel.ao > 0) {
+      if (!occlusion) occlusion = createAmbientOcclusion(renderer, scene, camera);
+      monitor.time('occlusion', () => occlusion.apply(airLevel.ao, now));
+    }
+    // the glow round what is brightest in the picture (Medium and up), and the sun's flare (Ultra): screen-glow.js
+    if (drewTown && airLevel.glow > 0) {
+      if (!glow) glow = createScreenGlow(renderer);
+      monitor.time('glow', () => glow.apply({ amount: airLevel.glow * (0.28 + 0.42 * night), night, wide: airLevel.glowWide, flare: airLevel.flare > 0 && !hall ? sunOnScreen(skyState) : null }));
+    }
     perf.calls = renderer.info.render.calls;
     perf.triangles = renderer.info.render.triangles;
     // what the graphics card was sent for the first time in this frame
@@ -3914,7 +4001,8 @@ blood.update(dt, view.blood || []);
     get inside() { return inside ? inside.id : null; },
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
     // (the graphics level as drawn now: for the tests)
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    cloudShadeAt,
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },

@@ -11,6 +11,8 @@ import { buildShowroom } from './render-holaris.js';
 import { buildCity } from './render-city.js';
 import { Foliage, treeLeaves, foliageMaterials, setWind } from './render-foliage.js';
 import { reflects, weathers } from './render-finish.js';
+import { isRoad } from './world-shading.js';
+import { riverShader } from './river-water.js';
 
 const mixOf = (a, b, k) => new THREE.Color(a).lerp(new THREE.Color(b), k).getHex();
 const onRoad = (x, z, pad = 0) => ZONE_ROADS.some((r) => x > r.x0 - pad && x < r.x1 + pad && z > r.z0 - pad && z < r.z1 + pad);
@@ -504,7 +506,8 @@ export function buildWorld(scene) {
   cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));      // (the market's umbrellas)
   for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
   // (tarmac and laterite: in the rain darker, and the tarmac glossy, giving back the sky)
-  const roadMesh = roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
+  // (and at midday, far along it, the mirage: world-shading.js)
+  const roadMesh = roads.build(isRoad(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 })));
   roadMesh.receiveShadow = true;
   scene.add(roadMesh);
 
@@ -536,6 +539,8 @@ export function buildWorld(scene) {
         float depth = min(3.2, 0.04 + max(0.0, min(vRiverAt.z - shore, ${RIVER_FAR.toFixed(1)} - vRiverAt.z)) * 0.16);
         diffuseColor.a = min(diffuseColor.a, mix(0.5, 1.0, smoothstep(0.55, 0.9, depth)));
       }`);
+    // (at High and Ultra its waves and foam, at Ultra the town it gives back: river-water.js)
+    riverShader(shader, { edge: HABITATION_EDGE });
   };
   waterMaterial.customProgramCacheKey = () => 'pcw-river-shallows';
   // (from far beyond the town's south end up to where it opens into the habitation's lagoon)
@@ -579,5 +584,5 @@ export function buildWorld(scene) {
       if (v.model.group.visible) v.model.setDistance(d, undefined, VEHICLE_BIAS[quality]);
     }
   }
-  return { glowMaterial, waterMaterial, roadMaterial: roadMesh.material, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
+  return { glowMaterial, waterMaterial, water, roadMaterial: roadMesh.material, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
 }

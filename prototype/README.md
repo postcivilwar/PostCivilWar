@@ -3060,6 +3060,60 @@ PERF_DPR, the page's own time a frame, what the card holds picture by picture an
 `tools/measure/levels.py` and `sheets.py`; tests `graphics.test.mjs`, `picture-sizes.test.mjs`,
 `picture-keeper.test.mjs` and `graphics.mjs` (in a browser, a phone's settings and a computer's: 24 checks).
 
+## More realism, by level (24 October 2026)
+
+The owner's brief of 23 October, its third stage, and the seven cheap extras he asked for on 24 October ("add all you
+listed"). Each is drawn at the levels the brief gives it, and costs nothing where it is not drawn:
+
+| | Low | Medium | High | Ultra |
+|---|---|---|---|---|
+| colour grade for warm daylight, and a colour for each hour | yes | yes | yes | yes |
+| soft darkening under people and vehicles (contact shadows) | yes | yes | yes | yes |
+| less glitter on far metal and glass | yes | yes | yes | yes |
+| light from the whole sky by the hour (warm round a low sun, cool round the moon) | | yes | yes | yes |
+| softer sun shadows | 1.2 | 1.6 | 2.0 | 2.4 (texels) |
+| glow round the brightest (the sun, lamps and windows, lit lamps of vehicles, glints) | | yes | yes, wider | yes, wider |
+| haze in the distance, the clouds' shadows drifting, the mirage on hot tarmac | | yes | yes | yes |
+| dust on dirt behind vehicles, motes in the sun | | yes | yes | yes |
+| wet footprints and tyre marks after rain | | yes | yes | yes |
+| fireflies at night in the habitation | | yes | yes | yes |
+| soft darkening where things meet (corners, a wall's foot, under a car) | | | yes | yes |
+| the river's waves and its foam at the bank | | | yes | yes |
+| puddles after rain giving back the sky | | | yes | yes |
+| the town given back by the river | | | | yes |
+| the sun's flare | | | | yes |
+
+What each is, in short (the files say more):
+- **The colour grade** (`grade.js`): three.js's own place for a game's tone mapping filled with the game's: the colours as
+  chosen below a knee, a soft shoulder above it (a sunlit white wall or a windscreen's glare rolls off instead of going
+  flat white), a white balance by the hour (warm by day, warmer and golden at sunrise and sunset, blue at dusk, cool
+  under the moon), a touch more colour by day. Signs, lamps and what is drawn unlit keep their colours.
+- **The light from the whole sky** (`sky-light.js`): the sky as the dome draws it, with the brighter, warmer sky round the
+  sun (wide and golden when it is low) and round the moon, and the red earth's light from below, made into nine numbers
+  every lit surface reads by the way it faces; scaled colour by colour so that the ground and the roofs are lit as they
+  were tuned, the walls by the way each faces. Made again only when the hour or the weather moves on.
+- **The air** (`world-shading.js`): a few lines written once into three.js's own shader pieces: the clouds' shadows (soft
+  patches tens of metres across moving with the wind, where the sun shines through broken cloud), far gloss spread a
+  little, the low haze (warm, thickening with distance near the ground, thinner out at the habitation), on tarmac the
+  mirage between about half past ten and four on a hot dry day, and puddles where the water lies after rain. Each a
+  number set each frame; none drawn where its number is 0.
+- **The glow and the sun's flare** (`screen-glow.js`): the picture copied off the screen once drawn, its brightest parts
+  gathered at a quarter of its width, blurred, and laid back over it; at night lamps and windows glow more. The flare:
+  rings along the line from the sun through the middle of the picture, seen only as far as the sun itself is seen in the
+  picture (behind a tower, none).
+- **Dust, fireflies, wet marks** (`dust.js`, `fireflies.js`, `wet-tracks.js`): one set of points or marks each, drawn only
+  while there is something of it to see.
+- **The soft darkening where things meet** (`ambient-occlusion.js`): three.js r186's own GTAOPass, unchanged, in a script
+  of its own (`three-post.min.js`, 32 KB) fetched only when High or Ultra is first chosen: from a half-size picture of
+  the solid surfaces within 120 m (glass, water, leaves and the sky are not in it).
+- **The river** (`river-water.js`): a second set of ripples across the first and a broad swell, foam where it laps at
+  the town's bank; at Ultra the town given back by the water, drawn upside down at half the screen's size before the
+  picture, only when the river is in sight.
+- **Contact shadows**: the soft patch under each vehicle at every level (as dark as before without sun shadows, lighter
+  with them), and the figures' own a little darker.
+
+[[measurements]]
+
 ## Tests
 
 ```

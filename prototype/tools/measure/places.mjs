@@ -6,7 +6,8 @@
 //   ../server/with-postgres.sh node tools/measure/places.mjs <out folder> phone|computer [places, comma separated|all] [site folder]
 // The site folder defaults to dist/site (node build.mjs makes it). PERF_LEVEL=n holds the graphics level at n (0, the
 // most, by default); PERF_QUICK=1 does not wait for the town to be wholly ready first; PERF_DAY_ONLY=1 measures by day
-// only; PERF_DPR=n gives the screen n pixels to each of the page's (1 by default; a phone's are 2 to 3). TEXTURE_LIST=1
+// only; PERF_WHEN="day:12,dusk:18.2,rain:13:rain" the hours (and weathers: clear, cloudy, rain, storm) each place is
+// measured at, named (by default day:12,night:22); PERF_DPR=n gives the screen n pixels to each of the page's (1 by default; a phone's are 2 to 3). TEXTURE_LIST=1
 // lists what is on the graphics card, picture by picture, after each place; DUMP_IMPOSTORS=1, PROBE_MIPS=1 and
 // PROBE_HAB=1 look at the habitation's pictures of its far trees. Side by side: python3 tools/measure/sheets.py
 // <before> <after> phone|computer <out.pdf> [title].
@@ -142,31 +143,36 @@ const state = () => page.evaluate(() => {
 // r186 counts the shadow map's draws in renderer.info, r128 did not: this counts both the same way on both)
 const passes = () => page.evaluate(() => new Promise((done) => {
   const r = window.__nlw.renderer, rbd = r.renderBufferDirect, render = r.render;
-  const c = { frames: 0, main: { calls: 0, tris: 0 }, shadow: { calls: 0, tris: 0 } };
+  const c = { frames: 0, main: { calls: 0, tris: 0 }, shadow: { calls: 0, tris: 0 }, post: { calls: 0, tris: 0 } };
   r.render = function (...a) { if (r.getRenderTarget() === null) c.frames += 1; return render.apply(this, a); };
   r.renderBufferDirect = function (camera, scene, geometry, material, object, group) {
     const target = r.getRenderTarget();
     const shadow = target !== null && camera && camera.isOrthographicCamera && material && (material.isMeshDepthMaterial || material.isMeshDistanceMaterial || material.type === 'MeshDepthMaterial');
     const main = target === null;
-    if (shadow || main) {
+    {
       const idx = group ? group.count : geometry.index ? geometry.index.count : geometry.attributes.position ? geometry.attributes.position.count : 0;
       const inst = object.isInstancedMesh ? object.count : geometry.isInstancedBufferGeometry ? geometry.instanceCount : 1;
-      const p = shadow ? c.shadow : c.main; p.calls += 1; p.tris += Math.floor(idx / 3) * (Number.isFinite(inst) ? Math.max(0, inst) : 1);
+      // (and what is drawn into the picture's own passes since stage 3: the soft darkening's picture of the near
+      // surfaces, the glow's: post)
+      const p = shadow ? c.shadow : main ? c.main : c.post; p.calls += 1; p.tris += Math.floor(idx / 3) * (Number.isFinite(inst) ? Math.max(0, inst) : 1);
     }
     return rbd.call(this, camera, scene, geometry, material, object, group);
   };
-  let k = 0; const f = () => { k += 1; if (k < 5) requestAnimationFrame(f); else { r.render = render; r.renderBufferDirect = rbd; const n = Math.max(1, c.frames); done({ frames: c.frames, mainCalls: Math.round(c.main.calls / n), mainTris: Math.round(c.main.tris / n), shadowCalls: Math.round(c.shadow.calls / n), shadowTris: Math.round(c.shadow.tris / n) }); } };
+  let k = 0; const f = () => { k += 1; if (k < 5) requestAnimationFrame(f); else { r.render = render; r.renderBufferDirect = rbd; const n = Math.max(1, c.frames); done({ frames: c.frames, mainCalls: Math.round(c.main.calls / n), mainTris: Math.round(c.main.tris / n), shadowCalls: Math.round(c.shadow.calls / n), shadowTris: Math.round(c.shadow.tris / n), postCalls: Math.round(c.post.calls / n), postTris: Math.round(c.post.tris / n) }); } };
   requestAnimationFrame(f);
 }));
-const setHour = (h) => page.evaluate((h) => { const n = window.__nlw, g = n.host.game; const day = Math.floor(g.state.t / 86400); g.state.t = day * 86400 + h * 3600; g.state.weather = { kind: 'clear', until: g.state.t + 12 * 3600 }; }, h);
+const setHour = (h, kind = 'clear') => page.evaluate(([h, kind]) => { const n = window.__nlw, g = n.host.game; const day = Math.floor(g.state.t / 86400); g.state.t = day * 86400 + h * 3600; g.state.weather = { kind, until: g.state.t + 12 * 3600 }; }, [h, kind]);
+const WHEN = process.env.PERF_WHEN ? process.env.PERF_WHEN.split(',').map((w) => { const [name, hour, kind = 'clear'] = w.split(':'); return [name, Number(hour), kind]; }) : null;
 let shotN = 0;
 const shot = async (name) => { const f = resolve(out, `${String(++shotN).padStart(2, '0')}-${name}.png`); await page.screenshot({ path: f }); return f; };
 const measureHere = async (place, quietMs, n = 8) => {
   const row = { place, quietMs };
   // (PERF_DAY_ONLY: by day only, for a quicker measuring of each graphics level)
-  for (const [when, hour] of (process.env.PERF_DAY_ONLY ? [['day', 12]] : [['day', 12], ['night', 22]])) {
-    await setHour(hour);
+  for (const [when, hour, kind] of (WHEN || (process.env.PERF_DAY_ONLY ? [['day', 12]] : [['day', 12], ['night', 22]]))) {
+    await setHour(hour, kind);
     await frames(4, 90000);
+    // (rain: the ground given time to be wet through; after it, to dry a little, as the hour's own weather has it)
+    if (kind === 'rain' || kind === 'storm') await page.waitForTimeout(12000);
     const f = await frames(n, 180000);
     row[when] = { frame: f, ...(await state()), ...(await passes()) };
     row[when].shot = await shot(`${place.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${when}`);

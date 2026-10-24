@@ -13,6 +13,7 @@ import { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, 
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { reflects, weathers } from './render-finish.js';
+import { isRoad } from './world-shading.js';
 
 const STEEL = 0x8f9499, STEEL_DARK = 0x5f656b, CONCRETE = 0xb3a48a, CONCRETE_OLD = 0x9c8a6c, TAR = 0x56555a, LINE = 0xe6e2d6, YELLOW = 0xd8b33a;
 
@@ -364,7 +365,7 @@ export function buildOutskirts(scene, { glowMaterial }) {
   add(roofs.build(kit.roofs));
   for (const mesh of leaves.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
   const tarmac = grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 7 });
-  add(roads.build(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 })), false);
+  add(roads.build(isRoad(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }))), false);
   add(paint.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })), false);
   add(glass.build(reflects(surface({ vertexColors: true, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false }), 1)), false);
   add(fence.build(new THREE.MeshLambertMaterial({ map: chainLink(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })), false);

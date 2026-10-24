@@ -13,6 +13,7 @@ import { BOULEVARD, PAVEMENTS, LANDINGS, CROSSINGS, STOP_LINES, LAWN, LAWN_TREES
 import { Batch, place, linear, noise, grassTexture, textTexture, surface } from './render-kit.js';
 import { Foliage, bush, foliageMaterials } from './render-foliage.js';
 import { reflects, weathers } from './render-finish.js';
+import { isRoad } from './world-shading.js';
 
 const ROAD_TOP = 0.08;                // the top of the town's roads (render-world.js)
 const CROWN = 0.05;                   // how much higher the middle of the boulevard is than its edges
@@ -333,7 +334,7 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
   // (the glass and the steel give back the sky; out in the rain the street is darker, and its tarmac and paving glossy:
   // render-finish.js)
   reflects(materials.glass, 1.1); reflects(materials.metal, 0.6, 'metal');
-  weathers(materials.road, { darken: 0.42, gloss: 0.66, sheen: 1 }); weathers(materials.paving, { darken: 0.25, gloss: 0.32, sheen: 0.25 });
+  isRoad(weathers(materials.road, { darken: 0.42, gloss: 0.66, sheen: 1 })); weathers(materials.paving, { darken: 0.25, gloss: 0.32, sheen: 0.25 });
   for (const name of ['concrete', 'brick', 'stone', 'render']) weathers(materials[name], { darken: 0.18 });
   const meshes = [];
   for (const [name, batch] of Object.entries(B)) {

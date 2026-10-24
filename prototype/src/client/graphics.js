@@ -38,7 +38,37 @@ export const LEVEL_SETTINGS = Object.freeze({
   // device's kind: a phone's graphics card holds a 1024 map below Ultra (a 2048 one is 32 MB of its 150)
   shadowMap: Object.freeze({ full: [2048, 2048, 1024, 0], lite: [2048, 1024, 1024, 0] }),
   shadowReach: [62, 62, 40, 0],                  // metres from the player to the edge of the sun's shadows (they fade out there)
-  shadowSoft: [1.73, 1.73, 1.2, 1.2],            // how soft their edge, in the map's texels (render-sky.js)
+  // how soft their edge, in the map's texels (render-sky.js): softer from Medium up since stage 3 (r128's were 1.73 on a
+  // computer and 1.2 on a phone)
+  shadowSoft: [2.4, 2.0, 1.6, 1.2],
+  // the light from the whole sky by the hour (sky-light.js: warm round a low sun, cool round the moon) in place of the
+  // hemisphere light's two colours (stage 3)
+  skyLight: [true, true, true, false],
+  // the air (world-shading.js, stage 3 and the owner's extras): the clouds' shadows drifting over the land, the low
+  // haze in the distance and the mirage on hot tarmac at midday (Medium and up); how far a far surface's gloss is spread
+  // so that far metal and glass do not glitter (every level); puddles giving back the sky after rain (where wet roads
+  // give back the sky: High and up)
+  clouds: [1, 1, 1, 0],
+  haze: [1, 1, 1, 0],
+  mirage: [1, 1, 1, 0],
+  glint: [0.32, 0.32, 0.32, 0.32],
+  puddles: [1, 1, 0, 0],
+  // a glow round what is brightest in the picture: the sun, its glints on glass and water, lamps and lit windows at night
+  // (Medium and up; at High and Ultra wider), and the sun's flare at Ultra (screen-glow.js)
+  glow: [1, 1, 0.85, 0],
+  glowWide: [true, true, false, false],
+  flare: [1, 0, 0, 0],
+  // dust lifted behind vehicles on dirt and motes in the sun (dust.js), fireflies in the habitation at night
+  // (fireflies.js), wet footprints and tyre marks after rain (wet-tracks.js): Medium and up
+  dust: [1, 1, 1, 0],
+  fireflies: [1, 1, 1, 0],
+  wetTracks: [1, 1, 1, 0],
+  // soft darkening where things meet: corners, the foot of a wall, under a car (ambient-occlusion.js: High and up)
+  ao: [0.85, 0.75, 0, 0],
+  // the river's waves and foam at its bank (High and up), and at Ultra the town it gives back (river-water.js)
+  waves: [1, 1, 0, 0],
+  foam: [1, 1, 0, 0],
+  mirror: [1, 0, 0, 0],
   pictureMost: [0, 2048, 1024, 512],             // the most pixels across any picture (0: as the device fetches them)
   reflections: ['full', 'full', 'simple', 'none'], // the sky in glass, water, metal and wet roads; in glass and water; in none
   water: ['full', 'full', 'full', 'simple'],     // with its ripples; without (render-finish.js)
