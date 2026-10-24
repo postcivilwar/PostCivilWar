@@ -71,7 +71,7 @@ const frames = (page) => page.evaluate(() => new Promise((done) => { let n = 0; 
 // Stage 3's realism at a level (23 and 24 October 2026): every setting as the level has it; the light from the whole sky
 // from Medium up; the glow drawn from Medium up and let go at Low; the soft darkening fetched and drawn at High and
 // Ultra, let go below; the grade at every level.
-const STAGE3 = ['clouds', 'haze', 'mirage', 'glint', 'puddles', 'glow', 'glowWide', 'flare', 'dust', 'fireflies', 'wetTracks', 'ao', 'waves', 'foam', 'mirror'];
+const STAGE3 = ['clouds', 'haze', 'mirage', 'glint', 'puddles', 'glow', 'glowWide', 'flare', 'dust', 'fireflies', 'wetTracks', 'ao', 'waves', 'foam', 'mirror', 'mirrorSize'];
 function stage3(s, at) {
   const settings = STAGE3.every((k) => s.airLevel && s.airLevel[k] === at(k));
   const sky = s.skyLight === at('skyLight');

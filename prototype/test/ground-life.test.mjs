@@ -24,6 +24,7 @@ function drive(thing, kind, speed, seconds, extra = {}) {
     z += speed * dt;
     thing.update(dt, { amount: 1, movers: [{ key: 'v', x: 0, z, heading: 0, kind }], ground: () => 0, eye: { x: 0, z }, ...extra });
   }
+  return z;
 }
 
 test('dust: a car on dirt lifts puffs behind it; none on tarmac, none on wet ground, none from someone walking', () => {
@@ -36,6 +37,27 @@ test('dust: a car on dirt lifts puffs behind it; none on tarmac, none on wet gro
   assert.equal(run('car', 1.5, { dirt: () => true, wet: 0 }).emitted, 0, 'a car creeping along');
   // and the faster, the more
   assert.ok(run('car', 14, { dirt: () => true, wet: 0 }).emitted > dirt.emitted, 'faster, more');
+});
+
+test('dust: carried a little way after the vehicle, thrown out to the sides and up, before the air takes it', () => {
+  const scene = new THREE.Scene();
+  const d = createDust(scene);
+  const still = { dirt: () => true, wet: 0, wind: { x: 0, z: 0 } };
+  const end = drive(d, 'car', 9, 3, still);
+  // (the car stopped, a second on)
+  for (let i = 0; i < 30; i += 1) d.update(1 / 30, { amount: 1, movers: [{ key: 'v', x: 0, z: end, heading: 0, kind: 'car' }], ground: () => 0, eye: { x: 0, z: end }, ...still });
+  const points = scene.children.find((o) => o.isPoints && o.geometry.attributes.aAlpha);
+  const pos = points.geometry.attributes.position.array, alpha = points.geometry.attributes.aAlpha.array;
+  let front = -Infinity, wide = 0, high = 0, n = 0;
+  for (let i = 0; i < alpha.length; i += 1) {
+    if (!(alpha[i] > 0)) continue;
+    n += 1; front = Math.max(front, pos[i * 3 + 2]); wide = Math.max(wide, Math.abs(pos[i * 3])); high += pos[i * 3 + 1];
+  }
+  assert.ok(n > 5, `puffs in the air: ${n}`);
+  // (its rear wheels 1.35 m behind its middle, 1.55 m apart)
+  assert.ok(front > end - 1.35 + 0.8, `carried on after the car: the foremost at ${front.toFixed(2)}, its wheels at ${(end - 1.35).toFixed(2)}`);
+  assert.ok(wide > 1.55 / 2 + 0.5, `out to the sides: ${wide.toFixed(2)} m`);
+  assert.ok(high / n > 0.8, `up: ${(high / n).toFixed(2)} m on average`);
 });
 
 test('wet marks: footprints left and right while the ground is wet, the lines of a car\'s wheels; none on dry ground', () => {

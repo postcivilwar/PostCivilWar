@@ -3044,7 +3044,7 @@ function start(carried) {
     if (!(sunSeen.z > -1 && sunSeen.z < 1)) return null;
     return { x: sunSeen.x * 0.5 + 0.5, y: sunSeen.y * 0.5 + 0.5, amount: airLevel.flare * Math.min(1, skyState.sunUp * 5) * (1 - skyState.dull) };
   }
-  const airLevel = { clouds: 0, haze: 0, mirage: 0, glint: 0, puddles: 0, glow: 0, glowWide: false, flare: 0, dust: 0, fireflies: 0, wetTracks: 0, ao: 0, waves: 0, foam: 0, mirror: 0 };
+  const airLevel = { clouds: 0, haze: 0, mirage: 0, glint: 0, puddles: 0, glow: 0, glowWide: false, flare: 0, dust: 0, fireflies: 0, wetTracks: 0, ao: 0, waves: 0, foam: 0, mirror: 0, mirrorSize: 0 };
   function applyQuality(level) {
     if (!townBuilt) return;          // (applied when the town is built)
     const at = (key) => levelSetting(key, level, LITE);
@@ -3854,7 +3854,7 @@ blood.update(dt, view.blood || []);
     // (at Ultra the town as the river gives it back, drawn first: river-water.js)
     if (drewTown && airLevel.mirror > 0 && world && world.water) {
       if (!riverMirror) riverMirror = createRiverMirror(renderer, scene, camera, world.water);
-      monitor.time('river mirror', () => riverMirror.render(hall ? 0 : airLevel.mirror));
+      monitor.time('river mirror', () => riverMirror.render(hall ? 0 : airLevel.mirror, airLevel.mirrorSize));
     }
     if (drewTown) { renderer.render(scene, camera); watch.drawn(now); }
     // the soft darkening where things meet (High and up: ambient-occlusion.js), outdoors and in the halls

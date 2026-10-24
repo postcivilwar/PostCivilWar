@@ -20,11 +20,11 @@ SCENES = [
     ('hour-moon', 'Under the moon (23:00)', 'Cool moonlight; glow round the lit windows and lamps.'),
     ('clouds-and-haze', 'From above, a day of broken cloud', 'The shadows of clouds drifting over the land; the far town in a low warm haze.'),
     ('mirage-waterside-road', 'Waterside Road at 13:00', 'Heat shimmer: far along the hot tarmac the sky wavers on it.'),
-    ('dust-behind-keke', 'A keke on the red earth, a dry noon', 'Dust lifted behind its wheels, drifting off on the air.'),
+    ('dust-behind-keke', 'A keke on the red earth, a dry noon', 'Dust lifted behind its wheels, carried along after it and drifting off on the air (the keke driven from a standstill to about 30 km/h).'),
     ('wet-tyre-marks', 'After rain: the keke\'s tracks', 'Wet tyre marks left on the wet ground, fading as it dries.'),
     ('wet-footprints', 'After rain: footprints', 'Wet footprints, left and right, behind the player.'),
     ('puddles-waterside-road', 'After rain: Waterside Road', 'Puddles on the tarmac giving back the sky (High and Ultra).'),
-    ('river-bank', 'The River Niger at the town\'s bank', 'Waves and foam where the river laps at the bank (High and Ultra); at Ultra the town given back by the water.'),
+    ('river-bank', 'The River Niger at the town\'s bank', 'Waves and foam where the river laps at the bank, and the far bank given back by the water (High and Ultra).'),
     ('sun-flare', 'Early morning on the river bank, into the low sun', 'The sun\'s flare (Ultra), the glow round the sun, and its glints on the water.'),
     ('fireflies-lagoon-night', 'The lagoon in the habitation at night', 'Fireflies flashing over the water and the bank.'),
 ]

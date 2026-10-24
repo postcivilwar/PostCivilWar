@@ -3080,7 +3080,7 @@ listed"). Each is drawn at the levels the brief gives it, and costs nothing wher
 | soft darkening where things meet (corners, a wall's foot, under a car) | | | yes | yes |
 | the river's waves and its foam at the bank | | | yes | yes |
 | puddles after rain giving back the sky | | | yes | yes |
-| the town given back by the river | | | | yes |
+| the town given back by the river | | | yes (a third of the screen's size) | yes (half) |
 | the sun's flare | | | | yes |
 
 What each is, in short (the files say more):
@@ -3102,13 +3102,16 @@ What each is, in short (the files say more):
   rings along the line from the sun through the middle of the picture, seen only as far as the sun itself is seen in the
   picture (behind a tower, none).
 - **Dust, fireflies, wet marks** (`dust.js`, `fireflies.js`, `wet-tracks.js`): one set of points or marks each, drawn only
-  while there is something of it to see.
+  while there is something of it to see. The dust comes from the back wheels of a vehicle going over the red earth on a
+  dry day (not on tarmac, not while the ground is wet), more the faster it goes: carried a little way after it by the
+  air it drags along, thrown out to the sides and up, then left drifting on the wind, each puff thinning away to
+  nothing at the ground (drawn flat, facing the eye, the ground in front would otherwise cut it along a hard line).
 - **The soft darkening where things meet** (`ambient-occlusion.js`): three.js r186's own GTAOPass, unchanged, in a script
   of its own (`three-post.min.js`, 32 KB) fetched only when High or Ultra is first chosen: from a half-size picture of
   the solid surfaces within 120 m (glass, water, leaves and the sky are not in it).
 - **The river** (`river-water.js`): a second set of ripples across the first and a broad swell, foam where it laps at
-  the town's bank; at Ultra the town given back by the water, drawn upside down at half the screen's size before the
-  picture, only when the river is in sight.
+  the town's bank; and the town given back by the water, drawn upside down before the picture (at half the screen's
+  size at Ultra, a third at High), only when the river is in sight.
 - **Contact shadows**: the soft patch under each vehicle at every level (as dark as before without sun shadows, lighter
   with them), and the figures' own a little darker.
 

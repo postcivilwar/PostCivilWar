@@ -108,4 +108,7 @@ test('by level: the air from Medium up, far gloss spread at every level, puddles
   assert.deepEqual(L.glow.map(Boolean), [true, true, true, false], 'the glow from Medium up');
   assert.deepEqual(L.flare.map(Boolean), [true, false, false, false], 'the sun\'s flare at Ultra');
   assert.deepEqual(L.ao.map(Boolean), [true, true, false, false], 'soft darkening where things meet at High and Ultra');
+  // the brief's "better water with reflections, waves and foam (HIGH+)": all three at High and Ultra, none below
+  for (const key of ['waves', 'foam', 'mirror']) assert.deepEqual(L[key].map(Boolean), [true, true, false, false], key);
+  assert.ok(L.mirrorSize[0] === 0.5 && L.mirrorSize[1] > 0.2 && L.mirrorSize[1] < 0.5, 'the town in the river: half the screen\'s size at Ultra, less at High');
 });

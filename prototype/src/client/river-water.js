@@ -90,7 +90,8 @@ export function createRiverMirror(renderer, scene, camera, water) {
   const whole = new THREE.Box3(), near = new THREE.Box3();
   let measured = false;
   // (as three.js's Reflector does: the eye mirrored in the water's plane, and its picture cut at the plane)
-  function render(amount = 0) {
+  // (`scale`: the mirrored picture's size, a share of the screen's width and height)
+  function render(amount = 0, scale = 0.5) {
     uniforms.pcwMirrorOn.value = 0;
     if (!(amount > 0) || !water || !water.visible) return false;
     water.updateMatrixWorld();
@@ -136,9 +137,10 @@ export function createRiverMirror(renderer, scene, camera, water) {
     clip.multiplyScalar(2.0 / clip.dot(q));
     p[2] = clip.x; p[6] = clip.y; p[10] = clip.z + 1.0 - 0.003; p[14] = clip.w;
     eye.projectionMatrixInverse.copy(eye.projectionMatrix).invert();
-    // its picture: half the screen's size
+    // its picture: half the screen's size at Ultra, a third at High
     renderer.getDrawingBufferSize(size);
-    const w = Math.max(64, Math.round(size.x / 2)), h = Math.max(64, Math.round(size.y / 2));
+    const share = Math.min(1, Math.max(0.1, scale || 0.5));
+    const w = Math.max(64, Math.round(size.x * share)), h = Math.max(64, Math.round(size.y * share));
     if (!target) {
       // (in half floats where the graphics card can draw into them, so that the sun's glints keep their brightness)
       let half = false;

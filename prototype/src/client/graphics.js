@@ -65,10 +65,13 @@ export const LEVEL_SETTINGS = Object.freeze({
   wetTracks: [1, 1, 1, 0],
   // soft darkening where things meet: corners, the foot of a wall, under a car (ambient-occlusion.js: High and up)
   ao: [0.7, 0.6, 0, 0],
-  // the river's waves and foam at its bank (High and up), and at Ultra the town it gives back (river-water.js)
+  // the river's waves and foam at its bank, and the town it gives back (High and up, river-water.js): the town drawn
+  // upside down for it at half the screen's size at Ultra, a third at High (in the moving water a softer picture is not
+  // missed, and it costs a ninth of the screen's pixels)
   waves: [1, 1, 0, 0],
   foam: [1, 1, 0, 0],
-  mirror: [1, 0, 0, 0],
+  mirror: [1, 1, 0, 0],
+  mirrorSize: [0.5, 0.33, 0, 0],
   pictureMost: [0, 2048, 1024, 512],             // the most pixels across any picture (0: as the device fetches them)
   reflections: ['full', 'full', 'simple', 'none'], // the sky in glass, water, metal and wet roads; in glass and water; in none
   water: ['full', 'full', 'full', 'simple'],     // with its ripples; without (render-finish.js)

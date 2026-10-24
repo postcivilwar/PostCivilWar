@@ -152,6 +152,8 @@ const drive = async (x, z, heading, metres, step = 0.5) => {
   for (let d = 0; d <= metres; d += step) {
     await page.evaluate(([x, z, h]) => window.__nlw.park(x, z, h), [x + Math.sin(heading) * d, z + Math.cos(heading) * d, heading]);
     await frames(1);
+    // (REALISM_TRACE: the game's clock and the dust in the air at each step)
+    if (process.env.REALISM_TRACE) console.log('step', d, JSON.stringify(await page.evaluate(() => { const s = window.__nlw.levelState; return { t: s.air.time, dust: s.dust }; })));
   }
 };
 if (want('dust') && keke && keke.ok) {
@@ -161,15 +163,21 @@ if (want('dust') && keke && keke.ok) {
   const h = Math.PI / 2, lane = { x: -100, z: -141 };
   await page.evaluate(([x, z, h]) => window.__nlw.park(x, z, h), [lane.x, lane.z, h]);
   await quiet(30000);
-  // (seen from beside its way, a little behind)
-  await page.evaluate((h) => { window.__nlw.cam.yaw = h + 1.2; }, h);
-  // (a frame on this machine is the game's longest step, half a second: three and a half metres a frame is a keke at
-  // 7 m/s, 25 km/h, as the game sees it)
-  // (from behind and above, the trail between the eye and the keke; the picture taken while it drives, the dust in the air)
-  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 12; n.cam.pitch = 0.34; });
-  await drive(lane.x, lane.z, h, 35, 3.5);
+  // Driven for real, the accelerator held down, from a standstill. This machine draws a frame in a second or more where
+  // a phone draws thirty a second, and the game takes at most half a second of its own time for a frame: with the
+  // game's clock slowed ten times, a frame here is a twentieth of a second of the game's, as on a phone, and the keke,
+  // its dust and the air go as they do on a phone, only slower; the picture taken on the move.
+  await page.evaluate(() => window.__nlw.slow(0.1));
+  await page.keyboard.down('w');
+  const went = await page.evaluate(([x, z]) => new Promise((done) => {
+    const n = window.__nlw, t0 = Date.now();
+    const f = () => { const p = n.predicted, d = Math.hypot(p.x - x, p.z - z); if (d >= 32 || Date.now() - t0 > 900000) done({ metres: +d.toFixed(1), kmh: +(Math.abs(n.car.speed) * 3.6).toFixed(1), seconds: Math.round((Date.now() - t0) / 1000) }); else requestAnimationFrame(f); };
+    requestAnimationFrame(f);
+  }), [lane.x, lane.z]);
+  console.log('dust drive', JSON.stringify(went));
   await shot('dust-behind-keke', 0);
-  await drive(lane.x + 35, lane.z, h, 7, 3.5);
+  await page.keyboard.up('w');
+  await page.evaluate(() => window.__nlw.slow(1));
   // (and out of it again: the next scenes are on foot, the habitation's is entered on foot only)
   if (!want('wet')) await page.evaluate(() => { const n = window.__nlw; if (n.view.self.driving) n.server.send({ type: 'vehicle.exit' }); });
 }

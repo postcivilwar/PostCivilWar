@@ -11,23 +11,33 @@
 //     movers     [{ key, x, z, heading, kind: 'car' | 'keke' | 'bike' | 'foot' }] (only the vehicles lift dust)
 //   dust.state()  (the tests)
 
-const PUFF_VERT = `attribute float aSize; attribute float aAlpha; uniform float pxPerMetre; varying float vAlpha; varying float vSeed;
+const PUFF_VERT = `attribute float aSize; attribute float aAlpha; attribute float aLift; uniform float pxPerMetre; varying float vAlpha; varying float vSeed; varying float vLift; varying float vUp;
 void main() {
 	vec4 mv = modelViewMatrix * vec4( position, 1.0 );
 	float d = max( 0.5, - mv.z );
-	gl_PointSize = clamp( aSize * pxPerMetre / d, 1.0, 380.0 );
+	float px = clamp( aSize * pxPerMetre / d, 1.0, 380.0 );
+	gl_PointSize = px;
 	/* (thinned close to the eye: the eye is not in the cloud, and a puff over the whole screen costs a phone dearly) */
 	vAlpha = aAlpha * smoothstep( 2.2, 5.5, d ) * ( 1.0 - smoothstep( 70.0, 95.0, d ) );
 	vSeed = fract( position.x * 0.37 + position.z * 0.61 );
+	/* how high its middle is over the ground, in halves of its width as drawn; and how upright the view is (1 looking
+	   level, less looking down) */
+	vLift = aLift / max( 0.01, 0.5 * px * d / pxPerMetre );
+	vUp = viewMatrix[ 1 ][ 1 ];
 	gl_Position = projectionMatrix * mv;
+	/* (one not to be seen is not drawn at all: put past the far end of the view, it costs nothing) */
+	if ( vAlpha < 0.004 ) { gl_Position = vec4( 0.0, 0.0, 2.0, 1.0 ); gl_PointSize = 1.0; }
 }`;
-const PUFF_FRAG = `uniform vec3 colour; varying float vAlpha; varying float vSeed;
+const PUFF_FRAG = `uniform vec3 colour; varying float vAlpha; varying float vSeed; varying float vLift; varying float vUp;
 void main() {
 	vec2 p = gl_PointCoord - 0.5;
 	float r = length( p ) * 2.0;
 	/* a soft round puff, a little lumpy */
 	float lump = 0.85 + 0.15 * sin( atan( p.y, p.x ) * 3.0 + vSeed * 6.28 ) * r;
-	float a = vAlpha * smoothstep( 1.0, 0.15, r / lump );
+	/* and thinning away to nothing at the ground: drawn flat, facing the eye, the ground in front would cut it along a
+	   hard line (the point's y runs down the screen) */
+	float over = vLift - p.y * 2.0 * vUp;
+	float a = vAlpha * smoothstep( 1.0, 0.15, r / lump ) * smoothstep( 0.0, 0.5, over );
 	if ( a < 0.004 ) discard;
 	gl_FragColor = vec4( colour, a );
 }`;
@@ -54,12 +64,13 @@ const BOX = 22;                         // the motes' box round the player, metr
 export function createDust(scene, { lite = false } = {}) {
   const P = lite ? PUFFS.lite : PUFFS.full, M = lite ? MOTES.lite : MOTES.full;
   // ---- the puffs ----
-  const pos = new Float32Array(P * 3), size = new Float32Array(P), alpha = new Float32Array(P);
-  const puffs = Array.from({ length: P }, () => ({ live: false, age: 0, life: 1, x: 0, y: 0, z: 0, vx: 0, vy: 0, vz: 0, s0: 0, s1: 0, a: 0 }));
+  const pos = new Float32Array(P * 3), size = new Float32Array(P), alpha = new Float32Array(P), lift = new Float32Array(P);
+  const puffs = Array.from({ length: P }, () => ({ live: false, age: 0, life: 1, x: 0, y: 0, z: 0, g: 0, vx: 0, vy: 0, vz: 0, s0: 0, s1: 0, a: 0 }));
   const puffGeometry = new THREE.BufferGeometry();
   puffGeometry.setAttribute('position', new THREE.BufferAttribute(pos, 3).setUsage(THREE.DynamicDrawUsage));
   puffGeometry.setAttribute('aSize', new THREE.BufferAttribute(size, 1).setUsage(THREE.DynamicDrawUsage));
   puffGeometry.setAttribute('aAlpha', new THREE.BufferAttribute(alpha, 1).setUsage(THREE.DynamicDrawUsage));
+  puffGeometry.setAttribute('aLift', new THREE.BufferAttribute(lift, 1).setUsage(THREE.DynamicDrawUsage));
   const pxPerMetre = { value: 600 };
   const puffColour = { value: new THREE.Color(0.7, 0.5, 0.36) };
   const puffMaterial = new THREE.ShaderMaterial({ vertexShader: PUFF_VERT, fragmentShader: PUFF_FRAG, uniforms: { pxPerMetre, colour: puffColour }, transparent: true, depthWrite: false, fog: false });
@@ -88,16 +99,23 @@ export function createDust(scene, { lite = false } = {}) {
   const last = new Map();               // a vehicle's key -> { x, z, travelled, seen }
   let clock = 0, emitted = 0, alive = 0, next = 0;
 
-  function emit(x, y, z, speed, wind) {
+  // A puff lifted by a wheel: (fx, fz) the vehicle's way, `out` +1 or -1 the side its wheel is on (0 a single wheel).
+  // The air behind a vehicle is dragged along after it, so the dust is too, for a moment: carried a little way after it,
+  // thrown out to the side and up, then left to drift on the wind (the vehicle's speed `speed` m/s; the wind's `wind`).
+  function emit(x, y, z, speed, wind, fx, fz, out) {
     // (the oldest goes when all are in the air)
     let p = puffs.find((q) => !q.live);
     if (!p) { p = puffs[next]; next = (next + 1) % P; }
     const k = Math.min(1, (speed - 2.5) / 9);
+    const along = speed * (0.3 + 0.25 * Math.random());
+    const aside = speed * (0.05 + 0.07 * Math.random()) * (out || (Math.random() < 0.5 ? -1 : 1));
     Object.assign(p, {
       live: true, age: 0, life: 3.5 + 2.5 * Math.random() + 2 * k,
-      x: x + (Math.random() - 0.5) * 0.5, y: y + 0.25, z: z + (Math.random() - 0.5) * 0.5,
-      vx: wind.x * 0.5 + (Math.random() - 0.5) * 0.6, vy: 0.25 + Math.random() * 0.3, vz: wind.z * 0.5 + (Math.random() - 0.5) * 0.6,
-      s0: 0.6 + 0.5 * k, s1: 2.8 + 3.0 * k + Math.random() * 1.0, a: 0.24 + 0.3 * k,
+      x: x + (Math.random() - 0.5) * 0.5, y: y + 0.25, z: z + (Math.random() - 0.5) * 0.5, g: y,
+      vx: fx * along + fz * aside + (Math.random() - 0.5) * 0.6,
+      vy: 0.3 + 0.05 * speed + Math.random() * 0.3,
+      vz: fz * along - fx * aside + (Math.random() - 0.5) * 0.6,
+      s0: 0.6 + 0.5 * k, s1: 3.0 + 3.2 * k + Math.random() * 1.0, a: 0.3 + 0.32 * k,
     });
     emitted += 1;
   }
@@ -131,12 +149,13 @@ export function createDust(scene, { lite = false } = {}) {
         const sides = kind.track ? [-kind.track / 2, kind.track / 2] : [0];
         for (const side of sides) {
           const x = m.x - s * kind.rear + c * side, z = m.z - c * kind.rear - s * side;
-          if (dirt(x, z) && Math.random() < 0.75) emit(x, ground(x, z), z, e.speed, wind);
+          if (dirt(x, z) && Math.random() < 0.75) emit(x, ground(x, z), z, e.speed, wind, s, c, Math.sign(side));
         }
       }
     }
     for (const key of last.keys()) if (!seen.has(key)) last.delete(key);
     alive = 0;
+    const drift = { x: wind.x * 0.5, z: wind.z * 0.5 }, slow = Math.exp(-dt * 1.4), rise = Math.exp(-dt * 0.5);
     for (let i = 0; i < P; i += 1) {
       const p = puffs[i];
       if (p.live) {
@@ -147,13 +166,16 @@ export function createDust(scene, { lite = false } = {}) {
       alive += 1;
       const t = p.age / p.life;
       p.x += p.vx * dt; p.y += p.vy * dt; p.z += p.vz * dt;
-      p.vx *= 1 - dt * 0.6; p.vz *= 1 - dt * 0.6; p.vy *= 1 - dt * 0.4;
+      // (slowed by the still air round it to the wind's own drift; rising more and more slowly)
+      p.vx = drift.x + (p.vx - drift.x) * slow; p.vz = drift.z + (p.vz - drift.z) * slow; p.vy *= rise;
       pos[i * 3] = p.x; pos[i * 3 + 1] = p.y; pos[i * 3 + 2] = p.z;
+      lift[i] = Math.max(0, p.y - p.g);
       size[i] = p.s0 + (p.s1 - p.s0) * Math.sqrt(t);
-      alpha[i] = p.a * amount * dry * Math.min(1, t * 6) * (1 - t) * (1 - t);
+      // (there at once, a quarter of a second, and thinning away)
+      alpha[i] = p.a * amount * dry * Math.min(1, p.age * 4) * (1 - t) * (1 - t);
     }
     puffPoints.visible = alive > 0;
-    if (alive) { for (const name of ['position', 'aSize', 'aAlpha']) puffGeometry.attributes[name].needsUpdate = true; }
+    if (alive) { for (const name of ['position', 'aSize', 'aAlpha', 'aLift']) puffGeometry.attributes[name].needsUpdate = true; }
 
     // ---- motes: round the player on dirt in the sun ----
     const sunny = Math.max(0, Math.min(1, daylight));
