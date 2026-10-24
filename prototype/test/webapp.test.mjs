@@ -112,6 +112,36 @@ test('on the website, in a frame, the page starts no worker', () => {
   assert.equal(app.state().offline, 'no');
 });
 
+test('"plays without a connection" does not wait for the soft darkening\'s script, fetched only at High and Ultra', async () => {
+  // (a page on the website with a worker that says what it keeps: the page, the 3D library, the game's script and the
+  // files the game asks for in play, all but that one)
+  const kept = ['', 'three.min.js', 'game.js', 'reactions.json', 'habitation-code.js'];
+  const active = { postMessage(message, transfer = []) { if (message && message.type === 'kept' && transfer[0]) transfer[0].postMessage({ paths: kept }); } };
+  const registration = { active };
+  // (a channel whose ports do not keep this test running once it is done)
+  const channels = [];
+  class Channel extends MessageChannel { constructor() { super(); this.port1.unref(); this.port2.unref(); channels.push(this); } }
+  const win = {
+    document: { querySelector: () => ({}), querySelectorAll: () => [], readyState: 'complete' },
+    navigator: { userAgent: '', serviceWorker: { register: () => Promise.resolve(registration), ready: Promise.resolve(registration) } },
+    location: { protocol: 'https:', hostname: 'postcivilwar.com' }, addEventListener() {}, matchMedia: () => ({ matches: false }),
+    MessageChannel: Channel, setTimeout, clearTimeout,
+    __PCW_FILES: { reactions: 'reactions.json?v=1', habitation: 'habitation-code.js?v=2', post: 'three-post.min.js?v=3' }, __PCW_PACK_FILES: {},
+  };
+  win.self = win; win.top = win;
+  try {
+    const app = createWebApp({ win });
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.equal(app.state().offline, 'yes');
+    // and with one the game does need still to come, not yet
+    kept.pop();
+    await app.refresh();
+    assert.equal(app.state().offline, 'not yet');
+  } finally {
+    for (const c of channels) { c.port1.close(); c.port2.close(); }
+  }
+});
+
 // ---- the worker, run here against a pretend network and a pretend store ----
 
 const sha = (text) => createHash('sha256').update(text).digest('hex').slice(0, 16);

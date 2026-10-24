@@ -113,7 +113,8 @@ export function createWebApp({ win = typeof window === 'undefined' ? null : wind
       // of their own, and are needed as much as the page)
       const bare = (address) => String(address).split('?')[0];
       const packs = Object.values((win && win.__PCW_PACK_FILES) || {}).map((entry) => bare((entry && entry.url) || entry));
-      const others = Object.values((win && win.__PCW_FILES) || {}).map(bare);
+      // (but not the soft darkening's script: fetched only where High or Ultra is chosen, and the game plays without it)
+      const others = Object.entries((win && win.__PCW_FILES) || {}).filter(([key]) => key !== 'post').map(([, address]) => bare(address));
       const cover = typeof doc.querySelectorAll === 'function' ? Array.from(doc.querySelectorAll('link[rel="preload"][as="image"]')).map((link) => bare(link.getAttribute('href') || '')).filter(Boolean) : [];
       const script = typeof doc.querySelector === 'function' && doc.querySelector('script[src^="game.js"]') ? ['game.js'] : [];
       const needs = ['', library].concat(script, packs, others, cover, figure() ? figures(figure()) : []);
