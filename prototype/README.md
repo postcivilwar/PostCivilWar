@@ -3115,12 +3115,38 @@ What each is, in short (the files say more):
 - **Contact shadows**: the soft patch under each vehicle at every level (as dark as before without sun shadows, lighter
   with them), and the figures' own a little darker.
 
-[[measurements]]
+**Measured** (24 October 2026, on this machine, which draws in software; each measuring alone on it):
+- **A phone at Medium** (the screen 2532 × 1170, three of its pixels to each of the page's), at the seven places by day
+  and by night (`tools/measure/places.mjs`): the fullest, the PowerBike showroom, holds 124.4 MB on the graphics card
+  with the screen's own (108.7 MB of pictures and buffers), of its 150 MB; before stage 3, measured the same way,
+  124.8 MB. The glow's own pictures are 2.3 MB there; everything else of stage 3 at Medium is numbers in the shaders and
+  a few points. At High (the soft darkening, the wider glow, puddles, the river's waves, foam and mirror added), the
+  PowerBike showroom by day from a fresh start: 115.4 MB with the screen's own. All of stage 3's pictures are counted
+  with the rest, so the memory guard (a phone at 135 MB) sees them.
+- **A computer at Ultra** (1280 × 720): the glow's pictures 4.3 MB, the soft darkening's 6.5 MB (half the screen's
+  size, in half floats), the river's mirror 2.8 MB while the river is in sight.
+- **Download**: the page and the scripts a first visit fetches, 977 KB → 998 KB as sent (+21 KB, 2%); the soft
+  darkening's own script, 8.4 KB as sent, only at High and Ultra. The owner's models, pictures and sounds: not one byte changed.
+- **Loading** (a phone's settings, the processor slowed four times as `places.mjs` does, two runs of each in turn, alone):
+  PLAY 2.2 → 2.3 s; the character screen 3.8 → 4.0 s; into the town 28.2 → 35.3 s (26.2 and 30.1 → 35.3 and 35.2).
+  What grew is the shader programs prepared behind the loading card: 82 → 99 (the dust's, the fireflies', the wet
+  marks', the glow's), and those of every lit surface a little longer. Drawing in software, as here, makes preparing
+  them far slower than a phone's graphics chip does; on his phone it is to be seen.
+- **Frame rates**: not measured here (no graphics card). Drawn in software, a frame took a median 18% longer than
+  before at the seven places (5% to 37%): software makes every pixel's sums dear, where a phone's graphics chip does
+  them side by side, so this says only that the work grew, not what a phone makes of it. On his phones: #stats at the
+  PowerBike showroom at Medium; Auto takes the level down by itself where the frames fall under thirty a second.
+
+Its pictures, each where it shows (the hours at the motor park, the clouds from above, the mirage on Waterside Road, a
+keke driven for real on Yard Lane, after rain, the river bank, sunrise over the river, the lagoon at night):
+`PERF_LEVEL=2 PERF_DPR=3 ../server/with-postgres.sh node tools/measure/realism.mjs <out> phone [scenes] [site folder]`
+(a computer's: `computer`, `PERF_LEVEL=0 PERF_DPR=1`), and two sets side by side, a page a scene, with
+`python3 tools/measure/realism-sheets.py <before> <after> <out.pdf> [title] [before's name] [after's name]`.
 
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 446 headless tests
+node --test test/*.test.mjs                        # 465 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
@@ -3154,7 +3180,7 @@ node test/outskirts.mjs out/                       # the road to Onitsha, the ai
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings
 ../server/with-postgres.sh node tools/measure/places.mjs out/ computer|phone [all|place,place] [site]   # the fifteen usual places, the character screen and the habitation, by day and night: frame time, draws, triangles, the graphics card's memory, the script's, loading times, pictures (a phone: its settings, the processor slowed four times); site: another build's dist/site to measure instead; PERF_LEVEL=n holds a graphics level, PERF_DAY_ONLY=1 by day only, TEXTURE_LIST=1 lists the pictures held by size, TEXTURE_TRACE=1 with where in the game's code each was made; PERF_DPR sets the screen's pixels to each of the page's (a phone's 3)
 python3 tools/measure/sheets.py before/ after/ computer|phone out.pdf [title] [before's name] [after's name]   # two measurings' pictures side by side, a page a place, the numbers under each
-../server/with-postgres.sh node test/graphics.mjs out/   # the graphics levels, on a phone's settings and a computer's: Auto's first choice and the level kept for the device, Settings → Graphics, every level made at once without reloading, memory freed when lowering and given back when raising, Auto lowering by itself for slow frames and for a full graphics card and saying so once, #stats; on a phone, the owner's box truck at 512 far off and at its own size near, and signs out of sight let go from the card and handed back as painted
+../server/with-postgres.sh node test/graphics.mjs out/   # the graphics levels, on a phone's settings and a computer's: Auto's first choice and the level kept for the device, Settings → Graphics, every level made at once without reloading, stage 3 at each level with the town drawn (the light from the whole sky, the air, the glow, the soft darkening fetched and drawn at High and Ultra, the river; each let go at a level without it), memory freed when lowering and given back when raising, Auto lowering by itself for slow frames and for a full graphics card and saying so once, #stats; on a phone, the owner's box truck at 512 far off and at its own size near, and signs out of sight let go from the card and handed back as painted
 python3 tools/measure/levels.py <folder> phone|computer out.pdf [title]   # the graphics levels side by side (PERF_LEVEL=0..3 measurings, the folder holding <device>-0 .. <device>-3), a page a place, with their numbers, and the same as a table (out.md)
 ```
 
