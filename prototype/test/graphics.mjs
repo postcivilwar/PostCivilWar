@@ -116,14 +116,29 @@ for (const kind of ['phone', 'computer']) {
       && s.patches === true && Math.abs(s.patchOpacity - (s.shadows ? 0.17 : 0.32)) < 1e-6 && s.finish.reflections === at('reflections') && s.finish.water === at('water') && Math.abs(s.view - at('view')) < 1e-6 && s.pictureMost === at('pictureMost')
       // (the waters' ripples and the sky in what gives it back, as the level has them)
       && (at('water') === 'full' ? s.finish.rippling === s.finish.waters : s.finish.rippling === 0) && (at('reflections') === 'none' ? s.finish.withSky === 0 : s.finish.withSky > 0)
-      // (stage 3: the light from the whole sky, the air, the glow, the soft darkening, the river, as the level has them)
-      && stage3(s, at) });
+      // (stage 3's numbers as the level has them: the air, which levels have each piece; what is drawn of it is looked at
+      // below, with Settings shut, as nothing of the town is drawn while a page covers it)
+      && STAGE3.every((k) => s.airLevel && s.airLevel[k] === at(k)) && s.skyLight === at('skyLight') && s.toneMapping === 5 });
   }
-  check(`${kind}: each level made at once, without reloading: its pixels, its sun shadows (how far, how soft; none at Low), the soft patch under each vehicle (darker at Low), its largest picture, the sky in glass and water, the waters' ripples, how far one sees; and stage 3's light from the whole sky, air, glow, soft darkening and river as the level has them`, seen.every((s) => s.ok) && p.loads() === 1 && p.errors.length === 0, { seen: seen.map(({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, patchOpacity, finish, view, pictureMost, skyLight, toneMapping, glow, occlusion, river, air, ok }) => ({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, patchOpacity, reflections: finish.reflections, withSky: finish.withSky, water: finish.water, rippling: `${finish.rippling}/${finish.waters}`, view, pictureMost, skyLight, toneMapping, glow, occlusion, river, air, ok })), loads: p.loads(), errors: p.errors });
+  check(`${kind}: each level made at once, without reloading: its pixels, its sun shadows (how far, how soft; none at Low), the soft patch under each vehicle (darker at Low), its largest picture, the sky in glass and water, the waters' ripples, how far one sees; and stage 3's light from the whole sky and its pieces as the level has them`, seen.every((s) => s.ok) && p.loads() === 1 && p.errors.length === 0, { seen: seen.map(({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, patchOpacity, finish, view, pictureMost, skyLight, toneMapping, airLevel, ok }) => ({ id, level, pixelRatio, shadows, shadowMap, shadowReach, softness, patches, patchOpacity, reflections: finish.reflections, withSky: finish.withSky, water: finish.water, rippling: `${finish.rippling}/${finish.waters}`, view, pictureMost, skyLight, toneMapping, airLevel, ok })), loads: p.loads(), errors: p.errors });
+  await page.evaluate(() => window.__nlw.ui.close());
+  // ---- stage 3 at each level with the town drawn (Settings shut): the glow drawn from Medium up and let go at Low, the soft
+  // darkening fetched and drawn at High and Ultra and let go below, the river's waves and foam at High and Ultra (each
+  // waited for a while: the soft darkening's own script is fetched when High or Ultra is first chosen)
+  const stage3seen = [];
+  for (const id of ['ultra', 'high', 'medium', 'low']) {
+    const level = GRAPHICS_LEVELS.findIndex((l) => l.id === id);
+    const at = (key) => levelSetting(key, level, p.phone);
+    await page.evaluate((v) => window.__nlw.setGraphics(v), id);
+    let s = null;
+    const t0 = Date.now();
+    do { await frames(page); s = await state(page); } while (!(s.level === level && stage3(s, at)) && Date.now() - t0 < 120000);
+    stage3seen.push({ id, level: s.level, skyLight: s.skyLight, toneMapping: s.toneMapping, glow: s.glow, occlusion: s.occlusion, river: s.river, airLevel: s.airLevel, ok: s.level === level && stage3(s, at) });
+  }
+  check(`${kind}: stage 3 at each level, the town drawn: the light from the whole sky, the air, the glow, the soft darkening and the river as the level has them, each let go at a level without it`, stage3seen.every((s) => s.ok) && p.errors.length === 0, { stage3seen, errors: p.errors });
   // ---- memory freed when lowering
   // (with Settings shut, so that the town is drawn: a picture made again at another size goes to the graphics card when
   // it is next drawn; and each level's pictures all made before it is measured: glb.js makes them one at a time)
-  await page.evaluate(() => window.__nlw.ui.close());
   const settled = () => page.waitForFunction(() => window.__nlw.levelState.picturesWaiting === 0, null, { timeout: 600000, polling: 1000 }).catch(() => {});
   const chooseAndSettle = async (id) => {
     await page.evaluate((v) => window.__nlw.setGraphics(v), id);
