@@ -78,8 +78,8 @@ const quiet = async (most = 45000) => {
   }
 };
 const report = {};
-const shot = async (name) => {
-  await frames(3);
+const shot = async (name, wait = 3) => {
+  if (wait) await frames(wait);
   await page.screenshot({ path: resolve(out, `${name}.png`) });
   report[name] = await page.evaluate(() => { const s = window.__nlw.levelState; return { level: s.level, air: s.air, glow: s.glow, dust: s.dust, fireflies: s.fireflies, wetTracks: s.wetTracks, occlusion: s.occlusion, river: s.river, warmth: s.warmth, finish: { wet: +s.finish.wet.toFixed(2) } }; });
   console.log(name, JSON.stringify(report[name]));
@@ -165,8 +165,13 @@ if (want('dust') && keke && keke.ok) {
   await page.evaluate((h) => { window.__nlw.cam.yaw = h + 1.2; }, h);
   // (a frame on this machine is the game's longest step, half a second: three and a half metres a frame is a keke at
   // 7 m/s, 25 km/h, as the game sees it)
-  await drive(lane.x, lane.z, h, 45, 3.5);
-  await shot('dust-behind-keke');
+  // (from behind and above, the trail between the eye and the keke; the picture taken while it drives, the dust in the air)
+  await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 12; n.cam.pitch = 0.34; });
+  await drive(lane.x, lane.z, h, 35, 3.5);
+  await shot('dust-behind-keke', 0);
+  await drive(lane.x + 35, lane.z, h, 7, 3.5);
+  // (and out of it again: the next scenes are on foot, the habitation's is entered on foot only)
+  if (!want('wet')) await page.evaluate(() => { const n = window.__nlw; if (n.view.self.driving) n.server.send({ type: 'vehicle.exit' }); });
 }
 // ---- after rain: tyre marks and footprints on the wet earth, puddles on the tarmac ----
 if (want('wet')) {
@@ -192,6 +197,7 @@ if (want('wet')) {
 }
 // ---- the river: its waves and foam at the bank (High and up), the town in it (Ultra) ----
 if (want('river')) {
+  await page.evaluate(() => { const n = window.__nlw; if (n.view.self.driving) n.server.send({ type: 'vehicle.exit' }); });
   await goTo(10, 146, 0.2, { dist: 7, pitch: 0.25 });
   await weather(16.5);
   await quiet();
@@ -201,8 +207,9 @@ if (want('river')) {
 // ---- the sun's flare (Ultra): early morning on the river bank, looking across the water into the low sun (in the town's
 // grid the morning sun lies over the river, 19 degrees west of its line) ----
 if (want('flare')) {
-  await goTo(10, 141, -0.34, { dist: 5, pitch: -0.04 });
-  await weather(7.3);
+  await page.evaluate(() => { const n = window.__nlw; if (n.view.self.driving) n.server.send({ type: 'vehicle.exit' }); });
+  await goTo(10, 141, -0.34, { dist: 5, pitch: -0.14 });
+  await weather(7.1);
   await quiet();
   await frames(4);
   const way = await page.evaluate(() => { const n = window.__nlw, s = n.sky.sun; return Math.atan2(s.position.x - s.target.position.x, s.position.z - s.target.position.z); });
@@ -213,6 +220,7 @@ if (want('flare')) {
 }
 // ---- the fireflies, at the lagoon in the habitation at night ----
 if (want('fireflies')) {
+  await page.evaluate(() => { const n = window.__nlw; if (n.view.self.driving) n.server.send({ type: 'vehicle.exit' }); });
   await goTo(618, 118, 0.6, { dist: 6, pitch: 0.1 });
   await weather(22.5);
   await quiet(120000);

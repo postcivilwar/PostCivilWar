@@ -51,12 +51,15 @@ vec3 ghost( vec2 at, float r, vec3 c ) { float d = length( ( vUv - at ) * vec2( 
 void main() {
 	if ( vSeen < 0.002 ) discard;
 	vec2 toMid = vec2( 0.5 ) - sun;
-	vec3 c = ghost( sun + toMid * 0.45, 0.035, vec3( 1.0, 0.62, 0.28 ) * 0.10 )
-		+ ghost( sun + toMid * 0.78, 0.06, vec3( 0.55, 0.9, 0.62 ) * 0.06 )
-		+ ghost( sun + toMid * 1.25, 0.024, vec3( 0.6, 0.72, 1.0 ) * 0.12 )
-		+ ghost( sun + toMid * 1.62, 0.09, vec3( 1.0, 0.82, 0.45 ) * 0.045 )
-		+ ghost( sun + toMid * 2.0, 0.045, vec3( 0.88, 0.55, 0.9 ) * 0.06 );
-	c += vec3( 1.0, 0.86, 0.66 ) * exp( - abs( vUv.y - sun.y ) * 170.0 ) * exp( - abs( ( vUv.x - sun.x ) * aspect ) * 3.2 ) * 0.14;
+	vec3 c = ghost( sun + toMid * 0.5, 0.04, vec3( 1.0, 0.62, 0.28 ) * 0.2 )
+		+ ghost( sun + toMid * 0.9, 0.07, vec3( 0.55, 0.9, 0.62 ) * 0.13 )
+		+ ghost( sun + toMid * 1.35, 0.028, vec3( 0.6, 0.72, 1.0 ) * 0.26 )
+		+ ghost( sun + toMid * 1.75, 0.11, vec3( 1.0, 0.82, 0.45 ) * 0.1 )
+		+ ghost( sun + toMid * 2.2, 0.05, vec3( 0.88, 0.55, 0.9 ) * 0.14 );
+	/* a faint ring round the sun, and a soft streak across it */
+	float pcwR = length( ( vUv - sun ) * vec2( aspect, 1.0 ) );
+	c += vec3( 1.0, 0.8, 0.55 ) * 0.07 * smoothstep( 0.2, 0.235, pcwR ) * ( 1.0 - smoothstep( 0.245, 0.29, pcwR ) );
+	c += vec3( 1.0, 0.86, 0.66 ) * exp( - abs( vUv.y - sun.y ) * 170.0 ) * exp( - abs( ( vUv.x - sun.x ) * aspect ) * 3.2 ) * 0.16;
 	gl_FragColor = vec4( c * vSeen * amount, 1.0 );
 }`;
 const LAY = `uniform sampler2D tNear; uniform sampler2D tFar; uniform float amount; uniform float wide;

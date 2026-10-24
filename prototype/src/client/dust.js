@@ -94,10 +94,10 @@ export function createDust(scene, { lite = false } = {}) {
     if (!p) { p = puffs[next]; next = (next + 1) % P; }
     const k = Math.min(1, (speed - 2.5) / 9);
     Object.assign(p, {
-      live: true, age: 0, life: 2.0 + 1.4 * Math.random() + 1.2 * k,
+      live: true, age: 0, life: 3.5 + 2.5 * Math.random() + 2 * k,
       x: x + (Math.random() - 0.5) * 0.5, y: y + 0.25, z: z + (Math.random() - 0.5) * 0.5,
       vx: wind.x * 0.5 + (Math.random() - 0.5) * 0.6, vy: 0.25 + Math.random() * 0.3, vz: wind.z * 0.5 + (Math.random() - 0.5) * 0.6,
-      s0: 0.5 + 0.4 * k, s1: 2.2 + 2.6 * k + Math.random() * 0.8, a: 0.16 + 0.22 * k,
+      s0: 0.6 + 0.5 * k, s1: 2.8 + 3.0 * k + Math.random() * 1.0, a: 0.24 + 0.3 * k,
     });
     emitted += 1;
   }
@@ -107,9 +107,10 @@ export function createDust(scene, { lite = false } = {}) {
     const dry = 1 - Math.min(1, Math.max(0, (wet - 0.03) / 0.12));
     const on = amount > 0 && dry > 0;
     if (camera) pxPerMetre.value = (height / 2) / Math.tan(THREE.MathUtils.degToRad(camera.fov) / 2);
-    // the colour of the dust as lit: laterite, lighter in the air, by the light of the hour
+    // the colour of the dust as lit: laterite's, much lighter in the air (the fine dust scatters the light), by the light
+    // of the hour
     const lit = 0.18 + 0.82 * Math.max(0, Math.min(1, light));
-    puffColour.value.setRGB(0.74 * lit, 0.54 * lit, 0.4 * lit);
+    puffColour.value.setRGB(0.88 * lit, 0.74 * lit, 0.6 * lit);
     // ---- puffs: lifted behind each vehicle going over dirt ----
     const seen = new Set();
     for (const m of movers) {
