@@ -25,7 +25,7 @@ SCENES = [
     ('wet-footprints', 'After rain: footprints', 'Wet footprints, left and right, behind the player.'),
     ('puddles-waterside-road', 'After rain: Waterside Road', 'Puddles on the tarmac giving back the sky (High and Ultra).'),
     ('river-bank', 'The River Niger at the town\'s bank', 'Waves and foam where the river laps at the bank (High and Ultra); at Ultra the town given back by the water.'),
-    ('sun-flare', 'Looking into the low sun', 'The sun\'s flare (Ultra), and the glow round the sun.'),
+    ('sun-flare', 'Early morning on the river bank, into the low sun', 'The sun\'s flare (Ultra), the glow round the sun, and its glints on the water.'),
     ('fireflies-lagoon-night', 'The lagoon in the habitation at night', 'Fireflies flashing over the water and the bank.'),
 ]
 
@@ -65,22 +65,19 @@ for key, name, note in SCENES:
     ia = Image.open(fa).convert('RGB')
     ib = Image.open(fb).convert('RGB') if fb and os.path.exists(fb) else None
     iw, ih = ia.size
-    cols = 2 if ib is not None else 1
-    k = ((W - 30) / 2 if cols == 2 else W - 20) / iw
+    # (one above the other, each the page's width: the difference is in the detail)
+    k = (W - 20) / iw
     tw, th = int(iw * k), int(ih * k)
-    page = Image.new('RGB', (W, th + 190), 'white')
+    rows = 2 if ib is not None else 1
+    page = Image.new('RGB', (W, 64 + rows * (th + 34) + 90), 'white')
     d = ImageDraw.Draw(page)
     d.text((10, 10), f'{title}: {name}', font=FT, fill='black')
     y = 54
-    if ib is not None:
-        page.paste(ib.resize((tw, th)), (10, y + 26))
-        page.paste(ia.resize((tw, th)), (20 + tw, y + 26))
-        d.text((10, y), BEFORE, font=FB, fill='#444')
-        d.text((20 + tw, y), AFTER, font=FB, fill='#444')
-    else:
-        page.paste(ia.resize((tw, th)), (10, y + 26))
-        d.text((10, y), AFTER, font=FB, fill='#444')
-    yy = y + 36 + th
+    for label, im in ([(BEFORE, ib), (AFTER, ia)] if ib is not None else [(AFTER, ia)]):
+        d.text((10, y), label, font=FB, fill='#444')
+        page.paste(im.resize((tw, th)), (10, y + 26))
+        y += th + 34
+    yy = y + 6
     for line in wrap(d, note, F, W - 20):
         d.text((10, yy), line, font=F, fill='black'); yy += 22
     pages.append(page)

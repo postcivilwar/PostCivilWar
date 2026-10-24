@@ -64,7 +64,7 @@ export const LEVEL_SETTINGS = Object.freeze({
   fireflies: [1, 1, 1, 0],
   wetTracks: [1, 1, 1, 0],
   // soft darkening where things meet: corners, the foot of a wall, under a car (ambient-occlusion.js: High and up)
-  ao: [0.85, 0.75, 0, 0],
+  ao: [0.7, 0.6, 0, 0],
   // the river's waves and foam at its bank (High and up), and at Ultra the town it gives back (river-water.js)
   waves: [1, 1, 0, 0],
   foam: [1, 1, 0, 0],

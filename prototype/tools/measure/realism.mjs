@@ -157,13 +157,15 @@ const drive = async (x, z, heading, metres, step = 0.5) => {
 if (want('dust') && keke && keke.ok) {
   await weather(12.5);
   await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 9; n.cam.pitch = 0.2; });
-  await quiet(20000);
-  const h = -Math.PI / 2;
+  // (along Yard Lane, the town's laterite lane, eastwards, clear of everything)
+  const h = Math.PI / 2, lane = { x: -100, z: -141 };
+  await page.evaluate(([x, z, h]) => window.__nlw.park(x, z, h), [lane.x, lane.z, h]);
+  await quiet(30000);
   // (seen from beside its way, a little behind)
   await page.evaluate((h) => { window.__nlw.cam.yaw = h + 1.2; }, h);
   // (a frame on this machine is the game's longest step, half a second: three and a half metres a frame is a keke at
   // 7 m/s, 25 km/h, as the game sees it)
-  await drive(keke.x, keke.z, h, 45, 3.5);
+  await drive(lane.x, lane.z, h, 45, 3.5);
   await shot('dust-behind-keke');
 }
 // ---- after rain: tyre marks and footprints on the wet earth, puddles on the tarmac ----
@@ -172,6 +174,7 @@ if (want('wet')) {
   await frames(30);
   await weather(13.2, 'clear');
   if (keke && keke.ok) {
+    await page.evaluate(([x, z]) => window.__nlw.park(x, z, Math.PI / 2), [keke.x, keke.z]);
     await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 8; n.cam.pitch = 0.45; });
     await drive(keke.x, keke.z, Math.PI / 2, 14);
     await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = -Math.PI / 2; });
@@ -195,16 +198,16 @@ if (want('river')) {
   await frames(6);
   await shot('river-bank');
 }
-// ---- the sun's flare (Ultra), looking west into a low sun ----
+// ---- the sun's flare (Ultra): early morning on the river bank, looking across the water into the low sun (in the town's
+// grid the morning sun lies over the river, 19 degrees west of its line) ----
 if (want('flare')) {
-  const sunWay = await page.evaluate(() => { const n = window.__nlw, s = n.sky.sun; return Math.atan2(s.position.x - s.target.position.x, s.position.z - s.target.position.z); });
-  await goTo(-120, 113, sunWay, { dist: 5, pitch: -0.05 });
-  await weather(17.2);
+  await goTo(10, 141, -0.34, { dist: 5, pitch: -0.04 });
+  await weather(7.3);
   await quiet();
   await frames(4);
   const way = await page.evaluate(() => { const n = window.__nlw, s = n.sky.sun; return Math.atan2(s.position.x - s.target.position.x, s.position.z - s.target.position.z); });
   // (the view's yaw is the way it looks: towards the sun)
-  await page.evaluate((w) => { const n = window.__nlw; n.cam.yaw = w; }, way);
+  await page.evaluate((w) => { const n = window.__nlw; n.face(w); n.cam.yaw = w + 0.12; }, way);
   await frames(4);
   await shot('sun-flare');
 }

@@ -34,8 +34,16 @@ function fetchAddons() {
 }
 
 const VERT = 'varying vec2 vUv; void main() { vUv = position.xy * 0.5 + 0.5; gl_Position = vec4( position.xy, 0.0, 1.0 ); }';
-// (laid over the picture: what is there times the darkening, at `amount` of it)
-const LAY = 'uniform sampler2D tAO; uniform float amount; varying vec2 vUv; void main() { float ao = texture2D( tAO, vUv ).r; gl_FragColor = vec4( vec3( mix( 1.0, ao, amount ) ), 1.0 ); }';
+// (laid over the picture: what is there times the darkening, at `amount` of it; none on what is right in front of the
+// eye, within a couple of metres, where a metre's reach is most of the screen and the darkening would be blotches)
+const LAY = `uniform sampler2D tAO; uniform sampler2D tDepth; uniform float amount; uniform float near; uniform float far; varying vec2 vUv;
+void main() {
+	float ao = texture2D( tAO, vUv ).r;
+	float d = texture2D( tDepth, vUv ).x;
+	float z = near * far / ( far - d * ( far - near ) );
+	ao = mix( 1.0, ao, smoothstep( 1.8, 4.5, z ) * ( 1.0 - smoothstep( 0.999, 1.0, d ) ) );
+	gl_FragColor = vec4( vec3( mix( 1.0, ao, amount ) ), 1.0 );
+}`;
 
 export function createAmbientOcclusion(renderer, scene, camera) {
   let gtao = null, failed = false, triedAt = -Infinity, w = 0, h = 0, applied = 0, sortedAt = -Infinity, casters = 0;
@@ -45,7 +53,7 @@ export function createAmbientOcclusion(renderer, scene, camera) {
   const geometry = new THREE.BufferGeometry();
   geometry.setAttribute('position', new THREE.Float32BufferAttribute([-1, -1, 0, 3, -1, 0, -1, 3, 0], 3));
   const lay = new THREE.ShaderMaterial({
-    vertexShader: VERT, fragmentShader: LAY, uniforms: { tAO: { value: null }, amount: { value: 0 } },
+    vertexShader: VERT, fragmentShader: LAY, uniforms: { tAO: { value: null }, tDepth: { value: null }, amount: { value: 0 }, near: { value: 0.3 }, far: { value: REACH } },
     depthTest: false, depthWrite: false, toneMapped: false, fog: false, transparent: true,
     blending: THREE.CustomBlending, blendEquation: THREE.AddEquation, blendSrc: THREE.ZeroFactor, blendDst: THREE.SrcColorFactor,
     blendEquationAlpha: THREE.AddEquation, blendSrcAlpha: THREE.ZeroFactor, blendDstAlpha: THREE.OneFactor,
@@ -74,8 +82,8 @@ export function createAmbientOcclusion(renderer, scene, camera) {
     gtao._overrideVisibility = () => {};
     gtao._restoreVisibility = () => {};
     // (a metre round each point: a doorway's, a wall's foot, a car's wheels)
-    gtao.updateGtaoMaterial({ radius: 0.9, distanceExponent: 1.4, thickness: 1.6, scale: 1.15, samples: 12, distanceFallOff: 1 });
-    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 6, rings: 2, samples: 12 });
+    gtao.updateGtaoMaterial({ radius: 0.75, distanceExponent: 1.4, thickness: 1.4, scale: 1.0, samples: 12, distanceFallOff: 1 });
+    gtao.updatePdMaterial({ lumaPhi: 10, depthPhi: 2, normalPhi: 3, radius: 8, rings: 2, samples: 12 });
     w = h = 0;
   }
 
@@ -110,6 +118,8 @@ export function createAmbientOcclusion(renderer, scene, camera) {
       renderer.setRenderTarget(null);
       renderer.autoClear = false;
       lay.uniforms.tAO.value = gtao.gtaoMap;
+      lay.uniforms.tDepth.value = gtao.depthTexture;
+      lay.uniforms.near.value = eye.near; lay.uniforms.far.value = eye.far;
       lay.uniforms.amount.value = Math.min(1, amount);
       renderer.render(quadScene, quadCamera);
       applied += 1;
