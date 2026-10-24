@@ -2926,10 +2926,144 @@ Files: `vendor/three.min.js`, `vendor/three.symbols.json`, `vendor/three-r186/`,
 `render-actors.js`, `render-carshow.js`, `render-town.js`, `render-world.js`, and the pictures' colour in twenty
 files; test `engine.test.mjs`.
 
+## Graphics levels: Low, Medium, High and Ultra (24 October 2026)
+
+The owner's brief of 23 October, its second stage: four levels, chosen by the game for each device (Auto, with a short
+silent test while the town loads) or by the player in Settings, changed without reloading; lowered by the game when the
+frames fall under about thirty a second or the graphics card is nearly full, with "Graphics lowered to keep the game
+smooth". Built on the phone mode and the detail governor that were there (one system, not two).
+
+**What each level draws** (`src/client/graphics.js`, `LEVEL_SETTINGS`), in the owner's words and the game's:
+
+| | Low (older phones) | Medium (most phones) | High (good phones, laptops) | Ultra (gaming computers) |
+|---|---|---|---|---|
+| pictures (textures) | small: at most 512 across | at most 1024 | at most 2048 | as the device fetches them (a computer's up to 4096) |
+| the sun's shadows | none: a soft patch under every person and vehicle | nearby: to 40 m from the player, a 1024 map | softer and further: to 62 m, 2048 on a computer (1024 on a phone) | as High |
+| reflections | none | simple: the sky in glass and water | the sky in glass, water, metal and wet roads | as High |
+| water | simple: no ripples, no sky | ripples | ripples and the sky | as High |
+| how far one sees | a shorter view: the fog three quarters as far | as before | as before | as before |
+| pixels drawn, at most, for each of the screen's | 1 | 1.25 | 1.5 | 2 |
+| a computer's detail (reach, figures with limbs, grass, garden plants, showroom models) | its lowest step | its third | its second | its fullest |
+| a phone's detail | its lowest step | its fullest (as phones were drawn before the levels) | its fullest | its fullest |
+
+The device's kind does not change with the level: a phone or tablet still fetches the lighter copy of every picture and
+model, so no level makes a phone hold a computer's pictures. A picture is made smaller, or larger again, from its own
+file as the level changes (`glb.js`, `setPictureMost`: one at a time, its old copy let go from the graphics card first),
+so lowering the level frees the card's memory at once. (The habitation's plants keep their pictures at every level: they
+are let go from the card whenever their plants are out of sight.) The sun's shadows now fade out at the edge of their
+reach instead of stopping at a line on the ground.
+
+**Auto.** Starts a phone at Medium, a computer at Ultra (as each was drawn before the levels), Low where there is no
+graphics card at all (the browser drawing in software) or a phone with little memory, High on a computer's integrated
+graphics; or where it settled on this device last time (kept by the graphics card's name). While the town loads, a dozen
+frames of it are drawn behind the loading card and timed (the silent test): slower than a thirtieth of a second, a level
+lower, at most three times. Playing, the first half minute is judged quickly; a typical frame slower than a thirtieth of
+a second for a few seconds steps down one level; ample room for a long while climbs back one (no higher than High on a
+phone by itself). The graphics card nearly full (a phone at nine tenths of its 150 MB): first what is kept ready and not
+drawn is let go (figures looked at on the character screen, motorcycles and cars out of sight); still nearly full, one
+level down whatever was chosen, at most every ten seconds, and the level given up not tried again for three minutes,
+then six, and so on (`monitor.js`, `lower`); the browser taking the picture away in the town steps Auto down one: the
+picture is never lost to a level chosen automatically. The player is told the first time the game lowers the level by
+itself, and only then: "Graphics lowered to keep the game smooth".
+
+**Settings → Graphics**: Auto, Low, Medium, High, Ultra, a line for each, and "Higher levels use more battery, and can
+make a phone warm." The #stats readout says the level, whether chosen or Auto ("Graphics: Medium, Auto"), the frames a
+second, the pictures on the graphics card and the card's name.
+
+**A phone at Medium, well under its 150 MB.** Measured before this work at the busiest places on a phone's settings, the
+PowerBike showroom's pictures came to 143 MB at Medium (161 MB as phones were drawn until now, on 23 October), over the
+memory guard's 135. Now at most 100 MB of pictures there at Medium, and 117 MB on the card in all with its drawing
+buffers (the levels' measurings below). What was done (each looked at in the before-and-after pictures, the same):
+- the PowerBike showroom's nine posters of its bikes, seen through its glass from outside too, at half their size on a
+  phone (320 across: 19 MB of a phone's 150 at full size);
+- the car showroom's buildings drawn from 512 pictures by someone more than 150 m from them, as the town's towers already
+  were (from PowerBike's showroom, 380 m off, its two tallest held 11 MB at 1024);
+- the owner's two trucks and the ambulance drawn from 512 pictures by someone more than 60 m from them, at their own size
+  again within 40 m (the jet's distances as much longer as it is): at 1024 the three were 16 MB wherever they were, and
+  they are rarely nearer than a hundred metres (`render-supplied.js`; a picture's own largest, apart from the level's,
+  made in its turn: `glb.js`, `wantPicture`);
+- the signs and boards painted in the page (the shops' names, the rooms' boards over the doors, the plots' boards, the
+  road signs, the vehicles' words: 181 pictures, 36 MB, of which 12 to 27 MB were for signs far out of sight, sent to
+  the card ahead by the warm-up or drawn once and kept) let go from the card when nothing drawn has used them for half a
+  minute, and handed to it again the next time one is drawn, in a fraction of a millisecond (`picture-keeper.js`; never
+  a picture the game makes again from its file, nor the two halls' while one is outside, so that stepping in finds
+  them there; the walk through the scene every five seconds takes under 2 ms on this machine);
+- the town's coaches' and kekes' words, adverts and plates, and the watch shop's names, painted at half their size on a
+  phone, as the town's other signs already were (17 MB and 4.6 MB at the motor park and the PowerBike showroom);
+- the reflected sky made at 128 on a phone (256 on a computer).
+
+**Measured, each level** (`tools/measure/places.mjs` with `PERF_LEVEL` 0 to 3 and `TEXTURE_LIST`: seven busy places by
+day, each level held, the memory guard held off so that what a level holds is what is measured; a phone's settings at
+3 pixels to each of the page's, a computer's at 1; `tools/measure/levels.py`: the levels side by side, a page a place,
+the PDFs sent to the owner). Pictures on the graphics card, and all it holds with its drawing buffers, in MB; the
+draws for the picture and for the sun's shadows:
+
+On a phone's settings (3 pixels to each of the page's):
+
+| place | Ultra | High | Medium | Low |
+|---|---|---|---|---|
+| motor park | 102 / 143 MB · 444 + 45 | 78 / 102 MB · 444 + 45 | 78 / 95 MB · 445 + 36 | 44 / 54 MB · 347 + 0 |
+| market | 112 / 153 MB · 199 + 45 | 88 / 112 MB · 199 + 45 | 84 / 101 MB · 199 + 31 | 52 / 62 MB · 190 + 0 |
+| PowerBike showroom | 134 / 175 MB · 357 + 63 | 104 / 128 MB · 357 + 63 | 100 / 117 MB · 357 + 41 | 66 / 77 MB · 293 + 0 |
+| car showroom gate | 116 / 157 MB · 156 + 26 | 92 / 115 MB · 156 + 26 | 93 / 110 MB · 156 + 22 | 63 / 74 MB · 142 + 0 |
+| town east end | 104 / 146 MB · 227 + 38 | 86 / 110 MB · 227 + 38 | 85 / 103 MB · 227 + 25 | 55 / 67 MB · 222 + 0 |
+| habitation gate | 101 / 143 MB · 199 + 33 | 77 / 102 MB · 198 + 33 | 77 / 95 MB · 199 + 31 | 57 / 69 MB · 201 + 0 |
+| lagoon beach | 90 / 132 MB · 151 + 26 | 66 / 90 MB · 150 + 25 | 68 / 85 MB · 152 + 27 | 54 / 66 MB · 155 + 0 |
+
+On a computer's settings (1 pixel to each of the page's):
+
+| place | Ultra | High | Medium | Low |
+|---|---|---|---|---|
+| motor park | 454 / 485 MB · 481 + 49 | 454 / 485 MB · 448 + 49 | 222 / 253 MB · 404 + 40 | 145 / 176 MB · 355 + 0 |
+| market | 738 / 769 MB · 196 + 55 | 738 / 769 MB · 196 + 55 | 298 / 329 MB · 197 + 41 | 168 / 199 MB · 188 + 0 |
+| PowerBike showroom | 784 / 815 MB · 390 + 71 | 784 / 815 MB · 369 + 71 | 328 / 359 MB · 334 + 49 | 199 / 230 MB · 305 + 0 |
+| car showroom gate | 833 / 864 MB · 193 + 50 | 833 / 864 MB · 174 + 51 | 345 / 376 MB · 156 + 40 | 219 / 250 MB · 147 + 0 |
+| town east end | 894 / 941 MB · 252 + 62 | 896 / 943 MB · 252 + 62 | 406 / 453 MB · 252 + 42 | 283 / 330 MB · 249 + 0 |
+| habitation gate | 861 / 908 MB · 227 + 66 | 861 / 908 MB · 228 + 67 | 421 / 468 MB · 228 + 59 | 313 / 360 MB · 229 + 0 |
+| lagoon beach | 745 / 792 MB · 145 + 14 | 743 / 790 MB · 147 + 16 | 367 / 414 MB · 147 + 15 | 281 / 328 MB · 159 + 0 |
+
+What the numbers say:
+- **A phone at Medium** (where Auto starts a phone) holds at most 100 MB of pictures and 117 MB in all, at the PowerBike
+  showroom: under the 150 MB a phone keeps to, and under the memory guard's 135, with room for what comes and goes
+  (other players, their vehicles, the habitation's models). As phones were drawn until now (23 October), the same place
+  held 161 MB of pictures. **At High**, a phone's ceiling for Auto, at most 104 and 128 MB. **At Ultra** a phone would
+  hold up to 134 MB of pictures and 175 MB in all (its 2048 shadow map is 32 MB, and 2 pixels to each of the screen's
+  are 40 MB of drawing buffers on a phone's screen): more than a phone should, which is why Auto never chooses it on a
+  phone, and why the memory guard steps a phone down from it if the player does. **At Low**, at most 66 and 77 MB.
+- **A computer**: Ultra as computers were drawn until now (the before-and-after pictures the same; the PowerBike
+  showroom 787 MB on the card, 778 before). High holds as much as Ultra at these places: the town's pictures come to a
+  computer at 2048 at most, High's own largest; it draws a little less (the computer's second step of detail) and, on
+  a screen with more pixels than the page has, 1.5 to each instead of 2. Medium about half of Ultra's memory (1024
+  pictures), Low about a third.
+- The draws: the picture's are the same at every level but Low and a computer's lower steps of detail (fewer models
+  and grass far off); the sun's shadows' fewer at Medium (40 m) and none at Low. The frames on this machine (no graphics
+  card: everything drawn in software, a frame every one to three seconds) are only good for comparing the levels with
+  each other: at the PowerBike showroom a frame at Low took 40% less time than at Ultra on a computer's settings, 60%
+  less on a phone's. The frames a second on a real phone or computer are what #stats shows there, and Auto lowers the
+  level by itself where they fall under thirty.
+- Loading: PLAY at 1.8 to 2.2 s on a phone's settings at every level and 1.4 to 1.5 s on a computer's (2.2 and 1.5 s on
+  23 October); into the town 23 to 27 s and 18 to 20 s on this machine.
+
+**Found and fixed while testing**: the build (`build.mjs`) turns each module into a function that gives back what it
+exports, and gave only the first name of `export const ULTRA = 0, HIGH = 1, MEDIUM = 2, LOW = 3`: in the built game,
+and only there, Low, Medium and High were undefined, so the silent test, the memory guard and the step down after a
+lost picture never fired (the headless tests, which read the modules as they are, could not see it). One name to each
+export now; and the build refuses an import its module does not give.
+
+Files: `src/client/graphics.js`, `monitor.js` (the governor's ceiling, its quick first judgement, `lower`), `glb.js`
+(pictures by level and by their own largest, `pictureState`), `picture-keeper.js`, `render-finish.js` (reflections and
+water by level), `render-sky.js` (the shadows' reach and fade, the view), `soft-patch.js`, `vehicle-models.js` (the sky
+as a cube, for a phone's roads; the vehicles' words at half size on a phone), `supplied-model.js`, `bike-model.js`,
+`car-model.js`, `render-supplied.js`, `render-carshow.js`, `render-powerbike.js`, `render-holaris.js`,
+`graphics-count.js` (`list`), `main.js`, `ui.js`, `stats.js`, `build.mjs`; `tools/measure/places.mjs` (PERF_LEVEL,
+PERF_DPR, the page's own time a frame, what the card holds picture by picture and where each was made),
+`tools/measure/levels.py` and `sheets.py`; tests `graphics.test.mjs`, `picture-sizes.test.mjs`,
+`picture-keeper.test.mjs` and `graphics.mjs` (in a browser, a phone's settings and a computer's: 24 checks).
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 427 headless tests
+node --test test/*.test.mjs                        # 446 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
@@ -2961,8 +3095,10 @@ node test/outskirts.mjs out/                       # the road to Onitsha, the ai
 ../server/with-postgres.sh node test/town-buildings.mjs out/   # the owner's houses and towers: every model whole, each on its plot at its size, drawn near, solid; the hotel's facade
 ../server/with-postgres.sh node test/realism.mjs out/   # the leaves, the wind, their shadows; glass and the river giving back the sky, not at night; rain on the roads, and drying
 node test/look.mjs out/                            # close-up shots of people, vehicles and buildings
-../server/with-postgres.sh node tools/measure/places.mjs out/ computer|phone [all|place,place] [site]   # the fifteen usual places, the character screen and the habitation, by day and night: frame time, draws, triangles, the graphics card's memory, the script's, loading times, pictures (a phone: its settings, the processor slowed four times); site: another build's dist/site to measure instead; PERF_LEVEL=n holds a graphics level, PERF_DAY_ONLY=1 by day only, TEXTURE_LIST=1 lists the pictures held by size
-python3 tools/measure/sheets.py before/ after/ computer|phone out.pdf   # two measurings' pictures side by side, a page a place, the numbers under each
+../server/with-postgres.sh node tools/measure/places.mjs out/ computer|phone [all|place,place] [site]   # the fifteen usual places, the character screen and the habitation, by day and night: frame time, draws, triangles, the graphics card's memory, the script's, loading times, pictures (a phone: its settings, the processor slowed four times); site: another build's dist/site to measure instead; PERF_LEVEL=n holds a graphics level, PERF_DAY_ONLY=1 by day only, TEXTURE_LIST=1 lists the pictures held by size, TEXTURE_TRACE=1 with where in the game's code each was made; PERF_DPR sets the screen's pixels to each of the page's (a phone's 3)
+python3 tools/measure/sheets.py before/ after/ computer|phone out.pdf [title] [before's name] [after's name]   # two measurings' pictures side by side, a page a place, the numbers under each
+../server/with-postgres.sh node test/graphics.mjs out/   # the graphics levels, on a phone's settings and a computer's: Auto's first choice and the level kept for the device, Settings → Graphics, every level made at once without reloading, memory freed when lowering and given back when raising, Auto lowering by itself for slow frames and for a full graphics card and saying so once, #stats; on a phone, the owner's box truck at 512 far off and at its own size near, and signs out of sight let go from the card and handed back as painted
+python3 tools/measure/levels.py <folder> phone|computer out.pdf [title]   # the graphics levels side by side (PERF_LEVEL=0..3 measurings, the folder holding <device>-0 .. <device>-3), a page a place, with their numbers, and the same as a table (out.md)
 ```
 
 `engine.test.mjs` covers the 3D engine: that the library is r186 and holds every name the game, its tests and its
@@ -2971,6 +3107,18 @@ surface's alpha and see-through things drawn once, as r128 had them (each change
 every piece of three.js's shaders that the game changes still there, and none of r128's removed names left; the sun,
 the sky and the lamps in physical units, the lamps lighting the ground as they did; a picture counted once on the
 graphics card; and every page loading the library from beside it, never from elsewhere.
+
+`graphics.test.mjs` covers the graphics levels without a graphics card: four levels with a line each and the owner's
+words; each level drawing less than the one above it; the graphics card nearly full lowering the level (a phone at
+nine tenths of its 150 MB); Auto's first level by the device and its graphics card, and the level kept for the same
+card and not for another; stepping down under thirty frames a second and climbing back no higher than its ceiling (a
+phone no higher than High); a level given up for a full card not climbed back to for a while, longer each time; the
+first seconds in the town judged quickly; and the sun's shadows fading out at the edge of their reach. `picture-sizes.test.mjs` covers the pictures made again at another size: lowering the level makes every larger
+one again at its largest, one at a time, its old copy let go first; raising it makes them larger again; a picture's own
+largest (a far-off truck's) and the level's together, the smaller of the two; a change undone before its turn not
+made at all. `picture-keeper.test.mjs` covers a phone letting go of pictures painted in the page that nothing drawn
+has used for half a minute: which are let go (out of sight, in a hidden group), which are kept (in sight, shared with
+something in sight, made again from a file, in a hall kept ready, no longer held by the page), and when.
 
 `gait.test.mjs` covers walking and running without drawing anything: that a
 planted foot stays put, that the leg found really reaches it, that a knee

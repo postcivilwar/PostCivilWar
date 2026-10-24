@@ -7,7 +7,7 @@
 // almost nothing. Where it stands, how wide and how tall, comes from the town's own list of buildings.
 // THREE is the global from three.min.js.
 
-import { Batch, place, surface, linear } from './render-kit.js';
+import { Batch, place, surface, linear, isLite } from './render-kit.js';
 import { reflects } from './render-finish.js';
 
 const STEEL = 0x161b20;
@@ -30,10 +30,14 @@ function skyInGlass() {
   return texture;
 }
 
+// (on a phone at half the size, set out the same: on its screen it looks the same, and takes a quarter of the graphics
+// memory; the four names were 4.6 MB of a phone's 150, seen from the PowerBike showroom and the motor park, 23 October 2026)
 function nameTexture(text, { width = 1024, height = 256, size = 170, colour = '#ffffff', spacing = 0.16, weight = 300 } = {}) {
+  const k = isLite() ? 0.5 : 1;
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
   const ctx = canvas.getContext('2d');
+  ctx.scale(k, k);
   ctx.clearRect(0, 0, width, height);
   ctx.fillStyle = colour;
   ctx.textBaseline = 'middle';
@@ -139,7 +143,7 @@ export function buildShowroom(b, { storeys = 3 } = {}) {
     for (let i = 0; i < 12; i += 1) frame.box(1.3, 0.07, 0.34, place(b.x + hw - 1.2, base + floorH * f + 0.2 + (i * floorH) / 12, b.z - hd + 1.6 + i * 0.5), 0xcfd3d6);
   }
 
-  const frameMesh = frame.build(reflects(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }), 0.7));
+  const frameMesh = frame.build(reflects(surface({ vertexColors: true, roughness: 0.42, metalness: 0.55 }), 0.7, 'metal'));
   frameMesh.castShadow = true; frameMesh.receiveShadow = true;
   group.add(frameMesh);
 

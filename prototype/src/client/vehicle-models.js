@@ -7,6 +7,7 @@
 
 import { VEHICLE_SLOTS, vehicleMeta, vehicleGeometry, vehicleTriangles } from './vehicle-kit.js';
 import { resolveLook } from '../sim/vehicle-looks.js';
+import { softPatchUnder } from './soft-patch.js';
 
 const SLOT = Object.fromEntries(VEHICLE_SLOTS.map((name, i) => [name, i]));
 const N = VEHICLE_SLOTS.length;
@@ -21,48 +22,74 @@ const css = (hex) => `#${hex.toString(16).padStart(6, '0')}`;
 
 // ------------------------------------------------------------- shared things --
 
-const shared = { env: null, textures: new Map(), daylight: 1, live: new Set() };
+const shared = { env: null, cube: null, size: 256, textures: new Map(), daylight: 1, live: new Set(), lite: false };
 
 // Gives vehicles something to reflect: a plain sky over plain ground. Call once
 // with the renderer; without it vehicles are drawn with their metal toned down.
-export function initVehicles(renderer) {
+// (`lite`, a phone: the picture 128 pixels a side, not 256: a soft sky on a small screen, a quarter of the graphics card's
+// memory, which three.js r186 has kept in half floats since, twice what r128 took)
+export function initVehicles(renderer, { lite = false } = {}) {
+  shared.lite = lite;
   if (shared.env || !renderer || location.hash.includes('noenv')) return;
+  shared.size = lite ? 128 : 256;
   shared.env = skyPicture(renderer);
+  shared.cube = skyCube(renderer);
+}
+// The plain sky over plain ground, as a little scene of its own (`done` lets it go).
+function skyDome() {
+  const sky = new THREE.Scene();
+  const dome = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.ShaderMaterial({
+    side: THREE.BackSide,
+    vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+    fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <colorspace_fragment>\n}',
+  }));
+  sky.add(dome);
+  return { sky, done() { dome.geometry.dispose(); dome.material.dispose(); } };
 }
 // The picture itself, made on the graphics card (so it is not there after the browser has taken the card's pictures
 // away and given the drawing surface back: renewEnvironment makes it again).
 function skyPicture(renderer) {
   try {
-    const sky = new THREE.Scene();
-    const dome = new THREE.Mesh(new THREE.SphereGeometry(20, 24, 12), new THREE.ShaderMaterial({
-      side: THREE.BackSide,
-      vertexShader: 'varying vec3 vDir; void main() { vDir = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
-      fragmentShader: 'varying vec3 vDir; void main() { float h = vDir.y; vec3 skyTop = vec3(0.30, 0.48, 0.80); vec3 horizon = vec3(0.80, 0.84, 0.86); vec3 ground = vec3(0.30, 0.22, 0.16); vec3 c = h > 0.0 ? mix(horizon, skyTop, pow(h, 0.55)) : mix(horizon * 0.8, ground, pow(-h, 0.4)); float sun = pow(max(dot(vDir, normalize(vec3(0.4, 0.75, 0.5))), 0.0), 220.0); gl_FragColor = vec4(c + vec3(6.0, 5.4, 4.6) * sun, 1.0);\n#include <colorspace_fragment>\n}',
-    }));
-    sky.add(dome);
+    const { sky, done } = skyDome();
     const pmrem = new THREE.PMREMGenerator(renderer);
-    const made = pmrem.fromScene(sky, 0.03).texture;
+    const made = pmrem.fromScene(sky, 0.03, 0.1, 100, { size: shared.size }).texture;
     pmrem.dispose();
-    dome.geometry.dispose(); dome.material.dispose();
+    done();
     return made;
   } catch (error) { return null; }
 }
-// After the drawing surface is given back (main.js): the sky picture made again, and everything in `scene` that
-// reflected the old one reflecting the new. Gives how many materials were changed.
+// The same sky as a small cube (64 pixels a side, about half a megabyte with its smaller copies): what a surface lit without
+// gloss (a phone's roads, render-finish.js) can give back, mixed into its own colour, where the picture above (made for
+// glossy surfaces) cannot be read.
+function skyCube(renderer) {
+  try {
+    const { sky, done } = skyDome();
+    const target = new THREE.WebGLCubeRenderTarget(64, { generateMipmaps: true, minFilter: THREE.LinearMipmapLinearFilter });
+    new THREE.CubeCamera(0.1, 50, target).update(renderer, sky);
+    done();
+    return target.texture;
+  } catch (error) { return null; }
+}
+// After the drawing surface is given back (main.js): the sky pictures made again, and everything in `scene` that
+// reflected the old ones reflecting the new. Gives how many materials were changed.
 export function renewEnvironment(renderer, scene) {
   if (!shared.env) return 0;
-  const old = shared.env;
+  const swaps = new Map();
   const made = skyPicture(renderer);
-  if (!made) return 0;
-  shared.env = made;
+  if (made) { swaps.set(shared.env, made); shared.env = made; }
+  const cube = shared.cube ? skyCube(renderer) : null;
+  if (cube) { swaps.set(shared.cube, cube); shared.cube = cube; }
+  if (!swaps.size) return 0;
   let n = 0;
   const seen = new Set();
-  scene.traverse((o) => { for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) { if (!seen.has(m) && m.envMap === old) { m.envMap = made; m.needsUpdate = true; n += 1; } seen.add(m); } });
+  scene.traverse((o) => { for (const m of Array.isArray(o.material) ? o.material : o.material ? [o.material] : []) { if (!seen.has(m) && swaps.has(m.envMap)) { m.envMap = swaps.get(m.envMap); m.needsUpdate = true; n += 1; } seen.add(m); } });
   return n;
 }
 
 // What vehicles reflect (null until initVehicles has made it): the city's glass reflects it too.
 export const vehicleEnvironment = () => shared.env;
+// The same sky as a cube, for surfaces lit without gloss (null until initVehicles has made it).
+export const skyCubeEnvironment = () => shared.cube;
 
 // How bright the sky is, 0 at night to 1 at noon, so reflections fade after dark.
 export function setVehicleDaylight(amount) {
@@ -158,10 +185,16 @@ function glassMaterial(model, far) {
 
 // ------------------------------------------------------------------ markings --
 
+// (on a phone at half the size, painted the same: on its screen it looks the same, and takes a quarter of the graphics
+// memory; the motor park's coaches and kekes held 17 MB of a phone's 150 in their words, adverts and plates, 23 October
+// 2026)
 function canvasTexture(width, height, paint) {
+  const k = shared.lite ? 0.5 : 1;
   const canvas = document.createElement('canvas');
-  canvas.width = width; canvas.height = height;
-  paint(canvas.getContext('2d'), width, height);
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
+  const g = canvas.getContext('2d');
+  g.scale(k, k);
+  paint(g, width, height);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
@@ -276,6 +309,8 @@ export function makeVehicleModel(look, { plate = null, region = '', level = 0, s
   const shell = new THREE.Mesh(vehicleGeometry(ids(meta.parts.far), 0), materials);
   shell.receiveShadow = true;
   group.add(shell);
+  // (the soft patch under it, while the sun casts no shadows: soft-patch.js)
+  softPatchUnder(group, shell);
   // The shadow is cast by the far-off shape whatever level is on show: the
   // outline is the same, and the sun's pass draws a few thousand triangles
   // instead of tens of thousands.

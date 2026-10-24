@@ -24,7 +24,8 @@ import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry } from './render-kit.js';
-import { restorePictures } from './glb.js';
+import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable } from './glb.js';
+import { createPictureKeeper } from './picture-keeper.js';
 import { makeVehicle, makeVan, createParcelLayer, createSiteLayer, createYardStacks } from './render-actors.js';
 import { initVehicles, setVehicleDaylight, vehicleWarmJobs, vehicleEnvironment, renewEnvironment } from './vehicle-models.js';
 import { vehicleMeta } from './vehicle-kit.js';
@@ -79,7 +80,7 @@ import { bikesHeld, trimBikes } from './bike-model.js';
 import { buildCarshow } from './render-carshow.js';
 import { createSupplied } from './render-supplied.js';
 import { createTownBuildings } from './render-town-buildings.js';
-import { updateFinishes, finishState } from './render-finish.js';
+import { updateFinishes, finishState, setReflections, setWater } from './render-finish.js';
 import { foliageState } from './render-foliage.js';
 import { buildPowerbike } from './render-powerbike.js';
 import { pictureSize, GRAPHICS_BUDGET_MB } from './budget.js';
@@ -91,6 +92,8 @@ import { watchPicture } from './picture-watch.js';
 import { buildClosures } from './render-closures.js';
 import { createTorchBeams } from './torch-beams.js';
 import { STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT } from './light.js';
+import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } from './graphics.js';
+import { showSoftPatches, softPatchesShown } from './soft-patch.js';
 import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
 
@@ -106,7 +109,7 @@ const HASH = typeof location !== 'undefined' ? location.hash : '';
 const TOUCH_FIRST = typeof window !== 'undefined' && !!window.matchMedia && window.matchMedia('(pointer: coarse)').matches;
 const LITE = !HASH.includes('full') && (TOUCH_FIRST || HASH.includes('lite'));
 const MAX_RIGS = LITE ? [14, 11, 8, 5] : [26, 18, 12, 6];
-const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must be for each level of detail, as quality drops
+const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must be for each step of detail (quality.detail), as quality drops
 const DRIVER_SEAT = vehicleMeta('keke').seats.driver;   // where the keke's driver sits, in the keke's own frame
 const SEATED_HEIGHT = 0.845;                 // how far above its own feet a seated figure's seat is, for a figure of height 1
 const FIGURE_DETAIL = LITE ? [44, 36, 28, 22] : [60, 45, 32, 24];      // metres within which a townsperson is drawn with limbs
@@ -184,7 +187,7 @@ function start(carried) {
   let townBuilt = false;
   let world = null, closures = null;
   townSteps.push(['the ground and the roads', () => {
-    initVehicles(renderer);
+    initVehicles(renderer, { lite: LITE });
     world = buildWorld(scene);
     // the roads not open yet and the edge of the built land: roadblocks and a fence, solid where they are drawn
     // (render-closures.js, closures.js; 19 October 2026)
@@ -308,7 +311,7 @@ function start(carried) {
       const along = (w.x - e.was.x) * Math.sin(w.h) + (w.z - e.was.z) * Math.cos(w.h);
       if (Math.abs(along) > 1e-4 && Math.abs(along) < 5) e.actor.model.roll(along);
       e.was.x = w.x; e.was.z = w.z;
-      e.actor.model.setDistance(Math.hypot(w.x - camera.position.x, w.z - camera.position.z), undefined, VEHICLE_BIAS[quality.level]);
+      e.actor.model.setDistance(Math.hypot(w.x - camera.position.x, w.z - camera.position.z), undefined, VEHICLE_BIAS[quality.detail]);
       const lit = w.driven && night > 0.45 ? 1 : 0;
       if (lit !== e.lit) { e.lit = lit; e.actor.model.lamps(lit, lit, 0, 0); }
     }
@@ -476,7 +479,7 @@ function start(carried) {
   // ---------------------------------------------------------------- state --
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
-  const prefs = { translate: true, sound: true, detail: 'auto', ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, sound: true, graphics: 'auto', ...(readStored(PREFS_KEY) || {}) };
   // Every world made here keeps the real clock, and the real weather where the player is, once that is known.
   let realWeather = null;              // { kind, place, temperature, at } from the site's server
   const newHost = (options = {}) => {
@@ -543,6 +546,9 @@ function start(carried) {
   const perf = { fps: 60, calls: 0, triangles: 0, programs: 0, geometries: 0, textures: 0 };
   const monitor = createMonitor();
   const warmUp = createWarmUp(renderer, scene);
+  // (a phone: the pictures painted in the page that nothing drawn has used for half a minute let go from the graphics
+  // card, handed to it again when next drawn: picture-keeper.js)
+  const keeper = LITE ? createPictureKeeper(scene, renderer, { skip: isRestorable }) : null;
   const warm = { stage: 0, frames: 0, extras: [] };
   const startEl = $('start');
   let prompt = null;
@@ -1424,7 +1430,7 @@ function start(carried) {
     requestId,
     waypoint: () => waypoint,
     setWaypoint: (mark) => setWaypoint(mark),
-    setDetail: (value) => setDetail(value),
+    setGraphics: (value) => setGraphics(value),
     volumes: () => audio.volumes(),
     setVolume: (name, value) => { audio.setVolumes({ [name]: value }); prefs.volumes = audio.volumes(); writeStored(PREFS_KEY, prefs); if (name === 'ui') audio.chime('ok'); },
     chime: (kind) => audio.chime(kind),
@@ -1450,8 +1456,8 @@ function start(carried) {
     realWeather: () => realWeather,
     realClock: REAL_CLOCK,
     // (Settings, Measured on this device: the readout's lines, but for the frames, which it has of its own)
-    readout: () => statsLines(statsNow()).filter(([label]) => label !== 'Frames' && label !== 'Game'),
-    perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, detail: prefs.detail, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
+    readout: () => statsLines(statsNow()).filter(([label]) => label !== 'Frames' && label !== 'Game' && label !== 'Graphics'),
+    perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, graphics: prefs.graphics, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
   });
   audio.setMuted(!prefs.sound);
   audio.setVolumes({ ...DEFAULT_VOLUMES, ...(prefs.volumes || {}) });
@@ -2981,42 +2987,92 @@ function start(carried) {
     return speed;
   }
 
-  // Detail steps down when the device truly cannot keep up, and back up when
-  // it can: see createGovernor in monitor.js for how that is judged. Every
-  // level can be reached from every other, so nothing here is one-way.
-  //   0  everything            2  smaller shadow map, no garden plants
-  //   1  one pixel per pixel   3  no shadows, three quarters resolution, no grass
-  // On a phone the picture is never made blurry to save time (that was the "quality dropping" players saw):
-  // the sharpness stays put and the first thing given up is the sun's shadows (people keep the dark patch
-  // under their feet), then half the grass and fewer townspeople with limbs, then how far the town is drawn.
-  const PIXEL_RATIO = LITE ? [1.25, 1.25, 1.25, 1] : [2, 1, 1, 0.75];
-  const SHADOW_MAP = LITE ? [1024, 1024, 1024, 1024] : [2048, 2048, 1024, 1024];
+  // The graphics level (graphics.js: 0 Ultra, 1 High, 2 Medium, 3 Low), chosen in Settings or left to the game (Auto):
+  // Auto starts where this device was last found to keep up (or where its kind starts), judges the first seconds in
+  // the town quickly (the silent test), steps down when the device truly cannot keep up (a typical frame slower than
+  // a thirtieth of a second for a few seconds: monitor.js) or the graphics card is nearly full, and back up, slowly,
+  // when there is room. A step down by itself is said once: "Graphics lowered to keep the game smooth".
+  //   Each level (graphics.js, LEVEL_SETTINGS): the pixels drawn; the sun's shadows, how far they reach and how soft they
+  //   are (none at Low, where every vehicle has its soft patch as every figure has); the largest picture; the sky in
+  //   glass, water, metal and wet roads; the waters' ripples; how far one sees; and the device's own steps of detail
+  //   (`quality.detail`: how many figures move their limbs and how near, how far the town is drawn, the grass, the
+  //   showrooms' models), which a phone keeps at its fullest from Medium up, as it was drawn before the levels, and a
+  //   computer at each level as its detail steps were (0 to 3).
+  const DETAIL_OF = LITE ? [0, 0, 0, 3] : [0, 1, 2, 3];
   function applyQuality(level) {
     if (!townBuilt) return;          // (applied when the town is built)
-    world.setQuality(level);
-    town.setQuality(level);
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, PIXEL_RATIO[level]));
-    const shadow = sky.sun.shadow;
-    if (shadow.mapSize.x !== SHADOW_MAP[level]) { shadow.mapSize.set(SHADOW_MAP[level], SHADOW_MAP[level]); if (shadow.map) { shadow.map.dispose(); shadow.map = null; } }
+    const at = (key) => levelSetting(key, level, LITE);
+    world.setQuality(DETAIL_OF[level]);
+    town.setQuality(DETAIL_OF[level]);
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, at('pixelRatio')));
+    const shadow = sky.sun.shadow, size = at('shadowMap');
+    // (the map let go when shadows go, and made again at its new size when they come back: memory freed at once)
+    if (size === 0 || shadow.mapSize.x !== size) { if (size) shadow.mapSize.set(size, size); if (shadow.map) { shadow.map.dispose(); shadow.map = null; } }
+    shadow.radius = at('shadowSoft');
+    if (size) sky.reachShadows(at('shadowReach'));
     // Shadows go by telling the sun not to cast them. The renderer then moves each material to a
-    // program without shadows as it next draws it, and back again the same way.
-    sky.sun.castShadow = level < (LITE ? 1 : 3);
+    // program without shadows as it next draws it, and back again the same way. Without them, every vehicle has its
+    // soft patch under it, as every figure always has (soft-patch.js).
+    sky.sun.castShadow = size > 0;
+    showSoftPatches(size === 0);
+    // the sky in glass, water, metal and wet roads, or less; the waters' ripples; how far the air lets one see
+    setReflections(at('reflections'));
+    setWater(at('water'));
+    sky.setView(at('view'));
+    // the largest picture: those larger made again smaller, a few at a time (glb.js), freeing the graphics card's memory
+    setPictureMost(at('pictureMost'));
     soundTimer = 1;      // look again at what is in reach
     resize();
-    monitor.count(`quality to ${level}`);
+    monitor.count(`graphics to ${GRAPHICS_LEVELS[level].name}`);
   }
-  // a phone is asked to hold thirty frames a second, and is stepped down sooner when it cannot
-  // and it climbs back slowly, so that detail does not flicker up and down while walking about
-  const governor = createGovernor(applyQuality, LITE ? { ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 } : QUALITY_RULES);
-  // The player may fix the detail level, or leave it to the governor ('auto').
-  function setDetail(value) {
-    prefs.detail = value === 'auto' ? 'auto' : Math.max(0, Math.min(3, Number(value) || 0));
+  // a phone is stepped down sooner when it cannot keep up; both climb back slowly, so that the picture does not flicker
+  // between levels while walking about
+  let loweredSaid = false;
+  const governor = createGovernor((level, from) => {
+    applyQuality(level);
+    const last = governor.changes[governor.changes.length - 1];
+    // (said when the game lowered it by itself while playing, for slow frames or a full graphics card, and only the first
+    // time (the owner: "tell the player once"); never when the player chose)
+    if (level > from && last && /^typical frame|^the graphics card/.test(last.why) && townBuilt && ui && !loweredSaid) { loweredSaid = true; ui.toast({ type: 'note', text: GRAPHICS_LOWERED }); }
+  }, LITE ? { ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 } : QUALITY_RULES);
+  let gpuSaid = null;
+  const gpuName = () => { if (gpuSaid === null) { try { const gl = renderer.getContext(); const info = gl.getExtension('WEBGL_debug_renderer_info'); gpuSaid = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (error) { return ''; } } return gpuSaid; };
+  const deviceMemory = typeof navigator !== 'undefined' && Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null;
+  const storage = (() => { try { return window.localStorage; } catch (error) { return null; } })();
+  const autoLevel = () => { const known = storage ? remembered(storage, gpuName()) : null; return known !== null ? known : autoStart({ lite: LITE, gpu: gpuName(), memory: deviceMemory }); };
+  governor.setCeiling(autoCeiling({ lite: LITE }));
+  // The player's choice: 'auto' or a level ('low', 'medium', 'high', 'ultra'), kept with the game's preferences.
+  function setGraphics(value) {
+    const level = levelOf(value);
+    prefs.graphics = level === null ? 'auto' : value;
     writeStored(PREFS_KEY, prefs);
-    governor.hold(prefs.detail !== 'auto');
-    if (prefs.detail !== 'auto') governor.set(prefs.detail, 'chosen in Help');
+    governor.hold(level !== null);
+    if (level !== null) governor.set(level, `chosen in Settings: ${GRAPHICS_LEVELS[level].name}`);
+    else governor.set(Math.max(autoLevel(), governor.ceiling), 'Auto');
   }
-  if (prefs.detail !== 'auto') setDetail(prefs.detail);
-  const quality = { get level() { return governor.level; } };
+  if (!prefs.graphics || (prefs.graphics !== 'auto' && levelOf(prefs.graphics) === null)) prefs.graphics = 'auto';
+  if (prefs.graphics === 'auto') governor.set(Math.max(autoLevel(), governor.ceiling), 'Auto: where this device starts'); else setGraphics(prefs.graphics);
+  // Auto's silent test while loading (the owner's brief: "a short silent test while loading"): a dozen frames of the town
+  // drawn behind the loading card, timed; their typical frame slower than a thirtieth of a second, a level lower and
+  // again, at most three times (never said: it is the first choice, not a change while playing). Then, playing, the
+  // first half minute in the town judged quickly (quickTest); the level it settles at kept for this device.
+  const typicalFrame = (n) => new Promise((resolve) => { const t = []; let last = null; const f = (now) => { if (last !== null) t.push(now - last); last = now; if (t.length >= n) { t.sort((a, b) => a - b); resolve(t[Math.floor(t.length / 2)]); } else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  async function silentTest() {
+    if (prefs.graphics !== 'auto') return;
+    for (let tries = 0; tries < 3 && governor.level < LOW; tries += 1) {
+      const ms = await typicalFrame(12);
+      if (!(ms > QUALITY_RULES.slowMs)) return;
+      governor.set(governor.level + 1, `the silent test while loading: a typical frame ${ms.toFixed(0)} ms`);
+      await painted(); await painted();
+    }
+  }
+  let testedAt = null;
+  function quickTest(clock) {
+    if (prefs.graphics !== 'auto') return;
+    if (testedAt === null) { testedAt = clock; governor.quick(30); return; }
+    if (clock - testedAt > 60 && storage) { remember(storage, gpuName(), governor.level); testedAt = Infinity; }
+  }
+  const quality = { get level() { return governor.level; }, get detail() { return DETAIL_OF[governor.level]; } };
 
   // What can be heard from where the player stands. Worked out twice a second.
   const onTar = (x, z) => ZONE_ROADS.some((r) => r.surface === 'asphalt' && x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1) || OUTSKIRT_ROADS.some((r) => x > r.x0 && x < r.x1 && z > r.z0 && z < r.z1);
@@ -3165,6 +3221,7 @@ function start(carried) {
           loading.progress(0.95);
           await painted();
           warmPrograms(2);
+          await silentTest();
         }
         warm.stage = 4;
         isReady = true;
@@ -3456,7 +3513,7 @@ function start(carried) {
         was.x = g.position.x; was.z = g.position.z;
         was.steer += ((mine ? -(car.steer || 0) * 0.5 : 0) - was.steer) * Math.min(1, dt * 8);
         actor.model.steer(was.steer);
-        if (mine) actor.model.setLevel(0); else actor.model.setDistance(Math.hypot(g.position.x - camera.position.x, g.position.z - camera.position.z), undefined, VEHICLE_BIAS[quality.level]);
+        if (mine) actor.model.setLevel(0); else actor.model.setDistance(Math.hypot(g.position.x - camera.position.x, g.position.z - camera.position.z), undefined, VEHICLE_BIAS[quality.detail]);
         const lit = t.driver && night > 0.45 ? 1 : 0;
         if (lit !== actor.lit) { actor.lit = lit; actor.model.lamps(lit, lit, 0, 0); }
       }
@@ -3491,7 +3548,7 @@ blood.update(dt, view.blood || []);
             crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, others: view.others,
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
-        maxRigs: MAX_RIGS[quality.level], detail: FIGURE_DETAIL[quality.level], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
+        maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
       // other players on their own motorcycles: the bike under them and them on it, with its lamps and flames
       // (own-bike-view.js), from what their game says the bike is doing; its engine and horn are heard where it is
       peerRides = [];
@@ -3616,10 +3673,10 @@ blood.update(dt, view.blood || []);
     const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0, playing ? wildAt(predicted.x, predicted.z) : 0);
     // (the motorcycles in the hall, each its model with the pictures its distance asks for: smaller ones on a device
     // that is struggling; made ready as the player comes up to the doors, let go once the player is well away)
-    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.level, sun: sky.sun.castShadow });
+    powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.detail, sun: sky.sun.castShadow });
     // (the car showroom: its gate as far open as the town has it, its doors, its cameras, its flags; in its hall the
     // cars, as the motorcycles are in theirs)
-    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.level, sun: sky.sun.castShadow });
+    if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.detail, sun: sky.sun.castShadow });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
@@ -3665,7 +3722,7 @@ blood.update(dt, view.blood || []);
       sources = soundSources(hour, weather.wet);
       // (in PostCivilWar PowerBike's hall only what is near can be seen, through its glass front: the rest of the
       // town, behind its walls, is not drawn)
-      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.level], scene.fog.far * 0.82);
+      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.detail], scene.fog.far * 0.82);
       world.see(cam.target.x, cam.target.z, reach);
       // (the owner's houses and towers: each model fetched once the town is ready, for someone who can see it, or at
       // once for someone right by one; not from inside a hall)
@@ -3735,7 +3792,10 @@ blood.update(dt, view.blood || []);
     if (playing) { fitTimer -= dt; if (fitTimer <= 0) { fitTimer = 0.3; fitter.fit(); } }
     if (playing && view) bubbles.update(view.speech, headOf, project, predicted, `p:${playerId}`, viewW, viewH);
     monitor.end(elapsed * 1000);
-    if (clock > 4 && !document.hidden) governor.frame(elapsed * 1000, dt);
+    if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) quickTest(clock); }
+    // (pictures the graphics level asked to be made another size: the next one, one at a time)
+    stepPictures();
+    if (keeper && townBuilt && !pictureGone) keeper.step(performance.now());
   }
 
   // The picture taken away (18 October 2026, and again 20 October: "players must never see a notice like 'The picture
@@ -3785,6 +3845,8 @@ blood.update(dt, view.blood || []);
       restored = { at: Math.round(performance.now()), numbers, pictures, reflections, views };
       restoredTimes += 1;
       pictureGone = false;
+      // (Auto never keeps a level the device could not hold: the picture taken away in the town, a level lower, and said)
+      if (townBuilt && prefs.graphics === 'auto' && governor.level < LOW) governor.set(governor.level + 1, 'the graphics card gave the picture up');
       loading.progress(1);
       await painted();
       if (!preparing || isReady) loading.hide();
@@ -3796,12 +3858,30 @@ blood.update(dt, view.blood || []);
   let restored = null;                // what the last giving back did (for the checks and the readout)
   let restoredTimes = 0;
 
-  // Over the budget for the graphics card (budget.js): everything kept ready but not being drawn is let go (figures
-  // looked at on the character screen, motorcycles and cars no longer in sight). Looked at every two seconds.
+  // Over the budget for the graphics card (budget.js), or nearly full (graphics.js, memoryLimitMB: on a phone nine
+  // tenths of its budget): first everything kept ready but not being drawn is let go (figures looked at on the character
+  // screen, motorcycles and cars no longer in sight). Looked at every two seconds. Still nearly full with nothing more to
+  // let go, the graphics level is lowered a step (whether Auto or chosen: the picture is never lost to a level), and said
+  // (once); and the level given up is not climbed back to for a while, longer each time (monitor.js, `lower`). (A step at
+  // most every ten seconds, and only once the pictures the last one made smaller have all been made: what a lower level
+  // lets go takes a moment to be let go.)
+  let memoryStepAt = -Infinity;
+  const memoryLimit = memoryLimitMB(graphicsBudgetMB, LITE);
+  // (the tests: how much more than it holds the card is taken to hold, to try what nearly full does without filling it)
+  const pretend = { extraMB: 0 };
   setInterval(() => {
-    if (pictureGone || graphics.unwatched || (graphics.pictures + graphics.buffers) / 1048576 <= graphicsBudgetMB) return;
-    const freed = dropUnusedFigures() + trimBikes() + trimCars();
-    if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); }
+    if (pictureGone || graphics.unwatched) return;
+    const usedMB = (graphics.pictures + graphics.buffers) / 1048576 + pretend.extraMB;
+    // (first what is kept ready and not drawn is let go, and the card counted again two seconds later; the level is
+    // lowered only when that was not enough)
+    if (usedMB > Math.min(graphicsBudgetMB, memoryLimit)) {
+      const freed = dropUnusedFigures() + trimBikes() + trimCars();
+      if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
+    }
+    if (townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
+      memoryStepAt = performance.now();
+      governor.lower(`the graphics card nearly full (${usedMB.toFixed(0)} of ${graphicsBudgetMB} MB)`);
+    }
   }, 2000);
 
   // The readout (stats.js): the address ending in #stats shows it in a corner of every screen; Settings shows the same.
@@ -3809,7 +3889,7 @@ blood.update(dt, view.blood || []);
   const screenName = () => (!intro || intro.active() ? 'the opening' : loading.open ? `the loading card: ${document.getElementById('loading-title').textContent}` : playing ? 'the town' : $('start') && !$('start').hidden ? (($('start').dataset.screen === 'create' ? 'the character screen' : `the start screen (${$('start').dataset.screen || ''})`)) : 'between screens');
   const heapNow = () => { try { const m = performance.memory; return m && m.usedJSHeapSize ? { used: m.usedJSHeapSize, limit: m.jsHeapSizeLimit } : null; } catch (error) { return null; } };
   const frameTimes = HASH.includes('stats') ? frameClock().start() : null;
-  const statsNow = () => ({ build, engine: THREE.REVISION, screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
+  const statsNow = () => ({ build, engine: THREE.REVISION, level: GRAPHICS_LEVELS[governor.level].name, levelAuto: prefs.graphics === 'auto', gpu: gpuName(), screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
   // (the readout never holds the game up: anything it cannot say this second, it says the next)
   if (frameTimes) { const box = showStats(); const draw = () => { try { box.update(statsLines(statsNow())); } catch (error) { /* said next second */ } }; setTimeout(draw, 0); setInterval(draw, 1000); }
   // (the town's sounds stop while the page is out of sight, and start again when it is back)
@@ -3823,7 +3903,7 @@ blood.update(dt, view.blood || []);
     // the habitation (20 October 2026): what is built of it, its fish and birds, the torch and the others' beams, the sky
     get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
-    get supplied() { return supplied; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
+    get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
@@ -3832,7 +3912,9 @@ blood.update(dt, view.blood || []);
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
     get drawn() { return { triangles: renderer.info.render.triangles, calls: renderer.info.render.calls }; },
     get inside() { return inside ? inside.id : null; },
-    get quality() { return quality.level; }, get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
+    // (the graphics level as drawn now: for the tests)
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },

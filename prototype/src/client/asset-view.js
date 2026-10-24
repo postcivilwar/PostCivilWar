@@ -237,8 +237,8 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
       // for looking at it close to (budget.js: its 4096 colour on a computer, the 2048 set on a phone)
       if (onProgress) onProgress(0, 1);
       const bike = model.car
-        ? await loadCar(model.car, { base: base || 'cars/', lite, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6, own: true })
-        : await loadBike(model.bike, { base: base || 'bikes/', lite, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1, own: true });
+        ? await loadCar(model.car, { base: base || 'cars/', lite, patch: false, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_CARS[model.car] ? POWER_CARS[model.car].length : 4.6, own: true })
+        : await loadBike(model.bike, { base: base || 'bikes/', lite, patch: false, tier: PICTURES[lite ? 'lite' : 'full'].inspect, length: POWER_BIKES[model.bike] ? POWER_BIKES[model.bike].length : 2.1, own: true });
       if (closed) { bike.dispose(); return null; }
       shownBike = bike;
       bike.pose({});

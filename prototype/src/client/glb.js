@@ -36,14 +36,99 @@ export async function fetchKept(url, init = undefined) {
 // copy goes with the drawing surface if the browser ever takes that away, and `restorePictures` then makes again
 // every picture that was let go and is still in use (20 October 2026: the game carries on where it was instead of
 // asking to be reloaded).
-const restorable = new Map();         // texture -> how to make its picture again
+const restorable = new Map();         // texture -> how to make its picture again: restore(size), size 0 for as large as it is
 export function letGoOnceDrawn(texture, restore = null) {
-  texture.onUpdate = () => { texture.onUpdate = null; const image = texture.image; if (image && typeof image.close === 'function') image.close(); };
+  texture.onUpdate = () => {
+    texture.onUpdate = null;
+    const image = texture.image;
+    // (its size on the graphics card, kept as the page's copy is let go: the graphics level's largest picture is
+    // compared with it, setPictureMost)
+    if (image && image.width) texture.userData.drawn = Math.max(image.width, image.height);
+    if (image && typeof image.close === 'function') image.close();
+    // (one that came larger than the level's largest, or its own, is made smaller in its turn; one made under a cap
+    // that has since been raised, larger)
+    if (restorable.has(texture) && toRemake(texture) && !waiting.includes(texture)) waiting.push(texture);
+  };
   if (restore && !restorable.has(texture)) {
     restorable.set(texture, restore);
-    texture.addEventListener('dispose', () => restorable.delete(texture));
+    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) restorable.delete(texture); });
   }
   return texture;
+}
+
+// The graphics level's largest picture (graphics.js, `pictureMost`; 23 October 2026): every picture that can be made
+// again from its file is made again no larger than `size` pixels across (0: as large as its maker makes it, the device's
+// own copy), one at a time (stepPictures, each frame), so that lowering the level frees the graphics card's memory and
+// raising it gives the pictures back. A picture made under a cap remembers it (`userData.cap`), and is made again when
+// the cap is raised.
+let most = 0;
+const waiting = [];
+const remaking = new Set();
+export const pictureMost = () => most;
+// A picture's own largest, apart from the level's (`userData.want`, 0 for none; 23 October 2026): a parked truck's
+// pictures far off, say (render-supplied.js), a phone's screen showing no more of it from there. What it is made at is
+// the smaller of the two; one whose size changes is made again in its turn, as for the level.
+export function pictureWanted(texture) {
+  const want = (texture && texture.userData.want) || 0;
+  return most && want ? Math.min(most, want) : most || want;
+}
+// whether a picture drawn at one size is to be made again at another
+function toRemake(texture) {
+  const drawn = texture.userData.drawn || 0, cap = texture.userData.cap || 0, target = pictureWanted(texture);
+  if (!drawn) return false;                                   // (not drawn yet: made at the cap it was asked for)
+  if (target && drawn > target) return true;                  // smaller
+  return !!(cap && drawn >= cap && (!target || target > cap));   // larger again
+}
+export function wantPicture(texture, size) {
+  const want = Math.max(0, size || 0);
+  if (!texture || (texture.userData.want || 0) === want) return false;
+  texture.userData.want = want;
+  if (restorable.has(texture) && toRemake(texture) && !waiting.includes(texture)) waiting.push(texture);
+  return true;
+}
+export function setPictureMost(size) {
+  most = Math.max(0, size || 0);
+  waiting.length = 0;
+  for (const texture of restorable.keys()) if (toRemake(texture)) waiting.push(texture);
+  return waiting.length;
+}
+// Each frame: the next picture waiting made again, one at a time. Gives how many are still waiting.
+export function stepPictures() {
+  if (remaking.size || !waiting.length) return waiting.length;
+  const texture = waiting.shift();
+  const restore = restorable.get(texture);
+  // (no longer wanted at another size: its own largest changed back before its turn came)
+  if (!restore || !toRemake(texture)) return waiting.length;
+  const size = pictureWanted(texture);
+  remaking.add(texture);
+  Promise.resolve().then(() => restore(size)).then((image) => {
+    if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return; }
+    // (the card's copy let go: r186 gives a picture its room on the card once, so another size needs new room)
+    texture.dispose();
+    texture.image = image; texture.needsUpdate = true;
+    texture.userData.cap = size; texture.userData.drawn = 0;
+    // (the level, or its own largest, changed again while it was being made: made again once the card has this one,
+    // at the size asked for then: letGoOnceDrawn)
+    letGoOnceDrawn(texture);
+  }).catch(() => { /* kept as it is */ }).finally(() => { remaking.delete(texture); });
+  return waiting.length;
+}
+export const picturesWaiting = () => waiting.length + remaking.size;
+// (for the tests and the measuring: the pictures that can be made again, by the size each was last drawn at)
+export function pictureState() {
+  const sizes = {};
+  let undrawn = 0;
+  for (const texture of restorable.keys()) { const d = texture.userData.drawn || 0; if (!d) undrawn += 1; else sizes[d] = (sizes[d] || 0) + 1; }
+  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most };
+}
+// A picture decoded from its file (a Blob) no larger than `size` pixels across (0: as it is), keeping its shape.
+export async function decodeAtMost(blob, size = 0, options = undefined) {
+  const full = await (options ? createImageBitmap(blob, options) : createImageBitmap(blob));
+  if (!size || Math.max(full.width, full.height) <= size) return full;
+  const k = size / Math.max(full.width, full.height);
+  const small = await createImageBitmap(full, { ...(options || {}), resizeWidth: Math.max(1, Math.round(full.width * k)), resizeHeight: Math.max(1, Math.round(full.height * k)), resizeQuality: 'high' });
+  full.close();
+  return small;
 }
 // (a picture let go: an ImageBitmap closed, which leaves it 0 by 0)
 const gone = (image) => !image || (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap && (image.width === 0 || image.height === 0));
@@ -54,9 +139,11 @@ export async function restorePictures() {
   await Promise.all([...restorable].map(async ([texture, restore]) => {
     if (!gone(texture.image)) { texture.needsUpdate = true; return; }
     try {
-      const image = await restore();
+      const size = pictureWanted(texture);
+      const image = await restore(size);
       if (!image) { failed += 1; return; }
       texture.image = image; texture.needsUpdate = true;
+      texture.userData.cap = size;
       letGoOnceDrawn(texture);
       made += 1;
     } catch (error) { failed += 1; }
@@ -64,6 +151,8 @@ export async function restorePictures() {
   return { made, failed, held: restorable.size };
 }
 export const picturesHeld = () => restorable.size;
+// (whether the game makes this picture again from its file: picture-keeper.js leaves those to these rules)
+export const isRestorable = (texture) => restorable.has(texture);
 // A picture inside a GLB file beside the page, made again: the file fetched (from the device's or the browser's kept
 // copy), read, and that one picture decoded, made no larger than `size` across if given. For restoring a picture that
 // was let go (letGoOnceDrawn): a file asked for by several pictures at once is fetched and read once.
@@ -222,7 +311,7 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
       ready.push(given.then((bmp) => { map.image = bmp; map.needsUpdate = true; }).catch(viaImage));
       // (drawn by the one renderer there is: the page's copy is let go once the card has it, and made again from the
       // picture's file should the card's copy be lost)
-      if (got.blob) letGoOnceDrawn(map, () => decode(got.blob));
+      if (got.blob) letGoOnceDrawn(map, (size) => decodeAtMost(got.blob, size, { premultiplyAlpha: 'none', colorSpaceConversion: 'none' }));
       return map;
     }
     const blob = new Blob([bytes(image.bufferView)], { type: image.mimeType || 'image/jpeg' });

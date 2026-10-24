@@ -29,6 +29,10 @@ const root = dirname(fileURLToPath(import.meta.url));
 const IMPORT = /^import\s+\{([^}]+)\}\s+from\s+'([^']+)';?[ \t]*$/gm;
 const REEXPORT = /^export\s+\*\s+from\s+'([^']+)';?[ \t]*$/gm;
 const id = (file) => relative(resolve(root, 'src'), file);
+// Each module's exported names, as the bundle gives them (every script made here): an import of a name its module does
+// not give is refused when the game is built, not found missing when a player's game reaches it (23 October 2026:
+// `export const A = 0, B = 1` gave only A, and main.js's B was undefined in the built game alone).
+const EXPORTS = new Map();
 
 // Everything reachable from one entry file, as one script. `after`: the files of a script already on the page, which
 // this one uses as they are there and does not carry again (a script of its own beside the game's: the habitation's).
@@ -50,10 +54,22 @@ function bundleFrom(entry, { after = null } = {}) {
     if (/^import\s/m.test(source.replace(IMPORT, ''))) throw new Error(`${id(file)}: only single-line named imports are supported`);
     const names = [];
     const spreads = [];
-    source = source.replace(REEXPORT, (_, from) => { spreads.push(`...__modules[${JSON.stringify(id(resolve(dirname(file), from)))}]`); return ''; });
-    source = source.replace(IMPORT, (_, list, from) => `const {${list}} = __modules[${JSON.stringify(id(resolve(dirname(file), from)))}];`);
+    const spreadFrom = [];
+    const imports = [];
+    source = source.replace(REEXPORT, (_, from) => { const target = id(resolve(dirname(file), from)); spreadFrom.push(target); spreads.push(`...__modules[${JSON.stringify(target)}]`); return ''; });
+    source = source.replace(IMPORT, (_, list, from) => { const target = id(resolve(dirname(file), from)); imports.push([list, target]); return `const {${list}} = __modules[${JSON.stringify(target)}];`; });
     source = source.replace(/^export\s+(async\s+function|function|const|let|class)\s+([A-Za-z_$][\w$]*)/gm, (_, kind, name) => { names.push(name); return `${kind} ${name}`; });
     if (/^export\s/m.test(source)) throw new Error(`${id(file)}: unsupported export form`);
+    const given = new Set(names);
+    for (const from of spreadFrom) for (const name of EXPORTS.get(from) || []) given.add(name);
+    EXPORTS.set(id(file), given);
+    for (const [list, target] of imports) {
+      const have = EXPORTS.get(target);
+      if (!have) continue;
+      for (const name of list.split(',').map((s) => s.trim().split(/\s+as\s+/)[0]).filter(Boolean)) {
+        if (!have.has(name)) throw new Error(`${id(file)} imports ${name} from ${target}, which does not give it (one name to each export: \`export const A = 0, B = 1\` gives A alone)`);
+      }
+    }
     bundle += `\n// ---- ${id(file)} ----\n__modules[${JSON.stringify(id(file))}] = (function () {\n${source}\nreturn { ${[...spreads, ...names].join(', ')} };\n})();\n`;
   }
   // A script with even one character outside Latin-1 is held by the browser at two bytes a character for

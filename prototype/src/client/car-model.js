@@ -13,9 +13,10 @@
 // Its finish (17 October 2026, the owner's brief: lifelike glass and paint): the model's own colour, and where its
 // file has them its own normal and metal-and-roughness pictures, under a clear coat that takes the sky's reflection,
 // as a car's lacquer does; on a phone, the plain material every model there is drawn with.
+import { softPatch } from './soft-patch.js';
 import { CAR_PARTS } from './car-parts.js';
 import { surface } from './render-kit.js';
-import { fetchKept, letGoOnceDrawn } from './glb.js';
+import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { vehicleEnvironment } from './vehicle-models.js';
 import { deviceKind, PICTURES } from './budget.js';
 
@@ -118,7 +119,7 @@ function picture(url, colour, own, priority) {
   if (colour) map.colorSpace = THREE.SRGBColorSpace;
   const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
     .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
-    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, () => fetchKept(url).then((r) => r.blob()).then((blob) => createImageBitmap(blob))); return map; });
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
   return { map, ready };
 }
 // Which of a car's files each of its pictures comes from, for a set: the 4096 set is its colour at 4096 with its
@@ -216,7 +217,7 @@ function lampsOf(spec, frame) {
 
 // One car to put in the scene. `length` is its real length in metres; `tier` its set of pictures (or the one for the
 // road on this kind of device); `own`: a copy of its own, for a renderer other than the town's (the market's viewer).
-export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = null, own = false, priority } = {}) {
+export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = null, own = false, priority, patch = true } = {}) {
   const set = tierOf(lite, tier);
   const key = `${id}:${set}`;
   // (counted as wanted from the moment it is asked for, not once it has come: a set still on its way, with nobody yet
@@ -231,6 +232,8 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
   const scale = length / spec.length;
   const group = new THREE.Group(); group.name = `car:${id}`;
   const frame = new THREE.Group(); frame.scale.setScalar(scale); group.add(frame);
+  // (the soft patch under it, while the sun casts no shadows: soft-patch.js; not in a showroom, whose halls have their own)
+  if (patch) softPatch(group, { length, width: spec.body * scale });
   const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
   // the body rides on its springs: it pitches under the brake and the throttle and rolls in a turn, about a point a
   // little above its middle; the wheels stay on the ground

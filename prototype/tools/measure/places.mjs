@@ -6,9 +6,10 @@
 //   ../server/with-postgres.sh node tools/measure/places.mjs <out folder> phone|computer [places, comma separated|all] [site folder]
 // The site folder defaults to dist/site (node build.mjs makes it). PERF_LEVEL=n holds the graphics level at n (0, the
 // most, by default); PERF_QUICK=1 does not wait for the town to be wholly ready first; PERF_DAY_ONLY=1 measures by day
-// only. TEXTURE_LIST=1 lists the pictures by size at the last place; DUMP_IMPOSTORS=1, PROBE_MIPS=1 and PROBE_HAB=1 look
-// at the habitation's pictures of its far trees. Side by side: python3 tools/measure/sheets.py <before> <after>
-// phone|computer <out.pdf> [title].
+// only; PERF_DPR=n gives the screen n pixels to each of the page's (1 by default; a phone's are 2 to 3). TEXTURE_LIST=1
+// lists what is on the graphics card, picture by picture, after each place; DUMP_IMPOSTORS=1, PROBE_MIPS=1 and
+// PROBE_HAB=1 look at the habitation's pictures of its far trees. Side by side: python3 tools/measure/sheets.py
+// <before> <after> phone|computer <out.pdf> [title].
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, existsSync, statSync, createReadStream } from 'node:fs';
 import { resolve, extname, sep, dirname } from 'node:path';
@@ -41,7 +42,10 @@ await new Promise((r) => server.listen(0, '127.0.0.1', r));
 const origin = `http://localhost:${server.address().port}`;
 
 const browser = await chromium.launch({ args: ['--use-gl=swiftshader', '--enable-unsafe-swiftshader', '--ignore-gpu-blocklist', '--enable-precise-memory-info', '--autoplay-policy=no-user-gesture-required'] });
-const context = await browser.newContext(PHONE ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: 1, isMobile: true, hasTouch: true, serviceWorkers: 'block' } : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: 1, serviceWorkers: 'block' });
+// (PERF_DPR: the screen's pixels to each of the page's; 1 unless asked: a phone's is 2 to 3, of which each graphics level
+// draws at most its own share)
+const DPR = Number(process.env.PERF_DPR) > 0 ? Number(process.env.PERF_DPR) : 1;
+const context = await browser.newContext(PHONE ? { viewport: { width: 844, height: 390 }, deviceScaleFactor: DPR, isMobile: true, hasTouch: true, serviceWorkers: 'block' } : { viewport: { width: 1280, height: 720 }, deviceScaleFactor: DPR, serviceWorkers: 'block' });
 const page = await context.newPage();
 page.setDefaultTimeout(600000);
 const errors = [];
@@ -49,9 +53,33 @@ page.on('pageerror', (e) => { errors.push(e.message); console.log('PAGE ERROR', 
 page.on('console', (m) => { if (m.type() === 'error' && !/Failed to load resource|status of 4\d\d/.test(m.text())) { errors.push(m.text()); console.log('CONSOLE', m.text().slice(0, 300)); } });
 const cdp = await context.newCDPSession(page);
 if (PHONE) await cdp.send('Emulation.setCPUThrottlingRate', { rate: 4 });
+// (the page's own processor time: how long its main thread is busy, in all, by Chrome's count, the slowing included)
+await cdp.send('Performance.enable');
+const busy = async () => { const { metrics } = await cdp.send('Performance.getMetrics'); const m = Object.fromEntries(metrics.map((x) => [x.name, x.value])); return { task: m.TaskDuration || 0, script: m.ScriptDuration || 0 }; };
 // frames, counted from the start
 // (the same random numbers in every run, so that what is placed at random, the stars say, is placed alike)
 await page.addInitScript(() => { let s = 20261023; Math.random = () => { s |= 0; s = (s + 0x6d2b79f5) | 0; let t = Math.imul(s ^ (s >>> 15), 1 | s); t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t; return ((t ^ (t >>> 14)) >>> 0) / 4294967296; }; });
+// (TEXTURE_TRACE: every picture the 3D library makes remembered with where in the game's code it was made, so that the
+// list after each place (TEXTURE_LIST) says what made each, those nothing in the scene uses among them: each texture
+// is caught as its constructor gives it its id, `uuid`, through a setter put on Texture's prototype before the library
+// is read)
+if (process.env.TEXTURE_TRACE) await page.addInitScript(() => {
+  let T;
+  const made = window.__texturesMade = [];
+  Object.defineProperty(window, 'THREE', { configurable: true, get() { return T; }, set(v) {
+    T = v;
+    try {
+      Object.defineProperty(v.Texture.prototype, 'uuid', { configurable: true, get() { return this.__uuid; }, set(id) {
+        this.__uuid = id;
+        if (this.__madeAt === undefined) {
+          const lines = (new Error().stack || '').split('\n').slice(2).map((l) => l.trim().replace(/^at /, '').replace(/https?:\/\/[^/]+\//, '')).filter((l) => !/three\.min\.js/.test(l));
+          Object.defineProperty(this, '__madeAt', { value: lines.slice(0, 4).join(' < '), enumerable: false });
+          made.push(new WeakRef(this));
+        }
+      } });
+    } catch (error) { console.log('TEXTURE_TRACE could not watch the textures:', error.message); }
+  } });
+});
 await page.addInitScript(() => { window.__ft = []; window.__fbase = 0; const f = (t) => { window.__ft.push(t); if (window.__ft.length > 600) { window.__ft.splice(0, 300); window.__fbase += 300; } requestAnimationFrame(f); }; requestAnimationFrame(f); });
 
 const result = { device: DEVICE, site: SITE, when: new Date().toISOString(), engine: null, loading: {}, places: [], errors };
@@ -91,17 +119,24 @@ const quiet = async (most = 45000) => {
 const frames = async (n, most = 120000) => {
   // (frames counted from the start: the list keeps the last few hundred, __fbase how many it has let go)
   const k0 = await page.evaluate(() => window.__fbase + window.__ft.length);
-  await page.waitForFunction(([k0, n]) => window.__fbase + window.__ft.length >= k0 + n, [k0, n], { timeout: most }).catch(() => {});
+  const b0 = await busy();
+  // (looked at twice a second, not every frame: the looking is itself work for the page)
+  await page.waitForFunction(([k0, n]) => window.__fbase + window.__ft.length >= k0 + n, [k0, n], { timeout: most, polling: 500 }).catch(() => {});
+  const b1 = await busy();
   const t = await page.evaluate((k0) => window.__ft.slice(Math.max(0, k0 - window.__fbase)), k0);
   const d = []; for (let i = 1; i < t.length; i += 1) d.push(t[i] - t[i - 1]);
   d.sort((a, b) => a - b);
-  return { n: d.length, median: d.length ? Math.round(d[Math.floor(d.length / 2)]) : null, p90: d.length ? Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.9))]) : null };
+  // busyMs: the main thread's time for each frame (the game's script and its handing of the picture to the graphics
+  // card, not the drawing itself, which this machine does in another process): what a phone's processor would have to
+  // do each frame, slowed as set
+  const drawn = Math.max(1, t.length);
+  return { n: d.length, median: d.length ? Math.round(d[Math.floor(d.length / 2)]) : null, p90: d.length ? Math.round(d[Math.min(d.length - 1, Math.floor(d.length * 0.9))]) : null, busyMs: +(((b1.task - b0.task) * 1000) / drawn).toFixed(1), scriptMs: +(((b1.script - b0.script) * 1000) / drawn).toFixed(1) };
 };
 const state = () => page.evaluate(() => {
   const n = window.__nlw, r = n.renderer, g = n.graphics || {};
   const mem = performance.memory || {};
   const safe = (f) => { try { return f(); } catch (e) { return null; } };
-  return { level: safe(() => n.quality), sunShadows: safe(() => n.sunShadows), calls: n.drawn ? n.drawn.calls : null, triangles: n.drawn ? n.drawn.triangles : null, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), buffersMB: +((g.buffers || 0) / 1048576).toFixed(1), textures: r ? r.info.memory.textures : null, geometries: r ? r.info.memory.geometries : null, programs: r && r.info.programs ? r.info.programs.length : null, heapMB: mem.usedJSHeapSize ? +(mem.usedJSHeapSize / 1048576).toFixed(1) : null };
+  return { level: safe(() => n.quality), sunShadows: safe(() => n.sunShadows), calls: n.drawn ? n.drawn.calls : null, triangles: n.drawn ? n.drawn.triangles : null, gpuMB: +(((g.pictures || 0) + (g.buffers || 0)) / 1048576).toFixed(1), picturesMB: +((g.pictures || 0) / 1048576).toFixed(1), buffersMB: +((g.buffers || 0) / 1048576).toFixed(1), screenMB: +((g.screen || 0) / 1048576).toFixed(1), pixelRatio: r ? r.getPixelRatio() : null, textures: r ? r.info.memory.textures : null, geometries: r ? r.info.memory.geometries : null, programs: r && r.info.programs ? r.info.programs.length : null, heapMB: mem.usedJSHeapSize ? +(mem.usedJSHeapSize / 1048576).toFixed(1) : null };
 });
 // what the main picture and the sun's shadow map each draw, per frame, counted object by object over four frames (three.js
 // r186 counts the shadow map's draws in renderer.info, r128 did not: this counts both the same way on both)
@@ -160,12 +195,14 @@ result.loading.townMs = Date.now() - t2;
 // (every place measured at the game's full detail, its level 0: on this machine, which draws in software, the game would
 // otherwise step its detail down as it does on a slow device, and what is measured would depend on how long it had run)
 const LEVEL = process.env.PERF_LEVEL ? Number(process.env.PERF_LEVEL) : 0;
-await page.evaluate((level) => { const g = window.__nlw.governor; g.hold(true); g.set(level, 'measuring'); }, LEVEL);
+// (and the memory guard set aside, which would lower even a level held when the card is nearly full: what each level
+// holds is what is measured; whether that is past the guard's limit is in the numbers)
+await page.evaluate((level) => { const n = window.__nlw, g = n.governor; g.hold(true); g.set(level, 'measuring'); if (n.graphicsPretend) n.graphicsPretend.extraMB = -1e6; }, LEVEL);
 const t3 = Date.now();
 if (!process.env.PERF_QUICK) await page.waitForFunction(() => window.__nlw.beyond, null, { timeout: 900000 }).catch(() => {});
 result.loading.warmMs = Date.now() - t3;
 console.log('loading', JSON.stringify(result.loading));
-await page.evaluate(() => { const t = document.getElementById('toasts'); if (t) t.style.display = 'none'; });
+await page.evaluate(() => { for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } });
 
 const park = await page.evaluate(() => window.__nlw.service('park'));
 const PLACES = [
@@ -185,38 +222,60 @@ const PLACES = [
   ['garden', 618, 405, Math.PI],
   ['boiling river', 528, -180, Math.PI],
 ];
+// (TEXTURE_LIST: after each place, what is on the graphics card, picture by picture: textures-<place>.json)
+const pictureList = async (place) => {
+  // (what is on the graphics card, picture by picture, as the game's own count has it (graphics-count.js), each matched
+  // to the materials that use it and the objects that draw them; what nothing in the scene uses is the drawing's own:
+  // the sun's shadow map, the reflected sky as it is made, and pictures kept for later)
+  const found = await page.evaluate(() => {
+    const n = window.__nlw, r = n.renderer, g = n.graphics || {}, seen = new Map();
+    const onCard = new Map((typeof g.list === 'function' ? g.list() : []).map((e) => [e.texture, e.bytes]));
+    const glOf = (t) => { try { const p = r.properties.get(t); return p && p.__webglTexture ? p.__webglTexture : null; } catch (e) { return null; } };
+    const keys = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap', 'aoMap', 'envMap', 'lightMap', 'bumpMap', 'specularMap'];
+    const top = (o) => { const names = []; for (let p = o; p && names.length < 4; p = p.parent) if (p.name) names.push(p.name); return names.reverse().join(' / ') || o.type; };
+    const shown = (o) => { for (let p = o; p; p = p.parent) if (!p.visible) return false; return true; };
+    n.scene.traverse((o) => {
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) for (const k of keys) {
+        const t = m[k]; if (!t || !t.isTexture) continue;
+        const img = t.image || {};
+        const gl = glOf(t);
+        const kind = typeof HTMLCanvasElement !== 'undefined' && img instanceof HTMLCanvasElement ? 'canvas' : typeof ImageBitmap !== 'undefined' && img instanceof ImageBitmap ? 'bitmap' : img.tagName ? img.tagName.toLowerCase() : t.isRenderTargetTexture ? 'drawn' : typeof img;
+        let at = null;
+        if (!seen.has(t)) { const v = new n.THREE.Vector3(); o.getWorldPosition(v); at = [Math.round(v.x), Math.round(v.z)]; }
+        const e = seen.get(t) || { name: t.name || '', material: m.name || m.type, kind, at, slot: k, w: img.width || 0, h: img.height || 0, drawn: t.userData && t.userData.drawn || null, bytes: gl && onCard.has(gl) ? onCard.get(gl) : 0, users: new Set(), shown: false, gl };
+        e.users.add(top(o)); if (shown(o) && m.visible !== false) e.shown = true; seen.set(t, e);
+      }
+    });
+    const matched = new Set([...seen.values()].map((e) => e.gl).filter(Boolean));
+    const named = {};
+    const sun = n.sky && n.sky.sun && n.sky.sun.shadow && n.sky.sun.shadow.map;
+    if (sun) { named.shadowMap = onCard.get(glOf(sun.texture)) || 0; if (sun.depthTexture) named.shadowDepth = onCard.get(glOf(sun.depthTexture)) || 0; for (const t of [sun.texture, sun.depthTexture]) { const gl = t && glOf(t); if (gl) matched.add(gl); } }
+    const others = [...onCard.entries()].filter(([gl]) => !matched.has(gl)).map(([, bytes]) => bytes).sort((a, b) => b - a);
+    // (TEXTURE_TRACE: where each was made; and those nothing in the scene uses, each with what it is)
+    const traced = new Map();
+    for (const ref of window.__texturesMade || []) { const t = ref.deref(); const gl = t && glOf(t); if (gl) traced.set(gl, t); }
+    const describe = (t) => { const img = t.image || {}; return { name: t.name || '', type: t.constructor && t.constructor.name, rt: !!t.isRenderTargetTexture, cube: !!t.isCubeTexture, w: img.width || (t.renderTarget && t.renderTarget.width) || 0, h: img.height || (t.renderTarget && t.renderTarget.height) || 0, madeAt: t.__madeAt || '' }; };
+    const unused = [...onCard.entries()].filter(([gl]) => !matched.has(gl)).sort((a, b) => b[1] - a[1]).map(([gl, bytes]) => ({ bytes, ...(traced.has(gl) ? describe(traced.get(gl)) : { untraced: true }) }));
+    return {
+      list: [...seen.values()].map(({ gl, ...e }) => ({ ...e, madeAt: gl && traced.has(gl) ? traced.get(gl).__madeAt : undefined, onCard: !!(gl && onCard.has(gl)), users: [...e.users].slice(0, 3), uses: e.users.size })).sort((a, b) => b.bytes - a.bytes),
+      card: { pictures: g.pictures || 0, held: onCard.size, ...named, others: others.reduce((s, b) => s + b, 0), otherCount: others.length, largestOthers: others.slice(0, 12) },
+      unused: unused.slice(0, 30),
+    };
+  });
+  writeFileSync(resolve(out, `textures-${place.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}.json`), JSON.stringify(found, null, 1));
+  const MB = (b) => (b / 1048576).toFixed(1);
+  const on = found.list.filter((e) => e.onCard);
+  console.log(place, 'on the card:', MB(found.card.pictures), 'MB in', found.card.held, 'pictures; used by the scene', MB(on.reduce((s, e) => s + e.bytes, 0)), 'MB in', on.length, '; the shadow map', MB((found.card.shadowMap || 0) + (found.card.shadowDepth || 0)), 'MB; the rest', MB(found.card.others), 'MB in', found.card.otherCount, `(largest ${found.card.largestOthers.map(MB).join(', ')})`);
+  for (const e of on.slice(0, 25)) console.log(' ', MB(e.bytes), 'MB', `${e.w}x${e.h}`, e.kind, e.slot, e.shown ? 'shown' : 'hidden', e.uses, `at ${e.at}`, e.users.join(' | ').slice(0, 100));
+};
 for (const [place, x, z, h] of PLACES) {
   if (ONLY && !ONLY.includes(place)) continue;
   await page.evaluate(([x, z, h]) => { const n = window.__nlw; n.place(x, z); n.face(h); n.cam.yaw = h; n.cam.dist = 6.5; n.cam.pitch = 0.12; }, [x, z, h]);
   await setHour(12);
   const q = await quiet(place === 'habitation gate' || place === 'entrance hill' ? 120000 : 45000);
   await measureHere(place, q);
-}
-// (TEXTURE_LIST: every picture the scene's materials use, its size on the graphics card estimated from its picture or
-// from what the game kept of it, by what uses it: where the memory goes)
-if (process.env.TEXTURE_LIST) {
-  const list = await page.evaluate(() => {
-    const n = window.__nlw, seen = new Map();
-    const keys = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap', 'aoMap', 'envMap', 'lightMap', 'bumpMap', 'specularMap'];
-    const top = (o) => { const names = []; for (let p = o; p && names.length < 4; p = p.parent) if (p.name) names.push(p.name); return names.reverse().join(' / ') || o.type; };
-    n.scene.traverse((o) => {
-      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-      for (const m of mats) for (const k of keys) {
-        const t = m[k]; if (!t || !t.isTexture) continue;
-        const img = t.image || {};
-        const side = t.userData && t.userData.drawn ? t.userData.drawn : Math.max(img.width || 0, img.height || 0);
-        const w = img.width || side, h = img.height || side;
-        const bytes = Math.round((t.isRenderTargetTexture ? 1 : 1.333) * (w || side) * (h || side) * 4);
-        const e = seen.get(t) || { name: t.name || '', slot: k, w, h, side, bytes, users: new Set(), visible: false };
-        e.users.add(top(o)); if (o.visible) e.visible = true; seen.set(t, e);
-      }
-    });
-    return [...seen.values()].map((e) => ({ ...e, users: [...e.users].slice(0, 3), uses: e.users.size })).sort((a, b) => b.bytes - a.bytes);
-  });
-  writeFileSync(resolve(out, 'textures.json'), JSON.stringify(list, null, 1));
-  const MB = (b) => (b / 1048576).toFixed(1);
-  console.log('textures', list.length, 'about', MB(list.reduce((s, e) => s + e.bytes, 0)), 'MB');
-  for (const e of list.slice(0, 40)) console.log(' ', MB(e.bytes), 'MB', `${e.w}x${e.h}`, e.slot, e.uses, e.users.join(' | ').slice(0, 120));
+  if (process.env.TEXTURE_LIST) await pictureList(place);
 }
 // (PROBE_MIPS: the far trees' sheet read at each of its smaller copies (mip levels): how much of it is solid enough to be
 // drawn (alpha at least a half) at each)

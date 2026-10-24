@@ -505,6 +505,8 @@ function buildDoors(group) {
 function buildHall() {
   const group = new THREE.Group();
   group.name = 'carshow-hall';
+  // (its pictures kept on a phone's graphics card while it is out of sight: there the moment one steps in, picture-keeper.js)
+  group.userData.keepPictures = true;
   const solid = new Batch(), gloss = new Batch(), metal = new Batch(), glow = new Batch(), glassB = new Batch(), overhead = new Batch();
   const W = H.x1 - H.x0, D = H.z1 - H.z0, cx = (H.x0 + H.x1) / 2, cz = (H.z0 + H.z1) / 2, top = H.ceiling;
   const WHITE = 0xf3f3f0, GREY = 0x2b2f35, BRASS = 0xc9a24a;
@@ -700,6 +702,41 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
       if (e.mesh) e.mesh.visible = e.seen; else e.stand.visible = e.seen;
     }
   }
+  // (five buildings stand here together, each with an 8192 picture: drawn at 4096 on a computer and 2048 on a phone,
+  // as the motorcycles' and the cars' largest pictures are, they fit in a device's memory all at once; the files are
+  // as supplied.) On a phone, by someone more than THIN.far metres from a building, its pictures are drawn at 512, a
+  // phone's screen showing no more of it from there; within THIN.near, at their own size again: one building at a time,
+  // the copy in use kept until the other has come, none changed again within twenty seconds (23 October 2026, the
+  // graphics levels: from PowerBike's showroom, 380 m off, its two tallest held 11 MB of a phone's 150 at 1024).
+  const fullSize = maxTexture || (lite ? 1024 : 2048);
+  const THIN = lite ? Object.freeze({ size: Math.min(512, fullSize), far: 150, near: 110 }) : null;
+  const sizeFor = (e, x, z) => {
+    if (!THIN || x === undefined) return fullSize;
+    const d = Math.hypot(e.b.x - x, e.b.z - z) - e.radius;
+    return d > THIN.far ? THIN.size : d < THIN.near ? fullSize : (e.size || fullSize);
+  };
+  let swapping = null;
+  const place3 = (e, mesh) => { mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale); mesh.visible = e.seen; };
+  const disposeMesh = (mesh) => {
+    const m = mesh.material;
+    for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => m[key]).filter(Boolean))) t.dispose();
+    m.dispose(); mesh.geometry.dispose();
+  };
+  function swap(e, size) {
+    swapping = e;
+    loadBuilding(e.b, { maxTexture: size, env })
+      .then(({ mesh, triangles }) => {
+        // (let go meanwhile: this copy is not wanted either)
+        if (!e.mesh) { disposeMesh(mesh); return; }
+        place3(e, mesh);
+        exterior.add(mesh);
+        const old = e.mesh;
+        exterior.remove(old); disposeMesh(old);
+        e.mesh = mesh; e.triangles = triangles; e.size = size; e.swaps = (e.swaps || 0) + 1;
+      })
+      .catch(() => { /* the copy in use stays */ })
+      .finally(() => { e.swappedAt = performance.now(); swapping = null; });
+  }
   function load(x, z) {
     ensureOutside();
     for (const e of buildings) {
@@ -710,21 +747,24 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
       // (and each let go again by someone gone well beyond that, its plain shape put back in its place: 18 October
       // 2026, the owner's brief, the memory the game held grew the longer it was played)
       if (e.mesh && x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach + (lite ? 30 : 250)) { letGo(e); continue; }
+      // (on a phone, the copy with the pictures its distance asks for)
+      if (e.mesh && THIN && x !== undefined && !swapping && performance.now() - (e.swappedAt || 0) > 20000) {
+        const want = sizeFor(e, x, z);
+        if (want !== e.size) swap(e, want);
+      }
       if (e.mesh || e.requested || ON_DISK) continue;
       if (performance.now() < e.retryAt) continue;
       if (x !== undefined && Math.hypot(e.b.x - x, e.b.z - z) > reach) continue;
       e.requested = true;
-      // (five buildings stand here together, each with an 8192 picture: drawn at 4096 on a computer and 2048 on a phone,
-      // as the motorcycles' and the cars' largest pictures are, they fit in a device's memory all at once; the
-      // files are as supplied)
-      loadBuilding(e.b, { maxTexture: maxTexture || (lite ? 1024 : 2048), env })
+      const size = sizeFor(e, x, z);
+      loadBuilding(e.b, { maxTexture: size, env })
         .then(({ mesh, triangles }) => {
-          mesh.position.set(e.b.x, 0, e.b.z); mesh.rotation.y = e.b.heading; mesh.scale.setScalar(e.b.scale); mesh.visible = e.seen;
+          place3(e, mesh);
           exterior.add(mesh);
           // (the villa keeps its plain shape, drawn in its place from afar: see `tick`)
           if (e.b.id === 'villa') e.stand.visible = false;
           else { exterior.remove(e.stand); e.stand.traverse((o) => { if (o.geometry) o.geometry.dispose(); if (o.material) o.material.dispose(); }); }
-          e.mesh = mesh; e.triangles = triangles; e.failed = null;
+          e.mesh = mesh; e.triangles = triangles; e.failed = null; e.size = size;
         })
         .catch((error) => { e.failed = String((error && error.message) || error); e.requested = false; e.retryAt = performance.now() + (error && error.offline ? 5000 : 30000); });
     }
@@ -732,10 +772,8 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   function letGo(e) {
     const mesh = e.mesh;
     exterior.remove(mesh);
-    const m = mesh.material;
-    for (const t of new Set(['map', 'normalMap', 'roughnessMap', 'metalnessMap'].map((key) => m[key]).filter(Boolean))) t.dispose();
-    m.dispose(); mesh.geometry.dispose();
-    e.mesh = null; e.requested = false; e.triangles = 0; e.released = (e.released || 0) + 1;
+    disposeMesh(mesh);
+    e.mesh = null; e.requested = false; e.triangles = 0; e.size = null; e.released = (e.released || 0) + 1;
     if (e.b.id !== 'villa') { e.stand = standIn(e.b); exterior.add(e.stand); }
     e.stand.visible = e.seen;
   }
@@ -811,7 +849,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
     models = hallModels({
       items: displays.map((d) => ({ id: d.display.car })), lite, renderer,
       ranges: { inspect: 4, near: 12, mid: 24 },
-      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadCar(displays[k].display.car, { base: 'cars/', tier, length: displays[k].car.length })),
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : loadCar(displays[k].display.car, { base: 'cars/', tier, patch: false, length: displays[k].car.length })),
       put: (k, model) => { const d = displays[k]; model.pose({}); d.holder.add(model.group); },
     });
     return hall;
@@ -860,7 +898,7 @@ export function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = n
   let gateShown = 0, doorsOpen = 0;
   return {
     exterior, outside,
-    get buildings() { return buildings.map((e) => ({ id: e.b.id, loaded: !!e.mesh, failed: e.failed, triangles: e.triangles, released: e.released || 0 })); },
+    get buildings() { return buildings.map((e) => ({ id: e.b.id, loaded: !!e.mesh, failed: e.failed, triangles: e.triangles, released: e.released || 0, size: e.size || null, swaps: e.swaps || 0 })); },
     get hall() { return hall; },
     get inside() { return inside; },
     signs,

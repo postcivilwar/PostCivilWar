@@ -500,7 +500,7 @@ export function buildWorld(scene) {
   cast(roofs.build(kit.roofs));
   // (the walls and roofs out in the weather: render-finish.js)
   weathers(kit.walls, { darken: 0.2 });
-  weathers(reflects(kit.roofs, 0.5), { darken: 0.14, gloss: 0.3 });
+  weathers(reflects(kit.roofs, 0.5, 'metal'), { darken: 0.14, gloss: 0.3 });
   cast(leaves.build(surface({ vertexColors: true, roughness: 0.9, metalness: 0, side: THREE.DoubleSide })));      // (the market's umbrellas)
   for (const mesh of foliage.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
   // (tarmac and laterite: in the rain darker, and the tarmac glossy, giving back the sky)
@@ -524,7 +524,7 @@ export function buildWorld(scene) {
   const ripples = rippleNormalTexture();
   ripples.repeat.set(60, 9);
   // (the river gives back the sky, broken by its ripples: render-finish.js)
-  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5);
+  const waterMaterial = reflects(new THREE.MeshStandardMaterial({ color: linear(ZONE_PROPS.water.day), normalMap: ripples, normalScale: new THREE.Vector2(0.4, 0.4), roughness: 0.22, metalness: 0.35, transparent: true, opacity: 0.93 }), 0.5, 'water');
   // (where it runs through the habitation it is waded along its banks: there, as deep as one can wade, it is never more
   // than half solid, so that a walker's legs are seen in it, faintly; its bed as the habitation's ground has it,
   // zones/habitation.js `shaped`: 22 October 2026)
