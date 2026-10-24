@@ -4,6 +4,10 @@ the frame time, draw calls, triangles and graphics memory under each; a page per
 
   python3 tools/measure/sheets.py <before dir> <after dir> phone|computer <out.pdf> [title] [before's name] [after's name]
 (the folders written by tools/measure/places.mjs; the names over each picture, by default "before (r128)" and "after (r186)")
+SHEETS_NO_FRAME=1 leaves out the time of a frame drawn in software: where the two measurings were not taken alike (one with
+other work beside it on the machine), those times are not to be set side by side. SHEETS_MEMORY_ONLY=1 gives only what each
+holds on the graphics card (places.mjs counted a frame twice where the glow is laid over the picture, until 24 October
+2026: its draws for the picture and the shadows, halved, are not to be set beside another's).
 """
 import json, os, sys
 from PIL import Image, ImageDraw, ImageFont
@@ -57,7 +61,10 @@ for place, b in bp.items():
             calls = m.get('mainCalls', m.get('calls')); tris = m.get('mainTris', m.get('triangles')) or 0
             sc, st = m.get('shadowCalls'), m.get('shadowTris')
             shadows = f"the sun's shadows: {sc} draws, {st / 1e6:.2f} M triangles · " if sc is not None and st is not None else ''
-            return f"a frame here (in software) {f.get('median')} ms · the picture: {calls} draws, {tris / 1e6:.2f} M triangles\n{shadows}{m.get('gpuMB')} MB on the graphics card"
+            if os.environ.get('SHEETS_MEMORY_ONLY'):
+                return f"{m.get('gpuMB')} MB on the graphics card (with the screen's own, {round(m.get('gpuMB', 0) + m.get('screenMB', 0), 1)} MB)"
+            frame = '' if os.environ.get('SHEETS_NO_FRAME') else f"a frame here (in software) {f.get('median')} ms · "
+            return f"{frame}the picture: {calls} draws, {tris / 1e6:.2f} M triangles\n{shadows}{m.get('gpuMB')} MB on the graphics card"
         d.text((10, y), line(x), font=F, fill=(230, 230, 230))
         d.text((20 + ib.size[0], y), line(z), font=F, fill=(230, 230, 230))
         y += 60

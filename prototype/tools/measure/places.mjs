@@ -144,11 +144,14 @@ const state = () => page.evaluate(() => {
 const passes = () => page.evaluate(() => new Promise((done) => {
   const r = window.__nlw.renderer, rbd = r.renderBufferDirect, render = r.render;
   const c = { frames: 0, main: { calls: 0, tris: 0 }, shadow: { calls: 0, tris: 0 }, post: { calls: 0, tris: 0 } };
-  r.render = function (...a) { if (r.getRenderTarget() === null) c.frames += 1; return render.apply(this, a); };
+  // (a frame is the town drawn onto the screen: since stage 3 the glow is laid over it onto the screen too, a drawing of
+  // its own, not a frame)
+  const town = window.__nlw.scene;
+  r.render = function (...a) { if (r.getRenderTarget() === null && a[0] === town) c.frames += 1; return render.apply(this, a); };
   r.renderBufferDirect = function (camera, scene, geometry, material, object, group) {
     const target = r.getRenderTarget();
     const shadow = target !== null && camera && camera.isOrthographicCamera && material && (material.isMeshDepthMaterial || material.isMeshDistanceMaterial || material.type === 'MeshDepthMaterial');
-    const main = target === null;
+    const main = target === null && scene === town;
     {
       const idx = group ? group.count : geometry.index ? geometry.index.count : geometry.attributes.position ? geometry.attributes.position.count : 0;
       const inst = object.isInstancedMesh ? object.count : geometry.isInstancedBufferGeometry ? geometry.instanceCount : 1;
