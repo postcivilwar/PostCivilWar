@@ -68,21 +68,22 @@ for place in places:
         k = (W - 10 * 3) / 2 / iw
         imgs.append((lv, im.resize((int(iw * k), int(ih * k))), m))
     cw, ch = imgs[0][1].size
-    h = 70 + ((len(imgs) + 1) // 2) * (ch + 110)
+    h = 70 + ((len(imgs) + 1) // 2) * (ch + 130)
     page = Image.new('RGB', (W, h), (24, 24, 26))
     d = ImageDraw.Draw(page)
     d.text((10, 10), place, font=FT, fill=(255, 255, 255))
     d.text((10, 42), title, font=F, fill=(200, 200, 200))
     for i, (lv, im, m) in enumerate(imgs):
         x = 10 + (i % 2) * (cw + 10)
-        y = 70 + (i // 2) * (ch + 110)
+        y = 70 + (i // 2) * (ch + 130)
         n = numbers(m)
         d.text((x, y), f'{NAMES[lv]}', font=FB, fill=(255, 210, 150))
         page.paste(im, (x, y + 24))
         y2 = y + 24 + ch + 6
         d.text((x, y2), f"the picture and the sun's shadows: {n['draws']} draws, {n['triangles']} triangles", font=F, fill=(230, 230, 230))
         d.text((x, y2 + 20), f"on the graphics card: pictures {n['pictures']} MB, {n['card']} MB with its drawing buffers; pixels {n['ratio']} to each", font=F, fill=(230, 230, 230))
-        d.text((x, y2 + 40), f"the page's own work a frame (processor slowed as set): {n['busy']} ms; a frame here, drawn in software: {n['frame']} ms", font=F, fill=(180, 180, 180))
+        d.text((x, y2 + 40), f"a frame on this machine (no graphics card: drawn in software): {n['frame']} ms", font=F, fill=(180, 180, 180))
+        d.text((x, y2 + 60), f"of which the page's own work (its processor slowed as set): {n['busy']} ms", font=F, fill=(180, 180, 180))
         rows.append((place, NAMES[lv], n))
     pages.append(page)
 if pages:
