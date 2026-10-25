@@ -735,7 +735,9 @@ check('D: on a phone (#lite), what is drawn stays within what a mid-range phone 
     const b = await pageB.evaluate((id) => { const r = id ? window.__nlw.crowd.rigOf(`p:${id}`) : null; return r ? { lift: r.jumpLift || 0, jumping: !!r.jumping } : null; }, idA);
     if (b) seenB.push(b);
     if (l.jumping && l.lift > 0.3 && !lifts.some((q) => q.shot)) { l.shot = true; await shot('a-jump'); await shot('a-jump-seen-by-the-other', pageB); }
-    if (!l.jumping && i > 2) break;
+    // (until the jump is over on both: B's page, drawing a frame every few seconds here, shows it later than A's)
+    const otherDone = !b || (!b.jumping && seenB.some((q) => q.jumping));
+    if (!l.jumping && i > 2 && otherDone) break;
   }
   for (const p of [page, pageB]) await p.evaluate(() => window.__nlw.slow(1));
   const top = Math.max(...lifts.map((q) => q.lift)), lowest = Math.min(...lifts.map((q) => q.lift));
