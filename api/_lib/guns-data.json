@@ -1,0 +1,49 @@
+{
+ "note": "Written by prototype/tools/guns/server-data.mjs from prototype/src/sim/guns.js. Do not edit by hand.",
+ "gun": {
+  "damage": 1,
+  "floor": 20,
+  "body": {
+   "radius": 0.32,
+   "height": 1.78,
+   "crouched": 1.2
+  },
+  "muzzle": {
+   "reach": 2.2,
+   "low": 0.3,
+   "high": 2.4
+  },
+  "most": 8,
+  "seen": 1.6,
+  "daySeconds": 86400
+ },
+ "guns": {
+  "rifle": {
+   "id": "rifle",
+   "name": "Rifle",
+   "file": "futuristicrifle3dmodel.glb",
+   "starter": true,
+   "price": 0,
+   "forSale": false,
+   "magazine": 30,
+   "spare": 120,
+   "rpm": 850,
+   "mode": "auto",
+   "reload": 2.4,
+   "range": 150,
+   "spread": {
+    "hip": 0.03,
+    "aim": 0.012,
+    "sight": 0.0035,
+    "moving": 0.02,
+    "crouched": 0.65
+   },
+   "recoil": {
+    "climb": 0.0075,
+    "side": 0.0032,
+    "recover": 7
+   }
+  }
+ },
+ "starter": "rifle"
+}

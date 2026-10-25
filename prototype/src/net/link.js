@@ -64,8 +64,44 @@ export function encodePlayer(self, zoneId) {
   // past where they came down)
   if (d && Number.isFinite(d.age)) out.dn = [d.by === 'crash' ? 1 : 0, Math.round(d.age * 100) / 100, Math.round((d.lie || 0) * 100) / 100, Math.round((d.rise || 0) * 100) / 100, r2(d.h || 0), d.hard ? 1 : 0, d.from ? r2(d.from.x) : null, d.from ? r2(d.from.z) : null, d.over ? r2(d.over.a) : null, d.over ? r2(d.over.b) : null, Number.isFinite(d.id) ? d.id : null, r2(self.x), r2(self.z)];
   else if (k && Number.isFinite(k.age)) out.dn = [2, Math.round(k.age * 100) / 100, 0, 0, 0, 0, null, null, null, null, Number.isFinite(k.id) ? k.id : null];
+  // Guns (25 October 2026): their health (who may be shot, and the bar the others see over them), in the water, held by
+  // the police; the gun in their hands, how it is held (0 at the ready, 1 aimed, 2 through the sight), crouched, how far
+  // through a reload, and where it is aimed (the way and the angle up or down); the rounds fired in the last moment
+  // (each: its number, how long ago, where from, where it stopped, what it met); the wounds on their body (each by its
+  // bone, a place on it, and how large). Whether a round of one player's hit another is the server's to say, not this.
+  if (Number.isFinite(self.health)) out.hp = Math.round(self.health);
+  if (self.swimming) out.sw = 1;
+  if (self.law && self.law.arrest) out.hd = 1;
+  const g = self.gun;
+  if (g && g.out) {
+    const aim = self.gunAim || {};
+    out.gn = [g.equipped, g.aim || 0, g.crouch ? 1 : 0, g.reloading && g.reloading.total ? Math.round((1 - g.reloading.left / g.reloading.total) * 100) / 100 : -1, Math.round((aim.yaw || 0) * 100) / 100, Math.round((aim.pitch || 0) * 100) / 100];
+  }
+  const r1 = (v) => Math.round(v * 10) / 10;
+  if (Array.isArray(self.gunShots) && self.gunShots.length) out.sh = self.gunShots.slice(-8).map((s) => [s.q, Math.round(s.ago * 100) / 100, r1(s.o[0]), r1(s.o[1]), r1(s.o[2]), r1(s.e[0]), r1(s.e[1]), r1(s.e[2]), SHOT_KINDS.indexOf(s.what)]);
+  if (Array.isArray(self.wounds) && self.wounds.length) out.wd = self.wounds.slice(-8).map((w) => [w[0], Math.round(w[1] * 1000) / 1000, Math.round(w[2] * 1000) / 1000, Math.round(w[3] * 1000) / 1000, Math.round((w[4] || 1) * 10) / 10]);
+  // the height of the ground under them (the server checks where a round struck them against it)
+  if (Number.isFinite(self.gy)) out.gy = Math.round(self.gy * 10) / 10;
+  return trimPlayer(out);
+}
+
+// The website's server takes no word of a player longer than 1,500 characters (api/_lib/world.js): what is least
+// needed goes first until it fits: the wounds and the rounds a few at a time, then the vehicles standing near them, then
+// the colours of their clothes. (What they last said is kept.)
+export const STATE_MOST = 1450;
+export function trimPlayer(out) {
+  const size = () => JSON.stringify(out).length;
+  if (size() <= STATE_MOST) return out;
+  for (const key of ['wd', 'sh']) {
+    while (Array.isArray(out[key]) && out[key].length && size() > STATE_MOST) { out[key].shift(); if (!out[key].length) delete out[key]; }
+  }
+  for (const key of ['pv', 'pc', 'pk', 'tk', 'tc']) { if (size() <= STATE_MOST) break; delete out[key]; }
+  if (size() > STATE_MOST && out.lk) { delete out.lk.c; }
   return out;
 }
+
+// What a round met, by number (link.js `sh`)
+export const SHOT_KINDS = Object.freeze(['air', 'wall', 'ground', 'vehicle', 'person']);
 
 // A player's parked vehicles are told to others within this many metres of the player.
 export const PARKED_NEAR = 70;
@@ -101,7 +137,12 @@ export function decodePlayer(state, zoneId) {
   const jump = Number.isFinite(state.jp) ? state.jp : null;
   const dn = Array.isArray(state.dn) ? state.dn : null;
   const down = dn ? { kind: ['knock', 'crash', 'dead'][dn[0]] || null, age: dn[1], lie: dn[2], rise: dn[3], push: dn[4], hard: !!dn[5], from: Number.isFinite(dn[6]) && Number.isFinite(dn[7]) ? { x: dn[6], z: dn[7] } : null, over: Number.isFinite(dn[8]) && Number.isFinite(dn[9]) ? { a: dn[8], b: dn[9] } : null, id: Number.isFinite(dn[10]) ? dn[10] : null, at: Number.isFinite(dn[11]) && Number.isFinite(dn[12]) ? { x: dn[11], z: dn[12] } : null } : null;
-  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump };
+  // (guns: see encodePlayer)
+  const gn = Array.isArray(state.gn) ? state.gn : null;
+  const gun = gn ? { id: gn[0], out: true, aim: gn[1], crouch: !!gn[2], reload: Number.isFinite(gn[3]) && gn[3] >= 0 ? gn[3] : null, yaw: gn[4], pitch: gn[5] } : null;
+  const shots = Array.isArray(state.sh) ? state.sh.filter(Array.isArray).map((s) => ({ q: s[0], ago: s[1], o: [s[2], s[3], s[4]], e: [s[5], s[6], s[7]], what: SHOT_KINDS[s[8]] || 'air' })) : [];
+  const wounds = Array.isArray(state.wd) ? state.wd.filter(Array.isArray) : [];
+  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

@@ -254,14 +254,14 @@ test('one pass is one blow, and two vehicles at once are one blow', () => {
   assert.equal(v.health, before);
 });
 
-test('struck again and again, a player dies', () => {
+test('struck again and again, a player is brought to 20 and no lower: nobody dies, and the ambulance is sent for her (the 20-life rule)', () => {
   const w = town(['Dayo Driver', 'Vera Victim']);
   const [d, v] = w.players;
   const [x, z] = runway(w, 40);
   atTheWheel(w, d, x, z, Math.PI / 2);
   const keke = w.g.state.vehicles.list[d.driving];
-  let blows = 0;
-  for (let pass = 0; pass < 40 && !v.dead; pass += 1) {
+  let blows = 0, after = 0;
+  for (let pass = 0; pass < 60 && after < 3; pass += 1) {
     // back to the start of the run, with her standing in the middle of it
     run(w.host, 1.2);
     keke.x = x; keke.z = z; keke.heading = Math.PI / 2; d.x = x; d.z = z; d.lastMoveAt = w.g.state.real;
@@ -270,23 +270,20 @@ test('struck again and again, a player dies', () => {
     const hits = driveAt(w, d, v.x, v.z);
     if (!hits.length) continue;
     blows += 1;
-    assert.ok(v.health < before);
-    assert.ok(v.health >= 0);
+    if (before <= HEALTH.critical) after += 1; else assert.ok(v.health < before);
+    assert.ok(v.health >= HEALTH.critical, `never below 20 (${v.health})`);
+    assert.equal(hits[0].killed, false);
   }
-  assert.ok(v.dead, 'she is dead');
-  assert.equal(v.health, 0);
-  assert.ok(blows >= 3, `it took ${blows} blows at this speed`);
+  assert.equal(after, 3, 'struck three more times at 20');
+  assert.equal(v.health, HEALTH.critical, 'she is at 20, and no lower');
+  assert.equal(v.dead, null, 'nobody dies');
+  assert.ok(blows >= 4, `it took ${blows} blows at this speed`);
   const mine = w.g.view(v.id).self;
-  assert.equal(mine.dead.by, 'Dayo Driver');
-  assert.equal(mine.down, null);
-  // everyone near sees it, and nobody is told a number
-  const seen = w.g.view(d.id).others[v.id];
-  assert.equal(seen.dead, true);
-  // the dead do nothing
-  for (const message of [{ type: 'move', x: v.x + 0.1, z: v.z, heading: 0 }, { type: 'combat.engage', target: { kind: 'player', id: d.id } }, { type: 'vehicle.hire' }, { type: 'care.pay', quoteId: 'Q-1' }]) refused(w.send(v.id, message), 'DEAD');
-  // and take up no room, and cannot be struck again
-  const again = driveAt(w, d, v.x, v.z);
-  assert.deepEqual(again, []);
+  assert.equal(mine.critical, true);
+  assert.equal(mine.dead, null);
+  // told calmly, in the owner's words, and the ambulance is on its way, free
+  assert.ok(w.events(v.id).some((e) => e.type === 'critical' && e.text === 'You are badly hurt. An ambulance is on its way.'));
+  assert.ok(mine.ambulance && mine.ambulance.fee === 0, 'the ambulance is coming for her, free');
 });
 
 test('a blow on someone already on the ground counts for less', () => {
@@ -307,32 +304,32 @@ test('a blow on someone already on the ground counts for less', () => {
   assert.ok(hits[0].harm >= 1);
 });
 
-test('a player who is killed comes round at the hospital, badly hurt, and must be treated', () => {
+test('brought to 20 by a vehicle, she cannot run or fight, nobody may fight her, and the ambulance carries her to the hospital', () => {
   const w = town(['Dayo Driver', 'Vera Victim']);
   const [d, v] = w.players;
   const [x, z] = runway(w, 40);
   atTheWheel(w, d, x, z, Math.PI / 2);
   const keke = w.g.state.vehicles.list[d.driving];
-  for (let pass = 0; pass < 40 && !v.dead; pass += 1) {
+  for (let pass = 0; pass < 60 && v.health > HEALTH.critical; pass += 1) {
     run(w.host, 1.2);
     keke.x = x; keke.z = z; d.x = x; d.z = z; d.lastMoveAt = w.g.state.real;
     if (!v.down) w.place(v, x + 14, z);
     driveAt(w, d, v.x, v.z);
   }
-  assert.ok(v.dead);
+  assert.equal(v.health, HEALTH.critical);
   const purse = w.balance(v);
-  w.events(v.id);
-  const took = until(w, () => !v.dead, 30);
-  assert.ok(Math.abs(took - IMPACT.dead) < 1.5, `she came round after ${took.toFixed(1)} s`);
-  assert.equal(v.health, IMPACT.wake);
-  assert.ok(w.g.view(v.id).self.critical, 'her health is critical');
-  assert.deepEqual([v.x, v.z], [CARE.ambulance.door.x, CARE.ambulance.door.z], 'she is at the hospital\'s emergency door');
-  assert.ok(w.events(v.id).some((e) => /came round/.test(e.title || '')));
-  assert.equal(w.balance(v), purse, 'dying cost her nothing from her purse in this build');
-  assert.equal(v.stats.deaths, 1);
-  // she can walk again
-  w.host.tick(0.2);
-  ok(w.send(v.id, { type: 'move', x: v.x, z: v.z + 0.1, heading: 0 }));
+  until(w, () => !v.down, 30);
+  // she cannot fight, and nobody may fight her
+  refused(w.send(v.id, { type: 'combat.engage', target: { kind: 'player', id: d.id } }), 'CRITICAL');
+  ok(w.send(d.id, { type: 'vehicle.exit' }));
+  w.place(d, v.x + 1, v.z);
+  refused(w.send(d.id, { type: 'combat.engage', target: { kind: 'player', id: v.id } }), 'TARGET_DOWN');
+  // the ambulance comes for her and carries her to the hospital, for nothing
+  until(w, () => w.g.view(v.id).self.carried === 'aboard', 300);
+  until(w, () => w.g.view(v.id).self.carried === null, 300);
+  assert.ok(Math.hypot(v.x - CARE.ambulance.door.x, v.z - CARE.ambulance.door.z) < 1, 'she is at the hospital\'s emergency door');
+  assert.equal(w.balance(v), purse, 'the ambulance cost her nothing');
+  assert.equal(v.stats.deaths || 0, 0);
   assert.deepEqual(w.host.auditor.reconcile(), [], 'the ledger balances');
 });
 
@@ -396,7 +393,7 @@ test('townspeople get out of the way of a vehicle that sounds its horn', () => {
   assert.ok(Math.abs(now.z - someone.z) > 0.6 || Math.abs(now.x - someone.x) > 0.6 || (now.act === 'Going back' && Math.hypot(now.x - someone.x, now.z - someone.z) > 0.3), `they stepped aside ${JSON.stringify({ someone: { x: someone.x, z: someone.z }, now })}`);
 });
 
-test('a townsperson who cannot get clear is knocked down, bleeds, and gets up; struck again and again, they die, lie there, and are taken away', () => {
+test('a townsperson who cannot get clear is knocked down, bleeds, and gets up; struck again and again, they are brought to 20 and no lower (nobody dies)', () => {
   const w = town(['Dayo Driver', 'Ebuka Careful'], { people: FORMER_TOWN });
   const d = w.p;
   const [x, z] = runway(w, 40);
@@ -420,32 +417,22 @@ test('a townsperson who cannot get clear is knocked down, bleeds, and gets up; s
   assert.ok(pool && pool.lying && !pool.dead && pool.blood === rec.blood);
   // the driver may see how badly, for a while
   assert.deepEqual(w.g.view(d.id).self.involved.map((e) => [e.kind, e.id]), [['npc', first.i]]);
-  // run down again and again: the blood grows with every blow, and in the end they die
-  let killed = null, lastBlood = rec.blood;
-  for (let pass = 0; pass < 20 && !killed; pass += 1) {
+  // run down again and again: the blood grows with every blow, and they are brought to 20 and no lower: nobody dies
+  let lastBlood = rec.blood, atFloor = 0;
+  for (let pass = 0; pass < 30 && atFloor < 2; pass += 1) {
     run(w.host, 1.2);
     const at = whereIs(w, first.i);
     keke.x = at.x - 14; keke.z = at.z; d.x = keke.x; d.z = keke.z; d.lastMoveAt = w.g.state.real;
     hits = driveAt(w, d, at.x, at.z);
     const hit = hits.find((h) => h.id === first.i);
-    if (hit && !hit.body) { assert.ok(w.I.impact.record(first.i).blood >= lastBlood, 'more blood with each blow'); lastBlood = w.I.impact.record(first.i).blood; }
-    if (hit && hit.killed) killed = hit;
+    if (hit) { assert.equal(hit.killed, false); assert.ok(w.I.impact.record(first.i).blood >= lastBlood, 'more blood with each blow'); lastBlood = w.I.impact.record(first.i).blood; if (w.I.impact.record(first.i).health <= HEALTH.critical) atFloor += 1; }
   }
-  assert.ok(killed, 'struck often enough, a townsperson dies');
-  assert.equal(w.I.impact.record(first.i).health, 0);
-  assert.equal(whereIs(w, first.i).pose, POSE.lie, 'the body lies where it fell');
-  assert.ok(w.g.view(d.id).blood.find((b) => b.key === `n:${first.i}`).dead);
-  // the driver has caused a death, as the law sees it
-  assert.ok(Object.values(w.g.state.justice.crimes).some((c) => c.type === 'death_by_driving' && c.culprit === d.id), 'a death by dangerous driving is on the book');
-  // nothing moves a body: not an order to walk, not being let go
-  A.walkTo(first.i, x, z + 30, 3); A.release(first.i); run(w.host, 5);
-  assert.equal(whereIs(w, first.i).pose, POSE.lie);
-  // after a while they are taken away, and are gone from the town for good (the driver, meanwhile, is the police's)
-  w.send(d.id, { type: 'vehicle.exit' });
-  run(w.host, IMPACT.body + 2);
-  assert.equal(whereIs(w, first.i).pose, POSE.hidden, 'taken to the mortuary');
-  run(w.host, 60);
-  assert.equal(whereIs(w, first.i).pose, POSE.hidden, 'and not back');
+  assert.equal(atFloor, 2, 'struck at 20 again');
+  assert.equal(w.I.impact.record(first.i).health, HEALTH.critical, 'at 20, and no lower');
+  assert.ok(!Object.values(w.g.state.justice.crimes).some((c) => c.type === 'death_by_driving'), 'nobody was killed');
+  ok(w.send(d.id, { type: 'vehicle.exit' }));
+  // they get up again in time
+  until(w, () => whereIs(w, first.i).pose !== POSE.lie, 90);
   // a second person, struck once, gets up and walks back to what they were doing
   const second = people[1];
   const e = w.players[1];
@@ -494,32 +481,13 @@ test('running someone down is an offence the police hear of from the one who was
   assert.deepEqual(law.wanted.map((c) => c.name), ['Dangerous driving causing harm']);
 });
 
-test('a killing nobody saw is not known to the police: the dead tell nobody', () => {
-  const w = town(['Dayo Driver', 'Vera Victim']);
-  const [d, v] = w.players;
-  const [x, z] = lonelyRunway(w, 40, LAW.witness.range + 8);
-  atTheWheel(w, d, x, z, Math.PI / 2);
-  const keke = w.g.state.vehicles.list[d.driving];
-  // she is already badly hurt; one blow kills her, so there is no earlier blow she could have reported
-  w.I.conflict.injure(v, HEALTH.max - 4);
-  w.place(v, x + 14, z);
-  keke.x = x; keke.z = z;
-  const hits = driveAt(w, d, x + 14, z);
-  assert.equal(hits[0].killed, true);
-  const crime = Object.values(w.g.state.justice.crimes)[0];
-  assert.equal(crime.type, 'death_by_driving');
-  assert.deepEqual(crime.witnesses, []);
-  assert.equal(crime.detection, 'undetected');
-  run(w.host, LAW.report[1] + 5);
-  assert.equal(w.g.view(d.id).self.law.state, 'normal', 'no officer is looking for him');
-});
-
-test('a killing that was seen makes the driver wanted for it, and he can be arrested', () => {
+test('a vehicle kills nobody: a blow on someone already badly hurt leaves them at 20, and a driver seen doing it by an officer is wanted for dangerous driving', () => {
   const w = town(['Dayo Driver', 'Vera Victim', 'Wale Watcher']);
   const [d, v, o] = w.players;
   const [x, z] = runway(w, 40);
   atTheWheel(w, d, x, z, Math.PI / 2);
-  w.I.conflict.injure(v, HEALTH.max - 4);
+  // she is already badly hurt (once, a blow like this one killed)
+  w.I.conflict.injure(v, HEALTH.max - 24);
   // a police officer on her beat stands a few metres off the road, and another player too (22 October 2026: only the
   // police are witnesses, the owner's word)
   const officer = w.pop.people.find((q) => q.job === 'police' && whereIs(w, q.index).pose !== POSE.hidden);
@@ -529,18 +497,21 @@ test('a killing that was seen makes the driver wanted for it, and he can be arre
   w.I.actors.hold(officer.index, 'On patrol', POSE.stand, w.g.state.real + 600);
   w.place(v, x + 14, z); w.place(o, x + 12, z + 9);
   const hits = driveAt(w, d, x + 14, z);
-  assert.equal(hits[0].killed, true);
+  assert.equal(hits[0].killed, false);
+  assert.equal(v.health, HEALTH.critical, 'at 20');
+  assert.equal(v.dead, null);
   const crime = Object.values(w.g.state.justice.crimes)[0];
+  assert.equal(crime.type, 'dangerous_driving');
   assert.ok(crime.witnesses.some((e) => e.kind === 'npc' && e.id === officer.index && e.police), 'the officer saw it');
   assert.ok(!crime.witnesses.some((e) => e.kind === 'player'), 'the other player is no witness');
   assert.ok(!w.events(o.id).some((e) => e.type === 'witness'), 'and is not asked to be one');
   until(w, () => w.g.view(d.id).self.law.state !== 'normal', LAW.report[1] + 2);
-  assert.deepEqual(w.g.view(d.id).self.law.wanted.map((c) => c.name), ['Causing death by dangerous driving']);
+  assert.deepEqual(w.g.view(d.id).self.law.wanted.map((c) => c.name), ['Dangerous driving causing harm']);
   // he gives himself up on foot, and an officer takes him
   ok(w.send(d.id, { type: 'vehicle.exit' }));
   ok(w.send(d.id, { type: 'police.surrender' }));
   until(w, () => !!d.custody, 400);
   const arrest = w.g.view(d.id).self.law.arrest;
-  assert.match(arrest.offences.map((c) => c.name).join(), /Causing death by dangerous driving/);
-  assert.equal(arrest.fine.amount, LAW.offences.death_by_driving.fine);
+  assert.match(arrest.offences.map((c) => c.name).join(), /Dangerous driving causing harm/);
+  assert.equal(arrest.fine.amount, LAW.offences.dangerous_driving.fine);
 });

@@ -507,7 +507,9 @@ export function createCrowd(scene) {
       if (pd) { /* where the fall has them */ } else if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }
       else {
         if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
-        other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
+        // (with a gun out they face where they aim, whichever way they go: gun-pose.js turns their legs to it)
+        const aimed = q.gun && q.gun.out && Number.isFinite(q.gun.yaw) ? q.gun.yaw : null;
+        other.h += angleGap(aimed !== null ? aimed : gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * (aimed !== null ? 14 : 8));
       }
       other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : fallPlace && fallPlace.y !== undefined ? fallPlace.y : zoneGroundY(other.x, other.z), other.z);
       // (all three: in a car they are turned with its body as it pitches and rolls, car-view.js)
@@ -531,6 +533,8 @@ export function createCrowd(scene) {
         if (em && len && t < len) other.rig.reaction = { name: em.name, time: t, weight: Math.min(1, t / 0.25, (len - t) / 0.3), loop: false, upper: false };
         else if (other.rig.reaction) other.rig.reaction.weight = Math.max(0, other.rig.reaction.weight - dt * 4);
       }
+      // badly hurt (their own game says 20 or less): a limp (animated.js)
+      other.rig.limp = Number.isFinite(q.health) && q.health <= 20 && !seated && !other.rig.swimming;
       animateCharacter(other.rig, dt, seated ? 0 : other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
       // another player's name shows only to someone near them
       showName(other.rig, Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < 12, dt);

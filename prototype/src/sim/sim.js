@@ -22,6 +22,7 @@ import { createConflict, HEALTH, MOVES, COMBAT } from './conflict.js';
 import { createImpact, IMPACT, BODY } from './impact.js';
 import { createJustice, LAW } from './justice.js';
 import { createCare, CARE } from './care.js';
+import { createGuns, GUN, GUNS } from './guns.js';
 import { createPhone } from './phone.js';
 import { createHijack, HIJACK } from './hijack.js';
 import { createMarketBridge } from './market.js';
@@ -35,15 +36,15 @@ export const TIME_SCALE = 30;                 // game seconds per real second (a
 export const SIM_START = 7.5 * 3600;          // 07:30 on day one
 export const SPEED = Object.freeze({ walk: 2.4, run: 5.6, rain: 0.9 });
 const REACH = 4.5;
-const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$|cars\\.owned$';
+const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$|cars\\.owned$|gun\\.owned$|gun\\.struck$|gun\\.holster$|gun\\.confirmed$';
 const WHILE_DRIVING = new RegExp(`^(vehicle\\.|run\\.|${ALWAYS})`);
 const WHILE_RIDING = new RegExp(`^(okada\\.alight$|${ALWAYS})`);
 const WHILE_ASTRIDE = new RegExp(`^(moto\\.|${ALWAYS})`);
 const WHILE_INCAR = new RegExp(`^(car\\.|${ALWAYS})`);
 // Held by the police: the phone (as far as the officer allows), and what concerns the arrest itself.
-const IN_CUSTODY = /^(bikes\.owned$|cars\.owned$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
-const WHILE_CARRIED = /^(phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
-const WHILE_TAKING = /^(hijack\.cancel$|chat\.|settings\.|people\.)/;
+const IN_CUSTODY = /^(bikes\.owned$|cars\.owned$|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
+const WHILE_CARRIED = /^(gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
+const WHILE_TAKING = /^(hijack\.cancel$|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|chat\.|settings\.|people\.)/;
 const REQUESTS_KEPT = 40;                     // answers remembered for each player, to answer a request sent twice
 const SCRIPTED_WEATHER = [[9 + 40 / 60, 'clear'], [10 + 10 / 60, 'cloudy'], [11 + 20 / 60, 'rain'], [12, 'cloudy'], [16.5, 'clear']];
 const WEATHER_NEXT = { clear: [['clear', 0.55], ['cloudy', 0.45]], cloudy: [['clear', 0.45], ['rain', 0.4], ['storm', 0.15]], rain: [['cloudy', 0.7], ['rain', 0.2], ['storm', 0.1]], storm: [['rain', 0.6], ['cloudy', 0.4]] };
@@ -96,7 +97,7 @@ export const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
 export const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
 // (a jump lasts about a second and a half on the screen: another, not before it is over)
 export const JUMP_EVERY = 1.4;
-const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
+const WHILE_SWIMMING = /^(move$|swim\.|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
 // `wallClock`: the real clock, as `wallSeconds` gives it. With one, the town keeps the player's own time: the
 // hour, the day and the date are the real ones, a second of play is a second of the day, and time cannot be
@@ -151,6 +152,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const justice = createJustice({ state, players: state.players, ledger, accounts: economy.accounts, population, actors, talk, emit, rng, hub });
   const care = createCare({ state, players: state.players, ledger, accounts: economy.accounts, emit, hub });
   const impact = createImpact({ state, players: state.players, population, actors, conflict, talk, emit, rng, hub, door: CARE.ambulance.door, visitors: () => talk.visitors() });
+  // guns (25 October 2026): what a round meets on its way, besides the walls and the ground, is whatever stands on it: the
+  // town's kekes, the players' own cars, the ambulance, and what players have built (each to its own height)
+  const guns = createGuns({ state, players: state.players, population, actors, conflict, talk, emit, rng: makeRng(0x6a11), hub,
+    boxes: () => [...vehicles.boxes().map((b) => ({ ...b, top: 1.9 })), ...parkedCars().map((b) => ({ ...b, top: 1.5 })), { ...care.box(), top: 2.6 }, ...structureBoxes().map((b) => ({ ...b, top: 3.4 }))] });
   const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: scale });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
@@ -309,6 +314,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     justice.tick(dtReal);
     care.tick(dtReal);
     impact.tick();
+    guns.tick(dtReal);
     stepGate(dtReal);
     if (!quiet) reactions.tick(dtReal, Object.values(state.players).filter((q) => !q.custody && !q.carried));
     phone.tick();
@@ -530,7 +536,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
         const at = population.locate(i, state.t, {});
         if (Math.hypot(at.x - p.x, at.z - p.z) > RANGE.scan + 20) continue;
         const who = population.people[i];
-        out.push({ index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig });
+        out.push({ index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig, ...(who.job === 'police' ? { police: true } : {}) });
       }
       return { people: out };
     },
@@ -735,6 +741,19 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (!conflict.critical(p)) p.health = Math.min(HEALTH.max, p.health + HEALTH.sleep);
       return { hours: hoursToMorning, energy: p.energy, health: p.health };
     },
+
+    // --- guns (guns.js) ---
+    // what the website's server says this player owns and has in each (the page passes it on)
+    'gun.owned'(p, body) { return { gun: guns.owned(p, body || {}) }; },
+    'gun.draw'(p, body) { return { gun: guns.draw(p, body || {}) }; },
+    'gun.holster'(p) { guns.holster(p); return { gun: guns.view(p) }; },
+    'gun.equip'(p, body) { return { gun: guns.equip(p, body || {}) }; },
+    'gun.aim'(p, body) { return guns.aim(p, body || {}); },
+    'gun.reload'(p) { return guns.reload(p); },
+    'gun.fire'(p, body) { return guns.fire(p, body || {}); },
+    // rounds of other players' that the website's server says hit this player, and this player's that it says hit others
+    'gun.struck'(p, body) { return guns.struck(p, body || {}); },
+    'gun.confirmed'(p, body) { return guns.confirmed(p, body || {}); },
 
     // --- fighting ---
     'combat.engage'(p, { target }) { return conflict.engage(p, target); },
@@ -1038,6 +1057,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       okadas: okada.list(eye.x, eye.z, viewerId),
       // trouble within sight: blows struck, people shaken by them, officers out on a call, the ambulance
       fights: conflict.eventsNear(eye.x, eye.z), impacts: impact.eventsNear(eye.x, eye.z), fallen: impact.fallen(), blood: impact.bleeding(eye.x, eye.z), reacts: reactions.near(eye.x, eye.z), moods: conflict.moods(eye.x, eye.z), officers: justice.officersNear(eye.x, eye.z), ambulance: care.ambulanceView(),
+      // rounds fired within hearing, and the officers shooting back (guns.js)
+      shots: guns.shotsNear(eye.x, eye.z), shooting: guns.shooting(),
       population: population.total,
       // how far open the car showroom's gate is (0 shut, 1 wide open)
       carshowGate: state.carshowGate ? Math.round(state.carshowGate.open * 1000) / 1000 : 0,
@@ -1052,7 +1073,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       ...zoneView(playerId),
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
+        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
@@ -1068,7 +1089,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     visitors: { seen: (peerId, data) => talk.visitorSeen(peerId, data), gone: (peerId) => talk.visitorGone(peerId), list: () => talk.visitors() },
     stats: () => ({ ...population.stats, people: population.total, simulated: population.count, riders: okada.riders.length }),
     // what anyone can see of a person: their name and how they look
-    faces: (ids) => ids.filter((i) => Number.isInteger(i) && i >= 0 && i < population.count).slice(0, 400).map((i) => { const who = population.people[i]; return { index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig }; }),
+    faces: (ids) => ids.filter((i) => Number.isInteger(i) && i >= 0 && i < population.count).slice(0, 400).map((i) => { const who = population.people[i]; return { index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig, ...(who.job === 'police' ? { police: true } : {}) }; }),
+    // not an intent: what is under a gun's aim (the aiming mark's colour, and the point it is on), and where a round
+    // from a point along a way would stop: the page's own copy of the town, asked as the player aims (guns.js)
+    aimAt: (o, d, most, self = null) => guns.look(o, d, most, self),
     // not an intent: the market service's side of a sale (see market.js)
     market,
     // not intents either: what each player's TR is made of (funds.js), and the bank's side of a character
@@ -1076,8 +1100,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact },
+    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact, guns },
   };
 }
 
-export const GAME_REFERENCE = Object.freeze({ GOODS, DESIGNS, PAINT_COLOURS, ENERGY, HEALTH, MOVES, COMBAT, LAW, CARE, HIJACK, IMPACT, BODY });
+export const GAME_REFERENCE = Object.freeze({ GOODS, DESIGNS, PAINT_COLOURS, ENERGY, HEALTH, MOVES, COMBAT, LAW, CARE, HIJACK, IMPACT, BODY, GUN, GUNS });

@@ -22,7 +22,9 @@ function oneAtATime(task) { const run = reading.then(task, task); reading = run.
 
 // (`want`: its pictures' own largest, apart from the graphics level's, 0 for none: glb.js, wantPicture; a parked truck
 // fetched while it is far off, say, render-supplied.js)
-export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9, want = 0 } = {}) {
+// (`maps`: for one of its pictures by name, 'normal' or 'rm' (metal and roughness), false for it not to be made at all, or
+// the largest it is drawn at, below `want`: the rifle's, gun-model.js)
+export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9, want = 0, maps = {} } = {}) {
   // (on a phone, the website's copy with its pictures the size a phone draws them: budget.js)
   const file = modelFile(named);
   const response = await fetchKept(file);
@@ -37,15 +39,16 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
   if (!at.NORMAL) geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
-  const pictureOf = async (info, colour, paint = null) => {
-    if (!info) return null;
+  const pictureOf = async (info, colour, paint = null, kind = 'colour') => {
+    if (!info || maps[kind] === false) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
     // (no larger than the graphics level's largest picture either, nor its own where it has one: glb.js, pictureMost)
-    const level = pictureMost(), cap = level && want ? Math.min(level, want) : level || want;
+    const own = Number(maps[kind]) > 0 ? (want ? Math.min(want, maps[kind]) : maps[kind]) : want;
+    const level = pictureMost(), cap = level && own ? Math.min(level, own) : level || own;
     const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint, cap));
     t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
-    t.userData.cap = cap; t.userData.want = want;
+    t.userData.cap = cap; t.userData.want = own;
     // (once the graphics card has the picture, the page's own copy is let go: see glb.js; should the card's copy be
     // lost, or the graphics level ask for another size, it is made again the same way from the file, which the browser
     // has kept)
@@ -82,7 +85,7 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
     }
     return picture;
   }
-  const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, brand), pictureOf(mat.normalTexture, false), pictureOf(pbr.metallicRoughnessTexture, false)]);
+  const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, brand), pictureOf(mat.normalTexture, false, null, 'normal'), pictureOf(pbr.metallicRoughnessTexture, false, null, 'rm')]);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   // the glass, the cladding and the paint reflect the sky (render-city.js's glass does the same)
   const material = surface({ map, normalMap, roughnessMap: rm, metalnessMap: rm, color: colour, roughness: rm ? 1 : (pbr.roughnessFactor ?? 1), metalness: rm ? 1 : (pbr.metallicFactor ?? 1), envMap: env || null, envMapIntensity, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });

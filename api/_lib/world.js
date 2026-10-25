@@ -8,6 +8,7 @@ const { allow } = require('./auth.js');
 const { SCHEMA: S } = require('./schema.js');
 const { UUID } = require('./market.js');
 const wallet = require('./wallet.js');
+const guns = require('./guns.js');
 
 const MAX_SAVE = 3 * 1024 * 1024;
 const SEEN_FOR = 14;                     // seconds a player stays in sight after their game last said where they are (a game alone in town says so every ten)
@@ -94,6 +95,8 @@ async function saveErase(sql, me) {
 // The player's game says where it stands (and how it looks, and what it last said aloud), and is told who else
 // is in the same town. The name others see is the account's username, put there by the server: a game cannot
 // appear under a name that is not its own.
+// With it, the guns (guns.js): the shots fired since the last word (`fire`), checked and counted, each answered; and the
+// hits on this player not yet taken (after `ack`, the last their game has taken).
 async function presence(sql, me, body) {
   const zone = short(body.zone, 24);
   if (!zone || !/^[A-Z0-9-]{3,24}$/.test(zone)) throw new ApiError(400, 'BAD_REQUEST', 'That is not a town.');
@@ -119,8 +122,14 @@ async function presence(sql, me, body) {
      order by (p.x - $4::real) * (p.x - $4::real) + (p.z - $5::real) * (p.z - $5::real) limit $6::int`,
     [zone, me.id, SEEN_FOR, Number(state.x), Number(state.z), MOST_PEERS]);
   if (Math.random() < 0.02) await sql.unsafe(`delete from ${S}.presence where at < now() - interval '2 minutes'`);
+  // the guns: this player's shots, and the hits on them (only for a game that knows of guns: it sends `ack`)
+  // (a word about the guns that cannot be taken, or a server that cannot take it just now, is answered as such: the
+  // player's place is kept and the others are told all the same)
+  const gunWord = async (job) => { try { return await job(); } catch (error) { if (error && error.status && error.code) return { error: error.code }; throw error; } };
+  const fired = body.fire ? await gunWord(() => guns.fire(sql, me, body.fire, state, zone)) : null;
+  const struck = body.ack !== undefined ? await gunWord(() => guns.struck(sql, me, Number(body.ack))) : null;
   // (with how long ago each said it, in seconds: a game carries a moving vehicle on by that much)
-  return { peers: rows.map((row) => ({ id: `u${row.who.slice(0, 20)}`, state: row.state, age: Math.max(0, Math.round(Number(row.age) * 1000) / 1000) })) };
+  return { peers: rows.map((row) => ({ id: `u${row.who.slice(0, 20)}`, state: row.state, age: Math.max(0, Math.round(Number(row.age) * 1000) / 1000) })), ...(fired ? { fire: fired } : {}), ...(struck ? { struck } : {}) };
 }
 
 module.exports = { saveInfo, saveGet, savePut, saveErase, presence };

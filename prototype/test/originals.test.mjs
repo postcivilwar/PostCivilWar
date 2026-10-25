@@ -192,18 +192,26 @@ const SUPPLIED = {
   'assets/habitation/reference/17-image.png': 'ea82dd883c69d401ddecd4d0885a6201',
   'assets/habitation/reference/18-image.png': 'ffd73aa79e3708f88f87cde512c6653e',
   'assets/habitation/reference/19-image.png': 'b2cb0ded7e937fc5e5d349290c8faa13',
+  // the rifle and its four recordings (22 October 2026, the owner's attachments; in the game from 25 October 2026)
+  'assets/weapons/rifle/futuristicrifle3dmodel.glb': 'c737b299c0aab0d9bb4746248b2553ab',
+  'assets/weapons/rifle/sound/maching_gun_sound_an_1-1792669414074.wav': '68119b7a399bbe5f60e8da3db48a2b75',
+  'assets/weapons/rifle/sound/maching_gun_sound_an_2-1792669445724.wav': '3e0f930a0a387b42f646aa786a3df251',
+  'assets/weapons/rifle/sound/maching_gun_sound_an_3-1792669437458.wav': 'f55b765753a21fe388e6a8ac2c90e4f7',
+  'assets/weapons/rifle/sound/maching_gun_sound_an_4-1792669421962.wav': 'a4b77363b48c791c789cd9bccb6f3a1a',
 };
 
 test('every one of the owner\'s model files is byte for byte as he supplied it', () => {
-  assert.equal(Object.keys(SUPPLIED).length, 97 + 49 + 19);
+  assert.equal(Object.keys(SUPPLIED).length, 97 + 49 + 19 + 5);
   for (const [path, sum] of Object.entries(SUPPLIED)) assert.equal(md5(path), sum, `${path} is not as it was supplied`);
 });
 
 test('and none is missing or added unannounced: each folder holds just these models', () => {
-  for (const folder of ['assets/characters/figures/animated/', 'assets/buildings/town/', 'assets/buildings/carshow/', 'assets/buildings/powerbike/', 'assets/vehicles/town/', 'assets/vehicles/bikes/', 'assets/vehicles/cars/', 'assets/habitation/']) {
+  for (const folder of ['assets/characters/figures/animated/', 'assets/buildings/town/', 'assets/buildings/carshow/', 'assets/buildings/powerbike/', 'assets/vehicles/town/', 'assets/vehicles/bikes/', 'assets/vehicles/cars/', 'assets/habitation/', 'assets/weapons/rifle/']) {
     const there = readdirSync(here(folder)).filter((name) => name.endsWith('.glb')).map((name) => folder + name).sort();
     assert.deepEqual(there, Object.keys(SUPPLIED).filter((path) => path.startsWith(folder) && path.endsWith('.glb')).sort(), folder);
   }
+  const recordings = readdirSync(here('assets/weapons/rifle/sound/')).map((name) => `assets/weapons/rifle/sound/${name}`).sort();
+  assert.deepEqual(recordings, Object.keys(SUPPLIED).filter((path) => path.startsWith('assets/weapons/rifle/sound/')).sort());
   const pictures = readdirSync(here('assets/habitation/reference/')).map((name) => `assets/habitation/reference/${name}`).sort();
   assert.deepEqual(pictures, Object.keys(SUPPLIED).filter((path) => path.startsWith('assets/habitation/reference/')).sort());
 });

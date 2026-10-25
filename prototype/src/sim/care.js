@@ -193,6 +193,29 @@ export function createCare({ state, players, ledger, accounts, emit, hub }) {
   }
   const callView = (call) => ({ id: call.id, fee: call.fee, status: call.status, txn: call.txn, metres: Math.round(Math.hypot(van.x - call.x, van.z - call.z)) });
 
+  // The 20-life rule (the owner's brief of 22 October 2026): whoever is brought to 20 has the ambulance sent for them, free
+  // and at once if it is free and can get to them; otherwise as soon as it can (looked at again each second, `tick`), and
+  // they are told when it is on its way. Returns whether it was sent now.
+  if (!book.pending) book.pending = {};
+  function summon(p) {
+    if (p.carried || p.custody) return false;
+    try { callAmbulance(p); delete book.pending[p.id]; return true; } catch (error) {
+      if (!(error instanceof GameError)) throw error;
+      book.pending[p.id] = real();
+      return false;
+    }
+  }
+  function summonWaiting() {
+    for (const id of Object.keys(book.pending)) {
+      const p = players[id];
+      if (!p || p.health > HEALTH.critical || p.carried || p.custody) { delete book.pending[id]; continue; }
+      if (real() - book.pending[id] < 1) continue;
+      book.pending[id] = real();
+      if (van.mode !== 'parked') continue;
+      try { callAmbulance(p); delete book.pending[id]; emit(p.id, { type: 'note', text: 'You are badly hurt. An ambulance is on its way.' }); } catch (error) { if (!(error instanceof GameError)) throw error; }
+    }
+  }
+
   function drive(dt) {
     let budget = A.speed * dt;
     while (budget > 0 && van.path.length) {
@@ -212,6 +235,7 @@ export function createCare({ state, players, ledger, accounts, emit, hub }) {
   function tick(dt) {
     const now = real();
     for (const id of Object.keys(book.quotes)) { const q = book.quotes[id]; if (now > q.expires + 600) delete book.quotes[id]; }
+    summonWaiting();
     if (van.mode === 'parked') return;
     const call = van.call ? book.calls[van.call] : null;
     const p = call ? players[call.player] : null;
@@ -259,7 +283,7 @@ export function createCare({ state, players, ledger, accounts, emit, hub }) {
   // Nearest of the two to a point, for the phone's map.
   const nearest = (x, z) => ['hospital', 'clinic'].map((id) => { const s = zoneService(id); return { id, name: s.name, x: s.x, z: s.z, kind: CARE.places[id].kind, metres: Math.round(Math.hypot(s.x - x, s.z - z)) }; }).sort((a, b) => a.metres - b.metres);
 
-  const api = { quote, bargain, pay, setPrices, tariff, ambulanceInfo, callAmbulance, tick, ambulanceView, box, selfView, audit, nearest, quoteOf: (id) => book.quotes[id] || null };
+  const api = { quote, bargain, pay, setPrices, tariff, ambulanceInfo, callAmbulance, summon, tick, ambulanceView, box, selfView, audit, nearest, quoteOf: (id) => book.quotes[id] || null };
   hub.care = api;
   void zoneWalkable;
   return api;

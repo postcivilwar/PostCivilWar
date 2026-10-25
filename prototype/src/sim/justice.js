@@ -42,6 +42,9 @@ export const LAW = Object.freeze({
     resisting: Object.freeze({ name: 'Resisting arrest', severity: 1, fine: 10 * TR, hours: 1 }),
     dangerous_driving: Object.freeze({ name: 'Dangerous driving causing harm', severity: 3, fine: 10 * TR, hours: 4 }),
     death_by_driving: Object.freeze({ name: 'Causing death by dangerous driving', severity: 4, fine: 100 * TR, hours: 8, death: true }),
+    // (25 October 2026: guns. The charge is the owner's rule for any crime, 10 TR)
+    shooting: Object.freeze({ name: 'Shooting at someone', severity: 3, fine: 10 * TR, hours: 4 }),
+    shooting_police: Object.freeze({ name: 'Shooting at a police officer', severity: 4, fine: 10 * TR, hours: 6 }),
   }),
   compensation: 300,               // paid to a player who was put in hospital, out of the culprit's pocket (150 TR)
   mostHours: 8,
@@ -335,6 +338,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
   function officerTick(o, dt) {
     const m = actors.get(o.i);
     if (!m) { delete book.officers[o.i]; return; }
+    // (an officer shooting back at someone, guns.js, is busy with that: her duty waits until it is over)
+    if (hub.guns && hub.guns.isShooting && hub.guns.isShooting(o.i)) return;
     const now = real();
     const p = o.suspect ? players[o.suspect] : null;
 

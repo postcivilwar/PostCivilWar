@@ -217,16 +217,20 @@ test('the ambulance: comes by road to whoever is hurt, carries them in, and is c
   clean(w);
 });
 
-test('the ambulance is free to someone whose health is critical, and comes even if they have nothing', () => {
+test('brought to 20, someone has the ambulance sent for them at once, free, even if they have nothing (the 20-life rule)', () => {
   const w = town(['Poor Patient'], { broke: true });       // the arrival money left with family: nothing at all
   w.place(w.p, 2, 40);
-  hurtTo(w, w.p, 12);
+  const count = w.host.auditor.transactionCount();
+  hurtTo(w, w.p, 20);
+  // nobody calls it: it is sent, and they are told so calmly, in the owner's words
+  assert.ok(w.events(w.id).some((e) => e.type === 'critical' && e.text === 'You are badly hurt. An ambulance is on its way.'));
   const info = ok(w.send(w.id, { type: 'care.ambulance.info' }));
   assert.deepEqual([info.fee, info.free], [0, true]);
-  const count = w.host.auditor.transactionCount();
+  // asked for again, the same call answers: never a second ambulance for the same person
   const call = ok(w.send(w.id, { type: 'care.ambulance.call' })).call;
   assert.equal(call.fee, 0);
   assert.equal(call.txn, null);
+  assert.equal(Object.keys(w.g.state.care.calls).length, 1, 'one call');
   assert.equal(w.host.auditor.transactionCount(), count, 'no charge, so no transaction');
   until(w, () => w.g.view(w.id).self.carried === 'aboard', 200);
   until(w, () => w.g.view(w.id).self.carried === null, 200);
@@ -247,8 +251,8 @@ test('bruises mend slowly on their own, but not for someone badly hurt; a night 
   hurtTo(w, w.p, 50);
   w.g.advance(5 * 3600);
   assert.equal(w.p.health, 50 + 5 * HEALTH.restPerHour);
-  hurtTo(w, w.p, 18);
+  hurtTo(w, w.p, 20);
   w.g.advance(5 * 3600);
-  assert.equal(w.p.health, 18, 'critical health does not mend without treatment');
+  assert.equal(w.p.health, 20, 'critical health does not mend without treatment');
   assert.ok(ENERGY.max > 0);
 });

@@ -91,7 +91,7 @@ import { createTownBuildings } from './render-town-buildings.js';
 import { updateFinishes, finishState, setReflections, setWater } from './render-finish.js';
 import { foliageState } from './render-foliage.js';
 import { buildPowerbike } from './render-powerbike.js';
-import { pictureSize, GRAPHICS_BUDGET_MB } from './budget.js';
+import { pictureSize, GRAPHICS_BUDGET_MB, modelFile } from './budget.js';
 import { countGraphics } from './graphics-count.js';
 import { frameClock, statsLines, showStats } from './stats.js';
 import { createSalesman } from '../sim/salesman.js';
@@ -104,6 +104,9 @@ import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, au
 import { showSoftPatches, softPatchesShown, softPatchOpacity } from './soft-patch.js';
 import { fallTime, flightAt } from './falls.js';
 import { CONTACT, contactNormal, contactOutcome } from '../sim/contact.js';
+import { createGunPlay, GUN_PLAY } from './gun-play.js';
+import { setGunDrawing, GUN_MODELS } from './gun-model.js';
+import { createGunNet } from '../net/gun-net.js';
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -264,6 +267,28 @@ function start(carried) {
     // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
     standins = createStandins(scene, { lite: LITE });
   }]);
+  // The guns (25 October 2026, the owner's briefs for the guns): the player's own, other players' and the police
+  // officers', what their rounds do, the shooting screen, blood on the screen (gun-play.js). Made with the town, before
+  // it is warmed up (the light of a muzzle's flash is a lamp the town's surfaces are prepared for).
+  let gunPlay = null;
+  // (should they fail to be made, the town is built all the same, without them: said in the console)
+  townSteps.push(['the guns', () => {
+    try { makeGuns(); } catch (error) { gunPlay = null; console.error('PostCivilWar: the guns could not be made', error); }
+  }]);
+  function makeGuns() {
+    setGunDrawing({ env: LITE ? null : vehicleEnvironment(), maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), lite: LITE });
+    gunPlay = createGunPlay({
+      scene, camera, audio, lite: LITE, coarse, ground: zoneGroundY, net: gunNet, online,
+      game: () => host.game, send: (intent) => server.send(intent), view: () => view, playerId: () => playerId,
+      refresh: () => refreshView(), cam: () => cam, calm: () => !!prefs.calm,
+      peers: () => shownPeers, rigOf: (key) => (crowd ? crowd.rigOf(key) : null),
+      toast: (text) => ui.toast({ type: 'note', text }),
+      confirm: ({ title, text, yes, no }) => confirm.ask({ title, body: text, confirm: yes, cancel: no, run: async () => ({ ok: true }) }),
+      hudRoot: $('hud'), hudr: $('hudr'), bloodRoot: $('game') || document.body,
+    });
+  }
+  // the rounds this player fires, told to the website's server with each word about where they are (gun-net.js)
+  const gunNet = createGunNet();
   const PEER_STANDIN = 260;          // metres within which another player's vehicle is drawn at all
   // the phone in other players' hands (phone-hold.js, one each, made when one is first seen with it out; no lamp)
   const peerPhones = new Map();      // id -> { hold, idle }
@@ -495,7 +520,8 @@ function start(carried) {
   // ---------------------------------------------------------------- state --
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
-  const prefs = { translate: true, sound: true, graphics: 'auto', ...(readStored(PREFS_KEY) || {}) };
+  // (`calm`: Settings, "Reduce intense effects": less blood on the screen and in the town, gun-play.js)
+  const prefs = { translate: true, sound: true, graphics: 'auto', calm: false, ...(readStored(PREFS_KEY) || {}) };
   // Every world made here keeps the real clock, and the real weather where the player is, once that is known.
   let realWeather = null;              // { kind, place, temperature, at } from the site's server
   const newHost = (options = {}) => {
@@ -559,6 +585,7 @@ function start(carried) {
   let actKey = false;                // E or Enter held down
   const acting = () => actKey || controls.held('act');
   let mode = 'start';                // what the player is doing, which decides the buttons shown: see controlMode()
+  let viewBeforeGun = null;          // the camera's view before the gun came out (it comes back when the gun goes)
   const perf = { fps: 60, calls: 0, triangles: 0, programs: 0, geometries: 0, textures: 0 };
   const monitor = createMonitor();
   const warmUp = createWarmUp(renderer, scene);
@@ -595,7 +622,11 @@ function start(carried) {
   let phoneShown = 0;
   function linkSelf() {
     if (!view) return null;
-    const me = phoneShown ? { ...view.self, phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : view.self;
+    const armed = gunPlay ? gunPlay.linkFields(cam) : null;
+    // (and the height of the ground they stand on: the website's server checks a round said to have struck them
+    // against it, on a deck or a bridge as on the street)
+    const gy = zoneGroundY(view.self.x, view.self.z);
+    const me = { ...view.self, ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
     return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
@@ -706,7 +737,7 @@ function start(carried) {
   function onlineChanged() {
     if (!online.available) return;
     const want = online.signedIn;
-    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden }) }; if (playing) relink(); }
+    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden, gun: gunNet }) }; if (playing) relink(); }
     if (!want && transport && transport.kind === 'web') { transport = null; if (playing) relink(); }
     if (!want) { market.reset(); ui.signedOut(); }
     if (online.status().state === 'out') {
@@ -1447,6 +1478,8 @@ function start(carried) {
     waypoint: () => waypoint,
     setWaypoint: (mark) => setWaypoint(mark),
     setGraphics: (value) => setGraphics(value),
+    calm: () => !!prefs.calm,
+    setCalm: (on) => { prefs.calm = !!on; writeStored(PREFS_KEY, prefs); },
     volumes: () => audio.volumes(),
     setVolume: (name, value) => { audio.setVolumes({ [name]: value }); prefs.volumes = audio.volumes(); writeStored(PREFS_KEY, prefs); if (name === 'ui') audio.chime('ok'); },
     chime: (kind) => audio.chime(kind),
@@ -1549,6 +1582,7 @@ function start(carried) {
     if (!playing) return;
     exited = true; exitNote = note || '';
     letGo();
+    if (gunPlay) gunPlay.reset();
     playing = false;
     ui.close();
     audio.suspend();
@@ -1635,6 +1669,8 @@ function start(carried) {
   // What the simulation has to tell this player: receipts and notices to show, things to sound.
   function hear(event) {
     if (event.type === 'sound') { audio.bell(event.x, event.z, event.sound); return; }
+    // a round has struck the player (gun-play.js: blood on the screen, the flinch, where it came from)
+    if (event.type === 'shot') { if (gunPlay) gunPlay.onShot(event, { me }); return; }
     if (event.type === 'struck') { flash = 1; startStrike(me, 'flinch', clock); return; }             // the blow itself is drawn and sounded from the fight feed
     if (event.type === 'police' && event.sound === 'whistle') audio.whistle(event.x, event.z);
     if (event.type === 'critical' || event.type === 'alert' || (event.type === 'police' && event.title !== 'Released')) audio.chime('alert');
@@ -1975,6 +2011,10 @@ function start(carried) {
     if (prefs.sound) audio.start();
     relink();
     refreshView();
+    // the guns: put away, and what the account has (its starter rifle, its rounds) from the website's server; the
+    // rifle's model and its sounds kept on the device for playing without a connection (fetched in the worker's time)
+    if (gunPlay) { gunPlay.reset(); if (online.signedIn) gunPlay.askState(); }
+    if (webapp.site && window.__PCW_GUNS) webapp.keepFiles([modelFile(GUN_MODELS.rifle.file), ...((window.__PCW_GUNS.rifle && window.__PCW_GUNS.rifle.sounds) || [])]);
     canvas.focus({ preventScroll: true });
   }
 
@@ -2181,14 +2221,42 @@ function start(carried) {
 
   const pointers = new Map();
   let pinch = 0;
-  canvas.addEventListener('pointerdown', (event) => { canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (playing && prefs.sound && !pictureGone) audio.start(); });
+  // With a gun out the aim is the camera's, and may look up as well as down (gun-play.js); through the sight it turns
+  // more finely. `gunAimedAt`: when the aim was last moved by hand (the pull toward someone near it works only then).
+  let gunAimedAt = -10;
+  const GUN_PITCH = Object.freeze({ up: -0.85, down: 1.0 });
+  function aimBy(dx, dy, rate = 0.0055) {
+    const fine = gunPlay && gunPlay.sighting ? 0.45 : 1;
+    cam.yaw -= dx * rate * fine;
+    cam.pitch = Math.max(GUN_PITCH.up, Math.min(GUN_PITCH.down, cam.pitch + dy * rate * 0.75 * fine));
+    cam.lastDrag = clock; gunAimedAt = clock;
+  }
+  // A mouse, with a gun out: the pointer is held in the picture (pointer lock: Esc lets it go), the mouse aims, its left
+  // button shoots and its right button aims through the sight. The first click only takes hold of the pointer.
+  const gunMouse = (event) => mode === 'gun' && event.pointerType === 'mouse' && typeof canvas.requestPointerLock === 'function';
+  canvas.addEventListener('contextmenu', (event) => { if (mode === 'gun') event.preventDefault(); });
+  document.addEventListener('mousemove', (event) => { if (document.pointerLockElement === canvas && mode === 'gun' && playing) aimBy(event.movementX || 0, event.movementY || 0, 0.0024); });
+  canvas.addEventListener('pointerdown', (event) => {
+    if (gunMouse(event)) {
+      event.preventDefault();
+      canvas.focus({ preventScroll: true });
+      if (playing && prefs.sound && !pictureGone) audio.start();
+      if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (error) { /* not here */ } return; }
+      if (event.button === 0) act('shoot', 'down'); else if (event.button === 2) act('aim', 'hold-down');
+      return;
+    }
+    canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (playing && prefs.sound && !pictureGone) audio.start();
+  });
+  canvas.addEventListener('pointerup', (event) => { if (gunMouse(event) && document.pointerLockElement === canvas) { if (event.button === 0) act('shoot', 'up'); else if (event.button === 2) act('aim', 'hold-up'); } });
+  document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== canvas && gunPlay) { gunPlay.act('shoot', 'up'); gunPlay.act('aim', 'hold-up'); } });
   canvas.addEventListener('pointermove', (event) => {
     const p = pointers.get(event.pointerId);
     if (!p) return;
     const dx = event.clientX - p.x;
     const dy = event.clientY - p.y;
     p.x = event.clientX; p.y = event.clientY;
-    if (pointers.size === 1) {
+    if (pointers.size === 1 && mode === 'gun') aimBy(dx, dy);
+    else if (pointers.size === 1) {
       if (!rig.drag(-dx * 0.0055)) cam.yaw -= dx * 0.0055;
       cam.pitch = Math.max(0.02, Math.min(1.25, cam.pitch + dy * 0.004));
       cam.lastDrag = clock;
@@ -2205,7 +2273,7 @@ function start(carried) {
   canvas.addEventListener('wheel', (event) => { event.preventDefault(); cam.dist = Math.max(STREET.nearest, Math.min(60, cam.dist * (1 + Math.sign(event.deltaY) * 0.1))); }, { passive: false });
 
   // touch controls: the stick and the buttons live in controls.js; what each does is in act(), below
-  controls.on((id, phase) => act(id, phase));
+  controls.on((id, phase, dx, dy) => { if (phase === 'move') { if (id === 'shoot' && mode === 'gun') aimBy(dx, dy); return; } act(id, phase); });
   window.addEventListener('touchstart', () => { if (playing) $('touch').hidden = false; }, { passive: true, once: true });
 
   // ------------------------------------------------------- interactions --
@@ -2404,10 +2472,30 @@ function start(carried) {
     if (self.riding) return 'riding';
     if (self.fight) return 'combat';
     if (self.swimming) return 'swimming';
+    // a gun in the hands: the shooting screen (gun-play.js)
+    if (gunPlay && gunPlay.out) return 'gun';
     return 'walking';
   }
   // Where the camera's choice of views comes from.
   const where = () => (view && (view.self.driving || view.self.astride || view.self.riding || view.self.incar) ? 'vehicle' : 'foot');
+
+  // Who could be aimed at near the player (for a touch screen's pull of the aim toward someone close to it: gun-play.js):
+  // the other players who can be shot as their own games say (above 20, on their feet), and the police officers near,
+  // each at their chest
+  function gunTargets() {
+    const out = [];
+    for (const q of shownPeers) {
+      if (Math.hypot(q.x - predicted.x, q.z - predicted.z) > 70) continue;
+      const able = Number.isFinite(q.health) && q.health > 20 && !q.vehicle && !q.ride && !q.car && !q.swimming && !q.held && !q.down;
+      out.push({ x: q.x, y: zoneGroundY(q.x, q.z) + (q.gun && q.gun.crouch ? 0.85 : 1.25), z: q.z, able });
+    }
+    if (crowd) for (const a of crowd.actors()) {
+      const who = known.get(a.i);
+      if (!who || !who.police || a.d === undefined || a.d > 70 || a.pose === 3) continue;
+      out.push({ x: a.x, y: zoneGroundY(a.x, a.z) + 1.25, z: a.z, able: true });
+    }
+    return out;
+  }
 
   // Who and what is within reach for the things that are only sometimes on
   // offer: someone to square up to, a pocket, a vehicle at its driver's side.
@@ -2473,6 +2561,8 @@ function start(carried) {
         if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
         return list;
       }
+      // the gun (25 October 2026): everyone has the rifle; at 20, it cannot be used (the 20-life rule: shown, greyed)
+      if (gunPlay) list.push({ id: 'gun', key: 'x', label: 'Gun', icon: 'gun', off: !!self.critical, hint: self.critical ? 'You are badly hurt: you cannot use a gun' : 'Take out your gun (X)' });
       if (near.fight && !self.critical) list.push({ id: 'fight', key: 'f', label: 'Fight', tone: 'warn', hint: `Square up to ${near.fight.name}` });
       if (near.take && !self.critical) list.push({ id: 'take', key: 'g', label: 'Take', tone: 'warn', hint: near.take.text });
       if (near.steal && !self.critical) list.push({ id: 'steal', key: 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
@@ -2481,6 +2571,27 @@ function start(carried) {
       // the view (19 October 2026, the owner's brief: the camera button kept, and on foot too): on the street close
       // behind, further back, over the shoulder, from above. Dragging still turns it.
       list.push(look);
+      return list;
+    }
+    // With a gun out (22 October 2026, the owner's picture of the shooting screen: "ALL other action buttons disappear,
+    // except the camera adjustment button(s)"; 25 October 2026: aim, shoot, reload, switch weapon, crouch, jump, the
+    // camera, and what can be used where the player is, where there is something): Shoot the large one at the lower
+    // right, Aim above it, the rest round them; on a keyboard and mouse, each has its key (the mouse's buttons shoot
+    // and aim).
+    if (m === 'gun') {
+      const g = self.gun || {};
+      const reloading = !!g.reloading;
+      const list = [
+        { id: 'shoot', key: 'f', label: 'Shoot', icon: 'shoot', kind: 'hold', primary: true, drag: true, off: reloading || gunPlay.running, hint: reloading ? 'Reloading' : 'Hold to shoot (F, or the mouse\'s left button). Drag it to aim as you shoot' },
+        { id: 'aim', key: 'q', label: 'Aim', icon: 'aim', kind: 'toggle', pressed: gunPlay.sighting, off: gunPlay.running, hint: 'Aim through the sight (the mouse\'s right button, or Q)' },
+        { id: 'reload', key: 'r', label: 'Reload', icon: 'reload', off: reloading || (g.mag >= g.magazine) || g.spare <= 0, hint: reloading ? 'Reloading' : g.spare <= 0 ? 'No rounds left to reload with' : 'Reload (R)' },
+      ];
+      if (prompt && prompt.short) list.push({ ...main, primary: false, hint: `${prompt.text} (E)` });
+      list.push({ id: 'crouch', key: 'c', label: 'Crouch', icon: 'crouch', kind: 'toggle', pressed: gunPlay.crouched, hint: 'Crouch (C)' });
+      if (me && me.animated) list.push({ id: 'jump', key: 'Space', label: 'Jump', icon: 'jump', hint: 'Jump (Space)' });
+      if (!(prompt && prompt.short)) list.push({ id: 'switch', key: 'g', label: 'Guns', icon: 'switch', hint: 'Your guns (G)' });
+      list.push({ id: 'overview', key: 'v', label: 'View', icon: 'camera', kind: 'toggle', pressed: gunPlay.overviewing, hint: 'See all round you for five seconds (V)' });
+      list.push({ id: 'holster', key: 'x', label: 'Put away', icon: 'holster', hint: 'Put your gun away (X)' });
       return list;
     }
     if (m === 'combat') {
@@ -2514,10 +2625,14 @@ function start(carried) {
   function showControls() {
     const next = controlMode();
     if (next !== mode) {
+      const was = mode;
       mode = next;
       controls.setRun(false);
       if (blocking) { blocking = false; }
-      rig.view = viewFor(rig.view, where());
+      // (the view the player had before the gun came out comes back when it goes)
+      if (mode === 'gun') { if (was !== 'gun') viewBeforeGun = rig.view; }
+      else { if (was === 'gun' && viewBeforeGun) { rig.view = viewBeforeGun; cam.pitch = Math.max(0.02, Math.min(1.25, cam.pitch)); } rig.view = viewFor(rig.view, where()); if (document.pointerLockElement) document.exitPointerLock(); }
+      $('touch').classList.toggle('armed', mode === 'gun');
     }
     // skills only on foot and free: in a fight, a vehicle, the water, the hands of the police, they close, and
     // whatever that state shows is what comes back
@@ -2535,7 +2650,7 @@ function start(carried) {
     if ($('touch').classList.contains('bike') !== onBike) { $('touch').classList.toggle('bike', onBike); $('hud').classList.toggle('bike', onBike); }
     keymap.clear();
     for (const b of list) if (b.key && b.key !== 'Shift') keymap.set(b.key, b);
-    ui.setKeys(mode === 'walking' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
+    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
   }
 
   // One move in a fight: asked of the simulation, which says what came of it.
@@ -2551,7 +2666,7 @@ function start(carried) {
   // A jump (22 October 2026): the player's figure leaps where it is, or as it goes, for everyone near to see. Only a
   // movement of the body: nothing is jumped over or onto (a deck's rails, deep water and the rest stay as they are).
   function jump() {
-    if (mode !== 'walking' || !me || !me.animated || view.self.swimming) return;
+    if ((mode !== 'walking' && mode !== 'gun') || !me || !me.animated || view.self.swimming) return;
     const result = server.send({ type: 'jump' });
     if (result.ok) me.jump(0);
   }
@@ -2567,6 +2682,14 @@ function start(carried) {
   }
   function act(id, phase) {
     if (!playing || !view) return;
+    if (gunPlay && (id === 'shoot' || id === 'aim')) {
+      // (a press and a letting go of Shoot; Aim pressed switches the sight on and off, held with the mouse it is held)
+      if (id === 'aim' && phase === 'up') return;
+      if (phase === 'down' || phase === 'up') gunPlay.act(id, phase);
+      else if (phase === 'hold-down' || phase === 'hold-up') gunPlay.act(id, phase);
+      showControls();
+      return;
+    }
     if (id === 'block') {
       const on = phase === 'down';
       if (view.self.fight) { server.send({ type: 'combat.block', on }); blocking = on; }
@@ -2575,8 +2698,10 @@ function start(carried) {
     if (phase !== 'down' || ui.isOpen()) return;
     const said = (result, good) => { refreshView(); if (!result.ok) ui.toast({ type: 'note', text: result.message }); else if (good) ui.toast({ type: 'note', text: good }); return result; };
     switch (id) {
-      case 'act': pressAct(); break;
+      case 'act': if (gunPlay && gunPlay.out) gunPlay.putAway(); pressAct(); break;
       case 'run': controls.setRun(!input.run); break;
+      case 'gun': if (gunPlay) { if (ui.usingPhone()) ui.close(); gunPlay.act('gun', 'down'); refreshView(); showControls(); } break;
+      case 'holster': case 'reload': case 'crouch': case 'switch': case 'overview': if (gunPlay) { gunPlay.act(id, 'down'); showControls(); } break;
       case 'jump': jump(); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
@@ -2931,27 +3056,41 @@ function start(carried) {
     const { forward, strafe } = controls.axes();
     const magnitude = Math.min(1, Math.hypot(forward, strafe));
     const steering = !uiBlocks() && magnitude >= 0.12;
-    if (!steering && going.speed <= 0.02) { going.speed = 0; return 0; }
+    // With a gun out (gun-play.js) the figure faces where it aims, whichever way it goes: it steps sideways and back
+    // (the walk turned or played backwards: gun-pose.js), at a walk aimed, slower through the sight or crouched; at a
+    // run (Shift) the gun is lowered and it runs where it goes
+    const armed = !!(gunPlay && gunPlay.out);
+    if (armed && !(controls.running && steering)) { const turn = angleGap(cam.yaw, predicted.heading); predicted.heading += Math.max(-14 * dt, Math.min(14 * dt, turn)); }
+    if (!steering && going.speed <= 0.02) { going.speed = 0; going.way = null; return 0; }
     // Running is what the player chose (Shift, or Run switched on), never a guess from how far the stick is pushed.
-    // nobody runs with their eyes on a phone
+    // nobody runs with their eyes on a phone; nor badly hurt (the 20-life rule: a slow limp)
     const run = controls.running && !view.self.critical && !ui.phoneOut();
-    let wanted = predicted.heading;
+    // (with a gun out, slowing to a stop goes on the way it was going; otherwise, the way the figure faces)
+    let wanted = armed && going.way !== undefined && going.way !== null ? going.way : predicted.heading;
     let pace = 0;
     if (steering) {
       const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
       const rx = -Math.cos(cam.yaw), rz = Math.sin(cam.yaw);
       wanted = Math.atan2(fx * forward + rx * strafe, fz * forward + rz * strafe);
       pace = (run ? SPEED.run : SPEED.walk) * (view.weather.wet ? SPEED.rain : 1) * magnitude;
+      if (armed && !run) pace *= gunPlay.pace();
+      if (view.self.critical) pace *= 0.55;
     }
-    const off = angleGap(wanted, predicted.heading);
-    const swing = Math.max(-PACE.turn * dt, Math.min(PACE.turn * dt, off));
-    predicted.heading += swing;
-    going.turn = swing / dt;
-    // facing well away from where it is sent, it slows to come round
-    pace *= 0.4 + 0.6 * Math.max(0, Math.cos(off));
+    const strafing = armed && !run;
+    let off = 0;
+    if (!strafing) {
+      off = angleGap(wanted, predicted.heading);
+      const swing = Math.max(-PACE.turn * dt, Math.min(PACE.turn * dt, off));
+      predicted.heading += swing;
+      going.turn = swing / dt;
+      // facing well away from where it is sent, it slows to come round
+      pace *= 0.4 + 0.6 * Math.max(0, Math.cos(off));
+    }
+    going.way = wanted;
     going.speed += Math.max(-PACE.shed * dt, Math.min(PACE.gather * dt, pace - going.speed));
     const speed = going.speed;
-    const dx = Math.sin(predicted.heading), dz = Math.cos(predicted.heading);
+    const moveWay = strafing ? wanted : predicted.heading;
+    const dx = Math.sin(moveWay), dz = Math.cos(moveWay);
     const boxes = structureBoxes();
     let nx = predicted.x + dx * speed * dt;
     let nz = predicted.z + dz * speed * dt;
@@ -2993,7 +3132,7 @@ function start(carried) {
     // a little quicker at a run, as the classic open-world games do; never round toward someone walking or running at
     // the screen (they come toward it, and it gives way), and not while the player is holding it round themselves.
     // In the other views, as before: turned gently when walking sideways, so the keyboard alone can turn.
-    if (rig.view === 'street') {
+    if (armed) { /* the aim is the player's: the camera is not turned for them */ } else if (rig.view === 'street') {
       const behind = angleGap(predicted.heading, cam.yaw);
       if (speed > 0.4 && clock - cam.lastDrag > 1.2 && Math.abs(behind) < 2.0) cam.yaw += behind * (1 - Math.exp(-dt * (run ? 2.1 : 1.3) * Math.min(1, speed / 1.2)));
     } else {
@@ -3452,6 +3591,8 @@ function start(carried) {
       me.group.rotation.set(0, predicted.heading, astride ? moto.lean : 0);      // (lean positive: over to the right, into a right turn)
       // (going up the habitation's stairs: the figure's own climb up them)
       me.climbing = !!me.animated && !driving && !riding && !astride && !incar && speed > 0.3 && habitationClimbing(me.group.position.x, me.group.position.z, predicted.heading);
+      // badly hurt (the 20-life rule): a limp, made from the figure's own walk (animated.js)
+      me.limp = !!self.critical && !driving && !riding && !astride && !incar && !self.swimming;
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
@@ -3494,6 +3635,12 @@ function start(carried) {
       torch.held = torch.on && phoneAble && !phoneSide && !talking && !ui.calling();
       phoneHold.update(dt, me, { use: (ui.usingPhone() && !talking) || torch.held, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : torch.held && !ui.usingPhone() ? 'home' : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });
       phoneShown = !phoneAble ? 0 : ui.calling() ? 2 : (ui.usingPhone() && !talking) || torch.held ? (ui.phoneOut() && ui.phoneScreen() === 'camera' ? 3 : 1) : 0;
+      // the gun in the hands (gun-play.js): aimed, fired, reloaded; put away for the phone
+      if (gunPlay) {
+        if (gunPlay.out && ui.usingPhone()) gunPlay.putAway();
+        const way = going.way !== undefined && going.way !== null ? going.way : predicted.heading;
+        gunPlay.frameSelf(dt, { me, self, cam, pos: me.group.position, moving: { x: Math.sin(way) * going.speed, z: Math.cos(way) * going.speed }, running: !!gunPlay.out && controls.running && going.speed > 0.4, aiming: clock - gunAimedAt < 0.4, peersHere: gunPlay.out && coarse ? gunTargets() : [] });
+      }
       tickTalkPose(dt, speed);
       tickCarTalkPose(dt, speed);
       // knocked down by a vehicle, or killed: flat on the ground quickly, and up again more slowly
@@ -3643,6 +3790,8 @@ blood.update(dt, view.blood || []);
       standins.update(standing, camera.position, performance.now() / 1000);
       // the phone in other players' hands, as they hold it: on foot, on a motorcycle (the left hand), at the wheel (the right)
       updatePeerPhones(dt);
+      // other players' guns and rounds, and the officers' (gun-play.js)
+      if (gunPlay) gunPlay.frameOthers(dt, { peers: shownPeers, shooting: view.shooting || [], shots: view.shots || [], eye: { x: predicted.x, y: zoneGroundY(predicted.x, predicted.z) + 1.6, z: predicted.z }, rigOf: (key) => crowd.rigOf(key) });
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
@@ -3658,7 +3807,10 @@ blood.update(dt, view.blood || []);
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
-      if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z); else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), 1 - Math.exp(-dt * 9));
+      if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z);
+      // (with a gun out, where the aim is from, at once: what is in the middle of the picture is where the rounds go)
+      else if (gunPlay && gunPlay.out && !gunPlay.overviewing) gunPlay.cameraTarget(me, cam.target);
+      else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), 1 - Math.exp(-dt * 9));
       if (!cam.free) { frameTalk(dt); frameCarTalk(dt); }
     } else {
       // the start screen circles the town centre
@@ -3679,7 +3831,11 @@ blood.update(dt, view.blood || []);
     const hall = playing && (showroom.inside || carshow.inside);
     builtForCamera = playing ? builtBoxes() : [];
     const runShare = playing && view && !sitting && !view.self.swimming ? Math.max(0, Math.min(1, (going.speed - SPEED.walk) / Math.max(0.1, SPEED.run - SPEED.walk))) : 0;
+    // with a gun out: over the shoulder, or for five seconds the whole scene (gun-play.js); through the sight, from its eye
+    const gunView = playing && gunPlay ? gunPlay.cameraView() : null;
+    if (gunView && rig.view !== gunView) rig.view = gunView;
     rig.update(dt, {
+      sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
       room: hall ? (carshow.inside ? CAR_HALL_ROOM : HALL_ROOM) : null,
@@ -3691,6 +3847,8 @@ blood.update(dt, view.blood || []);
     // a knock: the view pushed back off what was hit, a few centimetres, and let go
     const sinceKick = clock - camKick.at;
     if (sinceKick < 0.5 && camKick.amount > 0) { const k = camKick.amount * 0.07 * Math.exp(-sinceKick * 9) * Math.cos(sinceKick * 26); camera.position.x += camKick.x * k; camera.position.z += camKick.z * k; camera.position.y -= Math.abs(k) * 0.4; }
+    // the shooting screen's aim, where the rounds go in the picture as the camera now has it
+    if (playing && gunPlay) gunPlay.frameHud({ width: viewW, height: viewH, interactable: !!(prompt && prompt.short) });
     // fast on a motorcycle: the view shakes a little, more the nearer it is to its top speed (never much)
     const bikeNow = playing && view && view.self.astride && powerBike() ? powerBike() : null;
     if (bikeNow) {
@@ -4006,6 +4164,8 @@ blood.update(dt, view.blood || []);
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
+    // the guns (gun-play.js), their word with the server (gun-net.js), and the shooting screen's state
+    get gunPlay() { return gunPlay; }, gunNet, gunTargets: () => gunTargets(), aimBy: (dx, dy) => aimBy(dx, dy),
     get phoneHold() { return phoneHold; }, camera,
     // PostCivilWar PowerBike: the building, the salesman, and asking about a motorcycle
     get powerbike() { return powerbike; }, salesman, get salesmanActor() { return salesmanActor; }, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),

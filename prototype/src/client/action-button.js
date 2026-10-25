@@ -22,11 +22,13 @@
 
 const DRAG_OFF = 28;            // px beyond its edge that a held finger may wander before the button lets go
 
-export function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => {} }) {
+// `onMove(dx, dy)`: for a button that is also dragged (configure({ drag: true }): the gun's Shoot, dragged to aim as it
+// fires), how far the finger has moved since last told, in pixels; such a button is not let go when dragged off it.
+export function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => {}, onMove = null }) {
   const el = document.createElement('button');
   el.type = 'button';
   el.dataset.id = id;
-  const st = { kind, pointer: null, held: false, lit: false };
+  const st = { kind, pointer: null, held: false, lit: false, drag: false, x: 0, y: 0 };
 
   const show = () => el.classList.toggle('down', st.held || st.lit);
   function down(pointerId) {
@@ -46,6 +48,7 @@ export function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp =
   el.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     try { el.setPointerCapture(event.pointerId); } catch (error) { /* the pointer has already gone */ }
+    st.x = event.clientX; st.y = event.clientY;
     down(event.pointerId);
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(type, (event) => { if (st.pointer === event.pointerId) up(); });
@@ -53,6 +56,8 @@ export function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp =
   // told where the finger goes)
   el.addEventListener('pointermove', (event) => {
     if (st.pointer !== event.pointerId) return;
+    // (one dragged as well as pressed: its movement told, and it stays held wherever the finger goes)
+    if (st.drag) { const dx = event.clientX - st.x, dy = event.clientY - st.y; st.x = event.clientX; st.y = event.clientY; if ((dx || dy) && onMove) onMove(dx, dy); return; }
     const r = el.getBoundingClientRect();
     const out = Math.max(r.left - event.clientX, event.clientX - r.right, r.top - event.clientY, event.clientY - r.bottom);
     if (out > DRAG_OFF) up();
@@ -70,8 +75,9 @@ export function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp =
     get pointer() { return st.pointer; },
     // Sets what it shows and how it behaves. `place` is { right, bottom } (or left/top) in px; `size` is [w, h];
     // `shape` is 'round' (the default), 'pedal-tall', 'pedal-wide' or 'rounded'.
-    configure({ kind: k, shape, size, place } = {}) {
+    configure({ kind: k, shape, size, place, drag } = {}) {
       if (k) st.kind = k;
+      st.drag = !!drag;
       el.dataset.shape = shape || 'round';
       if (size) { el.style.width = `${size[0]}px`; el.style.height = `${size[1]}px`; }
       if (place) for (const side of ['left', 'right', 'top', 'bottom']) if (place[side] !== undefined) el.style[side] = typeof place[side] === 'number' ? `${place[side]}px` : place[side];

@@ -41,6 +41,14 @@ export const CAMERA_VIEW = Object.freeze({
   chase: Object.freeze({ name: 'Close behind', dist: 6.2, pitch: 0.22, turn: 0, shift: 0, lift: -0.1, follow: true }),
   far: Object.freeze({ name: 'Far behind', dist: 10.5, pitch: 0.3, turn: 0, shift: 0, lift: 0, follow: true }),
   bonnet: Object.freeze({ name: 'From the bonnet', seat: true, ahead: 1.3, rise: -0.35, follow: true }),
+  // With a gun out (25 October 2026, the owner's picture of the shooting screen and his choice: over the shoulder):
+  // close behind the right shoulder, the figure to the left of the picture and the gun pointing into its middle,
+  // turned exactly with the aim (`aim`: the camera's line is the gun's, gun-play.js); and, for five seconds with the
+  // camera button, further back and higher, the whole figure and what is round it (`overview`), the aim kept as it was.
+  aim: Object.freeze({ name: 'Over the shoulder, aiming', dist: 1.75, pitch: null, turn: 0, shift: 0.5, lift: 0.08, fov: 58, follow: false, riseWant: 0.6, aim: true }),
+  // (the whole figure, always: with anything behind nearer than the camera would stand, it rises and looks down over it,
+  // rather than coming in close behind the player where their feet would be out of the picture)
+  overview: Object.freeze({ name: 'The whole scene', dist: 5.8, pitch: 0.42, turn: 0, shift: 0, lift: 0.25, fov: 64, follow: false, riseWant: 5.8 }),
 });
 // where the player is put on the street view when they come into the town, and how far it may be pinched in
 export const STREET = Object.freeze({ dist: 3.9, pitch: 0.1, nearest: 2.4 });
@@ -73,7 +81,8 @@ export const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS
 // height of the ground: the eye keeps above it.
 export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null } = {}) {
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
-  const eye = new THREE.Vector3(), aim = new THREE.Vector3();
+  const eye = new THREE.Vector3(), aim = new THREE.Vector3(), sightAim = new THREE.Vector3();
+  const baseNear = camera.near;
   let view = 'street';
   let hidden = false;
   let close = false;
@@ -128,16 +137,21 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   //            metres ahead of the middle, and above the ground
   //   longer   metres a vehicle is longer than a keke (a car's): the views behind it stand that much further back
   //   running  on foot, how much of a run the player is going at (0 standing or walking, 1 at a full run)
-  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0 }) {
+  //   sight    null, or { eye, dir, amount, fov }: looking through a gun's sight, the eye behind it, along the aim
+  //            (amount 0..1 on the way to it); the picture as narrow as `fov` there
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.street;
     const ease = toward(5, dt);
     live.run += ((v.run ? Math.max(0, Math.min(1, running)) : 0) - live.run) * toward(2.2, dt);
     let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : v.dist + (v.follow && !v.seat && CAMERA_VIEWS.vehicle.includes(view) ? longer : 0);
     let wantPitch = (v.pitch === null || v.pitch === undefined ? cam.pitch : v.pitch) + (v.pitchAdd || 0);
     if (v.run) { wantDist *= 1 - v.run.closer * live.run; wantPitch -= v.run.lower * live.run; }
-    if (indoors && !v.seat) { wantPitch = Math.max(wantPitch, indoors.pitch); if (indoors.maxPitch !== undefined) wantPitch = Math.min(wantPitch, indoors.maxPitch); wantDist = Math.min(wantDist, indoors.dist); }
+    // (aiming, the camera's pitch is the aim's: not raised to look down into a room)
+    if (indoors && !v.seat && !v.aim) { wantPitch = Math.max(wantPitch, indoors.pitch); if (indoors.maxPitch !== undefined) wantPitch = Math.min(wantPitch, indoors.maxPitch); wantDist = Math.min(wantDist, indoors.dist); }
     live.dist += (wantDist - live.dist) * ease;
-    live.pitch += (wantPitch - live.pitch) * ease;
+    // (aiming, the pitch follows the aim at once, as near as a frame allows: what is in the middle of the picture is
+    // where the rounds go)
+    live.pitch += (wantPitch - live.pitch) * (v.aim ? toward(30, dt) : ease);
     live.turn += ((v.turn || 0) - live.turn) * ease;
     live.shift += ((v.shift || 0) - live.shift) * ease;
     live.lift += ((v.lift || 0) - live.lift) * ease;
@@ -146,7 +160,12 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     // showroom's hall as it was (the hall's own views were made for it, and a wider lens there only draws more of it)
     const wantFov = room ? BASE_FOV : v.fov || BASE_FOV;
     live.fov += (wantFov - live.fov) * toward(4, dt);
-    if (camera.isPerspectiveCamera && Math.abs(camera.fov - live.fov) > 0.01) { camera.fov = live.fov; camera.updateProjectionMatrix(); }
+    // (through the sight: narrower, as far toward it as the eye has gone)
+    const fovNow = sight && sight.amount > 0 ? live.fov + (sight.fov - live.fov) * sight.amount : live.fov;
+    if (camera.isPerspectiveCamera && Math.abs(camera.fov - fovNow) > 0.01) { camera.fov = fovNow; camera.updateProjectionMatrix(); }
+    // (an eye right behind a gun's sight sees it from a few centimetres: the nearest drawn is brought in for it)
+    const nearPlane = sight && sight.amount > 0.02 ? 0.06 : baseNear;
+    if (camera.isPerspectiveCamera && camera.near !== nearPlane) { camera.near = nearPlane; camera.updateProjectionMatrix(); }
     // In a view that follows the heading, a drag looks about and then lets go.
     const before = live.yaw;
     if (v.follow) {
@@ -154,7 +173,7 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
       const want = heading + live.turn + live.look;
       live.yaw += angleGap(want, live.yaw) * toward(7, dt);
       cam.yaw = live.yaw - live.turn;                           // so that walking stays relative to what is seen
-    } else { live.look = 0; live.yaw += angleGap(cam.yaw + live.turn, live.yaw) * toward(v.sway ? 9 : 14, dt); }
+    } else if (v.aim) { live.look = 0; live.yaw = cam.yaw + live.turn; } else { live.look = 0; live.yaw += angleGap(cam.yaw + live.turn, live.yaw) * toward(v.sway ? 9 : 14, dt); }
     // a turn's sway: as the view comes round, it swings a little to the outside of the turn and settles back as the
     // turn ends (a few centimetres to a quarter of a metre; none when standing still, none in a vehicle)
     live.rate += ((dt > 0 ? angleGap(live.yaw, before) / dt : 0) - live.rate) * toward(6, dt);
@@ -219,6 +238,12 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
       const seatEye = new THREE.Vector3(sx, own ? target.y - 1.55 + own.height : target.y + (eyeHeight - 1.55) + 0.05 + (v.rise || 0), sz);
       const seatAim = new THREE.Vector3(sx + Math.sin(sy) * 6, seatEye.y - 0.5, sz + Math.cos(sy) * 6);
       eye.lerp(seatEye, live.seat); aim.lerp(seatAim, live.seat);
+    }
+    // through a gun's sight: the eye behind it, looking along the aim
+    if (sight && sight.amount > 0) {
+      eye.lerp(sight.eye, sight.amount);
+      sightAim.copy(sight.eye).addScaledVector(sight.dir, 10);
+      aim.lerp(sightAim, sight.amount);
     }
     camera.position.copy(eye);
     camera.lookAt(aim);

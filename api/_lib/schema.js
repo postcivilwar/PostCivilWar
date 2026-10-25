@@ -879,6 +879,71 @@ const MIGRATIONS = [
        end $f$`,
     ],
   },
+  {
+    id: 15,
+    name: 'guns: the starter rifle every account has, guns bought, their rounds, shots and hits between players',
+    statements: [
+      // (25 October 2026, the owner's brief for the guns: api/_lib/guns.js says what each is for)
+      // the guns an account owns, and the rounds in each and carried spare, topped up once a day
+      `create table ${S}.gun_owned (
+         account_id uuid not null references ${S}.accounts(id) on delete cascade,
+         gun text not null,
+         mag integer not null check (mag >= 0),
+         spare integer not null check (spare >= 0),
+         topped date not null,
+         how text not null check (how in ('starter', 'bought')),
+         tx_id uuid references ${S}.wallet_tx(id),
+         created_at timestamptz not null default now(),
+         primary key (account_id, gun),
+         check ((how = 'bought') = (tx_id is not null))
+       )`,
+      // the gun in hand, the session's last shot (by its number and by its own clock), the count over time, a reload
+      `create table ${S}.gun_state (
+         account_id uuid primary key references ${S}.accounts(id) on delete cascade,
+         equipped text not null,
+         sid text,
+         sid_at timestamptz,
+         last_seq bigint not null default 0,
+         last_t double precision,
+         bucket real not null default 0,
+         bucket_at timestamptz not null default now(),
+         busy_until timestamptz,
+         reload_at timestamptz,
+         busy_t double precision,
+         reload_after bigint not null default 0,
+         shots bigint not null default 0,
+         hits bigint not null default 0,
+         refused bigint not null default 0
+       )`,
+      // one player's round that this server agreed hit another, until the one hit has taken it (once per shot)
+      `create table ${S}.gun_hits (
+         id bigserial primary key,
+         target_id uuid not null references ${S}.accounts(id) on delete cascade,
+         shooter_id uuid not null references ${S}.accounts(id) on delete cascade,
+         sid text not null,
+         seq bigint not null,
+         gun text not null,
+         damage integer not null check (damage > 0),
+         data jsonb not null,
+         at timestamptz not null default now(),
+         unique (shooter_id, sid, seq)
+       )`,
+      `create index gun_hits_target on ${S}.gun_hits(target_id, id)`,
+      ...['gun_owned', 'gun_state', 'gun_hits'].map((table) => `alter table ${S}.${table} enable row level security`),
+      `do $$ declare r text; begin
+         foreach r in array array['anon', 'authenticated'] loop
+           if exists (select 1 from pg_roles where rolname = r) then
+             execute format('revoke all on all tables in schema ${S} from %I', r);
+             execute format('revoke all on all sequences in schema ${S} from %I', r);
+           end if;
+         end loop;
+       end $$`,
+      // a gun bought from the shop is a movement of its own kind (earned TR only, to the town: the trigger of migration
+      // 14 refuses starter TR for it, as for anything but the town's charges, a motorcycle and a car)
+      `alter table ${S}.wallet_tx drop constraint wallet_tx_kind_check`,
+      `alter table ${S}.wallet_tx add constraint wallet_tx_kind_check check (kind in ('grant', 'transfer', 'game', 'hold', 'release', 'sale', 'refund', 'upgrade', 'ad-hold', 'ad-charge', 'ad-release', 'gun'))`,
+    ],
+  },
 ];
 
 module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE, SHOWROOM, MOTORCYCLES, POWERBIKE, POWERBIKE_STANDS, CARSHOW, CARS, CAR_STANDS };

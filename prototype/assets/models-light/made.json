@@ -382,6 +382,64 @@
     }
    ]
   },
+  "guns__rifle.1024.glb": {
+   "tool": "lighter.py 1",
+   "from": "assets/weapons/rifle/futuristicrifle3dmodel.glb",
+   "md5": "c737b299c0aab0d9bb4746248b2553ab",
+   "most": 1024,
+   "bytes": 3401928,
+   "sha256": "922797de1694207d1f46c2b17910632c011f2c58fab521edbded1bf6ef043145",
+   "pictures": [
+    {
+     "image": 0,
+     "mime": "image/jpeg",
+     "was": [
+      2048,
+      2048
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      675568,
+      163952
+     ]
+    },
+    {
+     "image": 1,
+     "mime": "image/jpeg",
+     "was": [
+      2048,
+      2048
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      1265646,
+      311334
+     ]
+    },
+    {
+     "image": 2,
+     "mime": "image/png",
+     "was": [
+      2048,
+      2048
+     ],
+     "now": [
+      1024,
+      1024
+     ],
+     "bytes": [
+      4486765,
+      1081635
+     ]
+    }
+   ]
+  },
   "powerbike.1024.glb": {
    "tool": "lighter.py 1",
    "from": "assets/buildings/powerbike/skyscraper.glb",

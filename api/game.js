@@ -20,6 +20,7 @@ const wallet = require('./_lib/wallet.js');
 const character = require('./_lib/character.js');
 const weather = require('./_lib/weather.js');
 const ads = require('./_lib/ads.js');
+const guns = require('./_lib/guns.js');
 const { SCHEMA: S } = require('./_lib/schema.js');
 
 // (the character and the path are the account's own: chosen once, kept here, and the same on every device)
@@ -62,6 +63,12 @@ const OPS = {
   'wallet.person.add': [true, ({ sql, me, body }) => wallet.addPerson(sql, me, body)],
   'wallet.person.remove': [true, ({ sql, me, body }) => wallet.removePerson(sql, me, body)],
   'presence': [true, ({ sql, me, body }) => world.presence(sql, me, body)],
+  // guns (guns.js): what an account owns and has, the gun in hand, a reload, a gun bought; the shots themselves come with
+  // the presence above (world.js), and so do the hits on this player
+  'gun.state': [true, ({ sql, me }) => guns.gunState(sql, me)],
+  'gun.equip': [true, ({ sql, me, body }) => guns.equip(sql, me, body)],
+  'gun.reload': [true, ({ sql, me, body }) => guns.reload(sql, me, body)],
+  'gun.buy': [true, ({ sql, me, body }) => guns.buy(sql, me, body)],
   'market.list': [false, ({ sql, me, body }) => market.list(sql, me, body)],
   'market.mine': [true, ({ sql, me }) => market.mine(sql, me)],
   'market.sync': [true, ({ sql, me, body }) => market.sync(sql, me, body)],
@@ -94,7 +101,7 @@ const OPS = {
 // Refusals that are about what TR is or how much of it there is. Each is written down (who asked, for what, how
 // much, and the reason given), beside the ledger, which only says what did move.
 const REFUSALS = new Set(['STARTER_FUNDS', 'ELIGIBLE_FUNDS', 'EARNED_FUNDS', 'FUNDS', 'QUOTE_CHANGED', 'BALANCE']);
-const MONEY_OPS = new Set(['wallet.check', 'wallet.send', 'market.offer', 'market.decide', 'character.quote', 'character.upgrade', 'ads.submit']);
+const MONEY_OPS = new Set(['wallet.check', 'wallet.send', 'market.offer', 'market.decide', 'character.quote', 'character.upgrade', 'ads.submit', 'gun.buy']);
 const short = (value, most) => (typeof value === 'string' || typeof value === 'number' ? String(value).slice(0, most) : null);
 async function noteRefusal(at, error) {
   if (!at || !at.sql || !at.me || !MONEY_OPS.has(at.op) || !REFUSALS.has(error.code)) return;

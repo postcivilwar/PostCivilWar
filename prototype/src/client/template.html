@@ -1536,6 +1536,94 @@ canvas.map.nation { border-radius: 14px; }
 @media (orientation: portrait) and (max-width: 600px) { #speedo { width: 140px; height: 88px; bottom: calc(262px + var(--sb, 0px)); } #hud:has(#speedo:not([hidden])) #actbar { bottom: calc(196px + var(--sb)) !important; } }
 @media (max-height: 420px) { #hud:has(#speedo:not([hidden])) #actbar { bottom: calc(98px + var(--sb)) !important; } }
 @media (max-height: 420px) { #speedo { width: 132px; height: 82px; bottom: calc(8px + var(--sb, 0px)); } }
+
+/* ---- The gun (22 and 25 October 2026, the owner's picture of the shooting screen and his brief) ------------------
+   gun-hud.js and blood-screen.js make these. The aim in the middle (where the rounds go): white over nothing in
+   particular, red over someone who can be shot, green over someone who cannot, yellow over something that can be
+   used; through the gun's own sight, a red dot. The gun and its rounds at the top right, in place of the purse; life
+   at the foot, in the middle. Nothing else the player would press is left on the screen but the gun's own buttons
+   and the view. None of these takes a touch from the town: a finger dragged over the aim still turns it. */
+#gun-reticle, #gun-dot, #gun-hits, #gun-blocked { position: absolute; left: 0; top: 0; width: 0; height: 0; pointer-events: none !important; }
+#gun-reticle .aim { position: absolute; left: -60px; top: -60px; width: 120px; height: 120px; overflow: visible; --aim: #fff; }
+#gun-reticle .aim path, #gun-reticle .aim line { fill: none; vector-effect: non-scaling-stroke; stroke-linecap: round; }
+#gun-reticle .aim .under { stroke: rgba(0, 0, 0, 0.55); stroke-width: 3.6px; }
+#gun-reticle .aim .line { stroke: var(--aim); stroke-width: 1.7px; }
+#gun-reticle .aim .dot { fill: var(--aim); stroke: rgba(0, 0, 0, 0.65); stroke-width: 1px; vector-effect: non-scaling-stroke; }
+#gun-reticle[data-kind="hostile"] .aim { --aim: #ff4636; }
+#gun-reticle[data-kind="friendly"] .aim { --aim: #3fe27c; }
+#gun-reticle[data-kind="use"] .aim { --aim: #ffd23f; }
+/* over someone: their name and their life, above the aim */
+#gun-reticle .target { position: absolute; left: 0; bottom: 40px; transform: translateX(-50%); display: flex; flex-direction: column; align-items: center; gap: 3px; white-space: nowrap; }
+#gun-reticle .target .name { font-size: 10px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: #fff; text-shadow: 0 1px 2px #000, 0 0 3px #000; max-width: 160px; overflow: hidden; text-overflow: ellipsis; }
+#gun-reticle .target .bar { width: 64px; height: 4px; background: rgba(0, 0, 0, 0.55); box-shadow: 0 0 0 1px #000; border-radius: 1px; overflow: hidden; }
+#gun-reticle .target .bar i { display: block; height: 100%; background: linear-gradient(#ff6a5a, #d8261a); }
+#gun-reticle .target.down .name { color: #8ff0ae; }
+#gun-reticle .target.down .bar i { background: linear-gradient(#bfe9c9, #5fbf7c); }
+/* through the sight: its red dot */
+#gun-dot::after { content: ""; position: absolute; left: -3px; top: -3px; width: 6px; height: 6px; border-radius: 50%; background: #ff2a1a; box-shadow: 0 0 4px 1px rgba(255, 40, 20, 0.85), 0 0 0 1px rgba(60, 0, 0, 0.5); }
+/* a hit, as the server agrees it: a cross round the aim, white; red when it brought them down to 20 */
+#gun-hits svg { position: absolute; left: -30px; top: -30px; width: 60px; height: 60px; overflow: visible; }
+#gun-hits path { fill: none; stroke: #fff; stroke-width: 2.6px; stroke-linecap: round; filter: drop-shadow(0 0 1.5px rgba(0, 0, 0, 0.9)); }
+#gun-hits[data-kind="down"] path { stroke: #ff3b2b; stroke-width: 3.2px; }
+#gun-hits.pop svg { animation: gun-hit-pop 0.2s ease-out both; }
+@keyframes gun-hit-pop { from { transform: scale(1.35); } to { transform: scale(1); } }
+/* something close in front of the muzzle: where the rounds would stop */
+#gun-blocked svg { position: absolute; left: -9px; top: -9px; width: 18px; height: 18px; overflow: visible; }
+#gun-blocked path { fill: none; stroke: #ff5a4a; stroke-width: 2.4px; stroke-linecap: round; filter: drop-shadow(0 0 1px #000); }
+/* the gun, top right: its picture, its name, the rounds in it and those spare */
+#gun-panel { appearance: none; border: 0; margin: 0 0 3px; background: rgba(8, 10, 12, 0.34); border-radius: 10px; padding: 4px 8px 5px 6px; display: flex; align-items: center; gap: 8px; color: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent; font-family: var(--font-ui); text-align: right; touch-action: manipulation; }
+#gun-panel .pic { width: 78px; height: 30px; object-fit: contain; filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.8)); }
+#gun-panel .words { display: flex; flex-direction: column; align-items: flex-end; gap: 1px; min-width: 66px; }
+#gun-panel .name { font-size: 8.5px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: rgba(255, 255, 255, 0.85); text-shadow: 0 1px 2px #000; white-space: nowrap; }
+#gun-panel .count { font-family: "PCW Arcade", var(--font-ui); white-space: nowrap; font-variant-numeric: tabular-nums; line-height: 1.05; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 -1.5px 0 #000, 0 1.5px 0 #000, -1.5px 0 0 #000, 1.5px 0 0 #000; }
+#gun-panel .count .mag { font-size: 19px; font-weight: normal; color: #fff; }
+#gun-panel .count .slash, #gun-panel .count .spare { font-size: 11px; color: #d6dbd7; }
+#gun-panel.low .count .mag { color: #ffb547; }
+#gun-panel.empty .count .mag { color: #ff5a4a; }
+#gun-panel .load { width: 100%; height: 3px; background: rgba(255, 255, 255, 0.2); border-radius: 2px; overflow: hidden; }
+#gun-panel .load i { display: block; height: 100%; width: 0; background: #fff; }
+#gun-panel .note { font-size: 8px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; color: #ff8d80; text-shadow: 0 1px 2px #000; white-space: nowrap; }
+#gun-panel .note:empty { display: none; }
+#gun-panel.shake { animation: gun-shake 0.32s ease both; }
+@keyframes gun-shake { 20% { transform: translateX(-4px); } 40% { transform: translateX(4px); } 60% { transform: translateX(-3px); } 80% { transform: translateX(2px); } }
+@media (min-width: 900px) and (min-height: 600px) { #gun-panel .pic { width: 104px; height: 40px; } #gun-panel .count .mag { font-size: 24px; } #gun-panel .count .slash, #gun-panel .count .spare { font-size: 13px; } #gun-panel .name { font-size: 9.5px; } }
+/* life, at the foot of the screen in the middle: a heart, the number, a bar green to orange to red */
+#gun-life { position: absolute; left: 50%; bottom: calc(12px + var(--sb)); transform: translateX(-50%); display: flex; align-items: center; gap: 6px; pointer-events: none !important; }
+#gun-life .heart { width: 15px; height: 14px; background: url("data:image/svg+xml;utf8,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='-1 -1 26 24'%3E%3Cpath d='M12 21s-8.5-5.6-10.6-10.4C-.2 6.4 2.4 1.5 6.9 1.5c2.4 0 4 1.3 5.1 3 1.1-1.7 2.7-3 5.1-3 4.5 0 7.1 4.9 5.5 9.1C20.5 15.4 12 21 12 21z' fill='%23ff4d4d' stroke='%23000' stroke-width='1.8'/%3E%3C/svg%3E") center / contain no-repeat; }
+#gun-life b { font-family: "PCW Arcade", var(--font-ui); font-weight: normal; font-size: 12px; color: #fff; min-width: 2.3em; text-align: right; font-variant-numeric: tabular-nums; text-shadow: -1.5px -1.5px 0 #000, 1.5px -1.5px 0 #000, -1.5px 1.5px 0 #000, 1.5px 1.5px 0 #000, 0 -1.5px 0 #000, 0 1.5px 0 #000, -1.5px 0 0 #000, 1.5px 0 0 #000; }
+#gun-life .bar { width: 120px; height: 8px; background: #2a0e0c; box-shadow: 0 0 0 1.5px #000, 0 1px 3px rgba(0, 0, 0, 0.5); border-radius: 1px; overflow: hidden; }
+#gun-life .bar i { display: block; height: 100%; width: 100%; background: linear-gradient(#5fe36a, #2fa33a); transition: width 0.25s; box-shadow: inset 0 2px 0 rgba(255, 255, 255, 0.28); }
+#gun-life[data-level="hurt"] .bar i { background: linear-gradient(#ffb547, #e67712); }
+#gun-life[data-level="critical"] .bar i { background: linear-gradient(#ff5a4a, #c4231a); animation: pulse 0.8s steps(2, start) infinite; }
+@media (min-width: 900px) and (min-height: 600px) { #gun-life .bar { width: 160px; height: 10px; } #gun-life b { font-size: 14px; } }
+/* the guns: each the player owns, the one in their hands marked; the rest greyed, with a price where one is sold */
+#gun-switch { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); z-index: 31; width: min(380px, calc(100% - 32px)); max-height: calc(100% - 40px - var(--st) - var(--sb)); overflow: auto; box-sizing: border-box; background: rgba(10, 12, 14, 0.9); border: 1px solid rgba(255, 255, 255, 0.16); border-radius: 14px; padding: 12px 14px 14px; box-shadow: 0 10px 32px rgba(0, 0, 0, 0.5); color: #fff; }
+#gun-switch header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; }
+#gun-switch header b { font-size: 12px; letter-spacing: 0.16em; text-transform: uppercase; }
+#gun-switch .list { display: flex; flex-direction: column; gap: 8px; }
+#gun-switch .gun { display: grid; grid-template-columns: 92px minmax(0, 1fr) auto; gap: 10px; align-items: center; padding: 8px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); }
+#gun-switch .gun.here { box-shadow: inset 0 0 0 1.5px #3fe27c; }
+#gun-switch .gun.locked { color: #9a9ea0; }
+#gun-switch .gun.locked .pic { filter: grayscale(1) brightness(0.55); }
+#gun-switch .gun .pic { width: 92px; height: 36px; object-fit: contain; }
+#gun-switch .gun .words { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+#gun-switch .gun .words b { font-size: 14px; }
+#gun-switch .gun .small { font-size: 12px; color: rgba(255, 255, 255, 0.62); }
+#gun-switch .gun .btn { min-height: 38px; padding: 8px 12px; font-size: 13.5px; }
+#gun-switch .shop { margin: 10px 2px 0; font-size: 12px; color: rgba(255, 255, 255, 0.6); }
+/* with the gun out, what is not the gun's goes: the purse (the gun takes its place), the corner's life (it is at the
+   foot), the phone, chat and the quiet hints */
+#hud.armed .purse, #hud.armed #vitals, #hud.armed .dock, #hud.armed #chat-btn, #hud.armed .next { display: none !important; }
+/* looking through the sight, the keys written at the foot of the screen go too, so that nothing is over the view */
+#hud.sighting #keys { display: none !important; }
+/* blood at the edges of the screen when the player is hit: over the town, under the buttons and the words */
+#blood-screen { position: absolute; inset: 0; pointer-events: none; overflow: hidden; contain: strict; }
+#blood-screen .edge { position: absolute; inset: 0; background: radial-gradient(ellipse 78% 72% at 50% 50%, rgba(110, 0, 6, 0) 50%, rgba(120, 0, 8, 0.42) 76%, rgba(84, 0, 4, 0.9) 100%); opacity: 0; }
+#blood-screen .splash { position: absolute; background: center / contain no-repeat; opacity: 0; }
+#blood-screen .flash { position: absolute; inset: 0; background: radial-gradient(ellipse at center, rgba(170, 10, 10, 0.2) 30%, rgba(170, 0, 0, 0.9) 100%); opacity: 0; }
+#blood-screen .from { position: absolute; left: 50%; top: 50%; width: min(52vmin, 340px); height: min(52vmin, 340px); opacity: 0; transform: translate(-50%, -50%); }
+#blood-screen .from svg { width: 100%; height: 100%; overflow: visible; }
+#blood-screen .from path { fill: none; stroke: #ff3626; stroke-width: 7; stroke-linecap: round; filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.8)); }
   </style>
   <canvas id="view" tabindex="0" aria-label="The town"></canvas>
 

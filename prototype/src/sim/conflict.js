@@ -7,8 +7,10 @@
 // Nobody dies of a fight and nobody is maimed. A player at or below a fifth of
 // their health cannot fight and cannot be struck; a townsperson who has had
 // enough sits down and is left alone. Children cannot be struck at all.
-// (A vehicle is another matter: see impact.js. It can take a player's health
-// to nothing, through `injure` here, which is the only way that happens.)
+// The 20-life rule (the owner's brief of 22 October 2026): when anyone's life reaches 20, from a blow, a round or a
+// vehicle, it goes no lower until they are treated; nobody can fight them or shoot them, and they can neither fight nor
+// shoot. Nobody dies: a vehicle that would once have killed leaves them at 20 (impact.js, through `injure` here), and
+// the ambulance is sent for them (care.js).
 //
 // Townspeople would rather not fight. Struck once, most plead and run; a few
 // stand and warn. Struck again, those with the nerve for it defend
@@ -22,7 +24,7 @@ import { PACE } from './actors.js';
 export const HEALTH = Object.freeze({
   max: 100,
   critical: 20,        // at or below this: no fighting, and nobody may strike you
-  floor: 5,            // no blow takes a player below this
+  floor: 20,           // nothing takes a player below this until they are treated: a blow, a round, a vehicle (the 20-life rule)
   restPerHour: 2,      // regained each game hour, out of a fight and above critical
   sleep: 30,           // regained by a night's sleep at home
   yield: 25,           // a townsperson at or below this has had enough
@@ -97,27 +99,41 @@ export function createConflict({ state, players, population, actors, talk, emit,
 
   // --- health ---------------------------------------------------------------------
 
+  // (the 22 October brief's words, calmly: "You are badly hurt. An ambulance is on its way." The ambulance is sent for
+  // them at once, free, care.js; until it can be, they are told it will come)
   function goCritical(p) {
     p.fight = null;
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && rec.mood === 'fighting') settle(Number(key), rec, 'done'); }
-    emit(p.id, { type: 'critical', title: 'Critical health', text: 'You cannot fight. Get to a hospital: walk, ride, or call an ambulance from your phone.' });
+    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && (rec.mood === 'fighting' || rec.mood === 'shooting')) settle(Number(key), rec, 'done'); }
+    if (hub.guns) hub.guns.holster(p);
+    const sent = hub.care && hub.care.summon ? hub.care.summon(p) : false;
+    emit(p.id, { type: 'critical', title: 'Badly hurt', text: sent ? 'You are badly hurt. An ambulance is on its way.' : 'You are badly hurt. An ambulance will come for you as soon as one can.' });
   }
 
   // Takes health off a player. Returns what was actually lost.
   function hurt(p, amount) {
     const before = p.health;
-    p.health = Math.max(HEALTH.floor, Math.round(p.health - amount));
+    p.health = Math.max(Math.min(before, HEALTH.floor), Math.round(p.health - amount));
     p.struckAt = real();
     if (before > HEALTH.critical && p.health <= HEALTH.critical) goCritical(p);
     return before - p.health;
   }
 
-  // Takes health off a player with no floor under it: what a vehicle does. Returns what was actually lost.
+  // Takes health off a player for what a vehicle does to them. (Until 25 October 2026 this had no floor and a vehicle
+  // could kill; under the 20-life rule it stops at 20 as everything else does.) Returns what was actually lost.
   function injure(p, amount) {
     const before = p.health;
-    p.health = Math.max(0, Math.round(p.health - amount));
+    p.health = Math.max(Math.min(before, HEALTH.floor), Math.round(p.health - amount));
     p.struckAt = real();
-    if (before > HEALTH.critical && p.health <= HEALTH.critical && p.health > 0) goCritical(p);
+    if (before > HEALTH.critical && p.health <= HEALTH.critical) goCritical(p);
+    return before - p.health;
+  }
+
+  // Takes health off a player for a round that hit them (guns.js): never below the floor. Returns what was lost.
+  function shot(p, amount) {
+    const before = p.health;
+    p.health = Math.max(Math.min(before, HEALTH.floor), Math.round(p.health - Math.max(0, amount)));
+    p.struckAt = real();
+    if (before > HEALTH.critical && p.health <= HEALTH.critical) goCritical(p);
     return before - p.health;
   }
 
@@ -252,7 +268,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
     const now = real();
     // whether they may be struck at all comes before whether this swing is ready
     const who = targetOf(p, f.target);
-    if (who.kind === 'npc' && book.npc[who.id] && book.npc[who.id].mood === 'down') throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
+    if (who.kind === 'npc' && book.npc[who.id] && (book.npc[who.id].mood === 'down' || book.npc[who.id].health <= HEALTH.critical)) throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
     if (who.kind === 'player' && who.player.swimming) throw new GameError('NO_TARGET', `${who.name} is in the river.`);
     if (who.kind === 'player' && critical(who.player)) throw new GameError('TARGET_DOWN', `${who.name} is badly hurt. Leave them.`);
     if (now < (p.heldUntil || 0) && move !== 'shove') throw new GameError('HELD', 'You are being held. Shove them off first.');
@@ -282,6 +298,8 @@ export function createConflict({ state, players, population, actors, talk, emit,
       rec.by = p.id; rec.hits += 1; rec.lastAt = now; rec.at = state.t;
       rec.health = Math.max(HEALTH.critical, rec.health - damage);
       out.hit = true; out.damage = damage; out.targetHealth = rec.health;
+      // (an officer at 20 is out of it: she sits down, hurt; the 20-life rule)
+      if (people[i].job === 'police' && rec.health <= HEALTH.critical && rec.mood !== 'down') { settle(i, rec, 'down'); if (hub.guns && hub.guns.officerDown) hub.guns.officerDown(i); }
       actors.take(i, state.t);
       const m = actors.get(i);
       if (def.push && m) { const to = pushed(p.x, p.z, m.x, m.z, def.push); m.x = to.x; m.z = to.z; }
@@ -404,7 +422,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
       if (real() - (p.struckAt || -1e9) < 30) continue;
       p.health = Math.min(HEALTH.max, p.health + HEALTH.restPerHour);
     }
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood !== 'fighting') rec.health = Math.min(HEALTH.max, rec.health + 6); }
+    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood !== 'fighting' && rec.mood !== 'shooting') rec.health = Math.min(HEALTH.max, rec.health + 6); }
   }
 
   // What a player may know of their own state in a fight.
@@ -419,7 +437,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
       health: p.health, critical: critical(p),
       fight: f ? { target, blocking: guarding(p, now), ready: Object.fromEntries(Object.keys(MOVES).map((k) => [k, Math.max(0, Number(((f.ready[k] || 0) - now).toFixed(2)))])), dodgeIn: Math.max(0, Number((f.dodgeReady - now).toFixed(2))), held: now < (p.heldUntil || 0), staggered: now < (p.staggerUntil || 0) } : null,
       // anyone still coming at you, whether or not you are squared up
-      against: Object.keys(book.npc).filter((k) => book.npc[k].by === p.id && book.npc[k].mood === 'fighting').map(Number),
+      against: Object.keys(book.npc).filter((k) => book.npc[k].by === p.id && (book.npc[k].mood === 'fighting' || book.npc[k].mood === 'shooting')).map(Number),
     };
   }
 
@@ -433,13 +451,26 @@ export function createConflict({ state, players, population, actors, talk, emit,
     return out;
   }
 
+  // A police officer hit by a player's round (guns.js; `amount` 0 for one that went past her): her life down, never
+  // below the floor; at 20 she sits down, hurt, and is out of it; otherwise she is shooting back. Returns { lost, health }.
+  function officerShot(i, p, amount) {
+    const rec = npcRec(i, p.id);
+    const before = rec.health;
+    rec.by = p.id; rec.lastAt = real(); rec.at = state.t;
+    if (amount > 0) { rec.hits += 1; rec.health = Math.max(Math.min(before, HEALTH.critical), before - amount); }
+    if (rec.health <= HEALTH.critical) { if (rec.mood !== 'down') settle(i, rec, 'down'); } else rec.mood = 'shooting';
+    return { lost: before - rec.health, health: rec.health };
+  }
+  // An officer has stopped shooting (the shooter is down to 20, held, gone, or she is): back to her day.
+  function officerDone(i) { const rec = book.npc[i]; if (rec && rec.mood === 'shooting') rec.mood = 'done'; }
+
   // The police, or anything else that ends a fight outright.
   function stop(p) {
     p.fight = null;
     for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && rec.mood === 'fighting') { rec.mood = 'done'; if (actors.has(Number(key))) actors.release(Number(key)); } }
   }
 
-  const api = { engage, disengage, act, block, dodge, tick, hourly, hurt, injure, heal, critical, selfView, eventsNear, moods, stop, nerve, record: (i) => book.npc[i] || null };
+  const api = { engage, disengage, act, block, dodge, tick, hourly, hurt, injure, shot, heal, critical, selfView, eventsNear, moods, stop, nerve, officerShot, officerDone, record: (i) => book.npc[i] || null };
   hub.conflict = api;
   return api;
 }

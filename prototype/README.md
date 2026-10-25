@@ -2752,8 +2752,8 @@ models come. The system that walks, places and animates the town's people kept r
   is let go (`src/sim/renew.js`).
 - **The law**: only the police are witnesses (an officer within 15 m with a clear view always sees it; further, up
   to 30 m, by how grave it was). The person wronged knows, and can report it by phone. The police come from their
-  beats, chase, fight and arrest as before; nobody appears from nowhere. They carry no guns yet (the owner's brief of
-  22 October 14:12: guns come with its first stage).
+  beats, chase, fight and arrest as before; nobody appears from nowhere. Since 25 October each carries the rifle and
+  shoots back at whoever shoots at her (the section "Guns, stage 1: the rifle").
 - **The phone**: the town's people are not called (they have no numbers); a fine is paid by the player or by another
   player, never by a townsperson.
 - **Where this copy of the game cannot have the supplied figure** (the copy on a disk carries none but two), each
@@ -3143,13 +3143,118 @@ keke driven for real on Yard Lane, after rain, the river bank, sunrise over the 
 (a computer's: `computer`, `PERF_LEVEL=0 PERF_DPR=1`), and two sets side by side, a page a scene, with
 `python3 tools/measure/realism-sheets.py <before> <after> <out.pdf> [title] [before's name] [after's name]`.
 
+## Guns, stage 1: the rifle (25 October 2026)
+
+The owner's briefs of 22 October (stage 1 of the plan for guns, health, ambulances and the stars) and 25 October (the
+shooting screen, with his recording of the view he wants), and his answers of 25 October: the view over the shoulder
+in a fight, through the gun's own sight to aim, the camera button the whole figure for five seconds; the buttons ash
+grey as they are; the rifle free for everyone, the shop ready for more; the rounds topped up free each game day.
+
+**The rifle.** His model (`assets/weapons/rifle/futuristicrifle3dmodel.glb`, byte for byte as he sent it) and his four
+recordings (`assets/weapons/rifle/sound/`). Everyone has it from the start, free, never sold and never paid for; 30 in
+it and 120 spare, topped up free once a game day; kept by the account on the website's server (another device has the
+same rounds). A computer is sent his file as it is (its pictures are 2048 already); a phone a copy with its pictures at
+1024 (3.4 MB, not 8.3: `tools/models/lighter.py`), nothing else changed. Taken out with X, or Gun on a phone's screen;
+put away with X again, or Put away.
+
+**The shooting screen** (`gun-hud.js`): the aim in the middle of the picture, where the rounds go (a ring broken in four
+that opens as the aim is less steady, on the move or firing): white over nothing in particular, red over someone who
+can be shot (their name and life over it), green over someone who cannot (anyone at 20), yellow over something that can
+be used; through the sight, the sight's red dot. A small cross where the rounds would stop short (a corner beside the
+muzzle). The gun at the top right in the purse's place: its picture (his model from the side), its name, the rounds in
+it and spare ("30 / 120"), a bar while reloading, "Reload" or "No rounds" when empty; pressed, the guns panel. Life at
+the foot, in the middle: a heart, the number, a bar green to orange to red. The radar stays at the top left. Nothing
+else is left to press: on a phone, Shoot (the large button, held; dragged, it aims as it fires), Aim, Reload, Crouch,
+Jump, Guns (or what can be used where the player stands), the view, Put away, and the stick; ash grey, green while
+pressed, greyed when they cannot be used (Reload with the gun full). On a computer: F or the mouse's left button
+shoots, Q or the right button aims through the sight, R reloads, C crouches, Space jumps, G the guns, V the view, X puts
+it away; the mouse turns the aim once the picture is clicked (the pointer kept in the picture until Escape). The phone,
+chat and the quiet hints go while the gun is out; the keys written at the foot go while aiming through the sight.
+
+**The camera** (`camera.js`): over the right shoulder, close, the figure at the left of the picture and the aim in the
+middle; the figure turned to face the aim and walking, strafing and stepping back without turning from it. Aim: the eye
+moves onto the gun's own sight line, through its ring (its glass made clear in the page, the file untouched), the view
+narrowing to 32 degrees, the player's own head out of the way. The view button (V): the whole figure and round it for
+five seconds by the game's clock, then back; pressed again, back at once (with something behind nearer than it would
+stand, it rises and looks down over it rather than coming in close). It never moves the player, the aim or where the
+rounds come from.
+
+**The body** (`gun-pose.js`): the butt at the shoulder, the right hand on the grip with a finger by the trigger, the
+left on the handguard; the arms reach for the gun (each figure's own bones), the head and the spine follow the aim, the
+cheek on the stock through the sight; the gun kicks back and climbs with each round and settles; crouched, the knees
+bend to the ground. A reload as a reload is done: the magazine pulled and dropped (it falls and lies a while), the hand
+to the pouch, the new one in, the handle pulled. None of the figures' files has such moves, so they are made from each
+figure's bones.
+
+**A round** (`gun-play.js`, `src/sim/guns.js`): 850 a minute held on the trigger (as his recordings fire), from the
+gun's own muzzle to the first thing in its way along the aim (a wall, the ground, a vehicle, someone), spread by how
+steady the aim is (least through the sight and crouched, most on the move). Seen: the flash at the muzzle (with its
+light on what is round it, on a computer), a streak, smoke, a case thrown out of the gun's side, and where it strikes:
+dust and grit, sparks off metal, blood off someone. Heard (`gun-audio.js`): his recordings, each cut into its single
+rounds (8 to 13 in each, found by the page), one round for each round fired, never the same take twice running, the
+burst's end ringing out; others' from where they are, duller and later with distance (sound's own speed), with a short
+echo in the street, heard to 400 m. The empty click, the reload's sounds and the strikes are made in the page (no
+recordings of them were sent).
+
+**Reloading**: R, or by itself when the trigger is pulled on an empty gun with rounds spare. 2.4 seconds; nothing fired
+during it; the rounds moved into the gun only when it is done; putting the gun away stops it and moves nothing. The
+server is told of a reload once it is done, with the rounds and in its place among them (after the last round fired
+before it), so that it counts the rounds and the reload in the order they were done however late a word comes; the
+rounds after it are held to its time.
+
+**Two players** (`gun-net.js`, `api/_lib/guns.js`): each round a player's game fires is told to the website's server with
+its next word about where the player is (a moment later, or at once while rounds are waiting; on a slow connection the
+same rounds again until they are answered, for up to two minutes, the server counting each once), and the server counts it:
+only a gun the account owns and has in its hands, never more rounds than are in it, never faster than the gun fires
+(by the game's own clock and over the last seconds), never while reloading or from a vehicle, the water or the hands of
+the police. A round this game saw strike another player is claimed, and the server decides: someone who may be shot
+(their own game says above 20, on their feet, on no vehicle, not in the water or held), near where their game last said
+they were, at the height of a body above their ground, along the round's way within the gun's range, and with no wall of
+the town between. Agreed, it is kept for them until their game says it has taken it (each once: never twice, never
+lost); one life point a hit. Refused, the shooter's game is told why (and nothing happens to anyone). The shooter sees
+each agreed hit as a mark round the aim; the one hit sees where it came from at the edge of the aim, blood on their
+screen, the stain on their clothes, as everyone sees it; everyone near sees and hears the rounds.
+
+**The 20-life rule** (`src/sim/conflict.js`, `care.js`): shot down to 20 and no lower. At 20 the gun is put away and cannot
+be taken out, they cannot fight, nobody's rounds strike them (they go past), the aim over them is green; they limp; "You
+are badly hurt. An ambulance is on its way." The police stop.
+
+**Blood** (`blood-screen.js`, `wound-paint.js`, `gun-fx.js`): on the screen of the one hit only: a splash and a red edge
+for a hit, more with each as the health falls, at its most at 20; it fades as they heal and is gone at 100. It never
+changes the aim, the health or anything else. On the clothes: painted on the figure where it was hit (moving with the
+body, seen by everyone), gone as they heal. In the town: a spray where a round strikes someone, drops on the ground that
+fade. Settings → Effects → Reduce intense effects: no splashes on the screen, its edge fainter, less blood in the town;
+where a round came from still shown.
+
+**The police** shoot back at whoever shoots at them or near them (short bursts while they can see them; more likely to
+hit close by, less at a run or crouched): their rifles up, aimed, their rounds seen and heard. Shooting another player
+is an offence: the one shot reports it (and an officer near enough sees it), and the police come. The rest of the police's
+rules come with the stars.
+
+**What the server cannot check**: a player's own word on where they stand, their health and their ground (as for
+everything else of theirs it hears); the police are each player's own town's.
+
+**Measured**: a phone at Medium (Auto's choice on a phone), the gun out: at the PowerBike showroom (the busiest place)
+@@MEM1@@ MB on the graphics card, at the motor park with the gun fired @@MEM2@@ MB (under 150 MB). The rifle on a computer:
+one model, 8.3 MB fetched once; on a phone 3.4 MB; the recordings 0.8 MB.
+
+Files: `src/client/gun-play.js` (the gun in the player's hands and others'), `gun-model.js`, `gun-pose.js`,
+`gun-fx.js`, `gun-audio.js`, `gun-hud.js`, `blood-screen.js`, `wound-paint.js`, `gun-sound-files.js`, `camera.js`
+(the views), `main.js` (the controls, the keys, the mouse), `controls.js` and `action-button.js` (Shoot dragged),
+`icons.js`, `template.html`; `src/net/gun-net.js`, `link.js` (what the others are told: `gn`, `sh`, `wd`, `hp`, `gy`),
+`online.js`; `src/sim/guns.js`, `conflict.js`, `care.js`, `impact.js`, `justice.js`, `talk.js`, `sim.js`; `api/_lib/guns.js`,
+`guns-data.json`, `walls.json` (made by `node tools/guns/server-data.mjs` from the game's own), `world.js`,
+`schema.js` (migration 15), `api/game.js`. Tests: `test/guns.test.mjs` (12), `test/gun-client.test.mjs` (7),
+`server/test/guns.test.mjs` (11), and in a browser `test/guns.mjs` (two players, the owner's tests A to G).
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 465 headless tests
-../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 92 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, and two steps from older tables to the newest)
+node --test test/*.test.mjs                        # 483 headless tests
+../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 103 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
+../server/with-postgres.sh node test/guns.mjs out/                   # the guns, two players (a computer and a phone) through the website: the rifle free and kept by the account, the shooting screen and its buttons and keys, the rounds to the aim from the muzzle and through the sight, the owner's recordings, empty and reloading, the view from further back, one shooting the other (each hit agreed by the server and taken once), a wall, a game changed to cheat refused, the 20-life rule, the blood on the screen and healing, the phone's memory with the gun out
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/
 node build.mjs                                     # writes dist/index.html, dist/local.html, the character lab, the vehicle yard and dist/site/
 node build.mjs --site                              # the same, then makes site/ (what the host serves) the same as dist/site/

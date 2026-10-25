@@ -26,6 +26,9 @@ import { POWER_BIKES } from '../sim/power-bikes.js';
 import { POWER_CARS } from '../sim/power-cars.js';
 import { carProfile, carHornOf } from './car-audio.js';
 import { BIRD_SONGS, FROG_CALLS, cricket } from './bird-songs.js';
+import { createGunVoice } from './gun-audio.js';
+import { GUN_SOUNDS } from './gun-sound-files.js';
+import { fetchKept } from './glb.js';
 
 // How each kind of engine sounds: lowest pitch, how far it climbs, its
 // character. Only the keke and the okada move in this build; the rest are
@@ -736,14 +739,30 @@ export function createAudio() {
   //   own { kind, rev, throttle } or null     engines [{ x, z, rev }] (nearest first)
   //   sources [{ id, kind: 'music'|'generator'|'children'|'work'|'beeps', style, x, z, reach, level }]
   //   panel (a panel is open)           siren { x, z } or null
+  // The guns (gun-audio.js): the owner's recordings, fetched and read the first time a gun is heard or taken out.
+  // (`gunEar`: where the listener is, height and all, for how far off each shot is)
+  let gunVoice = null;
+  const gunEar = { x: 0, y: 1.6, z: 0, indoors: false };
+  const gunUrls = () => {
+    const table = typeof window !== 'undefined' && window.__PCW_GUNS ? window.__PCW_GUNS : null;
+    return Object.fromEntries(Object.entries(GUN_SOUNDS).map(([gun, names]) => [gun, table && table[gun] && table[gun].sounds ? table[gun].sounds : names.map((n) => `guns/sound/${n}`)]));
+  };
+  function guns() {
+    if (!ctx) return null;
+    if (!gunVoice) gunVoice = createGunVoice(ctx, { out: nodes.effects, urls: gunUrls(), indoors: () => gunEar.indoors, ear: () => gunEar, fetchBytes: (url) => fetchKept(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }) });
+    return gunVoice;
+  }
+  const gunReady = () => !!ctx && !muted && ctx.state === 'running';
+
   function update(dt, scene) {
     if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     const L = scene.listener;
     ear.x = L.x; ear.z = L.z;
+    gunEar.x = L.x; gunEar.z = L.z; gunEar.y = Number.isFinite(L.y) ? L.y : 1.6; gunEar.indoors = !!L.indoors;
     const fx = Math.sin(L.yaw), fz = Math.cos(L.yaw);
     const l = ctx.listener;
-    if (l.positionX) { l.positionX.value = L.x; l.positionY.value = 1.6; l.positionZ.value = L.z; l.forwardX.value = fx; l.forwardY.value = 0; l.forwardZ.value = fz; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; } else { l.setPosition(L.x, 1.6, L.z); l.setOrientation(fx, 0, fz, 0, 1, 0); }
+    if (l.positionX) { l.positionX.value = L.x; l.positionY.value = gunEar.y; l.positionZ.value = L.z; l.forwardX.value = fx; l.forwardY.value = 0; l.forwardZ.value = fz; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; } else { l.setPosition(L.x, gunEar.y, L.z); l.setOrientation(fx, 0, fz, 0, 1, 0); }
     ownStep(now);
     // The long sounds are steered about twelve times a second. Sixty times a second was sixty
     // changes a second to every one of them, which is work for nothing and can make a phone crackle.
@@ -997,6 +1016,15 @@ export function createAudio() {
     supported: !!Ctx,
     start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
+    // the guns (gun-audio.js): each does nothing with the sound off or not started
+    gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
+    gunShot: (gun, at, opts) => (gunReady() ? guns().shot(gun, at, opts) : false),
+    gunTail: (gun, at, opts) => (gunReady() ? guns().tail(gun, at, opts) : false),
+    gunEmpty: () => { if (gunReady()) guns().empty(); },
+    gunReload: (step, at) => { if (gunReady()) guns().reload(step, at); },
+    gunStrike: (what, at) => { if (gunReady()) guns().strike(what, at); },
+    gunPast: (at) => { if (gunReady()) guns().past(at); },
+    gunState: (gun) => (gunVoice ? { ...gunVoice.state(gun), voices: gunVoice.voices, ...gunVoice.stats } : { state: ctx ? 'not asked' : 'no sound yet' }),
     get running() { return !!ctx && ctx.state === 'running'; },
     get muted() { return muted; },
     setMuted(value) { muted = !!value; if (ctx) nodes.master.gain.setTargetAtTime(muted ? 0 : volumes.master, ctx.currentTime, 0.05); },

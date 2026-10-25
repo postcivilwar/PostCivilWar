@@ -124,7 +124,9 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
 // A transport for the link (see transport.js): this player's state goes to the server about once a second, and
 // what comes back is everyone else signed in and in the same town. Between two answers each of them is moved
 // evenly from where they were to where they are, so that they walk and do not jump.
-export function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true }) {
+// `gun` (gun-net.js): the rounds this player has fired go with each word, the server's answer to them comes back with
+// it, and the word goes soon after a round is fired, and as often as for someone moving fast while the gun is out.
+export function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true, gun = null }) {
   let mine = null;                      // this player's latest state
   let handler = null;
   let busy = false, failed = false, closed = false;
@@ -206,8 +208,12 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     busy = true; last = now();
     const asked = last;
     counts.asked += 1;
-    const answer = await online.ask('presence', { zone, state: mine }, { timeout: 6000 });
+    const extra = gun ? gun.body() : null;
+    // (a word carrying rounds is given longer to be answered: the rounds are counted by the server only once each, so a
+    // slow answer waited for is better than the same rounds sent again)
+    const answer = await online.ask('presence', { zone, state: mine, ...(extra || {}) }, { timeout: extra && extra.fire ? 15000 : 6000 });
     busy = false;
+    if (gun) gun.answer(answer.ok ? answer : null);
     if (closed) return;
     failed = !answer.ok;
     // (an answer lost on the way: asked again at once, not after the usual wait)
@@ -248,8 +254,11 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     let wait = ONLINE.presenceAlone;
     if (peers.size) {
       wait = ONLINE.presenceFar;
-      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; if (speedOf(p.to) > 2 || speedOf(mine) > 2) wait = ONLINE.presenceMoving; break; }
+      // (near someone with a gun out, or with one's own out, as often as for someone moving fast: aims and rounds)
+      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; if (speedOf(p.to) > 2 || speedOf(mine) > 2 || p.to.gn || p.to.sh || (gun && gun.armed)) wait = ONLINE.presenceMoving; break; }
     }
+    // rounds fired wait no longer than a moment to be told (the server counts them; another player may have been hit)
+    if (gun && gun.urgent()) wait = Math.min(wait, ONLINE.presenceStep);
     if (now() - last >= wait) exchange();
   }, ONLINE.presenceStep * 1000);
 

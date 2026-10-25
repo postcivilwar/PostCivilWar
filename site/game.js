@@ -10973,8 +10973,1107 @@ const wrap = (a) => { let d = a % (Math.PI * 2); if (d > Math.PI) d -= Math.PI *
 return { isOwnCar, carOf, CAR_CRASH, carCrashHarm, carFits, createOwnCars };
 })();
 
+__modules["sim/actors.js"] = (function () {
+
+const { ZONE_SPOTS, zoneWalkable } = __modules["sim/zone.js"];
+const { graphNearest, graphRoute, graphPoint, graphSize } = __modules["sim/graph.js"];
+const { POSE } = __modules["sim/population.js"];
+
+const PACE = Object.freeze({ walk: 1.7, hurry: 3.2, run: 4.6, sprint: 5.2 });
+
+function clearLine(x0, z0, x1, z1, radius = 0.3) {
+  const gap = Math.hypot(x1 - x0, z1 - z0);
+  const steps = Math.max(1, Math.ceil(gap / 0.7));
+  for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(x0 + ((x1 - x0) * i) / steps, z0 + ((z1 - z0) * i) / steps, [], radius)) return false;
+  return true;
+}
+
+function wayBetween(x0, z0, x1, z1) {
+  if (clearLine(x0, z0, x1, z1)) return [[x1, z1]];
+  const a = graphNearest(x0, z0), b = graphNearest(x1, z1);
+  const nodes = graphRoute(a, b) || [b];
+  const points = nodes.map((n) => graphPoint(n));
+  while (points.length > 1 && clearLine(x0, z0, points[1][0], points[1][1])) points.shift();
+  while (points.length > 1 && clearLine(points[points.length - 2][0], points[points.length - 2][1], x1, z1)) points.pop();
+  points.push([x1, z1]);
+  return points;
+}
+
+function wayLength(x0, z0, points) {
+  let length = 0, x = x0, z = z0;
+  for (const [px, pz] of points) { length += Math.hypot(px - x, pz - z); x = px; z = pz; }
+  return length;
+}
+
+function createActors({ state, population }) {
+  if (!state.actors) state.actors = { list: {} };
+  const list = state.actors.list;
+  const people = population.people;
+  const probe = {};
+
+  const has = (i) => list[i] !== undefined;
+  const get = (i) => list[i] || null;
+
+  function take(i, t, from = null) {
+    if (list[i]) return list[i];
+    const at = population.locate(i, t, probe);
+    const indoors = at.pose === POSE.hidden;
+    const start = from || (indoors ? null : at);
+    if (!start) return null;
+    list[i] = { i, x: start.x, z: start.z, h: at.h || 0, pose: POSE.stand, mode: 'hold', speed: 0, path: [], act: '', until: 0, follow: null, keep: 0, goal: null, moving: false, home: false, replan: 0 };
+    return list[i];
+  }
+
+  function walkTo(i, x, z, speed = PACE.walk, act = '') {
+    const m = list[i];
+    if (!m) return null;
+    if (m.dead) return m;
+    m.path = wayBetween(m.x, m.z, x, z);
+    m.goal = { x, z };
+    m.speed = speed; m.mode = 'go'; m.follow = null; m.home = false;
+    if (act) m.act = act;
+    return m;
+  }
+
+  function follow(i, who, keep = 1.4, speed = PACE.run, act = '') {
+    const m = list[i];
+    if (!m) return null;
+    if (m.dead) return m;
+    m.follow = who; m.keep = keep; m.speed = speed; m.mode = 'follow'; m.home = false; m.replan = 0;
+    if (act) m.act = act;
+    return m;
+  }
+
+  function hold(i, act = '', pose = POSE.stand, until = 0) {
+    const m = list[i];
+    if (!m) return null;
+    if (m.dead) return m;
+    m.mode = 'hold'; m.path = []; m.follow = null; m.pose = pose; m.until = until; m.home = false;
+    if (act) m.act = act;
+    return m;
+  }
+
+  function flee(i, fromX, fromZ, speed = PACE.run, act = 'Running away', distance = 24) {
+    const m = list[i];
+    if (!m) return null;
+    if (m.dead) return m;
+    const ax = m.x - fromX, az = m.z - fromZ;
+    const len = Math.hypot(ax, az) || 1;
+    let best = null, bestScore = -Infinity;
+    for (let n = 0; n < graphSize(); n += 1) {
+      const [x, z] = graphPoint(n);
+      const d = Math.hypot(x - m.x, z - m.z);
+      if (d < distance * 0.5 || d > distance * 1.6) continue;
+      const away = ((x - m.x) * ax + (z - m.z) * az) / (len * d);
+      const score = away * 2 - Math.abs(d - distance) / distance;
+      if (score > bestScore) { bestScore = score; best = [x, z]; }
+    }
+    if (!best) best = [m.x + (ax / len) * 6, m.z + (az / len) * 6];
+    walkTo(i, best[0], best[1], speed, act);
+    return m;
+  }
+
+  function release(i, act = '') {
+    const m = list[i];
+    if (!m || m.dead) return;
+    m.home = true; m.follow = null; m.mode = 'go'; m.speed = PACE.walk; m.path = []; m.goal = null; m.replan = 0; m.pose = POSE.stand;
+    m.act = act || 'Going back';
+  }
+  function drop(i) { if (list[i] && list[i].dead) return; delete list[i]; }
+  function kill(i, act = 'Dead') { const m = list[i]; if (!m) return null; m.mode = 'hold'; m.path = []; m.follow = null; m.pose = POSE.lie; m.until = 0; m.home = false; m.act = act; m.dead = true; m.moving = false; return m; }
+  function remove(i) { const m = list[i]; if (!m || !m.dead) return; m.pose = POSE.hidden; m.act = 'Taken to the mortuary'; m.gone = true; }
+  const dead = (i) => !!(list[i] && list[i].dead);
+
+  function advance(m, budget) {
+    let moved = false;
+    while (budget > 0 && m.path.length) {
+      const [tx, tz] = m.path[0];
+      const dx = tx - m.x, dz = tz - m.z;
+      const gap = Math.hypot(dx, dz);
+      if (gap <= budget) { m.x = tx; m.z = tz; budget -= gap; m.path.shift(); if (gap > 0.001) moved = true; } else { m.x += (dx / gap) * budget; m.z += (dz / gap) * budget; m.h = Math.atan2(dx, dz); budget = 0; moved = true; }
+    }
+    return moved;
+  }
+
+  function tick(dt, t, real) {
+    for (const key of Object.keys(list)) {
+      const m = list[key];
+      m.moving = false;
+      if (m.dead) continue;
+      if (m.mode === 'hold') { if (m.until && real >= m.until) release(m.i); continue; }
+      if (m.mode === 'follow') {
+        const target = m.follow && typeof m.follow === 'object' ? m.follow : null;
+        const at = target ? resolve(target) : null;
+        if (!at) { hold(m.i); continue; }
+        const d = Math.hypot(at.x - m.x, at.z - m.z);
+        m.h = d > 0.05 ? Math.atan2(at.x - m.x, at.z - m.z) : m.h;
+        if (d <= m.keep) { m.path = []; continue; }
+        m.replan -= dt;
+        if (m.replan <= 0 || !m.path.length) {
+          m.path = wayBetween(m.x, m.z, at.x, at.z);
+          m.replan = 0.6;
+        }
+        const room = Math.max(0, wayLength(m.x, m.z, m.path) - m.keep);
+        m.moving = advance(m, Math.min(m.speed * dt, room));
+        continue;
+      }
+      if (m.home) {
+        m.replan -= dt;
+        if (m.replan <= 0) {
+          const plan = population.planned(m.i, t, probe);
+          if (Math.hypot(plan.x - m.x, plan.z - m.z) < 1.6) { drop(m.i); continue; }
+          m.path = wayBetween(m.x, m.z, plan.x, plan.z);
+          m.replan = plan.moving ? 1.5 : 6;
+        }
+      }
+      m.moving = advance(m, m.speed * dt);
+      if (!m.path.length) {
+        if (m.home) { m.replan = 0; continue; }
+        m.mode = 'hold'; m.arrived = real;
+      }
+    }
+  }
+
+  let resolver = () => null;
+  const resolve = (target) => resolver(target);
+
+  function hook(i, t, out) {
+    const m = list[i];
+    if (!m) return false;
+    population.planned(i, t, out);          // their spot and the rest, as their day has it
+    out.x = m.x; out.z = m.z; out.h = m.h;
+    out.pose = m.moving ? POSE.walk : m.pose;
+    out.moving = m.moving;
+    out.leg = null;
+    out.act = m.act || out.act;
+    if (!ZONE_SPOTS[out.spot]) out.spot = people[i].homeSpot;
+    return true;
+  }
+  population.addHook(hook, true);
+
+  return {
+    take, has, get, walkTo, follow, hold, flee, release, drop, tick, hook, kill, remove, dead,
+    setResolver(fn) { resolver = fn; },
+    count: () => Object.keys(list).length,
+    all: () => Object.values(list),
+  };
+}
+
+return { PACE, clearLine, wayBetween, wayLength, createActors };
+})();
+
+__modules["sim/conflict.js"] = (function () {
+
+const { GameError } = __modules["sim/registry.js"];
+const { zoneWalkable } = __modules["sim/zone.js"];
+const { POSE } = __modules["sim/population.js"];
+const { PACE } = __modules["sim/actors.js"];
+
+const HEALTH = Object.freeze({
+  max: 100,
+  critical: 20,        // at or below this: no fighting, and nobody may strike you
+  floor: 20,           // nothing takes a player below this until they are treated: a blow, a round, a vehicle (the 20-life rule)
+  restPerHour: 2,      // regained each game hour, out of a fight and above critical
+  sleep: 30,           // regained by a night's sleep at home
+  yield: 25,           // a townsperson at or below this has had enough
+});
+
+const MOVES = Object.freeze({
+  punch: Object.freeze({ id: 'punch', name: 'Punch', damage: 6, range: 1.7, cooldown: 0.45, energy: 1 }),
+  heavy: Object.freeze({ id: 'heavy', name: 'Heavy punch', damage: 14, range: 1.7, cooldown: 1.1, energy: 3 }),
+  kick: Object.freeze({ id: 'kick', name: 'Kick', damage: 10, range: 2.0, cooldown: 0.9, energy: 2, push: 0.7 }),
+  shove: Object.freeze({ id: 'shove', name: 'Shove', damage: 2, range: 1.7, cooldown: 0.8, energy: 1, push: 1.6, stagger: 0.9 }),
+  grab: Object.freeze({ id: 'grab', name: 'Grab', damage: 0, range: 1.4, cooldown: 1.6, energy: 2, hold: 1.6 }),
+});
+
+const COMBAT = Object.freeze({
+  engage: 6,               // metres within which someone can be squared up to
+  leash: 16,               // a townsperson defending themselves does not chase further than this
+  calm: 20,                // real seconds without being struck before they let it go
+  recovery: 0.28,          // real seconds after any move before the next
+  blockCut: 0.75, blockCutHeavy: 0.5, blockArc: 1.75,     // a block takes this share off a blow from the front (radians either side)
+  dodgeWindow: 0.45, dodgeEvery: 1.0, dodgeStep: 1.6, dodgeEnergy: 2,
+  regrab: 4,               // real seconds before someone let go can be grabbed again
+  swing: Object.freeze([1.1, 1.8]),                        // real seconds between a townsperson's blows
+  npcPunch: 5, npcHeavy: 10, npcKick: 8,
+  minAge: 16,
+  remember: 2 * 3600,      // game seconds a townsperson's bruises are kept
+});
+
+const LINES = Object.freeze({
+  calm: [['Easy now. There is no need for that.', 'Take am easy. No be fight.'], ['My friend, go your way.', 'My friend, waka your way.'], ['I am not looking for trouble.', 'I no dey find trouble.']],
+  plead: [['Please, leave me alone!', 'Abeg, leave me!'], ['What did I do to you?', 'Wetin I do you?'], ['I do not want trouble!', 'I no want wahala!']],
+  warn: [['Do not touch me again.', 'No touch me again o.'], ['Try that once more and see.', 'Try am again, you go see.']],
+  fight: [['Enough! You asked for it.', 'E don do! Na you find am.'], ['So you will not stop?', 'So you no go stop?']],
+  yield: [['Enough, enough. I am done.', 'E don do, e don do.'], ['Stop. You have won.', 'Stop. You don win.']],
+  done: [['Go. And do not come back.', 'Dey go. No come back.'], ['Let that be the end of it.', 'Make e end for here.']],
+});
+
+const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+
+function createConflict({ state, players, population, actors, talk, emit, rng, hub }) {
+  if (!state.conflict) state.conflict = { npc: {}, firsts: {}, events: [], seq: 0 };
+  const book = state.conflict;
+  const people = population.people;
+  const probe = {};
+  const real = () => state.real;
+
+  for (const id of Object.keys(players)) { const p = players[id]; if (!Number.isFinite(p.health)) p.health = HEALTH.max; if (p.fight === undefined) p.fight = null; }
+
+  const critical = (p) => p.health <= HEALTH.critical;
+  const guarding = (p, now) => !!(p.fight && p.fight.blocking && now >= p.fight.busyUntil);
+  const whereNpc = (i) => population.locate(i, state.t, probe);
+
+
+  function speak(i, kind) {
+    const who = people[i];
+    const at = whereNpc(i);
+    const pick = LINES[kind][Math.floor(rng.next() * LINES[kind].length)];
+    const pidgin = who.langs.includes('pcm') && who.lang !== 'en';
+    talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', range: 26, hold: 3.2 });
+  }
+
+  function show(event) {
+    book.seq += 1;
+    book.events.push({ id: book.seq, at: real(), ...event });
+    if (book.events.length > 40) book.events.splice(0, book.events.length - 40);
+  }
+
+
+  function goCritical(p) {
+    p.fight = null;
+    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && (rec.mood === 'fighting' || rec.mood === 'shooting')) settle(Number(key), rec, 'done'); }
+    if (hub.guns) hub.guns.holster(p);
+    const sent = hub.care && hub.care.summon ? hub.care.summon(p) : false;
+    emit(p.id, { type: 'critical', title: 'Badly hurt', text: sent ? 'You are badly hurt. An ambulance is on its way.' : 'You are badly hurt. An ambulance will come for you as soon as one can.' });
+  }
+
+  function hurt(p, amount) {
+    const before = p.health;
+    p.health = Math.max(Math.min(before, HEALTH.floor), Math.round(p.health - amount));
+    p.struckAt = real();
+    if (before > HEALTH.critical && p.health <= HEALTH.critical) goCritical(p);
+    return before - p.health;
+  }
+
+  function injure(p, amount) {
+    const before = p.health;
+    p.health = Math.max(Math.min(before, HEALTH.floor), Math.round(p.health - amount));
+    p.struckAt = real();
+    if (before > HEALTH.critical && p.health <= HEALTH.critical) goCritical(p);
+    return before - p.health;
+  }
+
+  function shot(p, amount) {
+    const before = p.health;
+    p.health = Math.max(Math.min(before, HEALTH.floor), Math.round(p.health - Math.max(0, amount)));
+    p.struckAt = real();
+    if (before > HEALTH.critical && p.health <= HEALTH.critical) goCritical(p);
+    return before - p.health;
+  }
+
+  function heal(p, to) { p.health = Math.max(p.health, Math.min(HEALTH.max, Math.round(to))); return p.health; }
+
+
+  function nerve(i) {
+    const who = people[i];
+    let n = 0.45;
+    const has = (t) => who.traits.includes(t);
+    if (has('quick-tempered')) n += 0.3;
+    if (has('proud')) n += 0.2;
+    if (has('stern')) n += 0.15;
+    if (has('shy')) n -= 0.3;
+    if (has('gentle')) n -= 0.3;
+    if (has('patient')) n -= 0.15;
+    if (has('reserved')) n -= 0.1;
+    if (who.job === 'police' || who.job === 'guard') n += 0.45;
+    if (who.age > 55) n -= 0.25;
+    if (who.age < 20) n -= 0.1;
+    return Math.max(0, Math.min(1, n));
+  }
+
+  function npcRec(i, by) {
+    let rec = book.npc[i];
+    if (!rec || (by && rec.by !== by && rec.mood !== 'fighting')) { rec = { health: rec ? rec.health : HEALTH.max, hits: 0, by, firstAt: real(), lastAt: real(), mood: 'calm', swingAt: 0, heldUntil: 0, staggerUntil: 0, farSince: 0, at: state.t }; book.npc[i] = rec; }
+    return rec;
+  }
+
+  function settle(i, rec, mood) {
+    rec.mood = mood;
+    if (mood === 'down') { actors.take(i, state.t); actors.hold(i, 'Sitting down, hurt', POSE.sit, real() + 25); speak(i, 'yield'); if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'cry' : 'sad', { seconds: 25, upper: true, loop: true }); } else { if (mood === 'done') speak(i, 'done'); if (actors.has(i)) actors.release(i); }
+  }
+
+  function react(i, rec, attacker) {
+    const n = nerve(i) + (real() < rec.heldUntil ? 0.2 : 0);
+    actors.take(i, state.t);
+    if (rec.health <= HEALTH.yield) { settle(i, rec, 'down'); if (hub.justice) hub.justice.worsen(rec.crime, 'assault_serious'); return 'down'; }
+    if (rec.mood === 'fighting') return 'fighting';
+    if (people[i].job === 'police' || (rec.hits >= 2 && (n >= 0.45 || rec.mood === 'warned')) || (rec.hits === 1 && n >= 0.95)) {
+      rec.mood = 'fighting'; rec.swingAt = real() + 0.7;
+      actors.follow(i, { kind: 'player', id: attacker.id }, 1.2, PACE.hurry, 'Defending themselves');
+      speak(i, 'fight');
+      if (hub.reactions) hub.reactions.react(i, 'box');
+      return 'fighting';
+    }
+    if (rec.hits === 1 && n >= 0.75) {
+      rec.mood = 'warned';
+      actors.hold(i, 'Standing their ground', POSE.stand, real() + 8);
+      const m = actors.get(i); if (m) m.h = Math.atan2(attacker.x - m.x, attacker.z - m.z);
+      speak(i, 'warn');
+      if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'box' : 'stomp');
+      return 'warned';
+    }
+    rec.mood = 'fled';
+    actors.flee(i, attacker.x, attacker.z, rec.hits >= 2 ? PACE.sprint : PACE.run, 'Running away');
+    speak(i, 'plead');
+    if (hub.reactions) hub.reactions.react(i, 'flee', { seconds: 6, loop: true });
+    return 'fled';
+  }
+
+
+  function targetOf(p, target) {
+    if (!target || (target.kind !== 'npc' && target.kind !== 'player')) throw new GameError('NO_TARGET', 'There is nobody there to face.');
+    if (target.kind === 'player') {
+      const q = players[target.id];
+      if (!q || q.id === p.id) throw new GameError('NO_TARGET', 'There is nobody there to face.');
+      return { kind: 'player', id: q.id, player: q, x: q.x, z: q.z, name: q.name };
+    }
+    const i = Number(target.id);
+    if (!Number.isInteger(i) || i < 0 || i >= population.count) throw new GameError('NO_TARGET', 'There is nobody there to face.');
+    const at = whereNpc(i);
+    if (at.pose === POSE.hidden || at.pose === POSE.ride) throw new GameError('NO_TARGET', 'There is nobody there to face.');
+    return { kind: 'npc', id: i, x: at.x, z: at.z, name: people[i].short, lying: at.pose === POSE.lie };
+  }
+
+  function mayFight(p) {
+    if (critical(p)) throw new GameError('CRITICAL', 'Your health is critical. You cannot fight.');
+    if (p.custody) throw new GameError('IN_CUSTODY', 'You are in the hands of the police.');
+    if (p.driving || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined) || p.incar) throw new GameError('NOT_ON_FOOT', 'You cannot fight from a vehicle.');
+    if (p.carried) throw new GameError('CARRIED', 'You are in the ambulance.');
+    if (p.swimming) throw new GameError('SWIMMING', 'You are in the river.');
+  }
+
+  function engage(p, target) {
+    mayFight(p);
+    const who = targetOf(p, target);
+    if (Math.hypot(who.x - p.x, who.z - p.z) > COMBAT.engage) throw new GameError('TOO_FAR', 'You are too far away. Walk closer.');
+    if (who.kind === 'npc') {
+      if (people[who.id].age < COMBAT.minAge) throw new GameError('A_CHILD', 'That is a child. You will not.');
+      if (who.lying) throw new GameError('NO_TARGET', 'They are lying down. Leave them be.');
+      const rec = book.npc[who.id];
+      if (rec && rec.mood === 'down') throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
+      if (!rec || rec.mood === 'calm') { actors.take(who.id, state.t); actors.hold(who.id, 'Keeping an eye on you', POSE.stand, real() + 2.5); const m = actors.get(who.id); if (m) m.h = Math.atan2(p.x - m.x, p.z - m.z); speak(who.id, 'calm'); }
+    } else {
+      if (critical(who.player) || who.player.down || who.player.dead) throw new GameError('TARGET_DOWN', `${who.name} is badly hurt. Leave them.`);
+      emit(who.id, { type: 'note', text: `${p.name} is squaring up to you. You can walk away, or stand and fight.` });
+    }
+    p.fight = { target: { kind: who.kind, id: who.id }, since: real(), ready: {}, busyUntil: 0, blocking: false, dodgeUntil: 0, dodgeReady: 0 };
+    p.heading = Math.atan2(who.x - p.x, who.z - p.z);
+    return { fighting: true, target: { kind: who.kind, id: who.id, name: who.name } };
+  }
+
+  function disengage(p) {
+    if (!p.fight) return { fighting: false };
+    if (real() < (p.heldUntil || 0)) throw new GameError('HELD', 'You are being held. Shove them off first.');
+    p.fight = null;
+    return { fighting: false };
+  }
+
+  function pushed(fromX, fromZ, x, z, metres) {
+    const d = Math.hypot(x - fromX, z - fromZ) || 1;
+    const ux = (x - fromX) / d, uz = (z - fromZ) / d;
+    for (let m = metres; m > 0.15; m -= 0.25) if (zoneWalkable(x + ux * m, z + uz * m)) return { x: x + ux * m, z: z + uz * m };
+    return { x, z };
+  }
+
+  function act(p, move) {
+    const f = p.fight;
+    if (!f) throw new GameError('NOT_FIGHTING', 'You are not squared up to anyone.');
+    mayFight(p);
+    const def = MOVES[move];
+    if (!def) throw new GameError('NO_MOVE', 'There is no such move.');
+    const now = real();
+    const who = targetOf(p, f.target);
+    if (who.kind === 'npc' && book.npc[who.id] && (book.npc[who.id].mood === 'down' || book.npc[who.id].health <= HEALTH.critical)) throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
+    if (who.kind === 'player' && who.player.swimming) throw new GameError('NO_TARGET', `${who.name} is in the river.`);
+    if (who.kind === 'player' && critical(who.player)) throw new GameError('TARGET_DOWN', `${who.name} is badly hurt. Leave them.`);
+    if (now < (p.heldUntil || 0) && move !== 'shove') throw new GameError('HELD', 'You are being held. Shove them off first.');
+    if (now < (p.staggerUntil || 0)) throw new GameError('STAGGERED', 'You are off balance.');
+    if (now < f.busyUntil || now < (f.ready[move] || 0)) throw new GameError('NOT_READY', 'Not yet.');
+    if (p.energy < def.energy) throw new GameError('TIRED', 'You are too tired to swing. Eat or rest.');
+
+    f.ready[move] = now + def.cooldown;
+    f.busyUntil = now + COMBAT.recovery;        // and for that long the guard is down
+    p.energy = Math.max(0, p.energy - def.energy);
+    const d = Math.hypot(who.x - p.x, who.z - p.z);
+    if (d > 0.05) p.heading = Math.atan2(who.x - p.x, who.z - p.z);
+    const out = { move, hit: false, blocked: false, damage: 0, target: { kind: who.kind, id: who.id, name: who.name }, energy: p.energy };
+    const shown = { kind: move, from: `p:${p.id}`, to: who.kind === 'npc' ? `n:${who.id}` : `p:${who.id}`, x: who.x, z: who.z, hit: false, blocked: false };
+    if (d > def.range) { out.reason = 'out of reach'; show({ ...shown, kind: 'miss' }); return out; }
+    p.held = null;
+
+    if (who.kind === 'npc') {
+      const i = who.id;
+      const rec = npcRec(i, p.id);
+      let damage = def.damage;
+      if (rec.mood === 'fighting' && now >= rec.heldUntil) {
+        const roll = rng.next();
+        if (roll < 0.12) { out.reason = 'slipped'; show({ ...shown, kind: 'miss' }); return out; }
+        if (roll < 0.42) { out.blocked = true; damage = Math.round(damage * (1 - (move === 'heavy' ? COMBAT.blockCutHeavy : COMBAT.blockCut))); }
+      }
+      rec.by = p.id; rec.hits += 1; rec.lastAt = now; rec.at = state.t;
+      rec.health = Math.max(HEALTH.critical, rec.health - damage);
+      out.hit = true; out.damage = damage; out.targetHealth = rec.health;
+      if (people[i].job === 'police' && rec.health <= HEALTH.critical && rec.mood !== 'down') { settle(i, rec, 'down'); if (hub.guns && hub.guns.officerDown) hub.guns.officerDown(i); }
+      actors.take(i, state.t);
+      const m = actors.get(i);
+      if (def.push && m) { const to = pushed(p.x, p.z, m.x, m.z, def.push); m.x = to.x; m.z = to.z; }
+      if (def.stagger) { rec.staggerUntil = now + def.stagger; rec.swingAt = Math.max(rec.swingAt, now + def.stagger); }
+      if (def.hold && now >= (rec.grabFreeAt || 0)) { rec.heldUntil = now + def.hold; rec.grabFreeAt = now + def.hold + COMBAT.regrab; out.held = true; if (m && rec.mood !== 'fighting') actors.hold(i, 'Held', POSE.stand, now + def.hold); }
+      if (hub.justice && def.id !== 'grab') { const crime = hub.justice.offence(p, 'assault', { victim: { kind: 'npc', id: i, name: people[i].name }, x: who.x, z: who.z, crime: rec.crime && real() - rec.firstAt < 90 ? rec.crime : null }); rec.crime = crime ? crime.id : rec.crime; if (crime && crime.isNew) rec.firstAt = now; }
+      out.reaction = def.id === 'grab' && rec.hits === 1 && !out.held ? rec.mood : react(i, rec, p);
+      if (hub.reactions && def.id === 'kick' && out.reaction === 'fled') hub.reactions.react(i, 'hurt');
+      if (hub.reactions && def.id !== 'grab') hub.reactions.witnessed(who.x, who.z, [i]);
+      show({ ...shown, hit: true, blocked: out.blocked });
+      return out;
+    }
+
+    const q = who.player;
+    const qf = q.fight;
+    if (qf && now < qf.dodgeUntil) { out.reason = 'slipped'; show({ ...shown, kind: 'miss' }); return out; }
+    let damage = def.damage;
+    const facing = Math.abs(angleGap(Math.atan2(p.x - q.x, p.z - q.z), q.heading)) < COMBAT.blockArc;
+    if (guarding(q, now) && facing) { out.blocked = true; damage = Math.round(damage * (1 - (move === 'heavy' ? COMBAT.blockCutHeavy : COMBAT.blockCut))); }
+    const pair = [p.id, q.id].sort().join('|');
+    const first = book.firsts[pair];
+    const aggressor = first && now - first.at < 90 ? first.by : p.id;
+    if (!first || now - first.at >= 90) book.firsts[pair] = { by: p.id, at: now, crime: null }; else first.at = now;
+    out.hit = true;
+    out.damage = hurt(q, damage);
+    out.targetHealth = q.health;
+    if (def.push) { const to = pushed(p.x, p.z, q.x, q.z, def.push); q.x = to.x; q.z = to.z; q.lastMoveAt = now; }
+    if (def.stagger) q.staggerUntil = now + def.stagger;
+    if (def.hold && now >= (q.grabFreeAt || 0)) { q.heldUntil = now + def.hold; q.grabFreeAt = now + def.hold + COMBAT.regrab; q.held = p.id; out.held = true; }
+    if (move === 'shove') { p.heldUntil = 0; }
+    if (aggressor === p.id && hub.justice && def.id !== 'grab') {
+      const entry = book.firsts[pair];
+      const crime = hub.justice.offence(p, 'assault', { victim: { kind: 'player', id: q.id, name: q.name }, x: q.x, z: q.z, crime: entry.crime || null });
+      if (crime) { entry.crime = crime.id; if (critical(q)) hub.justice.worsen(crime.id, 'assault_serious'); }
+    }
+    emit(q.id, { type: 'struck', by: p.name, move, damage: out.damage, health: q.health, blocked: out.blocked });
+    show({ ...shown, hit: true, blocked: out.blocked });
+    return out;
+  }
+
+  function block(p, on) {
+    if (!p.fight) throw new GameError('NOT_FIGHTING', 'You are not squared up to anyone.');
+    p.fight.blocking = !!on;
+    return { blocking: guarding(p, real()), held: p.fight.blocking };
+  }
+
+  function dodge(p, { dx = 0, dz = 0 } = {}) {
+    const f = p.fight;
+    if (!f) throw new GameError('NOT_FIGHTING', 'You are not squared up to anyone.');
+    mayFight(p);
+    const now = real();
+    if (now < (p.heldUntil || 0)) throw new GameError('HELD', 'You are being held. Shove them off first.');
+    if (now < f.dodgeReady) throw new GameError('NOT_READY', 'Not yet.');
+    if (p.energy < COMBAT.dodgeEnergy) throw new GameError('TIRED', 'You are too tired.');
+    p.energy -= COMBAT.dodgeEnergy;
+    f.dodgeReady = now + COMBAT.dodgeEvery;
+    f.dodgeUntil = now + COMBAT.dodgeWindow;
+    let ux = Number(dx) || 0, uz = Number(dz) || 0;
+    const len = Math.hypot(ux, uz);
+    if (len < 0.1) { ux = -Math.sin(p.heading); uz = -Math.cos(p.heading); } else { ux /= len; uz /= len; }     // straight back, if no way was given
+    for (let m = COMBAT.dodgeStep; m > 0.2; m -= 0.3) if (zoneWalkable(p.x + ux * m, p.z + uz * m)) { p.x += ux * m; p.z += uz * m; break; }
+    p.lastMoveAt = now;
+    show({ kind: 'dodge', from: `p:${p.id}`, to: null, x: p.x, z: p.z, hit: false, blocked: false });
+    return { x: p.x, z: p.z, until: f.dodgeUntil, energy: p.energy };
+  }
+
+
+  function tick(dt) {
+    const now = real();
+    for (const key of Object.keys(book.npc)) {
+      const i = Number(key);
+      const rec = book.npc[key];
+      if (rec.mood !== 'fighting') {
+        if (state.t - rec.at > (hub.span ? hub.span(COMBAT.remember) : COMBAT.remember) && !actors.has(i)) delete book.npc[key];
+        continue;
+      }
+      const p = players[rec.by];
+      if (!p || critical(p) || p.custody || p.driving || p.carried) { settle(i, rec, 'done'); continue; }
+      const m = actors.get(i);
+      if (!m) { rec.mood = 'done'; continue; }
+      const d = Math.hypot(p.x - m.x, p.z - m.z);
+      if (d > COMBAT.leash) { if (!rec.farSince) rec.farSince = now; } else rec.farSince = 0;
+      if (now - rec.lastAt > COMBAT.calm || (rec.farSince && now - rec.farSince > 4)) { settle(i, rec, 'done'); continue; }
+      if (d > MOVES.punch.range || now < rec.swingAt || now < rec.heldUntil || now < rec.staggerUntil) continue;
+      const roll = rng.next();
+      const heavy = roll < 0.25;
+      const kick = !heavy && hub.reactions && hub.reactions.pick([0, 0, 0, 1]) === 1;
+      rec.swingAt = now + COMBAT.swing[0] + rng.next() * (COMBAT.swing[1] - COMBAT.swing[0]);
+      const f = p.fight;
+      if (hub.reactions) hub.reactions.react(i, kick ? 'kick' : heavy ? 'punch' : 'jab');
+      const shown = { kind: kick ? 'kick' : heavy ? 'heavy' : 'punch', from: `n:${i}`, to: `p:${p.id}`, x: p.x, z: p.z, hit: false, blocked: false };
+      if (f && now < f.dodgeUntil) { show({ ...shown, kind: 'miss' }); continue; }
+      let damage = kick ? COMBAT.npcKick : heavy ? COMBAT.npcHeavy : COMBAT.npcPunch;
+      const facing = Math.abs(angleGap(Math.atan2(m.x - p.x, m.z - p.z), p.heading)) < COMBAT.blockArc;
+      const blocked = guarding(p, now) && facing;
+      if (blocked) damage = Math.round(damage * (1 - (heavy ? COMBAT.blockCutHeavy : COMBAT.blockCut)));
+      const lost = hurt(p, damage);
+      emit(p.id, { type: 'struck', by: people[i].short, move: kick ? 'kick' : heavy ? 'heavy' : 'punch', damage: lost, health: p.health, blocked });
+      show({ ...shown, hit: true, blocked });
+    }
+    for (const id of Object.keys(players)) { const p = players[id]; if (p.held && now >= (p.heldUntil || 0)) p.held = null; }
+    while (book.events.length && now - book.events[0].at > 4) book.events.shift();
+  }
+
+  function hourly() {
+    for (const id of Object.keys(players)) {
+      const p = players[id];
+      if (p.fight || critical(p) || p.health >= HEALTH.max) continue;
+      if (real() - (p.struckAt || -1e9) < 30) continue;
+      p.health = Math.min(HEALTH.max, p.health + HEALTH.restPerHour);
+    }
+    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood !== 'fighting' && rec.mood !== 'shooting') rec.health = Math.min(HEALTH.max, rec.health + 6); }
+  }
+
+  function selfView(p) {
+    const f = p.fight;
+    const now = real();
+    let target = null;
+    if (f) {
+      if (f.target.kind === 'npc') { const rec = book.npc[f.target.id]; const at = whereNpc(f.target.id); target = { kind: 'npc', id: f.target.id, name: people[f.target.id].short, health: rec ? rec.health : HEALTH.max, mood: rec ? rec.mood : 'calm', x: at.x, z: at.z }; } else { const q = players[f.target.id]; target = q ? { kind: 'player', id: q.id, name: q.name, health: q.health, mood: q.fight ? 'fighting' : 'calm', x: q.x, z: q.z } : null; }
+    }
+    return {
+      health: p.health, critical: critical(p),
+      fight: f ? { target, blocking: guarding(p, now), ready: Object.fromEntries(Object.keys(MOVES).map((k) => [k, Math.max(0, Number(((f.ready[k] || 0) - now).toFixed(2)))])), dodgeIn: Math.max(0, Number((f.dodgeReady - now).toFixed(2))), held: now < (p.heldUntil || 0), staggered: now < (p.staggerUntil || 0) } : null,
+      against: Object.keys(book.npc).filter((k) => book.npc[k].by === p.id && (book.npc[k].mood === 'fighting' || book.npc[k].mood === 'shooting')).map(Number),
+    };
+  }
+
+  function eventsNear(x, z, range = 60) { return book.events.filter((e) => Math.hypot(e.x - x, e.z - z) <= range); }
+
+  function moods(x, z, range = 40) {
+    const out = [];
+    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood === 'calm') continue; const at = whereNpc(Number(key)); if (Math.hypot(at.x - x, at.z - z) <= range) out.push({ i: Number(key), mood: rec.mood, health: rec.health }); }
+    return out;
+  }
+
+  function officerShot(i, p, amount) {
+    const rec = npcRec(i, p.id);
+    const before = rec.health;
+    rec.by = p.id; rec.lastAt = real(); rec.at = state.t;
+    if (amount > 0) { rec.hits += 1; rec.health = Math.max(Math.min(before, HEALTH.critical), before - amount); }
+    if (rec.health <= HEALTH.critical) { if (rec.mood !== 'down') settle(i, rec, 'down'); } else rec.mood = 'shooting';
+    return { lost: before - rec.health, health: rec.health };
+  }
+  function officerDone(i) { const rec = book.npc[i]; if (rec && rec.mood === 'shooting') rec.mood = 'done'; }
+
+  function stop(p) {
+    p.fight = null;
+    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && rec.mood === 'fighting') { rec.mood = 'done'; if (actors.has(Number(key))) actors.release(Number(key)); } }
+  }
+
+  const api = { engage, disengage, act, block, dodge, tick, hourly, hurt, injure, shot, heal, critical, selfView, eventsNear, moods, stop, nerve, officerShot, officerDone, record: (i) => book.npc[i] || null };
+  hub.conflict = api;
+  return api;
+}
+
+return { HEALTH, MOVES, COMBAT, createConflict };
+})();
+
+__modules["sim/guns.js"] = (function () {
+
+const { GameError } = __modules["sim/registry.js"];
+const { zoneSolid, zoneGroundY } = __modules["sim/zone.js"];
+const { POSE } = __modules["sim/population.js"];
+const { HEALTH } = __modules["sim/conflict.js"];
+
+const GUN = Object.freeze({
+  damage: 1,                 // life points one hit takes off whoever it hits
+  floor: HEALTH.critical,    // nobody is brought below this, by a gun or anything else, until they are treated
+  body: Object.freeze({ radius: 0.32, height: 1.78, crouched: 1.2 }),
+  muzzle: Object.freeze({ reach: 2.2, low: 0.3, high: 2.4 }),
+  most: 8,
+  seen: 1.6,
+  daySeconds: 86400,
+});
+
+const GUNS = Object.freeze({
+  rifle: Object.freeze({
+    id: 'rifle', name: 'Rifle', file: 'futuristicrifle3dmodel.glb', starter: true, price: 0, forSale: false,
+    magazine: 30, spare: 120, rpm: 850, mode: 'auto', reload: 2.4, range: 150,
+    spread: Object.freeze({ hip: 0.03, aim: 0.012, sight: 0.0035, moving: 0.02, crouched: 0.65 }),
+    recoil: Object.freeze({ climb: 0.0075, side: 0.0032, recover: 7 }),
+  }),
+});
+const STARTER_GUN = 'rifle';
+const gunOf = (id) => (typeof id === 'string' && Object.prototype.hasOwnProperty.call(GUNS, id) ? GUNS[id] : null);
+
+const POLICE_FIRE = Object.freeze({
+  rpm: 600, burst: Object.freeze([3, 5]), pause: Object.freeze([0.7, 1.4]),
+  sight: 60,                 // metres within which she fires at someone she can see
+  near: 2.0,                 // a round passing this close to an officer is a shot at her
+  hit: Object.freeze({ close: 0.42, far: 0.08, running: 0.6, crouched: 0.7 }),
+  lose: 6,                   // seconds out of her sight before she goes to look where they were
+});
+
+const n = (v) => Number.isFinite(Number(v)) ? Number(v) : NaN;
+const r2 = (v) => Math.round(v * 100) / 100;
+
+function rayPost(o, d, most, x, y0, z, h, r) {
+  const ox = o[0] - x, oz = o[2] - z;
+  const a = d[0] * d[0] + d[2] * d[2];
+  let t = Infinity;
+  if (a > 1e-9) {
+    const b = ox * d[0] + oz * d[2], c = ox * ox + oz * oz - r * r;
+    const disc = b * b - a * c;
+    if (disc >= 0) {
+      const s = Math.sqrt(disc);
+      for (const k of [(-b - s) / a, (-b + s) / a]) {
+        if (k < 0 || k > most) continue;
+        const y = o[1] + d[1] * k;
+        if (y >= y0 && y <= y0 + h) { t = Math.min(t, k); break; }
+      }
+    }
+  }
+  if (!Number.isFinite(t) && ox * ox + oz * oz <= r * r) { const y = o[1]; if (y >= y0 && y <= y0 + h) t = 0; }
+  return t;
+}
+
+function rayWorld(o, d, most, boxes = []) {
+  const STEP = 0.25;
+  let last = 0;
+  const solidAt = (k) => {
+    const x = o[0] + d[0] * k, y = o[1] + d[1] * k, z = o[2] + d[2] * k;
+    const g = zoneGroundY(x, z);
+    if (y <= g) return 'ground';
+    if (zoneSolid(x, z, 0.04, y - g)) return 'wall';
+    for (const b of boxes) if (x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1 && y - g < b.top) return 'vehicle';
+    return null;
+  };
+  for (let k = STEP; k <= most + 1e-6; k += STEP) {
+    const what = solidAt(Math.min(k, most));
+    if (!what) { last = k; continue; }
+    let lo = last, hi = Math.min(k, most);
+    for (let i = 0; i < 4; i += 1) { const mid = (lo + hi) / 2; if (solidAt(mid)) hi = mid; else lo = mid; }
+    return { at: hi, what, point: [o[0] + d[0] * hi, o[1] + d[1] * hi, o[2] + d[2] * hi] };
+  }
+  return { at: most, what: 'air', point: [o[0] + d[0] * most, o[1] + d[1] * most, o[2] + d[2] * most] };
+}
+
+function createGuns({ state, players, population, actors, conflict, talk, emit, rng, hub, boxes = () => [] }) {
+  if (!state.guns) state.guns = { shots: [], seq: 0 };
+  const book = state.guns;
+  const people = population.people;
+  const POLICE = people.filter((q) => q.job === 'police').map((q) => q.index);
+  const real = () => state.real;
+  const probe = {};
+  const where = (i) => population.locate(i, state.t, probe);
+  const dayOf = () => Math.floor(state.t / GUN.daySeconds);
+
+
+  const fresh = (id) => { const g = GUNS[id]; return { mag: g.magazine, spare: g.spare }; };
+  function gunsOf(p) {
+    if (!p.gun || typeof p.gun !== 'object') p.gun = { have: { [STARTER_GUN]: fresh(STARTER_GUN) }, equipped: STARTER_GUN, out: false, aim: 0, crouch: false, reload: null, next: 0, seq: 0, struck: [], day: dayOf(), server: false };
+    const g = p.gun;
+    if (!g.have || typeof g.have !== 'object') g.have = {};
+    if (!g.have[STARTER_GUN]) g.have[STARTER_GUN] = fresh(STARTER_GUN);
+    for (const id of Object.keys(g.have)) if (!GUNS[id]) delete g.have[id];
+    if (!g.have[g.equipped]) g.equipped = STARTER_GUN;
+    if (!Array.isArray(g.struck)) g.struck = [];
+    return g;
+  }
+  for (const id of Object.keys(players)) { const g = gunsOf(players[id]); g.out = false; g.aim = 0; g.crouch = false; g.reload = null; }
+
+  function mayShoot(p) {
+    if (p.health <= GUN.floor) throw new GameError('CRITICAL', 'You are badly hurt. You cannot use a gun.');
+    if (p.custody || p.law && p.law.arrest) throw new GameError('IN_CUSTODY', 'You are in the hands of the police.');
+    if (p.carried) throw new GameError('CARRIED', 'You are in the ambulance.');
+    if (p.driving || p.incar || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined)) throw new GameError('NOT_ON_FOOT', 'Not from a vehicle.');
+    if (p.swimming) throw new GameError('SWIMMING', 'Not in the water.');
+    if (p.hijack) throw new GameError('BUSY', 'You have your hands full.');
+    if (p.fight) throw new GameError('FIGHTING', 'You are in a fist fight. Step back from it first.');
+    if (p.down || p.dead) throw new GameError('DOWN', 'You are on the ground.');
+  }
+
+  function holster(p) { const g = gunsOf(p); g.out = false; g.aim = 0; g.crouch = false; g.reload = null; }
+
+  function topUp(p) {
+    const g = gunsOf(p);
+    const day = dayOf();
+    if (g.server || g.day === day) return;
+    g.day = day;
+    for (const id of Object.keys(g.have)) g.have[id] = fresh(id);
+  }
+
+  function owned(p, { guns, equipped } = {}) {
+    const g = gunsOf(p);
+    const list = Array.isArray(guns) ? guns : [];
+    const next = {};
+    for (const item of list) {
+      const def = item && gunOf(item.id);
+      if (!def) continue;
+      const mag = Math.max(0, Math.min(def.magazine, Math.floor(n(item.mag)) || 0));
+      const spare = Math.max(0, Math.min(def.spare * 4, Math.floor(n(item.spare)) || 0));
+      next[def.id] = { mag, spare };
+    }
+    if (!next[STARTER_GUN]) next[STARTER_GUN] = g.have[STARTER_GUN] || fresh(STARTER_GUN);
+    if (g.reload && next[g.reload.gun]) next[g.reload.gun] = g.have[g.reload.gun] || next[g.reload.gun];
+    g.have = next;
+    if (equipped && next[equipped]) g.equipped = equipped;
+    if (!g.have[g.equipped]) g.equipped = STARTER_GUN;
+    g.server = true;
+    return view(p);
+  }
+
+  function draw(p, { gun } = {}) {
+    mayShoot(p);
+    const g = gunsOf(p);
+    if (gun !== undefined && gun !== null) {
+      if (!gunOf(gun)) throw new GameError('NO_GUN', 'There is no such gun.');
+      if (!g.have[gun]) throw new GameError('NOT_OWNED', 'You do not own that gun.');
+      if (g.equipped !== gun) g.reload = null;
+      g.equipped = gun;
+    }
+    topUp(p);
+    if (p.emote) p.emote = null;
+    g.out = true;
+    return view(p);
+  }
+
+  function equip(p, { gun } = {}) {
+    const g = gunsOf(p);
+    if (!gunOf(gun)) throw new GameError('NO_GUN', 'There is no such gun.');
+    if (!g.have[gun]) throw new GameError('NOT_OWNED', 'You do not own that gun.');
+    if (g.equipped !== gun) { g.reload = null; g.equipped = gun; }
+    return view(p);
+  }
+
+  function aim(p, { aim: how, crouch } = {}) {
+    const g = gunsOf(p);
+    if (!g.out) throw new GameError('NOT_OUT', 'Your gun is put away.');
+    g.aim = [0, 1, 2].includes(how) ? how : 0;
+    if (crouch !== undefined) g.crouch = !!crouch;
+    return { aim: g.aim, crouch: g.crouch };
+  }
+
+  function reload(p) {
+    mayShoot(p);
+    const g = gunsOf(p);
+    if (!g.out) throw new GameError('NOT_OUT', 'Your gun is put away.');
+    const def = GUNS[g.equipped];
+    const have = g.have[g.equipped];
+    if (g.reload) throw new GameError('NOT_READY', 'Already reloading.');
+    if (have.mag >= def.magazine) throw new GameError('FULL', 'The magazine is full.');
+    if (have.spare <= 0) throw new GameError('NO_SPARE', 'You have no rounds left to reload with.');
+    g.reload = { gun: g.equipped, at: real(), until: real() + def.reload };
+    return { reloading: { gun: g.equipped, seconds: def.reload } };
+  }
+
+
+  function targets(o, d, most, shooter) {
+    const out = [];
+    for (const i of POLICE) {
+      const at = where(i);
+      if (at.pose === POSE.hidden || at.pose === POSE.ride || at.pose === POSE.lie) continue;
+      if (Math.abs(at.x - o[0]) > most + 2 || Math.abs(at.z - o[2]) > most + 2) continue;
+      const rec = conflict.record(i);
+      const health = rec ? rec.health : HEALTH.max;
+      const sit = at.pose === POSE.sit;
+      out.push({ kind: 'npc', id: i, x: at.x, z: at.z, y0: zoneGroundY(at.x, at.z), h: sit ? 1.25 : GUN.body.height, health, able: health > GUN.floor });
+    }
+    for (const v of talk.visitors()) {
+      if (Math.abs(v.x - o[0]) > most + 2 || Math.abs(v.z - o[2]) > most + 2) continue;
+      const hp = Number.isFinite(v.health) ? v.health : null;
+      const able = hp !== null && hp > GUN.floor && !v.vehicle && !v.ride && !v.car && !v.swimming && !v.held && !v.down;
+      out.push({ kind: 'player', id: v.id, peer: v.peer, name: v.name, x: v.x, z: v.z, y0: zoneGroundY(v.x, v.z), h: v.crouch ? GUN.body.crouched : GUN.body.height, health: hp, able });
+    }
+    for (const id of Object.keys(players)) {
+      const q = players[id];
+      if (q === shooter || q.custody || q.carried || q.dead) continue;
+      if (Math.abs(q.x - o[0]) > most + 2 || Math.abs(q.z - o[2]) > most + 2) continue;
+      const crouched = q.gun && q.gun.out && q.gun.crouch;
+      const able = q.health > GUN.floor && !q.driving && !q.incar && (q.astride === null || q.astride === undefined) && (q.riding === null || q.riding === undefined) && !q.swimming;
+      out.push({ kind: 'local', id: q.id, name: q.name, x: q.x, z: q.z, y0: zoneGroundY(q.x, q.z), h: crouched ? GUN.body.crouched : GUN.body.height, health: q.health, able });
+    }
+    return out;
+  }
+
+  function trace(o, d, most, { shooter = null, skip = null } = {}) {
+    const world = rayWorld(o, d, most, boxes());
+    let best = null;
+    for (const t of targets(o, d, world.at, shooter)) {
+      if (skip && skip.kind === t.kind && skip.id === t.id) continue;
+      if (!t.able) continue;
+      const k = rayPost(o, d, world.at, t.x, t.y0, t.z, t.h, GUN.body.radius);
+      if (k < (best ? best.at : world.at)) best = { at: k, target: t };
+    }
+    if (best) return { at: best.at, what: 'person', point: [o[0] + d[0] * best.at, o[1] + d[1] * best.at, o[2] + d[2] * best.at], target: best.target };
+    return world;
+  }
+
+  function look(o, d, most = 150, self = null) {
+    const world = rayWorld(o, d, most, boxes());
+    let best = null;
+    for (const t of targets(o, d, world.at, null)) {
+      if (self !== null && t.kind === 'local' && t.id === self) continue;
+      const k = rayPost(o, d, world.at, t.x, t.y0, t.z, t.h, GUN.body.radius + 0.06);
+      if (k < (best ? best.at : world.at)) best = { at: k, target: t };
+    }
+    if (best) return { at: best.at, what: 'person', point: [o[0] + d[0] * best.at, o[1] + d[1] * best.at, o[2] + d[2] * best.at], target: { kind: best.target.kind, id: best.target.id, name: best.target.name || (best.target.kind === 'npc' ? people[best.target.id].short : ''), health: best.target.health, able: best.target.able, police: best.target.kind === 'npc' } };
+    return world;
+  }
+
+  function recordShot(entry) {
+    book.seq += 1;
+    const shot = { id: book.seq, at: real(), ...entry };
+    book.shots.push(shot);
+    while (book.shots.length > 160 || (book.shots.length && real() - book.shots[0].at > GUN.seen)) book.shots.shift();
+    return shot;
+  }
+
+
+  function fire(p, { shots } = {}) {
+    mayShoot(p);
+    const g = gunsOf(p);
+    if (!g.out) throw new GameError('NOT_OUT', 'Your gun is put away.');
+    const def = GUNS[g.equipped];
+    const have = g.have[g.equipped];
+    const list = Array.isArray(shots) ? shots.slice(0, GUN.most) : [];
+    const out = [];
+    const gap = 60 / def.rpm;
+    for (const s of list) {
+      if (g.reload) { out.push({ ok: false, code: 'RELOADING' }); continue; }
+      if (have.mag <= 0) { out.push({ ok: false, code: 'EMPTY' }); continue; }
+      if (real() < g.next - gap * 0.35) { out.push({ ok: false, code: 'NOT_READY' }); continue; }
+      const o = Array.isArray(s && s.o) ? s.o.map(n) : [], dIn = Array.isArray(s && s.d) ? s.d.map(n) : [];
+      if (o.length !== 3 || dIn.length !== 3 || ![...o, ...dIn].every(Number.isFinite)) { out.push({ ok: false, code: 'BAD_SHOT' }); continue; }
+      const len = Math.hypot(dIn[0], dIn[1], dIn[2]);
+      if (len < 1e-6) { out.push({ ok: false, code: 'BAD_SHOT' }); continue; }
+      const d = dIn.map((v) => v / len);
+      const ground = zoneGroundY(p.x, p.z);
+      if (Math.hypot(o[0] - p.x, o[2] - p.z) > GUN.muzzle.reach || o[1] < ground + GUN.muzzle.low || o[1] > ground + GUN.muzzle.high) { out.push({ ok: false, code: 'BAD_SHOT' }); continue; }
+      have.mag -= 1;
+      g.next = Math.max(real(), g.next) + gap;
+      g.seq += 1;
+      p.stats.shots = (p.stats.shots || 0) + 1;
+      const hit = trace(o, d, def.range, { shooter: p, skip: { kind: 'local', id: p.id } });
+      const result = { ok: true, seq: g.seq, end: hit.point.map(r2), what: hit.what };
+      if (hit.what === 'person') {
+        const t = hit.target;
+        result.target = { kind: t.kind, id: t.id, name: t.name || (t.kind === 'npc' ? people[t.id].short : '') };
+        if (t.kind === 'npc') { const lost = officerShot(p, t.id, GUN.damage, hit.point); result.target.health = lost.health; result.damage = lost.lost; }
+        else if (t.kind === 'local') { const q = players[t.id]; const lost = wound(q, GUN.damage, { by: p.name, from: [p.x, p.z], at: hit.point }); result.target.health = q.health; result.damage = lost; shotPlayer(p, q, hit.point); }
+        else { result.claim = { peer: t.peer || t.id, point: hit.point.map(r2) }; }
+      }
+      if (hit.what !== 'person' || hit.target.kind !== 'npc') nearMiss(p, o, d, hit.at);
+      recordShot({ from: `p:${p.id}`, o: o.map(r2), e: result.end, what: hit.what, on: result.target ? (result.target.kind === 'npc' ? `n:${result.target.id}` : result.target.kind === 'local' ? `p:${result.target.id}` : `v:${result.target.id}`) : null });
+      out.push(result);
+    }
+    return { shots: out, mag: have.mag, spare: have.spare };
+  }
+
+  function shotPlayer(p, q, at) {
+    if (!hub.justice) return;
+    const key = `${p.id}|${q.id}`;
+    const open = book.open && book.open[key] && real() - book.open[key].at < 90 ? book.open[key].crime : null;
+    const crime = hub.justice.offence(p, 'shooting', { victim: { kind: 'player', id: q.id, name: q.name }, x: at[0], z: at[2], crime: open });
+    (book.open || (book.open = {}))[key] = { crime: crime.id, at: real() };
+  }
+
+  function confirmed(p, { hits } = {}) {
+    let n2 = 0;
+    for (const h of (Array.isArray(hits) ? hits : []).slice(0, 16)) {
+      const x = n(h && h.x), z = n(h && h.z);
+      if (!Number.isFinite(x) || !Number.isFinite(z) || !hub.justice) continue;
+      const name = typeof h.name === 'string' ? h.name.slice(0, 32) : 'another player';
+      const key = `${p.id}|peer:${String(h.who || '').slice(0, 40)}`;
+      const open = book.open && book.open[key] && real() - book.open[key].at < 90 ? book.open[key].crime : null;
+      const crime = hub.justice.offence(p, 'shooting', { victim: { kind: 'visitor', id: String(h.who || '').slice(0, 40), name }, x, z, crime: open });
+      (book.open || (book.open = {}))[key] = { crime: crime.id, at: real() };
+      n2 += 1;
+    }
+    return { recorded: n2 };
+  }
+
+
+  function wound(q, amount, { by = '', from = null, at = null, id = null } = {}) {
+    const lost = conflict.shot(q, amount);
+    emit(q.id, { type: 'shot', by, damage: lost, health: q.health, at: at ? at.map(r2) : null, from: from ? from.map(r2) : null, id });
+    if (q.health <= GUN.floor) holster(q);
+    return lost;
+  }
+
+  function struck(p, { hits } = {}) {
+    const g = gunsOf(p);
+    const done = [];
+    for (const h of (Array.isArray(hits) ? hits : []).slice(0, 40)) {
+      const id = Math.floor(n(h && h.id));
+      if (!Number.isFinite(id) || id <= 0 || g.struck.includes(id)) continue;
+      g.struck.push(id);
+      if (g.struck.length > 200) g.struck.splice(0, g.struck.length - 200);
+      const dmg = Math.max(0, Math.min(GUN.damage, Math.floor(n(h.dmg)) || GUN.damage));
+      const at = Array.isArray(h.at) && h.at.length === 3 && h.at.every((v) => Number.isFinite(Number(v))) ? h.at.map(Number) : null;
+      const from = Array.isArray(h.from) && h.from.length === 2 && h.from.every((v) => Number.isFinite(Number(v))) ? h.from.map(Number) : null;
+      const lost = p.health > GUN.floor && !p.carried && !p.custody ? wound(p, dmg, { by: typeof h.name === 'string' ? h.name.slice(0, 32) : '', from, at, id }) : 0;
+      done.push({ id, lost });
+    }
+    return { applied: done, health: p.health };
+  }
+
+
+  const PF = POLICE_FIRE;
+  const officers = new Map();      // i -> { by, burst, next, lastSeen, at }
+  function officerShot(p, i, amount, point) {
+    const rec = conflict.officerShot(i, p, amount);
+    if (hub.justice) {
+      const key = `${p.id}|n:${i}`;
+      const open = book.open && book.open[key] && real() - book.open[key].at < 90 ? book.open[key].crime : null;
+      const crime = hub.justice.offence(p, 'shooting_police', { victim: { kind: 'npc', id: i, name: people[i].name }, x: point[0], z: point[2], crime: open });
+      (book.open || (book.open = {}))[key] = { crime: crime.id, at: real() };
+    }
+    if (rec.health > GUN.floor) engage(i, p);
+    return { lost: rec.lost, health: rec.health };
+  }
+  function nearMiss(p, o, d, length) {
+    for (const i of POLICE) {
+      const at = where(i);
+      if (at.pose === POSE.hidden || at.pose === POSE.ride) continue;
+      const px = at.x - o[0], pz = at.z - o[2];
+      const along = px * d[0] + pz * d[2];
+      if (along < 0 || along > length) continue;
+      const side = Math.hypot(px - d[0] * along, pz - d[2] * along);
+      if (side > PF.near) continue;
+      const rec = conflict.record(i);
+      if (rec && rec.health <= GUN.floor) continue;
+      conflict.officerShot(i, p, 0);
+      if (hub.justice) {
+        const key = `${p.id}|n:${i}`;
+        const open = book.open && book.open[key] && real() - book.open[key].at < 90 ? book.open[key].crime : null;
+        const crime = hub.justice.offence(p, 'shooting_police', { victim: { kind: 'npc', id: i, name: people[i].name }, x: at.x, z: at.z, crime: open });
+        (book.open || (book.open = {}))[key] = { crime: crime.id, at: real() };
+      }
+      engage(i, p);
+    }
+  }
+  function engage(i, p) {
+    const o = officers.get(i);
+    if (o && o.by === p.id) { o.lastSeen = real(); return; }
+    officers.set(i, { by: p.id, burst: 0, next: real() + 0.35 + rng.next() * 0.3, lastSeen: real(), at: { x: p.x, z: p.z } });
+    if (!actors.has(i)) actors.take(i, state.t);
+    actors.hold(i, 'Shooting back', POSE.stand, real() + 30);
+    if (talk) { const at = where(i); talk.say({ who: `n:${i}`, name: people[i].short, role: 'Police', text: 'Police! Drop your weapon!', lang: 'en', x: at.x, z: at.z, kind: 'shout', range: 40, hold: 3.2 }); }
+  }
+  function disengage(i, why = 'Going back on the beat') {
+    officers.delete(i);
+    conflict.officerDone(i);
+    if (actors.has(i) && !(hub.justice && hub.justice.onDuty(i))) actors.release(i, why);
+  }
+  function officerDown(i) { if (officers.has(i)) { officers.delete(i); conflict.officerDone(i); } }
+
+  function officerFires(i, p, m) {
+    const ground = zoneGroundY(m.x, m.z);
+    const dx = p.x - m.x, dz = p.z - m.z, dist = Math.hypot(dx, dz) || 1;
+    const fx = dx / dist, fz = dz / dist;
+    const o = [m.x + fx * 0.55 - fz * 0.12, ground + 1.42, m.z + fz * 0.55 + fx * 0.12];
+    const crouched = p.gun && p.gun.out && p.gun.crouch;
+    const chest = [p.x, zoneGroundY(p.x, p.z) + (crouched ? 0.85 : 1.25), p.z];
+    const running = real() - (p.lastMoveAt || -10) < 0.4;
+    let chance = PF.hit.close + (PF.hit.far - PF.hit.close) * Math.min(1, Math.max(0, (dist - 6) / (PF.sight - 6)));
+    if (running) chance *= PF.hit.running;
+    if (crouched) chance *= PF.hit.crouched;
+    const hits = rng.next() < chance;
+    const aimAt = hits ? [chest[0] + (rng.next() - 0.5) * 0.25, chest[1] + (rng.next() - 0.5) * 0.5, chest[2] + (rng.next() - 0.5) * 0.25] : [chest[0] + (rng.next() < 0.5 ? -1 : 1) * fz * (0.6 + rng.next()), chest[1] + (rng.next() - 0.3) * 1.2, chest[2] - (rng.next() < 0.5 ? -1 : 1) * fx * (0.6 + rng.next())];
+    const v = [aimAt[0] - o[0], aimAt[1] - o[1], aimAt[2] - o[2]];
+    const len = Math.hypot(v[0], v[1], v[2]) || 1;
+    const d = v.map((k) => k / len);
+    const world = rayWorld(o, d, Math.min(GUNS.rifle.range, len + 25), boxes());
+    let end = world.point, what = world.what, on = null;
+    if (hits) {
+      const k = rayPost(o, d, world.at, p.x, zoneGroundY(p.x, p.z), p.z, crouched ? GUN.body.crouched : GUN.body.height, GUN.body.radius);
+      if (Number.isFinite(k)) {
+        end = [o[0] + d[0] * k, o[1] + d[1] * k, o[2] + d[2] * k];
+        what = 'person'; on = `p:${p.id}`;
+        wound(p, GUN.damage, { by: people[i].short, from: [m.x, m.z], at: end });
+      }
+    }
+    recordShot({ from: `n:${i}`, o: o.map(r2), e: end.map(r2), what, on });
+  }
+
+  function tick(dt) {
+    const now = real();
+    for (const id of Object.keys(players)) {
+      const p = players[id];
+      const g = p.gun;
+      if (!g) continue;
+      if (g.out && (p.health <= GUN.floor || p.custody || p.carried || p.driving || p.incar || p.swimming || (p.astride !== null && p.astride !== undefined) || (p.riding !== null && p.riding !== undefined) || p.dead)) holster(p);
+      if (g.reload && now >= g.reload.until) {
+        const def = GUNS[g.reload.gun], have = g.have[g.reload.gun];
+        if (def && have) { const moved = Math.min(def.magazine - have.mag, have.spare); have.mag += moved; have.spare -= moved; }
+        g.reload = null;
+      }
+    }
+    for (const [i, o] of officers) {
+      const p = players[o.by];
+      const rec = conflict.record(i);
+      if (!p || p.health <= GUN.floor || p.custody || p.carried || p.dead || !rec || rec.health <= GUN.floor) { disengage(i); continue; }
+      const m = actors.get(i);
+      if (!m) { officers.delete(i); continue; }
+      const d = Math.hypot(p.x - m.x, p.z - m.z);
+      const ground = zoneGroundY(m.x, m.z);
+      const eye = [m.x, ground + 1.62, m.z], chest = [p.x, zoneGroundY(p.x, p.z) + 1.2, p.z];
+      const v = [chest[0] - eye[0], chest[1] - eye[1], chest[2] - eye[2]];
+      const len = Math.hypot(v[0], v[1], v[2]) || 1;
+      const seen = d <= PF.sight && rayWorld(eye, v.map((k) => k / len), len, boxes()).at >= len - 0.3;
+      m.h = Math.atan2(p.x - m.x, p.z - m.z);
+      if (seen) {
+        o.lastSeen = now; o.at = { x: p.x, z: p.z };
+        if (m.mode !== 'hold') actors.hold(i, 'Shooting back', POSE.stand, now + 30);
+        else m.until = now + 30;
+        if (now >= o.next) {
+          if (o.burst <= 0) o.burst = PF.burst[0] + Math.floor(rng.next() * (PF.burst[1] - PF.burst[0] + 1));
+          officerFires(i, p, m);
+          o.burst -= 1;
+          o.next = now + (o.burst > 0 ? 60 / PF.rpm : PF.pause[0] + rng.next() * (PF.pause[1] - PF.pause[0]));
+        }
+      } else if (now - o.lastSeen > PF.lose) {
+        if (m.mode === 'hold') actors.walkTo(i, o.at.x, o.at.z, 4.6, 'Looking for the shooter');
+        if (now - o.lastSeen > PF.lose + 20) disengage(i, 'Going back on the beat');
+      }
+    }
+    while (book.shots.length && now - book.shots[0].at > GUN.seen) book.shots.shift();
+  }
+
+
+  function view(p) {
+    const g = gunsOf(p);
+    const now = real();
+    const def = GUNS[g.equipped];
+    return {
+      equipped: g.equipped, out: !!g.out, aim: g.aim || 0, crouch: !!g.crouch, server: !!g.server,
+      have: Object.keys(g.have).map((id) => ({ id, name: GUNS[id].name, mag: g.have[id].mag, spare: g.have[id].spare, magazine: GUNS[id].magazine, starter: !!GUNS[id].starter })),
+      mag: g.have[g.equipped].mag, spare: g.have[g.equipped].spare, magazine: def.magazine,
+      reloading: g.reload ? { gun: g.reload.gun, left: Math.max(0, r2(g.reload.until - now)), total: GUNS[g.reload.gun].reload } : null,
+      ready: Math.max(0, r2(g.next - now)), seq: g.seq,
+    };
+  }
+  function shotsNear(x, z, range = 400) { return book.shots.filter((s) => Math.hypot(s.o[0] - x, s.o[2] - z) <= range || Math.hypot(s.e[0] - x, s.e[2] - z) <= range); }
+  const shooting = () => [...officers.entries()].map(([i, o]) => { const p = players[o.by]; return { i, at: p ? [r2(p.x), r2(p.z)] : [o.at.x, o.at.z], by: o.by }; });
+
+  const api = { draw, holster, equip, aim, reload, fire, owned, struck, confirmed, tick, view, look, trace, shotsNear, shooting, mayShoot, gunsOf, wound, officerDown, isShooting: (i) => officers.has(i) };
+  hub.guns = api;
+  return api;
+}
+
+return { GUN, GUNS, STARTER_GUN, gunOf, POLICE_FIRE, rayPost, rayWorld, createGuns };
+})();
+
 __modules["sim/talk.js"] = (function () {
 
+const { GUNS } = __modules["sim/guns.js"];
 const { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround, zoneWalkable, inPowerbikeHall, inCarHall } = __modules["sim/zone.js"];
 const { LANGUAGES, EXCHANGES, PEOPLES, phrase, greetingId, dayPart, sharedLanguage } = __modules["sim/culture.js"];
 const { POSE, RANGE } = __modules["sim/population.js"];
@@ -11182,7 +12281,7 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -11272,6 +12371,20 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
     if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }
+    v.peer = cleanText(peerId, 40).replace(/[^\w-]/g, '');
+    v.health = data.health !== null && data.health !== undefined && Number.isFinite(Number(data.health)) ? Math.round(n(data.health, 0, 100)) : null;
+    v.swimming = !!data.swimming; v.held = !!data.held;
+    const gn = data.gun && typeof data.gun === 'object' && GUNS[data.gun.id] ? data.gun : null;
+    v.gun = gn ? { id: gn.id, out: !!gn.out, aim: [0, 1, 2].includes(gn.aim) ? gn.aim : 0, crouch: !!gn.crouch, reload: gn.reload === null || gn.reload === undefined ? null : n(gn.reload, 0, 1), yaw: n(gn.yaw, -10, 10), pitch: n(gn.pitch, -1.5, 1.5) } : null;
+    v.crouch = !!(v.gun && v.gun.out && v.gun.crouch);
+    const point = (a) => (Array.isArray(a) && a.length === 3 && a.every((k) => Number.isFinite(Number(k))) ? a.map(Number) : null);
+    v.shots = (Array.isArray(data.shots) ? data.shots : []).slice(0, 12).map((sh) => {
+      if (!sh || typeof sh !== 'object' || !Number.isInteger(sh.q) || sh.q < 0) return null;
+      const o = point(sh.o), e = point(sh.e);
+      if (!o || !e || Math.hypot(o[0] - x, o[2] - z) > 4 || Math.hypot(e[0] - o[0], e[2] - o[2]) > 160) return null;
+      return { q: sh.q, ago: n(sh.ago, 0, 4), o, e, what: ['air', 'wall', 'ground', 'vehicle', 'person'].includes(sh.what) ? sh.what : 'air' };
+    }).filter(Boolean);
+    v.wounds = (Array.isArray(data.wounds) ? data.wounds : []).slice(0, 10).map((w) => (Array.isArray(w) && w.length >= 4 && Number.isInteger(w[0]) && w[0] >= 0 && w[0] < 32 && w.slice(1, 4).every((k) => Number.isFinite(Number(k)) && Math.abs(Number(k)) < 2) ? [w[0], Number(w[1]), Number(w[2]), Number(w[3]), n(w[4] === undefined ? 1 : w[4], 0.2, 4)] : null)).filter(Boolean);
     visitors.set(id, v);
     const said = data.say;
     if (!old) v.saySeq = said && Number.isInteger(said.seq) ? said.seq : 0;
@@ -11318,598 +12431,9 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
 return { CHAT, cleanText, cleanName, cleanHandle, createTalk };
 })();
 
-__modules["sim/actors.js"] = (function () {
-
-const { ZONE_SPOTS, zoneWalkable } = __modules["sim/zone.js"];
-const { graphNearest, graphRoute, graphPoint, graphSize } = __modules["sim/graph.js"];
-const { POSE } = __modules["sim/population.js"];
-
-const PACE = Object.freeze({ walk: 1.7, hurry: 3.2, run: 4.6, sprint: 5.2 });
-
-function clearLine(x0, z0, x1, z1, radius = 0.3) {
-  const gap = Math.hypot(x1 - x0, z1 - z0);
-  const steps = Math.max(1, Math.ceil(gap / 0.7));
-  for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(x0 + ((x1 - x0) * i) / steps, z0 + ((z1 - z0) * i) / steps, [], radius)) return false;
-  return true;
-}
-
-function wayBetween(x0, z0, x1, z1) {
-  if (clearLine(x0, z0, x1, z1)) return [[x1, z1]];
-  const a = graphNearest(x0, z0), b = graphNearest(x1, z1);
-  const nodes = graphRoute(a, b) || [b];
-  const points = nodes.map((n) => graphPoint(n));
-  while (points.length > 1 && clearLine(x0, z0, points[1][0], points[1][1])) points.shift();
-  while (points.length > 1 && clearLine(points[points.length - 2][0], points[points.length - 2][1], x1, z1)) points.pop();
-  points.push([x1, z1]);
-  return points;
-}
-
-function wayLength(x0, z0, points) {
-  let length = 0, x = x0, z = z0;
-  for (const [px, pz] of points) { length += Math.hypot(px - x, pz - z); x = px; z = pz; }
-  return length;
-}
-
-function createActors({ state, population }) {
-  if (!state.actors) state.actors = { list: {} };
-  const list = state.actors.list;
-  const people = population.people;
-  const probe = {};
-
-  const has = (i) => list[i] !== undefined;
-  const get = (i) => list[i] || null;
-
-  function take(i, t, from = null) {
-    if (list[i]) return list[i];
-    const at = population.locate(i, t, probe);
-    const indoors = at.pose === POSE.hidden;
-    const start = from || (indoors ? null : at);
-    if (!start) return null;
-    list[i] = { i, x: start.x, z: start.z, h: at.h || 0, pose: POSE.stand, mode: 'hold', speed: 0, path: [], act: '', until: 0, follow: null, keep: 0, goal: null, moving: false, home: false, replan: 0 };
-    return list[i];
-  }
-
-  function walkTo(i, x, z, speed = PACE.walk, act = '') {
-    const m = list[i];
-    if (!m) return null;
-    if (m.dead) return m;
-    m.path = wayBetween(m.x, m.z, x, z);
-    m.goal = { x, z };
-    m.speed = speed; m.mode = 'go'; m.follow = null; m.home = false;
-    if (act) m.act = act;
-    return m;
-  }
-
-  function follow(i, who, keep = 1.4, speed = PACE.run, act = '') {
-    const m = list[i];
-    if (!m) return null;
-    if (m.dead) return m;
-    m.follow = who; m.keep = keep; m.speed = speed; m.mode = 'follow'; m.home = false; m.replan = 0;
-    if (act) m.act = act;
-    return m;
-  }
-
-  function hold(i, act = '', pose = POSE.stand, until = 0) {
-    const m = list[i];
-    if (!m) return null;
-    if (m.dead) return m;
-    m.mode = 'hold'; m.path = []; m.follow = null; m.pose = pose; m.until = until; m.home = false;
-    if (act) m.act = act;
-    return m;
-  }
-
-  function flee(i, fromX, fromZ, speed = PACE.run, act = 'Running away', distance = 24) {
-    const m = list[i];
-    if (!m) return null;
-    if (m.dead) return m;
-    const ax = m.x - fromX, az = m.z - fromZ;
-    const len = Math.hypot(ax, az) || 1;
-    let best = null, bestScore = -Infinity;
-    for (let n = 0; n < graphSize(); n += 1) {
-      const [x, z] = graphPoint(n);
-      const d = Math.hypot(x - m.x, z - m.z);
-      if (d < distance * 0.5 || d > distance * 1.6) continue;
-      const away = ((x - m.x) * ax + (z - m.z) * az) / (len * d);
-      const score = away * 2 - Math.abs(d - distance) / distance;
-      if (score > bestScore) { bestScore = score; best = [x, z]; }
-    }
-    if (!best) best = [m.x + (ax / len) * 6, m.z + (az / len) * 6];
-    walkTo(i, best[0], best[1], speed, act);
-    return m;
-  }
-
-  function release(i, act = '') {
-    const m = list[i];
-    if (!m || m.dead) return;
-    m.home = true; m.follow = null; m.mode = 'go'; m.speed = PACE.walk; m.path = []; m.goal = null; m.replan = 0; m.pose = POSE.stand;
-    m.act = act || 'Going back';
-  }
-  function drop(i) { if (list[i] && list[i].dead) return; delete list[i]; }
-  function kill(i, act = 'Dead') { const m = list[i]; if (!m) return null; m.mode = 'hold'; m.path = []; m.follow = null; m.pose = POSE.lie; m.until = 0; m.home = false; m.act = act; m.dead = true; m.moving = false; return m; }
-  function remove(i) { const m = list[i]; if (!m || !m.dead) return; m.pose = POSE.hidden; m.act = 'Taken to the mortuary'; m.gone = true; }
-  const dead = (i) => !!(list[i] && list[i].dead);
-
-  function advance(m, budget) {
-    let moved = false;
-    while (budget > 0 && m.path.length) {
-      const [tx, tz] = m.path[0];
-      const dx = tx - m.x, dz = tz - m.z;
-      const gap = Math.hypot(dx, dz);
-      if (gap <= budget) { m.x = tx; m.z = tz; budget -= gap; m.path.shift(); if (gap > 0.001) moved = true; } else { m.x += (dx / gap) * budget; m.z += (dz / gap) * budget; m.h = Math.atan2(dx, dz); budget = 0; moved = true; }
-    }
-    return moved;
-  }
-
-  function tick(dt, t, real) {
-    for (const key of Object.keys(list)) {
-      const m = list[key];
-      m.moving = false;
-      if (m.dead) continue;
-      if (m.mode === 'hold') { if (m.until && real >= m.until) release(m.i); continue; }
-      if (m.mode === 'follow') {
-        const target = m.follow && typeof m.follow === 'object' ? m.follow : null;
-        const at = target ? resolve(target) : null;
-        if (!at) { hold(m.i); continue; }
-        const d = Math.hypot(at.x - m.x, at.z - m.z);
-        m.h = d > 0.05 ? Math.atan2(at.x - m.x, at.z - m.z) : m.h;
-        if (d <= m.keep) { m.path = []; continue; }
-        m.replan -= dt;
-        if (m.replan <= 0 || !m.path.length) {
-          m.path = wayBetween(m.x, m.z, at.x, at.z);
-          m.replan = 0.6;
-        }
-        const room = Math.max(0, wayLength(m.x, m.z, m.path) - m.keep);
-        m.moving = advance(m, Math.min(m.speed * dt, room));
-        continue;
-      }
-      if (m.home) {
-        m.replan -= dt;
-        if (m.replan <= 0) {
-          const plan = population.planned(m.i, t, probe);
-          if (Math.hypot(plan.x - m.x, plan.z - m.z) < 1.6) { drop(m.i); continue; }
-          m.path = wayBetween(m.x, m.z, plan.x, plan.z);
-          m.replan = plan.moving ? 1.5 : 6;
-        }
-      }
-      m.moving = advance(m, m.speed * dt);
-      if (!m.path.length) {
-        if (m.home) { m.replan = 0; continue; }
-        m.mode = 'hold'; m.arrived = real;
-      }
-    }
-  }
-
-  let resolver = () => null;
-  const resolve = (target) => resolver(target);
-
-  function hook(i, t, out) {
-    const m = list[i];
-    if (!m) return false;
-    population.planned(i, t, out);          // their spot and the rest, as their day has it
-    out.x = m.x; out.z = m.z; out.h = m.h;
-    out.pose = m.moving ? POSE.walk : m.pose;
-    out.moving = m.moving;
-    out.leg = null;
-    out.act = m.act || out.act;
-    if (!ZONE_SPOTS[out.spot]) out.spot = people[i].homeSpot;
-    return true;
-  }
-  population.addHook(hook, true);
-
-  return {
-    take, has, get, walkTo, follow, hold, flee, release, drop, tick, hook, kill, remove, dead,
-    setResolver(fn) { resolver = fn; },
-    count: () => Object.keys(list).length,
-    all: () => Object.values(list),
-  };
-}
-
-return { PACE, clearLine, wayBetween, wayLength, createActors };
-})();
-
-__modules["sim/conflict.js"] = (function () {
-
-const { GameError } = __modules["sim/registry.js"];
-const { zoneWalkable } = __modules["sim/zone.js"];
-const { POSE } = __modules["sim/population.js"];
-const { PACE } = __modules["sim/actors.js"];
-
-const HEALTH = Object.freeze({
-  max: 100,
-  critical: 20,        // at or below this: no fighting, and nobody may strike you
-  floor: 5,            // no blow takes a player below this
-  restPerHour: 2,      // regained each game hour, out of a fight and above critical
-  sleep: 30,           // regained by a night's sleep at home
-  yield: 25,           // a townsperson at or below this has had enough
-});
-
-const MOVES = Object.freeze({
-  punch: Object.freeze({ id: 'punch', name: 'Punch', damage: 6, range: 1.7, cooldown: 0.45, energy: 1 }),
-  heavy: Object.freeze({ id: 'heavy', name: 'Heavy punch', damage: 14, range: 1.7, cooldown: 1.1, energy: 3 }),
-  kick: Object.freeze({ id: 'kick', name: 'Kick', damage: 10, range: 2.0, cooldown: 0.9, energy: 2, push: 0.7 }),
-  shove: Object.freeze({ id: 'shove', name: 'Shove', damage: 2, range: 1.7, cooldown: 0.8, energy: 1, push: 1.6, stagger: 0.9 }),
-  grab: Object.freeze({ id: 'grab', name: 'Grab', damage: 0, range: 1.4, cooldown: 1.6, energy: 2, hold: 1.6 }),
-});
-
-const COMBAT = Object.freeze({
-  engage: 6,               // metres within which someone can be squared up to
-  leash: 16,               // a townsperson defending themselves does not chase further than this
-  calm: 20,                // real seconds without being struck before they let it go
-  recovery: 0.28,          // real seconds after any move before the next
-  blockCut: 0.75, blockCutHeavy: 0.5, blockArc: 1.75,     // a block takes this share off a blow from the front (radians either side)
-  dodgeWindow: 0.45, dodgeEvery: 1.0, dodgeStep: 1.6, dodgeEnergy: 2,
-  regrab: 4,               // real seconds before someone let go can be grabbed again
-  swing: Object.freeze([1.1, 1.8]),                        // real seconds between a townsperson's blows
-  npcPunch: 5, npcHeavy: 10, npcKick: 8,
-  minAge: 16,
-  remember: 2 * 3600,      // game seconds a townsperson's bruises are kept
-});
-
-const LINES = Object.freeze({
-  calm: [['Easy now. There is no need for that.', 'Take am easy. No be fight.'], ['My friend, go your way.', 'My friend, waka your way.'], ['I am not looking for trouble.', 'I no dey find trouble.']],
-  plead: [['Please, leave me alone!', 'Abeg, leave me!'], ['What did I do to you?', 'Wetin I do you?'], ['I do not want trouble!', 'I no want wahala!']],
-  warn: [['Do not touch me again.', 'No touch me again o.'], ['Try that once more and see.', 'Try am again, you go see.']],
-  fight: [['Enough! You asked for it.', 'E don do! Na you find am.'], ['So you will not stop?', 'So you no go stop?']],
-  yield: [['Enough, enough. I am done.', 'E don do, e don do.'], ['Stop. You have won.', 'Stop. You don win.']],
-  done: [['Go. And do not come back.', 'Dey go. No come back.'], ['Let that be the end of it.', 'Make e end for here.']],
-});
-
-const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
-
-function createConflict({ state, players, population, actors, talk, emit, rng, hub }) {
-  if (!state.conflict) state.conflict = { npc: {}, firsts: {}, events: [], seq: 0 };
-  const book = state.conflict;
-  const people = population.people;
-  const probe = {};
-  const real = () => state.real;
-
-  for (const id of Object.keys(players)) { const p = players[id]; if (!Number.isFinite(p.health)) p.health = HEALTH.max; if (p.fight === undefined) p.fight = null; }
-
-  const critical = (p) => p.health <= HEALTH.critical;
-  const guarding = (p, now) => !!(p.fight && p.fight.blocking && now >= p.fight.busyUntil);
-  const whereNpc = (i) => population.locate(i, state.t, probe);
-
-
-  function speak(i, kind) {
-    const who = people[i];
-    const at = whereNpc(i);
-    const pick = LINES[kind][Math.floor(rng.next() * LINES[kind].length)];
-    const pidgin = who.langs.includes('pcm') && who.lang !== 'en';
-    talk.say({ who: `n:${i}`, name: who.short, text: pidgin ? pick[1] : pick[0], lang: pidgin ? 'pcm' : 'en', gloss: pidgin ? pick[0] : null, x: at.x, z: at.z, kind: 'shout', range: 26, hold: 3.2 });
-  }
-
-  function show(event) {
-    book.seq += 1;
-    book.events.push({ id: book.seq, at: real(), ...event });
-    if (book.events.length > 40) book.events.splice(0, book.events.length - 40);
-  }
-
-
-  function goCritical(p) {
-    p.fight = null;
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && rec.mood === 'fighting') settle(Number(key), rec, 'done'); }
-    emit(p.id, { type: 'critical', title: 'Critical health', text: 'You cannot fight. Get to a hospital: walk, ride, or call an ambulance from your phone.' });
-  }
-
-  function hurt(p, amount) {
-    const before = p.health;
-    p.health = Math.max(HEALTH.floor, Math.round(p.health - amount));
-    p.struckAt = real();
-    if (before > HEALTH.critical && p.health <= HEALTH.critical) goCritical(p);
-    return before - p.health;
-  }
-
-  function injure(p, amount) {
-    const before = p.health;
-    p.health = Math.max(0, Math.round(p.health - amount));
-    p.struckAt = real();
-    if (before > HEALTH.critical && p.health <= HEALTH.critical && p.health > 0) goCritical(p);
-    return before - p.health;
-  }
-
-  function heal(p, to) { p.health = Math.max(p.health, Math.min(HEALTH.max, Math.round(to))); return p.health; }
-
-
-  function nerve(i) {
-    const who = people[i];
-    let n = 0.45;
-    const has = (t) => who.traits.includes(t);
-    if (has('quick-tempered')) n += 0.3;
-    if (has('proud')) n += 0.2;
-    if (has('stern')) n += 0.15;
-    if (has('shy')) n -= 0.3;
-    if (has('gentle')) n -= 0.3;
-    if (has('patient')) n -= 0.15;
-    if (has('reserved')) n -= 0.1;
-    if (who.job === 'police' || who.job === 'guard') n += 0.45;
-    if (who.age > 55) n -= 0.25;
-    if (who.age < 20) n -= 0.1;
-    return Math.max(0, Math.min(1, n));
-  }
-
-  function npcRec(i, by) {
-    let rec = book.npc[i];
-    if (!rec || (by && rec.by !== by && rec.mood !== 'fighting')) { rec = { health: rec ? rec.health : HEALTH.max, hits: 0, by, firstAt: real(), lastAt: real(), mood: 'calm', swingAt: 0, heldUntil: 0, staggerUntil: 0, farSince: 0, at: state.t }; book.npc[i] = rec; }
-    return rec;
-  }
-
-  function settle(i, rec, mood) {
-    rec.mood = mood;
-    if (mood === 'down') { actors.take(i, state.t); actors.hold(i, 'Sitting down, hurt', POSE.sit, real() + 25); speak(i, 'yield'); if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'cry' : 'sad', { seconds: 25, upper: true, loop: true }); } else { if (mood === 'done') speak(i, 'done'); if (actors.has(i)) actors.release(i); }
-  }
-
-  function react(i, rec, attacker) {
-    const n = nerve(i) + (real() < rec.heldUntil ? 0.2 : 0);
-    actors.take(i, state.t);
-    if (rec.health <= HEALTH.yield) { settle(i, rec, 'down'); if (hub.justice) hub.justice.worsen(rec.crime, 'assault_serious'); return 'down'; }
-    if (rec.mood === 'fighting') return 'fighting';
-    if (people[i].job === 'police' || (rec.hits >= 2 && (n >= 0.45 || rec.mood === 'warned')) || (rec.hits === 1 && n >= 0.95)) {
-      rec.mood = 'fighting'; rec.swingAt = real() + 0.7;
-      actors.follow(i, { kind: 'player', id: attacker.id }, 1.2, PACE.hurry, 'Defending themselves');
-      speak(i, 'fight');
-      if (hub.reactions) hub.reactions.react(i, 'box');
-      return 'fighting';
-    }
-    if (rec.hits === 1 && n >= 0.75) {
-      rec.mood = 'warned';
-      actors.hold(i, 'Standing their ground', POSE.stand, real() + 8);
-      const m = actors.get(i); if (m) m.h = Math.atan2(attacker.x - m.x, attacker.z - m.z);
-      speak(i, 'warn');
-      if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'box' : 'stomp');
-      return 'warned';
-    }
-    rec.mood = 'fled';
-    actors.flee(i, attacker.x, attacker.z, rec.hits >= 2 ? PACE.sprint : PACE.run, 'Running away');
-    speak(i, 'plead');
-    if (hub.reactions) hub.reactions.react(i, 'flee', { seconds: 6, loop: true });
-    return 'fled';
-  }
-
-
-  function targetOf(p, target) {
-    if (!target || (target.kind !== 'npc' && target.kind !== 'player')) throw new GameError('NO_TARGET', 'There is nobody there to face.');
-    if (target.kind === 'player') {
-      const q = players[target.id];
-      if (!q || q.id === p.id) throw new GameError('NO_TARGET', 'There is nobody there to face.');
-      return { kind: 'player', id: q.id, player: q, x: q.x, z: q.z, name: q.name };
-    }
-    const i = Number(target.id);
-    if (!Number.isInteger(i) || i < 0 || i >= population.count) throw new GameError('NO_TARGET', 'There is nobody there to face.');
-    const at = whereNpc(i);
-    if (at.pose === POSE.hidden || at.pose === POSE.ride) throw new GameError('NO_TARGET', 'There is nobody there to face.');
-    return { kind: 'npc', id: i, x: at.x, z: at.z, name: people[i].short, lying: at.pose === POSE.lie };
-  }
-
-  function mayFight(p) {
-    if (critical(p)) throw new GameError('CRITICAL', 'Your health is critical. You cannot fight.');
-    if (p.custody) throw new GameError('IN_CUSTODY', 'You are in the hands of the police.');
-    if (p.driving || (p.riding !== null && p.riding !== undefined) || (p.astride !== null && p.astride !== undefined) || p.incar) throw new GameError('NOT_ON_FOOT', 'You cannot fight from a vehicle.');
-    if (p.carried) throw new GameError('CARRIED', 'You are in the ambulance.');
-    if (p.swimming) throw new GameError('SWIMMING', 'You are in the river.');
-  }
-
-  function engage(p, target) {
-    mayFight(p);
-    const who = targetOf(p, target);
-    if (Math.hypot(who.x - p.x, who.z - p.z) > COMBAT.engage) throw new GameError('TOO_FAR', 'You are too far away. Walk closer.');
-    if (who.kind === 'npc') {
-      if (people[who.id].age < COMBAT.minAge) throw new GameError('A_CHILD', 'That is a child. You will not.');
-      if (who.lying) throw new GameError('NO_TARGET', 'They are lying down. Leave them be.');
-      const rec = book.npc[who.id];
-      if (rec && rec.mood === 'down') throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
-      if (!rec || rec.mood === 'calm') { actors.take(who.id, state.t); actors.hold(who.id, 'Keeping an eye on you', POSE.stand, real() + 2.5); const m = actors.get(who.id); if (m) m.h = Math.atan2(p.x - m.x, p.z - m.z); speak(who.id, 'calm'); }
-    } else {
-      if (critical(who.player) || who.player.down || who.player.dead) throw new GameError('TARGET_DOWN', `${who.name} is badly hurt. Leave them.`);
-      emit(who.id, { type: 'note', text: `${p.name} is squaring up to you. You can walk away, or stand and fight.` });
-    }
-    p.fight = { target: { kind: who.kind, id: who.id }, since: real(), ready: {}, busyUntil: 0, blocking: false, dodgeUntil: 0, dodgeReady: 0 };
-    p.heading = Math.atan2(who.x - p.x, who.z - p.z);
-    return { fighting: true, target: { kind: who.kind, id: who.id, name: who.name } };
-  }
-
-  function disengage(p) {
-    if (!p.fight) return { fighting: false };
-    if (real() < (p.heldUntil || 0)) throw new GameError('HELD', 'You are being held. Shove them off first.');
-    p.fight = null;
-    return { fighting: false };
-  }
-
-  function pushed(fromX, fromZ, x, z, metres) {
-    const d = Math.hypot(x - fromX, z - fromZ) || 1;
-    const ux = (x - fromX) / d, uz = (z - fromZ) / d;
-    for (let m = metres; m > 0.15; m -= 0.25) if (zoneWalkable(x + ux * m, z + uz * m)) return { x: x + ux * m, z: z + uz * m };
-    return { x, z };
-  }
-
-  function act(p, move) {
-    const f = p.fight;
-    if (!f) throw new GameError('NOT_FIGHTING', 'You are not squared up to anyone.');
-    mayFight(p);
-    const def = MOVES[move];
-    if (!def) throw new GameError('NO_MOVE', 'There is no such move.');
-    const now = real();
-    const who = targetOf(p, f.target);
-    if (who.kind === 'npc' && book.npc[who.id] && book.npc[who.id].mood === 'down') throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
-    if (who.kind === 'player' && who.player.swimming) throw new GameError('NO_TARGET', `${who.name} is in the river.`);
-    if (who.kind === 'player' && critical(who.player)) throw new GameError('TARGET_DOWN', `${who.name} is badly hurt. Leave them.`);
-    if (now < (p.heldUntil || 0) && move !== 'shove') throw new GameError('HELD', 'You are being held. Shove them off first.');
-    if (now < (p.staggerUntil || 0)) throw new GameError('STAGGERED', 'You are off balance.');
-    if (now < f.busyUntil || now < (f.ready[move] || 0)) throw new GameError('NOT_READY', 'Not yet.');
-    if (p.energy < def.energy) throw new GameError('TIRED', 'You are too tired to swing. Eat or rest.');
-
-    f.ready[move] = now + def.cooldown;
-    f.busyUntil = now + COMBAT.recovery;        // and for that long the guard is down
-    p.energy = Math.max(0, p.energy - def.energy);
-    const d = Math.hypot(who.x - p.x, who.z - p.z);
-    if (d > 0.05) p.heading = Math.atan2(who.x - p.x, who.z - p.z);
-    const out = { move, hit: false, blocked: false, damage: 0, target: { kind: who.kind, id: who.id, name: who.name }, energy: p.energy };
-    const shown = { kind: move, from: `p:${p.id}`, to: who.kind === 'npc' ? `n:${who.id}` : `p:${who.id}`, x: who.x, z: who.z, hit: false, blocked: false };
-    if (d > def.range) { out.reason = 'out of reach'; show({ ...shown, kind: 'miss' }); return out; }
-    p.held = null;
-
-    if (who.kind === 'npc') {
-      const i = who.id;
-      const rec = npcRec(i, p.id);
-      let damage = def.damage;
-      if (rec.mood === 'fighting' && now >= rec.heldUntil) {
-        const roll = rng.next();
-        if (roll < 0.12) { out.reason = 'slipped'; show({ ...shown, kind: 'miss' }); return out; }
-        if (roll < 0.42) { out.blocked = true; damage = Math.round(damage * (1 - (move === 'heavy' ? COMBAT.blockCutHeavy : COMBAT.blockCut))); }
-      }
-      rec.by = p.id; rec.hits += 1; rec.lastAt = now; rec.at = state.t;
-      rec.health = Math.max(HEALTH.critical, rec.health - damage);
-      out.hit = true; out.damage = damage; out.targetHealth = rec.health;
-      actors.take(i, state.t);
-      const m = actors.get(i);
-      if (def.push && m) { const to = pushed(p.x, p.z, m.x, m.z, def.push); m.x = to.x; m.z = to.z; }
-      if (def.stagger) { rec.staggerUntil = now + def.stagger; rec.swingAt = Math.max(rec.swingAt, now + def.stagger); }
-      if (def.hold && now >= (rec.grabFreeAt || 0)) { rec.heldUntil = now + def.hold; rec.grabFreeAt = now + def.hold + COMBAT.regrab; out.held = true; if (m && rec.mood !== 'fighting') actors.hold(i, 'Held', POSE.stand, now + def.hold); }
-      if (hub.justice && def.id !== 'grab') { const crime = hub.justice.offence(p, 'assault', { victim: { kind: 'npc', id: i, name: people[i].name }, x: who.x, z: who.z, crime: rec.crime && real() - rec.firstAt < 90 ? rec.crime : null }); rec.crime = crime ? crime.id : rec.crime; if (crime && crime.isNew) rec.firstAt = now; }
-      out.reaction = def.id === 'grab' && rec.hits === 1 && !out.held ? rec.mood : react(i, rec, p);
-      if (hub.reactions && def.id === 'kick' && out.reaction === 'fled') hub.reactions.react(i, 'hurt');
-      if (hub.reactions && def.id !== 'grab') hub.reactions.witnessed(who.x, who.z, [i]);
-      show({ ...shown, hit: true, blocked: out.blocked });
-      return out;
-    }
-
-    const q = who.player;
-    const qf = q.fight;
-    if (qf && now < qf.dodgeUntil) { out.reason = 'slipped'; show({ ...shown, kind: 'miss' }); return out; }
-    let damage = def.damage;
-    const facing = Math.abs(angleGap(Math.atan2(p.x - q.x, p.z - q.z), q.heading)) < COMBAT.blockArc;
-    if (guarding(q, now) && facing) { out.blocked = true; damage = Math.round(damage * (1 - (move === 'heavy' ? COMBAT.blockCutHeavy : COMBAT.blockCut))); }
-    const pair = [p.id, q.id].sort().join('|');
-    const first = book.firsts[pair];
-    const aggressor = first && now - first.at < 90 ? first.by : p.id;
-    if (!first || now - first.at >= 90) book.firsts[pair] = { by: p.id, at: now, crime: null }; else first.at = now;
-    out.hit = true;
-    out.damage = hurt(q, damage);
-    out.targetHealth = q.health;
-    if (def.push) { const to = pushed(p.x, p.z, q.x, q.z, def.push); q.x = to.x; q.z = to.z; q.lastMoveAt = now; }
-    if (def.stagger) q.staggerUntil = now + def.stagger;
-    if (def.hold && now >= (q.grabFreeAt || 0)) { q.heldUntil = now + def.hold; q.grabFreeAt = now + def.hold + COMBAT.regrab; q.held = p.id; out.held = true; }
-    if (move === 'shove') { p.heldUntil = 0; }
-    if (aggressor === p.id && hub.justice && def.id !== 'grab') {
-      const entry = book.firsts[pair];
-      const crime = hub.justice.offence(p, 'assault', { victim: { kind: 'player', id: q.id, name: q.name }, x: q.x, z: q.z, crime: entry.crime || null });
-      if (crime) { entry.crime = crime.id; if (critical(q)) hub.justice.worsen(crime.id, 'assault_serious'); }
-    }
-    emit(q.id, { type: 'struck', by: p.name, move, damage: out.damage, health: q.health, blocked: out.blocked });
-    show({ ...shown, hit: true, blocked: out.blocked });
-    return out;
-  }
-
-  function block(p, on) {
-    if (!p.fight) throw new GameError('NOT_FIGHTING', 'You are not squared up to anyone.');
-    p.fight.blocking = !!on;
-    return { blocking: guarding(p, real()), held: p.fight.blocking };
-  }
-
-  function dodge(p, { dx = 0, dz = 0 } = {}) {
-    const f = p.fight;
-    if (!f) throw new GameError('NOT_FIGHTING', 'You are not squared up to anyone.');
-    mayFight(p);
-    const now = real();
-    if (now < (p.heldUntil || 0)) throw new GameError('HELD', 'You are being held. Shove them off first.');
-    if (now < f.dodgeReady) throw new GameError('NOT_READY', 'Not yet.');
-    if (p.energy < COMBAT.dodgeEnergy) throw new GameError('TIRED', 'You are too tired.');
-    p.energy -= COMBAT.dodgeEnergy;
-    f.dodgeReady = now + COMBAT.dodgeEvery;
-    f.dodgeUntil = now + COMBAT.dodgeWindow;
-    let ux = Number(dx) || 0, uz = Number(dz) || 0;
-    const len = Math.hypot(ux, uz);
-    if (len < 0.1) { ux = -Math.sin(p.heading); uz = -Math.cos(p.heading); } else { ux /= len; uz /= len; }     // straight back, if no way was given
-    for (let m = COMBAT.dodgeStep; m > 0.2; m -= 0.3) if (zoneWalkable(p.x + ux * m, p.z + uz * m)) { p.x += ux * m; p.z += uz * m; break; }
-    p.lastMoveAt = now;
-    show({ kind: 'dodge', from: `p:${p.id}`, to: null, x: p.x, z: p.z, hit: false, blocked: false });
-    return { x: p.x, z: p.z, until: f.dodgeUntil, energy: p.energy };
-  }
-
-
-  function tick(dt) {
-    const now = real();
-    for (const key of Object.keys(book.npc)) {
-      const i = Number(key);
-      const rec = book.npc[key];
-      if (rec.mood !== 'fighting') {
-        if (state.t - rec.at > (hub.span ? hub.span(COMBAT.remember) : COMBAT.remember) && !actors.has(i)) delete book.npc[key];
-        continue;
-      }
-      const p = players[rec.by];
-      if (!p || critical(p) || p.custody || p.driving || p.carried) { settle(i, rec, 'done'); continue; }
-      const m = actors.get(i);
-      if (!m) { rec.mood = 'done'; continue; }
-      const d = Math.hypot(p.x - m.x, p.z - m.z);
-      if (d > COMBAT.leash) { if (!rec.farSince) rec.farSince = now; } else rec.farSince = 0;
-      if (now - rec.lastAt > COMBAT.calm || (rec.farSince && now - rec.farSince > 4)) { settle(i, rec, 'done'); continue; }
-      if (d > MOVES.punch.range || now < rec.swingAt || now < rec.heldUntil || now < rec.staggerUntil) continue;
-      const roll = rng.next();
-      const heavy = roll < 0.25;
-      const kick = !heavy && hub.reactions && hub.reactions.pick([0, 0, 0, 1]) === 1;
-      rec.swingAt = now + COMBAT.swing[0] + rng.next() * (COMBAT.swing[1] - COMBAT.swing[0]);
-      const f = p.fight;
-      if (hub.reactions) hub.reactions.react(i, kick ? 'kick' : heavy ? 'punch' : 'jab');
-      const shown = { kind: kick ? 'kick' : heavy ? 'heavy' : 'punch', from: `n:${i}`, to: `p:${p.id}`, x: p.x, z: p.z, hit: false, blocked: false };
-      if (f && now < f.dodgeUntil) { show({ ...shown, kind: 'miss' }); continue; }
-      let damage = kick ? COMBAT.npcKick : heavy ? COMBAT.npcHeavy : COMBAT.npcPunch;
-      const facing = Math.abs(angleGap(Math.atan2(m.x - p.x, m.z - p.z), p.heading)) < COMBAT.blockArc;
-      const blocked = guarding(p, now) && facing;
-      if (blocked) damage = Math.round(damage * (1 - (heavy ? COMBAT.blockCutHeavy : COMBAT.blockCut)));
-      const lost = hurt(p, damage);
-      emit(p.id, { type: 'struck', by: people[i].short, move: kick ? 'kick' : heavy ? 'heavy' : 'punch', damage: lost, health: p.health, blocked });
-      show({ ...shown, hit: true, blocked });
-    }
-    for (const id of Object.keys(players)) { const p = players[id]; if (p.held && now >= (p.heldUntil || 0)) p.held = null; }
-    while (book.events.length && now - book.events[0].at > 4) book.events.shift();
-  }
-
-  function hourly() {
-    for (const id of Object.keys(players)) {
-      const p = players[id];
-      if (p.fight || critical(p) || p.health >= HEALTH.max) continue;
-      if (real() - (p.struckAt || -1e9) < 30) continue;
-      p.health = Math.min(HEALTH.max, p.health + HEALTH.restPerHour);
-    }
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood !== 'fighting') rec.health = Math.min(HEALTH.max, rec.health + 6); }
-  }
-
-  function selfView(p) {
-    const f = p.fight;
-    const now = real();
-    let target = null;
-    if (f) {
-      if (f.target.kind === 'npc') { const rec = book.npc[f.target.id]; const at = whereNpc(f.target.id); target = { kind: 'npc', id: f.target.id, name: people[f.target.id].short, health: rec ? rec.health : HEALTH.max, mood: rec ? rec.mood : 'calm', x: at.x, z: at.z }; } else { const q = players[f.target.id]; target = q ? { kind: 'player', id: q.id, name: q.name, health: q.health, mood: q.fight ? 'fighting' : 'calm', x: q.x, z: q.z } : null; }
-    }
-    return {
-      health: p.health, critical: critical(p),
-      fight: f ? { target, blocking: guarding(p, now), ready: Object.fromEntries(Object.keys(MOVES).map((k) => [k, Math.max(0, Number(((f.ready[k] || 0) - now).toFixed(2)))])), dodgeIn: Math.max(0, Number((f.dodgeReady - now).toFixed(2))), held: now < (p.heldUntil || 0), staggered: now < (p.staggerUntil || 0) } : null,
-      against: Object.keys(book.npc).filter((k) => book.npc[k].by === p.id && book.npc[k].mood === 'fighting').map(Number),
-    };
-  }
-
-  function eventsNear(x, z, range = 60) { return book.events.filter((e) => Math.hypot(e.x - x, e.z - z) <= range); }
-
-  function moods(x, z, range = 40) {
-    const out = [];
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood === 'calm') continue; const at = whereNpc(Number(key)); if (Math.hypot(at.x - x, at.z - z) <= range) out.push({ i: Number(key), mood: rec.mood, health: rec.health }); }
-    return out;
-  }
-
-  function stop(p) {
-    p.fight = null;
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && rec.mood === 'fighting') { rec.mood = 'done'; if (actors.has(Number(key))) actors.release(Number(key)); } }
-  }
-
-  const api = { engage, disengage, act, block, dodge, tick, hourly, hurt, injure, heal, critical, selfView, eventsNear, moods, stop, nerve, record: (i) => book.npc[i] || null };
-  hub.conflict = api;
-  return api;
-}
-
-return { HEALTH, MOVES, COMBAT, createConflict };
-})();
-
 __modules["sim/impact.js"] = (function () {
 
+const { HEALTH } = __modules["sim/conflict.js"];
 const { GameError } = __modules["sim/registry.js"];
 const { zoneWalkable, ZONE_RESIDENTS } = __modules["sim/zone.js"];
 
@@ -12088,7 +12612,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     const harm = Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1)));
     const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
     rec.at = now; rec.t = state.t;
-    rec.health = Math.max(0, rec.health - harm);
+    rec.health = Math.max(Math.min(rec.health, HEALTH.critical), rec.health - harm);
     rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + harm * IMPACT.bleed.perHarm);
     rec.hits = (rec.hits || 0) + 1;
     const to = thrown(m.x, m.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
@@ -12285,6 +12809,8 @@ const LAW = Object.freeze({
     resisting: Object.freeze({ name: 'Resisting arrest', severity: 1, fine: 10 * TR, hours: 1 }),
     dangerous_driving: Object.freeze({ name: 'Dangerous driving causing harm', severity: 3, fine: 10 * TR, hours: 4 }),
     death_by_driving: Object.freeze({ name: 'Causing death by dangerous driving', severity: 4, fine: 100 * TR, hours: 8, death: true }),
+    shooting: Object.freeze({ name: 'Shooting at someone', severity: 3, fine: 10 * TR, hours: 4 }),
+    shooting_police: Object.freeze({ name: 'Shooting at a police officer', severity: 4, fine: 10 * TR, hours: 6 }),
   }),
   compensation: 300,               // paid to a player who was put in hospital, out of the culprit's pocket (150 TR)
   mostHours: 8,
@@ -12555,6 +13081,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
   function officerTick(o, dt) {
     const m = actors.get(o.i);
     if (!m) { delete book.officers[o.i]; return; }
+    if (hub.guns && hub.guns.isShooting && hub.guns.isShooting(o.i)) return;
     const now = real();
     const p = o.suspect ? players[o.suspect] : null;
 
@@ -13168,6 +13695,26 @@ function createCare({ state, players, ledger, accounts, emit, hub }) {
   }
   const callView = (call) => ({ id: call.id, fee: call.fee, status: call.status, txn: call.txn, metres: Math.round(Math.hypot(van.x - call.x, van.z - call.z)) });
 
+  if (!book.pending) book.pending = {};
+  function summon(p) {
+    if (p.carried || p.custody) return false;
+    try { callAmbulance(p); delete book.pending[p.id]; return true; } catch (error) {
+      if (!(error instanceof GameError)) throw error;
+      book.pending[p.id] = real();
+      return false;
+    }
+  }
+  function summonWaiting() {
+    for (const id of Object.keys(book.pending)) {
+      const p = players[id];
+      if (!p || p.health > HEALTH.critical || p.carried || p.custody) { delete book.pending[id]; continue; }
+      if (real() - book.pending[id] < 1) continue;
+      book.pending[id] = real();
+      if (van.mode !== 'parked') continue;
+      try { callAmbulance(p); delete book.pending[id]; emit(p.id, { type: 'note', text: 'You are badly hurt. An ambulance is on its way.' }); } catch (error) { if (!(error instanceof GameError)) throw error; }
+    }
+  }
+
   function drive(dt) {
     let budget = A.speed * dt;
     while (budget > 0 && van.path.length) {
@@ -13187,6 +13734,7 @@ function createCare({ state, players, ledger, accounts, emit, hub }) {
   function tick(dt) {
     const now = real();
     for (const id of Object.keys(book.quotes)) { const q = book.quotes[id]; if (now > q.expires + 600) delete book.quotes[id]; }
+    summonWaiting();
     if (van.mode === 'parked') return;
     const call = van.call ? book.calls[van.call] : null;
     const p = call ? players[call.player] : null;
@@ -13230,7 +13778,7 @@ function createCare({ state, players, ledger, accounts, emit, hub }) {
   const audit = () => ({ ...book.totals });
   const nearest = (x, z) => ['hospital', 'clinic'].map((id) => { const s = zoneService(id); return { id, name: s.name, x: s.x, z: s.z, kind: CARE.places[id].kind, metres: Math.round(Math.hypot(s.x - x, s.z - z)) }; }).sort((a, b) => a.metres - b.metres);
 
-  const api = { quote, bargain, pay, setPrices, tariff, ambulanceInfo, callAmbulance, tick, ambulanceView, box, selfView, audit, nearest, quoteOf: (id) => book.quotes[id] || null };
+  const api = { quote, bargain, pay, setPrices, tariff, ambulanceInfo, callAmbulance, summon, tick, ambulanceView, box, selfView, audit, nearest, quoteOf: (id) => book.quotes[id] || null };
   hub.care = api;
   void zoneWalkable;
   return api;
@@ -13809,6 +14357,7 @@ const { createConflict, HEALTH, MOVES, COMBAT } = __modules["sim/conflict.js"];
 const { createImpact, IMPACT, BODY } = __modules["sim/impact.js"];
 const { createJustice, LAW } = __modules["sim/justice.js"];
 const { createCare, CARE } = __modules["sim/care.js"];
+const { createGuns, GUN, GUNS } = __modules["sim/guns.js"];
 const { createPhone } = __modules["sim/phone.js"];
 const { createHijack, HIJACK } = __modules["sim/hijack.js"];
 const { createMarketBridge } = __modules["sim/market.js"];
@@ -13822,14 +14371,14 @@ const TIME_SCALE = 30;                 // game seconds per real second (a 48-min
 const SIM_START = 7.5 * 3600;          // 07:30 on day one
 const SPEED = Object.freeze({ walk: 2.4, run: 5.6, rain: 0.9 });
 const REACH = 4.5;
-const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$|cars\\.owned$';
+const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$|cars\\.owned$|gun\\.owned$|gun\\.struck$|gun\\.holster$|gun\\.confirmed$';
 const WHILE_DRIVING = new RegExp(`^(vehicle\\.|run\\.|${ALWAYS})`);
 const WHILE_RIDING = new RegExp(`^(okada\\.alight$|${ALWAYS})`);
 const WHILE_ASTRIDE = new RegExp(`^(moto\\.|${ALWAYS})`);
 const WHILE_INCAR = new RegExp(`^(car\\.|${ALWAYS})`);
-const IN_CUSTODY = /^(bikes\.owned$|cars\.owned$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
-const WHILE_CARRIED = /^(phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
-const WHILE_TAKING = /^(hijack\.cancel$|chat\.|settings\.|people\.)/;
+const IN_CUSTODY = /^(bikes\.owned$|cars\.owned$|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
+const WHILE_CARRIED = /^(gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
+const WHILE_TAKING = /^(hijack\.cancel$|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|chat\.|settings\.|people\.)/;
 const REQUESTS_KEPT = 40;                     // answers remembered for each player, to answer a request sent twice
 const SCRIPTED_WEATHER = [[9 + 40 / 60, 'clear'], [10 + 10 / 60, 'cloudy'], [11 + 20 / 60, 'rain'], [12, 'cloudy'], [16.5, 'clear']];
 const WEATHER_NEXT = { clear: [['clear', 0.55], ['cloudy', 0.45]], cloudy: [['clear', 0.45], ['rain', 0.4], ['storm', 0.15]], rain: [['cloudy', 0.7], ['rain', 0.2], ['storm', 0.1]], storm: [['rain', 0.6], ['cloudy', 0.4]] };
@@ -13868,7 +14417,7 @@ const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
 
 const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
 const JUMP_EVERY = 1.4;
-const WHILE_SWIMMING = /^(move$|swim\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
+const WHILE_SWIMMING = /^(move$|swim\.|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
 function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, rng, saved, wallClock = null, people = undefined }) {
   const scale = wallClock ? 1 : TIME_SCALE;
@@ -13907,6 +14456,8 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   const justice = createJustice({ state, players: state.players, ledger, accounts: economy.accounts, population, actors, talk, emit, rng, hub });
   const care = createCare({ state, players: state.players, ledger, accounts: economy.accounts, emit, hub });
   const impact = createImpact({ state, players: state.players, population, actors, conflict, talk, emit, rng, hub, door: CARE.ambulance.door, visitors: () => talk.visitors() });
+  const guns = createGuns({ state, players: state.players, population, actors, conflict, talk, emit, rng: makeRng(0x6a11), hub,
+    boxes: () => [...vehicles.boxes().map((b) => ({ ...b, top: 1.9 })), ...parkedCars().map((b) => ({ ...b, top: 1.5 })), { ...care.box(), top: 2.6 }, ...structureBoxes().map((b) => ({ ...b, top: 3.4 }))] });
   const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: scale });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });
@@ -14052,6 +14603,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     justice.tick(dtReal);
     care.tick(dtReal);
     impact.tick();
+    guns.tick(dtReal);
     stepGate(dtReal);
     if (!quiet) reactions.tick(dtReal, Object.values(state.players).filter((q) => !q.custody && !q.carried));
     phone.tick();
@@ -14240,7 +14792,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
         const at = population.locate(i, state.t, {});
         if (Math.hypot(at.x - p.x, at.z - p.z) > RANGE.scan + 20) continue;
         const who = population.people[i];
-        out.push({ index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig });
+        out.push({ index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig, ...(who.job === 'police' ? { police: true } : {}) });
       }
       return { people: out };
     },
@@ -14444,6 +14996,16 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       if (!conflict.critical(p)) p.health = Math.min(HEALTH.max, p.health + HEALTH.sleep);
       return { hours: hoursToMorning, energy: p.energy, health: p.health };
     },
+
+    'gun.owned'(p, body) { return { gun: guns.owned(p, body || {}) }; },
+    'gun.draw'(p, body) { return { gun: guns.draw(p, body || {}) }; },
+    'gun.holster'(p) { guns.holster(p); return { gun: guns.view(p) }; },
+    'gun.equip'(p, body) { return { gun: guns.equip(p, body || {}) }; },
+    'gun.aim'(p, body) { return guns.aim(p, body || {}); },
+    'gun.reload'(p) { return guns.reload(p); },
+    'gun.fire'(p, body) { return guns.fire(p, body || {}); },
+    'gun.struck'(p, body) { return guns.struck(p, body || {}); },
+    'gun.confirmed'(p, body) { return guns.confirmed(p, body || {}); },
 
     'combat.engage'(p, { target }) { return conflict.engage(p, target); },
     'combat.act'(p, { move }) { return conflict.act(p, String(move)); },
@@ -14711,6 +15273,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       people: population.around(viewerId || 'spectator', eye.x, eye.z, state.t, state.real),
       okadas: okada.list(eye.x, eye.z, viewerId),
       fights: conflict.eventsNear(eye.x, eye.z), impacts: impact.eventsNear(eye.x, eye.z), fallen: impact.fallen(), blood: impact.bleeding(eye.x, eye.z), reacts: reactions.near(eye.x, eye.z), moods: conflict.moods(eye.x, eye.z), officers: justice.officersNear(eye.x, eye.z), ambulance: care.ambulanceView(),
+      shots: guns.shotsNear(eye.x, eye.z), shooting: guns.shooting(),
       population: population.total,
       carshowGate: state.carshowGate ? Math.round(state.carshowGate.open * 1000) / 1000 : 0,
     };
@@ -14723,7 +15286,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       ...zoneView(playerId),
       ...talk.view(p),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
+        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
     };
@@ -14736,16 +15299,17 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     audit: () => ({ goods: economy.auditGoods(INITIAL_GOODS), missedPayments: state.economy.missed, vehicles: vehicles.audit(), okada: okada.audit(), justice: justice.audit(), care: care.audit() }),
     visitors: { seen: (peerId, data) => talk.visitorSeen(peerId, data), gone: (peerId) => talk.visitorGone(peerId), list: () => talk.visitors() },
     stats: () => ({ ...population.stats, people: population.total, simulated: population.count, riders: okada.riders.length }),
-    faces: (ids) => ids.filter((i) => Number.isInteger(i) && i >= 0 && i < population.count).slice(0, 400).map((i) => { const who = population.people[i]; return { index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig }; }),
+    faces: (ids) => ids.filter((i) => Number.isInteger(i) && i >= 0 && i < population.count).slice(0, 400).map((i) => { const who = population.people[i]; return { index: i, id: who.id, name: who.name, short: who.short, look: who.look, fig: who.fig, ...(who.job === 'police' ? { police: true } : {}) }; }),
+    aimAt: (o, d, most, self = null) => guns.look(o, d, most, self),
     market,
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact },
+    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact, guns },
   };
 }
 
-const GAME_REFERENCE = Object.freeze({ GOODS, DESIGNS, PAINT_COLOURS, ENERGY, HEALTH, MOVES, COMBAT, LAW, CARE, HIJACK, IMPACT, BODY });
+const GAME_REFERENCE = Object.freeze({ GOODS, DESIGNS, PAINT_COLOURS, ENERGY, HEALTH, MOVES, COMBAT, LAW, CARE, HIJACK, IMPACT, BODY, GUN, GUNS });
 
 return { TIME_SCALE, SIM_START, SPEED, WALL_EPOCH, wallSeconds, dateOf, clockOf, structureFootprint, ARRIVAL_FUNDS, UPGRADE, upgradeFee, SWIM, JUMP_EVERY, createGameSim, GAME_REFERENCE };
 })();
@@ -14866,8 +15430,34 @@ function encodePlayer(self, zoneId) {
   const d = self.down, k = self.dead;
   if (d && Number.isFinite(d.age)) out.dn = [d.by === 'crash' ? 1 : 0, Math.round(d.age * 100) / 100, Math.round((d.lie || 0) * 100) / 100, Math.round((d.rise || 0) * 100) / 100, r2(d.h || 0), d.hard ? 1 : 0, d.from ? r2(d.from.x) : null, d.from ? r2(d.from.z) : null, d.over ? r2(d.over.a) : null, d.over ? r2(d.over.b) : null, Number.isFinite(d.id) ? d.id : null, r2(self.x), r2(self.z)];
   else if (k && Number.isFinite(k.age)) out.dn = [2, Math.round(k.age * 100) / 100, 0, 0, 0, 0, null, null, null, null, Number.isFinite(k.id) ? k.id : null];
+  if (Number.isFinite(self.health)) out.hp = Math.round(self.health);
+  if (self.swimming) out.sw = 1;
+  if (self.law && self.law.arrest) out.hd = 1;
+  const g = self.gun;
+  if (g && g.out) {
+    const aim = self.gunAim || {};
+    out.gn = [g.equipped, g.aim || 0, g.crouch ? 1 : 0, g.reloading && g.reloading.total ? Math.round((1 - g.reloading.left / g.reloading.total) * 100) / 100 : -1, Math.round((aim.yaw || 0) * 100) / 100, Math.round((aim.pitch || 0) * 100) / 100];
+  }
+  const r1 = (v) => Math.round(v * 10) / 10;
+  if (Array.isArray(self.gunShots) && self.gunShots.length) out.sh = self.gunShots.slice(-8).map((s) => [s.q, Math.round(s.ago * 100) / 100, r1(s.o[0]), r1(s.o[1]), r1(s.o[2]), r1(s.e[0]), r1(s.e[1]), r1(s.e[2]), SHOT_KINDS.indexOf(s.what)]);
+  if (Array.isArray(self.wounds) && self.wounds.length) out.wd = self.wounds.slice(-8).map((w) => [w[0], Math.round(w[1] * 1000) / 1000, Math.round(w[2] * 1000) / 1000, Math.round(w[3] * 1000) / 1000, Math.round((w[4] || 1) * 10) / 10]);
+  if (Number.isFinite(self.gy)) out.gy = Math.round(self.gy * 10) / 10;
+  return trimPlayer(out);
+}
+
+const STATE_MOST = 1450;
+function trimPlayer(out) {
+  const size = () => JSON.stringify(out).length;
+  if (size() <= STATE_MOST) return out;
+  for (const key of ['wd', 'sh']) {
+    while (Array.isArray(out[key]) && out[key].length && size() > STATE_MOST) { out[key].shift(); if (!out[key].length) delete out[key]; }
+  }
+  for (const key of ['pv', 'pc', 'pk', 'tk', 'tc']) { if (size() <= STATE_MOST) break; delete out[key]; }
+  if (size() > STATE_MOST && out.lk) { delete out.lk.c; }
   return out;
 }
+
+const SHOT_KINDS = Object.freeze(['air', 'wall', 'ground', 'vehicle', 'person']);
 
 const PARKED_NEAR = 70;
 
@@ -14901,7 +15491,11 @@ function decodePlayer(state, zoneId) {
   const jump = Number.isFinite(state.jp) ? state.jp : null;
   const dn = Array.isArray(state.dn) ? state.dn : null;
   const down = dn ? { kind: ['knock', 'crash', 'dead'][dn[0]] || null, age: dn[1], lie: dn[2], rise: dn[3], push: dn[4], hard: !!dn[5], from: Number.isFinite(dn[6]) && Number.isFinite(dn[7]) ? { x: dn[6], z: dn[7] } : null, over: Number.isFinite(dn[8]) && Number.isFinite(dn[9]) ? { a: dn[8], b: dn[9] } : null, id: Number.isFinite(dn[10]) ? dn[10] : null, at: Number.isFinite(dn[11]) && Number.isFinite(dn[12]) ? { x: dn[11], z: dn[12] } : null } : null;
-  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump };
+  const gn = Array.isArray(state.gn) ? state.gn : null;
+  const gun = gn ? { id: gn[0], out: true, aim: gn[1], crouch: !!gn[2], reload: Number.isFinite(gn[3]) && gn[3] >= 0 ? gn[3] : null, yaw: gn[4], pitch: gn[5] } : null;
+  const shots = Array.isArray(state.sh) ? state.sh.filter(Array.isArray).map((s) => ({ q: s[0], ago: s[1], o: [s[2], s[3], s[4]], e: [s[5], s[6], s[7]], what: SHOT_KINDS[s[8]] || 'air' })) : [];
+  const wounds = Array.isArray(state.wd) ? state.wd.filter(Array.isArray) : [];
+  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
 }
 
 function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
@@ -14942,7 +15536,7 @@ function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
   };
 }
 
-return { LINK_VERSION, encodePlayer, PARKED_NEAR, unpackLook, decodePlayer, createLink };
+return { LINK_VERSION, encodePlayer, STATE_MOST, trimPlayer, SHOT_KINDS, PARKED_NEAR, unpackLook, decodePlayer, createLink };
 })();
 
 __modules["client/render-kit.js"] = (function () {
@@ -21280,7 +21874,7 @@ function makeAnimatedRig(id, labelText, shadow = false, police = null) {
   const tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Quaternion(), p: new THREE.Quaternion(), axis: new THREE.Vector3() };
 
   const rig = {
-    animated: id, figure: id, group, body: holder, label, blob, mesh: null, triangles: 0, spec, speed: 0, idleTime: 0, phase: 0, scale: 1, stride: 1,
+    animated: id, figure: id, group, body: holder, lift, label, blob, mesh: null, triangles: 0, spec, speed: 0, idleTime: 0, phase: 0, scale: 1, stride: 1,
     torso: control(), head: { group: control() }, pelvis: { yaw: 0, roll: 0, drop: 0, sway: 0 }, gait: { hipY: 0 }, lean: 0, bank: 0,
     legL: { hip: control(), knee: control(), foot: control() }, legR: { hip: control(), knee: control(), foot: control() },
     armL: { shoulder: control(), elbow: control() }, armR: { shoulder: control(), elbow: control() },
@@ -21558,10 +22152,38 @@ function driveAnimated(rig, dt, speed) {
     const v = rig.speed, s = rig.spec;
     const want = rig.climbing && v > 0.25 && s.stairs && rig.actions.has(s.stairs) ? s.stairs : v > 3.0 ? s.run : v > 0.25 ? s.walk : s.still;
     rig.play(want, fade);
-    if (rig.current) rig.current.setEffectiveTimeScale(want === s.stairs ? Math.max(0.6, Math.min(1.8, v / STAIRS_PACE)) : want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1);
+    let pace = want === s.stairs ? Math.max(0.6, Math.min(1.8, v / STAIRS_PACE)) : want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1;
+    if (want === s.walk && rig.limp) pace *= limpStep(rig);
+    if (want === s.walk && rig.walkBack) pace = -pace;
+    if (rig.current) rig.current.setEffectiveTimeScale(pace);
   }
   rig.mixer.update(dt);
   rig.afterClips(dt);
+  if (rig.limp && !rig.held && !rig.seated && !rig.swimming && !rig.lying) limpLean(rig, dt);
+}
+
+let limpAt = null;
+function limpStep(rig) {
+  const r = rig.bones && rig.bones.get('foot_r'), l = rig.bones && rig.bones.get('foot_l');
+  if (!r || !l) return 0.8;
+  if (!limpAt) limpAt = { r: new THREE.Vector3(), l: new THREE.Vector3() };
+  r.getWorldPosition(limpAt.r); l.getWorldPosition(limpAt.l);
+  rig.limpOn = limpAt.r.y < limpAt.l.y - 0.01 ? 1 : 0;
+  return rig.limpOn ? 1.45 : 0.72;
+}
+function limpLean(rig, dt) {
+  rig.limpDip = (rig.limpDip || 0) + (((rig.speed || 0) > 0.25 && rig.limpOn ? 1 : 0) - (rig.limpDip || 0)) * Math.min(1, dt * 10);
+  const k = rig.limpDip * (rig.spec.height / 1.75);
+  if (rig.lift && k > 0.001) rig.lift.position.y -= 0.035 * k;
+  const spine = rig.bones && (rig.bones.get('spine_02') || rig.bones.get('spine_01'));
+  if (!spine || k < 0.001 || !limpAt) return;
+  rig.body.updateMatrixWorld(true);
+  const axis = limpAt.l.set(0, 0, 1).transformDirection(rig.body.matrixWorld);
+  const q = new THREE.Quaternion().setFromAxisAngle(axis, 0.12 * k);
+  const w = spine.getWorldQuaternion(new THREE.Quaternion()).premultiply(q);
+  const p = spine.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+  spine.quaternion.copy(p.multiply(w));
+  spine.updateMatrixWorld(true);
 }
 
 return { ANIMATED, PRIORITY, JUMP, dropUnusedFigures, heldModels, figureProgress, figureHere, lightCopy, figureTurn, lightFiles, figureLog, loadAnimated, warmFigures, reach, makeAnimatedRig, driveAnimated };
@@ -22538,7 +23160,8 @@ function createCrowd(scene) {
       if (pd) { /* where the fall has them */ } else if (seated) { other.x = q.x; other.z = q.z; other.h += angleGap(q.heading, other.h) * Math.min(1, dt * 12); gap = 0; }
       else {
         if (gap > 20) { other.x = q.x; other.z = q.z; } else if (gap > 0.01) { const step = Math.min(gap, (2.4 + gap * 3) * dt); other.x += (gx / gap) * step; other.z += (gz / gap) * step; }
-        other.h += angleGap(gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * 8);
+        const aimed = q.gun && q.gun.out && Number.isFinite(q.gun.yaw) ? q.gun.yaw : null;
+        other.h += angleGap(aimed !== null ? aimed : gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * (aimed !== null ? 14 : 8));
       }
       other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : fallPlace && fallPlace.y !== undefined ? fallPlace.y : zoneGroundY(other.x, other.z), other.z);
       other.rig.group.rotation.set(0, other.h, 0);
@@ -22556,6 +23179,7 @@ function createCrowd(scene) {
         if (em && len && t < len) other.rig.reaction = { name: em.name, time: t, weight: Math.min(1, t / 0.25, (len - t) / 0.3), loop: false, upper: false };
         else if (other.rig.reaction) other.rig.reaction.weight = Math.max(0, other.rig.reaction.weight - dt * 4);
       }
+      other.rig.limp = Number.isFinite(q.health) && q.health <= 20 && !seated && !other.rig.swimming;
       animateCharacter(other.rig, dt, seated ? 0 : other.rig.swimming ? Math.min(2, gap * 4) : gap > 0.12 ? Math.min(5.6, gap * 4 + 1.5) : 0, false);
       showName(other.rig, Math.hypot(other.x - frame.eye.x, other.z - frame.eye.z) < 12, dt);
       const flat = !!(stance && (stance.down || stance.dead)) || (other.rig.swimming && !other.rig.animated);
@@ -24597,6 +25221,214 @@ function cricket(ctx, out, t, r, level = 0.012) {
 return { BIRD_SONGS, FROG_CALLS, cricket };
 })();
 
+__modules["client/gun-audio.js"] = (function () {
+
+const GUN_HEARD = 400;            // metres: no shot is heard further off than this
+const SPEED_OF_SOUND = 343;
+const MOST_VOICES = 16;                  // of his rounds sounding at once, the oldest let go first
+
+function findShots(channels, rate, { rise = 0.12, apart = 0.045 } = {}) {
+  const n = channels[0].length;
+  const win = Math.max(1, Math.round(rate * 0.001));
+  const env = new Float32Array(Math.ceil(n / win));
+  for (let w = 0; w < env.length; w += 1) {
+    let m = 0;
+    for (let i = w * win, end = Math.min(n, i + win); i < end; i += 1) for (const c of channels) { const a = Math.abs(c[i]); if (a > m) m = a; }
+    env[w] = m;
+  }
+  const up = new Float32Array(env.length);
+  for (let i = 3; i < env.length; i += 1) up[i] = env[i] - env[i - 3];
+  const peaks = [];
+  for (let i = 3; i < env.length - 3; i += 1) {
+    if (up[i] <= rise) continue;
+    let best = true;
+    for (let j = Math.max(0, i - 30); j <= Math.min(env.length - 1, i + 30); j += 1) if (up[j] > up[i]) { best = false; break; }
+    if (!best) continue;
+    if (peaks.length && i - peaks[peaks.length - 1] < apart * 1000) continue;
+    peaks.push(i);
+  }
+  const at = peaks.map((p) => Math.max(0, (p - 4) / 1000));
+  return at.map((start, k) => ({ start, gap: k + 1 < at.length ? at[k + 1] - start : null }));
+}
+
+function createGunVoice(ctx, { out, fetchBytes, urls = {}, indoors = () => false, ear = () => ({ x: 0, y: 1.6, z: 0 }) } = {}) {
+  const sets = new Map();          // gun -> { state: 'fetching' | 'ready' | 'failed', takes: [{ buffer, shots, tail }], error }
+  const voices = [];               // { src, until }
+  let last = null;                 // the take played last: never twice running
+  const stats = { shots: 0, tails: 0, refused: 0, far: 0, empty: 0, reload: 0, strikes: 0, past: 0, failed: 0 };
+
+  const echoIn = ctx.createGain(), delay = ctx.createDelay(1), feedback = ctx.createGain(), dull = ctx.createBiquadFilter(), wet = ctx.createGain();
+  echoIn.gain.value = 1; delay.delayTime.value = 0.13; feedback.gain.value = 0.3; dull.type = 'lowpass'; dull.frequency.value = 2400; wet.gain.value = 0.3;
+  echoIn.connect(delay); delay.connect(dull); dull.connect(feedback); feedback.connect(delay); dull.connect(wet); wet.connect(out);
+
+  function load(gun) {
+    if (sets.has(gun)) return sets.get(gun).ready;
+    const set = { state: 'fetching', takes: [], error: null, ready: null };
+    sets.set(gun, set);
+    set.ready = Promise.all((urls[gun] || []).map((url) => fetchBytes(url).then((bytes) => ctx.decodeAudioData(bytes)))).then((buffers) => {
+      for (const buffer of buffers) {
+        const channels = []; for (let c = 0; c < buffer.numberOfChannels; c += 1) channels.push(buffer.getChannelData(c));
+        const shots = findShots(channels, buffer.sampleRate);
+        if (!shots.length) continue;
+        set.takes.push({ buffer, shots, tail: shots[shots.length - 1].start + 0.05 });
+      }
+      if (!set.takes.length) throw new Error('no rounds found in the recordings');
+      set.state = 'ready';
+    }).catch((error) => { set.state = 'failed'; set.error = String(error && error.message || error); stats.failed += 1; });
+    return set.ready;
+  }
+  const ready = (gun) => { const s = sets.get(gun); return s && s.state === 'ready' ? s : null; };
+
+  function hold(src, until) {
+    voices.push({ src, until });
+    for (let i = voices.length - 1; i >= 0; i -= 1) if (voices[i].until < ctx.currentTime) voices.splice(i, 1);
+    while (voices.length > MOST_VOICES) { const old = voices.shift(); try { old.src.stop(); } catch (error) { /* ended */ } }
+  }
+  function route(at, own) {
+    if (own) return { node: out, delay: 0, gain: 1 };
+    const e = ear();
+    const d = Math.hypot(at.x - e.x, at.y - e.y, at.z - e.z);
+    if (d > GUN_HEARD) { stats.far += 1; return null; }
+    const pan = ctx.createPanner();
+    pan.panningModel = 'equalpower'; pan.distanceModel = 'inverse'; pan.refDistance = 7; pan.rolloffFactor = 1; pan.maxDistance = GUN_HEARD * 2;
+    if (pan.positionX) { pan.positionX.value = at.x; pan.positionY.value = at.y; pan.positionZ.value = at.z; } else pan.setPosition(at.x, at.y, at.z);
+    const filter = ctx.createBiquadFilter();
+    filter.type = 'lowpass'; filter.frequency.value = Math.max(700, 16000 * Math.exp(-d / 110)); filter.Q.value = 0.5;
+    filter.connect(pan); pan.connect(out);
+    setTimeout(() => { try { filter.disconnect(); pan.disconnect(); } catch (error) { /* gone */ } }, 3000 + (d / SPEED_OF_SOUND) * 1000);
+    return { node: filter, echo: pan, delay: d / SPEED_OF_SOUND, gain: 1, d };
+  }
+
+  function shot(gun, at, { own = false, level = 1 } = {}) {
+    const set = ready(gun);
+    if (!set) { load(gun); stats.refused += 1; return false; }
+    const r = route(at, own);
+    if (!r) return false;
+    let take, k, guard = 0;
+    do { take = set.takes[Math.floor(Math.random() * set.takes.length)]; k = Math.floor(Math.random() * take.shots.length); guard += 1; } while (last && last.take === take && last.k === k && guard < 8);
+    last = { take, k };
+    const s = take.shots[k];
+    const length = Math.min(0.22, (s.gap || 0.09) * 1.45);
+    const t = ctx.currentTime + 0.005 + r.delay;
+    const src = ctx.createBufferSource(), gain = ctx.createGain();
+    src.buffer = take.buffer;
+    gain.gain.setValueAtTime(level * (own ? 0.9 : 1), t);
+    gain.gain.setValueAtTime(level * (own ? 0.9 : 1), t + length * 0.55);
+    gain.gain.exponentialRampToValueAtTime(0.001, t + length);
+    src.connect(gain); gain.connect(r.node);
+    const send = ctx.createGain(); send.gain.value = (indoors() ? 0.25 : 0.7) * (own ? 0.6 : Math.min(1, 7 / Math.max(7, r.d || 7)) * 1.2); gain.connect(send); send.connect(echoIn);
+    src.start(t, s.start, length + 0.02);
+    src.onended = () => { try { send.disconnect(); gain.disconnect(); } catch (error) { /* gone */ } };
+    hold(src, t + length);
+    stats.shots += 1;
+    return true;
+  }
+
+  function tail(gun, at, { own = false, level = 1 } = {}) {
+    const set = ready(gun);
+    if (!set) return false;
+    const r = route(at, own);
+    if (!r) return false;
+    const take = set.takes[Math.floor(Math.random() * set.takes.length)];
+    const from = take.tail, length = Math.max(0.1, take.buffer.duration - from);
+    const t = ctx.currentTime + 0.02 + r.delay;
+    const src = ctx.createBufferSource(), gain = ctx.createGain();
+    src.buffer = take.buffer;
+    gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(level * 0.85, t + 0.012);
+    gain.gain.setValueAtTime(level * 0.85, t + length * 0.5); gain.gain.exponentialRampToValueAtTime(0.0005, t + length);
+    src.connect(gain); gain.connect(r.node);
+    src.start(t, from, length);
+    src.onended = () => { try { gain.disconnect(); } catch (error) { /* gone */ } };
+    hold(src, t + length);
+    stats.tails += 1;
+    return true;
+  }
+
+  let noise = null;
+  const noiseBuffer = () => {
+    if (noise) return noise;
+    noise = ctx.createBuffer(1, Math.round(ctx.sampleRate * 0.5), ctx.sampleRate);
+    const d = noise.getChannelData(0); for (let i = 0; i < d.length; i += 1) d[i] = Math.random() * 2 - 1;
+    return noise;
+  };
+  function burst(node, t, { type = 'bandpass', freq = 2000, q = 1, level = 0.2, length = 0.03, attack = 0.002 }) {
+    const src = ctx.createBufferSource(), filter = ctx.createBiquadFilter(), gain = ctx.createGain();
+    src.buffer = noiseBuffer();
+    filter.type = type; filter.frequency.value = freq; filter.Q.value = q;
+    gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(level, t + attack); gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
+    src.connect(filter); filter.connect(gain); gain.connect(node);
+    src.start(t, Math.random() * 0.4, length + 0.02);
+    src.onended = () => { try { gain.disconnect(); } catch (error) { /* gone */ } };
+  }
+  function ring(node, t, freqs, level, length) {
+    for (const [f, share] of freqs) {
+      const osc = ctx.createOscillator(), gain = ctx.createGain();
+      osc.frequency.value = f;
+      gain.gain.setValueAtTime(0.0001, t); gain.gain.exponentialRampToValueAtTime(level * share, t + 0.002); gain.gain.exponentialRampToValueAtTime(0.0001, t + length);
+      osc.connect(gain); gain.connect(node); osc.start(t); osc.stop(t + length + 0.02);
+      osc.onended = () => { try { gain.disconnect(); } catch (error) { /* gone */ } };
+    }
+  }
+  function empty() {
+    const t = ctx.currentTime + 0.005;
+    burst(out, t, { freq: 3200, q: 2.5, level: 0.22, length: 0.025 });
+    burst(out, t + 0.012, { type: 'lowpass', freq: 600, level: 0.12, length: 0.04 });
+    stats.empty += 1;
+  }
+  function reload(step, at = null) {
+    const r = at ? route(at, false) : { node: out, delay: 0 };
+    if (!r) return;
+    const t = ctx.currentTime + 0.005 + r.delay;
+    if (step === 'grab') burst(r.node, t, { freq: 2400, q: 3, level: 0.12, length: 0.03 });
+    else if (step === 'out') { burst(r.node, t, { freq: 2800, q: 2, level: 0.16, length: 0.03 }); burst(r.node, t + 0.03, { freq: 1200, q: 0.7, level: 0.07, length: 0.12, attack: 0.02 }); }
+    else if (step === 'home') { burst(r.node, t, { freq: 900, q: 1.2, level: 0.2, length: 0.05 }); burst(r.node, t + 0.006, { freq: 3800, q: 3, level: 0.18, length: 0.03 }); ring(r.node, t, [[1850, 1], [2930, 0.5]], 0.025, 0.09); }
+    else if (step === 'handle') { burst(r.node, t, { freq: 1700, q: 1.5, level: 0.12, length: 0.06, attack: 0.01 }); burst(r.node, t + 0.11, { freq: 2600, q: 2.5, level: 0.22, length: 0.04 }); ring(r.node, t + 0.11, [[2300, 1], [3650, 0.6]], 0.03, 0.12); }
+    stats.reload += 1;
+  }
+  function strike(what, at) {
+    const e = ear();
+    if (Math.hypot(at.x - e.x, at.z - e.z) > 45) return;
+    const r = route(at, false);
+    if (!r) return;
+    const t = ctx.currentTime + 0.005 + r.delay;
+    if (what === 'vehicle') { ring(r.node, t, [[2350, 1], [3720, 0.7], [5100, 0.35]], 0.08, 0.22); burst(r.node, t, { freq: 4000, q: 1, level: 0.1, length: 0.03 }); }
+    else if (what === 'person') { burst(r.node, t, { type: 'lowpass', freq: 380, level: 0.35, length: 0.07 }); burst(r.node, t, { freq: 1400, q: 0.8, level: 0.07, length: 0.04 }); }
+    else if (what === 'wall') { burst(r.node, t, { freq: 1900, q: 0.9, level: 0.22, length: 0.06 }); burst(r.node, t + 0.01, { type: 'lowpass', freq: 500, level: 0.12, length: 0.08 }); }
+    else if (what === 'ground') burst(r.node, t, { type: 'lowpass', freq: 700, level: 0.2, length: 0.09 });
+    stats.strikes += 1;
+  }
+  function past(at) {
+    const r = route(at, false);
+    if (!r) return;
+    const t = ctx.currentTime + 0.002;
+    burst(r.node, t, { type: 'highpass', freq: 2500, level: 0.18, length: 0.09, attack: 0.004 });
+    burst(r.node, t, { freq: 5200, q: 1.5, level: 0.1, length: 0.05 });
+    stats.past += 1;
+  }
+
+  return {
+    load, shot, tail, empty, reload, strike, past, stats,
+    state: (gun) => { const s = sets.get(gun); return s ? { state: s.state, error: s.error, rounds: s.takes.map((k) => k.shots.length) } : { state: 'not asked' }; },
+    get voices() { return voices.filter((v) => v.until >= ctx.currentTime).length; },
+  };
+}
+
+return { GUN_HEARD, findShots, createGunVoice };
+})();
+
+__modules["client/gun-sound-files.js"] = (function () {
+const GUN_SOUNDS = Object.freeze({
+  rifle: Object.freeze([
+    'maching_gun_sound_an_1-1792669414074.wav',
+    'maching_gun_sound_an_2-1792669445724.wav',
+    'maching_gun_sound_an_3-1792669437458.wav',
+    'maching_gun_sound_an_4-1792669421962.wav',
+  ]),
+});
+
+return { GUN_SOUNDS };
+})();
+
 __modules["client/audio.js"] = (function () {
 
 const { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor, BIKE_RECORDINGS, recordingKindOf, recordingPitchOf, createRecordedEngine, holdBikeHorn } = __modules["client/bike-audio.js"];
@@ -24604,6 +25436,9 @@ const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
 const { carProfile, carHornOf } = __modules["client/car-audio.js"];
 const { BIRD_SONGS, FROG_CALLS, cricket } = __modules["client/bird-songs.js"];
+const { createGunVoice } = __modules["client/gun-audio.js"];
+const { GUN_SOUNDS } = __modules["client/gun-sound-files.js"];
+const { fetchKept } = __modules["client/glb.js"];
 
 const ENGINE_VOICES = Object.freeze({
   keke: Object.freeze({ low: 58, climb: 92, wave: 'sawtooth', putter: 13, bright: 7, level: 0.34 }),
@@ -25242,14 +26077,28 @@ function createAudio() {
     });
   }
 
+  let gunVoice = null;
+  const gunEar = { x: 0, y: 1.6, z: 0, indoors: false };
+  const gunUrls = () => {
+    const table = typeof window !== 'undefined' && window.__PCW_GUNS ? window.__PCW_GUNS : null;
+    return Object.fromEntries(Object.entries(GUN_SOUNDS).map(([gun, names]) => [gun, table && table[gun] && table[gun].sounds ? table[gun].sounds : names.map((n) => `guns/sound/${n}`)]));
+  };
+  function guns() {
+    if (!ctx) return null;
+    if (!gunVoice) gunVoice = createGunVoice(ctx, { out: nodes.effects, urls: gunUrls(), indoors: () => gunEar.indoors, ear: () => gunEar, fetchBytes: (url) => fetchKept(url).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.arrayBuffer(); }) });
+    return gunVoice;
+  }
+  const gunReady = () => !!ctx && !muted && ctx.state === 'running';
+
   function update(dt, scene) {
     if (!ctx || ctx.state !== 'running') return;
     const now = ctx.currentTime;
     const L = scene.listener;
     ear.x = L.x; ear.z = L.z;
+    gunEar.x = L.x; gunEar.z = L.z; gunEar.y = Number.isFinite(L.y) ? L.y : 1.6; gunEar.indoors = !!L.indoors;
     const fx = Math.sin(L.yaw), fz = Math.cos(L.yaw);
     const l = ctx.listener;
-    if (l.positionX) { l.positionX.value = L.x; l.positionY.value = 1.6; l.positionZ.value = L.z; l.forwardX.value = fx; l.forwardY.value = 0; l.forwardZ.value = fz; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; } else { l.setPosition(L.x, 1.6, L.z); l.setOrientation(fx, 0, fz, 0, 1, 0); }
+    if (l.positionX) { l.positionX.value = L.x; l.positionY.value = gunEar.y; l.positionZ.value = L.z; l.forwardX.value = fx; l.forwardY.value = 0; l.forwardZ.value = fz; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; } else { l.setPosition(L.x, gunEar.y, L.z); l.setOrientation(fx, 0, fz, 0, 1, 0); }
     ownStep(now);
     since += dt;
     if (since < UPDATE_EVERY) return;
@@ -25481,6 +26330,14 @@ function createAudio() {
     supported: !!Ctx,
     start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
+    gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
+    gunShot: (gun, at, opts) => (gunReady() ? guns().shot(gun, at, opts) : false),
+    gunTail: (gun, at, opts) => (gunReady() ? guns().tail(gun, at, opts) : false),
+    gunEmpty: () => { if (gunReady()) guns().empty(); },
+    gunReload: (step, at) => { if (gunReady()) guns().reload(step, at); },
+    gunStrike: (what, at) => { if (gunReady()) guns().strike(what, at); },
+    gunPast: (at) => { if (gunReady()) guns().past(at); },
+    gunState: (gun) => (gunVoice ? { ...gunVoice.state(gun), voices: gunVoice.voices, ...gunVoice.stats } : { state: ctx ? 'not asked' : 'no sound yet' }),
     get running() { return !!ctx && ctx.state === 'running'; },
     get muted() { return muted; },
     setMuted(value) { muted = !!value; if (ctx) nodes.master.gain.setTargetAtTime(muted ? 0 : volumes.master, ctx.currentTime, 0.05); },
@@ -26120,6 +26977,8 @@ const CAMERA_VIEW = Object.freeze({
   chase: Object.freeze({ name: 'Close behind', dist: 6.2, pitch: 0.22, turn: 0, shift: 0, lift: -0.1, follow: true }),
   far: Object.freeze({ name: 'Far behind', dist: 10.5, pitch: 0.3, turn: 0, shift: 0, lift: 0, follow: true }),
   bonnet: Object.freeze({ name: 'From the bonnet', seat: true, ahead: 1.3, rise: -0.35, follow: true }),
+  aim: Object.freeze({ name: 'Over the shoulder, aiming', dist: 1.75, pitch: null, turn: 0, shift: 0.5, lift: 0.08, fov: 58, follow: false, riseWant: 0.6, aim: true }),
+  overview: Object.freeze({ name: 'The whole scene', dist: 5.8, pitch: 0.42, turn: 0, shift: 0, lift: 0.25, fov: 64, follow: false, riseWant: 5.8 }),
 });
 const STREET = Object.freeze({ dist: 3.9, pitch: 0.1, nearest: 2.4 });
 
@@ -26139,7 +26998,8 @@ const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS.foot).
 
 function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null } = {}) {
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
-  const eye = new THREE.Vector3(), aim = new THREE.Vector3();
+  const eye = new THREE.Vector3(), aim = new THREE.Vector3(), sightAim = new THREE.Vector3();
+  const baseNear = camera.near;
   let view = 'street';
   let hidden = false;
   let close = false;
@@ -26173,30 +27033,33 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
     return Math.max(0.2, d);
   }
 
-  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0 }) {
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.street;
     const ease = toward(5, dt);
     live.run += ((v.run ? Math.max(0, Math.min(1, running)) : 0) - live.run) * toward(2.2, dt);
     let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : v.dist + (v.follow && !v.seat && CAMERA_VIEWS.vehicle.includes(view) ? longer : 0);
     let wantPitch = (v.pitch === null || v.pitch === undefined ? cam.pitch : v.pitch) + (v.pitchAdd || 0);
     if (v.run) { wantDist *= 1 - v.run.closer * live.run; wantPitch -= v.run.lower * live.run; }
-    if (indoors && !v.seat) { wantPitch = Math.max(wantPitch, indoors.pitch); if (indoors.maxPitch !== undefined) wantPitch = Math.min(wantPitch, indoors.maxPitch); wantDist = Math.min(wantDist, indoors.dist); }
+    if (indoors && !v.seat && !v.aim) { wantPitch = Math.max(wantPitch, indoors.pitch); if (indoors.maxPitch !== undefined) wantPitch = Math.min(wantPitch, indoors.maxPitch); wantDist = Math.min(wantDist, indoors.dist); }
     live.dist += (wantDist - live.dist) * ease;
-    live.pitch += (wantPitch - live.pitch) * ease;
+    live.pitch += (wantPitch - live.pitch) * (v.aim ? toward(30, dt) : ease);
     live.turn += ((v.turn || 0) - live.turn) * ease;
     live.shift += ((v.shift || 0) - live.shift) * ease;
     live.lift += ((v.lift || 0) - live.lift) * ease;
     live.seat += ((v.seat ? 1 : 0) - live.seat) * toward(6, dt);
     const wantFov = room ? BASE_FOV : v.fov || BASE_FOV;
     live.fov += (wantFov - live.fov) * toward(4, dt);
-    if (camera.isPerspectiveCamera && Math.abs(camera.fov - live.fov) > 0.01) { camera.fov = live.fov; camera.updateProjectionMatrix(); }
+    const fovNow = sight && sight.amount > 0 ? live.fov + (sight.fov - live.fov) * sight.amount : live.fov;
+    if (camera.isPerspectiveCamera && Math.abs(camera.fov - fovNow) > 0.01) { camera.fov = fovNow; camera.updateProjectionMatrix(); }
+    const nearPlane = sight && sight.amount > 0.02 ? 0.06 : baseNear;
+    if (camera.isPerspectiveCamera && camera.near !== nearPlane) { camera.near = nearPlane; camera.updateProjectionMatrix(); }
     const before = live.yaw;
     if (v.follow) {
       if (dragged > 1.2) live.look += (0 - live.look) * toward(3, dt);
       const want = heading + live.turn + live.look;
       live.yaw += angleGap(want, live.yaw) * toward(7, dt);
       cam.yaw = live.yaw - live.turn;                           // so that walking stays relative to what is seen
-    } else { live.look = 0; live.yaw += angleGap(cam.yaw + live.turn, live.yaw) * toward(v.sway ? 9 : 14, dt); }
+    } else if (v.aim) { live.look = 0; live.yaw = cam.yaw + live.turn; } else { live.look = 0; live.yaw += angleGap(cam.yaw + live.turn, live.yaw) * toward(v.sway ? 9 : 14, dt); }
     live.rate += ((dt > 0 ? angleGap(live.yaw, before) / dt : 0) - live.rate) * toward(6, dt);
     const wantSway = v.sway ? Math.max(-0.22, Math.min(0.22, live.rate * 0.16)) : 0;
     live.sway += (wantSway - live.sway) * toward(3.5, dt);
@@ -26238,6 +27101,11 @@ function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, groun
       const seatEye = new THREE.Vector3(sx, own ? target.y - 1.55 + own.height : target.y + (eyeHeight - 1.55) + 0.05 + (v.rise || 0), sz);
       const seatAim = new THREE.Vector3(sx + Math.sin(sy) * 6, seatEye.y - 0.5, sz + Math.cos(sy) * 6);
       eye.lerp(seatEye, live.seat); aim.lerp(seatAim, live.seat);
+    }
+    if (sight && sight.amount > 0) {
+      eye.lerp(sight.eye, sight.amount);
+      sightAim.copy(sight.eye).addScaledVector(sight.dir, 10);
+      aim.lerp(sightAim, sight.amount);
     }
     camera.position.copy(eye);
     camera.lookAt(aim);
@@ -32214,11 +33082,11 @@ __modules["client/action-button.js"] = (function () {
 
 const DRAG_OFF = 28;            // px beyond its edge that a held finger may wander before the button lets go
 
-function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => {} }) {
+function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => {}, onMove = null }) {
   const el = document.createElement('button');
   el.type = 'button';
   el.dataset.id = id;
-  const st = { kind, pointer: null, held: false, lit: false };
+  const st = { kind, pointer: null, held: false, lit: false, drag: false, x: 0, y: 0 };
 
   const show = () => el.classList.toggle('down', st.held || st.lit);
   function down(pointerId) {
@@ -32237,11 +33105,13 @@ function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => 
   el.addEventListener('pointerdown', (event) => {
     event.preventDefault();
     try { el.setPointerCapture(event.pointerId); } catch (error) { /* the pointer has already gone */ }
+    st.x = event.clientX; st.y = event.clientY;
     down(event.pointerId);
   });
   for (const type of ['pointerup', 'pointercancel', 'lostpointercapture']) el.addEventListener(type, (event) => { if (st.pointer === event.pointerId) up(); });
   el.addEventListener('pointermove', (event) => {
     if (st.pointer !== event.pointerId) return;
+    if (st.drag) { const dx = event.clientX - st.x, dy = event.clientY - st.y; st.x = event.clientX; st.y = event.clientY; if ((dx || dy) && onMove) onMove(dx, dy); return; }
     const r = el.getBoundingClientRect();
     const out = Math.max(r.left - event.clientX, event.clientX - r.right, r.top - event.clientY, event.clientY - r.bottom);
     if (out > DRAG_OFF) up();
@@ -32257,8 +33127,9 @@ function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => 
     id,
     get held() { return st.held; },
     get pointer() { return st.pointer; },
-    configure({ kind: k, shape, size, place } = {}) {
+    configure({ kind: k, shape, size, place, drag } = {}) {
       if (k) st.kind = k;
+      st.drag = !!drag;
       el.dataset.shape = shape || 'round';
       if (size) { el.style.width = `${size[0]}px`; el.style.height = `${size[1]}px`; }
       if (place) for (const side of ['left', 'right', 'top', 'bottom']) if (place[side] !== undefined) el.style[side] = typeof place[side] === 'number' ? `${place[side]}px` : place[side];
@@ -35114,6 +35985,12 @@ function createUI(app) {
       app.webapp.refresh().then(() => { if (cells.isConnected) draw(); });
     }
 
+    if (app.calm) {
+      root.append(section('Effects'));
+      root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Reduce intense effects'), toggle('calm-on', app.calm(), 'Reduce intense effects', (on) => { app.setCalm(on); redraw(); }))));
+      root.append(h('p', { class: 'small' }, 'Less blood on the screen and in the town when someone is shot. Where a round came from is still shown.'));
+    }
+
     root.append(section('Controls'));
     root.append(h('div', { class: 'rows' }, [
       ['Walk', 'W A S D or arrow keys · the stick'], ['Run', 'Hold Shift · the Run button switches it on and off'], ['Look around', 'Drag on the world'], ['Zoom', 'Mouse wheel or pinch'],
@@ -35121,6 +35998,7 @@ function createUI(app) {
       ['Fight', 'F, facing someone close: you square up. Then F punch, G heavy punch, R kick, hold Q to block, Space to dodge, Z shove, X grab, V to step away'],
       ['Take a vehicle', 'G, standing at the driver\'s side of an unlocked keke'], ['Pick a pocket', 'B, close behind someone'],
       ['Give yourself up', 'U, when you are wanted'], ['Drive a keke or a motorcycle', 'W and S to go and brake, A and D to steer, H for the horn, E to step out or get off'],
+      ['Your gun', 'X takes it out and puts it away. Click the picture to aim with the mouse (Esc lets the mouse go); the left button shoots (or F), the right aims through the sight (or Q). R reload, C crouch, Space jump, G your guns, V the whole scene for five seconds. On a touch screen: drag to aim, hold Shoot (drag it to aim as you shoot)'],
       ['Chat', 'T, when another player is close'], ['Phone', 'Tab or P'], ['Map', 'M'], ['Sound on and off', 'N'], ['Close', 'Esc'],
     ].map(([a, b]) => line(a, b))));
     root.append(h('p', { class: 'small' }, 'Only the buttons that can be used just now are on screen. On a keyboard each has a key, shown beside it at the foot of the screen.'));
@@ -35631,6 +36509,13 @@ const ICONS = Object.freeze({
   bow: FIG([8.4, 7.6, 2.2], 'M11.4 8.6l4.2 3', 'M15.6 11.6v9.4', 'M12.6 9.6l-1 5', 'M15.6 16.2l-2.6 4.8'),
   phonecall: ['M6.6 2.8h3.1l1.8 4.8-2.4 1.6a11.4 11.4 0 0 0 5.7 5.7l1.6-2.4 4.8 1.8v3.1a2.4 2.4 0 0 1-2.4 2.4C10.4 19.8 4.2 13.6 4.2 5.2a2.4 2.4 0 0 1 2.4-2.4z', { s: 'M15 3.4a6 6 0 0 1 5.6 5.6', w: 2 }],
   surf: [{ s: 'M3 18.6c3-1.4 6-1.4 9 0s6 1.4 9 0', w: 2.4 }, 'M4.6 15.4c4.2-2.4 10.6-2.4 14.8 0z', ...FIG([12.6, 4.2, 2.1], 'M12.4 7.4l-.6 4.4', 'M12.2 8.6l-4 1.4', 'M12.2 8.6l4 1.2', 'M11.8 11.8l-2.4 2.4', 'M11.8 11.8l2.4 2.4').slice(0)],
+  gun: ['M2.2 9.4h3.4l1 1.1h9.2V9.3h3.2v1.2h2.8v1.8h-2.8v1.1h-6.5l-.5 1.3H10l.3-1.3H8.9l-1.3 4.6H4.8l1.3-4.6H4.2L2.2 11.6z M14.1 13.4h2.3l.8 4.2h-2.3z', { s: 'M7.4 8.2h5.2', w: 1.6 }],
+  shoot: ['M11.98 9.38 L14.59 11.56 L8.80 18.46 L6.20 16.27z M5.61 16.04 L9.13 18.99 L8.11 20.22 L4.58 17.26z M11.98 9.38 L12.71 8.55 L13.45 7.78 L14.18 7.07 L14.88 6.43 L15.54 5.90 L16.14 5.47 L16.68 5.17 L17.13 5.01 L17.50 4.98 L17.79 5.11 L17.95 5.36 L18.00 5.73 L17.91 6.21 L17.71 6.79 L17.40 7.46 L16.98 8.20 L16.48 9.00 L15.91 9.84 L15.27 10.70 L14.59 11.56z'],
+  aim: [{ ring: [12, 12, 6.4], w: 2.1 }, { s: 'M12 2v4', w: 2.1 }, { s: 'M12 18v4', w: 2.1 }, { s: 'M2 12h4', w: 2.1 }, { s: 'M18 12h4', w: 2.1 }, [12, 12, 1.6]],
+  reload: [{ s: 'M18.4 9.2A7 7 0 0 0 6.2 7.6', w: 2.4 }, 'M3.9 5.1l5.1.6-2.9 4.2z', { s: 'M5.6 14.8A7 7 0 0 0 17.8 16.4', w: 2.4 }, 'M20.1 18.9l-5.1-.6 2.9-4.2z'],
+  crouch: [[9.2, 4.6, 2.1], { s: 'M10 7.6l1.6 6', w: 2.7 }, { s: 'M11.6 13.6l-4.2 1.6 1.2 5.6', w: 2.7 }, { s: 'M11.6 13.6l4.4.6 1 5.8', w: 2.7 }, { s: 'M10.4 8.8l5.8.4', w: 2.4 }, { s: 'M7.6 9.6l14 .9', w: 1.8 }],
+  switch: [{ s: 'M3.6 8.2h13.6', w: 2.4 }, 'M16.4 4.6l4.6 3.6-4.6 3.6z', { s: 'M20.4 15.8H6.8', w: 2.4 }, 'M7.6 12.2L3 15.8l4.6 3.6z'],
+  holster: ['M2.2 5.4h3.4l1 1.1h9.2V5.3h3.2v1.2h2.8v1.8h-2.8v1.1h-6.5l-.5 1.3H10l.3-1.3H8.9l-1.3 4.6H4.8l1.3-4.6H4.2L2.2 7.6z', { s: 'M15.6 13.4v7', w: 2.4 }, { s: 'M12.4 17.6l3.2 3.2 3.2-3.2', w: 2.4 }],
   sound: ['M3 9.4h3.6l6.4-4.6v14.4l-6.4-4.6H3z', { s: 'M16.2 9a4.2 4.2 0 0 1 0 6', w: 2.5 }, { s: 'M19 6.4a8 8 0 0 1 0 11.2', w: 2.5 }],
   muted: ['M3 9.4h3.6l6.4-4.6v14.4l-6.4-4.6H3z', { s: 'M16.4 9.4l5 5', w: 2.5 }, { s: 'M21.4 9.4l-5 5', w: 2.5 }],
   next: [{ s: 'M9 5l7 7-7 7', w: 3 }],
@@ -35680,7 +36565,7 @@ function createControls({ stick, pad }) {
   let stickPointer = null;
   let signature = '';
 
-  const emit = (id, phase) => { for (const fn of listeners) fn(id, phase); };
+  const emit = (id, phase, dx, dy) => { for (const fn of listeners) fn(id, phase, dx, dy); };
 
 
   const moveStick = (event) => {
@@ -35727,6 +36612,7 @@ function createControls({ stick, pad }) {
       id,
       onDown: () => { if (entry.spec.kind === 'hold') held.add(id); emit(id, 'down'); },
       onUp: () => { if (held.delete(id)) emit(id, 'up'); },
+      onMove: (dx, dy) => emit(id, 'move', dx, dy),
     });
     entry.el = entry.button.el;
     pad.append(entry.el);
@@ -35735,7 +36621,7 @@ function createControls({ stick, pad }) {
   const lift = (entry) => { entry.button.release(); if (held.delete(entry.spec.id)) emit(entry.spec.id, 'up'); };
 
   function layout(list) {
-    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}|${b.shape || ''}`).join('~');
+    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}|${b.shape || ''}|${b.drag ? 1 : 0}`).join('~');
     if (next === signature) return;
     signature = next;
     const seen = new Set();
@@ -35746,7 +36632,7 @@ function createControls({ stick, pad }) {
       let entry = buttons.get(spec.id);
       if (!entry) { entry = make(spec.id); buttons.set(spec.id, entry); }
       entry.spec = { kind: 'tap', ...spec };
-      entry.button.configure({ kind: entry.spec.kind, shape: spec.shape, size: spec.size, place: spec.place });
+      entry.button.configure({ kind: entry.spec.kind, shape: spec.shape, size: spec.size, place: spec.place, drag: spec.drag });
       const el = entry.el;
       el.className = `pad ${spec.primary ? 'primary' : `slot${slot += 1}`}${spec.tone ? ` ${spec.tone}` : ''}${entry.button.held || held.has(spec.id) ? ' down' : ''}`;
       const drawn = spec.icon || spec.id;
@@ -37660,7 +38546,7 @@ function createPhoneHold({ scene, lite }) {
   };
 }
 
-return { createPhoneHold };
+return { gripOf, createPhoneHold };
 })();
 
 __modules["net/online.js"] = (function () {
@@ -37760,7 +38646,7 @@ function createOnline({ available = false, address = 'api/game', fetcher = null,
 }
 
 
-function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true }) {
+function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true, gun = null }) {
   let mine = null;                      // this player's latest state
   let handler = null;
   let busy = false, failed = false, closed = false;
@@ -37824,8 +38710,10 @@ function createWebTransport({ online, zone, now = () => Date.now() / 1000, every
     busy = true; last = now();
     const asked = last;
     counts.asked += 1;
-    const answer = await online.ask('presence', { zone, state: mine }, { timeout: 6000 });
+    const extra = gun ? gun.body() : null;
+    const answer = await online.ask('presence', { zone, state: mine, ...(extra || {}) }, { timeout: extra && extra.fire ? 15000 : 6000 });
     busy = false;
+    if (gun) gun.answer(answer.ok ? answer : null);
     if (closed) return;
     failed = !answer.ok;
     if (!answer.ok) { last = -10; return; }
@@ -37859,8 +38747,9 @@ function createWebTransport({ online, zone, now = () => Date.now() / 1000, every
     let wait = ONLINE.presenceAlone;
     if (peers.size) {
       wait = ONLINE.presenceFar;
-      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; if (speedOf(p.to) > 2 || speedOf(mine) > 2) wait = ONLINE.presenceMoving; break; }
+      if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; if (speedOf(p.to) > 2 || speedOf(mine) > 2 || p.to.gn || p.to.sh || (gun && gun.armed)) wait = ONLINE.presenceMoving; break; }
     }
+    if (gun && gun.urgent()) wait = Math.min(wait, ONLINE.presenceStep);
     if (now() - last >= wait) exchange();
   }, ONLINE.presenceStep * 1000);
 
@@ -38992,7 +39881,7 @@ const { reflects } = __modules["client/render-finish.js"];
 let reading = Promise.resolve();
 function oneAtATime(task) { const run = reading.then(task, task); reading = run.then(() => {}, () => {}); return run; }
 
-async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9, want = 0 } = {}) {
+async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, name = '', envMapIntensity = 0.9, want = 0, maps = {} } = {}) {
   const file = modelFile(named);
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
@@ -39005,14 +39894,15 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
   if (!at.NORMAL) geometry.computeVertexNormals();
   geometry.computeBoundingSphere();
   const mat = json.materials[prim.material || 0], pbr = mat.pbrMetallicRoughness || {};
-  const pictureOf = async (info, colour, paint = null) => {
-    if (!info) return null;
+  const pictureOf = async (info, colour, paint = null, kind = 'colour') => {
+    if (!info || maps[kind] === false) return null;
     const index = json.textures[info.index].source;
     const image = json.images[index];
-    const level = pictureMost(), cap = level && want ? Math.min(level, want) : level || want;
+    const own = Number(maps[kind]) > 0 ? (want ? Math.min(want, maps[kind]) : maps[kind]) : want;
+    const level = pictureMost(), cap = level && own ? Math.min(level, own) : level || own;
     const t = new THREE.Texture(await makePicture(bytes(image.bufferView), image, paint, cap));
     t.flipY = false; t.anisotropy = 8; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.needsUpdate = true;
-    t.userData.cap = cap; t.userData.want = want;
+    t.userData.cap = cap; t.userData.want = own;
     letGoOnceDrawn(t, (size) => rereadFile(file).then((again) => makePicture(again.bytes(again.json.images[index].bufferView), image, paint, size)));
     return t;
   };
@@ -39042,7 +39932,7 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
     }
     return picture;
   }
-  const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, brand), pictureOf(mat.normalTexture, false), pictureOf(pbr.metallicRoughnessTexture, false)]);
+  const [map, normalMap, rm] = await Promise.all([pictureOf(pbr.baseColorTexture, true, brand), pictureOf(mat.normalTexture, false, null, 'normal'), pictureOf(pbr.metallicRoughnessTexture, false, null, 'rm')]);
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   const material = surface({ map, normalMap, roughnessMap: rm, metalnessMap: rm, color: colour, roughness: rm ? 1 : (pbr.roughnessFactor ?? 1), metalness: rm ? 1 : (pbr.metallicFactor ?? 1), envMap: env || null, envMapIntensity, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide });
   if (normalMap && material.normalScale) material.normalScale.set(1, -1);
@@ -41699,6 +42589,1916 @@ function createTorchBeams(scene, { lite = false } = {}) {
 return { createTorchBeams };
 })();
 
+__modules["client/gun-model.js"] = (function () {
+
+const { loadSuppliedMesh } = __modules["client/supplied-model.js"];
+
+const GUN_NEAR = 40;
+
+const GUN_MODELS = Object.freeze({
+  rifle: Object.freeze({
+    id: 'rifle', file: 'guns/rifle.glb', scale: 0.755,
+    muzzle: Object.freeze([0.495, 0.3445, 0]),
+    sight: Object.freeze({ y: 0.502, z: 0, rear: -0.056, front: 0.048, glass: 0.0285, eye: -0.294 }),
+    grip: Object.freeze([-0.195, 0.215, -0.025]), gripLean: 0.33, gripHalf: 0.03,
+    support: Object.freeze([0.205, 0.29, 0.004]),
+    butt: Object.freeze([-0.49, 0.345, -0.02]),
+    magazine: Object.freeze({ x0: 0.03, x1: 0.16, y1: 0.285, hold: Object.freeze([0.1, 0.12, 0.005]) }),
+    handle: Object.freeze([-0.12, 0.43, -0.04]),
+    port: Object.freeze([-0.02, 0.39, 0.05]),
+    triangles: 57977,
+  }),
+});
+
+let settings = { env: null, maxTexture: 2048, lite: false };
+function setGunDrawing({ env = null, maxTexture = 2048, lite = false } = {}) { settings = { env, maxTexture, lite }; }
+
+
+const models = new Map();          // id -> Promise<{ body, mag, material, triangles }>
+function loadGunModel(id) {
+  const spec = GUN_MODELS[id];
+  if (!spec) return Promise.reject(new Error(`no gun ${id}`));
+  if (!models.has(id)) {
+    const job = loadSuppliedMesh(spec.file, {
+      maxTexture: settings.maxTexture, env: settings.env, envMapIntensity: 0.75, name: `gun-${id}`,
+      maps: settings.lite ? { normal: false, rm: false } : { normal: Math.max(512, settings.maxTexture / 2), rm: Math.max(512, settings.maxTexture / 2) },
+    }).then(({ mesh, triangles }) => {
+      const { body, mag } = splitMagazine(mesh.geometry, spec.magazine);
+      const material = mesh.material;
+      seeThroughSight(material, spec);
+      return { body, mag, material, triangles };
+    });
+    job.catch(() => models.delete(id));
+    models.set(id, job);
+  }
+  return models.get(id);
+}
+const gunModelReady = (id) => models.has(id);
+
+function splitMagazine(geometry, box) {
+  const pos = geometry.attributes.position, index = geometry.index;
+  const body = [], mag = [];
+  const all = index ? index.array : null;
+  const n = all ? all.length : pos.count;
+  for (let t = 0; t < n; t += 3) {
+    const a = all ? all[t] : t, b = all ? all[t + 1] : t + 1, c = all ? all[t + 2] : t + 2;
+    const x = (pos.getX(a) + pos.getX(b) + pos.getX(c)) / 3, top = Math.max(pos.getY(a), pos.getY(b), pos.getY(c));
+    (x > box.x0 && x < box.x1 && top < box.y1 + 0.012 ? mag : body).push(a, b, c);
+  }
+  const part = (list) => {
+    const g = new THREE.BufferGeometry();
+    for (const [key, attr] of Object.entries(geometry.attributes)) g.setAttribute(key, attr);
+    g.setIndex(new THREE.BufferAttribute(pos.count > 65535 ? new Uint32Array(list) : new Uint16Array(list), 1));
+    g.computeBoundingSphere();
+    return g;
+  };
+  return { body: part(body), mag: part(mag), bodyTriangles: body.length / 3, magTriangles: mag.length / 3 };
+}
+
+function seeThroughSight(material, spec) {
+  const s = spec.sight;
+  const f = (v) => Number(v).toFixed(5);
+  material.onBeforeCompile = (shader) => {
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vGunLocal;').replace('#include <begin_vertex>', '#include <begin_vertex>\n  vGunLocal = position;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nvarying vec3 vGunLocal;').replace('void main() {', `void main() {\n  if (vGunLocal.x > ${f(s.rear)} && vGunLocal.x < ${f(s.front)} && length(vGunLocal.yz - vec2(${f(s.y)}, ${f(s.z)})) < ${f(s.glass)}) discard;`);
+  };
+  material.customProgramCacheKey = () => `gun-sight-${spec.id}`;
+  material.needsUpdate = true;
+}
+
+
+let farGeometry = null, farMaterial = null;
+function farShape() {
+  if (farGeometry) return farGeometry;
+  const boxes = [[-0.49, -0.26, 0.24, 0.45, 0.035], [-0.26, 0.40, 0.29, 0.45, 0.04], [0.40, 0.495, 0.32, 0.37, 0.02], [-0.24, -0.15, 0.12, 0.3, 0.028], [0.05, 0.145, 0.0, 0.3, 0.03], [-0.06, 0.06, 0.45, 0.535, 0.03]];
+  const pos = [], nor = [], idx = [];
+  for (const [x0, x1, y0, y1, w] of boxes) {
+    const g = new THREE.BoxGeometry(x1 - x0, y1 - y0, w * 2);
+    g.translate((x0 + x1) / 2, (y0 + y1) / 2, 0);
+    const base = pos.length / 3;
+    pos.push(...g.attributes.position.array); nor.push(...g.attributes.normal.array);
+    for (const i of g.index.array) idx.push(base + i);
+    g.dispose();
+  }
+  farGeometry = new THREE.BufferGeometry();
+  farGeometry.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  farGeometry.setAttribute('normal', new THREE.Float32BufferAttribute(nor, 3));
+  farGeometry.setIndex(idx);
+  farGeometry.computeBoundingSphere();
+  farMaterial = new THREE.MeshLambertMaterial({ color: 0x2b2d30 });
+  return farGeometry;
+}
+
+
+function makeGun(id) {
+  const spec = GUN_MODELS[id];
+  if (!spec) throw new Error(`no gun ${id}`);
+  const group = new THREE.Group();
+  group.name = `gun-${id}`;
+  group.scale.setScalar(spec.scale);
+  const far = new THREE.Mesh(farShape(), farMaterial);
+  far.castShadow = false;
+  group.add(far);
+  const gun = { id, spec, group, body: null, mag: null, far, ready: false, failed: null, near: true, disposed: false, magShown: true };
+  loadGunModel(id).then((m) => {
+    if (gun.disposed) return;
+    gun.body = new THREE.Mesh(m.body, m.material);
+    gun.mag = new THREE.Mesh(m.mag, m.material);
+    for (const mesh of [gun.body, gun.mag]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; }
+    group.add(gun.body, gun.mag);
+    gun.ready = true;
+    show();
+  }).catch((error) => { gun.failed = String(error && error.message || error); });
+  const show = () => {
+    const full = gun.ready && gun.near;
+    far.visible = !full;
+    if (gun.body) gun.body.visible = full;
+    if (gun.mag) gun.mag.visible = full && gun.magShown;
+  };
+  const local = {
+    muzzle: spec.muzzle, grip: spec.grip, support: spec.support, butt: spec.butt, port: spec.port, handle: spec.handle,
+    eye: [spec.sight.eye, spec.sight.y, spec.sight.z], sight: [spec.sight.front, spec.sight.y, spec.sight.z], rear: [spec.sight.rear, spec.sight.y, spec.sight.z], magazine: spec.magazine.hold,
+  };
+  gun.point = (name, out = new THREE.Vector3()) => { const p = local[name]; out.set(p[0], p[1], p[2]); if (name === 'magazine' && gun.mag) out.add(gun.mag.position); return group.localToWorld(out); };
+  gun.local = local;
+  gun.setNear = (on) => { if (gun.near === !!on) return; gun.near = !!on; show(); };
+  gun.showMagazine = (on) => { gun.magShown = !!on; show(); };
+  gun.dispose = () => { gun.disposed = true; if (group.parent) group.parent.remove(group); };
+  return gun;
+}
+
+
+const pictures = new Map();
+function gunPicture(id, { width = 240, height = 96 } = {}) {
+  if (!pictures.has(id)) {
+    pictures.set(id, loadGunModel(id).then(({ body, mag }) => {
+      const c = document.createElement('canvas'); c.width = width; c.height = height;
+      const g = c.getContext('2d');
+      const pos = body.attributes.position;
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (let i = 0; i < pos.count; i += 7) { const x = pos.getX(i), y = pos.getY(i); x0 = Math.min(x0, x); x1 = Math.max(x1, x); y0 = Math.min(y0, y); y1 = Math.max(y1, y); }
+      const k = Math.min((width - 8) / (x1 - x0), (height - 8) / (y1 - y0));
+      const ox = (width - (x1 - x0) * k) / 2, oy = (height - (y1 - y0) * k) / 2;
+      const px = (x) => ox + (x - x0) * k, py = (y) => height - oy - (y - y0) * k;
+      g.fillStyle = '#ffffff';
+      for (const geometry of [body, mag]) {
+        const index = geometry.index.array;
+        g.beginPath();
+        for (let t = 0; t < index.length; t += 3) {
+          const a = index[t], b = index[t + 1], d = index[t + 2];
+          const ax = px(pos.getX(a)), ay = py(pos.getY(a)), bx = px(pos.getX(b)), by = py(pos.getY(b)), dx = px(pos.getX(d)), dy = py(pos.getY(d));
+          const turn = (bx - ax) * (dy - ay) - (by - ay) * (dx - ax);
+          if (Math.abs(turn) < 0.01) continue;
+          g.moveTo(ax, ay);
+          if (turn > 0) { g.lineTo(bx, by); g.lineTo(dx, dy); } else { g.lineTo(dx, dy); g.lineTo(bx, by); }
+          g.closePath();
+        }
+        g.fill('nonzero');
+      }
+      return c.toDataURL('image/png');
+    }));
+  }
+  return pictures.get(id);
+}
+
+return { GUN_NEAR, GUN_MODELS, setGunDrawing, loadGunModel, gunModelReady, splitMagazine, makeGun, gunPicture };
+})();
+
+__modules["client/gun-pose.js"] = (function () {
+
+const { reach } = __modules["client/animated.js"];
+const { gripOf } = __modules["client/phone-hold.js"];
+
+const smooth = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
+const ease = (cur, want, dt, seconds) => cur + (want - cur) * (1 - Math.exp(-dt / Math.max(1e-3, seconds)));
+const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+
+const HOLD_TIME = Object.freeze({ draw: 0.16, away: 0.12, sight: 0.08, carry: 0.12, crouch: 0.12, hips: 0.12 });
+const CROUCH_DROP = 0.4;
+const BLADE = Object.freeze({ still: 0.42, moving: 0.28 });
+const CHEST_PITCH = 0.55;
+const RIGHT_CURL = Object.freeze({ index: [0.22, 0.95, 1.1], middle: [0.55, 1.55, 1.45], ring: [0.62, 1.6, 1.45], pinky: [0.68, 1.6, 1.4] });
+const LEFT_CURL = Object.freeze({ index: [0.35, 1.2, 1.2], middle: [0.42, 1.35, 1.35], ring: [0.48, 1.4, 1.35], pinky: [0.52, 1.4, 1.3] });
+const RELOAD_STEPS = Object.freeze({ grab: 0.12, out: 0.3, pouch: 0.5, back: 0.68, home: 0.8, handle: 0.9 });
+const KICK = Object.freeze({ back: 0.022, up: 0.045, spring: 26 });
+
+const V = () => new THREE.Vector3();
+const UP = new THREE.Vector3(0, 1, 0);
+
+const mended = new WeakSet();
+function mendArmSkin(rig) {
+  const mesh = rig && rig.mesh;
+  if (!mesh || !mesh.isSkinnedMesh || mended.has(mesh.geometry)) return 0;
+  mended.add(mesh.geometry);
+  const sk = mesh.skeleton, si = mesh.geometry.attributes.skinIndex, sw = mesh.geometry.attributes.skinWeight, pos = mesh.geometry.attributes.position;
+  if (!sk || !si || !sw || !pos) return 0;
+  const index = (name) => sk.bones.indexOf(rig.bones.get(name));
+  const bind = sk.boneInverses.map((m) => new THREE.Vector3().setFromMatrixPosition(m.clone().invert()));
+  const at = (name) => { const i = index(name); return i >= 0 ? bind[i] : null; };
+  const arm = new Set();
+  for (const s of ['l', 'r']) { const top = rig.bones.get(`upperarm_${s}`); if (top) top.traverse((b) => { const i = sk.bones.indexOf(b); if (i >= 0) arm.add(i); }); }
+  const segs = (pairs) => pairs.map(([a, b]) => [index(a), at(a), at(b)]).filter(([i, a, b]) => i >= 0 && a && b);
+  const ARM = segs([['upperarm_l', 'lowerarm_l'], ['lowerarm_l', 'hand_l'], ['hand_l', 'middle_01_l'], ['upperarm_r', 'lowerarm_r'], ['lowerarm_r', 'hand_r'], ['hand_r', 'middle_01_r']]);
+  const BODY = segs([['pelvis', 'spine_01'], ['spine_01', 'spine_02'], ['spine_02', 'spine_03'], ['thigh_l', 'calf_l'], ['thigh_r', 'calf_r'], ['calf_l', 'foot_l'], ['calf_r', 'foot_r']]);
+  const pelvis = at('pelvis'), shoulder = at('upperarm_r'), head = at('head'), foot = at('foot_l');
+  if (!ARM.length || !BODY.length || !pelvis || !shoulder || !head || !foot) return 0;
+  const unit = Math.max(0.1, head.y - foot.y);
+  const below = pelvis.y + (shoulder.y - pelvis.y) * 0.45;
+  const v = new THREE.Vector3(), ab = new THREE.Vector3(), c = new THREE.Vector3();
+  const dSeg = (p, a, b) => { ab.copy(b).sub(a); const t2 = Math.max(0, Math.min(1, c.copy(p).sub(a).dot(ab) / Math.max(1e-9, ab.lengthSq()))); return p.distanceTo(c.copy(a).addScaledVector(ab, t2)); };
+  let moved = 0;
+  for (let i = 0; i < pos.count; i += 1) {
+    let wArm = 0;
+    for (let k = 0; k < 4; k += 1) if (arm.has(si.getComponent(i, k))) wArm += sw.getComponent(i, k);
+    if (wArm < 0.15) continue;
+    v.fromBufferAttribute(pos, i);
+    if (v.y > below) continue;
+    let da = Infinity; for (const [, a, b] of ARM) da = Math.min(da, dSeg(v, a, b));
+    let db = Infinity, bone = -1; for (const [j, a, b] of BODY) { const d = dSeg(v, a, b); if (d < db) { db = d; bone = j; } }
+    if (da < 0.055 * unit || db > da * 0.8 || bone < 0) continue;
+    let slot = -1, most = -1;
+    for (let k = 0; k < 4; k += 1) if (arm.has(si.getComponent(i, k))) { const w2 = sw.getComponent(i, k); if (w2 > most) { most = w2; slot = k; } }
+    for (let k = 0; k < 4; k += 1) if (arm.has(si.getComponent(i, k)) && k !== slot) sw.setComponent(i, k, 0);
+    let have = -1; for (let k = 0; k < 4; k += 1) if (si.getComponent(i, k) === bone && sw.getComponent(i, k) > 0) have = k;
+    if (have >= 0) { sw.setComponent(i, have, sw.getComponent(i, have) + wArm); sw.setComponent(i, slot, 0); } else { si.setComponent(i, slot, bone); sw.setComponent(i, slot, wArm); }
+    moved += 1;
+  }
+  if (moved) { si.needsUpdate = true; sw.needsUpdate = true; }
+  return moved;
+}
+
+function createGunHold() {
+  const st = {
+    w: 0, sight: 0, carry: 0, crouch: 0, hips: 0, kick: 0, kickV: 0, side: 0, sideV: 0,
+    shoulder: null, posed: new Map(), headHidden: null, lastReload: null, dropped: [], hand: { r: null, l: null },
+  };
+  const t = { a: V(), b: V(), c: V(), d: V(), e: V(), f: V(), g: V(), h: V(), s: V(), m: V(), p: V(), x: V(), y: V(), z: V(), fw: V(), rt: V(), lf: V(), pole: V(), tmp: V(), tmp2: V(), eye: V(), muzzle: V(), dir: V() };
+  const q = { a: new THREE.Quaternion(), b: new THREE.Quaternion(), w: new THREE.Quaternion(), p: new THREE.Quaternion(), g: new THREE.Quaternion(), aim: new THREE.Quaternion(), sight: new THREE.Quaternion(), carry: new THREE.Quaternion() };
+  const m = new THREE.Matrix4();
+  const out = { eye: t.eye, muzzle: t.muzzle, dir: t.dir, shown: false, events: [] };
+
+  function baseOf(bone) {
+    let note = st.posed.get(bone);
+    if (!note) { note = { base: bone.quaternion.clone(), set: new THREE.Quaternion(NaN, 0, 0, 1) }; st.posed.set(bone, note); }
+    else if (!bone.quaternion.equals(note.set)) note.base.copy(bone.quaternion);
+    bone.quaternion.copy(note.base);
+    return note;
+  }
+  function done(bone) { const note = st.posed.get(bone); if (note) note.set.copy(bone.quaternion); }
+  function release(rig) {
+    for (const [bone, note] of st.posed) if (bone.quaternion.equals(note.set)) bone.quaternion.copy(note.base);
+    st.posed.clear();
+    showHead(rig, false);
+  }
+  function showHead(rig, hide) {
+    const head = rig && rig.bones && rig.bones.get('head');
+    if (!head) return;
+    if (hide) { if (!st.headHidden) st.headHidden = head; head.scale.setScalar(0.001); }
+    else if (st.headHidden) { st.headHidden.scale.setScalar(1); st.headHidden = null; }
+  }
+  function turnWorld(bone, axis, angle) {
+    if (!bone || !angle) return;
+    bone.getWorldQuaternion(q.w);
+    q.a.setFromAxisAngle(axis, angle);
+    q.w.premultiply(q.a);
+    bone.parent.getWorldQuaternion(q.p);
+    bone.quaternion.copy(q.p.invert().multiply(q.w));
+    bone.updateMatrixWorld(true);
+  }
+  function turnTo(bone, world, weight) {
+    baseOf(bone);
+    bone.parent.getWorldQuaternion(q.p);
+    q.a.copy(q.p).invert().multiply(world);
+    bone.quaternion.slerp(q.a, weight);
+    done(bone);
+    bone.updateMatrixWorld(true);
+  }
+  function pointAt(bone, next, want, weight) {
+    baseOf(bone);
+    bone.updateMatrixWorld(true);
+    bone.getWorldPosition(t.a); next.getWorldPosition(t.b);
+    t.b.sub(t.a).normalize();
+    q.a.setFromUnitVectors(t.b, want);
+    bone.getWorldQuaternion(q.w);
+    q.w.premultiply(q.a);
+    bone.parent.getWorldQuaternion(q.p);
+    q.a.copy(q.p).invert().multiply(q.w);
+    bone.quaternion.slerp(q.a, weight);
+    done(bone);
+    bone.updateMatrixWorld(true);
+  }
+  function hold(rig, s, wrist, f, side, n, pole, curl, weight, thumb) {
+    const upper = rig.bones.get(`upperarm_${s}`), lower = rig.bones.get(`lowerarm_${s}`), hand = rig.bones.get(`hand_${s}`);
+    if (!upper || !lower || !hand || weight < 0.001) return null;
+    const saved = [upper.quaternion.clone(), lower.quaternion.clone(), hand.quaternion.clone()];
+    reach(upper, lower, hand, wrist, pole);
+    if (weight < 0.999) { const ikU = upper.quaternion.clone(), ikL = lower.quaternion.clone(); upper.quaternion.copy(saved[0]).slerp(ikU, weight); lower.quaternion.copy(saved[1]).slerp(ikL, weight); upper.updateMatrixWorld(true); }
+    const grip = gripOf(rig, hand, s);
+    if (grip) {
+      m.makeBasis(f, side, n).multiply(grip.toLocal);
+      q.g.setFromRotationMatrix(m);
+      turnTo(hand, q.g, weight);
+      for (const finger of grip.fingers) {
+        const c = curl[finger.name];
+        if (!c) continue;
+        const [b1, b2, b3] = finger.bones;
+        const tip = b3.children.find((k) => k.isBone) || null;
+        const ends = [b2, b3, tip];
+        for (let i = 0; i < 3; i += 1) {
+          if (!ends[i]) continue;
+          t.tmp.copy(f).multiplyScalar(Math.cos(c[i])).addScaledVector(n, Math.sin(c[i]));
+          pointAt(finger.bones[i], ends[i], t.tmp, weight);
+        }
+      }
+      if (grip.thumb.length === 3 && thumb) {
+        const [t1, t2, t3] = grip.thumb;
+        const end = t3.children.find((k) => k.isBone);
+        pointAt(t1, t2, t.tmp.copy(thumb[0]).normalize(), weight);
+        pointAt(t2, t3, t.tmp.copy(thumb[1]).normalize(), weight);
+        if (end) pointAt(t3, end, t.tmp.copy(thumb[2]).normalize(), weight);
+      }
+    } else hand.updateMatrixWorld(true);
+    return hand;
+  }
+  const handLength = (rig, s) => {
+    const hand = rig.bones.get(`hand_${s}`), mid = rig.bones.get(`middle_01_${s}`);
+    if (!hand || !mid) return 0.085 * (rig.spec.height / 1.75);
+    return hand.getWorldPosition(t.tmp).distanceTo(mid.getWorldPosition(t.tmp2)) || 0.085;
+  };
+
+  function crouchLegs(rig, drop, fw) {
+    const feet = [];
+    for (const s of ['l', 'r']) {
+      const foot = rig.bones.get(`foot_${s}`);
+      if (!foot) return;
+      feet.push({ s, foot, at: foot.getWorldPosition(V()), turn: foot.getWorldQuaternion(new THREE.Quaternion()) });
+    }
+    rig.lift.position.y -= drop;
+    rig.body.updateMatrixWorld(true);
+    for (const { s, foot, at, turn } of feet) {
+      const thigh = rig.bones.get(`thigh_${s}`), calf = rig.bones.get(`calf_${s}`);
+      if (!thigh || !calf) continue;
+      t.pole.copy(fw).multiplyScalar(1).addScaledVector(UP, 0.2);
+      reach(thigh, calf, foot, at, t.pole);
+      foot.parent.getWorldQuaternion(q.p);
+      foot.quaternion.copy(q.p.invert().multiply(turn));
+      foot.updateMatrixWorld(true);
+    }
+  }
+
+  function pose(rig, gun, want, dt) {
+    out.events.length = 0;
+    out.shown = false;
+    const able = rig && rig.animated && rig.bones && rig.mixer && rig.group.visible && !rig.lying && !rig.seated && !rig.swimming && !(rig.fallDriver && rig.fallDriver.phase);
+    st.w = ease(st.w, want.up && able ? 1 : 0, dt, want.up ? HOLD_TIME.draw : HOLD_TIME.away);
+    if (!able || st.w < 0.01) {
+      if (gun) gun.group.visible = false;
+      if (rig) rig.walkBack = false;
+      if (st.posed.size || st.headHidden) release(rig);
+      st.w = able ? st.w : 0;
+      return out;
+    }
+    const w = st.w, H = rig.spec.height, hs = H / 1.75;
+    const holder = rig.body;
+    if (!st.mended) { st.mended = true; st.mendedPoints = mendArmSkin(rig); }
+    st.sight = ease(st.sight, want.mode === 'sight' ? 1 : 0, dt, HOLD_TIME.sight);
+    st.carry = ease(st.carry, want.mode === 'carry' ? 1 : 0, dt, HOLD_TIME.carry);
+    st.crouch = ease(st.crouch, want.crouch ? 1 : 0, dt, HOLD_TIME.crouch);
+    const facing = rig.group.rotation.y;
+    const dir = t.dir.copy(want.dir).normalize();
+    const aimYaw = Math.atan2(dir.x, dir.z);
+    const speed = want.moving ? Math.hypot(want.moving.x, want.moving.z) : 0;
+    let hipsWant = -BLADE.still * 0.7;
+    if (speed > 0.3) {
+      const rel = angleGap(Math.atan2(want.moving.x, want.moving.z), facing);
+      const back = Math.abs(rel) > 1.95;
+      rig.walkBack = back && st.carry < 0.5;
+      const r = back ? angleGap(rel, Math.PI) : rel;
+      hipsWant = Math.max(-1.0, Math.min(1.0, r * 0.8));
+    } else rig.walkBack = false;
+    st.hips = ease(st.hips, hipsWant, dt, HOLD_TIME.hips);
+    holder.updateMatrixWorld(true);
+    const pelvis = rig.bones.get('pelvis'), s1 = rig.bones.get('spine_01'), s2 = rig.bones.get('spine_02'), s3 = rig.bones.get('spine_03');
+    const neck = rig.bones.get('neck_01'), head = rig.bones.get('head');
+    const hipTurn = st.hips * w * (1 - st.carry * 0.6);
+    if (pelvis && s1 && hipTurn) { turnWorld(pelvis, UP, hipTurn); turnWorld(s1, UP, -hipTurn); }
+    t.fw.set(Math.sin(aimYaw), 0, Math.cos(aimYaw));
+    t.rt.set(-Math.cos(aimYaw), 0, Math.sin(aimYaw));
+    t.lf.copy(t.rt).negate();
+    if (st.crouch > 0.002) crouchLegs(rig, st.crouch * CROUCH_DROP * (H / 1.8) * w, t.fw);
+    const blade = (speed > 0.3 ? BLADE.moving : BLADE.still) * (1 - st.carry);
+    const twist = angleGap(aimYaw - blade, facing) * w;
+    const pitch = Math.asin(Math.max(-1, Math.min(1, -dir.y)));
+    for (const [bone, share] of [[s1, 0.3], [s2, 0.35], [s3, 0.35]]) if (bone) turnWorld(bone, UP, twist * share);
+    const chestYaw = facing + twist;
+    t.a.set(Math.cos(chestYaw), 0, -Math.sin(chestYaw));            // the chest's left, about which it bends forward
+    const bendDown = (pitch * CHEST_PITCH * (1 - st.carry) + st.crouch * 0.12 + st.carry * 0.08) * w;
+    for (const [bone, share] of [[s2, 0.45], [s3, 0.55]]) if (bone) turnWorld(bone, t.a, bendDown * share);
+
+    const R = rig.bones.get('upperarm_r'), L = rig.bones.get('upperarm_l');
+    if (!R || !L || !gun) return out;
+    R.getWorldPosition(t.b); L.getWorldPosition(t.c);
+    t.s.copy(t.b).lerp(t.c, 0.2).addScaledVector(t.fw, 0.015 * hs).addScaledVector(UP, 0.03 * hs);
+    if (!st.shoulder) st.shoulder = t.s.clone();
+    if (st.sight > 0.02) st.shoulder.lerp(t.s, 1 - Math.exp(-dt / 0.07)); else st.shoulder.copy(t.s);
+    t.s.copy(st.shoulder);
+    const spec = gun.spec, k = spec.scale;
+    t.h.set(spec.butt[0] * k, spec.butt[1] * k, spec.butt[2] * k);
+    t.m.set(spec.muzzle[0] * k, spec.muzzle[1] * k, spec.muzzle[2] * k);
+    const frame = (x, out2) => {
+      t.x.copy(x).normalize();
+      t.y.copy(UP).addScaledVector(t.x, -UP.dot(t.x));
+      if (t.y.lengthSq() < 1e-6) t.y.copy(t.fw).negate();
+      t.y.normalize();
+      t.z.crossVectors(t.x, t.y);
+      m.makeBasis(t.x, t.y, t.z);
+      return out2.setFromRotationMatrix(m);
+    };
+    frame(dir, q.aim);
+    const at = want.at;
+    for (let i = 0; i < 2 && at; i += 1) {
+      t.e.copy(t.m).applyQuaternion(q.aim).sub(t.tmp.copy(t.h).applyQuaternion(q.aim)).add(t.s);      // the muzzle
+      t.d.copy(at).sub(t.e);
+      if (t.d.lengthSq() < 1.4 * 1.4 || t.d.dot(dir) < 0.5) break;      // too close to point at: along the aim
+      frame(t.d, q.aim);
+    }
+    frame(dir, q.sight);
+    t.d.copy(t.fw).multiplyScalar(Math.cos(0.62)).addScaledVector(UP, -Math.sin(0.62)).addScaledVector(t.lf, 0.42);
+    frame(t.d, q.carry);
+    q.a.setFromAxisAngle(t.tmp.copy(t.d).normalize(), -0.4);
+    q.carry.premultiply(q.a);
+    q.b.copy(q.aim).slerp(q.sight, st.sight).slerp(q.carry, st.carry);
+    const u = want.reload === null || want.reload === undefined ? null : Math.max(0, Math.min(1, want.reload));
+    const tip = u === null ? 0 : smooth(u / 0.1) * (1 - smooth((u - 0.9) / 0.1));
+    if (tip > 0) {
+      t.tmp.set(1, 0, 0).applyQuaternion(q.b);
+      q.a.setFromAxisAngle(t.tmp, 0.42 * tip); q.b.premultiply(q.a);
+      t.tmp.set(0, 0, 1).applyQuaternion(q.b);
+      q.a.setFromAxisAngle(t.tmp, -0.18 * tip); q.b.premultiply(q.a);
+    }
+    if (want.kicks) { st.kickV += KICK.spring * want.kicks; st.sideV += (Math.random() - 0.5) * 6 * want.kicks; }
+    st.kickV -= st.kick * KICK.spring * KICK.spring * dt; st.kickV *= Math.exp(-dt * 2 * KICK.spring * 0.7); st.kick += st.kickV * dt;
+    st.sideV -= st.side * 400 * dt; st.sideV *= Math.exp(-dt * 25); st.side += st.sideV * dt;
+    const kick = Math.max(-0.3, Math.min(1.5, st.kick));
+    t.tmp.set(0, 0, 1).applyQuaternion(q.b);
+    q.a.setFromAxisAngle(t.tmp, KICK.up * kick); q.b.premultiply(q.a);
+    q.a.setFromAxisAngle(UP, st.side * 0.02); q.b.premultiply(q.a);
+    t.p.copy(t.s).addScaledVector(UP, (-0.1 * st.carry - 0.03 * tip) * hs).addScaledVector(t.rt, 0.03 * st.carry * hs).sub(t.tmp.copy(t.h).applyQuaternion(q.b));
+    t.p.addScaledVector(t.tmp.set(1, 0, 0).applyQuaternion(q.b), -KICK.back * kick);
+    gun.group.position.copy(t.p);
+    gun.group.quaternion.copy(q.b);
+    gun.group.visible = true;
+    gun.group.updateMatrixWorld(true);
+
+    const X = t.x.set(1, 0, 0).applyQuaternion(q.b), Y = t.y.set(0, 1, 0).applyQuaternion(q.b), Z = t.z.set(0, 0, 1).applyQuaternion(q.b);
+    const lean = spec.gripLean;
+    const fR = t.f.copy(X).multiplyScalar(Math.cos(lean)).addScaledVector(Y, -Math.sin(lean)).normalize();
+    const sideR = t.g.copy(Y).multiplyScalar(Math.cos(lean)).addScaledVector(X, Math.sin(lean)).normalize();
+    const nR = V().crossVectors(sideR, fR).normalize();
+    const LR = handLength(rig, 'r');
+    const grip = gun.point('grip', V());
+    const wristR = grip.clone().addScaledVector(Z, spec.gripHalf * k + 0.018 * hs).addScaledVector(fR, -0.55 * LR).addScaledVector(sideR, -0.005 * hs);
+    t.pole.copy(t.rt).multiplyScalar(0.9).addScaledVector(UP, -0.8).addScaledVector(t.fw, -0.25);
+    const thumbR = [V().copy(sideR).multiplyScalar(0.5).addScaledVector(fR, 0.55).addScaledVector(nR, 0.65), V().copy(fR).multiplyScalar(0.65).addScaledVector(nR, 0.7).addScaledVector(sideR, 0.2), V().copy(fR).multiplyScalar(0.55).addScaledVector(nR, 0.8)];
+    hold(rig, 'r', wristR, fR, sideR, nR, t.pole.clone(), RIGHT_CURL, w, thumbR);
+    const fL = V().copy(Z).multiplyScalar(0.92).addScaledVector(X, 0.38).normalize();
+    const nL = V().copy(Y);
+    const sideL = V().crossVectors(nL, fL).normalize();
+    const LL = handLength(rig, 'l');
+    let wristL = gun.point('support', V()).addScaledVector(nL, -(0.016 * hs)).addScaledVector(fL, -0.6 * LL);
+    let magShown = true;
+    if (u !== null && gun.mag) {
+      const S = RELOAD_STEPS;
+      const below = 0.32;
+      let dy = 0, inHand = false;
+      if (u < S.grab) dy = 0;
+      else if (u < S.out) dy = -below * smooth((u - S.grab) / (S.out - S.grab));
+      else if (u < S.back) { magShown = u >= S.pouch; inHand = true; dy = -below; }
+      else if (u < S.home) dy = -below * (1 - smooth((u - S.back) / (S.home - S.back)));
+      gun.mag.position.set(0, dy, 0);
+      const magAt = gun.point('magazine', V());
+      const handAtMag = magAt.clone().addScaledVector(Z, -(0.04 * hs)).addScaledVector(Y, -(0.03 * hs));
+      const pouch = holder.localToWorld(V().set(0.11 * H, 0.52 * H, 0.1 * H));
+      const handle = gun.point('handle', V()).addScaledVector(Z, -(0.05 * hs));
+      let target = wristL;
+      if (u < S.grab) target = wristL.clone().lerp(handAtMag, smooth(u / S.grab));
+      else if (u < S.out) target = handAtMag;
+      else if (u < S.pouch) target = handAtMag.clone().lerp(pouch, smooth((u - S.out) / (S.pouch - S.out)));
+      else if (u < S.back) {
+        const k2 = smooth((u - S.pouch) / (S.back - S.pouch));
+        target = pouch.clone().lerp(handAtMag, k2);
+        if (inHand) { const local = gun.group.worldToLocal(target.clone().addScaledVector(Z, 0.04 * hs).addScaledVector(Y, 0.03 * hs)); gun.mag.position.set(local.x - spec.magazine.hold[0], local.y - spec.magazine.hold[1], local.z - spec.magazine.hold[2]); }
+      } else if (u < S.home) target = handAtMag;
+      else if (u < S.handle) { const k2 = (u - S.home) / (S.handle - S.home); target = handAtMag.clone().lerp(handle, smooth(k2 * 2)).addScaledVector(X, -0.05 * smooth((k2 - 0.5) * 2)); }
+      else target = handle.clone().lerp(wristL, smooth((u - S.handle) / (1 - S.handle)));
+      wristL = target;
+      const last = st.lastReload === null ? -1 : st.lastReload;
+      for (const [name, at2] of [['grab', S.grab], ['out', S.out], ['home', S.home], ['handle', S.handle]]) if (last < at2 && u >= at2) out.events.push(name);
+      st.lastReload = u;
+      gun.mag.updateMatrixWorld(true);
+    } else {
+      if (gun.mag && (gun.mag.position.lengthSq() > 0)) gun.mag.position.set(0, 0, 0);
+      st.lastReload = null;
+    }
+    gun.showMagazine(magShown);
+    t.pole.copy(UP).multiplyScalar(-1).addScaledVector(t.lf, 0.45).addScaledVector(t.fw, -0.1);
+    const thumbL = [V().copy(sideL).multiplyScalar(0.7).addScaledVector(fL, 0.4).addScaledVector(nL, 0.3), V().copy(sideL).multiplyScalar(0.85).addScaledVector(nL, 0.2), V().copy(sideL)];
+    hold(rig, 'l', wristL, fL, sideL, nL, t.pole.clone(), LEFT_CURL, w, thumbL);
+
+    if (head && !want.hideHead) {
+      head.getWorldPosition(t.a);
+      t.b.set(Math.sin(chestYaw), 0, Math.cos(chestYaw));
+      t.c.copy(want.at || t.d.copy(t.a).addScaledVector(dir, 20)).sub(t.a).normalize();
+      q.a.setFromUnitVectors(t.b, t.c);
+      for (const [bone, share] of [[neck, 0.35], [head, 0.55]]) {
+        if (!bone) continue;
+        q.w.identity().slerp(q.a, share * w * (1 - st.carry * 0.5));
+        bone.getWorldQuaternion(q.p);
+        q.g.copy(q.w).multiply(q.p);
+        bone.parent.getWorldQuaternion(q.p);
+        bone.quaternion.copy(q.p.invert().multiply(q.g));
+        bone.updateMatrixWorld(true);
+      }
+      const weld = w * (1 - st.carry);
+      if (weld > 0.01) { turnWorld(head, t.a.set(Math.cos(chestYaw), 0, -Math.sin(chestYaw)), 0.14 * weld); turnWorld(head, t.b.set(Math.sin(aimYaw), 0, Math.cos(aimYaw)), 0.2 * weld); }
+    }
+    showHead(rig, !!want.hideHead && st.sight > 0.35);
+
+    gun.point('eye', t.eye);
+    gun.point('muzzle', t.muzzle);
+    t.dir.set(1, 0, 0).applyQuaternion(q.b);
+    out.shown = true;
+    return out;
+  }
+
+  return {
+    pose,
+    release,
+    get weight() { return st.w; },
+    get sight() { return st.sight; },
+    get crouch() { return st.crouch; },
+    state: st,
+  };
+}
+
+return { HOLD_TIME, RELOAD_STEPS, mendArmSkin, createGunHold };
+})();
+
+__modules["client/gun-fx.js"] = (function () {
+
+const smooth = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
+
+function canvasTexture(size, paint) {
+  const c = document.createElement('canvas'); c.width = size; c.height = size;
+  paint(c.getContext('2d'), size);
+  const t = new THREE.CanvasTexture(c);
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+const flashPicture = () => canvasTexture(128, (g, n) => {
+  const c = n / 2;
+  const glow = g.createRadialGradient(c, c, 0, c, c, c);
+  glow.addColorStop(0, 'rgba(255,250,225,1)'); glow.addColorStop(0.18, 'rgba(255,214,120,0.95)'); glow.addColorStop(0.45, 'rgba(255,140,40,0.35)'); glow.addColorStop(1, 'rgba(255,90,20,0)');
+  g.fillStyle = glow; g.fillRect(0, 0, n, n);
+  g.globalCompositeOperation = 'lighter';
+  for (let k = 0; k < 6; k += 1) {
+    const a = (k / 6) * Math.PI * 2 + (k % 2) * 0.2, len = c * (k % 2 ? 0.62 : 0.95);
+    g.save(); g.translate(c, c); g.rotate(a);
+    const ray = g.createLinearGradient(0, 0, len, 0);
+    ray.addColorStop(0, 'rgba(255,240,200,0.9)'); ray.addColorStop(1, 'rgba(255,150,40,0)');
+    g.fillStyle = ray; g.beginPath(); g.moveTo(0, -c * 0.07); g.lineTo(len, 0); g.lineTo(0, c * 0.07); g.closePath(); g.fill();
+    g.restore();
+  }
+});
+const tonguePicture = () => canvasTexture(128, (g, n) => {
+  const grad = g.createLinearGradient(0, 0, n, 0);
+  grad.addColorStop(0, 'rgba(255,245,215,1)'); grad.addColorStop(0.35, 'rgba(255,190,90,0.85)'); grad.addColorStop(1, 'rgba(255,110,30,0)');
+  g.fillStyle = grad;
+  g.beginPath(); g.moveTo(0, n * 0.5); g.quadraticCurveTo(n * 0.3, n * 0.18, n, n * 0.5); g.quadraticCurveTo(n * 0.3, n * 0.82, 0, n * 0.5); g.fill();
+});
+const puffPicture = () => canvasTexture(64, (g, n) => {
+  const c = n / 2;
+  const grad = g.createRadialGradient(c, c, 0, c, c, c);
+  grad.addColorStop(0, 'rgba(255,255,255,0.85)'); grad.addColorStop(0.5, 'rgba(255,255,255,0.4)'); grad.addColorStop(1, 'rgba(255,255,255,0)');
+  g.fillStyle = grad; g.fillRect(0, 0, n, n);
+});
+
+const FX_MOST = Object.freeze({
+  full: Object.freeze({ flashes: 6, streaks: 32, puffs: 36, sparks: 120, drops: 160, spots: 140, marks: 60, cases: 48 }),
+  lite: Object.freeze({ flashes: 4, streaks: 16, puffs: 16, sparks: 48, drops: 60, spots: 60, marks: 30, cases: 16 }),
+});
+
+function createGunFx(scene, { lite = false, ground = () => 0, light = !lite } = {}) {
+  const most = FX_MOST[lite ? 'lite' : 'full'];
+  const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
+  const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
+  const stats = { flashes: 0, streaks: 0, strikes: 0, blood: 0, cases: 0 };
+
+  const flashMap = flashPicture(), tongueMap = tonguePicture(), puffMap = puffPicture();
+  const flashes = [];
+  for (let i = 0; i < most.flashes; i += 1) {
+    const star = new THREE.Sprite(new THREE.SpriteMaterial({ map: flashMap, color: 0xffffff, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false, fog: false }));
+    const tongue = new THREE.Group();
+    for (const turn of [0, Math.PI / 2]) {
+      const plane = new THREE.Mesh(new THREE.PlaneGeometry(1, 0.32), new THREE.MeshBasicMaterial({ map: tongueMap, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false, side: THREE.DoubleSide, toneMapped: false, fog: false }));
+      plane.position.x = 0.5; plane.rotation.x = turn;
+      tongue.add(plane);
+    }
+    star.visible = false; tongue.visible = false;
+    scene.add(star, tongue);
+    flashes.push({ star, tongue, age: 1, life: 0.05, size: 1 });
+  }
+  let nextFlash = 0;
+  const lamp = light ? new THREE.PointLight(0xffb366, 0, 9, 2) : null;
+  if (lamp) scene.add(lamp);
+  let lampAge = 1;
+
+  const rod = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
+  rod.rotateZ(-Math.PI / 2);          // along +x
+  rod.translate(0.5, 0, 0);           // from its back end
+  const streakMesh = new THREE.InstancedMesh(rod, new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), most.streaks);
+  streakMesh.frustumCulled = false; streakMesh.count = 0;
+  scene.add(streakMesh);
+  const streaks = [];
+
+  const puffs = [];
+  for (let i = 0; i < most.puffs; i += 1) {
+    const s = new THREE.Sprite(new THREE.SpriteMaterial({ map: puffMap, color: 0xffffff, transparent: true, depthWrite: false, opacity: 0 }));
+    s.visible = false; scene.add(s);
+    puffs.push({ sprite: s, age: 1, life: 1, from: 0.1, to: 0.5, rise: 0, vx: 0, vy: 0, vz: 0, alpha: 0.6 });
+  }
+  let nextPuff = 0;
+  function puff(at, colour, { size = 0.25, grow = 3, life = 0.6, alpha = 0.6, rise = 0.3, v = null } = {}) {
+    const p = puffs[nextPuff]; nextPuff = (nextPuff + 1) % puffs.length;
+    p.sprite.position.copy(at); p.sprite.material.color.setHex(colour); p.sprite.material.rotation = Math.random() * 6.28;
+    p.age = 0; p.life = life; p.from = size; p.to = size * grow; p.rise = rise; p.alpha = alpha;
+    p.vx = v ? v.x : 0; p.vy = v ? v.y : 0; p.vz = v ? v.z : 0;
+    p.sprite.visible = true;
+  }
+
+  const bits = (count, geometry, material) => { const mesh = new THREE.InstancedMesh(geometry, material, count); mesh.frustumCulled = false; mesh.count = 0; scene.add(mesh); return { mesh, list: [] }; };
+  const sparks = bits(most.sparks, new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffe2a0, toneMapped: false }));
+  const drops = bits(most.drops, new THREE.IcosahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }));
+  const BLOOD = new THREE.Color(0x6e0710), GRIT = new THREE.Color();
+  const disc = new THREE.CircleGeometry(1, 10); disc.rotateX(-Math.PI / 2);
+  const spotMaterial = new THREE.MeshBasicMaterial({ color: 0x4a050a, transparent: true, opacity: 0.85, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
+  const spots = bits(most.spots, disc, spotMaterial);
+  const marks = bits(most.marks, disc, new THREE.MeshBasicMaterial({ color: 0x1c1712, transparent: true, opacity: 0.7, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }));
+  const caseGeometry = new THREE.CylinderGeometry(0.0052, 0.0052, 0.045, 6); caseGeometry.rotateZ(Math.PI / 2);
+  const cases = bits(most.cases, caseGeometry, new THREE.MeshStandardMaterial({ color: 0xb98a3e, metalness: 0.85, roughness: 0.35 }));
+
+  const add = (pool, item, max) => { if (pool.list.length >= max) pool.list.shift(); pool.list.push(item); };
+
+  function flash(at, dir, { near = false, size = 1 } = {}) {
+    const f = flashes[nextFlash]; nextFlash = (nextFlash + 1) % flashes.length;
+    f.age = 0; f.life = 0.045 + Math.random() * 0.02; f.size = size * (0.85 + Math.random() * 0.35);
+    f.star.position.copy(at).addScaledVector(dir, 0.03);
+    f.star.material.rotation = Math.random() * 6.28;
+    f.tongue.position.copy(at);
+    Q.setFromUnitVectors(X, A.copy(dir).normalize());
+    f.tongue.quaternion.copy(Q);
+    f.tongue.rotateX(Math.random() * 3.14);
+    f.star.visible = true; f.tongue.visible = true;
+    if (lamp && near) { lamp.position.copy(at).addScaledVector(dir, 0.2); lampAge = 0; }
+    if (!lite || near) puff(at, 0xb9b4ac, { size: 0.06, grow: 6, life: 0.7, alpha: 0.18, rise: 0.25, v: A.copy(dir).multiplyScalar(0.8) });
+    stats.flashes += 1;
+    last.flash = [at.x, at.y, at.z];
+  }
+  const last = { flash: null };
+
+  function streak(from, to) {
+    const length = from.distanceTo(to);
+    if (length < 0.5) return;
+    add({ list: streaks }, { from: from.clone(), dir: to.clone().sub(from).normalize(), length, at: 0, speed: 380, size: 0.009 + Math.random() * 0.004 }, most.streaks);
+    stats.streaks += 1;
+  }
+
+  function strike(what, at, dir, { calm = false } = {}) {
+    stats.strikes += 1;
+    const back = A.copy(dir).normalize().multiplyScalar(-1);
+    if (what === 'person') { blood(at, dir, { calm }); return; }
+    if (what === 'air') return;
+    if (what === 'vehicle') {
+      const n = lite ? 5 : 10;
+      for (let i = 0; i < n; i += 1) add(sparks, { p: at.clone(), v: back.clone().multiplyScalar(2 + Math.random() * 4).add(B.set(Math.random() - 0.5, Math.random() * 0.8, Math.random() - 0.5).multiplyScalar(4)), age: 0, life: 0.15 + Math.random() * 0.2, size: 0.008 }, most.sparks);
+      puff(at, 0x9a9a98, { size: 0.05, grow: 4, life: 0.35, alpha: 0.35, rise: 0.1 });
+      return;
+    }
+    const earth = what === 'ground' ? 0x9b7b5b : 0xb3aa9c;
+    puff(at, earth, { size: 0.07, grow: 5, life: 0.7, alpha: 0.55, rise: 0.25, v: back.clone().multiplyScalar(0.6) });
+    if (!lite) puff(at, earth, { size: 0.04, grow: 3, life: 0.4, alpha: 0.7, rise: 0.1, v: back.clone().multiplyScalar(1.4) });
+    const n = lite ? 3 : 7;
+    for (let i = 0; i < n; i += 1) add(drops, { p: at.clone(), v: back.clone().multiplyScalar(1.5 + Math.random() * 2.5).add(B.set(Math.random() - 0.5, Math.random() * 1.2, Math.random() - 0.5).multiplyScalar(2.2)), age: 0, life: 0.6, size: 0.006 + Math.random() * 0.006, grit: true, colour: earth }, most.drops);
+    if (what === 'ground') add(marks, { p: at.clone().setY(ground(at.x, at.z) + 0.012), size: 0.03 + Math.random() * 0.015, age: 0, life: 40, turn: Math.random() * 6.28 }, most.marks);
+  }
+
+  function blood(at, dir, { calm = false, amount = 1 } = {}) {
+    stats.blood += 1;
+    const on = A.copy(dir).normalize();
+    puff(at, 0x8a0b14, { size: 0.08, grow: calm ? 2.5 : 4, life: calm ? 0.35 : 0.6, alpha: calm ? 0.35 : 0.6, rise: -0.05, v: on.clone().multiplyScalar(0.7) });
+    const n = Math.round((calm ? 3 : lite ? 6 : 14) * amount);
+    for (let i = 0; i < n; i += 1) {
+      const v = on.clone().multiplyScalar(1 + Math.random() * 2.2).add(B.set(Math.random() - 0.5, Math.random() * 0.9 - 0.2, Math.random() - 0.5).multiplyScalar(2));
+      add(drops, { p: at.clone(), v, age: 0, life: 2.5, size: 0.006 + Math.random() * 0.008, blood: true }, most.drops);
+    }
+  }
+
+  function eject(at, right, up) {
+    const v = right.clone().multiplyScalar(1.6 + Math.random() * 0.9).addScaledVector(up, 1.2 + Math.random() * 0.8);
+    add(cases, { p: at.clone(), v, age: 0, life: 2.2, spin: new THREE.Vector3(Math.random() * 30, Math.random() * 30, Math.random() * 30), turn: new THREE.Euler(Math.random() * 3, Math.random() * 3, Math.random() * 3), bounced: 0 }, most.cases);
+    stats.cases += 1;
+  }
+
+  const fallen = [];
+  function dropMagazine(mag, at, quaternion, scale) {
+    if (!mag || !mag.geometry) return;
+    if (fallen.length >= (lite ? 1 : 3)) { const old = fallen.shift(); scene.remove(old.mesh); }
+    const mesh = new THREE.Mesh(mag.geometry, mag.material);
+    mesh.position.copy(at); mesh.quaternion.copy(quaternion); mesh.scale.setScalar(scale);
+    mesh.castShadow = true;
+    scene.add(mesh);
+    fallen.push({ mesh, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, -0.5, (Math.random() - 0.5) * 0.4), spin: new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6), age: 0, lie: false });
+  }
+
+  function update(dt) {
+    for (const f of flashes) {
+      if (f.age >= f.life) { if (f.star.visible) { f.star.visible = false; f.tongue.visible = false; } continue; }
+      f.age += dt;
+      const k = 1 - f.age / f.life;
+      const s = (0.22 + 0.1 * Math.random()) * f.size * (0.6 + 0.4 * k);
+      f.star.scale.set(s, s, s);
+      f.star.material.opacity = k;
+      f.tongue.scale.set(0.34 * f.size * (0.7 + 0.5 * Math.random()), 0.5 * f.size, 0.5 * f.size);
+      for (const c of f.tongue.children) c.material.opacity = k;
+    }
+    if (lamp) { lampAge += dt; lamp.intensity = lampAge < 0.06 ? 14 * (1 - lampAge / 0.06) : 0; }
+    let n = 0;
+    for (let i = streaks.length - 1; i >= 0; i -= 1) {
+      const s = streaks[i];
+      s.at += s.speed * dt;
+      if (s.at - 2.4 > s.length) { streaks.splice(i, 1); continue; }
+      const head = Math.min(s.length, s.at), tail = Math.max(0, s.at - 2.4);
+      if (head - tail < 0.02) continue;
+      P.copy(s.from).addScaledVector(s.dir, tail);
+      Q.setFromUnitVectors(X, s.dir);
+      S.set(head - tail, s.size, s.size);
+      M.compose(P, Q, S);
+      streakMesh.setMatrixAt(n, M); n += 1;
+    }
+    streakMesh.count = n; streakMesh.instanceMatrix.needsUpdate = true;
+    for (const p of puffs) {
+      if (p.age >= p.life) { if (p.sprite.visible) p.sprite.visible = false; continue; }
+      p.age += dt;
+      const u = p.age / p.life;
+      const size = p.from + (p.to - p.from) * smooth(Math.sqrt(u));
+      p.sprite.scale.set(size, size, size);
+      p.sprite.position.x += p.vx * dt; p.sprite.position.y += (p.vy + p.rise) * dt; p.sprite.position.z += p.vz * dt;
+      p.vx *= Math.exp(-dt * 3); p.vy *= Math.exp(-dt * 3); p.vz *= Math.exp(-dt * 3);
+      p.sprite.material.opacity = p.alpha * (1 - u) * Math.min(1, u * 12 + 0.3);
+    }
+    n = 0;
+    for (let i = sparks.list.length - 1; i >= 0; i -= 1) {
+      const s = sparks.list[i];
+      s.age += dt;
+      if (s.age > s.life) { sparks.list.splice(i, 1); continue; }
+      s.v.y -= 9.8 * dt; s.p.addScaledVector(s.v, dt);
+      Q.setFromUnitVectors(X, A.copy(s.v).normalize());
+      S.set(Math.max(0.02, s.v.length() * 0.012), s.size, s.size);
+      M.compose(s.p, Q, S);
+      sparks.mesh.setMatrixAt(n, M); n += 1;
+    }
+    sparks.mesh.count = n; sparks.mesh.instanceMatrix.needsUpdate = true;
+    n = 0;
+    for (let i = drops.list.length - 1; i >= 0; i -= 1) {
+      const d = drops.list[i];
+      d.age += dt;
+      d.v.y -= 9.8 * dt; d.p.addScaledVector(d.v, dt);
+      const g = ground(d.p.x, d.p.z);
+      if (d.p.y <= g + 0.01 || d.age > d.life) {
+        if (d.blood && d.p.y <= g + 0.05) add(spots, { p: d.p.clone().setY(g + 0.014), size: d.size * (2.4 + Math.random() * 2.5), age: 0, life: lite ? 60 : 120, turn: Math.random() * 6.28 }, most.spots);
+        drops.list.splice(i, 1); continue;
+      }
+      S.setScalar(d.size);
+      M.compose(d.p, Q.identity(), S);
+      drops.mesh.setMatrixAt(n, M);
+      drops.mesh.setColorAt(n, d.blood ? BLOOD : GRIT.setHex(d.colour || 0x8a7a66));
+      n += 1;
+    }
+    drops.mesh.count = n; drops.mesh.instanceMatrix.needsUpdate = true;
+    if (drops.mesh.instanceColor) drops.mesh.instanceColor.needsUpdate = true;
+    for (const pool of [spots, marks]) {
+      n = 0;
+      for (let i = pool.list.length - 1; i >= 0; i -= 1) {
+        const s = pool.list[i];
+        s.age += dt;
+        if (s.age > s.life) { pool.list.splice(i, 1); continue; }
+        const fade = 1 - smooth((s.age - s.life * 0.6) / (s.life * 0.4));
+        Q.setFromAxisAngle(Y, s.turn);
+        S.set(s.size * (0.6 + 0.4 * fade), 1, s.size * (0.6 + 0.4 * fade) * 0.8);
+        M.compose(s.p, Q, S);
+        pool.mesh.setMatrixAt(n, M); n += 1;
+      }
+      pool.mesh.count = n; pool.mesh.instanceMatrix.needsUpdate = true;
+    }
+    n = 0;
+    for (let i = cases.list.length - 1; i >= 0; i -= 1) {
+      const c = cases.list[i];
+      c.age += dt;
+      if (c.age > c.life) { cases.list.splice(i, 1); continue; }
+      const g = ground(c.p.x, c.p.z) + 0.006;
+      if (c.p.y > g || c.v.y > 0) {
+        c.v.y -= 9.8 * dt; c.p.addScaledVector(c.v, dt);
+        c.turn.x += c.spin.x * dt; c.turn.y += c.spin.y * dt; c.turn.z += c.spin.z * dt;
+        if (c.p.y <= g) { c.p.y = g; if (c.bounced < 1 && c.v.y < -0.8) { c.bounced += 1; c.v.multiplyScalar(0.35); c.v.y = -c.v.y; c.spin.multiplyScalar(0.4); } else { c.v.set(0, 0, 0); c.turn.x = Math.PI / 2 * Math.round(c.turn.x / (Math.PI / 2)); } }
+      }
+      Q.setFromEuler(c.turn);
+      const k = c.age > c.life - 0.4 ? (c.life - c.age) / 0.4 : 1;
+      S.setScalar(Math.max(0.001, k));
+      M.compose(c.p, Q, S);
+      cases.mesh.setMatrixAt(n, M); n += 1;
+    }
+    cases.mesh.count = n; cases.mesh.instanceMatrix.needsUpdate = true;
+    for (let i = fallen.length - 1; i >= 0; i -= 1) {
+      const f = fallen[i];
+      f.age += dt;
+      if (f.age > 9) { scene.remove(f.mesh); fallen.splice(i, 1); continue; }
+      if (f.lie) continue;
+      f.v.y -= 9.8 * dt;
+      f.mesh.position.addScaledVector(f.v, dt);
+      f.mesh.rotation.x += f.spin.x * dt; f.mesh.rotation.y += f.spin.y * dt; f.mesh.rotation.z += f.spin.z * dt;
+      const g = ground(f.mesh.position.x, f.mesh.position.z) + 0.02;
+      if (f.mesh.position.y <= g) { f.mesh.position.y = g; f.lie = true; f.mesh.rotation.set(0, f.mesh.rotation.y, Math.PI / 2); }
+    }
+  }
+
+  function clear() {
+    for (const f of flashes) { f.age = f.life; f.star.visible = false; f.tongue.visible = false; }
+    streaks.length = 0;
+    for (const p of puffs) { p.age = p.life; p.sprite.visible = false; }
+    for (const pool of [sparks, drops, spots, marks, cases]) { pool.list.length = 0; pool.mesh.count = 0; }
+    for (const f of fallen) scene.remove(f.mesh);
+    fallen.length = 0;
+  }
+
+  return {
+    flash, streak, strike, blood, eject, dropMagazine, update, clear, stats,
+    last,
+    get busy() { return { streaks: streaks.length, sparks: sparks.list.length, drops: drops.list.length, spots: spots.list.length, marks: marks.list.length, cases: cases.list.length, puffs: puffs.filter((p) => p.age < p.life).length, flashes: flashes.filter((f) => f.age < f.life).length, magazines: fallen.length }; },
+  };
+}
+
+return { FX_MOST, createGunFx };
+})();
+
+__modules["client/gun-hud.js"] = (function () {
+
+const $ = (id) => document.getElementById(id);
+const h = (tag, attrs = {}, ...children) => {
+  const el = document.createElement(tag);
+  for (const [k, v] of Object.entries(attrs || {})) { if (v === null || v === undefined) continue; if (k === 'class') el.className = v; else if (k.startsWith('on')) el.addEventListener(k.slice(2), v); else el.setAttribute(k, v); }
+  for (const c of children.flat()) if (c !== null && c !== undefined) el.append(c.nodeType ? c : document.createTextNode(String(c)));
+  return el;
+};
+const SVG = 'http://www.w3.org/2000/svg';
+const svg = (tag, attrs = {}) => { const el = document.createElementNS(SVG, tag); for (const [k, v] of Object.entries(attrs)) el.setAttribute(k, v); return el; };
+const tr = (n) => Math.round(Number(n) || 0).toLocaleString('en-GB');
+
+function createGunHud({ hud, hudr, picture = () => Promise.resolve(null), onSwitch = () => {}, onEquip = () => {}, onBuy = () => {} } = {}) {
+  const reticle = h('div', { id: 'gun-reticle', 'aria-hidden': 'true', hidden: '' });
+  const mark = svg('svg', { viewBox: '-60 -60 120 120', class: 'aim' });
+  const ring = svg('g', { class: 'ring' });
+  for (let k = 0; k < 4; k += 1) {
+    const a0 = (k * 90 + 18) * Math.PI / 180, a1 = (k * 90 + 72) * Math.PI / 180, r = 14;
+    const d = `M ${(Math.cos(a0) * r).toFixed(2)} ${(Math.sin(a0) * r).toFixed(2)} A ${r} ${r} 0 0 1 ${(Math.cos(a1) * r).toFixed(2)} ${(Math.sin(a1) * r).toFixed(2)}`;
+    ring.append(svg('path', { d, class: 'under' }), svg('path', { d, class: 'line' }));
+  }
+  const ticks = svg('g', { class: 'ticks' });
+  for (const [x1, y1, x2, y2] of [[0, -20, 0, -30], [0, 20, 0, 30], [-20, 0, -30, 0], [20, 0, 30, 0]]) { ticks.append(svg('line', { x1, y1, x2, y2, class: 'under' }), svg('line', { x1, y1, x2, y2, class: 'line' })); }
+  const dot = svg('circle', { cx: 0, cy: 0, r: 2.2, class: 'dot' });
+  mark.append(ring, ticks, dot);
+  const target = h('div', { class: 'target', hidden: '' }, h('span', { class: 'name' }), h('div', { class: 'bar' }, h('i')));
+  reticle.append(mark, target);
+  const blocked = h('div', { id: 'gun-blocked', 'aria-hidden': 'true', hidden: '' });
+  blocked.innerHTML = '<svg viewBox="-10 -10 20 20"><path d="M-6 -6 L6 6 M6 -6 L-6 6" /></svg>';
+  const sightDot = h('div', { id: 'gun-dot', 'aria-hidden': 'true', hidden: '' });
+  const hits = h('div', { id: 'gun-hits', 'aria-hidden': 'true', hidden: '' });
+  hits.innerHTML = '<svg viewBox="-30 -30 60 60"><path d="M-17 -17 L-8 -8 M17 -17 L8 -8 M-17 17 L-8 8 M17 17 L8 8" /></svg>';
+
+  const shot = h('img', { class: 'pic', alt: '', hidden: '' });
+  const nameEl = h('span', { class: 'name' });
+  const mag = h('b', { class: 'mag' }), spare = h('span', { class: 'spare' });
+  const fill = h('i');
+  const note = h('span', { class: 'note' });
+  const panel = h('button', { id: 'gun-panel', type: 'button', hidden: '', 'aria-label': 'Your gun and its rounds. Press to switch guns', onclick: () => onSwitch() },
+    shot, h('span', { class: 'words' }, nameEl, h('span', { class: 'count' }, mag, h('span', { class: 'slash' }, ' / '), spare), h('span', { class: 'load' }, fill), note));
+  if (hudr) hudr.prepend(panel); else hud.append(panel);
+
+  const lifeNum = h('b');
+  const lifeFill = h('i');
+  const life = h('div', { id: 'gun-life', hidden: '', role: 'meter', 'aria-label': 'Your health', 'aria-valuemin': '0', 'aria-valuemax': '100' },
+    h('span', { class: 'heart', 'aria-hidden': 'true' }), lifeNum, h('div', { class: 'bar' }, lifeFill));
+
+  const list = h('div', { class: 'list' });
+  const switcher = h('div', { id: 'gun-switch', hidden: '', role: 'dialog', 'aria-label': 'Your guns' },
+    h('header', null, h('b', null, 'Guns'), h('button', { class: 'btn quiet', type: 'button', onclick: () => closeSwitch() }, 'Close')), list,
+    h('p', { class: 'small shop' }, 'More guns will be sold here. Everyone has the rifle, free.'));
+
+  hud.append(reticle, blocked, sightDot, hits, life, switcher);
+
+  const st = { on: false, x: -1, y: -1, kind: '', scale: 0, sight: -1, target: '', gun: '', life: -1, blocked: '', hitUntil: 0, pictureFor: null };
+  function show(on) {
+    st.on = !!on;
+    hud.classList.toggle('armed', st.on);
+    reticle.hidden = !st.on; panel.hidden = !st.on; life.hidden = !st.on;
+    if (!st.on) { sightDot.hidden = true; hud.classList.remove('sighting'); blocked.hidden = true; hits.hidden = true; closeSwitch(); }
+  }
+  function update({ at, kind = 'neutral', spread = 14, sight = 0, who = null, gun = null, health = 100, block = null, now = performance.now() } = {}) {
+    if (!st.on) return;
+    const shown = !!at && sight < 0.7;
+    if (reticle.hidden === shown) reticle.hidden = !shown;
+    if (at && (Math.abs(at.x - st.x) > 0.4 || Math.abs(at.y - st.y) > 0.4)) {
+      st.x = at.x; st.y = at.y;
+      const place = `translate(${at.x.toFixed(1)}px, ${at.y.toFixed(1)}px)`;
+      reticle.style.transform = place; sightDot.style.transform = place; hits.style.transform = place;
+    }
+    if (kind !== st.kind) { st.kind = kind; reticle.dataset.kind = kind; }
+    const scale = Math.max(0.55, Math.min(4.2, spread / 14));
+    if (Math.abs(scale - st.scale) > 0.02) { st.scale = scale; ring.setAttribute('transform', `scale(${scale.toFixed(3)})`); ticks.setAttribute('transform', `scale(${(0.7 + 0.3 * scale).toFixed(3)})`); }
+    const dotOn = !!at && sight >= 0.7;
+    if (sightDot.hidden === dotOn) { sightDot.hidden = !dotOn; hud.classList.toggle('sighting', dotOn); }
+    const whoKey = who ? `${who.name}|${who.health}|${who.able}` : '';
+    if (whoKey !== st.target) {
+      st.target = whoKey;
+      target.hidden = !who;
+      if (who) {
+        target.querySelector('.name').textContent = who.name || '';
+        const bar = target.querySelector('.bar i');
+        bar.style.width = `${Math.max(0, Math.min(100, Number(who.health) || 0))}%`;
+        target.classList.toggle('down', !who.able);
+      }
+    }
+    const bKey = block ? `${Math.round(block.x)},${Math.round(block.y)}` : '';
+    if (bKey !== st.blocked) { st.blocked = bKey; blocked.hidden = !block; if (block) blocked.style.transform = `translate(${block.x.toFixed(0)}px, ${block.y.toFixed(0)}px)`; }
+    if (gun) {
+      const key = `${gun.id}|${gun.mag}|${gun.spare}|${gun.reloading === null || gun.reloading === undefined ? '' : gun.reloading.toFixed(2)}`;
+      if (key !== st.gun) {
+        st.gun = key;
+        nameEl.textContent = gun.name || gun.id;
+        mag.textContent = String(gun.mag); spare.textContent = String(gun.spare);
+        const reloading = gun.reloading !== null && gun.reloading !== undefined;
+        fill.parentElement.hidden = !reloading;
+        if (reloading) fill.style.width = `${Math.round(gun.reloading * 100)}%`;
+        const empty = !reloading && gun.mag <= 0;
+        panel.classList.toggle('empty', empty);
+        panel.classList.toggle('low', !reloading && gun.mag > 0 && gun.mag <= Math.ceil((gun.magazine || 30) * 0.2));
+        note.textContent = reloading ? 'Reloading' : empty ? (gun.spare > 0 ? 'Reload' : 'No rounds') : '';
+        if (st.pictureFor !== gun.id) { st.pictureFor = gun.id; picture(gun.id).then((url) => { if (url && st.pictureFor === gun.id) { shot.src = url; shot.hidden = false; } }).catch(() => {}); }
+      }
+    }
+    const hp = Math.round(health);
+    if (hp !== st.life) {
+      st.life = hp;
+      lifeNum.textContent = String(hp);
+      lifeFill.style.width = `${Math.max(0, Math.min(100, hp))}%`;
+      life.setAttribute('aria-valuenow', String(hp));
+      life.dataset.level = hp <= 20 ? 'critical' : hp <= 60 ? 'hurt' : 'well';
+    }
+    if (!hits.hidden && now > st.hitUntil) hits.hidden = true;
+  }
+  function hit(kind = 'hit', now = performance.now()) {
+    if (!st.on) return;
+    hits.dataset.kind = kind;
+    hits.hidden = false;
+    hits.classList.remove('pop'); void hits.offsetWidth; hits.classList.add('pop');
+    st.hitUntil = now + (kind === 'down' ? 420 : 200);
+  }
+  function empty() { panel.classList.remove('shake'); void panel.offsetWidth; panel.classList.add('shake'); }
+
+  function openSwitch({ guns = [], equipped = null } = {}) {
+    list.replaceChildren(...guns.map((g) => {
+      const pic = h('img', { class: 'pic', alt: '', hidden: '' });
+      picture(g.id).then((url) => { if (url) { pic.src = url; pic.hidden = false; } }).catch(() => {});
+      const here = g.id === equipped;
+      const act = g.owned
+        ? h('button', { class: `btn${here ? ' quiet' : ' primary'}`, type: 'button', disabled: here ? '' : null, onclick: () => { onEquip(g.id); closeSwitch(); } }, here ? 'In your hands' : 'Use')
+        : g.forSale && g.price > 0 ? h('button', { class: 'btn primary', type: 'button', onclick: () => onBuy(g) }, `Buy, ${tr(g.price)} TR`) : h('span', { class: 'small' }, 'Not sold');
+      return h('div', { class: `gun${g.owned ? '' : ' locked'}${here ? ' here' : ''}`, 'data-gun': g.id }, pic,
+        h('span', { class: 'words' }, h('b', null, g.name), h('span', { class: 'small' }, g.owned ? `${g.mag} / ${g.spare} rounds${g.starter ? ' · everyone\'s, free' : ''}` : 'Not yours')), act);
+    }));
+    switcher.hidden = false;
+  }
+  function closeSwitch() { switcher.hidden = true; }
+
+  return {
+    show, update, hit, empty, openSwitch, closeSwitch,
+    get shown() { return st.on; },
+    get switching() { return !switcher.hidden; },
+    state: () => ({ on: st.on, reticle: !reticle.hidden, kind: st.kind, x: st.x, y: st.y, scale: st.scale, dot: !sightDot.hidden, target: target.hidden ? null : { name: target.querySelector('.name').textContent, width: target.querySelector('.bar i').style.width, down: target.classList.contains('down') }, gun: { name: nameEl.textContent, mag: mag.textContent, spare: spare.textContent, note: note.textContent, picture: !shot.hidden }, life: lifeNum.textContent, blocked: !blocked.hidden, hit: hits.hidden ? null : hits.dataset.kind, switching: !switcher.hidden }),
+  };
+}
+
+return { createGunHud };
+})();
+
+__modules["client/blood-screen.js"] = (function () {
+
+const smooth = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
+
+function splashPicture(seed, size = 384) {
+  let s = seed * 9301 + 49297;
+  const rand = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const c = document.createElement('canvas'); c.width = size; c.height = size;
+  const g = c.getContext('2d');
+  const cx = size * (0.38 + rand() * 0.24), cy = size * (0.32 + rand() * 0.2);
+  const blob = (x, y, r, alpha) => { const grad = g.createRadialGradient(x, y, 0, x, y, r); grad.addColorStop(0, `rgba(92,0,8,${alpha})`); grad.addColorStop(0.7, `rgba(122,4,14,${alpha * 0.85})`); grad.addColorStop(1, 'rgba(140,8,18,0)'); g.fillStyle = grad; g.beginPath(); g.arc(x, y, r, 0, Math.PI * 2); g.fill(); };
+  for (let i = 0; i < 26; i += 1) { const a = rand() * Math.PI * 2, d = rand() * size * 0.13; blob(cx + Math.cos(a) * d, cy + Math.sin(a) * d * 0.8, size * (0.05 + rand() * 0.09), 0.55 + rand() * 0.3); }
+  for (let i = 0; i < 4 + Math.floor(rand() * 4); i += 1) {
+    const x = cx + (rand() - 0.5) * size * 0.25, w = size * (0.008 + rand() * 0.014), len = size * (0.12 + rand() * 0.35);
+    const grad = g.createLinearGradient(x, cy, x, cy + len); grad.addColorStop(0, 'rgba(100,0,10,0.85)'); grad.addColorStop(1, 'rgba(110,0,12,0.15)');
+    g.fillStyle = grad; g.beginPath(); g.moveTo(x - w, cy); g.quadraticCurveTo(x - w * 0.6, cy + len * 0.7, x, cy + len); g.quadraticCurveTo(x + w * 0.6, cy + len * 0.7, x + w, cy); g.fill();
+    blob(x, cy + len, w * 1.6, 0.7);
+  }
+  for (let i = 0; i < 70; i += 1) { const a = rand() * Math.PI * 2, d = size * (0.12 + rand() * 0.34); blob(cx + Math.cos(a) * d, cy + Math.sin(a) * d, size * (0.004 + rand() * 0.014), 0.5 + rand() * 0.4); }
+  return c.toDataURL('image/png');
+}
+
+const SPLASHES = [[-6, -8, 46, 12, 0.08], [62, 58, 50, -20, 0.22], [-10, 52, 44, 160, 0.4], [70, -12, 42, 200, 0.58], [26, 76, 40, 90, 0.75]];
+
+function createBloodScreen(root, before = null) {
+  const box = document.createElement('div');
+  box.id = 'blood-screen';
+  box.setAttribute('aria-hidden', 'true');
+  const edge = document.createElement('div'); edge.className = 'edge';
+  const flashEl = document.createElement('div'); flashEl.className = 'flash';
+  const splashes = SPLASHES.map(([left, top, size, turn], k) => {
+    const el = document.createElement('i');
+    el.className = 'splash';
+    Object.assign(el.style, { left: `${left}vw`, top: `${top}vh`, width: `${size}vmax`, height: `${size}vmax`, transform: `rotate(${turn}deg)`, opacity: '0' });
+    el.dataset.k = String(k);
+    return el;
+  });
+  const ring = document.createElement('div'); ring.className = 'from';
+  ring.innerHTML = '<svg viewBox="-50 -50 100 100"><path d="M -14 -40 A 42 42 0 0 1 14 -40" /></svg>';
+  box.append(edge, ...splashes, flashEl, ring);
+  if (before && before.parentNode === root) root.insertBefore(box, before); else root.append(box);
+  let painted = false;
+  const paint = () => { if (painted) return; painted = true; splashes.forEach((el, k) => { el.style.backgroundImage = `url(${splashPicture(k + 3)})`; }); };
+
+  const st = { base: 0, hit: 0, flash: 0, from: null, fromAge: 9, shown: -1, health: 100 };
+  function hit({ amount = 1, from = null } = {}) {
+    st.hit = Math.min(1, st.hit + 0.28 + 0.05 * Math.min(4, amount));
+    st.flash = 1;
+    if (from !== null && Number.isFinite(from)) { st.from = from; st.fromAge = 0; }
+  }
+  function update(dt, { health = 100, calm = false, active = true } = {}) {
+    st.health = health;
+    const want = active ? smooth((100 - health) / 80) : 0;
+    st.base += (want - st.base) * Math.min(1, dt * (want > st.base ? 6 : 0.9));
+    if (want === 0 && st.base < 0.004) st.base = 0;
+    st.hit = Math.max(0, st.hit - dt * 0.9);
+    st.flash = Math.max(0, st.flash - dt * 3.2);
+    st.fromAge += dt;
+    if (!active) { st.hit = 0; st.flash = 0; st.fromAge = 9; }
+    const level = Math.min(1, st.base * 0.85 + st.hit * 0.6);
+    const key = `${level.toFixed(3)}|${st.flash.toFixed(2)}|${calm ? 1 : 0}|${st.fromAge < 1.4 ? `${st.from.toFixed(2)}:${st.fromAge.toFixed(2)}` : ''}`;
+    if (key === st.shownKey) return;
+    st.shownKey = key;
+    box.hidden = level <= 0.002 && st.flash <= 0.002 && st.fromAge >= 1.4;
+    if (box.hidden) return;
+    if (!calm && level > 0.02) paint();
+    edge.style.opacity = String(calm ? Math.min(0.45, level * 0.5) : Math.min(0.92, level * 1.05));
+    flashEl.style.opacity = String(calm ? 0 : st.flash * 0.35);
+    for (const el of splashes) {
+      const share = SPLASHES[Number(el.dataset.k)][4];
+      el.style.opacity = calm ? '0' : String(Math.min(0.82, smooth((level - share) / 0.22) * 0.82));
+    }
+    ring.style.opacity = st.fromAge < 1.4 ? String(1 - smooth(st.fromAge / 1.4)) : '0';
+    if (st.fromAge < 1.4) ring.style.transform = `translate(-50%, -50%) rotate(${(st.from * 180) / Math.PI}deg)`;
+  }
+  function clear() { st.base = 0; st.hit = 0; st.flash = 0; st.fromAge = 9; st.shownKey = ''; box.hidden = true; }
+  clear();
+  return {
+    hit, update, clear,
+    state: () => ({ base: +st.base.toFixed(3), hit: +st.hit.toFixed(3), shown: !box.hidden, edge: Number(edge.style.opacity || 0), splashes: splashes.filter((el) => Number(el.style.opacity) > 0.01).length, health: st.health }),
+  };
+}
+
+return { createBloodScreen };
+})();
+
+__modules["client/wound-paint.js"] = (function () {
+
+const WOUND_BONES = Object.freeze(['pelvis', 'spine_01', 'spine_02', 'spine_03', 'neck_01', 'head', 'clavicle_l', 'upperarm_l', 'lowerarm_l', 'hand_l', 'clavicle_r', 'upperarm_r', 'lowerarm_r', 'hand_r', 'thigh_l', 'calf_l', 'foot_l', 'thigh_r', 'calf_r', 'foot_r']);
+const SPANS = Object.freeze({
+  pelvis: ['spine_01', 0.13], spine_01: ['spine_02', 0.13], spine_02: ['spine_03', 0.14], spine_03: ['neck_01', 0.14], neck_01: ['head', 0.06], head: [null, 0.09],
+  clavicle_l: ['upperarm_l', 0.07], upperarm_l: ['lowerarm_l', 0.055], lowerarm_l: ['hand_l', 0.045], hand_l: [null, 0.035],
+  clavicle_r: ['upperarm_r', 0.07], upperarm_r: ['lowerarm_r', 0.055], lowerarm_r: ['hand_r', 0.045], hand_r: [null, 0.035],
+  thigh_l: ['calf_l', 0.075], calf_l: ['foot_l', 0.055], foot_l: [null, 0.045], thigh_r: ['calf_r', 0.075], calf_r: ['foot_r', 0.055], foot_r: [null, 0.045],
+});
+const MOST_WOUNDS = 8;
+const STAIN = 0.065;             // metres across a stain's middle for a figure 1.75 m tall, one round
+
+const v = () => new THREE.Vector3();
+const T = { a: v(), b: v(), c: v(), d: v(), q: new THREE.Quaternion() };
+
+function woundAt(rig, point, dir) {
+  if (!rig || !rig.bones) return null;
+  const H = rig.spec ? rig.spec.height : 1.75, hs = H / 1.75;
+  let best = null;
+  for (let i = 0; i < WOUND_BONES.length; i += 1) {
+    const name = WOUND_BONES[i];
+    const bone = rig.bones.get(name);
+    if (!bone) continue;
+    const [next, radius] = SPANS[name];
+    const a = bone.getWorldPosition(v());
+    const toBone = next && rig.bones.get(next) ? rig.bones.get(next).getWorldPosition(v()) : a.clone();
+    const ab = toBone.clone().sub(a);
+    const t = ab.lengthSq() > 1e-8 ? Math.max(0, Math.min(1, point.clone().sub(a).dot(ab) / ab.lengthSq())) : 0;
+    const on = a.clone().addScaledVector(ab, t);
+    const d = on.distanceTo(point);
+    if (!best || d - radius * hs < best.d - best.radius * hs) best = { i, bone, on, d, radius, a };
+  }
+  if (!best) return null;
+  const out = T.a.copy(dir).normalize().multiplyScalar(-1).add(T.b.copy(point).sub(best.on).normalize().multiplyScalar(0.8));
+  if (out.lengthSq() < 1e-6) out.set(0, 0, 1);
+  out.normalize();
+  const spot = best.on.clone().addScaledVector(out, best.radius * hs * 0.9);
+  rig.body.getWorldQuaternion(T.q).invert();
+  const local = spot.sub(best.a).applyQuaternion(T.q).divideScalar(H);
+  return [best.i, local.z, local.y, local.x, 1];
+}
+
+function woundPlace(rig, w, out = [0, 0, 0, 0]) {
+  const bone = rig && rig.bones ? rig.bones.get(WOUND_BONES[w[0]]) : null;
+  if (!bone) return null;
+  const H = rig.spec ? rig.spec.height : 1.75;
+  bone.getWorldPosition(T.a);
+  rig.body.getWorldQuaternion(T.q);
+  T.b.set(w[3], w[2], w[1]).multiplyScalar(H).applyQuaternion(T.q);
+  T.a.add(T.b);
+  out[0] = T.a.x; out[1] = T.a.y; out[2] = T.a.z; out[3] = STAIN * (H / 1.75) * Math.min(2.2, Math.sqrt(w[4] || 1));
+  return out;
+}
+
+function addWound(list, w) {
+  if (!w) return list;
+  for (const o of list) {
+    if (o[0] !== w[0]) continue;
+    const d = Math.hypot(o[1] - w[1], o[2] - w[2], o[3] - w[3]);
+    if (d < 0.025) { o[4] = Math.min(4, (o[4] || 1) + 0.6); return list; }
+  }
+  list.push(w);
+  while (list.length > MOST_WOUNDS) list.shift();
+  return list;
+}
+
+
+const patched = new WeakSet();
+function patch(material) {
+  if (patched.has(material)) return material;
+  patched.add(material);
+  material.userData.wounds = { value: Array.from({ length: MOST_WOUNDS }, () => new THREE.Vector4(0, -1e4, 0, 0)) };
+  material.userData.woundCount = { value: 0 };
+  const prior = material.onBeforeCompile;
+  material.onBeforeCompile = (shader, renderer) => {
+    if (prior) prior(shader, renderer);
+    shader.uniforms.uWounds = material.userData.wounds;
+    shader.uniforms.uWoundCount = material.userData.woundCount;
+    shader.vertexShader = shader.vertexShader.replace('#include <common>', '#include <common>\nvarying vec3 vWoundAt;').replace('#include <skinning_vertex>', '#include <skinning_vertex>\n  vWoundAt = (modelMatrix * vec4(transformed, 1.0)).xyz;');
+    shader.fragmentShader = shader.fragmentShader.replace('#include <common>', `#include <common>\nvarying vec3 vWoundAt;\nuniform vec4 uWounds[${MOST_WOUNDS}];\nuniform int uWoundCount;`).replace('#include <map_fragment>', `#include <map_fragment>
+  for (int i = 0; i < ${MOST_WOUNDS}; i++) {
+    if (i >= uWoundCount) break;
+    vec4 w = uWounds[i];
+    float d = distance(vWoundAt, w.xyz);
+    float grain = fract(sin(dot(floor(vWoundAt * 95.0), vec3(12.9898, 78.233, 37.719))) * 43758.5453);
+    float k = 1.0 - smoothstep(w.w * (0.45 + 0.35 * grain), w.w, d);
+    diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.26, 0.012, 0.018) * (0.75 + 0.3 * grain), k * 0.9);
+  }`);
+  };
+  const key = material.customProgramCacheKey ? material.customProgramCacheKey.bind(material) : null;
+  material.customProgramCacheKey = () => `${key ? key() : ''}|wounds`;
+  material.needsUpdate = true;
+  return material;
+}
+
+const place = [0, 0, 0, 0];
+function paintWounds(rig, list) {
+  const mesh = rig && rig.mesh;
+  if (!mesh || !mesh.material || Array.isArray(mesh.material)) return false;
+  if (!list || !list.length) {
+    if (rig.woundMaterial) { mesh.material = rig.woundMaterial.original; rig.woundMaterial.copy.dispose(); rig.woundMaterial = null; }
+    return false;
+  }
+  if (!rig.woundMaterial) {
+    const original = mesh.material;
+    const copy = original.clone();
+    if (original.onBeforeCompile) copy.onBeforeCompile = original.onBeforeCompile;
+    if (original.customProgramCacheKey) copy.customProgramCacheKey = original.customProgramCacheKey;
+    rig.woundMaterial = { original, copy: patch(copy) };
+    mesh.material = copy;
+  }
+  const mat = rig.woundMaterial.copy;
+  let n = 0;
+  for (const w of list) {
+    if (n >= MOST_WOUNDS) break;
+    if (!woundPlace(rig, w, place)) continue;
+    mat.userData.wounds.value[n].set(place[0], place[1], place[2], place[3]);
+    n += 1;
+  }
+  mat.userData.woundCount.value = n;
+  return n > 0;
+}
+
+return { WOUND_BONES, MOST_WOUNDS, woundAt, woundPlace, addWound, paintWounds };
+})();
+
+__modules["client/gun-play.js"] = (function () {
+
+const { GUNS, GUN, POLICE_FIRE } = __modules["sim/guns.js"];
+const { makeGun, GUN_NEAR, gunPicture, GUN_MODELS } = __modules["client/gun-model.js"];
+const { createGunHold, RELOAD_STEPS } = __modules["client/gun-pose.js"];
+const { createGunFx } = __modules["client/gun-fx.js"];
+const { createGunHud } = __modules["client/gun-hud.js"];
+const { createBloodScreen } = __modules["client/blood-screen.js"];
+const { woundAt, addWound, paintWounds } = __modules["client/wound-paint.js"];
+const { CAMERA_VIEW } = __modules["client/camera.js"];
+
+const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
+const smooth = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * (3 - 2 * u); };
+
+const GUN_PLAY = Object.freeze({
+  pace: Object.freeze({ aim: 0.85, sight: 0.55, crouch: 0.5 }),
+  pivot: 1.47,
+  sightFov: 32,
+  assist: Object.freeze({ within: 0.06, sight: 0.03, rate: 3.2, share: 0.5 }),
+  bloom: Object.freeze({ per: 0.0018, most: 0.02, settle: 0.06 }),
+  overview: 5,
+  far: 90,
+});
+
+function createGunPlay(deps) {
+  const { scene, camera, audio, lite = false, coarse = false, ground = () => 0, net = null, online = null } = deps;
+  const game = () => deps.game();
+  const send = (intent) => deps.send(intent);
+  const fx = createGunFx(scene, { lite, ground });
+  const hud = createGunHud({ hud: deps.hudRoot, hudr: deps.hudr, picture: (id) => gunPicture(id), onSwitch: () => openSwitch(), onEquip: (id) => equip(id), onBuy: (g) => buy(g) });
+  const blood = createBloodScreen(deps.bloodRoot || document.body, deps.hudRoot || null);
+
+  const V = () => new THREE.Vector3();
+  const t = { d: V(), T: V(), P: V(), o: V(), e: V(), a: V(), b: V(), c: V(), right: V(), up: V(), muzzle: V(), aimFrom: V(), proj: V(), sightEye: V(), sightDir: V() };
+  const S = {
+    out: false, gunId: 'rifle', gun: null, hold: createGunHold(), weight: 0,
+    aimHeld: false, aimToggle: false, crouch: false, overviewUntil: 0, overviewAt: -1,
+    firing: false, next: 0, fired: 0, kicks: 0, lastShot: -9, bloom: 0, recoilPitch: 0, recoilYaw: 0, wasFiring: false,
+    running: false, look: null, block: null, assisting: false,
+    lastAim: '', health: 100, healthBefore: 100,
+    shots: [],               // this player's rounds lately, for the others to see (link.js `sh`)
+    wounds: [],              // the wounds on this player's body (link.js `wd`)
+    owned: null,             // the server's word on what guns this account has (gun.state)
+    stateAsked: false, readyAt: 0, autoReload: false, said: { empty: 0 },
+    reloadDoing: null,       // a reload under way here: { gun, t (when it began), after (the last round before it), mag }
+    clock: 0, sightW: 0, moving: { x: 0, z: 0 },
+  };
+  const stats = { fired: 0, refused: {}, hits: 0, confirmed: 0, struck: 0, peerShots: 0, policeShots: 0, assists: 0, reloads: 0, autoReloads: 0, empties: 0 };
+
+  function draw() {
+    if (S.out) return true;
+    const r = send({ type: 'gun.draw' });
+    if (!r.ok) { if (deps.toast) deps.toast(r.message || 'You cannot use a gun just now.'); return false; }
+    S.out = true;
+    S.gunId = r.gun.equipped;
+    ensureGun(S.gunId);
+    audio.gunLoad(S.gunId);
+    hud.show(true);
+    if (net) net.armed = true;
+    S.firing = false; S.aimHeld = false; S.aimToggle = false; S.crouch = false;
+    S.readyAt = S.clock + 0.35;
+    sendAim();
+    return true;
+  }
+  function putAway({ told = false } = {}) {
+    if (!S.out) return;
+    if (!told) send({ type: 'gun.holster' });
+    if (S.wasFiring) burstEnd();
+    S.out = false; S.firing = false; S.aimHeld = false; S.aimToggle = false; S.crouch = false; S.overviewUntil = 0;
+    hud.show(false);
+    if (net) net.armed = false;
+    S.lastAim = '';
+  }
+  function ensureGun(id) {
+    if (S.gun && S.gun.id === id) return S.gun;
+    if (S.gun) S.gun.dispose();
+    S.gun = makeGun(id);
+    S.gun.group.visible = false;
+    scene.add(S.gun.group);
+    return S.gun;
+  }
+  function sendAim() {
+    if (!S.out) return;
+    const how = S.running ? 0 : sightWanted() ? 2 : 1;
+    const key = `${how}|${S.crouch ? 1 : 0}`;
+    if (key === S.lastAim) return;
+    S.lastAim = key;
+    send({ type: 'gun.aim', aim: how, crouch: S.crouch });
+  }
+  const sightWanted = () => S.out && !S.running && (S.aimHeld || S.aimToggle);
+
+  async function askState() {
+    if (!online || !online.signedIn) return null;
+    S.stateAsked = true;
+    const r = await online.ask('gun.state');
+    if (!r.ok || !r.gun) { S.stateAsked = false; return null; }
+    takeState(r.gun);
+    return r.gun;
+  }
+  function takeState(state) {
+    S.owned = state;
+    const guns = state.guns.filter((g) => g.owned).map((g) => ({ id: g.id, mag: g.mag, spare: g.spare }));
+    const waiting = net ? net.waiting : 0;
+    for (const g of guns) if (g.id === state.equipped) g.mag = Math.max(0, g.mag - waiting);
+    send({ type: 'gun.owned', guns, equipped: state.equipped });
+  }
+  function openSwitch() {
+    const v = deps.view();
+    const have = v && v.self.gun ? v.self.gun : null;
+    const all = Object.values(GUNS).map((def) => {
+      const mine = have ? have.have.find((g) => g.id === def.id) : null;
+      const server = S.owned ? S.owned.guns.find((g) => g.id === def.id) : null;
+      return { id: def.id, name: def.name, owned: !!mine, mag: mine ? mine.mag : 0, spare: mine ? mine.spare : 0, magazine: def.magazine, starter: !!def.starter, price: server ? server.price : def.price, forSale: server ? server.forSale : !!def.forSale && !def.starter };
+    });
+    hud.openSwitch({ guns: all, equipped: have ? have.equipped : S.gunId });
+  }
+  function equip(id) {
+    const r = send({ type: 'gun.equip', gun: id });
+    if (!r.ok) { if (deps.toast) deps.toast(r.message); return; }
+    if (online && online.signedIn) online.ask('gun.equip', { gun: id }).then((a) => { if (a.ok && a.gun) S.owned = a.gun; });
+    S.gunId = id;
+    if (S.out) ensureGun(id);
+  }
+  async function buy(g) {
+    if (!online || !online.signedIn) { if (deps.toast) deps.toast('Guns are bought with your account, online.'); return; }
+    const sure = deps.confirm ? await deps.confirm({ title: `Buy the ${g.name}?`, text: `${g.price} TR, from your earned TR. It is yours, on any device.`, yes: 'Buy', no: 'Not now' }) : true;
+    if (!sure) return;
+    const r = await online.ask('gun.buy', { gun: g.id, price: g.price, key: `gun-${g.id}-${Date.now().toString(36)}` });
+    if (!r.ok) { if (deps.toast) deps.toast(r.message); return; }
+    if (r.gun) takeState(r.gun);
+    if (deps.toast) deps.toast(`The ${g.name} is yours.`);
+    openSwitch();
+  }
+
+  if (net) net.onAnswer(({ fire, struck, sent }) => {
+    if (fire && !fire.error) {
+      const hits = Array.isArray(fire.hit) ? fire.hit : [];
+      const told = [];
+      for (const [seq, who] of hits) {
+        const shot = sent.find((s) => s[0] === seq);
+        const at = shot && shot[5] ? shot[5].at : null;
+        const peer = (deps.peers() || []).find((q) => q.peer === who);
+        stats.confirmed += 1;
+        hud.hit(peer && Number.isFinite(peer.health) && peer.health - GUN.damage <= GUN.floor ? 'down' : 'hit');
+        if (at) told.push({ x: at[0], z: at[2], who, name: peer ? peer.name : 'another player' });
+        if (peer) { const rig = deps.rigOf(`p:${peer.id}`); if (rig && rig.react) rig.react('hit', { length: 0.3 }); }
+      }
+      if (told.length) send({ type: 'gun.confirmed', hits: told });
+      for (const [, code] of Array.isArray(fire.no) ? fire.no : []) stats.refused[code] = (stats.refused[code] || 0) + 1;
+      const v = deps.view();
+      if (v && v.self.gun && !v.self.gun.reloading && !S.reloadDoing && net.waiting === 0 && S.owned && fire.gun) {
+        const guns = v.self.gun.have.map((g) => (g.id === fire.gun ? { id: g.id, mag: fire.mag, spare: fire.spare } : { id: g.id, mag: g.mag, spare: g.spare }));
+        if (guns.some((g) => g.id === fire.gun)) send({ type: 'gun.owned', guns, equipped: v.self.gun.equipped });
+      }
+    }
+    if (struck && struck.length) {
+      const r = send({ type: 'gun.struck', hits: struck });
+      stats.struck += struck.length;
+      if (r.ok) net.took(Math.max(...struck.map((s) => s.id)));
+      if (deps.refresh) deps.refresh();
+    }
+  });
+
+  function frameSelf(dt, { me, self, cam, pos, moving, running, aiming = false, peersHere = [], officersHere = [] }) {
+    S.clock += dt;
+    S.moving = moving || { x: 0, z: 0 };
+    const g = self && self.gun;
+    if (S.out && g && !g.out) { putAway({ told: true }); }
+    reloadDone(g);
+    S.health = self ? self.health : 100;
+    S.running = !!running && S.out;
+    if (S.running && S.firing) S.firing = false;
+    if (S.running) { S.aimToggle = false; S.aimHeld = false; }
+    sendAim();
+    const gun = S.gun;
+    const H = me && me.spec ? me.spec.height : 1.75, hs = H / 1.75;
+    const pitch = cam.pitch, yaw = cam.yaw;
+    t.d.set(Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch)).normalize();
+    t.right.set(-Math.cos(yaw), 0, Math.sin(yaw));
+    const crouchDrop = S.hold.crouch * 0.4 * (H / 1.8);
+    const view = CAMERA_VIEW.aim;
+    t.T.set(pos.x, ground(pos.x, pos.z) + GUN_PLAY.pivot * hs - crouchDrop + view.lift, pos.z).addScaledVector(t.right, view.shift);
+    S.sightW = S.hold.sight;
+    t.aimFrom.copy(t.T);
+    if (S.out && S.sightW > 0.01) t.aimFrom.lerp(t.sightEye, S.sightW);
+    S.look = S.out || S.weight > 0.02 ? game().aimAt([t.aimFrom.x, t.aimFrom.y, t.aimFrom.z], [t.d.x, t.d.y, t.d.z], 150, deps.playerId()) : null;
+    if (S.look) t.P.set(S.look.point[0], S.look.point[1], S.look.point[2]); else t.P.copy(t.aimFrom).addScaledVector(t.d, 150);
+    S.assisting = false;
+    if (S.out && coarse && (aiming || S.firing)) assist(dt, cam, [...peersHere, ...officersHere]);
+    const reloading = g && g.reloading ? Math.max(0, Math.min(1, 1 - g.reloading.left / Math.max(0.1, g.reloading.total))) : null;
+    if (gun) {
+      const said = S.hold.pose(me, gun, { up: S.out, mode: S.running ? 'carry' : sightWanted() ? 'sight' : 'aim', at: t.P, dir: t.d, crouch: S.crouch, moving: S.moving, reload: reloading, kicks: S.kicks, hideHead: sightWanted() || S.sightW > 0.3 }, dt);
+      S.kicks = 0;
+      S.weight = S.hold.weight;
+      if (said.shown) {
+        t.muzzle.copy(said.muzzle);
+        t.sightEye.copy(said.eye); t.sightDir.copy(said.dir);
+        for (const step of said.events) {
+          audio.gunReload(step);
+          if (step === 'out' && gun.mag) { gun.mag.updateMatrixWorld(true); fx.dropMagazine(gun.mag, gun.mag.getWorldPosition(t.a), gun.group.quaternion, gun.spec.scale); }
+        }
+      }
+      gun.setNear(true);
+    }
+    const gunNow = g && g.out ? g : null;
+    if (S.firing && gunNow) fire(gunNow);
+    if (!S.firing && S.wasFiring) burstEnd();
+    S.wasFiring = S.firing && !!gunNow && S.clock - S.lastShot < 0.2;
+    const def = GUNS[S.gunId] || GUNS.rifle;
+    const back = S.recoilPitch * (1 - Math.exp(-dt * def.recoil.recover));
+    cam.pitch += back; S.recoilPitch -= back;
+    const side = S.recoilYaw * (1 - Math.exp(-dt * def.recoil.recover));
+    cam.yaw -= side; S.recoilYaw -= side;
+    S.bloom = Math.max(0, S.bloom - GUN_PLAY.bloom.settle * dt * (S.firing ? 0.3 : 1));
+    S.block = null;
+    if (S.out && gun && S.hold.weight > 0.9 && S.look) {
+      const toP = t.a.copy(t.P).sub(t.muzzle); const far = toP.length();
+      if (far > 1.2) {
+        toP.divideScalar(far);
+        const w = game().aimAt([t.muzzle.x, t.muzzle.y, t.muzzle.z], [toP.x, toP.y, toP.z], far, deps.playerId());
+        if (w && w.at < far - 0.6) S.block = t.b.set(w.point[0], w.point[1], w.point[2]).clone();
+      }
+    }
+    blood.update(dt, { health: S.health, calm: !!deps.calm(), active: true });
+    if (S.health >= 100 && S.wounds.length) S.wounds.length = 0;
+    else if (S.health - S.healthBefore >= 15 && S.wounds.length) S.wounds.splice(0, Math.ceil(S.wounds.length / 2));
+    S.healthBefore = S.health;
+    if (me) paintWounds(me, S.wounds);
+    fx.update(dt);
+  }
+
+  function fire(g) {
+    const def = GUNS[g.equipped];
+    if (!def || S.clock < S.readyAt || S.hold.weight < 0.8) return;
+    if (g.reloading) return;
+    if (g.mag <= 0) {
+      if (!S.said.empty) { S.said.empty = 1; audio.gunEmpty(); hud.empty(); stats.empties += 1; if (g.spare > 0) { stats.autoReloads += 1; reload(); } }
+      S.firing = def.mode === 'auto' && false;
+      return;
+    }
+    const gap = 60 / def.rpm;
+    if (S.next < S.clock - gap) S.next = S.clock;
+    let n = 0;
+    while (S.clock >= S.next && n < 2) {
+      if (!oneRound(def, S.next)) break;
+      S.next += gap; n += 1;
+      if (def.mode !== 'auto') { S.firing = false; break; }
+    }
+  }
+  function oneRound(def, when = S.clock) {
+    const o = t.muzzle;
+    const to = t.a.copy(t.P).sub(o);
+    if (to.lengthSq() < 1e-6) to.copy(t.d);
+    to.normalize();
+    if (t.P.distanceTo(o) < 1.2 || to.dot(t.d) < 0.6) to.copy(t.d);
+    const spread = currentSpread(def);
+    const r = Math.sqrt(Math.random()) * spread, a = Math.random() * Math.PI * 2;
+    t.b.set(-to.z, 0, to.x).normalize();
+    t.c.crossVectors(to, t.b).normalize();
+    to.addScaledVector(t.b, Math.cos(a) * r).addScaledVector(t.c, Math.sin(a) * r).normalize();
+    const result = send({ type: 'gun.fire', shots: [{ o: [o.x, o.y, o.z], d: [to.x, to.y, to.z] }] });
+    const s = result.ok && result.shots ? result.shots[0] : null;
+    if (!s || !s.ok) {
+      const code = s ? s.code : result.code;
+      stats.refused[code] = (stats.refused[code] || 0) + 1;
+      if (code === 'EMPTY') { S.said.empty = 0; return false; }
+      return false;
+    }
+    stats.fired += 1;
+    S.lastShot = S.clock;
+    S.kicks += 1;
+    const end = t.e.set(s.end[0], s.end[1], s.end[2]);
+    const bore = t.sightDir.lengthSq() > 0 ? t.sightDir : to;
+    fx.flash(o, bore, { near: true });
+    fx.streak(o, end);
+    fx.strike(s.what, end, to, { calm: !!deps.calm() });
+    audio.gunShot(def.id, { x: o.x, y: o.y, z: o.z }, { own: true });
+    if (end.distanceTo(o) < 45) audio.gunStrike(s.what, { x: end.x, y: end.y, z: end.z });
+    if (S.gun) {
+      const port = S.gun.point('port', t.b);
+      t.right.set(0, 0, 1).applyQuaternion(S.gun.group.quaternion);
+      t.up.set(0, 1, 0).applyQuaternion(S.gun.group.quaternion);
+      if (!lite || stats.fired % 2 === 0) fx.eject(port, t.right, t.up);
+    }
+    const climb = def.recoil.climb * (sightWanted() ? 0.7 : 1) * (S.crouch ? 0.75 : 1);
+    deps.cam().pitch -= climb; S.recoilPitch += climb;
+    const kick = (Math.random() - 0.4) * def.recoil.side;
+    deps.cam().yaw += kick; S.recoilYaw += kick;
+    S.bloom = Math.min(GUN_PLAY.bloom.most, S.bloom + GUN_PLAY.bloom.per);
+    if (s.target) {
+      if (s.target.kind === 'npc') {
+        stats.hits += 1;
+        hud.hit(s.target.health <= GUN.floor ? 'down' : 'hit');
+        const rig = deps.rigOf(`n:${s.target.id}`);
+        if (rig) { if (rig.react) rig.react('hit', { length: 0.3 }); officerWound(s.target.id, rig, end, to); }
+      } else if (s.target.kind === 'local') {
+        stats.hits += 1;
+        hud.hit(s.target.health <= GUN.floor ? 'down' : 'hit');
+      }
+    }
+    S.shots.push({ q: s.seq, t: S.clock, o: [o.x, o.y, o.z], e: s.end.slice(), what: s.what });
+    while (S.shots.length > 12 || (S.shots.length && S.clock - S.shots[0].t > 3)) S.shots.shift();
+    if (net && online && online.signedIn) net.fire({ t: when, gun: def.id, o: [o.x, o.y, o.z], d: [to.x, to.y, to.z], hit: s.claim ? { who: s.claim.peer, at: s.claim.point } : null });
+    return true;
+  }
+  function burstEnd() {
+    S.wasFiring = false;
+    if (S.clock - S.lastShot < 0.3) audio.gunTail(S.gunId, { x: t.muzzle.x, y: t.muzzle.y, z: t.muzzle.z }, { own: true });
+  }
+  function currentSpread(def) {
+    const sp = def.spread;
+    const moving = Math.hypot(S.moving.x, S.moving.z) > 0.4;
+    let s = sightWanted() ? sp.sight + (moving ? sp.moving * 0.35 : 0) : sp.aim + (moving ? sp.moving : 0);
+    if (S.crouch) s *= sp.crouched;
+    return s + S.bloom;
+  }
+  function assist(dt, cam, candidates) {
+    const A = GUN_PLAY.assist;
+    const within = S.sightW > 0.5 ? A.sight : A.within;
+    let best = null;
+    for (const c of candidates) {
+      if (!c || !c.able) continue;
+      t.a.set(c.x, c.y, c.z).sub(t.aimFrom);
+      const d = t.a.length();
+      if (d < 1.5 || d > 70) continue;
+      t.a.divideScalar(d);
+      const off = Math.acos(Math.max(-1, Math.min(1, t.a.dot(t.d))));
+      if (off > within || (best && off >= best.off)) continue;
+      best = { off, dir: t.a.clone(), d };
+    }
+    if (!best) return;
+    const look = game().aimAt([t.aimFrom.x, t.aimFrom.y, t.aimFrom.z], [best.dir.x, best.dir.y, best.dir.z], best.d + 1, deps.playerId());
+    if (!look || look.what !== 'person') return;
+    const k = (1 - Math.exp(-dt * A.rate)) * A.share * (1 - best.off / within);
+    const wantYaw = Math.atan2(best.dir.x, best.dir.z), wantPitch = -Math.asin(Math.max(-1, Math.min(1, best.dir.y)));
+    cam.yaw += angleGap(wantYaw, cam.yaw) * k;
+    cam.pitch += (wantPitch - cam.pitch) * k;
+    S.assisting = true; stats.assists += 1;
+  }
+
+  function reload() {
+    const v = deps.view();
+    const g = v && v.self.gun;
+    if (!S.out || !g || g.reloading) return false;
+    const r = send({ type: 'gun.reload' });
+    if (!r.ok) { if (r.code !== 'FULL' && deps.toast) deps.toast(r.message); return false; }
+    stats.reloads += 1;
+    S.reloadDoing = { gun: g.equipped, t: S.clock, after: net ? net.seq : 0, mag: g.mag, spare: g.spare };
+    if (deps.refresh) deps.refresh();
+    return true;
+  }
+  function reloadDone(g) {
+    const d = S.reloadDoing;
+    if (!d || (g && g.reloading)) return;
+    S.reloadDoing = null;
+    const now = g && g.have ? g.have.find((h) => h.id === d.gun) : null;
+    if (now && now.mag > d.mag && net && online && online.signedIn) net.reload({ gun: d.gun, t: d.t, after: d.after });
+  }
+
+  function onShot(event, { me }) {
+    if (!event || event.type !== 'shot') return;
+    const at = Array.isArray(event.at) ? t.a.set(event.at[0], event.at[1], event.at[2]) : null;
+    const from = Array.isArray(event.from) ? event.from : null;
+    let angle = null;
+    if (from && me) {
+      const p = me.group.position;
+      const toward = Math.atan2(from[0] - p.x, from[1] - p.z);
+      angle = -angleGap(toward, deps.cam().yaw);
+    }
+    blood.hit({ amount: event.damage || 1, from: angle });
+    if (me && me.react) me.react('hit', { length: 0.28 });
+    if (me && me.bones) {
+      const p = at || t.b.copy(me.group.position).add(t.c.set(0, 1.25 * (me.spec ? me.spec.height / 1.75 : 1), 0));
+      const dir = from ? t.c.set(p.x - from[0], 0, p.z - from[1]).normalize() : t.c.set(0, 0, -1);
+      addWound(S.wounds, woundAt(me, p, dir));
+      fx.blood(p, dir, { calm: !!deps.calm(), amount: 0.6 });
+    }
+    audio.gunStrike('person', at ? { x: at.x, y: at.y, z: at.z } : { x: 0, y: 0, z: 0 });
+  }
+
+  const others = new Map();            // key -> { gun, hold, seen, lastQ, queue, lastShotAt, gunId }
+  const officerWounds = new Map();     // officer index -> { list, at }
+  function officerWound(i, rig, point, dir) {
+    let w = officerWounds.get(i);
+    if (!w) { w = { list: [], at: 0 }; officerWounds.set(i, w); }
+    addWound(w.list, woundAt(rig, point, dir));
+    w.at = S.clock;
+    fx.blood(point, dir, { calm: !!deps.calm() });
+  }
+  function otherOf(key, gunId) {
+    let o = others.get(key);
+    if (!o) { o = { gun: null, hold: createGunHold(), seen: 0, lastQ: null, queue: [], lastShotAt: -9, gunId, rig: null }; others.set(key, o); }
+    if (!o.gun || o.gun.id !== gunId) { if (o.gun) o.gun.dispose(); o.gun = makeGun(gunId); o.gun.group.visible = false; scene.add(o.gun.group); o.gunId = gunId; }
+    return o;
+  }
+  function replay(o, shot, eye) {
+    const from = t.o.set(shot.o[0], shot.o[1], shot.o[2]);
+    const end = t.e.set(shot.e[0], shot.e[1], shot.e[2]);
+    const dir = t.c.copy(end).sub(from);
+    if (dir.lengthSq() < 1e-6) return;
+    dir.normalize();
+    const muzzle = o && o.gun && o.gun.group.visible && o.gun.ready ? o.gun.point('muzzle', t.b) : from;
+    const near = Math.hypot(muzzle.x - eye.x, muzzle.z - eye.z) < 25;
+    fx.flash(muzzle, dir, { near });
+    fx.streak(muzzle, end);
+    fx.strike(shot.what, end, dir, { calm: !!deps.calm() });
+    audio.gunShot(shot.gun || 'rifle', { x: from.x, y: from.y, z: from.z });
+    audio.gunStrike(shot.what, { x: end.x, y: end.y, z: end.z });
+    const ear = t.a.set(eye.x, eye.y, eye.z);
+    const along = t.b.copy(ear).sub(from).dot(dir);
+    if (along > 2 && along < from.distanceTo(end)) { const nearest = from.clone().addScaledVector(dir, along); if (nearest.distanceTo(ear) < 3) audio.gunPast({ x: nearest.x, y: nearest.y, z: nearest.z }); }
+    if (o) { o.lastShotAt = S.clock; o.tailAt = { x: from.x, y: from.y, z: from.z }; o.tailGun = shot.gun || 'rifle'; }
+  }
+
+  function frameOthers(dt, { peers = [], shooting = [], shots = [], eye, rigOf }) {
+    const stamp = S.clock;
+    for (const q of peers) {
+      const rig = rigOf(`p:${q.id}`);
+      const key = `p:${q.id}`;
+      const out = !!(q.gun && q.gun.out && GUNS[q.gun.id]);
+      const d = Math.hypot(q.x - eye.x, q.z - eye.z);
+      let o = others.get(key);
+      if (out || (o && o.hold.weight > 0.01)) {
+        o = otherOf(key, out ? q.gun.id : (o ? o.gunId : 'rifle'));
+        o.seen = stamp; o.rig = rig;
+        if (rig && d < GUN_PLAY.far) {
+          const yaw = out && Number.isFinite(q.gun.yaw) ? q.gun.yaw : rig.group.rotation.y;
+          const pitch = out && Number.isFinite(q.gun.pitch) ? q.gun.pitch : 0;
+          const dir = t.d.set(Math.sin(yaw) * Math.cos(pitch), -Math.sin(pitch), Math.cos(yaw) * Math.cos(pitch));
+          const hs = rig.spec ? rig.spec.height / 1.75 : 1;
+          const at = t.P.set(q.x, ground(q.x, q.z) + GUN_PLAY.pivot * hs, q.z).addScaledVector(dir, 30);
+          const vel = Array.isArray(q.vel) ? { x: q.vel[0], z: q.vel[1] } : null;
+          o.hold.pose(rig, o.gun, { up: out, mode: !out ? 'aim' : q.gun.aim === 2 ? 'sight' : q.gun.aim === 1 ? 'aim' : 'carry', at, dir, crouch: out && q.gun.crouch, moving: vel, reload: out ? q.gun.reload : null, kicks: o.kicks || 0 }, dt);
+          o.kicks = 0;
+          o.gun.setNear(d < GUN_NEAR);
+        } else if (o.gun) o.gun.group.visible = false;
+      }
+      if (Array.isArray(q.shots) && q.shots.length) {
+        o = o || otherOf(key, q.gun && GUNS[q.gun.id] ? q.gun.id : 'rifle');
+        o.seen = stamp;
+        const fresh = q.shots.filter((s) => (o.lastQ === null ? s.ago < 1.5 : s.q > o.lastQ) && s.ago < 3.5);
+        if (fresh.length) {
+          const oldest = Math.max(...fresh.map((s) => s.ago));
+          for (const s of fresh.sort((a, b) => a.q - b.q)) o.queue.push({ at: S.clock + (oldest - s.ago), shot: { ...s, gun: q.gun && GUNS[q.gun.id] ? q.gun.id : 'rifle' } });
+        }
+        o.lastQ = Math.max(o.lastQ === null ? -1 : o.lastQ, ...q.shots.map((s) => s.q));
+      }
+      if (rig) paintWounds(rig, Array.isArray(q.wounds) ? q.wounds : []);
+    }
+    for (const s of shooting) {
+      const key = `n:${s.i}`;
+      const rig = rigOf(key);
+      if (!rig) continue;
+      const o = otherOf(key, 'rifle');
+      o.seen = stamp; o.rig = rig;
+      const p = rig.group.position;
+      const d = Math.hypot(p.x - eye.x, p.z - eye.z);
+      if (d > GUN_PLAY.far) { o.gun.group.visible = false; continue; }
+      const at = t.P.set(s.at[0], ground(s.at[0], s.at[1]) + 1.2, s.at[1]);
+      const dir = t.d.copy(at).sub(t.a.set(p.x, p.y + 1.45, p.z)).normalize();
+      o.hold.pose(rig, o.gun, { up: true, mode: 'aim', at, dir, crouch: false, moving: null, reload: null, kicks: o.kicks || 0 }, dt);
+      o.kicks = 0;
+      o.gun.setNear(d < GUN_NEAR);
+    }
+    const mine = `p:${deps.playerId()}`;
+    for (const s of shots) {
+      if (s.from === mine) continue;
+      const key = s.from;
+      let o = others.get(key);
+      if (!o) o = otherOf(key, 'rifle');
+      if (o.lastId !== undefined && s.id <= o.lastId) continue;
+      o.lastId = s.id;
+      o.seen = stamp;
+      o.queue.push({ at: S.clock, shot: { o: s.o, e: s.e, what: s.what, gun: 'rifle' } });
+      if (key.startsWith('n:')) stats.policeShots += 1;
+    }
+    for (const [key, o] of others) {
+      while (o.queue.length && o.queue[0].at <= S.clock) {
+        const { shot } = o.queue.shift();
+        replay(o, shot, eye);
+        o.kicks = (o.kicks || 0) + 1;
+        if (key.startsWith('p:')) stats.peerShots += 1;
+      }
+      if (o.tailAt && S.clock - o.lastShotAt > 0.25 && !o.queue.length) { audio.gunTail(o.tailGun, o.tailAt); o.tailAt = null; }
+      if (stamp - o.seen > 3) { if (o.gun) o.gun.dispose(); if (o.rig) o.hold.release(o.rig); others.delete(key); }
+      else if (o.seen !== stamp && o.gun) o.gun.group.visible = false;
+    }
+    for (const [i, w] of officerWounds) {
+      const rig = rigOf(`n:${i}`);
+      if (S.clock - w.at > 240) { if (rig) paintWounds(rig, []); officerWounds.delete(i); continue; }
+      if (rig) paintWounds(rig, w.list);
+    }
+  }
+
+  function frameHud({ width, height, interactable = false }) {
+    if (!S.out) return;
+    const v = deps.view();
+    const g = v && v.self.gun;
+    const at = S.look ? t.proj.copy(t.P).project(camera) : null;
+    const on = at && at.z > -1 && at.z < 1 ? { x: (at.x * 0.5 + 0.5) * width, y: (-at.y * 0.5 + 0.5) * height } : null;
+    const who = S.look && S.look.what === 'person' && S.look.target ? S.look.target : null;
+    const kind = who ? (who.able ? 'hostile' : 'friendly') : interactable ? 'use' : 'neutral';
+    const def = GUNS[S.gunId] || GUNS.rifle;
+    const fov = camera.fov * Math.PI / 180;
+    const spread = (currentSpread(def) / Math.tan(fov / 2)) * (height / 2);
+    let block = null;
+    if (S.block) { const b = t.proj.copy(S.block).project(camera); if (b.z > -1 && b.z < 1) block = { x: (b.x * 0.5 + 0.5) * width, y: (-b.y * 0.5 + 0.5) * height }; }
+    const reloading = g && g.reloading ? Math.max(0, Math.min(1, 1 - g.reloading.left / Math.max(0.1, g.reloading.total))) : null;
+    hud.update({ at: on, kind, spread: Math.max(9, spread * 1.6), sight: S.sightW, who: who ? { name: who.name, health: who.health, able: who.able } : null, gun: g ? { id: g.equipped, name: (GUNS[g.equipped] || def).name, mag: g.mag, spare: g.spare, magazine: g.magazine, reloading } : null, health: S.health, block });
+  }
+
+  function cameraView() {
+    if (!S.out) return null;
+    return S.clock < S.overviewUntil ? 'overview' : 'aim';
+  }
+  function sightCamera() {
+    if (!S.out || S.sightW < 0.002 || S.clock < S.overviewUntil) return null;
+    return { eye: t.sightEye, dir: t.d, amount: smooth(S.sightW), fov: GUN_PLAY.sightFov };
+  }
+  function overview() {
+    if (!S.out) return;
+    if (S.clock < S.overviewUntil) { S.overviewUntil = 0; return 'off'; }
+    S.overviewUntil = S.clock + GUN_PLAY.overview; S.overviewAt = S.clock;
+    S.aimToggle = false; S.aimHeld = false;
+    return 'on';
+  }
+
+  function act(id, phase) {
+    if (id === 'shoot') {
+      if (phase === 'down') { if (!S.out) return; S.firing = true; S.said.empty = 0; if (S.running) S.running = false; }
+      else S.firing = false;
+      return;
+    }
+    if (id === 'aim') {
+      if (phase === 'hold-down') { S.aimHeld = true; S.overviewUntil = 0; }
+      else if (phase === 'hold-up') S.aimHeld = false;
+      else if (phase === 'down') { S.aimToggle = !S.aimToggle; if (S.aimToggle) S.overviewUntil = 0; }
+      sendAim();
+      return;
+    }
+    if (phase !== 'down') return;
+    if (id === 'gun') { if (S.out) putAway(); else draw(); }
+    else if (id === 'holster') putAway();
+    else if (id === 'reload') reload();
+    else if (id === 'crouch') { if (S.out) { S.crouch = !S.crouch; sendAim(); } }
+    else if (id === 'switch') { if (hud.switching) hud.closeSwitch(); else openSwitch(); }
+    else if (id === 'overview') overview();
+  }
+
+  function linkFields(cam) {
+    if (!S.out && !S.shots.length && !S.wounds.length) return null;
+    return {
+      gunAim: { yaw: cam.yaw, pitch: cam.pitch },
+      gunShots: S.shots.map((s) => ({ q: s.q, ago: Math.max(0, S.clock - s.t), o: s.o, e: s.e, what: s.what })),
+      wounds: S.wounds,
+    };
+  }
+
+  function reset() {
+    putAway({ told: true });
+    for (const [, o] of others) { if (o.gun) o.gun.dispose(); }
+    others.clear();
+    officerWounds.clear();
+    S.wounds.length = 0; S.shots.length = 0; S.reloadDoing = null;
+    fx.clear(); blood.clear();
+  }
+
+  function cameraTarget(me, out) {
+    const p = me.group.position;
+    const hs = me.spec ? me.spec.height / 1.75 : 1;
+    const H = hs * 1.75;
+    return out.set(p.x, ground(p.x, p.z) + GUN_PLAY.pivot * hs - S.hold.crouch * 0.4 * (H / 1.8), p.z);
+  }
+
+  return {
+    draw, putAway, reload, act, frameSelf, frameOthers, frameHud, onShot, askState, reset, linkFields, cameraView, sightCamera, overview, cameraTarget,
+    get out() { return S.out; },
+    get running() { return S.running; },
+    pace() { return !S.out ? 1 : S.crouch ? GUN_PLAY.pace.crouch : sightWanted() ? GUN_PLAY.pace.sight : GUN_PLAY.pace.aim; },
+    get crouched() { return S.out && S.crouch; },
+    get sighting() { return sightWanted(); },
+    get firing() { return S.firing; },
+    get overviewing() { return S.clock < S.overviewUntil; },
+    get aimPoint() { return t.P; },
+    get aimFrom() { return t.aimFrom; }, get aimDir() { return t.d; },
+    get look() { return S.look; },
+    get weight() { return S.weight; },
+    fx, hud, blood, stats, state: S,
+  };
+}
+
+return { GUN_PLAY, createGunPlay };
+})();
+
+__modules["net/gun-net.js"] = (function () {
+
+const STALE = 120;            // seconds a round waits to be told before it is let go
+const MOST = 24;              // rounds in one word (the server takes no more)
+const MOST_WAITING = 64;
+
+const r2 = (v) => Math.round(v * 100) / 100;
+const r4 = (v) => Math.round(v * 10000) / 10000;
+
+function createGunNet({ now = () => performance.now() / 1000, random = Math.random } = {}) {
+  const sid = `s${Date.now().toString(36)}${Math.floor(random() * 1e9).toString(36)}`.replace(/[^A-Za-z0-9_-]/g, '').slice(0, 30);
+  let seq = 0;
+  let waiting = [];            // [{ shot, at }]
+  let flying = [];             // sent, not yet answered
+  let reloads = [];            // [{ ev: [after, t, gun], at }] done here, not yet answered
+  let reloadsFlying = [];
+  let ack = 0;                 // the last hit on this player this game has taken
+  let armed = false;           // the gun is out (the word goes more often)
+  const handlers = new Set();
+  const stats = { sent: 0, answered: 0, ok: 0, refused: 0, hits: 0, struck: 0, lost: 0, reloads: 0, codes: {} };
+
+  function fire({ t, gun, o, d, hit = null }) {
+    seq += 1;
+    const shot = [seq, r4(t), gun, o.map(r2), d.map(r4)];
+    if (hit && /^u[0-9a-f]{20}$/.test(hit.who || '')) shot.push({ who: hit.who, at: hit.at.map(r2) });
+    waiting.push({ shot, at: now() });
+    if (waiting.length > MOST_WAITING) { waiting.splice(0, waiting.length - MOST_WAITING); stats.lost += 1; }
+    return seq;
+  }
+  function reload({ gun, t, after = seq }) {
+    reloads.push({ ev: [after, r4(t), gun], at: now() });
+    if (reloads.length > 8) reloads.splice(0, reloads.length - 8);
+  }
+  function body() {
+    const t = now();
+    const before = waiting.length;
+    waiting = waiting.filter((w) => t - w.at < STALE);
+    stats.lost += before - waiting.length;
+    reloads = reloads.filter((r) => t - r.at < STALE);
+    flying = waiting.splice(0, MOST);
+    const next = waiting.length ? waiting[0].shot[0] : Infinity;
+    reloadsFlying = reloads.filter((r) => r.ev[0] < next);
+    reloads = reloads.filter((r) => r.ev[0] >= next);
+    const out = { ack };
+    if (flying.length || reloadsFlying.length) {
+      out.fire = { sid, s: flying.map((w) => w.shot) };
+      if (reloadsFlying.length) out.fire.r = reloadsFlying.map((r) => r.ev);
+      stats.sent += flying.length;
+    }
+    return out;
+  }
+  function answer(reply) {
+    if (!reply) { if (flying.length) waiting.unshift(...flying); flying = []; if (reloadsFlying.length) reloads.unshift(...reloadsFlying); reloadsFlying = []; return; }
+    const sent = flying; flying = [];
+    const sentReloads = reloadsFlying; reloadsFlying = [];
+    stats.answered += 1;
+    const fire = reply.fire && typeof reply.fire === 'object' ? reply.fire : null;
+    if (fire && fire.error) {
+      stats.codes[fire.error] = (stats.codes[fire.error] || 0) + 1;
+      if (fire.error !== 'BAD_REQUEST') { if (sent.length) waiting.unshift(...sent); if (sentReloads.length) reloads.unshift(...sentReloads); }
+    } else if (sentReloads.length) {
+      const told = new Map((fire && Array.isArray(fire.r) ? fire.r : []).filter(Array.isArray).map(([after, code]) => [after, code]));
+      for (const r of sentReloads) {
+        if (!told.has(r.ev[0])) { reloads.unshift(r); continue; }
+        const code = told.get(r.ev[0]);
+        if (code === 'ok') stats.reloads += 1; else { stats.refused += 1; stats.codes[code] = (stats.codes[code] || 0) + 1; }
+      }
+    }
+    if (fire) {
+      stats.ok += Array.isArray(fire.ok) ? fire.ok.length : 0;
+      for (const [, code] of Array.isArray(fire.no) ? fire.no : []) { stats.refused += 1; stats.codes[code] = (stats.codes[code] || 0) + 1; }
+      stats.hits += Array.isArray(fire.hit) ? fire.hit.length : 0;
+    }
+    const struck = Array.isArray(reply.struck) ? reply.struck.filter((s) => s && Number.isSafeInteger(s.id) && s.id > ack) : [];
+    stats.struck += struck.length;
+    for (const fn of handlers) fn({ fire, struck, sent: sent.map((w) => w.shot), waiting: waiting.length });
+  }
+  return {
+    sid, fire, reload, body, answer, stats,
+    get seq() { return seq; },
+    took(id) { if (Number.isSafeInteger(id) && id > ack) ack = id; },
+    get ack() { return ack; },
+    urgent: () => waiting.length > 0 || reloads.length > 0,
+    get armed() { return armed; },
+    set armed(on) { armed = !!on; },
+    get waiting() { return waiting.length + flying.length + reloads.length + reloadsFlying.length; },
+    onAnswer(fn) { handlers.add(fn); return () => handlers.delete(fn); },
+  };
+}
+
+return { createGunNet };
+})();
+
 __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
@@ -41783,7 +44583,7 @@ const { createTownBuildings } = __modules["client/render-town-buildings.js"];
 const { updateFinishes, finishState, setReflections, setWater } = __modules["client/render-finish.js"];
 const { foliageState } = __modules["client/render-foliage.js"];
 const { buildPowerbike } = __modules["client/render-powerbike.js"];
-const { pictureSize, GRAPHICS_BUDGET_MB } = __modules["client/budget.js"];
+const { pictureSize, GRAPHICS_BUDGET_MB, modelFile } = __modules["client/budget.js"];
 const { countGraphics } = __modules["client/graphics-count.js"];
 const { frameClock, statsLines, showStats } = __modules["client/stats.js"];
 const { createSalesman } = __modules["sim/salesman.js"];
@@ -41796,6 +44596,9 @@ const { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, aut
 const { showSoftPatches, softPatchesShown, softPatchOpacity } = __modules["client/soft-patch.js"];
 const { fallTime, flightAt } = __modules["client/falls.js"];
 const { CONTACT, contactNormal, contactOutcome } = __modules["sim/contact.js"];
+const { createGunPlay, GUN_PLAY } = __modules["client/gun-play.js"];
+const { setGunDrawing, GUN_MODELS } = __modules["client/gun-model.js"];
+const { createGunNet } = __modules["net/gun-net.js"];
 
 const SAVE_KEY = `nlw-save-v5-${ZONE.id}`;      // the keys keep their first names so that a character made before the game was renamed is still found
 const PREFS_KEY = 'nlw-prefs-v1';
@@ -41917,6 +44720,23 @@ function start(carried) {
     carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
     standins = createStandins(scene, { lite: LITE });
   }]);
+  let gunPlay = null;
+  townSteps.push(['the guns', () => {
+    try { makeGuns(); } catch (error) { gunPlay = null; console.error('PostCivilWar: the guns could not be made', error); }
+  }]);
+  function makeGuns() {
+    setGunDrawing({ env: LITE ? null : vehicleEnvironment(), maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), lite: LITE });
+    gunPlay = createGunPlay({
+      scene, camera, audio, lite: LITE, coarse, ground: zoneGroundY, net: gunNet, online,
+      game: () => host.game, send: (intent) => server.send(intent), view: () => view, playerId: () => playerId,
+      refresh: () => refreshView(), cam: () => cam, calm: () => !!prefs.calm,
+      peers: () => shownPeers, rigOf: (key) => (crowd ? crowd.rigOf(key) : null),
+      toast: (text) => ui.toast({ type: 'note', text }),
+      confirm: ({ title, text, yes, no }) => confirm.ask({ title, body: text, confirm: yes, cancel: no, run: async () => ({ ok: true }) }),
+      hudRoot: $('hud'), hudr: $('hudr'), bloodRoot: $('game') || document.body,
+    });
+  }
+  const gunNet = createGunNet();
   const PEER_STANDIN = 260;          // metres within which another player's vehicle is drawn at all
   const peerPhones = new Map();      // id -> { hold, idle }
   function updatePeerPhones(dt) {
@@ -42120,7 +44940,7 @@ function start(carried) {
 
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
-  const prefs = { translate: true, sound: true, graphics: 'auto', ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, sound: true, graphics: 'auto', calm: false, ...(readStored(PREFS_KEY) || {}) };
   let realWeather = null;              // { kind, place, temperature, at } from the site's server
   const newHost = (options = {}) => {
     const made = createHost({ ...options, wallClock: REAL_CLOCK ? wallSeconds : null });
@@ -42171,6 +44991,7 @@ function start(carried) {
   let actKey = false;                // E or Enter held down
   const acting = () => actKey || controls.held('act');
   let mode = 'start';                // what the player is doing, which decides the buttons shown: see controlMode()
+  let viewBeforeGun = null;          // the camera's view before the gun came out (it comes back when the gun goes)
   const perf = { fps: 60, calls: 0, triangles: 0, programs: 0, geometries: 0, textures: 0 };
   const monitor = createMonitor();
   const warmUp = createWarmUp(renderer, scene);
@@ -42200,7 +45021,9 @@ function start(carried) {
   let phoneShown = 0;
   function linkSelf() {
     if (!view) return null;
-    const me = phoneShown ? { ...view.self, phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : view.self;
+    const armed = gunPlay ? gunPlay.linkFields(cam) : null;
+    const gy = zoneGroundY(view.self.x, view.self.z);
+    const me = { ...view.self, ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
     return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
@@ -42290,7 +45113,7 @@ function start(carried) {
   function onlineChanged() {
     if (!online.available) return;
     const want = online.signedIn;
-    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden }) }; if (playing) relink(); }
+    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden, gun: gunNet }) }; if (playing) relink(); }
     if (!want && transport && transport.kind === 'web') { transport = null; if (playing) relink(); }
     if (!want) { market.reset(); ui.signedOut(); }
     if (online.status().state === 'out') {
@@ -42930,6 +45753,8 @@ function start(carried) {
     waypoint: () => waypoint,
     setWaypoint: (mark) => setWaypoint(mark),
     setGraphics: (value) => setGraphics(value),
+    calm: () => !!prefs.calm,
+    setCalm: (on) => { prefs.calm = !!on; writeStored(PREFS_KEY, prefs); },
     volumes: () => audio.volumes(),
     setVolume: (name, value) => { audio.setVolumes({ [name]: value }); prefs.volumes = audio.volumes(); writeStored(PREFS_KEY, prefs); if (name === 'ui') audio.chime('ok'); },
     chime: (kind) => audio.chime(kind),
@@ -43017,6 +45842,7 @@ function start(carried) {
     if (!playing) return;
     exited = true; exitNote = note || '';
     letGo();
+    if (gunPlay) gunPlay.reset();
     playing = false;
     ui.close();
     audio.suspend();
@@ -43096,6 +45922,7 @@ function start(carried) {
 
   function hear(event) {
     if (event.type === 'sound') { audio.bell(event.x, event.z, event.sound); return; }
+    if (event.type === 'shot') { if (gunPlay) gunPlay.onShot(event, { me }); return; }
     if (event.type === 'struck') { flash = 1; startStrike(me, 'flinch', clock); return; }             // the blow itself is drawn and sounded from the fight feed
     if (event.type === 'police' && event.sound === 'whistle') audio.whistle(event.x, event.z);
     if (event.type === 'critical' || event.type === 'alert' || (event.type === 'police' && event.title !== 'Released')) audio.chime('alert');
@@ -43388,6 +46215,8 @@ function start(carried) {
     if (prefs.sound) audio.start();
     relink();
     refreshView();
+    if (gunPlay) { gunPlay.reset(); if (online.signedIn) gunPlay.askState(); }
+    if (webapp.site && window.__PCW_GUNS) webapp.keepFiles([modelFile(GUN_MODELS.rifle.file), ...((window.__PCW_GUNS.rifle && window.__PCW_GUNS.rifle.sounds) || [])]);
     canvas.focus({ preventScroll: true });
   }
 
@@ -43575,14 +46404,38 @@ function start(carried) {
 
   const pointers = new Map();
   let pinch = 0;
-  canvas.addEventListener('pointerdown', (event) => { canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (playing && prefs.sound && !pictureGone) audio.start(); });
+  let gunAimedAt = -10;
+  const GUN_PITCH = Object.freeze({ up: -0.85, down: 1.0 });
+  function aimBy(dx, dy, rate = 0.0055) {
+    const fine = gunPlay && gunPlay.sighting ? 0.45 : 1;
+    cam.yaw -= dx * rate * fine;
+    cam.pitch = Math.max(GUN_PITCH.up, Math.min(GUN_PITCH.down, cam.pitch + dy * rate * 0.75 * fine));
+    cam.lastDrag = clock; gunAimedAt = clock;
+  }
+  const gunMouse = (event) => mode === 'gun' && event.pointerType === 'mouse' && typeof canvas.requestPointerLock === 'function';
+  canvas.addEventListener('contextmenu', (event) => { if (mode === 'gun') event.preventDefault(); });
+  document.addEventListener('mousemove', (event) => { if (document.pointerLockElement === canvas && mode === 'gun' && playing) aimBy(event.movementX || 0, event.movementY || 0, 0.0024); });
+  canvas.addEventListener('pointerdown', (event) => {
+    if (gunMouse(event)) {
+      event.preventDefault();
+      canvas.focus({ preventScroll: true });
+      if (playing && prefs.sound && !pictureGone) audio.start();
+      if (document.pointerLockElement !== canvas) { try { const r = canvas.requestPointerLock(); if (r && r.catch) r.catch(() => {}); } catch (error) { /* not here */ } return; }
+      if (event.button === 0) act('shoot', 'down'); else if (event.button === 2) act('aim', 'hold-down');
+      return;
+    }
+    canvas.setPointerCapture(event.pointerId); pointers.set(event.pointerId, { x: event.clientX, y: event.clientY }); canvas.focus({ preventScroll: true }); if (playing && prefs.sound && !pictureGone) audio.start();
+  });
+  canvas.addEventListener('pointerup', (event) => { if (gunMouse(event) && document.pointerLockElement === canvas) { if (event.button === 0) act('shoot', 'up'); else if (event.button === 2) act('aim', 'hold-up'); } });
+  document.addEventListener('pointerlockchange', () => { if (document.pointerLockElement !== canvas && gunPlay) { gunPlay.act('shoot', 'up'); gunPlay.act('aim', 'hold-up'); } });
   canvas.addEventListener('pointermove', (event) => {
     const p = pointers.get(event.pointerId);
     if (!p) return;
     const dx = event.clientX - p.x;
     const dy = event.clientY - p.y;
     p.x = event.clientX; p.y = event.clientY;
-    if (pointers.size === 1) {
+    if (pointers.size === 1 && mode === 'gun') aimBy(dx, dy);
+    else if (pointers.size === 1) {
       if (!rig.drag(-dx * 0.0055)) cam.yaw -= dx * 0.0055;
       cam.pitch = Math.max(0.02, Math.min(1.25, cam.pitch + dy * 0.004));
       cam.lastDrag = clock;
@@ -43598,7 +46451,7 @@ function start(carried) {
   canvas.addEventListener('pointercancel', release);
   canvas.addEventListener('wheel', (event) => { event.preventDefault(); cam.dist = Math.max(STREET.nearest, Math.min(60, cam.dist * (1 + Math.sign(event.deltaY) * 0.1))); }, { passive: false });
 
-  controls.on((id, phase) => act(id, phase));
+  controls.on((id, phase, dx, dy) => { if (phase === 'move') { if (id === 'shoot' && mode === 'gun') aimBy(dx, dy); return; } act(id, phase); });
   window.addEventListener('touchstart', () => { if (playing) $('touch').hidden = false; }, { passive: true, once: true });
 
 
@@ -43776,9 +46629,25 @@ function start(carried) {
     if (self.riding) return 'riding';
     if (self.fight) return 'combat';
     if (self.swimming) return 'swimming';
+    if (gunPlay && gunPlay.out) return 'gun';
     return 'walking';
   }
   const where = () => (view && (view.self.driving || view.self.astride || view.self.riding || view.self.incar) ? 'vehicle' : 'foot');
+
+  function gunTargets() {
+    const out = [];
+    for (const q of shownPeers) {
+      if (Math.hypot(q.x - predicted.x, q.z - predicted.z) > 70) continue;
+      const able = Number.isFinite(q.health) && q.health > 20 && !q.vehicle && !q.ride && !q.car && !q.swimming && !q.held && !q.down;
+      out.push({ x: q.x, y: zoneGroundY(q.x, q.z) + (q.gun && q.gun.crouch ? 0.85 : 1.25), z: q.z, able });
+    }
+    if (crowd) for (const a of crowd.actors()) {
+      const who = known.get(a.i);
+      if (!who || !who.police || a.d === undefined || a.d > 70 || a.pose === 3) continue;
+      out.push({ x: a.x, y: zoneGroundY(a.x, a.z) + 1.25, z: a.z, able: true });
+    }
+    return out;
+  }
 
   function findNear() {
     const out = { fight: null, steal: null, take: null };
@@ -43835,12 +46704,29 @@ function start(carried) {
         if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
         return list;
       }
+      if (gunPlay) list.push({ id: 'gun', key: 'x', label: 'Gun', icon: 'gun', off: !!self.critical, hint: self.critical ? 'You are badly hurt: you cannot use a gun' : 'Take out your gun (X)' });
       if (near.fight && !self.critical) list.push({ id: 'fight', key: 'f', label: 'Fight', tone: 'warn', hint: `Square up to ${near.fight.name}` });
       if (near.take && !self.critical) list.push({ id: 'take', key: 'g', label: 'Take', tone: 'warn', hint: near.take.text });
       if (near.steal && !self.critical) list.push({ id: 'steal', key: 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
       if (self.critical) list.push({ id: 'ambulance', key: 'h', label: 'Help', hint: 'Call an ambulance' });
       if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
       list.push(look);
+      return list;
+    }
+    if (m === 'gun') {
+      const g = self.gun || {};
+      const reloading = !!g.reloading;
+      const list = [
+        { id: 'shoot', key: 'f', label: 'Shoot', icon: 'shoot', kind: 'hold', primary: true, drag: true, off: reloading || gunPlay.running, hint: reloading ? 'Reloading' : 'Hold to shoot (F, or the mouse\'s left button). Drag it to aim as you shoot' },
+        { id: 'aim', key: 'q', label: 'Aim', icon: 'aim', kind: 'toggle', pressed: gunPlay.sighting, off: gunPlay.running, hint: 'Aim through the sight (the mouse\'s right button, or Q)' },
+        { id: 'reload', key: 'r', label: 'Reload', icon: 'reload', off: reloading || (g.mag >= g.magazine) || g.spare <= 0, hint: reloading ? 'Reloading' : g.spare <= 0 ? 'No rounds left to reload with' : 'Reload (R)' },
+      ];
+      if (prompt && prompt.short) list.push({ ...main, primary: false, hint: `${prompt.text} (E)` });
+      list.push({ id: 'crouch', key: 'c', label: 'Crouch', icon: 'crouch', kind: 'toggle', pressed: gunPlay.crouched, hint: 'Crouch (C)' });
+      if (me && me.animated) list.push({ id: 'jump', key: 'Space', label: 'Jump', icon: 'jump', hint: 'Jump (Space)' });
+      if (!(prompt && prompt.short)) list.push({ id: 'switch', key: 'g', label: 'Guns', icon: 'switch', hint: 'Your guns (G)' });
+      list.push({ id: 'overview', key: 'v', label: 'View', icon: 'camera', kind: 'toggle', pressed: gunPlay.overviewing, hint: 'See all round you for five seconds (V)' });
+      list.push({ id: 'holster', key: 'x', label: 'Put away', icon: 'holster', hint: 'Put your gun away (X)' });
       return list;
     }
     if (m === 'combat') {
@@ -43867,10 +46753,13 @@ function start(carried) {
   function showControls() {
     const next = controlMode();
     if (next !== mode) {
+      const was = mode;
       mode = next;
       controls.setRun(false);
       if (blocking) { blocking = false; }
-      rig.view = viewFor(rig.view, where());
+      if (mode === 'gun') { if (was !== 'gun') viewBeforeGun = rig.view; }
+      else { if (was === 'gun' && viewBeforeGun) { rig.view = viewBeforeGun; cam.pitch = Math.max(0.02, Math.min(1.25, cam.pitch)); } rig.view = viewFor(rig.view, where()); if (document.pointerLockElement) document.exitPointerLock(); }
+      $('touch').classList.toggle('armed', mode === 'gun');
     }
     skills.allow(mode === 'walking');
     const list = mode === 'start' || mode === 'panel' ? [] : buttonsFor(mode);
@@ -43882,7 +46771,7 @@ function start(carried) {
     if ($('touch').classList.contains('bike') !== onBike) { $('touch').classList.toggle('bike', onBike); $('hud').classList.toggle('bike', onBike); }
     keymap.clear();
     for (const b of list) if (b.key && b.key !== 'Shift') keymap.set(b.key, b);
-    ui.setKeys(mode === 'walking' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
+    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
   }
 
   function strike(move) {
@@ -43894,7 +46783,7 @@ function start(carried) {
   }
 
   function jump() {
-    if (mode !== 'walking' || !me || !me.animated || view.self.swimming) return;
+    if ((mode !== 'walking' && mode !== 'gun') || !me || !me.animated || view.self.swimming) return;
     const result = server.send({ type: 'jump' });
     if (result.ok) me.jump(0);
   }
@@ -43908,6 +46797,13 @@ function start(carried) {
   }
   function act(id, phase) {
     if (!playing || !view) return;
+    if (gunPlay && (id === 'shoot' || id === 'aim')) {
+      if (id === 'aim' && phase === 'up') return;
+      if (phase === 'down' || phase === 'up') gunPlay.act(id, phase);
+      else if (phase === 'hold-down' || phase === 'hold-up') gunPlay.act(id, phase);
+      showControls();
+      return;
+    }
     if (id === 'block') {
       const on = phase === 'down';
       if (view.self.fight) { server.send({ type: 'combat.block', on }); blocking = on; }
@@ -43916,8 +46812,10 @@ function start(carried) {
     if (phase !== 'down' || ui.isOpen()) return;
     const said = (result, good) => { refreshView(); if (!result.ok) ui.toast({ type: 'note', text: result.message }); else if (good) ui.toast({ type: 'note', text: good }); return result; };
     switch (id) {
-      case 'act': pressAct(); break;
+      case 'act': if (gunPlay && gunPlay.out) gunPlay.putAway(); pressAct(); break;
       case 'run': controls.setRun(!input.run); break;
+      case 'gun': if (gunPlay) { if (ui.usingPhone()) ui.close(); gunPlay.act('gun', 'down'); refreshView(); showControls(); } break;
+      case 'holster': case 'reload': case 'crouch': case 'switch': case 'overview': if (gunPlay) { gunPlay.act(id, 'down'); showControls(); } break;
       case 'jump': jump(); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
@@ -44223,24 +47121,34 @@ function start(carried) {
     const { forward, strafe } = controls.axes();
     const magnitude = Math.min(1, Math.hypot(forward, strafe));
     const steering = !uiBlocks() && magnitude >= 0.12;
-    if (!steering && going.speed <= 0.02) { going.speed = 0; return 0; }
+    const armed = !!(gunPlay && gunPlay.out);
+    if (armed && !(controls.running && steering)) { const turn = angleGap(cam.yaw, predicted.heading); predicted.heading += Math.max(-14 * dt, Math.min(14 * dt, turn)); }
+    if (!steering && going.speed <= 0.02) { going.speed = 0; going.way = null; return 0; }
     const run = controls.running && !view.self.critical && !ui.phoneOut();
-    let wanted = predicted.heading;
+    let wanted = armed && going.way !== undefined && going.way !== null ? going.way : predicted.heading;
     let pace = 0;
     if (steering) {
       const fx = Math.sin(cam.yaw), fz = Math.cos(cam.yaw);
       const rx = -Math.cos(cam.yaw), rz = Math.sin(cam.yaw);
       wanted = Math.atan2(fx * forward + rx * strafe, fz * forward + rz * strafe);
       pace = (run ? SPEED.run : SPEED.walk) * (view.weather.wet ? SPEED.rain : 1) * magnitude;
+      if (armed && !run) pace *= gunPlay.pace();
+      if (view.self.critical) pace *= 0.55;
     }
-    const off = angleGap(wanted, predicted.heading);
-    const swing = Math.max(-PACE.turn * dt, Math.min(PACE.turn * dt, off));
-    predicted.heading += swing;
-    going.turn = swing / dt;
-    pace *= 0.4 + 0.6 * Math.max(0, Math.cos(off));
+    const strafing = armed && !run;
+    let off = 0;
+    if (!strafing) {
+      off = angleGap(wanted, predicted.heading);
+      const swing = Math.max(-PACE.turn * dt, Math.min(PACE.turn * dt, off));
+      predicted.heading += swing;
+      going.turn = swing / dt;
+      pace *= 0.4 + 0.6 * Math.max(0, Math.cos(off));
+    }
+    going.way = wanted;
     going.speed += Math.max(-PACE.shed * dt, Math.min(PACE.gather * dt, pace - going.speed));
     const speed = going.speed;
-    const dx = Math.sin(predicted.heading), dz = Math.cos(predicted.heading);
+    const moveWay = strafing ? wanted : predicted.heading;
+    const dx = Math.sin(moveWay), dz = Math.cos(moveWay);
     const boxes = structureBoxes();
     let nx = predicted.x + dx * speed * dt;
     let nz = predicted.z + dz * speed * dt;
@@ -44271,7 +47179,7 @@ function start(carried) {
       return 0;
     }
     if (result.ok) { predicted.x = nx; predicted.z = nz; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; going.speed = 0; }
-    if (rig.view === 'street') {
+    if (armed) { /* the aim is the player's: the camera is not turned for them */ } else if (rig.view === 'street') {
       const behind = angleGap(predicted.heading, cam.yaw);
       if (speed > 0.4 && clock - cam.lastDrag > 1.2 && Math.abs(behind) < 2.0) cam.yaw += behind * (1 - Math.exp(-dt * (run ? 2.1 : 1.3) * Math.min(1, speed / 1.2)));
     } else {
@@ -44639,6 +47547,7 @@ function start(carried) {
       if (holding && prompt.intent.type === 'job.mould') predicted.heading += angleGap(Math.PI, predicted.heading) * Math.min(1, dt * 8);
       me.group.rotation.set(0, predicted.heading, astride ? moto.lean : 0);      // (lean positive: over to the right, into a right turn)
       me.climbing = !!me.animated && !driving && !riding && !astride && !incar && speed > 0.3 && habitationClimbing(me.group.position.x, me.group.position.z, predicted.heading);
+      me.limp = !!self.critical && !driving && !riding && !astride && !incar && !self.swimming;
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
@@ -44666,6 +47575,11 @@ function start(carried) {
       torch.held = torch.on && phoneAble && !phoneSide && !talking && !ui.calling();
       phoneHold.update(dt, me, { use: (ui.usingPhone() && !talking) || torch.held, able: phoneAble, night, screen: ui.phoneOut() ? ui.phoneScreen() : torch.held && !ui.usingPhone() ? 'home' : 'page', call: ui.calling(), seated: phoneSide ? { side: phoneSide } : null });
       phoneShown = !phoneAble ? 0 : ui.calling() ? 2 : (ui.usingPhone() && !talking) || torch.held ? (ui.phoneOut() && ui.phoneScreen() === 'camera' ? 3 : 1) : 0;
+      if (gunPlay) {
+        if (gunPlay.out && ui.usingPhone()) gunPlay.putAway();
+        const way = going.way !== undefined && going.way !== null ? going.way : predicted.heading;
+        gunPlay.frameSelf(dt, { me, self, cam, pos: me.group.position, moving: { x: Math.sin(way) * going.speed, z: Math.cos(way) * going.speed }, running: !!gunPlay.out && controls.running && going.speed > 0.4, aiming: clock - gunAimedAt < 0.4, peersHere: gunPlay.out && coarse ? gunTargets() : [] });
+      }
       tickTalkPose(dt, speed);
       tickCarTalkPose(dt, speed);
       me.swimming = !!self.swimming;
@@ -44793,6 +47707,7 @@ blood.update(dt, view.blood || []);
       }
       standins.update(standing, camera.position, performance.now() / 1000);
       updatePeerPhones(dt);
+      if (gunPlay) gunPlay.frameOthers(dt, { peers: shownPeers, shooting: view.shooting || [], shots: view.shots || [], eye: { x: predicted.x, y: zoneGroundY(predicted.x, predicted.z) + 1.6, z: predicted.z }, rigOf: (key) => crowd.rigOf(key) });
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
       tickDealMarkers(dt); tickShopActors(dt); tickShowroom(dt); tickPeerTalk(dt); tickCarshow(dt); tickCarPeerTalk(dt);
@@ -44806,7 +47721,9 @@ blood.update(dt, view.blood || []);
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
-      if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z); else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), 1 - Math.exp(-dt * 9));
+      if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z);
+      else if (gunPlay && gunPlay.out && !gunPlay.overviewing) gunPlay.cameraTarget(me, cam.target);
+      else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), 1 - Math.exp(-dt * 9));
       if (!cam.free) { frameTalk(dt); frameCarTalk(dt); }
     } else {
       cam.yaw = 0.35 + Math.sin(clock * 0.05) * 0.5;
@@ -44824,7 +47741,10 @@ blood.update(dt, view.blood || []);
     const hall = playing && (showroom.inside || carshow.inside);
     builtForCamera = playing ? builtBoxes() : [];
     const runShare = playing && view && !sitting && !view.self.swimming ? Math.max(0, Math.min(1, (going.speed - SPEED.walk) / Math.max(0.1, SPEED.run - SPEED.walk))) : 0;
+    const gunView = playing && gunPlay ? gunPlay.cameraView() : null;
+    if (gunView && rig.view !== gunView) rig.view = gunView;
     rig.update(dt, {
+      sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
       room: hall ? (carshow.inside ? CAR_HALL_ROOM : HALL_ROOM) : null,
@@ -44834,6 +47754,7 @@ blood.update(dt, view.blood || []);
     });
     const sinceKick = clock - camKick.at;
     if (sinceKick < 0.5 && camKick.amount > 0) { const k = camKick.amount * 0.07 * Math.exp(-sinceKick * 9) * Math.cos(sinceKick * 26); camera.position.x += camKick.x * k; camera.position.z += camKick.z * k; camera.position.y -= Math.abs(k) * 0.4; }
+    if (playing && gunPlay) gunPlay.frameHud({ width: viewW, height: viewH, interactable: !!(prompt && prompt.short) });
     const bikeNow = playing && view && view.self.astride && powerBike() ? powerBike() : null;
     if (bikeNow) {
       const share = Math.abs(bikeState.speed) / bikeNow.handling.top;
@@ -45075,6 +47996,7 @@ blood.update(dt, view.blood || []);
     get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
+    get gunPlay() { return gunPlay; }, gunNet, gunTargets: () => gunTargets(), aimBy: (dx, dy) => aimBy(dx, dy),
     get phoneHold() { return phoneHold; }, camera,
     get powerbike() { return powerbike; }, salesman, get salesmanActor() { return salesmanActor; }, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),
     get carshowView() { return carshowView; }, get carSalesmen() { return carSalesmen; }, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),

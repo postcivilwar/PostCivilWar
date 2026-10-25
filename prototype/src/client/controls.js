@@ -23,7 +23,7 @@ export function createControls({ stick, pad }) {
   let stickPointer = null;
   let signature = '';
 
-  const emit = (id, phase) => { for (const fn of listeners) fn(id, phase); };
+  const emit = (id, phase, dx, dy) => { for (const fn of listeners) fn(id, phase, dx, dy); };
 
   // ------------------------------------------------------------ the stick --
 
@@ -81,6 +81,8 @@ export function createControls({ stick, pad }) {
       id,
       onDown: () => { if (entry.spec.kind === 'hold') held.add(id); emit(id, 'down'); },
       onUp: () => { if (held.delete(id)) emit(id, 'up'); },
+      // (dragged as well as pressed: the gun's Shoot aims as it fires)
+      onMove: (dx, dy) => emit(id, 'move', dx, dy),
     });
     entry.el = entry.button.el;
     pad.append(entry.el);
@@ -92,7 +94,7 @@ export function createControls({ stick, pad }) {
   // marked `primary` is the large one, the rest take the places round it.
   //   { id, label, kind: 'tap' | 'hold' | 'toggle', primary, pressed, tone, hint }
   function layout(list) {
-    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}|${b.shape || ''}`).join('~');
+    const next = list.map((b) => `${b.id}|${b.label}|${b.icon || ''}|${b.kind || 'tap'}|${b.primary ? 1 : 0}|${b.pressed ? 1 : 0}|${b.tone || ''}|${b.off ? 1 : 0}|${b.shape || ''}|${b.drag ? 1 : 0}`).join('~');
     if (next === signature) return;
     signature = next;
     const seen = new Set();
@@ -103,7 +105,7 @@ export function createControls({ stick, pad }) {
       let entry = buttons.get(spec.id);
       if (!entry) { entry = make(spec.id); buttons.set(spec.id, entry); }
       entry.spec = { kind: 'tap', ...spec };
-      entry.button.configure({ kind: entry.spec.kind, shape: spec.shape, size: spec.size, place: spec.place });
+      entry.button.configure({ kind: entry.spec.kind, shape: spec.shape, size: spec.size, place: spec.place, drag: spec.drag });
       const el = entry.el;
       el.className = `pad ${spec.primary ? 'primary' : `slot${slot += 1}`}${spec.tone ? ` ${spec.tone}` : ''}${entry.button.held || held.has(spec.id) ? ' down' : ''}`;
       // what the button does is drawn, not written; the word is still there for a screen reader and for a long press

@@ -11,6 +11,7 @@
 // speaker's head. Nothing here plays a voice: a line carries its language and
 // its text, which is what a voice service would be given later.
 
+import { GUNS } from './guns.js';
 import { ZONE, ZONE_SPOTS, ZONE_ROOMS, zoneResident, zoneOnGround, zoneWalkable, inPowerbikeHall, inCarHall } from './zone.js';
 import { LANGUAGES, EXCHANGES, PEOPLES, phrase, greetingId, dayPart, sharedLanguage } from './culture.js';
 import { POSE, RANGE } from './population.js';
@@ -241,7 +242,7 @@ export function createTalk({ state, population, residents, players, weather, hub
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
     for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null });
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -364,6 +365,24 @@ export function createTalk({ state, population, residents, players, weather, hub
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
     if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }
+    // Guns (25 October 2026): their health as their own game says it (who may be shot, and the bar over them: guns.js);
+    // in the river, held by the police; the gun in their hands, how it is held and where it is aimed; the rounds they
+    // have fired in the last moment; the wounds on their body (each a place on their figure, by its bone). Each field
+    // within bounds, or nothing. (Whether one player's round hit another is the website's server's to say, never this.)
+    v.peer = cleanText(peerId, 40).replace(/[^\w-]/g, '');
+    v.health = data.health !== null && data.health !== undefined && Number.isFinite(Number(data.health)) ? Math.round(n(data.health, 0, 100)) : null;
+    v.swimming = !!data.swimming; v.held = !!data.held;
+    const gn = data.gun && typeof data.gun === 'object' && GUNS[data.gun.id] ? data.gun : null;
+    v.gun = gn ? { id: gn.id, out: !!gn.out, aim: [0, 1, 2].includes(gn.aim) ? gn.aim : 0, crouch: !!gn.crouch, reload: gn.reload === null || gn.reload === undefined ? null : n(gn.reload, 0, 1), yaw: n(gn.yaw, -10, 10), pitch: n(gn.pitch, -1.5, 1.5) } : null;
+    v.crouch = !!(v.gun && v.gun.out && v.gun.crouch);
+    const point = (a) => (Array.isArray(a) && a.length === 3 && a.every((k) => Number.isFinite(Number(k))) ? a.map(Number) : null);
+    v.shots = (Array.isArray(data.shots) ? data.shots : []).slice(0, 12).map((sh) => {
+      if (!sh || typeof sh !== 'object' || !Number.isInteger(sh.q) || sh.q < 0) return null;
+      const o = point(sh.o), e = point(sh.e);
+      if (!o || !e || Math.hypot(o[0] - x, o[2] - z) > 4 || Math.hypot(e[0] - o[0], e[2] - o[2]) > 160) return null;
+      return { q: sh.q, ago: n(sh.ago, 0, 4), o, e, what: ['air', 'wall', 'ground', 'vehicle', 'person'].includes(sh.what) ? sh.what : 'air' };
+    }).filter(Boolean);
+    v.wounds = (Array.isArray(data.wounds) ? data.wounds : []).slice(0, 10).map((w) => (Array.isArray(w) && w.length >= 4 && Number.isInteger(w[0]) && w[0] >= 0 && w[0] < 32 && w.slice(1, 4).every((k) => Number.isFinite(Number(k)) && Math.abs(Number(k)) < 2) ? [w[0], Number(w[1]), Number(w[2]), Number(w[3]), n(w[4] === undefined ? 1 : w[4], 0.2, 4)] : null)).filter(Boolean);
     visitors.set(id, v);
     const said = data.say;
     // what was said before this visitor came into view is not replayed

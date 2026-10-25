@@ -20,6 +20,7 @@
 // and are never struck. Each blow draws blood, more the harder it was; someone lying bleeds on, so the pool
 // under them spreads, and a pool is left on the ground after they are gone.
 
+import { HEALTH } from './conflict.js';
 import { GameError } from './registry.js';
 import { zoneWalkable, ZONE_RESIDENTS } from './zone.js';
 
@@ -222,7 +223,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const harm = Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1)));
     const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
     rec.at = now; rec.t = state.t;
-    rec.health = Math.max(0, rec.health - harm);
+    // (the 20-life rule, 22 October 2026: nobody is brought below 20, and nobody is killed)
+    rec.health = Math.max(Math.min(rec.health, HEALTH.critical), rec.health - harm);
     rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + harm * IMPACT.bleed.perHarm);
     rec.hits = (rec.hits || 0) + 1;
     const to = thrown(m.x, m.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);

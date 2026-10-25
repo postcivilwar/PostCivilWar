@@ -652,6 +652,14 @@ export function createUI(app) {
       app.webapp.refresh().then(() => { if (cells.isConnected) draw(); });
     }
 
+    // (25 October 2026, the owner's brief for the guns: "an option to reduce intense visual effects ... without disabling
+    // essential damage feedback")
+    if (app.calm) {
+      root.append(section('Effects'));
+      root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Reduce intense effects'), toggle('calm-on', app.calm(), 'Reduce intense effects', (on) => { app.setCalm(on); redraw(); }))));
+      root.append(h('p', { class: 'small' }, 'Less blood on the screen and in the town when someone is shot. Where a round came from is still shown.'));
+    }
+
     root.append(section('Controls'));
     root.append(h('div', { class: 'rows' }, [
       ['Walk', 'W A S D or arrow keys · the stick'], ['Run', 'Hold Shift · the Run button switches it on and off'], ['Look around', 'Drag on the world'], ['Zoom', 'Mouse wheel or pinch'],
@@ -659,6 +667,7 @@ export function createUI(app) {
       ['Fight', 'F, facing someone close: you square up. Then F punch, G heavy punch, R kick, hold Q to block, Space to dodge, Z shove, X grab, V to step away'],
       ['Take a vehicle', 'G, standing at the driver\'s side of an unlocked keke'], ['Pick a pocket', 'B, close behind someone'],
       ['Give yourself up', 'U, when you are wanted'], ['Drive a keke or a motorcycle', 'W and S to go and brake, A and D to steer, H for the horn, E to step out or get off'],
+      ['Your gun', 'X takes it out and puts it away. Click the picture to aim with the mouse (Esc lets the mouse go); the left button shoots (or F), the right aims through the sight (or Q). R reload, C crouch, Space jump, G your guns, V the whole scene for five seconds. On a touch screen: drag to aim, hold Shoot (drag it to aim as you shoot)'],
       ['Chat', 'T, when another player is close'], ['Phone', 'Tab or P'], ['Map', 'M'], ['Sound on and off', 'N'], ['Close', 'Esc'],
     ].map(([a, b]) => line(a, b))));
     root.append(h('p', { class: 'small' }, 'Only the buttons that can be used just now are on screen. On a keyboard each has a key, shown beside it at the foot of the screen.'));

@@ -54,7 +54,7 @@ const CURL = Object.freeze({ index: [0.10, 0.95, 1.5], middle: [0.12, 1.0, 1.55]
 // palm faces. They are the same whatever the hand is doing, since the knuckles do not move in the hand.
 const grips = new WeakMap();
 // (`s`: which hand, 'r' or 'l'; a left hand is the right's mirror, so its palm is the other way from across and along)
-function gripOf(rig, hand, s = 'r') {
+export function gripOf(rig, hand, s = 'r') {
   let both = grips.get(rig);
   if (!both) { both = {}; grips.set(rig, both); }
   if (s in both) return both[s];

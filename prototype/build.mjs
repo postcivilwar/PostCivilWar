@@ -24,8 +24,16 @@ import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FIGURES } from './src/sim/figures.js';
 import { MOVES_B64 } from './src/client/figure-borrowed.js';
+import { files as gunServerFiles } from './tools/guns/server-data.mjs';
+import { GUN_SOUNDS } from './src/client/gun-sound-files.js';
 
 const root = dirname(fileURLToPath(import.meta.url));
+// What the website's server knows of the guns and of the town's walls, from the game itself (tools/guns/server-data.mjs):
+// written beside the server whenever it would differ, so that the server and the game never disagree about them.
+for (const [name, text] of gunServerFiles()) {
+  const at = resolve(root, '../api/_lib', name);
+  if (!existsSync(at) || readFileSync(at, 'utf8') !== text) { writeFileSync(at, text); console.log(`written: api/_lib/${name}`); }
+}
 const IMPORT = /^import\s+\{([^}]+)\}\s+from\s+'([^']+)';?[ \t]*$/gm;
 const REEXPORT = /^export\s+\*\s+from\s+'([^']+)';?[ \t]*$/gm;
 const id = (file) => relative(resolve(root, 'src'), file);
@@ -142,6 +150,10 @@ for (const [name, file, global, inLocal] of FIGURE_FILES) {
 // the game on disk carries none of them.
 const SERVED_FIGURES = Object.values(FIGURES).map((f) => f.file).filter((file) => !FIGURE_FILES.some(([, f]) => f === file));
 for (const file of SERVED_FIGURES) writeFileSync(resolve(root, `dist/${file}`), readFileSync(resolve(root, `assets/characters/figures/animated/${file}`)));
+// (the rifle and its recordings beside the pages read from a disk and the lab: the owner's files as they are)
+mkdirSync(resolve(root, 'dist/guns/sound'), { recursive: true });
+writeFileSync(resolve(root, 'dist/guns/rifle.glb'), readFileSync(resolve(root, 'assets/weapons/rifle/futuristicrifle3dmodel.glb')));
+for (const name of GUN_SOUNDS.rifle) writeFileSync(resolve(root, 'dist/guns/sound', name), readFileSync(resolve(root, 'assets/weapons/rifle/sound', name)));
 writeFileSync(resolve(root, 'dist/local.html'), skeleton(inline + page('../vendor/three.min.js')));
 console.log(`bundled ${modules} modules, ${(bundle.length / 1024).toFixed(0)} KB of script`);
 
@@ -271,6 +283,9 @@ const SUPPLIED_MODELS = [
   ...Object.values(TOWN_MODELS).map((m) => [m.file, `assets/buildings/town/${m.source}`, 2048, 1024]),
   // (the watch is looked at close to, on its own: at 4096 on a computer, as supplied, and at 2048 on a phone: budget.js, inspect)
   ['assets/watch.glb', 'assets/market/watch.glb', 0, 2048],
+  // the owner's rifle (25 October 2026): its pictures are 2048 already, so a computer is sent his file as it is; a phone,
+  // the copy with them at 1024 (gun-model.js)
+  ['guns/rifle.glb', 'assets/weapons/rifle/futuristicrifle3dmodel.glb', 0, 1024],
 ];
 const modelsMade = () => (existsSync(resolve(MODELS_LIGHT, 'made.json')) ? JSON.parse(readFileSync(resolve(MODELS_LIGHT, 'made.json'), 'utf8')) : { copies: {} });
 const copyName = (site, most) => `${site.replace(/\//g, '__').replace(/\.glb$/, '')}.${most}.glb`;
@@ -366,7 +381,11 @@ put('habitation-code.js', habitationSite);
 // (three.js's add-ons for the soft darkening where things meet: fetched by the game only at High and Ultra)
 put('three-post.min.js', readFileSync(resolve(root, 'vendor/three-post.min.js')));
 const extras = { reactions: `reactions.json?v=${fingerprint(siteFiles.get('reactions.json'))}`, habitation: `habitation-code.js?v=${fingerprint(siteFiles.get('habitation-code.js'))}`, post: `three-post.min.js?v=${fingerprint(siteFiles.get('three-post.min.js'))}` };
-const packScript = `<script>window.__PCW_PACK_FILES = ${JSON.stringify(packFiles)}; window.__PCW_FILES = ${JSON.stringify(extras)}; window.__PCW_MODELS = ${JSON.stringify(modelsTable)};</script>\n${coverFiles.map((f) => `<link rel="preload" as="image" href="${f}" fetchpriority="low">`).join('\n')}\n`;
+// The owner's gun recordings (25 October 2026), each as he supplied it, beside the page (gun-audio.js cuts them into
+// their single shots as it plays them); with the rifle's model, the files the game keeps for playing without a
+// connection once the town is up (main.js), not waited for before it (window.__PCW_GUNS).
+const gunFiles = { rifle: { sounds: GUN_SOUNDS.rifle.map((name) => { const bytes = readFileSync(resolve(root, 'assets/weapons/rifle/sound', name)); put(`guns/sound/${name}`, bytes); return `guns/sound/${name}?v=${fingerprint(bytes)}`; }) } };
+const packScript = `<script>window.__PCW_PACK_FILES = ${JSON.stringify(packFiles)}; window.__PCW_FILES = ${JSON.stringify(extras)}; window.__PCW_MODELS = ${JSON.stringify(modelsTable)}; window.__PCW_GUNS = ${JSON.stringify(gunFiles)};</script>\n${coverFiles.map((f) => `<link rel="preload" as="image" href="${f}" fetchpriority="low">`).join('\n')}\n`;
 // the game's own script, a file of its own beside the page, read once the page has been (defer): the page itself
 // is then small, and the opening is on the screen before the script has even arrived. It goes without the source's
 // comments (whole lines of them: a fifth less to fetch), where it is certain that no line taken out is inside a piece

@@ -392,7 +392,7 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null) {
   const tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), q: new THREE.Quaternion(), w: new THREE.Quaternion(), p: new THREE.Quaternion(), axis: new THREE.Vector3() };
 
   const rig = {
-    animated: id, figure: id, group, body: holder, label, blob, mesh: null, triangles: 0, spec, speed: 0, idleTime: 0, phase: 0, scale: 1, stride: 1,
+    animated: id, figure: id, group, body: holder, lift, label, blob, mesh: null, triangles: 0, spec, speed: 0, idleTime: 0, phase: 0, scale: 1, stride: 1,
     torso: control(), head: { group: control() }, pelvis: { yaw: 0, roll: 0, drop: 0, sway: 0 }, gait: { hipY: 0 }, lean: 0, bank: 0,
     legL: { hip: control(), knee: control(), foot: control() }, legR: { hip: control(), knee: control(), foot: control() },
     armL: { shoulder: control(), elbow: control() }, armR: { shoulder: control(), elbow: control() },
@@ -737,8 +737,44 @@ export function driveAnimated(rig, dt, speed) {
     // (going up stairs: the figure's own climb up them, or one borrowed, at the pace it goes)
     const want = rig.climbing && v > 0.25 && s.stairs && rig.actions.has(s.stairs) ? s.stairs : v > 3.0 ? s.run : v > 0.25 ? s.walk : s.still;
     rig.play(want, fade);
-    if (rig.current) rig.current.setEffectiveTimeScale(want === s.stairs ? Math.max(0.6, Math.min(1.8, v / STAIRS_PACE)) : want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1);
+    // (stepping backwards with a gun up, facing where it is aimed: the walk played backwards, gun-pose.js; badly hurt,
+    // a limp: off the hurt leg quickly, slowly onto the good one, limpStep)
+    let pace = want === s.stairs ? Math.max(0.6, Math.min(1.8, v / STAIRS_PACE)) : want === s.run ? Math.max(0.6, v / s.runSpeed) : want === s.walk ? Math.max(0.5, v / s.walkSpeed) : 1;
+    if (want === s.walk && rig.limp) pace *= limpStep(rig);
+    if (want === s.walk && rig.walkBack) pace = -pace;
+    if (rig.current) rig.current.setEffectiveTimeScale(pace);
   }
   rig.mixer.update(dt);
   rig.afterClips(dt);
+  if (rig.limp && !rig.held && !rig.seated && !rig.swimming && !rig.lying) limpLean(rig, dt);
+}
+
+// A limp (22 October 2026, the owner's 20-life rule: "they walk slowly and weakly, with a limp"). None of the figures'
+// files has one, so it is made from each figure's own walk: its right leg is the hurt one. While that foot is down
+// (lower than the other) the walk hurries on, and the body dips onto it and leans over it; while the good foot is down
+// it goes slower. Read from where the feet were left last frame.
+// (made when first wanted: the module is read where there is no 3D library too, by the tests)
+let limpAt = null;
+function limpStep(rig) {
+  const r = rig.bones && rig.bones.get('foot_r'), l = rig.bones && rig.bones.get('foot_l');
+  if (!r || !l) return 0.8;
+  if (!limpAt) limpAt = { r: new THREE.Vector3(), l: new THREE.Vector3() };
+  r.getWorldPosition(limpAt.r); l.getWorldPosition(limpAt.l);
+  rig.limpOn = limpAt.r.y < limpAt.l.y - 0.01 ? 1 : 0;
+  return rig.limpOn ? 1.45 : 0.72;
+}
+function limpLean(rig, dt) {
+  rig.limpDip = (rig.limpDip || 0) + (((rig.speed || 0) > 0.25 && rig.limpOn ? 1 : 0) - (rig.limpDip || 0)) * Math.min(1, dt * 10);
+  const k = rig.limpDip * (rig.spec.height / 1.75);
+  if (rig.lift && k > 0.001) rig.lift.position.y -= 0.035 * k;
+  const spine = rig.bones && (rig.bones.get('spine_02') || rig.bones.get('spine_01'));
+  if (!spine || k < 0.001 || !limpAt) return;
+  // (over the hurt leg: the figure's right is -x in its own frame, so the lean is about its forward axis)
+  rig.body.updateMatrixWorld(true);
+  const axis = limpAt.l.set(0, 0, 1).transformDirection(rig.body.matrixWorld);
+  const q = new THREE.Quaternion().setFromAxisAngle(axis, 0.12 * k);
+  const w = spine.getWorldQuaternion(new THREE.Quaternion()).premultiply(q);
+  const p = spine.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+  spine.quaternion.copy(p.multiply(w));
+  spine.updateMatrixWorld(true);
 }

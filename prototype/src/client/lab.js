@@ -9,6 +9,9 @@ import { labSets } from './character-looks.js';
 import { POLICE_LOOKS, policeLook } from '../sim/police-looks.js';
 import { setLite } from './render-kit.js';
 import { LIGHT } from './light.js';
+import { makeGun } from './gun-model.js';
+import { ANIMATED } from './animated.js';
+import { createGunHold } from './gun-pose.js';
 
 const $ = (id) => document.getElementById(id);
 const params = new Map(location.hash.slice(1).split('&').filter(Boolean).map((p) => p.split('=').map(decodeURIComponent)));
@@ -40,6 +43,8 @@ floor.receiveShadow = true;
 scene.add(floor);
 
 const sets = labSets();
+// every supplied figure a player can be (animated.js), as it came
+sets.players = () => Object.keys(ANIMATED).map((id) => ({ name: id, note: ANIMATED[id].file, look: { figure: id } }));
 // the town's sixteen policewomen (police-dress.js), after the supplied police officer they are drawn from, as she came
 sets.police = () => [{ name: 'Amaka', note: 'as supplied', look: { figure: 'W3' } }, ...POLICE_LOOKS.map((L, k) => ({ name: `Officer ${k + 1}`, note: `${L.skin}, ${L.uniform}`, look: policeLook(k) }))];
 const state = { set: params.get('set') || Object.keys(sets)[0], move: params.get('move') || 'stand', lod: num('lod', 0), spin: num('spin', 0) };
@@ -48,7 +53,7 @@ let figures = [];
 let stats = { triangles: 0, figures: 0 };
 
 function fill() {
-  for (const f of figures) { scene.remove(f.rig.group); f.rig.dispose(); f.tag.remove(); }
+  for (const f of figures) { scene.remove(f.rig.group); f.rig.dispose(); f.tag.remove(); if (f.gun) f.gun.dispose(); }
   figures = [];
   let list = sets[state.set] ? sets[state.set](state.lod) : [];
   if (params.has('first') || params.has('count')) list = list.slice(num('first', 0), num('first', 0) + num('count', 99));
@@ -63,7 +68,10 @@ function fill() {
     const tag = document.createElement('div');
     tag.innerHTML = `${entry.name}<small>${entry.note || ''} ${rig.triangles.toLocaleString()} tris</small>`;
     $('names').append(tag);
-    figures.push({ rig, tag, entry });
+    // (#gun=aim|sight|carry|reload: each figure holding the owner's rifle, gun-pose.js; aim=yaw,pitch from ahead; crouch=1)
+    const gun = GUN ? makeGun('rifle') : null;
+    if (gun) scene.add(gun.group);
+    figures.push({ rig, tag, entry, gun, hold: gun ? createGunHold() : null, said: null });
     stats.triangles += rig.triangles;
   });
   if (cam.auto) { const aspect = Math.max(0.5, canvas.clientWidth / Math.max(1, canvas.clientHeight)); cam.dist = Math.max(4.4, (list.length * gap + 0.6) / (2 * Math.tan((16 * Math.PI) / 180) * aspect)); }
@@ -93,7 +101,8 @@ canvas.addEventListener('pointermove', (e) => { if (!dragging) return; cam.yaw -
 canvas.addEventListener('pointerup', () => { dragging = null; });
 canvas.addEventListener('wheel', (e) => { cam.dist = Math.max(0.5, Math.min(40, cam.dist * (1 + Math.sign(e.deltaY) * 0.1))); cam.auto = false; e.preventDefault(); }, { passive: false });
 
-const V = new THREE.Vector3();
+const V = new THREE.Vector3(), V2 = new THREE.Vector3(), V3 = new THREE.Vector3(), V4 = new THREE.Vector3();
+const GUN = params.get('gun') || null;
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.1, (now - last) / 1000);
@@ -105,9 +114,22 @@ function frame(now) {
     const speed = params.has('speed') && state.move !== 'stand' && state.move !== 'sit' && state.move !== 'work' ? num('speed', 1.35) : state.move === 'walk' ? 1.35 : state.move === 'jog' ? 2.4 : state.move === 'run' ? 5.6 : 0;
     animateCharacter(rig, dt, speed, state.move === 'work');
     if (state.move === 'sit') { seatCharacter(rig); rig.group.position.y = -0.44 * rig.scale; } else { standCharacter(rig); }
+    if (f.gun) {
+      const [ay, ap] = (params.get('aim') || '0,0').split(',').map(Number);
+      const yaw = rig.group.rotation.y + (ay || 0);
+      const dir = V2.set(Math.sin(yaw) * Math.cos(ap || 0), -Math.sin(ap || 0), Math.cos(yaw) * Math.cos(ap || 0)).normalize();
+      rig.body.updateMatrixWorld(true);
+      const at = V3.copy(rig.group.position).add(V4.set(0, 1.45, 0)).addScaledVector(dir, num('far', 25));
+      const reload = GUN === 'reload' ? (params.has('u') ? num('u', 0.2) : (now / 2400) % 1) : null;
+      const moving = speed > 0 ? { x: Math.sin(rig.group.rotation.y + num('move', 0)) * speed, z: Math.cos(rig.group.rotation.y + num('move', 0)) * speed } : null;
+      f.said = f.hold.pose(rig, f.gun, { up: true, mode: GUN === 'sight' ? 'sight' : GUN === 'carry' ? 'carry' : 'aim', dir, at, crouch: params.get('crouch') === '1', reload, moving, kicks: params.get('fire') === '1' && Math.random() < dt * 14 ? 1 : 0, hideHead: GUN === 'sight' && params.get('eye') === '1' && f === figures[0] }, dt);
+      if (params.get('far') === 'x') f.gun.setNear(false);
+    }
   }
   camera.position.set(cam.x + Math.sin(cam.yaw) * Math.cos(cam.pitch) * cam.dist, cam.y + Math.sin(cam.pitch) * cam.dist, cam.z + Math.cos(cam.yaw) * Math.cos(cam.pitch) * cam.dist);
   camera.lookAt(cam.x, cam.y, cam.z);
+  // (#eye=1: the view from behind the first figure's sight, as the player aiming through it sees it)
+  if (params.get('eye') === '1' && figures[0] && figures[0].said && figures[0].said.shown) { const e = figures[0].said; camera.position.copy(e.eye); camera.lookAt(V3.copy(e.eye).addScaledVector(e.dir, 10)); camera.near = 0.06; camera.fov = num('fov', 32); camera.updateProjectionMatrix(); }
   renderer.render(scene, camera);
   for (const f of figures) {
     V.set(f.rig.group.position.x, -0.02, f.rig.group.position.z).project(camera);
