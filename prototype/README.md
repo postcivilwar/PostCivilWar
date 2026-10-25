@@ -3232,7 +3232,10 @@ is an offence: the one shot reports it (and an officer near enough sees it), and
 rules come with the stars.
 
 **What the server cannot check**: a player's own word on where they stand, their health and their ground (as for
-everything else of theirs it hears); the police are each player's own town's.
+everything else of theirs it hears); the police are each player's own town's. Another player's rounds are seen and
+heard from what their game tells the website, each for three seconds after it is fired: where the words take longer
+than that to come round (a very slow connection, or this test machine with two pages drawn in software beside the
+website's server), the others may not see or hear them; the server still counts every round and decides every hit.
 
 **Measured**: a phone at Medium (Auto's choice on a phone), the gun out: at the PowerBike showroom (the busiest place)
 @@MEM1@@ MB on the graphics card, at the motor park with the gun fired @@MEM2@@ MB (under 150 MB). The rifle on a computer:
