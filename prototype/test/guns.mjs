@@ -466,8 +466,23 @@ const refusedCount = Object.values(refusedE).reduce((a, b) => a + b, 0);
 check('E: A fires five rounds at B: each hit A\'s game saw is decided by the server (agreed, or refused with its reason), and B\'s game takes each agreed hit once, a life point each (none taken twice, none lost)', firedE >= 5 && claimed >= 3 && agreed >= 3 && agreed + refusedCount === claimed && taken === agreed && (lost === agreed || lost === agreed - 2), { fired: firedE, claimed, agreed, refused: refusedE, taken, healthBefore: bBefore.health, healthAfter: bAfter.health });
 check('E: A is shown each hit (the mark round the aim)', aAfter.confirmed - aBefore.confirmed === agreed, { marks: aAfter.confirmed - aBefore.confirmed, agreed });
 check('E: B: blood on the screen with each hit, a little for a few hits (not all of it), and on the clothes where they were hit', bAfter.most.shown && bAfter.most.hit > 0.1 && bAfter.most.base < 0.2 && bAfter.wounds >= 1 && bAfter.painted, { most: bAfter.most, now: bAfter.blood, wounds: bAfter.wounds, painted: bAfter.painted });
-const seenE = bAfter.peerShots - bBefore.peerShots, heardE = bAfter.heard.shots - (bBefore.heard.shots || 0);
-check('E: B sees A\'s rounds and hears each one (the owner\'s recording, from where A is)', seenE >= 3 && heardE === seenE, { fired: firedE, seen: seenE, heard: heardE, sound: bAfter.heard.state });
+let seenE = bAfter.peerShots - bBefore.peerShots, heardE = bAfter.heard.shots - (bBefore.heard.shots || 0), burstsE = 1;
+// (A's rounds are in what A's game tells the others for three seconds. Two pages drawn in software beside the website's
+// server, B's words can come further apart than that, and then none reach B: 25 October, the second batch's run. If
+// so, another burst, at the ground in front of A, just after a word of B's; on a phone near someone with a gun out,
+// the words come every third of a second.)
+for (let k = 0; k < 3 && seenE < 3; k += 1) {
+  await B.page.waitForFunction(() => { const l = window.__nlw.link; return !!l && l.quiet !== null && l.quiet < 1; }, null, { timeout: 60000 }).catch(() => {});
+  const b0 = await B.page.evaluate(() => { const n = window.__nlw; return { seen: n.gunPlay.stats.peerShots, heard: n.audio.gunState('rifle').shots || 0 }; });
+  const groundAhead = await A.page.evaluate(([x, z, h]) => { const n = window.__nlw; const gx = x + Math.sin(h) * 5, gz = z + Math.cos(h) * 5; return [gx, n.ground(gx, gz) + 0.02, gz]; }, [quiet.x, quiet.z, quiet.h]);
+  await fireRounds(A, 4, { keepAim: groundAhead });
+  await B.page.waitForFunction((s0) => window.__nlw.gunPlay.stats.peerShots >= s0 + 3, b0.seen, { timeout: 30000 }).catch(() => {});
+  await B.page.waitForTimeout(1500);
+  const b1 = await B.page.evaluate(() => { const n = window.__nlw; return { seen: n.gunPlay.stats.peerShots, heard: n.audio.gunState('rifle').shots || 0 }; });
+  seenE = b1.seen - b0.seen; heardE = b1.heard - b0.heard; burstsE += 1;
+}
+await told(A);
+check('E: B sees A\'s rounds and hears each one (the owner\'s recording, from where A is)', seenE >= 3 && heardE === seenE, { fired: firedE, seen: seenE, heard: heardE, bursts: burstsE, sound: bAfter.heard.state });
 await B.shot('hit');
 await A.page.waitForFunction(([name, health]) => { const q = window.__nlw.shownPeers.find((o) => o.name === name); return q && (q.wounds || []).length > 0 && q.health === health; }, [B.username, bAfter.health], { timeout: 45000 }).catch(() => {});
 const aSeesWounds = await A.page.evaluate((name) => { const n = window.__nlw; const q = n.shownPeers.find((o) => o.name === name); const rig = q && n.crowd.rigOf(`p:${q.id}`); return { wounds: q ? (q.wounds || []).length : 0, painted: !!(rig && rig.woundMaterial), health: q && q.health }; }, B.username);
