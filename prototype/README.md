@@ -3237,9 +3237,22 @@ heard from what their game tells the website, each for three seconds after it is
 than that to come round (a very slow connection, or this test machine with two pages drawn in software beside the
 website's server), the others may not see or hear them; the server still counts every round and decides every hit.
 
-**Measured**: a phone at Medium (Auto's choice on a phone), the gun out: at the PowerBike showroom (the busiest place)
-@@MEM1@@ MB on the graphics card, at the motor park with the gun fired @@MEM2@@ MB (under 150 MB). The rifle on a computer:
-one model, 8.3 MB fetched once; on a phone 3.4 MB; the recordings 0.8 MB.
+**Measured** (25 October 2026, on this machine, which draws in software; each measuring alone on it):
+- **A phone at Medium** (Auto's choice on a phone), the gun out, in the two-player test (`test/guns.mjs`): at the
+  PowerBike showroom (the busiest place) 89.1 MB of pictures and buffers on the graphics card (86.5 to 91.8 MB in four
+  runs), at the motor park with the gun fired 94.7 MB (94.6 to 94.8), the screen's own not counted: under 150 MB.
+- **With no gun out, the website before the guns against the website with them** (`tools/measure/places.mjs`, by day,
+  one run each in turn): the same draw calls, triangles and graphics card memory at every place measured. A frame on a
+  computer's settings (Ultra): the motor park 4.27 → 4.47 s, the PowerBike showroom 4.60 → 4.65 s, the car showroom's
+  gate 2.10 → 2.12 s (drawn in software); on a phone's settings (Medium): the motor park 3.97 → 3.72 s, the PowerBike
+  showroom 3.67 → 3.75 s. On a computer the flash's light is in the scene all the time (a light that came and went
+  would have every surface in the town prepared again when it did), one more light worked out for each pixel; a phone
+  has none. It could borrow the light of a vehicle's headlamps, which is not in use while a gun is out.
+- **Loading**: the page's script 47 KB larger as sent (785 → 832 KB); PLAY on a first visit on Slow 4G, the website
+  before and after in turn, twice each: 7.71 and 7.24 s before, 7.62 and 7.51 s after. The guns' own step in building
+  the town: 0.2 s on a phone's settings (the processor slowed four times). The rifle and its recordings are fetched only
+  when a gun is first taken out, or someone else's (a player's, an officer's) is first seen or heard: on a computer his
+  model as it is, 8.3 MB; on a phone its copy, 3.4 MB; the recordings 0.8 MB.
 
 Files: `src/client/gun-play.js` (the gun in the player's hands and others'), `gun-model.js`, `gun-pose.js`,
 `gun-fx.js`, `gun-audio.js`, `gun-hud.js`, `blood-screen.js`, `wound-paint.js`, `gun-sound-files.js`, `camera.js`
