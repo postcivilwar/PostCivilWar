@@ -345,7 +345,8 @@ const before = await A.page.evaluate(() => { const n = window.__nlw; return { x:
 // (when it comes and when it goes, by the game's clock, watched frame by frame in the page; and at the first frame of it
 // with the camera come to its place (still since the frame before), the whole figure looked for in the picture there and
 // a round fired. A frame drawn in software on this machine can take half a second, and the five seconds could be over
-// before a look from outside the page came: 25 October, the second batch's run, the figure was looked for after them.)
+// before a look from outside the page came: on 25 October, in the first batch of the whole series, the figure was
+// looked for after them.)
 const watchView = () => A.page.evaluate(() => {
   const n = window.__nlw, S = n.gunPlay.state, w = { pressedAt: null, on: null, off: null, frames: 0, last: null, settled: null, fired: null, shot: null };
   window.__ov = w;
