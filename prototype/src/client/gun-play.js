@@ -689,6 +689,8 @@ export function createGunPlay(deps) {
     get aimFrom() { return t.aimFrom; }, get aimDir() { return t.d; },
     get look() { return S.look; },
     get weight() { return S.weight; },
+    // a flash's light just now (gun-fx.js), for the town's lamp (main.js); null when there is none
+    get flashLamp() { return fx.lamp; },
     fx, hud, blood, stats, state: S,
   };
 }

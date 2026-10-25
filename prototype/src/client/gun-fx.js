@@ -4,7 +4,10 @@
 // a spray where the bullet hits ... and drops on the ground that fade after a while. Keep it light on phones").
 //
 //   flash     at the muzzle, along the barrel: a star of fire across it and a tongue of it ahead, for a few hundredths
-//             of a second, and (where the device draws lamps) the light of it on what is round it
+//             of a second, and the light of it on what is ahead of it (`lamp`: the town's own lamp for a vehicle's
+//             headlamps and the torch, main.js, which none of them uses while a gun is out; a lamp of its own, always
+//             in the scene, would be one more light worked out for every pixel of everything at every hour: 25 October
+//             2026, measured, a frame a little longer and every surface's program larger to prepare)
 //   streak    each round's path, a short bright streak travelling from the muzzle to where it stops
 //   strike    where it stops: a puff of dust and grit off a wall or the ground (and a dark mark on the ground), sparks off
 //             a vehicle, and off someone, a spray of blood (a red mist, drops thrown on, which fall and leave spots)
@@ -58,7 +61,7 @@ export const FX_MOST = Object.freeze({
   lite: Object.freeze({ flashes: 4, streaks: 16, puffs: 16, sparks: 48, drops: 60, spots: 60, marks: 30, cases: 16 }),
 });
 
-export function createGunFx(scene, { lite = false, ground = () => 0, light = !lite } = {}) {
+export function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {}) {
   const most = FX_MOST[lite ? 'lite' : 'full'];
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
   const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -81,8 +84,8 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = !li
     flashes.push({ star, tongue, age: 1, life: 0.05, size: 1 });
   }
   let nextFlash = 0;
-  const lamp = light ? new THREE.PointLight(0xffb366, 0, 9, 2) : null;
-  if (lamp) scene.add(lamp);
+  // (the flash's light: where it is, the way it shines, and how long ago; lit by main.js with the town's own lamp)
+  const lampAt = new THREE.Vector3(), lampDir = new THREE.Vector3(0, 0, 1);
   let lampAge = 1;
 
   // ---- the streaks: thin bright rods, stretched along the way each round goes ----
@@ -138,7 +141,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = !li
     f.tongue.quaternion.copy(Q);
     f.tongue.rotateX(Math.random() * 3.14);
     f.star.visible = true; f.tongue.visible = true;
-    if (lamp && near) { lamp.position.copy(at).addScaledVector(dir, 0.2); lampAge = 0; }
+    if (light && near) { lampAt.copy(at).addScaledVector(dir, 0.2); lampDir.copy(dir).normalize(); lampAge = 0; }
     // a breath of smoke from the muzzle, drifting
     if (!lite || near) puff(at, 0xb9b4ac, { size: 0.06, grow: 6, life: 0.7, alpha: 0.18, rise: 0.25, v: A.copy(dir).multiplyScalar(0.8) });
     stats.flashes += 1;
@@ -220,7 +223,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = !li
       f.tongue.scale.set(0.34 * f.size * (0.7 + 0.5 * Math.random()), 0.5 * f.size, 0.5 * f.size);
       for (const c of f.tongue.children) c.material.opacity = k;
     }
-    if (lamp) { lampAge += dt; lamp.intensity = lampAge < 0.06 ? 14 * (1 - lampAge / 0.06) : 0; }
+    if (light) lampAge += dt;
     // streaks: a short rod moving along its path
     let n = 0;
     for (let i = streaks.length - 1; i >= 0; i -= 1) {
@@ -339,6 +342,8 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = !li
 
   return {
     flash, streak, strike, blood, eject, dropMagazine, update, clear, stats,
+    // the flash's light just now, for main.js to give the town's lamp: where, which way, how strong (null: none)
+    get lamp() { return light && lampAge < 0.06 ? { at: lampAt, dir: lampDir, intensity: 14 * (1 - lampAge / 0.06) } : null; },
     // (for the tests: where the last flash was, and how much is under way)
     last,
     get busy() { return { streaks: streaks.length, sparks: sparks.list.length, drops: drops.list.length, spots: spots.list.length, marks: marks.list.length, cases: cases.list.length, puffs: puffs.filter((p) => p.age < p.life).length, flashes: flashes.filter((f) => f.age < f.life).length, magazines: fallen.length }; },

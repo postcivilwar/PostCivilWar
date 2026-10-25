@@ -3189,7 +3189,8 @@ figure's bones.
 **A round** (`gun-play.js`, `src/sim/guns.js`): 850 a minute held on the trigger (as his recordings fire), from the
 gun's own muzzle to the first thing in its way along the aim (a wall, the ground, a vehicle, someone), spread by how
 steady the aim is (least through the sight and crouched, most on the move). Seen: the flash at the muzzle (with its
-light on what is round it, on a computer), a streak, smoke, a case thrown out of the gun's side, and where it strikes:
+light on what is ahead of it, by the town's own lamp for a vehicle's headlamps and the torch, which nothing else uses
+while a gun is out), a streak, smoke, a case thrown out of the gun's side, and where it strikes:
 dust and grit, sparks off metal, blood off someone. Heard (`gun-audio.js`): his recordings, each cut into its single
 rounds (8 to 13 in each, found by the page), one round for each round fired, never the same take twice running, the
 burst's end ringing out; others' from where they are, duller and later with distance (sound's own speed), with a short

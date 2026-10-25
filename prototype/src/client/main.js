@@ -269,7 +269,8 @@ function start(carried) {
   }]);
   // The guns (25 October 2026, the owner's briefs for the guns): the player's own, other players' and the police
   // officers', what their rounds do, the shooting screen, blood on the screen (gun-play.js). Made with the town, before
-  // it is warmed up (the light of a muzzle's flash is a lamp the town's surfaces are prepared for).
+  // it is warmed up, so that what their rounds leave is ready to be drawn (a muzzle's flash lights what is round it with
+  // the town's own lamp for a vehicle's headlamps: see the lamps, below).
   let gunPlay = null;
   // (should they fail to be made, the town is built all the same, without them: said in the console)
   townSteps.push(['the guns', () => {
@@ -371,6 +372,8 @@ function start(carried) {
   // (its strength, reach and fall-off in three.js's units: light.js)
   const TORCH = Object.freeze({ intensity: TORCH_LIGHT.intensity, distance: TORCH_LIGHT.distance, angle: 0.5, penumbra: 0.85, decay: TORCH_LIGHT.decay, colour: 0xf2f5ff });
   const HEADLAMP = Object.freeze({ distance: HEADLAMP_LIGHT.distance, angle: 0.42, penumbra: 0.55, decay: HEADLAMP_LIGHT.decay, colour: 0xfff1d6 });
+  // (a gun's flash, by the same lamp: wide, warm, short, its light falling off within a few metres; gun-fx.js times it)
+  const GUN_FLASH = Object.freeze({ distance: 9, angle: 1.3, penumbra: 1, decay: 2, colour: 0xffb366 });
   const torch = { on: false, held: false, lit: false, self: { from: new THREE.Vector3(), dir: new THREE.Vector3() } };
   const torchWork = { back: new THREE.Vector3(), q: new THREE.Quaternion() };
   function setTorch(on) { torch.on = !!on; audio.chime('tap'); }
@@ -3861,9 +3864,14 @@ blood.update(dt, view.blood || []);
     const carLit = !lit && playing && view && view.self.incar && night > 0.25 && carView.driven();
     const torchLit = !lit && !carLit && playing && torch.held && !!phoneHold && phoneHold.out > 0.85;
     torch.lit = torchLit;
-    headlight.intensity = lit ? HEADLAMP_LIGHT.bike : carLit ? HEADLAMP_LIGHT.car : torchLit ? TORCH.intensity : 0;
-    { const lamp = torchLit ? TORCH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
+    // (and a gun's flash close by, gun-fx.js: its light thrown ahead of the muzzle for a few hundredths of a second, by the
+    // same lamp, which nothing else uses while a gun is out: on foot, the phone put away. A lamp of the flash's own, in
+    // the scene at all times, was one more light worked out for every pixel of everything: 25 October 2026, measured.)
+    const flashLit = !lit && !carLit && !torchLit && playing && gunPlay ? gunPlay.flashLamp : null;
+    headlight.intensity = lit ? HEADLAMP_LIGHT.bike : carLit ? HEADLAMP_LIGHT.car : torchLit ? TORCH.intensity : flashLit ? flashLit.intensity : 0;
+    { const lamp = torchLit ? TORCH : flashLit ? GUN_FLASH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
     if (torchLit) { const t = torchOf(phoneHold, predicted.heading, torch.self); headlight.position.copy(t.from); headlight.target.position.copy(t.from).addScaledVector(t.dir, 10); headlight.target.updateMatrixWorld(); }
+    if (flashLit) { headlight.position.copy(flashLit.at); headlight.target.position.copy(flashLit.at).addScaledVector(flashLit.dir, 6); headlight.target.updateMatrixWorld(); }
     // the beams of the torches, as the others see them (and, faintly, the player's own)
     if (torchBeams) {
       const beams = [];
