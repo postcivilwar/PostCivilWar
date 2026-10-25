@@ -155,13 +155,6 @@ const forgive = (p) => p.page.evaluate(() => {
   n.refresh && n.refresh();
   return { lapsed: n2, was };
 });
-// the camera come to its place (still from one frame to the next)
-async function settleCamera(p) {
-  for (let k = 0; k < 40; k += 1) {
-    const moved = await p.page.evaluate(async () => { const c = window.__nlw.camera.position.clone(); await new Promise((r) => requestAnimationFrame(() => requestAnimationFrame(r))); return c.distanceTo(window.__nlw.camera.position); });
-    if (moved < 0.01) return;
-  }
-}
 // a point in the scene on the screen, in px (null behind the camera)
 const onScreen = (p, pt) => p.page.evaluate((pt) => { const n = window.__nlw; const v = new n.THREE.Vector3(pt[0], pt[1], pt[2]).project(n.camera); if (v.z < -1 || v.z > 1) return null; return { x: (v.x * 0.5 + 0.5) * innerWidth, y: (-v.y * 0.5 + 0.5) * innerHeight }; }, pt);
 // the other player as this one's game has them: where, their chest, their health, their peer number
@@ -349,33 +342,51 @@ check('D: reloaded again: 30 in it, the rounds fired made up from the spare; the
 
 // ---- G: the view from further back, five seconds ----
 const before = await A.page.evaluate(() => { const n = window.__nlw; return { x: n.predicted.x, z: n.predicted.z, yaw: n.cam.yaw, pitch: n.cam.pitch }; });
-// (when it comes and when it goes, by the game's clock, watched frame by frame)
+// (when it comes and when it goes, by the game's clock, watched frame by frame in the page; and at the first frame of it
+// with the camera come to its place (still since the frame before), the whole figure looked for in the picture there and
+// a round fired. A frame drawn in software on this machine can take half a second, and the five seconds could be over
+// before a look from outside the page came: 25 October, the second batch's run, the figure was looked for after them.)
 const watchView = () => A.page.evaluate(() => {
-  const n = window.__nlw, S = n.gunPlay.state, w = { pressedAt: null, on: null, off: null };
+  const n = window.__nlw, S = n.gunPlay.state, w = { pressedAt: null, on: null, off: null, frames: 0, last: null, settled: null, fired: null, shot: null };
   window.__ov = w;
-  const f = () => { const v = n.gunPlay.cameraView(); if (v === 'overview' && w.on === null) { w.on = S.clock; w.pressedAt = S.overviewAt; w.until = S.overviewUntil; } if (v === 'aim' && w.on !== null && w.off === null) w.off = S.clock; if (w.off === null) requestAnimationFrame(f); };
+  const bones = ['head', 'foot_l', 'foot_r', 'hand_l', 'hand_r'];
+  const f = () => {
+    const v = n.gunPlay.cameraView();
+    if (v === 'overview' && w.on === null) { w.on = S.clock; w.pressedAt = S.overviewAt; w.until = S.overviewUntil; }
+    if (v === 'overview' && w.off === null) {
+      const cam = n.camera, p = cam.position;
+      const moved = w.last ? Math.hypot(p.x - w.last[0], p.y - w.last[1], p.z - w.last[2]) : 99;
+      w.last = [p.x, p.y, p.z]; w.frames += 1;
+      if (moved < 0.02 && !w.settled) {
+        const pts = bones.map((b) => n.me.bones.get(b)).filter(Boolean).map((b) => b.getWorldPosition(new n.THREE.Vector3()).project(cam));
+        w.settled = { after: +(S.clock - S.overviewAt).toFixed(2), dist: +p.distanceTo(n.me.group.position).toFixed(2), all: pts.length === 5 && pts.every((q) => Math.abs(q.x) < 0.95 && Math.abs(q.y) < 0.95 && q.z < 1), pts: pts.map((q) => [+q.x.toFixed(2), +q.y.toFixed(2)]) };
+        // (the trigger held until one round has gone)
+        w.fired = n.gunPlay.stats.fired; window.__shots = []; n.gunPlay.act('shoot', 'down');
+      }
+      if (w.fired !== null && w.shot === null && n.gunPlay.stats.fired > w.fired) {
+        n.gunPlay.act('shoot', 'up');
+        const d = n.gunPlay.aimDir;
+        w.shot = { ...(window.__shots[0] || {}), view: v, aim: [d.x, d.y, d.z] };
+      }
+    }
+    if (v === 'aim' && w.on !== null && w.off === null) { w.off = S.clock; if (w.fired !== null && w.shot === null) n.gunPlay.act('shoot', 'up'); }
+    if (w.off === null) requestAnimationFrame(f);
+  };
   requestAnimationFrame(f);
 });
 await watchView();
 await A.page.keyboard.press('v');
 await A.page.waitForFunction(() => window.__ov.on !== null, null, { timeout: 30000 }).catch(() => {});
-// (the camera given a few frames to come to its place)
-await settleCamera(A);
-const ov = await A.page.evaluate(() => { const n = window.__nlw; return { view: n.gunPlay.cameraView(), dist: n.camera.position.distanceTo(n.me.group.position) }; });
-const figureInView = await A.page.evaluate(() => { const n = window.__nlw, cam = n.camera; const pts = ['head', 'foot_l', 'foot_r', 'hand_l', 'hand_r'].map((b) => n.me.bones.get(b)).filter(Boolean).map((b) => b.getWorldPosition(new n.THREE.Vector3()).project(cam)); return { all: pts.length === 5 && pts.every((q) => Math.abs(q.x) < 0.95 && Math.abs(q.y) < 0.95 && q.z < 1), pts: pts.map((q) => [+q.x.toFixed(2), +q.y.toFixed(2)]) }; });
+await A.page.waitForFunction(() => !!window.__ov.settled || window.__ov.off !== null, null, { timeout: 120000 }).catch(() => {});
 await A.shot('the-view-from-further-back');
-// (a round fired in it: from the muzzle, along the aim, as in the view over the shoulder)
-await A.page.evaluate(() => { window.__shots = []; });
-await fireRounds(A, 1);
-const ovShot = await A.page.evaluate(() => window.__shots[0]);
-const ovAimDir = await A.page.evaluate(() => { const d = window.__nlw.gunPlay.aimDir; return [d.x, d.y, d.z]; });
 await A.page.waitForFunction(() => window.__ov.off !== null, null, { timeout: 120000 }).catch(() => {});
 const ovw = await A.page.evaluate(() => window.__ov);
 const ovEnd = await A.page.evaluate(() => { const n = window.__nlw; return { view: n.gunPlay.cameraView(), x: n.predicted.x, z: n.predicted.z }; });
 const lasted = ovw.off !== null ? ovw.off - ovw.pressedAt : null;
-check('G: V: the view from further back, the whole figure and round it in the picture, the camera further off', ov.view === 'overview' && figureInView.all && ov.dist > 4, { view: ov.view, figureInView, dist: +ov.dist.toFixed(2) });
+const ovSeen = ovw.settled, ovShot = ovw.shot;
+check('G: V: the view from further back, the whole figure and round it in the picture, the camera further off', !!ovSeen && ovSeen.all && ovSeen.dist > 4, { settled: ovSeen, frames: ovw.frames });
 check('G: five seconds by the game\'s clock, and back over the shoulder by itself', ovEnd.view === 'aim' && lasted !== null && lasted >= 4.99 && lasted < 5.6 && Math.abs(ovw.until - ovw.pressedAt - 5) < 1e-6, { lasted: lasted !== null ? +lasted.toFixed(2) : null });
-check('G: where the player is and the aim are not changed by it, and a round fired in it goes from the muzzle along the aim', Math.hypot(ovEnd.x - before.x, ovEnd.z - before.z) < 0.05 && !!ovShot && Math.hypot(ovShot.o[0] - ovShot.muzzle[0], ovShot.o[1] - ovShot.muzzle[1], ovShot.o[2] - ovShot.muzzle[2]) < 0.02 && (ovShot.d[0] * ovAimDir[0] + ovShot.d[1] * ovAimDir[1] + ovShot.d[2] * ovAimDir[2]) > 0.98, { moved: +Math.hypot(ovEnd.x - before.x, ovEnd.z - before.z).toFixed(3), shot: ovShot ? { from: ovShot.o, muzzle: ovShot.muzzle } : null });
+check('G: where the player is and the aim are not changed by it, and a round fired in it goes from the muzzle along the aim', Math.hypot(ovEnd.x - before.x, ovEnd.z - before.z) < 0.05 && !!ovShot && ovShot.view === 'overview' && !!ovShot.o && Math.hypot(ovShot.o[0] - ovShot.muzzle[0], ovShot.o[1] - ovShot.muzzle[1], ovShot.o[2] - ovShot.muzzle[2]) < 0.02 && (ovShot.d[0] * ovShot.aim[0] + ovShot.d[1] * ovShot.aim[1] + ovShot.d[2] * ovShot.aim[2]) > 0.98, { moved: +Math.hypot(ovEnd.x - before.x, ovEnd.z - before.z).toFixed(3), shot: ovShot ? { view: ovShot.view, from: ovShot.o, muzzle: ovShot.muzzle } : null });
 // pressed again during it: back at once; three times: on again, its five seconds from the third
 await A.page.keyboard.press('v');
 await frames(A, 2);
