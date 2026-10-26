@@ -4,7 +4,8 @@
 // at once (its longest task), the frames after it, and the programs compiled. The processor slowed four times, an
 // iPhone's screen, Medium.
 //   ../server/with-postgres.sh node tools/measure/one-shots.mjs <out folder> [site folder]
-// SHOTS_THROTTLE (4), SHOTS_LABEL
+// SHOTS_THROTTLE (4), SHOTS_LABEL, SHOTS_PROFILE=1 (the habitation's first build profiled: where its longest tasks went),
+// SHOTS_ONLY=habitation (that alone)
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, existsSync, statSync, createReadStream } from 'node:fs';
 import { resolve, extname, sep, dirname } from 'node:path';
@@ -63,9 +64,10 @@ await page.evaluate(() => { const n = window.__nlw, g = n.host.game; const hour 
 // (the town warmed up first, with the processor at its own speed: what is timed is each piece on its own)
 await page.waitForFunction(() => window.__nlw.beyond || (window.__nlw.warmUp && window.__nlw.warmUp.stats && window.__nlw.warmUp.stats.left === 0), null, { timeout: 900000, polling: 2000 }).catch(() => {});
 const results = [];
-async function timed(name, start, done, settleMs = 20000, extra = null) {
+async function timed(name, start, done, settleMs = 20000, extra = null, profile = false) {
   await page.waitForTimeout(3000);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
+  if (profile) { await cdp.send('Profiler.enable'); await cdp.send('Profiler.setSamplingInterval', { interval: 1000 }); await cdp.send('Profiler.start'); }
   const before = await page.evaluate(() => ({ long: window.__shots.long.length, frames: window.__shots.frames.length, programs: window.__nlw.renderer.info.programs.length, t: performance.now() }));
   await page.evaluate(start);
   const t0 = Date.now();
@@ -79,6 +81,26 @@ async function timed(name, start, done, settleMs = 20000, extra = null) {
     return { longest: long.reduce((a, x) => Math.max(a, x[1]), 0), longSum: long.reduce((a, x) => a + x[1], 0), longN: long.length, worstFrame: d.length ? Math.round(Math.max(...d)) : null, frames: d.length, programs: window.__nlw.renderer.info.programs.length - b.programs };
   }, before);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
+  if (profile) {
+    const { profile: prof } = await cdp.send('Profiler.stop');
+    writeFileSync(resolve(out, `one-shots-${LABEL}.cpuprofile`), JSON.stringify(prof));
+    // (each sample's own function, and what called it up to three deep, in the long tasks' time)
+    const long = await page.evaluate(() => window.__shots.long);
+    const nodes = new Map(prof.nodes.map((n) => [n.id, n])), parent = new Map();
+    for (const n of prof.nodes) for (const c of n.children || []) parent.set(c, n.id);
+    const self = new Map(), stack = new Map();
+    let t = prof.startTime;
+    prof.samples.forEach((id, i) => {
+      t += prof.timeDeltas[i];
+      const ms = t / 1000 - (performance.timeOrigin ? 0 : 0);
+      const n = nodes.get(id), f = n.callFrame, key = `${f.functionName || '(anon)'} ${f.url.split('/').pop()}:${f.lineNumber}`;
+      self.set(key, (self.get(key) || 0) + prof.timeDeltas[i] / 1000);
+      const chain = []; for (let p = id, k = 0; p && k < 6; p = parent.get(p), k += 1) { const c = nodes.get(p).callFrame; chain.push(`${c.functionName || '(anon)'}:${c.lineNumber}`); }
+      const ck = chain.join(' < '); stack.set(ck, (stack.get(ck) || 0) + prof.timeDeltas[i] / 1000);
+    });
+    console.log('   most own time:', JSON.stringify([...self].sort((a, b) => b[1] - a[1]).slice(0, 25).map(([k, v]) => [k, Math.round(v)])));
+    console.log('   most time by where:', JSON.stringify([...stack].sort((a, b) => b[1] - a[1]).slice(0, 25).map(([k, v]) => [k, Math.round(v)])));
+  }
   const row = { name, doneMs, ...after, ...(extra ? { detail: await page.evaluate(extra) } : {}) };
   results.push(row);
   console.log(name, JSON.stringify(row));
@@ -90,8 +112,9 @@ const already = await page.evaluate(() => !!window.__nlw.beyond);
 if (!already) await timed('the land beyond the town and its billboards', () => { const n = window.__nlw; if (n.beginBeyond) n.beginBeyond(); else n.buildBeyond(); }, () => window.__nlw.beyond, 20000, () => window.__nlw.beyondSteps || null);
 else console.log('the land beyond the town was built already, before it could be timed');
 // 2. the habitation, built as the player comes within reach of it (and the road up to it)
-const habDetail = () => { const h = window.__nlw.habitation && window.__nlw.habitation.state(); return h ? { buildMs: h.buildMs, buildSpanMs: h.buildSpanMs, longestPieceMs: h.buildLongestMs, longestPiece: h.buildLongestPiece, builds: h.builds, ground: h.ground } : null; };
-await timed('the habitation built, coming up the road', () => { const n = window.__nlw; n.place(262, 113); n.face(Math.PI / 2); n.cam.yaw = Math.PI / 2; }, () => window.__nlw.habitation && window.__nlw.habitation.state().built, 20000, habDetail);
+const habDetail = () => { const h = window.__nlw.habitation && window.__nlw.habitation.state(); return h ? { readyLongestMs: h.readyLongestMs, programsMadeReady: h.programsMadeReady, modelsMs: h.modelsMs, buildMs: h.buildMs, buildSpanMs: h.buildSpanMs, longestPieceMs: h.buildLongestMs, longestPiece: h.buildLongestPiece, builds: h.builds, ground: h.ground } : null; };
+await timed('the habitation built, coming up the road', () => { const n = window.__nlw; n.place(262, 113); n.face(Math.PI / 2); n.cam.yaw = Math.PI / 2; }, () => window.__nlw.habitation && window.__nlw.habitation.state().built, 20000, habDetail, process.env.SHOTS_PROFILE === '1');
+if (process.env.SHOTS_ONLY === 'habitation') { writeFileSync(resolve(out, `one-shots-${LABEL}.json`), JSON.stringify({ site: SITE, throttle: THROTTLE, results }, null, 1)); await browser.close(); server.close(); process.exit(0); }
 // 3. back in the town, then up to it again (built a second time)
 await timed('back in the town (the habitation let go)', () => { const n = window.__nlw; n.place(-37, 94); }, () => window.__nlw.habitation && !window.__nlw.habitation.state().built);
 await timed('the habitation built again', () => { const n = window.__nlw; n.place(262, 113); }, () => window.__nlw.habitation && window.__nlw.habitation.state().built, 20000, habDetail);
