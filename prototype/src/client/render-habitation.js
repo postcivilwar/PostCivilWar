@@ -16,7 +16,7 @@
 //   habitation.state()                                  (the tests: what is built, what it costs)
 
 import { programsReady } from './program-ready.js';
-import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundWarm, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } from '../sim/zone.js';
+import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundWarm, habitationGroundGiven, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } from '../sim/zone.js';
 import { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit } from './render-kit.js';
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
@@ -190,7 +190,30 @@ function pillarContact() {
 // with how rocky and whether paved in the fourth byte), and each piece has under 65,536 points, so that its triangles
 // are listed in 2-byte numbers: the whole of it at 2.5 m is 3.2 MB (it was 6.9 MB at 2.5 m, 1.4 MB at 5 m).
 const PAVED = new Set(['overlook-terrace', 'overlook-steps', 'garden']);
-function groundData() {
+// The ground's points as a file (26 October 2026): worked out by the build (tools/habitation/ground-file.mjs, the same
+// groundData), sent gzipped beside the page (habitation/ground.bin, 0.55 MB), so that a phone need not work them out at
+// all (8 seconds of this machine's processor; 25 to 35 on a phone's settings here). 16 bytes ahead (PCWG, 1, nx, nz),
+// then each point's height (Float32), its colour (4 bytes: groundData's tint) and which way it faces (3 bytes).
+export function groundFileBytes(data) {
+  const n = data.nx * data.nz, out = new Uint8Array(16 + n * 11), head = new DataView(out.buffer);
+  head.setUint32(0, 0x47574350, true); head.setUint32(4, 1, true); head.setUint32(8, data.nx, true); head.setUint32(12, data.nz, true);
+  out.set(new Uint8Array(data.heights.buffer, data.heights.byteOffset, n * 4), 16);
+  out.set(data.tint, 16 + n * 4);
+  const normal = new Int8Array(out.buffer, 16 + n * 8, n * 3);
+  for (let k = 0; k < n; k += 1) { normal[k * 3] = data.normal[k * 4]; normal[k * 3 + 1] = data.normal[k * 4 + 1]; normal[k * 3 + 2] = data.normal[k * 4 + 2]; }
+  return out;
+}
+export function readGroundFile(buffer) {
+  const G = HABITATION_GROUND, nx = HABITATION_GROUND_POINTS.x, nz = HABITATION_GROUND_POINTS.z, n = nx * nz;
+  if (!buffer || buffer.byteLength !== 16 + n * 11) return null;
+  const head = new DataView(buffer);
+  if (head.getUint32(0, true) !== 0x47574350 || head.getUint32(4, true) !== 1 || head.getUint32(8, true) !== nx || head.getUint32(12, true) !== nz) return null;
+  const heights = new Float32Array(buffer.slice(16, 16 + n * 4)), tint = new Uint8Array(buffer.slice(16 + n * 4, 16 + n * 8));
+  const packed = new Int8Array(buffer, 16 + n * 8, n * 3), normal = new Int8Array(n * 4);
+  for (let k = 0; k < n; k += 1) { normal[k * 4] = packed[k * 3]; normal[k * 4 + 1] = packed[k * 3 + 1]; normal[k * 4 + 2] = packed[k * 3 + 2]; }
+  return { nx, nz, step: G.step, x0: G.x0, z0: G.z0, heights, tint, normal };
+}
+export function groundData() {
   const job = groundDataSteps(Infinity);
   for (;;) { const r = job.next(); if (r.done) return r.value; }
 }
@@ -1573,8 +1596,29 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
   // land beyond it is in (main.js asks, `prepare`), or as the build needs them; kept for the session, every build after
   // the first drawn from the same (1.2 MB of the page's memory).
   let groundReady = null, groundJob = null;
+  // (fetched as the habitation's drawing comes (the file the build made: window.__PCW_FILES.ground); worked out here only
+  // if it cannot be had, or this browser cannot unzip it)
+  let groundFetch = 'none';
+  const groundAddress = (() => { try { return window.__PCW_FILES && window.__PCW_FILES.ground; } catch (error) { return null; } })();
+  if (groundAddress && !ON_DISK && typeof DecompressionStream === 'function') {
+    groundFetch = 'asking';
+    const t0 = performance.now();
+    Promise.resolve().then(() => fetchFile(groundAddress)).then((res) => {
+      if (!res.ok) throw new Error(`the ground: ${res.status}`);
+      return new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    }).then((buffer) => {
+      if (groundReady) return;
+      const data = readGroundFile(buffer);
+      if (!data) throw new Error('the ground: not as this build makes it');
+      groundReady = data; groundJob = null; groundFetch = 'had';
+      habitationGroundGiven(data.heights);
+      stats.ground.ready = true; stats.ground.fetched = true; stats.ground.fetchMs = Math.round(performance.now() - t0);
+    }).catch(() => { groundFetch = 'failed'; });
+  }
   function prepareGround(budgetMs = 3) {
     if (groundReady) return true;
+    // (on its way: waited for)
+    if (groundFetch === 'asking') return false;
     if (!groundJob) groundJob = groundDataSteps(3);
     const g = stats.ground, t0 = performance.now();
     g.frames += 1;
@@ -1640,7 +1684,12 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     pause('pictures'); yield; resume();
     // (a phone draws every other point while the habitation is still far off, and every one from NEAR_GROUND on:
     // swapGround) (the points themselves worked out ahead, or here a few milliseconds at a time: prepareGround)
-    while (!prepareGround(2)) { pause('ground points'); yield; resume(); }
+    // (the file on its way is waited for, up to 15 seconds; then, or without one, worked out here)
+    const waitFrom = performance.now();
+    while (!prepareGround(2)) {
+      if (groundFetch === 'asking' && performance.now() - waitFrom > 15000) groundFetch = 'late';
+      pause('ground points'); yield; resume();
+    }
     const groundPoints = groundReady;
     pause('ground points'); yield; resume();
     const groundMat = groundMaterial({ grain, stone, lite });
@@ -1830,6 +1879,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     // (its ground's points worked out ahead, all at once: the tests)
     prepare: () => prepareGround(Infinity),
     get groundReady() { return !!groundReady; },
+    get groundFrom() { return groundFetch; },
     // (for the tests and the measurements: what is built, what has arrived, what is drawn now)
     state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, swimSigns: built ? built.swimSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, groundEvery: built ? built.ground.userData.every : 0, groundPieces: built ? built.ground.children.length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
   };

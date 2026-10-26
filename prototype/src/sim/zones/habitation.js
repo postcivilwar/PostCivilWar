@@ -561,6 +561,14 @@ export function habitationGroundPoint(i, j) {
   if (i >= 0 && j >= 0 && i < GN.x && j < GN.z) { const f = endFill().get(k); if (f !== undefined && y < f) y = f; groundPoints[k] = y; }
   return y;
 }
+// The drawn ground's points as the build worked them out (render-habitation.js: the file beside the page, the same
+// numbers as habitationGroundPoint gives here), taken for every point not yet worked out: the walkers stand on the very
+// ground drawn, and nothing of it is worked out again (26 October 2026).
+export function habitationGroundGiven(heights) {
+  if (!heights || heights.length !== groundPoints.length) return false;
+  for (let k = 0; k < groundPoints.length; k += 1) if (Number.isNaN(groundPoints[k])) groundPoints[k] = heights[k];
+  return true;
+}
 // In front of a deck's end the ground drawn is a step from its boards (22 October 2026: one steps off its end onto the
 // ground there, there being no boards past it). Where a triangle of it, in front of the end or under its first metres,
 // reaches down into a gorge beside it (the suspension bridge's south end stood over a notch 2.3 m deep, the drawn

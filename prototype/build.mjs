@@ -381,7 +381,9 @@ try { new Function(habitationSite); } catch (error) { throw new Error(`habitatio
 put('habitation-code.js', habitationSite);
 // (three.js's add-ons for the soft darkening where things meet: fetched by the game only at High and Ultra)
 put('three-post.min.js', readFileSync(resolve(root, 'vendor/three-post.min.js')));
-const extras = { reactions: `reactions.json?v=${fingerprint(siteFiles.get('reactions.json'))}`, habitation: `habitation-code.js?v=${fingerprint(siteFiles.get('habitation-code.js'))}`, post: `three-post.min.js?v=${fingerprint(siteFiles.get('three-post.min.js'))}` };
+// (the habitation's ground, worked out here and sent ready: tools/habitation/ground-file.mjs)
+put('habitation/ground.bin', await (await import('./tools/habitation/ground-file.mjs')).makeGroundFile());
+const extras = { ground: `habitation/ground.bin?v=${fingerprint(siteFiles.get('habitation/ground.bin'))}`, reactions: `reactions.json?v=${fingerprint(siteFiles.get('reactions.json'))}`, habitation: `habitation-code.js?v=${fingerprint(siteFiles.get('habitation-code.js'))}`, post: `three-post.min.js?v=${fingerprint(siteFiles.get('three-post.min.js'))}` };
 // The owner's gun recordings (25 October 2026), each as he supplied it, beside the page (gun-audio.js cuts them into
 // their single shots as it plays them); with the rifle's model, the files the game keeps for playing without a
 // connection once the town is up (main.js), not waited for before it (window.__PCW_GUNS).

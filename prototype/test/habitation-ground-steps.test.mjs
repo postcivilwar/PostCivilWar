@@ -37,3 +37,24 @@ test('the ground at the decks\' ends is worked out a row at a time, and the poin
   assert.ok(rows >= 14);
   assert.ok(raised <= 5 && same >= rows * nx - 5, `${same} the same, ${raised} raised at a deck's end`);
 });
+
+// The same ground as the file the build sends (tools/habitation/ground-file.mjs): written and read back, every point's
+// height, colour and facing as worked out; and given to the simulation, its points the same.
+test('the ground\'s file holds the ground as worked out, and the simulation takes it as it is', async () => {
+  const { createRequire } = await import('node:module');
+  globalThis.THREE = globalThis.THREE || createRequire(import.meta.url)('../vendor/three.min.js');
+  const { groundData, groundFileBytes, readGroundFile } = await import('../src/client/render-habitation.js');
+  const { gunzipSync } = await import('node:zlib');
+  const { makeGroundFile } = await import('../tools/habitation/ground-file.mjs');
+  const made = groundData();
+  const bytes = gunzipSync(await makeGroundFile());
+  assert.deepEqual(new Uint8Array(bytes), groundFileBytes(made), 'the build\'s file is groundData\'s');
+  const read = readGroundFile(bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.length));
+  assert.ok(read);
+  assert.deepEqual(read.heights, made.heights);
+  assert.deepEqual(read.tint, made.tint);
+  for (let k = 0; k < made.nx * made.nz; k += 1) for (let q = 0; q < 3; q += 1) if (read.normal[k * 4 + q] !== made.normal[k * 4 + q]) assert.fail(`facing at ${k}`);
+  assert.equal(readGroundFile(new ArrayBuffer(100)), null, 'a file not of this build: worked out instead');
+  assert.equal(H.habitationGroundGiven(read.heights), true);
+  for (let k = 0; k < made.nx * made.nz; k += 997) assert.equal(Math.fround(H.habitationGroundPoint(k % made.nx, Math.floor(k / made.nx))), made.heights[k]);
+});
