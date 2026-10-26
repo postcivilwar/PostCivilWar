@@ -500,6 +500,19 @@ function heightTile(i, j) {
   tiles.set(key, t);
   return t;
 }
+// The land's 1 m squares over the boxes given worked out ahead, one tile of them a step (a generator: 289 points of the
+// land's shape, a few milliseconds each on a phone): what the habitation's waters are drawn from (habitationWaterAt),
+// worked out piece by piece before they are built rather than all at once as they are (26 October 2026: seven seconds of
+// a phone's page on its settings here).
+export function* habitationLandWarm(boxes) {
+  for (const b of boxes) {
+    for (let j = Math.floor(b.z0 / TILE); j <= Math.floor(b.z1 / TILE); j += 1) for (let i = Math.floor(b.x0 / TILE); i <= Math.floor(b.x1 / TILE); i += 1) {
+      if (tiles.has(i * 100003 + j)) continue;
+      heightTile(i, j);
+      yield;
+    }
+  }
+}
 // The ground's height (not the decks'): from the squares, between their points.
 export function habitationLand(x, z) {
   const i = Math.floor(x / TILE), j = Math.floor(z / TILE);

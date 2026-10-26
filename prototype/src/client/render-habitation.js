@@ -16,7 +16,7 @@
 //   habitation.state()                                  (the tests: what is built, what it costs)
 
 import { programsReady } from './program-ready.js';
-import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundWarm, habitationGroundGiven, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } from '../sim/zone.js';
+import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundWarm, habitationGroundGiven, habitationLandWarm, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } from '../sim/zone.js';
 import { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit } from './render-kit.js';
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
@@ -1615,6 +1615,24 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
       stats.ground.ready = true; stats.ground.fetched = true; stats.ground.fetchMs = Math.round(performance.now() - t0);
     }).catch(() => { groundFetch = 'failed'; });
   }
+  // (and the land's 1 m squares the waters are drawn from, a tile a step: habitationLandWarm; after the ground)
+  let landWarm = null, landWarmed = false;
+  function prepareLand(budgetMs = 3) {
+    if (landWarmed) return true;
+    if (!landWarm) {
+      // (the still waters' boxes: about 440 tiles, the lagoon most of them; buildStill)
+      landWarm = habitationLandWarm(HABITATION_WATERS.map((w) => w.bounds));
+    }
+    const t0 = performance.now();
+    for (;;) {
+      const s0 = performance.now();
+      const done = landWarm.next().done;
+      stats.ground.landMs = (stats.ground.landMs || 0) + (performance.now() - s0);
+      stats.ground.landLongestMs = Math.max(stats.ground.landLongestMs || 0, Math.round(performance.now() - s0));
+      if (done) { landWarmed = true; landWarm = null; stats.ground.landMs = Math.round(stats.ground.landMs); return true; }
+      if (performance.now() - t0 >= budgetMs) return false;
+    }
+  }
   function prepareGround(budgetMs = 3) {
     if (groundReady) return true;
     // (on its way: waited for)
@@ -1696,6 +1714,8 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     const ground = groundPieces(groundPoints, lite && away > NEAR_GROUND.come ? 2 : 1, groundMat);
     group.add(ground);
     pause('ground'); yield; resume();
+    // (the land the waters are drawn from, worked out ahead or here, a tile a step)
+    while (!prepareLand(2)) { pause('land'); yield; resume(); }
     const waters = [];
     const materials = {};
     const matFor = (kind) => materials[kind] || (materials[kind] = waterMaterial(kind, { ripples, lite }));
@@ -1840,7 +1860,11 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     const away = at ? habitationAway(at.x, at.z) : Infinity;
     // (its ground's points ahead of the build: a few milliseconds a frame, once main.js says the town is settled, or
     // anyway once on the road up to it)
-    if (!groundReady && !buildJob && (prepare || away < ROAD_COME)) prepareGround(away < ROAD_COME ? 5 : 3);
+    if (!buildJob && (prepare || away < ROAD_COME)) {
+      const budget = away < ROAD_COME ? 5 : 3;
+      if (!groundReady) prepareGround(budget);
+      else if (!landWarmed) prepareLand(budget);
+    }
     if (away < ROAD_COME) ensureUpriver(camera);
     else if (upriver && away > ROAD_GO) {
       // back in the town: the road to the gate and its signs let go
