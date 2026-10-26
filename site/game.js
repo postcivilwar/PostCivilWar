@@ -43188,7 +43188,7 @@ const FX_MOST = Object.freeze({
   lite: Object.freeze({ flashes: 4, streaks: 16, puffs: 16, sparks: 48, drops: 60, spots: 60, marks: 30, cases: 16 }),
 });
 
-function createGunFx(scene, { lite = false, ground = () => 0, light = !lite } = {}) {
+function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {}) {
   const most = FX_MOST[lite ? 'lite' : 'full'];
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
   const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
@@ -43209,8 +43209,7 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = !lite } = 
     flashes.push({ star, tongue, age: 1, life: 0.05, size: 1 });
   }
   let nextFlash = 0;
-  const lamp = light ? new THREE.PointLight(0xffb366, 0, 9, 2) : null;
-  if (lamp) scene.add(lamp);
+  const lampAt = new THREE.Vector3(), lampDir = new THREE.Vector3(0, 0, 1);
   let lampAge = 1;
 
   const rod = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
@@ -43259,7 +43258,7 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = !lite } = 
     f.tongue.quaternion.copy(Q);
     f.tongue.rotateX(Math.random() * 3.14);
     f.star.visible = true; f.tongue.visible = true;
-    if (lamp && near) { lamp.position.copy(at).addScaledVector(dir, 0.2); lampAge = 0; }
+    if (light && near) { lampAt.copy(at).addScaledVector(dir, 0.2); lampDir.copy(dir).normalize(); lampAge = 0; }
     if (!lite || near) puff(at, 0xb9b4ac, { size: 0.06, grow: 6, life: 0.7, alpha: 0.18, rise: 0.25, v: A.copy(dir).multiplyScalar(0.8) });
     stats.flashes += 1;
     last.flash = [at.x, at.y, at.z];
@@ -43331,7 +43330,7 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = !lite } = 
       f.tongue.scale.set(0.34 * f.size * (0.7 + 0.5 * Math.random()), 0.5 * f.size, 0.5 * f.size);
       for (const c of f.tongue.children) c.material.opacity = k;
     }
-    if (lamp) { lampAge += dt; lamp.intensity = lampAge < 0.06 ? 14 * (1 - lampAge / 0.06) : 0; }
+    if (light) lampAge += dt;
     let n = 0;
     for (let i = streaks.length - 1; i >= 0; i -= 1) {
       const s = streaks[i];
@@ -43442,6 +43441,7 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = !lite } = 
 
   return {
     flash, streak, strike, blood, eject, dropMagazine, update, clear, stats,
+    get lamp() { return light && lampAge < 0.06 ? { at: lampAt, dir: lampDir, intensity: 14 * (1 - lampAge / 0.06) } : null; },
     last,
     get busy() { return { streaks: streaks.length, sparks: sparks.list.length, drops: drops.list.length, spots: spots.list.length, marks: marks.list.length, cases: cases.list.length, puffs: puffs.filter((p) => p.age < p.life).length, flashes: flashes.filter((f) => f.age < f.life).length, magazines: fallen.length }; },
   };
@@ -44399,6 +44399,7 @@ function createGunPlay(deps) {
     get aimFrom() { return t.aimFrom; }, get aimDir() { return t.d; },
     get look() { return S.look; },
     get weight() { return S.weight; },
+    get flashLamp() { return fx.lamp; },
     fx, hud, blood, stats, state: S,
   };
 }
@@ -44806,6 +44807,7 @@ function start(carried) {
   let headlight = null;
   const TORCH = Object.freeze({ intensity: TORCH_LIGHT.intensity, distance: TORCH_LIGHT.distance, angle: 0.5, penumbra: 0.85, decay: TORCH_LIGHT.decay, colour: 0xf2f5ff });
   const HEADLAMP = Object.freeze({ distance: HEADLAMP_LIGHT.distance, angle: 0.42, penumbra: 0.55, decay: HEADLAMP_LIGHT.decay, colour: 0xfff1d6 });
+  const GUN_FLASH = Object.freeze({ distance: 9, angle: 1.3, penumbra: 1, decay: 2, colour: 0xffb366 });
   const torch = { on: false, held: false, lit: false, self: { from: new THREE.Vector3(), dir: new THREE.Vector3() } };
   const torchWork = { back: new THREE.Vector3(), q: new THREE.Quaternion() };
   function setTorch(on) { torch.on = !!on; audio.chime('tap'); }
@@ -47765,9 +47767,11 @@ blood.update(dt, view.blood || []);
     const carLit = !lit && playing && view && view.self.incar && night > 0.25 && carView.driven();
     const torchLit = !lit && !carLit && playing && torch.held && !!phoneHold && phoneHold.out > 0.85;
     torch.lit = torchLit;
-    headlight.intensity = lit ? HEADLAMP_LIGHT.bike : carLit ? HEADLAMP_LIGHT.car : torchLit ? TORCH.intensity : 0;
-    { const lamp = torchLit ? TORCH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
+    const flashLit = !lit && !carLit && !torchLit && playing && gunPlay ? gunPlay.flashLamp : null;
+    headlight.intensity = lit ? HEADLAMP_LIGHT.bike : carLit ? HEADLAMP_LIGHT.car : torchLit ? TORCH.intensity : flashLit ? flashLit.intensity : 0;
+    { const lamp = torchLit ? TORCH : flashLit ? GUN_FLASH : HEADLAMP; if (headlight.angle !== lamp.angle) { headlight.angle = lamp.angle; headlight.penumbra = lamp.penumbra; headlight.distance = lamp.distance; headlight.decay = lamp.decay; headlight.color.setHex(lamp.colour); } }
     if (torchLit) { const t = torchOf(phoneHold, predicted.heading, torch.self); headlight.position.copy(t.from); headlight.target.position.copy(t.from).addScaledVector(t.dir, 10); headlight.target.updateMatrixWorld(); }
+    if (flashLit) { headlight.position.copy(flashLit.at); headlight.target.position.copy(flashLit.at).addScaledVector(flashLit.dir, 6); headlight.target.updateMatrixWorld(); }
     if (torchBeams) {
       const beams = [];
       if (torchLit) beams.push({ key: 'me', self: true, from: torch.self.from, dir: torch.self.dir, ground: zoneGroundY(predicted.x, predicted.z) });
