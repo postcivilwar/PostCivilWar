@@ -3243,7 +3243,10 @@ website's server), the others may not see or hear them; the server still counts 
   PowerBike showroom (the busiest place) 89.1 MB of pictures and buffers on the graphics card (86.5 to 91.8 MB in four
   runs), at the motor park with the gun fired 94.7 MB (94.6 to 94.8), the screen's own not counted: under 150 MB.
 - **With no gun out, the website before the guns against the website with them** (`tools/measure/places.mjs`, by day,
-  one run each in turn): the same draw calls, triangles and graphics card memory at every place measured. A frame on a
+  one run each in turn): the same draw calls, triangles and graphics card memory at every place measured (and at the
+  habitation's, on a phone, counted as `test/habitation.mjs` counts them: the effects' lists, empty, are kept out of the
+  picture; set up for drawing every frame all the same, they had been six more there, the garden 230 where the website
+  before drew 225). A frame on a
   computer's settings (Ultra, drawn in software): the motor park 4.27 s before, 4.28 s after; the PowerBike showroom
   4.60 → 4.53 s; the car showroom's gate 2.10 → 2.08 s; the programs prepared on entering the town 427 → 432 s. On a
   phone's settings (Medium): the motor park 3.97 → 3.72 s, the PowerBike showroom 3.67 → 3.75 s. (First made, the
