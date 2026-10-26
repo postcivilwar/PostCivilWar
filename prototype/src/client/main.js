@@ -3971,7 +3971,8 @@ blood.update(dt, view.blood || []);
     closures.update(dt, night, cam.target);
     if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || habitationAway(predicted.x, predicted.z) < 320)) askForHabitation();
     // (and the worker keeps it from the start, so that the game plays the habitation with no connection too)
-    if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation]); }
+    // (its ground too, the build's own: tools/habitation/ground-file.mjs)
+    if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation, window.__PCW_FILES.ground].filter(Boolean)); }
     if (habitation) {
       // (`prepare`: its ground worked out a little a frame once the land beyond the town is in: render-habitation.js)
       habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night, prepare: playing && outskirts.ready });
