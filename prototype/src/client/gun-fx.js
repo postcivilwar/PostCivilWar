@@ -108,7 +108,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
   rod.rotateZ(-Math.PI / 2);          // along +x
   rod.translate(0.5, 0, 0);           // from its back end
   const streakMesh = new THREE.InstancedMesh(rod, new THREE.MeshBasicMaterial({ color: 0xffd98a, transparent: true, opacity: 0.85, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }), most.streaks);
-  streakMesh.frustumCulled = false; streakMesh.count = 0;
+  streakMesh.frustumCulled = false; streakMesh.count = 0; streakMesh.visible = false;
   scene.add(streakMesh);
   const streaks = [];
 
@@ -129,7 +129,9 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
   }
 
   // ---- small things thrown: sparks, grit, blood drops (one draw each) ----
-  const bits = (count, geometry, material) => { const mesh = new THREE.InstancedMesh(geometry, material, count); mesh.frustumCulled = false; mesh.count = 0; scene.add(mesh); return { mesh, list: [] }; };
+  // (each kept out of the picture while it has none to draw: drawn with none, it still cost a draw's setting up each
+  // frame, and its list was sent to the graphics card again: 26 October 2026, six more draws a frame at the habitation)
+  const bits = (count, geometry, material) => { const mesh = new THREE.InstancedMesh(geometry, material, count); mesh.frustumCulled = false; mesh.count = 0; mesh.visible = false; scene.add(mesh); return { mesh, list: [] }; };
   const sparks = bits(most.sparks, new THREE.BoxGeometry(1, 1, 1), new THREE.MeshBasicMaterial({ color: 0xffe2a0, toneMapped: false }));
   const drops = bits(most.drops, new THREE.IcosahedronGeometry(1, 0), new THREE.MeshBasicMaterial({ color: 0xffffff }));
   const BLOOD = new THREE.Color(0x6e0710), GRIT = new THREE.Color();
@@ -254,7 +256,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
       M.compose(P, Q, S);
       streakMesh.setMatrixAt(n, M); n += 1;
     }
-    streakMesh.count = n; streakMesh.instanceMatrix.needsUpdate = true;
+    streakMesh.count = n; streakMesh.visible = n > 0; if (n) streakMesh.instanceMatrix.needsUpdate = true;
     // puffs
     for (const p of puffs) {
       if (p.age >= p.life) { if (p.sprite.visible) p.sprite.visible = false; continue; }
@@ -278,7 +280,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
       M.compose(s.p, Q, S);
       sparks.mesh.setMatrixAt(n, M); n += 1;
     }
-    sparks.mesh.count = n; sparks.mesh.instanceMatrix.needsUpdate = true;
+    sparks.mesh.count = n; sparks.mesh.visible = n > 0; if (n) sparks.mesh.instanceMatrix.needsUpdate = true;
     // drops of blood and grit: thrown, falling; blood leaves a spot where it lands
     n = 0;
     for (let i = drops.list.length - 1; i >= 0; i -= 1) {
@@ -296,8 +298,8 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
       drops.mesh.setColorAt(n, d.blood ? BLOOD : GRIT.setHex(d.colour || 0x8a7a66));
       n += 1;
     }
-    drops.mesh.count = n; drops.mesh.instanceMatrix.needsUpdate = true;
-    if (drops.mesh.instanceColor) drops.mesh.instanceColor.needsUpdate = true;
+    drops.mesh.count = n; drops.mesh.visible = n > 0;
+    if (n) { drops.mesh.instanceMatrix.needsUpdate = true; if (drops.mesh.instanceColor) drops.mesh.instanceColor.needsUpdate = true; }
     // spots and marks on the ground: drying and fading (shrunk away at the end of their time)
     for (const pool of [spots, marks]) {
       n = 0;
@@ -311,7 +313,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
         M.compose(s.p, Q, S);
         pool.mesh.setMatrixAt(n, M); n += 1;
       }
-      pool.mesh.count = n; pool.mesh.instanceMatrix.needsUpdate = true;
+      pool.mesh.count = n; pool.mesh.visible = n > 0; if (n) pool.mesh.instanceMatrix.needsUpdate = true;
     }
     // cases: flying, bouncing once, lying, then gone
     n = 0;
@@ -331,7 +333,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
       M.compose(c.p, Q, S);
       cases.mesh.setMatrixAt(n, M); n += 1;
     }
-    cases.mesh.count = n; cases.mesh.instanceMatrix.needsUpdate = true;
+    cases.mesh.count = n; cases.mesh.visible = n > 0; if (n) cases.mesh.instanceMatrix.needsUpdate = true;
     // dropped magazines
     for (let i = fallen.length - 1; i >= 0; i -= 1) {
       const f = fallen[i];
@@ -351,7 +353,8 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
     for (const f of flashes) { f.age = f.life; f.star.visible = false; f.tongue.visible = false; }
     streaks.length = 0;
     for (const p of puffs) { p.age = p.life; p.sprite.visible = false; }
-    for (const pool of [sparks, drops, spots, marks, cases]) { pool.list.length = 0; pool.mesh.count = 0; }
+    for (const pool of [sparks, drops, spots, marks, cases]) { pool.list.length = 0; pool.mesh.count = 0; pool.mesh.visible = false; }
+    streakMesh.count = 0; streakMesh.visible = false;
     for (const f of fallen) scene.remove(f.mesh);
     fallen.length = 0;
   }

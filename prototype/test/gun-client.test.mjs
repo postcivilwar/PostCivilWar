@@ -260,6 +260,9 @@ test('a flash is seen whole the first time it is drawn, however long the frame, 
   const fx = createGunFx(scene, { lite: true, drawn: () => drawn });
   const stars = () => scene.children.filter((o) => o.isSprite && o.visible && o.material.blending === THREE.AdditiveBlending);
   const at = new THREE.Vector3(0, 1.4, 0), dir = new THREE.Vector3(0, 0, 1);
+  // (nothing of it in the picture while nothing is under way: a list with none in it still cost a draw's setting up)
+  const shown = () => scene.children.filter((o) => o.visible).length;
+  assert.equal(shown(), 0, 'nothing of it drawn before a round');
   assert.equal(fx.lamp, null, 'no light before a round');
   // the player's own round on a slow device (half a second a frame): fired, then the effects moved on, then drawn
   fx.flash(at, dir, { near: true });
@@ -287,4 +290,12 @@ test('a flash is seen whole the first time it is drawn, however long the frame, 
   // a round far off: its flash, but no light
   fx.flash(at, dir, { near: false });
   assert.equal(fx.lamp, null);
+  // a strike and a case thrown: drawn while they last; all let go, nothing of it is drawn
+  fx.strike('wall', new THREE.Vector3(0, 1, 6), dir, {});
+  fx.eject(at, new THREE.Vector3(1, 0, 0), new THREE.Vector3(0, 1, 0));
+  drawn += 1;
+  fx.update(1 / 60);
+  assert.ok(shown() > 0, 'what a round left, drawn');
+  fx.clear();
+  assert.equal(shown(), 0, 'nothing drawn once all is let go');
 });
