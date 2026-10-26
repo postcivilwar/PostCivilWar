@@ -63,7 +63,7 @@ await page.evaluate(() => { const n = window.__nlw, g = n.host.game; const hour 
 // (the town warmed up first, with the processor at its own speed: what is timed is each piece on its own)
 await page.waitForFunction(() => window.__nlw.beyond || (window.__nlw.warmUp && window.__nlw.warmUp.stats && window.__nlw.warmUp.stats.left === 0), null, { timeout: 900000, polling: 2000 }).catch(() => {});
 const results = [];
-async function timed(name, start, done, settleMs = 20000) {
+async function timed(name, start, done, settleMs = 20000, extra = null) {
   await page.waitForTimeout(3000);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: THROTTLE });
   const before = await page.evaluate(() => ({ long: window.__shots.long.length, frames: window.__shots.frames.length, programs: window.__nlw.renderer.info.programs.length, t: performance.now() }));
@@ -79,19 +79,22 @@ async function timed(name, start, done, settleMs = 20000) {
     return { longest: long.reduce((a, x) => Math.max(a, x[1]), 0), longSum: long.reduce((a, x) => a + x[1], 0), longN: long.length, worstFrame: d.length ? Math.round(Math.max(...d)) : null, frames: d.length, programs: window.__nlw.renderer.info.programs.length - b.programs };
   }, before);
   await cdp.send('Emulation.setCPUThrottlingRate', { rate: 1 });
-  const row = { name, doneMs, ...after };
+  const row = { name, doneMs, ...after, ...(extra ? { detail: await page.evaluate(extra) } : {}) };
   results.push(row);
   console.log(name, JSON.stringify(row));
 }
 // 1. the land beyond the town and the billboards (if Auto has not built them already)
+// (as the game does it by itself a few seconds after the town is warmed up: in a build that makes it a piece a frame,
+// begun (beginBeyond); in one before that, all at once (buildBeyond))
 const already = await page.evaluate(() => !!window.__nlw.beyond);
-if (!already) await timed('the land beyond the town and its billboards', () => { window.__nlw.buildBeyond(); }, () => window.__nlw.beyond);
+if (!already) await timed('the land beyond the town and its billboards', () => { const n = window.__nlw; if (n.beginBeyond) n.beginBeyond(); else n.buildBeyond(); }, () => window.__nlw.beyond, 20000, () => window.__nlw.beyondSteps || null);
 else console.log('the land beyond the town was built already, before it could be timed');
 // 2. the habitation, built as the player comes within reach of it (and the road up to it)
-await timed('the habitation built, coming up the road', () => { const n = window.__nlw; n.place(262, 113); n.face(Math.PI / 2); n.cam.yaw = Math.PI / 2; }, () => window.__nlw.habitation && window.__nlw.habitation.state().built);
+const habDetail = () => { const h = window.__nlw.habitation && window.__nlw.habitation.state(); return h ? { buildMs: h.buildMs, buildSpanMs: h.buildSpanMs, longestPieceMs: h.buildLongestMs, builds: h.builds } : null; };
+await timed('the habitation built, coming up the road', () => { const n = window.__nlw; n.place(262, 113); n.face(Math.PI / 2); n.cam.yaw = Math.PI / 2; }, () => window.__nlw.habitation && window.__nlw.habitation.state().built, 20000, habDetail);
 // 3. back in the town, then up to it again (built a second time)
 await timed('back in the town (the habitation let go)', () => { const n = window.__nlw; n.place(-37, 94); }, () => window.__nlw.habitation && !window.__nlw.habitation.state().built);
-await timed('the habitation built again', () => { const n = window.__nlw; n.place(262, 113); }, () => window.__nlw.habitation && window.__nlw.habitation.state().built);
+await timed('the habitation built again', () => { const n = window.__nlw; n.place(262, 113); }, () => window.__nlw.habitation && window.__nlw.habitation.state().built, 20000, habDetail);
 // 4. the gun out, and the first round
 await page.evaluate(() => { const n = window.__nlw; n.place(-37, 94); });
 await page.waitForTimeout(5000);

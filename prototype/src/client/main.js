@@ -261,13 +261,19 @@ function start(carried) {
     while (!beyondJob.next('now').done) { /* all of it, now */ }
     beyondJob = null;
   }
+  // (for the measuring: how many pieces, over how many frames, the longest piece, the work in all, in ms)
+  const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0 };
   function stepBeyond(budgetMs = 6) {
     if (outskirts.ready) { beyondJob = null; return; }
     if (!beyondJob) beyondJob = beyondSteps(true);
     const t0 = performance.now();
+    beyondStats.frames += 1;
     // (waiting on the graphics card's compiling: looked at again next frame)
     for (;;) {
+      const s0 = performance.now();
       const step = beyondJob.next();
+      const took = performance.now() - s0;
+      beyondStats.steps += 1; beyondStats.workMs += took; beyondStats.longestMs = Math.max(beyondStats.longestMs, took);
       if (step.done) { beyondJob = null; return; }
       if (step.value === 'waiting' || performance.now() - t0 >= budgetMs) return;
     }
@@ -4237,7 +4243,7 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)
-    get beyond() { return outskirts.ready; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(),
+    get beyond() { return outskirts.ready; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },

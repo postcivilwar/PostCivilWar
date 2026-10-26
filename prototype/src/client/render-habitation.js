@@ -1707,7 +1707,11 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
   function stepBuild(budgetMs = 6) {
     const t0 = performance.now();
     for (;;) {
-      if (buildJob.next().done) { buildJob = null; return; }
+      const s0 = performance.now();
+      const done = buildJob.next().done;
+      // (the longest piece, for the measuring)
+      stats.buildLongestMs = Math.max(stats.buildLongestMs || 0, Math.round(performance.now() - s0));
+      if (done) { buildJob = null; return; }
       if (performance.now() - t0 >= budgetMs) return;
     }
   }
