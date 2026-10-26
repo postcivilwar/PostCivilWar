@@ -3270,6 +3270,96 @@ Files: `src/client/gun-play.js` (the gun in the player's hands and others'), `gu
 `schema.js` (migration 15), `api/game.js`. Tests: `test/guns.test.mjs` (12), `test/gun-client.test.mjs` (8),
 `server/test/guns.test.mjs` (11), and in a browser `test/guns.mjs` (two players, the owner's tests A to G).
 
+## The hanging on phones, found and fixed (26 October 2026)
+
+The owner's brief of 26 October: since the guns the game hung on his iPhone (the installed web app; sometimes closed by
+itself) and on his Android phone. Find why, measure it on a phone's settings from opening to fifteen minutes walking,
+with and without the gun, fix every cause, put it live, say what to check.
+
+**How it was measured.** This machine has no graphics card and draws in software, so a frame here takes a second or
+more whatever the game does: its frame rates are not a phone's. What it does show truly is how long the page is held at
+once by one piece of work (a phone's page stands still that long), how much memory the page and the graphics take, and
+how long into the town. The tools, each run on the live site and then on the new build, one at a time, nothing else on
+the machine: `tools/measure/soak.mjs` (fifteen minutes walking about the town at Medium, an iPhone's screen, with and
+without the gun out: memory every few seconds, every frame, every long task), `one-shots.mjs` (each one-off piece of
+work while playing, timed with the processor slowed four times, as a phone's is slower: the land beyond the town coming
+in, the habitation built, built again, the gun taken out, the first round; `SHOTS_PROFILE=1` profiles the habitation's
+build), `beyond-natural.mjs` (the land beyond the town as the game puts it in by itself), `level-steps.mjs` (Medium to
+High and back, Medium to Low and back, the drawing surface lost and given back), `gun-draws.mjs` (the draws and
+triangles with the gun put away and out, at four places), `memory-parts.mjs` (where the memory is, place by place;
+`PARTS_TEXTURES=1` lists every picture on the graphics card by what it belongs to), `heap-growth.mjs`, `cpu-profile.mjs`,
+and `places.mjs` for the time into the town.
+
+**What caused it.** Not a leak: the script's own memory, collected, grew by a few MB in fifteen minutes. The hangs
+were single pieces of work that held the page for seconds at once:
+
+1. **The habitation, built as the player came up the road** (180 m off on a phone): its ground's 101,000 points worked
+   out at once (25 s of the page on a phone's settings here), the land under its lagoon (7 s), the places of its fish and
+   birds (7 s, asking the land's shape over the whole habitation, water or not), and two dozen new programs compiled at
+   its first frame: 34 seconds in one go, and 12 more every time it was built again.
+2. **The land beyond the town and its fifty billboards**, built a minute into play: 14 seconds at once.
+3. **The picture's check** (`picture-watch.js`, which notices a picture lost): it read back from the graphics card
+   and waited for it, every check: on this machine the main thread spent 690 ms a frame in drawing (960 with the gun
+   out), most of it that wait.
+4. **Programs thrown away and compiled again**: three.js lets go of a program once nothing uses it; the habitation's,
+   the gun's, the level's were compiled again each time they came back, a second or more on a phone each time.
+5. **Pictures made again at a new level held twice**: made smaller or larger, the new copy waited in the page's memory
+   until something drew it (500 MB page at the second Medium to High); a lost drawing surface's pictures all remade at
+   once.
+6. **Auto climbing to High on a phone** (and Ultra was within its reach), holding more on the graphics card and
+   drawing more, where the brief's mark is Medium.
+7. **The gun out**: the rifle's 58,000 triangles drawn a second time into the sun's shadows (a third more of their
+   work); the blood on the screen painted all at once.
+
+**What was changed.**
+
+- The habitation's ground is worked out by the build (`tools/habitation/ground-file.mjs`, the game's own `groundData`)
+  and sent ready beside the page (`habitation/ground.bin`, 0.55 MB, unzipped as it comes: `DecompressionStream`); the
+  walkers stand on the same numbers. Where it cannot be had or unzipped, the page works it out a few milliseconds a
+  frame, once the land beyond the town is in. Each point is worked out from only the 1 m squares' corners it is made
+  from (the same heights to the last bit, every point checked against the build before: `test/habitation-ground-steps.test.mjs`),
+  the decks' ends a row at a time.
+- The land under the still waters is worked out ahead, a tile a frame; where the water is (`habitationWaterAt`) works
+  the land out only when some water is near (the same answers, over 40,000 points checked; a third of the time).
+- The habitation is built a piece a frame (`buildSteps`: each piece named and timed for the measuring), more of it a
+  frame within 60 m; the land beyond the town likewise (`outskirtsSteps`).
+- A newly built part is shown only once its programs are ready (`program-ready.js`): where the browser compiles them
+  beside the page (Safari on iPhones, Chrome on Android phones), three.js's `compileAsync`; elsewhere one program a frame.
+  Every program is kept once made (`warmUp.pin`, every two seconds).
+- The picture's check reads back without waiting (WebGL 2: a buffer and a fence, looked at a frame later), and once
+  past the first minute looks every 15 seconds.
+- A picture made again is handed to the graphics card at once and the page's copy let go (`setUploader`); a lost drawing
+  surface's pictures are made again one at a time, each handed over before the next.
+- Auto never goes above Medium on a phone (`autoCeiling`); a phone that cannot hold Medium settles at Low and stays
+  (`PHONE_QUALITY_RULES`: lowered after 2.5 s of slow frames, tried higher again only after a minute and a half, given
+  up for good after a failed try).
+- On a phone the rifle and a magazine let fall cast no sun's shadow; the blood on the screen is painted a splash a frame.
+- The readout (`#stats`) now counts the models' shapes on the graphics card as well as the pictures.
+
+**The numbers** (a phone's settings, Medium, an iPhone's screen, this machine; before is the live build, `054bb8b`):
+
+| | before | after |
+|---|---|---|
+| into the town (PLAY to walking, twice each) | 43.9 s, 39.4 s | 29.4 s, 26.3 s |
+| into the town in the fifteen-minute walk | 18.9 s | 13.5 s |
+| the habitation built (longest the page was held, processor slowed four times) | 33.7 s | 5.0 s (one frame drawn here; its own pieces at most 0.9 s) |
+| the habitation built again | 12.2 s | 2.6 s (a frame) |
+| the land beyond the town coming in | 14.0 s at once | 24 pieces, the largest 0.5 to 0.8 s |
+| the main thread's time drawing, a frame | 690 ms (960 with the gun) | 13 ms (12) |
+| the worst frame in fifteen minutes walking | 11.3 s | 4.0 s |
+| the same with the gun out | 12.7 s, 21 frames over 3 s | 3.9 s, 8 |
+| the sun's shadows with the gun out (triangles, the boulevard; the market) | 223,000; 215,000 | 165,000; 162,000 |
+| Medium to High and back again, the longest hold; the page's memory at its highest | 10.9 s; 507 MB | 6.4 s; 320 MB |
+| memory at the market, the page / the graphics (the same places in the same order, in turn) | 430 / 361 MB | 424 / 358 MB |
+| the same at the waterside | 436 / 383 MB | 437 / 389 MB |
+
+The memory is the same: nothing more is held, the pictures on the graphics card the same picture for picture. The
+drawing surface lost and given back still holds the page longest (26 s here, 27 before): every program and picture is
+made again; it happens only when the browser takes the picture away.
+
+**Not measurable here**: frames a second on his phones (this machine draws in software), and how long his iPhone lets
+the page have. What to check on each is in `claude/build-status.md` and was sent to him.
+
 ## Tests
 
 ```
