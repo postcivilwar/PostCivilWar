@@ -278,7 +278,8 @@ return { setHabitationWind, habitationWind, decodePicture, leafMaterial, stoneMa
 
 __modules["client/render-habitation.js"] = (function () {
 
-const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } = __modules["sim/zone.js"];
+const { programsReady } = __modules["client/program-ready.js"];
+const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundWarm, habitationGroundGiven, habitationLandWarm, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } = __modules["sim/zone.js"];
 const { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit } = __modules["client/render-kit.js"];
 const { addTree } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
@@ -408,16 +409,45 @@ function pillarContact() {
   return mesh;
 }
 const PAVED = new Set(['overlook-terrace', 'overlook-steps', 'garden']);
+function groundFileBytes(data) {
+  const n = data.nx * data.nz, out = new Uint8Array(16 + n * 11), head = new DataView(out.buffer);
+  head.setUint32(0, 0x47574350, true); head.setUint32(4, 1, true); head.setUint32(8, data.nx, true); head.setUint32(12, data.nz, true);
+  out.set(new Uint8Array(data.heights.buffer, data.heights.byteOffset, n * 4), 16);
+  out.set(data.tint, 16 + n * 4);
+  const normal = new Int8Array(out.buffer, 16 + n * 8, n * 3);
+  for (let k = 0; k < n; k += 1) { normal[k * 3] = data.normal[k * 4]; normal[k * 3 + 1] = data.normal[k * 4 + 1]; normal[k * 3 + 2] = data.normal[k * 4 + 2]; }
+  return out;
+}
+function readGroundFile(buffer) {
+  const G = HABITATION_GROUND, nx = HABITATION_GROUND_POINTS.x, nz = HABITATION_GROUND_POINTS.z, n = nx * nz;
+  if (!buffer || buffer.byteLength !== 16 + n * 11) return null;
+  const head = new DataView(buffer);
+  if (head.getUint32(0, true) !== 0x47574350 || head.getUint32(4, true) !== 1 || head.getUint32(8, true) !== nx || head.getUint32(12, true) !== nz) return null;
+  const heights = new Float32Array(buffer.slice(16, 16 + n * 4)), tint = new Uint8Array(buffer.slice(16 + n * 4, 16 + n * 8));
+  const packed = new Int8Array(buffer, 16 + n * 8, n * 3), normal = new Int8Array(n * 4);
+  for (let k = 0; k < n; k += 1) { normal[k * 4] = packed[k * 3]; normal[k * 4 + 1] = packed[k * 3 + 1]; normal[k * 4 + 2] = packed[k * 3 + 2]; }
+  return { nx, nz, step: G.step, x0: G.x0, z0: G.z0, heights, tint, normal };
+}
 function groundData() {
+  const job = groundDataSteps(Infinity);
+  for (;;) { const r = job.next(); if (r.done) return r.value; }
+}
+function* groundDataSteps(sliceMs = 3) {
   const G = HABITATION_GROUND, nx = HABITATION_GROUND_POINTS.x, nz = HABITATION_GROUND_POINTS.z, step = G.step;
   const count = nx * nz;
   const heights = new Float32Array(count), tint = new Uint8Array(count * 4), normal = new Int8Array(count * 4);
-  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) heights[j * nx + i] = habitationGroundPoint(i, j);
+  let s0 = performance.now();
+  for (const _ of habitationGroundWarm()) if (performance.now() - s0 > sliceMs) { yield; s0 = performance.now(); }
+  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) {
+    heights[j * nx + i] = habitationGroundPoint(i, j);
+    if ((i & 7) === 7 && performance.now() - s0 > sliceMs) { yield; s0 = performance.now(); }
+  }
   const c = new THREE.Color(), t = new THREE.Color();
   const col = (hex) => t.copy(linear(hex));
   const h = (i, j) => heights[Math.max(0, Math.min(nz - 1, j)) * nx + Math.max(0, Math.min(nx - 1, i))];
   for (let j = 0; j < nz; j += 1) {
     for (let i = 0; i < nx; i += 1) {
+      if ((i & 7) === 7 && performance.now() - s0 > sliceMs) { yield; s0 = performance.now(); }
       const k = j * nx + i, x = G.x0 + i * step, z = G.z0 + j * step, y = heights[k];
       const hx = h(i + 1, j) - h(i - 1, j), hz = h(i, j + 1) - h(i, j - 1);
       const slope = Math.hypot(hx, hz) / (2 * step);
@@ -1610,13 +1640,77 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
   let built = null;             // { group, waters, falls, ... } while near
   let building = false;
   let time = 0;
-  const stats = { builds: 0, letGo: 0, buildMs: 0, triangles: 0 };
+  const stats = { builds: 0, letGo: 0, buildMs: 0, triangles: 0, ground: { ready: false, ms: 0, frames: 0, longestMs: 0 } };
   const drawn = { models: 0, copies: 0, pictures: 0 };
 
-  function ensureUpriver() {
+  let groundReady = null, groundJob = null;
+  let groundFetch = 'none';
+  const groundAddress = (() => { try { return window.__PCW_FILES && window.__PCW_FILES.ground; } catch (error) { return null; } })();
+  if (groundAddress && !ON_DISK && typeof DecompressionStream === 'function') {
+    groundFetch = 'asking';
+    const t0 = performance.now();
+    Promise.resolve().then(() => fetchFile(groundAddress)).then((res) => {
+      if (!res.ok) throw new Error(`the ground: ${res.status}`);
+      return new Response(res.body.pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();
+    }).then((buffer) => {
+      if (groundReady) return;
+      const data = readGroundFile(buffer);
+      if (!data) throw new Error('the ground: not as this build makes it');
+      groundReady = data; groundJob = null; groundFetch = 'had';
+      habitationGroundGiven(data.heights);
+      stats.ground.ready = true; stats.ground.fetched = true; stats.ground.fetchMs = Math.round(performance.now() - t0);
+    }).catch(() => { groundFetch = 'failed'; });
+  }
+  let landWarm = null, landWarmed = false;
+  function prepareLand(budgetMs = 3) {
+    if (landWarmed) return true;
+    if (!landWarm) {
+      landWarm = habitationLandWarm(HABITATION_WATERS.map((w) => w.bounds));
+    }
+    const t0 = performance.now();
+    for (;;) {
+      const s0 = performance.now();
+      const done = landWarm.next().done;
+      stats.ground.landMs = (stats.ground.landMs || 0) + (performance.now() - s0);
+      stats.ground.landLongestMs = Math.max(stats.ground.landLongestMs || 0, Math.round(performance.now() - s0));
+      if (done) { landWarmed = true; landWarm = null; stats.ground.landMs = Math.round(stats.ground.landMs); return true; }
+      if (performance.now() - t0 >= budgetMs) return false;
+    }
+  }
+  function prepareGround(budgetMs = 3) {
+    if (groundReady) return true;
+    if (groundFetch === 'asking') return false;
+    if (!groundJob) groundJob = groundDataSteps(3);
+    const g = stats.ground, t0 = performance.now();
+    g.frames += 1;
+    for (;;) {
+      const s0 = performance.now();
+      const r = groundJob.next();
+      const ms = performance.now() - s0;
+      g.ms += ms; g.longestMs = Math.max(g.longestMs, Math.round(ms));
+      if (r.done) { groundReady = r.value; groundJob = null; g.ready = true; g.ms = Math.round(g.ms); return true; }
+      if (performance.now() - t0 >= budgetMs) return false;
+    }
+  }
+
+  const showing = [];
+  function showWhenReady(object, camera) {
+    if (!renderer || !camera) return;
+    object.visible = false;
+    showing.push({ object, ready: programsReady(renderer, object, camera, scene) });
+  }
+  function stepShowing() {
+    for (let i = showing.length - 1; i >= 0; i -= 1) {
+      const s = showing[i];
+      if (!s.object.parent) { showing.splice(i, 1); continue; }
+      if (s.ready.step(6)) { s.object.visible = true; stats.programsMadeReady = (stats.programsMadeReady || 0) + s.ready.stats.programs; stats.readyLongestMs = Math.max(stats.readyLongestMs || 0, s.ready.stats.longestMs); showing.splice(i, 1); }
+    }
+  }
+  function ensureUpriver(camera = null) {
     if (upriver) return;
     upriver = buildUpriver(lite);
     scene.add(upriver);
+    showWhenReady(upriver, camera);
   }
   function swapGround(every) {
     const old = built.ground;
@@ -1626,20 +1720,31 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     built.ground = next;
     stats.groundSwaps = (stats.groundSwaps || 0) + 1;
   }
-  function build(away = 0) {
-    if (built || building) return;
-    building = true;
+  let buildJob = null, piece = '';
+  function* buildSteps(away = 0, camera = null) {
     const t0 = performance.now();
+    let work = 0, stepAt = performance.now();
+    const pause = (what) => { work += performance.now() - stepAt; piece = what; };
+    const resume = () => { stepAt = performance.now(); };
     const group = new THREE.Group(); group.name = 'habitation-near';
     const grain = grainTexture({ low: 0.6, coarse: 0.35, speck: 0.35, seed: 11 });
     grain.wrapS = grain.wrapT = THREE.RepeatWrapping;
     const ripples = rippleNormalTexture(lite ? 128 : 256);
     ripples.wrapS = ripples.wrapT = THREE.RepeatWrapping;
     const stone = stoneTexture(lite ? 256 : 512);
-    const groundPoints = groundData();
+    pause('pictures'); yield; resume();
+    const waitFrom = performance.now();
+    while (!prepareGround(2)) {
+      if (groundFetch === 'asking' && performance.now() - waitFrom > 15000) groundFetch = 'late';
+      pause('ground points'); yield; resume();
+    }
+    const groundPoints = groundReady;
+    pause('ground points'); yield; resume();
     const groundMat = groundMaterial({ grain, stone, lite });
     const ground = groundPieces(groundPoints, lite && away > NEAR_GROUND.come ? 2 : 1, groundMat);
     group.add(ground);
+    pause('ground'); yield; resume();
+    while (!prepareLand(2)) { pause('land'); yield; resume(); }
     const waters = [];
     const materials = {};
     const matFor = (kind) => materials[kind] || (materials[kind] = waterMaterial(kind, { ripples, lite }));
@@ -1648,6 +1753,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
       mesh.name = `water:${w.id}`; mesh.renderOrder = 2; mesh.receiveShadow = true;
       group.add(mesh); waters.push(mesh);
     }
+    pause('waters'); yield; resume();
     for (const s of HABITATION_STREAMS) {
       const mesh = new THREE.Mesh(buildStream(s, lite ? 2.5 : 1.5), matFor(s.rapids ? 'rapids' : 'stream'));
       mesh.name = `stream:${s.id}`; mesh.renderOrder = 2;
@@ -1657,16 +1763,22 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     const hot = new THREE.Mesh(buildHotRiver(lite ? 3 : 2), hotMaterial);
     hot.name = 'water:hot-river'; hot.renderOrder = 2; hot.receiveShadow = true;
     group.add(hot); waters.push(hot);
+    pause('streams and the boiling river'); yield; resume();
     const steam = hotSteam(lite);
     group.add(steam.mesh);
+    pause('steam'); yield; resume();
     const hotSigns = hotSignsMerged(lite);
     group.add(hotSigns);
+    pause('signs by the boiling river'); yield; resume();
     const swimSigns = signsMerged(HABITATION_SWIM_SIGNS, 'swim', lite);
     group.add(swimSigns);
+    pause('swimming signs'); yield; resume();
     const apron = buildApron(lite);
     group.add(apron);
+    pause('the bush beyond'); yield; resume();
     const hills = buildHills(lite);
     group.add(hills);
+    pause('hills'); yield; resume();
     const pillarMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.25 });
     for (const p of HABITATION_PILLARS) {
       const mesh = new THREE.Mesh(pillarGeometry(p, lite), pillarMat);
@@ -1675,12 +1787,14 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     }
     const contact = pillarContact();
     group.add(contact);
+    pause('pillars'); yield; resume();
     const textures = fallTextures();
     const falls = HABITATION_FALLS.map((f) => buildFall(f, textures));
     for (const f of falls) group.add(f.sheet, f.spray);
+    pause('waterfalls'); yield; resume();
     const woodMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0x8a6a48), roughness: 0.85, metalness: 0 });
     shared(`deck-wood.${lite ? 'lite' : 'full'}.webp`, true).then((t) => {
-      if (!built || built.woodMat !== woodMat) return;
+      if (woodMat.userData.letGo) return;
       t.wrapS = t.wrapT = THREE.RepeatWrapping; t.needsUpdate = true;
       woodMat.map = t; woodMat.color.copy(linear(0xf2ece4)); woodMat.needsUpdate = true;
     }, () => {});
@@ -1688,19 +1802,41 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     const stoneMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.45 });
     stoneMat.color.copy(linear(0xb9b09c));
     for (const mesh of buildDecks(woodMat, ropeMat, stoneMat)) group.add(mesh);
+    pause('decks'); yield; resume();
     const lilies = buildLilies(lite);
     for (const mesh of lilies.meshes) group.add(mesh);
     root.add(group);
     if (!root.parent) scene.add(root);
+    showWhenReady(group, camera);
+    pause('lilies'); yield; resume();
     const impostors = renderer ? createImpostors(renderer, group, lite) : null;
+    pause('trees afar'); yield; resume();
     const meadow = createMeadow(group, { lite });
+    pause('grass'); yield; resume();
     const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) { placed.failed = (placed.failed || []).concat(m); onError(error, m); } } });
     let triangles = 0;
     group.traverse((o) => { if (o.isMesh && o.geometry.index && !o.isInstancedMesh) triangles += o.geometry.index.count / 3; });
     built = { group, waters, falls, ground, groundPoints, groundMat, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies, hills, contact, hotMaterial, steam, hotSigns, swimSigns, apron };
     placed.loading.then(() => { if (!placed.stopped) stats.modelsMs = Math.round(performance.now() - t0); });
-    stats.builds += 1; stats.buildMs = Math.round(performance.now() - t0); stats.triangles = triangles;
+    pause('models begun');
+    stats.builds += 1; stats.buildMs = Math.round(work); stats.buildSpanMs = Math.round(performance.now() - t0); stats.triangles = triangles;
     building = false;
+  }
+  function build(away = 0, camera = null) {
+    if (built) return;
+    if (!buildJob) { building = true; buildJob = buildSteps(away, camera); }
+    try { while (!buildJob.next().done) { /* all of it, now */ } } finally { buildJob = null; }
+  }
+  function stepBuild(budgetMs = 6) {
+    const t0 = performance.now();
+    for (;;) {
+      const s0 = performance.now();
+      const done = buildJob.next().done;
+      const ms = Math.round(performance.now() - s0);
+      if (ms > (stats.buildLongestMs || 0)) { stats.buildLongestMs = ms; stats.buildLongestPiece = piece; }
+      if (done) { buildJob = null; return; }
+      if (performance.now() - t0 >= budgetMs) return;
+    }
   }
   function letGo() {
     if (!built) return;
@@ -1709,6 +1845,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     root.remove(gone.group);
     gone.group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); else if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
     for (const m of Object.values(gone.materials)) m.dispose();
+    gone.woodMat.userData.letGo = true;
     for (const m of [gone.woodMat, gone.ropeMat, gone.stoneMat, gone.pillarMat, gone.groundMat]) m.dispose();
     for (const t of [gone.grain, gone.ripples, gone.stone, gone.textures.sheet, gone.textures.puff, gone.textures.foam]) t.dispose();
     for (const f of gone.falls) { f.map.dispose(); f.sheet.material.dispose(); f.veil.material.map.dispose(); f.veil.material.dispose(); f.foam.material.dispose(); f.foam.geometry.dispose(); for (const s of f.puffs) s.material.dispose(); }
@@ -1727,12 +1864,17 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     stats.letGo += 1;
   }
 
-  function update(dt, { at = null, eye = null, camera = null, night = 0 } = {}) {
+  function update(dt, { at = null, eye = null, camera = null, night = 0, prepare = false } = {}) {
     time += dt;
     waterClock.value = time % 1000;
     setHabitationWind(time);
     const away = at ? habitationAway(at.x, at.z) : Infinity;
-    if (away < ROAD_COME) ensureUpriver();
+    if (!buildJob && (prepare || away < ROAD_COME)) {
+      const budget = away < ROAD_COME ? 5 : 3;
+      if (!groundReady) prepareGround(budget);
+      else if (!landWarmed) prepareLand(budget);
+    }
+    if (away < ROAD_COME) ensureUpriver(camera);
     else if (upriver && away > ROAD_GO) {
       scene.remove(upriver);
       const signs = new Set(signPictures.values());
@@ -1740,7 +1882,9 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
       letSignsGo(upriver);
       upriver = null;
     }
-    if (!built && !building && away < COME[lite ? 'lite' : 'full']) { try { build(away); } catch (error) { building = false; onError(error); } }
+    if (!built && !building && away < COME[lite ? 'lite' : 'full']) { building = true; buildJob = buildSteps(away, camera); }
+    if (buildJob) { try { stepBuild(away < 60 ? 24 : 6); } catch (error) { buildJob = null; building = false; onError(error); } }
+    if (showing.length) stepShowing();
     if (built && away > GO[lite ? 'lite' : 'full']) letGo();
     if (built && lite) { const every = built.ground.userData.every; if (every === 2 && away < NEAR_GROUND.come) swapGround(1); else if (every === 1 && away > NEAR_GROUND.go) swapGround(2); }
     if (built) {
@@ -1759,6 +1903,9 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     get root() { return root; },
     get impostors() { return built ? built.impostors : null; },
     build, letGo,
+    prepare: () => prepareGround(Infinity),
+    get groundReady() { return !!groundReady; },
+    get groundFrom() { return groundFetch; },
     state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, swimSigns: built ? built.swimSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, groundEvery: built ? built.ground.userData.every : 0, groundPieces: built ? built.ground.children.length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
   };
 }
@@ -1877,7 +2024,7 @@ function createMeadow(scene, { lite = false } = {}) {
   };
 }
 
-return { createHabitation, createMeadow };
+return { groundFileBytes, readGroundFile, groundData, createHabitation, createMeadow };
 })();
 
 __modules["client/render-habitation-life.js"] = (function () {

@@ -4877,6 +4877,15 @@ function heightTile(i, j) {
   tiles.set(key, t);
   return t;
 }
+function* habitationLandWarm(boxes) {
+  for (const b of boxes) {
+    for (let j = Math.floor(b.z0 / TILE); j <= Math.floor(b.z1 / TILE); j += 1) for (let i = Math.floor(b.x0 / TILE); i <= Math.floor(b.x1 / TILE); i += 1) {
+      if (tiles.has(i * 100003 + j)) continue;
+      heightTile(i, j);
+      yield;
+    }
+  }
+}
 function habitationLand(x, z) {
   const i = Math.floor(x / TILE), j = Math.floor(z / TILE);
   const t = heightTile(i, j);
@@ -4887,6 +4896,27 @@ function habitationLand(x, z) {
   return h00 + (h10 - h00) * u + (h01 - h00) * v + (h00 - h10 - h01 + h11) * u * v;
 }
 const habitationShape = shaped;          // (for drawing: the same ground, not from the squares)
+const cornerRows = new Map();
+let cornerX0 = 0, cornerW = 0;
+function corner(ix, iz) {
+  if (!cornerW) { cornerX0 = Math.floor(HABITATION_GROUND.x0) - 2; cornerW = Math.ceil(HABITATION_GROUND.x1) + 4 - cornerX0; }
+  const at = ix - cornerX0;
+  if (at < 0 || at >= cornerW) return Math.fround(shaped(ix, iz));
+  let row = cornerRows.get(iz);
+  if (!row) { if (cornerRows.size >= 6) cornerRows.delete(cornerRows.keys().next().value); row = new Float32Array(cornerW).fill(NaN); cornerRows.set(iz, row); }
+  let h = row[at];
+  if (h !== h) { h = Math.fround(shaped(ix, iz)); row[at] = h; }
+  return h;
+}
+function landOnGrid(x, z) {
+  const i = Math.floor(x / TILE), j = Math.floor(z / TILE);
+  const fx = x - i * TILE, fz = z - j * TILE;
+  const a = Math.min(TILE - 1, Math.floor(fx)), b = Math.min(TILE - 1, Math.floor(fz));
+  const u = fx - a, v = fz - b, ix = i * TILE + a, iz = j * TILE + b;
+  const h00 = corner(ix, iz);
+  const h10 = u ? corner(ix + 1, iz) : h00, h01 = v ? corner(ix, iz + 1) : h00, h11 = u && v ? corner(ix + 1, iz + 1) : h00;
+  return h00 + (h10 - h00) * u + (h01 - h00) * v + (h00 - h10 - h01 + h11) * u * v;
+}
 
 const HABITATION_GROUND = Object.freeze({ step: 2.5, pad: 30, x0: HABITATION.bounds.x0 - 30, z0: HABITATION.bounds.z0 - 30, x1: HABITATION.bounds.x1 + 30, z1: HABITATION.bounds.z1 + 30 });
 const GN = Object.freeze({ x: Math.ceil((HABITATION_GROUND.x1 - HABITATION_GROUND.x0) / HABITATION_GROUND.step) + 1, z: Math.ceil((HABITATION_GROUND.z1 - HABITATION_GROUND.z0) / HABITATION_GROUND.step) + 1 });
@@ -4895,18 +4925,38 @@ function habitationGroundPoint(i, j) {
   const k = j * GN.x + i;
   if (i >= 0 && j >= 0 && i < GN.x && j < GN.z && !Number.isNaN(groundPoints[k])) return groundPoints[k];
   const G = HABITATION_GROUND, x = G.x0 + i * G.step, z = G.z0 + j * G.step;
-  let y = habitationLand(x, z);
+  let y = landOnGrid(x, z);
   if (x < HABITATION.bounds.x0) y = Math.min(y, -0.12);
   const P = UPRIVER.park;
   if (x < P.x1 + 1.5 && z > P.z0 - 1.5 && z < P.z1 + 1.5) y = Math.min(y, -0.08);
   if (i >= 0 && j >= 0 && i < GN.x && j < GN.z) { const f = endFill().get(k); if (f !== undefined && y < f) y = f; groundPoints[k] = y; }
   return y;
 }
+function habitationGroundGiven(heights) {
+  if (!heights || heights.length !== groundPoints.length) return false;
+  for (let k = 0; k < groundPoints.length; k += 1) if (Number.isNaN(groundPoints[k])) groundPoints[k] = heights[k];
+  return true;
+}
 const END_FILL = Object.freeze({ stairs: 0.4, other: 0.25 });
-let endFills = null;
+let endFills = null, endFillMap = null, endFillJob = null, endFillBusy = false;
+function stepEndFill(all) {
+  if (!endFillJob) { endFillMap = new Map(); endFillJob = endFillSteps(endFillMap); }
+  endFillBusy = true;
+  try {
+    do { if (endFillJob.next().done) { endFills = endFillMap; endFillJob = null; return true; } } while (all);
+  } finally { endFillBusy = false; }
+  return false;
+}
 function endFill() {
   if (endFills) return endFills;
-  endFills = new Map();
+  if (endFillBusy) return endFillMap;
+  stepEndFill(true);
+  return endFills;
+}
+function* habitationGroundWarm() {
+  while (!endFills && !stepEndFill(false)) yield;
+}
+function* endFillSteps(endFills) {
   const G = HABITATION_GROUND;
   for (const d of CUT_DECKS) {
     for (const last of [false, true]) {
@@ -4914,20 +4964,22 @@ function endFill() {
       const [ex, ez] = d.line[last ? d.line.length - 1 : 0], [nx, nz] = d.line[last ? d.line.length - 2 : 1];
       const l = Math.hypot(nx - ex, nz - ez) || 1, ix = (nx - ex) / l, iz = (nz - ez) / l, half = d.width / 2 - RAIL_IN + 0.2;
       const top = deckHeight(d, nearLine(d.line, ex + ix * 0.01, ez + iz * 0.01), ex, ez);
-      for (let b = -0.3; b <= 1.5 + 1e-9; b += 0.1) for (let s0 = -half; s0 <= half + 1e-9; s0 += 0.1) {
-        const x = ex - ix * b - iz * s0, z = ez - iz * b + ix * s0;
-        const fi = (x - G.x0) / G.step, fj = (z - G.z0) / G.step, i = Math.floor(fi), j = Math.floor(fj);
-        for (const [ci, cj] of fi - i + (fj - j) <= 1 ? [[i, j], [i + 1, j], [i, j + 1]] : [[i + 1, j + 1], [i, j + 1], [i + 1, j]]) {
-          if (ci < 0 || cj < 0 || ci >= GN.x || cj >= GN.z) continue;
-          const vx = G.x0 + ci * G.step, vz = G.z0 + cj * G.step;
-          if (habitationWaterAt(vx, vz)) continue;
-          const want = Math.min(top, deckHeight(d, nearLine(d.line, vx, vz), vx, vz)) - (d.kind === 'stairs' ? END_FILL.stairs : END_FILL.other), k = cj * GN.x + ci;
-          if (!(endFills.get(k) >= want)) endFills.set(k, want);
+      for (let b = -0.3; b <= 1.5 + 1e-9; b += 0.1) {
+        for (let s0 = -half; s0 <= half + 1e-9; s0 += 0.1) {
+          const x = ex - ix * b - iz * s0, z = ez - iz * b + ix * s0;
+          const fi = (x - G.x0) / G.step, fj = (z - G.z0) / G.step, i = Math.floor(fi), j = Math.floor(fj);
+          for (const [ci, cj] of fi - i + (fj - j) <= 1 ? [[i, j], [i + 1, j], [i, j + 1]] : [[i + 1, j + 1], [i, j + 1], [i + 1, j]]) {
+            if (ci < 0 || cj < 0 || ci >= GN.x || cj >= GN.z) continue;
+            const vx = G.x0 + ci * G.step, vz = G.z0 + cj * G.step;
+            if (habitationWaterAt(vx, vz)) continue;
+            const want = Math.min(top, deckHeight(d, nearLine(d.line, vx, vz), vx, vz)) - (d.kind === 'stairs' ? END_FILL.stairs : END_FILL.other), k = cj * GN.x + ci;
+            if (!(endFills.get(k) >= want)) endFills.set(k, want);
+          }
         }
+        yield;
       }
     }
   }
-  return endFills;
 }
 const HABITATION_GROUND_POINTS = GN;
 function habitationGroundAt(x, z) {
@@ -4940,23 +4992,24 @@ function habitationGroundAt(x, z) {
 }
 
 function habitationWaterAt(x, z) {
-  const ground = habitationLand(x, z);
+  let land;
+  const ground = () => (land === undefined ? (land = habitationLand(x, z)) : land);
   for (const w of HABITATION_WATERS) {
     if (x < w.bounds.x0 || x > w.bounds.x1 || z < w.bounds.z0 || z > w.bounds.z1) continue;
-    if (inside(w.outline, x, z) && ground < w.level && !(w.islands && w.islands.some((i) => inside(i.outline, x, z) && ground > w.level - 0.02))) return { id: w.id, kind: w.kind, level: w.level, depth: w.level - ground };
+    if (inside(w.outline, x, z) && ground() < w.level && !(w.islands && w.islands.some((i) => inside(i.outline, x, z) && ground() > w.level - 0.02))) return { id: w.id, kind: w.kind, level: w.level, depth: w.level - ground() };
   }
-  const niger = x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR && ground < WATER;
+  const niger = x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR && ground() < WATER;
   const h = HABITATION_HOT_RIVER;
   if (!niger && x >= h.bounds.x0 && x <= h.bounds.x1 && z >= h.bounds.z0 && z <= h.bounds.z1) {
     const n = nearLine(h.line, x, z);
-    if (n.d < h.width / 2 + HOT_EDGE) { const level = streamLevel(h, n); return { id: h.id, kind: 'hot', level, depth: Math.max(0.05, level - ground), hot: true }; }
+    if (n.d < h.width / 2 + HOT_EDGE) { const level = streamLevel(h, n); return { id: h.id, kind: 'hot', level, depth: Math.max(0.05, level - ground()), hot: true }; }
   }
   for (const s of HABITATION_STREAMS) {
     if (x < s.bounds.x0 || x > s.bounds.x1 || z < s.bounds.z0 || z > s.bounds.z1) continue;
     const n = nearLine(s.line, x, z);
-    if (n.d < s.width / 2) { const level = streamLevel(s, n); if (ground < level) return { id: s.id, kind: s.rapids ? 'rapids' : 'stream', level, depth: s.deep ? Math.max(1, level - ground) : level - ground }; }
+    if (n.d < s.width / 2) { const level = streamLevel(s, n); if (ground() < level) return { id: s.id, kind: s.rapids ? 'rapids' : 'stream', level, depth: s.deep ? Math.max(1, level - ground()) : level - ground() }; }
   }
-  if (niger) return { id: 'niger', kind: 'river', level: WATER, depth: WATER - ground };
+  if (niger) return { id: 'niger', kind: 'river', level: WATER, depth: WATER - ground() };
   return null;
 }
 function hotRiverNear(x, z) {
@@ -5250,7 +5303,7 @@ const HABITATION_COLLIDERS = Object.freeze([
   ...[...HOT_RIVER_SIGNS, ...HABITATION_SWIM_SIGNS].flatMap((sign) => habitationSignPosts(sign).map(([x, z]) => thin(x, z, 0.08))),
 ]);
 
-return { ...__modules["sim/zones/habitation-scene.js"], WATER, HABITATION_SHIFT, habitationNoise, UPRIVER, RIVER_HEAD, riverShore, RIVER_FAR, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, habitationHome, habitationAway, HABITATION_FALLS, HABITATION_HILLS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_SAND, HABITATION_DECKS, HABITATION_RAILS, habitationLand, habitationShape, HABITATION_GROUND, habitationGroundPoint, HABITATION_GROUND_POINTS, habitationGroundAt, habitationWaterAt, hotRiverNear, habitationDeckAt, habitationRailsAt, habitationClimbing, habitationAlongDeck, HABITATION_DECK_POSTS, habitationSteep, habitationFooting, habitationGroundKind, onHabitation, habitationStep, habitationFootOnly, footOnlySaid, habitationGroundY, onUpriver, upriverGroundY, HABITATION_GAZEBO_SOLID, HABITATION_ROOT_SQUARES, HABITATION_ROOTS_MADE, habitationRootAt, HABITATION_GATE_SIGN, HOT_RIVER_SIGNS, HABITATION_SWIM_SIGNS, habitationSignPosts, HABITATION_COLLIDERS };
+return { ...__modules["sim/zones/habitation-scene.js"], WATER, HABITATION_SHIFT, habitationNoise, UPRIVER, RIVER_HEAD, riverShore, RIVER_FAR, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, habitationHome, habitationAway, HABITATION_FALLS, HABITATION_HILLS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_SAND, HABITATION_DECKS, HABITATION_RAILS, habitationLandWarm, habitationLand, habitationShape, HABITATION_GROUND, habitationGroundPoint, habitationGroundGiven, habitationGroundWarm, HABITATION_GROUND_POINTS, habitationGroundAt, habitationWaterAt, hotRiverNear, habitationDeckAt, habitationRailsAt, habitationClimbing, habitationAlongDeck, HABITATION_DECK_POSTS, habitationSteep, habitationFooting, habitationGroundKind, onHabitation, habitationStep, habitationFootOnly, footOnlySaid, habitationGroundY, onUpriver, upriverGroundY, HABITATION_GAZEBO_SOLID, HABITATION_ROOT_SQUARES, HABITATION_ROOTS_MADE, habitationRootAt, HABITATION_GATE_SIGN, HOT_RIVER_SIGNS, HABITATION_SWIM_SIGNS, habitationSignPosts, HABITATION_COLLIDERS };
 })();
 
 __modules["sim/zones/closures.js"] = (function () {
@@ -18637,8 +18690,60 @@ function buildWorld(scene) {
 return { addTree, buildWorld };
 })();
 
+__modules["client/program-ready.js"] = (function () {
+
+function programsReady(renderer, object, camera, scene, { most = 6000 } = {}) {
+  const stats = { programs: 0, frames: 0, longestMs: 0, parallel: false, timedOut: false };
+  const t0 = performance.now();
+  if (!renderer || !camera || !object) return { step: () => true, stats };
+  let parallel = false;
+  try { parallel = !!(renderer.extensions && renderer.extensions.has('KHR_parallel_shader_compile')) && typeof renderer.compileAsync === 'function'; } catch (error) { parallel = false; }
+  stats.parallel = parallel;
+  if (parallel) {
+    let done = false;
+    renderer.compileAsync(object, camera, scene).then(() => { done = true; }, () => { done = true; });
+    return { stats, step() { stats.frames += 1; if (!done && performance.now() - t0 > most) { stats.timedOut = true; done = true; } return done; } };
+  }
+  const queue = [];
+  const seen = new Set();
+  object.traverse((o) => {
+    if (!(o.isMesh || o.isPoints || o.isLine || o.isSprite) || !o.material) return;
+    for (const m of Array.isArray(o.material) ? o.material : [o.material]) if (m && !seen.has(m)) { seen.add(m); queue.push([o, m]); }
+  });
+  let finished = false;
+  return {
+    stats,
+    step(budgetMs = 6) {
+      if (finished) return true;
+      stats.frames += 1;
+      const s0 = performance.now();
+      while (queue.length) {
+        const [o, m] = queue.shift();
+        const p0 = performance.now();
+        try {
+          const was = o.material;
+          o.material = m;
+          renderer.compile(o, camera, scene);
+          o.material = was;
+          const program = renderer.properties.get(m).currentProgram;
+          if (program && typeof program.getUniforms === 'function') program.getUniforms();
+          stats.programs += 1;
+        } catch (error) { /* drawn as it comes, as before */ }
+        stats.longestMs = Math.max(stats.longestMs, Math.round(performance.now() - p0));
+        if (performance.now() - s0 >= budgetMs) break;
+      }
+      if (!queue.length || performance.now() - t0 > most) { stats.timedOut = queue.length > 0; finished = true; }
+      return finished;
+    },
+  };
+}
+
+return { programsReady };
+})();
+
 __modules["client/render-outskirts.js"] = (function () {
 
+const { programsReady } = __modules["client/program-ready.js"];
 const { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_LAMPS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } = __modules["sim/zone.js"];
 const { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } = __modules["client/render-kit.js"];
 const { addTree } = __modules["client/render-world.js"];
@@ -18907,7 +19012,7 @@ function addRoadside(B, b) {
   B.solid.box(Math.min(b.w - 1, 5), 0.8, 0.1, place(b.x + fx * (b.d / 2 + 0.08), b.h - 0.6, b.z + fz * (b.d / 2 + 0.08), b.facing), [0xc8342b, 0x1f5c4d, 0x24364f, 0xd9a441][Math.abs(Math.round(b.x)) % 4]);
 }
 
-function buildOutskirts(scene, { glowMaterial }) {
+function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera = null } = {}) {
   const sight = createSight();
   const solid = new Chunked();
   const walls = new Chunked({ uv: 'wall', scale: 3.2 });
@@ -18921,17 +19026,25 @@ function buildOutskirts(scene, { glowMaterial }) {
   const B = { solid, walls, roofs, roads, paint, leaves, glow };
   const signs = [];
   const heads = [];
+  const group = new THREE.Group(); group.name = 'beyond';
 
-  scene.add(buildGround());
+  group.add(buildGround());
+  yield;
   for (const r of OUTSKIRT_ROADS) if (!r.deck) addRoad(B, r);
+  yield;
   addBridge(B, heads);
+  yield;
   addAirport(B, glass, signs, heads);
+  yield;
   addFence(B, fence);
+  yield;
   for (const b of OUTSKIRT_BUILDINGS) addRoadside(B, b);
+  yield;
   for (const lamp of OUTSKIRT_LAMPS.filter((l) => !l.deck)) addLamp(B, lamp, heads);
   for (const s of OUTSKIRT_SIGNS) addSign(B, s, signs);
   const R = ONITSHA_ROAD;
   for (let z = R.z0 + 0.5; z < R.z1; z += 2.2) { solid.box(0.25, 1.0, 2.0, place(R.x0 + 4, 0.5, z), Math.round(z) % 2 ? 0xf2f0ea : 0xc8342b); solid.round(new THREE.ConeGeometry(0.25, 0.7, 10), place(R.x0 + 9, 0.35, z + 1), 0xe0702a); }
+  yield;
   const away = (x, z, pad) => OUTSKIRT_AREAS.every((a) => x < a.x0 - pad || x > a.x1 + pad || z < a.z0 - pad || z > a.z1 + pad);
   let made = 0;
   for (let i = 0; made < 170 && i < 4000; i += 1) {
@@ -18940,22 +19053,40 @@ function buildOutskirts(scene, { glowMaterial }) {
     const r = noise(i, 79);
     addTree(solid, leaves, { x, z, kind: r < 0.45 ? 'oilpalm' : r < 0.7 ? 'mango' : r < 0.85 ? 'palm' : 'almond', size: 0.8 + noise(i, 83) * 0.5, turn: noise(i, 89) * 6.28 });
     made += 1;
+    if (made % 40 === 0) yield;
   }
+  yield;
 
   const kit = buildingKit();
-  const add = (meshes, shadows = true) => { for (const mesh of meshes) { mesh.castShadow = shadows; mesh.receiveShadow = true; scene.add(mesh); sight.add(mesh); } };
+  const add = (meshes, shadows = true) => { for (const mesh of meshes) { mesh.castShadow = shadows; mesh.receiveShadow = true; group.add(mesh); sight.add(mesh); } };
   add(solid.build(kit.solid));
+  yield;
   add(walls.build(kit.walls));
+  yield;
   add(roofs.build(kit.roofs));
-  for (const mesh of leaves.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
+  yield;
+  for (const mesh of leaves.build(foliageMaterials())) { group.add(mesh); sight.add(mesh); }
+  yield;
   const tarmac = grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 7 });
   add(roads.build(isRoad(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }))), false);
+  yield;
   add(paint.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })), false);
   add(glass.build(reflects(surface({ vertexColors: true, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false }), 1)), false);
   add(fence.build(new THREE.MeshLambertMaterial({ map: chainLink(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })), false);
-  for (const mesh of glow.build(glowMaterial)) { scene.add(mesh); sight.add(mesh); }
-  for (const sign of signs) { scene.add(sign); sight.add(sign, 260, { x: sign.position.x, z: sign.position.z, radius: 14 }); }
-  return { lampHeads: heads, signs, see: (x, z, reach) => sight.look(x, z, reach) };
+  for (const mesh of glow.build(glowMaterial)) { group.add(mesh); sight.add(mesh); }
+  for (const sign of signs) { group.add(sign); sight.add(sign, 260, { x: sign.position.x, z: sign.position.z, radius: 14 }); }
+  if (renderer && camera) {
+    yield;
+    const ready = programsReady(renderer, group, camera, scene);
+    while (!ready.step(6)) { if ((yield 'waiting') === 'now') break; }
+    group.userData.ready = ready.stats;
+  }
+  scene.add(group);
+  return { lampHeads: heads, signs, group, see: (x, z, reach) => sight.look(x, z, reach) };
+}
+function buildOutskirts(scene, { glowMaterial }) {
+  const steps = outskirtsSteps(scene, { glowMaterial });
+  for (;;) { const step = steps.next(); if (step.done) return step.value; }
 }
 
 function chainLink() {
@@ -18968,7 +19099,7 @@ function chainLink() {
   return t;
 }
 
-return { buildOutskirts };
+return { outskirtsSteps, buildOutskirts };
 })();
 
 __modules["sim/billboards.js"] = (function () {
@@ -20412,6 +20543,12 @@ let most = 0;
 const waiting = [];
 const remaking = new Set();
 const pictureMost = () => most;
+let upload = null;
+function setUploader(fn) { upload = typeof fn === 'function' ? fn : null; }
+function handOver(texture) {
+  if (!upload) return;
+  try { upload(texture); } catch (error) { /* handed over when it is first drawn, as before */ }
+}
 function pictureWanted(texture) {
   const want = (texture && texture.userData.want) || 0;
   return most && want ? Math.min(most, want) : most || want;
@@ -20448,6 +20585,7 @@ function stepPictures() {
     texture.image = image; texture.needsUpdate = true;
     texture.userData.cap = size; texture.userData.drawn = 0;
     letGoOnceDrawn(texture);
+    handOver(texture);
   }).catch(() => { /* kept as it is */ }).finally(() => { remaking.delete(texture); });
   return waiting.length;
 }
@@ -20469,29 +20607,33 @@ async function decodeAtMost(blob, size = 0, options = undefined) {
 const gone = (image) => !image || (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap && (image.width === 0 || image.height === 0));
 async function restorePictures() {
   let made = 0, failed = 0;
-  await Promise.all([...restorable].map(async ([texture, restore]) => {
-    if (!gone(texture.image)) { texture.needsUpdate = true; return; }
+  for (const [texture, restore] of [...restorable]) {
+    if (!restorable.has(texture)) continue;
+    if (!gone(texture.image)) { texture.needsUpdate = true; continue; }
     try {
       const size = pictureWanted(texture);
       const image = await restore(size);
-      if (!image) { failed += 1; return; }
+      if (!image) { failed += 1; continue; }
       texture.image = image; texture.needsUpdate = true;
       texture.userData.cap = size;
       letGoOnceDrawn(texture);
+      handOver(texture);
       made += 1;
     } catch (error) { failed += 1; }
-  }));
+  }
   return { made, failed, held: restorable.size };
 }
 const picturesHeld = () => restorable.size;
 const isRestorable = (texture) => restorable.has(texture);
-const reread = new Map();            // file -> promise of it read (kept for a few seconds)
+const reread = new Map();            // file -> promise of it read
+const REREAD_KEPT = 2, REREAD_MS = 4000;
 function rereadFile(file) {
   if (!reread.has(file)) {
     const job = fetchKept(file).then((r) => { if (!r.ok) throw new Error(`${file}: ${r.status}`); return r.arrayBuffer(); }).then((b) => parseGLB(b));
     job.catch(() => reread.delete(file));
     reread.set(file, job);
-    setTimeout(() => { if (reread.get(file) === job) reread.delete(file); }, 15000);
+    while (reread.size > REREAD_KEPT) reread.delete(reread.keys().next().value);
+    setTimeout(() => { if (reread.get(file) === job) reread.delete(file); }, REREAD_MS);
   }
   return reread.get(file);
 }
@@ -20666,7 +20808,7 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
   return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material };
 }
 
-return { fetchKept, letGoOnceDrawn, pictureMost, pictureWanted, wantPicture, setPictureMost, stepPictures, picturesWaiting, pictureState, decodeAtMost, restorePictures, picturesHeld, isRestorable, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
+return { fetchKept, letGoOnceDrawn, pictureMost, setUploader, pictureWanted, wantPicture, setPictureMost, stepPictures, picturesWaiting, pictureState, decodeAtMost, restorePictures, picturesHeld, isRestorable, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
 })();
 
 __modules["client/inflate.js"] = (function () {
@@ -26414,7 +26556,7 @@ function autoStart({ lite, gpu = '', memory = null }) {
   if (/intel|uhd graphics|iris/.test(card) && !/arc/.test(card)) return HIGH;
   return ULTRA;
 }
-const autoCeiling = ({ lite }) => (lite ? HIGH : ULTRA);
+const autoCeiling = ({ lite }) => (lite ? MEDIUM : ULTRA);
 
 const KEY = 'pcw-graphics-auto';
 function remembered(storage, gpu) {
@@ -36870,8 +37012,11 @@ const QUALITY_RULES = Object.freeze({
   upAfter: 12,
   settle: 3,              // seconds after a change during which nothing is judged
   retry: 90,              // seconds before a level that had to be undone is tried again; doubled each time it fails
+  failWithin: 30,         // a step down this soon (seconds) after a step up: the level stepped up to had to be undone
   window: 45,             // frames the typical frame is taken over
 });
+
+const PHONE_QUALITY_RULES = Object.freeze({ ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 90, settle: 4, retry: 150, failWithin: 150 });
 
 function createGovernor(apply, rules = QUALITY_RULES) {
   const recent = [];
@@ -36900,7 +37045,7 @@ function createGovernor(apply, rules = QUALITY_RULES) {
       const downAfter = state.clock < state.quickUntil ? Math.min(rules.downAfter, 2) : rules.downAfter;
       if (state.slow >= downAfter && state.level < rules.levels - 1) {
         const last = state.changes[state.changes.length - 1];
-        if (last && last.to < last.from && state.clock - last.at < 30) { state.failedAt[last.to] = state.clock; state.wait[last.to] = Math.min(900, state.wait[last.to] * 2); }
+        if (last && last.to < last.from && state.clock - last.at < (rules.failWithin || 30)) { state.failedAt[last.to] = state.clock; state.wait[last.to] = Math.min(900, state.wait[last.to] * 2); }
         change(state.level + 1, `typical frame ${typical.toFixed(0)} ms`);
       } else if (state.fast >= rules.upAfter && state.level > state.ceiling && state.clock - state.failedAt[state.level - 1] > state.wait[state.level - 1]) {
         change(state.level - 1, `typical frame ${typical.toFixed(0)} ms`);
@@ -36922,7 +37067,7 @@ function createGovernor(apply, rules = QUALITY_RULES) {
   };
 }
 
-return { createMonitor, QUALITY_RULES, createGovernor };
+return { createMonitor, QUALITY_RULES, PHONE_QUALITY_RULES, createGovernor };
 })();
 
 __modules["client/warmup.js"] = (function () {
@@ -41761,22 +41906,24 @@ return { crownTexture, bandTexture, badgeTexture, buildPowerbike };
 __modules["client/graphics-count.js"] = (function () {
 
 const BYTES = { 6408: 4, 6407: 4, 32856: 4, 32849: 4, 35907: 4, 35905: 4, 34842: 8, 34843: 8, 34836: 16, 34837: 16, 33321: 1, 33323: 2, 33325: 2, 33326: 4, 33327: 4, 33328: 8, 33329: 4, 33330: 8, 6409: 1, 6410: 2, 6406: 1, 33189: 4, 33190: 4, 36012: 4, 35056: 4, 36013: 8, 6402: 4, 34041: 4, 36168: 1, 32854: 2, 32855: 2, 36194: 2 };
-const TEXTURE0 = 33984, TEXTURE_2D = 3553, CUBE = 34067, FACE0 = 34069, FACE5 = 34074;
+const TEXTURE0 = 33984, TEXTURE_2D = 3553, CUBE = 34067, FACE0 = 34069, FACE5 = 34074, ARRAY = 34962, ELEMENTS = 34963;
 
 function countGraphics(gl, { antialias = false } = {}) {
-  const count = { pictures: 0, buffers: 0, held: 0, peak: 0, get screen() { return screenBytes(); }, lost, unwatched: false };
+  const count = { pictures: 0, buffers: 0, shapes: 0, held: 0, peak: 0, get screen() { return screenBytes(); }, lost, unwatched: false };
   if (!gl || typeof gl.texImage2D !== 'function') { count.unwatched = true; return count; }
   const textures = new Map();          // a picture on the graphics card -> { levels: Map(level*8+face -> bytes), mips }
   const buffers = new Map();           // a drawing buffer -> bytes
+  const shapes = new Map();            // a list of points or of triangles -> bytes
   const bound2D = [], boundCube = [];  // by texture unit: the picture bound there
-  let unit = 0, buffer = null;
+  const boundShape = new Map();        // ARRAY_BUFFER, ELEMENT_ARRAY_BUFFER -> the list bound there
+  let unit = 0, buffer = null, shapeBytes = 0;
   const sum = () => {
     let p = 0;
     for (const t of textures.values()) { let base = 0, all = 0; for (const [key, b] of t.levels) { all += b; if (key < 8) base += b; } p += all + (t.mips ? Math.round(base / 3) : 0); }
     let b = 0;
     for (const v of buffers.values()) b += v;
-    count.pictures = p; count.buffers = b; count.held = textures.size;
-    count.peak = Math.max(count.peak, p + b + screenBytes());
+    count.pictures = p; count.buffers = b; count.shapes = shapeBytes; count.held = textures.size;
+    count.peak = Math.max(count.peak, p + b + shapeBytes + screenBytes());
   };
   const boundTo = (target) => (target === TEXTURE_2D ? bound2D[unit] : boundCube[unit]);
   const entry = (texture) => { let t = textures.get(texture); if (!t) { t = { levels: new Map(), mips: false }; textures.set(texture, t); } return t; };
@@ -41813,11 +41960,21 @@ function countGraphics(gl, { antialias = false } = {}) {
     t.levels.set(0, total * (a[0] === CUBE ? 6 : 1)); sum();
   });
   wrap('generateMipmap', (a) => { const texture = boundTo(a[0]); if (texture) { const t = entry(texture); if (!t.stored) { t.mips = true; sum(); } } });
+  wrap('bindBuffer', (a) => { if (a[0] === ARRAY || a[0] === ELEMENTS) boundShape.set(a[0], a[1]); });
+  wrap('bufferData', (a) => {
+    const list = boundShape.get(a[0]);
+    if (!list) return;
+    const bytes = typeof a[1] === 'number' ? a[1] : a[1] && a[1].byteLength ? (a.length >= 5 && a[4] ? a[4] * (a[1].BYTES_PER_ELEMENT || 1) : a[1].byteLength - (a.length >= 4 && a[3] ? a[3] * (a[1].BYTES_PER_ELEMENT || 1) : 0)) : 0;
+    shapeBytes += bytes - (shapes.get(list) || 0);
+    shapes.set(list, bytes);
+    sum();
+  });
+  wrap('deleteBuffer', (a) => { if (shapes.has(a[0])) { shapeBytes -= shapes.get(a[0]); shapes.delete(a[0]); sum(); } });
   wrap('bindRenderbuffer', (a) => { buffer = a[1]; });
   wrap('deleteRenderbuffer', (a) => { if (buffers.delete(a[0])) sum(); });
   wrap('renderbufferStorage', (a) => { if (buffer) { buffers.set(buffer, a[2] * a[3] * (BYTES[a[1]] || 4)); sum(); } });
   wrap('renderbufferStorageMultisample', (a) => { if (buffer) { buffers.set(buffer, a[3] * a[4] * (BYTES[a[2]] || 4) * Math.max(1, a[1])); sum(); } });
-  function lost() { textures.clear(); buffers.clear(); bound2D.length = 0; boundCube.length = 0; unit = 0; buffer = null; sum(); }
+  function lost() { textures.clear(); buffers.clear(); shapes.clear(); shapeBytes = 0; boundShape.clear(); bound2D.length = 0; boundCube.length = 0; unit = 0; buffer = null; sum(); }
   count.list = () => [...textures.entries()].map(([texture, t]) => { let base = 0, all = 0; for (const [key, b] of t.levels) { all += b; if (key < 8) base += b; } return { texture, bytes: all + (t.mips ? Math.round(base / 3) : 0) }; });
   return count;
 }
@@ -41862,7 +42019,7 @@ function statsLines(now) {
   const g = now.graphics;
   if (now.level) lines.push(['Graphics', `${now.level}${now.levelAuto ? ', Auto' : ', chosen'} · ${now.frames ? `${now.frames.fps} frames a second` : 'frames not counted yet'} · pictures ${g && !g.unwatched ? `${mb(g.pictures)} MB` : 'not counted'} · ${now.gpu || 'the graphics card does not say its name'}`]);
   lines.push(['Graphics card', g && !g.unwatched
-    ? `pictures ${mb(g.pictures)} MB (${g.held}) · drawing buffers ${mb(g.buffers + g.screen)} MB · most ${mb(g.peak)} MB · budget ${now.budgetMB} MB${now.trims ? ` · let go of what was kept ready ${now.trims} times` : ''}`
+    ? `pictures ${mb(g.pictures)} MB (${g.held}) · shapes ${mb(g.shapes || 0)} MB · drawing buffers ${mb(g.buffers + g.screen)} MB · most ${mb(g.peak)} MB · budget ${now.budgetMB} MB${now.trims ? ` · let go of what was kept ready ${now.trims} times` : ''}`
     : 'not counted here']);
   lines.push(['Script memory', now.heap ? `${mb(now.heap.used)} MB of the ${mb(now.heap.limit)} MB allowed` : 'not told by this browser']);
   const f = now.frames;
@@ -42194,7 +42351,8 @@ return { talkGesture };
 })();
 
 __modules["client/picture-watch.js"] = (function () {
-const LOOK_EVERY = 3000;     // ms between reading the picture back
+const LOOK_EVERY = 3000;     // ms between reading the picture back, the first minute the town is wanted
+const LOOK_LATER = 15000;
 const BLACK_LOOKS = 4;       // looks in a row black at every point before it is said
 const STILL_FOR = 6000;      // ms with nothing drawn, while the town should be, before it is said
 const FAILS_FOR = 3;         // frames failed in a row before it is said
@@ -42218,18 +42376,47 @@ function watchPicture({ renderer, camera, canvas, lost, errors, tell = () => {} 
     } catch (e) { return 'unknown'; }
   })();
 
-  const state = { lastDrawn: 0, wanted: 0, failsInRow: 0, lastError: '', black: 0, lookAt: 0, said: '', hidden: false, shown: 0, shownAt: 0, told: false };
+  const state = { lastDrawn: 0, wanted: 0, failsInRow: 0, lastError: '', black: 0, lookAt: 0, said: '', hidden: false, shown: 0, shownAt: 0, told: false, looked: 0 };
   const pixel = new Uint8Array(4);
+  const POINTS = [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]];
   const looksBlack = () => {
     if (!gl || gl.isContextLost()) return false;
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
     if (!w || !h) return false;
-    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+    for (const [fx, fy] of POINTS) {
       gl.readPixels(Math.floor(w * fx), Math.floor(h * fy), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
       if (pixel[0] + pixel[1] + pixel[2] > 3) return false;
     }
     return true;
   };
+  const gl2 = !!gl && typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+  const packed = new Uint8Array(POINTS.length * 4);
+  let pbo = null, fence = null;
+  function lookLater() {
+    if (!gl || gl.isContextLost()) return false;
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    if (!w || !h) return false;
+    if (!pbo) { pbo = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo); gl.bufferData(gl.PIXEL_PACK_BUFFER, packed.byteLength, gl.STREAM_READ); }
+    else gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+    POINTS.forEach(([fx, fy], k) => gl.readPixels(Math.floor(w * fx), Math.floor(h * fy), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, k * 4));
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    return true;
+  }
+  function lookedAt() {
+    if (!fence) return null;
+    if (gl.isContextLost()) { fence = null; pbo = null; return null; }
+    const status = gl.clientWaitSync(fence, 0, 0);
+    if (status === gl.TIMEOUT_EXPIRED) return null;
+    gl.deleteSync(fence); fence = null;
+    if (status === gl.WAIT_FAILED) return false;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, packed);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    for (let k = 0; k < POINTS.length; k += 1) if (packed[k * 4] + packed[k * 4 + 1] + packed[k * 4 + 2] > 3) return false;
+    return true;
+  }
 
   let detail = '';
   const show = (reason) => {
@@ -42253,11 +42440,15 @@ function watchPicture({ renderer, camera, canvas, lost, errors, tell = () => {} 
     drawn(now) {
       state.lastDrawn = now;
       state.failsInRow = 0;
-      if (now >= state.lookAt) { state.lookAt = now + LOOK_EVERY; try { state.black = looksBlack() ? state.black + 1 : 0; } catch (e) { state.black = 0; } }
+      if (fence) { try { const black = lookedAt(); if (black !== null) { state.black = black ? state.black + 1 : 0; state.looked += 1; } } catch (e) { fence = null; state.black = 0; } }
+      if (now >= state.lookAt && !fence) {
+        state.lookAt = now + (state.wanted && now - state.wanted > 60000 && !state.black ? LOOK_LATER : LOOK_EVERY);
+        try { if (gl2) lookLater(); else { state.black = looksBlack() ? state.black + 1 : 0; state.looked += 1; } } catch (e) { fence = null; state.black = 0; }
+      }
     },
     failed(error) { state.failsInRow += 1; state.lastError = describe(error); },
     frame(now, wanted) {
-      if (!wanted || lost()) { state.wanted = 0; if (state.said) clear(); return; }
+      if (!wanted || lost()) { state.wanted = 0; if (lost()) { fence = null; pbo = null; } if (state.said) clear(); return; }
       if (!state.wanted) { state.wanted = now; state.lastDrawn = Math.max(state.lastDrawn, now); state.black = 0; }
       const p = camera.position;
       let reason = '';
@@ -42272,6 +42463,8 @@ function watchPicture({ renderer, camera, canvas, lost, errors, tell = () => {} 
     get detail() { return detail; },
     get kept() { return kept.slice(); },
     get black() { return state.black; },
+    get looked() { return state.looked; },
+    get waitsNot() { return gl2; },
     device,
   };
 }
@@ -42704,7 +42897,7 @@ function makeGun(id) {
     if (gun.disposed) return;
     gun.body = new THREE.Mesh(m.body, m.material);
     gun.mag = new THREE.Mesh(m.mag, m.material);
-    for (const mesh of [gun.body, gun.mag]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; }
+    for (const mesh of [gun.body, gun.mag]) { mesh.castShadow = !settings.lite; mesh.receiveShadow = true; mesh.frustumCulled = false; }
     group.add(gun.body, gun.mag);
     gun.ready = true;
     show();
@@ -43324,7 +43517,7 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = true, draw
     if (fallen.length >= (lite ? 1 : 3)) { const old = fallen.shift(); scene.remove(old.mesh); }
     const mesh = new THREE.Mesh(mag.geometry, mag.material);
     mesh.position.copy(at); mesh.quaternion.copy(quaternion); mesh.scale.setScalar(scale);
-    mesh.castShadow = true;
+    mesh.castShadow = !lite;          // (as the gun's own: gun-model.js)
     scene.add(mesh);
     fallen.push({ mesh, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, -0.5, (Math.random() - 0.5) * 0.4), spin: new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6), age: 0, lie: false });
   }
@@ -43651,8 +43844,8 @@ function createBloodScreen(root, before = null) {
   ring.innerHTML = '<svg viewBox="-50 -50 100 100"><path d="M -14 -40 A 42 42 0 0 1 14 -40" /></svg>';
   box.append(edge, ...splashes, flashEl, ring);
   if (before && before.parentNode === root) root.insertBefore(box, before); else root.append(box);
-  let painted = false;
-  const paint = () => { if (painted) return; painted = true; splashes.forEach((el, k) => { el.style.backgroundImage = `url(${splashPicture(k + 3)})`; }); };
+  let painted = 0;
+  const paint = () => { if (painted >= splashes.length) return; const k = painted; painted += 1; splashes[k].style.backgroundImage = `url(${splashPicture(k + 3)})`; };
 
   const st = { base: 0, hit: 0, flash: 0, from: null, fromAge: 9, shown: -1, health: 100 };
   function hit({ amount = 1, from = null } = {}) {
@@ -43671,7 +43864,7 @@ function createBloodScreen(root, before = null) {
     if (!active) { st.hit = 0; st.flash = 0; st.fromAge = 9; }
     const level = Math.min(1, st.base * 0.85 + st.hit * 0.6);
     const key = `${level.toFixed(3)}|${st.flash.toFixed(2)}|${calm ? 1 : 0}|${st.fromAge < 1.4 ? `${st.from.toFixed(2)}:${st.fromAge.toFixed(2)}` : ''}`;
-    if (key === st.shownKey) return;
+    if (key === st.shownKey && !(painted < splashes.length && level > 0.02 && !calm)) return;
     st.shownKey = key;
     box.hidden = level <= 0.002 && st.flash <= 0.002 && st.fromAge >= 1.4;
     if (box.hidden) return;
@@ -44522,12 +44715,13 @@ const { createTranslator } = __modules["sim/culture.js"];
 const { createLoopbackHub, createRoomTransport } = __modules["net/transport.js"];
 const { createLink } = __modules["net/link.js"];
 const { buildWorld } = __modules["client/render-world.js"];
-const { buildOutskirts } = __modules["client/render-outskirts.js"];
+const { outskirtsSteps } = __modules["client/render-outskirts.js"];
+const { programsReady } = __modules["client/program-ready.js"];
 const { buildBillboards } = __modules["client/render-billboards.js"];
 const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
 const { linear, setLite, restoreGeometry } = __modules["client/render-kit.js"];
-const { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable } = __modules["client/glb.js"];
+const { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } = __modules["client/glb.js"];
 const { createPictureKeeper } = __modules["client/picture-keeper.js"];
 const { gradeInstalled } = __modules["client/grade.js"];
 const { setWorldShading, airAt, worldShadingState, cloudShadeAt } = __modules["client/world-shading.js"];
@@ -44571,7 +44765,7 @@ const { createBlood } = __modules["client/blood.js"];
 const { createSkills } = __modules["client/skills.js"];
 const { buildCatalog } = __modules["client/skill-catalog.js"];
 const { createFitter } = __modules["client/fit.js"];
-const { QUALITY_RULES } = __modules["client/monitor.js"];
+const { QUALITY_RULES, PHONE_QUALITY_RULES } = __modules["client/monitor.js"];
 const { createWebApp } = __modules["client/webapp.js"];
 const { createPhoneHold } = __modules["client/phone-hold.js"];
 const { ANIMATED, heldModels, warmFigures, lightFiles, dropUnusedFigures, figureLog } = __modules["client/animated.js"];
@@ -44694,9 +44888,13 @@ function start(carried) {
       if (answer.ok) { adBoard.list = answer.campaigns; adBoard.at = clock; if (billboards) billboards.show(answer.campaigns); }
     },
   };
-  function buildBeyond() {
-    if (outskirts.ready) return;
-    outskirts = { ...buildOutskirts(scene, { glowMaterial: world.glowMaterial }), ready: true };
+  let beyondJob = null, beyondBegun = false;
+  function* beyondSteps(stepwise) {
+    const steps = outskirtsSteps(scene, { glowMaterial: world.glowMaterial, renderer: stepwise ? renderer : null, camera: stepwise ? camera : null });
+    let step, said;
+    while (!(step = steps.next(said)).done) said = yield step.value;
+    const built = step.value;
+    said = yield;
     billboards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, loadArtwork: async (id) => {
       const answer = await online.ask('ads.art', { id }, { timeout: 30000 });
       if (!answer.ok) throw new Error(answer.message);
@@ -44704,9 +44902,37 @@ function start(carried) {
       for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
       return new Blob([bytes], { type: answer.mime });
     } });
+    if (stepwise) {
+      billboards.group.visible = false;
+      const ready = programsReady(renderer, billboards.group, camera, scene);
+      while (said !== 'now' && !ready.step(6)) said = yield 'waiting';
+      billboards.group.visible = true;
+    }
     adBoard.refresh();
+    outskirts = { ...built, ready: true };
     world.lampHeads.push(...outskirts.lampHeads);
     lampPools.place();
+  }
+  function buildBeyond() {
+    if (outskirts.ready) return;
+    if (!beyondJob) beyondJob = beyondSteps(false);
+    while (!beyondJob.next('now').done) { /* all of it, now */ }
+    beyondJob = null;
+  }
+  const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0 };
+  function stepBeyond(budgetMs = 6) {
+    if (outskirts.ready) { beyondJob = null; return; }
+    if (!beyondJob) beyondJob = beyondSteps(true);
+    const t0 = performance.now();
+    beyondStats.frames += 1;
+    for (;;) {
+      const s0 = performance.now();
+      const step = beyondJob.next();
+      const took = performance.now() - s0;
+      beyondStats.steps += 1; beyondStats.workMs += took; beyondStats.longestMs = Math.max(beyondStats.longestMs, took);
+      if (step.done) { beyondJob = null; return; }
+      if (step.value === 'waiting' || performance.now() - t0 >= budgetMs) return;
+    }
   }
   let town = null, crowd = null, blood = null, sky = null, parcelLayer = null, siteLayer = null, yardStacks = null;
   let dust = null, fireflies = null, wetTracks = null, glow = null, occlusion = null, riverMirror = null;
@@ -45007,6 +45233,8 @@ function start(carried) {
   const perf = { fps: 60, calls: 0, triangles: 0, programs: 0, geometries: 0, textures: 0 };
   const monitor = createMonitor();
   const warmUp = createWarmUp(renderer, scene);
+  let programsPinnedAt = 0;
+  setUploader((texture) => renderer.initTexture(texture));
   const keeper = LITE ? createPictureKeeper(scene, renderer, { skip: isRestorable }) : null;
   const warm = { stage: 0, frames: 0, extras: [] };
   const startEl = $('start');
@@ -47257,7 +47485,7 @@ function start(carried) {
     applyQuality(level);
     const last = governor.changes[governor.changes.length - 1];
     if (level > from && last && /^typical frame|^the graphics card/.test(last.why) && townBuilt && ui && !loweredSaid) { loweredSaid = true; ui.toast({ type: 'note', text: GRAPHICS_LOWERED }); }
-  }, LITE ? { ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 } : QUALITY_RULES);
+  }, LITE ? PHONE_QUALITY_RULES : QUALITY_RULES);
   let gpuSaid = null;
   const gpuName = () => { if (gpuSaid === null) { try { const gl = renderer.getContext(); const info = gl.getExtension('WEBGL_debug_renderer_info'); gpuSaid = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (error) { return ''; } } return gpuSaid; };
   const deviceMemory = typeof navigator !== 'undefined' && Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null;
@@ -47274,11 +47502,11 @@ function start(carried) {
   }
   if (!prefs.graphics || (prefs.graphics !== 'auto' && levelOf(prefs.graphics) === null)) prefs.graphics = 'auto';
   if (prefs.graphics === 'auto') governor.set(Math.max(autoLevel(), governor.ceiling), 'Auto: where this device starts'); else setGraphics(prefs.graphics);
-  const typicalFrame = (n) => new Promise((resolve) => { const t = []; let last = null; const f = (now) => { if (last !== null) t.push(now - last); last = now; if (t.length >= n) { t.sort((a, b) => a - b); resolve(t[Math.floor(t.length / 2)]); } else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  const typicalFrame = (n, skip = 0) => new Promise((resolve) => { const t = []; let last = null, skipped = 0; const f = (now) => { if (last !== null) { if (skipped < skip) skipped += 1; else t.push(now - last); } last = now; if (t.length >= n) { t.sort((a, b) => a - b); resolve(t[Math.floor(t.length / 2)]); } else requestAnimationFrame(f); }; requestAnimationFrame(f); });
   async function silentTest() {
     if (prefs.graphics !== 'auto') return;
     for (let tries = 0; tries < 3 && governor.level < LOW; tries += 1) {
-      const ms = await typicalFrame(12);
+      const ms = await typicalFrame(12, 4);
       if (!(ms > QUALITY_RULES.slowMs)) return;
       governor.set(governor.level + 1, `the silent test while loading: a typical frame ${ms.toFixed(0)} ms`);
       await painted(); await painted();
@@ -47821,9 +48049,9 @@ blood.update(dt, view.blood || []);
     world.glowMaterial.emissiveIntensity = night * 1.5;
     closures.update(dt, night, cam.target);
     if (!habitation && !habitationAsked && playing && performance.now() > habitationRetryAt && (warm.stage >= 5 || habitationAway(predicted.x, predicted.z) < 320)) askForHabitation();
-    if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation]); }
+    if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation, window.__PCW_FILES.ground].filter(Boolean)); }
     if (habitation) {
-      habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night });
+      habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night, prepare: playing && outskirts.ready });
       if (habitation.built && !habitationLife) habitationLife = habitationKit.createHabitationLife(scene, { lite: LITE });
       else if (!habitation.built && habitationLife) { habitationLife.dispose(); habitationLife = null; }
       if (habitationLife) {
@@ -47865,7 +48093,7 @@ blood.update(dt, view.blood || []);
       if (!outskirts.ready && playing) {
         beyondWait += 0.5;      // (this is looked at twice a second)
         const out = predicted.x < ZONE.bounds.minX + 40 || predicted.z > 150;
-        if (out || (warm.stage >= 5 && beyondWait > 4)) buildBeyond();
+        if (out) buildBeyond(); else if (warm.stage >= 5 && beyondWait > 4) beyondBegun = true;
       }
       outskirts.see(cam.target.x, cam.target.z, reach);
       world.seeVehicles(camera.position.x, camera.position.z, reach + cam.dist);
@@ -47883,6 +48111,8 @@ blood.update(dt, view.blood || []);
 
     monitor.mark('warming up');
     if (!NO_DRAW) warmStep();
+    if (clock - programsPinnedAt > 2) { programsPinnedAt = clock; warmUp.pin(); }
+    if (beyondBegun && !outskirts.ready && playing) stepBeyond();
     monitor.mark('drawing');
     const covered = !playing && startEl && !startEl.hidden;
     phoneShift += ((playing ? ui.phoneWidth() : 0) / 2 - phoneShift) * Math.min(1, dt * 7);
@@ -48021,7 +48251,7 @@ blood.update(dt, view.blood || []);
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
-    get beyond() { return outskirts.ready; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(),
+    get beyond() { return outskirts.ready; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },
