@@ -38,19 +38,55 @@ export function watchPicture({ renderer, camera, canvas, lost, errors, tell = ()
     } catch (e) { return 'unknown'; }
   })();
 
-  const state = { lastDrawn: 0, wanted: 0, failsInRow: 0, lastError: '', black: 0, lookAt: 0, said: '', hidden: false, shown: 0, shownAt: 0, told: false };
+  const state = { lastDrawn: 0, wanted: 0, failsInRow: 0, lastError: '', black: 0, lookAt: 0, said: '', hidden: false, shown: 0, shownAt: 0, told: false, looked: 0 };
   const pixel = new Uint8Array(4);
   // (five points: the middle and the four quarters; read back straight after drawing, before the browser shows it)
+  const POINTS = [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]];
   const looksBlack = () => {
     if (!gl || gl.isContextLost()) return false;
     const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
     if (!w || !h) return false;
-    for (const [fx, fy] of [[0.5, 0.5], [0.25, 0.25], [0.75, 0.25], [0.25, 0.75], [0.75, 0.75]]) {
+    for (const [fx, fy] of POINTS) {
       gl.readPixels(Math.floor(w * fx), Math.floor(h * fy), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, pixel);
       if (pixel[0] + pixel[1] + pixel[2] > 3) return false;
     }
     return true;
   };
+  // Read back without waiting (26 October 2026, the owner's brief: the game hung on his phones). Read straight back, the
+  // page waits for the graphics card to finish everything it has been given: a frame, and whatever else it is doing
+  // (compiling the programs of something just come into sight, taking in a model's pictures), seconds of the page held
+  // on a slow device, every few seconds. Where the browser has WebGL 2 (every phone it plays on now), the points are
+  // read into a buffer on the card, behind a fence, and taken from it once the card says it has passed the fence, a
+  // frame or more later: nothing waits. Elsewhere, read straight back, as before.
+  const gl2 = !!gl && typeof WebGL2RenderingContext !== 'undefined' && gl instanceof WebGL2RenderingContext;
+  const packed = new Uint8Array(POINTS.length * 4);
+  let pbo = null, fence = null;
+  function lookLater() {
+    if (!gl || gl.isContextLost()) return false;
+    const w = gl.drawingBufferWidth, h = gl.drawingBufferHeight;
+    if (!w || !h) return false;
+    if (!pbo) { pbo = gl.createBuffer(); gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo); gl.bufferData(gl.PIXEL_PACK_BUFFER, packed.byteLength, gl.STREAM_READ); }
+    else gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+    POINTS.forEach(([fx, fy], k) => gl.readPixels(Math.floor(w * fx), Math.floor(h * fy), 1, 1, gl.RGBA, gl.UNSIGNED_BYTE, k * 4));
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    fence = gl.fenceSync(gl.SYNC_GPU_COMMANDS_COMPLETE, 0);
+    gl.flush();
+    return true;
+  }
+  // (null while the card has not got there yet; then whether every point was black)
+  function lookedAt() {
+    if (!fence) return null;
+    if (gl.isContextLost()) { fence = null; pbo = null; return null; }
+    const status = gl.clientWaitSync(fence, 0, 0);
+    if (status === gl.TIMEOUT_EXPIRED) return null;
+    gl.deleteSync(fence); fence = null;
+    if (status === gl.WAIT_FAILED) return false;
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, pbo);
+    gl.getBufferSubData(gl.PIXEL_PACK_BUFFER, 0, packed);
+    gl.bindBuffer(gl.PIXEL_PACK_BUFFER, null);
+    for (let k = 0; k < POINTS.length; k += 1) if (packed[k * 4] + packed[k * 4 + 1] + packed[k * 4 + 2] > 3) return false;
+    return true;
+  }
 
   // what was found, in detail, for the readout
   let detail = '';
@@ -76,12 +112,17 @@ export function watchPicture({ renderer, camera, canvas, lost, errors, tell = ()
     drawn(now) {
       state.lastDrawn = now;
       state.failsInRow = 0;
-      if (now >= state.lookAt) { state.lookAt = now + (state.wanted && now - state.wanted > 60000 && !state.black ? LOOK_LATER : LOOK_EVERY); try { state.black = looksBlack() ? state.black + 1 : 0; } catch (e) { state.black = 0; } }
+      // (a reading back under way: taken once the card has got there)
+      if (fence) { try { const black = lookedAt(); if (black !== null) { state.black = black ? state.black + 1 : 0; state.looked += 1; } } catch (e) { fence = null; state.black = 0; } }
+      if (now >= state.lookAt && !fence) {
+        state.lookAt = now + (state.wanted && now - state.wanted > 60000 && !state.black ? LOOK_LATER : LOOK_EVERY);
+        try { if (gl2) lookLater(); else { state.black = looksBlack() ? state.black + 1 : 0; state.looked += 1; } } catch (e) { fence = null; state.black = 0; }
+      }
     },
     failed(error) { state.failsInRow += 1; state.lastError = describe(error); },
     // every frame: should the town be on the screen, and is it?
     frame(now, wanted) {
-      if (!wanted || lost()) { state.wanted = 0; if (state.said) clear(); return; }
+      if (!wanted || lost()) { state.wanted = 0; if (lost()) { fence = null; pbo = null; } if (state.said) clear(); return; }
       if (!state.wanted) { state.wanted = now; state.lastDrawn = Math.max(state.lastDrawn, now); state.black = 0; }
       const p = camera.position;
       let reason = '';
@@ -97,6 +138,9 @@ export function watchPicture({ renderer, camera, canvas, lost, errors, tell = ()
     get detail() { return detail; },
     get kept() { return kept.slice(); },
     get black() { return state.black; },
+    // (for the tests: how many readings back have been taken, and whether they are taken without waiting)
+    get looked() { return state.looked; },
+    get waitsNot() { return gl2; },
     device,
   };
 }
