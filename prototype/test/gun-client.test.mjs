@@ -248,3 +248,43 @@ test('wounds close together run into one larger stain, and no more than eight ar
   addWound(list, null);
   assert.equal(list.length, MOST_WOUNDS);
 });
+
+// (gun-fx.js draws its pictures on canvases: a page's; here a stand-in that draws nothing)
+const blank2d = new Proxy({}, { get: (t, k) => (k === 'createRadialGradient' || k === 'createLinearGradient' ? () => ({ addColorStop() {} }) : () => {}), set: () => true });
+if (!globalThis.document) globalThis.document = { createElement: () => ({ width: 0, height: 0, getContext: () => blank2d }) };
+
+test('a flash is seen whole the first time it is drawn, however long the frame, its light with it; then it dies away by the clock', async () => {
+  const { createGunFx } = await import('../src/client/gun-fx.js');
+  const scene = new THREE.Scene();
+  let drawn = 0;
+  const fx = createGunFx(scene, { lite: true, drawn: () => drawn });
+  const stars = () => scene.children.filter((o) => o.isSprite && o.visible && o.material.blending === THREE.AdditiveBlending);
+  const at = new THREE.Vector3(0, 1.4, 0), dir = new THREE.Vector3(0, 0, 1);
+  assert.equal(fx.lamp, null, 'no light before a round');
+  // the player's own round on a slow device (half a second a frame): fired, then the effects moved on, then drawn
+  fx.flash(at, dir, { near: true });
+  fx.update(0.5);
+  assert.equal(stars().length, 1);
+  assert.equal(stars()[0].material.opacity, 1, 'whole, the first time it is drawn');
+  assert.equal(fx.lamp.intensity, 14, 'and its light at its strongest');
+  assert.ok(fx.lamp.at.distanceTo(at) < 0.25, 'just ahead of the muzzle');
+  drawn += 1;
+  fx.update(0.5);
+  assert.equal(stars().length, 0, 'gone by the next frame of half a second');
+  assert.equal(fx.lamp, null);
+  // someone else's round, told after the effects moved on in its frame: whole as it is drawn, then dying away (a fast device)
+  fx.flash(at, dir, { near: true });
+  assert.equal(stars()[0].material.opacity, 1);
+  assert.equal(fx.lamp.intensity, 14);
+  drawn += 1;
+  fx.update(1 / 60);
+  assert.ok(stars().length === 1 && stars()[0].material.opacity > 0.5 && stars()[0].material.opacity < 1, 'dying away by the clock');
+  assert.ok(fx.lamp.intensity > 0 && fx.lamp.intensity < 14);
+  drawn += 1;
+  fx.update(0.1);
+  assert.equal(stars().length, 0);
+  assert.equal(fx.lamp, null);
+  // a round far off: its flash, but no light
+  fx.flash(at, dir, { near: false });
+  assert.equal(fx.lamp, null);
+});

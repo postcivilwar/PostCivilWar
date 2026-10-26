@@ -279,7 +279,7 @@ function start(carried) {
   function makeGuns() {
     setGunDrawing({ env: LITE ? null : vehicleEnvironment(), maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), lite: LITE });
     gunPlay = createGunPlay({
-      scene, camera, audio, lite: LITE, coarse, ground: zoneGroundY, net: gunNet, online,
+      scene, camera, audio, lite: LITE, coarse, ground: zoneGroundY, net: gunNet, online, drawn: () => renderer.info.render.frame,
       game: () => host.game, send: (intent) => server.send(intent), view: () => view, playerId: () => playerId,
       refresh: () => refreshView(), cam: () => cam, calm: () => !!prefs.calm,
       peers: () => shownPeers, rigOf: (key) => (crowd ? crowd.rigOf(key) : null),

@@ -57,7 +57,7 @@ export function createGunPlay(deps) {
   const { scene, camera, audio, lite = false, coarse = false, ground = () => 0, net = null, online = null } = deps;
   const game = () => deps.game();
   const send = (intent) => deps.send(intent);
-  const fx = createGunFx(scene, { lite, ground });
+  const fx = createGunFx(scene, { lite, ground, drawn: deps.drawn });
   const hud = createGunHud({ hud: deps.hudRoot, hudr: deps.hudr, picture: (id) => gunPicture(id), onSwitch: () => openSwitch(), onEquip: (id) => equip(id), onBuy: (g) => buy(g) });
   const blood = createBloodScreen(deps.bloodRoot || document.body, deps.hudRoot || null);
 

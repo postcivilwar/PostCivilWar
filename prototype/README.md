@@ -3261,13 +3261,13 @@ Files: `src/client/gun-play.js` (the gun in the player's hands and others'), `gu
 `icons.js`, `template.html`; `src/net/gun-net.js`, `link.js` (what the others are told: `gn`, `sh`, `wd`, `hp`, `gy`),
 `online.js`; `src/sim/guns.js`, `conflict.js`, `care.js`, `impact.js`, `justice.js`, `talk.js`, `sim.js`; `api/_lib/guns.js`,
 `guns-data.json`, `walls.json` (made by `node tools/guns/server-data.mjs` from the game's own), `world.js`,
-`schema.js` (migration 15), `api/game.js`. Tests: `test/guns.test.mjs` (12), `test/gun-client.test.mjs` (7),
+`schema.js` (migration 15), `api/game.js`. Tests: `test/guns.test.mjs` (12), `test/gun-client.test.mjs` (8),
 `server/test/guns.test.mjs` (11), and in a browser `test/guns.mjs` (two players, the owner's tests A to G).
 
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 483 headless tests
+node --test test/*.test.mjs                        # 484 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 103 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach

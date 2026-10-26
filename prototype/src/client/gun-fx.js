@@ -61,8 +61,14 @@ export const FX_MOST = Object.freeze({
   lite: Object.freeze({ flashes: 4, streaks: 16, puffs: 16, sparks: 48, drops: 60, spots: 60, marks: 30, cases: 16 }),
 });
 
-export function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {}) {
+// `drawn`: how many times the picture has been drawn so far (the renderer's own count, main.js): a flash is seen whole the
+// first time it is drawn, however long that frame takes, and only then dies away by the clock. (Timed from when it was
+// made, a phone at thirty frames a second drew it once at a third of its strength, and a slow one not at all: 26
+// October 2026.) Without it, the effects' own count of their updates.
+export function createGunFx(scene, { lite = false, ground = () => 0, light = true, drawn = null } = {}) {
   const most = FX_MOST[lite ? 'lite' : 'full'];
+  let updates = 0;
+  const frameNow = typeof drawn === 'function' ? drawn : () => updates;
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
   const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
   const stats = { flashes: 0, streaks: 0, strikes: 0, blood: 0, cases: 0 };
@@ -81,12 +87,21 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
     }
     star.visible = false; tongue.visible = false;
     scene.add(star, tongue);
-    flashes.push({ star, tongue, age: 1, life: 0.05, size: 1 });
+    flashes.push({ star, tongue, age: 1, life: 0.05, size: 1, frame: -1 });
   }
   let nextFlash = 0;
-  // (the flash's light: where it is, the way it shines, and how long ago; lit by main.js with the town's own lamp)
+  // (the flash's light: where it is, the way it shines, and how long since it was first drawn; lit by main.js with the
+  // town's own lamp)
   const lampAt = new THREE.Vector3(), lampDir = new THREE.Vector3(0, 0, 1);
-  let lampAge = 1;
+  let lampAge = 1, lampFrame = -1;
+  // a flash at its whole strength, as it is first drawn
+  const flashLook = (f, k) => {
+    const s = (0.22 + 0.1 * Math.random()) * f.size * (0.6 + 0.4 * k);
+    f.star.scale.set(s, s, s);
+    f.star.material.opacity = k;
+    f.tongue.scale.set(0.34 * f.size * (0.7 + 0.5 * Math.random()), 0.5 * f.size, 0.5 * f.size);
+    for (const c of f.tongue.children) c.material.opacity = k;
+  };
 
   // ---- the streaks: thin bright rods, stretched along the way each round goes ----
   const rod = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
@@ -133,7 +148,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
   // light thrown on what is round it).
   function flash(at, dir, { near = false, size = 1 } = {}) {
     const f = flashes[nextFlash]; nextFlash = (nextFlash + 1) % flashes.length;
-    f.age = 0; f.life = 0.045 + Math.random() * 0.02; f.size = size * (0.85 + Math.random() * 0.35);
+    f.age = 0; f.life = 0.045 + Math.random() * 0.02; f.size = size * (0.85 + Math.random() * 0.35); f.frame = frameNow();
     f.star.position.copy(at).addScaledVector(dir, 0.03);
     f.star.material.rotation = Math.random() * 6.28;
     f.tongue.position.copy(at);
@@ -141,7 +156,8 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
     f.tongue.quaternion.copy(Q);
     f.tongue.rotateX(Math.random() * 3.14);
     f.star.visible = true; f.tongue.visible = true;
-    if (light && near) { lampAt.copy(at).addScaledVector(dir, 0.2); lampDir.copy(dir).normalize(); lampAge = 0; }
+    flashLook(f, 1);
+    if (light && near) { lampAt.copy(at).addScaledVector(dir, 0.2); lampDir.copy(dir).normalize(); lampAge = 0; lampFrame = frameNow(); }
     // a breath of smoke from the muzzle, drifting
     if (!lite || near) puff(at, 0xb9b4ac, { size: 0.06, grow: 6, life: 0.7, alpha: 0.18, rise: 0.25, v: A.copy(dir).multiplyScalar(0.8) });
     stats.flashes += 1;
@@ -213,17 +229,17 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
 
   function update(dt) {
     // flashes
+    const now = frameNow();
     for (const f of flashes) {
       if (f.age >= f.life) { if (f.star.visible) { f.star.visible = false; f.tongue.visible = false; } continue; }
+      // (not yet drawn: drawn whole, this once; then dying away by the clock)
+      if (f.frame === now) continue;
       f.age += dt;
-      const k = 1 - f.age / f.life;
-      const s = (0.22 + 0.1 * Math.random()) * f.size * (0.6 + 0.4 * k);
-      f.star.scale.set(s, s, s);
-      f.star.material.opacity = k;
-      f.tongue.scale.set(0.34 * f.size * (0.7 + 0.5 * Math.random()), 0.5 * f.size, 0.5 * f.size);
-      for (const c of f.tongue.children) c.material.opacity = k;
+      if (f.age >= f.life) { f.star.visible = false; f.tongue.visible = false; continue; }
+      flashLook(f, 1 - f.age / f.life);
     }
-    if (light) lampAge += dt;
+    if (light && lampFrame !== now) lampAge += dt;
+    updates += 1;
     // streaks: a short rod moving along its path
     let n = 0;
     for (let i = streaks.length - 1; i >= 0; i -= 1) {
