@@ -651,26 +651,31 @@ export function habitationGroundAt(x, z) {
 // ------------------------------------------------------------------------------------ what is where --
 // The water at a point, if any: which, its surface, and how deep it is there.
 export function habitationWaterAt(x, z) {
-  const ground = habitationLand(x, z);
+  // (the land's height there, worked out only once some water is near enough to want it: most of the habitation is
+  // dry, and the land's shape is the dear part (26 October 2026: the fish and birds' first places, asked over the whole
+  // habitation, were seven seconds of a phone's page on its settings here). The same answers as when it was worked out
+  // first.)
+  let land;
+  const ground = () => (land === undefined ? (land = habitationLand(x, z)) : land);
   for (const w of HABITATION_WATERS) {
     if (x < w.bounds.x0 || x > w.bounds.x1 || z < w.bounds.z0 || z > w.bounds.z1) continue;
-    if (inside(w.outline, x, z) && ground < w.level && !(w.islands && w.islands.some((i) => inside(i.outline, x, z) && ground > w.level - 0.02))) return { id: w.id, kind: w.kind, level: w.level, depth: w.level - ground };
+    if (inside(w.outline, x, z) && ground() < w.level && !(w.islands && w.islands.some((i) => inside(i.outline, x, z) && ground() > w.level - 0.02))) return { id: w.id, kind: w.kind, level: w.level, depth: w.level - ground() };
   }
-  const niger = x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR && ground < WATER;
+  const niger = x < RIVER_HEAD + 6 && z > riverShore(x) && z < RIVER_FAR && ground() < WATER;
   // the boiling river (where it runs into the Niger, the Niger; where the moat leaves it at its spring, still the boiling
   // river): its water, and its bank for a little way beyond, so that whoever comes to it stands on its bank, never at
   // the very edge of the water drawn
   const h = HABITATION_HOT_RIVER;
   if (!niger && x >= h.bounds.x0 && x <= h.bounds.x1 && z >= h.bounds.z0 && z <= h.bounds.z1) {
     const n = nearLine(h.line, x, z);
-    if (n.d < h.width / 2 + HOT_EDGE) { const level = streamLevel(h, n); return { id: h.id, kind: 'hot', level, depth: Math.max(0.05, level - ground), hot: true }; }
+    if (n.d < h.width / 2 + HOT_EDGE) { const level = streamLevel(h, n); return { id: h.id, kind: 'hot', level, depth: Math.max(0.05, level - ground()), hot: true }; }
   }
   for (const s of HABITATION_STREAMS) {
     if (x < s.bounds.x0 || x > s.bounds.x1 || z < s.bounds.z0 || z > s.bounds.z1) continue;
     const n = nearLine(s.line, x, z);
-    if (n.d < s.width / 2) { const level = streamLevel(s, n); if (ground < level) return { id: s.id, kind: s.rapids ? 'rapids' : 'stream', level, depth: s.deep ? Math.max(1, level - ground) : level - ground }; }
+    if (n.d < s.width / 2) { const level = streamLevel(s, n); if (ground() < level) return { id: s.id, kind: s.rapids ? 'rapids' : 'stream', level, depth: s.deep ? Math.max(1, level - ground()) : level - ground() }; }
   }
-  if (niger) return { id: 'niger', kind: 'river', level: WATER, depth: WATER - ground };
+  if (niger) return { id: 'niger', kind: 'river', level: WATER, depth: WATER - ground() };
   return null;
 }
 // How far a point is from the boiling river's water (metres; 0 in it), where along it, and its water's height there:
