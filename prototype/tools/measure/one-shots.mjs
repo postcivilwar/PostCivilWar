@@ -90,7 +90,7 @@ const already = await page.evaluate(() => !!window.__nlw.beyond);
 if (!already) await timed('the land beyond the town and its billboards', () => { const n = window.__nlw; if (n.beginBeyond) n.beginBeyond(); else n.buildBeyond(); }, () => window.__nlw.beyond, 20000, () => window.__nlw.beyondSteps || null);
 else console.log('the land beyond the town was built already, before it could be timed');
 // 2. the habitation, built as the player comes within reach of it (and the road up to it)
-const habDetail = () => { const h = window.__nlw.habitation && window.__nlw.habitation.state(); return h ? { buildMs: h.buildMs, buildSpanMs: h.buildSpanMs, longestPieceMs: h.buildLongestMs, builds: h.builds } : null; };
+const habDetail = () => { const h = window.__nlw.habitation && window.__nlw.habitation.state(); return h ? { buildMs: h.buildMs, buildSpanMs: h.buildSpanMs, longestPieceMs: h.buildLongestMs, longestPiece: h.buildLongestPiece, builds: h.builds, ground: h.ground } : null; };
 await timed('the habitation built, coming up the road', () => { const n = window.__nlw; n.place(262, 113); n.face(Math.PI / 2); n.cam.yaw = Math.PI / 2; }, () => window.__nlw.habitation && window.__nlw.habitation.state().built, 20000, habDetail);
 // 3. back in the town, then up to it again (built a second time)
 await timed('back in the town (the habitation let go)', () => { const n = window.__nlw; n.place(-37, 94); }, () => window.__nlw.habitation && !window.__nlw.habitation.state().built);

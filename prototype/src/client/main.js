@@ -3973,7 +3973,8 @@ blood.update(dt, view.blood || []);
     // (and the worker keeps it from the start, so that the game plays the habitation with no connection too)
     if (playing && !habitationKept && window.__PCW_FILES && window.__PCW_FILES.habitation) { habitationKept = true; webapp.keepFiles([window.__PCW_FILES.habitation]); }
     if (habitation) {
-      habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night });
+      // (`prepare`: its ground worked out a little a frame once the land beyond the town is in: render-habitation.js)
+      habitation.update(dt, { at: playing ? predicted : cam.target, eye: camera.position, camera, night, prepare: playing && outskirts.ready });
       if (habitation.built && !habitationLife) habitationLife = habitationKit.createHabitationLife(scene, { lite: LITE });
       else if (!habitation.built && habitationLife) { habitationLife.dispose(); habitationLife = null; }
       if (habitationLife) {

@@ -511,6 +511,34 @@ export function habitationLand(x, z) {
   return h00 + (h10 - h00) * u + (h01 - h00) * v + (h00 - h10 - h01 + h11) * u * v;
 }
 export const habitationShape = shaped;          // (for drawing: the same ground, not from the squares)
+// The same as habitationLand, to the last bit, working out only the square's corners it is made from: a 1 m square's
+// four points (as a square of the 16 m tile holds them, Float32), or two where it is on the square's side (one from
+// the other is then weighted nothing). For the drawn ground's points, 2.5 m apart (habitationGroundPoint): through
+// the tiles, every point of every 1 m square over the habitation was worked out for them, about 630,000, where these
+// want about 230,000 (26 October 2026, the owner's brief: the game hung on his phones; the habitation's ground was 25
+// seconds of it on a phone's settings). The last few rows of corners are kept, the drawn ground being worked out a row
+// at a time.
+const cornerRows = new Map();
+let cornerX0 = 0, cornerW = 0;
+function corner(ix, iz) {
+  if (!cornerW) { cornerX0 = Math.floor(HABITATION_GROUND.x0) - 2; cornerW = Math.ceil(HABITATION_GROUND.x1) + 4 - cornerX0; }
+  const at = ix - cornerX0;
+  if (at < 0 || at >= cornerW) return Math.fround(shaped(ix, iz));
+  let row = cornerRows.get(iz);
+  if (!row) { if (cornerRows.size >= 6) cornerRows.delete(cornerRows.keys().next().value); row = new Float32Array(cornerW).fill(NaN); cornerRows.set(iz, row); }
+  let h = row[at];
+  if (h !== h) { h = Math.fround(shaped(ix, iz)); row[at] = h; }
+  return h;
+}
+function landOnGrid(x, z) {
+  const i = Math.floor(x / TILE), j = Math.floor(z / TILE);
+  const fx = x - i * TILE, fz = z - j * TILE;
+  const a = Math.min(TILE - 1, Math.floor(fx)), b = Math.min(TILE - 1, Math.floor(fz));
+  const u = fx - a, v = fz - b, ix = i * TILE + a, iz = j * TILE + b;
+  const h00 = corner(ix, iz);
+  const h10 = u ? corner(ix + 1, iz) : h00, h01 = v ? corner(ix, iz + 1) : h00, h11 = u && v ? corner(ix + 1, iz + 1) : h00;
+  return h00 + (h10 - h00) * u + (h01 - h00) * v + (h00 - h10 - h01 + h11) * u * v;
+}
 
 // The ground as it is drawn (render-habitation.js buildGround): points 2.5 m apart over the habitation and 30 m past its
 // edges, each square of four of them two triangles (split from its corner at +x to its corner at +z), and its height
@@ -526,7 +554,7 @@ export function habitationGroundPoint(i, j) {
   const k = j * GN.x + i;
   if (i >= 0 && j >= 0 && i < GN.x && j < GN.z && !Number.isNaN(groundPoints[k])) return groundPoints[k];
   const G = HABITATION_GROUND, x = G.x0 + i * G.step, z = G.z0 + j * G.step;
-  let y = habitationLand(x, z);
+  let y = landOnGrid(x, z);
   if (x < HABITATION.bounds.x0) y = Math.min(y, -0.12);
   const P = UPRIVER.park;
   if (x < P.x1 + 1.5 && z > P.z0 - 1.5 && z < P.z1 + 1.5) y = Math.min(y, -0.08);
@@ -539,10 +567,30 @@ export function habitationGroundPoint(i, j) {
 // triangle there having a corner deep in the gorge), its low corners are brought up to a little below the boards over
 // them: a shelf of rock the end rests on. Not where they are in water; not the gate's bridge at the car park.
 const END_FILL = Object.freeze({ stairs: 0.4, other: 0.25 });
-let endFills = null;
+let endFills = null, endFillMap = null, endFillJob = null, endFillBusy = false;
+function stepEndFill(all) {
+  if (!endFillJob) { endFillMap = new Map(); endFillJob = endFillSteps(endFillMap); }
+  endFillBusy = true;
+  try {
+    do { if (endFillJob.next().done) { endFills = endFillMap; endFillJob = null; return true; } } while (all);
+  } finally { endFillBusy = false; }
+  return false;
+}
 function endFill() {
   if (endFills) return endFills;
-  endFills = new Map();
+  // (asked for while it is being worked out, by a deck's height over the ground drawn under it: as it is so far, as it
+  // always was)
+  if (endFillBusy) return endFillMap;
+  stepEndFill(true);
+  return endFills;
+}
+// The ends' fill a row at a time (a generator), for the drawn ground worked out a few milliseconds a frame (26 October
+// 2026: worked out all at once it is a second or more of a phone's page: render-habitation.js, groundDataSteps). The
+// sim asking for it meanwhile (endFill) finishes the same work, in the same order.
+export function* habitationGroundWarm() {
+  while (!endFills && !stepEndFill(false)) yield;
+}
+function* endFillSteps(endFills) {
   const G = HABITATION_GROUND;
   for (const d of CUT_DECKS) {
     for (const last of [false, true]) {
@@ -552,20 +600,22 @@ function endFill() {
       // (no higher than below its end's boards: where stairs go up from it, the ground under them between is not lifted
       // up through them)
       const top = deckHeight(d, nearLine(d.line, ex + ix * 0.01, ez + iz * 0.01), ex, ez);
-      for (let b = -0.3; b <= 1.5 + 1e-9; b += 0.1) for (let s0 = -half; s0 <= half + 1e-9; s0 += 0.1) {
-        const x = ex - ix * b - iz * s0, z = ez - iz * b + ix * s0;
-        const fi = (x - G.x0) / G.step, fj = (z - G.z0) / G.step, i = Math.floor(fi), j = Math.floor(fj);
-        for (const [ci, cj] of fi - i + (fj - j) <= 1 ? [[i, j], [i + 1, j], [i, j + 1]] : [[i + 1, j + 1], [i, j + 1], [i + 1, j]]) {
-          if (ci < 0 || cj < 0 || ci >= GN.x || cj >= GN.z) continue;
-          const vx = G.x0 + ci * G.step, vz = G.z0 + cj * G.step;
-          if (habitationWaterAt(vx, vz)) continue;
-          const want = Math.min(top, deckHeight(d, nearLine(d.line, vx, vz), vx, vz)) - (d.kind === 'stairs' ? END_FILL.stairs : END_FILL.other), k = cj * GN.x + ci;
-          if (!(endFills.get(k) >= want)) endFills.set(k, want);
+      for (let b = -0.3; b <= 1.5 + 1e-9; b += 0.1) {
+        for (let s0 = -half; s0 <= half + 1e-9; s0 += 0.1) {
+          const x = ex - ix * b - iz * s0, z = ez - iz * b + ix * s0;
+          const fi = (x - G.x0) / G.step, fj = (z - G.z0) / G.step, i = Math.floor(fi), j = Math.floor(fj);
+          for (const [ci, cj] of fi - i + (fj - j) <= 1 ? [[i, j], [i + 1, j], [i, j + 1]] : [[i + 1, j + 1], [i, j + 1], [i + 1, j]]) {
+            if (ci < 0 || cj < 0 || ci >= GN.x || cj >= GN.z) continue;
+            const vx = G.x0 + ci * G.step, vz = G.z0 + cj * G.step;
+            if (habitationWaterAt(vx, vz)) continue;
+            const want = Math.min(top, deckHeight(d, nearLine(d.line, vx, vz), vx, vz)) - (d.kind === 'stairs' ? END_FILL.stairs : END_FILL.other), k = cj * GN.x + ci;
+            if (!(endFills.get(k) >= want)) endFills.set(k, want);
+          }
         }
+        yield;
       }
     }
   }
-  return endFills;
 }
 export const HABITATION_GROUND_POINTS = GN;
 export function habitationGroundAt(x, z) {
