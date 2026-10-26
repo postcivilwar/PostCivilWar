@@ -155,7 +155,10 @@ export function makeGun(id) {
     if (gun.disposed) return;
     gun.body = new THREE.Mesh(m.body, m.material);
     gun.mag = new THREE.Mesh(m.mag, m.material);
-    for (const mesh of [gun.body, gun.mag]) { mesh.castShadow = true; mesh.receiveShadow = true; mesh.frustumCulled = false; }
+    // (no sun's shadow of it on a phone: measured at the motor park and the market on a phone's settings, its 58,000
+    // triangles drawn a second time into the sun's shadows were a third more of the shadows' whole work, for a sliver of
+    // shade beside the figure that nobody sees on a phone's screen; 26 October 2026)
+    for (const mesh of [gun.body, gun.mag]) { mesh.castShadow = !settings.lite; mesh.receiveShadow = true; mesh.frustumCulled = false; }
     group.add(gun.body, gun.mag);
     gun.ready = true;
     show();

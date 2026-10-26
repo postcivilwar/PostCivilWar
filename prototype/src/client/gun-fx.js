@@ -224,7 +224,7 @@ export function createGunFx(scene, { lite = false, ground = () => 0, light = tru
     if (fallen.length >= (lite ? 1 : 3)) { const old = fallen.shift(); scene.remove(old.mesh); }
     const mesh = new THREE.Mesh(mag.geometry, mag.material);
     mesh.position.copy(at); mesh.quaternion.copy(quaternion); mesh.scale.setScalar(scale);
-    mesh.castShadow = true;
+    mesh.castShadow = !lite;          // (as the gun's own: gun-model.js)
     scene.add(mesh);
     fallen.push({ mesh, v: new THREE.Vector3((Math.random() - 0.5) * 0.4, -0.5, (Math.random() - 0.5) * 0.4), spin: new THREE.Vector3((Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6, (Math.random() - 0.5) * 6), age: 0, lie: false });
   }
