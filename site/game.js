@@ -43188,8 +43188,10 @@ const FX_MOST = Object.freeze({
   lite: Object.freeze({ flashes: 4, streaks: 16, puffs: 16, sparks: 48, drops: 60, spots: 60, marks: 30, cases: 16 }),
 });
 
-function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {}) {
+function createGunFx(scene, { lite = false, ground = () => 0, light = true, drawn = null } = {}) {
   const most = FX_MOST[lite ? 'lite' : 'full'];
+  let updates = 0;
+  const frameNow = typeof drawn === 'function' ? drawn : () => updates;
   const M = new THREE.Matrix4(), Q = new THREE.Quaternion(), P = new THREE.Vector3(), S = new THREE.Vector3(), A = new THREE.Vector3(), B = new THREE.Vector3(), X = new THREE.Vector3(1, 0, 0), Y = new THREE.Vector3(0, 1, 0);
   const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
   const stats = { flashes: 0, streaks: 0, strikes: 0, blood: 0, cases: 0 };
@@ -43206,11 +43208,18 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {
     }
     star.visible = false; tongue.visible = false;
     scene.add(star, tongue);
-    flashes.push({ star, tongue, age: 1, life: 0.05, size: 1 });
+    flashes.push({ star, tongue, age: 1, life: 0.05, size: 1, frame: -1 });
   }
   let nextFlash = 0;
   const lampAt = new THREE.Vector3(), lampDir = new THREE.Vector3(0, 0, 1);
-  let lampAge = 1;
+  let lampAge = 1, lampFrame = -1;
+  const flashLook = (f, k) => {
+    const s = (0.22 + 0.1 * Math.random()) * f.size * (0.6 + 0.4 * k);
+    f.star.scale.set(s, s, s);
+    f.star.material.opacity = k;
+    f.tongue.scale.set(0.34 * f.size * (0.7 + 0.5 * Math.random()), 0.5 * f.size, 0.5 * f.size);
+    for (const c of f.tongue.children) c.material.opacity = k;
+  };
 
   const rod = new THREE.CylinderGeometry(1, 1, 1, 5, 1, true);
   rod.rotateZ(-Math.PI / 2);          // along +x
@@ -43250,7 +43259,7 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {
 
   function flash(at, dir, { near = false, size = 1 } = {}) {
     const f = flashes[nextFlash]; nextFlash = (nextFlash + 1) % flashes.length;
-    f.age = 0; f.life = 0.045 + Math.random() * 0.02; f.size = size * (0.85 + Math.random() * 0.35);
+    f.age = 0; f.life = 0.045 + Math.random() * 0.02; f.size = size * (0.85 + Math.random() * 0.35); f.frame = frameNow();
     f.star.position.copy(at).addScaledVector(dir, 0.03);
     f.star.material.rotation = Math.random() * 6.28;
     f.tongue.position.copy(at);
@@ -43258,7 +43267,8 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {
     f.tongue.quaternion.copy(Q);
     f.tongue.rotateX(Math.random() * 3.14);
     f.star.visible = true; f.tongue.visible = true;
-    if (light && near) { lampAt.copy(at).addScaledVector(dir, 0.2); lampDir.copy(dir).normalize(); lampAge = 0; }
+    flashLook(f, 1);
+    if (light && near) { lampAt.copy(at).addScaledVector(dir, 0.2); lampDir.copy(dir).normalize(); lampAge = 0; lampFrame = frameNow(); }
     if (!lite || near) puff(at, 0xb9b4ac, { size: 0.06, grow: 6, life: 0.7, alpha: 0.18, rise: 0.25, v: A.copy(dir).multiplyScalar(0.8) });
     stats.flashes += 1;
     last.flash = [at.x, at.y, at.z];
@@ -43320,17 +43330,16 @@ function createGunFx(scene, { lite = false, ground = () => 0, light = true } = {
   }
 
   function update(dt) {
+    const now = frameNow();
     for (const f of flashes) {
       if (f.age >= f.life) { if (f.star.visible) { f.star.visible = false; f.tongue.visible = false; } continue; }
+      if (f.frame === now) continue;
       f.age += dt;
-      const k = 1 - f.age / f.life;
-      const s = (0.22 + 0.1 * Math.random()) * f.size * (0.6 + 0.4 * k);
-      f.star.scale.set(s, s, s);
-      f.star.material.opacity = k;
-      f.tongue.scale.set(0.34 * f.size * (0.7 + 0.5 * Math.random()), 0.5 * f.size, 0.5 * f.size);
-      for (const c of f.tongue.children) c.material.opacity = k;
+      if (f.age >= f.life) { f.star.visible = false; f.tongue.visible = false; continue; }
+      flashLook(f, 1 - f.age / f.life);
     }
-    if (light) lampAge += dt;
+    if (light && lampFrame !== now) lampAge += dt;
+    updates += 1;
     let n = 0;
     for (let i = streaks.length - 1; i >= 0; i -= 1) {
       const s = streaks[i];
@@ -43840,7 +43849,7 @@ function createGunPlay(deps) {
   const { scene, camera, audio, lite = false, coarse = false, ground = () => 0, net = null, online = null } = deps;
   const game = () => deps.game();
   const send = (intent) => deps.send(intent);
-  const fx = createGunFx(scene, { lite, ground });
+  const fx = createGunFx(scene, { lite, ground, drawn: deps.drawn });
   const hud = createGunHud({ hud: deps.hudRoot, hudr: deps.hudr, picture: (id) => gunPicture(id), onSwitch: () => openSwitch(), onEquip: (id) => equip(id), onBuy: (g) => buy(g) });
   const blood = createBloodScreen(deps.bloodRoot || document.body, deps.hudRoot || null);
 
@@ -44728,7 +44737,7 @@ function start(carried) {
   function makeGuns() {
     setGunDrawing({ env: LITE ? null : vehicleEnvironment(), maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), lite: LITE });
     gunPlay = createGunPlay({
-      scene, camera, audio, lite: LITE, coarse, ground: zoneGroundY, net: gunNet, online,
+      scene, camera, audio, lite: LITE, coarse, ground: zoneGroundY, net: gunNet, online, drawn: () => renderer.info.render.frame,
       game: () => host.game, send: (intent) => server.send(intent), view: () => view, playerId: () => playerId,
       refresh: () => refreshView(), cam: () => cam, calm: () => !!prefs.calm,
       peers: () => shownPeers, rigOf: (key) => (crowd ? crowd.rigOf(key) : null),
