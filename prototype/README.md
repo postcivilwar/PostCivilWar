@@ -3244,11 +3244,13 @@ website's server), the others may not see or hear them; the server still counts 
   runs), at the motor park with the gun fired 94.7 MB (94.6 to 94.8), the screen's own not counted: under 150 MB.
 - **With no gun out, the website before the guns against the website with them** (`tools/measure/places.mjs`, by day,
   one run each in turn): the same draw calls, triangles and graphics card memory at every place measured. A frame on a
-  computer's settings (Ultra): the motor park 4.27 → 4.47 s, the PowerBike showroom 4.60 → 4.65 s, the car showroom's
-  gate 2.10 → 2.12 s (drawn in software); on a phone's settings (Medium): the motor park 3.97 → 3.72 s, the PowerBike
-  showroom 3.67 → 3.75 s. On a computer the flash's light is in the scene all the time (a light that came and went
-  would have every surface in the town prepared again when it did), one more light worked out for each pixel; a phone
-  has none. It could borrow the light of a vehicle's headlamps, which is not in use while a gun is out.
+  computer's settings (Ultra, drawn in software): the motor park 4.27 s before, 4.28 s after; the PowerBike showroom
+  4.60 → 4.53 s; the car showroom's gate 2.10 → 2.08 s; the programs prepared on entering the town 427 → 432 s. On a
+  phone's settings (Medium): the motor park 3.97 → 3.72 s, the PowerBike showroom 3.67 → 3.75 s. (First made, the
+  flash had a lamp of its own, in the scene at all times on a computer: one more light worked out for every pixel of
+  everything, a frame up to 5% longer (4.47 s at the motor park), the programs 458 s to prepare, and the car
+  showroom's test of the accelerator failing twice the same way as the car came; it now borrows the town's lamp for
+  headlamps and the torch, and the car showroom's test came out to the last digit as it did before the guns.)
 - **Loading**: the page's script 47 KB larger as sent (785 → 832 KB); PLAY on a first visit on Slow 4G, the website
   before and after in turn, twice each: 7.71 and 7.24 s before, 7.62 and 7.51 s after. The guns' own step in building
   the town: 0.2 s on a phone's settings (the processor slowed four times). The rifle and its recordings are fetched only
