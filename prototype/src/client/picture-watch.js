@@ -11,7 +11,10 @@
 // for the readout the owner can open on a phone (#stats). A drawing surface taken away is not this watch's to tell:
 // the game brings it back itself (main.js), and `lost` says when it is away. Errors written to the console and errors
 // nothing caught are kept too (the last few), since a shader the device could not build is only ever written there.
-const LOOK_EVERY = 3000;     // ms between reading the picture back
+const LOOK_EVERY = 3000;     // ms between reading the picture back, the first minute the town is wanted
+// (and after it, LOOK_LATER: each reading back makes the page wait for the graphics card to finish the frame, a frame
+// lost on a phone; 26 October 2026, the owner's brief: the game hung on his phones)
+const LOOK_LATER = 15000;
 const BLACK_LOOKS = 4;       // looks in a row black at every point before it is said
 const STILL_FOR = 6000;      // ms with nothing drawn, while the town should be, before it is said
 const FAILS_FOR = 3;         // frames failed in a row before it is said
@@ -73,7 +76,7 @@ export function watchPicture({ renderer, camera, canvas, lost, errors, tell = ()
     drawn(now) {
       state.lastDrawn = now;
       state.failsInRow = 0;
-      if (now >= state.lookAt) { state.lookAt = now + LOOK_EVERY; try { state.black = looksBlack() ? state.black + 1 : 0; } catch (e) { state.black = 0; } }
+      if (now >= state.lookAt) { state.lookAt = now + (state.wanted && now - state.wanted > 60000 && !state.black ? LOOK_LATER : LOOK_EVERY); try { state.black = looksBlack() ? state.black + 1 : 0; } catch (e) { state.black = 0; } }
     },
     failed(error) { state.failsInRow += 1; state.lastError = describe(error); },
     // every frame: should the town be on the screen, and is it?

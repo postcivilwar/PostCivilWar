@@ -1552,10 +1552,25 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
   const stats = { builds: 0, letGo: 0, buildMs: 0, triangles: 0 };
   const drawn = { models: 0, copies: 0, pictures: 0 };
 
-  function ensureUpriver() {
+  // What is newly built is shown once the graphics card has its programs ready (26 October 2026, the owner's brief: the
+  // game hung on his phones). Shown at once, its first frame waited for every new program to be compiled, two dozen for
+  // the habitation: seconds on a phone, the town standing still. The browser compiles them meanwhile, beside the game
+  // (three.js compileAsync, where the browser can: KHR_parallel_shader_compile), and it is shown a few frames later, a
+  // couple of hundred metres off, where nobody sees the difference.
+  function showWhenReady(object, camera) {
+    if (!renderer || typeof renderer.compileAsync !== 'function' || !camera) return;
+    object.visible = false;
+    const show = () => { object.visible = true; };
+    let done = false;
+    renderer.compileAsync(object, camera, scene).then(() => { done = true; show(); }, () => { done = true; show(); });
+    // (never kept from sight for long, whatever the browser does)
+    setTimeout(() => { if (!done) show(); }, 4000);
+  }
+  function ensureUpriver(camera = null) {
     if (upriver) return;
     upriver = buildUpriver(lite);
     scene.add(upriver);
+    showWhenReady(upriver, camera);
   }
   // The ground drawn from every point, or from every other one (a phone, far off): the old pieces let go once the new are in.
   function swapGround(every) {
@@ -1566,10 +1581,15 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     built.ground = next;
     stats.groundSwaps = (stats.groundSwaps || 0) + 1;
   }
-  function build(away = 0) {
-    if (built || building) return;
-    building = true;
+  // Built a piece at a time as the player comes up the road (26 October 2026, the owner's brief: the game hung on his
+  // phones): all at once, it held a phone's page for seconds. `buildSteps` is the work in pieces (a generator); `update`
+  // takes a few milliseconds of it a frame; `build` does it all at once (the tests, standing in the habitation).
+  let buildJob = null;
+  function* buildSteps(away = 0, camera = null) {
     const t0 = performance.now();
+    let work = 0, stepAt = performance.now();
+    const pause = () => { work += performance.now() - stepAt; };
+    const resume = () => { stepAt = performance.now(); };
     const group = new THREE.Group(); group.name = 'habitation-near';
     const grain = grainTexture({ low: 0.6, coarse: 0.35, speck: 0.35, seed: 11 });
     grain.wrapS = grain.wrapT = THREE.RepeatWrapping;
@@ -1577,12 +1597,15 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     ripples.wrapS = ripples.wrapT = THREE.RepeatWrapping;
     // (the stone's grain for bare rock and the rock pillars)
     const stone = stoneTexture(lite ? 256 : 512);
+    pause(); yield; resume();
     // (a phone draws every other point while the habitation is still far off, and every one from NEAR_GROUND on:
     // swapGround)
     const groundPoints = groundData();
+    pause(); yield; resume();
     const groundMat = groundMaterial({ grain, stone, lite });
     const ground = groundPieces(groundPoints, lite && away > NEAR_GROUND.come ? 2 : 1, groundMat);
     group.add(ground);
+    pause(); yield; resume();
     const waters = [];
     const materials = {};
     const matFor = (kind) => materials[kind] || (materials[kind] = waterMaterial(kind, { ripples, lite }));
@@ -1591,6 +1614,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
       mesh.name = `water:${w.id}`; mesh.renderOrder = 2; mesh.receiveShadow = true;
       group.add(mesh); waters.push(mesh);
     }
+    pause(); yield; resume();
     for (const s of HABITATION_STREAMS) {
       const mesh = new THREE.Mesh(buildStream(s, lite ? 2.5 : 1.5), matFor(s.rapids ? 'rapids' : 'stream'));
       mesh.name = `stream:${s.id}`; mesh.renderOrder = 2;
@@ -1601,20 +1625,26 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     const hot = new THREE.Mesh(buildHotRiver(lite ? 3 : 2), hotMaterial);
     hot.name = 'water:hot-river'; hot.renderOrder = 2; hot.receiveShadow = true;
     group.add(hot); waters.push(hot);
+    pause(); yield; resume();
     const steam = hotSteam(lite);
     group.add(steam.mesh);
+    pause(); yield; resume();
     const hotSigns = hotSignsMerged(lite);
     group.add(hotSigns);
+    pause(); yield; resume();
     // and where one wades into the water and it soon gets deep: the big signs that say swimming there is not advisable
     // (22 October 2026)
     const swimSigns = signsMerged(HABITATION_SWIM_SIGNS, 'swim', lite);
     group.add(swimSigns);
+    pause(); yield; resume();
     // the bush beyond it
     const apron = buildApron(lite);
     group.add(apron);
+    pause(); yield; resume();
     // the hills far off all round it
     const hills = buildHills(lite);
     group.add(hills);
+    pause(); yield; resume();
     // the rock pillars and islets out in the lagoon
     const pillarMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.25 });
     for (const p of HABITATION_PILLARS) {
@@ -1626,14 +1656,16 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     // pictures have them: without it, seen from above, a pillar looks as if it floats)
     const contact = pillarContact();
     group.add(contact);
+    pause(); yield; resume();
     const textures = fallTextures();
     const falls = HABITATION_FALLS.map((f) => buildFall(f, textures));
     for (const f of falls) group.add(f.sheet, f.spray);
+    pause(); yield; resume();
     const woodMat = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0x8a6a48), roughness: 0.85, metalness: 0 });
     // (the boardwalks', bridges', jetty's and stairs' wood is the owner's boardwalk's own: cut from its picture,
     // tools/habitation/deck-wood.py; until it has come, plain wood of its colour)
     shared(`deck-wood.${lite ? 'lite' : 'full'}.webp`, true).then((t) => {
-      if (!built || built.woodMat !== woodMat) return;
+      if (woodMat.userData.letGo) return;
       t.wrapS = t.wrapT = THREE.RepeatWrapping; t.needsUpdate = true;
       woodMat.map = t; woodMat.color.copy(linear(0xf2ece4)); woodMat.needsUpdate = true;
     }, () => {});
@@ -1642,22 +1674,42 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     const stoneMat = stoneMaterial({ map: stone, normalMap: null, roughnessMap: null, scale: 0.45 });
     stoneMat.color.copy(linear(0xb9b09c));
     for (const mesh of buildDecks(woodMat, ropeMat, stoneMat)) group.add(mesh);
+    pause(); yield; resume();
     const lilies = buildLilies(lite);
     for (const mesh of lilies.meshes) group.add(mesh);
     root.add(group);
     if (!root.parent) scene.add(root);
+    showWhenReady(group, camera);
+    pause(); yield; resume();
     // the trees' and palms' pictures, for afar (a computer and a phone alike, where the renderer is there to take them)
     const impostors = renderer ? createImpostors(renderer, group, lite) : null;
+    pause(); yield; resume();
     // the grass on the open ground and along the paths
     const meadow = createMeadow(group, { lite });
+    pause(); yield; resume();
     // the owner's models where they stand, put in as they come (nearest the gate first)
     const placed = placeModels(group, { lite, fetchFile, shared, impostors, onModel: (m, error) => { if (error) { placed.failed = (placed.failed || []).concat(m); onError(error, m); } } });
     let triangles = 0;
     group.traverse((o) => { if (o.isMesh && o.geometry.index && !o.isInstancedMesh) triangles += o.geometry.index.count / 3; });
     built = { group, waters, falls, ground, groundPoints, groundMat, textures, materials, grain, ripples, stone, woodMat, ropeMat, stoneMat, pillarMat, placed, impostors, meadow, lilies, hills, contact, hotMaterial, steam, hotSigns, swimSigns, apron };
     placed.loading.then(() => { if (!placed.stopped) stats.modelsMs = Math.round(performance.now() - t0); });
-    stats.builds += 1; stats.buildMs = Math.round(performance.now() - t0); stats.triangles = triangles;
+    pause();
+    // (buildMs: the work itself, in all; buildSpanMs: from its first piece to its last, frames between)
+    stats.builds += 1; stats.buildMs = Math.round(work); stats.buildSpanMs = Math.round(performance.now() - t0); stats.triangles = triangles;
     building = false;
+  }
+  function build(away = 0, camera = null) {
+    if (built) return;
+    if (!buildJob) { building = true; buildJob = buildSteps(away, camera); }
+    try { while (!buildJob.next().done) { /* all of it, now */ } } finally { buildJob = null; }
+  }
+  // (each frame while it is being built: a few milliseconds of it)
+  function stepBuild(budgetMs = 6) {
+    const t0 = performance.now();
+    for (;;) {
+      if (buildJob.next().done) { buildJob = null; return; }
+      if (performance.now() - t0 >= budgetMs) return;
+    }
   }
   function letGo() {
     if (!built) return;
@@ -1667,6 +1719,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     // (an instanced mesh's own buffer of where its instances stand goes with it)
     gone.group.traverse((o) => { if (o.isInstancedMesh) o.dispose(); else if (o.geometry && !o.geometry.userData.shared) o.geometry.dispose(); });
     for (const m of Object.values(gone.materials)) m.dispose();
+    gone.woodMat.userData.letGo = true;
     for (const m of [gone.woodMat, gone.ropeMat, gone.stoneMat, gone.pillarMat, gone.groundMat]) m.dispose();
     for (const t of [gone.grain, gone.ripples, gone.stone, gone.textures.sheet, gone.textures.puff, gone.textures.foam]) t.dispose();
     for (const f of gone.falls) { f.map.dispose(); f.sheet.material.dispose(); f.veil.material.map.dispose(); f.veil.material.dispose(); f.foam.material.dispose(); f.foam.geometry.dispose(); for (const s of f.puffs) s.material.dispose(); }
@@ -1690,7 +1743,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     waterClock.value = time % 1000;
     setHabitationWind(time);
     const away = at ? habitationAway(at.x, at.z) : Infinity;
-    if (away < ROAD_COME) ensureUpriver();
+    if (away < ROAD_COME) ensureUpriver(camera);
     else if (upriver && away > ROAD_GO) {
       // back in the town: the road to the gate and its signs let go
       scene.remove(upriver);
@@ -1700,7 +1753,8 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
       letSignsGo(upriver);
       upriver = null;
     }
-    if (!built && !building && away < COME[lite ? 'lite' : 'full']) { try { build(away); } catch (error) { building = false; onError(error); } }
+    if (!built && !building && away < COME[lite ? 'lite' : 'full']) { building = true; buildJob = buildSteps(away, camera); }
+    if (buildJob) { try { stepBuild(); } catch (error) { buildJob = null; building = false; onError(error); } }
     if (built && away > GO[lite ? 'lite' : 'full']) letGo();
     // (a phone: the ground's every point from NEAR_GROUND on, every other one again past its `go`)
     if (built && lite) { const every = built.ground.userData.every; if (every === 2 && away < NEAR_GROUND.come) swapGround(1); else if (every === 1 && away > NEAR_GROUND.go) swapGround(2); }

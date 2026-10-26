@@ -61,8 +61,10 @@ export function createBloodScreen(root, before = null) {
   ring.innerHTML = '<svg viewBox="-50 -50 100 100"><path d="M -14 -40 A 42 42 0 0 1 14 -40" /></svg>';
   box.append(edge, ...splashes, flashEl, ring);
   if (before && before.parentNode === root) root.insertBefore(box, before); else root.append(box);
-  let painted = false;
-  const paint = () => { if (painted) return; painted = true; splashes.forEach((el, k) => { el.style.backgroundImage = `url(${splashPicture(k + 3)})`; }); };
+  // (painted one a frame as they are first wanted, the first first, not all five in one frame: each is a picture drawn
+  // and written out, a tenth of a second or more on a phone, the moment the player is first hit; 26 October 2026)
+  let painted = 0;
+  const paint = () => { if (painted >= splashes.length) return; const k = painted; painted += 1; splashes[k].style.backgroundImage = `url(${splashPicture(k + 3)})`; };
 
   const st = { base: 0, hit: 0, flash: 0, from: null, fromAge: 9, shown: -1, health: 100 };
   // A hit on the player: `amount` (life points lost), and the way it came from on the screen (radians, 0 ahead, turning
@@ -86,7 +88,7 @@ export function createBloodScreen(root, before = null) {
     if (!active) { st.hit = 0; st.flash = 0; st.fromAge = 9; }
     const level = Math.min(1, st.base * 0.85 + st.hit * 0.6);
     const key = `${level.toFixed(3)}|${st.flash.toFixed(2)}|${calm ? 1 : 0}|${st.fromAge < 1.4 ? `${st.from.toFixed(2)}:${st.fromAge.toFixed(2)}` : ''}`;
-    if (key === st.shownKey) return;
+    if (key === st.shownKey && !(painted < splashes.length && level > 0.02 && !calm)) return;
     st.shownKey = key;
     box.hidden = level <= 0.002 && st.flash <= 0.002 && st.fromAge >= 1.4;
     if (box.hidden) return;

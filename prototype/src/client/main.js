@@ -19,12 +19,12 @@ import { createTranslator } from '../sim/culture.js';
 import { createLoopbackHub, createRoomTransport } from '../net/transport.js';
 import { createLink } from '../net/link.js';
 import { buildWorld } from './render-world.js';
-import { buildOutskirts } from './render-outskirts.js';
+import { outskirtsSteps } from './render-outskirts.js';
 import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry } from './render-kit.js';
-import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable } from './glb.js';
+import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } from './glb.js';
 import { createPictureKeeper } from './picture-keeper.js';
 import { gradeInstalled } from './grade.js';
 import { setWorldShading, airAt, worldShadingState, cloudShadeAt } from './world-shading.js';
@@ -68,7 +68,7 @@ import { createBlood } from './blood.js';
 import { createSkills } from './skills.js';
 import { buildCatalog } from './skill-catalog.js';
 import { createFitter } from './fit.js';
-import { QUALITY_RULES } from './monitor.js';
+import { QUALITY_RULES, PHONE_QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
 import { createPhoneHold } from './phone-hold.js';
 import { ANIMATED, heldModels, warmFigures, lightFiles, dropUnusedFigures, figureLog } from './animated.js';
@@ -221,9 +221,17 @@ function start(carried) {
       if (answer.ok) { adBoard.list = answer.campaigns; adBoard.at = clock; if (billboards) billboards.show(answer.campaigns); }
     },
   };
-  function buildBeyond() {
-    if (outskirts.ready) return;
-    outskirts = { ...buildOutskirts(scene, { glowMaterial: world.glowMaterial }), ready: true };
+  // (26 October 2026, the owner's brief: the game hung on his phones. Built all at once a minute into play, the land
+  // beyond the town and its billboards held a phone's page for several seconds; now a piece a frame (stepBeyond, a few
+  // milliseconds' worth each frame), put in once the graphics card has compiled what it needs. All at once still for
+  // someone already out there, and for the tests: buildBeyond.)
+  let beyondJob = null, beyondBegun = false;
+  function* beyondSteps(stepwise) {
+    const steps = outskirtsSteps(scene, { glowMaterial: world.glowMaterial, renderer: stepwise ? renderer : null, camera: stepwise ? camera : null });
+    let step, said;
+    while (!(step = steps.next(said)).done) said = yield step.value;
+    const built = step.value;
+    said = yield;
     // the advertising billboards, in town and beyond it (render-billboards.js), with the same wait
     billboards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, loadArtwork: async (id) => {
       // an approved campaign's picture, from the server (only an approved one is given to anyone but its advertiser)
@@ -233,9 +241,36 @@ function start(carried) {
       for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
       return new Blob([bytes], { type: answer.mime });
     } });
+    // (their programs too, beside the game, before they are shown)
+    if (stepwise && typeof renderer.compileAsync === 'function') {
+      let ready = false;
+      billboards.group.visible = false;
+      renderer.compileAsync(billboards.group, camera, scene).then(() => { ready = true; }, () => { ready = true; });
+      const t0 = performance.now();
+      while (!ready && performance.now() - t0 < 5000 && said !== 'now') said = yield 'waiting';
+      billboards.group.visible = true;
+    }
     adBoard.refresh();
+    outskirts = { ...built, ready: true };
     world.lampHeads.push(...outskirts.lampHeads);
     lampPools.place();
+  }
+  function buildBeyond() {
+    if (outskirts.ready) return;
+    if (!beyondJob) beyondJob = beyondSteps(false);
+    while (!beyondJob.next('now').done) { /* all of it, now */ }
+    beyondJob = null;
+  }
+  function stepBeyond(budgetMs = 6) {
+    if (outskirts.ready) { beyondJob = null; return; }
+    if (!beyondJob) beyondJob = beyondSteps(true);
+    const t0 = performance.now();
+    // (waiting on the graphics card's compiling: looked at again next frame)
+    for (;;) {
+      const step = beyondJob.next();
+      if (step.done) { beyondJob = null; return; }
+      if (step.value === 'waiting' || performance.now() - t0 >= budgetMs) return;
+    }
   }
   let town = null, crowd = null, blood = null, sky = null, parcelLayer = null, siteLayer = null, yardStacks = null;
   // (stage 3's realism, 23 and 24 October 2026: dust on dirt, fireflies in the habitation at night, wet marks after rain,
@@ -592,6 +627,10 @@ function start(carried) {
   const perf = { fps: 60, calls: 0, triangles: 0, programs: 0, geometries: 0, textures: 0 };
   const monitor = createMonitor();
   const warmUp = createWarmUp(renderer, scene);
+  let programsPinnedAt = 0;
+  // (a picture made again, for a change of level or a drawing surface given back, handed to the graphics card at once,
+  // so that the page's own copy of it is let go at once: glb.js, setUploader)
+  setUploader((texture) => renderer.initTexture(texture));
   // (a phone: the pictures painted in the page that nothing drawn has used for half a minute let go from the graphics
   // card, handed to it again when next drawn: picture-keeper.js)
   const keeper = LITE ? createPictureKeeper(scene, renderer, { skip: isRestorable }) : null;
@@ -3222,8 +3261,8 @@ function start(carried) {
     resize();
     monitor.count(`graphics to ${GRAPHICS_LEVELS[level].name}`);
   }
-  // a phone is stepped down sooner when it cannot keep up; both climb back slowly, so that the picture does not flicker
-  // between levels while walking about
+  // a phone is stepped down sooner when it cannot keep up, and climbs back far more slowly (monitor.js,
+  // PHONE_QUALITY_RULES); both climb back slowly, so that the picture does not flicker between levels while walking about
   let loweredSaid = false;
   const governor = createGovernor((level, from) => {
     applyQuality(level);
@@ -3231,7 +3270,7 @@ function start(carried) {
     // (said when the game lowered it by itself while playing, for slow frames or a full graphics card, and only the first
     // time (the owner: "tell the player once"); never when the player chose)
     if (level > from && last && /^typical frame|^the graphics card/.test(last.why) && townBuilt && ui && !loweredSaid) { loweredSaid = true; ui.toast({ type: 'note', text: GRAPHICS_LOWERED }); }
-  }, LITE ? { ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 } : QUALITY_RULES);
+  }, LITE ? PHONE_QUALITY_RULES : QUALITY_RULES);
   let gpuSaid = null;
   const gpuName = () => { if (gpuSaid === null) { try { const gl = renderer.getContext(); const info = gl.getExtension('WEBGL_debug_renderer_info'); gpuSaid = String(info ? gl.getParameter(info.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER)); } catch (error) { return ''; } } return gpuSaid; };
   const deviceMemory = typeof navigator !== 'undefined' && Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null;
@@ -3253,11 +3292,15 @@ function start(carried) {
   // drawn behind the loading card, timed; their typical frame slower than a thirtieth of a second, a level lower and
   // again, at most three times (never said: it is the first choice, not a change while playing). Then, playing, the
   // first half minute in the town judged quickly (quickTest); the level it settles at kept for this device.
-  const typicalFrame = (n) => new Promise((resolve) => { const t = []; let last = null; const f = (now) => { if (last !== null) t.push(now - last); last = now; if (t.length >= n) { t.sort((a, b) => a - b); resolve(t[Math.floor(t.length / 2)]); } else requestAnimationFrame(f); }; requestAnimationFrame(f); });
+  // (the first few frames after the town is put together are not timed: in them the graphics card is handed every
+  // picture and shape it has not had yet, which a phone takes a while over once, and which is not how fast it draws:
+  // timed, they put a phone that draws the town comfortably at Low, and it climbed back while playing, every time:
+  // 26 October 2026)
+  const typicalFrame = (n, skip = 0) => new Promise((resolve) => { const t = []; let last = null, skipped = 0; const f = (now) => { if (last !== null) { if (skipped < skip) skipped += 1; else t.push(now - last); } last = now; if (t.length >= n) { t.sort((a, b) => a - b); resolve(t[Math.floor(t.length / 2)]); } else requestAnimationFrame(f); }; requestAnimationFrame(f); });
   async function silentTest() {
     if (prefs.graphics !== 'auto') return;
     for (let tries = 0; tries < 3 && governor.level < LOW; tries += 1) {
-      const ms = await typicalFrame(12);
+      const ms = await typicalFrame(12, 4);
       if (!(ms > QUALITY_RULES.slowMs)) return;
       governor.set(governor.level + 1, `the silent test while loading: a typical frame ${ms.toFixed(0)} ms`);
       await painted(); await painted();
@@ -3981,7 +4024,7 @@ blood.update(dt, view.blood || []);
       if (!outskirts.ready && playing) {
         beyondWait += 0.5;      // (this is looked at twice a second)
         const out = predicted.x < ZONE.bounds.minX + 40 || predicted.z > 150;
-        if (out || (warm.stage >= 5 && beyondWait > 4)) buildBeyond();
+        if (out) buildBeyond(); else if (warm.stage >= 5 && beyondWait > 4) beyondBegun = true;
       }
       outskirts.see(cam.target.x, cam.target.z, reach);
       world.seeVehicles(camera.position.x, camera.position.z, reach + cam.dist);
@@ -4000,6 +4043,12 @@ blood.update(dt, view.blood || []);
 
     monitor.mark('warming up');
     if (!NO_DRAW) warmStep();
+    // every program compiled while playing is held on to as those compiled ahead are (warmup.js, pin): one the town
+    // drew a while ago, the habitation's say, was otherwise thrown away with the last material using it and compiled
+    // again, a hang of a second or more on a phone, every time it came back into sight (26 October 2026)
+    if (clock - programsPinnedAt > 2) { programsPinnedAt = clock; warmUp.pin(); }
+    // the land beyond the town, a piece a frame once begun (buildBeyond)
+    if (beyondBegun && !outskirts.ready && playing) stepBeyond();
     monitor.mark('drawing');
     // behind the opening nothing of the town can be seen: once it is warmed up, it is not drawn at all
     // the start screen covers the town entirely: once it is warmed, it is not drawn behind it for nobody

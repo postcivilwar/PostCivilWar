@@ -109,8 +109,17 @@ export const QUALITY_RULES = Object.freeze({
   upAfter: 12,
   settle: 3,              // seconds after a change during which nothing is judged
   retry: 90,              // seconds before a level that had to be undone is tried again; doubled each time it fails
+  failWithin: 30,         // a step down this soon (seconds) after a step up: the level stepped up to had to be undone
   window: 45,             // frames the typical frame is taken over
 });
+
+// A phone's (26 October 2026, the owner's brief: the game hung on his phones). Stepped down sooner when it cannot keep up
+// (under 31 frames a second for two and a half seconds), and back up far more slowly than a computer: each change of
+// level on a phone is seconds of work (the pictures made again at another size, the drawing set up afresh), felt as a
+// hang, and a phone that could not hold a level in a busy street went back and forth between two all the time it was
+// there. Now a minute and a half of comfortably fast frames before it climbs; a level stepped down from within two and
+// a half minutes of climbing to it had to be undone, and is not tried again for five minutes, then ten, then fifteen.
+export const PHONE_QUALITY_RULES = Object.freeze({ ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 90, settle: 4, retry: 150, failWithin: 150 });
 
 export function createGovernor(apply, rules = QUALITY_RULES) {
   const recent = [];
@@ -144,7 +153,7 @@ export function createGovernor(apply, rules = QUALITY_RULES) {
       if (state.slow >= downAfter && state.level < rules.levels - 1) {
         // stepping down so soon after stepping up means the higher level was too much: remember that
         const last = state.changes[state.changes.length - 1];
-        if (last && last.to < last.from && state.clock - last.at < 30) { state.failedAt[last.to] = state.clock; state.wait[last.to] = Math.min(900, state.wait[last.to] * 2); }
+        if (last && last.to < last.from && state.clock - last.at < (rules.failWithin || 30)) { state.failedAt[last.to] = state.clock; state.wait[last.to] = Math.min(900, state.wait[last.to] * 2); }
         change(state.level + 1, `typical frame ${typical.toFixed(0)} ms`);
       } else if (state.fast >= rules.upAfter && state.level > state.ceiling && state.clock - state.failedAt[state.level - 1] > state.wait[state.level - 1]) {
         change(state.level - 1, `typical frame ${typical.toFixed(0)} ms`);

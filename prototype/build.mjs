@@ -66,7 +66,8 @@ function bundleFrom(entry, { after = null } = {}) {
     const imports = [];
     source = source.replace(REEXPORT, (_, from) => { const target = id(resolve(dirname(file), from)); spreadFrom.push(target); spreads.push(`...__modules[${JSON.stringify(target)}]`); return ''; });
     source = source.replace(IMPORT, (_, list, from) => { const target = id(resolve(dirname(file), from)); imports.push([list, target]); return `const {${list}} = __modules[${JSON.stringify(target)}];`; });
-    source = source.replace(/^export\s+(async\s+function|function|const|let|class)\s+([A-Za-z_$][\w$]*)/gm, (_, kind, name) => { names.push(name); return `${kind} ${name}`; });
+    // (a generator, `export function* name`, too: render-outskirts.js, 26 October 2026)
+    source = source.replace(/^export\s+(async\s+function\s*\*?|function\s*\*?|const|let|class)\s+([A-Za-z_$][\w$]*)/gm, (_, kind, name) => { names.push(name); return `${kind} ${name}`; });
     if (/^export\s/m.test(source)) throw new Error(`${id(file)}: unsupported export form`);
     const given = new Set(names);
     for (const from of spreadFrom) for (const name of EXPORTS.get(from) || []) given.add(name);

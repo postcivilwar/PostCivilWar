@@ -321,7 +321,13 @@ function addRoadside(B, b) {
   B.solid.box(Math.min(b.w - 1, 5), 0.8, 0.1, place(b.x + fx * (b.d / 2 + 0.08), b.h - 0.6, b.z + fz * (b.d / 2 + 0.08), b.facing), [0xc8342b, 0x1f5c4d, 0x24364f, 0xd9a441][Math.abs(Math.round(b.x)) % 4]);
 }
 
-export function buildOutskirts(scene, { glowMaterial }) {
+// Built a piece at a time (26 October 2026, the owner's brief: the game hung on his phones): built all at once, a minute
+// into play, it held a phone's page for several seconds, the town standing still. `outskirtsSteps` is the same work a
+// piece at a time (a generator: each step one piece of it); the game takes a step or two a frame. What it makes is kept
+// in one group, put in the scene at the end, once the graphics card has compiled the programs it needs, where the
+// browser can do that beside the game (three.js compileAsync: `renderer` and `camera`); built at once (buildOutskirts:
+// someone already out there, and the tests), it is put in straight away.
+export function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera = null } = {}) {
   const sight = createSight();
   const solid = new Chunked();
   const walls = new Chunked({ uv: 'wall', scale: 3.2 });
@@ -335,18 +341,26 @@ export function buildOutskirts(scene, { glowMaterial }) {
   const B = { solid, walls, roofs, roads, paint, leaves, glow };
   const signs = [];
   const heads = [];
+  const group = new THREE.Group(); group.name = 'beyond';
 
-  scene.add(buildGround());
+  group.add(buildGround());
+  yield;
   for (const r of OUTSKIRT_ROADS) if (!r.deck) addRoad(B, r);
+  yield;
   addBridge(B, heads);
+  yield;
   addAirport(B, glass, signs, heads);
+  yield;
   addFence(B, fence);
+  yield;
   for (const b of OUTSKIRT_BUILDINGS) addRoadside(B, b);
+  yield;
   for (const lamp of OUTSKIRT_LAMPS.filter((l) => !l.deck)) addLamp(B, lamp, heads);
   for (const s of OUTSKIRT_SIGNS) addSign(B, s, signs);
   // the road works at the end of the Onitsha road: barriers and cones across it
   const R = ONITSHA_ROAD;
   for (let z = R.z0 + 0.5; z < R.z1; z += 2.2) { solid.box(0.25, 1.0, 2.0, place(R.x0 + 4, 0.5, z), Math.round(z) % 2 ? 0xf2f0ea : 0xc8342b); solid.round(new THREE.ConeGeometry(0.25, 0.7, 10), place(R.x0 + 9, 0.35, z + 1), 0xe0702a); }
+  yield;
   // trees on the land beyond the town, but nowhere anyone walks or drives
   const away = (x, z, pad) => OUTSKIRT_AREAS.every((a) => x < a.x0 - pad || x > a.x1 + pad || z < a.z0 - pad || z > a.z1 + pad);
   let made = 0;
@@ -356,22 +370,43 @@ export function buildOutskirts(scene, { glowMaterial }) {
     const r = noise(i, 79);
     addTree(solid, leaves, { x, z, kind: r < 0.45 ? 'oilpalm' : r < 0.7 ? 'mango' : r < 0.85 ? 'palm' : 'almond', size: 0.8 + noise(i, 83) * 0.5, turn: noise(i, 89) * 6.28 });
     made += 1;
+    if (made % 40 === 0) yield;
   }
+  yield;
 
   const kit = buildingKit();
-  const add = (meshes, shadows = true) => { for (const mesh of meshes) { mesh.castShadow = shadows; mesh.receiveShadow = true; scene.add(mesh); sight.add(mesh); } };
+  const add = (meshes, shadows = true) => { for (const mesh of meshes) { mesh.castShadow = shadows; mesh.receiveShadow = true; group.add(mesh); sight.add(mesh); } };
   add(solid.build(kit.solid));
+  yield;
   add(walls.build(kit.walls));
+  yield;
   add(roofs.build(kit.roofs));
-  for (const mesh of leaves.build(foliageMaterials())) { scene.add(mesh); sight.add(mesh); }
+  yield;
+  for (const mesh of leaves.build(foliageMaterials())) { group.add(mesh); sight.add(mesh); }
+  yield;
   const tarmac = grainTexture({ low: 0.66, coarse: 0.3, speck: 0.45, seed: 7 });
   add(roads.build(isRoad(weathers(surface({ vertexColors: true, map: tarmac, roughness: 0.94, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }))), false);
+  yield;
   add(paint.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })), false);
   add(glass.build(reflects(surface({ vertexColors: true, roughness: 0.08, metalness: 0.55, transparent: true, opacity: 0.42, side: THREE.DoubleSide, depthWrite: false }), 1)), false);
   add(fence.build(new THREE.MeshLambertMaterial({ map: chainLink(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })), false);
-  for (const mesh of glow.build(glowMaterial)) { scene.add(mesh); sight.add(mesh); }
-  for (const sign of signs) { scene.add(sign); sight.add(sign, 260, { x: sign.position.x, z: sign.position.z, radius: 14 }); }
-  return { lampHeads: heads, signs, see: (x, z, reach) => sight.look(x, z, reach) };
+  for (const mesh of glow.build(glowMaterial)) { group.add(mesh); sight.add(mesh); }
+  for (const sign of signs) { group.add(sign); sight.add(sign, 260, { x: sign.position.x, z: sign.position.z, radius: 14 }); }
+  // the programs it needs compiled beside the game before it is put in (at most a few seconds' wait)
+  if (renderer && camera && typeof renderer.compileAsync === 'function') {
+    let ready = false;
+    yield;
+    renderer.compileAsync(group, camera, scene).then(() => { ready = true; }, () => { ready = true; });
+    const t0 = performance.now();
+    // (told 'now', it waits no longer: buildBeyond, for someone who has gone out there meanwhile)
+    while (!ready && performance.now() - t0 < 5000) { if ((yield 'waiting') === 'now') break; }
+  }
+  scene.add(group);
+  return { lampHeads: heads, signs, group, see: (x, z, reach) => sight.look(x, z, reach) };
+}
+export function buildOutskirts(scene, { glowMaterial }) {
+  const steps = outskirtsSteps(scene, { glowMaterial });
+  for (;;) { const step = steps.next(); if (step.done) return step.value; }
 }
 
 // a chain-link pattern, repeated along the fence

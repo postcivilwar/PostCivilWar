@@ -11,7 +11,7 @@ import { createRequire } from 'node:module';
 
 const require = createRequire(import.meta.url);
 globalThis.THREE = require('../vendor/three.min.js');
-const { letGoOnceDrawn, setPictureMost, stepPictures, picturesWaiting, pictureMost, wantPicture, pictureWanted } = await import('../src/client/glb.js');
+const { letGoOnceDrawn, setPictureMost, stepPictures, picturesWaiting, pictureMost, wantPicture, pictureWanted, setUploader, restorePictures } = await import('../src/client/glb.js');
 
 // a picture as the browser gives one (an ImageBitmap): its size, and closed once the graphics card has it
 const picture = (side, h = side) => ({ width: side, height: h, closed: false, close() { this.closed = true; this.width = 0; this.height = 0; } });
@@ -142,4 +142,45 @@ test('a picture made under a cap that was raised before the card had it is made 
   assert.equal(late.texture.userData.drawn, 1024);
   assert.deepEqual(late.asked, [512, 1024]);
   setPictureMost(0); await settle(); late.upload();
+});
+
+// 26 October 2026 (the owner's brief: the game hung on his phones and his iPhone closed it): a picture made again is
+// handed to the graphics card at once, not when it is next drawn, so that the page lets its own copy go at once; and a
+// lost drawing surface's pictures are made again one at a time, each handed over before the next is made.
+test('a picture made again is handed to the graphics card at once, its page copy let go, though nothing draws it', async () => {
+  setPictureMost(0); await settle();
+  const handed = [];
+  setUploader((texture) => { handed.push(texture); if (texture.onUpdate) texture.onUpdate(texture); });
+  try {
+    const far = made(2048);              // (out of sight: nothing will draw it)
+    setPictureMost(1024); await settle();
+    assert.ok(handed.includes(far.texture), 'handed over as it was made');
+    assert.ok(far.texture.image.closed, 'the page\'s copy let go at once');
+    assert.equal(far.texture.userData.drawn, 1024);
+  } finally { setUploader(null); setPictureMost(0); await settle(); }
+});
+
+test('a lost drawing surface\'s pictures are made again one at a time, each handed over before the next is begun', async () => {
+  setPictureMost(0); await settle();
+  let inFlight = 0, most = 0;
+  // (pictures as the browser's ImageBitmaps: one closed is 0 by 0, and that is how a picture let go is known)
+  const hadBitmap = globalThis.ImageBitmap;
+  class Bitmap { constructor(side) { this.width = side; this.height = side; this.closed = false; } close() { this.closed = true; this.width = 0; this.height = 0; } }
+  globalThis.ImageBitmap = Bitmap;
+  const slow = (side) => {
+    const texture = new THREE.Texture(new Bitmap(side));
+    letGoOnceDrawn(texture, () => { inFlight += 1; most = Math.max(most, inFlight); return new Promise((r) => setTimeout(() => { inFlight -= 1; r(new Bitmap(side)); }, 5)); });
+    if (texture.onUpdate) texture.onUpdate(texture);       // (the card has it, and the page's copy is let go)
+    return texture;
+  };
+  const textures = [slow(512), slow(1024), slow(256), slow(2048)];
+  const handed = [];
+  setUploader((texture) => { handed.push(inFlight); if (texture.onUpdate) texture.onUpdate(texture); });
+  try {
+    const r = await restorePictures();
+    assert.ok(r.made >= 4, `made again: ${JSON.stringify(r)}`);
+    assert.equal(most, 1, 'never two being made at once');
+    assert.ok(handed.length >= 4 && handed.every((n) => n === 0), 'each handed over once made, before the next was begun');
+    for (const t of textures) assert.ok(t.image.closed, 'and its page copy let go');
+  } finally { setUploader(null); for (const t of textures) t.dispose(); globalThis.ImageBitmap = hadBitmap; }
 });

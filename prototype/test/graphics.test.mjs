@@ -6,7 +6,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, GRAPHICS_NOTE, LEVEL_SETTINGS, ULTRA, HIGH, MEDIUM, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } from '../src/client/graphics.js';
-import { createGovernor, QUALITY_RULES } from '../src/client/monitor.js';
+import { createGovernor, QUALITY_RULES, PHONE_QUALITY_RULES } from '../src/client/monitor.js';
 
 test('four levels, Ultra to Low, each with one line; the words the owner asked for', () => {
   assert.deepEqual(GRAPHICS_LEVELS.map((l) => l.name), ['Ultra', 'High', 'Medium', 'Low']);
@@ -64,8 +64,9 @@ test('Auto starts a phone at Medium, a computer at Ultra; lower where the device
   // no graphics card at all (the browser drawing in software): Low, on either kind
   assert.equal(autoStart({ lite: false, gpu: 'ANGLE (Google, Vulkan 1.3.0 (SwiftShader Device (Subzero) (0x0000C0DE)), SwiftShader driver)' }), LOW);
   assert.equal(autoStart({ lite: true, gpu: 'llvmpipe (LLVM 15.0.7, 256 bits)' }), LOW);
-  // it climbs by itself to High on a phone, to Ultra on a computer
-  assert.equal(autoCeiling({ lite: true }), HIGH); assert.equal(autoCeiling({ lite: false }), ULTRA);
+  // it climbs by itself to Medium on a phone (26 October 2026: High and Ultra are the player's to choose there), to Ultra
+  // on a computer
+  assert.equal(autoCeiling({ lite: true }), MEDIUM); assert.equal(autoCeiling({ lite: false }), ULTRA);
 });
 
 test('the level Auto settled at is kept for this graphics card, and only for it', () => {
@@ -115,6 +116,29 @@ test('a level given up for a full graphics card is not climbed back to for a whi
   play(g, 120, () => 8);
   assert.equal(g.level, MEDIUM);
   const bottom = createGovernor(() => {}); bottom.set(LOW); bottom.lower('full'); assert.equal(bottom.level, LOW);   // (Low is the least)
+});
+
+test('a phone that cannot quite hold Medium in a busy street settles at Low, and does not go back and forth (26 October 2026)', () => {
+  // Medium a frame of 34 ms there (under thirty a second), Low 15 ms: a quarter of an hour of it
+  const cost = (level) => (level === MEDIUM ? 34 : 15);
+  const changesIn = (rules) => { const g = createGovernor(() => {}, rules); g.set(MEDIUM); g.setCeiling(MEDIUM); play(g, 900, cost); return g.changes.length - 1; };
+  const before = changesIn({ ...QUALITY_RULES, slowMs: 1000 / 31, downAfter: 2.5, upAfter: 25, settle: 4 });
+  const now = changesIn(PHONE_QUALITY_RULES);
+  assert.ok(now <= 6, `${now} changes in a quarter of an hour (the rules before: ${before})`);
+  assert.ok(now < before, `${now} changes, fewer than ${before}`);
+  // and a phone that holds Medium comfortably stays there: no climb above it by itself
+  const g = createGovernor(() => {}, PHONE_QUALITY_RULES); g.set(MEDIUM); g.setCeiling(autoCeiling({ lite: true }));
+  play(g, 900, () => 9);
+  assert.equal(g.level, MEDIUM);
+  assert.equal(g.changes.length, 1);
+  // stepped down for a moment's slowness long after climbing (not a failure), it climbs back after a minute and a half
+  const h = createGovernor(() => {}, PHONE_QUALITY_RULES); h.set(MEDIUM); h.setCeiling(MEDIUM);
+  play(h, 60, () => 12); play(h, 6, () => 40);
+  assert.equal(h.level, LOW);
+  play(h, 80, () => 12);
+  assert.equal(h.level, LOW, 'not yet');
+  play(h, 20, () => 12);
+  assert.equal(h.level, MEDIUM, 'back after a minute and a half of fast frames');
 });
 
 test('the first seconds in the town are judged quickly (the silent test), then as usual', () => {

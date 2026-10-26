@@ -65,6 +65,17 @@ let most = 0;
 const waiting = [];
 const remaking = new Set();
 export const pictureMost = () => most;
+// A picture made again is handed to the graphics card at once (main.js gives the renderer's own way of doing it), not
+// when it is next drawn (26 October 2026, the owner's brief: the game hung on his phones and sometimes closed by
+// itself). Until it is handed over, the page holds the whole picture, unpacked, as its own: a change of level made
+// every picture again, and those of whatever was out of sight (most of the town) were held by the page until they came
+// into sight, hundreds of megabytes of a phone's memory at once.
+let upload = null;
+export function setUploader(fn) { upload = typeof fn === 'function' ? fn : null; }
+function handOver(texture) {
+  if (!upload) return;
+  try { upload(texture); } catch (error) { /* handed over when it is first drawn, as before */ }
+}
 // A picture's own largest, apart from the level's (`userData.want`, 0 for none; 23 October 2026): a parked truck's
 // pictures far off, say (render-supplied.js), a phone's screen showing no more of it from there. What it is made at is
 // the smaller of the two; one whose size changes is made again in its turn, as for the level.
@@ -110,6 +121,7 @@ export function stepPictures() {
     // (the level, or its own largest, changed again while it was being made: made again once the card has this one,
     // at the size asked for then: letGoOnceDrawn)
     letGoOnceDrawn(texture);
+    handOver(texture);
   }).catch(() => { /* kept as it is */ }).finally(() => { remaking.delete(texture); });
   return waiting.length;
 }
@@ -134,20 +146,26 @@ export async function decodeAtMost(blob, size = 0, options = undefined) {
 const gone = (image) => !image || (typeof ImageBitmap !== 'undefined' && image instanceof ImageBitmap && (image.width === 0 || image.height === 0));
 // Every picture that was let go and is still in use, made again and handed to the graphics card afresh (and let go
 // again once it has it). Gives how many there were, and how many could not be made.
+// One at a time (26 October 2026, the owner's brief: the game hung on his phones and sometimes closed by itself): all
+// of them at once fetched and read every model's file together, a few hundred megabytes held at the same moment by a
+// page whose drawing surface the browser had just taken away for want of memory; a phone's browser closes such a page.
+// One by one, only one file is held at a time (a model's pictures are made one after another, from one reading of it).
 export async function restorePictures() {
   let made = 0, failed = 0;
-  await Promise.all([...restorable].map(async ([texture, restore]) => {
-    if (!gone(texture.image)) { texture.needsUpdate = true; return; }
+  for (const [texture, restore] of [...restorable]) {
+    if (!restorable.has(texture)) continue;
+    if (!gone(texture.image)) { texture.needsUpdate = true; continue; }
     try {
       const size = pictureWanted(texture);
       const image = await restore(size);
-      if (!image) { failed += 1; return; }
+      if (!image) { failed += 1; continue; }
       texture.image = image; texture.needsUpdate = true;
       texture.userData.cap = size;
       letGoOnceDrawn(texture);
+      handOver(texture);
       made += 1;
     } catch (error) { failed += 1; }
-  }));
+  }
   return { made, failed, held: restorable.size };
 }
 export const picturesHeld = () => restorable.size;
@@ -156,13 +174,18 @@ export const isRestorable = (texture) => restorable.has(texture);
 // A picture inside a GLB file beside the page, made again: the file fetched (from the device's or the browser's kept
 // copy), read, and that one picture decoded, made no larger than `size` across if given. For restoring a picture that
 // was let go (letGoOnceDrawn): a file asked for by several pictures at once is fetched and read once.
-const reread = new Map();            // file -> promise of it read (kept for a few seconds)
+// (the last two files read, for a few seconds: a model's pictures are made one after another, each from the same reading
+// of its file; kept longer, or more of them, every model's file was held at once while a level's pictures were made
+// again, one a frame: 26 October 2026)
+const reread = new Map();            // file -> promise of it read
+const REREAD_KEPT = 2, REREAD_MS = 4000;
 export function rereadFile(file) {
   if (!reread.has(file)) {
     const job = fetchKept(file).then((r) => { if (!r.ok) throw new Error(`${file}: ${r.status}`); return r.arrayBuffer(); }).then((b) => parseGLB(b));
     job.catch(() => reread.delete(file));
     reread.set(file, job);
-    setTimeout(() => { if (reread.get(file) === job) reread.delete(file); }, 15000);
+    while (reread.size > REREAD_KEPT) reread.delete(reread.keys().next().value);
+    setTimeout(() => { if (reread.get(file) === job) reread.delete(file); }, REREAD_MS);
   }
   return reread.get(file);
 }

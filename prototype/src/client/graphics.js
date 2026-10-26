@@ -90,9 +90,12 @@ export function autoStart({ lite, gpu = '', memory = null }) {
   if (/intel|uhd graphics|iris/.test(card) && !/arc/.test(card)) return HIGH;
   return ULTRA;
 }
-// The highest level Auto climbs to by itself: on a phone, High (Ultra only by the player's choice: a phone's screen has
-// so many pixels that drawing every one of them is rarely worth its battery).
-export const autoCeiling = ({ lite }) => (lite ? HIGH : ULTRA);
+// The highest level Auto climbs to by itself: on a phone, Medium (26 October 2026, the owner's brief: the game hung on
+// his phones; "make it lighter on phones ... a lighter level chosen by Auto"). High draws the town a second time for the
+// river's mirror, once more for the soft darkening, half as many pixels again and a wider glow: a phone fast enough at
+// Medium climbed to it, ran hot at it, and fell back, over and over, each change seconds of work. High and Ultra are the
+// player's to choose in Settings. On a computer, Ultra.
+export const autoCeiling = ({ lite }) => (lite ? MEDIUM : ULTRA);
 
 // The level Auto settled at on this device last time, kept for the next start, by the graphics card's name (so a
 // browser moved to another card, or a profile copied to another computer, starts afresh).
