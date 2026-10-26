@@ -6,6 +6,7 @@
 // shape in the scene, by what they belong to), the pictures (the game's own count) and the pictures the page still
 // holds a copy of, and the canvases.
 //   ../server/with-postgres.sh node tools/measure/memory-parts.mjs <out folder> [site folder]
+// PARTS_TEXTURES=1: every picture on the graphics card listed, by what it belongs to and its size there
 // PARTS_LEVEL (medium), PARTS_DPR (3), PARTS_PLACES (comma separated: park,market,boulevard,powerbike,waterside,east,habitation)
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, existsSync, statSync, createReadStream, readFileSync, readdirSync } from 'node:fs';
@@ -92,6 +93,7 @@ await page.waitForFunction(() => !document.querySelector('#hud').hidden && windo
 await page.evaluate((level) => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip(((24 + 11 - hour) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 24 * 3600 }; n.setGraphics(level); for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } }, LEVEL);
 const quiet = async (most = 180000) => { const t0 = Date.now(); let last = '', same = 0; while (Date.now() - t0 < most) { const now = await page.evaluate(() => { const r = window.__nlw.renderer, g = window.__nlw.graphics || {}; return `${r.info.memory.geometries}/${r.info.memory.textures}/${g.held}/${window.__geometryBytes().buffers}`; }); if (now === last) { same += 1; if (same >= 3) return Date.now() - t0; } else { same = 0; last = now; } await page.waitForTimeout(2000); } return Date.now() - t0; };
 const park = await page.evaluate(() => window.__nlw.service('park'));
+if (process.env.PARTS_TEXTURES === '1') await page.evaluate(() => { window.__partsTextures = true; });
 const PLACES = { park: [park.x + 6, park.z + 4, Math.PI], market: [30, 60, Math.PI / 2], boulevard: [0, 20, 0], powerbike: [-63.6, 64, Math.PI], waterside: [-150, 113, Math.PI / 2], east: [200, 113, Math.PI / 2], habitation: [382, 16, 0.9] };
 const MB = (b) => +(b / 1048576).toFixed(1);
 const results = [];
@@ -123,7 +125,30 @@ for (const name of ONLY) {
     const tex = new Set(); let canvasBytes = 0, canvases = 0, bitmapBytes = 0, bitmaps = 0, imageBytes = 0, images = 0;
     n.scene.traverse((o) => { const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const mt of mats) for (const k of keys) { const t = mt[k]; if (t && t.isTexture && !tex.has(t)) { tex.add(t); const im = t.image; if (!im) continue; const b = (im.width || 0) * (im.height || 0) * 4; if (typeof HTMLCanvasElement !== 'undefined' && im instanceof HTMLCanvasElement) { canvasBytes += b; canvases += 1; } else if (typeof ImageBitmap !== 'undefined' && im instanceof ImageBitmap) { if (b) { bitmapBytes += b; bitmaps += 1; } } else if (im.tagName === 'IMG') { imageBytes += b; images += 1; } } } });
     const gb = window.__geometryBytes();
+    // (every picture of the scene's materials the graphics card has, by what it belongs to: PARTS_TEXTURES)
+    let onCard = null;
+    if (window.__partsTextures) {
+      const list = new Map();
+      n.scene.traverse((o) => {
+        const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+        for (const mt of mats) {
+          const ts = []; for (const k of keys) if (mt[k] && mt[k].isTexture) ts.push(mt[k]);
+          if (mt.uniforms) for (const u of Object.values(mt.uniforms)) if (u && u.value && u.value.isTexture) ts.push(u.value);
+          for (const t of ts) {
+            if (list.has(t)) continue;
+            const p = r.properties.get(t);
+            if (!p || !p.__webglTexture) continue;
+            const w = (t.userData && t.userData.drawn) || (t.image && t.image.width) || 0, h = (t.image && t.image.height) || w;
+            list.set(t, { owner: topName(o), name: t.name || (t.userData && t.userData.file) || '', w: t.image ? t.image.width : 0, h: t.image ? t.image.height : 0, drawn: t.userData ? t.userData.drawn || 0 : 0, visible: o.visible });
+          }
+        }
+      });
+      const byOwner = {};
+      for (const e of list.values()) { const side = e.drawn || Math.max(e.w, e.h); const mb = (side * side * 4 * 1.33) / 1048576; byOwner[e.owner] = byOwner[e.owner] || [0, 0]; byOwner[e.owner][0] += 1; byOwner[e.owner][1] += mb; }
+      onCard = { count: list.size, byOwner: Object.entries(byOwner).sort((a, b) => b[1][1] - a[1][1]).map(([k, [c, mb]]) => [k, c, +mb.toFixed(1)]).slice(0, 30) };
+    }
     return {
+      onCard,
       heapMB: m.usedJSHeapSize ? +(m.usedJSHeapSize / 1048576).toFixed(1) : null,
       shapesKeptMB: +(total / 1048576).toFixed(1), shapes: inScene, shapesByOwner: top,
       shapesOnCardMB: +(gb.bytes / 1048576).toFixed(1), buffersOnCard: gb.buffers,
