@@ -449,10 +449,21 @@ const bBefore = await B.page.evaluate(() => { const n = window.__nlw; return { h
 await B.page.evaluate(() => { const n = window.__nlw, m = { hit: 0, base: 0, shown: false, splashes: 0 }; window.__bloodMax = m; window.__bloodStop = false; const f = () => { const b = n.gunPlay.blood.state(); m.hit = Math.max(m.hit, b.hit); m.base = Math.max(m.base, b.base); m.shown = m.shown || b.shown; m.splashes = Math.max(m.splashes, b.splashes); if (!window.__bloodStop) requestAnimationFrame(f); }; requestAnimationFrame(f); });
 const aBefore = await A.page.evaluate(() => ({ ...window.__nlw.gunNet.stats, codes: { ...window.__nlw.gunNet.stats.codes }, confirmed: window.__nlw.gunPlay.stats.confirmed }));
 await A.page.evaluate(() => { window.__shots = []; });
-const firedE = await fireRounds(A, 5, { keepAim: bSeen.chest });
-await told(A);
+// (someone the server has not heard of lately is not a target, NOT_A_TARGET. Two pages drawn in software beside it, B's
+// words can come further apart than its eight seconds, and the rounds told in a later word are then refused: 26
+// October, two hits agreed of six. Each burst is fired just after a word of B's, and if fewer than three hits were
+// agreed, another, up to three in all.)
+let firedE = 0, burstsAtB = 0;
+for (let k = 0; k < 3; k += 1) {
+  await B.page.waitForFunction(() => { const l = window.__nlw.link; return !!l && l.quiet !== null && l.quiet < 1; }, null, { timeout: 60000 }).catch(() => {});
+  firedE += await fireRounds(A, 5, { keepAim: bSeen.chest }); burstsAtB += 1;
+  await told(A);
+  if ((await A.page.evaluate(() => window.__nlw.gunNet.stats.hits)) - aBefore.hits >= 3) break;
+}
+const agreedSoFar = (await A.page.evaluate(() => window.__nlw.gunNet.stats.hits)) - aBefore.hits;
 await A.page.waitForTimeout(3000);
-await B.page.waitForFunction((n0) => window.__nlw.gunPlay.stats.struck > n0, bBefore.struck, { timeout: 60000 }).catch(() => {});
+// (B's game takes each agreed hit with its next words)
+await B.page.waitForFunction(([n0, want]) => window.__nlw.gunPlay.stats.struck >= n0 + want, [bBefore.struck, Math.max(1, agreedSoFar)], { timeout: 90000 }).catch(() => {});
 await B.page.waitForTimeout(4000);
 const claimed = await A.page.evaluate(() => window.__shots.filter((s) => s.what === 'person').length);
 const aAfter = await A.page.evaluate(() => ({ ...window.__nlw.gunNet.stats, codes: { ...window.__nlw.gunNet.stats.codes }, confirmed: window.__nlw.gunPlay.stats.confirmed }));
@@ -463,7 +474,7 @@ const refusedE = Object.fromEntries(Object.entries(aAfter.codes).map(([k, v]) =>
 // (B's life also comes back two points each game hour, out of a fight: two real minutes here)
 const lost = bBefore.health - bAfter.health;
 const refusedCount = Object.values(refusedE).reduce((a, b) => a + b, 0);
-check('E: A fires five rounds at B: each hit A\'s game saw is decided by the server (agreed, or refused with its reason), and B\'s game takes each agreed hit once, a life point each (none taken twice, none lost)', firedE >= 5 && claimed >= 3 && agreed >= 3 && agreed + refusedCount === claimed && taken === agreed && (lost === agreed || lost === agreed - 2), { fired: firedE, claimed, agreed, refused: refusedE, taken, healthBefore: bBefore.health, healthAfter: bAfter.health });
+check('E: A fires five rounds at B: each hit A\'s game saw is decided by the server (agreed, or refused with its reason), and B\'s game takes each agreed hit once, a life point each (none taken twice, none lost)', firedE >= 5 && claimed >= 3 && agreed >= 3 && agreed + refusedCount === claimed && taken === agreed && [0, 2, 4].includes(agreed - lost), { fired: firedE, bursts: burstsAtB, claimed, agreed, refused: refusedE, taken, healthBefore: bBefore.health, healthAfter: bAfter.health });
 check('E: A is shown each hit (the mark round the aim)', aAfter.confirmed - aBefore.confirmed === agreed, { marks: aAfter.confirmed - aBefore.confirmed, agreed });
 check('E: B: blood on the screen with each hit, a little for a few hits (not all of it), and on the clothes where they were hit', bAfter.most.shown && bAfter.most.hit > 0.1 && bAfter.most.base < 0.2 && bAfter.wounds >= 1 && bAfter.painted, { most: bAfter.most, now: bAfter.blood, wounds: bAfter.wounds, painted: bAfter.painted });
 let seenE = bAfter.peerShots - bBefore.peerShots, heardE = bAfter.heard.shots - (bBefore.heard.shots || 0), burstsE = 1;
