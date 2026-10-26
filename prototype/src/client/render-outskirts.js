@@ -8,6 +8,7 @@
 // two tapering legs on round caissons in the water, joined by a beam under the deck. Nothing on it advertises
 // anything, and nothing on it says it is any real bridge.
 
+import { programsReady } from './program-ready.js';
 import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_LAMPS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } from '../sim/zone.js';
 import { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } from './render-kit.js';
 import { addTree } from './render-world.js';
@@ -392,14 +393,14 @@ export function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera =
   add(fence.build(new THREE.MeshLambertMaterial({ map: chainLink(), transparent: true, alphaTest: 0.35, side: THREE.DoubleSide })), false);
   for (const mesh of glow.build(glowMaterial)) { group.add(mesh); sight.add(mesh); }
   for (const sign of signs) { group.add(sign); sight.add(sign, 260, { x: sign.position.x, z: sign.position.z, radius: 14 }); }
-  // the programs it needs compiled beside the game before it is put in (at most a few seconds' wait)
-  if (renderer && camera && typeof renderer.compileAsync === 'function') {
-    let ready = false;
+  // the programs it needs made ready before it is put in (program-ready.js: beside the game where the browser can, else
+  // one a frame)
+  if (renderer && camera) {
     yield;
-    renderer.compileAsync(group, camera, scene).then(() => { ready = true; }, () => { ready = true; });
-    const t0 = performance.now();
+    const ready = programsReady(renderer, group, camera, scene);
     // (told 'now', it waits no longer: buildBeyond, for someone who has gone out there meanwhile)
-    while (!ready && performance.now() - t0 < 5000) { if ((yield 'waiting') === 'now') break; }
+    while (!ready.step(6)) { if ((yield 'waiting') === 'now') break; }
+    group.userData.ready = ready.stats;
   }
   scene.add(group);
   return { lampHeads: heads, signs, group, see: (x, z, reach) => sight.look(x, z, reach) };

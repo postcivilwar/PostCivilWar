@@ -20,6 +20,7 @@ import { createLoopbackHub, createRoomTransport } from '../net/transport.js';
 import { createLink } from '../net/link.js';
 import { buildWorld } from './render-world.js';
 import { outskirtsSteps } from './render-outskirts.js';
+import { programsReady } from './program-ready.js';
 import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
@@ -241,13 +242,11 @@ function start(carried) {
       for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
       return new Blob([bytes], { type: answer.mime });
     } });
-    // (their programs too, beside the game, before they are shown)
-    if (stepwise && typeof renderer.compileAsync === 'function') {
-      let ready = false;
+    // (their programs too, made ready before they are shown: program-ready.js)
+    if (stepwise) {
       billboards.group.visible = false;
-      renderer.compileAsync(billboards.group, camera, scene).then(() => { ready = true; }, () => { ready = true; });
-      const t0 = performance.now();
-      while (!ready && performance.now() - t0 < 5000 && said !== 'now') said = yield 'waiting';
+      const ready = programsReady(renderer, billboards.group, camera, scene);
+      while (said !== 'now' && !ready.step(6)) said = yield 'waiting';
       billboards.group.visible = true;
     }
     adBoard.refresh();

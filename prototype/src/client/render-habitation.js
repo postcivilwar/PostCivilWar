@@ -15,6 +15,7 @@
 //   habitation.update(dt, { eye, at, night })          each frame
 //   habitation.state()                                  (the tests: what is built, what it costs)
 
+import { programsReady } from './program-ready.js';
 import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } from '../sim/zone.js';
 import { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit } from './render-kit.js';
 import { addTree } from './render-world.js';
@@ -1554,17 +1555,20 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
 
   // What is newly built is shown once the graphics card has its programs ready (26 October 2026, the owner's brief: the
   // game hung on his phones). Shown at once, its first frame waited for every new program to be compiled, two dozen for
-  // the habitation: seconds on a phone, the town standing still. The browser compiles them meanwhile, beside the game
-  // (three.js compileAsync, where the browser can: KHR_parallel_shader_compile), and it is shown a few frames later, a
+  // the habitation: seconds on a phone, the town standing still (program-ready.js). It is shown a few frames later, a
   // couple of hundred metres off, where nobody sees the difference.
+  const showing = [];
   function showWhenReady(object, camera) {
-    if (!renderer || typeof renderer.compileAsync !== 'function' || !camera) return;
+    if (!renderer || !camera) return;
     object.visible = false;
-    const show = () => { object.visible = true; };
-    let done = false;
-    renderer.compileAsync(object, camera, scene).then(() => { done = true; show(); }, () => { done = true; show(); });
-    // (never kept from sight for long, whatever the browser does)
-    setTimeout(() => { if (!done) show(); }, 4000);
+    showing.push({ object, ready: programsReady(renderer, object, camera, scene) });
+  }
+  function stepShowing() {
+    for (let i = showing.length - 1; i >= 0; i -= 1) {
+      const s = showing[i];
+      if (!s.object.parent) { showing.splice(i, 1); continue; }
+      if (s.ready.step(6)) { s.object.visible = true; stats.programsMadeReady = (stats.programsMadeReady || 0) + s.ready.stats.programs; stats.readyLongestMs = Math.max(stats.readyLongestMs || 0, s.ready.stats.longestMs); showing.splice(i, 1); }
+    }
   }
   function ensureUpriver(camera = null) {
     if (upriver) return;
@@ -1759,6 +1763,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     }
     if (!built && !building && away < COME[lite ? 'lite' : 'full']) { building = true; buildJob = buildSteps(away, camera); }
     if (buildJob) { try { stepBuild(); } catch (error) { buildJob = null; building = false; onError(error); } }
+    if (showing.length) stepShowing();
     if (built && away > GO[lite ? 'lite' : 'full']) letGo();
     // (a phone: the ground's every point from NEAR_GROUND on, every other one again past its `go`)
     if (built && lite) { const every = built.ground.userData.every; if (every === 2 && away < NEAR_GROUND.come) swapGround(1); else if (every === 1 && away > NEAR_GROUND.go) swapGround(2); }
