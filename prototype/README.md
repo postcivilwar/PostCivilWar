@@ -3240,8 +3240,9 @@ website's server), the others may not see or hear them; the server still counts 
 
 **Measured** (25 October 2026, on this machine, which draws in software; each measuring alone on it):
 - **A phone at Medium** (Auto's choice on a phone), the gun out, in the two-player test (`test/guns.mjs`): at the
-  PowerBike showroom (the busiest place) 89.1 MB of pictures and buffers on the graphics card (86.5 to 91.8 MB in four
-  runs), at the motor park with the gun fired 94.7 MB (94.6 to 94.8), the screen's own not counted: under 150 MB.
+  PowerBike showroom (the busiest place) 91.8 MB of pictures and buffers on the graphics card on the final build (86.5
+  to 91.8 MB in all the runs), at the motor park with the gun fired 94.8 MB (94.6 to 96.1), the screen's own not
+  counted: under 150 MB.
 - **With no gun out, the website before the guns against the website with them** (`tools/measure/places.mjs`, by day,
   one run each in turn): the same draw calls, triangles and graphics card memory at every place measured (and at the
   habitation's, on a phone, counted as `test/habitation.mjs` counts them: the effects' lists, empty, are kept out of the
