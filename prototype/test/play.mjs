@@ -536,7 +536,7 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   await page.keyboard.up('w');
   await page.waitForTimeout(600);
   await shot('33-keke-meets-coach');
-  const stopped = await nlw(page, () => { const n = window.__nlw; n.cam.lastDrag = -10; const d = n.view.self.driving; return { x: d.x, z: d.z }; });
+  const stopped = await nlw(page, () => { const n = window.__nlw; n.cam.lastDrag = -10; const d = n.view.self.driving; const g = n.host.game; const imp = g.state.impact || {}; const near = (n.view.people || []).filter(([, x, z]) => Math.hypot(x - d.x, z - d.z) < 6).map(([i, x, z, h, pose]) => ({ i, job: g.internals.population.people[i].job, x: +x.toFixed(1), z: +z.toFixed(1), pose })); return { x: d.x, z: d.z, struck: (imp.events || []).slice(-2).map((e) => ({ kind: e.kind, on: e.on, x: e.x, z: e.z })), near, others: n.view.vehicles.filter((o) => o.id !== d.id && Math.hypot(o.x - d.x, o.z - d.z) < 8).map((o) => ({ id: o.id, kind: o.kind, x: +o.x.toFixed(1), z: +o.z.toFixed(1) })) }; });
   if (!(stopped.z - bump.z > 1.45 + 0.9) || !(stopped.z - bump.z < 4.5)) problems.push(`desktop: the keke should drive up to the coach and stop against it (${JSON.stringify({ stopped, bump })})`);
   // the fleet in the scene: every keke and coach is one of the supplied designs, and the coaches differ
   const fleet = await nlw(page, () => window.__nlw.fleet);

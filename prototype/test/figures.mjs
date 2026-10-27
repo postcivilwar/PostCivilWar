@@ -158,9 +158,11 @@ for (const id of Object.keys(FIG).filter((k) => !only || only.includes(k))) {
   const who = await page.evaluate(() => {
     const n = window.__nlw; const g = n.host.game; const pop = g.internals.population; const o = {}; let best = null;
     const me = g.state.players[n.playerId];
+    // a police officer: one who is struck always defends themselves, and so strikes back; with none standing about
+    // (ten since 27 October 2026), one of the owner's townspeople, who strikes back at the second blow
+    const police = pop.people.some((w, i) => w.job === 'police' && pop.locate(i, g.state.t, o).pose === 0);
     for (let i = 0; i < pop.count; i += 1) {
-      // a police officer: one who is struck always defends themselves, and so strikes back
-      const w = pop.people[i]; if (w.age < 18 || w.job !== 'police') continue;
+      const w = pop.people[i]; if (w.age < 18 || (police && w.job !== 'police')) continue;
       pop.locate(i, g.state.t, o); if (o.pose !== 0) continue;
       let open = true; for (let k = 1; k <= 4; k += 1) if (!n.walkable(o.x + Math.sin(o.h) * k, o.z + Math.cos(o.h) * k)) open = false;
       if (!open) continue;

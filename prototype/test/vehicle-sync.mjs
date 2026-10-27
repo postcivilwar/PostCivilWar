@@ -163,6 +163,8 @@ await B.page.waitForFunction((name) => { const q = (window.__nlw.view.players ||
 await B.page.waitForTimeout(800);
 const standing = await B.page.evaluate(({ name, id }) => { const n = window.__nlw, q = n.shownPeers.find((o) => o.name === name); const e = q && n.peerKekes.get(`p:${q.id}:${id}`); const driven = q && n.peerKekes.get(`d:${q.id}`); return { standing: !!e, at: e && [e.actor.group.position.x, e.actor.group.position.z], driven: !!driven, bayShown: n.vehicleActors.get(id) ? n.vehicleActors.get(id).group.visible : null }; }, { name: A.username, id: hired.id });
 check('out of it, the keke is seen standing where the driver left it (and not in its bay)', left.ok && standing.standing && !standing.driven && Math.hypot(standing.at[0] - left.x, standing.at[1] - left.z) < 0.5 && standing.bayShown === false, { left, standing });
+// (if not: what the driver's own game says it left, and each page's link)
+if (!(left.ok && standing.standing)) console.log('     the driver\'s parked kekes and the links:', JSON.stringify({ parked: await A.page.evaluate(() => { const n = window.__nlw, s = n.view.self; return { parked: s.parkedKekes, at: [s.x, s.z], vehicle: s.driving || null }; }), watcherSees: await B.page.evaluate((name) => { const q = (window.__nlw.view.players || []).find((o) => o.name === name); return q ? { vehicle: q.vehicle, kekes: q.kekes, x: q.x, z: q.z } : null; }, A.username), driver: await A.page.evaluate(() => window.__nlw.link), watcher: await B.page.evaluate(() => window.__nlw.link), driverTold: A.told.slice(-6) }));
 
 // ---- okadas: someone riding one, and someone on the back of one (a visitor's word, as the link hands it on) ----
 if (OKADAS) {
