@@ -20,6 +20,12 @@ ROOT = os.path.abspath(os.path.join(HERE, '../..'))
 sys.path.insert(0, os.path.join(ROOT, 'tools', 'characters'))
 import light  # noqa: E402  (tools/characters/light.py)
 
+# (27 October 2026: the townspeople's colour picture also at 512, which a phone draws them with: twenty-five of them,
+# each its own picture, came to 30 to 45 MB more on a phone's graphics card at the busiest places than the police alone
+# did; the police, five to a picture, keep 1024. A computer's stays 2048.)
+light.PICTURES = {**light.PICTURES, 'c': {**light.PICTURES['c'], 'sizes': (512, 1024, 2048)}}
+light.TOOL = light.TOOL + ' (npc: colour 512 too)'
+
 NPCS = os.path.join(ROOT, 'assets/characters/npcs')
 OUT = os.path.join(NPCS, 'light')
 

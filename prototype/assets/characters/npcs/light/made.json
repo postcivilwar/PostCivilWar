@@ -10,16 +10,20 @@
     "bytes": 467140,
     "sha256": "6efeeb67d7d976e66f4d8b85ba76ed4f5cc7783d8da9e0225f23497ae6577b02"
    },
+   "npc__animegirl3dmodel.c512.webp": {
+    "bytes": 65948,
+    "sha256": "e599f8dfdbd5ee9e613e098ff33d838cb3f2dc4462ae76694c783a5cf6a0290b"
+   },
    "npc__animegirl3dmodel.glb.gz": {
-    "bytes": 191038,
-    "sha256": "0b6c47b195d478c9cf7d692ad39efcd95db6e5c286ae1a5afbb0df8a78b93db8"
+    "bytes": 191067,
+    "sha256": "755c118f20f342636ec632b432a18f5660c81c9217eb13685e593e2ac4be0005"
    }
   },
   "from": "assets/characters/npcs/rigged/animegirl3dmodel.glb",
   "md5": "cb8d796967862692c8018afc302a23bb",
   "moved": 0.0,
   "shape": 7.62219914718365e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__athleticfemalecharacter3dmodel": {
   "bytes": 1527508,
@@ -32,16 +36,20 @@
     "bytes": 246270,
     "sha256": "862cf1d734eabae4981bff58d2a6d47de92de917101f985684f51f3342589096"
    },
+   "npc__athleticfemalecharacter3dmodel.c512.webp": {
+    "bytes": 45238,
+    "sha256": "f2a92aa99b8da4d856f1fb0bd6ec23a60f66c03dabec23d80ce09b9925f53362"
+   },
    "npc__athleticfemalecharacter3dmodel.glb.gz": {
-    "bytes": 189928,
-    "sha256": "86173c87c808399e74f941e29b2a59b530665f8adad7c70221fa9ad374fe8796"
+    "bytes": 189950,
+    "sha256": "52b676923d7567d7d44ae8ff2430be1bcb4d98b3d73519d6d788a346478d3fe2"
    }
   },
   "from": "assets/characters/npcs/rigged/athleticfemalecharacter3dmodel.glb",
   "md5": "d9496cd385c05382634736b68b437d4a",
   "moved": 0.0,
   "shape": 7.6221991483493845e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__bikinimodel3d": {
   "bytes": 1476376,
@@ -54,16 +62,20 @@
     "bytes": 187176,
     "sha256": "7f72a2140f1715c993db272779303206eb214232d58fa90858311d453584cd6d"
    },
+   "npc__bikinimodel3d.c512.webp": {
+    "bytes": 34922,
+    "sha256": "394b6bbb1783ea3a354aa4b8293962265db628746da57a5a257f7d14814da448"
+   },
    "npc__bikinimodel3d.glb.gz": {
-    "bytes": 195952,
-    "sha256": "27cdcf5ef1ebd07ed27cfa181f711bddb3b48a72770e1a13d0a6d597c3691897"
+    "bytes": 195976,
+    "sha256": "ddd8c49419dfd12e9fe4fc3e68682d4c1f50ebb2ab506428281085bec0e51efb"
    }
   },
   "from": "assets/characters/npcs/rigged/bikinimodel3d.glb",
   "md5": "af7b25fe226c34aaefe4d9950c02f277",
   "moved": 0.0,
   "shape": 7.625922847198652e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__character3dmodel": {
   "bytes": 1618092,
@@ -76,16 +88,20 @@
     "bytes": 303160,
     "sha256": "3d6650325f5f4fab6a026285fe607bec3b3fabab9bca23aba8d4cc84b5358bbb"
    },
+   "npc__character3dmodel.c512.webp": {
+    "bytes": 48508,
+    "sha256": "fa363aca860d8418af25a3519a30f0d7018824e68477e9e2c99f2d3f886f9796"
+   },
    "npc__character3dmodel.glb.gz": {
-    "bytes": 184162,
-    "sha256": "5ef1a43eaf6f494b34121343307137a62dc069231c93747f0dc0cd9772c3bc31"
+    "bytes": 184180,
+    "sha256": "968221e180f389248bc409d0d42dcbaef5bf91bdd66d9a8a5cf70686ee240861"
    }
   },
   "from": "assets/characters/npcs/rigged/character3dmodel.glb",
   "md5": "32ff36feb7c1c27c81e50154097204ec",
   "moved": 0.0,
   "shape": 7.622131043355518e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__fashiondoll3dmodel": {
   "bytes": 1689944,
@@ -98,16 +114,20 @@
     "bytes": 334056,
     "sha256": "c2bcb0ea3d75773d0c50740caa04490d01754f018ec6c2c16bd8c8ee7d938b97"
    },
+   "npc__fashiondoll3dmodel.c512.webp": {
+    "bytes": 57534,
+    "sha256": "99746bae7ae212de535f09b596ef03104135df2e57fa1658e1b8b66c2b550df2"
+   },
    "npc__fashiondoll3dmodel.glb.gz": {
-    "bytes": 179699,
-    "sha256": "54c8b21022a55c97f1d5016b0d5d5fb53ab3e4520056531fe08eeac75a6d7d68"
+    "bytes": 179723,
+    "sha256": "dda686cecb106616b04ce4f44aa760a763c305a29fa5eabdc3e5b04a48439d96"
    }
   },
   "from": "assets/characters/npcs/rigged/fashiondoll3dmodel.glb",
   "md5": "489fb2938dc9f28067a8e09a730559d2",
   "moved": 0.0,
   "shape": 7.622198011564274e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__fashionmodel3d": {
   "bytes": 1818724,
@@ -120,16 +140,20 @@
     "bytes": 293558,
     "sha256": "1c69f00929b1d9f132c4451a76576af74715ecfa2e03a700c7591dfcd823da97"
    },
+   "npc__fashionmodel3d.c512.webp": {
+    "bytes": 56452,
+    "sha256": "e004443e14377c36054e0eaf3d60fa79cf0b6468e1a617ffcde8fb02375299e4"
+   },
    "npc__fashionmodel3d.glb.gz": {
-    "bytes": 211402,
-    "sha256": "ef6f7978aefff10854ec753756687e1b58ea2f29e3fad34032cd937a003461ce"
+    "bytes": 211428,
+    "sha256": "63d0b48ab122edae5730fb29490dca472723462ce00cb3ee32a3b49cf26e435b"
    }
   },
   "from": "assets/characters/npcs/rigged/fashionmodel3d.glb",
   "md5": "2da581913f87b332bed79ee2a94dea19",
   "moved": 0.0,
   "shape": 7.6221991475028394e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__fashionmodel3dmodel1": {
   "bytes": 1885712,
@@ -142,16 +166,20 @@
     "bytes": 398260,
     "sha256": "601a74f99380a305c6434aef89dedc36b9b7a806d22061d399265d263d0376de"
    },
+   "npc__fashionmodel3dmodel1.c512.webp": {
+    "bytes": 49412,
+    "sha256": "4a94d72622a4094d9ff69f2c94ac3ca900ffa62e46cbde2b2e4c7cb605823a5a"
+   },
    "npc__fashionmodel3dmodel1.glb.gz": {
-    "bytes": 204664,
-    "sha256": "a2917613dbcc6573f8d305ee7ec747d4306afe486c297501df84223e7e02164c"
+    "bytes": 204686,
+    "sha256": "e505ecdf6f604e61685d2248d235849cddf6ac21b72afd7a83f2d078f042a4f4"
    }
   },
   "from": "assets/characters/npcs/rigged/fashionmodel3dmodel1.glb",
   "md5": "2ae6ce7e7f76ade8ff53e812433d7ed8",
   "moved": 0.0,
   "shape": 7.625922847184774e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__fashionmodel3dmodel2": {
   "bytes": 2313596,
@@ -164,16 +192,20 @@
     "bytes": 272160,
     "sha256": "4842cf8316dfc4c5b49dd31a34adbef0d6ca6fb78cf8dbdc150d6a3f5d39c4f6"
    },
+   "npc__fashionmodel3dmodel2.c512.webp": {
+    "bytes": 52584,
+    "sha256": "5516d1ea39d4b60c403546fdba72724f2274d0274237f2ad1a0957c3111119a0"
+   },
    "npc__fashionmodel3dmodel2.glb.gz": {
-    "bytes": 396755,
-    "sha256": "6b24498a4a94b382e886ea3a400424eb97238fe67ec27327e25958d76d4fd579"
+    "bytes": 396788,
+    "sha256": "7462bb373404991871b9e71e940b65f17c5360bb93424ca84e1560fdbcc4ac47"
    }
   },
   "from": "assets/characters/npcs/fashionmodel3dmodel2.glb",
   "md5": "78915039c1e12fa8ae43d6bc4b88f8e0",
   "moved": 0.0011269754522470483,
   "shape": 7.622214148517159e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__fashionmodel3dmodel3": {
   "bytes": 3035984,
@@ -186,9 +218,13 @@
     "bytes": 540016,
     "sha256": "bcbe0172ba0ebea5eca25938bbe5c57cfb8512ac4ed7267d65f404eca7a1265c"
    },
+   "npc__fashionmodel3dmodel3.c512.webp": {
+    "bytes": 73412,
+    "sha256": "8d4286e07abe09f933ecfd66103c9777b09db10de3e7de7a945f646244515bf3"
+   },
    "npc__fashionmodel3dmodel3.glb.gz": {
-    "bytes": 180862,
-    "sha256": "97e581616aa1d52972a018800951690179ebaa15f3d5672339e5cb482e97940a"
+    "bytes": 180891,
+    "sha256": "0f8bcdc4786032896bfce4b6dd29665d3ee725e98799ab75e05ac55452eea424"
    },
    "npc__fashionmodel3dmodel3.m1024.webp": {
     "bytes": 95970,
@@ -203,7 +239,7 @@
   "md5": "63b8e285d4e66e794f2f4aac947d9c0c",
   "moved": 0.0,
   "shape": 7.445542393458293e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__fashionmodel3dmodel4": {
   "bytes": 2254968,
@@ -216,16 +252,20 @@
     "bytes": 580434,
     "sha256": "14dc27cbddd52bf6dca3d2c67a37f680611cc93b571d1d5657aa60cd1859438f"
    },
+   "npc__fashionmodel3dmodel4.c512.webp": {
+    "bytes": 59604,
+    "sha256": "a55ba338365f99ff9c8b8182ef4fb8a00ffbb4367ca3c99c2e42d5c3907eb935"
+   },
    "npc__fashionmodel3dmodel4.glb.gz": {
-    "bytes": 199947,
-    "sha256": "deec399a87ce1bfb75ad38bddc6a52637d40977f23a1666eab2142e1ddd84408"
+    "bytes": 199959,
+    "sha256": "b277eb9610954889b2a86c5e1cb1128f2dc9029134272bcf52f2776d78e2b9f2"
    }
   },
   "from": "assets/characters/npcs/rigged/fashionmodel3dmodel4.glb",
   "md5": "428142c0cdf796a04c838759444229f5",
   "moved": 0.0,
   "shape": 7.622198466061825e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__fashionmodel3dmodel5": {
   "bytes": 1664616,
@@ -238,16 +278,20 @@
     "bytes": 286056,
     "sha256": "c69828f3d84b7d486e5cca414ed9d84e65510b1088394572900ce834e21b9f94"
    },
+   "npc__fashionmodel3dmodel5.c512.webp": {
+    "bytes": 56390,
+    "sha256": "028218c92101725dbe00a94e79a96507372af3d41e54074e1fb4fa1fe7aefb0f"
+   },
    "npc__fashionmodel3dmodel5.glb.gz": {
-    "bytes": 192409,
-    "sha256": "b2a1fb2cf682b10bd7e25826f0a037c8d6fc7b3715f93beeba63536850441898"
+    "bytes": 192433,
+    "sha256": "a830d279f98afceb3c6bb2062d258b872b906fa0d03065702ba274779c630362"
    }
   },
   "from": "assets/characters/npcs/rigged/fashionmodel3dmodel5.glb",
   "md5": "9d830232f076261622ac38433ac4591b",
   "moved": 0.0,
   "shape": 7.622198011189574e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__femalecharacter3dmodel1": {
   "bytes": 2048360,
@@ -260,16 +304,20 @@
     "bytes": 414290,
     "sha256": "d1a64a596b5d2ed3b9188b39eebebb0a74383e84df0b4653a063a888e7bcaaf3"
    },
+   "npc__femalecharacter3dmodel1.c512.webp": {
+    "bytes": 62182,
+    "sha256": "fccf3490c93cfde8258980e0a2ec899a3ff2e6d31dab1b45d04c5dd5d51dad86"
+   },
    "npc__femalecharacter3dmodel1.glb.gz": {
-    "bytes": 208209,
-    "sha256": "4e709ca36c2d1be0e581124e9ef590b30fad4629b88663330c84649a4aebf4c5"
+    "bytes": 208243,
+    "sha256": "174a2628382f726c300e74fb7405c66ad8ca7d8c38dffe50b0ad102bb732d9e0"
    }
   },
   "from": "assets/characters/npcs/femalecharacter3dmodel1.glb",
   "md5": "5be639fe525653a50729ebcdde9112a7",
   "moved": 0.0006356822939414287,
   "shape": 7.629574192202782e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__femalecharacter3dmodel2": {
   "bytes": 1830360,
@@ -282,16 +330,20 @@
     "bytes": 374520,
     "sha256": "46db7c54397ff54af96965a770858bf60392771de06ef9a83e2fdc8b88079813"
    },
+   "npc__femalecharacter3dmodel2.c512.webp": {
+    "bytes": 58616,
+    "sha256": "7607eb84c74d9b270f2c86f0e42a84ec4d8eeda9fdefe9fa104bf770d235ab9a"
+   },
    "npc__femalecharacter3dmodel2.glb.gz": {
-    "bytes": 201144,
-    "sha256": "bb64303bb7dd66340e76380a4b20f7b675ed48fabdcc6fc289f6f95e56433ef2"
+    "bytes": 201176,
+    "sha256": "635e304c35ca7d7f19de1365c1bafbcd94ab2824e59ca14cd7160130ba4194a0"
    }
   },
   "from": "assets/characters/npcs/rigged/femalecharacter3dmodel2.glb",
   "md5": "e8837b6228fe319955b2f81f73d3af91",
   "moved": 0.0,
   "shape": 7.625922847191713e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__femalecharacter3dmodel3": {
   "bytes": 1415836,
@@ -304,16 +356,20 @@
     "bytes": 217666,
     "sha256": "db8f266fae4bec915be4331eaf64ced59341be834f4dea33422ddad85ac86dbb"
    },
+   "npc__femalecharacter3dmodel3.c512.webp": {
+    "bytes": 37372,
+    "sha256": "da762b6c11e6f1c3c28fb0561d12d8a186ecce0533184f803c01b222817e5b66"
+   },
    "npc__femalecharacter3dmodel3.glb.gz": {
-    "bytes": 179396,
-    "sha256": "97ade4bfebd27481e20be14380ee5524b23b97462ea7c1394a108736cef80e50"
+    "bytes": 179422,
+    "sha256": "aa8a2d2f1bda7218be5c6430d344546896dfa07482f4ebc819e4e9d4686e7066"
    }
   },
   "from": "assets/characters/npcs/rigged/femalecharacter3dmodel3.glb",
   "md5": "2be8ef03d670a71d6fd0e36ec9237bc3",
   "moved": 0.0,
   "shape": 7.62565366585477e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__femaledancer3dmodel": {
   "bytes": 1463612,
@@ -326,16 +382,20 @@
     "bytes": 224004,
     "sha256": "479024e1954b62e59dfaa8ae744f71fc4a710dc12b3bf0b272e350f4f8d238a7"
    },
+   "npc__femaledancer3dmodel.c512.webp": {
+    "bytes": 43078,
+    "sha256": "1817b4007340b11314f207a794ff87082ddcdaa9bbd68ad266bade3dce114068"
+   },
    "npc__femaledancer3dmodel.glb.gz": {
-    "bytes": 183502,
-    "sha256": "7acafe506cad76285b486485d46e396f513f54c4c9a5e251ee72160b9c3c9859"
+    "bytes": 183523,
+    "sha256": "7c99c4dc34a302d7e64d57e0af07851fc239c317a59d9c69aa4424add20c01a7"
    }
   },
   "from": "assets/characters/npcs/rigged/femaledancer3dmodel.glb",
   "md5": "dff7f1191047cd8a26cb66f690f3d466",
   "moved": 0.0,
   "shape": 7.625879037666261e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__femalefigure3dmodel1": {
   "bytes": 1899036,
@@ -348,16 +408,20 @@
     "bytes": 348588,
     "sha256": "aa219360eb558a3b3ba2cb216b8e4939f710a3a5db2a64ce5b31e8c30300184b"
    },
+   "npc__femalefigure3dmodel1.c512.webp": {
+    "bytes": 60998,
+    "sha256": "4122409b5b3ed8392fe0373ddb979aae22a5e7789ec09ef32e7cdb604cf1c515"
+   },
    "npc__femalefigure3dmodel1.glb.gz": {
-    "bytes": 214713,
-    "sha256": "879c5ffa37995ae49503adead95ff4cfab65940ffd4a671cfebcf6db87496d68"
+    "bytes": 214747,
+    "sha256": "f8ca2d24593a3b262d867a17fef6e5cc8cc9620867028d6cde4b049eaaabd541"
    }
   },
   "from": "assets/characters/npcs/rigged/femalefigure3dmodel1.glb",
   "md5": "492938421810bc0ae5243de31670a8ff",
   "moved": 0.0,
   "shape": 7.616564220908062e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__femalefigure3dmodel2": {
   "bytes": 1479560,
@@ -370,16 +434,20 @@
     "bytes": 225278,
     "sha256": "247fc5bf26796267cfd48e07b55f72371912a5ea390da32f786ac6c7b54e642e"
    },
+   "npc__femalefigure3dmodel2.c512.webp": {
+    "bytes": 46846,
+    "sha256": "fb2648f699e94a26ef74dfe7b43387e58361ece9bb04ba7148b3be5242e5316c"
+   },
    "npc__femalefigure3dmodel2.glb.gz": {
-    "bytes": 191731,
-    "sha256": "31dbec8989b465e39140343cf8fe811b82c50576012bf79252b56c4540c3c3ad"
+    "bytes": 191762,
+    "sha256": "928620eb6cdd1046e46ca4b6d4b5a4938b84ebd974587f00425e283385bdc199"
    }
   },
   "from": "assets/characters/npcs/rigged/femalefigure3dmodel2.glb",
   "md5": "9525eb0543b43b183e40940d872a96aa",
   "moved": 0.0,
   "shape": 7.622216896624456e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__femalehuman3dmodel": {
   "bytes": 1388876,
@@ -392,16 +460,20 @@
     "bytes": 186926,
     "sha256": "81fb5a8c7e32b2a1f90d65217052895a9edbc0771e91aa35f2c7cea2ace44b1d"
    },
+   "npc__femalehuman3dmodel.c512.webp": {
+    "bytes": 37332,
+    "sha256": "81899c981d412402ba162354da2610a7572bb8e6fc562e921d05f82f9f378cc0"
+   },
    "npc__femalehuman3dmodel.glb.gz": {
-    "bytes": 194015,
-    "sha256": "a5afaa6a2a679d857a2dd3e7117a08a61bbc62197c94f0b480e879a838a2a8fe"
+    "bytes": 194032,
+    "sha256": "20b4e3efeb3518d9d68fb185399a4098331c3d11cd06133067f6ebdf20e2415b"
    }
   },
   "from": "assets/characters/npcs/rigged/femalehuman3dmodel.glb",
   "md5": "84d4f9f252773bc9e3ed22d332a857c9",
   "moved": 0.0,
   "shape": 7.622198011161818e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__humancharacter3dmodel1": {
   "bytes": 2085216,
@@ -414,16 +486,20 @@
     "bytes": 487180,
     "sha256": "cc3908c636643130db1516d3f560c66811ba1ba187e28cdd876f1212b1ea16db"
    },
+   "npc__humancharacter3dmodel1.c512.webp": {
+    "bytes": 67972,
+    "sha256": "a2df0c285add13961ec806b66781309ee7ce4589c899dc0a3e029a31b455a9a5"
+   },
    "npc__humancharacter3dmodel1.glb.gz": {
-    "bytes": 199632,
-    "sha256": "92f8b556e5dff1423c970fa4ea3791e6d288bd6160cf537da71c72dd697e7a7b"
+    "bytes": 199657,
+    "sha256": "10205385181944e3f002dd7facc4de8268812ee24fc24d3ea06cc4b15aed34db"
    }
   },
   "from": "assets/characters/npcs/rigged/humancharacter3dmodel1.glb",
   "md5": "dd332efa26b5e593420cf32599efa1d6",
   "moved": 0.0,
   "shape": 7.625922847198652e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__humanfigure3dmodel": {
   "bytes": 6422600,
@@ -436,16 +512,20 @@
     "bytes": 893262,
     "sha256": "0f634e491ecb537f6ff2e4e08049a5887b0ebc06fe5a5b59651b56f9ddec89ef"
    },
+   "npc__humanfigure3dmodel.c512.webp": {
+    "bytes": 84272,
+    "sha256": "b11c07696f95adffcf8c4f495b349a3c367f61db6a54b70ca270135fb9dbb555"
+   },
    "npc__humanfigure3dmodel.glb.gz": {
-    "bytes": 185938,
-    "sha256": "146ed5dabd9e1c2f63b7b8404dbc672f3e45bda3fa88980015ab531529a58197"
+    "bytes": 185971,
+    "sha256": "05f56a046737028257ec0a96c50daca6b2950d156041475c5ab231a45fa04566"
    }
   },
   "from": "assets/characters/npcs/humanfigure3dmodel.glb",
   "md5": "0785a139c083b7c10c569bc074e480a2",
   "moved": 0.00024094398470393759,
   "shape": 7.625867661127661e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__humanfigure3dmodel1": {
   "bytes": 1640948,
@@ -458,16 +538,20 @@
     "bytes": 337300,
     "sha256": "4bfb8d9b20d4273a6a75d77dce1eee176d974401eb1d6d3f2b6ffcc3b1d41526"
    },
+   "npc__humanfigure3dmodel1.c512.webp": {
+    "bytes": 49732,
+    "sha256": "8c40ee54d2fd02138c03635f203bfeaf4045bb8565eb0ea4f637a06d72ce5b50"
+   },
    "npc__humanfigure3dmodel1.glb.gz": {
-    "bytes": 177287,
-    "sha256": "7ae4f840edd96d1fd5b6c1167db8b163b28cc02769b155a5d440ba1e8e59656d"
+    "bytes": 177318,
+    "sha256": "56b7515d5a18e2a35f89783eb554f30dfe9e8beb63837eeb468ce8c9050bc45a"
    }
   },
   "from": "assets/characters/npcs/rigged/humanfigure3dmodel1.glb",
   "md5": "cfbd837220a7162fc66e45808a31342d",
   "moved": 0.0,
   "shape": 7.62220121117152e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__humanfigure3dmodel2": {
   "bytes": 6422600,
@@ -480,16 +564,20 @@
     "bytes": 893262,
     "sha256": "0f634e491ecb537f6ff2e4e08049a5887b0ebc06fe5a5b59651b56f9ddec89ef"
    },
+   "npc__humanfigure3dmodel2.c512.webp": {
+    "bytes": 84272,
+    "sha256": "b11c07696f95adffcf8c4f495b349a3c367f61db6a54b70ca270135fb9dbb555"
+   },
    "npc__humanfigure3dmodel2.glb.gz": {
-    "bytes": 185929,
-    "sha256": "8d21720c650b41a6fabc112bbc5c12fddb0532339850bf00143e6fa98402beeb"
+    "bytes": 185970,
+    "sha256": "b3af4e5d7bd662a27b543f86e7914e8d1ef0588d79173e651f32f0ab7a2f9560"
    }
   },
   "from": "assets/characters/npcs/humanfigure3dmodel2.glb",
   "md5": "bcb608a3880236844da76010b3e3f33e",
   "moved": 0.00024094398470393759,
   "shape": 7.625867661127661e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__military-stylefemale3dmodel": {
   "bytes": 1760792,
@@ -502,16 +590,20 @@
     "bytes": 324196,
     "sha256": "d7d3373027e0c5a6ff087e80b127ab0847088a352742a0356db4a6ebcac5b643"
    },
+   "npc__military-stylefemale3dmodel.c512.webp": {
+    "bytes": 57890,
+    "sha256": "c4d64fd91ae8d00a467376c3e0ca5bdb8cec395c73014c837c461173f36bebbc"
+   },
    "npc__military-stylefemale3dmodel.glb.gz": {
-    "bytes": 198234,
-    "sha256": "03502e918a1e8d616cf19b1118562c44c94dfe7d8fff0d7553986c2377710c62"
+    "bytes": 198260,
+    "sha256": "e76fff95b245e3bb5b78de0488cc3ca6af9f4c33f7f6b69e4a0415f20113f5d8"
    }
   },
   "from": "assets/characters/npcs/rigged/military-stylefemale3dmodel.glb",
   "md5": "7c88e2bcbacc3b63c7a55c2385ffeafe",
   "moved": 0.0,
   "shape": 7.6222007387299895e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "npc__youngwoman3dmodel": {
   "bytes": 1532536,
@@ -524,16 +616,20 @@
     "bytes": 253124,
     "sha256": "f55d926f45f9f54ee5c1922b3b0aafaf01cee73a84b716f8bac9e3a3610c5042"
    },
+   "npc__youngwoman3dmodel.c512.webp": {
+    "bytes": 39778,
+    "sha256": "b15442f4329758da6ffdf92e360bdd0233c62bcb74f5cf0bf3853326fb6027bd"
+   },
    "npc__youngwoman3dmodel.glb.gz": {
-    "bytes": 189875,
-    "sha256": "72b31d7816f58df82e373fb55ae8db7a7202c495e14f82427b3e41c92d6e4929"
+    "bytes": 189903,
+    "sha256": "437328e87e6441aafb09a2ea8b311f7ed5a218003fd4bab9febf3db9e0189d5e"
    }
   },
   "from": "assets/characters/npcs/rigged/youngwoman3dmodel.glb",
   "md5": "25d2640db14f951a7d3231b5db4db3d4",
   "moved": 0.0,
   "shape": 7.624063838300443e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "police__policeofficerfigure3dmodel": {
   "bytes": 2250924,
@@ -546,16 +642,20 @@
     "bytes": 222712,
     "sha256": "c7caca1e2da72bf8ce93a159cf67ca4da8edd8d2d951e63956607497a3e8153b"
    },
+   "police__policeofficerfigure3dmodel.c512.webp": {
+    "bytes": 44122,
+    "sha256": "bf7434c9ef3d0eff642d0725fd1cf3f99f5358bce349f9adf23e23f4df960760"
+   },
    "police__policeofficerfigure3dmodel.glb.gz": {
-    "bytes": 369619,
-    "sha256": "a5252ba36e8f451be0dd0c1016e594845be17f9a132536eba249d02fa82296e3"
+    "bytes": 369638,
+    "sha256": "b7f0f63ebf12953a57ade4472fbb337f735ea615a2cc6dbe7834d3ec0c591ebf"
    }
   },
   "from": "assets/characters/police/policeofficerfigure3dmodel.glb",
   "md5": "0d593ebb1049cffb466b0baf07648506",
   "moved": 0.0010093739645357866,
   "shape": 7.622191947165291e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  },
  "police__securityguard3dmodel": {
   "bytes": 1866404,
@@ -568,15 +668,19 @@
     "bytes": 180428,
     "sha256": "e565a5a79cdbba6b8b1e592ccbc8379fcb148af7ffa9c86354af36592a863592"
    },
+   "police__securityguard3dmodel.c512.webp": {
+    "bytes": 34800,
+    "sha256": "0501e8da37d396df3074a999af21de18d27fa750dad9639cbc8709a0ae995f3e"
+   },
    "police__securityguard3dmodel.glb.gz": {
-    "bytes": 305549,
-    "sha256": "b2bf77bb631b9cac40a0c64d30fba472cd02afff7bef0659f19d48a8e3887b48"
+    "bytes": 305575,
+    "sha256": "f01f48509cb95f84cdafb1cb26bb147d0b70f6b2986cf2da7d92fa6e859f6af6"
    }
   },
   "from": "assets/characters/police/securityguard3dmodel.glb",
   "md5": "eb295307bd32384511189d10be0459e2",
   "moved": 0.0009074016891315519,
   "shape": 7.637078617561688e-06,
-  "tool": "light.py 1"
+  "tool": "light.py 1 (npc: colour 512 too)"
  }
 }

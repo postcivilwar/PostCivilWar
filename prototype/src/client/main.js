@@ -2568,6 +2568,8 @@ function start(carried) {
       const who = known.get(actor.i);
       if (!who || actor.pose === 3 || actor.d === undefined || actor.d > 2.4 || who.fig.scale < 0.82) continue;      // nobody lying down, and no children
       consider('npc', actor.i, who.short, actor.x, actor.z, actor.h);
+      // (at 20, the 20-life rule: offered greyed)
+      if (out.fight && out.fight.kind === 'npc' && out.fight.id === actor.i) { const mood = view.moods.find((q) => q.i === actor.i); if (mood && mood.health <= 20) out.fight.spent = true; }
     }
     for (const q of view.players) if (!q.visitor) consider('player', q.id, q.name, q.x, q.z, q.heading);
     for (const o of view.okadas) {
@@ -2612,7 +2614,7 @@ function start(carried) {
       }
       // the gun (25 October 2026): everyone has the rifle; at 20, it cannot be used (the 20-life rule: shown, greyed)
       if (gunPlay) list.push({ id: 'gun', key: 'x', label: 'Gun', icon: 'gun', off: !!self.critical, hint: self.critical ? 'You are badly hurt: you cannot use a gun' : 'Take out your gun (X)' });
-      if (near.fight && !self.critical) list.push({ id: 'fight', key: 'f', label: 'Fight', tone: 'warn', hint: `Square up to ${near.fight.name}` });
+      if (near.fight && !self.critical) list.push({ id: 'fight', key: 'f', label: 'Fight', tone: 'warn', off: !!near.fight.spent, hint: near.fight.spent ? `${near.fight.name} is badly hurt. Leave them.` : `Square up to ${near.fight.name}` });
       if (near.take && !self.critical) list.push({ id: 'take', key: 'g', label: 'Take', tone: 'warn', hint: near.take.text });
       if (near.steal && !self.critical) list.push({ id: 'steal', key: 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
       if (self.critical) list.push({ id: 'ambulance', key: 'h', label: 'Help', hint: 'Call an ambulance' });
@@ -2644,11 +2646,15 @@ function start(carried) {
       return list;
     }
     if (m === 'combat') {
+      // (the one faced at 20, the 20-life rule: nobody may strike them; the blows greyed, only stepping away left)
+      const foe = self.fight && self.fight.target;
+      const spent = !!foe && Number.isFinite(foe.health) && foe.health <= 20;
+      const why = spent ? `${foe.name} is badly hurt. Leave them.` : '';
       return [
-        { id: 'punch', key: 'f', label: 'Punch', primary: true, tone: 'warn' },
-        { id: 'heavy', key: 'g', label: 'Heavy' }, { id: 'kick', key: 'r', label: 'Kick' },
+        { id: 'punch', key: 'f', label: 'Punch', primary: true, tone: 'warn', off: spent, hint: why },
+        { id: 'heavy', key: 'g', label: 'Heavy', off: spent, hint: why }, { id: 'kick', key: 'r', label: 'Kick', off: spent, hint: why },
         { id: 'block', key: 'q', label: 'Block', kind: 'hold', pressed: blocking }, { id: 'dodge', key: 'Space', label: 'Dodge' },
-        { id: 'shove', key: 'z', label: 'Shove' }, { id: 'grab', key: 'x', label: 'Grab' },
+        { id: 'shove', key: 'z', label: 'Shove', off: spent, hint: why }, { id: 'grab', key: 'x', label: 'Grab', off: spent, hint: why },
         { id: 'leave', key: 'v', label: 'Leave', hint: 'Step back from the fight' },
       ];
     }

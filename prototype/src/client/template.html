@@ -382,6 +382,7 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .key { appearance: none; border: 0; background: rgba(0, 0, 0, 0.44); color: var(--text); border-radius: 8px; padding: 5px 9px 5px 6px; display: flex; gap: 6px; align-items: center; font-size: 12.5px; cursor: pointer; }
 .key:hover { background: rgba(30, 30, 32, 0.8); }
 .key.warn .keycap { border-color: var(--danger); }
+.key.off { opacity: 0.4; cursor: not-allowed; }
 .key[aria-pressed="true"] { background: var(--white); color: var(--ink); }
 .key[aria-pressed="true"] .keycap { color: var(--ink); border-color: var(--ink); }
 .key .keycap { min-width: 20px; }

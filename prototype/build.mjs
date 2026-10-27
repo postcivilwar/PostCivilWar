@@ -265,7 +265,8 @@ for (const f of Object.values(FIGURES)) {
   const NPC_LIGHT = resolve(root, 'assets/characters/npcs/light');
   const madeNpc = () => (existsSync(resolve(NPC_LIGHT, 'made.json')) ? JSON.parse(readFileSync(resolve(NPC_LIGHT, 'made.json'), 'utf8')) : {});
   const stem = (f) => f.file.replace(/\.glb$/, '');
-  const stale = (made) => Object.values(NPC_FIGURES).filter((f) => { const e = made[stem(f)]; return !e || e.tool !== lightTool || e.md5 !== createHash('md5').update(readFileSync(resolve(root, 'assets/characters', e.from.replace(/^assets\/characters\//, '')))).digest('hex') || Object.keys(e.files).some((n) => !existsSync(resolve(NPC_LIGHT, n))); });
+  const npcTool = `${lightTool} (npc: colour 512 too)`;
+  const stale = (made) => Object.values(NPC_FIGURES).filter((f) => { const e = made[stem(f)]; return !e || e.tool !== npcTool || e.md5 !== createHash('md5').update(readFileSync(resolve(root, 'assets/characters', e.from.replace(/^assets\/characters\//, '')))).digest('hex') || Object.keys(e.files).some((n) => !existsSync(resolve(NPC_LIGHT, n))); });
   let made = madeNpc();
   if (stale(made).length) {
     console.log(`making the light copies of ${stale(made).map((f) => f.id).join(', ')} (tools/npcs/light_npcs.py)`);

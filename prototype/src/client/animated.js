@@ -256,7 +256,9 @@ export function figureTurn(id) {
   return { url: entry.turn[0], bytes: entry.turn[1], frames: t.frames, cols: t.cols, rows: Math.ceil(t.frames / t.cols), frame: t.frame, band: t.band };
 }
 // What fetching a light copy fetches here: the model, and each picture at the size this device draws it. In bytes too.
-export function lightFiles(id, size = liteTexture()) {
+// (his townspeople on a phone: their colour pictures at 512, light_npcs.py; the police, five to a picture, at 1024)
+const TOWN_PICTURE = 512;
+export function lightFiles(id, size = NPC_FIGURES[id] && !NPC_FIGURES[id].police && liteTexture() <= 1024 ? Math.min(liteTexture(), TOWN_PICTURE) : liteTexture()) {
   const entry = lightCopy(id);
   if (!entry) return null;
   const pictures = entry.pictures.map((p) => {

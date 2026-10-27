@@ -3360,6 +3360,71 @@ made again; it happens only when the browser takes the picture away.
 **Not measurable here**: frames a second on his phones (this machine draws in software), and how long his iPhone lets
 the page have. What to check on each is in `claude/build-status.md` and was sent to him.
 
+## The owner's townspeople and police in the town (27 October 2026)
+
+The owner's brief (26 and 27 October 2026): his own NPC models in the town, never in the players' list; walking the
+streets and pavements, some in the habitation; walking, stopping, standing, talking, sitting; the women walking
+elegantly and majestically, some like a model on a catwalk, the men boldly; every NPC running when frightened, falling
+when shot or hit hard, getting up; fighting (punch, block, being hit); moods now and then; the 20-life rule; the police
+replaced by his own two police models, ten officers, five women and five men; the models with no skeleton given one
+(on copies: his files are not changed).
+
+**Who is in the town** (`src/sim/npc-figures.js`, `zones/atani.js` edition 4): 35 people.
+
+- **Police**: ten officers, five of his police officer (P1, a woman) and five of his security guard (P2, a man), each a
+  little taller or shorter than the next (`police-looks.js`), on the beats of `zones/atani-patrols.js` (seven by day,
+  three by night). The sixteen policewomen before them are kept only in the character lab's lineup.
+- **Townspeople**: 25 of his figures: ten hawkers (women), eleven women out and about, and four men (his two men's
+  figures, two each); each woman her own figure. `humanfigure3dmodel2` is left out (the same figure as
+  `humanfigure3dmodel` but for 81 bytes) and `streetwear_model_3d_model` (551,552 triangles) until a lighter copy of it
+  has been shown to the owner side by side.
+- **Skeletons**: 21 of his files came with no skeleton; each was given a copy of his police officer's skeleton (a
+  woman) or his security guard's (a man) by `tools/npcs/rig.py` (`assets/characters/npcs/rigged/`), his mesh, material
+  and pictures kept byte for byte. Each is drawn from a light copy (`tools/npcs/light_npcs.py`), as the players' figures
+  are. Figures that share a skeleton share their moves (a "family", `borrow.mjs`).
+
+**How each walks** (`npc-figures.js` `walk`, `animated.js` `TOWN_WALK`): *elegant* (the woman's own walk, upright),
+*catwalk* (his "female cat walk": one foot before the other, the hips swinging) or *bold* (his security guard's
+swagger). The pace of each walk and run over the ground was measured from how fast the planted foot goes back under
+the body (`tools/npcs/strides.mjs`, `STRIDES`), so a figure going faster or slower plays it faster or slower and the
+feet hold the ground. Each starts its walk at its own point in the step, so no two walk in step.
+
+**The moves** (`tools/characters/borrow.mjs`, `TOWN_MOVES`): for each family, from his own figures' files: the three
+walks, a run, dancing, tired, stretching, talking with the hands, on the phone, looking about, laughing, waving,
+frightened, two punches, a heavy punch, a kick, being hit, defeated, a fall. Carried onto his figures with each limb
+pointed as the source's points and turned to the way his figures face (they are made facing along x, most of the
+source files along z: carried as before, their arms stayed out and a stride became a step to the side).
+
+**What they do** (`src/sim/conflict.js`, `impact.js`, `guns.js`, `actors.js`):
+
+- **Struck once**, most run (22 of the 25: the two proud, quick-tempered women fight back at once, one stands and
+  warns). **Struck again**, anyone fights back: punches, a heavy punch, kicks, blocks, slips. After 6 to 14 seconds of
+  it (each fight its own) they give up and go: walking back to their day, walking off, or hurrying off. Then they go
+  back to their day.
+- **The 20-life rule**: at 20 nobody can strike them (the fight buttons are refused, `TARGET_DOWN`) and a round goes
+  past them. They limp off slowly (0.85 m/s, the limp the players have), stand a while hurt (40 to 80 seconds), then
+  go back to their day still limping; their life comes back a point every three seconds once nobody has struck them
+  for ten, to 100. They limp while it is 30 or less.
+- **Shot**: a round takes a point (the owner's setting, `GUN.damage`). They fall the way a player falls (`falls.js`),
+  away from the shooter, lie a few seconds, get up, and run from the shooter (or, at 20, limp). Blood on the ground
+  under them, and on them where the round struck (`wound-paint.js`). Not down again within six seconds of getting up.
+  Shooting one of them is an offence (`shooting`), and the police come for the shooter as for any offence.
+- **Hit hard** (a heavy punch or a kick that lands unblocked, on someone not fighting back): now and then (35%) down
+  the same way.
+- **Gunfire** frightens those on their feet within 16 m of the shooter or 8 m of where a round struck: most run,
+  some cower; a dozen at most at once.
+- **Moods**: now and then, standing still, one of the moods (dancing, tired, stretching, on the phone, looking about,
+  laughing, waving); with someone near, talking with their hands or laughing. Not straight after trouble.
+- **Police see it**: as before, an officer who sees an offence (or is told of it) comes for whoever started it.
+
+**Two players**: each player's game runs its own copy of the town. Everyone's day is planned from the same seed and
+the same clock, so two players in the same place see the same people in the same places doing the same things. What
+a player does to a townsperson (a fight, a shot) happens in that player's copy only: the other player sees the
+townsperson carry on with their day. The players themselves, their shots at each other and their own fights are
+shared as before.
+
+**Measured**: MEASURED
+
 ## Tests
 
 ```

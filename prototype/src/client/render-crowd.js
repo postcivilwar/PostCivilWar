@@ -239,7 +239,8 @@ export function createCrowd(scene) {
   // hands, or laughs. Chosen from who they are and the town's clock alone, so that another player near them sees
   // the same.
   let moodClock = 0;
-  const MOOD_EVERY = 22;            // seconds: a chance of a mood this often, standing still
+  const MOOD_EVERY = 22;
+  const MOOD_WEIGHTED = Object.freeze(['~phone', '~phone', '~phone', '~look', '~look', '~look', '~talk', '~laugh', '~wave', '~wave', '~tired', '~stretch', '~dance']);            // seconds: a chance of a mood this often, standing still
   const moodHash = (i, n) => { let h = Math.imul(i + 1, 374761393) ^ Math.imul(n + 7, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   function mood(actor, moving) {
     const rig = actor.rig;
@@ -248,11 +249,13 @@ export function createCrowd(scene) {
     if (rig.moodSlot === slot) return;
     rig.moodSlot = slot;
     const roll = moodHash(actor.i, slot);
-    if (roll > 0.6) return;
+    if (roll > 0.35) return;
     let company = false;
     for (const other of actors.values()) if (other !== actor && other.pose === POSE.stand && Math.hypot(other.x - actor.x, other.z - actor.z) < 2.6) { company = true; break; }
     const moods = rig.spec.moods;
-    const name = company ? (roll < 0.4 ? '~talk' : '~laugh') : moods[Math.floor(moodHash(actor.i + 101, slot) * moods.length)];
+    // (the everyday ones most, now and then a dance or a stretch: a street, not a stage)
+    const pickFrom = MOOD_WEIGHTED.filter((n) => moods.includes(n));
+    const name = company ? (roll < 0.25 ? '~talk' : '~laugh') : pickFrom[Math.floor(moodHash(actor.i + 101, slot) * pickFrom.length)];
     if (rig.emote(name)) stats.moods = (stats.moods || 0) + 1;
   }
 

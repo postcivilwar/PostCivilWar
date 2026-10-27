@@ -899,14 +899,14 @@ export function createUI(app) {
   let keysShown = '';
   function setKeys(list, onPress) {
     const rows = list.filter((b) => b.id !== 'act' && b.key);
-    const signature = rows.map((b) => `${b.id}:${b.label}:${b.pressed ? 1 : 0}:${b.tone || ''}`).join('|');
+    const signature = rows.map((b) => `${b.id}:${b.label}:${b.pressed ? 1 : 0}:${b.tone || ''}:${b.off ? 1 : 0}`).join('|');
     if (signature === keysShown) return;
     keysShown = signature;
     $('hud').classList.toggle('crowded', list.length >= 6);
     const box = $('keys');
     box.hidden = !rows.length;
     box.replaceChildren(...rows.map((b) => {
-      const el = h('button', { class: `key${b.tone === 'warn' ? ' warn' : ''}`, type: 'button', title: b.hint || b.label, 'aria-pressed': b.kind === 'toggle' || b.kind === 'hold' ? String(!!b.pressed) : null },
+      const el = h('button', { class: `key${b.tone === 'warn' ? ' warn' : ''}${b.off ? ' off' : ''}`, type: 'button', disabled: b.off ? '' : null, title: b.hint || b.label, 'aria-pressed': b.kind === 'toggle' || b.kind === 'hold' ? String(!!b.pressed) : null },
         h('span', { class: 'keycap' }, b.key.length === 1 ? b.key.toUpperCase() : b.key), h('span', null, b.label));
       if (b.kind === 'hold') {
         el.addEventListener('pointerdown', (e) => { e.preventDefault(); onPress(b.id, 'down'); });
