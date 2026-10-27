@@ -93,7 +93,10 @@ async function frames(p, k = 4) {
 }
 const gunOf = (p) => p.page.evaluate(() => { const n = window.__nlw, g = n.view.self.gun; return { out: g.out, mag: g.mag, spare: g.spare, reloading: !!g.reloading, equipped: g.equipped, server: g.server, health: n.view.self.health, critical: !!n.view.self.critical, mode: n.mode, fired: n.gunPlay.stats.fired }; });
 const serverGuns = (p) => p.page.evaluate(async () => { const r = await window.__nlw.online.ask('gun.state'); return r.ok ? r.gun : r; });
-const place = (p, x, z, heading) => p.page.evaluate(([x, z, heading]) => { const n = window.__nlw; n.place(x, z); n.face(heading); n.cam.yaw = heading; n.cam.pitch = 0.05; }, [x, z, heading]);
+// (since 27 October 2026 the owner's townspeople are about the town, and a round stops at the first body in its way:
+// anyone of the town's near where the players stand is kept indoors a few minutes, so that the rounds tested are the
+// ones between the two players)
+const place = (p, x, z, heading) => p.page.evaluate(([x, z, heading]) => { const n = window.__nlw; n.place(x, z); n.face(heading); n.cam.yaw = heading; n.cam.pitch = 0.05; const g = n.host.game, pop = g.internals.population, A = g.internals.actors, o = {}; for (let i = 0; i < pop.count; i += 1) { if (pop.people[i].job === 'police') continue; pop.locate(i, g.state.t, o); if (o.pose === 4 || Math.hypot(o.x - x, o.z - z) > 70) continue; if (A.take(i, g.state.t)) A.hold(i, 'Indoors', 4, g.state.real + 900); } }, [x, z, heading]);
 // the gun taken out with its key (X), and in the hands
 async function draw(p) {
   if (p.phone) await p.page.tap('#pad .pad[data-id="gun"]'); else await p.page.keyboard.press('x');
