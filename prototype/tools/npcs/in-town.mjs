@@ -65,7 +65,8 @@ for (const p of people.slice(0, HOW_MANY)) {
   // wait for the full figure to have come and be drawn
   const got = await page.waitForFunction((i) => { const a = window.__nlw.crowd.figureAt(i); return a && a.rig && a.rig.mesh ? true : null; }, p.i, { timeout: 180000, polling: 1000 }).then(() => true, () => false);
   // (again where the figure is now, the player a step to its side so as not to stand in front of it)
-  await page.evaluate((i) => { const n = window.__nlw, a = n.crowd.figureAt(i); if (!a) return; const h = a.h || 0; const px = a.x + Math.sin(h) * 3.4 + Math.cos(h) * 1.1, pz = a.z + Math.cos(h) * 3.4 - Math.sin(h) * 1.1; n.place(px, pz); const face = Math.atan2(a.x - px, a.z - pz); n.face(face); n.cam.yaw = face + 0.35; n.cam.dist = 2.2; n.cam.pitch = 0.04; }, p.i);
+  // (the camera let go of the player and put on the figure, from in front of it: as test/look.mjs does)
+  await page.evaluate((i) => { const n = window.__nlw, a = n.crowd.figureAt(i); if (!a) return; n.place(a.x + 6, a.z + 6); n.cam.dist = 3.3; n.cam.pitch = 0.1; n.cam.lastDrag = 1e9; window.__track = i; if (!window.__tracking) { window.__tracking = true; const f = () => { const b = n.crowd.figureAt(window.__track); if (b) { n.cam.free = { x: b.x, y: 1.0, z: b.z }; n.cam.yaw = (b.h || 0) + Math.PI; } requestAnimationFrame(f); }; f(); } }, p.i);
   await page.waitForTimeout(1500);
   const info = await page.evaluate((i) => { const a = window.__nlw.crowd.figureAt(i); const r = a && a.rig; return r ? { animated: !!r.animated, figure: r.spec ? r.spec.id : null, triangles: r.triangles || null, failed: r.failed || null, playing: r.mixer ? r.mixer._actions.filter((x) => x.isRunning()).map((x) => x._clip.name) : [] } : null; }, p.i);
   const file = `${String(shots.length + 1).padStart(2, '0')}-${p.figure}-${p.name.replace(/[^A-Za-z]+/g, '_')}.png`;

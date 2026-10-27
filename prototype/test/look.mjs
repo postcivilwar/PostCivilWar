@@ -44,10 +44,10 @@ for (const id of portraits) {
   await page.screenshot({ path: resolve(out, `face-${id}.png`) });
 }
 
-// The police: each of the sixteen policewomen on her beat, from in front (looked for among the town's people near and
+// The police: each of the ten officers on their beat (sixteen policewomen until 27 October 2026), from in front (looked for among the town's people near and
 // far, as the player is put beside each in turn)
 if (!only || only.some((k) => 'police'.includes(k) || k.startsWith('police'))) {
-  for (let k = 0; k < 16; k += 1) {
+  for (let k = 0; k < 10; k += 1) {
     if (only && !only.some((o) => `police-${k + 1}`.includes(o) || o === 'police')) continue;
     const at = await page.evaluate((kk) => {
       const n = window.__nlw, g = n.host.game, pop = g.internals.population;
