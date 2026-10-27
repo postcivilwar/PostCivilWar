@@ -1,0 +1,142 @@
+{
+ "animegirl3dmodel": {
+  "from": "animegirl3dmodel.glb",
+  "sha256": "e0fe982fae43e55325b85dd0770dd5b71c0c23f5ec3053f297cf189b288e0d90",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "athleticfemalecharacter3dmodel": {
+  "from": "athleticfemalecharacter3dmodel.glb",
+  "sha256": "5afbe73569eb1f35ecdaf1769863efcb04dc89a23fccc8b09183e15222b33751",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "bikinimodel3d": {
+  "from": "bikinimodel3d.glb",
+  "sha256": "91c7640242f781093735b06239015763bb2946250d4e37431bf12015834f1719",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "character3dmodel": {
+  "from": "character3dmodel.glb",
+  "sha256": "07354d5200a3ed1e94c4ee07f2121c4799e7fc53afff4f7f60768920f07f6276",
+  "skeleton": "securityguard3dmodel.glb",
+  "skeleton_sha256": "5241e4d5ed2a3df2939331563349328685970d2e06b79d4fe93dfb68c342d24b",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "fashiondoll3dmodel": {
+  "from": "fashiondoll3dmodel.glb",
+  "sha256": "37a3a6b0b97b01c6558a277ff161cf8fdcca33929c4eec4966fbbc92a8278595",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "fashionmodel3d": {
+  "from": "fashionmodel3d.glb",
+  "sha256": "4e33733ea77fc2d8994defdb7637b8bd85844527bc54be17cd2b924155941be6",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "fashionmodel3dmodel1": {
+  "from": "fashionmodel3dmodel1.glb",
+  "sha256": "e554ce7e723320ad19bcb3c64a91f0cf357cc53a70c35350bd68d159313ebe88",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "fashionmodel3dmodel3": {
+  "from": "fashionmodel3dmodel3.glb",
+  "sha256": "9440022d4b23a70879317590aa31dc78284f0087cf7ed31429f2d14d8410eaf4",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "fashionmodel3dmodel4": {
+  "from": "fashionmodel3dmodel4.glb",
+  "sha256": "c76072725e0976f518e2c770fb30ca2afd82f1ec3a80c454307bc93a13dc4ded",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "fashionmodel3dmodel5": {
+  "from": "fashionmodel3dmodel5.glb",
+  "sha256": "f40e2a6889a5cbca2826f5716cf5ac5e9bfd77080042613108a2f98e2c5c0bc2",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "femalecharacter3dmodel2": {
+  "from": "femalecharacter3dmodel2.glb",
+  "sha256": "9e80b6111f47577202fa7480dcd87f100b084571e24d1ef5e460460cc378717e",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "femalecharacter3dmodel3": {
+  "from": "femalecharacter3dmodel3.glb",
+  "sha256": "139453c26641d1df82558f1351188b10cc4e68527a0b443feaa2237dbfe36524",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "femaledancer3dmodel": {
+  "from": "femaledancer3dmodel.glb",
+  "sha256": "d1650642d0dae61acebba69e525b31f0aaea337a5df055c1ab191b8404b3b7bb",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "femalefigure3dmodel1": {
+  "from": "femalefigure3dmodel1.glb",
+  "sha256": "2acbc2608eb2fe64a3c77c30aa435ffbc045d36db91a70791bb4fe5203b4b210",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "femalefigure3dmodel2": {
+  "from": "femalefigure3dmodel2.glb",
+  "sha256": "1f7b7e1aad77f36243644be0a9aa1b9d6274cb6b5b9ee15048f3edb65ee39e73",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "femalehuman3dmodel": {
+  "from": "femalehuman3dmodel.glb",
+  "sha256": "d654a6ccfa62749658676c504b005260140d350da3e05e4fcc2d714466c75d30",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "humancharacter3dmodel1": {
+  "from": "humancharacter3dmodel1.glb",
+  "sha256": "c41c87b3db20c8c2a6f704b5eb33c9da06b69e7de43cd261b05818c9b3a777c1",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "humanfigure3dmodel1": {
+  "from": "humanfigure3dmodel1.glb",
+  "sha256": "a03821579540fd81b8697fb9f2f58cb6553b8a390e26a1ad3ceaf391f28ab09a",
+  "skeleton": "securityguard3dmodel.glb",
+  "skeleton_sha256": "5241e4d5ed2a3df2939331563349328685970d2e06b79d4fe93dfb68c342d24b",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "military-stylefemale3dmodel": {
+  "from": "military-stylefemale3dmodel.glb",
+  "sha256": "cabe0b1a0642c1e71000ebba5a82c95e0ad58cfd503103af98d3613a815a6307",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ },
+ "youngwoman3dmodel": {
+  "from": "youngwoman3dmodel.glb",
+  "sha256": "393a24b4a34399f35bf9c49f16c3c940d72022b188eef91fe07cb19355610084",
+  "skeleton": "policeofficerfigure3dmodel.glb",
+  "skeleton_sha256": "fb5af55ff9f09055e20c414b0c0b9c525edc47535081dbd51ee47fc17e1c6afa",
+  "tool": "4b974e18393fdf9551178ff50de24d1b66a90f550d59e8d121f5a3d27ab410d3"
+ }
+}
