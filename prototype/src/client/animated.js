@@ -36,15 +36,15 @@ import { NPC_FIGURES } from '../sim/npc-figures.js';
 // goes over the ground played as it was made (metres a second, for a figure 1.7 m tall: measured from how fast the
 // planted foot goes back under the body, tools/npcs/strides.mjs, 27 October 2026), so that the feet do not slide: a
 // figure going faster or slower plays it faster or slower
-const TOWN_WALK = { elegant: '~stroll', catwalk: '~catwalk', bold: '~swagger' };
+const TOWN_WALK = { elegant: '~stroll', catwalk: '~catwalk', bold: '~bold' };
 const STRIDES = Object.freeze({
-  P1: { '~stroll': 1.13, '~catwalk': 1.09, '~swagger': 1.08, '~walk': 1.13, '~run': 3.26 },
-  P2: { '~stroll': 1.09, '~catwalk': 1.09, '~swagger': 1.12, 'walk.001': 1.09, '~run': 2.99 },
-  N8: { '~stroll': 1.12, '~catwalk': 1.08, '~swagger': 1.08, '~walk': 1.12, '~run': 3.26 },
-  N12: { '~stroll': 1.11, '~catwalk': 1.11, '~swagger': 1.09, '~walk': 1.11, '~run': 3.2 },
-  N20: { '~stroll': 1.18, '~catwalk': 1.17, '~swagger': 1.18, '~walk': 1.18, '~run': 3.41 },
+  P1: { '~stroll': 1.12, '~catwalk': 1.23, '~bold': 1.16, '~walk': 1.12, '~run': 3.35 },
+  P2: { '~stroll': 1.09, '~catwalk': 1.09, '~bold': 1.12, 'walk.001': 1.09, '~run': 3.31 },
+  N8: { '~stroll': 1.11, '~catwalk': 1.21, '~bold': 1.14, '~walk': 1.11, '~run': 3.33 },
+  N12: { '~stroll': 1.1, '~catwalk': 1.19, '~bold': 1.13, '~walk': 1.1, '~run': 3.26 },
+  N20: { '~stroll': 1.17, '~catwalk': 1.3, '~bold': 1.22, '~walk': 1.17, '~run': 3.53 },
 });
-const TOWN_REACT = Object.freeze({ hit: ['~hit'], fall: ['~fall', '~down'], punch: ['~punch', '~punch2'], heavy: ['~heavy'], kick: ['~kick'], call: ['~phone'] });
+const TOWN_REACT = Object.freeze({ hit: ['~hit'], fall: ['~tumble', '~down'], punch: ['~punch', '~punch2'], heavy: ['~heavy'], kick: ['~kick'], call: ['~phone'] });
 // the moods the town's people show now and then (the brief: "dancing, looking tired, stretching, talking with their
 // hands, looking at the phone"), and frightened
 export const TOWN_MOODS = Object.freeze(['~dance', '~tired', '~stretch', '~talk', '~phone', '~look', '~laugh', '~wave']);

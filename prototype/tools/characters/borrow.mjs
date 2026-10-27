@@ -109,7 +109,7 @@ const TOWN_MOVES = {
   // catwalk (his "female cat walk"), and bold (his security guard's swagger)
   stroll: { f: ['woman.glb', 'walk.001', 30], m: [P2F, 'walk.001', 30] },
   catwalk: { f: ['fashion_model_7.glb', 'female cat walk.001', 30], m: [P2F, 'walk.001', 30] },
-  swagger: { f: ['fashion_model_7.glb', 'swagger.001', 30], m: [P2F, 'swagger.001', 30] },
+  bold: { f: ['fashion_model_7.glb', 'swagger.001', 30], m: [P2F, 'swagger.001', 30] },
   // the moods: dancing, tired, stretching, talking with the hands, on the phone, looking about, laughing, waving
   dance: { f: ['athlete.glb', 'dance_01.001', 20], m: ['human_character.glb', 'dance_05.001', 20] },
   tired: { f: ['woman.glb', 'depressed.001', 15], m: ['zombie_character.glb', 'frustrated_01.001', 15] },
@@ -127,6 +127,9 @@ const TOWN_MOVES = {
   kick: { f: [P1F, 'front_kick_02.001', 30], m: ['fashion_model_6.glb', 'front_kick_02.001', 30] },
   hit: { f: ['athletic_outfit.glb', 'hit_to_stomach.001', 30], m: ['muscular_male.glb', 'hit_to_head.001', 30] },
   down: { f: [P1F, 'defeat_03.001', 20], m: ['hobo_character.glb', 'defeat_03.001', 20] },
+  // knocked off their feet (shot, or hit hard): a fall all the way to the ground (a family's file may have a fall of
+  // its own, but the figures of the family do not)
+  tumble: { f: ['fashion_model_1.glb', 'fall.001', 30], m: ['male_figure.glb', 'fall.001', 30] },
 };
 for (const file of FAMILIES) {
   const gender = Object.values(NPC_FIGURES).find((x) => x.file === file).gender;
@@ -175,6 +178,8 @@ function load(name, key = name) {
   file.bone = (ue) => byName.get(mixamo ? boneName(`mixamorig:${NAMES[ue]}`) : ue);
   // the knuckle of the middle finger: where a hand points
   file.knuckle = (side) => byName.get(mixamo ? boneName(`mixamorig:${side === 'l' ? 'Left' : 'Right'}HandMiddle1`) : `middle_01_${side}`);
+  // which way the figure faces as it stands bound: its left (from the right thigh to the left) across the up
+  { const l = file.bone('thigh_l'), r = file.bone('thigh_r'); if (l && r) { const left = l.getWorldPosition(new THREE.Vector3()).sub(r.getWorldPosition(new THREE.Vector3())); left.y = 0; file.forward = left.normalize().cross(new THREE.Vector3(0, 1, 0)).normalize(); } }
   files.set(key, file);
   return file;
 }
@@ -191,12 +196,17 @@ const NEXT = {
 // bone turns from its bind as the source's does from its own. Between the two riggings (one bound with its arms
 // down, the other with them out level) that would leave the arms where the bind put them: there each limb and
 // the spine is pointed the way the source's points (the hips, which point nowhere, still turn as the source's do).
-function carry(src, dst) {
+function carry(src, dst, point = false) {
   src.root.updateMatrixWorld(true);
   const out = {};
   const w = new THREE.Quaternion(), parent = new THREE.Quaternion(), turn = new THREE.Quaternion();
   const a = new THREE.Vector3(), b = new THREE.Vector3(), c = new THREE.Vector3(), e = new THREE.Vector3();
-  const same = src.mixamo === dst.mixamo;
+  // (`point`: the town's own figures, 27 October 2026: bound standing with their arms straight out, where most of the
+  // files the moves come from are bound otherwise, though named alike: each limb pointed as the source's points)
+  const same = src.mixamo === dst.mixamo && !point;
+  // (pointed, the source's ways are turned from the way it faces to the way the target faces: his figures face along x,
+  // most of the files the moves come from along z)
+  const face = point && src.forward && dst.forward ? new THREE.Quaternion().setFromUnitVectors(src.forward, dst.forward) : null;
   const child = (f, ue) => (NEXT[ue] && NEXT[ue].startsWith('knuckle') ? f.knuckle(NEXT[ue].slice(-1)) : NEXT[ue] ? f.bone(NEXT[ue]) : null);
   // parents before children: the order of the Unreal list is down the body from the hips
   for (const ue of BODY) {
@@ -206,6 +216,7 @@ function carry(src, dst) {
     if (!same && sNext && dNext && ue !== 'pelvis') {
       s.getWorldPosition(a); sNext.getWorldPosition(b);
       const want = b.sub(a).normalize();
+      if (face) want.applyQuaternion(face);
       d.updateMatrixWorld(true);
       d.getWorldPosition(c); dNext.getWorldPosition(e);
       const now = e.sub(c).normalize();
@@ -215,6 +226,7 @@ function carry(src, dst) {
       s.getWorldQuaternion(w);
       // the source's turn from its bind, in the model's space, given to the target's bind
       const delta = w.clone().multiply(src.bind.get(s.name).clone().invert());
+      if (face) delta.premultiply(face).multiply(face.clone().invert());
       w.copy(delta.multiply(dst.bind.get(d.name)));
     }
     d.parent.getWorldQuaternion(parent);
@@ -243,7 +255,8 @@ for (const job of JOBS) {
   const kept = before.borrowed[job.to] && before.borrowed[job.to][job.as];
   // (a figure's own move, played under another name, is carried again each time: until 27 October 2026 it was carried
   // with one copy of the file for both, and came out standing still)
-  if (!AGAIN && kept && kept.from === `${job.from}#${job.clip}` && job.from !== job.to) { (borrowed[job.to] ||= {})[job.as] = kept; continue; }
+  const point = FAMILIES.includes(job.to) && job.from !== job.to ? 2 : 0;
+  if (!AGAIN && kept && kept.from === `${job.from}#${job.clip}` && job.from !== job.to && (kept.point || 0) === point) { (borrowed[job.to] ||= {})[job.as] = kept; continue; }
   const src = load(job.from), dst = job.from === job.to ? load(job.to, `${job.to}#own`) : load(job.to);
   const clip = src.clips.find((c) => c.name === job.clip);
   if (!clip) throw new Error(`${job.from} has no ${job.clip}`);
@@ -255,11 +268,11 @@ for (const job of JOBS) {
   for (let i = 0; i < n; i += 1) {
     mixer.setTime((clip.duration * i) / (n - 1));
     reset(dst);
-    frames.push(carry(src, dst));
+    frames.push(carry(src, dst, point));
   }
   mixer.stopAllAction();
   const names = Object.keys(frames[0]);
-  (borrowed[job.to] ||= {})[job.as] = { from: `${job.from}#${job.clip}`, duration: +clip.duration.toFixed(4), frames: n, bones: names, data: pack(frames, names) };
+  (borrowed[job.to] ||= {})[job.as] = { from: `${job.from}#${job.clip}`, duration: +clip.duration.toFixed(4), frames: n, bones: names, data: pack(frames, names), ...(point ? { point } : {}) };
   console.log(`${job.to} ${job.as}: ${job.from} ${job.clip}, ${n} frames, ${names.length} bones`);
 }
 

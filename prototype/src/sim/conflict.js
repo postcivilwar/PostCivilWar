@@ -32,7 +32,7 @@ export const HEALTH = Object.freeze({
   restPerHour: 2,      // regained each game hour, out of a fight and above critical
   sleep: 30,           // regained by a night's sleep at home
   yield: 25,           // (until 27 October 2026, a townsperson at or below this had had enough: now it is 20, `critical`)
-  // a townsperson (27 October 2026): at 20 they limp off, sit a while (real seconds, each time its own), then go back
+  // a townsperson (27 October 2026): at 20 they limp off, stand a while (real seconds, each time its own), then go back
   // to their day still limping, and their life comes back a point every `mend` real seconds; they limp while it is
   // at or below `limp`
   hurtFor: Object.freeze([40, 80]),
@@ -181,8 +181,8 @@ export function createConflict({ state, players, population, actors, talk, emit,
 
   const between = (range) => range[0] + rng.next() * (range[1] - range[0]);
 
-  // A townsperson is done with a fight. Badly hurt (at 20): they limp away from whoever did it, slowly, sit down a
-  // while, and then go back to their day, still limping (tick, below). Otherwise they give up and go: each time a little
+  // A townsperson is done with a fight. Badly hurt (at 20): they limp away from whoever did it, slowly, stand a
+  // while, hurt, and then go back to their day, still limping (tick, below). Otherwise they give up and go: each time a little
   // differently, walking back to their day, walking off, or hurrying off.
   function settle(i, rec, mood, from = null) {
     rec.mood = mood;
@@ -455,17 +455,18 @@ export function createConflict({ state, players, population, actors, talk, emit,
     while (book.events.length && now - book.events[0].at > 4) book.events.shift();
   }
 
-  // After a fight, or a round (guns.js), or a fall: someone badly hurt has limped off; where they stop they sit down a
-  // while, and then go back to their day, still limping. Their life comes back slowly, a point at a time, once nobody
+  // After a fight, or a round (guns.js), or a fall: someone badly hurt has limped off; where they stop they stand a
+  // while, hurt, and then go back to their day, still limping. Their life comes back slowly, a point at a time, once nobody
   // has struck them for a while. (An officer shooting back, or out on a call, is the police's own: guns.js, justice.js.)
   function after(i, rec, now, dt) {
     const m = actors.get(i);
     const theirs = rec.mood !== 'shooting' && !(hub.justice && hub.justice.onDuty && hub.justice.onDuty(i));
     if (rec.mood === 'down' && m && theirs && !m.dead) {
       if (now < rec.hurtUntil) {
-        if (m.mode === 'hold' && m.arrived && m.pose === POSE.stand) {
-          actors.hold(i, 'Sitting down, badly hurt', POSE.sit, 0);
-          if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'cry' : 'sad', { seconds: Math.max(4, rec.hurtUntil - now), upper: true, loop: true });
+        // (standing a while to get their breath, bent over, hurt: there is nothing to sit on in the street)
+        if (m.mode === 'hold' && m.arrived && m.act !== 'Resting, badly hurt') {
+          actors.hold(i, 'Resting, badly hurt', POSE.stand, 0);
+          if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'cry' : 'sad', { seconds: Math.max(4, rec.hurtUntil - now), loop: true });
         }
       } else if (m.mode === 'hold' && m.pose !== POSE.lie) {
         rec.mood = 'mending';

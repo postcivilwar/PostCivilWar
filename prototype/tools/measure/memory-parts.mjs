@@ -7,7 +7,8 @@
 // holds a copy of, and the canvases.
 //   ../server/with-postgres.sh node tools/measure/memory-parts.mjs <out folder> [site folder]
 // PARTS_TEXTURES=1: every picture on the graphics card listed, by what it belongs to and its size there
-// PARTS_LEVEL (medium), PARTS_DPR (3), PARTS_PLACES (comma separated: park,market,boulevard,powerbike,waterside,east,habitation)
+// PARTS_LEVEL (medium), PARTS_DPR (3), PARTS_PLACES (comma separated: park,market,boulevard,powerbike,waterside,east,habitation,
+// crowdwest,crowdcentre: where the town's people are most crowded, at PARTS_HOUR 7.5 and 18.5), PARTS_HOUR (11)
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, existsSync, statSync, createReadStream, readFileSync, readdirSync } from 'node:fs';
 import { resolve, extname, sep, dirname } from 'node:path';
@@ -90,11 +91,11 @@ await page.tap('#enter');
 await page.waitForSelector('#confirm:not([hidden])', { timeout: 180000 });
 await page.tap('#confirm-yes');
 await page.waitForFunction(() => !document.querySelector('#hud').hidden && window.__nlw.view && window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 900000 });
-await page.evaluate((level) => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip(((24 + 11 - hour) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 24 * 3600 }; n.setGraphics(level); for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } }, LEVEL);
+await page.evaluate(([level, hourWanted]) => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip(((24 + hourWanted - hour) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 24 * 3600 }; n.setGraphics(level); for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } }, [LEVEL, Number(process.env.PARTS_HOUR) || 11]);
 const quiet = async (most = 180000) => { const t0 = Date.now(); let last = '', same = 0; while (Date.now() - t0 < most) { const now = await page.evaluate(() => { const r = window.__nlw.renderer, g = window.__nlw.graphics || {}; return `${r.info.memory.geometries}/${r.info.memory.textures}/${g.held}/${window.__geometryBytes().buffers}`; }); if (now === last) { same += 1; if (same >= 3) return Date.now() - t0; } else { same = 0; last = now; } await page.waitForTimeout(2000); } return Date.now() - t0; };
 const park = await page.evaluate(() => window.__nlw.service('park'));
 if (process.env.PARTS_TEXTURES === '1') await page.evaluate(() => { window.__partsTextures = true; });
-const PLACES = { park: [park.x + 6, park.z + 4, Math.PI], market: [30, 60, Math.PI / 2], boulevard: [0, 20, 0], powerbike: [-63.6, 64, Math.PI], waterside: [-150, 113, Math.PI / 2], east: [200, 113, Math.PI / 2], habitation: [382, 16, 0.9] };
+const PLACES = { park: [park.x + 6, park.z + 4, Math.PI], market: [30, 60, Math.PI / 2], boulevard: [0, 20, 0], powerbike: [-63.6, 64, Math.PI], waterside: [-150, 113, Math.PI / 2], east: [200, 113, Math.PI / 2], habitation: [382, 16, 0.9], crowdwest: [-85, 92, Math.PI], crowdcentre: [-6, -47, 0] };
 const MB = (b) => +(b / 1048576).toFixed(1);
 const results = [];
 for (const name of ONLY) {
@@ -156,6 +157,8 @@ for (const name of ONLY) {
       canvasMB: +(canvasBytes / 1048576).toFixed(1), canvases, bitmapsHeldMB: +(bitmapBytes / 1048576).toFixed(1), bitmaps, imagesMB: +(imageBytes / 1048576).toFixed(1), images,
       textures: r.info.memory.textures, geometries: r.info.memory.geometries, programs: r.info.programs.length,
       domCanvases: document.querySelectorAll('canvas').length,
+      // the town's people about: how many are drawn as their own figures, and as plain ones
+      people: n.crowd ? { rigs: n.crowd.stats.rigs, simple: n.crowd.stats.simple, figures: n.crowd.stats.figures } : null,
     };
   });
   const row = { place: name, quietMs: q, proc: procMemory(), heapUsage: { usedMB: MB(usage.usedSize || 0), totalMB: MB(usage.totalSize || 0), embedderMB: MB(usage.embedderHeapUsedSize || 0), backingStoreMB: MB(usage.backingStorageSize || 0) }, ...parts };

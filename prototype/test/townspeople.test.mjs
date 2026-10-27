@@ -72,7 +72,7 @@ test('the townspeople: struck once, most run; struck again, they fight back; aft
   until(w, () => !w.I.actors.has(a.i), 400);
 });
 
-test('the 20-life rule for the townspeople: at 20 they cannot be struck or shot, they limp off slowly, sit a while, and mend slowly to 100', () => {
+test('the 20-life rule for the townspeople: at 20 they cannot be struck or shot, they limp off slowly, rest a while, and mend slowly to 100', () => {
   const w = town();
   const a = townsperson(w, (q) => w.I.conflict.nerve(q.index) < 0.75);
   ok(strike(w, a));
@@ -100,12 +100,12 @@ test('the 20-life rule for the townspeople: at 20 they cannot be struck or shot,
   const at = whereIs(w, a.i);
   const look = w.I.guns.look([at.x - 6, zoneGroundY(at.x, at.z) + 1.3, at.z], [1, 0, 0], 20);
   if (look.what === 'person' && look.target.id === a.i) assert.equal(look.target.able, false, 'not to be shot');
-  // slowly, away; then sitting down, hurt
+  // slowly, away; then standing a while, hurt
   let fastest = 0, last = whereIs(w, a.i);
-  const sat = until(w, () => whereIs(w, a.i).pose === POSE.sit, 120, () => { const now = whereIs(w, a.i); fastest = Math.max(fastest, Math.hypot(now.x - last.x, now.z - last.z) / 0.1); last = now; });
+  const sat = until(w, () => whereIs(w, a.i).act === 'Resting, badly hurt', 120, () => { const now = whereIs(w, a.i); fastest = Math.max(fastest, Math.hypot(now.x - last.x, now.z - last.z) / 0.1); last = now; });
   assert.ok(fastest <= PACE.limp + 0.05, `a limp, never faster than ${PACE.limp} m/s (${fastest.toFixed(2)})`);
-  assert.ok(sat < 40, `they sit down after limping off (${sat.toFixed(0)} s)`);
-  assert.equal(health(w, a.i), HEALTH.critical, 'no better yet, sitting there');
+  assert.ok(sat < 40, `they stop to rest after limping off (${sat.toFixed(0)} s)`);
+  assert.equal(health(w, a.i), HEALTH.critical, 'no better yet, resting there');
   // then back to their day, and their life comes back, a point at a time, to 100
   until(w, () => mood(w, a.i) === 'mending', HEALTH.hurtFor[1] + 5);
   const seen = [];

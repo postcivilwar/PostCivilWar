@@ -217,6 +217,10 @@ const park = await page.evaluate(() => window.__nlw.service('park'));
 const PLACES = [
   ['motor park', park.x + 6, park.z + 4, Math.PI],
   ['market', 30, 60, Math.PI / 2],
+  // (where the town's people are most crowded, 27 October 2026: fourteen within 60 m, at half past seven in the morning
+  // and half past six in the evening)
+  ['crowd west', -85, 92, Math.PI],
+  ['crowd centre', -6, -47, 0],
   ['city boulevard', 0, 20, 0],
   ['PowerBike showroom', -63.6, 64, Math.PI],
   ['car showroom gate', -420, -58, Math.PI],

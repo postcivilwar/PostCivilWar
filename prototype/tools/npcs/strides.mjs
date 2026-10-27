@@ -13,7 +13,7 @@ import { MOVES_B64 } from '../../src/client/figure-borrowed.js';
 
 const THREE = createRequire(import.meta.url)('../../vendor/three.min.js');
 const MOVES = JSON.parse(Buffer.from(MOVES_B64, 'base64').toString('utf8'));
-const WALKS = ['stroll', 'catwalk', 'swagger', 'walk', 'run', 'scared'];
+const WALKS = ['stroll', 'catwalk', 'bold', 'walk', 'run', 'scared'];
 const families = new Map();
 for (const f of Object.values(NPC_FIGURES)) if (!families.has(f.family)) families.set(f.family, NPC_FIGURES[f.family] || f);
 

@@ -3,7 +3,9 @@
 // own bone lengths), from the front and the side: how it bends at the hips, knees, shoulders and elbows, for checking
 // a skeleton given to a model that came without one (26 October 2026).
 //   node tools/npcs/poses.mjs <out.png> <figure.glb> <moves.glb> <move:time,...>
-// e.g. walk.001:0.3 box_01.001:0.8. The figure's own pose as bound is drawn first.
+// e.g. walk.001:0.3 box_01.001:0.8. The figure's own pose as bound is drawn first. <moves.glb> as borrowed:<file> takes
+// the moves borrowed for that figure's family instead (src/client/figure-borrowed.js, tools/characters/borrow.mjs),
+// named as the game plays them (~catwalk:0.4).
 import { createServer } from 'node:http';
 import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
@@ -15,7 +17,10 @@ try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = 
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const [outPng, figureFile, movesFile, ...asked] = process.argv.slice(2);
 const moments = [['bound', 0], ...asked.map((a) => { const i = a.lastIndexOf(':'); return [a.slice(0, i), Number(a.slice(i + 1))]; })];
-const files = [resolve(figureFile), resolve(movesFile)];
+const borrowedFrom = movesFile.startsWith('borrowed:') ? movesFile.slice(9) : null;
+const files = [resolve(figureFile), borrowedFrom ? resolve(figureFile) : resolve(movesFile)];
+let borrowed = null;
+if (borrowedFrom) { const { MOVES_B64 } = await import(resolve(root, 'src/client/figure-borrowed.js')); borrowed = JSON.parse(Buffer.from(MOVES_B64, 'base64').toString('utf8')).borrowed[borrowedFrom]; }
 const three = readFileSync(resolve(root, 'vendor/three.min.js'));
 const server = createServer((req, res) => {
   const u = req.url.split('?')[0];
@@ -30,7 +35,7 @@ const page = await browser.newPage({ viewport: { width: W * 2 * moments.length, 
 page.setDefaultTimeout(600000);
 page.on('pageerror', (e) => console.log('PAGE ERROR', e.message));
 await page.goto(`http://127.0.0.1:${server.address().port}/`);
-const result = await page.evaluate(async ({ moments, W, H }) => {
+const result = await page.evaluate(async ({ moments, W, H, borrowed }) => {
   const read = async (i) => {
     const buf = await (await fetch(`/${i}`)).arrayBuffer();
     const dv = new DataView(buf); let at = 12, json = null, bin = null;
@@ -70,7 +75,8 @@ const result = await page.evaluate(async ({ moments, W, H }) => {
   mesh.bind(new THREE.Skeleton(bones, inverses), new THREE.Matrix4());
   // the moves: only the bones' turns, by name
   const mj = mov.json;
-  const clips = (mj.animations || []).map((a) => new THREE.AnimationClip(a.name, -1, a.channels.filter((c) => c.target.path === 'rotation').map((c) => { const s = a.samplers[c.sampler]; return new THREE.QuaternionKeyframeTrack(`${clean(mj.nodes[c.target.node].name)}.quaternion`, mov.acc(s.input).array, mov.acc(s.output).array); })));
+  const fromBorrowed = borrowed ? Object.entries(borrowed).map(([as, b]) => { const raw = atob(b.data), bytes = new Uint8Array(raw.length); for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i); const all = new Int16Array(bytes.buffer); const times = new Float32Array(b.frames); for (let i = 0; i < b.frames; i += 1) times[i] = (b.duration * i) / (b.frames - 1); return new THREE.AnimationClip(`~${as}`, b.duration, b.bones.map((bone, k) => { const values = new Float32Array(b.frames * 4); for (let i = 0; i < b.frames; i += 1) for (let c = 0; c < 4; c += 1) values[i * 4 + c] = all[(i * b.bones.length + k) * 4 + c] / 32767; return new THREE.QuaternionKeyframeTrack(`${clean(bone)}.quaternion`, times, values); })); }) : [];
+  const clips = borrowed ? fromBorrowed : (mj.animations || []).map((a) => new THREE.AnimationClip(a.name, -1, a.channels.filter((c) => c.target.path === 'rotation').map((c) => { const s = a.samplers[c.sampler]; return new THREE.QuaternionKeyframeTrack(`${clean(mj.nodes[c.target.node].name)}.quaternion`, mov.acc(s.input).array, mov.acc(s.output).array); })));
   const mixer = new THREE.AnimationMixer(top);
   const box = new THREE.Box3().setFromObject(mesh), k = 1.75 / (box.max.y - box.min.y);
   top.scale.setScalar(k);
@@ -91,7 +97,7 @@ const result = await page.evaluate(async ({ moments, W, H }) => {
     if (name === 'bound' && i === 0) { /* first: as bound */ }
   });
   return { clips: names };
-}, { moments, W, H });
+}, { moments, W, H, borrowed });
 await page.screenshot({ path: resolve(outPng) });
 console.log(JSON.stringify(result));
 await browser.close(); server.close();

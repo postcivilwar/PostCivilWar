@@ -129,6 +129,7 @@ export function createCrowd(scene) {
   let stamp = 0;
   const NONE = new Set();
   let fallen = NONE;               // townspeople lying on the ground where a vehicle left them
+  let falls = new Map(), fallsRows = null, fallsAt = 0, fallsClock = 0;   // townspeople brought down by a round or a hard blow (and the town's own time, for their age)
   let building = 0;                // seconds until the next figure may be made
   let seating = 0;                 // and until the next rider's
   const stats = { figures: 0, simple: 0, rigs: 0, bikes: 0, players: 0, made: 0, reused: 0, kept: 0, madeMs: 0, slowestMs: 0 };
@@ -242,7 +243,7 @@ export function createCrowd(scene) {
   const moodHash = (i, n) => { let h = Math.imul(i + 1, 374761393) ^ Math.imul(n + 7, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
   function mood(actor, moving) {
     const rig = actor.rig;
-    if (!rig.animated || !rig.spec || !rig.spec.moods || !rig.mixer || moving || actor.pose !== POSE.stand || rig.emoting || rig.doing || rig.lying || actor.guard || rig.strike) return;
+    if (!rig.animated || !rig.spec || !rig.spec.moods || !rig.mixer || moving || actor.pose !== POSE.stand || rig.emoting || rig.doing || rig.lying || actor.guard || actor.trouble || rig.strike) return;
     const slot = Math.floor((moodClock + actor.i * 7.31) / MOOD_EVERY);
     if (rig.moodSlot === slot) return;
     rig.moodSlot = slot;
@@ -261,11 +262,26 @@ export function createCrowd(scene) {
     rig.limp = !!actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie;
     const s = rig.scale;
     g.rotation.order = 'YXZ';
+    // brought down by a round or a hard blow (27 October 2026): a figure of his own goes down and gets up as a player
+    // does (falls.js), backwards, away from the blow
+    const down = falls.get(actor.i);
+    if (down && rig.fallDriver) {
+      g.rotation.set(0, 0, 0);
+      g.position.set(actor.x, zoneGroundY(actor.x, actor.z), actor.z);
+      const age = down[1] + (fallsClock - fallsAt);
+      rig.downState = { kind: 'knock', age, lie: down[2], rise: down[3], push: down[4] + Math.PI, facing: down[4], hard: false, from: null };
+      g.rotation.y = down[4];
+      animateCharacter(rig, dt, 0, false);
+      rig.blob.visible = false;
+      return;
+    }
+    if (rig.downState) rig.downState = null;
     if (actor.pose === POSE.lie && fallen.has(actor.i)) {
       // knocked down by a vehicle: they go over the way the player does (character.js layCharacter), quickly,
       // and lie where they fell
       g.rotation.set(0, actor.h, 0);
-      g.position.set(actor.x, 0, actor.z);
+      // (on the ground where they fell: a road or pavement stands above the town's level)
+      g.position.set(actor.x, zoneGroundY(actor.x, actor.z), actor.z);
       standCharacter(rig);
       actor.fall = (actor.fall || 0) + (1 - (actor.fall || 0)) * Math.min(1, dt * 12);
       layCharacter(rig, actor.fall);
@@ -285,7 +301,8 @@ export function createCrowd(scene) {
     // the legs keep the pace the person is really going at, so the feet hold the ground
     const went = rig.atX === undefined ? 0 : Math.hypot(actor.x - rig.atX, actor.z - rig.atZ);
     rig.atX = actor.x; rig.atZ = actor.z;
-    rig.pace = (rig.pace === undefined ? 1.35 : rig.pace) + (Math.min(2.4, went / Math.max(dt, 0.001)) - (rig.pace === undefined ? 1.35 : rig.pace)) * Math.min(1, dt * 3);
+    // (a figure of his own runs when it is running: from someone, or from gunfire; the plain figures never go faster than a walk)
+    rig.pace = (rig.pace === undefined ? 1.35 : rig.pace) + (Math.min(rig.animated ? 6 : 2.4, went / Math.max(dt, 0.001)) - (rig.pace === undefined ? 1.35 : rig.pace)) * Math.min(1, dt * 3);
     animateCharacter(rig, dt, moving ? Math.max(0.7, rig.pace) : 0, false);
     if (actor.pose === POSE.sit) { seatCharacter(rig); g.position.y = -0.44 * s; rig.armL.shoulder.rotation.x = -0.35; rig.armR.shoulder.rotation.x = -0.35; rig.armL.elbow.rotation.x = -0.9; rig.armR.elbow.rotation.x = -0.9; } else standCharacter(rig);
     // getting up again after a fall: more slowly than going down
@@ -351,7 +368,8 @@ export function createCrowd(scene) {
     const rig = actor.rig;
     if (rig && rig.animated && rig.spec && rig.spec.moods && entry) {
       const start = clockNow - entry[2];
-      if (actor.reacted && actor.reacted.name === entry[1] && Math.abs(actor.reacted.start - start) < 1.5) return;
+      // (one held on, standing still: played again as it ends, the hurt resting bent over a while)
+      if (actor.reacted && actor.reacted.name === entry[1] && Math.abs(actor.reacted.start - start) < 1.5) { if (entry[4] && !rig.emoting && actor.pose === POSE.stand && (rig.speed || 0) < 0.2 && TOWN_CLIP[entry[1]] && entry[1] !== 'flee') rig.emote(TOWN_CLIP[entry[1]]); return; }
       actor.reacted = { name: entry[1], start };
       const clip = TOWN_CLIP[entry[1]];
       if (clip && actor.pose === POSE.stand && !rig.lying && !rig.seated && rig.emote(clip)) stats.reacted = (stats.reacted || 0) + 1;
@@ -373,6 +391,8 @@ export function createCrowd(scene) {
   // `frame` is { dt, rows, okadas, players, known, eye, clock, maxRigs, hide }
   function update(frame) {
     fallen = frame.fallen ? new Set(frame.fallen) : NONE;
+    fallsClock += Math.min(0.25, frame.dt || 0);
+    if (frame.falls !== fallsRows) { fallsRows = frame.falls; fallsAt = fallsClock; falls = new Map((frame.falls || []).map((f) => [f[0], f])); }
     // (the town's clock: the same for another player in the same town at the same moment)
     moodClock = frame.townTime || 0;
     const { dt, rows, known, eye } = frame;
@@ -649,6 +669,8 @@ export function createCrowd(scene) {
     // marks townspeople who have their hands up (defending themselves)
     setGuards(set) { for (const actor of actors.values()) actor.guard = set.has(actor.i); },
     // badly hurt townspeople (at 20 or not far above it: the 20-life rule): they limp (animated.js), as players do
+    // (and anyone just out of trouble, shot, struck, frightened: no dancing about straight after)
+    setTrouble(set) { for (const actor of actors.values()) actor.trouble = set.has(actor.i); },
     setLimps(set) { for (const actor of actors.values()) { actor.limp = set.has(actor.i); if (actor.rig) actor.rig.limp = actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie; } },
     actors: () => actors.values(),
   };

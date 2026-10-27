@@ -396,7 +396,9 @@ export function createImpact({ state, players, population, actors, conflict, tal
     actors.hold(i, 'Knocked down', POSE.lie, 0);
     m.after = 0;
     rec.upAt = now + lie;
-    rec.then = { at: now + lie + 1.1 + rng.next() * 0.6, from: from ? { x: from.x, z: from.z } : null };
+    rec.then = { at: now + lie + IMPACT.rise + rng.next() * 0.4, from: from ? { x: from.x, z: from.z } : null };
+    // (for the drawing: down backwards, away from the round, as a player goes down, falls.js)
+    rec.fall = { at: now, lie, rise: IMPACT.rise, h: m.h };
     if (hub.reactions && hub.reactions.end) hub.reactions.end(i);
     return true;
   }
@@ -447,6 +449,21 @@ export function createImpact({ state, players, population, actors, conflict, tal
   const eventsNear = (x, z, range = 60) => book.events.filter((e) => Math.hypot(e.x - x, e.z - z) <= range).map((e) => ({ id: e.id, kind: e.kind, by: e.by, on: e.on, x: e.x, z: e.z, vehicle: e.vehicle }));
   // Townspeople lying where a vehicle left them (as against lying in a hospital bed), so they can be drawn on the ground.
   const fallen = () => Object.keys(book.npc).map(Number).filter((i) => { const m = actors.get(i); return !!m && m.pose === POSE.lie && (m.act === 'Knocked down' || m.dead); });
+  // Townspeople brought down by a round or a hard blow (`felled`), near a point: [index, seconds since, seconds on the
+  // ground, seconds getting up, the way they faced], for the drawing to show the fall and the getting up (falls.js)
+  function falls(x, z, range = 80) {
+    const now = real();
+    const out = [];
+    for (const key of Object.keys(book.npc)) {
+      const f = book.npc[key].fall;
+      if (!f) continue;
+      if (now - f.at > f.lie + f.rise + 0.5) { book.npc[key].fall = null; continue; }
+      const m = actors.get(Number(key));
+      if (!m || Math.hypot(m.x - x, m.z - z) > range) continue;
+      out.push([Number(key), Math.round((now - f.at) * 100) / 100, Math.round(f.lie * 100) / 100, f.rise, Math.round(f.h * 1000) / 1000]);
+    }
+    return out;
+  }
   // Blood on the ground near a point: whoever is lying hurt or dead after a blow, how much they have bled, and how
   // long since. The drawing spreads a pool under each that grows while they lie there.
   function bleeding(x, z, range = 70) {
@@ -473,7 +490,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
   // The driver sounds the horn: for a moment, everyone ahead looks up.
   function horn(driver) { driver.hornAt = real(); driver.horns = (driver.horns || 0) + 1; return {}; }
 
-  const api = { clear, step, stalled, horn, tick, felled, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, record: (i) => book.npc[i] || null };
+  const api = { clear, step, stalled, horn, tick, felled, falls, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, record: (i) => book.npc[i] || null };
   hub.impact = api;
   return api;
 }

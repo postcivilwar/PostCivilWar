@@ -1794,6 +1794,7 @@ function start(carried) {
     showImpacts(view.impacts);
     crowd.setGuards(new Set(view.moods.filter((m) => m.mood === 'fighting' || m.mood === 'warned').map((m) => m.i)));
     crowd.setLimps(new Set(view.moods.filter((m) => m.limp).map((m) => m.i)));
+    crowd.setTrouble(new Set([...view.moods.map((m) => m.i), ...(view.fallen || [])]));
     if (led()) { predicted.x = view.self.x; predicted.z = view.self.z; if (!view.self.down && !view.self.dead) predicted.heading = view.self.heading; }
     // put somewhere else altogether by the simulation (coming round at the hospital): the figure goes with it
     else if (!view.self.driving && !view.self.astride && view.self.riding === null && Math.hypot(view.self.x - predicted.x, view.self.z - predicted.z) > 6) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; going.speed = 0; }
@@ -3802,7 +3803,7 @@ blood.update(dt, view.blood || []);
             crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others,
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
-        maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
+        maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, falls: view.falls, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
       // other players on their own motorcycles: the bike under them and them on it, with its lamps and flames
       // (own-bike-view.js), from what their game says the bike is doing; its engine and horn are heard where it is
       peerRides = [];

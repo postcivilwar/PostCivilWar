@@ -1056,7 +1056,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       people: population.around(viewerId || 'spectator', eye.x, eye.z, state.t, state.real),
       okadas: okada.list(eye.x, eye.z, viewerId),
       // trouble within sight: blows struck, people shaken by them, officers out on a call, the ambulance
-      fights: conflict.eventsNear(eye.x, eye.z), impacts: impact.eventsNear(eye.x, eye.z), fallen: impact.fallen(), blood: impact.bleeding(eye.x, eye.z), reacts: reactions.near(eye.x, eye.z), moods: conflict.moods(eye.x, eye.z), officers: justice.officersNear(eye.x, eye.z), ambulance: care.ambulanceView(),
+      fights: conflict.eventsNear(eye.x, eye.z), impacts: impact.eventsNear(eye.x, eye.z), fallen: impact.fallen(), falls: impact.falls(eye.x, eye.z), blood: impact.bleeding(eye.x, eye.z), reacts: reactions.near(eye.x, eye.z), moods: conflict.moods(eye.x, eye.z), officers: justice.officersNear(eye.x, eye.z), ambulance: care.ambulanceView(),
       // rounds fired within hearing, and the officers shooting back (guns.js)
       shots: guns.shotsNear(eye.x, eye.z), shooting: guns.shooting(),
       population: population.total,
