@@ -359,11 +359,21 @@ test('what is served is one build: every file the worker in site/ lists is there
   // page asks (the player's own)
   const figures = JSON.parse(page.match(/window\.__PCW_FIGURES = (\{[^\n]*?\});/)[1]).figures;
   const made = JSON.parse(read('assets/characters/figures/light/made.json')).figures;
+  // (and the town's own, 27 October 2026: his police and townspeople, from assets/characters/npcs/light/made.json, made
+  // from his file or from its copy given a skeleton)
+  const madeNpc = JSON.parse(read('assets/characters/npcs/light/made.json'));
   const supplied = new Set();
   for (const [id, f] of Object.entries(figures)) {
+    if (f.npc) {
+      const e = madeNpc[f.file.replace(/\.glb$/, '')];
+      const original = readFileSync(here(e.from.replace(/^assets\//, 'assets/')));
+      supplied.add(print(original));
+      assert.equal(e.md5, createHash('md5').update(original).digest('hex'), `${id}'s light copy was made from ${e.from} as it is`);
+    } else {
     const original = readFileSync(here(`assets/characters/figures/animated/${f.file}`));
     supplied.add(print(original));
     assert.equal(made[f.file].md5, createHash('md5').update(original).digest('hex'), `${id}'s light copy was made from the owner's ${f.file} as it is`);
+    }
     const urls = [f.model, f.moves[0], ...(f.turn ? [f.turn[0]] : []), ...f.pictures.flatMap((p) => Object.values(p.sizes).map(([url]) => url))];
     for (const url of urls) {
       const [name, v] = url.split('?v=');
@@ -371,7 +381,8 @@ test('what is served is one build: every file the worker in site/ lists is there
       assert.ok(asked.has(name), `${name} is kept only when the page asks`);
     }
   }
-  assert.equal(Object.keys(figures).length, 30);
+  assert.equal(Object.values(figures).filter((f) => !f.npc).length, 30, 'the players\' thirty');
+  assert.equal(Object.values(figures).filter((f) => f.npc).length, 25, 'the town\'s own: two police and twenty-three townspeople');
   // no file the website sends is one of the owner's figures (each 5 to 38 MB)
   const all = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e.isDirectory() ? all(new URL(`${e.name}/`, dir)) : [new URL(e.name, dir)]));
   for (const file of all(served)) if (/\.glb$/.test(file.pathname)) assert.ok(!supplied.has(print(readFileSync(file))), `${file.pathname} is one of the owner's figures`);

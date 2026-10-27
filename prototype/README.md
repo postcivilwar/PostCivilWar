@@ -3423,7 +3423,23 @@ a player does to a townsperson (a fight, a shot) happens in that player's copy o
 townsperson carry on with their day. The players themselves, their shots at each other and their own fights are
 shared as before.
 
-**Measured**: MEASURED
+**Measured** (`tools/measure/places.mjs`, the live build against this one, where the town's people are most crowded
+at their busiest hours, fourteen within 60 m: "crowd west" and "crowd centre", and the market; 18:30 and 07:30; this
+machine draws in software, so a frame's time is for comparing only):
+
+| | before (live, `c4cfd84`) | after |
+|---|---|---|
+| a phone, Medium: on the graphics card, the most | 118.7 MB (crowd west, 07:30) | 128.1 MB (crowd west, 07:30) |
+| a phone, Medium: crowd centre at 18:30 | 109.5 MB, 353 draws, 764,000 triangles, a frame 4.5 s | 124.2 MB, 347 draws, 793,000 triangles, 4.7 s |
+| a phone, Medium: the market at 18:30 | 91.7 MB, 226 draws, a frame 1.65 s | 91.7 MB, 238 draws, 1.80 s |
+| a computer, Ultra: crowd centre at 18:30 | 842 MB, 561 draws, a frame 7.1 s | 1012 MB, 546 draws, 7.7 s |
+| a computer, Ultra: crowd west at 07:30 | 892 MB, 726 draws, 7.0 s | 981 MB, 724 draws, 8.4 s |
+
+A phone draws the townspeople's pictures at 512 (the police at 1024, five to a picture; a computer at 2048): at 1024
+the townspeople came to 147 to 151 MB on a phone at the crowded places, past the 150 MB limit. The figures drawn in
+full on a phone are as before (at most 14 near, `MAX_RIGS`); further off, plain figures in each one's own colours
+(`far`). (A computer's memory guard lets go of what is not drawn above 700 MB, as before; the numbers above are taken
+with it set aside, as `places.mjs` does.)
 
 ## Tests
 

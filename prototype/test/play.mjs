@@ -560,7 +560,7 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   if (audit.ledger.length || audit.goods.length || !audit.reserves || !audit.journal || audit.vehicles.count !== audit.vehicles.expected) problems.push(`desktop: audit failed ${JSON.stringify(audit)}`);
 });
 
-// The town: its people (its police on their beats, since 22 October 2026: nobody else, and no okadas), another player,
+// The town: its people (its police on their beats and, since 27 October 2026, the owner's townspeople; no okadas), another player,
 // the inside of the hospital, a school and the church, and the sound.
 await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   const bad = (text) => problems.push(`town: ${text}`);
@@ -574,14 +574,15 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   const live = (seconds) => nlw(page, (seconds) => { const n = window.__nlw; for (let t = 0; t < seconds; t += 0.1) { n.host.tick(0.1); if (n.second) n.second.host.tick(0.1); } }, seconds);
   const bubbles = () => nlw(page, () => [...document.querySelectorAll('#bubbles .bubble')].filter((b) => !b.hidden).map((b) => { const r = b.getBoundingClientRect(); return { w: r.width, h: r.height, text: b.querySelector('.say').textContent, who: b.querySelector('.who').textContent, gloss: b.querySelector('.gloss') ? b.querySelector('.gloss').textContent : '', kind: b.className }; }));
 
-  // 1. the market in the morning: the police on their beat, and nobody else of the town's about
+  // 1. the market in the morning: the police on their beat and his townspeople, nobody else of the town's
   await at(9.4);
   await look(43, 59, 1.2, 13, 0.34);
   await page.waitForTimeout(2500);
   const town = await nlw(page, () => ({ people: window.__nlw.view.people.length, total: window.__nlw.view.population, crowd: window.__nlw.crowd.stats, okadas: window.__nlw.view.okadas.length, riders: window.__nlw.host.game.internals.okada.riders.length, jobs: [...new Set(window.__nlw.view.people.map((r) => window.__nlw.host.game.internals.population.people[r[0]].job))] }));
   if (town.total !== TOWNSPEOPLE) bad(`the town has ${town.total} people, not ${TOWNSPEOPLE}`);
-  if (town.people < 1) bad('no police officer is in view at the market in the morning');
-  if (town.jobs.some((j) => j !== 'police')) bad(`someone other than the police is about: ${town.jobs.join(', ')}`);
+  if (town.people < 1) bad('nobody of the town\'s is in view at the market in the morning');
+  // (since 27 October 2026 the police and the owner's own townspeople: hawkers and people out and about)
+  if (town.jobs.some((j) => !['police', 'hawker', 'unemployed'].includes(j))) bad(`someone other than the police and his townspeople is about: ${town.jobs.join(', ')}`);
   if (town.okadas || town.riders) bad(`there are okadas (${town.okadas} in view, ${town.riders} riders)`);
   await shot('01-market-police');
   const size = await bubbles();

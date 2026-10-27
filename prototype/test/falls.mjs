@@ -94,8 +94,12 @@ await page.keyboard.press('Escape');
 // (a person run down on the way is a crime, and the police come for the rider: that is the game, but not what is
 // tested here, so anything held against the rider is let go between the parts of this test)
 const clean = () => page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; const was = p.law ? p.law.state : 'normal'; if (p.law && p.law.state === 'wanted') { p.law.state = 'normal'; p.law.crimes = []; } return was; });
+// (since 27 October 2026 the owner's townspeople are about the town: anyone near where a ride goes is kept indoors a
+// few minutes, so that what is tested is the ground and the bike, not someone stepping out in front of it)
+const clearWay = (x, z, metres = 90) => page.evaluate(([x, z, metres]) => { const g = window.__nlw.host.game, pop = g.internals.population, A = g.internals.actors, o = {}; let n = 0; for (let i = 0; i < pop.count; i += 1) { if (pop.people[i].job === 'police') continue; pop.locate(i, g.state.t, o); if (o.pose === 4 || Math.hypot(o.x - x, o.z - z) > metres) continue; if (A.take(i, g.state.t)) { A.hold(i, 'Indoors', 4, g.state.real + 400); n += 1; } } return n; }, [x, z, metres]);
 const ride = async (x, z, h) => {
   await clean();
+  await clearWay(x, z);
   const r = await page.evaluate(([x, z, h]) => {
     const n = window.__nlw;
     if (n.view.self.astride) n.server.send({ type: 'moto.leave' });

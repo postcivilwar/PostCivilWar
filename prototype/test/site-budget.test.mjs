@@ -60,7 +60,8 @@ const all = (dir) => readdirSync(dir, { withFileTypes: true }).flatMap((e) => (e
 
 test('each figure: at most 3 MB to a phone, at most 6 MB to a computer, its model under 2 MB', { skip: !there }, () => {
   const figures = JSON.parse(page.match(/window\.__PCW_FIGURES = (\{[^\n]*?\});/)[1]).figures;
-  assert.equal(Object.keys(figures).length, 30);
+  assert.equal(Object.values(figures).filter((f) => !f.npc).length, 30);
+  assert.equal(Object.values(figures).filter((f) => f.npc).length, 25, 'and the town\'s own (27 October 2026)');
   const rows = [];
   for (const [id, f] of Object.entries(figures)) {
     const shape = fileOf(f.model).length, model = shape + fileOf(f.moves[0]).length;
