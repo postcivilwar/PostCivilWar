@@ -554,8 +554,8 @@ export const ZONE_POPULATION = Object.freeze({
   // the peoples among whom an old man may be called Chief here
   chiefs: Object.freeze(['enuani', 'igbo', 'ika', 'ukwuani', 'urhobo', 'isoko', 'itsekiri', 'ijaw', 'edo']),
   // Every townsperson was taken out of the game on 22 October 2026, at the owner's word, until his own models of them
-  // come; but for the police, sixteen women who walk the whole of the land (atani-patrols.js), each with her own face,
-  // skin and Nigerian Police uniform (police-looks.js). The town of a thousand people, by job, was:
+  // come; but for the police, who walk the whole of the land (atani-patrols.js): sixteen policewomen until 27 October
+  // 2026, ten officers since, five women and five men (police-looks.js). The town of a thousand people, by job, was:
   //   infant 90, pupil 150, student 120, undergrad 110, teachers and school staff 39, lecturers and university staff
   //   22, hospital 30, churches 10, traders 60, trades 44, farmers 45, fishermen 25, okada riders 26, drivers 12,
   //   police 6, clerks and cleaners 10, labourers 24, apprentices 16, hawkers 25, looking for work 45, retired 45,
@@ -563,9 +563,12 @@ export const ZONE_POPULATION = Object.freeze({
   // (git keeps the list itself). The people's days (population.js) are kept for them, ready.
   // `edition` is counted up whenever who lives here changes: a town saved with the people before lets go of what it
   // held about them (renew.js).
-  edition: 2,
+  // (27 October 2026, the owner: "replace the current police ... with this male and female police ... 10 police. 5
+  // males, 5 females": his police officer and his security guard, five of each; edition 3)
+  edition: 3,
   jobs: Object.freeze([
-    ['police', 16, 'police', Object.freeze({ female: 1, looks: 'police' })],
+    ['police', 5, 'police', Object.freeze({ female: 1, looks: 'police' })],
+    ['police', 5, 'police', Object.freeze({ female: 0, looks: 'police' })],
   ].map(Object.freeze)),
 });
 

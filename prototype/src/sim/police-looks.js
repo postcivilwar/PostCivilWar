@@ -1,4 +1,4 @@
-// The sixteen policewomen of the town's police (22 October 2026, the owner's brief): every one drawn from the owner's
+// The sixteen policewomen who were the town's police from 22 to 27 October 2026 (the owner's brief of 22 October): every one drawn from the owner's
 // supplied police officer (W3, "Amaka", police.glb, no longer offered to new players), with her own face, her own skin
 // and her own uniform. In his words: "use the police woman as inspo to recreate 15 other police, keep their face
 // different, some dark african skin, while some melanin skin, some ebony skin, while few is fair", dressed in the
@@ -44,20 +44,42 @@ export const POLICE_LOOKS = Object.freeze([
   officer('fair', 0xb48866, 'camo', { width: 0.98, jaw: 0.91, chin: 0.022, nose: 0.94, lips: 0.96, cheeks: 1.06, brow: 1.02, head: 0.97 }, 1.01, 0.96),
 ]);
 
-// The look the town gives the k-th officer: the supplied figure, which of the sixteen she is, and her colours (for
-// whoever draws her from far off as a plain figure); and `plain`, her as one of the game's own figures in her
-// uniform's colours, for a copy of the game that cannot have the supplied figure (the copy on a disk carries none of
-// the supplied figures but two: animated.js, figureHere). The game's own figures have a beret, not a peaked cap: every
-// one of them wears that.
-export function policeLook(k) {
+// The town's police since 27 October 2026 (the owner: "replace the current police in the game with this male and
+// female police ... multiply it into 10 police. 5 males, 5 females"): his police officer (P1, a woman) and his security
+// guard in police uniform (P2, a man), each drawn as he made them (src/sim/npc-figures.js), five of each, each a
+// little taller or shorter, broader or slighter, than the next. The sixteen policewomen above (drawn from W3 by
+// police-dress.js) are kept only for the lab's lineup of them; nobody in the town is drawn so now.
+// `shirt`, `trousers`, `skin`: what each looks like from far off, where it is a plain figure (sampled from his
+// figures' own pictures).
+const OFFICER = Object.freeze({
+  f: Object.freeze({ figure: 'P1', shirt: 0x5b8ad6, trousers: 0x17181c, skin: 0x4a2c1d, hat: 0x111114 }),
+  m: Object.freeze({ figure: 'P2', shirt: 0x3c64c4, trousers: 0x1b2136, skin: 0x3a2418, hat: 0x111114 }),
+});
+// [height, build] of the five of each, in turn
+const SIZES = Object.freeze([[1.0, 1.0], [0.97, 1.03], [1.03, 0.97], [0.99, 1.05], [1.02, 0.99]]);
+export const OFFICERS = 10;
+
+// The look the town gives the k-th officer of a gender: his figure, and its colours for whoever draws it from far off
+// as a plain figure; and `plain`, the same as one of the game's own figures in its colours, for a copy of the game that
+// cannot have his figure (the copy on a disk: animated.js, figureHere).
+export function policeLook(k, gender = 'f') {
+  const O = OFFICER[gender === 'm' ? 'm' : 'f'];
+  const [height, build] = SIZES[((k % SIZES.length) + SIZES.length) % SIZES.length];
+  const body = gender === 'm' ? 'm' : 'f';
+  const plain = Object.freeze({ body, skin: O.skin, top: O.shirt, bottom: O.trousers, outfit: 'uniform', sleeves: 'short', hair: body === 'f' ? 'bun' : 'low', hat: Object.freeze(['beret', O.hat]), build, height });
+  return { figure: O.figure, police: k, body, skin: O.skin, top: O.shirt, bottom: O.trousers, hatColour: O.hat, build, height, outfit: 'figure', plain };
+}
+// What an officer is from far off: a plain figure in the uniform's colours, the beret on.
+export function policeFig(k, gender = 'f') {
+  const O = OFFICER[gender === 'm' ? 'm' : 'f'];
+  const [height, build] = SIZES[((k % SIZES.length) + SIZES.length) % SIZES.length];
+  return { skin: O.skin, arm: O.skin, top: O.shirt, bottom: O.trousers, legs: O.trousers, hair: O.hat, hat: 1, skirt: 0, scale: (gender === 'm' ? 1.06 : 1.0) * height, wide: build };
+}
+
+// The sixteen policewomen's look (W3 dressed by police-dress.js), for the lab's lineup of them only.
+export function formerPoliceLook(k) {
   const L = POLICE_LOOKS[((k % POLICE_LOOKS.length) + POLICE_LOOKS.length) % POLICE_LOOKS.length];
   const U = UNIFORMS[L.uniform];
   const plain = Object.freeze({ body: 'f', skin: L.tone, top: U.shirt, bottom: U.trousers, outfit: 'uniform', sleeves: 'long', hair: 'bun', hat: Object.freeze(['beret', U.hatColour]), build: L.build, height: L.height });
   return { figure: 'W3', police: POLICE_LOOKS.indexOf(L), body: 'f', skin: L.tone, top: U.shirt, bottom: U.trousers, hatColour: U.hatColour, build: L.build, height: L.height, outfit: 'figure', plain };
-}
-// What she is from far off: a plain figure in her uniform's colours, her beret or cap on.
-export function policeFig(k) {
-  const L = POLICE_LOOKS[((k % POLICE_LOOKS.length) + POLICE_LOOKS.length) % POLICE_LOOKS.length];
-  const U = UNIFORMS[L.uniform];
-  return { skin: L.tone, arm: U.shirt, top: U.shirt, bottom: U.trousers, legs: U.trousers, hair: U.hatColour, hat: 1, skirt: 0, scale: 1.02 * L.height, wide: L.build };
 }

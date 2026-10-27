@@ -20,6 +20,7 @@ import { borrowedFor, seatFor, loadMoves } from './figure-moves.js';
 import { pictureSize } from './budget.js';
 import { carryFalls, createFallDriver, FALL_BONES } from './falls.js';
 import { dressPolice, undressPolice } from './police-dress.js';
+import { NPC_FIGURES } from '../sim/npc-figures.js';
 
 // Which supplied animated figures there are, where each file is, and how tall a person it is. The files are
 // made one unit tall; they are drawn at a person's height, the same all over, nothing else changed.
@@ -73,7 +74,26 @@ export const ANIMATED = Object.freeze({
     ['M16', 'nigerian_traditional.glb', 1.80, { swim: 'swim.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }],
     ['M17', 'urban_streetwear.glb', 1.78, { swim: 'swim.001', stairs: 'run_upstairs.001' }, { punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_01.001'], call: ['make_a_call_02.001'] }],
   ]),
+  // The town's own (src/sim/npc-figures.js): his police officer and his security guard, the town's police since 27
+  // October 2026. Each moves with its family's borrowed moves (`moves`: the family's file).
+  ...townFigures({
+    P1: [{}, { fall: ['fall.001', 'defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'] }],
+    P2: [{ walk: 'walk.001', swim: 'swim.001' }, { fall: ['~fall'], punch: ['box_01.001'] }],
+  }),
 });
+// [own walk/run/swim clips, what shows what happens to it], by the town's figure's id
+function townFigures(list) {
+  return Object.fromEntries(Object.entries(list).map(([id, [own, react]]) => {
+    const f = NPC_FIGURES[id];
+    const woman = f.gender === 'f';
+    return [id, Object.freeze({
+      id, file: f.file, moves: NPC_FIGURES[f.family].file, text: null, inline: null, height: f.height, rig: 'mixamo', npc: true,
+      walk: own.walk || '~walk', run: own.run || '~run', still: '~idle', swim: own.swim || '~swim', jump: own.jump || '~leap', stairs: own.stairs || '~stairs',
+      walkSpeed: woman ? 1.3 : 1.35, runSpeed: woman ? 4.5 : 4.7,
+      react: Object.freeze({ hit: [], fall: [], punch: [], heavy: [], kick: [], call: [], ...react }),
+    })];
+  }));
+}
 // [id, file, height, its own walk/run/swim clips (what it lacks is borrowed: ~walk, ~run, ~swim), what shows what
 // happens to it]. Every one of them stands with the borrowed idle; women walk and run at a woman's pace.
 function newFigures(list) {
@@ -372,7 +392,8 @@ const smooth01 = (t) => { const u = Math.max(0, Math.min(1, t)); return u * u * 
 
 // `police`: which of the town's sixteen policewomen the figure is (police-dress.js), when it is one of them; drawn from
 // the supplied police officer's model with her own face, skin, uniform and hat.
-export function makeAnimatedRig(id, labelText, shadow = false, police = null) {
+// `size`: this one's height as a share of the figure's own (the town's officers: each a little taller or shorter)
+export function makeAnimatedRig(id, labelText, shadow = false, police = null, size = 1) {
   const spec = ANIMATED[id];
   useModel(id);
   let released = false;
@@ -638,7 +659,7 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null) {
   rig.loaded = loadAnimated(id).catch((error) => { if (error && error.stopped) rig.stopped = true; else rig.failed = String(error && error.message || error); throw error; }).then(({ model, labels }) => {
     const { root, mesh } = model.figure();
     mesh.castShadow = shadow;
-    const k = spec.height / model.height;
+    const k = (spec.height / model.height) * (size > 0.5 && size < 1.5 ? size : 1);
     root.scale.setScalar(k);
     lift.add(root);
     rig.bones = new Map(); root.traverse((o) => { if (o.isBone) rig.bones.set(o.name, o); });

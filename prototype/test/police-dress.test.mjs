@@ -17,7 +17,8 @@ globalThis.THREE = require('../vendor/three.min.js');
 const { splitGLB } = await import('../src/client/glb-read.js');
 const { parsedParts, modelFromGLB } = await import('../src/client/glb.js');
 const { dressPolice, undressPolice } = await import('../src/client/police-dress.js');
-const { POLICE_LOOKS, UNIFORMS, policeLook } = await import('../src/sim/police-looks.js');
+const { POLICE_LOOKS, UNIFORMS, formerPoliceLook: policeLook } = await import('../src/sim/police-looks.js');
+// (the sixteen policewomen were the town's police from 22 to 27 October 2026; they are drawn so still in the lab's lineup of them)
 
 const ORIGINAL = new URL('../assets/characters/figures/animated/police.glb', import.meta.url);
 const LIGHT = new URL('../assets/characters/figures/light/police.glb.gz', import.meta.url);

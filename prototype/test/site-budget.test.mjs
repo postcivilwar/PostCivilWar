@@ -117,6 +117,8 @@ test('the habitation: no picture larger than 1024 in what a phone fetches of it,
   let phone = 0, computer = 0;
   for (const name of names) {
     const bytes = readFileSync(new URL(name, dir));
+    // (its ground, worked out by the build: no picture, and fetched by a phone and a computer alike; 26 October 2026)
+    if (name === 'ground.bin') { phone += bytes.length; computer += bytes.length; continue; }
     const sizes = name.endsWith('.glb') ? glbPictures(bytes) : [pictureSize(bytes.subarray(0, 1 << 18))];
     const most = name.includes('.lite.') ? 1024 : 2048;
     for (const size of sizes) assert.ok(size && Math.max(...size) <= most, `habitation/${name}: ${size && size.join('x')}`);

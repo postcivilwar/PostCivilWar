@@ -6,7 +6,7 @@
 
 import { makeFigure, makeCharacter, animateCharacter, seatCharacter, standCharacter } from './character.js';
 import { labSets } from './character-looks.js';
-import { POLICE_LOOKS, policeLook } from '../sim/police-looks.js';
+import { POLICE_LOOKS, policeLook, formerPoliceLook } from '../sim/police-looks.js';
 import { setLite } from './render-kit.js';
 import { LIGHT } from './light.js';
 import { makeGun } from './gun-model.js';
@@ -46,7 +46,9 @@ const sets = labSets();
 // every supplied figure a player can be (animated.js), as it came
 sets.players = () => Object.keys(ANIMATED).map((id) => ({ name: id, note: ANIMATED[id].file, look: { figure: id } }));
 // the town's sixteen policewomen (police-dress.js), after the supplied police officer they are drawn from, as she came
-sets.police = () => [{ name: 'Amaka', note: 'as supplied', look: { figure: 'W3' } }, ...POLICE_LOOKS.map((L, k) => ({ name: `Officer ${k + 1}`, note: `${L.skin}, ${L.uniform}`, look: policeLook(k) }))];
+sets.police = () => [...[0, 1, 2, 3, 4].map((k) => ({ name: `Officer ${k + 1}`, note: 'his police officer', look: policeLook(k, 'f') })), ...[0, 1, 2, 3, 4].map((k) => ({ name: `Officer ${k + 6}`, note: 'his security guard', look: policeLook(k, 'm') }))];
+// (the sixteen policewomen of 22 to 27 October 2026, drawn from W3)
+sets.formerPolice = () => [{ name: 'Amaka', note: 'as supplied', look: { figure: 'W3' } }, ...POLICE_LOOKS.map((L, k) => ({ name: `Officer ${k + 1}`, note: `${L.skin}, ${L.uniform}`, look: formerPoliceLook(k) }))];
 const state = { set: params.get('set') || Object.keys(sets)[0], move: params.get('move') || 'stand', lod: num('lod', 0), spin: num('spin', 0) };
 const cam = { yaw: num('yaw', 0), pitch: num('pitch', 0.06), dist: num('dist', 0), x: num('x', 0), y: num('y', 0.95), z: num('z', 0), auto: !params.has('dist') };
 let figures = [];

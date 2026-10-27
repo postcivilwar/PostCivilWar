@@ -188,8 +188,8 @@ const HEADTIES = [0x1f5c4d, 0xd9a441, 0x2e6f73, 0xe0d6c3, 0x7b2d5b, 0xb3261e, 0x
 // What someone wears, from the work they do and who they are. The result is
 // a `look` for the full figure and a `fig` for the simple one seen far away.
 function dress(p, rng) {
-  // the town's police (22 October 2026): each of the sixteen in her own face, skin and uniform (police-looks.js)
-  if (p.looks === 'police') return { look: Object.freeze({ ...policeLook(p.k), age: p.age }), fig: Object.freeze(policeFig(p.k)) };
+  // the town's police (27 October 2026): his police officer and his security guard, five of each (police-looks.js)
+  if (p.looks === 'police') return { look: Object.freeze({ ...policeLook(p.k, p.gender), age: p.age }), fig: Object.freeze(policeFig(p.k, p.gender)) };
   const f = p.gender === 'f';
   const skin = rng.pick(SKINS);
   const old = p.age >= 60;
@@ -501,6 +501,13 @@ function assignPosts(people, scale) {
   const take = (list, key) => { if (!list.length) return undefined; const n = next.get(key) || 0; next.set(key, n + 1); return list[n % list.length]; };
   const pickBy = (list, p, salt) => (list.length ? list[mix(p.index, salt) % list.length] : undefined);
   // a seat at the nearest food seller, while there are seats
+  // (an officer's number among all the police, whichever line of the town's list she or he is in: atani.js has two, the
+  // women's and the men's; numbered a woman, a man, a woman, so that each shift has both)
+  const officerNo = new Map();
+  {
+    const women = people.filter((q) => q.job === 'police' && q.gender === 'f'), men = people.filter((q) => q.job === 'police' && q.gender !== 'f');
+    for (let k = 0, n = 0; k < Math.max(women.length, men.length); k += 1) { if (women[k]) officerNo.set(women[k].index, n++); if (men[k]) officerNo.set(men[k].index, n++); }
+  }
   const lunch = (p) => { let best = null; let bestD = Infinity; const v = ZONE_VENUES[p.venue] || { x: 0, z: 0 }; for (const f of FOOD) { const d = Math.hypot(f.x - v.x, f.z - v.z); if (d < bestD) { bestD = d; best = f; } } if (!best) return undefined; const seats = slot(best.id, 'customer'); const n = next.get(best.id) || 0; if (n >= seats.length * scale) return undefined; next.set(best.id, n + 1); return seats[n % seats.length]; };
   for (const p of people) {
     const v = p.venue;
@@ -579,9 +586,10 @@ function assignPosts(people, scale) {
     else if (J === 'police') {
       // her beat and her shift (atani-patrols.js), the day's officers first, beat by beat, then the night's: she
       // reports for duty at the Police Post, walks her beat, and signs off there
-      const duty = PATROL_DUTIES.length ? PATROL_DUTIES[p.k % PATROL_DUTIES.length] : null;
+      const n = officerNo.get(p.index);
+      const duty = PATROL_DUTIES.length ? PATROL_DUTIES[n % PATROL_DUTIES.length] : null;
       post.work = slot('police', 'inside')[0];
-      if (duty) { post.patrol = duty.beat; post.officer = p.k; p.night = duty.night; } else post.beats = slot('police', 'beat');
+      if (duty) { post.patrol = duty.beat; post.officer = n; p.night = duty.night; } else post.beats = slot('police', 'beat');
     }
     else if (J === 'clerk') { post.work = slot(p.k < 6 * scale ? 'secretariat' : 'registry', 'inside')[0]; post.eat = lunch(p); }
     else if (J === 'labourer') { post.work = take([...slot('yard', 'work'), ...slot('yard', 'site')], 'labour'); post.eat = lunch(p); }

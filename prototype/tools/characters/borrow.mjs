@@ -17,9 +17,14 @@
 import { readFileSync, writeFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { parseGLB, boneName } from '../../src/client/glb.js';
+import { NPC_FIGURES } from '../../src/sim/npc-figures.js';
 
 const THREE = createRequire(import.meta.url)('../../vendor/three.min.js');
 const dir = new URL('../../assets/characters/figures/animated/', import.meta.url);
+// the town's own figures (src/sim/npc-figures.js: his police and NPC models, or their copies given a skeleton), by the
+// name the website serves each by: read from where each is in assets/characters/
+const NPC_AT = new Map(Object.values(NPC_FIGURES).map((f) => [f.file, new URL(`../../assets/characters/${f.source}`, import.meta.url)]));
+const fileAt = (name) => NPC_AT.get(name) || new URL(name, dir);
 
 // Unreal names to Mixamo names (the body only; the fingers are not carried)
 export const NAMES = {
@@ -61,7 +66,7 @@ const SOURCES = {
   m: { walk: ['muscular_male.glb', 'walk.001', 30], run: ['warrior.glb', 'run.001', 30], swim: ['muscular_male.glb', 'swim.001', 15] },
 };
 const hasOwn = (file, move) => {
-  const b = readFileSync(new URL(file, dir));
+  const b = readFileSync(fileAt(file));
   return parseGLB(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength)).animations.some((a) => a.name.replace(/\.\d+$/, '') === move);
 };
 for (const [file, gender] of NEW_FIGURES) {
@@ -80,13 +85,27 @@ const MORE_FROM = { f: 'woman.glb', m: 'ninja_warrior.glb' };
 for (const [file, gender] of EVERY_FIGURE) {
   for (const [as, [own, clip, fps]] of Object.entries(MORE)) if (!hasOwn(file, own)) JOBS.push({ to: file, as, from: MORE_FROM[gender], clip, fps });
 }
+// The town's own figures (27 October 2026: his police officer and security guard, the town's police; src/sim/
+// npc-figures.js): one set of moves for each skeleton as bound (`family`), which every figure of that family takes.
+// What its own file lacks: a woman walks and runs with the woman's walk and run, a man runs with the hooded
+// warrior's; both stand with the officer's idle (W3's), jump and go up stairs with the woman's or the ninja's; the
+// man falls with the man's fall (male_figure.glb's).
+const FAMILIES = [...new Set(Object.values(NPC_FIGURES).map((f) => NPC_FIGURES[f.family].file))];
+for (const file of FAMILIES) {
+  const f = Object.values(NPC_FIGURES).find((x) => x.file === file);
+  const gender = f.gender;
+  for (const move of ['walk', 'run', 'swim']) if (!hasOwn(file, move)) { const [from, clip, fps] = SOURCES[gender][move]; JOBS.push({ to: file, as: move, from, clip, fps }); }
+  if (!hasOwn(file, 'idle')) JOBS.push({ to: file, as: 'idle', from: 'police.glb', clip: 'idle.001', fps: 10 });
+  if (!hasOwn(file, 'fall')) JOBS.push({ to: file, as: 'fall', from: gender === 'f' ? 'fashion_model_1.glb' : 'male_figure.glb', clip: 'fall.001', fps: 30 });
+  for (const [as, [own, clip, fps]] of Object.entries(MORE)) if (!hasOwn(file, own)) JOBS.push({ to: file, as, from: MORE_FROM[gender], clip, fps });
+}
 // the sitting pose (the woman's sit.001 at 1 s, as src/client/seat-pose.js has it for the first two)
-const SEATS = ['athlete.glb', 'police.glb', 'priest.glb', 'warrior.glb', ...NEW_FIGURES.map(([file]) => file)];
+const SEATS = ['athlete.glb', 'police.glb', 'priest.glb', 'warrior.glb', ...NEW_FIGURES.map(([file]) => file), ...FAMILIES];
 
 const files = new Map();
 function load(name) {
   if (files.has(name)) return files.get(name);
-  const b = readFileSync(new URL(name, dir));
+  const b = readFileSync(fileAt(name));
   const parsed = parseGLB(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
   const { json, accessor } = parsed;
   const skin = json.skins[0];
@@ -179,8 +198,15 @@ const pack = (frames, names) => {
   return Buffer.from(a.buffer).toString('base64');
 };
 
+// What was carried before is kept as it was (`--all` carries every one again): carried again, a turn can come out a
+// thirty-two-thousandth different, and a figure that was right is left alone
+let before = { borrowed: {}, seats: {} };
+try { before = JSON.parse(Buffer.from(/MOVES_B64 = '([^']*)'/.exec(readFileSync(new URL('../../src/client/figure-borrowed.js', import.meta.url), 'utf8'))[1], 'base64').toString('utf8')); } catch (error) { /* none yet */ }
+const AGAIN = process.argv.includes('--all');
 const borrowed = {};
 for (const job of JOBS) {
+  const kept = before.borrowed[job.to] && before.borrowed[job.to][job.as];
+  if (!AGAIN && kept && kept.from === `${job.from}#${job.clip}`) { (borrowed[job.to] ||= {})[job.as] = kept; continue; }
   const src = load(job.from), dst = load(job.to);
   const clip = src.clips.find((c) => c.name === job.clip);
   if (!clip) throw new Error(`${job.from} has no ${job.clip}`);
@@ -205,6 +231,7 @@ const woman = load('woman.glb');
 const sit = woman.clips.find((c) => c.name === 'sit.001');
 const seats = {};
 for (const name of SEATS) {
+  if (!AGAIN && before.seats[name]) { seats[name] = before.seats[name]; continue; }
   const dst = load(name);
   reset(woman); reset(dst);
   const mixer = new THREE.AnimationMixer(woman.root); mixer.clipAction(sit).play(); mixer.setTime(1.0);

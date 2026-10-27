@@ -1,6 +1,6 @@
 // The town without its townspeople (22 October 2026, the owner's brief): every NPC taken out of the game but the named
-// people at the counters, the mason and the police; the police are sixteen women, each with her own face, skin and
-// Nigerian Police uniform, who walk the whole of the land by day and by night. And what a game saved with the town as
+// people at the counters, the mason and the police; the police are ten officers since 27 October 2026, five of his
+// police officer and five of his security guard, who walk the land by day and by night (sixteen policewomen before). And what a game saved with the town as
 // it was becomes when it is opened now.
 //
 //   node --test test/police.test.mjs
@@ -12,7 +12,8 @@ import { createPopulation, POSE } from '../src/sim/population.js';
 import { TIME_SCALE } from '../src/sim/sim.js';
 import * as Z from '../src/sim/zone.js';
 import { POLICE_LOOKS, UNIFORMS } from '../src/sim/police-looks.js';
-import { FIGURES, FIGURE_ORDER } from '../src/sim/figures.js';
+import { FIGURES, FIGURE_ORDER, cleanFigureLook } from '../src/sim/figures.js';
+import { NPC_FIGURES } from '../src/sim/npc-figures.js';
 import { LAW } from '../src/sim/justice.js';
 import { town, whereIs, until, run, ok, refused } from './world.mjs';
 import { FORMER_TOWN, fund } from './helpers.mjs';
@@ -22,37 +23,35 @@ const walkable = (x, z, r = 0.45) => Z.zoneWalkable(x, z, [], r);
 // the first point of a straight line that is not clear for someone walking along it, or null
 const blockedOn = (ax, az, bx, bz) => { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5)); for (let i = 0; i <= n; i += 1) { const x = ax + ((bx - ax) * i) / n, z = az + ((bz - az) * i) / n; if (!walkable(x, z, 0.3)) return [x, z]; } return null; };
 
-test('the town\'s people: sixteen policewomen, and nobody else but the named residents at their counters and the mason', () => {
+test('the town\'s people: ten police officers, five women and five men, and nobody else but the named residents at their counters and the mason', () => {
+  // (27 October 2026, the owner: "replace the current police in the game with this male and female police ... 10
+  // police. 5 males, 5 females"; the sixteen policewomen before them are kept only in the lab's lineup)
   const pop = createPopulation({ state: {}, timeScale: TIME_SCALE });
-  assert.equal(pop.count, 16);
-  assert.ok(pop.people.every((p) => p.job === 'police' && p.gender === 'f'), 'every one a policewoman');
+  assert.equal(pop.count, 10);
+  assert.ok(pop.people.every((p) => p.job === 'police'), 'every one an officer');
+  assert.equal(pop.people.filter((p) => p.gender === 'f').length, 5);
+  assert.equal(pop.people.filter((p) => p.gender === 'm').length, 5);
   assert.deepEqual(Z.ZONE_RESIDENTS.map((r) => r.id).sort(), ['clerk', 'cook', 'corporal', 'instructor', 'lands', 'mason', 'nurse', 'rider', 'sergeant', 'trader', 'yardowner']);
   assert.deepEqual(Z.ZONE_FORMER_RESIDENTS.map((r) => r.id).sort(), ['clothseller', 'fisher', 'moulder', 'produce', 'surveyor'], 'the five no longer seen, kept for the books');
   // everyone at a counter has a counter (the mason builds)
   for (const r of Z.ZONE_RESIDENTS) if (r.id !== 'mason') assert.ok(Z.ZONE_SERVICES.some((s) => s.staff.split('|').includes(r.id)), `${r.name} keeps a counter`);
-  assert.equal(new Set(pop.people.map((p) => p.name)).size, 16, 'sixteen names');
-  // each is one of the sixteen looks, once: the supplied police officer's figure, her own face, skin and uniform
-  assert.deepEqual(pop.people.map((p) => p.look.police).sort((a, b) => a - b), [...Array(16).keys()]);
+  assert.equal(new Set(pop.people.map((p) => p.name)).size, 10, 'ten names');
+  // his police officer for a woman, his security guard for a man, each drawn as he made them; each of the five a
+  // little taller or shorter than the next; a plain figure in the uniform's colours from far off
   for (const p of pop.people) {
-    assert.equal(p.look.figure, 'W3');
-    const L = POLICE_LOOKS[p.look.police];
-    assert.equal(p.look.skin, L.tone);
-    assert.equal(p.look.top, UNIFORMS[L.uniform].shirt);
-    assert.equal(p.fig.skin, L.tone, 'from far off too');
+    assert.equal(p.look.figure, p.gender === 'f' ? 'P1' : 'P2');
+    assert.equal(NPC_FIGURES[p.look.figure].police, true);
+    assert.equal(p.look.body, p.gender);
+    assert.equal(p.fig.top, p.look.top, 'from far off too');
     assert.ok(p.transport === 'walk', 'on foot');
   }
-  // the owner's words: "some dark african skin, while some melanin skin, some ebony skin, while few is fair"
-  const skins = {};
-  for (const L of POLICE_LOOKS) skins[L.skin] = (skins[L.skin] || 0) + 1;
-  assert.deepEqual(skins, { dark: 5, ebony: 4, brown: 4, fair: 3 });
-  // the three uniforms of his picture, each worn by several
-  const uniforms = {};
-  for (const L of POLICE_LOOKS) uniforms[L.uniform] = (uniforms[L.uniform] || 0) + 1;
-  assert.deepEqual(Object.keys(uniforms).sort(), ['black', 'blue', 'camo']);
-  assert.ok(Object.values(uniforms).every((n) => n >= 5));
-  assert.equal(UNIFORMS.black.hat, 'beret'); assert.equal(UNIFORMS.blue.hat, 'cap'); assert.ok(UNIFORMS.camo.camo.length === 4);
-  // no two faces alike
+  for (const g of ['f', 'm']) assert.equal(new Set(pop.people.filter((p) => p.gender === g).map((p) => p.look.height)).size, 5, `the five ${g === 'f' ? 'women' : 'men'} each their own height`);
+  // they are not offered to a player, and a look naming one is not accepted from a client
+  for (const id of Object.keys(NPC_FIGURES)) { assert.ok(!FIGURES[id] && !FIGURE_ORDER.f.includes(id) && !FIGURE_ORDER.m.includes(id)); assert.equal(cleanFigureLook({ figure: id }), null); }
+  // the sixteen policewomen of before, kept for the lab: no two faces alike
+  assert.equal(POLICE_LOOKS.length, 16);
   assert.equal(new Set(POLICE_LOOKS.map((L) => JSON.stringify(L.face))).size, 16);
+  assert.equal(UNIFORMS.black.hat, 'beret'); assert.equal(UNIFORMS.blue.hat, 'cap'); assert.ok(UNIFORMS.camo.camo.length === 4);
   // no okadas, no market stalls
   assert.equal(Z.ZONE_STALLS.length, 0);
   assert.equal(Z.ZONE_POPULATION.jobs.some(([job]) => job === 'okada'), false);
@@ -97,10 +96,12 @@ test('the beats: every stop where an officer can stand, every way between them c
     }
     void station;
   }
-  assert.deepEqual([day, night], [10, 6], 'ten by day and six by night');
+  assert.deepEqual([day, night], [7, 3], 'seven by day and three by night: the ten officers (27 October 2026)');
   // the whole of the land: the airport, the Kwale road, the bridge's far end, the habitation's lagoon, the campuses
   assert.ok(reach.x0 < -850 && reach.x1 > 700 && reach.z0 < -380 && reach.z1 > 370, JSON.stringify(reach));
-  for (const id of ['market', 'registry', 'waterside', 'west', 'east', 'south', 'kwale', 'airport', 'habitation']) assert.ok(Z.ZONE_PATROLS.some((b) => b.id === id && b.day >= 1), `${id} is walked by day`);
+  for (const id of ['market', 'registry', 'waterside', 'west', 'east', 'kwale', 'habitation']) assert.ok(Z.ZONE_PATROLS.some((b) => b.id === id && b.day >= 1), `${id} is walked by day`);
+  // (the south of the town and the airport keep their beats, with nobody on them until there are more officers)
+  for (const id of ['south', 'airport']) assert.ok(Z.ZONE_PATROLS.some((b) => b.id === id && b.day === 0 && b.night === 0), `${id}: a beat, unwalked`);
 });
 
 test('their days: on the beat through the shift, by day or by night, every step a step, at midnight where the next day finds them', () => {
@@ -187,7 +188,7 @@ test('a game saved with the town as it was opens with the town as it is: what it
   const a = after.game;
   assert.equal(a.state.players[id].riding, null, 'off the okada, which is gone');
   assert.deepEqual(a.state.okada.riders, []);
-  assert.equal(a.internals.population.count, 16);
+  assert.equal(a.internals.population.count, 10);
   assert.equal(after.auditor.balance(a.state.players[id].wallet), money, 'the money is the player\'s still');
   assert.deepEqual(after.auditor.reconcile(), []);
   // and it runs: views, ticks, the police on their beats

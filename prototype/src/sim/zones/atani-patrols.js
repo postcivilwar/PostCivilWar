@@ -38,16 +38,18 @@ const HABITATION_WAY = [[250, 113], [276, 113], [300, 104], [318, 91], [324, 91]
 
 const beat = (id, where, day, night, stops, round = there(stops.length)) => Object.freeze({ id, where, day, night, stops: Object.freeze(stops), round: Object.freeze(round) });
 
+// (since 27 October 2026 the town has ten officers, not sixteen: seven walk by day, three by night; the south of the
+// town and the airport have no beat of their own until there are more)
 export const TOWN_PATROLS = Object.freeze([
-  beat('market', 'the market and the motor park', 2, 1, [stop(-24, 103, 1), stop(6, 110, -1.571), stop(24, 80, 0), stop(10, 62, 1.571), stop(43, 64, 3.142), stop(60, 44, -1.571), stop(40, 21, 3.142)]),
-  beat('registry', 'Registry Road and the Police Post', 1, 1, [stop(-34, -31, 0), stop(6, -34, -1.571), stop(26, -31, 0), stop(58, -50, 3.142), stop(-58, -50, 3.142)]),
+  beat('market', 'the market and the motor park', 1, 1, [stop(-24, 103, 1), stop(6, 110, -1.571), stop(24, 80, 0), stop(10, 62, 1.571), stop(43, 64, 3.142), stop(60, 44, -1.571), stop(40, 21, 3.142)]),
+  beat('registry', 'Registry Road and the Police Post', 1, 0, [stop(-34, -31, 0), stop(6, -34, -1.571), stop(26, -31, 0), stop(58, -50, 3.142), stop(-58, -50, 3.142)]),
   // along the waterfront both ways, and out over the bridge to the barrier and back
   beat('waterside', 'the waterfront and the bridge', 1, 1, [stop(24, 121, 0), stop(70, 121, 0), stop(130, 121, 0), stop(190, 121, 0), stop(232, 121, 0), stop(-60, 121, 0), stop(-120, 121, 0), stop(-180, 121, 0), ...out('mar_w5', BRIDGE_WAY, [2, 3, 4, 5])],
     [0, 1, 2, 3, 4, 3, 2, 1, 0, 5, 6, 7, 8, 9, 10, 11, 10, 9, 8, 7, 6, 5]),
   beat('west', 'the west of the town: the hospital, the churches and the technical school', 1, 0, [stop(-118, -31, 0), stop(-168, -33, 0), stop(-226, -31, 0), stop(-199, -49, 3.142), stop(-140, -49, 3.142), stop(-98, -49, 3.142), stop(-120, 72, 0), stop(-160, 72, 0)]),
   beat('east', 'the east of the town and its schools', 1, 0, [stop(100, -31, 0), stop(143, -33, 0), stop(210, -31, 0), stop(167, -49, 3.142), stop(120, -49, 3.142), stop(110, 72, 0), stop(162, 72, 0)]),
-  beat('south', 'Yard Lane, the layout, the campuses and the farms', 1, 1, [stop(9, -100, -1.571), stop(12, -150, 0), stop(84, -131, 0), stop(150, -133, 0), stop(100, -220, 3.142), stop(11, -272, -1.571), stop(-11, -292, 1.571), stop(97, -334, 0), stop(9, -400, -1.571), stop(-201, -336, 0), stop(-60, -133, 0)]),
-  beat('kwale', 'the Kwale road and the car showroom', 1, 1, out('t3', KWALE, [1, 3, 5]), andBack(3)),
-  beat('airport', 'the airport', 1, 0, out('t3', AIRPORT_WAY, [3, 6, 9]), andBack(3)),
+  beat('south', 'Yard Lane, the layout, the campuses and the farms', 0, 0, [stop(9, -100, -1.571), stop(12, -150, 0), stop(84, -131, 0), stop(150, -133, 0), stop(100, -220, 3.142), stop(11, -272, -1.571), stop(-11, -292, 1.571), stop(97, -334, 0), stop(9, -400, -1.571), stop(-201, -336, 0), stop(-60, -133, 0)]),
+  beat('kwale', 'the Kwale road and the car showroom', 1, 0, out('t3', KWALE, [1, 3, 5]), andBack(3)),
+  beat('airport', 'the airport', 0, 0, out('t3', AIRPORT_WAY, [3, 6, 9]), andBack(3)),
   beat('habitation', 'the road up the river and the habitation', 1, 1, out('t2', HABITATION_WAY, [2, 14, 22, 26, 28, 30]), andBack(6)),
 ]);

@@ -23,6 +23,7 @@ import { createRequire } from 'node:module';
 import { dirname, resolve, relative } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { FIGURES } from './src/sim/figures.js';
+import { NPC_FIGURES } from './src/sim/npc-figures.js';
 import { MOVES_B64 } from './src/client/figure-borrowed.js';
 import { files as gunServerFiles } from './tools/guns/server-data.mjs';
 import { GUN_SOUNDS } from './src/client/gun-sound-files.js';
@@ -255,6 +256,37 @@ for (const f of Object.values(FIGURES)) {
   else lightFiles.set(`figures/${stem}.turn.webp`, bytesOf(`${stem}.turn.webp`));
   const [model, bytes] = at(`${stem}.glb.gz`);
   lightTable[f.id] = { file: f.file, model, bytes, pictures, moves: at(`${stem}.moves.json`), ...(lightFiles.has(`figures/${stem}.turn.webp`) ? { turn: at(`${stem}.turn.webp`) } : {}) };
+}
+// The town's own figures (src/sim/npc-figures.js: his police officers since 27 October 2026), served the same way
+// from their light copies (tools/npcs/light_npcs.py, in assets/characters/npcs/light/, made from his files or from
+// the copies of them given a skeleton: made again here if missing or out of date). Not on the character screen: no
+// turntable. Every figure of one family moves with that family's borrowed moves (borrow.mjs).
+{
+  const NPC_LIGHT = resolve(root, 'assets/characters/npcs/light');
+  const madeNpc = () => (existsSync(resolve(NPC_LIGHT, 'made.json')) ? JSON.parse(readFileSync(resolve(NPC_LIGHT, 'made.json'), 'utf8')) : {});
+  const stem = (f) => f.file.replace(/\.glb$/, '');
+  const stale = (made) => Object.values(NPC_FIGURES).filter((f) => { const e = made[stem(f)]; return !e || e.tool !== lightTool || e.md5 !== createHash('md5').update(readFileSync(resolve(root, 'assets/characters', e.from.replace(/^assets\/characters\//, '')))).digest('hex') || Object.keys(e.files).some((n) => !existsSync(resolve(NPC_LIGHT, n))); });
+  let made = madeNpc();
+  if (stale(made).length) {
+    console.log(`making the light copies of ${stale(made).map((f) => f.id).join(', ')} (tools/npcs/light_npcs.py)`);
+    const run = spawnSync('python3', ['-I', resolve(root, 'tools/npcs/light_npcs.py')], { stdio: 'inherit' });
+    made = madeNpc();
+    if (run.status !== 0 || stale(made).length) throw new Error(`the light copies of ${stale(made).map((f) => f.id).join(', ')} could not be made: run python3 tools/npcs/light_npcs.py`);
+  }
+  for (const f of Object.values(NPC_FIGURES)) {
+    const s = stem(f), entry = made[s];
+    for (const name of Object.keys(entry.files)) lightFiles.set(`figures/${name}`, readFileSync(resolve(NPC_LIGHT, name)));
+    const at = (name) => [`figures/${name}?v=${fingerprint(lightFiles.get(`figures/${name}`))}`, lightFiles.get(`figures/${name}`).length];
+    const json = glbJson(gunzipSync(lightFiles.get(`figures/${s}.glb.gz`)));
+    const pictures = json.images.map((img, index) => {
+      const names = [img.uri, ...Object.values((img.extras && img.extras.larger) || {})];
+      return { index, slot: img.name, sizes: Object.fromEntries(names.map((name) => [Number(/\.[cnm](\d+)\.webp$/.exec(name)[1]), at(name)])) };
+    });
+    const family = NPC_FIGURES[f.family].file;
+    if (!lightFiles.has(`figures/${family.replace(/\.glb$/, '')}.moves.json`)) lightFiles.set(`figures/${family.replace(/\.glb$/, '')}.moves.json`, Buffer.from(JSON.stringify({ borrowed: MOVES.borrowed[family] || {}, seat: MOVES.seats[family] || null })));
+    const [model, bytes] = at(`${s}.glb.gz`);
+    lightTable[f.id] = { file: f.file, model, bytes, pictures, moves: at(`${family.replace(/\.glb$/, '')}.moves.json`), npc: true };
+  }
 }
 // a figure whose turntable is missing or was made from an older copy: made again (it needs Playwright), and the build
 // is begun again so that it carries it

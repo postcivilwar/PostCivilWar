@@ -373,7 +373,7 @@ export function makeCharacter(look, labelText, shadow = false, lod = 0) {
     // (one of the town's own people drawn from a supplied figure this copy of the game cannot have: as one of the
     // game's own figures, in the look they have for that, `plain`)
     if (look.plain && !figureHere(look.figure)) return makeFigure(characterSpec(configFromLook(look.plain), lod), labelText, shadow);
-    return makeAnimatedRig(look.figure, labelText, shadow, typeof look.police === 'number' ? look.police : null);
+    return makeAnimatedRig(look.figure, labelText, shadow, look.figure === 'W3' && typeof look.police === 'number' ? look.police : null, ANIMATED[look.figure].npc && look.height ? look.height : 1);
   }
   return makeFigure(characterSpec(configFromLook(look), lod), labelText, shadow);
 }

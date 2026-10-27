@@ -7,6 +7,7 @@
 // browser by test/play.mjs.
 
 import test from 'node:test';
+import { NPC_FIGURES } from '../src/sim/npc-figures.js';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHash } from 'node:crypto';
@@ -22,7 +23,9 @@ import { ANIMATED } from '../src/client/animated.js';
 import { SEAT_POSE } from '../src/client/seat-pose.js';
 import { figureMoves, borrowedFor, seatFor } from '../src/client/figure-moves.js';
 
-const master = (file) => { const b = readFileSync(new URL(`../assets/characters/figures/animated/${file}`, import.meta.url)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
+// (a player's figure from figures/animated/; one of the town's own from where it is: src/sim/npc-figures.js)
+const townAt = new Map(Object.values(NPC_FIGURES).map((f) => [f.file, `../assets/characters/${f.source}`]));
+const master = (file) => { const b = readFileSync(new URL(townAt.get(file) || `../assets/characters/figures/animated/${file}`, import.meta.url)); return b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength); };
 const MASTERS = {
   M1: { file: 'muscular_male.glb', md5: '36cc552a8a95352f60266797de804403', animations: 24, joints: 61, images: 1 },
   W1: { file: 'woman.glb', md5: '86cbd1e74c05c1adc5abd7c9f7d4d0a6', animations: 40, joints: 61, images: 1 },
