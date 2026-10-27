@@ -142,6 +142,8 @@ export function createCrowd(scene) {
     const t = performance.now();
     rig = makeCharacter(info.look, label ? info.short : null, false, lod);
     rig.lod = lod; rig.key = key;
+    // (each at its own point of its walk: not all in step; animated.js)
+    rig.offset = ((i * 0.6180339887) % 1) || 0.5;
     const took = performance.now() - t;
     stats.made += 1; stats.madeMs += took; if (took > stats.slowestMs) stats.slowestMs = took;
     return rig;
@@ -230,9 +232,33 @@ export function createCrowd(scene) {
     actor.rig = null;
   }
 
+  // His townspeople's moods (27 October 2026, the owner's brief: "show moods now and then, realistically: dancing,
+  // looking tired, stretching, talking with their hands, looking at the phone"): one standing still now and then shows
+  // one of their moods (animated.js, TOWN_MOODS), each at its own times; one standing near another talks with the
+  // hands, or laughs. Chosen from who they are and the town's clock alone, so that another player near them sees
+  // the same.
+  let moodClock = 0;
+  const MOOD_EVERY = 22;            // seconds: a chance of a mood this often, standing still
+  const moodHash = (i, n) => { let h = Math.imul(i + 1, 374761393) ^ Math.imul(n + 7, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+  function mood(actor, moving) {
+    const rig = actor.rig;
+    if (!rig.animated || !rig.spec || !rig.spec.moods || !rig.mixer || moving || actor.pose !== POSE.stand || rig.emoting || rig.doing || rig.lying || actor.guard || rig.strike) return;
+    const slot = Math.floor((moodClock + actor.i * 7.31) / MOOD_EVERY);
+    if (rig.moodSlot === slot) return;
+    rig.moodSlot = slot;
+    const roll = moodHash(actor.i, slot);
+    if (roll > 0.6) return;
+    let company = false;
+    for (const other of actors.values()) if (other !== actor && other.pose === POSE.stand && Math.hypot(other.x - actor.x, other.z - actor.z) < 2.6) { company = true; break; }
+    const moods = rig.spec.moods;
+    const name = company ? (roll < 0.4 ? '~talk' : '~laugh') : moods[Math.floor(moodHash(actor.i + 101, slot) * moods.length)];
+    if (rig.emote(name)) stats.moods = (stats.moods || 0) + 1;
+  }
+
   function poseRig(actor, dt, moving) {
     const rig = actor.rig;
     const g = rig.group;
+    rig.limp = !!actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie;
     const s = rig.scale;
     g.rotation.order = 'YXZ';
     if (actor.pose === POSE.lie && fallen.has(actor.i)) {
@@ -318,8 +344,19 @@ export function createCrowd(scene) {
   // A townsperson's reaction (src/sim/reactions.js): the clip fades in, plays, and fades out. While they walk or
   // run, or sit, only the body above the hips plays it, so the legs keep the ground.
   let clockNow = 0;
+  // What the town's own figures (his townspeople, 27 October 2026) play for what the simulation says happened to them
+  // (reactions.js): frightened, hurt, crying or sad, and the everyday things; each once, standing (a run is their run)
+  const TOWN_CLIP = Object.freeze({ afraid: '~scared', scared: '~scared', hurt: '~hit', cry: '~tired', sad: '~tired', laugh: '~laugh', giggle: '~laugh', clap: '~wave', cheer: '~wave', wave: '~wave', greet: '~wave', hello: '~wave', agree: '~talk', call: '~phone', scratch: '~look', dance: '~dance', sway: '~dance' });
   function react(actor, entry, dt) {
     const rig = actor.rig;
+    if (rig && rig.animated && rig.spec && rig.spec.moods && entry) {
+      const start = clockNow - entry[2];
+      if (actor.reacted && actor.reacted.name === entry[1] && Math.abs(actor.reacted.start - start) < 1.5) return;
+      actor.reacted = { name: entry[1], start };
+      const clip = TOWN_CLIP[entry[1]];
+      if (clip && actor.pose === POSE.stand && !rig.lying && !rig.seated && rig.emote(clip)) stats.reacted = (stats.reacted || 0) + 1;
+      return;
+    }
     if (!rig || rig.animated) return;
     if (entry && (!actor.react || actor.react.name !== entry[1] || Math.abs((clockNow - actor.react.start) - entry[2]) > 1.5)) actor.react = { name: entry[1], start: clockNow - entry[2], loop: !!entry[4], upperOnly: !!entry[3] };
     const r = actor.react;
@@ -336,6 +373,8 @@ export function createCrowd(scene) {
   // `frame` is { dt, rows, okadas, players, known, eye, clock, maxRigs, hide }
   function update(frame) {
     fallen = frame.fallen ? new Set(frame.fallen) : NONE;
+    // (the town's clock: the same for another player in the same town at the same moment)
+    moodClock = frame.townTime || 0;
     const { dt, rows, known, eye } = frame;
     stamp += 1;
     if (rows !== lastRows) {
@@ -391,7 +430,7 @@ export function createCrowd(scene) {
         actor.rig = fresh; scene.add(fresh.group);
         if (stats.made !== before) building = pause;
       }
-      if (actor.rig) { poseRig(actor, dt, moving); react(actor, reacting.get(actor.i), dt); if (actor.rig.strike || actor.guard) poseFighter(actor.rig, frame.clock || 0, { guard: !!actor.guard }); showName(actor.rig, actor.rig.named === true, dt); actor.rig.named = false; if (d < namedD && actor.pose !== POSE.lie && !frame.riding) { namedD = d; named = actor; } continue; }
+      if (actor.rig) { poseRig(actor, dt, moving); mood(actor, moving); react(actor, reacting.get(actor.i), dt); if (actor.rig.strike || actor.guard) poseFighter(actor.rig, frame.clock || 0, { guard: !!actor.guard }); showName(actor.rig, actor.rig.named === true, dt); actor.rig.named = false; if (d < namedD && actor.pose !== POSE.lie && !frame.riding) { namedD = d; named = actor; } continue; }
       if (d > detail) farFigure(info.fig, actor.x + (actor.ox || 0), actor.z + (actor.oz || 0), actor.h, actor.pose);
       else figure(info.fig, actor.x + (actor.ox || 0), moving ? Math.abs(Math.cos(actor.walk)) * 0.025 : 0, actor.z + (actor.oz || 0), actor.h, moving ? POSE.walk : actor.pose === POSE.walk ? POSE.stand : actor.pose, actor.walk);
     }
@@ -609,6 +648,8 @@ export function createCrowd(scene) {
     rigOf: (key) => { if (key.startsWith('n:')) { const a = actors.get(Number(key.slice(2))); return a && a.rig ? a.rig : null; } const o = others.get(key.slice(2)); return o ? o.rig : null; },
     // marks townspeople who have their hands up (defending themselves)
     setGuards(set) { for (const actor of actors.values()) actor.guard = set.has(actor.i); },
+    // badly hurt townspeople (at 20 or not far above it: the 20-life rule): they limp (animated.js), as players do
+    setLimps(set) { for (const actor of actors.values()) { actor.limp = set.has(actor.i); if (actor.rig) actor.rig.limp = actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie; } },
     actors: () => actors.values(),
   };
 }

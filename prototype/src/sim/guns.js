@@ -4,11 +4,14 @@
 // What is decided here, in this copy of the town:
 //   whether a shot may be fired   the gun out, a round in it, not being reloaded, ready by its rate of fire, and the
 //                                 one holding it on their feet and able (not at 20, not held, not in the water)
-//   where it goes                 to the first thing in its way: a wall, the ground, a vehicle, a police officer, or
-//                                 another player as this town sees them; never through anything
+//   where it goes                 to the first thing in its way: a wall, the ground, a vehicle, a police officer, one
+//                                 of the town's people, or another player as this town sees them; never through anything
 //   what it does                  GUN.damage life points off whoever it hits, and nobody below the 20-life floor
 //   what the police do about it   an officer shot at shoots back at whoever shot at her; it is an offence, recorded
 //                                 and witnessed as any other (justice.js)
+//   the town's people             (27 October 2026, the owner's brief) one hit falls, lies a moment, gets up and runs,
+//                                 or at 20 limps, away (impact.js `felled`); at 20 rounds go past them; gunfire near
+//                                 frightens everyone about, and they run
 //
 // What is decided by the website's server instead (api/_lib/guns.js): which guns a player owns and how many rounds they
 // have (the page passes its word on, `gun.owned`, as it does for the motorcycles a player owns), and whether a shot of
@@ -22,7 +25,8 @@
 import { GameError } from './registry.js';
 import { zoneSolid, zoneGroundY } from './zone.js';
 import { POSE } from './population.js';
-import { HEALTH } from './conflict.js';
+import { HEALTH, COMBAT } from './conflict.js';
+import { PACE } from './actors.js';
 
 // The owner's one setting (22 October 2026: "Every shot that hits takes 1 life point off the person hit. Put this number
 // in one setting so I can change it later"). The website's server reads it from here too (build.mjs writes it beside
@@ -244,11 +248,19 @@ export function createGuns({ state, players, population, actors, conflict, talk,
 
   // ---- what a shot meets ------------------------------------------------------------------
 
-  // Who can be shot: a police officer on her feet who is not badly hurt (the 20-life rule), and another player as this
-  // town sees them (whatever their own game says of them: their health, on their feet, not in the water). Nobody at a
-  // counter, and nobody at 20. Each as an upright post.
+  // Who can be shot: a police officer on her feet who is not badly hurt (the 20-life rule), one of the town's people on
+  // their feet or sitting (not a child), and another player as this town sees them (whatever their own game says of
+  // them: their health, on their feet, not in the water). Nobody at a counter, and nobody at 20. Each as an upright post.
   function targets(o, d, most, shooter) {
     const out = [];
+    for (const [i, x, z, pose] of population.within(`gun:${shooter ? shooter.id : '-'}`, o[0], o[2], most + 2, state.t, real())) {
+      const who = people[i];
+      if (!who || who.job === 'police' || who.age < COMBAT.minAge) continue;
+      if (pose === POSE.hidden || pose === POSE.ride || pose === POSE.lie) continue;
+      const rec = conflict.record(i);
+      const health = rec ? rec.health : HEALTH.max;
+      out.push({ kind: 'npc', id: i, x, z, y0: zoneGroundY(x, z), h: pose === POSE.sit ? 1.25 : GUN.body.height, health, able: health > GUN.floor });
+    }
     for (const i of POLICE) {
       const at = where(i);
       if (at.pose === POSE.hidden || at.pose === POSE.ride || at.pose === POSE.lie) continue;
@@ -301,7 +313,7 @@ export function createGuns({ state, players, population, actors, conflict, talk,
       const k = rayPost(o, d, world.at, t.x, t.y0, t.z, t.h, GUN.body.radius + 0.06);
       if (k < (best ? best.at : world.at)) best = { at: k, target: t };
     }
-    if (best) return { at: best.at, what: 'person', point: [o[0] + d[0] * best.at, o[1] + d[1] * best.at, o[2] + d[2] * best.at], target: { kind: best.target.kind, id: best.target.id, name: best.target.name || (best.target.kind === 'npc' ? people[best.target.id].short : ''), health: best.target.health, able: best.target.able, police: best.target.kind === 'npc' } };
+    if (best) return { at: best.at, what: 'person', point: [o[0] + d[0] * best.at, o[1] + d[1] * best.at, o[2] + d[2] * best.at], target: { kind: best.target.kind, id: best.target.id, name: best.target.name || (best.target.kind === 'npc' ? people[best.target.id].short : ''), health: best.target.health, able: best.target.able, police: best.target.kind === 'npc' && people[best.target.id].job === 'police' } };
     return world;
   }
 
@@ -348,17 +360,61 @@ export function createGuns({ state, players, population, actors, conflict, talk,
       if (hit.what === 'person') {
         const t = hit.target;
         result.target = { kind: t.kind, id: t.id, name: t.name || (t.kind === 'npc' ? people[t.id].short : '') };
-        if (t.kind === 'npc') { const lost = officerShot(p, t.id, GUN.damage, hit.point); result.target.health = lost.health; result.damage = lost.lost; }
+        if (t.kind === 'npc') { const lost = people[t.id].job === 'police' ? officerShot(p, t.id, GUN.damage, hit.point) : townShot(p, t.id, GUN.damage, hit.point); result.target.health = lost.health; result.damage = lost.lost; }
         else if (t.kind === 'local') { const q = players[t.id]; const lost = wound(q, GUN.damage, { by: p.name, from: [p.x, p.z], at: hit.point }); result.target.health = q.health; result.damage = lost; shotPlayer(p, q, hit.point); }
         // another player (`player`): claimed here, decided by the website's server; the page sends it there
         else { result.claim = { peer: t.peer || t.id, point: hit.point.map(r2) }; }
       }
       // a round past an officer's ear is a shot at her
       if (hit.what !== 'person' || hit.target.kind !== 'npc') nearMiss(p, o, d, hit.at);
+      scare(p, hit.point);
       recordShot({ from: `p:${p.id}`, o: o.map(r2), e: result.end, what: hit.what, on: result.target ? (result.target.kind === 'npc' ? `n:${result.target.id}` : result.target.kind === 'local' ? `p:${result.target.id}` : `v:${result.target.id}`) : null });
       out.push(result);
     }
     return { shots: out, mag: have.mag, spare: have.spare };
+  }
+
+  // One of the town's people hit by a player's round: an offence; they go down, get up and run, or limp, away
+  // (impact.js), and whoever saw it is frightened.
+  function townShot(p, i, amount, point) {
+    const lost = conflict.townShot(i, p, amount);
+    if (hub.justice) {
+      const key = `${p.id}|n:${i}`;
+      const open = book.open && book.open[key] && real() - book.open[key].at < 90 ? book.open[key].crime : null;
+      const crime = hub.justice.offence(p, 'shooting', { victim: { kind: 'npc', id: i, name: people[i].name }, x: point[0], z: point[2], crime: open });
+      (book.open || (book.open = {}))[key] = { crime: crime.id, at: real() };
+    }
+    if (hub.impact) hub.impact.felled(i, { from: { x: p.x, z: p.z }, harm: amount });
+    return lost;
+  }
+  // Gunfire frightens the town's people near it (the owner's brief: they "run when scared"): those on their feet near
+  // the one shooting, or near where the round struck, run from the shooter; a few only flinch or cower. Each person is
+  // frightened afresh at most every few seconds, and no more than a dozen at a time.
+  const SCARE = Object.freeze({ near: 16, struck: 8, every: 1.0, again: 8, most: 12 });
+  const scared = new Map();        // i -> real time last frightened
+  let scareAt = -1e9;
+  function scare(p, point) {
+    const now = real();
+    if (now - scareAt < SCARE.every) return;
+    scareAt = now;
+    let n = 0;
+    const rows = [...population.within(`scare:${p.id}`, p.x, p.z, SCARE.near, state.t, now), ...population.within(`scare:${p.id}:at`, point[0], point[2], SCARE.struck, state.t, now)];
+    for (const [i, , , pose] of rows) {
+      if (n >= SCARE.most) break;
+      const who = people[i];
+      if (!who || who.job === 'police' || (pose !== POSE.stand && pose !== POSE.walk) || now - (scared.get(i) || -1e9) < SCARE.again) continue;
+      if (actors.has(i)) continue;
+      const rec = conflict.record(i);
+      if (rec && rec.mood !== 'calm') continue;
+      scared.set(i, now); n += 1;
+      if (!actors.take(i, state.t)) continue;
+      const roll = rng.next();
+      if (roll < 0.15) { actors.hold(i, 'Cowering', POSE.stand, now + 2.5); if (hub.reactions) hub.reactions.react(i, roll < 0.08 ? 'afraid' : 'scared'); continue; }
+      actors.flee(i, p.x, p.z, roll < 0.7 ? PACE.run : PACE.sprint, 'Running from the gunfire', 22 + roll * 14);
+      actors.get(i).after = now + 14 + rng.next() * 12;
+      if (hub.reactions) hub.reactions.react(i, 'flee', { seconds: 5, loop: true });
+    }
+    for (const [i, at] of scared) if (now - at > 60) scared.delete(i);
   }
 
   // A player in this same copy of the town hit by another's round (the tests' two players in one world): an offence.

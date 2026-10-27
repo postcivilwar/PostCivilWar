@@ -32,6 +32,22 @@ import { NPC_FIGURES } from '../sim/npc-figures.js';
 //   hit    a blow lands on it                      fall   knocked off its feet (the first that goes all the way down)
 //   punch  it throws a punch      heavy  a heavy one      kick  it kicks      call  it talks on the phone
 // A figure with no clip for one of these is moved by hand instead (a flinch, an arm thrown out, laid down flat).
+// How each of the town's people walks (npc-figures.js, WALKS: his words), and how fast each walk and run of each family
+// goes over the ground played as it was made (metres a second, for a figure 1.7 m tall: measured from how fast the
+// planted foot goes back under the body, tools/npcs/strides.mjs, 27 October 2026), so that the feet do not slide: a
+// figure going faster or slower plays it faster or slower
+const TOWN_WALK = { elegant: '~stroll', catwalk: '~catwalk', bold: '~swagger' };
+const STRIDES = Object.freeze({
+  P1: { '~stroll': 1.13, '~catwalk': 1.09, '~swagger': 1.08, '~walk': 1.13, '~run': 3.26 },
+  P2: { '~stroll': 1.09, '~catwalk': 1.09, '~swagger': 1.12, 'walk.001': 1.09, '~run': 2.99 },
+  N8: { '~stroll': 1.12, '~catwalk': 1.08, '~swagger': 1.08, '~walk': 1.12, '~run': 3.26 },
+  N12: { '~stroll': 1.11, '~catwalk': 1.11, '~swagger': 1.09, '~walk': 1.11, '~run': 3.2 },
+  N20: { '~stroll': 1.18, '~catwalk': 1.17, '~swagger': 1.18, '~walk': 1.18, '~run': 3.41 },
+});
+const TOWN_REACT = Object.freeze({ hit: ['~hit'], fall: ['~fall', '~down'], punch: ['~punch', '~punch2'], heavy: ['~heavy'], kick: ['~kick'], call: ['~phone'] });
+// the moods the town's people show now and then (the brief: "dancing, looking tired, stretching, talking with their
+// hands, looking at the phone"), and frightened
+export const TOWN_MOODS = Object.freeze(['~dance', '~tired', '~stretch', '~talk', '~phone', '~look', '~laugh', '~wave']);
 export const ANIMATED = Object.freeze({
   W1: Object.freeze({ id: 'W1', file: 'woman.glb', text: 'woman.b64.txt', inline: '__PCW_WOMAN_B64', height: 1.70, rig: 'ue', walk: 'walk.001', run: 'run.001', still: 'agree.001', swim: 'swim.001', jump: 'jump_down.001', stairs: 'run_upstairs.001', walkSpeed: 1.3, runSpeed: 4.4,
     react: Object.freeze({ hit: [], fall: ['fall.001', 'defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'], call: ['make_a_call_02.001'] }) }),
@@ -79,6 +95,9 @@ export const ANIMATED = Object.freeze({
   ...townFigures({
     P1: [{}, { fall: ['fall.001', 'defeat_03.001'], punch: ['box_01.001', 'box_02.001'], heavy: ['box_03.001'], kick: ['front_kick_02.001', 'front_kick_01.001'] }],
     P2: [{ walk: 'walk.001', swim: 'swim.001' }, { fall: ['~fall'], punch: ['box_01.001'] }],
+    // his townspeople (27 October 2026): every one with its family's walk of its own kind (npc-figures.js, `walk`),
+    // and the town's own ways for the rest (borrow.mjs, TOWN_MOVES)
+    ...Object.fromEntries(Object.values(NPC_FIGURES).filter((f) => !f.police).map((f) => [f.id, [{ walk: TOWN_WALK[f.walk] }, TOWN_REACT]])),
   }),
 });
 // [own walk/run/swim clips, what shows what happens to it], by the town's figure's id
@@ -86,11 +105,13 @@ function townFigures(list) {
   return Object.fromEntries(Object.entries(list).map(([id, [own, react]]) => {
     const f = NPC_FIGURES[id];
     const woman = f.gender === 'f';
+    const walk = own.walk || '~walk', run = own.run || '~run', strides = STRIDES[f.family] || {}, tall = f.height / 1.7;
     return [id, Object.freeze({
       id, file: f.file, moves: NPC_FIGURES[f.family].file, text: null, inline: null, height: f.height, rig: 'mixamo', npc: true,
-      walk: own.walk || '~walk', run: own.run || '~run', still: '~idle', swim: own.swim || '~swim', jump: own.jump || '~leap', stairs: own.stairs || '~stairs',
-      walkSpeed: woman ? 1.3 : 1.35, runSpeed: woman ? 4.5 : 4.7,
+      walk, run, still: '~idle', swim: own.swim || '~swim', jump: own.jump || '~leap', stairs: own.stairs || '~stairs',
+      walkSpeed: strides[walk] ? strides[walk] * tall : woman ? 1.3 : 1.35, runSpeed: strides[run] ? strides[run] * tall : woman ? 4.5 : 4.7,
       react: Object.freeze({ hit: [], fall: [], punch: [], heavy: [], kick: [], call: [], ...react }),
+      ...(f.police ? {} : { moods: TOWN_MOODS, scared: '~scared' }),
     })];
   }));
 }
@@ -437,6 +458,9 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
       // a skill plays once and holds its last pose until it is faded out; everything else goes round
       next.setLoop(once ? THREE.LoopOnce : THREE.LoopRepeat, Infinity); next.clampWhenFinished = once;
       next.reset(); next.setEffectiveTimeScale(1); next.setEffectiveWeight(1); next.enabled = true; next.play();
+      // (the town's people do not all walk in step: each begins its walk, run or standing at its own point of it,
+      // `offset`, a share of the clip, set by whoever draws it; 27 October 2026, the owner's brief)
+      if (rig.offset && !once && (name === spec.walk || name === spec.run || name === spec.still)) next.time = (rig.offset % 1) * next.getClip().duration;
       if (rig.current) rig.current.crossFadeTo(next, fade, false);
       rig.current = next;
     },

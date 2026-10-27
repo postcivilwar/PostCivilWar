@@ -23,29 +23,42 @@ const walkable = (x, z, r = 0.45) => Z.zoneWalkable(x, z, [], r);
 // the first point of a straight line that is not clear for someone walking along it, or null
 const blockedOn = (ax, az, bx, bz) => { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5)); for (let i = 0; i <= n; i += 1) { const x = ax + ((bx - ax) * i) / n, z = az + ((bz - az) * i) / n; if (!walkable(x, z, 0.3)) return [x, z]; } return null; };
 
-test('the town\'s people: ten police officers, five women and five men, and nobody else but the named residents at their counters and the mason', () => {
+test('the town\'s people: ten police officers, five women and five men, his twenty-five townspeople, and nobody else but the named residents at their counters and the mason', () => {
   // (27 October 2026, the owner: "replace the current police in the game with this male and female police ... 10
-  // police. 5 males, 5 females"; the sixteen policewomen before them are kept only in the lab's lineup)
+  // police. 5 males, 5 females"; the sixteen policewomen before them are kept only in the lab's lineup; and his
+  // townspeople, each drawn as he made them: twenty-one women, each her own figure, and four men in his two)
   const pop = createPopulation({ state: {}, timeScale: TIME_SCALE });
-  assert.equal(pop.count, 10);
-  assert.ok(pop.people.every((p) => p.job === 'police'), 'every one an officer');
-  assert.equal(pop.people.filter((p) => p.gender === 'f').length, 5);
-  assert.equal(pop.people.filter((p) => p.gender === 'm').length, 5);
+  assert.equal(pop.count, 35);
+  const police = pop.people.filter((p) => p.job === 'police'), town = pop.people.filter((p) => p.job !== 'police');
+  assert.equal(police.length, 10);
+  assert.equal(police.filter((p) => p.gender === 'f').length, 5);
+  assert.equal(police.filter((p) => p.gender === 'm').length, 5);
+  assert.equal(town.length, 25);
+  for (const p of town) {
+    const f = NPC_FIGURES[p.look.figure];
+    assert.ok(f && !f.police, `${p.name} wears one of his townspeople`);
+    assert.equal(f.gender, p.gender);
+    assert.ok(p.age >= 18, 'grown up');
+    assert.ok(['hawker', 'unemployed'].includes(p.job));
+  }
+  const used = new Set(town.map((p) => p.look.figure));
+  assert.equal(used.size, Object.values(NPC_FIGURES).filter((f) => !f.police).length, 'every one of his townspeople is in the town');
+  assert.equal(new Set(town.filter((p) => p.gender === 'f').map((p) => p.look.figure)).size, town.filter((p) => p.gender === 'f').length, 'no two women alike');
   assert.deepEqual(Z.ZONE_RESIDENTS.map((r) => r.id).sort(), ['clerk', 'cook', 'corporal', 'instructor', 'lands', 'mason', 'nurse', 'rider', 'sergeant', 'trader', 'yardowner']);
   assert.deepEqual(Z.ZONE_FORMER_RESIDENTS.map((r) => r.id).sort(), ['clothseller', 'fisher', 'moulder', 'produce', 'surveyor'], 'the five no longer seen, kept for the books');
   // everyone at a counter has a counter (the mason builds)
   for (const r of Z.ZONE_RESIDENTS) if (r.id !== 'mason') assert.ok(Z.ZONE_SERVICES.some((s) => s.staff.split('|').includes(r.id)), `${r.name} keeps a counter`);
-  assert.equal(new Set(pop.people.map((p) => p.name)).size, 10, 'ten names');
+  assert.equal(new Set(pop.people.map((p) => p.name)).size, 35, 'everyone their own name');
   // his police officer for a woman, his security guard for a man, each drawn as he made them; each of the five a
   // little taller or shorter than the next; a plain figure in the uniform's colours from far off
-  for (const p of pop.people) {
+  for (const p of police) {
     assert.equal(p.look.figure, p.gender === 'f' ? 'P1' : 'P2');
     assert.equal(NPC_FIGURES[p.look.figure].police, true);
     assert.equal(p.look.body, p.gender);
     assert.equal(p.fig.top, p.look.top, 'from far off too');
     assert.ok(p.transport === 'walk', 'on foot');
   }
-  for (const g of ['f', 'm']) assert.equal(new Set(pop.people.filter((p) => p.gender === g).map((p) => p.look.height)).size, 5, `the five ${g === 'f' ? 'women' : 'men'} each their own height`);
+  for (const g of ['f', 'm']) assert.equal(new Set(police.filter((p) => p.gender === g).map((p) => p.look.height)).size, 5, `the five ${g === 'f' ? 'women' : 'men'} each their own height`);
   // they are not offered to a player, and a look naming one is not accepted from a client
   for (const id of Object.keys(NPC_FIGURES)) { assert.ok(!FIGURES[id] && !FIGURE_ORDER.f.includes(id) && !FIGURE_ORDER.m.includes(id)); assert.equal(cleanFigureLook({ figure: id }), null); }
   // the sixteen policewomen of before, kept for the lab: no two faces alike
@@ -110,6 +123,7 @@ test('their days: on the beat through the shift, by day or by night, every step 
     const step = timeScale === 1 ? 5 : 30;
     for (let i = 0; i < pop.count; i += 1) {
       const p = pop.people[i];
+      if (p.job !== 'police') continue;
       const beat = Z.ZONE_PATROLS.find((b) => b.id === p.post.patrol);
       assert.ok(beat, `${p.name} has a beat`);
       let prev = null, onPatrol = 0, shift = 0;
@@ -188,14 +202,14 @@ test('a game saved with the town as it was opens with the town as it is: what it
   const a = after.game;
   assert.equal(a.state.players[id].riding, null, 'off the okada, which is gone');
   assert.deepEqual(a.state.okada.riders, []);
-  assert.equal(a.internals.population.count, 10);
+  assert.equal(a.internals.population.count, 35);
   assert.equal(after.auditor.balance(a.state.players[id].wallet), money, 'the money is the player\'s still');
   assert.deepEqual(after.auditor.reconcile(), []);
   // and it runs: views, ticks, the police on their beats
   for (let k = 0; k < 200; k += 1) after.tick(0.5);
   const v = a.view(id);
   assert.deepEqual(v.okadas, []);
-  assert.ok(v.people.every(([i]) => a.internals.population.people[i].job === 'police'));
+  assert.ok(v.people.every(([i]) => { const q = a.internals.population.people[i]; return q.job === 'police' || (NPC_FIGURES[q.look.figure] && NPC_FIGURES[q.look.figure].npc); }), 'the police and his townspeople');
   assert.equal(a.audit().okada.balanced, true);
   // saved again and opened again: nothing more is let go
   const again = createHost({ saved: JSON.parse(JSON.stringify(after.save())) });

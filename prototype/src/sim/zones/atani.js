@@ -565,10 +565,16 @@ export const ZONE_POPULATION = Object.freeze({
   // held about them (renew.js).
   // (27 October 2026, the owner: "replace the current police ... with this male and female police ... 10 police. 5
   // males, 5 females": his police officer and his security guard, five of each; edition 3)
-  edition: 3,
+  edition: 4,
   jobs: Object.freeze([
     ['police', 5, 'police', Object.freeze({ female: 1, looks: 'police' })],
     ['police', 5, 'police', Object.freeze({ female: 0, looks: 'police' })],
+    // his townspeople (27 October 2026, his brief: "bring in my NPC models"), each one of his figures
+    // (npc-figures.js): women hawking along the streets, women and men about the town (looking for work, the old list
+    // called them); grown, 19 to 36
+    ['hawker', 10, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([19, 32]), figures: Object.freeze(['N1', 'N3', 'N5', 'N6', 'N9', 'N11', 'N13', 'N15', 'N17', 'N19']) })],
+    ['unemployed', 11, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([19, 34]), figures: Object.freeze(['N2', 'N7', 'N8', 'N10', 'N12', 'N14', 'N16', 'N18', 'N20', 'N22', 'N23']) })],
+    ['unemployed', 4, 'street', Object.freeze({ female: 0, looks: 'npc', ages: Object.freeze([21, 36]), figures: Object.freeze(['N4', 'N21']) })],
   ].map(Object.freeze)),
 });
 

@@ -24,6 +24,7 @@ import { makeRng } from './rng.js';
 import { wearFor, configFromLook, figFor } from './characters.js';
 import { graphIndex, graphRoute, graphDistance, graphPoint, graphIsRoad, graphIsOpen } from './graph.js';
 import { policeLook, policeFig } from './police-looks.js';
+import { NPC_FIGURES, TOWN_FIGURES } from './npc-figures.js';
 
 export const WALK_SPEED = 1.7;                 // metres per real second
 export const RIDE_SPEED = 6.5;
@@ -185,11 +186,25 @@ const CLOTHS = [
 ];
 const HEADTIES = [0x1f5c4d, 0xd9a441, 0x2e6f73, 0xe0d6c3, 0x7b2d5b, 0xb3261e, 0x2f4f7f, 0xe67e22];
 
+// One of his townspeople: the figure, whose it is, and what it is from far off (its own colours: npc-figures.js).
+function townLook(p) {
+  const list = p.figures && p.figures.length ? p.figures : TOWN_FIGURES[p.gender === 'm' ? 'm' : 'f'];
+  const F = NPC_FIGURES[list[p.k % list.length]];
+  const c = F.far;
+  const look = { figure: F.id, body: F.gender, skin: c.skin, top: c.top, bottom: c.bottom, height: 1, outfit: 'figure', age: p.age,
+    plain: Object.freeze({ body: F.gender, skin: c.skin, top: c.top, bottom: c.bottom, outfit: c.skirt ? 'skirt-blouse' : 'tee', build: 1, height: F.height / (F.gender === 'f' ? 1.66 : 1.78) }) };
+  const fig = { skin: c.skin, arm: c.skin, top: c.top, bottom: c.bottom, legs: c.skirt ? c.skin : c.bottom, hair: c.hair, hat: 0, skirt: c.skirt ? 1 : 0, scale: (F.height / 1.75) * 1.02, wide: F.gender === 'f' ? 0.94 : 1.02 };
+  return { look: Object.freeze(look), fig: Object.freeze(fig) };
+}
+
 // What someone wears, from the work they do and who they are. The result is
 // a `look` for the full figure and a `fig` for the simple one seen far away.
 function dress(p, rng) {
   // the town's police (27 October 2026): his police officer and his security guard, five of each (police-looks.js)
   if (p.looks === 'police') return { look: Object.freeze({ ...policeLook(p.k, p.gender), age: p.age }), fig: Object.freeze(policeFig(p.k, p.gender)) };
+  // his townspeople (27 October 2026): each drawn from one of his figures (npc-figures.js), the k-th of the list the
+  // town gives; from far off a plain figure in its colours
+  if (p.looks === 'npc') return townLook(p);
   const f = p.gender === 'f';
   const skin = rng.pick(SKINS);
   const old = p.age >= 60;
@@ -265,11 +280,13 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1, jobs = ZONE_POP
     for (let k = 0; k < n; k += 1) {
       const gender = rng.next() < female ? 'f' : 'm';
       // children are spread evenly over the classes, so no class overflows
-      const age = jobId === 'pupil' || jobId === 'student' ? J.ages[0] + Math.floor((k * 6) / n) : J.ages[0] + rng.int(J.ages[1] - J.ages[0] + 1);
+      // (a town may give the ages of those in a job too: his townspeople are grown women and men, 27 October 2026)
+      const ages = more.ages || J.ages;
+      const age = jobId === 'pupil' || jobId === 'student' ? ages[0] + Math.floor((k * 6) / n) : ages[0] + rng.int(ages[1] - ages[0] + 1);
       // those who work for a church are of a people whose members mostly belong to one
       let kin = weighted(ZONE_POPULATION.peoples);
       if ((venue === 'catholic' || venue === 'anglican') && PEOPLES[kin].faiths[0][0] === 'muslim') kin = ZONE_POPULATION.peoples[0][0];
-      people.push({ index: people.length, id: `n-${String(people.length + 1).padStart(4, '0')}`, job: jobId, venue, gender, age, people: kin, k, of: n, relations: [], looks: more.looks || null });
+      people.push({ index: people.length, id: `n-${String(people.length + 1).padStart(4, '0')}`, job: jobId, venue, gender, age, people: kin, k, of: n, relations: [], looks: more.looks || null, figures: more.figures || null });
     }
   }
 

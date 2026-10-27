@@ -13,8 +13,12 @@
 // the ambulance is sent for them (care.js).
 //
 // Townspeople would rather not fight. Struck once, most plead and run; a few
-// stand and warn. Struck again, those with the nerve for it defend
-// themselves, and stop the moment the attacker backs off or is hurt enough.
+// stand and warn. Struck again, they defend themselves, and stop the moment the
+// attacker backs off or is hurt enough.
+// (27 October 2026, the owner's brief for his townspeople: "When a player attacks an NPC for the first time, the NPC
+// usually tries to get away. If the player attacks the same NPC again, it fights back. After a few seconds of fighting,
+// NPCs give up and walk away. Make it a little different each time." And the 20-life rule for them too: at 20 nobody
+// can hurt them, they limp slowly, and their life comes back slowly to 100.)
 
 import { GameError } from './registry.js';
 import { zoneWalkable } from './zone.js';
@@ -27,7 +31,13 @@ export const HEALTH = Object.freeze({
   floor: 20,           // nothing takes a player below this until they are treated: a blow, a round, a vehicle (the 20-life rule)
   restPerHour: 2,      // regained each game hour, out of a fight and above critical
   sleep: 30,           // regained by a night's sleep at home
-  yield: 25,           // a townsperson at or below this has had enough
+  yield: 25,           // (until 27 October 2026, a townsperson at or below this had had enough: now it is 20, `critical`)
+  // a townsperson (27 October 2026): at 20 they limp off, sit a while (real seconds, each time its own), then go back
+  // to their day still limping, and their life comes back a point every `mend` real seconds; they limp while it is
+  // at or below `limp`
+  hurtFor: Object.freeze([40, 80]),
+  mend: 3,
+  limp: 30,
 });
 
 // range in metres, cooldown and recovery in real seconds, energy spent whether or not it lands
@@ -48,6 +58,9 @@ export const COMBAT = Object.freeze({
   dodgeWindow: 0.45, dodgeEvery: 1.0, dodgeStep: 1.6, dodgeEnergy: 2,
   regrab: 4,               // real seconds before someone let go can be grabbed again
   swing: Object.freeze([1.1, 1.8]),                        // real seconds between a townsperson's blows
+  fightFor: Object.freeze([6, 14]),                        // real seconds a townsperson fights back before giving up (each fight its own)
+  backAfter: Object.freeze([12, 24]),                      // real seconds after running off before going back to their day
+  fell: 0.35,                                              // the chance that a heavy punch or a kick that lands unblocked puts someone down
   npcPunch: 5, npcHeavy: 10, npcKick: 8,
   minAge: 16,
   remember: 2 * 3600,      // game seconds a townsperson's bruises are kept
@@ -166,20 +179,42 @@ export function createConflict({ state, players, population, actors, talk, emit,
     return rec;
   }
 
-  // A townsperson is done with a fight: they walk back to their day, or sit where they are.
-  function settle(i, rec, mood) {
+  const between = (range) => range[0] + rng.next() * (range[1] - range[0]);
+
+  // A townsperson is done with a fight. Badly hurt (at 20): they limp away from whoever did it, slowly, sit down a
+  // while, and then go back to their day, still limping (tick, below). Otherwise they give up and go: each time a little
+  // differently, walking back to their day, walking off, or hurrying off.
+  function settle(i, rec, mood, from = null) {
     rec.mood = mood;
-    if (mood === 'down') { actors.take(i, state.t); actors.hold(i, 'Sitting down, hurt', POSE.sit, real() + 25); speak(i, 'yield'); if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'cry' : 'sad', { seconds: 25, upper: true, loop: true }); } else { if (mood === 'done') speak(i, 'done'); if (actors.has(i)) actors.release(i); }
+    if (mood === 'down') {
+      const m = actors.take(i, state.t);
+      rec.hurtUntil = real() + between(HEALTH.hurtFor);
+      const away = from || players[rec.by] || null;
+      if (m) { m.after = 0; if (away) actors.flee(i, away.x, away.z, PACE.limp, 'Limping away, badly hurt', 10); else actors.hold(i, 'Badly hurt', POSE.stand, 0); }
+      speak(i, 'yield');
+      if (hub.reactions) hub.reactions.react(i, 'hurt');
+      return;
+    }
+    if (mood === 'done') speak(i, 'done');
+    if (!actors.has(i)) return;
+    const p = players[rec.by];
+    const roll = rng.next();
+    const m = actors.get(i);
+    if (mood === 'done' && p && roll < 0.3) { actors.flee(i, p.x, p.z, PACE.walk, 'Walking away', 10 + roll * 30); m.after = real() + between(COMBAT.backAfter); }
+    else if (mood === 'done' && p && roll < 0.45) { actors.flee(i, p.x, p.z, PACE.hurry, 'Hurrying away', 16); m.after = real() + between(COMBAT.backAfter); }
+    else actors.release(i, mood === 'done' ? 'Walking away' : '', rec.health <= HEALTH.limp ? PACE.limp : PACE.walk);
   }
 
   // What someone does on being struck. `rec.hits` already counts this blow.
   function react(i, rec, attacker) {
     const n = nerve(i) + (real() < rec.heldUntil ? 0.2 : 0);
     actors.take(i, state.t);
-    if (rec.health <= HEALTH.yield) { settle(i, rec, 'down'); if (hub.justice) hub.justice.worsen(rec.crime, 'assault_serious'); return 'down'; }
+    if (rec.health <= HEALTH.critical) { if (rec.mood !== 'down') settle(i, rec, 'down', attacker); if (hub.justice) hub.justice.worsen(rec.crime, 'assault_serious'); return 'down'; }
     if (rec.mood === 'fighting') return 'fighting';
-    if (people[i].job === 'police' || (rec.hits >= 2 && (n >= 0.45 || rec.mood === 'warned')) || (rec.hits === 1 && n >= 0.95)) {
-      rec.mood = 'fighting'; rec.swingAt = real() + 0.7;
+    // struck again, anyone fights back (and a very few at the first blow); for a few seconds, each fight its own
+    if (people[i].job === 'police' || rec.hits >= 2 || (rec.hits === 1 && n >= 0.95)) {
+      rec.mood = 'fighting'; rec.swingAt = real() + 0.4 + rng.next() * 0.6;
+      rec.fightUntil = people[i].job === 'police' ? 0 : real() + between(COMBAT.fightFor);
       actors.follow(i, { kind: 'player', id: attacker.id }, 1.2, PACE.hurry, 'Defending themselves');
       speak(i, 'fight');
       if (hub.reactions) hub.reactions.react(i, 'box');
@@ -195,6 +230,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
     }
     rec.mood = 'fled';
     actors.flee(i, attacker.x, attacker.z, rec.hits >= 2 ? PACE.sprint : PACE.run, 'Running away');
+    { const m = actors.get(i); if (m) m.after = real() + between(COMBAT.backAfter); }
     speak(i, 'plead');
     // struck and frightened: a moment of fear, or hurt, and then they run with their arms going
     if (hub.reactions) hub.reactions.react(i, 'flee', { seconds: 6, loop: true });
@@ -233,7 +269,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
       if (people[who.id].age < COMBAT.minAge) throw new GameError('A_CHILD', 'That is a child. You will not.');
       if (who.lying) throw new GameError('NO_TARGET', 'They are lying down. Leave them be.');
       const rec = book.npc[who.id];
-      if (rec && rec.mood === 'down') throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
+      if (rec && (rec.mood === 'down' || rec.health <= HEALTH.critical)) throw new GameError('TARGET_DOWN', `${who.name} has had enough. Leave them.`);
       if (!rec || rec.mood === 'calm') { actors.take(who.id, state.t); actors.hold(who.id, 'Keeping an eye on you', POSE.stand, real() + 2.5); const m = actors.get(who.id); if (m) m.h = Math.atan2(p.x - m.x, p.z - m.z); speak(who.id, 'calm'); }
     } else {
       if (critical(who.player) || who.player.down || who.player.dead) throw new GameError('TARGET_DOWN', `${who.name} is badly hurt. Leave them.`);
@@ -308,8 +344,10 @@ export function createConflict({ state, players, population, actors, talk, emit,
       // the law: striking someone is an offence from the first blow that lands
       if (hub.justice && def.id !== 'grab') { const crime = hub.justice.offence(p, 'assault', { victim: { kind: 'npc', id: i, name: people[i].name }, x: who.x, z: who.z, crime: rec.crime && real() - rec.firstAt < 90 ? rec.crime : null }); rec.crime = crime ? crime.id : rec.crime; if (crime && crime.isNew) rec.firstAt = now; }
       out.reaction = def.id === 'grab' && rec.hits === 1 && !out.held ? rec.mood : react(i, rec, p);
-      // kicked and not fighting back: it hurts first, and then they go (or sit and cry)
-      if (hub.reactions && def.id === 'kick' && out.reaction === 'fled') hub.reactions.react(i, 'hurt');
+      // hit hard and not fighting back: now and then it puts them down (they fall, lie a moment, get up and run:
+      // impact.js `felled`); otherwise a kick hurts first, and then they go
+      if ((def.id === 'heavy' || def.id === 'kick') && !out.blocked && out.reaction === 'fled' && hub.impact && rng.next() < COMBAT.fell && hub.impact.felled(i, { from: { x: p.x, z: p.z }, harm: damage })) out.fell = true;
+      else if (hub.reactions && def.id === 'kick' && out.reaction === 'fled') hub.reactions.react(i, 'hurt');
       if (hub.reactions && def.id !== 'grab') hub.reactions.witnessed(who.x, who.z, [i]);
       show({ ...shown, hit: true, blocked: out.blocked });
       return out;
@@ -380,6 +418,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
       const i = Number(key);
       const rec = book.npc[key];
       if (rec.mood !== 'fighting') {
+        after(i, rec, now, dt);
         if (state.t - rec.at > (hub.span ? hub.span(COMBAT.remember) : COMBAT.remember) && !actors.has(i)) delete book.npc[key];
         continue;
       }
@@ -387,6 +426,8 @@ export function createConflict({ state, players, population, actors, talk, emit,
       if (!p || critical(p) || p.custody || p.driving || p.carried) { settle(i, rec, 'done'); continue; }
       const m = actors.get(i);
       if (!m) { rec.mood = 'done'; continue; }
+      // a few seconds of it, and they have had enough of fighting: they give up and go
+      if (rec.fightUntil && now >= rec.fightUntil) { rec.fightUntil = 0; settle(i, rec, 'done'); continue; }
       const d = Math.hypot(p.x - m.x, p.z - m.z);
       if (d > COMBAT.leash) { if (!rec.farSince) rec.farSince = now; } else rec.farSince = 0;
       if (now - rec.lastAt > COMBAT.calm || (rec.farSince && now - rec.farSince > 4)) { settle(i, rec, 'done'); continue; }
@@ -414,6 +455,30 @@ export function createConflict({ state, players, population, actors, talk, emit,
     while (book.events.length && now - book.events[0].at > 4) book.events.shift();
   }
 
+  // After a fight, or a round (guns.js), or a fall: someone badly hurt has limped off; where they stop they sit down a
+  // while, and then go back to their day, still limping. Their life comes back slowly, a point at a time, once nobody
+  // has struck them for a while. (An officer shooting back, or out on a call, is the police's own: guns.js, justice.js.)
+  function after(i, rec, now, dt) {
+    const m = actors.get(i);
+    const theirs = rec.mood !== 'shooting' && !(hub.justice && hub.justice.onDuty && hub.justice.onDuty(i));
+    if (rec.mood === 'down' && m && theirs && !m.dead) {
+      if (now < rec.hurtUntil) {
+        if (m.mode === 'hold' && m.arrived && m.pose === POSE.stand) {
+          actors.hold(i, 'Sitting down, badly hurt', POSE.sit, 0);
+          if (hub.reactions) hub.reactions.react(i, rng.next() < 0.5 ? 'cry' : 'sad', { seconds: Math.max(4, rec.hurtUntil - now), upper: true, loop: true });
+        }
+      } else if (m.mode === 'hold' && m.pose !== POSE.lie) {
+        rec.mood = 'mending';
+        if (hub.reactions && hub.reactions.end) hub.reactions.end(i);
+        actors.release(i, 'Going back, hurt', rec.health <= HEALTH.limp ? PACE.limp : PACE.walk);
+      }
+    }
+    if (now < (rec.hurtUntil || 0) || now - rec.lastAt < 10 || rec.health >= HEALTH.max || rec.mood === 'shooting' || rec.mood === 'fighting') return;
+    rec.mend = (rec.mend || 0) + dt / HEALTH.mend;
+    while (rec.mend >= 1 && rec.health < HEALTH.max) { rec.health += 1; rec.mend -= 1; }
+    if (rec.health >= HEALTH.max) rec.mend = 0;
+  }
+
   // once a game hour: bruises mend, slowly, for anyone not in a fight and not badly hurt
   function hourly() {
     for (const id of Object.keys(players)) {
@@ -422,7 +487,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
       if (real() - (p.struckAt || -1e9) < 30) continue;
       p.health = Math.min(HEALTH.max, p.health + HEALTH.restPerHour);
     }
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood !== 'fighting' && rec.mood !== 'shooting') rec.health = Math.min(HEALTH.max, rec.health + 6); }
+    // (a townsperson's bruises mend by the second, `after`, since 27 October 2026; before, six points a game hour)
   }
 
   // What a player may know of their own state in a fight.
@@ -445,9 +510,10 @@ export function createConflict({ state, players, population, actors, talk, emit,
   function eventsNear(x, z, range = 60) { return book.events.filter((e) => Math.hypot(e.x - x, e.z - z) <= range); }
 
   // The state of the townspeople a player has struck, for whoever draws them.
-  function moods(x, z, range = 40) {
+  // (with `limp`: badly hurt, at 20 or not far above, they limp, the 20-life rule)
+  function moods(x, z, range = 60) {
     const out = [];
-    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood === 'calm') continue; const at = whereNpc(Number(key)); if (Math.hypot(at.x - x, at.z - z) <= range) out.push({ i: Number(key), mood: rec.mood, health: rec.health }); }
+    for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.mood === 'calm' && rec.health > HEALTH.limp) continue; const at = whereNpc(Number(key)); if (Math.hypot(at.x - x, at.z - z) <= range) out.push({ i: Number(key), mood: rec.mood, health: rec.health, ...(rec.health <= HEALTH.limp ? { limp: 1 } : {}) }); }
     return out;
   }
 
@@ -462,6 +528,17 @@ export function createConflict({ state, players, population, actors, talk, emit,
     return { lost: before - rec.health, health: rec.health };
   }
   // An officer has stopped shooting (the shooter is down to 20, held, gone, or she is): back to her day.
+  // A townsperson (not an officer) hit by a player's round (guns.js): their life down, never below 20. They fall and get
+  // up (impact.js `felled`), and then run, or at 20 limp, away. Returns { lost, health, mood }.
+  function townShot(i, p, amount) {
+    const rec = npcRec(i, p.id);
+    const before = rec.health;
+    rec.by = p.id; rec.lastAt = real(); rec.at = state.t;
+    if (amount > 0) { rec.hits += 1; rec.health = Math.max(Math.min(before, HEALTH.critical), before - amount); }
+    if (rec.health <= HEALTH.critical) { if (rec.mood !== 'down') { rec.mood = 'down'; rec.hurtUntil = real() + between(HEALTH.hurtFor); speak(i, 'yield'); } }
+    else if (rec.mood !== 'fighting') rec.mood = 'fled';
+    return { lost: before - rec.health, health: rec.health, mood: rec.mood };
+  }
   function officerDone(i) { const rec = book.npc[i]; if (rec && rec.mood === 'shooting') rec.mood = 'done'; }
 
   // The police, or anything else that ends a fight outright.
@@ -470,7 +547,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
     for (const key of Object.keys(book.npc)) { const rec = book.npc[key]; if (rec.by === p.id && rec.mood === 'fighting') { rec.mood = 'done'; if (actors.has(Number(key))) actors.release(Number(key)); } }
   }
 
-  const api = { engage, disengage, act, block, dodge, tick, hourly, hurt, injure, shot, heal, critical, selfView, eventsNear, moods, stop, nerve, officerShot, officerDone, record: (i) => book.npc[i] || null };
+  const api = { engage, disengage, act, block, dodge, tick, hourly, hurt, injure, shot, heal, critical, selfView, eventsNear, moods, stop, nerve, officerShot, officerDone, townShot, record: (i) => book.npc[i] || null };
   hub.conflict = api;
   return api;
 }

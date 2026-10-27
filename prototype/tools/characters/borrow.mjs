@@ -99,12 +99,47 @@ for (const file of FAMILIES) {
   if (!hasOwn(file, 'fall')) JOBS.push({ to: file, as: 'fall', from: gender === 'f' ? 'fashion_model_1.glb' : 'male_figure.glb', clip: 'fall.001', fps: 30 });
   for (const [as, [own, clip, fps]] of Object.entries(MORE)) if (!hasOwn(file, own)) JOBS.push({ to: file, as, from: MORE_FROM[gender], clip, fps });
 }
+// The town's people's own ways (27 October 2026, the owner's brief for his NPCs): how each walks, the moods they show
+// now and then, how they fight, are hit and go down. Every family takes every one of these, whatever its own file has
+// (a figure given a skeleton has no moves of its own; its family's file may), from his own figures' files: a woman's
+// from a woman's, a man's from a man's. [as]: { f: [from, clip, fps], m: [from, clip, fps] }
+const P1F = NPC_FIGURES.P1.file, P2F = NPC_FIGURES.P2.file;
+const TOWN_MOVES = {
+  // walking: unhurried and upright (a woman: the woman's own walk; a man: his security guard's), a model's on a
+  // catwalk (his "female cat walk"), and bold (his security guard's swagger)
+  stroll: { f: ['woman.glb', 'walk.001', 30], m: [P2F, 'walk.001', 30] },
+  catwalk: { f: ['fashion_model_7.glb', 'female cat walk.001', 30], m: [P2F, 'walk.001', 30] },
+  swagger: { f: ['fashion_model_7.glb', 'swagger.001', 30], m: [P2F, 'swagger.001', 30] },
+  // the moods: dancing, tired, stretching, talking with the hands, on the phone, looking about, laughing, waving
+  dance: { f: ['athlete.glb', 'dance_01.001', 20], m: ['human_character.glb', 'dance_05.001', 20] },
+  tired: { f: ['woman.glb', 'depressed.001', 15], m: ['zombie_character.glb', 'frustrated_01.001', 15] },
+  stretch: { f: ['police.glb', 'warm_up.001', 20], m: ['fashion_model_6.glb', 'warm_up.001', 20] },
+  talk: { f: ['athlete.glb', 'complain_02.001', 20], m: ['muscular_male.glb', 'agree.001', 20] },
+  phone: { f: ['athlete.glb', 'make_a_call_02.001', 15], m: ['fashion_model_6.glb', 'make_a_call_02.001', 15] },
+  look: { f: ['police.glb', 'look_around.001', 15], m: ['police.glb', 'look_around.001', 15] },
+  laugh: { f: ['woman.glb', 'laugh_02.001', 20], m: ['fashion_model_6.glb', 'laugh_02.001', 20] },
+  wave: { f: ['woman.glb', 'wave_goodbye_02.001', 20], m: ['muscular_male.glb', 'wave_goodbye_02.001', 20] },
+  // frightened, fighting, hit, down
+  scared: { f: [P1F, 'frightened.001', 20], m: ['muscular_male.glb', 'scared_02.001', 20] },
+  punch: { f: [P1F, 'box_01.001', 30], m: [P2F, 'box_01.001', 30] },
+  punch2: { f: [P1F, 'box_02.001', 30], m: ['fashion_model_6.glb', 'box_02.001', 30] },
+  heavy: { f: [P1F, 'box_03.001', 30], m: ['fashion_model_6.glb', 'box_03.001', 30] },
+  kick: { f: [P1F, 'front_kick_02.001', 30], m: ['fashion_model_6.glb', 'front_kick_02.001', 30] },
+  hit: { f: ['athletic_outfit.glb', 'hit_to_stomach.001', 30], m: ['muscular_male.glb', 'hit_to_head.001', 30] },
+  down: { f: [P1F, 'defeat_03.001', 20], m: ['hobo_character.glb', 'defeat_03.001', 20] },
+};
+for (const file of FAMILIES) {
+  const gender = Object.values(NPC_FIGURES).find((x) => x.file === file).gender;
+  for (const [as, by] of Object.entries(TOWN_MOVES)) { const [from, clip, fps] = by[gender]; JOBS.push({ to: file, as, from, clip, fps }); }
+}
 // the sitting pose (the woman's sit.001 at 1 s, as src/client/seat-pose.js has it for the first two)
 const SEATS = ['athlete.glb', 'police.glb', 'priest.glb', 'warrior.glb', ...NEW_FIGURES.map(([file]) => file), ...FAMILIES];
 
 const files = new Map();
-function load(name) {
-  if (files.has(name)) return files.get(name);
+// (`key`: a second copy of the same file, for a figure given a move of its own file: posing one copy must not move the
+// other, or every frame would come out as the figure stands)
+function load(name, key = name) {
+  if (files.has(key)) return files.get(key);
   const b = readFileSync(fileAt(name));
   const parsed = parseGLB(b.buffer.slice(b.byteOffset, b.byteOffset + b.byteLength));
   const { json, accessor } = parsed;
@@ -140,7 +175,7 @@ function load(name) {
   file.bone = (ue) => byName.get(mixamo ? boneName(`mixamorig:${NAMES[ue]}`) : ue);
   // the knuckle of the middle finger: where a hand points
   file.knuckle = (side) => byName.get(mixamo ? boneName(`mixamorig:${side === 'l' ? 'Left' : 'Right'}HandMiddle1`) : `middle_01_${side}`);
-  files.set(name, file);
+  files.set(key, file);
   return file;
 }
 const reset = (f) => { for (const [o, q] of f.rest) o.quaternion.copy(q); f.root.updateMatrixWorld(true); };
@@ -206,8 +241,10 @@ const AGAIN = process.argv.includes('--all');
 const borrowed = {};
 for (const job of JOBS) {
   const kept = before.borrowed[job.to] && before.borrowed[job.to][job.as];
-  if (!AGAIN && kept && kept.from === `${job.from}#${job.clip}`) { (borrowed[job.to] ||= {})[job.as] = kept; continue; }
-  const src = load(job.from), dst = load(job.to);
+  // (a figure's own move, played under another name, is carried again each time: until 27 October 2026 it was carried
+  // with one copy of the file for both, and came out standing still)
+  if (!AGAIN && kept && kept.from === `${job.from}#${job.clip}` && job.from !== job.to) { (borrowed[job.to] ||= {})[job.as] = kept; continue; }
+  const src = load(job.from), dst = job.from === job.to ? load(job.to, `${job.to}#own`) : load(job.to);
   const clip = src.clips.find((c) => c.name === job.clip);
   if (!clip) throw new Error(`${job.from} has no ${job.clip}`);
   reset(src); reset(dst);

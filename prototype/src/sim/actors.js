@@ -10,7 +10,8 @@ import { ZONE_SPOTS, zoneWalkable } from './zone.js';
 import { graphNearest, graphRoute, graphPoint, graphSize } from './graph.js';
 import { POSE } from './population.js';
 
-export const PACE = Object.freeze({ walk: 1.7, hurry: 3.2, run: 4.6, sprint: 5.2 });
+// (limp: someone badly hurt, at 20 or not far above it, the owner's 20-life rule: "they walk slowly and weakly")
+export const PACE = Object.freeze({ walk: 1.7, hurry: 3.2, run: 4.6, sprint: 5.2, limp: 0.85 });
 
 // Is the straight line between two points clear of buildings and water?
 export function clearLine(x0, z0, x1, z1, radius = 0.3) {
@@ -66,7 +67,7 @@ export function createActors({ state, population }) {
     if (m.dead) return m;
     m.path = wayBetween(m.x, m.z, x, z);
     m.goal = { x, z };
-    m.speed = speed; m.mode = 'go'; m.follow = null; m.home = false;
+    m.speed = speed; m.mode = 'go'; m.follow = null; m.home = false; m.arrived = 0;
     if (act) m.act = act;
     return m;
   }
@@ -76,7 +77,7 @@ export function createActors({ state, population }) {
     const m = list[i];
     if (!m) return null;
     if (m.dead) return m;
-    m.follow = who; m.keep = keep; m.speed = speed; m.mode = 'follow'; m.home = false; m.replan = 0;
+    m.follow = who; m.keep = keep; m.speed = speed; m.mode = 'follow'; m.home = false; m.replan = 0; m.arrived = 0;
     if (act) m.act = act;
     return m;
   }
@@ -85,7 +86,7 @@ export function createActors({ state, population }) {
     const m = list[i];
     if (!m) return null;
     if (m.dead) return m;
-    m.mode = 'hold'; m.path = []; m.follow = null; m.pose = pose; m.until = until; m.home = false;
+    m.mode = 'hold'; m.path = []; m.follow = null; m.pose = pose; m.until = until; m.home = false; m.arrived = 0;
     if (act) m.act = act;
     return m;
   }
@@ -113,10 +114,10 @@ export function createActors({ state, population }) {
   }
 
   // Lets someone go: they walk back to where their day has them, and are their own again when they get there.
-  function release(i, act = '') {
+  function release(i, act = '', speed = PACE.walk) {
     const m = list[i];
     if (!m || m.dead) return;
-    m.home = true; m.follow = null; m.mode = 'go'; m.speed = PACE.walk; m.path = []; m.goal = null; m.replan = 0; m.pose = POSE.stand;
+    m.home = true; m.follow = null; m.mode = 'go'; m.speed = speed; m.arrived = 0; m.path = []; m.goal = null; m.replan = 0; m.pose = POSE.stand;
     m.act = act || 'Going back';
   }
   function drop(i) { if (list[i] && list[i].dead) return; delete list[i]; }
@@ -168,6 +169,8 @@ export function createActors({ state, population }) {
           if (Math.hypot(plan.x - m.x, plan.z - m.z) < 1.6) { drop(m.i); continue; }
           m.path = wayBetween(m.x, m.z, plan.x, plan.z);
           m.replan = plan.moving ? 1.5 : 6;
+          // (catching up with a day that is on the move: a brisk walk, or they never would; someone limping limps)
+          if (plan.moving && m.speed >= PACE.walk) m.speed = PACE.walk * 1.4;
         }
       }
       m.moving = advance(m, m.speed * dt);

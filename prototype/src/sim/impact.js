@@ -26,6 +26,7 @@ import { zoneWalkable, ZONE_RESIDENTS } from './zone.js';
 
 const RESIDENT_NAME = new Map(ZONE_RESIDENTS.map((r) => [r.id, r.name]));
 import { POSE } from './population.js';
+import { PACE } from './actors.js';
 
 export const BODY = Object.freeze({
   radius: 0.3,             // a person, for standing in the way: two cannot be nearer than twice this
@@ -48,6 +49,11 @@ export const IMPACT = Object.freeze({
   body: 150,               // real seconds a dead townsperson lies where they fell before they are taken away
   bleed: Object.freeze({ perHarm: 1, most: 260 }),     // blood counted for each point of harm, and the most one body holds for the drawing
   wake: 20,                // health on coming round
+  // brought down by a round or a hard blow (27 October 2026, the owner's brief: "If an NPC is shot, it falls using the
+  // falling animation, gets up again, and then limps or runs away"): real seconds before the same person goes down
+  // again (just up, they keep going), and the blood each fall leaves under them
+  refall: 6,
+  fallBlood: 40,
   seen: 10,                // real seconds the two of them can see each other's health afterwards
   minAge: 16,              // nobody younger is struck: they jump clear
   crimeWindow: 30,         // real seconds in which more blows from the same driver are the same offence
@@ -363,8 +369,47 @@ export function createImpact({ state, players, population, actors, conflict, tal
       const rec = book.npc[key];
       if (rec.dead) { if (!rec.dead.gone && now >= rec.dead.takeAt) { rec.dead.gone = true; actors.remove(Number(key)); } continue; }
       if (rec.reactAt && now >= rec.reactAt) { if (hub.reactions) hub.reactions.react(Number(key), rec.reactWith || 'hurt'); rec.reactAt = 0; }
+      // brought down (`felled`): up again, and a moment later off, away from whoever did it
+      if (rec.upAt && now >= rec.upAt) { rec.upAt = 0; if (actors.has(Number(key)) && !actors.dead(Number(key))) actors.hold(Number(key), 'Getting up', POSE.stand, 0); }
+      if (rec.then && now >= rec.then.at) { const th = rec.then; rec.then = null; up(Number(key), th, now); }
       if (state.t - rec.t > (hub.span ? hub.span(7200) : 7200)) delete book.npc[key];
     }
+  }
+
+  // Brought down where they stand by a round (guns.js) or a hard blow (conflict.js): they fall (the figure's own fall,
+  // drawn as for a vehicle: `fallen`), lie a few seconds, get up, and then run from whoever did it, or, badly hurt
+  // (at 20), limp. A little blood is left under them each time. Not again within `refall` seconds of the last: just up,
+  // they keep going. Returns whether they went down.
+  function felled(i, { from = null, harm = 1 } = {}) {
+    const now = real();
+    const rec = book.npc[i] || (book.npc[i] = { at: -10, health: 100, t: state.t });
+    if (rec.dead) return false;
+    rec.t = state.t;
+    rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + Math.max(harm * IMPACT.bleed.perHarm, IMPACT.fallBlood * (rec.fellAt && now - rec.fellAt < IMPACT.refall ? 0.25 : 1)));
+    if (now - (rec.fellAt === undefined ? -1e9 : rec.fellAt) < IMPACT.refall) return false;
+    const m = actors.take(i, state.t);
+    if (!m || m.pose === POSE.lie || m.pose === POSE.sit) return false;
+    rec.fellAt = now; rec.at = now;
+    rec.x = m.x; rec.z = m.z;
+    if (from && Math.hypot(from.x - m.x, from.z - m.z) > 0.2) m.h = Math.atan2(from.x - m.x, from.z - m.z);
+    const lie = IMPACT.down[0] + rng.next() * (IMPACT.down[1] - IMPACT.down[0]);
+    actors.hold(i, 'Knocked down', POSE.lie, 0);
+    m.after = 0;
+    rec.upAt = now + lie;
+    rec.then = { at: now + lie + 1.1 + rng.next() * 0.6, from: from ? { x: from.x, z: from.z } : null };
+    if (hub.reactions && hub.reactions.end) hub.reactions.end(i);
+    return true;
+  }
+  function up(i, th, now) {
+    if (!actors.has(i) || actors.dead(i)) return;
+    const c = conflict.record(i);
+    const hurt = !!c && c.health <= HEALTH.limp;
+    if (c && c.mood === 'fighting') { actors.follow(i, { kind: 'player', id: c.by }, 1.2, PACE.hurry, 'Defending themselves'); return; }
+    const from = th.from || { x: actors.get(i).x + 1, z: actors.get(i).z };
+    if (hurt) { actors.flee(i, from.x, from.z, PACE.limp, 'Limping away, badly hurt', 10); return; }
+    actors.flee(i, from.x, from.z, PACE.sprint, 'Running away', 28);
+    actors.get(i).after = now + 16 + rng.next() * 10;
+    if (hub.reactions) hub.reactions.react(i, 'flee', { seconds: 6, loop: true });
   }
 
   // Coming round. Someone in the hands of the police stays in them; anyone else wakes at the hospital door.
@@ -428,7 +473,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
   // The driver sounds the horn: for a moment, everyone ahead looks up.
   function horn(driver) { driver.hornAt = real(); driver.horns = (driver.horns || 0) + 1; return {}; }
 
-  const api = { clear, step, stalled, horn, tick, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, record: (i) => book.npc[i] || null };
+  const api = { clear, step, stalled, horn, tick, felled, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, record: (i) => book.npc[i] || null };
   hub.impact = api;
   return api;
 }
