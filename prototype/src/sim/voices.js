@@ -10,10 +10,11 @@
 // Who talks when is worked out from the town's clock and where each person's own day has them (population.planned),
 // and from nothing else: every player's game works it out the same, so two players standing by the same two
 // townspeople hear the same conversation, line for line, at the same moment. A conversation may begin only at the
-// start of one of the town's half-minutes, and only in one half-minute of every ten that is its own: a conversation
-// heard is not heard again for five minutes. Of those that could begin, some do and some do not (by the town's dice,
-// the same in every game). The people in it must be standing together when it begins and still be standing there when
-// it ends, so that nobody walks off in the middle of a sentence.
+// start of one of the town's half-minutes, and only in the first ten half-minutes of every forty (twenty minutes) that
+// are its own: a conversation heard is not heard again within fifteen minutes. Of those that could begin, some do and
+// some do not (by the town's dice, the same in every game). The people in it are standing together when it begins and
+// still there when it ends, so that nobody walks off in the middle of a sentence; or one walks over to the other (at
+// most 200 m), stands beside them for it, and walks back to where their day has them.
 //
 // Reactions are what this game saw: a gunshot, a fight, a crash near the people in it. One or two of those nearest call
 // out, each in their own way, and nobody says the same kind of thing twice within three minutes.
