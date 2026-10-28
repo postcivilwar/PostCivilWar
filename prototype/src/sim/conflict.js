@@ -108,7 +108,13 @@ export function createConflict({ state, players, population, actors, talk, emit,
     book.seq += 1;
     book.events.push({ id: book.seq, at: real(), ...event });
     if (book.events.length > 40) book.events.splice(0, book.events.length - 40);
+    // a fight is news to the people near it, and one of the town's people struck cries out (voices.js)
+    if (hub.voices && event.hit && ['punch', 'heavy', 'kick', 'shove'].includes(event.kind)) {
+      if (typeof event.to === 'string' && event.to.startsWith('n:')) hub.voices.event('hurt', event.x, event.z, { only: event.to });
+      if (real() - (fightNewsAt || -1e9) > 4) { fightNewsAt = real(); hub.voices.event('fight', event.x, event.z, { not: [event.to] }); }
+    }
   }
+  let fightNewsAt = -1e9;
 
   // --- health ---------------------------------------------------------------------
 

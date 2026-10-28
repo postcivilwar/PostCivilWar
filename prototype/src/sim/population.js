@@ -1099,6 +1099,8 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
     spot: (id) => ZONE_SPOTS[id],
     forget(key) { sets.delete(key); },
     planned,
+    // the way between two of the town's places, as people walk it (the town's voices: someone going over to talk)
+    route: (a, b) => pathBetween(a, b),
     // Others may take charge of where someone is (a rider on his motorcycle, someone running from a fight).
     // Each is asked in turn; the first to answer true has them.
     addHook(fn, first = false) { if (first) hooks.unshift(fn); else hooks.push(fn); },

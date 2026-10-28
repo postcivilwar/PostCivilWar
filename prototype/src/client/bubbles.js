@@ -15,6 +15,8 @@
 import { LANGUAGES } from '../sim/culture.js';
 
 const READ = (text) => Math.max(2.4, Math.min(5.5, 1.2 + text.length * 0.055));   // seconds a line stays up
+// a line of the town's recorded voices (28 October 2026) is a subtitle: up while it is being said, and a moment after
+const SAID = (line) => (line.voice ? Math.max(1.6, (line.seconds || 3) - Math.max(0, line.ago || 0) + 0.3) : READ(line.text));
 const STALE = 9;                                                                     // seconds a waiting townsperson's line is kept
 
 export function createBubbles(layer, { translator, settings }) {
@@ -84,6 +86,9 @@ export function createBubbles(layer, { translator, settings }) {
   // `project(x, y, z)` gives its place on screen; `selfKey` is the player.
   function update(lines, where, project, eye, selfKey, width, height) {
     const now = performance.now() / 1000;
+    // (the words of the recorded voices only if the player wants subtitles: Settings)
+    const subtitles = !settings.subtitles || settings.subtitles();
+    lines = subtitles ? lines : lines.filter((l) => !l.voice);
     const byId = new Map(lines.map((l) => [l.id, l]));
     for (const line of lines) {
       if (!live.has(line.id)) {
@@ -92,19 +97,20 @@ export function createBubbles(layer, { translator, settings }) {
         heardAt.set(line.id, now);
         // the player's own words, and what is said to the player, go first
         const urgent = entry.mine || line.to === selfKey || line.kind === 'chat';
-        if (urgent) { const at = queue.findIndex((id) => { const e = live.get(id); return !(e && (e.mine || e.line.to === selfKey || e.line.kind === 'chat')); }); queue.splice(at < 0 ? queue.length : at, 0, line.id); } else queue.push(line.id);
+        // (a recorded line is shown as it is said: before the town's other talk, after the player's own)
+        if (!urgent && line.voice) { const at = queue.findIndex((id) => { const e = live.get(id); return e && !e.mine && e.line.to !== selfKey && e.line.kind !== 'chat' && !e.line.voice; }); queue.splice(at < 0 ? queue.length : at, 0, line.id); } else if (urgent) { const at = queue.findIndex((id) => { const e = live.get(id); return !(e && (e.mine || e.line.to === selfKey || e.line.kind === 'chat')); }); queue.splice(at < 0 ? queue.length : at, 0, line.id); } else queue.push(line.id);
       }
     }
     // the one on screen stays its time (even after the simulation has let the line go), then the next
-    const done = current && (now - shownSince >= READ(live.get(current).line.text));
-    const jump = current && !live.get(current).mine && queue.length && (() => { const e = live.get(queue[0]); return e && (e.mine || e.line.to === selfKey); })();
+    const done = current && (now - shownSince >= SAID(live.get(current).line));
+    const jump = current && !live.get(current).mine && queue.length && (() => { const e = live.get(queue[0]); const c = live.get(current); return e && (e.mine || e.line.to === selfKey || (e.line.voice && (!c.line.voice || !byId.has(current)))); })();
     if (!current || done || jump) {
       if (current) { const e = live.get(current); e.el.remove(); live.delete(current); asked.delete(current); heardAt.delete(current); current = null; }
       while (queue.length) {
         const id = queue.shift();
         const e = live.get(id);
         if (!e) continue;
-        const stale = !e.mine && e.line.kind === 'npc' && (now - heardAt.get(id) > STALE || !byId.has(id));
+        const stale = !e.mine && (e.line.kind === 'npc' || e.line.kind === 'voice') && (now - heardAt.get(id) > STALE || !byId.has(id));
         if (stale) { e.el.remove(); live.delete(id); heardAt.delete(id); continue; }
         current = id; shownSince = now; break;
       }

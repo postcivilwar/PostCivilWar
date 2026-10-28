@@ -239,6 +239,7 @@ export function createCrowd(scene) {
   // hands, or laughs. Chosen from who they are and the town's clock alone, so that another player near them sees
   // the same.
   let moodClock = 0;
+  const talkers = new Map();     // townsperson -> [x, z of the one they talk to, speaking]
   const MOOD_EVERY = 22;
   const MOOD_WEIGHTED = Object.freeze(['~phone', '~phone', '~phone', '~look', '~look', '~look', '~talk', '~laugh', '~wave', '~wave', '~tired', '~stretch', '~dance']);            // seconds: a chance of a mood this often, standing still
   const moodHash = (i, n) => { let h = Math.imul(i + 1, 374761393) ^ Math.imul(n + 7, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -298,7 +299,19 @@ export function createCrowd(scene) {
       rig.blob.visible = false;
       return;
     }
-    g.rotation.set(0, actor.h, 0);
+    // talking with someone (the town's voices, 28 October 2026: src/sim/voices.js): turned to them, and the one
+    // speaking talks with the hands
+    const tk = talkers.get(actor.i);
+    let facing = actor.h;
+    if (tk && !moving && actor.pose === POSE.stand && !actor.trouble) {
+      const want = Math.atan2(tk[0] - actor.x, tk[1] - actor.z);
+      const from = actor.talkH === undefined ? actor.h : actor.talkH;
+      const turn = Math.atan2(Math.sin(want - from), Math.cos(want - from));
+      actor.talkH = from + turn * Math.min(1, dt * 4);
+      facing = actor.talkH;
+      if (tk[2] && rig.animated && rig.spec && rig.spec.moods && !rig.emoting && !rig.doing && !rig.strike && rig.emote('~talk')) stats.talkGestures = (stats.talkGestures || 0) + 1;
+    } else actor.talkH = undefined;
+    g.rotation.set(0, facing, 0);
     // (on the ground where they are: up on a pavement, where it stands above the road)
     g.position.set(actor.x + (actor.ox || 0), zoneGroundY(actor.x, actor.z), actor.z + (actor.oz || 0));
     // the legs keep the pace the person is really going at, so the feet hold the ground
@@ -673,6 +686,8 @@ export function createCrowd(scene) {
     setGuards(set) { for (const actor of actors.values()) actor.guard = set.has(actor.i); },
     // badly hurt townspeople (at 20 or not far above it: the 20-life rule): they limp (animated.js), as players do
     // (and anyone just out of trouble, shot, struck, frightened: no dancing about straight after)
+    // who is talking to whom now: [who ('n:<index>'), x, z of the one they face, 1 while speaking] (src/sim/voices.js)
+    setTalking(list) { talkers.clear(); for (const [who, fx, fz, speaking] of list || []) if (typeof who === 'string' && who.startsWith('n:')) talkers.set(Number(who.slice(2)), [fx, fz, speaking]); },
     setTrouble(set) { for (const actor of actors.values()) actor.trouble = set.has(actor.i); },
     setLimps(set) { for (const actor of actors.values()) { actor.limp = set.has(actor.i); if (actor.rig) actor.rig.limp = actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie; } },
     actors: () => actors.values(),

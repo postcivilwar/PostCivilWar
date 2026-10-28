@@ -152,6 +152,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     // (`fall`: thrown forward over the bars, which way the body goes and how it lands: the page shows it, falls.js)
     p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h: way > 0 ? h : h + Math.PI, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z }, over: at.over };
     p.stats.crashes = (p.stats.crashes || 0) + 1;
+    if (hub.voices) hub.voices.event('crash', at.x, at.z);
     return { fell: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(c.into * 10) / 10, lost: before - p.health, health: p.health, x: at.x, z: at.z, bike: { id: b.id, x: b.x, z: b.z, h: b.h }, lie };
   }
 

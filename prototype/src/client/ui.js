@@ -592,7 +592,9 @@ export function createUI(app) {
       root.append(h('p', { class: 'small' }, 'Your character was chosen when you arrived and stays yours. You can look at the others at any time; changing to one of them is a character upgrade, which is paid for.'));
     }
     root.append(section('Sound'));
-    root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); }))));
+    root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); })),
+      // the words of the town's voices shown as they are said, for a player with the sound off (28 October 2026)
+      h('div', { class: 'setrow' }, h('span', null, 'Subtitles: show the words when people talk'), toggle('subtitles-on', app.settings.subtitles ? app.settings.subtitles() : true, 'Subtitles', (on) => { if (app.settings.setSubtitles) app.settings.setSubtitles(on); redraw(); }))));
     const levels = app.volumes();
     root.append(h('div', { class: 'rows faders' }, Object.keys(SOUND_NAMES).map((name) => {
       const shown = h('span', { class: 'mono' }, `${Math.round(levels[name] * 100)}`);

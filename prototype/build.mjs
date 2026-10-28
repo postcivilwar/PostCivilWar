@@ -421,6 +421,13 @@ const extras = { ground: `habitation/ground.bin?v=${fingerprint(siteFiles.get('h
 // their single shots as it plays them); with the rifle's model, the files the game keeps for playing without a
 // connection once the town is up (main.js), not waited for before it (window.__PCW_GUNS).
 const gunFiles = { rifle: { sounds: GUN_SOUNDS.rifle.map((name) => { const bytes = readFileSync(resolve(root, 'assets/weapons/rifle/sound', name)); put(`guns/sound/${name}`, bytes); return `guns/sound/${name}?v=${fingerprint(bytes)}`; }) } };
+// The town's voices (28 October 2026): the light copies of the recordings (tools/voices/game_copies.py), beside the
+// page in voices/: each is fetched only when its speaker is near the player (src/client/voices.js), and then kept on
+// the device by the web app (sw.js), so the voices of a part of the town cost data once and play with no connection.
+// (The recordings as they were made are in assets/voices/original/ and are not sent.)
+const voiceFolder = resolve(root, 'assets/voices/game');
+const voiceFiles = existsSync(voiceFolder) ? readdirSync(voiceFolder).filter((n) => n.endsWith('.mp3')).sort() : [];
+for (const name of voiceFiles) put(`voices/${name}`, readFileSync(resolve(voiceFolder, name)));
 const packScript = `<script>window.__PCW_PACK_FILES = ${JSON.stringify(packFiles)}; window.__PCW_FILES = ${JSON.stringify(extras)}; window.__PCW_MODELS = ${JSON.stringify(modelsTable)}; window.__PCW_GUNS = ${JSON.stringify(gunFiles)};</script>\n${coverFiles.map((f) => `<link rel="preload" as="image" href="${f}" fetchpriority="low">`).join('\n')}\n`;
 // the game's own script, a file of its own beside the page, read once the page has been (defer): the page itself
 // is then small, and the opening is on the screen before the script has even arrived. It goes without the source's

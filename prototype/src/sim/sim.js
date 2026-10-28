@@ -15,6 +15,7 @@ import { createOkada } from './okada.js';
 import { createOwnBikes, isOwnBike, bikeOf } from './own-bikes.js';
 import { createOwnCars, isOwnCar, carOf } from './own-cars.js';
 import { createTalk } from './talk.js';
+import { createVoices } from './voices.js';
 import { LANGUAGES } from './culture.js';
 import { LedgerError, trText } from './ledger.js';
 import { createActors } from './actors.js';
@@ -148,6 +149,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   // chances fall exactly as they did before it was added
   const reactions = createReactions({ state, population, rng: makeRng(0x5eac7) });
   hub.reactions = reactions;
+  // the town's recorded voices (28 October 2026): conversations and calls when something happens (voices.js)
+  const voices = createVoices({ state, population, residents, actors, talk, timeScale: scale });
+  hub.voices = voices;
+  hub.voiced = (key) => voices.voiced(key);
   const conflict = createConflict({ state, players: state.players, population, actors, talk, emit, rng, hub });
   const justice = createJustice({ state, players: state.players, ledger, accounts: economy.accounts, population, actors, talk, emit, rng, hub });
   const care = createCare({ state, players: state.players, ledger, accounts: economy.accounts, emit, hub });
@@ -320,6 +325,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     phone.tick();
     // nobody hears the town talk while time is being skipped (a night's sleep), and listening for it was two thirds of the cost of skipping
     if (!quiet) talk.tick(state.t);
+    if (!quiet) { voices.tick(state.t, Object.values(state.players).filter((q) => !q.custody && !q.carried)); buildingNews(); }
     daily(was, state.t);
     if (stagesBefore !== countStructures()) state.structures = countStructures();
   }
@@ -332,6 +338,21 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     for (const q of Object.values(state.players)) if (!q.custody && !q.carried && !q.dead) people.push({ x: q.x, z: q.z, driving: !!(q.incar || q.driving || (q.astride !== null && q.astride !== undefined)) });
     for (const v of talk.visitors()) people.push({ x: v.x, z: v.z, driving: !!(v.vehicle || v.ride || v.car) });
     stepCarshowGate(state.carshowGate, people, dtReal, state.real);
+  }
+
+  // Walls going up on a plot are news to the people near it (voices.js): a stage finished.
+  const stagesSeen = new Map();
+  let buildingAt = -1e9;
+  function buildingNews() {
+    if (state.real - buildingAt < 2) return;
+    buildingAt = state.real;
+    for (const p of ZONE_PARCELS) {
+      const site = state.registry.parcels[p.id] && state.registry.parcels[p.id].site;
+      const stage = site ? site.stage || 0 : 0;
+      const was = stagesSeen.get(p.id);
+      stagesSeen.set(p.id, stage);
+      if (was !== undefined && stage > was) voices.event('building', (p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2);
+    }
   }
 
   function countStructures() {
@@ -422,6 +443,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
       if (p.hijack) throw new GameError('BUSY', 'You have your hands full.');
       p.emote = { name, at: state.real };
+      // a player clowning about where people can see: someone may laugh (voices.js)
+      if (Math.floor(state.real / 7) % 2 === 0) voices.event('laugh', p.x, p.z);
       return { name };
     },
     // A jump (22 October 2026, the owner: "add jumping animation"): the player's figure leaps where it stands or as
@@ -1072,6 +1095,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     return {
       ...zoneView(playerId),
       ...talk.view(p),
+      // the town's voices near this player: who is turned to whom, talking; and whose recordings to have ready
+      voiceTalk: voices.talking().filter((v) => { const w = v[0]; return w.startsWith('n:') || w.startsWith('r:'); }), voicesNear: voices.voicesNear(p.x, p.z),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
@@ -1100,7 +1125,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact, guns },
+    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
   };
 }
 

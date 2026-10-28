@@ -77,6 +77,8 @@ export function createTalk({ state, population, residents, players, weather, hub
     const from = line.from === undefined ? now() : line.from;
     const until = from + (line.hold || Math.max(line.kind === 'chat' ? 4 : 2.6, Math.min(8, 1.6 + line.text.length * 0.055)));
     const entry = { id: book.seq, who: line.who, name: line.name, role: line.role || '', text: line.text, lang: line.lang, gloss: line.gloss || null, x: Math.round(line.x * 10) / 10, z: Math.round(line.z * 10) / 10, from: Math.floor(from * 100) / 100, until: Math.round(until * 100) / 100, kind: line.kind, range: line.range || CHAT.overhear };
+    // a line of the town's recorded voices (voices.js): its recording, how long it lasts, whom it is said to
+    if (line.voice) { entry.voice = line.voice; entry.seconds = line.seconds; entry.to = line.to || null; entry.group = line.group || null; }
     (line.kind === 'chat' ? chatter : book.lines).push(entry);
     return entry;
   }
@@ -111,7 +113,7 @@ export function createTalk({ state, population, residents, players, weather, hub
   }
 
   function converse(player, t) {
-    const list = speakersNear(player, t).filter((s) => !busy(s.key));
+    const list = speakersNear(player, t).filter((s) => !busy(s.key) && !(hub.voiced && hub.voiced(s.key)));
     const real = now();
     const hour = hourNow();
     const part = dayPart(hour);
@@ -418,12 +420,15 @@ export function createTalk({ state, population, residents, players, weather, hub
     for (const line of chatter.length ? [...book.lines, ...chatter] : book.lines) {
       if (line.from > real || line.until <= real) continue;
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
-      speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
+      const said = { id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until };
+      // (a recorded line: which recording, how far into it it is now, and where it is said from, to be heard from there)
+      if (line.voice) { said.voice = line.voice; said.ago = Math.round((real - line.from) * 1000) / 1000; said.seconds = line.seconds; said.x = line.x; said.z = line.z; }
+      speech.push(said);
     }
     const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, parked: (o.parked || []).map((b) => (Number.isFinite(b.since) ? { bike: b.bike, x: b.x, z: b.z, h: b.h, fallen: b.fallen, ago: Math.max(0, Math.round((real - b.since) * 100) / 100) } : b)), down: o.down && (o.down.kind === 'dead' || real - o.down.since < o.down.lie + o.down.rise + 1) ? { kind: o.down.kind, age: Math.max(0, Math.round((real - o.down.since) * 1000) / 1000), lie: o.down.lie, rise: o.down.rise, push: o.down.push, hard: o.down.hard, from: o.down.from, over: o.down.over || null, at: o.down.at || null } : null, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }
 
-  return { tick, view, say, chat, talkToPerson, talkToResident, converse, visitorSeen, chatter: () => chatter, visitorGone: (peerId) => visitors.delete(`v:${cleanText(peerId, 40).replace(/[^\w-]/g, '')}`), visitors: () => [...visitors.values()], cleanText };
+  return { tick, view, say, chat, lines: () => book.lines, talkToPerson, talkToResident, converse, visitorSeen, chatter: () => chatter, visitorGone: (peerId) => visitors.delete(`v:${cleanText(peerId, 40).replace(/[^\w-]/g, '')}`), visitors: () => [...visitors.values()], cleanText };
 }

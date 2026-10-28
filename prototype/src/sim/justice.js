@@ -378,6 +378,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
       if (inSight) {
         o.duty = 'pursue';
         setState(p, 'pursuit');
+        // the police running after someone: the people near see it (voices.js)
+        if (hub.voices) hub.voices.event('police', m.x, m.z, { not: [`n:${o.i}`] });
         actors.follow(o.i, { kind: 'player', id: p.id }, 1.2, PACE.sprint, 'Chasing a suspect');
         if (!o.challenged) challenge(o, m, p);
         return;

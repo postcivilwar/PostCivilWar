@@ -148,6 +148,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
     book.seq += 1;
     book.events.push({ id: book.seq, at: real(), ...event });
     if (book.events.length > 30) book.events.splice(0, book.events.length - 30);
+    // someone knocked down by a vehicle: the people near call out (voices.js)
+    if (hub.voices && (event.kind === 'knock' || event.kind === 'killed')) hub.voices.event('crash', event.x, event.z, { not: [event.on && event.on.kind === 'npc' ? `n:${event.on.id}` : ''] });
   }
 
   // Throws someone forward along the vehicle's heading, as far as the ground allows.

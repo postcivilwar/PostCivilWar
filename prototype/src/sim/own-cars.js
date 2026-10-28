@@ -41,7 +41,10 @@ export function createOwnCars({ state, hub, obstacles }) {
   // taken from under them if they are in it, and is no longer parked anywhere.
   function setOwned(p, { cars }) {
     const list = (Array.isArray(cars) ? cars : []).filter((id) => typeof id === 'string' && POWER_CARS[id]).slice(0, 40);
+    const had = Array.isArray(p.cars) ? p.cars.length : null;
     p.cars = [...new Set(list)];
+    // a car bought: the people about the showroom remark on it (voices.js)
+    if (had !== null && p.cars.length > had && hub.voices) hub.voices.event('car', p.x, p.z);
     const parked = parkedOf(p);
     for (const id of Object.keys(parked)) if (!p.cars.includes(id)) delete parked[id];
     if (isOwnCar(p.incar) && !p.cars.includes(carOf(p.incar))) leave(p);
@@ -151,6 +154,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
     p.stats.crashes = (p.stats.crashes || 0) + 1;
     if (p.health <= 0) leave(p);
+    if (hub.voices) hub.voices.event('crash', c.x, c.z);
     return { hurt: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(out.into * 10) / 10, lost: before - p.health, health: p.health };
   }
 

@@ -385,6 +385,7 @@ export function createGuns({ state, players, population, actors, conflict, talk,
       (book.open || (book.open = {}))[key] = { crime: crime.id, at: real() };
     }
     if (hub.impact) hub.impact.felled(i, { from: { x: p.x, z: p.z }, harm: amount });
+    if (hub.voices) hub.voices.event('hurt', point[0], point[2], { only: `n:${i}` });
     return lost;
   }
   // Gunfire frightens the town's people near it (the owner's brief: they "run when scared"): those on their feet near
@@ -397,6 +398,8 @@ export function createGuns({ state, players, population, actors, conflict, talk,
     const now = real();
     if (now - scareAt < SCARE.every) return;
     scareAt = now;
+    // and those near call out (voices.js), the police among them
+    if (hub.voices) hub.voices.event('gunshot', p.x, p.z);
     let n = 0;
     const rows = [...population.within(`scare:${p.id}`, p.x, p.z, SCARE.near, state.t, now), ...population.within(`scare:${p.id}:at`, point[0], point[2], SCARE.struck, state.t, now)];
     for (const [i, , , pose] of rows) {

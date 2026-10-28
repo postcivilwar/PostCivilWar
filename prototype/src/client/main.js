@@ -25,7 +25,7 @@ import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry } from './render-kit.js';
-import { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } from './glb.js';
+import { fetchKept, restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } from './glb.js';
 import { createPictureKeeper } from './picture-keeper.js';
 import { gradeInstalled } from './grade.js';
 import { setWorldShading, airAt, worldShadingState, cloudShadeAt } from './world-shading.js';
@@ -42,6 +42,7 @@ import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showNam
 import { createSky } from './render-sky.js';
 import { createBubbles } from './bubbles.js';
 import { createAudio, renderStyle, MUSIC_STYLES, DEFAULT_VOLUMES } from './audio.js';
+import { createVoicePlayer } from './voices.js';
 import { createUI, h } from './ui.js';
 import { createControls } from './controls.js';
 import { createSpeedometer } from './speedometer.js';
@@ -294,6 +295,8 @@ function start(carried) {
     yardStacks = createYardStacks(scene);
   }]);
   const audio = createAudio();
+  // the town's recorded voices (28 October 2026): played from where each speaker stands (voices.js)
+  const voicePlayer = createVoicePlayer({ audio, fetchFile: (url) => fetchKept(url) });
   let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null;
   townSteps.push(['the phones, the motorcycles and the cars', () => {
     // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
@@ -564,7 +567,7 @@ function start(carried) {
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
   // (`calm`: Settings, "Reduce intense effects": less blood on the screen and in the town, gun-play.js)
-  const prefs = { translate: true, sound: true, graphics: 'auto', calm: false, ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, subtitles: true, sound: true, graphics: 'auto', calm: false, ...(readStored(PREFS_KEY) || {}) };
   // Every world made here keeps the real clock, and the real weather where the player is, once that is known.
   let realWeather = null;              // { kind, place, temperature, at } from the site's server
   const newHost = (options = {}) => {
@@ -1499,6 +1502,9 @@ function start(carried) {
     language: () => (view ? view.self.lang : 'en'),
     translate: () => prefs.translate,
     setTranslate: (on) => { prefs.translate = !!on; writeStored(PREFS_KEY, prefs); },
+    // the words of the town's recorded voices shown as they are said (28 October 2026): on unless the player turns them off
+    subtitles: () => prefs.subtitles !== false,
+    setSubtitles: (on) => { prefs.subtitles = !!on; writeStored(PREFS_KEY, prefs); },
     machine: () => translator.hasService,
   };
   const bubbles = createBubbles($('bubbles'), { translator, settings });
@@ -1795,6 +1801,7 @@ function start(carried) {
     crowd.setGuards(new Set(view.moods.filter((m) => m.mood === 'fighting' || m.mood === 'warned').map((m) => m.i)));
     crowd.setLimps(new Set(view.moods.filter((m) => m.limp).map((m) => m.i)));
     crowd.setTrouble(new Set([...view.moods.map((m) => m.i), ...(view.fallen || [])]));
+    crowd.setTalking(view.voiceTalk);
     if (led()) { predicted.x = view.self.x; predicted.z = view.self.z; if (!view.self.down && !view.self.dead) predicted.heading = view.self.heading; }
     // put somewhere else altogether by the simulation (coming round at the hospital): the figure goes with it
     else if (!view.self.driving && !view.self.astride && view.self.riding === null && Math.hypot(view.self.x - predicted.x, view.self.z - predicted.z) > 6) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; going.speed = 0; }
@@ -4053,6 +4060,7 @@ blood.update(dt, view.blood || []);
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
+      if (view) voicePlayer.update(view.speech, view.voicesNear, headOf);
       audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
     }
 
@@ -4222,6 +4230,8 @@ blood.update(dt, view.blood || []);
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
     get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
+    // the town's voices (28 October 2026): what the page has fetched and played
+    voicePlayer, voiceStats: () => ({ ...voicePlayer.stats(), ...audio.voiceStats() }),
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots

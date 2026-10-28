@@ -489,6 +489,34 @@ export function createAudio() {
     setTimeout(() => p.disconnect(), (seconds + 1) * 1000);
     return true;
   }
+  // A recorded line said by one of the town's people (voices.js, 28 October 2026): heard from where they stand, louder
+  // near them, fading with distance, and not at all beyond `reach` (25 metres); `offset` seconds into it, for one who
+  // has come near while it was being said. A handle to move or stop it, or null where it is not to be heard.
+  const voiceStats = { played: 0, tooFar: 0, playing: 0 };
+  function voiceLine(buffer, x, z, offset = 0, reach = 25) {
+    if (!ctx || ctx.state !== 'running' || !buffer) return null;
+    if (Math.hypot(x - ear.x, z - ear.z) > reach + 2) { voiceStats.tooFar += 1; return null; }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const p = ctx.createPanner();
+    p.panningModel = 'equalpower'; p.distanceModel = 'linear'; p.refDistance = 1.5; p.maxDistance = reach; p.rolloffFactor = 1;
+    move(p, x, 1.55, z);
+    src.connect(p); p.connect(nodes.voice);
+    const from = Math.max(0, Math.min(offset, buffer.duration - 0.05));
+    src.start(ctx.currentTime + 0.01, from);
+    voiceStats.played += 1; voiceStats.playing += 1;
+    // someone speaking close by: the music and the background step back a little while they do
+    if (Math.hypot(x - ear.x, z - ear.z) < 9) focus(buffer.duration - from);
+    let done = false;
+    src.onended = () => { if (done) return; done = true; voiceStats.playing -= 1; try { src.disconnect(); p.disconnect(); } catch (error) { /* already gone */ } };
+    return { stop() { try { src.stop(); } catch (error) { /* already stopped */ } }, move(nx, nz) { move(p, nx, 1.55, nz); } };
+  }
+  // A recording's bytes made into sound the card can play (a copy: decoding takes the bytes it is given).
+  function decode(bytes) {
+    if (!ctx) return Promise.reject(new Error('no sound yet'));
+    return new Promise((resolve, reject) => { const p = ctx.decodeAudioData(bytes.slice(0), resolve, reject); if (p && p.then) p.then(resolve, reject); });
+  }
+
   // and one that is not anywhere: in the player's own hands or head
   function here(kind, seconds, into, build) {
     if (!ctx || muted || ctx.state !== 'running' || !claim(kind, seconds)) return false;
@@ -1014,6 +1042,7 @@ export function createAudio() {
 
   return {
     supported: !!Ctx,
+    voiceLine, decode, voiceStats: () => ({ ...voiceStats }),
     start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
