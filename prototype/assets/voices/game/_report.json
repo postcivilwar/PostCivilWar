@@ -1,0 +1,2795 @@
+{
+ "hawker_adaeze_aftercrash_01": {
+  "game_seconds": 3.91,
+  "kb": 23.2,
+  "mean_db": -17.4,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "hawker_adaeze_aftercrash_02": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -21.6,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "hawker_adaeze_car_01": {
+  "game_seconds": 3.82,
+  "kb": 22.6,
+  "mean_db": -15.2,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "hawker_adaeze_crash_01": {
+  "game_seconds": 3.38,
+  "kb": 20.1,
+  "mean_db": -14.5,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "hawker_adaeze_fight_01": {
+  "game_seconds": 3.46,
+  "kb": 20.5,
+  "mean_db": -16.4,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "hawker_adaeze_gossip_01": {
+  "game_seconds": 4.27,
+  "kb": 25.3,
+  "mean_db": -17.0,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "hawker_adaeze_gunshot_01": {
+  "game_seconds": 4.13,
+  "kb": 24.4,
+  "mean_db": -14.4,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "hawker_adaeze_haggle_01": {
+  "game_seconds": 4.7,
+  "kb": 27.8,
+  "mean_db": -20.6,
+  "problems": [],
+  "seconds": 4.75
+ },
+ "hawker_adaeze_haggle_02": {
+  "game_seconds": 5.9,
+  "kb": 34.8,
+  "mean_db": -18.4,
+  "problems": [],
+  "seconds": 6.03
+ },
+ "hawker_adaeze_market_01": {
+  "game_seconds": 3.58,
+  "kb": 21.2,
+  "mean_db": -18.4,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_adaeze_market_02": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -19.9,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_adaeze_market_03": {
+  "game_seconds": 3.79,
+  "kb": 22.5,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "hawker_adaeze_market_04": {
+  "game_seconds": 4.73,
+  "kb": 27.9,
+  "mean_db": -13.5,
+  "problems": [],
+  "seconds": 4.75
+ },
+ "hawker_adaeze_newcar_01": {
+  "game_seconds": 5.04,
+  "kb": 29.8,
+  "mean_db": -14.3,
+  "problems": [],
+  "seconds": 4.99
+ },
+ "hawker_adaeze_newcar_02": {
+  "game_seconds": 4.56,
+  "kb": 27.0,
+  "mean_db": -15.6,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "hawker_adaeze_police_01": {
+  "game_seconds": 3.31,
+  "kb": 19.6,
+  "mean_db": -15.4,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "hawker_azuka_crash_01": {
+  "game_seconds": 3.02,
+  "kb": 18.0,
+  "mean_db": -14.9,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "hawker_azuka_fight_01": {
+  "game_seconds": 3.65,
+  "kb": 21.6,
+  "mean_db": -15.0,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_azuka_gossip_01": {
+  "game_seconds": 3.77,
+  "kb": 22.3,
+  "mean_db": -16.7,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "hawker_azuka_gunshot_01": {
+  "game_seconds": 4.1,
+  "kb": 24.3,
+  "mean_db": -15.9,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "hawker_azuka_hurt_01": {
+  "game_seconds": 3.58,
+  "kb": 21.2,
+  "mean_db": -14.3,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "hawker_azuka_market_01": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -17.8,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "hawker_azuka_market_02": {
+  "game_seconds": 4.46,
+  "kb": 26.4,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "hawker_azuka_market_03": {
+  "game_seconds": 4.18,
+  "kb": 24.7,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "hawker_azuka_newcar_01": {
+  "game_seconds": 4.73,
+  "kb": 27.9,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 4.68
+ },
+ "hawker_azuka_newcar_02": {
+  "game_seconds": 3.0,
+  "kb": 17.8,
+  "mean_db": -16.1,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "hawker_azuka_police_01": {
+  "game_seconds": 2.83,
+  "kb": 16.8,
+  "mean_db": -16.0,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "hawker_catherine_building_01": {
+  "game_seconds": 4.51,
+  "kb": 26.7,
+  "mean_db": -18.6,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "hawker_catherine_church_01": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "hawker_catherine_church_02": {
+  "game_seconds": 4.01,
+  "kb": 23.7,
+  "mean_db": -18.6,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "hawker_catherine_complain_01": {
+  "game_seconds": 5.11,
+  "kb": 30.2,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 5.15
+ },
+ "hawker_catherine_crash_01": {
+  "game_seconds": 4.2,
+  "kb": 24.8,
+  "mean_db": -17.1,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "hawker_catherine_fight_01": {
+  "game_seconds": 4.32,
+  "kb": 25.5,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "hawker_catherine_gossip_01": {
+  "game_seconds": 3.62,
+  "kb": 21.5,
+  "mean_db": -26.9,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_catherine_gossip_02": {
+  "game_seconds": 4.18,
+  "kb": 24.7,
+  "mean_db": -18.9,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "hawker_catherine_gunshot_01": {
+  "game_seconds": 4.25,
+  "kb": 25.1,
+  "mean_db": -16.1,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "hawker_catherine_hurt_01": {
+  "game_seconds": 3.65,
+  "kb": 21.6,
+  "mean_db": -15.7,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_catherine_police_01": {
+  "game_seconds": 2.98,
+  "kb": 17.7,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "hawker_catherine_weather_01": {
+  "game_seconds": 3.82,
+  "kb": 22.6,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "hawker_catherine_weather_02": {
+  "game_seconds": 5.02,
+  "kb": 29.6,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 5.07
+ },
+ "hawker_chinwe_building_01": {
+  "game_seconds": 5.78,
+  "kb": 34.1,
+  "mean_db": -15.4,
+  "problems": [],
+  "seconds": 5.8
+ },
+ "hawker_chinwe_building_02": {
+  "game_seconds": 4.61,
+  "kb": 27.2,
+  "mean_db": -16.3,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "hawker_chinwe_complain_01": {
+  "game_seconds": 5.21,
+  "kb": 30.7,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 5.25
+ },
+ "hawker_chinwe_crash_01": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -15.4,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_chinwe_family_01": {
+  "game_seconds": 3.46,
+  "kb": 20.5,
+  "mean_db": -15.9,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "hawker_chinwe_family_02": {
+  "game_seconds": 4.85,
+  "kb": 28.6,
+  "mean_db": -16.1,
+  "problems": [],
+  "seconds": 4.83
+ },
+ "hawker_chinwe_family_03": {
+  "game_seconds": 4.68,
+  "kb": 27.7,
+  "mean_db": -16.2,
+  "problems": [],
+  "seconds": 4.68
+ },
+ "hawker_chinwe_fight_01": {
+  "game_seconds": 4.61,
+  "kb": 27.2,
+  "mean_db": -15.4,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "hawker_chinwe_gunshot_01": {
+  "game_seconds": 4.7,
+  "kb": 27.8,
+  "mean_db": -15.1,
+  "problems": [],
+  "seconds": 4.68
+ },
+ "hawker_chinwe_haggle_01": {
+  "game_seconds": 4.85,
+  "kb": 28.6,
+  "mean_db": -16.5,
+  "problems": [],
+  "seconds": 4.91
+ },
+ "hawker_chinwe_haggle_02": {
+  "game_seconds": 4.01,
+  "kb": 23.7,
+  "mean_db": -16.4,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "hawker_chinwe_hurt_01": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -15.0,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_chinwe_police_01": {
+  "game_seconds": 3.53,
+  "kb": 20.9,
+  "mean_db": -16.1,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "hawker_chinwe_weather_01": {
+  "game_seconds": 6.96,
+  "kb": 41.0,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 7.0
+ },
+ "hawker_chinwe_weather_02": {
+  "game_seconds": 4.32,
+  "kb": 25.5,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "hawker_eloho_aftercrash_01": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -20.3,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "hawker_eloho_aftercrash_02": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "hawker_eloho_crash_01": {
+  "game_seconds": 5.11,
+  "kb": 30.2,
+  "mean_db": -20.2,
+  "problems": [],
+  "seconds": 5.07
+ },
+ "hawker_eloho_fight_01": {
+  "game_seconds": 3.98,
+  "kb": 23.6,
+  "mean_db": -20.0,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "hawker_eloho_gossip_01": {
+  "game_seconds": 5.88,
+  "kb": 34.7,
+  "mean_db": -19.2,
+  "problems": [],
+  "seconds": 5.88
+ },
+ "hawker_eloho_gossip_02": {
+  "game_seconds": 4.32,
+  "kb": 25.5,
+  "mean_db": -20.6,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "hawker_eloho_gossip_03": {
+  "game_seconds": 4.1,
+  "kb": 24.3,
+  "mean_db": -20.2,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "hawker_eloho_gunshot_01": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -19.6,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "hawker_eloho_haggle_01": {
+  "game_seconds": 3.05,
+  "kb": 18.1,
+  "mean_db": -21.7,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "hawker_eloho_haggle_02": {
+  "game_seconds": 3.19,
+  "kb": 18.9,
+  "mean_db": -19.5,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "hawker_eloho_haggle_03": {
+  "game_seconds": 3.02,
+  "kb": 18.0,
+  "mean_db": -22.0,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "hawker_eloho_laugh_01": {
+  "game_seconds": 4.25,
+  "kb": 25.1,
+  "mean_db": -20.8,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "hawker_eloho_market_01": {
+  "game_seconds": 5.09,
+  "kb": 30.0,
+  "mean_db": -18.4,
+  "problems": [],
+  "seconds": 5.15
+ },
+ "hawker_eloho_market_02": {
+  "game_seconds": 3.67,
+  "kb": 21.7,
+  "mean_db": -20.0,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_eloho_police_01": {
+  "game_seconds": 3.86,
+  "kb": 22.9,
+  "mean_db": -19.6,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "hawker_grace_church_01": {
+  "game_seconds": 3.22,
+  "kb": 19.1,
+  "mean_db": -17.9,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "hawker_grace_church_02": {
+  "game_seconds": 3.77,
+  "kb": 22.3,
+  "mean_db": -14.6,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "hawker_grace_crash_01": {
+  "game_seconds": 4.54,
+  "kb": 26.8,
+  "mean_db": -15.7,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "hawker_grace_fight_01": {
+  "game_seconds": 3.82,
+  "kb": 22.6,
+  "mean_db": -15.5,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "hawker_grace_gossip_01": {
+  "game_seconds": 4.63,
+  "kb": 27.4,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 4.68
+ },
+ "hawker_grace_gossip_02": {
+  "game_seconds": 3.5,
+  "kb": 20.8,
+  "mean_db": -16.6,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_grace_gunshot_01": {
+  "game_seconds": 4.18,
+  "kb": 24.7,
+  "mean_db": -15.4,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "hawker_grace_laugh_01": {
+  "game_seconds": 5.88,
+  "kb": 34.7,
+  "mean_db": -17.4,
+  "problems": [],
+  "seconds": 5.96
+ },
+ "hawker_grace_police_01": {
+  "game_seconds": 3.02,
+  "kb": 18.0,
+  "mean_db": -13.6,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "hawker_nkechi_argue_01": {
+  "game_seconds": 4.94,
+  "kb": 29.2,
+  "mean_db": -17.8,
+  "problems": [],
+  "seconds": 4.99
+ },
+ "hawker_nkechi_argue_02": {
+  "game_seconds": 4.06,
+  "kb": 24.0,
+  "mean_db": -19.3,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "hawker_nkechi_car_01": {
+  "game_seconds": 5.26,
+  "kb": 31.0,
+  "mean_db": -16.5,
+  "problems": [],
+  "seconds": 5.41
+ },
+ "hawker_nkechi_crash_01": {
+  "game_seconds": 5.02,
+  "kb": 29.6,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 4.99
+ },
+ "hawker_nkechi_fight_01": {
+  "game_seconds": 4.03,
+  "kb": 23.9,
+  "mean_db": -17.0,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "hawker_nkechi_gunshot_01": {
+  "game_seconds": 3.74,
+  "kb": 22.2,
+  "mean_db": -14.3,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "hawker_nkechi_haggle_01": {
+  "game_seconds": 4.99,
+  "kb": 29.5,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 5.07
+ },
+ "hawker_nkechi_haggle_02": {
+  "game_seconds": 3.65,
+  "kb": 21.6,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_nkechi_joke_01": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -16.7,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "hawker_nkechi_joke_02": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "hawker_nkechi_police_01": {
+  "game_seconds": 3.46,
+  "kb": 20.5,
+  "mean_db": -19.0,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "hawker_nnekanwanze_car_01": {
+  "game_seconds": 4.58,
+  "kb": 27.1,
+  "mean_db": -19.1,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "hawker_nnekanwanze_crash_01": {
+  "game_seconds": 3.82,
+  "kb": 22.6,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "hawker_nnekanwanze_fight_01": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -17.0,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_nnekanwanze_gossip_01": {
+  "game_seconds": 3.65,
+  "kb": 21.6,
+  "mean_db": -19.3,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_nnekanwanze_gossip_02": {
+  "game_seconds": 2.81,
+  "kb": 16.7,
+  "mean_db": -20.5,
+  "problems": [],
+  "seconds": 2.85
+ },
+ "hawker_nnekanwanze_gunshot_01": {
+  "game_seconds": 4.18,
+  "kb": 24.7,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "hawker_nnekanwanze_money_01": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -19.2,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_nnekanwanze_money_02": {
+  "game_seconds": 2.74,
+  "kb": 16.3,
+  "mean_db": -19.7,
+  "problems": [],
+  "seconds": 2.85
+ },
+ "hawker_nnekanwanze_money_03": {
+  "game_seconds": 4.06,
+  "kb": 24.0,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "hawker_nnekanwanze_police_01": {
+  "game_seconds": 3.62,
+  "kb": 21.5,
+  "mean_db": -18.9,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "hawker_nnekanwaobi_aftercrash_01": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -14.7,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_nnekanwaobi_complain_01": {
+  "game_seconds": 4.66,
+  "kb": 27.5,
+  "mean_db": -16.7,
+  "problems": [],
+  "seconds": 4.68
+ },
+ "hawker_nnekanwaobi_complain_02": {
+  "game_seconds": 4.44,
+  "kb": 26.2,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "hawker_nnekanwaobi_crash_01": {
+  "game_seconds": 4.08,
+  "kb": 24.1,
+  "mean_db": -13.7,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "hawker_nnekanwaobi_family_01": {
+  "game_seconds": 4.37,
+  "kb": 25.8,
+  "mean_db": -16.6,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "hawker_nnekanwaobi_family_02": {
+  "game_seconds": 4.25,
+  "kb": 25.1,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "hawker_nnekanwaobi_fight_01": {
+  "game_seconds": 3.6,
+  "kb": 21.3,
+  "mean_db": -14.0,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "hawker_nnekanwaobi_gossip_01": {
+  "game_seconds": 4.54,
+  "kb": 26.8,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "hawker_nnekanwaobi_gossip_02": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "hawker_nnekanwaobi_gunshot_01": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -14.0,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "hawker_nnekanwaobi_haggle_01": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -15.5,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_nnekanwaobi_haggle_02": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -17.0,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "hawker_nnekanwaobi_haggle_03": {
+  "game_seconds": 3.36,
+  "kb": 19.9,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "hawker_nnekanwaobi_laugh_01": {
+  "game_seconds": 4.51,
+  "kb": 26.7,
+  "mean_db": -16.2,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "hawker_nnekanwaobi_police_01": {
+  "game_seconds": 3.53,
+  "kb": 20.9,
+  "mean_db": -13.7,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "hawker_nnekanwaobi_river_01": {
+  "game_seconds": 2.93,
+  "kb": 17.4,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "hawker_nnekanwaobi_river_02": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -15.0,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "hawker_zimuzo_argue_01": {
+  "game_seconds": 3.0,
+  "kb": 17.8,
+  "mean_db": -19.4,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "hawker_zimuzo_argue_02": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "hawker_zimuzo_argue_03": {
+  "game_seconds": 4.56,
+  "kb": 27.0,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "hawker_zimuzo_crash_01": {
+  "game_seconds": 2.76,
+  "kb": 16.4,
+  "mean_db": -18.2,
+  "problems": [],
+  "seconds": 2.85
+ },
+ "hawker_zimuzo_fight_01": {
+  "game_seconds": 3.43,
+  "kb": 20.3,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "hawker_zimuzo_gunshot_01": {
+  "game_seconds": 4.08,
+  "kb": 24.1,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "hawker_zimuzo_joke_01": {
+  "game_seconds": 3.14,
+  "kb": 18.7,
+  "mean_db": -19.5,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "hawker_zimuzo_joke_02": {
+  "game_seconds": 4.34,
+  "kb": 25.7,
+  "mean_db": -20.1,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "hawker_zimuzo_laugh_01": {
+  "game_seconds": 3.55,
+  "kb": 21.0,
+  "mean_db": -20.2,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "hawker_zimuzo_police_01": {
+  "game_seconds": 3.53,
+  "kb": 20.9,
+  "mean_db": -15.6,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "jobseeker_agnes_crash_01": {
+  "game_seconds": 2.9,
+  "kb": 17.2,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "jobseeker_agnes_fight_01": {
+  "game_seconds": 3.55,
+  "kb": 21.0,
+  "mean_db": -17.4,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "jobseeker_agnes_gossip_01": {
+  "game_seconds": 4.25,
+  "kb": 25.1,
+  "mean_db": -20.1,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_agnes_gossip_02": {
+  "game_seconds": 3.79,
+  "kb": 22.5,
+  "mean_db": -20.3,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_agnes_gunshot_01": {
+  "game_seconds": 3.67,
+  "kb": 21.7,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_agnes_laugh_01": {
+  "game_seconds": 2.98,
+  "kb": 17.7,
+  "mean_db": -16.5,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "jobseeker_agnes_police_01": {
+  "game_seconds": 3.26,
+  "kb": 19.4,
+  "mean_db": -17.4,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_agnes_prices_01": {
+  "game_seconds": 3.46,
+  "kb": 20.5,
+  "mean_db": -19.0,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "jobseeker_agnes_prices_02": {
+  "game_seconds": 4.58,
+  "kb": 27.1,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "jobseeker_agnes_work_01": {
+  "game_seconds": 3.48,
+  "kb": 20.6,
+  "mean_db": -19.9,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_agnes_work_02": {
+  "game_seconds": 2.9,
+  "kb": 17.2,
+  "mean_db": -20.2,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "jobseeker_bridget_car_01": {
+  "game_seconds": 4.73,
+  "kb": 27.9,
+  "mean_db": -17.0,
+  "problems": [],
+  "seconds": 4.75
+ },
+ "jobseeker_bridget_crash_01": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "jobseeker_bridget_fight_01": {
+  "game_seconds": 3.89,
+  "kb": 23.0,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "jobseeker_bridget_gossip_01": {
+  "game_seconds": 3.6,
+  "kb": 21.3,
+  "mean_db": -15.9,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_bridget_gossip_02": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "jobseeker_bridget_greet_01": {
+  "game_seconds": 5.52,
+  "kb": 32.6,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 5.56
+ },
+ "jobseeker_bridget_greet_02": {
+  "game_seconds": 2.78,
+  "kb": 16.5,
+  "mean_db": -16.3,
+  "problems": [],
+  "seconds": 2.77
+ },
+ "jobseeker_bridget_gunshot_01": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -15.3,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_bridget_plots_01": {
+  "game_seconds": 3.98,
+  "kb": 23.6,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "jobseeker_bridget_plots_02": {
+  "game_seconds": 3.36,
+  "kb": 19.9,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "jobseeker_bridget_police_01": {
+  "game_seconds": 2.86,
+  "kb": 17.0,
+  "mean_db": -17.8,
+  "problems": [],
+  "seconds": 2.85
+ },
+ "jobseeker_bridget_police_02": {
+  "game_seconds": 5.54,
+  "kb": 32.7,
+  "mean_db": -19.1,
+  "problems": [],
+  "seconds": 5.64
+ },
+ "jobseeker_bridget_police_03": {
+  "game_seconds": 3.48,
+  "kb": 20.6,
+  "mean_db": -16.0,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_bridget_work_01": {
+  "game_seconds": 4.58,
+  "kb": 27.1,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "jobseeker_bridget_work_02": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "jobseeker_bridget_work_03": {
+  "game_seconds": 4.27,
+  "kb": 25.3,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "jobseeker_eguono_crash_01": {
+  "game_seconds": 3.89,
+  "kb": 23.0,
+  "mean_db": -15.2,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "jobseeker_eguono_fight_01": {
+  "game_seconds": 3.05,
+  "kb": 18.1,
+  "mean_db": -15.9,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "jobseeker_eguono_gossip_01": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -13.8,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_eguono_greet_01": {
+  "game_seconds": 3.07,
+  "kb": 18.2,
+  "mean_db": -14.2,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "jobseeker_eguono_greet_02": {
+  "game_seconds": 2.9,
+  "kb": 17.2,
+  "mean_db": -16.7,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "jobseeker_eguono_greet_03": {
+  "game_seconds": 4.15,
+  "kb": 24.6,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_eguono_gunshot_01": {
+  "game_seconds": 4.34,
+  "kb": 25.7,
+  "mean_db": -13.5,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_eguono_hurt_01": {
+  "game_seconds": 3.02,
+  "kb": 18.0,
+  "mean_db": -13.6,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "jobseeker_eguono_kola_01": {
+  "game_seconds": 3.74,
+  "kb": 22.2,
+  "mean_db": -19.4,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "jobseeker_eguono_kola_02": {
+  "game_seconds": 4.03,
+  "kb": 23.9,
+  "mean_db": -16.4,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "jobseeker_eguono_police_01": {
+  "game_seconds": 2.64,
+  "kb": 15.7,
+  "mean_db": -15.7,
+  "problems": [],
+  "seconds": 2.77
+ },
+ "jobseeker_eguono_police_02": {
+  "game_seconds": 4.51,
+  "kb": 26.7,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "jobseeker_eguono_police_03": {
+  "game_seconds": 2.93,
+  "kb": 17.4,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "jobseeker_eki_crash_01": {
+  "game_seconds": 3.82,
+  "kb": 22.6,
+  "mean_db": -15.2,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_eki_fight_01": {
+  "game_seconds": 3.0,
+  "kb": 17.8,
+  "mean_db": -15.1,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "jobseeker_eki_gossip_01": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -15.6,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "jobseeker_eki_gossip_02": {
+  "game_seconds": 4.51,
+  "kb": 26.7,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "jobseeker_eki_gunshot_01": {
+  "game_seconds": 4.32,
+  "kb": 25.5,
+  "mean_db": -13.9,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "jobseeker_eki_laugh_01": {
+  "game_seconds": 4.18,
+  "kb": 24.7,
+  "mean_db": -15.4,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_eki_money_01": {
+  "game_seconds": 4.42,
+  "kb": 26.1,
+  "mean_db": -14.2,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "jobseeker_eki_money_02": {
+  "game_seconds": 3.43,
+  "kb": 20.3,
+  "mean_db": -16.1,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "jobseeker_eki_newcar_01": {
+  "game_seconds": 4.42,
+  "kb": 26.1,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "jobseeker_eki_newcar_02": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -20.2,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_eki_police_01": {
+  "game_seconds": 3.31,
+  "kb": 19.6,
+  "mean_db": -14.7,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_eki_work_01": {
+  "game_seconds": 4.22,
+  "kb": 25.0,
+  "mean_db": -19.1,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "jobseeker_faith_building_01": {
+  "game_seconds": 3.72,
+  "kb": 22.0,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "jobseeker_faith_building_02": {
+  "game_seconds": 3.41,
+  "kb": 20.2,
+  "mean_db": -19.6,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "jobseeker_faith_complain_01": {
+  "game_seconds": 3.34,
+  "kb": 19.8,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_faith_complain_02": {
+  "game_seconds": 3.02,
+  "kb": 18.0,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "jobseeker_faith_complain_03": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -21.5,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_faith_complain_04": {
+  "game_seconds": 3.89,
+  "kb": 23.0,
+  "mean_db": -19.2,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "jobseeker_faith_complain_05": {
+  "game_seconds": 2.02,
+  "kb": 12.0,
+  "mean_db": -19.8,
+  "problems": [],
+  "seconds": 2.04
+ },
+ "jobseeker_faith_complain_06": {
+  "game_seconds": 3.53,
+  "kb": 20.9,
+  "mean_db": -23.4,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_faith_crash_01": {
+  "game_seconds": 3.14,
+  "kb": 18.7,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "jobseeker_faith_fight_01": {
+  "game_seconds": 3.26,
+  "kb": 19.4,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "jobseeker_faith_gunshot_01": {
+  "game_seconds": 2.95,
+  "kb": 17.5,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "jobseeker_faith_joke_01": {
+  "game_seconds": 3.41,
+  "kb": 20.2,
+  "mean_db": -20.1,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "jobseeker_faith_joke_02": {
+  "game_seconds": 3.48,
+  "kb": 20.6,
+  "mean_db": -20.9,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "jobseeker_faith_kola_01": {
+  "game_seconds": 3.17,
+  "kb": 18.8,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "jobseeker_faith_kola_02": {
+  "game_seconds": 2.64,
+  "kb": 15.7,
+  "mean_db": -21.6,
+  "problems": [],
+  "seconds": 2.69
+ },
+ "jobseeker_faith_laugh_01": {
+  "game_seconds": 3.58,
+  "kb": 21.2,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "jobseeker_faith_police_01": {
+  "game_seconds": 3.6,
+  "kb": 21.3,
+  "mean_db": -19.4,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_faith_rest_01": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -20.6,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "jobseeker_faith_rest_02": {
+  "game_seconds": 3.19,
+  "kb": 18.9,
+  "mean_db": -19.5,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_fatima_aftershots_01": {
+  "game_seconds": 4.66,
+  "kb": 27.5,
+  "mean_db": -20.0,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "jobseeker_fatima_aftershots_02": {
+  "game_seconds": 3.65,
+  "kb": 21.6,
+  "mean_db": -20.1,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "jobseeker_fatima_car_01": {
+  "game_seconds": 4.54,
+  "kb": 26.8,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "jobseeker_fatima_crash_01": {
+  "game_seconds": 2.78,
+  "kb": 16.5,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 2.77
+ },
+ "jobseeker_fatima_family_01": {
+  "game_seconds": 3.77,
+  "kb": 22.3,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_fatima_family_02": {
+  "game_seconds": 3.36,
+  "kb": 19.9,
+  "mean_db": -18.6,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_fatima_fight_01": {
+  "game_seconds": 4.06,
+  "kb": 24.0,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "jobseeker_fatima_gunshot_01": {
+  "game_seconds": 3.91,
+  "kb": 23.2,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "jobseeker_fatima_police_01": {
+  "game_seconds": 3.0,
+  "kb": 17.8,
+  "mean_db": -19.1,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "jobseeker_fatima_prices_01": {
+  "game_seconds": 4.94,
+  "kb": 29.2,
+  "mean_db": -17.8,
+  "problems": [],
+  "seconds": 4.91
+ },
+ "jobseeker_fatima_prices_02": {
+  "game_seconds": 4.9,
+  "kb": 28.9,
+  "mean_db": -19.2,
+  "problems": [],
+  "seconds": 4.91
+ },
+ "jobseeker_fatima_warend_01": {
+  "game_seconds": 6.94,
+  "kb": 40.9,
+  "mean_db": -19.3,
+  "problems": [],
+  "seconds": 6.92
+ },
+ "jobseeker_fatima_warend_02": {
+  "game_seconds": 3.98,
+  "kb": 23.6,
+  "mean_db": -19.3,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "jobseeker_fatima_weather_01": {
+  "game_seconds": 3.05,
+  "kb": 18.1,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "jobseeker_fatima_weather_02": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -19.9,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_fatima_work_01": {
+  "game_seconds": 4.51,
+  "kb": 26.7,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "jobseeker_fatima_work_02": {
+  "game_seconds": 3.91,
+  "kb": 23.2,
+  "mean_db": -19.5,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "jobseeker_ifeoma_aftershots_01": {
+  "game_seconds": 4.06,
+  "kb": 24.0,
+  "mean_db": -16.5,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "jobseeker_ifeoma_aftershots_02": {
+  "game_seconds": 3.55,
+  "kb": 21.0,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_ifeoma_crash_01": {
+  "game_seconds": 3.74,
+  "kb": 22.2,
+  "mean_db": -16.3,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_ifeoma_family_01": {
+  "game_seconds": 3.5,
+  "kb": 20.8,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "jobseeker_ifeoma_fight_01": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -14.6,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "jobseeker_ifeoma_gunshot_01": {
+  "game_seconds": 3.41,
+  "kb": 20.2,
+  "mean_db": -16.3,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "jobseeker_ifeoma_health_01": {
+  "game_seconds": 4.18,
+  "kb": 24.7,
+  "mean_db": -20.3,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "jobseeker_ifeoma_health_02": {
+  "game_seconds": 3.74,
+  "kb": 22.2,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_ifeoma_hurt_01": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -15.1,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "jobseeker_ifeoma_joke_01": {
+  "game_seconds": 3.53,
+  "kb": 20.9,
+  "mean_db": -18.2,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "jobseeker_ifeoma_joke_02": {
+  "game_seconds": 3.5,
+  "kb": 20.8,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_ifeoma_plots_01": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "jobseeker_ifeoma_plots_02": {
+  "game_seconds": 4.27,
+  "kb": 25.3,
+  "mean_db": -17.4,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_ifeoma_police_01": {
+  "game_seconds": 2.81,
+  "kb": 16.7,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 2.85
+ },
+ "jobseeker_ifeoma_work_01": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_ifeoma_work_02": {
+  "game_seconds": 3.17,
+  "kb": 18.8,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_ifeoma_work_03": {
+  "game_seconds": 4.92,
+  "kb": 29.1,
+  "mean_db": -17.1,
+  "problems": [],
+  "seconds": 4.91
+ },
+ "jobseeker_ifeoma_work_04": {
+  "game_seconds": 4.56,
+  "kb": 27.0,
+  "mean_db": -17.8,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "jobseeker_obiageli_afterfight_01": {
+  "game_seconds": 4.82,
+  "kb": 28.5,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 4.83
+ },
+ "jobseeker_obiageli_afterfight_02": {
+  "game_seconds": 2.28,
+  "kb": 13.6,
+  "mean_db": -21.5,
+  "problems": [],
+  "seconds": 2.43
+ },
+ "jobseeker_obiageli_crash_01": {
+  "game_seconds": 3.07,
+  "kb": 18.2,
+  "mean_db": -19.0,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "jobseeker_obiageli_fight_01": {
+  "game_seconds": 3.48,
+  "kb": 20.6,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "jobseeker_obiageli_greet_01": {
+  "game_seconds": 6.29,
+  "kb": 37.1,
+  "mean_db": -19.0,
+  "problems": [],
+  "seconds": 6.35
+ },
+ "jobseeker_obiageli_greet_02": {
+  "game_seconds": 3.94,
+  "kb": 23.3,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "jobseeker_obiageli_gunshot_01": {
+  "game_seconds": 4.13,
+  "kb": 24.4,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "jobseeker_obiageli_hurt_01": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -16.2,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "jobseeker_obiageli_joke_01": {
+  "game_seconds": 4.87,
+  "kb": 28.8,
+  "mean_db": -20.4,
+  "problems": [],
+  "seconds": 5.07
+ },
+ "jobseeker_obiageli_police_01": {
+  "game_seconds": 3.38,
+  "kb": 20.1,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "jobseeker_obiageli_rest_01": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -24.1,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "jobseeker_obiageli_rest_02": {
+  "game_seconds": 4.22,
+  "kb": 25.0,
+  "mean_db": -16.3,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_obiageli_work_01": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -17.1,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "jobseeker_obiageli_work_02": {
+  "game_seconds": 4.44,
+  "kb": 26.2,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "jobseeker_obiageli_work_03": {
+  "game_seconds": 5.45,
+  "kb": 32.2,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 5.49
+ },
+ "jobseeker_olabisi_afterfight_01": {
+  "game_seconds": 3.89,
+  "kb": 23.0,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "jobseeker_olabisi_afterfight_02": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -20.2,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_olabisi_complain_01": {
+  "game_seconds": 3.46,
+  "kb": 20.5,
+  "mean_db": -20.3,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "jobseeker_olabisi_complain_02": {
+  "game_seconds": 4.42,
+  "kb": 26.1,
+  "mean_db": -19.9,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "jobseeker_olabisi_crash_01": {
+  "game_seconds": 3.14,
+  "kb": 18.7,
+  "mean_db": -21.2,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "jobseeker_olabisi_fight_01": {
+  "game_seconds": 4.27,
+  "kb": 25.3,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "jobseeker_olabisi_greet_01": {
+  "game_seconds": 6.43,
+  "kb": 37.9,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 6.43
+ },
+ "jobseeker_olabisi_greet_02": {
+  "game_seconds": 3.55,
+  "kb": 21.0,
+  "mean_db": -19.3,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_olabisi_greet_03": {
+  "game_seconds": 4.97,
+  "kb": 29.3,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 4.99
+ },
+ "jobseeker_olabisi_gunshot_01": {
+  "game_seconds": 3.67,
+  "kb": 21.7,
+  "mean_db": -13.4,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "jobseeker_olabisi_joke_01": {
+  "game_seconds": 4.27,
+  "kb": 25.3,
+  "mean_db": -21.0,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "jobseeker_olabisi_joke_02": {
+  "game_seconds": 4.63,
+  "kb": 27.4,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "jobseeker_olabisi_joke_03": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -18.9,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_olabisi_joke_04": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -17.9,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "jobseeker_olabisi_laugh_01": {
+  "game_seconds": 5.9,
+  "kb": 34.8,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 6.11
+ },
+ "jobseeker_olabisi_police_01": {
+  "game_seconds": 3.91,
+  "kb": 23.2,
+  "mean_db": -16.6,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "jobseeker_olabisi_prices_01": {
+  "game_seconds": 5.04,
+  "kb": 29.8,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 5.15
+ },
+ "jobseeker_olabisi_prices_02": {
+  "game_seconds": 4.2,
+  "kb": 24.8,
+  "mean_db": -19.4,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "jobseeker_olabisi_prices_03": {
+  "game_seconds": 4.27,
+  "kb": 25.3,
+  "mean_db": -25.9,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "jobseeker_olabisi_warend_01": {
+  "game_seconds": 4.42,
+  "kb": 26.1,
+  "mean_db": -19.1,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "jobseeker_olabisi_warend_02": {
+  "game_seconds": 4.75,
+  "kb": 28.1,
+  "mean_db": -20.1,
+  "problems": [],
+  "seconds": 4.75
+ },
+ "jobseeker_olabisi_work_01": {
+  "game_seconds": 4.87,
+  "kb": 28.8,
+  "mean_db": -20.7,
+  "problems": [],
+  "seconds": 4.91
+ },
+ "jobseeker_olabisi_work_02": {
+  "game_seconds": 2.95,
+  "kb": 17.5,
+  "mean_db": -20.3,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "jobseeker_olabisi_work_03": {
+  "game_seconds": 4.13,
+  "kb": 24.4,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "jobseeker_olabisi_work_04": {
+  "game_seconds": 2.45,
+  "kb": 14.6,
+  "mean_db": -16.7,
+  "problems": [],
+  "seconds": 2.51
+ },
+ "jobseeker_tonbra_aftercrash_01": {
+  "game_seconds": 3.31,
+  "kb": 19.6,
+  "mean_db": -12.5,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_tonbra_aftercrash_02": {
+  "game_seconds": 4.56,
+  "kb": 27.0,
+  "mean_db": -15.0,
+  "problems": [],
+  "seconds": 4.68
+ },
+ "jobseeker_tonbra_car_01": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -16.4,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_tonbra_crash_01": {
+  "game_seconds": 4.22,
+  "kb": 25.0,
+  "mean_db": -14.3,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "jobseeker_tonbra_family_01": {
+  "game_seconds": 3.26,
+  "kb": 19.4,
+  "mean_db": -15.6,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "jobseeker_tonbra_family_02": {
+  "game_seconds": 4.22,
+  "kb": 25.0,
+  "mean_db": -16.5,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "jobseeker_tonbra_fight_01": {
+  "game_seconds": 3.31,
+  "kb": 19.6,
+  "mean_db": -13.0,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "jobseeker_tonbra_gunshot_01": {
+  "game_seconds": 4.22,
+  "kb": 25.0,
+  "mean_db": -13.9,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "jobseeker_tonbra_police_01": {
+  "game_seconds": 3.12,
+  "kb": 18.5,
+  "mean_db": -13.3,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "jobseeker_tonbra_river_01": {
+  "game_seconds": 5.18,
+  "kb": 30.6,
+  "mean_db": -14.8,
+  "problems": [],
+  "seconds": 5.25
+ },
+ "jobseeker_tonbra_river_02": {
+  "game_seconds": 3.36,
+  "kb": 19.9,
+  "mean_db": -14.5,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "jobseeker_tonbra_river_03": {
+  "game_seconds": 2.86,
+  "kb": 17.0,
+  "mean_db": -19.1,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "police_angela_aftercrash_01": {
+  "game_seconds": 4.15,
+  "kb": 24.6,
+  "mean_db": -17.0,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "police_angela_aftercrash_02": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -16.4,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_angela_argue_01": {
+  "game_seconds": 3.41,
+  "kb": 20.2,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_angela_argue_02": {
+  "game_seconds": 4.54,
+  "kb": 26.8,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "police_angela_crash_01": {
+  "game_seconds": 3.67,
+  "kb": 21.7,
+  "mean_db": -15.6,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_angela_duty_01": {
+  "game_seconds": 3.58,
+  "kb": 21.2,
+  "mean_db": -17.9,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_angela_duty_02": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "police_angela_fight_01": {
+  "game_seconds": 3.91,
+  "kb": 23.2,
+  "mean_db": -14.6,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "police_angela_gossip_01": {
+  "game_seconds": 3.19,
+  "kb": 18.9,
+  "mean_db": -16.2,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_angela_gossip_02": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "police_angela_gunshot_01": {
+  "game_seconds": 3.43,
+  "kb": 20.3,
+  "mean_db": -14.3,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_angela_weather_01": {
+  "game_seconds": 4.01,
+  "kb": 23.7,
+  "mean_db": -16.5,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "police_angela_weather_02": {
+  "game_seconds": 4.08,
+  "kb": 24.1,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "police_clement_afterfight_01": {
+  "game_seconds": 2.74,
+  "kb": 16.3,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 2.77
+ },
+ "police_clement_afterfight_02": {
+  "game_seconds": 3.48,
+  "kb": 20.6,
+  "mean_db": -16.2,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "police_clement_complain_01": {
+  "game_seconds": 3.67,
+  "kb": 21.7,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_clement_complain_02": {
+  "game_seconds": 2.78,
+  "kb": 16.5,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 2.85
+ },
+ "police_clement_complain_03": {
+  "game_seconds": 3.79,
+  "kb": 22.5,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "police_clement_crash_01": {
+  "game_seconds": 3.65,
+  "kb": 21.6,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_clement_fight_01": {
+  "game_seconds": 3.0,
+  "kb": 17.8,
+  "mean_db": -16.2,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "police_clement_gunshot_01": {
+  "game_seconds": 3.55,
+  "kb": 21.0,
+  "mean_db": -15.5,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "police_clement_story_01": {
+  "game_seconds": 3.91,
+  "kb": 23.2,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "police_clement_story_02": {
+  "game_seconds": 3.89,
+  "kb": 23.0,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "police_clement_story_03": {
+  "game_seconds": 4.94,
+  "kb": 29.2,
+  "mean_db": -20.0,
+  "problems": [],
+  "seconds": 4.91
+ },
+ "police_clement_warend_01": {
+  "game_seconds": 3.5,
+  "kb": 20.8,
+  "mean_db": -18.2,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "police_clement_warend_02": {
+  "game_seconds": 2.5,
+  "kb": 14.9,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 2.51
+ },
+ "police_daniel_afterfight_01": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -21.2,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "police_daniel_crash_01": {
+  "game_seconds": 2.9,
+  "kb": 17.2,
+  "mean_db": -19.0,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "police_daniel_duty_01": {
+  "game_seconds": 4.61,
+  "kb": 27.2,
+  "mean_db": -19.6,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "police_daniel_duty_02": {
+  "game_seconds": 3.55,
+  "kb": 21.0,
+  "mean_db": -20.4,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "police_daniel_family_01": {
+  "game_seconds": 2.81,
+  "kb": 16.7,
+  "mean_db": -19.5,
+  "problems": [],
+  "seconds": 2.85
+ },
+ "police_daniel_family_02": {
+  "game_seconds": 4.46,
+  "kb": 26.4,
+  "mean_db": -20.1,
+  "problems": [],
+  "seconds": 4.52
+ },
+ "police_daniel_family_03": {
+  "game_seconds": 3.86,
+  "kb": 22.9,
+  "mean_db": -19.1,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "police_daniel_family_04": {
+  "game_seconds": 3.31,
+  "kb": 19.6,
+  "mean_db": -20.4,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "police_daniel_fight_01": {
+  "game_seconds": 3.86,
+  "kb": 22.9,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "police_daniel_gunshot_01": {
+  "game_seconds": 3.43,
+  "kb": 20.3,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_ebele_crash_01": {
+  "game_seconds": 3.31,
+  "kb": 19.6,
+  "mean_db": -13.9,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_ebele_family_01": {
+  "game_seconds": 4.7,
+  "kb": 27.8,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 4.68
+ },
+ "police_ebele_family_02": {
+  "game_seconds": 4.37,
+  "kb": 25.8,
+  "mean_db": -17.3,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "police_ebele_family_03": {
+  "game_seconds": 4.25,
+  "kb": 25.1,
+  "mean_db": -18.4,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "police_ebele_family_04": {
+  "game_seconds": 3.46,
+  "kb": 20.5,
+  "mean_db": -16.1,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_ebele_fight_01": {
+  "game_seconds": 2.83,
+  "kb": 16.8,
+  "mean_db": -15.9,
+  "problems": [],
+  "seconds": 2.77
+ },
+ "police_ebele_gunshot_01": {
+  "game_seconds": 4.13,
+  "kb": 24.4,
+  "mean_db": -14.8,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "police_ebele_relief_01": {
+  "game_seconds": 4.1,
+  "kb": 24.3,
+  "mean_db": -17.9,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "police_ebele_relief_02": {
+  "game_seconds": 3.86,
+  "kb": 22.9,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "police_grace_crash_01": {
+  "game_seconds": 3.94,
+  "kb": 23.3,
+  "mean_db": -15.0,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "police_grace_fight_01": {
+  "game_seconds": 3.6,
+  "kb": 21.3,
+  "mean_db": -15.6,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_grace_greet_01": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -16.5,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "police_grace_greet_02": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "police_grace_gunshot_01": {
+  "game_seconds": 4.85,
+  "kb": 28.6,
+  "mean_db": -13.7,
+  "problems": [],
+  "seconds": 4.83
+ },
+ "police_kayode_aftershots_01": {
+  "game_seconds": 3.82,
+  "kb": 22.6,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "police_kayode_aftershots_02": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "police_kayode_argue_01": {
+  "game_seconds": 3.14,
+  "kb": 18.7,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_kayode_argue_02": {
+  "game_seconds": 3.05,
+  "kb": 18.1,
+  "mean_db": -18.2,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "police_kayode_church_01": {
+  "game_seconds": 3.74,
+  "kb": 22.2,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "police_kayode_church_02": {
+  "game_seconds": 3.82,
+  "kb": 22.6,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "police_kayode_crash_01": {
+  "game_seconds": 2.66,
+  "kb": 15.8,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 2.69
+ },
+ "police_kayode_duty_01": {
+  "game_seconds": 4.01,
+  "kb": 23.7,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "police_kayode_duty_02": {
+  "game_seconds": 3.19,
+  "kb": 18.9,
+  "mean_db": -16.7,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_kayode_fight_01": {
+  "game_seconds": 3.05,
+  "kb": 18.1,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "police_kayode_gunshot_01": {
+  "game_seconds": 2.9,
+  "kb": 17.2,
+  "mean_db": -17.0,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "police_kayode_weather_01": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -18.6,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "police_kayode_weather_02": {
+  "game_seconds": 4.9,
+  "kb": 28.9,
+  "mean_db": -18.2,
+  "problems": [],
+  "seconds": 4.99
+ },
+ "police_nwaka_afterfight_01": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "police_nwaka_afterfight_02": {
+  "game_seconds": 3.17,
+  "kb": 18.8,
+  "mean_db": -19.4,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_nwaka_crash_01": {
+  "game_seconds": 3.74,
+  "kb": 22.2,
+  "mean_db": -15.5,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "police_nwaka_family_01": {
+  "game_seconds": 3.74,
+  "kb": 22.2,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "police_nwaka_family_02": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -16.4,
+  "problems": [],
+  "seconds": 4.36
+ },
+ "police_nwaka_family_03": {
+  "game_seconds": 3.96,
+  "kb": 23.4,
+  "mean_db": -16.8,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "police_nwaka_fight_01": {
+  "game_seconds": 3.58,
+  "kb": 21.2,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "police_nwaka_greet_01": {
+  "game_seconds": 5.02,
+  "kb": 29.6,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 5.07
+ },
+ "police_nwaka_greet_02": {
+  "game_seconds": 4.68,
+  "kb": 27.7,
+  "mean_db": -20.0,
+  "problems": [],
+  "seconds": 4.75
+ },
+ "police_nwaka_gunshot_01": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -15.9,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "police_samuel_afterfight_01": {
+  "game_seconds": 3.1,
+  "kb": 18.4,
+  "mean_db": -18.8,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_samuel_afterfight_02": {
+  "game_seconds": 2.3,
+  "kb": 13.7,
+  "mean_db": -17.6,
+  "problems": [],
+  "seconds": 2.35
+ },
+ "police_samuel_aftershots_01": {
+  "game_seconds": 3.34,
+  "kb": 19.8,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 3.4
+ },
+ "police_samuel_complain_01": {
+  "game_seconds": 3.19,
+  "kb": 18.9,
+  "mean_db": -17.8,
+  "problems": [],
+  "seconds": 3.16
+ },
+ "police_samuel_complain_02": {
+  "game_seconds": 2.18,
+  "kb": 13.0,
+  "mean_db": -18.6,
+  "problems": [],
+  "seconds": 2.35
+ },
+ "police_samuel_complain_03": {
+  "game_seconds": 3.12,
+  "kb": 18.5,
+  "mean_db": -19.3,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_samuel_crash_01": {
+  "game_seconds": 3.67,
+  "kb": 21.7,
+  "mean_db": -17.2,
+  "problems": [],
+  "seconds": 3.79
+ },
+ "police_samuel_duty_01": {
+  "game_seconds": 3.53,
+  "kb": 20.9,
+  "mean_db": -20.2,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_samuel_duty_02": {
+  "game_seconds": 4.63,
+  "kb": 27.4,
+  "mean_db": -21.9,
+  "problems": [],
+  "seconds": 4.75
+ },
+ "police_samuel_fight_01": {
+  "game_seconds": 3.43,
+  "kb": 20.3,
+  "mean_db": -18.2,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_samuel_gunshot_01": {
+  "game_seconds": 2.83,
+  "kb": 16.8,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.0
+ },
+ "police_samuel_warend_01": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -19.2,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "police_uche_aftershots_01": {
+  "game_seconds": 4.3,
+  "kb": 25.4,
+  "mean_db": -17.1,
+  "problems": [],
+  "seconds": 4.28
+ },
+ "police_uche_aftershots_02": {
+  "game_seconds": 3.65,
+  "kb": 21.6,
+  "mean_db": -16.9,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "police_uche_crash_01": {
+  "game_seconds": 3.12,
+  "kb": 18.5,
+  "mean_db": -17.7,
+  "problems": [],
+  "seconds": 3.08
+ },
+ "police_uche_duty_01": {
+  "game_seconds": 4.03,
+  "kb": 23.9,
+  "mean_db": -18.1,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "police_uche_duty_02": {
+  "game_seconds": 3.84,
+  "kb": 22.7,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 3.87
+ },
+ "police_uche_duty_03": {
+  "game_seconds": 3.29,
+  "kb": 19.5,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_uche_duty_04": {
+  "game_seconds": 4.03,
+  "kb": 23.9,
+  "mean_db": -18.4,
+  "problems": [],
+  "seconds": 4.05
+ },
+ "police_uche_duty_05": {
+  "game_seconds": 2.62,
+  "kb": 15.6,
+  "mean_db": -18.6,
+  "problems": [],
+  "seconds": 2.59
+ },
+ "police_uche_fight_01": {
+  "game_seconds": 3.62,
+  "kb": 21.5,
+  "mean_db": -17.5,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_uche_gunshot_01": {
+  "game_seconds": 3.62,
+  "kb": 21.5,
+  "mean_db": -15.6,
+  "problems": [],
+  "seconds": 3.63
+ },
+ "police_uche_story_01": {
+  "game_seconds": 3.19,
+  "kb": 18.9,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 3.24
+ },
+ "police_uche_story_02": {
+  "game_seconds": 3.6,
+  "kb": 21.3,
+  "mean_db": -16.7,
+  "problems": [],
+  "seconds": 3.55
+ },
+ "police_uche_warend_01": {
+  "game_seconds": 4.03,
+  "kb": 23.9,
+  "mean_db": -16.2,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "police_uche_warend_02": {
+  "game_seconds": 4.15,
+  "kb": 24.6,
+  "mean_db": -18.5,
+  "problems": [],
+  "seconds": 4.21
+ },
+ "police_victoria_aftercrash_01": {
+  "game_seconds": 4.46,
+  "kb": 26.4,
+  "mean_db": -19.8,
+  "problems": [],
+  "seconds": 4.44
+ },
+ "police_victoria_aftercrash_02": {
+  "game_seconds": 2.23,
+  "kb": 13.3,
+  "mean_db": -14.6,
+  "problems": [],
+  "seconds": 2.19
+ },
+ "police_victoria_aftershots_01": {
+  "game_seconds": 3.46,
+  "kb": 20.5,
+  "mean_db": -12.8,
+  "problems": [],
+  "seconds": 3.47
+ },
+ "police_victoria_church_01": {
+  "game_seconds": 2.66,
+  "kb": 15.8,
+  "mean_db": -18.7,
+  "problems": [],
+  "seconds": 2.69
+ },
+ "police_victoria_church_02": {
+  "game_seconds": 3.24,
+  "kb": 19.2,
+  "mean_db": -18.6,
+  "problems": [],
+  "seconds": 3.32
+ },
+ "police_victoria_church_03": {
+  "game_seconds": 3.91,
+  "kb": 23.2,
+  "mean_db": -18.3,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "police_victoria_crash_01": {
+  "game_seconds": 2.86,
+  "kb": 17.0,
+  "mean_db": -14.2,
+  "problems": [],
+  "seconds": 2.93
+ },
+ "police_victoria_family_01": {
+  "game_seconds": 5.33,
+  "kb": 31.5,
+  "mean_db": -15.2,
+  "problems": [],
+  "seconds": 5.33
+ },
+ "police_victoria_family_02": {
+  "game_seconds": 4.06,
+  "kb": 24.0,
+  "mean_db": -17.4,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "police_victoria_fight_01": {
+  "game_seconds": 3.7,
+  "kb": 21.9,
+  "mean_db": -12.2,
+  "problems": [],
+  "seconds": 3.71
+ },
+ "police_victoria_gossip_01": {
+  "game_seconds": 4.58,
+  "kb": 27.1,
+  "mean_db": -16.1,
+  "problems": [],
+  "seconds": 4.6
+ },
+ "police_victoria_gossip_02": {
+  "game_seconds": 4.13,
+  "kb": 24.4,
+  "mean_db": -17.1,
+  "problems": [],
+  "seconds": 4.13
+ },
+ "police_victoria_gossip_03": {
+  "game_seconds": 4.66,
+  "kb": 27.5,
+  "mean_db": -18.0,
+  "problems": [],
+  "seconds": 4.75
+ },
+ "police_victoria_gunshot_01": {
+  "game_seconds": 4.01,
+  "kb": 23.7,
+  "mean_db": -15.8,
+  "problems": [],
+  "seconds": 3.97
+ },
+ "police_victoria_weather_01": {
+  "game_seconds": 3.34,
+  "kb": 19.8,
+  "mean_db": -14.8,
+  "problems": [],
+  "seconds": 3.32
+ }
+}
