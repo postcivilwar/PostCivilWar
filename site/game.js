@@ -10038,6 +10038,7 @@ function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPULATION.
     spot: (id) => ZONE_SPOTS[id],
     forget(key) { sets.delete(key); },
     planned,
+    route: (a, b) => pathBetween(a, b),
     addHook(fn, first = false) { if (first) hooks.unshift(fn); else hooks.push(fn); },
     setHook(fn) { hooks.push(fn); },
     dayInfo,
@@ -10796,6 +10797,7 @@ function createOwnBikes({ state, hub, obstacles }) {
     const lie = CRASH.lie[0] + (CRASH.lie[1] - CRASH.lie[0]) * share;
     p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h: way > 0 ? h : h + Math.PI, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z }, over: at.over };
     p.stats.crashes = (p.stats.crashes || 0) + 1;
+    if (hub.voices) hub.voices.event('crash', at.x, at.z);
     return { fell: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(c.into * 10) / 10, lost: before - p.health, health: p.health, x: at.x, z: at.z, bike: { id: b.id, x: b.x, z: b.z, h: b.h }, lie };
   }
 
@@ -10968,7 +10970,9 @@ function createOwnCars({ state, hub, obstacles }) {
 
   function setOwned(p, { cars }) {
     const list = (Array.isArray(cars) ? cars : []).filter((id) => typeof id === 'string' && POWER_CARS[id]).slice(0, 40);
+    const had = Array.isArray(p.cars) ? p.cars.length : null;
     p.cars = [...new Set(list)];
+    if (had !== null && p.cars.length > had && hub.voices) hub.voices.event('car', p.x, p.z);
     const parked = parkedOf(p);
     for (const id of Object.keys(parked)) if (!p.cars.includes(id)) delete parked[id];
     if (isOwnCar(p.incar) && !p.cars.includes(carOf(p.incar))) leave(p);
@@ -11063,6 +11067,7 @@ function createOwnCars({ state, hub, obstacles }) {
     if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
     p.stats.crashes = (p.stats.crashes || 0) + 1;
     if (p.health <= 0) leave(p);
+    if (hub.voices) hub.voices.event('crash', c.x, c.z);
     return { hurt: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(out.into * 10) / 10, lost: before - p.health, health: p.health };
   }
 
@@ -11379,7 +11384,12 @@ function createConflict({ state, players, population, actors, talk, emit, rng, h
     book.seq += 1;
     book.events.push({ id: book.seq, at: real(), ...event });
     if (book.events.length > 40) book.events.splice(0, book.events.length - 40);
+    if (hub.voices && event.hit && ['punch', 'heavy', 'kick', 'shove'].includes(event.kind)) {
+      if (typeof event.to === 'string' && event.to.startsWith('n:')) hub.voices.event('hurt', event.x, event.z, { only: event.to });
+      if (real() - (fightNewsAt || -1e9) > 4) { fightNewsAt = real(); hub.voices.event('fight', event.x, event.z, { not: [event.to] }); }
+    }
   }
+  let fightNewsAt = -1e9;
 
 
   function goCritical(p) {
@@ -12089,6 +12099,7 @@ function createGuns({ state, players, population, actors, conflict, talk, emit, 
       (book.open || (book.open = {}))[key] = { crime: crime.id, at: real() };
     }
     if (hub.impact) hub.impact.felled(i, { from: { x: p.x, z: p.z }, harm: amount });
+    if (hub.voices) hub.voices.event('hurt', point[0], point[2], { only: `n:${i}` });
     return lost;
   }
   const SCARE = Object.freeze({ near: 16, struck: 8, every: 1.0, again: 8, most: 12 });
@@ -12098,6 +12109,7 @@ function createGuns({ state, players, population, actors, conflict, talk, emit, 
     const now = real();
     if (now - scareAt < SCARE.every) return;
     scareAt = now;
+    if (hub.voices) hub.voices.event('gunshot', p.x, p.z);
     let n = 0;
     const rows = [...population.within(`scare:${p.id}`, p.x, p.z, SCARE.near, state.t, now), ...population.within(`scare:${p.id}:at`, point[0], point[2], SCARE.struck, state.t, now)];
     for (const [i, , , pose] of rows) {
@@ -12374,6 +12386,7 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     const from = line.from === undefined ? now() : line.from;
     const until = from + (line.hold || Math.max(line.kind === 'chat' ? 4 : 2.6, Math.min(8, 1.6 + line.text.length * 0.055)));
     const entry = { id: book.seq, who: line.who, name: line.name, role: line.role || '', text: line.text, lang: line.lang, gloss: line.gloss || null, x: Math.round(line.x * 10) / 10, z: Math.round(line.z * 10) / 10, from: Math.floor(from * 100) / 100, until: Math.round(until * 100) / 100, kind: line.kind, range: line.range || CHAT.overhear };
+    if (line.voice) { entry.voice = line.voice; entry.seconds = line.seconds; entry.to = line.to || null; entry.group = line.group || null; }
     (line.kind === 'chat' ? chatter : book.lines).push(entry);
     return entry;
   }
@@ -12406,7 +12419,7 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
   }
 
   function converse(player, t) {
-    const list = speakersNear(player, t).filter((s) => !busy(s.key));
+    const list = speakersNear(player, t).filter((s) => !busy(s.key) && !(hub.voiced && hub.voiced(s.key)));
     const real = now();
     const hour = hourNow();
     const part = dayPart(hour);
@@ -12660,17 +12673,334 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     for (const line of chatter.length ? [...book.lines, ...chatter] : book.lines) {
       if (line.from > real || line.until <= real) continue;
       if (Math.hypot(line.x - player.x, line.z - player.z) > line.range && line.who !== `p:${player.id}`) continue;
-      speech.push({ id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until });
+      const said = { id: line.id, who: line.who, name: line.name, role: line.role, text: line.text, lang: line.lang, gloss: line.gloss, kind: line.kind, until: line.until };
+      if (line.voice) { said.voice = line.voice; said.ago = Math.round((real - line.from) * 1000) / 1000; said.seconds = line.seconds; said.x = line.x; said.z = line.z; }
+      speech.push(said);
     }
     const seen = others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= RANGE.middle).map((o) => ({ ...o, parked: (o.parked || []).map((b) => (Number.isFinite(b.since) ? { bike: b.bike, x: b.x, z: b.z, h: b.h, fallen: b.fallen, ago: Math.max(0, Math.round((real - b.since) * 100) / 100) } : b)), down: o.down && (o.down.kind === 'dead' || real - o.down.since < o.down.lie + o.down.rise + 1) ? { kind: o.down.kind, age: Math.max(0, Math.round((real - o.down.since) * 1000) / 1000), lie: o.down.lie, rise: o.down.rise, push: o.down.push, hard: o.down.hard, from: o.down.from, over: o.down.over || null, at: o.down.at || null } : null, x: Math.round(o.x * 100) / 100, z: Math.round(o.z * 100) / 100, hornAgo: Math.round((real - o.hornAt) * 100) / 100, ago: o.visitor ? Math.max(0, Math.round((real - (visitors.get(o.id) || { seen: real }).seen) * 1000) / 1000) : 0 }));
     const near = seen.filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= CHAT.radius).map((o) => o.id);
     return { speech, players: seen, chat: { near, can: near.length > 0, radius: CHAT.radius, language: player.lang || 'en' } };
   }
 
-  return { tick, view, say, chat, talkToPerson, talkToResident, converse, visitorSeen, chatter: () => chatter, visitorGone: (peerId) => visitors.delete(`v:${cleanText(peerId, 40).replace(/[^\w-]/g, '')}`), visitors: () => [...visitors.values()], cleanText };
+  return { tick, view, say, chat, lines: () => book.lines, talkToPerson, talkToResident, converse, visitorSeen, chatter: () => chatter, visitorGone: (peerId) => visitors.delete(`v:${cleanText(peerId, 40).replace(/[^\w-]/g, '')}`), visitors: () => [...visitors.values()], cleanText };
 }
 
 return { CHAT, cleanText, cleanName, cleanHandle, createTalk };
+})();
+
+__modules["sim/voice-lines.js"] = (function () {
+const VOICE_CAST = Object.freeze({"police_ebele":{"who":"n:0","name":"Cpl. Ebele Uzoka"},"police_grace":{"who":"n:1","name":"Cpl. Grace Oladipo"},"police_victoria":{"who":"n:2","name":"Cpl. Victoria Otobo"},"police_angela":{"who":"n:3","name":"Insp. Angela Edewor"},"police_uche":{"who":"n:4","name":"Insp. Uche Mordi"},"police_kayode":{"who":"n:5","name":"Insp. Kayode Oladipo"},"police_nwaka":{"who":"n:6","name":"Cpl. Nwaka Uzoka"},"police_daniel":{"who":"n:7","name":"Cpl. Daniel Uzoka"},"police_clement":{"who":"n:8","name":"Cpl. Clement Otobo"},"police_samuel":{"who":"n:9","name":"Cpl. Samuel Mordi"},"hawker_azuka":{"who":"n:10","name":"Azuka Uzoka"},"hawker_zimuzo":{"who":"n:11","name":"Zimuzo Nwosu"},"hawker_nnekanwanze":{"who":"n:12","name":"Nneka Nwanze"},"hawker_grace":{"who":"n:13","name":"Grace Nwajei"},"hawker_nkechi":{"who":"n:14","name":"Nkechi Nzekwu"},"hawker_catherine":{"who":"n:15","name":"Catherine Onyemenam"},"hawker_eloho":{"who":"n:16","name":"Eloho Akpobome"},"hawker_adaeze":{"who":"n:17","name":"Adaeze Agu"},"hawker_chinwe":{"who":"n:18","name":"Chinwe Ezeigbo"},"hawker_nnekanwaobi":{"who":"n:19","name":"Nneka Nwaobi"},"jobseeker_ifeoma":{"who":"n:20","name":"Ifeoma Okonjo"},"jobseeker_fatima":{"who":"n:21","name":"Fatima Abdullahi"},"jobseeker_agnes":{"who":"n:22","name":"Agnes Agbonta"},"jobseeker_obiageli":{"who":"n:23","name":"Obiageli Uzoka"},"jobseeker_bridget":{"who":"n:24","name":"Bridget Essien"},"jobseeker_olabisi":{"who":"n:25","name":"Olabisi Afolabi"},"jobseeker_eguono":{"who":"n:26","name":"Eguono Okpara"},"jobseeker_faith":{"who":"n:27","name":"Faith Onyeobi"},"jobseeker_tonbra":{"who":"n:28","name":"Tonbra Brisibe"},"jobseeker_eki":{"who":"n:29","name":"Eki Ehigiator"},"jobseeker_ayebatonye":{"who":"n:30","name":"Ayebatonye Amachree"},"jobseeker_okwudili":{"who":"n:31","name":"Okwudili Onyeobi"},"jobseeker_okiemute":{"who":"n:32","name":"Okiemute Ogbe"},"jobseeker_matthew":{"who":"n:33","name":"Matthew Ogbeide"},"jobseeker_ifeanyi":{"who":"n:34","name":"Ifeanyi Nwanze"},"jobseeker_ngozi":{"who":null,"name":"Ngozi Okafor"},"jobseeker_ebiye":{"who":null,"name":"Ebiye Brisibe"},"police_musa":{"who":"r:sergeant","name":"Sgt. Musa Ibrahim"},"police_ebiere":{"who":"r:corporal","name":"Cpl. Ebiere Okon"},"lands_ifeoma":{"who":"r:lands","name":"Mrs Ifeoma Okonkwo"},"clerk_obinna":{"who":"r:clerk","name":"Obinna Nwankwo"},"nurse_chiamaka":{"who":"r:nurse","name":"Nurse Chiamaka Obi"},"instructor_uchenna":{"who":"r:instructor","name":"Uchenna Ezeani"},"blockyard_ikenna":{"who":"r:yardowner","name":"Ikenna Udeh"},"trader_emeka":{"who":"r:trader","name":"Emeka Nwosu"},"cook_nkechi":{"who":"r:cook","name":"Mama Nkechi Okeke"},"mason_sunday":{"who":"r:mason","name":"Sunday Akpan"},"keke_ifeanyi":{"who":"r:rider","name":"Ifeanyi Okoye"}});
+const VOICE_TALKS = Object.freeze([{"id":"conv_51_family","when":"any","lines":[["police_ebele","police_ebele_family_01",4.7,"Victoria, my sister, how is your house? Is the roof fixed?",""],["police_victoria","police_victoria_family_01",5.33,"Clement climbed up himself. Now e dey leak in two places, not one!",""],["police_ebele","police_ebele_family_02",4.37,"Better than one big hole. Thank God.",""],["police_victoria","police_victoria_family_02",4.06,"Thank God for everything. At least we have a roof.",""]]},{"id":"conv_52_family","when":"market","lines":[["police_ebele","police_ebele_family_03",4.25,"Daniel, walk with me to the market. Your father is tired.",""],["police_daniel","police_daniel_family_03",3.86,"Yes, Mama. Are we buying something, or on patrol?",""],["police_ebele","police_ebele_family_04",3.46,"Both. A policewoman must also buy pepper.",""],["police_daniel","police_daniel_family_04",3.31,"Mama, you never stop working.",""]]},{"id":"conv_55_relief","when":"any","lines":[["nurse_chiamaka","nurse_chiamaka_relief_01",4.63,"Corporal Ebele, the clinic has new medicine from the Red Cross.",""],["police_ebele","police_ebele_relief_01",4.1,"Thank God. The children in the camp need it badly.",""],["nurse_chiamaka","nurse_chiamaka_relief_02",3.91,"Send any sick person to me. No charge this week.",""],["police_ebele","police_ebele_relief_02",3.86,"Daalu, Nurse. God will reward you.","Daalu: thank you"]]},{"id":"conv_53_greet","when":"morning","lines":[["police_grace","police_grace_greet_01",3.96,"Corporal Nwaka, e kaaro. You are early today.","e kaaro (Yoruba): good morning"],["police_nwaka","police_nwaka_greet_01",5.02,"Ututu oma, Grace. Old men do not sleep long.","Ututu oma: good morning"],["police_grace","police_grace_greet_02",3.29,"Old? You can still chase a thief to the river.",""],["police_nwaka","police_nwaka_greet_02",4.68,"Chase, yes. Catch, that one is for Daniel.",""]]},{"id":"conv_71_aftercrash","when":"crash","lines":[["police_victoria","police_victoria_aftercrash_01",4.46,"Inspector, that crash on the road. Should I write a report?",""],["police_angela","police_angela_aftercrash_01",4.15,"Write everything. Who, where, which vehicle.",""],["police_victoria","police_victoria_aftercrash_02",2.23,"The driver ran away, madam.",""],["police_angela","police_angela_aftercrash_02",3.24,"Then write that too. We will find the driver.",""]]},{"id":"conv_75_aftershots","when":"gunshot","lines":[["police_kayode","police_kayode_aftershots_01",3.82,"That was a rifle shot. Victoria, where did it come from?",""],["police_victoria","police_victoria_aftershots_01",3.46,"From near the motor park, sir. People are running.",""],["police_kayode","police_kayode_aftershots_02",3.7,"Send everybody away from there. Nobody should be hurt.",""]]},{"id":"conv_48_church","when":"any","lines":[["police_victoria","police_victoria_church_01",2.66,"Kayode, you dey go church this Sunday?",""],["police_kayode","police_kayode_church_01",3.74,"Every Sunday, Victoria. Grace will sing in the choir.",""],["police_victoria","police_victoria_church_02",3.24,"Your wife get voice o. Like bird.",""],["police_kayode","police_kayode_church_02",3.82,"That is why I married her. That, and her jollof.",""],["police_victoria","police_victoria_church_03",3.91,"Na jollof first, voice second!",""]]},{"id":"conv_46_gossip","when":"any","lines":[["police_victoria","police_victoria_gossip_01",4.58,"Inspector, who is that new face at the Lands office every morning?",""],["police_angela","police_angela_gossip_01",3.19,"A newcomer. Wants a plot by the river.",""],["police_victoria","police_victoria_gossip_02",4.13,"With what money? Everybody get only twenty pounds.",""],["police_angela","police_angela_gossip_02",4.3,"Hard work, Victoria. Some people work. Leave them be.",""],["police_victoria","police_victoria_gossip_03",4.66,"I am only asking. Police must know everything, abi?",""]]},{"id":"conv_47_weather","when":"morning","lines":[["police_kayode","police_kayode_weather_01",3.96,"Good morning, Inspector. Morning, Victoria. Hot already.",""],["police_angela","police_angela_weather_01",4.01,"Morning, Kayode. The harmattan dust is everywhere.",""],["police_victoria","police_victoria_weather_01",3.34,"My uniform no fit stay clean for two hours.",""],["police_kayode","police_kayode_weather_02",4.9,"Starch it well, Victoria. A police officer must shine.",""],["police_angela","police_angela_weather_02",4.08,"Kayode is right. People respect a clean uniform.",""]]},{"id":"conv_49_argue","when":"any","lines":[["police_angela","police_angela_argue_01",3.41,"Kayode, who left the post empty this afternoon?",""],["police_kayode","police_kayode_argue_01",3.14,"I went to see about the accident on Kwale road, madam.",""],["police_angela","police_angela_argue_02",4.54,"Then you tell me first. Always, you tell me first.",""],["police_kayode","police_kayode_argue_02",3.05,"Yes, Inspector. It will not happen again.",""]]},{"id":"conv_54_duty","when":"any","lines":[["police_angela","police_angela_duty_01",3.58,"Corporal Daniel, your report book. Is it complete?",""],["police_daniel","police_daniel_duty_01",4.61,"Yes, Inspector. Two lost goats and one quarrel at the waterside.",""],["police_angela","police_angela_duty_02",4.3,"Good. Small things become big things if we ignore them.",""],["police_daniel","police_daniel_duty_02",3.55,"I understand, madam. I will keep writing everything.",""]]},{"id":"conv_74_aftershots","when":"gunshot","lines":[["police_uche","police_uche_aftershots_01",4.3,"Gunshot. From the waterside. Samuel, with me.",""],["police_samuel","police_samuel_aftershots_01",3.34,"Yes, Inspector! Everybody, clear the road!",""],["police_uche","police_uche_aftershots_02",3.65,"Nobody touches anything until we see what happened.",""]]},{"id":"conv_42_duty","when":"night","lines":[["police_uche","police_uche_duty_01",4.03,"Samuel, the night is long. Check the waterside again.",""],["police_samuel","police_samuel_duty_01",3.53,"I checked it an hour ago. Nothing but mosquitoes.",""],["police_uche","police_uche_duty_02",3.84,"Check it again. Thieves like the river at night.",""],["police_samuel","police_samuel_duty_02",4.63,"Yes, Inspector. Even at home, you are inspector.",""],["police_uche","police_uche_duty_03",3.29,"At home too, Samuel. Go.",""]]},{"id":"conv_57_duty","when":"night","lines":[["police_ebiere","police_ebiere_duty_01",3.98,"Inspector, the night is quiet. Only dogs barking.",""],["police_uche","police_uche_duty_04",4.03,"Quiet nights are the dangerous ones. Stay awake.",""],["police_ebiere","police_ebiere_duty_02",3.79,"I am awake, madam. My eyes are open like owl.",""],["police_uche","police_uche_duty_05",2.62,"Good. Owls catch rats.",""]]},{"id":"conv_43_story","when":"night","lines":[["police_clement","police_clement_story_01",3.91,"Inspector, you hear the story of the man wey carry bicycle for head?",""],["police_uche","police_uche_story_01",3.19,"Clement, is it a report or a story?",""],["police_clement","police_clement_story_02",3.89,"Na story, Madam. But e sweet, I promise you!",""],["police_uche","police_uche_story_02",3.6,"Then tell it when we are off duty. Walk the market.",""],["police_clement","police_clement_story_03",4.94,"Yes, Madam. Off duty, you go laugh, I promise.",""]]},{"id":"conv_45_warend","when":"night","lines":[["police_clement","police_clement_warend_01",3.5,"Since the war end, the town dey come back small small.",""],["police_samuel","police_samuel_warend_01",3.24,"Small small. The market is full again.",""],["police_uche","police_uche_warend_01",4.03,"A full market means pickpockets. Keep your eyes open.",""],["police_clement","police_clement_warend_02",2.5,"Inspector, you no dey ever rest?",""],["police_uche","police_uche_warend_02",4.15,"When the town is safe, Clement. Then I rest.",""]]},{"id":"conv_56_duty","when":"any","lines":[["police_musa","police_musa_duty_01",2.98,"Inspector Kayode, how was the market today?",""],["police_kayode","police_kayode_duty_01",4.01,"Quiet, Sergeant. One small quarrel, already settled.",""],["police_musa","police_musa_duty_02",2.78,"Good. Peace is the best report.",""],["police_kayode","police_kayode_duty_02",3.19,"Na gode, Sergeant. I learnt that word from you.","Na gode (Hausa): thank you"],["police_musa","police_musa_duty_03",3.41,"Soon you will speak Hausa better than me.",""]]},{"id":"conv_69_afterfight","when":"fight","lines":[["police_nwaka","police_nwaka_afterfight_01",3.96,"Daniel, that fight. Go and see if anyone is hurt.",""],["police_daniel","police_daniel_afterfight_01",3.29,"Yes, Papa. I mean, yes, Corporal.",""],["police_nwaka","police_nwaka_afterfight_02",3.17,"Papa is fine. Go quickly.",""]]},{"id":"conv_50_family","when":"morning","lines":[["police_nwaka","police_nwaka_family_01",3.74,"Daniel, nwa m, did you eat before duty?","nwa m: my child"],["police_daniel","police_daniel_family_01",2.81,"Small akara, Papa. I am fine.",""],["police_nwaka","police_nwaka_family_02",4.3,"A policeman cannot work on small akara. Go and eat.",""],["police_daniel","police_daniel_family_02",4.46,"Papa, I am on duty. I am not a child.",""],["police_nwaka","police_nwaka_family_03",3.96,"You are my child, uniform or no uniform.",""]]},{"id":"conv_68_afterfight","when":"fight","lines":[["police_samuel","police_samuel_afterfight_01",3.1,"Another fight in the market. Who started it?",""],["police_clement","police_clement_afterfight_01",2.74,"Everybody dey point finger at everybody.",""],["police_samuel","police_samuel_afterfight_02",2.3,"Then I will take all their names.",""],["police_clement","police_clement_afterfight_02",3.48,"Samuel, your book no go reach!",""]]},{"id":"conv_44_complain","when":"night","lines":[["police_clement","police_clement_complain_01",3.67,"Samuel, my brother, why your face strong like that?",""],["police_samuel","police_samuel_complain_01",3.19,"One driver nearly knocked me down at the motor park.",""],["police_clement","police_clement_complain_02",2.78,"You charge am? You write him number for book?",""],["police_samuel","police_samuel_complain_02",2.18,"He ran before I could write anything.",""],["police_clement","police_clement_complain_03",3.79,"Next time, write the number before e run!",""],["police_samuel","police_samuel_complain_03",3.12,"Very funny, Clement. Very funny.",""]]},{"id":"conv_33_gossip","when":"market","lines":[["hawker_eloho","hawker_eloho_gossip_01",5.88,"My people! You hear say dem don open car showroom? Car, for this town!",""],["hawker_adaeze","hawker_adaeze_gossip_01",4.27,"Car? After war? Who get money to buy car?",""],["hawker_eloho","hawker_eloho_gossip_02",4.32,"Somebody go buy am, watch. Money dey hide for this town.",""],["hawker_azuka","hawker_azuka_gossip_01",3.77,"Let them buy. Me, I want only a roof.",""],["hawker_eloho","hawker_eloho_gossip_03",4.1,"Azuka, you no get ambition at all!",""]]},{"id":"conv_32_market","when":"market","lines":[["hawker_adaeze","hawker_adaeze_market_01",3.58,"Azuka, how market today? Customers dey buy?",""],["hawker_azuka","hawker_azuka_market_01",3.96,"Small small. People are holding their money tight.",""],["hawker_adaeze","hawker_adaeze_market_02",3.72,"Twenty pounds no be much. Everybody dey calculate.",""],["hawker_azuka","hawker_azuka_market_02",4.46,"I reduced my price. Better to sell small than sell nothing.",""],["hawker_adaeze","hawker_adaeze_market_03",3.79,"Na true. Quick money better than slow money.",""]]},{"id":"conv_41_market","when":"market","lines":[["hawker_adaeze","hawker_adaeze_market_04",4.73,"Eloho, the salt lorry don come! Salt everywhere!",""],["hawker_eloho","hawker_eloho_market_01",5.09,"Salt! After all these years! I go buy one full bag!",""],["hawker_azuka","hawker_azuka_market_03",4.18,"Buy small, Eloho. The price will come down next week.",""],["hawker_eloho","hawker_eloho_market_02",3.67,"Next week? My soup no fit wait till next week!",""]]},{"id":"conv_79_newcar","when":"car","lines":[["hawker_adaeze","hawker_adaeze_newcar_01",5.04,"Azuka, look that new car! E dey shine like mirror!",""],["hawker_azuka","hawker_azuka_newcar_01",4.73,"Ah, beautiful. One day, I will ride inside one.",""],["hawker_adaeze","hawker_adaeze_newcar_02",4.56,"One day? I go ride am today if the owner smile at me!",""],["hawker_azuka","hawker_azuka_newcar_02",3,"Adaeze, behave yourself!",""]]},{"id":"conv_36_argue","when":"market","lines":[["hawker_zimuzo","hawker_zimuzo_argue_01",3,"Nkechi, why you put your tray for my place?",""],["hawker_nkechi","hawker_nkechi_argue_01",4.94,"Your place? Zimuzo, the market belongs to everybody.",""],["hawker_zimuzo","hawker_zimuzo_argue_02",3.29,"I came here before sunrise every day this week!",""],["hawker_nkechi","hawker_nkechi_argue_02",4.06,"Okay, okay. Take this side. No wahala, my sister.",""],["hawker_zimuzo","hawker_zimuzo_argue_03",4.56,"Thank you. Sorry for shouting. The sun is too hot.",""]]},{"id":"conv_37_joke","when":"market","lines":[["hawker_nkechi","hawker_nkechi_joke_01",3.24,"Zimuzo, you know why yam no dey fight?",""],["hawker_zimuzo","hawker_zimuzo_joke_01",3.14,"Why? Tell me, since you know everything.",""],["hawker_nkechi","hawker_nkechi_joke_02",3.29,"Because e get thick skin! Like me!",""],["hawker_zimuzo","hawker_zimuzo_joke_02",4.34,"Nkechi, that joke is older than this market.",""]]},{"id":"conv_40_gossip","when":"any","lines":[["hawker_nnekanwanze","hawker_nnekanwanze_gossip_01",3.65,"Grace, who was that man talking to you after church?",""],["hawker_grace","hawker_grace_gossip_01",4.63,"Nobody, Sister Nneka. He only asked the time.",""],["hawker_nnekanwanze","hawker_nnekanwanze_gossip_02",2.81,"The time? He has a watch on his hand.",""],["hawker_grace","hawker_grace_gossip_02",3.5,"Then maybe his watch is not working!",""]]},{"id":"conv_39_money","when":"evening","lines":[["hawker_nnekanwanze","hawker_nnekanwanze_money_01",3.7,"Ifeanyi, where are the two shillings I gave you yesterday?",""],["jobseeker_ifeanyi","jobseeker_ifeanyi_money_01",4.08,"Sister, I kept one. I used one for the trade school form.",""],["hawker_nnekanwanze","hawker_nnekanwanze_money_02",2.74,"Good. Not on palm wine, I hope.",""],["jobseeker_ifeanyi","jobseeker_ifeanyi_money_02",4.49,"Palm wine? Me? I dey save for tools.",""],["hawker_nnekanwanze","hawker_nnekanwanze_money_03",4.06,"Keep saving. A man with tools will never be hungry.",""]]},{"id":"conv_35_church","when":"evening","lines":[["hawker_grace","hawker_grace_church_01",3.22,"Catherine, will you come to choir practice this evening?",""],["hawker_catherine","hawker_catherine_church_01",3.84,"If I sell finish. My basket is still full.",""],["hawker_grace","hawker_grace_church_02",3.77,"Bring the basket. Church people buy groundnut too!",""],["hawker_catherine","hawker_catherine_church_02",4.01,"Grace, you go turn church to market.",""]]},{"id":"conv_38_haggle","when":"market","lines":[["cook_nkechi","cook_nkechi_haggle_01",4.82,"Nkechi! The other Nkechi! Bring me ten tubers of yam.",""],["hawker_nkechi","hawker_nkechi_haggle_01",4.99,"Mama Nkechi, ten tubers? Your kitchen must be full of customers.",""],["cook_nkechi","cook_nkechi_haggle_02",4.44,"Builders, drivers, police! Everybody must eat.",""],["hawker_nkechi","hawker_nkechi_haggle_02",3.65,"Ten tubers. For you, special price.",""],["cook_nkechi","cook_nkechi_haggle_03",3.79,"Your special price is always more!",""]]},{"id":"conv_81_building","when":"building","lines":[["hawker_chinwe","hawker_chinwe_building_01",5.78,"Look, a new house is rising on that plot. Chineke, it is fast!","Chineke: God!"],["hawker_catherine","hawker_catherine_building_01",4.51,"That is how the town will come back. One house, then another.",""],["hawker_chinwe","hawker_chinwe_building_02",4.61,"Ka Chukwu gozie the builder. May they live there in peace.","Ka Chukwu gozie: may God bless"]]},{"id":"conv_31_complain","when":"any","lines":[["hawker_nnekanwaobi","hawker_nnekanwaobi_complain_01",4.66,"The relief lorry came and went. Only stockfish and salt.",""],["hawker_chinwe","hawker_chinwe_complain_01",5.21,"Thank God for salt. During the war, we had none at all.",""],["hawker_catherine","hawker_catherine_complain_01",5.11,"Eziokwu. My mother cooked without salt for one whole year.","Eziokwu: it is true"],["hawker_nnekanwaobi","hawker_nnekanwaobi_complain_02",4.44,"You are right. I should not complain. Salt is salt.",""]]},{"id":"conv_30_gossip","when":"any","lines":[["hawker_catherine","hawker_catherine_gossip_01",3.62,"Nneka, you see that newcomer buying plot near the river?",""],["hawker_nnekanwaobi","hawker_nnekanwaobi_gossip_01",4.54,"I see. Twenty pounds, and already dem dey measure land.",""],["hawker_catherine","hawker_catherine_gossip_02",4.18,"Some people get sense. Me, I dey count pennies.",""],["hawker_nnekanwaobi","hawker_nnekanwaobi_gossip_02",3.84,"Count am well. Next year, na you go buy plot.",""]]},{"id":"conv_29_weather","when":"morning","lines":[["hawker_catherine","hawker_catherine_weather_01",3.82,"This harmattan no dey play. My lips don crack.",""],["hawker_chinwe","hawker_chinwe_weather_01",6.96,"Rub shea butter, nne. Morning cold, afternoon hot, dust everywhere.","nne: my dear (to a woman)"],["hawker_catherine","hawker_catherine_weather_02",5.02,"Dust don cover all my groundnut. Customer go think na old stock.",""],["hawker_chinwe","hawker_chinwe_weather_02",4.32,"Cover them with cloth. The harmattan will pass by February.",""]]},{"id":"conv_70_aftercrash","when":"crash","lines":[["hawker_eloho","hawker_eloho_aftercrash_01",4.3,"Chai! You see how that motor jam? The driver no get eye?",""],["hawker_adaeze","hawker_adaeze_aftercrash_01",3.91,"Maybe the brake no work. These roads are full of holes.",""],["hawker_eloho","hawker_eloho_aftercrash_02",3.96,"Holes or no holes, drive slow near market!",""],["hawker_adaeze","hawker_adaeze_aftercrash_02",3.29,"Thank God, nobody was hurt this time.",""]]},{"id":"conv_34_haggle","when":"market","lines":[["hawker_eloho","hawker_eloho_haggle_01",3.05,"Adaeze, how much you sell that dry fish?",""],["hawker_adaeze","hawker_adaeze_haggle_01",4.7,"One shilling for the big one. Smoked yesterday at Atani waterside.",""],["hawker_eloho","hawker_eloho_haggle_02",3.19,"One shilling! Na fish or na gold?",""],["hawker_adaeze","hawker_adaeze_haggle_02",5.9,"Na fish wey swim far, my sister. Nine pence, last price.",""],["hawker_eloho","hawker_eloho_haggle_03",3.02,"Nine pence. Okay, wrap am for me.",""]]},{"id":"conv_27_family","when":"any","lines":[["hawker_chinwe","hawker_chinwe_family_01",3.46,"Nneka, kedu? Any news of your brother?","kedu: how are you?"],["hawker_nnekanwaobi","hawker_nnekanwaobi_family_01",4.37,"A man from Uli said he saw him walking home. Walking!",""],["hawker_chinwe","hawker_chinwe_family_02",4.85,"Chineke! God is good. He will reach before Sunday.","Chineke: God!"],["hawker_nnekanwaobi","hawker_nnekanwaobi_family_02",4.25,"I am praying. I have kept his mat and his plate ready.",""],["hawker_chinwe","hawker_chinwe_family_03",4.68,"Then we will cook together when he comes. Ka Chukwu gozie gi.","Ka Chukwu gozie gi: may God bless you"]]},{"id":"conv_28_haggle","when":"market","lines":[["hawker_nnekanwaobi","hawker_nnekanwaobi_haggle_01",3.72,"How much for your oranges? And no tell me big price o.",""],["hawker_chinwe","hawker_chinwe_haggle_01",4.85,"Three for one penny, my sister. They are sweet like sugar.",""],["hawker_nnekanwaobi","hawker_nnekanwaobi_haggle_02",3.29,"One penny for three? Give me four, abeg.",""],["hawker_chinwe","hawker_chinwe_haggle_02",4.01,"Four? You want me to go home with nothing?",""],["hawker_nnekanwaobi","hawker_nnekanwaobi_haggle_03",3.36,"Okay, three. But choose the big ones for me.",""]]},{"id":"conv_72_aftercrash","when":"crash","lines":[["jobseeker_tonbra","jobseeker_tonbra_aftercrash_01",3.31,"Ewo! Something don crash for road!","Ewo: an exclamation of alarm"],["hawker_nnekanwaobi","hawker_nnekanwaobi_aftercrash_01",3.72,"Is the driver okay? Somebody help the driver!",""],["jobseeker_tonbra","jobseeker_tonbra_aftercrash_02",4.56,"The driver dey stand. Thank God. Only the motor wound.",""]]},{"id":"conv_23_river","when":"any","lines":[["jobseeker_tonbra","jobseeker_tonbra_river_01",5.18,"Nneka, the river is low this season. Canoes dey drag for sand.",""],["hawker_nnekanwaobi","hawker_nnekanwaobi_river_01",2.93,"That is why fish is so expensive now.",""],["jobseeker_tonbra","jobseeker_tonbra_river_02",3.36,"When the rains come, fish go plenty again.",""],["hawker_nnekanwaobi","hawker_nnekanwaobi_river_02",3.29,"The rains are far. My pocket is near!",""],["jobseeker_tonbra","jobseeker_tonbra_river_03",2.86,"True talk, my sister.",""]]},{"id":"conv_73_aftershots","when":"gunshot","lines":[["jobseeker_ifeoma","jobseeker_ifeoma_aftershots_01",4.06,"Chineke! Was that a gun? I thought the war had ended!","Chineke: God!"],["jobseeker_fatima","jobseeker_fatima_aftershots_01",4.66,"Stay low. Allah ya kiyaye. Who shoots in a market?","Allah ya kiyaye (Hausa): God protect us"],["jobseeker_ifeoma","jobseeker_ifeoma_aftershots_02",3.55,"My heart is still beating. Is everybody okay?",""],["jobseeker_fatima","jobseeker_fatima_aftershots_02",3.65,"Let the police handle it. Come, let us move away.",""]]},{"id":"conv_08_family","when":"any","lines":[["jobseeker_fatima","jobseeker_fatima_family_01",3.77,"Okiemute, how is your mother? Is she better now?",""],["jobseeker_okiemute","jobseeker_okiemute_family_01",4.01,"She is better, thank God. The nurse gave her medicine.",""],["jobseeker_ifeoma","jobseeker_ifeoma_family_01",3.5,"Chukwu gozie the nurse. She has a good heart.","Chukwu gozie: God bless"],["jobseeker_fatima","jobseeker_fatima_family_02",3.36,"Allah ya kiyaye. Greet your mother for us.","Allah ya kiyaye (Hausa): God protect her"],["jobseeker_okiemute","jobseeker_okiemute_family_02",2.95,"I will. She will be happy that you asked.",""]]},{"id":"conv_63_health","when":"any","lines":[["nurse_chiamaka","nurse_chiamaka_health_01",3.84,"Ifeoma, drink plenty of water in this harmattan.",""],["jobseeker_ifeoma","jobseeker_ifeoma_health_01",4.18,"Yes, Nurse. My throat is always dry these days.",""],["nurse_chiamaka","nurse_chiamaka_health_02",3.53,"And cover your nose from the dust. Jisie ike.","Jisie ike: be strong"],["jobseeker_ifeoma","jobseeker_ifeoma_health_02",3.74,"Daalu, Nurse. You too, jisie ike.","Daalu: thank you"]]},{"id":"conv_09_joke","when":"any","lines":[["jobseeker_olabisi","jobseeker_olabisi_joke_03",3.29,"Ifeoma, teach me another Igbo word today.",""],["jobseeker_ifeoma","jobseeker_ifeoma_joke_01",3.53,"Okay. Daalu. It means thank you.","Daalu: thank you"],["jobseeker_olabisi","jobseeker_olabisi_joke_04",3.84,"Daalu! And how person go talk, give me discount?",""],["jobseeker_ifeoma","jobseeker_ifeoma_joke_02",3.5,"That one, you will learn by yourself!",""]]},{"id":"conv_12_plots","when":"any","lines":[["jobseeker_bridget","jobseeker_bridget_plots_01",3.98,"Ifeoma, how much plot dey cost for the other side of the river?",""],["jobseeker_ifeoma","jobseeker_ifeoma_plots_01",3.24,"The Lands office said it depends on the size.",""],["jobseeker_bridget","jobseeker_bridget_plots_02",3.36,"Everything depend. I no fit wait forever.",""],["jobseeker_ifeoma","jobseeker_ifeoma_plots_02",4.27,"Save and ask again. Land does not run away.",""]]},{"id":"conv_06_work","when":"any","lines":[["jobseeker_ifeoma","jobseeker_ifeoma_work_01",4.3,"Fatima, sannu. Did the Secretariat say anything to you?","sannu (Hausa): hello"],["jobseeker_fatima","jobseeker_fatima_work_01",4.51,"They took my name. Again. That is the third time.",""],["jobseeker_ifeoma","jobseeker_ifeoma_work_02",3.17,"Ndo. They told me to come back next month.","Ndo: sorry (sympathy)"],["jobseeker_fatima","jobseeker_fatima_work_02",3.91,"Then we keep going. Patience is also work.",""]]},{"id":"conv_07_work","when":"any","lines":[["jobseeker_okiemute","jobseeker_okiemute_work_01",3.6,"Good afternoon, Ifeoma. Are you coming from the block yard?",""],["jobseeker_ifeoma","jobseeker_ifeoma_work_03",4.92,"Yes. They pay for every block you mould. My arms are finished.",""],["jobseeker_okiemute","jobseeker_okiemute_work_02",3.62,"Every block is money. I will go there tomorrow.",""],["jobseeker_ifeoma","jobseeker_ifeoma_work_04",4.56,"Go early. Before sunrise, the line is already long.",""]]},{"id":"conv_05_prices","when":"market","lines":[["jobseeker_olabisi","jobseeker_olabisi_prices_01",5.04,"Fatima, garri don cost again! Sixpence for one small cup!",""],["jobseeker_fatima","jobseeker_fatima_prices_01",4.94,"Everything is scarce. The lorries are only now coming back on the roads.",""],["jobseeker_olabisi","jobseeker_olabisi_prices_02",4.2,"With twenty pounds, how person go eat and still build house?",""],["jobseeker_fatima","jobseeker_fatima_prices_02",4.9,"You plan. Small food, small savings, then one plot.",""],["jobseeker_olabisi","jobseeker_olabisi_prices_03",4.27,"You talk like my grandmother. But you dey right.",""]]},{"id":"conv_04_warend","when":"any","lines":[["jobseeker_fatima","jobseeker_fatima_warend_01",6.94,"Sannu, Olabisi. The radio said it again this morning. No victor, no vanquished.","Sannu (Hausa): hello"],["jobseeker_olabisi","jobseeker_olabisi_warend_01",4.42,"I hear am. Make e be true, Fatima. Everybody don suffer.",""],["jobseeker_fatima","jobseeker_fatima_warend_02",3.98,"It must be true. Every family has buried somebody.",""],["jobseeker_olabisi","jobseeker_olabisi_warend_02",4.75,"Na so. Now we go build again, one block at a time.",""]]},{"id":"conv_16_weather","when":"morning","lines":[["jobseeker_fatima","jobseeker_fatima_weather_01",3.05,"This harmattan reminds me of home in Kano.",""],["jobseeker_okiemute","jobseeker_okiemute_weather_01",3.84,"It is cold in the morning. I slept with two wrappers.",""],["jobseeker_fatima","jobseeker_fatima_weather_02",3.7,"In Kano, we would call this warm.",""],["jobseeker_okiemute","jobseeker_okiemute_weather_02",2.81,"Then Kano is not for me.",""]]},{"id":"conv_26_gossip","when":"any","lines":[["jobseeker_eki","jobseeker_eki_gossip_01",3.96,"Agnes, you see the new person wey dey measure land by the river?",""],["jobseeker_agnes","jobseeker_agnes_gossip_01",4.25,"I see. Where the money come from? Tell me everything.",""],["jobseeker_eki","jobseeker_eki_gossip_02",4.51,"Na the same twenty pounds like everybody. Them just sabi plan.",""],["jobseeker_agnes","jobseeker_agnes_gossip_02",3.79,"Hmm. Then me too, I go start to plan.",""]]},{"id":"conv_25_prices","when":"any","lines":[["jobseeker_agnes","jobseeker_agnes_prices_01",3.46,"Ayebatonye, how much one bag of cement now?",""],["jobseeker_ayebatonye","jobseeker_ayebatonye_prices_01",4.42,"Too much. Emeka the trader says the boats are slow.",""],["jobseeker_agnes","jobseeker_agnes_prices_02",4.58,"Boats slow, prices fast. Na so e dey always be.",""],["jobseeker_ayebatonye","jobseeker_ayebatonye_prices_02",3.46,"That is trade. Buy before it climbs again.",""]]},{"id":"conv_24_work","when":"any","lines":[["jobseeker_agnes","jobseeker_agnes_work_01",3.48,"Eki, you hear say the block yard man dey look for workers?",""],["jobseeker_eki","jobseeker_eki_work_01",4.22,"I hear. But the work hard, and my back no be iron.",""],["jobseeker_ayebatonye","jobseeker_ayebatonye_work_01",4.56,"Hard work is what we have. Small pay is still pay.",""],["jobseeker_agnes","jobseeker_agnes_work_02",2.9,"Ayebatonye, you dey talk like government.",""],["jobseeker_ayebatonye","jobseeker_ayebatonye_work_02",2.86,"I talk like somebody who wants to eat.",""]]},{"id":"conv_67_afterfight","when":"fight","lines":[["jobseeker_olabisi","jobseeker_olabisi_afterfight_01",3.89,"You see that fight? Chai! Over nothing!",""],["jobseeker_obiageli","jobseeker_obiageli_afterfight_01",4.82,"Ndo to whoever was hurt. People are too angry these days.",""],["jobseeker_olabisi","jobseeker_olabisi_afterfight_02",3.7,"After war, small thing dey make person vex.",""],["jobseeker_obiageli","jobseeker_obiageli_afterfight_02",2.28,"We have to learn peace again.",""]]},{"id":"conv_01_greet","when":"morning","lines":[["jobseeker_olabisi","jobseeker_olabisi_greet_01",6.43,"Obiageli! E kaaro o. Ututu oma! You see, I don learn your language.","E kaaro (Yoruba) and Ututu oma (Igbo): good morning"],["jobseeker_obiageli","jobseeker_obiageli_greet_01",6.29,"Ututu oma, Olabisi. Your Igbo is getting better every day.","Ututu oma: good morning"],["jobseeker_olabisi","jobseeker_olabisi_greet_02",3.55,"Na you teach me. How your mama? She don reach work?",""],["jobseeker_obiageli","jobseeker_obiageli_greet_02",3.94,"She is on duty at the Police Post. My father too.",""],["jobseeker_olabisi","jobseeker_olabisi_greet_03",4.97,"Uzoka family, always in uniform! Greet them for me, biko.","biko: please"]]},{"id":"conv_03_joke","when":"any","lines":[["jobseeker_olabisi","jobseeker_olabisi_joke_01",4.27,"Faith, you hear wetin happen for motor park this morning?",""],["jobseeker_faith","jobseeker_faith_joke_01",3.41,"Which one again? Talk am quick, I get where I dey go.",""],["jobseeker_olabisi","jobseeker_olabisi_joke_02",4.63,"One man run after lorry with him goat. The goat reach first!",""],["jobseeker_faith","jobseeker_faith_joke_02",3.48,"Na the goat get sense pass the man!",""],["jobseeker_obiageli","jobseeker_obiageli_joke_01",4.87,"Ndo to the man. He must be very tired now.","Ndo: sorry (sympathy)"]]},{"id":"conv_11_rest","when":"any","lines":[["jobseeker_obiageli","jobseeker_obiageli_rest_01",3.96,"Faith, can I sit with you? My feet are tired.",""],["jobseeker_faith","jobseeker_faith_rest_01",3.24,"Sit, sit. Why you dey waka since morning?",""],["jobseeker_obiageli","jobseeker_obiageli_rest_02",4.22,"Looking for work. Everybody says come back tomorrow.",""],["jobseeker_faith","jobseeker_faith_rest_02",3.19,"Tomorrow go come. Today, rest your leg.",""]]},{"id":"conv_02_work","when":"any","lines":[["jobseeker_obiageli","jobseeker_obiageli_work_01",4.3,"Olabisi, did you find anything yesterday? Any work at all?",""],["jobseeker_olabisi","jobseeker_olabisi_work_01",4.87,"The block yard man said maybe next week. Maybe, he said.",""],["jobseeker_obiageli","jobseeker_obiageli_work_02",4.44,"Maybe is better than no. I will go and ask at the trade school.",""],["jobseeker_olabisi","jobseeker_olabisi_work_02",2.95,"Trade school? Wetin dem dey teach for there?",""],["jobseeker_obiageli","jobseeker_obiageli_work_03",5.45,"Sewing, carpentry, masonry. Anything that helps us start again.",""]]},{"id":"conv_22_gossip","when":"any","lines":[["jobseeker_eguono","jobseeker_eguono_gossip_01",3.72,"You see that motor wey pass now now? Brand new!",""],["jobseeker_bridget","jobseeker_bridget_gossip_01",3.6,"New motor for this town? The owner get money o.",""],["jobseeker_okiemute","jobseeker_okiemute_gossip_01",4.39,"Or the owner borrowed money. Debt is a heavy load.",""],["jobseeker_bridget","jobseeker_bridget_gossip_02",3.72,"Okiemute, always the preacher!",""]]},{"id":"conv_20_greet","when":"morning","lines":[["jobseeker_eguono","jobseeker_eguono_greet_01",3.07,"Migwo, Bridget. Good morning o.","Migwo (Urhobo): a respectful greeting to an elder"],["jobseeker_bridget","jobseeker_bridget_greet_01",5.52,"Vrendo, my sister! You see, I don learn small Urhobo.","Vrendo (Urhobo): the reply to Migwo"],["jobseeker_eguono","jobseeker_eguono_greet_02",2.9,"Soon you go speak am pass me. Abadie?","Abadie (Efik): how are you?"],["jobseeker_bridget","jobseeker_bridget_greet_02",2.78,"I dey well o! Who teach you Efik?",""],["jobseeker_eguono","jobseeker_eguono_greet_03",4.15,"Na you, every single morning!",""]]},{"id":"conv_77_police","when":"police","lines":[["jobseeker_eguono","jobseeker_eguono_police_01",2.64,"The police are walking the market today.",""],["jobseeker_bridget","jobseeker_bridget_police_01",2.86,"Good. Thieves go hide their hand.",""],["jobseeker_eguono","jobseeker_eguono_police_02",4.51,"Inspector Angela is fierce. Even my mama fears her.",""],["jobseeker_bridget","jobseeker_bridget_police_02",5.54,"Fierce, but fair. She caught the man who stole my basket.",""]]},{"id":"conv_21_work","when":"any","lines":[["jobseeker_bridget","jobseeker_bridget_work_01",4.58,"Okiemute, the mason needs a helper. You fit carry head pan?",""],["jobseeker_okiemute","jobseeker_okiemute_work_03",2.33,"I can carry anything that pays.",""],["jobseeker_bridget","jobseeker_bridget_work_02",4.3,"Then go to Sunday the mason. Tell am say na Bridget send you.",""],["jobseeker_okiemute","jobseeker_okiemute_work_04",3.98,"Thank you, Bridget. If I get it, I will buy you akara.",""],["jobseeker_bridget","jobseeker_bridget_work_03",4.27,"Akara? Me, I want meat pie!",""]]},{"id":"conv_10_complain","when":"any","lines":[["jobseeker_faith","jobseeker_faith_complain_01",3.34,"Olabisi, you told everybody my business!",""],["jobseeker_olabisi","jobseeker_olabisi_complain_01",3.46,"Which business? I only said you sell okpa now.",""],["jobseeker_faith","jobseeker_faith_complain_02",3.02,"And you said my okpa is hard like stone!",""],["jobseeker_olabisi","jobseeker_olabisi_complain_02",4.42,"I said it is strong! Strong is good!",""],["jobseeker_faith","jobseeker_faith_complain_03",3.84,"Olabisi, you are lucky I like you.",""]]},{"id":"conv_65_work","when":"any","lines":[["jobseeker_ngozi","jobseeker_ngozi_work_01",4.01,"Olabisi, I hear the showroom needs somebody to clean the cars.",""],["jobseeker_olabisi","jobseeker_olabisi_work_03",4.13,"Clean car? I go do am! Shiny work!",""],["jobseeker_ngozi","jobseeker_ngozi_work_02",2.64,"Run, before another person hears.",""],["jobseeker_olabisi","jobseeker_olabisi_work_04",2.45,"I dey run already!",""]]},{"id":"conv_14_kola","when":"morning","lines":[["jobseeker_eguono","jobseeker_eguono_kola_01",3.74,"Faith, you look tired. Did you sleep at all?",""],["jobseeker_faith","jobseeker_faith_kola_01",3.17,"The baby next door cried the whole night.",""],["jobseeker_eguono","jobseeker_eguono_kola_02",4.03,"Ndo. You want small kola? E go wake you up.","Ndo: sorry (sympathy)"],["jobseeker_faith","jobseeker_faith_kola_02",2.64,"Give me two. Today is long.",""]]},{"id":"conv_80_building","when":"building","lines":[["jobseeker_okwudili","jobseeker_okwudili_building_01",3.55,"You see? Somebody don start to build by the river.",""],["jobseeker_faith","jobseeker_faith_building_01",3.72,"Walls already! How did they find money for blocks?",""],["jobseeker_okwudili","jobseeker_okwudili_building_02",3.89,"Hard work. If they can do it, we can do it.",""],["jobseeker_faith","jobseeker_faith_building_02",3.41,"Then go and find work, my husband!",""]]},{"id":"conv_13_complain","when":"evening","lines":[["jobseeker_faith","jobseeker_faith_complain_04",3.89,"Okwudili, the landlord came again. He wants his rent.",""],["jobseeker_okwudili","jobseeker_okwudili_complain_01",3.38,"Tell him Friday. I will have something by Friday.",""],["jobseeker_faith","jobseeker_faith_complain_05",2.02,"You said Friday last week!",""],["jobseeker_okwudili","jobseeker_okwudili_complain_02",3,"This Friday is a different Friday, my wife.",""],["jobseeker_faith","jobseeker_faith_complain_06",3.53,"God help us. Friday, then.",""]]},{"id":"conv_66_family","when":"any","lines":[["jobseeker_tonbra","jobseeker_tonbra_family_01",3.26,"Ebiye, did your mother send word from the creeks?",""],["jobseeker_ebiye","jobseeker_ebiye_family_01",4.85,"She did. Everybody is safe, and the canoe is still floating.",""],["jobseeker_tonbra","jobseeker_tonbra_family_02",4.22,"Thank God. Then this year, we start again together.",""]]},{"id":"conv_19_money","when":"any","lines":[["jobseeker_eki","jobseeker_eki_money_01",4.42,"Koyo, Okiemute! Why you dey look like person wey lose shilling?","Koyo (Edo): hello"],["jobseeker_okiemute","jobseeker_okiemute_money_01",3.22,"I did lose a shilling. It fell into the gutter.",""],["jobseeker_eki","jobseeker_eki_money_02",3.43,"Then the gutter don rich pass you!",""],["jobseeker_okiemute","jobseeker_okiemute_money_02",4.03,"Eki, your jokes are very expensive.",""]]},{"id":"conv_78_newcar","when":"car","lines":[["jobseeker_eki","jobseeker_eki_newcar_01",4.42,"Somebody don buy motor! Brand new, from the showroom!",""],["jobseeker_okiemute","jobseeker_okiemute_newcar_01",3,"Already? Some people are moving fast.",""],["jobseeker_eki","jobseeker_eki_newcar_02",3.72,"Hard work or rich uncle, me I no know.",""],["jobseeker_okiemute","jobseeker_okiemute_newcar_02",3.72,"May God bless their hand. And bless ours too.",""]]},{"id":"conv_58_haggle","when":"any","lines":[["jobseeker_okwudili","jobseeker_okwudili_haggle_01",3.48,"Emeka, how much for zinc now? Tell me true.",""],["trader_emeka","trader_emeka_haggle_01",4.32,"For you, my brother, special price. Very special.",""],["jobseeker_okwudili","jobseeker_okwudili_haggle_02",3.55,"Your special price is the same price for everybody!",""],["trader_emeka","trader_emeka_haggle_02",4.68,"Good zinc lasts twenty years. Think am well.",""],["jobseeker_okwudili","jobseeker_okwudili_haggle_03",3.72,"I will think. And I will come back.",""]]},{"id":"conv_15_warend","when":"any","lines":[["jobseeker_okwudili","jobseeker_okwudili_warend_01",5.16,"Okiemute, my brother. Twenty pounds, for all my years of work.",""],["jobseeker_okiemute","jobseeker_okiemute_warend_01",3.31,"I know. My savings in the bank are gone too.",""],["jobseeker_okwudili","jobseeker_okwudili_warend_02",4.49,"But we are alive. That is the real money.",""],["jobseeker_okiemute","jobseeker_okiemute_warend_02",3.46,"Amen. Let us start again, small small.",""]]},{"id":"conv_17_warend","when":"any","lines":[["jobseeker_matthew","jobseeker_matthew_warend_01",4.54,"Okwudili, you remember last January? Everybody dey hide for bush.",""],["jobseeker_okwudili","jobseeker_okwudili_warend_03",4.03,"I remember. Now we are standing in the open market.",""],["jobseeker_matthew","jobseeker_matthew_warend_02",3.5,"Na God. Today, I fit laugh again.",""],["jobseeker_okwudili","jobseeker_okwudili_warend_04",3.67,"Then laugh, Matthew. Laugh for all of us.",""]]},{"id":"conv_18_argue","when":"any","lines":[["jobseeker_ifeanyi","jobseeker_ifeanyi_argue_01",2.62,"Matthew, you still owe me threepence.",""],["jobseeker_matthew","jobseeker_matthew_argue_01",4.03,"Threepence? For this hard time, you dey chase threepence?",""],["jobseeker_ifeanyi","jobseeker_ifeanyi_argue_02",2.81,"Hard time is why I am chasing it!",""],["jobseeker_matthew","jobseeker_matthew_argue_02",5.16,"Okay, okay. Take am. Small boy with big memory!",""]]},{"id":"conv_59_keke","when":"any","lines":[["jobseeker_matthew","jobseeker_matthew_keke_01",3.36,"Keke man! How much from here to the motor park?",""],["keke_ifeanyi","keke_ifeanyi_keke_01",3.24,"Sixpence, Oga. Quick ride, no stop.",""],["jobseeker_matthew","jobseeker_matthew_keke_02",4.03,"Sixpence? For that small distance? I go trek!",""],["keke_ifeanyi","keke_ifeanyi_keke_02",3.89,"Trek go, Oga. Harmattan sun go teach you.",""],["jobseeker_matthew","jobseeker_matthew_keke_03",4.82,"You dey vex me, but you get point. Oya, carry me.",""]]},{"id":"conv_76_police","when":"police","lines":[["jobseeker_matthew","jobseeker_matthew_police_01",2.23,"Police dey come. Fix your face.",""],["jobseeker_ifeanyi","jobseeker_ifeanyi_police_01",2.06,"Why? We did nothing.",""],["jobseeker_matthew","jobseeker_matthew_police_02",4.3,"Na why I talk say fix your face. Make dem see say we did nothing!",""],["jobseeker_ifeanyi","jobseeker_ifeanyi_police_02",3.7,"Matthew, you are a strange man.",""]]},{"id":"conv_60_trade","when":"any","lines":[["jobseeker_ifeanyi","jobseeker_ifeanyi_trade_01",2.88,"Sir, can I still join the carpentry class?",""],["instructor_uchenna","instructor_uchenna_trade_01",3.29,"Yes. Bring your form and two shillings.",""],["jobseeker_ifeanyi","jobseeker_ifeanyi_trade_02",4.32,"Two shillings. Can I pay one now, and one at month end?",""],["instructor_uchenna","instructor_uchenna_trade_02",4.78,"You will make a good businessman. Yes, you can.",""]]},{"id":"conv_64_style","when":"any","lines":[["jobseeker_ngozi","jobseeker_ngozi_style_01",3.53,"Ebiye, you like my cap? I bought it at Onitsha.",""],["jobseeker_ebiye","jobseeker_ebiye_style_01",4.8,"It is fine. But in this harmattan sun, you need a bigger one.",""],["jobseeker_ngozi","jobseeker_ngozi_style_02",4.75,"Bigger cap? Then nobody go see my fine face!",""],["jobseeker_ebiye","jobseeker_ebiye_style_02",3.46,"Ngozi, you and your style.",""]]},{"id":"conv_62_files","when":"any","lines":[["clerk_obinna","clerk_obinna_files_01",3.29,"Madam, another file for a plot by the river.",""],["lands_ifeoma","lands_ifeoma_files_01",3.46,"Stamp it, sign it, and put it with the others.",""],["clerk_obinna","clerk_obinna_files_02",2.86,"The others are already taller than me, madam.",""],["lands_ifeoma","lands_ifeoma_files_02",3.41,"Then stand on them, Obinna. We have work to do.",""]]},{"id":"conv_61_blocks","when":"any","lines":[["mason_sunday","mason_sunday_blocks_01",3.5,"Ikenna, I need one hundred blocks by Friday.",""],["blockyard_ikenna","blockyard_ikenna_blocks_01",3.89,"One hundred? My boys dey work day and night already!",""],["mason_sunday","mason_sunday_blocks_02",3.62,"Then hire more boys. Many people need work.",""],["blockyard_ikenna","blockyard_ikenna_blocks_02",2.83,"Send them to me. Strong backs only!",""]]}]);
+const VOICE_REACTIONS = Object.freeze({"police_ebele":{"crash":[["police_ebele_crash_01",3.31,"Is anyone hurt? Move back, give them air!",""]],"fight":[["police_ebele_fight_01",2.83,"Stop there, both of you! Police!",""]],"gunshot":[["police_ebele_gunshot_01",4.13,"Police! Who fired that shot? Everybody, stay down!",""]]},"police_grace":{"crash":[["police_grace_crash_01",3.94,"Driver, stay where you are. Is anybody injured?",""]],"fight":[["police_grace_fight_01",3.6,"Police! Separate them! Hands off, now!",""]],"gunshot":[["police_grace_gunshot_01",4.85,"Olorun! Gunshot! Everybody, clear the road now!","Olorun (Yoruba): God!"]]},"police_victoria":{"crash":[["police_victoria_crash_01",2.86,"Who was driving this vehicle? Come here!",""]],"fight":[["police_victoria_fight_01",3.7,"Hey! Police! Stop that fight immediately!",""]],"gunshot":[["police_victoria_gunshot_01",4.01,"Gunshot! Where did it come from? Who saw it?",""]]},"police_angela":{"crash":[["police_angela_crash_01",3.67,"Nobody touches that vehicle. I want a report.",""]],"fight":[["police_angela_fight_01",3.91,"Enough! The next person to strike goes to the cell!",""]],"gunshot":[["police_angela_gunshot_01",3.43,"Police! Drop that weapon! Drop it now!",""]]},"police_uche":{"crash":[["police_uche_crash_01",3.12,"Clear the road. Check the driver first.",""]],"fight":[["police_uche_fight_01",3.62,"Stop. Now. Both of you, come here.",""]],"gunshot":[["police_uche_gunshot_01",3.62,"Gunshot. Everybody down. Officers, with me.",""]]},"police_kayode":{"crash":[["police_kayode_crash_01",2.66,"Move back, everybody. Let me see the driver.",""]],"fight":[["police_kayode_fight_01",3.05,"Hey! Stop that! You want to sleep in the cell?",""]],"gunshot":[["police_kayode_gunshot_01",2.9,"Police! Who is shooting? Put it down!",""]]},"police_nwaka":{"crash":[["police_nwaka_crash_01",3.74,"Ewo! Is the driver alright? Help me here!","Ewo: an exclamation of alarm"]],"fight":[["police_nwaka_fight_01",3.58,"Stop it, my children! Police! Stop it!",""]],"gunshot":[["police_nwaka_gunshot_01",3.7,"Chineke! Gunshot! Everybody, behind the wall!","Chineke: God!"]]},"police_daniel":{"crash":[["police_daniel_crash_01",2.9,"Stand back! I will take the driver's name.",""]],"fight":[["police_daniel_fight_01",3.86,"Police! Step apart! Keep your hands where I can see them!",""]],"gunshot":[["police_daniel_gunshot_01",3.43,"Police! Get down! Where did that shot come from?",""]]},"police_clement":{"crash":[["police_clement_crash_01",3.65,"Ah! Driver, you wan kill person? Come here!",""]],"fight":[["police_clement_fight_01",3,"Haba! Police dey here! Stop the fight!",""]],"gunshot":[["police_clement_gunshot_01",3.55,"Ah! Gunshot! Police dey here! Nobody move!",""]]},"police_samuel":{"crash":[["police_samuel_crash_01",3.67,"Who is the driver? Don't run! Don't run!",""]],"fight":[["police_samuel_fight_01",3.43,"Stop! Or I will carry both of you to the post!",""]],"gunshot":[["police_samuel_gunshot_01",2.83,"Gunshot! Who did that? Show yourself!",""]]},"hawker_azuka":{"crash":[["hawker_azuka_crash_01",3.02,"Ewo! Somebody check the driver, quick!","Ewo: an exclamation of alarm"]],"fight":[["hawker_azuka_fight_01",3.65,"Biko, stop it! Stop fighting, please!","Biko: please"]],"gunshot":[["hawker_azuka_gunshot_01",4.1,"Chineke! Gunshot? Everybody, get down!","Chineke: God!"]],"hurt":[["hawker_azuka_hurt_01",3.58,"Ah! Why are you hitting me? I did nothing!",""]],"police":[["hawker_azuka_police_01",2.83,"The police are here. Let me move my tray.",""]]},"hawker_zimuzo":{"crash":[["hawker_zimuzo_crash_01",2.76,"Haba! Who taught you to drive like that?",""]],"fight":[["hawker_zimuzo_fight_01",3.43,"Fight! Look at them! Somebody separate them!",""]],"gunshot":[["hawker_zimuzo_gunshot_01",4.08,"Who is shooting? This is a market, not a battlefield!",""]],"laugh":[["hawker_zimuzo_laugh_01",3.55,"Chai! See as e land for gutter!",""]],"police":[["hawker_zimuzo_police_01",3.53,"Police again? Me, I no do anything o!",""]]},"hawker_nnekanwanze":{"car":[["hawker_nnekanwanze_car_01",4.58,"A new car! Hmm. Where is the money coming from?",""]],"crash":[["hawker_nnekanwanze_crash_01",3.82,"God have mercy! Is anybody inside that car?",""]],"fight":[["hawker_nnekanwanze_fight_01",3.72,"Shame on you both! Fighting in the open market!",""]],"gunshot":[["hawker_nnekanwanze_gunshot_01",4.18,"Jesus! Gunshot! Everybody, run inside!",""]],"police":[["hawker_nnekanwanze_police_01",3.62,"Good, police. Come and see what is going on here.",""]]},"hawker_grace":{"crash":[["hawker_grace_crash_01",4.54,"Chineke! The car is broken. Is the driver alright?","Chineke: God!"]],"fight":[["hawker_grace_fight_01",3.82,"Ah, stop it! Fighting will not bring food!",""]],"gunshot":[["hawker_grace_gunshot_01",4.18,"Jesus! Who is shooting? Who is shooting?",""]],"laugh":[["hawker_grace_laugh_01",5.88,"Ah, this town! Every day, new drama.",""]],"police":[["hawker_grace_police_01",3.02,"The police are coming. Make una behave o.",""]]},"hawker_nkechi":{"car":[["hawker_nkechi_car_01",5.26,"New car owner! Come buy yam, you get money now!",""]],"crash":[["hawker_nkechi_crash_01",5.02,"Chai! See motor! That one go cost plenty to repair.",""]],"fight":[["hawker_nkechi_fight_01",4.03,"Una no get work? Stop fighting and buy my yam!",""]],"gunshot":[["hawker_nkechi_gunshot_01",3.74,"Ewo! Gunshot! Hold your purse and run!","Ewo: an exclamation of alarm"]],"police":[["hawker_nkechi_police_01",3.46,"Officer, welcome! You want buy small yam?",""]]},"hawker_catherine":{"crash":[["hawker_catherine_crash_01",4.2,"Ah! The car has crashed. Somebody call the police.",""]],"fight":[["hawker_catherine_fight_01",4.32,"Please, please, settle it. No fight, abeg.",""]],"gunshot":[["hawker_catherine_gunshot_01",4.25,"Blood of Jesus! Gunshot! Hide, everybody!",""]],"hurt":[["hawker_catherine_hurt_01",3.65,"Ah! Leave me alone! What did I do to you?",""]],"police":[["hawker_catherine_police_01",2.98,"The police are here. Thank God.",""]]},"hawker_eloho":{"crash":[["hawker_eloho_crash_01",5.11,"Eh! Motor don jam! I see everything, I be witness!",""]],"fight":[["hawker_eloho_fight_01",3.98,"Fight! Fight! Wetin start am? Who start am?",""]],"gunshot":[["hawker_eloho_gunshot_01",3.84,"Gunshot! E don happen again? Run, everybody!",""]],"laugh":[["hawker_eloho_laugh_01",4.25,"I no fit! This town go kill me with laugh!",""]],"police":[["hawker_eloho_police_01",3.86,"Police! Come, I go tell you everything wey I see!",""]]},"hawker_adaeze":{"car":[["hawker_adaeze_car_01",3.82,"New motor! Abeg, carry me go Asaba!",""]],"crash":[["hawker_adaeze_crash_01",3.38,"Ah! That driver no get eye at all!",""]],"fight":[["hawker_adaeze_fight_01",3.46,"Haba! Over small thing, una dey fight?",""]],"gunshot":[["hawker_adaeze_gunshot_01",4.13,"Gunshot! My goods! Somebody help me pack!",""]],"police":[["hawker_adaeze_police_01",3.31,"Police dey come. Everybody, act normal o.",""]]},"hawker_chinwe":{"crash":[["hawker_chinwe_crash_01",3.7,"Ewo! I hope nobody is hurt in that car.","Ewo: an exclamation of alarm"]],"fight":[["hawker_chinwe_fight_01",4.61,"Ndo, ndo. Biko, leave each other alone.","Ndo: sorry; biko: please"]],"gunshot":[["hawker_chinwe_gunshot_01",4.7,"Chineke m! Who is firing? Lord, protect us!","Chineke m: my God!"]],"hurt":[["hawker_chinwe_hurt_01",3.7,"Ah! Chineke! Why will you strike a woman?","Chineke: God!"]],"police":[["hawker_chinwe_police_01",3.53,"Officer, please come. There is trouble here.",""]]},"hawker_nnekanwaobi":{"crash":[["hawker_nnekanwaobi_crash_01",4.08,"See! I said it, these drivers are too fast!",""]],"fight":[["hawker_nnekanwaobi_fight_01",3.6,"Stop this nonsense! Go and fight in your own house!",""]],"gunshot":[["hawker_nnekanwaobi_gunshot_01",3.24,"Who fired that gun? Are you trying to kill us?",""]],"laugh":[["hawker_nnekanwaobi_laugh_01",4.51,"Ah! Me I no fit, this one too funny.",""]],"police":[["hawker_nnekanwaobi_police_01",3.53,"Finally, police. Where were you since?",""]]},"jobseeker_ifeoma":{"crash":[["jobseeker_ifeoma_crash_01",3.74,"Ewo! Is the driver okay? Somebody look!","Ewo: an exclamation of alarm"]],"fight":[["jobseeker_ifeoma_fight_01",3.96,"Please stop! We have all seen enough fighting.",""]],"gunshot":[["jobseeker_ifeoma_gunshot_01",3.41,"Chineke! I thought the shooting was over!","Chineke: God!"]],"hurt":[["jobseeker_ifeoma_hurt_01",3.84,"Ah! Please! I am only looking for work!",""]],"police":[["jobseeker_ifeoma_police_01",2.81,"The police are here. Let them handle it.",""]]},"jobseeker_fatima":{"car":[["jobseeker_fatima_car_01",4.54,"A new car. Masha Allah, somebody is doing well.","Masha Allah: as God has willed (praise)"]],"crash":[["jobseeker_fatima_crash_01",2.78,"Kai! What kind of driving is that?","Kai (Hausa): an exclamation"]],"fight":[["jobseeker_fatima_fight_01",4.06,"Haba! Stop it! Is this how grown people behave?",""]],"gunshot":[["jobseeker_fatima_gunshot_01",3.91,"Allah ya kiyaye! Gunshot! Get away from here!","Allah ya kiyaye (Hausa): God protect us"]],"police":[["jobseeker_fatima_police_01",3,"Officer, over here. They are fighting.",""]]},"jobseeker_agnes":{"crash":[["jobseeker_agnes_crash_01",2.9,"Ah! Wetin happen? Who jam who?",""]],"fight":[["jobseeker_agnes_fight_01",3.55,"Ehen! Fight don start! Wetin cause am?",""]],"gunshot":[["jobseeker_agnes_gunshot_01",3.67,"Gunshot! Where? Who? Wetin happen?",""]],"laugh":[["jobseeker_agnes_laugh_01",2.98,"Na wa for this town o!",""]],"police":[["jobseeker_agnes_police_01",3.26,"Police dey come. Make I hear wetin dem go talk.",""]]},"jobseeker_obiageli":{"crash":[["jobseeker_obiageli_crash_01",3.07,"The car! Is somebody hurt?",""]],"fight":[["jobseeker_obiageli_fight_01",3.48,"Oh no, please stop. People are watching.",""]],"gunshot":[["jobseeker_obiageli_gunshot_01",4.13,"Mama! Gunshot! I want to go home!",""]],"hurt":[["jobseeker_obiageli_hurt_01",3.7,"Ah! Please don't! I didn't do anything!",""]],"police":[["jobseeker_obiageli_police_01",3.38,"That is my mother's colleague. We are safe now.",""]]},"jobseeker_bridget":{"car":[["jobseeker_bridget_car_01",4.73,"New car! Sosongo, Lord. Better days are coming.","Sosongo (Efik): thank you"]],"crash":[["jobseeker_bridget_crash_01",3.72,"Eh! That motor don scatter. Who go pay for am?",""]],"fight":[["jobseeker_bridget_fight_01",3.89,"Calm down, both of you. Talk, no fight.",""]],"gunshot":[["jobseeker_bridget_gunshot_01",3.84,"Gunshot! Stay down, stay down! No run into am!",""]],"police":[["jobseeker_bridget_police_03",3.48,"Police, good. Now people go behave.",""]]},"jobseeker_olabisi":{"crash":[["jobseeker_olabisi_crash_01",3.14,"Eh! Wetin happen? Motor don crash?",""]],"fight":[["jobseeker_olabisi_fight_01",4.27,"Ehn! Fight! Stop am, abeg! Somebody hold am!",""]],"gunshot":[["jobseeker_olabisi_gunshot_01",3.67,"Olorun mi! Gunshot! Run, run, run!","Olorun mi (Yoruba): my God!"]],"laugh":[["jobseeker_olabisi_laugh_01",5.9,"Ah! I don laugh tire! My belle dey pain me!",""]],"police":[["jobseeker_olabisi_police_01",3.91,"Police! Everybody, hide your palm wine!",""]]},"jobseeker_eguono":{"crash":[["jobseeker_eguono_crash_01",3.89,"Ah! The motor don crash! Help the driver!",""]],"fight":[["jobseeker_eguono_fight_01",3.05,"Why una dey fight? Shame no dey catch una?",""]],"gunshot":[["jobseeker_eguono_gunshot_01",4.34,"Oh God! Gunshot! Everybody, lie down!",""]],"hurt":[["jobseeker_eguono_hurt_01",3.02,"Ah! Leave me! Wetin I do you?",""]],"police":[["jobseeker_eguono_police_03",2.93,"Police don come. Thank God.",""]]},"jobseeker_faith":{"crash":[["jobseeker_faith_crash_01",3.14,"Haba! Learn to drive before you buy motor!",""]],"fight":[["jobseeker_faith_fight_01",3.26,"Una no get shame? Fighting like two goats!",""]],"gunshot":[["jobseeker_faith_gunshot_01",2.95,"Who dey shoot gun for market? Una don craze?",""]],"laugh":[["jobseeker_faith_laugh_01",3.58,"See this one! Na wa for you o!",""]],"police":[["jobseeker_faith_police_01",3.6,"Police! Good! Come and carry the troublemaker!",""]]},"jobseeker_tonbra":{"car":[["jobseeker_tonbra_car_01",3.24,"Brand new motor! See how e fine!",""]],"crash":[["jobseeker_tonbra_crash_01",4.22,"Chai! The motor don hit something. Is everybody fine?",""]],"fight":[["jobseeker_tonbra_fight_01",3.31,"Stop it now! I say, stop it!",""]],"gunshot":[["jobseeker_tonbra_gunshot_01",4.22,"Ewo! Gunshot! Everybody, away from the road!","Ewo: an exclamation of alarm"]],"police":[["jobseeker_tonbra_police_01",3.12,"Police, come quick. Trouble dey here.",""]]},"jobseeker_eki":{"crash":[["jobseeker_eki_crash_01",3.82,"Ewo! See motor! E don scatter finish!","Ewo: an exclamation of alarm"]],"fight":[["jobseeker_eki_fight_01",3,"Oya, separate them! Separate them!",""]],"gunshot":[["jobseeker_eki_gunshot_01",4.32,"Ah! Gunshot! Who wan kill person for broad daylight?",""]],"laugh":[["jobseeker_eki_laugh_01",4.18,"Ah! Eki go die of laughter today!",""]],"police":[["jobseeker_eki_police_01",3.31,"Officer, na dem start am o, no be me!",""]]},"jobseeker_ayebatonye":{"crash":[["jobseeker_ayebatonye_crash_01",2.78,"Somebody check that driver. Quickly!",""]],"fight":[["jobseeker_ayebatonye_fight_01",3.34,"Enough! Stop this foolishness at once!",""]],"gunshot":[["jobseeker_ayebatonye_gunshot_01",4.08,"Gunshot! Everybody down! Don't stand in the open!",""]],"hurt":[["jobseeker_ayebatonye_hurt_01",3.6,"Ah! Don't touch me! I will report you!",""]],"police":[["jobseeker_ayebatonye_police_01",3.38,"Officer, they went that way. That way!",""]]},"jobseeker_okwudili":{"car":[["jobseeker_okwudili_car_01",4.1,"New car! Congratulations! God has done it!",""]],"crash":[["jobseeker_okwudili_crash_01",4.18,"Ewo! That was bad. Let me help push the car.","Ewo: an exclamation of alarm"]],"fight":[["jobseeker_okwudili_fight_01",4.78,"My brothers, my sisters, stop! It is not worth it!",""]],"gunshot":[["jobseeker_okwudili_gunshot_01",4.15,"Chineke! Gunshot! Women, children, come behind me!","Chineke: God!"]],"police":[["jobseeker_okwudili_police_01",3.34,"The police are here. Let us explain what happened.",""]]},"jobseeker_okiemute":{"crash":[["jobseeker_okiemute_crash_01",3.46,"Oh! The car has crashed. Somebody help.",""]],"fight":[["jobseeker_okiemute_fight_01",4.3,"Please, brothers, sisters. Peace. Stop it.",""]],"gunshot":[["jobseeker_okiemute_gunshot_01",2.98,"Lord have mercy! Was that a gunshot?",""]],"hurt":[["jobseeker_okiemute_hurt_01",3.26,"Ah! Why? I have no quarrel with you!",""]],"police":[["jobseeker_okiemute_police_01",2.21,"The police have come. Good.",""]]},"jobseeker_matthew":{"crash":[["jobseeker_matthew_crash_01",3.17,"Chai! Who dey drive this motor? Come out!",""]],"fight":[["jobseeker_matthew_fight_01",3.7,"Oya stop! If una fight again, I go join!",""]],"gunshot":[["jobseeker_matthew_gunshot_01",3.07,"Gunshot! Who dey shoot? Show your face!",""]],"laugh":[["jobseeker_matthew_laugh_01",4.22,"Ha! Na wa! Matthew don see wonder today!",""]],"police":[["jobseeker_matthew_police_03",4.37,"Ah, police. Good afternoon, Officer. I no do anything o.",""]]},"jobseeker_ifeanyi":{"car":[["jobseeker_ifeanyi_car_01",2.98,"New motor! How much e cost? Tell me!",""]],"crash":[["jobseeker_ifeanyi_crash_01",4.3,"Ewo! That car! The repair go cost pounds!","Ewo: an exclamation of alarm"]],"fight":[["jobseeker_ifeanyi_fight_01",3.34,"Ah! Fight! Who dey win? Who dey win?",""]],"gunshot":[["jobseeker_ifeanyi_gunshot_01",3.07,"Chineke! Gunshot! Where e come from?","Chineke: God!"]],"police":[["jobseeker_ifeanyi_police_03",2.78,"Police! Make I no get problem today.",""]]},"jobseeker_ngozi":{"crash":[["jobseeker_ngozi_crash_01",2.88,"Haba! Driver, you no see road?",""]],"fight":[["jobseeker_ngozi_fight_01",3.65,"Ah! Stop it! Una dey disgrace this town!",""]],"gunshot":[["jobseeker_ngozi_gunshot_01",3.5,"Jesus! Gunshot! Everybody, run!",""]],"laugh":[["jobseeker_ngozi_laugh_01",3.46,"Ngozi don see everything today!",""]],"police":[["jobseeker_ngozi_police_01",2.42,"Police dey come. Make I go my way.",""]]},"jobseeker_ebiye":{"crash":[["jobseeker_ebiye_crash_01",3.29,"Ewo! The car! Check the driver, quick.","Ewo: an exclamation of alarm"]],"fight":[["jobseeker_ebiye_fight_01",3.86,"Please stop. Stop it. It is not good.",""]],"gunshot":[["jobseeker_ebiye_gunshot_01",3.22,"Gunshot! Lie down, lie down!",""]],"hurt":[["jobseeker_ebiye_hurt_01",3.55,"Ah! What is wrong with you? Leave me!",""]],"police":[["jobseeker_ebiye_police_01",2.47,"The police are coming. Stand aside.",""]]},"police_musa":{"crash":[["police_musa_crash_01",2.88,"Move back. Nobody touches anything.",""]],"fight":[["police_musa_fight_01",3.12,"Haba! Stop this fighting now! Police!",""]],"gunshot":[["police_musa_gunshot_01",3.31,"Kai! Gunshot! Police! Everybody down!","Kai (Hausa): an exclamation"]]},"police_ebiere":{"crash":[["police_ebiere_crash_01",2.9,"Driver! Are you hurt? Don't move!",""]],"fight":[["police_ebiere_fight_01",3.14,"Police! Stop the fight before I stop it!",""]],"gunshot":[["police_ebiere_gunshot_01",3.55,"Gunshot! Police! Everybody, clear the road!",""]]},"lands_ifeoma":{"gunshot":[["lands_ifeoma_gunshot_01",3.6,"Good heavens! Gunshot! Close the office door!",""]]},"clerk_obinna":{"gunshot":[["clerk_obinna_gunshot_01",3.48,"Ah! Gunshot! Under the table, everybody!",""]]},"nurse_chiamaka":{"crash":[["nurse_chiamaka_crash_01",2.74,"Bring the injured to the clinic, quickly!",""]],"gunshot":[["nurse_chiamaka_gunshot_01",3.02,"Is anyone shot? Bring them to me now!",""]]},"instructor_uchenna":{"fight":[["instructor_uchenna_fight_01",2.93,"Stop it! Is this what I teach you here?",""]]},"blockyard_ikenna":{"crash":[["blockyard_ikenna_crash_01",2.95,"My blocks! Who crashed into my blocks?",""]]},"trader_emeka":{"gunshot":[["trader_emeka_gunshot_01",3.31,"Gunshot! Lock the store! Lock it now!",""]]},"cook_nkechi":{"fight":[["cook_nkechi_fight_01",3.5,"Not in front of my kitchen! Take it outside!",""]],"gunshot":[["cook_nkechi_gunshot_01",4.01,"Chineke! Gunshot! And my pot is on the fire!","Chineke: God!"]]},"mason_sunday":{"crash":[["mason_sunday_crash_01",4.03,"Ah! That crash! Is my wall still standing?",""]]},"keke_ifeanyi":{"crash":[["keke_ifeanyi_crash_01",3.22,"Chai! My keke! Who hit my keke?",""]],"laugh":[["keke_ifeanyi_laugh_01",3.94,"Ah, Oga, you go pay me for this joke!",""]]}});
+
+return { VOICE_CAST, VOICE_TALKS, VOICE_REACTIONS };
+})();
+
+__modules["sim/voices.js"] = (function () {
+
+const { VOICE_CAST, VOICE_TALKS, VOICE_REACTIONS } = __modules["sim/voice-lines.js"];
+const { POSE } = __modules["sim/population.js"];
+const { zoneResident, zoneWalkable } = __modules["sim/zone.js"];
+
+const VOICES = Object.freeze({
+  slot: 30,           // seconds: a conversation begins only at the start of one of these
+  spread: 10,         // and only in the first this many of each of its own cycles
+  cycle: 40,          // of this many (twenty minutes): never heard again within fifteen
+  visit: 200,         // metres: the one who begins a conversation walks over to the other from at most this far (as the crow
+  beside: 1.3,        // and stands this far from them
+  pace: 1.2,          // metres a second, walking over
+  chance: 0.35,       // of the conversations that could begin in a half-minute, about this many do
+  together: 3.4,      // metres: two who talk stand at most this far apart
+  three: 5,           // and three
+  gap: 0.35,          // seconds between one line and the next
+  reach: 25,          // metres: a voice is not heard beyond this
+  around: 40,         // metres round a player within which conversations are looked for
+  react: 22,          // metres: who is this near something calls out
+  callers: 2,         // and at most this many of them
+  reactAgain: 180,    // seconds before one person says the same kind of thing again
+  lineAgain: 300,     // seconds before the same line is heard again
+  news: 90,           // seconds a fight, a crash or a shooting is still talked about
+  newsReach: 40,      // metres
+});
+
+const hash = (a, b = 0, c = 0) => { let h = (a * 374761393 + b * 668265263 + c * 2147483647) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+const textHash = (s) => { let h = 2166136261; for (let i = 0; i < s.length; i += 1) h = Math.imul(h ^ s.charCodeAt(i), 16777619); return h >>> 0; };
+let DATA = { cast: VOICE_CAST, talks: VOICE_TALKS, reactions: VOICE_REACTIONS };
+function useVoiceData(data) { DATA = data || { cast: VOICE_CAST, talks: VOICE_TALKS, reactions: VOICE_REACTIONS }; }
+const EVENT_TALK = Object.freeze({ fight: 'fight', crash: 'crash', gunshot: 'gunshot', police: 'police', car: 'car', building: 'building' });
+
+function suits(when, hour) {
+  if (when === 'any') return hour >= 6 && hour < 21.5;
+  if (when === 'morning') return hour >= 6 && hour < 11.5;
+  if (when === 'evening') return hour >= 17 && hour < 21.5;
+  if (when === 'night') return hour >= 21 || hour < 5;
+  if (when === 'market') return hour >= 7 && hour < 18;
+  return false;                  // the ones about something that happened: only when it has
+}
+
+function createVoices({ state, population, residents, actors, talk, timeScale = 1 }) {
+  const S = timeScale;
+  if (!state.voices) state.voices = { booked: {}, said: {}, reacted: {}, news: [] };
+  const book = state.voices;
+  const CAST = DATA.cast, REACT = DATA.reactions;
+  const voiceOf = new Map();      // 'n:3' / 'r:cook' -> voice name
+  for (const [voice, c] of Object.entries(CAST)) if (c.who) voiceOf.set(c.who, voice);
+  const talks = DATA.talks.filter((c) => c.lines.every(([voice]) => CAST[voice] && CAST[voice].who));
+  const probe = {};
+  const visiting = new Set(talks.flatMap((c) => { const w = [...new Set(c.lines.map(([v]) => CAST[v].who))]; return w.filter((q, k) => k !== 1 && q.startsWith('n:')).map((q) => Number(q.slice(2))); }));
+  const stats = { talks: 0, lines: 0, reactions: 0, skipped: 0 };
+
+  function placeOf(who, t) {
+    if (who.startsWith('n:')) {
+      const i = Number(who.slice(2));
+      if (actors && actors.has(i)) return null;
+      population.planned(i, t, probe);
+      if (probe.pose !== POSE.stand && probe.pose !== POSE.sit && probe.pose !== POSE.walk) return null;
+      return { x: probe.x, z: probe.z, moving: !!probe.moving };
+    }
+    const r = residents.all().find((q) => `r:${q.id}` === who);
+    if (!r || r.mode === 'inside' || r.mode === 'walking') return null;
+    return { x: r.x, z: r.z };
+  }
+  const nameOf = (who) => {
+    if (who.startsWith('n:')) { const p = population.people[Number(who.slice(2))]; return { name: p.short, role: '' }; }
+    const z = zoneResident(who.slice(2)); return { name: z.short, role: z.role };
+  };
+
+  const whosOf = (c) => [...new Set(c.lines.map(([voice]) => CAST[voice].who))];
+  const lengthOf = (c) => c.lines.reduce((sum, l) => sum + l[2] + VOICES.gap, 0);
+  function together(c, t0) {
+    const whos = whosOf(c), length = lengthOf(c);
+    const most = whos.length > 2 ? VOICES.three : VOICES.together;
+    const at = [], end = [];
+    for (const who of whos) {
+      const a = placeOf(who, t0), b = placeOf(who, t0 + length * S);
+      if (!a || !b) return null;
+      at.push({ who, x: a.x, z: a.z }); end.push(b);
+    }
+    for (const list of [at, end]) for (let i = 0; i < list.length; i += 1) for (let j = i + 1; j < list.length; j += 1) if (Math.hypot(list[i].x - list[j].x, list[i].z - list[j].z) > most) return null;
+    return { at, length, visits: null, walk: 0 };
+  }
+
+  const spotOf = (who, t) => { population.planned(Number(who.slice(2)), t, probe); return probe.spot; };
+  function along(path, d) {
+    const cum = path.cum;
+    if (d <= 0) return [path.xs[0], path.xs[1], Math.atan2(path.xs[2] - path.xs[0], path.xs[3] - path.xs[1]) || 0];
+    let a = 0, b = cum.length - 1;
+    if (d >= cum[b]) return [path.xs[b * 2], path.xs[b * 2 + 1], Math.atan2(path.xs[b * 2] - path.xs[b * 2 - 2], path.xs[b * 2 + 1] - path.xs[b * 2 - 1]) || 0];
+    while (b - a > 1) { const m = (a + b) >> 1; if (cum[m] <= d) a = m; else b = m; }
+    const f = (d - cum[a]) / (cum[b] - cum[a] || 1);
+    const ax = path.xs[a * 2], az = path.xs[a * 2 + 1], bx = path.xs[b * 2], bz = path.xs[b * 2 + 1];
+    return [ax + (bx - ax) * f, az + (bz - az) * f, Math.atan2(bx - ax, bz - az)];
+  }
+  function visit(c, t0) {
+    const whos = whosOf(c);
+    if (!whos.every((w) => w.startsWith('n:'))) return null;
+    const length = lengthOf(c);
+    const host = whos[1], guests = whos.filter((w) => w !== host);
+    const ph = placeOf(host, t0);
+    if (!ph || ph.moving) return null;
+    const still = (who, p, from, to) => { for (let k = 0; k <= 4; k += 1) { const q = placeOf(who, from + ((to - from) * k) / 4); if (!q || q.moving || Math.hypot(q.x - p.x, q.z - p.z) > 0.3) return false; } return true; };
+    const visits = [], at = [];
+    let farthest = 0, longest = 0;
+    for (const [k, g] of guests.entries()) {
+      const pg = placeOf(g, t0);
+      if (!pg || pg.moving) return null;
+      const apart = Math.hypot(ph.x - pg.x, ph.z - pg.z);
+      if (apart > VOICES.visit) return null;
+      farthest = Math.max(farthest, apart);
+      const path = population.route(spotOf(g, t0), spotOf(host, t0));
+      if (!path || path.len > VOICES.visit * 1.6 || path.len < VOICES.beside + 0.5 + k) return null;
+      const goes = path.len - VOICES.beside - k * 0.9;
+      const walk = goes / VOICES.pace;                                    // real seconds
+      longest = Math.max(longest, walk);
+      visits.push({ i: Number(g.slice(2)), from: pg, path, goes, walk });
+      const [tx, tz] = along(path, goes);
+      at.push({ who: g, x: tx, z: tz });
+    }
+    if (hash(textHash(c.id), Math.floor(t0 / (VOICES.slot * S)), 23) > 1 - (farthest / VOICES.visit) * 0.8) return null;
+    if (!still(host, ph, t0 - (longest + 1) * S, t0 + (length + 1) * S)) return null;
+    for (const v of visits) if (!still(`n:${v.i}`, v.from, t0 - (v.walk + 1) * S, t0 + (length + v.walk + 1) * S)) return null;
+    at.splice(1, 0, { who: host, x: ph.x, z: ph.z });
+    for (const v of visits) { v.t0 = t0; v.end = t0 + length * S; delete v.from; }
+    return { at, length, visits, walk: longest };
+  }
+
+  function play(c, t0, where, key) {
+    const real0 = state.real + (t0 - state.t) / S;
+    let from = real0;
+    const spot = new Map(where.map((w) => [w.who, w]));
+    for (const [voice, id, seconds, words, meaning] of c.lines) {
+      const who = CAST[voice].who;
+      const w = spot.get(who);
+      const others = where.filter((q) => q.who !== who);
+      const to = others[0] || null;
+      const { name, role } = nameOf(who);
+      talk.say({ who, name, role, text: words, lang: 'voice', gloss: meaning || null, x: w.x, z: w.z, from, hold: seconds + 0.15, kind: 'voice', range: VOICES.reach, voice: id, seconds, to: to ? [Math.round(to.x * 10) / 10, Math.round(to.z * 10) / 10] : null, group: key });
+      book.said[id] = from;
+      from += seconds + VOICES.gap;
+      stats.lines += 1;
+    }
+    book.booked[key] = { until: from, at: where.map((w) => [w.who, Math.round(w.x * 10) / 10, Math.round(w.z * 10) / 10]) };
+    stats.talks += 1;
+  }
+
+  const could = new Map();
+  function possible(c, s) {
+    const key = `${c.id}@${s}`;
+    if (could.has(key)) return could.get(key);
+    const slotT = VOICES.slot * S, t0 = s * slotT + S;
+    const hour = ((t0 % 86400) + 86400) % 86400 / 3600;
+    const met = suits(c.when, hour) && hash(textHash(c.id), s, 11) <= VOICES.chance ? together(c, t0) || visit(c, t0) : null;
+    could.set(key, met);
+    if (could.size > 8000) for (const k of [...could.keys()].slice(0, 4000)) could.delete(k);
+    return met;
+  }
+
+  const begun = new Map(), raws = new Map();
+  const REACH = Math.ceil((VOICES.visit * 1.6 / VOICES.pace) / VOICES.slot) + 1;
+  const LONGEST = Math.ceil(Math.max(0, ...talks.map(lengthOf)) / VOICES.slot) + 1;
+  function raw(s) {
+    if (raws.has(s)) return raws.get(s);
+    const slotT = VOICES.slot * S, t0 = s * slotT + S, out = [];
+    for (const c of talks) {
+      if (EVENT_TALK[c.when]) continue;                         // those are begun by what happens (event, below)
+      const W = VOICES.cycle, into = (((s - textHash(c.id) % W) % W) + W) % W;
+      if (into >= VOICES.spread) continue;
+      const met = possible(c, s);
+      if (!met) continue;
+      let earlier = false;
+      for (let k = 1; k <= into && !earlier; k += 1) if (possible(c, s - k)) earlier = true;
+      if (!earlier) out.push({ key: `${c.id}@${s}`, c, t0, ...met });
+    }
+    raws.set(s, out);
+    if (raws.size > 600) for (const k of [...raws.keys()].slice(0, 300)) raws.delete(k);
+    return out;
+  }
+  function startsIn(s) {
+    if (begun.has(s)) return begun.get(s);
+    const until = new Map();
+    const hold = (b) => { const end = b.t0 + (b.length + (b.walk || 0) + 2) * S; for (const w of b.at) until.set(w.who, Math.max(until.get(w.who) || -1e12, end)); };
+    for (let k = 1; k <= 2 * REACH + LONGEST; k += 1) for (const b of raw(s - k)) hold(b);
+    const out = [];
+    for (const b of raw(s)) {
+      const from = b.t0 - ((b.walk || 0) + 2) * S;
+      if (b.at.some((w) => (until.get(w.who) || -1e12) > from)) continue;
+      hold(b);
+      out.push(b);
+    }
+    begun.set(s, out);
+    if (begun.size > 400) for (const k of [...begun.keys()].slice(0, 200)) begun.delete(k);
+    return out;
+  }
+  function schedule(t) {
+    const slotT = VOICES.slot * S, slot = Math.floor(t / slotT), out = [];
+    for (let s = slot - REACH - LONGEST - 1; s <= slot + REACH; s += 1) for (const b of startsIn(s)) if (t <= b.t0 + (b.length + (b.walk || 0)) * S && t >= b.t0 - ((b.walk || 0) + 1) * S) out.push(b);
+    return out;
+  }
+
+  population.addHook((i, t, out) => {
+    if (!visiting.has(i)) return false;
+    for (const b of schedule(t)) {
+      const v = b.visits && b.visits.find((q) => q.i === i);
+      if (!v) continue;
+      const go = v.t0 - v.walk * S, back = v.end + v.walk * S;
+      if (t < go || t > back) continue;
+      let at;
+      if (t < v.t0) { at = along(v.path, ((t - go) / S) * VOICES.pace); out.pose = POSE.walk; out.moving = true; out.act = 'Going over to talk'; }
+      else if (t <= v.end) { at = along(v.path, v.goes); out.pose = POSE.stand; out.moving = false; out.act = 'Talking'; }
+      else { at = along(v.path, v.goes - ((t - v.end) / S) * VOICES.pace); at[2] += Math.PI; out.pose = POSE.walk; out.moving = true; out.act = 'Going back'; }
+      out.x = at[0]; out.z = at[1]; out.h = at[2];
+      population.planned(i, t, probe);
+      out.spot = probe.spot; out.leg = null;
+      return true;
+    }
+    return false;
+  });
+
+
+
+  let lookedAt = -1e9;
+  function tick(t, players) {
+    const real = state.real;
+    if (real - lookedAt < 0.5 && real >= lookedAt) return;
+    lookedAt = real;
+    if (book.news.length && book.news[0].real < real - VOICES.news) book.news = book.news.filter((n) => n.real >= real - VOICES.news);
+    for (const [k, b] of Object.entries(book.booked)) if (b.until < real - 2) delete book.booked[k];
+    if (!players.length) return;
+    for (const s of schedule(t)) {
+      if (book.booked[s.key] || t > s.t0 + s.length * S) continue;
+      if (!players.some((p) => s.at.some((w) => Math.hypot(w.x - p.x, w.z - p.z) <= VOICES.around))) continue;
+      play(s.c, s.t0, s.at, s.key);
+    }
+  }
+
+  function event(kind, x, z, { only = null, not = [] } = {}) {
+    const real = state.real, t = state.t;
+    if (kind !== 'hurt' && kind !== 'laugh') book.news.push({ kind, x, z, real });
+    const near = [];
+    const consider = (who, px, pz) => {
+      if (only && who !== only) return;
+      if (not.includes(who) || !voiceOf.has(who)) return;
+      const d = Math.hypot(px - x, pz - z);
+      if (d > VOICES.react) return;
+      const lines = (REACT[voiceOf.get(who)] || {})[kind];
+      if (!lines || !lines.length) return;
+      if ((book.reacted[`${who}|${kind}`] || -1e9) > real - VOICES.reactAgain) return;
+      near.push({ who, x: px, z: pz, d, lines });
+    };
+    for (const [i, px, pz, pose] of population.within('voices', x, z, VOICES.react, t, real)) if (pose !== POSE.lie && pose !== POSE.hidden && pose !== POSE.ride) consider(`n:${i}`, px, pz);
+    for (const r of residents.all()) if (r.mode !== 'inside') consider(`r:${r.id}`, r.x, r.z);
+    near.sort((a, b) => a.d - b.d);
+    let delay = kind === 'hurt' ? 0.15 : 0.45;
+    for (const n of near.slice(0, only ? 1 : VOICES.callers)) {
+      const fresh = n.lines.filter(([id]) => (book.said[id] || -1e9) <= real - VOICES.lineAgain);
+      if (!fresh.length) { stats.skipped += 1; continue; }
+      const [id, seconds, words, meaning] = fresh[Math.floor(hash(textHash(n.who), Math.floor(t)) * fresh.length)];
+      const { name, role } = nameOf(n.who);
+      talk.say({ who: n.who, name, role, text: words, lang: 'voice', gloss: meaning || null, x: n.x, z: n.z, from: real + delay, hold: seconds + 0.15, kind: 'voice', range: VOICES.reach, voice: id, seconds, to: [Math.round(x * 10) / 10, Math.round(z * 10) / 10], group: null });
+      book.said[id] = real + delay;
+      book.reacted[`${n.who}|${kind}`] = real;
+      delay += 0.9 + hash(textHash(n.who), 3) * 0.8;
+      stats.reactions += 1;
+    }
+    if (EVENT_TALK[kind]) afterNews(kind, x, z);
+  }
+
+  function afterNews(kind, x, z) {
+    const t0 = state.t + (4 + hash(Math.floor(state.t), 5) * 4) * S;
+    for (const c of talks) {
+      if (c.when !== kind) continue;
+      if (c.lines.some(([, id]) => (book.said[id] || -1e9) > state.real - VOICES.lineAgain)) continue;
+      const met = together(c, t0);
+      if (!met || !met.at.some((w) => Math.hypot(w.x - x, w.z - z) <= VOICES.newsReach)) continue;
+      play(c, t0, met.at, `${c.id}@news${Math.floor(state.t)}`);
+      return;
+    }
+  }
+
+  function talking(real = state.real) {
+    const out = [];
+    for (const line of talk.lines()) {
+      if (line.kind !== 'voice' || !line.to || line.from > real || line.until <= real) continue;
+      out.push([line.who, line.to[0], line.to[1], 1]);
+      if (line.group && book.booked[line.group]) for (const [who, ox, oz] of book.booked[line.group].at) if (who !== line.who) out.push([who, line.x, line.z, 0]);
+    }
+    return out;
+  }
+
+  function voicesNear(x, z, radius = 60) {
+    const out = new Set();
+    for (const [i] of population.within('voices-near', x, z, radius, state.t, state.real)) { const v = voiceOf.get(`n:${i}`); if (v) out.add(v); }
+    for (const r of residents.all()) if (r.mode !== 'inside' && Math.hypot(r.x - x, r.z - z) <= radius) { const v = voiceOf.get(`r:${r.id}`); if (v) out.add(v); }
+    return [...out];
+  }
+
+  const voiced = (who) => voiceOf.has(who) && (Object.keys(REACT[voiceOf.get(who)] || {}).length > 0 || talks.some((c) => c.lines.some(([v]) => v === voiceOf.get(who))));
+  return { tick, schedule, event, talking, voicesNear, voiced, stats: () => ({ ...stats }), news: () => book.news.slice(), talks: () => talks };
+}
+
+return { VOICES, useVoiceData, createVoices };
 })();
 
 __modules["sim/impact.js"] = (function () {
@@ -12783,6 +13113,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     book.seq += 1;
     book.events.push({ id: book.seq, at: real(), ...event });
     if (book.events.length > 30) book.events.splice(0, book.events.length - 30);
+    if (hub.voices && (event.kind === 'knock' || event.kind === 'killed')) hub.voices.event('crash', event.x, event.z, { not: [event.on && event.on.kind === 'npc' ? `n:${event.on.id}` : ''] });
   }
 
   function thrown(x, z, heading, metres) {
@@ -13412,6 +13743,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
       if (inSight) {
         o.duty = 'pursue';
         setState(p, 'pursuit');
+        if (hub.voices) hub.voices.event('police', m.x, m.z, { not: [`n:${o.i}`] });
         actors.follow(o.i, { kind: 'player', id: p.id }, 1.2, PACE.sprint, 'Chasing a suspect');
         if (!o.challenged) challenge(o, m, p);
         return;
@@ -14643,6 +14975,7 @@ const { createOkada } = __modules["sim/okada.js"];
 const { createOwnBikes, isOwnBike, bikeOf } = __modules["sim/own-bikes.js"];
 const { createOwnCars, isOwnCar, carOf } = __modules["sim/own-cars.js"];
 const { createTalk } = __modules["sim/talk.js"];
+const { createVoices } = __modules["sim/voices.js"];
 const { LANGUAGES } = __modules["sim/culture.js"];
 const { LedgerError, trText } = __modules["sim/ledger.js"];
 const { createActors } = __modules["sim/actors.js"];
@@ -14745,6 +15078,9 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.serviceState = (id) => serviceState(id);
   const reactions = createReactions({ state, population, rng: makeRng(0x5eac7) });
   hub.reactions = reactions;
+  const voices = createVoices({ state, population, residents, actors, talk, timeScale: scale });
+  hub.voices = voices;
+  hub.voiced = (key) => voices.voiced(key);
   const conflict = createConflict({ state, players: state.players, population, actors, talk, emit, rng, hub });
   const justice = createJustice({ state, players: state.players, ledger, accounts: economy.accounts, population, actors, talk, emit, rng, hub });
   const care = createCare({ state, players: state.players, ledger, accounts: economy.accounts, emit, hub });
@@ -14901,6 +15237,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     if (!quiet) reactions.tick(dtReal, Object.values(state.players).filter((q) => !q.custody && !q.carried));
     phone.tick();
     if (!quiet) talk.tick(state.t);
+    if (!quiet) { voices.tick(state.t, Object.values(state.players).filter((q) => !q.custody && !q.carried)); buildingNews(); }
     daily(was, state.t);
     if (stagesBefore !== countStructures()) state.structures = countStructures();
   }
@@ -14911,6 +15248,20 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     for (const q of Object.values(state.players)) if (!q.custody && !q.carried && !q.dead) people.push({ x: q.x, z: q.z, driving: !!(q.incar || q.driving || (q.astride !== null && q.astride !== undefined)) });
     for (const v of talk.visitors()) people.push({ x: v.x, z: v.z, driving: !!(v.vehicle || v.ride || v.car) });
     stepCarshowGate(state.carshowGate, people, dtReal, state.real);
+  }
+
+  const stagesSeen = new Map();
+  let buildingAt = -1e9;
+  function buildingNews() {
+    if (state.real - buildingAt < 2) return;
+    buildingAt = state.real;
+    for (const p of ZONE_PARCELS) {
+      const site = state.registry.parcels[p.id] && state.registry.parcels[p.id].site;
+      const stage = site ? site.stage || 0 : 0;
+      const was = stagesSeen.get(p.id);
+      stagesSeen.set(p.id, stage);
+      if (was !== undefined && stage > was) voices.event('building', (p.x0 + p.x1) / 2, (p.z0 + p.z1) / 2);
+    }
   }
 
   function countStructures() {
@@ -14983,6 +15334,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
       if (p.hijack) throw new GameError('BUSY', 'You have your hands full.');
       p.emote = { name, at: state.real };
+      if (Math.floor(state.real / 7) % 2 === 0) voices.event('laugh', p.x, p.z);
       return { name };
     },
     jump(p) {
@@ -15578,6 +15930,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     return {
       ...zoneView(playerId),
       ...talk.view(p),
+      voiceTalk: voices.talking().filter((v) => { const w = v[0]; return w.startsWith('n:') || w.startsWith('r:'); }), voicesNear: voices.voicesNear(p.x, p.z),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
@@ -15598,7 +15951,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact, guns },
+    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
   };
 }
 
@@ -23334,6 +23687,7 @@ function createCrowd(scene) {
   }
 
   let moodClock = 0;
+  const talkers = new Map();     // townsperson -> [x, z of the one they talk to, speaking]
   const MOOD_EVERY = 22;
   const MOOD_WEIGHTED = Object.freeze(['~phone', '~phone', '~phone', '~look', '~look', '~look', '~talk', '~laugh', '~wave', '~wave', '~tired', '~stretch', '~dance']);            // seconds: a chance of a mood this often, standing still
   const moodHash = (i, n) => { let h = Math.imul(i + 1, 374761393) ^ Math.imul(n + 7, 668265263); h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -23386,7 +23740,17 @@ function createCrowd(scene) {
       rig.blob.visible = false;
       return;
     }
-    g.rotation.set(0, actor.h, 0);
+    const tk = talkers.get(actor.i);
+    let facing = actor.h;
+    if (tk && !moving && actor.pose === POSE.stand && !actor.trouble) {
+      const want = Math.atan2(tk[0] - actor.x, tk[1] - actor.z);
+      const from = actor.talkH === undefined ? actor.h : actor.talkH;
+      const turn = Math.atan2(Math.sin(want - from), Math.cos(want - from));
+      actor.talkH = from + turn * Math.min(1, dt * 4);
+      facing = actor.talkH;
+      if (tk[2] && rig.animated && rig.spec && rig.spec.moods && !rig.emoting && !rig.doing && !rig.strike && rig.emote('~talk')) stats.talkGestures = (stats.talkGestures || 0) + 1;
+    } else actor.talkH = undefined;
+    g.rotation.set(0, facing, 0);
     g.position.set(actor.x + (actor.ox || 0), zoneGroundY(actor.x, actor.z), actor.z + (actor.oz || 0));
     const went = rig.atX === undefined ? 0 : Math.hypot(actor.x - rig.atX, actor.z - rig.atZ);
     rig.atX = actor.x; rig.atZ = actor.z;
@@ -23705,6 +24069,7 @@ function createCrowd(scene) {
     figureAt: (i) => actors.get(i) || null,
     rigOf: (key) => { if (key.startsWith('n:')) { const a = actors.get(Number(key.slice(2))); return a && a.rig ? a.rig : null; } const o = others.get(key.slice(2)); return o ? o.rig : null; },
     setGuards(set) { for (const actor of actors.values()) actor.guard = set.has(actor.i); },
+    setTalking(list) { talkers.clear(); for (const [who, fx, fz, speaking] of list || []) if (typeof who === 'string' && who.startsWith('n:')) talkers.set(Number(who.slice(2)), [fx, fz, speaking]); },
     setTrouble(set) { for (const actor of actors.values()) actor.trouble = set.has(actor.i); },
     setLimps(set) { for (const actor of actors.values()) { actor.limp = set.has(actor.i); if (actor.rig) actor.rig.limp = actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie; } },
     actors: () => actors.values(),
@@ -25174,6 +25539,7 @@ __modules["client/bubbles.js"] = (function () {
 const { LANGUAGES } = __modules["sim/culture.js"];
 
 const READ = (text) => Math.max(2.4, Math.min(5.5, 1.2 + text.length * 0.055));   // seconds a line stays up
+const SAID = (line) => (line.voice ? Math.max(1.6, (line.seconds || 3) - Math.max(0, line.ago || 0) + 0.3) : READ(line.text));
 const STALE = 9;                                                                     // seconds a waiting townsperson's line is kept
 
 function createBubbles(layer, { translator, settings }) {
@@ -25240,6 +25606,8 @@ function createBubbles(layer, { translator, settings }) {
 
   function update(lines, where, project, eye, selfKey, width, height) {
     const now = performance.now() / 1000;
+    const subtitles = !settings.subtitles || settings.subtitles();
+    lines = subtitles ? lines : lines.filter((l) => !l.voice);
     const byId = new Map(lines.map((l) => [l.id, l]));
     for (const line of lines) {
       if (!live.has(line.id)) {
@@ -25247,18 +25615,18 @@ function createBubbles(layer, { translator, settings }) {
         live.set(line.id, entry); layer.append(entry.el); entry.el.hidden = true;
         heardAt.set(line.id, now);
         const urgent = entry.mine || line.to === selfKey || line.kind === 'chat';
-        if (urgent) { const at = queue.findIndex((id) => { const e = live.get(id); return !(e && (e.mine || e.line.to === selfKey || e.line.kind === 'chat')); }); queue.splice(at < 0 ? queue.length : at, 0, line.id); } else queue.push(line.id);
+        if (!urgent && line.voice) { const at = queue.findIndex((id) => { const e = live.get(id); return e && !e.mine && e.line.to !== selfKey && e.line.kind !== 'chat' && !e.line.voice; }); queue.splice(at < 0 ? queue.length : at, 0, line.id); } else if (urgent) { const at = queue.findIndex((id) => { const e = live.get(id); return !(e && (e.mine || e.line.to === selfKey || e.line.kind === 'chat')); }); queue.splice(at < 0 ? queue.length : at, 0, line.id); } else queue.push(line.id);
       }
     }
-    const done = current && (now - shownSince >= READ(live.get(current).line.text));
-    const jump = current && !live.get(current).mine && queue.length && (() => { const e = live.get(queue[0]); return e && (e.mine || e.line.to === selfKey); })();
+    const done = current && (now - shownSince >= SAID(live.get(current).line));
+    const jump = current && !live.get(current).mine && queue.length && (() => { const e = live.get(queue[0]); const c = live.get(current); return e && (e.mine || e.line.to === selfKey || (e.line.voice && (!c.line.voice || !byId.has(current)))); })();
     if (!current || done || jump) {
       if (current) { const e = live.get(current); e.el.remove(); live.delete(current); asked.delete(current); heardAt.delete(current); current = null; }
       while (queue.length) {
         const id = queue.shift();
         const e = live.get(id);
         if (!e) continue;
-        const stale = !e.mine && e.line.kind === 'npc' && (now - heardAt.get(id) > STALE || !byId.has(id));
+        const stale = !e.mine && (e.line.kind === 'npc' || e.line.kind === 'voice') && (now - heardAt.get(id) > STALE || !byId.has(id));
         if (stale) { e.el.remove(); live.delete(id); heardAt.delete(id); continue; }
         current = id; shownSince = now; break;
       }
@@ -26318,6 +26686,29 @@ function createAudio() {
     setTimeout(() => p.disconnect(), (seconds + 1) * 1000);
     return true;
   }
+  const voiceStats = { played: 0, tooFar: 0, playing: 0 };
+  function voiceLine(buffer, x, z, offset = 0, reach = 25) {
+    if (!ctx || ctx.state !== 'running' || !buffer) return null;
+    if (Math.hypot(x - ear.x, z - ear.z) > reach + 2) { voiceStats.tooFar += 1; return null; }
+    const src = ctx.createBufferSource();
+    src.buffer = buffer;
+    const p = ctx.createPanner();
+    p.panningModel = 'equalpower'; p.distanceModel = 'linear'; p.refDistance = 1.5; p.maxDistance = reach; p.rolloffFactor = 1;
+    move(p, x, 1.55, z);
+    src.connect(p); p.connect(nodes.voice);
+    const from = Math.max(0, Math.min(offset, buffer.duration - 0.05));
+    src.start(ctx.currentTime + 0.01, from);
+    voiceStats.played += 1; voiceStats.playing += 1;
+    if (Math.hypot(x - ear.x, z - ear.z) < 9) focus(buffer.duration - from);
+    let done = false;
+    src.onended = () => { if (done) return; done = true; voiceStats.playing -= 1; try { src.disconnect(); p.disconnect(); } catch (error) { /* already gone */ } };
+    return { stop() { try { src.stop(); } catch (error) { /* already stopped */ } }, move(nx, nz) { move(p, nx, 1.55, nz); } };
+  }
+  function decode(bytes) {
+    if (!ctx) return Promise.reject(new Error('no sound yet'));
+    return new Promise((resolve, reject) => { const p = ctx.decodeAudioData(bytes.slice(0), resolve, reject); if (p && p.then) p.then(resolve, reject); });
+  }
+
   function here(kind, seconds, into, build) {
     if (!ctx || muted || ctx.state !== 'running' || !claim(kind, seconds)) return false;
     build(nodes[into], ctx.currentTime + 0.01);
@@ -26791,6 +27182,7 @@ function createAudio() {
 
   return {
     supported: !!Ctx,
+    voiceLine, decode, voiceStats: () => ({ ...voiceStats }),
     start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
@@ -26823,6 +27215,93 @@ function createAudio() {
 }
 
 return { ENGINE_VOICES, MUSIC_STYLES, renderStyle, SOUND_GROUPS, SOUND_NAMES, DEFAULT_VOLUMES, createAudio };
+})();
+
+__modules["client/voices.js"] = (function () {
+
+const { VOICE_TALKS, VOICE_REACTIONS } = __modules["sim/voice-lines.js"];
+
+const VOICE_PLAYER = Object.freeze({
+  folder: 'voices/',
+  ready: 6,            // lines held ready to play (made into sound, about 0.8 MB each): the most recent
+  fetching: 4,         // files fetched at once
+  keepBytes: 120,      // files kept here as they came (about 25 KB each), the most recently wanted (the device keeps them all, sw.js)
+});
+
+const LINES = new Map();
+const add = (voice, id) => { if (!LINES.has(voice)) LINES.set(voice, []); LINES.get(voice).push(id); };
+for (const c of VOICE_TALKS) for (const [voice, id] of c.lines) add(voice, id);
+for (const [voice, triggers] of Object.entries(VOICE_REACTIONS)) for (const list of Object.values(triggers)) for (const [id] of list) add(voice, id);
+
+function createVoicePlayer({ audio, fetchFile = (url) => fetch(url), fingerprints = {} }) {
+  const bytes = new Map();       // line id -> ArrayBuffer of its file (most recently wanted last)
+  const ready = new Map();       // line id -> AudioBuffer (most recently used last)
+  const asked = new Set();       // line ids being fetched or decoded
+  const queue = [];              // line ids waiting to be fetched, most urgent first
+  const started = new Map();     // speech line id -> handle (what is sounding)
+  const seen = new Map();        // speech line id -> [its `ago` when first seen, when that was]
+  let busy = 0;
+  const stats = { fetched: 0, failed: 0, bytes: 0, decoded: 0, played: 0, late: 0, missed: 0 };
+
+  const url = (id) => `${VOICE_PLAYER.folder}${id}.mp3${fingerprints[id] ? `?v=${fingerprints[id]}` : ''}`;
+  function touch(map, key, value) { map.delete(key); map.set(key, value); }
+
+  function pump() {
+    while (busy < VOICE_PLAYER.fetching && queue.length) {
+      const id = queue.shift();
+      if (bytes.has(id)) { asked.delete(id); continue; }
+      busy += 1;
+      fetchFile(url(id)).then((r) => { if (!r.ok) throw new Error(`${id}: ${r.status}`); return r.arrayBuffer(); })
+        .then((b) => { touch(bytes, id, b); stats.fetched += 1; stats.bytes += b.byteLength; while (bytes.size > VOICE_PLAYER.keepBytes) bytes.delete(bytes.keys().next().value); })
+        .catch(() => { stats.failed += 1; })
+        .finally(() => { busy -= 1; asked.delete(id); pump(); });
+    }
+  }
+  function want(id, urgent = false) {
+    if (bytes.has(id) || asked.has(id)) { if (bytes.has(id)) touch(bytes, id, bytes.get(id)); return; }
+    asked.add(id);
+    if (urgent) queue.unshift(id); else queue.push(id);
+    pump();
+  }
+
+  function prepare(voices) {
+    for (const v of voices || []) for (const id of LINES.get(v) || []) want(id);
+  }
+
+  function made(id) {
+    if (ready.has(id)) { const b = ready.get(id); touch(ready, id, b); return b; }
+    if (!bytes.has(id) || asked.has(`d:${id}`)) return null;
+    asked.add(`d:${id}`);
+    audio.decode(bytes.get(id)).then((b) => { touch(ready, id, b); stats.decoded += 1; while (ready.size > VOICE_PLAYER.ready) ready.delete(ready.keys().next().value); }).catch(() => { stats.failed += 1; }).finally(() => asked.delete(`d:${id}`));
+    return null;
+  }
+
+  function update(speech, voicesNear, where = null) {
+    if (!audio || !audio.running) return;
+    prepare(voicesNear);
+    const now = new Set();
+    for (const line of speech || []) {
+      if (!line.voice) continue;
+      now.add(line.id);
+      if (started.has(line.id)) { const h = started.get(line.id); const at = h && where ? where(line.who) : null; if (at) h.move(at.x, at.z); continue; }
+      const buffer = made(line.voice);
+      if (!buffer) { want(line.voice, true); continue; }
+      if (!seen.has(line.id)) seen.set(line.id, [line.ago, performance.now()]);
+      const [ago0, at0] = seen.get(line.id);
+      const ago = ago0 + (performance.now() - at0) / 1000;
+      if (ago >= buffer.duration - 0.2) { stats.missed += 1; started.set(line.id, null); continue; }
+      if (ago > 0.4) stats.late += 1;
+      started.set(line.id, audio.voiceLine(buffer, line.x, line.z, Math.max(0, ago)));
+      stats.played += 1;
+    }
+    for (const id of started.keys()) if (!now.has(id)) started.delete(id);
+    for (const id of seen.keys()) if (!now.has(id)) seen.delete(id);
+  }
+
+  return { update, prepare, stats: () => ({ ...stats, kept: bytes.size, ready: ready.size, fetching: busy, waiting: queue.length }), lines: (voice) => (LINES.get(voice) || []).slice() };
+}
+
+return { VOICE_PLAYER, createVoicePlayer };
 })();
 
 __modules["client/graphics.js"] = (function () {
@@ -36392,7 +36871,8 @@ function createUI(app) {
       root.append(h('p', { class: 'small' }, 'Your character was chosen when you arrived and stays yours. You can look at the others at any time; changing to one of them is a character upgrade, which is paid for.'));
     }
     root.append(section('Sound'));
-    root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); }))));
+    root.append(h('div', { class: 'rows' }, h('div', { class: 'setrow' }, h('span', null, 'Sound'), toggle('sound-on', app.soundOn(), 'Sound', () => { app.sound(); redraw(); })),
+      h('div', { class: 'setrow' }, h('span', null, 'Subtitles: show the words when people talk'), toggle('subtitles-on', app.settings.subtitles ? app.settings.subtitles() : true, 'Subtitles', (on) => { if (app.settings.setSubtitles) app.settings.setSubtitles(on); redraw(); }))));
     const levels = app.volumes();
     root.append(h('div', { class: 'rows faders' }, Object.keys(SOUND_NAMES).map((name) => {
       const shown = h('span', { class: 'mono' }, `${Math.round(levels[name] * 100)}`);
@@ -45042,7 +45522,7 @@ const { buildBillboards } = __modules["client/render-billboards.js"];
 const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
 const { linear, setLite, restoreGeometry } = __modules["client/render-kit.js"];
-const { restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } = __modules["client/glb.js"];
+const { fetchKept, restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } = __modules["client/glb.js"];
 const { createPictureKeeper } = __modules["client/picture-keeper.js"];
 const { gradeInstalled } = __modules["client/grade.js"];
 const { setWorldShading, airAt, worldShadingState, cloudShadeAt } = __modules["client/world-shading.js"];
@@ -45059,6 +45539,7 @@ const { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName
 const { createSky } = __modules["client/render-sky.js"];
 const { createBubbles } = __modules["client/bubbles.js"];
 const { createAudio, renderStyle, MUSIC_STYLES, DEFAULT_VOLUMES } = __modules["client/audio.js"];
+const { createVoicePlayer } = __modules["client/voices.js"];
 const { createUI, h } = __modules["client/ui.js"];
 const { createControls } = __modules["client/controls.js"];
 const { createSpeedometer } = __modules["client/speedometer.js"];
@@ -45270,6 +45751,7 @@ function start(carried) {
     yardStacks = createYardStacks(scene);
   }]);
   const audio = createAudio();
+  const voicePlayer = createVoicePlayer({ audio, fetchFile: (url) => fetchKept(url) });
   let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null;
   townSteps.push(['the phones, the motorcycles and the cars', () => {
     phoneHold = createPhoneHold({ scene, lite: LITE });
@@ -45499,7 +45981,7 @@ function start(carried) {
 
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
-  const prefs = { translate: true, sound: true, graphics: 'auto', calm: false, ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, subtitles: true, sound: true, graphics: 'auto', calm: false, ...(readStored(PREFS_KEY) || {}) };
   let realWeather = null;              // { kind, place, temperature, at } from the site's server
   const newHost = (options = {}) => {
     const made = createHost({ ...options, wallClock: REAL_CLOCK ? wallSeconds : null });
@@ -46289,6 +46771,8 @@ function start(carried) {
     language: () => (view ? view.self.lang : 'en'),
     translate: () => prefs.translate,
     setTranslate: (on) => { prefs.translate = !!on; writeStored(PREFS_KEY, prefs); },
+    subtitles: () => prefs.subtitles !== false,
+    setSubtitles: (on) => { prefs.subtitles = !!on; writeStored(PREFS_KEY, prefs); },
     machine: () => translator.hasService,
   };
   const bubbles = createBubbles($('bubbles'), { translator, settings });
@@ -46551,6 +47035,7 @@ function start(carried) {
     crowd.setGuards(new Set(view.moods.filter((m) => m.mood === 'fighting' || m.mood === 'warned').map((m) => m.i)));
     crowd.setLimps(new Set(view.moods.filter((m) => m.limp).map((m) => m.i)));
     crowd.setTrouble(new Set([...view.moods.map((m) => m.i), ...(view.fallen || [])]));
+    crowd.setTalking(view.voiceTalk);
     if (led()) { predicted.x = view.self.x; predicted.z = view.self.z; if (!view.self.down && !view.self.dead) predicted.heading = view.self.heading; }
     else if (!view.self.driving && !view.self.astride && view.self.riding === null && Math.hypot(view.self.x - predicted.x, view.self.z - predicted.z) > 6) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; going.speed = 0; }
     syncMarkers();
@@ -48433,6 +48918,7 @@ blood.update(dt, view.blood || []);
       engines.sort((a, b) => a.d - b.d);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
+      if (view) voicePlayer.update(view.speech, view.voicesNear, headOf);
       audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
     }
 
@@ -48556,6 +49042,7 @@ blood.update(dt, view.blood || []);
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
     get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
+    voicePlayer, voiceStats: () => ({ ...voicePlayer.stats(), ...audio.voiceStats() }),
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },
