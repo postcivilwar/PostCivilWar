@@ -3441,6 +3441,22 @@ full on a phone are as before (at most 14 near, `MAX_RIGS`); further off, plain 
 (`far`). (A computer's memory guard lets go of what is not drawn above 700 MB, as before; the numbers above are taken
 with it set aside, as `places.mjs` does.)
 
+**Tests** (on the release build): 493 headless (new: `test/townspeople.test.mjs` 4: struck once they run, struck again
+they fight back and give up after a few seconds, a little differently each time; the 20-life rule, the limp, resting
+and mending a point at a time; shot, they fall, get up and run, bleeding, an offence; gunfire frightens; and the town's
+counts in `police.test.mjs`, `webapp.test.mjs`, `site-budget.test.mjs`) and 103 server. In a browser, one at a time:
+touch, fit, webapp, context 12/12, picture 10/10, falls 21/21 (with the townspeople kept indoors where it rides),
+falls seen by another 8/8, camera 17/17 (15/17 once: the camera 4.42 m behind, 4.4 asked; then 17/17), exit 14/14,
+seats 17/17, graphics 26/26, outskirts 12/12, city 5/5, realism 7/7, adverts, the PowerBike showroom 28/28, the town's
+buildings 12/12, the bike 34/34, the phone in the hand, supplied 11/11, vehicle sync 12/12 (11/12 twice before: the
+watcher not yet told the keke was left, a word late), motorcycles 108/108, sound, the figures W1, M1, W8, M8, W15 and
+M17 116/116 (the fight now with a townsperson when no officer stands about), the guns 54/54 (two players through the
+website), the habitation 48/49 (the walker at the big tree's roots, as on the live build), the play-through (every
+session but the desktop's keke against the coach: stopped 6 m short, the same to the last digit three times, with
+nobody and nothing near it and nobody struck; not found), the car showroom 41/42 and the whole site (stopped at the
+buyer's start screen) and the opening 16/17 failed alike on the live build run in turn (the car 3.5 m/s to the last
+digit on both).
+
 ## Tests
 
 ```
