@@ -178,6 +178,8 @@ const measureHere = async (place, quietMs, n = 8) => {
     if (kind === 'rain' || kind === 'storm') await page.waitForTimeout(12000);
     const f = await frames(n, 180000);
     row[when] = { frame: f, ...(await state()), ...(await passes()) };
+    // (the town's voices, where the page has them: what it has fetched, made into sound and played)
+    row[when].voices = await page.evaluate(() => (window.__nlw.voiceStats ? window.__nlw.voiceStats() : null));
     row[when].shot = await shot(`${place.replace(/[^a-z0-9]+/gi, '-').toLowerCase()}-${when}`);
     console.log(place, when, JSON.stringify({ frame: f, ...row[when], shot: undefined }));
   }
@@ -212,6 +214,9 @@ if (!process.env.PERF_QUICK) await page.waitForFunction(() => window.__nlw.beyon
 result.loading.warmMs = Date.now() - t3;
 console.log('loading', JSON.stringify(result.loading));
 await page.evaluate(() => { for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } });
+// (PERF_SOUND=1: the town's sound started by a touch, as a player's first touch does, so that what plays (the town's
+// recorded voices among it, 28 October 2026) is in what is measured)
+if (process.env.PERF_SOUND) { const box = page.viewportSize(); await page.mouse.click(Math.round(box.width / 2), Math.round(box.height / 3)); await page.waitForFunction(() => window.__nlw.audio.running, null, { timeout: 30000 }).catch(() => {}); }
 
 const park = await page.evaluate(() => window.__nlw.service('park'));
 const PLACES = [
