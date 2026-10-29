@@ -3571,7 +3571,17 @@ headless: Opus's settings, who offers to whom, push to talk, a blocked or banned
 in touch, push to talk, the speaker, falloff, nothing beyond 25 m, muffled, open mic, mute, mute everyone, block both
 ways, unblock, a report in the Admin list, five at once, through a relay when direct is blocked (`test/turn-relay.mjs`,
 a small TURN server of the test's own), the page out of sight, turned off); `test/voice-chat-game.mjs` (in the town,
-a computer and a phone: what the player sees and presses, the Admin app, the frame rate).
+a computer and a phone: off to begin with, the Privacy page, the first time, the age (a No kept, an administrator's
+Yes), put in touch, B held and the microphone button held with a finger, the speaker over the head, mute, mute
+everyone, a report and its reasons, the Admin app's list and a warning shown once, block both ways, unblock in
+Settings, turned off). On this machine both towns are drawn in software, a frame every second or two, and the
+handshake's words wait on the pages' timers: they took up to a minute to go round, and the test turns voice off and on
+(as a player would) if the two are not in touch after two and a half minutes. Found that way and fixed: an answer to an
+offer already given up was taken for the answer to a newer one (each offer now carries a word of its own, and its
+answer the same); a connection still being set up was let go after five seconds of "disconnected" (now only one that
+had been in touch); an offer waited 12 s for its answer (now 60, and the server keeps a handshake 60 s); the speaker
+over a head flickered between words (now held a second); the players-near list did not change while open (now kept up
+to date); the Admin list kept the reports it had first fetched (now asked again after 15 s).
 
 ## Tests
 

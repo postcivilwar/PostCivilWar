@@ -16088,6 +16088,7 @@ function encodePlayer(self, zoneId) {
   if (Array.isArray(self.gunShots) && self.gunShots.length) out.sh = self.gunShots.slice(-8).map((s) => [s.q, Math.round(s.ago * 100) / 100, r1(s.o[0]), r1(s.o[1]), r1(s.o[2]), r1(s.e[0]), r1(s.e[1]), r1(s.e[2]), SHOT_KINDS.indexOf(s.what)]);
   if (Array.isArray(self.wounds) && self.wounds.length) out.wd = self.wounds.slice(-8).map((w) => [w[0], Math.round(w[1] * 1000) / 1000, Math.round(w[2] * 1000) / 1000, Math.round(w[3] * 1000) / 1000, Math.round((w[4] || 1) * 10) / 10]);
   if (Number.isFinite(self.gy)) out.gy = Math.round(self.gy * 10) / 10;
+  if (self.voiceOn) out.vc = 1;
   return trimPlayer(out);
 }
 
@@ -26704,6 +26705,42 @@ function createAudio() {
     src.onended = () => { if (done) return; done = true; voiceStats.playing -= 1; try { src.disconnect(); p.disconnect(); } catch (error) { /* already gone */ } };
     return { stop() { try { src.stop(); } catch (error) { /* already stopped */ } }, move(nx, nz) { move(p, nx, 1.55, nz); } };
   }
+  function playerVoice(stream, { reach = 25 } = {}) {
+    if (!start() || !ctx) return null;
+    let src;
+    try { src = ctx.createMediaStreamSource(stream); } catch (error) { return null; }
+    const filter = ctx.createBiquadFilter(), gain = ctx.createGain(), p = ctx.createPanner(), meter = ctx.createAnalyser(), after = ctx.createAnalyser();
+    filter.type = 'lowpass'; filter.frequency.value = 18000; filter.Q.value = 0.5;
+    p.panningModel = 'equalpower'; p.distanceModel = 'linear'; p.refDistance = 1.5; p.maxDistance = reach; p.rolloffFactor = 1;
+    meter.fftSize = 512; after.fftSize = 512;
+    gain.gain.value = 1;
+    src.connect(meter); src.connect(filter); filter.connect(gain); gain.connect(p); p.connect(ctx.destination); p.connect(after);
+    move(p, ear.x, 1.6, ear.z);
+    const data = new Float32Array(meter.fftSize);
+    const rms = (node) => { node.getFloatTimeDomainData(data); let sum = 0; for (let i = 0; i < data.length; i += 1) sum += data[i] * data[i]; return Math.sqrt(sum / data.length); };
+    return {
+      move(x, z) { move(p, x, 1.6, z); },
+      set({ volume = 1, muffled = false }) { const t = ctx.currentTime; gain.gain.setTargetAtTime(volume * (muffled ? 0.55 : 1), t, 0.06); filter.frequency.setTargetAtTime(muffled ? 900 : 18000, t, 0.08); },
+      level: () => rms(meter),
+      heard: () => rms(after),
+      stop() { try { src.disconnect(); filter.disconnect(); gain.disconnect(); p.disconnect(); after.disconnect(); } catch (error) { /* gone */ } },
+    };
+  }
+  function micPipe(stream) {
+    if (!start() || !ctx || !ctx.createMediaStreamDestination) return null;
+    let src;
+    try { src = ctx.createMediaStreamSource(stream); } catch (error) { return null; }
+    const gain = ctx.createGain(), meter = ctx.createAnalyser(), out = ctx.createMediaStreamDestination(), back = ctx.createGain();
+    meter.fftSize = 512; back.gain.value = 0;
+    src.connect(gain); gain.connect(meter); gain.connect(out); gain.connect(back); back.connect(ctx.destination);
+    const data = new Float32Array(meter.fftSize);
+    return {
+      track: out.stream.getAudioTracks()[0], gain,
+      meter() { meter.getFloatTimeDomainData(data); let sum = 0; for (let i = 0; i < data.length; i += 1) sum += data[i] * data[i]; return Math.sqrt(sum / data.length); },
+      hear(on) { back.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.05); },
+      close() { try { src.disconnect(); gain.disconnect(); back.disconnect(); } catch (error) { /* gone */ } },
+    };
+  }
   function decode(bytes) {
     if (!ctx) return Promise.reject(new Error('no sound yet'));
     return new Promise((resolve, reject) => { const p = ctx.decodeAudioData(bytes.slice(0), resolve, reject); if (p && p.then) p.then(resolve, reject); });
@@ -27182,7 +27219,7 @@ function createAudio() {
 
   return {
     supported: !!Ctx,
-    voiceLine, decode, voiceStats: () => ({ ...voiceStats }),
+    voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
     start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
@@ -27194,6 +27231,7 @@ function createAudio() {
     gunPast: (at) => { if (gunReady()) guns().past(at); },
     gunState: (gun) => (gunVoice ? { ...gunVoice.state(gun), voices: gunVoice.voices, ...gunVoice.stats } : { state: ctx ? 'not asked' : 'no sound yet' }),
     get running() { return !!ctx && ctx.state === 'running'; },
+    listenAt(x, z, yaw = 0) { if (!ctx) return; ear.x = x; ear.z = z; const l = ctx.listener; const fx = Math.sin(yaw), fz = Math.cos(yaw); if (l.positionX) { l.positionX.value = x; l.positionY.value = 1.6; l.positionZ.value = z; l.forwardX.value = fx; l.forwardY.value = 0; l.forwardZ.value = fz; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; } else { l.setPosition(x, 1.6, z); l.setOrientation(fx, 0, fz, 0, 1, 0); } },
     get muted() { return muted; },
     setMuted(value) { muted = !!value; if (ctx) nodes.master.gain.setTargetAtTime(muted ? 0 : volumes.master, ctx.currentTime, 0.05); },
     setVolume(value) { setVolumes({ master: value }); },
@@ -35484,7 +35522,8 @@ function createAdsUI(kit) {
     const tab = sub.tab || 'review';
     const tabBtn = (id, label) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(tab === id), 'data-tab': id, onclick: () => { if (id === 'review') a.admin.status = 'pending'; if (id === 'all') a.admin.status = 'all'; a.admin.list = null; go({ tab: id }); } }, label);
     root.append(h('div', { class: 'propertyhead' }, h('div', null, h('div', { class: 'eyebrow' }, 'Administrator'), h('div', { class: 'big' }, online().account.username))));
-    root.append(h('div', { class: 'adchips', role: 'tablist' }, tabBtn('review', 'Ads to review'), tabBtn('all', 'All campaigns'), tabBtn('money', 'Taxes and payments'), tabBtn('market', 'Market')));
+    root.append(h('div', { class: 'adchips', role: 'tablist' }, tabBtn('review', 'Ads to review'), tabBtn('all', 'All campaigns'), tabBtn('money', 'Taxes and payments'), tabBtn('market', 'Market'), ...(app.voiceAdmin ? [tabBtn('voice', 'Voice reports')] : [])));
+    if (tab === 'voice') { app.voiceAdmin(root, redraw); return; }
     if (tab === 'money') { money(root); return; }
     if (tab === 'market') {
       root.append(h('p', { class: 'small' }, 'New things are put on the market from Property, where you stand.'), h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', id: 'admin-to-market', onclick: () => openApp('property', { admin: true }) }, 'Put something new on the market')));
@@ -36886,6 +36925,7 @@ function createUI(app) {
       return h('label', { class: 'fader' }, h('span', null, SOUND_NAMES[name]), slider, shown);
     })));
     root.append(h('p', { class: 'small' }, 'Each kind of sound has its own volume. Music and background step back by themselves when something needs to be heard.'));
+    if (app.voiceSettings) app.voiceSettings(root, { section, toggle, redraw: () => redraw() });
 
     {
       const v = app.view();
@@ -36978,6 +37018,7 @@ function createUI(app) {
     current.refresh = measure;
     root.append(measured, hitches);
 
+    if (app.privacy) { root.append(section('Privacy')); root.append(h('div', { class: 'about', id: 'privacy' }, app.privacy().map((text) => h('p', null, text)))); }
     root.append(section('About'));
     root.append(h('div', { class: 'about', id: 'about' }, ABOUT.map((text) => h('p', null, text))));
   }
@@ -39595,7 +39636,7 @@ function createOnline({ available = false, address = 'api/game', fetcher = null,
 }
 
 
-function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true, gun = null }) {
+function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true, gun = null, voice = null }) {
   let mine = null;                      // this player's latest state
   let handler = null;
   let busy = false, failed = false, closed = false;
@@ -39660,9 +39701,11 @@ function createWebTransport({ online, zone, now = () => Date.now() / 1000, every
     const asked = last;
     counts.asked += 1;
     const extra = gun ? gun.body() : null;
-    const answer = await online.ask('presence', { zone, state: mine, ...(extra || {}) }, { timeout: extra && extra.fire ? 15000 : 6000 });
+    const spoken = voice ? voice.body() : null;
+    const answer = await online.ask('presence', { zone, state: mine, ...(extra || {}), ...(spoken ? { voice: spoken } : {}) }, { timeout: extra && extra.fire ? 15000 : 6000 });
     busy = false;
     if (gun) gun.answer(answer.ok ? answer : null);
+    if (voice) { if (answer.ok) voice.answer(answer.voice || null); else if (spoken && spoken.out && spoken.out.length) voice.unsent(spoken.out); }
     if (closed) return;
     failed = !answer.ok;
     if (!answer.ok) { last = -10; return; }
@@ -39699,6 +39742,8 @@ function createWebTransport({ online, zone, now = () => Date.now() / 1000, every
       if (mine) for (const p of peers.values()) if (Math.hypot(p.to.x - mine.x, p.to.z - mine.z) < ONLINE.near) { wait = ONLINE.presenceNear; if (speedOf(p.to) > 2 || speedOf(mine) > 2 || p.to.gn || p.to.sh || (gun && gun.armed)) wait = ONLINE.presenceMoving; break; }
     }
     if (gun && gun.urgent()) wait = Math.min(wait, ONLINE.presenceStep);
+    if (voice && voice.urgent()) wait = Math.min(wait, ONLINE.presenceStep * 2);
+    else if (voice && voice.active && peers.size) wait = Math.min(wait, ONLINE.presenceNear);
     if (now() - last >= wait) exchange();
   }, ONLINE.presenceStep * 1000);
 
@@ -40315,6 +40360,673 @@ function createConfirm() {
 }
 
 return { createConfirm };
+})();
+
+__modules["net/voice-chat.js"] = (function () {
+
+const VOICE_CHAT = Object.freeze({
+  most: 5,            // players talked with at once: the nearest
+  keepRank: 7,        // one already in touch is kept while among the nearest this many (so that a crowd does not churn)
+  connect: 40,        // metres: put in touch from here (ready before they are heard)
+  drop: 50,           // metres: let go beyond
+  reach: 25,          // metres: heard within
+  bitrate: 24000,     // bits a second, Opus, one channel
+  gather: 2500,       // ms to wait for a device's ways to be reached before its offer or answer goes
+  wait: 60000,        // ms an offer waits for its answer before it is let go (a slow phone, busy drawing, can take
+  retry: 10000,       // ms before trying again with someone it did not work with
+  vad: 0.018,         // the level of the microphone (RMS, 0..1) taken for speaking, with open mic
+  hang: 600,          // ms open mic keeps sending after the player stops speaking
+  talking: 0.012,     // the level of a voice heard taken for that player talking (the speaker over their head)
+});
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const tag = () => Math.random().toString(36).slice(2, 10);
+function split(data) { const i = data.indexOf('\n'); return i > 0 && i <= 16 && !data.startsWith('v=') ? { word: data.slice(0, i), sdp: data.slice(i + 1) } : { word: '', sdp: data }; }
+
+function tuneOpus(sdp, bitrate = VOICE_CHAT.bitrate) {
+  const m = /a=rtpmap:(\d+) opus\/48000/i.exec(sdp);
+  if (!m) return sdp;
+  const pt = m[1];
+  const want = { minptime: '10', useinbandfec: '1', usedtx: '1', stereo: '0', 'sprop-stereo': '0', maxaveragebitrate: String(bitrate), maxplaybackrate: '24000' };
+  const line = new RegExp(`a=fmtp:${pt} ([^\\r\\n]*)`);
+  const found = line.exec(sdp);
+  if (found) {
+    const params = new Map(found[1].split(';').map((kv) => kv.trim()).filter(Boolean).map((kv) => { const i = kv.indexOf('='); return i < 0 ? [kv, ''] : [kv.slice(0, i), kv.slice(i + 1)]; }));
+    for (const [k, v] of Object.entries(want)) params.set(k, v);
+    return sdp.replace(line, `a=fmtp:${pt} ${[...params].map(([k, v]) => (v === '' ? k : `${k}=${v}`)).join(';')}`);
+  }
+  return sdp.replace(new RegExp(`(a=rtpmap:${pt} opus/48000[^\\r\\n]*)`, 'i'), `$1\r\na=fmtp:${pt} ${Object.entries(want).map(([k, v]) => `${k}=${v}`).join(';')}`);
+}
+
+function createVoiceChat({ online, audio, peers = () => [], me = () => null, walls = () => false, store = null, zone = '', now = () => performance.now(), RTC = (typeof window !== 'undefined' ? window.RTCPeerConnection : null), media = (typeof navigator !== 'undefined' ? navigator.mediaDevices : null), makeAudio = () => (typeof document !== 'undefined' ? document.createElement('audio') : null) } = {}) {
+  const prefs = { on: false, mode: 'ptt', mic: 1, voices: 1, muted: [], ...((store && store.get()) || {}) };
+  const save = () => { if (store) store.set({ ...prefs }); };
+  const listeners = new Set();
+  const changed = () => { for (const fn of [...listeners]) { try { fn(); } catch (error) { /* a listener's own */ } } };
+
+  let status = null;               // the server's word: { adult, allowed, bannedUntil, warning, blocked }
+  let ice = null;                  // { iceServers, relay, at, ttl }
+  let mic = null;                  // { stream, track (sent), raw, meter, gain, ctxSource }
+  let myId = null;
+  let allowedIds = new Set();      // the players near this one the server says may be talked with
+  const links = new Map();         // peer id -> link
+  const outbox = [];
+  const cooling = new Map();       // peer id -> until when not tried again
+  let pressed = false, speakingUntil = 0, sending = false;
+  let muteAll = false;
+  let paused = false;
+  let note = '';                   // a calm word for the player (voice cannot connect here, and the like)
+  let failures = 0, successes = 0;
+  let lastLook = 0;
+  const stats = { offers: 0, answers: 0, connected: 0, failed: 0, relayed: 0, bytesSent: 0, bytesReceived: 0, heardOffers: 0, heardAnswers: 0, byes: 0, error: '' };
+
+  const events = [];
+  const log = (text) => { events.push(`${(now() / 1000).toFixed(1)} ${text}`); if (events.length > 40) events.shift(); };
+  const say = (text) => { if (note !== text) { note = text; changed(); } };
+  const blockedIds = () => new Set((status && status.blocked ? status.blocked : []).map((b) => b.id));
+
+
+  async function refreshStatus() {
+    const answer = await online.ask('voice.status');
+    if (answer.ok) { status = answer.voice; changed(); }
+    return answer;
+  }
+  async function getIce() {
+    if (ice && now() - ice.at < (ice.ttl - 600) * 1000) return ice;
+    const answer = await online.ask('voice.ice');
+    if (!answer.ok) return null;
+    ice = { iceServers: answer.iceServers, relay: !!answer.relay, ttl: answer.ttl || 3600, at: now() };
+    return ice;
+  }
+
+
+  async function openMic() {
+    if (mic) return mic;
+    if (!media || !media.getUserMedia) throw Object.assign(new Error('no microphone here'), { code: 'NO_MIC' });
+    const raw = await media.getUserMedia({ audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true, channelCount: 1 }, video: false });
+    const rawTrack = raw.getAudioTracks()[0];
+    let track = rawTrack, meter = null, gain = null;
+    const piped = audio && audio.micPipe ? audio.micPipe(raw) : null;
+    if (piped) { track = piped.track; meter = piped.meter; gain = piped.gain; }
+    if (gain) gain.gain.value = prefs.mic;
+    track.enabled = false;
+    mic = { raw, rawTrack, track, meter, gain, piped };
+    rawTrack.addEventListener('ended', () => { closeMic(); say('The microphone stopped. Turn voice chat off and on to start it again.'); });
+    return mic;
+  }
+  function closeMic() {
+    if (!mic) return;
+    try { mic.raw.getTracks().forEach((t) => t.stop()); } catch (error) { /* gone */ }
+    if (mic.piped && mic.piped.close) mic.piped.close();
+    mic = null;
+  }
+  const level = () => (mic && mic.meter ? mic.meter() : 0);
+
+
+  function makeLink(id, role) {
+    const pc = new RTC({ iceServers: ice ? ice.iceServers : [], bundlePolicy: 'max-bundle' });
+    const link = { id, pc, role, word: '', state: 'new', at: now(), voice: null, el: null, talking: false, level: 0, muffled: false, relayed: null, bytes: { sent: 0, received: 0 } };
+    if (mic) { const sender = pc.addTrack(mic.track, new MediaStream([mic.track])); link.sender = sender; }
+    else pc.addTransceiver('audio', { direction: 'recvonly' });
+    pc.ontrack = (event) => {
+      const stream = event.streams && event.streams[0] ? event.streams[0] : new MediaStream([event.track]);
+      const el = makeAudio();
+      if (el) { el.muted = true; el.autoplay = true; el.setAttribute('playsinline', ''); el.srcObject = stream; const p = el.play(); if (p && p.catch) p.catch(() => {}); }
+      link.el = el;
+      link.voice = audio && audio.playerVoice ? audio.playerVoice(stream, { reach: VOICE_CHAT.reach }) : null;
+      if (!link.voice && el) { el.muted = false; link.plain = true; }
+      changed();
+    };
+    pc.onconnectionstatechange = () => {
+      const s = pc.connectionState;
+      log(`${id.slice(0, 7)} ${s}`);
+      if (s === 'connected' && link.state !== 'connected') { link.state = 'connected'; stats.connected += 1; successes += 1; if (note) say(''); limitBitrate(link); whichWay(link); changed(); }
+      if (s === 'failed') { stats.failed += 1; failures += 1; drop(id, false); cooling.set(id, now() + 3000); if (failures >= 2 && !successes) say('Voice chat can\'t connect on this network.'); }
+      if (s === 'disconnected' && link.state === 'connected') setTimeout(() => { if (links.get(id) === link && pc.connectionState === 'disconnected') { drop(id, false); cooling.set(id, now() + 2000); } }, 8000);
+    };
+    links.set(id, link);
+    return link;
+  }
+  async function limitBitrate(link) {
+    try {
+      const s = link.sender || link.pc.getSenders().find((x) => x.track && x.track.kind === 'audio');
+      if (!s || !s.getParameters) return;
+      const p = s.getParameters();
+      if (!p.encodings || !p.encodings.length) p.encodings = [{}];
+      p.encodings[0].maxBitrate = VOICE_CHAT.bitrate;
+      await s.setParameters(p);
+    } catch (error) { /* the description already asks for it */ }
+  }
+  async function whichWay(link) {
+    try {
+      const report = await link.pc.getStats();
+      let pair = null;
+      report.forEach((s) => { if (s.type === 'transport' && s.selectedCandidatePairId) pair = report.get(s.selectedCandidatePairId); });
+      if (!pair) report.forEach((s) => { if (s.type === 'candidate-pair' && (s.selected || s.nominated) && s.state === 'succeeded') pair = s; });
+      const local = pair ? report.get(pair.localCandidateId) : null;
+      link.relayed = local ? local.candidateType === 'relay' : null;
+      if (link.relayed) stats.relayed += 1;
+      changed();
+    } catch (error) { /* not known */ }
+  }
+  async function described(pc) {
+    if (pc.iceGatheringState !== 'complete') {
+      await Promise.race([new Promise((done) => { const on = () => { if (pc.iceGatheringState === 'complete') { pc.removeEventListener('icegatheringstatechange', on); done(); } }; pc.addEventListener('icegatheringstatechange', on); }), sleep(VOICE_CHAT.gather)]);
+    }
+    return pc.localDescription ? pc.localDescription.sdp : '';
+  }
+  async function offerTo(id) {
+    const link = makeLink(id, 'offer');
+    link.state = 'offering';
+    log(`${id.slice(0, 7)} offering`);
+    try {
+      const offer = await link.pc.createOffer();
+      await link.pc.setLocalDescription({ type: 'offer', sdp: tuneOpus(offer.sdp) });
+      const sdp = await described(link.pc);
+      if (links.get(id) !== link) return;
+      link.word = tag();
+      outbox.push({ to: id, k: 'offer', d: `${link.word}\n${sdp}` });
+      log(`${id.slice(0, 7)} offer ready (${sdp.length})`);
+      stats.offers += 1;
+      link.state = 'offered'; link.at = now();
+    } catch (error) { stats.error = `offer: ${error && error.message}`; drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
+  }
+  async function answerTo(id, data) {
+    const { word, sdp } = split(data);
+    const had = links.get(id);
+    if (had) { if (had.role === 'offer' && myId && myId < id) return; drop(id, false); }
+    if (!wanted(id)) { stats.error = 'an offer from someone not near'; outbox.push({ to: id, k: 'bye' }); return; }
+    const link = makeLink(id, 'answer');
+    link.state = 'answering';
+    link.word = word;
+    try {
+      await link.pc.setRemoteDescription({ type: 'offer', sdp });
+      const answer = await link.pc.createAnswer();
+      await link.pc.setLocalDescription({ type: 'answer', sdp: tuneOpus(answer.sdp) });
+      const mine = await described(link.pc);
+      if (links.get(id) !== link) return;
+      outbox.push({ to: id, k: 'answer', d: word ? `${word}\n${mine}` : mine });
+      log(`${id.slice(0, 7)} answer ready (${mine.length})`);
+      stats.answers += 1;
+      link.state = 'answered'; link.at = now();
+    } catch (error) { stats.error = `answer: ${error && error.message}`; drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
+  }
+  async function answered(id, data) {
+    const { word, sdp } = split(data);
+    const link = links.get(id);
+    if (!link || link.role !== 'offer' || link.pc.signalingState !== 'have-local-offer') return;
+    if (word !== link.word) { log(`${id.slice(0, 7)} an answer to an earlier offer, not taken`); return; }
+    try { await link.pc.setRemoteDescription({ type: 'answer', sdp }); link.state = 'connecting'; link.at = now(); } catch (error) { drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
+  }
+  function drop(id, tell = true) {
+    const link = links.get(id);
+    if (!link) return;
+    log(`${id.slice(0, 7)} let go (${link.state})`);
+    links.delete(id);
+    try { link.pc.close(); } catch (error) { /* closed */ }
+    if (link.voice) link.voice.stop();
+    if (link.el) { try { link.el.srcObject = null; link.el.remove(); } catch (error) { /* gone */ } }
+    if (tell) outbox.push({ to: id, k: 'bye' });
+    changed();
+  }
+
+
+  function nearby() {
+    const self = me();
+    if (!self) return [];
+    const blocked = blockedIds();
+    return peers().filter((q) => allowedIds.has(q.id) && !blocked.has(q.id)).map((q) => ({ ...q, d: Math.hypot(q.x - self.x, q.z - self.z) })).sort((a, b) => a.d - b.d);
+  }
+  function wanted(id) {
+    const near = nearby();
+    const k = near.findIndex((q) => q.id === id);
+    return k >= 0 && k < VOICE_CHAT.keepRank && near[k].d <= VOICE_CHAT.drop;
+  }
+  function choose() {
+    if (!active()) return;
+    const near = nearby();
+    const t = now();
+    for (const [id, link] of links) {
+      const k = near.findIndex((q) => q.id === id);
+      const waitedTooLong = (link.state === 'offered' || link.state === 'connecting' || link.state === 'answered') && t - link.at > VOICE_CHAT.wait;
+      if (k < 0 || k >= VOICE_CHAT.keepRank || near[k].d > VOICE_CHAT.drop || waitedTooLong) { drop(id, true); if (waitedTooLong) { cooling.set(id, t + VOICE_CHAT.retry); failures += 1; if (failures >= 3 && !successes) say('Voice chat can\'t connect on this network.'); } }
+    }
+    for (const q of near.slice(0, VOICE_CHAT.most)) {
+      if (q.d > VOICE_CHAT.connect || links.has(q.id) || links.size >= VOICE_CHAT.keepRank) continue;
+      if ((cooling.get(q.id) || 0) > t) continue;
+      if (myId && myId < q.id) offerTo(q.id);
+    }
+  }
+
+
+  const active = () => prefs.on && !!mic && !paused && !!(status && status.allowed);
+  function body() {
+    if (outbox.length) { log(`sent ${outbox.map((o) => `${o.k} to ${String(o.to).slice(0, 7)}`).join(', ')}`); }
+    if (!prefs.on || !status || !status.allowed) return outbox.length ? { on: false, out: outbox.splice(0) } : null;
+    return { on: active(), out: outbox.splice(0) };
+  }
+  function answer(word) {
+    if (!word) return;
+    if (word.me) myId = word.me;
+    const was = allowedIds.size;
+    allowedIds = new Set(Array.isArray(word.ok) ? word.ok : []);
+    if (was !== allowedIds.size) log(`may talk with ${allowedIds.size}`);
+    if (word.no && prefs.on) { status = { ...(status || {}), allowed: false }; stop(); say(word.no === 'BANNED' ? 'Voice chat is closed to your account.' : 'Voice chat is for players aged 18 and over.'); }
+    for (const s of Array.isArray(word.in) ? word.in : []) {
+      if (!s || typeof s.from !== 'string') continue;
+      if (s.k === 'bye') { stats.byes += 1; drop(s.from, false); continue; }
+      if (s.k === 'offer') stats.heardOffers += 1; else if (s.k === 'answer') stats.heardAnswers += 1;
+      log(`${s.from.slice(0, 7)} ${s.k} heard`);
+      if (!active()) { stats.error = 'a handshake while voice chat was not started'; continue; }
+      if (s.k === 'offer' && typeof s.d === 'string') answerTo(s.from, s.d);
+      if (s.k === 'answer' && typeof s.d === 'string') answered(s.from, s.d);
+    }
+    choose();
+  }
+  const urgent = () => outbox.length > 0 || [...links.values()].some((l) => l.state === 'offered' || l.state === 'answered');
+
+
+  function setSending(on) {
+    if (sending === on) return;
+    sending = on;
+    if (mic) mic.track.enabled = on;
+    changed();
+  }
+  function update() {
+    const t = now();
+    if (prefs.mode === 'open' && mic) { if (level() > VOICE_CHAT.vad) speakingUntil = t + VOICE_CHAT.hang; setSending(active() && t < speakingUntil); } else setSending(active() && pressed);
+    const self = me();
+    const shown = new Map(peers().map((q) => [q.id, q]));
+    const muted = new Set(prefs.muted);
+    const look = t - lastLook > 400;
+    if (look) lastLook = t;
+    let any = false;
+    for (const link of links.values()) {
+      const q = shown.get(link.id);
+      if (!q || !self) continue;
+      const d = Math.hypot(q.x - self.x, q.z - self.z);
+      if (look) link.muffled = d <= VOICE_CHAT.reach && walls(self.x, self.z, q.x, q.z);
+      const silent = muteAll || muted.has(q.name);
+      if (link.voice) { link.voice.move(q.x, q.z); link.voice.set({ volume: silent ? 0 : prefs.voices, muffled: link.muffled }); link.level = link.voice.level(); }
+      else if (link.el && link.plain) { link.el.volume = silent ? 0 : Math.max(0, Math.min(1, prefs.voices * (1 - d / VOICE_CHAT.reach))); }
+      const was = link.talking;
+      if (link.level > VOICE_CHAT.talking) link.loudAt = t;
+      link.talking = !silent && d <= VOICE_CHAT.reach && t - (link.loudAt || -1e9) < 1000;
+      if (was !== link.talking) any = true;
+    }
+    if (any) changed();
+    if (t - (update.chose || 0) > 500) { update.chose = t; choose(); }
+  }
+
+
+  async function start() {
+    if (!online || !online.signedIn) return { ok: false, code: 'SIGNED_OUT', message: 'Sign in to use voice chat.' };
+    if (!RTC) return { ok: false, code: 'NO_RTC', message: 'Voice chat does not work in this browser.' };
+    const st = await refreshStatus();
+    if (!st.ok) return { ok: false, code: st.code, message: 'Voice chat can\'t connect just now. Try again in a moment.' };
+    if (status.adult === null) return { ok: false, code: 'AGE', message: '' };
+    if (!status.allowed) return { ok: false, code: status.adult === false ? 'UNDER_18' : 'BANNED', message: status.adult === false ? 'Voice chat is for players aged 18 and over.' : 'Voice chat is closed to your account.' };
+    try { await openMic(); } catch (error) {
+      return { ok: false, code: 'MIC', message: error && (error.name === 'NotAllowedError' || error.name === 'SecurityError') ? 'Voice chat needs the microphone. You can allow it in your browser\'s settings, then turn voice chat on again.' : 'No microphone could be found on this device.' };
+    }
+    await getIce();
+    if (audio && audio.start) audio.start();
+    prefs.on = true; save(); paused = false; failures = 0; successes = 0; say('');
+    changed();
+    return { ok: true };
+  }
+  function stop() {
+    for (const id of [...links.keys()]) drop(id, true);
+    closeMic();
+    setSending(false);
+    pressed = false;
+    changed();
+  }
+  function turnOff() { prefs.on = false; save(); stop(); say(''); }
+
+  return {
+    VOICE_CHAT,
+    get on() { return prefs.on; },
+    get active() { return active(); },
+    get sending() { return sending; },
+    get note() { return note; },
+    get status() { return status; },
+    get prefs() { return { ...prefs, muted: [...prefs.muted] }; },
+    get muteAll() { return muteAll; },
+    onChange(fn) { listeners.add(fn); return () => listeners.delete(fn); },
+    refreshStatus, start, stop, turnOff,
+    async setAge(adult) { const a = await online.ask('voice.age', { adult }); if (a.ok) { status = a.voice; changed(); } return a; },
+    async seen() { await online.ask('voice.seen'); if (status) status.warning = null; },
+    press() { pressed = true; update(); },
+    release() { pressed = false; update(); },
+    setMode(mode) { prefs.mode = mode === 'open' ? 'open' : 'ptt'; save(); changed(); },
+    setMicVolume(v) { prefs.mic = Math.max(0, Math.min(2, Number(v) || 0)); save(); if (mic && mic.gain) mic.gain.gain.value = prefs.mic; },
+    setVoicesVolume(v) { prefs.voices = Math.max(0, Math.min(1.5, Number(v) || 0)); save(); },
+    mute(name, on = true) { const m = new Set(prefs.muted); if (on) m.add(name); else m.delete(name); prefs.muted = [...m].slice(-200); save(); changed(); },
+    isMuted: (name) => muteAll || prefs.muted.includes(name),
+    setMuteAll(on) { muteAll = !!on; changed(); },
+    async block(id) { const a = await online.ask('voice.block', { peer: id }); if (a.ok) { status = a.voice; drop(id, true); changed(); } return a; },
+    async unblock(id) { const a = await online.ask('voice.unblock', { peer: id }); if (a.ok) { status = a.voice; changed(); } return a; },
+    async report(id, reason, noteText, place) { return online.ask('voice.report', { peer: id, reason, note: noteText || '', zone, x: place ? place.x : null, z: place ? place.z : null }); },
+    body, answer, urgent,
+    unsent(list) { outbox.unshift(...list.filter((x) => x && x.k)); },
+    hearSelf(on) { if (mic && mic.piped && mic.piped.hear) mic.piped.hear(!!on); },
+    update,
+    async pause() { if (paused) return; paused = true; stop(); },
+    async resume() { if (!paused) return; paused = false; if (prefs.on && status && status.allowed) { try { await openMic(); } catch (error) { say('Tap the microphone button to start voice chat again.'); } } changed(); },
+    micLevel: level,
+    async openMic() { return openMic(); },
+    nearby() {
+      const muted = new Set(prefs.muted);
+      return nearby().filter((q) => q.d <= VOICE_CHAT.drop).map((q) => { const l = links.get(q.id); return { id: q.id, name: q.name, d: q.d, connected: !!l && l.state === 'connected', talking: !!l && l.talking, muted: muteAll || muted.has(q.name), relayed: l ? l.relayed : null }; });
+    },
+    talkingIds: () => [...links.values()].filter((l) => l.talking).map((l) => l.id),
+    async measure() {
+      let sent = 0, received = 0;
+      for (const link of links.values()) {
+        try { const r = await link.pc.getStats(); r.forEach((s) => { if (s.type === 'outbound-rtp' && s.kind === 'audio') sent += s.bytesSent || 0; if (s.type === 'inbound-rtp' && s.kind === 'audio') received += s.bytesReceived || 0; }); } catch (error) { /* gone */ }
+      }
+      return { sent, received, links: links.size };
+    },
+    stats: () => ({ ...stats, links: links.size, connected: [...links.values()].filter((l) => l.state === 'connected').length, relayedNow: [...links.values()].filter((l) => l.relayed).length, myId, allowed: allowedIds.size, sending, mic: !!mic, on: prefs.on, active: active(), relay: ice ? ice.relay : null }),
+    events: () => [...events],
+    links: () => [...links.values()].map((l) => ({ id: l.id, state: l.state, role: l.role, talking: l.talking, level: l.level, heard: l.voice && l.voice.heard ? l.voice.heard() : null, muffled: l.muffled, relayed: l.relayed })),
+  };
+}
+
+return { VOICE_CHAT, split, tuneOpus, createVoiceChat };
+})();
+
+__modules["client/ui-voice.js"] = (function () {
+
+const REASONS = [['abuse', 'Abuse or insults'], ['harassment', 'Harassment'], ['threats', 'Threats'], ['hate', 'Hate speech'], ['other', 'Other']];
+const ACTION_WORDS = { dismiss: 'Dismiss', warn: 'Warn', voice7: 'No voice 7 days', voice30: 'No voice 30 days', voiceForever: 'No voice for good', gameBan: 'Ban from the game' };
+const STATUS_WORDS = { open: 'Open', dismissed: 'Dismissed', warned: 'Warned', 'voice-7': 'No voice for 7 days', 'voice-30': 'No voice for 30 days', 'voice-forever': 'No voice for good', 'game-ban': 'Banned from the game' };
+
+const PRIVACY = Object.freeze([
+  'Your account keeps your username, your character and how far you have got, so that you can play on any device. Your password is never kept: only a scrambled form of it that cannot be turned back into it.',
+  'Voice chat is off until you turn it on. Your voice goes straight from your device to the players near you (through Cloudflare\'s relay only when a network will not let two devices reach each other). What anyone says is never recorded or kept, by the game, its server or anyone else. Your microphone is used only while voice chat is on and the game is on your screen.',
+  'For voice chat the server keeps only what it needs: your answer to "Are you 18 or older?", the players you have blocked, and any report you make or that is made about you, with the date, the two accounts and the place in town. The game\'s administrators read reports and decide what to do about them.',
+  'The weather in town is the real weather near you, found from the approximate place your connection comes from. Nobody is asked where you are, and the place is not kept.',
+]);
+
+const MIC_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="3" width="6" height="11" rx="3"></rect><path d="M5.5 11a6.5 6.5 0 0 0 13 0M12 17.5V21M8.5 21h7"></path></svg>';
+const PEOPLE_SVG = '<svg class="ico" viewBox="0 0 24 24" aria-hidden="true"><circle cx="9" cy="8" r="3.2"></circle><path d="M3.5 19c.6-3.4 2.8-5.2 5.5-5.2s4.9 1.8 5.5 5.2"></path><circle cx="16.5" cy="9" r="2.4"></circle><path d="M15.2 13.9c2.7-.4 4.7 1.2 5.3 4.6"></path></svg>';
+const SPEAKER_SVG = '<svg viewBox="0 0 24 24" aria-hidden="true"><path d="M4 9.5h3.5L12 5.5v13l-4.5-4H4z"></path><path class="w1" d="M15.5 9a4 4 0 0 1 0 6"></path><path class="w2" d="M18 6.5a7.5 7.5 0 0 1 0 11"></path></svg>';
+
+function createVoiceUI({ voice, online, h, hud = null, project = () => null, headOfPeer = () => null, place = () => null, isAdmin = () => false, toast = () => {}, screen = () => ({ w: innerWidth, h: innerHeight }) }) {
+  const el = (tag, attrs, ...kids) => h(tag, attrs, ...kids);
+  const talk = el('button', { id: 'voice-talk', type: 'button', 'aria-label': 'Hold to talk', hidden: '' });
+  talk.innerHTML = MIC_SVG;
+  const people = el('button', { id: 'voice-people', type: 'button', 'aria-label': 'Players nearby: mute, block or report', hidden: '' });
+  people.innerHTML = PEOPLE_SVG;
+  const word = el('div', { id: 'voice-note', role: 'status', hidden: '' });
+  const icons = el('div', { id: 'voice-icons', 'aria-hidden': 'true' });
+  if (hud) hud.append(talk, people, word, icons);
+
+  let holding = null;
+  const down = async (event) => {
+    event.preventDefault();
+    if (!voice.active) { if (voice.on) await wake(); return; }
+    if (voice.prefs.mode === 'open') return;
+    holding = event.pointerId;
+    try { talk.setPointerCapture(event.pointerId); } catch (error) { /* not captured */ }
+    voice.press();
+  };
+  const up = (event) => { if (holding === null || (event && event.pointerId !== holding)) return; holding = null; voice.release(); };
+  talk.addEventListener('pointerdown', down);
+  talk.addEventListener('pointerup', up);
+  talk.addEventListener('pointercancel', up);
+  talk.addEventListener('lostpointercapture', up);
+  talk.addEventListener('contextmenu', (e) => e.preventDefault());
+  people.addEventListener('click', () => openNearby());
+
+  const shownIcons = new Map();        // peer id -> element
+  function frame() {
+    const on = voice.on;
+    keepNearby();
+    if (!on && talk.hidden && !shownIcons.size && word.hidden) return;
+    talk.hidden = !on; people.hidden = !on;
+    talk.classList.toggle('sending', voice.sending);
+    talk.classList.toggle('open', voice.prefs.mode === 'open');
+    talk.classList.toggle('idle', on && !voice.active);
+    talk.setAttribute('aria-pressed', String(voice.sending));
+    talk.setAttribute('aria-label', voice.prefs.mode === 'open' ? 'Open mic: you are heard when you speak' : 'Hold to talk');
+    const n = voice.note || (on && !voice.active && !waking ? 'Tap the microphone to start voice chat.' : '');
+    if (word.textContent !== n) word.textContent = n;
+    word.hidden = !n;
+    const want = new Set(on ? voice.talkingIds() : []);
+    for (const [id, icon] of shownIcons) if (!want.has(id)) { icon.remove(); shownIcons.delete(id); }
+    for (const id of want) {
+      const head = headOfPeer(id);
+      const at = head ? project(head.x, head.y + 0.45, head.z) : null;
+      let icon = shownIcons.get(id);
+      if (!at || at.behind) { if (icon) icon.style.display = 'none'; continue; }
+      if (!icon) { icon = el('div', { class: 'voice-speaker', 'data-peer': id }); icon.innerHTML = SPEAKER_SVG; icons.append(icon); shownIcons.set(id, icon); }
+      icon.style.display = '';
+      icon.style.transform = `translate(${Math.round(at.x - 13)}px, ${Math.round(at.y - 26)}px)`;
+    }
+  }
+
+  let dialog = null;
+  function openDialog(build) {
+    closeDialog();
+    const box = el('div', { class: 'voice-dialog', role: 'dialog', 'aria-modal': 'true' });
+    const card = el('div', { class: 'voice-card' });
+    box.append(card);
+    box.addEventListener('pointerdown', (e) => { if (e.target === box) closeDialog(); });
+    box.addEventListener('keydown', (e) => { e.stopPropagation(); if (e.key === 'Escape') closeDialog(); });
+    document.body.append(box);
+    dialog = { box, card, rebuild: () => { card.textContent = ''; build(card); } };
+    dialog.rebuild();
+    const first = card.querySelector('button');
+    if (first) first.focus({ preventScroll: true });
+    return dialog;
+  }
+  function closeDialog() { if (dialog) { dialog.box.remove(); dialog = null; } }
+  const ask = (title, text, buttons) => new Promise((resolve) => {
+    openDialog((card) => {
+      card.append(el('h3', null, title), ...(Array.isArray(text) ? text : [text]).map((t) => el('p', null, t)),
+        el('div', { class: 'actions' }, buttons.map(([label, value, kind, id]) => el('button', { class: `btn ${kind || ''}`, type: 'button', ...(id ? { id } : {}), onclick: () => { closeDialog(); resolve(value); } }, label))));
+    });
+    const box = dialog.box;
+    const watch = new MutationObserver(() => { if (!box.isConnected) { watch.disconnect(); resolve(null); } });
+    watch.observe(document.body, { childList: true });
+  });
+
+  async function turnOn() {
+    if (!online || !online.available || !online.signedIn) { toast({ type: 'note', text: 'Sign in to use voice chat.' }); return false; }
+    const st = await voice.refreshStatus();
+    if (!st.ok) { toast({ type: 'note', text: 'Voice chat can\'t connect just now. Try again in a moment.' }); return false; }
+    const status = voice.status;
+    if (status.adult === null) {
+      const go = await ask('Voice chat', ['Talk out loud with players near you: they hear you, you hear them, as in real life. It uses mobile data while people are talking (up to about 11 MB an hour for each person talking near you).', 'What you say is never recorded or kept.'], [['Continue', true, 'primary', 'voice-intro-yes'], ['Not now', false, 'quiet', 'voice-intro-no']]);
+      if (!go) return false;
+      const adult = await ask('Are you 18 or older?', 'Voice chat is for players aged 18 and over. You are asked this once.', [['Yes, I am 18 or older', true, 'primary', 'voice-age-yes'], ['No', false, 'quiet', 'voice-age-no']]);
+      if (adult === null) return false;
+      const said = await voice.setAge(adult);
+      if (!said.ok) { toast({ type: 'note', text: said.message || 'That could not be saved. Try again.' }); return false; }
+      if (!adult) { await ask('Voice chat', 'Voice chat is for players aged 18 and over, so it stays off. Everything else in the game is the same.', [['OK', true, 'primary', 'voice-age-ok']]); return false; }
+    }
+    const started = await voice.start();
+    if (!started.ok) {
+      if (started.code === 'AGE') return turnOn();
+      await ask('Voice chat', started.message || 'Voice chat could not start.', [['OK', true, 'primary', 'voice-start-ok']]);
+      return false;
+    }
+    toast({ type: 'note', text: voice.prefs.mode === 'open' ? 'Voice chat on: open mic. Players near you hear you when you speak.' : 'Voice chat on. Hold the microphone button (or B) to talk.' });
+    return true;
+  }
+  let waking = false;
+  async function wake({ quiet = false } = {}) {
+    if (waking || voice.active || !voice.on) return;
+    waking = true;
+    try {
+      const started = await voice.start();
+      if (!started.ok && !quiet) {
+        if (started.code === 'AGE') await turnOn();
+        else await ask('Voice chat', started.message || 'Voice chat could not start.', [['OK', true, 'primary', 'voice-start-ok']]);
+      }
+      if (!started.ok && (started.code === 'UNDER_18' || started.code === 'BANNED')) voice.turnOff();
+    } finally { waking = false; }
+  }
+  async function wakeIfAllowed() {
+    if (!voice.on || voice.active || !online || !online.signedIn) return;
+    let granted = false;
+    try { const p = await navigator.permissions.query({ name: 'microphone' }); granted = p.state === 'granted'; } catch (error) { /* not asked here */ }
+    if (granted) await wake({ quiet: true });
+  }
+  async function showWarning() {
+    if (!online || !online.signedIn) return;
+    const st = await voice.refreshStatus();
+    if (st.ok && voice.status && voice.status.warning) {
+      await ask('A message from PostCivilWar', voice.status.warning, [['I understand', true, 'primary', 'voice-warning-ok']]);
+      await voice.seen();
+    }
+  }
+
+  let reporting = null;     // { id, name, reason, note, sent }
+  let nearbySeen = '', nearbyAt = 0;
+  const nearbyWord = () => voice.nearby().map((q) => `${q.id}:${Math.round(q.d / 3)}:${q.connected ? 1 : 0}:${q.talking ? 1 : 0}`).join('|');
+  function openNearby() {
+    nearbySeen = nearbyWord();
+    const d = openDialog((card) => {
+      if (reporting) { reportForm(card); return; }
+      const list = voice.nearby();
+      card.append(el('h3', null, 'Players nearby'),
+        el('div', { class: 'setrow' }, el('span', null, 'Mute everyone'), el('button', { class: 'switch', type: 'button', role: 'switch', id: 'voice-mute-all', 'aria-checked': String(voice.muteAll), 'aria-label': 'Mute everyone', onclick: () => { voice.setMuteAll(!voice.muteAll); dialog.rebuild(); } })));
+      if (!list.length) card.append(el('p', { class: 'small', id: 'voice-nobody' }, 'Nobody with voice chat on is near you just now.'));
+      card.append(el('div', { class: 'rows', id: 'voice-list' }, list.map((q) => el('div', { class: 'voice-person', 'data-name': q.name },
+        el('div', { class: 'who' }, el('b', null, q.name), el('span', { class: 'small' }, ` ${Math.round(q.d)} m${q.talking ? ' · talking' : ''}${q.connected ? '' : q.d <= 40 ? ' · connecting' : ''}`)),
+        el('div', { class: 'acts' },
+          el('button', { class: 'btn', type: 'button', 'data-act': 'mute', onclick: () => { voice.mute(q.name, !voice.isMuted(q.name)); dialog.rebuild(); } }, voice.prefs.muted.includes(q.name) ? 'Unmute' : 'Mute'),
+          el('button', { class: 'btn', type: 'button', 'data-act': 'block', onclick: async () => {
+            const sure = await ask(`Block ${q.name}?`, 'You will never hear each other again, and you will not be put in touch. You can unblock them in Settings.', [['Block', true, 'primary danger', 'voice-block-yes'], ['Cancel', false, 'quiet']]);
+            if (sure) { const r = await voice.block(q.id); toast({ type: r.ok ? 'note' : 'warn', text: r.ok ? `${q.name} is blocked.` : r.message }); }
+            openNearby();
+          } }, 'Block'),
+          el('button', { class: 'btn', type: 'button', 'data-act': 'report', onclick: () => { reporting = { id: q.id, name: q.name, reason: '', note: '' }; dialog.rebuild(); } }, 'Report'))))),
+      el('div', { class: 'actions' }, el('button', { class: 'btn quiet', type: 'button', id: 'voice-list-close', onclick: () => closeDialog() }, 'Close')));
+    });
+    d.kind = 'nearby';
+  }
+  function keepNearby() {
+    if (!dialog || dialog.kind !== 'nearby' || reporting) return;
+    const t = performance.now();
+    if (t - nearbyAt < 1000) return;
+    nearbyAt = t;
+    const word = nearbyWord();
+    if (word !== nearbySeen) { nearbySeen = word; dialog.rebuild(); }
+  }
+  function reportForm(card) {
+    const r = reporting;
+    const note = el('textarea', { class: 'field', rows: '2', maxlength: '400', id: 'voice-report-note', placeholder: 'What happened (optional)' }, r.note);
+    note.addEventListener('input', () => { r.note = note.value; });
+    const msg = el('p', { class: 'small', id: 'voice-report-said', hidden: '' });
+    const send = el('button', { class: 'btn primary', type: 'button', id: 'voice-report-send', disabled: r.reason ? null : '', onclick: async () => {
+      send.disabled = true;
+      const answer = await voice.report(r.id, r.reason, r.note, place());
+      if (answer.ok) { reporting = null; closeDialog(); toast({ type: 'note', text: `Thank you. Your report about ${r.name} has been sent.` }); } else { msg.hidden = false; msg.textContent = answer.message || 'The report could not be sent. Try again.'; send.disabled = false; }
+    } }, 'Send report');
+    card.append(el('h3', null, `Report ${r.name}`), el('p', { class: 'small' }, 'Why are you reporting them?'),
+      el('div', { class: 'chips', role: 'radiogroup', id: 'voice-reasons' }, REASONS.map(([id, label]) => el('button', { class: 'chip', type: 'button', role: 'radio', 'aria-checked': String(r.reason === id), 'data-reason': id, onclick: () => { r.reason = id; dialog.rebuild(); } }, label))),
+      note, msg, el('p', { class: 'small' }, 'The report goes to the game\'s administrators with the date and where you are in town. You can also block them.'),
+      el('div', { class: 'actions' }, send, el('button', { class: 'btn quiet', type: 'button', onclick: () => { reporting = null; dialog.rebuild(); } }, 'Back')));
+  }
+
+  let testing = null;     // { until, timer, hear }
+  function settingsSection(root, { section, toggle, redraw }) {
+    root.append(section('Voice chat'));
+    const st = voice.status;
+    const p = voice.prefs;
+    const rows = el('div', { class: 'rows', id: 'voice-settings' },
+      el('div', { class: 'setrow' }, el('span', null, 'Voice chat with players near you'), toggle('voice-on', voice.on, 'Voice chat', async (on) => { if (on) await turnOn(); else voice.turnOff(); redraw(); })),
+      el('div', { class: 'setrow' }, el('span', null, 'How you talk'), el('div', { class: 'segment', role: 'group', 'aria-label': 'How you talk' },
+        el('button', { class: 'chip', type: 'button', id: 'voice-mode-ptt', 'aria-pressed': String(p.mode !== 'open'), onclick: () => { voice.setMode('ptt'); redraw(); } }, 'Push to talk'),
+        el('button', { class: 'chip', type: 'button', id: 'voice-mode-open', 'aria-pressed': String(p.mode === 'open'), onclick: () => { voice.setMode('open'); redraw(); } }, 'Open mic'))));
+    const fader = (id, label, value, max, set) => {
+      const shown = el('span', { class: 'mono' }, `${Math.round(value * 100)}`);
+      const slider = el('input', { type: 'range', min: '0', max: String(max), step: '5', value: String(Math.round(value * 100)), id, 'aria-label': label });
+      const fill = () => slider.style.setProperty('--fill', `${(slider.value / max) * 100}%`);
+      fill();
+      slider.addEventListener('input', () => { shown.textContent = slider.value; fill(); set(Number(slider.value) / 100); });
+      return el('label', { class: 'fader' }, el('span', null, label), slider, shown);
+    };
+    const meter = el('div', { class: 'voice-meter', id: 'voice-meter', role: 'meter', 'aria-label': 'Microphone level', 'aria-valuemin': '0', 'aria-valuemax': '100' }, el('i'));
+    const testBtn = el('button', { class: 'btn', type: 'button', id: 'voice-test', onclick: async () => {
+      if (testing) { stopTest(); redraw(); return; }
+      try { await voice.openMic(); } catch (error) { toast({ type: 'warn', text: 'The microphone could not be opened. You can allow it in your browser\'s settings.' }); return; }
+      testing = { until: performance.now() + 15000, hear: false };
+      const tick = () => {
+        if (!testing) return;
+        const v = Math.min(1, voice.micLevel() * 8);
+        meter.firstChild.style.width = `${Math.round(v * 100)}%`; meter.setAttribute('aria-valuenow', String(Math.round(v * 100)));
+        if (performance.now() > testing.until) { stopTest(); redraw(); return; }
+        testing.timer = requestAnimationFrame(tick);
+      };
+      tick(); redraw();
+    } }, testing ? 'Stop the test' : 'Test your microphone');
+    const hear = el('button', { class: 'btn quiet', type: 'button', id: 'voice-hear', hidden: testing ? null : '', 'aria-pressed': String(!!(testing && testing.hear)), onclick: () => { if (!testing) return; testing.hear = !testing.hear; voice.hearSelf(testing.hear); redraw(); } }, testing && testing.hear ? 'Stop hearing yourself' : 'Hear yourself');
+    root.append(rows,
+      el('div', { class: 'rows faders' }, fader('voice-mic-volume', 'Microphone', p.mic, 200, (v) => voice.setMicVolume(v)), fader('voice-volume', 'Voices', p.voices, 150, (v) => voice.setVoicesVolume(v))),
+      el('div', { class: 'actions' }, testBtn, hear), testing ? meter : el('span'));
+    const blocked = st && st.blocked ? st.blocked : [];
+    root.append(el('div', { class: 'rows', id: 'voice-blocked' }, blocked.length ? blocked.map((b) => el('div', { class: 'setrow' }, el('span', null, b.username), el('button', { class: 'btn', type: 'button', 'data-unblock': b.username, onclick: async () => { await voice.unblock(b.id); redraw(); } }, 'Unblock'))) : [el('div', { class: 'setrow' }, el('span', { class: 'small' }, 'You have not blocked anyone.'))]));
+    root.append(el('p', { class: 'small' }, `${p.mode === 'open' ? 'Open mic sends your voice only while you are speaking.' : 'Hold the microphone button (or B on a keyboard) to talk.'} Voice chat uses mobile data while people are talking, up to about 11 MB an hour for each person talking near you. It is for players aged 18 and over. Nothing anyone says is recorded or kept.`));
+    if (online && online.signedIn && !st) voice.refreshStatus().then((a) => { if (a.ok) redraw(); });
+  }
+  function stopTest() { if (!testing) return; cancelAnimationFrame(testing.timer); voice.hearSelf(false); testing = null; if (!voice.active) { /* the microphone stays open only while voice chat is */ } }
+
+  const admin = { list: null, at: 0, status: 'open', busy: false, error: '', messages: {}, account: '' };
+  async function loadReports(force = false) {
+    if (admin.busy || (admin.list && !force && Date.now() - admin.at < 15000)) return;
+    admin.busy = true;
+    const a = await online.ask('admin.voice.reports', { status: admin.status });
+    admin.busy = false;
+    if (a.ok) { admin.list = a.reports; admin.at = Date.now(); admin.error = ''; } else admin.error = a.message;
+    if (admin.redraw) admin.redraw();
+  }
+  function adminPage(root, redraw) {
+    admin.redraw = redraw;
+    if (!isAdmin()) { root.append(el('p', { class: 'small' }, 'Only an administrator can open this.')); return; }
+    root.append(el('div', { class: 'adchips' },
+      el('button', { class: 'chip', type: 'button', 'aria-pressed': String(admin.status === 'open'), id: 'voice-reports-open', onclick: () => { admin.status = 'open'; admin.list = null; loadReports(true); redraw(); } }, 'Open reports'),
+      el('button', { class: 'chip', type: 'button', 'aria-pressed': String(admin.status === 'all'), id: 'voice-reports-all', onclick: () => { admin.status = 'all'; admin.list = null; loadReports(true); redraw(); } }, 'All reports')));
+    loadReports();
+    if (admin.error) root.append(el('div', { class: 'notice' }, admin.error));
+    else if (!admin.list) root.append(el('p', { class: 'small' }, 'Asking the server...'));
+    else if (!admin.list.length) root.append(el('p', { class: 'small', id: 'voice-reports-none' }, admin.status === 'open' ? 'No voice chat reports are waiting.' : 'Nobody has been reported yet.'));
+    else root.append(el('div', { class: 'rows', id: 'voice-reports' }, admin.list.map((r) => reportCard(r))));
+    const name = el('input', { class: 'field', id: 'voice-admin-user', placeholder: 'Username', maxlength: '32', value: admin.account });
+    name.addEventListener('input', () => { admin.account = name.value; });
+    const act = (body, done) => async () => { const a = await online.ask('admin.voice.account', { username: admin.account, ...body }); toast({ type: a.ok ? 'note' : 'warn', text: a.ok ? done : a.message }); };
+    root.append(el('h4', null, 'An account'), name, el('div', { class: 'actions wrap' },
+      el('button', { class: 'btn', type: 'button', onclick: act({ unbanVoice: true }, 'Voice chat opened to them again.') }, 'Undo voice ban'),
+      el('button', { class: 'btn', type: 'button', onclick: act({ unbanGame: true }, 'They can play again.') }, 'Undo game ban'),
+      el('button', { class: 'btn', type: 'button', onclick: act({ adult: true }, 'Set as 18 or over.') }, 'Set as 18 or over'),
+      el('button', { class: 'btn', type: 'button', onclick: act({ adult: false }, 'Set as under 18: voice chat kept off.') }, 'Set as under 18')));
+  }
+  function reportCard(r) {
+    const msg = el('textarea', { class: 'field', rows: '2', maxlength: '400', placeholder: 'A message to them (optional: a standard one is sent otherwise)' }, admin.messages[r.id] || '');
+    msg.addEventListener('input', () => { admin.messages[r.id] = msg.value; });
+    const decide = (action) => async () => {
+      const a = await online.ask('admin.voice.decide', { report: r.id, action, message: admin.messages[r.id] || '' });
+      toast({ type: a.ok ? 'note' : 'warn', text: a.ok ? `${ACTION_WORDS[action]}: ${r.reported}.` : a.message });
+      admin.list = null; loadReports(true);
+    };
+    const when = r.at ? new Date(r.at).toLocaleString() : '';
+    return el('div', { class: 'adcard', 'data-voice-report': String(r.id) },
+      el('div', { class: 'adcardhead' }, el('b', null, r.reported), el('span', { class: 'tag' }, STATUS_WORDS[r.status] || r.status)),
+      el('div', { class: 'eyebrow plain' }, `${REASONS.find(([id]) => id === r.reason)[1]} · reported by ${r.reporter} · ${when}`),
+      r.note ? el('p', null, r.note) : el('span'),
+      el('p', { class: 'small' }, `${r.place ? `In town at ${Math.round(r.place.x)}, ${Math.round(r.place.z)}. ` : ''}Reports about ${r.reported}: ${r.reportsOnThem}.${r.voiceBannedUntil ? ` No voice until ${new Date(r.voiceBannedUntil).toLocaleDateString()}.` : ''}${r.gameBanned ? ' Banned from the game.' : ''}${r.decidedBy ? ` Decided by ${r.decidedBy}.` : ''}`),
+      r.status === 'open' ? [msg, el('div', { class: 'actions wrap' }, Object.keys(ACTION_WORDS).map((action) => el('button', { class: `btn ${action === 'gameBan' ? 'danger' : ''}`, type: 'button', 'data-action': action, onclick: decide(action) }, ACTION_WORDS[action])))] : el('span'));
+  }
+
+  return { frame, turnOn, wake, wakeIfAllowed, showWarning, openNearby, settingsSection, adminPage, close: closeDialog, get dialogOpen() { return !!dialog; } };
+}
+
+return { PRIVACY, createVoiceUI };
 })();
 
 __modules["client/own-bike-view.js"] = (function () {
@@ -45581,6 +46293,8 @@ const { createMarket, createAccountSync, newId } = __modules["client/market.js"]
 const { createAccountUI } = __modules["client/account-ui.js"];
 const { createWallet } = __modules["client/wallet.js"];
 const { createConfirm } = __modules["client/confirm.js"];
+const { createVoiceChat } = __modules["net/voice-chat.js"];
+const { createVoiceUI, PRIVACY } = __modules["client/ui-voice.js"];
 const { makeDealMarker } = __modules["client/render-holaris.js"];
 const { createOwnBikeView } = __modules["client/own-bike-view.js"];
 const { createCarView } = __modules["client/car-view.js"];
@@ -46069,7 +46783,7 @@ function start(carried) {
     if (!view) return null;
     const armed = gunPlay ? gunPlay.linkFields(cam) : null;
     const gy = zoneGroundY(view.self.x, view.self.z);
-    const me = { ...view.self, ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
+    const me = { ...view.self, ...(voiceChat.active ? { voiceOn: 1 } : {}), ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
     return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
@@ -46102,6 +46816,19 @@ function start(carried) {
   const ACCOUNT_KEY = 'pcw-account-v1';
   const SEEN_KEY = 'pcw-wallet-seen-v1';      // the last entry of each account's wallet this device has told its player about
   const online = createOnline({ available: !!webapp.site });
+  const voiceWalls = (x1, z1, x2, z2) => {
+    const d = Math.hypot(x2 - x1, z2 - z1);
+    for (let t = 1.2; t < d - 1.2; t += 1) { const k = t / d; if (zoneSolid(x1 + (x2 - x1) * k, z1 + (z2 - z1) * k, 0.05, 1.6)) return true; }
+    return false;
+  };
+  const voiceChat = createVoiceChat({
+    online, audio, zone: ZONE.id,
+    peers: () => shownPeers.map((q) => ({ id: String(q.id).replace(/^v:/, ''), x: q.x, z: q.z, name: q.name })),
+    me: () => (view ? view.self : null),
+    walls: voiceWalls,
+    store: { get: () => readStored('pcw-voice-v1'), set: (value) => writeStored('pcw-voice-v1', value) },
+  });
+  let voiceUI = null;
   async function fetchWeather() {
     if (!online.available || !REAL_CLOCK) return;
     const answer = await online.ask('world.weather', {}, { timeout: 9000 });
@@ -46159,9 +46886,10 @@ function start(carried) {
   function onlineChanged() {
     if (!online.available) return;
     const want = online.signedIn;
-    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden, gun: gunNet }) }; if (playing) relink(); }
+    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden, gun: gunNet, voice: voiceChat }) }; if (playing) relink(); }
     if (!want && transport && transport.kind === 'web') { transport = null; if (playing) relink(); }
-    if (!want) { market.reset(); ui.signedOut(); }
+    if (!want) { market.reset(); ui.signedOut(); if (voiceChat.active) voiceChat.stop(); }
+    else if (playing && voiceUI) voiceUI.wakeIfAllowed();
     if (online.status().state === 'out') {
       walletClient.reset();
       if (playing || gallery) {
@@ -46784,6 +47512,9 @@ function start(carried) {
     send: (intent) => host.game.intent(playerId, intent),
   };
   const ui = createUI({
+    voiceSettings: (root, kit) => { if (voiceUI) voiceUI.settingsSection(root, kit); },
+    privacy: () => PRIVACY,
+    voiceAdmin: (root, redraw) => { if (voiceUI) voiceUI.adminPage(root, redraw); },
     send: (intent) => { const r = server.send(intent); refreshView(); return r; },
     view: () => view,
     erase: () => eraseSave(),
@@ -46903,6 +47634,13 @@ function start(carried) {
     exited = false; exitNote = '';
     if (prefs.sound) audio.start();
     route();
+  });
+  voiceUI = createVoiceUI({
+    voice: voiceChat, online, h, hud: $('hud'), project,
+    headOfPeer: (id) => headOf(`p:v:${id}`),
+    place: () => (view ? { x: view.self.x, z: view.self.z } : null),
+    isAdmin: () => !!(online.signedIn && online.account && online.account.admin),
+    toast: (event) => ui.toast(event),
   });
   online.onChange(() => onlineChanged());
   let greetedAt = 0, greeting = false;
@@ -47266,6 +48004,7 @@ function start(carried) {
     if (prefs.sound) audio.start();
     relink();
     refreshView();
+    if (voiceUI && online.signedIn) { voiceUI.wakeIfAllowed(); voiceUI.showWarning(); }
     if (gunPlay) { gunPlay.reset(); if (online.signedIn) gunPlay.askState(); }
     if (webapp.site && window.__PCW_GUNS) webapp.keepFiles([modelFile(GUN_MODELS.rifle.file), ...((window.__PCW_GUNS.rifle && window.__PCW_GUNS.rifle.sounds) || [])]);
     canvas.focus({ preventScroll: true });
@@ -47436,6 +48175,7 @@ function start(carried) {
     if (ui.phoneOut()) { if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) { if (key.startsWith('Arrow')) event.preventDefault(); input.keys.add(key); } return; }
     if (ui.isOpen()) return;
     if (key === 't') { if (ui.openChat()) event.preventDefault(); return; }
+    if (key === 'b' && voiceChat.on) { if (!event.repeat) { if (voiceChat.active) voiceChat.press(); else voiceUI.wake(); } return; }
     if (key === 'k') { if (!event.repeat) skills.tap(); return; }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(key)) event.preventDefault();
     if (key === 'Enter') { if (!event.repeat) act('act', 'down'); actKey = true; return; }
@@ -47446,10 +48186,11 @@ function start(carried) {
   window.addEventListener('keyup', (event) => {
     const key = keyName(event);
     if (key === 'Enter' || key === 'e') actKey = false;
+    if (key === 'b') voiceChat.release();
     if (heldKeys.delete(key)) { const button = keymap.get(key); if (button) act(button.id, 'up'); }
     input.keys.delete(key);
   });
-  const letGo = () => { controls.release(); actKey = false; for (const key of heldKeys) { const button = keymap.get(key); if (button) act(button.id, 'up'); } heldKeys.clear(); };
+  const letGo = () => { voiceChat.release(); controls.release(); actKey = false; for (const key of heldKeys) { const button = keymap.get(key); if (button) act(button.id, 'up'); } heldKeys.clear(); };
   window.addEventListener('blur', letGo);
   const toggleSound = () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); if (prefs.sound) audio.start(); writeStored(PREFS_KEY, prefs); ui.toast({ type: 'note', text: prefs.sound ? 'Sound on.' : 'Sound off.' }); };
 
@@ -47759,7 +48500,7 @@ function start(carried) {
       if (gunPlay) list.push({ id: 'gun', key: 'x', label: 'Gun', icon: 'gun', off: !!self.critical, hint: self.critical ? 'You are badly hurt: you cannot use a gun' : 'Take out your gun (X)' });
       if (near.fight && !self.critical) list.push({ id: 'fight', key: 'f', label: 'Fight', tone: 'warn', off: !!near.fight.spent, hint: near.fight.spent ? `${near.fight.name} is badly hurt. Leave them.` : `Square up to ${near.fight.name}` });
       if (near.take && !self.critical) list.push({ id: 'take', key: 'g', label: 'Take', tone: 'warn', hint: near.take.text });
-      if (near.steal && !self.critical) list.push({ id: 'steal', key: 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
+      if (near.steal && !self.critical) list.push({ id: 'steal', key: voiceChat.on ? 'j' : 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
       if (self.critical) list.push({ id: 'ambulance', key: 'h', label: 'Help', hint: 'Call an ambulance' });
       if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
       list.push(look);
@@ -48961,6 +49702,8 @@ blood.update(dt, view.blood || []);
     monitor.mark('interface');
     if (playing) { fitTimer -= dt; if (fitTimer <= 0) { fitTimer = 0.3; fitter.fit(); } }
     if (playing && view) bubbles.update(view.speech, headOf, project, predicted, `p:${playerId}`, viewW, viewH);
+    if (voiceChat.on) voiceChat.update();
+    if (voiceUI) voiceUI.frame();
     monitor.end(elapsed * 1000);
     if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) quickTest(clock); }
     stepPictures();
@@ -49036,11 +49779,13 @@ blood.update(dt, view.blood || []);
   const frameTimes = HASH.includes('stats') ? frameClock().start() : null;
   const statsNow = () => ({ build, engine: THREE.REVISION, level: GRAPHICS_LEVELS[governor.level].name, levelAuto: prefs.graphics === 'auto', gpu: gpuName(), screen: screenName(), device: watch.device, pixelRatio: renderer.getPixelRatio(), graphics, budgetMB: graphicsBudgetMB, trims: graphicsTrims, heap: heapNow(), frames: frameTimes ? frameTimes.report() : null, lost: contextLost, restored: restoredTimes, figures: figureLog(), watch: watch.said ? watch.detail.split('\n').slice(0, 3).join('; ') : '' });
   if (frameTimes) { const box = showStats(); const draw = () => { try { box.update(statsLines(statsNow())); } catch (error) { /* said next second */ } }; setTimeout(draw, 0); setInterval(draw, 1000); }
+  document.addEventListener('visibilitychange', () => { if (voiceChat.on) { if (document.hidden) voiceChat.pause(); else voiceChat.resume(); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {
     window.claude.hot.snapshot(() => (playing ? { host: host.save(), playerId } : {}));
   }
   window.__nlw = {
+    voiceChat, get voiceUI() { return voiceUI; },
     get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
     get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,

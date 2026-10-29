@@ -79,7 +79,7 @@ async function connectedTo(p, name, most = 120000) {
   return null;
 }
 const heardOver = (p, name, ms = 2600) => p.ev(async ([name, ms]) => { const n = window.__nlw; let most = 0; const t0 = performance.now(); while (performance.now() - t0 < ms) { const id = (n.shownPeers.find((q) => q.name === name) || {}).id; const l = n.voiceChat.links().find((x) => `v:${x.id}` === id); if (l && l.heard) most = Math.max(most, l.heard); await new Promise((r) => setTimeout(r, 40)); } return most; }, [name, ms]);
-const iconSeen = (p, ms = 8000) => p.ev(async (ms) => { const t0 = performance.now(); while (performance.now() - t0 < ms) { const icon = document.querySelector('#voice-icons .voice-speaker'); if (icon && icon.style.display !== 'none' && icon.getBoundingClientRect().width > 0) { const r = icon.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y) }; } await new Promise((r) => setTimeout(r, 50)); } return null; }, ms);
+const iconSeen = (p, ms = 15000) => p.ev(async (ms) => { const t0 = performance.now(); while (performance.now() - t0 < ms) { const icon = document.querySelector('#voice-icons .voice-speaker'); if (icon && icon.style.display !== 'none' && icon.getBoundingClientRect().width > 0) { const r = icon.getBoundingClientRect(); return { x: Math.round(r.x), y: Math.round(r.y) }; } await new Promise((r) => setTimeout(r, 50)); } return null; }, ms);
 async function openSettings(p) { await p.ev(() => window.__nlw.ui.openPhone('settings')); await p.page.waitForSelector('#voice-on', { timeout: 60000 }); await p.ev(() => document.querySelector('#voice-on').scrollIntoView({ block: 'center' })); }
 const closePhone = (p) => p.ev(() => window.__nlw.ui.close());
 async function fps(p, ms = 15000) {
@@ -105,15 +105,15 @@ try {
 
   // ---- turned on, 18 or older ----
   await A.press('#voice-on');
-  await A.page.waitForSelector('#voice-intro-yes', { timeout: 30000 });
+  await A.page.waitForSelector('#voice-intro-yes', { timeout: 90000 });
   const intro = await A.ev(() => document.querySelector('.voice-card').textContent);
   await A.shot('first-time');
   check('the first time: what voice chat does, the data it uses, nothing recorded; the microphone not asked for yet', /mobile data/.test(intro) && /11 MB/.test(intro) && /never recorded/.test(intro) && (await A.ev(() => window.__mics)) === 0, intro);
   await A.press('#voice-intro-yes');
-  await A.page.waitForSelector('#voice-age-yes', { timeout: 30000 });
+  await A.page.waitForSelector('#voice-age-yes', { timeout: 90000 });
   await A.shot('age');
   await A.press('#voice-age-yes');
-  await A.page.waitForFunction(() => window.__nlw.voiceChat.active, null, { timeout: 30000 });
+  await A.page.waitForFunction(() => window.__nlw.voiceChat.active, null, { timeout: 90000 });
   await closePhone(A);
   const onA = await A.ev(() => ({ button: !document.querySelector('#voice-talk').hidden, people: !document.querySelector('#voice-people').hidden, mics: window.__mics, mode: window.__nlw.voiceChat.prefs.mode }));
   check('turned on: the microphone asked for once, the microphone button and the players-near button shown, push to talk', onA.button && onA.people && onA.mics === 1 && onA.mode === 'ptt', onA);
@@ -122,12 +122,12 @@ try {
   // ---- under 18: a No keeps it off; only an administrator can change it ----
   await openSettings(B);
   await B.press('#voice-on');
-  await B.page.waitForSelector('#voice-intro-yes', { timeout: 30000 });
+  await B.page.waitForSelector('#voice-intro-yes', { timeout: 90000 });
   await B.press('#voice-intro-yes');
-  await B.page.waitForSelector('#voice-age-no', { timeout: 30000 });
+  await B.page.waitForSelector('#voice-age-no', { timeout: 90000 });
   await B.shot('age-phone');
   await B.press('#voice-age-no');
-  await B.page.waitForSelector('#voice-age-ok', { timeout: 30000 });
+  await B.page.waitForSelector('#voice-age-ok', { timeout: 90000 });
   await B.press('#voice-age-ok');
   await sleep(500);
   const offB = await B.ev(() => ({ on: window.__nlw.voiceChat.on, mics: window.__mics, toggle: document.querySelector('#voice-on') ? document.querySelector('#voice-on').getAttribute('aria-checked') : null }));
@@ -153,12 +153,21 @@ try {
   await closePhone(A);
   await openSettings(B);
   await B.press('#voice-on');
-  await B.page.waitForFunction(() => window.__nlw.voiceChat.active, null, { timeout: 30000 });
+  await B.page.waitForFunction(() => window.__nlw.voiceChat.active, null, { timeout: 90000 });
   await closePhone(B);
   check('then they can turn voice chat on (not asked again)', await B.ev(() => window.__nlw.voiceChat.active && window.__mics === 1));
 
   // ---- put in touch, and heard ----
-  const ab = await connectedTo(A, B.username);
+  // (this machine draws both towns in software, a frame every second or two, and the pages' timers wait on the
+  // frames: the handshake's words can take a minute to go round, longer than the browser's own checks wait. A player
+  // whose voice chat cannot connect turns it off and on: done here up to twice more, and counted)
+  let ab = null, tries = 0;
+  while (!ab && tries < 3) {
+    tries += 1;
+    ab = await connectedTo(A, B.username, 150000);
+    if (!ab && tries < 3) { console.log('not yet in touch:', JSON.stringify({ A: (await A.ev(() => window.__nlw.voiceChat.events())).slice(-6), B: (await B.ev(() => window.__nlw.voiceChat.events())).slice(-6) })); for (const p of [A, B]) await p.ev(async () => { const v = window.__nlw.voiceChat; v.turnOff(); await v.start(); }); }
+  }
+  console.log(`  (in touch at try ${ab ? tries : 'none'})`);
   const why = (p) => p.ev(() => { const n = window.__nlw, v = n.voiceChat; return { events: v.events(), links: v.links(), stats: v.stats(), nearby: v.nearby(), peers: n.shownPeers.map((q) => ({ id: q.id, name: q.name, x: Math.round(q.x), z: Math.round(q.z) })), me: { x: Math.round(n.view.self.x), z: Math.round(n.view.self.z) } }; });
   check('the two in town, 6 m apart, put in touch', !!ab, ab ? undefined : { A: await why(A), B: await why(B), waiting: await sql.unsafe('select kind, length(data) as size, extract(epoch from (now() - at))::int as age from pcw.voice_signals') });
   if (process.env.PCW_STOP_AFTER_CONNECT) throw new Error('stopped after the connection, as asked');
@@ -166,7 +175,7 @@ try {
   await A.page.keyboard.down('b');
   const sendingA = await A.ev(() => window.__nlw.voiceChat.sending);
   const btnA = await A.ev(() => document.querySelector('#voice-talk').classList.contains('sending'));
-  const hB = await heardOver(B, A.username, 6000);
+  const hB = await heardOver(B, A.username, 15000);
   const icon = await iconSeen(B);
   await B.shot('speaker-over-ada');
   await A.shot('talking');
@@ -181,7 +190,7 @@ try {
   await B.touch('touchStart', [at]);
   await sleep(300);
   const sendingB = await B.ev(() => window.__nlw.voiceChat.sending);
-  const hA = await heardOver(A, B.username, 6000);
+  const hA = await heardOver(A, B.username, 15000);
   const iconA = await iconSeen(A);
   await B.touch('touchEnd', []);
   await sleep(300);
@@ -207,7 +216,7 @@ try {
   await A.page.fill('#voice-report-note', 'said he would find me');
   await A.shot('report');
   await A.page.click('#voice-report-send');
-  await A.page.waitForSelector('.voice-dialog', { state: 'detached', timeout: 20000 });
+  await A.page.waitForSelector('.voice-dialog', { state: 'detached', timeout: 90000 });
   const row = (await sql.unsafe("select r.reason, r.note, r.zone, r.x, r.z, r.at, a.username as reporter, b.username as reported from pcw.voice_reports r join pcw.accounts a on a.id = r.reporter_id join pcw.accounts b on b.id = r.reported_id where b.username_key = $1", [B.username.toLowerCase()]))[0];
   check('the report kept: the date, both accounts, the reason, the note and the place in town', row && row.reason === 'threats' && row.note === 'said he would find me' && row.reporter === A.username && row.at && Math.abs(Number(row.x) - spot.x) < 3, row);
   // the Admin app: the report, and a warning
@@ -220,7 +229,7 @@ try {
   await sleep(1500);
   await closePhone(A);
   await B.ev(() => { window.__nlw.voiceUI.showWarning(); });
-  await B.page.waitForSelector('#voice-warning-ok', { timeout: 20000 });
+  await B.page.waitForSelector('#voice-warning-ok', { timeout: 90000 });
   const warned = await B.ev(() => document.querySelector('.voice-card').textContent);
   await B.shot('warning');
   await B.press('#voice-warning-ok');
@@ -238,7 +247,7 @@ try {
   const lA = await linksOf(A), lB = await linksOf(B);
   check('Block: no longer in touch, either way', !lA.some((l) => l.name === B.username) && !lB.some((l) => l.name === A.username), { lA, lB });
   await openSettings(B);
-  await B.page.waitForSelector(`#voice-blocked [data-unblock="${A.username}"]`, { timeout: 20000 });
+  await B.page.waitForSelector(`#voice-blocked [data-unblock="${A.username}"]`, { timeout: 90000 });
   await B.shot('settings-blocked');
   await B.page.tap(`#voice-blocked [data-unblock="${A.username}"]`);
   await closePhone(B);

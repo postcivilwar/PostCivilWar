@@ -151,7 +151,7 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
       const s = pc.connectionState;
       log(`${id.slice(0, 7)} ${s}`);
       if (s === 'connected' && link.state !== 'connected') { link.state = 'connected'; stats.connected += 1; successes += 1; if (note) say(''); limitBitrate(link); whichWay(link); changed(); }
-      if (s === 'failed') { stats.failed += 1; failures += 1; drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); if (failures >= 2 && !successes) say('Voice chat can\'t connect on this network.'); }
+      if (s === 'failed') { stats.failed += 1; failures += 1; drop(id, false); cooling.set(id, now() + 3000); if (failures >= 2 && !successes) say('Voice chat can\'t connect on this network.'); }
       // (lost after being in touch: let go if not back within eight seconds. Before ever being in touch, the other side
       // may still be setting up its side, slow to hear the answer: left to the browser's own checks, which end in
       // 'failed', or to VOICE_CHAT.wait)
@@ -333,7 +333,9 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
       if (link.voice) { link.voice.move(q.x, q.z); link.voice.set({ volume: silent ? 0 : prefs.voices, muffled: link.muffled }); link.level = link.voice.level(); }
       else if (link.el && link.plain) { link.el.volume = silent ? 0 : Math.max(0, Math.min(1, prefs.voices * (1 - d / VOICE_CHAT.reach))); }
       const was = link.talking;
-      link.talking = !silent && d <= VOICE_CHAT.reach && link.level > VOICE_CHAT.talking;
+      // (talking from the moment they are heard to a second after: the speaker does not flicker between words)
+      if (link.level > VOICE_CHAT.talking) link.loudAt = t;
+      link.talking = !silent && d <= VOICE_CHAT.reach && t - (link.loudAt || -1e9) < 1000;
       if (was !== link.talking) any = true;
     }
     if (any) changed();
