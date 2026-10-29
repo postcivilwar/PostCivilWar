@@ -154,6 +154,7 @@ test('what the website holds, in all', { skip: !there }, () => {
   const sizes = all(served).map((file) => readFileSync(file).length);
   const total = sizes.reduce((n, b) => n + b, 0);
   console.log(`  site/: ${sizes.length} files, ${(total / MB).toFixed(1)} MB`);
-  // (1.38 GB until 20 October 2026; the figures as supplied were most of it)
-  assert.ok(total <= 800 * MB, `site/ is ${(total / MB).toFixed(0)} MB`);
+  // (1.38 GB until 20 October 2026; the figures as supplied were most of it; 800 MB until 29 October 2026, when the
+  // town's voices, 11.7 MB, took it to 809 MB)
+  assert.ok(total <= 830 * MB, `site/ is ${(total / MB).toFixed(0)} MB`);
 });

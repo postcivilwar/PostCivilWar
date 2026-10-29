@@ -605,6 +605,8 @@ export function createUI(app) {
       return h('label', { class: 'fader' }, h('span', null, SOUND_NAMES[name]), slider, shown);
     })));
     root.append(h('p', { class: 'small' }, 'Each kind of sound has its own volume. Music and background step back by themselves when something needs to be heard.'));
+    // voice chat with the players near you (ui-voice.js)
+    if (app.voiceSettings) app.voiceSettings(root, { section, toggle, redraw: () => redraw() });
 
     // The town keeps the player's own time and, on the website, the real weather where they are
     {
@@ -705,6 +707,7 @@ export function createUI(app) {
     current.refresh = measure;
     root.append(measured, hitches);
 
+    if (app.privacy) { root.append(section('Privacy')); root.append(h('div', { class: 'about', id: 'privacy' }, app.privacy().map((text) => h('p', null, text)))); }
     root.append(section('About'));
     root.append(h('div', { class: 'about', id: 'about' }, ABOUT.map((text) => h('p', null, text))));
   }

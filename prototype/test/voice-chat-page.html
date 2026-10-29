@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+<head><meta charset="utf-8"><title>Voice chat test</title></head>
+<body>
+<p>Voice chat's own test page (test/voice-chat.mjs): one player, the game's own voice chat, sound and word with the server, without the town.</p>
+<script type="module">
+// The page is served beside the game's own source (src/), by the website's server on this machine (server/dev.mjs).
+import { createOnline, createWebTransport } from './src/net/online.js';
+import { createVoiceChat } from './src/net/voice-chat.js';
+import { createAudio } from './src/client/audio.js';
+
+const ZONE = 'NG-AN-OGB-Z1';
+const online = createOnline({ available: true, address: '/api/game' });
+const audio = createAudio();
+const me = { x: 0, z: 0, name: '' };
+let shown = [];
+let kept = null;
+const T = { walls: false, relayOnly: false, mics: 0, frames: 0, updateMs: 0 };
+// (as a network that will not let two devices reach each other: only the relay)
+const Relay = class extends RTCPeerConnection { constructor(config) { super({ ...(config || {}), iceTransportPolicy: 'relay' }); } };
+let voice = null, transport = null;
+
+window.V = {
+  T, me, online, audio,
+  get voice() { return voice; },
+  get shown() { return shown; },
+  async setup(username, password, { name, x, z, relayOnly = false } = {}) {
+    me.name = name; me.x = x; me.z = z; T.relayOnly = relayOnly;
+    await online.check();
+    const made = await online.signUp(username, password);
+    if (!made.ok) throw new Error(made.message);
+    // (the microphone asked for: counted, so that the test can see it is not asked for until voice is turned on)
+    const media = navigator.mediaDevices;
+    const real = media.getUserMedia.bind(media);
+    media.getUserMedia = (c) => { T.mics += 1; return T.refuse ? Promise.reject(Object.assign(new Error('Permission denied'), { name: 'NotAllowedError' })) : real(c); };
+    voice = createVoiceChat({
+      online, audio, zone: ZONE,
+      peers: () => shown.map((p) => ({ id: p.id, x: p.state.x, z: p.state.z, name: p.state.n })),
+      me: () => me,
+      walls: () => T.walls,
+      store: { get: () => kept, set: (v) => { kept = v; } },
+      RTC: relayOnly ? Relay : RTCPeerConnection,
+    });
+    transport = createWebTransport({ online, zone: ZONE, voice });
+    transport.subscribe((list) => { shown = list; });
+    const publish = () => transport.publish({ v: 1, zn: ZONE, n: me.name, x: me.x, z: me.z, h: 0, lg: 'en', lk: { s: 1, t: 1, b: 1, f: 0 }, ...(voice.active ? { vc: 1 } : {}) });
+    publish(); setInterval(publish, 250);
+    const frame = () => { const t0 = performance.now(); audio.listenAt(me.x, me.z, 0); if (voice.on) voice.update(); T.updateMs += performance.now() - t0; T.frames += 1; requestAnimationFrame(frame); };
+    requestAnimationFrame(frame);
+    return online.status().account;
+  },
+  // the loudest each voice was heard here over `ms` (after distance, walls and volume), by name
+  async heard(ms = 2500) {
+    const most = {};
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) {
+      const names = new Map(shown.map((p) => [p.id, p.state.n]));
+      for (const l of voice.links()) { const n = names.get(l.id) || l.id; most[n] = Math.max(most[n] || 0, l.heard || 0); }
+      await new Promise((r) => setTimeout(r, 40));
+    }
+    return most;
+  },
+  // whether this player's microphone was sent over `ms` (true some of the time, false some of the time)
+  async sendingOver(ms = 3000) {
+    let yes = 0, no = 0;
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) { if (voice.sending) yes += 1; else no += 1; await new Promise((r) => setTimeout(r, 30)); }
+    return { yes, no };
+  },
+  links: () => { const names = new Map(shown.map((p) => [p.id, p.state.n])); return voice.links().map((l) => ({ ...l, name: names.get(l.id) || null })); },
+};
+window.ready = true;
+</script>
+</body>
+</html>

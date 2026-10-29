@@ -81,6 +81,8 @@ import { createMarket, createAccountSync, newId } from './market.js';
 import { createAccountUI } from './account-ui.js';
 import { createWallet } from './wallet.js';
 import { createConfirm } from './confirm.js';
+import { createVoiceChat } from '../net/voice-chat.js';
+import { createVoiceUI, PRIVACY } from './ui-voice.js';
 import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
 import { createCarView } from './car-view.js';
@@ -676,7 +678,7 @@ function start(carried) {
     // (and the height of the ground they stand on: the website's server checks a round said to have struck them
     // against it, on a deck or a bridge as on the street)
     const gy = zoneGroundY(view.self.x, view.self.z);
-    const me = { ...view.self, ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
+    const me = { ...view.self, ...(voiceChat.active ? { voiceOn: 1 } : {}), ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
     return { ...me, talk: { bike: showroom.talk.bike, ago: Math.max(0, host.game.state.real - showroom.talk.since) } };
@@ -718,6 +720,21 @@ function start(carried) {
   const ACCOUNT_KEY = 'pcw-account-v1';
   const SEEN_KEY = 'pcw-wallet-seen-v1';      // the last entry of each account's wallet this device has told its player about
   const online = createOnline({ available: !!webapp.site });
+  // Voice chat with the players near you (net/voice-chat.js; on the screen, ui-voice.js): off until the player turns it
+  // on. The other players as the game shows them, by the server's id for each; a building between muffles a voice.
+  const voiceWalls = (x1, z1, x2, z2) => {
+    const d = Math.hypot(x2 - x1, z2 - z1);
+    for (let t = 1.2; t < d - 1.2; t += 1) { const k = t / d; if (zoneSolid(x1 + (x2 - x1) * k, z1 + (z2 - z1) * k, 0.05, 1.6)) return true; }
+    return false;
+  };
+  const voiceChat = createVoiceChat({
+    online, audio, zone: ZONE.id,
+    peers: () => shownPeers.map((q) => ({ id: String(q.id).replace(/^v:/, ''), x: q.x, z: q.z, name: q.name })),
+    me: () => (view ? view.self : null),
+    walls: voiceWalls,
+    store: { get: () => readStored('pcw-voice-v1'), set: (value) => writeStored('pcw-voice-v1', value) },
+  });
+  let voiceUI = null;
   // The real weather where the player is: asked of the site's server now and every twenty minutes. The server
   // asks the Norwegian Meteorological Institute, for the approximate place the connection comes from (worked
   // out by the host; nothing is asked of the player, and nothing is kept about where they are). Where there is
@@ -787,9 +804,10 @@ function start(carried) {
   function onlineChanged() {
     if (!online.available) return;
     const want = online.signedIn;
-    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden, gun: gunNet }) }; if (playing) relink(); }
+    if (want && !(transport && (transport.kind === 'web' || transport.kind === 'twin'))) { transport = { kind: 'web', make: () => createWebTransport({ online, zone: ZONE.id, visible: () => !document.hidden, gun: gunNet, voice: voiceChat }) }; if (playing) relink(); }
     if (!want && transport && transport.kind === 'web') { transport = null; if (playing) relink(); }
-    if (!want) { market.reset(); ui.signedOut(); }
+    if (!want) { market.reset(); ui.signedOut(); if (voiceChat.active) voiceChat.stop(); }
+    else if (playing && voiceUI) voiceUI.wakeIfAllowed();
     if (online.status().state === 'out') {
       walletClient.reset();
       if (playing || gallery) {
@@ -1513,6 +1531,10 @@ function start(carried) {
     send: (intent) => host.game.intent(playerId, intent),
   };
   const ui = createUI({
+    // voice chat's place in Settings, the Privacy page, and the reports in the Admin app (ui-voice.js)
+    voiceSettings: (root, kit) => { if (voiceUI) voiceUI.settingsSection(root, kit); },
+    privacy: () => PRIVACY,
+    voiceAdmin: (root, redraw) => { if (voiceUI) voiceUI.adminPage(root, redraw); },
     send: (intent) => { const r = server.send(intent); refreshView(); return r; },
     view: () => view,
     erase: () => eraseSave(),
@@ -1649,6 +1671,13 @@ function start(carried) {
     exited = false; exitNote = '';
     if (prefs.sound) audio.start();
     route();
+  });
+  voiceUI = createVoiceUI({
+    voice: voiceChat, online, h, hud: $('hud'), project,
+    headOfPeer: (id) => headOf(`p:v:${id}`),
+    place: () => (view ? { x: view.self.x, z: view.self.z } : null),
+    isAdmin: () => !!(online.signedIn && online.account && online.account.admin),
+    toast: (event) => ui.toast(event),
   });
   online.onChange(() => onlineChanged());
   // Is there a server, and is this browser signed in? If so, which copy of the character is the one to play.
@@ -2067,6 +2096,8 @@ function start(carried) {
     if (prefs.sound) audio.start();
     relink();
     refreshView();
+    // voice chat left on: started again by itself where the browser already allows the microphone, otherwise at a tap
+    if (voiceUI && online.signedIn) { voiceUI.wakeIfAllowed(); voiceUI.showWarning(); }
     // the guns: put away, and what the account has (its starter rifle, its rounds) from the website's server; the
     // rifle's model and its sounds kept on the device for playing without a connection (fetched in the worker's time)
     if (gunPlay) { gunPlay.reset(); if (online.signedIn) gunPlay.askState(); }
@@ -2256,6 +2287,7 @@ function start(carried) {
     if (ui.phoneOut()) { if (['w', 'a', 's', 'd', 'ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight'].includes(key)) { if (key.startsWith('Arrow')) event.preventDefault(); input.keys.add(key); } return; }
     if (ui.isOpen()) return;
     if (key === 't') { if (ui.openChat()) event.preventDefault(); return; }
+    if (key === 'b' && voiceChat.on) { if (!event.repeat) { if (voiceChat.active) voiceChat.press(); else voiceUI.wake(); } return; }
     if (key === 'k') { if (!event.repeat) skills.tap(); return; }
     if (['ArrowUp', 'ArrowDown', 'ArrowLeft', 'ArrowRight', 'Space'].includes(key)) event.preventDefault();
     if (key === 'Enter') { if (!event.repeat) act('act', 'down'); actKey = true; return; }
@@ -2267,11 +2299,12 @@ function start(carried) {
   window.addEventListener('keyup', (event) => {
     const key = keyName(event);
     if (key === 'Enter' || key === 'e') actKey = false;
+    if (key === 'b') voiceChat.release();
     if (heldKeys.delete(key)) { const button = keymap.get(key); if (button) act(button.id, 'up'); }
     input.keys.delete(key);
   });
   // a key or a finger lifted while the page is not looking is never reported, so let go of everything
-  const letGo = () => { controls.release(); actKey = false; for (const key of heldKeys) { const button = keymap.get(key); if (button) act(button.id, 'up'); } heldKeys.clear(); };
+  const letGo = () => { voiceChat.release(); controls.release(); actKey = false; for (const key of heldKeys) { const button = keymap.get(key); if (button) act(button.id, 'up'); } heldKeys.clear(); };
   window.addEventListener('blur', letGo);
   const toggleSound = () => { prefs.sound = !prefs.sound; audio.setMuted(!prefs.sound); if (prefs.sound) audio.start(); writeStored(PREFS_KEY, prefs); ui.toast({ type: 'note', text: prefs.sound ? 'Sound on.' : 'Sound off.' }); };
 
@@ -2623,7 +2656,7 @@ function start(carried) {
       if (gunPlay) list.push({ id: 'gun', key: 'x', label: 'Gun', icon: 'gun', off: !!self.critical, hint: self.critical ? 'You are badly hurt: you cannot use a gun' : 'Take out your gun (X)' });
       if (near.fight && !self.critical) list.push({ id: 'fight', key: 'f', label: 'Fight', tone: 'warn', off: !!near.fight.spent, hint: near.fight.spent ? `${near.fight.name} is badly hurt. Leave them.` : `Square up to ${near.fight.name}` });
       if (near.take && !self.critical) list.push({ id: 'take', key: 'g', label: 'Take', tone: 'warn', hint: near.take.text });
-      if (near.steal && !self.critical) list.push({ id: 'steal', key: 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
+      if (near.steal && !self.critical) list.push({ id: 'steal', key: voiceChat.on ? 'j' : 'b', label: 'Steal', tone: 'warn', hint: `Pick ${near.steal.name}'s pocket` });
       if (self.critical) list.push({ id: 'ambulance', key: 'h', label: 'Help', hint: 'Call an ambulance' });
       if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
       // the view (19 October 2026, the owner's brief: the camera button kept, and on foot too): on the street close
@@ -4116,6 +4149,8 @@ blood.update(dt, view.blood || []);
     monitor.mark('interface');
     if (playing) { fitTimer -= dt; if (fitTimer <= 0) { fitTimer = 0.3; fitter.fit(); } }
     if (playing && view) bubbles.update(view.speech, headOf, project, predicted, `p:${playerId}`, viewW, viewH);
+    if (voiceChat.on) voiceChat.update();
+    if (voiceUI) voiceUI.frame();
     monitor.end(elapsed * 1000);
     if (clock > 4 && !document.hidden) { governor.frame(elapsed * 1000, dt); if (playing && townBuilt) quickTest(clock); }
     // (pictures the graphics level asked to be made another size: the next one, one at a time)
@@ -4218,6 +4253,8 @@ blood.update(dt, view.blood || []);
   // (the readout never holds the game up: anything it cannot say this second, it says the next)
   if (frameTimes) { const box = showStats(); const draw = () => { try { box.update(statsLines(statsNow())); } catch (error) { /* said next second */ } }; setTimeout(draw, 0); setInterval(draw, 1000); }
   // (the town's sounds stop while the page is out of sight, and start again when it is back)
+  // (the microphone stops while the game is out of sight, and starts again when it is back)
+  document.addEventListener('visibilitychange', () => { if (voiceChat.on) { if (document.hidden) voiceChat.pause(); else voiceChat.resume(); } });
   document.addEventListener('visibilitychange', () => { if (document.hidden) letGo(); if (document.hidden && playing) { writeStored(SAVE_KEY, { host: host.save(), playerId }); accountSync.upload({ keepalive: true }); } if (document.hidden) audio.suspend(); else if (playing && prefs.sound) audio.start(); last = performance.now(); monitor.pause(); });
   if (window.claude && window.claude.hot && typeof window.claude.hot.snapshot === 'function') {
     window.claude.hot.snapshot(() => (playing ? { host: host.save(), playerId } : {}));
@@ -4225,6 +4262,8 @@ blood.update(dt, view.blood || []);
   // Debug handle for automated play-testing. It reaches into the simulation
   // directly, which only works because this prototype runs it in the page.
   window.__nlw = {
+    // voice chat (29 October 2026)
+    voiceChat, get voiceUI() { return voiceUI; },
     // the habitation (20 October 2026): what is built of it, its fish and birds, the torch and the others' beams, the sky
     get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
     heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },

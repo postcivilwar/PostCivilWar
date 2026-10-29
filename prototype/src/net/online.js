@@ -126,7 +126,8 @@ export function createOnline({ available = false, address = 'api/game', fetcher 
 // evenly from where they were to where they are, so that they walk and do not jump.
 // `gun` (gun-net.js): the rounds this player has fired go with each word, the server's answer to them comes back with
 // it, and the word goes soon after a round is fired, and as often as for someone moving fast while the gun is out.
-export function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true, gun = null }) {
+// `voice` (voice-chat.js): the handshakes of voice chat go with each word too, and those for this player come back with it.
+export function createWebTransport({ online, zone, now = () => Date.now() / 1000, every = setInterval, never = clearInterval, visible = () => true, gun = null, voice = null }) {
   let mine = null;                      // this player's latest state
   let handler = null;
   let busy = false, failed = false, closed = false;
@@ -209,11 +210,13 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     const asked = last;
     counts.asked += 1;
     const extra = gun ? gun.body() : null;
+    const spoken = voice ? voice.body() : null;
     // (a word carrying rounds is given longer to be answered: the rounds are counted by the server only once each, so a
     // slow answer waited for is better than the same rounds sent again)
-    const answer = await online.ask('presence', { zone, state: mine, ...(extra || {}) }, { timeout: extra && extra.fire ? 15000 : 6000 });
+    const answer = await online.ask('presence', { zone, state: mine, ...(extra || {}), ...(spoken ? { voice: spoken } : {}) }, { timeout: extra && extra.fire ? 15000 : 6000 });
     busy = false;
     if (gun) gun.answer(answer.ok ? answer : null);
+    if (voice) { if (answer.ok) voice.answer(answer.voice || null); else if (spoken && spoken.out && spoken.out.length) voice.unsent(spoken.out); }
     if (closed) return;
     failed = !answer.ok;
     // (an answer lost on the way: asked again at once, not after the usual wait)
@@ -259,6 +262,10 @@ export function createWebTransport({ online, zone, now = () => Date.now() / 1000
     }
     // rounds fired wait no longer than a moment to be told (the server counts them; another player may have been hit)
     if (gun && gun.urgent()) wait = Math.min(wait, ONLINE.presenceStep);
+    // a voice chat handshake on its way, or one awaited: as soon as can be (and, with voice on and someone near, the
+    // word goes as often as for someone moving, so that the voices are put in touch within a second or two)
+    if (voice && voice.urgent()) wait = Math.min(wait, ONLINE.presenceStep * 2);
+    else if (voice && voice.active && peers.size) wait = Math.min(wait, ONLINE.presenceNear);
     if (now() - last >= wait) exchange();
   }, ONLINE.presenceStep * 1000);
 

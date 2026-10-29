@@ -399,7 +399,8 @@ export function createAdsUI(kit) {
     const tab = sub.tab || 'review';
     const tabBtn = (id, label) => h('button', { class: 'chip', type: 'button', 'aria-pressed': String(tab === id), 'data-tab': id, onclick: () => { if (id === 'review') a.admin.status = 'pending'; if (id === 'all') a.admin.status = 'all'; a.admin.list = null; go({ tab: id }); } }, label);
     root.append(h('div', { class: 'propertyhead' }, h('div', null, h('div', { class: 'eyebrow' }, 'Administrator'), h('div', { class: 'big' }, online().account.username))));
-    root.append(h('div', { class: 'adchips', role: 'tablist' }, tabBtn('review', 'Ads to review'), tabBtn('all', 'All campaigns'), tabBtn('money', 'Taxes and payments'), tabBtn('market', 'Market')));
+    root.append(h('div', { class: 'adchips', role: 'tablist' }, tabBtn('review', 'Ads to review'), tabBtn('all', 'All campaigns'), tabBtn('money', 'Taxes and payments'), tabBtn('market', 'Market'), ...(app.voiceAdmin ? [tabBtn('voice', 'Voice reports')] : [])));
+    if (tab === 'voice') { app.voiceAdmin(root, redraw); return; }
     if (tab === 'money') { money(root); return; }
     if (tab === 'market') {
       root.append(h('p', { class: 'small' }, 'New things are put on the market from Property, where you stand.'), h('div', { class: 'actions' }, h('button', { class: 'btn primary', type: 'button', id: 'admin-to-market', onclick: () => openApp('property', { admin: true }) }, 'Put something new on the market')));

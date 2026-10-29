@@ -511,6 +511,49 @@ export function createAudio() {
     src.onended = () => { if (done) return; done = true; voiceStats.playing -= 1; try { src.disconnect(); p.disconnect(); } catch (error) { /* already gone */ } };
     return { stop() { try { src.stop(); } catch (error) { /* already stopped */ } }, move(nx, nz) { move(p, nx, 1.55, nz); } };
   }
+  // Another player's live voice (voice chat, 29 October 2026: src/net/voice-chat.js): from where they stand, louder close
+  // by, fading to nothing at `reach` metres, muffled when a building is between. It goes to the speakers by its own way,
+  // not through the game's master volume, so that turning the town's sound down or off does not silence the players
+  // (voice chat has its own volume in Settings). Its level is read for the speaker over their head.
+  function playerVoice(stream, { reach = 25 } = {}) {
+    if (!start() || !ctx) return null;
+    let src;
+    try { src = ctx.createMediaStreamSource(stream); } catch (error) { return null; }
+    const filter = ctx.createBiquadFilter(), gain = ctx.createGain(), p = ctx.createPanner(), meter = ctx.createAnalyser(), after = ctx.createAnalyser();
+    filter.type = 'lowpass'; filter.frequency.value = 18000; filter.Q.value = 0.5;
+    p.panningModel = 'equalpower'; p.distanceModel = 'linear'; p.refDistance = 1.5; p.maxDistance = reach; p.rolloffFactor = 1;
+    meter.fftSize = 512; after.fftSize = 512;
+    gain.gain.value = 1;
+    src.connect(meter); src.connect(filter); filter.connect(gain); gain.connect(p); p.connect(ctx.destination); p.connect(after);
+    move(p, ear.x, 1.6, ear.z);
+    const data = new Float32Array(meter.fftSize);
+    const rms = (node) => { node.getFloatTimeDomainData(data); let sum = 0; for (let i = 0; i < data.length; i += 1) sum += data[i] * data[i]; return Math.sqrt(sum / data.length); };
+    return {
+      move(x, z) { move(p, x, 1.6, z); },
+      set({ volume = 1, muffled = false }) { const t = ctx.currentTime; gain.gain.setTargetAtTime(volume * (muffled ? 0.55 : 1), t, 0.06); filter.frequency.setTargetAtTime(muffled ? 900 : 18000, t, 0.08); },
+      // how loud they are speaking (as sent), and how loud they are heard here (after the distance, the walls, the volume)
+      level: () => rms(meter),
+      heard: () => rms(after),
+      stop() { try { src.disconnect(); filter.disconnect(); gain.disconnect(); p.disconnect(); after.disconnect(); } catch (error) { /* gone */ } },
+    };
+  }
+  // The player's own microphone, on its way out to the others: its volume set, its level read (for open mic and the test
+  // in Settings), and, for the test, heard by the player themselves when they ask.
+  function micPipe(stream) {
+    if (!start() || !ctx || !ctx.createMediaStreamDestination) return null;
+    let src;
+    try { src = ctx.createMediaStreamSource(stream); } catch (error) { return null; }
+    const gain = ctx.createGain(), meter = ctx.createAnalyser(), out = ctx.createMediaStreamDestination(), back = ctx.createGain();
+    meter.fftSize = 512; back.gain.value = 0;
+    src.connect(gain); gain.connect(meter); gain.connect(out); gain.connect(back); back.connect(ctx.destination);
+    const data = new Float32Array(meter.fftSize);
+    return {
+      track: out.stream.getAudioTracks()[0], gain,
+      meter() { meter.getFloatTimeDomainData(data); let sum = 0; for (let i = 0; i < data.length; i += 1) sum += data[i] * data[i]; return Math.sqrt(sum / data.length); },
+      hear(on) { back.gain.setTargetAtTime(on ? 1 : 0, ctx.currentTime, 0.05); },
+      close() { try { src.disconnect(); gain.disconnect(); back.disconnect(); } catch (error) { /* gone */ } },
+    };
+  }
   // A recording's bytes made into sound the card can play (a copy: decoding takes the bytes it is given).
   function decode(bytes) {
     if (!ctx) return Promise.reject(new Error('no sound yet'));
@@ -1042,7 +1085,7 @@ export function createAudio() {
 
   return {
     supported: !!Ctx,
-    voiceLine, decode, voiceStats: () => ({ ...voiceStats }),
+    voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
     start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
@@ -1055,6 +1098,8 @@ export function createAudio() {
     gunPast: (at) => { if (gunReady()) guns().past(at); },
     gunState: (gun) => (gunVoice ? { ...gunVoice.state(gun), voices: gunVoice.voices, ...gunVoice.stats } : { state: ctx ? 'not asked' : 'no sound yet' }),
     get running() { return !!ctx && ctx.state === 'running'; },
+    // where the player hears from, without the rest of the town's sound (for voice chat's own test page)
+    listenAt(x, z, yaw = 0) { if (!ctx) return; ear.x = x; ear.z = z; const l = ctx.listener; const fx = Math.sin(yaw), fz = Math.cos(yaw); if (l.positionX) { l.positionX.value = x; l.positionY.value = 1.6; l.positionZ.value = z; l.forwardX.value = fx; l.forwardY.value = 0; l.forwardZ.value = fz; l.upX.value = 0; l.upY.value = 1; l.upZ.value = 0; } else { l.setPosition(x, 1.6, z); l.setOrientation(fx, 0, fz, 0, 1, 0); } },
     get muted() { return muted; },
     setMuted(value) { muted = !!value; if (ctx) nodes.master.gain.setTargetAtTime(muted ? 0 : volumes.master, ctx.currentTime, 0.05); },
     setVolume(value) { setVolumes({ master: value }); },

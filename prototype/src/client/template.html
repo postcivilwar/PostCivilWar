@@ -1294,6 +1294,42 @@ svg.lined path { fill: none; stroke: currentColor; stroke-width: 2.4; stroke-lin
 #confirm-yes.danger { color: #ffd9d4; }
 #confirm-yes:disabled, #confirm-no:disabled { opacity: 0.6; cursor: progress; }
 @media (prefers-reduced-motion: reduce) { #confirm, .confirm-box { animation: none; } }
+/* Voice chat (ui-voice.js): the microphone button (held to talk), the players near you, the speaker over whoever is
+   talking, a calm word, and its own small dialog */
+#voice-talk, #voice-people { appearance: none; position: absolute; left: calc(10px + env(safe-area-inset-left, 0px)); z-index: 6; display: grid; place-items: center; padding: 0; border: 0; border-radius: 50%; color: #fff; cursor: pointer; -webkit-tap-highlight-color: transparent; touch-action: none; user-select: none; -webkit-user-select: none; -webkit-touch-callout: none; background: rgba(12, 14, 18, 0.55); box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.88), inset 0 0 0 3px rgba(255, 255, 255, 0.14); transition: transform 0.1s, background 0.15s; }
+#voice-talk { top: calc(50% - 62px); width: 58px; height: 58px; }
+#voice-people { top: calc(50% + 6px); width: 44px; height: 44px; left: calc(17px + env(safe-area-inset-left, 0px)); }
+#voice-talk .ico { width: 26px; height: 26px; fill: none; stroke: currentColor; stroke-width: 2; stroke-linecap: round; }
+#voice-people .ico { width: 21px; height: 21px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; }
+#voice-talk[hidden], #voice-people[hidden], #voice-note[hidden] { display: none; }
+#voice-talk.sending { background: #3c9a66; transform: scale(1.08); box-shadow: 0 0 0 4px rgba(60, 154, 102, 0.35), inset 0 0 0 2px rgba(0, 0, 0, 0.6); }
+#voice-talk.open:not(.sending) { box-shadow: inset 0 0 0 2px #3c9a66, inset 0 0 0 3px rgba(255, 255, 255, 0.14); }
+#voice-talk.idle { opacity: 0.6; }
+#voice-note { position: absolute; left: calc(76px + env(safe-area-inset-left, 0px)); top: calc(50% - 50px); max-width: min(240px, 50vw); padding: 7px 10px; background: rgba(12, 14, 18, 0.78); color: #f1f1ec; font: 600 12.5px/1.35 var(--font-ui); border-radius: 8px; pointer-events: none; }
+#voice-icons { position: absolute; inset: 0; pointer-events: none; overflow: hidden; z-index: 3; }
+.voice-speaker { position: absolute; left: 0; top: 0; width: 26px; height: 26px; border-radius: 50%; background: #3c9a66; display: grid; place-items: center; box-shadow: 0 2px 6px rgba(0, 0, 0, 0.5); }
+.voice-speaker svg { width: 17px; height: 17px; fill: #fff; stroke: #fff; stroke-width: 1.6; stroke-linecap: round; }
+.voice-speaker svg .w1, .voice-speaker svg .w2 { fill: none; animation: voice-wave 0.9s ease-in-out infinite; }
+.voice-speaker svg .w2 { animation-delay: 0.2s; }
+@keyframes voice-wave { 0%, 100% { opacity: 0.35; } 50% { opacity: 1; } }
+.voice-dialog { position: fixed; inset: 0; z-index: 85; display: grid; place-items: center; padding: calc(16px + var(--st)) 16px calc(16px + var(--sb)); background: rgba(0, 0, 0, 0.68); animation: fade-in 0.14s ease both; overflow: auto; }
+.voice-card { width: min(440px, 100%); max-height: 100%; overflow-y: auto; display: flex; flex-direction: column; gap: 12px; padding: 20px 18px 16px; background: linear-gradient(180deg, #1b1c1f, #0e0e10); box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.16), 0 24px 70px rgba(0, 0, 0, 0.7); color: #f1f1ec; }
+.voice-card h3 { margin: 0; font: 800 19px/1.2 var(--font-ui); color: #fff; text-transform: none; letter-spacing: 0; }
+.voice-card p { margin: 0; color: #d4d4cf; font-size: 14.5px; line-height: 1.5; }
+.voice-card .small { font-size: 13px; color: #b9b9b4; }
+.voice-card .actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.voice-card .rows { display: flex; flex-direction: column; gap: 6px; }
+.voice-card .setrow { display: flex; align-items: center; justify-content: space-between; gap: 10px; }
+.voice-card .chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.voice-card .chip[aria-checked="true"] { background: #fff; color: #0a0a0a; box-shadow: none; }
+.voice-card textarea { width: 100%; box-sizing: border-box; }
+.voice-person { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 8px 0; border-top: 1px solid rgba(255, 255, 255, 0.09); }
+.voice-person .who { min-width: 0; overflow-wrap: anywhere; }
+.voice-person .acts { display: flex; gap: 6px; flex: none; }
+.voice-person .acts .btn { min-height: 34px; padding: 0 10px; font-size: 12.5px; }
+.voice-meter { height: 8px; background: rgba(255, 255, 255, 0.12); border-radius: 4px; overflow: hidden; margin: 6px 0; }
+.voice-meter i { display: block; height: 100%; width: 0; background: #3c9a66; transition: width 0.06s linear; }
+@media (prefers-reduced-motion: reduce) { .voice-speaker svg .w1, .voice-speaker svg .w2, .voice-dialog { animation: none; } }
 
 /* ---- the start screen until someone is signed in: an account, and nothing else ---- */
 .gate-card { display: flex; flex-direction: column; gap: 10px; padding: 16px; background: #121213; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.14); }

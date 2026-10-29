@@ -82,6 +82,8 @@ export function encodePlayer(self, zoneId) {
   if (Array.isArray(self.wounds) && self.wounds.length) out.wd = self.wounds.slice(-8).map((w) => [w[0], Math.round(w[1] * 1000) / 1000, Math.round(w[2] * 1000) / 1000, Math.round(w[3] * 1000) / 1000, Math.round((w[4] || 1) * 10) / 10]);
   // the height of the ground under them (the server checks where a round struck them against it)
   if (Number.isFinite(self.gy)) out.gy = Math.round(self.gy * 10) / 10;
+  // voice chat on (29 October 2026): the server puts players with it on in touch with each other (api/_lib/voice.js)
+  if (self.voiceOn) out.vc = 1;
   return trimPlayer(out);
 }
 
