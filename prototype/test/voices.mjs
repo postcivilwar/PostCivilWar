@@ -132,11 +132,22 @@ for (let k = 0; k < 20 && at3; k += 1) { await page.waitForTimeout(500); const s
 check('a conversation 32 m away (going on: it is within 40 m of the player) is not heard', !!at3 && said > 0 && far === 0, { at3, said, far });
 
 // 5: a gunshot near people (beside a conversation, where people with voices stand): one of them calls out
-const at5 = await besideTalk(5);
+// (or, should the town's plan have none coming, beside someone with a voice who is up and about)
+const at5 = (await besideTalk(5)) || (await page.evaluate(() => {
+  const n = window.__nlw, g = n.host.game, I = g.internals, o = {};
+  for (let i = 0; i < I.population.count; i += 1) {
+    if (!I.voices.voiced(`n:${i}`)) continue;
+    I.population.locate(i, g.state.t, o);
+    if (o.pose === 4 || o.moving) continue;
+    n.place(o.x + 4, o.z); return { who: `n:${i}`, x: o.x, z: o.z };
+  }
+  return null;
+}));
+check('beside people with voices, for the gunshot', !!at5, at5);
 await page.waitForTimeout(1500);
 const before5 = await stats();
 const r0 = await page.evaluate(() => window.__nlw.host.game.internals.voices.stats().reactions);
-await page.evaluate(([x, z]) => window.__nlw.host.game.internals.voices.event('gunshot', x, z), [at5.x, at5.z]);
+if (at5) await page.evaluate(([x, z]) => window.__nlw.host.game.internals.voices.event('gunshot', x, z), [at5.x, at5.z]);
 let reacted = null;
 for (let k = 0; k < 40 && !reacted; k += 1) { await page.waitForTimeout(500); const l = (await speech()).find((x) => /_gunshot_/.test(x.voice)); if (l) reacted = l; }
 for (let k = 0; k < 20 && (await stats()).played <= before5.played; k += 1) await page.waitForTimeout(500);
