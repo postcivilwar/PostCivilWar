@@ -27233,7 +27233,9 @@ const add = (voice, id) => { if (!LINES.has(voice)) LINES.set(voice, []); LINES.
 for (const c of VOICE_TALKS) for (const [voice, id] of c.lines) add(voice, id);
 for (const [voice, triggers] of Object.entries(VOICE_REACTIONS)) for (const list of Object.values(triggers)) for (const [id] of list) add(voice, id);
 
-function createVoicePlayer({ audio, fetchFile = (url) => fetch(url), fingerprints = {} }) {
+function createVoicePlayer({ audio, fetchFile = (url) => fetch(url), fingerprints = {}, served = typeof location === 'undefined' || /^https?:$/.test(location.protocol) }) {
+  const failedAt = new Map();    // line id -> when its file last could not be had (performance.now()): not asked again for a while
+  const AGAIN_MS = 30000;
   const bytes = new Map();       // line id -> ArrayBuffer of its file (most recently wanted last)
   const ready = new Map();       // line id -> AudioBuffer (most recently used last)
   const asked = new Set();       // line ids being fetched or decoded
@@ -27253,12 +27255,13 @@ function createVoicePlayer({ audio, fetchFile = (url) => fetch(url), fingerprint
       busy += 1;
       fetchFile(url(id)).then((r) => { if (!r.ok) throw new Error(`${id}: ${r.status}`); return r.arrayBuffer(); })
         .then((b) => { touch(bytes, id, b); stats.fetched += 1; stats.bytes += b.byteLength; while (bytes.size > VOICE_PLAYER.keepBytes) bytes.delete(bytes.keys().next().value); })
-        .catch(() => { stats.failed += 1; })
+        .catch(() => { stats.failed += 1; failedAt.set(id, performance.now()); })
         .finally(() => { busy -= 1; asked.delete(id); pump(); });
     }
   }
   function want(id, urgent = false) {
     if (bytes.has(id) || asked.has(id)) { if (bytes.has(id)) touch(bytes, id, bytes.get(id)); return; }
+    if (failedAt.has(id)) { if (performance.now() - failedAt.get(id) < AGAIN_MS) return; failedAt.delete(id); }
     asked.add(id);
     if (urgent) queue.unshift(id); else queue.push(id);
     pump();
@@ -27272,12 +27275,12 @@ function createVoicePlayer({ audio, fetchFile = (url) => fetch(url), fingerprint
     if (ready.has(id)) { const b = ready.get(id); touch(ready, id, b); return b; }
     if (!bytes.has(id) || asked.has(`d:${id}`)) return null;
     asked.add(`d:${id}`);
-    audio.decode(bytes.get(id)).then((b) => { touch(ready, id, b); stats.decoded += 1; while (ready.size > VOICE_PLAYER.ready) ready.delete(ready.keys().next().value); }).catch(() => { stats.failed += 1; }).finally(() => asked.delete(`d:${id}`));
+    audio.decode(bytes.get(id)).then((b) => { touch(ready, id, b); stats.decoded += 1; while (ready.size > VOICE_PLAYER.ready) ready.delete(ready.keys().next().value); }).catch(() => { stats.failed += 1; bytes.delete(id); failedAt.set(id, performance.now()); }).finally(() => asked.delete(`d:${id}`));
     return null;
   }
 
   function update(speech, voicesNear, where = null) {
-    if (!audio || !audio.running) return;
+    if (!served || !audio || !audio.running) return;
     prepare(voicesNear);
     const now = new Set();
     for (const line of speech || []) {
@@ -27298,7 +27301,7 @@ function createVoicePlayer({ audio, fetchFile = (url) => fetch(url), fingerprint
     for (const id of seen.keys()) if (!now.has(id)) seen.delete(id);
   }
 
-  return { update, prepare, stats: () => ({ ...stats, kept: bytes.size, ready: ready.size, fetching: busy, waiting: queue.length }), lines: (voice) => (LINES.get(voice) || []).slice() };
+  return { update, prepare, stats: () => ({ ...stats, served, kept: bytes.size, ready: ready.size, fetching: busy, waiting: queue.length }), lines: (voice) => (LINES.get(voice) || []).slice() };
 }
 
 return { VOICE_PLAYER, createVoicePlayer };

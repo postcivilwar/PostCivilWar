@@ -234,3 +234,22 @@ test('the recordings: every line the game uses is there, as made and as a light 
   }
   assert.ok(Object.values(VOICE_CAST).filter((c) => c.who).length >= 46);
 });
+
+// The page's player (src/client/voices.js), with no browser: a file that cannot be had is not asked for again every
+// frame, and a page opened from a file of its own (local.html) asks for none (28 October 2026: the city test found the
+// prototype's page asking every frame for files it cannot have).
+test('the page asks once for a recording it cannot have, and none from a page opened as a file', async () => {
+  const { createVoicePlayer } = await import('../src/client/voices.js');
+  const line = { id: 1, voice: 'police_ebele_family_01', who: 'n:0', x: 0, z: 0, ago: 0, seconds: 3 };
+  const audio = { running: true, decode: () => Promise.reject(new Error('no')), voiceLine: () => null };
+  let asked = 0;
+  const failing = createVoicePlayer({ audio, served: true, fetchFile: async () => { asked += 1; throw new Error('no connection'); } });
+  for (let k = 0; k < 50; k += 1) { failing.update([line], ['police_ebele']); await new Promise((r) => setImmediate(r)); }
+  const once = asked;
+  assert.ok(once >= 1 && once <= failing.lines('police_ebele').length, `asked ${once} times`);
+  assert.equal(failing.stats().failed, once, 'each file asked for failed once, and was not asked for again');
+  let fromFile = 0;
+  const local = createVoicePlayer({ audio, served: false, fetchFile: async () => { fromFile += 1; throw new Error('file:'); } });
+  for (let k = 0; k < 10; k += 1) local.update([line], ['police_ebele']);
+  assert.equal(fromFile, 0, 'nothing asked for by a page opened as a file');
+});
