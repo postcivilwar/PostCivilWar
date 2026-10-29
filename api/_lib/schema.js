@@ -944,6 +944,66 @@ const MIGRATIONS = [
       `alter table ${S}.wallet_tx add constraint wallet_tx_kind_check check (kind in ('grant', 'transfer', 'game', 'hold', 'release', 'sale', 'refund', 'upgrade', 'ad-hold', 'ad-charge', 'ad-release', 'gun'))`,
     ],
   },
+  {
+    id: 16,
+    name: 'voice chat between players: the handshakes passed on, blocks, reports, the age said, warnings and bans',
+    statements: [
+      // (29 October 2026, the owner's brief for voice chat, stage 1: api/_lib/voice.js says what each is for)
+      // whether the account has said it is 18 or over (null: not asked yet), and whether only an administrator may change it
+      `alter table ${S}.accounts add column voice_adult boolean`,
+      `alter table ${S}.accounts add column voice_adult_set_by_admin boolean not null default false`,
+      // a ban from voice chat until then (far in the future: for good); a ban from the game; a warning to be shown once
+      `alter table ${S}.accounts add column voice_ban_until timestamptz`,
+      `alter table ${S}.accounts add column game_ban boolean not null default false`,
+      `alter table ${S}.accounts add column warning text`,
+      // a voice connection's handshake from one player's game to another's, until the other's game has taken it
+      `create table ${S}.voice_signals (
+         id bigserial primary key,
+         to_id uuid not null references ${S}.accounts(id) on delete cascade,
+         from_id uuid not null references ${S}.accounts(id) on delete cascade,
+         kind text not null check (kind in ('offer', 'answer', 'bye')),
+         data text,
+         at timestamptz not null default now()
+       )`,
+      `create index voice_signals_to on ${S}.voice_signals(to_id, id)`,
+      // who has blocked whom: neither is ever connected to the other again, and nothing passes between them
+      `create table ${S}.voice_blocks (
+         account_id uuid not null references ${S}.accounts(id) on delete cascade,
+         blocked_id uuid not null references ${S}.accounts(id) on delete cascade,
+         at timestamptz not null default now(),
+         primary key (account_id, blocked_id),
+         check (account_id <> blocked_id)
+       )`,
+      `create index voice_blocks_blocked on ${S}.voice_blocks(blocked_id)`,
+      // a report of one player by another, and what an administrator decided
+      `create table ${S}.voice_reports (
+         id bigserial primary key,
+         reporter_id uuid not null references ${S}.accounts(id) on delete cascade,
+         reported_id uuid not null references ${S}.accounts(id) on delete cascade,
+         reason text not null check (reason in ('abuse', 'harassment', 'threats', 'hate', 'other')),
+         note text,
+         zone text,
+         x real,
+         z real,
+         at timestamptz not null default now(),
+         status text not null default 'open' check (status in ('open', 'dismissed', 'warned', 'voice-7', 'voice-30', 'voice-forever', 'game-ban')),
+         decided_by uuid references ${S}.accounts(id) on delete set null,
+         decided_at timestamptz,
+         message text,
+         check (reporter_id <> reported_id)
+       )`,
+      `create index voice_reports_open on ${S}.voice_reports(status, at)`,
+      ...['voice_signals', 'voice_blocks', 'voice_reports'].map((table) => `alter table ${S}.${table} enable row level security`),
+      `do $$ declare r text; begin
+         foreach r in array array['anon', 'authenticated'] loop
+           if exists (select 1 from pg_roles where rolname = r) then
+             execute format('revoke all on all tables in schema ${S} from %I', r);
+             execute format('revoke all on all sequences in schema ${S} from %I', r);
+           end if;
+         end loop;
+       end $$`,
+    ],
+  },
 ];
 
 module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE, SHOWROOM, MOTORCYCLES, POWERBIKE, POWERBIKE_STANDS, CARSHOW, CARS, CAR_STANDS };

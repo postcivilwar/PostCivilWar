@@ -9,6 +9,7 @@ const { SCHEMA: S } = require('./schema.js');
 const { UUID } = require('./market.js');
 const wallet = require('./wallet.js');
 const guns = require('./guns.js');
+const voice = require('./voice.js');
 
 const MAX_SAVE = 3 * 1024 * 1024;
 const SEEN_FOR = 14;                     // seconds a player stays in sight after their game last said where they are (a game alone in town says so every ten)
@@ -117,7 +118,7 @@ async function presence(sql, me, body) {
     return { peers: [] };
   }
   const rows = await sql.unsafe(
-    `select encode(sha256(p.account_id::text::bytea), 'hex') as who, p.state, extract(epoch from (now() - p.at))::float8 as age from ${S}.presence p
+    `select encode(sha256(p.account_id::text::bytea), 'hex') as who, p.account_id as aid, p.state, extract(epoch from (now() - p.at))::float8 as age from ${S}.presence p
      where p.zone = $1 and p.account_id <> $2 and p.at > now() - make_interval(secs => $3::int)
      order by (p.x - $4::real) * (p.x - $4::real) + (p.z - $5::real) * (p.z - $5::real) limit $6::int`,
     [zone, me.id, SEEN_FOR, Number(state.x), Number(state.z), MOST_PEERS]);
@@ -128,8 +129,10 @@ async function presence(sql, me, body) {
   const gunWord = async (job) => { try { return await job(); } catch (error) { if (error && error.status && error.code) return { error: error.code }; throw error; } };
   const fired = body.fire ? await gunWord(() => guns.fire(sql, me, body.fire, state, zone)) : null;
   const struck = body.ack !== undefined ? await gunWord(() => guns.struck(sql, me, Number(body.ack))) : null;
+  // voice chat (voice.js): who near this player they may talk with, and the handshakes to and from their game
+  const talk = body.voice && typeof body.voice === 'object' ? await gunWord(() => voice.exchange(sql, me, body.voice, rows)) : null;
   // (with how long ago each said it, in seconds: a game carries a moving vehicle on by that much)
-  return { peers: rows.map((row) => ({ id: `u${row.who.slice(0, 20)}`, state: row.state, age: Math.max(0, Math.round(Number(row.age) * 1000) / 1000) })), ...(fired ? { fire: fired } : {}), ...(struck ? { struck } : {}) };
+  return { peers: rows.map((row) => ({ id: `u${row.who.slice(0, 20)}`, state: row.state, age: Math.max(0, Math.round(Number(row.age) * 1000) / 1000) })), ...(fired ? { fire: fired } : {}), ...(struck ? { struck } : {}), ...(talk ? { voice: talk } : {}) };
 }
 
 module.exports = { saveInfo, saveGet, savePut, saveErase, presence };

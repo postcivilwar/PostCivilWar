@@ -21,6 +21,7 @@ const character = require('./_lib/character.js');
 const weather = require('./_lib/weather.js');
 const ads = require('./_lib/ads.js');
 const guns = require('./_lib/guns.js');
+const voice = require('./_lib/voice.js');
 const { SCHEMA: S } = require('./_lib/schema.js');
 
 // (the character and the path are the account's own: chosen once, kept here, and the same on every device)
@@ -34,7 +35,7 @@ const AGAIN = new Set(['40P01', '40001']);
 const OPS = {
   // the real weather where the player is (no account needed: it is the same for anyone there)
   'world.weather': [false, async ({ sql, req }) => { await auth.allow(sql, `weather:${addressOf(req)}`, 30, 600); return weather.current(sql, req); }],
-  'me': [false, async ({ sql, me }) => (me ? { account: publicAccount(me), save: await world.saveInfo(sql, me.id), wallet: await purse(sql, me) } : { account: null })],
+  'me': [false, async ({ sql, me }) => (me ? { account: publicAccount(me), save: await world.saveInfo(sql, me.id), wallet: await purse(sql, me), warning: (await voice.status(sql, me)).voice.warning } : { account: null })],
   'signup': [false, async ({ sql, req, body }) => {
     const { account, cookie } = await auth.signUp(sql, req, body, (tx, made) => wallet.open(tx, made.id));
     // a character already being played on this device goes with the new account
@@ -69,6 +70,18 @@ const OPS = {
   'gun.equip': [true, ({ sql, me, body }) => guns.equip(sql, me, body)],
   'gun.reload': [true, ({ sql, me, body }) => guns.reload(sql, me, body)],
   'gun.buy': [true, ({ sql, me, body }) => guns.buy(sql, me, body)],
+  // voice chat between players (voice.js): the age said once, the relay's password, blocks, reports; the handshakes come
+  // with the presence above (world.js)
+  'voice.status': [true, ({ sql, me }) => voice.status(sql, me)],
+  'voice.age': [true, ({ sql, me, body }) => voice.setAge(sql, me, body)],
+  'voice.seen': [true, ({ sql, me }) => voice.seenWarning(sql, me)],
+  'voice.ice': [true, ({ sql, me }) => voice.ice(sql, me)],
+  'voice.block': [true, ({ sql, me, body }) => voice.block(sql, me, body)],
+  'voice.unblock': [true, ({ sql, me, body }) => voice.unblock(sql, me, body)],
+  'voice.report': [true, ({ sql, me, body }) => voice.report(sql, me, body)],
+  'admin.voice.reports': [true, ({ sql, me, body }) => voice.adminReports(sql, me, body)],
+  'admin.voice.decide': [true, ({ sql, me, body }) => voice.adminDecide(sql, me, body)],
+  'admin.voice.account': [true, ({ sql, me, body }) => voice.adminAccount(sql, me, body)],
   'market.list': [false, ({ sql, me, body }) => market.list(sql, me, body)],
   'market.mine': [true, ({ sql, me }) => market.mine(sql, me)],
   'market.sync': [true, ({ sql, me, body }) => market.sync(sql, me, body)],

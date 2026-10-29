@@ -127,7 +127,7 @@ async function accountOf(sql, req) {
   const rows = await sql.unsafe(
     `select a.id, a.username, a.username_key, a.role, a.figure, a.path, s.token_hash, s.last_used_at < now() - interval '1 hour' as stale
      from ${S}.sessions s join ${S}.accounts a on a.id = s.account_id
-     where s.token_hash = $1 and s.expires_at > now()`, [fingerprint(token)]);
+     where s.token_hash = $1 and s.expires_at > now() and not a.game_ban`, [fingerprint(token)]);
   if (!rows.length) return null;
   const row = rows[0];
   if (row.stale) {
@@ -174,7 +174,7 @@ async function signIn(sql, req, body) {
   const byAddress = await counted(sql, addressKey, LIMITS.loginAddress.window);
   if (byName.count >= LIMITS.loginName.most) throw tooMany(byName.wait);
   if (byAddress.count >= LIMITS.loginAddress.most) throw tooMany(byAddress.wait);
-  const rows = await sql.unsafe(`select id, username, username_key, role, figure, path, pass_hash from ${S}.accounts where username_key = $1`, [key]);
+  const rows = await sql.unsafe(`select id, username, username_key, role, figure, path, pass_hash, game_ban from ${S}.accounts where username_key = $1`, [key]);
   let good = false;
   if (rows.length) good = await verifyPassword(password, rows[0].pass_hash); else await pretendToCheck(password);
   if (!good) {
@@ -184,6 +184,8 @@ async function signIn(sql, req, body) {
     throw new ApiError(401, 'NO_MATCH', 'That username and password do not match.');
   }
   await sql.unsafe(`delete from ${S}.limits where key = $1`, [nameKey]);
+  // an account an administrator has banned from the game (voice.js) is told so, and not let in
+  if (rows[0].game_ban) throw new ApiError(403, 'BANNED', 'This account has been banned from PostCivilWar.');
   const account = { id: rows[0].id, username: rows[0].username, username_key: rows[0].username_key, role: rows[0].role, figure: rows[0].figure || null, path: rows[0].path || null };
   account.admin = isAdmin(account);
   await sql.unsafe(`update ${S}.accounts set last_seen_at = now() where id = $1`, [account.id]);
