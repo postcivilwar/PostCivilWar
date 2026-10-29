@@ -28,7 +28,7 @@ const { SCHEMA: S } = require('./schema.js');
 const VOICE = Object.freeze({
   most: 8,                 // handshakes one word may carry
   size: 16000,             // characters in one (a description of a device with its ways to be reached: a few thousand)
-  keep: 40,                // seconds a handshake waits to be taken
+  keep: 60,                // seconds a handshake waits to be taken (as long as the game waits for an answer)
   ttl: 4 * 3600,           // seconds the relay's password lasts (it is asked for again before then)
   stun: ['stun:stun.cloudflare.com:3478', 'stun:stun.l.google.com:19302'],
 });

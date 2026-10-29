@@ -99,3 +99,21 @@ test('the reach: heard within 25 m, put in touch within 40, let go beyond 50; fi
   assert.equal(VOICE_CHAT.drop, 50);
   assert.equal(VOICE_CHAT.most, 5);
 });
+
+test('an answer to an offer already given up is not taken for the answer to a newer one', async () => {
+  const peers = [{ id: 'u5', x: 3, z: 0, name: 'b' }];
+  const { v } = engine({ peers });
+  await v.start();
+  v.answer({ me: 'u3', ok: ['u5'], in: [] });
+  await new Promise((r) => setTimeout(r, 10));
+  const offer = v.body().out[0];
+  const word = offer.d.split('\n')[0];
+  assert.ok(word && offer.d.slice(word.length + 1).startsWith('v=0'));
+  v.answer({ me: 'u3', ok: ['u5'], in: [{ from: 'u5', k: 'answer', d: `older1\n${SDP}` }] });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(v.links()[0].state, 'offered');
+  assert.match(v.events().join(' '), /earlier offer/);
+  v.answer({ me: 'u3', ok: ['u5'], in: [{ from: 'u5', k: 'answer', d: `${word}\n${SDP}` }] });
+  await new Promise((r) => setTimeout(r, 10));
+  assert.equal(v.links()[0].state, 'connecting');
+});

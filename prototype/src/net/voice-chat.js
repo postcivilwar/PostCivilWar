@@ -25,7 +25,8 @@ export const VOICE_CHAT = Object.freeze({
   reach: 25,          // metres: heard within
   bitrate: 24000,     // bits a second, Opus, one channel
   gather: 2500,       // ms to wait for a device's ways to be reached before its offer or answer goes
-  wait: 12000,        // ms an offer waits for its answer before it is let go
+  wait: 60000,        // ms an offer waits for its answer before it is let go (a slow phone, busy drawing, can take
+                      // seconds to describe itself: the other's answer is given time)
   retry: 10000,       // ms before trying again with someone it did not work with
   vad: 0.018,         // the level of the microphone (RMS, 0..1) taken for speaking, with open mic
   hang: 600,          // ms open mic keeps sending after the player stops speaking
@@ -33,6 +34,10 @@ export const VOICE_CHAT = Object.freeze({
 });
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+// Each offer has a word of its own at its head (`<word>\n<description>`), and its answer the same word, so that an answer
+// to an offer already given up (late on a slow connection) is never taken for the answer to a newer one.
+const tag = () => Math.random().toString(36).slice(2, 10);
+export function split(data) { const i = data.indexOf('\n'); return i > 0 && i <= 16 && !data.startsWith('v=') ? { word: data.slice(0, i), sdp: data.slice(i + 1) } : { word: '', sdp: data }; }
 
 // Opus as the brief asks: one channel, low and steady, silence sent as almost nothing, and what is lost on the way
 // covered for (a description's own settings for its audio, rewritten before it is set)
@@ -74,8 +79,11 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
   let note = '';                   // a calm word for the player (voice cannot connect here, and the like)
   let failures = 0, successes = 0;
   let lastLook = 0;
-  const stats = { offers: 0, answers: 0, connected: 0, failed: 0, relayed: 0, bytesSent: 0, bytesReceived: 0 };
+  const stats = { offers: 0, answers: 0, connected: 0, failed: 0, relayed: 0, bytesSent: 0, bytesReceived: 0, heardOffers: 0, heardAnswers: 0, byes: 0, error: '' };
 
+  // what happened lately, for the readout and the tests (the last forty events, each with when)
+  const events = [];
+  const log = (text) => { events.push(`${(now() / 1000).toFixed(1)} ${text}`); if (events.length > 40) events.shift(); };
   const say = (text) => { if (note !== text) { note = text; changed(); } };
   const blockedIds = () => new Set((status && status.blocked ? status.blocked : []).map((b) => b.id));
 
@@ -125,7 +133,7 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
 
   function makeLink(id, role) {
     const pc = new RTC({ iceServers: ice ? ice.iceServers : [], bundlePolicy: 'max-bundle' });
-    const link = { id, pc, role, state: 'new', at: now(), voice: null, el: null, talking: false, level: 0, muffled: false, relayed: null, bytes: { sent: 0, received: 0 } };
+    const link = { id, pc, role, word: '', state: 'new', at: now(), voice: null, el: null, talking: false, level: 0, muffled: false, relayed: null, bytes: { sent: 0, received: 0 } };
     if (mic) { const sender = pc.addTrack(mic.track, new MediaStream([mic.track])); link.sender = sender; }
     else pc.addTransceiver('audio', { direction: 'recvonly' });
     pc.ontrack = (event) => {
@@ -141,9 +149,13 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
     };
     pc.onconnectionstatechange = () => {
       const s = pc.connectionState;
+      log(`${id.slice(0, 7)} ${s}`);
       if (s === 'connected' && link.state !== 'connected') { link.state = 'connected'; stats.connected += 1; successes += 1; if (note) say(''); limitBitrate(link); whichWay(link); changed(); }
       if (s === 'failed') { stats.failed += 1; failures += 1; drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); if (failures >= 2 && !successes) say('Voice chat can\'t connect on this network.'); }
-      if (s === 'disconnected') setTimeout(() => { if (links.get(id) === link && pc.connectionState === 'disconnected') { drop(id, false); cooling.set(id, now() + 2000); } }, 5000);
+      // (lost after being in touch: let go if not back within eight seconds. Before ever being in touch, the other side
+      // may still be setting up its side, slow to hear the answer: left to the browser's own checks, which end in
+      // 'failed', or to VOICE_CHAT.wait)
+      if (s === 'disconnected' && link.state === 'connected') setTimeout(() => { if (links.get(id) === link && pc.connectionState === 'disconnected') { drop(id, false); cooling.set(id, now() + 2000); } }, 8000);
     };
     links.set(id, link);
     return link;
@@ -181,42 +193,51 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
   async function offerTo(id) {
     const link = makeLink(id, 'offer');
     link.state = 'offering';
+    log(`${id.slice(0, 7)} offering`);
     try {
       const offer = await link.pc.createOffer();
       await link.pc.setLocalDescription({ type: 'offer', sdp: tuneOpus(offer.sdp) });
       const sdp = await described(link.pc);
       if (links.get(id) !== link) return;
-      outbox.push({ to: id, k: 'offer', d: sdp });
+      link.word = tag();
+      outbox.push({ to: id, k: 'offer', d: `${link.word}\n${sdp}` });
+      log(`${id.slice(0, 7)} offer ready (${sdp.length})`);
       stats.offers += 1;
       link.state = 'offered'; link.at = now();
-    } catch (error) { drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
+    } catch (error) { stats.error = `offer: ${error && error.message}`; drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
   }
-  async function answerTo(id, sdp) {
+  async function answerTo(id, data) {
+    const { word, sdp } = split(data);
     // an offer from someone already being offered to: the one whose turn it is wins (ids in order)
     const had = links.get(id);
     if (had) { if (had.role === 'offer' && myId && myId < id) return; drop(id, false); }
-    if (!wanted(id)) { outbox.push({ to: id, k: 'bye' }); return; }
+    if (!wanted(id)) { stats.error = 'an offer from someone not near'; outbox.push({ to: id, k: 'bye' }); return; }
     const link = makeLink(id, 'answer');
     link.state = 'answering';
+    link.word = word;
     try {
       await link.pc.setRemoteDescription({ type: 'offer', sdp });
       const answer = await link.pc.createAnswer();
       await link.pc.setLocalDescription({ type: 'answer', sdp: tuneOpus(answer.sdp) });
       const mine = await described(link.pc);
       if (links.get(id) !== link) return;
-      outbox.push({ to: id, k: 'answer', d: mine });
+      outbox.push({ to: id, k: 'answer', d: word ? `${word}\n${mine}` : mine });
+      log(`${id.slice(0, 7)} answer ready (${mine.length})`);
       stats.answers += 1;
       link.state = 'answered'; link.at = now();
-    } catch (error) { drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
+    } catch (error) { stats.error = `answer: ${error && error.message}`; drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
   }
-  async function answered(id, sdp) {
+  async function answered(id, data) {
+    const { word, sdp } = split(data);
     const link = links.get(id);
     if (!link || link.role !== 'offer' || link.pc.signalingState !== 'have-local-offer') return;
+    if (word !== link.word) { log(`${id.slice(0, 7)} an answer to an earlier offer, not taken`); return; }
     try { await link.pc.setRemoteDescription({ type: 'answer', sdp }); link.state = 'connecting'; link.at = now(); } catch (error) { drop(id, false); cooling.set(id, now() + VOICE_CHAT.retry); }
   }
   function drop(id, tell = true) {
     const link = links.get(id);
     if (!link) return;
+    log(`${id.slice(0, 7)} let go (${link.state})`);
     links.delete(id);
     try { link.pc.close(); } catch (error) { /* closed */ }
     if (link.voice) link.voice.stop();
@@ -261,18 +282,23 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
 
   const active = () => prefs.on && !!mic && !paused && !!(status && status.allowed);
   function body() {
+    if (outbox.length) { log(`sent ${outbox.map((o) => `${o.k} to ${String(o.to).slice(0, 7)}`).join(', ')}`); }
     if (!prefs.on || !status || !status.allowed) return outbox.length ? { on: false, out: outbox.splice(0) } : null;
     return { on: active(), out: outbox.splice(0) };
   }
   function answer(word) {
     if (!word) return;
     if (word.me) myId = word.me;
+    const was = allowedIds.size;
     allowedIds = new Set(Array.isArray(word.ok) ? word.ok : []);
+    if (was !== allowedIds.size) log(`may talk with ${allowedIds.size}`);
     if (word.no && prefs.on) { status = { ...(status || {}), allowed: false }; stop(); say(word.no === 'BANNED' ? 'Voice chat is closed to your account.' : 'Voice chat is for players aged 18 and over.'); }
     for (const s of Array.isArray(word.in) ? word.in : []) {
       if (!s || typeof s.from !== 'string') continue;
-      if (s.k === 'bye') { drop(s.from, false); continue; }
-      if (!active()) continue;
+      if (s.k === 'bye') { stats.byes += 1; drop(s.from, false); continue; }
+      if (s.k === 'offer') stats.heardOffers += 1; else if (s.k === 'answer') stats.heardAnswers += 1;
+      log(`${s.from.slice(0, 7)} ${s.k} heard`);
+      if (!active()) { stats.error = 'a handshake while voice chat was not started'; continue; }
       if (s.k === 'offer' && typeof s.d === 'string') answerTo(s.from, s.d);
       if (s.k === 'answer' && typeof s.d === 'string') answered(s.from, s.d);
     }
@@ -392,6 +418,7 @@ export function createVoiceChat({ online, audio, peers = () => [], me = () => nu
       return { sent, received, links: links.size };
     },
     stats: () => ({ ...stats, links: links.size, connected: [...links.values()].filter((l) => l.state === 'connected').length, relayedNow: [...links.values()].filter((l) => l.relayed).length, myId, allowed: allowedIds.size, sending, mic: !!mic, on: prefs.on, active: active(), relay: ice ? ice.relay : null }),
+    events: () => [...events],
     links: () => [...links.values()].map((l) => ({ id: l.id, state: l.state, role: l.role, talking: l.talking, level: l.level, heard: l.voice && l.voice.heard ? l.voice.heard() : null, muffled: l.muffled, relayed: l.relayed })),
   };
 }

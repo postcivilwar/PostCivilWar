@@ -3514,6 +3514,65 @@ beats) and the people at the counters rarely meet, and their conversations are s
 of the 66 everyday conversations happen in a town day. The first line of a conversation can start a moment late where
 the player has just arrived, while its recording comes.
 
+## Voice chat, stage 1: players near each other talk (29 October 2026)
+
+The owner's brief (29 October 2026): live voice between players, heard from where they stand, as in Call of Duty;
+stage 1 the voices of players near each other, stage 2 (not yet) phone calls and groups. His choices: "Are you 18 or
+older?" asked once and kept with the account (a No keeps voice off; only an administrator can change it); an
+administrator's answers to a report: a warning, no voice for 7 days, 30 days or for good, or a ban from the game; B to
+talk on a computer; the reasons Abuse or insults, Harassment, Threats, Hate speech, Other (and a note); a Privacy page in
+Settings; voice wherever players meet, the showrooms and the habitation included.
+
+- **How the voices go** (`src/net/voice-chat.js`): from one device to the other (WebRTC), never through the website's
+  server. Two devices first exchange a description of themselves; those go with the game's usual words about where the
+  player is (`online.js`, `presence`) and the server passes each on at the other's next word (`api/_lib/voice.js`,
+  table `voice_signals`), only between two players in the same town who both have voice on, are 18 or over, are not
+  banned and have not blocked each other. The one whose id comes first makes the offer. Each player is put in touch
+  with the nearest five within 40 m (ready before they are heard), let go beyond 50 m.
+- **The relay**: where a network will not let two devices reach each other, through Cloudflare's relay (TURN). The
+  server asks Cloudflare for a password for each player, good for four hours, with the key kept in the website's
+  settings on Vercel (`CF_TURN_KEY_ID`, `CF_TURN_API_TOKEN`), never in the page. Without them, Cloudflare's and Google's
+  free STUN servers only. Cloudflare's relay is free for the first 1,000 GB a month, then $0.05 a GB.
+- **The sound**: Opus, one channel, 24 kbit/s, silence sent as almost nothing, the browser's echo cancelling, noise
+  suppression and level keeping. Heard from where the player stands (`audio.js` `playerVoice`): louder close by, fading
+  to nothing at 25 m, from their side; muffled (quieter, the high notes gone) when a building stands between. Voices
+  have their own volume (Settings), apart from the town's sound, so the town's sound off does not silence the players.
+- **Talking**: push to talk by default: the microphone button on the left of the screen, held (or B on a keyboard;
+  with voice on, Steal's key is J). Open mic in Settings sends only while the player is speaking. A speaker over the
+  head of whoever is talking; the button green while sending.
+- **The players near you** (the button under the microphone): each with Mute, Block and Report; Mute everyone.
+  A block is both ways: the two are never put in touch again, until unblocked in Settings. A report (a reason, a note)
+  is kept with the date, the two accounts and the place in town (`voice_reports`), at most ten an hour.
+- **Off to begin with**. Settings → Voice chat: on and off, push to talk or open mic, the microphone's volume, the
+  voices' volume, a test of the microphone (its level, and hearing oneself), the players blocked. The first time: what
+  it does and the data it uses, then the age, then the browser's own question for the microphone. A microphone refused
+  leaves the game as it was, with a word on how to allow it. On a phone the microphone starts at a tap; it stops while
+  the game is out of sight and starts again when it is back. Where the browser already allows the microphone, voice
+  left on starts again by itself.
+- **The Admin app → Voice reports**: the reports, open or all, each with the reason, note, place and how many reports
+  there have been about that player, and Dismiss, Warn, No voice 7 days, No voice 30 days, No voice for good, Ban from
+  the game (with a message, or a standard one). A warning is shown to the player once. A game ban signs the player out
+  at once and lets them in no more. An account's voice ban or game ban undone, or its age set, by username.
+- **Nothing recorded**: no voice is recorded or kept, anywhere. Settings → Privacy says so, with what the server keeps.
+- **Calm words**: "Voice chat can't connect on this network." when nobody can be reached; "Tap the microphone to start
+  voice chat." when it is on but not yet started on this visit.
+
+**Measured** (`test/voice-chat.mjs`, Chromium on this machine, a recording played as each microphone: a voice-like tone
+1.2 s on, 1 s off, as speech comes and goes): one voice heard used about 6 MB an hour (five talking at once: 29 MB an
+hour received; one talking all the time would be about 11 MB); sending with the button not held, under 1 MB an hour;
+voice chat's own work each frame with five talking, 0.6 ms. Heard at 6 m, 20 m and 30 m: 0.059, 0.017, 0 (the level as
+heard); muffled through a wall at 6 m: 0.044. Not measurable here: the battery, and frames a second on his phones.
+
+**Tests**: `server/test/voice.test.mjs` (9: the age once, the relay's password without the key in it, the handshake,
+only between players with voice on, blocks both ways, reports seen only by administrators, a warning shown once, a
+7-day voice ban, a game ban and its undoing, the age set by an administrator); `test/voice-chat.test.mjs` (6,
+headless: Opus's settings, who offers to whom, push to talk, a blocked or banned player never offered);
+`test/voice-chat.mjs` (37, browsers through the website: off to begin with, the age first, a microphone refused, put
+in touch, push to talk, the speaker, falloff, nothing beyond 25 m, muffled, open mic, mute, mute everyone, block both
+ways, unblock, a report in the Admin list, five at once, through a relay when direct is blocked (`test/turn-relay.mjs`,
+a small TURN server of the test's own), the page out of sight, turned off); `test/voice-chat-game.mjs` (in the town,
+a computer and a phone: what the player sees and presses, the Admin app, the frame rate).
+
 ## Tests
 
 ```

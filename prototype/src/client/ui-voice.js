@@ -50,6 +50,7 @@ export function createVoiceUI({ voice, online, h, hud = null, project = () => nu
   const shownIcons = new Map();        // peer id -> element
   function frame() {
     const on = voice.on;
+    keepNearby();
     if (!on && talk.hidden && !shownIcons.size && word.hidden) return;
     talk.hidden = !on; people.hidden = !on;
     talk.classList.toggle('sending', voice.sending);
@@ -159,8 +160,11 @@ export function createVoiceUI({ voice, online, h, hud = null, project = () => nu
 
   // ---- the players near you ----
   let reporting = null;     // { id, name, reason, note, sent }
+  let nearbySeen = '', nearbyAt = 0;
+  const nearbyWord = () => voice.nearby().map((q) => `${q.id}:${Math.round(q.d / 3)}:${q.connected ? 1 : 0}:${q.talking ? 1 : 0}`).join('|');
   function openNearby() {
-    openDialog((card) => {
+    nearbySeen = nearbyWord();
+    const d = openDialog((card) => {
       if (reporting) { reportForm(card); return; }
       const list = voice.nearby();
       card.append(el('h3', null, 'Players nearby'),
@@ -178,6 +182,16 @@ export function createVoiceUI({ voice, online, h, hud = null, project = () => nu
           el('button', { class: 'btn', type: 'button', 'data-act': 'report', onclick: () => { reporting = { id: q.id, name: q.name, reason: '', note: '' }; dialog.rebuild(); } }, 'Report'))))),
       el('div', { class: 'actions' }, el('button', { class: 'btn quiet', type: 'button', id: 'voice-list-close', onclick: () => closeDialog() }, 'Close')));
     });
+    d.kind = 'nearby';
+  }
+  // (the list kept up to date while it is open: who comes and goes, how far, talking; not while a report is written)
+  function keepNearby() {
+    if (!dialog || dialog.kind !== 'nearby' || reporting) return;
+    const t = performance.now();
+    if (t - nearbyAt < 1000) return;
+    nearbyAt = t;
+    const word = nearbyWord();
+    if (word !== nearbySeen) { nearbySeen = word; dialog.rebuild(); }
   }
   function reportForm(card) {
     const r = reporting;
@@ -241,13 +255,14 @@ export function createVoiceUI({ voice, online, h, hud = null, project = () => nu
   function stopTest() { if (!testing) return; cancelAnimationFrame(testing.timer); voice.hearSelf(false); testing = null; if (!voice.active) { /* the microphone stays open only while voice chat is */ } }
 
   // ---- the Admin app: voice reports ----
-  const admin = { list: null, status: 'open', busy: false, error: '', messages: {}, account: '' };
+  const admin = { list: null, at: 0, status: 'open', busy: false, error: '', messages: {}, account: '' };
   async function loadReports(force = false) {
-    if (admin.busy || (admin.list && !force)) return;
+    // (asked again when the page is opened after a while: new reports come in)
+    if (admin.busy || (admin.list && !force && Date.now() - admin.at < 15000)) return;
     admin.busy = true;
     const a = await online.ask('admin.voice.reports', { status: admin.status });
     admin.busy = false;
-    if (a.ok) { admin.list = a.reports; admin.error = ''; } else admin.error = a.message;
+    if (a.ok) { admin.list = a.reports; admin.at = Date.now(); admin.error = ''; } else admin.error = a.message;
     if (admin.redraw) admin.redraw();
   }
   function adminPage(root, redraw) {
