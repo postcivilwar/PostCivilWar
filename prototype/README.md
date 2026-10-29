@@ -3457,6 +3457,63 @@ nobody and nothing near it and nobody struck; not found), the car showroom 41/42
 buyer's start screen) and the opening 16/17 failed alike on the live build run in turn (the car 3.5 m/s to the last
 digit on both).
 
+## The town's voices (28 October 2026)
+
+The owner's brief (28 October 2026): the town's NPCs talk to each other out loud, in recorded voice lines, in two
+steps; nothing in the game until he had sent the recordings. Step 1 (the voices of each NPC, at least 60 conversations
+and 150 reactions, each line 2 to 8 seconds, the script as a spreadsheet, the ElevenLabs steps) is in
+`assets/voices/script.csv` (and the Project's `claude/npc-voices-script.csv`). Step 2, this:
+
+- **The recordings**: 532 lines in 48 voices, made in his ElevenLabs account (Voice Design, then Text to Speech, model
+  Eleven v4, MP3 44.1 kHz 128 kbps), kept as made in `assets/voices/original/<line id>.mp3` (also in his
+  `PostCivilWar-voices` folder) and never sent to a device. The game plays light copies (`tools/voices/game_copies.py`
+  → `assets/voices/game/`): one channel, the silence at the ends taken off, the loudness evened out, 24 kHz, 48 kbit/s;
+  22.4 KB each on average (12 to 41 KB), 11.7 MB in all; none too short, too long, too quiet or too fast for its words.
+  `node tools/voices/data.mjs` writes `src/sim/voice-lines.js` from the script and the copies' lengths.
+- **What is said**: 81 conversations (349 lines; 15 of them begun by something that happened: a crash, a fight, a
+  gunshot, the police, a car bought, walls going up) and 183 reactions (gunshot 44, crash 43, fight 41, police 27, a
+  laugh 11, a car 8, hurt 9). 46 of the 48 voices are people in the town; two (`jobseeker_ngozi`, `jobseeker_ebiye`)
+  are figures not yet in it, their 17 lines recorded and kept for when they are.
+- **When people talk** (`src/sim/voices.js`): worked out from the town's clock and where each person's own day has
+  them, and nothing else, so every player's game has the same conversation at the same moment. A conversation may
+  begin at the start of a half-minute, only in the first ten half-minutes of every forty that are its own (so it is not
+  heard again within fifteen minutes, nor any line of it within five), about a third of those that could begin do; the
+  people in it are standing together (within 3.4 m, or 5 m for three) and stay for it, or one walks over to the other
+  (at most 200 m, at a walk), stands beside them, and walks back. They take turns, facing each other, with talking
+  gestures (`render-crowd.js`). A conversation is played only near a player (within 40 m).
+- **Reactions**: a gunshot, a fight, a crash, the police arriving, a car bought, walls going up: one or two of the
+  people within 22 m call out, each a line of their own for it, nobody the same kind of thing twice within three
+  minutes; the one struck cries out. For 90 seconds afterwards people standing together near it may talk about it.
+- **Heard from where they stand**: each line from its speaker, louder close by, fading, silent beyond 25 m (the page's
+  own sound, `audio.js` `voiceLine`); the music and the background step back a little when someone speaks close by.
+- **Subtitles**: Settings → Sound → "Subtitles: show the words when people talk", on by default.
+- **Downloads**: only the recordings of the people within about 60 m of the player, as they come near; once fetched,
+  the web app keeps each on the device (`sw.js`), so they play with no connection and cost data once. A file that
+  cannot be had is asked for again only after half a minute; a page opened as a file (`dist/local.html`) asks for none
+  and shows the words.
+- **Memory**: the files as they came, at most 120 (about 25 KB each, 3 MB); made into sound only when about to be
+  said, at most six at once (about 0.8 MB each).
+- **No AI service or subscription**: the recordings are files of the game.
+
+**Measured** (a phone's settings, the processor slowed four times, the motor park, the market and the most crowded
+street, by day, the live build and this one in turn, with the sound started): graphics memory 108.1 / 113.5 / 140.6 MB
+→ 108.1 / 109.5 / 143.2 MB (the same pictures; at the crowded street different people were about, some having walked
+over to talk); the page's memory 135.5 / 145.0 / 173.9 MB → 138.1 / 147.4 / 171.4 MB; a frame 4.30 / 2.48 / 5.38 s →
+4.43 / 2.57 / 5.67 s (this machine draws in software; the same to about 5%); recordings fetched there 26 / 54 / 94.
+The simulation's tick 0.09 → 0.17 ms on average (headless). Not measurable here: frames a second on his phones.
+
+**Tests**: `test/voices.test.mjs` (10, headless: the script; a conversation in turn, from where each stands, alike in two
+games; heard within 25 m and not beyond; a day's conversations, none again within fifteen minutes; walking over and
+back; a gunshot and a fight; no phrase-book talk from those with voices; every recording there, 1.5 to 8.5 s, under
+45 KB; a file that cannot be had asked for once, none from a page opened as a file); `test/voices.mjs` (the website in
+a browser: the sound running, a conversation heard and its words shown, only the voices near fetched, subtitles off in
+Settings, a conversation 32 m away not heard, a gunshot answered, few recordings held).
+
+**Not yet**: a conversation's people must be standing together or within a walk of each other, so the police (on their
+beats) and the people at the counters rarely meet, and their conversations are seldom heard; on this machine about 30
+of the 66 everyday conversations happen in a town day. The first line of a conversation can start a moment late where
+the player has just arrived, while its recording comes.
+
 ## Tests
 
 ```
