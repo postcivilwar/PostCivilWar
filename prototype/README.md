@@ -4114,6 +4114,66 @@ round and standing still, the foot down when stopped, the skateboarder's foot do
 board, the skater's strides, the scooter rider's hands on its bars, the hoverboard turned on the spot, the unicycle
 leaning forward; its sounds; left standing; a phone's graphics card while riding).
 
+## The town's people on bicycles, skateboards and skates, and taking theirs (31 October 2026)
+
+The third part of the owner's brief of 30 October: "NPCs should also be seen using these items on the streets—10 NPCs
+riding bicycles, 5 on skateboards, and 5 on skating shoes. Ensure each NPC realistically pedals, balances, and
+maneuvers their equipment, with smooth wheel rotation and realistic motions. The player must also be able to hijack
+these bicycles, and some others sports assets that can be hijacked. Once hijacked, the player must pedal and control the
+bike, but remember, hijacked bikes cannot be resold."
+
+### Who, where and how (`src/sim/sport-riders.js`)
+
+Twenty of the town's people have one: ten a bicycle, five a skateboard, five a pair of skates (`RIDERS`). They are
+chosen from those of riding age (16 to 38) who are hawkers, traders, labourers, homemakers or out of work, as many women
+as men, each of the owner's figures at most once, and the same twenty in every copy of the town (`chooseRiders`). Each
+has a road of the town (`BEATS`): the bicycles any of ten roads wide enough for a car and a rider beside it, the
+skateboards and the skates only the tarred ones. Most go out between 7 and 9.30 in the morning and home between 4.30 and
+7 in the evening, some later; each comes out, and goes home, only where no player is near enough to see it happen.
+
+On their road each rides on the right, a metre in from its edge (clear of a car stopped at the roadside), at their own
+pace: a bicycle 13 to 19 km/h, a skateboard 9 to 12, skates 10 to 14 (`SPORT_RIDING.pace`), as such things go
+(`sport-ride.js`: the cyclist pedals to keep going and coasts, the skateboarder pushes and glides, the skater strides and
+glides). Something slower or standing in their way (a car stopped at the roadside, another rider) they go round on the
+inside when the road is clear and there is room short of the middle; otherwise they wait behind it. For someone on foot
+in the road they slow and keep behind, and a cyclist rings the bell (heard by the player within 50 m). At the road's
+end they turn round across it to the other side, leaning into the turn. Now and then they pull in and stand a while.
+The town's cars slow behind a rider in their way and go round them as they do anything else in the road (`traffic.js`);
+a rider is in the way of a player's motorcycle, car or ride as anything solid is. While a rider is out on it, the town's
+people are told where they are, as someone not to be drawn walking (`POSE.hidden`).
+
+### On the screen (`src/client/sport-riders-view.js`)
+
+The nearest few within sight are drawn as their own figures (the owner's townspeople's) on the owner's models: a
+computer 6 within 95 m, a phone 3 within 55 m (`RIDERS_SEEN`), a new figure made at most every third of a second, a few
+kept for the next. Each is ridden as a player rides it (`sport-view.js`): the cyclist on the saddle, the feet on the
+pedals going round with the cranks, the hands on the grips, and stopped, forward off the saddle with the left foot down
+on the road; the skateboarder's push and glide; the skater's strides; each leaning into its turns, its wheels turning by
+how far it has rolled. Each is carried on smoothly from the town's last word at its speed. Further off, nothing is drawn.
+A rider's figure is not shown until the thing under it has been fetched.
+
+### Taking one (`sport-riders.js`, `own-sports.js`, `justice.js`)
+
+From beside one of them going slowly or standing (within 2.4 m, at most 3.4 m/s), "Take the bicycle from ..." (or the
+skateboard, or the skates): they are pushed off and run, shouting "Thief!", and the police are told (taking a vehicle,
+two stars). The player rides it as their own, by the same buttons and steps (`moto.drive`, the rider on it as on their
+own); got off, it stands where it was left, and "Ride the bicycle you took" gets back on it. It is never theirs: the
+website's server, which keeps who owns what, is never told of it, so it is never in Property, never in the market and
+never sold; buying the same thing at the mall changes nothing about it. One player holds three at most: a fourth taken,
+the first is found by its owner. Caught by the police, every one taken goes back: its owner walks to it and rides off
+(the arrest's words say so). In another player's copy of the town that rider is still riding (as with the cars).
+
+### Tests
+
+`test/sport-riders.test.mjs` (the twenty and their roads; riding by day on the right, round at the ends, never onto
+ground that cannot be walked or into each other, at their paces; hidden from the walkers while out; seen near a player;
+taking: too fast, taken, the rider running, the crime, never owned, ridden, left, back on; the police giving it back and
+its owner riding off; three at most; in the cars' way), and in a browser `test/sport-riders.mjs` (out by day, the
+nearest drawn within the level's number; a cyclist stopped with a foot down, then going: the feet on the pedals, the hands
+on the grips, the wheels and cranks turning, drawn smoothly; a skateboarder pushing; a skater striding; taking a bicycle,
+the stars, pedalled away; never owned; left and got back on; the police giving it back; the bell; a phone's graphics
+card).
+
 ## Tests
 
 ```

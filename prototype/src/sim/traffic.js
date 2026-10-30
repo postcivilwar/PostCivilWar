@@ -520,6 +520,8 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       else if (v.vehicle) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: v.id });
       else out.push({ x: v.x, z: v.z, h: 0, hw: 0.4, hl: 0.4, v: 0, player: v.id, foot: true });
     }
+    // the town's people on their bicycles, skateboards and skates (sport-riders.js)
+    if (hub.sportRiders) for (const o of hub.sportRiders.obstacles()) out.push(o);
     // and the ambulance, wherever it is (care.js)
     if (hub.care && hub.care.box) { const b = hub.care.box(), along = b.x1 - b.x0 > b.z1 - b.z0; out.push({ x: (b.x0 + b.x1) / 2, z: (b.z0 + b.z1) / 2, h: along ? Math.PI / 2 : 0, hw: (along ? b.z1 - b.z0 : b.x1 - b.x0) / 2, hl: (along ? b.x1 - b.x0 : b.z1 - b.z0) / 2, v: 0 }); }
     return out;

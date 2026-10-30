@@ -35,7 +35,7 @@ export function createOwnSports({ state, hub, obstacles }) {
     p.sports = [...new Set(list)];
     const parked = parkedOf(p);
     for (const id of Object.keys(parked)) if (!p.sports.includes(id)) delete parked[id];
-    if (isOwnSport(p.astride) && !p.sports.includes(sportOfAstride(p.astride))) leave(p);
+    if (isOwnSport(p.astride) && p.psport && !Number.isInteger(p.psport.taken) && !p.sports.includes(sportOfAstride(p.astride))) leave(p);
     return { items: p.sports };
   }
 
@@ -88,6 +88,8 @@ export function createOwnSports({ state, hub, obstacles }) {
     b.ride = rideOf(step, h.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
     p.stats.ridden = (p.stats.ridden || 0) + gap;
+    // (one taken from one of the town's riders: the riders keep where it is)
+    if (Number.isInteger(b.taken) && hub.sportRiders) hub.sportRiders.moved(b.taken, { x, z, h: heading });
     const hit = hub.impact ? hub.impact.step(p, { kind: 'sport', id: `sp:${b.id}`, front: SPORT_FRONTS[b.id] }, b, fromX, fromZ, x, z, heading, elapsed) : [];
     return hit.length ? { hit } : {};
   }
@@ -116,7 +118,7 @@ export function createOwnSports({ state, hub, obstacles }) {
     if (c.outcome !== 'crash') return { fell: false, outcome: c.outcome, into: Math.round(c.into * 10) / 10 };
     const share = crashShare(c.into, hit.kind);
     const now = state.real;
-    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now };
+    if (Number.isInteger(b.taken)) { if (hub.sportRiders) hub.sportRiders.leftBy(p, b.taken, { x: b.x, z: b.z, h: b.h }, true); } else if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now };
     p.astride = null; p.psport = null;
     const far = Math.min(SPORT_CRASH.thrown[1], SPORT_CRASH.thrown[0] + SPORT_CRASH.carry * c.into);
     const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(dir), uz: Math.cos(dir), far: Math.max(far, THROW.nearest), kind: (x, z, r) => zoneBlockKind(x, z, boxes, r) });
@@ -134,7 +136,7 @@ export function createOwnSports({ state, hub, obstacles }) {
     const boxes = obstacles();
     const side = { x: Math.cos(b.h), z: -Math.sin(b.h) };
     const spot = [[side.x * 0.8, side.z * 0.8], [-side.x * 0.8, -side.z * 0.8], [-Math.sin(b.h) * 1.2, -Math.cos(b.h) * 1.2]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes)) || { x: b.x, z: b.z };
-    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h };
+    if (Number.isInteger(b.taken)) { if (hub.sportRiders) hub.sportRiders.leftBy(p, b.taken, { x: b.x, z: b.z, h: b.h }); } else if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h };
     p.astride = null; p.psport = null;
     p.x = spot.x; p.z = spot.z; p.lastMoveAt = state.real;
     return { x: spot.x, z: spot.z, parked: { item: b.id, x: b.x, z: b.z, h: b.h } };

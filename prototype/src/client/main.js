@@ -87,6 +87,7 @@ import { createVoiceUI, PRIVACY } from './ui-voice.js';
 import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
 import { createSportView } from './sport-view.js';
+import { createSportRidersView } from './sport-riders-view.js';
 import { SPORT_HANDLING, SPORT_BELL, stepSport, sportSeated } from '../sim/sport-ride.js';
 import { trimSports } from './sports-model.js';
 import { createCarView } from './car-view.js';
@@ -354,7 +355,7 @@ function start(carried) {
   const audio = createAudio();
   // the town's recorded voices (28 October 2026): played from where each speaker stands (voices.js)
   const voicePlayer = createVoicePlayer({ audio, fetchFile: (url) => fetchKept(url) });
-  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null, sportView = null, peerSportView = null;
+  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null, sportView = null, peerSportView = null, sportRidersView = null;
   townSteps.push(['the phones, the motorcycles and the cars', () => {
     // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
     phoneHold = createPhoneHold({ scene, lite: LITE });
@@ -366,6 +367,8 @@ function start(carried) {
     // players' (sport-view.js)
     sportView = createSportView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'It could not be fetched. Check the connection.' }); } });
     peerSportView = createSportView(scene, { lite: LITE, priority: 'low' });
+    // and the town's people out on theirs (sport-riders-view.js)
+    sportRidersView = createSportRidersView(scene, { lite: LITE });
     // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
     carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
     // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
@@ -416,6 +419,8 @@ function start(carried) {
     for (const [id, e] of peerPhones) if (!near.has(id) || e.idle > 8) { e.hold.dispose(); peerPhones.delete(id); }
   }
   let peerRides = [], peerSportRides = [];
+  const riderBells = new Map();          // the last ring of each of the town's cyclists' bells heard (by when it was)
+  let riderBellsHeard = 0;
   let carsHeard = [];                // other players' cars near enough to be heard: { key, car, x, z, rev, throttle }
   let shownPeers = [];
   // Other players as they are now: one in or on a vehicle is carried on from where their game last said they were,
@@ -1903,6 +1908,7 @@ function start(carried) {
     for (const row of zone.people) want(row[0]);
     for (const o of zone.okadas) { want(o.person); want(o.passenger); }
     for (const q of zone.players || []) if (q.vehicle && typeof q.vehicle.driver === 'number') want(q.vehicle.driver);
+    for (const r of zone.sportRiders || []) want(r.person);
     if (!unknown.length) return;
     const faces = playerId ? [] : host.game.faces(unknown);
     if (playerId) for (let from = 0; from < unknown.length; from += 60) { const r = server.send({ type: 'people.describe', ids: unknown.slice(from, from + 60) }); if (r.ok) faces.push(...r.people); }
@@ -2661,6 +2667,13 @@ function start(carried) {
     for (const b of (view.self.ownSports && view.self.ownSports.parked) || []) if (SPORT_HANDLING[b.item]) add(b.x, b.z, 2.2, { bias: 1.4, short: b.item === 'inline-skates' ? 'Put on' : 'Ride', text: b.item === 'inline-skates' ? 'Put your skates on' : `Ride your ${SPORTS[b.item].name}`, run: () => rideOwnSport(b.item) });
     // and their own cars (reached from beside a door: the car's own half-width and a step)
     for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) if (POWER_CARS[c.car]) add(c.x, c.z, POWER_CARS[c.car].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive your ${POWER_CARS[c.car].name}`, run: () => enterOwnCar(c.car) });
+    // one of the town's riders going slowly or standing, close by: theirs to take (sport-riders.js); and one taken and
+    // left standing, to ride again
+    for (const r of view.sportRiders || []) {
+      const word = r.item === 'inline-skates' ? 'skates' : r.item === 'skateboard' ? 'skateboard' : 'bicycle';
+      if (typeof r.person === 'number' && r.speed <= 3.4 && (r.mode === 'ride' || r.mode === 'stop')) { const who = known.get(r.person); add(r.x, r.z, 2.4, { bias: 0.4, short: 'Take', text: `Take the ${word} from ${who ? who.short : 'them'}`, run: () => takeSport(r.n) }); }
+      if (r.mine && r.person === null && r.mode === 'kept') add(r.x, r.z, 2.4, { bias: 1.2, short: 'Ride', text: `Ride the ${word} you took`, run: () => retakeSport(r.n) });
+    }
     // and a car of the town's they took and left standing (never theirs: traffic.js)
     for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model]) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
     for (const v of view.vehicles) {
@@ -3241,6 +3254,22 @@ function start(carried) {
     const r = server.send({ type: 'sports.ride', item: id });
     if (r.ok) { ui.close(); stillSport(); sportState.phase = 0; moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; sportState.sentHeading = r.h; refreshView(); }
     say(r);
+    return r;
+  }
+  // Taking one from one of the town's riders (31 October 2026): they are pushed off and run, the police are told; it is
+  // ridden as one's own, but it is never theirs (sport-riders.js). And back on one taken and left standing.
+  function takeSport(n) {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'sports.take', n });
+    if (r.ok) { ui.close(); stillSport(); sportState.phase = 0; moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; sportState.sentHeading = r.h; refreshView(); ui.toast({ type: 'alert', title: 'Taken', text: `You took ${r.name ? `${r.name}'s` : 'the'} ${r.item === 'inline-skates' ? 'skates' : r.item === 'skateboard' ? 'skateboard' : 'bicycle'}. It is not yours: it cannot be sold, and the police will take it back.` }); }
+    else say(r);
+    return r;
+  }
+  function retakeSport(n) {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'sports.retake', n });
+    if (r.ok) { ui.close(); stillSport(); sportState.phase = 0; moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; sportState.sentHeading = r.h; refreshView(); }
+    else say(r);
     return r;
   }
   // What the server says this player owns from the mall, passed to the town whenever it changes (the motorcycles' sync
@@ -4265,6 +4294,10 @@ blood.update(dt, view.blood || []);
       }
       for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: zoneGroundY(e.x, e.z), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
       updatePeerKekes(dt);
+      // the town's people out on their bicycles, skateboards and skates (sport-riders-view.js), and a cyclist's bell
+      sportRidersView.update(dt, { list: view.sportRiders || [], known, eye: predicted, ahead: Math.max(0, clock - viewAt), groundY: zoneGroundY, now: clock });
+      // (a ring is new when the time since the last one is shorter than it was)
+      for (const r of view.sportRiders || []) { const was = riderBells.has(r.n) ? riderBells.get(r.n) : 99; if (r.bellAgo >= 0 && r.bellAgo < 0.8 && r.bellAgo < was - 0.05 && Math.hypot(r.x - predicted.x, r.z - predicted.z) < 50) { audio.cycleBell(r.x, r.z); riderBellsHeard += 1; } riderBells.set(r.n, r.bellAgo); }
       for (const r of peerRides) {
         seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0;
         if (peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`)) continue;
@@ -4678,7 +4711,7 @@ blood.update(dt, view.blood || []);
     skillsState: () => skills.state,
     // the town's voices (28 October 2026): what the page has fetched and played
     voicePlayer, voiceStats: () => ({ ...voicePlayer.stats(), ...audio.voiceStats() }),
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, get sportView() { return sportView; }, get peerSportView() { return peerSportView; }, get peerSportRides() { return peerSportRides; }, rideSport: (id) => rideOwnSport(id), sportState, ownSport: () => ownSport(), speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, get sportView() { return sportView; }, get peerSportView() { return peerSportView; }, get sportRidersView() { return sportRidersView; }, takeSport: (n) => takeSport(n), retakeSport: (n) => retakeSport(n), get bellsHeard() { return riderBellsHeard; }, get peerSportRides() { return peerSportRides; }, rideSport: (id) => rideOwnSport(id), sportState, ownSport: () => ownSport(), speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },
