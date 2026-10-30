@@ -8,6 +8,7 @@
 // THREE is the global from three.min.js.
 
 import { Batch, place, surface, linear, isLite } from './render-kit.js';
+import { letPaintedGo } from './painted.js';
 import { reflects } from './render-finish.js';
 
 const STEEL = 0x161b20;
@@ -36,22 +37,26 @@ function nameTexture(text, { width = 1024, height = 256, size = 170, colour = '#
   const k = isLite() ? 0.5 : 1;
   const canvas = document.createElement('canvas');
   canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
-  const ctx = canvas.getContext('2d');
-  ctx.scale(k, k);
-  ctx.clearRect(0, 0, width, height);
-  ctx.fillStyle = colour;
-  ctx.textBaseline = 'middle';
-  let px = size;
-  const font = () => { ctx.font = `${weight} ${px}px "Helvetica Neue", "Segoe UI", Inter, Arial, sans-serif`; };
-  const widthOf = () => [...text].reduce((sum, ch) => sum + ctx.measureText(ch).width + px * spacing, -px * spacing);
-  font();
-  while (widthOf() > width - 40 && px > 20) { px -= 4; font(); }
-  let x = (width - widthOf()) / 2;
-  for (const ch of text) { ctx.fillText(ch, x, height / 2 + px * 0.04); x += ctx.measureText(ch).width + px * spacing; }
+  const paint = () => {
+    const ctx = canvas.getContext('2d');
+    ctx.setTransform(k, 0, 0, k, 0, 0);
+    ctx.clearRect(0, 0, width, height);
+    ctx.fillStyle = colour;
+    ctx.textBaseline = 'middle';
+    let px = size;
+    const font = () => { ctx.font = `${weight} ${px}px "Helvetica Neue", "Segoe UI", Inter, Arial, sans-serif`; };
+    const widthOf = () => [...text].reduce((sum, ch) => sum + ctx.measureText(ch).width + px * spacing, -px * spacing);
+    font();
+    while (widthOf() > width - 40 && px > 20) { px -= 4; font(); }
+    let x = (width - widthOf()) / 2;
+    for (const ch of text) { ctx.fillText(ch, x, height / 2 + px * 0.04); x += ctx.measureText(ch).width + px * spacing; }
+  };
+  paint();
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
-  return texture;
+  // (on a phone its pixels let go once the graphics card has them, and painted again when wanted: painted.js)
+  return letPaintedGo(texture, () => paint());
 }
 
 // `b` is the building from the town's list (x, z, w, d, h, door); `storeys` how many floors.

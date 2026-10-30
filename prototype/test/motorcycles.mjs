@@ -268,7 +268,8 @@ const fall = await page.evaluate(() => { const n = window.__nlw, s = n.view.self
 await shot('06-thrown-off');
 const lost = health0 - fall.health;
 check('into a wall at speed, the rider is thrown off by themselves: on the ground, with a fall', !fall.astride && fall.down && fall.down.by === 'crash' && fall.lying > 0.5 && /Thrown off/.test(fall.notice), fall);
-check('the life lost follows the speed, and is no more than 5', lost >= 1 && lost <= 5, { health0, after: fall.health, lost });
+// (30 October 2026, the owner: "Users life should never reduce for hitting anything": own-bikes.js CRASH)
+check('no life lost for hitting the wall', lost === 0, { health0, after: fall.health, lost });
 check('the bike lies where it hit; the speedometer is gone', fall.parked && fall.parked.fallen && !fall.speedo, fall.parked);
 await page.waitForFunction(() => !window.__nlw.view.self.down, null, { timeout: 30000 }).catch(() => {});
 check('and up again after a few seconds', await page.evaluate(() => !window.__nlw.view.self.down), null);

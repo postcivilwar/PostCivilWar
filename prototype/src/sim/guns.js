@@ -482,6 +482,8 @@ export function createGuns({ state, players, population, actors, conflict, talk,
   // An officer hit by a player's round: her life down (never below the floor), and she turns on whoever shot her.
   function officerShot(p, i, amount, point) {
     const rec = conflict.officerShot(i, p, amount);
+    // brought down to 20 by this round: four stars, five for the third (justice.js, STARS)
+    if (rec.lost > 0 && rec.health <= GUN.floor && hub.justice && hub.justice.raise) hub.justice.raise(p, 'officer_down', i);
     if (hub.justice) {
       const key = `${p.id}|n:${i}`;
       const open = book.open && book.open[key] && real() - book.open[key].at < 90 ? book.open[key].crime : null;

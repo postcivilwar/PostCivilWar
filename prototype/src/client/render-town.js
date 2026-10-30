@@ -10,6 +10,8 @@
 import { ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_BUILDINGS, ZONE_RANKS, ZONE_SPOTS, ZONE_CAST, CITY_AREA, zoneShedWalls } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, textTexture, noise, shadeOf, addPitchedRoof, buildingKit } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
+import { houseBench } from '../sim/layout.js';
+import { letPaintedGo } from './painted.js';
 
 const WOOD = 0x9a7a52;
 const DARK_WOOD = 0x5a3d26;
@@ -160,7 +162,10 @@ function addEnterable(lower, upper, inner, b, signs) {
     texture.needsUpdate = true;
   };
   paint();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(paint).catch(() => {});
+  // (on a phone, once the fonts have come and the graphics card has the boards, their canvas's pixels are let go and
+  // painted again when wanted: painted.js)
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { paint(); letPaintedGo(texture, () => paint()); }).catch(() => {});
+  else letPaintedGo(texture, () => paint());
   const positions = [], uvs = [];
   const tx = -f.nz, tz = f.nx;                       // along the wall, as seen from outside
   b.rooms.forEach((r, i) => {
@@ -390,8 +395,9 @@ function addHouse(B, hs) {
     pane(B, fx + (alongX ? side * hs.w * 0.3 : 0) + ox * 0.01, base + hs.h * 0.6, fz + (alongX ? 0 : side * hs.d * 0.3) + oz * 0.01, alongX, 1.0, 0.9, 0.16);
     pane(B, hs.x - ox * hs.w / 2 + (alongX ? side * hs.w * 0.28 : 0), base + hs.h * 0.6, hs.z - oz * hs.d / 2 + (alongX ? 0 : side * hs.d * 0.28), alongX, 1.0, 0.9, 0.16);
   }
-  // a bench by the door, where people sit out in the evening
-  solid.box(alongX ? 1.5 : 0.35, 0.06, alongX ? 0.35 : 1.5, place(fx + (alongX ? 1.9 : ox * 0.5), 0.42, fz + (alongX ? oz * 0.5 : 1.9)), WOOD);
+  // a bench by the door, where people sit out in the evening (layout.js `houseBench`: one of the house's people sits on
+  // it, src/sim/zones/atani.js), on two legs (30 October 2026: it had stood on nothing)
+  { const bench = houseBench(hs); solid.box(alongX ? bench.length : bench.depth, 0.06, alongX ? bench.depth : bench.length, place(bench.x, bench.top - 0.03, bench.z), WOOD); for (const k of [-0.6, 0.6]) solid.box(alongX ? 0.06 : bench.depth - 0.05, bench.top - 0.06, alongX ? bench.depth - 0.05 : 0.06, place(bench.x + (alongX ? k : 0), (bench.top - 0.06) / 2, bench.z + (alongX ? 0 : k)), DARK_WOOD); }
   if ((hs.x * 7 + hs.z) % 3 < 1) solid.round(new THREE.CylinderGeometry(0.3, 0.3, 0.9, 10), place(fx + (alongX ? -2.4 : ox * 0.6), 0.45, fz + (alongX ? oz * 0.6 : -2.4)), 0x2e6fab);
 }
 

@@ -21,6 +21,7 @@ import { BILLBOARD_TYPES, EMPTY_FACE, aspectOf } from '../sim/billboards.js';
 import { zoneGroundY } from '../sim/zone.js';
 import { ZONE_BILLBOARDS } from '../sim/zones/atani-billboards.js';
 import { Batch, place, buildingKit, surface } from './render-kit.js';
+import { letPaintedGo } from './painted.js';
 
 const NEAR = { full: 120, lite: 80 };       // metres within which a billboard is drawn in full
 const FAR = { full: 520, lite: 360 };       // and within which it is drawn at all (the screens a little less)
@@ -334,6 +335,9 @@ export function buildBillboards(scene, { glowMaterial, lite = false, boards = ZO
     const key = `${b.width}x${b.height}`;
     if (!faceSets.has(key)) {
       const face = emptyFace(b.width, b.height, { lite });
+      // (painted once and for good: on a phone its pixels let go once the graphics card has them, painted.js; the
+      // digital screens, painted again as they go, keep theirs)
+      letPaintedGo(face.texture, () => face.draw(0));
       const material = surface({ map: face.texture, emissive: 0xffffff, emissiveMap: face.texture, emissiveIntensity: 0.12, roughness: 0.8, metalness: 0 });
       const im = new THREE.InstancedMesh(plane, material, all.filter((x) => !x.t.tv && x.width === b.width && x.height === b.height).length);
       im.count = 0; im.frustumCulled = false; im.receiveShadow = true;

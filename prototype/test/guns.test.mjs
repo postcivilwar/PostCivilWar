@@ -9,7 +9,7 @@ import assert from 'node:assert/strict';
 import { town, until, run, ok, refused, quietSpot, whereIs } from './world.mjs';
 import { GUN, GUNS, STARTER_GUN, rayWorld, rayPost } from '../src/sim/guns.js';
 import { HEALTH } from '../src/sim/conflict.js';
-import { LAW } from '../src/sim/justice.js';
+import { LAW, STARS } from '../src/sim/justice.js';
 import { POSE } from '../src/sim/population.js';
 import { zoneGroundY, zoneWalkable } from '../src/sim/zone.js';
 
@@ -174,6 +174,34 @@ test('an officer shot is hurt a round at a time, shoots back at whoever shot her
   // shooting at a police officer is an offence; she knows who shot her, and the police are told
   until(w, () => w.g.view(w.id).self.law.state !== 'normal', LAW.report[1] + 3);
   assert.ok(w.g.view(w.id).self.law.wanted.some((c) => c.name === 'Shooting at a police officer'));
+});
+
+test('the stars for shooting at the police (30 October 2026): three once they know, four when an officer is brought down to 20, five for the third', () => {
+  const w = town(['Sola Stars']);
+  const [x, z] = range(w, 20);
+  w.place(w.p, x, z, Math.PI / 2);
+  const i = officerAt(w, x + 14, z);
+  ok(w.send(w.id, { type: 'gun.draw' }));
+  const fireAtHer = () => {
+    const o = muzzleOf(w.p, level(Math.PI / 2)), chest = [x + 14, zoneGroundY(x + 14, z) + 1.25, z];
+    const v = [chest[0] - o[0], chest[1] - o[1], chest[2] - o[2]], len = Math.hypot(...v);
+    return ok(w.send(w.id, { type: 'gun.fire', shots: [{ o, d: v.map((k) => k / len) }] })).shots[0];
+  };
+  assert.equal(fireAtHer().what, 'person');
+  // (kept on their feet meanwhile: she shoots back, and at 20 every chase would stop)
+  until(w, () => w.g.view(w.id).self.law.state !== 'normal', LAW.report[1] + 3, () => { w.p.health = HEALTH.max; });
+  assert.equal(w.g.view(w.id).self.law.stars, STARS.of.shooting_police);
+  assert.equal(STARS.of.shooting_police, 3);
+  // brought down to 20 by the next round (the rounds before it taken off at once)
+  w.I.conflict.record(i).health = HEALTH.critical + GUN.damage;
+  w.p.health = HEALTH.max; ready(w);
+  assert.equal(fireAtHer().what, 'person');
+  assert.equal(w.I.conflict.record(i).health, HEALTH.critical);
+  assert.equal(w.g.view(w.id).self.law.stars, 4);
+  // two more officers brought down by them: five
+  const others = w.pop.people.filter((q) => q.job === 'police' && q.index !== i).slice(0, 2).map((q) => q.index);
+  for (const k of others) w.I.justice.raise(w.p, 'officer_down', k);
+  assert.equal(w.g.view(w.id).self.law.stars, 5);
 });
 
 test('the 20-life rule: shot down to 20 and no lower; the police stop; at 20 nobody shoots, and nobody can shoot them', () => {

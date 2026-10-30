@@ -8,6 +8,7 @@
 import { VEHICLE_SLOTS, vehicleMeta, vehicleGeometry, vehicleTriangles } from './vehicle-kit.js';
 import { resolveLook } from '../sim/vehicle-looks.js';
 import { softPatchUnder } from './soft-patch.js';
+import { letPaintedGo } from './painted.js';
 
 const SLOT = Object.fromEntries(VEHICLE_SLOTS.map((name, i) => [name, i]));
 const N = VEHICLE_SLOTS.length;
@@ -198,7 +199,9 @@ function canvasTexture(width, height, paint) {
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 8;
-  return texture;
+  // (painted once and for good: on a phone its pixels let go once the graphics card has them, and painted again when
+  // wanted, painted.js)
+  return letPaintedGo(texture, (c) => { const p = c.getContext('2d'); p.setTransform(k, 0, 0, k, 0, 0); paint(p, width, height); });
 }
 const FONT = '"Arial Narrow", "Helvetica Neue", Arial, sans-serif';
 function fitText(g, text, width, height, weight = 700) {

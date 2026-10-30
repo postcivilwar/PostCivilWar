@@ -33,6 +33,7 @@ import { loadBike, bikeLoaded } from './bike-model.js';
 import { hallModels, castShadows } from './hall-models.js';
 import { BIKE_IMPOSTOR } from './bike-impostors.js';
 import { COVER } from './brand-data.js';
+import { letPaintedGo } from './painted.js';
 
 const P = POWERBIKE, M = POWERBIKE.model, H = POWERBIKE.hall;
 // a copy of the page opened from the disk has none of the files the website serves beside it (the model, the
@@ -89,7 +90,12 @@ function canvasTexture(width, height, draw) {
   texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
   const g = canvas.getContext('2d');
   g.scale(k, k);
-  logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
+  logo().then((img) => {
+    g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true;
+    // (on a phone its pixels let go once the graphics card has them, and painted again when wanted: painted.js; the
+    // canvas given back its size is cleared and its scale forgotten, so both are set again)
+    letPaintedGo(texture, (c) => { const p = c.getContext('2d'); p.setTransform(k, 0, 0, k, 0, 0); draw(p, img); });
+  });
   return texture;
 }
 
@@ -150,38 +156,50 @@ const matTexture = () => canvasTexture(512, 160, (g) => {
   g.fillText('EXIT', 220, 84);
   g.beginPath(); g.moveTo(380, 50); g.lineTo(380, 118); g.lineTo(350, 118); g.lineTo(405, 140); g.lineTo(460, 118); g.lineTo(430, 118); g.lineTo(430, 50); g.closePath(); g.fill();
 });
-// Each motorcycle's plate: its name, its engine and top speed, its price.
+// Each motorcycle's plate: its name, its engine and top speed, its price. (On a phone at half the size, set out the
+// same, and its pixels let go once the graphics card has them: 30 October 2026, seventeen plates were 8.5 MB of a
+// phone's page and 11 MB of its graphics card.)
 function plateTexture(bike) {
-  const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 256;
-  const g = canvas.getContext('2d');
-  g.fillStyle = '#0f1013'; g.fillRect(0, 0, 512, 256);
-  g.fillStyle = GOLD; g.fillRect(0, 0, 512, 8);
-  g.textBaseline = 'alphabetic'; g.fillStyle = '#ffffff';
-  let px = 54; g.font = `800 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
-  while (g.measureText(bike.name.toUpperCase()).width > 470 && px > 24) { px -= 2; g.font = `800 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`; }
-  g.fillText(bike.name.toUpperCase(), 22, 86);
-  g.fillStyle = '#b9bcc3'; g.font = '500 38px "Helvetica Neue", Helvetica, Arial, sans-serif';
-  g.fillText(`${bike.cc.toLocaleString('en-GB')} cc  ·  ${bike.topKmh} km/h`, 22, 150);
-  g.fillStyle = GOLD; g.font = '800 52px "Helvetica Neue", Helvetica, Arial, sans-serif';
-  g.fillText(trText(bike.price * 2).replace(/\.0$/, ''), 22, 222);
+  const k = isLite() ? 0.5 : 1;
+  const canvas = document.createElement('canvas'); canvas.width = 512 * k; canvas.height = 256 * k;
+  const paint = () => {
+    const g = canvas.getContext('2d');
+    g.setTransform(k, 0, 0, k, 0, 0);
+    g.fillStyle = '#0f1013'; g.fillRect(0, 0, 512, 256);
+    g.fillStyle = GOLD; g.fillRect(0, 0, 512, 8);
+    g.textBaseline = 'alphabetic'; g.fillStyle = '#ffffff';
+    let px = 54; g.font = `800 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+    while (g.measureText(bike.name.toUpperCase()).width > 470 && px > 24) { px -= 2; g.font = `800 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`; }
+    g.fillText(bike.name.toUpperCase(), 22, 86);
+    g.fillStyle = '#b9bcc3'; g.font = '500 38px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    g.fillText(`${bike.cc.toLocaleString('en-GB')} cc  ·  ${bike.topKmh} km/h`, 22, 150);
+    g.fillStyle = GOLD; g.font = '800 52px "Helvetica Neue", Helvetica, Arial, sans-serif';
+    g.fillText(trText(bike.price * 2).replace(/\.0$/, ''), 22, 222);
+  };
+  paint();
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
-  return texture;
+  return letPaintedGo(texture, () => paint());
 }
-// The floor: large polished tiles, dark, with fine joints.
+// The floor: large polished tiles, dark, with fine joints. (On a phone at half the size, and let go as the plates.)
 function floorTexture() {
-  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 512;
-  const g = canvas.getContext('2d');
-  for (let j = 0; j < 4; j += 1) for (let i = 0; i < 4; i += 1) {
-    const k = 34 + ((i * 7 + j * 13) % 5) * 2;
-    g.fillStyle = `rgb(${k},${k + 2},${k + 5})`; g.fillRect(i * 128, j * 128, 128, 128);
-    const sheen = g.createLinearGradient(i * 128, j * 128, i * 128 + 128, j * 128 + 128); sheen.addColorStop(0, 'rgba(255,255,255,0.035)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
-    g.fillStyle = sheen; g.fillRect(i * 128, j * 128, 128, 128);
-  }
-  g.strokeStyle = 'rgba(190,195,205,0.35)'; g.lineWidth = 2;
-  for (let k = 0; k <= 4; k += 1) { g.beginPath(); g.moveTo(k * 128, 0); g.lineTo(k * 128, 512); g.stroke(); g.beginPath(); g.moveTo(0, k * 128); g.lineTo(512, k * 128); g.stroke(); }
+  const k = isLite() ? 0.5 : 1;
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 512 * k;
+  const paint = () => {
+    const g = canvas.getContext('2d');
+    g.setTransform(k, 0, 0, k, 0, 0);
+    for (let j = 0; j < 4; j += 1) for (let i = 0; i < 4; i += 1) {
+      const c = 34 + ((i * 7 + j * 13) % 5) * 2;
+      g.fillStyle = `rgb(${c},${c + 2},${c + 5})`; g.fillRect(i * 128, j * 128, 128, 128);
+      const sheen = g.createLinearGradient(i * 128, j * 128, i * 128 + 128, j * 128 + 128); sheen.addColorStop(0, 'rgba(255,255,255,0.035)'); sheen.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = sheen; g.fillRect(i * 128, j * 128, 128, 128);
+    }
+    g.strokeStyle = 'rgba(190,195,205,0.35)'; g.lineWidth = 2;
+    for (let n = 0; n <= 4; n += 1) { g.beginPath(); g.moveTo(n * 128, 0); g.lineTo(n * 128, 512); g.stroke(); g.beginPath(); g.moveTo(0, n * 128); g.lineTo(512, n * 128); g.stroke(); }
+  };
+  paint();
   const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
   texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
-  return texture;
+  return letPaintedGo(texture, () => paint());
 }
 
 // --------------------------------------------------------------------------------------------- the building --

@@ -27,6 +27,7 @@ import { POWER_CARS } from '../sim/power-cars.js';
 import { trText } from '../sim/ledger.js';
 import { loadSuppliedMesh } from './supplied-model.js';
 import { Batch, place, surface, isLite } from './render-kit.js';
+import { letPaintedGo } from './painted.js';
 import { loadCar, carLoaded } from './car-model.js';
 import { hallModels, castShadows } from './hall-models.js';
 import { CAR_IMPOSTOR } from './car-impostors.js';
@@ -57,7 +58,11 @@ function canvasTexture(width, height, draw, { repeat = false, lite = 0.5 } = {})
   if (repeat) texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
   const g = canvas.getContext('2d');
   g.scale(k, k);
-  logo().then((img) => { g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true; });
+  logo().then((img) => {
+    g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true;
+    // (on a phone its pixels let go once the graphics card has them, and painted again when wanted: painted.js)
+    letPaintedGo(texture, (c) => { const p = c.getContext('2d'); p.setTransform(k, 0, 0, k, 0, 0); draw(p, img); });
+  });
   return texture;
 }
 // Writes `text` centred at (x, baseline y), no wider than `most`, in the brand's heavy letter.

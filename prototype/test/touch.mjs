@@ -34,7 +34,27 @@ await page.evaluate(() => { window.__nlw.place(0, 60); window.__nlw.cam.yaw = Ma
 const pads = () => page.evaluate(() => [...document.querySelectorAll('.pad')].filter((e) => e.getBoundingClientRect().width > 0).map((e) => { const c = getComputedStyle(e); const r = e.getBoundingClientRect(); return { id: e.dataset.id, text: e.textContent.trim(), icon: !!e.querySelector('svg.ico'), name: e.getAttribute('aria-label') || '', back: c.backgroundColor, held: e.getAttribute('aria-pressed'), w: r.width, h: r.height, l: r.left, t: r.top, r: r.right, b: r.bottom }; }));
 const clear = (c) => /rgba\(\d+, \d+, \d+, 0(\.0\d*)?\)|transparent/.test(c);
 let shownPads = await pads();
-check('walking: every button is a picture, with a name, and no written label; the camera button on foot as well (19 October 2026)', shownPads.length >= 2 && shownPads.some((b) => b.id === 'camera') && shownPads.every((b) => b.icon && b.text === '' && b.name.length > 1), shownPads.map((b) => [b.id, b.text, b.name]));
+check('walking: every button is a picture, with a name, and no written label; no camera button (30 October 2026, the owner\'s word: "remove that camera icon on the screen")', shownPads.length >= 2 && !shownPads.some((b) => b.id === 'camera') && shownPads.every((b) => b.icon && b.text === '' && b.name.length > 1), shownPads.map((b) => [b.id, b.text, b.name]));
+// the view by hand instead (30 October 2026): a finger dragged across the picture turns it round the player; two fingers
+// spread apart bring it nearer, pinched together take it further, and it stays where it was put
+const camNow = () => page.evaluate(() => ({ yaw: +window.__nlw.cam.yaw.toFixed(3), pitch: +window.__nlw.cam.pitch.toFixed(3), dist: +window.__nlw.cam.dist.toFixed(2), own: +window.__nlw.cam.own.toFixed(2), ride: +window.__nlw.cam.ride.toFixed(2) }));
+const cam0 = await camNow();
+await touch('touchStart', [{ x: 150, y: 330, id: 21 }]);
+for (let k = 1; k <= 6; k += 1) { await touch('touchMove', [{ x: 150 + k * 25, y: 330 + k * 6, id: 21 }]); await page.waitForTimeout(40); }
+await touch('touchEnd', []); await page.waitForTimeout(300);
+const cam1 = await camNow();
+check('a finger dragged across the picture turns the view round the player, and tips it', Math.abs(cam1.yaw - cam0.yaw) > 0.3 && Math.abs(cam1.pitch - cam0.pitch) > 0.05, { cam0, cam1 });
+await touch('touchStart', [{ x: 170, y: 330, id: 22 }, { x: 220, y: 330, id: 23 }]);
+for (let k = 1; k <= 6; k += 1) { await touch('touchMove', [{ x: 170 - k * 12, y: 330, id: 22 }, { x: 220 + k * 12, y: 330, id: 23 }]); await page.waitForTimeout(40); }
+await touch('touchEnd', []); await page.waitForTimeout(300);
+const cam2 = await camNow();
+await touch('touchStart', [{ x: 80, y: 330, id: 24 }, { x: 310, y: 330, id: 25 }]);
+for (let k = 1; k <= 8; k += 1) { await touch('touchMove', [{ x: 80 + k * 13, y: 330, id: 24 }, { x: 310 - k * 13, y: 330, id: 25 }]); await page.waitForTimeout(40); }
+await touch('touchEnd', []); await page.waitForTimeout(300);
+const cam3 = await camNow();
+check('two fingers spread apart bring the camera nearer, pinched together take it further; it stays there', cam2.dist < cam1.dist - 0.4 && cam3.dist > cam2.dist + 1 && cam3.own === cam3.dist, { before: cam1.dist, spread: cam2.dist, pinched: cam3.dist, own: cam3.own });
+await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 2.7; n.cam.own = 2.7; n.cam.yaw = Math.PI; n.cam.pitch = 0.14; });
+await page.waitForTimeout(300);
 // every button is the owner's design of 16 October 2026: see-through, a thin luminous outline and a drawing in one colour (ash grey since 20 October; it was blue)
 // drawing (green only while it is pressed)
 const look = (sel) => page.evaluate((q) => { const e = document.querySelector(q); if (!e) return null; const c = getComputedStyle(e); const i = e.matches('.pad') ? e.querySelector('.ico') : null; return { down: e.classList.contains('down') || e.classList.contains('held'), shadow: c.boxShadow, back: c.backgroundColor, ink: i ? getComputedStyle(i).color : null }; }, sel);
@@ -102,7 +122,19 @@ s = await st(); check('RUN -> VEHICLE: getting in ends the run; driving buttons 
 // at the wheel: two pedals, as pictures; the accelerator moves the keke while it is held and not after
 check('at the wheel there are an accelerator and a brake', /Accelerate/.test(s.shown) && /Brake/.test(s.shown), s.shown);
 shownPads = await pads();
-check('driving: every button is a picture with no written label', shownPads.every((b) => b.icon && b.text === ''), shownPads.map((b) => [b.id, b.text]));
+check('driving: every button is a picture with no written label, and no camera button', shownPads.every((b) => b.icon && b.text === '') && !shownPads.some((b) => b.id === 'camera'), shownPads.map((b) => [b.id, b.text]));
+// behind a vehicle: two fingers bring its view nearer or take it further (`ride`); a finger turns it round the keke and
+// it stays turned while the keke stands
+await touch('touchStart', [{ x: 80, y: 330, id: 26 }, { x: 310, y: 330, id: 27 }]);
+for (let k = 1; k <= 8; k += 1) { await touch('touchMove', [{ x: 80 + k * 13, y: 330, id: 26 }, { x: 310 - k * 13, y: 330, id: 27 }]); await page.waitForTimeout(40); }
+await touch('touchEnd', []); await page.waitForTimeout(300);
+const rideOut = await camNow();
+await touch('touchStart', [{ x: 150, y: 330, id: 28 }]);
+for (let k = 1; k <= 6; k += 1) { await touch('touchMove', [{ x: 150 + k * 30, y: 330, id: 28 }]); await page.waitForTimeout(40); }
+await touch('touchEnd', []); await page.waitForTimeout(2600);
+const turned = await page.evaluate(() => +window.__nlw.rig.live.look.toFixed(3));
+check('in the keke: pinched together, its view further back; turned round it by a finger, and still turned while it stands', rideOut.ride > 1.3 && Math.abs(turned) > 0.4, { ride: rideOut.ride, look: turned });
+await page.evaluate(() => { window.__nlw.cam.ride = 1; });
 // (driven on a quiet road, Campus Road in the north of town: from the motor park's bay it drove into the busy park, and
 // in one run the police took the player in before the test was done, which has nothing to do with the buttons)
 await page.evaluate(() => window.__nlw.park(-100, -341, Math.PI / 2));

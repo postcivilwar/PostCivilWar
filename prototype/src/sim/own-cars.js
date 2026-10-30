@@ -17,11 +17,13 @@ import { GameError } from './registry.js';
 export const isOwnCar = (incar) => typeof incar === 'string' && incar.startsWith('pc:');
 export const carOf = (incar) => (isOwnCar(incar) ? incar.slice(3) : null);
 // Running into something solid (17 October 2026): slower than `least` it is a bump and the car stops; faster, the
-// car stops dead and the driver is hurt, in proportion to the speed and never more than `most` of full health (a
-// car keeps its driver in; nobody is thrown out of one).
+// car stops dead with a jolt (a car keeps its driver in; nobody is thrown out of one).
+// (30 October 2026, the owner's word: "Users life should never reduce for hitting anything." Hitting a wall, a tree,
+// a fence or anything else costs the driver no life at all: `most` is 0. Being run down by someone else's vehicle is
+// another matter, impact.js.)
 export const CAR_CRASH = Object.freeze({
   least: 6.5,                 // m/s (about 23 km/h): slower than this, a bump
-  most: 0.08,                 // the share of full health lost at the top speed of the fastest car there is
+  most: 0,                    // the share of full health lost in a crash: none
 });
 export const carCrashHarm = (speed, max = 100) => max * CAR_CRASH.most * Math.min(1, Math.max(0, speed - CAR_CRASH.least) / Math.max(1, CAR_FASTEST - CAR_CRASH.least));
 
@@ -121,9 +123,8 @@ export function createOwnCars({ state, hub, obstacles }) {
   // Run into something at `speed` along `heading` (as the driver's page found it: it moves the car, and the town
   // checks every step of it). The town judges it again for itself (contact.js, 19 October 2026): something must be in
   // the car's way within a step or two of where the town last saw it, the speed no more than the town saw it going,
-  // and only a hard enough blow INTO it hurts the driver; a scrape along a wall, a knock, or the edge of the map does
-  // not. The car stops there; the driver stays in it, hurt in proportion to how hard it was (and taken out of it if
-  // that is the end of them).
+  // and only a hard enough blow INTO it is a crash; a scrape along a wall, a knock, or the edge of the map is not. The
+  // car stops there; the driver stays in it, unhurt (30 October 2026: no life is lost for hitting anything).
   function crash(p, { speed, heading } = {}) {
     const c = p.pcar;
     if (!isOwnCar(p.incar) || !c) throw new GameError('NOT_DRIVING', 'You are not in a car.');
@@ -149,13 +150,9 @@ export function createOwnCars({ state, hub, obstacles }) {
     if (!hit) return { hurt: false, outcome: 'none' };
     const out = contactOutcome({ speed: v, heading: h, normal: contactNormal(free, c.x, c.z, hit.x, hit.z), kind: hit.kind });
     if (out.outcome !== 'crash' || out.into < CAR_CRASH.least) return { hurt: false, outcome: out.outcome === 'crash' ? 'stop' : out.outcome, into: Math.round(out.into * 10) / 10 };
-    const harm = Math.round(carCrashHarm(out.into, 100) * 10) / 10;
-    const before = p.health;
-    if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
     p.stats.crashes = (p.stats.crashes || 0) + 1;
-    if (p.health <= 0) leave(p);
     if (hub.voices) hub.voices.event('crash', c.x, c.z);
-    return { hurt: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(out.into * 10) / 10, lost: before - p.health, health: p.health };
+    return { hurt: false, crashed: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(out.into * 10) / 10, lost: 0, health: p.health };
   }
 
   // Out: the driver steps out on their side (the left: the town drives on the right), and the car stays where it

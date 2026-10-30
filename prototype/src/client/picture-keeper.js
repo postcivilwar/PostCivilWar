@@ -16,7 +16,9 @@
 //   const keeper = createPictureKeeper(scene, renderer, { skip })   keeper.step(now): at most once each `everyMs`
 //   keeper.state()                                                   what was let go, and when it was last looked at
 
-const handable = (image) => !!image && ((typeof HTMLCanvasElement !== 'undefined' && image instanceof HTMLCanvasElement)
+import { paintedState } from './painted.js';
+
+const handable = (image) =>!!image && ((typeof HTMLCanvasElement !== 'undefined' && image instanceof HTMLCanvasElement)
   || (typeof HTMLImageElement !== 'undefined' && image instanceof HTMLImageElement && image.complete)
   || (typeof OffscreenCanvas !== 'undefined' && image instanceof OffscreenCanvas));
 const KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'emissiveMap', 'alphaMap', 'aoMap', 'bumpMap', 'lightMap', 'specularMap'];
@@ -57,8 +59,11 @@ export function createPictureKeeper(scene, renderer, { keepMs = 30000, everyMs =
       if (shown.has(t)) continue;
       const at = shownAt.get(t);
       if (at === undefined) { shownAt.set(t, now); continue; }       // (first seen out of sight: from now)
-      if (now - at < keepMs || !handable(t.image) || skip(t) || !onCard(t)) continue;
-      totals.bytes += sizeOf(t);
+      // (a picture painted on a canvas whose pixels were let go once the card had it, painted.js, is not read here: that
+      // would paint it again; it is handed over again, painted afresh, when it is next drawn)
+      const p = paintedState(t);
+      if (now - at < keepMs || !(p || handable(t.image)) || skip(t) || !onCard(t)) continue;
+      totals.bytes += p ? Math.round(p.width * p.height * 4 * (t.generateMipmaps ? 4 / 3 : 1)) : sizeOf(t);
       t.dispose();
       letGo += 1;
       recent.push(t); if (recent.length > 8) recent.shift();

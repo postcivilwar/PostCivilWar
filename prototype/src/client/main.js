@@ -57,7 +57,7 @@ import { POWER_CARS, carHandlingOf, stepPowerCar, carRevs, carBoxes } from '../s
 import { CAR_CRASH, carFits } from '../sim/own-cars.js';
 import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz } from './bike-audio.js';
 import { startStrike, poseFighter, poseTaking, soundOf } from './combat-view.js';
-import { createCameraRig, nextView, viewFor, CAMERA_VIEW, STREET } from './camera.js';
+import { createCameraRig, nextView, viewFor, CAMERA_VIEW, STREET, RIDE } from './camera.js';
 import { createIntro } from './intro.js';
 import { PROMPT_ICON, icon } from './icons.js';
 import { createCreator } from './creator.js';
@@ -74,6 +74,7 @@ import { QUALITY_RULES, PHONE_QUALITY_RULES } from './monitor.js';
 import { createWebApp } from './webapp.js';
 import { createPhoneHold } from './phone-hold.js';
 import { ANIMATED, heldModels, warmFigures, lightFiles, dropUnusedFigures, figureLog } from './animated.js';
+import { paintedStats } from './painted.js';
 import { createMusic } from './music.js';
 import { trText, trAmount, TR } from '../sim/ledger.js';
 import { createOnline, createWebTransport, packSave, unpackSave } from '../net/online.js';
@@ -608,7 +609,19 @@ function start(carried) {
 
   const stored = carried && carried.host ? carried : readStored(SAVE_KEY);
   // (`calm`: Settings, "Reduce intense effects": less blood on the screen and in the town, gun-play.js)
-  const prefs = { translate: true, subtitles: true, sound: true, graphics: 'auto', calm: false, ...(readStored(PREFS_KEY) || {}) };
+  const prefs = { translate: true, subtitles: true, sound: true, graphics: 'auto', calm: false, skyTime: 'real', skyWeather: 'real', ...(readStored(PREFS_KEY) || {}) };
+  // The sky the player chooses (30 October 2026, the owner's brief: "users to be able to choose the weather of their
+  // game. The game should be able to use the real time weather as default but users can choose to change the settings,
+  // maybe morning, noon, dusk or night, rainy or whatever"): Settings, Time and weather. 'real' (the default) is the time
+  // and the weather where the player is, as before. A choice changes how this player's own game looks and sounds: the
+  // sky, the sun and its shadows, the lamps, the rain and its sound. The town's own day (who is where, when the shops
+  // open) and what its weather does (the roads' grip in the rain, the jobs that stop for it) stay the real ones, the
+  // same for every player in it.
+  const SKY_TIMES = Object.freeze({ morning: 8, noon: 12.5, dusk: 18.5, night: 22 });
+  const SKY_WEATHERS = Object.freeze({ clear: Object.freeze({ kind: 'clear', wet: false, intensity: 0 }), cloudy: Object.freeze({ kind: 'cloudy', wet: false, intensity: 0 }), rain: Object.freeze({ kind: 'rain', wet: true, intensity: 0.6 }), storm: Object.freeze({ kind: 'storm', wet: true, intensity: 1 }) });
+  const skyChoice = () => ({ time: SKY_TIMES[prefs.skyTime] !== undefined ? prefs.skyTime : 'real', weather: SKY_WEATHERS[prefs.skyWeather] ? prefs.skyWeather : 'real' });
+  // the weather this player sees: their choice, or the town's
+  const shownWeather = (real) => (SKY_WEATHERS[prefs.skyWeather] || real);
   // Every world made here keeps the real clock, and the real weather where the player is, once that is known.
   let realWeather = null;              // { kind, place, temperature, at } from the site's server
   const newHost = (options = {}) => {
@@ -664,7 +677,10 @@ function start(carried) {
   const coarse = TOUCH_FIRST;      // a touch screen: hints speak of the stick and the buttons
   // An id for one press of a button that spends or takes money: the simulation answers it once, however often it arrives.
   const requestId = (what) => `${what}-${Date.now().toString(36)}-${(requestSeq += 1)}`;
-  const cam = { yaw: Math.PI, pitch: STREET.pitch, dist: STREET.dist, target: new THREE.Vector3(ZONE.spawn.x, 1.5, ZONE.spawn.z), lastDrag: -10 };
+  // (`own`: how far behind the player on foot the player has pinched the camera to, kept when a shop or a showroom
+  // brings it further for a while (`back`: to go back to it once that is over); `ride`: how much nearer or further than
+  // usual behind a vehicle: 30 October 2026, camera.js)
+  const cam = { yaw: Math.PI, pitch: STREET.pitch, dist: STREET.dist, own: STREET.dist, ride: 1, back: false, target: new THREE.Vector3(ZONE.spawn.x, 1.5, ZONE.spawn.z), lastDrag: -10 };
   const controls = createControls({ stick: $('stick'), pad: $('pad') });
   // the speedometer at the front of the screen, while one of the player's own motorcycles is ridden
   const speedo = createSpeedometer($('speedo'));
@@ -926,7 +942,7 @@ function start(carried) {
         predicted.heading = Math.atan2(shop.attendant.x - predicted.x, shop.attendant.z - predicted.z);
         server.send({ type: 'move', x: predicted.x, z: predicted.z, heading: predicted.heading, run: false });
         // the eye stands behind and to one side, so that both of them and the shop are in the picture
-        cam.yaw = predicted.heading - 0.6; cam.pitch = 0.12; cam.dist = 6.2;
+        cam.yaw = predicted.heading - 0.6; cam.pitch = 0.12; cam.dist = 6.2; cam.back = true;
       }
       if (playing) ui.openDeal({ listing: l.id, at: { x: predicted.x, z: predicted.z } });
       setTimeout(() => { $('fade').classList.remove('on'); fading = false; }, 280);
@@ -1021,7 +1037,7 @@ function start(carried) {
         predicted.x = r.x; predicted.z = r.z; predicted.heading = r.heading;
         if (me) me.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
         // the eye behind them, looking the way they face: into the hall, or out at the town
-        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : STREET.dist;
+        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : cam.own; cam.back = false;
         cam.target.set(r.x, 1.55 + zoneGroundY(r.x, r.z), r.z);
         rig.snap(cam);
         refreshView();
@@ -1329,7 +1345,7 @@ function start(carried) {
       if (r.ok) {
         predicted.x = r.x; predicted.z = r.z; predicted.heading = r.heading;
         if (me) me.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
-        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : STREET.dist;
+        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : cam.own; cam.back = false;
         cam.target.set(r.x, 1.55 + zoneGroundY(r.x, r.z), r.z);
         rig.snap(cam);
         refreshView();
@@ -1618,6 +1634,12 @@ function start(carried) {
     dealSaid: (said) => dealSaid(said),
     realWeather: () => realWeather,
     realClock: REAL_CLOCK,
+    // the sky the player chooses (Settings, Time and weather): { time: 'real'|'morning'|'noon'|'dusk'|'night',
+    // weather: 'real'|'clear'|'cloudy'|'rain'|'storm' }, kept with the other settings on this device
+    sky: () => skyChoice(),
+    setSky: ({ time, weather } = {}) => { if (time !== undefined) prefs.skyTime = SKY_TIMES[time] !== undefined ? time : 'real'; if (weather !== undefined) prefs.skyWeather = SKY_WEATHERS[weather] ? weather : 'real'; writeStored(PREFS_KEY, prefs); return skyChoice(); },
+    shownWeather: (real) => shownWeather(real),
+    shownHour: (real) => (SKY_TIMES[prefs.skyTime] !== undefined ? SKY_TIMES[prefs.skyTime] : real),
     // (Settings, Measured on this device: the readout's lines, but for the frames, which it has of its own)
     readout: () => statsLines(statsNow()).filter(([label]) => label !== 'Frames' && label !== 'Game' && label !== 'Graphics'),
     perf: () => { const s = host.game.stats(); return { lite: LITE, fps: perf.fps, calls: perf.calls, triangles: perf.triangles, near: s.near, middle: s.middle, far: s.far, rigs: crowd.stats.rigs + residentActors.size, figures: crowd.stats.figures, viewMs: s.lastViewMs, scanMs: s.lastScanMs, quality: quality.level, frame: monitor.report(), hitchMs: monitor.HITCH_MS, freezeMs: monitor.FREEZE_MS, changes: governor.changes, graphics: prefs.graphics, sound: !audio.supported ? 'Not available in this browser' : audio.muted ? 'Muted' : audio.status().state }; },
@@ -2126,7 +2148,7 @@ function start(carried) {
     car.speed = 0;
     cam.target.set(predicted.x, 1.5 + zoneGroundY(predicted.x, predicted.z), predicted.z);
     // (on the street view, close behind the player: the view the game starts with, 19 October 2026)
-    cam.yaw = Math.PI; cam.pitch = STREET.pitch; cam.dist = STREET.dist; rig.view = 'street';
+    cam.yaw = Math.PI; cam.pitch = STREET.pitch; cam.dist = STREET.dist; cam.own = STREET.dist; cam.ride = 1; cam.back = false; rig.view = 'street';
     $('start').hidden = true;
     $('hud').hidden = false;
     if (coarse) $('touch').hidden = false;
@@ -2385,20 +2407,37 @@ function start(carried) {
     p.x = event.clientX; p.y = event.clientY;
     if (pointers.size === 1 && mode === 'gun') aimBy(dx, dy);
     else if (pointers.size === 1) {
-      if (!rig.drag(-dx * 0.0055)) cam.yaw -= dx * 0.0055;
-      cam.pitch = Math.max(0.02, Math.min(1.25, cam.pitch + dy * 0.004));
+      // (a view that follows a vehicle is turned round it, and tipped, by the camera itself: camera.js `drag`; on foot the
+      // camera goes round the player and up and down, from a little below their chest to high over them)
+      if (!rig.drag(-dx * 0.0055, dy * 0.004)) { cam.yaw -= dx * 0.0055; cam.pitch = Math.max(STREET.low, Math.min(STREET.high, cam.pitch + dy * 0.004)); }
       cam.lastDrag = clock;
     } else if (pointers.size === 2) {
       const [a, b] = [...pointers.values()];
       const gap = Math.hypot(a.x - b.x, a.y - b.y);
-      if (pinch) cam.dist = Math.max(STREET.nearest, Math.min(60, cam.dist * (pinch / gap)));
+      if (pinch && gap > 1) zoomBy(pinch / gap);
       pinch = gap;
+      cam.lastDrag = clock;
     }
   });
-  const release = (event) => { pointers.delete(event.pointerId); pinch = 0; };
+  // A pinch, or the mouse's wheel (30 October 2026: the camera button is gone from a touch screen): on foot the camera
+  // nearer or further behind the player (and kept there: `cam.own`); behind a vehicle its view nearer or further
+  // (`cam.ride`); with a gun out, two fingers brought together show the whole scene for five seconds, as V does, and
+  // spread apart go back over the shoulder.
+  let gunPinch = 1;
+  function zoomBy(factor) {
+    if (!Number.isFinite(factor) || factor <= 0) return;
+    if (mode === 'gun' && gunPlay) {
+      gunPinch *= factor;
+      if (gunPinch > 1.35 && !gunPlay.overviewing) { act('overview', 'down'); gunPinch = 1; } else if (gunPinch < 0.74 && gunPlay.overviewing) { act('overview', 'down'); gunPinch = 1; }
+      return;
+    }
+    if (where() === 'vehicle') { cam.ride = Math.max(RIDE.nearest, Math.min(RIDE.farthest, (cam.ride || 1) * factor)); return; }
+    cam.dist = Math.max(STREET.nearest, Math.min(STREET.farthest, cam.dist * factor)); cam.own = cam.dist; cam.back = false;
+  }
+  const release = (event) => { pointers.delete(event.pointerId); pinch = 0; gunPinch = 1; };
   canvas.addEventListener('pointerup', release);
   canvas.addEventListener('pointercancel', release);
-  canvas.addEventListener('wheel', (event) => { event.preventDefault(); cam.dist = Math.max(STREET.nearest, Math.min(60, cam.dist * (1 + Math.sign(event.deltaY) * 0.1))); }, { passive: false });
+  canvas.addEventListener('wheel', (event) => { event.preventDefault(); zoomBy(1 + Math.sign(event.deltaY) * 0.1); }, { passive: false });
 
   // touch controls: the stick and the buttons live in controls.js; what each does is in act(), below
   controls.on((id, phase, dx, dy) => { if (phase === 'move') { if (id === 'shoot' && mode === 'gun') aimBy(dx, dy); return; } act(id, phase); });
@@ -2410,13 +2449,13 @@ function start(carried) {
 
   function enterVehicle(v) {
     const result = server.send({ type: 'vehicle.enter', vehicleId: v.id });
-    if (result.ok) { car.speed = 0; predicted = { x: result.vehicle.x, z: result.vehicle.z, heading: v.heading }; cam.dist = Math.max(cam.dist, 12); }
+    if (result.ok) { car.speed = 0; predicted = { x: result.vehicle.x, z: result.vehicle.z, heading: v.heading }; }
     say(result, result.ok ? (coarse ? 'Hold the pedal to go and steer with the stick. The door button lets you out.' : 'W and S to drive and brake, A and D to steer. E to step out.') : null);
   }
 
   function leaveVehicle() {
     const result = server.send({ type: 'vehicle.exit' });
-    if (result.ok) { car.speed = 0; predicted.x = result.x; predicted.z = result.z; cam.dist = Math.min(cam.dist, 9); }
+    if (result.ok) { car.speed = 0; predicted.x = result.x; predicted.z = result.z; }
     say(result);
   }
 
@@ -2673,7 +2712,9 @@ function start(carried) {
     // on a touch screen a vehicle has two pedals; the stick steers (and still drives, for one thumb)
     const pedals = coarse ? [{ id: 'gas', label: 'Accelerate', kind: 'hold', primary: true, hint: 'Hold to go' }, { id: 'brake', label: 'Brake', kind: 'hold', hint: 'Hold to brake, and to go back' }] : [];
     const out = { ...main, primary: !coarse };
-    const look = { id: 'camera', key: 'c', label: 'View', hint: 'Change the view' };
+    // (the view: C on a keyboard; on a touch screen there is no button for it since 30 October 2026, the owner's word:
+    // "remove that camera icon on the screen": a finger drags the view round and two pinch it in and out)
+    const look = { id: 'camera', key: 'c', label: 'View', hint: 'Change the view', keyOnly: true };
     if (m === 'swimming') {
       // in the river: the right hand strokes (held, faster); near the bank, a way out. The left hand is the stick.
       const list = [{ id: 'stroke', key: 'Shift', label: 'Stroke', icon: 'hand', kind: 'hold', primary: true, hint: 'Hold to swim harder' }];
@@ -2699,7 +2740,7 @@ function start(carried) {
       if (self.critical) list.push({ id: 'ambulance', key: 'h', label: 'Help', hint: 'Call an ambulance' });
       if (self.law.state === 'wanted' || self.law.state === 'pursuit') list.push({ id: 'surrender', key: 'u', label: 'Give up', hint: 'Give yourself up to the police' });
       // the view (19 October 2026, the owner's brief: the camera button kept, and on foot too): on the street close
-      // behind, further back, over the shoulder, from above. Dragging still turns it.
+      // behind, further back, over the shoulder, from above; since 30 October on a keyboard only (C).
       list.push(look);
       return list;
     }
@@ -2720,7 +2761,8 @@ function start(carried) {
       list.push({ id: 'crouch', key: 'c', label: 'Crouch', icon: 'crouch', kind: 'toggle', pressed: gunPlay.crouched, hint: 'Crouch (C)' });
       if (me && me.animated) list.push({ id: 'jump', key: 'Space', label: 'Jump', icon: 'jump', hint: 'Jump (Space)' });
       if (!(prompt && prompt.short)) list.push({ id: 'switch', key: 'g', label: 'Guns', icon: 'switch', hint: 'Your guns (G)' });
-      list.push({ id: 'overview', key: 'v', label: 'View', icon: 'camera', kind: 'toggle', pressed: gunPlay.overviewing, hint: 'See all round you for five seconds (V)' });
+      // (the whole scene for five seconds: V on a keyboard, two fingers pinched together on a touch screen, 30 October 2026)
+      list.push({ id: 'overview', key: 'v', label: 'View', icon: 'camera', kind: 'toggle', pressed: gunPlay.overviewing, hint: 'See all round you for five seconds (V)', keyOnly: true });
       list.push({ id: 'holster', key: 'x', label: 'Put away', icon: 'holster', hint: 'Put your gun away (X)' });
       return list;
     }
@@ -2765,7 +2807,7 @@ function start(carried) {
       if (blocking) { blocking = false; }
       // (the view the player had before the gun came out comes back when it goes)
       if (mode === 'gun') { if (was !== 'gun') viewBeforeGun = rig.view; }
-      else { if (was === 'gun' && viewBeforeGun) { rig.view = viewBeforeGun; cam.pitch = Math.max(0.02, Math.min(1.25, cam.pitch)); } rig.view = viewFor(rig.view, where()); if (document.pointerLockElement) document.exitPointerLock(); }
+      else { if (was === 'gun' && viewBeforeGun) { rig.view = viewBeforeGun; cam.pitch = Math.max(STREET.low, Math.min(STREET.high, cam.pitch)); } rig.view = viewFor(rig.view, where()); if (document.pointerLockElement) document.exitPointerLock(); }
       $('touch').classList.toggle('armed', mode === 'gun');
     }
     // skills only on foot and free: in a fight, a vehicle, the water, the hands of the police, they close, and
@@ -2995,7 +3037,7 @@ function start(carried) {
       kick(1, normal);
       jolt();
       audio.blow('fall', r.bike.x, r.bike.z);
-      ui.toast({ type: 'alert', title: 'Thrown off', text: `You hit it at ${r.kmh} km/h and were thrown off${r.lost ? `, losing ${r.lost} health` : ''}. Your ${POWER_BIKES[r.bike.id].name} is where it fell.` });
+      ui.toast({ type: 'alert', title: 'Thrown off', text: `You hit it at ${r.kmh} km/h and were thrown off. Your ${POWER_BIKES[r.bike.id].name} is where it fell.` });
       refreshView();
       return;
     }
@@ -3102,10 +3144,10 @@ function start(carried) {
       return null;
     }
     if (c.outcome === 'crash') {
+      // (a crash jolts the car and the camera, and is heard; it costs no life: 30 October 2026, own-cars.js)
       const r = server.send({ type: 'car.crash', speed: carState.speed, heading: carState.heading });
       carState.speed = 0;
-      kick(r.ok && r.hurt ? 1 : 0.6, normal); jolt(); audio.blow('fall', predicted.x, predicted.z);
-      if (r.ok && r.hurt) { flash = 1; ui.toast({ type: 'alert', title: 'Crash', text: `You hit it at ${r.kmh} km/h${r.lost ? ` and lost ${r.lost} health` : ''}.` }); refreshView(); }
+      kick(r.ok && r.crashed ? 1 : 0.6, normal); jolt(); audio.blow('fall', predicted.x, predicted.z);
       return null;
     }
     carState.speed = 0;
@@ -3663,6 +3705,9 @@ function start(carried) {
       if (viewTimer > 0.1) { viewTimer = 0; refreshView(); prompt = ui.isOpen() ? null : findPrompt(); near = ui.isOpen() ? { fight: null, steal: null, take: null } : findNear(); }
       hour = view.clock.hourFloat;
       weather = view.weather;
+      // (the sky as the player has chosen it, Settings: the time and the weather it looks, not the town's own)
+      if (SKY_TIMES[prefs.skyTime] !== undefined) hour = SKY_TIMES[prefs.skyTime];
+      weather = shownWeather(weather);
 
       monitor.mark('player and vehicles');
       const holding = acting() && prompt && prompt.hold && !ui.isOpen();
@@ -3972,7 +4017,13 @@ blood.update(dt, view.blood || []);
     // with a gun out: over the shoulder, or for five seconds the whole scene (gun-play.js); through the sight, from its eye
     const gunView = playing && gunPlay ? gunPlay.cameraView() : null;
     if (gunView && rig.view !== gunView) rig.view = gunView;
+    // (a shop's or a showroom's view over: back to where the player had the camera, 30 October 2026)
+    if (playing && cam.back && !ui.isOpen() && !(showroom.talk && showroom.inside) && !(carshow.talk && carshow.inside)) { cam.dist += (cam.own - cam.dist) * Math.min(1, dt * 2.5); if (Math.abs(cam.dist - cam.own) < 0.05) { cam.dist = cam.own; cam.back = false; } }
+    // (the vehicle under the player moving: a view turned round it swings back behind it only then)
+    const astride = !!view && view.self.astride !== null && view.self.astride !== undefined;
+    const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
     rig.update(dt, {
+      moving: !sitting || rideSpeed > 0.8,
       sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
@@ -4309,7 +4360,7 @@ blood.update(dt, view.blood || []);
     voiceChat, get voiceUI() { return voiceUI; },
     // the habitation (20 October 2026): what is built of it, its fish and birds, the torch and the others' beams, the sky
     get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
-    heldModels, carsHeld, bikesHeld, figureLog, get graphics() { return graphics; },
+    heldModels, carsHeld, bikesHeld, figureLog, paintedStats, get graphics() { return graphics; },
     get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     // the town's voices (28 October 2026): what the page has fetched and played
@@ -4351,6 +4402,8 @@ blood.update(dt, view.blood || []);
     // everything at a share of its speed (a fall seen frame by frame in a slow headless browser), and back to 1
     slow(share = 1) { timeScale = Math.max(0.02, Math.min(1, Number(share) || 1)); return timeScale; },
     fetchWeather: () => fetchWeather(), get realWeather() { return realWeather; },
+    // the sky the player chooses (Settings, Time and weather), as the panel sets it
+    setSky: (choice) => { prefs.skyTime = SKY_TIMES[choice.time] !== undefined ? choice.time : 'real'; prefs.skyWeather = SKY_WEATHERS[choice.weather] ? choice.weather : 'real'; writeStored(PREFS_KEY, prefs); return skyChoice(); },
     // A second player, in a second copy of the world in this page, joined to
     // this one by the loopback transport: the same path two devices take.
     twin(name = 'Second Player', x = null, z = null) {

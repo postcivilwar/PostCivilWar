@@ -12,7 +12,7 @@ import { test } from 'node:test';
 import assert from 'node:assert/strict';
 import { town as makeTown, standing, beside, whereIs, post, until, assault, run, ok, refused, farFromPolice, lead, quietSpot } from './world.mjs';
 import { HEALTH, MOVES, COMBAT } from '../src/sim/conflict.js';
-import { LAW } from '../src/sim/justice.js';
+import { LAW, STARS } from '../src/sim/justice.js';
 import { SPEED } from '../src/sim/sim.js';
 import { zoneService } from '../src/sim/zone.js';
 import { fund, FORMER_TOWN } from './helpers.mjs';
@@ -356,13 +356,40 @@ test('running from the police is an offence of its own; out of sight long enough
   // now somewhere they cannot be seen, far off
   w.place(w.p, 150, -200);
   until(w, () => w.p.law.state === 'wanted', LAW.lost + 20);
-  until(w, () => w.g.view(w.id).officers.length === 0, 200);
-  assert.equal(w.p.law.state, 'wanted', 'still wanted, though nobody is on their heels');
-  // half a day unseen and they are no longer looked for; the offences stay on the books
-  w.place(w.p, 150, -200);
-  w.g.advance(LAW.lapse + 3600);
-  assert.equal(w.p.law.state, 'normal');
+  // out of every officer's sight, with nobody on the way any more: the stars fade, one at a time (two for running on,
+  // thirty seconds; one, twenty more), and they are no longer looked for; the offences stay on the books, unsolved
+  // (30 October 2026, the stars: until then a culprit stayed wanted half a day)
+  const seen = new Set();
+  until(w, () => w.p.law.state === 'normal', 400, () => { w.place(w.p, 150, -200); seen.add(w.g.view(w.id).self.law.stars); });
+  assert.ok(seen.has(2) && seen.has(1), `the stars went one at a time: ${[...seen]}`);
   assert.ok(Object.values(w.g.state.justice.crimes).every((c) => c.status === 'lapsed'));
+  assert.equal(w.g.view(w.id).self.law.stars, 0);
+});
+
+test('the stars (30 October 2026, the owner\'s brief): one for a fight, two for running on after being told to stop; never less while an officer has them in sight; at 20 life every chase stops and the stars go', () => {
+  const w = town();
+  assault(w, w.p, timid(w));
+  until(w, () => w.p.law.state === 'wanted' || w.p.law.state === 'pursuit', 60);
+  assert.equal(w.g.view(w.id).self.law.stars, STARS.of.assault);
+  assert.equal(STARS.of.assault, 1);
+  // the officer comes; standing in her sight, the star stays however long it is
+  until(w, () => w.p.law.state === 'pursuit', 120);
+  const officer = Object.values(w.g.state.justice.officers).find((o) => o.suspect === w.id);
+  assert.ok(officer, 'an officer is after them');
+  // (at one star she jogs: STARS)
+  assert.equal(w.I.actors.get(officer.i).speed < 4, true, `at one star the officer jogs (${w.I.actors.get(officer.i).speed} m/s)`);
+  // running on after being told to stop: two stars
+  const flee = () => { const nz = w.p.z - SPEED.run * 0.1; const r = w.send(w.id, { type: 'move', x: w.p.x, z: nz, heading: Math.PI, run: true }); if (!r.ok) w.send(w.id, { type: 'move', x: w.p.x + 0.4, z: w.p.z, heading: 0, run: true }); };
+  until(w, () => Object.values(w.g.state.justice.crimes).some((c) => c.type === 'resisting'), 40, flee);
+  until(w, () => w.g.view(w.id).self.law.stars === 2, 20);
+  assert.equal(w.g.view(w.id).self.law.stars, STARS.of.resisting);
+  // brought down to 20 (by whatever): the chase is over at once, and the stars gone
+  w.I.conflict.injure(w.p, w.p.health - HEALTH.critical);
+  run(w.host, 0.5);
+  assert.equal(w.p.law.state, 'normal');
+  assert.equal(w.g.view(w.id).self.law.stars, 0);
+  assert.equal(Object.values(w.g.state.justice.officers).filter((o) => o.suspect === w.id).length, 0, 'every officer after them has gone back');
+  assert.ok(w.events(w.id).some((e) => e.type === 'police' && /badly hurt/.test(e.text)));
 });
 
 // A pocket picked in the market without its owner feeling it, at the first try: a try that is felt makes the culprit

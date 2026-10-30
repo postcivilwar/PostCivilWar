@@ -341,7 +341,7 @@ export function createConflict({ state, players, population, actors, talk, emit,
       rec.health = Math.max(HEALTH.critical, rec.health - damage);
       out.hit = true; out.damage = damage; out.targetHealth = rec.health;
       // (an officer at 20 is out of it: she sits down, hurt; the 20-life rule)
-      if (people[i].job === 'police' && rec.health <= HEALTH.critical && rec.mood !== 'down') { settle(i, rec, 'down'); if (hub.guns && hub.guns.officerDown) hub.guns.officerDown(i); }
+      if (people[i].job === 'police' && rec.health <= HEALTH.critical && rec.mood !== 'down') { settle(i, rec, 'down'); if (hub.guns && hub.guns.officerDown) hub.guns.officerDown(i); if (hub.justice && hub.justice.raise) hub.justice.raise(p, 'officer_down', i); }
       actors.take(i, state.t);
       const m = actors.get(i);
       if (def.push && m) { const to = pushed(p.x, p.z, m.x, m.z, def.push); m.x = to.x; m.z = to.z; }

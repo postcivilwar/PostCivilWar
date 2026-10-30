@@ -421,6 +421,23 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
     return new T(name, t.times, t.values, t.step ? THREE.InterpolateDiscrete : undefined);
   })));
 
+  // Which way the figure faces as it is bound (from its hips: the left thigh against the right), as a heading from +z
+  // toward +x. The game takes every figure to face +z, and the player's figures do; the owner's townspeople and police,
+  // as he made them and as they were given their skeletons, face +x, and so walked along with their side to the way
+  // they went (30 October 2026, the owner: "they walk with their sides"). Each figure built here is turned to face +z
+  // inside its own root (`turn`), so that whatever is worked out in the root's frame (a fall, a seat, the hands on a
+  // wheel) has the body the way round it expects. Nothing in the file is changed.
+  let facing = null;
+  const facingOf = (objects) => {
+    const left = objects.find((o) => /LeftUpLeg$|thigh_l$/.test(o.name)), right = objects.find((o) => /RightUpLeg$|thigh_r$/.test(o.name));
+    if (!left || !right) return 0;
+    const a = left.getWorldPosition(new THREE.Vector3()), b = right.getWorldPosition(new THREE.Vector3());
+    const lx = a.x - b.x, lz = a.z - b.z;
+    if (Math.hypot(lx, lz) < 1e-6) return 0;
+    const h = Math.atan2(-lz, lx);
+    // (a figure already the right way round, within a few degrees, is left exactly as it is)
+    return Math.abs(h) < 0.35 ? 0 : h;
+  };
   function figure() {
     const objects = json.nodes.map((n, i) => {
       const isBone = skin.joints.includes(i);
@@ -443,8 +460,13 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
     mesh.boundingBox = geometry.boundingBox.clone(); mesh.boundingSphere = geometry.boundingSphere.clone();
     objects[meshNode].add(mesh);
     const root = new THREE.Group();
-    for (const r of sceneRoots) root.add(objects[r]);
+    const turn = new THREE.Group();
+    turn.name = 'facing';
+    root.add(turn);
+    for (const r of sceneRoots) turn.add(objects[r]);
     root.updateMatrixWorld(true);
+    if (facing === null) facing = facingOf(objects);
+    if (facing) { turn.rotation.y = -facing; root.updateMatrixWorld(true); }
     mesh.bind(new THREE.Skeleton(bones, inverses), mesh.matrixWorld);
     return { root, mesh, bones };
   }
@@ -452,5 +474,6 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
   // (the file's readers let go: `figure`, kept with the model, shares this function's closure, and through them it kept
   // the whole file for as long as the model stood: 29 October 2026. The node tree it reads is the file's description.)
   accessor = null; bytes = null;
-  return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material };
+  // (`turned`: how far the figure is turned inside its root to face +z, radians: 0 for one that faced it already)
+  return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material, turned: () => (facing ? -facing : 0) };
 }

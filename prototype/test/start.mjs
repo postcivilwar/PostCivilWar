@@ -61,6 +61,9 @@ export async function watchPictures(context) {
         const orig = C.prototype[name];
         C.prototype[name] = function (...args) {
           for (const a of args) if (typeof ImageBitmap !== 'undefined' && a instanceof ImageBitmap && (a.width === 0 || a.height === 0)) window.__lostPictures += 1;
+          // (a picture painted on a canvas whose pixels were let go once the card had it, painted.js, handed over again
+          // without being painted again first)
+          for (const a of args) if (typeof HTMLCanvasElement !== 'undefined' && a instanceof HTMLCanvasElement && a.__letGo) window.__lostPictures += 1;
           return orig.apply(this, args);
         };
       }

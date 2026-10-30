@@ -16,6 +16,7 @@ import { poseFighter } from './combat-view.js';
 import { zoneGroundY, habitationClimbing } from '../sim/zone.js';
 import { vehicleMeta } from './vehicle-kit.js';
 import { fallTime, flightAt } from './falls.js';
+import { deviceKind } from './budget.js';
 
 const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
 const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
@@ -31,7 +32,10 @@ const RIG = { take: 24, drop: 30, close: 7.5, far: 10.5 };
 // all), and a figure that has been made is kept for a while after it is let
 // go, because the same people come back into view as the player walks about.
 const BUILD_PAUSE = 0.11;        // seconds between one figure being made and the next
-const WARDROBE = 36;             // made figures kept ready, beyond those on show
+// made figures kept ready, beyond those on show. On a phone, eight (30 October 2026, the owner's brief: the game still
+// hung and closed by itself on his iPhone): each one kept holds the model of the figure it was made from, its pictures
+// and its shape, on the graphics card and in the page; thirty-six kept a phone's page holding figures nobody near wore.
+const WARDROBE = deviceKind() === 'lite' ? 8 : 36;
 const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 
 // ------------------------------------------------------- simple figures --

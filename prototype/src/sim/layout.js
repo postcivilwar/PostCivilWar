@@ -348,6 +348,15 @@ export function makeFence({ x0, z0, x1, z1 }, gates, thick = 0.3) {
   return { walls, gates: openings };
 }
 
+// The bench by a plain house's door, where its people sit out in the evening (render-town.js draws it here; the town's
+// spots seat one of them on it): its middle, which way it runs (along x or along z), and how high its seat is.
+export function houseBench(hs) {
+  const [ox, oz] = { n: [0, -1], s: [0, 1], e: [1, 0], w: [-1, 0] }[hs.door];
+  const alongX = oz !== 0;
+  const fx = hs.x + ox * hs.w / 2, fz = hs.z + oz * hs.d / 2;
+  return { x: fx + (alongX ? 1.9 : ox * 0.5), z: fz + (alongX ? oz * 0.5 : 1.9), alongX, length: 1.5, depth: 0.35, top: 0.45 };
+}
+
 // A plain house: a box with one door, which is where its people come and go.
 export function houseDoor(hs) {
   const out = 1.6;

@@ -16,9 +16,18 @@
 // camera stands a few metres behind the player at about the height of their head, looking a little down past them,
 // so that the figure fills the lower middle of the picture with the road and the town ahead above it. It goes where
 // they go, unhurried (main.js swings it round behind the way they walk or run, never round toward someone running at
-// the screen), comes a little closer and lower at a run, swings out a little on a turn and settles again, and comes
-// in toward the player rather than through a wall. Every easing is by the time passed (an exponential), so it moves
-// the same at 20 frames a second as at 60.
+// the screen), swings out a little on a turn and settles again, and comes in toward the player rather than through a
+// wall. Every easing is by the time passed (an exponential), so it moves the same at 20 frames a second as at 60.
+//
+// Closer, as the classic open-world games have it (30 October 2026, the owner's brief and his second video, of one on
+// a phone: "the main character is shown big on the screen ... remove that camera icon ... adjust the camera angle view
+// by dragging on the screen or pinching the screen"): on foot the figure stands from a little over a third of the way
+// down the picture to near its foot, more than half of it (2.7 m behind, looking at a point 1.35 m up, 58 degrees top to
+// bottom; it had been 3.9 m, 1.43 m, 60 degrees: from 0.43 to 0.80, a little over a third). No button changes the view on a touch screen any more: a finger dragged on the
+// picture turns it round the player, all the way round, and up and down; two fingers pinched bring it in or take it
+// out, on foot and in a vehicle alike (`ride`: how much nearer or further than the usual the views behind a vehicle
+// stand). In a vehicle a turned view stays where it was put while the vehicle stands, and swings back behind it a
+// couple of seconds after it moves off. (A keyboard's C still goes through the views.)
 
 export const CAMERA_VIEWS = Object.freeze({
   foot: Object.freeze(['street', 'behind', 'shoulder', 'high']),
@@ -30,7 +39,8 @@ export const CAMERA_VIEWS = Object.freeze({
 // `riseWant`: how much room behind the player the view needs before it rises over what is in the way rather than
 // coming in toward them. `run`: on foot at a run, how much closer (a share of the distance) and lower it comes.
 export const CAMERA_VIEW = Object.freeze({
-  street: Object.freeze({ name: 'On the street', dist: null, scale: 1, pitch: null, turn: 0, shift: 0, lift: -0.12, fov: 60, follow: false, riseWant: 1.1, run: Object.freeze({ closer: 0.2, lower: 0.025 }), sway: true }),
+  // (at a run it comes no closer than a step: 30 October 2026, already close)
+  street: Object.freeze({ name: 'On the street', dist: null, scale: 1, pitch: null, turn: 0, shift: 0, lift: -0.2, fov: 58, follow: false, riseWant: 1.1, run: Object.freeze({ closer: 0.05, lower: 0.015 }), sway: true }),
   behind: Object.freeze({ name: 'Further back', dist: null, scale: 2.1, pitch: null, pitchAdd: 0.17, turn: 0, shift: 0, lift: 0, follow: false }),
   close: Object.freeze({ name: 'Close', dist: 4.4, pitch: 0.2, turn: 0, shift: 0, lift: 0, follow: false }),
   shoulder: Object.freeze({ name: 'Over the shoulder', dist: 2.7, pitch: 0.1, turn: 0, shift: 0.6, lift: 0.12, fov: 58, follow: true, riseWant: 1.4 }),
@@ -38,8 +48,11 @@ export const CAMERA_VIEW = Object.freeze({
   side: Object.freeze({ name: 'From the side', dist: 8.5, pitch: 0.14, turn: Math.PI / 2, shift: 0, lift: 0, follow: true }),
   driver: Object.freeze({ name: 'Driver\'s side', dist: 4.6, pitch: 0.16, turn: 0.5, shift: -0.7, lift: 0.1, follow: true }),
   seat: Object.freeze({ name: 'From the seat', seat: true, follow: true }),
-  chase: Object.freeze({ name: 'Close behind', dist: 6.2, pitch: 0.22, turn: 0, shift: 0, lift: -0.1, follow: true }),
-  far: Object.freeze({ name: 'Far behind', dist: 10.5, pitch: 0.3, turn: 0, shift: 0, lift: 0, follow: true }),
+  // (a vehicle's view behind it: nearer since 30 October 2026, 4.4 m behind a keke or a motorcycle and that plus what
+  // a car is longer than a keke behind a car (it was 6.2), and a little lower, the vehicle bigger in the picture;
+  // brought in or taken out by a pinch, `ride`)
+  chase: Object.freeze({ name: 'Close behind', dist: 4.4, pitch: 0.2, turn: 0, shift: 0, lift: -0.1, follow: true, zoom: true }),
+  far: Object.freeze({ name: 'Far behind', dist: 10.5, pitch: 0.3, turn: 0, shift: 0, lift: 0, follow: true, zoom: true }),
   bonnet: Object.freeze({ name: 'From the bonnet', seat: true, ahead: 1.3, rise: -0.35, follow: true }),
   // With a gun out (25 October 2026, the owner's picture of the shooting screen and his choice: over the shoulder):
   // close behind the right shoulder, the figure to the left of the picture and the gun pointing into its middle,
@@ -50,8 +63,11 @@ export const CAMERA_VIEW = Object.freeze({
   // rather than coming in close behind the player where their feet would be out of the picture)
   overview: Object.freeze({ name: 'The whole scene', dist: 5.8, pitch: 0.42, turn: 0, shift: 0, lift: 0.25, fov: 64, follow: false, riseWant: 5.8 }),
 });
-// where the player is put on the street view when they come into the town, and how far it may be pinched in
-export const STREET = Object.freeze({ dist: 3.9, pitch: 0.1, nearest: 2.4 });
+// where the player is put on the street view when they come into the town, and how far it may be pinched in and out;
+// how far up and down a finger may tip it (`low`: below the player's chest, looking a little up at them)
+export const STREET = Object.freeze({ dist: 2.7, pitch: 0.14, nearest: 1.8, farthest: 14, low: -0.2, high: 1.25 });
+// how much nearer or further than usual a pinch may bring the views behind a vehicle
+export const RIDE = Object.freeze({ nearest: 0.6, farthest: 2.4 });
 
 // Closer than this, the camera would be inside or against the player's own figure.
 const NEAR = 1.6;
@@ -80,7 +96,8 @@ export const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS
 // eaves stands there (0 where there is none): up to its top, it is solid too. `ground(x, z)`, if given, is the
 // height of the ground: the eye keeps above it.
 export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null } = {}) {
-  const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
+  // (`look`, `lookPitch`: how far a finger has turned a following view round, and tipped it, from where it follows)
+  const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, lookPitch: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
   const eye = new THREE.Vector3(), aim = new THREE.Vector3(), sightAim = new THREE.Vector3();
   const baseNear = camera.near;
   let view = 'street';
@@ -139,12 +156,16 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
   //   running  on foot, how much of a run the player is going at (0 standing or walking, 1 at a full run)
   //   sight    null, or { eye, dir, amount, fov }: looking through a gun's sight, the eye behind it, along the aim
   //            (amount 0..1 on the way to it); the picture as narrow as `fov` there
-  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null }) {
+  //   moving   in a following view, whether what is followed is on the move: a view turned by a finger swings back
+  //            behind it only then (a vehicle standing still is looked at from wherever it was turned to)
+  //   cam.ride how much nearer (under 1) or further (over 1) than usual the views behind a vehicle stand (a pinch)
+  function update(dt, { cam, target, heading, indoors = null, room = null, dragged = 99, eyeHeight = 1.55, bonnet = null, longer = 0, running = 0, sight = null, moving = true }) {
     const v = CAMERA_VIEW[view] || CAMERA_VIEW.street;
     const ease = toward(5, dt);
     live.run += ((v.run ? Math.max(0, Math.min(1, running)) : 0) - live.run) * toward(2.2, dt);
-    let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : v.dist + (v.follow && !v.seat && CAMERA_VIEWS.vehicle.includes(view) ? longer : 0);
-    let wantPitch = (v.pitch === null || v.pitch === undefined ? cam.pitch : v.pitch) + (v.pitchAdd || 0);
+    const ride = v.zoom ? Math.max(RIDE.nearest, Math.min(RIDE.farthest, Number(cam.ride) || 1)) : 1;
+    let wantDist = v.dist === null || v.dist === undefined ? cam.dist * (v.scale || 1) : (v.dist + (v.follow && !v.seat && CAMERA_VIEWS.vehicle.includes(view) ? longer : 0)) * ride;
+    let wantPitch = (v.pitch === null || v.pitch === undefined ? cam.pitch : v.pitch) + (v.pitchAdd || 0) + (v.follow && !v.seat ? live.lookPitch : 0);
     if (v.run) { wantDist *= 1 - v.run.closer * live.run; wantPitch -= v.run.lower * live.run; }
     // (aiming, the camera's pitch is the aim's: not raised to look down into a room)
     if (indoors && !v.seat && !v.aim) { wantPitch = Math.max(wantPitch, indoors.pitch); if (indoors.maxPitch !== undefined) wantPitch = Math.min(wantPitch, indoors.maxPitch); wantDist = Math.min(wantDist, indoors.dist); }
@@ -166,10 +187,11 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     // (an eye right behind a gun's sight sees it from a few centimetres: the nearest drawn is brought in for it)
     const nearPlane = sight && sight.amount > 0.02 ? 0.06 : baseNear;
     if (camera.isPerspectiveCamera && camera.near !== nearPlane) { camera.near = nearPlane; camera.updateProjectionMatrix(); }
-    // In a view that follows the heading, a drag looks about and then lets go.
+    // In a view that follows the heading, a drag looks about and then lets go: once what is followed moves off, a
+    // couple of seconds after the finger was lifted (30 October 2026; it had been a second, moving or not).
     const before = live.yaw;
     if (v.follow) {
-      if (dragged > 1.2) live.look += (0 - live.look) * toward(3, dt);
+      if (dragged > 2 && moving) { live.look += (0 - live.look) * toward(1.8, dt); live.lookPitch += (0 - live.lookPitch) * toward(1.8, dt); }
       const want = heading + live.turn + live.look;
       live.yaw += angleGap(want, live.yaw) * toward(7, dt);
       cam.yaw = live.yaw - live.turn;                           // so that walking stays relative to what is seen
@@ -255,11 +277,18 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     update,
     get view() { return view; },
     set view(next) { if (CAMERA_VIEW[next]) view = next; },
-    // a drag: in a following view it looks about; otherwise the caller turns the camera itself
-    drag(dyaw) { const v = CAMERA_VIEW[view]; if (v && v.follow) { live.look = Math.max(-1.6, Math.min(1.6, live.look + dyaw)); return true; } return false; },
+    // a drag: in a following view it looks about (behind a vehicle all the way round it, and up and down; from a seat a
+    // little to either side); otherwise the caller turns the camera itself
+    drag(dyaw, dpitch = 0) {
+      const v = CAMERA_VIEW[view];
+      if (!v || !v.follow) return false;
+      if (v.seat) live.look = Math.max(-1.6, Math.min(1.6, live.look + dyaw));
+      else { live.look = angleGap(live.look + dyaw, 0); live.lookPitch = Math.max(-0.18, Math.min(0.9, live.lookPitch + dpitch)); }
+      return true;
+    },
     // should the player's own figure be left undrawn? (the eye is inside its head)
     get hidesPlayer() { return hidden; },
     get live() { return live; },
-    snap(cam) { live.dist = cam.dist; live.pitch = cam.pitch; live.yaw = cam.yaw; live.turn = 0; live.shift = 0; live.lift = 0; live.seat = 0; live.look = 0; live.arm = cam.dist; live.sway = 0; live.rate = 0; },
+    snap(cam) { live.dist = cam.dist; live.pitch = cam.pitch; live.yaw = cam.yaw; live.turn = 0; live.shift = 0; live.lift = 0; live.seat = 0; live.look = 0; live.lookPitch = 0; live.arm = cam.dist; live.sway = 0; live.rate = 0; },
   };
 }

@@ -327,8 +327,10 @@ export function createSky(scene, renderer) {
       }
       rainGeometry.attributes.position.needsUpdate = true;
     }
-    return { night, wetness, dull, cover, sunUp: up };
+    last = { night, wetness, dull, cover, sunUp: up };
+    return last;
   }
+  let last = { night: 0, wetness: 0, dull: 0, cover: 0, sunUp: 0 };
 
   return {
     update, sun,
@@ -337,6 +339,7 @@ export function createSky(scene, renderer) {
     // the graphics level's: the light from the whole sky (Medium and up), or the hemisphere light's (Low)
     setSkyLight(on) { if (skyLight !== !!on) { skyLight = !!on; probeAt.hour = -99; } }, get skyLight() { return skyLight; }, probe,
     // (for the tests: the moon and the stars as they are drawn now; the sun's and the sky's light as set by eye, KEYS)
-    state: () => ({ moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3), warmth: +warmth.toFixed(3) }),
+    // (and the last frame's night, wetness, cloud cover and how high the sun was: test/sky.mjs)
+    state: () => ({ night: +last.night.toFixed(3), wetness: +last.wetness.toFixed(3), cover: +last.cover.toFixed(3), sunUp: +(+last.sunUp).toFixed(3), moon: moon.visible, moonOpacity: +moon.material.opacity.toFixed(2), stars: +stars.material.opacity.toFixed(2), faint: faint.visible ? +faint.material.opacity.toFixed(2) : 0, sun: +(sun.intensity / LIGHT).toFixed(3), all: +(hemi.intensity / LIGHT).toFixed(3), warmth: +warmth.toFixed(3) }),
   };
 }

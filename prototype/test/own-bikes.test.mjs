@@ -47,11 +47,11 @@ test('the throttle takes it up smoothly, letting go slows it naturally, the brak
   assert.ok(before - s.speed > coasted * 3, 'the brake takes off far more than letting go');
 });
 
-test('coming off: thrown at speed, the life lost in proportion to the speed, 5 in 100 at the top speed of 3,000 cc', () => {
-  assert.equal(crashHarm(FASTEST), 5);
-  assert.equal(crashHarm(FASTEST / 2), 2.5);
+test('coming off: thrown at speed costs no life at any speed (30 October 2026, the owner\'s word: "Users life should never reduce for hitting anything")', () => {
+  assert.equal(crashHarm(FASTEST), 0);
+  assert.equal(crashHarm(FASTEST / 2), 0);
   assert.equal(crashHarm(0), 0);
-  assert.equal(crashHarm(FASTEST * 3), 5, 'never more than 5');
+  assert.equal(crashHarm(FASTEST * 3), 0);
   assert.equal(Math.round(FASTEST * 3.6), 240);
 });
 
@@ -105,7 +105,7 @@ test('a motorcycle is not brought indoors or into a wall', () => {
   assert.ok(['INDOORS', 'NO_ROOM'].includes(r.code), r.code);
 });
 
-test('running into something at speed throws the rider: down on the ground, the life lost by the speed, the bike lying where it stopped', () => {
+test('running into something at speed throws the rider: down on the ground, no life lost (30 October 2026, the owner\'s word), the bike lying where it stopped', () => {
   const w = town(['Rider Three']);
   const { p, id, send, place } = w;
   // facing the purple tower's curved wall across the grass from Waterside Road, just short of it
@@ -116,7 +116,7 @@ test('running into something at speed throws the rider: down on the ground, the 
   const bump = send(id, { type: 'moto.crash', speed: 3 });
   assert.equal(bump.ok, true); assert.equal(bump.fell, false);
   assert.equal(w.g.view(id).self.astride.model, 'streetfighter');
-  // the fastest the streetfighter can go: thrown, a fall's worth of time on the ground, life lost by the speed
+  // the fastest the streetfighter can go: thrown, a fall's worth of time on the ground, and no life lost
   const health = p.health;
   const at = { x: p.x, z: p.z };
   const fell = send(id, { type: 'moto.crash', speed: 500 });
@@ -124,7 +124,9 @@ test('running into something at speed throws the rider: down on the ground, the 
   assert.equal(fell.fell, true);
   const top = handlingOf(POWER_BIKES.streetfighter).top;
   assert.equal(fell.kmh, Math.round(top * 3.6), 'no faster than the bike can go');
-  assert.equal(health - p.health, Math.round(health - Math.max(0, health - crashHarm(top))), 'life lost in proportion to the speed');
+  assert.equal(p.health, health, 'no life lost for hitting anything');
+  assert.equal(fell.lost, 0);
+  assert.equal(crashHarm(top), 0);
   const self = w.g.view(id).self;
   assert.equal(self.astride, null);
   assert.ok(self.down && self.down.by === 'crash', 'on the ground');
@@ -135,13 +137,14 @@ test('running into something at speed throws the rider: down on the ground, the 
   assert.equal(send(id, { type: 'bikes.ride', bike: 'streetfighter' }).ok, false);
   run(w.host, CRASH.lie[1] + CRASH.rise + 1);
   assert.equal(w.g.view(id).self.down, null, 'up again');
-  // the biggest engine at its top speed: 5 in 100
-  p.health = 100;
+  // the biggest engine at its top speed: thrown, and still no life lost
+  p.health = 37;
   place(p, -101.5, 104.2, Math.PI);
   assert.equal(send(id, { type: 'bikes.ride', bike: 'chrome-concept' }).ok, true);
   const hard = send(id, { type: 'moto.crash', speed: FASTEST });
-  assert.equal(hard.lost, 5);
-  assert.equal(p.health, 95);
+  assert.equal(hard.fell, true);
+  assert.equal(hard.lost, 0);
+  assert.equal(p.health, 37);
 });
 
 test('only a real blow throws a rider (19 October 2026, the owner\'s video): nothing in the way, a scrape along a wall, a knock, the edge of the map: nobody falls', () => {

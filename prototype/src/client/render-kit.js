@@ -2,6 +2,8 @@
 // prototype paints for itself. Nothing here is loaded from a file; every
 // surface is drawn in code. THREE is the global from three.min.js.
 
+import { letPaintedGo } from './painted.js';
+
 export function linear(hex) {
   return new THREE.Color(hex).convertSRGBToLinear();
 }
@@ -378,24 +380,28 @@ export function nameTexture(text, { width = 512, height = 96, size = 46 } = {}) 
   const canvas = document.createElement('canvas');
   canvas.width = width;
   canvas.height = height;
-  const ctx = canvas.getContext('2d');
-  let px = size;
-  const face = (n) => `600 ${n}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
-  ctx.font = face(px);
-  while (ctx.measureText(text).width > width - 28 && px > 18) { px -= 2; ctx.font = face(px); }
-  ctx.textAlign = 'center';
-  ctx.textBaseline = 'middle';
-  ctx.lineJoin = 'round';
-  ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
-  ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = Math.max(4, px * 0.14);
-  ctx.strokeText(text, width / 2, height / 2 + 2);
-  ctx.shadowColor = 'transparent';
-  ctx.fillStyle = '#ffffff';
-  ctx.fillText(text, width / 2, height / 2 + 2);
+  const paint = () => {
+    const ctx = canvas.getContext('2d');
+    let px = size;
+    const face = (n) => `600 ${n}px -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif`;
+    ctx.font = face(px);
+    while (ctx.measureText(text).width > width - 28 && px > 18) { px -= 2; ctx.font = face(px); }
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'middle';
+    ctx.lineJoin = 'round';
+    ctx.shadowColor = 'rgba(0,0,0,0.55)'; ctx.shadowBlur = 8; ctx.shadowOffsetY = 2;
+    ctx.strokeStyle = 'rgba(0,0,0,0.8)'; ctx.lineWidth = Math.max(4, px * 0.14);
+    ctx.strokeText(text, width / 2, height / 2 + 2);
+    ctx.shadowColor = 'transparent';
+    ctx.fillStyle = '#ffffff';
+    ctx.fillText(text, width / 2, height / 2 + 2);
+  };
+  paint();
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   texture.anisotropy = 4;
-  return texture;
+  // (on a phone its pixels let go once the graphics card has them, and painted again when wanted: painted.js)
+  return letPaintedGo(texture, () => paint());
 }
 
 // (`scale`: the picture made that much smaller than `width` by `height`, the words set out the same. On a phone every
@@ -430,7 +436,10 @@ export function textTexture(lines, { width = 512, height = 128, background = '#f
     texture.needsUpdate = true;
   };
   draw();
-  if (document.fonts && document.fonts.ready) document.fonts.ready.then(draw).catch(() => {});
+  // (painted again once the fonts have come; from then on, on a phone, its pixels are let go once the graphics card has
+  // them, and painted again whenever they are wanted: painted.js)
+  if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { draw(); letPaintedGo(texture, () => draw()); }).catch(() => {});
+  else letPaintedGo(texture, () => draw());
   return texture;
 }
 
@@ -471,7 +480,9 @@ function canvasTexture(size, paint, { repeat = true, srgb = true } = {}) {
   if (srgb) texture.colorSpace = THREE.SRGBColorSpace;
   if (repeat) { texture.wrapS = THREE.RepeatWrapping; texture.wrapT = THREE.RepeatWrapping; }
   texture.anisotropy = 4;
-  return texture;
+  // (painted from the same numbers every time: on a phone its pixels let go once the graphics card has them, and
+  // painted again when wanted, painted.js)
+  return letPaintedGo(texture, () => paint(canvas.getContext('2d'), size));
 }
 
 function paintPixels(ctx, size, fn) {

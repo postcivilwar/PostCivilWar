@@ -35,6 +35,7 @@
   "Euler",
   "ExtrudeGeometry",
   "Float32BufferAttribute",
+  "FloatType",
   "Fog",
   "FramebufferTexture",
   "FrontSide",

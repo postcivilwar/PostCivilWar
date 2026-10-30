@@ -236,7 +236,8 @@ for (let i = 1; i < grounded.length; i += 1) {
   worstAlong = Math.max(worstAlong, Math.hypot(b.hx - a.hx, b.hz - a.hz) / dt);
 }
 check('E: lying and getting up the hips rise smoothly, without a jump, and the body does not slide (at most 1.6 m/s up, 1.2 m/s along)', worstUp < 1.6 && worstAlong < 1.2, { worstUp: +worstUp.toFixed(2), worstAlong: +worstAlong.toFixed(2), hipsLying: Math.min(...grounded.map((x) => x.hipsY)), hipsUp: grounded.length ? grounded[grounded.length - 1].hipsY : null });
-check('E: the motorcycle lies on its side where it stopped, short of the boards; a little health lost; up and on foot at the end', !!(film.bike && film.bike.fallen && film.bike.x > -242.65) && after.health < health0 && after.health > 80 && !after.down && !after.astride && !f[f.length - 1].phase, { bike: film.bike, health: [health0, after.health], end: f[f.length - 1] });
+// (no life lost for hitting anything with a motorcycle: the owner's brief of 30 October 2026, own-bikes.js CRASH)
+check('E: the motorcycle lies on its side where it stopped, short of the boards; no life lost; up and on foot at the end', !!(film.bike && film.bike.fallen && film.bike.x > -242.65) && after.health === health0 && !after.down && !after.astride && !f[f.length - 1].phase, { bike: film.bike, health: [health0, after.health], end: f[f.length - 1] });
 
 // ---- F: knocked down from behind, from in front, from the side (as the town knocks a player down: impact.js) ----
 const knocked = async (rel, name) => {

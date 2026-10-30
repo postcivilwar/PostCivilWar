@@ -4,6 +4,10 @@
 // another player, a phone upright and on its side. For each a screenshot, and where the figure and the horizon are in
 // the picture (shares of its height from the top: in the owner's recording, walking, the top of the head at 0.43, the
 // feet at 0.80, the horizon at 0.42).
+// Since 30 October 2026 (the owner's brief and his second video, of the classic open-world game on a phone: "the main
+// character is shown big on the screen"), closer: the top of the head a little over a third of the way down, the feet
+// near the foot of the picture, the horizon a little above the middle; and the mouse's wheel (two fingers pinched on a
+// touch screen, touch.mjs) brings it nearer and takes it further.
 //   node test/camera.mjs [shots folder]
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -58,11 +62,11 @@ async function shot(name) {
 const keys = async (down, ms) => { for (const k of down) await page.keyboard.down(k); await page.waitForTimeout(ms); };
 const up = async (list) => { for (const k of list) await page.keyboard.up(k); };
 const gap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
-const framed = (s) => s.head > 0.4 && s.head < 0.52 && s.feet > 0.74 && s.feet < 0.87 && s.horizon > 0.36 && s.horizon < 0.47;
+const framed = (s) => s.head > 0.28 && s.head < 0.45 && s.feet > 0.84 && s.feet < 0.98 && s.horizon > 0.3 && s.horizon < 0.45;
 
 const standing = await shot('01-standing');
-check('the game starts on the street view: close behind, the eye about the height of the head, the 60° lens', standing.view === 'street' && standing.fov === 60 && standing.back > 3.2 && standing.back < 4.4 && standing.up > 1.6 && standing.up < 2.1, standing);
-check('the figure in the lower middle of the picture and the street ahead above it, as in the owner\'s recording (head 0.43, feet 0.80, horizon 0.42)', framed(standing), { head: standing.head, feet: standing.feet, horizon: standing.horizon });
+check('the game starts on the street view: close behind (under 3 m), the eye about the height of the head, the 58° lens', standing.view === 'street' && standing.fov === 58 && standing.back > 2.3 && standing.back < 3.1 && standing.up > 1.4 && standing.up < 2.0, standing);
+check('the figure big in the lower middle of the picture and the street ahead above it, as in the owner\'s second video (head about 0.36, feet about 0.92, horizon about 0.37)', framed(standing), { head: standing.head, feet: standing.feet, horizon: standing.horizon });
 await keys(['w'], 2500);
 const walking = await shot('02-walking');
 check('walking, the same: close behind and framed alike', walking.view === 'street' && framed(walking) && Math.abs(walking.back - standing.back) < 0.3, walking);
@@ -76,10 +80,10 @@ const toward = await shot('05-walking-toward-the-camera'); await up(['s']);
 check('walking toward the camera, it does not swing round behind: the player is seen coming, face on', Math.abs(gap(toward.yaw + Math.PI, toward.heading)) < 0.6 && framed(toward), toward);
 await keys(['w', 'Shift'], 2500);
 const running = await shot('06-running');
-check('running, it comes in closer and a little lower', running.back < standing.back - 0.3 && running.up < standing.up, { running: [running.back, running.up], standing: [standing.back, standing.up] });
+check('running, it comes in no more than a step closer and no higher', running.back < standing.back - 0.03 && running.back > standing.back - 0.45 && running.up <= standing.up + 0.03, { running: [running.back, running.up], standing: [standing.back, standing.up] });
 await keys(['a'], 1200);
 const runTurn = await shot('07-running-turning'); await up(['a', 'Shift', 'w']);
-check('running while turning, it follows round with a little lag and sway, the figure still in the picture', runTurn.head > 0.35 && runTurn.feet < 0.95 && Math.abs(runTurn.sway) <= 0.22, runTurn);
+check('running while turning, it follows round with a little lag and sway, the figure still in the picture', runTurn.head > 0.2 && runTurn.feet < 1 && Math.abs(runTurn.sway) <= 0.22, runTurn);
 await page.waitForTimeout(2500);
 const stopped = await shot('08-stopped');
 check('stopped again, it settles back out behind, with no sway left', Math.abs(stopped.sway) < 0.03 && Math.abs(stopped.back - standing.back) < 0.35 && Math.abs(gap(stopped.yaw, stopped.heading)) < 0.35, stopped);
@@ -99,6 +103,18 @@ const dragged = await shot('13-dragged');
 await keys(['w'], 2500); await up(['w']); await page.waitForTimeout(1500);
 const after = await shot('14-walked-after-drag');
 check('dragging turns it; walking on, it comes round behind the player again', Math.abs(gap(dragged.yaw, round.length ? seen['12-view-street'].yaw : standing.yaw)) > 0.5 && Math.abs(gap(after.yaw, after.heading)) < 0.35, { before: seen['12-view-street'].yaw, dragged: dragged.yaw, after: [after.yaw, after.heading] });
+// the mouse's wheel: nearer, then further; where it was put it stays (`own`), and it is put back for the rest
+await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+for (let k = 0; k < 4; k += 1) { await page.mouse.wheel(0, -120); await page.waitForTimeout(120); }
+await page.waitForTimeout(1500);
+const nearer = await shot('14b-wheel-nearer');
+for (let k = 0; k < 9; k += 1) { await page.mouse.wheel(0, 120); await page.waitForTimeout(120); }
+await page.waitForTimeout(1800);
+const further = await shot('14c-wheel-further');
+const kept = await page.evaluate(() => ({ dist: +window.__nlw.cam.dist.toFixed(2), own: +window.__nlw.cam.own.toFixed(2) }));
+check('the wheel brings it nearer and takes it further, and it stays where it was put', nearer.back < after.back - 0.4 && further.back > after.back + 0.6 && kept.dist === kept.own, { nearer: nearer.back, usual: after.back, further: further.back, kept });
+await page.evaluate(() => { const n = window.__nlw; n.cam.dist = 2.7; n.cam.own = 2.7; });
+await page.waitForTimeout(1500);
 // a wall behind: the purple tower's, the nearest from the grass beside it; the player's back that far from where the
 // ground stops being walkable (its face is about 0.4 m further). The eye comes in first, at the height of the head,
 // and tips down only as far as it must; it never goes past the wall's face (less a camera's width).

@@ -737,6 +737,57 @@ export function makeAnimatedRig(id, labelText, shadow = false, police = null, si
   return rig;
 }
 
+// The town's people drawn many at once (crowd-figures.js, 30 October 2026): a figure's model held for as long as the
+// crowd draws from it (the same model a full figure of it close by draws from), and let go after.
+export function holdFigure(id) { useModel(id); return loadAnimated(id).catch((error) => { releaseModel(id); throw error; }); }
+export function letGoFigure(id) { releaseModel(id); }
+// Its walk and its standing played through once, as the game plays them, and written down frame by frame: for each
+// frame, for each of its bones, the matrix that takes a point of the figure as it is bound to where that bone has it
+// (the figure built at the origin, facing +z, at the model's own size). Four columns a bone, a row a frame:
+// { data (Float32Array), width (bones x 4), height (frames), walk: [first row, rows, seconds], still: [...] }.
+export function bakeFigureMoves(id, model, fps = 24) {
+  const spec = ANIMATED[id];
+  const { root, mesh } = model.figure();
+  root.updateMatrixWorld(true);
+  const skeleton = mesh.skeleton;
+  const bones = skeleton.bones.length;
+  const hipName = spec.rig === 'mixamo' ? boneName('mixamorig:Hips') : 'pelvis';
+  let hip = null; root.traverse((o) => { if (o.isBone && o.name === hipName) hip = o; });
+  const rest = hip ? hip.position.clone() : new THREE.Vector3();
+  const clipFor = (name) => {
+    const own = model.clips.find((c) => c.name === name);
+    if (own) return spec.rig === 'mixamo' ? inPlace(own, hipName, rest) : own;
+    const b = borrowedFor(spec.moves || spec.file)[name.replace(/^~/, '')];
+    return b ? borrowedClip(name, b) : null;
+  };
+  const walk = clipFor(spec.walk), still = clipFor(spec.still);
+  const rowsOf = (clip) => (clip ? Math.max(2, Math.min(96, Math.round(clip.duration * fps))) : 1);
+  const walkRows = rowsOf(walk), stillRows = rowsOf(still);
+  const height = walkRows + stillRows, width = bones * 4;
+  const data = new Float32Array(width * height * 4);
+  const mixer = new THREE.AnimationMixer(root);
+  const m = new THREE.Matrix4();
+  const write = (row) => {
+    root.updateMatrixWorld(true);
+    skeleton.update();
+    for (let b = 0; b < bones; b += 1) {
+      m.fromArray(skeleton.boneMatrices, b * 16).multiply(mesh.bindMatrix);
+      data.set(m.elements, (row * width + b * 4) * 4);
+    }
+  };
+  const play = (clip, first, rows) => {
+    if (!clip) { write(first); return; }
+    const action = mixer.clipAction(clip);
+    action.setLoop(THREE.LoopRepeat, Infinity); action.reset(); action.play();
+    for (let r = 0; r < rows; r += 1) { mixer.setTime((clip.duration * r) / rows); write(first + r); }
+    action.stop();
+  };
+  play(walk, 0, walkRows);
+  play(still, walkRows, stillRows);
+  mixer.stopAllAction(); mixer.uncacheRoot(root);
+  return { data, width, height, bones, walk: [0, walkRows, walk ? walk.duration : 1], still: [walkRows, stillRows, still ? still.duration : 1], walkSpeed: spec.walkSpeed || 1.3 };
+}
+
 // In the town: standing, walking or running by how fast the figure is going, the walk and run played at the pace
 // they are walked. On the selection screen the player's own choice plays instead (`rig.held`).
 export function driveAnimated(rig, dt, speed) {

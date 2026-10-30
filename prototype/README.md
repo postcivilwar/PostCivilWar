@@ -3674,10 +3674,98 @@ without its picture: fixed, `sleepModels`), supplied 11/11, the PowerBike showro
 first run stopped at L, reading the drawn ground's points, which had been let go: the ground keeps them now),
 graphics 26/26 (it needs about 50 minutes here: given 45, its first run was stopped at 20 of 26, every one passing).
 
+## The camera, the townspeople's walk and seats, crashes, the stars, the sky (30 October 2026)
+
+The owner's brief of 30 October 2026 (03:46, with two recordings: his iPhone driving the White Roadster at night, and a
+classic open-world game on a phone): the game still hangs and restarts; let the players choose the weather and the
+time of day (the real ones by default); the townspeople walk sideways and some sit on nothing ("No NPC characters
+should sit on the air. If there's no seat to sit, then they should never sit on the floor"); they look cartoonish and
+are too few; the camera as that game has it, the character big on the screen, no camera button, dragged round and
+pinched in and out; no life lost for hitting anything with a car or a motorcycle; the police's stars; townspeople
+driving the showroom's cars; car hijacking, the cars never for sale and all given back when the police catch the
+player. This section is the first part of it.
+
+**The townspeople's walk** (`glb.js`, `figure`). Every one of his townspeople and police, as he made them and as they
+were given their skeletons, faces +x (measured from the hips, the left thigh against the right: 88 to 101 degrees, where
+every player's figure is at 0). The game takes every figure to face +z, so each walked along with its side to the way
+it went, and its falls, its seat and its hands on a wheel were worked out a quarter turn off. Each figure is now turned
+to face +z inside its own root as it is built (`turn`, from its own hips, only where it is more than 20 degrees out);
+the files are not changed. `test/npc-walk.mjs` watches townspeople walk in the town, frame by frame, and compares the way
+the body faces with the way it goes.
+
+**Seats** (`src/sim/zones/atani.js`, `addSpot`). Out of doors nobody sits but on a seat: a spot that would have someone
+sit anywhere else has them stand there (the corners where people with time on their hands gather, the waterside's
+menders, the farm's rest, the campuses' quads, the market's petty traders, the food sellers' and barbers' customers,
+the front of every house: none had anything drawn to sit on). The town's four benches have two places each, added last
+so that every spot already numbered keeps its number (`street`, `hang`: those with time on their hands sit on them).
+Indoors every seat is a piece of the room's furniture, as before. The bench by a plain house's door is placed by one
+helper for the drawing and the town alike (`layout.js`, `houseBench`), on two legs now; no house in the town is a plain
+one today (all are his models or towers), so none has one.
+
+**No life lost for hitting anything** (`own-cars.js`, `own-bikes.js`: `CAR_CRASH.most`, `CRASH.most` are 0). A car
+still stops dead with a jolt and a sound; a motorcycle still throws its rider over the bars, and they get up. Being run
+down by someone else's vehicle is another matter (`impact.js`), as before.
+
+**The camera** (`camera.js`, `main.js`). On foot, closer: 2.7 m behind (it was 3.9), looking at a point 1.35 m up (it
+was 1.43), 58 degrees top to bottom (it was 60): the top of the head a little over a third of the way down the picture
+and the feet near its foot, more than half of it (it was a little over a third). At a run it comes no more than a step
+closer. Behind a vehicle, nearer too: 4.4 m behind a keke or a motorcycle and that plus what a car is longer than a keke
+behind a car (it was 6.2). There is no camera button on a touch screen any more (C on a keyboard still goes through the
+views): a finger dragged on the picture turns the view round the player, all the way round, and up and down (from a
+little below their chest to high over them); behind a vehicle, all the way round it too, and it stays where it was put
+while the vehicle stands, swinging back behind it a couple of seconds after it moves off. Two fingers spread apart
+bring the camera nearer, pinched together take it further (on foot 1.8 to 14 m, kept as the player's own distance, `own`;
+behind a vehicle 0.6 to 2.4 times its usual distance, `ride`); a mouse's wheel does the same. With a gun out the view
+over the shoulder stays as it was; two fingers pinched together show the whole scene for five seconds, as V does. A
+shop's or a showroom's view, further out for a while, goes back to the player's own distance after.
+
+**The police's stars** (`justice.js`, `STARS`; the screen: `#stars`, `ui.js`). In place of the Wanted chip, five stars
+at the top right, under the time: how wanted the player is. Each crime the police come to know of raises them to its
+own number if that is higher, by the rules shown to the owner with the plan for the police (its question 7): one for
+stealing or a fight; two for hurting someone badly in a fight, taking a vehicle, dangerous driving that hurts someone,
+or running on after being told to stop; three for shooting at a player or a police officer, or killing someone with a
+vehicle; four for bringing a police officer down to 20 (by shots or blows: `raise`); five for three or more. They
+never go down while an officer can see the player, or while officers are still on their way to where the player was
+last seen; out of every officer's sight, one goes at a time (after 20 seconds at one star, 30 at two, 45 at three, 60 at
+four, 90 at five), and they blink while one is going; seen again, the fading starts again. When the last goes the player
+is no longer looked for (what they did stays in the police's book, unsolved; until now a culprit stayed wanted half a
+day). How many officers come goes with them (one at one star, up to six at five); at one star they jog and give up
+sooner. At 20 life every chase stops and the stars go (the owner's 20-life rule). The police's motorcycles, cars and
+helicopter at two stars and more, and the others at four and five, come with those stages of the plan.
+
+**The sky the player chooses** (`main.js`, `SKY_TIMES`, `SKY_WEATHERS`; Settings, Time and weather). Time of day: Real
+time (the default), Morning, Noon, Dusk, Night; weather: Real weather (the default), Clear, Cloudy, Rain, Storm. A choice
+changes how the player's own game looks and sounds: the sky, the sun and its shadows, the lamps, the rain and its sound,
+the word for the weather at the top of the screen, the buttons' rings at night. The town's own day (where everyone is,
+when the shops open) and what its weather does (the roads' grip in the rain, the jobs that stop for it) stay the real
+ones, the same for every player; the clock at the top of the screen is the town's. Kept with the other settings on the
+device.
+
+**The game still restarting by itself on a phone** (`painted.js`; `render-crowd.js`, `WARDROBE`; `render-powerbike.js`,
+the plates and the floor). His second recording: the game reloaded itself about eighteen seconds in, at night, driving
+into the striped fence. Measured on a phone's settings at Low, a lap of the town (the motor park, PowerBike, the
+waterside, the east end, the habitation's gate, and back to the motor park), with every shape, picture and canvas the
+page holds counted by the code that made it, and the browser's own memory dumps (the probes are in the session's notes,
+`tour4.mjs` and `tour5.mjs`): crashing into the fence itself held nothing; what grew was what each place left behind,
+and the largest part of it in the page itself was the pictures the game paints for itself (the signs, the boards over
+the doors, the names over heads, PowerBike's name, plates and wall, the billboards' faces, the city's paving), each held
+twice, on the graphics card and as a canvas in the page: 42 MB of canvases at the motor park as play began, 68 MB after
+the lap. Now, on a phone, once the graphics card has such a picture its canvas is let go, and it is painted again, the
+same, the moment anything needs it (its copy on the card let go while out of sight and wanted again, or the browser
+taking the drawing surface away and giving it back): 16 MB at the start, 36 MB after the lap (what is left: the radar's
+map, PowerBike's posters taken in from files, the digital screens, which change as they play, and a few others). A
+phone keeps 8 figures ready beyond those on show, not 36 (each kept its model, pictures and shape). PowerBike's
+seventeen plates and its floor are painted at half size on a phone (the plates were 8.5 MB of the page and 11 MB of the
+graphics card). The page's own memory at the motor park after the lap (the browser's dumps): canvases 68.4 → 36.3 MB,
+its other allocations 154.5 → 114.7 MB. Not measurable here: an iPhone's own limits. What is left after a lap is
+mostly the town's shapes kept aside (as Blobs) to hand to the graphics card again, and the graphics card's own copies.
+
+**Tests**: (being run; see the build-status doc)
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 510 headless tests
+node --test test/*.test.mjs                        # 518 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 103 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures
@@ -3701,6 +3789,9 @@ node test/figures.mjs out/                         # every supplied figure: chos
 ../server/with-postgres.sh node test/falls-sync.mjs out/     # two players: one thrown at a roadblock, the other watching: the fall, the lying and the getting up, once, where it happened; the motorcycle going down
 ../server/with-postgres.sh node test/exit.mjs out/          # Exit game and Restart game from the phone's Settings: asked first, saved with the account, the start screen and Play, back where they were on another device, a new journey with the TR kept
 node test/camera.mjs out/                          # the street camera through the owner's list: standing, walking, toward it, turning, running, the View button, dragging, a wall behind at four distances, another player, a phone upright and sideways; framed as in his recording
+node test/sky.mjs out/                             # the sky the player chooses: Settings' two rows, Night at the town's morning (the sky, the lamps, the town's own clock unmoved), Rain, Dusk, Morning, Noon, Storm, back to the real ones, kept
+node test/stars.mjs out/                           # the police's stars: none when not wanted, one for a fight, two for running on, blinking while one fades out of sight, one at a time, then not wanted; at the wheel too
+../server/with-postgres.sh node test/npc-walk.mjs out/ [phone]   # the townspeople walk facing the way they go: from their hips, frame by frame, at five busy places
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown

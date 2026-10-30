@@ -179,16 +179,18 @@ test('a car is not brought indoors, into the showroom\'s hall, or where there is
   }
   assert.equal(refused && refused.code, 'BLOCKED');
   assert.ok(p.z > CARSHOW.doors.z + POWER_CARS['state-limousine'].length / 2 - 0.3, 'it stopped before the glass');
-  // a crash at speed: the driver hurt by the speed, never more than 8 in 100, and still in the car
+  // a crash at speed: the car stops dead, the driver still in it and unhurt (30 October 2026, the owner's word: "Users
+  // life should never reduce for hitting anything")
   const health = p.health;
   // (19 October 2026: judged at no more than the town saw the car going, here 5 m/s, and by how hard it went into the
   // wall, head on here: whatever the page says)
   const hit = send(id, { type: 'car.crash', speed: CAR_FASTEST * 3, heading: Math.PI });
   assert.equal(hit.ok, true);
-  assert.equal(hit.hurt, true, JSON.stringify(hit));
+  assert.equal(hit.crashed, true, JSON.stringify(hit));
+  assert.equal(hit.hurt, false, JSON.stringify(hit));
   assert.ok(hit.kmh <= Math.round((5 * 1.35 + 1.5) * 3.6) + 1 && hit.kmh < POWER_CARS['state-limousine'].kmh, `no faster than the town saw it go: ${hit.kmh} km/h`);
-  // (at 30 km/h a fraction of one in a hundred, by the owner's scale: no more than 8 at the fastest car's top speed)
-  assert.ok(health - p.health >= 0 && health - p.health <= 8);
+  assert.equal(p.health, health, 'no life lost');
+  assert.equal(hit.lost, 0);
   assert.equal(w.g.view(id).self.incar.car, 'state-limousine');
   assert.equal(send(id, { type: 'car.crash', speed: 3 }).hurt, false, 'a bump at walking pace hurts nobody');
   // and a page that says it crashed where nothing is in the way is not believed
@@ -196,7 +198,7 @@ test('a car is not brought indoors, into the showroom\'s hall, or where there is
   run(w.host, 1);
   const open = send(id, { type: 'car.crash', speed: 20, heading: 0 });
   assert.equal(open.hurt, false, JSON.stringify(open));
-  assert.equal(carCrashHarm(CAR_FASTEST), 8);
+  assert.equal(carCrashHarm(CAR_FASTEST), 0);
   assert.equal(carCrashHarm(CAR_CRASH.least), 0);
 });
 

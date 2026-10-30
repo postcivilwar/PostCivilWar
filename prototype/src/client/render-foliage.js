@@ -15,6 +15,7 @@
 // the town (render-kit.js, Chunked), so that what is out of sight is not drawn.
 
 import { linear, noise, isLite, letGoOnceSent } from './render-kit.js';
+import { letPaintedGo } from './painted.js';
 
 const SIZE = 125;
 
@@ -34,7 +35,8 @@ function sheet(w, h, draw) {
   draw(g, w, h);
   const t = new THREE.CanvasTexture(c);
   t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4;
-  return t;
+  // (on a phone its pixels let go once the graphics card has them, and painted again when wanted: painted.js)
+  return letPaintedGo(t, () => draw(c.getContext('2d'), w, h));
 }
 // (each picture kept inside its own part of the sheet, a few pixels in from its edge)
 function within(g, x, y, w, h, draw) { g.save(); g.beginPath(); g.rect(x + 3, y + 3, w - 6, h - 6); g.clip(); g.translate(x, y); draw(); g.restore(); }

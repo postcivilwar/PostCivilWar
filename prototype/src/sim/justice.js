@@ -72,6 +72,32 @@ export const LAW = Object.freeze({
 });
 export const LAW_STATES = Object.freeze(['normal', 'suspicious', 'wanted', 'pursuit', 'arrested', 'custody', 'released']);
 
+// The stars (30 October 2026, the owner's brief: "That star is for the police. The star increases as you commit crime",
+// by the rules he was shown with the plan for the police, its question 7): how wanted a player is, one to five, shown
+// at the top of their screen. Each crime the police come to know of raises them to its own number, if that is higher:
+//   1  stealing, a fight
+//   2  hurting someone badly in a fight, taking a vehicle, dangerous driving that hurts someone, running on after being
+//      told to stop
+//   3  shooting at a player or at a police officer, killing someone with a vehicle
+//   4  bringing a police officer down to 20 (`raise`, 'officer_down')
+//   5  bringing three or more officers down to 20
+// They never go down while an officer can see the player, or while officers are on their way to where the player was
+// last seen. Out of every officer's sight, one goes at a time, after `fade` real seconds for the number there are (20
+// at one star, 30 at two, 45 at three, 60 at four, 90 at five); seen again, the fading starts again. When the last one goes the player is no longer looked for (what they did stays in the
+// police's book, unsolved). How many officers come, and how hard they run, go with the stars (`officers`, `pace`); at
+// one star they jog and give up sooner (`lost`). The police's motorcycles, cars and helicopter at two stars and more,
+// and SARS and the army at four and five, come with those stages of the plan. At 20 life every chase stops (the
+// owner's 20-life rule): the stars go at once.
+export const STARS = Object.freeze({
+  of: Object.freeze({ theft: 1, assault: 1, assault_serious: 2, vehicle_theft: 2, dangerous_driving: 2, resisting: 2, shooting: 3, shooting_police: 3, death_by_driving: 3, officer_down: 4, officers_down: 5 }),
+  most: 5,
+  fade: Object.freeze([0, 20, 30, 45, 60, 90]),
+  officers: Object.freeze([0, 1, 2, 3, 4, 6]),
+  lost: Object.freeze([25, 12, 25, 30, 40, 50]),
+  officersDown: 3,             // officers brought down to 20 by one player that make it five stars
+});
+export const starsOf = (type) => STARS.of[type] || 1;
+
 const SHOUTS = Object.freeze([['Police! Police!', 'Police! Police o!'], ['Hey! Stop that!', 'Hey! Stop am!'], ['Somebody call the police!', 'Make person call police!']]);
 const THIEF = Object.freeze([['Thief! Thief!', 'Ole! Ole!'], ['My money! Somebody has taken my money!', 'My money! Person don carry my money!']]);
 const hash = (a, b = 0) => { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -189,7 +215,12 @@ export function createJustice({ state, players, ledger, accounts, population, ac
   // An offence turns out graver than it first looked.
   function worsen(crimeId, type) {
     const crime = book.crimes[crimeId];
-    if (crime && crime.status === 'open' && LAW.offences[type].severity > LAW.offences[crime.type].severity) crime.type = type;
+    if (crime && crime.status === 'open' && LAW.offences[type].severity > LAW.offences[crime.type].severity) {
+      crime.type = type;
+      // (already known to the police: the stars go up with it)
+      const p = players[crime.culprit];
+      if (p && crime.detection === 'identified' && !crime.reportAt) { const law = lawOf(p); if ((law.state === 'wanted' || law.state === 'pursuit') && law.crimes.includes(crime.id)) { law.stars = Math.min(STARS.most, Math.max(law.stars || 0, starsOf(type))); law.unseen = 0; } }
+    }
   }
 
   // The police now know who did it.
@@ -201,9 +232,37 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     const law = lawOf(p);
     if (!law.crimes.includes(crime.id)) law.crimes.push(crime.id);
     if (!law.seenAt || crime.real >= law.seenAt.real) law.seenAt = { x: crime.x, z: crime.z, real: crime.real, t: crime.at };
+    const was = law.state === 'wanted' || law.state === 'pursuit' ? law.stars || 0 : 0;
     if (law.state === 'normal' || law.state === 'suspicious' || law.state === 'released') { setState(p, 'wanted'); emit(p.id, { type: 'police', title: 'Wanted', text: `You have been reported to the police: ${LAW.offences[crime.type].name.toLowerCase()}. Officers are looking for you.` }); }
     law.wantedAt = state.t;
+    law.stars = Math.min(STARS.most, Math.max(was, starsOf(crime.type), downStars(p)));
+    law.unseen = 0;
     dispatch(p, crime);
+  }
+  // officers this player has brought down to 20 since the police last had them or gave up on them: four stars for one,
+  // five for three or more (counted when it happens, before the police may know who did it)
+  const downStars = (p) => { const n = book.downed && book.downed[p.id] ? book.downed[p.id].length : 0; return n >= STARS.officersDown ? STARS.of.officers_down : n ? STARS.of.officer_down : 0; };
+
+  // More stars than the crimes on the book give, for what the police see done to their own (guns.js, conflict.js): an
+  // officer brought down to 20 is four stars, three or more of them five. Only for someone already known to them.
+  function raise(p, kind, officer = null) {
+    const law = lawOf(p);
+    if (kind === 'officer_down' && officer !== null) { const downed = (book.downed || (book.downed = {}))[p.id] || (book.downed[p.id] = []); if (!downed.includes(officer)) downed.push(officer); }
+    if (law.state !== 'wanted' && law.state !== 'pursuit') return law.stars || 0;
+    const next = Math.min(STARS.most, Math.max(law.stars || 0, STARS.of[kind] || 0, downStars(p)));
+    if (next > (law.stars || 0)) { law.stars = next; law.unseen = 0; dispatch(p, null); }
+    return law.stars;
+  }
+
+  // No longer looked for: what they did stays on the books, unsolved; the officers after them go back to their beats.
+  function lapse(p, text = 'The police have stopped looking for you.') {
+    const law = lawOf(p);
+    for (const c of law.crimes) if (book.crimes[c] && book.crimes[c].status === 'open') book.crimes[c].status = 'lapsed';
+    law.crimes = []; law.stars = 0; law.unseen = 0; law.resisted = false; law.surrendered = false;
+    if (book.downed) delete book.downed[p.id];
+    for (const o of Object.values(book.officers)) if (o.suspect === p.id && o.duty !== 'escort') dutyOver(o.i);
+    setState(p, 'normal');
+    emit(p.id, { type: 'police', title: 'No longer wanted', text });
   }
 
   // Someone finds their money gone and does not know who took it.
@@ -316,7 +375,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
   function dispatch(p, crime) {
     const law = lawOf(p);
     const already = Object.values(book.officers).filter((o) => o.suspect === p.id && o.duty !== 'return').length;
-    const want = (crime && LAW.offences[crime.type].severity >= 3 ? 2 : 1) - already;
+    // (how many come goes with the stars: one at one star, up to six at five)
+    const want = Math.max(crime && LAW.offences[crime.type].severity >= 3 ? 2 : 1, STARS.officers[Math.min(STARS.most, law.stars || 0)] || 0) - already;
     const goal = law.seenAt || { x: p.x, z: p.z };
     for (const pick of nearestFree(goal.x, goal.z, Math.max(0, want))) send(pick.i, pick.from, 'respond', crime, p, goal);
   }
@@ -327,6 +387,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
   }
 
   const sees = (m, p) => { const d = Math.hypot(p.x - m.x, p.z - m.z); return d < 8 || (d < LAW.sight && clearLine(m.x, m.z, p.x, p.z, 0.1)); };
+  // how hard the police run after someone: at one star a jog, from two up flat out (STARS)
+  const chasePace = (law) => ((law.stars || 0) <= 1 ? PACE.hurry : PACE.sprint);
   const dutyOver = (i) => { delete book.officers[i]; if (actors.has(i)) actors.release(i, 'Going back on the beat'); };
 
   function challenge(o, m, p) {
@@ -380,7 +442,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
         setState(p, 'pursuit');
         // the police running after someone: the people near see it (voices.js)
         if (hub.voices) hub.voices.event('police', m.x, m.z, { not: [`n:${o.i}`] });
-        actors.follow(o.i, { kind: 'player', id: p.id }, 1.2, PACE.sprint, 'Chasing a suspect');
+        actors.follow(o.i, { kind: 'player', id: p.id }, 1.2, chasePace(law), 'Chasing a suspect');
         if (!o.challenged) challenge(o, m, p);
         return;
       }
@@ -392,15 +454,15 @@ export function createJustice({ state, players, ledger, accounts, population, ac
       return;
     }
 
-    // pursuing
-    if (o.lost > LAW.lost) {
+    // pursuing (at one star, given up sooner: STARS.lost)
+    if (o.lost > (STARS.lost[Math.min(STARS.most, law.stars || 0)] || LAW.lost)) {
       // lost them: go to where they were last seen and look
       o.duty = 'respond'; o.arrived = 0;
       if (!Object.values(book.officers).some((x) => x.suspect === p.id && x.duty === 'pursue')) setState(p, 'wanted');
       actors.walkTo(o.i, law.seenAt.x, law.seenAt.z, PACE.run, 'Looking for a suspect');
       return;
     }
-    if (m.mode !== 'follow') actors.follow(o.i, { kind: 'player', id: p.id }, 1.2, PACE.sprint, 'Chasing a suspect');
+    if (m.mode !== 'follow') actors.follow(o.i, { kind: 'player', id: p.id }, 1.2, chasePace(law), 'Chasing a suspect');
     if (!o.challenged && d < 14) challenge(o, m, p);
     // running on after being told to stop is an offence of its own, once
     if (o.challenged && !law.resisted && o.challengeAt && now - o.challengeAt.real > 1.5 && Math.hypot(p.x - o.challengeAt.x, p.z - o.challengeAt.z) > 7) {
@@ -472,7 +534,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     };
     book.arrests[record.id] = record;
     for (const c of crimes) { c.status = 'arrested'; c.arrest = record.id; c.reportAt = null; c.discoverAt = null; }
-    law.crimes = []; law.resisted = false; law.surrendered = false;
+    law.crimes = []; law.resisted = false; law.surrendered = false; law.stars = 0; law.unseen = 0;
+    if (book.downed) delete book.downed[p.id];
     p.custody = record.id;
     setState(p, 'arrested');
     // out of whatever they were in, and no more fighting
@@ -715,8 +778,22 @@ export function createJustice({ state, players, ledger, accounts, population, ac
           }
         }
         if (law.state === 'pursuit' && !Object.values(book.officers).some((o) => o.suspect === p.id && o.duty === 'pursue')) setState(p, 'wanted');
+        // (a save from before the stars: as many as the worst crime on the book gives)
+        if (!law.stars) law.stars = Math.max(1, ...law.crimes.map((c) => (book.crimes[c] ? starsOf(book.crimes[c].type) : 1)));
+        // at 20 (the 20-life rule) every chase stops, and the stars go
+        if (hub.conflict && hub.conflict.critical(p)) { lapse(p, 'You are badly hurt. The police have stopped chasing you.'); continue; }
+        // the stars fade, one at a time, while no officer can see them; seen, the fading starts again. (Not while officers
+        // are still on their way to where the player was last seen: escaping is getting away before they come and
+        // finding nobody there, they give up looking. Nor for someone who has given themselves up and waits for them.)
+        const coming = Object.values(book.officers).some((o) => o.suspect === p.id && o.duty === 'respond' && !o.arrived);
+        const seen = !!law.surrendered || coming || (!!law.seenAt && now - law.seenAt.real < 0.75);
+        law.unseen = seen ? 0 : (law.unseen || 0) + dt;
+        if (!seen && law.unseen >= STARS.fade[Math.min(STARS.most, law.stars)]) {
+          law.stars -= 1; law.unseen = 0;
+          if (law.stars <= 0) { lapse(p); continue; }
+        }
         // someone not seen for half a day is no longer looked for; what they did stays on the books, unsolved
-        if (state.t - (law.wantedAt || 0) > (hub.span ? hub.span(LAW.lapse) : LAW.lapse)) { for (const c of law.crimes) if (book.crimes[c].status === 'open') book.crimes[c].status = 'lapsed'; law.crimes = []; setState(p, 'normal'); emit(p.id, { type: 'police', title: 'No longer wanted', text: 'The police have stopped looking for you.' }); }
+        if (state.t - (law.wantedAt || 0) > (hub.span ? hub.span(LAW.lapse) : LAW.lapse)) { lapse(p); continue; }
       }
       if (!p.custody) continue;
       const record = book.arrests[p.custody];
@@ -776,6 +853,9 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     const mine = role ? Object.values(book.arrests).filter((a) => a.officer.kind === 'player' && a.officer.id === p.id && a.status !== 'released').map((a) => arrestView(a, p)) : [];
     return {
       state: law.state, wanted: law.crimes.map((id) => ({ no: book.crimes[id].no, name: LAW.offences[book.crimes[id].type].name })), surrendered: !!law.surrendered,
+      // the stars (STARS), and how far the next one is to fading, while no officer can see them (0 seen; 1 about to go)
+      stars: law.state === 'wanted' || law.state === 'pursuit' ? Math.min(STARS.most, law.stars || 1) : 0,
+      fading: law.state === 'wanted' || law.state === 'pursuit' ? Math.round(Math.min(1, (law.unseen || 0) / STARS.fade[Math.min(STARS.most, law.stars || 1)]) * 100) / 100 : 0,
       arrest: record ? arrestView(record, p) : null,
       canPay: !!record && record.status === 'custody' && record.fine.confirmed && ledger.balance(p.wallet) >= record.fine.amount,
       owed: book.owed[p.id] || 0,
@@ -806,7 +886,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
   const audit = () => ({ ...book.totals, crimes: Object.keys(book.crimes).length, arrests: Object.keys(book.arrests).length, open: Object.values(book.crimes).filter((c) => c.status === 'open').length, officersOut: Object.keys(book.officers).length });
 
   const api = {
-    offence, worsen, steal, reportSeen, surrender, arrest, payFine, settleOwed, tick,
+    offence, worsen, raise, steal, reportSeen, surrender, arrest, payFine, settleOwed, tick,
     enlist, resign, wantedList, arrestBy, setFine, bookIn, requestCall, decideCall, mayCall, usedMessage, roleOf,
     selfView, officersNear, record, bailFor, audit, lawOf, STATION,
     crime: (id) => book.crimes[id] || null, arrestOf: (id) => book.arrests[id] || null,

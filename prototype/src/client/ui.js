@@ -620,6 +620,16 @@ export function createUI(app) {
       root.append(h('p', { class: 'small' }, w
         ? 'Morning, afternoon and night come when they come where you are, and the sky is the real one there: weather data from The Norwegian Meteorological Institute (MET Norway, CC BY 4.0), for the approximate place your connection comes from. Where you are is not kept.'
         : 'Morning, afternoon and night come when they come where you are. When the real weather where you are cannot be had, the town has weather of its own.'));
+      // the sky the player chooses (30 October 2026, the owner's brief): real, as above, unless they choose otherwise
+      if (app.sky && app.setSky) {
+        const sky = app.sky();
+        const choose = (name, list, now, set) => h('div', { class: 'segment', role: 'group', 'aria-label': name, id: `sky-${name.toLowerCase().replace(/ /g, '-')}` }, list.map(([value, label]) => h('button', { type: 'button', 'data-sky': value, 'aria-pressed': String(now === value), onclick: () => { set(value); redraw(); } }, label)));
+        root.append(h('p', { class: 'small skyhead' }, 'Time of day'));
+        root.append(choose('Time of day', [['real', 'Real time'], ['morning', 'Morning'], ['noon', 'Noon'], ['dusk', 'Dusk'], ['night', 'Night']], sky.time, (time) => app.setSky({ time })));
+        root.append(h('p', { class: 'small skyhead' }, 'Weather'));
+        root.append(choose('Weather', [['real', 'Real weather'], ['clear', 'Clear'], ['cloudy', 'Cloudy'], ['rain', 'Rain'], ['storm', 'Storm']], sky.weather, (weather) => app.setSky({ weather })));
+        root.append(h('p', { class: 'small', id: 'sky-note' }, 'Real time and real weather follow the time and the weather where you are. Anything else changes only how your own game looks and sounds: the town\'s day (where people are, when the shops open) and what the weather does to the roads stay the real ones, the same for everyone.'));
+      }
     }
 
     // Graphics (graphics.js): Auto, or a level the player keeps; each with one line of what it gives
@@ -798,10 +808,11 @@ export function createUI(app) {
   const touchEl = $('touch');
   function updateHud(view) {
     $('hud-clock').textContent = view.clock.label;
-    // the rings round the buttons turn white after dark
-    const night = view.clock.hourFloat < 6.5 || view.clock.hourFloat >= 18.75;
+    // the rings round the buttons turn white after dark (dark as the player sees it: the sky they chose, Settings)
+    const shownHour = app.shownHour ? app.shownHour(view.clock.hourFloat) : view.clock.hourFloat;
+    const night = shownHour < 6.5 || shownHour >= 18.75;
     if (touchEl.classList.contains('night') !== night) touchEl.classList.toggle('night', night);
-    $('hud-weather').textContent = WEATHER_WORD[view.weather.kind];
+    $('hud-weather').textContent = WEATHER_WORD[(app.shownWeather ? app.shownWeather(view.weather) : view.weather).kind];
     // the purse: TR, and what that is in the pounds of the story (2,000 TR are £20)
     const balance = amt(view.self.balance);
     if ($('hud-balance').textContent !== balance) {
@@ -988,9 +999,23 @@ export function createUI(app) {
       if (law === 'custody' && !$('blackout').hidden) { clearTimeout(blackoutTimer); blackoutTimer = setTimeout(lift, 900); }
       if (law !== 'arrested' && law !== 'custody') { $('arrested').hidden = true; lift(); }
     }
+    // wanted: the stars (30 October 2026, justice.js STARS) in place of the chip; the chip for the other states
+    const wantedNow = law === 'wanted' || law === 'pursuit';
+    const starsEl = $('stars');
+    if (starsEl) {
+      const n = wantedNow ? Math.max(1, Math.min(5, self.law.stars || 1)) : 0, fading = wantedNow && (self.law.fading || 0) > 0.02;
+      const key = `${n}|${fading ? 1 : 0}`;
+      if (starsEl.dataset.key !== key) {
+        starsEl.dataset.key = key;
+        starsEl.hidden = !wantedNow;
+        [...starsEl.children].forEach((el, k) => el.classList.toggle('on', k < n));
+        starsEl.classList.toggle('fading', fading);
+        starsEl.setAttribute('aria-label', wantedNow ? `Wanted by the police: ${n} star${n === 1 ? '' : 's'}${fading ? ', fading' : ''}` : 'Not wanted');
+      }
+    }
     const chip = $('lawchip');
-    chip.hidden = law === 'normal';
-    if (law !== 'normal') { chip.className = law; chip.textContent = LAW_CHIP[law] || law; }
+    chip.hidden = law === 'normal' || (wantedNow && !!starsEl);
+    if (!chip.hidden) { chip.className = law; chip.textContent = LAW_CHIP[law] || law; }
     $('taking').hidden = !taking && !fallen;
     // (thrown from a motorcycle, or knocked down; getting up, the bar fills as they get up)
     if (fallen) { $('taking-text').textContent = self.dead ? `Killed by ${self.dead.by}. You come round at the hospital in ${self.dead.left} s` : self.down.rising ? 'Getting up' : self.down.by === 'crash' ? 'Thrown off' : 'Knocked down'; $('taking-fill').style.width = self.dead ? `${Math.round((1 - self.dead.left / 8) * 100)}%` : self.down.rising && self.down.rise > 0 ? `${Math.round(Math.max(0, Math.min(1, 1 - self.down.left / self.down.rise)) * 100)}%` : '0%'; } else if (taking) { $('taking-text').textContent = (TAKING[taking.kind] && TAKING[taking.kind][taking.step]) || 'Taking it'; $('taking-fill').style.width = `${Math.round(taking.progress * 100)}%`; }

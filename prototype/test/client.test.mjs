@@ -253,7 +253,7 @@ test('camera: someone under a low roof is looked at from under it, not through i
   assert.ok(Math.hypot(camera.position.z - 30, camera.position.y - 1.5) > 7.5, 'out in the open the camera is at its full distance');
 });
 
-test('camera: on the street view the player stands in the lower middle, a few metres ahead, the eye about their head\'s height', () => {
+test('camera: on the street view the player stands big in the lower middle, under three metres ahead, the eye about their head\'s height (30 October 2026: as the classic open-world games have it)', () => {
   const camera = fakeCamera();
   const rig = createCameraRig(camera, { blocked: () => false });
   const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist };
@@ -262,15 +262,20 @@ test('camera: on the street view the player stands in the lower middle, a few me
   // the player at the origin, their target 1.55 m up (as main.js keeps it), facing +z
   film(rig, 3, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0 });
   const back = -camera.position.z;
-  assert.ok(back > 3.2 && back < 4.4, `${back.toFixed(2)} m behind`);
-  assert.ok(camera.position.y > 1.6 && camera.position.y < 2.2, `the eye ${camera.position.y.toFixed(2)} m up: about the height of a head`);
+  assert.ok(back > 2.3 && back < 3.1, `${back.toFixed(2)} m behind`);
+  assert.ok(camera.position.y > 1.5 && camera.position.y < 2.0, `the eye ${camera.position.y.toFixed(2)} m up: about the height of a head`);
   // looking a little down, at the chest, so the head is above the middle of the picture and the feet well below it
-  assert.ok(camera.aim.y > 1.3 && camera.aim.y < 1.5, `looking at ${camera.aim.y.toFixed(2)} m`);
+  assert.ok(camera.aim.y > 1.25 && camera.aim.y < 1.45, `looking at ${camera.aim.y.toFixed(2)} m`);
   assert.ok(camera.position.y > camera.aim.y, 'down, not up');
-  // at a run it comes a little closer and lower, and goes back out when the player slows
+  // where the figure is in a 58° picture: the top of a 1.75 m head a little over a third of the way down, the feet near
+  // the foot of it (the owner's second video, 30 October 2026)
+  const share = (y, ahead) => { const dy = y - camera.position.y, dz = ahead - camera.position.z; const below = -Math.atan2(dy, dz) - Math.atan2(camera.position.y - camera.aim.y, camera.aim.z - camera.position.z); return 0.5 + Math.tan(below) / Math.tan((58 / 2) * (Math.PI / 180)) / 2; };
+  const head = share(1.75, 0), feet = share(0, 0);
+  assert.ok(head > 0.3 && head < 0.42 && feet > 0.85 && feet < 0.97, `the head at ${head.toFixed(2)}, the feet at ${feet.toFixed(2)} of the picture`);
+  // at a run it comes no more than a step closer, and goes back out when the player slows
   film(rig, 3, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0, running: 1 });
   const atRun = -camera.position.z;
-  assert.ok(atRun < back - 0.4 && atRun > 2.4, `at a run ${atRun.toFixed(2)} m behind (walking ${back.toFixed(2)})`);
+  assert.ok(atRun < back - 0.08 && atRun > back - 0.4, `at a run ${atRun.toFixed(2)} m behind (walking ${back.toFixed(2)})`);
   film(rig, 4, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0, running: 0 });
   assert.ok(Math.abs(-camera.position.z - back) < 0.1, 'and back out');
 });
@@ -297,8 +302,10 @@ test('camera: on the street view, with a tall wall a step or two behind, it come
     rig.snap(cam);
     film(rig, 4, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0 });
     assert.ok(!blocked(camera.position.x, camera.position.z), `with the wall ${W} m behind, the eye is not inside it`);
-    assert.ok(Math.hypot(camera.position.z, camera.position.y - 1.43) > 1.05, `with the wall ${W} m behind, the eye is not in the player's head`);
-    return { back: -camera.position.z, down: Math.atan2(camera.position.y - 1.43, -camera.position.z) };
+    // (what it looks at: 1.55 m up, less the street view's own lowering of it)
+    const aimY = 1.55 + CAMERA_VIEW.street.lift;
+    assert.ok(Math.hypot(camera.position.z, camera.position.y - aimY) > 1.05, `with the wall ${W} m behind, the eye is not in the player's head`);
+    return { back: -camera.position.z, down: Math.atan2(camera.position.y - aimY, -camera.position.z) };
   };
   // a metre and a half: room enough to come in, at the height of the head, without tipping down at all
   const roomy = at(1.5);
@@ -326,6 +333,35 @@ test('camera: on the street view a turn swings it out a little and lets it settl
   assert.ok(sway > 0.05 && sway <= 0.22, `swung out by ${sway.toFixed(3)} m`);
   film(rig, 3, { cam, target: { x: 0, y: 1.55, z: 0 }, heading: cam.yaw });
   assert.ok(Math.abs(rig.live.sway) < 0.01, 'and settles when the turn ends');
+});
+
+test('camera: behind a vehicle a finger turns the view all the way round it and tips it; it stays there while the vehicle stands, and swings back behind once it moves off; a pinch brings it nearer or further (30 October 2026)', () => {
+  const camera = fakeCamera();
+  const rig = createCameraRig(camera, { blocked: () => false });
+  const cam = { yaw: 0, pitch: STREET.pitch, dist: STREET.dist, ride: 1 };
+  rig.view = 'chase';
+  rig.snap(cam);
+  const frame = (moving, dragged) => ({ cam, target: { x: 0, y: 1.55, z: 0 }, heading: 0, moving, dragged });
+  film(rig, 3, frame(false, 99));
+  const behind = { z: camera.position.z, d: Math.hypot(camera.position.x, camera.position.z) };
+  assert.ok(behind.z < -3.5, `behind the vehicle (${behind.z.toFixed(2)})`);
+  // turned right round to its front by a finger, and up a little
+  for (let k = 0; k < 30; k += 1) rig.drag(Math.PI / 30, 0.01);
+  film(rig, 3, frame(false, 5));
+  assert.ok(camera.position.z > 3, `turned round in front of it (${camera.position.z.toFixed(2)})`);
+  const tipped = camera.position.y;
+  // standing still, long after the finger was lifted: it stays where it was put
+  film(rig, 4, frame(false, 9));
+  assert.ok(camera.position.z > 3 && Math.abs(camera.position.y - tipped) < 0.05, 'it stays while the vehicle stands');
+  // moving off: back round behind it within a few seconds
+  film(rig, 5, frame(true, 9));
+  assert.ok(camera.position.z < -3.5, `swung back behind once it moved (${camera.position.z.toFixed(2)})`);
+  // a pinch: nearer, then further
+  cam.ride = 0.6; film(rig, 3, frame(true, 9));
+  const near = Math.hypot(camera.position.x, camera.position.z);
+  cam.ride = 2; film(rig, 3, frame(true, 9));
+  const far = Math.hypot(camera.position.x, camera.position.z);
+  assert.ok(near < behind.d * 0.75 && far > behind.d * 1.6, `pinched in ${near.toFixed(2)} m, out ${far.toFixed(2)} m (usual ${behind.d.toFixed(2)})`);
 });
 
 test('camera: it moves the same at 20 frames a second as at 60', () => {

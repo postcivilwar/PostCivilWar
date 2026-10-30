@@ -23,9 +23,11 @@ const ROOM = 0.7;                     // metres it takes up, for walls and kerbs
 // contact.js; brushing along a wall scrapes and slows it, a knock stops it, and only a real crash throws the rider.
 // The edge of the map, the river's bank and the bush are not things it is thrown by. `least` is kept as the speed
 // below which nothing at all can throw a rider.)
+// (30 October 2026, the owner's word: "Users life should never reduce for hitting anything." A rider thrown off still
+// goes over the bars and gets up again, but loses no life: `most` is 0.)
 export const CRASH = Object.freeze({
   least: 5.5,                 // m/s (about 20 km/h): slower than this, a bump and no fall
-  most: 0.05,                 // the share of full health lost at the top speed of the biggest engine
+  most: 0,                    // the share of full health lost in a crash: none
   lie: Object.freeze([2.2, 4.4]),     // real seconds from the blow to getting up: through the air, down, and still
   rise: 2.7,                  // real seconds getting up, as a person does (falls.js), before the rider can act
   thrown: Object.freeze([0.8, 6]),    // metres thrown forward: at least, and at most
@@ -112,7 +114,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
   // in the bike's way within a step or two of where the town last saw it; the speed is no more than the town saw it
   // going; and only a hard enough blow INTO it throws the rider. Short of that the answer is what it was instead (a
   // scrape or a stop), and nobody falls. Thrown, the bike is left lying where it stopped; the rider goes on over the
-  // bars, as far as there is room, and lies there, then gets up. What it costs in health follows how hard it was.
+  // bars, as far as there is room, and lies there, then gets up. It costs no life (30 October 2026).
   function crash(p, { speed, heading } = {}) {
     const b = p.pbike;
     if (!isOwnBike(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.');
@@ -145,9 +147,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     const far = Math.min(CRASH.thrown[1], CRASH.thrown[0] + CRASH.carry * c.into);
     const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(h) * way, uz: Math.cos(h) * way, far: Math.max(far, THROW.nearest), kind: (x, z, r) => zoneBlockKind(x, z, boxes, r) });
     p.x = at.x; p.z = at.z; p.lastMoveAt = now;
-    const harm = crashHarm(c.into, 100);
     const before = p.health;
-    if (hub.conflict) hub.conflict.injure(p, harm); else p.health = Math.max(0, p.health - harm);
     const lie = CRASH.lie[0] + (CRASH.lie[1] - CRASH.lie[0]) * share;
     // (`fall`: thrown forward over the bars, which way the body goes and how it lands: the page shows it, falls.js)
     p.down = { at: now, until: now + lie, upAt: now + lie + CRASH.rise, by: 'crash', h: way > 0 ? h : h + Math.PI, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z }, over: at.over };

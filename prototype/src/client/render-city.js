@@ -14,6 +14,7 @@ import { Batch, place, linear, noise, grassTexture, textTexture, surface } from 
 import { Foliage, bush, foliageMaterials } from './render-foliage.js';
 import { reflects, weathers } from './render-finish.js';
 import { isRoad } from './world-shading.js';
+import { letPaintedGo } from './painted.js';
 
 const ROAD_TOP = 0.08;                // the top of the town's roads (render-world.js)
 const CROWN = 0.05;                   // how much higher the middle of the boulevard is than its edges
@@ -29,7 +30,9 @@ function canvas(size, paint) {
   t.wrapS = t.wrapT = THREE.RepeatWrapping;
   t.anisotropy = 8;
   t.colorSpace = THREE.SRGBColorSpace;
-  return t;
+  // (painted from the same numbers every time: on a phone its pixels let go once the graphics card has them, and painted
+  // again when wanted, painted.js)
+  return letPaintedGo(t, () => paint(c.getContext('2d'), size));
 }
 const hash = (a, b) => noise(a * 12.9898 + b * 3.11, b * 78.233 + a * 0.71);
 // Stone pavers, 60 by 40 cm in a stretcher bond, warm and light, each a little its own shade, with fine joints.

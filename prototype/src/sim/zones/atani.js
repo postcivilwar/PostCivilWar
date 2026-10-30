@@ -15,7 +15,7 @@
 // and the people and businesses in it are invented.
 
 import { geoToWorld, worldToGeo, gridToTrue } from '../geo.js';
-import { houseDoor } from '../layout.js';
+import { houseDoor, houseBench } from '../layout.js';
 import { kekeLook, busLook, footprintBox } from '../vehicle-looks.js';
 import { BRIDGE, OUTSKIRT_COLLIDERS, OUTSKIRT_BUILDING_COLLIDERS, onOutskirts, outskirtsGroundY } from './atani-outskirts.js';
 import { ZONE_BILLBOARDS } from './atani-billboards.js';
@@ -780,7 +780,23 @@ function buildTown() {
   const homes = [];
   const venues = {};
   const venue = (id, kind, name, x, z) => { venues[id] = { id, kind, name, x, z }; };
-  const addSpot = (s) => { const spot = Object.freeze({ id: spots.length, ctx: 'street', pose: 'stand', inside: false, room: null, roomKind: null, via: null, ...s }); spots.push(spot); return spot.id; };
+  // Seats out of doors (30 October 2026, the owner's word: "No NPC characters should sit on the air. If there's no seat
+  // to sit, then they should never sit on the floor"): the town's benches, three places along each, and the bench by
+  // each plain house's door (layout.js `houseBench`). Out of doors nobody sits but on one of these: a spot that would
+  // have someone sit anywhere else has them stand there instead. (Indoors every seat is a piece of the room's furniture,
+  // as before.)
+  const seats = [];
+  for (const b of ZONE_BENCHES) for (const k of [-0.55, 0, 0.55]) seats.push({ x: b.x + Math.cos(b.facing) * k, z: b.z - Math.sin(b.facing) * k });
+  // (a plain house only: a house drawn from a supplied model, or a tower, has no bench by its door, render-town.js)
+  const benched = (h) => !h.model && !h.tower;
+  for (const h of ZONE_HOUSES) if (benched(h)) { const b = houseBench(h); seats.push({ x: b.x, z: b.z }); }
+  const onSeat = (x, z) => seats.some((t) => Math.hypot(t.x - x, t.z - z) < 0.3);
+  const addSpot = (s) => {
+    const seated = s.pose === 'sit' && !s.roomKind && !s.inside && !onSeat(s.x, s.z) ? { pose: 'stand' } : {};
+    const spot = Object.freeze({ id: spots.length, ctx: 'street', pose: 'stand', inside: false, room: null, roomKind: null, via: null, ...s, ...seated });
+    spots.push(spot);
+    return spot.id;
+  };
 
   venue('market', 'market', 'the market', 43, 60);
   venue('park', 'park', 'the motor park', -46, 84);
@@ -837,10 +853,14 @@ function buildTown() {
   }
 
   // houses, old and new, and the halls of residence
-  const front = (home, d, node, quarter) => {
+  // (where a house has its bench by the door, the one of the two who sit out on its side of the door sits on the
+  // bench itself; the other stands, as there is nothing there to sit on: 30 October 2026)
+  const front = (home, d, node, quarter, bench = null) => {
     const ox = Math.sin(d.facing), oz = Math.cos(d.facing);      // out from the door
     const lx = oz, lz = -ox;                                        // along the wall
-    home.front = [[1.9, -0.7, 'sit'], [-1.9, -0.7, 'sit'], [2.8, 0.5, 'stand'], [-0.9, 0.9, 'stand']].map(([l, o, pose]) => addSpot({ venue: 'home', slot: 'front', room: home.id, x: Math.round((d.x + lx * l + ox * o) * 100) / 100, z: Math.round((d.z + lz * l + oz * o) * 100) / 100, facing: d.facing, pose, node, ctx: 'home' }));
+    const at = [[1.9, -0.7, 'sit'], [-1.9, -0.7, 'sit'], [2.8, 0.5, 'stand'], [-0.9, 0.9, 'stand']].map(([l, o, pose]) => ({ x: d.x + lx * l + ox * o, z: d.z + lz * l + oz * o, pose }));
+    if (bench) { const k = Math.hypot(at[0].x - bench.x, at[0].z - bench.z) <= Math.hypot(at[1].x - bench.x, at[1].z - bench.z) ? 0 : 1; at[k].x = bench.x; at[k].z = bench.z; }
+    home.front = at.map(({ x, z, pose }) => addSpot({ venue: 'home', slot: 'front', room: home.id, x: Math.round(x * 100) / 100, z: Math.round(z * 100) / 100, facing: d.facing, pose, node, ctx: 'home' }));
     home.quarter = quarter;
   };
   for (const b of ZONE_BUILDINGS) {
@@ -855,7 +875,7 @@ function buildTown() {
     const node = nodeAt(d.x, d.z, `${h.id}:door`);
     attach(node, { what: h.id });
     const home = { id: h.id, kind: 'house', x: h.x, z: h.z, beds: 9, home: addSpot({ venue: 'home', slot: 'home', room: h.id, x: d.x, z: d.z, facing: d.facing, node, inside: true, ctx: 'home' }) };
-    front(home, d, node, h.quarter);
+    front(home, d, node, h.quarter, benched(h) ? houseBench(h) : null);
     homes.push(home);
   }
   for (const b of ZONE_BUILDINGS) {
@@ -913,6 +933,9 @@ function buildTown() {
     });
     patrols.push(Object.freeze({ id: b.id, where: b.where, day: b.day, night: b.night, round: b.round, spots: Object.freeze(ids) }));
   }
+  // Two of the town's people may sit on each of its benches, as those with time on their hands do (30 October 2026: out
+  // of doors nobody sits but on a seat). Added last, so that every spot already numbered keeps its number.
+  for (const b of ZONE_BENCHES) for (const k of [-0.55, 0.55]) addSpot({ venue: 'street', slot: 'hang', x: Math.round((b.x + Math.cos(b.facing) * k) * 100) / 100, z: Math.round((b.z - Math.sin(b.facing) * k) * 100) / 100, facing: b.facing, pose: 'sit', ctx: 'street' });
   for (let i = 0; i < spots.length; i += 1) {
     if (spots[i].node) continue;
     const s = spots[i];
