@@ -3,6 +3,11 @@
 // game played on the website on this machine, late morning, at five busy places; for each townsperson drawn as their own
 // figure and on the move, which way the body faces (from the hips: the left thigh against the right) against which way
 // it is going over the ground, frame by frame. A figure walking with its side to the way it goes is 90 degrees out.
+// The bones alone are not the figure seen: the body drawn is the skin moved by them (three.js, from the file's inverse
+// bind matrices), so the same is measured on the drawn body (the skin's points at each hip, those that go with each
+// thigh nearest its joint), and each hand's point is found where the hand's bone is (on 30 October the skin was bound
+// after the figure was turned: the bones faced the way they went while the body drawn was turned half round from them
+// and its arms held out).
 //   ../server/with-postgres.sh node test/npc-walk.mjs [shots folder] [phone]
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
@@ -46,6 +51,28 @@ await page.evaluate(() => {
   const a = V(), b = V();
   const angle = (x1, z1, x2, z2) => { let d = Math.atan2(x1, z1) - Math.atan2(x2, z2); while (d > Math.PI) d -= Math.PI * 2; while (d < -Math.PI) d += Math.PI * 2; return d; };
   window.__walk = { rows: [], last: new Map() };
+  // the skin's point that goes most with a bone, for each figure's skin (found once): where the drawn body has it
+  const points = new WeakMap();
+  const skinOf = (r, bone) => { let found = null; r.group.traverse((o) => { if (!found && o.isSkinnedMesh && o.skeleton && o.skeleton.bones.includes(bone)) found = o; }); return found; };
+  // (`joint`: of the points that go mostly with the bone, the one nearest its joint, where the swing of the limb moves it
+  // least: a thigh's point at the hip, not half way down the leg; otherwise the point that goes most with it)
+  const pointFor = (mesh, bone, joint = false) => {
+    let byBone = points.get(mesh);
+    if (!byBone) { byBone = new Map(); points.set(mesh, byBone); }
+    const key = `${bone.uuid}:${joint}`;
+    if (byBone.has(key)) return byBone.get(key);
+    const k = mesh.skeleton.bones.indexOf(bone), si = mesh.geometry.attributes.skinIndex, sw = mesh.geometry.attributes.skinWeight;
+    let best = -1, most = 0.5, near = Infinity;
+    const at = joint ? bone.getWorldPosition(V()) : null, p = V();
+    for (let v = 0; v < si.count; v += 1) for (let c = 0; c < 4; c += 1) {
+      if (si.getComponent(v, c) !== k || sw.getComponent(v, c) <= 0.5) continue;
+      if (joint) { mesh.getVertexPosition(v, p).applyMatrix4(mesh.matrixWorld); const d = p.distanceTo(at); if (d < near) { near = d; best = v; } } else if (sw.getComponent(v, c) > most) { most = sw.getComponent(v, c); best = v; }
+    }
+    byBone.set(key, best);
+    return best;
+  };
+  const drawn = (mesh, bone, out, joint = false) => { const v = pointFor(mesh, bone, joint); if (v < 0) return null; mesh.getVertexPosition(v, out); return out.applyMatrix4(mesh.matrixWorld); };
+  const c = V(), d = V(), e = V();
   const f = () => {
     for (const actor of n.crowd.actors()) {
       const r = actor.rig;
@@ -64,9 +91,22 @@ await page.evaluate(() => {
       const hipsFwd = [-lz, lx];
       let chestFwd = null;
       if (ul && ur) { ul.getWorldPosition(a); ur.getWorldPosition(b); chestFwd = [-(a.z - b.z), a.x - b.x]; }
+      // the drawn body: its hips from the skin about each thigh, and each hand's point against the hand's bone
+      let skinVsMove = null, handGap = null;
+      const mesh = skinOf(r, tl);
+      if (mesh) {
+        const sl = drawn(mesh, tl, c, true), sr = sl && drawn(mesh, tr, d, true);
+        if (sl && sr) skinVsMove = +angle(-(sl.z - sr.z), sl.x - sr.x, mx, mz).toFixed(2);
+        for (const name of ['hand_l', 'hand_r']) {
+          const hb = r.bones.get(name);
+          if (!hb || !mesh.skeleton.bones.includes(hb)) continue;
+          const p = drawn(mesh, hb, e);
+          if (p) { hb.getWorldPosition(a); handGap = Math.max(handGap || 0, +p.distanceTo(a).toFixed(3)); }
+        }
+      }
       const y = r.group.rotation.y;
       const playing = r.mixer ? r.mixer._actions.filter((x) => x.isRunning() && x.getEffectiveWeight() > 0.5).map((x) => x._clip.name).join('+') : '';
-      window.__walk.rows.push({ i: actor.i, fig: r.spec ? r.spec.id : r.figure, clip: playing, hipsVsMove: +angle(hipsFwd[0], hipsFwd[1], mx, mz).toFixed(2), chestVsMove: chestFwd ? +angle(chestFwd[0], chestFwd[1], mx, mz).toFixed(2) : null, turnedVsMove: +angle(Math.sin(y), Math.cos(y), mx, mz).toFixed(2), speed: +(moved).toFixed(3), pose: actor.pose, h: +actor.h.toFixed(2), th: +actor.th.toFixed(2) });
+      window.__walk.rows.push({ i: actor.i, fig: r.spec ? r.spec.id : r.figure, clip: playing, hipsVsMove: +angle(hipsFwd[0], hipsFwd[1], mx, mz).toFixed(2), chestVsMove: chestFwd ? +angle(chestFwd[0], chestFwd[1], mx, mz).toFixed(2) : null, turnedVsMove: +angle(Math.sin(y), Math.cos(y), mx, mz).toFixed(2), skinVsMove, handGap, speed: +(moved).toFixed(3), pose: actor.pose, h: +actor.h.toFixed(2), th: +actor.th.toFixed(2) });
       if (window.__walk.rows.length > 20000) window.__walk.rows.shift();
     }
     requestAnimationFrame(f);
@@ -123,6 +163,14 @@ const results = [];
 const check = (name, ok, detail) => { results.push(ok); console.log(ok ? 'ok  ' : 'FAIL', name, detail === undefined ? '' : JSON.stringify(detail)); };
 check('townspeople were seen walking, drawn as their own figures, of several kinds', walking.length > 200 && figures.size >= 4, { frames: walking.length, figures: [...figures] });
 check('walking, the body faces the way it goes: half the frames within 15 degrees, and fewer than one in twenty more than 60 degrees out (sideways)', median !== null && median < 15 && sideways < 0.05, { median: median && +median.toFixed(1), sideways: +sideways.toFixed(3) });
+// the body drawn: the same from the skin, and the hands drawn at the hands' bones
+const skinOff = walking.filter((r) => r.skinVsMove !== null).map((r) => Math.abs(r.skinVsMove) * 57.3).sort((a, b) => a - b);
+const skinMedian = skinOff.length ? skinOff[Math.floor(skinOff.length / 2)] : null;
+const skinSideways = skinOff.filter((x) => x > 60).length / Math.max(1, skinOff.length);
+check('walking, the body drawn (its skin about the hips) faces the way it goes as well: half within 15 degrees, fewer than one in twenty sideways', skinOff.length >= walking.length * 0.8 && skinMedian !== null && skinMedian < 15 && skinSideways < 0.05, { frames: skinOff.length, median: skinMedian && +skinMedian.toFixed(1), sideways: +skinSideways.toFixed(3) });
+const hands = rows.filter((r) => r.handGap !== null).map((r) => r.handGap).sort((a, b) => a - b);
+const handsOff = hands.filter((x) => x > 0.25).length / Math.max(1, hands.length);
+check('the hands are drawn where the hands\' bones are (within 25 cm, nineteen frames in twenty): the arms move as the figure\'s moves have them', hands.length >= 100 && handsOff < 0.05, { frames: hands.length, median: hands.length ? hands[Math.floor(hands.length / 2)] : null, worst: hands.length ? hands[hands.length - 1] : null, off: +handsOff.toFixed(3) });
 await browser.close(); server.close();
 const passed = results.filter(Boolean).length;
 console.log(passed === results.length ? `All ${results.length} checks passed.` : `${passed} of ${results.length} checks passed.`);

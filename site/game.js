@@ -21698,9 +21698,9 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
     root.add(turn);
     for (const r of sceneRoots) turn.add(objects[r]);
     root.updateMatrixWorld(true);
+    mesh.bind(new THREE.Skeleton(bones, inverses), mesh.matrixWorld);
     if (facing === null) facing = facingOf(objects);
     if (facing) { turn.rotation.y = -facing; root.updateMatrixWorld(true); }
-    mesh.bind(new THREE.Skeleton(bones, inverses), mesh.matrixWorld);
     return { root, mesh, bones };
   }
   const bounds = geometry.boundingBox;

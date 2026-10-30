@@ -3693,6 +3693,14 @@ to face +z inside its own root as it is built (`turn`, from its own hips, only w
 the files are not changed. `test/npc-walk.mjs` watches townspeople walk in the town, frame by frame, and compares the way
 the body faces with the way it goes.
 
+**The skin bound before the figure is turned** (`glb.js`, `figure`; found after this went live on 30 October). The skin
+of a figure turned to face +z was bound to its bones after the turn, while the file's inverse bind matrices are the
+bones' as the file has them: the body drawn was turned half round from its own bones (his townspeople and police went
+with their sides to the way they walked still, the other side now), and every bone's turn moved the skin about the
+wrong way (the arms held out). The bones were right, and the walk test looked only at them. Now the skin is bound as the
+file has it, and the figure turned after. `test/npc-walk.mjs` looks at the drawn body as well: the skin's points at the
+hips against the way the figure goes, and each hand's point against the hand's bone.
+
 **Seats** (`src/sim/zones/atani.js`, `addSpot`). Out of doors nobody sits but on a seat: a spot that would have someone
 sit anywhere else has them stand there (the corners where people with time on their hands gather, the waterside's
 menders, the farm's rest, the campuses' quads, the market's petty traders, the food sellers' and barbers' customers,
@@ -3778,6 +3786,14 @@ step, half a second; the test now holds on until the car is going); `test/play.m
 expected the View button on a touch screen, and four and a half seconds on the keke's accelerator took it 0.8 m, short
 of the coach, in the same way: both brought up to date).
 
+**Tests of the fix** (on the build that went live with it): 518 headless; `test/npc-walk.mjs` with a phone's settings
+(227 frames of walking, of seven of his townspeople's figures and a police officer's) and with a computer's (209, of
+four and two police officers'): the bones within 2.9 degrees of the way the figure goes half the time, never sideways;
+the drawn body at the hips within 3.4 degrees half the time, sideways in one frame of 227 (the phone's; the computer's
+run measured it, before the test was made to, halfway down the thighs, where the stride swings it); the hands drawn 4 to
+7 cm from their bones. Before the fix the same figures stood with their arms held out (the pictures of the crowd test of
+the next part, run that morning).
+
 ## Tests
 
 ```
@@ -3807,7 +3823,7 @@ node test/figures.mjs out/                         # every supplied figure: chos
 node test/camera.mjs out/                          # the street camera through the owner's list: standing, walking, toward it, turning, running, the View button, dragging, a wall behind at four distances, another player, a phone upright and sideways; framed as in his recording
 node test/sky.mjs out/                             # the sky the player chooses: Settings' two rows, Night at the town's morning (the sky, the lamps, the town's own clock unmoved), Rain, Dusk, Morning, Noon, Storm, back to the real ones, kept
 node test/stars.mjs out/                           # the police's stars: none when not wanted, one for a fight, two for running on, blinking while one fades out of sight, one at a time, then not wanted; at the wheel too
-../server/with-postgres.sh node test/npc-walk.mjs out/ [phone]   # the townspeople walk facing the way they go: from their hips, frame by frame, at five busy places (round them again, up to three times, while too little walking has been seen)
+../server/with-postgres.sh node test/npc-walk.mjs out/ [phone]   # the townspeople walk facing the way they go: from their hips, frame by frame, at five busy places (round them again, up to three times, while too little walking has been seen); the body drawn as well: the skin at the hips, each hand at its bone
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown

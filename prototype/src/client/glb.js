@@ -465,9 +465,13 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
     root.add(turn);
     for (const r of sceneRoots) turn.add(objects[r]);
     root.updateMatrixWorld(true);
+    // (bound as the file has it, before it is turned: the file's inverse bind matrices are the bones' as the file has
+    // them, and a skeleton bound after the turn drew the body turned twice, half round from the way it was made, and moved
+    // its limbs about the wrong ways, the arms held out: 30 October 2026, `test/npc-walk.mjs` now looks at the drawn
+    // body too)
+    mesh.bind(new THREE.Skeleton(bones, inverses), mesh.matrixWorld);
     if (facing === null) facing = facingOf(objects);
     if (facing) { turn.rotation.y = -facing; root.updateMatrixWorld(true); }
-    mesh.bind(new THREE.Skeleton(bones, inverses), mesh.matrixWorld);
     return { root, mesh, bones };
   }
   const bounds = geometry.boundingBox;
