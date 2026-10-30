@@ -7,21 +7,36 @@
 // door, the rider pulled off, the seat taken), and the player is in the
 // seat only when those have run their course. It is an offence from the
 // moment it is done, and the owner knows who did it.
+//
+// (30 October 2026) And a car of the town's (traffic.js) standing still with its driver at the wheel, at the
+// roadside, at a red light or in a queue, from beside either front door: the door opened, the driver pulled out (who
+// runs, out of the far door), the seat taken. It is driven as the player's own cars are (own-cars.js), and it is never
+// theirs: never on their list of cars, never sold; the police take back every one when they catch them.
 
-import { ZONE_FLEET, zoneService, zoneResident } from './zone.js';
+import { ZONE_FLEET, zoneService, zoneResident, zoneWalkable } from './zone.js';
 import { GameError } from './registry.js';
 import { PACE } from './actors.js';
+import { POWER_CARS } from './power-cars.js';
 
 export const HIJACK = Object.freeze({
   okada: Object.freeze({ lateral: Object.freeze([0.35, 1.6]), along: Object.freeze([-0.3, 1.1]), stand: Object.freeze([0.78, 0.25]), steps: Object.freeze([['reach', 0.5], ['pull', 1.4], ['mount', 2.2]]) }),
   keke: Object.freeze({ lateral: Object.freeze([0.5, 2.0]), along: Object.freeze([-0.25, 1.5]), stand: Object.freeze([1.12, 0.5]), steps: Object.freeze([['door', 0.6], ['enter', 1.7]]) }),
+  // a car: its own width and length say where its doors are (`carRule`)
+  car: Object.freeze({ steps: Object.freeze([['door', 0.7], ['pull', 1.7], ['enter', 2.5]]) }),
 });
+// Beside a car's front doors: from just off its side to a long step away, from a little behind the door (a little
+// behind its middle, as own-cars.js has it) to a little ahead of it; squared up a step out from it.
+export function carRule(model) {
+  const s = POWER_CARS[model] || { length: 4.8, width: 2.1 };
+  const door = -0.15 * s.length;
+  return { lateral: [s.width / 2 + 0.05, s.width / 2 + 1.7], along: [door - 1.4, door + 1.6], stand: [s.width / 2 + 0.45, door], steps: HIJACK.car.steps };
+}
 
 // Where someone stands in relation to a vehicle: `lateral` metres to its side
 // (positive to its left), `along` metres ahead of its middle. `ok` when that is
 // beside the driver; `stand` is the exact place to stand to take it from that side.
 export function driverSide(kind, v, px, pz) {
-  const rule = HIJACK[kind];
+  const rule = kind === 'car' ? carRule(v.model) : HIJACK[kind];
   const h = v.h !== undefined ? v.h : v.heading;
   const dx = px - v.x, dz = pz - v.z;
   const lateral = dx * Math.cos(h) - dz * Math.sin(h);
@@ -56,6 +71,9 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
     } else if (target && target.vehicle) {
       kind = 'keke'; id = String(target.vehicle);
       at = vehicles.seizable(vehicles.get(id), p.id);
+    } else if (target && target.car !== undefined && target.car !== null && hub.traffic) {
+      kind = 'car'; id = Number(target.car);
+      at = hub.traffic.seizable(id);
     } else throw new GameError('NO_TARGET', 'There is nothing there to take.');
     if (!at.ok) throw new GameError(at.code, at.reason);
     const where = driverSide(kind, at, p.x, p.z);
@@ -66,12 +84,14 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
     p.x = where.stand.x; p.z = where.stand.z; p.heading = Math.atan2(at.x - p.x, at.z - p.z); p.lastMoveAt = real();
     if (hub.conflict) hub.conflict.stop(p);
     if (kind === 'okada') okada.freeze(id, true);
+    if (kind === 'car') hub.traffic.freeze(id, true);
     return { hijack: view(p) };
   }
 
   function cancel(p) {
     if (!p.hijack) return {};
     if (p.hijack.kind === 'okada') okada.freeze(p.hijack.id, false);
+    if (p.hijack.kind === 'car' && hub.traffic) hub.traffic.freeze(p.hijack.id, false);
     p.hijack = null;
     return {};
   }
@@ -95,6 +115,26 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
       actors.flee(i, taken.x, taken.z, PACE.run, 'Robbed of his motorcycle', 16);
       const m = actors.get(i); if (m) m.after = real() + 9;
       emit(p.id, { type: 'note', text: `You have ${people[i].first}'s motorcycle. He has seen your face.`, crime: crime.id });
+      return;
+    }
+    if (h.kind === 'car') {
+      const traffic = hub.traffic;
+      traffic.freeze(h.id, false);
+      const at = traffic.seizable(h.id);
+      if (!at.ok) return;
+      const i = at.person, spec = POWER_CARS[at.model];
+      // the driver gets out of the far door and runs; the thief is at the wheel
+      const out = spec.width / 2 + 0.9, back = spec.length / 2 + 0.9;
+      // (out of the far door; where there is no room on that side, out behind the car, or on the near side behind it)
+      const far = [[-out * h.side, 0], [0, -back], [out * h.side, -back * 0.8]].map(([l, a]) => ({ x: at.x + Math.cos(at.h) * l + Math.sin(at.h) * a, z: at.z - Math.sin(at.h) * l + Math.cos(at.h) * a })).find((q) => zoneWalkable(q.x, q.z)) || { x: at.x - Math.cos(at.h) * out * h.side, z: at.z + Math.sin(at.h) * out * h.side };
+      const taken = traffic.take(h.id, p);
+      actors.drop(i);
+      actors.take(i, state.t, far);
+      const crime = hub.justice.offence(p, 'vehicle_theft', { victim: { kind: 'npc', id: i, name: people[i].name }, x: taken.x, z: taken.z, vehicle: `car:${h.id}` });
+      actors.flee(i, taken.x, taken.z, PACE.run, 'Robbed of the car', 18);
+      const m = actors.get(i); if (m) m.after = real() + 9;
+      hub.ownCars.enterTaken(p, { model: taken.model, x: taken.x, z: taken.z, h: taken.h, n: h.id });
+      emit(p.id, { type: 'note', text: `You have taken ${people[i].first}'s ${spec.name}. ${people[i].first} has seen your face. It is not yours: it can never be sold, and the police will take back every car you have taken when they catch you.`, crime: crime.id });
       return;
     }
     const v = vehicles.get(h.id);

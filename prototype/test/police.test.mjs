@@ -23,32 +23,45 @@ const walkable = (x, z, r = 0.45) => Z.zoneWalkable(x, z, [], r);
 // the first point of a straight line that is not clear for someone walking along it, or null
 const blockedOn = (ax, az, bx, bz) => { const n = Math.max(1, Math.ceil(Math.hypot(bx - ax, bz - az) / 0.5)); for (let i = 0; i <= n; i += 1) { const x = ax + ((bx - ax) * i) / n, z = az + ((bz - az) * i) / n; if (!walkable(x, z, 0.3)) return [x, z]; } return null; };
 
-test('the town\'s people: ten police officers, five women and five men, his twenty-five townspeople, and nobody else but the named residents at their counters and the mason', () => {
+test('the town\'s people: ten police officers, five women and five men, his townspeople (each of his twenty-three figures ten of them, the first twenty-five as they were), and nobody else but the named residents at their counters and the mason', () => {
   // (27 October 2026, the owner: "replace the current police in the game with this male and female police ... 10
   // police. 5 males, 5 females"; the sixteen policewomen before them are kept only in the lab's lineup; and his
   // townspeople, each drawn as he made them: twenty-one women, each her own figure, and four men in his two)
   const pop = createPopulation({ state: {}, timeScale: TIME_SCALE });
-  assert.equal(pop.count, 35);
+  // (30 October 2026, the owner: "Maybe 1 NPC character should be multiplied into 10 places": each of his figures ten
+  // of the town's people, those added made after the first thirty-five, who are exactly as they were)
+  assert.equal(pop.count, 240);
   const police = pop.people.filter((p) => p.job === 'police'), town = pop.people.filter((p) => p.job !== 'police');
   assert.equal(police.length, 10);
   assert.equal(police.filter((p) => p.gender === 'f').length, 5);
   assert.equal(police.filter((p) => p.gender === 'm').length, 5);
-  assert.equal(town.length, 25);
+  assert.equal(town.length, 230);
   for (const p of town) {
     const f = NPC_FIGURES[p.look.figure];
     assert.ok(f && !f.police, `${p.name} wears one of his townspeople`);
     assert.equal(f.gender, p.gender);
     assert.ok(p.age >= 18, 'grown up');
-    assert.ok(['hawker', 'unemployed'].includes(p.job));
+    assert.ok(['hawker', 'unemployed', 'trader', 'homemaker', 'driver', 'labourer', 'motorist'].includes(p.job));
   }
+  // each of his figures ten of them (and of every figure, one or two at the wheel of a car, traffic.js); the first
+  // twenty-five as they were: hawkers and those about the town, the women each her own figure
+  const byFigure = new Map(); for (const p of town) byFigure.set(p.look.figure, (byFigure.get(p.look.figure) || 0) + 1);
+  const drivers = new Map(); for (const p of town) if (p.job === 'motorist') drivers.set(p.look.figure, (drivers.get(p.look.figure) || 0) + 1);
+  assert.equal(town.filter((p) => p.job === 'motorist').length, 25);
+  assert.equal(drivers.size, 23, 'every figure at the wheel of a car');
+  assert.ok([...byFigure.values()].every((n) => n === 10), JSON.stringify(Object.fromEntries(byFigure)));
+  const first = town.filter((p) => p.index < 35);
+  assert.equal(first.length, 25);
+  assert.ok(first.every((p) => ['hawker', 'unemployed'].includes(p.job)));
   const used = new Set(town.map((p) => p.look.figure));
+  const firstWomen = first.filter((p) => p.gender === 'f');
   assert.equal(used.size, Object.values(NPC_FIGURES).filter((f) => !f.police).length, 'every one of his townspeople is in the town');
-  assert.equal(new Set(town.filter((p) => p.gender === 'f').map((p) => p.look.figure)).size, town.filter((p) => p.gender === 'f').length, 'no two women alike');
+  assert.equal(new Set(firstWomen.map((p) => p.look.figure)).size, firstWomen.length, 'no two of the first women alike');
   assert.deepEqual(Z.ZONE_RESIDENTS.map((r) => r.id).sort(), ['clerk', 'cook', 'corporal', 'instructor', 'lands', 'mason', 'nurse', 'rider', 'sergeant', 'trader', 'yardowner']);
   assert.deepEqual(Z.ZONE_FORMER_RESIDENTS.map((r) => r.id).sort(), ['clothseller', 'fisher', 'moulder', 'produce', 'surveyor'], 'the five no longer seen, kept for the books');
   // everyone at a counter has a counter (the mason builds)
   for (const r of Z.ZONE_RESIDENTS) if (r.id !== 'mason') assert.ok(Z.ZONE_SERVICES.some((s) => s.staff.split('|').includes(r.id)), `${r.name} keeps a counter`);
-  assert.equal(new Set(pop.people.map((p) => p.name)).size, 35, 'everyone their own name');
+  assert.equal(new Set(pop.people.map((p) => p.name)).size, 240, 'everyone their own name');
   // his police officer for a woman, his security guard for a man, each drawn as he made them; each of the five a
   // little taller or shorter than the next; a plain figure in the uniform's colours from far off
   for (const p of police) {
@@ -202,7 +215,7 @@ test('a game saved with the town as it was opens with the town as it is: what it
   const a = after.game;
   assert.equal(a.state.players[id].riding, null, 'off the okada, which is gone');
   assert.deepEqual(a.state.okada.riders, []);
-  assert.equal(a.internals.population.count, 35);
+  assert.equal(a.internals.population.count, 240);
   assert.equal(after.auditor.balance(a.state.players[id].wallet), money, 'the money is the player\'s still');
   assert.deepEqual(after.auditor.reconcile(), []);
   // and it runs: views, ticks, the police on their beats

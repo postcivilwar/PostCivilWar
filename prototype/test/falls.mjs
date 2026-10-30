@@ -60,9 +60,10 @@ const camNow = () => page.evaluate(() => { const n = window.__nlw, c = n.camera,
 await page.evaluate(() => { const n = window.__nlw; n.place(0, 60); n.face(Math.PI); n.cam.yaw = Math.PI; });
 await page.waitForTimeout(1500);
 const street = await camNow();
-// (30 October 2026, the camera as in the big open-world games, camera.js: the street view's lens is 58 degrees, a little
-// wider than the 55 everything else has)
-check('G: the game starts on the street view: close behind, the eye at about head height, a little wider lens', street.view === 'street' && street.back > 3.0 && street.back < 4.6 && street.up > 1.5 && street.up < 2.3 && street.fov >= 57.5, street);
+// (30 October 2026, the camera as in the big open-world games, camera.js: 2.7 m behind on foot (it was 3.9), the street
+// view's lens 58 degrees, a little wider than the 55 everything else has. The first runs on that day still asked for 3 to
+// 4.6 m, and passed while the camera was still coming in from further back)
+check('G: the game starts on the street view: close behind, the eye at about head height, a little wider lens', street.view === 'street' && street.back > 2.3 && street.back < 3.3 && street.up > 1.5 && street.up < 2.3 && street.fov >= 57.5, street);
 await shot('G-street-standing');
 const keys = await page.evaluate(() => document.getElementById('keys').innerText);
 check('G: the view key is offered on foot', /View/.test(keys), keys);
@@ -73,7 +74,8 @@ await page.keyboard.down('w'); await page.keyboard.down('Shift'); await page.wai
 const running = await camNow();
 await shot('G-street-running');
 await page.keyboard.up('Shift'); await page.keyboard.up('w'); await page.waitForTimeout(1500);
-check('G: at a run it comes a little closer', running.back < street.back - 0.3 && running.back > 2.2, { running, street });
+// (at a run no closer than a step since 30 October: 5% of the distance, camera.js `run`)
+check('G: at a run it comes a little closer', running.back < street.back - 0.03 && running.back > 2.2, { running, street });
 
 // ---- the White Sport Tourer, bought with arrival money at the showroom ----
 const bought = await page.evaluate(async () => {

@@ -1,5 +1,6 @@
-// Cars in the town: the one this player drives, the ones they left standing, and other players' (driven, or left
-// standing near them). Each is the owner's model (car-model.js), fetched only when it is needed (driven, or standing
+// Cars in the town: the one this player drives, the ones they left standing, other players' (driven, or left
+// standing near them), and the town's own traffic (traffic.js, 30 October 2026: the nearest few of its cars, each with
+// a set of its pictures smaller than the one the player drives, and fetched after it). Each is the owner's model (car-model.js), fetched only when it is needed (driven, or standing
 // within sight) and shared by every car of its kind.
 //
 // A car being driven rolls on its wheels as it goes, its front wheels turn with the steering, and its body moves on
@@ -23,6 +24,12 @@ import { POWER_CARS } from '../sim/power-cars.js';
 
 const SIGHT = 120;                  // metres within which a parked car is drawn
 const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven: drawn within this, the nearest few
+// the town's traffic drawn as its models: the nearest few within this (further off, its pictures, vehicle-standins.js);
+// with the set of pictures for each (a phone: 512, a computer: 1024; the car the player drives has its own set)
+// (a copy of the page opened from the disk cannot fetch a model, as render-carshow.js and vehicle-standins.js know: the
+// town's cars, which come by anywhere, are not asked for there, so that nothing is asked for in vain)
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
+export const TRAFFIC_DRAWN = Object.freeze({ lite: Object.freeze({ most: 2, sight: 45, tier: '512' }), full: Object.freeze({ most: 5, sight: 90, tier: '1k' }) });
 export const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 });
 // How a driver sits (radians, metres): leaning back in the seat, less if the wheel is further than the arms reach,
 // more if the roof asks it (never past `mostRecline`), sunk into the cushion if that is still not enough, and further
@@ -36,15 +43,17 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
   const shown = new Map();          // key -> { id, car, loading, travelled, failed, fx }
   const frozen = new Set();         // figures whose bones seat() set by hand this frame
 
-  function entry(key, id) {
+  function entry(key, id, tier = null) {
     let e = shown.get(key);
     if (e && e.id !== id) { if (e.car) e.car.dispose(); shown.delete(key); e = null; }
     if (!e) {
       e = { id, car: null, loading: true, travelled: 0, failed: false, fx: null };
       shown.set(key, e);
       const spec = POWER_CARS[id];
-      // (another player's car is asked for after the small picture that stands in for it meanwhile, vehicle-standins.js)
-      loadCar(id, { base, lite, length: spec ? spec.length : 4.6, priority: String(key).startsWith('peer:') ? 'low' : undefined }).then((car) => {
+      // (another player's car, or one of the town's, is asked for after the small picture that stands in for it
+      // meanwhile, vehicle-standins.js)
+      const later = String(key).startsWith('peer:') || String(key).startsWith('traffic:');
+      loadCar(id, { base, lite, length: spec ? spec.length : 4.6, priority: later ? 'low' : undefined, tier }).then((car) => {
         if (shown.get(key) !== e) { car.dispose(); return; }
         e.car = car; e.loading = false; scene.add(car.group);
       }, (error) => { e.loading = false; e.failed = true; onError(error); });
@@ -74,14 +83,16 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     g.rotation.set(0, d.h, 0);
     g.visible = true;
     e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch, roll: fx.roll });
-    e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: d.brake && (d.speed || 0) > 0.2 ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
+    // (the brake lamps when braking, and on a car of the town's waiting at a red light, its foot on the brake)
+    e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
   };
 
   // driven: { id, x, z, h, speed, steer, throttle, brake, lamps } or null (this player's); drives: [{ key, ...the
   // same }] (other players' cars being driven, near enough to see); parked: [{ key?, car, x, z, h }];
   // groundY(x, z); from: { x, z }; night (0..1)
-  function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, groundY = () => 0, from = { x: 0, z: 0 }, night = 0 }) {
+  // traffic: [{ key, id, x, z, h, speed, steer, brake, held }] (the town's cars near enough to see)
+  function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0 }) {
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -96,6 +107,14 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       const key = `peer:${r.key}`;
       wanted.add(key);
       const e = entry(key, r.id);
+      e.travelled += (r.speed || 0) * dt;
+      if (e.car) place(e, r, groundY, dt, night);
+    }
+    const T = TRAFFIC_DRAWN[lite ? 'lite' : 'full'];
+    if (!ON_DISK) for (const r of traffic.filter((q) => POWER_CARS[q.id] && dist(q) <= T.sight).sort((a, b) => dist(a) - dist(b)).slice(0, T.most)) {
+      const key = `traffic:${r.key}`;
+      wanted.add(key);
+      const e = entry(key, r.id, T.tier);
       e.travelled += (r.speed || 0) * dt;
       if (e.car) place(e, r, groundY, dt, night);
     }

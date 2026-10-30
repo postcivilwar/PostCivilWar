@@ -565,7 +565,9 @@ export const ZONE_POPULATION = Object.freeze({
   // held about them (renew.js).
   // (27 October 2026, the owner: "replace the current police ... with this male and female police ... 10 police. 5
   // males, 5 females": his police officer and his security guard, five of each; edition 3)
-  edition: 4,
+  // (30 October 2026: each of his figures ten of the town's people, below; edition 5. Twenty-five of them at the wheel
+  // of the showroom's cars, traffic.js; edition 6)
+  edition: 6,
   jobs: Object.freeze([
     ['police', 5, 'police', Object.freeze({ female: 1, looks: 'police' })],
     ['police', 5, 'police', Object.freeze({ female: 0, looks: 'police' })],
@@ -575,6 +577,28 @@ export const ZONE_POPULATION = Object.freeze({
     ['hawker', 10, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([19, 32]), figures: Object.freeze(['N1', 'N3', 'N5', 'N6', 'N9', 'N11', 'N13', 'N15', 'N17', 'N19']) })],
     ['unemployed', 11, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([19, 34]), figures: Object.freeze(['N2', 'N7', 'N8', 'N10', 'N12', 'N14', 'N16', 'N18', 'N20', 'N22', 'N23']) })],
     ['unemployed', 4, 'street', Object.freeze({ female: 0, looks: 'npc', ages: Object.freeze([21, 36]), figures: Object.freeze(['N4', 'N21']) })],
+  ].map(Object.freeze)),
+  // (30 October 2026, the owner: "the NPC seems to be very few ... They are scarce ... Maybe 1 NPC character should be
+  // multiplied into 10 places"): each of his figures is ten of the town's people now, the twenty-five above and nine
+  // more of each, made after them (population.js, rosterOf) so that everyone above stays exactly as they were: their
+  // numbers, names and homes (their voices know them by their names). The women who hawk, at the market's stalls and
+  // mats too; the others about the town, shopping and at home; the men about the town, at the motor park and on the
+  // building sites (edition 5); and, of every figure, some at the wheel of a car (edition 6)
+  more: Object.freeze([
+    ['hawker', 40, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([19, 34]), figures: Object.freeze(['N1', 'N3', 'N5', 'N6', 'N9', 'N11', 'N13', 'N15', 'N17', 'N19']) })],
+    ['trader', 30, 'market', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([21, 36]), figures: Object.freeze(['N1', 'N3', 'N5', 'N6', 'N9', 'N11', 'N13', 'N15', 'N17', 'N19']) })],
+    ['homemaker', 10, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([22, 36]), figures: Object.freeze(['N1', 'N3', 'N5', 'N6', 'N9', 'N11', 'N13', 'N15', 'N17', 'N19']) })],
+    // (30 October 2026, the owner: "You need to allow the NPC to drive different kinds of cars based on the cars
+    // available at the showroom"): twenty-five who drive about the town in the showroom's cars (traffic.js), one of each
+    // of the women's figures and two of each of the men's (edition 6)
+    ['motorist', 10, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([24, 36]), figures: Object.freeze(['N1', 'N3', 'N5', 'N6', 'N9', 'N11', 'N13', 'N15', 'N17', 'N19']) })],
+    ['unemployed', 44, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([19, 34]), figures: Object.freeze(['N2', 'N7', 'N8', 'N10', 'N12', 'N14', 'N16', 'N18', 'N20', 'N22', 'N23']) })],
+    ['motorist', 11, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([24, 36]), figures: Object.freeze(['N2', 'N7', 'N8', 'N10', 'N12', 'N14', 'N16', 'N18', 'N20', 'N22', 'N23']) })],
+    ['homemaker', 44, 'street', Object.freeze({ female: 1, looks: 'npc', ages: Object.freeze([22, 36]), figures: Object.freeze(['N2', 'N7', 'N8', 'N10', 'N12', 'N14', 'N16', 'N18', 'N20', 'N22', 'N23']) })],
+    ['unemployed', 4, 'street', Object.freeze({ female: 0, looks: 'npc', ages: Object.freeze([21, 36]), figures: Object.freeze(['N4', 'N21']) })],
+    ['motorist', 4, 'street', Object.freeze({ female: 0, looks: 'npc', ages: Object.freeze([24, 36]), figures: Object.freeze(['N4', 'N21']) })],
+    ['driver', 4, 'park', Object.freeze({ female: 0, looks: 'npc', ages: Object.freeze([24, 36]), figures: Object.freeze(['N4', 'N21']) })],
+    ['labourer', 4, 'yard', Object.freeze({ female: 0, looks: 'npc', ages: Object.freeze([21, 34]), figures: Object.freeze(['N4', 'N21']) })],
   ].map(Object.freeze)),
 });
 

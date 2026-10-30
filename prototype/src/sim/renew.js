@@ -18,8 +18,12 @@ export function renewTown(state) {
     if (typeof p.astride === 'number') p.astride = null;                   // on a rider's motorcycle (a string is one of their own, kept)
     if (p.fight && p.fight.target && p.fight.target.kind === 'npc') p.fight = null;
     if (p.involvedNpc) p.involvedNpc = null;
-    if (p.hijack && p.hijack.kind === 'okada') p.hijack = null;
+    if (p.hijack && (p.hijack.kind === 'okada' || p.hijack.kind === 'car')) p.hijack = null;
+    // at the wheel of a car of the town's (traffic.js): its owner is somebody else now, or nobody; it goes back
+    if (p.pcar && Number.isInteger(p.pcar.taken)) { p.incar = null; p.pcar = null; }
   }
+  // the town's motorists and their cars: made again for the town's people as they now are
+  delete state.traffic;
   // people taken out of their day, and how townspeople were moving
   delete state.actors;
   delete state.reactions;

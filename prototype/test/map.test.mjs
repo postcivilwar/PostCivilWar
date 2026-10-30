@@ -8,7 +8,7 @@ import { readFileSync } from 'node:fs';
 import { createHost } from '../src/sim/host.js';
 import { ZONE, ZONE_ROADS, ZONE_SERVICES, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_PROPS, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, BRIDGE, HABITATION } from '../src/sim/zone.js';
 import { MAP_STYLE, roadRank, mapExtent } from '../src/client/town-map.js';
-import { ok, walkTo } from './helpers.mjs';
+import { ok } from './helpers.mjs';
 
 const onRoad = (x, z, slack = 0.8) => ZONE_ROADS.some((r) => x >= r.x0 - slack && x <= r.x1 + slack && z >= r.z0 - slack && z <= r.z1 + slack);
 // is every point of the line from a to b on a road?
@@ -21,7 +21,9 @@ test('the way shown on the map keeps to the town\'s roads: only its first step t
   const starts = [null, [48, -58], [-95, -178], [30, 14], [-140, -62]];
   let checked = 0;
   for (const start of starts) {
-    if (start) walkTo(host, id, start[0], start[1]);
+    // (stood there: the way is asked for from where the player is, however they came there; walking there along
+    // the town's roads, with its traffic now, only made this test about something else)
+    if (start) { const p = host.game.state.players[id]; p.x = start[0]; p.z = start[1]; p.lastMoveAt = host.game.state.real; }
     const me = host.game.view(id).self;
     for (const place of ZONE_SERVICES) {
       const way = ok(host.game.intent(id, { type: 'map.route', x: place.x, z: place.z, label: place.name }));

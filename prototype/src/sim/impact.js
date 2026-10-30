@@ -263,9 +263,13 @@ export function createImpact({ state, players, population, actors, conflict, tal
   // everyone does; at speed a few do not; a horn makes everyone look. Someone sitting or lying cannot, and
   // someone who is busy with something else (an officer on a call, a person running from a fight) does not.
   function warn(driver, rows, bx, bz, tx, tz, speed, reach) {
+    makeWay(rows, bx, bz, tx, tz, speed, reach, { horn: real() - (driver.hornAt === undefined ? -10 : driver.hornAt) < 2.5 });
+  }
+  // (the same for the town's own traffic, traffic.js, with its own dice, so that the rest of the town's chances fall as
+  // they did before it came; at the pace of someone stepping aside, without a start)
+  function makeWay(rows, bx, bz, tx, tz, speed, reach, { horn = false, chance = () => rng.next(), pace = 4.6, react = true } = {}) {
     const now = real();
     const look = clamp(speed * 1.1 + 3, 5, 14);
-    const horn = now - (driver.hornAt === undefined ? -10 : driver.hornAt) < 2.5;
     for (const [i, px, pz, pose] of rows) {
       if (pose !== POSE.stand && pose !== POSE.walk) continue;
       const along = (px - bx) * tx + (pz - bz) * tz;
@@ -275,7 +279,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
       const rec = book.npc[i] || (book.npc[i] = { at: -10, health: 100, t: state.t });
       if (now - (rec.warned === undefined ? -10 : rec.warned) < 2.5) continue;
       rec.warned = now; rec.t = state.t;
-      const notices = people[i].age < IMPACT.minAge || horn || rng.next() < (speed > 6 ? 0.88 : 0.97);
+      const notices = people[i].age < IMPACT.minAge || horn || chance() < (speed > 6 ? 0.88 : 0.97);
       if (!notices) continue;
       const first = across > 0.15 ? 1 : across < -0.15 ? -1 : i % 2 ? 1 : -1;
       const need = reach + 1.1 - Math.abs(across);
@@ -286,10 +290,10 @@ export function createImpact({ state, players, population, actors, conflict, tal
         if (zoneWalkable(x, z)) { to = [x, z]; break; }
       }
       if (!to || !actors.take(i, state.t)) continue;
-      actors.walkTo(i, to[0], to[1], 4.6, 'Getting out of the way');
+      actors.walkTo(i, to[0], to[1], pace, 'Getting out of the way');
       actors.get(i).after = now + 2.2;
       // a leap clear, or a fright
-      if (hub.reactions) hub.reactions.react(i, horn || speed > 5 ? 'jump' : 'scared');
+      if (react && hub.reactions) hub.reactions.react(i, horn || speed > 5 ? 'jump' : 'scared');
     }
   }
 
@@ -492,7 +496,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
   // The driver sounds the horn: for a moment, everyone ahead looks up.
   function horn(driver) { driver.hornAt = real(); driver.horns = (driver.horns || 0) + 1; return {}; }
 
-  const api = { clear, step, stalled, horn, tick, felled, falls, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, record: (i) => book.npc[i] || null };
+  const api = { clear, step, stalled, horn, tick, felled, falls, selfView, stanceOf, maySee, eventsNear, fallen, bleeding, onFoot, makeWay, record: (i) => book.npc[i] || null };
   hub.impact = api;
   return api;
 }

@@ -3794,10 +3794,166 @@ run measured it, before the test was made to, halfway down the thighs, where the
 7 cm from their bones. Before the fix the same figures stood with their arms held out (the pictures of the crowd test of
 the next part, run that morning).
 
+## His townspeople: ten of each, out at night, and drawn as themselves (30 October 2026)
+
+The rest of the owner's brief of 30 October 2026 for his townspeople: "the npc are looking so cartoonish. They don't
+even look exactly like the 3D GLb file I imported. Also the NPC seems to be very few. I can't even see them on the
+street. They are scarce. Maybe you need to multiply them using the same NPC characters I gave you. Maybe 1 NPC character
+should be multiplied into 10 places."
+
+**Ten of each** (`atani.js`, `ZONE_POPULATION.more`; `population.js`, `rosterOf`). Each of his twenty-three
+townspeople's figures is ten of the town's people now: 230 of them and the ten police, 240 where there were 35. The
+first thirty-five are exactly as they were (their numbers, names, homes and families; their voices know them by their
+names and stay theirs). The others are made after them, from a seed of their own, each named apart from them and from
+anyone the voices were written for: fifty women hawking along the roads, thirty at the market's stalls and mats,
+fifty-four about the town shopping and at home, sixty-three women and men passing the time at the corners, four men at
+the motor park, four on the building sites, and twenty-five at the wheel of the town's cars for some of the day (the
+next section). When something happens near them they call out with the voice of the first one made from their figure
+(`voices.js`); the conversations stay the first ones'.
+
+**Out in the evening and at night** (`population.js`, `addNight`). Until now everyone was home by eight in the evening
+and stayed there till morning, and the owner plays at night. On any one day, of his townspeople about half go out for
+the evening (from about twenty to eight until ten or eleven), a fifth stay out late (till one or two in the morning),
+and a few the whole night, going between two places until a little before five: to the corners where people gather, the
+motor park's corners and its waiting row, within a short walk of home (or out in front of the house, standing: there is
+no seat there); none on a day they are ill. His townspeople out of doors on foot by the town's clock (counted in the
+whole town, its traffic too, `counts-any.mjs` in the session's notes; before → now): 10 am 25 → 205, 9.30 pm 1 → 162, 11
+pm 0 → 96, 1 am 0 → 63, 3 am 0 → 25 (and the cars on the roads at those hours: 16, 12, 9, 4, 1); within 80 m of the
+motor park at 1 am, 0 → 45. The police as before (seven out by day, three at night). Each day now begins where the day
+before left each person, and a walk not over at midnight carries on (`compile`): nobody is moved in a jump.
+
+**Drawn as themselves** (`crowd-figures.js`, `render-crowd.js`; main.js `CROWD`). Beyond the few full figures close by
+(five on a phone at Low), everyone within the level's reach who is standing or walking is drawn from his own figure,
+many at once: each of his figures in use near the player is drawn once for everyone who wears it (its own light copy;
+its picture and shape shared with any full figure of it close by: nothing fetched or handed to the graphics card twice),
+each where they are, turned the way they face, at their own size and at their own moment of the figure's own walk or its
+standing, at the pace they go. The walk and the standing are played through once as a figure comes and written down
+frame by frame, as where each bone has the figure (`bakeFigureMoves`), in a picture of numbers the graphics card reads;
+each person is told which frame they are at. Only those the camera can see are drawn. On a phone: within 22 to 34 m (Low
+to Ultra), up to 8 to 10 of his figures at once (9 at Low, 8 at Medium, where the town's own pictures are larger) and 8 to 14 people of each; on a computer 30 to 55 m, 10 to 16, 14 to 36.
+Further off, and anyone sitting, lying or riding beyond the full figures, the plain figures in their colours, as before.
+
+**Tests**: 529 headless tests pass with the next part's (new: `test/nights.test.mjs` 4: ten of each of his figures, the
+first thirty-five as they were; out of doors by day, in the evening and at night; nobody moved in a jump at midnight;
+the same people out on the same night in every copy of the town). In real browsers, each alone on the machine, on the
+built site (with the fix of the morning to how his figures are drawn, `glb.js`): `test/crowd.mjs` 7/7 with a phone's
+settings and 7/7 with a computer's (by day 144 and 151 of the town's people in sight about the market; of those near and
+in the picture, 16 of 17 drawn as his figures on a phone, the five nearest in full and eleven of the many, at Low; at
+one in the morning 47 out of doors within 80 m of the motor park; a phone's graphics card 63 to 83 MB; the first runs
+counted those behind the camera too, and a phone held six of his figures at Low: four of seventeen near and in the
+picture were drawn plainly, so a phone now holds three more at each level); `test/npc-walk.mjs` 4/4 with each (with 230
+townspeople about: the bones and the drawn body within 2.9 to 4 degrees of the way they go half the time, never
+sideways; the hands drawn 4 to 7 cm from their bones); `test/phone-memory.mjs` 11/11; `test/stars.mjs` 7/7;
+`test/vehicle-sync.mjs` 12/12; `test/falls.mjs` 21/21 (its camera checks brought up to date with the morning's camera:
+they still asked for 3 to 4.6 m behind, and had passed while the camera was coming in from further back);
+`test/motorcycles.mjs` 108/108; `test/showroom.mjs` 28/28; `test/carshow.mjs` 42/42 (the nearest three engines are
+heard, the town's cars among them: the test now listens for the other player's among those); `test/play.mjs` every
+session (brought up to date: the town's 251 people and their jobs; the market levy read out Monday to Saturday, so on a
+Sunday the test takes the next day; and the town's cars are not fetched by a page opened from the disk, where nothing
+can be fetched: `car-view.js`). The tests ran on the builds before the last two changes, which touch only a page opened
+from the disk and, on a phone, the vehicles' pictures (a quarter of their size) and how many of his figures are held at
+Medium (eight; the measuring below): the play-through ran again after the first, and the traffic test with a phone's
+settings and the phone's measuring after both.
+
+**Measured** (`tools/measure/places.mjs`, each alone on the machine; the live build, `400a72a`, before → this): a phone
+at Medium (the processor slowed four times; the motor park, the market and the PowerBike showroom, by day and at 10 pm,
+in that order): the graphics card 81.8–115.9 → 98.1–134.2 MB, under 135 at the busiest place (at first 140.5: a phone
+now keeps the vehicles' pictures at a quarter of their size, and holds eight of his figures at Medium, nine at Low), the
+page's script memory 108.7–164.2 → 137.9–208.0 MB; a computer at Ultra (the motor park, the market, the two crowded
+corners, the boulevard): the graphics card 484.6–1035.3 → 768.3–1462.6 MB (his figures held at their full pictures for
+the many drawn as themselves, and the nearest cars' models), draws a frame 5 to 25% more, the script's memory 29 to 106
+MB more. Frames here are drawn in software and are no phone's or computer's; not measurable here: frames a second on his
+phones.
+
+## The town's traffic in the showroom's cars, and taking a car (30 October 2026)
+
+The owner's brief of 30 October 2026: "You need to allow the NPC to drive different kinds of cars based on the cars
+available at the showroom. Users can hijack cars but can never put the car for sale. And if police catch them, all cars
+must be returned."
+
+**Who drives** (`atani.js`, `motorist`; `population.js`). Twenty-five of his townspeople are motorists: one of each of
+the women's figures and two of each of the men's, still ten of each figure in the town (edition 6). At the wheel they
+are in the car, not seen; the rest of their day they are about the town as those passing the time are.
+
+**What they drive** (`traffic.js`, `TRAFFIC_MODELS`). The showroom's own cars, drawn from the owner's files as every car
+is (`car-model.js`): the ten whose windows are painted on (the Grey Saloon, the Black Pickup, the Black Square SUV, the
+Blue Off-Roader, the Mint Sports Coupé, the State Limousine, the Black Luxury SUV, the Camo Expedition SUV, the Grey
+Grand Tourer and the Midnight Saloon). The other ten are open, or can be seen into, and nobody is yet drawn at the wheel
+of a townsperson's car: in them someone would be seen sitting on nothing.
+
+**When** (`shiftOf`). Each motorist's hours at the wheel change from day to day: most by day (from about half past six
+or eight until half past six to nine in the evening), some from the afternoon until late (until half past ten to half
+past midnight), a few through the night (from about seven in the evening until three to half past four). A car comes
+onto the roads, and goes home off them, only out of every player's sight (80 m).
+
+**Where** (`TRAFFIC_ROADS`, `TRAFFIC_STOPS`). Every road wide enough for two cars to pass (the 3 m lanes between the
+houses are for feet and motorcycles), short of every roadblock, and the roads out of town to the airport: twelve roads,
+nineteen junctions and road ends, every one reached from every other. A car goes from one place at the roadside to
+another (150 of them, on both sides of the roads, none nearer a junction than 18 m and none on the city block's
+boulevard; each with room for the biggest of the cars), mostly to places near a player while there is one about, and
+stands there 25 to 80 seconds, the driver at the wheel, before going on.
+
+**How** (`drive`). On the right of the road, 2 m from its middle on an 8 m road and 2.2 m on a wider one (the boulevard
+too); round the corners from its own side of one road to its own side of the next; turned round at the end of a road.
+About 32 km/h in town (29 on the city block's boulevard) and 54 km/h out of it, slower in the bends. It stops at the red
+lights on Market Road (a light gone amber as it came to it, too near to stop, it goes through). At a junction, ways
+through it that cross are taken one at a time (worked out from the ways themselves: two cars going straight on from
+opposite sides go together; one turning across the other's way waits): a car asks for the junction a little before it
+must decide whether to stop, not while a red light stands before it, and not into a junction it could not get out of.
+(People walking along a road the cars use keep within half a metre of its middle, out of their way on either side,
+`population.js`.) It keeps its distance behind whatever is in front (another car, a player's car, a keke, a player),
+stops short of anyone on foot in the road, sounds its horn at them, and after a few seconds goes round them, on
+whichever side takes it less far from its way (across the middle of the road only with the other side clear well ahead);
+townspeople in its way step aside (`impact.js`, with the traffic's own dice). It pulls out from the roadside only with
+nothing coming up behind.
+
+**Drawn and heard** (`main.js` `trafficNow`, `car-view.js` `TRAFFIC_DRAWN`, `vehicle-standins.js`). Each car where the
+town last said it was, carried on at its speed to the frame and eased there (the town speaks ten times a second). The
+nearest drawn as their models: on a phone the nearest two within 45 m, with their 512 pictures; on a computer the
+nearest five within 90 m, with their 1024 pictures (the car the player drives keeps its own). The rest within sight (a phone 160 m, a computer 260 m) as their pictures from all round (on a phone at a quarter of their size) (the showroom's, as another player's car beyond the
+nearest few is drawn), dimmed after dark, their lamps glowing at their two ends. The models' head and tail lamps lit at
+night, the brake lamps when braking and waiting at the light. The nearest three engines are heard (`audio.js`, as
+another player's car is), and the horns.
+
+**Taking a car** (`hijack.js`, `carRule`; `own-cars.js`, `enterTaken`). A car standing still with its driver at the
+wheel (at the roadside, at the red light, in a queue) can be taken from beside either front door: "Take the Grey Saloon"
+is offered there ("Take Ngozi's Grey Saloon" when the player knows the driver). The door, the driver pulled out (who
+gets out of the far door and runs, and has seen the thief's face: the police are told; taking a vehicle is two stars),
+and the player is at the wheel. It is driven as the player's own cars are. Got out of, it stands where it was left,
+theirs to get back into ("Drive the Grey Saloon you took", from beside it) and nobody else's.
+
+**Never theirs** (`own-cars.js`). Who owns which car is the website's server's to say (the market's holdings). The
+server is never told of a car taken: it is never on the player's list of cars, never in the market, never on the phone's
+Property, never sold, never brought to them; the list the server sends does not take them out of it.
+
+**Taken back** (`justice.js`, `arrest`; `traffic.js`, `recover`). When the police catch them, every car they have taken,
+the one they are in and every one they left standing, goes back to its owner: "All 3 cars you took go back to their
+owners." Each owner comes for theirs on foot, gets in, and is on their way; one who cannot come for it (indoors, or too
+long about it) has it fetched out of every player's sight. One player holds no more than five at once: a sixth left
+standing, the first is found by its owner (the town has twenty-five cars, and without this one player could empty its
+roads).
+
+**Kept with the town**. Where each car is, where it set out from and where it is going are kept with the saved town: a
+town opened again has every car on the very way it was on, every car taken still the thief's.
+
+**Tests**: 529 headless tests pass (new: `test/traffic.test.mjs` 7: the network; the motorists, the models and their
+hours; ten minutes of the town by the boulevard: on the road, on its own side, never through a red light, no two cars in
+one place; someone standing in the road: never closer than 0.35 m, the horn, round them; taking a car: too far, the
+driver out and running, the crime, never on the list of cars, driven, left, nobody else's; caught: all back, five at
+most, the owners fetch them; kept with the saved town). In real browsers: `test/traffic.mjs` 16/16 with a phone's
+settings and 16/16 with a computer's (by day near Market Road the nearest drawn as their models, two at most on a phone
+and five on a computer, the rest as their pictures; on the move never a step back nor a jump; a car at the roadside
+taken from beside its door, the driver out on foot, two stars; driven, left, "Drive" offered, back in; never among the
+player's own; caught by the police, every car back; at night their lamps lit; a phone's graphics card 44 MB; nothing in
+the console). Its first runs: a car taken beside an officer was the officer's prisoner at once, and one caught part way
+(the test now takes a car away from the police and holds them off until G, which is the catching); four seconds on the
+accelerator took the car 1.3 m on this machine (now it drives until it has gone 3 m); one car's lamps not yet set in a
+frame (now judged on those placed). The others as above.
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 518 headless tests
+node --test test/*.test.mjs                        # 529 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 103 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures
@@ -3824,6 +3980,8 @@ node test/camera.mjs out/                          # the street camera through t
 node test/sky.mjs out/                             # the sky the player chooses: Settings' two rows, Night at the town's morning (the sky, the lamps, the town's own clock unmoved), Rain, Dusk, Morning, Noon, Storm, back to the real ones, kept
 node test/stars.mjs out/                           # the police's stars: none when not wanted, one for a fight, two for running on, blinking while one fades out of sight, one at a time, then not wanted; at the wheel too
 ../server/with-postgres.sh node test/npc-walk.mjs out/ [phone]   # the townspeople walk facing the way they go: from their hips, frame by frame, at five busy places (round them again, up to three times, while too little walking has been seen); the body drawn as well: the skin at the hips, each hand at its bone
+../server/with-postgres.sh node test/crowd.mjs out/ [phone]      # his townspeople, ten of each figure: many about by day at the market and the motor park, those near drawn as his own figures many at once (those in the picture), out at one in the morning, the graphics card's memory
+../server/with-postgres.sh node test/traffic.mjs out/ [phone]    # the town's traffic in the showroom's cars: near the player, the nearest as their models and the rest as their pictures, drawn smoothly; a car taken (the stars), driven, left and taken up again, never the player's, all given back on arrest; lamps at night
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown

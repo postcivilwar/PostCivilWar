@@ -934,7 +934,7 @@ export function createUI(app) {
 
   // Health, the other fighter, the law, and what the hands are busy with.
   const LAW_CHIP = { suspicious: 'Watched', wanted: 'Wanted', pursuit: 'Police in pursuit', arrested: 'Under arrest', custody: 'In custody', released: 'Released' };
-  const TAKING = { okada: { reach: 'Reaching for the handlebar', pull: 'Pulling the rider off', mount: 'Getting on' }, keke: { door: 'At the driver\'s side', pull: 'Pulling the driver out', enter: 'Climbing into the seat' } };
+  const TAKING = { okada: { reach: 'Reaching for the handlebar', pull: 'Pulling the rider off', mount: 'Getting on' }, keke: { door: 'At the driver\'s side', pull: 'Pulling the driver out', enter: 'Climbing into the seat' }, car: { door: 'Opening the door', pull: 'Pulling the driver out', enter: 'Getting behind the wheel' } };
   let vitalsShown = '';
   let lastLaw = 'normal', arrestTimer = 0, blackoutTimer = 0;
   function lift() { clearTimeout(blackoutTimer); const b = $('blackout'); b.classList.remove('on'); setTimeout(() => { if (!b.classList.contains('on')) b.hidden = true; }, 650); }

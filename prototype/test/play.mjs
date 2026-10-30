@@ -5,7 +5,9 @@ import { pastQuestion, enterTown, openingOver, overTown } from './start.mjs';
 import { ZONE_RESIDENTS, ZONE_POPULATION } from '../src/sim/zones/atani.js';
 // the town's own people: since 22 October 2026 its police (sixteen policewomen walking their beats) and the named
 // people at the counters, until the owner's own figures come
-const TOWNSPEOPLE = ZONE_POPULATION.jobs.reduce((n, [, count]) => n + count, 0) + ZONE_RESIDENTS.length;
+// (the people of the town's jobs, and since 30 October 2026 the more of each of his figures, `more`; the residents)
+const TOWNSPEOPLE = [...ZONE_POPULATION.jobs, ...(ZONE_POPULATION.more || [])].reduce((n, [, count]) => n + count, 0) + ZONE_RESIDENTS.length;
+const TOWN_JOBS = new Set([...ZONE_POPULATION.jobs, ...(ZONE_POPULATION.more || [])].map(([job]) => job));
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { dirname, resolve } from 'node:path';
@@ -589,8 +591,9 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
   const town = await nlw(page, () => ({ people: window.__nlw.view.people.length, total: window.__nlw.view.population, crowd: window.__nlw.crowd.stats, okadas: window.__nlw.view.okadas.length, riders: window.__nlw.host.game.internals.okada.riders.length, jobs: [...new Set(window.__nlw.view.people.map((r) => window.__nlw.host.game.internals.population.people[r[0]].job))] }));
   if (town.total !== TOWNSPEOPLE) bad(`the town has ${town.total} people, not ${TOWNSPEOPLE}`);
   if (town.people < 1) bad('nobody of the town\'s is in view at the market in the morning');
-  // (since 27 October 2026 the police and the owner's own townspeople: hawkers and people out and about)
-  if (town.jobs.some((j) => !['police', 'hawker', 'unemployed'].includes(j))) bad(`someone other than the police and his townspeople is about: ${town.jobs.join(', ')}`);
+  // (since 27 October 2026 the police and the owner's own townspeople, at the jobs the town gives them: hawkers and
+  // people out and about, and since 30 October traders, people at home, motorists, drivers at the park, labourers)
+  if (town.jobs.some((j) => !TOWN_JOBS.has(j))) bad(`someone other than the police and his townspeople is about: ${town.jobs.join(', ')}`);
   if (town.okadas || town.riders) bad(`there are okadas (${town.okadas} in view, ${town.riders} riders)`);
   await shot('01-market-police');
   const size = await bubbles();
@@ -662,6 +665,8 @@ await session('town', { width: 1280, height: 760 }, async (page, shot) => {
 
   // 4. a government notice has its own look, apart from anybody's speech
   await at(7.93);
+  // (the market levy is read out from Monday to Saturday: on a Sunday, the next day)
+  if (await nlw(page, () => { const g = window.__nlw.host.game; return g.internals.population.dayInfo(Math.floor(g.state.t / 86400)).weekday === 0; })) await nlw(page, () => window.__nlw.skip(24));
   await look(8, 58, 1.2, 14, 0.36);
   await live(14);
   await page.waitForTimeout(1200);

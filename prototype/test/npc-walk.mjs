@@ -4,8 +4,8 @@
 // figure and on the move, which way the body faces (from the hips: the left thigh against the right) against which way
 // it is going over the ground, frame by frame. A figure walking with its side to the way it goes is 90 degrees out.
 // The bones alone are not the figure seen: the body drawn is the skin moved by them (three.js, from the file's inverse
-// bind matrices), so the same is measured on the drawn body (the skin's points at each hip, those that go with each
-// thigh nearest its joint), and each hand's point is found where the hand's bone is (on 30 October the skin was bound
+// bind matrices), so the same is measured on the drawn body (the skin round each hip: the middle of the points that go
+// with each thigh nearest its joint), and each hand's point is found where the hand's bone is (on 30 October the skin was bound
 // after the figure was turned: the bones faced the way they went while the body drawn was turned half round from them
 // and its arms held out).
 //   ../server/with-postgres.sh node test/npc-walk.mjs [shots folder] [phone]
@@ -54,24 +54,31 @@ await page.evaluate(() => {
   // the skin's point that goes most with a bone, for each figure's skin (found once): where the drawn body has it
   const points = new WeakMap();
   const skinOf = (r, bone) => { let found = null; r.group.traverse((o) => { if (!found && o.isSkinnedMesh && o.skeleton && o.skeleton.bones.includes(bone)) found = o; }); return found; };
-  // (`joint`: of the points that go mostly with the bone, the one nearest its joint, where the swing of the limb moves it
-  // least: a thigh's point at the hip, not half way down the leg; otherwise the point that goes most with it)
+  // (`joint`: the skin round the bone's joint, where the swing of the limb moves it least: the points that go mostly with
+  // the bone within 20 cm of its joint, the nearest two dozen, their middle (a single point there may lie at the front or
+  // the back of the hip, by how the figure was made); otherwise the one point that goes most with it)
   const pointFor = (mesh, bone, joint = false) => {
     let byBone = points.get(mesh);
     if (!byBone) { byBone = new Map(); points.set(mesh, byBone); }
     const key = `${bone.uuid}:${joint}`;
     if (byBone.has(key)) return byBone.get(key);
     const k = mesh.skeleton.bones.indexOf(bone), si = mesh.geometry.attributes.skinIndex, sw = mesh.geometry.attributes.skinWeight;
-    let best = -1, most = 0.5, near = Infinity;
-    const at = joint ? bone.getWorldPosition(V()) : null, p = V();
+    let best = -1, most = 0.5;
+    const at = joint ? bone.getWorldPosition(V()) : null, p = V(), ring = [];
     for (let v = 0; v < si.count; v += 1) for (let c = 0; c < 4; c += 1) {
       if (si.getComponent(v, c) !== k || sw.getComponent(v, c) <= 0.5) continue;
-      if (joint) { mesh.getVertexPosition(v, p).applyMatrix4(mesh.matrixWorld); const d = p.distanceTo(at); if (d < near) { near = d; best = v; } } else if (sw.getComponent(v, c) > most) { most = sw.getComponent(v, c); best = v; }
+      if (joint) { mesh.getVertexPosition(v, p).applyMatrix4(mesh.matrixWorld); const d = p.distanceTo(at); if (d < 0.2) ring.push([d, v]); } else if (sw.getComponent(v, c) > most) { most = sw.getComponent(v, c); best = v; }
     }
-    byBone.set(key, best);
-    return best;
+    const found = joint ? ring.sort((a, b) => a[0] - b[0]).slice(0, 24).map(([, v]) => v) : (best < 0 ? [] : [best]);
+    byBone.set(key, found);
+    return found;
   };
-  const drawn = (mesh, bone, out, joint = false) => { const v = pointFor(mesh, bone, joint); if (v < 0) return null; mesh.getVertexPosition(v, out); return out.applyMatrix4(mesh.matrixWorld); };
+  const drawn = (mesh, bone, out, joint = false) => {
+    const vs = pointFor(mesh, bone, joint); if (!vs.length) return null;
+    const p = V(); out.set(0, 0, 0);
+    for (const v of vs) out.add(mesh.getVertexPosition(v, p).applyMatrix4(mesh.matrixWorld));
+    return out.multiplyScalar(1 / vs.length);
+  };
   const c = V(), d = V(), e = V();
   const f = () => {
     for (const actor of n.crowd.actors()) {

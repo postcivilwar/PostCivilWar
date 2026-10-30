@@ -18,13 +18,14 @@
 // The few people who ride motorcycle taxis are the exception: a ride is
 // simulated, and okada.js tells this module where its passengers are.
 
-import { ZONE_SPOTS, ZONE_HOMES, ZONE_VENUES, ZONE_ROOMS, ZONE_POPULATION, ZONE_RESIDENTS, ZONE_PATROLS, BOULEVARD } from './zone.js';
+import { ZONE_SPOTS, ZONE_HOMES, ZONE_VENUES, ZONE_ROOMS, ZONE_POPULATION, ZONE_RESIDENTS, ZONE_PATROLS, BOULEVARD, ZONE_ROADS, OUTSKIRT_ROADS } from './zone.js';
 import { PEOPLES, GIVEN_NAMES, TRAITS } from './culture.js';
 import { makeRng } from './rng.js';
 import { wearFor, configFromLook, figFor } from './characters.js';
 import { graphIndex, graphRoute, graphDistance, graphPoint, graphIsRoad, graphIsOpen } from './graph.js';
 import { policeLook, policeFig } from './police-looks.js';
 import { NPC_FIGURES, TOWN_FIGURES } from './npc-figures.js';
+import { VOICE_CAST } from './voice-lines.js';
 
 export const WALK_SPEED = 1.7;                 // metres per real second
 export const RIDE_SPEED = 6.5;
@@ -59,6 +60,13 @@ const pathCache = new Map();
 const KERB_PAUSE = 4;
 const onCarriageway = (x, z) => x > BOULEVARD.x0 && x < BOULEVARD.x1 && z > BOULEVARD.z0 && z < BOULEVARD.z1;
 const atKerb = (x, z) => !onCarriageway(x, z) && Math.abs(x) < BOULEVARD.x1 + 5 && z > BOULEVARD.z0 - 4 && z < BOULEVARD.z1;
+// The roads the town's cars use (traffic.js: those wide enough for two cars to pass), and whether a point is on one.
+const CAR_ROADS = [...ZONE_ROADS, ...OUTSKIRT_ROADS].filter((r) => Math.min(r.x1 - r.x0, r.z1 - r.z0) >= 7.5 && !r.bays && !r.deck);
+const onCarRoad = (x, z) => CAR_ROADS.some((r) => x >= r.x0 - 0.5 && x <= r.x1 + 0.5 && z >= r.z0 - 0.5 && z <= r.z1 + 0.5);
+// how far to one side of a road's middle someone walking along it keeps, at most: well clear of the cars on either side
+// (a car at its lane, on the right of the middle, comes no nearer it than a metre)
+export const ON_CAR_ROAD_SIDE = 0.5;
+
 function pathBetween(a, b) {
   const key = a * 8192 + b;
   let path = pathCache.get(key);
@@ -99,7 +107,10 @@ function pathBetween(a, b) {
     const next = pts[k + 1];
     if (next && atKerb(x, z) && onCarriageway(next[0], next[1])) { cum.push(cum[cum.length - 1] + KERB_PAUSE); xs.push(x, z); open.push(0); still.push(1); }
   }
-  path = { xs: Float32Array.from(xs), open: Uint8Array.from(open), cum: Float32Array.from(cum), len: cum[cum.length - 1], nodes, still: still.some(Boolean) ? Uint8Array.from(still) : null };
+  // (which of its points are on a road the town's cars use, traffic.js: walking along one, people keep near its middle,
+  // out of the cars' way on either side)
+  const wide = Uint8Array.from({ length: xs.length / 2 }, (_, k) => (onCarRoad(xs[k * 2], xs[k * 2 + 1]) ? 1 : 0));
+  path = { xs: Float32Array.from(xs), open: Uint8Array.from(open), cum: Float32Array.from(cum), len: cum[cum.length - 1], nodes, still: still.some(Boolean) ? Uint8Array.from(still) : null, wide: wide.some(Boolean) ? wide : null };
   pathCache.set(key, path);
   return path;
 }
@@ -146,6 +157,8 @@ export const JOBS = Object.freeze({
   fisher: job('Fisherman', 18, 60, 0.04, 'low', { early: true }),
   okada: job('Okada rider', 19, 45, 0, 'low', { early: true }),
   driver: job('Driver', 24, 55, 0, 'low', { early: true }),
+  // (30 October 2026) out in their own car for their hours at the wheel (traffic.js); otherwise about the town
+  motorist: job('Motorist', 22, 50, 0.5, 'middle'),
   police: job('Police officer', 24, 52, 0.25, 'middle', { early: true, shifts: true }),
   clerk: job('Council clerk', 24, 58, 0.5, 'middle'),
   labourer: job('Labourer', 18, 48, 0.06, 'low', { early: true }),
@@ -266,6 +279,19 @@ const jobsKey = (jobs) => { if (jobs === ZONE_POPULATION.jobs) return 'town'; if
 export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1, jobs = ZONE_POPULATION.jobs) {
   const cacheKey = `${seed}|${scale}|${jobsKey(jobs)}`;
   if (rosters.has(cacheKey)) return rosters.get(cacheKey);
+  // The town's own people, and those added to it since (ZONE_POPULATION.more: each of his figures ten of the town's people,
+  // 30 October 2026): the first made exactly as they were, with the same numbers, names, homes and families (their voices
+  // know them by their names: voices.js), and the others after them, made from a seed of their own and numbered on
+  // from them.
+  const more = jobs === ZONE_POPULATION.jobs && ZONE_POPULATION.more && ZONE_POPULATION.more.length ? ZONE_POPULATION.more : null;
+  const first = makeRoster(seed, scale, jobs, 0);
+  // (and none of them given the name of one of the first, nor of anyone the voices were written for: voice-lines.js)
+  const taken = more ? [...first.map((p) => `${p.first} ${p.surname}`), ...Object.values(VOICE_CAST).map((c) => c.name.replace(/^(Cpl\.|Insp\.|Sgt\.|Mrs|Mr|Nurse|Mama)\s+/, '').trim())] : [];
+  const roster = more ? Object.freeze([...first, ...makeRoster(seed + 7919, scale, more, first.length, taken)]) : first;
+  rosters.set(cacheKey, roster);
+  return roster;
+}
+function makeRoster(seed, scale, jobs, offset, namesTaken = []) {
   const rng = makeRng(seed);
   const weighted = (list) => { let roll = rng.next(); for (const [value, share] of list) { roll -= share; if (roll <= 0) return value; } return list[0][0]; };
   const people = [];
@@ -286,7 +312,7 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1, jobs = ZONE_POP
       // those who work for a church are of a people whose members mostly belong to one
       let kin = weighted(ZONE_POPULATION.peoples);
       if ((venue === 'catholic' || venue === 'anglican') && PEOPLES[kin].faiths[0][0] === 'muslim') kin = ZONE_POPULATION.peoples[0][0];
-      people.push({ index: people.length, id: `n-${String(people.length + 1).padStart(4, '0')}`, job: jobId, venue, gender, age, people: kin, k, of: n, relations: [], looks: more.looks || null, figures: more.figures || null });
+      people.push({ index: offset + people.length, id: `n-${String(offset + people.length + 1).padStart(4, '0')}`, job: jobId, venue, gender, age, people: kin, k, of: n, relations: [], looks: more.looks || null, figures: more.figures || null });
     }
   }
 
@@ -360,7 +386,7 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1, jobs = ZONE_POP
   }
 
   // a people, a faith and a surname for each family
-  const used = new Set();
+  const used = new Set(namesTaken);
   const nameIn = (p, surname) => {
     const P = PEOPLES[p.people];
     const pool = p.gender === 'm' ? P.male : P.female;
@@ -507,9 +533,7 @@ export function rosterOf(seed = ZONE_POPULATION.seed, scale = 1, jobs = ZONE_POP
     if (graphDistance(SPOT_NODE[p.homeSpot], SPOT_NODE[to]) > 380 && rng.next() < 0.3) p.transport = 'okada';
   }
   for (const p of people) { delete p.k; delete p.of; delete p.rel; delete p.parentOf; delete p.looks; p.relations = Object.freeze(p.relations.map(Object.freeze)); Object.freeze(p.post); Object.freeze(p); }
-  const roster = Object.freeze(people);
-  rosters.set(cacheKey, roster);
-  return roster;
+  return Object.freeze(people);
 }
 
 // Gives everyone the places their day is spent in: a desk, a seat, a stall.
@@ -611,9 +635,9 @@ function assignPosts(people, scale) {
     else if (J === 'clerk') { post.work = slot(p.k < 6 * scale ? 'secretariat' : 'registry', 'inside')[0]; post.eat = lunch(p); }
     else if (J === 'labourer') { post.work = take([...slot('yard', 'work'), ...slot('yard', 'site')], 'labour'); post.eat = lunch(p); }
     else if (J === 'hawker') post.round = [0, 1, 2, 3].map((n) => pickBy(slot('street', 'hawk'), p, 20 + n));
-    else if (J === 'unemployed') { post.hang = pickBy([...slot('street', 'hang'), ...slot('park', 'hang')], p, 31); post.alt = pickBy([...slot('street', 'hang'), ...slot('shore', 'mend')], p, 32); }
+    else if (J === 'unemployed' || J === 'motorist') { post.hang = pickBy([...slot('street', 'hang'), ...slot('park', 'hang')], p, 31); post.alt = pickBy([...slot('street', 'hang'), ...slot('shore', 'mend')], p, 32); }
     else if (J === 'retiree') post.hang = pickBy(slot('street', 'hang'), p, 33);
-    if (post.work === undefined && !['infant', 'pupil', 'student', 'undergrad', 'hawker', 'unemployed', 'retiree', 'homemaker'].includes(J)) post.work = p.homeSpot;
+    if (post.work === undefined && !['infant', 'pupil', 'student', 'undergrad', 'hawker', 'unemployed', 'motorist', 'retiree', 'homemaker'].includes(J)) post.work = p.homeSpot;
     p.post = post;
   }
 }
@@ -834,7 +858,8 @@ function routine(p, d, seed, timeScale = 30) {
     case 'driver': be(T(6, 40), post.work, 'Waiting for passengers'); lunchBreak(T(13), post.work, 'Waiting for passengers'); go(T(19) + j(20), home, 'At home'); break;
     case 'labourer': be(T(7), post.work, 'Working'); if (post.eat !== undefined) { go(T(12, 20), post.eat, 'Eating'); then(30, post.work, 'Working'); } go(T(17, 30) + j(15), home, 'At home'); break;
     case 'hawker': be(T(7, 15) + p.early, post.round[0], 'Selling by the road'); go(T(9, 30), post.round[1], 'Selling by the road'); go(T(11, 45), post.round[2], 'Selling by the road'); go(T(14), post.round[3], 'Selling by the road'); go(T(16, 15), post.round[0], 'Selling by the road'); go(T(18, 10) + j(15), home, 'At home'); break;
-    case 'unemployed': go(T(9) + j(70), nearby(post.hang), 'Passing the time'); go(T(12, 45) + j(20), home, 'At home'); go(T(15, 45) + j(40), nearby(post.alt), 'Passing the time'); go(T(19) + j(40), home, 'At home'); break;
+    // (a motorist's hours at the wheel are traffic.js's: it says where they are then, and their day is as this the rest of the time)
+    case 'unemployed': case 'motorist': go(T(9) + j(70), nearby(post.hang), 'Passing the time'); go(T(12, 45) + j(20), home, 'At home'); go(T(15, 45) + j(40), nearby(post.alt), 'Passing the time'); go(T(19) + j(40), home, 'At home'); break;
     case 'retiree': go(T(7, 30) + j(30), post.front, 'Sitting outside the house'); go(T(9, 45) + j(20), chance(0.4, 51) || pathBetween(home, shop(17)).len > 350 ? nearby(post.hang) : shop(17), 'Out for a walk'); then(45, home, 'At home'); sitOut(T(16, 15) + j(20), T(19) + j(20)); break;
     case 'homemaker': if (pathBetween(home, shop(18)).len < 520) { go(T(7, 30) + j(60), shop(18), 'Shopping at the market'); then(24, shop(19), 'Shopping at the market'); then(22, home, 'At home'); } else go(T(8, 30) + j(40), post.front, 'Sweeping the yard'); go(T(12) + j(20), post.front, 'Cooking outside'); go(T(13, 30), home, 'At home'); if (chance(0.35, 53) && pathBetween(home, shop(21)).len < 380) { go(T(15, 20) + j(50), shop(21), 'Shopping at the market'); then(20, home, 'At home'); } sitOut(T(17, 15) + j(20), T(18, 40) + j(20)); break;
     default: break;
@@ -847,6 +872,69 @@ function routine(p, d, seed, timeScale = 30) {
   return { stops, start, startAct };
 }
 
+// His townspeople's evenings and nights (30 October 2026, the owner: "I can't even see them on the street. They are
+// scarce"): until now everyone in the town was home by eight in the evening and stayed there until morning, and the
+// owner plays at night. Now, of his townspeople, on any one day about half go out for the evening (from about twenty to
+// eight until ten or eleven), a fifth stay out late (until one or two in the morning), and a few are out the whole
+// night, going between two of the places where people gather until a little before five; the places: the corners where
+// people with time on their hands gather, the motor park's corners and its waiting row. Chosen from who they are and the
+// day alone, so every copy of the town has the same people out, and someone out late is still out when the next day's
+// plan begins (its `start`).
+const NIGHT = Object.freeze({ evening: 0.5, late: 0.7, night: 0.76, near: 200, between: 150 });
+const NIGHT_PLACES = [];
+function nightOut(p, dayIndex, seed) {
+  // (his townspeople: drawn from one of his figures, npc-figures.js; the police keep their shifts)
+  if (p.job === 'police' || !p.look || !NPC_FIGURES[p.look.figure] || dayIndex < 0) return null;
+  // (nobody goes out on a day they are ill: routine, `sick`)
+  const d = dayInfo(dayIndex), J = JOBS[p.job];
+  if (!d.sunday && p.job !== 'infant' && p.venue !== 'hospital' && !J.clergy && !(p.post && p.post.patrol) && unit(p.index, seed + 11, dayIndex) < 0.034) return null;
+  const h = unit(p.index, seed + dayIndex * 13, 61);
+  const kind = h < NIGHT.evening ? 'evening' : h < NIGHT.late ? 'late' : h < NIGHT.night ? 'night' : null;
+  if (!kind) return null;
+  // (among them, those within a short walk of home, so that a walk there and back fits the evening: the town's day is
+  // thirty times a real one, and its people walk at their own pace; with none near, the front of the house)
+  if (!NIGHT_PLACES.length) NIGHT_PLACES.push(...slot('street', 'hang'), ...slot('park', 'hang'), ...slot('park', 'wait'));
+  const home = ZONE_SPOTS[p.homeSpot];
+  const near = NIGHT_PLACES.filter((s) => Math.hypot(ZONE_SPOTS[s].x - home.x, ZONE_SPOTS[s].z - home.z) < NIGHT.near);
+  const jit = (salt, minutes) => Math.floor(unit(p.index, seed + dayIndex * 17, salt) * minutes) * 60;
+  if (!near.length) return { kind, spot: p.post.front, other: p.post.front, jit, front: true };
+  const spot = near[mix(p.index, dayIndex, 63) % near.length];
+  // (the second place of a night out within a short walk of the first, or the first again)
+  const S0 = ZONE_SPOTS[spot];
+  const close = near.filter((s) => s !== spot && Math.hypot(ZONE_SPOTS[s].x - S0.x, ZONE_SPOTS[s].z - S0.z) < NIGHT.between);
+  const other = close.length ? close[mix(p.index, dayIndex, 64) % close.length] : spot;
+  return { kind, spot, other, jit, front: false };
+}
+function addNight(p, d, seed, r) {
+  const home = p.homeSpot;
+  const tonight = nightOut(p, d.index, seed);
+  const lastNight = nightOut(p, d.index - 1, seed);
+  // (out late or all night yesterday: still out as today begins, and home in the small hours)
+  if (lastNight && lastNight.kind === 'late') {
+    r.start = lastNight.spot; r.startAct = lastNight.front ? 'Outside the house' : 'Out late';
+    r.stops.push({ t: T(0, 40) + lastNight.jit(71, 110), spot: home, act: 'Asleep at home', arrive: false });
+  } else if (lastNight && lastNight.kind === 'night') {
+    // (where the night before left them: its second place)
+    r.start = lastNight.other; r.startAct = lastNight.front ? 'Outside the house' : 'Out at night';
+    r.stops.push({ t: T(1) + lastNight.jit(72, 30), spot: lastNight.spot, act: 'Out at night', arrive: false });
+    r.stops.push({ t: T(2, 30) + lastNight.jit(73, 30), spot: lastNight.other, act: 'Out at night', arrive: false });
+    r.stops.push({ t: T(3, 50) + lastNight.jit(74, 20), spot: lastNight.spot, act: 'Out at night', arrive: false });
+    r.stops.push({ t: T(4, 45) + lastNight.jit(75, 15), spot: home, act: 'Asleep at home', arrive: false });
+  }
+  if (!tonight || r.ill) return r;
+  // (standing there: out of doors nobody sits but on a seat, and the front of a house has none, atani.js `addSpot`)
+  const outside = tonight.front ? 'Outside the house' : null;
+  if (tonight.kind === 'evening') {
+    r.stops.push({ t: T(19, 40) + tonight.jit(76, 50), spot: tonight.spot, act: outside || 'Out for the evening', arrive: false });
+    r.stops.push({ t: T(21, 20) + tonight.jit(77, 70), spot: home, act: 'Asleep at home', arrive: false });
+  } else if (tonight.kind === 'late') r.stops.push({ t: T(20, 10) + tonight.jit(78, 60), spot: tonight.spot, act: outside || 'Out late', arrive: false });
+  else {
+    r.stops.push({ t: T(20, 30) + tonight.jit(79, 40), spot: tonight.spot, act: outside || 'Out at night', arrive: false });
+    r.stops.push({ t: T(22, 10) + tonight.jit(80, 30), spot: tonight.other, act: outside || 'Out at night', arrive: false });
+  }
+  return r;
+}
+
 // ----------------------------------------------------------- population --
 
 // A day's plans depend only on the seed and the day, so every copy of the
@@ -854,7 +942,7 @@ function routine(p, d, seed, timeScale = 30) {
 const planBooks = new Map();
 function plansFor(key, n) {
   let plans = planBooks.get(key);
-  if (!plans) { plans = new Array(n); planBooks.set(key, plans); if (planBooks.size > 6) planBooks.delete(planBooks.keys().next().value); }
+  if (!plans) { plans = new Array(n); planBooks.set(key, plans); if (planBooks.size > 8) planBooks.delete(planBooks.keys().next().value); }
   return plans;
 }
 
@@ -874,16 +962,31 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
   const stats = { scans: 0, scanMs: 0, views: 0, viewMs: 0, plans: 0, planMs: 0, lastScanMs: 0, lastViewMs: 0, near: 0, middle: 0, far: N };
   const now = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
 
-  function compile(p, dayIndex) {
+  function compile(p, dayIndex, carry = true) {
     const d = dayInfo(dayIndex);
-    const r = routine(p, d, seed, timeScale);
+    const r = addNight(p, d, seed, routine(p, d, seed, timeScale));
     r.stops.sort((a, b) => a.t - b.t);
     // nobody walks home only to turn round and leave again
     r.stops = r.stops.filter((stop, n) => !(stop.spot === p.homeSpot && r.stops[n + 1] && r.stops[n + 1].spot !== p.homeSpot && r.stops[n + 1].t - stop.t < 2700));
-    const legs = [];
+    // The day begins where the day before left them (30 October 2026: out in the evening or the night, some are still
+    // out as one day becomes the next, or on their way home): there, and a walk not over at midnight carried on, so that
+    // nobody is moved in a jump. (Yesterday's plan as its own day made it, without looking a day further back: kept apart
+    // from the plans the town goes by, whose own first hours carry on from the day before them.)
+    let carried = [];
+    if (carry && dayIndex > 0) {
+      const book = plansFor(`${planKey(dayIndex - 1)}|own`, N);
+      const y = book[p.index] || (book[p.index] = compile(p, dayIndex - 1, false));
+      const last = y.legs[y.legs.length - 1];
+      if (last) {
+        r.start = last.spot; r.startAct = last.act;
+        carried = y.legs.filter((l) => l.t1 > 86400 || l.t0 >= 86400).map((l) => ({ ...l, t0: l.t0 - 86400, t1: l.t1 - 86400 }));
+      }
+    }
+    const legs = carried;
+    const end = carried.length ? carried[carried.length - 1] : null;
     let at = r.start;
-    let free = 0;
-    let arrived = 0;
+    let free = end ? Math.max(0, end.t1) + 30 : 0;
+    let arrived = end ? Math.max(0, end.t1) : 0;
     for (const stop of r.stops) {
       // a stay of so many minutes is counted from getting there, however long the walk was
       if (stop.dwell !== undefined) stop.t = arrived + stop.dwell;
@@ -962,7 +1065,7 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
         out.pose = POSE.stand; out.spot = leg.spot; out.act = leg.act; out.moving = false; out.leg = leg;
         return out;
       }
-      const side = path.open[a] && path.open[b] ? people[i].side : 0;
+      const side = path.open[a] && path.open[b] ? (path.wide && path.wide[a] && path.wide[b] ? people[i].side * (ON_CAR_ROAD_SIDE / 1.1) : people[i].side) : 0;
       out.x = ax + (bx - ax) * f + dz * side;
       out.z = az + (bz - az) * f - dx * side;
       out.h = Math.atan2(dx, dz);

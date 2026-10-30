@@ -77,6 +77,21 @@ export function createVoices({ state, population, residents, actors, talk, timeS
   // the voices of people who are in the game, and who each one is
   const voiceOf = new Map();      // 'n:3' / 'r:cook' -> voice name
   for (const [voice, c] of Object.entries(CAST)) if (c.who) voiceOf.set(c.who, voice);
+  // (30 October 2026: each of his figures is ten of the town's people, the owner's "1 NPC character should be multiplied
+  // into 10 places"; those added to the town speak, when they call out at something, with the voice of the first one
+  // drawn from their figure. The conversations are the first ones' own.)
+  const byFigure = new Map();
+  for (const [who, voice] of voiceOf) {
+    if (!who.startsWith('n:')) continue;
+    const p = population.people[Number(who.slice(2))];
+    const figure = p && p.look && p.look.figure;
+    if (figure && !byFigure.has(figure)) byFigure.set(figure, voice);
+  }
+  for (const p of population.people) {
+    const who = `n:${p.index}`;
+    const voice = !voiceOf.has(who) && p.look && byFigure.get(p.look.figure);
+    if (voice) voiceOf.set(who, voice);
+  }
   const talks = DATA.talks.filter((c) => c.lines.every(([voice]) => CAST[voice] && CAST[voice].who));
   const probe = {};
   const visiting = new Set(talks.flatMap((c) => { const w = [...new Set(c.lines.map(([v]) => CAST[v].who))]; return w.filter((q, k) => k !== 1 && q.startsWith('n:')).map((q) => Number(q.slice(2))); }));

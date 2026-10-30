@@ -547,13 +547,17 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     recover(record, p);
     if (hub.vehicles) hub.vehicles.recover(p.id);
     if (hub.okada) hub.okada.recover(p.id);
+    // (30 October 2026, the owner: "if police catch them, all cars must be returned"): every car of the town's they
+    // took, the one they were in and every one they left standing, goes back to its owner (traffic.js)
+    record.carsReturned = hub.traffic ? hub.traffic.recover(p.id) : 0;
     // a constable who is arrested is a constable no longer
     if (book.roles[p.id]) { delete book.roles[p.id]; emit(p.id, { type: 'police', title: 'Badge withdrawn', text: 'You have been arrested. You are no longer a special constable.' }); }
     // every officer after this suspect stands down, except the one bringing them in
     for (const o of Object.values(book.officers)) if (o.suspect === p.id) { if (officer.kind === 'npc' && o.i === officer.id) { o.duty = 'escort'; o.arrest = record.id; actors.hold(o.i, 'Handcuffing a prisoner'); } else dutyOver(o.i); }
     if (officer.kind === 'npc') officerSays(officer.id, 'You are under arrest. Come with me.');
     const back = record.restitution.reduce((sum, r) => sum + r.paid, 0);
-    emit(p.id, { type: 'police', title: 'Under arrest', text: `${officer.name} has arrested you: ${crimes.map((c) => LAW.offences[c.type].name.toLowerCase()).join(', ')}.${back ? ` ${trText(back)} have been taken back from you.` : ''} ${officer.kind === 'npc' ? 'You are being taken to the Police Post.' : 'You are being walked to the Police Post.'}`, arrest: record.id });
+    const cars = record.carsReturned;
+    emit(p.id, { type: 'police', title: 'Under arrest', text: `${officer.name} has arrested you: ${crimes.map((c) => LAW.offences[c.type].name.toLowerCase()).join(', ')}.${back ? ` ${trText(back)} have been taken back from you.` : ''}${cars ? ` ${cars === 1 ? 'The car you took goes back to its owner.' : `All ${cars} cars you took go back to their owners.`}` : ''} ${officer.kind === 'npc' ? 'You are being taken to the Police Post.' : 'You are being walked to the Police Post.'}`, arrest: record.id });
     for (const c of crimes) if (c.victim.kind === 'player') emit(c.victim.id, { type: 'police', title: 'Arrest made', text: `${p.name} has been arrested (${record.no}).` });
     return record;
   }

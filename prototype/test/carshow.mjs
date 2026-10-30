@@ -421,9 +421,15 @@ const peer = await page.evaluate(() => {
   return { id: t.id, on };
 });
 check('a second player gets into their own car', peer.on && peer.on.ok, peer.on);
-await page.waitForFunction(() => window.__nlw.carView.keys().some((k) => k.startsWith('peer:')) && window.__nlw.audio.status().peerCars.length === 1, null, { timeout: 120000 }).catch(() => {});
-const seen = await page.evaluate(() => ({ keys: window.__nlw.carView.keys(), heard: window.__nlw.audio.status().peerCars }));
-check('here, their car is seen where it is, on the owner\'s model, and its engine heard from there', seen.keys.some((k) => k.startsWith('peer:')) && seen.heard.length === 1 && seen.heard[0].id === 'red-winged-supercar' && seen.heard[0].running, seen);
+// (the nearest three engines are heard, the town's cars among them since 30 October (traffic.js): their car's is heard
+// unless three nearer are)
+const PEER_CAR = 'red-winged-supercar';
+await page.waitForFunction((id) => window.__nlw.carView.keys().some((k) => k.startsWith('peer:')) && window.__nlw.audio.status().peerCars.some((h) => h.id === id && h.running), PEER_CAR, { timeout: 120000 }).catch(() => {});
+const seen = await page.evaluate(() => { const n = window.__nlw, me = n.predicted; return { keys: n.carView.keys(), heard: n.audio.status().peerCars, near: n.carsHeard.map((c) => ({ key: c.key, car: c.car, d: +Math.hypot(c.x - me.x, c.z - me.z).toFixed(1) })) }; });
+const theirs = seen.heard.find((h) => h.id === PEER_CAR);
+const peerAt = (seen.near.find((c) => c.car === PEER_CAR) || { d: Infinity }).d;
+const nearer = seen.near.filter((c) => c.car !== PEER_CAR && c.d < peerAt).length;
+check('here, their car is seen where it is, on the owner\'s model, and its engine heard from there (one of the nearest three engines heard)', seen.keys.some((k) => k.startsWith('peer:')) && ((theirs && theirs.running) || (nearer >= 3 && seen.heard.length === 3)), { ...seen, nearer });
 const hornsHeard = await page.evaluate(() => window.__nlw.peerHornsHeard);
 await page.evaluate((id) => window.__nlw.second.host.game.intent(id, { type: 'car.horn' }), peer.id);
 await page.waitForFunction((n0) => window.__nlw.peerHornsHeard > n0, hornsHeard, { timeout: 15000 }).catch(() => {});
@@ -432,8 +438,8 @@ await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.head
 await page.waitForTimeout(1500);
 await shot('19-another-players-car');
 await page.evaluate((id) => { clearInterval(window.__peerTimer); window.__nlw.second.host.game.intent(id, { type: 'car.leave' }); }, peer.id);
-await page.waitForFunction(() => !window.__nlw.carView.keys().some((k) => k.startsWith('peer:')) && window.__nlw.audio.status().peerCars.length === 0, null, { timeout: 30000 }).catch(() => {});
-const gone = await page.evaluate(() => ({ keys: window.__nlw.carView.keys(), heard: window.__nlw.audio.status().peerCars.length }));
+await page.waitForFunction((id) => !window.__nlw.carView.keys().some((k) => k.startsWith('peer:')) && !window.__nlw.audio.status().peerCars.some((h) => h.id === id), PEER_CAR, { timeout: 30000 }).catch(() => {});
+const gone = await page.evaluate((id) => ({ keys: window.__nlw.carView.keys(), heard: window.__nlw.audio.status().peerCars.filter((h) => h.id === id).length }), PEER_CAR);
 check('out of it, their car is no longer driven here and its engine is let go; it is seen standing where they left it', !gone.keys.some((k) => k.startsWith('peer:')) && gone.heard === 0 && gone.keys.some((k) => k.startsWith('cpark:') && k.endsWith(':red-winged-supercar')), gone);
 
 await page.evaluate(() => { const n = window.__nlw; if (n.view.self.incar) n.server.send({ type: 'car.leave' }); });

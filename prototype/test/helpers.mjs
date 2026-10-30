@@ -16,6 +16,13 @@ export const ok = (result) => {
   return result;
 };
 
+// A car of the town's (traffic.js) in the way of a step to (x, z): waited for, as someone on foot waits for a car to
+// go by (it stops for them, and goes round them; one standing at the roadside goes on in a minute or so).
+function carInTheWay(host, x, z, reach = 6) {
+  const T = host.game.internals.traffic;
+  return !!T && T.cars.some((c) => (c.mode === 'drive' || c.mode === 'stop' || c.mode === 'kept' || c.mode === 'returning') && Math.hypot(c.x - x, c.z - z) < reach);
+}
+
 // Walks the way a client does: small steps, each one sent as a move intent and
 // each one checked by the simulation. Follows the road graph between nodes.
 export function walkTo(host, id, x, z) {
@@ -26,7 +33,7 @@ export function walkTo(host, id, x, z) {
   const to = nearestNode(x, z);
   for (const name of shortestRoute(from, to)) points.push(ZONE_NODES[name]);
   points.push([x, z]);
-  let blocked = 0;
+  let blocked = 0, carWait = 0;
   for (const [tx, tz] of points) {
     for (let guard = 0; guard < 8000; guard += 1) {
       const me = self();
@@ -38,7 +45,7 @@ export function walkTo(host, id, x, z) {
       const nx = me.x + ((tx - me.x) / gap) * stride;
       const nz = me.z + ((tz - me.z) / gap) * stride;
       const moved = host.game.intent(id, { type: 'move', x: nx, z: nz, heading: Math.atan2(tx - me.x, tz - me.z), run: true });
-      if (moved.ok) { blocked = 0; continue; }
+      if (moved.ok) { blocked = 0; carWait = 0; continue; }
       // someone is in the way: step round them as a client does, and if that fails too, wait for them to move
       if (moved.code === 'IN_THE_WAY' && moved.at) {
         blocked += 1;
@@ -55,6 +62,8 @@ export function walkTo(host, id, x, z) {
         if (!stepped && blocked > 400) throw new Error(`stuck behind someone at (${moved.at.x.toFixed(1)}, ${moved.at.z.toFixed(1)})`);
         continue;
       }
+      // a car of the town's in the way: wait for it to go by
+      if (moved.code === 'BLOCKED' && carInTheWay(host, nx, nz) && carWait < 1200) { carWait += 1; continue; }
       // stepped round someone, and now against something solid (a bollard, a post): back toward the line being
       // walked, as a client's player would be steered (the way between two points of the route is clear)
       if (moved.code === 'BLOCKED' && blocked < 400) {
@@ -147,6 +156,8 @@ export function driveTo(host, id, points) {
       if (ahead.length && waited < 300) { waited += 1; continue; }
       waited = 0;
       const moved = host.game.intent(id, { type: 'vehicle.drive', x: nx, z: nz, heading: Math.atan2(tx - car.x, tz - car.z) });
+      // (a car of the town's in the way: waited for, as on foot)
+      if (!moved.ok && moved.code === 'BLOCKED' && carInTheWay(host, nx, nz, 7) && waited < 1200) { waited += 1; continue; }
       if (!moved.ok) throw new Error(`drive to (${nx.toFixed(1)}, ${nz.toFixed(1)}) rejected: ${moved.code} ${moved.message} ${JSON.stringify(host.game.state.impact.events.slice(-2))}`);
     }
   }

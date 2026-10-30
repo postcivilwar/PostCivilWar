@@ -129,6 +129,16 @@ const VEHICLE_BIAS = [1, 0.8, 0.6, 0.45];     // how much nearer a vehicle must 
 const DRIVER_SEAT = vehicleMeta('keke').seats.driver;   // where the keke's driver sits, in the keke's own frame
 const SEATED_HEIGHT = 0.845;                 // how far above its own feet a seated figure's seat is, for a figure of height 1
 const FIGURE_DETAIL = LITE ? [44, 36, 28, 22] : [60, 45, 32, 24];      // metres within which a townsperson is drawn with limbs
+// His townspeople drawn as themselves beyond the full figures (render-crowd.js, crowd-figures.js; 30 October 2026, the
+// owner's brief: "the npc are looking so cartoonish"): within `reach` metres everyone standing or walking is drawn from
+// his own figure, `kinds` of his figures held at once, `each` people drawn from each; further off, the plain figures.
+// (a phone at Low held six at first: at the market by day four of the seventeen near and in the picture were drawn
+// plainly, their figures not among the six held: it holds nine now. Each figure held is its light copy on the graphics
+// card, its picture at 512 on a phone, shared with any full figure of it; at Medium, where the town's own pictures are
+// larger, eight, so that a phone keeps under 135 MB at the busiest place, measured, tools/measure/places.mjs)
+const CROWD = LITE
+  ? [{ reach: 34, kinds: 10, each: 14 }, { reach: 30, kinds: 9, each: 12 }, { reach: 26, kinds: 8, each: 10 }, { reach: 22, kinds: 9, each: 8 }]
+  : [{ reach: 55, kinds: 16, each: 36 }, { reach: 46, kinds: 14, each: 28 }, { reach: 38, kinds: 12, each: 20 }, { reach: 30, kinds: 10, each: 14 }];
 const PLATE_REGION = ZONE.government.state.short.replace(/ State$/, '');   // the state named on a registration plate
 const REACH = LITE ? [300, 270, 230, 190] : [400, 330, 260, 200];          // how far the town is drawn, by detail level
 const $ = (id) => document.getElementById(id);
@@ -376,6 +386,9 @@ function start(carried) {
   // the rounds this player fires, told to the website's server with each word about where they are (gun-net.js)
   const gunNet = createGunNet();
   const PEER_STANDIN = 260;          // metres within which another player's vehicle is drawn at all
+  // and the town's cars beyond the nearest few drawn as their models (car-view.js): their pictures within this (a phone
+  // nearer: each car's picture sheet is memory on its graphics card)
+  const TRAFFIC_STANDIN = Object.freeze({ lite: 160, full: 260 });
   // the phone in other players' hands (phone-hold.js, one each, made when one is first seen with it out; no lamp)
   const peerPhones = new Map();      // id -> { hold, idle }
   function updatePeerPhones(dt) {
@@ -1977,6 +1990,11 @@ function start(carried) {
       if (!POWER_CARS[c.car]) continue;
       for (const b of carBoxes(POWER_CARS[c.car], c.x, c.z, c.h)) if (!(predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4)) boxes.push(b);
     }
+    // the town's cars near them (traffic.js), where they stand or are going; not one the player is in
+    for (const c of view.traffic || []) {
+      if (!POWER_CARS[c.model] || Math.abs(c.x - predicted.x) > 40 || Math.abs(c.z - predicted.z) > 40) continue;
+      for (const b of carBoxes(POWER_CARS[c.model], c.x, c.z, c.h)) if (!(predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4)) boxes.push(b);
+    }
     boxes.push(...carshowGateBoxes(view.carshowGate || 0));
     return boxes;
   }
@@ -2548,6 +2566,8 @@ function start(carried) {
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
     // and their own cars (reached from beside a door: the car's own half-width and a step)
     for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) if (POWER_CARS[c.car]) add(c.x, c.z, POWER_CARS[c.car].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive your ${POWER_CARS[c.car].name}`, run: () => enterOwnCar(c.car) });
+    // and a car of the town's they took and left standing (never theirs: traffic.js)
+    for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model]) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
     for (const v of view.vehicles) {
       if (v.driver) continue;
       if (v.yours) add(v.x, v.z, 3.4, { bias: 1.2, short: 'Drive', text: `Drive keke ${v.plate}`, run: () => enterVehicle(v) });
@@ -2699,6 +2719,13 @@ function start(carried) {
     if (!out.take) for (const v of view.vehicles) {
       if (v.yours || v.driver || v.locked || !driverSide('keke', v, predicted.x, predicted.z).ok) continue;
       out.take = { vehicle: v.id, text: `Take keke ${v.plate}` };
+      break;
+    }
+    // a car of the town's standing still with its driver at the wheel (traffic.js), from beside either front door
+    if (!out.take) for (const c of view.traffic || []) {
+      if (!c.stopped || c.mode === 'kept' || !POWER_CARS[c.model] || !driverSide('car', c, predicted.x, predicted.z).ok) continue;
+      const driver = known.get(c.person);
+      out.take = { car: c.n, text: `Take ${driver ? `${driver.short}'s` : 'the'} ${POWER_CARS[c.model].name}` };
       break;
     }
     return out;
@@ -2895,7 +2922,7 @@ function start(carried) {
         break;
       }
       case 'leave': said(server.send({ type: 'combat.disengage' })); break;
-      case 'take': if (near.take) said(server.send({ type: 'hijack.start', okada: near.take.okada, vehicle: near.take.vehicle })); break;
+      case 'take': if (near.take) said(server.send({ type: 'hijack.start', okada: near.take.okada, vehicle: near.take.vehicle, car: near.take.car })); break;
       case 'cancel': said(server.send({ type: 'hijack.cancel' })); break;
       case 'steal': {
         if (!near.steal) break;
@@ -3111,6 +3138,35 @@ function start(carried) {
     say(r);
     return r;
   }
+  // Back into a car of the town's this player took and left standing (traffic.js): from beside it.
+  function enterTakenCar(n) {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'traffic.enter', n });
+    if (r.ok) { carState.speed = 0; carState.steer = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; cam.yaw = r.h; refreshView(); }
+    say(r);
+    return r;
+  }
+  // The town's traffic (traffic.js, 30 October 2026) as it is drawn: each car where the town last said it was, carried
+  // on to this frame at its speed, and eased there, so that it does not step ten times a second.
+  const trafficShown = new Map();
+  function trafficNow(dt) {
+    const list = (view && view.traffic) || [];
+    const ahead = Math.min(0.25, Math.max(0, clock - viewAt));
+    const seen = new Set();
+    for (const t of list) {
+      if (!POWER_CARS[t.model]) continue;
+      seen.add(t.n);
+      const tx = t.x + Math.sin(t.h) * t.speed * ahead, tz = t.z + Math.cos(t.h) * t.speed * ahead;
+      let e = trafficShown.get(t.n);
+      if (!e || Math.hypot(e.x - tx, e.z - tz) > 6) { e = { x: tx, z: tz, h: t.h }; trafficShown.set(t.n, e); }
+      else { const k = Math.min(1, dt * 12); e.x += (tx - e.x) * k; e.z += (tz - e.z) * k; e.h += angleGap(t.h, e.h) * k; }
+      e.n = t.n; e.model = t.model; e.speed = t.speed; e.steer = t.steer; e.brake = t.brake; e.held = t.held; e.mode = t.mode; e.mine = t.mine; e.hornAgo = t.hornAgo;
+    }
+    for (const n of [...trafficShown.keys()]) if (!seen.has(n)) trafficShown.delete(n);
+    return [...trafficShown.values()];
+  }
+  const trafficHorned = new Map();
+  let trafficCars = [];
   // What the server says this player owns, passed to the town whenever it changes: only those can be driven.
   let carsSent = null;
   function syncOwnCars() {
@@ -3220,7 +3276,12 @@ function start(carried) {
     return going.speed;
   }
   const PACE = { gather: 9, shed: 13, turn: 9.5 };      // metres a second each second; radians a second
+  // (at the wheel of a car just taken from its driver, traffic.js: where the town has it, at rest)
+  let takenWas = null;
   function movePlayer(dt) {
+    const taken = view.self.incar && Number.isInteger(view.self.incar.taken) ? view.self.incar.taken : null;
+    if (taken !== null && taken !== takenWas) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; cam.yaw = view.self.heading; carState.speed = 0; carState.steer = 0; }
+    takenWas = taken;
     going.turn = 0;
     if (led() || view.self.driving || view.self.astride || view.self.riding || view.self.incar) going.speed = 0;
     if (led()) return 0;                       // walked in by an officer, carried, or with hands on a vehicle: not theirs to steer
@@ -3739,7 +3800,7 @@ function start(carried) {
       let wantZ = predicted.z + Math.cos(predicted.heading) * back;
       if (taking && (taking.step === 'mount' || taking.step === 'enter')) {
         // the last step of taking a vehicle: up and into the seat
-        const seat = taking.kind === 'okada' ? view.okadas.find((o) => o.n === taking.id) : view.vehicles.find((v) => v.id === taking.id);
+        const seat = taking.kind === 'okada' ? view.okadas.find((o) => o.n === taking.id) : taking.kind === 'car' ? (view.traffic || []).find((c) => c.n === taking.id) : view.vehicles.find((v) => v.id === taking.id);
         if (seat) { const k = Math.min(1, Math.max(0, (taking.progress - 0.62) / 0.38)); wantX += (seat.x - wantX) * k; wantZ += (seat.z - wantZ) * k; }
       }
       // knocked down, thrown from a motorcycle, killed (falls.js, 19 October 2026): the figure falls the way the blow
@@ -3798,9 +3859,16 @@ function start(carried) {
         if (q.car && POWER_CARS[q.car.car]) peerCars.push({ key: q.id, id: q.car.car, x: q.x, z: q.z, h: q.heading, speed: q.car.speed, steer: q.car.steer, throttle: q.car.throttle, brake: q.car.brake, rev: q.car.rev, lamps: q.car.lamps });
         for (const c of q.cars || []) parkedCars.push({ ...c, key: `cpark:${q.id}:${c.car}` });
       }
-      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, groundY: zoneGroundY, from: predicted, night });
+      trafficCars = trafficNow(dt);
+      const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
+      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: zoneGroundY, from: predicted, night });
       const carSeated = !!ownDrive && carView.seat(me, ownDrive);
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
+      // the town's cars on the move are heard as other players' are (the nearest few: audio.js), and their horns
+      for (const e of trafficCars) {
+        if (e.mode === 'drive' || e.mode === 'stop') carsHeard.push({ key: `t:${e.n}`, car: e.model, x: e.x, z: e.z, rev: carRevs(e.speed, e.brake ? 0 : 0.35, carHandlingOf(POWER_CARS[e.model])), throttle: e.brake ? 0 : 0.35 });
+        if (e.hornAgo >= 0 && e.hornAgo < 0.8) { const at = Math.round((viewAt - e.hornAgo) * 10); if (trafficHorned.get(e.n) !== at) { trafficHorned.set(e.n, at); audio.carHorn(e.model, e.x, e.z); } }
+      }
       if (taking) poseTaking(me, taking.step, taking.progress);
       else if (self.fight || me.strike) poseFighter(me, clock, { guard: !!self.fight, block: blocking && !!self.fight });
       // the phone, in the hand of someone on their feet: out of the pocket, held up, looked at (on a call it is held to
@@ -3933,7 +4001,7 @@ blood.update(dt, view.blood || []);
             crowd.update({ dt, rows: view.people, okadas: view.okadas, players: peersNow(), known, eye: predicted, real: elapsed, clock, townTime: view.t, others: view.others,
         own: astride ? { n: astride.n, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: Math.abs(moto.speed) } : null,
         tug: taking && taking.kind === 'okada' && taking.step !== 'reach' ? { n: taking.id, amount: Math.min(1, Math.max(0, (taking.progress - 0.23) / 0.4)), side: taking.side } : null,
-        maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, falls: view.falls, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
+        maxRigs: MAX_RIGS[quality.detail], detail: FIGURE_DETAIL[quality.detail], crowd: CROWD[quality.detail], camera, riding: !!view.self.riding, pause: LITE ? 0.3 : 0.11, fallen: view.fallen, falls: view.falls, reacts: view.reacts, ahead: Math.max(0, clock - viewAt) });
       // other players on their own motorcycles: the bike under them and them on it, with its lamps and flames
       // (own-bike-view.js), from what their game says the bike is doing; its engine and horn are heard where it is
       peerRides = [];
@@ -3959,6 +4027,7 @@ blood.update(dt, view.blood || []);
         if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: zoneGroundY(q.x, q.z), z: q.z, h: q.heading });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
       }
+      for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: zoneGroundY(e.x, e.z), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
       updatePeerKekes(dt);
       for (const r of peerRides) {
         seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0;
@@ -3970,7 +4039,7 @@ blood.update(dt, view.blood || []);
         if (Math.hypot(r.x - predicted.x, r.z - predicted.z) < PEER_STANDIN) standing.push({ key: `b:${r.key}`, kind: 'bike', id: r.id, x: r.x, y: gy, z: r.z, h: r.h });
         else r.rig.group.visible = false;
       }
-      standins.update(standing, camera.position, performance.now() / 1000);
+      standins.update(standing, camera.position, performance.now() / 1000, 1 - Math.min(1, night) * 0.82);
       // the phone in other players' hands, as they hold it: on foot, on a motorcycle (the left hand), at the wheel (the right)
       updatePeerPhones(dt);
       // other players' guns and rounds, and the officers' (gun-play.js)
@@ -4360,7 +4429,7 @@ blood.update(dt, view.blood || []);
     voiceChat, get voiceUI() { return voiceUI; },
     // the habitation (20 October 2026): what is built of it, its fish and birds, the torch and the others' beams, the sky
     get habitation() { return habitation; }, get habitationLife() { return habitationLife; }, torch, get torchBeams() { return torchBeams; }, get sky() { return sky; }, get scene() { return scene; }, get camera() { return camera; },
-    heldModels, carsHeld, bikesHeld, figureLog, paintedStats, get graphics() { return graphics; },
+    heldModels, carsHeld, bikesHeld, figureLog, paintedStats, crowdFigures: () => (crowd ? crowd.crowdFigures() : []), crowdReach: () => CROWD[quality.detail].reach, get graphics() { return graphics; },
     get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     // the town's voices (28 October 2026): what the page has fetched and played
@@ -4387,7 +4456,7 @@ blood.update(dt, view.blood || []);
     // the Post Civil War Car Showroom: the compound and its hall, the two who sell the cars, and asking about one; the
     // player's own cars and driving them
     get carshowView() { return carshowView; }, get carSalesmen() { return carSalesmen; }, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
-    get carView() { return carView; }, carState, get standins() { return standins; }, peerPhones, get contextLost() { return contextLost; }, get pictureGone() { return pictureGone; }, get restored() { return restored; }, loading, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
+    get carView() { return carView; }, carState, get standins() { return standins; }, peerPhones, get contextLost() { return contextLost; }, get pictureGone() { return pictureGone; }, get restored() { return restored; }, loading, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), driveTaken: (n) => enterTakenCar(n), get trafficCars() { return trafficCars; }, get near() { return near; }, refresh: () => { refreshView(); near = findNear(); prompt = findPrompt(); }, carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),
     face(heading) { predicted.heading = heading; host.game.state.players[playerId].heading = heading; },
     act(id) { near = findNear(); prompt = findPrompt(); act(id, 'down'); },

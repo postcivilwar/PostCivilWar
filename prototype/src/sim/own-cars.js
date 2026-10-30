@@ -6,7 +6,12 @@
 // there are no cars to own, and so none to drive.
 //
 // While a player drives one, `incar` is 'pc:<car>', so that everything that asks "is this player on foot?" (fights,
-// arrests, treatment, what may be done meanwhile) can ask it of a car as it does of a keke or a motorcycle. A car
+// arrests, treatment, what may be done meanwhile) can ask it of a car as it does of a keke or a motorcycle.
+//
+// A car of the town's taken from its driver (traffic.js, hijack.js; 30 October 2026) is driven here as one of the
+// player's own is, `taken` saying which of the town's it is: it is never on the player's list of cars (`cars`, which
+// only the website's server sets), so it is never theirs to keep, sell or have brought to them; got out of, it stands
+// where it was left, for them alone to get back into (traffic.js, `leftBy`), until the police catch them. A car
 // in motion strikes whoever is in its way as any vehicle does (impact.js), with its own length and width; a car
 // standing where it was left is in everybody's way (`boxes`), as a parked keke is.
 import { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } from './power-cars.js';
@@ -34,6 +39,9 @@ export function carFits(id, x, z, h, boxes = [], slack = 0) {
   return true;
 }
 
+// (a car of the town's this player has taken: traffic.js)
+const isTaken = (c) => !!c && Number.isInteger(c.taken);
+
 export function createOwnCars({ state, hub, obstacles }) {
   const own = (p) => (Array.isArray(p.cars) ? p.cars : []);
   const parkedOf = (p) => { if (!p.carParked || typeof p.carParked !== 'object') p.carParked = {}; return p.carParked; };
@@ -49,7 +57,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     if (had !== null && p.cars.length > had && hub.voices) hub.voices.event('car', p.x, p.z);
     const parked = parkedOf(p);
     for (const id of Object.keys(parked)) if (!p.cars.includes(id)) delete parked[id];
-    if (isOwnCar(p.incar) && !p.cars.includes(carOf(p.incar))) leave(p);
+    if (isOwnCar(p.incar) && !isTaken(p.pcar) && !p.cars.includes(carOf(p.incar))) leave(p);
     return { cars: p.cars };
   }
 
@@ -82,6 +90,16 @@ export function createOwnCars({ state, hub, obstacles }) {
     return { car: id, x: at.x, z: at.z, h: at.h };
   }
 
+  // Into a car of the town's: one just taken from its driver (hijack.js), or one taken before and left standing
+  // (traffic.js, `enter`). Where it stands; never brought round.
+  function enterTaken(p, { model, x, z, h, n }) {
+    if (!POWER_CARS[model] || !Number.isInteger(n)) throw new GameError('NO_CAR', 'There is no such car.');
+    p.incar = `pc:${model}`;
+    p.pcar = { id: model, x, z, h, movedAt: state.real, taken: n };
+    p.x = x; p.z = z; p.heading = h; p.lastMoveAt = state.real;
+    return { car: model, x, z, h, taken: n };
+  }
+
   // One step of driving, as the driver's page moved it. Not further than the car could have gone since the last
   // step, not through anything solid (each step of the way, the whole car is looked at, not only its middle).
   // What the page says the car is doing (its speed, steering, lamps, revs) is for others to see and hear; nothing
@@ -97,7 +115,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     if (gap > 0.02 && hub.impact && hub.impact.stalled(c)) throw new GameError('STALLED', 'The car has stopped: you hit someone.');
-    const boxes = [...obstacles(), ...othersParked(p, c.id)];
+    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) {
       const k = i / steps;
@@ -111,6 +129,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     // (how fast the town itself saw it go: a crash is judged at no more than this, whatever the page says)
     if (elapsed > 0.004) c.seen = Number.isFinite(c.seen) ? c.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
     c.x = x; c.z = z; c.h = heading; c.movedAt = state.real;
+    if (isTaken(c) && hub.traffic) hub.traffic.moved(c.taken, c);
     c.drive = driveOf(step, handling.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
     p.stats.driven = (p.stats.driven || 0) + gap;
@@ -134,7 +153,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     if (Math.abs(v) < CAR_CRASH.least) return { hurt: false, outcome: 'stop' };
     const h = Number.isFinite(heading) ? heading : c.h;
     const spec = POWER_CARS[c.id] || { length: 4.6 };
-    const boxes = [...obstacles(), ...othersParked(p, c.id)];
+    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id)];
     const way = Math.sign(v) || 1;
     const free = (x, z) => carFits(c.id, x, z, h, boxes, 0.2);
     let hit = null;
@@ -167,10 +186,11 @@ export function createOwnCars({ state, hub, obstacles }) {
     const door = -0.15 * spec.length;          // the driver's door is a little behind the car's middle
     const spots = [[side.x * out + ahead.x * door, side.z * out + ahead.z * door], [-side.x * out + ahead.x * door, -side.z * out + ahead.z * door], [-ahead.x * back, -ahead.z * back], [ahead.x * back, ahead.z * back]];
     const spot = spots.map(([dx, dz]) => ({ x: c.x + dx, z: c.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes)) || { x: c.x + spots[0][0], z: c.z + spots[0][1] };
-    if (own(p).includes(c.id)) parkedOf(p)[c.id] = { x: c.x, z: c.z, h: c.h };
+    if (isTaken(c)) { if (hub.traffic) hub.traffic.leftBy(p, c.taken, c); }
+    else if (own(p).includes(c.id)) parkedOf(p)[c.id] = { x: c.x, z: c.z, h: c.h };
     p.incar = null; p.pcar = null;
     p.x = spot.x; p.z = spot.z; p.lastMoveAt = state.real;
-    return { x: spot.x, z: spot.z, parked: { car: c.id, x: c.x, z: c.z, h: c.h } };
+    return { x: spot.x, z: spot.z, parked: { car: c.id, x: c.x, z: c.z, h: c.h }, taken: isTaken(c) ? c.taken : null };
   }
 
   // Taken out of it by the police: it is left where it stands.
@@ -195,7 +215,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     return { cars: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ car: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000 })) };
   }
 
-  return { setOwned, enter, drive, crash, leave, unseat, selfView, boxes, isOwnCar };
+  return { setOwned, enter, enterTaken, drive, crash, leave, unseat, selfView, boxes, isOwnCar };
 }
 
 const wrap = (a) => { let d = a % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };

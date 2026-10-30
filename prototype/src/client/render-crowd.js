@@ -17,6 +17,8 @@ import { zoneGroundY, habitationClimbing } from '../sim/zone.js';
 import { vehicleMeta } from './vehicle-kit.js';
 import { fallTime, flightAt } from './falls.js';
 import { deviceKind } from './budget.js';
+import { ANIMATED, figureHere } from './animated.js';
+import { createCrowdFigures } from './crowd-figures.js';
 
 const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
 const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
@@ -36,6 +38,11 @@ const BUILD_PAUSE = 0.11;        // seconds between one figure being made and th
 // hung and closed by itself on his iPhone): each one kept holds the model of the figure it was made from, its pictures
 // and its shape, on the graphics card and in the page; thirty-six kept a phone's page holding figures nobody near wore.
 const WARDROBE = deviceKind() === 'lite' ? 8 : 36;
+// His townspeople beyond the full figures (30 October 2026, the owner's brief: "the npc are looking so cartoonish. They
+// don't even look exactly like the 3D GLb file I imported"): everyone within `frame.crowd.reach` metres who is standing or
+// walking is drawn from his own figure, many at once (crowd-figures.js); further off, and anyone sitting, lying or riding
+// that far off, as before. `frame.crowd` is the graphics level's: { reach, kinds, each } (main.js, CROWD).
+const MAX_CROWD = 200;
 const angleGap = (a, b) => { let d = (a - b) % (Math.PI * 2); if (d > Math.PI) d -= Math.PI * 2; if (d < -Math.PI) d += Math.PI * 2; return d; };
 
 // ------------------------------------------------------- simple figures --
@@ -121,6 +128,13 @@ export function createCrowd(scene) {
   const { parts, shade, far } = figureParts();
   for (const mesh of [...Object.values(parts), ...Object.values(far)]) scene.add(mesh);
   scene.add(shade);
+  // his townspeople drawn as themselves, many at once, each with the soft patch under the feet that a full figure has
+  const crowdFigures = createCrowdFigures(scene, { kinds: 8, each: 24 });
+  let crowdMost = null;
+  const crowdShade = new THREE.InstancedMesh(shade.geometry, shade.material, MAX_CROWD);
+  crowdShade.frustumCulled = false; crowdShade.count = 0; crowdShade.renderOrder = 1; crowdShade.instanceMatrix.setUsage(THREE.DynamicDrawUsage);
+  scene.add(crowdShade);
+  const sight = new THREE.Frustum(), seen3 = new THREE.Matrix4(), ball = new THREE.Sphere(new THREE.Vector3(), 1.3);
   const bikeMaterial = surface({ vertexColors: true, roughness: 0.6, metalness: 0.25 });
   const actors = new Map();        // townspeople in view, by their number
   const bikes = new Map();
@@ -446,6 +460,15 @@ export function createCrowd(scene) {
     // one name plate at a time: whoever is near enough to speak to
     let named = null;
     let namedD = 4.5;
+    // his townspeople as themselves within the level's reach (and only those the camera can see: the card is not asked
+    // to move a figure nobody will see)
+    const crowdAt = frame.crowd || null;
+    if (crowdAt && (!crowdMost || crowdMost.kinds !== crowdAt.kinds || crowdMost.each !== crowdAt.each)) { crowdMost = crowdAt; crowdFigures.setMost(crowdAt); }
+    const reach = crowdAt ? crowdAt.reach : 0;
+    const cam = frame.camera || null;
+    if (cam) sight.setFromProjectionMatrix(seen3.multiplyMatrices(cam.projectionMatrix, cam.matrixWorldInverse));
+    crowdFigures.begin(dt);
+    let c = 0;
     for (const actor of actors.values()) {
       const gx = actor.tx - actor.x, gz = actor.tz - actor.z;
       const gap = Math.hypot(gx, gz);
@@ -471,9 +494,30 @@ export function createCrowd(scene) {
         if (stats.made !== before) building = pause;
       }
       if (actor.rig) { poseRig(actor, dt, moving); mood(actor, moving); react(actor, reacting.get(actor.i), dt); if (actor.rig.strike || actor.guard) poseFighter(actor.rig, frame.clock || 0, { guard: !!actor.guard }); showName(actor.rig, actor.rig.named === true, dt); actor.rig.named = false; if (d < namedD && actor.pose !== POSE.lie && !frame.riding) { namedD = d; named = actor; } continue; }
+      // standing or walking, near enough: drawn as their own figure (one of his), at their own pace
+      if (d < reach && (actor.pose === POSE.stand || actor.pose === POSE.walk) && !falls.has(actor.i) && !fallen.has(actor.i)) {
+        const look = info.look;
+        const id = look && look.figure && ANIMATED[look.figure] && !(look.plain && !figureHere(look.figure)) ? look.figure : null;
+        if (id) {
+          const x = actor.x + (actor.ox || 0), z = actor.z + (actor.oz || 0), y = zoneGroundY(x, z);
+          const went = actor.cx === undefined ? 0 : Math.hypot(actor.x - actor.cx, actor.z - actor.cz);
+          actor.cx = actor.x; actor.cz = actor.z;
+          actor.pace = (actor.pace === undefined ? 1.35 : actor.pace) + (Math.min(2.4, went / Math.max(dt, 0.001)) - (actor.pace === undefined ? 1.35 : actor.pace)) * Math.min(1, dt * 3);
+          if (cam) { ball.center.set(x, y + 0.9, z); if (!sight.intersectsSphere(ball)) continue; }
+          if (actor.seed === undefined) actor.seed = ((actor.i * 0.6180339887) % 1) || 0.5;
+          if (crowdFigures.put(id, ANIMATED[id].npc && look.height ? look.height : 1, x, y, z, actor.h, moving ? Math.max(0.7, actor.pace) : 0, actor, dt)) {
+            if (c < MAX_CROWD) { const s = info.fig.scale || 1; P.set(x, 0.06 + y, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); crowdShade.setMatrixAt(c, L); c += 1; }
+            continue;
+          }
+        }
+      }
       if (d > detail) farFigure(info.fig, actor.x + (actor.ox || 0), actor.z + (actor.oz || 0), actor.h, actor.pose);
       else figure(info.fig, actor.x + (actor.ox || 0), moving ? Math.abs(Math.cos(actor.walk)) * 0.025 : 0, actor.z + (actor.oz || 0), actor.h, moving ? POSE.walk : actor.pose === POSE.walk ? POSE.stand : actor.pose, actor.walk);
     }
+    crowdFigures.end();
+    crowdShade.count = c;
+    if (c) crowdShade.instanceMatrix.needsUpdate = true;
+    stats.crowd = c; stats.crowdKinds = crowdFigures.stats.kinds; stats.crowdLoading = crowdFigures.stats.loading;
     if (named) named.rig.named = true;       // the one nearest, and only within a few steps: see showName
     // one new full figure at a time, the nearest first, so a crowd does not stall the frame
     if (closest && building <= 0) {
@@ -695,5 +739,7 @@ export function createCrowd(scene) {
     setTrouble(set) { for (const actor of actors.values()) actor.trouble = set.has(actor.i); },
     setLimps(set) { for (const actor of actors.values()) { actor.limp = set.has(actor.i); if (actor.rig) actor.rig.limp = actor.limp && actor.pose !== POSE.sit && actor.pose !== POSE.lie; } },
     actors: () => actors.values(),
+    // his figures drawn many at once now: which, how many of each (for the tests and the readout)
+    crowdFigures: () => crowdFigures.held(),
   };
 }

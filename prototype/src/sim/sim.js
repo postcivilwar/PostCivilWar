@@ -12,6 +12,7 @@ import { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON
 import { createVehicles, LOAD_UNITS } from './vehicles.js';
 import { createPopulation, RANGE } from './population.js';
 import { createOkada } from './okada.js';
+import { createTraffic } from './traffic.js';
 import { createOwnBikes, isOwnBike, bikeOf } from './own-bikes.js';
 import { createOwnCars, isOwnCar, carOf } from './own-cars.js';
 import { createTalk } from './talk.js';
@@ -143,7 +144,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   // a player's own motorcycles, bought in the market
   const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
   // and their own cars (17 October 2026); a car left standing is in everybody's way
-  const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)] });
+  const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)] });
   hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.serviceState = (id) => serviceState(id);
   // what townspeople's bodies do when something happens to them; its own dice, so that the rest of the town's
   // chances fall exactly as they did before it was added
@@ -162,6 +163,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const guns = createGuns({ state, players: state.players, population, actors, conflict, talk, emit, rng: makeRng(0x6a11), hub,
     boxes: () => [...vehicles.boxes().map((b) => ({ ...b, top: 1.9 })), ...parkedCars().map((b) => ({ ...b, top: 1.5 })), { ...care.box(), top: 2.6 }, ...structureBoxes().map((b) => ({ ...b, top: 3.4 }))] });
   const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: scale });
+  // the town's motorists in the showroom's cars (traffic.js, 30 October 2026): cars that can be taken from them
+  const traffic = createTraffic({ state, population, players: state.players, hub, emit, visitors: () => talk.visitors() });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
   // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
@@ -237,7 +240,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   let boxVersion = -1;
   // the players' cars standing where they were left (nobody has one in a copy of the game with no server), and the
   // car showroom's gate, as far as it is shut: both in the way of whoever moves
-  function parkedCars() { return [...(hub.ownCars ? hub.ownCars.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)]; }
+  function parkedCars() { return [...(hub.ownCars ? hub.ownCars.boxes() : []), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)]; }
 
   function structureBoxes() {
     if (boxVersion === state.structures && boxCache) return boxCache;
@@ -313,6 +316,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     vehicles.tick();
     population.prepare(state.t);
     okada.tick(dtReal, state.t, state.real, weather().wet);
+    traffic.tick(dtReal, state.t, state.real, weather().wet);
     actors.tick(dtReal, state.t, state.real);
     conflict.tick(dtReal);
     hijack.tick();
@@ -824,7 +828,9 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     'bail.pay'(p, { arrestId }) { return justice.payFine(p, String(arrestId)); },
 
     // --- taking a vehicle ---
-    'hijack.start'(p, { okada: n, vehicle }) { return hijack.start(p, { okada: n, vehicle }); },
+    'hijack.start'(p, { okada: n, vehicle, car }) { return hijack.start(p, { okada: n, vehicle, car }); },
+    // back into a car of the town's that this player took and left standing (traffic.js)
+    'traffic.enter'(p, { n }) { return ownCars.enterTaken(p, traffic.enter(p, Number(n))); },
     'hijack.cancel'(p) { return hijack.cancel(p); },
     // the horn: the simulation needs to know, because people in the road answer it
     'vehicle.horn'(p) { if (!p.driving) throw new GameError('NOT_DRIVING', 'You are not driving.'); return impact.horn(p); },
@@ -1078,6 +1084,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       calendar: { weekday: calendar.name, school: calendar.school },
       people: population.around(viewerId || 'spectator', eye.x, eye.z, state.t, state.real),
       okadas: okada.list(eye.x, eye.z, viewerId),
+      // the town's cars on its roads, at the roadside, and those a player has taken and left standing (traffic.js)
+      traffic: traffic.list(eye.x, eye.z, viewerId),
       // trouble within sight: blows struck, people shaken by them, officers out on a call, the ambulance
       fights: conflict.eventsNear(eye.x, eye.z), impacts: impact.eventsNear(eye.x, eye.z), fallen: impact.fallen(), falls: impact.falls(eye.x, eye.z), blood: impact.bleeding(eye.x, eye.z), reacts: reactions.near(eye.x, eye.z), moods: conflict.moods(eye.x, eye.z), officers: justice.officersNear(eye.x, eye.z), ambulance: care.ambulanceView(),
       // rounds fired within hearing, and the officers shooting back (guns.js)
@@ -1098,7 +1106,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       // the town's voices near this player: who is turned to whom, talking; and whose recordings to have ready
       voiceTalk: voices.talking().filter((v) => { const w = v[0]; return w.startsWith('n:') || w.startsWith('r:'); }), voicesNear: voices.voicesNear(p.x, p.z),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0 } : null, ownCars: ownCars.selfView(p), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
+        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
@@ -1109,7 +1117,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     state, intent, join, view, spectate: (at) => zoneView(null, at), step, advance, clockOf: () => clockOf(state.t), weather, setWeather, realTime: !!wallClock, structureBoxes,
     drain: (playerId) => { const q = queues[playerId] || []; queues[playerId] = []; return q; },
     hasPlayer: (id) => !!state.players[id],
-    audit: () => ({ goods: economy.auditGoods(INITIAL_GOODS), missedPayments: state.economy.missed, vehicles: vehicles.audit(), okada: okada.audit(), justice: justice.audit(), care: care.audit() }),
+    audit: () => ({ goods: economy.auditGoods(INITIAL_GOODS), missedPayments: state.economy.missed, vehicles: vehicles.audit(), okada: okada.audit(), traffic: traffic.audit(), justice: justice.audit(), care: care.audit() }),
     // people playing in another copy of this world, as the network reports them
     visitors: { seen: (peerId, data) => talk.visitorSeen(peerId, data), gone: (peerId) => talk.visitorGone(peerId), list: () => talk.visitors() },
     stats: () => ({ ...population.stats, people: population.total, simulated: population.count, riders: okada.riders.length }),
@@ -1125,7 +1133,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
+    internals: { registry, economy, residents, vehicles, population, okada, traffic, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
   };
 }
 
