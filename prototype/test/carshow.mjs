@@ -327,6 +327,10 @@ check('Drive it: the Grey Saloon is brought to the player, who is in it (the fig
 await shot('14-in-the-car');
 const startAt = await page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z, h: window.__nlw.predicted.heading }));
 await page.keyboard.down('w'); await page.waitForTimeout(4000);
+// (on this machine, drawing in software, a frame can take longer than the game's longest step, half a second
+// (main.js, `frameDt`), and the car's time then runs slower than the clock's: on 30 October four seconds held took it
+// 1.9 m, to 3.5 m/s (on 29 October 4.0 m, to 5.0 m/s). Held on until it is going at 4 m/s, up to twelve seconds more)
+await page.waitForFunction(() => window.__nlw.carState.speed > 4, null, { timeout: 12000 }).catch(() => {});
 const going = await page.evaluate(() => { const n = window.__nlw, e = document.querySelector('#speedo'), c = n.carView.driven(); let spin = 0; c.group.traverse((o) => { if (o.isGroup && Math.abs(o.rotation.x) > spin && o !== c.group) spin = Math.abs(o.rotation.x); }); return { speed: n.carState.speed, at: [n.predicted.x, n.predicted.z], spin, dial: { shown: !e.hidden, reading: n.speedo.reading, max: n.speedo.max, cc: e.querySelector('.cc').textContent }, engine: n.audio.status().car }; });
 check('the accelerator takes it away: it moves, its wheels turn, its engine revs', going.speed > 3 && Math.hypot(going.at[0] - startAt.x, going.at[1] - startAt.z) > 3 && going.spin > 0.5 && going.engine.running && going.engine.rev > 0.1, going);
 check('its speedometer reads its km/h, to its own top speed, with no engine size on it', going.dial.shown && Math.abs(going.dial.reading - going.speed * 3.6) < 8 && going.dial.max >= 170 && going.dial.cc === '', going.dial);

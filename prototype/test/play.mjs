@@ -533,6 +533,14 @@ await session('desktop', { width: 1280, height: 760 }, async (page, shot) => {
   const bump = await nlw(page, () => { const n = window.__nlw; const coach = n.fleet.filter((v) => v.model === 'bus').sort((a, b) => b.x - a.x)[0]; n.park(coach.x, coach.z + 7, Math.PI); n.cam.yaw = Math.PI - 0.7; n.cam.dist = 12; n.cam.pitch = 0.3; n.cam.lastDrag = 1e9; return { x: coach.x, z: coach.z }; });
   await page.keyboard.down('w');
   await page.waitForTimeout(4500);
+  // (held on while it has not come up to the coach, up to fifteen seconds more: on this machine, drawing in software, a
+  // frame can take longer than the game's longest step, half a second (main.js, `frameDt`), and the keke's time then
+  // runs slower than the clock's: on 30 October four and a half seconds held took it 0.8 m. Then a second more against
+  // the coach's side)
+  if (await nlw(page, (bz) => window.__nlw.view.self.driving.z - bz >= 4.5, bump.z)) {
+    await page.waitForFunction((bz) => window.__nlw.view.self.driving.z - bz < 4.5, bump.z, { timeout: 15000 }).catch(() => {});
+    await page.waitForTimeout(1000);
+  }
   await page.keyboard.up('w');
   await page.waitForTimeout(600);
   await shot('33-keke-meets-coach');
@@ -1034,15 +1042,17 @@ for (const [name, size] of [['sideways', { width: 760, height: 360, touch: true 
       return s;
     };
     await nlw(page, () => { const n = window.__nlw; n.place(0, 60); n.cam.yaw = Math.PI; });
-    await check('01-walking', ['Run', 'View']);
+    // (no View button on a touch screen since 30 October 2026, the owner's brief: "remove that camera icon on the
+    // screen"; a finger dragged on the picture turns the view: `check` finds any View button wrong)
+    await check('01-walking', ['Run']);
     const who = await someone(page, 0, 60);
     await faceUp(page, who);
-    await check('02-someone-near', ['Run', 'Fight', 'View']);
+    await check('02-someone-near', ['Run', 'Fight']);
     await nlw(page, () => window.__nlw.act('fight'));
     const fight = await check('03-fight', ['Punch', 'Heavy', 'Kick', 'Block', 'Dodge', 'Shove', 'Grab', 'Leave']);
     if (fight.pad.includes('Run')) bad('Run is still shown in a fight');
     await nlw(page, () => { const n = window.__nlw; const g = n.host.game; n.act('leave'); g.internals.conflict.hurt(g.state.players[n.playerId], 85); n.place(-120, 150); });
-    const hurt = await check('04-critical', ['Help', 'View']);
+    const hurt = await check('04-critical', ['Help']);
     if (hurt.pad.includes('Run') || hurt.pad.includes('Fight')) bad(`critical: ${hurt.pad.join(', ')}`);
     await nlw(page, () => { const n = window.__nlw; const g = n.host.game; g.internals.conflict.heal(g.state.players[n.playerId], 100); const v = g.state.vehicles.list['V-0001']; v.hire = { playerId: n.playerId, until: g.state.t + 86400, txn: null }; n.place(v.x - 2.2, v.z + 2.2); g.intent(n.playerId, { type: 'vehicle.enter', vehicleId: v.id }); n.park(-12, 113, Math.PI / 2); });
     const drive = await check('05-driving', ['Accelerate', 'Brake', 'Horn']);
@@ -1059,7 +1069,7 @@ for (const [name, size] of [['sideways', { width: 760, height: 360, touch: true 
     if (!/On foot/.test(way) || !/\d+ m/.test(way)) bad('the map gives no distance or time to the hospital');
     await page.tap('button:has-text("Mark it in the town")'); await page.waitForTimeout(300);
     await nlw(page, () => window.__nlw.ui.close());
-    await check('08-waypoint', ['Run', 'View']);
+    await check('08-waypoint', ['Run']);
     if (!(await page.isVisible('#waypoint'))) bad('no waypoint line after marking a place');
   });
 }

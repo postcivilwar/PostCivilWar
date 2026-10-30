@@ -37,7 +37,8 @@ await pastQuestion(page);
 await page.fill('#name', 'Walk');
 await enterTown(page, { tap: PHONE, wait: 900000 });
 await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 300000 });
-await page.evaluate(() => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip(((24 + 10.5 - hour) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 24 * 3600 }; for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } });
+// (twenty to twelve: the hawkers are about to move on to their next places along the roads, and others are out)
+await page.evaluate(() => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip(((24 + 11.67 - hour) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 24 * 3600 }; for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } });
 // watch every figure drawn of the town's people, every frame, in the page
 await page.evaluate(() => {
   const n = window.__nlw;
@@ -74,8 +75,26 @@ await page.evaluate(() => {
 });
 const PLACES = [['market', 43, 60], ['park', -40, 92], ['boulevard', 0, 20], ['waterside', 30, 128], ['registry', 20, -45]];
 const shots = [];
-for (const [name, x, z] of PLACES) {
+// (the walks proper seen so far: a figure walking, not turning on the spot)
+const WALKS = /stroll|catwalk|bold|walk/;
+const walksSeen = () => page.evaluate((w) => window.__walk.rows.filter((r) => new RegExp(w).test(r.clip) && r.speed > 0.02).length, WALKS.source);
+// (round the places again while fewer than two hundred frames of walking have been seen, up to three times: on this
+// machine, drawing in software, a frame comes a few times a second, and with few of the town's people about few may
+// pass close enough to be drawn in full while the test looks)
+const ROUNDS = [...PLACES, ...PLACES.map(([name, x, z]) => [`${name}-2`, x, z]), ...PLACES.map(([name, x, z]) => [`${name}-3`, x, z])];
+for (const [name, x, z] of ROUNDS) {
+  if (name.includes('-') && (await walksSeen()) > 200) break;
   await page.evaluate(([x, z]) => { const n = window.__nlw; n.place(x, z); n.cam.dist = 7; n.cam.pitch = 0.35; }, [x, z]);
+  await page.waitForTimeout(3000);
+  // and then beside whoever of the town's people is on the move nearest there (the town's people are few and spread
+  // over the land: at a fixed place few may pass while the test looks)
+  await page.evaluate(([x, z]) => {
+    const n = window.__nlw;
+    const walking = n.view.people.filter((r) => r[4] === 1).map((r) => ({ x: r[1], z: r[2], d: Math.hypot(r[1] - x, r[2] - z) })).sort((a, b) => a.d - b.d);
+    for (const w of walking.slice(0, 3)) {
+      for (const [dx, dz] of [[5, 5], [-5, 5], [5, -5], [-5, -5], [7, 0], [-7, 0], [0, 7], [0, -7]]) if (n.walkable(w.x + dx, w.z + dz)) { n.place(w.x + dx, w.z + dz); return; }
+    }
+  }, [x, z]);
   await page.waitForTimeout(PHONE ? 60000 : 40000);
   await page.screenshot({ path: resolve(out, `${name}.png`) });
   shots.push(name);
@@ -95,7 +114,7 @@ console.log('figure clip | frames | hips off the way (deg, mean) | chest | turne
 for (const t of table) console.log(JSON.stringify(t));
 writeFileSync(resolve(out, 'table.json'), JSON.stringify(table, null, 1));
 // judged on the walks proper (a figure turning a corner or stepping round someone is briefly off the way it goes)
-const walking = rows.filter((r) => /stroll|catwalk|bold|walk/.test(r.clip) && r.speed > 0.02);
+const walking = rows.filter((r) => WALKS.test(r.clip) && r.speed > 0.02);
 const off = walking.map((r) => Math.abs(r.hipsVsMove) * 57.3).sort((a, b) => a - b);
 const median = off.length ? off[Math.floor(off.length / 2)] : null;
 const sideways = off.filter((d) => d > 60).length / Math.max(1, off.length);

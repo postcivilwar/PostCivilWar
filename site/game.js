@@ -37585,7 +37585,7 @@ function createUI(app) {
     const fallen = self.dead ? `dead:${self.dead.left}` : self.down ? `down:${self.down.rising}` : '';
     const taking = self.hijack;
     const unread = self.phone.unread + self.phone.requests.length;
-    const signature = `${self.health}|${self.critical}|${foe ? `${foe.name}:${foe.health}` : ''}|${law}|${taking ? `${taking.step}:${Math.round(taking.progress * 40)}` : ''}|${unread}|${self.against.length}|${self.carried || ''}|${fallen}`;
+    const signature = `${self.health}|${self.critical}|${foe ? `${foe.name}:${foe.health}` : ''}|${law}:${self.law.stars || 0}:${(self.law.fading || 0) > 0.02 ? 1 : 0}|${taking ? `${taking.step}:${Math.round(taking.progress * 40)}` : ''}|${unread}|${self.against.length}|${self.carried || ''}|${fallen}`;
     if (signature === vitalsShown) return;
     vitalsShown = signature;
     const show = !!self.fight || self.health < HEALTH.max || self.against.length > 0 || !!foe || law === 'pursuit' || law === 'wanted';

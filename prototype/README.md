@@ -3760,7 +3760,23 @@ graphics card). The page's own memory at the motor park after the lap (the brows
 its other allocations 154.5 → 114.7 MB. Not measurable here: an iPhone's own limits. What is left after a lap is
 mostly the town's shapes kept aside (as Blobs) to hand to the graphics card again, and the graphics card's own copies.
 
-**Tests**: (being run; see the build-status doc)
+**Tests**: 518 headless tests pass (`node --test test/*.test.mjs`). In real browsers, each alone on the machine, on the
+built site: `test/camera.mjs` 18/18 (the street view close behind; no camera button on a touch screen; a finger dragged
+turns the view all the way round and up and down; two fingers pinch it nearer and further; the vehicle views);
+`test/touch.mjs` (42 checks); `test/sky.mjs` 11/11 (each time of day and weather chosen, the real ones by default, kept
+with the settings, the town's own day unchanged); `test/stars.mjs` 7/7 (the stars at the top right under the time,
+raised by each crime to its number, fading one at a time out of sight, blinking as one goes, gone at none; its first run
+found the stars on the screen staying as they were while the town's had faded: the screen's check of what had changed
+left the stars out, `ui.js`); `test/npc-walk.mjs` 2/2 with a phone's settings and with a computer's (202 and 216 frames
+of walking seen, of seven and six of the figures; the body within 2.9 degrees of the way it goes half the time, never
+sideways; its first runs saw too little walking, with twenty-five townspeople about: it now watches from twenty to
+twelve, beside someone walking, and goes round its places again while it has seen too little); `test/phone-memory.mjs`
+11/11; `test/context.mjs` 12/12; `test/fit.mjs`; `test/falls.mjs` 21/21 (its first run: one check still expected the old
+60-degree lens); `test/motorcycles.mjs` 108/108; `test/showroom.mjs` 28/28; `test/carshow.mjs` 42/42 (its first run 41
+of 42: four seconds on the accelerator took the car 1.9 m on this machine, its frames longer than the game's longest
+step, half a second; the test now holds on until the car is going); `test/play.mjs` every session (its first run still
+expected the View button on a touch screen, and four and a half seconds on the keke's accelerator took it 0.8 m, short
+of the coach, in the same way: both brought up to date).
 
 ## Tests
 
@@ -3791,7 +3807,7 @@ node test/figures.mjs out/                         # every supplied figure: chos
 node test/camera.mjs out/                          # the street camera through the owner's list: standing, walking, toward it, turning, running, the View button, dragging, a wall behind at four distances, another player, a phone upright and sideways; framed as in his recording
 node test/sky.mjs out/                             # the sky the player chooses: Settings' two rows, Night at the town's morning (the sky, the lamps, the town's own clock unmoved), Rain, Dusk, Morning, Noon, Storm, back to the real ones, kept
 node test/stars.mjs out/                           # the police's stars: none when not wanted, one for a fight, two for running on, blinking while one fades out of sight, one at a time, then not wanted; at the wheel too
-../server/with-postgres.sh node test/npc-walk.mjs out/ [phone]   # the townspeople walk facing the way they go: from their hips, frame by frame, at five busy places
+../server/with-postgres.sh node test/npc-walk.mjs out/ [phone]   # the townspeople walk facing the way they go: from their hips, frame by frame, at five busy places (round them again, up to three times, while too little walking has been seen)
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown

@@ -964,7 +964,8 @@ export function createUI(app) {
     const fallen = self.dead ? `dead:${self.dead.left}` : self.down ? `down:${self.down.rising}` : '';
     const taking = self.hijack;
     const unread = self.phone.unread + self.phone.requests.length;
-    const signature = `${self.health}|${self.critical}|${foe ? `${foe.name}:${foe.health}` : ''}|${law}|${taking ? `${taking.step}:${Math.round(taking.progress * 40)}` : ''}|${unread}|${self.against.length}|${self.carried || ''}|${fallen}`;
+    // (the stars too, and whether one is fading: they change while the law's state stays as it was)
+    const signature = `${self.health}|${self.critical}|${foe ? `${foe.name}:${foe.health}` : ''}|${law}:${self.law.stars || 0}:${(self.law.fading || 0) > 0.02 ? 1 : 0}|${taking ? `${taking.step}:${Math.round(taking.progress * 40)}` : ''}|${unread}|${self.against.length}|${self.carried || ''}|${fallen}`;
     if (signature === vitalsShown) return;
     vitalsShown = signature;
     // the life bar is there in a fight, when hurt, when someone means harm, and while the police are after the player

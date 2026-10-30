@@ -60,7 +60,9 @@ const camNow = () => page.evaluate(() => { const n = window.__nlw, c = n.camera,
 await page.evaluate(() => { const n = window.__nlw; n.place(0, 60); n.face(Math.PI); n.cam.yaw = Math.PI; });
 await page.waitForTimeout(1500);
 const street = await camNow();
-check('G: the game starts on the street view: close behind, the eye at about head height, a little wider lens', street.view === 'street' && street.back > 3.0 && street.back < 4.6 && street.up > 1.5 && street.up < 2.3 && street.fov > 58, street);
+// (30 October 2026, the camera as in the big open-world games, camera.js: the street view's lens is 58 degrees, a little
+// wider than the 55 everything else has)
+check('G: the game starts on the street view: close behind, the eye at about head height, a little wider lens', street.view === 'street' && street.back > 3.0 && street.back < 4.6 && street.up > 1.5 && street.up < 2.3 && street.fov >= 57.5, street);
 await shot('G-street-standing');
 const keys = await page.evaluate(() => document.getElementById('keys').innerText);
 check('G: the view key is offered on foot', /View/.test(keys), keys);
