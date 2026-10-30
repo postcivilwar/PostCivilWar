@@ -196,11 +196,16 @@ export async function loadSport(id, { base = 'sports/', tier = null, own = false
   return {
     id, group, spec, frame, lean,
     size: V(spec.size),
-    // travelled: metres it has rolled (its wheels turn by it); steer: radians its bars or motor are turned (left
+    // what turns with the bars (a point given in the model's own frame is where it is now, through this), and the
+    // cranks (about the bottom bracket): for a rider's hands and feet (sport-view.js)
+    steerer: steerGroup ? steerGroup.userData.inner : null,
+    crankGroup: crank,
+    // travelled: metres it has rolled (its wheels turn by it); wheels: { left, right }, metres each of the hoverboard's
+    // wheels has rolled (turning on the spot, they go opposite ways); steer: radians its bars or motor are turned (left
     // positive); crank: radians a bicycle's cranks have gone round; tilt: radians it leans (right positive); truck:
     // radians a skateboard's trucks are turned by its lean (left positive)
-    pose({ travelled = 0, steer = 0, crank: turn = 0, tilt = 0, truck = 0 } = {}) {
-      for (const w of wheels) w.group.rotation.x = travelled / w.r;
+    pose({ travelled = 0, wheels: each = null, steer = 0, crank: turn = 0, tilt = 0, truck = 0 } = {}) {
+      for (const w of wheels) w.group.rotation.x = (each && Number.isFinite(each[w.name]) ? each[w.name] : travelled) / w.r;
       if (steerGroup) steerGroup.quaternion.copy(q.setFromAxisAngle(steerAxis, steer));
       if (crank) crank.rotation.x = turn;
       if (trucks.front) trucks.front.rotation.y = truck;

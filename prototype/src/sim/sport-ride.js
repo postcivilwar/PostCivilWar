@@ -33,6 +33,22 @@ export const sportHandling = (id) => SPORT_HANDLING[id] || null;
 export const LAND_SPORTS = Object.freeze(Object.keys(SPORT_HANDLING));
 export const SPORT_FASTEST = Math.max(...Object.values(SPORT_HANDLING).map((h) => h.top));
 
+// What each presents to someone in front of it, as a vehicle does (impact.js FRONTS): half its width (the rider's
+// shoulders, or the bicycle's bar), and how far ahead of its middle and behind it it reaches. In metres.
+export const SPORT_FRONTS = Object.freeze({
+  bicycle: H({ half: 0.42, nose: 0.9, tail: 0.88 }),
+  skateboard: H({ half: 0.3, nose: 0.5, tail: 0.5 }),
+  'inline-skates': H({ half: 0.3, nose: 0.3, tail: 0.3 }),
+  'e-scooter': H({ half: 0.3, nose: 0.55, tail: 0.5 }),
+  hoverboard: H({ half: 0.32, nose: 0.25, tail: 0.25 }),
+  'e-unicycle': H({ half: 0.3, nose: 0.3, tail: 0.3 }),
+});
+// How it is said that someone was on it ("ran into you on a bicycle"), and which have a bell to ring.
+export const SPORT_ON = Object.freeze({ bicycle: 'a bicycle', skateboard: 'a skateboard', 'inline-skates': 'skates', 'e-scooter': 'an electric scooter', hoverboard: 'a hoverboard', 'e-unicycle': 'an electric unicycle' });
+export const SPORT_BELL = Object.freeze(['bicycle', 'e-scooter']);
+// Whether the rider sits (the bicycle) or stands (the rest).
+export const sportSeated = (id) => id === 'bicycle';
+
 // One step of a ridden thing.
 //   state  { speed, lean, heading, phase, pushing }   (changed in place; returned)
 //   input  { steer: -1..1 (left negative), throttle: 0..1 (pedal, push, skate or the motor), brake: 0..1 }

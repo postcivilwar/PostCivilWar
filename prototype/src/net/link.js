@@ -21,6 +21,9 @@ export function encodePlayer(self, zoneId) {
   // on one of their own motorcycles: which, and what it is doing (lamps, flames and the engine's note follow it)
   const a = self.astride;
   if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, st: r.steer || 0, hn: a.horns || 0 }; }
+  // on one of their things from the sports mall (31 October 2026): which, and what it is doing (its lean, speed and
+  // steering, the pedals or the push or the stride where they are, so that the others see them ride as they do)
+  if (a && a.sport) { const r = a.ride || {}; out.ms = { i: a.sport, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, st: r.steer || 0, ph: r.phase || 0, hn: a.horns || 0 }; }
   // the phone in their hand (18 October 2026): 1 held to be read, 2 on a call, 3 held up to take a picture; so that
   // others see them take it out and hold it as they do, on foot, on a motorcycle or at the wheel
   if (self.phone) out.ph = self.phone;
@@ -34,12 +37,15 @@ export function encodePlayer(self, zoneId) {
   // near them. With it, how fast they are going, so that the others can carry it on between one word and the next.
   const r2 = (v) => Math.round(v * 100) / 100;
   if (self.driving) out.vh = { k: 'keke', id: self.driving.id, pl: self.driving.plate, lk: packLook(self.driving.look), f: self.driving.ownerName && !self.driving.owned ? 1 : 0, hn: self.horns || 0 };
-  else if (a && !a.model) out.vh = { k: 'okada', hn: self.horns || 0 };
+  else if (a && !a.model && !a.sport) out.vh = { k: 'okada', hn: self.horns || 0 };
   else if (self.riding) out.vh = { k: 'okada', b: 1, dp: self.riding.i };
   const near = (list) => (list || []).map((v) => ({ v, d: Math.hypot(v.x - self.x, v.z - self.z) })).filter((e) => e.d < PARKED_NEAR).sort((p, q) => p.d - q.d).map((e) => e.v);
   const bikes = near(self.ownBikes && self.ownBikes.parked).slice(0, 3);
   // (one that came down in a crash: how long ago, so that the others see it go over then, and one long down lying)
   if (bikes.length) out.pk = bikes.map((b) => (b.fallen && Number.isFinite(b.ago) ? [b.bike, r2(b.x), r2(b.z), r2(b.h), 1, Math.min(600, r2(b.ago))] : [b.bike, r2(b.x), r2(b.z), r2(b.h), b.fallen ? 1 : 0]));
+  // (and their things from the sports mall left standing, or lying)
+  const sports = near(self.ownSports && self.ownSports.parked).slice(0, 3);
+  if (sports.length) out.ps = sports.map((b) => [b.item, r2(b.x), r2(b.z), r2(b.h), b.fallen ? 1 : 0]);
   const kekes = near(self.parkedKekes).slice(0, 2);
   if (kekes.length) out.pv = kekes.map((v) => ({ id: v.id, x: r2(v.x), z: r2(v.z), h: r2(v.heading), pl: v.plate, lk: packLook(v.look), f: v.fleet ? 1 : 0 }));
   // in one of their own cars (17 October 2026): which, and what it is doing (its lamps, brake lamps and the engine's
@@ -97,7 +103,7 @@ export function trimPlayer(out) {
   for (const key of ['wd', 'sh']) {
     while (Array.isArray(out[key]) && out[key].length && size() > STATE_MOST) { out[key].shift(); if (!out[key].length) delete out[key]; }
   }
-  for (const key of ['pv', 'pc', 'pk', 'tk', 'tc']) { if (size() <= STATE_MOST) break; delete out[key]; }
+  for (const key of ['pv', 'ps', 'pc', 'pk', 'tk', 'tc']) { if (size() <= STATE_MOST) break; delete out[key]; }
   if (size() > STATE_MOST && out.lk) { delete out.lk.c; }
   return out;
 }
@@ -124,6 +130,9 @@ export function decodePlayer(state, zoneId) {
   const say = state.say && typeof state.say === 'object' ? { seq: state.say.q, text: state.say.t, lang: state.say.l } : null;
   const mb = state.mb && typeof state.mb === 'object' ? state.mb : null;
   const ride = mb ? { bike: mb.i, lean: mb.l, speed: mb.s, throttle: mb.t, brake: mb.k, rev: mb.r, steer: mb.st, horns: mb.hn } : null;
+  const ms = state.ms && typeof state.ms === 'object' ? state.ms : null;
+  const sport = ms ? { sport: ms.i, lean: ms.l, speed: ms.s, throttle: ms.t, brake: ms.k, steer: ms.st, phase: ms.ph, horns: ms.hn } : null;
+  const sports = Array.isArray(state.ps) ? state.ps.map((b) => (Array.isArray(b) ? { item: b[0], x: b[1], z: b[2], h: b[3], fallen: !!b[4] } : null)) : [];
   const vh = state.vh && typeof state.vh === 'object' ? state.vh : null;
   const vehicle = vh ? { kind: vh.k, id: vh.id, plate: vh.pl, look: unpackLook(vh.lk), fleet: !!vh.f, back: !!vh.b, driver: vh.dp, horns: vh.hn } : null;
   const parked = Array.isArray(state.pk) ? state.pk.map((b) => (Array.isArray(b) ? { bike: b[0], x: b[1], z: b[2], h: b[3], fallen: !!b[4], ...(b[4] && Number.isFinite(b[5]) ? { ago: b[5] } : {}) } : null)) : [];
@@ -144,7 +153,7 @@ export function decodePlayer(state, zoneId) {
   const gun = gn ? { id: gn[0], out: true, aim: gn[1], crouch: !!gn[2], reload: Number.isFinite(gn[3]) && gn[3] >= 0 ? gn[3] : null, yaw: gn[4], pitch: gn[5] } : null;
   const shots = Array.isArray(state.sh) ? state.sh.filter(Array.isArray).map((s) => ({ q: s[0], ago: s[1], o: [s[2], s[3], s[4]], e: [s[5], s[6], s[7]], what: SHOT_KINDS[s[8]] || 'air' })) : [];
   const wounds = Array.isArray(state.wd) ? state.wd.filter(Array.isArray) : [];
-  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
+  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

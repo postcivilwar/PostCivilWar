@@ -11,7 +11,7 @@
 // the same answer. What it does while ridden goes through the motorcycle's own intents (moto.drive, moto.leave,
 // moto.crash: sim.js sends each to the one ridden). A ridden thing strikes whoever is in its way (impact.js), lightly.
 import { SPORTS } from './sports.js';
-import { SPORT_HANDLING } from './sport-ride.js';
+import { SPORT_HANDLING, SPORT_FRONTS } from './sport-ride.js';
 import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
 import { GameError } from './registry.js';
@@ -88,7 +88,7 @@ export function createOwnSports({ state, hub, obstacles }) {
     b.ride = rideOf(step, h.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
     p.stats.ridden = (p.stats.ridden || 0) + gap;
-    const hit = hub.impact ? hub.impact.step(p, { kind: 'sport', id: `sp:${b.id}` }, b, fromX, fromZ, x, z, heading, elapsed) : [];
+    const hit = hub.impact ? hub.impact.step(p, { kind: 'sport', id: `sp:${b.id}`, front: SPORT_FRONTS[b.id] }, b, fromX, fromZ, x, z, heading, elapsed) : [];
     return hit.length ? { hit } : {};
   }
 

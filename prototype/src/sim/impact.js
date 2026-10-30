@@ -27,6 +27,7 @@ import { zoneWalkable, ZONE_RESIDENTS } from './zone.js';
 const RESIDENT_NAME = new Map(ZONE_RESIDENTS.map((r) => [r.id, r.name]));
 import { POSE } from './population.js';
 import { PACE } from './actors.js';
+import { SPORT_ON } from './sport-ride.js';
 
 export const BODY = Object.freeze({
   radius: 0.3,             // a person, for standing in the way: two cannot be nearer than twice this
@@ -65,7 +66,13 @@ export const FRONTS = Object.freeze({
   moto: Object.freeze({ half: 0.36, nose: 0.85, tail: 0.8 }),
   // a car (17 October 2026): an ordinary saloon's; each car gives its own (own-cars.js, from its length and width)
   car: Object.freeze({ half: 0.92, nose: 2.3, tail: 2.3 }),
+  // a thing from the sports mall, ridden (31 October 2026): each gives its own (sport-ride.js SPORT_FRONTS)
+  sport: Object.freeze({ half: 0.3, nose: 0.5, tail: 0.5 }),
 });
+// A rider on one of the sports mall's things (a bicycle, a skateboard, skates...) is far lighter than a motorcycle and
+// goes far slower: what they do to someone they run into is this share of what a vehicle would, and never more than
+// `most`. Who did it is said as "ran into you on a bicycle".
+export const SPORT_HARM = Object.freeze({ share: 0.35, most: 16 });
 // What a vehicle is called, for whoever it struck.
 const VEHICLE_WORD = Object.freeze({ keke: 'keke', moto: 'motorcycle', car: 'car' });
 
@@ -84,6 +91,8 @@ export function harmAt(speed) {
   if (!(speed >= IMPACT.least)) return 0;
   return Math.round(clamp((speed - IMPACT.least) * IMPACT.perSpeed, IMPACT.floor, IMPACT.most));
 }
+// What this vehicle does at this speed (a rider from the sports mall: far less, SPORT_HARM).
+export const harmOf = (vehicle, speed) => (vehicle && vehicle.kind === 'sport' ? Math.min(SPORT_HARM.most, Math.round(harmAt(speed) * SPORT_HARM.share)) : harmAt(speed));
 
 export function createImpact({ state, players, population, actors, conflict, talk, emit, rng, hub, door, visitors = () => [] }) {
   if (!state.impact) state.impact = { seq: 0, events: [], npc: {} };
@@ -180,8 +189,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const now = real();
     if (q.struckByVehicleAt !== undefined && now - q.struckByVehicleAt < IMPACT.grace) return null;
     const lying = !!q.down;
-    const harm = Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1)));
-    const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
+    const harm = Math.max(1, Math.round(harmOf(vehicle, speed) * (lying ? IMPACT.downed : 1)));
+    const weight = clamp((speed - IMPACT.least) / 7, 0, 1) * (vehicle.kind === 'sport' ? 0.5 : 1);
     q.struckByVehicleAt = now;
     const lost = conflict.injure(q, harm);
     q.blood = Math.min(IMPACT.bleed.most, (q.blood && now - (q.bloodAt || 0) < 60 ? q.blood : 0) + harm * IMPACT.bleed.perHarm); q.bloodAt = now;
@@ -202,7 +211,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
       // (`from`: where they were struck, to be carried from as they fall; `hard`: a heavy blow, down at once)
       q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: driver.id, h: heading, from, hard: weight > 0.6 };
-      emit(q.id, { type: 'alert', title: 'Knocked down', text: `${driver.name} hit you with a ${VEHICLE_WORD[vehicle.kind] || 'keke'}. Health ${q.health}.` });
+      emit(q.id, { type: 'alert', title: 'Knocked down', text: vehicle.kind === 'sport' ? `${driver.name} ran into you on ${SPORT_ON[String(vehicle.id).slice(3)] || 'a bicycle'}. Health ${q.health}.` : `${driver.name} hit you with a ${VEHICLE_WORD[vehicle.kind] || 'keke'}. Health ${q.health}.` });
     }
     show({ kind: killed ? 'killed' : 'knock', by: { kind: 'player', id: driver.id }, on: { kind: 'player', id: q.id }, x: q.x, z: q.z, speed: Math.round(speed * 10) / 10, harm: lost, vehicle: vehicle.kind });
     return { kind: 'player', id: q.id, name: q.name, harm: lost, health: q.health, killed };
@@ -228,8 +237,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
       return null;
     }
     const lying = m.pose === POSE.lie;
-    const harm = Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1)));
-    const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
+    const harm = Math.max(1, Math.round(harmOf(vehicle, speed) * (lying ? IMPACT.downed : 1)));
+    const weight = clamp((speed - IMPACT.least) / 7, 0, 1) * (vehicle.kind === 'sport' ? 0.5 : 1);
     rec.at = now; rec.t = state.t;
     // (the 20-life rule, 22 October 2026: nobody is brought below 20, and nobody is killed)
     rec.health = Math.max(Math.min(rec.health, HEALTH.critical), rec.health - harm);

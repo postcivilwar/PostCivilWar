@@ -14,6 +14,8 @@ import { createPopulation, RANGE } from './population.js';
 import { createOkada } from './okada.js';
 import { createTraffic } from './traffic.js';
 import { createOwnBikes, isOwnBike, bikeOf } from './own-bikes.js';
+import { createOwnSports, isOwnSport, sportOfAstride } from './own-sports.js';
+import { SPORT_BELL } from './sport-ride.js';
 import { createOwnCars, isOwnCar, carOf } from './own-cars.js';
 import { createTalk } from './talk.js';
 import { createVoices } from './voices.js';
@@ -145,7 +147,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
   // and their own cars (17 October 2026); a car left standing is in everybody's way
   const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)] });
-  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.serviceState = (id) => serviceState(id);
+  // and the things from the sports mall that are ridden on land (31 October 2026): the bicycle, the skateboard, the
+  // skates, the e-scooter, the hoverboard and the electric unicycle; ridden through the motorcycle's own intents
+  const ownSports = createOwnSports({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
+  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.ownSports = ownSports; hub.serviceState = (id) => serviceState(id);
   // what townspeople's bodies do when something happens to them; its own dice, so that the rest of the town's
   // chances fall exactly as they did before it was added
   const reactions = createReactions({ state, population, rng: makeRng(0x5eac7) });
@@ -853,15 +858,20 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     'hijack.cancel'(p) { return hijack.cancel(p); },
     // the horn: the simulation needs to know, because people in the road answer it
     'vehicle.horn'(p) { if (!p.driving) throw new GameError('NOT_DRIVING', 'You are not driving.'); return impact.horn(p); },
-    'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return impact.horn(p); },
-    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : okada.rideDrive(p, step); },
-    'moto.crash'(p, body) { if (!isOwnBike(p.astride)) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return ownBikes.crash(p, body || {}); },
-    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : okada.dismount(p); },
+    // (on a thing from the sports mall: its bell, if it has one, the bicycle's and the e-scooter's)
+    'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); if (isOwnSport(p.astride) && !SPORT_BELL.includes(sportOfAstride(p.astride))) throw new GameError('NO_BELL', 'It has no bell.'); return impact.horn(p); },
+    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : isOwnSport(p.astride) ? ownSports.drive(p, step) : okada.rideDrive(p, step); },
+    'moto.crash'(p, body) { if (isOwnSport(p.astride)) return ownSports.crash(p, body || {}); if (!isOwnBike(p.astride)) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return ownBikes.crash(p, body || {}); },
+    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : isOwnSport(p.astride) ? ownSports.leave(p) : okada.dismount(p); },
     // --- a player's own motorcycles ---
     // what the website's server says this player owns (the page passes it on); the bike is brought to them, or
     // they get on it where they left it
     'bikes.owned'(p, body) { return ownBikes.setOwned(p, body || {}); },
     'bikes.ride'(p, body) { return ownBikes.mount(p, body || {}); },
+    // --- the things a player has bought at the sports mall (31 October 2026), as their motorcycles: what the server
+    // says they own, and getting on one (brought to them, or where they left it) ---
+    'sports.owned'(p, body) { return ownSports.setOwned(p, body || {}); },
+    'sports.ride'(p, body) { return ownSports.mount(p, body || {}); },
     // --- a player's own cars (17 October 2026), as their motorcycles ---
     'cars.owned'(p, body) { return ownCars.setOwned(p, body || {}); },
     'cars.enter'(p, body) { return ownCars.enter(p, body || {}); },
@@ -951,7 +961,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (p.hijack && !WHILE_TAKING.test(message.type)) throw new GameError('BUSY', 'You have your hands full.');
       if (p.driving && !WHILE_DRIVING.test(message.type)) throw new GameError('DRIVING', 'Step out of the keke first.');
       if (p.riding !== null && p.riding !== undefined && !WHILE_RIDING.test(message.type)) throw new GameError('RIDING', 'Get down from the okada first.');
-      if (p.astride !== null && p.astride !== undefined && !WHILE_ASTRIDE.test(message.type)) throw new GameError('RIDING', 'Get off the motorcycle first.');
+      if (p.astride !== null && p.astride !== undefined && !WHILE_ASTRIDE.test(message.type)) throw new GameError('RIDING', isOwnSport(p.astride) ? (sportOfAstride(p.astride) === 'inline-skates' ? 'Take your skates off first.' : 'Get off it first.') : 'Get off the motorcycle first.');
       if (p.incar && !WHILE_INCAR.test(message.type)) throw new GameError('IN_CAR', 'Get out of the car first.');
       if (p.swimming && !WHILE_SWIMMING.test(message.type)) throw new GameError('SWIMMING', 'You are in the river. Swim to the bank and climb out first.');
       return { ok: true, ...handler(p, message) };
@@ -1013,7 +1023,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       return null;
     };
     for (const p of Object.values(state.players)) {
-      const ride = p.pbike || p.pcar;
+      const ride = p.pbike || p.pcar || p.psport;
       if (ride && (p.astride || p.incar)) {
         if (!upThere(ride.x, ride.z)) continue;
         ride.x = (park.x0 + park.x1) / 2; ride.z = (park.z0 + park.z1) / 2; ride.h = -Math.PI / 2;
@@ -1125,7 +1135,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       // the town's voices near this player: who is turned to whom, talking; and whose recordings to have ready
       voiceTalk: voices.talking().filter((v) => { const w = v[0]; return w.startsWith('n:') || w.startsWith('r:'); }), voicesNear: voices.voicesNear(p.x, p.z),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
+        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : sportOfAstride(p.astride) ? { n: p.astride, sport: sportOfAstride(p.astride), ride: (p.psport && p.psport.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), ownSports: ownSports.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),

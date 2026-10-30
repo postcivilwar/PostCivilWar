@@ -335,6 +335,16 @@ export function createMarketUI(kit) {
       root.append(engineControls(bike));
       root.append(h('p', { class: 'small' }, 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
     }
+    // a thing from the sports mall (31 October 2026): ridden on land from here, brought to where the player stands (the
+    // skates put on); the speedboat and the surfboard are for the water
+    const sport = sportOf(item.asset.model);
+    if (sport && !item.listing) {
+      if (SPORTS[sport].on === 'land') {
+        root.append(h('div', { class: 'hxrow' },
+          h('button', { class: 'hx primary', type: 'button', id: 'ride-sport', onclick: () => { quiet(); const r = app.rideSport(sport); if (r && !r.ok) { say(false, r.message); redraw(); } } }, sport === 'inline-skates' ? 'Put them on' : 'Ride it')));
+        root.append(h('p', { class: 'small' }, sport === 'inline-skates' ? 'You put them on where you stand, outdoors, or where you took them off if you are beside it. Take them off with the button you put them on with.' : 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
+      } else root.append(h('p', { class: 'small', id: 'sport-water' }, `The ${SPORTS[sport].name} is for the water: it is not ridden on land.`));
+    }
     const car = carOf(item.asset.model);
     if (car && !item.listing) {
       // driving it: brought to where the player stands, or got into where they left it

@@ -4038,6 +4038,82 @@ real PostgreSQL: the lists agree, the eight sold where they stand at the owner's
 bought with the arrival money, one of each, not more than there is, sold on), and in a browser `test/sports.mjs` with a
 computer's settings and a phone's.
 
+## Riding what is bought at the sports mall (31 October 2026)
+
+The second part of the owner's brief of 30 October: "Once hijacked, the player must pedal and control the bike ... Keep
+everything immersive, fluid, and realistic, especially for NPC actions and interactions and the playable characters
+too." The six things from the mall that go on land are ridden by whoever bought them: the bicycle, the skateboard, the
+skates, the e-scooter, the hoverboard and the electric unicycle (the speedboat and the surfboard are for the water: their
+part is still to come).
+
+### Getting on, riding, getting off (`src/sim/own-sports.js`)
+
+From Property ("Ride it"; the skates, "Put them on") it is brought to where the player stands, out of doors, where there
+is room for it; beside one left standing, "Ride your ..." gets on it there. The website's server says what the player
+owns, and only that is ridden (`sports.owned`, as the motorcycles' `bikes.owned`). While on it the player is astride it
+as on a motorcycle (`sp:<item>`), so everything that asks whether someone is riding (fights, the police, doors, the
+hospital) answers as for a motorcycle, and it is ridden through the motorcycle's own steps (`moto.drive`, `moto.leave`,
+`moto.crash`): each step no further than it could go since the last, nothing solid gone through, no bridge ridden onto.
+Off it, it stands where it was left. Run into a wall hard enough, the rider comes off, unhurt (the owner's rule: no life
+lost for hitting anything), and it lies where it fell. Taken by the police, the rider is set down beside it and it stays
+theirs. Someone run into by a rider is hurt a third as much as by a motorcycle at that speed, and never more than 16
+(`impact.js`, `SPORT_HARM`).
+
+### How each goes (`src/sim/sport-ride.js`)
+
+| | Moved by | Top speed on the tar | Off the tar |
+| --- | --- | --- | --- |
+| Fat-Tyre Bicycle | the pedals: pulls as hard as it is pedalled, less the faster it goes; let go, it rolls on and the cranks stand still | 30 km/h | 20 km/h |
+| Skateboard | pushes: a foot down on the road, swept back, then back on the board; each push adds speed, it glides between | 18 km/h | 4 km/h |
+| Inline Skates | strides: one leg out to the side and back, then the other; glides between | 22 km/h | 4 km/h |
+| Electric Scooter | its motor, under the thumb | 25 km/h | 11 km/h |
+| Hoverboard | its two motors, leaning forward; turns round on the spot | 12 km/h | 4 km/h |
+| Electric Unicycle | its motor, leaning forward | 30 km/h | 13 km/h |
+
+Each leans into a turn as a motorcycle does (a lean of θ at speed v turns it at g·tanθ/v), and at walking pace turns by
+its bars or the rider's feet. A push or a stride is begun only while the button is held and, once begun, finished. The
+sports mall's paved compound and the drive to it count as smooth ground.
+
+### On the screen (`src/client/sport-view.js`, `src/client/sports-model.js`)
+
+The owner's model under the rider (the skates on their feet, the left one the right one's mirror), its wheels turning by
+how far it has rolled, its bars and front wheel turned as it is steered, the bicycle's cranks going round as it is
+pedalled, the skateboard's trucks turning under it as it is leaned, and it leaning into the turn with its rider (the
+hoverboard's wheels going opposite ways as it turns on the spot; the unicycle pitched forward to go). The rider's own
+figure is put on it by its bones:
+- the cyclist sits on the saddle, leans forward from the waist until the hands are on the grips, the feet on the pedals
+  going round with the cranks (flat on them), and into a turn with the bike; stopped, the left foot goes down to the road
+  and the bike leans onto it;
+- the skateboarder stands across the board, the left foot over the front truck, the right over the back one, knees
+  bent, looking down the road over the left shoulder; pushing, the body turns to face forward, the front foot turns with
+  it, the back foot goes down to the road beside the board, sweeps back, is lifted and brought forward, and at the end of
+  pushing goes back onto the board;
+- the skater stands low, the body forward; striding, one leg goes out to the side and back with its skate turned out,
+  the body over the gliding foot, then the other, the arms swinging with the strides; gliding, the feet together;
+- on the scooter, one foot before the other on the deck and the hands on its grips, carried round with the bars;
+- on the hoverboard, a foot on each pad, the knees soft;
+- on the unicycle, a foot on each pedal, the legs against its shell, the body forward to go, the arms out for balance,
+  more when slow.
+
+The buttons are the motorcycle's (`pedalgas`, `pedalbrake`, the two arrows, the horn, getting off), the first named for
+what moves it: Pedal, Push, Skate or Go; Bell on the bicycle and the scooter (a small dome bell, two rings), nothing on
+the others. Heard (`src/client/sport-audio.js`, made as they are heard, nothing recorded): the wheels on the road, rising
+with the speed (a skateboard's lower and rougher, with the knock of the road's joints; the small hard wheels of the skates
+and the scooter higher); the bicycle's chain while it is pedalled and its freewheel ticking while it coasts; a scuff as
+each push or stride begins; the whine of an electric motor. Other players see them on it as they ride it, through the
+link (`ms`: which, its lean, speed, steering and where the rider is in their pedalling, pushing or striding; `ps`: theirs
+left standing near them), every field checked by whoever hears it (`talk.js`); and hear the bell.
+
+### Tests
+
+`test/own-sports.test.mjs` (how each goes; owning, getting on, riding within what it can do, getting off; no bell on a
+skateboard, nothing indoors; coming off; the police; others seeing them through the link, every field checked; the harm
+to someone run into), and in a browser `test/sport-ride.mjs` (the six bought at the mall, then each ridden down the
+Kwale road: drawn under the rider, its speed, the cyclist's feet on the pedals and hands on the grips, the cranks going
+round and standing still, the foot down when stopped, the skateboarder's foot down on the road pushing and back on the
+board, the skater's strides, the scooter rider's hands on its bars, the hoverboard turned on the spot, the unicycle
+leaning forward; its sounds; left standing; a phone's graphics card while riding).
+
 ## Tests
 
 ```

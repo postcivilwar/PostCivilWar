@@ -19,6 +19,7 @@ import { GameError } from './registry.js';
 import { cleanFigureLook } from './figures.js';
 import { POWER_BIKES } from './power-bikes.js';
 import { POWER_CARS } from './power-cars.js';
+import { SPORT_HANDLING } from './sport-ride.js';
 import { VEHICLE_MODELS, KEKE_PAINTS, KEKE_CANOPIES, KEKE_SEATS, KEKE_FLOORS } from './vehicle-looks.js';
 
 export const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLength: 140, gap: 1.2, visitors: 24 });
@@ -243,8 +244,10 @@ export function createTalk({ state, population, residents, players, weather, hub
     const out = [];
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
-    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
+    // (on one of their things from the sports mall, 31 October 2026: which, and what it is doing)
+    const sportOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('sp:') && q.psport ? { sport: q.psport.id, ...(q.psport.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, steer: 0, phase: 0 }) } : null);
+    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), sport: sportOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, sport: v.sport || null, sports: v.sports || [], car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -297,6 +300,12 @@ export function createTalk({ state, population, residents, players, weather, hub
     const r = data.ride && typeof data.ride === 'object' ? data.ride : null;
     const n = (value, lo, hi) => { const k = Number(value); return Number.isFinite(k) ? Math.max(lo, Math.min(hi, k)) : 0; };
     v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1), steer: n(r.steer, -0.7, 0.7) } : null;
+    // on one of their things from the sports mall (31 October 2026): which (one ridden on land), and what it is doing,
+    // within bounds (`phase`: where they are in their pedalling, pushing or skating; `pushing`: a foot down to push)
+    const sp = data.sport && typeof data.sport === 'object' ? data.sport : null;
+    v.sport = !v.ride && sp && typeof sp.sport === 'string' && Object.hasOwn(SPORT_HANDLING, sp.sport) ? { sport: sp.sport, lean: n(sp.lean, -0.6, 0.6), speed: n(sp.speed, -1, 9), throttle: n(sp.throttle, 0, 1), brake: sp.brake ? 1 : 0, steer: n(sp.steer, -0.7, 0.7), phase: n(sp.phase, 0, 7) } : null;
+    // and theirs left standing near them
+    v.sports = (Array.isArray(data.sports) ? data.sports : []).slice(0, 3).map((b) => (b && typeof b.item === 'string' && Object.hasOwn(SPORT_HANDLING, b.item) && near(b, x, z) ? { item: b.item, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen } : null)).filter(Boolean);
     // the phone in their hand: held to be read (1), on a call (2), held up for a picture (3), or not out (0)
     v.phone = [1, 2, 3].includes(data.phone) ? data.phone : 0;
     // its torch, lit (only with the phone in hand)
@@ -362,8 +371,8 @@ export function createTalk({ state, population, residents, players, weather, hub
     else v.down = null;
     // (a vehicle is carried on between words at the speed it was going, online.js: it is not shown going through anything
     // solid, but held where it last stood clear, until the next word says where it really is)
-    if ((v.ride || v.car || v.vehicle) && old && !zoneWalkable(x, z, [], 0.3) && zoneWalkable(old.x, old.z, [], 0.3)) { v.x = old.x; v.z = old.z; }
-    const horns = r ? n(r.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
+    if ((v.ride || v.sport || v.car || v.vehicle) && old && !zoneWalkable(x, z, [], 0.3) && zoneWalkable(old.x, old.z, [], 0.3)) { v.x = old.x; v.z = old.z; }
+    const horns = r ? n(r.horns, 0, 1e9) : sp ? n(sp.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
     if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }

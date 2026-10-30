@@ -86,6 +86,9 @@ import { createVoiceChat } from '../net/voice-chat.js';
 import { createVoiceUI, PRIVACY } from './ui-voice.js';
 import { makeDealMarker } from './render-holaris.js';
 import { createOwnBikeView } from './own-bike-view.js';
+import { createSportView } from './sport-view.js';
+import { SPORT_HANDLING, SPORT_BELL, stepSport, sportSeated } from '../sim/sport-ride.js';
+import { trimSports } from './sports-model.js';
 import { createCarView } from './car-view.js';
 import { createStandins } from './vehicle-standins.js';
 import { setCarDaylight, carsHeld, trimCars } from './car-model.js';
@@ -351,7 +354,7 @@ function start(carried) {
   const audio = createAudio();
   // the town's recorded voices (28 October 2026): played from where each speaker stands (voices.js)
   const voicePlayer = createVoicePlayer({ audio, fetchFile: (url) => fetchKept(url) });
-  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null;
+  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null, sportView = null, peerSportView = null;
   townSteps.push(['the phones, the motorcycles and the cars', () => {
     // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
     phoneHold = createPhoneHold({ scene, lite: LITE });
@@ -359,6 +362,10 @@ function start(carried) {
     ownBikeView = createOwnBikeView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your motorcycle could not be fetched. Check the connection.' }); } });
     // other players' motorcycles, seen from here (the same drawing, without anything to fetch until one is near)
     peerBikeView = createOwnBikeView(scene, { lite: LITE, priority: 'low' });
+    // the things from the sports mall (31 October 2026): the one the player rides and theirs left standing, and other
+    // players' (sport-view.js)
+    sportView = createSportView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'It could not be fetched. Check the connection.' }); } });
+    peerSportView = createSportView(scene, { lite: LITE, priority: 'low' });
     // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
     carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
     // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
@@ -408,7 +415,7 @@ function start(carried) {
     }
     for (const [id, e] of peerPhones) if (!near.has(id) || e.idle > 8) { e.hold.dispose(); peerPhones.delete(id); }
   }
-  let peerRides = [];
+  let peerRides = [], peerSportRides = [];
   let carsHeard = [];                // other players' cars near enough to be heard: { key, car, x, z, rev, throttle }
   let shownPeers = [];
   // Other players as they are now: one in or on a vehicle is carried on from where their game last said they were,
@@ -417,7 +424,7 @@ function start(carried) {
     const ahead = Math.max(0, clock - viewAt);
     shownPeers = (view.players || []).map((q) => {
       const v = q.vel;
-      if (!v || !(q.vehicle || q.ride || q.car) || Math.hypot(v[0], v[1]) < 0.3) return q;
+      if (!v || !(q.vehicle || q.ride || q.sport || q.car) || Math.hypot(v[0], v[1]) < 0.3) return q;
       const k = Math.min(0.3, (q.ago || 0) + ahead);
       return { ...q, x: q.x + v[0] * k, z: q.z + v[1] * k };
     });
@@ -1712,6 +1719,7 @@ function start(carried) {
     torch: { on: () => torch.on, toggle: () => setTorch(!torch.on) },
     online, market, wallet: walletClient,
     rideBike: (id) => rideOwnBike(id),
+    rideSport: (id) => rideOwnSport(id),
     driveCar: (id) => enterOwnCar(id),
     bikeSound: (id) => audio.previewBike(id),
     stopBikeSound: () => audio.stopPreview(),
@@ -2584,7 +2592,7 @@ function start(carried) {
   function getOffHere() {
     if (view.self.driving) return leaveVehicle();
     if (view.self.incar) return leaveOwnCar();
-    if (view.self.astride) { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); }
+    if (view.self.astride) { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; stillSport(); predicted.x = r.x; predicted.z = r.z; } say(r); }
     return null;
   }
   // (at a bridge: to cross it; anywhere else at the habitation's edge: it is entered on foot)
@@ -2620,7 +2628,7 @@ function start(carried) {
     if (atBridge()) return BRIDGE_PROMPT;
     if (view.self.driving) return findDrivingPrompt();
     if (view.self.incar) return Math.abs(carState.speed) > 1.5 ? null : { short: 'Get out', text: ownCar() ? `Get out of the ${ownCar().name}` : 'Get out of the car', run: leaveOwnCar };
-    if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
+    if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: ownSport() === 'inline-skates' ? 'Take off' : 'Get off', text: ownSport() === 'inline-skates' ? 'Take your skates off' : ownSport() ? `Get off the ${SPORTS[ownSport()].name}` : powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; stillSport(); predicted.x = r.x; predicted.z = r.z; } say(r); } };
     if (view.self.fight) return null;
     if (view.self.riding) return { short: 'Get down', text: 'Get down from the okada', run: getDown };
     const here = predicted;
@@ -2649,6 +2657,8 @@ function start(carried) {
     }
     // the player's own motorcycles, where they left them
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
+    // and their things from the sports mall, where they left them (the skates: put on again)
+    for (const b of (view.self.ownSports && view.self.ownSports.parked) || []) if (SPORT_HANDLING[b.item]) add(b.x, b.z, 2.2, { bias: 1.4, short: b.item === 'inline-skates' ? 'Put on' : 'Ride', text: b.item === 'inline-skates' ? 'Put your skates on' : `Ride your ${SPORTS[b.item].name}`, run: () => rideOwnSport(b.item) });
     // and their own cars (reached from beside a door: the car's own half-width and a step)
     for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) if (POWER_CARS[c.car]) add(c.x, c.z, POWER_CARS[c.car].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive your ${POWER_CARS[c.car].name}`, run: () => enterOwnCar(c.car) });
     // and a car of the town's they took and left standing (never theirs: traffic.js)
@@ -2738,6 +2748,7 @@ function start(carried) {
     // a car of their own: its own controls, as a power bike's
     if (self.incar && ownCar()) return 'car';
     // a power bike has its own controls (power-bikes.js); none is in the game until its model is supplied
+    if (self.astride && ownSport()) return 'sport';
     if (self.astride && powerBike()) return 'powerbike';
     if (bikePreview) return 'powerbike';
     if (self.astride) return 'moto';
@@ -2758,7 +2769,7 @@ function start(carried) {
     const out = [];
     for (const q of shownPeers) {
       if (Math.hypot(q.x - predicted.x, q.z - predicted.z) > 70) continue;
-      const able = Number.isFinite(q.health) && q.health > 20 && !q.vehicle && !q.ride && !q.car && !q.swimming && !q.held && !q.down;
+      const able = Number.isFinite(q.health) && q.health > 20 && !q.vehicle && !q.ride && !q.sport && !q.car && !q.swimming && !q.held && !q.down;
       out.push({ x: q.x, y: zoneGroundY(q.x, q.z) + (q.gun && q.gun.crouch ? 0.85 : 1.25), z: q.z, able });
     }
     if (crowd) for (const a of crowd.actors()) {
@@ -2897,6 +2908,13 @@ function start(carried) {
     if (m === 'driving' && coarse && wheelLayout()) return [{ id: 'gas', label: 'Accelerate', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to go' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake, and to go back' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...main, primary: false, icon: 'getout', label: (prompt && prompt.short) || 'Step out' }, { ...look, keyOnly: true }];
     if (m === 'driving') return [...pedals, out, { id: 'horn', key: 'h', label: 'Horn' }, look];
     if (m === 'moto') return [...pedals, out, { id: 'horn', key: 'h', label: 'Horn' }, look];
+    // On a thing from the sports mall: the power bike's layout, the pedal named for what moves it (the bicycle's pedals,
+    // a push, a stride, the motor), its bell if it has one, and getting off.
+    if (m === 'sport') {
+      const id = ownSport() || 'bicycle', drive = SPORT_HANDLING[id] ? SPORT_HANDLING[id].drive : 'motor';
+      const go = drive === 'pedals' ? ['Pedal', 'Hold to pedal'] : drive === 'push' ? ['Push', 'Hold to push along'] : drive === 'stride' ? ['Skate', 'Hold to skate'] : ['Go', 'Hold to go'];
+      return [{ id: 'throttle', label: go[0], icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: go[1] }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to slow down' }, { id: 'steer-left', label: 'Lean left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Lean right', icon: 'chevright', kind: 'hold' }, ...(SPORT_BELL.includes(id) ? [{ id: 'horn', key: 'h', label: 'Bell', icon: 'horn' }] : []), { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
+    }
     // On a power bike: its own layout, on a touch screen and with a keyboard alike. Steering arrows at the lower
     // left, the throttle and the brake at the right, the horn at the top, and getting off.
     if (m === 'powerbike') return [{ id: 'throttle', label: 'Throttle', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
@@ -2934,11 +2952,11 @@ function start(carried) {
     const wheel = mode === 'driving' && coarse && wheelLayout();
     if (stickEl.classList.contains('wheel') !== wheel) { stickEl.classList.toggle('wheel', wheel); $('touch').classList.toggle('wheel', wheel); $('hud').classList.toggle('wheel', wheel); controls.setSteering(wheel); }
     // on a power bike the stick goes and the bike's own buttons come; anything else, and they go again
-    const onBike = mode === 'powerbike' || mode === 'car';
+    const onBike = mode === 'powerbike' || mode === 'car' || mode === 'sport';
     if ($('touch').classList.contains('bike') !== onBike) { $('touch').classList.toggle('bike', onBike); $('hud').classList.toggle('bike', onBike); }
     keymap.clear();
     for (const b of list) if (b.key && b.key !== 'Shift') keymap.set(b.key, b);
-    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
+    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'sport' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
   }
 
   // One move in a fight: asked of the simulation, which says what came of it.
@@ -2993,7 +3011,7 @@ function start(carried) {
       case 'jump': jump(); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
-      case 'horn': { if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
+      case 'horn': { if (ownSport()) { if (SPORT_BELL.includes(ownSport())) { audio.cycleBell(); server.send({ type: 'moto.horn' }); } break; } if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
       case 'camera': rig.view = nextView(rig.view, where()); ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW[rig.view].name.toLowerCase()}.` }); break;
       case 'fight': if (near.fight) said(server.send({ type: 'combat.engage', target: { kind: near.fight.kind, id: near.fight.id } }), `You square up to ${near.fight.name}.`); break;
       case 'punch': case 'heavy': case 'kick': case 'shove': case 'grab': strike(id); break;
@@ -3210,6 +3228,113 @@ function start(carried) {
     return Math.abs(moto.speed);
   }
 
+  // --- the player's things from the sports mall (31 October 2026) ---
+  // The one they ride, if they ride one (its id), and how it is going (sport-ride.js: pedalled, pushed, skated, or by its
+  // motor; leaned into a turn as a motorcycle is; the hoverboard turned on the spot).
+  const ownSport = () => { const a = view && view.self.astride; return a && a.sport && SPORT_HANDLING[a.sport] ? a.sport : null; };
+  const sportState = { speed: 0, lean: 0, heading: 0, phase: 0, pushing: false, throttle: 0, steer: 0, braking: false, sentHeading: 0 };
+  const stillSport = () => { sportState.speed = 0; sportState.lean = 0; sportState.steer = 0; sportState.throttle = 0; sportState.braking = false; };
+  // On one of them: where they left it if they are beside it, or brought to them (from Property on the phone); the
+  // skates put on. The town decides; it is fetched the first time it is ridden.
+  function rideOwnSport(id) {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'sports.ride', item: id });
+    if (r.ok) { ui.close(); stillSport(); sportState.phase = 0; moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; sportState.sentHeading = r.h; refreshView(); }
+    say(r);
+    return r;
+  }
+  // What the server says this player owns from the mall, passed to the town whenever it changes (the motorcycles' sync
+  // asks the server for it): only those can be ridden.
+  let sportsSent = null;
+  function syncOwnSports() {
+    if (!playing || !view || !market.state.mine) return;
+    const ids = market.state.mine.holdings.map((h) => String((h.asset && h.asset.model) || '')).filter((m) => m.startsWith('sport:') && SPORTS[m.slice(6)]).map((m) => m.slice(6)).sort();
+    const key = ids.join(',');
+    if (key === sportsSent) return;
+    const r = server.send({ type: 'sports.owned', items: ids });
+    if (r.ok) sportsSent = key;
+  }
+  // Meeting something on it, as on a motorcycle (meetWithBike): along a wall it scrapes along; harder it stops dead with
+  // a jolt; a real crash throws the rider, and the town decides that (own-sports.js `crash`).
+  function meetWithSport(dt, nx, nz, boxes, h, forced = null) {
+    const free = (x, z) => zoneWalkable(x, z, boxes, h.room);
+    const kind = forced || zoneBlockKind(nx, nz, boxes, h.room) || 'solid';
+    const normal = contactNormal(free, predicted.x, predicted.z, nx, nz);
+    const c = contactOutcome({ speed: sportState.speed, heading: sportState.heading, normal, kind });
+    if (c.outcome === 'slide' && !forced) {
+      const sx = predicted.x + c.alongX * CONTACT.slideLoss * dt, sz = predicted.z + c.alongZ * CONTACT.slideLoss * dt;
+      if (c.along > 0.25 && free(sx, sz)) {
+        sportState.heading += angleGap(Math.atan2(c.alongX, c.alongZ), sportState.heading) * Math.min(1, dt * 5);
+        sportState.speed = c.along * CONTACT.slideLoss;
+        moto.speed = sportState.speed;
+        if (c.into > 0.8 && clock - scrapedAt > 0.4) { scrapedAt = clock; audio.blow('block', predicted.x, predicted.z); }
+        return { x: sx, z: sz };
+      }
+      sportState.speed = 0; moto.speed = 0;
+      return null;
+    }
+    if (c.outcome === 'crash') {
+      const r = server.send({ type: 'moto.crash', speed: sportState.speed, heading: sportState.heading });
+      if (r.ok && r.fell) {
+        stillSport(); moto.speed = 0; moto.lean = 0;
+        predicted.x = r.x; predicted.z = r.z;
+        kick(1, normal); jolt();
+        audio.blow('fall', r.item.x, r.item.z);
+        ui.toast({ type: 'alert', title: 'Thrown off', text: `You hit it at ${r.kmh} km/h and came off. Your ${SPORTS[r.item.id].name} is where it fell.` });
+        refreshView();
+        return null;
+      }
+    }
+    // stopped dead against it: a jolt and a step back off it; the rider stays on
+    sportState.speed = 0; moto.speed = 0; sportState.lean *= 0.3; moto.lean = sportState.lean;
+    if (c.into < CONTACT.scrape * 0.6) return null;
+    const back = Math.min(0.3, 0.05 + c.into * 0.04);
+    const bx = predicted.x + normal.x * back, bz = predicted.z + normal.z * back;
+    if (zoneWalkable(bx, bz, structureBoxes(), h.room)) {
+      const r = server.send({ type: 'moto.drive', x: bx, z: bz, heading: sportState.heading, lean: 0, speed: 0, throttle: 0, brake: true, steer: sportState.steer, phase: sportState.phase });
+      if (r.ok) { predicted.x = bx; predicted.z = bz; }
+    }
+    kick(Math.min(1, c.into / CONTACT.knock), normal);
+    audio.blow(kind === 'barrier' ? 'shove' : 'block', predicted.x, predicted.z);
+    if (c.into > CONTACT.scrape) jolt();
+    return null;
+  }
+  // Riding it: the pedal (or push, or skate, or go) button and the brake, the arrows to lean it into a turn (the
+  // hoverboard turns on the spot); off the tar it goes slower (a skateboard and skates hardly at all).
+  function driveSport(dt, id) {
+    const h = SPORT_HANDLING[id];
+    const input = uiBlocks() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    sportState.heading = predicted.heading;
+    const tar = motoSpeedAt(predicted.x, predicted.z, false) === MOTO.speedRoad;
+    stepSport(sportState, input, dt, { handling: h, onTar: tar, wet: view.weather.wet });
+    sportState.throttle = input.throttle; sportState.braking = input.brake > 0;
+    // the bars, as they are seen: turned by the steering at walking pace, hardly at all at speed (left positive)
+    sportState.steer += (-input.steer * 0.45 * Math.max(0.1, 1 - Math.abs(sportState.speed) / 6) - sportState.steer) * Math.min(1, dt * 8);
+    moto.speed = sportState.speed; moto.lean = sportState.lean;
+    if (Math.abs(sportState.speed) < 0.03) {
+      // standing still: turned on the spot (the hoverboard), the town is told which way it now faces
+      predicted.heading = sportState.heading;
+      if (Math.abs(angleGap(sportState.heading, sportState.sentHeading)) > 0.03) { const r = server.send({ type: 'moto.drive', x: predicted.x, z: predicted.z, heading: sportState.heading, lean: 0, speed: 0, throttle: sportState.throttle, brake: sportState.braking, steer: sportState.steer, phase: sportState.phase }); if (r.ok) sportState.sentHeading = sportState.heading; }
+      return 0;
+    }
+    let nx = predicted.x + Math.sin(sportState.heading) * sportState.speed * dt;
+    let nz = predicted.z + Math.cos(sportState.heading) * sportState.speed * dt;
+    if (stopsAtBridge(nx, nz, sportState.heading + (sportState.speed < 0 ? Math.PI : 0), 1.0)) { stillSport(); moto.speed = 0; return 0; }
+    const boxes = structureBoxes();
+    if (!zoneWalkable(nx, nz, boxes, h.room)) {
+      const on = meetWithSport(dt, nx, nz, boxes, h);
+      if (!on) return 0;
+      nx = on.x; nz = on.z;
+    }
+    // (with what it is doing, for other players to see: its lean, speed and steering, the pedals or the push or the stride)
+    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: sportState.heading, lean: sportState.lean, speed: sportState.speed, throttle: sportState.throttle, brake: sportState.braking, steer: sportState.steer, phase: sportState.phase });
+    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = sportState.heading; sportState.sentHeading = sportState.heading; if (result.hit) sportState.speed = 0; }
+    else if (result.code === 'BLOCKED') { meetWithSport(dt, nx, nz, boxes, h, 'solid'); return 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; sportState.speed = 0; }
+    if (clock - cam.lastDrag > 1.5 && sportState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.2);
+    return Math.abs(sportState.speed);
+  }
+
   // --- the player's own cars (17 October 2026) ---
   // The car the player is in, if it is one of their own (its entry in POWER_CARS), and how it is going.
   const ownCar = () => { const c = view && view.self.incar; return c && POWER_CARS[c.car] ? POWER_CARS[c.car] : null; };
@@ -3372,7 +3497,7 @@ function start(carried) {
     if (led()) return 0;                       // walked in by an officer, carried, or with hands on a vehicle: not theirs to steer
     if (view.self.incar) { const spec = ownCar(); return spec ? driveOwnCar(dt, spec) : 0; }
     if (view.self.driving) return driveVehicle(dt);
-    if (view.self.astride) return driveMoto(dt);
+    if (view.self.astride) return ownSport() ? driveSport(dt, ownSport()) : driveMoto(dt);
     if (view.self.riding) return 0;
     if (view.self.swimming) return swimPlayer(dt);
     const { forward, strafe } = controls.axes();
@@ -3880,7 +4005,7 @@ function start(carried) {
       // squared up to someone and standing still, the player keeps facing them
       if (self.fight && self.fight.target && speed < 0.2) predicted.heading += angleGap(Math.atan2(self.fight.target.x - predicted.x, self.fight.target.z - predicted.z), predicted.heading) * Math.min(1, dt * 10);
       // the driver sits on the keke's own seat, which is ahead of its middle; a rider sits a little back of the middle of his machine
-      const back = riding ? -0.5 : driving ? DRIVER_SEAT[2] : astride && !powerBike() ? -0.17 : 0;
+      const back = riding ? -0.5 : driving ? DRIVER_SEAT[2] : astride && !powerBike() && !ownSport() ? -0.17 : 0;
       let wantX = predicted.x + Math.sin(predicted.heading) * back;
       let wantZ = predicted.z + Math.cos(predicted.heading) * back;
       if (taking && (taking.step === 'mount' || taking.step === 'enter')) {
@@ -3926,7 +4051,7 @@ function start(carried) {
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
-      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
+      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride && ownSport() && !sportSeated(ownSport())) { standCharacter(me); me.group.position.y = groundY; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
       // (through the air, thrown over the handlebars)
       if (fallPlace && fallPlace.y !== undefined) me.group.position.y = fallPlace.y;
       // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
@@ -3935,6 +4060,12 @@ function start(carried) {
       const ownParked = ((self.ownBikes && self.ownBikes.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
       ownBikeView.update(dt, { ridden: ownRide, parked: ownParked, groundY: zoneGroundY, from: predicted, night, now: clock });
       if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
+      // on one of the player's things from the sports mall: it is drawn under them (the skates on their feet), and they
+      // ride it as it is ridden (sport-view.js); theirs left standing are drawn where they are
+      const sportRide = astride && ownSport() ? { id: ownSport(), x: predicted.x, z: predicted.z, h: predicted.heading, lean: sportState.lean, speed: sportState.speed, steer: sportState.steer, phase: sportState.phase, throttle: sportState.throttle, brake: sportState.braking } : null;
+      const sportParked = ((self.ownSports && self.ownSports.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
+      sportView.update(dt, { ridden: sportRide, parked: sportParked, groundY: zoneGroundY, from: predicted, now: clock });
+      if (sportRide) sportView.seat(me, sportRide, zoneGroundY);
       // in one of the player's own cars: the car is drawn where they are (car-view.js), with the other players' cars
       // near them, and every car of theirs and others' left standing within sight; the player sits at its wheel, seen
       // where its cabin can be seen into (car-view.js says where), unseen in a closed one
@@ -3993,7 +4124,7 @@ function start(carried) {
       me.wasSwimming = me.swimming;
       // in the ambulance, in a closed car (or one not yet drawn), or with the eye inside its own head, the figure is not drawn
       me.group.visible = !aboard && (!incar || carSeated) && !rig.hidesPlayer;
-      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
+      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && ownSport() ? { plate: SPORTS[ownSport()].name, fuel: null, kmh: Math.abs(sportState.speed) * 3.6, load: 0, capacity: 0 } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
       // one of the player's own motorcycles: its own speedometer, scaled to its engine (speedometer.js)
       if (astride && powerBike()) {
         const bike = powerBike();
@@ -4007,6 +4138,7 @@ function start(carried) {
       } else speedo.hide();
       if (incar && ownCar()) { const c = ownCar(); ownEngine = { kind: 'car', car: c.id, tone: c.tone, rev: carRevs(carState.speed, carState.throttle, carHandlingOf(c)), throttle: carState.throttle }; }
       else if (driving) ownEngine = { kind: 'keke', rev: Math.min(1, Math.abs(car.speed) / VEHICLE_KINDS.keke.speedRoad), throttle: car.throttle || 0 };
+      else if (astride && ownSport()) ownEngine = { kind: 'sport', item: ownSport(), speed: Math.abs(sportState.speed), throttle: sportState.throttle, phase: sportState.phase };
       else if (astride && powerBike()) { const bike = powerBike(); ownEngine = { kind: 'powerbike', bike: bike.id, sound: bike.sound, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(bike)), throttle: bikeState.throttle }; }
       else if (astride) ownEngine = { kind: 'okada', rev: Math.min(1, Math.abs(moto.speed) / MOTO.speedRoad), throttle: Math.abs(controls.axes().forward) };
       flash = Math.max(0, flash - dt * 2.2);
@@ -4102,6 +4234,25 @@ blood.update(dt, view.blood || []);
       const peerParked = [];
       for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}`, ...(b.fallen && Number.isFinite(b.ago) ? { ago: b.ago + Math.max(0, clock - viewAt) } : {}) });
       peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
+      // other players on their things from the sports mall (31 October 2026): the thing under them and them on it, as
+      // their game says it is going; theirs left standing near them; a bicycle's bell heard where it is
+      peerSportRides = [];
+      const peerSportParked = [];
+      for (const q of shownPeers) {
+        for (const b of q.sports || []) peerSportParked.push({ ...b, key: `spark:${q.id}:${b.item}` });
+        if (!q.sport || !SPORT_HANDLING[q.sport.sport]) continue;
+        const rig = crowd.rigOf(`p:${q.id}`);
+        if (!rig) continue;
+        const g = rig.group;
+        peerSportRides.push({ key: q.id, id: q.sport.sport, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.sport.lean, speed: q.sport.speed, steer: q.sport.steer || 0, phase: q.sport.phase || 0, throttle: q.sport.throttle, brake: q.sport.brake, rig });
+        if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.cycleBell(g.position.x, g.position.z); }
+      }
+      peerSportView.update(dt, { rides: peerSportRides, parked: peerSportParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, now: clock });
+      for (const r of peerSportRides) {
+        if (sportSeated(r.id)) seatCharacter(r.rig); else standCharacter(r.rig);
+        // (not drawn yet: they stand where they are until it is)
+        if (!peerSportView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`)) r.rig.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
+      }
       // another player at the wheel of their car: seen in their seat where its cabin can be seen into, as the player is
       // (car-view.js); unseen in a closed one, or while their car is not drawn (its picture stands in for it, below)
       const standing = [];
@@ -4140,7 +4291,7 @@ blood.update(dt, view.blood || []);
       room = inside ? zoneRoomAt(predicted.x, predicted.z) : null;
 
       saveTimer += dt;
-      market.tick(dt); accountSync.tick(dt); syncOwnBikes(); syncOwnCars();
+      market.tick(dt); accountSync.tick(dt); syncOwnBikes(); syncOwnCars(); syncOwnSports();
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
@@ -4175,14 +4326,15 @@ blood.update(dt, view.blood || []);
     if (playing && cam.back && !ui.isOpen() && !(showroom.talk && showroom.inside) && !(carshow.talk && carshow.inside)) { cam.dist += (cam.own - cam.dist) * Math.min(1, dt * 2.5); if (Math.abs(cam.dist - cam.own) < 0.05) { cam.dist = cam.own; cam.back = false; } }
     // (the vehicle under the player moving: a view turned round it swings back behind it only then)
     const astride = !!view && view.self.astride !== null && view.self.astride !== undefined;
-    const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
+    const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && ownSport() ? Math.abs(sportState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
     rig.update(dt, {
       moving: !sitting || rideSpeed > 0.8,
       sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
       room: hall ? (carshow.inside ? CAR_HALL_ROOM : sports.inside ? SPORTS_HALL_ROOM : HALL_ROOM) : null,
-      dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,
+      // (on a thing from the sports mall: higher, on its saddle or its deck)
+      dragged: clock - cam.lastDrag, eyeHeight: astride && ownSport() ? (sportSeated(ownSport()) ? 1.62 : 1.74) : sitting ? 1.45 : 1.62,
       // (in a car, the view from the bonnet is over its own bonnet, however long and high the car is)
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
       longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : 0,
@@ -4490,7 +4642,7 @@ blood.update(dt, view.blood || []);
     // (first what is kept ready and not drawn is let go, and the card counted again two seconds later; the level is
     // lowered only when that was not enough)
     if (usedMB > Math.min(graphicsBudgetMB, memoryLimit)) {
-      const freed = dropUnusedFigures() + trimBikes() + trimCars();
+      const freed = dropUnusedFigures() + trimBikes() + trimCars() + trimSports();
       if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
     }
     if (townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
@@ -4526,7 +4678,7 @@ blood.update(dt, view.blood || []);
     skillsState: () => skills.state,
     // the town's voices (28 October 2026): what the page has fetched and played
     voicePlayer, voiceStats: () => ({ ...voicePlayer.stats(), ...audio.voiceStats() }),
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, get sportView() { return sportView; }, get peerSportView() { return peerSportView; }, get peerSportRides() { return peerSportRides; }, rideSport: (id) => rideOwnSport(id), sportState, ownSport: () => ownSport(), speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },

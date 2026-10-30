@@ -604,7 +604,7 @@ export function createCrowd(scene) {
       let gap = Math.hypot(gx, gz);
       // in or on a vehicle: where their game says the vehicle is, carried on between words at its speed (main.js),
       // so it is not left trailing behind as someone walking would be; and facing the way the vehicle faces
-      const vh = q.vehicle || null, seated = !!vh || !!q.ride || !!q.car;
+      const vh = q.vehicle || null, seated = !!vh || !!q.ride || !!q.car || !!q.sport;
       // knocked down, thrown from a motorcycle or killed (19 October 2026): from their game (`down`, link.js), or from
       // this town if they are in it (a stance): they fall the way the blow sent them, from where it began, lie and get
       // up as they do on their own screen (falls.js); they are not walked from where they were struck to where they lay

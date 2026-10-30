@@ -29,6 +29,7 @@ import { BIRD_SONGS, FROG_CALLS, cricket } from './bird-songs.js';
 import { createGunVoice } from './gun-audio.js';
 import { GUN_SOUNDS } from './gun-sound-files.js';
 import { fetchKept } from './glb.js';
+import { createSportSound } from './sport-audio.js';
 
 // How each kind of engine sounds: lowest pitch, how far it climbs, its
 // character. Only the keke and the okada move in this build; the rest are
@@ -621,6 +622,14 @@ export function createAudio() {
     } else at(x, z, 90, 'horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
   }
 
+  // A bicycle's bell (31 October 2026): two quick rings of a small dome bell; the player's own (no place given), or
+  // another player's, heard where they are.
+  function cycleBell(x = null, z = null) {
+    if (!ctx || muted) return;
+    const play = (out, t) => { for (const k of [0, 0.17]) for (const [f, level, length] of [[2380, 0.13, 0.55], [3460, 0.06, 0.4], [5150, 0.025, 0.25]]) tick(ctx, out, t + k, f, level, length); };
+    if (x === null) { if (ctx.currentTime < hornAt) return; hornAt = ctx.currentTime + 0.5; here('horn', 0.8, 'vehicles', play); } else at(x, z, 50, 'horn', 0.8, 'vehicles', play);
+  }
+
   // Another player's bike sounding its horn, heard where the bike is.
   function bikeHornAt(id, x, z) {
     const h = BIKE_HORNS[id] || BIKE_HORNS.dual;
@@ -922,9 +931,15 @@ export function createAudio() {
       e.engine.set(q.rev, q.throttle, now);
     }
     for (const [key, e] of nodes.peerCars) if (!carsNow.has(key)) { retire(e.engine, now, true); setTimeout(() => e.pan.disconnect(), 3000); nodes.peerCars.delete(key); }
-    if (own && !bike && !carOwn && nodes.own.kind !== own.kind && ENGINE_VOICES[own.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(own.kind, false); }
-    nodes.own.set(own && !bike && !carOwn ? own.rev : 0, own && !bike && !carOwn ? 0.21 + own.throttle * 0.24 : 0, now);
-    nodes.tyres.gain.gain.setTargetAtTime(own ? own.rev * 0.035 : 0, now, 0.2);
+    // one of the sports mall's things being ridden (31 October 2026): its wheels, its pedals or its motor (sport-audio.js);
+    // no engine
+    const sportOwn = own && own.kind === 'sport' ? own : null;
+    if (sportOwn && !nodes.sport) nodes.sport = createSportSound(ctx, nodes.vehicles, nodes.white);
+    if (nodes.sport) nodes.sport.set(sportOwn, now);
+    const engineOwn = own && !bike && !carOwn && !sportOwn ? own : null;
+    if (engineOwn && nodes.own.kind !== engineOwn.kind && ENGINE_VOICES[engineOwn.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(engineOwn.kind, false); }
+    nodes.own.set(engineOwn ? engineOwn.rev : 0, engineOwn ? 0.21 + engineOwn.throttle * 0.24 : 0, now);
+    nodes.tyres.gain.gain.setTargetAtTime(own && Number.isFinite(own.rev) ? own.rev * 0.035 : 0, now, 0.2);
     engines.forEach((voice, i) => {
       const e = scene.engines[i];
       if (!e) { voice.set(0, 0, now); return; }
@@ -1086,7 +1101,7 @@ export function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
@@ -1116,6 +1131,7 @@ export function createAudio() {
       peerBikes: ctx ? [...nodes.peerBikes].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, recording: !!e.engine && !!e.engine.recording, rev: e.engine ? e.engine.rev : 0 })) : [],
       car: ctx && nodes.car ? { id: nodes.car.id, running: !!nodes.car.engine && nodes.car.engine.running, rev: nodes.car.engine ? nodes.car.engine.rev : 0 } : null,
       peerCars: ctx ? [...nodes.peerCars].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, rev: e.engine ? e.engine.rev : 0 })) : [],
+      sport: ctx && nodes.sport ? { ...nodes.sport.stats } : null,
       recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])),
       // the habitation's: how many songs, of which birds, frogs and crickets have been played; the waterfalls heard now
       habitat: { songs: habitat.heard.songs, kinds: [...habitat.heard.kinds], frogs: habitat.heard.frogs, crickets: habitat.heard.crickets, falls: [...habitat.falls.keys()], fallsLevel: ctx ? [...habitat.falls.values()].map((n) => +n.low.gain.gain.value.toFixed(3)) : [], stream: ctx && habitat.stream ? +habitat.stream.gain.gain.value.toFixed(3) : 0, boiling: habitat.heard.boiling, pops: habitat.heard.pops, boil: ctx && habitat.boil ? +habitat.boil.seethe.gain.gain.value.toFixed(3) : 0 } }),
