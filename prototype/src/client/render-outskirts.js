@@ -403,7 +403,7 @@ export function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera =
     group.userData.ready = ready.stats;
   }
   scene.add(group);
-  return { lampHeads: heads, signs, group, see: (x, z, reach) => sight.look(x, z, reach) };
+  return { lampHeads: heads, signs, group, see: (x, z, reach, far = reach) => sight.look(x, z, reach, far) };
 }
 export function buildOutskirts(scene, { glowMaterial }) {
   const steps = outskirtsSteps(scene, { glowMaterial });

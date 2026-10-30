@@ -10,8 +10,17 @@
 //     of the band and of the buttons below it, and its page of five made smaller if it cannot otherwise fit;
 //   - notices, which start just below the band (--under).
 // It reads a few rectangles and writes a few numbers, a few times a second; it never builds anything.
+//
+// A button placed from the top of the screen rather than from the corner (the horn on a motorcycle or in a car: it is
+// marked `--fit: top` in the page's styles) is not one of the group: it is put just below the band (--top-room, the
+// room from the band down to the corner) and kept out of the group's reach. Counted in, its place, which follows the
+// group's scale, fed the scale back, and where the page is shorter than the screen's own height (an iPhone's browser,
+// whose 100vh is the screen without its bars) the buttons grew smaller every few tenths of a second until they were
+// gone (the owner's recording of 29 October 2026, in his car on an upright iPhone).
 
 const GAP = 8;
+// (the group is never made smaller than this: on the shortest screen a button may come near the band, never vanish)
+const SMALLEST = 0.55;
 
 const rectOf = (el) => (el && !el.hidden && el.offsetParent !== null ? el.getBoundingClientRect() : null);
 
@@ -33,7 +42,9 @@ export function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, sk
     hud.style.setProperty('--under', `${Math.round(band + 6)}px`);
 
     // the buttons on the right: their natural reach up from the bottom of the screen, at full size
-    const pads = [...pad.children].filter((el) => el.getBoundingClientRect().height > 0);
+    const shown = [...pad.children].filter((el) => el.getBoundingClientRect().height > 0);
+    const fromTop = (el) => getComputedStyle(el).getPropertyValue('--fit').trim() === 'top';
+    const pads = shown.filter((el) => !fromTop(el));
     const corner = pad.getBoundingClientRect();           // #pad is a point at the bottom right
     let reach = 0, reachRight = 0;                        // highest point of the whole group; of those at the right edge
     for (const el of pads) {
@@ -43,7 +54,7 @@ export function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, sk
       if ((corner.right - r.left) / padScale < 100) reachRight = Math.max(reachRight, up);
     }
     const room = H - floor - (H - (corner.bottom - top));
-    let ps = reach > 0 ? Math.min(1, room / reach) : 1;
+    let ps = reach > 0 ? Math.max(SMALLEST, Math.min(1, room / reach)) : 1;
 
     // the Skills button, at the middle of the right edge if it can be: below the band, above the buttons at the edge
     const btn = rectOf(skillsBtn);
@@ -56,7 +67,7 @@ export function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, sk
         // keep it above the right-hand column; if that column is too tall for both, the buttons give way
         const lowest = bottomRef - reachRight * ps - GAP - half;
         const highest = floor + half;
-        if (lowest < highest) { ps = Math.max(0.55, ps * ((bottomRef - highest - half - GAP) / (reachRight * ps))); }
+        if (lowest < highest) { ps = Math.max(SMALLEST, ps * ((bottomRef - highest - half - GAP) / (reachRight * ps))); }
         centre = Math.max(highest, Math.min(centre, bottomRef - reachRight * ps - GAP - half));
       } else centre = Math.max(floor + half, Math.min(centre, H - half - GAP));
       // the page of five round it: 129 px above the middle to 143 below at full size (75 + 54 + a name)
@@ -73,15 +84,18 @@ export function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, sk
       const natural = (top + H - s.top) / stickScale;
       stickScale = Math.min(1, (H - floor) / natural);
     }
-    const key = `${padScale.toFixed(3)}|${stickScale.toFixed(3)}|${arcScale.toFixed(3)}|${Math.round(centre)}`;
+    // the room from the band down to the corner, for a button placed from the top (below the band)
+    const topRoom = Math.max(0, Math.round(room));
+    const key = `${padScale.toFixed(3)}|${stickScale.toFixed(3)}|${arcScale.toFixed(3)}|${Math.round(centre)}|${topRoom}`;
     if (key !== last) {
       last = key;
+      set('--top-room', `${topRoom}px`);
       set('--pad-scale', padScale.toFixed(3));
       set('--stick-scale', stickScale.toFixed(3));
       set('--arc-scale', arcScale.toFixed(3));
       set('--skills-y', `${Math.round(centre)}px`);
     }
-    return { band, padScale, stickScale, arcScale, centre, H, W };
+    return { band, padScale, stickScale, arcScale, centre, H, W, topRoom };
   }
   return { fit };
 }

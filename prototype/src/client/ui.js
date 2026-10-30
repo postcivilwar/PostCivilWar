@@ -945,7 +945,8 @@ export function createUI(app) {
   window.addEventListener('resize', placeNotices);
 
   function setVitals(self, flash) {
-    if (flash !== lastFlash) { lastFlash = flash; $('flash').style.opacity = flash > 0.01 ? String(Math.min(1, flash) * 0.8) : '0'; }
+    // (hidden while it shows nothing: template.html, #flash)
+    if (flash !== lastFlash) { lastFlash = flash; const el = $('flash'), on = flash > 0.01; el.style.opacity = on ? String(Math.min(1, flash) * 0.8) : '0'; el.style.visibility = on ? 'visible' : 'hidden'; }
     // someone else's health is shown only while it is this player's business: a fight, or an accident between them
     const foe = (self.fight && self.fight.target) || (self.involved && self.involved[0]) || null;
     const law = self.law.state;

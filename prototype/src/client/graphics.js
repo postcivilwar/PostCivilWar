@@ -82,20 +82,26 @@ export const levelSetting = (key, level, lite = false) => { const s = LEVEL_SETT
 
 // The level Auto starts at on a device not yet measured: a phone or tablet at Medium (as it was drawn before the levels),
 // a computer at Ultra (likewise); Low where the graphics card is the browser's own software (no graphics card at all) or
-// the phone says it has little memory; a computer's integrated graphics at High. `remembered` (below) comes first.
+// the phone is one Auto keeps at Low (below); a computer's integrated graphics at High. `remembered` (below) comes first.
 export function autoStart({ lite, gpu = '', memory = null }) {
   const card = String(gpu).toLowerCase();
   if (/swiftshader|llvmpipe|software|softpipe|microsoft basic render/.test(card)) return LOW;
-  if (lite) return memory !== null && memory <= 2 ? LOW : MEDIUM;
+  if (lite) return lowPhone({ gpu, memory }) ? LOW : MEDIUM;
   if (/intel|uhd graphics|iris/.test(card) && !/arc/.test(card)) return HIGH;
   return ULTRA;
 }
+// A phone Auto keeps at Low, from the start and all the way (29 October 2026, the owner's brief: on his iPhone the game
+// hung and then closed by itself): an iPhone or iPad (its graphics card is the "Apple GPU"; its browser closes a page that
+// holds more memory than it allows, however fast the page draws, and each level is more pictures and bigger ones), and a
+// phone that says it has less than 6 GB of memory (Chrome says so, in round numbers: 4 for a 6 GB phone). Medium is the
+// player's to choose there in Settings.
+export const lowPhone = ({ gpu = '', memory = null }) => /apple/i.test(String(gpu)) || (memory !== null && memory < 6);
 // The highest level Auto climbs to by itself: on a phone, Medium (26 October 2026, the owner's brief: the game hung on
 // his phones; "make it lighter on phones ... a lighter level chosen by Auto"). High draws the town a second time for the
 // river's mirror, once more for the soft darkening, half as many pixels again and a wider glow: a phone fast enough at
 // Medium climbed to it, ran hot at it, and fell back, over and over, each change seconds of work. High and Ultra are the
-// player's to choose in Settings. On a computer, Ultra.
-export const autoCeiling = ({ lite }) => (lite ? MEDIUM : ULTRA);
+// player's to choose in Settings. On a phone Auto keeps at Low (above), Low. On a computer, Ultra.
+export const autoCeiling = ({ lite, gpu = '', memory = null }) => (lite ? (lowPhone({ gpu, memory }) ? LOW : MEDIUM) : ULTRA);
 
 // The level Auto settled at on this device last time, kept for the next start, by the graphics card's name (so a
 // browser moved to another card, or a profile copied to another computer, starts afresh).

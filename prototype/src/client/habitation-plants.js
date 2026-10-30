@@ -15,6 +15,9 @@
 //
 // Nothing here is fetched: whoever reads the file fetches it (render-habitation.js; the look tool, tools/habitation).
 
+import { letGoOnceDrawn, decodeAtMost } from './glb.js';
+import { letGoOnceSent } from './render-kit.js';
+
 const TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
 const MAX = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
@@ -46,21 +49,31 @@ function accessor(json, bin, k, float = true) {
 }
 // A picture shared by many models (the leaves' sheet, named in each file by `uri`): fetched once, by whoever reads
 // the models (`shared(uri)` gives its texture).
-// A texture's picture made half its size (once): drawn into a canvas half as wide and high.
+// A texture's picture made half its size (once). Made by the browser as a picture of its own (createImageBitmap), so
+// that the page's copy can be let go once the graphics card has it (glb.js, letGoOnceDrawn: a canvas, as it was made
+// before 29 October 2026, was kept by the page for as long as the habitation stood), and remembered as its own largest
+// (`userData.want`), so that it is made again at that size from its file should it be let go (glb.js, wakePicture).
 const halvedOnce = new WeakSet();
-function halved(t) {
+async function halved(t) {
   if (!t || halvedOnce.has(t) || !t.image || !(t.image.width > 16)) return t;
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(t.image.width / 2)); c.height = Math.max(1, Math.round(t.image.height / 2));
-  c.getContext('2d').drawImage(t.image, 0, 0, c.width, c.height);
-  if (t.image.close) t.image.close();
-  t.image = c; t.needsUpdate = true;
   halvedOnce.add(t);
+  const img = t.image, w = Math.max(1, Math.round(img.width / 2)), h = Math.max(1, Math.round(img.height / 2));
+  t.userData.want = Math.max(w, h);
+  let half = null;
+  try { half = await createImageBitmap(img, { ...PICTURE_OPTIONS, resizeWidth: w, resizeHeight: h, resizeQuality: 'high' }); } catch (error) { half = null; }
+  if (!half) {
+    // (a browser that cannot make it so: drawn into a canvas, as before)
+    half = document.createElement('canvas'); half.width = w; half.height = h;
+    half.getContext('2d').drawImage(img, 0, 0, w, h);
+  }
+  if (t.image === img) { if (img.close) img.close(); t.image = half; t.needsUpdate = true; } else if (half.close) half.close();
   return t;
 }
 // A picture decoded: away from the page's thread where the browser can (createImageBitmap), and if that has not
 // answered within a while (on a page busy with a great deal, it was once seen never to answer: 21 October 2026), by an
 // image element instead; an error if neither can read it.
+// (how a picture of the habitation is read: as its file has it, nothing turned or multiplied)
+export const PICTURE_OPTIONS = Object.freeze({ imageOrientation: 'none', premultiplyAlpha: 'none' });
 export function decodePicture(blob, { wait = 15000 } = {}) {
   const viaImage = () => new Promise((resolve, reject) => {
     const img = new Image(), url = URL.createObjectURL(blob);
@@ -73,7 +86,7 @@ export function decodePicture(blob, { wait = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(() => { if (!settled) { settled = true; viaImage().then(resolve, reject); } }, wait);
-    createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' }).then((bitmap) => {
+    createImageBitmap(blob, PICTURE_OPTIONS).then((bitmap) => {
       if (settled) { if (bitmap.close) bitmap.close(); return; }
       settled = true; clearTimeout(timer); resolve(bitmap);
     }, () => { if (settled) return; settled = true; clearTimeout(timer); viaImage().then(resolve, reject); });
@@ -90,6 +103,10 @@ async function pictureOf(json, bin, index, colour, shared = null) {
   const v = json.bufferViews[img.bufferView];
   const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (v.byteOffset || 0), v.byteLength)], { type: img.mimeType });
   const t = new THREE.Texture(await decodePicture(blob));
+  // (the page's copy let go once the graphics card has it, and made again from its file's bytes, at the graphics level's
+  // size, should the card's copy be lost or another size be wanted: glb.js. Held, the habitation's pictures were some
+  // twenty megabytes of the page's memory at the town's east end, where a phone holds the most: 29 October 2026)
+  letGoOnceDrawn(t, (size) => decodeAtMost(blob, size, PICTURE_OPTIONS));
   t.flipY = false;
   if (colour) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -234,7 +251,10 @@ export function stoneMaterial({ map, normalMap, roughnessMap, scale = 1.6, relie
 
 // One dressed model: its parts (geometry and material, shared by every copy), and `make()` for a copy.
 export async function readDressed(buffer, { lite = false, shared = null } = {}) {
-  const { json, bin } = readGLBParts(buffer);
+  // (`let`: let go once the model is read. The model's `make` and `dispose` share this function's closure with `picture`,
+  // and kept every model's whole file, its pictures' bytes too, for as long as the habitation stood: 13 MB of a phone's
+  // page, besides what was made from it; 29 October 2026)
+  let { json, bin } = readGLBParts(buffer);
   const pictures = new Map();
   const picture = (index, colour) => { const key = `${index}:${colour}`; if (!pictures.has(key)) pictures.set(key, pictureOf(json, bin, index, colour, shared)); return pictures.get(key); };
   // (every picture it has asked for at once, so that they are decoded together rather than one after another: each
@@ -259,17 +279,21 @@ export async function readDressed(buffer, { lite = false, shared = null } = {}) 
       if (p.indices !== undefined) g.setIndex(new THREE.BufferAttribute(accessor(json, bin, p.indices, false), 1));
       if (!g.attributes.normal) g.computeVertexNormals();
       g.computeBoundingSphere(); g.computeBoundingBox();
+      // (its numbers let go once the graphics card has them: nothing changes them or reads them again; render-kit.js. How
+      // far its leaves bend at most is kept: the tests look at it)
+      { const a = g.attributes.sway.array; let most = 0; for (let i = 0; i < a.length; i += 1) if (a[i] > most) most = a[i]; g.userData.swayMost = most; }
+      letGoOnceSent(g);
       const md = json.materials[p.material || 0] || {}, pbr = md.pbrMetallicRoughness || {};
       const part = (md.extras && md.extras.part) || 'surface';
       let material, depth = null;
       if (part === 'stone') {
         // (on a phone a rock's stone at half its pictures' size: it is laid on in small squares over the rock, and so
         // looks the same, for a quarter of the graphics memory)
-        const stone = (t) => (lite ? halved(t) : t);
+        const stone = async (t) => (lite ? halved(t) : t);
         material = stoneMaterial({
-          map: pbr.baseColorTexture ? stone(await picture(pbr.baseColorTexture.index, true)) : null,
-          normalMap: md.normalTexture ? stone(await picture(md.normalTexture.index, false)) : null,
-          roughnessMap: pbr.metallicRoughnessTexture ? stone(await picture(pbr.metallicRoughnessTexture.index, false)) : null,
+          map: pbr.baseColorTexture ? await stone(await picture(pbr.baseColorTexture.index, true)) : null,
+          normalMap: md.normalTexture ? await stone(await picture(md.normalTexture.index, false)) : null,
+          roughnessMap: pbr.metallicRoughnessTexture ? await stone(await picture(pbr.metallicRoughnessTexture.index, false)) : null,
           scale: (md.extras && md.extras.triplanar) || 1.6,
         });
       } else if (part === 'leaves') {
@@ -290,6 +314,8 @@ export async function readDressed(buffer, { lite = false, shared = null } = {}) 
   }
   const box = new THREE.Box3();
   for (const p of parts) box.union(p.geometry.boundingBox);
+  // (the file let go: see above)
+  json = null; bin = null; pictures.clear();
   return {
     notes, box, parts,
     make() {

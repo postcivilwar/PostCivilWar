@@ -18,11 +18,12 @@ export function place(x, y, z, ry = 0, sx = 1, sy = 1, sz = 1, rx = 0, rz = 0) {
 // carries on where it was; restoreGeometry, main.js).
 const sentAway = new Map();          // attribute -> { blob, type }
 function letGo() { if (this.array && !sentAway.has(this)) sentAway.set(this, { blob: new Blob([this.array]), type: this.array.constructor }); this.array = null; }
-// Every batch's numbers handed back, for the graphics card to be given them again. Gives how many.
+// Every batch's numbers handed back, for the graphics card to be given them again. Gives how many. (Not those of a
+// geometry resting far off, below: they are read back as it comes near.)
 export async function restoreGeometry() {
   let n = 0;
   await Promise.all([...sentAway].map(async ([attribute, kept]) => {
-    if (attribute.array) return;
+    if (attribute.array || resting.has(ownerOf.get(attribute))) return;
     attribute.array = new kept.type(await kept.blob.arrayBuffer());
     attribute.needsUpdate = true;
     n += 1;
@@ -30,6 +31,82 @@ export async function restoreGeometry() {
   return n;
 }
 export const geometryKeptAside = () => sentAway.size;
+// Any other geometry whose numbers nothing changes or reads again once it is made (the habitation's models, waters and
+// hills, a square's leaves), let go so too once the graphics card has them, and forgotten with the geometry when it is
+// let go itself (29 October 2026, the owner's brief: the game hung and closed by itself on his phone; at the town's east
+// end a phone's page held some twenty-five megabytes of such numbers that the graphics card already had).
+const ownerOf = new WeakMap();       // attribute -> its geometry
+export function letGoOnceSent(geometry) {
+  const kept = Object.values(geometry.attributes);
+  if (geometry.index) kept.push(geometry.index);
+  for (const attribute of kept) { attribute.onUpload(letGo); ownerOf.set(attribute, geometry); }
+  geometry.addEventListener('dispose', () => { if (resting.has(geometry)) return; for (const attribute of kept) sentAway.delete(attribute); });
+  return geometry;
+}
+
+// A phone's meshes far beyond what can be seen (createSight, below; 29 October 2026, the owner's brief: the game hung and
+// then closed by itself on his iPhone): the graphics card holds the whole town, every square of it, for as long as the
+// page is open, and a phone sees 190 m of a town 500 m wide and 665 m long, besides the land beyond it and the habitation.
+// A mesh whose numbers were sent and kept aside (letGoOnceSent), out of sight and well beyond seeing for a few seconds,
+// rests: its room on the graphics card is let go and it is drawn from nothing meanwhile (an empty geometry: whatever shows
+// it draws nothing); as it comes within REST.wake of seeing again, its numbers are read back from where they were kept,
+// it is given its own geometry again, and that is sent to the card the next time it is drawn (and let go from the page
+// once it is). Coming back takes a few milliseconds, well before it can be seen.
+const REST = Object.freeze({ away: 90, wake: 50, ms: 5000 });
+const resting = new Set();           // geometries resting
+const restingOf = new Map();         // mesh -> its own geometry, while it rests
+const waking = new Map();            // mesh -> the promise of its numbers read back
+let nothing = null;
+const restStats = { rested: 0, woken: 0, failed: 0 };
+// (one whose every numbers were sent once and kept aside: a copy the page holds again, given back with the drawing
+// surface and not yet sent, is let go as it rests)
+const keptOf = (geometry) => [...Object.values(geometry.attributes), ...(geometry.index ? [geometry.index] : [])];
+function restable(geometry) {
+  if (!geometry || !geometry.isBufferGeometry || resting.has(geometry)) return false;
+  const kept = keptOf(geometry);
+  return kept.length > 0 && kept.every((a) => sentAway.has(a) && ownerOf.get(a) === geometry);
+}
+export function restMesh(mesh) {
+  const geometry = mesh.geometry;
+  if (restingOf.has(mesh) || !restable(geometry)) return false;
+  if (!nothing) { nothing = new THREE.BufferGeometry(); nothing.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3)); nothing.boundingSphere = new THREE.Sphere(); }
+  for (const a of keptOf(geometry)) a.array = null;
+  resting.add(geometry); restingOf.set(mesh, geometry);
+  mesh.geometry = nothing;
+  // (its room on the card let go; what was kept aside is kept: letGoOnceSent's listener leaves a resting geometry's)
+  geometry.dispose();
+  restStats.rested += 1;
+  return true;
+}
+export function wakeMesh(mesh) {
+  const geometry = restingOf.get(mesh);
+  if (!geometry) return Promise.resolve(true);
+  if (waking.has(mesh)) return waking.get(mesh);
+  const job = (async () => {
+    try {
+      const kept = keptOf(geometry);
+      await Promise.all(kept.map(async (a) => { if (a.array) return; const k = sentAway.get(a); a.array = new k.type(await k.blob.arrayBuffer()); a.needsUpdate = true; }));
+      // (let go for good meanwhile: settleMesh)
+      if (restingOf.get(mesh) !== geometry) return false;
+      mesh.geometry = geometry; restingOf.delete(mesh); resting.delete(geometry);
+      restStats.woken += 1;
+      return true;
+    } catch (error) { restStats.failed += 1; return false; } finally { waking.delete(mesh); }
+  })();
+  waking.set(mesh, job);
+  return job;
+}
+// A mesh about to be let go for good: its own geometry given back to it, so that letting that go forgets what was kept
+// of it. Gives the geometry.
+export function settleMesh(mesh) {
+  const geometry = restingOf.get(mesh);
+  if (!geometry) return mesh.geometry;
+  restingOf.delete(mesh); resting.delete(geometry); waking.delete(mesh);
+  mesh.geometry = geometry;
+  return geometry;
+}
+export const isResting = (mesh) => restingOf.has(mesh);
+export const restState = () => ({ resting: resting.size, waking: waking.size, ...restStats });
 
 // A list of numbers that grows as it is added to, kept as the 32-bit floats the graphics card is given. (The
 // town is some forty million of them. They were once gathered in ordinary lists, a number at a time, at twice
@@ -191,8 +268,10 @@ export class Batch {
     geometry.setAttribute('uv', new THREE.BufferAttribute(this.uvs.take(), 2));
     geometry.computeBoundingSphere();
     // These meshes never change and nothing reads their numbers again, so once the graphics card has a
-    // copy the page lets its own go. The town is some eighty megabytes of them.
-    for (const attribute of Object.values(geometry.attributes)) attribute.onUpload(letGo);
+    // copy the page lets its own go. The town is some eighty megabytes of them. (And what was kept aside of them is
+    // forgotten when the geometry is let go: the land beyond the town, let go on a phone far from it and built again
+    // as it comes back, 29 October 2026.)
+    letGoOnceSent(geometry);
     // Whoever built the town keeps hold of this batch for as long as the page is open, so the lists it was
     // gathered in are dropped here.
     this.built = true;
@@ -234,6 +313,8 @@ export class Chunked {
 // Things too far away to matter are not drawn. A sight list holds meshes and
 // how far each can be seen from; `look` shows the ones in range. `reach` is
 // how far the air lets one see at the moment.
+// On a phone, a mesh well beyond seeing for a while rests, and comes back as it comes near (restMesh, above). `far` is how
+// far one can see outdoors: in a hall `reach` is less, and nothing rests for that.
 export function createSight() {
   const list = [];
   return {
@@ -241,10 +322,26 @@ export function createSight() {
       if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
       const sphere = mesh.geometry.boundingSphere;
       const c = centre || sphere.center;
-      list.push({ mesh, x: c.x, z: c.z, radius: centre ? centre.radius || 0 : sphere.radius, limit });
+      list.push({ mesh, x: c.x, z: c.z, radius: centre ? centre.radius || 0 : sphere.radius, limit, farSince: 0, triedAt: 0 });
       return mesh;
     },
-    look(x, z, reach) { for (const it of list) it.mesh.visible = Math.hypot(it.x - x, it.z - z) - it.radius < Math.min(reach, it.limit); },
+    look(x, z, reach, far = reach) {
+      const now = performance.now();
+      for (const it of list) {
+        const d = Math.hypot(it.x - x, it.z - z) - it.radius;
+        if (lite) {
+          const seen = Math.min(far, it.limit);
+          if (d > seen + REST.away) {
+            if (!it.farSince) it.farSince = now;
+            else if (now - it.farSince > REST.ms && now - it.triedAt > REST.ms && !restingOf.has(it.mesh)) { it.triedAt = now; restMesh(it.mesh); }
+          } else {
+            it.farSince = 0;
+            if (d < seen + REST.wake && restingOf.has(it.mesh)) wakeMesh(it.mesh);
+          }
+        }
+        it.mesh.visible = d < Math.min(reach, it.limit) && !restingOf.has(it.mesh);
+      }
+    },
     size: () => list.length,
   };
 }

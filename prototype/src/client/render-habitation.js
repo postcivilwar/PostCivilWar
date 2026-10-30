@@ -17,12 +17,13 @@
 
 import { programsReady } from './program-ready.js';
 import { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundWarm, habitationGroundGiven, habitationLandWarm, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } from '../sim/zone.js';
-import { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit } from './render-kit.js';
+import { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit, letGoOnceSent } from './render-kit.js';
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { reflects } from './render-finish.js';
 import { LIGHT } from './light.js';
-import { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture } from './habitation-plants.js';
+import { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture, PICTURE_OPTIONS } from './habitation-plants.js';
+import { letGoOnceDrawn, decodeAtMost, sleepPicture, wakePicture, isAsleep } from './glb.js';
 
 // (metres from its ground, habitationAway: built when a player comes within COME of it, let go beyond GO. Since 21
 // October 2026 it is at the end of the town's road, its edge 77 m past the road's end: its forest is seen from the
@@ -325,6 +326,8 @@ function groundPieces(data, every, material) {
     g.setAttribute('tint', new THREE.BufferAttribute(tint, 4, true));
     g.setIndex(new THREE.BufferAttribute(index, 1));
     g.computeBoundingSphere();
+    // (its numbers are kept: the habitation's test reads the drawn ground's points against the walkers' ground; they are
+    // a few MB, and let go with the piece when the ground is drawn afresh)
     const mesh = new THREE.Mesh(g, material);
     mesh.name = 'habitation-ground'; mesh.receiveShadow = true;
     group.add(mesh);
@@ -564,7 +567,8 @@ function waterGeometry(pos, depth, idx, rush, flow) {
   g.setAttribute('flow', new THREE.Float32BufferAttribute(flow || new Float32Array(n * 2), 2));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  return g;
+  // (nothing changes a water's numbers once it is made: let go once the graphics card has them; render-kit.js)
+  return letGoOnceSent(g);
 }
 // A stream: its surface along its line, as wide as it is and a little into its banks, at its own level all along (down
 // a step at a cascade); running downstream; white where it drops fast (`rush`).
@@ -1272,7 +1276,7 @@ function hillRing(radius, peaks, tallest, seed, lite) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  return g;
+  return letGoOnceSent(g);
 }
 function buildHills(lite) {
   const group = new THREE.Group(); group.name = 'habitation-hills';
@@ -1472,8 +1476,13 @@ function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () =
         group.add(mesh);
         return mesh;
       });
-      const slot = impostors && PICTURED.has(kind) ? impostors.take(m, model) : null;
-      const entry = { name: m, kind, model, copies, meshes, slot, band: BANDS[kind] || BANDS.tree, chosen: '' };
+      const entry = { name: m, kind, model, copies, meshes, slot: null, band: BANDS[kind] || BANDS.tree, chosen: '' };
+      // (its picture taken with its own pictures there: the leaves' shared sheet may have been let go meanwhile)
+      if (impostors && PICTURED.has(kind)) {
+        await Promise.all(picturesOf(entry).map(wakePicture));
+        if (placed.stopped) { model.dispose(); return; }
+        entry.slot = impostors.take(m, model);
+      }
       placed.models.set(m, entry);
       placed.list.push(entry);
       placed.instances += copies.length;
@@ -1499,11 +1508,18 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
   counts.models = 0; counts.copies = 0;
   for (const e of placed.list) {
     const near = e.band[lite ? 1 : 0];
-    let n = 0, chosen = '';
+    // (a model whose pictures were let go while it was far (sleepModels) is drawn as the model once they have been made
+    // again: asked for as it comes within WAKE_AHEAD of its band, and until they are there its copies are drawn as their
+    // pictures, if they have any)
+    const pics = picturesOf(e);
+    let sleeping = false;
+    for (let k = 0; k < pics.length; k += 1) if (isAsleep(pics[k])) { sleeping = true; break; }
+    let n = 0, chosen = '', nearest = Infinity;
     for (let i = 0; i < e.copies.length; i += 1) {
       const c = e.copies[i];
       const d = Math.hypot(c.x - ex, c.z - ez);
-      if (d - c.sphere.radius > near) {
+      nearest = Math.min(nearest, d - c.sphere.radius);
+      if (d - c.sphere.radius > near || sleeping) {
         if (e.slot && d < far && frustum.intersectsSphere(c.sphere)) pictures.push({ x: c.x, y: c.y, z: c.z, scale: c.scale, slot: e.slot, flip: c.flip });
         continue;
       }
@@ -1515,6 +1531,11 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
       n += 1;
     }
     chosen += `:${n}`;
+    e.nearest = nearest;
+    if (sleeping && !e.waking && nearest < near + WAKE_AHEAD) {
+      e.waking = Promise.all(pics.map(wakePicture)).then(() => { e.waking = null; }, () => { e.waking = null; });
+      placed.woken = (placed.woken || 0) + 1;
+    }
     if (n) e.drawnAt = now;
     if (chosen !== e.chosen || e.meshes[0] && e.meshes[0].count !== n) {
       e.chosen = chosen;
@@ -1534,7 +1555,13 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
 // (21 October 2026: the habitation at the end of the town's road, beside the town; from the town, or from one end of
 // it, most of its models are pictures, and a phone needs the room.) Looked at every few seconds; letting a picture go
 // twice does nothing.
-const SLEEP_AFTER = 10;
+// Since 29 October 2026 (the owner's brief: the game hung and closed by itself on his phone) the page no longer keeps
+// them either: a picture is let go from the page once the card has it (habitation-plants.js), and one let go from the
+// card too is made again from its file's bytes when it is wanted (glb.js, sleepPicture and wakePicture). So a model is
+// let go only while it is well beyond the distance at which it is drawn as itself (SLEEP_AHEAD past its band), and asked
+// for again as it comes within WAKE_AHEAD of it, a second or so before it is drawn; one merely out of view, or near,
+// keeps its pictures on the card, as turning round must not wait for them.
+const SLEEP_AFTER = 10, WAKE_AHEAD = 40, SLEEP_AHEAD = 60;
 const PICTURE_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'emissiveMap', 'aoMap', 'bumpMap'];
 function picturesOf(entry) {
   if (entry.pictures) return entry.pictures;
@@ -1549,18 +1576,25 @@ function picturesOf(entry) {
   entry.pictures = [...out];
   return entry.pictures;
 }
-function sleepModels(placed, sharedTextures) {
+// (a picture let go: made again from its file when wanted, if it can be; otherwise from the page's copy, as before)
+const letPictureGo = (t) => { if (!sleepPicture(t)) t.dispose(); };
+function sleepModels(placed, lite) {
   const now = performance.now() / 1000;
   if (now - (placed.sleptAt || 0) < 3) return;
   placed.sleptAt = now;
   let sharing = 0, asleep = 0;
+  const sheets = new Set();
   for (const e of placed.list) {
-    if (now - (e.drawnAt || 0) < SLEEP_AFTER) { if (picturesOf(e).some((t) => t.userData && t.userData.shared)) sharing += 1; continue; }
-    for (const t of picturesOf(e)) if (!(t.userData && t.userData.shared)) t.dispose();
+    for (const t of picturesOf(e)) if (t.userData && t.userData.shared) sheets.add(t);
+    const kept = now - (e.drawnAt || 0) < SLEEP_AFTER || e.waking || (e.nearest !== undefined && e.nearest < e.band[lite ? 1 : 0] + SLEEP_AHEAD);
+    if (kept) { if (picturesOf(e).some((t) => t.userData && t.userData.shared)) sharing += 1; continue; }
+    for (const t of picturesOf(e)) if (!(t.userData && t.userData.shared)) letPictureGo(t);
     asleep += 1;
   }
-  // (the leaves' sheet, once no model drawn uses it)
-  if (!sharing) for (const t of sharedTextures) t.dispose();
+  // (the leaves' sheet, once no model drawn, or near, uses it. Only the models' own: the boardwalks' wood is shared too
+  // (`shared`), and is drawn whatever the models are; let go with them, it was handed to the card again once the page had
+  // let its own copy go, and the boardwalks were drawn without it: 29 October 2026, the town's buildings' test)
+  if (!sharing) for (const t of sheets) letPictureGo(t);
   placed.asleep = asleep;
 }
 
@@ -1574,7 +1608,10 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     if (!sharedPictures.has(uri)) sharedPictures.set(uri, (async () => {
       const res = await fetchFile(`habitation/${uri}`);
       if (!res.ok) throw new Error(`${uri}: ${res.status}`);
-      const t = new THREE.Texture(await decodePicture(await res.blob())); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      const blob = await res.blob();
+      const t = new THREE.Texture(await decodePicture(blob)); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      // (the page's copy let go once the card has it, made again from the file at the level's size: habitation-plants.js)
+      letGoOnceDrawn(t, (size) => decodeAtMost(blob, size, PICTURE_OPTIONS));
       sharedTextures.add(t);
       return t;
     })());
@@ -1884,7 +1921,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     if (built && lite) { const every = built.ground.userData.every; if (every === 2 && away < NEAR_GROUND.come) swapGround(1); else if (every === 1 && away > NEAR_GROUND.go) swapGround(2); }
     if (built) {
       for (const f of built.falls) f.update(dt, time);
-      if (built.placed) { chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn); sleepModels(built.placed, sharedTextures); }
+      if (built.placed) { chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn); sleepModels(built.placed, lite); }
       built.meadow.update(eye);
       if (scene.fog) built.hills.userData.tone(scene.fog.color);
       // (the steam lit as the day is: white by day, grey at dusk, faint at night)
@@ -1905,7 +1942,7 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     get groundReady() { return !!groundReady; },
     get groundFrom() { return groundFetch; },
     // (for the tests and the measurements: what is built, what has arrived, what is drawn now)
-    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, swimSigns: built ? built.swimSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, groundEvery: built ? built.ground.userData.every : 0, groundPieces: built ? built.ground.children.length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
+    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, swimSigns: built ? built.swimSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, groundEvery: built ? built.ground.userData.every : 0, groundPieces: built ? built.ground.children.length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, woken: built && built.placed ? built.placed.woken || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
   };
 }
 

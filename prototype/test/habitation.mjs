@@ -303,7 +303,8 @@ check('D: every one of the owner\'s models (and the rocks) is fetched and stands
 // goes on blowing
 const swaying = await page.evaluate(async () => {
   const n = window.__nlw, parts = [];
-  n.scene.traverse((o) => { if (o.isInstancedMesh && o.geometry.attributes.sway) { const a = o.geometry.attributes.sway.array; let most = 0; for (let i = 0; i < a.length; i += 7) most = Math.max(most, a[i]); if (most > 0.3) parts.push(o.name.split(':')[0]); } });
+  // (a model's numbers are let go once the graphics card has them: how far its leaves bend at most is kept, `swayMost`)
+  n.scene.traverse((o) => { if (o.isInstancedMesh && o.geometry.attributes.sway) { const a = o.geometry.attributes.sway.array; let most = o.geometry.userData.swayMost || 0; if (a) for (let i = 0; i < a.length; i += 7) most = Math.max(most, a[i]); if (most > 0.3) parts.push(o.name.split(':')[0]); } });
   const w0 = n.habitation.state().wind;
   await new Promise((r) => setTimeout(r, 1500));
   return { kinds: [...new Set(parts)].length, wind: [w0, n.habitation.state().wind] };

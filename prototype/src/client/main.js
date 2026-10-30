@@ -24,7 +24,7 @@ import { programsReady } from './program-ready.js';
 import { buildBillboards } from './render-billboards.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
-import { linear, setLite, restoreGeometry } from './render-kit.js';
+import { linear, setLite, restoreGeometry, settleMesh, restState } from './render-kit.js';
 import { fetchKept, restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } from './glb.js';
 import { createPictureKeeper } from './picture-keeper.js';
 import { gradeInstalled } from './grade.js';
@@ -230,32 +230,68 @@ function start(carried) {
   // milliseconds' worth each frame), put in once the graphics card has compiled what it needs. All at once still for
   // someone already out there, and for the tests: buildBeyond.)
   let beyondJob = null, beyondBegun = false;
-  function* beyondSteps(stepwise) {
-    const steps = outskirtsSteps(scene, { glowMaterial: world.glowMaterial, renderer: stepwise ? renderer : null, camera: stepwise ? camera : null });
-    let step, said;
-    while (!(step = steps.next(said)).done) said = yield step.value;
-    const built = step.value;
-    said = yield;
-    // the advertising billboards, in town and beyond it (render-billboards.js), with the same wait
-    billboards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, loadArtwork: async (id) => {
-      // an approved campaign's picture, from the server (only an approved one is given to anyone but its advertiser)
-      const answer = await online.ask('ads.art', { id }, { timeout: 30000 });
-      if (!answer.ok) throw new Error(answer.message);
-      const raw = atob(answer.data); const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
-      return new Blob([bytes], { type: answer.mime });
-    } });
-    // (their programs too, made ready before they are shown: program-ready.js)
-    if (stepwise) {
-      billboards.group.visible = false;
-      const ready = programsReady(renderer, billboards.group, camera, scene);
-      while (said !== 'now' && !ready.step(6)) said = yield 'waiting';
-      billboards.group.visible = true;
+  // (`land` false: the billboards alone, for a phone far from the land beyond the town: BEYOND_PHONE)
+  function* beyondSteps(stepwise, land = true) {
+    let step, said, built = null;
+    if (land) {
+      const steps = outskirtsSteps(scene, { glowMaterial: world.glowMaterial, renderer: stepwise ? renderer : null, camera: stepwise ? camera : null });
+      while (!(step = steps.next(said)).done) said = yield step.value;
+      built = step.value;
     }
-    adBoard.refresh();
+    said = yield;
+    // the advertising billboards, in town and beyond it (render-billboards.js), with the same wait (once: the land beyond
+    // the town is built again on a phone that let it go, its billboards are not)
+    if (!billboards) {
+      billboards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, loadArtwork: async (id) => {
+        // an approved campaign's picture, from the server (only an approved one is given to anyone but its advertiser)
+        const answer = await online.ask('ads.art', { id }, { timeout: 30000 });
+        if (!answer.ok) throw new Error(answer.message);
+        const raw = atob(answer.data); const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+        return new Blob([bytes], { type: answer.mime });
+      } });
+      // (their programs too, made ready before they are shown: program-ready.js)
+      if (stepwise) {
+        billboards.group.visible = false;
+        const ready = programsReady(renderer, billboards.group, camera, scene);
+        while (said !== 'now' && !ready.step(6)) said = yield 'waiting';
+        billboards.group.visible = true;
+      }
+      adBoard.refresh();
+    }
+    if (!built) return;
     outskirts = { ...built, ready: true };
     world.lampHeads.push(...outskirts.lampHeads);
     lampPools.place();
+    beyondStats.builds += 1;
+  }
+  // A phone does not hold the land beyond the town while the player is far from it (29 October 2026, the owner's
+  // recording: at the town's east end his iPhone held the town, the land beyond it, a kilometre to the west, and the
+  // habitation all at once, and closed the game). It is built as they come west (BEYOND_PHONE.come: the town's middle,
+  // some 270 m from its nearest part, as far as a phone sees), and let go again past BEYOND_PHONE.go to the east, before
+  // the habitation is built. A computer keeps it.
+  const BEYOND_PHONE = Object.freeze({ come: 40, go: 140 });
+  const beyondWanted = (x, z) => !LITE || x < BEYOND_PHONE.come || z > 150;
+  function letGoBeyond() {
+    if (!outskirts.ready || !outskirts.group || beyondJob) return false;
+    const group = outskirts.group;
+    scene.remove(group);
+    // (each mesh resting far off given its own geometry back, so that letting it go forgets what was kept of it)
+    group.traverse((o) => { if (o.isMesh) settleMesh(o); });
+    // (each shape, and each sign's own picture, that nothing else in the scene draws: its room on the graphics card and
+    // its numbers; its materials are small and may be the town's own, and are left to go with it)
+    const elsewhere = new Set(), pictures = new Set();
+    scene.traverse((o) => { if (o.geometry) elsewhere.add(o.geometry); const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const m of mats) if (m.map) pictures.add(m.map); });
+    let shapes = 0;
+    group.traverse((o) => { if (o.geometry && !elsewhere.has(o.geometry)) { o.geometry.dispose(); elsewhere.add(o.geometry); shapes += 1; } });
+    for (const sign of outskirts.signs || []) { const m = sign.material; if (m && m.map && !pictures.has(m.map)) m.map.dispose(); }
+    const heads = new Set(outskirts.lampHeads);
+    for (let i = world.lampHeads.length - 1; i >= 0; i -= 1) if (heads.has(world.lampHeads[i])) world.lampHeads.splice(i, 1);
+    lampPools.place();
+    outskirts = { lampHeads: [], see() {}, ready: false };
+    beyondBegun = false; beyondWait = 0;
+    beyondStats.letGo += 1; beyondStats.shapesLetGo += shapes;
+    return true;
   }
   function buildBeyond() {
     if (outskirts.ready) return;
@@ -264,10 +300,13 @@ function start(carried) {
     beyondJob = null;
   }
   // (for the measuring: how many pieces, over how many frames, the longest piece, the work in all, in ms)
-  const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0 };
+  const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0, shapesLetGo: 0 };
   function stepBeyond(budgetMs = 6) {
     if (outskirts.ready) { beyondJob = null; return; }
-    if (!beyondJob) beyondJob = beyondSteps(true);
+    // (a phone far from the land beyond the town: its billboards alone, once)
+    const land = beyondWanted(predicted.x, predicted.z);
+    if (!land && billboards && !beyondJob) { beyondBegun = false; return; }
+    if (!beyondJob) beyondJob = beyondSteps(true, land);
     const t0 = performance.now();
     beyondStats.frames += 1;
     // (waiting on the graphics card's compiling: looked at again next frame)
@@ -3329,7 +3368,7 @@ function start(carried) {
   const deviceMemory = typeof navigator !== 'undefined' && Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null;
   const storage = (() => { try { return window.localStorage; } catch (error) { return null; } })();
   const autoLevel = () => { const known = storage ? remembered(storage, gpuName()) : null; return known !== null ? known : autoStart({ lite: LITE, gpu: gpuName(), memory: deviceMemory }); };
-  governor.setCeiling(autoCeiling({ lite: LITE }));
+  governor.setCeiling(autoCeiling({ lite: LITE, gpu: gpuName(), memory: deviceMemory }));
   // The player's choice: 'auto' or a level ('low', 'medium', 'high', 'ultra'), kept with the game's preferences.
   function setGraphics(value) {
     const level = levelOf(value);
@@ -4057,8 +4096,10 @@ blood.update(dt, view.blood || []);
       sources = soundSources(hour, weather.wet);
       // (in PostCivilWar PowerBike's hall only what is near can be seen, through its glass front: the rest of the
       // town, behind its walls, is not drawn)
-      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.detail], scene.fog.far * 0.82);
-      world.see(cam.target.x, cam.target.z, reach);
+      // (`outdoors`: how far one sees out of doors, by which a phone lets what is well beyond it rest: render-kit.js)
+      const outdoors = Math.min(REACH[quality.detail], scene.fog.far * 0.82);
+      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : outdoors;
+      world.see(cam.target.x, cam.target.z, reach, outdoors);
       // (the owner's houses and towers: each model fetched once the town is ready, for someone who can see it, or at
       // once for someone right by one; not from inside a hall)
       // (on a phone, while the habitation at the end of the road is drawn, the towers far off are drawn from their
@@ -4076,14 +4117,16 @@ blood.update(dt, view.blood || []);
       // like the houses and towers above, nothing fetched from inside a hall, from where none of them is seen)
       if (playing && !hall) { supplied.tick(predicted); if (warm.stage >= 5) supplied.loadAmbulance(); }
       // (beyond the town: built a few seconds into play once the town is warmed up, or at once for someone already out there)
-      if (!outskirts.ready && playing) {
+      if (!outskirts.ready && playing && (beyondWanted(predicted.x, predicted.z) || !billboards)) {
         beyondWait += 0.5;      // (this is looked at twice a second)
         const out = predicted.x < ZONE.bounds.minX + 40 || predicted.z > 150;
         if (out) buildBeyond(); else if (warm.stage >= 5 && beyondWait > 4) beyondBegun = true;
       }
-      outskirts.see(cam.target.x, cam.target.z, reach);
+      // (a phone far to the east: the land beyond the town let go, BEYOND_PHONE)
+      if (LITE && playing && outskirts.ready && predicted.x > BEYOND_PHONE.go && predicted.z <= 150) letGoBeyond();
+      outskirts.see(cam.target.x, cam.target.z, reach, outdoors);
       world.seeVehicles(camera.position.x, camera.position.z, reach + cam.dist);
-      town.see(cam.target.x, cam.target.z, reach);
+      town.see(cam.target.x, cam.target.z, reach, outdoors);
     }
     if (playing) {
       const engines = [];
@@ -4281,7 +4324,7 @@ blood.update(dt, view.blood || []);
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
     // (the graphics level as drawn now: for the tests)
     cloudShadeAt,
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null, resting: restState() }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     // every keke and coach in the scene: which level of detail it is at and what it costs
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },

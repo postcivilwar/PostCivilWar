@@ -344,7 +344,9 @@ button, input, select, textarea { font: inherit; color: inherit; }
 #hud .life.thin { width: 64px; height: 4px; } #hud .life.thin i { background: linear-gradient(#e8e8e8, #a8a8ae); }
 #critical { color: #ff8d80; text-shadow: 0 1px 2px #000; font-size: 8px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase; }
 @keyframes pulse { 50% { opacity: 0.45; } }
-#flash { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px 30px rgba(190, 30, 20, 0.85); opacity: 0; }
+/* (hidden while it shows nothing, as is #bubbles while no one speaks: each, laid over the drawing as a picture of its
+   own the size of the screen, was a phone's eleven megabytes at three pixels to each, held all the time: 29 October 2026) */
+#flash { position: absolute; inset: 0; pointer-events: none; box-shadow: inset 0 0 90px 30px rgba(190, 30, 20, 0.85); opacity: 0; visibility: hidden; }
 #lawchip { display: inline-block; margin-top: 2px; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; font-size: 8px; padding: 1px 6px 2px; flex-basis: auto !important; border-radius: 5px; background: var(--danger); color: #fff; }
 #lawchip.suspicious, #lawchip.released { background: transparent; box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.4); color: var(--text); }
 #lawchip.custody, #lawchip.arrested { background: var(--white); color: var(--ink); }
@@ -698,8 +700,10 @@ canvas.map { width: 100%; height: auto; display: block; background: #101011; bor
 #touch.bike .pad[data-id="throttle"] { right: 18px; bottom: 26px; width: calc(78px * var(--k)); height: calc(128px * var(--k)); border-radius: 20px; background: rgba(12, 14, 18, 0.55); box-shadow: inset 0 0 0 2px var(--ring), inset 0 0 0 3px rgba(255, 255, 255, 0.16), 0 4px 10px rgba(0, 0, 0, 0.32); }
 #touch.bike .pad[data-id="throttle"] .ico, #touch.bike .pad[data-id="brake"] .ico { width: 50px; height: 50px; }
 #touch.bike .pad[data-id="brake"] { right: calc(30px + 80px * var(--k)); bottom: 26px; width: calc(100px * var(--k)); height: calc(76px * var(--k)); border-radius: 20px; background: rgba(12, 14, 18, 0.55); box-shadow: inset 0 0 0 2px var(--ring), inset 0 0 0 3px rgba(255, 255, 255, 0.16), 0 4px 10px rgba(0, 0, 0, 0.32); }
-#touch.bike .pad[data-id="horn"] { right: 14px; left: auto; top: auto; bottom: calc((100vh - var(--sb) - var(--st) - 100px) / var(--pad-scale, 1) - 58px); width: 58px; height: 58px; }
-@media (min-width: 900px) and (min-height: 600px) { #touch.bike .pad[data-id="horn"] { bottom: calc((100vh - var(--sb) - var(--st) - 128px) / var(--pad-scale, 1) - 58px); } }
+/* the horn, just below the band at the top (fit.js measures the band and sets --top-room, the room from it down to the
+   corner #pad is pinned to; in #pad's scale): not one of the group the fitter makes smaller (--fit: top). It was placed
+   from the screen's 100vh, which on an iPhone's browser is taller than the page, and that made the buttons shrink away */
+#touch.bike .pad[data-id="horn"] { --fit: top; right: 14px; left: auto; top: auto; bottom: calc(var(--top-room, calc(100vh - var(--sb) - var(--st) - 100px)) / var(--pad-scale, 1) - 58px); width: 58px; height: 58px; }
 #touch.bike .pad[data-id="act"] { right: calc(52px + 80px * var(--k)); bottom: calc(40px + 76px * var(--k)); width: 56px; height: 56px; }
 #touch.bike .pad.down { background: #e9f3ff !important; box-shadow: inset 0 0 0 2px #1d6fe0, inset 0 0 0 4px rgba(29, 111, 224, 0.35), 0 0 14px rgba(70, 150, 255, 0.55) !important; color: #0b2a54; }
 #touch.bike .pad[data-id="horn"].down { transform: scale(0.94); }

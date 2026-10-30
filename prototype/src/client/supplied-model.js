@@ -29,7 +29,8 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
   const file = modelFile(named);
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
-  const { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
+  // (`let`: let go once the model is made, below)
+  let { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
   const prim = json.meshes[0].primitives[0], at = prim.attributes;
   const geometry = new THREE.BufferGeometry();
   // (each list copied out of the file, so that the file itself, mostly its pictures, is let go once read)
@@ -95,6 +96,11 @@ export async function loadSuppliedMesh(named, { maxTexture, env = null, brand = 
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = name;
+  // The file let go (29 October 2026, the owner's brief: the game closed by itself on his iPhone): everything made in this
+  // function shares its closure, the ways of making each picture again among them, which stay as long as the model does;
+  // they kept the whole file, its pictures' bytes too, for every building and vehicle in the town: some 8 MB of a phone's
+  // page at the town's east end. A picture made again reads the file afresh (rereadFile).
+  json = null; accessor = null; bytes = null;
   return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
 }
 

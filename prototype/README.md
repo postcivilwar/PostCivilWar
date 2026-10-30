@@ -3583,12 +3583,104 @@ had been in touch); an offer waited 12 s for its answer (now 60, and the server 
 over a head flickered between words (now held a second); the players-near list did not change while open (now kept up
 to date); the Admin list kept the reports it had first fetched (now asked again after 15 s).
 
+## The game hanging and closing by itself on phones, and the buttons that ran off the screen (29 October 2026)
+
+The owner's brief (29 October 2026, with a screen recording from his iPhone): the game hangs and freezes, and most times
+then restarts by itself, even on Low; and the buttons shrink, again and again, until they are out of sight.
+
+**The buttons.** The fitter (`fit.js`) makes the buttons at the bottom right smaller when they would not fit between
+the radar and the bottom of the screen. The bike's and the car's horn stood at the top of that group, placed with
+`100vh` just below the band at the top; on an iPhone's Safari `100vh` is the screen's height with its bars hidden, more
+than the page is while they show, so the horn stood above the band, past the room there is. The fitter measured the
+group as too tall and made it smaller; the horn's place followed the group's scale, so in the smaller group it stood
+as high as before, the group was measured as too tall again, and so on, a third of a second at a time, until the
+buttons were specks. Now the fitter leaves out what is placed from the top when it measures the group (`--fit: top`),
+places the horn from the room it has itself measured (`--top-room`, not `100vh`), and never makes the buttons smaller
+than 55% (`SMALLEST`). Reproduced with the page made shorter than
+`100vh` and an iPhone X's safe areas (a probe of the fitter, the car's buttons, hurt so that the life bar shows): before,
+the scale ran from 0.925 down to 0.257 in 16 s; after, it stays at 1.000.
+
+**The hanging and closing.** A phone's browser closes a page that holds more memory than it allows (an iPhone's
+Safari reloads it, which is the game restarting), and as the page nears that, the browser's own clearing up holds the
+page for long moments first (the hanging). Measured here on a phone's settings (Low, three pixels to each of the
+page's, as an iPhone; the page's process and the graphics process: this machine draws in software, so the graphics
+process holds what a phone's graphics would): the most is held at the town's east end and in the habitation, where a
+phone held the whole town, the land beyond it a kilometre to the west, and the habitation, all at once. What was found:
+
+1. **Numbers kept twice.** The habitation's models (each model's shapes kept by the page after the graphics card had
+   them: 15 MB), the town's leaves (10 MB), and whole model files kept by mistake: each habitation model's for as long as
+   the habitation stood (13 MB: the model's `make` shared its closure with the reading of the file), and in the same way
+   each of the owner's buildings' and vehicles' (`supplied-model.js`: its pictures' ways of being made again shared the
+   closure: 8 MB at the east end), PowerBike's tower's and the figures' (`glb.js`, `modelFromGLB`): found with a heap
+   snapshot's ArrayBuffers added up by what holds them.
+2. **The land beyond the town held at the east end**: 22 MB of its numbers, never even drawn there.
+3. **Pictures held twice**: the habitation's, kept by the page as well as by the graphics card (15 to 20 MB); its
+   models far off let go from the graphics card only, the page keeping its whole copy to hand back.
+4. **Two pictures the size of the screen held all the time**: the blood at the screen's edges and the speech bubbles'
+   layer, each laid over the drawing as a picture of its own, 11 MB each at three pixels to each, shown or not.
+5. **The whole town on the graphics card everywhere**: a phone sees 190 m of a town 500 m wide and 665 m long.
+6. **Auto at Medium on an iPhone**, more pictures and bigger ones, more of the town drawn.
+
+**What was changed.**
+
+- Any geometry nothing changes once it is made (the habitation's models, waters and hills; every square's leaves) lets
+  its numbers go once the graphics card has them, kept aside as the town's batches are (`render-kit.js`,
+  `letGoOnceSent`; not the habitation's ground, whose drawn points its test reads); and the reading of a model lets go
+  of its file once the model is made (the habitation's, the owner's buildings' and vehicles', PowerBike's tower's, the
+  figures').
+- On a phone the land beyond the town is built as the player comes west of the town's middle (x < 40) and let go again
+  past x = 140 to the east, before the habitation is built (`main.js`, `BEYOND_PHONE`); its billboards are built once and
+  kept.
+- The habitation's pictures are let go by the page once the graphics card has them (made again from the file's bytes at
+  the level's size, as the town's models' are: `glb.js`, `letGoOnceDrawn`), the stone's half-size pictures on a phone
+  made by the browser rather than in a canvas. A model well beyond where it is drawn as itself (60 m past its band) lets
+  its pictures go from the graphics card too, keeping only the file's bytes (`glb.js`, `sleepPicture`); they are made
+  again as it comes within 40 m of its band (`wakePicture`), its copies drawn as their pictures meanwhile.
+- The blood's layer and the bubbles' layer are hidden while they show nothing.
+- On a phone the town's squares (and the leaves, and the land beyond) well beyond seeing (90 m past it, for five
+  seconds) rest: their room on the graphics card is let go and their numbers are read back as they come within 50 m of
+  seeing (`render-kit.js`, `restMesh`, `wakeMesh`, in `createSight`). Nothing rests for the short sight inside a hall.
+- Auto keeps an iPhone or iPad, and a phone that says it has less than 6 GB of memory, at Low, from the start
+  (`graphics.js`, `lowPhone`); Medium is the player's to choose in Settings.
+
+**Measured** (`tools/measure/memory-parts.mjs`, `PARTS_LEVEL=low PARTS_DETAIL=1`: a phone's screen at three pixels to
+each of the page's, the live build `1bee4b6` against this one, on the same machine, one at a time; the page's process and
+the graphics process together, in MB, once the place is quiet, and in brackets the most while it was being built):
+
+| | live | this build |
+|---|---|---|
+| the motor park | 672 (706) | 636 (706) |
+| Waterside Road at x = 200 | 700 (725) | 659 (690) |
+| the town's east end, the habitation built | 833 (935) | 747 (838) |
+| in the habitation | 862 (862) | 740 (755) |
+
+(The most while building is sampled every two seconds, and varies from run to run by some tens of MB: the park's was 675
+on the run before.) At the east end: the page's arrays 136 → 96 MB, the shapes the page kept 86 → 49 MB, the pictures it
+held 27 → 12 MB, the shapes on the graphics card 101 → 66 MB. (What holds the page's arrays, from a heap snapshot at the east end:
+`tools/measure/buffers.mjs`; on this build before the model files held by mistake were let go, 80 MB of them, 60
+after.) Not measurable here: an iPhone's own memory and frames a second, and what Auto at Low rather than Medium saves
+on one (Medium draws more pixels, bigger pictures and the sun's shadows).
+
+**Tests**: 510 headless (new in `graphics.test.mjs`: an iPhone, and a phone with less than 6 GB, at Low and kept
+there; a Mac's Safari still a computer). In a browser, one at a time, on this build: the new `test/phone-memory.mjs`
+11/11 (A the car's buttons on a page 120 px shorter than an iPhone X's screen, its safe areas, hurt: the scale 1.000 for
+twelve seconds, the horn just under the band; B the blood's and the bubbles' layers hidden while empty; C at the east
+end 210 of the town's meshes resting, back at the park every one brought back and as much drawn as before; D from the
+east end 43 of the 60 models' pictures let go, at the gate 19 made again, in the forest 30, every model drawn with its
+pictures, and so again after going back out; E no picture handed to the graphics card after the page had let it go,
+nothing in the console); fit (every screen at thirteen sizes), touch, context 12/12, picture 10/10, outskirts 12/12,
+the town's buildings 12/12 (the first run found the boardwalks' wood let go with the models' pictures and then drawn
+without its picture: fixed, `sleepModels`), supplied 11/11, the PowerBike showroom 28/28, the habitation 49/49 (its
+first run stopped at L, reading the drawn ground's points, which had been let go: the ground keeps them now),
+graphics 26/26 (it needs about 50 minutes here: given 45, its first run was stopped at 20 of 26, every one passing).
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 484 headless tests
+node --test test/*.test.mjs                        # 510 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 103 tests against a real PostgreSQL (accounts, the market and its cars, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
+../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures
 ../server/with-postgres.sh node test/fit.mjs out/                    # every screen at thirteen sizes, upright and sideways, turned without reloading: nothing cut off, nothing out of reach
 ../server/with-postgres.sh node test/guns.mjs out/                   # the guns, two players (a computer and a phone) through the website: the rifle free and kept by the account, the shooting screen and its buttons and keys, the rounds to the aim from the muzzle and through the sight, the owner's recordings, empty and reloading, the view from further back, one shooting the other (each hit agreed by the server and taken once), a wall, a game changed to cheat refused, the 20-life rule, the blood on the screen and healing, the phone's memory with the gun out
 ../server/with-postgres.sh node ../server/dev.mjs                    # the whole site on this machine: http://localhost:8787/

@@ -14,7 +14,7 @@
 // The pictures are drawn here, once, on a canvas: nothing is fetched. Built in squares of ground like the rest of
 // the town (render-kit.js, Chunked), so that what is out of sight is not drawn.
 
-import { linear, noise, isLite } from './render-kit.js';
+import { linear, noise, isLite, letGoOnceSent } from './render-kit.js';
 
 const SIZE = 125;
 
@@ -109,6 +109,9 @@ class Leaves {
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
     geo.computeBoundingSphere();
+    // (nothing changes a square's leaves once they are made: their numbers let go once the graphics card has them,
+    // some ten megabytes of a phone's page in the town; render-kit.js)
+    letGoOnceSent(geo);
     this.p = this.n = this.uv = this.c = null;
     return new THREE.Mesh(geo, material);
   }

@@ -540,5 +540,5 @@ export function buildTown(scene, glowMaterial) {
     open = found;
     return open;
   }
-  return { setInside, interiors, see(x, z, reach) { sight.look(x, z, reach); if (quality >= 2) plants.visible = false; }, setQuality(level) { quality = level; mounds.count = level >= 1 ? Math.floor(spots.length / 2) : spots.length; } };
+  return { setInside, interiors, see(x, z, reach, far = reach) { sight.look(x, z, reach, far); if (quality >= 2) plants.visible = false; }, setQuality(level) { quality = level; mounds.count = level >= 1 ? Math.floor(spots.length / 2) : spots.length; } };
 }

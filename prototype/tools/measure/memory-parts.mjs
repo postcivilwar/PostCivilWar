@@ -7,7 +7,10 @@
 // holds a copy of, and the canvases.
 //   ../server/with-postgres.sh node tools/measure/memory-parts.mjs <out folder> [site folder]
 // PARTS_TEXTURES=1: every picture on the graphics card listed, by what it belongs to and its size there
-// PARTS_LEVEL (medium), PARTS_DPR (3), PARTS_PLACES (comma separated: park,market,boulevard,powerbike,waterside,east,habitation,
+// PARTS_DETAIL=1: the programs compiled (by material), the pictures the page still holds (canvases and bitmaps, by what
+// they belong to), and the most the page and the graphics process held while each place was being built (sampled every
+// two seconds, not only once it is quiet)
+// PARTS_LEVEL (medium), PARTS_DPR (3), PARTS_PLACES (comma separated: park,market,boulevard,powerbike,waterside,east,eastend,habitation,
 // crowdwest,crowdcentre: where the town's people are most crowded, at PARTS_HOUR 7.5 and 18.5), PARTS_HOUR (11)
 import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, existsSync, statSync, createReadStream, readFileSync, readdirSync } from 'node:fs';
@@ -92,16 +95,19 @@ await page.waitForSelector('#confirm:not([hidden])', { timeout: 180000 });
 await page.tap('#confirm-yes');
 await page.waitForFunction(() => !document.querySelector('#hud').hidden && window.__nlw.view && window.__nlw.me && window.__nlw.me.mixer, null, { timeout: 900000 });
 await page.evaluate(([level, hourWanted]) => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip(((24 + hourWanted - hour) % 24)); g.state.weather = { kind: 'clear', until: g.state.t + 24 * 3600 }; n.setGraphics(level); for (const id of ['toasts', 'notices']) { const t = document.getElementById(id); if (t) t.style.display = 'none'; } }, [LEVEL, Number(process.env.PARTS_HOUR) || 11]);
-const quiet = async (most = 180000) => { const t0 = Date.now(); let last = '', same = 0; while (Date.now() - t0 < most) { const now = await page.evaluate(() => { const r = window.__nlw.renderer, g = window.__nlw.graphics || {}; return `${r.info.memory.geometries}/${r.info.memory.textures}/${g.held}/${window.__geometryBytes().buffers}`; }); if (now === last) { same += 1; if (same >= 3) return Date.now() - t0; } else { same = 0; last = now; } await page.waitForTimeout(2000); } return Date.now() - t0; };
+let peak = { page: 0, gpu: 0, sum: 0 };
+const quiet = async (most = 180000) => { const t0 = Date.now(); let last = '', same = 0; while (Date.now() - t0 < most) { const pm = procMemory(); if (pm.page + pm.gpu > peak.sum) peak = { page: pm.page, gpu: pm.gpu, sum: +(pm.page + pm.gpu).toFixed(1), at: Math.round((Date.now() - t0) / 1000) }; const now = await page.evaluate(() => { const r = window.__nlw.renderer, g = window.__nlw.graphics || {}; return `${r.info.memory.geometries}/${r.info.memory.textures}/${g.held}/${window.__geometryBytes().buffers}`; }); if (now === last) { same += 1; if (same >= 3) return Date.now() - t0; } else { same = 0; last = now; } await page.waitForTimeout(2000); } return Date.now() - t0; };
 const park = await page.evaluate(() => window.__nlw.service('park'));
 if (process.env.PARTS_TEXTURES === '1') await page.evaluate(() => { window.__partsTextures = true; });
-const PLACES = { park: [park.x + 6, park.z + 4, Math.PI], market: [30, 60, Math.PI / 2], boulevard: [0, 20, 0], powerbike: [-63.6, 64, Math.PI], waterside: [-150, 113, Math.PI / 2], east: [200, 113, Math.PI / 2], habitation: [382, 16, 0.9], crowdwest: [-85, 92, Math.PI], crowdcentre: [-6, -47, 0] };
+if (process.env.PARTS_DETAIL === '1') await page.evaluate(() => { window.__partsDetail = true; });
+const PLACES = { park: [park.x + 6, park.z + 4, Math.PI], market: [30, 60, Math.PI / 2], boulevard: [0, 20, 0], powerbike: [-63.6, 64, Math.PI], waterside: [-150, 113, Math.PI / 2], east: [200, 113, Math.PI / 2], habitation: [382, 16, 0.9], eastend: [262, 104, Math.PI / 2], crowdwest: [-85, 92, Math.PI], crowdcentre: [-6, -47, 0] };
 const MB = (b) => +(b / 1048576).toFixed(1);
 const results = [];
 for (const name of ONLY) {
   const [x, z, h] = PLACES[name];
   await page.evaluate(([x, z, h]) => { const n = window.__nlw; n.place(x, z); n.face(h); n.cam.yaw = h; n.cam.dist = 6.5; n.cam.pitch = 0.12; }, [x, z, h]);
-  const q = await quiet(name === 'habitation' ? 300000 : 180000);
+  peak = { page: 0, gpu: 0, sum: 0 };
+  const q = await quiet(name === 'habitation' || name === 'eastend' ? 300000 : 180000);
   // (the garbage collected first, so that what is counted is what is held)
   await cdp.send('HeapProfiler.collectGarbage').catch(() => {});
   await page.waitForTimeout(3000);
@@ -148,7 +154,24 @@ for (const name of ONLY) {
       for (const e of list.values()) { const side = e.drawn || Math.max(e.w, e.h); const mb = (side * side * 4 * 1.33) / 1048576; byOwner[e.owner] = byOwner[e.owner] || [0, 0]; byOwner[e.owner][0] += 1; byOwner[e.owner][1] += mb; }
       onCard = { count: list.size, byOwner: Object.entries(byOwner).sort((a, b) => b[1][1] - a[1][1]).map(([k, [c, mb]]) => [k, c, +mb.toFixed(1)]).slice(0, 30) };
     }
+    // (PARTS_DETAIL) the programs by the material that asked for each; the canvases and bitmaps the page still holds, by owner
+    let detail = null;
+    if (window.__partsDetail) {
+      const progs = {}; for (const pr of r.info.programs) { const k = `${pr.type || ''}:${pr.name || ''}`; progs[k] = (progs[k] || 0) + 1; }
+      const held = new Map();
+      n.scene.traverse((o) => { const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const mt of mats) { const ts = []; for (const k of keys) if (mt[k] && mt[k].isTexture) ts.push(mt[k]); if (mt.uniforms) for (const u of Object.values(mt.uniforms)) if (u && u.value && u.value.isTexture) ts.push(u.value); for (const t of ts) { if (held.has(t)) continue; const im = t.image; if (!im) continue; const kind = typeof HTMLCanvasElement !== 'undefined' && im instanceof HTMLCanvasElement ? 'canvas' : typeof ImageBitmap !== 'undefined' && im instanceof ImageBitmap ? 'bitmap' : im.data ? 'data' : null; if (!kind) continue; const bytes = kind === 'data' ? (im.data.byteLength || 0) : (im.width || 0) * (im.height || 0) * 4; if (!bytes) continue; held.set(t, { owner: topName(o), kind, w: im.width, h: im.height, bytes, version: t.version }); } } });
+      const byOwner = {}; for (const e of held.values()) { const k = `${e.kind}:${e.owner}`; byOwner[k] = byOwner[k] || [0, 0, new Set()]; byOwner[k][0] += 1; byOwner[k][1] += e.bytes; byOwner[k][2].add(`${e.w}x${e.h}${e.version > 1 ? ` v${e.version}` : ''}`); }
+      // the shapes on the card by owner: each geometry's attributes and index as they were handed over (their arrays may be gone)
+      const gpuBy = {}; const seenGeo = new Set();
+      n.scene.traverse((o) => { const geo = o.geometry; if (!geo || !geo.attributes || seenGeo.has(geo)) return; seenGeo.add(geo); let b = 0; for (const a of [...Object.values(geo.attributes), ...(geo.index ? [geo.index] : [])]) { if (!a) continue; const arr = a.array || (a.data && a.data.array); const per = arr && arr.BYTES_PER_ELEMENT ? arr.BYTES_PER_ELEMENT : 4; b += (a.count || 0) * (a.itemSize || 1) * per; } const k = topName(o); gpuBy[k] = (gpuBy[k] || 0) + b; });
+      detail = {
+        programs: Object.entries(progs).sort((a, b) => b[1] - a[1]),
+        held: Object.entries(byOwner).sort((a, b) => b[1][1] - a[1][1]).slice(0, 40).map(([k, [c, b, sizes]]) => [k, c, +(b / 1048576).toFixed(2), [...sizes].slice(0, 6).join(' ')]),
+        shapesOnCardByOwner: Object.entries(gpuBy).sort((a, b) => b[1] - a[1]).slice(0, 30).map(([k, b]) => [k, +(b / 1048576).toFixed(2)]),
+      };
+    }
     return {
+      detail,
       onCard,
       heapMB: m.usedJSHeapSize ? +(m.usedJSHeapSize / 1048576).toFixed(1) : null,
       shapesKeptMB: +(total / 1048576).toFixed(1), shapes: inScene, shapesByOwner: top,
@@ -161,7 +184,7 @@ for (const name of ONLY) {
       people: n.crowd ? { rigs: n.crowd.stats.rigs, simple: n.crowd.stats.simple, figures: n.crowd.stats.figures } : null,
     };
   });
-  const row = { place: name, quietMs: q, proc: procMemory(), heapUsage: { usedMB: MB(usage.usedSize || 0), totalMB: MB(usage.totalSize || 0), embedderMB: MB(usage.embedderHeapUsedSize || 0), backingStoreMB: MB(usage.backingStorageSize || 0) }, ...parts };
+  const row = { place: name, quietMs: q, peak, proc: procMemory(), heapUsage: { usedMB: MB(usage.usedSize || 0), totalMB: MB(usage.totalSize || 0), embedderMB: MB(usage.embedderHeapUsedSize || 0), backingStoreMB: MB(usage.backingStorageSize || 0) }, ...parts };
   results.push(row);
   console.log(name, JSON.stringify(row));
 }

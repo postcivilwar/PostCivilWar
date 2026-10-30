@@ -84,7 +84,16 @@ export function createBubbles(layer, { translator, settings }) {
 
   // `lines` is view.speech; `where(key)` gives a speaker's head in the world;
   // `project(x, y, z)` gives its place on screen; `selfKey` is the player.
-  function update(lines, where, project, eye, selfKey, width, height) {
+  // The layer hidden while no bubble is shown (29 October 2026): laid over the drawing as a picture of its own the size
+  // of the screen, it was a phone's eleven megabytes at three pixels to each, held all the time (template.html, #flash).
+  let layerShown = true;
+  function showLayer() {
+    let any = false;
+    for (const entry of live.values()) if (entry.shown && !entry.el.hidden) { any = true; break; }
+    if (any !== layerShown) { layerShown = any; layer.style.visibility = any ? 'visible' : 'hidden'; }
+  }
+  function update(...args) { const n = place(...args); showLayer(); return n; }
+  function place(lines, where, project, eye, selfKey, width, height) {
     const now = performance.now() / 1000;
     // (the words of the recorded voices only if the player wants subtitles: Settings)
     const subtitles = !settings.subtitles || settings.subtitles();
@@ -157,5 +166,5 @@ export function createBubbles(layer, { translator, settings }) {
     return 1;
   }
 
-  return { update, count: () => live.size, shown: () => [...live.values()].filter((e) => e.shown).length, clear() { for (const entry of live.values()) entry.el.remove(); live.clear(); queue.length = 0; heardAt.clear(); current = null; } };
+  return { update, count: () => live.size, shown: () => [...live.values()].filter((e) => e.shown).length, clear() { for (const entry of live.values()) entry.el.remove(); live.clear(); queue.length = 0; heardAt.clear(); current = null; showLayer(); } };
 }

@@ -51,10 +51,58 @@ export function letGoOnceDrawn(texture, restore = null) {
   };
   if (restore && !restorable.has(texture)) {
     restorable.set(texture, restore);
-    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) restorable.delete(texture); });
+    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) { restorable.delete(texture); asleep.delete(texture); } });
   }
   return texture;
 }
+
+// A picture that nothing has drawn for a while let go from the graphics card as well as from the page (render-habitation.js,
+// sleepModels; 29 October 2026, the owner's brief: the game hung and closed by itself on his phone): only its file's bytes
+// are kept, and it is made again from them when it is wanted (wakePicture). Before, such a picture was let go from the card
+// alone and the page kept its whole copy, unpacked, to hand over again: some twenty megabytes of a phone's memory for the
+// habitation's models seen from the town's east end. Gives false for one that cannot be made again from its file (its
+// owner lets it go from the card as before).
+const asleep = new Set();
+const waking = new Map();             // texture -> the promise of its picture made again
+export function sleepPicture(texture) {
+  if (!texture || !restorable.has(texture)) return false;
+  // (asleep already, or being made again just now: left as it is, and looked at again next time)
+  if (asleep.has(texture) || remaking.has(texture) || waking.has(texture)) return true;
+  const i = waiting.indexOf(texture); if (i >= 0) waiting.splice(i, 1);
+  remaking.add(texture); texture.dispose(); remaking.delete(texture);
+  const image = texture.image;
+  if (image && typeof image.close === 'function') image.close();
+  texture.onUpdate = null;
+  texture.userData.drawn = 0;
+  asleep.add(texture);
+  return true;
+}
+export const isAsleep = (texture) => asleep.has(texture);
+// A sleeping picture made again from its file, at the size wanted now, and handed to the graphics card. Resolves once it
+// can be drawn (true), or could not be made (false: drawn as it is, which is nothing).
+export function wakePicture(texture) {
+  if (!asleep.has(texture)) return Promise.resolve(true);
+  if (waking.has(texture)) return waking.get(texture);
+  const restore = restorable.get(texture);
+  const job = (async () => {
+    try {
+      const size = pictureWanted(texture);
+      const image = await restore(size);
+      // (let go for good while it was being made: nothing to hand over)
+      if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return false; }
+      // (any room the card gave it meanwhile let go: r186 gives a picture its room once, at the size it then had)
+      remaking.add(texture); texture.dispose(); remaking.delete(texture);
+      texture.image = image; texture.needsUpdate = true;
+      texture.userData.cap = size;
+      letGoOnceDrawn(texture);
+      handOver(texture);
+      return true;
+    } catch (error) { return false; } finally { asleep.delete(texture); waking.delete(texture); }
+  })();
+  waking.set(texture, job);
+  return job;
+}
+export const picturesAsleep = () => asleep.size;
 
 // The graphics level's largest picture (graphics.js, `pictureMost`; 23 October 2026): every picture that can be made
 // again from its file is made again no larger than `size` pixels across (0: as large as its maker makes it, the device's
@@ -107,7 +155,7 @@ export function setPictureMost(size) {
 export function stepPictures() {
   if (remaking.size || !waiting.length) return waiting.length;
   const texture = waiting.shift();
-  const restore = restorable.get(texture);
+  const restore = asleep.has(texture) ? null : restorable.get(texture);
   // (no longer wanted at another size: its own largest changed back before its turn came)
   if (!restore || !toRemake(texture)) return waiting.length;
   const size = pictureWanted(texture);
@@ -131,7 +179,7 @@ export function pictureState() {
   const sizes = {};
   let undrawn = 0;
   for (const texture of restorable.keys()) { const d = texture.userData.drawn || 0; if (!d) undrawn += 1; else sizes[d] = (sizes[d] || 0) + 1; }
-  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most };
+  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most, asleep: asleep.size, waking: waking.size };
 }
 // A picture decoded from its file (a Blob) no larger than `size` pixels across (0: as it is), keeping its shape.
 export async function decodeAtMost(blob, size = 0, options = undefined) {
@@ -154,6 +202,8 @@ export async function restorePictures() {
   let made = 0, failed = 0;
   for (const [texture, restore] of [...restorable]) {
     if (!restorable.has(texture)) continue;
+    // (one asleep is made again when it is wanted: wakePicture)
+    if (asleep.has(texture)) continue;
     if (!gone(texture.image)) { texture.needsUpdate = true; continue; }
     try {
       const size = pictureWanted(texture);
@@ -284,7 +334,8 @@ export function figureLabels(names) {
 // { bitmap, blob } (a browser whose worker cannot decode pictures sends the blob alone, decoded here). Each picture's
 // own copy is let go once the graphics card has it, and made again from its blob should the card's copy be lost.
 export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
-  const { json, accessor, bytes } = parsed;
+  // (`let`: the file's readers let go once the model is made, below)
+  let { json, accessor, bytes } = parsed;
   if ((json.meshes || []).length !== 1 || json.meshes[0].primitives.length !== 1) throw new Error('one mesh with one part is read here');
   const prim = json.meshes[0].primitives[0];
   const at = prim.attributes;
@@ -398,5 +449,8 @@ export function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null 
     return { root, mesh, bones };
   }
   const bounds = geometry.boundingBox;
+  // (the file's readers let go: `figure`, kept with the model, shares this function's closure, and through them it kept
+  // the whole file for as long as the model stood: 29 October 2026. The node tree it reads is the file's description.)
+  accessor = null; bytes = null;
   return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material };
 }

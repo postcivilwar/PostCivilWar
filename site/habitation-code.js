@@ -2,6 +2,9 @@
 
 __modules["client/habitation-plants.js"] = (function () {
 
+const { letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
+const { letGoOnceSent } = __modules["client/render-kit.js"];
+
 const TYPES = { 5120: Int8Array, 5121: Uint8Array, 5122: Int16Array, 5123: Uint16Array, 5125: Uint32Array, 5126: Float32Array };
 const WIDTH = { SCALAR: 1, VEC2: 2, VEC3: 3, VEC4: 4 };
 const MAX = { 5120: 127, 5121: 255, 5122: 32767, 5123: 65535 };
@@ -32,16 +35,21 @@ function accessor(json, bin, k, float = true) {
   return out;
 }
 const halvedOnce = new WeakSet();
-function halved(t) {
+async function halved(t) {
   if (!t || halvedOnce.has(t) || !t.image || !(t.image.width > 16)) return t;
-  const c = document.createElement('canvas');
-  c.width = Math.max(1, Math.round(t.image.width / 2)); c.height = Math.max(1, Math.round(t.image.height / 2));
-  c.getContext('2d').drawImage(t.image, 0, 0, c.width, c.height);
-  if (t.image.close) t.image.close();
-  t.image = c; t.needsUpdate = true;
   halvedOnce.add(t);
+  const img = t.image, w = Math.max(1, Math.round(img.width / 2)), h = Math.max(1, Math.round(img.height / 2));
+  t.userData.want = Math.max(w, h);
+  let half = null;
+  try { half = await createImageBitmap(img, { ...PICTURE_OPTIONS, resizeWidth: w, resizeHeight: h, resizeQuality: 'high' }); } catch (error) { half = null; }
+  if (!half) {
+    half = document.createElement('canvas'); half.width = w; half.height = h;
+    half.getContext('2d').drawImage(img, 0, 0, w, h);
+  }
+  if (t.image === img) { if (img.close) img.close(); t.image = half; t.needsUpdate = true; } else if (half.close) half.close();
   return t;
 }
+const PICTURE_OPTIONS = Object.freeze({ imageOrientation: 'none', premultiplyAlpha: 'none' });
 function decodePicture(blob, { wait = 15000 } = {}) {
   const viaImage = () => new Promise((resolve, reject) => {
     const img = new Image(), url = URL.createObjectURL(blob);
@@ -54,7 +62,7 @@ function decodePicture(blob, { wait = 15000 } = {}) {
   return new Promise((resolve, reject) => {
     let settled = false;
     const timer = setTimeout(() => { if (!settled) { settled = true; viaImage().then(resolve, reject); } }, wait);
-    createImageBitmap(blob, { imageOrientation: 'none', premultiplyAlpha: 'none' }).then((bitmap) => {
+    createImageBitmap(blob, PICTURE_OPTIONS).then((bitmap) => {
       if (settled) { if (bitmap.close) bitmap.close(); return; }
       settled = true; clearTimeout(timer); resolve(bitmap);
     }, () => { if (settled) return; settled = true; clearTimeout(timer); viaImage().then(resolve, reject); });
@@ -71,6 +79,7 @@ async function pictureOf(json, bin, index, colour, shared = null) {
   const v = json.bufferViews[img.bufferView];
   const blob = new Blob([new Uint8Array(bin.buffer, bin.byteOffset + (v.byteOffset || 0), v.byteLength)], { type: img.mimeType });
   const t = new THREE.Texture(await decodePicture(blob));
+  letGoOnceDrawn(t, (size) => decodeAtMost(blob, size, PICTURE_OPTIONS));
   t.flipY = false;
   if (colour) t.colorSpace = THREE.SRGBColorSpace;
   t.anisotropy = 4;
@@ -199,7 +208,7 @@ function stoneMaterial({ map, normalMap, roughnessMap, scale = 1.6, relief = 1 }
 
 
 async function readDressed(buffer, { lite = false, shared = null } = {}) {
-  const { json, bin } = readGLBParts(buffer);
+  let { json, bin } = readGLBParts(buffer);
   const pictures = new Map();
   const picture = (index, colour) => { const key = `${index}:${colour}`; if (!pictures.has(key)) pictures.set(key, pictureOf(json, bin, index, colour, shared)); return pictures.get(key); };
   for (const md of json.materials || []) {
@@ -222,15 +231,17 @@ async function readDressed(buffer, { lite = false, shared = null } = {}) {
       if (p.indices !== undefined) g.setIndex(new THREE.BufferAttribute(accessor(json, bin, p.indices, false), 1));
       if (!g.attributes.normal) g.computeVertexNormals();
       g.computeBoundingSphere(); g.computeBoundingBox();
+      { const a = g.attributes.sway.array; let most = 0; for (let i = 0; i < a.length; i += 1) if (a[i] > most) most = a[i]; g.userData.swayMost = most; }
+      letGoOnceSent(g);
       const md = json.materials[p.material || 0] || {}, pbr = md.pbrMetallicRoughness || {};
       const part = (md.extras && md.extras.part) || 'surface';
       let material, depth = null;
       if (part === 'stone') {
-        const stone = (t) => (lite ? halved(t) : t);
+        const stone = async (t) => (lite ? halved(t) : t);
         material = stoneMaterial({
-          map: pbr.baseColorTexture ? stone(await picture(pbr.baseColorTexture.index, true)) : null,
-          normalMap: md.normalTexture ? stone(await picture(md.normalTexture.index, false)) : null,
-          roughnessMap: pbr.metallicRoughnessTexture ? stone(await picture(pbr.metallicRoughnessTexture.index, false)) : null,
+          map: pbr.baseColorTexture ? await stone(await picture(pbr.baseColorTexture.index, true)) : null,
+          normalMap: md.normalTexture ? await stone(await picture(md.normalTexture.index, false)) : null,
+          roughnessMap: pbr.metallicRoughnessTexture ? await stone(await picture(pbr.metallicRoughnessTexture.index, false)) : null,
           scale: (md.extras && md.extras.triplanar) || 1.6,
         });
       } else if (part === 'leaves') {
@@ -250,6 +261,7 @@ async function readDressed(buffer, { lite = false, shared = null } = {}) {
   }
   const box = new THREE.Box3();
   for (const p of parts) box.union(p.geometry.boundingBox);
+  json = null; bin = null; pictures.clear();
   return {
     notes, box, parts,
     make() {
@@ -273,19 +285,20 @@ async function readDressed(buffer, { lite = false, shared = null } = {}) {
   };
 }
 
-return { setHabitationWind, habitationWind, decodePicture, leafMaterial, stoneMaterial, readDressed };
+return { setHabitationWind, habitationWind, PICTURE_OPTIONS, decodePicture, leafMaterial, stoneMaterial, readDressed };
 })();
 
 __modules["client/render-habitation.js"] = (function () {
 
 const { programsReady } = __modules["client/program-ready.js"];
 const { HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_PATHS, HABITATION_GRASS, HABITATION_FALLS, HABITATION_DECKS, HABITATION_HIGHLANDS, HABITATION_BOWLS, HABITATION_PILLARS, UPRIVER, WATER, RIVER_HEAD, RIVER_FAR, riverShore, habitationLand, habitationFooting, habitationWaterAt, habitationNoise, HABITATION_GROUND, HABITATION_GROUND_POINTS, habitationGroundPoint, habitationGroundWarm, habitationGroundGiven, habitationLandWarm, habitationGroundAt, habitationGroundKind, habitationRailsAt, HABITATION_SWIM_SIGNS, HABITATION_DECK_POSTS, HABITATION_STANDING, HABITATION_MODELS, HABITATION_GATE_SIGN, HABITATION_HOT_RIVER, HOT_RIVER_SIGNS, hotRiverNear, HABITATION_SHIFT, habitationAway } = __modules["sim/zone.js"];
-const { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit } = __modules["client/render-kit.js"];
+const { linear, grainTexture, rippleNormalTexture, Chunked, Batch, textTexture, buildingKit, letGoOnceSent } = __modules["client/render-kit.js"];
 const { addTree } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
 const { reflects } = __modules["client/render-finish.js"];
 const { LIGHT } = __modules["client/light.js"];
-const { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture } = __modules["client/habitation-plants.js"];
+const { readDressed, setHabitationWind, habitationWind, stoneMaterial, decodePicture, PICTURE_OPTIONS } = __modules["client/habitation-plants.js"];
+const { letGoOnceDrawn, decodeAtMost, sleepPicture, wakePicture, isAsleep } = __modules["client/glb.js"];
 
 const COME = { full: 260, lite: 180 }, GO = { full: 400, lite: 240 };
 const NEAR_GROUND = Object.freeze({ come: 60, go: 90 });
@@ -736,7 +749,7 @@ function waterGeometry(pos, depth, idx, rush, flow) {
   g.setAttribute('flow', new THREE.Float32BufferAttribute(flow || new Float32Array(n * 2), 2));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  return g;
+  return letGoOnceSent(g);
 }
 function buildStream(s, step = 1.5) {
   const pos = [], depth = [], rush = [], flow = [], idx = [];
@@ -1369,7 +1382,7 @@ function hillRing(radius, peaks, tallest, seed, lite) {
   g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
   g.setIndex(idx);
   g.computeBoundingSphere();
-  return g;
+  return letGoOnceSent(g);
 }
 function buildHills(lite) {
   const group = new THREE.Group(); group.name = 'habitation-hills';
@@ -1537,8 +1550,12 @@ function placeModels(group, { lite, fetchFile, shared, impostors, onModel = () =
         group.add(mesh);
         return mesh;
       });
-      const slot = impostors && PICTURED.has(kind) ? impostors.take(m, model) : null;
-      const entry = { name: m, kind, model, copies, meshes, slot, band: BANDS[kind] || BANDS.tree, chosen: '' };
+      const entry = { name: m, kind, model, copies, meshes, slot: null, band: BANDS[kind] || BANDS.tree, chosen: '' };
+      if (impostors && PICTURED.has(kind)) {
+        await Promise.all(picturesOf(entry).map(wakePicture));
+        if (placed.stopped) { model.dispose(); return; }
+        entry.slot = impostors.take(m, model);
+      }
       placed.models.set(m, entry);
       placed.list.push(entry);
       placed.instances += copies.length;
@@ -1562,11 +1579,15 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
   counts.models = 0; counts.copies = 0;
   for (const e of placed.list) {
     const near = e.band[lite ? 1 : 0];
-    let n = 0, chosen = '';
+    const pics = picturesOf(e);
+    let sleeping = false;
+    for (let k = 0; k < pics.length; k += 1) if (isAsleep(pics[k])) { sleeping = true; break; }
+    let n = 0, chosen = '', nearest = Infinity;
     for (let i = 0; i < e.copies.length; i += 1) {
       const c = e.copies[i];
       const d = Math.hypot(c.x - ex, c.z - ez);
-      if (d - c.sphere.radius > near) {
+      nearest = Math.min(nearest, d - c.sphere.radius);
+      if (d - c.sphere.radius > near || sleeping) {
         if (e.slot && d < far && frustum.intersectsSphere(c.sphere)) pictures.push({ x: c.x, y: c.y, z: c.z, scale: c.scale, slot: e.slot, flip: c.flip });
         continue;
       }
@@ -1577,6 +1598,11 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
       n += 1;
     }
     chosen += `:${n}`;
+    e.nearest = nearest;
+    if (sleeping && !e.waking && nearest < near + WAKE_AHEAD) {
+      e.waking = Promise.all(pics.map(wakePicture)).then(() => { e.waking = null; }, () => { e.waking = null; });
+      placed.woken = (placed.woken || 0) + 1;
+    }
     if (n) e.drawnAt = now;
     if (chosen !== e.chosen || e.meshes[0] && e.meshes[0].count !== n) {
       e.chosen = chosen;
@@ -1588,7 +1614,7 @@ function chooseCopies(placed, impostors, camera, lite, brightness, counts) {
   if (impostors) impostors.show(pictures, brightness);
 }
 
-const SLEEP_AFTER = 10;
+const SLEEP_AFTER = 10, WAKE_AHEAD = 40, SLEEP_AHEAD = 60;
 const PICTURE_KEYS = ['map', 'normalMap', 'roughnessMap', 'metalnessMap', 'alphaMap', 'emissiveMap', 'aoMap', 'bumpMap'];
 function picturesOf(entry) {
   if (entry.pictures) return entry.pictures;
@@ -1603,17 +1629,21 @@ function picturesOf(entry) {
   entry.pictures = [...out];
   return entry.pictures;
 }
-function sleepModels(placed, sharedTextures) {
+const letPictureGo = (t) => { if (!sleepPicture(t)) t.dispose(); };
+function sleepModels(placed, lite) {
   const now = performance.now() / 1000;
   if (now - (placed.sleptAt || 0) < 3) return;
   placed.sleptAt = now;
   let sharing = 0, asleep = 0;
+  const sheets = new Set();
   for (const e of placed.list) {
-    if (now - (e.drawnAt || 0) < SLEEP_AFTER) { if (picturesOf(e).some((t) => t.userData && t.userData.shared)) sharing += 1; continue; }
-    for (const t of picturesOf(e)) if (!(t.userData && t.userData.shared)) t.dispose();
+    for (const t of picturesOf(e)) if (t.userData && t.userData.shared) sheets.add(t);
+    const kept = now - (e.drawnAt || 0) < SLEEP_AFTER || e.waking || (e.nearest !== undefined && e.nearest < e.band[lite ? 1 : 0] + SLEEP_AHEAD);
+    if (kept) { if (picturesOf(e).some((t) => t.userData && t.userData.shared)) sharing += 1; continue; }
+    for (const t of picturesOf(e)) if (!(t.userData && t.userData.shared)) letPictureGo(t);
     asleep += 1;
   }
-  if (!sharing) for (const t of sharedTextures) t.dispose();
+  if (!sharing) for (const t of sheets) letPictureGo(t);
   placed.asleep = asleep;
 }
 
@@ -1626,7 +1656,9 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     if (!sharedPictures.has(uri)) sharedPictures.set(uri, (async () => {
       const res = await fetchFile(`habitation/${uri}`);
       if (!res.ok) throw new Error(`${uri}: ${res.status}`);
-      const t = new THREE.Texture(await decodePicture(await res.blob())); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      const blob = await res.blob();
+      const t = new THREE.Texture(await decodePicture(blob)); t.flipY = false; if (colour) t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 4; t.needsUpdate = true; t.userData = { shared: true };       // (three r128: a texture has no userData of its own)
+      letGoOnceDrawn(t, (size) => decodeAtMost(blob, size, PICTURE_OPTIONS));
       sharedTextures.add(t);
       return t;
     })());
@@ -1889,7 +1921,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     if (built && lite) { const every = built.ground.userData.every; if (every === 2 && away < NEAR_GROUND.come) swapGround(1); else if (every === 1 && away > NEAR_GROUND.go) swapGround(2); }
     if (built) {
       for (const f of built.falls) f.update(dt, time);
-      if (built.placed) { chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn); sleepModels(built.placed, sharedTextures); }
+      if (built.placed) { chooseCopies(built.placed, built.impostors, camera, lite, 0.1 + 0.9 * (1 - night), drawn); sleepModels(built.placed, lite); }
       built.meadow.update(eye);
       if (scene.fog) built.hills.userData.tone(scene.fog.color);
       steamLight.setRGB(1, 1, 1).multiplyScalar(0.25 + 0.75 * (1 - night));
@@ -1906,7 +1938,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     prepare: () => prepareGround(Infinity),
     get groundReady() { return !!groundReady; },
     get groundFrom() { return groundFetch; },
-    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, swimSigns: built ? built.swimSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, groundEvery: built ? built.ground.userData.every : 0, groundPieces: built ? built.ground.children.length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
+    state: () => ({ ...stats, built: !!built, building, upriver: !!upriver, steam: built ? built.steam.near : 0, hotSigns: built ? built.hotSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, swimSigns: built ? built.swimSigns.children.filter((o) => o.name.startsWith('sign:')).length : 0, groundEvery: built ? built.ground.userData.every : 0, groundPieces: built ? built.ground.children.length : 0, waters: built ? built.waters.length : 0, falls: built ? built.falls.length : 0, models: built && built.placed ? built.placed.fetched : 0, of: new Set(HABITATION_STANDING.map((s) => s.m)).size, modelBytes: built && built.placed ? built.placed.bytes : 0, instances: built && built.placed ? built.placed.instances : 0, asleep: built && built.placed ? built.placed.asleep || 0 : 0, woken: built && built.placed ? built.placed.woken || 0 : 0, pictures: built && built.impostors ? built.impostors.slots.size : 0, drawn: { ...drawn }, wind: +habitationWind().toFixed(2), failed: built && built.placed && built.placed.failed ? [...built.placed.failed] : [], now: built && built.placed && built.placed.now ? { ...built.placed.now } : null }),
   };
 }
 

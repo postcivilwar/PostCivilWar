@@ -194,8 +194,8 @@ async function loadTower({ maxTexture }) {
   const file = modelFile(M.file);
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
-  const parsed = parseGLB(await response.arrayBuffer());
-  const { json, accessor, bytes } = parsed;
+  // (`let`: let go once the model is made, below; as supplied-model.js)
+  let { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
   const prim = json.meshes[0].primitives[0], at = prim.attributes;
   const geometry = new THREE.BufferGeometry();
   const put = (name, key) => { if (at[key] === undefined) return; const a = accessor(at[key]); geometry.setAttribute(name, new THREE.BufferAttribute(a.array, a.width, a.normalized)); };
@@ -214,7 +214,8 @@ async function loadTower({ maxTexture }) {
     map = new THREE.Texture(picture);
     map.flipY = false; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8; map.needsUpdate = true;
     // (made again from its file should the card's copy be lost, or no larger than the graphics level's largest picture)
-    letGoOnceDrawn(map, (size) => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, size && maxTexture ? Math.min(size, maxTexture) : size || maxTexture));
+    const source = json.textures[pbr.baseColorTexture.index].source;
+    letGoOnceDrawn(map, (size) => pictureFromFile(file, source, size && maxTexture ? Math.min(size, maxTexture) : size || maxTexture));
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   // (its glass and cladding give back a little of the sky: render-finish.js)
@@ -222,6 +223,8 @@ async function loadTower({ maxTexture }) {
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = 'powerbike-tower';
+  // (the file let go: the closures made here, the picture's way of being made again among them, would keep it)
+  json = null; accessor = null; bytes = null;
   return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
 }
 

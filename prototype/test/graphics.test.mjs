@@ -55,8 +55,12 @@ test('the graphics card nearly full lowers the level: on a phone at nine tenths 
 
 test('Auto starts a phone at Medium, a computer at Ultra; lower where the device says it is weak', () => {
   assert.equal(autoStart({ lite: true, gpu: 'Adreno (TM) 642L' }), MEDIUM);
-  assert.equal(autoStart({ lite: true, gpu: 'Apple GPU', memory: 4 }), MEDIUM);
+  assert.equal(autoStart({ lite: true, gpu: 'Adreno (TM) 740', memory: 8 }), MEDIUM);
   assert.equal(autoStart({ lite: true, gpu: 'Mali-G52', memory: 2 }), LOW);
+  // (29 October 2026: an iPhone, and a phone with less than 6 GB, at Low; and kept there, below)
+  assert.equal(autoStart({ lite: true, gpu: 'Apple GPU' }), LOW);
+  assert.equal(autoStart({ lite: true, gpu: 'Apple GPU', memory: 4 }), LOW);
+  assert.equal(autoStart({ lite: true, gpu: 'Mali-G57 MC2', memory: 4 }), LOW);
   assert.equal(autoStart({ lite: false, gpu: 'ANGLE (NVIDIA, NVIDIA GeForce RTX 3060 Direct3D11 vs_5_0 ps_5_0, D3D11)' }), ULTRA);
   assert.equal(autoStart({ lite: false, gpu: 'Apple M2' }), ULTRA);
   assert.equal(autoStart({ lite: false, gpu: 'ANGLE (Intel, Intel(R) UHD Graphics 620 Direct3D11 vs_5_0 ps_5_0, D3D11)' }), HIGH);
@@ -67,6 +71,12 @@ test('Auto starts a phone at Medium, a computer at Ultra; lower where the device
   // it climbs by itself to Medium on a phone (26 October 2026: High and Ultra are the player's to choose there), to Ultra
   // on a computer
   assert.equal(autoCeiling({ lite: true }), MEDIUM); assert.equal(autoCeiling({ lite: false }), ULTRA);
+  assert.equal(autoCeiling({ lite: true, gpu: 'Adreno (TM) 740', memory: 8 }), MEDIUM);
+  // an iPhone, and a phone with less than 6 GB of memory: Low, Auto never climbing from it by itself
+  assert.equal(autoCeiling({ lite: true, gpu: 'Apple GPU' }), LOW);
+  assert.equal(autoCeiling({ lite: true, gpu: 'Mali-G57 MC2', memory: 4 }), LOW);
+  // (a Mac's Safari names the same graphics card: a computer, Ultra)
+  assert.equal(autoCeiling({ lite: false, gpu: 'Apple GPU' }), ULTRA);
 });
 
 test('the level Auto settled at is kept for this graphics card, and only for it', () => {

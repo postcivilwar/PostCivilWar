@@ -16203,7 +16203,7 @@ function letGo() { if (this.array && !sentAway.has(this)) sentAway.set(this, { b
 async function restoreGeometry() {
   let n = 0;
   await Promise.all([...sentAway].map(async ([attribute, kept]) => {
-    if (attribute.array) return;
+    if (attribute.array || resting.has(ownerOf.get(attribute))) return;
     attribute.array = new kept.type(await kept.blob.arrayBuffer());
     attribute.needsUpdate = true;
     n += 1;
@@ -16211,6 +16211,64 @@ async function restoreGeometry() {
   return n;
 }
 const geometryKeptAside = () => sentAway.size;
+const ownerOf = new WeakMap();       // attribute -> its geometry
+function letGoOnceSent(geometry) {
+  const kept = Object.values(geometry.attributes);
+  if (geometry.index) kept.push(geometry.index);
+  for (const attribute of kept) { attribute.onUpload(letGo); ownerOf.set(attribute, geometry); }
+  geometry.addEventListener('dispose', () => { if (resting.has(geometry)) return; for (const attribute of kept) sentAway.delete(attribute); });
+  return geometry;
+}
+
+const REST = Object.freeze({ away: 90, wake: 50, ms: 5000 });
+const resting = new Set();           // geometries resting
+const restingOf = new Map();         // mesh -> its own geometry, while it rests
+const waking = new Map();            // mesh -> the promise of its numbers read back
+let nothing = null;
+const restStats = { rested: 0, woken: 0, failed: 0 };
+const keptOf = (geometry) => [...Object.values(geometry.attributes), ...(geometry.index ? [geometry.index] : [])];
+function restable(geometry) {
+  if (!geometry || !geometry.isBufferGeometry || resting.has(geometry)) return false;
+  const kept = keptOf(geometry);
+  return kept.length > 0 && kept.every((a) => sentAway.has(a) && ownerOf.get(a) === geometry);
+}
+function restMesh(mesh) {
+  const geometry = mesh.geometry;
+  if (restingOf.has(mesh) || !restable(geometry)) return false;
+  if (!nothing) { nothing = new THREE.BufferGeometry(); nothing.setAttribute('position', new THREE.BufferAttribute(new Float32Array(0), 3)); nothing.boundingSphere = new THREE.Sphere(); }
+  for (const a of keptOf(geometry)) a.array = null;
+  resting.add(geometry); restingOf.set(mesh, geometry);
+  mesh.geometry = nothing;
+  geometry.dispose();
+  restStats.rested += 1;
+  return true;
+}
+function wakeMesh(mesh) {
+  const geometry = restingOf.get(mesh);
+  if (!geometry) return Promise.resolve(true);
+  if (waking.has(mesh)) return waking.get(mesh);
+  const job = (async () => {
+    try {
+      const kept = keptOf(geometry);
+      await Promise.all(kept.map(async (a) => { if (a.array) return; const k = sentAway.get(a); a.array = new k.type(await k.blob.arrayBuffer()); a.needsUpdate = true; }));
+      if (restingOf.get(mesh) !== geometry) return false;
+      mesh.geometry = geometry; restingOf.delete(mesh); resting.delete(geometry);
+      restStats.woken += 1;
+      return true;
+    } catch (error) { restStats.failed += 1; return false; } finally { waking.delete(mesh); }
+  })();
+  waking.set(mesh, job);
+  return job;
+}
+function settleMesh(mesh) {
+  const geometry = restingOf.get(mesh);
+  if (!geometry) return mesh.geometry;
+  restingOf.delete(mesh); resting.delete(geometry); waking.delete(mesh);
+  mesh.geometry = geometry;
+  return geometry;
+}
+const isResting = (mesh) => restingOf.has(mesh);
+const restState = () => ({ resting: resting.size, waking: waking.size, ...restStats });
 
 class Floats {
   constructor() { this.array = new Float32Array(3072); this.length = 0; }
@@ -16346,7 +16404,7 @@ class Batch {
     geometry.setAttribute('color', new THREE.BufferAttribute(this.colours.take(), 3));
     geometry.setAttribute('uv', new THREE.BufferAttribute(this.uvs.take(), 2));
     geometry.computeBoundingSphere();
-    for (const attribute of Object.values(geometry.attributes)) attribute.onUpload(letGo);
+    letGoOnceSent(geometry);
     this.built = true;
     this.positions = this.normals = this.colours = this.uvs = null;
     return new THREE.Mesh(geometry, material);
@@ -16384,10 +16442,26 @@ function createSight() {
       if (!mesh.geometry.boundingSphere) mesh.geometry.computeBoundingSphere();
       const sphere = mesh.geometry.boundingSphere;
       const c = centre || sphere.center;
-      list.push({ mesh, x: c.x, z: c.z, radius: centre ? centre.radius || 0 : sphere.radius, limit });
+      list.push({ mesh, x: c.x, z: c.z, radius: centre ? centre.radius || 0 : sphere.radius, limit, farSince: 0, triedAt: 0 });
       return mesh;
     },
-    look(x, z, reach) { for (const it of list) it.mesh.visible = Math.hypot(it.x - x, it.z - z) - it.radius < Math.min(reach, it.limit); },
+    look(x, z, reach, far = reach) {
+      const now = performance.now();
+      for (const it of list) {
+        const d = Math.hypot(it.x - x, it.z - z) - it.radius;
+        if (lite) {
+          const seen = Math.min(far, it.limit);
+          if (d > seen + REST.away) {
+            if (!it.farSince) it.farSince = now;
+            else if (now - it.farSince > REST.ms && now - it.triedAt > REST.ms && !restingOf.has(it.mesh)) { it.triedAt = now; restMesh(it.mesh); }
+          } else {
+            it.farSince = 0;
+            if (d < seen + REST.wake && restingOf.has(it.mesh)) wakeMesh(it.mesh);
+          }
+        }
+        it.mesh.visible = d < Math.min(reach, it.limit) && !restingOf.has(it.mesh);
+      }
+    },
     size: () => list.length,
   };
 }
@@ -16744,7 +16818,7 @@ function buildingKit() {
   return buildingMaterials;
 }
 
-return { linear, place, restoreGeometry, geometryKeptAside, Batch, Chunked, createSight, gableGeometry, lathe, limb, nameTexture, textTexture, noise, smoothNoise, facadeTexture, grainTexture, grassTexture, corrugatedTextures, rippleNormalTexture, plasterNormalTexture, clothTexture, faceTexture, shadeOf, addPitchedRoof, addWindow, setLite, isLite, surface, buildingKit };
+return { linear, place, restoreGeometry, geometryKeptAside, letGoOnceSent, restMesh, wakeMesh, settleMesh, isResting, restState, Batch, Chunked, createSight, gableGeometry, lathe, limb, nameTexture, textTexture, noise, smoothNoise, facadeTexture, grainTexture, grassTexture, corrugatedTextures, rippleNormalTexture, plasterNormalTexture, clothTexture, faceTexture, shadeOf, addPitchedRoof, addWindow, setLite, isLite, surface, buildingKit };
 })();
 
 __modules["client/render-vehicles.js"] = (function () {
@@ -17697,7 +17771,7 @@ return { buildShowroom, makeDealMarker };
 
 __modules["client/render-foliage.js"] = (function () {
 
-const { linear, noise, isLite } = __modules["client/render-kit.js"];
+const { linear, noise, isLite, letGoOnceSent } = __modules["client/render-kit.js"];
 
 const SIZE = 125;
 
@@ -17778,6 +17852,7 @@ class Leaves {
     geo.setAttribute('uv', new THREE.Float32BufferAttribute(this.uv, 2));
     geo.setAttribute('color', new THREE.Float32BufferAttribute(this.c, 3));
     geo.computeBoundingSphere();
+    letGoOnceSent(geo);
     this.p = this.n = this.uv = this.c = null;
     return new THREE.Mesh(geo, material);
   }
@@ -19278,7 +19353,7 @@ function buildWorld(scene) {
       if (v.model.group.visible) v.model.setDistance(d, undefined, VEHICLE_BIAS[quality]);
     }
   }
-  return { glowMaterial, waterMaterial, water, roadMaterial: roadMesh.material, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach) => { sight.look(x, z, reach); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
+  return { glowMaterial, waterMaterial, water, roadMaterial: roadMesh.material, lampHeads, signs, showrooms, city, tick, setQuality, parkedVehicles, seeVehicles, see: (x, z, reach, far = reach) => { sight.look(x, z, reach, far); if (quality >= 3) for (const mesh of grass) mesh.visible = false; } };
 }
 
 return { addTree, buildWorld };
@@ -19676,7 +19751,7 @@ function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera = null }
     group.userData.ready = ready.stats;
   }
   scene.add(group);
-  return { lampHeads: heads, signs, group, see: (x, z, reach) => sight.look(x, z, reach) };
+  return { lampHeads: heads, signs, group, see: (x, z, reach, far = reach) => sight.look(x, z, reach, far) };
 }
 function buildOutskirts(scene, { glowMaterial }) {
   const steps = outskirtsSteps(scene, { glowMaterial });
@@ -20687,7 +20762,7 @@ function buildTown(scene, glowMaterial) {
     open = found;
     return open;
   }
-  return { setInside, interiors, see(x, z, reach) { sight.look(x, z, reach); if (quality >= 2) plants.visible = false; }, setQuality(level) { quality = level; mounds.count = level >= 1 ? Math.floor(spots.length / 2) : spots.length; } };
+  return { setInside, interiors, see(x, z, reach, far = reach) { sight.look(x, z, reach, far); if (quality >= 2) plants.visible = false; }, setQuality(level) { quality = level; mounds.count = level >= 1 ? Math.floor(spots.length / 2) : spots.length; } };
 }
 
 return { buildTown };
@@ -21128,10 +21203,47 @@ function letGoOnceDrawn(texture, restore = null) {
   };
   if (restore && !restorable.has(texture)) {
     restorable.set(texture, restore);
-    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) restorable.delete(texture); });
+    texture.addEventListener('dispose', () => { if (!remaking.has(texture)) { restorable.delete(texture); asleep.delete(texture); } });
   }
   return texture;
 }
+
+const asleep = new Set();
+const waking = new Map();             // texture -> the promise of its picture made again
+function sleepPicture(texture) {
+  if (!texture || !restorable.has(texture)) return false;
+  if (asleep.has(texture) || remaking.has(texture) || waking.has(texture)) return true;
+  const i = waiting.indexOf(texture); if (i >= 0) waiting.splice(i, 1);
+  remaking.add(texture); texture.dispose(); remaking.delete(texture);
+  const image = texture.image;
+  if (image && typeof image.close === 'function') image.close();
+  texture.onUpdate = null;
+  texture.userData.drawn = 0;
+  asleep.add(texture);
+  return true;
+}
+const isAsleep = (texture) => asleep.has(texture);
+function wakePicture(texture) {
+  if (!asleep.has(texture)) return Promise.resolve(true);
+  if (waking.has(texture)) return waking.get(texture);
+  const restore = restorable.get(texture);
+  const job = (async () => {
+    try {
+      const size = pictureWanted(texture);
+      const image = await restore(size);
+      if (!image || !restorable.has(texture)) { if (image && typeof image.close === 'function') image.close(); return false; }
+      remaking.add(texture); texture.dispose(); remaking.delete(texture);
+      texture.image = image; texture.needsUpdate = true;
+      texture.userData.cap = size;
+      letGoOnceDrawn(texture);
+      handOver(texture);
+      return true;
+    } catch (error) { return false; } finally { asleep.delete(texture); waking.delete(texture); }
+  })();
+  waking.set(texture, job);
+  return job;
+}
+const picturesAsleep = () => asleep.size;
 
 let most = 0;
 const waiting = [];
@@ -21169,7 +21281,7 @@ function setPictureMost(size) {
 function stepPictures() {
   if (remaking.size || !waiting.length) return waiting.length;
   const texture = waiting.shift();
-  const restore = restorable.get(texture);
+  const restore = asleep.has(texture) ? null : restorable.get(texture);
   if (!restore || !toRemake(texture)) return waiting.length;
   const size = pictureWanted(texture);
   remaking.add(texture);
@@ -21188,7 +21300,7 @@ function pictureState() {
   const sizes = {};
   let undrawn = 0;
   for (const texture of restorable.keys()) { const d = texture.userData.drawn || 0; if (!d) undrawn += 1; else sizes[d] = (sizes[d] || 0) + 1; }
-  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most };
+  return { restorable: restorable.size, undrawn, sizes, waiting: waiting.length, remaking: remaking.size, most, asleep: asleep.size, waking: waking.size };
 }
 async function decodeAtMost(blob, size = 0, options = undefined) {
   const full = await (options ? createImageBitmap(blob, options) : createImageBitmap(blob));
@@ -21203,6 +21315,7 @@ async function restorePictures() {
   let made = 0, failed = 0;
   for (const [texture, restore] of [...restorable]) {
     if (!restorable.has(texture)) continue;
+    if (asleep.has(texture)) continue;
     if (!gone(texture.image)) { texture.needsUpdate = true; continue; }
     try {
       const size = pictureWanted(texture);
@@ -21302,7 +21415,7 @@ function figureLabels(names) {
 
 
 function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
-  const { json, accessor, bytes } = parsed;
+  let { json, accessor, bytes } = parsed;
   if ((json.meshes || []).length !== 1 || json.meshes[0].primitives.length !== 1) throw new Error('one mesh with one part is read here');
   const prim = json.meshes[0].primitives[0];
   const at = prim.attributes;
@@ -21399,10 +21512,11 @@ function modelFromGLB(parsed, { surface, maxTexture = 0, pictures = null }) {
     return { root, mesh, bones };
   }
   const bounds = geometry.boundingBox;
+  accessor = null; bytes = null;
   return { figure, clips, ready: Promise.all(ready), height: bounds.max.y - bounds.min.y, triangles: geometry.index.count / 3, geometry, material };
 }
 
-return { fetchKept, letGoOnceDrawn, pictureMost, setUploader, pictureWanted, wantPicture, setPictureMost, stepPictures, picturesWaiting, pictureState, decodeAtMost, restorePictures, picturesHeld, isRestorable, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
+return { fetchKept, letGoOnceDrawn, sleepPicture, isAsleep, wakePicture, picturesAsleep, pictureMost, setUploader, pictureWanted, wantPicture, setPictureMost, stepPictures, picturesWaiting, pictureState, decodeAtMost, restorePictures, picturesHeld, isRestorable, rereadFile, pictureFromFile, parseGLB, parsedParts, boneName, animationLabel, figureLabels, modelFromGLB };
 })();
 
 __modules["client/inflate.js"] = (function () {
@@ -25605,7 +25719,14 @@ function createBubbles(layer, { translator, settings }) {
     entry.extra = extra;
   }
 
-  function update(lines, where, project, eye, selfKey, width, height) {
+  let layerShown = true;
+  function showLayer() {
+    let any = false;
+    for (const entry of live.values()) if (entry.shown && !entry.el.hidden) { any = true; break; }
+    if (any !== layerShown) { layerShown = any; layer.style.visibility = any ? 'visible' : 'hidden'; }
+  }
+  function update(...args) { const n = place(...args); showLayer(); return n; }
+  function place(lines, where, project, eye, selfKey, width, height) {
     const now = performance.now() / 1000;
     const subtitles = !settings.subtitles || settings.subtitles();
     lines = subtitles ? lines : lines.filter((l) => !l.voice);
@@ -25670,7 +25791,7 @@ function createBubbles(layer, { translator, settings }) {
     return 1;
   }
 
-  return { update, count: () => live.size, shown: () => [...live.values()].filter((e) => e.shown).length, clear() { for (const entry of live.values()) entry.el.remove(); live.clear(); queue.length = 0; heardAt.clear(); current = null; } };
+  return { update, count: () => live.size, shown: () => [...live.values()].filter((e) => e.shown).length, clear() { for (const entry of live.values()) entry.el.remove(); live.clear(); queue.length = 0; heardAt.clear(); current = null; showLayer(); } };
 }
 
 return { createBubbles };
@@ -27393,11 +27514,12 @@ const levelSetting = (key, level, lite = false) => { const s = LEVEL_SETTINGS[ke
 function autoStart({ lite, gpu = '', memory = null }) {
   const card = String(gpu).toLowerCase();
   if (/swiftshader|llvmpipe|software|softpipe|microsoft basic render/.test(card)) return LOW;
-  if (lite) return memory !== null && memory <= 2 ? LOW : MEDIUM;
+  if (lite) return lowPhone({ gpu, memory }) ? LOW : MEDIUM;
   if (/intel|uhd graphics|iris/.test(card) && !/arc/.test(card)) return HIGH;
   return ULTRA;
 }
-const autoCeiling = ({ lite }) => (lite ? MEDIUM : ULTRA);
+const lowPhone = ({ gpu = '', memory = null }) => /apple/i.test(String(gpu)) || (memory !== null && memory < 6);
+const autoCeiling = ({ lite, gpu = '', memory = null }) => (lite ? (lowPhone({ gpu, memory }) ? LOW : MEDIUM) : ULTRA);
 
 const KEY = 'pcw-graphics-auto';
 function remembered(storage, gpu) {
@@ -27414,7 +27536,7 @@ function levelOf(choice) {
 
 const memoryLimitMB = (budgetMB, lite) => (lite ? budgetMB * 0.9 : budgetMB * 1.5);
 
-return { GRAPHICS_LEVELS, GRAPHICS_AUTO_LINE, GRAPHICS_NOTE, GRAPHICS_LOWERED, ULTRA, HIGH, MEDIUM, LOW, LEVEL_SETTINGS, levelSetting, autoStart, autoCeiling, remembered, remember, levelOf, memoryLimitMB };
+return { GRAPHICS_LEVELS, GRAPHICS_AUTO_LINE, GRAPHICS_NOTE, GRAPHICS_LOWERED, ULTRA, HIGH, MEDIUM, LOW, LEVEL_SETTINGS, levelSetting, autoStart, lowPhone, autoCeiling, remembered, remember, levelOf, memoryLimitMB };
 })();
 
 __modules["sim/nigeria.js"] = (function () {
@@ -37231,7 +37353,7 @@ function createUI(app) {
   window.addEventListener('resize', placeNotices);
 
   function setVitals(self, flash) {
-    if (flash !== lastFlash) { lastFlash = flash; $('flash').style.opacity = flash > 0.01 ? String(Math.min(1, flash) * 0.8) : '0'; }
+    if (flash !== lastFlash) { lastFlash = flash; const el = $('flash'), on = flash > 0.01; el.style.opacity = on ? String(Math.min(1, flash) * 0.8) : '0'; el.style.visibility = on ? 'visible' : 'hidden'; }
     const foe = (self.fight && self.fight.target) || (self.involved && self.involved[0]) || null;
     const law = self.law.state;
     const fallen = self.dead ? `dead:${self.dead.left}` : self.down ? `down:${self.down.rising}` : '';
@@ -37953,7 +38075,7 @@ function createWarmUp(renderer, scene) {
   let allowance = BYTES_A_FRAME;
   const stats = { meshes: 0, bytes: 0, textures: 0, left: 0, slowestMs: 0 };
 
-  const sizeOf = (geometry) => { let b = geometry.index ? geometry.index.array.byteLength : 0; for (const a of Object.values(geometry.attributes)) if (a.array) b += a.array.byteLength; return b; };
+  const sizeOf = (geometry) => { let b = geometry.index && geometry.index.array ? geometry.index.array.byteLength : 0; for (const a of Object.values(geometry.attributes)) if (a.array) b += a.array.byteLength; return b; };
   function collect() {
     queue = [];
     scene.traverse((o) => {
@@ -39056,6 +39178,7 @@ return { createSkills };
 __modules["client/fit.js"] = (function () {
 
 const GAP = 8;
+const SMALLEST = 0.55;
 
 const rectOf = (el) => (el && !el.hidden && el.offsetParent !== null ? el.getBoundingClientRect() : null);
 
@@ -39074,7 +39197,9 @@ function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, skillsPag
     const floor = band + GAP;
     hud.style.setProperty('--under', `${Math.round(band + 6)}px`);
 
-    const pads = [...pad.children].filter((el) => el.getBoundingClientRect().height > 0);
+    const shown = [...pad.children].filter((el) => el.getBoundingClientRect().height > 0);
+    const fromTop = (el) => getComputedStyle(el).getPropertyValue('--fit').trim() === 'top';
+    const pads = shown.filter((el) => !fromTop(el));
     const corner = pad.getBoundingClientRect();           // #pad is a point at the bottom right
     let reach = 0, reachRight = 0;                        // highest point of the whole group; of those at the right edge
     for (const el of pads) {
@@ -39084,7 +39209,7 @@ function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, skillsPag
       if ((corner.right - r.left) / padScale < 100) reachRight = Math.max(reachRight, up);
     }
     const room = H - floor - (H - (corner.bottom - top));
-    let ps = reach > 0 ? Math.min(1, room / reach) : 1;
+    let ps = reach > 0 ? Math.max(SMALLEST, Math.min(1, room / reach)) : 1;
 
     const btn = rectOf(skillsBtn);
     const half = btn ? btn.height / 2 / 1 : 29;
@@ -39095,7 +39220,7 @@ function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, skillsPag
       if (!open && reachRight > 0) {
         const lowest = bottomRef - reachRight * ps - GAP - half;
         const highest = floor + half;
-        if (lowest < highest) { ps = Math.max(0.55, ps * ((bottomRef - highest - half - GAP) / (reachRight * ps))); }
+        if (lowest < highest) { ps = Math.max(SMALLEST, ps * ((bottomRef - highest - half - GAP) / (reachRight * ps))); }
         centre = Math.max(highest, Math.min(centre, bottomRef - reachRight * ps - GAP - half));
       } else centre = Math.max(floor + half, Math.min(centre, H - half - GAP));
       const above = 129, below = 143;
@@ -39110,15 +39235,17 @@ function createFitter({ game, hud, radar, hudr, stick, pad, skillsBtn, skillsPag
       const natural = (top + H - s.top) / stickScale;
       stickScale = Math.min(1, (H - floor) / natural);
     }
-    const key = `${padScale.toFixed(3)}|${stickScale.toFixed(3)}|${arcScale.toFixed(3)}|${Math.round(centre)}`;
+    const topRoom = Math.max(0, Math.round(room));
+    const key = `${padScale.toFixed(3)}|${stickScale.toFixed(3)}|${arcScale.toFixed(3)}|${Math.round(centre)}|${topRoom}`;
     if (key !== last) {
       last = key;
+      set('--top-room', `${topRoom}px`);
       set('--pad-scale', padScale.toFixed(3));
       set('--stick-scale', stickScale.toFixed(3));
       set('--arc-scale', arcScale.toFixed(3));
       set('--skills-y', `${Math.round(centre)}px`);
     }
-    return { band, padScale, stickScale, arcScale, centre, H, W };
+    return { band, padScale, stickScale, arcScale, centre, H, W, topRoom };
   }
   return { fit };
 }
@@ -41546,7 +41673,7 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
   const file = modelFile(named);
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
-  const { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
+  let { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
   const prim = json.meshes[0].primitives[0], at = prim.attributes;
   const geometry = new THREE.BufferGeometry();
   const put = (key, attr) => { if (at[attr] === undefined) return; const a = accessor(at[attr]); geometry.setAttribute(key, new THREE.BufferAttribute(a.array.slice(), a.width, a.normalized)); };
@@ -41601,6 +41728,7 @@ async function loadSuppliedMesh(named, { maxTexture, env = null, brand = null, n
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = name;
+  json = null; accessor = null; bytes = null;
   return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
 }
 
@@ -43031,8 +43159,7 @@ async function loadTower({ maxTexture }) {
   const file = modelFile(M.file);
   const response = await fetchKept(file);
   if (!response.ok) throw new Error(`${file}: ${response.status}`);
-  const parsed = parseGLB(await response.arrayBuffer());
-  const { json, accessor, bytes } = parsed;
+  let { json, accessor, bytes } = parseGLB(await response.arrayBuffer());
   const prim = json.meshes[0].primitives[0], at = prim.attributes;
   const geometry = new THREE.BufferGeometry();
   const put = (name, key) => { if (at[key] === undefined) return; const a = accessor(at[key]); geometry.setAttribute(name, new THREE.BufferAttribute(a.array, a.width, a.normalized)); };
@@ -43050,13 +43177,15 @@ async function loadTower({ maxTexture }) {
       : new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = reject; img.src = URL.createObjectURL(blob); }));
     map = new THREE.Texture(picture);
     map.flipY = false; map.colorSpace = THREE.SRGBColorSpace; map.anisotropy = 8; map.needsUpdate = true;
-    letGoOnceDrawn(map, (size) => pictureFromFile(file, json.textures[pbr.baseColorTexture.index].source, size && maxTexture ? Math.min(size, maxTexture) : size || maxTexture));
+    const source = json.textures[pbr.baseColorTexture.index].source;
+    letGoOnceDrawn(map, (size) => pictureFromFile(file, source, size && maxTexture ? Math.min(size, maxTexture) : size || maxTexture));
   }
   const colour = pbr.baseColorFactor ? new THREE.Color(...pbr.baseColorFactor.slice(0, 3)) : new THREE.Color(1, 1, 1);
   const material = reflects(surface({ map, color: colour, roughness: pbr.roughnessFactor ?? 1, metalness: pbr.metallicFactor ?? 1, side: mat.doubleSided ? THREE.DoubleSide : THREE.FrontSide }), 0.8);
   const mesh = new THREE.Mesh(geometry, material);
   mesh.castShadow = true; mesh.receiveShadow = true;
   mesh.name = 'powerbike-tower';
+  json = null; accessor = null; bytes = null;
   return { mesh, triangles: geometry.index ? geometry.index.count / 3 : geometry.attributes.position.count / 3 };
 }
 
@@ -46236,7 +46365,7 @@ const { programsReady } = __modules["client/program-ready.js"];
 const { buildBillboards } = __modules["client/render-billboards.js"];
 const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
-const { linear, setLite, restoreGeometry } = __modules["client/render-kit.js"];
+const { linear, setLite, restoreGeometry, settleMesh, restState } = __modules["client/render-kit.js"];
 const { fetchKept, restorePictures, setPictureMost, stepPictures, picturesWaiting, pictureMost, pictureState, isRestorable, setUploader } = __modules["client/glb.js"];
 const { createPictureKeeper } = __modules["client/picture-keeper.js"];
 const { gradeInstalled } = __modules["client/grade.js"];
@@ -46408,29 +46537,55 @@ function start(carried) {
     },
   };
   let beyondJob = null, beyondBegun = false;
-  function* beyondSteps(stepwise) {
-    const steps = outskirtsSteps(scene, { glowMaterial: world.glowMaterial, renderer: stepwise ? renderer : null, camera: stepwise ? camera : null });
-    let step, said;
-    while (!(step = steps.next(said)).done) said = yield step.value;
-    const built = step.value;
-    said = yield;
-    billboards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, loadArtwork: async (id) => {
-      const answer = await online.ask('ads.art', { id }, { timeout: 30000 });
-      if (!answer.ok) throw new Error(answer.message);
-      const raw = atob(answer.data); const bytes = new Uint8Array(raw.length);
-      for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
-      return new Blob([bytes], { type: answer.mime });
-    } });
-    if (stepwise) {
-      billboards.group.visible = false;
-      const ready = programsReady(renderer, billboards.group, camera, scene);
-      while (said !== 'now' && !ready.step(6)) said = yield 'waiting';
-      billboards.group.visible = true;
+  function* beyondSteps(stepwise, land = true) {
+    let step, said, built = null;
+    if (land) {
+      const steps = outskirtsSteps(scene, { glowMaterial: world.glowMaterial, renderer: stepwise ? renderer : null, camera: stepwise ? camera : null });
+      while (!(step = steps.next(said)).done) said = yield step.value;
+      built = step.value;
     }
-    adBoard.refresh();
+    said = yield;
+    if (!billboards) {
+      billboards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, loadArtwork: async (id) => {
+        const answer = await online.ask('ads.art', { id }, { timeout: 30000 });
+        if (!answer.ok) throw new Error(answer.message);
+        const raw = atob(answer.data); const bytes = new Uint8Array(raw.length);
+        for (let i = 0; i < raw.length; i += 1) bytes[i] = raw.charCodeAt(i);
+        return new Blob([bytes], { type: answer.mime });
+      } });
+      if (stepwise) {
+        billboards.group.visible = false;
+        const ready = programsReady(renderer, billboards.group, camera, scene);
+        while (said !== 'now' && !ready.step(6)) said = yield 'waiting';
+        billboards.group.visible = true;
+      }
+      adBoard.refresh();
+    }
+    if (!built) return;
     outskirts = { ...built, ready: true };
     world.lampHeads.push(...outskirts.lampHeads);
     lampPools.place();
+    beyondStats.builds += 1;
+  }
+  const BEYOND_PHONE = Object.freeze({ come: 40, go: 140 });
+  const beyondWanted = (x, z) => !LITE || x < BEYOND_PHONE.come || z > 150;
+  function letGoBeyond() {
+    if (!outskirts.ready || !outskirts.group || beyondJob) return false;
+    const group = outskirts.group;
+    scene.remove(group);
+    group.traverse((o) => { if (o.isMesh) settleMesh(o); });
+    const elsewhere = new Set(), pictures = new Set();
+    scene.traverse((o) => { if (o.geometry) elsewhere.add(o.geometry); const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : []; for (const m of mats) if (m.map) pictures.add(m.map); });
+    let shapes = 0;
+    group.traverse((o) => { if (o.geometry && !elsewhere.has(o.geometry)) { o.geometry.dispose(); elsewhere.add(o.geometry); shapes += 1; } });
+    for (const sign of outskirts.signs || []) { const m = sign.material; if (m && m.map && !pictures.has(m.map)) m.map.dispose(); }
+    const heads = new Set(outskirts.lampHeads);
+    for (let i = world.lampHeads.length - 1; i >= 0; i -= 1) if (heads.has(world.lampHeads[i])) world.lampHeads.splice(i, 1);
+    lampPools.place();
+    outskirts = { lampHeads: [], see() {}, ready: false };
+    beyondBegun = false; beyondWait = 0;
+    beyondStats.letGo += 1; beyondStats.shapesLetGo += shapes;
+    return true;
   }
   function buildBeyond() {
     if (outskirts.ready) return;
@@ -46438,10 +46593,12 @@ function start(carried) {
     while (!beyondJob.next('now').done) { /* all of it, now */ }
     beyondJob = null;
   }
-  const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0 };
+  const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0, shapesLetGo: 0 };
   function stepBeyond(budgetMs = 6) {
     if (outskirts.ready) { beyondJob = null; return; }
-    if (!beyondJob) beyondJob = beyondSteps(true);
+    const land = beyondWanted(predicted.x, predicted.z);
+    if (!land && billboards && !beyondJob) { beyondBegun = false; return; }
+    if (!beyondJob) beyondJob = beyondSteps(true, land);
     const t0 = performance.now();
     beyondStats.frames += 1;
     for (;;) {
@@ -49047,7 +49204,7 @@ function start(carried) {
   const deviceMemory = typeof navigator !== 'undefined' && Number.isFinite(navigator.deviceMemory) ? navigator.deviceMemory : null;
   const storage = (() => { try { return window.localStorage; } catch (error) { return null; } })();
   const autoLevel = () => { const known = storage ? remembered(storage, gpuName()) : null; return known !== null ? known : autoStart({ lite: LITE, gpu: gpuName(), memory: deviceMemory }); };
-  governor.setCeiling(autoCeiling({ lite: LITE }));
+  governor.setCeiling(autoCeiling({ lite: LITE, gpu: gpuName(), memory: deviceMemory }));
   function setGraphics(value) {
     const level = levelOf(value);
     prefs.graphics = level === null ? 'auto' : value;
@@ -49638,22 +49795,24 @@ blood.update(dt, view.blood || []);
     if (soundTimer > 0.5) {
       soundTimer = 0;
       sources = soundSources(hour, weather.wet);
-      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : Math.min(REACH[quality.detail], scene.fog.far * 0.82);
-      world.see(cam.target.x, cam.target.z, reach);
+      const outdoors = Math.min(REACH[quality.detail], scene.fog.far * 0.82);
+      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : outdoors;
+      world.see(cam.target.x, cam.target.z, reach, outdoors);
       townBuildings.setThin(!!(habitation && habitation.built));
       townBuildings.see(cam.target.x, cam.target.z, reach, playing && warm.stage >= 5 && !hall, hall ? 0 : undefined);
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();
       if (playing && !showroom.inside && (warm.stage >= 5 || Math.hypot(predicted.x - CARSHOW.doors.x, predicted.z - CARSHOW.doors.z) < 400)) carshowView.load(predicted.x, predicted.z);
       carshowView.see(cam.target.x, cam.target.z, reach, hall ? 0 : undefined);
       if (playing && !hall) { supplied.tick(predicted); if (warm.stage >= 5) supplied.loadAmbulance(); }
-      if (!outskirts.ready && playing) {
+      if (!outskirts.ready && playing && (beyondWanted(predicted.x, predicted.z) || !billboards)) {
         beyondWait += 0.5;      // (this is looked at twice a second)
         const out = predicted.x < ZONE.bounds.minX + 40 || predicted.z > 150;
         if (out) buildBeyond(); else if (warm.stage >= 5 && beyondWait > 4) beyondBegun = true;
       }
-      outskirts.see(cam.target.x, cam.target.z, reach);
+      if (LITE && playing && outskirts.ready && predicted.x > BEYOND_PHONE.go && predicted.z <= 150) letGoBeyond();
+      outskirts.see(cam.target.x, cam.target.z, reach, outdoors);
       world.seeVehicles(camera.position.x, camera.position.z, reach + cam.dist);
-      town.see(cam.target.x, cam.target.z, reach);
+      town.see(cam.target.x, cam.target.z, reach, outdoors);
     }
     if (playing) {
       const engines = [];
@@ -49799,7 +49958,7 @@ blood.update(dt, view.blood || []);
     get inside() { return inside ? inside.id : null; },
     get quality() { return quality.level; }, get qualityDetail() { return quality.detail; }, graphicsBudget: graphicsBudgetMB, memoryLimit,
     cloudShadeAt,
-    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
+    get levelState() { return { level: governor.level, detail: quality.detail, pixelRatio: renderer.getPixelRatio(), shadows: sky.sun.castShadow, shadowMap: sky.sun.shadow.mapSize.x, shadowReach: sky.sun.shadow.camera.right, softness: sky.sun.shadow.radius, patches: softPatchesShown(), patchOpacity: softPatchOpacity(), skyLight: sky.skyLight, warmth: sky.state().warmth, toneMapping: renderer.toneMapping, air: worldShadingState(), airLevel: { ...airLevel }, glow: glow ? glow.state() : null, dust: dust ? dust.state() : null, fireflies: fireflies ? fireflies.state() : null, wetTracks: wetTracks ? wetTracks.state() : null, occlusion: occlusion ? occlusion.state() : null, river: { ...riverState(), mirror: riverMirror ? riverMirror.state() : null }, finish: finishState(), view: sky.view, pictureMost: pictureMost(), picturesWaiting: picturesWaiting(), pictures: pictureState(), trims: graphicsTrims, memoryLimit, kept: keeper ? keeper.state() : null, resting: restState() }; }, graphicsPretend: pretend, get graphicsChoice() { return prefs.graphics; }, setGraphics: (value) => setGraphics(value), get sunShadows() { return sky.sun.castShadow; }, governor, scene, renderer, THREE, get world() { return world; }, warmUp, get ready() { return isReady; },
     get fleet() { return [...world.parkedVehicles.map((v) => v.model), ...[...vehicleActors.values()].map((a) => a.model)].map((m) => ({ model: m.model, look: m.look.id, trim: m.trim, level: m.level, triangles: m.triangles, shown: m.group.visible, spin: m.spin, steering: m.steering, lit: m.lit, x: m.group.position.x, z: m.group.position.z })); },
     get link() { return link ? link.status() : null; },
     get gunPlay() { return gunPlay; }, gunNet, gunTargets: () => gunTargets(), aimBy: (dx, dy) => aimBy(dx, dy),

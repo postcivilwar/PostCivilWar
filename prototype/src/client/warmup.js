@@ -53,7 +53,8 @@ export function createWarmUp(renderer, scene) {
   let allowance = BYTES_A_FRAME;
   const stats = { meshes: 0, bytes: 0, textures: 0, left: 0, slowestMs: 0 };
 
-  const sizeOf = (geometry) => { let b = geometry.index ? geometry.index.array.byteLength : 0; for (const a of Object.values(geometry.attributes)) if (a.array) b += a.array.byteLength; return b; };
+  // (an index's numbers can be let go too, once sent: render-kit.js, letGoOnceSent)
+  const sizeOf = (geometry) => { let b = geometry.index && geometry.index.array ? geometry.index.array.byteLength : 0; for (const a of Object.values(geometry.attributes)) if (a.array) b += a.array.byteLength; return b; };
   function collect() {
     queue = [];
     scene.traverse((o) => {
