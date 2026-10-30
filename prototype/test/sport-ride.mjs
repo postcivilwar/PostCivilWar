@@ -83,6 +83,7 @@ const mine = await page.evaluate(async () => { const n = window.__nlw; await n.m
 const total = LAND.reduce((a, id) => a + SPORTS[id].price, 0);
 check(`the six ridden on land bought with the arrival money (${total} TR together)`, bought.length === 6 && LAND.every((id) => mine.models.includes(`sport:${id}`)), { bought, mine });
 // out again by the doors' mat, and the town told what the player owns
+await go((M.exit.x0 + M.exit.x1) / 2, (M.exit.z0 + M.exit.z1) / 2, 0);
 await page.evaluate(() => window.__nlw.goSports('out'));
 await page.waitForFunction(() => !window.__nlw.sports.inside && !document.getElementById('fade').classList.contains('on'), null, { timeout: 30000 });
 await page.waitForFunction(() => { const o = window.__nlw.view.self.ownSports; return o && o.items.length >= 6; }, null, { timeout: 60000 }).catch(() => {});

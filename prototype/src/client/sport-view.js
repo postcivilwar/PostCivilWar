@@ -148,7 +148,8 @@ export function createSportView(scene, { lite = false, base = 'sports/', onError
   }
   function standPair(e, x, y, z, h) {
     if (!e.models) return;
-    e.models.forEach((m, k) => { const side = k === 0 ? -0.09 : 0.09; m.group.position.set(x + Math.cos(h) * side, y, z - Math.sin(h) * side); m.group.rotation.set(0, h, 0); m.group.visible = true; m.pose({ tilt: 0 }); });
+    // (the owner's right skate on the right, its mirror on the left; their wheels as far round as they have rolled)
+    e.models.forEach((m, k) => { const side = k === 0 ? -0.09 : 0.09; m.group.position.set(x + Math.cos(h) * side, y, z - Math.sin(h) * side); m.group.rotation.set(0, h, 0); m.group.visible = true; m.pose({ travelled: e.travelled, tilt: 0 }); });
   }
 
   // One left standing, or lying where it came down: as the town says, at its place (a bicycle on its stand, a little
