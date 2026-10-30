@@ -107,7 +107,9 @@ const sample = (n) => page.evaluate((n) => {
     handToGrip: grips && limbs ? [d(limbs.hands[0], grips[0]), d(limbs.hands[1], grips[1])] : null,
   };
 }, n);
-const watch = async (n, seconds, every = 0.25) => { const got = []; const t0 = Date.now(); while (Date.now() - t0 < seconds * 1000) { const s = await sample(n); if (s) got.push(s); await page.waitForTimeout(every * 1000); } return got; };
+// Watched until `done(sample, all)`, or for `most` seconds (on this machine a frame drawn in software can take seconds,
+// longer than the game's longest step: the town's time then runs slower than the clock's, 30 October 2026)
+const watch = async (n, done, most = 180, every = 0.25) => { const got = []; const t0 = Date.now(); while (Date.now() - t0 < most * 1000) { const s = await sample(n); if (s) { got.push(s); if (done(s, got)) break; } await page.waitForTimeout(every * 1000); } return got; };
 const release = (n) => page.evaluate((n) => { const g = window.__nlw.host.game, r = g.internals.sportRiders.riders()[n]; r.mode = 'ride'; r.next = 5000; }, n);
 const kmh = (v) => Math.round(v * 3.6 * 10) / 10;
 
@@ -134,10 +136,10 @@ const memB = await page.evaluate(() => { const n = window.__nlw; return { pictur
 memB.fps = await fps(6000);
 // off again: watched as they ride on past the player, and each frame where the figure is drawn
 await release(bike.n);
-const frames = page.evaluate((n) => new Promise((done) => { const v = window.__nlw.sportRidersView; const rows = []; const t0 = performance.now(); let last = t0; const f = () => { const now = performance.now(); const rig = v.rigOf(n); const r = window.__nlw.host.game.internals.sportRiders.riders()[n]; if (rig) rows.push({ x: rig.group.position.x, z: rig.group.position.z, h: r.h, v: r.v, dt: (now - last) / 1000 }); last = now; if (now - t0 < 9000) requestAnimationFrame(f); else done(rows); }; requestAnimationFrame(f); }), bike.n);
+const frames = page.evaluate((n) => new Promise((done) => { const v = window.__nlw.sportRidersView; const rows = []; const t0 = performance.now(); let last = t0; const f = () => { const now = performance.now(); const rig = v.rigOf(n); const r = window.__nlw.host.game.internals.sportRiders.riders()[n]; if (rig) rows.push({ x: rig.group.position.x, z: rig.group.position.z, h: r.h, v: r.v, dt: (now - last) / 1000 }); last = now; if (rows.length < 24 && now - t0 < 120000) requestAnimationFrame(f); else done(rows); }; requestAnimationFrame(f); }), bike.n);
 await page.waitForTimeout(1500);
 await shot('b2-cyclist-going');
-const going = await watch(bike.n, 6, 0.3);
+const going = await watch(bike.n, (q, got) => got.length >= 8 && kmh(q.speed) >= 12.5, 240, 0.3);
 const rows = await frames;
 const moving = going.filter((q) => q.speed > 1.5);
 const fast = moving.length ? Math.max(...moving.map((q) => q.speed)) : 0;
@@ -169,7 +171,7 @@ if (board) {
   check('C: the skateboarder drawn standing on the board, both feet on its deck', ok && !!(s0 && s0.feet && s0.feet.every((f) => f[1] - s0.ground > 0.08 && f[1] - s0.ground < 0.34)), s0 && { feet: s0.feet, ground: s0.ground });
   await shot('c1-skateboarder');
   await release(board.n);
-  const g = await watch(board.n, 8, 0.2);
+  const g = await watch(board.n, (q, got) => got.length >= 16, 300, 0.2);
   const down = g.filter((q) => q.state && q.state.push > 0.6 && q.feet && Math.min(q.feet[0][1], q.feet[1][1]) - q.ground < 0.14);
   const on = g.filter((q) => q.state && q.state.push < 0.2 && q.feet && q.feet.every((f) => f[1] - q.ground > 0.08));
   check('C: pushing: a foot down to the road beside the board, then back on it', down.length >= 2 && on.length >= 2, { down: down.length, on: on.length, of: g.length });
@@ -181,7 +183,7 @@ if (skates) {
   const ok = await drawn(skates.n);
   await release(skates.n);
   await page.waitForTimeout(1500);
-  const g = await watch(skates.n, 8, 0.2);
+  const g = await watch(skates.n, (q, got) => got.length >= 14, 300, 0.2);
   const spread = g.filter((q) => q.feet && q.speed > 1).map((q) => Math.hypot(q.feet[0][0] - q.feet[1][0], q.feet[0][2] - q.feet[1][2]));
   check('C: the skater striding: the feet out and back in turn', ok && spread.length >= 5 && Math.max(...spread) - Math.min(...spread) > 0.15, { least: spread.length ? +Math.min(...spread).toFixed(2) : null, most: spread.length ? +Math.max(...spread).toFixed(2) : null });
   await shot('c3-skater');
@@ -211,7 +213,7 @@ await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.head
 const before = await page.evaluate(() => ({ x: window.__nlw.predicted.x, z: window.__nlw.predicted.z }));
 await page.keyboard.down('w');
 const pedalling = [];
-for (let k = 0; k < 40; k += 1) {
+for (let k = 0; k < 60; k += 1) {
   await page.waitForTimeout(250);
   pedalling.push(await page.evaluate(() => { const n = window.__nlw, s = n.sportView; const l = s.limbs(n.me), p = s.pedals(); return { speed: n.sportState.speed, foot: l && p ? Math.max(l.feet[0].distanceTo(p[0]), l.feet[1].distanceTo(p[1])) : null, x: n.predicted.x, z: n.predicted.z }; }));
   if (Math.hypot(pedalling[k].x - before.x, pedalling[k].z - before.z) > 12) break;
@@ -250,7 +252,7 @@ const caught = await page.evaluate((t) => {
   return { record: !!record, returned: record ? record.sportsReturned : null, astride: n.view.self.astride, mode: r.mode, said: record ? record.message || null : null };
 }, prey);
 check('F: caught by the police: what was taken goes back; off it', caught.record && caught.returned === 1 && !caught.astride && caught.mode === 'returning', caught);
-await page.waitForFunction((t) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[t.n]; return r.mode !== 'returning'; }, prey, { timeout: 120000 }).catch(() => {});
+await page.waitForFunction((t) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[t.n]; return r.mode !== 'returning'; }, prey, { timeout: 300000 }).catch(() => {});
 const home = await page.evaluate((t) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[t.n]; return { mode: r.mode, takenBy: r.takenBy }; }, prey);
 check('F: its owner walks to it and rides off on it again', ['ride', 'stop', 'turn', 'off'].includes(home.mode) && home.takenBy === null, home);
 await page.evaluate(() => { const n = window.__nlw, g = n.host.game, p = g.state.players[n.playerId]; if (p.custody) { const r = g.state.justice.arrests[p.custody]; r.status = 'released'; p.custody = null; p.law.state = 'normal'; } });
@@ -265,7 +267,7 @@ const bell = await page.evaluate(() => {
   return null;
 });
 if (bell) {
-  await page.waitForFunction((b) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[b.n]; return r.bellAt > b.rang; }, bell, { timeout: 20000 }).catch(() => {});
+  await page.waitForFunction((b) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[b.n]; return r.bellAt > b.rang; }, bell, { timeout: 120000 }).catch(() => {});
   await page.waitForTimeout(1500);
   const rang = await page.evaluate((b) => { const n = window.__nlw, r = n.host.game.internals.sportRiders.riders()[b.n]; return { rang: r.bellAt > b.rang, heard: n.bellsHeard - b.heard, v: r.v }; }, bell);
   check('G: a cyclist coming up behind someone on foot in the road rings the bell, and it is heard', rang.rang && rang.heard >= 1, rang);
