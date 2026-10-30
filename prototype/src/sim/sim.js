@@ -5,7 +5,7 @@
 // Node, or behind a network socket. It is given a gameplay ledger handle and
 // nothing else to do with money: it cannot make TR, and it cannot see the bank.
 
-import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneStep, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, stepCarshowGate, carshowGateBoxes, HABITATION, HABITATION_SHIFT, UPRIVER } from './zone.js';
+import { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneStep, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, stepCarshowGate, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsAtDoors, HABITATION, HABITATION_SHIFT, UPRIVER } from './zone.js';
 import { createResidents } from './residents.js';
 import { createRegistry, GameError } from './registry.js';
 import { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON_RATE, countOf } from './economy.js';
@@ -523,6 +523,25 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       const e = CARSHOW.exit;
       if (!onCarshowExit(p.x, p.z) && Math.hypot(p.x - (e.x0 + e.x1) / 2, p.z - (e.z0 + e.z1) / 2) > 2.6) throw new GameError('TOO_FAR', 'Walk to the doors first.');
       const l = CARSHOW.leave;
+      p.x = l.x; p.z = l.z; p.heading = l.heading; p.lastMoveAt = state.real;
+      return { x: p.x, z: p.z, heading: p.heading };
+    },
+    // Into the Post Civil War Sports Mall by its glass doors, and out again by the mat inside them (asaba-sports.js),
+    // as at the car showroom.
+    'sports.in'(p) {
+      if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
+      if (justice.lawOf(p).state === 'pursuit') throw new GameError('PURSUED', 'The police are after you. The mall will not open its doors to you now.');
+      if (!sportsAtDoors(p.x, p.z)) throw new GameError('TOO_FAR', `Walk up to the doors of ${SPORTS_MALL.name} first.`);
+      const a = SPORTS_MALL.arrive;
+      p.x = a.x; p.z = a.z; p.heading = a.heading; p.lastMoveAt = state.real;
+      p.stats.sports = (p.stats.sports || 0) + 1;
+      return { x: p.x, z: p.z, heading: p.heading };
+    },
+    'sports.out'(p) {
+      if (!inSportsHall(p.x, p.z)) throw new GameError('NOT_INSIDE', `You are not in ${SPORTS_MALL.name}.`);
+      const e = SPORTS_MALL.exit;
+      if (!onSportsExit(p.x, p.z) && Math.hypot(p.x - (e.x0 + e.x1) / 2, p.z - (e.z0 + e.z1) / 2) > 2.6) throw new GameError('TOO_FAR', 'Walk to the doors first.');
+      const l = SPORTS_MALL.leave;
       p.x = l.x; p.z = l.z; p.heading = l.heading; p.lastMoveAt = state.real;
       return { x: p.x, z: p.z, heading: p.heading };
     },

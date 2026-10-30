@@ -120,6 +120,16 @@ const SUPPLIED = {
   'assets/vehicles/cars/white-roadster.glb': 'd492b079989b1a38d3d6f8a83f72d727',
   'assets/vehicles/cars/white-square-suv.glb': '58ba1e906fbbe0eb5619f6bbd88dc467',
   'assets/vehicles/cars/yellow-classic-roadster.glb': 'b120cd2b4b90cdb2104f8b88db7a9bf9',
+  // the sports mall's (30 October 2026): the owner's nine sports models, as he sent them (their SHA-256 too: test/sports.test.mjs)
+  'assets/sports/electric-scooter.glb': '75d0ff800b6a375c7d44d1957e2dec61',
+  'assets/sports/electric-unicycle.glb': '627198fc096ba6a8e102c57234f7bb12',
+  'assets/sports/fat-tyre-bicycle.glb': '3b7d577f13cc51d553b0307684b3f75b',
+  'assets/sports/hoverboard.glb': 'e73516f033300282b4b7984ce4bb78cd',
+  'assets/sports/inline-skate.glb': '77cc0ade987c2e85ab76b41303958c1f',
+  'assets/sports/naval-ship.glb': '12887affa885823e3590cb99788ccc3a',
+  'assets/sports/skateboard.glb': '2397b1ef634f6de782a83633b9834f1e',
+  'assets/sports/speedboat.glb': 'd624b60cf46536f5a236df0f7a310a85',
+  'assets/sports/surfboard.glb': 'c8d8d13a10451dafba3464340a429e39',
   // the wristwatch
   'assets/market/watch.glb': '440b261d3d721b0a14a76e3e8e67b57f',
   // the habitation (20 October 2026): the owner's 49 models, as he sent them (each against the MD5 it had when it arrived)
@@ -201,12 +211,12 @@ const SUPPLIED = {
 };
 
 test('every one of the owner\'s model files is byte for byte as he supplied it', () => {
-  assert.equal(Object.keys(SUPPLIED).length, 97 + 49 + 19 + 5);
+  assert.equal(Object.keys(SUPPLIED).length, 97 + 49 + 19 + 5 + 9);
   for (const [path, sum] of Object.entries(SUPPLIED)) assert.equal(md5(path), sum, `${path} is not as it was supplied`);
 });
 
 test('and none is missing or added unannounced: each folder holds just these models', () => {
-  for (const folder of ['assets/characters/figures/animated/', 'assets/buildings/town/', 'assets/buildings/carshow/', 'assets/buildings/powerbike/', 'assets/vehicles/town/', 'assets/vehicles/bikes/', 'assets/vehicles/cars/', 'assets/habitation/', 'assets/weapons/rifle/']) {
+  for (const folder of ['assets/characters/figures/animated/', 'assets/buildings/town/', 'assets/buildings/carshow/', 'assets/buildings/powerbike/', 'assets/vehicles/town/', 'assets/vehicles/bikes/', 'assets/vehicles/cars/', 'assets/habitation/', 'assets/weapons/rifle/', 'assets/sports/']) {
     const there = readdirSync(here(folder)).filter((name) => name.endsWith('.glb')).map((name) => folder + name).sort();
     assert.deepEqual(there, Object.keys(SUPPLIED).filter((path) => path.startsWith(folder) && path.endsWith('.glb')).sort(), folder);
   }

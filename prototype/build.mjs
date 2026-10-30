@@ -503,6 +503,19 @@ for (const [name, bytes] of modelFiles) put(name, bytes);
   for (const m of placed) for (const v of ['full', 'lite']) if (!existsSync(resolve(dressed, `${m}.${v}.glb`))) throw new Error(`assets/habitation-dressed/${m}.${v}.glb is missing (the habitation places ${m})`);
 }
 for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^car-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
+// The Post Civil War Sports Mall (30 October 2026): the owner's sports models as the game draws them (tools/sports/
+// sports.py: every triangle of each supplied file, in the order of the parts that move, and its picture at 2048, 1024 and
+// 512), and the market's photographs of each (tools/sports/turntables.mjs). The supplied files are in assets/sports/ and
+// are not sent; sports.json holds their checksums, and a copy made from another file than the one there is refused.
+{
+  const sports = JSON.parse(readFileSync(resolve(root, 'assets/sports/sports.json'), 'utf8'));
+  for (const [id, m] of Object.entries(sports)) {
+    const sha = createHash('sha256').update(readFileSync(resolve(root, 'assets/sports', m.master))).digest('hex');
+    if (sha !== m.sha256) throw new Error(`assets/sports/game/${id}.bin was made from another ${m.master}: run python3 tools/sports/sports.py`);
+  }
+  for (const name of readdirSync(resolve(root, 'assets/sports/game')).sort()) put(`sports/${name}`, readFileSync(resolve(root, 'assets/sports/game', name)));
+  for (const name of readdirSync(resolve(root, 'assets/market')).filter((n) => /^sport-.*\.webp$/.test(n)).sort()) put(`assets/${name}`, readFileSync(resolve(root, 'assets/market', name)));
+}
 // Songs for the phone's Music app: the list, and every file the list names (assets/music/README.md).
 {
   const dir = resolve(root, 'assets/music');

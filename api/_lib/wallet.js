@@ -70,7 +70,7 @@ const ORDER = {
   eligible: ['earned', 'illicit'],                       // sending, an offer, a thing to own, an upgrade: never starter
   cost: ['starter', 'earned', 'illicit'],                // the town's charges and costs
   restitution: ['illicit', 'starter', 'earned'],         // what was taken is handed back first
-  vehicle: ['starter', 'earned', 'illicit'],             // a motorcycle or a car from its showroom: arrival money first
+  vehicle: ['starter', 'earned', 'illicit'],             // a motorcycle or a car from its showroom, or a thing from the sports mall: arrival money first
 };
 const partsOf = (row) => { const balance = Number(row.balance), starter = Number(row.starter), illicit = Number(row.illicit); return { balance, starter, illicit, earned: balance - starter - illicit, eligible: balance - starter }; };
 
@@ -452,7 +452,7 @@ async function audit(sql) {
      where w.kind = 'player' group by w.id, r.starter, r.illicit
      having w.starter <> coalesce(r.starter, 0) + coalesce(sum(e.amount) filter (where e.bucket = 'starter'), 0) or w.illicit <> coalesce(r.illicit, 0) + coalesce(sum(e.amount) filter (where e.bucket = 'illicit'), 0)`)) problems.push(`wallet ${row.id} says ${row.starter} starter and ${row.illicit} taken; its entries say ${row.starter_said} and ${row.illicit_said}`);
   // starter TR has gone nowhere but to the town: no entry takes it out of a wallet in any other kind of movement
-  for (const row of await sql.unsafe(`select e.id, t.kind from ${S}.wallet_entries e join ${S}.wallet_tx t on t.id = e.tx_id where e.bucket = 'starter' and ((e.amount < 0 and t.kind <> 'game' and not (t.kind = 'sale' and t.meta->>'starterFor' in ('motorcycle', 'car'))) or (e.amount > 0 and t.kind not in ('grant', 'sale'))) limit 5`)) problems.push(`entry ${row.id} moves starter TR in a ${row.kind}`);
+  for (const row of await sql.unsafe(`select e.id, t.kind from ${S}.wallet_entries e join ${S}.wallet_tx t on t.id = e.tx_id where e.bucket = 'starter' and ((e.amount < 0 and t.kind <> 'game' and not (t.kind = 'sale' and t.meta->>'starterFor' in ('motorcycle', 'car', 'sport'))) or (e.amount > 0 and t.kind not in ('grant', 'sale'))) limit 5`)) problems.push(`entry ${row.id} moves starter TR in a ${row.kind}`);
   return problems;
 }
 

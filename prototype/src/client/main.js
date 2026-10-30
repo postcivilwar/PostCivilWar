@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -91,6 +91,8 @@ import { createStandins } from './vehicle-standins.js';
 import { setCarDaylight, carsHeld, trimCars } from './car-model.js';
 import { bikesHeld, trimBikes } from './bike-model.js';
 import { buildCarshow } from './render-carshow.js';
+import { buildSports } from './render-sports.js';
+import { SPORTS } from '../sim/sports.js';
 import { createSupplied } from './render-supplied.js';
 import { createTownBuildings } from './render-town-buildings.js';
 import { updateFinishes, finishState, setReflections, setWater } from './render-finish.js';
@@ -675,13 +677,13 @@ function start(carried) {
   const builtAt = (x, z, y) => { if (y > 3.4) return false; for (const b of builtForCamera) if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > b.z0 - 0.25 && z < b.z1 + 0.25) return true; return false; };
   const rig = createCameraRig(camera, {
     // (a roadblock or the fence at the edge of the land is low: the camera looks over it)
-    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
+    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) || inSportsHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
     // (the habitation's land: its hills, cliffs and gorges stand between the camera and the player as walls do)
     // (the ground as it is drawn: 22 October 2026, the eye kept above the simulation's own finer ground went under the
     // coarser ground a phone drew, and the player saw the ground from below)
     terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationGroundAt(x, z) : NaN),
-    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
+    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) || inSportsHall(x, z) ? 0 : carshowBuildingAt(x, z) || sportsBuildingAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
   let lastFight = 0;                 // the last blow from the simulation that has been shown
@@ -929,6 +931,8 @@ function start(carried) {
       if (l.shop === POWERBIKE.shop) continue;
       // nor for the Post Civil War Car Showroom's cars, sold in its hall, which is walked into by its doors
       if (l.shop === CARSHOW.shop) continue;
+      // nor for the Post Civil War Sports Mall's things, the same way
+      if (l.shop === SPORTS_MALL.shop) continue;
       const shop = l.shop ? zoneShop(l.shop) : null;
       const at = shop ? shop.marker : l.place;
       wanted.add(l.id);
@@ -1212,6 +1216,10 @@ function start(carried) {
   // conversation on the phone (ui-market.js) while the two of them talk face to face in the hall.
   let carshowView = null, supplied = null, townBuildings = null;
   townSteps.push(['the car showroom', () => { carshowView = buildCarshow(scene, { lite: LITE, renderer, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }) }); }]);
+  // The Post Civil War Sports Mall beside it (asaba-sports.js; render-sports.js draws it): made the first time it is
+  // asked for (by someone near, or once the town is warm), its things in its hall as the player comes in
+  let sportsView = null;
+  townSteps.push(['the sports mall', () => { sportsView = buildSports(scene, { lite: LITE, renderer }); }]);
   townSteps.push(['the owner\'s buildings and vehicles', () => {
     // The owner's vehicles of 17 October 2026 (render-supplied.js): the jet at the airport, the trucks at the store and
     // the block yard, each fetched as someone comes near it; and the ambulance's model, put on the hospital's van.
@@ -1369,6 +1377,67 @@ function start(carried) {
     }, 360);
   }
   const carListing = (car) => market.state.all.find((l) => l.shop === CARSHOW.shop && l.asset && l.asset.model === `car:${car}`) || null;
+
+  // The Post Civil War Sports Mall (30 October 2026): in by its glass doors and out by the mat inside them, as at the
+  // car showroom; a thing on its floor asked about on the phone, where Nkem, its saleswoman, answers
+  const SPORTS_HALL_ROOM = Object.freeze({ x0: SPORTS_MALL.hall.x0, z0: SPORTS_MALL.hall.z0, x1: SPORTS_MALL.hall.x1, z1: SPORTS_MALL.hall.z1, top: SPORTS_MALL.hall.ceiling });
+  const sports = {
+    inside: false,             // the player is in the hall
+    armed: true,               // the doors take them in (once they have stepped back from them)
+    talk: null,                // asking about a thing on show: { item, since, listing }
+    welcomed: false,
+  };
+  function goSports(way) {
+    if (fading) return;
+    fading = true;
+    controls.release(); input.keys.clear();
+    $('fade').classList.add('on');
+    setTimeout(() => {
+      const r = playing ? server.send({ type: way === 'in' ? 'sports.in' : 'sports.out' }) : { ok: false };
+      if (r.ok) {
+        predicted.x = r.x; predicted.z = r.z; predicted.heading = r.heading;
+        if (me) me.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
+        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : cam.own; cam.back = false;
+        cam.target.set(r.x, 1.55 + zoneGroundY(r.x, r.z), r.z);
+        rig.snap(cam);
+        refreshView();
+        audio.chime(way === 'in' ? 'ok' : 'tap');
+        if (way === 'in' && !sports.welcomed) { sports.welcomed = true; ui.toast({ type: 'note', text: `${SPORTS_MALL.name}. Walk up to anything on show to ask about it: the conversation opens on your phone. The mat by the doors takes you back out.` }); }
+      } else if (r.message) ui.toast({ type: 'note', text: r.message });
+      setTimeout(() => { $('fade').classList.remove('on'); fading = false; }, 320);
+    }, 360);
+  }
+  const sportListing = (item) => market.state.all.find((l) => l.shop === SPORTS_MALL.shop && l.asset && l.asset.model === `sport:${item}`) || null;
+  async function askAboutSport(display) {
+    const item = SPORTS[display.item];
+    if (!item) return;
+    if (!online.available) { ui.toast({ type: 'note', text: `${SPORTS_MALL.name} sells through the market every player shares, and this copy of the game cannot reach it: the ${item.name} cannot be bought here.` }); return; }
+    if (!online.signedIn) { accountUI.open('signup', `To buy the ${item.name} you need an account.`); return; }
+    let l = sportListing(display.item);
+    if (!l) { await market.all(); l = sportListing(display.item); }
+    if (!l) { ui.toast({ type: 'note', text: `The ${item.name} is not on sale just now.` }); return; }
+    if (!playing || !inSportsHall(predicted.x, predicted.z)) return;
+    sports.talk = { item: display.item, since: host.game.state.real, listing: l.id };
+    ui.openDeal({ listing: l.id, at: { x: predicted.x, z: predicted.z } });
+  }
+  function tickSports() {
+    if (!playing || !view || !sportsView) return;
+    const self = view.self;
+    const inHall = inSportsHall(predicted.x, predicted.z);
+    if (inHall !== sports.inside) {
+      sports.inside = inHall;
+      sportsView.setInside(inHall);
+      if (!inHall) sports.talk = null;
+      soundTimer = 1;
+    }
+    sportsView.near(predicted.x, predicted.z);
+    const onFoot = !self.driving && !self.riding && !self.astride && !self.incar && !self.swimming && !self.dead && !self.down && !self.carried && !self.law.arrest && !self.fight;
+    const e = SPORTS_MALL.entry, far = Math.hypot(e.x - predicted.x, e.z - predicted.z);
+    if (far > e.radius + 0.9) sports.armed = true;
+    else if (!inHall && far < e.radius - 0.2 && sports.armed && onFoot && !ui.isOpen() && !fading && !accountUI.isOpen) { sports.armed = false; goSports('in'); }
+    if (inHall && onFoot && !fading && !uiBlocks() && onSportsExit(predicted.x, predicted.z)) { if (ui.isOpen()) ui.close(); sports.talk = null; goSports('out'); }
+    if (sports.talk && !ui.dealOpen()) sports.talk = null;
+  }
   // Asking about a car on the floor: the market's conversation about it opens on the phone, and the one who sells it
   // comes to stand with the player by it
   async function askAboutCar(display) {
@@ -1518,6 +1587,17 @@ function start(carried) {
       ui.close();
       const ask = ZONE_CAST.showroomStaff ? `ask ${sellerOf(id).spec.name} about it` : 'ask about it on your phone';
       ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ${ask}.` : `${CARSHOW.name} is marked, ${CARSHOW.where}. Follow the line on the map at the top left through its gate to the showroom's glass doors and walk in: the ${l.name} is on the floor inside${ZONE_CAST.showroomStaff ? `, and ${sellerOf(id).spec.name} will help you` : ''}.` });
+      return;
+    }
+    if (l.shop === SPORTS_MALL.shop) {
+      // one of the sports mall's things: to its doors, or, for someone already inside, to its stand
+      const id = String((l.asset && l.asset.model) || '').replace(/^sport:/, '');
+      const stand = SPORTS_MALL.displays.find((d) => d.item === id);
+      const inHall = inSportsHall(predicted.x, predicted.z);
+      const at = inHall && stand ? { x: stand.x + Math.sin(stand.h) * (stand.r + 1.2), z: stand.z + Math.cos(stand.h) * (stand.r + 1.2) } : SPORTS_MALL.entry;
+      setWaypoint({ x: at.x, z: at.z, label: inHall ? l.name : SPORTS_MALL.name });
+      ui.close();
+      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ask about it on your phone.` : `${SPORTS_MALL.name} is marked, ${SPORTS_MALL.where}. Follow the line on the map at the top left through its gateway to the mall's glass doors and walk in: the ${l.name} is on the floor inside.` });
       return;
     }
     const shop = l.shop ? zoneShop(l.shop) : null;
@@ -2562,6 +2642,11 @@ function start(carried) {
         add(s.sim.state.x, s.sim.state.z, 2.4, { short: 'Talk', text: `Talk to ${s.spec.name}`, run: () => ui.toast({ type: 'note', text: `${s.spec.name}: "Welcome to ${CARSHOW.name}! Every car on this floor is for sale. Walk up to the one you like and ask me about it. I look after this side of the hall, and ${other} the other."` }) });
       }
     }
+    // in the Post Civil War Sports Mall: the thing on show nearest, to ask about
+    if (sports.inside) {
+      const at = sportsDisplayNear(here.x, here.z, 1.4);
+      if (at && SPORTS[at.display.item]) options.push({ d: at.gap - 1, short: 'Ask', text: `Ask about the ${SPORTS[at.display.item].name}`, run: () => askAboutSport(at.display) });
+    }
     // the player's own motorcycles, where they left them
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
     // and their own cars (reached from beside a door: the car's own half-width and a step)
@@ -3410,7 +3495,7 @@ function start(carried) {
   // bare red earth and the laterite lanes: neither tarmac, nor the city block's pavements, nor the showroom's yard, nor
   // the habitation
   const inBox = (b, x, z) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
-  const dirtAt = (x, z) => !onTar(x, z) && !inBox(CITY_AREA, x, z) && !inBox(CARSHOW.compound, x, z) && habitationAway(x, z) > 0 && !inBox(ZONE_JETTY, x, z);
+  const dirtAt = (x, z) => !onTar(x, z) && !inBox(CITY_AREA, x, z) && !inBox(CARSHOW.compound, x, z) && !inBox(SPORTS_MALL.compound, x, z) && habitationAway(x, z) > 0 && !inBox(ZONE_JETTY, x, z);
   const GROUND_WIND = Object.freeze({ x: -1.2, z: -0.5 });
   const bufferSize = new THREE.Vector2(), sunWay = new THREE.Vector3(), sunSeen = new THREE.Vector3();
   // where the sun is in the picture (0 to 1 across and up), for its flare: none at night, under a grey sky, or behind
@@ -3937,7 +4022,7 @@ function start(carried) {
       if (!driving && !riding && !astride && !incar && !aboard && speed > 0.3) {
         // a step is heard as each foot comes down: the figure's own stride says when
         const foot = Math.floor(me.phase * 2);
-        if (foot !== stepPhase) { stepPhase = foot; audio.footstep(inside || showroom.inside || carshow.inside ? 'floor' : predicted.x > ZONE_JETTY.x0 && predicted.x < ZONE_JETTY.x1 && predicted.z > ZONE_JETTY.z0 ? 'wood' : onTar(predicted.x, predicted.z) ? 'tar' : 'earth'); }
+        if (foot !== stepPhase) { stepPhase = foot; audio.footstep(inside || showroom.inside || carshow.inside || sports.inside ? 'floor' : predicted.x > ZONE_JETTY.x0 && predicted.x < ZONE_JETTY.x1 && predicted.z > ZONE_JETTY.z0 ? 'wood' : onTar(predicted.x, predicted.z) ? 'tar' : 'earth'); }
       }
 
       if (!driving) car.steer = 0;
@@ -4047,7 +4132,7 @@ blood.update(dt, view.blood || []);
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
-      tickDealMarkers(dt); tickShopActors(dt); tickShowroom(dt); tickPeerTalk(dt); tickCarshow(dt); tickCarPeerTalk(dt);
+      tickDealMarkers(dt); tickShopActors(dt); tickShowroom(dt); tickPeerTalk(dt); tickCarshow(dt); tickCarPeerTalk(dt); tickSports();
     if (online.available && online.status().state === 'down' && clock - greetedAt > 60 && !document.hidden) greetServer();
     monitor.mark('interface');
       // indoors: put away the roof of the building the player is in
@@ -4080,7 +4165,7 @@ blood.update(dt, view.blood || []);
     // Indoors the camera looks down into the room from above; in every view it keeps out of walls.
     const sitting = playing && view && (view.self.driving || view.self.riding || view.self.astride || view.self.incar);
     // (in PostCivilWar PowerBike's hall, and in the car showroom's, the camera stays inside its walls and under its ceiling)
-    const hall = playing && (showroom.inside || carshow.inside);
+    const hall = playing && (showroom.inside || carshow.inside || sports.inside);
     builtForCamera = playing ? builtBoxes() : [];
     const runShare = playing && view && !sitting && !view.self.swimming ? Math.max(0, Math.min(1, (going.speed - SPEED.walk) / Math.max(0.1, SPEED.run - SPEED.walk))) : 0;
     // with a gun out: over the shoulder, or for five seconds the whole scene (gun-play.js); through the sight, from its eye
@@ -4096,7 +4181,7 @@ blood.update(dt, view.blood || []);
       sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
-      room: hall ? (carshow.inside ? CAR_HALL_ROOM : HALL_ROOM) : null,
+      room: hall ? (carshow.inside ? CAR_HALL_ROOM : sports.inside ? SPORTS_HALL_ROOM : HALL_ROOM) : null,
       dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,
       // (in a car, the view from the bonnet is over its own bonnet, however long and high the car is)
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
@@ -4153,6 +4238,8 @@ blood.update(dt, view.blood || []);
     // (the car showroom: its gate as far open as the town has it, its doors, its cameras, its flags; in its hall the
     // cars, as the motorcycles are in theirs)
     if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.detail, sun: sky.sun.castShadow });
+    // (the sports mall: its doors; in its hall the things on show)
+    if (playing && view && sportsView) sportsView.tick(dt, { player: predicted, people: [predicted, ...shownPeers], level: quality.detail, sun: sky.sun.castShadow });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
@@ -4218,7 +4305,7 @@ blood.update(dt, view.blood || []);
       // town, behind its walls, is not drawn)
       // (`outdoors`: how far one sees out of doors, by which a phone lets what is well beyond it rest: render-kit.js)
       const outdoors = Math.min(REACH[quality.detail], scene.fog.far * 0.82);
-      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : outdoors;
+      const reach = showroom.inside || carshow.inside || sports.inside ? HALL_SIGHT : outdoors;
       world.see(cam.target.x, cam.target.z, reach, outdoors);
       // (the owner's houses and towers: each model fetched once the town is ready, for someone who can see it, or at
       // once for someone right by one; not from inside a hall)
@@ -4233,6 +4320,11 @@ blood.update(dt, view.blood || []);
       // each drawn only where it can be seen from
       if (playing && !showroom.inside && (warm.stage >= 5 || Math.hypot(predicted.x - CARSHOW.doors.x, predicted.z - CARSHOW.doors.z) < 400)) carshowView.load(predicted.x, predicted.z);
       carshowView.see(cam.target.x, cam.target.z, reach, hall ? 0 : undefined);
+      // (the sports mall: made once the town is ready, or at once for someone near it; drawn where it can be seen from)
+      if (sportsView) {
+        if (playing && !showroom.inside && (warm.stage >= 5 || Math.hypot(predicted.x - SPORTS_MALL.doors.x, predicted.z - SPORTS_MALL.doors.z) < 400)) sportsView.load(predicted.x, predicted.z);
+        sportsView.see(cam.target.x, cam.target.z, reach, hall ? 0 : undefined);
+      }
       // (the owner's vehicles: the parked ones as someone comes near each, the ambulance's once the town is ready; and,
       // like the houses and towers above, nothing fetched from inside a hall, from where none of them is seen)
       if (playing && !hall) { supplied.tick(predicted); if (warm.stage >= 5) supplied.loadAmbulance(); }
@@ -4257,7 +4349,7 @@ blood.update(dt, view.blood || []);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
       if (view) voicePlayer.update(view.speech, view.voicesNear, headOf);
-      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
+      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside || sports.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
     }
 
     monitor.mark('warming up');
@@ -4455,6 +4547,7 @@ blood.update(dt, view.blood || []);
     get powerbike() { return powerbike; }, salesman, get salesmanActor() { return salesmanActor; }, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),
     // the Post Civil War Car Showroom: the compound and its hall, the two who sell the cars, and asking about one; the
     // player's own cars and driving them
+    get sportsView() { return sportsView; }, sports, goSports: (way) => goSports(way), askAboutSport: (item) => askAboutSport(SPORTS_MALL.displays.find((d) => d.item === item)),
     get carshowView() { return carshowView; }, get carSalesmen() { return carSalesmen; }, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
     get carView() { return carView; }, carState, get standins() { return standins; }, peerPhones, get contextLost() { return contextLost; }, get pictureGone() { return pictureGone; }, get restored() { return restored; }, loading, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), driveTaken: (n) => enterTakenCar(n), get trafficCars() { return trafficCars; }, get near() { return near; }, refresh: () => { refreshView(); near = findNear(); prompt = findPrompt(); }, carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),

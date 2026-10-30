@@ -1,0 +1,605 @@
+// Written by tools/sports/sports.py from the owner's sports models: do not edit by hand.
+// Each model's triangles are in the order of its parts (body first), each part's count in `counts`.
+export const SPORTS_PARTS = Object.freeze({
+ "bicycle": {
+  "vertices": 31787,
+  "triangles": 47860,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:front",
+   "wheel:rear",
+   "steer",
+   "crank"
+  ],
+  "counts": [
+   6513,
+   18295,
+   16477,
+   3503,
+   3072
+  ],
+  "size": [
+   1.03991,
+   1.16216,
+   1.75
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "bicycle",
+  "scale": 1.74998,
+  "wheels": {
+   "front": {
+    "c": [
+     -0.00057,
+     0.36599,
+     0.52984
+    ],
+    "r": 0.36475,
+    "half": 0.08088
+   },
+   "rear": {
+    "c": [
+     -0.00065,
+     0.36885,
+     -0.52722
+    ],
+    "r": 0.3673,
+    "half": 0.08039
+   }
+  },
+  "seat": [
+   0.0,
+   0.96563,
+   -0.24716
+  ],
+  "grip": [
+   0.49253,
+   1.12945,
+   0.35065
+  ],
+  "crank": {
+   "c": [
+    0.0,
+    0.35281,
+    -0.08825
+   ],
+   "r": 0.17387,
+   "pedalX": 0.27023,
+   "angle": -1.57222,
+   "rightX": -0.2263
+  },
+  "steer": {
+   "p": [
+    0.0,
+    0.60418,
+    0.42896
+   ],
+   "axis": [
+    0.0,
+    0.94813,
+    -0.31788
+   ]
+  },
+  "files": {
+   "mesh": "bicycle.bin",
+   "color2k": "bicycle-color-2k.jpg",
+   "color1k": "bicycle-color-1k.jpg",
+   "color512": "bicycle-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1362906,
+   "computer": 2262025
+  }
+ },
+ "e-scooter": {
+  "vertices": 45230,
+  "triangles": 73382,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:front",
+   "wheel:rear",
+   "steer"
+  ],
+  "counts": [
+   44296,
+   9504,
+   13681,
+   5901
+  ],
+  "size": [
+   0.43985,
+   1.15,
+   1.04716
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "scooter",
+  "scale": 1.14899,
+  "wheels": {
+   "front": {
+    "c": [
+     0.00259,
+     0.11324,
+     0.41415
+    ],
+    "r": 0.11121,
+    "half": 0.02293
+   },
+   "rear": {
+    "c": [
+     0.00154,
+     0.10867,
+     -0.40878
+    ],
+    "r": 0.10811,
+    "half": 0.03318
+   }
+  },
+  "deck": 0.14868,
+  "grip": [
+   0.20948,
+   1.12105,
+   0.26873
+  ],
+  "steer": {
+   "p": [
+    0.0,
+    0.70725,
+    0.27724
+   ],
+   "axis": [
+    0.0,
+    0.9864,
+    -0.16435
+   ]
+  },
+  "files": {
+   "mesh": "e-scooter.bin",
+   "color2k": "e-scooter-color-2k.jpg",
+   "color1k": "e-scooter-color-1k.jpg",
+   "color512": "e-scooter-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1877113,
+   "computer": 2662897
+  }
+ },
+ "e-unicycle": {
+  "vertices": 45160,
+  "triangles": 47544,
+  "index": 16,
+  "parts": [
+   "body"
+  ],
+  "counts": [
+   47544
+  ],
+  "size": [
+   0.49301,
+   0.56,
+   0.52767
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "unicycle",
+  "scale": 0.56,
+  "pedals": [
+   [
+    -0.15272,
+    0.16193,
+    -0.00786
+   ],
+   [
+    0.15084,
+    0.16182,
+    0.00725
+   ]
+  ],
+  "wheelR": 0.2408,
+  "files": {
+   "mesh": "e-unicycle.bin",
+   "color2k": "e-unicycle-color-2k.jpg",
+   "color1k": "e-unicycle-color-1k.jpg",
+   "color512": "e-unicycle-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1740708,
+   "computer": 2672585
+  }
+ },
+ "hoverboard": {
+  "vertices": 42503,
+  "triangles": 73738,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:right",
+   "wheel:left"
+  ],
+  "counts": [
+   53210,
+   10472,
+   10056
+  ],
+  "size": [
+   0.58,
+   0.19504,
+   0.20294
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "hoverboard",
+  "scale": 0.57763,
+  "wheels": {
+   "right": {
+    "c": [
+     0.25352,
+     0.08376,
+     0.00044
+    ],
+    "r": 0.08416,
+    "half": 0.03437
+   },
+   "left": {
+    "c": [
+     -0.25869,
+     0.08589,
+     -0.00056
+    ],
+    "r": 0.08602,
+    "half": 0.02956
+   }
+  },
+  "deck": 0.12622,
+  "feet": 0.13944,
+  "files": {
+   "mesh": "hoverboard.bin",
+   "color2k": "hoverboard-color-2k.jpg",
+   "color1k": "hoverboard-color-1k.jpg",
+   "color512": "hoverboard-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1736557,
+   "computer": 2382366
+  }
+ },
+ "inline-skates": {
+  "vertices": 44529,
+  "triangles": 73325,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:w1",
+   "wheel:w2",
+   "wheel:w3",
+   "wheel:w1b"
+  ],
+  "counts": [
+   57545,
+   3999,
+   3762,
+   4050,
+   3969
+  ],
+  "size": [
+   0.12013,
+   0.29613,
+   0.31
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "skate",
+  "scale": 0.29674,
+  "wheels": {
+   "w1": {
+    "c": [
+     -0.00039,
+     0.04196,
+     -0.04067
+    ],
+    "r": 0.03949,
+    "half": 0.01319
+   },
+   "w2": {
+    "c": [
+     -0.00024,
+     0.04304,
+     0.03742
+    ],
+    "r": 0.03934,
+    "half": 0.0128
+   },
+   "w3": {
+    "c": [
+     -0.0001,
+     0.04323,
+     0.11569
+    ],
+    "r": 0.04042,
+    "half": 0.01317
+   },
+   "w1b": {
+    "c": [
+     -0.00064,
+     0.03979,
+     -0.11615
+    ],
+    "r": 0.03998,
+    "half": 0.01335
+   }
+  },
+  "boot": {
+   "sole": 0.09565,
+   "heel": -0.13058,
+   "toe": 0.11954,
+   "mid": -0.00093,
+   "top": 0.29613
+  },
+  "files": {
+   "mesh": "inline-skates.bin",
+   "color2k": "inline-skates-color-2k.jpg",
+   "color1k": "inline-skates-color-1k.jpg",
+   "color512": "inline-skates-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1855815,
+   "computer": 2709422
+  }
+ },
+ "naval-ship": {
+  "vertices": 48097,
+  "triangles": 73540,
+  "index": 16,
+  "parts": [
+   "body"
+  ],
+  "counts": [
+   73540
+  ],
+  "size": [
+   35.28365,
+   55.71713,
+   120.0
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "ship",
+  "scale": 117.61102,
+  "deck": 22.42615,
+  "files": {
+   "mesh": "naval-ship.bin",
+   "color2k": "naval-ship-color-2k.jpg",
+   "color1k": "naval-ship-color-1k.jpg",
+   "color512": "naval-ship-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1998435,
+   "computer": 3100638
+  }
+ },
+ "skateboard": {
+  "vertices": 58075,
+  "triangles": 85702,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:fl",
+   "wheel:fr",
+   "wheel:rl",
+   "wheel:rr",
+   "truck:front",
+   "truck:rear"
+  ],
+  "counts": [
+   43748,
+   5920,
+   5674,
+   5072,
+   5496,
+   6210,
+   13582
+  ],
+  "size": [
+   0.31867,
+   0.11245,
+   0.98
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "board",
+  "scale": 0.98048,
+  "wheels": {
+   "fl": {
+    "c": [
+     -0.1231,
+     0.04234,
+     0.3949
+    ],
+    "r": 0.04417,
+    "half": 0.02557
+   },
+   "fr": {
+    "c": [
+     0.12303,
+     0.0422,
+     0.39499
+    ],
+    "r": 0.04393,
+    "half": 0.0251
+   },
+   "rl": {
+    "c": [
+     -0.12313,
+     0.04219,
+     -0.39533
+    ],
+    "r": 0.04401,
+    "half": 0.02555
+   },
+   "rr": {
+    "c": [
+     0.12314,
+     0.04221,
+     -0.39532
+    ],
+    "r": 0.044,
+    "half": 0.02526
+   }
+  },
+  "deck": 0.11244,
+  "trucks": {
+   "front": {
+    "c": [
+     -4e-05,
+     0.04227,
+     0.39494
+    ]
+   },
+   "rear": {
+    "c": [
+     0.0,
+     0.0422,
+     -0.39533
+    ]
+   }
+  },
+  "feet": {
+   "front": 0.24486,
+   "rear": -0.32417
+  },
+  "files": {
+   "mesh": "skateboard.bin",
+   "color2k": "skateboard-color-2k.jpg",
+   "color1k": "skateboard-color-1k.jpg",
+   "color512": "skateboard-color-512.jpg",
+   "colorSize": 4096
+  },
+  "download": {
+   "phone": 2334988,
+   "computer": 2950273
+  }
+ },
+ "speedboat": {
+  "vertices": 62861,
+  "triangles": 104238,
+  "index": 16,
+  "parts": [
+   "body",
+   "motor",
+   "helm"
+  ],
+  "counts": [
+   95578,
+   7304,
+   1356
+  ],
+  "size": [
+   1.86609,
+   1.9725,
+   5.2
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "boat",
+  "scale": 5.16234,
+  "seats": [
+   [
+    -0.32137,
+    1.17868,
+    -0.3559
+   ],
+   [
+    0.311,
+    1.1804,
+    -0.36653
+   ]
+  ],
+  "motor": {
+   "p": [
+    -0.00457,
+    1.50831,
+    -1.73698
+   ],
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  "helm": {
+   "p": [
+    -0.26081,
+    1.58517,
+    0.40009
+   ],
+   "axis": [
+    -0.00635,
+    -0.2924,
+    0.95628
+   ],
+   "r": 0.14596
+  },
+  "keel": 0.37946,
+  "files": {
+   "mesh": "speedboat.bin",
+   "color2k": "speedboat-color-2k.jpg",
+   "color1k": "speedboat-color-1k.jpg",
+   "color512": "speedboat-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 2509426,
+   "computer": 3289405
+  }
+ },
+ "surfboard": {
+  "vertices": 29153,
+  "triangles": 47946,
+  "index": 16,
+  "parts": [
+   "body"
+  ],
+  "counts": [
+   47946
+  ],
+  "size": [
+   0.54691,
+   0.33335,
+   1.83
+  ],
+  "metallic": 0,
+  "roughness": 0.8999999761581421,
+  "doubleSided": true,
+  "kind": "surfboard",
+  "scale": 1.83,
+  "deck": 0.24824,
+  "bottom": 0.02738,
+  "files": {
+   "mesh": "surfboard.bin",
+   "color2k": "surfboard-color-2k.jpg",
+   "color1k": "surfboard-color-1k.jpg",
+   "color512": "surfboard-color-512.jpg",
+   "colorSize": 4096
+  },
+  "download": {
+   "phone": 1220580,
+   "computer": 1569287
+  }
+ }
+});

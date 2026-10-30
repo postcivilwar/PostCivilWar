@@ -25,6 +25,9 @@ import { POWERBIKE, POWERBIKE_COLLIDERS } from './atani-powerbike.js';
 export * from './atani-powerbike.js';
 import { CARSHOW_COLLIDERS } from './asaba-carshow.js';
 export * from './asaba-carshow.js';
+// the Post Civil War Sports Mall beside it (30 October 2026)
+import { SPORTS_COLLIDERS } from './asaba-sports.js';
+export * from './asaba-sports.js';
 // the owner's ambulance, private jet and two trucks (17 October 2026), each where it belongs
 import { SUPPLIED_VEHICLE_COLLIDERS } from './supplied-vehicles.js';
 export * from './supplied-vehicles.js';
@@ -1036,7 +1039,7 @@ export * from './closures.js';
 export const ZONE_CLOSURES = Object.freeze(openClosures());
 export const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z)));
 const CLOSURE_COLLIDERS = [...closureColliders(ZONE_CLOSURES), ...fenceColliders(ZONE_EDGE_FENCES)];
-export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
+export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SPORTS_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 // True when a person of the given radius can stand at (x, z).

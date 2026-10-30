@@ -15,7 +15,7 @@
 // in motion strikes whoever is in its way as any vehicle does (impact.js), with its own length and width; a car
 // standing where it was left is in everybody's way (`boxes`), as a parked keke is.
 import { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } from './power-cars.js';
-import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome } from './contact.js';
 import { GameError } from './registry.js';
 
@@ -74,7 +74,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     let at;
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < spec.length / 2 + 2.5) at = parked;
     else {
-      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your car is brought to you there.');
+      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z) || inSportsHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your car is brought to you there.');
       if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your car is brought to you at its car park.');
       const boxes = [...obstacles(), ...othersParked(p, id)];
       const h0 = p.heading || 0;

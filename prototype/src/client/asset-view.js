@@ -18,6 +18,8 @@ import { BIKE_PARTS } from './bike-parts.js';
 import { loadBike } from './bike-model.js';
 import { CAR_PARTS } from './car-parts.js';
 import { loadCar } from './car-model.js';
+import { SPORTS_PARTS } from './sports-parts.js';
+import { loadSport } from './sports-model.js';
 import { isLite } from './render-kit.js';
 import { LIGHT } from './light.js';
 import { PICTURES, modelFile } from './budget.js';
@@ -34,10 +36,15 @@ const bikeModel = (id) => Object.freeze({ bike: id, get megabytes() { const b = 
 // The cars (17 October 2026): the owner's twenty, the same way.
 const carModel = (id) => Object.freeze({ car: id, get megabytes() { const b = CAR_PARTS[id].bytes; return Math.round(((touchFirst() || isLite()) ? b.lite : b.full) / 1e6); }, triangles: CAR_PARTS[id].triangles, turntable: `assets/car-${id}-turn.webp`, frames: 24, cols: 6, rows: 4, poster: `assets/car-${id}-poster.webp` });
 
+// The sports mall's things (30 October 2026): the owner's eight, the same way (sports-model.js); the inline skates as
+// the pair they are sold as.
+const sportModel = (id) => Object.freeze({ sport: id, get megabytes() { const b = SPORTS_PARTS[id].download; return Math.max(1, Math.round(((touchFirst() || isLite()) ? b.phone : b.computer) / 1e6)); }, triangles: SPORTS_PARTS[id].triangles * (id === 'inline-skates' ? 2 : 1), turntable: `assets/sport-${id}-turn.webp`, frames: 24, cols: 6, rows: 4, poster: `assets/sport-${id}-poster.webp` });
+
 export const ASSET_MODELS = Object.freeze({
   watch: Object.freeze({ file: 'assets/watch.glb', megabytes: 65, triangles: 1886649, turntable: 'assets/watch-turn.webp', frames: 24, cols: 6, rows: 4, poster: 'assets/watch-poster.webp' }),
   ...Object.fromEntries(Object.keys(BIKE_PARTS).map((id) => [`bike:${id}`, bikeModel(id)])),
   ...Object.fromEntries(Object.keys(CAR_PARTS).map((id) => [`car:${id}`, carModel(id)])),
+  ...Object.fromEntries(Object.keys(SPORTS_PARTS).filter((id) => id !== 'naval-ship').map((id) => [`sport:${id}`, sportModel(id)])),
 });
 
 // ---- the turntable ----
@@ -232,6 +239,27 @@ export function createModelView(canvas, { transparent = true, pixelRatio = Math.
   async function load(modelId, onProgress, { source = null, base = null, lite = touchFirst() || isLite() } = {}) {
     const model = ASSET_MODELS[modelId];
     if (!model) throw new Error('There is no model of that.');
+    if (model.sport) {
+      // one of the sports mall's things: its own parts, at its own size, stood in the middle (the skates as a pair, the
+      // left one the right one's mirror); its 2048 picture on a computer, the 1024 on a phone
+      if (onProgress) onProgress(0, 1);
+      const tier = lite ? '1k' : '2k';
+      const pair = model.sport === 'inline-skates';
+      const made = await Promise.all((pair ? [false, true] : [false]).map((mirror) => loadSport(model.sport, { base: base || 'sports/', tier, own: true, mirror })));
+      if (closed) { for (const m of made) m.dispose(); return null; }
+      const group = new THREE.Group();
+      made.forEach((m, k) => { m.pose({}); if (pair) m.group.position.x = (k ? 1 : -1) * 0.085; group.add(m.group); });
+      shownBike = { dispose: () => { for (const m of made) m.dispose(); } };
+      const box = new THREE.Box3();
+      exactBox(group, {}, box);
+      const centre = box.getCenter(new THREE.Vector3());
+      group.position.sub(centre);
+      // (drawn at a size the viewer's camera frames, whatever its own: a skate is a third of a metre, the boat five)
+      radius = box.getBoundingSphere(new THREE.Sphere()).radius;
+      holder.add(group);
+      if (onProgress) onProgress(1, 1);
+      return { triangles: model.triangles, sport: model.sport };
+    }
     if (model.bike || model.car) {
       // a motorcycle or a car: its own parts, at its real length, stood in the middle on its wheels, with the pictures
       // for looking at it close to (budget.js: its 4096 colour on a computer, the 2048 set on a phone)

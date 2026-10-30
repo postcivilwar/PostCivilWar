@@ -1007,9 +1007,111 @@ const CARSHOW_AREAS = Object.freeze([C, box(R.x0, C.z1 - 0.5, R.x1, R.z1)]);
 return { onBuilding, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, inCarCompound, carshowDisplayNear, carshowSideAt, carshowSideOf, stepCarshowGate, carshowGateBoxes, carshowBuildingAt, CARSHOW_COLLIDERS, CARSHOW_AREAS };
 })();
 
+__modules["sim/zones/asaba-sports.js"] = (function () {
+
+const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
+const pt = (x, z) => Object.freeze({ x, z });
+
+const C = box(-702, -182, -588, -72);
+const GATEWAY = Object.freeze({ x: -645, z: C.z1, width: 14, height: 5.6 });
+
+const BUILDING = Object.freeze({ ...box(-670, -165, -620, -137), height: 9.6, storey: 5.2, parapet: 0.9 });
+const FRONT = BUILDING.z1;
+const HALL = box(BUILDING.x0 + 0.5, BUILDING.z0 + 0.5, BUILDING.x1 - 0.5, FRONT - 1.0);
+const DOOR_X = (BUILDING.x0 + BUILDING.x1) / 2;
+const DOORS = Object.freeze({ x: DOOR_X, z: FRONT, width: 3.6, height: 3.4 });
+
+const WEST = [DOOR_X - 17, DOOR_X - 9], EAST = [DOOR_X + 9, DOOR_X + 17];
+const ROW = [FRONT - 9, FRONT - 21];
+const DISPLAYS = Object.freeze([
+  { item: 'bicycle', x: WEST[0], z: ROW[0], h: 0.75, r: 1.6, lift: 0.18 },
+  { item: 'e-unicycle', x: WEST[1], z: ROW[0], h: 0.5, r: 1.0, lift: 0.5 },
+  { item: 'e-scooter', x: WEST[0], z: ROW[1], h: 0.6, r: 1.35, lift: 0.18 },
+  { item: 'hoverboard', x: WEST[1], z: ROW[1], h: 0.4, r: 1.0, lift: 0.6 },
+  { item: 'speedboat', x: DOOR_X, z: (ROW[0] + ROW[1]) / 2 - 1.5, h: 0.55, r: 3.6, lift: 0.3, stand: 'platform' },
+  { item: 'skateboard', x: EAST[0], z: ROW[0], h: -0.6, r: 1.2, lift: 0.6 },
+  { item: 'inline-skates', x: EAST[1], z: ROW[0], h: -0.5, r: 0.9, lift: 0.85 },
+  { item: 'surfboard', x: EAST[0], z: ROW[1], h: -0.4, r: 1.3, lift: 0.18, upright: true },
+].map((d) => Object.freeze({ stand: 'plinth', upright: false, ...d })));
+
+const DESK = box(HALL.x1 - 1.6, (ROW[0] + ROW[1]) / 2 - 2.4, HALL.x1 - 0.6, (ROW[0] + ROW[1]) / 2 + 2.4);
+const PLANTS = Object.freeze([[HALL.x0 + 0.9, HALL.z0 + 0.9], [HALL.x1 - 0.9, HALL.z0 + 0.9], [HALL.x1 - 0.9, HALL.z1 - 0.9], [HALL.x0 + 0.9, HALL.z1 - 0.9], [DOOR_X - 3.4, HALL.z1 - 0.8], [DOOR_X + 3.4, HALL.z1 - 0.8]].map(([x, z]) => pt(x, z)));
+
+const WALK = box(DOOR_X - 4, FRONT + 0.2, DOOR_X + 4, C.z1);
+const BAYS = Object.freeze([-1, 1].map((s) => Object.freeze({ side: s, x0: s < 0 ? C.x0 + 6 : DOOR_X + 8, x1: s < 0 ? DOOR_X - 8 : C.x1 - 6, z0: FRONT + 12, z1: C.z1 - 14, depth: 5.5, width: 2.7 })));
+
+const SPORTS_MALL = Object.freeze({
+  id: 'sports',
+  name: 'Post Civil War Sports Mall',
+  shop: 'sports',                        // the market's name for the mall (its listings keep it)
+  label: 'Post Civil War Sports Mall, Kwale Road, Asaba',
+  where: 'on the Kwale road out of Asaba, by the airport road',
+  compound: C,
+  gateway: GATEWAY,
+  railing: Object.freeze({ height: 1.1, post: 1.3 }),
+  drive: Object.freeze({ fromRoad: box(GATEWAY.x - GATEWAY.width / 2 - 2, C.z1, GATEWAY.x + GATEWAY.width / 2 + 2, -59) }),
+  walk: WALK,
+  bays: BAYS,
+  forecourt: Object.freeze({
+    palms: Object.freeze([-1, 1].flatMap((s) => [0, 1, 2, 3].map((k) => Object.freeze({ x: GATEWAY.x + s * (14 + k * 11), z: C.z1 - 4.5, h: 5.2 + (k % 3) * 0.7, r: 0.85 })))),
+    lamps: Object.freeze([-1, 1].flatMap((s) => Array.from({ length: 4 }, (_, k) => Object.freeze({ x: DOOR_X + s * 5.6, z: C.z1 - 10 - k * 14, side: s })))),
+  }),
+  building: BUILDING,
+  hall: Object.freeze({ ...HALL, ceiling: 4.8 }),
+  doors: DOORS,
+  entry: Object.freeze({ x: DOOR_X, z: FRONT + 0.9, radius: 1.5 }),
+  arrive: Object.freeze({ x: DOOR_X, z: HALL.z1 - 2.4, heading: Math.PI }),
+  leave: Object.freeze({ x: DOOR_X, z: FRONT + 4.6, heading: 0 }),
+  exit: box(DOOR_X - 1.8, HALL.z1 - 1.0, DOOR_X + 1.8, HALL.z1),
+  displays: DISPLAYS,
+  desk: DESK,
+  plants: PLANTS,
+  seller: Object.freeze({ id: 'nkem', name: 'Nkem', home: Object.freeze({ x: HALL.x1 - 2.4, z: (ROW[0] + ROW[1]) / 2, heading: -Math.PI / 2 }) }),
+});
+
+const inSportsHall = (x, z, margin = 0) => { const h = SPORTS_MALL.hall; return x > h.x0 + margin && x < h.x1 - margin && z > h.z0 + margin && z < h.z1 - margin; };
+const onSportsExit = (x, z) => { const e = SPORTS_MALL.exit; return x >= e.x0 && x <= e.x1 && z >= e.z0 && z <= e.z1; };
+const sportsAtDoors = (x, z) => Math.hypot(x - SPORTS_MALL.entry.x, z - SPORTS_MALL.entry.z) <= SPORTS_MALL.entry.radius + 0.6;
+const inSportsCompound = (x, z, margin = 0) => x > C.x0 + margin && x < C.x1 - margin && z > C.z0 + margin && z < C.z1 - margin;
+function sportsDisplayNear(x, z, reach = 1.4) {
+  let best = null;
+  for (const d of DISPLAYS) {
+    const gap = Math.hypot(x - d.x, z - d.z) - d.r;
+    if (gap <= reach && (!best || gap < best.gap)) best = { display: d, gap };
+  }
+  return best;
+}
+const sportsBuildingAt = (x, z) => (x > BUILDING.x0 && x < BUILDING.x1 && z > BUILDING.z0 && z < BUILDING.z1 ? BUILDING.height + BUILDING.parapet : 0);
+
+function colliders() {
+  const out = [];
+  const t = 0.1, gx0 = GATEWAY.x - GATEWAY.width / 2, gx1 = GATEWAY.x + GATEWAY.width / 2;
+  out.push(box(C.x0, C.z0 - t, C.x1, C.z0 + t), box(C.x0 - t, C.z0, C.x0 + t, C.z1), box(C.x1 - t, C.z0, C.x1 + t, C.z1));
+  out.push(box(C.x0, C.z1 - t, gx0 - 0.5, C.z1 + t), box(gx1 + 0.5, C.z1 - t, C.x1, C.z1 + t));
+  for (const x of [gx0 - 0.5, gx1 + 0.5]) out.push(box(x - 0.5, C.z1 - 0.5, x + 0.5, C.z1 + 0.5));
+  const B = BUILDING, w = 0.5;
+  out.push(box(B.x0, B.z0, B.x1, B.z0 + w), box(B.x0, B.z0, B.x0 + w, FRONT), box(B.x1 - w, B.z0, B.x1, FRONT));
+  out.push(box(B.x0, HALL.z1, B.x1, FRONT));
+  for (const s of [-1, 1]) out.push(box(DOOR_X + s * 3.4 - 0.18, FRONT + 3.0 - 0.18, DOOR_X + s * 3.4 + 0.18, FRONT + 3.0 + 0.18));
+  for (const d of DISPLAYS) { const k = d.r * 0.72; out.push(box(d.x - k, d.z - k, d.x + k, d.z + k)); }
+  out.push(DESK);
+  for (const p of PLANTS) out.push(box(p.x - 0.3, p.z - 0.3, p.x + 0.3, p.z + 0.3));
+  const F = SPORTS_MALL.forecourt;
+  for (const q of F.palms) out.push(box(q.x - q.r * 0.8, q.z - q.r * 0.8, q.x + q.r * 0.8, q.z + q.r * 0.8));
+  for (const q of F.lamps) out.push(box(q.x - 0.12, q.z - 0.12, q.x + 0.12, q.z + 0.12));
+  return Object.freeze(out.map(Object.freeze));
+}
+const SPORTS_COLLIDERS = colliders();
+const R = SPORTS_MALL.drive.fromRoad;
+const SPORTS_AREAS = Object.freeze([C, box(R.x0, C.z1 - 0.5, R.x1, R.z1)]);
+
+return { SPORTS_MALL, inSportsHall, onSportsExit, sportsAtDoors, inSportsCompound, sportsDisplayNear, sportsBuildingAt, SPORTS_COLLIDERS, SPORTS_AREAS };
+})();
+
 __modules["sim/zones/atani-outskirts.js"] = (function () {
 
 const { CARSHOW, CARSHOW_AREAS } = __modules["sim/zones/asaba-carshow.js"];
+const { SPORTS_MALL, SPORTS_AREAS } = __modules["sim/zones/asaba-sports.js"];
 
 const box = (x0, z0, x1, z1) => Object.freeze({ x0: Math.min(x0, x1), z0: Math.min(z0, z1), x1: Math.max(x0, x1), z1: Math.max(z0, z1) });
 const road = (id, name, x0, z0, x1, z1, surface, extra = {}) => Object.freeze({ id, name, x0, z0, x1, z1, surface, ...extra });
@@ -1075,6 +1177,7 @@ const OUTSKIRT_AREAS = Object.freeze([
   box(BRIDGE.x0 + 0.6, BRIDGE.start - 2, BRIDGE.x1 - 0.6, BRIDGE.end),   // the deck, inside its rails
   box(FAR_BANK.x0, BRIDGE.land, FAR_BANK.x1, BRIDGE.end),              // the far bank by the bridge's end, up to the barrier
   ...CARSHOW_AREAS,                                                     // the Post Civil War Car Showroom's compound, and its drive from the road
+  ...SPORTS_AREAS,                                                      // the Post Civil War Sports Mall's compound, and its drive from the road
 ]);
 const onOutskirts = (x, z) => OUTSKIRT_AREAS.some((a) => x > a.x0 && x < a.x1 && z > a.z0 && z < a.z1);
 
@@ -1139,6 +1242,7 @@ const OUTSKIRT_BUILDINGS = Object.freeze((() => {
       const z = side < 0 ? -64 - (i % 3) * 3 : -16 + (i % 2) * 3;
       if (side < 0 && x < -700 && x > -770) continue;
       if (side < 0 && x - 14 < CARSHOW.compound.x1 + 6 && x > CARSHOW.compound.x0 - 6) continue;
+      if (side < 0 && x - 14 < SPORTS_MALL.compound.x1 + 6 && x > SPORTS_MALL.compound.x0 - 6) continue;
       if (((i * 7 + (side + 1) * 3) % 10) / 10 > 0.35 + busy * 0.6) continue;
       const w = 7 + ((i * 13) % 5) * 1.5, d = 6 + ((i * 7) % 3) * 1.5, h = 3 + busy * 3.4 * (((i * 5) % 3) / 2);
       out.push(Object.freeze({ id: `road-${i}-${side}`, x: x - w / 2, z, w, d, h, facing: side < 0 ? 0 : Math.PI, wall: [0xd9c7a0, 0xc9d6c3, 0xe3d6a8, 0xcfd9df, 0xd6c2c2][i % 5], roof: [0x7d7f83, 0x8b4a33, 0x5f6a72, 0x355e3b][i % 4] }));
@@ -5829,6 +5933,8 @@ const { POWERBIKE, POWERBIKE_COLLIDERS } = __modules["sim/zones/atani-powerbike.
 
 const { CARSHOW_COLLIDERS } = __modules["sim/zones/asaba-carshow.js"];
 
+const { SPORTS_COLLIDERS } = __modules["sim/zones/asaba-sports.js"];
+
 const { SUPPLIED_VEHICLE_COLLIDERS } = __modules["sim/zones/supplied-vehicles.js"];
 
 const { TOWN_TREES } = __modules["sim/zones/atani-trees.js"];
@@ -6671,7 +6777,7 @@ const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Obj
 const ZONE_CLOSURES = Object.freeze(openClosures());
 const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z)));
 const CLOSURE_COLLIDERS = [...closureColliders(ZONE_CLOSURES), ...fenceColliders(ZONE_EDGE_FENCES)];
-const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
+const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SPORTS_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 
 function zoneSolid(x, z, radius = 0.2, above = -Infinity) {
@@ -6705,7 +6811,7 @@ function zoneBlockKind(x, z, extra = [], radius = 0.4) {
   return kind;
 }
 
-return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/supplied-vehicles.js"], ...__modules["sim/zones/habitation.js"], ...__modules["sim/zones/town-buildings.js"], ...__modules["sim/zones/atani-outskirts.js"], ...__modules["sim/zones/closures.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_CAST, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, ZONE_FORMER_RESIDENTS, zoneResident, ZONE_ACCOUNT_HOLDERS, zoneAccountHolder, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, ZONE_PATROLS, zoneRoomAt, ZONE_TREES, zoneGroundY, zoneStep, ZONE_CLOSURES, ZONE_EDGE_FENCES, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable, zoneBlockKind };
+return { ...__modules["sim/zones/atani-city.js"], ...__modules["sim/zones/atani-powerbike.js"], ...__modules["sim/zones/asaba-carshow.js"], ...__modules["sim/zones/asaba-sports.js"], ...__modules["sim/zones/supplied-vehicles.js"], ...__modules["sim/zones/habitation.js"], ...__modules["sim/zones/town-buildings.js"], ...__modules["sim/zones/atani-outskirts.js"], ...__modules["sim/zones/closures.js"], ZONE, zoneToGeo, zoneShoreZ, ZONE_JETTY, zoneSwimmable, zoneToWater, ZONE_ROADS, ZONE_BUILDINGS, ZONE_HOUSES, ZONE_SHEDS, ZONE_COMPOUNDS, ZONE_FARMLAND, ZONE_RANKS, ZONE_STOPS, ZONE_SOUNDS, ZONE_NOTICES, ZONE_SHOPS, zoneShop, zoneBuilding, ZONE_SERVICES, zoneService, ZONE_MOULD_STATIONS, ZONE_BENCHES, ZONE_STALLS, ZONE_CAST, ZONE_VEHICLES, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, ZONE_LAMPS, ZONE_PROPS, ZONING, ZONE_PARCELS, zoneParcel, zoneParcelByPlot, zoneSiteLayout, ZONE_ALLOCATIONS, ZONE_PLACES, ZONE_RESIDENTS, ZONE_FORMER_RESIDENTS, zoneResident, ZONE_ACCOUNT_HOLDERS, zoneAccountHolder, ZONE_TEXT, ZONE_POPULATION, zoneShedWalls, ZONE_NODES, ZONE_EDGES, ZONE_SPOTS, ZONE_ROOMS, ZONE_HOMES, ZONE_VENUES, ZONE_GRAPH_PROBLEMS, ZONE_PATROLS, zoneRoomAt, ZONE_TREES, zoneGroundY, zoneStep, ZONE_CLOSURES, ZONE_EDGE_FENCES, ZONE_COLLIDERS, zoneSolid, zoneOnGround, zoneWalkable, zoneBlockKind };
 })();
 
 __modules["sim/zone.js"] = (function () {
@@ -11712,7 +11818,7 @@ return { CONTACT, contactNormal, contactOutcome, crashShare, LYING, THROW, throw
 
 __modules["sim/own-bikes.js"] = (function () {
 const { POWER_BIKES, handlingOf, FASTEST } = __modules["sim/power-bikes.js"];
-const { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
+const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
 const { contactNormal, contactOutcome, crashShare, throwLanding, THROW } = __modules["sim/contact.js"];
 const { GameError } = __modules["sim/registry.js"];
 
@@ -11753,7 +11859,7 @@ function createOwnBikes({ state, hub, obstacles }) {
     let at;
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < 3) at = parked;
     else {
-      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
+      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inSportsHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
       if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your motorcycle is brought to you at its car park.');
       if (!zoneWalkable(p.x, p.z, obstacles(), ROOM)) throw new GameError('NO_ROOM', 'There is no room for a motorcycle here. Go out to the road.');
       at = { x: p.x, z: p.z, h: p.heading || 0 };
@@ -11852,7 +11958,7 @@ return { isOwnBike, bikeOf, CRASH, crashHarm, createOwnBikes };
 
 __modules["sim/own-cars.js"] = (function () {
 const { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } = __modules["sim/power-cars.js"];
-const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
+const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
 const { contactNormal, contactOutcome } = __modules["sim/contact.js"];
 const { GameError } = __modules["sim/registry.js"];
 
@@ -11898,7 +12004,7 @@ function createOwnCars({ state, hub, obstacles }) {
     let at;
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < spec.length / 2 + 2.5) at = parked;
     else {
-      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your car is brought to you there.');
+      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z) || inSportsHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your car is brought to you there.');
       if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your car is brought to you at its car park.');
       const boxes = [...obstacles(), ...othersParked(p, id)];
       const h0 = p.heading || 0;
@@ -15970,7 +16076,7 @@ return { renewTown };
 
 __modules["sim/sim.js"] = (function () {
 
-const { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneStep, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, stepCarshowGate, carshowGateBoxes, HABITATION, HABITATION_SHIFT, UPRIVER } = __modules["sim/zone.js"];
+const { ZONE, ZONE_SERVICES, ZONE_RESIDENTS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ALLOCATIONS, ZONE_COMPOUNDS, ZONE_NOTICES, zoneService, zoneResident, zoneParcel, zoneParcelByPlot, zoneSiteLayout, zoneWalkable, zoneStep, zoneSwimmable, zoneToWater, zoneShoreZ, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, stepCarshowGate, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsAtDoors, HABITATION, HABITATION_SHIFT, UPRIVER } = __modules["sim/zone.js"];
 const { createResidents } = __modules["sim/residents.js"];
 const { createRegistry, GameError } = __modules["sim/registry.js"];
 const { createEconomy, DESIGNS, GOODS, BUSINESSES, ENERGY, PAINT_COLOURS, MASON_RATE, countOf } = __modules["sim/economy.js"];
@@ -16406,6 +16512,23 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       const e = CARSHOW.exit;
       if (!onCarshowExit(p.x, p.z) && Math.hypot(p.x - (e.x0 + e.x1) / 2, p.z - (e.z0 + e.z1) / 2) > 2.6) throw new GameError('TOO_FAR', 'Walk to the doors first.');
       const l = CARSHOW.leave;
+      p.x = l.x; p.z = l.z; p.heading = l.heading; p.lastMoveAt = state.real;
+      return { x: p.x, z: p.z, heading: p.heading };
+    },
+    'sports.in'(p) {
+      if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
+      if (justice.lawOf(p).state === 'pursuit') throw new GameError('PURSUED', 'The police are after you. The mall will not open its doors to you now.');
+      if (!sportsAtDoors(p.x, p.z)) throw new GameError('TOO_FAR', `Walk up to the doors of ${SPORTS_MALL.name} first.`);
+      const a = SPORTS_MALL.arrive;
+      p.x = a.x; p.z = a.z; p.heading = a.heading; p.lastMoveAt = state.real;
+      p.stats.sports = (p.stats.sports || 0) + 1;
+      return { x: p.x, z: p.z, heading: p.heading };
+    },
+    'sports.out'(p) {
+      if (!inSportsHall(p.x, p.z)) throw new GameError('NOT_INSIDE', `You are not in ${SPORTS_MALL.name}.`);
+      const e = SPORTS_MALL.exit;
+      if (!onSportsExit(p.x, p.z) && Math.hypot(p.x - (e.x0 + e.x1) / 2, p.z - (e.z0 + e.z1) / 2) > 2.6) throw new GameError('TOO_FAR', 'Walk to the doors first.');
+      const l = SPORTS_MALL.leave;
       p.x = l.x; p.z = l.z; p.heading = l.heading; p.lastMoveAt = state.real;
       return { x: p.x, z: p.z, heading: p.heading };
     },
@@ -35106,6 +35229,808 @@ const carsHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(use
 return { trimCars, setCarDaylight, loadCar, carLoaded, carsHeld };
 })();
 
+__modules["client/sports-parts.js"] = (function () {
+const SPORTS_PARTS = Object.freeze({
+ "bicycle": {
+  "vertices": 31787,
+  "triangles": 47860,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:front",
+   "wheel:rear",
+   "steer",
+   "crank"
+  ],
+  "counts": [
+   6513,
+   18295,
+   16477,
+   3503,
+   3072
+  ],
+  "size": [
+   1.03991,
+   1.16216,
+   1.75
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "bicycle",
+  "scale": 1.74998,
+  "wheels": {
+   "front": {
+    "c": [
+     -0.00057,
+     0.36599,
+     0.52984
+    ],
+    "r": 0.36475,
+    "half": 0.08088
+   },
+   "rear": {
+    "c": [
+     -0.00065,
+     0.36885,
+     -0.52722
+    ],
+    "r": 0.3673,
+    "half": 0.08039
+   }
+  },
+  "seat": [
+   0.0,
+   0.96563,
+   -0.24716
+  ],
+  "grip": [
+   0.49253,
+   1.12945,
+   0.35065
+  ],
+  "crank": {
+   "c": [
+    0.0,
+    0.35281,
+    -0.08825
+   ],
+   "r": 0.17387,
+   "pedalX": 0.27023,
+   "angle": -1.57222,
+   "rightX": -0.2263
+  },
+  "steer": {
+   "p": [
+    0.0,
+    0.60418,
+    0.42896
+   ],
+   "axis": [
+    0.0,
+    0.94813,
+    -0.31788
+   ]
+  },
+  "files": {
+   "mesh": "bicycle.bin",
+   "color2k": "bicycle-color-2k.jpg",
+   "color1k": "bicycle-color-1k.jpg",
+   "color512": "bicycle-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1362906,
+   "computer": 2262025
+  }
+ },
+ "e-scooter": {
+  "vertices": 45230,
+  "triangles": 73382,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:front",
+   "wheel:rear",
+   "steer"
+  ],
+  "counts": [
+   44296,
+   9504,
+   13681,
+   5901
+  ],
+  "size": [
+   0.43985,
+   1.15,
+   1.04716
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "scooter",
+  "scale": 1.14899,
+  "wheels": {
+   "front": {
+    "c": [
+     0.00259,
+     0.11324,
+     0.41415
+    ],
+    "r": 0.11121,
+    "half": 0.02293
+   },
+   "rear": {
+    "c": [
+     0.00154,
+     0.10867,
+     -0.40878
+    ],
+    "r": 0.10811,
+    "half": 0.03318
+   }
+  },
+  "deck": 0.14868,
+  "grip": [
+   0.20948,
+   1.12105,
+   0.26873
+  ],
+  "steer": {
+   "p": [
+    0.0,
+    0.70725,
+    0.27724
+   ],
+   "axis": [
+    0.0,
+    0.9864,
+    -0.16435
+   ]
+  },
+  "files": {
+   "mesh": "e-scooter.bin",
+   "color2k": "e-scooter-color-2k.jpg",
+   "color1k": "e-scooter-color-1k.jpg",
+   "color512": "e-scooter-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1877113,
+   "computer": 2662897
+  }
+ },
+ "e-unicycle": {
+  "vertices": 45160,
+  "triangles": 47544,
+  "index": 16,
+  "parts": [
+   "body"
+  ],
+  "counts": [
+   47544
+  ],
+  "size": [
+   0.49301,
+   0.56,
+   0.52767
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "unicycle",
+  "scale": 0.56,
+  "pedals": [
+   [
+    -0.15272,
+    0.16193,
+    -0.00786
+   ],
+   [
+    0.15084,
+    0.16182,
+    0.00725
+   ]
+  ],
+  "wheelR": 0.2408,
+  "files": {
+   "mesh": "e-unicycle.bin",
+   "color2k": "e-unicycle-color-2k.jpg",
+   "color1k": "e-unicycle-color-1k.jpg",
+   "color512": "e-unicycle-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1740708,
+   "computer": 2672585
+  }
+ },
+ "hoverboard": {
+  "vertices": 42503,
+  "triangles": 73738,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:right",
+   "wheel:left"
+  ],
+  "counts": [
+   53210,
+   10472,
+   10056
+  ],
+  "size": [
+   0.58,
+   0.19504,
+   0.20294
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "hoverboard",
+  "scale": 0.57763,
+  "wheels": {
+   "right": {
+    "c": [
+     0.25352,
+     0.08376,
+     0.00044
+    ],
+    "r": 0.08416,
+    "half": 0.03437
+   },
+   "left": {
+    "c": [
+     -0.25869,
+     0.08589,
+     -0.00056
+    ],
+    "r": 0.08602,
+    "half": 0.02956
+   }
+  },
+  "deck": 0.12622,
+  "feet": 0.13944,
+  "files": {
+   "mesh": "hoverboard.bin",
+   "color2k": "hoverboard-color-2k.jpg",
+   "color1k": "hoverboard-color-1k.jpg",
+   "color512": "hoverboard-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1736557,
+   "computer": 2382366
+  }
+ },
+ "inline-skates": {
+  "vertices": 44529,
+  "triangles": 73325,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:w1",
+   "wheel:w2",
+   "wheel:w3",
+   "wheel:w1b"
+  ],
+  "counts": [
+   57545,
+   3999,
+   3762,
+   4050,
+   3969
+  ],
+  "size": [
+   0.12013,
+   0.29613,
+   0.31
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "skate",
+  "scale": 0.29674,
+  "wheels": {
+   "w1": {
+    "c": [
+     -0.00039,
+     0.04196,
+     -0.04067
+    ],
+    "r": 0.03949,
+    "half": 0.01319
+   },
+   "w2": {
+    "c": [
+     -0.00024,
+     0.04304,
+     0.03742
+    ],
+    "r": 0.03934,
+    "half": 0.0128
+   },
+   "w3": {
+    "c": [
+     -0.0001,
+     0.04323,
+     0.11569
+    ],
+    "r": 0.04042,
+    "half": 0.01317
+   },
+   "w1b": {
+    "c": [
+     -0.00064,
+     0.03979,
+     -0.11615
+    ],
+    "r": 0.03998,
+    "half": 0.01335
+   }
+  },
+  "boot": {
+   "sole": 0.09565,
+   "heel": -0.13058,
+   "toe": 0.11954,
+   "mid": -0.00093,
+   "top": 0.29613
+  },
+  "files": {
+   "mesh": "inline-skates.bin",
+   "color2k": "inline-skates-color-2k.jpg",
+   "color1k": "inline-skates-color-1k.jpg",
+   "color512": "inline-skates-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1855815,
+   "computer": 2709422
+  }
+ },
+ "naval-ship": {
+  "vertices": 48097,
+  "triangles": 73540,
+  "index": 16,
+  "parts": [
+   "body"
+  ],
+  "counts": [
+   73540
+  ],
+  "size": [
+   35.28365,
+   55.71713,
+   120.0
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "ship",
+  "scale": 117.61102,
+  "deck": 22.42615,
+  "files": {
+   "mesh": "naval-ship.bin",
+   "color2k": "naval-ship-color-2k.jpg",
+   "color1k": "naval-ship-color-1k.jpg",
+   "color512": "naval-ship-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 1998435,
+   "computer": 3100638
+  }
+ },
+ "skateboard": {
+  "vertices": 58075,
+  "triangles": 85702,
+  "index": 16,
+  "parts": [
+   "body",
+   "wheel:fl",
+   "wheel:fr",
+   "wheel:rl",
+   "wheel:rr",
+   "truck:front",
+   "truck:rear"
+  ],
+  "counts": [
+   43748,
+   5920,
+   5674,
+   5072,
+   5496,
+   6210,
+   13582
+  ],
+  "size": [
+   0.31867,
+   0.11245,
+   0.98
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "board",
+  "scale": 0.98048,
+  "wheels": {
+   "fl": {
+    "c": [
+     -0.1231,
+     0.04234,
+     0.3949
+    ],
+    "r": 0.04417,
+    "half": 0.02557
+   },
+   "fr": {
+    "c": [
+     0.12303,
+     0.0422,
+     0.39499
+    ],
+    "r": 0.04393,
+    "half": 0.0251
+   },
+   "rl": {
+    "c": [
+     -0.12313,
+     0.04219,
+     -0.39533
+    ],
+    "r": 0.04401,
+    "half": 0.02555
+   },
+   "rr": {
+    "c": [
+     0.12314,
+     0.04221,
+     -0.39532
+    ],
+    "r": 0.044,
+    "half": 0.02526
+   }
+  },
+  "deck": 0.11244,
+  "trucks": {
+   "front": {
+    "c": [
+     -4e-05,
+     0.04227,
+     0.39494
+    ]
+   },
+   "rear": {
+    "c": [
+     0.0,
+     0.0422,
+     -0.39533
+    ]
+   }
+  },
+  "feet": {
+   "front": 0.24486,
+   "rear": -0.32417
+  },
+  "files": {
+   "mesh": "skateboard.bin",
+   "color2k": "skateboard-color-2k.jpg",
+   "color1k": "skateboard-color-1k.jpg",
+   "color512": "skateboard-color-512.jpg",
+   "colorSize": 4096
+  },
+  "download": {
+   "phone": 2334988,
+   "computer": 2950273
+  }
+ },
+ "speedboat": {
+  "vertices": 62861,
+  "triangles": 104238,
+  "index": 16,
+  "parts": [
+   "body",
+   "motor",
+   "helm"
+  ],
+  "counts": [
+   95578,
+   7304,
+   1356
+  ],
+  "size": [
+   1.86609,
+   1.9725,
+   5.2
+  ],
+  "metallic": 0,
+  "roughness": 0.5,
+  "doubleSided": true,
+  "kind": "boat",
+  "scale": 5.16234,
+  "seats": [
+   [
+    -0.32137,
+    1.17868,
+    -0.3559
+   ],
+   [
+    0.311,
+    1.1804,
+    -0.36653
+   ]
+  ],
+  "motor": {
+   "p": [
+    -0.00457,
+    1.50831,
+    -1.73698
+   ],
+   "axis": [
+    0.0,
+    1.0,
+    0.0
+   ]
+  },
+  "helm": {
+   "p": [
+    -0.26081,
+    1.58517,
+    0.40009
+   ],
+   "axis": [
+    -0.00635,
+    -0.2924,
+    0.95628
+   ],
+   "r": 0.14596
+  },
+  "keel": 0.37946,
+  "files": {
+   "mesh": "speedboat.bin",
+   "color2k": "speedboat-color-2k.jpg",
+   "color1k": "speedboat-color-1k.jpg",
+   "color512": "speedboat-color-512.jpg",
+   "colorSize": 2048
+  },
+  "download": {
+   "phone": 2509426,
+   "computer": 3289405
+  }
+ },
+ "surfboard": {
+  "vertices": 29153,
+  "triangles": 47946,
+  "index": 16,
+  "parts": [
+   "body"
+  ],
+  "counts": [
+   47946
+  ],
+  "size": [
+   0.54691,
+   0.33335,
+   1.83
+  ],
+  "metallic": 0,
+  "roughness": 0.8999999761581421,
+  "doubleSided": true,
+  "kind": "surfboard",
+  "scale": 1.83,
+  "deck": 0.24824,
+  "bottom": 0.02738,
+  "files": {
+   "mesh": "surfboard.bin",
+   "color2k": "surfboard-color-2k.jpg",
+   "color1k": "surfboard-color-1k.jpg",
+   "color512": "surfboard-color-512.jpg",
+   "colorSize": 4096
+  },
+  "download": {
+   "phone": 1220580,
+   "computer": 1569287
+  }
+ }
+});
+
+return { SPORTS_PARTS };
+})();
+
+__modules["client/sports-model.js"] = (function () {
+const { SPORTS_PARTS } = __modules["client/sports-parts.js"];
+const { surface } = __modules["client/render-kit.js"];
+const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
+const { deviceKind } = __modules["client/budget.js"];
+
+const cache = new Map();          // `${id}:${tier}` \u2192 its geometry and material, however many are drawn (most recently used last)
+const users = new Map();          // how many of each are in the scene now
+const KEEP = deviceKind() === 'lite' ? 2 : 6;      // models kept ready when none of them is drawn
+
+const shapes = new Map();
+function shapeOf(id, base, spec, priority) {
+  let s = shapes.get(id);
+  if (!s) {
+    s = { made: buildShape(base, spec, priority), holders: 0 };
+    shapes.set(id, s);
+    const mine = s;
+    s.made.catch(() => { if (shapes.get(id) === mine) shapes.delete(id); });
+  }
+  s.holders += 1;
+  return s.made;
+}
+function letShapeGo(id) {
+  const s = shapes.get(id);
+  if (!s || --s.holders > 0) return;
+  shapes.delete(id);
+  s.made.then((geometries) => { for (const g of geometries) g.dispose(); }, () => {});
+}
+async function buildShape(base, spec, priority) {
+  const response = await fetchKept(base + spec.files.mesh, priority ? { priority } : undefined);
+  if (!response.ok) throw new Error(`${spec.files.mesh}: ${response.status}`);
+  const buf = await response.arrayBuffer();
+  const n = spec.vertices;
+  let at = 0;
+  const position = new Float32Array(buf, at, n * 3); at += n * 12;
+  const normal = new Int16Array(buf, at, n * 3); at += n * 6 + (n % 2) * 2;
+  const uv = new Float32Array(buf, at, n * 2); at += n * 8;
+  const index = spec.index === 32 ? new Uint32Array(buf, at, spec.triangles * 3) : new Uint16Array(buf, at, spec.triangles * 3);
+  const attrs = { position: new THREE.BufferAttribute(position, 3), normal: new THREE.BufferAttribute(normal, 3, true), uv: new THREE.BufferAttribute(uv, 2) };
+  const geometries = [];
+  let first = 0;
+  for (const count of spec.counts) {
+    const g = new THREE.BufferGeometry();
+    for (const [name, a] of Object.entries(attrs)) g.setAttribute(name, a);
+    const own = index.subarray(first * 3, (first + count) * 3);
+    g.setIndex(new THREE.BufferAttribute(own, 1));
+    bound(g, own, position);
+    geometries.push(g);
+    first += count;
+  }
+  return geometries;
+}
+function bound(g, index, position) {
+  if (!index.length) { g.boundingBox = new THREE.Box3(); g.boundingSphere = new THREE.Sphere(new THREE.Vector3(), 0); return; }
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < index.length; i += 1) {
+    const j = index[i] * 3;
+    for (let a = 0; a < 3; a += 1) { const v = position[j + a]; if (v < lo[a]) lo[a] = v; if (v > hi[a]) hi[a] = v; }
+  }
+  g.boundingBox = new THREE.Box3(new THREE.Vector3(lo[0], lo[1], lo[2]), new THREE.Vector3(hi[0], hi[1], hi[2]));
+  const c = g.boundingBox.getCenter(new THREE.Vector3());
+  let r2 = 0;
+  for (let i = 0; i < index.length; i += 1) { const j = index[i] * 3; const dx = position[j] - c.x, dy = position[j + 1] - c.y, dz = position[j + 2] - c.z; const d = dx * dx + dy * dy + dz * dz; if (d > r2) r2 = d; }
+  g.boundingSphere = new THREE.Sphere(c, Math.sqrt(r2));
+}
+const letPictureGo = (t) => { if (t) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); } };
+
+function free({ id, geometries, material, shared }) {
+  if (shared) letShapeGo(id); else for (const g of geometries) g.dispose();
+  letPictureGo(material.map);
+  material.dispose();
+}
+function trim(keep = KEEP) {
+  let n = 0;
+  for (const [key, made] of cache) {
+    if (cache.size <= keep) break;
+    if (users.get(key)) continue;
+    cache.delete(key);
+    made.then(free, () => {});
+    n += 1;
+  }
+  return n;
+}
+const trimSports = () => trim(0);
+
+function picture(url, own, priority) {
+  const map = new THREE.Texture();
+  map.flipY = false; map.anisotropy = 4; map.colorSpace = THREE.SRGBColorSpace;
+  const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
+    .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
+  return { map, ready };
+}
+const TIERS = ['512', '1k', '2k'];
+const sportTier = (tier) => (TIERS.includes(tier) ? tier : deviceKind() === 'lite' ? '1k' : '2k');
+
+async function partsOf(id, { base, tier, own = false, priority }) {
+  const key = `${id}:${tier}`;
+  if (!own && cache.has(key)) return cache.get(key);
+  const spec = SPORTS_PARTS[id];
+  if (!spec) throw new Error(`There is no sports model ${id}.`);
+  const made = (async () => {
+    const pic = picture(base + spec.files[`color${tier}`], own, priority);
+    let geometries;
+    try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { pic.ready.then(letPictureGo, () => {}); throw error; }
+    try {
+      const map = await pic.ready;
+      const material = surface({ map, roughness: spec.roughness, metalness: spec.metallic, side: spec.doubleSided ? THREE.DoubleSide : THREE.FrontSide, envMapIntensity: 0.9 });
+      return { id, spec, geometries, material, shared: !own };
+    } catch (error) {
+      if (own) for (const g of geometries) g.dispose(); else letShapeGo(id);
+      pic.ready.then(letPictureGo, () => {});
+      throw error;
+    }
+  })();
+  if (own) return made;
+  cache.set(key, made);
+  made.catch(() => cache.delete(key));
+  return made;
+}
+
+const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
+
+async function loadSport(id, { base = 'sports/', tier = null, own = false, priority, mirror = false, shadows = true } = {}) {
+  const set = sportTier(tier);
+  const key = `${id}:${set}`;
+  if (!own) users.set(key, (users.get(key) || 0) + 1);
+  let parts;
+  try { parts = await partsOf(id, { base, tier: set, own, priority }); } catch (error) { if (!own) { users.set(key, users.get(key) - 1); trim(); } throw error; }
+  const { spec, geometries, material } = parts;
+  if (!own && cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
+  let held = true;
+  const group = new THREE.Group(); group.name = `sport:${id}`;
+  const lean = new THREE.Group(); group.add(lean);           // leans about the line its wheels touch the ground on
+  const frame = new THREE.Group(); lean.add(frame);
+  if (mirror) frame.scale.x = -1;
+  const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = shadows; m.receiveShadow = false; return m; };
+  const names = spec.parts;
+  const geometryOf = (name) => geometries[names.indexOf(name)];
+  frame.add(mesh(geometries[0]));
+  const pivot = (parent, at, name) => { const g = new THREE.Group(); g.position.copy(at); parent.add(g); const m = mesh(geometryOf(name)); m.position.copy(at).negate(); g.add(m); return g; };
+  let steerAxis = null, steerGroup = null;
+  if (spec.steer) {
+    const p = V(spec.steer.p);
+    steerAxis = V(spec.steer.axis).normalize();
+    steerGroup = new THREE.Group(); steerGroup.position.copy(p); frame.add(steerGroup);
+    const inner = new THREE.Group(); inner.position.copy(p).negate(); steerGroup.add(inner);
+    if (names.includes('steer')) inner.add(mesh(geometryOf('steer')));
+    steerGroup.userData.inner = inner;
+  }
+  const wheels = [];
+  for (const name of names) {
+    if (!name.startsWith('wheel:')) continue;
+    const w = spec.wheels[name.slice(6)];
+    const front = name === 'wheel:front' && steerGroup;
+    const g = pivot(front ? steerGroup.userData.inner : frame, V(w.c), name);
+    wheels.push({ name: name.slice(6), group: g, r: w.r });
+  }
+  const crank = spec.crank ? pivot(frame, V(spec.crank.c), 'crank') : null;
+  const trucks = spec.trucks ? Object.fromEntries(Object.entries(spec.trucks).map(([end, t]) => [end, pivot(frame, V(t.c), `truck:${end}`)])) : {};
+  for (const [end, t] of Object.entries(trucks)) {
+    for (const w of wheels) {
+      if (!(end === 'front' ? /^f/ : /^r/).test(w.name)) continue;
+      const at = w.group.position.clone();
+      frame.remove(w.group); t.add(w.group); w.group.position.copy(at).sub(t.position);
+    }
+  }
+  const motor = names.includes('motor') ? pivot(frame, V(spec.motor.p), 'motor') : null;
+  const helm = names.includes('helm') ? pivot(frame, V(spec.helm.p), 'helm') : null;
+  const helmAxis = spec.helm ? V(spec.helm.axis).normalize() : null;
+  const q = new THREE.Quaternion();
+  return {
+    id, group, spec, frame, lean,
+    size: V(spec.size),
+    pose({ travelled = 0, steer = 0, crank: turn = 0, tilt = 0, truck = 0 } = {}) {
+      for (const w of wheels) w.group.rotation.x = travelled / w.r;
+      if (steerGroup) steerGroup.quaternion.copy(q.setFromAxisAngle(steerAxis, steer));
+      if (crank) crank.rotation.x = turn;
+      if (trucks.front) trucks.front.rotation.y = truck;
+      if (trucks.rear) trucks.rear.rotation.y = -truck;
+      if (motor) motor.rotation.y = -steer;
+      if (helm) helm.quaternion.copy(q.setFromAxisAngle(helmAxis, steer * 2.5));
+      lean.rotation.z = mirror ? -tilt : tilt;
+    },
+    dispose() { if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
+  };
+}
+
+const sportLoaded = (id, tier) => cache.has(`${id}:${sportTier(tier)}`);
+const sportsHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(users), shapes: Object.fromEntries([...shapes].map(([id, s]) => [id, s.holders])) });
+
+return { trimSports, sportTier, loadSport, sportLoaded, sportsHeld };
+})();
+
 __modules["client/bounds.js"] = (function () {
 let at = null;
 function exactBox(object, { only = (mesh) => mesh.visible } = {}, box = new THREE.Box3()) {
@@ -35248,6 +36173,8 @@ const { BIKE_PARTS } = __modules["client/bike-parts.js"];
 const { loadBike } = __modules["client/bike-model.js"];
 const { CAR_PARTS } = __modules["client/car-parts.js"];
 const { loadCar } = __modules["client/car-model.js"];
+const { SPORTS_PARTS } = __modules["client/sports-parts.js"];
+const { loadSport } = __modules["client/sports-model.js"];
 const { isLite } = __modules["client/render-kit.js"];
 const { LIGHT } = __modules["client/light.js"];
 const { PICTURES, modelFile } = __modules["client/budget.js"];
@@ -35261,10 +36188,13 @@ const bikeModel = (id) => Object.freeze({ bike: id, get megabytes() { const b = 
 
 const carModel = (id) => Object.freeze({ car: id, get megabytes() { const b = CAR_PARTS[id].bytes; return Math.round(((touchFirst() || isLite()) ? b.lite : b.full) / 1e6); }, triangles: CAR_PARTS[id].triangles, turntable: `assets/car-${id}-turn.webp`, frames: 24, cols: 6, rows: 4, poster: `assets/car-${id}-poster.webp` });
 
+const sportModel = (id) => Object.freeze({ sport: id, get megabytes() { const b = SPORTS_PARTS[id].download; return Math.max(1, Math.round(((touchFirst() || isLite()) ? b.phone : b.computer) / 1e6)); }, triangles: SPORTS_PARTS[id].triangles * (id === 'inline-skates' ? 2 : 1), turntable: `assets/sport-${id}-turn.webp`, frames: 24, cols: 6, rows: 4, poster: `assets/sport-${id}-poster.webp` });
+
 const ASSET_MODELS = Object.freeze({
   watch: Object.freeze({ file: 'assets/watch.glb', megabytes: 65, triangles: 1886649, turntable: 'assets/watch-turn.webp', frames: 24, cols: 6, rows: 4, poster: 'assets/watch-poster.webp' }),
   ...Object.fromEntries(Object.keys(BIKE_PARTS).map((id) => [`bike:${id}`, bikeModel(id)])),
   ...Object.fromEntries(Object.keys(CAR_PARTS).map((id) => [`car:${id}`, carModel(id)])),
+  ...Object.fromEntries(Object.keys(SPORTS_PARTS).filter((id) => id !== 'naval-ship').map((id) => [`sport:${id}`, sportModel(id)])),
 });
 
 
@@ -35441,6 +36371,24 @@ function createModelView(canvas, { transparent = true, pixelRatio = Math.min(2, 
   async function load(modelId, onProgress, { source = null, base = null, lite = touchFirst() || isLite() } = {}) {
     const model = ASSET_MODELS[modelId];
     if (!model) throw new Error('There is no model of that.');
+    if (model.sport) {
+      if (onProgress) onProgress(0, 1);
+      const tier = lite ? '1k' : '2k';
+      const pair = model.sport === 'inline-skates';
+      const made = await Promise.all((pair ? [false, true] : [false]).map((mirror) => loadSport(model.sport, { base: base || 'sports/', tier, own: true, mirror })));
+      if (closed) { for (const m of made) m.dispose(); return null; }
+      const group = new THREE.Group();
+      made.forEach((m, k) => { m.pose({}); if (pair) m.group.position.x = (k ? 1 : -1) * 0.085; group.add(m.group); });
+      shownBike = { dispose: () => { for (const m of made) m.dispose(); } };
+      const box = new THREE.Box3();
+      exactBox(group, {}, box);
+      const centre = box.getCenter(new THREE.Vector3());
+      group.position.sub(centre);
+      radius = box.getBoundingSphere(new THREE.Sphere()).radius;
+      holder.add(group);
+      if (onProgress) onProgress(1, 1);
+      return { triangles: model.triangles, sport: model.sport };
+    }
     if (model.bike || model.car) {
       if (onProgress) onProgress(0, 1);
       const bike = model.car
@@ -35584,15 +36532,41 @@ function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => 
 return { createActionButton };
 })();
 
+__modules["sim/sports.js"] = (function () {
+
+const item = (id, name, price, kmh, on, drive, blurb) => Object.freeze({ id, name, price, kmh, on, drive, blurb });
+
+const SPORTS = Object.freeze(Object.fromEntries([
+  item('bicycle', 'Fat-Tyre Bicycle', 300, 30, 'land', 'pedals', 'A fat-tyre bicycle: tyres four inches wide for sand, dirt roads and potholes, a light frame and a wide bar. No motor: it goes as fast as you pedal.'),
+  item('speedboat', 'Speedboat', 600, 60, 'water', 'motor', 'A two-seat runabout with an outboard motor and a steering wheel at the front of its cockpit, made for the river.'),
+  item('e-scooter', 'Electric Scooter', 200, 25, 'land', 'battery', 'An electric scooter in white and black: stand on its deck, thumb the throttle, and go.'),
+  item('e-unicycle', 'Electric Unicycle', 150, 30, 'land', 'battery', 'One big wheel with a motor in it and a pedal each side: lean forward to go, back to slow. For those who can balance.'),
+  item('hoverboard', 'Hoverboard', 120, 12, 'land', 'battery', 'Two wheels and a deck between them, black with blue trim: lean forward to roll, press one foot to turn.'),
+  item('surfboard', 'Surfboard', 100, 25, 'water', 'waves', 'A six-foot shortboard in grey, with grip pads where the feet go: made for the waves.'),
+  item('inline-skates', 'Inline Skates', 75, 22, 'land', 'push', 'A pair of inline skates, four wheels in a line on each, red and black, with a buckle and a strap at the ankle.'),
+  item('skateboard', 'Skateboard', 50, 18, 'land', 'push', 'A long skateboard with big soft wheels: push off, ride, and carve down the road.'),
+].map((s) => [s.id, s])));
+
+const NOT_FOR_SALE = Object.freeze(['naval-ship']);
+
+const SPORT_IDS = Object.freeze(Object.keys(SPORTS));
+const sportOf = (id) => SPORTS[id] || null;
+const sportModel = (id) => `sport:${id}`;
+const sportOfModel = (model) => (typeof model === 'string' && model.startsWith('sport:') ? SPORTS[model.slice(6)] || null : null);
+
+return { SPORTS, NOT_FOR_SALE, SPORT_IDS, sportOf, sportModel, sportOfModel };
+})();
+
 __modules["client/ui-market.js"] = (function () {
 
 const { createTurntable, createModelView, ASSET_MODELS } = __modules["client/asset-view.js"];
 const { createActionButton } = __modules["client/action-button.js"];
-const { POWERBIKE, CARSHOW, carshowSideOf } = __modules["sim/zone.js"];
+const { POWERBIKE, CARSHOW, carshowSideOf, SPORTS_MALL } = __modules["sim/zone.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
+const { SPORTS } = __modules["sim/sports.js"];
 
-const SEARCHES = Object.freeze(['Watch', 'Car', 'Yacht', 'Bike', 'Motorcycle', 'Gun', 'Clothes']);
+const SEARCHES = Object.freeze(['Watch', 'Car', 'Sport', 'Yacht', 'Bike', 'Motorcycle', 'Gun', 'Clothes']);
 const ASK_SALESMAN = Object.freeze([
   ['Engine', 'Tell me about the engine'], ['Top speed', 'How fast does it go?'], ['Arrival money?', 'Can I pay with my arrival money?'],
   ['Test ride', 'Can I take it for a test ride?'], ['Delivery', 'How do I get it after I buy?'], ['Discount?', 'Can you give me a discount?'],
@@ -35603,6 +36577,12 @@ const carSeller = (car) => { const side = carshowSideOf(car.id); return (CARSHOW
 const ASK_CAR = Object.freeze([
   ['What is it like?', 'What kind of car is it?'], ['Top speed', 'How fast does it go?'], ['Arrival money?', 'Can I pay with my arrival money?'],
   ['Test drive', 'Can I take it for a test drive?'], ['Delivery', 'How do I get it after I buy?'], ['Discount?', 'Can you give me a discount?'],
+].map(([label, text]) => Object.freeze({ label, text })));
+const showroomSport = (l) => (l && l.shop === SPORTS_MALL.shop && l.asset && SPORTS[String(l.asset.model || '').replace(/^sport:/, '')]) || null;
+const SPORT_MOVES = Object.freeze({ pedals: 'Pedalled', push: 'Pushed', battery: 'Electric', motor: 'Motor', waves: 'Waves' });
+const ASK_SPORT = Object.freeze([
+  ['What is it like?', 'Tell me about it'], ['How fast?', 'How fast does it go?'], ['What moves it?', 'Does it have a motor?'],
+  ['Arrival money?', 'Can I pay with my arrival money?'], ['Where to ride?', 'Where can I ride it?'], ['Discount?', 'Can you give me a discount?'],
 ].map(([label, text]) => Object.freeze({ label, text })));
 const POLL = 1300;                    // how often an open conversation asks for what is new (milliseconds)
 
@@ -35648,7 +36628,8 @@ function createMarketUI(kit) {
 
   const bikeOf = (model) => (typeof model === 'string' && model.startsWith('bike:') ? model.slice(5) : null);
   const carOf = (model) => (typeof model === 'string' && model.startsWith('car:') && POWER_CARS[model.slice(4)] ? model.slice(4) : null);
-  const oneEach = (category) => category === 'motorcycle' || category === 'car';
+  const sportOf = (model) => (typeof model === 'string' && model.startsWith('sport:') && SPORTS[model.slice(6)] ? model.slice(6) : null);
+  const oneEach = (category) => category === 'motorcycle' || category === 'car' || category === 'sport';
   function engineControls(bikeId) {
     const mine = () => (m.sound && m.sound.id === bikeId ? m.sound : null);
     const ensure = () => { if (!mine()) { quiet(); m.sound = app.bikeSound(bikeId); } return mine(); };
@@ -35831,6 +36812,7 @@ function createMarketUI(kit) {
       line(l.kind === 'primary' ? 'Sold by' : 'Owner', l.seller),
       l.kind === 'primary' && !oneEach(l.asset.category) ? line('Left', `${l.left} of ${l.stock}`) : null,
       carOf(l.asset.model) ? line('Top speed', `About ${POWER_CARS[carOf(l.asset.model)].kmh} km/h`) : null,
+      sportOf(l.asset.model) ? line('Goes', `${SPORT_MOVES[SPORTS[sportOf(l.asset.model)].drive]} · up to ${SPORTS[sportOf(l.asset.model)].kmh} km/h`) : null,
       line('Where', l.place.label)));
     if (l.asset.blurb) root.append(h('p', null, l.asset.blurb));
     const bike = bikeOf(l.asset.model);
@@ -35838,6 +36820,10 @@ function createMarketUI(kit) {
       root.append(engineControls(bike));
       const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
       root.append(h('p', { class: 'small', id: 'bike-terms' }, owned ? 'You own this motorcycle. One of each to an account: ride yours from Property.' : l.kind === 'primary' ? 'A motorcycle may be paid for with any of your TR, the arrival money included. One of each motorcycle to an account.' : 'Bought from another player, a motorcycle is paid for with TR you have earned.'));
+    }
+    if (sportOf(l.asset.model)) {
+      const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
+      root.append(h('p', { class: 'small', id: 'sport-terms' }, owned ? 'You own this. One of each to an account: it is in your Property.' : l.kind === 'primary' ? 'Any of your TR may pay for it, the arrival money included. One of each thing from the mall to an account.' : 'Bought from another player, it is paid for with TR you have earned.'));
     }
     if (carOf(l.asset.model)) {
       const owned = m.mine && m.mine.holdings.some((x) => x.asset.id === l.asset.id);
@@ -36003,10 +36989,11 @@ function createMarketUI(kit) {
     const known = l || (d.listing && market() ? market().state.all.find((x) => x.id === d.listing) : null) || null;
     const bike = showroomBike(known);
     const car = bike ? null : showroomCar(known);
+    const sport = bike || car ? null : showroomSport(known);
     const other = d.thread ? d.thread.other : known ? known.seller : 'The seller';
-    const name = bike ? POWERBIKE.salesman : car ? carSeller(car) : other;
-    const role = bike ? 'Salesman · automatic replies' : car ? 'Car sales · automatic replies' : d.thread ? (d.thread.automatic ? 'Shop attendant · automatic' : d.thread.role === 'buyer' ? 'Seller' : 'Buyer') : '';
-    const showroom = !!(bike || car);
+    const name = bike ? POWERBIKE.salesman : car ? carSeller(car) : sport ? SPORTS_MALL.seller.name : other;
+    const role = bike ? 'Salesman · automatic replies' : car ? 'Car sales · automatic replies' : sport ? 'Sales · automatic replies' : d.thread ? (d.thread.automatic ? 'Shop attendant · automatic' : d.thread.role === 'buyer' ? 'Seller' : 'Buyer') : '';
+    const showroom = !!(bike || car || sport);
     root.append(h('div', { class: `chathead${showroom ? ' showroom' : ''}` },
       h('button', { class: 'chatback', type: 'button', id: 'deal-back', 'aria-label': 'Leave the conversation', onclick: () => app.leaveDeal() }, kit.glyph('back', false)),
       h('span', { class: `avatar${showroom ? ' salesman' : ''}` }, String(name || '·').slice(0, 1).toUpperCase(), h('i', { class: 'dot', 'aria-hidden': 'true' })),
@@ -36029,6 +37016,11 @@ function createMarketUI(kit) {
         h('span', { class: 'what' }, h('b', null, l.name),
           h('span', { class: 'specs' }, h('i', { class: 'spec' }, `${car.kmh} km/h`), h('i', { class: 'spec' }, open ? 'New' : 'Not on sale'))),
         h('span', { class: 'price' }, h('small', null, 'Price'), tr(l.price))));
+    } else if (sport) {
+      root.append(h('div', { class: 'dealitem bike car sport' }, h('em', { class: 'brandline' }, SPORTS_MALL.name), h('span', { class: 'pic', style: pic }),
+        h('span', { class: 'what' }, h('b', null, l.name),
+          h('span', { class: 'specs' }, h('i', { class: 'spec' }, SPORT_MOVES[sport.drive]), h('i', { class: 'spec' }, `${sport.kmh} km/h`), h('i', { class: 'spec' }, open ? 'New' : 'Not on sale'))),
+        h('span', { class: 'price' }, h('small', null, 'Price'), tr(l.price))));
     } else {
       root.append(h('div', { class: 'dealitem' }, h('span', { class: 'pic', style: pic }),
         h('span', { class: 'what' }, h('b', null, l.name), h('span', null, `${l.kind === 'primary' ? 'Price' : 'Asking'} ${tr(l.price)}${l.kind === 'primary' && open ? ` · ${l.left} left` : ''}${!open ? ' · no longer for sale' : ''}`))));
@@ -36050,7 +37042,7 @@ function createMarketUI(kit) {
     } else d.pendingShown = null;
     if (d.done) log.append(h('div', { class: 'msg sys good big', id: 'deal-done' }, d.done));
 
-    const text = h('input', { class: 'field', id: 'deal-text', type: 'text', maxlength: '400', placeholder: bike ? `Ask ${POWERBIKE.salesman} about the bike` : car ? `Ask ${name} about the car` : 'Message', value: d.draft || '', autocomplete: 'off', enterkeyhint: 'send', 'aria-label': `Message to ${name}` });
+    const text = h('input', { class: 'field', id: 'deal-text', type: 'text', maxlength: '400', placeholder: bike ? `Ask ${POWERBIKE.salesman} about the bike` : car ? `Ask ${name} about the car` : sport ? `Ask ${name} about it` : 'Message', value: d.draft || '', autocomplete: 'off', enterkeyhint: 'send', 'aria-label': `Message to ${name}` });
     const send = async (typed) => {
       const tapped = typeof typed === 'string';
       const body = (tapped ? typed : text.value).trim();
@@ -36085,7 +37077,7 @@ function createMarketUI(kit) {
     else if (offer) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Your offer is with the seller'), h('b', null, tr(offer.amount))),
       h('button', { class: 'hx small', type: 'button', id: 'deal-withdraw', disabled: d.busy, onclick: async () => { d.busy = true; drawDeal(); await market().withdraw(offer.id); d.busy = false; await poll(d); drawDeal(); } }, 'Withdraw'));
     else if (d.thread.automatic) bar.append(h('span', { class: 'offerline' }, h('span', { class: 'eyebrow' }, 'Price'), h('b', null, tr(l.price))),
-      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: l.asset && l.asset.category === 'motorcycle' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a motorcycle.` : l.asset && l.asset.category === 'car' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a car.` : `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
+      h('button', { class: 'hx small on cta', type: 'button', id: 'deal-buy', onclick: () => { d.asking = { text: l.asset && l.asset.category === 'motorcycle' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a motorcycle.` : l.asset && l.asset.category === 'car' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for a car.` : l.asset && l.asset.category === 'sport' ? `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(balance())}, and any of it may pay for something from the sports mall.` : `Pay ${tr(l.price)} for the ${l.name}? You have ${tr(spendable())} of earned TR.`, label: `Pay ${tr(l.price)}`, yes: () => makeOffer(d, l.price) }; drawDeal(); } }, 'Buy'));
     else {
       const amount = h('input', { class: 'field', id: 'deal-amount', type: 'number', inputmode: 'decimal', min: '0.5', step: '0.5', value: d.amount || trPlain(l.price), 'aria-label': 'Your offer in TR' });
       amount.addEventListener('input', () => { d.amount = amount.value; });
@@ -36098,9 +37090,9 @@ function createMarketUI(kit) {
     }
 
     root.append(log);
-    if ((bike || car) && d.thread.automatic && open && !d.asking && !d.done) {
+    if ((bike || car || sport) && d.thread.automatic && open && !d.asking && !d.done) {
       root.append(h('div', { class: 'quick', id: 'deal-quick', role: 'group', 'aria-label': `Ask ${name}` },
-        (car ? ASK_CAR : ASK_SALESMAN).map((q) => h('button', { type: 'button', 'data-ask': q.label, disabled: !!d.sending, onclick: () => send(q.text) }, q.label))));
+        (sport ? ASK_SPORT : car ? ASK_CAR : ASK_SALESMAN).map((q) => h('button', { type: 'button', 'data-ask': q.label, disabled: !!d.sending, onclick: () => send(q.text) }, q.label))));
     }
     if (d.note) { root.append(h('div', { class: 'dealnote', role: 'alert' }, d.note)); d.note = ''; }
     root.append(bar);
@@ -43158,8 +44150,8 @@ function castShadows(model, on) {
   model.group.traverse((o) => { if (o.isMesh) o.castShadow = on; });
 }
 
-function hallModels({ items, load, put, lite = false, ranges, renderer = null, most = lite ? 1 : 2, settle = 2.5 }) {
-  const plan = HALL[lite ? 'lite' : 'full'];
+function hallModels({ items, load, put, lite = false, ranges, renderer = null, most = lite ? 1 : 2, settle = 2.5, plan: given = null }) {
+  const plan = given || HALL[lite ? 'lite' : 'full'];
   const slots = items.map(() => ({ model: null, tier: null, loading: null, loadingTier: null, lowerSince: 0, failedAt: 0, ticket: 0 }));
   const ready = [];                 // [{ k, model, tier }] fetched, waiting their turn to be put in
   let running = 0, ticket = 1, dropped = 0;
@@ -44057,7 +45049,571 @@ function buildCarshow(scene, { lite = false, maxTexture = 0, renderer = null } =
   };
 }
 
-return { buildCarshow };
+return { BLOCK, pavingTextures, buildCarshow };
+})();
+
+__modules["client/render-sports.js"] = (function () {
+
+const { SPORTS_MALL } = __modules["sim/zone.js"];
+const { SPORTS } = __modules["sim/sports.js"];
+const { trText } = __modules["sim/ledger.js"];
+const { Batch, place, surface, isLite } = __modules["client/render-kit.js"];
+const { letPaintedGo } = __modules["client/painted.js"];
+const { loadSport, sportLoaded } = __modules["client/sports-model.js"];
+const { hallModels, castShadows } = __modules["client/hall-models.js"];
+const { COVER } = __modules["client/brand-data.js"];
+const { vehicleEnvironment } = __modules["client/vehicle-models.js"];
+const { addTree } = __modules["client/render-world.js"];
+const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
+const { pavingTextures, BLOCK } = __modules["client/render-carshow.js"];
+const { ICONS } = __modules["client/icons.js"];
+
+const P = SPORTS_MALL, C = SPORTS_MALL.compound, B = SPORTS_MALL.building, H = SPORTS_MALL.hall, GW = SPORTS_MALL.gateway;
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
+const GOLD = '#e9c46a', CREAM = '#f6f0e2', GREEN = '#0d6b3d';
+const WHITE = 0xf2f0ea, RENDER = 0xebe7de, PLINTH = 0x3a3d42, DARK = 0x24282e, STEEL = 0x9aa1a8, GREENX = 0x0d6b3d;
+const HEAVY = (px) => `900 ${px}px "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif`;
+
+let logoImage = null;
+const logo = () => { if (!logoImage) logoImage = new Promise((resolve) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => resolve(null); img.src = COVER.logo.src; }); return logoImage; };
+const SUN_SHARE = 0.315;            // of the logo's height: the sun, its rays and its three ground lines
+
+function canvasTexture(width, height, draw, { lite = 0.5 } = {}) {
+  const canvas = document.createElement('canvas');
+  const k = isLite() ? lite : 1;
+  canvas.width = Math.round(width * k); canvas.height = Math.round(height * k);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+  const g = canvas.getContext('2d');
+  g.scale(k, k);
+  logo().then((img) => {
+    g.clearRect(0, 0, width, height); draw(g, img); texture.needsUpdate = true;
+    letPaintedGo(texture, (c) => { const p = c.getContext('2d'); p.setTransform(k, 0, 0, k, 0, 0); draw(p, img); });
+  });
+  return texture;
+}
+function heavy(g, text, x, y, px, most, fill, spacing = 0.04) {
+  let size = px;
+  const width = () => { g.font = HEAVY(size); return [...text].reduce((w, ch) => w + g.measureText(ch).width + size * spacing, -size * spacing); };
+  while (width() > most && size > 12) size -= 3;
+  const w = width();
+  let at = x - w / 2;
+  g.font = HEAVY(size); g.fillStyle = fill;
+  for (const ch of text) { g.fillText(ch, at, y); at += g.measureText(ch).width + size * spacing; }
+  return w;
+}
+function drawIcon(g, id, x, y, size, colour) {
+  const parts = ICONS[id];
+  if (!parts) return;
+  g.save(); g.translate(x, y); g.scale(size / 24, size / 24);
+  g.fillStyle = colour; g.strokeStyle = colour; g.lineCap = 'round'; g.lineJoin = 'round';
+  for (const part of parts) {
+    if (typeof part === 'string') g.fill(new Path2D(part), 'evenodd');
+    else if (Array.isArray(part)) { g.beginPath(); g.arc(part[0], part[1], part[2], 0, Math.PI * 2); g.fill(); }
+    else if (part.ring) { g.lineWidth = part.w || 2.8; g.beginPath(); g.arc(part.ring[0], part.ring[1], part.ring[2], 0, Math.PI * 2); g.stroke(); }
+    else { g.lineWidth = part.w || 2.8; g.stroke(new Path2D(part.s)); }
+  }
+  g.restore();
+}
+
+
+const nameTexture = () => canvasTexture(4096, 1024, (g, img) => {
+  g.textBaseline = 'alphabetic';
+  if (img) g.drawImage(img, 0, 0, img.width, img.height * SUN_SHARE, 40, 70, (img.width / (img.height * SUN_SHARE)) * 520, 520);
+  const left = img ? 80 + (img.width / (img.height * SUN_SHARE)) * 520 : 60;
+  const room = 4096 - left - 60, mid = left + room / 2;
+  heavy(g, 'POST CIVIL WAR', mid, 560, 470, room, CREAM, 0.05);
+  heavy(g, 'SPORTS MALL', mid, 960, 330, room * 0.82, GOLD, 0.16);
+}, { lite: 0.25 });
+const archTexture = () => canvasTexture(2048, 256, (g, img) => {
+  g.fillStyle = GREEN; g.fillRect(0, 0, 2048, 256);
+  g.fillStyle = GOLD; g.fillRect(0, 12, 2048, 8); g.fillRect(0, 236, 2048, 8);
+  g.textBaseline = 'alphabetic';
+  if (img) { const h = 200, w = (img.width / (img.height * SUN_SHARE)) * h * SUN_SHARE * 3.1; g.drawImage(img, 0, 0, img.width, img.height * SUN_SHARE, 40, 28, w, 200); }
+  heavy(g, 'POST CIVIL WAR  ·  SPORTS MALL', 1120, 172, 120, 1700, CREAM, 0.05);
+}, { lite: 0.5 });
+const bannerTexture = (id, words) => canvasTexture(512, 1536, (g) => {
+  const bg = g.createLinearGradient(0, 0, 0, 1536); bg.addColorStop(0, '#0f7a46'); bg.addColorStop(1, '#0a5230');
+  g.fillStyle = bg; g.fillRect(0, 0, 512, 1536);
+  g.fillStyle = GOLD; g.fillRect(0, 0, 512, 14); g.fillRect(0, 1522, 512, 14);
+  drawIcon(g, id, 56, 260, 400, '#ffffff');
+  g.textBaseline = 'alphabetic';
+  heavy(g, words, 256, 1120, 92, 440, CREAM, 0.06);
+  heavy(g, 'SPORTS MALL', 256, 1260, 60, 420, GOLD, 0.12);
+});
+const wallTexture = () => canvasTexture(3072, 768, (g, img) => {
+  const bg = g.createLinearGradient(0, 0, 3072, 0); bg.addColorStop(0, '#0b3d24'); bg.addColorStop(0.5, '#10603a'); bg.addColorStop(1, '#0b3d24');
+  g.fillStyle = bg; g.fillRect(0, 0, 3072, 768);
+  g.fillStyle = GOLD; g.fillRect(0, 22, 3072, 8); g.fillRect(0, 738, 3072, 8);
+  g.textBaseline = 'alphabetic';
+  if (img) { const h = 640, w = (img.width / img.height) * h; g.drawImage(img, 90, 64, w, h); }
+  heavy(g, 'POST CIVIL WAR', 1850, 400, 300, 2100, CREAM, 0.04);
+  heavy(g, 'SPORTS MALL  ·  ASABA', 1850, 600, 120, 1900, GOLD, 0.2);
+});
+const matTexture = () => canvasTexture(512, 160, (g) => {
+  g.fillStyle = '#121315'; g.fillRect(0, 0, 512, 160);
+  g.strokeStyle = 'rgba(233,196,106,0.85)'; g.lineWidth = 6; g.strokeRect(10, 10, 492, 140);
+  g.fillStyle = '#f2f2f0'; g.font = '800 74px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textBaseline = 'middle'; g.textAlign = 'center';
+  g.fillText('EXIT', 220, 84);
+  g.beginPath(); g.moveTo(380, 50); g.lineTo(380, 118); g.lineTo(350, 118); g.lineTo(405, 140); g.lineTo(460, 118); g.lineTo(430, 118); g.lineTo(430, 50); g.closePath(); g.fill();
+}, { lite: 1 });
+const MOVES = { pedals: 'Pedalled', push: 'Pushed', battery: 'Electric', motor: 'Outboard motor', waves: 'Ridden on the waves' };
+function plateTexture(item) {
+  const canvas = document.createElement('canvas'); canvas.width = 512; canvas.height = 256;
+  const g = canvas.getContext('2d');
+  g.fillStyle = '#0f1013'; g.fillRect(0, 0, 512, 256);
+  g.fillStyle = '#12a35a'; g.fillRect(0, 0, 512, 8);
+  g.textBaseline = 'alphabetic'; g.fillStyle = '#ffffff';
+  let px = 50; g.font = `800 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+  while (g.measureText(item.name.toUpperCase()).width > 470 && px > 22) { px -= 2; g.font = `800 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`; }
+  g.fillText(item.name.toUpperCase(), 22, 86);
+  g.fillStyle = '#b9bcc3'; g.font = '500 34px "Helvetica Neue", Helvetica, Arial, sans-serif';
+  g.fillText(`${MOVES[item.drive] || ''} · up to ${item.kmh} km/h`, 22, 150);
+  g.fillStyle = GOLD; g.font = '800 52px "Helvetica Neue", Helvetica, Arial, sans-serif';
+  g.fillText(trText(item.price * 2).replace(/\.0$/, ''), 22, 222);
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 4;
+  letPaintedGo(texture, (c) => { const t = plateTexture(item); const src = t.image; c.getContext('2d').drawImage(src, 0, 0); t.dispose(); });
+  return texture;
+}
+function floorTexture() {
+  const canvas = document.createElement('canvas'); canvas.width = canvas.height = 512;
+  const g = canvas.getContext('2d');
+  let s = 7;
+  const rnd = () => { s = (s * 9301 + 49297) % 233280; return s / 233280; };
+  const rows = 8, h = 512 / rows;
+  for (let r = 0; r < rows; r += 1) {
+    let x = -Math.round(rnd() * 200);
+    while (x < 512) {
+      const len = 230 + rnd() * 180, k = 176 + Math.round(rnd() * 26);
+      const fill = `rgb(${k},${Math.round(k * 0.74)},${Math.round(k * 0.47)})`;
+      for (const ox of [0, -512]) {
+        g.fillStyle = fill; g.fillRect(x + ox, r * h, len, h);
+        for (let n = 0; n < 7; n += 1) { const y = r * h + 3 + ((n * 37 + r * 11) % (h - 6)); g.strokeStyle = `rgba(110,66,28,${0.07 + ((n * 13) % 7) * 0.012})`; g.lineWidth = 1; g.beginPath(); g.moveTo(x + ox, y); g.bezierCurveTo(x + ox + len * 0.3, y + 2, x + ox + len * 0.6, y - 2, x + ox + len, y + 1); g.stroke(); }
+        g.fillStyle = 'rgba(60,38,18,0.6)'; g.fillRect(x + ox, r * h, 2, h);
+      }
+      x += len;
+    }
+    g.fillStyle = 'rgba(60,38,18,0.55)'; g.fillRect(0, r * h, 512, 2);
+  }
+  const texture = new THREE.CanvasTexture(canvas); texture.colorSpace = THREE.SRGBColorSpace; texture.anisotropy = 8;
+  texture.wrapS = texture.wrapT = THREE.RepeatWrapping;
+  return texture;
+}
+function posterTexture(item) {
+  const W = 512, Hh = 640;
+  return canvasTexture(W, Hh, (g) => {
+    const bg = g.createLinearGradient(0, 0, 0, Hh); bg.addColorStop(0, '#f4f2ec'); bg.addColorStop(1, '#dfe9e2');
+    g.fillStyle = bg; g.fillRect(0, 0, W, Hh);
+    g.fillStyle = '#0d6b3d'; g.fillRect(0, Hh - 150, W, 150);
+    g.fillStyle = GOLD; g.fillRect(0, Hh - 150, W, 6);
+    g.textBaseline = 'alphabetic';
+    heavy(g, item.name.toUpperCase(), W / 2, Hh - 88, 42, W - 40, '#ffffff', 0.03);
+    heavy(g, trText(item.price * 2).replace(/\.0$/, ''), W / 2, Hh - 30, 44, W - 80, GOLD, 0.06);
+    const pic = posterImages.get(item.id);
+    if (pic) g.drawImage(pic, 26, 10, W - 52, W - 52);
+  });
+}
+const posterImages = new Map();
+function loadPoster(id) {
+  return new Promise((resolve) => { const img = new Image(); img.onload = () => { posterImages.set(id, img); resolve(img); }; img.onerror = () => resolve(null); img.src = `assets/sport-${id}-poster.webp`; });
+}
+
+
+function buildForecourt(group, { lite }) {
+  const size = lite ? 512 : 1024;
+  const grey = pavingTextures(size, { tone: [166, 160, 150], seed: 11 });
+  const charcoal = pavingTextures(size, { tone: [88, 86, 84], spread: 10, seed: 13 });
+  const plane = (x0, z0, x1, z1, tex, y, name) => {
+    const w = x1 - x0, d = z1 - z0;
+    const geo = new THREE.PlaneGeometry(w, d); geo.rotateX(-Math.PI / 2);
+    const uv = geo.attributes.uv, pos = geo.attributes.position;
+    for (let i = 0; i < uv.count; i += 1) uv.setXY(i, (pos.getX(i) + (x0 + x1) / 2) / BLOCK.metres, (pos.getZ(i) + (z0 + z1) / 2) / BLOCK.metres);
+    const m = new THREE.Mesh(geo, surface({ map: tex.map, normalMap: tex.normalMap, normalScale: new THREE.Vector2(0.7, 0.7), roughness: 0.82, metalness: 0 }));
+    m.position.set((x0 + x1) / 2, y, (z0 + z1) / 2); m.receiveShadow = true; m.name = name;
+    group.add(m);
+    return m;
+  };
+  plane(C.x0, B.z1, C.x1, C.z1, grey, 0.03, 'sports-paving');
+  plane(C.x0, C.z0, C.x1, B.z0, grey, 0.03, 'sports-paving');
+  plane(C.x0, B.z0, B.x0, B.z1, grey, 0.03, 'sports-paving');
+  plane(B.x1, B.z0, C.x1, B.z1, grey, 0.03, 'sports-paving');
+  const W = P.walk;
+  plane(W.x0, W.z0, W.x1, W.z1, charcoal, 0.034, 'sports-walk');
+  plane(P.drive.fromRoad.x0, P.drive.fromRoad.z0, P.drive.fromRoad.x1, P.drive.fromRoad.z1, charcoal, 0.032, 'sports-apron');
+  const paint = new Batch(), kerb = new Batch();
+  for (const bay of P.bays) {
+    const n = Math.floor((bay.x1 - bay.x0) / bay.width);
+    for (const [z, sgn] of [[bay.z0 + bay.depth / 2, 1], [bay.z1 - bay.depth / 2, -1]]) {
+      for (let k = 0; k <= n; k += 1) paint.box(0.12, 0.012, bay.depth, place(bay.x0 + k * bay.width, 0.046, z), 0xf4f4ef);
+      paint.box(n * bay.width, 0.012, 0.12, place(bay.x0 + (n * bay.width) / 2, 0.046, z - sgn * bay.depth / 2), 0xf4f4ef);
+    }
+  }
+  for (const side of [-1, 1]) kerb.box(0.2, 0.14, W.z1 - W.z0 - 1, place(P.doors.x + side * ((W.x1 - W.x0) / 2 + 0.1), 0.07, (W.z0 + W.z1) / 2), 0xd8d3c7);
+  const pm = paint.build(surface({ vertexColors: true, roughness: 0.6, metalness: 0 })); pm.receiveShadow = true; group.add(pm);
+  const km = kerb.build(surface({ vertexColors: true, roughness: 0.85, metalness: 0 })); km.receiveShadow = true; km.castShadow = true; group.add(km);
+  const palms = new Batch(), fronds = new Foliage(), lamps = new Batch(), heads = [];
+  for (const [k, q] of P.forecourt.palms.entries()) {
+    palms.round(new THREE.CylinderGeometry(q.r * 0.88, q.r, 0.6, 24), place(q.x, 0.3, q.z), 0xd6d0c4);
+    addTree(palms, fronds, { x: q.x, z: q.z, kind: 'palm', size: (q.h + 0.3) / 7.2, turn: k * 2.3 });
+  }
+  for (const q of P.forecourt.lamps) {
+    lamps.round(new THREE.CylinderGeometry(0.06, 0.09, 5, 10), place(q.x, 2.5, q.z), 0x34383d);
+    lamps.box(0.56, 0.08, 0.24, place(q.x - q.side * 0.28, 5.0, q.z), 0x34383d);
+    heads.push({ x: q.x - q.side * 0.28, z: q.z });
+  }
+  const palmMesh = palms.build(surface({ vertexColors: true, roughness: 0.8, metalness: 0 })); palmMesh.castShadow = true; group.add(palmMesh);
+  for (const mesh of fronds.build(foliageMaterials())) group.add(mesh);
+  const lampMesh = lamps.build(surface({ vertexColors: true, roughness: 0.5, metalness: 0.5 })); lampMesh.castShadow = true; group.add(lampMesh);
+  const lampGlow = new Batch();
+  for (const h of heads) lampGlow.box(0.46, 0.03, 0.18, place(h.x, 4.95, h.z), 0xfff1c9);
+  group.add(lampGlow.build(new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false })));
+  return { lampHeads: heads, textures: [grey, charcoal] };
+}
+
+function buildRailings(group) {
+  const R = P.railing, gx0 = GW.x - GW.width / 2 - 0.5, gx1 = GW.x + GW.width / 2 + 0.5;
+  const runs = [[C.x0, C.z0, C.x1, C.z0], [C.x0, C.z0, C.x0, C.z1], [C.x1, C.z0, C.x1, C.z1], [C.x0, C.z1, gx0, C.z1], [gx1, C.z1, C.x1, C.z1]];
+  const solid = new Batch();
+  let posts = 0;
+  for (const [ax, az, bx, bz] of runs) {
+    const len = Math.hypot(bx - ax, bz - az), ux = (bx - ax) / len, uz = (bz - az) / len, ry = Math.atan2(ux, uz);
+    const n = Math.max(1, Math.round(len / R.post));
+    for (let i = 0; i <= n; i += 1) { const x = ax + (ux * len * i) / n, z = az + (uz * len * i) / n; solid.box(0.07, R.height, 0.07, place(x, R.height / 2, z), 0xf3f2ee); posts += 1; }
+    for (const y of [0.45, R.height - 0.04]) solid.box(0.05, 0.06, len, place((ax + bx) / 2, y, (az + bz) / 2, ry), 0xf3f2ee);
+    solid.box(0.3, 0.14, len + 0.3, place((ax + bx) / 2, 0.07, (az + bz) / 2, ry), 0xc9c3b6, 1);
+  }
+  const top = GW.height;
+  for (const s of [-1, 1]) {
+    const x = GW.x + s * (GW.width / 2 + 0.5);
+    solid.box(0.9, top, 0.9, place(x, top / 2, GW.z), 0xece8df);
+    solid.box(1.0, 0.14, 1.0, place(x, top + 0.07, GW.z), 0xb9b2a4);
+  }
+  solid.box(GW.width + 2, 1.1, 0.5, place(GW.x, top - 0.55, GW.z), DARK);
+  const mesh = solid.build(surface({ vertexColors: true, roughness: 0.55, metalness: 0.1 }));
+  mesh.castShadow = true; mesh.receiveShadow = true; mesh.name = 'sports-railings';
+  group.add(mesh);
+  const tex = archTexture();
+  for (const [dz, ry] of [[0.26, 0], [-0.26, Math.PI]]) {
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(GW.width + 1.8, 0.95), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }));
+    sign.position.set(GW.x, top - 0.55, GW.z + dz); sign.rotation.y = ry; sign.name = 'sports-arch';
+    group.add(sign);
+  }
+  return { posts, runs: runs.length };
+}
+
+
+function buildExterior(group) {
+  const solid = new Batch(), metal = new Batch(), glassB = new Batch(), glow = new Batch();
+  const W = B.x1 - B.x0, D = B.z1 - B.z0, cx = (B.x0 + B.x1) / 2, cz = (B.z0 + B.z1) / 2, top = B.height, st = B.storey;
+  solid.box(W, top, 0.4, place(cx, top / 2, B.z0 + 0.2), RENDER);
+  solid.box(0.4, top, D, place(B.x0 + 0.2, top / 2, cz), RENDER);
+  solid.box(0.4, top, D, place(B.x1 - 0.2, top / 2, cz), RENDER);
+  solid.box(W, top - st, 0.4, place(cx, (top + st) / 2, B.z1 - 0.2), RENDER);
+  solid.box(W + 0.3, B.parapet, 0.5, place(cx, top + B.parapet / 2, B.z1 - 0.25), RENDER);
+  solid.box(W + 0.3, B.parapet, 0.5, place(cx, top + B.parapet / 2, B.z0 + 0.25), RENDER);
+  for (const x of [B.x0 + 0.25, B.x1 - 0.25]) solid.box(0.5, B.parapet, D, place(x, top + B.parapet / 2, cz), RENDER);
+  solid.box(W - 0.4, 0.2, D - 0.4, place(cx, top - 0.1, cz), 0x8b8f94);
+  for (const [x, z, w, d] of [[cx, B.z0 + 0.2, W + 0.1, 0.5], [B.x0 + 0.2, cz, 0.5, D + 0.1], [B.x1 - 0.2, cz, 0.5, D + 0.1]]) solid.box(w, 0.5, d, place(x, 0.25, z), PLINTH);
+  const fz = B.z1 - 0.05, door = P.doors;
+  for (let x = B.x0 + 0.4; x <= B.x1 - 0.4 + 1e-6; x += (W - 0.8) / 20) metal.box(0.14, st, 0.18, place(x, st / 2, fz), DARK);
+  metal.box(W, 0.3, 0.24, place(cx, st - 0.15, fz), DARK); metal.box(W, 0.12, 0.2, place(cx, 0.06, fz), DARK);
+  const left = door.x - door.width / 2 - 0.8, right = door.x + door.width / 2 + 0.8;
+  glassB.box(left - B.x0 - 0.4, st - 0.4, 0.04, place((B.x0 + 0.4 + left) / 2, st / 2 - 0.05, fz), 0xffffff);
+  glassB.box(B.x1 - 0.4 - right, st - 0.4, 0.04, place((right + B.x1 - 0.4) / 2, st / 2 - 0.05, fz), 0xffffff);
+  glassB.box(right - left, st - door.height - 0.6, 0.04, place(door.x, (st + door.height + 0.3) / 2, fz), 0xffffff);
+  glassB.box(W - 3, 1.9, 0.04, place(cx, st + 2.2, B.z1 + 0.01), 0xffffff);
+  metal.box(W - 2.8, 0.12, 0.12, place(cx, st + 1.2, B.z1 + 0.03), 0xd9d6cf); metal.box(W - 2.8, 0.12, 0.12, place(cx, st + 3.2, B.z1 + 0.03), 0xd9d6cf);
+  for (let k = 0; k <= 12; k += 1) metal.box(0.08, 2.0, 0.08, place(B.x0 + 1.5 + ((W - 3) * k) / 12, st + 2.2, B.z1 + 0.03), 0xd9d6cf);
+  for (const x of [B.x0 - 0.01, B.x1 + 0.01]) for (let k = 0; k < 6; k += 1) glassB.box(0.04, 1.8, 2.6, place(x, st + 2.2, B.z0 + 3 + k * 4.2), 0xffffff);
+  metal.box(7.4, 0.24, 3.4, place(door.x, door.height + 1.0, B.z1 + 1.55), 0xe8e8e6);
+  for (const s of [-1, 1]) metal.round(new THREE.CylinderGeometry(0.08, 0.08, door.height + 1.0, 12), place(door.x + s * 3.4, (door.height + 1.0) / 2, B.z1 + 3.0), 0xb9bec4);
+  for (const k of [-2.6, -0.9, 0.9, 2.6]) glow.round(new THREE.CylinderGeometry(0.11, 0.11, 0.02, 16), place(door.x + k, door.height + 0.875, B.z1 + 1.6), 0xfff4dd);
+  const add = (batch, material, shadow) => { const m = batch.build(material); m.receiveShadow = true; m.castShadow = !!shadow; group.add(m); return m; };
+  add(solid, surface({ vertexColors: true, roughness: 0.9, metalness: 0 }), true).name = 'sports-mall';
+  add(metal, surface({ vertexColors: true, roughness: 0.4, metalness: 0.6 }), false);
+  add(glow, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), false);
+  const glass = new THREE.MeshStandardMaterial({ color: 0x1e2a33, roughness: 0.08, metalness: 0.6, envMap: vehicleEnvironment() || null, envMapIntensity: 0.9 });
+  add(glassB, glass, false).name = 'sports-glass';
+  const tex = nameTexture();
+  const front = new THREE.Mesh(new THREE.PlaneGeometry(18, 4.5), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
+  front.position.set(door.x, st + 2.2, B.z1 + 0.12); front.name = 'sports-name'; front.renderOrder = 2;
+  group.add(front);
+  const crown = new THREE.Mesh(new THREE.PlaneGeometry(26, 6.5), new THREE.MeshBasicMaterial({ map: tex, transparent: true, toneMapped: false, depthWrite: false }));
+  crown.position.set(cx, top + B.parapet + 0.6 + 3.25, B.z1 - 2.5); crown.name = 'sports-crown'; crown.renderOrder = 2;
+  group.add(crown);
+  const frame = new Batch();
+  for (const k of [-0.4, 0, 0.4]) frame.box(0.16, 1.6, 0.16, place(cx + k * 26, top + B.parapet + 0.8, B.z1 - 2.6), DARK);
+  frame.box(26 * 0.9, 0.16, 0.16, place(cx, top + B.parapet + 0.7, B.z1 - 2.6), DARK);
+  group.add(frame.build(surface({ vertexColors: true, roughness: 0.4, metalness: 0.6 })));
+  const banners = [['ride', 'RIDE'], ['surf', 'SURF']].map(([id, words], k) => {
+    const m = new THREE.Mesh(new THREE.PlaneGeometry(1.6, 4.8), new THREE.MeshBasicMaterial({ map: bannerTexture(id, words), toneMapped: false }));
+    m.position.set(door.x + (k ? 1 : -1) * 6.2, st / 2, B.z1 + 0.08); m.name = `sports-banner:${id}`;
+    group.add(m);
+    return m;
+  });
+  return { signs: [front, crown], banners };
+}
+
+function buildDoors(group) {
+  const D = P.doors, z = B.z1 + 0.02;
+  const glass = new THREE.MeshStandardMaterial({ color: 0x9fb8c4, transparent: true, opacity: 0.45, roughness: 0.03, metalness: 0.3, envMap: vehicleEnvironment() || null, side: THREE.DoubleSide, depthWrite: false });
+  const steel = surface({ color: 0xc4c9ce, roughness: 0.3, metalness: 0.85 });
+  const fixed = new Batch();
+  fixed.box(D.width + 1.6, D.height + 0.6, 0.1, place(D.x, (D.height + 0.6) / 2, z - 0.06), 0x1a1d22);
+  const fm = fixed.build(surface({ vertexColors: true, roughness: 0.4, metalness: 0.5 })); fm.receiveShadow = true; group.add(fm);
+  const leaves = [-1, 1].map((s) => {
+    const leaf = new THREE.Group();
+    const pane = new THREE.Mesh(new THREE.BoxGeometry(D.width / 2 - 0.04, D.height - 0.05, 0.02), glass); pane.position.y = D.height / 2; pane.renderOrder = 3; leaf.add(pane);
+    const handle = new THREE.Mesh(new THREE.BoxGeometry(0.035, 1.1, 0.05), steel); handle.position.set(-s * (D.width / 4 - 0.12), 1.15, 0.05); leaf.add(handle);
+    leaf.position.set(D.x + s * (D.width / 4), 0, z + 0.03);
+    group.add(leaf);
+    return { leaf, s };
+  });
+  const mat = new THREE.Mesh(new THREE.PlaneGeometry(D.width + 0.4, 1.4), surface({ color: 0x1b1d20, roughness: 0.95, metalness: 0 }));
+  mat.rotation.x = -Math.PI / 2; mat.position.set(D.x, 0.045, z + 0.8); mat.receiveShadow = true; group.add(mat);
+  return { set(open) { for (const { leaf, s } of leaves) leaf.position.x = D.x + s * (D.width / 4 + (D.width / 2 - 0.1) * open); } };
+}
+
+
+function buildHall() {
+  const group = new THREE.Group();
+  group.name = 'sports-hall';
+  group.userData.keepPictures = true;
+  const solid = new Batch(), gloss = new Batch(), metal = new Batch(), glow = new Batch(), glassB = new Batch(), overhead = new Batch();
+  const W = H.x1 - H.x0, D = H.z1 - H.z0, cx = (H.x0 + H.x1) / 2, cz = (H.z0 + H.z1) / 2, top = H.ceiling;
+  const GREY = 0x2b2f35;
+  const boards = floorTexture(); boards.repeat.set(W / 2, D / 2);
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), surface({ map: boards, color: 0xffffff, roughness: 0.3, metalness: 0.02, envMap: vehicleEnvironment() || null, envMapIntensity: 0.35 }));
+  floor.rotation.x = -Math.PI / 2; floor.position.set(cx, 0.012, cz); floor.receiveShadow = true; floor.name = 'sports-floor';
+  group.add(floor);
+  overhead.box(W, 0.12, D, place(cx, top + 0.06, cz), WHITE);
+  for (let i = 0; i < 7; i += 1) glow.box(0.16, 0.03, D - 3, place(H.x0 + (W * (i + 0.5)) / 7, top - 0.02, cz), 0xfffaf0);
+  const wall = (x, z, w, d) => { solid.box(w, top, d, place(x, top / 2, z), WHITE, 0.98); solid.box(w + 0.01, 0.3, d + 0.01, place(x, 1.0, z), GREENX); metal.box(w + 0.01, 0.14, d + 0.01, place(x, 0.07, z), GREY); };
+  wall(cx, H.z0 + 0.1, W, 0.2);
+  wall(H.x0 + 0.1, cz, 0.2, D);
+  wall(H.x1 - 0.1, cz, 0.2, D);
+  const dz = H.z1 - 0.06, door = P.doors;
+  for (let x = H.x0 + 0.2; x <= H.x1 - 0.2 + 1e-6; x += (W - 0.4) / 18) metal.box(0.1, top, 0.14, place(x, top / 2, dz), GREY);
+  metal.box(W, 0.18, 0.16, place(cx, top - 0.09, dz), GREY); metal.box(W, 0.1, 0.16, place(cx, 0.05, dz), GREY);
+  const left = door.x - door.width / 2, right = door.x + door.width / 2;
+  glassB.box(left - H.x0 - 0.2, top - 0.2, 0.03, place((H.x0 + 0.2 + left) / 2, top / 2, dz), 0xffffff);
+  glassB.box(H.x1 - 0.2 - right, top - 0.2, 0.03, place((right + H.x1 - 0.2) / 2, top / 2, dz), 0xffffff);
+  glassB.box(door.width, top - door.height - 0.2, 0.03, place(door.x, (door.height + top) / 2, dz), 0xffffff);
+  for (const s of [-1, 1]) {
+    glassB.box(door.width / 2 - 0.06, door.height - 0.08, 0.04, place(door.x + s * (door.width / 4), door.height / 2, dz - 0.02), 0xffffff);
+    metal.box(0.06, door.height, 0.08, place(door.x + s * (door.width / 2), door.height / 2, dz - 0.02), GREY);
+  }
+  const exitCanvas = document.createElement('canvas'); exitCanvas.width = 256; exitCanvas.height = 80;
+  { const g = exitCanvas.getContext('2d'); g.fillStyle = '#0e5a35'; g.fillRect(0, 0, 256, 80); g.fillStyle = '#eafff2'; g.font = '800 46px "Helvetica Neue", Helvetica, Arial, sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText('EXIT', 128, 42); }
+  const exitTex = new THREE.CanvasTexture(exitCanvas); exitTex.colorSpace = THREE.SRGBColorSpace;
+  const exitSign = new THREE.Mesh(new THREE.PlaneGeometry(1.2, 0.36), new THREE.MeshBasicMaterial({ map: exitTex, toneMapped: false }));
+  exitSign.position.set(door.x, door.height + 0.5, dz - 0.09); exitSign.rotation.y = Math.PI;
+  group.add(exitSign);
+  const e = P.exit;
+  const mat = new THREE.Mesh(new THREE.PlaneGeometry(e.x1 - e.x0, e.z1 - e.z0), surface({ map: matTexture(), roughness: 0.9, metalness: 0 }));
+  mat.rotation.x = -Math.PI / 2; mat.rotation.z = Math.PI; mat.position.set((e.x0 + e.x1) / 2, 0.02, (e.z0 + e.z1) / 2); mat.name = 'sports-exit';
+  group.add(mat);
+  const brand = new THREE.Mesh(new THREE.PlaneGeometry(14, 3.5), new THREE.MeshBasicMaterial({ map: wallTexture(), toneMapped: false }));
+  brand.position.set(cx, 2.85, H.z0 + 0.22); brand.name = 'sports-wall';
+  group.add(brand);
+  metal.box(14.4, 3.9, 0.1, place(cx, 2.85, H.z0 + 0.15), GREY);
+  const k = P.desk, mx = (k.x0 + k.x1) / 2, mz = (k.z0 + k.z1) / 2;
+  gloss.box(k.x1 - k.x0, 1.04, k.z1 - k.z0, place(mx, 0.52, mz), WHITE);
+  solid.box(0.02, 0.7, k.z1 - k.z0 - 0.3, place(k.x0 - 0.01, 0.55, mz), GREENX);
+  metal.box(k.x1 - k.x0 + 0.08, 0.04, k.z1 - k.z0 + 0.08, place(mx, 1.06, mz), 0xc9a24a);
+  solid.box(0.06, 0.38, 0.62, place(mx + 0.1, 1.3, mz - 0.8, 0, 1, 1, 1, 0, -0.12), 0x15171a);
+  solid.box(0.5, 0.06, 0.5, place(mx + 1.0 - 1.0, 0.75, mz + 1.4), 0x24262a);
+  for (const p of P.plants) {
+    gloss.round(new THREE.CylinderGeometry(0.28, 0.22, 0.6, 16), place(p.x, 0.3, p.z), 0x1d1f22);
+    for (let n = 0; n < 7; n += 1) solid.round(new THREE.SphereGeometry(0.26 + (n % 3) * 0.05, 8, 6), place(p.x + Math.sin(n * 2.4) * 0.16, 0.85 + n * 0.17, p.z + Math.cos(n * 2.4) * 0.16), n % 2 ? 0x2f6b34 : 0x3d8040);
+  }
+  const stands = [];
+  for (const s of P.displays) {
+    const h0 = s.lift;
+    gloss.round(new THREE.CylinderGeometry(s.r, s.r * 1.015, h0, 64), place(s.x, h0 / 2, s.z), WHITE);
+    if (s.stand === 'platform') gloss.round(new THREE.CylinderGeometry(s.r * 0.86, s.r * 0.86, 0.012, 64), place(s.x, h0 + 0.006, s.z), 0x1f5f86);
+    glow.round(new THREE.TorusGeometry(s.r * 1.02, 0.025, 6, 96), place(s.x, 0.03, s.z, 0, 1, 1, 1, Math.PI / 2), 0x7dffb5);
+    if (s.upright) for (const k2 of [-0.32, 0.32]) metal.box(0.05, 1.35, 0.05, place(s.x + Math.cos(s.h) * k2 - Math.sin(s.h) * 0.42, h0 + 0.675, s.z - Math.sin(s.h) * k2 - Math.cos(s.h) * 0.42), GREY);
+    const item = SPORTS[s.item];
+    const a = s.h, px = s.x + Math.sin(a) * (s.r + 0.35), pz = s.z + Math.cos(a) * (s.r + 0.35);
+    metal.box(0.05, 0.55, 0.05, place(px, 0.275, pz), GREY);
+    const plate = new THREE.Mesh(new THREE.PlaneGeometry(0.7, 0.35), new THREE.MeshBasicMaterial({ map: plateTexture(item), toneMapped: false }));
+    plate.position.set(px, 0.62, pz); plate.rotation.set(-0.6, a, 0, 'YXZ'); plate.name = `sports-plate:${s.item}`;
+    group.add(plate);
+    stands.push({ display: s, top: h0 });
+  }
+  const posters = [];
+  if (!ON_DISK) {
+    for (const s of P.displays) {
+      if (s.stand === 'platform' || s.item === 'hoverboard' || s.item === 'e-unicycle') continue;
+      const west = s.x < cx, x = west ? H.x0 + 0.24 : H.x1 - 0.24;
+      const z = s.item === 'inline-skates' ? s.z + 4.2 : s.item === 'surfboard' ? s.z - 4.2 : s.z;
+      metal.box(0.06, 3.0, 2.5, place(x + (west ? -0.04 : 0.04), 2.75, z), 0x1d2024);
+      posters.push({ item: s.item, x, z, ry: west ? Math.PI / 2 : -Math.PI / 2 });
+    }
+    Promise.all(posters.map((q) => loadPoster(q.item))).then(() => {
+      for (const q of posters) {
+        const m = new THREE.Mesh(new THREE.PlaneGeometry(2.3, 2.875), new THREE.MeshBasicMaterial({ map: posterTexture(SPORTS[q.item]), toneMapped: false }));
+        m.position.set(q.x, 2.75, q.z); m.rotation.y = q.ry; m.name = `sports-poster:${q.item}`;
+        group.add(m);
+      }
+    });
+  }
+  const add = (batch, material, shadow) => { if (batch.empty) return null; const m = batch.build(material); m.receiveShadow = true; m.castShadow = !!shadow; group.add(m); return m; };
+  add(solid, surface({ vertexColors: true, roughness: 0.75, metalness: 0.02 }), true);
+  add(overhead, surface({ vertexColors: true, roughness: 0.9, metalness: 0 }), false);
+  add(gloss, surface({ vertexColors: true, roughness: 0.14, metalness: 0.1 }), true);
+  add(metal, surface({ vertexColors: true, roughness: 0.32, metalness: 0.75 }), false);
+  add(glow, new THREE.MeshBasicMaterial({ vertexColors: true, toneMapped: false }), false);
+  const glassMesh = add(glassB, new THREE.MeshStandardMaterial({ color: 0xbfd6e2, transparent: true, opacity: 0.16, roughness: 0.04, metalness: 0.1, side: THREE.DoubleSide, depthWrite: false }), false);
+  if (glassMesh) glassMesh.renderOrder = 3;
+  return { group, stands };
+}
+
+
+let shadowTexture = null;
+function softShadow() {
+  if (shadowTexture) return shadowTexture;
+  const c = document.createElement('canvas'); c.width = c.height = 64;
+  const g = c.getContext('2d'), r = g.createRadialGradient(32, 32, 2, 32, 32, 32);
+  r.addColorStop(0, 'rgba(0,0,0,0.55)'); r.addColorStop(0.6, 'rgba(0,0,0,0.28)'); r.addColorStop(1, 'rgba(0,0,0,0)');
+  g.fillStyle = r; g.fillRect(0, 0, 64, 64);
+  shadowTexture = new THREE.CanvasTexture(c);
+  return shadowTexture;
+}
+const UPRIGHT = 1.36;            // radians the surfboard is stood up from lying (78 degrees)
+function holderOf(display, standTop, group) {
+  const holder = new THREE.Group();
+  holder.position.set(display.x, standTop, display.z); holder.rotation.y = display.h;
+  group.add(holder);
+  const item = SPORTS[display.item];
+  void item;
+  const shadow = new THREE.Mesh(new THREE.PlaneGeometry(1, 1), new THREE.MeshBasicMaterial({ map: softShadow(), transparent: true, depthWrite: false, toneMapped: false }));
+  shadow.rotation.x = -Math.PI / 2; shadow.position.y = 0.006; shadow.renderOrder = 1;
+  holder.add(shadow);
+  return { display, holder, shadow, standTop, model: null, tier: null };
+}
+async function standingModel(id, tier) {
+  const pair = id === 'inline-skates';
+  const made = await Promise.all((pair ? [false, true] : [false]).map((mirror) => loadSport(id, { tier, mirror })));
+  const group = new THREE.Group(); group.name = `sports-display:${id}`;
+  made.forEach((m, k) => { m.pose({}); if (pair) m.group.position.x = (k ? 1 : -1) * 0.085; group.add(m.group); });
+  if (id === 'surfboard') {
+    const s = made[0];
+    s.group.rotation.x = -UPRIGHT;
+    s.group.updateMatrixWorld(true);
+    const box = new THREE.Box3().setFromObject(s.group);
+    s.group.position.y = -box.min.y; s.group.position.z = -(box.min.z + box.max.z) / 2 - 0.12;
+  }
+  return { group, dispose: () => { for (const m of made) m.dispose(); }, parts: made };
+}
+
+
+const PLAN = Object.freeze({
+  full: Object.freeze({ inspect: '2k', near: '2k', mid: '1k', far: '512', nearRanks: 3 }),
+  lite: Object.freeze({ inspect: '1k', near: '512', mid: '512', far: '512', nearRanks: 1 }),
+});
+
+function buildSports(scene, { lite = false, renderer = null } = {}) {
+  const exterior = new THREE.Group(); exterior.name = 'sports';
+  scene.add(exterior);
+  const outside = new THREE.Group(); outside.name = 'sports-compound';            // what stays drawn from inside, through the glass
+  scene.add(outside);
+  let court = null, railings = null, doors = null, front = null;
+  function ensureOutside() {
+    if (court) return;
+    court = buildForecourt(outside, { lite });
+    railings = buildRailings(outside);
+    front = buildExterior(exterior);
+    doors = buildDoors(exterior);
+  }
+  const TALL = 260;
+  function see(x, z, reach, tall = TALL) {
+    const haze = scene.fog ? scene.fog.far : Infinity;
+    const dx = Math.max(C.x0 - x, 0, x - C.x1), dz = Math.max(C.z0 - z, 0, z - C.z1);
+    outside.visible = Math.hypot(dx, dz) < Math.min(haze, reach + 40);
+    const bx = Math.max(B.x0 - x, 0, x - B.x1), bz = Math.max(B.z0 - z, 0, z - B.z1);
+    exterior.visible = !inside && Math.hypot(bx, bz) < Math.min(haze, reach + tall);
+  }
+  function load(x, z) {
+    if (x !== undefined && Math.hypot(P.doors.x - x, P.doors.z - z) > (lite ? 560 : 900)) return;
+    ensureOutside();
+  }
+
+  let hall = null, displays = [], inside = false, models = null;
+  function ensureHall() {
+    if (hall) return hall;
+    hall = buildHall();
+    hall.group.visible = inside;
+    scene.add(hall.group);
+    displays = hall.stands.map((s) => holderOf(s.display, s.top, hall.group));
+    models = hallModels({
+      items: displays.map((d) => ({ id: d.display.item })), lite, renderer, plan: PLAN[lite ? 'lite' : 'full'],
+      ranges: { inspect: 3.5, near: 9, mid: 18 },
+      load: (k, tier) => (ON_DISK ? Promise.reject(new Error('opened from the disk')) : standingModel(displays[k].display.item, tier)),
+      put: (k, model) => {
+        const d = displays[k];
+        d.holder.add(model.group);
+        const box = new THREE.Box3().setFromObject(model.group);
+        const size = box.getSize(new THREE.Vector3());
+        d.shadow.scale.set(Math.max(0.4, size.x * 1.15), Math.max(0.4, size.z * 1.1), 1);
+      },
+    });
+    return hall;
+  }
+  const SHADOW_NEAR = 8, SHADOW_KEEP = 10;
+  function updateDisplays(dt, { player, level = 0, sun = true }) {
+    const clock = performance.now() / 1000;
+    const gaps = displays.map((d) => Math.max(0, Math.hypot(d.display.x - player.x, d.display.z - player.z) - d.display.r));
+    models.update({ gaps, now: clock, mode: 'inside', level });
+    displays.forEach((d, k) => {
+      d.model = models.modelOf(k); d.tier = models.tierOf(k);
+      d.casts = sun && !!d.model && gaps[k] < (d.casts ? SHADOW_KEEP : SHADOW_NEAR);
+      castShadows(d.model, d.casts);
+    });
+  }
+  const READY = 50, RELEASE = 130;
+  function prepare(player) {
+    if (!models) return;
+    const clock = performance.now() / 1000;
+    const away = Math.hypot(player.x - P.doors.x, player.z - P.doors.z);
+    if (away > RELEASE) { models.update({ gaps: [], now: clock, mode: 'far' }); for (const d of displays) { d.model = null; d.tier = null; } return; }
+    if (away < READY) models.update({ gaps: displays.map((d) => Math.hypot(d.display.x - P.doors.x, d.display.z - P.doors.z)), now: clock, mode: 'near', ahead: lite ? 16 : Infinity });
+  }
+
+  let doorsOpen = 0;
+  return {
+    exterior, outside,
+    get hall() { return hall; },
+    get inside() { return inside; },
+    get front() { return front; },
+    get railings() { return railings; },
+    get court() { return court; },
+    load, see,
+    setInside(on) {
+      if (on === inside) return;
+      inside = on;
+      if (on) { ensureOutside(); ensureHall(); }
+      if (hall) hall.group.visible = on;
+      exterior.visible = !on;
+    },
+    near(x, z) { if (!hall && Math.hypot(x - P.doors.x, z - P.doors.z) < 60) { ensureOutside(); ensureHall(); } },
+    tick(dt, { player, people = [], level = 0, sun = true }) {
+      if (court && Math.hypot(player.x - P.doors.x, player.z - P.doors.z) < 200) {
+        const atDoors = people.some((q) => Math.hypot(q.x - P.doors.x, q.z - (P.doors.z + 1.2)) < 3.2);
+        doorsOpen = Math.max(0, Math.min(1, doorsOpen + (atDoors ? dt / 1.1 : -dt / 1.6)));
+        doors.set(doorsOpen);
+      }
+      if (inside && hall) updateDisplays(dt, { player, level, sun });
+      else prepare(player);
+    },
+    shown() { return displays.map((d) => ({ item: d.display.item, model: !!d.model, tier: d.tier, loaded: !!d.tier && sportLoaded(d.display.item, d.tier), casts: !!d.casts })); },
+    models: () => (models ? models.state() : null),
+    state: () => ({ built: !!court, hall: !!hall, inside, doors: doorsOpen }),
+  };
+}
+
+return { buildSports };
 })();
 
 __modules["client/render-supplied.js"] = (function () {
@@ -47768,7 +49324,7 @@ return { createGunNet };
 __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
-const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA } = __modules["sim/zone.js"];
+const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA } = __modules["sim/zone.js"];
 const { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } = __modules["sim/sim.js"];
 const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
@@ -47849,6 +49405,8 @@ const { createStandins } = __modules["client/vehicle-standins.js"];
 const { setCarDaylight, carsHeld, trimCars } = __modules["client/car-model.js"];
 const { bikesHeld, trimBikes } = __modules["client/bike-model.js"];
 const { buildCarshow } = __modules["client/render-carshow.js"];
+const { buildSports } = __modules["client/render-sports.js"];
+const { SPORTS } = __modules["sim/sports.js"];
 const { createSupplied } = __modules["client/render-supplied.js"];
 const { createTownBuildings } = __modules["client/render-town-buildings.js"];
 const { updateFinishes, finishState, setReflections, setWater } = __modules["client/render-finish.js"];
@@ -48314,10 +49872,10 @@ function start(carried) {
   let builtForCamera = [];
   const builtAt = (x, z, y) => { if (y > 3.4) return false; for (const b of builtForCamera) if (x > b.x0 - 0.25 && x < b.x1 + 0.25 && z > b.z0 - 0.25 && z < b.z1 + 0.25) return true; return false; };
   const rig = createCameraRig(camera, {
-    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
+    blocked: (x, z, y) => (inPowerbikeHall(x, z) || inCarHall(x, z) || inSportsHall(x, z) ? y < 1.3 && zoneSolid(x, z, 0.25) : zoneSolid(x, z, 0.25, y - zoneGroundY(x, z))) || (y > 1.95 && underLowRoof(x, z)) || builtAt(x, z, y),
     ground: (x, z) => zoneGroundY(x, z),
     terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationGroundAt(x, z) : NaN),
-    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) ? 0 : carshowBuildingAt(x, z)),
+    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) || inSportsHall(x, z) ? 0 : carshowBuildingAt(x, z) || sportsBuildingAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
   let lastFight = 0;                 // the last blow from the simulation that has been shown
@@ -48519,6 +50077,7 @@ function start(carried) {
       if (l.place.zone !== ZONE.id) continue;
       if (l.shop === POWERBIKE.shop) continue;
       if (l.shop === CARSHOW.shop) continue;
+      if (l.shop === SPORTS_MALL.shop) continue;
       const shop = l.shop ? zoneShop(l.shop) : null;
       const at = shop ? shop.marker : l.place;
       wanted.add(l.id);
@@ -48764,6 +50323,8 @@ function start(carried) {
 
   let carshowView = null, supplied = null, townBuildings = null;
   townSteps.push(['the car showroom', () => { carshowView = buildCarshow(scene, { lite: LITE, renderer, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }) }); }]);
+  let sportsView = null;
+  townSteps.push(['the sports mall', () => { sportsView = buildSports(scene, { lite: LITE, renderer }); }]);
   townSteps.push(['the owner\'s buildings and vehicles', () => {
     supplied = createSupplied(scene, { lite: LITE, maxTexture: pictureSize('supplied', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
     townBuildings = createTownBuildings(scene, { lite: LITE, maxTexture: pictureSize('building', { lite: LITE, most: renderer.capabilities.maxTextureSize }), env: LITE ? null : vehicleEnvironment() });
@@ -48889,6 +50450,65 @@ function start(carried) {
     }, 360);
   }
   const carListing = (car) => market.state.all.find((l) => l.shop === CARSHOW.shop && l.asset && l.asset.model === `car:${car}`) || null;
+
+  const SPORTS_HALL_ROOM = Object.freeze({ x0: SPORTS_MALL.hall.x0, z0: SPORTS_MALL.hall.z0, x1: SPORTS_MALL.hall.x1, z1: SPORTS_MALL.hall.z1, top: SPORTS_MALL.hall.ceiling });
+  const sports = {
+    inside: false,             // the player is in the hall
+    armed: true,               // the doors take them in (once they have stepped back from them)
+    talk: null,                // asking about a thing on show: { item, since, listing }
+    welcomed: false,
+  };
+  function goSports(way) {
+    if (fading) return;
+    fading = true;
+    controls.release(); input.keys.clear();
+    $('fade').classList.add('on');
+    setTimeout(() => {
+      const r = playing ? server.send({ type: way === 'in' ? 'sports.in' : 'sports.out' }) : { ok: false };
+      if (r.ok) {
+        predicted.x = r.x; predicted.z = r.z; predicted.heading = r.heading;
+        if (me) me.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
+        cam.yaw = r.heading; cam.pitch = way === 'in' ? 0.14 : STREET.pitch; cam.dist = way === 'in' ? 6.2 : cam.own; cam.back = false;
+        cam.target.set(r.x, 1.55 + zoneGroundY(r.x, r.z), r.z);
+        rig.snap(cam);
+        refreshView();
+        audio.chime(way === 'in' ? 'ok' : 'tap');
+        if (way === 'in' && !sports.welcomed) { sports.welcomed = true; ui.toast({ type: 'note', text: `${SPORTS_MALL.name}. Walk up to anything on show to ask about it: the conversation opens on your phone. The mat by the doors takes you back out.` }); }
+      } else if (r.message) ui.toast({ type: 'note', text: r.message });
+      setTimeout(() => { $('fade').classList.remove('on'); fading = false; }, 320);
+    }, 360);
+  }
+  const sportListing = (item) => market.state.all.find((l) => l.shop === SPORTS_MALL.shop && l.asset && l.asset.model === `sport:${item}`) || null;
+  async function askAboutSport(display) {
+    const item = SPORTS[display.item];
+    if (!item) return;
+    if (!online.available) { ui.toast({ type: 'note', text: `${SPORTS_MALL.name} sells through the market every player shares, and this copy of the game cannot reach it: the ${item.name} cannot be bought here.` }); return; }
+    if (!online.signedIn) { accountUI.open('signup', `To buy the ${item.name} you need an account.`); return; }
+    let l = sportListing(display.item);
+    if (!l) { await market.all(); l = sportListing(display.item); }
+    if (!l) { ui.toast({ type: 'note', text: `The ${item.name} is not on sale just now.` }); return; }
+    if (!playing || !inSportsHall(predicted.x, predicted.z)) return;
+    sports.talk = { item: display.item, since: host.game.state.real, listing: l.id };
+    ui.openDeal({ listing: l.id, at: { x: predicted.x, z: predicted.z } });
+  }
+  function tickSports() {
+    if (!playing || !view || !sportsView) return;
+    const self = view.self;
+    const inHall = inSportsHall(predicted.x, predicted.z);
+    if (inHall !== sports.inside) {
+      sports.inside = inHall;
+      sportsView.setInside(inHall);
+      if (!inHall) sports.talk = null;
+      soundTimer = 1;
+    }
+    sportsView.near(predicted.x, predicted.z);
+    const onFoot = !self.driving && !self.riding && !self.astride && !self.incar && !self.swimming && !self.dead && !self.down && !self.carried && !self.law.arrest && !self.fight;
+    const e = SPORTS_MALL.entry, far = Math.hypot(e.x - predicted.x, e.z - predicted.z);
+    if (far > e.radius + 0.9) sports.armed = true;
+    else if (!inHall && far < e.radius - 0.2 && sports.armed && onFoot && !ui.isOpen() && !fading && !accountUI.isOpen) { sports.armed = false; goSports('in'); }
+    if (inHall && onFoot && !fading && !uiBlocks() && onSportsExit(predicted.x, predicted.z)) { if (ui.isOpen()) ui.close(); sports.talk = null; goSports('out'); }
+    if (sports.talk && !ui.dealOpen()) sports.talk = null;
+  }
   async function askAboutCar(display) {
     const car = POWER_CARS[display.car];
     if (!car) return;
@@ -49025,6 +50645,16 @@ function start(carried) {
       ui.close();
       const ask = ZONE_CAST.showroomStaff ? `ask ${sellerOf(id).spec.name} about it` : 'ask about it on your phone';
       ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ${ask}.` : `${CARSHOW.name} is marked, ${CARSHOW.where}. Follow the line on the map at the top left through its gate to the showroom's glass doors and walk in: the ${l.name} is on the floor inside${ZONE_CAST.showroomStaff ? `, and ${sellerOf(id).spec.name} will help you` : ''}.` });
+      return;
+    }
+    if (l.shop === SPORTS_MALL.shop) {
+      const id = String((l.asset && l.asset.model) || '').replace(/^sport:/, '');
+      const stand = SPORTS_MALL.displays.find((d) => d.item === id);
+      const inHall = inSportsHall(predicted.x, predicted.z);
+      const at = inHall && stand ? { x: stand.x + Math.sin(stand.h) * (stand.r + 1.2), z: stand.z + Math.cos(stand.h) * (stand.r + 1.2) } : SPORTS_MALL.entry;
+      setWaypoint({ x: at.x, z: at.z, label: inHall ? l.name : SPORTS_MALL.name });
+      ui.close();
+      ui.toast({ type: 'note', text: inHall ? `The ${l.name} is marked on the floor. Walk up to it to ask about it on your phone.` : `${SPORTS_MALL.name} is marked, ${SPORTS_MALL.where}. Follow the line on the map at the top left through its gateway to the mall's glass doors and walk in: the ${l.name} is on the floor inside.` });
       return;
     }
     const shop = l.shop ? zoneShop(l.shop) : null;
@@ -49938,6 +51568,10 @@ function start(carried) {
         add(s.sim.state.x, s.sim.state.z, 2.4, { short: 'Talk', text: `Talk to ${s.spec.name}`, run: () => ui.toast({ type: 'note', text: `${s.spec.name}: "Welcome to ${CARSHOW.name}! Every car on this floor is for sale. Walk up to the one you like and ask me about it. I look after this side of the hall, and ${other} the other."` }) });
       }
     }
+    if (sports.inside) {
+      const at = sportsDisplayNear(here.x, here.z, 1.4);
+      if (at && SPORTS[at.display.item]) options.push({ d: at.gap - 1, short: 'Ask', text: `Ask about the ${SPORTS[at.display.item].name}`, run: () => askAboutSport(at.display) });
+    }
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
     for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) if (POWER_CARS[c.car]) add(c.x, c.z, POWER_CARS[c.car].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive your ${POWER_CARS[c.car].name}`, run: () => enterOwnCar(c.car) });
     for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model]) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
@@ -50639,7 +52273,7 @@ function start(carried) {
     return moversNow;
   }
   const inBox = (b, x, z) => x > b.x0 && x < b.x1 && z > b.z0 && z < b.z1;
-  const dirtAt = (x, z) => !onTar(x, z) && !inBox(CITY_AREA, x, z) && !inBox(CARSHOW.compound, x, z) && habitationAway(x, z) > 0 && !inBox(ZONE_JETTY, x, z);
+  const dirtAt = (x, z) => !onTar(x, z) && !inBox(CITY_AREA, x, z) && !inBox(CARSHOW.compound, x, z) && !inBox(SPORTS_MALL.compound, x, z) && habitationAway(x, z) > 0 && !inBox(ZONE_JETTY, x, z);
   const GROUND_WIND = Object.freeze({ x: -1.2, z: -0.5 });
   const bufferSize = new THREE.Vector2(), sunWay = new THREE.Vector3(), sunSeen = new THREE.Vector3();
   function sunOnScreen(skyState) {
@@ -51059,7 +52693,7 @@ function start(carried) {
 
       if (!driving && !riding && !astride && !incar && !aboard && speed > 0.3) {
         const foot = Math.floor(me.phase * 2);
-        if (foot !== stepPhase) { stepPhase = foot; audio.footstep(inside || showroom.inside || carshow.inside ? 'floor' : predicted.x > ZONE_JETTY.x0 && predicted.x < ZONE_JETTY.x1 && predicted.z > ZONE_JETTY.z0 ? 'wood' : onTar(predicted.x, predicted.z) ? 'tar' : 'earth'); }
+        if (foot !== stepPhase) { stepPhase = foot; audio.footstep(inside || showroom.inside || carshow.inside || sports.inside ? 'floor' : predicted.x > ZONE_JETTY.x0 && predicted.x < ZONE_JETTY.x1 && predicted.z > ZONE_JETTY.z0 ? 'wood' : onTar(predicted.x, predicted.z) ? 'tar' : 'earth'); }
       }
 
       if (!driving) car.steer = 0;
@@ -51153,7 +52787,7 @@ blood.update(dt, view.blood || []);
       if (gunPlay) gunPlay.frameOthers(dt, { peers: shownPeers, shooting: view.shooting || [], shots: view.shots || [], eye: { x: predicted.x, y: zoneGroundY(predicted.x, predicted.z) + 1.6, z: predicted.z }, rigOf: (key) => crowd.rigOf(key) });
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
-      tickDealMarkers(dt); tickShopActors(dt); tickShowroom(dt); tickPeerTalk(dt); tickCarshow(dt); tickCarPeerTalk(dt);
+      tickDealMarkers(dt); tickShopActors(dt); tickShowroom(dt); tickPeerTalk(dt); tickCarshow(dt); tickCarPeerTalk(dt); tickSports();
     if (online.available && online.status().state === 'down' && clock - greetedAt > 60 && !document.hidden) greetServer();
     monitor.mark('interface');
       inside = town.setInside(predicted.x, predicted.z);
@@ -51181,7 +52815,7 @@ blood.update(dt, view.blood || []);
 
     monitor.mark('sky and camera');
     const sitting = playing && view && (view.self.driving || view.self.riding || view.self.astride || view.self.incar);
-    const hall = playing && (showroom.inside || carshow.inside);
+    const hall = playing && (showroom.inside || carshow.inside || sports.inside);
     builtForCamera = playing ? builtBoxes() : [];
     const runShare = playing && view && !sitting && !view.self.swimming ? Math.max(0, Math.min(1, (going.speed - SPEED.walk) / Math.max(0.1, SPEED.run - SPEED.walk))) : 0;
     const gunView = playing && gunPlay ? gunPlay.cameraView() : null;
@@ -51194,7 +52828,7 @@ blood.update(dt, view.blood || []);
       sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
-      room: hall ? (carshow.inside ? CAR_HALL_ROOM : HALL_ROOM) : null,
+      room: hall ? (carshow.inside ? CAR_HALL_ROOM : sports.inside ? SPORTS_HALL_ROOM : HALL_ROOM) : null,
       dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
       longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : 0,
@@ -51238,6 +52872,7 @@ blood.update(dt, view.blood || []);
     const skyState = sky.update(dt, hour, weather, cam.target, camera, hall ? 1 : 0, playing ? wildAt(predicted.x, predicted.z) : 0);
     powerbike.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, level: quality.detail, sun: sky.sun.castShadow });
     if (playing && view) carshowView.tick(dt, { eye: camera.position, player: predicted, now: nowSeconds() % 1e5, people: [predicted, ...shownPeers], gateOpen: view.carshowGate || 0, level: quality.detail, sun: sky.sun.castShadow });
+    if (playing && view && sportsView) sportsView.tick(dt, { player: predicted, people: [predicted, ...shownPeers], level: quality.detail, sun: sky.sun.castShadow });
     night = skyState.night;
     setVehicleDaylight(1 - night);
     setCarDaylight(1 - night);
@@ -51290,13 +52925,17 @@ blood.update(dt, view.blood || []);
       soundTimer = 0;
       sources = soundSources(hour, weather.wet);
       const outdoors = Math.min(REACH[quality.detail], scene.fog.far * 0.82);
-      const reach = showroom.inside || carshow.inside ? HALL_SIGHT : outdoors;
+      const reach = showroom.inside || carshow.inside || sports.inside ? HALL_SIGHT : outdoors;
       world.see(cam.target.x, cam.target.z, reach, outdoors);
       townBuildings.setThin(!!(habitation && habitation.built));
       townBuildings.see(cam.target.x, cam.target.z, reach, playing && warm.stage >= 5 && !hall, hall ? 0 : undefined);
       if (playing && (warm.stage >= 5 || Math.hypot(predicted.x - POWERBIKE.portal.x, predicted.z - POWERBIKE.portal.z) < 160)) powerbike.load();
       if (playing && !showroom.inside && (warm.stage >= 5 || Math.hypot(predicted.x - CARSHOW.doors.x, predicted.z - CARSHOW.doors.z) < 400)) carshowView.load(predicted.x, predicted.z);
       carshowView.see(cam.target.x, cam.target.z, reach, hall ? 0 : undefined);
+      if (sportsView) {
+        if (playing && !showroom.inside && (warm.stage >= 5 || Math.hypot(predicted.x - SPORTS_MALL.doors.x, predicted.z - SPORTS_MALL.doors.z) < 400)) sportsView.load(predicted.x, predicted.z);
+        sportsView.see(cam.target.x, cam.target.z, reach, hall ? 0 : undefined);
+      }
       if (playing && !hall) { supplied.tick(predicted); if (warm.stage >= 5) supplied.loadAmbulance(); }
       if (!outskirts.ready && playing && (beyondWanted(predicted.x, predicted.z) || !billboards)) {
         beyondWait += 0.5;      // (this is looked at twice a second)
@@ -51316,7 +52955,7 @@ blood.update(dt, view.blood || []);
       let close = 0;
       for (const actor of crowd.actors()) if (actor.d < 14) close += 1;
       if (view) voicePlayer.update(view.speech, view.voicesNear, headOf);
-      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
+      audio.update(dt, { listener: { x: predicted.x, z: predicted.z, yaw: cam.yaw, indoors: !!inside || showroom.inside || carshow.inside || sports.inside }, hour, night, weather, shore: zoneShoreZ(predicted.x) - predicted.z, crowd: close, own: ownEngine, engines: engines.slice(0, 3).filter((e) => e.d < 60), peerBikes: peerRides.map((r) => ({ key: r.key, bike: r.id, x: r.x, z: r.z, rev: r.rev || 0, throttle: r.throttle || 0 })), peerCars: carsHeard, sources, panel: uiBlocks(), siren: ambulance ? ambulance.siren : null, habitat: habitatSound() });
     }
 
     monitor.mark('warming up');
@@ -51458,6 +53097,7 @@ blood.update(dt, view.blood || []);
     get gunPlay() { return gunPlay; }, gunNet, gunTargets: () => gunTargets(), aimBy: (dx, dy) => aimBy(dx, dy),
     get phoneHold() { return phoneHold; }, camera,
     get powerbike() { return powerbike; }, salesman, get salesmanActor() { return salesmanActor; }, showroom, goShowroom: (way) => goShowroom(way), askAbout: (bike) => askAbout(POWERBIKE.displays.find((d) => d.bike === bike)), hallCustomers: () => hallCustomers(),
+    get sportsView() { return sportsView; }, sports, goSports: (way) => goSports(way), askAboutSport: (item) => askAboutSport(SPORTS_MALL.displays.find((d) => d.item === item)),
     get carshowView() { return carshowView; }, get carSalesmen() { return carSalesmen; }, carshow, goCarshow: (way) => goCarshow(way), askAboutCar: (car) => askAboutCar(CARSHOW.displays.find((d) => d.car === car)), carHallCustomers: () => carHallCustomers(),
     get carView() { return carView; }, carState, get standins() { return standins; }, peerPhones, get contextLost() { return contextLost; }, get pictureGone() { return pictureGone; }, get restored() { return restored; }, loading, get frameErrors() { return frameErrors; }, watch, driveCar: (id) => enterOwnCar(id), leaveCar: () => leaveOwnCar(), driveTaken: (n) => enterTakenCar(n), get trafficCars() { return trafficCars; }, get near() { return near; }, refresh: () => { refreshView(); near = findNear(); prompt = findPrompt(); }, carTop: (id) => (POWER_CARS[id] ? carHandlingOf(POWER_CARS[id]).top : 0), get carsHeard() { return carsHeard; },
     online, market, accountSync, dealMarkers, get accountUI() { return accountUI; }, refreshDealMarkers, wallet: walletClient, confirm, mayEnter: () => mayEnter(), eraseSave: () => eraseSave(), route: () => route(), openGallery: () => openGallery(), closeGallery: () => closeGallery(), get gallery() { return gallery; }, exitGame: () => exitGame(), get exited() { return exited; }, get playing() { return playing; }, upgradeCharacter: () => upgradeCharacter(), get quoted() { return quoted; }, knownPath: () => knownPath(), syncProfile: () => syncProfile(),

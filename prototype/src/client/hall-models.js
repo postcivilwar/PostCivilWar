@@ -34,8 +34,10 @@ export function castShadows(model, on) {
 
 // items: [{ id }] in the hall's order; load(k, tier) → a promise of a model ({ group, dispose }); put(k, model) puts it
 // in the hall (and takes away the one it replaces, if any); ranges: { inspect, near, mid } metres; lite: a phone.
-export function hallModels({ items, load, put, lite = false, ranges, renderer = null, most = lite ? 1 : 2, settle = 2.5 }) {
-  const plan = HALL[lite ? 'lite' : 'full'];
+// (`plan`: the sets by distance, budget.js HALL by default; the sports mall gives its own, its things having no 4096 set
+// and no pictures of themselves)
+export function hallModels({ items, load, put, lite = false, ranges, renderer = null, most = lite ? 1 : 2, settle = 2.5, plan: given = null }) {
+  const plan = given || HALL[lite ? 'lite' : 'full'];
   const slots = items.map(() => ({ model: null, tier: null, loading: null, loadingTier: null, lowerSince: 0, failedAt: 0, ticket: 0 }));
   const ready = [];                 // [{ k, model, tier }] fetched, waiting their turn to be put in
   let running = 0, ticket = 1, dropped = 0;

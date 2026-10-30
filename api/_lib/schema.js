@@ -146,6 +146,31 @@ const CAR_STANDS = {
   'gold-hypercar': [-402.22, -176.39, 350, 'east'],
 };
 
+// The Post Civil War Sports Mall (30 October 2026): the owner's eight sports models, sold new, one of each to an
+// account, each from its own stand in the hall of the mall beside the Kwale road, by its saleswoman Nkem. The list
+// (names, prices in TR, top speeds, where each goes and what moves it, and the market's line for each) is the game's
+// own (prototype/src/sim/sports.js), and so are the stands (prototype/src/sim/zones/asaba-sports.js, `displays`);
+// they are copied here because the server is not built from the game's code, and a test checks they agree. Like a
+// motorcycle or a car, one is paid for with any TR, the arrival money included, starter TR first (migration 17): they
+// are things to ride. The prices are the owner's of 30 October 2026 (50 TR to 600 TR).
+const SPORTS_MALL = { shop: 'sports', name: 'Post Civil War Sports Mall', label: 'Post Civil War Sports Mall, Kwale Road, Asaba', zone: 'NG-AN-OGB-Z1', seller: 'Nkem' };
+const SPORTS = [
+  ['bicycle', 'Fat-Tyre Bicycle', 300, 30, 'land', 'pedals', 'A fat-tyre bicycle: tyres four inches wide for sand, dirt roads and potholes, a light frame and a wide bar. No motor: it goes as fast as you pedal.'],
+  ['speedboat', 'Speedboat', 600, 60, 'water', 'motor', 'A two-seat runabout with an outboard motor and a steering wheel at the front of its cockpit, made for the river.'],
+  ['e-scooter', 'Electric Scooter', 200, 25, 'land', 'battery', 'An electric scooter in white and black: stand on its deck, thumb the throttle, and go.'],
+  ['e-unicycle', 'Electric Unicycle', 150, 30, 'land', 'battery', 'One big wheel with a motor in it and a pedal each side: lean forward to go, back to slow. For those who can balance.'],
+  ['hoverboard', 'Hoverboard', 120, 12, 'land', 'battery', 'Two wheels and a deck between them, black with blue trim: lean forward to roll, press one foot to turn.'],
+  ['surfboard', 'Surfboard', 100, 25, 'water', 'waves', 'A six-foot shortboard in grey, with grip pads where the feet go: made for the waves.'],
+  ['inline-skates', 'Inline Skates', 75, 22, 'land', 'push', 'A pair of inline skates, four wheels in a line on each, red and black, with a buckle and a strap at the ankle.'],
+  ['skateboard', 'Skateboard', 50, 18, 'land', 'push', 'A long skateboard with big soft wheels: push off, ride, and carve down the road.'],
+].map(([id, name, tr, kmh, on, drive, blurb], i) => ({ id, name, price: tr * 2, kmh, on, drive, blurb, asset: `sport-${id}`, listing: `00000000-0000-4000-8000-0000000004${String(i + 1).padStart(2, '0')}` }));
+const SPORT_STOCK = 1000000;               // new from the mall: not a numbered edition, and not going to run out
+// where each stands in the hall (x, z)
+const SPORT_STANDS = {
+  'bicycle': [-662, -146], 'e-unicycle': [-654, -146], 'e-scooter': [-662, -158], 'hoverboard': [-654, -158],
+  'speedboat': [-645, -153.5], 'skateboard': [-636, -146], 'inline-skates': [-628, -146], 'surfboard': [-636, -158],
+};
+
 // A character upgrade: offered only above the arrival money, for one part in `parts` of the whole wallet.
 const UPGRADE = { above: WALLET.grant, parts: 4 };
 
@@ -1004,6 +1029,45 @@ const MIGRATIONS = [
        end $$`,
     ],
   },
+  {
+    id: 17,
+    name: 'the Post Civil War Sports Mall: eight things to ride, one of each to an account, and starter TR pays for one as for a motorcycle or a car',
+    statements: [
+      // the owner's eight sports models of 30 October 2026, each sold from its own stand in the mall's hall
+      ...SPORTS.map((t) => `insert into ${S}.assets (id, name, category, keywords, model, blurb) values ('${t.asset}', '${t.name.replace(/'/g, "''")}', 'sport', 'sport sports ride ${t.on} ${t.drive} ${t.id.replace(/-/g, ' ')}', 'sport:${t.id}', '${t.blurb.replace(/'/g, "''")}') on conflict (id) do nothing`),
+      ...SPORTS.map((t) => `insert into ${S}.listings (id, asset_id, kind, shop, shop_name, price, stock, zone, place_x, place_z, place_label) values ('${t.listing}', '${t.asset}', 'primary', '${SPORTS_MALL.shop}', '${SPORTS_MALL.name}', ${t.price}, ${SPORT_STOCK}, '${SPORTS_MALL.zone}', ${SPORT_STANDS[t.id][0]}, ${SPORT_STANDS[t.id][1]}, '${SPORTS_MALL.label}') on conflict (id) do nothing`),
+      // one of each to an account (the market also refuses a second, with a reason)
+      `create unique index holdings_one_sport on ${S}.holdings(owner_id, asset_id) where asset_id like 'sport-%'`,
+      // starter TR leaves a wallet for the town's charges and costs, for a motorcycle, a car, and now a thing to ride from
+      // the sports mall (a sale that says so, made by this server: see market.js, settle); the price of any of them goes to
+      // the town and to no player. Otherwise this is migration 14's rule, unchanged.
+      `create or replace function ${S}.wallet_entry_applies() returns trigger language plpgsql as $f$
+       declare whose text; why text; what text;
+       begin
+         select kind into whose from ${S}.wallets where id = new.wallet_id;
+         if not found then raise exception 'no such wallet' using errcode = 'P0001'; end if;
+         if whose = 'system' then
+           if new.bucket is not null then raise exception 'the bank''s own wallets hold TR of no kind' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+           return new;
+         end if;
+         if new.bucket is null then raise exception 'an entry in a player''s wallet says which TR it moves' using errcode = 'P0001'; end if;
+         select kind, coalesce(meta->>'starterFor', '') into why, what from ${S}.wallet_tx where id = new.tx_id;
+         -- (a motorcycle's, a car's or a sports thing's price goes to the town and to no player)
+         if what in ('motorcycle', 'car', 'sport') and new.amount > 0 then raise exception 'a motorcycle, a car or a thing from the sports mall is paid to the town' using errcode = 'P0001'; end if;
+         if new.bucket = 'starter' then
+           if new.amount < 0 and why <> 'game' and not (why = 'sale' and what in ('motorcycle', 'car', 'sport')) then raise exception 'starter TR pays the town''s charges and costs and for a motorcycle, a car or a thing from the sports mall, and nothing else' using errcode = 'P0001'; end if;
+           if new.amount > 0 and why not in ('grant', 'sale') then raise exception 'starter TR is not made that way' using errcode = 'P0001'; end if;
+           update ${S}.wallets set balance = balance + new.amount, starter = starter + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         elsif new.bucket = 'illicit' then
+           update ${S}.wallets set balance = balance + new.amount, illicit = illicit + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         else
+           update ${S}.wallets set balance = balance + new.amount where id = new.wallet_id returning balance into new.balance_after;
+         end if;
+         return new;
+       end $f$`,
+    ],
+  },
 ];
 
-module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE, SHOWROOM, MOTORCYCLES, POWERBIKE, POWERBIKE_STANDS, CARSHOW, CARS, CAR_STANDS };
+module.exports = { SCHEMA, MIGRATIONS, HOLARIS, WALLET, FIGURES, UPGRADE, SHOWROOM, MOTORCYCLES, POWERBIKE, POWERBIKE_STANDS, CARSHOW, CARS, CAR_STANDS, SPORTS_MALL, SPORTS, SPORT_STANDS };

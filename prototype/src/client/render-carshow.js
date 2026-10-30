@@ -83,8 +83,8 @@ function heavy(g, text, x, y, px, most, fill, spacing = 0.04) {
 // than at its ends, each row half a block along from the last, the ends of one row's blocks set into the waists of
 // the next. A picture of 2.4 metres square (ten blocks along, twenty-four rows), and its relief (the joints sunk,
 // the edges rounded) for the light to catch. `tone`: the blocks' colour; `accent`: every so many a darker one.
-const BLOCK = Object.freeze({ metres: 2.4, along: 10, rows: 24 });
-function pavingTextures(size, { tone = [158, 154, 147], spread = 14, seed = 1 } = {}) {
+export const BLOCK = Object.freeze({ metres: 2.4, along: 10, rows: 24 });
+export function pavingTextures(size, { tone = [158, 154, 147], spread = 14, seed = 1 } = {}) {
   const colour = document.createElement('canvas'), height = document.createElement('canvas');
   colour.width = colour.height = height.width = height.height = size;
   const g = colour.getContext('2d'), h = height.getContext('2d');

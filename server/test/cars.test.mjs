@@ -62,7 +62,9 @@ test('the market sells the twenty at the showroom, each from its own stand and a
     assert.deepEqual(l.place, { zone: ZONE, x: CAR_STANDS[id][0], z: CAR_STANDS[id][1], label: 'Post Civil War Car Showroom, Kwale Road, Asaba' }, id);
   }
   // found by what they are and by where they are sold; and a car is not a motorcycle
-  for (const q of ['cars', 'CAR', 'post civil war car showroom', 'kwale road']) assert.equal((await guest.ok('market.list', { q })).listings.length, 20, q);
+  for (const q of ['cars', 'CAR', 'post civil war car showroom']) assert.equal((await guest.ok('market.list', { q })).listings.length, 20, q);
+  // (the sports mall is on the Kwale road too, since 30 October 2026)
+  assert.equal((await guest.ok('market.list', { q: 'kwale road' })).listings.filter((l) => l.asset.category === 'car').length, 20, 'kwale road');
   assert.deepEqual((await guest.ok('market.list', { q: 'suv' })).listings.map((l) => l.asset.model).sort(), ['car:black-luxury-suv', 'car:black-square-suv', 'car:camo-expedition', 'car:peach-suv', 'car:white-square-suv']);
   // (the é of the Mint Sports Coupé is kept as it was written, and found either way)
   for (const q of ['coupe', 'Coupé']) assert.deepEqual((await guest.ok('market.list', { q })).listings.map((l) => [l.asset.model, l.asset.name]), [['car:mint-sports-coupe', 'Mint Sports Coupé']], q);

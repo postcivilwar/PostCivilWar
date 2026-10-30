@@ -9,7 +9,7 @@
 // already asks "is this player on a motorcycle?" (fights, arrests, treatment, what may be done meanwhile) gets
 // the same answer. A ridden bike strikes whoever is in its way as any motorcycle does (impact.js).
 import { POWER_BIKES, handlingOf, FASTEST } from './power-bikes.js';
-import { zoneWalkable, zoneRoomAt, inPowerbikeHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
+import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
 import { GameError } from './registry.js';
 
@@ -63,7 +63,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     let at;
     if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < 3) at = parked;
     else {
-      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
+      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inSportsHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
       // (the habitation is walked: no vehicle in it, 20 October 2026)
       if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your motorcycle is brought to you at its car park.');
       if (!zoneWalkable(p.x, p.z, obstacles(), ROOM)) throw new GameError('NO_ROOM', 'There is no room for a motorcycle here. Go out to the road.');

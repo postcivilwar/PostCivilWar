@@ -3950,6 +3950,94 @@ the console). Its first runs: a car taken beside an officer was the officer's pr
 accelerator took the car 1.3 m on this machine (now it drives until it has gone 3 m); one car's lamps not yet set in a
 frame (now judged on those placed). The others as above.
 
+## The Post Civil War Sports Mall (30 October 2026)
+
+The owner's brief of 30 October 2026, 16:29 Lagos time: "I have uploaded a GLB file for multiple sports assets: a
+skateboard, a skating shoe, a bicycle, and other sports equipment. I want you to create a dedicated shopping mall
+environment, similar to the car showroom you previously created. In this mall, these items must be listed for sale.
+Users will buy them using TR currency." His answers at 22:01: the mall built in the game's own style; the speedboat at
+600 TR, the bicycle at 300 TR, the electric scooter at 200 TR and the skateboard the cheapest, at 50 TR; surfing only
+on the river by the town, never at the lagoon. This is the first part of that brief: the mall, and buying. Riding what
+is bought, the townspeople riding bicycles, skateboards and skates in the streets, taking them, the speedboat and the
+three naval ships on the river and surfing are the parts still to come.
+
+### His nine models (`assets/sports/`, `tools/sports/sports.py`, `src/client/sports-model.js`)
+
+His files are in `assets/sports/` exactly as he sent them (their SHA-256 in `sports.json` and
+`test/fixtures/sports-masters.json`, their MD5 in `test/originals.test.mjs`; `test/sports.test.mjs` and the build refuse
+anything else): a fat-tyre bicycle, a skateboard (a long one), one inline skate, an electric scooter, a hoverboard, an
+electric unicycle, a speedboat, a surfboard and a naval ship. Each is one material and one colour picture (2048 pixels;
+the skateboard's and the surfboard's 4096), built of separately named parts, the wheels among them; each was made about
+one unit long, some of them turned in their files (the scooter by 50 degrees, the unicycle by 45, the skate by 18, the
+ship by 10). `tools/sports/sports.py` makes the game's copy of each: every triangle of the file with its own points,
+normals and texture places, turned as one to face +Z, stood on the ground, and made its size in metres by one factor for
+the whole (the bicycle 1.75 m long, its wheels 0.73 m; the skateboard 0.98 m; the skate 0.31 m, its wheels 80 mm; the
+scooter 1.15 m to its bars; the hoverboard 0.58 m across; the unicycle 0.56 m tall; the speedboat 5.2 m; the surfboard
+1.83 m; the ship 120 m, its size on the river still to be settled); its triangles sorted into the parts that move (each
+wheel about its own axle, found with `tools/vehicles/wheelfit.py` as the cars' are; the bicycle's fork, bars and front
+wheel about the fork's line, its cranks and pedals about the bottom bracket; the skateboard's trucks; the scooter's bars;
+the boat's motor and steering wheel; the skate's back pair of wheels, one part in the file, cut in two between them);
+and where a rider's seat, hands and feet go. Its picture is sent at 2048 (a computer), 1024 (a phone) and 512: nothing
+larger than 2048 goes to any device. Nothing was made lighter in its shape: the copies have every triangle of the files.
+
+The models carry made-up lettering from the program that made them (a word on the unicycle's shell, a mark on the skate's
+tongue), none of it a maker's name.
+
+### The mall (`src/sim/zones/asaba-sports.js`, `src/client/render-sports.js`)
+
+Beside the Kwale road just out of Asaba, on the inland side, between the airport's road and the car showroom (the
+roadside shops that stood in front of it are taken away). A compound of 114 by 110 m with low white railings, open to the
+road through a gateway between two white pillars under an arch with the name; paving blocks over all of it, the walk to
+the doors in a darker block, parking bays marked either side, palms in planters and lamps. The mall is the game's own
+building: two storeys in white render on a dark plinth, 50 m along the road and 28 m deep, the ground floor's front all
+glass between steel mullions with sliding glass doors in its middle under a canopy, a band of dark windows above, the
+name (POST CIVIL WAR SPORTS MALL, with the rising sun) across the front and standing on the roof, and either side of the
+doors a tall green banner with one of the game's own pictograms (riding, surfing).
+
+Walked up to, its doors open and stepping through them takes the player in (`sports.in`; the mat inside them back out,
+`sports.out`), as at the car showroom. The hall is the whole ground floor: pale polished boards, white walls with a green
+band, lines of light in the ceiling, the name on the back wall, the sales desk against the east wall, plants. The eight
+things are on round white stands, each raised to where it is best seen, a light round each, a plate on a post giving its
+name, what moves it and how fast it goes, and its price: the speedboat on a wide platform in the middle facing the doors,
+the bicycle, the e-unicycle, the e-scooter and the hoverboard on the west side, the skateboard, the skates (the pair, the
+left one the right one's mirror), and the surfboard standing on its tail in a rack on the east. Each is the owner's model
+itself with the picture its distance asks for (`hall-models.js`, with the mall's own plan): on a computer the 2048 for
+the nearest three, the 1024 across the hall, the 512 at its far end; on a phone the 1024 for the one the player stands
+at and the 512 for the rest (no picture stands in for any of them). They are made ready as the player comes up to the
+doors, and let go once the player is 130 m away.
+
+### Buying (`src/sim/sports.js`, `api/_lib/schema.js` migration 17, `api/_lib/market.js`, `src/client/ui-market.js`)
+
+| | TR |
+| --- | --- |
+| Speedboat | 600 |
+| Fat-Tyre Bicycle | 300 |
+| Electric Scooter | 200 |
+| Electric Unicycle | 150 |
+| Hoverboard | 120 |
+| Surfboard | 100 |
+| Inline Skates (the pair) | 75 |
+| Skateboard | 50 |
+
+The owner named the speedboat's, the bicycle's, the scooter's and the skateboard's; the other four are set between, in
+the order they had in the plan he was sent. The naval ship is not for sale. Walked up to, a thing on show offers "Ask
+about the ...": the phone's conversation opens with Nkem, the mall's saleswoman (one of the game's people, her answers
+automatic, and she says so), its card showing what moves it, its top speed and its price, with questions to tap. Her
+answers are made by the server from what the mall knows of the thing and say nothing that is not so; the price is the
+price. Like a motorcycle or a car, any TR pays for one, the arrival money included, starter TR first (the database's own
+rule, `wallet_entry_applies`, now lets starter TR go to the town for a thing from the mall as for a motorcycle or a car,
+and the bank's audit agrees); one of each to an account, new or second-hand (`holdings_one_sport`). A bought thing is in
+Property with its photographs from all round (`tools/sports/turntables.mjs`); sold on, what the arrival money paid for it
+is arrival money again. The market finds them by "sport", by what they are and by the mall's name.
+
+### Tests
+
+`test/sports.test.mjs` (his files and the game's copies), `test/sports-mall.test.mjs` (the prices, where the mall stands,
+what is solid, the stands, the doors, nothing driven or ridden into the hall), `server/test/sports.test.mjs` (against a
+real PostgreSQL: the lists agree, the eight sold where they stand at the owner's prices, Nkem's greeting and answers,
+bought with the arrival money, one of each, not more than there is, sold on), and in a browser `test/sports.mjs` with a
+computer's settings and a phone's.
+
 ## Tests
 
 ```
@@ -3985,6 +4073,7 @@ node test/stars.mjs out/                           # the police's stars: none wh
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown
+../server/with-postgres.sh node test/sports.mjs out/ [phone]  # the Post Civil War Sports Mall: the compound and the building, in and out by the doors, the eight things on their stands with the pictures their distance asks for, asking Nkem, buying with the arrival money, Property, the models let go
 ../server/with-postgres.sh node test/carshow.mjs out/    # the Post Civil War Car Showroom: the compound, the gate, the cameras, in and out by the doors, the cars, Tochi and Oluchi, asking and buying with earned TR, driving (the engine, the speedometer, steering, the brake, the gate, getting out), the lamps at night, another player's car
 node test/bike.mjs out/                            # the power bike's controls and engines (with nothing to ride yet)
 node test/outskirts.mjs out/                       # the road to Onitsha, the airport and the bridge, walked
