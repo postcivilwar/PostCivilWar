@@ -296,8 +296,20 @@ const start = (x) => go(x, -43, Math.PI / 2);
   check('every one got off stands where it was left, drawn there', LAND.every((id) => parked.town.includes(id)) && parked.drawn.filter((k) => k.startsWith('park:')).length >= 3, parked);
   await shot('13-left-standing');
   // back on one where it stands (the prompt beside it)
-  const near = await page.evaluate(() => { const n = window.__nlw; const b = n.view.self.ownSports.parked.find((q) => q.item === 'skateboard'); n.place(b.x + 0.9, b.z); const p = n.prompt(); return p ? p.text : null; });
-  check('beside one of them the player is offered to ride it again', near === 'Ride your Skateboard', near);
+  // (beside the skateboard, on its side away from the others; the offer is for whichever is nearest there)
+  const near = await page.evaluate(() => {
+    const n = window.__nlw, parked = n.view.self.ownSports.parked;
+    const b = parked.find((q) => q.item === 'skateboard');
+    const spots = [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).filter((q) => n.walkable(q.x, q.z));
+    const away = (q) => Math.min(...parked.filter((o) => o !== b).map((o) => Math.hypot(o.x - q.x, o.z - q.z)));
+    const at = spots.sort((a, c) => away(c) - away(a))[0] || { x: b.x + 0.9, z: b.z };
+    n.place(at.x, at.z);
+    const nearest = parked.slice().sort((a, c) => Math.hypot(a.x - at.x, a.z - at.z) - Math.hypot(c.x - at.x, c.z - at.z))[0];
+    const p = n.prompt();
+    return { text: p ? p.text : null, nearest: nearest.item };
+  });
+  const wanted = near.nearest === 'inline-skates' ? 'Put your skates on' : `Ride your ${SPORTS[near.nearest].name}`;
+  check('beside one of them the player is offered to ride it again', near.text === wanted, near);
 }
 
 if (PHONE) {
