@@ -11741,6 +11741,7 @@ const SPORT_RIDING = Object.freeze({
   giveWay: 4,              // real seconds held up in the middle of the road by something standing still: then to the side
   footWait: 3,             // real seconds waited, ringing, for someone on foot in the way to step aside: then round them
   aside: 1.0,              // m/s: moving over to the side of the road, giving way
+  glide: Object.freeze({ bicycle: 0.93, skateboard: 0.72, 'inline-skates': 0.78 }),  // of their pace: gliding down to it
   pause: Object.freeze([10, 30]),     // real seconds stood at the roadside now and then
   between: Object.freeze([260, 720]), // metres ridden between stops
   bell: 8,                 // metres: a cyclist rings for someone on foot this near ahead
@@ -11983,7 +11984,9 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     } else if (toEnd < SPORT_RIDING.end + 10) target = Math.min(target, SPORT_RIDING.turning + (toEnd - SPORT_RIDING.end) * 0.35);
     ride.speed = r.v; ride.lean = 0; ride.heading = r.h; ride.phase = r.phase;
     const short = target - r.v;
-    stepSport(ride, { throttle: short > 0.05 ? clamp(short * 1.6 + 0.35, 0, 1) : 0, brake: short < -0.4 ? 1 : 0 }, dt, { handling: h });
+    if (r.v >= target - 0.05) r.coast = true; else if (r.v < target * SPORT_RIDING.glide[r.item]) r.coast = false;
+    const drive = short > 0.05 && !r.coast ? clamp(short * 1.6 + 0.35, 0, 1) : 0;
+    stepSport(ride, { throttle: drive, brake: short < -0.4 ? 1 : 0 }, dt, { handling: h });
     let v = ride.speed;
     if (v > target + 0.05) v = Math.max(target, r.v - SPORT_RIDING.brake * dt);
     r.v = Math.max(0, v); r.phase = ride.phase;
@@ -11998,7 +12001,7 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
         const along = (o.x - r.x) * ux + (o.z - r.z) * uz;
         const turned = (o.h || 0) - r.h, ca = Math.abs(Math.cos(turned)), sa = Math.abs(Math.sin(turned));
         const reachAlong = ca * (o.hl || 0.5) + sa * (o.hw || 0.4), reachAcross = ca * (o.hw || 0.4) + sa * (o.hl || 0.5);
-        if (Math.abs(along) > reachAlong + front + 0.4) return false;
+        if (along > reachAlong + front + 0.4 || along < -(reachAlong + front + (o.v > 0.3 ? 2.5 : 0.4))) return false;
         const side = (latOf(road, o.x, o.z, r.dir) - r.lat) * toward;
         return side > 0 && side - reachAcross - 0.35 < 0.25;
       });
@@ -12012,7 +12015,8 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     r.along += r.v * dt * r.dir;
     [r.x, r.z] = pointOf(road, r.along, r.lat, r.dir);
     r.next -= r.v * dt;
-    if (r.next <= 0 && Math.abs(r.lat - want) < 0.1 && !ahead) { r.mode = 'stop'; r.v = 0; r.until = real() + SPORT_RIDING.pause[0] + hash(r.i, Math.floor(real())) * (SPORT_RIDING.pause[1] - SPORT_RIDING.pause[0]); }
+    const followed = () => list.some((o) => { if (o.rider === r.n || !(o.v > 0.3)) return false; const along = (o.x - r.x) * Math.sin(r.h) + (o.z - r.z) * Math.cos(r.h); return along < 0 && along > -10 && Math.abs(latOf(road, o.x, o.z, r.dir) - r.lat) < 1.4; });
+    if (r.next <= 0 && Math.abs(r.lat - want) < 0.1 && !ahead && !followed()) { r.mode = 'stop'; r.v = 0; r.until = real() + SPORT_RIDING.pause[0] + hash(r.i, Math.floor(real())) * (SPORT_RIDING.pause[1] - SPORT_RIDING.pause[0]); }
   }
 
   function returning(r, t) {
@@ -45519,7 +45523,7 @@ function createSportView(scene, { lite = false, base = 'sports/', onError = () =
       let gap = short();
       for (let i = 0; i < 18 && gap > 0; i += 1) { turnBone(spine, across, 0.06); const now = short(); if (now >= gap - 1e-4) { turnBone(spine, across, -0.06); break; } gap = now; }
       gap = short();
-      if (gap > 0) { me.group.position.add(dirOf(me, 0, 0, 1).multiplyScalar(Math.min(0.15, gap * 1.15))); me.group.updateMatrixWorld(true); }
+      if (gap > 0) { me.group.position.add(dirOf(me, 0, 0, 1).multiplyScalar(Math.min(0.22, gap * 1.15))); me.group.updateMatrixWorld(true); }
     }
     for (const s of ['l', 'r']) {
       const a = L.arm[s];
