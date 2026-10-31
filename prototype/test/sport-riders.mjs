@@ -175,7 +175,8 @@ if (board) {
   await shot('c1-skateboarder');
   await release(board.n);
   const g = await watch(board.n, (q, got) => got.length >= 16, 300, 0.2);
-  const down = g.filter((q) => q.state && q.state.push > 0.6 && q.feet && Math.min(q.feet[0][1], q.feet[1][1]) - q.ground < 0.14);
+  // (a figure's ankle stands up to 0.14 m above its sole in a heeled shoe: on the road it is that high)
+  const down = g.filter((q) => q.state && q.state.push > 0.6 && q.feet && Math.min(q.feet[0][1], q.feet[1][1]) - q.ground < 0.19);
   const on = g.filter((q) => q.state && q.state.push < 0.2 && q.feet && q.feet.every((f) => f[1] - q.ground > 0.08));
   check('C: pushing: a foot down to the road beside the board, then back on it', down.length >= 2 && on.length >= 2, { down: down.length, on: on.length, of: g.length });
   await shot('c2-skateboarder-going');
