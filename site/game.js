@@ -11188,7 +11188,14 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
 
   const nearestPlayer = (x, z) => { let d = Infinity; for (const id of Object.keys(players)) { const q = players[id]; const g = Math.hypot(q.x - x, q.z - z); if (g < d) d = g; } return d; };
   const anyPlayers = () => Object.keys(players).length > 0;
-  const busy = () => { const out = new Set(); for (const c of cars) if (c.to >= 0 && (onRoads(c))) out.add(c.to); return out; };
+  const busy = () => {
+    const out = new Set();
+    for (const c of cars) if (c.to >= 0 && (onRoads(c))) out.add(c.to);
+    const there = cars.filter((c) => c.mode === 'kept' || c.mode === 'returning' || c.mode === 'taken').map((c) => [c.x, c.z]);
+    if (hub.ownCars && hub.ownCars.boxes) for (const b of hub.ownCars.boxes()) there.push([(b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2]);
+    if (there.length) for (const st of NET.stops) if (there.some(([x, z]) => Math.hypot(x - st.x, z - st.z) < 5)) out.add(st.id);
+    return out;
+  };
 
   function chooseStop(c, from) {
     const taken = busy();
@@ -11408,7 +11415,8 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     if (c.passing && c.d > c.passing.past) c.passing = null;
     const walkers = peopleNear(c, t);
     if (walkers.length) obstacles = obstacles.concat(walkers);
-    const way = ahead(c, w, obstacles, c.passing ? c.passing.need : 0, null, TRAFFIC.look, c.passing ? c.passing.past + s.length / 2 : Infinity);
+    const over = c.passing ? Math.sign(c.passing.need) * Math.min(Math.abs(c.side || 0), Math.abs(c.passing.need)) : 0;
+    const way = ahead(c, w, obstacles, over, null, TRAFFIC.look, c.passing ? c.passing.past + s.length / 2 : Infinity);
     const ghost = real() < (c.ghostUntil || 0);
     const next = w.junctions.find((j) => j.enter > front - 0.01 && !(c.booked && c.booked.node === j.node && c.booked.enter === j.enter));
     const redBefore = (j) => !!j && line < Infinity && upTo < Infinity && line < j.enter - front + 1;
@@ -11435,7 +11443,9 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
         const most = road.lane + road.w / 2 - s.width / 2 - 0.3, least = -(road.w / 2 - road.lane - s.width / 2 - 0.2);
         const sides = [way.left + room, way.left - room].filter((v) => v <= most && v >= least).sort((a, b) => Math.abs(a) - Math.abs(b));
         const past = c.d + way.gap + way.long * 2 + s.length + 1.5;
+        const junctionNear = w.junctions.some((j) => j.leave > front - 1 && j.enter < past + 8);
         for (const need of sides) {
+          if (need > 0.5 && junctionNear) continue;
           const clear = ahead(c, w, obstacles, need, way.o, need > 0.5 ? 70 : past - c.d + 4, need > 0.5 ? Infinity : past + 2);
           if (clear.gap > past - front + (need > 0.5 ? 30 : 1)) { c.passing = { need, past }; c.facing = 0; book.passed = (book.passed || 0) + 1; break; }
         }
@@ -11453,6 +11463,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     c.v = want < c.v ? Math.max(want, c.v - TRAFFIC.hard * dt) : Math.min(want, c.v + TRAFFIC.accel * dt);
     c.brake = c.v < before - 0.02 || (c.v < 0.05 && want < 0.05) ? 1 : 0;
     c.held = line < Infinity && c.v < 0.3;
+    c.waitRider = way.o && way.o.rider !== undefined && way.gap < 6 && c.v < 0.3 ? way.o.rider : -1;
     c.blockedBy = blocked && way.car >= 0 ? way.car : -1;
     if (blocked && way.car >= 0 && cars[way.car].blockedBy === c.n && c.n > way.car && (c.waited || 0) > 4) { c.ghostUntil = real() + 3; book.ghosts = (book.ghosts || 0) + 1; c.waited = 0; }
     if (blocked && c.v < 0.05 && !c.held) c.waited = (c.waited || 0) + dt; else c.waited = 0;
@@ -11526,10 +11537,11 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   function returning(c, t) {
     const actors = hub.actors;
     const owner = c.i;
+    const sendFor = () => { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); const sent = actors.get(owner); if (sent) sent.after = 0; c.walking = real(); };
     if (actors) {
       if (!actors.has(owner)) {
-        if (real() - (c.tried || -1e9) > 4) { c.tried = real(); if (actors.take(owner, t)) { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); c.walking = real(); } }
-      } else if (!c.walking && !actors.dead(owner)) { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); c.walking = real(); }
+        if (real() - (c.tried || -1e9) > 4) { c.tried = real(); if (actors.take(owner, t)) sendFor(); }
+      } else if (!c.walking && !actors.dead(owner)) sendFor();
     }
     const m = actors && actors.get(owner);
     if (m && c.walking) {
@@ -11540,7 +11552,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
         Object.assign(c, { mode: 'stop', v: 0, to: -1, until: real() + 4, since: real(), road: at ? at.road : -1, along: at ? at.along : 0, dir: at ? at.dir : 1, fromLat: undefined });
         return;
       }
-      if (real() - c.walking > 4 && m.mode !== 'go') { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); c.walking = real(); }
+      if (real() - c.walking > 4 && (m.mode !== 'go' || m.home)) sendFor();
     }
     if (((!m || !c.walking) && real() - c.since > 20) || real() - c.since > 240) {
       if (near(c) > TRAFFIC.apart) { if (m) actors.release(owner); c.walking = 0; goHome(c); }
@@ -11624,6 +11636,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   }
 
   const api = { tick, list, boxes, seizable, freeze, take, leftBy, enter, moved, recover, keptBy, audit, locate, cars, onShift, shiftOf, wayOf: (n) => ways.get(n) || null, network: NET,
+    waitingFor: (rider) => cars.some((c) => c.mode === 'drive' && c.waitRider === rider),
     claims: () => [...claims].map(([node, m]) => [node, [...m]]) };
   hub.traffic = api;
   return api;
@@ -11725,6 +11738,9 @@ const SPORT_RIDING = Object.freeze({
   brake: 2.6,              // m/s² at most, slowing for something
   end: 12,                 // metres short of the road's end a rider turns round (clear of the junction there)
   turning: 2.2,            // m/s: going round, no faster
+  giveWay: 4,              // real seconds held up in the middle of the road by something standing still: then to the side
+  footWait: 3,             // real seconds waited, ringing, for someone on foot in the way to step aside: then round them
+  aside: 1.0,              // m/s: moving over to the side of the road, giving way
   pause: Object.freeze([10, 30]),     // real seconds stood at the roadside now and then
   between: Object.freeze([260, 720]), // metres ridden between stops
   bell: 8,                 // metres: a cyclist rings for someone on foot this near ahead
@@ -11795,7 +11811,7 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
   const real = () => state.real;
   const ride = { speed: 0, lean: 0, heading: 0, phase: 0, pushing: false };
 
-  const out = (r) => r.mode === 'ride' || r.mode === 'stop' || r.mode === 'turn';
+  const out = (r) => r.mode === 'ride' || r.mode === 'stop' || r.mode === 'turn' || r.mode === 'aside';
   const shown = (r) => out(r) || r.mode === 'kept' || r.mode === 'returning' || r.mode === 'taken';
   const roadOf = (r) => roads.get(r.road) || null;
   const nearestPlayer = (x, z) => { let d = Infinity; for (const id of Object.keys(players)) { const q = players[id]; d = Math.min(d, Math.hypot(q.x - x, q.z - z)); } for (const v of visitors()) d = Math.min(d, Math.hypot(v.x - x, v.z - z)); return d; };
@@ -11812,7 +11828,8 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     const road = roadOf(r);
     if (!road) return;
     for (let k = 0; k < 6; k += 1) {
-      const along = road.a0 + SPORT_RIDING.end + 2 + hash(r.i, Math.floor(t / 3600) * 9 + k) * (road.a1 - road.a0 - 2 * SPORT_RIDING.end - 4);
+      const clear = SPORT_RIDING.end + road.w / 2 + 2;
+      const along = road.a0 + clear + hash(r.i, Math.floor(t / 3600) * 9 + k) * (road.a1 - road.a0 - 2 * clear);
       const dir = hash(r.i, Math.floor(t / 3600) * 9 + k + 5) < 0.5 ? 1 : -1;
       const lat = edgeLat(road);
       const [x, z] = pointOf(road, along, lat, dir);
@@ -11828,7 +11845,7 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
 
   function obstaclesNow() {
     const list = [];
-    if (hub.traffic && hub.traffic.list) for (const c of hub.traffic.list(0, -150, null)) list.push({ x: c.x, z: c.z, h: c.h, hw: 1.05, hl: 2.5, v: Math.max(0, c.speed || 0), car: true });
+    if (hub.traffic && hub.traffic.list) for (const c of hub.traffic.list(0, -150, null)) list.push({ x: c.x, z: c.z, h: c.h, hw: 1.05, hl: 2.5, v: Math.max(0, c.speed || 0), car: true, id: `c${c.n}`, held: !!c.held });
     for (const id of Object.keys(players)) {
       const q = players[id];
       if (q.incar && q.pcar) list.push({ x: q.pcar.x, z: q.pcar.z, h: q.pcar.h, hw: 1.05, hl: 2.5, v: Math.max(0, (q.pcar.drive && q.pcar.drive.speed) || 0), car: true });
@@ -11861,14 +11878,42 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     return best;
   }
 
-  function blockedAhead(r, list, ahead, room) {
-    const px = r.x + Math.sin(r.h) * ahead, pz = r.z + Math.cos(r.h) * ahead;
-    return list.some((o) => o.rider !== r.n && Math.hypot(o.x - px, o.z - pz) < room + Math.max(o.hw || 0, o.hl || 0) * 0.6);
+  function boxGap(o, px, pz) {
+    const dx = px - o.x, dz = pz - o.z, sh = Math.sin(o.h || 0), ch = Math.cos(o.h || 0);
+    const along = dx * sh + dz * ch, across = dx * ch - dz * sh;
+    return Math.hypot(Math.max(0, Math.abs(along) - (o.hl || 0.4)), Math.max(0, Math.abs(across) - (o.hw || 0.4)));
   }
-  function turnClear(r, list) {
-    const radius = Math.max(2, r.lat);
-    const cx = r.x + Math.cos(r.h) * radius, cz = r.z - Math.sin(r.h) * radius;
-    return !list.some((o) => o.rider !== r.n && Math.hypot(o.x - cx, o.z - cz) < radius + 1.2 + Math.max(o.hw || 0, o.hl || 0) * 0.6);
+  function arcAhead(r, from, to) {
+    const radius = Math.max(2, r.lat), cx = r.x + Math.cos(r.h) * radius, cz = r.z - Math.sin(r.h) * radius;
+    const pace = Math.max(0.8, Math.min(r.v || SPORT_RIDING.turning, SPORT_RIDING.turning));
+    const pts = [];
+    for (let a = from; a <= to + 1e-6; a += 0.2) pts.push({ x: cx - radius * Math.cos(r.h + a), z: cz + radius * Math.sin(r.h + a), t: ((a - from) * radius) / pace });
+    return { pts, radius, cx, cz, time: ((to - from) * radius) / pace };
+  }
+  function wayRoundClear(r, list, from, to, room = 0.5) {
+    const arc = arcAhead(r, from, to);
+    const reach = 2 * arc.radius + 6;
+    for (const o of list) {
+      if (o.rider === r.n) continue;
+      const v = o.v || 0, far = Math.hypot(o.x - arc.cx, o.z - arc.cz);
+      if (far > reach + v * (arc.time + 1.5)) continue;
+      if (v < 0.3) { for (const q of arc.pts) if (boxGap(o, q.x, q.z) < room) return false; continue; }
+      const ux = Math.sin(o.h || 0), uz = Math.cos(o.h || 0);
+      for (const q of arc.pts) {
+        for (const lag of [-1, 0, 1]) {
+          const at = Math.max(0, q.t + lag);
+          if (boxGap({ ...o, x: o.x + ux * v * at, z: o.z + uz * v * at }, q.x, q.z) < room + 0.4) return false;
+        }
+      }
+    }
+    return true;
+  }
+  const turnClear = (r, list) => wayRoundClear(r, list, 0.2, Math.PI);
+  function giveWay(r, road) {
+    const lat = latOf(road, r.x, r.z, r.dir);
+    if (lat < 0) { r.dir = -r.dir; r.lat = -lat; } else r.lat = lat;
+    r.along = alongOf(road, r.x, r.z); r.turned = 0; r.v = 0; r.held = 0; r.mode = 'aside'; r.asideFor = 0;
+    book.gaveWay = (book.gaveWay || 0) + 1;
   }
 
   function step(r, dt, list) {
@@ -11880,9 +11925,23 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
       if (real() >= r.until) { r.mode = 'ride'; r.next = SPORT_RIDING.between[0] + hash(r.i, Math.floor(real())) * (SPORT_RIDING.between[1] - SPORT_RIDING.between[0]); }
       return;
     }
+    if (r.mode === 'aside') {
+      r.v = 0; r.lean += (0 - r.lean) * Math.min(1, dt * 3);
+      const want = edgeLat(road), face = headingOf(road, r.dir);
+      r.h = wrap(r.h + clamp(wrap(face - r.h), -2 * dt, 2 * dt));
+      const dl = clamp(want - r.lat, -SPORT_RIDING.aside * dt, SPORT_RIDING.aside * dt);
+      const [nx, nz] = pointOf(road, r.along, r.lat + dl, r.dir);
+      if (!list.some((o) => o.rider !== r.n && boxGap(o, nx, nz) < 0.4)) { r.lat += dl; r.x = nx; r.z = nz; r.asideFor = 0; }
+      else if ((r.asideFor = (r.asideFor || 0) + dt) > SPORT_RIDING.giveWay * 1.5) { r.dir = -r.dir; r.lat = -r.lat; r.asideFor = 0; }
+      if (Math.abs(want - r.lat) < 0.02 && Math.abs(wrap(face - r.h)) < 0.05) { r.mode = 'stop'; r.until = real() + 3 + hash(r.i, Math.floor(real())) * 5; }
+      return;
+    }
     if (r.mode === 'turn') {
       const radius = Math.max(2, r.lat);
-      if (blockedAhead(r, list, 1.0, 1.3)) { r.v = Math.max(0, r.v - SPORT_RIDING.brake * dt); if (r.v < 0.05) { r.v = 0; return; } }
+      if (!wayRoundClear(r, list, 0.1, Math.min(0.9, Math.PI - r.turned + 0.1), 0.45)) {
+        r.v = Math.max(0, r.v - SPORT_RIDING.brake * dt);
+        if (r.v < 0.05) { r.v = 0; r.held = (r.held || 0) + dt; if (r.held > SPORT_RIDING.giveWay) giveWay(r, road); return; }
+      } else r.held = 0;
       const rate = Math.min(r.v, SPORT_RIDING.turning) / radius;
       ride.speed = r.v; ride.lean = r.lean; ride.heading = r.h; ride.phase = r.phase;
       stepSport(ride, { throttle: r.v < SPORT_RIDING.turning * 0.9 ? 0.5 : 0 }, dt, { handling: h });
@@ -11897,6 +11956,7 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
       }
       return;
     }
+    if (real() < (r.ghostUntil || 0)) list = list.filter((o) => o.id !== r.ghostOf);
     const want = edgeLat(road);
     let target = r.cruise, latWant = want;
     const ahead = aheadOf(r, road, list, r.lat);
@@ -11904,11 +11964,18 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
       const round = ahead.oLat - ahead.reachAcross - 0.35 - SPORT_RIDING.pass;
       const coming = (o) => { const along = (o.x - r.x) * Math.sin(r.h) + (o.z - r.z) * Math.cos(r.h); return o.car && o.v > 0.5 && Math.abs(latOf(road, o.x, o.z, r.dir) - round) < o.hw + 0.9 && along > -24 && along < 14; };
       const roomy = round >= SPORT_RIDING.middle && !aheadOf(r, road, list.filter((o) => o !== ahead.o), round) && !list.some(coming);
-      if (ahead.speed < r.cruise * 0.8 && roomy && (ahead.o.foot === undefined || ahead.o.foot === null)) latWant = round;
+      const outside = ahead.oLat + ahead.reachAcross + 0.35 + 0.1;
+      const squeeze = !roomy && outside > r.lat - 0.05 && outside <= road.w / 2 - 0.45 && !aheadOf(r, road, list.filter((o) => o !== ahead.o), outside);
+      const onFoot = ahead.o.foot !== undefined && ahead.o.foot !== null;
+      r.footWait = onFoot && r.v < 0.3 ? (r.footWait || 0) + dt : onFoot ? r.footWait || 0 : 0;
+      const mayPass = !onFoot || r.footWait > SPORT_RIDING.footWait;
+      const wide = onFoot ? round - 0.3 : round;
+      if (ahead.speed < r.cruise * 0.8 && mayPass && (onFoot ? wide >= SPORT_RIDING.middle && roomy : roomy)) latWant = wide;
+      else if (ahead.speed < r.cruise * 0.8 && squeeze && !onFoot) { latWant = outside; target = Math.min(target, ahead.speed + Math.max(0, ahead.gap - 0.3) * 0.9); }
       else target = Math.min(target, ahead.speed + Math.max(0, ahead.gap - SPORT_RIDING.gap) * 0.9);
       if (ahead.o.foot !== undefined && ahead.o.foot !== null && r.item === 'bicycle' && ahead.gap < SPORT_RIDING.bell && real() - r.bellAt > 4) r.bellAt = real();
     }
-    const toEnd = r.dir > 0 ? road.a1 - r.along : r.along - road.a0;
+    const toEnd = (r.dir > 0 ? road.a1 - r.along : r.along - road.a0) - Math.max(2, r.lat);
     if (toEnd < SPORT_RIDING.end) {
       if (!turnClear(r, list)) target = 0;
       else if (r.v <= SPORT_RIDING.turning + 0.2) { r.mode = 'turn'; r.turned = 0; return; }
@@ -11920,9 +11987,21 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     let v = ride.speed;
     if (v > target + 0.05) v = Math.max(target, r.v - SPORT_RIDING.brake * dt);
     r.v = Math.max(0, v); r.phase = ride.phase;
-    if (latWant > r.lat) {
-      const ux = Math.sin(r.h), uz = Math.cos(r.h), front = r.item === 'bicycle' ? 0.9 : 0.45;
-      const beside = list.some((o) => { if (o.rider === r.n) return false; const along = (o.x - r.x) * ux + (o.z - r.z) * uz; const side = latOf(road, o.x, o.z, r.dir) - r.lat; return Math.abs(along) < (o.hl || 0.5) + front + 0.6 && side > -0.1 && side < 1.3; });
+    if (target < 0.05 && r.v < 0.05) r.held = (r.held || 0) + dt; else r.held = 0;
+    if (r.held > SPORT_RIDING.giveWay * 1.5 && ahead && ahead.o.car && ahead.o.id && !ahead.o.held && hub.traffic && hub.traffic.waitingFor && hub.traffic.waitingFor(r.n)) {
+      r.ghostOf = ahead.o.id; r.ghostUntil = real() + 4; r.held = 0; book.wentPast = (book.wentPast || 0) + 1;
+    }
+    if (Math.abs(latWant - r.lat) > 0.01) {
+      const ux = Math.sin(r.h), uz = Math.cos(r.h), front = r.item === 'bicycle' ? 0.9 : 0.45, toward = Math.sign(latWant - r.lat);
+      const beside = list.some((o) => {
+        if (o.rider === r.n) return false;
+        const along = (o.x - r.x) * ux + (o.z - r.z) * uz;
+        const turned = (o.h || 0) - r.h, ca = Math.abs(Math.cos(turned)), sa = Math.abs(Math.sin(turned));
+        const reachAlong = ca * (o.hl || 0.5) + sa * (o.hw || 0.4), reachAcross = ca * (o.hw || 0.4) + sa * (o.hl || 0.5);
+        if (Math.abs(along) > reachAlong + front + 0.4) return false;
+        const side = (latOf(road, o.x, o.z, r.dir) - r.lat) * toward;
+        return side > 0 && side - reachAcross - 0.35 < 0.25;
+      });
       if (beside) latWant = r.lat;
     }
     const dl = clamp(latWant - r.lat, -0.9 * dt, 0.9 * dt);
@@ -11939,15 +12018,17 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
   function returning(r, t) {
     const actors = hub.actors;
     if (!actors) { r.mode = 'off'; r.takenBy = null; return; }
-    if (!actors.has(r.i)) { if (actors.take(r.i, t, { x: r.x + 6, z: r.z })) actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`); return; }
+    const sendFor = () => { actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`); const sent = actors.get(r.i); if (sent) sent.after = 0; };
+    if (!actors.has(r.i)) { if (actors.take(r.i, t, { x: r.x + 6, z: r.z })) sendFor(); return; }
     const m = actors.get(r.i);
     if (m && Math.hypot(m.x - r.x, m.z - r.z) < 1.2) { actors.drop(r.i); r.takenBy = null; r.fallen = false; r.v = 0; r.lean = 0; book.returned += 1; backOnRoad(r); }
-    else if (m && m.mode !== 'go') actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`);
+    else if (m && (m.mode !== 'go' || m.home || m.goal === null)) sendFor();
   }
   function backOnRoad(r) {
     const road = roadOf(r);
     if (!road) { goHome(r); return; }
-    const along = clamp(alongOf(road, r.x, r.z), road.a0 + SPORT_RIDING.end + 1, road.a1 - SPORT_RIDING.end - 1);
+    const clear = SPORT_RIDING.end + road.w / 2 + 1;
+    const along = clamp(alongOf(road, r.x, r.z), road.a0 + clear, road.a1 - clear);
     const [x, z] = pointOf(road, along, edgeLat(road), r.dir);
     if (Math.hypot(x - r.x, z - r.z) > 25) { goHome(r); return; }
     Object.assign(r, { mode: 'ride', along, lat: latOf(road, r.x, r.z, r.dir), h: headingOf(road, r.dir), turned: 0, next: SPORT_RIDING.between[0] });
@@ -12062,7 +12143,7 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     }
     return outBoxes;
   }
-  const obstacles = () => riders.filter((r) => out(r)).map((r) => ({ x: r.x, z: r.z, h: r.h, hw: 0.35, hl: r.item === 'bicycle' ? 0.9 : 0.45, v: r.v }));
+  const obstacles = () => riders.filter((r) => out(r)).map((r) => ({ x: r.x, z: r.z, h: r.h, hw: 0.35, hl: r.item === 'bicycle' ? 0.9 : 0.45, v: r.v, rider: r.n }));
   const audit = () => ({ out: riders.filter(out).length, taken: book.taken, returned: book.returned, byKind: Object.fromEntries(KINDS.map((k) => [k, riders.filter((r) => r.item === k).length])) });
 
   const api = { tick, list, take, leftBy, retake, moved, recover, boxes, obstacles, audit, nearTaker, riders: () => riders, count: () => riders.length };

@@ -38,6 +38,9 @@ export const SPORT_RIDING = Object.freeze({
   brake: 2.6,              // m/s² at most, slowing for something
   end: 12,                 // metres short of the road's end a rider turns round (clear of the junction there)
   turning: 2.2,            // m/s: going round, no faster
+  giveWay: 4,              // real seconds held up in the middle of the road by something standing still: then to the side
+  footWait: 3,             // real seconds waited, ringing, for someone on foot in the way to step aside: then round them
+  aside: 1.0,              // m/s: moving over to the side of the road, giving way
   pause: Object.freeze([10, 30]),     // real seconds stood at the roadside now and then
   between: Object.freeze([260, 720]), // metres ridden between stops
   bell: 8,                 // metres: a cyclist rings for someone on foot this near ahead
@@ -116,7 +119,7 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
   const real = () => state.real;
   const ride = { speed: 0, lean: 0, heading: 0, phase: 0, pushing: false };
 
-  const out = (r) => r.mode === 'ride' || r.mode === 'stop' || r.mode === 'turn';
+  const out = (r) => r.mode === 'ride' || r.mode === 'stop' || r.mode === 'turn' || r.mode === 'aside';
   const shown = (r) => out(r) || r.mode === 'kept' || r.mode === 'returning' || r.mode === 'taken';
   const roadOf = (r) => roads.get(r.road) || null;
   const nearestPlayer = (x, z) => { let d = Infinity; for (const id of Object.keys(players)) { const q = players[id]; d = Math.min(d, Math.hypot(q.x - x, q.z - z)); } for (const v of visitors()) d = Math.min(d, Math.hypot(v.x - x, v.z - z)); return d; };
@@ -136,7 +139,8 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     if (!road) return;
     // somewhere along its road no player is near (nobody sees them appear), going the way the day has them
     for (let k = 0; k < 6; k += 1) {
-      const along = road.a0 + SPORT_RIDING.end + 2 + hash(r.i, Math.floor(t / 3600) * 9 + k) * (road.a1 - road.a0 - 2 * SPORT_RIDING.end - 4);
+      const clear = SPORT_RIDING.end + road.w / 2 + 2;
+      const along = road.a0 + clear + hash(r.i, Math.floor(t / 3600) * 9 + k) * (road.a1 - road.a0 - 2 * clear);
       const dir = hash(r.i, Math.floor(t / 3600) * 9 + k + 5) < 0.5 ? 1 : -1;
       const lat = edgeLat(road);
       const [x, z] = pointOf(road, along, lat, dir);
@@ -155,7 +159,7 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
   function obstaclesNow() {
     const list = [];
     // (the town's cars: every one within reach of the town's roads)
-    if (hub.traffic && hub.traffic.list) for (const c of hub.traffic.list(0, -150, null)) list.push({ x: c.x, z: c.z, h: c.h, hw: 1.05, hl: 2.5, v: Math.max(0, c.speed || 0), car: true });
+    if (hub.traffic && hub.traffic.list) for (const c of hub.traffic.list(0, -150, null)) list.push({ x: c.x, z: c.z, h: c.h, hw: 1.05, hl: 2.5, v: Math.max(0, c.speed || 0), car: true, id: `c${c.n}`, held: !!c.held });
     for (const id of Object.keys(players)) {
       const q = players[id];
       if (q.incar && q.pcar) list.push({ x: q.pcar.x, z: q.pcar.z, h: q.pcar.h, hw: 1.05, hl: 2.5, v: Math.max(0, (q.pcar.drive && q.pcar.drive.speed) || 0), car: true });
@@ -191,16 +195,51 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     return best;
   }
 
-  // Is anything (not this rider) within `room` metres of the point `ahead` metres before them, as they face?
-  function blockedAhead(r, list, ahead, room) {
-    const px = r.x + Math.sin(r.h) * ahead, pz = r.z + Math.cos(r.h) * ahead;
-    return list.some((o) => o.rider !== r.n && Math.hypot(o.x - px, o.z - pz) < room + Math.max(o.hw || 0, o.hl || 0) * 0.6);
+  // How far a point is from the outside of something in the road (its box, turned as it faces).
+  function boxGap(o, px, pz) {
+    const dx = px - o.x, dz = pz - o.z, sh = Math.sin(o.h || 0), ch = Math.cos(o.h || 0);
+    const along = dx * sh + dz * ch, across = dx * ch - dz * sh;
+    return Math.hypot(Math.max(0, Math.abs(along) - (o.hl || 0.4)), Math.max(0, Math.abs(across) - (o.hw || 0.4)));
   }
-  // Is the half circle of a turn round to the other side of the road clear (nothing within it, or just beyond)?
-  function turnClear(r, list) {
-    const radius = Math.max(2, r.lat);
-    const cx = r.x + Math.cos(r.h) * radius, cz = r.z - Math.sin(r.h) * radius;
-    return !list.some((o) => o.rider !== r.n && Math.hypot(o.x - cx, o.z - cz) < radius + 1.2 + Math.max(o.hw || 0, o.hl || 0) * 0.6);
+  // The way round to the other side of the road: a half circle to the left, as wide as the road between the two edges,
+  // from where the rider is (already `turned` into it); its points from `from` to `to` radians on, with the time to each.
+  function arcAhead(r, from, to) {
+    const radius = Math.max(2, r.lat), cx = r.x + Math.cos(r.h) * radius, cz = r.z - Math.sin(r.h) * radius;
+    const pace = Math.max(0.8, Math.min(r.v || SPORT_RIDING.turning, SPORT_RIDING.turning));
+    const pts = [];
+    for (let a = from; a <= to + 1e-6; a += 0.2) pts.push({ x: cx - radius * Math.cos(r.h + a), z: cz + radius * Math.sin(r.h + a), t: ((a - from) * radius) / pace });
+    return { pts, radius, cx, cz, time: ((to - from) * radius) / pace };
+  }
+  // Is the way round clear, `from` to `to` radians on: nothing standing on it (with room for the rider beside it), and
+  // nothing coming that would be on it as the rider gets there (a car of the town's, another rider, a player). What is
+  // behind the rider, or beside them on the right, is not on it.
+  function wayRoundClear(r, list, from, to, room = 0.5) {
+    const arc = arcAhead(r, from, to);
+    const reach = 2 * arc.radius + 6;
+    for (const o of list) {
+      if (o.rider === r.n) continue;
+      const v = o.v || 0, far = Math.hypot(o.x - arc.cx, o.z - arc.cz);
+      if (far > reach + v * (arc.time + 1.5)) continue;
+      if (v < 0.3) { for (const q of arc.pts) if (boxGap(o, q.x, q.z) < room) return false; continue; }
+      const ux = Math.sin(o.h || 0), uz = Math.cos(o.h || 0);
+      for (const q of arc.pts) {
+        for (const lag of [-1, 0, 1]) {
+          const at = Math.max(0, q.t + lag);
+          if (boxGap({ ...o, x: o.x + ux * v * at, z: o.z + uz * v * at }, q.x, q.z) < room + 0.4) return false;
+        }
+      }
+    }
+    return true;
+  }
+  // Is the whole way round clear, before setting off on it?
+  const turnClear = (r, list) => wayRoundClear(r, list, 0.2, Math.PI);
+  // Given way: over to the side of the road (whichever side is nearer: its own, or the other as if gone round) and
+  // standing there a few seconds, out of the way of what held it up.
+  function giveWay(r, road) {
+    const lat = latOf(road, r.x, r.z, r.dir);
+    if (lat < 0) { r.dir = -r.dir; r.lat = -lat; } else r.lat = lat;
+    r.along = alongOf(road, r.x, r.z); r.turned = 0; r.v = 0; r.held = 0; r.mode = 'aside'; r.asideFor = 0;
+    book.gaveWay = (book.gaveWay || 0) + 1;
   }
 
   // One rider, one step: on along the road at their pace, round or behind what is in the way, round at the end.
@@ -213,11 +252,27 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
       if (real() >= r.until) { r.mode = 'ride'; r.next = SPORT_RIDING.between[0] + hash(r.i, Math.floor(real())) * (SPORT_RIDING.between[1] - SPORT_RIDING.between[0]); }
       return;
     }
+    if (r.mode === 'aside') {
+      // over to the edge at a walk, turned the way of that side; not into anything beside (after a while held at it,
+      // the other side instead); then a few seconds standing there
+      r.v = 0; r.lean += (0 - r.lean) * Math.min(1, dt * 3);
+      const want = edgeLat(road), face = headingOf(road, r.dir);
+      r.h = wrap(r.h + clamp(wrap(face - r.h), -2 * dt, 2 * dt));
+      const dl = clamp(want - r.lat, -SPORT_RIDING.aside * dt, SPORT_RIDING.aside * dt);
+      const [nx, nz] = pointOf(road, r.along, r.lat + dl, r.dir);
+      if (!list.some((o) => o.rider !== r.n && boxGap(o, nx, nz) < 0.4)) { r.lat += dl; r.x = nx; r.z = nz; r.asideFor = 0; }
+      else if ((r.asideFor = (r.asideFor || 0) + dt) > SPORT_RIDING.giveWay * 1.5) { r.dir = -r.dir; r.lat = -r.lat; r.asideFor = 0; }
+      if (Math.abs(want - r.lat) < 0.02 && Math.abs(wrap(face - r.h)) < 0.05) { r.mode = 'stop'; r.until = real() + 3 + hash(r.i, Math.floor(real())) * 5; }
+      return;
+    }
     if (r.mode === 'turn') {
       // round to the other side of the road, to the left, along a half circle as wide as the road between the two edges;
       // held where they are while something is just ahead of them on it
       const radius = Math.max(2, r.lat);
-      if (blockedAhead(r, list, 1.0, 1.3)) { r.v = Math.max(0, r.v - SPORT_RIDING.brake * dt); if (r.v < 0.05) { r.v = 0; return; } }
+      if (!wayRoundClear(r, list, 0.1, Math.min(0.9, Math.PI - r.turned + 0.1), 0.45)) {
+        r.v = Math.max(0, r.v - SPORT_RIDING.brake * dt);
+        if (r.v < 0.05) { r.v = 0; r.held = (r.held || 0) + dt; if (r.held > SPORT_RIDING.giveWay) giveWay(r, road); return; }
+      } else r.held = 0;
       const rate = Math.min(r.v, SPORT_RIDING.turning) / radius;
       ride.speed = r.v; ride.lean = r.lean; ride.heading = r.h; ride.phase = r.phase;
       stepSport(ride, { throttle: r.v < SPORT_RIDING.turning * 0.9 ? 0.5 : 0 }, dt, { handling: h });
@@ -233,6 +288,9 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
       return;
     }
     // riding: how fast to go (its own pace; slower behind something, or for someone on foot; stopping for the end)
+    // (a car of the town's and this rider each waiting for the other for a while: the rider goes on past it, as if it
+    // were not there, for a few seconds: traffic.js does the same for two of its cars)
+    if (real() < (r.ghostUntil || 0)) list = list.filter((o) => o.id !== r.ghostOf);
     const want = edgeLat(road);
     let target = r.cruise, latWant = want;
     const ahead = aheadOf(r, road, list, r.lat);
@@ -243,12 +301,23 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
       const round = ahead.oLat - ahead.reachAcross - 0.35 - SPORT_RIDING.pass;
       const coming = (o) => { const along = (o.x - r.x) * Math.sin(r.h) + (o.z - r.z) * Math.cos(r.h); return o.car && o.v > 0.5 && Math.abs(latOf(road, o.x, o.z, r.dir) - round) < o.hw + 0.9 && along > -24 && along < 14; };
       const roomy = round >= SPORT_RIDING.middle && !aheadOf(r, road, list.filter((o) => o !== ahead.o), round) && !list.some(coming);
-      if (ahead.speed < r.cruise * 0.8 && roomy && (ahead.o.foot === undefined || ahead.o.foot === null)) latWant = round;
+      // (or, if it stands only partly in the way, past it on the outside, along the edge of the road, where there is room)
+      const outside = ahead.oLat + ahead.reachAcross + 0.35 + 0.1;
+      const squeeze = !roomy && outside > r.lat - 0.05 && outside <= road.w / 2 - 0.45 && !aheadOf(r, road, list.filter((o) => o !== ahead.o), outside);
+      // (someone on foot: rung at, and given a few seconds to step aside; then gone round, if there is room, giving them
+      // a wide berth)
+      const onFoot = ahead.o.foot !== undefined && ahead.o.foot !== null;
+      r.footWait = onFoot && r.v < 0.3 ? (r.footWait || 0) + dt : onFoot ? r.footWait || 0 : 0;
+      const mayPass = !onFoot || r.footWait > SPORT_RIDING.footWait;
+      const wide = onFoot ? round - 0.3 : round;
+      if (ahead.speed < r.cruise * 0.8 && mayPass && (onFoot ? wide >= SPORT_RIDING.middle && roomy : roomy)) latWant = wide;
+      else if (ahead.speed < r.cruise * 0.8 && squeeze && !onFoot) { latWant = outside; target = Math.min(target, ahead.speed + Math.max(0, ahead.gap - 0.3) * 0.9); }
       else target = Math.min(target, ahead.speed + Math.max(0, ahead.gap - SPORT_RIDING.gap) * 0.9);
       if (ahead.o.foot !== undefined && ahead.o.foot !== null && r.item === 'bicycle' && ahead.gap < SPORT_RIDING.bell && real() - r.bellAt > 4) r.bellAt = real();
     }
-    // the road's end ahead: round
-    const toEnd = r.dir > 0 ? road.a1 - r.along : r.along - road.a0;
+    // the road's end ahead: round (begun far enough short of it that the way round, as far ahead as the road is wide,
+    // ends twelve metres short of it: never out into the junction there)
+    const toEnd = (r.dir > 0 ? road.a1 - r.along : r.along - road.a0) - Math.max(2, r.lat);
     if (toEnd < SPORT_RIDING.end) {
       // (round only when nothing is in the way of the turn: otherwise waiting at the edge until it is clear)
       if (!turnClear(r, list)) target = 0;
@@ -262,10 +331,24 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     let v = ride.speed;
     if (v > target + 0.05) v = Math.max(target, r.v - SPORT_RIDING.brake * dt);
     r.v = Math.max(0, v); r.phase = ride.phase;
-    // (back toward the edge only once past what was gone round: nothing beside them on that side)
-    if (latWant > r.lat) {
-      const ux = Math.sin(r.h), uz = Math.cos(r.h), front = r.item === 'bicycle' ? 0.9 : 0.45;
-      const beside = list.some((o) => { if (o.rider === r.n) return false; const along = (o.x - r.x) * ux + (o.z - r.z) * uz; const side = latOf(road, o.x, o.z, r.dir) - r.lat; return Math.abs(along) < (o.hl || 0.5) + front + 0.6 && side > -0.1 && side < 1.3; });
+    // (held up: if what holds it is a car waiting for this very rider, after a few seconds of both waiting, on past it)
+    if (target < 0.05 && r.v < 0.05) r.held = (r.held || 0) + dt; else r.held = 0;
+    if (r.held > SPORT_RIDING.giveWay * 1.5 && ahead && ahead.o.car && ahead.o.id && !ahead.o.held && hub.traffic && hub.traffic.waitingFor && hub.traffic.waitingFor(r.n)) {
+      r.ghostOf = ahead.o.id; r.ghostUntil = real() + 4; r.held = 0; book.wentPast = (book.wentPast || 0) + 1;
+    }
+    // (across the road only where nothing is beside them on that side: back toward the edge once past what was gone
+    // round, out from it once past what was squeezed by)
+    if (Math.abs(latWant - r.lat) > 0.01) {
+      const ux = Math.sin(r.h), uz = Math.cos(r.h), front = r.item === 'bicycle' ? 0.9 : 0.45, toward = Math.sign(latWant - r.lat);
+      const beside = list.some((o) => {
+        if (o.rider === r.n) return false;
+        const along = (o.x - r.x) * ux + (o.z - r.z) * uz;
+        const turned = (o.h || 0) - r.h, ca = Math.abs(Math.cos(turned)), sa = Math.abs(Math.sin(turned));
+        const reachAlong = ca * (o.hl || 0.5) + sa * (o.hw || 0.4), reachAcross = ca * (o.hw || 0.4) + sa * (o.hl || 0.5);
+        if (Math.abs(along) > reachAlong + front + 0.4) return false;
+        const side = (latOf(road, o.x, o.z, r.dir) - r.lat) * toward;
+        return side > 0 && side - reachAcross - 0.35 < 0.25;
+      });
       if (beside) latWant = r.lat;
     }
     // across the road, toward where it wants to be, as a rider steers: a little lean into it
@@ -285,16 +368,19 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
   function returning(r, t) {
     const actors = hub.actors;
     if (!actors) { r.mode = 'off'; r.takenBy = null; return; }
-    if (!actors.has(r.i)) { if (actors.take(r.i, t, { x: r.x + 6, z: r.z })) actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`); return; }
+    // (sent for it: no longer someone who backed away from trouble, to be let go back to their day after a while)
+    const sendFor = () => { actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`); const sent = actors.get(r.i); if (sent) sent.after = 0; };
+    if (!actors.has(r.i)) { if (actors.take(r.i, t, { x: r.x + 6, z: r.z })) sendFor(); return; }
     const m = actors.get(r.i);
     if (m && Math.hypot(m.x - r.x, m.z - r.z) < 1.2) { actors.drop(r.i); r.takenBy = null; r.fallen = false; r.v = 0; r.lean = 0; book.returned += 1; backOnRoad(r); }
-    else if (m && m.mode !== 'go') actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`);
+    else if (m && (m.mode !== 'go' || m.home || m.goal === null)) sendFor();
   }
   // Back on the road from wherever it was left: onto its own road if near it, otherwise home for the day.
   function backOnRoad(r) {
     const road = roadOf(r);
     if (!road) { goHome(r); return; }
-    const along = clamp(alongOf(road, r.x, r.z), road.a0 + SPORT_RIDING.end + 1, road.a1 - SPORT_RIDING.end - 1);
+    const clear = SPORT_RIDING.end + road.w / 2 + 1;
+    const along = clamp(alongOf(road, r.x, r.z), road.a0 + clear, road.a1 - clear);
     const [x, z] = pointOf(road, along, edgeLat(road), r.dir);
     if (Math.hypot(x - r.x, z - r.z) > 25) { goHome(r); return; }
     Object.assign(r, { mode: 'ride', along, lat: latOf(road, r.x, r.z, r.dir), h: headingOf(road, r.dir), turned: 0, next: SPORT_RIDING.between[0] });
@@ -423,7 +509,7 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     return outBoxes;
   }
   // For the town's cars: the riders on the road, as things in it.
-  const obstacles = () => riders.filter((r) => out(r)).map((r) => ({ x: r.x, z: r.z, h: r.h, hw: 0.35, hl: r.item === 'bicycle' ? 0.9 : 0.45, v: r.v }));
+  const obstacles = () => riders.filter((r) => out(r)).map((r) => ({ x: r.x, z: r.z, h: r.h, hw: 0.35, hl: r.item === 'bicycle' ? 0.9 : 0.45, v: r.v, rider: r.n }));
   const audit = () => ({ out: riders.filter(out).length, taken: book.taken, returned: book.returned, byKind: Object.fromEntries(KINDS.map((k) => [k, riders.filter((r) => r.item === k).length])) });
 
   const api = { tick, list, take, leftBy, retake, moved, recover, boxes, obstacles, audit, nearTaker, riders: () => riders, count: () => riders.length };

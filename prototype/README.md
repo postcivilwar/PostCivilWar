@@ -4116,6 +4116,16 @@ leaning forward; its sounds; left standing; a phone's graphics card while riding
 
 ## The town's people on bicycles, skateboards and skates, and taking theirs (31 October 2026)
 
+**Found by the headless tests before it went live (31 October 2026)**: over a town day the riders and the town's cars at
+Market Road's junction with Registry Road could each wait for the other for ever, and every car behind them with them
+(the whole town's traffic still from early evening): two riders side by side at a road's end each waiting for the
+other's turn, a rider's turn begun out in the junction, a car waiting behind a rider who waited for it. Mended in the
+riders (above) and in the cars (`traffic.js`): a car does not go round something on the wrong side of the road into a
+junction or just short of one; going round, it keeps behind what it is going round until it is far enough over (it had
+come within a centimetre of someone standing in the road); no car of the town's is driven to a place at the roadside
+where a car taken and left, or one whose owner is coming for it, or a player's own, already stands; and an owner sent
+for their car (or the rider for their bicycle) who is let go back to their day meanwhile by something else is sent again.
+
 The third part of the owner's brief of 30 October: "NPCs should also be seen using these items on the streets—10 NPCs
 riding bicycles, 5 on skateboards, and 5 on skating shoes. Ensure each NPC realistically pedals, balances, and
 maneuvers their equipment, with smooth wheel rotation and realistic motions. The player must also be able to hijack
@@ -4135,9 +4145,18 @@ On their road each rides on the right, a metre in from its edge (clear of a car 
 pace: a bicycle 13 to 19 km/h, a skateboard 9 to 12, skates 10 to 14 (`SPORT_RIDING.pace`), as such things go
 (`sport-ride.js`: the cyclist pedals to keep going and coasts, the skateboarder pushes and glides, the skater strides and
 glides). Something slower or standing in their way (a car stopped at the roadside, another rider) they go round on the
-inside when the road is clear and there is room short of the middle; otherwise they wait behind it. For someone on foot
-in the road they slow and keep behind, and a cyclist rings the bell (heard by the player within 50 m). At the road's
-end they turn round across it to the other side, leaning into the turn. Now and then they pull in and stand a while.
+inside when the road is clear and there is room short of the middle; something standing only partly in their way (a
+car's corner, turned in to the kerb) they pass on the outside along the edge where there is room; otherwise they wait
+behind it. For someone on foot in the road they slow and keep behind, and a cyclist rings the bell (heard by the player
+within 50 m); after three seconds, if they have not stepped aside, they go round them with a wide berth. At the road's
+end they turn round across it to the other side, leaning into the turn: begun far enough short of the end that the half
+circle, as far ahead as the road is wide, ends twelve metres short of it (never out into a junction there), and only
+when nothing stands on the way round, nor will be on it as they get there (a car of the town's coming, another rider, a
+player); what is behind them, or beside them on the right, is not in their way. Held up in the middle of the turn for
+four seconds by something standing still, they give way: over to the nearer side of the road at a walk, turned the way
+of that side, and standing there a few seconds (`giveWay`). A car of the town's and a rider each waiting for the other
+for six seconds: the rider goes on past it as if it were not there for a few seconds, as two of the town's cars do
+(`traffic.js`, the car telling which rider it waits for, `waitingFor`). Now and then they pull in and stand a while.
 The town's cars slow behind a rider in their way and go round them as they do anything else in the road (`traffic.js`);
 a rider is in the way of a player's motorcycle, car or ride as anything solid is. While a rider is out on it, the town's
 people are told where they are, as someone not to be drawn walking (`POSE.hidden`).
@@ -4168,7 +4187,9 @@ the first is found by its owner. Caught by the police, every one taken goes back
 `test/sport-riders.test.mjs` (the twenty and their roads; riding by day on the right, round at the ends, never onto
 ground that cannot be walked or into each other, at their paces; hidden from the walkers while out; seen near a player;
 taking: too fast, taken, the rider running, the crime, never owned, ridden, left, back on; the police giving it back and
-its owner riding off; three at most; in the cars' way), and in a browser `test/sport-riders.mjs` (out by day, the
+its owner riding off; three at most; in the cars' way; a whole town day watched from the corner of Market Road's
+junction with Registry Road and from Waterside Road's east end: no rider held up a minute, no car a minute and a half,
+the cars on the roads going at six in the evening), and in a browser `test/sport-riders.mjs` (out by day, the
 nearest drawn within the level's number; a cyclist stopped with a foot down, then going: the feet on the pedals, the hands
 on the grips, the wheels and cranks turning, drawn smoothly; a skateboarder pushing; a skater striding; taking a bicycle,
 the stars, pedalled away; never owned; left and got back on; the police giving it back; the bell; a phone's graphics
@@ -4235,7 +4256,7 @@ a browser `test/water.mjs` and `test/surf.mjs`.
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 552 headless tests
+node --test test/*.test.mjs                        # 558 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 119 tests against a real PostgreSQL (accounts, the market and its cars and the sports mall's things, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures
