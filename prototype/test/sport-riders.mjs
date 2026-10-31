@@ -19,11 +19,14 @@
 //     in the console; no picture lost
 //   ../server/with-postgres.sh node test/sport-riders.mjs [shots folder] [phone]
 import { createRequire } from 'node:module';
-import { mkdirSync, writeFileSync } from 'node:fs';
+import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
-import { RIDERS_SEEN } from '../src/client/sport-riders-view.js';
+// (how many the page draws, as sport-riders-view.js has it: read from its text, as the module itself needs the page's
+// three.js to load)
+const seenText = readFileSync(new URL('../src/client/sport-riders-view.js', import.meta.url), 'utf8');
+const RIDERS_SEEN = { full: { most: Number(/full: Object\.freeze\(\{ most: (\d+)/.exec(seenText)[1]) }, lite: { most: Number(/lite: Object\.freeze\(\{ most: (\d+)/.exec(seenText)[1]) } };
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
 
