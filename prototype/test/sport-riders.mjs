@@ -177,10 +177,14 @@ if (board) {
   check('C: the skateboarder drawn standing on the board, both feet on its deck', ok && !!(s0 && s0.feet && s0.feet.every((f) => f[1] - s0.ground > 0.08 && f[1] - s0.ground < 0.34)), s0 && { feet: s0.feet, ground: s0.ground });
   await shot('c1-skateboarder');
   await release(board.n);
-  const g = await watch(board.n, (q, got) => got.length >= 16, 300, 0.2);
   // (a figure's ankle stands up to 0.14 m above its sole in a heeled shoe: on the road it is that high)
-  const down = g.filter((q) => q.state && q.state.push > 0.6 && q.feet && Math.min(q.feet[0][1], q.feet[1][1]) - q.ground < 0.19);
-  const on = g.filter((q) => q.state && q.state.push < 0.2 && q.feet && q.feet.every((f) => f[1] - q.ground > 0.08));
+  const isDown = (q) => q.state && q.state.push > 0.6 && q.feet && Math.min(q.feet[0][1], q.feet[1][1]) - q.ground < 0.19;
+  const isOn = (q) => q.state && q.state.push < 0.2 && q.feet && q.feet.every((f) => f[1] - q.ground > 0.08);
+  // (watched until both are seen, or a good while: a frame drawn here in software can take more than a second, and a
+  // fixed number of looks can all fall within one push)
+  const g = await watch(board.n, (q, got) => (got.filter(isDown).length >= 2 && got.filter(isOn).length >= 2) || got.length >= 90, 300, 0.25);
+  const down = g.filter(isDown);
+  const on = g.filter(isOn);
   check('C: pushing: a foot down to the road beside the board, then back on it', down.length >= 2 && on.length >= 2, { down: down.length, on: on.length, of: g.length });
   await shot('c2-skateboarder-going');
 }
