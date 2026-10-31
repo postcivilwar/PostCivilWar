@@ -31,6 +31,13 @@ const pool = (w) => w.host.auditor.balance(w.I.okada.pool);
 const timid = (w) => farFromPolice(w, standing(w, ...MARKET, { range: 200, not: ['police'] }), 35).find((a) => a.nerve < 0.4 && a.who.age < 55);
 const bold = (w) => farFromPolice(w, standing(w, ...MARKET, { range: 500, not: ['police'] })).find((a) => a.nerve >= 0.75 && a.nerve < 0.95);
 const txnsOf = (w, kind) => w.host.auditor.transactions().filter((t) => t.kind === kind);
+// what the households' money did otherwise since a transaction (keyed): the okadas' fares paid from it and their riders'
+// takings brought home to it (okada.js), the town going about its day while a test waits for the police (31 October
+// 2026: the town's riders changed what the day brings, and an hour's fares fell inside the wait)
+const okadaSince = (w, key) => {
+  const txns = w.host.auditor.transactions(), from = txns.findIndex((t) => t.key === key);
+  return txns.slice(from + 1).filter((t) => /^okada:/.test(t.key)).reduce((sum, t) => sum + t.entries.filter((e) => e.account === w.I.okada.pool).reduce((a, e) => a + e.amount, 0), 0);
+};
 
 test('health: everyone starts whole, and only the simulation says how hurt a player is', () => {
   const w = town();
@@ -429,7 +436,7 @@ test('stolen money: taken by a ledger transaction, and taken back and returned o
   const back = arrest.restitution.find((r) => r.kind === 'returned');
   assert.equal(back.paid, got.taken);
   assert.equal(back.due, got.taken);
-  assert.equal(pool(w), before, 'the households have every unit back');
+  assert.equal(pool(w), before + okadaSince(w, `theft:${got.crime}`), 'the households have every unit back');
   assert.equal(w.balance(w.p), mine, 'and the culprit is no richer');
   const given = txnsOf(w, 'restitution');
   assert.equal(given.length, 1);
@@ -438,7 +445,7 @@ test('stolen money: taken by a ledger transaction, and taken back and returned o
   const same = w.I.justice.arrest(w.p, { kind: 'npc', id: 0, name: 'x' });
   assert.equal(same.id, arrest.id);
   assert.equal(txnsOf(w, 'restitution').length, 1);
-  assert.equal(pool(w), before);
+  assert.equal(pool(w), before + okadaSince(w, `theft:${got.crime}`));
   assert.equal(w.g.view(w.id).self.law.owed, 0);
   clean(w);
 });
@@ -461,7 +468,7 @@ test('stolen money that has been spent: only what the culprit has is taken, the 
   const back = arrest.restitution[0];
   assert.equal(back.paid, has, 'all they had, and no more');
   assert.equal(w.balance(w.p), 0);
-  assert.equal(pool(w), before - spent, 'the households are short only by what was spent');
+  assert.equal(pool(w), before - spent + okadaSince(w, `theft:${got.crime}`), 'the households are short only by what was spent');
   assert.equal(w.g.view(w.id).self.law.owed, spent);
   // cannot pay the fine: sits it out
   refused(w.send(w.id, { type: 'custody.pay' }), 'NL001');
@@ -473,7 +480,7 @@ test('stolen money that has been spent: only what the culprit has is taken, the 
     const settled = ok(w.send(w.id, { type: 'police.settle' }));
     assert.equal(settled.paid, spent);
     assert.equal(settled.owed, 0);
-    assert.equal(pool(w), before);
+    assert.equal(pool(w), before + okadaSince(w, `theft:${got.crime}`));
     refused(w.send(w.id, { type: 'police.settle' }), 'NOTHING_OWED');
   }
   clean(w);

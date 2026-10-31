@@ -11,7 +11,7 @@ import { CAR_PARTS } from '../src/client/car-parts.js';
 import { ZONE_ROADS, OUTSKIRT_ROADS } from '../src/sim/zone.js';
 import { NPC_FIGURES } from '../src/sim/npc-figures.js';
 import { driverSide } from '../src/sim/hijack.js';
-import { signalState } from '../src/sim/zones/atani-city.js';
+import { signalState, CITY_AREA } from '../src/sim/zones/atani-city.js';
 import { createHost } from '../src/sim/host.js';
 
 const roadsAll = [...ZONE_ROADS, ...OUTSKIRT_ROADS];
@@ -142,6 +142,10 @@ test('someone standing in the road: the car stops short of them, sounds its horn
       // (straight: all on one line)
       const straight = pts.every((p) => Math.abs(p.x - pts[0].x) < 0.05) || pts.every((p) => Math.abs(p.z - pts[0].z) < 0.05);
       if (!straight || trafficNetwork().nodes.some((n) => pts.some((p) => Math.hypot(n.x - p.x, n.z - p.z) < 18))) continue;
+      // (and away from Market Road's lights: a car stopped at a red light short of them goes round them from there,
+      // with no horn)
+      const lights = (p) => p.x > CITY_AREA.x0 - 45 && p.x < CITY_AREA.x1 + 45 && p.z > CITY_AREA.z0 - 45 && p.z < CITY_AREA.z1 + 45;
+      if ([{ x: q.x, z: q.z }, ...pts].some(lights)) continue;
       c = q; at = pts[2];
       break;
     }

@@ -422,7 +422,16 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   const nearestPlayer = (x, z) => { let d = Infinity; for (const id of Object.keys(players)) { const q = players[id]; const g = Math.hypot(q.x - x, q.z - z); if (g < d) d = g; } return d; };
   const anyPlayers = () => Object.keys(players).length > 0;
   // a place at the roadside nobody else is standing at or making for
-  const busy = () => { const out = new Set(); for (const c of cars) if (c.to >= 0 && (onRoads(c))) out.add(c.to); return out; };
+  const busy = () => {
+    const out = new Set();
+    for (const c of cars) if (c.to >= 0 && (onRoads(c))) out.add(c.to);
+    // (and a place where a car already stands that is out of the town's hands: one taken and left there, one its owner
+    // is coming for, a player's own car left there; no car of the town's is driven into it)
+    const there = cars.filter((c) => c.mode === 'kept' || c.mode === 'returning' || c.mode === 'taken').map((c) => [c.x, c.z]);
+    if (hub.ownCars && hub.ownCars.boxes) for (const b of hub.ownCars.boxes()) there.push([(b.x0 + b.x1) / 2, (b.z0 + b.z1) / 2]);
+    if (there.length) for (const st of NET.stops) if (there.some(([x, z]) => Math.hypot(x - st.x, z - st.z) < 5)) out.add(st.id);
+    return out;
+  };
 
   // Where a car goes next: somewhere at the roadside a fair way off by the roads; while players are about, mostly
   // somewhere near one of them, where the town is being seen.
@@ -675,7 +684,10 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     if (c.passing && c.d > c.passing.past) c.passing = null;
     const walkers = peopleNear(c, t);
     if (walkers.length) obstacles = obstacles.concat(walkers);
-    const way = ahead(c, w, obstacles, c.passing ? c.passing.need : 0, null, TRAFFIC.look, c.passing ? c.passing.past + s.length / 2 : Infinity);
+    // (going round something: what is ahead of it as far over as it has got, not as far as it is going: it does not
+    // drive on into what it is going round before it is clear of it)
+    const over = c.passing ? Math.sign(c.passing.need) * Math.min(Math.abs(c.side || 0), Math.abs(c.passing.need)) : 0;
+    const way = ahead(c, w, obstacles, over, null, TRAFFIC.look, c.passing ? c.passing.past + s.length / 2 : Infinity);
     const ghost = real() < (c.ghostUntil || 0);
     // a junction: taken one way through it at a time. A car coming up to one asks for it a little before it must decide
     // whether to stop (nothing else between it and the junction): if nobody is going through it, or only the same way,
@@ -712,7 +724,11 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
         const most = road.lane + road.w / 2 - s.width / 2 - 0.3, least = -(road.w / 2 - road.lane - s.width / 2 - 0.2);
         const sides = [way.left + room, way.left - room].filter((v) => v <= most && v >= least).sort((a, b) => Math.abs(a) - Math.abs(b));
         const past = c.d + way.gap + way.long * 2 + s.length + 1.5;
+        // (never round on the left into a junction, or just short of one: on the wrong side there it would be in the way
+        // of whoever comes out of it, and wait for them as they wait for it)
+        const junctionNear = w.junctions.some((j) => j.leave > front - 1 && j.enter < past + 8);
         for (const need of sides) {
+          if (need > 0.5 && junctionNear) continue;
           // (round on the left: nothing coming for a good way; on the right, along the kerb: nothing there)
           const clear = ahead(c, w, obstacles, need, way.o, need > 0.5 ? 70 : past - c.d + 4, need > 0.5 ? Infinity : past + 2);
           if (clear.gap > past - front + (need > 0.5 ? 30 : 1)) { c.passing = { need, past }; c.facing = 0; book.passed = (book.passed || 0) + 1; break; }
@@ -733,6 +749,9 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     c.v = want < c.v ? Math.max(want, c.v - TRAFFIC.hard * dt) : Math.min(want, c.v + TRAFFIC.accel * dt);
     c.brake = c.v < before - 0.02 || (c.v < 0.05 && want < 0.05) ? 1 : 0;
     c.held = line < Infinity && c.v < 0.3;
+    // (one of the town's riders standing just ahead in its way, that it is waiting for: the rider gives way to it,
+    // sport-riders.js)
+    c.waitRider = way.o && way.o.rider !== undefined && way.gap < 6 && c.v < 0.3 ? way.o.rider : -1;
     // two cars each in the other's way (one turning across the other where they met): the one with the higher
     // number goes through, for a moment, rather than both waiting for ever
     c.blockedBy = blocked && way.car >= 0 ? way.car : -1;
@@ -821,10 +840,12 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   function returning(c, t) {
     const actors = hub.actors;
     const owner = c.i;
+    // (sent for it: no longer someone who backed away from trouble, to be let go back to their day after a while)
+    const sendFor = () => { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); const sent = actors.get(owner); if (sent) sent.after = 0; c.walking = real(); };
     if (actors) {
       if (!actors.has(owner)) {
-        if (real() - (c.tried || -1e9) > 4) { c.tried = real(); if (actors.take(owner, t)) { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); c.walking = real(); } }
-      } else if (!c.walking && !actors.dead(owner)) { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); c.walking = real(); }
+        if (real() - (c.tried || -1e9) > 4) { c.tried = real(); if (actors.take(owner, t)) sendFor(); }
+      } else if (!c.walking && !actors.dead(owner)) sendFor();
     }
     const m = actors && actors.get(owner);
     if (m && c.walking) {
@@ -835,7 +856,8 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
         Object.assign(c, { mode: 'stop', v: 0, to: -1, until: real() + 4, since: real(), road: at ? at.road : -1, along: at ? at.along : 0, dir: at ? at.dir : 1, fromLat: undefined });
         return;
       }
-      if (real() - c.walking > 4 && m.mode !== 'go') { actors.walkTo(owner, c.x, c.z, 1.9, 'Going for the car'); c.walking = real(); }
+      // (stopped short of it, or let go back to their day by something else: sent for it again)
+      if (real() - c.walking > 4 && (m.mode !== 'go' || m.home)) sendFor();
     }
     if (((!m || !c.walking) && real() - c.since > 20) || real() - c.since > 240) {
       if (near(c) > TRAFFIC.apart) { if (m) actors.release(owner); c.walking = 0; goHome(c); }
@@ -925,6 +947,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   }
 
   const api = { tick, list, boxes, seizable, freeze, take, leftBy, enter, moved, recover, keptBy, audit, locate, cars, onShift, shiftOf, wayOf: (n) => ways.get(n) || null, network: NET,
+    waitingFor: (rider) => cars.some((c) => c.mode === 'drive' && c.waitRider === rider),
     // (for the tests: who is going through which junction now)
     claims: () => [...claims].map(([node, m]) => [node, [...m]]) };
   hub.traffic = api;

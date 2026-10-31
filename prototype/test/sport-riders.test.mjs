@@ -179,3 +179,33 @@ test('a car of the town\'s does not run a rider down: it slows behind one in its
   assert.ok(w.I.sportRiders.obstacles().length >= obstacles.length);
   for (const o of w.I.sportRiders.obstacles()) assert.ok(o.hw > 0 && o.hl > 0 && Number.isFinite(o.v));
 });
+
+test('a whole day by the busiest junction and at a road\'s end: nobody is held up for long, and the town\'s cars keep moving', () => {
+  // (31 October 2026: the whole headless run found the town's cars and its riders each waiting for the other for ever at
+  // Market Road's junction with Registry Road, every car behind them still; one standing on the pavement at the
+  // junction's corner, another by Waterside Road's east end, from seven in the morning for a whole day)
+  const w = town(['Corner Watch', 'East End Watch'], { hour: 7 });
+  w.place(w.players[0], -9, -49, 0);
+  w.place(w.players[1], 230, 121, 0);
+  const sr = w.I.sportRiders, T = w.I.traffic;
+  const still = new Map();
+  let longest = { s: 0 }, carLongest = 0, turns = 0, evening = null;
+  const was = new Map();
+  for (let t = 0; t < 2880; t += 0.25) {
+    run(w.host, 0.25);
+    for (const r of sr.riders()) {
+      const s = (r.mode === 'ride' || r.mode === 'turn') && r.v < 0.05 ? (still.get(r.n) || 0) + 0.25 : 0;
+      still.set(r.n, s);
+      if (s > longest.s) longest = { s, n: r.n, item: r.item, x: Math.round(r.x), z: Math.round(r.z) };
+      if (was.get(r.n) !== 'turn' && r.mode === 'turn') turns += 1;
+      was.set(r.n, r.mode);
+    }
+    for (const c of T.cars) carLongest = Math.max(carLongest, c.waited || 0);
+    // (at six in the evening, the busiest time: the cars on the roads are going)
+    if (evening === null && w.host.game.clockOf().hour === 18) { const driving = T.cars.filter((c) => c.mode === 'drive'); evening = { driving: driving.length, going: driving.filter((c) => c.v > 0.3).length }; }
+  }
+  assert.ok(longest.s < 60, `a rider held up ${longest.s} s at most (${JSON.stringify(longest)})`);
+  assert.ok(carLongest < 90, `a car held up ${carLongest.toFixed(0)} s at most`);
+  assert.ok(turns > 100, `${turns} turned round at a road's end`);
+  assert.ok(evening && evening.going >= evening.driving / 2, `at six in the evening ${evening && evening.going} of ${evening && evening.driving} cars on the roads are going`);
+});
