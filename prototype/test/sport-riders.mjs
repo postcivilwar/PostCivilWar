@@ -156,7 +156,10 @@ const onGrips = moving.filter((q) => q.handToGrip && q.handToGrip.every((d) => d
 check('B: the hands on the grips', onGrips.length >= 4 && onGrips.every((d) => d < 0.14), onGrips);
 const rolled = going.length > 1 && going[going.length - 1].state && going[0].state ? going[going.length - 1].state.travelled - going[0].state.travelled : 0;
 const turned = going.slice(1).reduce((a, q, k) => a + (q.state && going[k].state ? ((q.state.phase - going[k].state.phase + Math.PI * 2) % (Math.PI * 2)) : 0), 0);
-check('B: the wheels turn as it rolls, and the cranks go round', rolled > 8 && turned > Math.PI * 2, { rolled: +rolled.toFixed(1), cranks: +(turned / (Math.PI * 2)).toFixed(1) });
+// (at half a frame a second, as here in software on a phone's settings, the cranks go round more than once between two
+// frames, and the angle alone undercounts: then they are seen going round by their angle changing from frame to frame)
+const changes = going.slice(1).filter((q, k) => q.state && going[k].state && Math.abs(q.state.phase - going[k].state.phase) > 0.05).length;
+check('B: the wheels turn as it rolls, and the cranks go round', rolled > 8 && (turned > Math.PI * 2 || changes >= 4), { rolled: +rolled.toFixed(1), cranks: +(turned / (Math.PI * 2)).toFixed(1), changes });
 let worst = 0, back = 0, moved = 0;
 for (let k = 1; k < rows.length; k += 1) {
   const a = rows[k - 1], b = rows[k];
