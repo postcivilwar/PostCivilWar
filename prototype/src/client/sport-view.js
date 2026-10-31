@@ -391,6 +391,17 @@ export function createSportView(scene, { lite = false, base = 'sports/', onError
     me.group.position.add(want.sub(me.group.localToWorld(hips.clone())));
     me.group.updateMatrixWorld(true);
     m.group.updateMatrixWorld(true);
+    let ankle = 0.08 * (me.scale || 1);
+    // stopped: forward off the saddle onto the top tube, as low as the left foot needs to reach the road (a rider's leg
+    // is not as long as from the saddle to the road), at most a hand's breadth or so
+    if (e.down > 0.01 && L.leg.l.thigh && L.leg.l.calf && L.leg.l.foot) {
+      const leg = L.leg.l;
+      const hip = leg.thigh.getWorldPosition(new THREE.Vector3()), knee = leg.calf.getWorldPosition(new THREE.Vector3()), foot = leg.foot.getWorldPosition(new THREE.Vector3());
+      const length = hip.distanceTo(knee) + knee.distanceTo(foot);
+      const ground = e.base.localToWorld(new THREE.Vector3(0.36, ankle, -0.02));
+      const drop = Math.min(0.17, Math.max(0, hip.distanceTo(ground) - length * 0.97) * 1.15) * smooth(e.down);
+      if (drop > 0) { me.group.position.add(offOf(me, 0, -drop, drop * 0.7)); me.group.updateMatrixWorld(true); }
+    }
     const across = dirOf(me, 1, 0, 0), ahead = dirOf(me, 0, 0, 1), upward = dirOf(me, 0, 1, 0);
     const spine = bones.get('spine_02') || bones.get('spine_01');
     const grips = { l: () => gripWorld(m, spec.grip, 1).add(offOf(me, 0, 0.012, -0.05)), r: () => gripWorld(m, spec.grip, -1).add(offOf(me, 0, 0.012, -0.05)) };
@@ -405,6 +416,10 @@ export function createSportView(scene, { lite = false, base = 'sports/', onError
       const short = () => Math.max(L.arm.l.u.getWorldPosition(new THREE.Vector3()).distanceTo(grips.l()) - reachL * 0.97, L.arm.r.u.getWorldPosition(new THREE.Vector3()).distanceTo(grips.r()) - reachR * 0.97);
       let gap = short();
       for (let i = 0; i < 18 && gap > 0; i += 1) { turnBone(spine, across, 0.06); const now = short(); if (now >= gap - 1e-4) { turnBone(spine, across, -0.06); break; } gap = now; }
+      // (still short of them, as someone with shorter arms on a long bike is: forward on the saddle, onto its nose, until
+      // the hands are on the grips, a hand's breadth at most)
+      gap = short();
+      if (gap > 0) { me.group.position.add(dirOf(me, 0, 0, 1).multiplyScalar(Math.min(0.15, gap * 1.15))); me.group.updateMatrixWorld(true); }
     }
     for (const s of ['l', 'r']) {
       const a = L.arm[s];
@@ -418,7 +433,6 @@ export function createSportView(scene, { lite = false, base = 'sports/', onError
     if (head) turnBone(head, ahead, -0.5 * (ride.lean || 0));
     // the feet: on the pedals, as the cranks have them; stopped, the left one down on the road beside the bike
     const frameQ = e.lean.getWorldQuaternion(new THREE.Quaternion());
-    let ankle = 0.08 * (me.scale || 1);
     for (const s of ['l', 'r']) {
       const leg = L.leg[s];
       if (!leg.thigh || !leg.calf || !leg.foot) continue;
