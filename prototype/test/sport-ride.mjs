@@ -209,7 +209,9 @@ const start = (x) => go(x, -43, Math.PI / 2);
   const fast = going[going.length - 1];
   const top = Math.max(...going.map((q) => q.speed));
   check('pushed along it goes at a skateboard\'s pace (about 18 km/h at most)', kmh(top) > 12 && kmh(top) <= 18.5, going.map((q) => kmh(q.speed)));
-  const down = going.filter((q) => q.state && q.state.push > 0.6 && q.feet && q.feet[1][1] - q.ground < 0.14);
+  // (the ankle's own height standing is up to 0.14 m in a heeled shoe: on the road the ankle is that high, on the board
+  // the deck's height more)
+  const down = going.filter((q) => q.state && q.state.push > 0.6 && q.feet && q.feet[1][1] - q.ground < 0.19);
   check('pushing, the back foot goes down to the road beside the board', down.length >= 3, { down: down.length, of: going.length });
   check('each push is heard as the foot scuffs the road', !!(fast.sound && fast.sound.scuffs >= 2), fast.sound);
   await page.keyboard.down('w'); await page.waitForTimeout(700); await shot('07-skateboard-pushing'); await page.keyboard.up('w');
