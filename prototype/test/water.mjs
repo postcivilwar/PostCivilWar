@@ -124,8 +124,13 @@ const seat = await page.evaluate(() => { const n = window.__nlw, me = n.me, m = 
 check('B: the player in the right-hand seat, at its wheel', !!seat && seat.visible && seat.gap < 0.35, seat);
 await shot('b-speedboat-at-the-jetty');
 
-// ---- C: driven out (along the river, east from the jetty: straight across, it is at the far bank before it is flat out)
-await page.evaluate(() => { const n = window.__nlw; n.face(Math.PI / 2); n.boatState.heading = Math.PI / 2; });
+// ---- C: driven out (along the river, east from the jetty: straight across, it is at the far bank before it is flat out;
+// first out from beside the jetty, where turned along the river her stern would be over it, and stopped there)
+await page.evaluate(() => { const n = window.__nlw; n.face(0); n.boatState.heading = 0; });
+await holdUntil(['w'], (q) => q.at[1] > 186, 180);
+await holdUntil(['s'], (q) => Math.abs(q.speed) < 0.4, 120);
+await page.evaluate(() => { const n = window.__nlw; n.face(Math.PI / 2); n.boatState.heading = Math.PI / 2; n.boatState.speed = 0; });
+await page.waitForTimeout(1500);
 const going = await holdUntil(['w'], (q, got) => kmh(q.speed) >= 55 && got.length >= 8, 300);
 const fast = going[going.length - 1];
 check('C: flat out it gathers speed to about 60 km/h', kmh(Math.max(...going.map((q) => q.speed))) > 45 && kmh(Math.max(...going.map((q) => q.speed))) <= 61, going.map((q) => kmh(q.speed)));
