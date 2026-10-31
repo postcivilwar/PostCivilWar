@@ -156,7 +156,7 @@ const refused = await page.evaluate(() => {
 check('D: someone not in swimwear cannot surf, and is told why', !refused.ok && refused.code === 'CLOTHES' && /swimwear/.test(refused.message || ''), refused);
 
 // ---- E: up on a wave (put in front of a wave's crest as it stands up; catching one is test/surf-play.test.mjs's)
-const stood = await page.evaluate(([from, speed]) => {
+const placeOnWave = () => page.evaluate(([from, speed]) => {
   const n = window.__nlw, g = n.host.game, p = g.state.players[n.playerId];
   const t = n.waveNow();
   // (the wave nearest to standing up at the board's place, put under the board: the board in front of its crest)
@@ -164,7 +164,9 @@ const stood = await page.evaluate(([from, speed]) => {
   const cycle = 3 * 9 + 16, travel = (from - 150 + 4) / speed;
   let best = null;
   for (let c = Math.floor(t / cycle) - 2; c <= Math.floor(t / cycle) + 1; c += 1) for (let k = 0; k < 3; k += 1) { const age = t - (c * cycle + k * 9); if (age > 0 && age < travel) { const z = from - speed * age; if (!best || Math.abs(z - (shore(p.x) + 12)) < Math.abs(best.z - (shore(p.x) + 12))) best = { id: c * 3 + k, z }; } }
-  if (!best) return null;
+  // (only when one is out where the waves stand up, twelve metres off the bank; otherwise waited for: in a lull between
+  // sets they are all in the shallows or still far out)
+  if (!best || Math.abs(best.z - (shore(p.x) + 12)) > 1.5) return { wait: true, nearest: best ? +best.z.toFixed(1) : null };
   const crestZ = best.z;
   const z = Math.min(crestZ - 1.9, 183);
   p.psurf.x = p.x; p.psurf.z = z; p.z = z; p.psurf.mode = 'ride'; p.psurf.wave = best.id; p.psurf.h = Math.PI; p.heading = Math.PI; p.lastMoveAt = g.state.real;
@@ -172,6 +174,8 @@ const stood = await page.evaluate(([from, speed]) => {
   n.cam.yaw = Math.PI + 1.9; n.cam.pitch = 0.16; n.cam.dist = 4.6; n.cam.lastDrag = 1e9; n.rig.snap(n.cam);
   return { wave: best.id, crest: +crestZ.toFixed(1), z: +z.toFixed(1) };
 }, [SURF.from, SURF.speed]);
+let stood = null;
+for (let tries = 0; tries < 300 && !stood; tries += 1) { const r = await placeOnWave(); if (r && !r.wait) stood = r; else await page.waitForTimeout(300); }
 await page.waitForTimeout(1500);
 const up = await pose();
 const deck = up.board ? up.board[1] + 0.25 : 0;
