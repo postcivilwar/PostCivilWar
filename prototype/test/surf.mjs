@@ -116,7 +116,10 @@ const pose = () => page.evaluate(() => {
   const at = (v) => (v ? [+v.x.toFixed(3), +v.y.toFixed(3), +v.z.toFixed(3)] : null);
   const head = me.bones && (typeof me.bones.get === 'function' ? me.bones.get('head') : null);
   const water = n.surfView.waterAt(n.predicted.x, n.predicted.z);
-  return { mode: n.ownSurf() && n.ownSurf().mode, ready: n.surfView.ready('own'), board: m ? at(m.group.position) : null, water: +water.toFixed(3), pelvis: l ? at(l.pelvis) : null, hands: l ? l.hands.map(at) : null, feet: l ? l.feet.map(at) : null, head: head ? at(head.getWorldPosition(new THREE.Vector3())) : null, heading: n.predicted.heading, speed: n.surfState.speed, at: [n.predicted.x, n.predicted.z] };
+  // (and each foot's height, and the hips', above the board in its own frame: on a wave's face it is pitched along the
+  // slope, and the back foot is higher than the board's middle by as much)
+  const onBoard = (v) => (v && m ? +m.group.worldToLocal(v.clone()).y.toFixed(3) : null);
+  return { feetOnBoard: l && m ? l.feet.map(onBoard) : null, pelvisOnBoard: l && m ? onBoard(l.pelvis) : null, mode: n.ownSurf() && n.ownSurf().mode, ready: n.surfView.ready('own'), board: m ? at(m.group.position) : null, water: +water.toFixed(3), pelvis: l ? at(l.pelvis) : null, hands: l ? l.hands.map(at) : null, feet: l ? l.feet.map(at) : null, head: head ? at(head.getWorldPosition(new THREE.Vector3())) : null, heading: n.predicted.heading, speed: n.surfState.speed, at: [n.predicted.x, n.predicted.z] };
 });
 const lying = await pose();
 const ahead = lying.head && lying.pelvis ? (lying.head[0] - lying.pelvis[0]) * Math.sin(lying.heading) + (lying.head[2] - lying.pelvis[2]) * Math.cos(lying.heading) : 0;
@@ -179,7 +182,7 @@ for (let tries = 0; tries < 300 && !stood; tries += 1) { const r = await placeOn
 await page.waitForTimeout(1500);
 const up = await pose();
 const deck = up.board ? up.board[1] + 0.25 : 0;
-check('E: up on the wave: standing on the board, knees bent, both feet on its deck', !!stood && up.mode === 'ride' && up.pelvis && up.pelvis[1] - deck > 0.45 && up.pelvis[1] - deck < 1.0 && up.feet && up.feet.every((f) => Math.abs(f[1] - deck) < 0.2), { stood, up, deck: +deck.toFixed(3) });
+check('E: up on the wave: standing on the board, knees bent, both feet on its deck', !!stood && up.mode === 'ride' && up.pelvisOnBoard !== null && up.pelvisOnBoard - 0.25 > 0.45 && up.pelvisOnBoard - 0.25 < 1.0 && up.feetOnBoard && up.feetOnBoard.every((y) => Math.abs(y - 0.25) < 0.2), { stood, up, deck: +deck.toFixed(3) });
 await shot('e-standing-on-a-wave');
 
 // ---- F: off the board
