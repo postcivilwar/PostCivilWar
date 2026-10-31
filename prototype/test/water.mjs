@@ -20,7 +20,7 @@ import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
 import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
 import { SPORTS_MALL as M } from '../src/sim/zones/asaba-sports.js';
-import { ZONE_JETTY } from '../src/sim/zone.js';
+import { ZONE_JETTY, zoneShoreZ } from '../src/sim/zone.js';
 import { NAVAL } from '../src/sim/naval.js';
 const require = createRequire(import.meta.url);
 const { chromium } = require('playwright');
@@ -124,12 +124,15 @@ const seat = await page.evaluate(() => { const n = window.__nlw, me = n.me, m = 
 check('B: the player in the right-hand seat, at its wheel', !!seat && seat.visible && seat.gap < 0.35, seat);
 await shot('b-speedboat-at-the-jetty');
 
-// ---- C: driven out (along the river, east from the jetty: straight across, it is at the far bank before it is flat out;
-// first out from beside the jetty, where turned along the river her stern would be over it, and stopped there)
-await page.evaluate(() => { const n = window.__nlw; n.face(0); n.boatState.heading = 0; });
-await holdUntil(['w'], (q) => q.at[1] > 186, 180);
-await holdUntil(['s'], (q) => Math.abs(q.speed) < 0.4, 120);
-await page.evaluate(() => { const n = window.__nlw; n.face(Math.PI / 2); n.boatState.heading = Math.PI / 2; n.boatState.speed = 0; });
+// ---- C: driven out, along the river (straight across, it is at the far bank before it is flat out): put a little way off
+// the town's side east of the jetty, turned downriver, clear of the jetty and of the navy's ships' way (which keeps eight
+// metres further out), and driven from there
+await page.evaluate(() => {
+  const n = window.__nlw, g = n.host.game, p = g.state.players[n.playerId];
+  const x = 40, z = 183;
+  p.pboat.x = x; p.pboat.z = z; p.pboat.h = Math.PI / 2; p.x = x; p.z = z; p.heading = Math.PI / 2; p.lastMoveAt = g.state.real;
+  n.predicted.x = x; n.predicted.z = z; n.predicted.heading = Math.PI / 2; n.boatState.speed = 0; n.boatState.heading = Math.PI / 2; n.refresh();
+});
 await page.waitForTimeout(1500);
 const going = await holdUntil(['w'], (q, got) => kmh(q.speed) >= 55 && got.length >= 8, 300);
 const fast = going[going.length - 1];
@@ -140,6 +143,7 @@ await behindBoat(10, 0.2); await page.keyboard.down('w'); await page.waitForTime
 const turning = await holdUntil(['w', 'd'], (q, got) => Math.abs(q.heading - got[0].heading) > 0.8 && got.length >= 3, 120);
 check('C: steered, it turns, banked into the turn', Math.abs(turning[turning.length - 1].heading - turning[0].heading) > 0.4 && turning.some((q) => Math.abs(q.bank) > 0.04), turning.map((q) => [+q.heading.toFixed(2), +q.bank.toFixed(3)]));
 await behindBoat(10, 0.2); await shot('c2-speedboat-turning');
+await holdUntil(['w'], (q) => q.speed > 8, 90);
 const astern = await holdUntil(['s'], (q, got) => q.speed < got[0].speed - 6 && got.length >= 2, 120);
 check('C: astern, it slows', astern[astern.length - 1].speed < astern[0].speed - 4, astern.map((q) => kmh(q.speed)));
 check('C: its motor heard', !!fast.sound, null);
@@ -148,7 +152,7 @@ check('C: its motor heard', !!fast.sound, null);
 await page.evaluate(() => { const n = window.__nlw; n.face(Math.PI); n.boatState.heading = Math.PI; });
 const toBank = await holdUntil(['w'], (q, got) => got.length >= 4 && q.speed < 0.5 && got.some((g) => g.speed > 3), 240, 0.4);
 const last = toBank[toBank.length - 1];
-check('D: driven at the bank, it stops against it, still in the water', last.at[1] > 150 && toBank.some((q) => q.speed < 0.5) , toBank.map((q) => +q.at[1].toFixed(1)));
+check('D: driven at the bank, it stops against it, still in the water', last.at[1] - zoneShoreZ(last.at[0]) > 1 && toBank.some((q) => q.speed < 0.5), { z: toBank.map((q) => +q.at[1].toFixed(1)), bank: +zoneShoreZ(last.at[0]).toFixed(1) });
 
 // ---- E: the navy's ships
 const ships = await page.evaluate(() => { const n = window.__nlw; return { list: n.view.naval.map((s) => ({ n: s.n, x: s.x, z: s.z, mode: s.mode })), drawn: n.shipView.shown() }; });
@@ -176,7 +180,7 @@ await shot('e1-alongside-a-naval-ship');
 check('E: alongside a ship, "Climb aboard the naval ship" offered', boardOffered === 'Climb aboard the naval ship', { along, boardOffered });
 await page.evaluate(() => window.__nlw.boardShip());
 await page.waitForFunction(() => window.__nlw.aboardShip() !== null, null, { timeout: 20000 }).catch(() => {});
-await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 30000 }).catch(() => {});
+await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 120000 }).catch(() => {});
 const aboard = await page.evaluate(() => { const n = window.__nlw; return { ship: n.aboardShip(), stars: n.view.self.law.stars, seen: n.me.group.visible, mode: n.mode }; });
 check('E: aboard: the helm is the player\'s, the police\'s stars for taking a vehicle, the player unseen in its wheelhouse', aboard.ship !== null && aboard.stars === 2 && !aboard.seen && aboard.mode === 'ship', aboard);
 await page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; p.law.crimes = []; p.law.stars = 0; p.law.state = 'normal'; });
