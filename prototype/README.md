@@ -4174,6 +4174,64 @@ on the grips, the wheels and cranks turning, drawn smoothly; a skateboarder push
 the stars, pedalled away; never owned; left and got back on; the police giving it back; the bell; a phone's graphics
 card).
 
+## On the river: the speedboat, the navy's three ships, and surfing (31 October 2026)
+
+The last part of the owner's brief of 30 October: "the navel ship should be only 3 in number and not for sale, it should
+be on the river, driven by NPCs, but can still be hijacked. Also, incorporate a realistic surf feature for certain
+characters in bikinis, and ensure heavy clothing users can't surf. Once a user buys a boat or any item, it is theirs
+and cannot be resold if hijacked"; and at 22:01: "NOBODY SHould surf at the lagoon beach, only surf at the river by
+town".
+
+### The speedboat (`src/sim/own-boats.js`, `src/sim/boat-ride.js`, `src/client/boat-view.js`)
+
+Bought at the mall (600 TR), it is the player's: from Property ("Take it out"), or on the town's jetty or at the
+water's edge ("Take your speedboat out"), it is put in the water beside them and they are at its wheel, in its
+right-hand seat, hands on the wheel. It goes where its whole hull is in water: the River Niger along the town, down past
+the bridge between its piers and up to the bend; never onto the bank, the jetty or a pier, nor into a ship (against
+them it stops, with a knock). Its motor pushes it and the water holds it back: 60 km/h flat out, about nine seconds to
+50; its bow up as it climbs onto the plane, then level; banked into its turns, its stern sliding out; no brake but the
+motor astern. The camera follows it from behind and above. Heard: its outboard (the game's boat engine), its horn. Drawn
+in the water as the owner made it (the stand it stands on at the mall left off: `tools/sports/sports.py` gives the stand
+a part of its own), rocking, lifted by a wave, its wake spreading white behind it. Brought in to the bank or the jetty,
+"Step ashore": it is left moored there, and "Into your speedboat" from beside it, or from the water. Out on the water by
+the town, "Go over the side into the river". Sold, it is moored nowhere. Other players see it, moored or driven, out on
+the river beyond the town's square (`talk.js` believes a boat only on water a boat could be on).
+
+### The navy's three ships (`src/sim/naval.js`, `src/client/ship-view.js`)
+
+Three ships of the owner's naval ship, drawn at half the size it was made (a 60 m patrol ship, so that three fit the river
+with room to pass), patrol the river above the bridge: upriver on the far side as a vessel keeps to its right, round at
+the bend, down on the town's side, round short of the bridge, a third of the round apart, slowing in the turns; each
+crewed by the navy (unseen) and stopping for a boat or a swimmer in its way. Their lamps at night: red to port, green to
+starboard, white at the masthead and stern. Never sold. From a boat alongside, or swimming beside one on the town's side,
+"Climb aboard the naval ship": the crew go over the side, the police are told (taking a vehicle, two stars), and the
+helm is the player's (in the wheelhouse, unseen): the ship answers it as a ship does, a long while to gather way (22 km/h
+at most) and slow to turn. "Leave the ship": down into their own boat alongside, or over the side by the town; it lies
+where it was left. Caught by the police, it goes back to the navy, which brings it back to its patrol.
+
+### Surfing (`src/sim/surf.js`, `src/sim/surfing.js`, `src/client/surf-view.js`)
+
+The waves come in along the town's bank east of the jetty (x 46 to 236), in sets of three a few seconds apart with a
+lull between: first seen out on the river, building as they come into the shallows, standing up and breaking white a few
+metres off the bank, then running up it as foam. Every copy of the town has the same waves at the same moment (the
+town's clock, in real seconds), so two players see the same wave. None anywhere else: not west of the jetty, not at the
+habitation's lagoon. Only those dressed for the water surf: Adanna (W10, in her bikini) and Ujunwa (W11, in her
+swimsuit); anyone else is told "You cannot surf dressed like that: it takes swimwear". With a surfboard of their own (the
+mall's, 100 TR), at the water's edge there, "Paddle out on your surfboard" (or "Onto your surfboard" from the water):
+lying on it face down, the head up, paddling with the arms in turn (Paddle), turning with the arrows; a wave going by
+lifts the board. Turned to the bank with a wave coming up behind as it stands up, "Stand up on the wave": standing across
+the board side on, the left foot forward, knees well bent, arms out, carried in on the wave's face and leaning along it
+with the arrows (to 23 km/h across it); in the shallows, or with the wave gone on, down on the board again. "Off the
+board": into the water, or onto the bank. Other players see a surfer lying or riding.
+
+### Tests
+
+`test/boats.test.mjs` (how each goes; where a boat may go; the ships' round; the waves), `test/water.test.mjs` (the
+speedboat only its owner's, taken out, driven, brought in, moored, gone over the side of; sold; the ships boarded,
+steered, left; the police giving one back; others' boats seen on the river), `test/surf-play.test.mjs` (who may surf and
+where; paddling; standing up only on a wave, facing the bank; riding it in; off the board; others seeing a surfer), and in
+a browser `test/water.mjs` and `test/surf.mjs`.
+
 ## Tests
 
 ```

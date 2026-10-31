@@ -52,6 +52,14 @@ export function hullClear(x, z, h, hulls = [], hull = BOATING.hull) {
   return true;
 }
 
+// The nearest place on the town's bank to a point on the river at `x` (along the river): a step up from the water,
+// where it can be stood on; failing that, the jetty.
+export function ashore(x) {
+  const cx = Math.max(-240, Math.min(240, x));
+  for (let d = 0; d < 60; d += 1) for (const s of [1, -1]) { const px = cx + d * s; for (const back of [1.2, 2.2, 3.5]) { const pz = zoneShoreZ(px) - back; if (zoneWalkable(px, pz)) return { x: px, z: pz }; } }
+  return { x: (ZONE_JETTY.x0 + ZONE_JETTY.x1) / 2, z: ZONE_JETTY.z0 + 4 };
+}
+
 export function createOwnBoats({ state, hub }) {
   const own = (p) => (Array.isArray(p.sports) ? p.sports.filter((id) => BOATS.includes(id)) : []);
   const mooredOf = (p) => { if (!p.boatMoored || typeof p.boatMoored !== 'object') p.boatMoored = {}; return p.boatMoored; };
@@ -165,13 +173,21 @@ export function createOwnBoats({ state, hub }) {
   // sold (no longer theirs): no longer moored anywhere, and they are put ashore if aboard
   function setOwned(p) {
     const mine = own(p);
+    if (isOwnBoat(p.astride) && !mine.includes(boatOfAstride(p.astride))) { try { leave(p); } catch (error) { p.astride = null; p.pboat = null; const at = ashore(p.x); p.x = at.x; p.z = at.z; p.lastMoveAt = state.real; } }
     for (const id of Object.keys(mooredOf(p))) if (!mine.includes(id)) delete mooredOf(p)[id];
-    if (isOwnBoat(p.astride) && !mine.includes(boatOfAstride(p.astride))) { try { leave(p); } catch (error) { p.astride = null; p.pboat = null; p.swimming = { since: state.real }; } }
   }
-  function unseat(p) { if (isOwnBoat(p.astride) && p.pboat) { const b = p.pboat; mooredOf(p)[b.id] = { x: b.x, z: b.z, h: b.h }; p.astride = null; p.pboat = null; } }
+  // Taken out of it (by the police, or carried off hurt): it is left moored where it is, and they are brought ashore.
+  function unseat(p) {
+    if (!(isOwnBoat(p.astride) && p.pboat)) return;
+    const b = p.pboat;
+    mooredOf(p)[b.id] = { x: b.x, z: b.z, h: b.h };
+    p.astride = null; p.pboat = null;
+    const at = ashore(b.x); p.x = at.x; p.z = at.z; p.lastMoveAt = state.real;
+  }
   const selfView = (p) => ({ boats: own(p), moored: Object.entries(mooredOf(p)).map(([id, m]) => ({ boat: id, x: Math.round(m.x * 100) / 100, z: Math.round(m.z * 100) / 100, h: Math.round(m.h * 1000) / 1000 })) });
 
   const api = { launch, drive, leave, leaveAlongside, alongside, backAboard, setOwned, unseat, selfView, putIn };
   hub.ownBoats = api;
+  hub.ashore = ashore;
   return api;
 }

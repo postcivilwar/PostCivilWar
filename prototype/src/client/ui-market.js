@@ -343,6 +343,14 @@ export function createMarketUI(kit) {
         root.append(h('div', { class: 'hxrow' },
           h('button', { class: 'hx primary', type: 'button', id: 'ride-sport', onclick: () => { quiet(); const r = app.rideSport(sport); if (r && !r.ok) { say(false, r.message); redraw(); } } }, sport === 'inline-skates' ? 'Put them on' : 'Ride it')));
         root.append(h('p', { class: 'small' }, sport === 'inline-skates' ? 'You put them on where you stand, outdoors, or where you took them off if you are beside it. Take them off with the button you put them on with.' : 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
+      } else if (sport === 'speedboat') {
+        // (31 October 2026: out on the River Niger from the town's jetty or the water's edge)
+        root.append(h('div', { class: 'hxrow' },
+          h('button', { class: 'hx primary', type: 'button', id: 'launch-boat', onclick: () => { quiet(); const r = app.launchBoat(); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Take it out')));
+        root.append(h('p', { class: 'small' }, 'From the town\'s jetty, or the water\'s edge along the river: it is put in the water beside you, and you are at its wheel. Bring it in to the bank or the jetty to step ashore; it stays moored where you leave it.'));
+      } else if (sport === 'surfboard') {
+        // (31 October 2026: on the waves along the town's bank, in swimwear)
+        root.append(h('p', { class: 'small', id: 'sport-water' }, 'For the waves that come in along the town\'s bank, east of the jetty: walk down to the water\'s edge there and choose Surf. It takes swimwear: Adanna and Ujunwa can surf.'));
       } else root.append(h('p', { class: 'small', id: 'sport-water' }, `The ${SPORTS[sport].name} is for the water: it is not ridden on land.`));
     }
     const car = carOf(item.asset.model);

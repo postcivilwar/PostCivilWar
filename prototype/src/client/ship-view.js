@@ -10,7 +10,7 @@ import { loadSport } from './sports-model.js';
 import { WATER } from '../sim/zone.js';
 import { NAVAL } from '../sim/naval.js';
 
-export const SHIP_DRAWN = Object.freeze({ waterline: 4.4, sight: { full: 900, lite: 600 }, near: 160 });
+export const SHIP_DRAWN = Object.freeze({ waterline: 4.4, sight: { full: 900, lite: 400 }, near: 160 });
 
 function lamp(colour, size) {
   const m = new THREE.Mesh(new THREE.SphereGeometry(size, 8, 6), new THREE.MeshBasicMaterial({ color: colour, toneMapped: false }));
@@ -30,7 +30,7 @@ export function createShipView(scene, { lite = false, base = 'sports/', priority
       const old = e;
       e = { ...old, tier, loading: true, next: true };
       shown.set(n, e);
-      loadSport('naval-ship', { base, tier, priority }).then((m) => { if (shown.get(n) !== e) { m.dispose(); return; } m.group.scale.setScalar(scale); scene.add(m.group); if (old.model) old.model.dispose(); e.model = m; e.loading = false; }, () => { e.loading = false; });
+      loadSport('naval-ship', { base, tier, priority }).then((m) => { if (shown.get(n) !== e) { m.dispose(); return; } m.group.scale.setScalar(scale); scene.add(m.group); if (e.lamps) for (const L of Object.values(e.lamps)) m.frame.add(L); if (old.model) old.model.dispose(); e.model = m; e.loading = false; }, () => { e.loading = false; });
       return e;
     }
     if (!e) {

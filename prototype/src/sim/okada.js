@@ -462,7 +462,7 @@ export function createOkada({ state, ledger, monetary, issuanceAccount, populati
   function unseat(player) {
     // (one of the player's own motorcycles is theirs to leave standing, not a rider's to recover)
     // (and one of their own things from the sports mall: left standing where it is, 31 October 2026)
-    if (typeof player.astride === 'string') { if (hub.ownBikes) hub.ownBikes.unseat(player); if (hub.ownSports) hub.ownSports.unseat(player); player.astride = null; }
+    if (typeof player.astride === 'string') { if (hub.ownBikes) hub.ownBikes.unseat(player); if (hub.ownSports) hub.ownSports.unseat(player); if (hub.ownBoats) hub.ownBoats.unseat(player); if (hub.naval) hub.naval.unseat(player); if (hub.surfing) hub.surfing.unseat(player); player.astride = null; }
     if (player.astride !== null && player.astride !== undefined) { const r = riders[player.astride]; if (r) leaveBike(player, r); player.astride = null; }
     if (player.riding !== null && player.riding !== undefined) { const r = riders[player.riding]; if (r && setDown(player, r, '', false)) { r.passenger = null; goRank(r, state.real); } else if (r) { r.passenger = null; player.riding = null; goRank(r, state.real); } }
   }

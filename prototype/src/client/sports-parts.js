@@ -501,12 +501,14 @@ export const SPORTS_PARTS = Object.freeze({
   "parts": [
    "body",
    "motor",
-   "helm"
+   "helm",
+   "stand"
   ],
   "counts": [
-   95578,
+   90409,
    7304,
-   1356
+   1356,
+   5169
   ],
   "size": [
    1.86609,

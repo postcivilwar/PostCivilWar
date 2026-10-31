@@ -68,7 +68,7 @@ ITEMS = {
                    'pedals': [2, 5]},
     # a speedboat 5.2 m long; its outboard motor turns to steer it, the steering wheel with it
     'speedboat': {'file': 'speedboat.glb', 'faces': (-1, 0), 'length': 5.2, 'kind': 'boat',
-                  'motor': [4], 'helm': [10], 'seats': [5, 7]},
+                  'motor': [4], 'helm': [10], 'seats': [5, 7], 'stand': [8]},
     # a shortboard of 1.83 m (6 feet)
     'surfboard': {'file': 'surfboard.glb', 'faces': (-1, 0), 'length': 1.83, 'kind': 'surfboard'},
     # a naval ship of 120 m: not sold; three of them on the river, crewed by townspeople
@@ -145,6 +145,8 @@ def build(item, cfg):
         for name, nums in cfg['trucks'].items(): add('truck:' + name, nums)
     if 'motor' in cfg: add('motor', cfg['motor'])
     if 'helm' in cfg: add('helm', cfg['helm'])
+    # (the stand the speedboat is shown on at the mall: its own part, left off when it is afloat)
+    if 'stand' in cfg: add('stand', cfg['stand'])
     # each triangle's part in the game's order: 0 the body, then the moving parts as listed
     part = np.zeros(len(idx), np.int16)
     for g, (name, nums) in enumerate(moving, start=1):

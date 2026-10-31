@@ -630,6 +630,31 @@ export function createAudio() {
     if (x === null) { if (ctx.currentTime < hornAt) return; hornAt = ctx.currentTime + 0.5; here('horn', 0.8, 'vehicles', play); } else at(x, z, 50, 'horn', 0.8, 'vehicles', play);
   }
 
+  // A boat's horn (31 October 2026): the speedboat's a short bright double note; a naval ship's a long deep blast, heard
+  // far across the water. The player's own (no place given), or another's, heard where it is.
+  function shipHorn(big = false, x = null, z = null) {
+    if (!ctx || muted) return;
+    const length = big ? 2.2 : 0.7;
+    const play = (out, t) => {
+      for (const [f, level] of big ? [[87, 0.11], [130.5, 0.07], [174, 0.035]] : [[311, 0.06], [392, 0.05]]) {
+        const osc = ctx.createOscillator(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
+        osc.type = 'sawtooth'; osc.frequency.value = f; lp.type = 'lowpass'; lp.frequency.value = big ? 700 : 1800;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(level, t + (big ? 0.25 : 0.04));
+        g.gain.setValueAtTime(level, t + length - (big ? 0.35 : 0.08)); g.gain.exponentialRampToValueAtTime(0.0001, t + length);
+        osc.connect(lp); lp.connect(g); g.connect(out); osc.start(t); osc.stop(t + length + 0.05);
+      }
+    };
+    if (x === null) { if (ctx.currentTime < hornAt) return; hornAt = ctx.currentTime + length + 0.2; here('horn', length, 'vehicles', play); } else at(x, z, big ? 400 : 120, 'horn', length, 'vehicles', play);
+  }
+
+  // A wave breaking on the town's bank (31 October 2026): its crash, a low roar rising and falling away, and the hiss of
+  // its foam running in, heard from where it breaks.
+  function surfBreak(x, z, size = 1) {
+    if (!ctx || muted) return;
+    const play = (out, t) => { burst(out, t, 'lowpass', 420, 0.7, 0.16 * size, 1.4, 1.7); burst(out, t + 0.12, 'bandpass', 1800, 0.6, 0.07 * size, 1.5, 2.3); };
+    at(x, z, 90, 'surf', 1.7, 'ambient', play);
+  }
+
   // Another player's bike sounding its horn, heard where the bike is.
   function bikeHornAt(id, x, z) {
     const h = BIKE_HORNS[id] || BIKE_HORNS.dual;
@@ -939,7 +964,7 @@ export function createAudio() {
     const engineOwn = own && !bike && !carOwn && !sportOwn ? own : null;
     if (engineOwn && nodes.own.kind !== engineOwn.kind && ENGINE_VOICES[engineOwn.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(engineOwn.kind, false); }
     nodes.own.set(engineOwn ? engineOwn.rev : 0, engineOwn ? 0.21 + engineOwn.throttle * 0.24 : 0, now);
-    nodes.tyres.gain.gain.setTargetAtTime(own && Number.isFinite(own.rev) ? own.rev * 0.035 : 0, now, 0.2);
+    nodes.tyres.gain.gain.setTargetAtTime(own && Number.isFinite(own.rev) && !own.water ? own.rev * 0.035 : 0, now, 0.2);
     engines.forEach((voice, i) => {
       const e = scene.engines[i];
       if (!e) { voice.set(0, 0, now); return; }
@@ -1101,7 +1126,7 @@ export function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },

@@ -16,6 +16,9 @@ import { createTraffic } from './traffic.js';
 import { createSportRiders } from './sport-riders.js';
 import { createOwnBikes, isOwnBike, bikeOf } from './own-bikes.js';
 import { createOwnSports, isOwnSport, sportOfAstride } from './own-sports.js';
+import { createOwnBoats, isOwnBoat, boatOfAstride } from './own-boats.js';
+import { createNaval, isShip, shipOfAstride } from './naval.js';
+import { createSurfing, isSurfing } from './surfing.js';
 import { SPORT_BELL } from './sport-ride.js';
 import { createOwnCars, isOwnCar, carOf } from './own-cars.js';
 import { createTalk } from './talk.js';
@@ -41,10 +44,10 @@ export const TIME_SCALE = 30;                 // game seconds per real second (a
 export const SIM_START = 7.5 * 3600;          // 07:30 on day one
 export const SPEED = Object.freeze({ walk: 2.4, run: 5.6, rain: 0.9 });
 const REACH = 4.5;
-const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$|cars\\.owned$|gun\\.owned$|gun\\.struck$|gun\\.holster$|gun\\.confirmed$';
+const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet\\.history$|property\\.list$|police\\.status$|police\\.surrender$|police\\.reportSeen$|care\\.tariff$|care\\.ambulance|bikes\\.owned$|cars\\.owned$|sports\\.owned$|gun\\.owned$|gun\\.struck$|gun\\.holster$|gun\\.confirmed$';
 const WHILE_DRIVING = new RegExp(`^(vehicle\\.|run\\.|${ALWAYS})`);
 const WHILE_RIDING = new RegExp(`^(okada\\.alight$|${ALWAYS})`);
-const WHILE_ASTRIDE = new RegExp(`^(moto\\.|${ALWAYS})`);
+const WHILE_ASTRIDE = new RegExp(`^(moto\\.|naval\\.take$|surf\\.(stand|fall)$|${ALWAYS})`);
 const WHILE_INCAR = new RegExp(`^(car\\.|${ALWAYS})`);
 // Held by the police: the phone (as far as the officer allows), and what concerns the arrest itself.
 const IN_CUSTODY = /^(bikes\.owned$|cars\.owned$|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
@@ -102,7 +105,7 @@ export const upgradeFee = (total) => Math.floor(total / UPGRADE.parts);
 export const SWIM = Object.freeze({ speed: 1.15, fast: 1.9, reach: 4.5, outReach: 2.6, depth: 1.2 });
 // (a jump lasts about a second and a half on the screen: another, not before it is over)
 export const JUMP_EVERY = 1.4;
-const WHILE_SWIMMING = /^(move$|swim\.|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
+const WHILE_SWIMMING = /^(move$|swim\.|boats\.launch$|naval\.take$|surf\.out$|sports\.owned$|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
 
 // `wallClock`: the real clock, as `wallSeconds` gives it. With one, the town keeps the player's own time: the
 // hour, the day and the date are the real ones, a second of play is a second of the day, and time cannot be
@@ -153,6 +156,12 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   // and the things from the sports mall that are ridden on land (31 October 2026): the bicycle, the skateboard, the
   // skates, the e-scooter, the hoverboard and the electric unicycle; ridden through the motorcycle's own intents
   const ownSports = createOwnSports({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()] });
+  // on the river (31 October 2026): the player's own speedboat, and the navy's three ships on patrol
+  const ownBoats = createOwnBoats({ state, hub });
+  // and surfing on the waves along the town's bank (surfing.js), by the town's clock in real seconds
+  const surfing = createSurfing({ state, hub, waveClock: () => state.t / scale });
+  const naval = createNaval({ state, players: state.players, hub, visitors: () => talk.visitors() });
+  hub.swimmable = (x, z) => zoneSwimmable(x, z);
   hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.ownSports = ownSports; hub.serviceState = (id) => serviceState(id);
   // what townspeople's bodies do when something happens to them; its own dice, so that the rest of the town's
   // chances fall exactly as they did before it was added
@@ -328,6 +337,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     okada.tick(dtReal, state.t, state.real, weather().wet);
     traffic.tick(dtReal, state.t, state.real, weather().wet);
     sportRiders.tick(dtReal, state.t, state.real);
+    naval.tick(dtReal);
     actors.tick(dtReal, state.t, state.real);
     conflict.tick(dtReal);
     hijack.tick();
@@ -865,10 +875,10 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     // the horn: the simulation needs to know, because people in the road answer it
     'vehicle.horn'(p) { if (!p.driving) throw new GameError('NOT_DRIVING', 'You are not driving.'); return impact.horn(p); },
     // (on a thing from the sports mall: its bell, if it has one, the bicycle's and the e-scooter's)
-    'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); if (isOwnSport(p.astride) && !SPORT_BELL.includes(sportOfAstride(p.astride))) throw new GameError('NO_BELL', 'It has no bell.'); return impact.horn(p); },
-    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : isOwnSport(p.astride) ? ownSports.drive(p, step) : okada.rideDrive(p, step); },
+    'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); if (isOwnBoat(p.astride) || isShip(p.astride)) { p.horns = (p.horns || 0) + 1; p.hornAt = state.real; return {}; } if (isSurfing(p.astride)) throw new GameError('NO_BELL', 'It has no bell.'); if (isOwnSport(p.astride) && !SPORT_BELL.includes(sportOfAstride(p.astride))) throw new GameError('NO_BELL', 'It has no bell.'); return impact.horn(p); },
+    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : isOwnSport(p.astride) ? ownSports.drive(p, step) : isOwnBoat(p.astride) ? ownBoats.drive(p, step) : isShip(p.astride) ? naval.drive(p, step) : isSurfing(p.astride) ? surfing.drive(p, step) : okada.rideDrive(p, step); },
     'moto.crash'(p, body) { if (isOwnSport(p.astride)) return ownSports.crash(p, body || {}); if (!isOwnBike(p.astride)) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return ownBikes.crash(p, body || {}); },
-    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : isOwnSport(p.astride) ? ownSports.leave(p) : okada.dismount(p); },
+    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : isOwnSport(p.astride) ? ownSports.leave(p) : isOwnBoat(p.astride) ? ownBoats.leave(p) : isShip(p.astride) ? naval.leave(p) : isSurfing(p.astride) ? surfing.leave(p) : okada.dismount(p); },
     // --- a player's own motorcycles ---
     // what the website's server says this player owns (the page passes it on); the bike is brought to them, or
     // they get on it where they left it
@@ -876,7 +886,15 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     'bikes.ride'(p, body) { return ownBikes.mount(p, body || {}); },
     // --- the things a player has bought at the sports mall (31 October 2026), as their motorcycles: what the server
     // says they own, and getting on one (brought to them, or where they left it) ---
-    'sports.owned'(p, body) { return ownSports.setOwned(p, body || {}); },
+    'sports.owned'(p, body) { const r = ownSports.setOwned(p, body || {}); ownBoats.setOwned(p); return r; },
+    // the speedboat out on the river from the jetty or the bank, or back into it where it is moored (own-boats.js)
+    'boats.launch'(p, body) { return ownBoats.launch(p, body || {}); },
+    // aboard one of the navy's ships, from a boat alongside it or from the water (naval.js)
+    'naval.take'(p) { return naval.take(p); },
+    // out on a surfboard from the water's edge where the waves come in, up on a wave, down on the board (surfing.js)
+    'surf.out'(p) { return surfing.out(p); },
+    'surf.stand'(p) { return surfing.stand(p); },
+    'surf.fall'(p) { return surfing.fall(p); },
     'sports.ride'(p, body) { return ownSports.mount(p, body || {}); },
     // taking one from one of the town's riders, and getting back on one taken and left standing (sport-riders.js)
     'sports.take'(p, body) { return sportRiders.take(p, (body || {}).n); },
@@ -970,7 +988,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       if (p.hijack && !WHILE_TAKING.test(message.type)) throw new GameError('BUSY', 'You have your hands full.');
       if (p.driving && !WHILE_DRIVING.test(message.type)) throw new GameError('DRIVING', 'Step out of the keke first.');
       if (p.riding !== null && p.riding !== undefined && !WHILE_RIDING.test(message.type)) throw new GameError('RIDING', 'Get down from the okada first.');
-      if (p.astride !== null && p.astride !== undefined && !WHILE_ASTRIDE.test(message.type)) throw new GameError('RIDING', isOwnSport(p.astride) ? (sportOfAstride(p.astride) === 'inline-skates' ? 'Take your skates off first.' : 'Get off it first.') : 'Get off the motorcycle first.');
+      if (p.astride !== null && p.astride !== undefined && !WHILE_ASTRIDE.test(message.type)) throw new GameError('RIDING', isOwnSport(p.astride) ? (sportOfAstride(p.astride) === 'inline-skates' ? 'Take your skates off first.' : 'Get off it first.') : isOwnBoat(p.astride) ? 'Bring the boat in and step ashore first.' : isShip(p.astride) ? 'Leave the ship first.' : isSurfing(p.astride) ? 'Come off your surfboard first.' : 'Get off the motorcycle first.');
       if (p.incar && !WHILE_INCAR.test(message.type)) throw new GameError('IN_CAR', 'Get out of the car first.');
       if (p.swimming && !WHILE_SWIMMING.test(message.type)) throw new GameError('SWIMMING', 'You are in the river. Swim to the bank and climb out first.');
       return { ok: true, ...handler(p, message) };
@@ -1032,6 +1050,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       return null;
     };
     for (const p of Object.values(state.players)) {
+      if (p.pboat || p.pship) continue;
       const ride = p.pbike || p.pcar || p.psport;
       if (ride && (p.astride || p.incar)) {
         if (!upThere(ride.x, ride.z)) continue;
@@ -1125,6 +1144,9 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       // the town's cars on its roads, at the roadside, and those a player has taken and left standing (traffic.js)
       traffic: traffic.list(eye.x, eye.z, viewerId),
       sportRiders: sportRiders.list(eye.x, eye.z, viewerId),
+      naval: naval.list(),
+      // (the waves along the town's bank go by this: the town's clock in real seconds, surf.js)
+      waves: Math.round((state.t / scale) * 100) / 100,
       // trouble within sight: blows struck, people shaken by them, officers out on a call, the ambulance
       fights: conflict.eventsNear(eye.x, eye.z), impacts: impact.eventsNear(eye.x, eye.z), fallen: impact.fallen(), falls: impact.falls(eye.x, eye.z), blood: impact.bleeding(eye.x, eye.z), reacts: reactions.near(eye.x, eye.z), moods: conflict.moods(eye.x, eye.z), officers: justice.officersNear(eye.x, eye.z), ambulance: care.ambulanceView(),
       // rounds fired within hearing, and the officers shooting back (guns.js)
@@ -1145,7 +1167,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       // the town's voices near this player: who is turned to whom, talking; and whose recordings to have ready
       voiceTalk: voices.talking().filter((v) => { const w = v[0]; return w.startsWith('n:') || w.startsWith('r:'); }), voicesNear: voices.voicesNear(p.x, p.z),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : sportOfAstride(p.astride) ? { n: p.astride, sport: sportOfAstride(p.astride), ride: (p.psport && p.psport.ride) || null, horns: p.horns || 0, ...(p.psport && Number.isInteger(p.psport.taken) ? { taken: p.psport.taken } : {}) } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), ownSports: ownSports.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
+        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : sportOfAstride(p.astride) ? { n: p.astride, sport: sportOfAstride(p.astride), ride: (p.psport && p.psport.ride) || null, horns: p.horns || 0, ...(p.psport && Number.isInteger(p.psport.taken) ? { taken: p.psport.taken } : {}) } : boatOfAstride(p.astride) ? { n: p.astride, boat: boatOfAstride(p.astride), ride: (p.pboat && p.pboat.ride) || null, horns: p.horns || 0 } : isShip(p.astride) ? { n: p.astride, ship: shipOfAstride(p.astride), ride: (p.pship && p.pship.ride) || null, horns: p.horns || 0 } : isSurfing(p.astride) ? { n: p.astride, surf: surfing.selfView(p), ride: (p.psurf && p.psurf.ride) || null } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), ownSports: ownSports.selfView(p), ownBoats: ownBoats.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
@@ -1172,7 +1194,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
+    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, naval, ownBoats, surfing, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
   };
 }
 

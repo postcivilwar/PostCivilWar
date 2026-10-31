@@ -138,7 +138,7 @@ const V = (a) => new THREE.Vector3(a[0], a[1], a[2]);
 
 // One sports model to put in the scene, at its own size (metres). `tier`: its picture ('512', '1k', '2k'); `own`: a copy
 // of its own, for a renderer other than the town's; `mirror`: drawn as its mirror image (an inline skate for the left foot).
-export async function loadSport(id, { base = 'sports/', tier = null, own = false, priority, mirror = false, shadows = true } = {}) {
+export async function loadSport(id, { base = 'sports/', tier = null, own = false, priority, mirror = false, shadows = true, afloat = false } = {}) {
   const set = sportTier(tier);
   const key = `${id}:${set}`;
   if (!own) users.set(key, (users.get(key) || 0) + 1);
@@ -155,6 +155,9 @@ export async function loadSport(id, { base = 'sports/', tier = null, own = false
   const names = spec.parts;
   const geometryOf = (name) => geometries[names.indexOf(name)];
   frame.add(mesh(geometries[0]));
+  // what it stands on at the mall (the speedboat's stand), and what is under a board that is not in the water (the
+  // surfboard's wheels): left off when it is afloat (31 October 2026)
+  for (const name of ['stand', 'under']) if (names.includes(name) && !afloat) frame.add(mesh(geometryOf(name)));
   // a part that turns about a point: a group at the point, the part's mesh put back by it
   const pivot = (parent, at, name) => { const g = new THREE.Group(); g.position.copy(at); parent.add(g); const m = mesh(geometryOf(name)); m.position.copy(at).negate(); g.add(m); return g; };
   // the steering (a bicycle's fork and bars with its front wheel, a scooter's bars with its front wheel): about the

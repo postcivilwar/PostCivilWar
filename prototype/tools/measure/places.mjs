@@ -229,6 +229,9 @@ const PLACES = [
   ['city boulevard', 0, 20, 0],
   ['PowerBike showroom', -63.6, 64, Math.PI],
   ['car showroom gate', -420, -58, Math.PI],
+  // (31 October 2026: on the jetty looking out over the river, the navy's ships on it; and by the waves along the bank)
+  ['jetty', 21, 178, 0],
+  ['waves', 120, 146.5, 0.3],
   ['airport', -845, -244, Math.PI],
   ['town west', -300, 113, 0],
   ['town east end', 200, 113, Math.PI / 2],

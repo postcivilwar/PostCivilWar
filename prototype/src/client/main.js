@@ -90,6 +90,13 @@ import { createSportView } from './sport-view.js';
 import { createSportRidersView } from './sport-riders-view.js';
 import { SPORT_HANDLING, SPORT_BELL, stepSport, sportSeated } from '../sim/sport-ride.js';
 import { trimSports } from './sports-model.js';
+import { createBoatView } from './boat-view.js';
+import { createShipView } from './ship-view.js';
+import { BOAT_HANDLING, stepBoat, boatStep } from '../sim/boat-ride.js';
+import { hullClear, BOATING } from '../sim/own-boats.js';
+import { NAVAL, shipWater, shipHulls } from '../sim/naval.js';
+import { createSurfView } from './surf-view.js';
+import { SURF, inSurf, catchable, crestOf, surfHeight, wavesAt, waveAt } from '../sim/surf.js';
 import { createCarView } from './car-view.js';
 import { createStandins } from './vehicle-standins.js';
 import { setCarDaylight, carsHeld, trimCars } from './car-model.js';
@@ -355,7 +362,7 @@ function start(carried) {
   const audio = createAudio();
   // the town's recorded voices (28 October 2026): played from where each speaker stands (voices.js)
   const voicePlayer = createVoicePlayer({ audio, fetchFile: (url) => fetchKept(url) });
-  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null, sportView = null, peerSportView = null, sportRidersView = null;
+  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null, sportView = null, peerSportView = null, sportRidersView = null, boatView = null, shipView = null, surfView = null;
   townSteps.push(['the phones, the motorcycles and the cars', () => {
     // the phone in the character's hand: the handset, the arm that holds it, the light of its screen
     phoneHold = createPhoneHold({ scene, lite: LITE });
@@ -369,6 +376,11 @@ function start(carried) {
     peerSportView = createSportView(scene, { lite: LITE, priority: 'low' });
     // and the town's people out on theirs (sport-riders-view.js)
     sportRidersView = createSportRidersView(scene, { lite: LITE });
+    // on the river (31 October 2026): the player's own speedboat and others', driven and moored; the navy's ships
+    boatView = createBoatView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your speedboat could not be fetched. Check the connection.' }); } });
+    shipView = createShipView(scene, { lite: LITE });
+    // the waves along the town's bank, and surfing on them (surf-view.js)
+    surfView = createSurfView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your surfboard could not be fetched. Check the connection.' }); } });
     // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
     carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
     // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
@@ -421,6 +433,7 @@ function start(carried) {
   let peerRides = [], peerSportRides = [];
   const riderBells = new Map();          // the last ring of each of the town's cyclists' bells heard (by when it was)
   let riderBellsHeard = 0;
+  const wavesHeard = new Set();           // the waves along the bank heard breaking (by their number)
   let carsHeard = [];                // other players' cars near enough to be heard: { key, car, x, z, rev, throttle }
   let shownPeers = [];
   // Other players as they are now: one in or on a vehicle is carried on from where their game last said they were,
@@ -1725,6 +1738,7 @@ function start(carried) {
     online, market, wallet: walletClient,
     rideBike: (id) => rideOwnBike(id),
     rideSport: (id) => rideOwnSport(id),
+    launchBoat: () => launchBoat(),
     driveCar: (id) => enterOwnCar(id),
     bikeSound: (id) => audio.previewBike(id),
     stopBikeSound: () => audio.stopPreview(),
@@ -2634,6 +2648,8 @@ function start(carried) {
     if (atBridge()) return BRIDGE_PROMPT;
     if (view.self.driving) return findDrivingPrompt();
     if (view.self.incar) return Math.abs(carState.speed) > 1.5 ? null : { short: 'Get out', text: ownCar() ? `Get out of the ${ownCar().name}` : 'Get out of the car', run: leaveOwnCar };
+    if (view.self.astride && ownSurf()) return surfPrompt();
+    if (view.self.astride && (ownBoat() || aboardShip() !== null)) return waterPrompt();
     if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: ownSport() === 'inline-skates' ? 'Take off' : 'Get off', text: ownSport() === 'inline-skates' ? 'Take your skates off' : ownSport() ? `Get off the ${SPORTS[ownSport()].name}` : powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; stillSport(); predicted.x = r.x; predicted.z = r.z; } say(r); } };
     if (view.self.fight) return null;
     if (view.self.riding) return { short: 'Get down', text: 'Get down from the okada', run: getDown };
@@ -2665,6 +2681,23 @@ function start(carried) {
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
     // and their things from the sports mall, where they left them (the skates: put on again)
     for (const b of (view.self.ownSports && view.self.ownSports.parked) || []) if (SPORT_HANDLING[b.item]) add(b.x, b.z, 2.2, { bias: 1.4, short: b.item === 'inline-skates' ? 'Put on' : 'Ride', text: b.item === 'inline-skates' ? 'Put your skates on' : `Ride your ${SPORTS[b.item].name}`, run: () => rideOwnSport(b.item) });
+    // their speedboat (31 October 2026): out on the river from the jetty or the water's edge (it is put in the water for
+    // them there), or into it where it is moored; from the water, a ship alongside to climb aboard
+    const boatsOwn = view.self.ownBoats || { boats: [], moored: [] };
+    if (boatsOwn.boats.includes('speedboat')) {
+      const moored = boatsOwn.moored.find((m) => m.boat === 'speedboat');
+      if (moored) add(moored.x, moored.z, BOATING.ashore + 1.5, { bias: 1.6, short: 'Board', text: 'Into your speedboat', run: launchBoat });
+      const onJetty = here.x > ZONE_JETTY.x0 - 0.5 && here.x < ZONE_JETTY.x1 + 0.5 && here.z > ZONE_JETTY.z0 && here.z < ZONE_JETTY.z1 + 0.5;
+      if (!view.self.swimming && (view.self.byWater || onJetty)) options.push({ d: 0.6, short: 'Boat', text: 'Take your speedboat out', run: launchBoat });
+    }
+    if (view.self.swimming && shipBeside(here.x, here.z, NAVAL.board)) options.push({ d: -1, short: 'Board', text: 'Climb aboard the naval ship', run: boardShip });
+    // their surfboard (31 October 2026): out on the waves from the water's edge where they come in, east of the jetty, or
+    // from the water there (the town says no to anyone not in swimwear, and says why)
+    if (ownsSurfboard()) {
+      const byWaves = here.x > SURF.x0 + 2 && here.x < SURF.x1 - 2;
+      if (byWaves && view.self.byWater && !view.self.swimming) options.push({ d: 0.4, short: 'Surf', text: 'Paddle out on your surfboard', run: surfOut });
+      if (byWaves && view.self.swimming && inSurf(here.x, here.z)) options.push({ d: -0.5, short: 'Board', text: 'Onto your surfboard', run: surfOut });
+    }
     // and their own cars (reached from beside a door: the car's own half-width and a step)
     for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) if (POWER_CARS[c.car]) add(c.x, c.z, POWER_CARS[c.car].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive your ${POWER_CARS[c.car].name}`, run: () => enterOwnCar(c.car) });
     // one of the town's riders going slowly or standing, close by: theirs to take (sport-riders.js); and one taken and
@@ -2762,6 +2795,9 @@ function start(carried) {
     if (self.incar && ownCar()) return 'car';
     // a power bike has its own controls (power-bikes.js); none is in the game until its model is supplied
     if (self.astride && ownSport()) return 'sport';
+    if (self.astride && ownSurf()) return 'surf';
+    if (self.astride && ownBoat()) return 'boat';
+    if (self.astride && aboardShip() !== null) return 'ship';
     if (self.astride && powerBike()) return 'powerbike';
     if (bikePreview) return 'powerbike';
     if (self.astride) return 'moto';
@@ -2854,7 +2890,10 @@ function start(carried) {
     if (m === 'swimming') {
       // in the river: the right hand strokes (held, faster); near the bank, a way out. The left hand is the stick.
       const list = [{ id: 'stroke', key: 'Shift', label: 'Stroke', icon: 'hand', kind: 'hold', primary: true, hint: 'Hold to swim harder' }];
-      if (self.swimming.nearBank) list.push({ id: 'climb', key: 'e', label: 'Climb out', icon: 'climb', hint: 'Climb out onto the bank' });
+      // (a ship alongside to climb aboard, or their own boat to get into, 31 October 2026)
+      if (prompt && prompt.short === 'Board') list.push({ ...main, primary: false, label: 'Board', icon: 'climb', hint: prompt.text });
+      else if (prompt && prompt.short === 'Surf') list.push({ ...main, primary: false, label: 'Surf', icon: 'climb', hint: prompt.text });
+      else if (self.swimming.nearBank) list.push({ id: 'climb', key: 'e', label: 'Climb out', icon: 'climb', hint: 'Climb out onto the bank' });
       return list;
     }
     if (m === 'walking') {
@@ -2928,6 +2967,15 @@ function start(carried) {
       const go = drive === 'pedals' ? ['Pedal', 'Hold to pedal'] : drive === 'push' ? ['Push', 'Hold to push along'] : drive === 'stride' ? ['Skate', 'Hold to skate'] : ['Go', 'Hold to go'];
       return [{ id: 'throttle', label: go[0], icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: go[1] }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to slow down' }, { id: 'steer-left', label: 'Lean left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Lean right', icon: 'chevright', kind: 'hold' }, ...(SPORT_BELL.includes(id) ? [{ id: 'horn', key: 'h', label: 'Bell', icon: 'horn' }] : []), { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
     }
+    // In the speedboat, or at a naval ship's helm (31 October 2026): the car's layout (the arrows turn the motor or the
+    // rudder; ahead with the one, astern with the other: there is no brake on the water), the horn, and going ashore.
+    // On a surfboard (31 October 2026): lying on it, Paddle and the arrows to turn; up on a wave, the arrows lean it along
+    // the wave; the large button stands up when a wave comes up behind, and otherwise takes them off the board.
+    if (m === 'surf') {
+      const riding = !!(ownSurf() && ownSurf().mode === 'ride');
+      return [...(riding ? [] : [{ id: 'throttle', label: 'Paddle', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', hint: 'Hold to paddle' }]), { id: 'steer-left', label: riding ? 'Lean left' : 'Turn left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: riding ? 'Lean right' : 'Turn right', icon: 'chevright', kind: 'hold' }, { ...out, primary: true, icon: prompt && prompt.short === 'Stand' ? 'climb' : 'getoff', label: (prompt && prompt.short) || 'Off', hint: prompt ? prompt.text : '' }, { ...look, keyOnly: true }];
+    }
+    if (m === 'boat' || m === 'ship') return [{ id: 'throttle', label: 'Ahead', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to go ahead' }, { id: 'brake', label: 'Astern', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to go astern: it slows, then goes back' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getout', label: (prompt && prompt.short) || (m === 'ship' ? 'Leave' : 'Ashore'), hint: prompt ? prompt.text : m === 'ship' ? 'Slow down to leave the ship' : 'Bring it in to the bank or the jetty to step ashore' }, { ...look, keyOnly: true }];
     // On a power bike: its own layout, on a touch screen and with a keyboard alike. Steering arrows at the lower
     // left, the throttle and the brake at the right, the horn at the top, and getting off.
     if (m === 'powerbike') return [{ id: 'throttle', label: 'Throttle', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
@@ -2965,11 +3013,11 @@ function start(carried) {
     const wheel = mode === 'driving' && coarse && wheelLayout();
     if (stickEl.classList.contains('wheel') !== wheel) { stickEl.classList.toggle('wheel', wheel); $('touch').classList.toggle('wheel', wheel); $('hud').classList.toggle('wheel', wheel); controls.setSteering(wheel); }
     // on a power bike the stick goes and the bike's own buttons come; anything else, and they go again
-    const onBike = mode === 'powerbike' || mode === 'car' || mode === 'sport';
+    const onBike = mode === 'powerbike' || mode === 'car' || mode === 'sport' || mode === 'boat' || mode === 'ship' || mode === 'surf';
     if ($('touch').classList.contains('bike') !== onBike) { $('touch').classList.toggle('bike', onBike); $('hud').classList.toggle('bike', onBike); }
     keymap.clear();
     for (const b of list) if (b.key && b.key !== 'Shift') keymap.set(b.key, b);
-    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'sport' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
+    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'sport' || mode === 'boat' || mode === 'ship' || mode === 'surf' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
   }
 
   // One move in a fight: asked of the simulation, which says what came of it.
@@ -3024,7 +3072,7 @@ function start(carried) {
       case 'jump': jump(); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
-      case 'horn': { if (ownSport()) { if (SPORT_BELL.includes(ownSport())) { audio.cycleBell(); server.send({ type: 'moto.horn' }); } break; } if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
+      case 'horn': { if (ownBoat() || aboardShip() !== null) { audio.shipHorn(aboardShip() !== null); server.send({ type: 'moto.horn' }); break; } if (ownSport()) { if (SPORT_BELL.includes(ownSport())) { audio.cycleBell(); server.send({ type: 'moto.horn' }); } break; } if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
       case 'camera': rig.view = nextView(rig.view, where()); ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW[rig.view].name.toLowerCase()}.` }); break;
       case 'fight': if (near.fight) said(server.send({ type: 'combat.engage', target: { kind: near.fight.kind, id: near.fight.id } }), `You square up to ${near.fight.name}.`); break;
       case 'punch': case 'heavy': case 'kick': case 'shove': case 'grab': strike(id); break;
@@ -3271,6 +3319,184 @@ function start(carried) {
     if (r.ok) { ui.close(); stillSport(); sportState.phase = 0; moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; sportState.sentHeading = r.h; refreshView(); }
     else say(r);
     return r;
+  }
+  // --- on the river (31 October 2026): the player's own speedboat, and one of the navy's ships taken ---
+  const ownBoat = () => { const a = view && view.self.astride; return a && a.boat && BOAT_HANDLING[a.boat] ? a.boat : null; };
+  const aboardShip = () => { const a = view && view.self.astride; return a && Number.isInteger(a.ship) ? a.ship : null; };
+  const boatState = { speed: 0, side: 0, heading: 0, yaw: 0, steer: 0, bank: 0, pitch: 0, throttle: 0, braking: false };
+  const stillBoat = () => { Object.assign(boatState, { speed: 0, side: 0, yaw: 0, steer: 0, bank: 0, pitch: 0, throttle: 0, braking: false }); };
+  // the motor's note: idling, rising with the throttle and the speed
+  const boatRevs = (top) => Math.min(1, 0.16 + 0.84 * Math.max(Math.abs(boatState.speed) / top, boatState.throttle * 0.75));
+  // the ships as they are drawn: the one at this player's helm where they have it
+  const shipsNow = () => ((view && view.naval) || []).map((s) => (s.mode === 'taken' && s.mine === playerId && aboardShip() === s.n ? { ...s, x: predicted.x, z: predicted.z, h: predicted.heading, speed: boatState.speed } : s));
+  // one alongside (x, z), within `reach` of its side, that may be boarded (not one someone is at the helm of)
+  const shipBeside = (x, z, reach) => shipsNow().find((s) => { if (s.mode === 'taken') return false; const ux = Math.sin(s.h), uz = Math.cos(s.h), dx = x - s.x, dz = z - s.z; return Math.abs(dx * ux + dz * uz) < NAVAL.length / 2 && Math.abs(dx * uz - dz * ux) - NAVAL.beam / 2 <= reach; }) || null;
+  // Out in it: from the jetty or the water's edge, where it is put in the water; or back into it where it is moored.
+  function launchBoat() {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'boats.launch', boat: 'speedboat' });
+    if (r.ok) { ui.close(); stillBoat(); moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; boatState.heading = r.h; cam.yaw = r.h; refreshView(); }
+    say(r);
+    return r;
+  }
+  // Aboard one of the navy's ships, from a boat alongside it or from the water: its crew go over the side, the police
+  // are told (naval.js); the helm is the player's. It is never theirs.
+  function boardShip() {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'naval.take' });
+    if (r.ok) { stillBoat(); boatState.speed = r.speed || 0; moto.speed = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; boatState.heading = r.h; cam.yaw = r.h; refreshView(); ui.toast({ type: 'alert', title: 'Taken', text: 'You took one of the navy\'s ships. It is not yours: it cannot be sold, and the police will give it back to the navy.' }); }
+    else say(r);
+    return r;
+  }
+  // Out of the boat (ashore, or over the side), or off the ship (down into their own boat alongside, or into the water)
+  function leaveBoat() {
+    const r = server.send({ type: 'moto.leave' });
+    if (r.ok) { stillBoat(); moto.speed = 0; predicted.x = r.x; predicted.z = r.z; if (Number.isFinite(r.h)) predicted.heading = r.h; refreshView(); }
+    say(r);
+    return r;
+  }
+  // In the boat or at the helm, slow enough to do anything else: a ship alongside to board; the bank or the jetty to
+  // step ashore on; the river by the town to go over the side into. At a ship's helm, leaving it (the town decides how).
+  function waterPrompt() {
+    if (Math.abs(boatState.speed) > 1.5) return null;
+    if (aboardShip() !== null) return { short: 'Leave', text: 'Leave the ship', run: leaveBoat };
+    const here = predicted;
+    if (shipBeside(here.x, here.z, NAVAL.board)) return { short: 'Board', text: 'Climb aboard the naval ship', run: boardShip };
+    const byJetty = here.x > ZONE_JETTY.x0 - BOATING.ashore && here.x < ZONE_JETTY.x1 + BOATING.ashore && here.z > ZONE_JETTY.z0 && here.z < ZONE_JETTY.z1 + BOATING.ashore;
+    const byBank = here.z - zoneShoreZ(here.x) < BOATING.ashore && here.x > ZONE.bounds.minX + 2 && here.x < ZONE.bounds.maxX - 2;
+    if (byJetty || byBank) return { short: 'Ashore', text: 'Step ashore', run: leaveBoat };
+    if (zoneSwimmable(here.x, here.z)) return { short: 'Swim', text: 'Go over the side into the river', run: leaveBoat };
+    return null;
+  }
+  // The speedboat under the player's hands (boat-ride.js): its motor pushes it and the water holds it back; the motor
+  // turned steers it, its stern sliding out in a turn; it goes where its whole hull is in water (own-boats.js), never
+  // into the bank, the jetty, the bridge's piers or a ship: against them it stops, with a knock.
+  function driveBoat(dt, id) {
+    const h = BOAT_HANDLING[id];
+    const input = uiBlocks() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    boatState.heading = predicted.heading;
+    stepBoat(boatState, input, dt, { handling: h });
+    boatState.throttle = input.throttle; boatState.braking = input.brake > 0;
+    moto.speed = boatState.speed; moto.lean = 0;
+    predicted.heading = boatState.heading;
+    if (Math.abs(boatState.speed) < 0.02 && Math.abs(boatState.side) < 0.02) return 0;
+    const step = boatStep(boatState, dt);
+    const nx = predicted.x + step.dx, nz = predicted.z + step.dz;
+    if (!hullClear(nx, nz, boatState.heading, shipHulls(shipsNow()), { half: BOATING.hull.half - 0.05, ahead: BOATING.hull.ahead })) {
+      if (Math.abs(boatState.speed) > 2.5 && clock - scrapedAt > 0.4) { scrapedAt = clock; audio.blow('block', predicted.x, predicted.z); jolt(); }
+      boatState.speed = 0; boatState.side = 0; boatState.yaw = 0; moto.speed = 0;
+      return 0;
+    }
+    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: boatState.heading, speed: boatState.speed, throttle: boatState.throttle, brake: boatState.braking, steer: boatState.steer, bank: boatState.bank, pitch: boatState.pitch, rev: boatRevs(h.top) });
+    if (result.ok) { predicted.x = nx; predicted.z = nz; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; stillBoat(); }
+    if (clock - cam.lastDrag > 1.5 && boatState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 1.8);
+    return Math.abs(boatState.speed);
+  }
+  // A naval ship under the player's helm: a long while to gather way and to lose it, slow to answer the helm
+  // (boat-ride.js); it keeps to the river's deep water (naval.js, `shipWater`), clear of the other ships.
+  function driveShip(dt, n) {
+    const h = BOAT_HANDLING['naval-ship'];
+    const input = uiBlocks() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    boatState.heading = predicted.heading;
+    stepBoat(boatState, input, dt, { handling: h });
+    boatState.throttle = input.throttle; boatState.braking = input.brake > 0;
+    moto.speed = boatState.speed; moto.lean = 0;
+    predicted.heading = boatState.heading;
+    if (Math.abs(boatState.speed) < 0.01 && Math.abs(boatState.side) < 0.01) return 0;
+    const step = boatStep(boatState, dt);
+    const nx = predicted.x + step.dx, nz = predicted.z + step.dz;
+    const others = shipsNow().filter((s) => s.n !== n);
+    if (!shipWater(nx, nz) || others.some((o) => Math.hypot(o.x - nx, o.z - nz) < NAVAL.beam)) {
+      if (clock - scrapedAt > 1) { scrapedAt = clock; audio.blow('block', predicted.x, predicted.z); jolt(); }
+      boatState.speed = 0; boatState.side = 0; boatState.yaw = 0; moto.speed = 0;
+      return 0;
+    }
+    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: boatState.heading, speed: boatState.speed, steer: boatState.steer });
+    if (result.ok) { predicted.x = nx; predicted.z = nz; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; stillBoat(); }
+    if (clock - cam.lastDrag > 1.5 && boatState.speed > 0.6) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 1.2);
+    return Math.abs(boatState.speed);
+  }
+  // --- surfing on the waves along the town's bank (31 October 2026): only in swimwear, on the river by the town ---
+  const ownSurf = () => { const a = view && view.self.astride; return a && a.surf ? a.surf : null; };
+  const surfState = { speed: 0, heading: 0, lean: 0, across: 0, phase: 0, paddling: 0 };
+  const stillSurf = () => { surfState.speed = 0; surfState.lean = 0; surfState.across = 0; surfState.paddling = 0; };
+  // the waves' clock: the town's in real seconds (view.waves), carried on to this frame
+  const waveNow = () => (view && Number.isFinite(view.waves) ? view.waves + Math.max(0, clock - viewAt) : 0);
+  const ownsSurfboard = () => !!(market.state.mine && market.state.mine.holdings.some((h) => h.asset && h.asset.model === 'sport:surfboard'));
+  // Out on it: from the water's edge where the waves come in (or from the water there). Only in swimwear: anyone else
+  // is told so by the town (surf.js `maySurf`).
+  function surfOut() {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'surf.out' });
+    if (r.ok) { stillSurf(); surfState.phase = 0; going.speed = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; cam.yaw = r.h + Math.PI; refreshView(); }
+    say(r);
+    return r;
+  }
+  // Up on a wave coming up behind them; down on the board again; off the board.
+  function standUp() {
+    const r = server.send({ type: 'surf.stand' });
+    if (r.ok) { surfState.across = 0; surfState.speed = SURF.speed; refreshView(); }
+    say(r);
+    return r;
+  }
+  function downOnBoard() { const r = server.send({ type: 'surf.fall' }); surfState.speed = Math.min(surfState.speed, 0.6); surfState.across = 0; refreshView(); return r; }
+  function offBoard() {
+    const r = server.send({ type: 'moto.leave' });
+    if (r.ok) { stillSurf(); predicted.x = r.x; predicted.z = r.z; refreshView(); }
+    say(r);
+    return r;
+  }
+  // On the board: standing up when a wave is under them; otherwise off it (onto the bank if it is close).
+  function surfPrompt() {
+    const s = ownSurf();
+    if (s.mode === 'lie' && Math.abs(angleGap(predicted.heading, Math.PI)) < 1.15 && catchable(predicted.x, predicted.z, waveNow())) return { short: 'Stand', text: 'Stand up on the wave', run: standUp };
+    const near = predicted.z - zoneShoreZ(predicted.x) < 2.6;
+    return { short: 'Off', text: near ? 'Off the board, onto the bank' : 'Off the board, into the water', run: offBoard };
+  }
+  // Lying on it: paddled (the arms in turn), turned by paddling harder on one side, slowed by back-paddling; a wave going
+  // by lifts it and carries it a little toward the bank. Up on a wave: carried in with it, the board on its face just in
+  // front of the crest, and across the face as far and as fast as the surfer leans (to 23 km/h); in the shallows by the
+  // bank, or with the wave gone on from under them, down on the board again.
+  function driveSurf(dt) {
+    const s = ownSurf();
+    const input = uiBlocks() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    const t = waveNow();
+    let nx = predicted.x, nz = predicted.z, heading = predicted.heading;
+    if (s.mode === 'ride') {
+      const crest = crestOf(s.wave, predicted.x, t);
+      if (crest === null || crest - predicted.z < -1.2 || predicted.z - zoneShoreZ(predicted.x) < 2.4) { downOnBoard(); return 0; }
+      // (leaning: right positive, as everything leans; facing the bank, the right is along +x)
+      surfState.lean += (input.steer * 0.42 - surfState.lean) * Math.min(1, dt * 3.5);
+      surfState.across = Math.max(-SURF.ride, Math.min(SURF.ride, surfState.across + (surfState.lean / 0.42) * 5.5 * dt - surfState.across * 0.25 * dt));
+      nx = predicted.x + surfState.across * dt;
+      // (on its face: in front of the crest, as far as the wave is standing up)
+      nz = Math.min(predicted.z, crestOf(s.wave, nx, t) - 1.9);
+      const vz = (nz - predicted.z) / Math.max(dt, 1e-3);
+      surfState.speed = Math.hypot(surfState.across, vz);
+      if (surfState.speed > 0.3) heading = Math.atan2(surfState.across, vz);
+    } else {
+      surfState.lean += (0 - surfState.lean) * Math.min(1, dt * 3);
+      const paddle = input.throttle > 0 ? 1 : 0;
+      surfState.paddling += (paddle - surfState.paddling) * Math.min(1, dt * 4);
+      surfState.speed += (paddle * 1.3 - (input.brake > 0 ? 1.4 : 0) * Math.sign(surfState.speed) - 0.55 * surfState.speed) * dt;
+      surfState.speed = Math.max(0, Math.min(1.55, surfState.speed));
+      heading -= input.steer * (0.7 + 0.6 * Math.min(1, surfState.speed / 1.2)) * dt;
+      if (paddle || surfState.paddling > 0.05) surfState.phase = (surfState.phase + dt / 1.1) % 2;
+      // (a wave going by under the board carries it a little toward the bank)
+      const lift = surfHeight(predicted.x, predicted.z, t);
+      nx = predicted.x + Math.sin(heading) * surfState.speed * dt;
+      nz = predicted.z + Math.cos(heading) * surfState.speed * dt - lift * 0.5 * dt;
+    }
+    predicted.heading = heading;
+    if (Math.hypot(nx - predicted.x, nz - predicted.z) < 1e-4) return 0;
+    if (!zoneSwimmable(nx, nz) || !inSurf(nx, nz)) { surfState.speed = 0; surfState.across = 0; return 0; }
+    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading, speed: surfState.speed, lean: surfState.lean, phase: surfState.phase });
+    if (result.ok) { predicted.x = nx; predicted.z = nz; if (result.mode && result.mode !== s.mode) refreshView(); }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; surfState.speed = 0; }
+    if (clock - cam.lastDrag > 1.5 && surfState.speed > 0.6) cam.yaw += angleGap(heading, cam.yaw) * Math.min(1, dt * 1.6);
+    return surfState.speed;
   }
   // What the server says this player owns from the mall, passed to the town whenever it changes (the motorcycles' sync
   // asks the server for it): only those can be ridden.
@@ -3526,7 +3752,8 @@ function start(carried) {
     if (led()) return 0;                       // walked in by an officer, carried, or with hands on a vehicle: not theirs to steer
     if (view.self.incar) { const spec = ownCar(); return spec ? driveOwnCar(dt, spec) : 0; }
     if (view.self.driving) return driveVehicle(dt);
-    if (view.self.astride) return ownSport() ? driveSport(dt, ownSport()) : driveMoto(dt);
+    if (view.self.astride && ownSurf()) return driveSurf(dt);
+    if (view.self.astride) return ownSport() ? driveSport(dt, ownSport()) : ownBoat() ? driveBoat(dt, ownBoat()) : aboardShip() !== null ? driveShip(dt, aboardShip()) : driveMoto(dt);
     if (view.self.riding) return 0;
     if (view.self.swimming) return swimPlayer(dt);
     const { forward, strafe } = controls.axes();
@@ -4080,7 +4307,7 @@ function start(carried) {
       driveKitEmote(dt, speed);
       // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
-      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride && ownSport() && !sportSeated(ownSport())) { standCharacter(me); me.group.position.y = groundY; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
+      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride && (ownSurf() || (ownSport() && !sportSeated(ownSport())))) { standCharacter(me); me.group.position.y = groundY; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
       // (through the air, thrown over the handlebars)
       if (fallPlace && fallPlace.y !== undefined) me.group.position.y = fallPlace.y;
       // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
@@ -4095,6 +4322,36 @@ function start(carried) {
       const sportParked = ((self.ownSports && self.ownSports.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
       sportView.update(dt, { ridden: sportRide, parked: sportParked, groundY: zoneGroundY, from: predicted, now: clock });
       if (sportRide) sportView.seat(me, sportRide, zoneGroundY);
+      // in the speedboat (31 October 2026): it is drawn in the water under them, rocking, its wake behind it, and they sit
+      // at its wheel (boat-view.js); theirs and others' moored where they are, and others' as they drive them
+      const boatDriven = astride && ownBoat() ? { x: predicted.x, z: predicted.z, h: predicted.heading, speed: boatState.speed, steer: boatState.steer, bank: boatState.bank, pitch: boatState.pitch } : null;
+      const mooredBoats = ((self.ownBoats && self.ownBoats.moored) || []).map((m) => ({ ...m, key: 'moored:own' }));
+      const peerBoats = [];
+      for (const q of shownPeers) {
+        for (const m of q.boats || []) mooredBoats.push({ ...m, key: `moored:${q.id}` });
+        if (q.boat && q.boat.boat === 'speedboat') { const prig = crowd.rigOf(`p:${q.id}`); if (prig) peerBoats.push({ key: q.id, x: prig.group.position.x, z: prig.group.position.z, h: prig.group.rotation.y, speed: q.boat.speed, steer: q.boat.steer, bank: q.boat.bank, pitch: q.boat.pitch, rig: prig }); }
+      }
+      // the waves along the town's bank (every player sees the same), and surfers on them: the player, lying on the
+      // board or up on a wave, and others as their games say (surf-view.js)
+      const surfOwn = astride && ownSurf() ? { x: predicted.x, z: predicted.z, h: predicted.heading, mode: ownSurf().mode, lean: surfState.lean, speed: surfState.speed, phase: surfState.phase } : null;
+      const surfPeers = [];
+      for (const q of shownPeers) if (q.surf) { const prig = crowd.rigOf(`p:${q.id}`); if (prig) surfPeers.push({ key: q.id, x: prig.group.position.x, z: prig.group.position.z, h: prig.group.rotation.y, mode: q.surf.mode, lean: q.surf.lean, speed: q.surf.speed, phase: q.surf.phase, rig: prig }); }
+      surfView.update(dt, { t: waveNow(), from: predicted, own: surfOwn, peers: surfPeers, colour: world.waterMaterial.color });
+      // (a wave breaking along the bank near the player heard as it breaks: surf.js, its standing up turned to foam)
+      if (predicted.z > 60 && predicted.x > SURF.x0 - 150 && predicted.x < SURF.x1 + 150) {
+        const bx = Math.max(SURF.x0 + 10, Math.min(SURF.x1 - 10, predicted.x));
+        for (const w of wavesAt(waveNow())) if (waveAt(w, bx).state === 'foam' && !wavesHeard.has(w.id)) { wavesHeard.add(w.id); if (wavesHeard.size > 30) wavesHeard.delete(wavesHeard.values().next().value); audio.surfBreak(bx, zoneShoreZ(bx) + SURF.breaks, w.size); }
+      }
+      if (surfOwn) surfView.seat(me, 'own');
+      for (const q of surfPeers) { standCharacter(q.rig); surfView.seat(q.rig, `peer:${q.key}`); }
+      boatView.update(dt, { driven: boatDriven, rides: peerBoats, moored: mooredBoats, from: predicted, now: clock, waveAt: (x, z) => surfHeight(x, z, waveNow()) });
+      if (boatDriven) { seatCharacter(me); boatView.seat(me, boatDriven); }
+      for (const b of peerBoats) { seatCharacter(b.rig); boatView.seat(b.rig, b, `peer:${b.key}`); }
+      // the navy's three ships on the river (ship-view.js), the one at the player's helm where they have it; and one
+      // under another player at its helm (from their copy of the town), them unseen in its wheelhouse as this player is
+      const shipList = shipsNow();
+      for (const q of shownPeers) if (q.boat && q.boat.boat === 'naval-ship') { shipList.push({ n: `p:${q.id}`, x: q.x, z: q.z, h: q.heading, speed: q.boat.speed, mode: 'taken' }); const prig = crowd.rigOf(`p:${q.id}`); if (prig) prig.group.visible = false; }
+      shipView.update(dt, { list: shipList, from: predicted, now: clock, night });
       // in one of the player's own cars: the car is drawn where they are (car-view.js), with the other players' cars
       // near them, and every car of theirs and others' left standing within sight; the player sits at its wheel, seen
       // where its cabin can be seen into (car-view.js says where), unseen in a closed one
@@ -4149,11 +4406,11 @@ function start(carried) {
       if (lying && !me.fellHow) me.fellHow = self.dead || (self.down && self.down.by === 'crash') || (me.speed || 0) > 1.5 ? 'hard' : 'soft';
       if (!lying && me.fall < 0.02) me.fellHow = null;
       if (!me.fallDriver) layCharacter(me, me.fall, me.fellHow || 'hard');
-      if (me.swimming) { me.group.position.y = me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5; if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
+      if (me.swimming) { me.group.position.y = (me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5) + surfHeight(me.group.position.x, me.group.position.z, waveNow()); if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
       // in the ambulance, in a closed car (or one not yet drawn), or with the eye inside its own head, the figure is not drawn
-      me.group.visible = !aboard && (!incar || carSeated) && !rig.hidesPlayer;
-      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && ownSport() ? { plate: SPORTS[ownSport()].name, fuel: null, kmh: Math.abs(sportState.speed) * 3.6, load: 0, capacity: 0 } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
+      me.group.visible = !aboard && (!incar || carSeated) && !rig.hidesPlayer && !(astride && aboardShip() !== null);
+      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && ownSurf() ? { plate: SPORTS.surfboard.name, fuel: null, kmh: Math.abs(surfState.speed) * 3.6, load: 0, capacity: 0 } : astride && (ownBoat() || aboardShip() !== null) ? { plate: ownBoat() ? SPORTS[ownBoat()].name : 'Naval ship', fuel: null, kmh: Math.abs(boatState.speed) * 3.6, load: 0, capacity: 0 } : astride && ownSport() ? { plate: SPORTS[ownSport()].name, fuel: null, kmh: Math.abs(sportState.speed) * 3.6, load: 0, capacity: 0 } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
       // one of the player's own motorcycles: its own speedometer, scaled to its engine (speedometer.js)
       if (astride && powerBike()) {
         const bike = powerBike();
@@ -4167,6 +4424,9 @@ function start(carried) {
       } else speedo.hide();
       if (incar && ownCar()) { const c = ownCar(); ownEngine = { kind: 'car', car: c.id, tone: c.tone, rev: carRevs(carState.speed, carState.throttle, carHandlingOf(c)), throttle: carState.throttle }; }
       else if (driving) ownEngine = { kind: 'keke', rev: Math.min(1, Math.abs(car.speed) / VEHICLE_KINDS.keke.speedRoad), throttle: car.throttle || 0 };
+      else if (astride && ownSurf()) ownEngine = null;
+      else if (astride && ownBoat()) ownEngine = { kind: 'boat', rev: boatRevs(BOAT_HANDLING[ownBoat()].top), throttle: boatState.throttle, water: true };
+      else if (astride && aboardShip() !== null) ownEngine = { kind: 'truck', rev: boatRevs(BOAT_HANDLING['naval-ship'].top) * 0.7, throttle: boatState.throttle, water: true };
       else if (astride && ownSport()) ownEngine = { kind: 'sport', item: ownSport(), speed: Math.abs(sportState.speed), throttle: sportState.throttle, phase: sportState.phase };
       else if (astride && powerBike()) { const bike = powerBike(); ownEngine = { kind: 'powerbike', bike: bike.id, sound: bike.sound, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(bike)), throttle: bikeState.throttle }; }
       else if (astride) ownEngine = { kind: 'okada', rev: Math.min(1, Math.abs(moto.speed) / MOTO.speedRoad), throttle: Math.abs(controls.axes().forward) };
@@ -4359,7 +4619,7 @@ blood.update(dt, view.blood || []);
     if (playing && cam.back && !ui.isOpen() && !(showroom.talk && showroom.inside) && !(carshow.talk && carshow.inside)) { cam.dist += (cam.own - cam.dist) * Math.min(1, dt * 2.5); if (Math.abs(cam.dist - cam.own) < 0.05) { cam.dist = cam.own; cam.back = false; } }
     // (the vehicle under the player moving: a view turned round it swings back behind it only then)
     const astride = !!view && view.self.astride !== null && view.self.astride !== undefined;
-    const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && ownSport() ? Math.abs(sportState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
+    const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && ownSurf() ? Math.abs(surfState.speed) : astride && (ownBoat() || aboardShip() !== null) ? Math.abs(boatState.speed) : astride && ownSport() ? Math.abs(sportState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
     rig.update(dt, {
       moving: !sitting || rideSpeed > 0.8,
       sight: gunView ? gunPlay.sightCamera() : null,
@@ -4367,10 +4627,10 @@ blood.update(dt, view.blood || []);
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
       room: hall ? (carshow.inside ? CAR_HALL_ROOM : sports.inside ? SPORTS_HALL_ROOM : HALL_ROOM) : null,
       // (on a thing from the sports mall: higher, on its saddle or its deck)
-      dragged: clock - cam.lastDrag, eyeHeight: astride && ownSport() ? (sportSeated(ownSport()) ? 1.62 : 1.74) : sitting ? 1.45 : 1.62,
+      dragged: clock - cam.lastDrag, eyeHeight: astride && ownSurf() ? (ownSurf().mode === 'ride' ? 1.25 : 0.7) : astride && aboardShip() !== null ? 13 : astride && ownBoat() ? 1.5 : astride && ownSport() ? (sportSeated(ownSport()) ? 1.62 : 1.74) : sitting ? 1.45 : 1.62,
       // (in a car, the view from the bonnet is over its own bonnet, however long and high the car is)
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
-      longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : 0,
+      longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : astride && aboardShip() !== null ? 58 : astride && ownBoat() ? 2.4 : 0,
     });
     // a knock: the view pushed back off what was hit, a few centimetres, and let go
     const sinceKick = clock - camKick.at;
@@ -4711,7 +4971,7 @@ blood.update(dt, view.blood || []);
     skillsState: () => skills.state,
     // the town's voices (28 October 2026): what the page has fetched and played
     voicePlayer, voiceStats: () => ({ ...voicePlayer.stats(), ...audio.voiceStats() }),
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, get sportView() { return sportView; }, get peerSportView() { return peerSportView; }, get sportRidersView() { return sportRidersView; }, takeSport: (n) => takeSport(n), retakeSport: (n) => retakeSport(n), get bellsHeard() { return riderBellsHeard; }, get peerSportRides() { return peerSportRides; }, rideSport: (id) => rideOwnSport(id), sportState, ownSport: () => ownSport(), speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, get sportView() { return sportView; }, get peerSportView() { return peerSportView; }, get sportRidersView() { return sportRidersView; }, takeSport: (n) => takeSport(n), retakeSport: (n) => retakeSport(n), get boatView() { return boatView; }, get shipView() { return shipView; }, get surfView() { return surfView; }, surfState, surfOut: () => surfOut(), standUp: () => standUp(), offBoard: () => offBoard(), ownSurf: () => ownSurf(), waveNow: () => waveNow(), boatState, launchBoat: () => launchBoat(), boardShip: () => boardShip(), leaveBoat: () => leaveBoat(), ownBoat: () => ownBoat(), aboardShip: () => aboardShip(), shipsNow: () => shipsNow(), get bellsHeard() { return riderBellsHeard; }, get peerSportRides() { return peerSportRides; }, rideSport: (id) => rideOwnSport(id), sportState, ownSport: () => ownSport(), speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },

@@ -18,6 +18,11 @@ import { BOAT_HANDLING } from './boat-ride.js';
 import { zoneShoreZ } from './zone.js';
 import { GameError } from './registry.js';
 
+// At a ship's helm, `astride` is 'nv:<n>' (as it is 'bt:<boat>' in the player's own boat): its steps go through the
+// motorcycle's own intents (moto.drive, moto.leave), as everything ridden does.
+export const isShip = (astride) => typeof astride === 'string' && astride.startsWith('nv:');
+export const shipOfAstride = (astride) => (isShip(astride) ? Number(astride.slice(3)) : null);
+
 export const NAVAL = Object.freeze({
   count: 3,
   scale: 0.5,                          // of the owner's model (made 120 m long)
@@ -59,6 +64,13 @@ export function shipWater(x, z) {
   if (x < -170 || x > 640) return false;
   const half = NAVAL.beam / 2 + 2;
   return z > zoneShoreZ(x) + half + 6 && z < 300 - half;
+}
+
+// Where ships' hulls are (three circles along each), for whatever moves on the water: `list` of { x, z, h, n }.
+export function shipHulls(list) {
+  const out = [];
+  for (const ship of list) for (const k of [-1, 0, 1]) out.push({ x: ship.x + Math.sin(ship.h) * k * NAVAL.length * 0.32, z: ship.z + Math.cos(ship.h) * k * NAVAL.length * 0.32, r: NAVAL.beam / 2 + (k ? -1.5 : 0.5), n: ship.n });
+  return out;
 }
 
 export function createNaval({ state, players, hub = {}, visitors = () => [] }) {
@@ -145,12 +157,13 @@ export function createNaval({ state, players, hub = {}, visitors = () => [] }) {
     // the player's own boat, if they came in it: left alongside, where it is
     if (p.pboat && hub.ownBoats) hub.ownBoats.leaveAlongside(p);
     p.swimming = null;
+    const way = fresh ? ship.v : 0;
     ship.mode = 'taken'; ship.takenBy = p.id; ship.keptAt = real();
-    ship.ride = { speed: ship.mode === 'patrol' ? ship.v : 0, side: 0, heading: ship.h, yaw: 0, steer: 0, bank: 0, pitch: 0 };
+    ship.ride = { speed: way, steer: 0 };
     p.astride = `nv:${ship.n}`;
-    p.pship = { n: ship.n, x: ship.x, z: ship.z, h: ship.h, movedAt: real(), ride: null };
+    p.pship = { n: ship.n, x: ship.x, z: ship.z, h: ship.h, movedAt: real(), ride: { speed: way, steer: 0 } };
     p.x = ship.x; p.z = ship.z; p.heading = ship.h; p.lastMoveAt = real();
-    return { n: ship.n, x: ship.x, z: ship.z, h: ship.h, speed: fresh ? ship.v : 0, crime: crime ? crime.id : null };
+    return { n: ship.n, x: ship.x, z: ship.z, h: ship.h, speed: way, crime: crime ? crime.id : null };
   }
   // A step of the ship under the player's helm, as their page moved it: no further than it could go, in the river.
   function drive(p, { x, z, heading, speed = 0, steer = 0 } = {}) {
@@ -199,6 +212,8 @@ export function createNaval({ state, players, hub = {}, visitors = () => [] }) {
     const ship = ships[b.n];
     if (ship) { ship.mode = 'kept'; ship.keptAt = real(); ship.ride = null; }
     p.astride = null; p.pship = null;
+    // (brought ashore: the nearest place on the town's bank)
+    if (hub.ashore) { const at = hub.ashore(p.x); p.x = at.x; p.z = at.z; p.lastMoveAt = real(); }
   }
   function recover(playerId) {
     let n = 0;
@@ -209,12 +224,8 @@ export function createNaval({ state, players, hub = {}, visitors = () => [] }) {
     const r = (v, k = 100) => Math.round(v * k) / k;
     return ships.map((ship) => ({ n: ship.n, x: r(ship.x), z: r(ship.z), h: r(ship.h, 1000), speed: r(ship.mode === 'patrol' ? ship.v : (ship.ride && ship.ride.speed) || 0, 10), mode: ship.mode, mine: ship.takenBy, steer: ship.mode === 'taken' && players[ship.takenBy] && players[ship.takenBy].pship && players[ship.takenBy].pship.ride ? players[ship.takenBy].pship.ride.steer : 0 }));
   }
-  // where a ship's hull is, for whatever moves on the water (three circles along it)
-  function hulls() {
-    const out = [];
-    for (const ship of ships) for (const k of [-1, 0, 1]) out.push({ x: ship.x + Math.sin(ship.h) * k * NAVAL.length * 0.32, z: ship.z + Math.cos(ship.h) * k * NAVAL.length * 0.32, r: NAVAL.beam / 2 + (k ? -1.5 : 0.5), n: ship.n });
-    return out;
-  }
+  // where a ship's hull is, for whatever moves on the water
+  const hulls = () => shipHulls(ships);
   const api = { tick, take, drive, leave, unseat, recover, list, hulls, nearShip, ships: () => ships };
   hub.naval = api;
   return api;
