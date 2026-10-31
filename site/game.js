@@ -10268,7 +10268,7 @@ return { WALK_SPEED, RIDE_SPEED, POSE, RANGE, WEEKDAYS, ON_CAR_ROAD_SIDE, JOBS, 
 
 __modules["sim/okada.js"] = (function () {
 
-const { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, zoneWalkable, trafficHold, onBoulevard, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
+const { ZONE, ZONE_SPOTS, ZONE_STOPS, ZONE_VENUES, ZONE_ROADS, OUTSKIRT_ROADS, AIRPORT, SPORTS_MALL, zoneWalkable, trafficHold, onBoulevard, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
 const { graphRoute, graphDistance, graphNearest, graphPoint } = __modules["sim/graph.js"];
 const { POSE, RIDE_SPEED } = __modules["sim/population.js"];
 const { GameError } = __modules["sim/registry.js"];
@@ -10286,7 +10286,7 @@ const OKADA_RULES = Object.freeze({
 const MOTO = Object.freeze({ speedRoad: 11, speedRough: 6, reverse: 2, radius: 0.55, returnAfter: 10 });
 
 const inBox = (r, x, z) => !!r && x >= r.x0 && x <= r.x1 && z >= r.z0 && z <= r.z1;
-const PAVED = [AIRPORT.runway, AIRPORT.taxiway, AIRPORT.apron, ...(Array.isArray(AIRPORT.links) ? AIRPORT.links : [])].filter((r) => r && Number.isFinite(r.x0));
+const PAVED = [AIRPORT.runway, AIRPORT.taxiway, AIRPORT.apron, ...(Array.isArray(AIRPORT.links) ? AIRPORT.links : []), SPORTS_MALL.compound, SPORTS_MALL.drive.fromRoad].filter((r) => r && Number.isFinite(r.x0));
 const onTar = (x, z) => ZONE_ROADS.some((r) => inBox(r, x, z)) || OUTSKIRT_ROADS.some((r) => inBox(r, x, z)) || PAVED.some((r) => inBox(r, x, z));
 const motoSpeedAt = (x, z, wet) => (onTar(x, z) ? MOTO.speedRoad : MOTO.speedRough) * (wet ? 0.8 : 1);
 
@@ -10687,7 +10687,7 @@ function createOkada({ state, ledger, monetary, issuanceAccount, population, tim
     return { x: spot.x, z: spot.z };
   }
   function unseat(player) {
-    if (typeof player.astride === 'string') { if (hub.ownBikes) hub.ownBikes.unseat(player); player.astride = null; }
+    if (typeof player.astride === 'string') { if (hub.ownBikes) hub.ownBikes.unseat(player); if (hub.ownSports) hub.ownSports.unseat(player); player.astride = null; }
     if (player.astride !== null && player.astride !== undefined) { const r = riders[player.astride]; if (r) leaveBike(player, r); player.astride = null; }
     if (player.riding !== null && player.riding !== undefined) { const r = riders[player.riding]; if (r && setDown(player, r, '', false)) { r.passenger = null; goRank(r, state.real); } else if (r) { r.passenger = null; player.riding = null; goRank(r, state.real); } }
   }
@@ -11954,6 +11954,237 @@ function createOwnBikes({ state, hub, obstacles }) {
 }
 
 return { isOwnBike, bikeOf, CRASH, crashHarm, createOwnBikes };
+})();
+
+__modules["sim/sports.js"] = (function () {
+
+const item = (id, name, price, kmh, on, drive, blurb) => Object.freeze({ id, name, price, kmh, on, drive, blurb });
+
+const SPORTS = Object.freeze(Object.fromEntries([
+  item('bicycle', 'Fat-Tyre Bicycle', 300, 30, 'land', 'pedals', 'A fat-tyre bicycle: tyres four inches wide for sand, dirt roads and potholes, a light frame and a wide bar. No motor: it goes as fast as you pedal.'),
+  item('speedboat', 'Speedboat', 600, 60, 'water', 'motor', 'A two-seat runabout with an outboard motor and a steering wheel at the front of its cockpit, made for the river.'),
+  item('e-scooter', 'Electric Scooter', 200, 25, 'land', 'battery', 'An electric scooter in white and black: stand on its deck, thumb the throttle, and go.'),
+  item('e-unicycle', 'Electric Unicycle', 150, 30, 'land', 'battery', 'One big wheel with a motor in it and a pedal each side: lean forward to go, back to slow. For those who can balance.'),
+  item('hoverboard', 'Hoverboard', 120, 12, 'land', 'battery', 'Two wheels and a deck between them, black with blue trim: lean forward to roll, press one foot to turn.'),
+  item('surfboard', 'Surfboard', 100, 25, 'water', 'waves', 'A six-foot shortboard in grey, with grip pads where the feet go: made for the waves.'),
+  item('inline-skates', 'Inline Skates', 75, 22, 'land', 'push', 'A pair of inline skates, four wheels in a line on each, red and black, with a buckle and a strap at the ankle.'),
+  item('skateboard', 'Skateboard', 50, 18, 'land', 'push', 'A long skateboard with big soft wheels: push off, ride, and carve down the road.'),
+].map((s) => [s.id, s])));
+
+const NOT_FOR_SALE = Object.freeze(['naval-ship']);
+
+const SPORT_IDS = Object.freeze(Object.keys(SPORTS));
+const sportOf = (id) => SPORTS[id] || null;
+const sportModel = (id) => `sport:${id}`;
+const sportOfModel = (model) => (typeof model === 'string' && model.startsWith('sport:') ? SPORTS[model.slice(6)] || null : null);
+
+return { SPORTS, NOT_FOR_SALE, SPORT_IDS, sportOf, sportModel, sportOfModel };
+})();
+
+__modules["sim/sport-ride.js"] = (function () {
+
+const G = 9.81;
+const H = (o) => Object.freeze(o);
+
+const SPORT_HANDLING = Object.freeze({
+  bicycle: H({ drive: 'pedals', top: 8.3, rough: 5.5, accel: 1.5, brake: 5.5, coast: 0.22, drag: 0.004, leanMax: 0.5, leanRate: 2.4, steerSlow: 1.4, room: 0.45, gear: 5.7 }),
+  skateboard: H({ drive: 'push', top: 5.0, rough: 1.2, accel: 1.25, brake: 2.8, coast: 0.3, drag: 0.004, leanMax: 0.3, leanRate: 2.2, steerSlow: 1.1, room: 0.35, stride: 1.05 }),
+  'inline-skates': H({ drive: 'stride', top: 6.1, rough: 1.0, accel: 1.4, brake: 3.2, coast: 0.25, drag: 0.004, leanMax: 0.38, leanRate: 2.6, steerSlow: 1.8, room: 0.3, stride: 0.95 }),
+  'e-scooter': H({ drive: 'motor', top: 6.9, rough: 3.0, accel: 1.9, brake: 4.5, coast: 0.35, drag: 0.004, leanMax: 0.18, leanRate: 2.8, steerSlow: 1.6, room: 0.35 }),
+  hoverboard: H({ drive: 'motor', top: 3.3, rough: 1.2, accel: 1.2, brake: 3.0, coast: 0.6, drag: 0.004, leanMax: 0.08, leanRate: 3.0, steerSlow: 2.4, spin: true, room: 0.35 }),
+  'e-unicycle': H({ drive: 'motor', top: 8.3, rough: 3.5, accel: 1.7, brake: 3.8, coast: 0.4, drag: 0.004, leanMax: 0.42, leanRate: 2.4, steerSlow: 1.3, room: 0.3 }),
+});
+const sportHandling = (id) => SPORT_HANDLING[id] || null;
+const LAND_SPORTS = Object.freeze(Object.keys(SPORT_HANDLING));
+const SPORT_FASTEST = Math.max(...Object.values(SPORT_HANDLING).map((h) => h.top));
+
+const SPORT_FRONTS = Object.freeze({
+  bicycle: H({ half: 0.42, nose: 0.9, tail: 0.88 }),
+  skateboard: H({ half: 0.3, nose: 0.5, tail: 0.5 }),
+  'inline-skates': H({ half: 0.3, nose: 0.3, tail: 0.3 }),
+  'e-scooter': H({ half: 0.3, nose: 0.55, tail: 0.5 }),
+  hoverboard: H({ half: 0.32, nose: 0.25, tail: 0.25 }),
+  'e-unicycle': H({ half: 0.3, nose: 0.3, tail: 0.3 }),
+});
+const SPORT_ON = Object.freeze({ bicycle: 'a bicycle', skateboard: 'a skateboard', 'inline-skates': 'skates', 'e-scooter': 'an electric scooter', hoverboard: 'a hoverboard', 'e-unicycle': 'an electric unicycle' });
+const SPORT_BELL = Object.freeze(['bicycle', 'e-scooter']);
+const sportSeated = (id) => id === 'bicycle';
+
+function stepSport(state, input, dt, { handling, onTar = true, wet = false } = {}) {
+  const h = handling;
+  const steer = Math.max(-1, Math.min(1, input.steer || 0));
+  const throttle = Math.max(0, Math.min(1, input.throttle || 0));
+  const brake = Math.max(0, Math.min(1, input.brake || 0));
+  const top = (onTar ? h.top : h.rough) * (wet ? 0.9 : 1);
+  let v = state.speed;
+  let drive = 0;
+  if (throttle > 0 && brake === 0) {
+    if (h.drive === 'push' || h.drive === 'stride') {
+      const t = (state.phase || 0) % 1;
+      drive = t < 0.55 ? h.accel * 2.9 * Math.sin((t / 0.55) * Math.PI) : 0;
+    } else drive = h.accel;
+    const near = Math.max(0, v) / top;
+    drive *= throttle * Math.max(0.03, 1 - (h.drive === 'push' || h.drive === 'stride' ? near ** 6 : near ** 2));
+  }
+  if (brake > 0 && v > 0.05) v = Math.max(0, v - h.brake * (wet ? 0.75 : 1) * brake * dt);
+  else if (brake > 0) v = 0;
+  else if (drive > 0) v += drive * dt;
+  if (drive <= 0 || h.drive === 'push' || h.drive === 'stride') v -= Math.sign(v) * Math.min(Math.abs(v), (h.coast + h.drag * v * v) * dt);
+  if (v > top) v = Math.max(top, v - h.brake * 0.5 * dt);
+  if (h.drive === 'pedals') {
+    if (throttle > 0 && brake === 0) state.phase = ((state.phase || 0) + (Math.max(0, v) / h.gear) * Math.PI * 2 * dt) % (Math.PI * 2);
+  } else if (h.drive === 'push' || h.drive === 'stride') {
+    const before = state.phase || 0;
+    const going = throttle > 0 && brake === 0 && v < top * 0.98;
+    if (going || before % 1 > 1e-6) {
+      let next = before + dt / (h.stride * (1 - 0.35 * Math.min(1, Math.max(0, v) / top)));
+      if (!going && Math.floor(next) !== Math.floor(before)) next = Math.floor(next);
+      state.phase = next % 2;
+    }
+  }
+  state.pushing = (h.drive === 'push' || h.drive === 'stride') && ((state.phase || 0) % 1) > 0.001;
+  const speedShare = Math.min(1, Math.abs(v) / 4);
+  const leanWant = steer * h.leanMax * speedShare;
+  state.lean += (leanWant - state.lean) * Math.min(1, dt * h.leanRate);
+  const fromLean = Math.abs(v) > 0.5 ? ((G * Math.tan(Math.abs(state.lean))) / Math.max(1.5, Math.abs(v))) * Math.sign(state.lean) : 0;
+  const fromBars = steer * h.steerSlow * (h.spin ? 1 : (1 - speedShare) * Math.min(1, Math.abs(v) / 0.4));
+  state.heading -= (fromLean + fromBars) * Math.sign(v || 1) * dt;
+  state.speed = Math.abs(v) < 0.02 && !throttle ? 0 : v;
+  return state;
+}
+
+return { SPORT_HANDLING, sportHandling, LAND_SPORTS, SPORT_FASTEST, SPORT_FRONTS, SPORT_ON, SPORT_BELL, sportSeated, stepSport };
+})();
+
+__modules["sim/own-sports.js"] = (function () {
+const { SPORTS } = __modules["sim/sports.js"];
+const { SPORT_HANDLING, SPORT_FRONTS } = __modules["sim/sport-ride.js"];
+const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
+const { contactNormal, contactOutcome, crashShare, throwLanding, THROW } = __modules["sim/contact.js"];
+const { GameError } = __modules["sim/registry.js"];
+
+const isOwnSport = (astride) => typeof astride === 'string' && astride.startsWith('sp:');
+const sportOfAstride = (astride) => (isOwnSport(astride) ? astride.slice(3) : null);
+const SPORT_CRASH = Object.freeze({ least: 4.2, lie: Object.freeze([1.6, 3.4]), rise: 2.4, thrown: Object.freeze([0.6, 3.5]), carry: 0.25 });
+
+function createOwnSports({ state, hub, obstacles }) {
+  const own = (p) => (Array.isArray(p.sports) ? p.sports : []);
+  const parkedOf = (p) => { if (!p.sportParked || typeof p.sportParked !== 'object') p.sportParked = {}; return p.sportParked; };
+  const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
+  const ridable = (id) => !!(SPORTS[id] && SPORT_HANDLING[id]);
+
+  function setOwned(p, { items }) {
+    const list = (Array.isArray(items) ? items : []).filter((id) => typeof id === 'string' && SPORTS[id]).slice(0, 20);
+    p.sports = [...new Set(list)];
+    const parked = parkedOf(p);
+    for (const id of Object.keys(parked)) if (!p.sports.includes(id)) delete parked[id];
+    if (isOwnSport(p.astride) && !p.sports.includes(sportOfAstride(p.astride))) leave(p);
+    return { items: p.sports };
+  }
+
+  function mount(p, { item }) {
+    const id = String(item || '');
+    if (!SPORTS[id]) throw new GameError('NO_ITEM', 'There is no such thing.');
+    if (!own(p).includes(id)) throw new GameError('NOT_YOURS', `The ${SPORTS[id].name} is not yours.`);
+    if (!ridable(id)) throw new GameError('WATER', `The ${SPORTS[id].name} is for the water.`);
+    if (!onFoot(p)) throw new GameError('NOT_ON_FOOT', 'You cannot get on it now.');
+    if (p.fight) throw new GameError('FIGHTING', 'Not in the middle of a fight.');
+    const h = SPORT_HANDLING[id];
+    const parked = parkedOf(p)[id];
+    let at;
+    if (parked && Math.hypot(parked.x - p.x, parked.z - p.z) < 2.5) at = parked;
+    else {
+      if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z) || inSportsHall(p.x, p.z)) throw new GameError('INDOORS', `Go outside first: your ${SPORTS[id].name} is brought to you there.`);
+      if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', `The habitation is on foot: your ${SPORTS[id].name} is brought to you at its car park.`);
+      if (!zoneWalkable(p.x, p.z, obstacles(), h.room)) throw new GameError('NO_ROOM', `There is no room for it here. Go out to the road.`);
+      at = { x: p.x, z: p.z, h: p.heading || 0 };
+    }
+    delete parkedOf(p)[id];
+    p.astride = `sp:${id}`;
+    p.psport = { id, x: at.x, z: at.z, h: at.h, movedAt: state.real };
+    p.x = at.x; p.z = at.z; p.heading = at.h; p.lastMoveAt = state.real;
+    return { item: id, x: at.x, z: at.z, h: at.h };
+  }
+
+  const num = (v, lo, hi, d = 0) => { const n = Number(v); return Number.isFinite(n) ? Math.max(lo, Math.min(hi, n)) : d; };
+  const rideOf = (step, top) => ({ lean: Math.round(num(step.lean, -0.6, 0.6) * 100) / 100, speed: Math.round(num(step.speed, -1, top) * 10) / 10, throttle: Math.round(num(step.throttle, 0, 1) * 10) / 10, brake: step.brake ? 1 : 0, steer: Math.round(num(step.steer, -0.7, 0.7) * 100) / 100, phase: Math.round(num(step.phase, 0, 7) * 100) / 100 });
+  function drive(p, { x, z, heading, ...step }) {
+    if (![x, z, heading].every(Number.isFinite)) throw new GameError('BAD_MOVE', 'Invalid position.');
+    const b = p.psport;
+    if (!isOwnSport(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not riding anything.');
+    const h = SPORT_HANDLING[b.id];
+    const gap = Math.hypot(x - b.x, z - b.z);
+    const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
+    if (gap > h.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
+    if (gap > 0.02 && hub.impact && hub.impact.stalled(b)) throw new GameError('STALLED', 'You have stopped: you hit someone.');
+    const boxes = obstacles();
+    const steps = Math.max(1, Math.ceil(gap / 0.4));
+    for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, h.room - 0.05)) throw new GameError('BLOCKED', 'Movement rejected.');
+    { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
+    const fromX = b.x, fromZ = b.z;
+    if (elapsed > 0.004) b.seen = Number.isFinite(b.seen) ? b.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
+    b.x = x; b.z = z; b.h = heading; b.movedAt = state.real;
+    b.ride = rideOf(step, h.top);
+    p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
+    p.stats.ridden = (p.stats.ridden || 0) + gap;
+    const hit = hub.impact ? hub.impact.step(p, { kind: 'sport', id: `sp:${b.id}`, front: SPORT_FRONTS[b.id] }, b, fromX, fromZ, x, z, heading, elapsed) : [];
+    return hit.length ? { hit } : {};
+  }
+
+  function crash(p, { speed, heading } = {}) {
+    const b = p.psport;
+    if (!isOwnSport(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not riding anything.');
+    const h = SPORT_HANDLING[b.id];
+    const seen = Number.isFinite(b.seen) ? b.seen : h.top;
+    const v = Math.max(-1, Math.min(Math.min(h.top, seen * 1.35 + 1.5), Number(speed) || 0));
+    if (Math.abs(v) < SPORT_CRASH.least) return { fell: false, outcome: 'stop' };
+    const dir = Number.isFinite(heading) ? heading : b.h;
+    const boxes = obstacles();
+    let hit = null;
+    for (let d = 0.2; d <= 1.21; d += 0.2) {
+      const qx = b.x + Math.sin(dir) * d, qz = b.z + Math.cos(dir) * d;
+      const kind = zoneBlockKind(qx, qz, boxes, h.room - 0.05);
+      if (kind) { hit = { x: qx, z: qz, kind }; break; }
+    }
+    if (!hit) return { fell: false, outcome: 'none' };
+    const normal = contactNormal((x, z) => zoneWalkable(x, z, boxes, h.room - 0.05), b.x, b.z, hit.x, hit.z);
+    const c = contactOutcome({ speed: v, heading: dir, normal, kind: hit.kind });
+    if (c.outcome !== 'crash') return { fell: false, outcome: c.outcome, into: Math.round(c.into * 10) / 10 };
+    const share = crashShare(c.into, hit.kind);
+    const now = state.real;
+    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now };
+    p.astride = null; p.psport = null;
+    const far = Math.min(SPORT_CRASH.thrown[1], SPORT_CRASH.thrown[0] + SPORT_CRASH.carry * c.into);
+    const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(dir), uz: Math.cos(dir), far: Math.max(far, THROW.nearest), kind: (x, z, r) => zoneBlockKind(x, z, boxes, r) });
+    p.x = at.x; p.z = at.z; p.lastMoveAt = now;
+    const lie = SPORT_CRASH.lie[0] + (SPORT_CRASH.lie[1] - SPORT_CRASH.lie[0]) * share;
+    p.down = { at: now, until: now + lie, upAt: now + lie + SPORT_CRASH.rise, by: 'crash', h: dir, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z }, over: at.over };
+    p.stats.crashes = (p.stats.crashes || 0) + 1;
+    return { fell: true, kmh: Math.round(Math.abs(v) * 3.6), into: Math.round(c.into * 10) / 10, x: at.x, z: at.z, item: { id: b.id, x: b.x, z: b.z, h: b.h }, lie };
+  }
+
+  function leave(p) {
+    const b = p.psport;
+    if (!isOwnSport(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not riding anything.');
+    const boxes = obstacles();
+    const side = { x: Math.cos(b.h), z: -Math.sin(b.h) };
+    const spot = [[side.x * 0.8, side.z * 0.8], [-side.x * 0.8, -side.z * 0.8], [-Math.sin(b.h) * 1.2, -Math.cos(b.h) * 1.2]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes)) || { x: b.x, z: b.z };
+    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h };
+    p.astride = null; p.psport = null;
+    p.x = spot.x; p.z = spot.z; p.lastMoveAt = state.real;
+    return { x: spot.x, z: spot.z, parked: { item: b.id, x: b.x, z: b.z, h: b.h } };
+  }
+
+  function unseat(p) { if (isOwnSport(p.astride) && p.psport) leave(p); }
+
+  function selfView(p) {
+    return { items: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ item: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000, ...(s.fallen ? { fallen: true, ago: Number.isFinite(s.at) ? Math.round((state.real - s.at) * 100) / 100 : 99 } : {}) })) };
+  }
+
+  return { setOwned, mount, drive, crash, leave, unseat, selfView, isOwnSport };
+}
+
+return { isOwnSport, sportOfAstride, SPORT_CRASH, createOwnSports };
 })();
 
 __modules["sim/own-cars.js"] = (function () {
@@ -13356,6 +13587,7 @@ const { GameError } = __modules["sim/registry.js"];
 const { cleanFigureLook } = __modules["sim/figures.js"];
 const { POWER_BIKES } = __modules["sim/power-bikes.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
+const { SPORT_HANDLING } = __modules["sim/sport-ride.js"];
 const { VEHICLE_MODELS, KEKE_PAINTS, KEKE_CANOPIES, KEKE_SEATS, KEKE_FLOORS } = __modules["sim/vehicle-looks.js"];
 
 const CHAT = Object.freeze({ radius: 10, hearing: 16, overhear: 24, maxLength: 140, gap: 1.2, visitors: 24 });
@@ -13556,8 +13788,9 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     const out = [];
     const rideOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('pb:') && q.pbike ? { bike: q.pbike.id, ...(q.pbike.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, rev: 0 }) } : null);
     const carOf = (q) => (typeof q.incar === 'string' && q.incar.startsWith('pc:') && q.pcar ? { car: q.pcar.id, ...(q.pcar.drive || { steer: 0, speed: 0, throttle: 0, brake: 0, rev: 0, lamps: 0 }) } : null);
-    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
-    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
+    const sportOf = (q) => (typeof q.astride === 'string' && q.astride.startsWith('sp:') && q.psport ? { sport: q.psport.id, ...(q.psport.ride || { lean: 0, speed: 0, throttle: 0, brake: 0, steer: 0, phase: 0 }) } : null);
+    for (const id of Object.keys(players)) { const q = players[id]; if (q.id !== player.id) out.push({ id: q.id, name: q.name, look: q.look, lang: q.lang || 'en', x: q.x, z: q.z, heading: q.heading, visitor: false, ride: rideOf(q), sport: sportOf(q), car: carOf(q), hornAt: q.hornAt === undefined ? -10 : q.hornAt }); }
+    for (const v of visitors.values()) out.push({ id: v.id, name: v.name, look: v.look, lang: v.lang, x: v.x, z: v.z, heading: v.heading, visitor: true, ride: v.ride || null, sport: v.sport || null, sports: v.sports || [], car: v.car || null, cars: v.cars || [], hornAt: v.hornAt === undefined ? -10 : v.hornAt, vehicle: v.vehicle || null, parked: v.parked || [], kekes: v.kekes || [], vel: v.vel || [0, 0], talk: v.talk || null, carTalk: v.carTalk || null, phone: v.phone || 0, torch: v.torch || 0, down: v.down || null, jump: Number.isFinite(v.jumpAt) && now() - v.jumpAt < jumpFor ? Math.round((now() - v.jumpAt) * 100) / 100 : null, peer: v.peer || null, health: v.health === undefined ? null : v.health, gun: v.gun || null, shots: v.shots || [], wounds: v.wounds || [], swimming: !!v.swimming, held: !!v.held });
     return out;
   }
   const withinOf = (player, range) => others(player).filter((o) => Math.hypot(o.x - player.x, o.z - player.z) <= range);
@@ -13603,6 +13836,9 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
     const r = data.ride && typeof data.ride === 'object' ? data.ride : null;
     const n = (value, lo, hi) => { const k = Number(value); return Number.isFinite(k) ? Math.max(lo, Math.min(hi, k)) : 0; };
     v.ride = r && typeof r.bike === 'string' && POWER_BIKES[r.bike] ? { bike: r.bike, lean: n(r.lean, -0.9, 0.9), speed: n(r.speed, -3, 70), throttle: n(r.throttle, 0, 1), brake: r.brake ? 1 : 0, rev: n(r.rev, 0, 1), steer: n(r.steer, -0.7, 0.7) } : null;
+    const sp = data.sport && typeof data.sport === 'object' ? data.sport : null;
+    v.sport = !v.ride && sp && typeof sp.sport === 'string' && Object.hasOwn(SPORT_HANDLING, sp.sport) ? { sport: sp.sport, lean: n(sp.lean, -0.6, 0.6), speed: n(sp.speed, -1, 9), throttle: n(sp.throttle, 0, 1), brake: sp.brake ? 1 : 0, steer: n(sp.steer, -0.7, 0.7), phase: n(sp.phase, 0, 7) } : null;
+    v.sports = (Array.isArray(data.sports) ? data.sports : []).slice(0, 3).map((b) => (b && typeof b.item === 'string' && Object.hasOwn(SPORT_HANDLING, b.item) && near(b, x, z) ? { item: b.item, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen } : null)).filter(Boolean);
     v.phone = [1, 2, 3].includes(data.phone) ? data.phone : 0;
     v.torch = v.phone && data.torch ? 1 : 0;
     const jp = Number(data.jump);
@@ -13642,8 +13878,8 @@ function createTalk({ state, population, residents, players, weather, hub = {}, 
       v.down = { kind: dn.kind, id, began: same ? old.down.began : began, since: same ? old.down.since : Number(dn.age) <= FRESH ? now() : began, at: same ? old.down.at : lies, lie: n(dn.lie, 0, 30), rise: n(dn.rise, 0, 6), push: n(dn.push, -10, 10), hard: !!dn.hard, from, over: over && over.b >= over.a ? over : null };
     } else if (old && old.down && old.down.kind !== 'dead' && now() - old.down.since < old.down.lie + old.down.rise) v.down = old.down;
     else v.down = null;
-    if ((v.ride || v.car || v.vehicle) && old && !zoneWalkable(x, z, [], 0.3) && zoneWalkable(old.x, old.z, [], 0.3)) { v.x = old.x; v.z = old.z; }
-    const horns = r ? n(r.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
+    if ((v.ride || v.sport || v.car || v.vehicle) && old && !zoneWalkable(x, z, [], 0.3) && zoneWalkable(old.x, old.z, [], 0.3)) { v.x = old.x; v.z = old.z; }
+    const horns = r ? n(r.horns, 0, 1e9) : sp ? n(sp.horns, 0, 1e9) : c ? n(c.horns, 0, 1e9) : data.vehicle && typeof data.vehicle === 'object' ? n(data.vehicle.horns, 0, 1e9) : 0;
     v.horns = old && old.horns !== undefined ? old.horns : horns;
     v.hornAt = old ? old.hornAt : -10;
     if (horns > v.horns) { v.horns = horns; v.hornAt = now(); }
@@ -14037,6 +14273,7 @@ const { zoneWalkable, ZONE_RESIDENTS } = __modules["sim/zone.js"];
 const RESIDENT_NAME = new Map(ZONE_RESIDENTS.map((r) => [r.id, r.name]));
 const { POSE } = __modules["sim/population.js"];
 const { PACE } = __modules["sim/actors.js"];
+const { SPORT_ON } = __modules["sim/sport-ride.js"];
 
 const BODY = Object.freeze({
   radius: 0.3,             // a person, for standing in the way: two cannot be nearer than twice this
@@ -14069,7 +14306,9 @@ const FRONTS = Object.freeze({
   keke: Object.freeze({ half: 0.72, nose: 1.15, tail: 1.2 }),
   moto: Object.freeze({ half: 0.36, nose: 0.85, tail: 0.8 }),
   car: Object.freeze({ half: 0.92, nose: 2.3, tail: 2.3 }),
+  sport: Object.freeze({ half: 0.3, nose: 0.5, tail: 0.5 }),
 });
+const SPORT_HARM = Object.freeze({ share: 0.35, most: 16 });
 const VEHICLE_WORD = Object.freeze({ keke: 'keke', moto: 'motorcycle', car: 'car' });
 
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -14085,6 +14324,7 @@ function harmAt(speed) {
   if (!(speed >= IMPACT.least)) return 0;
   return Math.round(clamp((speed - IMPACT.least) * IMPACT.perSpeed, IMPACT.floor, IMPACT.most));
 }
+const harmOf = (vehicle, speed) => (vehicle && vehicle.kind === 'sport' ? Math.min(SPORT_HARM.most, Math.round(harmAt(speed) * SPORT_HARM.share)) : harmAt(speed));
 
 function createImpact({ state, players, population, actors, conflict, talk, emit, rng, hub, door, visitors = () => [] }) {
   if (!state.impact) state.impact = { seq: 0, events: [], npc: {} };
@@ -14165,8 +14405,8 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     const now = real();
     if (q.struckByVehicleAt !== undefined && now - q.struckByVehicleAt < IMPACT.grace) return null;
     const lying = !!q.down;
-    const harm = Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1)));
-    const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
+    const harm = Math.max(1, Math.round(harmOf(vehicle, speed) * (lying ? IMPACT.downed : 1)));
+    const weight = clamp((speed - IMPACT.least) / 7, 0, 1) * (vehicle.kind === 'sport' ? 0.5 : 1);
     q.struckByVehicleAt = now;
     const lost = conflict.injure(q, harm);
     q.blood = Math.min(IMPACT.bleed.most, (q.blood && now - (q.bloodAt || 0) < 60 ? q.blood : 0) + harm * IMPACT.bleed.perHarm); q.bloodAt = now;
@@ -14186,7 +14426,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
       q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: driver.id, h: heading, from, hard: weight > 0.6 };
-      emit(q.id, { type: 'alert', title: 'Knocked down', text: `${driver.name} hit you with a ${VEHICLE_WORD[vehicle.kind] || 'keke'}. Health ${q.health}.` });
+      emit(q.id, { type: 'alert', title: 'Knocked down', text: vehicle.kind === 'sport' ? `${driver.name} ran into you on ${SPORT_ON[String(vehicle.id).slice(3)] || 'a bicycle'}. Health ${q.health}.` : `${driver.name} hit you with a ${VEHICLE_WORD[vehicle.kind] || 'keke'}. Health ${q.health}.` });
     }
     show({ kind: killed ? 'killed' : 'knock', by: { kind: 'player', id: driver.id }, on: { kind: 'player', id: q.id }, x: q.x, z: q.z, speed: Math.round(speed * 10) / 10, harm: lost, vehicle: vehicle.kind });
     return { kind: 'player', id: q.id, name: q.name, harm: lost, health: q.health, killed };
@@ -14210,8 +14450,8 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       return null;
     }
     const lying = m.pose === POSE.lie;
-    const harm = Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1)));
-    const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
+    const harm = Math.max(1, Math.round(harmOf(vehicle, speed) * (lying ? IMPACT.downed : 1)));
+    const weight = clamp((speed - IMPACT.least) / 7, 0, 1) * (vehicle.kind === 'sport' ? 0.5 : 1);
     rec.at = now; rec.t = state.t;
     rec.health = Math.max(Math.min(rec.health, HEALTH.critical), rec.health - harm);
     rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + harm * IMPACT.bleed.perHarm);
@@ -14440,7 +14680,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
   return api;
 }
 
-return { BODY, IMPACT, FRONTS, nearestOnStep, harmAt, createImpact };
+return { BODY, IMPACT, FRONTS, SPORT_HARM, nearestOnStep, harmAt, harmOf, createImpact };
 })();
 
 __modules["sim/justice.js"] = (function () {
@@ -16085,6 +16325,8 @@ const { createPopulation, RANGE } = __modules["sim/population.js"];
 const { createOkada } = __modules["sim/okada.js"];
 const { createTraffic } = __modules["sim/traffic.js"];
 const { createOwnBikes, isOwnBike, bikeOf } = __modules["sim/own-bikes.js"];
+const { createOwnSports, isOwnSport, sportOfAstride } = __modules["sim/own-sports.js"];
+const { SPORT_BELL } = __modules["sim/sport-ride.js"];
 const { createOwnCars, isOwnCar, carOf } = __modules["sim/own-cars.js"];
 const { createTalk } = __modules["sim/talk.js"];
 const { createVoices } = __modules["sim/voices.js"];
@@ -16187,7 +16429,8 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   actors.setResolver((target) => (target.kind === 'player' ? state.players[target.id] || null : null));
   const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
   const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0)] });
-  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.serviceState = (id) => serviceState(id);
+  const ownSports = createOwnSports({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars()] });
+  hub.actors = actors; hub.vehicles = vehicles; hub.okada = okada; hub.ownBikes = ownBikes; hub.ownCars = ownCars; hub.ownSports = ownSports; hub.serviceState = (id) => serviceState(id);
   const reactions = createReactions({ state, population, rng: makeRng(0x5eac7) });
   hub.reactions = reactions;
   const voices = createVoices({ state, population, residents, actors, talk, timeScale: scale });
@@ -16827,12 +17070,14 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     'traffic.enter'(p, { n }) { return ownCars.enterTaken(p, traffic.enter(p, Number(n))); },
     'hijack.cancel'(p) { return hijack.cancel(p); },
     'vehicle.horn'(p) { if (!p.driving) throw new GameError('NOT_DRIVING', 'You are not driving.'); return impact.horn(p); },
-    'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return impact.horn(p); },
-    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : okada.rideDrive(p, step); },
-    'moto.crash'(p, body) { if (!isOwnBike(p.astride)) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return ownBikes.crash(p, body || {}); },
-    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : okada.dismount(p); },
+    'moto.horn'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); if (isOwnSport(p.astride) && !SPORT_BELL.includes(sportOfAstride(p.astride))) throw new GameError('NO_BELL', 'It has no bell.'); return impact.horn(p); },
+    'moto.drive'(p, step) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.drive(p, step) : isOwnSport(p.astride) ? ownSports.drive(p, step) : okada.rideDrive(p, step); },
+    'moto.crash'(p, body) { if (isOwnSport(p.astride)) return ownSports.crash(p, body || {}); if (!isOwnBike(p.astride)) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return ownBikes.crash(p, body || {}); },
+    'moto.leave'(p) { if (p.astride === null || p.astride === undefined) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.'); return isOwnBike(p.astride) ? ownBikes.leave(p) : isOwnSport(p.astride) ? ownSports.leave(p) : okada.dismount(p); },
     'bikes.owned'(p, body) { return ownBikes.setOwned(p, body || {}); },
     'bikes.ride'(p, body) { return ownBikes.mount(p, body || {}); },
+    'sports.owned'(p, body) { return ownSports.setOwned(p, body || {}); },
+    'sports.ride'(p, body) { return ownSports.mount(p, body || {}); },
     'cars.owned'(p, body) { return ownCars.setOwned(p, body || {}); },
     'cars.enter'(p, body) { return ownCars.enter(p, body || {}); },
     'car.drive'(p, step) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return ownCars.drive(p, step || {}); },
@@ -16914,7 +17159,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       if (p.hijack && !WHILE_TAKING.test(message.type)) throw new GameError('BUSY', 'You have your hands full.');
       if (p.driving && !WHILE_DRIVING.test(message.type)) throw new GameError('DRIVING', 'Step out of the keke first.');
       if (p.riding !== null && p.riding !== undefined && !WHILE_RIDING.test(message.type)) throw new GameError('RIDING', 'Get down from the okada first.');
-      if (p.astride !== null && p.astride !== undefined && !WHILE_ASTRIDE.test(message.type)) throw new GameError('RIDING', 'Get off the motorcycle first.');
+      if (p.astride !== null && p.astride !== undefined && !WHILE_ASTRIDE.test(message.type)) throw new GameError('RIDING', isOwnSport(p.astride) ? (sportOfAstride(p.astride) === 'inline-skates' ? 'Take your skates off first.' : 'Get off it first.') : 'Get off the motorcycle first.');
       if (p.incar && !WHILE_INCAR.test(message.type)) throw new GameError('IN_CAR', 'Get out of the car first.');
       if (p.swimming && !WHILE_SWIMMING.test(message.type)) throw new GameError('SWIMMING', 'You are in the river. Swim to the bank and climb out first.');
       return { ok: true, ...handler(p, message) };
@@ -16965,7 +17210,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       return null;
     };
     for (const p of Object.values(state.players)) {
-      const ride = p.pbike || p.pcar;
+      const ride = p.pbike || p.pcar || p.psport;
       if (ride && (p.astride || p.incar)) {
         if (!upThere(ride.x, ride.z)) continue;
         ride.x = (park.x0 + park.x1) / 2; ride.z = (park.z0 + park.z1) / 2; ride.h = -Math.PI / 2;
@@ -17065,7 +17310,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       ...talk.view(p),
       voiceTalk: voices.talking().filter((v) => { const w = v[0]; return w.startsWith('n:') || w.startsWith('r:'); }), voicesNear: voices.voicesNear(p.x, p.z),
       self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
-        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
+        ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : sportOfAstride(p.astride) ? { n: p.astride, sport: sportOfAstride(p.astride), ride: (p.psport && p.psport.ride) || null, horns: p.horns || 0 } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), ownSports: ownSports.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),
       journal: journal(p),
     };
@@ -17187,16 +17432,19 @@ function encodePlayer(self, zoneId) {
   if (self.said) out.say = { q: self.said.seq, t: self.said.text, l: self.said.lang };
   const a = self.astride;
   if (a && a.model) { const r = a.ride || {}; out.mb = { i: a.model, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, r: r.rev || 0, st: r.steer || 0, hn: a.horns || 0 }; }
+  if (a && a.sport) { const r = a.ride || {}; out.ms = { i: a.sport, l: r.lean || 0, s: r.speed || 0, t: r.throttle || 0, k: r.brake ? 1 : 0, st: r.steer || 0, ph: r.phase || 0, hn: a.horns || 0 }; }
   if (self.phone) out.ph = self.phone;
   if (self.phone && self.torch) out.to = 1;
   if (Number.isFinite(self.jump)) out.jp = Math.round(self.jump * 100) / 100;
   const r2 = (v) => Math.round(v * 100) / 100;
   if (self.driving) out.vh = { k: 'keke', id: self.driving.id, pl: self.driving.plate, lk: packLook(self.driving.look), f: self.driving.ownerName && !self.driving.owned ? 1 : 0, hn: self.horns || 0 };
-  else if (a && !a.model) out.vh = { k: 'okada', hn: self.horns || 0 };
+  else if (a && !a.model && !a.sport) out.vh = { k: 'okada', hn: self.horns || 0 };
   else if (self.riding) out.vh = { k: 'okada', b: 1, dp: self.riding.i };
   const near = (list) => (list || []).map((v) => ({ v, d: Math.hypot(v.x - self.x, v.z - self.z) })).filter((e) => e.d < PARKED_NEAR).sort((p, q) => p.d - q.d).map((e) => e.v);
   const bikes = near(self.ownBikes && self.ownBikes.parked).slice(0, 3);
   if (bikes.length) out.pk = bikes.map((b) => (b.fallen && Number.isFinite(b.ago) ? [b.bike, r2(b.x), r2(b.z), r2(b.h), 1, Math.min(600, r2(b.ago))] : [b.bike, r2(b.x), r2(b.z), r2(b.h), b.fallen ? 1 : 0]));
+  const sports = near(self.ownSports && self.ownSports.parked).slice(0, 3);
+  if (sports.length) out.ps = sports.map((b) => [b.item, r2(b.x), r2(b.z), r2(b.h), b.fallen ? 1 : 0]);
   const kekes = near(self.parkedKekes).slice(0, 2);
   if (kekes.length) out.pv = kekes.map((v) => ({ id: v.id, x: r2(v.x), z: r2(v.z), h: r2(v.heading), pl: v.plate, lk: packLook(v.look), f: v.fleet ? 1 : 0 }));
   const c = self.incar;
@@ -17232,7 +17480,7 @@ function trimPlayer(out) {
   for (const key of ['wd', 'sh']) {
     while (Array.isArray(out[key]) && out[key].length && size() > STATE_MOST) { out[key].shift(); if (!out[key].length) delete out[key]; }
   }
-  for (const key of ['pv', 'pc', 'pk', 'tk', 'tc']) { if (size() <= STATE_MOST) break; delete out[key]; }
+  for (const key of ['pv', 'ps', 'pc', 'pk', 'tk', 'tc']) { if (size() <= STATE_MOST) break; delete out[key]; }
   if (size() > STATE_MOST && out.lk) { delete out.lk.c; }
   return out;
 }
@@ -17256,6 +17504,9 @@ function decodePlayer(state, zoneId) {
   const say = state.say && typeof state.say === 'object' ? { seq: state.say.q, text: state.say.t, lang: state.say.l } : null;
   const mb = state.mb && typeof state.mb === 'object' ? state.mb : null;
   const ride = mb ? { bike: mb.i, lean: mb.l, speed: mb.s, throttle: mb.t, brake: mb.k, rev: mb.r, steer: mb.st, horns: mb.hn } : null;
+  const ms = state.ms && typeof state.ms === 'object' ? state.ms : null;
+  const sport = ms ? { sport: ms.i, lean: ms.l, speed: ms.s, throttle: ms.t, brake: ms.k, steer: ms.st, phase: ms.ph, horns: ms.hn } : null;
+  const sports = Array.isArray(state.ps) ? state.ps.map((b) => (Array.isArray(b) ? { item: b[0], x: b[1], z: b[2], h: b[3], fallen: !!b[4] } : null)) : [];
   const vh = state.vh && typeof state.vh === 'object' ? state.vh : null;
   const vehicle = vh ? { kind: vh.k, id: vh.id, plate: vh.pl, look: unpackLook(vh.lk), fleet: !!vh.f, back: !!vh.b, driver: vh.dp, horns: vh.hn } : null;
   const parked = Array.isArray(state.pk) ? state.pk.map((b) => (Array.isArray(b) ? { bike: b[0], x: b[1], z: b[2], h: b[3], fallen: !!b[4], ...(b[4] && Number.isFinite(b[5]) ? { ago: b[5] } : {}) } : null)) : [];
@@ -17275,7 +17526,7 @@ function decodePlayer(state, zoneId) {
   const gun = gn ? { id: gn[0], out: true, aim: gn[1], crouch: !!gn[2], reload: Number.isFinite(gn[3]) && gn[3] >= 0 ? gn[3] : null, yaw: gn[4], pitch: gn[5] } : null;
   const shots = Array.isArray(state.sh) ? state.sh.filter(Array.isArray).map((s) => ({ q: s[0], ago: s[1], o: [s[2], s[3], s[4]], e: [s[5], s[6], s[7]], what: SHOT_KINDS[s[8]] || 'air' })) : [];
   const wounds = Array.isArray(state.wd) ? state.wd.filter(Array.isArray) : [];
-  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
+  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
 }
 
 function createLink({ transport, game, zoneId, self, interval = 0.15 }) {
@@ -25525,7 +25776,7 @@ function createCrowd(scene) {
       if (!other) { other = { rig: makeCharacter(q.look, q.name, false, 1), x: q.x, z: q.z, h: q.heading }; scene.add(other.rig.group); others.set(q.id, other); }
       const gx = q.x - other.x, gz = q.z - other.z;
       let gap = Math.hypot(gx, gz);
-      const vh = q.vehicle || null, seated = !!vh || !!q.ride || !!q.car;
+      const vh = q.vehicle || null, seated = !!vh || !!q.ride || !!q.car || !!q.sport;
       const st0 = frame.others ? frame.others[q.id] : null;
       const pd0 = q.down ? q.down : st0 && (st0.down || st0.rising || st0.dead) && Number.isFinite(st0.fallAge) ? { kind: st0.kind || (st0.dead ? 'dead' : 'knock'), age: st0.fallAge, lie: st0.lie, rise: st0.rise, push: st0.fell, hard: st0.hard, from: null } : null;
       const pd = pd0 && Number.isFinite(pd0.age) ? { ...pd0, age: pd0.age + (frame.ahead || 0) } : pd0;
@@ -27833,6 +28084,93 @@ const GUN_SOUNDS = Object.freeze({
 return { GUN_SOUNDS };
 })();
 
+__modules["client/sport-audio.js"] = (function () {
+const { SPORT_HANDLING } = __modules["sim/sport-ride.js"];
+
+const SPORT_SOUNDS = Object.freeze({
+  bicycle: Object.freeze({ roll: 520, level: 0.1, rough: 0.4 }),
+  skateboard: Object.freeze({ roll: 300, level: 0.2, rough: 1, joints: 1.6 }),
+  'inline-skates': Object.freeze({ roll: 1150, level: 0.12, rough: 0.5 }),
+  'e-scooter': Object.freeze({ roll: 1300, level: 0.08, rough: 0.6, motor: 360, climb: 900 }),
+  hoverboard: Object.freeze({ roll: 900, level: 0.07, rough: 0.5, motor: 520, climb: 700 }),
+  'e-unicycle': Object.freeze({ roll: 640, level: 0.08, rough: 0.4, motor: 300, climb: 1000 }),
+});
+
+function createSportSound(ctx, out, noise) {
+  const roll = ctx.createBufferSource(); roll.buffer = noise; roll.loop = true;
+  const band = ctx.createBiquadFilter(); band.type = 'bandpass'; band.frequency.value = 600; band.Q.value = 0.7;
+  const rumble = ctx.createBiquadFilter(); rumble.type = 'lowpass'; rumble.frequency.value = 160;
+  const rollGain = ctx.createGain(); rollGain.gain.value = 0;
+  const rumbleGain = ctx.createGain(); rumbleGain.gain.value = 0;
+  roll.connect(band); band.connect(rollGain); rollGain.connect(out);
+  roll.connect(rumble); rumble.connect(rumbleGain); rumbleGain.connect(out);
+  roll.start();
+  const whine = ctx.createOscillator(), whine2 = ctx.createOscillator();
+  whine.type = 'sawtooth'; whine2.type = 'triangle';
+  whine.frequency.value = 300; whine2.frequency.value = 450;
+  const sing = ctx.createBiquadFilter(); sing.type = 'bandpass'; sing.Q.value = 2.5; sing.frequency.value = 600;
+  const whineGain = ctx.createGain(); whineGain.gain.value = 0;
+  whine.connect(sing); whine2.connect(sing); sing.connect(whineGain); whineGain.connect(out);
+  whine.start(); whine2.start();
+  const chain = ctx.createBiquadFilter(); chain.type = 'bandpass'; chain.frequency.value = 2400; chain.Q.value = 4;
+  const chainGain = ctx.createGain(); chainGain.gain.value = 0;
+  roll.connect(chain); chain.connect(chainGain); chainGain.connect(out);
+  let tickAt = 0, lastPhase = 0, jointAt = 0;
+  const stats = { ticks: 0, scuffs: 0, joints: 0 };
+
+  function burst(t, { freq, q = 1, level, length, type = 'bandpass' }) {
+    const src = ctx.createBufferSource(); src.buffer = noise;
+    const f = ctx.createBiquadFilter(); f.type = type; f.frequency.value = freq; f.Q.value = q;
+    const g = ctx.createGain();
+    g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(level, t + Math.min(0.01, length / 4)); g.gain.exponentialRampToValueAtTime(0.0001, t + length);
+    src.connect(f); f.connect(g); g.connect(out);
+    src.start(t, Math.random() * Math.max(0, noise.duration - length - 0.05)); src.stop(t + length + 0.02);
+  }
+
+  function set(s, now) {
+    const kind = s ? SPORT_SOUNDS[s.item] : null;
+    const h = s ? SPORT_HANDLING[s.item] : null;
+    if (!kind || !h) {
+      for (const g of [rollGain, rumbleGain, whineGain, chainGain]) g.gain.setTargetAtTime(0, now, 0.15);
+      return;
+    }
+    const speed = Math.abs(s.speed || 0), share = Math.min(1, speed / h.top);
+    band.frequency.setTargetAtTime(kind.roll * (0.7 + share * 0.8), now, 0.1);
+    rollGain.gain.setTargetAtTime(speed > 0.15 ? kind.level * (0.25 + 0.75 * share) : 0, now, 0.12);
+    rumbleGain.gain.setTargetAtTime(speed > 0.15 ? kind.level * kind.rough * 1.6 * Math.min(1, share * 1.5) : 0, now, 0.12);
+    if (kind.motor) {
+      const f = kind.motor + kind.climb * share;
+      whine.frequency.setTargetAtTime(f, now, 0.08); whine2.frequency.setTargetAtTime(f * 1.5, now, 0.08);
+      sing.frequency.setTargetAtTime(f * 1.8, now, 0.1);
+      whineGain.gain.setTargetAtTime(speed > 0.1 || (s.throttle || 0) > 0 ? 0.012 + 0.03 * share + 0.02 * (s.throttle || 0) : 0, now, 0.1);
+    } else whineGain.gain.setTargetAtTime(0, now, 0.1);
+    const pedalled = s.item === 'bicycle' && (s.throttle || 0) > 0 && speed > 0.3;
+    chainGain.gain.setTargetAtTime(pedalled ? 0.01 + 0.025 * share : 0, now, 0.1);
+    if (s.item === 'bicycle' && !pedalled && speed > 0.6) {
+      const rate = Math.min(45, speed * 9);
+      if (tickAt < now) tickAt = now;
+      while (tickAt < now + 0.12) { burst(tickAt + 0.005, { freq: 5200, q: 6, level: 0.05, length: 0.012 }); tickAt += 1 / rate; stats.ticks += 1; }
+    }
+    if (kind.joints && speed > 1 && now >= jointAt) { burst(now + 0.005, { freq: 140, q: 1.5, level: 0.12 * Math.min(1, share * 1.4), length: 0.07, type: 'lowpass' }); jointAt = now + kind.joints * (0.8 + Math.random() * 0.6) * Math.max(0.4, 3 / Math.max(1, speed)); stats.joints += 1; }
+    if (h.drive === 'push' || h.drive === 'stride') {
+      const p = s.phase || 0;
+      const began = Math.floor(p) !== Math.floor(lastPhase) || (lastPhase % 1 < 1e-6 && p % 1 > 1e-6);
+      if (began && p % 1 > 1e-6) { burst(now + 0.01, { freq: h.drive === 'push' ? 900 : 1600, q: 0.8, level: h.drive === 'push' ? 0.09 : 0.05, length: h.drive === 'push' ? 0.3 : 0.18 }); stats.scuffs += 1; }
+      lastPhase = p;
+    }
+  }
+
+  function dispose() {
+    for (const n of [roll, whine, whine2]) { try { n.stop(); } catch (error) { /* already stopped */ } }
+    for (const n of [roll, band, rumble, rollGain, rumbleGain, whine, whine2, sing, whineGain, chain, chainGain]) { try { n.disconnect(); } catch (error) { /* already gone */ } }
+  }
+
+  return { set, dispose, stats };
+}
+
+return { SPORT_SOUNDS, createSportSound };
+})();
+
 __modules["client/audio.js"] = (function () {
 
 const { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, profileFor, BIKE_RECORDINGS, recordingKindOf, recordingPitchOf, createRecordedEngine, holdBikeHorn } = __modules["client/bike-audio.js"];
@@ -27843,6 +28181,7 @@ const { BIRD_SONGS, FROG_CALLS, cricket } = __modules["client/bird-songs.js"];
 const { createGunVoice } = __modules["client/gun-audio.js"];
 const { GUN_SOUNDS } = __modules["client/gun-sound-files.js"];
 const { fetchKept } = __modules["client/glb.js"];
+const { createSportSound } = __modules["client/sport-audio.js"];
 
 const ENGINE_VOICES = Object.freeze({
   keke: Object.freeze({ low: 58, climb: 92, wave: 'sawtooth', putter: 13, bright: 7, level: 0.34 }),
@@ -28376,6 +28715,12 @@ function createAudio() {
     } else at(x, z, 90, 'horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
   }
 
+  function cycleBell(x = null, z = null) {
+    if (!ctx || muted) return;
+    const play = (out, t) => { for (const k of [0, 0.17]) for (const [f, level, length] of [[2380, 0.13, 0.55], [3460, 0.06, 0.4], [5150, 0.025, 0.25]]) tick(ctx, out, t + k, f, level, length); };
+    if (x === null) { if (ctx.currentTime < hornAt) return; hornAt = ctx.currentTime + 0.5; here('horn', 0.8, 'vehicles', play); } else at(x, z, 50, 'horn', 0.8, 'vehicles', play);
+  }
+
   function bikeHornAt(id, x, z) {
     const h = BIKE_HORNS[id] || BIKE_HORNS.dual;
     at(x, z, 90, 'horn', h.length, 'vehicles', (out, t) => soundBikeHorn(ctx, out, h, t));
@@ -28640,9 +28985,13 @@ function createAudio() {
       e.engine.set(q.rev, q.throttle, now);
     }
     for (const [key, e] of nodes.peerCars) if (!carsNow.has(key)) { retire(e.engine, now, true); setTimeout(() => e.pan.disconnect(), 3000); nodes.peerCars.delete(key); }
-    if (own && !bike && !carOwn && nodes.own.kind !== own.kind && ENGINE_VOICES[own.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(own.kind, false); }
-    nodes.own.set(own && !bike && !carOwn ? own.rev : 0, own && !bike && !carOwn ? 0.21 + own.throttle * 0.24 : 0, now);
-    nodes.tyres.gain.gain.setTargetAtTime(own ? own.rev * 0.035 : 0, now, 0.2);
+    const sportOwn = own && own.kind === 'sport' ? own : null;
+    if (sportOwn && !nodes.sport) nodes.sport = createSportSound(ctx, nodes.vehicles, nodes.white);
+    if (nodes.sport) nodes.sport.set(sportOwn, now);
+    const engineOwn = own && !bike && !carOwn && !sportOwn ? own : null;
+    if (engineOwn && nodes.own.kind !== engineOwn.kind && ENGINE_VOICES[engineOwn.kind]) { nodes.own.set(0, 0, now); nodes.own.out.disconnect(); nodes.own = engineVoice(engineOwn.kind, false); }
+    nodes.own.set(engineOwn ? engineOwn.rev : 0, engineOwn ? 0.21 + engineOwn.throttle * 0.24 : 0, now);
+    nodes.tyres.gain.gain.setTargetAtTime(own && Number.isFinite(own.rev) ? own.rev * 0.035 : 0, now, 0.2);
     engines.forEach((voice, i) => {
       const e = scene.engines[i];
       if (!e) { voice.set(0, 0, now); return; }
@@ -28657,7 +29006,7 @@ function createAudio() {
     const focused = now < ducks.focusUntil;
     const panel = scene.panel ? 0.55 : 1;
     const G = nodes.groups;
-    G.music.duck.gain.setTargetAtTime((own ? 1 - own.rev * 0.5 : 1) * (focused ? 0.35 : 1) * panel, now, focused ? 0.05 : 0.5);
+    G.music.duck.gain.setTargetAtTime((own && Number.isFinite(own.rev) ? 1 - own.rev * 0.5 : 1) * (focused ? 0.35 : 1) * panel, now, focused ? 0.05 : 0.5);
     G.ambient.duck.gain.setTargetAtTime((focused ? 0.6 : 1) * panel, now, focused ? 0.05 : 0.5);
     G.voice.duck.gain.setTargetAtTime((focused ? 0.75 : 1) * panel, now, focused ? 0.05 : 0.5);
     G.vehicles.duck.gain.setTargetAtTime(scene.panel ? 0.6 : 1, now, 0.3);
@@ -28792,7 +29141,7 @@ function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },
     gunShot: (gun, at, opts) => (gunReady() ? guns().shot(gun, at, opts) : false),
@@ -28819,6 +29168,7 @@ function createAudio() {
       peerBikes: ctx ? [...nodes.peerBikes].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, recording: !!e.engine && !!e.engine.recording, rev: e.engine ? e.engine.rev : 0 })) : [],
       car: ctx && nodes.car ? { id: nodes.car.id, running: !!nodes.car.engine && nodes.car.engine.running, rev: nodes.car.engine ? nodes.car.engine.rev : 0 } : null,
       peerCars: ctx ? [...nodes.peerCars].map(([key, e]) => ({ key, id: e.id, running: !!e.engine && e.engine.running, rev: e.engine ? e.engine.rev : 0 })) : [],
+      sport: ctx && nodes.sport ? { ...nodes.sport.stats } : null,
       recordings: Object.fromEntries([...recordingSets].map(([kind, r]) => [kind, r.buffers ? 'ready' : r.failed ? 'failed' : 'fetching'])),
       habitat: { songs: habitat.heard.songs, kinds: [...habitat.heard.kinds], frogs: habitat.heard.frogs, crickets: habitat.heard.crickets, falls: [...habitat.falls.keys()], fallsLevel: ctx ? [...habitat.falls.values()].map((n) => +n.low.gain.gain.value.toFixed(3)) : [], stream: ctx && habitat.stream ? +habitat.stream.gain.gain.value.toFixed(3) : 0, boiling: habitat.heard.boiling, pops: habitat.heard.pops, boil: ctx && habitat.boil ? +habitat.boil.seethe.gain.gain.value.toFixed(3) : 0 } }),
   };
@@ -36011,8 +36361,10 @@ async function loadSport(id, { base = 'sports/', tier = null, own = false, prior
   return {
     id, group, spec, frame, lean,
     size: V(spec.size),
-    pose({ travelled = 0, steer = 0, crank: turn = 0, tilt = 0, truck = 0 } = {}) {
-      for (const w of wheels) w.group.rotation.x = travelled / w.r;
+    steerer: steerGroup ? steerGroup.userData.inner : null,
+    crankGroup: crank,
+    pose({ travelled = 0, wheels: each = null, steer = 0, crank: turn = 0, tilt = 0, truck = 0 } = {}) {
+      for (const w of wheels) w.group.rotation.x = (each && Number.isFinite(each[w.name]) ? each[w.name] : travelled) / w.r;
       if (steerGroup) steerGroup.quaternion.copy(q.setFromAxisAngle(steerAxis, steer));
       if (crank) crank.rotation.x = turn;
       if (trucks.front) trucks.front.rotation.y = truck;
@@ -36532,31 +36884,6 @@ function createActionButton({ id, kind = 'tap', onDown = () => {}, onUp = () => 
 return { createActionButton };
 })();
 
-__modules["sim/sports.js"] = (function () {
-
-const item = (id, name, price, kmh, on, drive, blurb) => Object.freeze({ id, name, price, kmh, on, drive, blurb });
-
-const SPORTS = Object.freeze(Object.fromEntries([
-  item('bicycle', 'Fat-Tyre Bicycle', 300, 30, 'land', 'pedals', 'A fat-tyre bicycle: tyres four inches wide for sand, dirt roads and potholes, a light frame and a wide bar. No motor: it goes as fast as you pedal.'),
-  item('speedboat', 'Speedboat', 600, 60, 'water', 'motor', 'A two-seat runabout with an outboard motor and a steering wheel at the front of its cockpit, made for the river.'),
-  item('e-scooter', 'Electric Scooter', 200, 25, 'land', 'battery', 'An electric scooter in white and black: stand on its deck, thumb the throttle, and go.'),
-  item('e-unicycle', 'Electric Unicycle', 150, 30, 'land', 'battery', 'One big wheel with a motor in it and a pedal each side: lean forward to go, back to slow. For those who can balance.'),
-  item('hoverboard', 'Hoverboard', 120, 12, 'land', 'battery', 'Two wheels and a deck between them, black with blue trim: lean forward to roll, press one foot to turn.'),
-  item('surfboard', 'Surfboard', 100, 25, 'water', 'waves', 'A six-foot shortboard in grey, with grip pads where the feet go: made for the waves.'),
-  item('inline-skates', 'Inline Skates', 75, 22, 'land', 'push', 'A pair of inline skates, four wheels in a line on each, red and black, with a buckle and a strap at the ankle.'),
-  item('skateboard', 'Skateboard', 50, 18, 'land', 'push', 'A long skateboard with big soft wheels: push off, ride, and carve down the road.'),
-].map((s) => [s.id, s])));
-
-const NOT_FOR_SALE = Object.freeze(['naval-ship']);
-
-const SPORT_IDS = Object.freeze(Object.keys(SPORTS));
-const sportOf = (id) => SPORTS[id] || null;
-const sportModel = (id) => `sport:${id}`;
-const sportOfModel = (model) => (typeof model === 'string' && model.startsWith('sport:') ? SPORTS[model.slice(6)] || null : null);
-
-return { SPORTS, NOT_FOR_SALE, SPORT_IDS, sportOf, sportModel, sportOfModel };
-})();
-
 __modules["client/ui-market.js"] = (function () {
 
 const { createTurntable, createModelView, ASSET_MODELS } = __modules["client/asset-view.js"];
@@ -36858,6 +37185,14 @@ function createMarketUI(kit) {
         h('button', { class: 'hx primary', type: 'button', id: 'ride-bike', onclick: () => { quiet(); const r = app.rideBike(bike); if (r && !r.ok) { say(false, r.message); redraw(); } } }, 'Ride it')));
       root.append(engineControls(bike));
       root.append(h('p', { class: 'small' }, 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
+    }
+    const sport = sportOf(item.asset.model);
+    if (sport && !item.listing) {
+      if (SPORTS[sport].on === 'land') {
+        root.append(h('div', { class: 'hxrow' },
+          h('button', { class: 'hx primary', type: 'button', id: 'ride-sport', onclick: () => { quiet(); const r = app.rideSport(sport); if (r && !r.ok) { say(false, r.message); redraw(); } } }, sport === 'inline-skates' ? 'Put them on' : 'Ride it')));
+        root.append(h('p', { class: 'small' }, sport === 'inline-skates' ? 'You put them on where you stand, outdoors, or where you took them off if you are beside it. Take them off with the button you put them on with.' : 'It is brought to you where you stand, outdoors; or, if you are beside where you left it, you get on it there. Get off with the button you got on with.'));
+      } else root.append(h('p', { class: 'small', id: 'sport-water' }, `The ${SPORTS[sport].name} is for the water: it is not ridden on land.`));
     }
     const car = carOf(item.asset.model);
     if (car && !item.listing) {
@@ -43720,6 +44055,388 @@ function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () 
 return { FLAMES, SUSPENSION, RIDE, bonesOf, createOwnBikeView };
 })();
 
+__modules["client/sport-view.js"] = (function () {
+const { loadSport } = __modules["client/sports-model.js"];
+const { reach } = __modules["client/animated.js"];
+const { bonesOf } = __modules["client/own-bike-view.js"];
+const { SPORTS_PARTS } = __modules["client/sports-parts.js"];
+const { SPORT_HANDLING } = __modules["sim/sport-ride.js"];
+
+const SIGHT = 60;                     // metres within which a thing of the player's left standing is drawn
+const PEER_SIGHT = 120, PEER_MOST = 4;  // another player's, ridden: drawn within this, the nearest few
+const STOPPED = 0.3;                  // m/s: slower than this a cyclist puts a foot down
+const PARKED_TILT = Object.freeze({ bicycle: -0.09, 'e-scooter': -0.08, skateboard: 0, 'inline-skates': 0, hoverboard: 0, 'e-unicycle': -1.42 });
+const FALLEN_TILT = Object.freeze({ bicycle: -1.33, 'e-scooter': -1.38, skateboard: 0, 'inline-skates': 0, hoverboard: 0, 'e-unicycle': -1.42 });
+const STANCE = Object.freeze({
+  skateboard: Object.freeze({ feet: [[0.0, 0.25], [0.0, -0.31]], yaw: -Math.PI / 2, footYaw: [0.25, -0.05], hips: [0.02, -0.03], crouch: 0.07, bend: 0.12 }),
+  'inline-skates': Object.freeze({ feet: [[0.1, 0.04], [-0.1, -0.04]], yaw: 0, footYaw: [0.08, -0.08], hips: [0, -0.04], crouch: 0.11, bend: 0.3 }),
+  'e-scooter': Object.freeze({ feet: [[0.03, 0.1], [-0.04, -0.2]], yaw: 0, footYaw: [0.05, -0.35], hips: [0, -0.1], crouch: 0.03, bend: 0.05 }),
+  hoverboard: Object.freeze({ feet: [[0.139, 0], [-0.139, 0]], yaw: 0, footYaw: [0.12, -0.12], hips: [0, -0.02], crouch: 0.045, bend: 0.06 }),
+  'e-unicycle': Object.freeze({ feet: [[0.152, 0.0], [-0.152, 0.0]], yaw: 0, footYaw: [0.05, -0.05], hips: [0, -0.03], crouch: 0.03, bend: 0.06 }),
+});
+const STRIDE = Object.freeze({ out: 0.32, back: 0.3, lift: 0.07, turn: 0.42, sway: 0.06, arms: 0.45 });
+const PUSH = Object.freeze({ side: -0.26, ahead: 0.16, behind: -0.5, lift: 0.11, turn: 1.3, down: 0.08 });
+const PEDAL = Object.freeze({ forward: 0.32, ankleUp: 0.075, ankleBack: 0.06, footDown: 0.11 });
+
+const tmp = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), q: new THREE.Quaternion(), q2: new THREE.Quaternion(), q3: new THREE.Quaternion(), up: new THREE.Vector3(0, 1, 0) };
+const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
+const smooth = (t) => { const u = clamp(t, 0, 1); return u * u * (3 - 2 * u); };
+
+function createSportView(scene, { lite = false, base = 'sports/', onError = () => {}, priority, most = PEER_MOST, sight = PEER_SIGHT } = {}) {
+  const shown = new Map();          // key -> an entry: { id, tier, models, loading, failed, travelled, ... }
+  const frozen = new Set();         // figures whose bones seat() set by hand this frame
+  const TIERS = { ride: lite ? '1k' : '2k', peer: lite ? '512' : '1k', park: lite ? '512' : '1k' };
+
+  function entry(key, id, tier) {
+    let e = shown.get(key);
+    if (e && (e.id !== id || e.tier !== tier)) { drop(e); shown.delete(key); e = null; }
+    if (!e) {
+      e = { id, tier, models: null, loading: true, failed: false, travelled: 0, wheel: { left: 0, right: 0 }, phase: 0, push: 0, down: 0, lastH: null, spin: 0, pitch: 0, base: new THREE.Group(), lean: new THREE.Group() };
+      e.base.add(e.lean);
+      shown.set(key, e);
+      const wanted = id === 'inline-skates' ? [loadSport(id, { base, tier, priority }), loadSport(id, { base, tier, priority, mirror: true })] : [loadSport(id, { base, tier, priority })];
+      Promise.allSettled(wanted).then((done) => {
+        const models = done.filter((d) => d.status === 'fulfilled').map((d) => d.value);
+        if (shown.get(key) !== e || models.length !== done.length) { for (const m of models) m.dispose(); if (shown.get(key) === e) { e.loading = false; e.failed = true; onError(done.find((d) => d.status === 'rejected').reason); } return; }
+        e.models = models; e.loading = false;
+        for (const m of models) scene.add(m.group);
+      });
+    }
+    return e;
+  }
+  const drop = (e) => { if (e.models) for (const m of e.models) m.dispose(); e.models = null; };
+
+  function frameAt(e, x, y, z, h, lean, pitch = 0) {
+    e.base.position.set(x, y, z);
+    e.base.rotation.set(pitch, h, 0, 'YXZ');
+    e.lean.rotation.set(0, 0, lean);
+    e.base.updateMatrixWorld(true);
+  }
+  const local = (e, x, y, z) => e.lean.localToWorld(new THREE.Vector3(x, y, z));
+  function put(m, e) { m.group.position.copy(e.base.position); m.group.rotation.copy(e.base.rotation); m.group.visible = true; }
+
+  function advance(e, ride, dt, own) {
+    const h = SPORT_HANDLING[e.id];
+    const speed = Math.abs(ride.speed || 0);
+    e.travelled += (ride.speed || 0) * dt;
+    if (e.lastH !== null) { let dh = ride.h - e.lastH; while (dh > Math.PI) dh -= Math.PI * 2; while (dh < -Math.PI) dh += Math.PI * 2; e.spin = dt > 0 ? dh / dt : 0; }
+    e.lastH = ride.h;
+    e.wheel.left += ((ride.speed || 0) - e.spin * 0.25) * dt;
+    e.wheel.right += ((ride.speed || 0) + e.spin * 0.25) * dt;
+    if (own || !h) { e.phase = ride.phase || 0; }
+    else {
+      if (h.drive === 'pedals') { if ((ride.throttle || 0) > 0 && !ride.brake) e.phase = (e.phase + (speed / h.gear) * Math.PI * 2 * dt) % (Math.PI * 2); }
+      else if (h.drive === 'push' || h.drive === 'stride') {
+        const going = (ride.throttle || 0) > 0 && !ride.brake && speed < h.top * 0.98;
+        if (going || e.phase % 1 > 1e-6) { let next = e.phase + dt / (h.stride * (1 - 0.35 * Math.min(1, speed / h.top))); if (!going && Math.floor(next) !== Math.floor(e.phase)) next = Math.floor(next); e.phase = next % 2; }
+      }
+      if (Number.isFinite(ride.phase)) {
+        const span = h.drive === 'pedals' ? Math.PI * 2 : 2;
+        const d = ((((ride.phase - e.phase) % span) + span * 1.5) % span) - span / 2;
+        if (Math.abs(d) > span * 0.3) e.phase = ride.phase; else e.phase = (e.phase + d * Math.min(1, dt * 3) + span) % span;
+      }
+    }
+    const pushing = !!h && (h.drive === 'push' || h.drive === 'stride') && e.phase % 1 > 0.001;
+    e.push += ((pushing ? 1 : 0) - e.push) * Math.min(1, dt * (pushing ? 7 : 3.5));
+    e.down += ((e.id === 'bicycle' && speed < STOPPED && !((ride.throttle || 0) > 0) ? 1 : 0) - e.down) * Math.min(1, dt * 5);
+    const want = e.id === 'e-unicycle' ? 0.03 + 0.09 * Math.min(1, speed / 8) * (ride.brake ? -1 : 1) : e.id === 'hoverboard' ? (ride.brake ? -0.03 : 0.05 * (ride.throttle || 0)) : 0;
+    e.pitch += (want - e.pitch) * Math.min(1, dt * 4);
+  }
+
+  const leanOf = (e, ride) => (ride.lean || 0) * (1 - e.down) - 0.1 * e.down;
+
+  function place(e, ride, groundY) {
+    const lean = leanOf(e, ride);
+    frameAt(e, ride.x, groundY(ride.x, ride.z), ride.z, ride.h, lean, e.pitch);
+    if (!e.models) return;
+    const steer = ride.steer || 0;
+    for (const m of e.models) {
+      if (e.id === 'inline-skates') { m.pose({ travelled: e.travelled }); continue; }    // (on the feet: seat() puts them)
+      put(m, e);
+      m.pose({ travelled: e.travelled, steer, crank: e.phase, tilt: lean, truck: -(ride.lean || 0) * 1.4, wheels: { left: e.wheel.left, right: e.wheel.right } });
+      m.group.updateMatrixWorld(true);
+    }
+    if (e.id === 'inline-skates') standPair(e, e.base.position.x, e.base.position.y, e.base.position.z, ride.h);
+  }
+  function standPair(e, x, y, z, h) {
+    if (!e.models) return;
+    e.models.forEach((m, k) => { const side = k === 0 ? -0.09 : 0.09; m.group.position.set(x + Math.cos(h) * side, y, z - Math.sin(h) * side); m.group.rotation.set(0, h, 0); m.group.visible = true; m.pose({ travelled: e.travelled, tilt: 0 }); });
+  }
+
+  function placeParked(e, p, groundY, now) {
+    if (!e.models) return;
+    if (p.fallen && !e.fallenAt) e.fallenAt = e.seenAt === undefined ? -10 : now;
+    if (!p.fallen) e.fallenAt = 0;
+    e.seenAt = now;
+    const t = !p.fallen ? 10 : Number.isFinite(p.ago) ? p.ago : e.fallenAt > 0 ? Math.max(0, now - e.fallenAt) : 10;
+    const k = smooth(t / 0.55);
+    const tilt = p.fallen ? PARKED_TILT[e.id] + (FALLEN_TILT[e.id] - PARKED_TILT[e.id]) * k : PARKED_TILT[e.id];
+    const y = groundY(p.x, p.z);
+    if (e.id === 'inline-skates') { standPair(e, p.x, y, p.z, p.h); return; }
+    frameAt(e, p.x, y, p.z, p.h, tilt);
+    for (const m of e.models) { put(m, e); m.pose({ travelled: e.travelled, steer: e.id === 'bicycle' || e.id === 'e-scooter' ? 0.3 : 0, tilt }); }
+  }
+
+  function update(dt, { ridden = null, rides = [], parked = [], parkedMost = 3, groundY = () => 0, from = { x: 0, z: 0 }, now = 0 }) {
+    for (const f of frozen) f.freeze = false;
+    frozen.clear();
+    const wanted = new Set();
+    const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
+    if (ridden && SPORTS_PARTS[ridden.id]) {
+      wanted.add('ride');
+      const e = entry('ride', ridden.id, TIERS.ride);
+      advance(e, ridden, dt, true);
+      place(e, ridden, groundY);
+    }
+    for (const r of rides.filter((q) => SPORT_HANDLING[q.id] && dist(q) <= sight).sort((a, b) => dist(a) - dist(b)).slice(0, most)) {
+      const key = `peer:${r.key}`;
+      wanted.add(key);
+      const e = entry(key, r.id, TIERS.peer);
+      advance(e, r, dt, false);
+      place(e, r, groundY);
+    }
+    for (const p of parked.filter((q) => SPORT_HANDLING[q.item] && dist(q) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost)) {
+      const key = p.key || `park:${p.item}`;
+      wanted.add(key);
+      placeParked(entry(key, p.item, TIERS.park), p, groundY, now);
+    }
+    for (const [key, e] of shown) if (!wanted.has(key)) { drop(e); shown.delete(key); }
+  }
+
+
+  function setFigure(me, e, yaw) {
+    const g = me.group;
+    e.lean.getWorldQuaternion(tmp.q);
+    g.quaternion.copy(tmp.q).multiply(tmp.q2.setFromAxisAngle(tmp.up, yaw));
+    g.position.copy(e.base.position);
+    g.updateMatrixWorld(true);
+    if (!me.animated) { me.freeze = true; frozen.add(me); }
+  }
+  const dirOf = (me, x, y, z) => tmp.d.set(x, y, z).applyQuaternion(me.group.getWorldQuaternion(tmp.q3)).normalize().clone();
+  const offOf = (me, x, y, z) => tmp.d.set(x, y, z).applyQuaternion(me.group.getWorldQuaternion(tmp.q3)).clone();
+  function turnBone(bone, axisWorld, angle) {
+    if (!bone || !angle) return;
+    const parentQ = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert();
+    bone.quaternion.premultiply(new THREE.Quaternion().setFromAxisAngle(axisWorld.clone().applyQuaternion(parentQ).normalize(), angle));
+    bone.updateMatrixWorld(true);
+  }
+  function flatFoot(foot, rest, frameQ, yaw) {
+    if (!foot || !rest) return;
+    const want = frameQ.clone().multiply(new THREE.Quaternion().setFromAxisAngle(tmp.up, yaw)).multiply(rest);
+    foot.quaternion.copy(foot.parent.getWorldQuaternion(new THREE.Quaternion()).invert().multiply(want));
+    foot.updateMatrixWorld(true);
+  }
+  function limbs(bones) {
+    const leg = (s) => ({ thigh: bones.get(`thigh_${s}`), calf: bones.get(`calf_${s}`), foot: bones.get(`foot_${s}`) });
+    const arm = (s) => ({ u: bones.get(`upperarm_${s}`), l: bones.get(`lowerarm_${s}`), h: bones.get(`hand_${s}`) });
+    return { leg: { l: leg('l'), r: leg('r') }, arm: { l: arm('l'), r: arm('r') } };
+  }
+
+  function stand(me, e, ride, bones) {
+    const id = e.id, st = STANCE[id], spec = SPORTS_PARTS[id];
+    const pelvis = bones.get('pelvis');
+    if (!st || !pelvis) return false;
+    const L = limbs(bones);
+    const deck = id === 'skateboard' ? spec.deck : id === 'e-scooter' ? spec.deck : id === 'hoverboard' ? spec.deck : id === 'e-unicycle' ? spec.pedals[0][1] : id === 'inline-skates' ? spec.boot.sole : 0;
+    const t = e.phase % 1, which = Math.floor(e.phase) % 2;           // (the skater's stride: the left leg, then the right)
+    const push = e.push;
+    const yaw = st.yaw + (id === 'skateboard' ? (Math.PI / 2 - 0.3) * push : 0);
+    setFigure(me, e, yaw);
+    const figQ = me.group.quaternion.clone();
+    const hips = me.group.worldToLocal(pelvis.getWorldPosition(new THREE.Vector3()));
+    const rest = {};
+    let ankle = 0.08 * (me.scale || 1);
+    for (const s of ['l', 'r']) {
+      const f = L.leg[s].foot;
+      if (!f) continue;
+      rest[s] = figQ.clone().invert().multiply(f.getWorldQuaternion(new THREE.Quaternion()));
+      ankle = Math.max(0.03, Math.min(0.14, me.group.worldToLocal(f.getWorldPosition(new THREE.Vector3())).y));
+    }
+    const feet = { l: { x: st.feet[0][0], z: st.feet[0][1], y: deck, yaw: st.footYaw[0] }, r: { x: st.feet[1][0], z: st.feet[1][1], y: deck, yaw: st.footYaw[1] } };
+    let hipX = st.hips[0], hipZ = st.hips[1], crouch = st.crouch, sway = 0;
+    if (id === 'skateboard') {
+      feet.l.yaw = st.footYaw[0] + (Math.PI / 2 - 0.3) * 0.85 * push;
+      const down = t < 0.55, k = down ? t / 0.55 : (t - 0.55) / 0.45;
+      const z = down ? PUSH.ahead + (PUSH.behind - PUSH.ahead) * smooth(k) : PUSH.behind + (PUSH.ahead - PUSH.behind) * smooth(k);
+      const lift = down ? 0 : Math.sin(Math.PI * k) * PUSH.lift;
+      const ground = { x: PUSH.side, z, y: lift };
+      feet.r = { x: feet.r.x + (ground.x - feet.r.x) * push, z: feet.r.z + (ground.z - feet.r.z) * push, y: deck + (ground.y - deck) * push + Math.sin(Math.PI * clamp(push, 0, 1)) * 0.08, yaw: feet.r.yaw + (Math.PI / 2 - 0.3 - feet.r.yaw) * push };
+      hipZ += 0.12 * push; hipX += -0.06 * push;
+      crouch += PUSH.down * push * (down ? 0.6 + 0.4 * Math.sin(Math.PI * k) : 0.6);
+    } else if (id === 'inline-skates') {
+      const s = which === 0 ? 'l' : 'r', o = which === 0 ? 'r' : 'l', side = which === 0 ? 1 : -1;
+      const down = t < 0.55, k = down ? t / 0.55 : (t - 0.55) / 0.45;
+      const out = down ? smooth(k) : 1 - smooth(k);
+      feet[s] = { x: feet[s].x + side * STRIDE.out * out * push, z: feet[s].z - STRIDE.back * out * push, y: deck + (down ? 0 : Math.sin(Math.PI * k) * STRIDE.lift * push), yaw: feet[s].yaw + side * STRIDE.turn * out * push };
+      feet[o] = { ...feet[o], x: feet[o].x * (1 - 0.6 * push) };
+      sway = -side * STRIDE.sway * push * Math.sin(Math.PI * Math.min(1, t / 0.8));
+      hipX += sway;
+      crouch += 0.04 * push;
+    }
+    const want = local(e, hipX, deck + hips.y - crouch, hipZ);
+    me.group.position.add(want.sub(me.group.localToWorld(hips.clone())));
+    me.group.updateMatrixWorld(true);
+    const spine = bones.get('spine_01') || bones.get('spine_02');
+    const across = dirOf(me, 1, 0, 0), ahead = dirOf(me, 0, 0, 1), upward = dirOf(me, 0, 1, 0);
+    turnBone(spine, across, st.bend + (id === 'inline-skates' ? 0.1 * push : id === 'skateboard' ? 0.18 * push : 0) + (id === 'e-unicycle' ? e.pitch * 0.5 : 0));
+    if (sway) turnBone(spine, ahead, -sway * 2.2);
+    const frameQ = e.lean.getWorldQuaternion(new THREE.Quaternion()).multiply(new THREE.Quaternion().setFromAxisAngle(tmp.up, st.yaw));
+    for (const s of ['l', 'r']) {
+      const leg = L.leg[s];
+      if (!leg.thigh || !leg.calf || !leg.foot) continue;
+      const f = feet[s], side = s === 'l' ? 1 : -1;
+      const target = local(e, f.x, f.y + ankle, f.z);
+      const back = id === 'e-unicycle' ? 0 : 0.03;
+      target.add(dirOf(me, 0, 0, -1).multiplyScalar(back));
+      const pole = id === 'e-unicycle' ? dirOf(me, side * 0.05, 0.2, 1) : dirOf(me, side * 0.35, 0.15, 1);
+      reach(leg.thigh, leg.calf, leg.foot, target, pole);
+      flatFoot(leg.foot, rest[s], frameQ, f.yaw);
+    }
+    if (id === 'e-scooter' && e.models && e.models[0]) {
+      const m = e.models[0];
+      for (const s of ['l', 'r']) {
+        const a = L.arm[s];
+        if (!a.u || !a.l || !a.h) continue;
+        const side = s === 'l' ? 1 : -1;
+        const g = gripWorld(m, spec.grip, side).add(offOf(me, 0, 0.012, -0.045));
+        reach(a.u, a.l, a.h, g, dirOf(me, side * 0.8, -0.6, -0.3));
+      }
+    } else {
+      const speed = Math.abs(ride.speed || 0);
+      for (const s of ['l', 'r']) {
+        const a = L.arm[s];
+        if (!a.u) continue;
+        const side = s === 'l' ? 1 : -1;
+        const outward = id === 'e-unicycle' ? 0.55 - 0.35 * Math.min(1, speed / 6) : id === 'hoverboard' ? 0.22 : id === 'skateboard' ? 0.28 + 0.1 * (1 - push) : 0.16;
+        turnBone(a.u, ahead, side * outward);
+        if (id === 'inline-skates' && push > 0.01) {
+          const swing = STRIDE.arms * push * Math.sin(Math.PI * Math.min(1, t / 0.55)) * (which === 0 ? 1 : -1) * side;
+          turnBone(a.u, across, swing);
+        }
+        if (id === 'skateboard' && push > 0.01) turnBone(a.u, across, 0.35 * push * Math.sin(Math.PI * 2 * t) * side);
+        if (a.l) turnBone(a.l, across, -0.25);
+      }
+    }
+    const neck = bones.get('neck_01'), head = bones.get('head');
+    if (neck) {
+      if (id === 'skateboard') turnBone(neck, upward, (Math.PI / 2 - 0.25) * (1 - push) * 0.75);
+      turnBone(neck, across, -0.08 - (spine ? st.bend * 0.6 : 0));
+      if (head) turnBone(head, ahead, -(ride.lean || 0) * 0.5);
+    }
+    if (id === 'inline-skates' && e.models) {
+      e.models.forEach((m, k) => {
+        const s = k === 0 ? 'r' : 'l', f = feet[s];
+        const at = local(e, f.x, f.y - deck, f.z);
+        m.group.position.copy(at);
+        m.group.quaternion.copy(e.lean.getWorldQuaternion(new THREE.Quaternion())).multiply(new THREE.Quaternion().setFromAxisAngle(tmp.up, f.yaw));
+        m.group.position.add(new THREE.Vector3(0, 0, 0.035).applyQuaternion(m.group.quaternion));
+        m.group.visible = true;
+      });
+    }
+    return true;
+  }
+
+  function gripWorld(m, grip, side) {
+    const at = new THREE.Vector3(side * grip[0], grip[1], grip[2]);
+    return m.steerer ? m.steerer.localToWorld(at) : m.frame.localToWorld(at);
+  }
+  function pedalWorld(m, spec, left) {
+    const c = spec.crank;
+    const out = (Math.abs(c.pedalX) + Math.abs(c.rightX)) / 2, x = left ? out : -out;
+    const at = new THREE.Vector3(x, c.c[1] + (left ? c.r : -c.r), c.c[2]);
+    return m.crankGroup ? m.crankGroup.localToWorld(at.sub(new THREE.Vector3(0, c.c[1], c.c[2]))) : m.frame.localToWorld(at);
+  }
+
+  function cycle(me, e, ride, bones) {
+    const m = e.models && e.models[0];
+    const pelvis = bones.get('pelvis');
+    if (!m || !pelvis) return false;
+    const spec = SPORTS_PARTS.bicycle;
+    setFigure(me, e, 0);
+    const figQ = me.group.quaternion.clone();
+    const L = limbs(bones);
+    const rest = {};
+    for (const s of ['l', 'r']) if (L.leg[s].foot) rest[s] = figQ.clone().invert().multiply(L.leg[s].foot.getWorldQuaternion(new THREE.Quaternion()));
+    const hips = me.group.worldToLocal(pelvis.getWorldPosition(new THREE.Vector3()));
+    const want = local(e, spec.seat[0], spec.seat[1] + 0.07, spec.seat[2] - 0.02);
+    me.group.position.add(want.sub(me.group.localToWorld(hips.clone())));
+    me.group.updateMatrixWorld(true);
+    m.group.updateMatrixWorld(true);
+    let ankle = 0.08 * (me.scale || 1);
+    if (e.down > 0.01 && L.leg.l.thigh && L.leg.l.calf && L.leg.l.foot) {
+      const leg = L.leg.l;
+      const hip = leg.thigh.getWorldPosition(new THREE.Vector3()), knee = leg.calf.getWorldPosition(new THREE.Vector3()), foot = leg.foot.getWorldPosition(new THREE.Vector3());
+      const length = hip.distanceTo(knee) + knee.distanceTo(foot);
+      const ground = e.base.localToWorld(new THREE.Vector3(0.36, ankle, -0.02));
+      const drop = Math.min(0.17, Math.max(0, hip.distanceTo(ground) - length * 0.97) * 1.15) * smooth(e.down);
+      if (drop > 0) { me.group.position.add(offOf(me, 0, -drop, drop * 0.7)); me.group.updateMatrixWorld(true); }
+    }
+    const across = dirOf(me, 1, 0, 0), ahead = dirOf(me, 0, 0, 1), upward = dirOf(me, 0, 1, 0);
+    const spine = bones.get('spine_02') || bones.get('spine_01');
+    const grips = { l: () => gripWorld(m, spec.grip, 1).add(offOf(me, 0, 0.012, -0.05)), r: () => gripWorld(m, spec.grip, -1).add(offOf(me, 0, 0.012, -0.05)) };
+    const armLength = (a) => (a.u && a.l && a.h ? a.u.getWorldPosition(new THREE.Vector3()).distanceTo(a.l.getWorldPosition(new THREE.Vector3())) + a.l.getWorldPosition(new THREE.Vector3()).distanceTo(a.h.getWorldPosition(new THREE.Vector3())) : 0);
+    const reachL = armLength(L.arm.l), reachR = armLength(L.arm.r);
+    if (spine && reachL && reachR) {
+      const pace = Math.min(1, Math.abs(ride.speed || 0) / 8);
+      turnBone(spine, across, PEDAL.forward * (0.7 + 0.3 * pace));
+      if (Math.abs(ride.lean || 0) > 1e-3) turnBone(spine, ahead, 0.3 * (ride.lean || 0));
+      const short = () => Math.max(L.arm.l.u.getWorldPosition(new THREE.Vector3()).distanceTo(grips.l()) - reachL * 0.97, L.arm.r.u.getWorldPosition(new THREE.Vector3()).distanceTo(grips.r()) - reachR * 0.97);
+      let gap = short();
+      for (let i = 0; i < 18 && gap > 0; i += 1) { turnBone(spine, across, 0.06); const now = short(); if (now >= gap - 1e-4) { turnBone(spine, across, -0.06); break; } gap = now; }
+      gap = short();
+      if (gap > 0) { me.group.position.add(dirOf(me, 0, 0, 1).multiplyScalar(Math.min(0.15, gap * 1.15))); me.group.updateMatrixWorld(true); }
+    }
+    for (const s of ['l', 'r']) {
+      const a = L.arm[s];
+      if (!a.u || !a.l || !a.h) continue;
+      const side = s === 'l' ? 1 : -1;
+      reach(a.u, a.l, a.h, grips[s](), dirOf(me, side * 0.9, -0.5, -0.3));
+    }
+    const neck = bones.get('neck_01'), head = bones.get('head');
+    if (neck) { turnBone(neck, across, -PEDAL.forward * 0.8); turnBone(neck, upward, -0.4 * (ride.lean || 0)); }
+    if (head) turnBone(head, ahead, -0.5 * (ride.lean || 0));
+    const frameQ = e.lean.getWorldQuaternion(new THREE.Quaternion());
+    for (const s of ['l', 'r']) {
+      const leg = L.leg[s];
+      if (!leg.thigh || !leg.calf || !leg.foot) continue;
+      const side = s === 'l' ? 1 : -1;
+      let target = pedalWorld(m, spec, s === 'l').add(offOf(me, 0, PEDAL.ankleUp, -PEDAL.ankleBack));
+      if (s === 'l' && e.down > 0.01) {
+        const ground = e.base.localToWorld(new THREE.Vector3(0.36, ankle, -0.02));
+        target = target.lerp(ground.add(new THREE.Vector3(0, Math.sin(Math.PI * e.down) * 0.06, 0)), smooth(e.down));
+      }
+      reach(leg.thigh, leg.calf, leg.foot, target, dirOf(me, side * 0.2, 0.25, 1));
+      flatFoot(leg.foot, rest[s], frameQ, 0);
+    }
+    return true;
+  }
+
+  function seat(me, ride, groundY, key = 'ride') {
+    const e = shown.get(key);
+    if (!e || !e.models || !ride || !me || !me.bones) return false;
+    const bones = bonesOf(me);
+    const done = e.id === 'bicycle' ? cycle(me, e, ride, bones) : stand(me, e, ride, bones);
+    return done;
+  }
+
+  return {
+    update, seat,
+    ready: (key = 'ride') => { const e = shown.get(key); return !!(e && e.models); },
+    ridden: (key = 'ride') => { const e = shown.get(key); return e && e.models ? e.models : null; },
+    stateOf: (key = 'ride') => { const e = shown.get(key); return e ? { id: e.id, phase: e.phase, push: e.push, down: e.down, pitch: e.pitch, travelled: e.travelled, spin: e.spin } : null; },
+    failed: (key = 'ride') => { const e = shown.get(key); return !!(e && e.failed); },
+    count: () => shown.size,
+    keys: () => [...shown.keys()],
+    pedals: (key = 'ride') => { const e = shown.get(key); return e && e.models && e.id === 'bicycle' ? [pedalWorld(e.models[0], SPORTS_PARTS.bicycle, true), pedalWorld(e.models[0], SPORTS_PARTS.bicycle, false)] : null; },
+    limbs: (me) => { if (!me || !me.bones) return null; const b = bonesOf(me); const at = (n) => { const bone = b.get(n); return bone ? bone.getWorldPosition(new THREE.Vector3()) : null; }; return { hands: [at('hand_l'), at('hand_r')], feet: [at('foot_l'), at('foot_r')], pelvis: at('pelvis') }; },
+    grips: (key = 'ride') => { const e = shown.get(key); const s = e && SPORTS_PARTS[e.id]; return e && e.models && s && s.grip ? [gripWorld(e.models[0], s.grip, 1), gripWorld(e.models[0], s.grip, -1)] : null; },
+    dispose() { for (const e of shown.values()) drop(e); shown.clear(); },
+  };
+}
+
+return { STANCE, STRIDE, PUSH, PEDAL, createSportView };
+})();
+
 __modules["client/car-view.js"] = (function () {
 const { loadCar } = __modules["client/car-model.js"];
 const { reach } = __modules["client/animated.js"];
@@ -49400,6 +50117,9 @@ const { createVoiceChat } = __modules["net/voice-chat.js"];
 const { createVoiceUI, PRIVACY } = __modules["client/ui-voice.js"];
 const { makeDealMarker } = __modules["client/render-holaris.js"];
 const { createOwnBikeView } = __modules["client/own-bike-view.js"];
+const { createSportView } = __modules["client/sport-view.js"];
+const { SPORT_HANDLING, SPORT_BELL, stepSport, sportSeated } = __modules["sim/sport-ride.js"];
+const { trimSports } = __modules["client/sports-model.js"];
 const { createCarView } = __modules["client/car-view.js"];
 const { createStandins } = __modules["client/vehicle-standins.js"];
 const { setCarDaylight, carsHeld, trimCars } = __modules["client/car-model.js"];
@@ -49605,11 +50325,13 @@ function start(carried) {
   }]);
   const audio = createAudio();
   const voicePlayer = createVoicePlayer({ audio, fetchFile: (url) => fetchKept(url) });
-  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null;
+  let phoneHold = null, ownBikeView = null, peerBikeView = null, carView = null, standins = null, sportView = null, peerSportView = null;
   townSteps.push(['the phones, the motorcycles and the cars', () => {
     phoneHold = createPhoneHold({ scene, lite: LITE });
     ownBikeView = createOwnBikeView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your motorcycle could not be fetched. Check the connection.' }); } });
     peerBikeView = createOwnBikeView(scene, { lite: LITE, priority: 'low' });
+    sportView = createSportView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'It could not be fetched. Check the connection.' }); } });
+    peerSportView = createSportView(scene, { lite: LITE, priority: 'low' });
     carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
     standins = createStandins(scene, { lite: LITE });
   }]);
@@ -49648,14 +50370,14 @@ function start(carried) {
     }
     for (const [id, e] of peerPhones) if (!near.has(id) || e.idle > 8) { e.hold.dispose(); peerPhones.delete(id); }
   }
-  let peerRides = [];
+  let peerRides = [], peerSportRides = [];
   let carsHeard = [];                // other players' cars near enough to be heard: { key, car, x, z, rev, throttle }
   let shownPeers = [];
   function peersNow() {
     const ahead = Math.max(0, clock - viewAt);
     shownPeers = (view.players || []).map((q) => {
       const v = q.vel;
-      if (!v || !(q.vehicle || q.ride || q.car) || Math.hypot(v[0], v[1]) < 0.3) return q;
+      if (!v || !(q.vehicle || q.ride || q.sport || q.car) || Math.hypot(v[0], v[1]) < 0.3) return q;
       const k = Math.min(0.3, (q.ago || 0) + ahead);
       return { ...q, x: q.x + v[0] * k, z: q.z + v[1] * k };
     });
@@ -50756,6 +51478,7 @@ function start(carried) {
     torch: { on: () => torch.on, toggle: () => setTorch(!torch.on) },
     online, market, wallet: walletClient,
     rideBike: (id) => rideOwnBike(id),
+    rideSport: (id) => rideOwnSport(id),
     driveCar: (id) => enterOwnCar(id),
     bikeSound: (id) => audio.previewBike(id),
     stopBikeSound: () => audio.stopPreview(),
@@ -51515,7 +52238,7 @@ function start(carried) {
   function getOffHere() {
     if (view.self.driving) return leaveVehicle();
     if (view.self.incar) return leaveOwnCar();
-    if (view.self.astride) { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); }
+    if (view.self.astride) { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; stillSport(); predicted.x = r.x; predicted.z = r.z; } say(r); }
     return null;
   }
   const BRIDGE_TEXT = { bridge: 'Get off your vehicle to cross the bridge', land: 'Get off your vehicle: the habitation is entered on foot' };
@@ -51548,7 +52271,7 @@ function start(carried) {
     if (atBridge()) return BRIDGE_PROMPT;
     if (view.self.driving) return findDrivingPrompt();
     if (view.self.incar) return Math.abs(carState.speed) > 1.5 ? null : { short: 'Get out', text: ownCar() ? `Get out of the ${ownCar().name}` : 'Get out of the car', run: leaveOwnCar };
-    if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: 'Get off', text: powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; predicted.x = r.x; predicted.z = r.z; } say(r); } };
+    if (view.self.astride) return Math.abs(moto.speed) > 1.5 ? null : { short: ownSport() === 'inline-skates' ? 'Take off' : 'Get off', text: ownSport() === 'inline-skates' ? 'Take your skates off' : ownSport() ? `Get off the ${SPORTS[ownSport()].name}` : powerBike() ? `Get off the ${powerBike().name}` : 'Get off the motorcycle', run: () => { const r = server.send({ type: 'moto.leave' }); if (r.ok) { moto.speed = 0; moto.lean = 0; bikeState.speed = 0; bikeState.lean = 0; stillSport(); predicted.x = r.x; predicted.z = r.z; } say(r); } };
     if (view.self.fight) return null;
     if (view.self.riding) return { short: 'Get down', text: 'Get down from the okada', run: getDown };
     const here = predicted;
@@ -51573,6 +52296,7 @@ function start(carried) {
       if (at && SPORTS[at.display.item]) options.push({ d: at.gap - 1, short: 'Ask', text: `Ask about the ${SPORTS[at.display.item].name}`, run: () => askAboutSport(at.display) });
     }
     for (const b of (view.self.ownBikes && view.self.ownBikes.parked) || []) if (POWER_BIKES[b.bike]) add(b.x, b.z, 2.6, { bias: 1.4, short: 'Ride', text: `Ride your ${POWER_BIKES[b.bike].name}`, run: () => rideOwnBike(b.bike) });
+    for (const b of (view.self.ownSports && view.self.ownSports.parked) || []) if (SPORT_HANDLING[b.item]) add(b.x, b.z, 2.2, { bias: 1.4, short: b.item === 'inline-skates' ? 'Put on' : 'Ride', text: b.item === 'inline-skates' ? 'Put your skates on' : `Ride your ${SPORTS[b.item].name}`, run: () => rideOwnSport(b.item) });
     for (const c of (view.self.ownCars && view.self.ownCars.parked) || []) if (POWER_CARS[c.car]) add(c.x, c.z, POWER_CARS[c.car].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive your ${POWER_CARS[c.car].name}`, run: () => enterOwnCar(c.car) });
     for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model]) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
     for (const v of view.vehicles) {
@@ -51652,6 +52376,7 @@ function start(carried) {
     if (self.hijack) return 'taking';
     if (self.driving) return 'driving';
     if (self.incar && ownCar()) return 'car';
+    if (self.astride && ownSport()) return 'sport';
     if (self.astride && powerBike()) return 'powerbike';
     if (bikePreview) return 'powerbike';
     if (self.astride) return 'moto';
@@ -51667,7 +52392,7 @@ function start(carried) {
     const out = [];
     for (const q of shownPeers) {
       if (Math.hypot(q.x - predicted.x, q.z - predicted.z) > 70) continue;
-      const able = Number.isFinite(q.health) && q.health > 20 && !q.vehicle && !q.ride && !q.car && !q.swimming && !q.held && !q.down;
+      const able = Number.isFinite(q.health) && q.health > 20 && !q.vehicle && !q.ride && !q.sport && !q.car && !q.swimming && !q.held && !q.down;
       out.push({ x: q.x, y: zoneGroundY(q.x, q.z) + (q.gun && q.gun.crouch ? 0.85 : 1.25), z: q.z, able });
     }
     if (crowd) for (const a of crowd.actors()) {
@@ -51780,6 +52505,11 @@ function start(carried) {
     if (m === 'driving' && coarse && wheelLayout()) return [{ id: 'gas', label: 'Accelerate', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to go' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake, and to go back' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...main, primary: false, icon: 'getout', label: (prompt && prompt.short) || 'Step out' }, { ...look, keyOnly: true }];
     if (m === 'driving') return [...pedals, out, { id: 'horn', key: 'h', label: 'Horn' }, look];
     if (m === 'moto') return [...pedals, out, { id: 'horn', key: 'h', label: 'Horn' }, look];
+    if (m === 'sport') {
+      const id = ownSport() || 'bicycle', drive = SPORT_HANDLING[id] ? SPORT_HANDLING[id].drive : 'motor';
+      const go = drive === 'pedals' ? ['Pedal', 'Hold to pedal'] : drive === 'push' ? ['Push', 'Hold to push along'] : drive === 'stride' ? ['Skate', 'Hold to skate'] : ['Go', 'Hold to go'];
+      return [{ id: 'throttle', label: go[0], icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: go[1] }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to slow down' }, { id: 'steer-left', label: 'Lean left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Lean right', icon: 'chevright', kind: 'hold' }, ...(SPORT_BELL.includes(id) ? [{ id: 'horn', key: 'h', label: 'Bell', icon: 'horn' }] : []), { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
+    }
     if (m === 'powerbike') return [{ id: 'throttle', label: 'Throttle', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getoff' }, { ...look, keyOnly: true }];
     if (m === 'car') return [{ id: 'throttle', label: 'Accelerate', icon: 'pedalgas', shape: 'pedal-tall', kind: 'hold', primary: true, hint: 'Hold to accelerate' }, { id: 'brake', label: 'Brake', icon: 'pedalbrake', shape: 'pedal-wide', kind: 'hold', hint: 'Hold to brake, and to back up' }, { id: 'steer-left', label: 'Steer left', icon: 'chevleft', kind: 'hold' }, { id: 'steer-right', label: 'Steer right', icon: 'chevright', kind: 'hold' }, { id: 'horn', key: 'h', label: 'Horn', icon: 'horn' }, { ...out, primary: false, icon: 'getout', label: (prompt && prompt.short) || 'Get out' }, { ...look, keyOnly: true }];
     if (m === 'riding') return [main, look];
@@ -51806,11 +52536,11 @@ function start(carried) {
     const stickEl = $('stick'); if (stickEl.classList.contains('swim') !== (mode === 'swimming')) stickEl.classList.toggle('swim', mode === 'swimming');
     const wheel = mode === 'driving' && coarse && wheelLayout();
     if (stickEl.classList.contains('wheel') !== wheel) { stickEl.classList.toggle('wheel', wheel); $('touch').classList.toggle('wheel', wheel); $('hud').classList.toggle('wheel', wheel); controls.setSteering(wheel); }
-    const onBike = mode === 'powerbike' || mode === 'car';
+    const onBike = mode === 'powerbike' || mode === 'car' || mode === 'sport';
     if ($('touch').classList.contains('bike') !== onBike) { $('touch').classList.toggle('bike', onBike); $('hud').classList.toggle('bike', onBike); }
     keymap.clear();
     for (const b of list) if (b.key && b.key !== 'Shift') keymap.set(b.key, b);
-    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
+    ui.setKeys(mode === 'walking' || mode === 'gun' || mode === 'combat' || mode === 'driving' || mode === 'moto' || mode === 'powerbike' || mode === 'sport' || mode === 'car' || mode === 'riding' || mode === 'custody' || mode === 'taking' || mode === 'carried' ? list : [], (id, phase) => act(id, phase));
   }
 
   function strike(move) {
@@ -51858,7 +52588,7 @@ function start(carried) {
       case 'jump': jump(); break;
       case 'swim': { const r = said(server.send({ type: 'swim.in' }), 'You wade in and swim.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = 0; going.speed = 0; } break; }
       case 'climb': { const r = said(server.send({ type: 'swim.out' }), 'You climb out onto the bank.'); if (r.ok) { predicted.x = r.x; predicted.z = r.z; predicted.heading = Math.PI; going.speed = 0; } break; }
-      case 'horn': { if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
+      case 'horn': { if (ownSport()) { if (SPORT_BELL.includes(ownSport())) { audio.cycleBell(); server.send({ type: 'moto.horn' }); } break; } if (view.self.incar) { audio.carHorn(ownCar() ? ownCar().id : null); server.send({ type: 'car.horn' }); break; } const bike = powerBike(); if (bike) audio.bikeHorn(bike.horn); else if (bikePreview) audio.bikeHorn('dual'); else audio.horn(); if (!bikePreview) server.send({ type: view.self.driving ? 'vehicle.horn' : 'moto.horn' }); break; }
       case 'camera': rig.view = nextView(rig.view, where()); ui.toast({ type: 'note', text: `View: ${CAMERA_VIEW[rig.view].name.toLowerCase()}.` }); break;
       case 'fight': if (near.fight) said(server.send({ type: 'combat.engage', target: { kind: near.fight.kind, id: near.fight.id } }), `You square up to ${near.fight.name}.`); break;
       case 'punch': case 'heavy': case 'kick': case 'shove': case 'grab': strike(id); break;
@@ -52046,6 +52776,98 @@ function start(carried) {
     return Math.abs(moto.speed);
   }
 
+  const ownSport = () => { const a = view && view.self.astride; return a && a.sport && SPORT_HANDLING[a.sport] ? a.sport : null; };
+  const sportState = { speed: 0, lean: 0, heading: 0, phase: 0, pushing: false, throttle: 0, steer: 0, braking: false, sentHeading: 0 };
+  const stillSport = () => { sportState.speed = 0; sportState.lean = 0; sportState.steer = 0; sportState.throttle = 0; sportState.braking = false; };
+  function rideOwnSport(id) {
+    if (!view) return { ok: false };
+    const r = server.send({ type: 'sports.ride', item: id });
+    if (r.ok) { ui.close(); stillSport(); sportState.phase = 0; moto.speed = 0; moto.lean = 0; predicted.x = r.x; predicted.z = r.z; predicted.heading = r.h; sportState.sentHeading = r.h; refreshView(); }
+    say(r);
+    return r;
+  }
+  let sportsSent = null;
+  function syncOwnSports() {
+    if (!playing || !view || !market.state.mine) return;
+    const ids = market.state.mine.holdings.map((h) => String((h.asset && h.asset.model) || '')).filter((m) => m.startsWith('sport:') && SPORTS[m.slice(6)]).map((m) => m.slice(6)).sort();
+    const key = ids.join(',');
+    if (key === sportsSent) return;
+    const r = server.send({ type: 'sports.owned', items: ids });
+    if (r.ok) sportsSent = key;
+  }
+  function meetWithSport(dt, nx, nz, boxes, h, forced = null) {
+    const free = (x, z) => zoneWalkable(x, z, boxes, h.room);
+    const kind = forced || zoneBlockKind(nx, nz, boxes, h.room) || 'solid';
+    const normal = contactNormal(free, predicted.x, predicted.z, nx, nz);
+    const c = contactOutcome({ speed: sportState.speed, heading: sportState.heading, normal, kind });
+    if (c.outcome === 'slide' && !forced) {
+      const sx = predicted.x + c.alongX * CONTACT.slideLoss * dt, sz = predicted.z + c.alongZ * CONTACT.slideLoss * dt;
+      if (c.along > 0.25 && free(sx, sz)) {
+        sportState.heading += angleGap(Math.atan2(c.alongX, c.alongZ), sportState.heading) * Math.min(1, dt * 5);
+        sportState.speed = c.along * CONTACT.slideLoss;
+        moto.speed = sportState.speed;
+        if (c.into > 0.8 && clock - scrapedAt > 0.4) { scrapedAt = clock; audio.blow('block', predicted.x, predicted.z); }
+        return { x: sx, z: sz };
+      }
+      sportState.speed = 0; moto.speed = 0;
+      return null;
+    }
+    if (c.outcome === 'crash') {
+      const r = server.send({ type: 'moto.crash', speed: sportState.speed, heading: sportState.heading });
+      if (r.ok && r.fell) {
+        stillSport(); moto.speed = 0; moto.lean = 0;
+        predicted.x = r.x; predicted.z = r.z;
+        kick(1, normal); jolt();
+        audio.blow('fall', r.item.x, r.item.z);
+        ui.toast({ type: 'alert', title: 'Thrown off', text: `You hit it at ${r.kmh} km/h and came off. Your ${SPORTS[r.item.id].name} is where it fell.` });
+        refreshView();
+        return null;
+      }
+    }
+    sportState.speed = 0; moto.speed = 0; sportState.lean *= 0.3; moto.lean = sportState.lean;
+    if (c.into < CONTACT.scrape * 0.6) return null;
+    const back = Math.min(0.3, 0.05 + c.into * 0.04);
+    const bx = predicted.x + normal.x * back, bz = predicted.z + normal.z * back;
+    if (zoneWalkable(bx, bz, structureBoxes(), h.room)) {
+      const r = server.send({ type: 'moto.drive', x: bx, z: bz, heading: sportState.heading, lean: 0, speed: 0, throttle: 0, brake: true, steer: sportState.steer, phase: sportState.phase });
+      if (r.ok) { predicted.x = bx; predicted.z = bz; }
+    }
+    kick(Math.min(1, c.into / CONTACT.knock), normal);
+    audio.blow(kind === 'barrier' ? 'shove' : 'block', predicted.x, predicted.z);
+    if (c.into > CONTACT.scrape) jolt();
+    return null;
+  }
+  function driveSport(dt, id) {
+    const h = SPORT_HANDLING[id];
+    const input = uiBlocks() ? { steer: 0, throttle: 0, brake: 0 } : controls.bike();
+    sportState.heading = predicted.heading;
+    const tar = motoSpeedAt(predicted.x, predicted.z, false) === MOTO.speedRoad;
+    stepSport(sportState, input, dt, { handling: h, onTar: tar, wet: view.weather.wet });
+    sportState.throttle = input.throttle; sportState.braking = input.brake > 0;
+    sportState.steer += (-input.steer * 0.45 * Math.max(0.1, 1 - Math.abs(sportState.speed) / 6) - sportState.steer) * Math.min(1, dt * 8);
+    moto.speed = sportState.speed; moto.lean = sportState.lean;
+    if (Math.abs(sportState.speed) < 0.03) {
+      predicted.heading = sportState.heading;
+      if (Math.abs(angleGap(sportState.heading, sportState.sentHeading)) > 0.03) { const r = server.send({ type: 'moto.drive', x: predicted.x, z: predicted.z, heading: sportState.heading, lean: 0, speed: 0, throttle: sportState.throttle, brake: sportState.braking, steer: sportState.steer, phase: sportState.phase }); if (r.ok) sportState.sentHeading = sportState.heading; }
+      return 0;
+    }
+    let nx = predicted.x + Math.sin(sportState.heading) * sportState.speed * dt;
+    let nz = predicted.z + Math.cos(sportState.heading) * sportState.speed * dt;
+    if (stopsAtBridge(nx, nz, sportState.heading + (sportState.speed < 0 ? Math.PI : 0), 1.0)) { stillSport(); moto.speed = 0; return 0; }
+    const boxes = structureBoxes();
+    if (!zoneWalkable(nx, nz, boxes, h.room)) {
+      const on = meetWithSport(dt, nx, nz, boxes, h);
+      if (!on) return 0;
+      nx = on.x; nz = on.z;
+    }
+    const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: sportState.heading, lean: sportState.lean, speed: sportState.speed, throttle: sportState.throttle, brake: sportState.braking, steer: sportState.steer, phase: sportState.phase });
+    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = sportState.heading; sportState.sentHeading = sportState.heading; if (result.hit) sportState.speed = 0; }
+    else if (result.code === 'BLOCKED') { meetWithSport(dt, nx, nz, boxes, h, 'solid'); return 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; sportState.speed = 0; }
+    if (clock - cam.lastDrag > 1.5 && sportState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.2);
+    return Math.abs(sportState.speed);
+  }
+
   const ownCar = () => { const c = view && view.self.incar; return c && POWER_CARS[c.car] ? POWER_CARS[c.car] : null; };
   const carState = { speed: 0, steer: 0, heading: 0, throttle: 0, braking: false };
   function enterOwnCar(id) {
@@ -52183,7 +53005,7 @@ function start(carried) {
     if (led()) return 0;                       // walked in by an officer, carried, or with hands on a vehicle: not theirs to steer
     if (view.self.incar) { const spec = ownCar(); return spec ? driveOwnCar(dt, spec) : 0; }
     if (view.self.driving) return driveVehicle(dt);
-    if (view.self.astride) return driveMoto(dt);
+    if (view.self.astride) return ownSport() ? driveSport(dt, ownSport()) : driveMoto(dt);
     if (view.self.riding) return 0;
     if (view.self.swimming) return swimPlayer(dt);
     const { forward, strafe } = controls.axes();
@@ -52584,7 +53406,7 @@ function start(carried) {
         if (clock - cam.lastDrag > 1.5) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2);
       }
       if (self.fight && self.fight.target && speed < 0.2) predicted.heading += angleGap(Math.atan2(self.fight.target.x - predicted.x, self.fight.target.z - predicted.z), predicted.heading) * Math.min(1, dt * 10);
-      const back = riding ? -0.5 : driving ? DRIVER_SEAT[2] : astride && !powerBike() ? -0.17 : 0;
+      const back = riding ? -0.5 : driving ? DRIVER_SEAT[2] : astride && !powerBike() && !ownSport() ? -0.17 : 0;
       let wantX = predicted.x + Math.sin(predicted.heading) * back;
       let wantZ = predicted.z + Math.cos(predicted.heading) * back;
       if (taking && (taking.step === 'mount' || taking.step === 'enter')) {
@@ -52621,12 +53443,16 @@ function start(carried) {
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
       const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
-      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
+      if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride && ownSport() && !sportSeated(ownSport())) { standCharacter(me); me.group.position.y = groundY; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
       if (fallPlace && fallPlace.y !== undefined) me.group.position.y = fallPlace.y;
       const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
       const ownParked = ((self.ownBikes && self.ownBikes.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
       ownBikeView.update(dt, { ridden: ownRide, parked: ownParked, groundY: zoneGroundY, from: predicted, night, now: clock });
       if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
+      const sportRide = astride && ownSport() ? { id: ownSport(), x: predicted.x, z: predicted.z, h: predicted.heading, lean: sportState.lean, speed: sportState.speed, steer: sportState.steer, phase: sportState.phase, throttle: sportState.throttle, brake: sportState.braking } : null;
+      const sportParked = ((self.ownSports && self.ownSports.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
+      sportView.update(dt, { ridden: sportRide, parked: sportParked, groundY: zoneGroundY, from: predicted, now: clock });
+      if (sportRide) sportView.seat(me, sportRide, zoneGroundY);
       const ownDrive = incar && ownCar() ? { id: ownCar().id, x: predicted.x, z: predicted.z, h: predicted.heading, speed: carState.speed, steer: carState.steer, throttle: carState.throttle, brake: carState.braking } : null;
       const peerCars = [], parkedCars = ((self.ownCars && self.ownCars.parked) || []).map((c) => ({ ...c }));
       for (const q of shownPeers) {
@@ -52668,7 +53494,7 @@ function start(carried) {
       if (me.swimming) { me.group.position.y = me.animated ? -(me.spec.height * 0.58) - 0.22 : -0.5; if (me.blob) me.blob.visible = false; } else if (me.wasSwimming) me.group.position.y = groundY;
       me.wasSwimming = me.swimming;
       me.group.visible = !aboard && (!incar || carSeated) && !rig.hidesPlayer;
-      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
+      ui.setDash(driving ? { plate: driving.plate, fuel: driving.fuel, tank: driving.tank, kmh: Math.abs(car.speed) * 3.6, load: driving.load, capacity: driving.capacity } : astride && ownSport() ? { plate: SPORTS[ownSport()].name, fuel: null, kmh: Math.abs(sportState.speed) * 3.6, load: 0, capacity: 0 } : astride && !powerBike() ? { plate: 'Motorcycle', fuel: null, kmh: Math.abs(moto.speed) * 3.6, load: 0, capacity: 0 } : null);
       if (astride && powerBike()) {
         const bike = powerBike();
         if (!speedo.shown || speedo.bike !== bike.id) { speedo.show({ topKmh: bike.topKmh, cc: bike.cc }); speedo.bike = bike.id; }
@@ -52680,6 +53506,7 @@ function start(carried) {
       } else speedo.hide();
       if (incar && ownCar()) { const c = ownCar(); ownEngine = { kind: 'car', car: c.id, tone: c.tone, rev: carRevs(carState.speed, carState.throttle, carHandlingOf(c)), throttle: carState.throttle }; }
       else if (driving) ownEngine = { kind: 'keke', rev: Math.min(1, Math.abs(car.speed) / VEHICLE_KINDS.keke.speedRoad), throttle: car.throttle || 0 };
+      else if (astride && ownSport()) ownEngine = { kind: 'sport', item: ownSport(), speed: Math.abs(sportState.speed), throttle: sportState.throttle, phase: sportState.phase };
       else if (astride && powerBike()) { const bike = powerBike(); ownEngine = { kind: 'powerbike', bike: bike.id, sound: bike.sound, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(bike)), throttle: bikeState.throttle }; }
       else if (astride) ownEngine = { kind: 'okada', rev: Math.min(1, Math.abs(moto.speed) / MOTO.speedRoad), throttle: Math.abs(controls.axes().forward) };
       flash = Math.max(0, flash - dt * 2.2);
@@ -52764,6 +53591,22 @@ blood.update(dt, view.blood || []);
       const peerParked = [];
       for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}`, ...(b.fallen && Number.isFinite(b.ago) ? { ago: b.ago + Math.max(0, clock - viewAt) } : {}) });
       peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
+      peerSportRides = [];
+      const peerSportParked = [];
+      for (const q of shownPeers) {
+        for (const b of q.sports || []) peerSportParked.push({ ...b, key: `spark:${q.id}:${b.item}` });
+        if (!q.sport || !SPORT_HANDLING[q.sport.sport]) continue;
+        const rig = crowd.rigOf(`p:${q.id}`);
+        if (!rig) continue;
+        const g = rig.group;
+        peerSportRides.push({ key: q.id, id: q.sport.sport, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.sport.lean, speed: q.sport.speed, steer: q.sport.steer || 0, phase: q.sport.phase || 0, throttle: q.sport.throttle, brake: q.sport.brake, rig });
+        if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.cycleBell(g.position.x, g.position.z); }
+      }
+      peerSportView.update(dt, { rides: peerSportRides, parked: peerSportParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, now: clock });
+      for (const r of peerSportRides) {
+        if (sportSeated(r.id)) seatCharacter(r.rig); else standCharacter(r.rig);
+        if (!peerSportView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`)) r.rig.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
+      }
       const standing = [];
       for (const q of shownPeers) {
         if (!q.car) continue;
@@ -52794,7 +53637,7 @@ blood.update(dt, view.blood || []);
       room = inside ? zoneRoomAt(predicted.x, predicted.z) : null;
 
       saveTimer += dt;
-      market.tick(dt); accountSync.tick(dt); syncOwnBikes(); syncOwnCars();
+      market.tick(dt); accountSync.tick(dt); syncOwnBikes(); syncOwnCars(); syncOwnSports();
       if (saveTimer > 20) { saveTimer = 0; monitor.time('save', () => writeStored(SAVE_KEY, { host: host.save(), playerId })); }
       ui.tick(dt);
 
@@ -52822,14 +53665,14 @@ blood.update(dt, view.blood || []);
     if (gunView && rig.view !== gunView) rig.view = gunView;
     if (playing && cam.back && !ui.isOpen() && !(showroom.talk && showroom.inside) && !(carshow.talk && carshow.inside)) { cam.dist += (cam.own - cam.dist) * Math.min(1, dt * 2.5); if (Math.abs(cam.dist - cam.own) < 0.05) { cam.dist = cam.own; cam.back = false; } }
     const astride = !!view && view.self.astride !== null && view.self.astride !== undefined;
-    const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
+    const rideSpeed = !sitting ? 0 : view.self.incar ? Math.abs(carState.speed) : astride && ownSport() ? Math.abs(sportState.speed) : astride && powerBike() ? Math.abs(bikeState.speed) : astride ? Math.abs(moto.speed) : view.self.driving ? Math.abs(car.speed) : 9;
     rig.update(dt, {
       moving: !sitting || rideSpeed > 0.8,
       sight: gunView ? gunPlay.sightCamera() : null,
       cam, target: cam.target, heading: playing ? predicted.heading : cam.yaw, running: runShare,
       indoors: hall ? HALL_VIEW : inside && playing ? { pitch: inside.church ? 0.88 : 1.0, dist: inside.church ? 15 : 11 } : null,
       room: hall ? (carshow.inside ? CAR_HALL_ROOM : sports.inside ? SPORTS_HALL_ROOM : HALL_ROOM) : null,
-      dragged: clock - cam.lastDrag, eyeHeight: sitting ? 1.45 : 1.62,
+      dragged: clock - cam.lastDrag, eyeHeight: astride && ownSport() ? (sportSeated(ownSport()) ? 1.62 : 1.74) : sitting ? 1.45 : 1.62,
       bonnet: playing && view && view.self.incar && ownCar() ? { ahead: ownCar().length * 0.36, height: ownCar().height * 0.66 + 0.1 } : null,
       longer: playing && view && view.self.incar && ownCar() ? Math.max(0, ownCar().length - 3) : 0,
     });
@@ -53056,7 +53899,7 @@ blood.update(dt, view.blood || []);
     if (pictureGone || graphics.unwatched) return;
     const usedMB = (graphics.pictures + graphics.buffers) / 1048576 + pretend.extraMB;
     if (usedMB > Math.min(graphicsBudgetMB, memoryLimit)) {
-      const freed = dropUnusedFigures() + trimBikes() + trimCars();
+      const freed = dropUnusedFigures() + trimBikes() + trimCars() + trimSports();
       if (freed) { graphicsTrims += 1; monitor.count('over the graphics budget: let go of what was kept ready'); return; }
     }
     if (townBuilt && usedMB > memoryLimit && governor.level < LOW && performance.now() - memoryStepAt > 10000 && picturesWaiting() === 0) {
@@ -53083,7 +53926,7 @@ blood.update(dt, view.blood || []);
     get supplied() { return supplied; }, get keeper() { return keeper; }, get townBuildings() { return townBuildings; }, get ambulanceDrawn() { return ambulance; }, finishes: finishState, foliage: foliageState,
     skillsState: () => skills.state,
     voicePlayer, voiceStats: () => ({ ...voicePlayer.stats(), ...audio.voiceStats() }),
-    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
+    get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, get sportView() { return sportView; }, get peerSportView() { return peerSportView; }, get peerSportRides() { return peerSportRides; }, rideSport: (id) => rideOwnSport(id), sportState, ownSport: () => ownSport(), speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
     place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },

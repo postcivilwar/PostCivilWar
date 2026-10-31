@@ -956,7 +956,7 @@ export function createAudio() {
     const focused = now < ducks.focusUntil;
     const panel = scene.panel ? 0.55 : 1;
     const G = nodes.groups;
-    G.music.duck.gain.setTargetAtTime((own ? 1 - own.rev * 0.5 : 1) * (focused ? 0.35 : 1) * panel, now, focused ? 0.05 : 0.5);
+    G.music.duck.gain.setTargetAtTime((own && Number.isFinite(own.rev) ? 1 - own.rev * 0.5 : 1) * (focused ? 0.35 : 1) * panel, now, focused ? 0.05 : 0.5);
     G.ambient.duck.gain.setTargetAtTime((focused ? 0.6 : 1) * panel, now, focused ? 0.05 : 0.5);
     G.voice.duck.gain.setTargetAtTime((focused ? 0.75 : 1) * panel, now, focused ? 0.05 : 0.5);
     G.vehicles.duck.gain.setTargetAtTime(scene.panel ? 0.6 : 1, now, 0.3);

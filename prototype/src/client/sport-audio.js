@@ -80,7 +80,9 @@ export function createSportSound(ctx, out, noise) {
     chainGain.gain.setTargetAtTime(pedalled ? 0.01 + 0.025 * share : 0, now, 0.1);
     if (s.item === 'bicycle' && !pedalled && speed > 0.6) {
       const rate = Math.min(45, speed * 9);
-      if (now >= tickAt) { burst(now + 0.005, { freq: 5200, q: 6, level: 0.05, length: 0.012 }); tickAt = now + 1 / rate; stats.ticks += 1; }
+      // (each tick put on the sound's own clock, a little ahead, so that they come evenly however unevenly the frames do)
+      if (tickAt < now) tickAt = now;
+      while (tickAt < now + 0.12) { burst(tickAt + 0.005, { freq: 5200, q: 6, level: 0.05, length: 0.012 }); tickAt += 1 / rate; stats.ticks += 1; }
     }
     // a skateboard over the joints of the road, now and then
     if (kind.joints && speed > 1 && now >= jointAt) { burst(now + 0.005, { freq: 140, q: 1.5, level: 0.12 * Math.min(1, share * 1.4), length: 0.07, type: 'lowpass' }); jointAt = now + kind.joints * (0.8 + Math.random() * 0.6) * Math.max(0.4, 3 / Math.max(1, speed)); stats.joints += 1; }
