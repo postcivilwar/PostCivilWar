@@ -417,9 +417,9 @@ export function createSportView(scene, { lite = false, base = 'sports/', onError
       let gap = short();
       for (let i = 0; i < 18 && gap > 0; i += 1) { turnBone(spine, across, 0.06); const now = short(); if (now >= gap - 1e-4) { turnBone(spine, across, -0.06); break; } gap = now; }
       // (still short of them, as someone with shorter arms on a long bike is: forward on the saddle, onto its nose, until
-      // the hands are on the grips, a hand's breadth at most)
+      // the hands are on the grips; 22 cm at most: the shortest-armed of the town's riders needs about that, 31 October)
       gap = short();
-      if (gap > 0) { me.group.position.add(dirOf(me, 0, 0, 1).multiplyScalar(Math.min(0.15, gap * 1.15))); me.group.updateMatrixWorld(true); }
+      if (gap > 0) { me.group.position.add(dirOf(me, 0, 0, 1).multiplyScalar(Math.min(0.22, gap * 1.15))); me.group.updateMatrixWorld(true); }
     }
     for (const s of ['l', 'r']) {
       const a = L.arm[s];
