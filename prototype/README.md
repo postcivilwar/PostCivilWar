@@ -4145,7 +4145,9 @@ skateboards and the skates only the tarred ones. Most go out between 7 and 9.30 
 On their road each rides on the right, a metre in from its edge (clear of a car stopped at the roadside), at their own
 pace: a bicycle 13 to 19 km/h, a skateboard 9 to 12, skates 10 to 14 (`SPORT_RIDING.pace`), as such things go
 (`sport-ride.js`: the cyclist pedals to keep going and coasts, the skateboarder pushes and glides, the skater strides and
-glides). Something slower or standing in their way (a car stopped at the roadside, another rider) they go round on the
+glides): up to their pace, then a glide down to a little under it before going on again (a cyclist to 93% of it, a
+skater 78%, a skateboarder 72%: `SPORT_RIDING.glide`; before, a skateboarder pushed all the time). Something slower or
+standing in their way (a car stopped at the roadside, another rider) they go round on the
 inside when the road is clear and there is room short of the middle; something standing only partly in their way (a
 car's corner, turned in to the kerb) they pass on the outside along the edge where there is room; otherwise they wait
 behind it. For someone on foot in the road they slow and keep behind, and a cyclist rings the bell (heard by the player
@@ -4157,7 +4159,9 @@ player); what is behind them, or beside them on the right, is not in their way. 
 four seconds by something standing still, they give way: over to the nearer side of the road at a walk, turned the way
 of that side, and standing there a few seconds (`giveWay`). A car of the town's and a rider each waiting for the other
 for six seconds: the rider goes on past it as if it were not there for a few seconds, as two of the town's cars do
-(`traffic.js`, the car telling which rider it waits for, `waitingFor`). Now and then they pull in and stand a while.
+(`traffic.js`, the car telling which rider it waits for, `waitingFor`). Back in toward the edge after passing someone
+moving only a couple of metres clear ahead of them. Now and then they pull in and stand a while, never with someone close
+behind them on their side of the road.
 The town's cars slow behind a rider in their way and go round them as they do anything else in the road (`traffic.js`);
 a rider is in the way of a player's motorcycle, car or ride as anything solid is. While a rider is out on it, the town's
 people are told where they are, as someone not to be drawn walking (`POSE.hidden`).

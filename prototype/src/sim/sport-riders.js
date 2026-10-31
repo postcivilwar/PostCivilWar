@@ -41,6 +41,7 @@ export const SPORT_RIDING = Object.freeze({
   giveWay: 4,              // real seconds held up in the middle of the road by something standing still: then to the side
   footWait: 3,             // real seconds waited, ringing, for someone on foot in the way to step aside: then round them
   aside: 1.0,              // m/s: moving over to the side of the road, giving way
+  glide: Object.freeze({ bicycle: 0.93, skateboard: 0.72, 'inline-skates': 0.78 }),  // of their pace: gliding down to it
   pause: Object.freeze([10, 30]),     // real seconds stood at the roadside now and then
   between: Object.freeze([260, 720]), // metres ridden between stops
   bell: 8,                 // metres: a cyclist rings for someone on foot this near ahead
@@ -327,7 +328,11 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     // the drive: the pedals turned, a push, a stride, as the speed wanted asks; braking hard enough to keep the gap
     ride.speed = r.v; ride.lean = 0; ride.heading = r.h; ride.phase = r.phase;
     const short = target - r.v;
-    stepSport(ride, { throttle: short > 0.05 ? clamp(short * 1.6 + 0.35, 0, 1) : 0, brake: short < -0.4 ? 1 : 0 }, dt, { handling: h });
+    // (up to their pace, then a glide: a skateboarder pushes a few times and rides the board, a skater strides and
+    // glides, a cyclist pedals and freewheels a little; on again once a good way under it)
+    if (r.v >= target - 0.05) r.coast = true; else if (r.v < target * SPORT_RIDING.glide[r.item]) r.coast = false;
+    const drive = short > 0.05 && !r.coast ? clamp(short * 1.6 + 0.35, 0, 1) : 0;
+    stepSport(ride, { throttle: drive, brake: short < -0.4 ? 1 : 0 }, dt, { handling: h });
     let v = ride.speed;
     if (v > target + 0.05) v = Math.max(target, r.v - SPORT_RIDING.brake * dt);
     r.v = Math.max(0, v); r.phase = ride.phase;
@@ -345,7 +350,8 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
         const along = (o.x - r.x) * ux + (o.z - r.z) * uz;
         const turned = (o.h || 0) - r.h, ca = Math.abs(Math.cos(turned)), sa = Math.abs(Math.sin(turned));
         const reachAlong = ca * (o.hl || 0.5) + sa * (o.hw || 0.4), reachAcross = ca * (o.hw || 0.4) + sa * (o.hl || 0.5);
-        if (Math.abs(along) > reachAlong + front + 0.4) return false;
+        // (beside them, or just behind on that side: back in only a couple of metres clear ahead of what was passed)
+        if (along > reachAlong + front + 0.4 || along < -(reachAlong + front + (o.v > 0.3 ? 2.5 : 0.4))) return false;
         const side = (latOf(road, o.x, o.z, r.dir) - r.lat) * toward;
         return side > 0 && side - reachAcross - 0.35 < 0.25;
       });
@@ -361,7 +367,9 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     [r.x, r.z] = pointOf(road, r.along, r.lat, r.dir);
     // now and then pulled in to stand a while
     r.next -= r.v * dt;
-    if (r.next <= 0 && Math.abs(r.lat - want) < 0.1 && !ahead) { r.mode = 'stop'; r.v = 0; r.until = real() + SPORT_RIDING.pause[0] + hash(r.i, Math.floor(real())) * (SPORT_RIDING.pause[1] - SPORT_RIDING.pause[0]); }
+    // (never pulled in with someone close behind on its side of the road: they would run into them)
+    const followed = () => list.some((o) => { if (o.rider === r.n || !(o.v > 0.3)) return false; const along = (o.x - r.x) * Math.sin(r.h) + (o.z - r.z) * Math.cos(r.h); return along < 0 && along > -10 && Math.abs(latOf(road, o.x, o.z, r.dir) - r.lat) < 1.4; });
+    if (r.next <= 0 && Math.abs(r.lat - want) < 0.1 && !ahead && !followed()) { r.mode = 'stop'; r.v = 0; r.until = real() + SPORT_RIDING.pause[0] + hash(r.i, Math.floor(real())) * (SPORT_RIDING.pause[1] - SPORT_RIDING.pause[0]); }
   }
 
   // An owner coming for what was taken from them, after the police have caught the thief: on foot to it, on, away.

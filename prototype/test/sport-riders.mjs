@@ -217,8 +217,10 @@ const took = await page.evaluate((n) => window.__nlw.takeSport(n), prey.n);
 await page.waitForFunction(() => { const a = window.__nlw.view.self.astride; return a && a.sport === 'bicycle' && Number.isInteger(a.taken); }, null, { timeout: 20000 }).catch(() => {});
 const inD = await page.evaluate((t) => { const n = window.__nlw, g = n.host.game, p = g.state.players[n.playerId], a = n.view.self.astride; const m = g.internals.actors.get(t.i); return { astride: a, mode: g.internals.sportRiders.riders()[t.n].mode, rider: m ? m.act : null, stars: p.law.stars }; }, prey);
 check('D: taken: the player on it, the rider off and running from the thief', inD.astride && inD.astride.sport === 'bicycle' && inD.astride.taken === prey.n && inD.mode === 'taken' && /thief/i.test(inD.rider || ''), { took, inD });
-await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 30000 }).catch(() => {});
-const stars = await page.evaluate(() => { const el = document.getElementById('stars'); return { stars: window.__nlw.view.self.law.stars, shown: !el.hidden, on: [...el.children].filter((s) => s.classList.contains('on')).length }; });
+// (word reaches the police three to eight seconds of the town's time after it is seen: here, in software, that can be a
+// minute or more of the clock's)
+await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 120000 }).catch(() => {});
+const stars = await page.evaluate(() => { const n = window.__nlw, g = n.host.game, el = document.getElementById('stars'); const c = Object.values(g.state.justice.crimes).slice(-1)[0]; return { stars: n.view.self.law.stars, shown: !el.hidden, on: [...el.children].filter((s) => s.classList.contains('on')).length, crime: c ? { type: c.type, detection: c.detection, status: c.status, reportIn: c.reportAt ? +(c.reportAt - g.state.real).toFixed(1) : null } : null, law: g.state.players[n.playerId].law.state }; });
 check('D: the police\'s stars for taking a vehicle: two', stars.stars === 2 && stars.shown && stars.on === 2, stars);
 // (the police held off while it is ridden, left and got on again: the theft kept to be the player's again for F)
 await page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; window.__law = { crimes: p.law.crimes.slice(), stars: p.law.stars, state: p.law.state }; p.law.crimes = []; p.law.stars = 0; p.law.state = 'normal'; });
@@ -266,8 +268,8 @@ const caught = await page.evaluate((t) => {
   return { record: !!record, returned: record ? record.sportsReturned : null, astride: n.view.self.astride, mode: r.mode, said: record ? record.message || null : null };
 }, prey);
 check('F: caught by the police: what was taken goes back; off it', caught.record && caught.returned === 1 && !caught.astride && caught.mode === 'returning', caught);
-await page.waitForFunction((t) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[t.n]; return r.mode !== 'returning'; }, prey, { timeout: 300000 }).catch(() => {});
-const home = await page.evaluate((t) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[t.n]; return { mode: r.mode, takenBy: r.takenBy }; }, prey);
+await page.waitForFunction((t) => { const r = window.__nlw.host.game.internals.sportRiders.riders()[t.n]; return r.mode !== 'returning'; }, prey, { timeout: 600000 }).catch(() => {});
+const home = await page.evaluate((t) => { const g = window.__nlw.host.game, r = g.internals.sportRiders.riders()[t.n], m = g.internals.actors.get(t.i); return { mode: r.mode, takenBy: r.takenBy, at: [+r.x.toFixed(1), +r.z.toFixed(1)], owner: m ? { mode: m.mode, act: m.act, at: [+m.x.toFixed(1), +m.z.toFixed(1)], goal: m.goal, home: m.home } : null }; }, prey);
 check('F: its owner walks to it and rides off on it again', ['ride', 'stop', 'turn', 'off'].includes(home.mode) && home.takenBy === null, home);
 await page.evaluate(() => { const n = window.__nlw, g = n.host.game, p = g.state.players[n.playerId]; if (p.custody) { const r = g.state.justice.arrests[p.custody]; r.status = 'released'; p.custody = null; p.law.state = 'normal'; } });
 
