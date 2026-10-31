@@ -209,7 +209,9 @@ const start = (x) => go(x, -43, Math.PI / 2);
   const fast = going[going.length - 1];
   const top = Math.max(...going.map((q) => q.speed));
   check('pushed along it goes at a skateboard\'s pace (about 18 km/h at most)', kmh(top) > 12 && kmh(top) <= 18.5, going.map((q) => kmh(q.speed)));
-  const down = going.filter((q) => q.state && q.state.push > 0.6 && q.feet && q.feet[1][1] - q.ground < 0.14);
+  // (the ankle's own height standing is up to 0.14 m in a heeled shoe: on the road the ankle is that high, on the board
+  // the deck's height more)
+  const down = going.filter((q) => q.state && q.state.push > 0.6 && q.feet && q.feet[1][1] - q.ground < 0.19);
   check('pushing, the back foot goes down to the road beside the board', down.length >= 3, { down: down.length, of: going.length });
   check('each push is heard as the foot scuffs the road', !!(fast.sound && fast.sound.scuffs >= 2), fast.sound);
   await page.keyboard.down('w'); await page.waitForTimeout(700); await shot('07-skateboard-pushing'); await page.keyboard.up('w');
@@ -294,8 +296,20 @@ const start = (x) => go(x, -43, Math.PI / 2);
   check('every one got off stands where it was left, drawn there', LAND.every((id) => parked.town.includes(id)) && parked.drawn.filter((k) => k.startsWith('park:')).length >= 3, parked);
   await shot('13-left-standing');
   // back on one where it stands (the prompt beside it)
-  const near = await page.evaluate(() => { const n = window.__nlw; const b = n.view.self.ownSports.parked.find((q) => q.item === 'skateboard'); n.place(b.x + 0.9, b.z); const p = n.prompt(); return p ? p.text : null; });
-  check('beside one of them the player is offered to ride it again', near === 'Ride your Skateboard', near);
+  // (beside the skateboard, on its side away from the others; the offer is for whichever is nearest there)
+  const near = await page.evaluate(() => {
+    const n = window.__nlw, parked = n.view.self.ownSports.parked;
+    const b = parked.find((q) => q.item === 'skateboard');
+    const spots = [[0.9, 0], [-0.9, 0], [0, 0.9], [0, -0.9]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).filter((q) => n.walkable(q.x, q.z));
+    const away = (q) => Math.min(...parked.filter((o) => o !== b).map((o) => Math.hypot(o.x - q.x, o.z - q.z)));
+    const at = spots.sort((a, c) => away(c) - away(a))[0] || { x: b.x + 0.9, z: b.z };
+    n.place(at.x, at.z);
+    const nearest = parked.slice().sort((a, c) => Math.hypot(a.x - at.x, a.z - at.z) - Math.hypot(c.x - at.x, c.z - at.z))[0];
+    const p = n.prompt();
+    return { text: p ? p.text : null, nearest: nearest.item };
+  });
+  const wanted = near.nearest === 'inline-skates' ? 'Put your skates on' : `Ride your ${SPORTS[near.nearest].name}`;
+  check('beside one of them the player is offered to ride it again', near.text === wanted, near);
 }
 
 if (PHONE) {
