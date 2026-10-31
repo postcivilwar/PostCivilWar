@@ -4117,7 +4117,7 @@ leaning forward; its sounds; left standing; a phone's graphics card while riding
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 537 headless tests
+node --test test/*.test.mjs                        # 552 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 119 tests against a real PostgreSQL (accounts, the market and its cars and the sports mall's things, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures
