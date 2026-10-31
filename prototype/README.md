@@ -2751,7 +2751,9 @@ models come. The system that walks, places and animates the town's people kept r
   patrol". Anyone in a game saved with the old town keeps what they did and own; what the save held about townspeople
   is let go (`src/sim/renew.js`).
 - **The law**: only the police are witnesses (an officer within 15 m with a clear view always sees it; further, up
-  to 30 m, by how grave it was). The person wronged knows, and can report it by phone. The police come from their
+  to 30 m, by how grave it was). The person wronged knows, and can report it by phone (since 31 October, only what an
+  officer on the scene saw is a crime: the section "Cars solid against cars, people run over, and stars only for what an
+  officer saw"). The police come from their
   beats, chase, fight and arrest as before; nobody appears from nowhere. Since 25 October each carries the rifle and
   shoots back at whoever shoots at her (the section "Guns, stage 1: the rifle").
 - **The phone**: the town's people are not called (they have no numbers); a fine is paid by the player or by another
@@ -3229,7 +3231,8 @@ where a round came from still shown.
 
 **The police** shoot back at whoever shoots at them or near them (short bursts while they can see them; more likely to
 hit close by, less at a run or crouched): their rifles up, aimed, their rounds seen and heard. Shooting another player
-is an offence: the one shot reports it (and an officer near enough sees it), and the police come. The rest of the police's
+is an offence: the one shot reports it (and an officer near enough sees it), and the police come (since 31 October, only if
+an officer saw it). The rest of the police's
 rules come with the stars.
 
 **What the server cannot check**: a player's own word on where they stand, their health and their ground (as for
@@ -3918,7 +3921,8 @@ another player's car is), and the horns.
 **Taking a car** (`hijack.js`, `carRule`; `own-cars.js`, `enterTaken`). A car standing still with its driver at the
 wheel (at the roadside, at the red light, in a queue) can be taken from beside either front door: "Take the Grey Saloon"
 is offered there ("Take Ngozi's Grey Saloon" when the player knows the driver). The door, the driver pulled out (who
-gets out of the far door and runs, and has seen the thief's face: the police are told; taking a vehicle is two stars),
+gets out of the far door and runs, and has seen the thief's face: the police are told; taking a vehicle is two stars;
+since 31 October, only if an officer saw it),
 and the player is at the wheel. It is driven as the player's own cars are. Got out of, it stands where it was left,
 theirs to get back into ("Drive the Grey Saloon you took", from beside it) and nobody else's.
 
@@ -4179,7 +4183,7 @@ A rider's figure is not shown until the thing under it has been fetched.
 
 From beside one of them going slowly or standing (within 2.4 m, at most 3.4 m/s), "Take the bicycle from ..." (or the
 skateboard, or the skates): they are pushed off and run, shouting "Thief!", and the police are told (taking a vehicle,
-two stars). The player rides it as their own, by the same buttons and steps (`moto.drive`, the rider on it as on their
+two stars; since 31 October, only if an officer saw it). The player rides it as their own, by the same buttons and steps (`moto.drive`, the rider on it as on their
 own); got off, it stands where it was left, and "Ride the bicycle you took" gets back on it. It is never theirs: the
 website's server, which keeps who owns what, is never told of it, so it is never in Property, never in the market and
 never sold; buying the same thing at the mall changes nothing about it. One player holds three at most: a fourth taken,
@@ -4229,7 +4233,8 @@ with room to pass), patrol the river above the bridge: upriver on the far side a
 the bend, down on the town's side, round short of the bridge, a third of the round apart, slowing in the turns; each
 crewed by the navy (unseen) and stopping for a boat or a swimmer in its way. Their lamps at night: red to port, green to
 starboard, white at the masthead and stern. Never sold. From a boat alongside, or swimming beside one on the town's side,
-"Climb aboard the naval ship": the crew go over the side, the police are told (taking a vehicle, two stars), and the
+"Climb aboard the naval ship": the crew go over the side, the police are told (taking a vehicle, two stars; since 31
+October, only if an officer saw it: the navy are not the police), and the
 helm is the player's (in the wheelhouse, unseen): the ship answers it as a ship does, a long while to gather way (22 km/h
 at most) and slow to turn. "Leave the ship": down into their own boat alongside, or over the side by the town; it lies
 where it was left. Caught by the police, it goes back to the navy, which brings it back to its patrol.
@@ -4257,10 +4262,111 @@ steered, left; the police giving one back; others' boats seen on the river), `te
 where; paddling; standing up only on a wave, facing the bank; riding it in; off the board; others seeing a surfer), and in
 a browser `test/water.mjs` and `test/surf.mjs`.
 
+## Cars solid against cars, people run over, and stars only for what an officer saw (31 October 2026)
+
+The owner's word of 31 October 09:04 Lagos time: "I noticed users can use their car to run over another car, as if
+nothing was blocking. Sometimes cars pass through characters without jamming them. Please fix the issues. Then I don't
+want characters to stop a car movement when jammed, the car should jam them if they block the road/path. Jam them and
+climb over them, while the tyres of the car is climbing them, it should show on the car reaction, I mean the car should
+behaves like it climbed a blockage. A character being jammed shouldnt stop the car. Then I want you to redesign the flow
+so that, the only time a character gets a star is if police js around on the scene during the crime. If police is out of
+sight, don't count it as crime."
+
+### Other players' cars (`src/sim/in-the-way.js`)
+
+Each player's page keeps its own copy of the town, and another player is seen in it as a visitor (`talk.js`), with what
+they drive or ride and what of theirs stands near them. None of that had been solid to anyone's vehicle, so a car went
+straight through another player's car. Now another player's car, motorcycle or keke, driven or standing (as their page
+says it is), and any motorcycle left standing, are as solid to a player's car, motorcycle and bicycle as the town's own
+cars are, and another player's vehicles are in the way of someone on foot. Where another page says its things are is not
+to be trusted with anything that matters, and this is not: it can only stop this player's own vehicle, and one already
+against it (another player's car brought up against it, or a word come late) never holds it there: that vehicle is left
+out whole.
+
+### Running into someone (`src/sim/impact.js`)
+
+A car now strikes whoever it runs into at any pace but a standstill (before, slower than 1.6 m/s it went through them,
+and just after a blow it went through them while it gathered pace again), and is never stopped by them: it keeps nine
+tenths of its pace and goes on. Struck, they go down across its way a little ahead of it (thrown further the faster it
+was going), so that it goes over them, the wheels on both sides climbing (they are turned to face along its way as they
+are struck: the fall every figure is drawn with, `falls.js`, turns it a quarter as it goes down, and it lies across the
+way it faced; measured in a browser on three townspeople's figures and a player's); someone already lying in its way, knocked down or dead, is gone over where they
+lie, not shoved along the road; and nobody gets up under a car: they stay down until it is past, and under a car
+stopped on top of them (or left standing there) they lie still while it stands, twenty seconds at the most, and then
+crawl out from under it to its nearer side and get up there. A rider on a bicycle,
+a skateboard or skates is knocked off as someone on foot is, what they rode thrown aside off the car's way; once up,
+they go back for it and ride on (`src/sim/sport-riders.js` `knock`). Another player's car driven through this town's own
+player knocks them down here, as hard as the speed it was seen to go here (from one word of it to the next, never what
+their page says), never below 20 and no more often than every four seconds; their page shows it and tells the other's.
+A keke, a motorcycle or a bicycle ridden into someone is still stopped by it for a moment, as before.
+
+### The wheels climbing over them (`src/client/wheel-bumps.js`, `car-view.js`, `car-model.js`)
+
+Whoever lies on the road near a car is taken as their figure lies, from its bones (the trunk from the hips to the top of
+the head, each leg from the hips to the toes), each part a round bar on the ground. Each wheel is lifted by whatever is highest
+under its tread, across its width and along the arc of it nearest the ground, so that it climbs onto them, rolls over the
+top and comes down off them as a wheel does (a wheel goes up by as much as a body lies high, 24 cm over the trunk). The
+wheels follow the ground as it is; the body follows the wheels on its springs, three fifths of their lift, and settles
+after with a bounce or two: the nose up as the front wheels climb, down as they come off and the back wheels climb, and
+leaning to one side when only one side goes over. A dull thump as each wheel climbs. Struck at the front, the nose dips
+with the blow and comes up again. The same for another player's car and the town's.
+
+### The police's stars only for what an officer saw (`src/sim/justice.js`)
+
+Every offence is still written in the police's book as it happens, but only one an officer on the scene saw is a crime
+to the police: an officer out on her beat within 30 m with nothing standing between her and it (a wall, a building, a
+tree; open ground and the river are no hindrance), or within 15 m of a pocket picked (done by stealth), or an officer it
+was done to. Then it is the police's at once, the culprit is wanted, and the stars come as before. One no officer saw goes
+no further: the person wronged no longer reports it (by phone or otherwise), nobody finds out about it later, and it
+brings no stars; a player wronged is told "No police officer was there to see it." An officer who comes upon it while it
+is still going on (a fight, more blows) sees it then. Nothing in it is left to chance any more. The navy are not the
+police: a ship taken out on the river, out of every officer's sight, is no crime to them.
+
+### Tests
+
+`test/run-over.test.mjs` (another player's car driven or standing, and a motorcycle standing, stop a car; one against it
+never holds it; someone struck at a crawl and at speed, down across its way, gone over, never up under it; a town rider
+knocked off and back on their bicycle; a car stopped on top of someone, and left there; another player's car through
+this town's player, never below 20; the wheels
+climbing over a body and the body answering, in numbers); the law's tests (`justice`, `impact`, `phone`, `traffic`,
+`water`, `habitation`) bring an officer to the scene where the police are to come (`test/world.mjs` `officerOnScene`),
+and say so where none is there; in a browser `test/run-over.mjs` (with a computer's settings and a phone's: stopped a
+moment with a front wheel and then a back wheel up on someone, for a picture from beside it, with every officer of the
+beat kept away, since what this tests is the car), and the
+browser tests that commit a crime with an officer brought to see it (`test/start.mjs` `officerOnScene`): `stars.mjs`,
+`traffic.mjs`, `sport-riders.mjs`, `water.mjs` (the ship: stars only if seen), `play.mjs`.
+
+## The makers' badges on the cars covered (31 October 2026)
+
+The owner's word of 31 October 09:04 Lagos time: "you need paint over those cars with brands on them. Or use our logo to
+redesign and cover it". The owner's car files are not changed: only the game's own copies of each car's pictures
+(`assets/vehicles/cars/game`, made from them by `tools/vehicles/cars.py` and `smaller.py`) are painted on, after they
+are made.
+
+- **Found** (`tools/vehicles/badges.mjs`): each car drawn close as the game draws it (its 4096 colour picture), from in
+  front, behind, each side, its front corners, a front wheel and above, with, for every point of each picture, where on
+  the car's colour picture it comes from. A maker's emblem, crest, lettering, wheel-cap mark or bonnet mascot seen in a
+  picture is found that way on the colour picture: often in several pieces, each covered on its own.
+- **Covered** (`tools/vehicles/badges.py cover`, the list in `tools/vehicles/badges.json`: 468 pieces on 19 cars, the
+  rising sun on 68 of them; the gold hypercar has no maker's mark): each piece painted over with the colour round it
+  (the middle of the colours in a band about it, the edge eased in), its bumps and shine smoothed in the car's other
+  pictures; where it was an emblem in its own place (a grille, a boot, a wheel's cap, a wing), the game's own mark, the
+  rising sun from the canonical logo, put on it, upright on the car. Lettering, names and mascots are painted over.
+  Number plates are left as they are. (`badges.py cover --into <folder>` writes the covered pictures to a folder of
+  their own to look at first; `badges.py sizes` then brings `car-parts.js`'s sizes up to date once they are put in the
+  game's place.)
+- **What is left**: an emblem that stands out of the body (a bonnet mascot, a standing star, the two-tone classic's
+  winged badge, the raised badges on the grey saloon and the mint coupé) keeps its shape: painted, it shows no maker's
+  colours or letters, but its outline is the model's own. Taking the shape away would be a change to the car's model in
+  the game's copy; not done.
+- The market's photographs of each car (`tools/vehicles/car_turntables.mjs`) and the showroom's pictures of the cars
+  seen across the hall (`car_impostors.mjs`) taken again from the covered cars (the gold hypercar's too, so that all
+  twenty are taken as the game now draws them).
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 567 headless tests
+node --test test/*.test.mjs                        # 576 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 119 tests against a real PostgreSQL (accounts, the market and its cars and the sports mall's things, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures

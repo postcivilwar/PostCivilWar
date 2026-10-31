@@ -47,11 +47,22 @@ check('A: not wanted, no stars', !s.shown && s.state === 'normal', s);
 // ---- A: a fight out of every officer's sight (the simulation's own offence, where no officer is within sight of it)
 const unseen = await page.evaluate(() => {
   const n = window.__nlw, g = n.host.game, J = g.internals.justice, A = g.internals.actors, pop = g.internals.population, p = g.state.players[n.playerId];
-  n.place(150, -200);
+  // (the player put there at once, in the town as on the screen: the town's own word of where they are follows the
+  // page's only at its next step, and the fight is where they are now)
+  const X = 150, Z = -200;
+  n.place(X, Z); p.x = X; p.z = Z;
   // (any officer whose beat has her near just now sent along it a way off, for this)
   const away = [];
-  for (const q of pop.people) { if (q.job !== 'police' || A.has(q.index)) continue; const at = pop.locate(q.index, g.state.t, {}); if (at.pose !== 4 && Math.hypot(at.x - p.x, at.z - p.z) < 60) { A.take(q.index, g.state.t, { x: p.x + 200, z: p.z }); A.hold(q.index, 'Elsewhere', 0, 0); away.push(q.index); } }
-  const c = J.offence(p, 'assault', { victim: { kind: 'npc', id: 0, name: 'Someone' }, x: p.x, z: p.z });
+  for (const q of pop.people) {
+    if (q.job !== 'police') continue;
+    const at = pop.locate(q.index, g.state.t, {});
+    if (at.pose === 4 || Math.hypot(at.x - X, at.z - Z) >= 60) continue;
+    if (!A.has(q.index) && !A.take(q.index, g.state.t, { x: X + 200, z: Z })) continue;
+    const m = A.get(q.index); m.x = X + 200; m.z = Z; A.hold(q.index, 'Elsewhere', 0, 0); away.push(q.index);
+  }
+  // (someone of the town's who is not one of the police: an officer it was done to has seen it, wherever she is)
+  const victim = pop.people.find((q) => q.job !== 'police').index;
+  const c = J.offence(p, 'assault', { victim: { kind: 'npc', id: victim, name: 'Someone' }, x: X, z: Z });
   window.__away = away;
   return { id: c.id, detection: g.state.justice.crimes[c.id].detection, witnesses: g.state.justice.crimes[c.id].witnesses.length };
 });
@@ -68,7 +79,8 @@ const officer = await officerOnScene(page, at[0], at[1], 12);
 check('B: an officer of the town\'s in sight of the player', officer !== null, officer);
 await page.evaluate(() => {
   const n = window.__nlw, g = n.host.game, J = g.internals.justice, p = g.state.players[n.playerId];
-  J.offence(p, 'assault', { victim: { kind: 'npc', id: 0, name: 'Someone' }, x: p.x, z: p.z });
+  const victim = g.internals.population.people.find((q) => q.job !== 'police').index;
+  J.offence(p, 'assault', { victim: { kind: 'npc', id: victim, name: 'Someone' }, x: p.x, z: p.z });
 });
 await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 1, null, { timeout: 60000 });
 await settle();

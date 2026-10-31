@@ -22,7 +22,7 @@ import { POWER_CARS } from '../src/sim/power-cars.js';
 import { wheelLifts, bodyOn, bodyBars, BUMP } from '../src/client/wheel-bumps.js';
 import { CAR_PARTS } from '../src/client/car-parts.js';
 
-const ROAD = { x: -420, z: -60 };          // a straight stretch of road, heading north (+z)
+const ROAD = { x: -420, z: -60 };          // a clear stretch of ground heading north (+z), to the road and over it
 const CAR = 'grey-saloon';
 
 function inCar(w, at = ROAD, h = 0) {
@@ -127,7 +127,9 @@ test('someone standing in a car\'s way is knocked down at any pace, the car goes
     const m = w.I.actors.get(i);
     assert.equal(m.pose, POSE.lie, 'down on the road');
     assert.ok(m.z > ROAD.z + 10.5, `thrown a little ahead: ${(m.z - ROAD.z).toFixed(2)} m along`);
-    assert.ok(Math.abs(Math.cos(m.h)) < 0.01, `lying across the car's way (facing ${m.h.toFixed(2)})`);
+    // (turned to face along the car's way: the fall they are drawn with turns them a quarter as they go down, and they
+    // lie across it: test/run-over.mjs measures the body as it is drawn)
+    assert.ok(Math.abs(Math.sin(m.h)) < 0.01, `turned along the car's way, to lie across it (facing ${m.h.toFixed(2)})`);
     assert.ok(Math.abs(m.x - (ROAD.x + 0.3)) < 0.05, 'in its way, where they were');
     assert.ok(w.p.z > m.z + 3, 'and the car has gone over them and on');
   }
@@ -170,7 +172,7 @@ test('a town rider in a car\'s way is knocked off, what they rode thrown off its
   // the bicycle off the car's way: further from the car's middle line than half the car and its own half
   const lat = Math.abs((r.x - w.p.x) * Math.cos(h) - (r.z - w.p.z) * Math.sin(h));
   assert.ok(lat > POWER_CARS[CAR].width / 2 + 0.5, `thrown aside: ${lat.toFixed(2)} m from the car's middle line`);
-  assert.ok(Math.abs(Math.cos(m.h - h)) < 0.01, 'the rider lying across the car\'s way');
+  assert.ok(Math.abs(Math.sin(m.h - h)) < 0.01, 'the rider turned along the car\'s way, to lie across it');
   for (let k = 0; k < 900 && r.mode === 'returning'; k += 1) run(w.host, 0.1);
   assert.equal(r.mode, 'ride', 'up again, back on it and away');
   assert.equal(S.audit().knocked, 1);
@@ -202,6 +204,96 @@ test('another player\'s car driven through this town\'s own player knocks them d
     assert.equal(w.p.down, null);
     assert.equal(w.p.health, 100);
   }
+});
+
+test('a car stopped on top of someone: they lie still under it, get up once it has gone, and after a while crawl out from under it', () => {
+  const L = POWER_CARS[CAR].length, W = POWER_CARS[CAR].width;
+  // stopped over them, and driven off a while later
+  {
+    const w = town(['Car Tester'], { hour: 10 }); inCar(w);
+    const i = standingAt(w, ROAD.x + 0.3, ROAD.z + 8);
+    const A = w.I.actors;
+    drive(w, 0, 200, 1.0, () => { const m = A.get(i); return !!m && m.pose === POSE.lie && w.p.z > m.z - 0.3; });
+    const m = A.get(i);
+    assert.equal(m.pose, POSE.lie, 'down');
+    assert.ok(Math.abs(m.z - w.p.z) < L / 2, 'the car stopped over them');
+    for (let k = 0; k < 120; k += 1) run(w.host, 0.1);
+    assert.equal(A.get(i).pose, POSE.lie, 'twelve seconds on, still down under the car standing on them');
+    assert.equal(A.get(i).act, 'Knocked down');
+    drive(w, 0, 60, 1.0);
+    assert.ok(w.p.z > m.z + L / 2 + 1, 'the car driven off them');
+    let up = null;
+    for (let k = 0; k < 120 && up === null; k += 1) { run(w.host, 0.1); const a = A.get(i); if (!a || a.pose !== POSE.lie) up = k * 0.1; }
+    assert.ok(up !== null && up < 2 + IMPACT.rise, `up again soon after it had gone (${up} s)`);
+  }
+  // driven over them slowly, stopped a while with the front wheels on them and again with the back ones: never up under
+  // it (the while under a car standing on them is counted from when it stopped, not from when they fell)
+  {
+    const w = town(['Car Tester'], { hour: 10 }); inCar(w);
+    const i = standingAt(w, ROAD.x, ROAD.z + 8);
+    const A = w.I.actors;
+    const stops = [];
+    let upUnder = 0, stopped = 0, lay = null;
+    let rose = null;
+    const under = () => {
+      const m = A.get(i);
+      if (m && Math.abs(m.z - w.p.z) < L / 2 && Math.abs(m.x - w.p.x) < W / 2 && m.pose !== POSE.lie) upUnder += 1;
+      if (lay && !rose && (!m || m.pose !== POSE.lie)) rose = m ? { x: m.x, z: m.z, car: w.p.z } : { gone: true };
+    };
+    for (let k = 0; k < 600 && w.p.z < ROAD.z + 16; k += 1) {
+      const m = A.get(i);
+      const along = m ? m.z - w.p.z : 99;
+      // (a stop of eight seconds when the front wheels and then the back ones are on them)
+      if (m && m.pose === POSE.lie && ((stops.length === 0 && along < 1.5) || (stops.length === 1 && along < -1.3))) {
+        stops.push(w.p.z);
+        if (!lay) lay = { x: m.x, z: m.z };
+        for (let s = 0; s < 80; s += 1) { run(w.host, 0.1); stopped += 0.1; under(); }
+        continue;
+      }
+      drive(w, 0, 1, 0.5);
+      under();
+    }
+    assert.equal(stops.length, 2, 'stopped twice over them');
+    assert.equal(upUnder, 0, `never up under it (${stopped.toFixed(0)} s stopped on them)`);
+    assert.ok(rose && !rose.gone && Math.hypot(rose.x - lay.x, rose.z - lay.z) < 0.05 && rose.car > rose.z + L / 2, `up where they lay once it had gone over them, not crawled out from under a car that had not stood on them long (${JSON.stringify(rose)})`);
+  }
+  // left standing on them: they crawl out from under it to its side after `pinned` seconds, and get up there
+  {
+    const w = town(['Car Tester'], { hour: 10 }); inCar(w);
+    const i = standingAt(w, ROAD.x + 0.3, ROAD.z + 8);
+    const A = w.I.actors;
+    drive(w, 0, 200, 1.0, () => { const m = A.get(i); return !!m && m.pose === POSE.lie && w.p.z > m.z - 0.3; });
+    const car = { x: w.p.x, z: w.p.z };
+    let out = null;
+    for (let k = 0; k < (IMPACT.pinned + 8) * 10 && !out; k += 1) {
+      run(w.host, 0.1);
+      const a = A.get(i);
+      if (!a || a.pose !== POSE.lie) out = a ? { x: a.x, z: a.z, pose: a.pose, act: a.act } : { gone: true };
+    }
+    assert.ok(out && !out.gone, 'up again in the end');
+    assert.ok(Math.abs(out.x - car.x) > W / 2 + 0.3, `beside the car, not under it (${(out.x - car.x).toFixed(2)} m to its side)`);
+    // knocked down again later and a car stopped on them again: down under it as before, the while counted afresh
+    for (let k = 0; k < 100; k += 1) run(w.host, 0.1);
+    if (!A.has(i)) A.take(i, w.g.state.t, { x: w.p.x, z: w.p.z + 7 });
+    Object.assign(A.get(i), { x: w.p.x, z: w.p.z + 7 }); A.hold(i, 'Waiting', POSE.stand, 0); A.get(i).h = Math.PI / 2;
+    drive(w, 0, 200, 1.0, () => { const m = A.get(i); return !!m && m.pose === POSE.lie && w.p.z > m.z - 0.3; });
+    assert.equal(A.get(i).pose, POSE.lie, 'knocked down again');
+    for (let k = 0; k < 80; k += 1) run(w.host, 0.1);
+    assert.equal(A.get(i).pose, POSE.lie, 'eight seconds under the car stopped on them again: still down, not out at once');
+  }
+});
+
+test('someone knocked down still gets up when the town\'s clock jumps hours on while they lie (a page put away a while)', () => {
+  const w = town(['Car Tester'], { hour: 10 }); inCar(w);
+  const i = standingAt(w, ROAD.x + 0.3, ROAD.z + 8);
+  const A = w.I.actors;
+  drive(w, 0, 40, 8);
+  assert.equal(A.get(i).pose, POSE.lie, 'down');
+  // (the wall clock, on a page put away and come back to: the town's hours jump, hardly any time passes for those in it)
+  w.g.state.t += 3 * 3600;
+  let up = null;
+  for (let k = 0; k < 300 && up === null; k += 1) { run(w.host, 0.1); const m = A.get(i); if (!m || m.pose !== POSE.lie) up = k * 0.1; }
+  assert.ok(up !== null, 'up again, not left lying for ever');
 });
 
 test('a keke and a motorcycle are still stopped for a moment by whoever they strike; a car is not', () => {
@@ -240,6 +332,13 @@ test('the wheels climb over a body lying in the way, and the body answers on its
   // and it settles: a while after, on the flat, the body is back on its springs as it was
   for (let k = 0; k < 240; k += 1) bodyOn(st, [0, 0, 0, 0], wheels, dt);
   assert.ok(Math.abs(st.rise) < 0.002 && Math.abs(st.pitch) < 0.002, 'settled again');
+  // a body as it is drawn, from its bones, lying across the way with its hips at the car's middle line: the trunk to the
+  // top of the head and the legs to the toes, so the wheels on both sides climb over it
+  const drawn = bodyBars({ x: 0, z: 6, h: 0 }, { hips: { x: 0, z: 6 }, head: { x: -0.55, z: 6.02 }, footL: { x: 0.62, z: 6.1 }, footR: { x: 0.6, z: 5.92 } });
+  assert.ok(Math.min(...drawn.map((b) => b.bx)) < -0.55 - BUMP.head + 0.01 && Math.max(...drawn.map((b) => b.bx)) > 0.6 + BUMP.toes - 0.02, 'to the top of the head and the toes');
+  const both = [0, 0, 0, 0];
+  for (let z = 0; z < 10; z += speed * dt) { wheelLifts(drawn, wheels, 0, z, 0, 0, lifts); for (let k = 0; k < 4; k += 1) both[k] = Math.max(both[k], lifts[k]); }
+  assert.ok(Math.min(...both) > 0.05, `every wheel climbed over them, both sides: ${both.map((v) => v.toFixed(3)).join(', ')}`);
   // only one side over them: it leans
   const side = bodyBars({ x: 0.85, z: 6, h: 0 });
   const st2 = {};

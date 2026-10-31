@@ -169,8 +169,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 3914363,
-   "full": 7843496
+   "lite": 3880269,
+   "full": 7558505
   }
  },
  "black-luxury-suv": {
@@ -340,8 +340,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 4750645,
-   "full": 8960897
+   "lite": 4712119,
+   "full": 8588091
   }
  },
  "black-pickup": {
@@ -501,8 +501,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 941974,
-   "full": 2064217
+   "lite": 936710,
+   "full": 2048630
   }
  },
  "black-square-suv": {
@@ -662,8 +662,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1035806,
-   "full": 2326493
+   "lite": 1035097,
+   "full": 2328392
   }
  },
  "blue-off-roader": {
@@ -823,8 +823,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1182528,
-   "full": 2496075
+   "lite": 1178709,
+   "full": 2490303
   }
  },
  "bronze-spyder": {
@@ -994,8 +994,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4384756,
-   "full": 8797493
+   "lite": 4339301,
+   "full": 8467533
   }
  },
  "camo-expedition": {
@@ -1165,8 +1165,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 4420333,
-   "full": 8631409
+   "lite": 4388018,
+   "full": 8342413
   }
  },
  "classic-two-tone": {
@@ -1336,8 +1336,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4243604,
-   "full": 8103919
+   "lite": 4198150,
+   "full": 7772376
   }
  },
  "gold-hypercar": {
@@ -1678,8 +1678,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 3998600,
-   "full": 8557791
+   "lite": 3948551,
+   "full": 8176545
   }
  },
  "grey-saloon": {
@@ -1839,8 +1839,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1044540,
-   "full": 2385476
+   "lite": 1040824,
+   "full": 2375771
   }
  },
  "midnight-saloon": {
@@ -2010,8 +2010,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 4156606,
-   "full": 8521527
+   "lite": 4112925,
+   "full": 8114818
   }
  },
  "mint-sports-coupe": {
@@ -2171,8 +2171,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1059520,
-   "full": 2260853
+   "lite": 1059368,
+   "full": 2263626
   }
  },
  "peach-suv": {
@@ -2342,8 +2342,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4244448,
-   "full": 8337235
+   "lite": 4204181,
+   "full": 8077408
   }
  },
  "pearl-convertible": {
@@ -2513,8 +2513,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4377537,
-   "full": 10236277
+   "lite": 4329189,
+   "full": 9878454
   }
  },
  "red-winged-supercar": {
@@ -2684,8 +2684,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4267471,
-   "full": 7802518
+   "lite": 4225116,
+   "full": 7569215
   }
  },
  "state-limousine": {
@@ -2845,8 +2845,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 912435,
-   "full": 1977321
+   "lite": 910886,
+   "full": 1980258
   }
  },
  "white-roadster": {
@@ -3006,8 +3006,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 1071022,
-   "full": 2394857
+   "lite": 1072779,
+   "full": 2404524
   }
  },
  "white-square-suv": {
@@ -3177,8 +3177,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4926474,
-   "full": 9098565
+   "lite": 4885309,
+   "full": 8844179
   }
  },
  "yellow-classic-roadster": {
@@ -3348,8 +3348,8 @@ export const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4569603,
-   "full": 9248696
+   "lite": 4522027,
+   "full": 8923130
   }
  }
 });

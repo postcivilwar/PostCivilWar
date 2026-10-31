@@ -12025,6 +12025,7 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     const sendFor = () => { actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`); const sent = actors.get(r.i); if (sent) sent.after = 0; };
     if (!actors.has(r.i)) { if (actors.take(r.i, t, { x: r.x + 6, z: r.z })) sendFor(); return; }
     const m = actors.get(r.i);
+    if (m && m.mode === 'hold' && (m.act === 'Knocked down' || m.act === 'Getting up' || (m.until && real() < m.until))) return;
     if (m && Math.hypot(m.x - r.x, m.z - r.z) < 1.2) { actors.drop(r.i); r.takenBy = null; r.fallen = false; r.v = 0; r.lean = 0; book.returned += 1; backOnRoad(r); }
     else if (m && (m.mode !== 'go' || m.home || m.goal === null)) sendFor();
   }
@@ -12120,6 +12121,22 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     p.x = r.x; p.z = r.z; p.heading = r.h; p.lastMoveAt = real();
     return { n: r.n, item: r.item, x: r.x, z: r.z, h: r.h };
   }
+  function knock(n, cx, cz, h, half = 0.95) {
+    const r = riders[Number(n)];
+    if (!r || !out(r) || !hub.actors) return null;
+    if (!hub.actors.take(r.i, state.t, { x: r.x, z: r.z })) return null;
+    const fx = Math.sin(h), fz = Math.cos(h), lx = Math.cos(h), lz = -Math.sin(h);
+    const lateral = (r.x - cx) * lx + (r.z - cz) * lz;
+    const first = lateral >= 0 ? 1 : -1;
+    for (const side of [first, -first]) {
+      const off = side * (half + 0.9) - lateral;
+      const x = r.x + fx * 1.2 + lx * off, z = r.z + fz * 1.2 + lz * off;
+      if (zoneWalkable(x, z, [], 0.3)) { r.x = x; r.z = z; r.h = h + side * 1.1; break; }
+    }
+    r.mode = 'returning'; r.takenBy = null; r.fallen = true; r.v = 0; r.lean = 0; r.held = 0;
+    book.knocked = (book.knocked || 0) + 1;
+    return r.i;
+  }
   function moved(n, at) { const r = riders[n]; if (r && r.mode === 'taken') { r.x = at.x; r.z = at.z; r.h = at.h; } }
   function recover(playerId) {
     let n = 0;
@@ -12137,10 +12154,11 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     }
     return shownList;
   }
-  function boxes() {
+  function boxes(standing = false) {
     const outBoxes = [];
     for (const r of riders) {
       if (!shown(r) || r.mode === 'taken') continue;
+      if (standing && out(r)) continue;
       if (nearestPlayer(r.x, r.z) > 60) continue;
       const half = r.item === 'bicycle' ? 0.55 : 0.35;
       outBoxes.push({ x0: r.x - half, z0: r.z - half, x1: r.x + half, z1: r.z + half, kind: 'solid' });
@@ -12148,9 +12166,9 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
     return outBoxes;
   }
   const obstacles = () => riders.filter((r) => out(r)).map((r) => ({ x: r.x, z: r.z, h: r.h, hw: 0.35, hl: r.item === 'bicycle' ? 0.9 : 0.45, v: r.v, rider: r.n }));
-  const audit = () => ({ out: riders.filter(out).length, taken: book.taken, returned: book.returned, byKind: Object.fromEntries(KINDS.map((k) => [k, riders.filter((r) => r.item === k).length])) });
+  const audit = () => ({ out: riders.filter(out).length, taken: book.taken, returned: book.returned, knocked: book.knocked || 0, byKind: Object.fromEntries(KINDS.map((k) => [k, riders.filter((r) => r.item === k).length])) });
 
-  const api = { tick, list, take, leftBy, retake, moved, recover, boxes, obstacles, audit, nearTaker, riders: () => riders, count: () => riders.length };
+  const api = { tick, list, take, leftBy, retake, moved, recover, boxes, obstacles, audit, nearTaker, knock, isOut: (r) => out(r), riders: () => riders, count: () => riders.length };
   hub.sportRiders = api;
   return api;
 }
@@ -12345,11 +12363,63 @@ function throwLanding({ x, z, ux, uz, far, kind }) {
 return { CONTACT, contactNormal, contactOutcome, crashShare, LYING, THROW, throwLanding };
 })();
 
+__modules["sim/in-the-way.js"] = (function () {
+const { POWER_CARS, carBoxes, carCircles } = __modules["sim/power-cars.js"];
+const { footprintBox } = __modules["sim/vehicle-looks.js"];
+
+const BIKE_SHAPE = Object.freeze({ length: 2.1, width: 0.8 });
+const bikeBoxes = (x, z, h) => carBoxes(BIKE_SHAPE, x, z, h);
+
+const fine = (...v) => v.every(Number.isFinite);
+
+const tag = (list, g) => list.map((b) => ({ ...b, g }));
+function visitorBoxes(visitors) {
+  const out = [];
+  for (const v of visitors) {
+    if (!v || v.held || v.swimming || !fine(v.x, v.z)) continue;
+    const h = Number.isFinite(v.heading) ? v.heading : 0;
+    if (v.car && POWER_CARS[v.car.car]) out.push(...tag(carBoxes(POWER_CARS[v.car.car], v.x, v.z, h), `${v.id}:in`));
+    else if (v.ride) out.push(...tag(bikeBoxes(v.x, v.z, h), `${v.id}:in`));
+    else if (v.vehicle && v.vehicle.kind === 'keke') out.push(...tag([footprintBox('keke', v.x, v.z, h)], `${v.id}:in`));
+    (v.cars || []).forEach((c, n) => { if (POWER_CARS[c.car] && fine(c.x, c.z, c.h)) out.push(...tag(carBoxes(POWER_CARS[c.car], c.x, c.z, c.h), `${v.id}:car${n}`)); });
+    (v.parked || []).forEach((b, n) => { if (fine(b.x, b.z, b.h)) out.push(...tag(bikeBoxes(b.x, b.z, b.h), `${v.id}:bike${n}`)); });
+    (v.kekes || []).forEach((k, n) => { if (fine(k.x, k.z)) out.push(...tag([footprintBox('keke', k.x, k.z, Number.isFinite(k.heading) ? k.heading : 0)], `${v.id}:keke${n}`)); });
+  }
+  return out;
+}
+
+function standingBikes(players) {
+  const out = [];
+  for (const q of Object.values(players)) {
+    const parked = q && q.parked && typeof q.parked === 'object' ? q.parked : null;
+    if (!parked) continue;
+    for (const [id, s] of Object.entries(parked)) if (s && fine(s.x, s.z, s.h)) out.push(...tag(bikeBoxes(s.x, s.z, s.h), `${q.id}:bike:${id}`));
+  }
+  return out;
+}
+
+const inside = (b, x, z, r) => x > b.x0 - r && x < b.x1 + r && z > b.z0 - r && z < b.z1 + r;
+const without = (boxes, touches) => {
+  const gone = new Set();
+  for (const b of boxes) if (touches(b)) gone.add(b.g === undefined ? b : b.g);
+  return gone.size ? boxes.filter((b) => !gone.has(b.g === undefined ? b : b.g)) : boxes;
+};
+function clearOf(boxes, shape, x, z, h, slack = 0) {
+  if (!boxes.length) return boxes;
+  const circles = carCircles(shape, x, z, h);
+  return without(boxes, (b) => circles.some((c) => inside(b, c.x, c.z, Math.max(0.3, c.r - slack))));
+}
+const clearOfPoint = (boxes, x, z, r) => (boxes.length ? without(boxes, (b) => inside(b, x, z, r)) : boxes);
+
+return { BIKE_SHAPE, bikeBoxes, visitorBoxes, standingBikes, clearOf, clearOfPoint };
+})();
+
 __modules["sim/own-bikes.js"] = (function () {
 const { POWER_BIKES, handlingOf, FASTEST } = __modules["sim/power-bikes.js"];
 const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
 const { contactNormal, contactOutcome, crashShare, throwLanding, THROW } = __modules["sim/contact.js"];
 const { GameError } = __modules["sim/registry.js"];
+const { clearOfPoint } = __modules["sim/in-the-way.js"];
 
 const isOwnBike = (astride) => typeof astride === 'string' && astride.startsWith('pb:');
 const bikeOf = (astride) => (isOwnBike(astride) ? astride.slice(3) : null);
@@ -12364,7 +12434,8 @@ const CRASH = Object.freeze({
 });
 const crashHarm = (speed, max = 100) => max * CRASH.most * Math.min(1, Math.max(0, speed) / FASTEST);
 
-function createOwnBikes({ state, hub, obstacles }) {
+function createOwnBikes({ state, hub, obstacles, strangers = () => [] }) {
+  const theirs = (b) => clearOfPoint(strangers(), b.x, b.z, ROOM - 0.1);
   const own = (p) => (Array.isArray(p.bikes) ? p.bikes : []);
   const parkedOf = (p) => { if (!p.parked || typeof p.parked !== 'object') p.parked = {}; return p.parked; };
   const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
@@ -12411,7 +12482,7 @@ function createOwnBikes({ state, hub, obstacles }) {
     const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     if (gap > 0.02 && hub.impact && hub.impact.stalled(b)) throw new GameError('STALLED', 'The motorcycle has stopped: you hit someone.');
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, ROOM - 0.1)) throw new GameError('BLOCKED', 'Movement rejected.');
     { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
@@ -12434,7 +12505,7 @@ function createOwnBikes({ state, hub, obstacles }) {
     const v = Math.max(-handling.reverse - 0.5, Math.min(most, Number(speed) || 0));
     if (Math.abs(v) < CRASH.least) return { fell: false, outcome: 'stop' };
     const h = Number.isFinite(heading) ? heading : b.h;
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     const way = Math.sign(v) || 1;
     let hit = null;
     for (let d = 0.2; d <= 1.41; d += 0.2) {
@@ -12516,12 +12587,14 @@ const { SPORT_HANDLING, SPORT_FRONTS } = __modules["sim/sport-ride.js"];
 const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
 const { contactNormal, contactOutcome, crashShare, throwLanding, THROW } = __modules["sim/contact.js"];
 const { GameError } = __modules["sim/registry.js"];
+const { clearOfPoint } = __modules["sim/in-the-way.js"];
 
 const isOwnSport = (astride) => typeof astride === 'string' && astride.startsWith('sp:');
 const sportOfAstride = (astride) => (isOwnSport(astride) ? astride.slice(3) : null);
 const SPORT_CRASH = Object.freeze({ least: 4.2, lie: Object.freeze([1.6, 3.4]), rise: 2.4, thrown: Object.freeze([0.6, 3.5]), carry: 0.25 });
 
-function createOwnSports({ state, hub, obstacles }) {
+function createOwnSports({ state, hub, obstacles, strangers = () => [] }) {
+  const theirs = (b) => clearOfPoint(strangers(), b.x, b.z, SPORT_HANDLING[b.id].room - 0.05);
   const own = (p) => (Array.isArray(p.sports) ? p.sports : []);
   const parkedOf = (p) => { if (!p.sportParked || typeof p.sportParked !== 'object') p.sportParked = {}; return p.sportParked; };
   const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
@@ -12571,7 +12644,7 @@ function createOwnSports({ state, hub, obstacles }) {
     const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
     if (gap > h.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     if (gap > 0.02 && hub.impact && hub.impact.stalled(b)) throw new GameError('STALLED', 'You have stopped: you hit someone.');
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, h.room - 0.05)) throw new GameError('BLOCKED', 'Movement rejected.');
     { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
@@ -12594,7 +12667,7 @@ function createOwnSports({ state, hub, obstacles }) {
     const v = Math.max(-1, Math.min(Math.min(h.top, seen * 1.35 + 1.5), Number(speed) || 0));
     if (Math.abs(v) < SPORT_CRASH.least) return { fell: false, outcome: 'stop' };
     const dir = Number.isFinite(heading) ? heading : b.h;
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     let hit = null;
     for (let d = 0.2; d <= 1.21; d += 0.2) {
       const qx = b.x + Math.sin(dir) * d, qz = b.z + Math.cos(dir) * d;
@@ -13256,6 +13329,7 @@ const { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } = __modul
 const { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } = __modules["sim/zone.js"];
 const { contactNormal, contactOutcome } = __modules["sim/contact.js"];
 const { GameError } = __modules["sim/registry.js"];
+const { clearOf } = __modules["sim/in-the-way.js"];
 
 const isOwnCar = (incar) => typeof incar === 'string' && incar.startsWith('pc:');
 const carOf = (incar) => (isOwnCar(incar) ? incar.slice(3) : null);
@@ -13272,7 +13346,7 @@ function carFits(id, x, z, h, boxes = [], slack = 0) {
 
 const isTaken = (c) => !!c && Number.isInteger(c.taken);
 
-function createOwnCars({ state, hub, obstacles }) {
+function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
   const own = (p) => (Array.isArray(p.cars) ? p.cars : []);
   const parkedOf = (p) => { if (!p.carParked || typeof p.carParked !== 'object') p.carParked = {}; return p.carParked; };
   const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
@@ -13333,8 +13407,7 @@ function createOwnCars({ state, hub, obstacles }) {
     const gap = Math.hypot(x - c.x, z - c.z);
     const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
-    if (gap > 0.02 && hub.impact && hub.impact.stalled(c)) throw new GameError('STALLED', 'The car has stopped: you hit someone.');
-    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id)];
+    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id), ...theirs(c)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) {
       const k = i / steps;
@@ -13365,7 +13438,7 @@ function createOwnCars({ state, hub, obstacles }) {
     if (Math.abs(v) < CAR_CRASH.least) return { hurt: false, outcome: 'stop' };
     const h = Number.isFinite(heading) ? heading : c.h;
     const spec = POWER_CARS[c.id] || { length: 4.6 };
-    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id)];
+    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id), ...theirs(c)];
     const way = Math.sign(v) || 1;
     const free = (x, z) => carFits(c.id, x, z, h, boxes, 0.2);
     let hit = null;
@@ -13414,6 +13487,7 @@ function createOwnCars({ state, hub, obstacles }) {
     return out;
   }
   const othersParked = (p, id) => parkedBoxes(p, id);
+  const theirs = (c) => clearOf(strangers(), POWER_CARS[c.id], c.x, c.z, c.h, 0.2);
   const boxes = () => parkedBoxes();
 
   function selfView(p) {
@@ -15349,6 +15423,7 @@ const RESIDENT_NAME = new Map(ZONE_RESIDENTS.map((r) => [r.id, r.name]));
 const { POSE } = __modules["sim/population.js"];
 const { PACE } = __modules["sim/actors.js"];
 const { SPORT_ON } = __modules["sim/sport-ride.js"];
+const { POWER_CARS } = __modules["sim/power-cars.js"];
 
 const BODY = Object.freeze({
   radius: 0.3,             // a person, for standing in the way: two cannot be nearer than twice this
@@ -15363,7 +15438,10 @@ const IMPACT = Object.freeze({
   down: Object.freeze([2.4, 3.6]),     // real seconds on the ground, light blow to heavy
   rise: 2.7,               // real seconds getting up, in which they still cannot act
   throw: Object.freeze([0.6, 2.6]),    // metres thrown forward, light blow to heavy
-  stall: 0.7,              // real seconds the vehicle is stopped by what it hit
+  stall: 0.7,              // real seconds the vehicle is stopped by what it hit (not a car: 31 October 2026)
+  crawl: 0.3,              // metres a second: a car going faster than this strikes whoever it runs into, however slowly
+  carry: 0.9,              // the share of its pace a car keeps after striking someone (it is not stopped by them)
+  pinned: 20,              // real seconds the most someone knocked down lies under a car standing on them, before crawling out
   gather: 9,               // metres a second each second: the fastest any vehicle here can gain speed
   reach: 0.35,             // metres added to the vehicle's half-width: the body it meets
   dead: 8,                 // real seconds between being killed and coming round at the hospital
@@ -15375,6 +15453,7 @@ const IMPACT = Object.freeze({
   seen: 10,                // real seconds the two of them can see each other's health afterwards
   minAge: 16,              // nobody younger is struck: they jump clear
   crimeWindow: 30,         // real seconds in which more blows from the same driver are the same offence
+  visitorEvery: 4,
 });
 
 const FRONTS = Object.freeze({
@@ -15470,7 +15549,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
   function charge(driver, victim, x, z, vehicle, killed) {
     if (!hub.justice) return null;
     const open = driver.driveCrime && real() - driver.driveCrime.at < IMPACT.crimeWindow && driver.driveCrime.victim === `${victim.kind}:${victim.id}` ? driver.driveCrime.id : null;
-    const made = hub.justice.offence(driver, killed ? 'death_by_driving' : 'dangerous_driving', { victim, x, z, vehicle, crime: open, stealth: killed, noticed: false });
+    const made = hub.justice.offence(driver, killed ? 'death_by_driving' : 'dangerous_driving', { victim, x, z, vehicle, crime: open, stealth: false, noticed: false });
     driver.driveCrime = { id: made.id, at: real(), victim: `${victim.kind}:${victim.id}` };
     if (killed) hub.justice.worsen(made.id, 'death_by_driving', true);
     return made.id;
@@ -15486,7 +15565,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     const lost = conflict.injure(q, harm);
     q.blood = Math.min(IMPACT.bleed.most, (q.blood && now - (q.bloodAt || 0) < 60 ? q.blood : 0) + harm * IMPACT.bleed.perHarm); q.bloodAt = now;
     const from = { x: q.x, z: q.z };
-    const to = thrown(q.x, q.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
+    const to = lying && vehicle.kind === 'car' ? from : thrown(q.x, q.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
     q.x = to.x; q.z = to.z; q.lastMoveAt = now;
     conflict.stop(q);
     involve(driver, q);
@@ -15498,6 +15577,9 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       q.stats.deaths = (q.stats.deaths || 0) + 1;
       emit(q.id, { type: 'critical', title: 'Killed', text: `${driver.name} ran you down. You are being carried to the hospital.` });
       emit(driver.id, { type: 'alert', title: 'You have killed someone', text: `${q.name} is dead under your wheels.` });
+    } else if (lying && vehicle.kind === 'car' && now < q.down.until) {
+      q.down.until = Math.max(q.down.until, now + 2); q.down.upAt = q.down.until + IMPACT.rise;
+      emit(q.id, { type: 'alert', title: 'Run over', text: `${driver.name} drove over you. Health ${q.health}.` });
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
       q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: driver.id, h: heading, from, hard: weight > 0.6 };
@@ -15531,8 +15613,17 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     rec.health = Math.max(Math.min(rec.health, HEALTH.critical), rec.health - harm);
     rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + harm * IMPACT.bleed.perHarm);
     rec.hits = (rec.hits || 0) + 1;
+    const car = vehicle.kind === 'car';
+    if (car && lying) {
+      downLonger(i, rec, now + 2.5);
+      charge(driver, { kind: 'npc', id: i, name: who.short }, m.x, m.z, vehicle, false);
+      driver.involvedNpc = { i, name: who.short, until: now + IMPACT.seen };
+      show({ kind: 'knock', by: { kind: 'player', id: driver.id }, on: { kind: 'npc', id: i }, x: m.x, z: m.z, speed: Math.round(speed * 10) / 10, harm, vehicle: vehicle.kind, over: true });
+      return { kind: 'npc', id: i, name: who.short, harm, health: rec.health, killed: false, over: true };
+    }
     const to = thrown(m.x, m.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
-    m.x = to.x; m.z = to.z; m.h = heading;
+    m.x = to.x; m.z = to.z;
+    if (car) m.h = Math.cos(m.h - heading) >= 0 ? heading : heading + Math.PI; else m.h = heading + Math.PI;
     rec.x = m.x; rec.z = m.z;
     const killed = rec.health <= 0;
     if (killed) {
@@ -15542,9 +15633,13 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       emit(driver.id, { type: 'alert', title: 'You have killed someone', text: `${who.short} is dead under your wheels.` });
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight + (rec.health <= 25 ? 12 : 1.5);
-      actors.hold(i, 'Knocked down', POSE.lie, now + lie);
-      m.after = now + lie;             // then they are let go, and walk back to their day
-      if (hub.reactions) { if (hub.reactions.end) hub.reactions.end(i); rec.reactAt = now + lie; rec.reactWith = rec.badly || rec.health <= 25 ? 'cry' : 'hurt'; }
+      actors.hold(i, 'Knocked down', POSE.lie, 0);
+      m.after = 0;
+      rec.upAt = now + lie;
+      rec.then = { at: now + lie + IMPACT.rise, from: null, release: true };
+      rec.fall = { at: now, lie, rise: IMPACT.rise, h: m.h, car };
+      rec.pinnedSince = 0;
+      if (hub.reactions) { if (hub.reactions.end) hub.reactions.end(i); rec.reactAt = now + lie + IMPACT.rise; rec.reactWith = rec.badly || rec.health <= 25 ? 'cry' : 'hurt'; }
       rec.badly = rec.health <= 25;
       if (talk) talk.say({ who: `n:${i}`, name: who.short, text: rec.badly ? 'My leg! Somebody help me!' : 'Ah! You no dey look road?', lang: rec.badly ? 'en' : 'pcm', gloss: rec.badly ? null : 'Are you not watching the road?', x: m.x, z: m.z, kind: 'shout', range: 26, hold: 3.2 });
     }
@@ -15604,7 +15699,9 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     const reach = front.half + IMPACT.reach;
     const throwTo = forward ? heading : heading + Math.PI;
     const hits = [];
-    if (speed >= IMPACT.least) {
+    const car = vehicle.kind === 'car';
+    const least = car ? IMPACT.crawl : IMPACT.least;
+    if (speed >= least) {
       for (const id of Object.keys(players)) {
         const q = players[id];
         if (q === driver || !onFoot(q) || q.dead) continue;
@@ -15619,7 +15716,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
       const rows = population.within(`hit:${driver.id}`, x1, z1, 17, state.t, now);
       const tx = forward ? ux : -ux, tz = forward ? uz : -uz;
-      if (speed >= IMPACT.least) {
+      if (speed >= least) {
         for (const [i, px, pz, pose] of rows) {
           if (pose === POSE.ride || pose === POSE.hidden) continue;
           if (nearestOnStep(from.x, from.z, bx, bz, px, pz) > reach) continue;
@@ -15628,10 +15725,136 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
         }
       }
       if (speed > 0.8) warn(driver, rows, bx, bz, tx, tz, speed, reach);
+      if (car) keepDown(rows, x1, z1, heading, front, now);
       holder.sweep = { x: bx, z: bz, at: now };
     } else holder.sweep = from;
-    if (hits.length) { holder.stalledUntil = now + IMPACT.stall; holder.pace = 0; }
+    if (car && speed >= least && hub.sportRiders && hub.sportRiders.knock) {
+      for (const r of hub.sportRiders.riders()) {
+        if (!hub.sportRiders.isOut(r)) continue;
+        if (Math.abs(r.x - bx) > 12 || Math.abs(r.z - bz) > 12) continue;
+        if (nearestOnStep(ax, az, bx, bz, r.x, r.z) > reach + (r.item === 'bicycle' ? 0.55 : 0.3)) continue;
+        const rec = book.npc[r.i];
+        if (rec && now - rec.at < IMPACT.grace) continue;
+        if (hub.sportRiders.knock(r.n, x1, z1, heading, front.half) === null) continue;
+        const hit = strikeNpc(driver, r.i, speed, throwTo, vehicle);
+        if (hit) hits.push({ ...hit, rider: r.n });
+      }
+    }
+    if (hits.length) { if (car) holder.pace *= IMPACT.carry; else { holder.stalledUntil = now + IMPACT.stall; holder.pace = 0; } }
     return hits;
+  }
+
+  function downLonger(i, rec, until) {
+    const m = actors.get(i);
+    if (!m || m.dead) return;
+    if (m.mode !== 'hold' || m.pose !== POSE.lie) actors.hold(i, 'Knocked down', POSE.lie, 0);
+    m.until = 0; m.after = 0;
+    rec.upAt = Math.max(rec.upAt || 0, until);
+    if (rec.then) rec.then.at = Math.max(rec.then.at, rec.upAt + IMPACT.rise);
+    else rec.then = { at: rec.upAt + IMPACT.rise, from: null, release: true };
+    if (rec.fall) rec.fall.lie = Math.max(rec.fall.lie, rec.upAt - rec.fall.at);
+    if (rec.reactAt) rec.reactAt = Math.max(rec.reactAt, rec.upAt + IMPACT.rise);
+  }
+
+  function keepDown(rows, x, z, heading, front, now) {
+    const ux = Math.sin(heading), uz = Math.cos(heading);
+    const under = (px, pz) => { const a = (px - x) * ux + (pz - z) * uz, c = (px - x) * uz - (pz - z) * ux; return a > -front.tail - 0.6 && a < front.nose + 0.6 && Math.abs(c) < front.half + 0.6; };
+    for (const [i, px, pz, pose] of rows) {
+      if (pose !== POSE.lie || !under(px, pz) || !actors.has(i)) continue;
+      const m = actors.get(i);
+      if (m.dead || m.act !== 'Knocked down' || !book.npc[i]) continue;
+      downLonger(i, book.npc[i], now + 1.2);
+      book.npc[i].pinnedSince = 0;
+    }
+    for (const id of Object.keys(players)) {
+      const q = players[id];
+      if (!q.down || now >= q.down.until || !under(q.x, q.z)) continue;
+      q.down.until = Math.max(q.down.until, now + 1.2); q.down.upAt = q.down.until + IMPACT.rise;
+    }
+  }
+
+  function carOver(x, z) {
+    for (const id of Object.keys(players)) {
+      const q = players[id];
+      const cars = [];
+      if (q.pcar && typeof q.incar === 'string' && q.incar.startsWith('pc:')) cars.push(q.pcar);
+      if (q.carParked && typeof q.carParked === 'object') for (const [car, s] of Object.entries(q.carParked)) if (s) cars.push({ id: car, x: s.x, z: s.z, h: s.h });
+      for (const c of cars) {
+        const spec = POWER_CARS[c.id];
+        if (!spec || !Number.isFinite(c.x) || Math.abs(c.x - x) > 6 || Math.abs(c.z - z) > 6) continue;
+        const ux = Math.sin(c.h), uz = Math.cos(c.h);
+        const a = (x - c.x) * ux + (z - c.z) * uz, s = (x - c.x) * uz - (z - c.z) * ux;
+        if (Math.abs(a) < spec.length / 2 + 0.4 && Math.abs(s) < spec.width / 2 + 0.4) return { ...c, spec, a, s, ux, uz };
+      }
+    }
+    return null;
+  }
+
+  function pinnedUnder(i, rec, now) {
+    const m = actors.get(i);
+    if (!m || m.dead || m.act !== 'Knocked down') return;
+    const c = carOver(m.x, m.z);
+    if (!c) { rec.pinnedSince = 0; return; }
+    if (!rec.pinnedSince) rec.pinnedSince = now;
+    if (now - rec.pinnedSince < IMPACT.pinned) { downLonger(i, rec, now + 1.2); return; }
+    const out = c.spec.width / 2 + 0.6;
+    for (const side of c.s >= 0 ? [1, -1] : [-1, 1]) {
+      const x = c.x + c.ux * c.a + c.uz * out * side, z = c.z + c.uz * c.a - c.ux * out * side;
+      if (!zoneWalkable(x, z)) continue;
+      m.x = x; m.z = z; rec.x = x; rec.z = z;
+      return;
+    }
+  }
+
+  const seenCars = new Map();      // a visitor's id -> where their car was last seen to be, and when
+  function visitorCars() {
+    const now = real();
+    const live = new Set();
+    for (const v of visitors()) {
+      const spec = v && v.car && POWER_CARS[v.car.car];
+      if (!spec || !Number.isFinite(v.x) || !Number.isFinite(v.z)) continue;
+      live.add(v.id);
+      const was = seenCars.get(v.id);
+      const h = Number.isFinite(v.heading) ? v.heading : 0;
+      if (was && Math.hypot(v.x - was.x, v.z - was.z) < 0.01) continue;
+      seenCars.set(v.id, { x: v.x, z: v.z, h, at: now });
+      if (!was || now - was.at > 1.2) continue;
+      const speed = Math.hypot(v.x - was.x, v.z - was.z) / Math.max(now - was.at, 1 / 30);
+      if (speed < IMPACT.crawl || speed > 60) continue;
+      const ux = Math.sin(h), uz = Math.cos(h);
+      const forward = (v.x - was.x) * ux + (v.z - was.z) * uz >= 0;
+      const lead = forward ? spec.length / 2 : -spec.length / 2;
+      const reach = spec.width / 2 + IMPACT.reach;
+      for (const id of Object.keys(players)) {
+        const q = players[id];
+        if (!onFoot(q) || q.dead || q.swimming || q.custody) continue;
+        if (nearestOnStep(was.x + ux * lead, was.z + uz * lead, v.x + ux * lead, v.z + uz * lead, q.x, q.z) > reach) continue;
+        struckByVisitor(q, v, speed, forward ? h : h + Math.PI);
+      }
+    }
+    for (const id of [...seenCars.keys()]) if (!live.has(id)) seenCars.delete(id);
+  }
+  function struckByVisitor(q, v, speed, heading) {
+    const now = real();
+    if (q.struckByVehicleAt !== undefined && now - q.struckByVehicleAt < IMPACT.grace) return;
+    if (q.visitorStruckAt !== undefined && now - q.visitorStruckAt < IMPACT.visitorEvery) return;
+    q.struckByVehicleAt = now; q.visitorStruckAt = now;
+    const lying = !!q.down && now < q.down.until;
+    const harm = Math.max(0, Math.min(Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1))), q.health - HEALTH.critical));
+    const lost = harm > 0 ? conflict.injure(q, harm) : 0;
+    if (lost > 0) { q.blood = Math.min(IMPACT.bleed.most, (q.blood && now - (q.bloodAt || 0) < 60 ? q.blood : 0) + lost * IMPACT.bleed.perHarm); q.bloodAt = now; }
+    const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
+    const from = { x: q.x, z: q.z };
+    if (lying) { q.down.until = Math.max(q.down.until, now + 2); q.down.upAt = q.down.until + IMPACT.rise; }
+    else {
+      const to = thrown(q.x, q.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
+      q.x = to.x; q.z = to.z; q.lastMoveAt = now;
+      conflict.stop(q);
+      const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
+      q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: v.id, h: heading, from, hard: weight > 0.6 };
+    }
+    emit(q.id, { type: 'alert', title: lying ? 'Run over' : 'Knocked down', text: `${v.name} ${lying ? 'drove over you' : 'hit you with a car'}. Health ${q.health}.` });
+    show({ kind: 'knock', by: { kind: 'visitor', id: v.id }, on: { kind: 'player', id: q.id }, x: q.x, z: q.z, speed: Math.round(speed * 10) / 10, harm: lost, vehicle: 'car' });
   }
 
   const stalled = (holder) => real() < (holder.stalledUntil || 0);
@@ -15639,6 +15862,7 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
 
   function tick() {
     const now = real();
+    visitorCars();
     for (const id of Object.keys(players)) {
       const p = players[id];
       if (p.down && now >= p.down.upAt) p.down = null;
@@ -15650,9 +15874,10 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       const rec = book.npc[key];
       if (rec.dead) { if (!rec.dead.gone && now >= rec.dead.takeAt) { rec.dead.gone = true; actors.remove(Number(key)); } continue; }
       if (rec.reactAt && now >= rec.reactAt) { if (hub.reactions) hub.reactions.react(Number(key), rec.reactWith || 'hurt'); rec.reactAt = 0; }
+      if (rec.upAt && now >= rec.upAt - 0.1 && rec.fall && rec.fall.car) pinnedUnder(Number(key), rec, now);
       if (rec.upAt && now >= rec.upAt) { rec.upAt = 0; if (actors.has(Number(key)) && !actors.dead(Number(key))) actors.hold(Number(key), 'Getting up', POSE.stand, 0); }
-      if (rec.then && now >= rec.then.at) { const th = rec.then; rec.then = null; up(Number(key), th, now); }
-      if (state.t - rec.t > (hub.span ? hub.span(7200) : 7200)) delete book.npc[key];
+      if (rec.then && now >= rec.then.at) { const th = rec.then; rec.then = null; if (th.release) { if (actors.has(Number(key)) && !actors.dead(Number(key))) actors.release(Number(key)); } else up(Number(key), th, now); }
+      if (state.t - rec.t > (hub.span ? hub.span(7200) : 7200) && !rec.upAt && !rec.then) delete book.npc[key];
     }
   }
 
@@ -15760,7 +15985,7 @@ return { BODY, IMPACT, FRONTS, SPORT_HARM, nearestOnStep, harmAt, harmOf, create
 
 __modules["sim/justice.js"] = (function () {
 
-const { ZONE, ZONE_SPOTS, zoneService, zoneWalkable } = __modules["sim/zone.js"];
+const { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid } = __modules["sim/zone.js"];
 const { GameError } = __modules["sim/registry.js"];
 const { LedgerError, fineShares, trText, TR } = __modules["sim/ledger.js"];
 const { POSE } = __modules["sim/population.js"];
@@ -15781,9 +16006,8 @@ const LAW = Object.freeze({
   compensation: 300,               // paid to a player who was put in hospital, out of the culprit's pocket (150 TR)
   mostHours: 8,
   constableFine: Object.freeze({ least: 5 * TR, most: 10 * TR, mostWithDeath: 100 * TR }),
-  witness: Object.freeze({ range: 30, chance: Object.freeze([0, 0.5, 0.7, 0.9, 0.95]), unseen: 0.15, stealth: 0.45, most: 8, sure: 15 }),
-  report: Object.freeze([3, 8]),       // real seconds for word of a crime that was seen to reach the police
-  discover: Object.freeze([40, 100]),  // real seconds before someone who noticed nothing finds their money gone
+  witness: Object.freeze({ range: 30, most: 8, sure: 15 }),
+  report: Object.freeze([0.5, 0.5]),   // real seconds for an officer who saw it to have it known to the police
   sight: 32,                           // metres at which an officer knows a wanted person on sight
   reach: 1.9,                          // metres at which an officer can lay hands on someone
   still: 0.7,                          // real seconds the suspect must have stood still to be taken without a struggle
@@ -15811,6 +16035,14 @@ const STARS = Object.freeze({
   officersDown: 3,             // officers brought down to 20 by one player that make it five stars
 });
 const starsOf = (type) => STARS.of[type] || 1;
+
+const EYES = 1.5;
+function inSight(x0, z0, x1, z1) {
+  const gap = Math.hypot(x1 - x0, z1 - z0);
+  const steps = Math.max(1, Math.ceil(gap / 0.6));
+  for (let i = 1; i < steps; i += 1) if (zoneSolid(x0 + ((x1 - x0) * i) / steps, z0 + ((z1 - z0) * i) / steps, 0.1, EYES)) return false;
+  return true;
+}
 
 const SHOUTS = Object.freeze([['Police! Police!', 'Police! Police o!'], ['Hey! Stop that!', 'Hey! Stop am!'], ['Somebody call the police!', 'Make person call police!']]);
 const THIEF = Object.freeze([['Thief! Thief!', 'Ole! Ole!'], ['My money! Somebody has taken my money!', 'My money! Person don carry my money!']]);
@@ -15842,25 +16074,15 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
 
   function witnessesOf(crime, culprit, stealth) {
     const out = [];
-    const rule = LAW.offences[crime.type];
-    const base = LAW.witness.chance[rule.severity] * (stealth ? LAW.witness.stealth : 1);
-    for (let i = 0; i < population.count && out.length < LAW.witness.most; i += 1) {
-      if (crime.victim.kind === 'npc' && crime.victim.id === i) continue;
-      if (people[i].job !== 'police') continue;
+    const far = stealth ? LAW.witness.sure : LAW.witness.range;
+    for (const i of POLICE) {
+      if (out.length >= LAW.witness.most) break;
       const at = where(i);
       if (at.pose === POSE.hidden) continue;
       const d = Math.hypot(at.x - crime.x, at.z - crime.z);
-      if (d > LAW.witness.range) continue;
-      const who = people[i];
-      const view = clearLine(crime.x, crime.z, at.x, at.z, 0.1) ? 1 : LAW.witness.unseen;
-      let sort = 1;
-      if (who.traits.includes('curious') || who.traits.includes('talkative')) sort = 1.3;
-      if (who.traits.includes('reserved') || who.traits.includes('shy')) sort = 0.8;
-      if (who.age < 10) sort = 0.3;
-      if (who.job === 'police') sort = 2;
-      if (at.pose === POSE.lie) sort *= 0.2;
-      const sure = who.job === 'police' && d <= LAW.witness.sure && view === 1 && at.pose !== POSE.lie;
-      if (sure || rng.next() < base * (1 - d / LAW.witness.range) * view * sort) out.push({ kind: 'npc', id: i, name: who.name, metres: Math.round(d), police: who.job === 'police' });
+      const wronged = crime.victim.kind === 'npc' && crime.victim.id === i;
+      if (!wronged && (d > far || at.pose === POSE.lie || !inSight(crime.x, crime.z, at.x, at.z))) continue;
+      out.push({ kind: 'npc', id: i, name: people[i].name, metres: Math.round(d), police: true, ...(wronged ? { wronged: true } : {}) });
     }
     void culprit;
     return out;
@@ -15885,6 +16107,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
 
   function known(crime) { return crime.detection === 'identified'; }
 
+  const seenBy = (crime) => { if (crime.detection !== 'identified' && crime.witnesses.some((w) => w.police)) { crime.detection = 'identified'; crime.reportAt = real() + LAW.report[0]; } };
   function offence(p, type, info) {
     const rule = LAW.offences[type];
     if (!rule) throw new Error(`no such offence: ${type}`);
@@ -15895,6 +16118,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
         crime.lookedAt = real();
         for (const w of witnessesOf(crime, p, false)) if (!crime.witnesses.some((e) => e.kind === w.kind && e.id === w.id)) crime.witnesses.push(w);
         stir(crime, p);
+        seenBy(crime);
       }
       return { id: crime.id, isNew: false };
     }
@@ -15903,17 +16127,14 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
       id: `CR-${pad(book.crimeSeq, 6)}`, no: `${ZONE.lgaCode}/CR/${pad(book.crimeSeq + 1000, 4)}`, type, culprit: p.id, culpritName: p.name,
       victim: { kind: info.victim.kind, id: info.victim.id, name: info.victim.name }, amount: info.amount || 0, recovered: 0, vehicle: info.vehicle || null,
       x: Math.round(info.x * 10) / 10, z: Math.round(info.z * 10) / 10, at: Math.round(state.t), real: real(), count: 1, lookedAt: real(),
-      witnesses: [], detection: 'undetected', status: 'open', arrest: null, reportAt: null, discoverAt: null, txn: info.txn || null,
+      witnesses: [], detection: 'unseen', status: 'open', arrest: null, reportAt: null, discoverAt: null, txn: info.txn || null,
     };
     book.crimes[crime.id] = crime;
     crime.witnesses = witnessesOf(crime, p, !!info.stealth);
-    const victimKnows = !info.stealth || !!info.noticed;
-    if (victimKnows || crime.witnesses.length) {
-      crime.detection = 'identified';
-      crime.reportAt = crime.witnesses.some((w) => w.police) ? real() + 0.5 : real() + LAW.report[0] + rng.next() * (LAW.report[1] - LAW.report[0]);
-    } else crime.discoverAt = real() + LAW.discover[0] + rng.next() * (LAW.discover[1] - LAW.discover[0]);
+    seenBy(crime);
     stir(crime, p, type === 'theft' ? THIEF : SHOUTS);
-    if (crime.victim.kind === 'player' && victimKnows) emit(crime.victim.id, { type: 'witness', crime: crime.id, text: `${p.name} has wronged you: ${rule.name.toLowerCase()}. The police are being told.` });
+    const victimKnows = !info.stealth || !!info.noticed;
+    if (crime.victim.kind === 'player' && victimKnows) emit(crime.victim.id, { type: 'witness', crime: crime.id, text: `${p.name} has wronged you: ${rule.name.toLowerCase()}. ${known(crime) ? 'A police officer saw it.' : 'No police officer was there to see it.'}` });
     return { id: crime.id, isNew: true };
   }
 
@@ -15962,27 +16183,14 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
     emit(p.id, { type: 'police', title: 'No longer wanted', text });
   }
 
-  function discovered(crime) {
-    crime.discoverAt = null;
-    if (crime.status !== 'open' || crime.detection !== 'undetected') return;
-    crime.detection = 'suspected';
-    if (crime.victim.kind === 'npc') { const at = where(crime.victim.id); if (at.pose !== POSE.hidden) speak(crime.victim.id, THIEF); }
-    const p = players[crime.culprit];
-    if (p && Math.hypot(p.x - crime.x, p.z - crime.z) < 60 && lawOf(p).state === 'normal') setState(p, 'suspicious');
-    investigate(crime);
-  }
-
   function reportSeen(q, crimeId) {
     const crime = book.crimes[crimeId];
     if (!crime || crime.status !== 'open') throw new GameError('NO_CRIME', 'There is nothing open under that number.');
     const saw = crime.witnesses.some((w) => w.kind === 'player' && w.id === q.id);
     const wronged = crime.victim.kind === 'player' && crime.victim.id === q.id;
     if (!saw && !wronged) throw new GameError('NOT_A_WITNESS', 'You did not see that happen.');
-    if (wronged && !saw && crime.detection !== 'identified') {
-      if (crime.detection === 'undetected') discovered(crime);
-      return { crime: crime.no, identified: false };
-    }
-    if (crime.detection !== 'identified' || crime.reportAt) reported(crime);
+    if (!known(crime)) return { crime: crime.no, identified: false, unseen: true };
+    if (crime.reportAt) reported(crime);
     return { crime: crime.no, identified: true };
   }
 
@@ -16027,7 +16235,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
     const txn = ledger.post({ key: `theft:${crimeId}`, kind: 'theft', initiator: `player:${p.id}`, reason: `Taken from ${victim.name}`, legs: [{ account, amount: -amount }, { account: p.wallet, amount }], meta: { crime: crimeId, victim: `${victim.kind}:${victim.id}` } });
     const crime = offence(p, 'theft', { victim, x: at.x, z: at.z, amount, stealth: true, noticed: false, txn: txn.id });
     book.totals.stolen += amount;
-    if (victim.kind === 'player') emit(victim.id, { type: 'alert', title: 'Your pocket has been picked', text: `${trText(amount)} are gone. You did not see who took them. You can report it to the police from your phone.`, amount: -amount, txn: txn.id, crime: crime.id });
+    if (victim.kind === 'player') emit(victim.id, { type: 'alert', title: 'Your pocket has been picked', text: `${trText(amount)} are gone. You did not see who took them. ${known(book.crimes[crime.id]) ? 'A police officer saw it.' : 'No police officer was there to see it.'}`, amount: -amount, txn: txn.id, crime: crime.id });
     return { taken: amount, noticed: known(book.crimes[crime.id]), crime: crime.id, txn: txn.id };
   }
 
@@ -16065,11 +16273,6 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
     const want = Math.max(crime && LAW.offences[crime.type].severity >= 3 ? 2 : 1, STARS.officers[Math.min(STARS.most, law.stars || 0)] || 0) - already;
     const goal = law.seenAt || { x: p.x, z: p.z };
     for (const pick of nearestFree(goal.x, goal.z, Math.max(0, want))) send(pick.i, pick.from, 'respond', crime, p, goal);
-  }
-
-  function investigate(crime) {
-    const pick = nearestFree(crime.x, crime.z, 1)[0];
-    if (pick) send(pick.i, pick.from, 'investigate', crime, null, { x: crime.x, z: crime.z });
   }
 
   const sees = (m, p) => { const d = Math.hypot(p.x - m.x, p.z - m.z); return d < 8 || (d < LAW.sight && clearLine(m.x, m.z, p.x, p.z, 0.1)); };
@@ -16418,7 +16621,6 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
       const crime = book.crimes[id];
       if (crime.status !== 'open') continue;
       if (crime.reportAt && now >= crime.reportAt) reported(crime);
-      else if (crime.discoverAt && now >= crime.discoverAt) discovered(crime);
     }
     for (const key of Object.keys(book.officers)) { const o = book.officers[key]; if (o) officerTick(o, dt); }
     for (const m of actors.all()) if (m.after && now >= m.after && !book.officers[m.i]) { m.after = 0; if (!hub.conflict || !hub.conflict.record(m.i) || hub.conflict.record(m.i).mood !== 'fighting') actors.release(m.i); }
@@ -16507,7 +16709,7 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
       canPay: !!record && record.status === 'custody' && record.fine.confirmed && ledger.balance(p.wallet) >= record.fine.amount,
       owed: book.owed[p.id] || 0,
       role: role ? { ...role, prisoners: mine } : null,
-      seen: Object.values(book.crimes).filter((c) => c.status === 'open' && (c.detection !== 'identified' || c.reportAt) && (c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) || (c.victim.kind === 'player' && c.victim.id === p.id))).map((c) => ({ id: c.id, no: c.no, name: LAW.offences[c.type].name, known: c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) })),
+      seen: Object.values(book.crimes).filter((c) => c.status === 'open' && c.detection === 'identified' && c.reportAt && (c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) || (c.victim.kind === 'player' && c.victim.id === p.id))).map((c) => ({ id: c.id, no: c.no, name: LAW.offences[c.type].name, known: c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) })),
     };
   }
 
@@ -16533,13 +16735,13 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
     enlist, resign, wantedList, arrestBy, setFine, bookIn, requestCall, decideCall, mayCall, usedMessage, roleOf,
     selfView, officersNear, record, bailFor, audit, lawOf, STATION,
     crime: (id) => book.crimes[id] || null, arrestOf: (id) => book.arrests[id] || null,
-    onDuty,
+    onDuty, inSight,
   };
   hub.justice = api;
   return api;
 }
 
-return { LAW, LAW_STATES, STARS, starsOf, createJustice };
+return { LAW, LAW_STATES, STARS, starsOf, inSight, createJustice };
 })();
 
 __modules["sim/care.js"] = (function () {
@@ -17409,6 +17611,7 @@ const { createNaval, isShip, shipOfAstride } = __modules["sim/naval.js"];
 const { createSurfing, isSurfing } = __modules["sim/surfing.js"];
 const { SPORT_BELL } = __modules["sim/sport-ride.js"];
 const { createOwnCars, isOwnCar, carOf } = __modules["sim/own-cars.js"];
+const { visitorBoxes, standingBikes } = __modules["sim/in-the-way.js"];
 const { createTalk } = __modules["sim/talk.js"];
 const { createVoices } = __modules["sim/voices.js"];
 const { LANGUAGES } = __modules["sim/culture.js"];
@@ -17509,9 +17712,10 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   const actors = createActors({ state, population });
   actors.setResolver((target) => (target.kind === 'player' ? state.players[target.id] || null : null));
   const ridersInWay = () => (hub.sportRiders ? hub.sportRiders.boxes() : []);
-  const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()] });
-  const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0), ...ridersInWay()] });
-  const ownSports = createOwnSports({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()] });
+  const strangers = () => [...visitorBoxes(talk.visitors()), ...standingBikes(state.players)];
+  const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()], strangers });
+  const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0), ...(hub.sportRiders ? hub.sportRiders.boxes(true) : [])], strangers });
+  const ownSports = createOwnSports({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()], strangers });
   const ownBoats = createOwnBoats({ state, hub });
   const surfing = createSurfing({ state, hub, waveClock: () => state.t / scale });
   const naval = createNaval({ state, players: state.players, hub, visitors: () => talk.visitors() });
@@ -17761,7 +17965,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
       const limit = pace * (weather().wet ? SPEED.rain : 1) * (elapsed + 0.12) * 1.15;
       const gap = Math.hypot(x - p.x, z - p.z);
       if (gap > limit) throw new GameError('TOO_FAST', 'Movement rejected.');
-      const parked = [...vehicles.boxes(), ...parkedCars()].filter((b) => !(p.x > b.x0 - 0.4 && p.x < b.x1 + 0.4 && p.z > b.z0 - 0.4 && p.z < b.z1 + 0.4));
+      const parked = [...vehicles.boxes(), ...parkedCars(), ...visitorBoxes(talk.visitors())].filter((b) => !(p.x > b.x0 - 0.4 && p.x < b.x1 + 0.4 && p.z > b.z0 - 0.4 && p.z < b.z1 + 0.4));
       const boxes = [...structureBoxes(), ...parked];
       const van = care.box();
       if (!(p.x > van.x0 - 0.5 && p.x < van.x1 + 0.5 && p.z > van.z0 - 0.5 && p.z < van.z1 + 0.5)) boxes.push(van);
@@ -26364,6 +26568,2178 @@ objectTangent = (crowdSkin * vec4(objectTangent, 0.0)).xyz;
 return { createCrowdFigures };
 })();
 
+__modules["client/bike-parts.js"] = (function () {
+const BIKE_PARTS = Object.freeze({
+ "black-bobber": {
+  "vertices": 129981,
+  "triangles": 136308,
+  "parts": [
+   46099,
+   17052,
+   32256,
+   40901
+  ],
+  "length": 0.9791,
+  "height": 0.5886,
+  "width": 0.5596,
+  "front": {
+   "x": 0.0014,
+   "z": 0.3565,
+   "y": 0.1262,
+   "r": 0.1272,
+   "tread": 0.1268,
+   "half": 0.0344
+  },
+  "rear": {
+   "x": 0.0044,
+   "z": -0.355,
+   "y": 0.1297,
+   "r": 0.1309,
+   "tread": 0.1295,
+   "half": 0.0516
+  },
+  "rake": 0.55,
+  "steered": 0.0,
+  "grip": [
+   0.2169,
+   0.5086,
+   0.1003
+  ],
+  "seat": [
+   0.0,
+   0.2623,
+   -0.2157
+  ],
+  "peg": [
+   0.1178,
+   0.0947,
+   -0.0957
+  ],
+  "head": [
+   0.0,
+   0.366,
+   0.2661
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.1886,
+   -0.4459
+  ],
+  "pipes": [
+   [
+    0.0454,
+    0.1381,
+    -0.4515
+   ],
+   [
+    -0.045,
+    0.1501,
+    -0.4668
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "black-bobber.bin",
+   "color4k": "black-bobber-color-4k.jpg",
+   "color2k": "black-bobber-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "black-bobber-rm-4k.webp",
+   "rm2k": "black-bobber-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "black-bobber-normal-4k.png",
+   "normal2k": "black-bobber-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "black-bobber-color-1k.jpg",
+   "normal1k": "black-bobber-normal-1k.webp",
+   "rm1k": "black-bobber-rm-1k.webp",
+   "color512": "black-bobber-color-512.jpg",
+   "normal512": "black-bobber-normal-512.webp",
+   "rm512": "black-bobber-rm-512.webp"
+  },
+  "sha256": "2643fca03c4b5f3ee5badd696613e7d1d8056af4f12e790c504d9e5c91b899a9",
+  "bytes": {
+   "lite": 6528115,
+   "full": 10968704
+  }
+ },
+ "black-cruiser": {
+  "vertices": 101407,
+  "triangles": 119234,
+  "parts": [
+   64397,
+   23515,
+   12454,
+   18868
+  ],
+  "length": 0.9773,
+  "height": 0.6206,
+  "width": 0.4433,
+  "front": {
+   "x": 0.0098,
+   "z": 0.3331,
+   "y": 0.1431,
+   "r": 0.1376,
+   "tread": 0.1361,
+   "half": 0.0223
+  },
+  "rear": {
+   "x": -0.0465,
+   "z": -0.3442,
+   "y": 0.1394,
+   "r": 0.1402,
+   "tread": 0.1391,
+   "half": 0.0416
+  },
+  "rake": 0.43,
+  "steered": 0.5585,
+  "grip": [
+   0.189,
+   0.5046,
+   0.1227
+  ],
+  "seat": [
+   0.0,
+   0.3513,
+   -0.1755
+  ],
+  "peg": [
+   0.1095,
+   0.1073,
+   -0.0555
+  ],
+  "head": [
+   0.0,
+   0.3614,
+   0.2425
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.2562,
+   -0.5081
+  ],
+  "pipes": [
+   [
+    0.0463,
+    0.2633,
+    -0.5012
+   ],
+   [
+    -0.0697,
+    0.2556,
+    -0.5074
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "black-cruiser.bin",
+   "color4k": "black-cruiser-color-4k.jpg",
+   "color2k": "black-cruiser-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "black-cruiser-rm-4k.webp",
+   "rm2k": "black-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "black-cruiser-normal-4k.png",
+   "normal2k": "black-cruiser-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "black-cruiser-color-1k.jpg",
+   "normal1k": "black-cruiser-normal-1k.webp",
+   "rm1k": "black-cruiser-rm-1k.webp",
+   "color512": "black-cruiser-color-512.jpg",
+   "normal512": "black-cruiser-normal-512.webp",
+   "rm512": "black-cruiser-rm-512.webp"
+  },
+  "sha256": "7fcd26c2904bfc6d57a32c3e8c768f6834f1d8b273c221e77d248ec47cbf85ca",
+  "bytes": {
+   "lite": 5581703,
+   "full": 10251280
+  }
+ },
+ "black-gold-superbike": {
+  "vertices": 86800,
+  "triangles": 110221,
+  "parts": [
+   66763,
+   16978,
+   16151,
+   10329
+  ],
+  "length": 0.9788,
+  "height": 0.5409,
+  "width": 0.4328,
+  "front": {
+   "x": -0.0002,
+   "z": 0.3456,
+   "y": 0.1382,
+   "r": 0.1319,
+   "tread": 0.1316,
+   "half": 0.0266
+  },
+  "rear": {
+   "x": -0.0167,
+   "z": -0.3446,
+   "y": 0.1479,
+   "r": 0.1485,
+   "tread": 0.1478,
+   "half": 0.0537
+  },
+  "rake": 0.46,
+  "steered": 0.0,
+  "grip": [
+   0.1559,
+   0.394,
+   0.2016
+  ],
+  "seat": [
+   0.0,
+   0.374,
+   -0.118
+  ],
+  "peg": [
+   0.0995,
+   0.1037,
+   0.002
+  ],
+  "head": [
+   0.0,
+   0.3491,
+   0.4077
+  ],
+  "lampTurns": false,
+  "tail": [
+   0.0,
+   0.3023,
+   -0.4939
+  ],
+  "pipes": [
+   [
+    0.0474,
+    0.2917,
+    -0.4955
+   ],
+   [
+    -0.0477,
+    0.282,
+    -0.4916
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "black-gold-superbike.bin",
+   "color4k": "black-gold-superbike-color-4k.jpg",
+   "color2k": "black-gold-superbike-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "black-gold-superbike-rm-4k.webp",
+   "rm2k": "black-gold-superbike-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "black-gold-superbike-normal-4k.png",
+   "normal2k": "black-gold-superbike-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "black-gold-superbike-color-1k.jpg",
+   "normal1k": "black-gold-superbike-normal-1k.webp",
+   "rm1k": "black-gold-superbike-rm-1k.webp",
+   "color512": "black-gold-superbike-color-512.jpg",
+   "normal512": "black-gold-superbike-normal-512.webp",
+   "rm512": "black-gold-superbike-rm-512.webp"
+  },
+  "sha256": "1a6c98fb0e9d268c893298a159e1f00f97d01b4ee41b8beead37ac415045f6a0",
+  "bytes": {
+   "lite": 4865969,
+   "full": 8938448
+  }
+ },
+ "cafe-racer": {
+  "vertices": 98195,
+  "triangles": 117233,
+  "parts": [
+   67002,
+   27347,
+   11529,
+   11355
+  ],
+  "length": 0.9788,
+  "height": 0.4809,
+  "width": 0.346,
+  "front": {
+   "x": 0.0004,
+   "z": 0.337,
+   "y": 0.1479,
+   "r": 0.1467,
+   "tread": 0.1461,
+   "half": 0.0264
+  },
+  "rear": {
+   "x": 0.0002,
+   "z": -0.3448,
+   "y": 0.1484,
+   "r": 0.1484,
+   "tread": 0.1474,
+   "half": 0.0353
+  },
+  "rake": 0.43,
+  "steered": 0.0,
+  "grip": [
+   0.1539,
+   0.4017,
+   0.1813
+  ],
+  "seat": [
+   0.0,
+   0.3718,
+   -0.1454
+  ],
+  "peg": [
+   0.089,
+   0.1109,
+   -0.0254
+  ],
+  "head": [
+   0.0,
+   0.379,
+   0.3095
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.1999,
+   -0.4188
+  ],
+  "pipes": [
+   [
+    0.055,
+    0.1529,
+    -0.3639
+   ],
+   [
+    -0.0494,
+    0.1913,
+    -0.3634
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "cafe-racer.bin",
+   "color4k": "cafe-racer-color-4k.jpg",
+   "color2k": "cafe-racer-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "cafe-racer-rm-4k.webp",
+   "rm2k": "cafe-racer-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "cafe-racer-normal-4k.png",
+   "normal2k": "cafe-racer-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "cafe-racer-color-1k.jpg",
+   "normal1k": "cafe-racer-normal-1k.webp",
+   "rm1k": "cafe-racer-rm-1k.webp",
+   "color512": "cafe-racer-color-512.jpg",
+   "normal512": "cafe-racer-normal-512.webp",
+   "rm512": "cafe-racer-rm-512.webp"
+  },
+  "sha256": "590a8501b2b58161b3d19375d420342d5be1bb45e883f0402ebde64c22fdbbf4",
+  "bytes": {
+   "lite": 5326969,
+   "full": 9649903
+  }
+ },
+ "chopper": {
+  "vertices": 101019,
+  "triangles": 117307,
+  "parts": [
+   53508,
+   34222,
+   14060,
+   15517
+  ],
+  "length": 0.978,
+  "height": 0.5522,
+  "width": 0.5691,
+  "front": {
+   "x": 0.0002,
+   "z": 0.349,
+   "y": 0.1411,
+   "r": 0.1415,
+   "tread": 0.141,
+   "half": 0.0211
+  },
+  "rear": {
+   "x": 0.004,
+   "z": -0.344,
+   "y": 0.1294,
+   "r": 0.1295,
+   "tread": 0.1289,
+   "half": 0.0335
+  },
+  "rake": 0.63,
+  "steered": 0.0,
+  "grip": [
+   0.2342,
+   0.4801,
+   0.0772
+  ],
+  "seat": [
+   0.0,
+   0.3104,
+   -0.1736
+  ],
+  "peg": [
+   0.0855,
+   0.1059,
+   -0.0536
+  ],
+  "head": [
+   0.0,
+   0.3746,
+   0.2438
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.24,
+   -0.477
+  ],
+  "pipes": [
+   [
+    0.0605,
+    0.2663,
+    -0.456
+   ],
+   [
+    -0.0605,
+    0.2647,
+    -0.4577
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "chopper.bin",
+   "color4k": "chopper-color-4k.jpg",
+   "color2k": "chopper-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "chopper-rm-4k.webp",
+   "rm2k": "chopper-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "chopper-normal-4k.png",
+   "normal2k": "chopper-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "chopper-color-1k.jpg",
+   "normal1k": "chopper-normal-1k.webp",
+   "rm1k": "chopper-rm-1k.webp",
+   "color512": "chopper-color-512.jpg",
+   "normal512": "chopper-normal-512.webp",
+   "rm512": "chopper-rm-512.webp"
+  },
+  "sha256": "54c928c2e4a12b56249feb45ff85ced85fa80df1bdc85b8f09d225b951186b83",
+  "bytes": {
+   "lite": 5431840,
+   "full": 9738766
+  }
+ },
+ "chrome-concept": {
+  "vertices": 82727,
+  "triangles": 106826,
+  "parts": [
+   71908,
+   26251,
+   2912,
+   5755
+  ],
+  "length": 0.9792,
+  "height": 0.4498,
+  "width": 0.3468,
+  "front": {
+   "x": 0.0015,
+   "z": 0.3635,
+   "y": 0.1134,
+   "r": 0.1109,
+   "tread": 0.1091,
+   "half": 0.0618,
+   "still": 1.0
+  },
+  "rear": {
+   "x": 0.0019,
+   "z": -0.3623,
+   "y": 0.1292,
+   "r": 0.1296,
+   "tread": 0.1284,
+   "half": 0.0751,
+   "still": 1.0
+  },
+  "rake": 0.44,
+  "steered": 0.0,
+  "grip": [
+   0.1106,
+   0.2613,
+   0.0869
+  ],
+  "seat": [
+   0.0,
+   0.3219,
+   -0.2089
+  ],
+  "peg": [
+   0.1177,
+   0.085,
+   -0.0889
+  ],
+  "head": [
+   0.0,
+   0.2191,
+   0.4567
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.187,
+   -0.4758
+  ],
+  "pipes": [
+   [
+    0.0739,
+    0.1378,
+    -0.4873
+   ],
+   [
+    -0.0751,
+    0.1407,
+    -0.485
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "chrome-concept.bin",
+   "color4k": "chrome-concept-color-4k.jpg",
+   "color2k": "chrome-concept-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "chrome-concept-rm-4k.webp",
+   "rm2k": "chrome-concept-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "chrome-concept-normal-4k.png",
+   "normal2k": "chrome-concept-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "chrome-concept-color-1k.jpg",
+   "normal1k": "chrome-concept-normal-1k.webp",
+   "rm1k": "chrome-concept-rm-1k.webp",
+   "color512": "chrome-concept-color-512.jpg",
+   "normal512": "chrome-concept-normal-512.webp",
+   "rm512": "chrome-concept-rm-512.webp"
+  },
+  "sha256": "59b76eddeff29be477b1608c7d576fc578545a8cffe3625d8f164617a7e8e70e",
+  "bytes": {
+   "lite": 4904874,
+   "full": 10481085
+  }
+ },
+ "civil-war-tourer": {
+  "vertices": 14847,
+  "triangles": 11966,
+  "parts": [
+   7556,
+   2418,
+   1084,
+   908
+  ],
+  "length": 0.9995,
+  "height": 0.6577,
+  "width": 0.4692,
+  "front": {
+   "x": 0.0,
+   "z": 0.3381,
+   "y": 0.1438,
+   "r": 0.1424,
+   "tread": 0.1401,
+   "half": 0.0315
+  },
+  "rear": {
+   "x": 0.0,
+   "z": -0.3388,
+   "y": 0.144,
+   "r": 0.1451,
+   "tread": 0.1413,
+   "half": 0.0432
+  },
+  "rake": 0.37,
+  "steered": 0.0,
+  "grip": [
+   0.2085,
+   0.5049,
+   0.1915
+  ],
+  "seat": [
+   0.0,
+   0.2925,
+   -0.0887
+  ],
+  "peg": [
+   0.0983,
+   0.1078,
+   0.0313
+  ],
+  "head": [
+   0.0,
+   0.3843,
+   0.399
+  ],
+  "lampTurns": false,
+  "tail": [
+   0.0,
+   0.3057,
+   -0.5116
+  ],
+  "pipes": [
+   [
+    0.1333,
+    0.3081,
+    -0.5101
+   ],
+   [
+    -0.1333,
+    0.3081,
+    -0.5101
+   ]
+  ],
+  "metallic": 0,
+  "roughness": 0.8999999761581421,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "civil-war-tourer.bin",
+   "color4k": "civil-war-tourer-color-4k.jpg",
+   "color2k": "civil-war-tourer-color-2k.jpg",
+   "colorSize": 8192,
+   "color1k": "civil-war-tourer-color-1k.jpg",
+   "color512": "civil-war-tourer-color-512.jpg"
+  },
+  "sha256": "9ca8d0b0b80874296207cb997c5b0ee20c4175861d4e96ba5e8553de83d88b68",
+  "bytes": {
+   "lite": 1305222,
+   "full": 2747790
+  }
+ },
+ "gold-roadster": {
+  "vertices": 78392,
+  "triangles": 98857,
+  "parts": [
+   46717,
+   22300,
+   14793,
+   15047
+  ],
+  "length": 0.9759,
+  "height": 0.5014,
+  "width": 0.4322,
+  "front": {
+   "x": -0.0,
+   "z": 0.3557,
+   "y": 0.13,
+   "r": 0.1285,
+   "tread": 0.1274,
+   "half": 0.0325
+  },
+  "rear": {
+   "x": -0.0002,
+   "z": -0.3512,
+   "y": 0.1309,
+   "r": 0.1316,
+   "tread": 0.1307,
+   "half": 0.0353
+  },
+  "rake": 0.54,
+  "steered": 0.0,
+  "grip": [
+   0.1741,
+   0.4383,
+   0.1276
+  ],
+  "seat": [
+   0.0,
+   0.3199,
+   -0.1466
+  ],
+  "peg": [
+   0.1061,
+   0.0975,
+   -0.0266
+  ],
+  "head": [
+   0.0,
+   0.3445,
+   0.2984
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.2189,
+   -0.4836
+  ],
+  "pipes": [
+   [
+    0.0433,
+    0.2252,
+    -0.4844
+   ],
+   [
+    -0.0431,
+    0.2252,
+    -0.488
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "gold-roadster.bin",
+   "color4k": "gold-roadster-color-4k.jpg",
+   "color2k": "gold-roadster-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "gold-roadster-rm-4k.webp",
+   "rm2k": "gold-roadster-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "gold-roadster-normal-4k.png",
+   "normal2k": "gold-roadster-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "gold-roadster-color-1k.jpg",
+   "normal1k": "gold-roadster-normal-1k.webp",
+   "rm1k": "gold-roadster-rm-1k.webp",
+   "color512": "gold-roadster-color-512.jpg",
+   "normal512": "gold-roadster-normal-512.webp",
+   "rm512": "gold-roadster-rm-512.webp"
+  },
+  "sha256": "a24fb606cb9c2a1f3ddac0133633d4ba71f2ccbe3939b74168304ed8f844b2ca",
+  "bytes": {
+   "lite": 4674331,
+   "full": 9860304
+  }
+ },
+ "gold-tourer": {
+  "vertices": 90329,
+  "triangles": 115281,
+  "parts": [
+   56833,
+   37181,
+   13009,
+   8258
+  ],
+  "length": 0.9785,
+  "height": 0.5384,
+  "width": 0.3629,
+  "front": {
+   "x": -0.0006,
+   "z": 0.3257,
+   "y": 0.1144,
+   "r": 0.1139,
+   "tread": 0.1135,
+   "half": 0.0219
+  },
+  "rear": {
+   "x": -0.0007,
+   "z": -0.323,
+   "y": 0.1129,
+   "r": 0.1129,
+   "tread": 0.1123,
+   "half": 0.0321,
+   "still": 1.0
+  },
+  "rake": 0.45,
+  "steered": 0.0,
+  "grip": [
+   0.1426,
+   0.4146,
+   0.0819
+  ],
+  "seat": [
+   0.0,
+   0.2804,
+   -0.147
+  ],
+  "peg": [
+   0.0792,
+   0.0858,
+   -0.027
+  ],
+  "head": [
+   0.0,
+   0.3423,
+   0.2916
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.1588,
+   -0.4944
+  ],
+  "pipes": [
+   [
+    0.0798,
+    0.0993,
+    -0.4987
+   ],
+   [
+    -0.0494,
+    0.1191,
+    -0.4956
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "gold-tourer.bin",
+   "color4k": "gold-tourer-color-4k.jpg",
+   "color2k": "gold-tourer-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "gold-tourer-rm-4k.webp",
+   "rm2k": "gold-tourer-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "gold-tourer-normal-4k.png",
+   "normal2k": "gold-tourer-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "gold-tourer-color-1k.jpg",
+   "normal1k": "gold-tourer-normal-1k.webp",
+   "rm1k": "gold-tourer-rm-1k.webp",
+   "color512": "gold-tourer-color-512.jpg",
+   "normal512": "gold-tourer-normal-512.webp",
+   "rm512": "gold-tourer-rm-512.webp"
+  },
+  "sha256": "2993d194a76554d44480be76951bf3944e7c42487d8b50622c737f092e8ee657",
+  "bytes": {
+   "lite": 5441533,
+   "full": 11786686
+  }
+ },
+ "midnight-cruiser": {
+  "vertices": 129982,
+  "triangles": 136416,
+  "parts": [
+   46361,
+   16749,
+   32506,
+   40800
+  ],
+  "length": 0.9791,
+  "height": 0.5886,
+  "width": 0.5596,
+  "front": {
+   "x": 0.0014,
+   "z": 0.3566,
+   "y": 0.1266,
+   "r": 0.1275,
+   "tread": 0.1273,
+   "half": 0.0344
+  },
+  "rear": {
+   "x": 0.0044,
+   "z": -0.355,
+   "y": 0.1292,
+   "r": 0.1305,
+   "tread": 0.1293,
+   "half": 0.0516
+  },
+  "rake": 0.55,
+  "steered": 0.0,
+  "grip": [
+   0.2169,
+   0.5086,
+   0.1003
+  ],
+  "seat": [
+   0.0,
+   0.2623,
+   -0.2157
+  ],
+  "peg": [
+   0.1179,
+   0.095,
+   -0.0957
+  ],
+  "head": [
+   0.0,
+   0.366,
+   0.2661
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.1886,
+   -0.4459
+  ],
+  "pipes": [
+   [
+    0.0454,
+    0.1381,
+    -0.4515
+   ],
+   [
+    -0.045,
+    0.1501,
+    -0.4668
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "midnight-cruiser.bin",
+   "color4k": "midnight-cruiser-color-4k.jpg",
+   "color2k": "midnight-cruiser-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "midnight-cruiser-rm-4k.webp",
+   "rm2k": "midnight-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "midnight-cruiser-normal-4k.png",
+   "normal2k": "midnight-cruiser-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "midnight-cruiser-color-1k.jpg",
+   "normal1k": "midnight-cruiser-normal-1k.webp",
+   "rm1k": "midnight-cruiser-rm-1k.webp",
+   "color512": "midnight-cruiser-color-512.jpg",
+   "normal512": "midnight-cruiser-normal-512.webp",
+   "rm512": "midnight-cruiser-rm-512.webp"
+  },
+  "sha256": "5ca2593b79c7c3d1de3529c74f38d559b3492e4c0f9867a759422eb5dc30c3ce",
+  "bytes": {
+   "lite": 6529449,
+   "full": 10969836
+  }
+ },
+ "olive-cruiser": {
+  "vertices": 94722,
+  "triangles": 113906,
+  "parts": [
+   58183,
+   30285,
+   13967,
+   11471
+  ],
+  "length": 0.977,
+  "height": 0.5259,
+  "width": 0.3373,
+  "front": {
+   "x": 0.0002,
+   "z": 0.3571,
+   "y": 0.1378,
+   "r": 0.1181,
+   "tread": 0.1175,
+   "half": 0.0238
+  },
+  "rear": {
+   "x": 0.0005,
+   "z": -0.356,
+   "y": 0.1274,
+   "r": 0.1274,
+   "tread": 0.126,
+   "half": 0.0314
+  },
+  "rake": 0.64,
+  "steered": 0.0,
+  "grip": [
+   0.1208,
+   0.4454,
+   0.128
+  ],
+  "seat": [
+   0.0,
+   0.3116,
+   -0.1478
+  ],
+  "peg": [
+   0.1355,
+   0.1034,
+   -0.0278
+  ],
+  "head": [
+   0.0,
+   0.3232,
+   0.2523
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.2295,
+   -0.4877
+  ],
+  "pipes": [
+   [
+    0.0453,
+    0.2641,
+    -0.4004
+   ],
+   [
+    -0.0451,
+    0.263,
+    -0.4
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "olive-cruiser.bin",
+   "color4k": "olive-cruiser-color-4k.jpg",
+   "color2k": "olive-cruiser-color-2k.jpg",
+   "colorSize": 4096,
+   "rm4k": "olive-cruiser-rm-4k.webp",
+   "rm2k": "olive-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "olive-cruiser-normal-4k.png",
+   "normal2k": "olive-cruiser-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "olive-cruiser-color-1k.jpg",
+   "normal1k": "olive-cruiser-normal-1k.webp",
+   "rm1k": "olive-cruiser-rm-1k.webp",
+   "color512": "olive-cruiser-color-512.jpg",
+   "normal512": "olive-cruiser-normal-512.webp",
+   "rm512": "olive-cruiser-rm-512.webp"
+  },
+  "sha256": "8590db45f7383b0dbb879385d3cfc6549c2bf2affa3972519d01d336a947cde2",
+  "bytes": {
+   "lite": 5215702,
+   "full": 10853737
+  }
+ },
+ "power-cruiser": {
+  "vertices": 98495,
+  "triangles": 114341,
+  "parts": [
+   51134,
+   22921,
+   20544,
+   19742
+  ],
+  "length": 0.9788,
+  "height": 0.4974,
+  "width": 0.3785,
+  "front": {
+   "x": 0.0005,
+   "z": 0.3499,
+   "y": 0.1505,
+   "r": 0.1471,
+   "tread": 0.1464,
+   "half": 0.0243
+  },
+  "rear": {
+   "x": 0.0002,
+   "z": -0.3502,
+   "y": 0.1286,
+   "r": 0.1313,
+   "tread": 0.1303,
+   "half": 0.0529
+  },
+  "rake": 0.77,
+  "steered": 0.0,
+  "grip": [
+   0.1503,
+   0.4211,
+   0.0113
+  ],
+  "seat": [
+   0.0,
+   0.2744,
+   -0.2165
+  ],
+  "peg": [
+   0.097,
+   0.1129,
+   -0.0965
+  ],
+  "head": [
+   0.0,
+   0.3259,
+   0.2008
+  ],
+  "lampTurns": true,
+  "tail": [
+   0.0,
+   0.2101,
+   -0.4284
+  ],
+  "pipes": [
+   [
+    0.0845,
+    0.1242,
+    -0.4788
+   ],
+   [
+    -0.0492,
+    0.1203,
+    -0.4622
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "power-cruiser.bin",
+   "color4k": "power-cruiser-color-4k.jpg",
+   "color2k": "power-cruiser-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "power-cruiser-rm-4k.webp",
+   "rm2k": "power-cruiser-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "power-cruiser-normal-4k.png",
+   "normal2k": "power-cruiser-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "power-cruiser-color-1k.jpg",
+   "normal1k": "power-cruiser-normal-1k.webp",
+   "rm1k": "power-cruiser-rm-1k.webp",
+   "color512": "power-cruiser-color-512.jpg",
+   "normal512": "power-cruiser-normal-512.webp",
+   "rm512": "power-cruiser-rm-512.webp"
+  },
+  "sha256": "8cc9514f139acff15b6dc6c3c3aa227f79e293b226a6cf6f8d2826300a8065da",
+  "bytes": {
+   "lite": 5366231,
+   "full": 10456679
+  }
+ },
+ "purple-sport": {
+  "vertices": 92605,
+  "triangles": 113977,
+  "parts": [
+   70685,
+   30350,
+   7808,
+   5134
+  ],
+  "length": 0.9786,
+  "height": 0.5555,
+  "width": 0.4389,
+  "front": {
+   "x": -0.0002,
+   "z": 0.3286,
+   "y": 0.1423,
+   "r": 0.1429,
+   "tread": 0.1424,
+   "half": 0.0271
+  },
+  "rear": {
+   "x": -0.0001,
+   "z": -0.322,
+   "y": 0.1411,
+   "r": 0.1412,
+   "tread": 0.1404,
+   "half": 0.0274
+  },
+  "rake": 0.42,
+  "steered": 0.0,
+  "grip": [
+   0.1731,
+   0.4321,
+   0.1263
+  ],
+  "seat": [
+   0.0,
+   0.3769,
+   -0.1625
+  ],
+  "peg": [
+   0.0622,
+   0.1067,
+   -0.0425
+  ],
+  "head": [
+   0.0,
+   0.3953,
+   0.3576
+  ],
+  "lampTurns": false,
+  "tail": [
+   0.0,
+   0.2711,
+   -0.5032
+  ],
+  "pipes": [
+   [
+    0.0435,
+    0.2745,
+    -0.5025
+   ],
+   [
+    -0.0443,
+    0.2745,
+    -0.5003
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "purple-sport.bin",
+   "color4k": "purple-sport-color-4k.jpg",
+   "color2k": "purple-sport-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "purple-sport-rm-4k.webp",
+   "rm2k": "purple-sport-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "purple-sport-normal-4k.png",
+   "normal2k": "purple-sport-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "purple-sport-color-1k.jpg",
+   "normal1k": "purple-sport-normal-1k.webp",
+   "rm1k": "purple-sport-rm-1k.webp",
+   "color512": "purple-sport-color-512.jpg",
+   "normal512": "purple-sport-normal-512.webp",
+   "rm512": "purple-sport-rm-512.webp"
+  },
+  "sha256": "c1431c32254cf317c7569e39c826b44804fba9b9854d996879d82a6ef096b7ac",
+  "bytes": {
+   "lite": 5232735,
+   "full": 9917151
+  }
+ },
+ "red-superbike": {
+  "vertices": 96953,
+  "triangles": 118452,
+  "parts": [
+   57153,
+   27763,
+   17838,
+   15698
+  ],
+  "length": 0.9787,
+  "height": 0.5475,
+  "width": 0.4319,
+  "front": {
+   "x": 0.0004,
+   "z": 0.3399,
+   "y": 0.1448,
+   "r": 0.1422,
+   "tread": 0.1414,
+   "half": 0.0271
+  },
+  "rear": {
+   "x": -0.0001,
+   "z": -0.3378,
+   "y": 0.1561,
+   "r": 0.156,
+   "tread": 0.1554,
+   "half": 0.0508
+  },
+  "rake": 0.41,
+  "steered": 0.0,
+  "grip": [
+   0.1486,
+   0.4036,
+   0.2132
+  ],
+  "seat": [
+   0.0,
+   0.3899,
+   -0.1298
+  ],
+  "peg": [
+   0.1029,
+   0.1086,
+   -0.0098
+  ],
+  "head": [
+   0.0,
+   0.3699,
+   0.3938
+  ],
+  "lampTurns": false,
+  "tail": [
+   0.0,
+   0.25,
+   -0.4311
+  ],
+  "pipes": [
+   [
+    0.0478,
+    0.1626,
+    -0.452
+   ],
+   [
+    -0.0476,
+    0.1566,
+    -0.459
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "red-superbike.bin",
+   "color4k": "red-superbike-color-4k.jpg",
+   "color2k": "red-superbike-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "red-superbike-rm-4k.webp",
+   "rm2k": "red-superbike-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "red-superbike-normal-4k.png",
+   "normal2k": "red-superbike-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "red-superbike-color-1k.jpg",
+   "normal1k": "red-superbike-normal-1k.webp",
+   "rm1k": "red-superbike-rm-1k.webp",
+   "color512": "red-superbike-color-512.jpg",
+   "normal512": "red-superbike-normal-512.webp",
+   "rm512": "red-superbike-rm-512.webp"
+  },
+  "sha256": "10373b3b4488bbea9410501f6e28c1b1ed182c4e104e14d1bb16df5818f19f35",
+  "bytes": {
+   "lite": 5346484,
+   "full": 10016779
+  }
+ },
+ "streetfighter": {
+  "vertices": 98583,
+  "triangles": 117573,
+  "parts": [
+   59267,
+   27431,
+   15110,
+   15765
+  ],
+  "length": 0.9785,
+  "height": 0.5348,
+  "width": 0.2847,
+  "front": {
+   "x": -0.0004,
+   "z": 0.3455,
+   "y": 0.1444,
+   "r": 0.1432,
+   "tread": 0.1424,
+   "half": 0.0234
+  },
+  "rear": {
+   "x": -0.0009,
+   "z": -0.3404,
+   "y": 0.1477,
+   "r": 0.1478,
+   "tread": 0.1465,
+   "half": 0.0336
+  },
+  "rake": 0.47,
+  "steered": 0.0,
+  "grip": [
+   0.1228,
+   0.4459,
+   0.1756
+  ],
+  "seat": [
+   0.0,
+   0.3708,
+   -0.1176
+  ],
+  "peg": [
+   0.0624,
+   0.1083,
+   0.0024
+  ],
+  "head": [
+   0.0,
+   0.3888,
+   0.323
+  ],
+  "lampTurns": false,
+  "tail": [
+   0.0,
+   0.2973,
+   -0.4694
+  ],
+  "pipes": [
+   [
+    0.0467,
+    0.2115,
+    -0.3662
+   ],
+   [
+    -0.0469,
+    0.1471,
+    -0.3504
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "streetfighter.bin",
+   "color4k": "streetfighter-color-4k.jpg",
+   "color2k": "streetfighter-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "streetfighter-rm-4k.webp",
+   "rm2k": "streetfighter-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "streetfighter-normal-4k.png",
+   "normal2k": "streetfighter-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "streetfighter-color-1k.jpg",
+   "normal1k": "streetfighter-normal-1k.webp",
+   "rm1k": "streetfighter-rm-1k.webp",
+   "color512": "streetfighter-color-512.jpg",
+   "normal512": "streetfighter-normal-512.webp",
+   "rm512": "streetfighter-rm-512.webp"
+  },
+  "sha256": "efce25fb860777b584c6584326a86919d79a0a444e4bb20f995f80829161bc4e",
+  "bytes": {
+   "lite": 5475565,
+   "full": 10316159
+  }
+ },
+ "white-sport": {
+  "vertices": 99150,
+  "triangles": 119052,
+  "parts": [
+   74437,
+   20821,
+   15068,
+   8726
+  ],
+  "length": 0.9789,
+  "height": 0.5559,
+  "width": 0.3623,
+  "front": {
+   "x": -0.0112,
+   "z": 0.3315,
+   "y": 0.1412,
+   "r": 0.1236,
+   "tread": 0.1229,
+   "half": 0.0257
+  },
+  "rear": {
+   "x": -0.0005,
+   "z": -0.3312,
+   "y": 0.1271,
+   "r": 0.1274,
+   "tread": 0.1269,
+   "half": 0.0262
+  },
+  "rake": 0.5,
+  "steered": 0.1004,
+  "grip": [
+   0.1208,
+   0.3653,
+   0.1297
+  ],
+  "seat": [
+   0.0,
+   0.3471,
+   -0.1812
+  ],
+  "peg": [
+   0.0832,
+   0.1059,
+   -0.0612
+  ],
+  "head": [
+   0.0,
+   0.3459,
+   0.3385
+  ],
+  "lampTurns": false,
+  "tail": [
+   0.0,
+   0.2411,
+   -0.5192
+  ],
+  "pipes": [
+   [
+    0.0452,
+    0.2385,
+    -0.5237
+   ],
+   [
+    -0.0472,
+    0.2397,
+    -0.5217
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "white-sport.bin",
+   "color4k": "white-sport-color-4k.jpg",
+   "color2k": "white-sport-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "white-sport-rm-4k.webp",
+   "rm2k": "white-sport-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "white-sport-normal-4k.png",
+   "normal2k": "white-sport-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "white-sport-color-1k.jpg",
+   "normal1k": "white-sport-normal-1k.webp",
+   "rm1k": "white-sport-rm-1k.webp",
+   "color512": "white-sport-color-512.jpg",
+   "normal512": "white-sport-normal-512.webp",
+   "rm512": "white-sport-rm-512.webp"
+  },
+  "sha256": "fa894ae88ae88022c4a804200150b939fdb8079f01024e962611b86ba918fd46",
+  "bytes": {
+   "lite": 5296775,
+   "full": 9317256
+  }
+ },
+ "yellow-adventure": {
+  "vertices": 105954,
+  "triangles": 120794,
+  "parts": [
+   75366,
+   33119,
+   6719,
+   5590
+  ],
+  "length": 0.9758,
+  "height": 0.6345,
+  "width": 0.5093,
+  "front": {
+   "x": 0.0008,
+   "z": 0.3406,
+   "y": 0.1314,
+   "r": 0.1306,
+   "tread": 0.1304,
+   "half": 0.0205
+  },
+  "rear": {
+   "x": 0.0013,
+   "z": -0.3475,
+   "y": 0.1306,
+   "r": 0.1307,
+   "tread": 0.13,
+   "half": 0.0235
+  },
+  "rake": 0.42,
+  "steered": 0.0,
+  "grip": [
+   0.1894,
+   0.5023,
+   0.1467
+  ],
+  "seat": [
+   0.0,
+   0.3432,
+   -0.1154
+  ],
+  "peg": [
+   0.0721,
+   0.0985,
+   0.0046
+  ],
+  "head": [
+   0.0,
+   0.3548,
+   0.3538
+  ],
+  "lampTurns": false,
+  "tail": [
+   0.0,
+   0.2937,
+   -0.4864
+  ],
+  "pipes": [
+   [
+    0.0442,
+    0.182,
+    -0.4673
+   ],
+   [
+    -0.0438,
+    0.1801,
+    -0.4604
+   ]
+  ],
+  "metallic": 1.0,
+  "roughness": 1.0,
+  "normalScale": 1.0,
+  "files": {
+   "mesh": "yellow-adventure.bin",
+   "color4k": "yellow-adventure-color-4k.jpg",
+   "color2k": "yellow-adventure-color-2k.jpg",
+   "colorSize": 8192,
+   "rm4k": "yellow-adventure-rm-4k.webp",
+   "rm2k": "yellow-adventure-rm-2k.webp",
+   "rmSize": 4096,
+   "normal4k": "yellow-adventure-normal-4k.png",
+   "normal2k": "yellow-adventure-normal-2k.webp",
+   "normalSize": 4096,
+   "color1k": "yellow-adventure-color-1k.jpg",
+   "normal1k": "yellow-adventure-normal-1k.webp",
+   "rm1k": "yellow-adventure-rm-1k.webp",
+   "color512": "yellow-adventure-color-512.jpg",
+   "normal512": "yellow-adventure-normal-512.webp",
+   "rm512": "yellow-adventure-rm-512.webp"
+  },
+  "sha256": "93bda61452d793600cbdfac925c0c2d3510544750ef0860cddce1f8771dc4d3a",
+  "bytes": {
+   "lite": 5698411,
+   "full": 10177828
+  }
+ }
+});
+
+return { BIKE_PARTS };
+})();
+
+__modules["client/bike-model.js"] = (function () {
+const { softPatch } = __modules["client/soft-patch.js"];
+const { BIKE_PARTS } = __modules["client/bike-parts.js"];
+const { surface } = __modules["client/render-kit.js"];
+const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
+const { deviceKind, PICTURES } = __modules["client/budget.js"];
+
+const cache = new Map();          // one geometry and material a bike and set of pictures, however many are drawn (most recently used last)
+const users = new Map();          // how many of each are in the scene now
+const KEEP = deviceKind() === 'lite' ? 1 : 2;      // bikes kept ready when none of them is drawn
+
+const shapes = new Map();
+function shapeOf(id, base, spec, priority) {
+  let s = shapes.get(id);
+  if (!s) {
+    s = { made: buildShape(base, spec, priority), holders: 0 };
+    shapes.set(id, s);
+    const mine = s;
+    s.made.catch(() => { if (shapes.get(id) === mine) shapes.delete(id); });
+  }
+  s.holders += 1;
+  return s.made;
+}
+function letShapeGo(id) {
+  const s = shapes.get(id);
+  if (!s || --s.holders > 0) return;
+  shapes.delete(id);
+  s.made.then((geometries) => { for (const g of geometries) g.dispose(); }, () => {});
+}
+async function buildShape(base, spec, priority) {
+  const response = await fetchKept(base + spec.files.mesh, priority ? { priority } : undefined);
+  if (!response.ok) throw new Error(`${spec.files.mesh}: ${response.status}`);
+  const buf = await response.arrayBuffer();
+  const n = spec.vertices;
+  let at = 0;
+  const position = new Float32Array(buf, at, n * 3); at += n * 12;
+  const normal = new Int16Array(buf, at, n * 3); at += n * 6 + (n % 2) * 2;
+  const uv = new Float32Array(buf, at, n * 2); at += n * 8;
+  const index = new Uint32Array(buf, at, spec.triangles * 3);
+  const attrs = { position: new THREE.BufferAttribute(position, 3), normal: new THREE.BufferAttribute(normal, 3, true), uv: new THREE.BufferAttribute(uv, 2) };
+  const geometries = [];
+  let first = 0;
+  for (const count of spec.parts) {
+    const g = new THREE.BufferGeometry();
+    for (const [name, a] of Object.entries(attrs)) g.setAttribute(name, a);
+    const own = index.subarray(first * 3, (first + count) * 3);
+    g.setIndex(new THREE.BufferAttribute(own, 1));
+    bound(g, own, position);
+    geometries.push(g);
+    first += count;
+  }
+  return geometries;
+}
+function bound(g, index, position) {
+  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
+  for (let i = 0; i < index.length; i += 1) {
+    const j = index[i] * 3;
+    for (let a = 0; a < 3; a += 1) { const v = position[j + a]; if (v < lo[a]) lo[a] = v; if (v > hi[a]) hi[a] = v; }
+  }
+  if (!index.length) { g.computeBoundingBox(); g.computeBoundingSphere(); return; }
+  g.boundingBox = new THREE.Box3(new THREE.Vector3(lo[0], lo[1], lo[2]), new THREE.Vector3(hi[0], hi[1], hi[2]));
+  const c = g.boundingBox.getCenter(new THREE.Vector3());
+  let r2 = 0;
+  for (let i = 0; i < index.length; i += 1) { const j = index[i] * 3; const dx = position[j] - c.x, dy = position[j + 1] - c.y, dz = position[j + 2] - c.z; const d = dx * dx + dy * dy + dz * dz; if (d > r2) r2 = d; }
+  g.boundingSphere = new THREE.Sphere(c, Math.sqrt(r2));
+}
+const letPicturesGo = (maps) => { for (const t of maps) if (t) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); } };
+
+function free({ id, geometries, material, shared }) {
+  if (shared) letShapeGo(id); else for (const g of geometries) g.dispose();
+  letPicturesGo([material.map, material.normalMap, material.roughnessMap]);
+  material.dispose();
+}
+function trim(keep = KEEP) {
+  let n = 0;
+  for (const [key, made] of cache) {
+    if (cache.size <= keep) break;
+    if (users.get(key)) continue;
+    cache.delete(key);
+    made.then(free, () => {});
+    n += 1;
+  }
+  return n;
+}
+const trimBikes = () => trim(0);
+
+function picture(url, colour, own, priority) {
+  const map = new THREE.Texture();
+  map.flipY = false; map.anisotropy = 4;
+  if (colour) map.colorSpace = THREE.SRGBColorSpace;
+  const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
+    .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
+    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
+  return { map, ready };
+}
+const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
+const LARGER = ['512', '1k', '2k', '4k'];
+const tierOf = (lite, tier) => tier || PICTURES[lite ? 'lite' : 'full'].vehicle;
+
+async function partsOf(id, { base, tier, own = false, priority }) {
+  const key = `${id}:${tier}`;
+  if (!own && cache.has(key)) return cache.get(key);
+  const spec = BIKE_PARTS[id];
+  if (!spec) throw new Error(`There is no motorcycle ${id}.`);
+  const made = (async () => {
+    const f = spec.files, sizes = SETS[tier] || SETS['2k'];
+    const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
+    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
+    let geometries;
+    try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
+    try {
+      const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
+      const material = surface({ map: color, normalMap, normalScale: new THREE.Vector2(spec.normalScale, -spec.normalScale), roughnessMap: rm, metalnessMap: rm, roughness: spec.roughness, metalness: spec.metallic, envMapIntensity: 1.1 });
+      return { id, spec, geometries, material, shared: !own };
+    } catch (error) {
+      if (own) for (const g of geometries) g.dispose(); else letShapeGo(id);
+      textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {}));
+      throw error;
+    }
+  })();
+  if (own) return made;
+  cache.set(key, made);
+  made.catch(() => cache.delete(key));
+  return made;
+}
+
+const LAMP = {};
+function lampParts() {
+  if (LAMP.disc) return LAMP;
+  LAMP.disc = new THREE.CircleGeometry(1, 20);
+  LAMP.glow = new THREE.PlaneGeometry(1, 1);
+  const g = document.createElement('canvas'); g.width = g.height = 64;
+  const c = g.getContext('2d'); const r = c.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.35, 'rgba(255,255,255,0.45)'); r.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = r; c.fillRect(0, 0, 64, 64);
+  LAMP.glowMap = new THREE.CanvasTexture(g);
+  LAMP.flame = new THREE.ConeGeometry(1, 1, 10, 1, true); LAMP.flame.translate(0, 0.5, 0); LAMP.flame.rotateX(-Math.PI / 2);   // wide at the pipe (z 0), its tip back along -z
+  const f = document.createElement('canvas'); f.width = 8; f.height = 64;
+  const fc = f.getContext('2d'); const lg = fc.createLinearGradient(0, 0, 0, 64); lg.addColorStop(0, 'rgba(255,250,220,1)'); lg.addColorStop(0.35, 'rgba(255,150,40,0.9)'); lg.addColorStop(0.8, 'rgba(90,120,255,0.45)'); lg.addColorStop(1, 'rgba(60,80,255,0)'); fc.fillStyle = lg; fc.fillRect(0, 0, 8, 64);
+  LAMP.flameMap = new THREE.CanvasTexture(f);
+  return LAMP;
+}
+function lampsOf(spec, frame, bars) {
+  const P = lampParts();
+  const made = [];
+  const put = (mesh, on = frame) => { on.add(mesh); made.push(mesh); return mesh; };
+  const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, depthWrite: false, ...extra });
+  const glowMat = (color) => basic(color, { map: P.glowMap, blending: THREE.AdditiveBlending, opacity: 0 });
+  const H = spec.head || [0, spec.height * 0.6, spec.length * 0.42], T = spec.tail || [0, spec.height * 0.45, -spec.length * 0.48];
+  const [on, at] = spec.lampTurns && bars ? [bars.group, bars.at] : [frame, [0, 0, 0]];
+  const head = put(new THREE.Mesh(P.disc, basic(0xfffbe8, { opacity: 0.85 })), on);
+  head.position.set(H[0] - at[0], H[1] - at[1], H[2] + 0.004 - at[2]); head.scale.setScalar(0.03); head.visible = false;
+  const headGlow = put(new THREE.Mesh(P.glow, glowMat(0xfff2cc)), on); headGlow.position.set(H[0] - at[0], H[1] - at[1], H[2] + 0.01 - at[2]); headGlow.scale.setScalar(0.16); headGlow.visible = false;
+  const tail = put(new THREE.Mesh(P.disc, basic(0x3a0806, { opacity: 0.9 })));
+  tail.position.set(T[0], T[1], T[2] - 0.004); tail.rotation.y = Math.PI; tail.scale.setScalar(0.022); tail.visible = false;
+  const tailGlow = put(new THREE.Mesh(P.glow, glowMat(0xff2010))); tailGlow.position.set(T[0], T[1], T[2] - 0.01); tailGlow.rotation.y = Math.PI; tailGlow.scale.setScalar(0.1); tailGlow.visible = false;
+  const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.scale.set(0.022, 0.022, 0.06); m.visible = false; return m; });          // (made at its unlit size: a cone a whole bike long, even unseen, made the bike's measured size twice what it is)
+  const st = { head: -1, brake: -1, tail: -1 };
+  return {
+    head,
+    set({ head: on = 0, tail: tl = 0, brake = 0, flame = 0, t = 0 } = {}) {
+      if (st.head !== on) { st.head = on; head.visible = on > 0; head.material.opacity = 0.85 * Math.min(1, on * 1.5); headGlow.material.opacity = 0.9 * on; headGlow.visible = on > 0; }
+      const red = brake ? 1 : tl * 0.45;
+      if (st.tail !== red) { st.tail = red; tail.visible = red > 0; tail.material.color.setRGB(0.23 + 0.77 * Math.min(1, red * 1.4), 0.03 + 0.05 * red, 0.02); tailGlow.material.opacity = red; tailGlow.visible = red > 0; tailGlow.scale.setScalar(brake ? 0.14 : 0.1); }
+      for (let i = 0; i < flames.length; i += 1) {
+        const m = flames[i];
+        m.visible = flame > 0.02;
+        if (!m.visible) continue;
+        const flicker = 0.75 + 0.25 * Math.sin(t * 61 + i * 2.1) * Math.sin(t * 37 + i);
+        const len = 0.06 + 0.16 * flame * flicker;
+        m.scale.set(0.022 * (0.7 + 0.3 * flame), 0.022 * (0.7 + 0.3 * flame), len);
+        m.material.opacity = Math.min(1, 0.4 + 0.6 * flame) * flicker;
+      }
+    },
+    dispose() { for (const m of made) { m.parent && m.parent.remove(m); m.material.dispose(); } },
+  };
+}
+
+async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false, priority, patch = true } = {}) {
+  const set = tierOf(lite, tier);
+  const key = `${id}:${set}`;
+  if (!own) users.set(key, (users.get(key) || 0) + 1);
+  let parts;
+  try { parts = await partsOf(id, { base, tier: set, own, priority }); } catch (error) { if (!own) { users.set(key, users.get(key) - 1); trim(); } throw error; }
+  const { spec, geometries, material } = parts;
+  if (!own && cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
+  let held = true;
+  const scale = length / spec.length;
+  const group = new THREE.Group(); group.name = `bike:${id}`;
+  const lean = new THREE.Group(); group.add(lean);          // leans about the line its tyres touch the ground on
+  if (patch) softPatch(group, { length, width: 0.75 });
+  const frame = new THREE.Group(); frame.scale.setScalar(scale); lean.add(frame);
+  const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
+  frame.add(mesh(geometries[0]));
+  const F = spec.front, R = spec.rear;
+  const fx0 = F.x || 0, rx0 = R.x || 0;          // (a wheel's middle, across: some bikes' wheels are not on their middle line)
+  const steerAt = new THREE.Group(); steerAt.position.set(fx0, F.y, F.z); steerAt.rotation.x = -spec.rake; frame.add(steerAt);
+  const steer = new THREE.Group(); steerAt.add(steer);
+  const unrake = new THREE.Group(); unrake.rotation.x = spec.rake; steer.add(unrake);
+  const line = new THREE.Vector3(0, Math.cos(spec.rake), -Math.sin(spec.rake));
+  const straightened = () => { const g = new THREE.Group(); if (spec.steered) g.quaternion.setFromAxisAngle(line, -spec.steered); return g; };
+  const steerStraight = straightened(); unrake.add(steerStraight);
+  const steerMesh = mesh(geometries[1]); steerMesh.position.set(-fx0, -F.y, -F.z); steerStraight.add(steerMesh);
+  const frontSpin = new THREE.Group(); unrake.add(frontSpin);
+  const frontStraight = straightened(); frontSpin.add(frontStraight);
+  const frontMesh = mesh(geometries[2]); frontMesh.position.set(-fx0, -F.y, -F.z); frontStraight.add(frontMesh);
+  const rearSpin = new THREE.Group(); rearSpin.position.set(rx0, R.y, R.z); frame.add(rearSpin);
+  const rearMesh = mesh(geometries[3]); rearMesh.position.set(-rx0, -R.y, -R.z); rearSpin.add(rearMesh);
+  const gripAt = [1, -1].map((side) => { const o = new THREE.Object3D(); o.position.set(side * spec.grip[0] - fx0, spec.grip[1] - F.y, spec.grip[2] - F.z); unrake.add(o); return o; });
+  const fx = lampsOf(spec, frame, { group: unrake, at: [fx0, F.y, F.z] });
+  const metres = (v) => v * scale;
+  const wheelRadius = { front: metres(F.r), rear: metres(R.r) };
+  return {
+    id, group, scale, spec,
+    seat: new THREE.Vector3(...spec.seat).multiplyScalar(scale),
+    grips: [new THREE.Vector3(spec.grip[0], spec.grip[1], spec.grip[2]).multiplyScalar(scale), new THREE.Vector3(-spec.grip[0], spec.grip[1], spec.grip[2]).multiplyScalar(scale)],
+    gripWorld: (k, out = new THREE.Vector3()) => gripAt[k].getWorldPosition(out),
+    pegs: [new THREE.Vector3(spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale), new THREE.Vector3(-spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale)],
+    lean, frame,
+    get steerAngle() { return steer.rotation.y; },
+    pose({ travelled = 0, steerAngle = 0, tilt = 0, dive = 0, bob = 0 } = {}) {
+      if (!F.still) frontSpin.rotation.x = travelled / wheelRadius.front;
+      if (!R.still) rearSpin.rotation.x = travelled / wheelRadius.rear;
+      steer.rotation.y = steerAngle;
+      frame.rotation.x = dive; lean.position.y = bob;
+      lean.rotation.z = tilt;            // (the bike's +x is its left: a turn about its length by +tilt leans it to the right)
+    },
+    lamps(state) { fx.set(state); },
+    headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
+    headlamp: fx.head,
+    dispose() { fx.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
+  };
+}
+
+const bikeLoaded = (id, tier) => cache.has(`${id}:${tier}`);
+const bikesHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(users), shapes: Object.fromEntries([...shapes].map(([id, s]) => [id, s.holders])) });
+
+return { trimBikes, loadBike, bikeLoaded, bikesHeld };
+})();
+
+__modules["client/own-bike-view.js"] = (function () {
+const { loadBike } = __modules["client/bike-model.js"];
+const { reach } = __modules["client/animated.js"];
+const { POWER_BIKES } = __modules["sim/power-bikes.js"];
+
+const SIGHT = 70;                    // metres within which a parked bike of the player's is drawn
+const PEER_SIGHT = 160, PEER_MOST = 4;  // another player's ridden bike: drawn within this, the nearest few
+const FLAMES = Object.freeze({ cc: 1850, rev: 0.82 });
+const SUSPENSION = Object.freeze({ dive: 0.035, road: 0.004, rough: 0.018 });
+const PARKED_LEAN = -0.07;           // radians: a parked bike leans a little to its left, on its stand
+const RIDE = Object.freeze({ forward: 0.22, tuck: 0.2, roll: 0.45, rollSign: 1, look: 0.55, level: 0.6 });
+const FALLEN_LEAN = -1.25;          // radians: one that came down in a crash lies on its left side until it is ridden again
+const TIP = 0.55, REBOUND = 0.3;   // seconds it takes to go over, and how far it comes back off what it hit as it does
+const v = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), e: new THREE.Euler(0, 0, 0, 'XYZ'), q: new THREE.Quaternion(), axis: new THREE.Vector3() };
+
+const KIT_NAMES = { pelvis: 'Hips', spine_01: 'Spine', spine_02: 'Chest', neck_01: 'Neck', head: 'Head' };
+for (const [s, S] of [['l', 'L'], ['r', 'R']]) Object.assign(KIT_NAMES, { [`upperarm_${s}`]: `UpperArm_${S}`, [`lowerarm_${s}`]: `Forearm_${S}`, [`hand_${s}`]: `Hand_${S}`, [`thigh_${s}`]: `Thigh_${S}`, [`calf_${s}`]: `Shin_${S}`, [`foot_${s}`]: `Foot_${S}` });
+function bonesOf(figure) {
+  if (typeof figure.bones.get === 'function') return figure.bones;
+  if (!figure.kitBones) { const byName = new Map(figure.bones.map((b) => [b.name, b])); figure.kitBones = { get: (name) => byName.get(KIT_NAMES[name]) || null }; }
+  return figure.kitBones;
+}
+
+function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () => {}, priority } = {}) {
+  const shown = new Map();          // key -> { id, bike, loading, travelled }
+  const frozen = new Set();         // figures whose bones seat() set by hand this frame
+
+  function entry(key, id) {
+    let e = shown.get(key);
+    if (e && e.id !== id) { if (e.bike) e.bike.dispose(); shown.delete(key); e = null; }
+    if (!e) {
+      e = { id, bike: null, loading: true, travelled: 0, failed: false };
+      shown.set(key, e);
+      const spec = POWER_BIKES[id];
+      loadBike(id, { base, lite, length: spec ? spec.length : 2.1, priority }).then((bike) => {
+        if (shown.get(key) !== e) { bike.dispose(); return; }
+        e.bike = bike; e.loading = false; scene.add(bike.group);
+      }, (error) => { e.loading = false; e.failed = true; onError(error); });
+    }
+    return e;
+  }
+
+  function effects(e, ride, dt, night, now) {
+    const bike = POWER_BIKES[ride.id];
+    const speed = Math.abs(ride.speed || 0), top = bike ? bike.handling.top : 30;
+    const rev = Math.max(0, Math.min(1, ride.rev || 0)), throttle = ride.throttle || 0, braking = !!ride.brake && speed > 0.3;
+    e.fx = e.fx || { pop: 0, lastThrottle: 0, dive: 0, phase: Math.random() * 10 };
+    const fx = e.fx;
+    const big = !!bike && bike.cc >= FLAMES.cc;
+    if (big && fx.lastThrottle > 0.6 && throttle < 0.05 && rev > 0.55) fx.pop = 0.3;          // shut at high revs: a burst
+    fx.pop = Math.max(0, fx.pop - dt);
+    fx.lastThrottle = throttle;
+    const open = big && throttle > 0.9 && rev > FLAMES.rev ? (rev - FLAMES.rev) / (1 - FLAMES.rev) : 0;
+    const flame = Math.max(open, fx.pop > 0 ? 0.55 * (fx.pop / 0.3) : 0);
+    fx.dive += ((braking ? SUSPENSION.dive * Math.min(1, speed / 10) : 0) - fx.dive) * Math.min(1, dt * 8);
+    fx.phase += dt * (0.6 + speed * 0.35);
+    const rough = ride.rough ? SUSPENSION.rough : SUSPENSION.road;
+    const bob = rough * Math.min(1, speed / 8) * (Math.sin(fx.phase * 2.3) * 0.6 + Math.sin(fx.phase * 5.1 + 1.3) * 0.4);
+    e.state = { head: night > 0.25 ? 1 : 0, tail: night > 0.25 ? 1 : 0, brake: braking ? 1 : 0, flame, t: now, dive: fx.dive, bob };
+    return e.state;
+  }
+  const place = (e, ride, groundY, dt, night, now) => {
+    const st = effects(e, ride, dt, night, now);
+    const g = e.bike.group;
+    g.position.set(ride.x, groundY(ride.x, ride.z), ride.z);
+    g.rotation.set(0, ride.h, 0);
+    g.visible = true;
+    e.bike.pose({ travelled: e.travelled, steerAngle: ride.steer || 0, tilt: ride.lean || 0, dive: st.dive, bob: st.bob });
+    e.bike.lamps(st);
+  };
+
+  function update(dt, { ridden = null, rides = [], parked = [], parkedMost = 3, groundY = () => 0, from = { x: 0, z: 0 }, night = 0, now = 0 }) {
+    for (const f of frozen) f.freeze = false;
+    frozen.clear();
+    const wanted = new Set();
+    if (ridden && POWER_BIKES[ridden.id]) {
+      wanted.add('ride');
+      const e = entry('ride', ridden.id);
+      e.travelled += (ridden.speed || 0) * dt;
+      if (e.bike) place(e, ridden, groundY, dt, night, now);
+    }
+    for (const r of rides.filter((q) => POWER_BIKES[q.id] && Math.hypot(q.x - from.x, q.z - from.z) <= PEER_SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, PEER_MOST)) {
+      const key = `peer:${r.key}`;
+      wanted.add(key);
+      const e = entry(key, r.id);
+      e.travelled += (r.speed || 0) * dt;
+      if (e.bike) place(e, r, groundY, dt, night, now);
+    }
+    const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, parkedMost);
+    for (const p of near) {
+      const key = p.key || `park:${p.bike}`;
+      wanted.add(key);
+      const e = entry(key, p.bike);
+      if (p.fallen && !e.fallenAt) e.fallenAt = e.seenAt === undefined ? -10 : now;
+      if (!p.fallen) e.fallenAt = 0;
+      e.seenAt = now;
+      if (e.bike) {
+        const t = !p.fallen ? 10 : Number.isFinite(p.ago) ? p.ago : e.fallenAt > 0 ? Math.max(0, now - e.fallenAt) : 10;
+        const over = Math.min(1, t / TIP), back = p.fallen ? REBOUND * Math.sin(Math.min(1, t / (TIP * 1.3)) * Math.PI / 2) : 0;
+        const k = over < 1 ? over * over : 1 + Math.sin(Math.min(1, (t - TIP) / 0.3) * Math.PI) * 0.06 * Math.max(0, 1 - (t - TIP) / 0.3);
+        const tilt = p.fallen ? PARKED_LEAN + (FALLEN_LEAN - PARKED_LEAN) * k : PARKED_LEAN;
+        e.bike.group.position.set(p.x - Math.sin(p.h) * back, groundY(p.x, p.z), p.z - Math.cos(p.h) * back);
+        e.bike.group.rotation.set(0, p.h, 0);
+        e.bike.pose({ travelled: e.travelled, steerAngle: 0.25, tilt });
+      }
+    }
+    for (const [key, e] of shown) if (!wanted.has(key)) { if (e.bike) e.bike.dispose(); shown.delete(key); }
+  }
+
+  function seat(me, ridden, groundY, key = 'ride') {
+    const e = shown.get(key);
+    if (!e || !e.bike || !ridden || !me.bones) return false;
+    const bike = e.bike;
+    const bones = bonesOf(me);
+    const pelvis = bones.get('pelvis');
+    if (!pelvis) return false;
+    const gy = groundY(ridden.x, ridden.z);
+    me.group.rotation.set(0, ridden.h, 0);
+    me.group.position.set(ridden.x, gy, ridden.z);
+    me.group.updateMatrixWorld(true);
+    if (!me.animated) { me.freeze = true; frozen.add(me); }
+    const hips = me.group.worldToLocal(pelvis.getWorldPosition(v.a));
+    const offset = v.b.set(bike.seat.x - hips.x, bike.seat.y + 0.09 - hips.y, bike.seat.z - hips.z);
+    v.e.set(0, ridden.h, ridden.lean || 0, 'XYZ');
+    me.group.rotation.copy(v.e);
+    me.group.position.set(ridden.x, gy, ridden.z).add(offset.applyEuler(v.e));
+    me.group.updateMatrixWorld(true);
+    bike.group.updateMatrixWorld(true);
+    const world = (local) => bike.lean.localToWorld(v.c.copy(local));
+    const off = (x, y, z) => me.group.localToWorld(v.d.set(x, y, z)).sub(me.group.localToWorld(v.a.set(0, 0, 0))).clone();
+    const dir = (x, y, z) => me.group.localToWorld(v.d.set(x, y, z)).sub(me.group.localToWorld(v.a.set(0, 0, 0))).normalize().clone();
+    const spine = bones.get('spine_02') || bones.get('spine_01');
+    const arm = (s) => { const u = bones.get(`upperarm_${s}`), l = bones.get(`lowerarm_${s}`), h = bones.get(`hand_${s}`); return u && l && h ? { u, l, h, length: u.getWorldPosition(new THREE.Vector3()).distanceTo(l.getWorldPosition(new THREE.Vector3())) + l.getWorldPosition(new THREE.Vector3()).distanceTo(h.getWorldPosition(new THREE.Vector3())) } : null; };
+    const arms = { l: arm('l'), r: arm('r') };
+    const grips = { l: bike.grips[0], r: bike.grips[1] };
+    const gripWorld = (s) => (bike.gripWorld ? bike.gripWorld(s === 'l' ? 0 : 1, new THREE.Vector3()) : world(grips[s]).clone());
+    if (spine && arms.l && arms.r) {
+      v.axis.copy(dir(1, 0, 0));
+      const short = () => Math.max(...['l', 'r'].map((s) => arms[s].u.getWorldPosition(new THREE.Vector3()).distanceTo(gripWorld(s).add(off(0, 0.01, -0.05))) - arms[s].length * 0.96));
+      const turn = (angle) => {
+        const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion());
+        const localAxis = v.axis.clone().applyQuaternion(parentQ.invert());
+        spine.quaternion.premultiply(v.q.setFromAxisAngle(localAxis, angle));
+        spine.updateMatrixWorld(true);
+      };
+      const bend = () => {
+        let step = 0.07, turned = 0, gap = short();
+        for (let i = 0; i < 24 && gap > 0; i += 1) {
+          turn(step);
+          const now = short();
+          if (now >= gap - 1e-4) { turn(-step); if (step > 0 && turned === 0) { step = -step; continue; } break; }
+          turned += step; gap = now;
+          if (Math.abs(turned) > 1.05) break;
+        }
+        return gap;
+      };
+      const pace = Math.min(1, Math.abs(ridden.speed || 0) / 30);
+      turn(RIDE.forward + RIDE.tuck * pace);
+      const lean = ridden.lean || 0;
+      if (Math.abs(lean) > 1e-3) {
+        const fwd = dir(0, 0, 1);
+        const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion());
+        spine.quaternion.premultiply(v.q.setFromAxisAngle(fwd.applyQuaternion(parentQ.invert()), RIDE.roll * lean * RIDE.rollSign));
+        spine.updateMatrixWorld(true);
+      }
+      const gap = bend();
+      if (gap > 0) {
+        me.group.position.add(off(0, 0, Math.min(0.33, gap * 1.3)));
+        me.group.updateMatrixWorld(true);
+        bend();
+      }
+    }
+    for (const s of ['l', 'r']) {
+      const a = arms[s];
+      if (!a) continue;
+      const side = s === 'l' ? 1 : -1;
+      const target = gripWorld(s).add(off(0, 0.01, -0.05));
+      reach(a.u, a.l, a.h, target, dir(side * 0.9, -0.6, -0.2));
+    }
+    const neck = bones.get('neck_01'), head = bones.get('head');
+    if (neck && head) {
+      const lean = ridden.lean || 0;
+      const up = dir(0, 1, 0), fwd = dir(0, 0, 1);
+      const put = (bone, axis, angle) => { const q = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); bone.quaternion.premultiply(v.q.setFromAxisAngle(axis.clone().applyQuaternion(q), angle)); bone.updateMatrixWorld(true); };
+      put(neck, dir(1, 0, 0), -(RIDE.forward + RIDE.tuck * Math.min(1, Math.abs(ridden.speed || 0) / 30)) * 0.7);
+      put(neck, up, -RIDE.look * lean);
+      put(head, fwd, -RIDE.level * lean * RIDE.rollSign);
+    }
+    for (const s of ['l', 'r']) {
+      const thigh = bones.get(`thigh_${s}`), calf = bones.get(`calf_${s}`), foot = bones.get(`foot_${s}`);
+      if (!thigh || !calf || !foot) continue;
+      const side = s === 'l' ? 1 : -1;
+      const target = world(bike.pegs[s === 'l' ? 0 : 1]).clone().add(off(side * 0.02, 0.07, -0.05));
+      reach(thigh, calf, foot, target, dir(side * 0.35, 0.3, 1));
+    }
+    return true;
+  }
+
+  return {
+    update, seat,
+    ready: () => { const e = shown.get('ride'); return !!(e && e.bike); },
+    ridden: (key = 'ride') => { const e = shown.get(key); return e && e.bike ? e.bike : null; },
+    stateOf: (key = 'ride') => { const e = shown.get(key); return e ? e.state || null : null; },
+    failed: () => { const e = shown.get('ride'); return !!(e && e.failed); },
+    count: () => shown.size,
+    keys: () => [...shown.keys()],
+    dispose() { for (const e of shown.values()) if (e.bike) e.bike.dispose(); shown.clear(); },
+  };
+}
+
+return { FLAMES, SUSPENSION, RIDE, bonesOf, createOwnBikeView };
+})();
+
+__modules["client/wheel-bumps.js"] = (function () {
+const BUMP = Object.freeze({
+  trunk: 0.12,              // metres: half of how high the trunk lies off the road
+  leg: 0.07,                // and a leg
+  head: 0.2,                // metres past the head's bone to the top of the head
+  toes: 0.12,               // and past a foot's bone to the toes
+  tread: 0.1,               // half of a tyre's width
+  share: 0.6,               // the share of the wheels' lift the body is lifted by (the springs take the rest)
+  freq: 1.7,                // how quickly the body settles on its springs (a car's own: about one and a half a second)
+  damping: 0.42,            // and how soon its bounce dies away
+  most: 0.3,                // metres: no wheel is lifted further than this
+});
+
+function bodyBars(at, bones = null) {
+  if (bones && bones.hips && bones.head) {
+    const past = (to, by) => { const dx = to.x - bones.hips.x, dz = to.z - bones.hips.z, d = Math.hypot(dx, dz); return d > 1e-6 ? { x: to.x + (dx / d) * by, z: to.z + (dz / d) * by } : to; };
+    const top = past(bones.head, BUMP.head);
+    const out = [{ ax: bones.hips.x, az: bones.hips.z, bx: top.x, bz: top.z, r: BUMP.trunk }];
+    for (const f of [bones.footL, bones.footR]) if (f) { const toe = past(f, BUMP.toes); out.push({ ax: bones.hips.x, az: bones.hips.z, bx: toe.x, bz: toe.z, r: BUMP.leg }); }
+    return out;
+  }
+  const ux = Math.sin(at.h || 0) * 0.85, uz = Math.cos(at.h || 0) * 0.85;
+  return [{ ax: at.x - ux, az: at.z - uz, bx: at.x + ux, bz: at.z + uz, r: BUMP.trunk }];
+}
+
+function apart(px, pz, b) {
+  const dx = b.bx - b.ax, dz = b.bz - b.az;
+  const len2 = dx * dx + dz * dz;
+  let t = len2 > 1e-9 ? ((px - b.ax) * dx + (pz - b.az) * dz) / len2 : 0;
+  t = t < 0 ? 0 : t > 1 ? 1 : t;
+  return Math.hypot(px - (b.ax + dx * t), pz - (b.az + dz * t));
+}
+function heightAt(bars, px, pz) {
+  let top = 0;
+  for (const b of bars) {
+    const d = apart(px, pz, b);
+    if (d < b.r) { const y = b.r + Math.sqrt(b.r * b.r - d * d); if (y > top) top = y; }
+  }
+  return top;
+}
+
+const ALONG = 17;           // points along the bottom of a wheel's arc, and three across its tread
+function wheelLifts(bars, wheels, x, z, h, steer = 0, out = []) {
+  const s = Math.sin(h), c = Math.cos(h);
+  for (let k = 0; k < wheels.length; k += 1) {
+    const w = wheels[k];
+    out[k] = 0;
+    if (!bars.length) continue;
+    const wx = x + w.x * c + w.z * s, wz = z - w.x * s + w.z * c;
+    const a = h + (w.front ? steer : 0);
+    const fx = Math.sin(a), fz = Math.cos(a), lx = Math.cos(a), lz = -Math.sin(a);
+    const R = w.r;
+    let near = false;
+    for (const b of bars) if (apart(wx, wz, b) < R + b.r + BUMP.tread + 0.05) { near = true; break; }
+    if (!near) continue;
+    let centre = R;
+    for (const t of [-BUMP.tread, 0, BUMP.tread]) {
+      for (let i = 0; i < ALONG; i += 1) {
+        const u = -R + (2 * R * i) / (ALONG - 1);
+        const top = heightAt(bars, wx + fx * u + lx * t, wz + fz * u + lz * t);
+        if (top <= 0) continue;
+        const y = top + Math.sqrt(Math.max(0, R * R - u * u));
+        if (y > centre) centre = y;
+      }
+    }
+    out[k] = Math.min(BUMP.most, centre - R);
+  }
+  return out;
+}
+
+function bodyOn(st, lifts, wheels, dt) {
+  if (!st.v) Object.assign(st, { rise: 0, pitch: 0, roll: 0, v: { rise: 0, pitch: 0, roll: 0 } });
+  let front = 0, back = 0, left = 0, right = 0, nf = 0, nb = 0, nl = 0, nr = 0, zf = 0, zb = 0, xl = 0, xr = 0;
+  for (let k = 0; k < wheels.length; k += 1) {
+    const w = wheels[k], y = lifts[k] || 0;
+    if (w.front) { front += y; nf += 1; zf += w.z; } else { back += y; nb += 1; zb += w.z; }
+    if (w.x >= 0) { left += y; nl += 1; xl += w.x; } else { right += y; nr += 1; xr += w.x; }
+  }
+  front = nf ? front / nf : 0; back = nb ? back / nb : 0; left = nl ? left / nl : 0; right = nr ? right / nr : 0;
+  const base = nf && nb ? Math.max(1, zf / nf - zb / nb) : 2.6, track = nl && nr ? Math.max(0.8, xl / nl - xr / nr) : 1.6;
+  const want = {
+    rise: BUMP.share * (front + back) / 2,
+    pitch: -Math.atan2(BUMP.share * (front - back), base),
+    roll: Math.atan2(BUMP.share * (left - right), track),
+  };
+  const w0 = 2 * Math.PI * BUMP.freq, z0 = BUMP.damping;
+  let left2 = Math.min(0.25, Math.max(0, dt));
+  while (left2 > 1e-6) {
+    const step = Math.min(1 / 120, left2);
+    for (const key of ['rise', 'pitch', 'roll']) {
+      const a = w0 * w0 * (want[key] - st[key]) - 2 * z0 * w0 * st.v[key];
+      st.v[key] += a * step;
+      st[key] += st.v[key] * step;
+    }
+    left2 -= step;
+  }
+  return st;
+}
+function kickBody(st, pitch = 0, roll = 0) {
+  if (!st.v) Object.assign(st, { rise: 0, pitch: 0, roll: 0, v: { rise: 0, pitch: 0, roll: 0 } });
+  st.v.pitch += pitch; st.v.roll += roll;
+}
+
+return { BUMP, bodyBars, wheelLifts, bodyOn, kickBody };
+})();
+
 __modules["client/render-crowd.js"] = (function () {
 
 const { Batch, place, linear, surface } = __modules["client/render-kit.js"];
@@ -26376,6 +28752,8 @@ const { fallTime, flightAt } = __modules["client/falls.js"];
 const { deviceKind } = __modules["client/budget.js"];
 const { ANIMATED, figureHere } = __modules["client/animated.js"];
 const { createCrowdFigures } = __modules["client/crowd-figures.js"];
+const { bonesOf } = __modules["client/own-bike-view.js"];
+const { bodyBars } = __modules["client/wheel-bumps.js"];
 
 const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
 const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
@@ -26624,6 +29002,7 @@ function createCrowd(scene) {
       standCharacter(rig);
       actor.fall = (actor.fall || 0) + (1 - (actor.fall || 0)) * Math.min(1, dt * 12);
       layCharacter(rig, actor.fall);
+      if (rig.animated) animateCharacter(rig, dt, 0, false);
       rig.blob.visible = false;
       return;
     }
@@ -26981,8 +29360,33 @@ function createCrowd(scene) {
     return other ? { x: other.x, y: 1.9, z: other.z } : null;
   }
 
+  const BONES_AT = Object.freeze({ hips: 'pelvis', head: 'head', footL: 'foot_l', footR: 'foot_r' });
+  const boneAt = new THREE.Vector3();
+  const lyingNow = [];
+  function lying(x, z, range = 40) {
+    lyingNow.length = 0;
+    const add = (rig, at) => {
+      let bones = null;
+      if (rig && rig.bones) {
+        const b = bonesOf(rig);
+        bones = {};
+        for (const [k, name] of Object.entries(BONES_AT)) { const bone = b.get(name); if (bone) { bone.getWorldPosition(boneAt); bones[k] = { x: boneAt.x, z: boneAt.z }; } }
+      }
+      for (const bar of bodyBars(at, bones)) lyingNow.push(bar);
+    };
+    for (const a of actors.values()) {
+      if (a.pose !== POSE.lie || !fallen.has(a.i) || Math.abs(a.x - x) > range || Math.abs(a.z - z) > range) continue;
+      add(a.rig, a);
+    }
+    for (const o of others.values()) {
+      if (!o.rig || !o.rig.downState || Math.abs(o.x - x) > range || Math.abs(o.z - z) > range) continue;
+      add(o.rig, { x: o.x, z: o.z, h: o.h });
+    }
+    return lyingNow;
+  }
+
   return {
-    update, anchor, stats,
+    update, anchor, stats, lying,
     bike: (riderNumber) => bikes.get(riderNumber) || null,
     bikes: () => bikes.values(),
     peerOkadas: () => peerOkadas.size,
@@ -31263,1859 +33667,6 @@ function createMusic({ player, fetchJson = null, remember = null, recalled = nul
 return { HOUSE_TRACKS, readLibrary, clockOf, createMusic };
 })();
 
-__modules["client/bike-parts.js"] = (function () {
-const BIKE_PARTS = Object.freeze({
- "black-bobber": {
-  "vertices": 129981,
-  "triangles": 136308,
-  "parts": [
-   46099,
-   17052,
-   32256,
-   40901
-  ],
-  "length": 0.9791,
-  "height": 0.5886,
-  "width": 0.5596,
-  "front": {
-   "x": 0.0014,
-   "z": 0.3565,
-   "y": 0.1262,
-   "r": 0.1272,
-   "tread": 0.1268,
-   "half": 0.0344
-  },
-  "rear": {
-   "x": 0.0044,
-   "z": -0.355,
-   "y": 0.1297,
-   "r": 0.1309,
-   "tread": 0.1295,
-   "half": 0.0516
-  },
-  "rake": 0.55,
-  "steered": 0.0,
-  "grip": [
-   0.2169,
-   0.5086,
-   0.1003
-  ],
-  "seat": [
-   0.0,
-   0.2623,
-   -0.2157
-  ],
-  "peg": [
-   0.1178,
-   0.0947,
-   -0.0957
-  ],
-  "head": [
-   0.0,
-   0.366,
-   0.2661
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.1886,
-   -0.4459
-  ],
-  "pipes": [
-   [
-    0.0454,
-    0.1381,
-    -0.4515
-   ],
-   [
-    -0.045,
-    0.1501,
-    -0.4668
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "black-bobber.bin",
-   "color4k": "black-bobber-color-4k.jpg",
-   "color2k": "black-bobber-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "black-bobber-rm-4k.webp",
-   "rm2k": "black-bobber-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "black-bobber-normal-4k.png",
-   "normal2k": "black-bobber-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "black-bobber-color-1k.jpg",
-   "normal1k": "black-bobber-normal-1k.webp",
-   "rm1k": "black-bobber-rm-1k.webp",
-   "color512": "black-bobber-color-512.jpg",
-   "normal512": "black-bobber-normal-512.webp",
-   "rm512": "black-bobber-rm-512.webp"
-  },
-  "sha256": "2643fca03c4b5f3ee5badd696613e7d1d8056af4f12e790c504d9e5c91b899a9",
-  "bytes": {
-   "lite": 6528115,
-   "full": 10968704
-  }
- },
- "black-cruiser": {
-  "vertices": 101407,
-  "triangles": 119234,
-  "parts": [
-   64397,
-   23515,
-   12454,
-   18868
-  ],
-  "length": 0.9773,
-  "height": 0.6206,
-  "width": 0.4433,
-  "front": {
-   "x": 0.0098,
-   "z": 0.3331,
-   "y": 0.1431,
-   "r": 0.1376,
-   "tread": 0.1361,
-   "half": 0.0223
-  },
-  "rear": {
-   "x": -0.0465,
-   "z": -0.3442,
-   "y": 0.1394,
-   "r": 0.1402,
-   "tread": 0.1391,
-   "half": 0.0416
-  },
-  "rake": 0.43,
-  "steered": 0.5585,
-  "grip": [
-   0.189,
-   0.5046,
-   0.1227
-  ],
-  "seat": [
-   0.0,
-   0.3513,
-   -0.1755
-  ],
-  "peg": [
-   0.1095,
-   0.1073,
-   -0.0555
-  ],
-  "head": [
-   0.0,
-   0.3614,
-   0.2425
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.2562,
-   -0.5081
-  ],
-  "pipes": [
-   [
-    0.0463,
-    0.2633,
-    -0.5012
-   ],
-   [
-    -0.0697,
-    0.2556,
-    -0.5074
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "black-cruiser.bin",
-   "color4k": "black-cruiser-color-4k.jpg",
-   "color2k": "black-cruiser-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "black-cruiser-rm-4k.webp",
-   "rm2k": "black-cruiser-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "black-cruiser-normal-4k.png",
-   "normal2k": "black-cruiser-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "black-cruiser-color-1k.jpg",
-   "normal1k": "black-cruiser-normal-1k.webp",
-   "rm1k": "black-cruiser-rm-1k.webp",
-   "color512": "black-cruiser-color-512.jpg",
-   "normal512": "black-cruiser-normal-512.webp",
-   "rm512": "black-cruiser-rm-512.webp"
-  },
-  "sha256": "7fcd26c2904bfc6d57a32c3e8c768f6834f1d8b273c221e77d248ec47cbf85ca",
-  "bytes": {
-   "lite": 5581703,
-   "full": 10251280
-  }
- },
- "black-gold-superbike": {
-  "vertices": 86800,
-  "triangles": 110221,
-  "parts": [
-   66763,
-   16978,
-   16151,
-   10329
-  ],
-  "length": 0.9788,
-  "height": 0.5409,
-  "width": 0.4328,
-  "front": {
-   "x": -0.0002,
-   "z": 0.3456,
-   "y": 0.1382,
-   "r": 0.1319,
-   "tread": 0.1316,
-   "half": 0.0266
-  },
-  "rear": {
-   "x": -0.0167,
-   "z": -0.3446,
-   "y": 0.1479,
-   "r": 0.1485,
-   "tread": 0.1478,
-   "half": 0.0537
-  },
-  "rake": 0.46,
-  "steered": 0.0,
-  "grip": [
-   0.1559,
-   0.394,
-   0.2016
-  ],
-  "seat": [
-   0.0,
-   0.374,
-   -0.118
-  ],
-  "peg": [
-   0.0995,
-   0.1037,
-   0.002
-  ],
-  "head": [
-   0.0,
-   0.3491,
-   0.4077
-  ],
-  "lampTurns": false,
-  "tail": [
-   0.0,
-   0.3023,
-   -0.4939
-  ],
-  "pipes": [
-   [
-    0.0474,
-    0.2917,
-    -0.4955
-   ],
-   [
-    -0.0477,
-    0.282,
-    -0.4916
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "black-gold-superbike.bin",
-   "color4k": "black-gold-superbike-color-4k.jpg",
-   "color2k": "black-gold-superbike-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "black-gold-superbike-rm-4k.webp",
-   "rm2k": "black-gold-superbike-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "black-gold-superbike-normal-4k.png",
-   "normal2k": "black-gold-superbike-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "black-gold-superbike-color-1k.jpg",
-   "normal1k": "black-gold-superbike-normal-1k.webp",
-   "rm1k": "black-gold-superbike-rm-1k.webp",
-   "color512": "black-gold-superbike-color-512.jpg",
-   "normal512": "black-gold-superbike-normal-512.webp",
-   "rm512": "black-gold-superbike-rm-512.webp"
-  },
-  "sha256": "1a6c98fb0e9d268c893298a159e1f00f97d01b4ee41b8beead37ac415045f6a0",
-  "bytes": {
-   "lite": 4865969,
-   "full": 8938448
-  }
- },
- "cafe-racer": {
-  "vertices": 98195,
-  "triangles": 117233,
-  "parts": [
-   67002,
-   27347,
-   11529,
-   11355
-  ],
-  "length": 0.9788,
-  "height": 0.4809,
-  "width": 0.346,
-  "front": {
-   "x": 0.0004,
-   "z": 0.337,
-   "y": 0.1479,
-   "r": 0.1467,
-   "tread": 0.1461,
-   "half": 0.0264
-  },
-  "rear": {
-   "x": 0.0002,
-   "z": -0.3448,
-   "y": 0.1484,
-   "r": 0.1484,
-   "tread": 0.1474,
-   "half": 0.0353
-  },
-  "rake": 0.43,
-  "steered": 0.0,
-  "grip": [
-   0.1539,
-   0.4017,
-   0.1813
-  ],
-  "seat": [
-   0.0,
-   0.3718,
-   -0.1454
-  ],
-  "peg": [
-   0.089,
-   0.1109,
-   -0.0254
-  ],
-  "head": [
-   0.0,
-   0.379,
-   0.3095
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.1999,
-   -0.4188
-  ],
-  "pipes": [
-   [
-    0.055,
-    0.1529,
-    -0.3639
-   ],
-   [
-    -0.0494,
-    0.1913,
-    -0.3634
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "cafe-racer.bin",
-   "color4k": "cafe-racer-color-4k.jpg",
-   "color2k": "cafe-racer-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "cafe-racer-rm-4k.webp",
-   "rm2k": "cafe-racer-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "cafe-racer-normal-4k.png",
-   "normal2k": "cafe-racer-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "cafe-racer-color-1k.jpg",
-   "normal1k": "cafe-racer-normal-1k.webp",
-   "rm1k": "cafe-racer-rm-1k.webp",
-   "color512": "cafe-racer-color-512.jpg",
-   "normal512": "cafe-racer-normal-512.webp",
-   "rm512": "cafe-racer-rm-512.webp"
-  },
-  "sha256": "590a8501b2b58161b3d19375d420342d5be1bb45e883f0402ebde64c22fdbbf4",
-  "bytes": {
-   "lite": 5326969,
-   "full": 9649903
-  }
- },
- "chopper": {
-  "vertices": 101019,
-  "triangles": 117307,
-  "parts": [
-   53508,
-   34222,
-   14060,
-   15517
-  ],
-  "length": 0.978,
-  "height": 0.5522,
-  "width": 0.5691,
-  "front": {
-   "x": 0.0002,
-   "z": 0.349,
-   "y": 0.1411,
-   "r": 0.1415,
-   "tread": 0.141,
-   "half": 0.0211
-  },
-  "rear": {
-   "x": 0.004,
-   "z": -0.344,
-   "y": 0.1294,
-   "r": 0.1295,
-   "tread": 0.1289,
-   "half": 0.0335
-  },
-  "rake": 0.63,
-  "steered": 0.0,
-  "grip": [
-   0.2342,
-   0.4801,
-   0.0772
-  ],
-  "seat": [
-   0.0,
-   0.3104,
-   -0.1736
-  ],
-  "peg": [
-   0.0855,
-   0.1059,
-   -0.0536
-  ],
-  "head": [
-   0.0,
-   0.3746,
-   0.2438
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.24,
-   -0.477
-  ],
-  "pipes": [
-   [
-    0.0605,
-    0.2663,
-    -0.456
-   ],
-   [
-    -0.0605,
-    0.2647,
-    -0.4577
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "chopper.bin",
-   "color4k": "chopper-color-4k.jpg",
-   "color2k": "chopper-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "chopper-rm-4k.webp",
-   "rm2k": "chopper-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "chopper-normal-4k.png",
-   "normal2k": "chopper-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "chopper-color-1k.jpg",
-   "normal1k": "chopper-normal-1k.webp",
-   "rm1k": "chopper-rm-1k.webp",
-   "color512": "chopper-color-512.jpg",
-   "normal512": "chopper-normal-512.webp",
-   "rm512": "chopper-rm-512.webp"
-  },
-  "sha256": "54c928c2e4a12b56249feb45ff85ced85fa80df1bdc85b8f09d225b951186b83",
-  "bytes": {
-   "lite": 5431840,
-   "full": 9738766
-  }
- },
- "chrome-concept": {
-  "vertices": 82727,
-  "triangles": 106826,
-  "parts": [
-   71908,
-   26251,
-   2912,
-   5755
-  ],
-  "length": 0.9792,
-  "height": 0.4498,
-  "width": 0.3468,
-  "front": {
-   "x": 0.0015,
-   "z": 0.3635,
-   "y": 0.1134,
-   "r": 0.1109,
-   "tread": 0.1091,
-   "half": 0.0618,
-   "still": 1.0
-  },
-  "rear": {
-   "x": 0.0019,
-   "z": -0.3623,
-   "y": 0.1292,
-   "r": 0.1296,
-   "tread": 0.1284,
-   "half": 0.0751,
-   "still": 1.0
-  },
-  "rake": 0.44,
-  "steered": 0.0,
-  "grip": [
-   0.1106,
-   0.2613,
-   0.0869
-  ],
-  "seat": [
-   0.0,
-   0.3219,
-   -0.2089
-  ],
-  "peg": [
-   0.1177,
-   0.085,
-   -0.0889
-  ],
-  "head": [
-   0.0,
-   0.2191,
-   0.4567
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.187,
-   -0.4758
-  ],
-  "pipes": [
-   [
-    0.0739,
-    0.1378,
-    -0.4873
-   ],
-   [
-    -0.0751,
-    0.1407,
-    -0.485
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "chrome-concept.bin",
-   "color4k": "chrome-concept-color-4k.jpg",
-   "color2k": "chrome-concept-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "chrome-concept-rm-4k.webp",
-   "rm2k": "chrome-concept-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "chrome-concept-normal-4k.png",
-   "normal2k": "chrome-concept-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "chrome-concept-color-1k.jpg",
-   "normal1k": "chrome-concept-normal-1k.webp",
-   "rm1k": "chrome-concept-rm-1k.webp",
-   "color512": "chrome-concept-color-512.jpg",
-   "normal512": "chrome-concept-normal-512.webp",
-   "rm512": "chrome-concept-rm-512.webp"
-  },
-  "sha256": "59b76eddeff29be477b1608c7d576fc578545a8cffe3625d8f164617a7e8e70e",
-  "bytes": {
-   "lite": 4904874,
-   "full": 10481085
-  }
- },
- "civil-war-tourer": {
-  "vertices": 14847,
-  "triangles": 11966,
-  "parts": [
-   7556,
-   2418,
-   1084,
-   908
-  ],
-  "length": 0.9995,
-  "height": 0.6577,
-  "width": 0.4692,
-  "front": {
-   "x": 0.0,
-   "z": 0.3381,
-   "y": 0.1438,
-   "r": 0.1424,
-   "tread": 0.1401,
-   "half": 0.0315
-  },
-  "rear": {
-   "x": 0.0,
-   "z": -0.3388,
-   "y": 0.144,
-   "r": 0.1451,
-   "tread": 0.1413,
-   "half": 0.0432
-  },
-  "rake": 0.37,
-  "steered": 0.0,
-  "grip": [
-   0.2085,
-   0.5049,
-   0.1915
-  ],
-  "seat": [
-   0.0,
-   0.2925,
-   -0.0887
-  ],
-  "peg": [
-   0.0983,
-   0.1078,
-   0.0313
-  ],
-  "head": [
-   0.0,
-   0.3843,
-   0.399
-  ],
-  "lampTurns": false,
-  "tail": [
-   0.0,
-   0.3057,
-   -0.5116
-  ],
-  "pipes": [
-   [
-    0.1333,
-    0.3081,
-    -0.5101
-   ],
-   [
-    -0.1333,
-    0.3081,
-    -0.5101
-   ]
-  ],
-  "metallic": 0,
-  "roughness": 0.8999999761581421,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "civil-war-tourer.bin",
-   "color4k": "civil-war-tourer-color-4k.jpg",
-   "color2k": "civil-war-tourer-color-2k.jpg",
-   "colorSize": 8192,
-   "color1k": "civil-war-tourer-color-1k.jpg",
-   "color512": "civil-war-tourer-color-512.jpg"
-  },
-  "sha256": "9ca8d0b0b80874296207cb997c5b0ee20c4175861d4e96ba5e8553de83d88b68",
-  "bytes": {
-   "lite": 1305222,
-   "full": 2747790
-  }
- },
- "gold-roadster": {
-  "vertices": 78392,
-  "triangles": 98857,
-  "parts": [
-   46717,
-   22300,
-   14793,
-   15047
-  ],
-  "length": 0.9759,
-  "height": 0.5014,
-  "width": 0.4322,
-  "front": {
-   "x": -0.0,
-   "z": 0.3557,
-   "y": 0.13,
-   "r": 0.1285,
-   "tread": 0.1274,
-   "half": 0.0325
-  },
-  "rear": {
-   "x": -0.0002,
-   "z": -0.3512,
-   "y": 0.1309,
-   "r": 0.1316,
-   "tread": 0.1307,
-   "half": 0.0353
-  },
-  "rake": 0.54,
-  "steered": 0.0,
-  "grip": [
-   0.1741,
-   0.4383,
-   0.1276
-  ],
-  "seat": [
-   0.0,
-   0.3199,
-   -0.1466
-  ],
-  "peg": [
-   0.1061,
-   0.0975,
-   -0.0266
-  ],
-  "head": [
-   0.0,
-   0.3445,
-   0.2984
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.2189,
-   -0.4836
-  ],
-  "pipes": [
-   [
-    0.0433,
-    0.2252,
-    -0.4844
-   ],
-   [
-    -0.0431,
-    0.2252,
-    -0.488
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "gold-roadster.bin",
-   "color4k": "gold-roadster-color-4k.jpg",
-   "color2k": "gold-roadster-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "gold-roadster-rm-4k.webp",
-   "rm2k": "gold-roadster-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "gold-roadster-normal-4k.png",
-   "normal2k": "gold-roadster-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "gold-roadster-color-1k.jpg",
-   "normal1k": "gold-roadster-normal-1k.webp",
-   "rm1k": "gold-roadster-rm-1k.webp",
-   "color512": "gold-roadster-color-512.jpg",
-   "normal512": "gold-roadster-normal-512.webp",
-   "rm512": "gold-roadster-rm-512.webp"
-  },
-  "sha256": "a24fb606cb9c2a1f3ddac0133633d4ba71f2ccbe3939b74168304ed8f844b2ca",
-  "bytes": {
-   "lite": 4674331,
-   "full": 9860304
-  }
- },
- "gold-tourer": {
-  "vertices": 90329,
-  "triangles": 115281,
-  "parts": [
-   56833,
-   37181,
-   13009,
-   8258
-  ],
-  "length": 0.9785,
-  "height": 0.5384,
-  "width": 0.3629,
-  "front": {
-   "x": -0.0006,
-   "z": 0.3257,
-   "y": 0.1144,
-   "r": 0.1139,
-   "tread": 0.1135,
-   "half": 0.0219
-  },
-  "rear": {
-   "x": -0.0007,
-   "z": -0.323,
-   "y": 0.1129,
-   "r": 0.1129,
-   "tread": 0.1123,
-   "half": 0.0321,
-   "still": 1.0
-  },
-  "rake": 0.45,
-  "steered": 0.0,
-  "grip": [
-   0.1426,
-   0.4146,
-   0.0819
-  ],
-  "seat": [
-   0.0,
-   0.2804,
-   -0.147
-  ],
-  "peg": [
-   0.0792,
-   0.0858,
-   -0.027
-  ],
-  "head": [
-   0.0,
-   0.3423,
-   0.2916
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.1588,
-   -0.4944
-  ],
-  "pipes": [
-   [
-    0.0798,
-    0.0993,
-    -0.4987
-   ],
-   [
-    -0.0494,
-    0.1191,
-    -0.4956
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "gold-tourer.bin",
-   "color4k": "gold-tourer-color-4k.jpg",
-   "color2k": "gold-tourer-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "gold-tourer-rm-4k.webp",
-   "rm2k": "gold-tourer-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "gold-tourer-normal-4k.png",
-   "normal2k": "gold-tourer-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "gold-tourer-color-1k.jpg",
-   "normal1k": "gold-tourer-normal-1k.webp",
-   "rm1k": "gold-tourer-rm-1k.webp",
-   "color512": "gold-tourer-color-512.jpg",
-   "normal512": "gold-tourer-normal-512.webp",
-   "rm512": "gold-tourer-rm-512.webp"
-  },
-  "sha256": "2993d194a76554d44480be76951bf3944e7c42487d8b50622c737f092e8ee657",
-  "bytes": {
-   "lite": 5441533,
-   "full": 11786686
-  }
- },
- "midnight-cruiser": {
-  "vertices": 129982,
-  "triangles": 136416,
-  "parts": [
-   46361,
-   16749,
-   32506,
-   40800
-  ],
-  "length": 0.9791,
-  "height": 0.5886,
-  "width": 0.5596,
-  "front": {
-   "x": 0.0014,
-   "z": 0.3566,
-   "y": 0.1266,
-   "r": 0.1275,
-   "tread": 0.1273,
-   "half": 0.0344
-  },
-  "rear": {
-   "x": 0.0044,
-   "z": -0.355,
-   "y": 0.1292,
-   "r": 0.1305,
-   "tread": 0.1293,
-   "half": 0.0516
-  },
-  "rake": 0.55,
-  "steered": 0.0,
-  "grip": [
-   0.2169,
-   0.5086,
-   0.1003
-  ],
-  "seat": [
-   0.0,
-   0.2623,
-   -0.2157
-  ],
-  "peg": [
-   0.1179,
-   0.095,
-   -0.0957
-  ],
-  "head": [
-   0.0,
-   0.366,
-   0.2661
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.1886,
-   -0.4459
-  ],
-  "pipes": [
-   [
-    0.0454,
-    0.1381,
-    -0.4515
-   ],
-   [
-    -0.045,
-    0.1501,
-    -0.4668
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "midnight-cruiser.bin",
-   "color4k": "midnight-cruiser-color-4k.jpg",
-   "color2k": "midnight-cruiser-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "midnight-cruiser-rm-4k.webp",
-   "rm2k": "midnight-cruiser-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "midnight-cruiser-normal-4k.png",
-   "normal2k": "midnight-cruiser-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "midnight-cruiser-color-1k.jpg",
-   "normal1k": "midnight-cruiser-normal-1k.webp",
-   "rm1k": "midnight-cruiser-rm-1k.webp",
-   "color512": "midnight-cruiser-color-512.jpg",
-   "normal512": "midnight-cruiser-normal-512.webp",
-   "rm512": "midnight-cruiser-rm-512.webp"
-  },
-  "sha256": "5ca2593b79c7c3d1de3529c74f38d559b3492e4c0f9867a759422eb5dc30c3ce",
-  "bytes": {
-   "lite": 6529449,
-   "full": 10969836
-  }
- },
- "olive-cruiser": {
-  "vertices": 94722,
-  "triangles": 113906,
-  "parts": [
-   58183,
-   30285,
-   13967,
-   11471
-  ],
-  "length": 0.977,
-  "height": 0.5259,
-  "width": 0.3373,
-  "front": {
-   "x": 0.0002,
-   "z": 0.3571,
-   "y": 0.1378,
-   "r": 0.1181,
-   "tread": 0.1175,
-   "half": 0.0238
-  },
-  "rear": {
-   "x": 0.0005,
-   "z": -0.356,
-   "y": 0.1274,
-   "r": 0.1274,
-   "tread": 0.126,
-   "half": 0.0314
-  },
-  "rake": 0.64,
-  "steered": 0.0,
-  "grip": [
-   0.1208,
-   0.4454,
-   0.128
-  ],
-  "seat": [
-   0.0,
-   0.3116,
-   -0.1478
-  ],
-  "peg": [
-   0.1355,
-   0.1034,
-   -0.0278
-  ],
-  "head": [
-   0.0,
-   0.3232,
-   0.2523
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.2295,
-   -0.4877
-  ],
-  "pipes": [
-   [
-    0.0453,
-    0.2641,
-    -0.4004
-   ],
-   [
-    -0.0451,
-    0.263,
-    -0.4
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "olive-cruiser.bin",
-   "color4k": "olive-cruiser-color-4k.jpg",
-   "color2k": "olive-cruiser-color-2k.jpg",
-   "colorSize": 4096,
-   "rm4k": "olive-cruiser-rm-4k.webp",
-   "rm2k": "olive-cruiser-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "olive-cruiser-normal-4k.png",
-   "normal2k": "olive-cruiser-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "olive-cruiser-color-1k.jpg",
-   "normal1k": "olive-cruiser-normal-1k.webp",
-   "rm1k": "olive-cruiser-rm-1k.webp",
-   "color512": "olive-cruiser-color-512.jpg",
-   "normal512": "olive-cruiser-normal-512.webp",
-   "rm512": "olive-cruiser-rm-512.webp"
-  },
-  "sha256": "8590db45f7383b0dbb879385d3cfc6549c2bf2affa3972519d01d336a947cde2",
-  "bytes": {
-   "lite": 5215702,
-   "full": 10853737
-  }
- },
- "power-cruiser": {
-  "vertices": 98495,
-  "triangles": 114341,
-  "parts": [
-   51134,
-   22921,
-   20544,
-   19742
-  ],
-  "length": 0.9788,
-  "height": 0.4974,
-  "width": 0.3785,
-  "front": {
-   "x": 0.0005,
-   "z": 0.3499,
-   "y": 0.1505,
-   "r": 0.1471,
-   "tread": 0.1464,
-   "half": 0.0243
-  },
-  "rear": {
-   "x": 0.0002,
-   "z": -0.3502,
-   "y": 0.1286,
-   "r": 0.1313,
-   "tread": 0.1303,
-   "half": 0.0529
-  },
-  "rake": 0.77,
-  "steered": 0.0,
-  "grip": [
-   0.1503,
-   0.4211,
-   0.0113
-  ],
-  "seat": [
-   0.0,
-   0.2744,
-   -0.2165
-  ],
-  "peg": [
-   0.097,
-   0.1129,
-   -0.0965
-  ],
-  "head": [
-   0.0,
-   0.3259,
-   0.2008
-  ],
-  "lampTurns": true,
-  "tail": [
-   0.0,
-   0.2101,
-   -0.4284
-  ],
-  "pipes": [
-   [
-    0.0845,
-    0.1242,
-    -0.4788
-   ],
-   [
-    -0.0492,
-    0.1203,
-    -0.4622
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "power-cruiser.bin",
-   "color4k": "power-cruiser-color-4k.jpg",
-   "color2k": "power-cruiser-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "power-cruiser-rm-4k.webp",
-   "rm2k": "power-cruiser-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "power-cruiser-normal-4k.png",
-   "normal2k": "power-cruiser-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "power-cruiser-color-1k.jpg",
-   "normal1k": "power-cruiser-normal-1k.webp",
-   "rm1k": "power-cruiser-rm-1k.webp",
-   "color512": "power-cruiser-color-512.jpg",
-   "normal512": "power-cruiser-normal-512.webp",
-   "rm512": "power-cruiser-rm-512.webp"
-  },
-  "sha256": "8cc9514f139acff15b6dc6c3c3aa227f79e293b226a6cf6f8d2826300a8065da",
-  "bytes": {
-   "lite": 5366231,
-   "full": 10456679
-  }
- },
- "purple-sport": {
-  "vertices": 92605,
-  "triangles": 113977,
-  "parts": [
-   70685,
-   30350,
-   7808,
-   5134
-  ],
-  "length": 0.9786,
-  "height": 0.5555,
-  "width": 0.4389,
-  "front": {
-   "x": -0.0002,
-   "z": 0.3286,
-   "y": 0.1423,
-   "r": 0.1429,
-   "tread": 0.1424,
-   "half": 0.0271
-  },
-  "rear": {
-   "x": -0.0001,
-   "z": -0.322,
-   "y": 0.1411,
-   "r": 0.1412,
-   "tread": 0.1404,
-   "half": 0.0274
-  },
-  "rake": 0.42,
-  "steered": 0.0,
-  "grip": [
-   0.1731,
-   0.4321,
-   0.1263
-  ],
-  "seat": [
-   0.0,
-   0.3769,
-   -0.1625
-  ],
-  "peg": [
-   0.0622,
-   0.1067,
-   -0.0425
-  ],
-  "head": [
-   0.0,
-   0.3953,
-   0.3576
-  ],
-  "lampTurns": false,
-  "tail": [
-   0.0,
-   0.2711,
-   -0.5032
-  ],
-  "pipes": [
-   [
-    0.0435,
-    0.2745,
-    -0.5025
-   ],
-   [
-    -0.0443,
-    0.2745,
-    -0.5003
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "purple-sport.bin",
-   "color4k": "purple-sport-color-4k.jpg",
-   "color2k": "purple-sport-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "purple-sport-rm-4k.webp",
-   "rm2k": "purple-sport-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "purple-sport-normal-4k.png",
-   "normal2k": "purple-sport-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "purple-sport-color-1k.jpg",
-   "normal1k": "purple-sport-normal-1k.webp",
-   "rm1k": "purple-sport-rm-1k.webp",
-   "color512": "purple-sport-color-512.jpg",
-   "normal512": "purple-sport-normal-512.webp",
-   "rm512": "purple-sport-rm-512.webp"
-  },
-  "sha256": "c1431c32254cf317c7569e39c826b44804fba9b9854d996879d82a6ef096b7ac",
-  "bytes": {
-   "lite": 5232735,
-   "full": 9917151
-  }
- },
- "red-superbike": {
-  "vertices": 96953,
-  "triangles": 118452,
-  "parts": [
-   57153,
-   27763,
-   17838,
-   15698
-  ],
-  "length": 0.9787,
-  "height": 0.5475,
-  "width": 0.4319,
-  "front": {
-   "x": 0.0004,
-   "z": 0.3399,
-   "y": 0.1448,
-   "r": 0.1422,
-   "tread": 0.1414,
-   "half": 0.0271
-  },
-  "rear": {
-   "x": -0.0001,
-   "z": -0.3378,
-   "y": 0.1561,
-   "r": 0.156,
-   "tread": 0.1554,
-   "half": 0.0508
-  },
-  "rake": 0.41,
-  "steered": 0.0,
-  "grip": [
-   0.1486,
-   0.4036,
-   0.2132
-  ],
-  "seat": [
-   0.0,
-   0.3899,
-   -0.1298
-  ],
-  "peg": [
-   0.1029,
-   0.1086,
-   -0.0098
-  ],
-  "head": [
-   0.0,
-   0.3699,
-   0.3938
-  ],
-  "lampTurns": false,
-  "tail": [
-   0.0,
-   0.25,
-   -0.4311
-  ],
-  "pipes": [
-   [
-    0.0478,
-    0.1626,
-    -0.452
-   ],
-   [
-    -0.0476,
-    0.1566,
-    -0.459
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "red-superbike.bin",
-   "color4k": "red-superbike-color-4k.jpg",
-   "color2k": "red-superbike-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "red-superbike-rm-4k.webp",
-   "rm2k": "red-superbike-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "red-superbike-normal-4k.png",
-   "normal2k": "red-superbike-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "red-superbike-color-1k.jpg",
-   "normal1k": "red-superbike-normal-1k.webp",
-   "rm1k": "red-superbike-rm-1k.webp",
-   "color512": "red-superbike-color-512.jpg",
-   "normal512": "red-superbike-normal-512.webp",
-   "rm512": "red-superbike-rm-512.webp"
-  },
-  "sha256": "10373b3b4488bbea9410501f6e28c1b1ed182c4e104e14d1bb16df5818f19f35",
-  "bytes": {
-   "lite": 5346484,
-   "full": 10016779
-  }
- },
- "streetfighter": {
-  "vertices": 98583,
-  "triangles": 117573,
-  "parts": [
-   59267,
-   27431,
-   15110,
-   15765
-  ],
-  "length": 0.9785,
-  "height": 0.5348,
-  "width": 0.2847,
-  "front": {
-   "x": -0.0004,
-   "z": 0.3455,
-   "y": 0.1444,
-   "r": 0.1432,
-   "tread": 0.1424,
-   "half": 0.0234
-  },
-  "rear": {
-   "x": -0.0009,
-   "z": -0.3404,
-   "y": 0.1477,
-   "r": 0.1478,
-   "tread": 0.1465,
-   "half": 0.0336
-  },
-  "rake": 0.47,
-  "steered": 0.0,
-  "grip": [
-   0.1228,
-   0.4459,
-   0.1756
-  ],
-  "seat": [
-   0.0,
-   0.3708,
-   -0.1176
-  ],
-  "peg": [
-   0.0624,
-   0.1083,
-   0.0024
-  ],
-  "head": [
-   0.0,
-   0.3888,
-   0.323
-  ],
-  "lampTurns": false,
-  "tail": [
-   0.0,
-   0.2973,
-   -0.4694
-  ],
-  "pipes": [
-   [
-    0.0467,
-    0.2115,
-    -0.3662
-   ],
-   [
-    -0.0469,
-    0.1471,
-    -0.3504
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "streetfighter.bin",
-   "color4k": "streetfighter-color-4k.jpg",
-   "color2k": "streetfighter-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "streetfighter-rm-4k.webp",
-   "rm2k": "streetfighter-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "streetfighter-normal-4k.png",
-   "normal2k": "streetfighter-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "streetfighter-color-1k.jpg",
-   "normal1k": "streetfighter-normal-1k.webp",
-   "rm1k": "streetfighter-rm-1k.webp",
-   "color512": "streetfighter-color-512.jpg",
-   "normal512": "streetfighter-normal-512.webp",
-   "rm512": "streetfighter-rm-512.webp"
-  },
-  "sha256": "efce25fb860777b584c6584326a86919d79a0a444e4bb20f995f80829161bc4e",
-  "bytes": {
-   "lite": 5475565,
-   "full": 10316159
-  }
- },
- "white-sport": {
-  "vertices": 99150,
-  "triangles": 119052,
-  "parts": [
-   74437,
-   20821,
-   15068,
-   8726
-  ],
-  "length": 0.9789,
-  "height": 0.5559,
-  "width": 0.3623,
-  "front": {
-   "x": -0.0112,
-   "z": 0.3315,
-   "y": 0.1412,
-   "r": 0.1236,
-   "tread": 0.1229,
-   "half": 0.0257
-  },
-  "rear": {
-   "x": -0.0005,
-   "z": -0.3312,
-   "y": 0.1271,
-   "r": 0.1274,
-   "tread": 0.1269,
-   "half": 0.0262
-  },
-  "rake": 0.5,
-  "steered": 0.1004,
-  "grip": [
-   0.1208,
-   0.3653,
-   0.1297
-  ],
-  "seat": [
-   0.0,
-   0.3471,
-   -0.1812
-  ],
-  "peg": [
-   0.0832,
-   0.1059,
-   -0.0612
-  ],
-  "head": [
-   0.0,
-   0.3459,
-   0.3385
-  ],
-  "lampTurns": false,
-  "tail": [
-   0.0,
-   0.2411,
-   -0.5192
-  ],
-  "pipes": [
-   [
-    0.0452,
-    0.2385,
-    -0.5237
-   ],
-   [
-    -0.0472,
-    0.2397,
-    -0.5217
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "white-sport.bin",
-   "color4k": "white-sport-color-4k.jpg",
-   "color2k": "white-sport-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "white-sport-rm-4k.webp",
-   "rm2k": "white-sport-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "white-sport-normal-4k.png",
-   "normal2k": "white-sport-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "white-sport-color-1k.jpg",
-   "normal1k": "white-sport-normal-1k.webp",
-   "rm1k": "white-sport-rm-1k.webp",
-   "color512": "white-sport-color-512.jpg",
-   "normal512": "white-sport-normal-512.webp",
-   "rm512": "white-sport-rm-512.webp"
-  },
-  "sha256": "fa894ae88ae88022c4a804200150b939fdb8079f01024e962611b86ba918fd46",
-  "bytes": {
-   "lite": 5296775,
-   "full": 9317256
-  }
- },
- "yellow-adventure": {
-  "vertices": 105954,
-  "triangles": 120794,
-  "parts": [
-   75366,
-   33119,
-   6719,
-   5590
-  ],
-  "length": 0.9758,
-  "height": 0.6345,
-  "width": 0.5093,
-  "front": {
-   "x": 0.0008,
-   "z": 0.3406,
-   "y": 0.1314,
-   "r": 0.1306,
-   "tread": 0.1304,
-   "half": 0.0205
-  },
-  "rear": {
-   "x": 0.0013,
-   "z": -0.3475,
-   "y": 0.1306,
-   "r": 0.1307,
-   "tread": 0.13,
-   "half": 0.0235
-  },
-  "rake": 0.42,
-  "steered": 0.0,
-  "grip": [
-   0.1894,
-   0.5023,
-   0.1467
-  ],
-  "seat": [
-   0.0,
-   0.3432,
-   -0.1154
-  ],
-  "peg": [
-   0.0721,
-   0.0985,
-   0.0046
-  ],
-  "head": [
-   0.0,
-   0.3548,
-   0.3538
-  ],
-  "lampTurns": false,
-  "tail": [
-   0.0,
-   0.2937,
-   -0.4864
-  ],
-  "pipes": [
-   [
-    0.0442,
-    0.182,
-    -0.4673
-   ],
-   [
-    -0.0438,
-    0.1801,
-    -0.4604
-   ]
-  ],
-  "metallic": 1.0,
-  "roughness": 1.0,
-  "normalScale": 1.0,
-  "files": {
-   "mesh": "yellow-adventure.bin",
-   "color4k": "yellow-adventure-color-4k.jpg",
-   "color2k": "yellow-adventure-color-2k.jpg",
-   "colorSize": 8192,
-   "rm4k": "yellow-adventure-rm-4k.webp",
-   "rm2k": "yellow-adventure-rm-2k.webp",
-   "rmSize": 4096,
-   "normal4k": "yellow-adventure-normal-4k.png",
-   "normal2k": "yellow-adventure-normal-2k.webp",
-   "normalSize": 4096,
-   "color1k": "yellow-adventure-color-1k.jpg",
-   "normal1k": "yellow-adventure-normal-1k.webp",
-   "rm1k": "yellow-adventure-rm-1k.webp",
-   "color512": "yellow-adventure-color-512.jpg",
-   "normal512": "yellow-adventure-normal-512.webp",
-   "rm512": "yellow-adventure-rm-512.webp"
-  },
-  "sha256": "93bda61452d793600cbdfac925c0c2d3510544750ef0860cddce1f8771dc4d3a",
-  "bytes": {
-   "lite": 5698411,
-   "full": 10177828
-  }
- }
-});
-
-return { BIKE_PARTS };
-})();
-
-__modules["client/bike-model.js"] = (function () {
-const { softPatch } = __modules["client/soft-patch.js"];
-const { BIKE_PARTS } = __modules["client/bike-parts.js"];
-const { surface } = __modules["client/render-kit.js"];
-const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
-const { deviceKind, PICTURES } = __modules["client/budget.js"];
-
-const cache = new Map();          // one geometry and material a bike and set of pictures, however many are drawn (most recently used last)
-const users = new Map();          // how many of each are in the scene now
-const KEEP = deviceKind() === 'lite' ? 1 : 2;      // bikes kept ready when none of them is drawn
-
-const shapes = new Map();
-function shapeOf(id, base, spec, priority) {
-  let s = shapes.get(id);
-  if (!s) {
-    s = { made: buildShape(base, spec, priority), holders: 0 };
-    shapes.set(id, s);
-    const mine = s;
-    s.made.catch(() => { if (shapes.get(id) === mine) shapes.delete(id); });
-  }
-  s.holders += 1;
-  return s.made;
-}
-function letShapeGo(id) {
-  const s = shapes.get(id);
-  if (!s || --s.holders > 0) return;
-  shapes.delete(id);
-  s.made.then((geometries) => { for (const g of geometries) g.dispose(); }, () => {});
-}
-async function buildShape(base, spec, priority) {
-  const response = await fetchKept(base + spec.files.mesh, priority ? { priority } : undefined);
-  if (!response.ok) throw new Error(`${spec.files.mesh}: ${response.status}`);
-  const buf = await response.arrayBuffer();
-  const n = spec.vertices;
-  let at = 0;
-  const position = new Float32Array(buf, at, n * 3); at += n * 12;
-  const normal = new Int16Array(buf, at, n * 3); at += n * 6 + (n % 2) * 2;
-  const uv = new Float32Array(buf, at, n * 2); at += n * 8;
-  const index = new Uint32Array(buf, at, spec.triangles * 3);
-  const attrs = { position: new THREE.BufferAttribute(position, 3), normal: new THREE.BufferAttribute(normal, 3, true), uv: new THREE.BufferAttribute(uv, 2) };
-  const geometries = [];
-  let first = 0;
-  for (const count of spec.parts) {
-    const g = new THREE.BufferGeometry();
-    for (const [name, a] of Object.entries(attrs)) g.setAttribute(name, a);
-    const own = index.subarray(first * 3, (first + count) * 3);
-    g.setIndex(new THREE.BufferAttribute(own, 1));
-    bound(g, own, position);
-    geometries.push(g);
-    first += count;
-  }
-  return geometries;
-}
-function bound(g, index, position) {
-  const lo = [Infinity, Infinity, Infinity], hi = [-Infinity, -Infinity, -Infinity];
-  for (let i = 0; i < index.length; i += 1) {
-    const j = index[i] * 3;
-    for (let a = 0; a < 3; a += 1) { const v = position[j + a]; if (v < lo[a]) lo[a] = v; if (v > hi[a]) hi[a] = v; }
-  }
-  if (!index.length) { g.computeBoundingBox(); g.computeBoundingSphere(); return; }
-  g.boundingBox = new THREE.Box3(new THREE.Vector3(lo[0], lo[1], lo[2]), new THREE.Vector3(hi[0], hi[1], hi[2]));
-  const c = g.boundingBox.getCenter(new THREE.Vector3());
-  let r2 = 0;
-  for (let i = 0; i < index.length; i += 1) { const j = index[i] * 3; const dx = position[j] - c.x, dy = position[j + 1] - c.y, dz = position[j + 2] - c.z; const d = dx * dx + dy * dy + dz * dz; if (d > r2) r2 = d; }
-  g.boundingSphere = new THREE.Sphere(c, Math.sqrt(r2));
-}
-const letPicturesGo = (maps) => { for (const t of maps) if (t) { t.dispose(); if (t.image && typeof t.image.close === 'function') t.image.close(); } };
-
-function free({ id, geometries, material, shared }) {
-  if (shared) letShapeGo(id); else for (const g of geometries) g.dispose();
-  letPicturesGo([material.map, material.normalMap, material.roughnessMap]);
-  material.dispose();
-}
-function trim(keep = KEEP) {
-  let n = 0;
-  for (const [key, made] of cache) {
-    if (cache.size <= keep) break;
-    if (users.get(key)) continue;
-    cache.delete(key);
-    made.then(free, () => {});
-    n += 1;
-  }
-  return n;
-}
-const trimBikes = () => trim(0);
-
-function picture(url, colour, own, priority) {
-  const map = new THREE.Texture();
-  map.flipY = false; map.anisotropy = 4;
-  if (colour) map.colorSpace = THREE.SRGBColorSpace;
-  const ready = fetchKept(url, priority ? { priority } : undefined).then((r) => { if (!r.ok) throw new Error(`${url}: ${r.status}`); return r.blob(); })
-    .then((blob) => (typeof createImageBitmap === 'function' ? createImageBitmap(blob).catch(() => null) : null).then((bmp) => bmp || new Promise((resolve, reject) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => reject(new Error(`${url} could not be read`)); img.src = URL.createObjectURL(blob); })))
-    .then((image) => { map.image = image; map.needsUpdate = true; if (!own) letGoOnceDrawn(map, (size) => fetchKept(url).then((r) => r.blob()).then((blob) => decodeAtMost(blob, size))); return map; });
-  return { map, ready };
-}
-const SETS = Object.freeze({ '512': ['512', '512', '512'], '1k': ['1k', '1k', '1k'], '2k': ['2k', '2k', '2k'], '4k': ['4k', '2k', '2k'] });
-const LARGER = ['512', '1k', '2k', '4k'];
-const tierOf = (lite, tier) => tier || PICTURES[lite ? 'lite' : 'full'].vehicle;
-
-async function partsOf(id, { base, tier, own = false, priority }) {
-  const key = `${id}:${tier}`;
-  if (!own && cache.has(key)) return cache.get(key);
-  const spec = BIKE_PARTS[id];
-  if (!spec) throw new Error(`There is no motorcycle ${id}.`);
-  const made = (async () => {
-    const f = spec.files, sizes = SETS[tier] || SETS['2k'];
-    const file = (name, size) => { for (const k of LARGER.slice(LARGER.indexOf(size))) if (f[`${name}${k}`]) return f[`${name}${k}`]; return null; };
-    const textures = [['color', true], ['normal', false], ['rm', false]].map(([name, colour], k) => (file(name, sizes[k]) ? picture(base + file(name, sizes[k]), colour, own, priority) : null));
-    let geometries;
-    try { geometries = own ? await buildShape(base, spec, priority) : await shapeOf(id, base, spec, priority); } catch (error) { textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {})); throw error; }
-    try {
-      const [color, normalMap, rm] = await Promise.all(textures.map((t) => (t ? t.ready : null)));
-      const material = surface({ map: color, normalMap, normalScale: new THREE.Vector2(spec.normalScale, -spec.normalScale), roughnessMap: rm, metalnessMap: rm, roughness: spec.roughness, metalness: spec.metallic, envMapIntensity: 1.1 });
-      return { id, spec, geometries, material, shared: !own };
-    } catch (error) {
-      if (own) for (const g of geometries) g.dispose(); else letShapeGo(id);
-      textures.forEach((t) => t && t.ready.then((m) => letPicturesGo([m]), () => {}));
-      throw error;
-    }
-  })();
-  if (own) return made;
-  cache.set(key, made);
-  made.catch(() => cache.delete(key));
-  return made;
-}
-
-const LAMP = {};
-function lampParts() {
-  if (LAMP.disc) return LAMP;
-  LAMP.disc = new THREE.CircleGeometry(1, 20);
-  LAMP.glow = new THREE.PlaneGeometry(1, 1);
-  const g = document.createElement('canvas'); g.width = g.height = 64;
-  const c = g.getContext('2d'); const r = c.createRadialGradient(32, 32, 0, 32, 32, 32); r.addColorStop(0, 'rgba(255,255,255,1)'); r.addColorStop(0.35, 'rgba(255,255,255,0.45)'); r.addColorStop(1, 'rgba(255,255,255,0)'); c.fillStyle = r; c.fillRect(0, 0, 64, 64);
-  LAMP.glowMap = new THREE.CanvasTexture(g);
-  LAMP.flame = new THREE.ConeGeometry(1, 1, 10, 1, true); LAMP.flame.translate(0, 0.5, 0); LAMP.flame.rotateX(-Math.PI / 2);   // wide at the pipe (z 0), its tip back along -z
-  const f = document.createElement('canvas'); f.width = 8; f.height = 64;
-  const fc = f.getContext('2d'); const lg = fc.createLinearGradient(0, 0, 0, 64); lg.addColorStop(0, 'rgba(255,250,220,1)'); lg.addColorStop(0.35, 'rgba(255,150,40,0.9)'); lg.addColorStop(0.8, 'rgba(90,120,255,0.45)'); lg.addColorStop(1, 'rgba(60,80,255,0)'); fc.fillStyle = lg; fc.fillRect(0, 0, 8, 64);
-  LAMP.flameMap = new THREE.CanvasTexture(f);
-  return LAMP;
-}
-function lampsOf(spec, frame, bars) {
-  const P = lampParts();
-  const made = [];
-  const put = (mesh, on = frame) => { on.add(mesh); made.push(mesh); return mesh; };
-  const basic = (color, extra = {}) => new THREE.MeshBasicMaterial({ color, toneMapped: false, transparent: true, depthWrite: false, ...extra });
-  const glowMat = (color) => basic(color, { map: P.glowMap, blending: THREE.AdditiveBlending, opacity: 0 });
-  const H = spec.head || [0, spec.height * 0.6, spec.length * 0.42], T = spec.tail || [0, spec.height * 0.45, -spec.length * 0.48];
-  const [on, at] = spec.lampTurns && bars ? [bars.group, bars.at] : [frame, [0, 0, 0]];
-  const head = put(new THREE.Mesh(P.disc, basic(0xfffbe8, { opacity: 0.85 })), on);
-  head.position.set(H[0] - at[0], H[1] - at[1], H[2] + 0.004 - at[2]); head.scale.setScalar(0.03); head.visible = false;
-  const headGlow = put(new THREE.Mesh(P.glow, glowMat(0xfff2cc)), on); headGlow.position.set(H[0] - at[0], H[1] - at[1], H[2] + 0.01 - at[2]); headGlow.scale.setScalar(0.16); headGlow.visible = false;
-  const tail = put(new THREE.Mesh(P.disc, basic(0x3a0806, { opacity: 0.9 })));
-  tail.position.set(T[0], T[1], T[2] - 0.004); tail.rotation.y = Math.PI; tail.scale.setScalar(0.022); tail.visible = false;
-  const tailGlow = put(new THREE.Mesh(P.glow, glowMat(0xff2010))); tailGlow.position.set(T[0], T[1], T[2] - 0.01); tailGlow.rotation.y = Math.PI; tailGlow.scale.setScalar(0.1); tailGlow.visible = false;
-  const flames = (spec.pipes || []).map((p) => { const m = put(new THREE.Mesh(P.flame, basic(0xffffff, { map: P.flameMap, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, opacity: 0.95 }))); m.position.set(p[0], p[1], p[2] - 0.003); m.scale.set(0.022, 0.022, 0.06); m.visible = false; return m; });          // (made at its unlit size: a cone a whole bike long, even unseen, made the bike's measured size twice what it is)
-  const st = { head: -1, brake: -1, tail: -1 };
-  return {
-    head,
-    set({ head: on = 0, tail: tl = 0, brake = 0, flame = 0, t = 0 } = {}) {
-      if (st.head !== on) { st.head = on; head.visible = on > 0; head.material.opacity = 0.85 * Math.min(1, on * 1.5); headGlow.material.opacity = 0.9 * on; headGlow.visible = on > 0; }
-      const red = brake ? 1 : tl * 0.45;
-      if (st.tail !== red) { st.tail = red; tail.visible = red > 0; tail.material.color.setRGB(0.23 + 0.77 * Math.min(1, red * 1.4), 0.03 + 0.05 * red, 0.02); tailGlow.material.opacity = red; tailGlow.visible = red > 0; tailGlow.scale.setScalar(brake ? 0.14 : 0.1); }
-      for (let i = 0; i < flames.length; i += 1) {
-        const m = flames[i];
-        m.visible = flame > 0.02;
-        if (!m.visible) continue;
-        const flicker = 0.75 + 0.25 * Math.sin(t * 61 + i * 2.1) * Math.sin(t * 37 + i);
-        const len = 0.06 + 0.16 * flame * flicker;
-        m.scale.set(0.022 * (0.7 + 0.3 * flame), 0.022 * (0.7 + 0.3 * flame), len);
-        m.material.opacity = Math.min(1, 0.4 + 0.6 * flame) * flicker;
-      }
-    },
-    dispose() { for (const m of made) { m.parent && m.parent.remove(m); m.material.dispose(); } },
-  };
-}
-
-async function loadBike(id, { base = 'bikes/', lite = false, length = 2.1, tier = null, own = false, priority, patch = true } = {}) {
-  const set = tierOf(lite, tier);
-  const key = `${id}:${set}`;
-  if (!own) users.set(key, (users.get(key) || 0) + 1);
-  let parts;
-  try { parts = await partsOf(id, { base, tier: set, own, priority }); } catch (error) { if (!own) { users.set(key, users.get(key) - 1); trim(); } throw error; }
-  const { spec, geometries, material } = parts;
-  if (!own && cache.has(key)) { const made = cache.get(key); cache.delete(key); cache.set(key, made); }
-  let held = true;
-  const scale = length / spec.length;
-  const group = new THREE.Group(); group.name = `bike:${id}`;
-  const lean = new THREE.Group(); group.add(lean);          // leans about the line its tyres touch the ground on
-  if (patch) softPatch(group, { length, width: 0.75 });
-  const frame = new THREE.Group(); frame.scale.setScalar(scale); lean.add(frame);
-  const mesh = (g) => { const m = new THREE.Mesh(g, material); m.castShadow = true; m.receiveShadow = false; return m; };
-  frame.add(mesh(geometries[0]));
-  const F = spec.front, R = spec.rear;
-  const fx0 = F.x || 0, rx0 = R.x || 0;          // (a wheel's middle, across: some bikes' wheels are not on their middle line)
-  const steerAt = new THREE.Group(); steerAt.position.set(fx0, F.y, F.z); steerAt.rotation.x = -spec.rake; frame.add(steerAt);
-  const steer = new THREE.Group(); steerAt.add(steer);
-  const unrake = new THREE.Group(); unrake.rotation.x = spec.rake; steer.add(unrake);
-  const line = new THREE.Vector3(0, Math.cos(spec.rake), -Math.sin(spec.rake));
-  const straightened = () => { const g = new THREE.Group(); if (spec.steered) g.quaternion.setFromAxisAngle(line, -spec.steered); return g; };
-  const steerStraight = straightened(); unrake.add(steerStraight);
-  const steerMesh = mesh(geometries[1]); steerMesh.position.set(-fx0, -F.y, -F.z); steerStraight.add(steerMesh);
-  const frontSpin = new THREE.Group(); unrake.add(frontSpin);
-  const frontStraight = straightened(); frontSpin.add(frontStraight);
-  const frontMesh = mesh(geometries[2]); frontMesh.position.set(-fx0, -F.y, -F.z); frontStraight.add(frontMesh);
-  const rearSpin = new THREE.Group(); rearSpin.position.set(rx0, R.y, R.z); frame.add(rearSpin);
-  const rearMesh = mesh(geometries[3]); rearMesh.position.set(-rx0, -R.y, -R.z); rearSpin.add(rearMesh);
-  const gripAt = [1, -1].map((side) => { const o = new THREE.Object3D(); o.position.set(side * spec.grip[0] - fx0, spec.grip[1] - F.y, spec.grip[2] - F.z); unrake.add(o); return o; });
-  const fx = lampsOf(spec, frame, { group: unrake, at: [fx0, F.y, F.z] });
-  const metres = (v) => v * scale;
-  const wheelRadius = { front: metres(F.r), rear: metres(R.r) };
-  return {
-    id, group, scale, spec,
-    seat: new THREE.Vector3(...spec.seat).multiplyScalar(scale),
-    grips: [new THREE.Vector3(spec.grip[0], spec.grip[1], spec.grip[2]).multiplyScalar(scale), new THREE.Vector3(-spec.grip[0], spec.grip[1], spec.grip[2]).multiplyScalar(scale)],
-    gripWorld: (k, out = new THREE.Vector3()) => gripAt[k].getWorldPosition(out),
-    pegs: [new THREE.Vector3(spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale), new THREE.Vector3(-spec.peg[0], spec.peg[1], spec.peg[2]).multiplyScalar(scale)],
-    lean, frame,
-    get steerAngle() { return steer.rotation.y; },
-    pose({ travelled = 0, steerAngle = 0, tilt = 0, dive = 0, bob = 0 } = {}) {
-      if (!F.still) frontSpin.rotation.x = travelled / wheelRadius.front;
-      if (!R.still) rearSpin.rotation.x = travelled / wheelRadius.rear;
-      steer.rotation.y = steerAngle;
-      frame.rotation.x = dive; lean.position.y = bob;
-      lean.rotation.z = tilt;            // (the bike's +x is its left: a turn about its length by +tilt leans it to the right)
-    },
-    lamps(state) { fx.set(state); },
-    headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
-    headlamp: fx.head,
-    dispose() { fx.dispose(); if (group.parent) group.parent.remove(group); if (held) { held = false; if (own) free(parts); else { users.set(key, users.get(key) - 1); trim(); } } },
-  };
-}
-
-const bikeLoaded = (id, tier) => cache.has(`${id}:${tier}`);
-const bikesHeld = () => ({ kept: [...cache.keys()], users: Object.fromEntries(users), shapes: Object.fromEntries([...shapes].map(([id, s]) => [id, s.holders])) });
-
-return { trimBikes, loadBike, bikeLoaded, bikesHeld };
-})();
-
 __modules["client/car-parts.js"] = (function () {
 const CAR_PARTS = Object.freeze({
  "black-grand-convertible": {
@@ -33285,8 +33836,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 3914363,
-   "full": 7843496
+   "lite": 3880269,
+   "full": 7558505
   }
  },
  "black-luxury-suv": {
@@ -33456,8 +34007,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 4750645,
-   "full": 8960897
+   "lite": 4712119,
+   "full": 8588091
   }
  },
  "black-pickup": {
@@ -33617,8 +34168,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 941974,
-   "full": 2064217
+   "lite": 936710,
+   "full": 2048630
   }
  },
  "black-square-suv": {
@@ -33778,8 +34329,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1035806,
-   "full": 2326493
+   "lite": 1035097,
+   "full": 2328392
   }
  },
  "blue-off-roader": {
@@ -33939,8 +34490,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1182528,
-   "full": 2496075
+   "lite": 1178709,
+   "full": 2490303
   }
  },
  "bronze-spyder": {
@@ -34110,8 +34661,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4384756,
-   "full": 8797493
+   "lite": 4339301,
+   "full": 8467533
   }
  },
  "camo-expedition": {
@@ -34281,8 +34832,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 4420333,
-   "full": 8631409
+   "lite": 4388018,
+   "full": 8342413
   }
  },
  "classic-two-tone": {
@@ -34452,8 +35003,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4243604,
-   "full": 8103919
+   "lite": 4198150,
+   "full": 7772376
   }
  },
  "gold-hypercar": {
@@ -34794,8 +35345,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 3998600,
-   "full": 8557791
+   "lite": 3948551,
+   "full": 8176545
   }
  },
  "grey-saloon": {
@@ -34955,8 +35506,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1044540,
-   "full": 2385476
+   "lite": 1040824,
+   "full": 2375771
   }
  },
  "midnight-saloon": {
@@ -35126,8 +35677,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 4156606,
-   "full": 8521527
+   "lite": 4112925,
+   "full": 8114818
   }
  },
  "mint-sports-coupe": {
@@ -35287,8 +35838,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 1059520,
-   "full": 2260853
+   "lite": 1059368,
+   "full": 2263626
   }
  },
  "peach-suv": {
@@ -35458,8 +36009,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4244448,
-   "full": 8337235
+   "lite": 4204181,
+   "full": 8077408
   }
  },
  "pearl-convertible": {
@@ -35629,8 +36180,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4377537,
-   "full": 10236277
+   "lite": 4329189,
+   "full": 9878454
   }
  },
  "red-winged-supercar": {
@@ -35800,8 +36351,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4267471,
-   "full": 7802518
+   "lite": 4225116,
+   "full": 7569215
   }
  },
  "state-limousine": {
@@ -35961,8 +36512,8 @@ const CAR_PARTS = Object.freeze({
    "seen": false
   },
   "bytes": {
-   "lite": 912435,
-   "full": 1977321
+   "lite": 910886,
+   "full": 1980258
   }
  },
  "white-roadster": {
@@ -36122,8 +36673,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 1071022,
-   "full": 2394857
+   "lite": 1072779,
+   "full": 2404524
   }
  },
  "white-square-suv": {
@@ -36293,8 +36844,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4926474,
-   "full": 9098565
+   "lite": 4885309,
+   "full": 8844179
   }
  },
  "yellow-classic-roadster": {
@@ -36464,8 +37015,8 @@ const CAR_PARTS = Object.freeze({
    "seen": true
   },
   "bytes": {
-   "lite": 4569603,
-   "full": 9248696
+   "lite": 4522027,
+   "full": 8923130
   }
  }
 });
@@ -36680,8 +37231,9 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
     const straight = new THREE.Group(); spin.add(straight);
     if (w.axle) straight.quaternion.setFromUnitVectors(new THREE.Vector3(w.axle[0], w.axle[1], w.axle[2]).normalize(), X);
     const m = mesh(geometries[k + 1]); m.position.set(-c[0], -c[1], -c[2]); straight.add(m);
-    return { at, steer, spin, r: w.r * scale, front: k < 2 };
+    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1], x: c[0] * scale, z: c[2] * scale };
   });
+  const springsY = spec.height * 0.35;
   const lampFrame = new THREE.Group(); lampFrame.position.set(0, -spec.height * 0.35, 0); springs.add(lampFrame);
   const fx = lampsOf(spec, lampFrame);
   const toBody = (v) => v;           // (the lamps are on the body: they pitch and roll with it)
@@ -36690,12 +37242,15 @@ async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, tier = 
     id, group, scale, spec, frame, toBody, cabin,
     driver: spec.driver || null,
     size: { length, width: spec.body * scale, height: spec.height * scale },
-    pose({ travelled = 0, steerAngle = 0, pitch = 0, roll = 0 } = {}) {
-      for (const w of wheels) {
+    wheels: wheels.map((w) => ({ x: w.x, z: w.z, r: w.r, front: w.front })),
+    pose({ travelled = 0, steerAngle = 0, pitch = 0, roll = 0, lifts = null, rise = 0 } = {}) {
+      wheels.forEach((w, k) => {
         w.spin.rotation.x = travelled / w.r;
         if (w.front) w.steer.rotation.y = steerAngle;
-      }
+        w.at.position.y = w.y + (lifts && lifts[k] ? lifts[k] / scale : 0);
+      });
       springs.rotation.set(pitch, 0, roll);
+      springs.position.y = springsY + rise / scale;
     },
     lamps(state) { fx.set(state); },
     headlampAt: (out = new THREE.Vector3()) => fx.head.getWorldPosition(out),
@@ -37325,6 +37880,7 @@ const { surface } = __modules["client/render-kit.js"];
 const { fetchKept, letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 const { deviceKind } = __modules["client/budget.js"];
 
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 const cache = new Map();          // `${id}:${tier}` \u2192 its geometry and material, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
 const KEEP = deviceKind() === 'lite' ? 2 : 6;      // models kept ready when none of them is drawn
@@ -37420,6 +37976,7 @@ async function partsOf(id, { base, tier, own = false, priority }) {
   if (!own && cache.has(key)) return cache.get(key);
   const spec = SPORTS_PARTS[id];
   if (!spec) throw new Error(`There is no sports model ${id}.`);
+  if (ON_DISK) throw new Error(`A page opened from the disk cannot fetch the ${id}.`);
   const made = (async () => {
     const pic = picture(base + spec.files[`color${tier}`], own, priority);
     let geometries;
@@ -44981,219 +45538,6 @@ function createVoiceUI({ voice, online, h, hud = null, project = () => null, hea
 return { PRIVACY, createVoiceUI };
 })();
 
-__modules["client/own-bike-view.js"] = (function () {
-const { loadBike } = __modules["client/bike-model.js"];
-const { reach } = __modules["client/animated.js"];
-const { POWER_BIKES } = __modules["sim/power-bikes.js"];
-
-const SIGHT = 70;                    // metres within which a parked bike of the player's is drawn
-const PEER_SIGHT = 160, PEER_MOST = 4;  // another player's ridden bike: drawn within this, the nearest few
-const FLAMES = Object.freeze({ cc: 1850, rev: 0.82 });
-const SUSPENSION = Object.freeze({ dive: 0.035, road: 0.004, rough: 0.018 });
-const PARKED_LEAN = -0.07;           // radians: a parked bike leans a little to its left, on its stand
-const RIDE = Object.freeze({ forward: 0.22, tuck: 0.2, roll: 0.45, rollSign: 1, look: 0.55, level: 0.6 });
-const FALLEN_LEAN = -1.25;          // radians: one that came down in a crash lies on its left side until it is ridden again
-const TIP = 0.55, REBOUND = 0.3;   // seconds it takes to go over, and how far it comes back off what it hit as it does
-const v = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), e: new THREE.Euler(0, 0, 0, 'XYZ'), q: new THREE.Quaternion(), axis: new THREE.Vector3() };
-
-const KIT_NAMES = { pelvis: 'Hips', spine_01: 'Spine', spine_02: 'Chest', neck_01: 'Neck', head: 'Head' };
-for (const [s, S] of [['l', 'L'], ['r', 'R']]) Object.assign(KIT_NAMES, { [`upperarm_${s}`]: `UpperArm_${S}`, [`lowerarm_${s}`]: `Forearm_${S}`, [`hand_${s}`]: `Hand_${S}`, [`thigh_${s}`]: `Thigh_${S}`, [`calf_${s}`]: `Shin_${S}`, [`foot_${s}`]: `Foot_${S}` });
-function bonesOf(figure) {
-  if (typeof figure.bones.get === 'function') return figure.bones;
-  if (!figure.kitBones) { const byName = new Map(figure.bones.map((b) => [b.name, b])); figure.kitBones = { get: (name) => byName.get(KIT_NAMES[name]) || null }; }
-  return figure.kitBones;
-}
-
-function createOwnBikeView(scene, { lite = false, base = 'bikes/', onError = () => {}, priority } = {}) {
-  const shown = new Map();          // key -> { id, bike, loading, travelled }
-  const frozen = new Set();         // figures whose bones seat() set by hand this frame
-
-  function entry(key, id) {
-    let e = shown.get(key);
-    if (e && e.id !== id) { if (e.bike) e.bike.dispose(); shown.delete(key); e = null; }
-    if (!e) {
-      e = { id, bike: null, loading: true, travelled: 0, failed: false };
-      shown.set(key, e);
-      const spec = POWER_BIKES[id];
-      loadBike(id, { base, lite, length: spec ? spec.length : 2.1, priority }).then((bike) => {
-        if (shown.get(key) !== e) { bike.dispose(); return; }
-        e.bike = bike; e.loading = false; scene.add(bike.group);
-      }, (error) => { e.loading = false; e.failed = true; onError(error); });
-    }
-    return e;
-  }
-
-  function effects(e, ride, dt, night, now) {
-    const bike = POWER_BIKES[ride.id];
-    const speed = Math.abs(ride.speed || 0), top = bike ? bike.handling.top : 30;
-    const rev = Math.max(0, Math.min(1, ride.rev || 0)), throttle = ride.throttle || 0, braking = !!ride.brake && speed > 0.3;
-    e.fx = e.fx || { pop: 0, lastThrottle: 0, dive: 0, phase: Math.random() * 10 };
-    const fx = e.fx;
-    const big = !!bike && bike.cc >= FLAMES.cc;
-    if (big && fx.lastThrottle > 0.6 && throttle < 0.05 && rev > 0.55) fx.pop = 0.3;          // shut at high revs: a burst
-    fx.pop = Math.max(0, fx.pop - dt);
-    fx.lastThrottle = throttle;
-    const open = big && throttle > 0.9 && rev > FLAMES.rev ? (rev - FLAMES.rev) / (1 - FLAMES.rev) : 0;
-    const flame = Math.max(open, fx.pop > 0 ? 0.55 * (fx.pop / 0.3) : 0);
-    fx.dive += ((braking ? SUSPENSION.dive * Math.min(1, speed / 10) : 0) - fx.dive) * Math.min(1, dt * 8);
-    fx.phase += dt * (0.6 + speed * 0.35);
-    const rough = ride.rough ? SUSPENSION.rough : SUSPENSION.road;
-    const bob = rough * Math.min(1, speed / 8) * (Math.sin(fx.phase * 2.3) * 0.6 + Math.sin(fx.phase * 5.1 + 1.3) * 0.4);
-    e.state = { head: night > 0.25 ? 1 : 0, tail: night > 0.25 ? 1 : 0, brake: braking ? 1 : 0, flame, t: now, dive: fx.dive, bob };
-    return e.state;
-  }
-  const place = (e, ride, groundY, dt, night, now) => {
-    const st = effects(e, ride, dt, night, now);
-    const g = e.bike.group;
-    g.position.set(ride.x, groundY(ride.x, ride.z), ride.z);
-    g.rotation.set(0, ride.h, 0);
-    g.visible = true;
-    e.bike.pose({ travelled: e.travelled, steerAngle: ride.steer || 0, tilt: ride.lean || 0, dive: st.dive, bob: st.bob });
-    e.bike.lamps(st);
-  };
-
-  function update(dt, { ridden = null, rides = [], parked = [], parkedMost = 3, groundY = () => 0, from = { x: 0, z: 0 }, night = 0, now = 0 }) {
-    for (const f of frozen) f.freeze = false;
-    frozen.clear();
-    const wanted = new Set();
-    if (ridden && POWER_BIKES[ridden.id]) {
-      wanted.add('ride');
-      const e = entry('ride', ridden.id);
-      e.travelled += (ridden.speed || 0) * dt;
-      if (e.bike) place(e, ridden, groundY, dt, night, now);
-    }
-    for (const r of rides.filter((q) => POWER_BIKES[q.id] && Math.hypot(q.x - from.x, q.z - from.z) <= PEER_SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, PEER_MOST)) {
-      const key = `peer:${r.key}`;
-      wanted.add(key);
-      const e = entry(key, r.id);
-      e.travelled += (r.speed || 0) * dt;
-      if (e.bike) place(e, r, groundY, dt, night, now);
-    }
-    const near = parked.filter((p) => POWER_BIKES[p.bike] && Math.hypot(p.x - from.x, p.z - from.z) <= SIGHT).sort((a, b) => Math.hypot(a.x - from.x, a.z - from.z) - Math.hypot(b.x - from.x, b.z - from.z)).slice(0, parkedMost);
-    for (const p of near) {
-      const key = p.key || `park:${p.bike}`;
-      wanted.add(key);
-      const e = entry(key, p.bike);
-      if (p.fallen && !e.fallenAt) e.fallenAt = e.seenAt === undefined ? -10 : now;
-      if (!p.fallen) e.fallenAt = 0;
-      e.seenAt = now;
-      if (e.bike) {
-        const t = !p.fallen ? 10 : Number.isFinite(p.ago) ? p.ago : e.fallenAt > 0 ? Math.max(0, now - e.fallenAt) : 10;
-        const over = Math.min(1, t / TIP), back = p.fallen ? REBOUND * Math.sin(Math.min(1, t / (TIP * 1.3)) * Math.PI / 2) : 0;
-        const k = over < 1 ? over * over : 1 + Math.sin(Math.min(1, (t - TIP) / 0.3) * Math.PI) * 0.06 * Math.max(0, 1 - (t - TIP) / 0.3);
-        const tilt = p.fallen ? PARKED_LEAN + (FALLEN_LEAN - PARKED_LEAN) * k : PARKED_LEAN;
-        e.bike.group.position.set(p.x - Math.sin(p.h) * back, groundY(p.x, p.z), p.z - Math.cos(p.h) * back);
-        e.bike.group.rotation.set(0, p.h, 0);
-        e.bike.pose({ travelled: e.travelled, steerAngle: 0.25, tilt });
-      }
-    }
-    for (const [key, e] of shown) if (!wanted.has(key)) { if (e.bike) e.bike.dispose(); shown.delete(key); }
-  }
-
-  function seat(me, ridden, groundY, key = 'ride') {
-    const e = shown.get(key);
-    if (!e || !e.bike || !ridden || !me.bones) return false;
-    const bike = e.bike;
-    const bones = bonesOf(me);
-    const pelvis = bones.get('pelvis');
-    if (!pelvis) return false;
-    const gy = groundY(ridden.x, ridden.z);
-    me.group.rotation.set(0, ridden.h, 0);
-    me.group.position.set(ridden.x, gy, ridden.z);
-    me.group.updateMatrixWorld(true);
-    if (!me.animated) { me.freeze = true; frozen.add(me); }
-    const hips = me.group.worldToLocal(pelvis.getWorldPosition(v.a));
-    const offset = v.b.set(bike.seat.x - hips.x, bike.seat.y + 0.09 - hips.y, bike.seat.z - hips.z);
-    v.e.set(0, ridden.h, ridden.lean || 0, 'XYZ');
-    me.group.rotation.copy(v.e);
-    me.group.position.set(ridden.x, gy, ridden.z).add(offset.applyEuler(v.e));
-    me.group.updateMatrixWorld(true);
-    bike.group.updateMatrixWorld(true);
-    const world = (local) => bike.lean.localToWorld(v.c.copy(local));
-    const off = (x, y, z) => me.group.localToWorld(v.d.set(x, y, z)).sub(me.group.localToWorld(v.a.set(0, 0, 0))).clone();
-    const dir = (x, y, z) => me.group.localToWorld(v.d.set(x, y, z)).sub(me.group.localToWorld(v.a.set(0, 0, 0))).normalize().clone();
-    const spine = bones.get('spine_02') || bones.get('spine_01');
-    const arm = (s) => { const u = bones.get(`upperarm_${s}`), l = bones.get(`lowerarm_${s}`), h = bones.get(`hand_${s}`); return u && l && h ? { u, l, h, length: u.getWorldPosition(new THREE.Vector3()).distanceTo(l.getWorldPosition(new THREE.Vector3())) + l.getWorldPosition(new THREE.Vector3()).distanceTo(h.getWorldPosition(new THREE.Vector3())) } : null; };
-    const arms = { l: arm('l'), r: arm('r') };
-    const grips = { l: bike.grips[0], r: bike.grips[1] };
-    const gripWorld = (s) => (bike.gripWorld ? bike.gripWorld(s === 'l' ? 0 : 1, new THREE.Vector3()) : world(grips[s]).clone());
-    if (spine && arms.l && arms.r) {
-      v.axis.copy(dir(1, 0, 0));
-      const short = () => Math.max(...['l', 'r'].map((s) => arms[s].u.getWorldPosition(new THREE.Vector3()).distanceTo(gripWorld(s).add(off(0, 0.01, -0.05))) - arms[s].length * 0.96));
-      const turn = (angle) => {
-        const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion());
-        const localAxis = v.axis.clone().applyQuaternion(parentQ.invert());
-        spine.quaternion.premultiply(v.q.setFromAxisAngle(localAxis, angle));
-        spine.updateMatrixWorld(true);
-      };
-      const bend = () => {
-        let step = 0.07, turned = 0, gap = short();
-        for (let i = 0; i < 24 && gap > 0; i += 1) {
-          turn(step);
-          const now = short();
-          if (now >= gap - 1e-4) { turn(-step); if (step > 0 && turned === 0) { step = -step; continue; } break; }
-          turned += step; gap = now;
-          if (Math.abs(turned) > 1.05) break;
-        }
-        return gap;
-      };
-      const pace = Math.min(1, Math.abs(ridden.speed || 0) / 30);
-      turn(RIDE.forward + RIDE.tuck * pace);
-      const lean = ridden.lean || 0;
-      if (Math.abs(lean) > 1e-3) {
-        const fwd = dir(0, 0, 1);
-        const parentQ = spine.parent.getWorldQuaternion(new THREE.Quaternion());
-        spine.quaternion.premultiply(v.q.setFromAxisAngle(fwd.applyQuaternion(parentQ.invert()), RIDE.roll * lean * RIDE.rollSign));
-        spine.updateMatrixWorld(true);
-      }
-      const gap = bend();
-      if (gap > 0) {
-        me.group.position.add(off(0, 0, Math.min(0.33, gap * 1.3)));
-        me.group.updateMatrixWorld(true);
-        bend();
-      }
-    }
-    for (const s of ['l', 'r']) {
-      const a = arms[s];
-      if (!a) continue;
-      const side = s === 'l' ? 1 : -1;
-      const target = gripWorld(s).add(off(0, 0.01, -0.05));
-      reach(a.u, a.l, a.h, target, dir(side * 0.9, -0.6, -0.2));
-    }
-    const neck = bones.get('neck_01'), head = bones.get('head');
-    if (neck && head) {
-      const lean = ridden.lean || 0;
-      const up = dir(0, 1, 0), fwd = dir(0, 0, 1);
-      const put = (bone, axis, angle) => { const q = bone.parent.getWorldQuaternion(new THREE.Quaternion()).invert(); bone.quaternion.premultiply(v.q.setFromAxisAngle(axis.clone().applyQuaternion(q), angle)); bone.updateMatrixWorld(true); };
-      put(neck, dir(1, 0, 0), -(RIDE.forward + RIDE.tuck * Math.min(1, Math.abs(ridden.speed || 0) / 30)) * 0.7);
-      put(neck, up, -RIDE.look * lean);
-      put(head, fwd, -RIDE.level * lean * RIDE.rollSign);
-    }
-    for (const s of ['l', 'r']) {
-      const thigh = bones.get(`thigh_${s}`), calf = bones.get(`calf_${s}`), foot = bones.get(`foot_${s}`);
-      if (!thigh || !calf || !foot) continue;
-      const side = s === 'l' ? 1 : -1;
-      const target = world(bike.pegs[s === 'l' ? 0 : 1]).clone().add(off(side * 0.02, 0.07, -0.05));
-      reach(thigh, calf, foot, target, dir(side * 0.35, 0.3, 1));
-    }
-    return true;
-  }
-
-  return {
-    update, seat,
-    ready: () => { const e = shown.get('ride'); return !!(e && e.bike); },
-    ridden: (key = 'ride') => { const e = shown.get(key); return e && e.bike ? e.bike : null; },
-    stateOf: (key = 'ride') => { const e = shown.get(key); return e ? e.state || null : null; },
-    failed: () => { const e = shown.get('ride'); return !!(e && e.failed); },
-    count: () => shown.size,
-    keys: () => [...shown.keys()],
-    dispose() { for (const e of shown.values()) if (e.bike) e.bike.dispose(); shown.clear(); },
-  };
-}
-
-return { FLAMES, SUSPENSION, RIDE, bonesOf, createOwnBikeView };
-})();
-
 __modules["client/sport-view.js"] = (function () {
 const { loadSport } = __modules["client/sports-model.js"];
 const { reach } = __modules["client/animated.js"];
@@ -46146,6 +46490,7 @@ const { loadCar } = __modules["client/car-model.js"];
 const { reach } = __modules["client/animated.js"];
 const { bonesOf } = __modules["client/own-bike-view.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
+const { wheelLifts, bodyOn, kickBody } = __modules["client/wheel-bumps.js"];
 
 const SIGHT = 120;                  // metres within which a parked car is drawn
 const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven: drawn within this, the nearest few
@@ -46155,7 +46500,7 @@ const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 });
 const DRIVE = Object.freeze({ recline: 0.38, mostRecline: 0.62, sink: 0.08, slide: 0.14, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
 const w = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), hip: new THREE.Vector3(), q: new THREE.Quaternion(), r: new THREE.Quaternion(), axis: new THREE.Vector3(), up: new THREE.Vector3(), x: new THREE.Vector3(), u: new THREE.Vector3(), n: new THREE.Vector3(), centre: new THREE.Vector3(), grip: new THREE.Vector3() };
 
-function createCarView(scene, { lite = false, base = 'cars/', onError = () => {} } = {}) {
+function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}, onBump = () => {} } = {}) {
   const shown = new Map();          // key -> { id, car, loading, travelled, failed, fx }
   const frozen = new Set();         // figures whose bones seat() set by hand this frame
 
@@ -46188,18 +46533,32 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
     fx.roll += (wantRoll - fx.roll) * Math.min(1, dt * 5);
     return fx;
   }
-  const place = (e, d, groundY, dt, night) => {
+  const nearBars = [], NONE = [];
+  const barsNear = (bodies, x, z, reach) => { nearBars.length = 0; for (const b of bodies) if (Math.abs((b.ax + b.bx) / 2 - x) < reach && Math.abs((b.az + b.bz) / 2 - z) < reach) nearBars.push(b); return nearBars; };
+  const place = (e, d, groundY, dt, night, bodies = []) => {
     const fx = springs(e, d, dt);
     const g = e.car.group;
     g.position.set(d.x, groundY(d.x, d.z), d.z);
     g.rotation.set(0, d.h, 0);
     g.visible = true;
-    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch, roll: fx.roll });
+    const bars = bodies.length ? barsNear(bodies, d.x, d.z, e.car.size.length / 2 + 2) : NONE;
+    const lifts = e.lifts || (e.lifts = []);
+    wheelLifts(bars, e.car.wheels, d.x, d.z, d.h, -(d.steer || 0), lifts);
+    const was = e.was || (e.was = []);
+    for (let k = 0; k < lifts.length; k += 1) {
+      if (lifts[k] > 0.03 && !(was[k] > 0.03)) onBump(d.x, d.z, lifts[k], e.car.wheels[k].front);
+      was[k] = lifts[k];
+    }
+    const b = bodyOn(e.bump || (e.bump = {}), lifts, e.car.wheels, dt);
+    const pk = e.peak || (e.peak = { lifts: [], pitchMin: 0, pitchMax: 0, roll: 0 });
+    for (let k = 0; k < lifts.length; k += 1) pk.lifts[k] = Math.max(pk.lifts[k] || 0, lifts[k]);
+    pk.pitchMin = Math.min(pk.pitchMin, b.pitch); pk.pitchMax = Math.max(pk.pitchMax, b.pitch); pk.roll = Math.max(pk.roll, Math.abs(b.roll));
+    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts, rise: b.rise });
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
   };
 
-  function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0 }) {
+  function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, bodies = [] }) {
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -46207,7 +46566,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       wanted.add('drive');
       const e = entry('drive', driven.id);
       e.travelled += (driven.speed || 0) * dt;
-      if (e.car) place(e, driven, groundY, dt, night);
+      if (e.car) place(e, driven, groundY, dt, night, bodies);
     }
     const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
     for (const r of drives.filter((q) => POWER_CARS[q.id] && dist(q) <= PEER_SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, PEER_MOST)) {
@@ -46215,7 +46574,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       wanted.add(key);
       const e = entry(key, r.id);
       e.travelled += (r.speed || 0) * dt;
-      if (e.car) place(e, r, groundY, dt, night);
+      if (e.car) place(e, r, groundY, dt, night, bodies);
     }
     const T = TRAFFIC_DRAWN[lite ? 'lite' : 'full'];
     if (!ON_DISK) for (const r of traffic.filter((q) => POWER_CARS[q.id] && dist(q) <= T.sight).sort((a, b) => dist(a) - dist(b)).slice(0, T.most)) {
@@ -46223,7 +46582,7 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
       wanted.add(key);
       const e = entry(key, r.id, T.tier);
       e.travelled += (r.speed || 0) * dt;
-      if (e.car) place(e, r, groundY, dt, night);
+      if (e.car) place(e, r, groundY, dt, night, bodies);
     }
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
     for (const p of near) {
@@ -46319,6 +46678,9 @@ function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}
 
   return {
     update, seat,
+    knock(key = 'drive', amount = 1) { const e = shown.get(key); if (e) kickBody(e.bump || (e.bump = {}), 0.35 * amount); },
+    bumpOf: (key = 'drive') => { const e = shown.get(key); return e && e.bump && e.bump.v ? { lifts: [...(e.lifts || [])], rise: e.bump.rise, pitch: e.bump.pitch, roll: e.bump.roll } : null; },
+    bumpPeak: (key = 'drive') => { const e = shown.get(key); if (!e || !e.peak) return null; const pk = e.peak; e.peak = null; return { lifts: [...pk.lifts], pitchMin: pk.pitchMin, pitchMax: pk.pitchMax, roll: pk.roll }; },
     rules: DRIVE,
     ready: () => { const e = shown.get('drive'); return !!(e && e.car); },
     driven: (key = 'drive') => { const e = shown.get(key); return e && e.car ? e.car : null; },
@@ -46340,7 +46702,7 @@ return { BIKE_IMPOSTOR };
 })();
 
 __modules["client/car-impostors.js"] = (function () {
-const CAR_IMPOSTOR = Object.freeze({ frames: 24, cols: 6, rows: 4, elevation: 0.16, cars: {"black-grand-convertible":{"size":5.9838,"centre":[0,0.782,0]},"black-luxury-suv":{"size":6.1434,"centre":[-0.0032,1.0862,0]},"black-pickup":{"size":6.5365,"centre":[0,1.1258,0]},"black-square-suv":{"size":5.4882,"centre":[0,1.0619,0]},"blue-off-roader":{"size":5.4124,"centre":[0,0.9607,0]},"bronze-spyder":{"size":5.2976,"centre":[0,0.6456,0]},"camo-expedition":{"size":5.8883,"centre":[0.0087,1.3014,0]},"classic-two-tone":{"size":5.6239,"centre":[0.0014,0.8391,0]},"gold-hypercar":{"size":6.5152,"centre":[0,1.1366,0]},"grey-grand-tourer":{"size":5.7462,"centre":[-0.0003,0.7745,0]},"grey-saloon":{"size":5.5913,"centre":[0,0.7949,0]},"midnight-saloon":{"size":5.9551,"centre":[0.003,0.8552,0]},"mint-sports-coupe":{"size":5.2097,"centre":[0,0.6188,0]},"peach-suv":{"size":5.8164,"centre":[0,1.0023,0]},"pearl-convertible":{"size":5.3569,"centre":[0,0.723,0]},"red-winged-supercar":{"size":5.0092,"centre":[0,0.594,0]},"state-limousine":{"size":6.6537,"centre":[0,0.9988,0]},"white-roadster":{"size":5.1977,"centre":[0,0.654,0]},"white-square-suv":{"size":5.7918,"centre":[0.0006,1.0855,0]},"yellow-classic-roadster":{"size":5.1753,"centre":[0,0.6764,0]}} });
+const CAR_IMPOSTOR = Object.freeze({ frames: 24, cols: 6, rows: 4, elevation: 0.16, cars: {"black-grand-convertible":{"size":5.9838,"centre":[0,0.782,0]},"black-luxury-suv":{"size":6.1205,"centre":[0,1.0862,0]},"black-pickup":{"size":6.5365,"centre":[0,1.1258,0]},"black-square-suv":{"size":5.4882,"centre":[0,1.0619,0]},"blue-off-roader":{"size":5.4124,"centre":[0,0.9607,0]},"bronze-spyder":{"size":5.2976,"centre":[0,0.6456,0]},"camo-expedition":{"size":5.8053,"centre":[0,1.3014,0]},"classic-two-tone":{"size":5.5885,"centre":[0,0.8391,0]},"gold-hypercar":{"size":6.5152,"centre":[0,1.1366,0]},"grey-grand-tourer":{"size":5.6184,"centre":[0,0.7745,0]},"grey-saloon":{"size":5.5913,"centre":[0,0.7949,0]},"midnight-saloon":{"size":5.8463,"centre":[0.0073,0.8552,0]},"mint-sports-coupe":{"size":5.2097,"centre":[0,0.6188,0]},"peach-suv":{"size":5.8164,"centre":[0,1.0023,0]},"pearl-convertible":{"size":5.3569,"centre":[0,0.723,0]},"red-winged-supercar":{"size":5.0092,"centre":[0,0.594,0]},"state-limousine":{"size":6.6537,"centre":[0,0.9988,0]},"white-roadster":{"size":5.1977,"centre":[0,0.654,0]},"white-square-suv":{"size":5.5624,"centre":[-0.003,1.0855,0]},"yellow-classic-roadster":{"size":5.1753,"centre":[0,0.6764,0]}} });
 
 return { CAR_IMPOSTOR };
 })();
@@ -52048,7 +52410,8 @@ function start(carried) {
     boatView = createBoatView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your speedboat could not be fetched. Check the connection.' }); } });
     shipView = createShipView(scene, { lite: LITE });
     surfView = createSurfView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your surfboard could not be fetched. Check the connection.' }); } });
-    carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
+    let bumpAt = -10;
+    carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); }, onBump: (x, z) => { if (clock - bumpAt > 0.18) { bumpAt = clock; audio.blow('shove', x, z); } } });
     standins = createStandins(scene, { lite: LITE });
   }]);
   let gunPlay = null;
@@ -54872,7 +55235,7 @@ function start(carried) {
       nx = on.x; nz = on.z;
     }
     const result = server.send({ type: 'car.drive', x: nx, z: nz, heading: carState.heading, steer: carState.steer, speed: carState.speed, throttle: carState.throttle, brake: carState.braking, rev: carRevs(carState.speed, carState.throttle, handling), lamps: night > 0.25 });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = carState.heading; if (result.hit) carState.speed = 0; }
+    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = carState.heading; if (result.hit) { const over = result.hit.every((h) => h.over || h.body); carState.speed *= over ? 0.95 : 0.88; if (carView) carView.knock('drive', over ? 0.35 : Math.min(1, 0.4 + Math.abs(carState.speed) / 10)); } }
     else if (result.code === 'BLOCKED') { meetWithCar(dt, spec, nx, nz, boxes, 'solid'); return 0; }
     else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; carState.speed = 0; }
     if (clock - cam.lastDrag > 1.5 && carState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.0);
@@ -55400,7 +55763,8 @@ function start(carried) {
       }
       trafficCars = trafficNow(dt);
       const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
-      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: zoneGroundY, from: predicted, night });
+      const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
+      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: zoneGroundY, from: predicted, night, bodies });
       const carSeated = !!ownDrive && carView.seat(me, ownDrive);
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       for (const e of trafficCars) {

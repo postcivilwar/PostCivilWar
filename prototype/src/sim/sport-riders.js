@@ -381,7 +381,7 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     if (!actors.has(r.i)) { if (actors.take(r.i, t, { x: r.x + 6, z: r.z })) sendFor(); return; }
     const m = actors.get(r.i);
     // (knocked off by a car, `knock`: on the ground, and getting up, before anything else)
-    if (m && m.mode === 'hold' && m.until && real() < m.until) return;
+    if (m && m.mode === 'hold' && (m.act === 'Knocked down' || m.act === 'Getting up' || (m.until && real() < m.until))) return;
     if (m && Math.hypot(m.x - r.x, m.z - r.z) < 1.2) { actors.drop(r.i); r.takenBy = null; r.fallen = false; r.v = 0; r.lean = 0; book.returned += 1; backOnRoad(r); }
     else if (m && (m.mode !== 'go' || m.home || m.goal === null)) sendFor();
   }

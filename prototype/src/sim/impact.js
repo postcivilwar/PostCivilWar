@@ -56,6 +56,7 @@ export const IMPACT = Object.freeze({
   stall: 0.7,              // real seconds the vehicle is stopped by what it hit (not a car: 31 October 2026)
   crawl: 0.3,              // metres a second: a car going faster than this strikes whoever it runs into, however slowly
   carry: 0.9,              // the share of its pace a car keeps after striking someone (it is not stopped by them)
+  pinned: 20,              // real seconds the most someone knocked down lies under a car standing on them, before crawling out
   gather: 9,               // metres a second each second: the fastest any vehicle here can gain speed
   reach: 0.35,             // metres added to the vehicle's half-width: the body it meets
   dead: 8,                 // real seconds between being killed and coming round at the hospital
@@ -269,9 +270,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     if (car && lying) {
       // already down in its way: the car goes over them where they lie (car-view.js shows its wheels climbing over),
       // and they stay down until it is past
-      const until = Math.max(m.until || 0, now + 2.5);
-      actors.hold(i, 'Knocked down', POSE.lie, until);
-      m.after = Math.max(m.after || 0, until);
+      downLonger(i, rec, now + 2.5);
       charge(driver, { kind: 'npc', id: i, name: who.short }, m.x, m.z, vehicle, false);
       driver.involvedNpc = { i, name: who.short, until: now + IMPACT.seen };
       show({ kind: 'knock', by: { kind: 'player', id: driver.id }, on: { kind: 'npc', id: i }, x: m.x, z: m.z, speed: Math.round(speed * 10) / 10, harm, vehicle: vehicle.kind, over: true });
@@ -279,9 +278,13 @@ export function createImpact({ state, players, population, actors, conflict, tal
     }
     const to = thrown(m.x, m.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
     m.x = to.x; m.z = to.z;
-    // (struck by a car: down across its way, a little ahead of it, for it to go over; of the two ways across, the one
-    // nearer the way they were facing. Anything else throws them along the way it was going, as before.)
-    if (car) { const across = heading + Math.PI / 2; m.h = Math.cos(m.h - across) >= 0 ? across : across - Math.PI; } else m.h = heading;
+    // Which way they go down (31 October 2026). The fall every figure is drawn with (falls.js: the woman's fall from the
+    // supplied files, carried onto each figure) staggers back and turns a quarter as it goes down, so that a figure
+    // lies across the way it faced, its head to its left (measured in a browser on three figures and a player's). Struck
+    // by a car, they are turned to face along its way (of the two ways along it, the one nearer the way they were
+    // facing) and so lie across it, a little ahead of it, for it to go over them, the wheels on both sides climbing; by
+    // anything else they face what struck them.
+    if (car) m.h = Math.cos(m.h - heading) >= 0 ? heading : heading + Math.PI; else m.h = heading + Math.PI;
     rec.x = m.x; rec.z = m.z;
     const killed = rec.health <= 0;
     if (killed) {
@@ -291,10 +294,17 @@ export function createImpact({ state, players, population, actors, conflict, tal
       emit(driver.id, { type: 'alert', title: 'You have killed someone', text: `${who.short} is dead under your wheels.` });
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight + (rec.health <= 25 ? 12 : 1.5);
-      actors.hold(i, 'Knocked down', POSE.lie, now + lie);
-      m.after = now + lie;             // then they are let go, and walk back to their day
+      // down for `lie` seconds, then getting up (`rise`), then let go to walk back to their day (tick); drawn as the
+      // figure's own fall and getting up, timed by these (falls.js, `fall`: before, a figure of his own was drawn standing
+      // where it had been knocked down, as if the vehicle had gone through it)
+      actors.hold(i, 'Knocked down', POSE.lie, 0);
+      m.after = 0;
+      rec.upAt = now + lie;
+      rec.then = { at: now + lie + IMPACT.rise, from: null, release: true };
+      rec.fall = { at: now, lie, rise: IMPACT.rise, h: m.h, car };
+      rec.pinnedSince = 0;
       // getting up, they hold their head; badly hurt, they weep
-      if (hub.reactions) { if (hub.reactions.end) hub.reactions.end(i); rec.reactAt = now + lie; rec.reactWith = rec.badly || rec.health <= 25 ? 'cry' : 'hurt'; }
+      if (hub.reactions) { if (hub.reactions.end) hub.reactions.end(i); rec.reactAt = now + lie + IMPACT.rise; rec.reactWith = rec.badly || rec.health <= 25 ? 'cry' : 'hurt'; }
       rec.badly = rec.health <= 25;
       if (talk) talk.say({ who: `n:${i}`, name: who.short, text: rec.badly ? 'My leg! Somebody help me!' : 'Ah! You no dey look road?', lang: rec.badly ? 'en' : 'pcm', gloss: rec.badly ? null : 'Are you not watching the road?', x: m.x, z: m.z, kind: 'shout', range: 26, hold: 3.2 });
     }
@@ -422,6 +432,20 @@ export function createImpact({ state, players, population, actors, conflict, tal
     return hits;
   }
 
+  // Someone knocked down kept on the ground until at least `until` (a car going over them): their getting up, and what
+  // the drawing shows of their fall (`fall`), put back to suit.
+  function downLonger(i, rec, until) {
+    const m = actors.get(i);
+    if (!m || m.dead) return;
+    if (m.mode !== 'hold' || m.pose !== POSE.lie) actors.hold(i, 'Knocked down', POSE.lie, 0);
+    m.until = 0; m.after = 0;
+    rec.upAt = Math.max(rec.upAt || 0, until);
+    if (rec.then) rec.then.at = Math.max(rec.then.at, rec.upAt + IMPACT.rise);
+    else rec.then = { at: rec.upAt + IMPACT.rise, from: null, release: true };
+    if (rec.fall) rec.fall.lie = Math.max(rec.fall.lie, rec.upAt - rec.fall.at);
+    if (rec.reactAt) rec.reactAt = Math.max(rec.reactAt, rec.upAt + IMPACT.rise);
+  }
+
   // Those lying under a car, as it stands now (its whole length, and a little to each side), are kept down a moment
   // longer each time it is looked at, until it has gone past them.
   function keepDown(rows, x, z, heading, front, now) {
@@ -430,17 +454,53 @@ export function createImpact({ state, players, population, actors, conflict, tal
     for (const [i, px, pz, pose] of rows) {
       if (pose !== POSE.lie || !under(px, pz) || !actors.has(i)) continue;
       const m = actors.get(i);
-      if (m.dead || m.act !== 'Knocked down') continue;
-      const until = Math.max(m.until || 0, now + 1.2);
-      actors.hold(i, 'Knocked down', POSE.lie, until);
-      m.after = Math.max(m.after || 0, until);
-      const rec = book.npc[i];
-      if (rec && rec.reactAt) rec.reactAt = Math.max(rec.reactAt, until);
+      if (m.dead || m.act !== 'Knocked down' || !book.npc[i]) continue;
+      downLonger(i, book.npc[i], now + 1.2);
+      // (a car going over them is not one standing on them: `pinnedUnder` counts from when one stands still)
+      book.npc[i].pinnedSince = 0;
     }
     for (const id of Object.keys(players)) {
       const q = players[id];
       if (!q.down || now >= q.down.until || !under(q.x, q.z)) continue;
       q.down.until = Math.max(q.down.until, now + 1.2); q.down.upAt = q.down.until + IMPACT.rise;
+    }
+  }
+
+  // A player's car standing over (x, z) now, driven or left standing (its whole length and width, and a little more),
+  // or null.
+  function carOver(x, z) {
+    for (const id of Object.keys(players)) {
+      const q = players[id];
+      const cars = [];
+      if (q.pcar && typeof q.incar === 'string' && q.incar.startsWith('pc:')) cars.push(q.pcar);
+      if (q.carParked && typeof q.carParked === 'object') for (const [car, s] of Object.entries(q.carParked)) if (s) cars.push({ id: car, x: s.x, z: s.z, h: s.h });
+      for (const c of cars) {
+        const spec = POWER_CARS[c.id];
+        if (!spec || !Number.isFinite(c.x) || Math.abs(c.x - x) > 6 || Math.abs(c.z - z) > 6) continue;
+        const ux = Math.sin(c.h), uz = Math.cos(c.h);
+        const a = (x - c.x) * ux + (z - c.z) * uz, s = (x - c.x) * uz - (z - c.z) * ux;
+        if (Math.abs(a) < spec.length / 2 + 0.4 && Math.abs(s) < spec.width / 2 + 0.4) return { ...c, spec, a, s, ux, uz };
+      }
+    }
+    return null;
+  }
+
+  // Someone knocked down by a car, about to get up: not under a car standing over them. Kept down a moment longer while
+  // it stands there; after it has stood on them `pinned` seconds, out from under it to its nearer side (where there is
+  // ground to lie on), to get up there.
+  function pinnedUnder(i, rec, now) {
+    const m = actors.get(i);
+    if (!m || m.dead || m.act !== 'Knocked down') return;
+    const c = carOver(m.x, m.z);
+    if (!c) { rec.pinnedSince = 0; return; }
+    if (!rec.pinnedSince) rec.pinnedSince = now;
+    if (now - rec.pinnedSince < IMPACT.pinned) { downLonger(i, rec, now + 1.2); return; }
+    const out = c.spec.width / 2 + 0.6;
+    for (const side of c.s >= 0 ? [1, -1] : [-1, 1]) {
+      const x = c.x + c.ux * c.a + c.uz * out * side, z = c.z + c.uz * c.a - c.ux * out * side;
+      if (!zoneWalkable(x, z)) continue;
+      m.x = x; m.z = z; rec.x = x; rec.z = z;
+      return;
     }
   }
 
@@ -523,10 +583,16 @@ export function createImpact({ state, players, population, actors, conflict, tal
       const rec = book.npc[key];
       if (rec.dead) { if (!rec.dead.gone && now >= rec.dead.takeAt) { rec.dead.gone = true; actors.remove(Number(key)); } continue; }
       if (rec.reactAt && now >= rec.reactAt) { if (hub.reactions) hub.reactions.react(Number(key), rec.reactWith || 'hurt'); rec.reactAt = 0; }
+      // knocked down by a car, and a player's car standing over them now (one stopped on top of them, or left there):
+      // not up under it. They lie still while it stands there, `pinned` seconds at the most, and then crawl out from
+      // under it to its nearer side and get up there.
+      if (rec.upAt && now >= rec.upAt - 0.1 && rec.fall && rec.fall.car) pinnedUnder(Number(key), rec, now);
       // brought down (`felled`): up again, and a moment later off, away from whoever did it
       if (rec.upAt && now >= rec.upAt) { rec.upAt = 0; if (actors.has(Number(key)) && !actors.dead(Number(key))) actors.hold(Number(key), 'Getting up', POSE.stand, 0); }
-      if (rec.then && now >= rec.then.at) { const th = rec.then; rec.then = null; up(Number(key), th, now); }
-      if (state.t - rec.t > (hub.span ? hub.span(7200) : 7200)) delete book.npc[key];
+      if (rec.then && now >= rec.then.at) { const th = rec.then; rec.then = null; if (th.release) { if (actors.has(Number(key)) && !actors.dead(Number(key))) actors.release(Number(key)); } else up(Number(key), th, now); }
+      // (never while they are still down or getting up: the town's clock can be moved on hours at once, and they would
+      // be left lying for ever)
+      if (state.t - rec.t > (hub.span ? hub.span(7200) : 7200) && !rec.upAt && !rec.then) delete book.npc[key];
     }
   }
 

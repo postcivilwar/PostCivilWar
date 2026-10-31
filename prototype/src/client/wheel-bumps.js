@@ -3,10 +3,11 @@
 // reaction, I mean the car should behaves like it climbed a blockage").
 //
 // Whoever lies on the road (knocked down, or dead) is taken as their body lies as it is drawn: the trunk from the hips
-// to the head and each leg from the hips to the foot, each a round bar lying on the ground (`BUMP`: how thick). A
-// wheel is lifted by whatever is highest under its tread: across its width, and along the arc of it that is nearest
-// the ground, so that it climbs onto a body, rolls over the top and comes down off it as a real wheel does (a wheel of
-// radius R over a bar of radius r is lifted by up to 2r, and touches it from sqrt((R + r)^2 - (R - r)^2) before it).
+// to the top of the head and each leg from the hips to the toes, each a round bar lying on the ground (`BUMP`: how
+// thick). A wheel is lifted by whatever is highest under its tread: across its width, and along the arc of it that is
+// nearest the ground, so that it climbs onto a body, rolls over the top and comes down off it as a real wheel does (a
+// wheel of radius R over a bar of radius r is lifted by up to 2r, and touches it from sqrt((R + r)^2 - (R - r)^2)
+// before it).
 // The wheels follow the ground as it is (nothing between a wheel and the road but its tyre); the body follows the
 // wheels on its springs, a share of their lift (`share`: the springs take the rest), and settles after with a bounce
 // or two (`freq`, `damping`): the nose up as the front wheels climb, down as they come off, then the tail; leaning to
@@ -17,6 +18,8 @@
 export const BUMP = Object.freeze({
   trunk: 0.12,              // metres: half of how high the trunk lies off the road
   leg: 0.07,                // and a leg
+  head: 0.2,                // metres past the head's bone to the top of the head
+  toes: 0.12,               // and past a foot's bone to the toes
   tread: 0.1,               // half of a tyre's width
   share: 0.6,               // the share of the wheels' lift the body is lifted by (the springs take the rest)
   freq: 1.7,                // how quickly the body settles on its springs (a car's own: about one and a half a second)
@@ -25,12 +28,15 @@ export const BUMP = Object.freeze({
 });
 
 // Of a body lying at (x, z): the trunk and the legs, as bars on the ground: [{ ax, az, bx, bz, r }].
-// From the figure's own bones where it has them (`bones`: hips, head, feet as world points), or else as one bar of a
-// person's length along the way they lie (h), centred where they are.
+// From the figure's own bones where it has them (`bones`: hips, head, feet as world points: the trunk to the top of the
+// head, each leg to its toes), or else as one bar of a person's length along the way they lie (h), centred where they
+// are.
 export function bodyBars(at, bones = null) {
   if (bones && bones.hips && bones.head) {
-    const out = [{ ax: bones.hips.x, az: bones.hips.z, bx: bones.head.x, bz: bones.head.z, r: BUMP.trunk }];
-    for (const f of [bones.footL, bones.footR]) if (f) out.push({ ax: bones.hips.x, az: bones.hips.z, bx: f.x, bz: f.z, r: BUMP.leg });
+    const past = (to, by) => { const dx = to.x - bones.hips.x, dz = to.z - bones.hips.z, d = Math.hypot(dx, dz); return d > 1e-6 ? { x: to.x + (dx / d) * by, z: to.z + (dz / d) * by } : to; };
+    const top = past(bones.head, BUMP.head);
+    const out = [{ ax: bones.hips.x, az: bones.hips.z, bx: top.x, bz: top.z, r: BUMP.trunk }];
+    for (const f of [bones.footL, bones.footR]) if (f) { const toe = past(f, BUMP.toes); out.push({ ax: bones.hips.x, az: bones.hips.z, bx: toe.x, bz: toe.z, r: BUMP.leg }); }
     return out;
   }
   const ux = Math.sin(at.h || 0) * 0.85, uz = Math.cos(at.h || 0) * 0.85;

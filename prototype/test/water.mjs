@@ -66,7 +66,7 @@ const sample = () => page.evaluate(() => {
   const n = window.__nlw, b = n.boatState, v = n.boatView;
   const wake = n.scene.getObjectByName('boat-wake');
   const m = v.model('drive');
-  return { t: performance.now() / 1000, speed: b.speed, pitch: b.pitch, bank: b.bank, heading: n.predicted.heading, at: [n.predicted.x, n.predicted.z], ready: v.ready('drive'), wake: !!(wake && wake.visible), parts: m ? m.frame.children.length : 0, sound: n.audio.status ? n.audio.status() : null };
+  return { t: performance.now() / 1000, g: n.host.game.state.real, speed: b.speed, pitch: b.pitch, bank: b.bank, heading: n.predicted.heading, at: [n.predicted.x, n.predicted.z], ready: v.ready('drive'), wake: !!(wake && wake.visible), parts: m ? m.frame.children.length : 0, sound: n.audio.status ? n.audio.status() : null };
 });
 // Held until `done(sample, all)`, or for `most` seconds, sampling as often as the page lets: on this machine a frame drawn
 // in software can take seconds, longer than the game's longest step (half a second), and a boat's time then runs slower
@@ -189,8 +189,13 @@ else await page.waitForTimeout(8000);
 const aboard = await page.evaluate(() => { const n = window.__nlw; return { ship: n.aboardShip(), stars: n.view.self.law.stars, seen: n.me.group.visible, mode: n.mode }; });
 check('E: aboard: the helm is the player\'s, the player unseen in its wheelhouse; the police\'s stars only if an officer saw it', aboard.ship !== null && !!seenBoarding && aboard.stars === (seenBoarding === 'identified' ? 2 : 0) && !aboard.seen && aboard.mode === 'ship', { ...aboard, seenBoarding });
 await page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; p.law.crimes = []; p.law.stars = 0; p.law.state = 'normal'; });
+// (how fast it gathers way, by the town's own time: the test samples by the clock, and here a frame drawn in software
+// takes seconds, so how many of the town's seconds pass between two samples changes from one run to the next. And from
+// the way it already had: taken from the navy under way, it still carries its patrol's)
+const shipFrom = await page.evaluate(() => ({ g: window.__nlw.host.game.state.real, speed: window.__nlw.boatState.speed }));
 const shipGoing = await holdUntil(['w'], (q, got) => got.length >= 6 && q.speed > 0.3, 240, 0.5);
-check('E: a ship gathers way slowly (after ten seconds well under its top speed of 22 km/h)', shipGoing[shipGoing.length - 1].speed > 0.2 && kmh(shipGoing[shipGoing.length - 1].speed) < 12, shipGoing.map((q) => kmh(q.speed)));
+const shipLast = shipGoing[shipGoing.length - 1], shipTook = shipLast.g - shipFrom.g, shipGain = (shipLast.speed - shipFrom.speed) / shipTook;
+check('E: a ship gathers way slowly (the throttle held: under 0.3 m/s more each second; its top speed 22 km/h)', shipLast.speed > 0.2 && shipGain > 0 && shipGain < 0.3 && kmh(shipLast.speed) < 22.5, { from: kmh(shipFrom.speed), kmh: shipGoing.map((q) => kmh(q.speed)), seconds: +shipTook.toFixed(1), each: +shipGain.toFixed(3) });
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.heading + 0.7; n.cam.lastDrag = 1e9; n.rig.snap(n.cam); });
 await shot('e2-at-the-helm');
 await holdUntil(['s'], (q) => Math.abs(q.speed) < 0.2, 240, 1);

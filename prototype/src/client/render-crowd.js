@@ -309,6 +309,9 @@ export function createCrowd(scene) {
       standCharacter(rig);
       actor.fall = (actor.fall || 0) + (1 - (actor.fall || 0)) * Math.min(1, dt * 12);
       layCharacter(rig, actor.fall);
+      // (a figure of his own goes over by its own fall, which plays only as its animation is moved on: without this it
+      // stood where it had been knocked down, frozen, and a car seemed to go through it. 31 October 2026)
+      if (rig.animated) animateCharacter(rig, dt, 0, false);
       rig.blob.visible = false;
       return;
     }

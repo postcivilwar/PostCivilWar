@@ -14,6 +14,10 @@ import { surface } from './render-kit.js';
 import { fetchKept, letGoOnceDrawn, decodeAtMost } from './glb.js';
 import { deviceKind } from './budget.js';
 
+// (a page opened from the disk cannot fetch its models' files: none is asked for there, rather than one failure in the
+// console for each, again and again; the town's riders and the navy's ships are then not drawn. As for the cars,
+// car-view.js)
+const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
 const cache = new Map();          // `${id}:${tier}` → its geometry and material, however many are drawn (most recently used last)
 const users = new Map();          // how many of each are in the scene now
 const KEEP = deviceKind() === 'lite' ? 2 : 6;      // models kept ready when none of them is drawn
@@ -113,6 +117,7 @@ async function partsOf(id, { base, tier, own = false, priority }) {
   if (!own && cache.has(key)) return cache.get(key);
   const spec = SPORTS_PARTS[id];
   if (!spec) throw new Error(`There is no sports model ${id}.`);
+  if (ON_DISK) throw new Error(`A page opened from the disk cannot fetch the ${id}.`);
   const made = (async () => {
     const pic = picture(base + spec.files[`color${tier}`], own, priority);
     let geometries;
