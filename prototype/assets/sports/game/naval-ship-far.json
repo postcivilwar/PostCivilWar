@@ -1,0 +1,35 @@
+{
+ "tool": "ship-far.py 1",
+ "from": "naval-ship.bin",
+ "fromSha256": "ebffe55e00169f8da573d44000b70b1af6e7adf3889caa88b7eef1200acd9ae3",
+ "master": "naval-ship.glb",
+ "masterSha256": "d74003f332bbc892848f4231dbebbaf43b1482acbe5e242d93c9f3b7416c211f",
+ "vertices": 17244,
+ "triangles": 18385,
+ "index": 16,
+ "parts": [
+  "body"
+ ],
+ "counts": [
+  18385
+ ],
+ "share": 0.25,
+ "fullTriangles": 73540,
+ "size": [
+  35.28152,
+  55.6947,
+  119.84389
+ ],
+ "leftOut": {
+  "pieces": 10,
+  "triangles": 44,
+  "under": 0.5
+ },
+ "files": {
+  "mesh": "naval-ship-far.bin",
+  "color1k": "naval-ship-color-1k.jpg",
+  "color512": "naval-ship-color-512.jpg"
+ },
+ "bytes": 558654,
+ "sha256": "d54597e7141cfe1e5cefd0d537aa0903f1ad3b4721da6d2d8cf504a5f60b4b1b"
+}
