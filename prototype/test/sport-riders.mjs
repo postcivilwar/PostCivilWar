@@ -22,7 +22,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
-import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
+import { pastQuestion, enterTown, watchPictures, lostPictures, officerOnScene } from './start.mjs';
 // (how many the page draws, as sport-riders-view.js has it: read from its text, as the module itself needs the page's
 // three.js to load)
 const seenText = readFileSync(new URL('../src/client/sport-riders-view.js', import.meta.url), 'utf8');
@@ -213,12 +213,16 @@ await page.waitForTimeout(1500);
 const offered = await page.evaluate(() => { const n = window.__nlw; n.refresh(); const p = n.prompt(); return p ? p.text : null; });
 await shot('d1-take-offered');
 check('D: "Take the bicycle from ..." offered beside them', /^Take the bicycle from /.test(offered || ''), offered);
+// (an officer on her beat in sight of it: 31 October 2026, the owner's word, only what an officer on the scene sees is a
+// crime)
+const officerD = await officerOnScene(page, prey.x, prey.z, 16);
+check('D: an officer on her beat in sight of it', officerD !== null, officerD);
 const took = await page.evaluate((n) => window.__nlw.takeSport(n), prey.n);
 await page.waitForFunction(() => { const a = window.__nlw.view.self.astride; return a && a.sport === 'bicycle' && Number.isInteger(a.taken); }, null, { timeout: 20000 }).catch(() => {});
 const inD = await page.evaluate((t) => { const n = window.__nlw, g = n.host.game, p = g.state.players[n.playerId], a = n.view.self.astride; const m = g.internals.actors.get(t.i); return { astride: a, mode: g.internals.sportRiders.riders()[t.n].mode, rider: m ? m.act : null, stars: p.law.stars }; }, prey);
 check('D: taken: the player on it, the rider off and running from the thief', inD.astride && inD.astride.sport === 'bicycle' && inD.astride.taken === prey.n && inD.mode === 'taken' && /thief/i.test(inD.rider || ''), { took, inD });
-// (word reaches the police three to eight seconds of the town's time after it is seen: here, in software, that can be a
-// minute or more of the clock's)
+// (word reaches the police half a second of the town's time after the officer saw it: here, in software, that can be
+// a few seconds of the clock's)
 await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 120000 }).catch(() => {});
 const stars = await page.evaluate(() => { const n = window.__nlw, g = n.host.game, el = document.getElementById('stars'); const c = Object.values(g.state.justice.crimes).slice(-1)[0]; return { stars: n.view.self.law.stars, shown: !el.hidden, on: [...el.children].filter((s) => s.classList.contains('on')).length, crime: c ? { type: c.type, detection: c.detection, status: c.status, reportIn: c.reportAt ? +(c.reportAt - g.state.real).toFixed(1) : null } : null, law: g.state.players[n.playerId].law.state }; });
 check('D: the police\'s stars for taking a vehicle: two', stars.stars === 2 && stars.shown && stars.on === 2, stars);

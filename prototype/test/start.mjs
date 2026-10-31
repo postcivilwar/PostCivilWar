@@ -71,3 +71,22 @@ export async function watchPictures(context) {
   });
 }
 export const lostPictures = (page) => page.evaluate(() => window.__lostPictures || 0);
+
+// A police officer of the town's brought to stand `metres` from (x, z), out in the open in sight of it, and kept
+// standing there (31 October 2026, the owner's word: only what an officer on the scene sees is a crime, justice.js;
+// the same as world.mjs officerOnScene for the headless tests). Gives her number, or null.
+export const officerOnScene = (page, x, z, metres = 18) => page.evaluate(([x, z, metres]) => {
+  const n = window.__nlw, g = n.host.game, A = g.internals.actors, J = g.internals.justice, pop = g.internals.population;
+  const officers = pop.people.filter((q) => q.job === 'police' && !A.has(q.index)).map((q) => q.index);
+  for (const d of [metres, metres * 0.6, 25, 28]) {
+    for (let a = 0; a < 32; a += 1) {
+      const ang = (a / 32) * Math.PI * 2, ox = x + Math.sin(ang) * d, oz = z + Math.cos(ang) * d;
+      if (!n.walkable(ox, oz) || !J.inSight(x, z, ox, oz)) continue;
+      const i = officers[0];
+      if (i === undefined) return null;
+      A.take(i, g.state.t, { x: ox, z: oz }); A.hold(i, 'On the beat', 0, 0); A.get(i).h = Math.atan2(x - ox, z - oz);
+      return i;
+    }
+  }
+  return null;
+}, [x, z, metres]);

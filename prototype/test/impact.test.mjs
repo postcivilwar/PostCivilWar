@@ -461,7 +461,7 @@ test('a child in the road is never struck: they jump clear', () => {
 
 // ---------------------------------------------------------------- the law --
 
-test('running someone down is an offence the police hear of from the one who was hit, with its reason on the charge', () => {
+test('running someone down is written in the police\'s book with its reason; with no officer on the scene it is no crime to them (31 October 2026): no stars, nobody looking for the driver', () => {
   const w = town(['Dayo Driver', 'Vera Victim']);
   const [d, v] = w.players;
   const [x, z] = runway(w);
@@ -474,11 +474,17 @@ test('running someone down is an offence the police hear of from the one who was
   assert.equal(crimes[0].culprit, d.id);
   assert.deepEqual(crimes[0].victim, { kind: 'player', id: v.id, name: 'Vera Victim' });
   assert.equal(crimes[0].vehicle.kind, 'keke');
-  // she knows who hit her; word reaches the police in seconds, and he is wanted for exactly that
-  until(w, () => w.g.view(d.id).self.law.state !== 'normal', LAW.report[1] + 2);
+  // no officer within sight of it: she knows who hit her, but the police were not there, and that is the end of it
+  assert.deepEqual(crimes[0].witnesses, []);
+  assert.equal(crimes[0].detection, 'unseen');
+  assert.ok(w.events(v.id).some((e) => e.type === 'witness' && /No police officer was there to see it/.test(e.text)), 'she is told the police did not see it');
+  run(w.host, 20);
   const law = w.g.view(d.id).self.law;
-  assert.ok(['wanted', 'pursuit'].includes(law.state));
-  assert.deepEqual(law.wanted.map((c) => c.name), ['Dangerous driving causing harm']);
+  assert.equal(law.state, 'normal');
+  assert.equal(law.stars, 0);
+  assert.deepEqual(law.wanted, []);
+  // nor can she tell them of it by phone after
+  assert.deepEqual(w.g.view(v.id).self.law.seen, []);
 });
 
 test('a vehicle kills nobody: a blow on someone already badly hurt leaves them at 20, and a driver seen doing it by an officer is wanted for dangerous driving', () => {

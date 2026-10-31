@@ -14,6 +14,15 @@
 // "I was hit" or "I died": the driver's client asks to move its vehicle one step, as it always has, and
 // this file works out what that step struck.
 //
+// A car (31 October 2026, the owner's word: "I don't want characters to stop a car movement when jammed, the car
+// should jam them if they block the road/path. Jam them and climb over them"): a car is never stopped by whoever it
+// runs into. Anyone in its way is struck at whatever pace it is going, however slowly (it no longer slides through
+// someone at a crawl), and goes down across its way a little ahead of it, so that it goes over them; someone already
+// lying in its way (knocked down, or dead) is gone over where they lie, not shoved along the road. The page shows the
+// wheels climbing over the body and the car's body pitching and rolling on its springs as they do (car-view.js). A
+// rider on a bicycle, a skateboard or skates is knocked off as someone on foot is, what they rode thrown aside
+// (sport-riders.js); a keke, a motorcycle or a bicycle ridden into someone is still stopped by it, as before.
+//
 // Townspeople are knocked down and hurt, and (8 October 2026, at the owner's word) struck hard enough or often
 // enough they die: they lie where they fell for a while, and are then taken to the mortuary and are gone from
 // the town. A player is never killed for good: a dead player comes round at the hospital. Children step clear
@@ -28,6 +37,7 @@ const RESIDENT_NAME = new Map(ZONE_RESIDENTS.map((r) => [r.id, r.name]));
 import { POSE } from './population.js';
 import { PACE } from './actors.js';
 import { SPORT_ON } from './sport-ride.js';
+import { POWER_CARS } from './power-cars.js';
 
 export const BODY = Object.freeze({
   radius: 0.3,             // a person, for standing in the way: two cannot be nearer than twice this
@@ -43,7 +53,9 @@ export const IMPACT = Object.freeze({
   // (19 October 2026: time enough to get up as a person does, onto the hands, a knee, a foot, and up: falls.js)
   rise: 2.7,               // real seconds getting up, in which they still cannot act
   throw: Object.freeze([0.6, 2.6]),    // metres thrown forward, light blow to heavy
-  stall: 0.7,              // real seconds the vehicle is stopped by what it hit
+  stall: 0.7,              // real seconds the vehicle is stopped by what it hit (not a car: 31 October 2026)
+  crawl: 0.3,              // metres a second: a car going faster than this strikes whoever it runs into, however slowly
+  carry: 0.9,              // the share of its pace a car keeps after striking someone (it is not stopped by them)
   gather: 9,               // metres a second each second: the fastest any vehicle here can gain speed
   reach: 0.35,             // metres added to the vehicle's half-width: the body it meets
   dead: 8,                 // real seconds between being killed and coming round at the hospital
@@ -58,6 +70,9 @@ export const IMPACT = Object.freeze({
   seen: 10,                // real seconds the two of them can see each other's health afterwards
   minAge: 16,              // nobody younger is struck: they jump clear
   crimeWindow: 30,         // real seconds in which more blows from the same driver are the same offence
+  // run into by another player's car, seen through the network (31 October 2026): no more often than this (real
+  // seconds), and never brought below HEALTH.critical by it
+  visitorEvery: 4,
 });
 
 // What each vehicle presents to someone in front of it: half its width, and how far ahead of its middle its nose is.
@@ -178,8 +193,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
   function charge(driver, victim, x, z, vehicle, killed) {
     if (!hub.justice) return null;
     const open = driver.driveCrime && real() - driver.driveCrime.at < IMPACT.crimeWindow && driver.driveCrime.victim === `${victim.kind}:${victim.id}` ? driver.driveCrime.id : null;
-    // someone who was killed tells nobody: unless it was seen, the police learn of it only when the body is found
-    const made = hub.justice.offence(driver, killed ? 'death_by_driving' : 'dangerous_driving', { victim, x, z, vehicle, crime: open, stealth: killed, noticed: false });
+    // (a crime only if an officer on the scene saw it: justice.js, 31 October 2026)
+    const made = hub.justice.offence(driver, killed ? 'death_by_driving' : 'dangerous_driving', { victim, x, z, vehicle, crime: open, stealth: false, noticed: false });
     driver.driveCrime = { id: made.id, at: real(), victim: `${victim.kind}:${victim.id}` };
     if (killed) hub.justice.worsen(made.id, 'death_by_driving', true);
     return made.id;
@@ -195,7 +210,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const lost = conflict.injure(q, harm);
     q.blood = Math.min(IMPACT.bleed.most, (q.blood && now - (q.bloodAt || 0) < 60 ? q.blood : 0) + harm * IMPACT.bleed.perHarm); q.bloodAt = now;
     const from = { x: q.x, z: q.z };
-    const to = thrown(q.x, q.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
+    // (someone already on the ground, gone over by a car, stays where they lie)
+    const to = lying && vehicle.kind === 'car' ? from : thrown(q.x, q.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
     q.x = to.x; q.z = to.z; q.lastMoveAt = now;
     conflict.stop(q);
     involve(driver, q);
@@ -207,6 +223,11 @@ export function createImpact({ state, players, population, actors, conflict, tal
       q.stats.deaths = (q.stats.deaths || 0) + 1;
       emit(q.id, { type: 'critical', title: 'Killed', text: `${driver.name} ran you down. You are being carried to the hospital.` });
       emit(driver.id, { type: 'alert', title: 'You have killed someone', text: `${q.name} is dead under your wheels.` });
+    } else if (lying && vehicle.kind === 'car' && now < q.down.until) {
+      // (already on the ground, gone over where they lie by a car: they stay down until it is past, the fall they are in
+      // carried on, not begun again)
+      q.down.until = Math.max(q.down.until, now + 2); q.down.upAt = q.down.until + IMPACT.rise;
+      emit(q.id, { type: 'alert', title: 'Run over', text: `${driver.name} drove over you. Health ${q.health}.` });
     } else {
       const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
       // (`from`: where they were struck, to be carried from as they fall; `hard`: a heavy blow, down at once)
@@ -222,7 +243,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const who = people[i];
     const rec = book.npc[i] || (book.npc[i] = { at: -10, health: 100, t: state.t });
     if (rec.dead) {
-      // a body is not knocked about again; the vehicle goes over it, and stops
+      // a body is not knocked about again; the vehicle goes over it (and, but for a car, stops)
       if (now - rec.at < IMPACT.grace) return null;
       rec.at = now;
       return { kind: 'npc', id: i, name: who.short, harm: 0, health: 0, killed: false, body: true };
@@ -244,8 +265,23 @@ export function createImpact({ state, players, population, actors, conflict, tal
     rec.health = Math.max(Math.min(rec.health, HEALTH.critical), rec.health - harm);
     rec.blood = Math.min(IMPACT.bleed.most, (rec.blood || 0) + harm * IMPACT.bleed.perHarm);
     rec.hits = (rec.hits || 0) + 1;
+    const car = vehicle.kind === 'car';
+    if (car && lying) {
+      // already down in its way: the car goes over them where they lie (car-view.js shows its wheels climbing over),
+      // and they stay down until it is past
+      const until = Math.max(m.until || 0, now + 2.5);
+      actors.hold(i, 'Knocked down', POSE.lie, until);
+      m.after = Math.max(m.after || 0, until);
+      charge(driver, { kind: 'npc', id: i, name: who.short }, m.x, m.z, vehicle, false);
+      driver.involvedNpc = { i, name: who.short, until: now + IMPACT.seen };
+      show({ kind: 'knock', by: { kind: 'player', id: driver.id }, on: { kind: 'npc', id: i }, x: m.x, z: m.z, speed: Math.round(speed * 10) / 10, harm, vehicle: vehicle.kind, over: true });
+      return { kind: 'npc', id: i, name: who.short, harm, health: rec.health, killed: false, over: true };
+    }
     const to = thrown(m.x, m.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
-    m.x = to.x; m.z = to.z; m.h = heading;
+    m.x = to.x; m.z = to.z;
+    // (struck by a car: down across its way, a little ahead of it, for it to go over; of the two ways across, the one
+    // nearer the way they were facing. Anything else throws them along the way it was going, as before.)
+    if (car) { const across = heading + Math.PI / 2; m.h = Math.cos(m.h - across) >= 0 ? across : across - Math.PI; } else m.h = heading;
     rec.x = m.x; rec.z = m.z;
     const killed = rec.health <= 0;
     if (killed) {
@@ -333,7 +369,10 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const reach = front.half + IMPACT.reach;
     const throwTo = forward ? heading : heading + Math.PI;
     const hits = [];
-    if (speed >= IMPACT.least) {
+    // (a car strikes whoever it runs into at any pace but a standstill: it never slides through someone, 31 October 2026)
+    const car = vehicle.kind === 'car';
+    const least = car ? IMPACT.crawl : IMPACT.least;
+    if (speed >= least) {
       for (const id of Object.keys(players)) {
         const q = players[id];
         if (q === driver || !onFoot(q) || q.dead) continue;
@@ -350,7 +389,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
       const rows = population.within(`hit:${driver.id}`, x1, z1, 17, state.t, now);
       const tx = forward ? ux : -ux, tz = forward ? uz : -uz;
-      if (speed >= IMPACT.least) {
+      if (speed >= least) {
         for (const [i, px, pz, pose] of rows) {
           if (pose === POSE.ride || pose === POSE.hidden) continue;
           if (nearestOnStep(from.x, from.z, bx, bz, px, pz) > reach) continue;
@@ -359,10 +398,109 @@ export function createImpact({ state, players, population, actors, conflict, tal
         }
       }
       if (speed > 0.8) warn(driver, rows, bx, bz, tx, tz, speed, reach);
+      // (whoever lies under a car is kept down until it is past them: nobody gets up under it)
+      if (car) keepDown(rows, x1, z1, heading, front, now);
       holder.sweep = { x: bx, z: bz, at: now };
     } else holder.sweep = from;
-    if (hits.length) { holder.stalledUntil = now + IMPACT.stall; holder.pace = 0; }
+    // the town's riders on their bicycles, skateboards and skates (sport-riders.js): a car knocks them off, as it would
+    // anyone on foot, at each step of its way (there are few of them, and they move quickly)
+    if (car && speed >= least && hub.sportRiders && hub.sportRiders.knock) {
+      for (const r of hub.sportRiders.riders()) {
+        if (!hub.sportRiders.isOut(r)) continue;
+        if (Math.abs(r.x - bx) > 12 || Math.abs(r.z - bz) > 12) continue;
+        if (nearestOnStep(ax, az, bx, bz, r.x, r.z) > reach + (r.item === 'bicycle' ? 0.55 : 0.3)) continue;
+        const rec = book.npc[r.i];
+        if (rec && now - rec.at < IMPACT.grace) continue;
+        if (hub.sportRiders.knock(r.n, x1, z1, heading, front.half) === null) continue;
+        const hit = strikeNpc(driver, r.i, speed, throwTo, vehicle);
+        if (hit) hits.push({ ...hit, rider: r.n });
+      }
+    }
+    // Whoever it struck stops a keke, a motorcycle or a bicycle for a moment. Not a car: it loses a little of its pace
+    // (someone's weight against it, a wheel over them) and goes on (31 October 2026).
+    if (hits.length) { if (car) holder.pace *= IMPACT.carry; else { holder.stalledUntil = now + IMPACT.stall; holder.pace = 0; } }
     return hits;
+  }
+
+  // Those lying under a car, as it stands now (its whole length, and a little to each side), are kept down a moment
+  // longer each time it is looked at, until it has gone past them.
+  function keepDown(rows, x, z, heading, front, now) {
+    const ux = Math.sin(heading), uz = Math.cos(heading);
+    const under = (px, pz) => { const a = (px - x) * ux + (pz - z) * uz, c = (px - x) * uz - (pz - z) * ux; return a > -front.tail - 0.6 && a < front.nose + 0.6 && Math.abs(c) < front.half + 0.6; };
+    for (const [i, px, pz, pose] of rows) {
+      if (pose !== POSE.lie || !under(px, pz) || !actors.has(i)) continue;
+      const m = actors.get(i);
+      if (m.dead || m.act !== 'Knocked down') continue;
+      const until = Math.max(m.until || 0, now + 1.2);
+      actors.hold(i, 'Knocked down', POSE.lie, until);
+      m.after = Math.max(m.after || 0, until);
+      const rec = book.npc[i];
+      if (rec && rec.reactAt) rec.reactAt = Math.max(rec.reactAt, until);
+    }
+    for (const id of Object.keys(players)) {
+      const q = players[id];
+      if (!q.down || now >= q.down.until || !under(q.x, q.z)) continue;
+      q.down.until = Math.max(q.down.until, now + 1.2); q.down.upAt = q.down.until + IMPACT.rise;
+    }
+  }
+
+  // Run into by another player's car (31 October 2026, the owner's word: "Sometimes cars pass through characters
+  // without jamming them"). Their car is seen here where their page says it is (talk.js), and this town's own player is
+  // here: if it goes through where they stand, they are knocked down as by any car, and their page shows it and tells
+  // the other's (link.js), which shows it too. How hard is judged by how fast it was seen to go here, from one word of it
+  // to the next (never by what their page says its speed is); and where another page says its car is cannot be trusted
+  // with a life, so nobody is brought below HEALTH.critical by it, nor knocked down by it more often than
+  // `visitorEvery`. Nobody is charged for it here: the driver is in their own copy of the town.
+  const seenCars = new Map();      // a visitor's id -> where their car was last seen to be, and when
+  function visitorCars() {
+    const now = real();
+    const live = new Set();
+    for (const v of visitors()) {
+      const spec = v && v.car && POWER_CARS[v.car.car];
+      if (!spec || !Number.isFinite(v.x) || !Number.isFinite(v.z)) continue;
+      live.add(v.id);
+      const was = seenCars.get(v.id);
+      const h = Number.isFinite(v.heading) ? v.heading : 0;
+      if (was && Math.hypot(v.x - was.x, v.z - was.z) < 0.01) continue;
+      seenCars.set(v.id, { x: v.x, z: v.z, h, at: now });
+      if (!was || now - was.at > 1.2) continue;
+      const speed = Math.hypot(v.x - was.x, v.z - was.z) / Math.max(now - was.at, 1 / 30);
+      // (slower than a crawl, it nudges nobody; faster than any car here, it was not driven there but put there)
+      if (speed < IMPACT.crawl || speed > 60) continue;
+      const ux = Math.sin(h), uz = Math.cos(h);
+      const forward = (v.x - was.x) * ux + (v.z - was.z) * uz >= 0;
+      const lead = forward ? spec.length / 2 : -spec.length / 2;
+      const reach = spec.width / 2 + IMPACT.reach;
+      for (const id of Object.keys(players)) {
+        const q = players[id];
+        if (!onFoot(q) || q.dead || q.swimming || q.custody) continue;
+        if (nearestOnStep(was.x + ux * lead, was.z + uz * lead, v.x + ux * lead, v.z + uz * lead, q.x, q.z) > reach) continue;
+        struckByVisitor(q, v, speed, forward ? h : h + Math.PI);
+      }
+    }
+    for (const id of [...seenCars.keys()]) if (!live.has(id)) seenCars.delete(id);
+  }
+  function struckByVisitor(q, v, speed, heading) {
+    const now = real();
+    if (q.struckByVehicleAt !== undefined && now - q.struckByVehicleAt < IMPACT.grace) return;
+    if (q.visitorStruckAt !== undefined && now - q.visitorStruckAt < IMPACT.visitorEvery) return;
+    q.struckByVehicleAt = now; q.visitorStruckAt = now;
+    const lying = !!q.down && now < q.down.until;
+    const harm = Math.max(0, Math.min(Math.max(1, Math.round(harmAt(speed) * (lying ? IMPACT.downed : 1))), q.health - HEALTH.critical));
+    const lost = harm > 0 ? conflict.injure(q, harm) : 0;
+    if (lost > 0) { q.blood = Math.min(IMPACT.bleed.most, (q.blood && now - (q.bloodAt || 0) < 60 ? q.blood : 0) + lost * IMPACT.bleed.perHarm); q.bloodAt = now; }
+    const weight = clamp((speed - IMPACT.least) / 7, 0, 1);
+    const from = { x: q.x, z: q.z };
+    if (lying) { q.down.until = Math.max(q.down.until, now + 2); q.down.upAt = q.down.until + IMPACT.rise; }
+    else {
+      const to = thrown(q.x, q.z, heading, IMPACT.throw[0] + (IMPACT.throw[1] - IMPACT.throw[0]) * weight);
+      q.x = to.x; q.z = to.z; q.lastMoveAt = now;
+      conflict.stop(q);
+      const lie = IMPACT.down[0] + (IMPACT.down[1] - IMPACT.down[0]) * weight;
+      q.down = { at: now, until: now + lie, upAt: now + lie + IMPACT.rise, by: v.id, h: heading, from, hard: weight > 0.6 };
+    }
+    emit(q.id, { type: 'alert', title: lying ? 'Run over' : 'Knocked down', text: `${v.name} ${lying ? 'drove over you' : 'hit you with a car'}. Health ${q.health}.` });
+    show({ kind: 'knock', by: { kind: 'visitor', id: v.id }, on: { kind: 'player', id: q.id }, x: q.x, z: q.z, speed: Math.round(speed * 10) / 10, harm: lost, vehicle: 'car' });
   }
 
   // Is this vehicle still stopped by what it hit?
@@ -372,6 +510,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
 
   function tick() {
     const now = real();
+    visitorCars();
     for (const id of Object.keys(players)) {
       const p = players[id];
       if (p.down && now >= p.down.upAt) p.down = null;

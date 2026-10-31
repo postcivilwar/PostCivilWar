@@ -19,6 +19,8 @@ import { fallTime, flightAt } from './falls.js';
 import { deviceKind } from './budget.js';
 import { ANIMATED, figureHere } from './animated.js';
 import { createCrowdFigures } from './crowd-figures.js';
+import { bonesOf } from './own-bike-view.js';
+import { bodyBars } from './wheel-bumps.js';
 
 const KEKE_SEAT = vehicleMeta('keke').seats.driver;    // where a keke's driver sits, in its own frame
 const SEATED = 0.845;                                  // a seated figure's seat above its feet, for a figure of height 1
@@ -721,8 +723,36 @@ export function createCrowd(scene) {
     return other ? { x: other.x, y: 1.9, z: other.z } : null;
   }
 
+  // Whoever lies on the road near a point (knocked down, or dead): each body as bars on the ground, from where its
+  // figure's bones are drawn (wheel-bumps.js), for a car's wheels to go over (car-view.js, 31 October 2026).
+  const BONES_AT = Object.freeze({ hips: 'pelvis', head: 'head', footL: 'foot_l', footR: 'foot_r' });
+  const boneAt = new THREE.Vector3();
+  const lyingNow = [];
+  function lying(x, z, range = 40) {
+    lyingNow.length = 0;
+    const add = (rig, at) => {
+      let bones = null;
+      if (rig && rig.bones) {
+        const b = bonesOf(rig);
+        bones = {};
+        for (const [k, name] of Object.entries(BONES_AT)) { const bone = b.get(name); if (bone) { bone.getWorldPosition(boneAt); bones[k] = { x: boneAt.x, z: boneAt.z }; } }
+      }
+      for (const bar of bodyBars(at, bones)) lyingNow.push(bar);
+    };
+    for (const a of actors.values()) {
+      // (on the road where they fell, not in a hospital bed)
+      if (a.pose !== POSE.lie || !fallen.has(a.i) || Math.abs(a.x - x) > range || Math.abs(a.z - z) > range) continue;
+      add(a.rig, a);
+    }
+    for (const o of others.values()) {
+      if (!o.rig || !o.rig.downState || Math.abs(o.x - x) > range || Math.abs(o.z - z) > range) continue;
+      add(o.rig, { x: o.x, z: o.z, h: o.h });
+    }
+    return lyingNow;
+  }
+
   return {
-    update, anchor, stats,
+    update, anchor, stats, lying,
     bike: (riderNumber) => bikes.get(riderNumber) || null,
     bikes: () => bikes.values(),
     // how many other players' okadas are drawn (for the tests)

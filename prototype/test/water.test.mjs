@@ -6,7 +6,7 @@
 // boats seen out on the river.
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { town, run } from './world.mjs';
+import { town, run, officerOnScene } from './world.mjs';
 import { ZONE_JETTY, zoneShoreZ, zoneSwimmable, zoneWalkable } from '../src/sim/zone.js';
 import { hullClear, BOATING } from '../src/sim/own-boats.js';
 import { NAVAL, onRound } from '../src/sim/naval.js';
@@ -145,21 +145,43 @@ test('the navy\'s three ships on patrol: boarded from a boat alongside, the poli
   assert.equal(again.crime, null);
 });
 
-test('from the water a swimmer climbs aboard a ship on the town\'s side of the river; caught by the police, the ship goes back to the navy and its patrol', () => {
+test('a ship climbed aboard out of every officer\'s sight is no crime to the police (31 October 2026): the navy are not the police', () => {
   const w = town(['Ship Swimmer']);
   const { p, id, send } = w;
-  // a ship on its leg down the town's side, with a swimmer off the bank beside it
+  // a ship on its leg down the town's side, far out from the bank (48 m), with a swimmer beside it
   const s1 = w.I.naval.ships().find((s) => s.z < 220) || w.I.naval.ships()[1];
   Object.assign(s1, onRound(NAVAL.x1 - NAVAL.x0 + Math.PI * ((NAVAL.up - NAVAL.down) / 2) + 300));
   s1.mode = 'patrol';
   const x = s1.x, z = Math.min(183, s1.z - NAVAL.beam / 2 - 3);
   w.place(p, x, z, 0);
   p.swimming = { since: w.g.state.real };
+  const took = send(id, { type: 'naval.take' });
+  assert.equal(took.ok, true, JSON.stringify(took));
+  const crime = w.g.state.justice.crimes[took.crime];
+  assert.equal(crime.detection, 'unseen');
+  run(w.host, 10);
+  assert.equal(p.law.state, 'normal');
+  assert.equal(w.g.view(id).self.law.stars, 0);
+});
+
+test('from the water a swimmer climbs aboard a ship on the town\'s side of the river, seen from the jetty by an officer; caught by the police, the ship goes back to the navy and its patrol', () => {
+  const w = town(['Ship Swimmer']);
+  const { p, id, send } = w;
+  // a ship on its leg down the town's side, passing the end of the jetty, with a swimmer beside it
+  const s1 = w.I.naval.ships().find((s) => s.z < 220) || w.I.naval.ships()[1];
+  Object.assign(s1, onRound(NAVAL.x1 - NAVAL.x0 + Math.PI * ((NAVAL.up - NAVAL.down) / 2) + (NAVAL.x1 - 38)));
+  s1.mode = 'patrol';
+  const x = s1.x, z = Math.min(183, s1.z - NAVAL.beam / 2 - 3);
+  w.place(p, x, z, 0);
+  p.swimming = { since: w.g.state.real };
   assert.ok(zoneSwimmable(x, z));
+  // an officer at the end of the jetty, in sight of it (31 October 2026, only what an officer sees is a crime)
+  const officerAt = w.I.actors.get(officerOnScene(w, s1.x, s1.z, { metres: 25 }));
+  assert.ok(officerAt.x >= ZONE_JETTY.x0 && officerAt.x <= ZONE_JETTY.x1 && officerAt.z <= ZONE_JETTY.z1, `on the jetty: ${officerAt.x.toFixed(1)}, ${officerAt.z.toFixed(1)}`);
   const took = send(id, { type: 'naval.take' });
   assert.equal(took.ok, true, JSON.stringify(took));
   assert.ok(!p.swimming);
-  // the police: told of it (a while after), and when they catch the player, everything taken goes back
+  // the police: the officer saw it, and when they catch the player, everything taken goes back
   for (let k = 0; k < 600 && !p.law.crimes.includes(took.crime); k += 1) run(w.host, 0.5);
   assert.ok(p.law.crimes.includes(took.crime), 'the police know of it');
   const officer = w.I.population.people.find((q) => q.job === 'police');

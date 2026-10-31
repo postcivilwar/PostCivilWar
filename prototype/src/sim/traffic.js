@@ -13,7 +13,8 @@
 // vehicle, impact.js), and standing a while at the roadside before going on, the driver at the wheel.
 //
 // A car standing still (at the roadside, at a red light, in a queue) can be taken from its driver (hijack.js): the
-// driver is pulled out and runs, has seen the thief's face, and the police are told (justice.js: taking a vehicle).
+// driver is pulled out and runs, has seen the thief's face; a crime for the police if an officer saw it (justice.js:
+// taking a vehicle).
 // The thief drives it as they would their own (own-cars.js), and may leave it and come back to it: it stands where
 // they left it and nobody else gets into it. It is never theirs: the website's server, which keeps who owns what, is
 // never told of it, so it is never on their list of cars, never in the market and never sold. When the police catch

@@ -1,7 +1,7 @@
 // Plays the built page in a headless browser and saves screenshots.
 //   node test/play.mjs <output-directory>
 // Needs Playwright with Chromium. Not part of the unit tests.
-import { pastQuestion, enterTown, openingOver, overTown } from './start.mjs';
+import { pastQuestion, enterTown, openingOver, overTown, officerOnScene } from './start.mjs';
 import { ZONE_RESIDENTS, ZONE_POPULATION } from '../src/sim/zones/atani.js';
 // the town's own people: since 22 October 2026 its police (sixteen policewomen walking their beats) and the named
 // people at the counters, until the owner's own figures come
@@ -991,7 +991,8 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
     if (after.fines - crime.fines !== fine || after.toGovernment - crime.toGovernment !== fine) bad(`a police officer's fine of ${fine} should all go to government: ${JSON.stringify(after)}`);
     await page.keyboard.press('Escape'); await page.waitForTimeout(300);
   }
-  // --- taking a motorcycle: only from beside the rider, and it is a crime ---
+  // --- taking a motorcycle: only from beside the rider, and it is a crime (an officer of the town's in sight of it: 31
+  // October 2026, only what an officer on the scene sees is a crime) ---
   await nlw(page, () => { window.__nlw.place(160, -48); });
   await page.waitForTimeout(1200);
   const bike = await nlw(page, () => window.__nlw.view.okadas.find((o) => o.stopped) || null);
@@ -1004,6 +1005,7 @@ await session('action', { width: 1280, height: 760 }, async (page, shot) => {
     await nlw(page, (o) => { const n = window.__nlw; const x = o.x + Math.cos(o.h) * 0.95, z = o.z - Math.sin(o.h) * 0.95; n.place(x, z); n.face(Math.atan2(o.x - x, o.z - z)); n.cam.yaw = o.h + 2.4; n.cam.dist = 6; }, bike);
     await page.waitForTimeout(1200);
     if (!(await now(page)).keys.some((k) => /Take/.test(k))) bad('Take is not offered beside the rider');
+    if ((await officerOnScene(page, bike.x, bike.z, 14)) === null) bad('no officer could be brought to see the motorcycle taken');
     await page.keyboard.press('g'); await page.waitForTimeout(500);
     s = await now(page);
     if (s.mode !== 'taking' && s.mode !== 'moto') bad(`G beside the rider: ${s.mode}`);

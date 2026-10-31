@@ -10,12 +10,20 @@
 //
 // How it goes:
 //   an offence is recorded the moment it happens, seen or not
-//   a police officer near enough may see it (distance, a clear view, how grave
-//     it was): only the police are witnesses (22 October 2026, the owner's word:
-//     "remove witness. only police should serve as witness"); the person
-//     wronged usually knows, and one who does not can report it by phone
-//   if the police or the person wronged know, word reaches the police after a
-//     few seconds (at once, if an officer saw it) and the culprit is wanted
+//   only the police are witnesses (22 October 2026, the owner's word: "remove
+//     witness. only police should serve as witness"), and only what an officer
+//     on the scene sees is a crime (31 October 2026, the owner's word: "the
+//     only time a character gets a star is if police js around on the scene
+//     during the crime. If police is out of sight, don't count it as crime"):
+//     an officer within LAW.witness.range with a clear view of it sees it,
+//     always (something done by stealth, a pocket picked, only within
+//     LAW.witness.sure); an officer it was done to knows it, wherever she was
+//   one no officer saw is written in the book and goes no further: nobody
+//     reports it afterwards (not the person wronged, by phone or otherwise),
+//     nobody finds anything out about it later, and it brings no stars; an
+//     officer who comes upon it while it is still going on (a fight, more
+//     blows) sees it then
+//   one an officer saw is the police's at once: the culprit is wanted
 //   officers on duty walk or run to where the culprit was last seen: nobody
 //     appears from nowhere
 //   an officer who can see the culprit gives chase, challenges, and lays
@@ -24,7 +32,7 @@
 //     walked to the Police Post
 //   there they pay, or someone pays for them, or they sit out their time
 
-import { ZONE, ZONE_SPOTS, zoneService, zoneWalkable } from './zone.js';
+import { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid } from './zone.js';
 import { GameError } from './registry.js';
 import { LedgerError, fineShares, trText, TR } from './ledger.js';
 import { POSE } from './population.js';
@@ -50,10 +58,10 @@ export const LAW = Object.freeze({
   mostHours: 8,
   // what a player constable may set: from 5 TR to the charge of 10 TR, or to 100 TR where someone was killed
   constableFine: Object.freeze({ least: 5 * TR, most: 10 * TR, mostWithDeath: 100 * TR }),
-  // (`sure`: metres within which an officer with a clear view always sees it, 22 October 2026)
-  witness: Object.freeze({ range: 30, chance: Object.freeze([0, 0.5, 0.7, 0.9, 0.95]), unseen: 0.15, stealth: 0.45, most: 8, sure: 15 }),
-  report: Object.freeze([3, 8]),       // real seconds for word of a crime that was seen to reach the police
-  discover: Object.freeze([40, 100]),  // real seconds before someone who noticed nothing finds their money gone
+  // (31 October 2026: an officer with a clear view of it within `range` metres always sees it, and nobody else does;
+  // something done by stealth only within `sure`; at most `most` of them are counted)
+  witness: Object.freeze({ range: 30, most: 8, sure: 15 }),
+  report: Object.freeze([0.5, 0.5]),   // real seconds for an officer who saw it to have it known to the police
   sight: 32,                           // metres at which an officer knows a wanted person on sight
   reach: 1.9,                          // metres at which an officer can lay hands on someone
   still: 0.7,                          // real seconds the suspect must have stood still to be taken without a struggle
@@ -98,6 +106,17 @@ export const STARS = Object.freeze({
 });
 export const starsOf = (type) => STARS.of[type] || 1;
 
+// Can someone at (x1, z1) see (x0, z0)? Nothing standing up between them at the height of the eyes (a wall, a building,
+// a tree, a parked coach); open ground and water are no hindrance, so the river is seen across from its bank (31
+// October 2026), and the low boards of a roadblock are seen over.
+const EYES = 1.5;
+export function inSight(x0, z0, x1, z1) {
+  const gap = Math.hypot(x1 - x0, z1 - z0);
+  const steps = Math.max(1, Math.ceil(gap / 0.6));
+  for (let i = 1; i < steps; i += 1) if (zoneSolid(x0 + ((x1 - x0) * i) / steps, z0 + ((z1 - z0) * i) / steps, 0.1, EYES)) return false;
+  return true;
+}
+
 const SHOUTS = Object.freeze([['Police! Police!', 'Police! Police o!'], ['Hey! Stop that!', 'Hey! Stop am!'], ['Somebody call the police!', 'Make person call police!']]);
 const THIEF = Object.freeze([['Thief! Thief!', 'Ole! Ole!'], ['My money! Somebody has taken my money!', 'My money! Person don carry my money!']]);
 const hash = (a, b = 0) => { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
@@ -128,29 +147,22 @@ export function createJustice({ state, players, ledger, accounts, population, ac
 
   // --- offences ---------------------------------------------------------------------
 
-  // Which police officers near an offence saw it. The person wronged is not counted here. Nobody but the police is a
-  // witness: not a townsperson, and not another player standing by.
+  // Which police officers saw an offence: every officer on the scene, out in the open within LAW.witness.range of it
+  // (within LAW.witness.sure of something done by stealth) with nothing standing between her and it (`inSight`), and not
+  // lying on the ground; and an
+  // officer it was done to, wherever she was. Nobody but the police is a witness: not a townsperson, not the person
+  // wronged, and not another player standing by. Nothing here is left to chance (31 October 2026).
   function witnessesOf(crime, culprit, stealth) {
     const out = [];
-    const rule = LAW.offences[crime.type];
-    const base = LAW.witness.chance[rule.severity] * (stealth ? LAW.witness.stealth : 1);
-    for (let i = 0; i < population.count && out.length < LAW.witness.most; i += 1) {
-      if (crime.victim.kind === 'npc' && crime.victim.id === i) continue;
-      if (people[i].job !== 'police') continue;
+    const far = stealth ? LAW.witness.sure : LAW.witness.range;
+    for (const i of POLICE) {
+      if (out.length >= LAW.witness.most) break;
       const at = where(i);
       if (at.pose === POSE.hidden) continue;
       const d = Math.hypot(at.x - crime.x, at.z - crime.z);
-      if (d > LAW.witness.range) continue;
-      const who = people[i];
-      const view = clearLine(crime.x, crime.z, at.x, at.z, 0.1) ? 1 : LAW.witness.unseen;
-      let sort = 1;
-      if (who.traits.includes('curious') || who.traits.includes('talkative')) sort = 1.3;
-      if (who.traits.includes('reserved') || who.traits.includes('shy')) sort = 0.8;
-      if (who.age < 10) sort = 0.3;
-      if (who.job === 'police') sort = 2;
-      if (at.pose === POSE.lie) sort *= 0.2;
-      const sure = who.job === 'police' && d <= LAW.witness.sure && view === 1 && at.pose !== POSE.lie;
-      if (sure || rng.next() < base * (1 - d / LAW.witness.range) * view * sort) out.push({ kind: 'npc', id: i, name: who.name, metres: Math.round(d), police: who.job === 'police' });
+      const wronged = crime.victim.kind === 'npc' && crime.victim.id === i;
+      if (!wronged && (d > far || at.pose === POSE.lie || !inSight(crime.x, crime.z, at.x, at.z))) continue;
+      out.push({ kind: 'npc', id: i, name: people[i].name, metres: Math.round(d), police: true, ...(wronged ? { wronged: true } : {}) });
     }
     void culprit;
     return out;
@@ -178,6 +190,9 @@ export function createJustice({ state, players, ledger, accounts, population, ac
 
   // Records an offence. `info.crime` continues one already under way (more blows in the same fight).
   //   info: { victim: { kind, id, name }, x, z, amount, stealth, noticed, vehicle }
+  // Only an officer on the scene makes it a crime the police know of (`seenBy`); one no officer saw is `unseen`, and
+  // stays so unless an officer comes upon it while it is still going on.
+  const seenBy = (crime) => { if (crime.detection !== 'identified' && crime.witnesses.some((w) => w.police)) { crime.detection = 'identified'; crime.reportAt = real() + LAW.report[0]; } };
   function offence(p, type, info) {
     const rule = LAW.offences[type];
     if (!rule) throw new Error(`no such offence: ${type}`);
@@ -188,6 +203,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
         crime.lookedAt = real();
         for (const w of witnessesOf(crime, p, false)) if (!crime.witnesses.some((e) => e.kind === w.kind && e.id === w.id)) crime.witnesses.push(w);
         stir(crime, p);
+        // (an officer has come upon it now)
+        seenBy(crime);
       }
       return { id: crime.id, isNew: false };
     }
@@ -196,19 +213,16 @@ export function createJustice({ state, players, ledger, accounts, population, ac
       id: `CR-${pad(book.crimeSeq, 6)}`, no: `${ZONE.lgaCode}/CR/${pad(book.crimeSeq + 1000, 4)}`, type, culprit: p.id, culpritName: p.name,
       victim: { kind: info.victim.kind, id: info.victim.id, name: info.victim.name }, amount: info.amount || 0, recovered: 0, vehicle: info.vehicle || null,
       x: Math.round(info.x * 10) / 10, z: Math.round(info.z * 10) / 10, at: Math.round(state.t), real: real(), count: 1, lookedAt: real(),
-      witnesses: [], detection: 'undetected', status: 'open', arrest: null, reportAt: null, discoverAt: null, txn: info.txn || null,
+      witnesses: [], detection: 'unseen', status: 'open', arrest: null, reportAt: null, discoverAt: null, txn: info.txn || null,
     };
     book.crimes[crime.id] = crime;
     crime.witnesses = witnessesOf(crime, p, !!info.stealth);
-    // the person wronged knows who did it, unless it was done by stealth and they felt nothing
-    const victimKnows = !info.stealth || !!info.noticed;
-    if (victimKnows || crime.witnesses.length) {
-      crime.detection = 'identified';
-      // an officer who saw it needs nobody to tell them
-      crime.reportAt = crime.witnesses.some((w) => w.police) ? real() + 0.5 : real() + LAW.report[0] + rng.next() * (LAW.report[1] - LAW.report[0]);
-    } else crime.discoverAt = real() + LAW.discover[0] + rng.next() * (LAW.discover[1] - LAW.discover[0]);
+    seenBy(crime);
     stir(crime, p, type === 'theft' ? THIEF : SHOUTS);
-    if (crime.victim.kind === 'player' && victimKnows) emit(crime.victim.id, { type: 'witness', crime: crime.id, text: `${p.name} has wronged you: ${rule.name.toLowerCase()}. The police are being told.` });
+    // a player wronged, who knows who did it (unless it was done by stealth and they felt nothing), is told whether the
+    // police saw it
+    const victimKnows = !info.stealth || !!info.noticed;
+    if (crime.victim.kind === 'player' && victimKnows) emit(crime.victim.id, { type: 'witness', crime: crime.id, text: `${p.name} has wronged you: ${rule.name.toLowerCase()}. ${known(crime) ? 'A police officer saw it.' : 'No police officer was there to see it.'}` });
     return { id: crime.id, isNew: true };
   }
 
@@ -265,30 +279,17 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     emit(p.id, { type: 'police', title: 'No longer wanted', text });
   }
 
-  // Someone finds their money gone and does not know who took it.
-  function discovered(crime) {
-    crime.discoverAt = null;
-    if (crime.status !== 'open' || crime.detection !== 'undetected') return;
-    crime.detection = 'suspected';
-    if (crime.victim.kind === 'npc') { const at = where(crime.victim.id); if (at.pose !== POSE.hidden) speak(crime.victim.id, THIEF); }
-    const p = players[crime.culprit];
-    if (p && Math.hypot(p.x - crime.x, p.z - crime.z) < 60 && lawOf(p).state === 'normal') setState(p, 'suspicious');
-    investigate(crime);
-  }
-
-  // A player who saw an offence, or suffered one, tells the police.
+  // A player who suffered an offence, or saw one, tells the police by phone (phone.js). Only what an officer saw is a
+  // crime the police act on (31 October 2026): one an officer saw is the police's at once if word of it has not reached
+  // them yet; of one no officer saw, there is nothing they can do.
   function reportSeen(q, crimeId) {
     const crime = book.crimes[crimeId];
     if (!crime || crime.status !== 'open') throw new GameError('NO_CRIME', 'There is nothing open under that number.');
     const saw = crime.witnesses.some((w) => w.kind === 'player' && w.id === q.id);
     const wronged = crime.victim.kind === 'player' && crime.victim.id === q.id;
     if (!saw && !wronged) throw new GameError('NOT_A_WITNESS', 'You did not see that happen.');
-    if (wronged && !saw && crime.detection !== 'identified') {
-      // they know they were robbed, but not by whom
-      if (crime.detection === 'undetected') discovered(crime);
-      return { crime: crime.no, identified: false };
-    }
-    if (crime.detection !== 'identified' || crime.reportAt) reported(crime);
+    if (!known(crime)) return { crime: crime.no, identified: false, unseen: true };
+    if (crime.reportAt) reported(crime);
     return { crime: crime.no, identified: true };
   }
 
@@ -338,7 +339,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     const crime = offence(p, 'theft', { victim, x: at.x, z: at.z, amount, stealth: true, noticed: false, txn: txn.id });
     book.totals.stolen += amount;
     // a player is told at once that the money is gone: nobody loses money without knowing it
-    if (victim.kind === 'player') emit(victim.id, { type: 'alert', title: 'Your pocket has been picked', text: `${trText(amount)} are gone. You did not see who took them. You can report it to the police from your phone.`, amount: -amount, txn: txn.id, crime: crime.id });
+    if (victim.kind === 'player') emit(victim.id, { type: 'alert', title: 'Your pocket has been picked', text: `${trText(amount)} are gone. You did not see who took them. ${known(book.crimes[crime.id]) ? 'A police officer saw it.' : 'No police officer was there to see it.'}`, amount: -amount, txn: txn.id, crime: crime.id });
     return { taken: amount, noticed: known(book.crimes[crime.id]), crime: crime.id, txn: txn.id };
   }
 
@@ -379,11 +380,6 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     const want = Math.max(crime && LAW.offences[crime.type].severity >= 3 ? 2 : 1, STARS.officers[Math.min(STARS.most, law.stars || 0)] || 0) - already;
     const goal = law.seenAt || { x: p.x, z: p.z };
     for (const pick of nearestFree(goal.x, goal.z, Math.max(0, want))) send(pick.i, pick.from, 'respond', crime, p, goal);
-  }
-
-  function investigate(crime) {
-    const pick = nearestFree(crime.x, crime.z, 1)[0];
-    if (pick) send(pick.i, pick.from, 'investigate', crime, null, { x: crime.x, z: crime.z });
   }
 
   const sees = (m, p) => { const d = Math.hypot(p.x - m.x, p.z - m.z); return d < 8 || (d < LAW.sight && clearLine(m.x, m.z, p.x, p.z, 0.1)); };
@@ -764,7 +760,6 @@ export function createJustice({ state, players, ledger, accounts, population, ac
       const crime = book.crimes[id];
       if (crime.status !== 'open') continue;
       if (crime.reportAt && now >= crime.reportAt) reported(crime);
-      else if (crime.discoverAt && now >= crime.discoverAt) discovered(crime);
     }
     // (an arrest made by one officer stands the others down, so one may be gone before its turn comes)
     for (const key of Object.keys(book.officers)) { const o = book.officers[key]; if (o) officerTick(o, dt); }
@@ -869,7 +864,9 @@ export function createJustice({ state, players, ledger, accounts, population, ac
       owed: book.owed[p.id] || 0,
       role: role ? { ...role, prisoners: mine } : null,
       // offences this player saw or suffered and may report
-      seen: Object.values(book.crimes).filter((c) => c.status === 'open' && (c.detection !== 'identified' || c.reportAt) && (c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) || (c.victim.kind === 'player' && c.victim.id === p.id))).map((c) => ({ id: c.id, no: c.no, name: LAW.offences[c.type].name, known: c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) })),
+      // (what this player could tell the police of: only what an officer saw, and only until word of it reaches them,
+      // a moment after: 31 October 2026)
+      seen: Object.values(book.crimes).filter((c) => c.status === 'open' && c.detection === 'identified' && c.reportAt && (c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) || (c.victim.kind === 'player' && c.victim.id === p.id))).map((c) => ({ id: c.id, no: c.no, name: LAW.offences[c.type].name, known: c.witnesses.some((w) => w.kind === 'player' && w.id === p.id) })),
     };
   }
 
@@ -898,8 +895,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     enlist, resign, wantedList, arrestBy, setFine, bookIn, requestCall, decideCall, mayCall, usedMessage, roleOf,
     selfView, officersNear, record, bailFor, audit, lawOf, STATION,
     crime: (id) => book.crimes[id] || null, arrestOf: (id) => book.arrests[id] || null,
-    // for tests: is this person out on police business?
-    onDuty,
+    // for tests: is this person out on police business? can someone at one point see another?
+    onDuty, inSight,
   };
   hub.justice = api;
   return api;

@@ -8,7 +8,8 @@
 //     astern it slows; heard
 //  D  never through the bank, the jetty or a ship: against them it stops
 //  E  the navy's three ships on patrol, drawn on the river; alongside one, "Climb aboard the naval ship": the helm is the
-//     player's, the police's stars; the ship slow to gather way; the player unseen in its wheelhouse
+//     player's, the police's stars only if an officer saw it; the ship slow to gather way; the player unseen in its
+//     wheelhouse
 //  F  off the ship, down into the boat alongside; brought in to the jetty, "Step ashore": it is left moored there, drawn
 //  G  at night: the ships' lamps lit
 //  H  what it costs: a phone at Medium under 135 MB on its graphics card with the ships near; nothing in the console; no
@@ -18,7 +19,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { createDevServer } from '../../server/dev.mjs';
-import { pastQuestion, enterTown, watchPictures, lostPictures } from './start.mjs';
+import { pastQuestion, enterTown, watchPictures, lostPictures, officerOnScene } from './start.mjs';
 import { SPORTS_MALL as M } from '../src/sim/zones/asaba-sports.js';
 import { ZONE_JETTY, zoneShoreZ } from '../src/sim/zone.js';
 import { NAVAL } from '../src/sim/naval.js';
@@ -180,9 +181,13 @@ await shot('e1-alongside-a-naval-ship');
 check('E: alongside a ship, "Climb aboard the naval ship" offered', boardOffered === 'Climb aboard the naval ship', { along, boardOffered });
 await page.evaluate(() => window.__nlw.boardShip());
 await page.waitForFunction(() => window.__nlw.aboardShip() !== null, null, { timeout: 20000 }).catch(() => {});
-await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 120000 }).catch(() => {});
+// (31 October 2026, the owner's word: only what an officer on the scene sees is a crime. Out on the river, out of sight
+// of every officer (the navy are not the police), taking the ship brings no stars; seen by one, two)
+const seenBoarding = await page.evaluate(() => { const g = window.__nlw.host.game; const c = Object.values(g.state.justice.crimes).filter((q) => /^ship:/.test(String(q.vehicle))).slice(-1)[0]; return c ? c.detection : null; });
+if (seenBoarding === 'identified') await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 120000 }).catch(() => {});
+else await page.waitForTimeout(8000);
 const aboard = await page.evaluate(() => { const n = window.__nlw; return { ship: n.aboardShip(), stars: n.view.self.law.stars, seen: n.me.group.visible, mode: n.mode }; });
-check('E: aboard: the helm is the player\'s, the police\'s stars for taking a vehicle, the player unseen in its wheelhouse', aboard.ship !== null && aboard.stars === 2 && !aboard.seen && aboard.mode === 'ship', aboard);
+check('E: aboard: the helm is the player\'s, the player unseen in its wheelhouse; the police\'s stars only if an officer saw it', aboard.ship !== null && !!seenBoarding && aboard.stars === (seenBoarding === 'identified' ? 2 : 0) && !aboard.seen && aboard.mode === 'ship', { ...aboard, seenBoarding });
 await page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; p.law.crimes = []; p.law.stars = 0; p.law.state = 'normal'; });
 const shipGoing = await holdUntil(['w'], (q, got) => got.length >= 6 && q.speed > 0.3, 240, 0.5);
 check('E: a ship gathers way slowly (after ten seconds well under its top speed of 22 km/h)', shipGoing[shipGoing.length - 1].speed > 0.2 && kmh(shipGoing[shipGoing.length - 1].speed) < 12, shipGoing.map((q) => kmh(q.speed)));

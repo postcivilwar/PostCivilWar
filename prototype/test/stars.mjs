@@ -1,7 +1,8 @@
 // The police's stars on the screen (30 October 2026, the owner's brief: "That star is for the police. The star
 // increases as you commit crime", src/sim/justice.js STARS), played in a headless browser:
-//  A  not wanted: no stars
-//  B  a fight the police know of: one star of five, filled, at the top right under the time
+//  A  not wanted: no stars; a fight no officer saw (31 October 2026, the owner's word: "If police is out of sight,
+//     don't count it as crime"): still none
+//  B  a fight an officer on the scene saw: one star of five, filled, at the top right under the time
 //  C  running on after being told to stop: two
 //  D  out of every officer's sight with nobody on the way: they blink while one fades, and go one at a time; at none,
 //     no stars and not wanted
@@ -11,7 +12,7 @@ import { createRequire } from 'node:module';
 import { mkdirSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { pastQuestion, enterTown } from './start.mjs';
+import { pastQuestion, enterTown, officerOnScene } from './start.mjs';
 const require = createRequire(import.meta.url);
 let chromium; try { ({ chromium } = require('playwright')); } catch (e) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const root = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -43,11 +44,31 @@ const settle = () => page.waitForTimeout(900);
 let s = await stars();
 check('A: not wanted, no stars', !s.shown && s.state === 'normal', s);
 
-// ---- B: a fight the police know of (the simulation's own offence, told to them at once)
+// ---- A: a fight out of every officer's sight (the simulation's own offence, where no officer is within sight of it)
+const unseen = await page.evaluate(() => {
+  const n = window.__nlw, g = n.host.game, J = g.internals.justice, A = g.internals.actors, pop = g.internals.population, p = g.state.players[n.playerId];
+  n.place(150, -200);
+  // (any officer whose beat has her near just now sent along it a way off, for this)
+  const away = [];
+  for (const q of pop.people) { if (q.job !== 'police' || A.has(q.index)) continue; const at = pop.locate(q.index, g.state.t, {}); if (at.pose !== 4 && Math.hypot(at.x - p.x, at.z - p.z) < 60) { A.take(q.index, g.state.t, { x: p.x + 200, z: p.z }); A.hold(q.index, 'Elsewhere', 0, 0); away.push(q.index); } }
+  const c = J.offence(p, 'assault', { victim: { kind: 'npc', id: 0, name: 'Someone' }, x: p.x, z: p.z });
+  window.__away = away;
+  return { id: c.id, detection: g.state.justice.crimes[c.id].detection, witnesses: g.state.justice.crimes[c.id].witnesses.length };
+});
+await page.waitForTimeout(8000);
+s = await stars();
+check('A: a fight no officer saw: no stars, not wanted', unseen.detection === 'unseen' && unseen.witnesses === 0 && !s.shown && s.state === 'normal', { unseen, s });
+await page.evaluate(() => { const A = window.__nlw.host.game.internals.actors; for (const i of window.__away || []) A.release(i); window.__nlw.place(0, 40); });
+await page.waitForTimeout(1500);
+
+// ---- B: a fight the police know of: an officer on the scene saw it (the simulation's own offence, with one of the
+// town's officers brought to stand in sight of it)
+const at = await page.evaluate(() => { const n = window.__nlw, p = n.host.game.state.players[n.playerId]; return [p.x, p.z]; });
+const officer = await officerOnScene(page, at[0], at[1], 12);
+check('B: an officer of the town\'s in sight of the player', officer !== null, officer);
 await page.evaluate(() => {
   const n = window.__nlw, g = n.host.game, J = g.internals.justice, p = g.state.players[n.playerId];
-  const c = J.offence(p, 'assault', { victim: { kind: 'npc', id: 0, name: 'Someone' }, x: p.x, z: p.z });
-  g.state.justice.crimes[c.id].reportAt = g.state.real;
+  J.offence(p, 'assault', { victim: { kind: 'npc', id: 0, name: 'Someone' }, x: p.x, z: p.z });
 });
 await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 1, null, { timeout: 60000 });
 await settle();
@@ -56,7 +77,7 @@ await page.screenshot({ path: resolve(out, 'b-one-star.png') });
 check('B: a fight the police know of: one star of five filled, at the top right under the time, in place of the old chip', s.shown && s.on === 1 && s.of === 5 && s.right < 40 && s.belowClock && !s.chip && /1 star/.test(s.label), s);
 
 // ---- C: running on after being told to stop
-await page.evaluate(() => { const n = window.__nlw, g = n.host.game, J = g.internals.justice, p = g.state.players[n.playerId]; const c = J.offence(p, 'resisting', { victim: { kind: 'npc', id: 0, name: 'An officer' }, x: p.x, z: p.z }); g.state.justice.crimes[c.id].reportAt = g.state.real; });
+await page.evaluate(() => { const n = window.__nlw, g = n.host.game, J = g.internals.justice, p = g.state.players[n.playerId]; J.offence(p, 'resisting', { victim: { kind: 'npc', id: 0, name: 'An officer' }, x: p.x, z: p.z }); });
 await page.waitForFunction(() => window.__nlw.view.self.law.stars >= 2, null, { timeout: 60000 });
 await settle();
 s = await stars();

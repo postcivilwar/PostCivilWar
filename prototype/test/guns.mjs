@@ -146,8 +146,8 @@ async function serverAgrees(p, most = 40000) {
   const lost = await p.page.evaluate(() => window.__nlw.gunNet.stats.lost);
   return { town: town && { mag: town.mag, spare: town.spare }, server: server && { mag: server.mag, spare: server.spare }, lost, ...(lost ? { trace } : {}) };
 }
-// The law in A's town, kept out of what follows: shooting another player is an offence, which the one shot reports
-// (src/sim/justice.js) and the police come for, and an arrest would take A away from the test. Each crime of A's still
+// The law in A's town, kept out of what follows: shooting another player is an offence, which the police come for if
+// an officer saw it (src/sim/justice.js), and an arrest would take A away from the test. Each crime of A's still
 // open is let lapse, as it would after a while, and A is no longer wanted. (The law is tested elsewhere: police.test.mjs.)
 const forgive = (p) => p.page.evaluate(() => {
   const n = window.__nlw, g = n.host.game, me = g.state.players[n.playerId], book = g.state.justice;
@@ -503,7 +503,7 @@ const aSeesWounds = await A.page.evaluate((name) => { const n = window.__nlw; co
 check('E: A sees the blood on B\'s clothes where B was hit, and B\'s life down', aSeesWounds.wounds >= 1 && aSeesWounds.painted && aSeesWounds.health === bAfter.health, aSeesWounds);
 await A.shot('the-other-player-hit');
 const forgivenE = await forgive(A);
-check('E: A is reported for it by the one shot (wanted: the law of the town); the test lets it lapse here', forgivenE.lapsed >= 1, forgivenE);
+check('E: the shooting is written in the police\'s book (a crime to them only if an officer saw it: 31 October 2026); the test lets it lapse here', forgivenE.lapsed >= 1, forgivenE);
 
 // behind a wall: B stands on the far side of a building from A
 const cover = await A.page.evaluate(() => {

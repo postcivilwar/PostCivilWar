@@ -4,7 +4,7 @@
 //   node --test test/traffic.test.mjs
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { town, ok, refused, until } from './world.mjs';
+import { town, ok, refused, until, officerOnScene } from './world.mjs';
 import { TRAFFIC, TRAFFIC_MODELS, TRAFFIC_ROADS, TRAFFIC_STOPS, trafficNetwork } from '../src/sim/traffic.js';
 import { POWER_CARS } from '../src/sim/power-cars.js';
 import { CAR_PARTS } from '../src/client/car-parts.js';
@@ -181,6 +181,8 @@ test('taking a car standing still with its driver at the wheel: from beside a fr
   w.place(p, c.x + Math.cos(c.h) * 6, c.z - Math.sin(c.h) * 6);
   refused(w.send(w.ids[0], { type: 'hijack.start', car: n }), 'TOO_FAR');
   w.place(p, at.x, at.z);
+  // (an officer on her beat near: 31 October 2026, only what an officer sees is a crime)
+  officerOnScene(w, c.x, c.z);
   const started = ok(w.send(w.ids[0], { type: 'hijack.start', car: n }));
   assert.equal(started.hijack.kind, 'car');
   assert.equal(c.frozen, true, 'the car is held where it is while the door is opened');
@@ -191,7 +193,7 @@ test('taking a car standing still with its driver at the wheel: from beside a fr
   assert.ok(w.I.actors.has(driver), 'the driver is out, on foot');
   const crime = Object.values(w.g.state.justice.crimes).find((k) => k.vehicle === `car:${n}`);
   assert.ok(crime && crime.type === 'vehicle_theft' && crime.victim.id === driver);
-  assert.equal(crime.detection, 'identified', 'the driver saw who it was');
+  assert.equal(crime.detection, 'identified', 'the officer on her beat saw who it was');
   // never theirs: not on their list, and the server's list (which knows nothing of it) does not take them out of it
   assert.deepEqual(p.cars || [], cars0);
   ok(w.send(w.ids[0], { type: 'cars.owned', cars: [] }));

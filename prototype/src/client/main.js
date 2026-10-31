@@ -382,7 +382,9 @@ function start(carried) {
     // the waves along the town's bank, and surfing on them (surf-view.js)
     surfView = createSurfView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your surfboard could not be fetched. Check the connection.' }); } });
     // cars (17 October 2026): the one the player drives, theirs left standing, and other players' (car-view.js)
-    carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); } });
+    // (a wheel climbing onto someone lying in the way: a dull thump, no more often than a wheel can, wheel-bumps.js)
+    let bumpAt = -10;
+    carView = createCarView(scene, { lite: LITE, onError: () => { ui.toast({ type: 'note', text: 'Your car could not be fetched. Check the connection.' }); }, onBump: (x, z) => { if (clock - bumpAt > 0.18) { bumpAt = clock; audio.blow('shove', x, z); } } });
     // other players' motorcycles and cars as their pictures, where their models are not drawn (vehicle-standins.js)
     standins = createStandins(scene, { lite: LITE });
   }]);
@@ -3304,7 +3306,7 @@ function start(carried) {
     say(r);
     return r;
   }
-  // Taking one from one of the town's riders (31 October 2026): they are pushed off and run, the police are told; it is
+  // Taking one from one of the town's riders (31 October 2026): they are pushed off and run (a crime if an officer saw it); it is
   // ridden as one's own, but it is never theirs (sport-riders.js). And back on one taken and left standing.
   function takeSport(n) {
     if (!view) return { ok: false };
@@ -3697,7 +3699,9 @@ function start(carried) {
     }
     // (with what the car is doing, for other players to see and hear: its steering, speed, throttle, brake, revs, lamps)
     const result = server.send({ type: 'car.drive', x: nx, z: nz, heading: carState.heading, steer: carState.steer, speed: carState.speed, throttle: carState.throttle, brake: carState.braking, rev: carRevs(carState.speed, carState.throttle, handling), lamps: night > 0.25 });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = carState.heading; if (result.hit) carState.speed = 0; }
+    // (someone struck is not what stops a car, 31 October 2026: it loses a little of its pace and goes on over them, the
+    // nose dipping with the blow, impact.js)
+    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = carState.heading; if (result.hit) { const over = result.hit.every((h) => h.over || h.body); carState.speed *= over ? 0.95 : 0.88; if (carView) carView.knock('drive', over ? 0.35 : Math.min(1, 0.4 + Math.abs(carState.speed) / 10)); } }
     else if (result.code === 'BLOCKED') { meetWithCar(dt, spec, nx, nz, boxes, 'solid'); return 0; }
     else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; carState.speed = 0; }
     // the view swings round behind the car as it goes (not while it backs up)
@@ -4363,7 +4367,9 @@ function start(carried) {
       }
       trafficCars = trafficNow(dt);
       const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
-      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: zoneGroundY, from: predicted, night });
+      // (whoever lies on the road near: for the wheels of a car going over them, wheel-bumps.js)
+      const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
+      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: zoneGroundY, from: predicted, night, bodies });
       const carSeated = !!ownDrive && carView.seat(me, ownDrive);
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       // the town's cars on the move are heard as other players' are (the nearest few: audio.js), and their horns

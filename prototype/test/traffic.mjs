@@ -5,8 +5,8 @@
 //  A  by day beside Market Road: the town's cars on the road near the player, the nearest drawn as their models (no
 //     more of them than the level allows), the rest within sight as their pictures
 //  B  on the move, drawn smoothly: never a step back, never a jump
-//  C  a car standing at the roadside: "Take" offered from beside its door; taken, the driver out and running, the
-//     player at the wheel, the police's stars for taking a vehicle
+//  C  a car standing at the roadside: "Take" offered from beside its door; taken (an officer on her beat in sight of
+//     it), the driver out and running, the player at the wheel, the police's stars for taking a vehicle
 //  D  driven a little way, as one's own car is
 //  E  got out of: it stands where it was left; "Drive" offered; back in
 //  F  it is never the player's: not among what they own on the website (the market's holdings), nothing to sell
@@ -23,7 +23,7 @@ let chromium;
 try { ({ chromium } = require('playwright')); } catch (error) { ({ chromium } = require('/opt/npm-tools/node_modules/playwright')); }
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), '../..');
 const { createDevServer } = await import(resolve(ROOT, 'server/dev.mjs'));
-const { pastQuestion, enterTown, watchPictures, lostPictures } = await import(resolve(ROOT, 'prototype/test/start.mjs'));
+const { pastQuestion, enterTown, watchPictures, lostPictures, officerOnScene } = await import(resolve(ROOT, 'prototype/test/start.mjs'));
 const out = resolve(process.argv[2] || '/tmp/traffic-shots'); mkdirSync(out, { recursive: true });
 const PHONE = process.argv[3] === 'phone';
 const results = [];
@@ -153,6 +153,10 @@ await page.waitForTimeout(1500);
 const offered = await page.evaluate(() => { const n = window.__nlw; n.refresh(); return n.near.take; });
 await page.screenshot({ path: resolve(out, 'c-take-offered.png') });
 check('C: "Take" offered from beside its door', !!offered && offered.car === target.n && /^Take /.test(offered.text), offered);
+// (an officer on her beat in sight of it: 31 October 2026, the owner's word, only what an officer on the scene sees is a
+// crime; out of every officer's sight, no stars)
+const officerC = await officerOnScene(page, target.x, target.z, 16);
+check('C: an officer on her beat in sight of the car', officerC !== null, officerC);
 await page.evaluate(() => window.__nlw.act('take'));
 await page.waitForTimeout(1200);
 await page.screenshot({ path: resolve(out, 'c-taking.png') });

@@ -15,7 +15,7 @@
 // (sport-view.js: the same rider on the same thing as a player).
 //
 // One of them riding slowly, or standing, can have it taken from them by a player close beside them (`take`): pushed
-// off, they run, shouting, and the police are told (justice.js: taking a vehicle). The thief rides it as their own
+// off, they run, shouting; a crime for the police if an officer saw it (justice.js: taking a vehicle). The thief rides it as their own
 // (own-sports.js), and may leave it and come back to it: it stands where they left it. It is never theirs: the website's
 // server, which keeps who owns what, is never told of it, so it is never in their Property, never in the market and
 // never sold. When the police catch them, everything they took goes back to its owner, who walks to it and rides off
@@ -380,6 +380,8 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     const sendFor = () => { actors.walkTo(r.i, r.x, r.z, 1.6, `Going for the ${NAMES[r.item]}`); const sent = actors.get(r.i); if (sent) sent.after = 0; };
     if (!actors.has(r.i)) { if (actors.take(r.i, t, { x: r.x + 6, z: r.z })) sendFor(); return; }
     const m = actors.get(r.i);
+    // (knocked off by a car, `knock`: on the ground, and getting up, before anything else)
+    if (m && m.mode === 'hold' && m.until && real() < m.until) return;
     if (m && Math.hypot(m.x - r.x, m.z - r.z) < 1.2) { actors.drop(r.i); r.takenBy = null; r.fallen = false; r.v = 0; r.lean = 0; book.returned += 1; backOnRoad(r); }
     else if (m && (m.mode !== 'go' || m.home || m.goal === null)) sendFor();
   }
@@ -485,6 +487,27 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     p.x = r.x; p.z = r.z; p.heading = r.h; p.lastMoveAt = real();
     return { n: r.n, item: r.item, x: r.x, z: r.z, h: r.h };
   }
+  // Knocked off by a player's car (impact.js, 31 October 2026, the owner's word: "the car should jam them if they block
+  // the road"): the rider is struck as anyone on foot is (impact.js throws them down ahead of the car, across its way,
+  // and it goes over them); what they rode is thrown aside, off the car's way, and lies there; once up again, they go
+  // back for it and ride on (`returning`). (cx, cz, h): where the car is and which way it faces; `half`: half its width.
+  // Gives the person, or null if there is nobody on it to knock off.
+  function knock(n, cx, cz, h, half = 0.95) {
+    const r = riders[Number(n)];
+    if (!r || !out(r) || !hub.actors) return null;
+    if (!hub.actors.take(r.i, state.t, { x: r.x, z: r.z })) return null;
+    const fx = Math.sin(h), fz = Math.cos(h), lx = Math.cos(h), lz = -Math.sin(h);
+    const lateral = (r.x - cx) * lx + (r.z - cz) * lz;
+    const first = lateral >= 0 ? 1 : -1;
+    for (const side of [first, -first]) {
+      const off = side * (half + 0.9) - lateral;
+      const x = r.x + fx * 1.2 + lx * off, z = r.z + fz * 1.2 + lz * off;
+      if (zoneWalkable(x, z, [], 0.3)) { r.x = x; r.z = z; r.h = h + side * 1.1; break; }
+    }
+    r.mode = 'returning'; r.takenBy = null; r.fallen = true; r.v = 0; r.lean = 0; r.held = 0;
+    book.knocked = (book.knocked || 0) + 1;
+    return r.i;
+  }
   // Where the thief has it now (own-sports.js, each step ridden).
   function moved(n, at) { const r = riders[n]; if (r && r.mode === 'taken') { r.x = at.x; r.z = at.z; r.h = at.h; } }
   // The police have caught them: everything they took goes back (the one they are on is left where it is first).
@@ -505,11 +528,13 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     }
     return shownList;
   }
-  // What stands in the way of a player's car or motorcycle: every rider near a player, as a small box.
-  function boxes() {
+  // What stands in the way of a player's car or motorcycle: every rider near a player, as a small box (`standing`: only
+  // what stands or lies on its own, nobody on it: a car knocks a rider off instead, impact.js).
+  function boxes(standing = false) {
     const outBoxes = [];
     for (const r of riders) {
       if (!shown(r) || r.mode === 'taken') continue;
+      if (standing && out(r)) continue;
       if (nearestPlayer(r.x, r.z) > 60) continue;
       const half = r.item === 'bicycle' ? 0.55 : 0.35;
       outBoxes.push({ x0: r.x - half, z0: r.z - half, x1: r.x + half, z1: r.z + half, kind: 'solid' });
@@ -518,9 +543,9 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
   }
   // For the town's cars: the riders on the road, as things in it.
   const obstacles = () => riders.filter((r) => out(r)).map((r) => ({ x: r.x, z: r.z, h: r.h, hw: 0.35, hl: r.item === 'bicycle' ? 0.9 : 0.45, v: r.v, rider: r.n }));
-  const audit = () => ({ out: riders.filter(out).length, taken: book.taken, returned: book.returned, byKind: Object.fromEntries(KINDS.map((k) => [k, riders.filter((r) => r.item === k).length])) });
+  const audit = () => ({ out: riders.filter(out).length, taken: book.taken, returned: book.returned, knocked: book.knocked || 0, byKind: Object.fromEntries(KINDS.map((k) => [k, riders.filter((r) => r.item === k).length])) });
 
-  const api = { tick, list, take, leftBy, retake, moved, recover, boxes, obstacles, audit, nearTaker, riders: () => riders, count: () => riders.length };
+  const api = { tick, list, take, leftBy, retake, moved, recover, boxes, obstacles, audit, nearTaker, knock, isOut: (r) => out(r), riders: () => riders, count: () => riders.length };
   hub.sportRiders = api;
   return api;
 }

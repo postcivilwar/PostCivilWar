@@ -14,13 +14,17 @@
 // the ten whose cabin can be seen into (the five open ones, and the five whose windows or doors are open), where
 // tools/vehicles/driver_seats.py measured the seat and the wheel from the model.
 //
-//   const cars = createCarView(scene, { lite });
-//   cars.update(dt, { driven, drives, parked, groundY, from, night });       each frame
+// Going over someone lying in its way (31 October 2026, wheel-bumps.js): each wheel climbs over them and comes down,
+// and the body pitches and rolls on its springs as they do; struck, the nose dips with the blow (`knock`).
+//
+//   const cars = createCarView(scene, { lite, onBump });
+//   cars.update(dt, { driven, drives, parked, groundY, from, night, bodies });       each frame
 //   cars.seat(figure, driven, key)        after the driver's figure is posed for the frame (seated): false if not drawn
 import { loadCar } from './car-model.js';
 import { reach } from './animated.js';
 import { bonesOf } from './own-bike-view.js';
 import { POWER_CARS } from '../sim/power-cars.js';
+import { wheelLifts, bodyOn, kickBody } from './wheel-bumps.js';
 
 const SIGHT = 120;                  // metres within which a parked car is drawn
 const PEER_SIGHT = 220, PEER_MOST = 4;     // another player's car being driven: drawn within this, the nearest few
@@ -39,7 +43,7 @@ export const SPRINGS = Object.freeze({ pitch: 0.012, most: 0.05, roll: 0.0045 })
 export const DRIVE = Object.freeze({ recline: 0.38, mostRecline: 0.62, sink: 0.08, slide: 0.14, headRoom: 0.04, wheelTurn: 1.4, wheelMost: 0.6, look: 0.35 });
 const w = { a: new THREE.Vector3(), b: new THREE.Vector3(), c: new THREE.Vector3(), d: new THREE.Vector3(), hip: new THREE.Vector3(), q: new THREE.Quaternion(), r: new THREE.Quaternion(), axis: new THREE.Vector3(), up: new THREE.Vector3(), x: new THREE.Vector3(), u: new THREE.Vector3(), n: new THREE.Vector3(), centre: new THREE.Vector3(), grip: new THREE.Vector3() };
 
-export function createCarView(scene, { lite = false, base = 'cars/', onError = () => {} } = {}) {
+export function createCarView(scene, { lite = false, base = 'cars/', onError = () => {}, onBump = () => {} } = {}) {
   const shown = new Map();          // key -> { id, car, loading, travelled, failed, fx }
   const frozen = new Set();         // figures whose bones seat() set by hand this frame
 
@@ -76,13 +80,30 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
     fx.roll += (wantRoll - fx.roll) * Math.min(1, dt * 5);
     return fx;
   }
-  const place = (e, d, groundY, dt, night) => {
+  // what lies on the road near it: the bars of every body within reach of its wheels (wheel-bumps.js)
+  const nearBars = [], NONE = [];
+  const barsNear = (bodies, x, z, reach) => { nearBars.length = 0; for (const b of bodies) if (Math.abs((b.ax + b.bx) / 2 - x) < reach && Math.abs((b.az + b.bz) / 2 - z) < reach) nearBars.push(b); return nearBars; };
+  const place = (e, d, groundY, dt, night, bodies = []) => {
     const fx = springs(e, d, dt);
     const g = e.car.group;
     g.position.set(d.x, groundY(d.x, d.z), d.z);
     g.rotation.set(0, d.h, 0);
     g.visible = true;
-    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch, roll: fx.roll });
+    // the wheels over whoever lies in the way, and the body on its springs over them
+    const bars = bodies.length ? barsNear(bodies, d.x, d.z, e.car.size.length / 2 + 2) : NONE;
+    const lifts = e.lifts || (e.lifts = []);
+    wheelLifts(bars, e.car.wheels, d.x, d.z, d.h, -(d.steer || 0), lifts);
+    const was = e.was || (e.was = []);
+    for (let k = 0; k < lifts.length; k += 1) {
+      if (lifts[k] > 0.03 && !(was[k] > 0.03)) onBump(d.x, d.z, lifts[k], e.car.wheels[k].front);
+      was[k] = lifts[k];
+    }
+    const b = bodyOn(e.bump || (e.bump = {}), lifts, e.car.wheels, dt);
+    // (the most each wheel was lifted, and the body pitched, since the tests last asked: `bumpPeak`)
+    const pk = e.peak || (e.peak = { lifts: [], pitchMin: 0, pitchMax: 0, roll: 0 });
+    for (let k = 0; k < lifts.length; k += 1) pk.lifts[k] = Math.max(pk.lifts[k] || 0, lifts[k]);
+    pk.pitchMin = Math.min(pk.pitchMin, b.pitch); pk.pitchMax = Math.max(pk.pitchMax, b.pitch); pk.roll = Math.max(pk.roll, Math.abs(b.roll));
+    e.car.pose({ travelled: e.travelled, steerAngle: -(d.steer || 0), pitch: fx.pitch + b.pitch, roll: fx.roll + b.roll, lifts, rise: b.rise });
     // (the brake lamps when braking, and on a car of the town's waiting at a red light, its foot on the brake)
     e.state = { head: night > 0.25 || d.lamps ? 1 : 0, tail: night > 0.25 || d.lamps ? 1 : 0, brake: (d.brake && (d.speed || 0) > 0.2) || d.held ? 1 : 0, reverse: (d.speed || 0) < -0.2 ? 1 : 0 };
     e.car.lamps(e.state);
@@ -92,7 +113,8 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
   // same }] (other players' cars being driven, near enough to see); parked: [{ key?, car, x, z, h }];
   // groundY(x, z); from: { x, z }; night (0..1)
   // traffic: [{ key, id, x, z, h, speed, steer, brake, held }] (the town's cars near enough to see)
-  function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0 }) {
+  // bodies: [{ ax, az, bx, bz, r }] (wheel-bumps.js bodyBars: whoever lies on the road near, as bars on the ground)
+  function update(dt, { driven = null, drives = [], parked = [], parkedMost = 4, traffic = [], groundY = () => 0, from = { x: 0, z: 0 }, night = 0, bodies = [] }) {
     for (const f of frozen) f.freeze = false;
     frozen.clear();
     const wanted = new Set();
@@ -100,7 +122,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       wanted.add('drive');
       const e = entry('drive', driven.id);
       e.travelled += (driven.speed || 0) * dt;
-      if (e.car) place(e, driven, groundY, dt, night);
+      if (e.car) place(e, driven, groundY, dt, night, bodies);
     }
     const dist = (q) => Math.hypot(q.x - from.x, q.z - from.z);
     for (const r of drives.filter((q) => POWER_CARS[q.id] && dist(q) <= PEER_SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, PEER_MOST)) {
@@ -108,7 +130,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       wanted.add(key);
       const e = entry(key, r.id);
       e.travelled += (r.speed || 0) * dt;
-      if (e.car) place(e, r, groundY, dt, night);
+      if (e.car) place(e, r, groundY, dt, night, bodies);
     }
     const T = TRAFFIC_DRAWN[lite ? 'lite' : 'full'];
     if (!ON_DISK) for (const r of traffic.filter((q) => POWER_CARS[q.id] && dist(q) <= T.sight).sort((a, b) => dist(a) - dist(b)).slice(0, T.most)) {
@@ -116,7 +138,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       wanted.add(key);
       const e = entry(key, r.id, T.tier);
       e.travelled += (r.speed || 0) * dt;
-      if (e.car) place(e, r, groundY, dt, night);
+      if (e.car) place(e, r, groundY, dt, night, bodies);
     }
     const near = parked.filter((p) => POWER_CARS[p.car] && dist(p) <= SIGHT).sort((a, b) => dist(a) - dist(b)).slice(0, parkedMost);
     for (const p of near) {
@@ -231,6 +253,11 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
 
   return {
     update, seat,
+    // the car struck someone with its front (or its back, backing up): the nose dips with the blow, and comes up again
+    knock(key = 'drive', amount = 1) { const e = shown.get(key); if (e) kickBody(e.bump || (e.bump = {}), 0.35 * amount); },
+    // how the car being driven sits just now: each wheel's lift and the body's (for the tests)
+    bumpOf: (key = 'drive') => { const e = shown.get(key); return e && e.bump && e.bump.v ? { lifts: [...(e.lifts || [])], rise: e.bump.rise, pitch: e.bump.pitch, roll: e.bump.roll } : null; },
+    bumpPeak: (key = 'drive') => { const e = shown.get(key); if (!e || !e.peak) return null; const pk = e.peak; e.peak = null; return { lifts: [...pk.lifts], pitchMin: pk.pitchMin, pitchMax: pk.pitchMax, roll: pk.roll }; },
     // (how a driver sits and turns the wheel, for the tests)
     rules: DRIVE,
     // is the car being driven drawn yet (it is fetched the first time it is driven)

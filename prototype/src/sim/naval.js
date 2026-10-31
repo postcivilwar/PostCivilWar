@@ -10,7 +10,8 @@
 // swimmer in its way until the way is clear.
 //
 // One can be taken: from a boat alongside it, or swimming beside it, a player climbs aboard (`take`), the crew go over
-// the side into their launch, and the police are told. The player then has the helm: the ship answers it as a ship does
+// the side into their launch (the navy are not the police: it is a crime for the police only if one of their officers
+// saw it, justice.js, 31 October 2026). The player then has the helm: the ship answers it as a ship does
 // (boat-ride.js: a long while to gather way and to lose it, slow to turn). Left (into the player's own boat alongside,
 // or into the water by the town), it lies where it was left. It is never theirs: never sold. When the police catch
 // them, it goes back to the navy, who take it back to its patrol.

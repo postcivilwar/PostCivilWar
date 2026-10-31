@@ -15,6 +15,7 @@ import { SPORT_HANDLING, SPORT_FRONTS } from './sport-ride.js';
 import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
 import { GameError } from './registry.js';
+import { clearOfPoint } from './in-the-way.js';
 
 export const isOwnSport = (astride) => typeof astride === 'string' && astride.startsWith('sp:');
 export const sportOfAstride = (astride) => (isOwnSport(astride) ? astride.slice(3) : null);
@@ -22,7 +23,9 @@ export const sportOfAstride = (astride) => (isOwnSport(astride) ? astride.slice(
 // hitting anything). Slower than `least` it is a bump and it stops.
 export const SPORT_CRASH = Object.freeze({ least: 4.2, lie: Object.freeze([1.6, 3.4]), rise: 2.4, thrown: Object.freeze([0.6, 3.5]), carry: 0.25 });
 
-export function createOwnSports({ state, hub, obstacles }) {
+export function createOwnSports({ state, hub, obstacles, strangers = () => [] }) {
+  // (other players' cars, motorcycles and kekes: never one the rider is already against, in-the-way.js)
+  const theirs = (b) => clearOfPoint(strangers(), b.x, b.z, SPORT_HANDLING[b.id].room - 0.05);
   const own = (p) => (Array.isArray(p.sports) ? p.sports : []);
   const parkedOf = (p) => { if (!p.sportParked || typeof p.sportParked !== 'object') p.sportParked = {}; return p.sportParked; };
   const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
@@ -78,7 +81,7 @@ export function createOwnSports({ state, hub, obstacles }) {
     const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
     if (gap > h.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     if (gap > 0.02 && hub.impact && hub.impact.stalled(b)) throw new GameError('STALLED', 'You have stopped: you hit someone.');
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, h.room - 0.05)) throw new GameError('BLOCKED', 'Movement rejected.');
     { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
@@ -105,7 +108,7 @@ export function createOwnSports({ state, hub, obstacles }) {
     const v = Math.max(-1, Math.min(Math.min(h.top, seen * 1.35 + 1.5), Number(speed) || 0));
     if (Math.abs(v) < SPORT_CRASH.least) return { fell: false, outcome: 'stop' };
     const dir = Number.isFinite(heading) ? heading : b.h;
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     let hit = null;
     for (let d = 0.2; d <= 1.21; d += 0.2) {
       const qx = b.x + Math.sin(dir) * d, qz = b.z + Math.cos(dir) * d;

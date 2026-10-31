@@ -14,10 +14,16 @@
 // where it was left, for them alone to get back into (traffic.js, `leftBy`), until the police catch them. A car
 // in motion strikes whoever is in its way as any vehicle does (impact.js), with its own length and width; a car
 // standing where it was left is in everybody's way (`boxes`), as a parked keke is.
+//
+// (31 October 2026, the owner's word: "users can use their car to run over another car, as if nothing was blocking")
+// Other players' cars, motorcycles and kekes, and any player's motorcycle left standing, are as solid to it as the
+// town's own (`strangers`, in-the-way.js); one already against it never holds it there. And nobody on foot stops it:
+// whoever it runs into is knocked down and it goes on, over them (impact.js).
 import { POWER_CARS, carHandlingOf, CAR_FASTEST, carCircles, carBoxes } from './power-cars.js';
 import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome } from './contact.js';
 import { GameError } from './registry.js';
+import { clearOf } from './in-the-way.js';
 
 export const isOwnCar = (incar) => typeof incar === 'string' && incar.startsWith('pc:');
 export const carOf = (incar) => (isOwnCar(incar) ? incar.slice(3) : null);
@@ -42,7 +48,7 @@ export function carFits(id, x, z, h, boxes = [], slack = 0) {
 // (a car of the town's this player has taken: traffic.js)
 const isTaken = (c) => !!c && Number.isInteger(c.taken);
 
-export function createOwnCars({ state, hub, obstacles }) {
+export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
   const own = (p) => (Array.isArray(p.cars) ? p.cars : []);
   const parkedOf = (p) => { if (!p.carParked || typeof p.carParked !== 'object') p.carParked = {}; return p.carParked; };
   const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
@@ -114,8 +120,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     const gap = Math.hypot(x - c.x, z - c.z);
     const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
-    if (gap > 0.02 && hub.impact && hub.impact.stalled(c)) throw new GameError('STALLED', 'The car has stopped: you hit someone.');
-    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id)];
+    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id), ...theirs(c)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) {
       const k = i / steps;
@@ -153,7 +158,7 @@ export function createOwnCars({ state, hub, obstacles }) {
     if (Math.abs(v) < CAR_CRASH.least) return { hurt: false, outcome: 'stop' };
     const h = Number.isFinite(heading) ? heading : c.h;
     const spec = POWER_CARS[c.id] || { length: 4.6 };
-    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id)];
+    const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id), ...theirs(c)];
     const way = Math.sign(v) || 1;
     const free = (x, z) => carFits(c.id, x, z, h, boxes, 0.2);
     let hit = null;
@@ -208,6 +213,8 @@ export function createOwnCars({ state, hub, obstacles }) {
     return out;
   }
   const othersParked = (p, id) => parkedBoxes(p, id);
+  // (other players' things, and motorcycles standing: never one already against the car, in-the-way.js)
+  const theirs = (c) => clearOf(strangers(), POWER_CARS[c.id], c.x, c.z, c.h, 0.2);
   const boxes = () => parkedBoxes();
 
   // What the player sees of their own cars: which they own, and where the ones they are not in stand.

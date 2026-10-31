@@ -10,7 +10,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { town as makeTown, standing, beside, whereIs, post, until, assault, run, ok, refused, farFromPolice, lead, quietSpot } from './world.mjs';
+import { town as makeTown, standing, beside, whereIs, post, until, assault, run, ok, refused, farFromPolice, lead, quietSpot, officerOnScene } from './world.mjs';
 import { HEALTH, MOVES, COMBAT } from '../src/sim/conflict.js';
 import { LAW, STARS } from '../src/sim/justice.js';
 import { SPEED } from '../src/sim/sim.js';
@@ -31,6 +31,10 @@ const pool = (w) => w.host.auditor.balance(w.I.okada.pool);
 const timid = (w) => farFromPolice(w, standing(w, ...MARKET, { range: 200, not: ['police'] }), 35).find((a) => a.nerve < 0.4 && a.who.age < 55);
 const bold = (w) => farFromPolice(w, standing(w, ...MARKET, { range: 500, not: ['police'] })).find((a) => a.nerve >= 0.75 && a.nerve < 0.95);
 const txnsOf = (w, kind) => w.host.auditor.transactions().filter((t) => t.kind === kind);
+// (31 October 2026, the owner's word: only what an officer on the scene sees is a crime, justice.js. A test of what the
+// police do brings one to see it, world.mjs officerOnScene: she stays where she stood, and those sent for the culprit
+// come from where they are, as before)
+const seenAssault = (w, p, a, blows) => { officerOnScene(w, a.x, a.z); return assault(w, p, a, blows); };
 // what the households' money did otherwise since a transaction (keyed): the okadas' fares paid from it and their riders'
 // takings brought home to it (okada.js), the town going about its day while a test waits for the police (31 October
 // 2026: the town's riders changed what the day brings, and an hour's fares fell inside the wait)
@@ -223,9 +227,12 @@ test('an offence is recorded where and when it happened, with who saw it: only t
   assert.equal(c.at, Math.round(w.g.state.t));
   assert.equal(c.status, 'open');
   assert.equal(c.arrest, null);
-  assert.equal(c.detection, 'identified', 'the person struck knows who did it');
-  // (22 October 2026, the owner's word: "remove witness. only police should serve as witness")
+  // (22 October 2026, the owner's word: "remove witness. only police should serve as witness"; and 31 October: only what
+  // an officer on the scene sees is a crime)
   assert.deepEqual(c.witnesses, [], 'the townspeople who saw it are no witnesses; no officer was near');
+  assert.equal(c.detection, 'unseen', 'no crime to the police: the person struck knowing who did it is not enough');
+  run(w.host, 15);
+  assert.equal(w.p.law.state, 'normal', 'nobody is looking for them');
   // an officer standing near sees the next one
   const b = standing(w, a.x, a.z, { range: 300, not: ['police'] }).find((q) => q.i !== a.i && q.who.age >= 18 && Math.hypot(q.x - a.x, q.z - a.z) > 4);
   const officer = w.pop.people.find((q) => q.job === 'police' && whereIs(w, q.index).pose !== 4);
@@ -236,6 +243,7 @@ test('an offence is recorded where and when it happened, with who saw it: only t
   assault(w, p2, b);
   const seen = Object.values(w.g.state.justice.crimes).find((x) => x.culprit === p2.id);
   assert.ok(seen.witnesses.length >= 1 && seen.witnesses.every((s) => s.kind === 'npc' && s.police), JSON.stringify(seen.witnesses));
+  assert.equal(seen.detection, 'identified', 'a crime: an officer saw it');
   for (const s of seen.witnesses) { assert.ok(s.metres <= LAW.witness.range); assert.notEqual(s.id, b.i); }
   // more blows in the same fight are the same offence
   const again = Object.values(w.g.state.justice.crimes).length;
@@ -249,7 +257,7 @@ test('the police: told within seconds, they come on foot from where they are, ch
   const w = town();
   const a = timid(w);
   assert.equal(w.g.view(w.id).self.law.state, 'normal');
-  assault(w, w.p, a);
+  seenAssault(w, w.p, a);
   const told = until(w, () => w.p.law.state !== 'normal', 12);
   assert.ok(told >= 0.4 && told <= LAW.report[1] + 0.3, `word reached the police in ${told.toFixed(1)} s`);
   assert.ok(['wanted', 'pursuit'].includes(w.p.law.state));
@@ -290,7 +298,7 @@ test('the police: told within seconds, they come on foot from where they are, ch
 
 test('a fine paid to an officer of the regular police goes to the government, once', () => {
   const w = town();
-  assault(w, w.p, timid(w));
+  seenAssault(w, w.p, timid(w));
   until(w, () => w.p.law.state === 'custody', 400);
   const arrest = w.g.view(w.id).self.law.arrest;
   const mine = w.balance(w.p), gov = government(w), count = w.host.auditor.transactionCount();
@@ -328,7 +336,7 @@ test('a fine paid to an officer of the regular police goes to the government, on
 
 test('held by the police: no walking off, no fighting, no shopping; time served ends it', () => {
   const w = town();
-  assault(w, w.p, timid(w));
+  seenAssault(w, w.p, timid(w));
   until(w, () => w.p.law.state === 'arrested', 60);
   refused(w.send(w.id, { type: 'move', x: w.p.x + 0.1, z: w.p.z, heading: 0 }), 'IN_CUSTODY');
   refused(w.send(w.id, { type: 'combat.engage', target: { kind: 'npc', id: 3 } }), 'IN_CUSTODY');
@@ -353,7 +361,7 @@ test('held by the police: no walking off, no fighting, no shopping; time served 
 
 test('running from the police is an offence of its own; out of sight long enough, the chase is broken off', () => {
   const w = town();
-  assault(w, w.p, timid(w));
+  seenAssault(w, w.p, timid(w));
   until(w, () => w.p.law.state === 'pursuit', 60);
   // run north up Market Road, faster than an officer, as a client would: small steps the simulation checks
   const flee = () => { const nz = w.p.z - SPEED.run * 0.1; const r = w.send(w.id, { type: 'move', x: w.p.x, z: nz, heading: Math.PI, run: true }); if (!r.ok) w.send(w.id, { type: 'move', x: w.p.x + 0.4, z: w.p.z, heading: 0, run: true }); };
@@ -375,7 +383,7 @@ test('running from the police is an offence of its own; out of sight long enough
 
 test('the stars (30 October 2026, the owner\'s brief): one for a fight, two for running on after being told to stop; never less while an officer has them in sight; at 20 life every chase stops and the stars go', () => {
   const w = town();
-  assault(w, w.p, timid(w));
+  seenAssault(w, w.p, timid(w));
   until(w, () => w.p.law.state === 'wanted' || w.p.law.state === 'pursuit', 60);
   assert.equal(w.g.view(w.id).self.law.stars, STARS.of.assault);
   assert.equal(STARS.of.assault, 1);
@@ -404,10 +412,13 @@ test('the stars (30 October 2026, the owner\'s brief): one for a fight, two for 
 // was felt would not be known before the arrest. Each try is in a town of its own, with its own throw of the dice.
 function pickPocket(options = {}) {
   for (let attempt = 0; attempt < 12; attempt += 1) {
-    const w = town(['Emeka Test'], { ...options, seed: 20261006 + attempt });
+    const { seen, ...made } = options; void seen;
+    const w = town(['Emeka Test'], { ...made, seed: 20261006 + attempt });
     const before = pool(w), mine = w.balance(w.p);
     const a = farFromPolice(w, standing(w, ...MARKET, { range: 120, not: ['police'] }), 35)[attempt % 4];
     beside(w, w.p, a, { behind: true, metres: 0.9 });
+    // (a pocket picked is done by stealth: an officer sees it only near, LAW.witness.sure)
+    if (options.seen !== false) officerOnScene(w, a.x, a.z, { metres: LAW.witness.sure - 4 });
     const r = ok(w.send(w.id, { type: 'crime.steal', target: { kind: 'npc', id: a.i } }));
     refused(w.send(w.id, { type: 'crime.steal', target: { kind: 'npc', id: a.i } }), 'NOTHING_LEFT');
     if (r.taken > 0) return { w, got: { ...r, a }, before, mine };
@@ -428,9 +439,8 @@ test('stolen money: taken by a ledger transaction, and taken back and returned o
   const crime = w.g.state.justice.crimes[got.crime];
   assert.equal(crime.amount, got.taken);
   assert.equal(crime.victim.id, got.a.i);
-  // however it comes out, the culprit ends up arrested (seen, found out by the officer who looks into it, or giving themselves up)
-  until(w, () => w.p.law.state !== 'normal' || crime.detection !== 'undetected', LAW.discover[1] + 10);
-  if (w.p.law.state === 'normal' || w.p.law.state === 'suspicious') { w.place(w.p, crime.x + 1, crime.z + 1); until(w, () => ['wanted', 'pursuit', 'arrested'].includes(w.p.law.state), 200); }
+  // an officer saw it: the culprit is wanted, and ends up arrested
+  assert.equal(crime.detection, 'identified');
   until(w, () => w.p.law.state === 'custody', 500);
   const arrest = w.g.view(w.id).self.law.arrest;
   const back = arrest.restitution.find((r) => r.kind === 'returned');
@@ -462,7 +472,9 @@ test('stolen money that has been spent: only what the culprit has is taken, the 
   const has = w.balance(w.p);
   assert.equal(has, got.taken - spent);
   const crime = w.g.state.justice.crimes[got.crime];
-  if (!['wanted', 'pursuit'].includes(w.p.law.state)) { w.place(w.p, crime.x + 1, crime.z + 1); until(w, () => ['wanted', 'pursuit', 'arrested', 'custody'].includes(w.p.law.state), LAW.discover[1] + 200); }
+  assert.equal(crime.detection, 'identified', 'an officer saw it');
+  // (back where it was done, for the police to find them there)
+  w.place(w.p, crime.x + 1, crime.z + 1);
   until(w, () => w.p.law.state === 'custody', 500);
   const arrest = w.g.view(w.id).self.law.arrest;
   const back = arrest.restitution[0];
@@ -491,6 +503,8 @@ test('player against player: nobody is made to fight, a player can be hurt only 
   const [a, b, c] = w.players;
   const [qx, qz] = quietSpot(w);
   w.place(a, qx, qz); w.place(b, qx + 0.9, qz, -Math.PI / 2); w.place(c, qx + 6, qz + 2);
+  // (an officer on the scene: 31 October 2026)
+  officerOnScene(w, qx, qz);
   ok(w.send(a.id, { type: 'combat.engage', target: { kind: 'player', id: b.id } }));
   assert.equal(b.fight, null, 'being squared up to does not put anyone in a fight');
   assert.ok(w.events(b.id).some((e) => /squaring up/.test(e.text || '')));
@@ -503,9 +517,10 @@ test('player against player: nobody is made to fight, a player can be hurt only 
   const crime = Object.values(w.g.state.justice.crimes)[0];
   assert.equal(crime.culprit, a.id);
   assert.deepEqual(crime.victim, { kind: 'player', id: b.id, name: b.name });
-  // (another player standing by is no witness: only the police are, 22 October 2026; the one struck knows who did it)
+  // (another player standing by is no witness: only the police are, 22 October 2026; the officer on the scene saw it)
   assert.ok(!crime.witnesses.some((s) => s.kind === 'player'), 'the third player is no witness');
   assert.ok(!w.events(c.id).some((e) => e.type === 'witness'));
+  assert.ok(crime.witnesses.some((s) => s.police));
   assert.equal(crime.detection, 'identified');
   assert.equal(c.health, HEALTH.max);
   // the one attacked may fight back, and commits no offence by it
@@ -545,6 +560,8 @@ test('a player\'s pocket: pocket money only, the victim is told at once, and get
   const [t, v] = w.players;
   const vBefore = w.balance(v), tBefore = w.balance(t);
   let got = null;
+  // (an officer near enough to see a pocket picked: 31 October 2026)
+  officerOnScene(w, 0, 40, { metres: LAW.witness.sure - 4 });
   // one try a day against the same person; move the days on until a try comes off
   for (let day = 0; day < 12 && !got; day += 1) {
     w.place(v, 0, 40, 0); w.place(t, 0, 39.1, 0);            // behind them
@@ -560,7 +577,9 @@ test('a player\'s pocket: pocket money only, the victim is told at once, and get
   const told = w.events(v.id).find((e) => e.type === 'alert');
   assert.ok(told && told.amount === -got.taken && /gone/.test(told.text), 'the victim is told at once, with the amount');
   refused(w.send(t.id, { type: 'crime.steal', target: { kind: 'player', id: v.id } }), 'NOTHING_LEFT');
-  // the victim reports it from their phone; they did not see who, so an officer comes to look, finds the thief standing there, and takes them in
+  // an officer saw it, and the victim is told so; they may tell the police by phone too, before word of it is with them (it
+  // is with them a moment later), and the thief is taken in
+  assert.match(told.text, /A police officer saw it/);
   const seen = w.g.view(v.id).self.law.seen;
   assert.equal(seen.length, 1);
   ok(w.send(v.id, { type: 'police.reportSeen', crimeId: seen[0].id }));
@@ -589,7 +608,7 @@ test('special constables: the badge is given by the simulation, and it carries t
   w.place(x, 0, 40); w.place(n, 0.9, 40);
   refused(w.send(n.id, { type: 'police.arrest', playerId: x.id }), 'NOT_WANTED');
   // Wale strikes someone and is wanted
-  assault(w, x, timid(w));
+  seenAssault(w, x, timid(w));
   until(w, () => x.law.state === 'wanted' || x.law.state === 'pursuit', 20);
   const list = ok(w.send(n.id, { type: 'police.wanted' })).wanted;
   assert.equal(list.length, 1);
@@ -666,7 +685,7 @@ test('a friend pays the fine at the Police Post; an arrest by the regular police
   w.place(n, post().x, post().z - 1);
   ok(w.send(n.id, { type: 'police.enlist' }));
   w.place(n, 200, 200);
-  assault(w, x, timid(w));
+  seenAssault(w, x, timid(w));
   until(w, () => x.law.state === 'custody', 600);
   const arrest = w.g.view(x.id).self.law.arrest;
   assert.equal(arrest.byConstable, false);
@@ -690,9 +709,10 @@ test('a friend pays the fine at the Police Post; an arrest by the regular police
 });
 
 // The owner's charges (10 October 2026), in ledger units, two to a TR: 10 TR for a crime, 100 TR for a killing. Offences are put on the books the way the
-// simulation records them (justice.offence), and the police are told in their own time.
+// simulation records them (justice.offence), each where an officer stands to see it, and the police know of it at once.
 const offend = (w, p, type) => {
   const victim = standing(w, p.x, p.z, { range: 600, not: ['police'] })[0];
+  officerOnScene(w, p.x, p.z, { metres: 10 });
   return w.I.justice.offence(p, type, { victim: { kind: 'npc', id: victim.i, name: victim.who.name }, x: p.x, z: p.z }).id;
 };
 const wantedFor = (w, p, n) => until(w, () => p.law.crimes.length === n && ['wanted', 'pursuit'].includes(p.law.state), LAW.report[1] + 2);
@@ -756,7 +776,7 @@ test('a constable who is arrested loses the badge; one with a record is not take
   const n = w.p;
   w.place(n, post().x, post().z - 1);
   ok(w.send(n.id, { type: 'police.enlist' }));
-  assault(w, n, timid(w));
+  seenAssault(w, n, timid(w));
   until(w, () => n.law.state === 'custody', 600);
   assert.equal(w.g.view(n.id).self.law.role, null);
   ok(w.send(n.id, { type: 'custody.pay' }));
@@ -874,7 +894,7 @@ function reloaded(w) {
 
 test('closing the page in the cell and coming back: still held, the fine still owed once, and paid once', () => {
   const w = town();
-  assault(w, w.p, timid(w));
+  seenAssault(w, w.p, timid(w));
   until(w, () => w.p.law.state === 'custody', 400);
   const arrest = w.g.view(w.id).self.law.arrest;
   const before = w.balance(w.p);
@@ -907,9 +927,9 @@ test('coming back does not pay a constable twice, heal a patient twice or lift w
   ok(w.send(n.id, { type: 'police.enlist' }));
   const [qx, qz] = quietSpot(w);
   w.place(x, qx, qz);
-  // Wale strikes someone where there are no police, and is wanted
+  // Wale strikes someone away from the police on their beats, one officer seeing it, and is wanted
   const victim = farFromPolice(w, standing(w, qx, qz, { range: 400, not: ['police'] }))[0];
-  assault(w, x, victim);
+  seenAssault(w, x, victim);
   until(w, () => x.law.state === 'wanted' || x.law.state === 'pursuit', 60);
   // a save while wanted: still wanted afterwards
   const a = reloaded(w);
@@ -961,12 +981,14 @@ test('a townsperson\'s body answers: kicked, they are hurt and run; those near a
   assert.equal(r.hit, true);
   const reacts = w.g.view(w.id).reacts;
   const theirs = reacts.find((e) => e[0] === a.i);
-  assert.ok(theirs, 'the one kicked plays a reaction');
-  assert.ok(['hurt', 'flee', 'box', 'stomp'].includes(theirs[1]), `kicked, they play ${theirs[1]}`);
+  // (or the kick put them down, as one now and then does: impact.js `felled`)
+  const fell = !!r.fell && w.I.impact.falls(a.x, a.z).some((f) => f[0] === a.i);
+  assert.ok(theirs || fell, 'the one kicked plays a reaction, or goes down');
+  if (theirs) assert.ok(['hurt', 'flee', 'box', 'stomp'].includes(theirs[1]), `kicked, they play ${theirs[1]}`);
   // every entry names a townsperson by number: nothing is ever played on a player
   for (const [i] of reacts) assert.ok(Number.isInteger(i) && i >= 0 && i < w.pop.count);
   assert.ok(!reacts.some(([i]) => typeof i === 'string'));
   // it ends of itself
   run(w.host, 12);
-  assert.ok(!w.g.view(w.id).reacts.some((e) => e[0] === a.i && e[1] === theirs[1] && e[2] > 11));
+  if (theirs) assert.ok(!w.g.view(w.id).reacts.some((e) => e[0] === a.i && e[1] === theirs[1] && e[2] > 11));
 });

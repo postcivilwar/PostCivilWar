@@ -5,7 +5,7 @@
 
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { town as ourTown, standing, until, assault, run, ok, refused, post, whereIs, farFromPolice } from './world.mjs';
+import { town as ourTown, standing, until, assault, run, ok, refused, post, whereIs, farFromPolice, officerOnScene, quietSpot } from './world.mjs';
 import { LAW } from '../src/sim/justice.js';
 import { HIJACK, driverSide } from '../src/sim/hijack.js';
 import { MOTO } from '../src/sim/okada.js';
@@ -68,13 +68,22 @@ test('calls: the police take a report, the hospital sends the ambulance, a busin
   const sent = ok(w.send(a.id, { type: 'phone.call', key: 'svc:hospital', about: 'ambulance' }));
   assert.equal(sent.call.fee, 0, 'free: their health is critical');
   assert.equal(w.g.view(a.id).ambulance.mode, 'out');
-  // a player who was struck reports it by phone (only the police and the person wronged tell the police: a player who
-  // only saw it is no witness, 22 October 2026)
+  // a player who was struck: with no officer there to see it, there is nothing the police can do (31 October 2026, the
+  // owner's word: only what an officer on the scene sees is a crime); with one there, the one struck can tell them at
+  // once by phone (a player who only saw it is no witness, 22 October 2026)
   const w2 = town(['Wale Wrong', 'Sade Struck', 'Bisi Bystander']);
   const [x, s, by] = w2.players;
-  const [qx, qz] = [w2.p.x, w2.p.z];
+  const [qx, qz] = quietSpot(w2);
   w2.place(s, qx + 0.9, qz, -Math.PI / 2); w2.place(x, qx, qz, Math.PI / 2); w2.place(by, qx + 4, qz + 2);
   ok(w2.send(x.id, { type: 'combat.engage', target: { kind: 'player', id: s.id } }));
+  ok(w2.send(x.id, { type: 'combat.act', move: 'punch' }));
+  assert.equal(w2.g.view(s.id).self.law.seen.length, 0, 'no officer saw it: nothing to tell them');
+  refused(w2.send(s.id, { type: 'phone.call', key: 'svc:police', about: 'report' }), 'NOTHING');
+  run(w2.host, 3);
+  assert.equal(x.law.state, 'normal');
+  // an officer comes upon them, and the next blow is seen
+  officerOnScene(w2, qx, qz);
+  run(w2.host, 0.6);
   ok(w2.send(x.id, { type: 'combat.act', move: 'punch' }));
   assert.equal(w2.g.view(by.id).self.law.seen.length, 0, 'the one who only saw it has nothing to report');
   refused(w2.send(by.id, { type: 'phone.call', key: 'svc:police', about: 'report' }), 'NOTHING');
@@ -178,7 +187,9 @@ test('a constable decides whether their prisoner may use the phone; silence is t
   const [n, x] = w.players;
   w.place(n, post().x, post().z - 1);
   ok(w.send(n.id, { type: 'police.enlist' }));
-  assault(w, x, farFromPolice(w, standing(w, ...MARKET, { range: 500, not: ['police'] })).find((a) => a.nerve < 0.4 && a.who.age < 55));
+  const victim = farFromPolice(w, standing(w, ...MARKET, { range: 500, not: ['police'] })).find((a) => a.nerve < 0.4 && a.who.age < 55);
+  officerOnScene(w, victim.x, victim.z);
+  assault(w, x, victim);
   until(w, () => ['wanted', 'pursuit'].includes(x.law.state), 20);
   w.place(n, x.x + 1, x.z);
   const arrest = ok(w.send(n.id, { type: 'police.arrest', playerId: x.id })).arrest;
@@ -363,6 +374,8 @@ test('a keke: locked at night, taken by day only from the front seat, and return
   refused(w.send(w.id, { type: 'vehicle.enter', vehicleId: v.id }), 'NOT_YOURS');
   here = at(body, 1.3, 0.5);
   w.place(w.p, here.x, here.z);
+  // (an officer on her beat by the park: 31 October 2026, only what an officer sees is a crime)
+  officerOnScene(w, v.x, v.z);
   const started = ok(w.send(w.id, { type: 'hijack.start', vehicle: v.id })).hijack;
   assert.deepEqual([started.kind, started.step], ['keke', 'door']);
   assert.equal(w.g.view(w.id).self.driving, null);
@@ -371,7 +384,7 @@ test('a keke: locked at night, taken by day only from the front seat, and return
   assert.equal(w.g.view(w.id).self.driving.id, v.id);
   const crime = Object.values(w.g.state.justice.crimes)[0];
   assert.deepEqual([crime.type, crime.vehicle], ['vehicle_theft', v.id]);
-  assert.equal(crime.detection, 'identified', 'the dealer was at his desk and saw it');
+  assert.equal(crime.detection, 'identified', 'the officer on her beat saw it');
   ok(w.send(w.id, { type: 'vehicle.exit' }));
   until(w, () => w.p.law.state === 'custody', 900);
   const back = w.g.view(w.id).vehicles.find((c) => c.id === v.id);

@@ -405,7 +405,10 @@ test('no vehicle goes onto a bridge, a boardwalk, a jetty or stairs: the motorcy
   let x = rider.x;
   for (let i = 0; i < 60 && x < 1899 + S; i += 1) { run(w.host, 0.2); x = Math.min(1899 + S, x + 0.5); const r = w.send(rid, { type: 'move', x, z: 91, heading: Math.PI / 2 }); assert.equal(r.ok, true, `on foot at ${x}: ${JSON.stringify(r)}`); }
   assert.ok(rider.x >= 1898.9 + S, 'across the bridge on foot');
-  // a car: the same
+  // a car: the same (the motorcycle sold first, and bought again: left standing where it stopped, it would be in the car's
+  // way, as a motorcycle left standing is now, 31 October 2026)
+  ok(w.send(rid, { type: 'bikes.owned', bikes: [] }));
+  ok(w.send(rid, { type: 'bikes.owned', bikes: ['red-superbike'] }));
   w.place(driver, 1860 + S, 91, Math.PI / 2);
   ok(w.send(did, { type: 'cars.owned', cars: ['grey-saloon'] }));
   ok(w.send(did, { type: 'cars.enter', car: 'grey-saloon' }));

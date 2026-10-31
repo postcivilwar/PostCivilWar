@@ -21,6 +21,7 @@ import { createNaval, isShip, shipOfAstride } from './naval.js';
 import { createSurfing, isSurfing } from './surfing.js';
 import { SPORT_BELL } from './sport-ride.js';
 import { createOwnCars, isOwnCar, carOf } from './own-cars.js';
+import { visitorBoxes, standingBikes } from './in-the-way.js';
 import { createTalk } from './talk.js';
 import { createVoices } from './voices.js';
 import { LANGUAGES } from './culture.js';
@@ -150,12 +151,16 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   // a player's own motorcycles, bought in the market
   // (the town's riders on their bicycles, skateboards and skates are in the way of anything a player drives or rides)
   const ridersInWay = () => (hub.sportRiders ? hub.sportRiders.boxes() : []);
-  const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()] });
+  // (other players' cars, motorcycles and kekes, and any motorcycle left standing: in-the-way.js, 31 October 2026)
+  const strangers = () => [...visitorBoxes(talk.visitors()), ...standingBikes(state.players)];
+  const ownBikes = createOwnBikes({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()], strangers });
   // and their own cars (17 October 2026); a car left standing is in everybody's way
-  const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0), ...ridersInWay()] });
+  // (the town's riders are not in a car's way as something solid: it knocks them off, impact.js, 31 October 2026; what
+  // one of them rode, standing or lying on its own, still is)
+  const ownCars = createOwnCars({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...(hub.traffic ? hub.traffic.boxes() : []), ...carshowGateBoxes(state.carshowGate ? state.carshowGate.open : 0), ...(hub.sportRiders ? hub.sportRiders.boxes(true) : [])], strangers });
   // and the things from the sports mall that are ridden on land (31 October 2026): the bicycle, the skateboard, the
   // skates, the e-scooter, the hoverboard and the electric unicycle; ridden through the motorcycle's own intents
-  const ownSports = createOwnSports({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()] });
+  const ownSports = createOwnSports({ state, hub, obstacles: () => [...structureBoxes(), ...vehicles.boxes(), ...parkedCars(), ...ridersInWay()], strangers });
   // on the river (31 October 2026): the player's own speedboat, and the navy's three ships on patrol
   const ownBoats = createOwnBoats({ state, hub });
   // and surfing on the waves along the town's bank (surfing.js), by the town's clock in real seconds
@@ -444,7 +449,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       const gap = Math.hypot(x - p.x, z - p.z);
       if (gap > limit) throw new GameError('TOO_FAST', 'Movement rejected.');
       // Parked vehicles are in the way, except one that has been put down on top of you.
-      const parked = [...vehicles.boxes(), ...parkedCars()].filter((b) => !(p.x > b.x0 - 0.4 && p.x < b.x1 + 0.4 && p.z > b.z0 - 0.4 && p.z < b.z1 + 0.4));
+      // (other players' cars, motorcycles and kekes too, as their pages say they stand: in-the-way.js)
+      const parked = [...vehicles.boxes(), ...parkedCars(), ...visitorBoxes(talk.visitors())].filter((b) => !(p.x > b.x0 - 0.4 && p.x < b.x1 + 0.4 && p.z > b.z0 - 0.4 && p.z < b.z1 + 0.4));
       const boxes = [...structureBoxes(), ...parked];
       // the ambulance too, unless the player is one of those it is in the middle of helping aboard
       const van = care.box();

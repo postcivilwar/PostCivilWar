@@ -251,8 +251,9 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     const straight = new THREE.Group(); spin.add(straight);
     if (w.axle) straight.quaternion.setFromUnitVectors(new THREE.Vector3(w.axle[0], w.axle[1], w.axle[2]).normalize(), X);
     const m = mesh(geometries[k + 1]); m.position.set(-c[0], -c[1], -c[2]); straight.add(m);
-    return { at, steer, spin, r: w.r * scale, front: k < 2 };
+    return { at, steer, spin, r: w.r * scale, front: k < 2, y: c[1], x: c[0] * scale, z: c[2] * scale };
   });
+  const springsY = spec.height * 0.35;
   // the lamps ride on the body too, at their places on the model (measured from the ground, as the body is drawn)
   const lampFrame = new THREE.Group(); lampFrame.position.set(0, -spec.height * 0.35, 0); springs.add(lampFrame);
   const fx = lampsOf(spec, lampFrame);
@@ -266,15 +267,21 @@ export async function loadCar(id, { base = 'cars/', lite = false, length = 4.6, 
     driver: spec.driver || null,
     // metres: how long, wide and high it is drawn
     size: { length, width: spec.body * scale, height: spec.height * scale },
+    // where each wheel is (metres from the car's middle: x to its left, z forward), and how big (for wheel-bumps.js)
+    wheels: wheels.map((w) => ({ x: w.x, z: w.z, r: w.r, front: w.front })),
     // travelled: metres the car has rolled (the wheels turn by it); steerAngle: radians the front wheels are turned
     // (left positive, as the car's own +x is its left); pitch: radians the nose dips (positive) or lifts; roll:
-    // radians it leans over to its right (positive) in a left-hand turn's push
-    pose({ travelled = 0, steerAngle = 0, pitch = 0, roll = 0 } = {}) {
-      for (const w of wheels) {
+    // radians it leans over to its right (positive) in a left-hand turn's push; lifts: metres each wheel is lifted
+    // off the road (going over something lying in the way, wheel-bumps.js), in the order of `wheels`; rise: metres the
+    // body is lifted on its springs
+    pose({ travelled = 0, steerAngle = 0, pitch = 0, roll = 0, lifts = null, rise = 0 } = {}) {
+      wheels.forEach((w, k) => {
         w.spin.rotation.x = travelled / w.r;
         if (w.front) w.steer.rotation.y = steerAngle;
-      }
+        w.at.position.y = w.y + (lifts && lifts[k] ? lifts[k] / scale : 0);
+      });
       springs.rotation.set(pitch, 0, roll);
+      springs.position.y = springsY + rise / scale;
     },
     // head and tail lamps (0..1), the brake lamps and the reversing lamps (on or off)
     lamps(state) { fx.set(state); },

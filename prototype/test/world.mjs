@@ -2,6 +2,7 @@
 import { createHost } from '../src/sim/host.js';
 import { zoneWalkable, zoneService } from '../src/sim/zone.js';
 import { fund, run, ok } from './helpers.mjs';
+import { inSight } from '../src/sim/justice.js';
 
 export { run, ok };
 export const refused = (result, code) => { if (result.ok) throw new Error(`expected a refusal (${code}), got success: ${JSON.stringify(result).slice(0, 200)}`); if (result.code !== code) throw new Error(`expected ${code}, got ${result.code}: ${result.message}`); return result; };
@@ -90,6 +91,37 @@ export function farFromPolice(w, list, metres = 110) {
   const officers = w.pop.people.filter((q) => q.job === 'police').map((q) => whereIs(w, q.index)).filter((o) => o.pose !== 4);
   return list.filter((a) => officers.every((o) => Math.hypot(o.x - a.x, o.z - a.z) > metres));
 }
+
+// A police officer brought to stand `metres` from (x, z), out in the open in sight of it (justice.js inSight), and kept standing
+// there (31 October 2026, the owner's word: only what an officer on the scene sees is a crime, justice.js). Not one the
+// police can send anywhere while she stands there (justice.js `available`): those who come for a culprit come from
+// where they are, as before. Gives her index.
+export function officerOnScene(w, x, z, { metres = 18, not = [] } = {}) {
+  const A = w.I.actors;
+  // (one already standing there, near enough and in sight of it, will do)
+  for (const q of w.pop.people) {
+    if (q.job !== 'police' || not.includes(q.index) || !A.has(q.index)) continue;
+    const m = A.get(q.index);
+    if (m.act === 'On the beat' && m.mode === 'hold' && Math.hypot(m.x - x, m.z - z) <= Math.max(metres, 12) && inSight(x, z, m.x, m.z)) return q.index;
+  }
+  const officers = w.pop.people.filter((q) => q.job === 'police' && !not.includes(q.index) && !A.has(q.index)).map((q) => q.index);
+  for (const d of [metres, metres * 0.6, 25, 28]) {
+    for (let a = 0; a < 32; a += 1) {
+      const ang = (a / 32) * Math.PI * 2;
+      const ox = x + Math.sin(ang) * d, oz = z + Math.cos(ang) * d;
+      if (!zoneWalkable(ox, oz) || !inSight(x, z, ox, oz)) continue;
+      const i = officers[0];
+      if (i === undefined) throw new Error('no officer left to put there');
+      A.take(i, w.g.state.t, { x: ox, z: oz });
+      A.hold(i, 'On the beat', 0, 0);
+      A.get(i).h = Math.atan2(x - ox, z - oz);
+      return i;
+    }
+  }
+  throw new Error('no officer could be put there');
+}
+// ... and sent back to her beat.
+export function officerGone(w, i) { if (w.I.actors.has(i)) w.I.actors.release(i); }
 
 // Walks a player in a straight line, a step each tenth of a second, the way someone leading a prisoner would.
 export function lead(w, p, x, z, speed = 2.4) {

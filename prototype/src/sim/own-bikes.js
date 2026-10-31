@@ -12,6 +12,7 @@ import { POWER_BIKES, handlingOf, FASTEST } from './power-bikes.js';
 import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
 import { GameError } from './registry.js';
+import { clearOfPoint } from './in-the-way.js';
 
 export const isOwnBike = (astride) => typeof astride === 'string' && astride.startsWith('pb:');
 export const bikeOf = (astride) => (isOwnBike(astride) ? astride.slice(3) : null);
@@ -35,7 +36,9 @@ export const CRASH = Object.freeze({
 });
 export const crashHarm = (speed, max = 100) => max * CRASH.most * Math.min(1, Math.max(0, speed) / FASTEST);
 
-export function createOwnBikes({ state, hub, obstacles }) {
+export function createOwnBikes({ state, hub, obstacles, strangers = () => [] }) {
+  // (other players' cars, motorcycles and kekes: never one the motorcycle is already against, in-the-way.js)
+  const theirs = (b) => clearOfPoint(strangers(), b.x, b.z, ROOM - 0.1);
   const own = (p) => (Array.isArray(p.bikes) ? p.bikes : []);
   const parkedOf = (p) => { if (!p.parked || typeof p.parked !== 'object') p.parked = {}; return p.parked; };
   const onFoot = (p) => !p.driving && (p.riding === null || p.riding === undefined) && (p.astride === null || p.astride === undefined) && !p.incar && !p.carried && !p.custody && !p.swimming && !p.dead && !p.down;
@@ -92,7 +95,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     const elapsed = Math.min(1.0, state.real - p.lastMoveAt);
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     if (gap > 0.02 && hub.impact && hub.impact.stalled(b)) throw new GameError('STALLED', 'The motorcycle has stopped: you hit someone.');
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
     for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, ROOM - 0.1)) throw new GameError('BLOCKED', 'Movement rejected.');
     // a bridge, a boardwalk, a jetty: walked, never ridden onto
@@ -125,7 +128,7 @@ export function createOwnBikes({ state, hub, obstacles }) {
     if (Math.abs(v) < CRASH.least) return { fell: false, outcome: 'stop' };
     const h = Number.isFinite(heading) ? heading : b.h;
     // what it ran into: the first thing in its way within a step or two ahead (behind, backing up)
-    const boxes = obstacles();
+    const boxes = [...obstacles(), ...theirs(b)];
     const way = Math.sign(v) || 1;
     let hit = null;
     for (let d = 0.2; d <= 1.41; d += 0.2) {
