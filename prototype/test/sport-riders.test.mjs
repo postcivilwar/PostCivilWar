@@ -116,8 +116,7 @@ test('taken from its rider: they are pushed off and run shouting, the police are
   // the rider: off it and running from the thief; the police: a vehicle taken
   const m = w.I.actors.get(r.i);
   assert.ok(m && /thief/i.test(m.act), JSON.stringify(m && m.act));
-  const law = w.I.justice.lawOf ? w.I.justice.lawOf(p) : null;
-  assert.ok(!law || law.crimes.some((c) => c.type === 'vehicle_theft'), 'taking it is a crime');
+  assert.equal(w.g.state.justice.crimes[got.crime].type, 'vehicle_theft', 'taking it is a crime');
   // never theirs: not on their list of things (the server's), so never in the market; the server's list does not change it
   assert.deepEqual(self.ownSports.items, []);
   send(id, { type: 'sports.owned', items: [] });

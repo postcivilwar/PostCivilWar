@@ -37,7 +37,7 @@ export const SPORT_RIDING = Object.freeze({
   look: 11,                // metres ahead a rider watches
   gap: 1.6,                // metres kept behind whatever is ahead
   brake: 2.6,              // m/s² at most, slowing for something
-  end: 7,                  // metres short of the road's end a rider turns round
+  end: 12,                 // metres short of the road's end a rider turns round (clear of the junction there)
   turning: 2.2,            // m/s: going round, no faster
   pause: Object.freeze([10, 30]),     // real seconds stood at the roadside now and then
   between: Object.freeze([260, 720]), // metres ridden between stops
@@ -192,6 +192,18 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     return best;
   }
 
+  // Is anything (not this rider) within `room` metres of the point `ahead` metres before them, as they face?
+  function blockedAhead(r, list, ahead, room) {
+    const px = r.x + Math.sin(r.h) * ahead, pz = r.z + Math.cos(r.h) * ahead;
+    return list.some((o) => o.rider !== r.n && Math.hypot(o.x - px, o.z - pz) < room + Math.max(o.hw || 0, o.hl || 0) * 0.6);
+  }
+  // Is the half circle of a turn round to the other side of the road clear (nothing within it, or just beyond)?
+  function turnClear(r, list) {
+    const radius = Math.max(2, r.lat);
+    const cx = r.x + Math.cos(r.h) * radius, cz = r.z - Math.sin(r.h) * radius;
+    return !list.some((o) => o.rider !== r.n && Math.hypot(o.x - cx, o.z - cz) < radius + 1.2 + Math.max(o.hw || 0, o.hl || 0) * 0.6);
+  }
+
   // One rider, one step: on along the road at their pace, round or behind what is in the way, round at the end.
   function step(r, dt, list) {
     const road = roadOf(r);
@@ -203,8 +215,10 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
       return;
     }
     if (r.mode === 'turn') {
-      // round to the other side of the road, to the left, along a half circle as wide as the road between the two edges
+      // round to the other side of the road, to the left, along a half circle as wide as the road between the two edges;
+      // held where they are while something is just ahead of them on it
       const radius = Math.max(2, r.lat);
+      if (blockedAhead(r, list, 1.0, 1.3)) { r.v = Math.max(0, r.v - SPORT_RIDING.brake * dt); if (r.v < 0.05) { r.v = 0; return; } }
       const rate = Math.min(r.v, SPORT_RIDING.turning) / radius;
       ride.speed = r.v; ride.lean = r.lean; ride.heading = r.h; ride.phase = r.phase;
       stepSport(ride, { throttle: r.v < SPORT_RIDING.turning * 0.9 ? 0.5 : 0 }, dt, { handling: h });
@@ -237,8 +251,10 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     // the road's end ahead: round
     const toEnd = r.dir > 0 ? road.a1 - r.along : r.along - road.a0;
     if (toEnd < SPORT_RIDING.end) {
-      if (r.v <= SPORT_RIDING.turning + 0.2) { r.mode = 'turn'; r.turned = 0; return; }
-      target = Math.min(target, SPORT_RIDING.turning);
+      // (round only when nothing is in the way of the turn: otherwise waiting at the edge until it is clear)
+      if (!turnClear(r, list)) target = 0;
+      else if (r.v <= SPORT_RIDING.turning + 0.2) { r.mode = 'turn'; r.turned = 0; return; }
+      else target = Math.min(target, SPORT_RIDING.turning);
     } else if (toEnd < SPORT_RIDING.end + 10) target = Math.min(target, SPORT_RIDING.turning + (toEnd - SPORT_RIDING.end) * 0.35);
     // the drive: the pedals turned, a push, a stride, as the speed wanted asks; braking hard enough to keep the gap
     ride.speed = r.v; ride.lean = 0; ride.heading = r.h; ride.phase = r.phase;
@@ -247,6 +263,12 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
     let v = ride.speed;
     if (v > target + 0.05) v = Math.max(target, r.v - SPORT_RIDING.brake * dt);
     r.v = Math.max(0, v); r.phase = ride.phase;
+    // (back toward the edge only once past what was gone round: nothing beside them on that side)
+    if (latWant > r.lat) {
+      const ux = Math.sin(r.h), uz = Math.cos(r.h), front = r.item === 'bicycle' ? 0.9 : 0.45;
+      const beside = list.some((o) => { if (o.rider === r.n) return false; const along = (o.x - r.x) * ux + (o.z - r.z) * uz; const side = latOf(road, o.x, o.z, r.dir) - r.lat; return Math.abs(along) < (o.hl || 0.5) + front + 0.6 && side > -0.1 && side < 1.3; });
+      if (beside) latWant = r.lat;
+    }
     // across the road, toward where it wants to be, as a rider steers: a little lean into it
     const dl = clamp(latWant - r.lat, -0.9 * dt, 0.9 * dt);
     r.lat += dl;
