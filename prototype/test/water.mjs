@@ -124,8 +124,8 @@ const seat = await page.evaluate(() => { const n = window.__nlw, me = n.me, m = 
 check('B: the player in the right-hand seat, at its wheel', !!seat && seat.visible && seat.gap < 0.35, seat);
 await shot('b-speedboat-at-the-jetty');
 
-// ---- C: driven out
-await page.evaluate(() => { const n = window.__nlw; n.face(0); n.boatState.heading = 0; });
+// ---- C: driven out (along the river, east from the jetty: straight across, it is at the far bank before it is flat out)
+await page.evaluate(() => { const n = window.__nlw; n.face(Math.PI / 2); n.boatState.heading = Math.PI / 2; });
 const going = await holdUntil(['w'], (q, got) => kmh(q.speed) >= 55 && got.length >= 8, 300);
 const fast = going[going.length - 1];
 check('C: flat out it gathers speed to about 60 km/h', kmh(Math.max(...going.map((q) => q.speed))) > 45 && kmh(Math.max(...going.map((q) => q.speed))) <= 61, going.map((q) => kmh(q.speed)));
@@ -180,11 +180,15 @@ check('E: a ship gathers way slowly (after ten seconds well under its top speed 
 await page.evaluate(() => { const n = window.__nlw; n.cam.yaw = n.predicted.heading + 0.7; n.cam.lastDrag = 1e9; n.rig.snap(n.cam); });
 await shot('e2-at-the-helm');
 await holdUntil(['s'], (q) => Math.abs(q.speed) < 0.2, 240, 1);
+// back astern to the boat she was boarded from (it lies where it was left), and the way taken off her there
+const boatLeft = await page.evaluate(() => { const o = window.__nlw.view.self.ownBoats; return ((o && o.moored) || []).find((m) => m.boat === 'speedboat') || null; });
+const backTo = boatLeft ? await holdUntil(['s'], (q) => Math.hypot(q.at[0] - boatLeft.x, q.at[1] - boatLeft.z) < 20, 400, 0.5) : [];
+await holdUntil(['w'], (q) => Math.abs(q.speed) < 0.2, 240, 0.5);
 
 // ---- F: off the ship into the boat; ashore at the jetty
 const off = await page.evaluate(() => window.__nlw.leaveBoat());
 await page.waitForTimeout(1000);
-check('F: off the ship, down into the boat alongside', off.ok && off.into === 'boat' && (await page.evaluate(() => window.__nlw.ownBoat())) === 'speedboat', off);
+check('F: off the ship, down into the boat alongside', off.ok && off.into === 'boat' && (await page.evaluate(() => window.__nlw.ownBoat())) === 'speedboat', { off, boatLeft, back: backTo.length ? backTo[backTo.length - 1].at : null });
 await page.evaluate(([x0, x1, z1]) => {
   const n = window.__nlw, g = n.host.game, p = g.state.players[n.playerId];
   const x = x1 + 2.2, z = z1 - 8;
