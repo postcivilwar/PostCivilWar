@@ -24,7 +24,6 @@ import { ZONE_ROADS, zoneWalkable } from './zone.js';
 import { POSE } from './population.js';
 import { trafficNetwork } from './traffic.js';
 import { SPORT_HANDLING, stepSport } from './sport-ride.js';
-import { SPORTS } from './sports.js';
 import { GameError } from './registry.js';
 
 export const RIDERS = Object.freeze({ bicycle: 10, skateboard: 5, 'inline-skates': 5 });
@@ -433,4 +432,3 @@ export function createSportRiders({ state, population, players, hub = {}, emit =
 }
 
 export const sportRiderName = (item) => NAMES[item] || 'bicycle';
-export { SPORTS };
