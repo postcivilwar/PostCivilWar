@@ -62,6 +62,9 @@ await page.waitForFunction(() => window.__nlw.me && window.__nlw.me.mixer, null,
 if (PHONE) await page.evaluate(() => window.__nlw.setGraphics('medium'));
 // 10.30 in the morning, clear; the notices out of the pictures
 await page.evaluate(() => { const n = window.__nlw, g = n.host.game; const hour = n.view.clock.hourFloat; n.skip(((24 + 10.5 - hour) % 24) || 24); g.state.weather = { kind: 'clear', until: g.state.t + 24 * 3600 }; for (const id of ['toasts', 'notices']) { const el = document.getElementById(id); if (el) el.hidden = true; } });
+// (the town's cars held at home: a car stopped in a rider's way holds them up, and this test is of the riders; the
+// traffic's own test, and test/sport-riders.test.mjs, have the cars and the riders together)
+await page.evaluate(() => { const T = window.__nlw.host.game.internals.traffic; T.tick = () => {}; for (const c of T.cars) if (c.mode !== 'taken' && c.mode !== 'kept') { c.mode = 'off'; c.v = 0; } });
 const fps = async (ms = 8000) => page.evaluate((ms) => new Promise((done) => { let f = 0; const t0 = performance.now(); const tick = () => { f += 1; if (performance.now() - t0 < ms) requestAnimationFrame(tick); else done(+(f * 1000 / (performance.now() - t0)).toFixed(1)); }; requestAnimationFrame(tick); }), ms);
 
 // One of the town's riders of `item` out on the road (the nearest to the motor park first), held standing at the roadside
