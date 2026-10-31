@@ -1322,8 +1322,8 @@ does not need the model is built and tested:
   beating at its own firing rate, with its own pipe, rasp and airbox, climbing with the revs through the gears,
   starting, settling, crackling on the overrun and running down. A bike may bring its own recordings instead. It
   plays through the vehicle volume, so the settings and mute govern it; the town's sounds are not touched.
-- **Surfboards** (`src/sim/surfboards.js`): who may surf (an owner, in the water), how a board goes on the river and
-  stops at the bank, and getting off. Three of the figures already have a surf pose.
+- **Surfboards**: the board the owner sent (30 October 2026) is sold at the sports mall; the code that waited for it
+  here (`src/sim/surfboards.js`) is retired, and surfing is on the river by the town (`src/sim/surf.js`).
 
 Adding a bike or a board is adding its entry, with its model.
 
