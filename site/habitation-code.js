@@ -2670,9 +2670,10 @@ return { BIRD_KINDS, createHabitationLife };
 __modules["client/habitation-code.js"] = (function () {
 const { createHabitation } = __modules["client/render-habitation.js"];
 const { createHabitationLife } = __modules["client/render-habitation-life.js"];
-const { habitationWind } = __modules["client/habitation-plants.js"];
+const { habitationWind, setHabitationWind, readDressed, decodePicture, PICTURE_OPTIONS } = __modules["client/habitation-plants.js"];
+const { letGoOnceDrawn, decodeAtMost } = __modules["client/glb.js"];
 
-window.__pcwHabitationCode = Object.freeze({ createHabitation, createHabitationLife, habitationWind });
+window.__pcwHabitationCode = Object.freeze({ createHabitation, createHabitationLife, habitationWind, plants: Object.freeze({ readDressed, decodePicture, PICTURE_OPTIONS, letGoOnceDrawn, decodeAtMost, setHabitationWind }) });
 
 return {  };
 })();

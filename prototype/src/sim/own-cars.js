@@ -24,6 +24,8 @@ import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zon
 import { contactNormal, contactOutcome } from './contact.js';
 import { GameError } from './registry.js';
 import { clearOf } from './in-the-way.js';
+import { zoneSurfaceY } from './zone.js';
+import { levelAt, keepLevel } from './levels.js';
 
 export const isOwnCar = (incar) => typeof incar === 'string' && incar.startsWith('pc:');
 export const carOf = (incar) => (isOwnCar(incar) ? incar.slice(3) : null);
@@ -40,8 +42,10 @@ export const carCrashHarm = (speed, max = 100) => max * CAR_CRASH.most * Math.mi
 
 // Does a car fit where it would stand (every part of it on open ground, nothing solid in it)? `slack` is room
 // forgiven at its edges (a step's worth, for one that is already moving along a wall).
-export function carFits(id, x, z, h, boxes = [], slack = 0) {
-  for (const c of carCircles(POWER_CARS[id], x, z, h)) if (!zoneWalkable(c.x, c.z, boxes, Math.max(0.3, c.r - slack))) return false;
+// `y`: the level it is on (levels.js: on a flyover only the flyover, under it only what is under it; and the street
+// lamps' poles in its way: street-lamps.js). Without, the ground.
+export function carFits(id, x, z, h, boxes = [], slack = 0, y = undefined) {
+  for (const c of carCircles(POWER_CARS[id], x, z, h)) if (!zoneWalkable(c.x, c.z, boxes, Math.max(0.3, c.r - slack), y)) return false;
   return true;
 }
 
@@ -85,14 +89,17 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
       const boxes = [...obstacles(), ...othersParked(p, id)];
       const h0 = p.heading || 0;
       const turns = [0, Math.PI, Math.PI / 2, -Math.PI / 2, Math.PI / 4, -Math.PI / 4, (3 * Math.PI) / 4, (-3 * Math.PI) / 4];
-      const h = turns.map((d) => h0 + d).find((hh) => carFits(id, p.x, p.z, hh, boxes));
+      const y = levelAt(p);
+      const h = turns.map((d) => h0 + d).find((hh) => carFits(id, p.x, p.z, hh, boxes, 0, y));
       if (h === undefined) throw new GameError('NO_ROOM', 'There is no room for a car here. Go out to the road.');
-      at = { x: p.x, z: p.z, h };
+      at = { x: p.x, z: p.z, h, y };
     }
     delete parkedOf(p)[id];
     p.incar = `pc:${id}`;
-    p.pcar = { id, x: at.x, z: at.z, h: at.h, movedAt: state.real };
+    const y = Number.isFinite(at.y) ? at.y : levelAt(at);
+    p.pcar = { id, x: at.x, z: at.z, h: at.h, movedAt: state.real, lv: { x: at.x, z: at.z, y } };
     p.x = at.x; p.z = at.z; p.heading = at.h; p.lastMoveAt = state.real;
+    keepLevel(p, y);
     return { car: id, x: at.x, z: at.z, h: at.h };
   }
 
@@ -103,6 +110,7 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     p.incar = `pc:${model}`;
     p.pcar = { id: model, x, z, h, movedAt: state.real, taken: n };
     p.x = x; p.z = z; p.heading = h; p.lastMoveAt = state.real;
+    keepLevel(p.pcar); keepLevel(p, p.pcar.lv.y);
     return { car: model, x, z, h, taken: n };
   }
 
@@ -122,10 +130,14 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id), ...theirs(c)];
     const steps = Math.max(1, Math.ceil(gap / 0.4));
+    // (on the level it is on, every step: up a ramp, along a flyover inside its walls, or under it: levels.js)
+    let y = levelAt(c);
     for (let i = 1; i <= steps; i += 1) {
       const k = i / steps;
       const hh = c.h + wrap(heading - c.h) * k;
-      if (!carFits(c.id, c.x + (x - c.x) * k, c.z + (z - c.z) * k, hh, boxes, 0.2)) throw new GameError('BLOCKED', 'Movement rejected.');
+      const sx = c.x + (x - c.x) * k, sz = c.z + (z - c.z) * k;
+      if (!carFits(c.id, sx, sz, hh, boxes, 0.2, y)) throw new GameError('BLOCKED', 'Movement rejected.');
+      y = zoneSurfaceY(sx, sz, y);
       // (a bridge, a boardwalk, a jetty: walked, never driven onto; the car's front is what reaches it)
       const front = POWER_CARS[c.id].length / 2;
       { const f = habitationFootOnly(c.x + (x - c.x) * k + Math.sin(hh) * front, c.z + (z - c.z) * k + Math.cos(hh) * front); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
@@ -134,9 +146,11 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     // (how fast the town itself saw it go: a crash is judged at no more than this, whatever the page says)
     if (elapsed > 0.004) c.seen = Number.isFinite(c.seen) ? c.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
     c.x = x; c.z = z; c.h = heading; c.movedAt = state.real;
+    keepLevel(c, y);
     if (isTaken(c) && hub.traffic) hub.traffic.moved(c.taken, c);
     c.drive = driveOf(step, handling.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
+    keepLevel(p, y);
     p.stats.driven = (p.stats.driven || 0) + gap;
     const spec = POWER_CARS[c.id];
     const front = { half: spec.width / 2, nose: spec.length / 2, tail: spec.length / 2 };
@@ -160,14 +174,17 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     const spec = POWER_CARS[c.id] || { length: 4.6 };
     const boxes = [...obstacles(), ...othersParked(p, isTaken(c) ? null : c.id), ...theirs(c)];
     const way = Math.sign(v) || 1;
-    const free = (x, z) => carFits(c.id, x, z, h, boxes, 0.2);
+    const cy = levelAt(c);
+    const free = (x, z) => carFits(c.id, x, z, h, boxes, 0.2, cy);
     let hit = null;
     for (let d = 0.2; d <= 1.41; d += 0.2) {
       const qx = c.x + Math.sin(h) * d * way, qz = c.z + Math.cos(h) * d * way;
       if (!free(qx, qz)) {
-        // what is there, at the end of the car that meets it
+        // what is there, at the end of the car that meets it (a street lamp's pole is as solid as a wall to a car too
+        // slow to knock it down: lamps.js)
         const ex = qx + Math.sin(h) * (spec.length / 2) * way, ez = qz + Math.cos(h) * (spec.length / 2) * way;
-        hit = { x: qx, z: qz, kind: zoneBlockKind(ex, ez, boxes, 0.6) || 'solid' };
+        const kind = zoneBlockKind(ex, ez, boxes, 0.6, cy) || 'solid';
+        hit = { x: qx, z: qz, kind: kind === 'lamp' ? 'solid' : kind };
         break;
       }
     }
@@ -190,11 +207,13 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     const side = { x: Math.cos(c.h), z: -Math.sin(c.h) }, ahead = { x: Math.sin(c.h), z: Math.cos(c.h) };
     const door = -0.15 * spec.length;          // the driver's door is a little behind the car's middle
     const spots = [[side.x * out + ahead.x * door, side.z * out + ahead.z * door], [-side.x * out + ahead.x * door, -side.z * out + ahead.z * door], [-ahead.x * back, -ahead.z * back], [ahead.x * back, ahead.z * back]];
-    const spot = spots.map(([dx, dz]) => ({ x: c.x + dx, z: c.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes)) || { x: c.x + spots[0][0], z: c.z + spots[0][1] };
+    const cy = levelAt(c);
+    const spot = spots.map(([dx, dz]) => ({ x: c.x + dx, z: c.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes, 0.4, cy)) || { x: c.x + spots[0][0], z: c.z + spots[0][1] };
     if (isTaken(c)) { if (hub.traffic) hub.traffic.leftBy(p, c.taken, c); }
-    else if (own(p).includes(c.id)) parkedOf(p)[c.id] = { x: c.x, z: c.z, h: c.h };
+    else if (own(p).includes(c.id)) parkedOf(p)[c.id] = { x: c.x, z: c.z, h: c.h, y: cy };
     p.incar = null; p.pcar = null;
     p.x = spot.x; p.z = spot.z; p.lastMoveAt = state.real;
+    keepLevel(p, zoneSurfaceY(spot.x, spot.z, cy));
     return { x: spot.x, z: spot.z, parked: { car: c.id, x: c.x, z: c.z, h: c.h }, taken: isTaken(c) ? c.taken : null };
   }
 
@@ -208,7 +227,7 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
     for (const q of Object.values(state.players)) {
       const parked = q.carParked;
       if (!parked || typeof parked !== 'object') continue;
-      for (const [id, s] of Object.entries(parked)) if (POWER_CARS[id] && !(q === skip && id === except)) out.push(...carBoxes(POWER_CARS[id], s.x, s.z, s.h));
+      for (const [id, s] of Object.entries(parked)) if (POWER_CARS[id] && !(q === skip && id === except)) out.push(...carBoxes(POWER_CARS[id], s.x, s.z, s.h).map((b) => (Number.isFinite(s.y) ? { ...b, y: s.y } : b)));
     }
     return out;
   }
@@ -219,7 +238,7 @@ export function createOwnCars({ state, hub, obstacles, strangers = () => [] }) {
 
   // What the player sees of their own cars: which they own, and where the ones they are not in stand.
   function selfView(p) {
-    return { cars: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ car: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000 })) };
+    return { cars: own(p), parked: Object.entries(parkedOf(p)).map(([id, s]) => ({ car: id, x: Math.round(s.x * 100) / 100, z: Math.round(s.z * 100) / 100, h: Math.round(s.h * 1000) / 1000, ...(Number.isFinite(s.y) ? { y: Math.round(s.y * 100) / 100 } : {}) })) };
   }
 
   return { setOwned, enter, enterTaken, drive, crash, leave, unseat, selfView, boxes, isOwnCar };

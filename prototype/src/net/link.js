@@ -95,8 +95,11 @@ export function encodePlayer(self, zoneId) {
   const r1 = (v) => Math.round(v * 10) / 10;
   if (Array.isArray(self.gunShots) && self.gunShots.length) out.sh = self.gunShots.slice(-8).map((s) => [s.q, Math.round(s.ago * 100) / 100, r1(s.o[0]), r1(s.o[1]), r1(s.o[2]), r1(s.e[0]), r1(s.e[1]), r1(s.e[2]), SHOT_KINDS.indexOf(s.what)]);
   if (Array.isArray(self.wounds) && self.wounds.length) out.wd = self.wounds.slice(-8).map((w) => [w[0], Math.round(w[1] * 1000) / 1000, Math.round(w[2] * 1000) / 1000, Math.round(w[3] * 1000) / 1000, Math.round((w[4] || 1) * 10) / 10]);
-  // the height of the ground under them (the server checks where a round struck them against it)
+  // the height of the ground under them (the server checks where a round struck them against it): on a flyover, its
+  // deck (31 October 2026: the others draw them at it too)
   if (Number.isFinite(self.gy)) out.gy = Math.round(self.gy * 10) / 10;
+  // the street lamps they knocked down lately: which, how long ago, which way it fell (lamps.js)
+  if (Array.isArray(self.knocked) && self.knocked.length) out.kl = self.knocked.slice(-4).map((k) => [k.lamp, Math.round(k.ago * 10) / 10, Math.round(k.dir * 100) / 100]);
   // voice chat on (29 October 2026): the server puts players with it on in touch with each other (api/_lib/voice.js)
   if (self.voiceOn) out.vc = 1;
   return trimPlayer(out);
@@ -167,7 +170,8 @@ export function decodePlayer(state, zoneId) {
   const gun = gn ? { id: gn[0], out: true, aim: gn[1], crouch: !!gn[2], reload: Number.isFinite(gn[3]) && gn[3] >= 0 ? gn[3] : null, yaw: gn[4], pitch: gn[5] } : null;
   const shots = Array.isArray(state.sh) ? state.sh.filter(Array.isArray).map((s) => ({ q: s[0], ago: s[1], o: [s[2], s[3], s[4]], e: [s[5], s[6], s[7]], what: SHOT_KINDS[s[8]] || 'air' })) : [];
   const wounds = Array.isArray(state.wd) ? state.wd.filter(Array.isArray) : [];
-  return { down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, boat, boats, surf, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
+  const knocked = Array.isArray(state.kl) ? state.kl.filter(Array.isArray).slice(0, 6).map((k) => ({ lamp: k[0], ago: k[1], dir: k[2] })) : [];
+  return { knocked, gy: Number.isFinite(state.gy) ? state.gy : null, down, name: state.n, x: state.x, z: state.z, heading: state.h, lang: state.lg, look: { skin: lk.s, top: lk.t, bottom: lk.b, body: lk.f ? 'f' : 'm', figure: lk.g, colours: lk.c }, say, ride, sport, sports, boat, boats, surf, vehicle, parked, kekes, vel, talk, car, cars, carTalk, phone, torch, jump, health: Number.isFinite(state.hp) ? state.hp : null, swimming: !!state.sw, held: !!state.hd, gun, shots, wounds };
 }
 
 export function createLink({ transport, game, zoneId, self, interval = 0.15 }) {

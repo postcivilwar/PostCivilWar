@@ -9,7 +9,7 @@
 // anything, and nothing on it says it is any real bridge.
 
 import { programsReady } from './program-ready.js';
-import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_LAMPS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } from '../sim/zone.js';
+import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } from '../sim/zone.js';
 import { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } from './render-kit.js';
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
@@ -70,19 +70,6 @@ function addRoad(B, r) {
   }
 }
 
-// A lamp post with its head over the road; `y` is the ground it stands on.
-function addLamp(B, lamp, heads) {
-  const y = zoneGroundY(lamp.x, lamp.z);
-  // the head reaches out over the roadway: across the deck on the bridge, towards the road's middle beside it
-  const ax = lamp.deck ? (lamp.x < (BRIDGE.x0 + BRIDGE.x1) / 2 ? 1 : -1) : 0;
-  const az = lamp.deck ? 0 : Math.abs(lamp.z + 40) < 15 ? (lamp.z < -40 ? 1 : -1) : 1;
-  B.solid.round(new THREE.CylinderGeometry(0.07, 0.11, 6.2, 8), place(lamp.x, y + 3.1, lamp.z), 0x4a4d52);
-  B.solid.box(0.26, 0.3, 0.26, place(lamp.x, y + 0.15, lamp.z), 0x8d877b);
-  B.solid.box(0.1 + Math.abs(ax) * 1.2, 0.08, 0.1 + Math.abs(az) * 1.2, place(lamp.x + ax * 0.6, y + 6.15, lamp.z + az * 0.6), 0x4a4d52);
-  B.solid.box(0.62, 0.1, 0.32, place(lamp.x + ax * 1.15, y + 6.12, lamp.z + az * 1.15, ax ? 0 : Math.PI / 2), 0x3a3d42);
-  B.glow.box(0.52, 0.05, 0.26, place(lamp.x + ax * 1.15, y + 6.06, lamp.z + az * 1.15, ax ? 0 : Math.PI / 2), 0xfff1c9);
-  heads.push({ x: lamp.x + ax * 1.15, z: lamp.z + az * 1.15 });
-}
 
 // A sign on two posts; its face is drawn on a plane facing `facing`.
 function addSign(B, s, signs) {
@@ -197,7 +184,7 @@ function addBridge(B, heads) {
   }
   // where the deck meets the land on each bank: an abutment
   B.solid.box(W + 1, 1.6, 2, place(cx, BRIDGE.farBank - 0.6, BRIDGE.land + 1), CONCRETE_OLD);
-  for (const lamp of OUTSKIRT_LAMPS.filter((l) => l.deck)) addLamp(B, lamp, heads);
+  // (its lamps: render-lamps.js, since 31 October 2026)
 }
 
 // ----------------------------------------------------------------------------------------- the airport --
@@ -356,7 +343,7 @@ export function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera =
   yield;
   for (const b of OUTSKIRT_BUILDINGS) addRoadside(B, b);
   yield;
-  for (const lamp of OUTSKIRT_LAMPS.filter((l) => !l.deck)) addLamp(B, lamp, heads);
+  // (the lamps along the road: render-lamps.js, since 31 October 2026, each by itself so that one can be knocked down)
   for (const s of OUTSKIRT_SIGNS) addSign(B, s, signs);
   // the road works at the end of the Onitsha road: barriers and cones across it
   const R = ONITSHA_ROAD;

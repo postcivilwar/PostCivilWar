@@ -6,7 +6,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { readFileSync } from 'node:fs';
 import { createHost } from '../src/sim/host.js';
-import { ZONE, ZONE_ROADS, ZONE_SERVICES, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_PROPS, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, BRIDGE, HABITATION } from '../src/sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_SERVICES, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_PROPS, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, BRIDGE, HABITATION , OGANIRU } from '../src/sim/zone.js';
 import { MAP_STYLE, roadRank, mapExtent } from '../src/client/town-map.js';
 import { ok } from './helpers.mjs';
 
@@ -62,8 +62,8 @@ test('the map is the town and what lies beyond it: its edges are the zone\'s and
   const b = ZONE.bounds;
   // the same ground, whichever way the town's own grid is turned: the town, out to the road works on the Onitsha
   // road, the airport's fence and the bridge's far end (src/sim/zones/atani-outskirts.js), and north up the river to
-  // the far side of the habitation (src/sim/zones/habitation.js)
-  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
+  // the far side of the habitation (src/sim/zones/habitation.js), and west as far as Oganiru City's land (31 October 2026)
+  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0, OGANIRU.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
   assert.equal(Math.round((e.maxE - e.minE) * (e.maxS - e.minS)), Math.round((maxX - minX) * (maxZ - minZ)));
   // the river is water on the map exactly where it is water in the town
   for (const x of [-200, -50, 0, 120, 240]) { const shore = zoneShoreZ(x); assert.ok(shore > b.minZ && shore < b.maxZ, `the bank at x=${x} is inside the map`); }

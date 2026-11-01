@@ -10,7 +10,8 @@
 // carrying your own goods instead of paying for delivery, and paid delivery
 // runs for the town's businesses.
 
-import { ZONE, ZONE_TEXT, ZONE_ROADS, OUTSKIRT_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident, habitationFootOnly, footOnlySaid } from './zone.js';
+import { ZONE, ZONE_TEXT, ZONE_ROADS, OUTSKIRT_ROADS, ZONE_VEHICLE_BAYS, ZONE_FLEET, ZONE_RUNS, zoneWalkable, zoneShoreZ, zoneParcel, zoneService, zoneResident, habitationFootOnly, footOnlySaid, zoneSurfaceY } from './zone.js';
+import { levelAt, keepLevel } from './levels.js';
 import { GameError } from './registry.js';
 import { LedgerError } from './ledger.js';
 import { KEKE_PAINTS, VEHICLE_MODELS, kekeLook, footprintBox } from './vehicle-looks.js';
@@ -40,11 +41,12 @@ export function vehicleSpeedAt(kind, x, z, wet) {
 // True when a vehicle of this kind can stand at (x, z): firm ground, clear
 // of buildings and trees, clear of other vehicles. `boxes` are structures
 // players have built; `others` are the positions of other vehicles.
-export function vehicleFits(kind, x, z, boxes = [], others = []) {
+// `y`: for a player's keke, the level it is on (levels.js: on a flyover, or under it); the others then only those near it.
+export function vehicleFits(kind, x, z, boxes = [], others = [], y = undefined) {
   const radius = VEHICLE_KINDS[kind].radius;
-  if (!zoneWalkable(x, z, boxes, radius)) return false;
+  if (!zoneWalkable(x, z, boxes, radius, y)) return false;
   if (z > zoneShoreZ(x) - 2.5) return false;                    // not onto the bank or the jetty
-  for (const o of others) if (Math.hypot(o.x - x, o.z - z) < radius * 2) return false;
+  for (const o of others) if (Math.hypot(o.x - x, o.z - z) < radius * 2 && !(Number.isFinite(y) && Math.abs(levelAt(o) - y) > 3)) return false;
   return true;
 }
 
@@ -241,6 +243,7 @@ export function createVehicles({ state, ledger, issuanceAccount, economy, clock,
     v.driver = player.id;
     player.driving = v.id;
     player.x = v.x; player.z = v.z; player.heading = v.heading; player.lastMoveAt = state.real;
+    keepLevel(player, levelAt(v));
     return { vehicle: summary(v, player.id) };
   }
 
@@ -250,12 +253,14 @@ export function createVehicles({ state, ledger, issuanceAccount, economy, clock,
     const side = { x: Math.cos(v.heading), z: -Math.sin(v.heading) };       // the driver's left
     const back = { x: -Math.sin(v.heading), z: -Math.cos(v.heading) };
     const spots = [[side.x * 1.9, side.z * 1.9], [-side.x * 1.9, -side.z * 1.9], [back.x * 2.4, back.z * 2.4], [-back.x * 2.4, -back.z * 2.4]];
-    const spot = spots.map(([dx, dz]) => ({ x: v.x + dx, z: v.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes));
+    const vy = levelAt(v);
+    const spot = spots.map(([dx, dz]) => ({ x: v.x + dx, z: v.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes, 0.4, vy));
     if (!spot) throw new GameError('NO_ROOM', 'There is no room to step out here. Move the keke a little.');
     v.driver = null;
     if (v.taken) v.taken.leftAt = clock();
     player.driving = null;
     player.x = spot.x; player.z = spot.z; player.lastMoveAt = state.real;
+    keepLevel(player, zoneSurfaceY(spot.x, spot.z, vy));
     return { x: spot.x, z: spot.z };
   }
 
@@ -274,16 +279,22 @@ export function createVehicles({ state, ledger, issuanceAccount, economy, clock,
     const boxes = structureBoxes();
     const others = othersOf(v);
     const steps = Math.max(1, Math.ceil(gap / 0.4));
+    // (on the level it is on, every step: levels.js)
+    let y = levelAt(v);
     for (let i = 1; i <= steps; i += 1) {
-      if (!vehicleFits(v.kind, v.x + ((x - v.x) * i) / steps, v.z + ((z - v.z) * i) / steps, boxes, others)) throw new GameError('BLOCKED', 'Movement rejected.');
+      const sx = v.x + ((x - v.x) * i) / steps, sz = v.z + ((z - v.z) * i) / steps;
+      if (!vehicleFits(v.kind, sx, sz, boxes, others, y)) throw new GameError('BLOCKED', 'Movement rejected.');
+      y = zoneSurfaceY(sx, sz, y);
     }
     // a bridge, a boardwalk, a jetty: walked, never driven onto
     { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
     const fromX = v.x, fromZ = v.z;
     v.x = x; v.z = z; v.heading = heading;
+    keepLevel(v, y);
     v.fuel = Math.max(0, v.fuel - gap / k.metresPerLitre);
     v.odometer += gap;
     player.x = x; player.z = z; player.heading = heading; player.lastMoveAt = state.real;
+    keepLevel(player, y);
     player.stats.driven = (player.stats.driven || 0) + gap;
     // what the step ran into, if anything: worked out here, never reported by the driver
     const hit = hub.impact ? hub.impact.step(player, { kind: 'keke', id: v.id }, v, fromX, fromZ, x, z, heading, elapsed) : [];

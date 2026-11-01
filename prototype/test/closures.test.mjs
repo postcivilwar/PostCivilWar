@@ -6,6 +6,10 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AREA_STATE, ROAD_CLOSURES, openClosures, closureColliders, CLOSURE_KIT, EDGE_FENCE } from '../src/sim/zones/closures.js';
 import { ZONE_CLOSURES, ZONE_EDGE_FENCES, ZONE_ROADS, ZONE_NODES, ZONE_EDGES, zoneWalkable, zoneBlockKind, zoneSolid, zoneOnGround } from '../src/sim/zone.js';
+import { OGANIRU_CLOSURES, OGANIRU_ROADS } from '../src/sim/zones/oganiru.js';
+
+// Oganiru City's roads (31 October 2026) as boxes like the town's: across their whole width, from end to end
+const CITY_ROADS = OGANIRU_ROADS.map((r) => (r.along === 'z' ? { id: r.id, x0: r.c - r.half, x1: r.c + r.half, z0: r.from, z1: r.to } : { id: r.id, x0: r.from, x1: r.to, z0: r.c - r.half, z1: r.c + r.half }));
 
 const along = (c, t) => ({ x: c.a.x + (c.b.x - c.a.x) * t, z: c.a.z + (c.b.z - c.a.z) * t });
 
@@ -15,9 +19,13 @@ test('every part of the land is in one of four states; the roads closed now are 
   assert.deepEqual(ROAD_CLOSURES.map((c) => c.id), ['waterside-south', 'waterside-north', 'registry-north', 'campus-north', 'college-west']);
   // (Waterside Road's north end is open since 20 October 2026: it goes on up the river to the habitation)
   assert.equal(ROAD_CLOSURES.find((c) => c.id === 'waterside-north').state, AREA_STATE.OPEN);
-  assert.ok(ROAD_CLOSURES.filter((c) => c.state !== AREA_STATE.OPEN).every((c) => c.state === AREA_STATE.BUILDING && c.sign[0] === 'ROAD CLOSED' && c.why.length > 10));
-  // what is closed is what is not open: one that is opened has no roadblock and nothing solid
-  assert.deepEqual(ZONE_CLOSURES.map((c) => c.id), openClosures().map((c) => c.id));
+  // (College Road's west end is open since 31 October 2026: it goes on as Oganiru City's Unity Avenue)
+  assert.equal(ROAD_CLOSURES.find((c) => c.id === 'college-west').state, AREA_STATE.OPEN);
+  // the new city's roads that go no further yet, each closed where it stops
+  assert.deepEqual(OGANIRU_CLOSURES.map((c) => c.id), ['unity-west', 'gateway-north', 'gateway-south', 'union-north', 'union-south', 'tower-north', 'tower-south', 'independence-north', 'independence-south']);
+  assert.ok([...ROAD_CLOSURES, ...OGANIRU_CLOSURES].filter((c) => c.state !== AREA_STATE.OPEN).every((c) => c.state === AREA_STATE.BUILDING && c.sign[0] === 'ROAD CLOSED' && c.why.length > 10));
+  // what is closed is what is not open, the town's and the city's: one that is opened has no roadblock and nothing solid
+  assert.deepEqual(ZONE_CLOSURES.map((c) => c.id), [...openClosures(), ...OGANIRU_CLOSURES].map((c) => c.id));
   const opened = ROAD_CLOSURES.map((c) => (c.id === 'waterside-south' ? { ...c, state: AREA_STATE.OPEN } : c)).filter((c) => c.state !== AREA_STATE.OPEN);
   assert.equal(closureColliders(opened).length, ROAD_CLOSURES.filter((c) => c.state !== AREA_STATE.OPEN).length - 1);
   assert.ok(!closureColliders(opened).some((b) => b.closure === 'waterside-south'));
@@ -31,7 +39,7 @@ test('each roadblock stands across the whole of its road and both verges, on the
     const lo = alongZ ? Math.min(c.a.z, c.b.z) : Math.min(c.a.x, c.b.x), hi = alongZ ? Math.max(c.a.z, c.b.z) : Math.max(c.a.x, c.b.x);
     // the road it closes: across the line, or ending within a few metres of it; all of its width inside the line,
     // with a verge's room either side
-    const roads = ZONE_ROADS.filter((r) => {
+    const roads = [...ZONE_ROADS, ...CITY_ROADS].filter((r) => {
       const [w0, w1, l0, l1] = alongZ ? [r.z0, r.z1, r.x0, r.x1] : [r.x0, r.x1, r.z0, r.z1];
       return w0 >= lo - 0.01 && w1 <= hi + 0.01 && l1 >= at - 3 && l0 <= at + 3;
     });

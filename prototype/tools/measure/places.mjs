@@ -242,6 +242,14 @@ const PLACES = [
   ['big waterfall', 894, 216, 1.6],
   ['garden', 618, 405, Math.PI],
   ['boiling river', 528, -180, Math.PI],
+  // (31 October 2026: Oganiru City, the new city west of the town: College Road carried on into it, by its towers,
+  // under the Independence Flyover, under the expressway at the Unity Interchange, and up on the expressway (a fifth
+  // number: the height of the deck stood on))
+  ['city gate', 0, -500, Math.PI],
+  ['city towers', -14, -760, -0.6],
+  ['under the flyover', 2, -770, Math.PI],
+  ['interchange', -6, -1110, Math.PI],
+  ['on the expressway', -120, -1122, Math.PI / 2, 7.5],
 ];
 // (TEXTURE_LIST: after each place, what is on the graphics card, picture by picture: textures-<place>.json)
 const pictureList = async (place) => {
@@ -290,9 +298,9 @@ const pictureList = async (place) => {
   console.log(place, 'on the card:', MB(found.card.pictures), 'MB in', found.card.held, 'pictures; used by the scene', MB(on.reduce((s, e) => s + e.bytes, 0)), 'MB in', on.length, '; the shadow map', MB((found.card.shadowMap || 0) + (found.card.shadowDepth || 0)), 'MB; the rest', MB(found.card.others), 'MB in', found.card.otherCount, `(largest ${found.card.largestOthers.map(MB).join(', ')})`);
   for (const e of on.slice(0, 25)) console.log(' ', MB(e.bytes), 'MB', `${e.w}x${e.h}`, e.kind, e.slot, e.shown ? 'shown' : 'hidden', e.uses, `at ${e.at}`, e.users.join(' | ').slice(0, 100));
 };
-for (const [place, x, z, h] of PLACES) {
+for (const [place, x, z, h, y] of PLACES) {
   if (ONLY && !ONLY.includes(place)) continue;
-  await page.evaluate(([x, z, h]) => { const n = window.__nlw; n.place(x, z); n.face(h); n.cam.yaw = h; n.cam.dist = 6.5; n.cam.pitch = 0.12; }, [x, z, h]);
+  await page.evaluate(([x, z, h, y]) => { const n = window.__nlw; n.place(x, z, y); n.face(h); n.cam.yaw = h; n.cam.dist = 6.5; n.cam.pitch = 0.12; if (n.buildCity && (n.city && !n.city.ready) && z < -470) n.buildCity(); }, [x, z, h, y]);
   await setHour(12);
   const q = await quiet(place === 'habitation gate' || place === 'entrance hill' ? 120000 : 45000);
   await measureHere(place, q);

@@ -14,6 +14,8 @@ import { SPORTS } from './sports.js';
 import { SPORT_HANDLING, SPORT_FRONTS } from './sport-ride.js';
 import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inCarHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
+import { zoneSurfaceY } from './zone.js';
+import { levelAt, keepLevel, walkLevel } from './levels.js';
 import { GameError } from './registry.js';
 import { clearOfPoint } from './in-the-way.js';
 
@@ -58,13 +60,15 @@ export function createOwnSports({ state, hub, obstacles, strangers = () => [] })
     else {
       if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inCarHall(p.x, p.z) || inSportsHall(p.x, p.z)) throw new GameError('INDOORS', `Go outside first: your ${SPORTS[id].name} is brought to you there.`);
       if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', `The habitation is on foot: your ${SPORTS[id].name} is brought to you at its car park.`);
-      if (!zoneWalkable(p.x, p.z, obstacles(), h.room)) throw new GameError('NO_ROOM', `There is no room for it here. Go out to the road.`);
-      at = { x: p.x, z: p.z, h: p.heading || 0 };
+      if (!zoneWalkable(p.x, p.z, obstacles(), h.room, levelAt(p))) throw new GameError('NO_ROOM', `There is no room for it here. Go out to the road.`);
+      at = { x: p.x, z: p.z, h: p.heading || 0, y: levelAt(p) };
     }
     delete parkedOf(p)[id];
     p.astride = `sp:${id}`;
-    p.psport = { id, x: at.x, z: at.z, h: at.h, movedAt: state.real };
+    const y = Number.isFinite(at.y) ? at.y : levelAt(at);
+    p.psport = { id, x: at.x, z: at.z, h: at.h, movedAt: state.real, lv: { x: at.x, z: at.z, y } };
     p.x = at.x; p.z = at.z; p.heading = at.h; p.lastMoveAt = state.real;
+    keepLevel(p, y);
     return { item: id, x: at.x, z: at.z, h: at.h };
   }
 
@@ -82,14 +86,17 @@ export function createOwnSports({ state, hub, obstacles, strangers = () => [] })
     if (gap > h.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     if (gap > 0.02 && hub.impact && hub.impact.stalled(b)) throw new GameError('STALLED', 'You have stopped: you hit someone.');
     const boxes = [...obstacles(), ...theirs(b)];
-    const steps = Math.max(1, Math.ceil(gap / 0.4));
-    for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, h.room - 0.05)) throw new GameError('BLOCKED', 'Movement rejected.');
+    // (on the level it is on, every step: levels.js)
+    const y = walkLevel(b.x, b.z, levelAt(b), x, z, boxes, h.room - 0.05);
+    if (y === null) throw new GameError('BLOCKED', 'Movement rejected.');
     { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
     const fromX = b.x, fromZ = b.z;
     if (elapsed > 0.004) b.seen = Number.isFinite(b.seen) ? b.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
     b.x = x; b.z = z; b.h = heading; b.movedAt = state.real;
+    keepLevel(b, y);
     b.ride = rideOf(step, h.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
+    keepLevel(p, y);
     p.stats.ridden = (p.stats.ridden || 0) + gap;
     // (one taken from one of the town's riders: the riders keep where it is)
     if (Number.isInteger(b.taken) && hub.sportRiders) hub.sportRiders.moved(b.taken, { x, z, h: heading });
@@ -109,14 +116,16 @@ export function createOwnSports({ state, hub, obstacles, strangers = () => [] })
     if (Math.abs(v) < SPORT_CRASH.least) return { fell: false, outcome: 'stop' };
     const dir = Number.isFinite(heading) ? heading : b.h;
     const boxes = [...obstacles(), ...theirs(b)];
+    const by = levelAt(b);
     let hit = null;
     for (let d = 0.2; d <= 1.21; d += 0.2) {
       const qx = b.x + Math.sin(dir) * d, qz = b.z + Math.cos(dir) * d;
-      const kind = zoneBlockKind(qx, qz, boxes, h.room - 0.05);
-      if (kind) { hit = { x: qx, z: qz, kind }; break; }
+      // (a street lamp's pole is as solid as anything to a bicycle or a skateboard: street-lamps.js)
+      const kind = zoneBlockKind(qx, qz, boxes, h.room - 0.05, by);
+      if (kind) { hit = { x: qx, z: qz, kind: kind === 'lamp' ? 'solid' : kind }; break; }
     }
     if (!hit) return { fell: false, outcome: 'none' };
-    const normal = contactNormal((x, z) => zoneWalkable(x, z, boxes, h.room - 0.05), b.x, b.z, hit.x, hit.z);
+    const normal = contactNormal((x, z) => zoneWalkable(x, z, boxes, h.room - 0.05, by), b.x, b.z, hit.x, hit.z);
     const c = contactOutcome({ speed: v, heading: dir, normal, kind: hit.kind });
     if (c.outcome !== 'crash') return { fell: false, outcome: c.outcome, into: Math.round(c.into * 10) / 10 };
     const share = crashShare(c.into, hit.kind);
@@ -124,8 +133,9 @@ export function createOwnSports({ state, hub, obstacles, strangers = () => [] })
     if (Number.isInteger(b.taken)) { if (hub.sportRiders) hub.sportRiders.leftBy(p, b.taken, { x: b.x, z: b.z, h: b.h }, true); } else if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now };
     p.astride = null; p.psport = null;
     const far = Math.min(SPORT_CRASH.thrown[1], SPORT_CRASH.thrown[0] + SPORT_CRASH.carry * c.into);
-    const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(dir), uz: Math.cos(dir), far: Math.max(far, THROW.nearest), kind: (x, z, r) => zoneBlockKind(x, z, boxes, r) });
+    const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(dir), uz: Math.cos(dir), far: Math.max(far, THROW.nearest), kind: (x, z, r) => { const k = zoneBlockKind(x, z, boxes, r, by); return k === 'lamp' ? 'solid' : k; } });
     p.x = at.x; p.z = at.z; p.lastMoveAt = now;
+    keepLevel(p, zoneSurfaceY(at.x, at.z, by));
     const lie = SPORT_CRASH.lie[0] + (SPORT_CRASH.lie[1] - SPORT_CRASH.lie[0]) * share;
     p.down = { at: now, until: now + lie, upAt: now + lie + SPORT_CRASH.rise, by: 'crash', h: dir, speed: Math.round(Math.abs(v) * 10) / 10, into: Math.round(c.into * 10) / 10, fall: 'pitch', from: { x: b.x, z: b.z }, over: at.over };
     p.stats.crashes = (p.stats.crashes || 0) + 1;
@@ -137,11 +147,13 @@ export function createOwnSports({ state, hub, obstacles, strangers = () => [] })
     const b = p.psport;
     if (!isOwnSport(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not riding anything.');
     const boxes = obstacles();
+    const by = levelAt(b);
     const side = { x: Math.cos(b.h), z: -Math.sin(b.h) };
-    const spot = [[side.x * 0.8, side.z * 0.8], [-side.x * 0.8, -side.z * 0.8], [-Math.sin(b.h) * 1.2, -Math.cos(b.h) * 1.2]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes)) || { x: b.x, z: b.z };
+    const spot = [[side.x * 0.8, side.z * 0.8], [-side.x * 0.8, -side.z * 0.8], [-Math.sin(b.h) * 1.2, -Math.cos(b.h) * 1.2]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes, 0.4, by)) || { x: b.x, z: b.z };
     if (Number.isInteger(b.taken)) { if (hub.sportRiders) hub.sportRiders.leftBy(p, b.taken, { x: b.x, z: b.z, h: b.h }); } else if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h };
     p.astride = null; p.psport = null;
     p.x = spot.x; p.z = spot.z; p.lastMoveAt = state.real;
+    keepLevel(p, zoneSurfaceY(spot.x, spot.z, by));
     return { x: spot.x, z: spot.z, parked: { item: b.id, x: b.x, z: b.z, h: b.h } };
   }
 

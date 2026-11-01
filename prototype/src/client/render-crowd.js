@@ -13,7 +13,11 @@ import { Batch, place, linear, surface } from './render-kit.js';
 import { softShadowPicture, FIGURE_PATCH } from './soft-patch.js';
 import { makeCharacter, animateCharacter, seatCharacter, standCharacter, showName, layCharacter, reactionLength } from './render-people.js';
 import { poseFighter } from './combat-view.js';
-import { zoneGroundY, habitationClimbing } from '../sim/zone.js';
+import { zoneGroundY, zoneSurfaceY, habitationClimbing } from '../sim/zone.js';
+
+// Where another player stands: on the level their game says they are on (`gy`: a flyover's deck over a road is a second
+// ground, zone.js zoneSurfaceY, 31 October 2026), or the ground.
+const groundOfPeer = (x, z, q) => (q && Number.isFinite(q.gy) ? zoneSurfaceY(x, z, q.gy) : zoneGroundY(x, z));
 import { vehicleMeta } from './vehicle-kit.js';
 import { fallTime, flightAt } from './falls.js';
 import { deviceKind } from './budget.js';
@@ -626,7 +630,7 @@ export function createCrowd(scene) {
         const ds = { ...pd, facing: other.fallFacing, to: lies, lie: pd.kind === 'dead' ? 1e6 : pd.lie || 2.4, rise: pd.kind === 'dead' ? 0 : pd.rise || 2.7, thrown: pd.from ? Math.hypot(lies.x - pd.from.x, lies.z - pd.from.z) : 1 };
         other.rig.downState = ds;
         if (pd.from && pd.kind !== 'dead' && ds.age < fallTime(ds)) {
-          if (pd.kind === 'crash') fallPlace = flightAt(ds, ds.age, zoneGroundY(pd.from.x, pd.from.z));
+          if (pd.kind === 'crash') fallPlace = flightAt(ds, ds.age, groundOfPeer(pd.from.x, pd.from.z, q));
           else { const u = Math.min(1, ds.age / fallTime(ds)), e = u * u * (3 - 2 * u); fallPlace = { x: pd.from.x + (lies.x - pd.from.x) * e, z: pd.from.z + (lies.z - pd.from.z) * e }; }
         }
         const at = fallPlace || lies;
@@ -639,7 +643,7 @@ export function createCrowd(scene) {
         const aimed = q.gun && q.gun.out && Number.isFinite(q.gun.yaw) ? q.gun.yaw : null;
         other.h += angleGap(aimed !== null ? aimed : gap > 0.25 ? Math.atan2(gx, gz) : q.heading, other.h) * Math.min(1, dt * (aimed !== null ? 14 : 8));
       }
-      other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : fallPlace && fallPlace.y !== undefined ? fallPlace.y : zoneGroundY(other.x, other.z), other.z);
+      other.rig.group.position.set(other.x, other.rig.swimming ? other.rig.group.position.y : fallPlace && fallPlace.y !== undefined ? fallPlace.y : groundOfPeer(other.x, other.z, q), other.z);
       // (all three: in a car they are turned with its body as it pitches and rolls, car-view.js)
       other.rig.group.rotation.set(0, other.h, 0);
       const stance = frame.others ? frame.others[q.id] : null;
@@ -671,21 +675,21 @@ export function createCrowd(scene) {
       other.fall = (other.fall || 0) + ((flat ? 1 : 0) - (other.fall || 0)) * Math.min(1, dt * (flat ? 12 : 4));
       // (a supplied figure falls with its own fall: the harder one when killed or bowled over on the move)
       if (!other.rig.fallDriver) layCharacter(other.rig, other.fall, (stance && stance.dead) || other.rig.speed > 1.5 ? 'hard' : 'soft');
-      if (other.rig.swimming) other.rig.group.position.y = other.rig.animated ? -(other.rig.spec.height * 0.58) - 0.22 : -0.5; else if (other.wasSwimming) other.rig.group.position.y = zoneGroundY(other.x, other.z);
+      if (other.rig.swimming) other.rig.group.position.y = other.rig.animated ? -(other.rig.spec.height * 0.58) - 0.22 : -0.5; else if (other.wasSwimming) other.rig.group.position.y = groundOfPeer(other.x, other.z, q);
       other.wasSwimming = other.rig.swimming;
       if (other.rig.strike || (stance && stance.fighting)) poseFighter(other.rig, frame.clock || 0, { guard: !!(stance && stance.fighting), block: !!(stance && stance.blocking) });
       // at the wheel of a keke (the keke is drawn by main.js): on its driver's seat
       if (vh && vh.kind === 'keke') {
         const fx = Math.sin(other.h), fz = Math.cos(other.h);
         seatCharacter(other.rig);
-        other.rig.group.position.set(other.x + fx * KEKE_SEAT[2], zoneGroundY(other.x, other.z) + KEKE_SEAT[1] - SEATED * other.rig.scale, other.z + fz * KEKE_SEAT[2]);
+        other.rig.group.position.set(other.x + fx * KEKE_SEAT[2], groundOfPeer(other.x, other.z, q) + KEKE_SEAT[1] - SEATED * other.rig.scale, other.z + fz * KEKE_SEAT[2]);
       }
       // on an okada: the machine under them, and them in its saddle; on the back of one, its rider in front of them
       if (vh && vh.kind === 'okada') {
         let bike = peerOkadas.get(q.id);
         if (!bike) { bike = { mesh: bikeMesh(bikeMaterial, `p:${q.id}`), x: other.x, z: other.z, was: { x: other.x, z: other.z } }; scene.add(bike.mesh); peerOkadas.set(q.id, bike); }
         bike.seen = stamp;
-        const gy = zoneGroundY(other.x, other.z), fx = Math.sin(other.h), fz = Math.cos(other.h);
+        const gy = groundOfPeer(other.x, other.z, q), fx = Math.sin(other.h), fz = Math.cos(other.h);
         const moving = Math.hypot(other.x - bike.was.x, other.z - bike.was.z) > 0.002;
         bike.was.x = other.x; bike.was.z = other.z;
         E.set(0, other.h, moving ? 0 : 0.12);

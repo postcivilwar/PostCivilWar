@@ -86,8 +86,12 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
   const place = (e, d, groundY, dt, night, bodies = []) => {
     const fx = springs(e, d, dt);
     const g = e.car.group;
-    g.position.set(d.x, groundY(d.x, d.z), d.z);
-    g.rotation.set(0, d.h, 0);
+    // (on a slope, a ramp up to a flyover among them, tipped with it: the ground at its front wheels and its back)
+    const gy = groundY(d.x, d.z, d.y);
+    g.position.set(d.x, gy, d.z);
+    const half = e.car.size ? e.car.size.length * 0.38 : 1.7;
+    const slope = (groundY(d.x + Math.sin(d.h) * half, d.z + Math.cos(d.h) * half, d.y) - groundY(d.x - Math.sin(d.h) * half, d.z - Math.cos(d.h) * half, d.y)) / (2 * half);
+    g.rotation.set(Math.abs(slope) > 0.002 && Math.abs(slope) < 0.25 ? -Math.atan(slope) : 0, d.h, 0, 'YXZ');
     g.visible = true;
     // the wheels over whoever lies in the way, and the body on its springs over them
     const bars = bodies.length ? barsNear(bodies, d.x, d.z, e.car.size.length / 2 + 2) : NONE;
@@ -146,7 +150,7 @@ export function createCarView(scene, { lite = false, base = 'cars/', onError = (
       wanted.add(key);
       const e = entry(key, p.car);
       if (e.car) {
-        e.car.group.position.set(p.x, groundY(p.x, p.z), p.z);
+        e.car.group.position.set(p.x, groundY(p.x, p.z, p.y), p.z);
         e.car.group.rotation.set(0, p.h, 0);
         e.car.group.visible = true;
         e.car.pose({ travelled: e.travelled, steerAngle: 0, pitch: 0, roll: 0 });

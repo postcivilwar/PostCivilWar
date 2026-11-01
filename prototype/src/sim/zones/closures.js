@@ -39,8 +39,9 @@ export const ROAD_CLOSURES = Object.freeze([
   // Campus Road, the same
   closure('campus-north', 'Campus Road, north end', AREA_STATE.BUILDING, { x: 241.5, z: -347.2 }, { x: 241.5, z: -334.8 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road not yet built'], 'The road is not built on from here.'),
-  // College Road runs west to the edge of the town's land
-  closure('college-west', 'College Road, west end', AREA_STATE.BUILDING, { x: -7.4, z: -472 }, { x: 7.4, z: -472 }, 0,
+  // College Road runs west to the edge of the town's land (open since 31 October 2026: it goes on as Unity Avenue into
+  // Oganiru City, oganiru.js)
+  closure('college-west', 'College Road, west end', AREA_STATE.OPEN, { x: -7.4, z: -472 }, { x: 7.4, z: -472 }, 0,
     ['ROAD CLOSED', 'Road works ahead'], 'Asaba is still being built beyond this point.'),
 ]);
 export const openClosures = () => ROAD_CLOSURES.filter((c) => c.state !== AREA_STATE.OPEN);
@@ -95,9 +96,9 @@ export const EDGE_LINES = Object.freeze([
 ]);
 export const EDGE_FENCE = Object.freeze({ post: 3, height: 1.15, depth: 0.3, step: 0.5, beyond: 2.6, least: 3 });
 // The runs of fence: along each line, wherever the line is on the land and the land ends just beyond it.
-export function edgeFences(ground) {
+export function edgeFences(ground, more = []) {
   const runs = [];
-  for (const l of EDGE_LINES) {
+  for (const l of [...EDGE_LINES, ...more]) {
     const len = Math.hypot(l.b.x - l.a.x, l.b.z - l.a.z);
     const n = Math.floor(len / EDGE_FENCE.step);
     let start = null, last = null;

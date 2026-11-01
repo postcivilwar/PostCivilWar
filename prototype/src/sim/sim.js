@@ -40,6 +40,8 @@ import { createFunds, FUND_WORDS } from './funds.js';
 import { createReactions } from './reactions.js';
 import { makeRng } from './rng.js';
 import { renewTown } from './renew.js';
+import { levelAt, keepLevel, walkLevel } from './levels.js';
+import { createLamps } from './lamps.js';
 
 export const TIME_SCALE = 30;                 // game seconds per real second (a 48-minute day)
 export const SIM_START = 7.5 * 3600;          // 07:30 on day one
@@ -49,7 +51,8 @@ const ALWAYS = 'chat\\.|settings\\.|people\\.|phone\\.|contacts\\.|map\\.|wallet
 const WHILE_DRIVING = new RegExp(`^(vehicle\\.|run\\.|${ALWAYS})`);
 const WHILE_RIDING = new RegExp(`^(okada\\.alight$|${ALWAYS})`);
 const WHILE_ASTRIDE = new RegExp(`^(moto\\.|naval\\.take$|surf\\.(stand|fall)$|${ALWAYS})`);
-const WHILE_INCAR = new RegExp(`^(car\\.|${ALWAYS})`);
+// (a street lamp is knocked down from a car: lamps.js)
+const WHILE_INCAR = new RegExp(`^(car\\.|lamp\\.knock$|${ALWAYS})`);
 // Held by the police: the phone (as far as the officer allows), and what concerns the arrest itself.
 const IN_CUSTODY = /^(bikes\.owned$|cars\.owned$|gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|custody\.|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$|care\.tariff$)/;
 const WHILE_CARRIED = /^(gun\.owned$|gun\.struck$|gun\.holster$|gun\.confirmed$|phone\.|contacts\.|map\.|chat\.|settings\.|people\.|wallet\.history$|property\.list$|police\.status$)/;
@@ -176,6 +179,9 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const voices = createVoices({ state, population, residents, actors, talk, timeScale: scale });
   hub.voices = voices;
   hub.voiced = (key) => voices.voiced(key);
+  // the street lamps knocked down (lamps.js, street-lamps.js; 31 October 2026)
+  const lamps = createLamps({ state });
+  hub.lamps = lamps;
   const conflict = createConflict({ state, players: state.players, population, actors, talk, emit, rng, hub });
   const justice = createJustice({ state, players: state.players, ledger, accounts: economy.accounts, population, actors, talk, emit, rng, hub });
   const care = createCare({ state, players: state.players, ledger, accounts: economy.accounts, emit, hub });
@@ -342,6 +348,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     okada.tick(dtReal, state.t, state.real, weather().wet);
     traffic.tick(dtReal, state.t, state.real, weather().wet);
     sportRiders.tick(dtReal, state.t, state.real);
+    lamps.tick();
     naval.tick(dtReal);
     actors.tick(dtReal, state.t, state.real);
     conflict.tick(dtReal);
@@ -455,13 +462,14 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       // the ambulance too, unless the player is one of those it is in the middle of helping aboard
       const van = care.box();
       if (!(p.x > van.x0 - 0.5 && p.x < van.x1 + 0.5 && p.z > van.z0 - 0.5 && p.z < van.z1 + 0.5)) boxes.push(van);
-      const steps = Math.max(1, Math.ceil(gap / 0.4));
-      for (let i = 1; i <= steps; i += 1) {
-        if (!zoneWalkable(p.x + ((x - p.x) * i) / steps, p.z + ((z - p.z) * i) / steps, boxes)) throw new GameError('BLOCKED', 'Movement rejected.');
-      }
+      // (every step of the way, on the level they are on: up a ramp from the road, along a flyover inside its walls, or
+      // under it, never up onto it nor down off it: levels.js, 31 October 2026)
+      const y = walkLevel(p.x, p.z, levelAt(p), x, z, boxes, 0.4);
+      if (y === null) throw new GameError('BLOCKED', 'Movement rejected.');
       // (in the habitation: not off the side of a bridge or a boardwalk, nor down a drop: zone.js zoneStep)
       if (!zoneStep(p.x, p.z, x, z)) throw new GameError('BLOCKED', 'Movement rejected.');
       p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real; p.stats.walked += gap;
+      keepLevel(p, y);
       if (p.emote && gap > 0.05) p.emote = null;          // walking off ends a skill
       return {};
     },
@@ -911,6 +919,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     'car.drive'(p, step) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return ownCars.drive(p, step || {}); },
     'car.crash'(p, body) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return ownCars.crash(p, body || {}); },
     'car.leave'(p) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return ownCars.leave(p); },
+    // a street lamp in the car's way, fast enough to knock it down (lamps.js)
+    'lamp.knock'(p, body) { return lamps.knock(p, body || {}); },
     'car.horn'(p) { if (!isOwnCar(p.incar)) throw new GameError('NOT_DRIVING', 'You are not in a car.'); return impact.horn(p); },
 
     // --- treatment ---
@@ -1064,7 +1074,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
         p.x = ride.x; p.z = ride.z; p.heading = ride.h;
         continue;
       }
-      if (p.driving || (p.riding !== null && p.riding !== undefined) || p.swimming || zoneWalkable(p.x, p.z) || zoneSwimmable(p.x, p.z)) continue;
+      if (p.driving || (p.riding !== null && p.riding !== undefined) || p.swimming || zoneWalkable(p.x, p.z, [], 0.4, levelAt(p)) || zoneSwimmable(p.x, p.z)) continue;
       // (in the habitation where it stood before: the same place in it now)
       const wasIn = p.x > b.x0 - HABITATION_SHIFT && p.x < b.x1 - HABITATION_SHIFT && p.z > b.z0 && p.z < b.z1;
       const at = (wasIn && nearestStand(p.x + HABITATION_SHIFT, p.z)) || nearestStand(p.x, p.z) || { x: ZONE.spawn.x, z: ZONE.spawn.z };
@@ -1172,7 +1182,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
       ...talk.view(p),
       // the town's voices near this player: who is turned to whom, talking; and whose recordings to have ready
       voiceTalk: voices.talking().filter((v) => { const w = v[0]; return w.startsWith('n:') || w.startsWith('r:'); }), voicesNear: voices.voicesNear(p.x, p.z),
-      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
+      self: { id: p.id, name: p.name, path: p.path || null, look: p.look, x: p.x, z: p.z, y: levelAt(p), knocked: lamps.selfView(p), heading: p.heading, energy: p.energy, balance: ledger.balance(p.wallet), funds: funds.split(p.id), skills: { ...p.skills }, owned: registry.ownedBy(p.id), home: ownStructureNearby(p), lang: p.lang || 'en', said: p.lastSaid || null, horns: p.horns || 0, riding: riding ? { n: riding.n, i: riding.i, rider: population.people[riding.i].name, to: riding.passenger ? riding.passenger.name : '' } : null, ...vehicles.selfView(p),
         ...conflict.selfView(p), ...impact.selfView(p), gun: guns.view(p), law: justice.selfView(p), ...care.selfView(p), phone: phone.selfView(p), hijack: hijack.view(p), astride: p.astride !== null && p.astride !== undefined ? (bikeOf(p.astride) ? { n: p.astride, model: bikeOf(p.astride), ride: (p.pbike && p.pbike.ride) || null, horns: p.horns || 0 } : sportOfAstride(p.astride) ? { n: p.astride, sport: sportOfAstride(p.astride), ride: (p.psport && p.psport.ride) || null, horns: p.horns || 0, ...(p.psport && Number.isInteger(p.psport.taken) ? { taken: p.psport.taken } : {}) } : boatOfAstride(p.astride) ? { n: p.astride, boat: boatOfAstride(p.astride), ride: (p.pboat && p.pboat.ride) || null, horns: p.horns || 0 } : isShip(p.astride) ? { n: p.astride, ship: shipOfAstride(p.astride), ride: (p.pship && p.pship.ride) || null, horns: p.horns || 0 } : isSurfing(p.astride) ? { n: p.astride, surf: surfing.selfView(p), ride: (p.psurf && p.psurf.ride) || null } : { n: p.astride }) : null, ownBikes: ownBikes.selfView(p), ownSports: ownSports.selfView(p), ownBoats: ownBoats.selfView(p), incar: isOwnCar(p.incar) && p.pcar ? { car: carOf(p.incar), drive: p.pcar.drive || null, horns: p.horns || 0, taken: Number.isInteger(p.pcar.taken) ? p.pcar.taken : null } : null, ownCars: ownCars.selfView(p), takenCars: traffic.keptBy(p.id), swimming: p.swimming ? { since: p.swimming.since, nearBank: -zoneToWater(p.x, p.z) <= SWIM.outReach } : null, byWater: !p.swimming && zoneToWater(p.x, p.z) <= SWIM.reach && zoneGroundY(p.x, p.z) < 0.5 && zoneSwimmable(p.x, zoneShoreZ(p.x) + SWIM.depth), jump: p.jump && state.real - p.jump.at < JUMP_EVERY ? Math.round((state.real - p.jump.at) * 100) / 100 : null },
       // how the other players in sight stand: fighting, badly hurt, held; and, to a constable only, wanted
       others: Object.fromEntries(Object.keys(state.players).filter((id) => id !== p.id && Math.hypot(state.players[id].x - p.x, state.players[id].z - p.z) <= RANGE.middle).map((id) => { const q = state.players[id]; const law = justice.lawOf(q).state; return [id, { fighting: !!q.fight, blocking: !!(q.fight && q.fight.blocking && state.real >= q.fight.busyUntil), critical: conflict.critical(q), swimming: !!q.swimming, emote: q.emote && state.real - q.emote.at < 40 ? { name: q.emote.name, ago: Math.round((state.real - q.emote.at) * 10) / 10 } : null, jump: q.jump && state.real - q.jump.at < JUMP_EVERY ? Math.round((state.real - q.jump.at) * 100) / 100 : null, ...impact.stanceOf(q), health: impact.maySee(p, q) ? q.health : null, held: !!q.custody, wanted: justice.roleOf(p) ? law === 'wanted' || law === 'pursuit' : false }]; })),

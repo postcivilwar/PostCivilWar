@@ -3,7 +3,7 @@
 // kind of surface, so the whole town costs a few draw calls.
 // THREE is the global from three.min.js.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_LAMPS, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, CITY_AREA, zoneShoreZ, zoneWalkable, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_STALLS, ZONE_VEHICLES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_TREES, ZONE_JETTY, ZONE_PROPS, ZONE_PLACES, ZONE_SHOPS, zoneShoreZ, zoneWalkable, oganiruAway, POWERBIKE , HABITATION, RIVER_HEAD, RIVER_FAR, UPRIVER } from '../sim/zone.js';
 import { Batch, Chunked, createSight, place, linear, lathe, textTexture, noise, smoothNoise, grainTexture, grassTexture, rippleNormalTexture, shadeOf, addPitchedRoof, addWindow, buildingKit, surface, isLite } from './render-kit.js';
 import { addVehicle } from './render-vehicles.js';
 import { makeVehicleModel } from './vehicle-models.js';
@@ -63,6 +63,9 @@ function buildGround() {
     }
     // beyond the town towards Onitsha the land is drawn by render-outskirts.js: this lies just under it
     if (x < b.minX - 6 && z > -650 && z < 140 && toShore > 0) y = -0.12;
+    // Oganiru City's land west of the town (31 October 2026) is flat, its own ground drawn over it (render-oganiru.js):
+    // this lies just under it, rising to the hills beyond only well clear of it
+    if (z < b.minZ + 4 && toShore > 0) { const away = oganiruAway(x, z); if (away < CITY_FLAT.rise && y > -0.12) { const k = Math.max(0, Math.min(1, (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.12 + (y + 0.12) * k * k * (3 - 2 * k); } }
     position.setY(i, y);
     colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
   }
@@ -352,6 +355,10 @@ function addStall(B, s, index, goodsKind) {
   }
 }
 
+// How the land round Oganiru City lies: flat to `flat` metres from its land, rising to the hills by `rise` (31 October
+// 2026; render-oganiru.js draws the same land beyond the town's ground).
+export const CITY_FLAT = Object.freeze({ flat: 25, rise: 75 });
+
 // ------------------------------------------------------------------- world --
 
 export function buildWorld(scene) {
@@ -433,20 +440,9 @@ export function buildWorld(scene) {
     for (const side of [-0.75, 0.75]) solid.box(0.08, 0.86, 0.5, place(bench.x + Math.cos(bench.facing) * side, 0.43, bench.z - Math.sin(bench.facing) * side, bench.facing), 0x44474b);
   }
 
-  // street lamps
+  // street lamps: drawn by render-lamps.js since 31 October 2026, each by itself, so that one can be knocked down (their
+  // heads are put here by main.js)
   const lampHeads = [];
-  const inCity = (x, z) => x > CITY_AREA.x0 && x < CITY_AREA.x1 && z > CITY_AREA.z0 && z < CITY_AREA.z1;
-  for (const lamp of ZONE_LAMPS) {
-    // (the city block's streetlights are its own; their heads are where these lamps are)
-    if (inCity(lamp.x, lamp.z)) { lampHeads.push({ x: lamp.x, z: lamp.z }); continue; }
-    const reach = lamp.x < 0 ? 1 : -1;
-    solid.round(new THREE.CylinderGeometry(0.06, 0.1, 5.4, 8), place(lamp.x, 2.7, lamp.z), 0x4a4d52);
-    solid.box(0.24, 0.3, 0.24, place(lamp.x, 0.15, lamp.z), 0x8d877b);
-    solid.round(new THREE.CylinderGeometry(0.035, 0.035, 1.0, 6), place(lamp.x + reach * 0.45, 5.3, lamp.z, 0, 1, 1, 1, 0, Math.PI / 2 - reach * 0.15), 0x4a4d52);
-    solid.box(0.6, 0.1, 0.3, place(lamp.x + reach * 0.85, 5.33, lamp.z), 0x3a3d42);
-    glow.box(0.5, 0.05, 0.24, place(lamp.x + reach * 0.85, 5.27, lamp.z), 0xfff1c9);
-    lampHeads.push({ x: lamp.x + reach * 0.85, z: lamp.z });
-  }
 
   // power lines down the two main roads
   const wires = [];

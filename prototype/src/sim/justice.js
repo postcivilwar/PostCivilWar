@@ -32,7 +32,8 @@
 //     walked to the Police Post
 //   there they pay, or someone pays for them, or they sit out their time
 
-import { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid } from './zone.js';
+import { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid, zoneGroundY } from './zone.js';
+import { levelAt } from './levels.js';
 import { GameError } from './registry.js';
 import { LedgerError, fineShares, trText, TR } from './ledger.js';
 import { POSE } from './population.js';
@@ -429,7 +430,10 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     if (!p || p.custody || !['wanted', 'pursuit'].includes(lawOf(p).state)) { dutyOver(o.i); return; }
     const law = lawOf(p);
     const d = Math.hypot(p.x - m.x, p.z - m.z);
-    const inSight = sees(m, p);
+    // (on a flyover over the officer's road, or under it: another level, out of reach; and near, out of sight behind its
+    // deck: 31 October 2026)
+    const apart = Math.abs(levelAt(p) - zoneGroundY(m.x, m.z)) > 2.5;
+    const inSight = sees(m, p) && !(apart && d < 40);
     if (inSight) { law.seenAt = { x: p.x, z: p.z, real: now, t: state.t }; law.wantedAt = state.t; o.lost = 0; } else o.lost += dt;
 
     if (o.duty === 'respond') {
@@ -466,7 +470,7 @@ export function createJustice({ state, players, ledger, accounts, population, ac
       const crime = offence(p, 'resisting', { victim: { kind: 'npc', id: o.i, name: people[o.i].name }, x: p.x, z: p.z });
       reported(book.crimes[crime.id]);
     }
-    if (d > LAW.reach) return;
+    if (d > LAW.reach || apart) return;
     const still = now - (p.lastMoveAt || 0) >= LAW.still;
     const helpless = (hub.conflict && hub.conflict.critical(p)) || now < (p.heldUntil || 0) || law.surrendered;
     const stopped = p.driving || (p.astride !== null && p.astride !== undefined) || p.incar ? still : still || helpless;

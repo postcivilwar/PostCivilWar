@@ -23,7 +23,7 @@
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS, OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_MAP_LABELS } from '../sim/zone.js';
 import { gridToTrue, trueToGrid } from '../sim/geo.js';
 
 export const MAP_STYLE = Object.freeze({
@@ -48,12 +48,15 @@ export const roadRank = (road) => (road.surface === 'asphalt' ? 0 : road.surface
 const T = (x, z) => gridToTrue(x, z, ZONE.gridBearing);
 // The roads on the map: the town's, and those beyond it to Onitsha, the airport and over the bridge, and Waterside Road
 // on north up the river to the habitation's car park (20 October 2026).
-const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS, UPRIVER.road, UPRIVER.park]);
+// (and Oganiru City's roads on the ground, west of the town: 31 October 2026; its flyovers and ramps over them, `decks`)
+const CITY_MAP_ROADS = OGANIRU_ROADS.map((r) => { const half = r.kind === 'approach' ? 7 : r.half; return Object.freeze(r.along === 'z' ? { id: r.id, name: r.name, surface: 'asphalt', x0: r.c - half, x1: r.c + half, z0: r.from, z1: r.to } : { id: r.id, name: r.name, surface: 'asphalt', x0: r.from, x1: r.to, z0: r.c - half, z1: r.c + half }); });
+const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS, UPRIVER.road, UPRIVER.park, ...CITY_MAP_ROADS]);
 export function mapExtent() {
   const b = ZONE.bounds;
   // (out as far as the road works on the Onitsha road, the airport's fence and the bridge's far end)
   // (and north up the river as far as the habitation reaches)
-  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
+  // (and west as far as Oganiru City's land: 31 October 2026)
+  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0, OGANIRU.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
   const pts = [T(minX, minZ), T(maxX, minZ), T(minX, maxZ), T(maxX, maxZ)];
   return { minE: Math.min(...pts.map((p) => p.e)), maxE: Math.max(...pts.map((p) => p.e)), minS: Math.min(...pts.map((p) => p.s)), maxS: Math.max(...pts.map((p) => p.s)) };
 }
@@ -63,7 +66,7 @@ function namesOf() {
   const out = [];
   const seen = new Set();
   const add = (text, x, z, kind, from) => { const key = text.toLowerCase(); if (!text || seen.has(key)) return; seen.add(key); out.push({ text, x, z, kind, from }); };
-  for (const [text, x, z, align] of [...ZONE_PROPS.mapLabels, ...OUTSKIRT_MAP_LABELS]) add(text, x, z, align === 'vertical' ? 'water' : 'place', /River|Market|Motor park|Hospital|Registry/.test(text) ? 0 : 1.15);
+  for (const [text, x, z, align] of [...ZONE_PROPS.mapLabels, ...OUTSKIRT_MAP_LABELS, ...OGANIRU_MAP_LABELS]) add(text, x, z, align === 'vertical' ? 'water' : 'place', /River|Market|Motor park|Hospital|Registry/.test(text) ? 0 : 1.15);
   for (const k of ZONE_COMPOUNDS) add(k.name, (k.x0 + k.x1) / 2, (k.z0 + k.z1) / 2, 'place', 2.4);
   // up the river: the habitation, and the road to it
   add('The Habitation', 2200, 180, 'place', 0);
@@ -153,7 +156,7 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
     for (let x = b.maxX; x >= b.minX; x -= 4) { [px, py] = P(x, zoneShoreZ(x)); g.lineTo(px, py); }
     g.closePath(); g.fill();
     // beyond the edges of the zone the land goes on (the map has no more to say about it)
-    for (const [x0, z0, x1, z1] of [[b.minX - 600, b.minZ - 600, b.minX, zoneShoreZ(b.minX)], [b.maxX, b.minZ - 600, b.maxX + 600, zoneShoreZ(b.maxX)], [b.minX - 600, b.minZ - 600, b.maxX + 600, b.minZ]]) { quad(x0, z0, x1, z1); g.fillStyle = MAP_STYLE.land; g.fill(); }
+    for (const [x0, z0, x1, z1] of [[b.minX - 600, b.minZ - 1250, b.minX, zoneShoreZ(b.minX)], [b.maxX, b.minZ - 1250, b.maxX + 600, zoneShoreZ(b.maxX)], [b.minX - 600, b.minZ - 1250, b.maxX + 600, b.minZ]]) { quad(x0, z0, x1, z1); g.fillStyle = MAP_STYLE.land; g.fill(); }
     // the river: its water, the line of its bank, and a few strokes for the flow
     g.fillStyle = MAP_STYLE.water;
     g.beginPath();
@@ -177,8 +180,8 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
     // the habitation its waters, its streams, its paths and its boardwalks and bridges
     {
       const x0 = b.maxX, x1 = HABITATION.bounds.x1 + 300;
-      if (onScreen(x0, b.minZ - 600, x1, b.maxZ + 600, 40)) {
-        quad(x0, b.minZ - 600, x1, b.maxZ + 600); g.fillStyle = MAP_STYLE.land; g.fill();
+      if (onScreen(x0, b.minZ - 1250, x1, b.maxZ + 600, 40)) {
+        quad(x0, b.minZ - 1250, x1, b.maxZ + 600); g.fillStyle = MAP_STYLE.land; g.fill();
         g.fillStyle = MAP_STYLE.water; g.beginPath();
         let [qx, qy] = P(x0, RIVER_FAR); g.moveTo(qx, qy);
         for (let x = x0; x <= RIVER_HEAD + 10; x += 6) { [qx, qy] = P(x, riverShore(x)); g.lineTo(qx, qy); }
@@ -263,6 +266,35 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
         g.beginPath(); g.moveTo(ax, ay); g.lineTo(bx, by); g.stroke();
       }
       g.setLineDash([]);
+    }
+  }
+
+  // Oganiru City's decks (31 October 2026): the flyovers, the raised expressway and its ramps, over the roads under
+  // them, the higher drawn over the lower, each with its edge; its roundabout; its towers.
+  function decks() {
+    const ring = P(0, -560);
+    const k = state.k;
+    if (onScreen(-30, -590, 30, -530)) {
+      g.beginPath(); g.arc(ring[0], ring[1], 23 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.majorEdge; g.fill();
+      g.beginPath(); g.arc(ring[0], ring[1], 22 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.major; g.fill();
+      g.beginPath(); g.arc(ring[0], ring[1], 13 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.tree; g.fill();
+    }
+    g.lineCap = 'butt'; g.lineJoin = 'round';
+    const order = [...OGANIRU_DECKS].sort((a, b) => a.path.reduce((m, q) => m + q.y, 0) / a.path.length - b.path.reduce((m, q) => m + q.y, 0) / b.path.length);
+    for (const d of order) {
+      const xs = d.path.map((q) => q.x), zs = d.path.map((q) => q.z);
+      if (!onScreen(Math.min(...xs), Math.min(...zs), Math.max(...xs), Math.max(...zs))) continue;
+      for (const [colour, extra] of [[MAP_STYLE.majorEdge, 1.6], ['#f4e3a6', 0]]) {
+        g.strokeStyle = colour; g.lineWidth = Math.max(2 + extra, (d.half * 2 + extra) * k);
+        g.beginPath();
+        d.path.forEach((q, i) => { const [x, y] = P(q.x, q.z); if (i) g.lineTo(x, y); else g.moveTo(x, y); });
+        g.stroke();
+      }
+    }
+    for (const t of OGANIRU_TOWERS) {
+      if (!onScreen(t.x - t.dx / 2, t.z - t.dz / 2, t.x + t.dx / 2, t.z + t.dz / 2)) continue;
+      if (t.kind === 'round') { const [x, y] = P(t.x, t.z); g.beginPath(); g.arc(x, y, (t.dx / 2) * k, 0, Math.PI * 2); } else quad(t.x - t.dx / 2, t.z - t.dz / 2, t.x + t.dx / 2, t.z + t.dz / 2);
+      g.fillStyle = MAP_STYLE.building; g.fill(); g.strokeStyle = MAP_STYLE.buildingEdge; g.lineWidth = 1; g.stroke();
     }
   }
 
@@ -441,7 +473,7 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
     taken = []; picks = [];
     // (the buttons and the scale are not written over)
     taken.push([W - 58, 0, W, 58], [W - 58, H - 164, W, H], [0, H - 34, 150, H]);
-    ground(); plots(v); trees(); roads(); closures(); footprints();
+    ground(); plots(v); trees(); roads(); decks(); closures(); footprints();
     wayLine();
     roadNames(); placeNames();
     overlay(v);

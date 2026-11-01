@@ -4363,10 +4363,111 @@ are made.
   seen across the hall (`car_impostors.mjs`) taken again from the covered cars (the gold hypercar's too, so that all
   twenty are taken as the game now draws them).
 
+## Oganiru City, Stage 1: the sample (31 October 2026)
+
+The owner's brief of 31 October (Project doc `claude/brief-flyovers-city.md`): a big modern city with flyovers, tree-lined
+dual carriageways and glass towers, in the style of his three videos, on the land west of the town, built in three
+stages, each put live; the plan he said yes to that evening is `claude/plan-city-flyovers.md`. Nothing that was in the
+town moved: its roads, people, vehicles, showrooms, sports mall, river, habitation, motor park and market are where
+they were. Stage 1 is the sample he asked to see before the rest is built.
+
+**What is there.** College Road carries on west out of the town (its roadblock taken away) as **Unity Avenue**, widening
+to a dual carriageway at the **Gate Roundabout** (an island with an obelisk), then down Oganiru Central past **Union
+Street**, **Independence Boulevard** and **Tower Street** to the **Unity Interchange** on the **Oganiru Expressway**:
+
+- Unity Avenue: two lanes each way (3.5 m), a raised grass middle strip 5 m wide behind black-and-white kerbs (a metre a
+  block, worn), slim trees down it 9 m apart, tall lamps with two arms over both carriageways every fourth place and at
+  both ends of the strip at each junction (downtown, each with two banners, green, white and green), U-turn gaps, paved
+  walkways, lane lines, zebra crossings and stop lines, drains with grates at the kerb; traffic signals at the
+  junctions (the same cycle as Market Road's).
+- The **Independence Flyover**: Independence Boulevard over Unity Avenue, 7.5 m up, 5.5 m clear under it, on four
+  columns, its ramps no steeper than 6% between retaining walls where it is too low to pass under; the junction under
+  it lit by the lamps under the deck and one at each of its corners.
+- The **Unity Interchange**: the expressway raised on pillars for 1.2 km (closed with road works at both ends in this
+  stage), two loops, four slip roads, and a curved flyover about 15 m up over the loop and the expressway. Every deck has
+  1.1 m concrete walls with drain spouts and the stains under them, joints across its road, a slab and girders
+  underneath, pillars with wide caps, lamps on its walls and lamps under it that light the road below at night; the
+  expressway and the Independence Flyover have a concrete barrier down the middle. Green gantries over the expressway
+  point to the town ("Asaba town centre · Motor park · Market").
+- **Six towers** round Unity Avenue and Independence Boulevard (blue glass, white ribbed, stone with a stepped crown, a
+  round one, teal offices, grey glass, 10 to 40 storeys), each different, with glass lobbies, a canopy and steps, shops
+  at the foot with made-up names (Ugo Pharmacy, Cool Corner Café, Oganiru Books and others), lit windows at night (about
+  half of them in the evening, fewer as the night goes on) and lit crowns on the three tallest. Solid; nobody goes in yet.
+- Where a road is not built on yet: a roadblock across it ("ROAD CLOSED"); the edge of the built land fenced.
+
+**Levels** (`src/sim/levels.js`, `zoneSurfaceY` in `zones/atani.js`). Where a flyover passes over a road there are two
+grounds. Whatever a player moves (on foot, a car, a motorcycle, a keke, anything from the sports mall) stays on the level
+it is on: up a ramp a step at a time from where it meets the road, along the deck inside its walls (never off its side,
+never over its middle barrier), or along the road under it. The town checks every step of it, and draws every player,
+their vehicle and the other players at their own level (the other players' games say which: `gy` in the presence word).
+The camera never goes inside a deck, a pillar or a tower: under a flyover it comes closer. Two cars, one on the flyover
+and one under it, never touch; nor can a police officer under a flyover reach or see someone on it.
+
+**Street lamps** (`src/sim/street-lamps.js`, `src/sim/lamps.js`, `src/client/render-lamps.js`). Every street lamp in the
+game, the town's, Market Road's, those beyond the town and the city's (middle-strip, edge, ornate downtown and deck lamps),
+is drawn by itself so that it can be knocked down (the town's look as they did). A pole is solid to a player and their
+vehicles; the town's own people and cars go round as before. A car slower than 35 km/h (a limousine, coach or lorry:
+25 km/h) stops against one as against a wall, and it shakes and its lamp flickers; faster, it snaps at its foot and falls
+the way it was hit, turning so that it lies flat, its glass and sparks flying, with a clang; the car goes on at two
+thirds of its speed with a jolt. The town judges the knock itself (the car at the lamp, on its level, as fast as the town
+saw it going). Motorcycles, kekes, bicycles, skateboards and skates never knock one down. A lamp down lies there, dark;
+vehicles go over it with a bump, people step over it. It stands again three minutes later where nobody is looking at it,
+or rises in front of whoever is still looking after six; it is lit again at night. Other players near see it fall and
+lie (told for six minutes in the presence word, `kl`). No police stars for it. Every number is in one place, `LAMP_KNOCK`.
+
+At night each lamp comes on at its own moment as dusk deepens, one after another along its street, by the game's clock and
+the sky the player has chosen; its head is lit, and a pool of its light is painted on the road under it (no real light
+each: only the nearest two on a computer light anything for real); on a wet night their light is drawn out along the road
+towards the eye. The glow round them is the game's own (Medium and up).
+
+**Trees.** The slim trees down the middle strip are the habitation's slim tree (from the owner's own model, unchanged),
+read with the habitation's code, each copy its own height (12 to 15 m) and turn; their leaves move with the wind, more in a
+storm; near ones are the model, further ones a picture of it on two crossed boards. Their trunks are solid to a car and to
+anyone on foot (the leaves are not); the strip can be crossed between them, at least 4.5 m apart. Shade trees along the
+verges are the town's own mango and almond trees.
+
+**The surfaces** (tar with its grit, patches and cracks, darker where the wheels run; concrete with its pour lines and
+rain streaks; the undersides; paving; the kerbs' blocks; the towers' walls) are made in the game itself: the sites of free
+textures (ambientCG, Poly Haven) could not be reached from where it was built. If the owner sends such files they can be
+put in their place.
+
+**Not in Stage 1** (Stage 2, the whole road network): the town's traffic does not drive into the city yet, so the police
+do not chase over the flyovers yet; townspeople do not walk in it; no billboards there yet. Stage 3: downtown and the
+skyline seen from the town.
+
+**Phones** build the city only as the player comes within 420 m of its land, a piece a frame, and let it go again beyond
+650 m; a computer builds it once the town is warmed up.
+
+**Found and fixed on the way**: a car could not knock a lamp down at all (the town refused anything but driving from
+someone in a car: `sim.js`, `WHILE_INCAR`, now lets the knock through; found by the new headless test's first run); the
+middle strip's lamps had their arms along the avenue instead of across it; a drain spout's stain hung below the deck's
+face; the junction under the Independence Flyover was dark at night (a lamp at each corner now). From the browser tests:
+the city's nine roadblocks and the fence along its edge were drawn with the town's, on the graphics card from the start
+wherever one was (meshes for the warm-up 899 → 1,169, 5.7 MB more; now built with the city and let go with it,
+`render-closures.js` `keep`, the live build's count again), and drawn from any distance once the city was in (the draw
+calls at the motor park 343 → 688 a frame on a computer; now each piece within its own distance, 385); a page opened from
+the disk asked for the slim tree's file (a console error; now, as the habitation's, it fetches nothing and draws the
+strip without its trees). From the measuring: a computer that had built the city drew it from anywhere in the town (each of
+its meshes is the whole city's of its kind: at the motor park 819 → 888 draws a frame by day, the frame up to a fifth
+longer at the busiest places); now none of it, its lamps included, is drawn while its land is beyond the eye's reach. From the habitation test: on a
+phone in the habitation's garden the town's lamps were drawn, a few draws more a frame (they had been part of the town's
+squares, which rest far off; now a kind of lamp is not drawn while all of its lamps are beyond the eye's reach), and while
+the habitation was being made ready near the player the city waited (`habitationBusy`).
+
+**Files.** `src/sim/zones/oganiru.js` (the city: roads, decks, trees, lamps, pillars, towers, closures, what is solid),
+`src/sim/levels.js`, `src/sim/street-lamps.js`, `src/sim/lamps.js`, `src/client/render-oganiru.js` (the drawing),
+`src/client/render-lamps.js` (every street lamp), `tools/city/` (the plan's maps, and `compare.py`: the game's pictures beside
+his). Tests: `test/oganiru.test.mjs` (headless: the decks' grades and clearances, every lane open, trunks solid, a car up
+the flyover and down while another goes under it, walls and the barrier, walking up a ramp, lamps slow/fast/heavy/raised/
+lit at night, a lamp told to another player's game, a game saved before the city), `test/oganiru.mjs` (in a browser, two
+players, one on a phone's settings: the city drawn, the expressway, the flyover over it 15 m up and the avenue under it
+driven, the camera under the decks, the lamps at night, a lamp knocked down seen by the other, the phone's graphics card
+at the city's places), `test/oganiru-look.mjs` (pictures).
+
 ## Tests
 
 ```
-node --test test/*.test.mjs                        # 576 headless tests
+node --test test/*.test.mjs                        # 586 headless tests
 ../server/with-postgres.sh node --test --test-concurrency=1 ../server/test/*.test.mjs    # the server: 119 tests against a real PostgreSQL (accounts, the market and its cars and the sports mall's things, the bank with starter and earned TR, the character and its upgrade, play, the guns, and two steps from older tables to the newest)
 ../server/with-postgres.sh node ../server/test/site.mjs out/         # the whole site in real browsers: the account before play, the one question and the one character, starter TR refused for assets and transfers, the market, a deal, a transfer in the Wallet, a second device, the character upgrade, logging out, erasing
 ../server/with-postgres.sh node test/phone-memory.mjs out/           # a phone's memory and its buttons (29 October 2026): the car's buttons on a page shorter than the screen, the empty layers hidden, the town far off resting and coming back, the habitation's pictures let go and made again, nothing drawn without its pictures
@@ -4397,6 +4498,8 @@ node test/stars.mjs out/                           # the police's stars: none wh
 ../server/with-postgres.sh node test/traffic.mjs out/ [phone]    # the town's traffic in the showroom's cars: near the player, the nearest as their models and the rest as their pictures, drawn smoothly; a car taken (the stars), driven, left and taken up again, never the player's, all given back on arrest; lamps at night
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
+../server/with-postgres.sh node test/oganiru.mjs out/        # Oganiru City (31 October 2026), two players (a computer and a phone): the city drawn, the expressway, the flyover over it and the avenue under it driven, the camera under the decks, the lamps at night, a lamp knocked down seen by the other, the phone's graphics card at the city's places
+../server/with-postgres.sh node test/oganiru-look.mjs out/   # its pictures: by day, a lamp down, in the rain, the towers at dusk, at night, in a storm (LOOK_LITE=1: a phone's)
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown
 ../server/with-postgres.sh node test/sports.mjs out/ [phone]  # the Post Civil War Sports Mall: the compound and the building, in and out by the doors, the eight things on their stands with the pictures their distance asks for, asking Nkem, buying with the arrival money, Property, the models let go
 ../server/with-postgres.sh node test/carshow.mjs out/    # the Post Civil War Car Showroom: the compound, the gate, the cameras, in and out by the doors, the cars, Tochi and Oluchi, asking and buying with earned TR, driving (the engine, the speedometer, steering, the brake, the gate, getting out), the lamps at night, another player's car

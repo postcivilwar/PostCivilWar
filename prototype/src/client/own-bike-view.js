@@ -85,7 +85,7 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
   const place = (e, ride, groundY, dt, night, now) => {
     const st = effects(e, ride, dt, night, now);
     const g = e.bike.group;
-    g.position.set(ride.x, groundY(ride.x, ride.z), ride.z);
+    g.position.set(ride.x, groundY(ride.x, ride.z, ride.y), ride.z);
     g.rotation.set(0, ride.h, 0);
     g.visible = true;
     e.bike.pose({ travelled: e.travelled, steerAngle: ride.steer || 0, tilt: ride.lean || 0, dive: st.dive, bob: st.bob });
@@ -131,7 +131,7 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
         // (falling, it gathers speed: the square of the time; then a little bounce as it lands)
         const k = over < 1 ? over * over : 1 + Math.sin(Math.min(1, (t - TIP) / 0.3) * Math.PI) * 0.06 * Math.max(0, 1 - (t - TIP) / 0.3);
         const tilt = p.fallen ? PARKED_LEAN + (FALLEN_LEAN - PARKED_LEAN) * k : PARKED_LEAN;
-        e.bike.group.position.set(p.x - Math.sin(p.h) * back, groundY(p.x, p.z), p.z - Math.cos(p.h) * back);
+        e.bike.group.position.set(p.x - Math.sin(p.h) * back, groundY(p.x, p.z, p.y), p.z - Math.cos(p.h) * back);
         e.bike.group.rotation.set(0, p.h, 0);
         e.bike.pose({ travelled: e.travelled, steerAngle: 0.25, tilt });
       }
@@ -149,7 +149,7 @@ export function createOwnBikeView(scene, { lite = false, base = 'bikes/', onErro
     const bones = bonesOf(me);
     const pelvis = bones.get('pelvis');
     if (!pelvis) return false;
-    const gy = groundY(ridden.x, ridden.z);
+    const gy = groundY(ridden.x, ridden.z, ridden.y);
     // upright first, to measure where the posed figure's hips are in its own frame
     me.group.rotation.set(0, ridden.h, 0);
     me.group.position.set(ridden.x, gy, ridden.z);

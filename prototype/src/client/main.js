@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -55,6 +55,9 @@ import { POWER_BIKES, handlingOf, stepPowerBike, bikeRevs } from '../sim/power-b
 import { CRASH } from '../sim/own-bikes.js';
 import { POWER_CARS, carHandlingOf, stepPowerCar, carRevs, carBoxes } from '../sim/power-cars.js';
 import { CAR_CRASH, carFits } from '../sim/own-cars.js';
+// levels (31 October 2026, Oganiru City's flyovers): what the player stands on or drives is the level they were on
+import { levelAt, keepLevel } from '../sim/levels.js';
+import { STREET_LAMPS, LAMP_KNOCK, knockSpeedOf, lampInTheWay, fallenBars, knockLamp } from '../sim/street-lamps.js';
 import { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz } from './bike-audio.js';
 import { startStrike, poseFighter, poseTaking, soundOf } from './combat-view.js';
 import { createCameraRig, nextView, viewFor, CAMERA_VIEW, STREET, RIDE } from './camera.js';
@@ -117,7 +120,9 @@ import { talkGesture } from './talk-gestures.js';
 import { watchPicture } from './picture-watch.js';
 import { buildClosures } from './render-closures.js';
 import { createTorchBeams } from './torch-beams.js';
-import { STREET_LAMP, HEADLAMP_LIGHT, TORCH_LIGHT } from './light.js';
+import { HEADLAMP_LIGHT, TORCH_LIGHT } from './light.js';
+import { createStreetLamps } from './render-lamps.js';
+import { oganiruSteps } from './render-oganiru.js';
 import { GRAPHICS_LEVELS, GRAPHICS_LOWERED, LOW, levelSetting, memoryLimitMB, autoStart, autoCeiling, remembered, remember, levelOf } from './graphics.js';
 import { showSoftPatches, softPatchesShown, softPatchOpacity } from './soft-patch.js';
 import { fallTime, flightAt } from './falls.js';
@@ -232,7 +237,8 @@ function start(carried) {
     world = buildWorld(scene);
     // the roads not open yet and the edge of the built land: roadblocks and a fence, solid where they are drawn
     // (render-closures.js, closures.js; 19 October 2026)
-    closures = buildClosures(scene, { lite: LITE });
+    // (the town's own: Oganiru City's are drawn with it, render-oganiru.js)
+    closures = buildClosures(scene, { lite: LITE, keep: (item, kind) => !ofOganiru(item, kind) });
   }]);
   // Beyond the town: the road to Onitsha, the airport, the bridge (render-outskirts.js). Built once the player is in
   // town and the town has been warmed up, not while the page is starting: it is a kilometre away from where anyone
@@ -285,8 +291,8 @@ function start(carried) {
     }
     if (!built) return;
     outskirts = { ...built, ready: true };
-    world.lampHeads.push(...outskirts.lampHeads);
-    lampPools.place();
+    // (its street lamps are drawn with every other: render-lamps.js)
+    streetLamps.show({ outskirts: true });
     beyondStats.builds += 1;
   }
   // A phone does not hold the land beyond the town while the player is far from it (29 October 2026, the owner's
@@ -309,9 +315,7 @@ function start(carried) {
     let shapes = 0;
     group.traverse((o) => { if (o.geometry && !elsewhere.has(o.geometry)) { o.geometry.dispose(); elsewhere.add(o.geometry); shapes += 1; } });
     for (const sign of outskirts.signs || []) { const m = sign.material; if (m && m.map && !pictures.has(m.map)) m.map.dispose(); }
-    const heads = new Set(outskirts.lampHeads);
-    for (let i = world.lampHeads.length - 1; i >= 0; i -= 1) if (heads.has(world.lampHeads[i])) world.lampHeads.splice(i, 1);
-    lampPools.place();
+    streetLamps.show({ outskirts: false });
     outskirts = { lampHeads: [], see() {}, ready: false };
     beyondBegun = false; beyondWait = 0;
     beyondStats.letGo += 1; beyondStats.shapesLetGo += shapes;
@@ -322,6 +326,57 @@ function start(carried) {
     if (!beyondJob) beyondJob = beyondSteps(false);
     while (!beyondJob.next('now').done) { /* all of it, now */ }
     beyondJob = null;
+  }
+  // Oganiru City, the new city west of the town (31 October 2026, render-oganiru.js): built a piece a frame once the town
+  // is warmed up, or at once for someone already there; a phone builds it only as the player comes within
+  // CITY_PHONE.come metres of its land, and lets it go again beyond CITY_PHONE.go. Its street lamps are shown with it
+  // (render-lamps.js); its slim trees are read with the habitation's own code once the page has it.
+  let city = { ready: false, see() {}, update() {}, letGo() {} };
+  // (whether its land is within sight of where the eye looks, as last seen: `see`)
+  let cityShown = false;
+  // (how far the street lamps are drawn from where the eye looks: the town's reach, as last worked out)
+  let lampReach = Infinity;
+  let cityJob = null, cityBegun = false;
+  const CITY_PHONE = Object.freeze({ come: 420, go: 650 });
+  const cityWanted = (x, z) => !LITE || oganiruAway(x, z) < CITY_PHONE.come;
+  const cityStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0 };
+  function* citySteps(stepwise) {
+    const steps = oganiruSteps(scene, { glowMaterial: world.glowMaterial, lite: LITE, renderer, camera: stepwise ? camera : null, lamps: streetLamps });
+    let step, said;
+    while (!(step = steps.next(said)).done) said = yield step.value;
+    city = { ...step.value, ready: true };
+    // (shown at once for someone in it; its trees read once it is in sight, below)
+    streetLamps.show({ city: true });
+    cityStats.builds += 1;
+  }
+  function buildCity() {
+    if (city.ready) return;
+    if (!cityJob) cityJob = citySteps(false);
+    while (!cityJob.next('now').done) { /* all of it, now */ }
+    cityJob = null;
+  }
+  function stepCity(budgetMs = 6) {
+    if (city.ready) { cityJob = null; return; }
+    if (!cityJob) cityJob = citySteps(true);
+    const t0 = performance.now();
+    cityStats.frames += 1;
+    for (;;) {
+      const s0 = performance.now();
+      const step = cityJob.next();
+      const took = performance.now() - s0;
+      cityStats.steps += 1; cityStats.workMs += took; cityStats.longestMs = Math.max(cityStats.longestMs, took);
+      if (step.done) { cityJob = null; return; }
+      if (step.value === 'waiting' || performance.now() - t0 >= budgetMs) return;
+    }
+  }
+  function letGoCity() {
+    if (!city.ready || cityJob) return false;
+    city.letGo();
+    city = { ready: false, see() {}, update() {}, letGo() {} };
+    streetLamps.show({ city: false });
+    cityBegun = false;
+    cityStats.letGo += 1;
+    return true;
   }
   // (for the measuring: how many pieces, over how many frames, the longest piece, the work in all, in ms)
   const beyondStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0, shapesLetGo: 0 };
@@ -438,6 +493,9 @@ function start(carried) {
   const wavesHeard = new Set();           // the waves along the bank heard breaking (by their number)
   let carsHeard = [];                // other players' cars near enough to be heard: { key, car, x, z, rev, throttle }
   let shownPeers = [];
+  // The ground under something at (x, z) on the level `y` it is on (a flyover's deck over a road is a second ground:
+  // zone.js zoneSurfaceY, 31 October 2026); with no level, the ground.
+  const groundAt = (x, z, y) => (Number.isFinite(y) ? zoneSurfaceY(x, z, y) : zoneGroundY(x, z));
   // Other players as they are now: one in or on a vehicle is carried on from where their game last said they were,
   // at the speed it said they were going (a vehicle at speed would otherwise stand still between words and jump)
   function peersNow() {
@@ -519,34 +577,16 @@ function start(carried) {
   // Street lamps at night. Every light of this kind is worked out for every pixel of everything, lit or
   // not, at any hour, so there are few: the two lamps nearest the player on a desktop, none on a phone.
   // What every lamp does have is a pool of light painted on the ground under it, which costs next to nothing.
-  const lampLights = [];
-  let lampPools = null;
+  // (Since 31 October 2026 every street lamp is drawn by render-lamps.js, each by itself, so that a car can knock one
+  // down: the town's, Market Road's, those beyond the town and Oganiru City's. Its lights and pools are its own.)
+  let streetLamps = null;
   townSteps.push(['the lamps', () => {
   headlight = new THREE.SpotLight(HEADLAMP.colour, 0, HEADLAMP.distance, HEADLAMP.angle, HEADLAMP.penumbra, HEADLAMP.decay);
   headlight.castShadow = false; scene.add(headlight); scene.add(headlight.target);
-  for (let i = 0; i < (LITE ? 0 : 2); i += 1) { const light = new THREE.PointLight(0xffc98a, 0, STREET_LAMP.distance, STREET_LAMP.decay); light.position.y = 4.8; scene.add(light); lampLights.push(light); }
-  lampPools = (() => {
-    const size = 64;
-    const canvas2 = document.createElement('canvas');
-    canvas2.width = size; canvas2.height = size;
-    const g = canvas2.getContext('2d');
-    const fall = g.createRadialGradient(size / 2, size / 2, 0, size / 2, size / 2, size / 2);
-    fall.addColorStop(0, 'rgba(255,214,160,1)'); fall.addColorStop(0.35, 'rgba(255,200,138,0.5)'); fall.addColorStop(1, 'rgba(255,190,120,0)');
-    g.fillStyle = fall; g.fillRect(0, 0, size, size);
-    const material = new THREE.MeshBasicMaterial({ map: new THREE.CanvasTexture(canvas2), transparent: true, opacity: 0, blending: THREE.AdditiveBlending, depthWrite: false, fog: false, toneMapped: false });
-    const disc = new THREE.PlaneGeometry(15, 15);
-    disc.rotateX(-Math.PI / 2);
-    // (room for the lamps beyond the town too, which are put in when it is built)
-    const mesh = new THREE.InstancedMesh(disc, material, Math.max(1, world.lampHeads.length + 80));
-    const at = new THREE.Matrix4();
-    const place = () => { world.lampHeads.slice(0, mesh.instanceMatrix.count).forEach((lamp, i) => { at.makeTranslation(lamp.x, 0.07 + zoneGroundY(lamp.x, lamp.z), lamp.z); mesh.setMatrixAt(i, at); }); mesh.count = Math.min(world.lampHeads.length, mesh.instanceMatrix.count); mesh.instanceMatrix.needsUpdate = true; };
-    place();
-    mesh.frustumCulled = false;
-    mesh.renderOrder = 2;
-    mesh.visible = false;
-    scene.add(mesh);
-    return { mesh, material, place };
-  })();
+  streetLamps = createStreetLamps(scene, { lite: LITE, now: () => (host && host.game ? host.game.state.real : 0), onSound: (kind, x, z) => audio.streetLamp(kind, x, z) });
+  streetLamps.show({ town: true, outskirts: outskirts.ready });
+  // (the heads, where anything else looks for the lamps: the tests among them)
+  world.lampHeads = streetLamps.heads;
   }]);
   // What is marked for the player in the town is marked in white: the game's interface has no colour of its own.
   const markerMaterial = new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true, opacity: 0.85 });
@@ -710,7 +750,8 @@ function start(carried) {
     // (the ground as it is drawn: 22 October 2026, the eye kept above the simulation's own finer ground went under the
     // coarser ground a phone drew, and the player saw the ground from below)
     terrain: (x, z) => (x > HABITATION.bounds.x0 - 2 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1 ? habitationGroundAt(x, z) : NaN),
-    tall: (x, z) => (x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) || inSportsHall(x, z) ? 0 : carshowBuildingAt(x, z) || sportsBuildingAt(x, z)),
+    // (and Oganiru City's decks and towers, to their tops: 31 October 2026)
+    tall: (x, z) => Math.max(x > towerAt.x0 && x < towerAt.x1 && z > towerAt.z0 && z < towerAt.z1 && !inPowerbikeHall(x, z) ? POWERBIKE.model.height : inCarHall(x, z) || inSportsHall(x, z) ? 0 : carshowBuildingAt(x, z) || sportsBuildingAt(x, z), oganiruTallAt(x, z)),
   });
   let near = { fight: null, steal: null, take: null };      // who and what is within reach for the things only sometimes on offer
   let lastFight = 0;                 // the last blow from the simulation that has been shown
@@ -749,7 +790,6 @@ function start(carried) {
   let viewTimer = 1;
   let viewAt = 0;                     // when the view was last asked for (other players are carried on from it)
   let saveTimer = 0;
-  let lampTimer = 1;
   let soundTimer = 1;
   let lastComplaint = -10;
   let lastHonk = -10;
@@ -773,8 +813,9 @@ function start(carried) {
     if (!view) return null;
     const armed = gunPlay ? gunPlay.linkFields(cam) : null;
     // (and the height of the ground they stand on: the website's server checks a round said to have struck them
-    // against it, on a deck or a bridge as on the street)
-    const gy = zoneGroundY(view.self.x, view.self.z);
+    // against it, on a deck or a bridge as on the street; since 31 October 2026 the level they are on, a flyover's deck
+    // over a road being two grounds: the other players' games draw them on it)
+    const gy = Number.isFinite(view.self.y) ? view.self.y : zoneGroundY(view.self.x, view.self.z);
     const me = { ...view.self, ...(voiceChat.active ? { voiceOn: 1 } : {}), ...(armed || {}), ...(Number.isFinite(gy) ? { gy } : {}), ...(phoneShown ? { phone: phoneShown, ...(torch.lit ? { torch: 1 } : {}) } : {}) };
     if (carshow.talk && carshow.inside) return { ...me, carTalk: { car: carshow.talk.car, ago: Math.max(0, host.game.state.real - carshow.talk.since) } };
     if (!showroom.talk || !showroom.inside) return me;
@@ -1265,19 +1306,30 @@ function start(carried) {
   // nothing of the habitation is drawn; one that could not be fetched is asked for again half a minute later.
   let habitationKit = null, habitationAsked = false, habitationRetryAt = 0, habitationKept = false;
   const partNotRead = (error, what) => { console.warn('PostCivilWar: part of the habitation could not be read', what || '', error && error.message ? error.message : error); if (!habitationTold) { habitationTold = true; ui.toast({ type: 'note', text: 'Part of the habitation could not be fetched. Check the connection.' }); } };
+  // (its script, once: also for Oganiru City's slim trees, which are read with its code, 31 October 2026)
+  let habitationCode = null;
+  // (a page opened from the disk fetches no files: the city's trees are not read there, so its code is not wanted for them)
+  const cityOnDisk = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
+  function habitationCodeOf() {
+    if (!habitationCode) {
+      habitationCode = new Promise((resolve, reject) => {
+        if (window.__pcwHabitationCode) { resolve(window.__pcwHabitationCode); return; }
+        const script = document.createElement('script');
+        script.src = (window.__PCW_FILES && window.__PCW_FILES.habitation) || 'habitation-code.js';
+        script.async = true;
+        script.onload = () => (window.__pcwHabitationCode ? resolve(window.__pcwHabitationCode) : reject(new Error('its script did not start')));
+        script.onerror = () => { script.remove(); reject(new Error('its script could not be fetched')); };
+        document.head.appendChild(script);
+      }).then((kit) => { habitationKit = kit; return kit; }, (error) => { habitationCode = null; throw error; });
+    }
+    return habitationCode;
+  }
+  // (the habitation being fetched or made ready near the player: what else is being built waits for it)
+  const habitationBusy = () => playing && (habitationAsked || !!habitation) && !(habitation && habitation.built) && habitationAway(predicted.x, predicted.z) < 400;
   function askForHabitation() {
     habitationAsked = true;
-    new Promise((resolve, reject) => {
-      if (window.__pcwHabitationCode) { resolve(window.__pcwHabitationCode); return; }
-      const script = document.createElement('script');
-      script.src = (window.__PCW_FILES && window.__PCW_FILES.habitation) || 'habitation-code.js';
-      script.async = true;
-      script.onload = () => (window.__pcwHabitationCode ? resolve(window.__pcwHabitationCode) : reject(new Error('its script did not start')));
-      script.onerror = () => { script.remove(); reject(new Error('its script could not be fetched')); };
-      document.head.appendChild(script);
-    }).then((kit) => {
+    habitationCodeOf().then((kit) => {
       if (habitation) return;
-      habitationKit = kit;
       habitation = kit.createHabitation(scene, { lite: LITE, renderer, riverMaterial: world.waterMaterial, onError: partNotRead });
     }, (error) => {
       // (asked for again in half a minute; told once, only to someone already on the road north)
@@ -2015,9 +2067,9 @@ function start(carried) {
     crowd.setLimps(new Set(view.moods.filter((m) => m.limp).map((m) => m.i)));
     crowd.setTrouble(new Set([...view.moods.map((m) => m.i), ...(view.fallen || [])]));
     crowd.setTalking(view.voiceTalk);
-    if (led()) { predicted.x = view.self.x; predicted.z = view.self.z; if (!view.self.down && !view.self.dead) predicted.heading = view.self.heading; }
+    if (led()) { predicted.x = view.self.x; predicted.z = view.self.z; keepLevel(predicted, view.self.y); if (!view.self.down && !view.self.dead) predicted.heading = view.self.heading; }
     // put somewhere else altogether by the simulation (coming round at the hospital): the figure goes with it
-    else if (!view.self.driving && !view.self.astride && view.self.riding === null && Math.hypot(view.self.x - predicted.x, view.self.z - predicted.z) > 6) { predicted.x = view.self.x; predicted.z = view.self.z; predicted.heading = view.self.heading; going.speed = 0; }
+    else if (!view.self.driving && !view.self.astride && view.self.riding === null && Math.hypot(view.self.x - predicted.x, view.self.z - predicted.z) > 6) { predicted.x = view.self.x; predicted.z = view.self.z; keepLevel(predicted, view.self.y); predicted.heading = view.self.heading; going.speed = 0; }
     syncMarkers();
   }
 
@@ -2272,9 +2324,9 @@ function start(carried) {
     // (the turntable may have had the canvas to itself: the town's size and sharpness again)
     applyQuality(quality.level);
     wearCharacter();
-    predicted = { x: view.self.x, z: view.self.z, heading: view.self.heading };
+    predicted = { x: view.self.x, z: view.self.z, heading: view.self.heading, lv: { x: view.self.x, z: view.self.z, y: Number.isFinite(view.self.y) ? view.self.y : 0 } };
     car.speed = 0;
-    cam.target.set(predicted.x, 1.5 + zoneGroundY(predicted.x, predicted.z), predicted.z);
+    cam.target.set(predicted.x, 1.5 + levelAt(predicted), predicted.z);
     // (on the street view, close behind the player: the view the game starts with, 19 October 2026)
     cam.yaw = Math.PI; cam.pitch = STREET.pitch; cam.dist = STREET.dist; cam.own = STREET.dist; cam.ride = 1; cam.back = false; rig.view = 'street';
     $('start').hidden = true;
@@ -2821,7 +2873,7 @@ function start(carried) {
     for (const q of shownPeers) {
       if (Math.hypot(q.x - predicted.x, q.z - predicted.z) > 70) continue;
       const able = Number.isFinite(q.health) && q.health > 20 && !q.vehicle && !q.ride && !q.sport && !q.car && !q.swimming && !q.held && !q.down;
-      out.push({ x: q.x, y: zoneGroundY(q.x, q.z) + (q.gun && q.gun.crouch ? 0.85 : 1.25), z: q.z, able });
+      out.push({ x: q.x, y: groundAt(q.x, q.z, q.gy) + (q.gun && q.gun.crouch ? 0.85 : 1.25), z: q.z, able });
     }
     if (crowd) for (const a of crowd.actors()) {
       const who = known.get(a.i);
@@ -3134,9 +3186,10 @@ function start(carried) {
     const nz = predicted.z + Math.cos(predicted.heading) * car.speed * dt;
     if (stopsAtBridge(nx, nz, predicted.heading + (car.speed < 0 ? Math.PI : 0), 1.7)) { car.speed = 0; return 0; }
     const others = view.vehicles.filter((o) => o.id !== v.id);
-    if (!vehicleFits(v.kind, nx, nz, builtBoxes(), others)) { car.speed = 0; return 0; }
+    const py = levelAt(predicted);
+    if (!vehicleFits(v.kind, nx, nz, builtBoxes(), others, py)) { car.speed = 0; return 0; }
     const result = server.send({ type: 'vehicle.drive', x: nx, z: nz, heading: predicted.heading });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; v.fuel = result.fuel; if (result.hit) car.speed = 0; } else {
+    if (result.ok) { predicted.x = nx; predicted.z = nz; keepLevel(predicted, zoneSurfaceY(nx, nz, py)); v.fuel = result.fuel; if (result.hit) car.speed = 0; } else {
       const truth = host.game.view(playerId).self;
       predicted.x = truth.x; predicted.z = truth.z; car.speed = 0;
       if (clock - car.complained > 4 && result.code !== 'BLOCKED' && result.code !== 'TOO_FAST' && result.code !== 'STALLED') { car.complained = clock; ui.toast({ type: 'note', text: result.message }); }
@@ -3182,8 +3235,11 @@ function start(carried) {
   let scrapedAt = -10;
   function meetWithBike(dt, nx, nz, boxes, handling, forced = null) {
     const r = handling.radius;
-    const free = (x, z) => zoneWalkable(x, z, boxes, r);
-    const kind = forced || zoneBlockKind(nx, nz, boxes, r) || 'solid';
+    const py = levelAt(predicted);
+    const free = (x, z) => zoneWalkable(x, z, boxes, r, py);
+    // (a street lamp's pole is as solid as anything to a motorcycle: it never knocks one down, street-lamps.js)
+    const met = forced || zoneBlockKind(nx, nz, boxes, r, py) || 'solid';
+    const kind = met === 'lamp' ? 'solid' : met;
     const normal = contactNormal(free, predicted.x, predicted.z, nx, nz);
     const c = contactOutcome({ speed: bikeState.speed, heading: bikeState.heading, normal, kind });
     if (c.outcome === 'slide' && !forced) {
@@ -3210,9 +3266,10 @@ function start(carried) {
     if (c.into < CONTACT.scrape * 0.6) return;
     const back = Math.min(0.35, 0.06 + c.into * 0.045);
     const bx = predicted.x + normal.x * back, bz = predicted.z + normal.z * back;
-    if (zoneWalkable(bx, bz, structureBoxes(), handling.radius)) {
+    const py = levelAt(predicted);
+    if (zoneWalkable(bx, bz, structureBoxes(), handling.radius, py)) {
       const r = server.send({ type: 'moto.drive', x: bx, z: bz, heading: bikeState.heading, lean: 0, speed: 0, throttle: 0, brake: true, rev: 0, steer: bikeState.steer });
-      if (r.ok) { predicted.x = bx; predicted.z = bz; }
+      if (r.ok) { predicted.x = bx; predicted.z = bz; keepLevel(predicted, zoneSurfaceY(bx, bz, py)); }
     }
     kick(Math.min(1, c.into / CONTACT.knock), normal);
     audio.blow(kind === 'barrier' ? 'shove' : 'block', predicted.x, predicted.z);
@@ -3226,7 +3283,7 @@ function start(carried) {
     const r = server.send({ type: 'moto.crash', speed, heading });
     if (r.ok && r.fell) {
       bikeState.speed = 0; moto.speed = 0; bikeState.lean = 0; moto.lean = 0;
-      predicted.x = r.x; predicted.z = r.z;
+      predicted.x = r.x; predicted.z = r.z; keepLevel(predicted, host.game.view(playerId).self.y);
       kick(1, normal);
       jolt();
       audio.blow('fall', r.bike.x, r.bike.z);
@@ -3253,17 +3310,18 @@ function start(carried) {
     if (stopsAtBridge(nx, nz, bikeState.heading + (bikeState.speed < 0 ? Math.PI : 0), 1.2)) { bikeState.speed = 0; moto.speed = 0; return 0; }
     // into something: along it, against it, or a crash (meetWithBike); never through it
     const boxes = structureBoxes();
-    if (!zoneWalkable(nx, nz, boxes, handling.radius)) {
+    const py = levelAt(predicted);
+    if (!zoneWalkable(nx, nz, boxes, handling.radius, py)) {
       const on = meetWithBike(dt, nx, nz, boxes, handling);
       if (!on) return 0;
       nx = on.x; nz = on.z;
     }
     // (with what the bike is doing, for other players to see and hear: its lean, speed, throttle, brake and revs)
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: bikeState.heading, lean: bikeState.lean, speed: bikeState.speed, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(bikeState.speed, bikeState.throttle, handling), steer: bikeState.steer });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = bikeState.heading; if (result.hit) bikeState.speed = 0; }
+    if (result.ok) { predicted.x = nx; predicted.z = nz; keepLevel(predicted, zoneSurfaceY(nx, nz, py)); predicted.heading = bikeState.heading; if (result.hit) bikeState.speed = 0; }
     // (the town saw something in the way that the page did not: a vehicle, a gate)
     else if (result.code === 'BLOCKED') { meetWithBike(dt, nx, nz, boxes, handling, 'solid'); return 0; }
-    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; bikeState.speed = 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); bikeState.speed = 0; }
     if (clock - cam.lastDrag > 1.5 && bikeState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.2);
     return Math.abs(bikeState.speed);
   }
@@ -3284,9 +3342,10 @@ function start(carried) {
     const nx = predicted.x + Math.sin(predicted.heading) * moto.speed * dt;
     const nz = predicted.z + Math.cos(predicted.heading) * moto.speed * dt;
     if (stopsAtBridge(nx, nz, predicted.heading + (moto.speed < 0 ? Math.PI : 0), 1.1)) { moto.speed = 0; return 0; }
-    if (!zoneWalkable(nx, nz, structureBoxes(), MOTO.radius)) { moto.speed = 0; return 0; }
+    const py = levelAt(predicted);
+    if (!zoneWalkable(nx, nz, structureBoxes(), MOTO.radius, py)) { moto.speed = 0; return 0; }
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: predicted.heading });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; if (result.hit) moto.speed = 0; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; moto.speed = 0; }
+    if (result.ok) { predicted.x = nx; predicted.z = nz; keepLevel(predicted, zoneSurfaceY(nx, nz, py)); if (result.hit) moto.speed = 0; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); moto.speed = 0; }
     if (clock - cam.lastDrag > 1.5 && moto.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.6);
     return Math.abs(moto.speed);
   }
@@ -3391,7 +3450,7 @@ function start(carried) {
     }
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: boatState.heading, speed: boatState.speed, throttle: boatState.throttle, brake: boatState.braking, steer: boatState.steer, bank: boatState.bank, pitch: boatState.pitch, rev: boatRevs(h.top) });
     if (result.ok) { predicted.x = nx; predicted.z = nz; }
-    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; stillBoat(); }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); stillBoat(); }
     if (clock - cam.lastDrag > 1.5 && boatState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 1.8);
     return Math.abs(boatState.speed);
   }
@@ -3416,7 +3475,7 @@ function start(carried) {
     }
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: boatState.heading, speed: boatState.speed, steer: boatState.steer });
     if (result.ok) { predicted.x = nx; predicted.z = nz; }
-    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; stillBoat(); }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); stillBoat(); }
     if (clock - cam.lastDrag > 1.5 && boatState.speed > 0.6) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 1.2);
     return Math.abs(boatState.speed);
   }
@@ -3496,7 +3555,7 @@ function start(carried) {
     if (!zoneSwimmable(nx, nz) || !inSurf(nx, nz)) { surfState.speed = 0; surfState.across = 0; return 0; }
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading, speed: surfState.speed, lean: surfState.lean, phase: surfState.phase });
     if (result.ok) { predicted.x = nx; predicted.z = nz; if (result.mode && result.mode !== s.mode) refreshView(); }
-    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; surfState.speed = 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); surfState.speed = 0; }
     if (clock - cam.lastDrag > 1.5 && surfState.speed > 0.6) cam.yaw += angleGap(heading, cam.yaw) * Math.min(1, dt * 1.6);
     return surfState.speed;
   }
@@ -3514,8 +3573,10 @@ function start(carried) {
   // Meeting something on it, as on a motorcycle (meetWithBike): along a wall it scrapes along; harder it stops dead with
   // a jolt; a real crash throws the rider, and the town decides that (own-sports.js `crash`).
   function meetWithSport(dt, nx, nz, boxes, h, forced = null) {
-    const free = (x, z) => zoneWalkable(x, z, boxes, h.room);
-    const kind = forced || zoneBlockKind(nx, nz, boxes, h.room) || 'solid';
+    const py = levelAt(predicted);
+    const free = (x, z) => zoneWalkable(x, z, boxes, h.room, py);
+    const met = forced || zoneBlockKind(nx, nz, boxes, h.room, py) || 'solid';
+    const kind = met === 'lamp' ? 'solid' : met;
     const normal = contactNormal(free, predicted.x, predicted.z, nx, nz);
     const c = contactOutcome({ speed: sportState.speed, heading: sportState.heading, normal, kind });
     if (c.outcome === 'slide' && !forced) {
@@ -3534,7 +3595,7 @@ function start(carried) {
       const r = server.send({ type: 'moto.crash', speed: sportState.speed, heading: sportState.heading });
       if (r.ok && r.fell) {
         stillSport(); moto.speed = 0; moto.lean = 0;
-        predicted.x = r.x; predicted.z = r.z;
+        predicted.x = r.x; predicted.z = r.z; keepLevel(predicted, host.game.view(playerId).self.y);
         kick(1, normal); jolt();
         audio.blow('fall', r.item.x, r.item.z);
         ui.toast({ type: 'alert', title: 'Thrown off', text: `You hit it at ${r.kmh} km/h and came off. Your ${SPORTS[r.item.id].name} is where it fell.` });
@@ -3547,9 +3608,9 @@ function start(carried) {
     if (c.into < CONTACT.scrape * 0.6) return null;
     const back = Math.min(0.3, 0.05 + c.into * 0.04);
     const bx = predicted.x + normal.x * back, bz = predicted.z + normal.z * back;
-    if (zoneWalkable(bx, bz, structureBoxes(), h.room)) {
+    if (zoneWalkable(bx, bz, structureBoxes(), h.room, py)) {
       const r = server.send({ type: 'moto.drive', x: bx, z: bz, heading: sportState.heading, lean: 0, speed: 0, throttle: 0, brake: true, steer: sportState.steer, phase: sportState.phase });
-      if (r.ok) { predicted.x = bx; predicted.z = bz; }
+      if (r.ok) { predicted.x = bx; predicted.z = bz; keepLevel(predicted, zoneSurfaceY(bx, bz, py)); }
     }
     kick(Math.min(1, c.into / CONTACT.knock), normal);
     audio.blow(kind === 'barrier' ? 'shove' : 'block', predicted.x, predicted.z);
@@ -3578,16 +3639,17 @@ function start(carried) {
     let nz = predicted.z + Math.cos(sportState.heading) * sportState.speed * dt;
     if (stopsAtBridge(nx, nz, sportState.heading + (sportState.speed < 0 ? Math.PI : 0), 1.0)) { stillSport(); moto.speed = 0; return 0; }
     const boxes = structureBoxes();
-    if (!zoneWalkable(nx, nz, boxes, h.room)) {
+    const py = levelAt(predicted);
+    if (!zoneWalkable(nx, nz, boxes, h.room, py)) {
       const on = meetWithSport(dt, nx, nz, boxes, h);
       if (!on) return 0;
       nx = on.x; nz = on.z;
     }
     // (with what it is doing, for other players to see: its lean, speed and steering, the pedals or the push or the stride)
     const result = server.send({ type: 'moto.drive', x: nx, z: nz, heading: sportState.heading, lean: sportState.lean, speed: sportState.speed, throttle: sportState.throttle, brake: sportState.braking, steer: sportState.steer, phase: sportState.phase });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = sportState.heading; sportState.sentHeading = sportState.heading; if (result.hit) sportState.speed = 0; }
+    if (result.ok) { predicted.x = nx; predicted.z = nz; keepLevel(predicted, zoneSurfaceY(nx, nz, py)); predicted.heading = sportState.heading; sportState.sentHeading = sportState.heading; if (result.hit) sportState.speed = 0; }
     else if (result.code === 'BLOCKED') { meetWithSport(dt, nx, nz, boxes, h, 'solid'); return 0; }
-    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; sportState.speed = 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); sportState.speed = 0; }
     if (clock - cam.lastDrag > 1.5 && sportState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.2);
     return Math.abs(sportState.speed);
   }
@@ -3649,11 +3711,38 @@ function start(carried) {
   // (19 October 2026: as on a motorcycle, contact.js decides: along a wall it scrapes along, a knock stops it, only a
   // real crash hurts the driver, the town deciding; the edge of the map hurts nobody. Returns where the car goes on to,
   // sliding, or null.)
+  // A street lamp's pole in the car's way (street-lamps.js, 31 October 2026): where its front, or a side, meets one.
+  function lampAhead(spec, nx, nz, py) {
+    const way = Math.sign(carState.speed) || 1, h = carState.heading;
+    const fx = Math.sin(h) * way, fz = Math.cos(h) * way, rx = Math.cos(h), rz = -Math.sin(h);
+    const half = (spec.length || 4.6) / 2, w = (spec.width || 1.9) / 2;
+    for (const k of [0, -0.7, 0.7, -1, 1]) { const i = lampInTheWay(nx + fx * half + rx * w * k, nz + fz * half + rz * w * k, 0.45, py); if (i >= 0) return i; }
+    for (const t of [0.5, 0, -0.5]) for (const k of [-1, 1]) { const i = lampInTheWay(nx + fx * half * t + rx * w * k, nz + fz * half * t + rz * w * k, 0.3, py); if (i >= 0) return i; }
+    return -1;
+  }
   function meetWithCar(dt, spec, nx, nz, boxes, forced = null) {
-    const free = (x, z) => carFits(spec.id, x, z, carState.heading, boxes, 0.2);
+    const py = levelAt(predicted);
+    const free = (x, z) => carFits(spec.id, x, z, carState.heading, boxes, 0.2, py);
     const way = Math.sign(carState.speed) || 1;
     const ex = nx + Math.sin(carState.heading) * (spec.length / 2) * way, ez = nz + Math.cos(carState.heading) * (spec.length / 2) * way;
-    const kind = forced || zoneBlockKind(ex, ez, boxes, 0.6) || 'solid';
+    let kind = forced || zoneBlockKind(ex, ez, boxes, 0.6, py) || 'solid';
+    // A street lamp: fast enough (LAMP_KNOCK: 35 km/h, a heavy car 25), it goes down, the town judging it (lamps.js),
+    // and the car goes on through it at two thirds of its pace with a jolt; slower, the pole stands, shaking, its lamp
+    // flickering, and the car stops against it as against a wall
+    const li = forced ? -1 : lampAhead(spec, nx, nz, py);
+    if (li >= 0) {
+      if (Math.abs(carState.speed) >= knockSpeedOf(spec.class)) {
+        const r = server.send({ type: 'lamp.knock', lamp: STREET_LAMPS[li].id, speed: carState.speed, heading: carState.heading });
+        if (r.ok && r.down) {
+          if (!r.already && streetLamps) streetLamps.snapped(li);
+          carState.speed *= r.keep || LAMP_KNOCK.keep;
+          kick(0.75, { x: -Math.sin(carState.heading) * way, z: -Math.cos(carState.heading) * way }); jolt();
+          if (carView) carView.knock('drive', 0.9);
+          if (free(nx, nz)) return { x: nx, z: nz };
+        }
+      } else if (streetLamps) streetLamps.shake(li, carState.heading + (way < 0 ? Math.PI : 0));
+      kind = 'solid';
+    } else if (kind === 'lamp') kind = 'solid';
     const normal = contactNormal(free, predicted.x, predicted.z, nx, nz);
     const c = contactOutcome({ speed: carState.speed, heading: carState.heading, normal, kind });
     if (c.outcome === 'slide' && !forced) {
@@ -3692,7 +3781,8 @@ function start(carried) {
     if (stopsAtBridge(nx, nz, carState.heading + (carState.speed < 0 ? Math.PI : 0), (spec.length || 4.6) / 2 + 0.3)) { carState.speed = 0; return 0; }
     // into something: along it, against it, or a crash (meetWithCar); never through it
     const boxes = structureBoxes();
-    if (!carFits(spec.id, nx, nz, carState.heading, boxes, 0.2)) {
+    const py = levelAt(predicted);
+    if (!carFits(spec.id, nx, nz, carState.heading, boxes, 0.2, py)) {
       const on = meetWithCar(dt, spec, nx, nz, boxes);
       if (!on) return 0;
       nx = on.x; nz = on.z;
@@ -3701,9 +3791,9 @@ function start(carried) {
     const result = server.send({ type: 'car.drive', x: nx, z: nz, heading: carState.heading, steer: carState.steer, speed: carState.speed, throttle: carState.throttle, brake: carState.braking, rev: carRevs(carState.speed, carState.throttle, handling), lamps: night > 0.25 });
     // (someone struck is not what stops a car, 31 October 2026: it loses a little of its pace and goes on over them, the
     // nose dipping with the blow, impact.js)
-    if (result.ok) { predicted.x = nx; predicted.z = nz; predicted.heading = carState.heading; if (result.hit) { const over = result.hit.every((h) => h.over || h.body); carState.speed *= over ? 0.95 : 0.88; if (carView) carView.knock('drive', over ? 0.35 : Math.min(1, 0.4 + Math.abs(carState.speed) / 10)); } }
+    if (result.ok) { predicted.x = nx; predicted.z = nz; keepLevel(predicted, zoneSurfaceY(nx, nz, py)); predicted.heading = carState.heading; if (result.hit) { const over = result.hit.every((h) => h.over || h.body); carState.speed *= over ? 0.95 : 0.88; if (carView) carView.knock('drive', over ? 0.35 : Math.min(1, 0.4 + Math.abs(carState.speed) / 10)); } }
     else if (result.code === 'BLOCKED') { meetWithCar(dt, spec, nx, nz, boxes, 'solid'); return 0; }
-    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; carState.speed = 0; }
+    else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); carState.speed = 0; }
     // the view swings round behind the car as it goes (not while it backs up)
     if (clock - cam.lastDrag > 1.5 && carState.speed > 0.8) cam.yaw += angleGap(predicted.heading, cam.yaw) * Math.min(1, dt * 2.0);
     return Math.abs(carState.speed);
@@ -3741,7 +3831,7 @@ function start(carried) {
     const nx = predicted.x + Math.sin(predicted.heading) * going.speed * dt, nz = predicted.z + Math.cos(predicted.heading) * going.speed * dt;
     if (!zoneSwimmable(nx, nz) && !zoneWalkable(nx, nz)) { going.speed = 0; return 0; }
     const result = server.send({ type: 'move', x: nx, z: nz, heading: predicted.heading, run: hard });
-    if (result.ok) { predicted.x = nx; predicted.z = nz; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; going.speed = 0; }
+    if (result.ok) { predicted.x = nx; predicted.z = nz; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); going.speed = 0; }
     return going.speed;
   }
   const PACE = { gather: 9, shed: 13, turn: 9.5 };      // metres a second each second; radians a second
@@ -3808,7 +3898,9 @@ function start(carried) {
       if (after < 0.62 && after < before && before > 1e-3) { const ox = (s.x - predicted.x) / before, oz = (s.z - predicted.z) / before, along = (nx - predicted.x) * ox + (nz - predicted.z) * oz; nx -= ox * along; nz -= oz * along; }
     }
     // (where one may stand, and a step there that one can take: not off the side of a bridge, nor down a drop)
-    const ok = (x, z) => zoneWalkable(x, z, boxes) && zoneStep(predicted.x, predicted.z, x, z);
+    // (on the level they are on: up a ramp from the road, along a flyover inside its walls, or under it: levels.js)
+    const py = levelAt(predicted);
+    const ok = (x, z) => zoneWalkable(x, z, boxes, 0.4, py) && zoneStep(predicted.x, predicted.z, x, z);
     // (on a deck, a step into its rails goes on along it instead; at a deck's end, one into its end's posts goes round
     // them to its way in: habitation.js habitationAlongDeck)
     const slide = !ok(nx, nz) ? habitationAlongDeck(predicted.x, predicted.z, nx - predicted.x, nz - predicted.z, ok) : null;
@@ -3829,12 +3921,12 @@ function start(carried) {
         const ox = (nearest.x - predicted.x) / nearest.d, oz = (nearest.z - predicted.z) / nearest.d;
         const side = dx * -oz + dz * ox >= 0 ? 1 : -1;
         const sx = predicted.x + (-oz * side - ox * 0.08) * speed * dt * 0.7, sz = predicted.z + (ox * side - oz * 0.08) * speed * dt * 0.7;
-        if (ok(sx, sz)) { const slid = server.send({ type: 'move', x: sx, z: sz, heading: predicted.heading, run }); if (slid.ok) { predicted.x = sx; predicted.z = sz; going.speed = Math.min(going.speed, speed * 0.7); return going.speed; } }
+        if (ok(sx, sz)) { const slid = server.send({ type: 'move', x: sx, z: sz, heading: predicted.heading, run }); if (slid.ok) { predicted.x = sx; predicted.z = sz; keepLevel(predicted, zoneSurfaceY(sx, sz, py)); going.speed = Math.min(going.speed, speed * 0.7); return going.speed; } }
       }
       going.speed = Math.min(going.speed, 0.6);
       return 0;
     }
-    if (result.ok) { predicted.x = nx; predicted.z = nz; } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; going.speed = 0; }
+    if (result.ok) { predicted.x = nx; predicted.z = nz; keepLevel(predicted, zoneSurfaceY(nx, nz, py)); } else { const truth = host.game.view(playerId).self; predicted.x = truth.x; predicted.z = truth.z; keepLevel(predicted, truth.y); going.speed = 0; }
     // On the street view (19 October 2026): the camera goes round behind the way the player is going, unhurried,
     // a little quicker at a run, as the classic open-world games do; never round toward someone walking or running at
     // the screen (they come toward it, and it gives way), and not while the player is holding it round themselves.
@@ -4282,7 +4374,7 @@ function start(carried) {
       if (downState && downState.from && downState.kind !== 'dead') {
         const t = fallTime(downState);
         if (downState.age < t) {
-          if (downState.kind === 'crash') fallPlace = flightAt(downState, downState.age, zoneGroundY(downState.from.x, downState.from.z));
+          if (downState.kind === 'crash') fallPlace = flightAt(downState, downState.age, zoneSurfaceY(downState.from.x, downState.from.z, levelAt(predicted)));
           else { const u = Math.min(1, downState.age / t), e = u * u * (3 - 2 * u); fallPlace = { x: downState.from.x + (downState.to.x - downState.from.x) * e, z: downState.from.z + (downState.to.z - downState.from.z) * e }; }
         }
       }
@@ -4309,23 +4401,25 @@ function start(carried) {
       me.limp = !!self.critical && !driving && !riding && !astride && !incar && !self.swimming;
       animateCharacter(me, dt, driving || riding || astride || incar ? 0 : speed, holding, led() ? 0 : going.turn);
       driveKitEmote(dt, speed);
-      // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY)
-      const groundY = zoneGroundY(me.group.position.x, me.group.position.z);
+      // the ground under the figure: the town's, or the bridge's deck and its approaches (zoneGroundY); or the level it is
+      // on, a flyover's deck over a road (zoneSurfaceY, 31 October 2026)
+      const myLevel = levelAt(predicted);
+      const groundY = zoneSurfaceY(me.group.position.x, me.group.position.z, myLevel);
       if (driving) { seatCharacter(me); me.group.position.y = groundY + DRIVER_SEAT[1] - SEATED_HEIGHT * me.scale; } else if (riding) { seatCharacter(me); me.group.position.y = groundY - 0.04; } else if (astride && (ownSurf() || (ownSport() && !sportSeated(ownSport())))) { standCharacter(me); me.group.position.y = groundY; } else if (astride) { seatCharacter(me); me.group.position.y = groundY - 0.15 * me.scale; } else if (incar) { seatCharacter(me); me.group.position.y = groundY; } else { standCharacter(me); me.group.position.y = groundY; }
       // (through the air, thrown over the handlebars)
       if (fallPlace && fallPlace.y !== undefined) me.group.position.y = fallPlace.y;
       // on one of the player's own motorcycles: it is drawn under them, and they sit on it (own-bike-view.js)
-      const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
+      const ownRide = astride && powerBike() ? { id: powerBike().id, x: predicted.x, z: predicted.z, y: myLevel, h: predicted.heading, lean: moto.lean, speed: moto.speed, steer: bikeState.steer, throttle: bikeState.throttle, brake: bikeState.braking, rev: bikeRevs(moto.speed, bikeState.throttle, handlingOf(powerBike())), rough: motoSpeedAt(predicted.x, predicted.z, false) !== MOTO.speedRoad } : null;
       // (one that has just come down carried on to this frame from the town's last word, as a fall is)
       const ownParked = ((self.ownBikes && self.ownBikes.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
-      ownBikeView.update(dt, { ridden: ownRide, parked: ownParked, groundY: zoneGroundY, from: predicted, night, now: clock });
-      if (ownRide) ownBikeView.seat(me, ownRide, zoneGroundY);
+      ownBikeView.update(dt, { ridden: ownRide, parked: ownParked, groundY: groundAt, from: predicted, night, now: clock });
+      if (ownRide) ownBikeView.seat(me, ownRide, groundAt);
       // on one of the player's things from the sports mall: it is drawn under them (the skates on their feet), and they
       // ride it as it is ridden (sport-view.js); theirs left standing are drawn where they are
-      const sportRide = astride && ownSport() ? { id: ownSport(), x: predicted.x, z: predicted.z, h: predicted.heading, lean: sportState.lean, speed: sportState.speed, steer: sportState.steer, phase: sportState.phase, throttle: sportState.throttle, brake: sportState.braking } : null;
+      const sportRide = astride && ownSport() ? { id: ownSport(), x: predicted.x, z: predicted.z, y: myLevel, h: predicted.heading, lean: sportState.lean, speed: sportState.speed, steer: sportState.steer, phase: sportState.phase, throttle: sportState.throttle, brake: sportState.braking } : null;
       const sportParked = ((self.ownSports && self.ownSports.parked) || []).map((b) => (b.fallen && Number.isFinite(b.ago) ? { ...b, ago: b.ago + Math.max(0, clock - viewAt) } : b));
-      sportView.update(dt, { ridden: sportRide, parked: sportParked, groundY: zoneGroundY, from: predicted, now: clock });
-      if (sportRide) sportView.seat(me, sportRide, zoneGroundY);
+      sportView.update(dt, { ridden: sportRide, parked: sportParked, groundY: groundAt, from: predicted, now: clock });
+      if (sportRide) sportView.seat(me, sportRide, groundAt);
       // in the speedboat (31 October 2026): it is drawn in the water under them, rocking, its wake behind it, and they sit
       // at its wheel (boat-view.js); theirs and others' moored where they are, and others' as they drive them
       const boatDriven = astride && ownBoat() ? { x: predicted.x, z: predicted.z, h: predicted.heading, speed: boatState.speed, steer: boatState.steer, bank: boatState.bank, pitch: boatState.pitch } : null;
@@ -4359,17 +4453,17 @@ function start(carried) {
       // in one of the player's own cars: the car is drawn where they are (car-view.js), with the other players' cars
       // near them, and every car of theirs and others' left standing within sight; the player sits at its wheel, seen
       // where its cabin can be seen into (car-view.js says where), unseen in a closed one
-      const ownDrive = incar && ownCar() ? { id: ownCar().id, x: predicted.x, z: predicted.z, h: predicted.heading, speed: carState.speed, steer: carState.steer, throttle: carState.throttle, brake: carState.braking } : null;
+      const ownDrive = incar && ownCar() ? { id: ownCar().id, x: predicted.x, z: predicted.z, y: myLevel, h: predicted.heading, speed: carState.speed, steer: carState.steer, throttle: carState.throttle, brake: carState.braking } : null;
       const peerCars = [], parkedCars = ((self.ownCars && self.ownCars.parked) || []).map((c) => ({ ...c }));
       for (const q of shownPeers) {
-        if (q.car && POWER_CARS[q.car.car]) peerCars.push({ key: q.id, id: q.car.car, x: q.x, z: q.z, h: q.heading, speed: q.car.speed, steer: q.car.steer, throttle: q.car.throttle, brake: q.car.brake, rev: q.car.rev, lamps: q.car.lamps });
+        if (q.car && POWER_CARS[q.car.car]) peerCars.push({ key: q.id, id: q.car.car, x: q.x, z: q.z, y: Number.isFinite(q.gy) ? q.gy : undefined, h: q.heading, speed: q.car.speed, steer: q.car.steer, throttle: q.car.throttle, brake: q.car.brake, rev: q.car.rev, lamps: q.car.lamps });
         for (const c of q.cars || []) parkedCars.push({ ...c, key: `cpark:${q.id}:${c.car}` });
       }
       trafficCars = trafficNow(dt);
       const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
       // (whoever lies on the road near: for the wheels of a car going over them, wheel-bumps.js)
       const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
-      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: zoneGroundY, from: predicted, night, bodies });
+      carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: groundAt, from: predicted, night, bodies });
       const carSeated = !!ownDrive && carView.seat(me, ownDrive);
       carsHeard = peerCars.map((q) => ({ key: q.key, car: q.id, x: q.x, z: q.z, rev: q.rev || 0, throttle: q.throttle || 0 }));
       // the town's cars on the move are heard as other players' are (the nearest few: audio.js), and their horns
@@ -4523,12 +4617,12 @@ blood.update(dt, view.blood || []);
         const rig = crowd.rigOf(`p:${q.id}`);
         if (!rig) continue;
         const g = rig.group;
-        peerRides.push({ key: q.id, id: q.ride.bike, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.ride.lean, speed: q.ride.speed, steer: q.ride.steer || 0, throttle: q.ride.throttle, brake: q.ride.brake, rev: q.ride.rev, rig });
+        peerRides.push({ key: q.id, id: q.ride.bike, x: g.position.x, z: g.position.z, y: Number.isFinite(q.gy) ? q.gy : undefined, h: g.rotation.y, lean: q.ride.lean, speed: q.ride.speed, steer: q.ride.steer || 0, throttle: q.ride.throttle, brake: q.ride.brake, rev: q.ride.rev, rig });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.bikeHornAt(POWER_BIKES[q.ride.bike].horn, g.position.x, g.position.z); }
       }
       const peerParked = [];
       for (const q of shownPeers) for (const b of q.parked || []) peerParked.push({ ...b, key: `ppark:${q.id}:${b.bike}`, ...(b.fallen && Number.isFinite(b.ago) ? { ago: b.ago + Math.max(0, clock - viewAt) } : {}) });
-      peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, night, now: clock });
+      peerBikeView.update(dt, { rides: peerRides, parked: peerParked, parkedMost: 6, groundY: groundAt, from: predicted, night, now: clock });
       // other players on their things from the sports mall (31 October 2026): the thing under them and them on it, as
       // their game says it is going; theirs left standing near them; a bicycle's bell heard where it is
       peerSportRides = [];
@@ -4539,14 +4633,14 @@ blood.update(dt, view.blood || []);
         const rig = crowd.rigOf(`p:${q.id}`);
         if (!rig) continue;
         const g = rig.group;
-        peerSportRides.push({ key: q.id, id: q.sport.sport, x: g.position.x, z: g.position.z, h: g.rotation.y, lean: q.sport.lean, speed: q.sport.speed, steer: q.sport.steer || 0, phase: q.sport.phase || 0, throttle: q.sport.throttle, brake: q.sport.brake, rig });
+        peerSportRides.push({ key: q.id, id: q.sport.sport, x: g.position.x, z: g.position.z, y: Number.isFinite(q.gy) ? q.gy : undefined, h: g.rotation.y, lean: q.sport.lean, speed: q.sport.speed, steer: q.sport.steer || 0, phase: q.sport.phase || 0, throttle: q.sport.throttle, brake: q.sport.brake, rig });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.cycleBell(g.position.x, g.position.z); }
       }
-      peerSportView.update(dt, { rides: peerSportRides, parked: peerSportParked, parkedMost: 6, groundY: zoneGroundY, from: predicted, now: clock });
+      peerSportView.update(dt, { rides: peerSportRides, parked: peerSportParked, parkedMost: 6, groundY: groundAt, from: predicted, now: clock });
       for (const r of peerSportRides) {
         if (sportSeated(r.id)) seatCharacter(r.rig); else standCharacter(r.rig);
         // (not drawn yet: they stand where they are until it is)
-        if (!peerSportView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`)) r.rig.group.position.set(r.x, zoneGroundY(r.x, r.z), r.z);
+        if (!peerSportView.seat(r.rig, r, groundAt, `peer:${r.key}`)) r.rig.group.position.set(r.x, groundAt(r.x, r.z, r.y), r.z);
       }
       // another player at the wheel of their car: seen in their seat where its cabin can be seen into, as the player is
       // (car-view.js); unseen in a closed one, or while their car is not drawn (its picture stands in for it, below)
@@ -4555,7 +4649,7 @@ blood.update(dt, view.blood || []);
         if (!q.car) continue;
         const rig = crowd.rigOf(`p:${q.id}`);
         if (rig) { seatCharacter(rig); rig.group.visible = carView.seat(rig, { steer: q.car.steer }, `peer:${q.id}`); }
-        if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: zoneGroundY(q.x, q.z), z: q.z, h: q.heading });
+        if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: groundAt(q.x, q.z, q.gy), z: q.z, h: q.heading });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
       }
       for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: zoneGroundY(e.x, e.z), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
@@ -4566,10 +4660,10 @@ blood.update(dt, view.blood || []);
       for (const r of view.sportRiders || []) { const was = riderBells.has(r.n) ? riderBells.get(r.n) : 99; if (r.bellAgo >= 0 && r.bellAgo < 0.8 && r.bellAgo < was - 0.05 && Math.hypot(r.x - predicted.x, r.z - predicted.z) < 50) { audio.cycleBell(r.x, r.z); riderBellsHeard += 1; } riderBells.set(r.n, r.bellAgo); }
       for (const r of peerRides) {
         seatCharacter(r.rig); r.rig.group.rotation.z = r.lean || 0;
-        if (peerBikeView.seat(r.rig, r, zoneGroundY, `peer:${r.key}`)) continue;
+        if (peerBikeView.seat(r.rig, r, groundAt, `peer:${r.key}`)) continue;
         // their motorcycle not drawn as its model (on its way, or beyond the nearest few): its picture stands in for
         // it, and they sit where its saddle is, rather than on nothing
-        const fx = Math.sin(r.h), fz = Math.cos(r.h), gy = zoneGroundY(r.x, r.z);
+        const fx = Math.sin(r.h), fz = Math.cos(r.h), gy = groundAt(r.x, r.z, r.y);
         r.rig.group.position.set(r.x - fx * 0.17, gy - 0.15 * r.rig.scale, r.z - fz * 0.17);
         if (Math.hypot(r.x - predicted.x, r.z - predicted.z) < PEER_STANDIN) standing.push({ key: `b:${r.key}`, kind: 'bike', id: r.id, x: r.x, y: gy, z: r.z, h: r.h });
         else r.rig.group.visible = false;
@@ -4578,7 +4672,7 @@ blood.update(dt, view.blood || []);
       // the phone in other players' hands, as they hold it: on foot, on a motorcycle (the left hand), at the wheel (the right)
       updatePeerPhones(dt);
       // other players' guns and rounds, and the officers' (gun-play.js)
-      if (gunPlay) gunPlay.frameOthers(dt, { peers: shownPeers, shooting: view.shooting || [], shots: view.shots || [], eye: { x: predicted.x, y: zoneGroundY(predicted.x, predicted.z) + 1.6, z: predicted.z }, rigOf: (key) => crowd.rigOf(key) });
+      if (gunPlay) gunPlay.frameOthers(dt, { peers: shownPeers, shooting: view.shooting || [], shots: view.shots || [], eye: { x: predicted.x, y: levelAt(predicted) + 1.6, z: predicted.z }, rigOf: (key) => crowd.rigOf(key) });
       // a moving okada close by sounds its horn
       if (!driving && !riding && !astride && clock - lastHonk > 12) for (const b of crowd.bikes()) if (b.truth.moving && Math.hypot(b.x - predicted.x, b.z - predicted.z) < 4.5) { lastHonk = clock; audio.horn(b.x, b.z); break; }
 
@@ -4597,7 +4691,7 @@ blood.update(dt, view.blood || []);
       if (cam.free) cam.target.set(cam.free.x, cam.free.y, cam.free.z);
       // (with a gun out, where the aim is from, at once: what is in the middle of the picture is where the rounds go)
       else if (gunPlay && gunPlay.out && !gunPlay.overviewing) gunPlay.cameraTarget(me, cam.target);
-      else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneGroundY(me.group.position.x, me.group.position.z), me.group.position.z), 1 - Math.exp(-dt * 9));
+      else cam.target.lerp(camGoal.set(me.group.position.x, 1.55 + zoneSurfaceY(me.group.position.x, me.group.position.z, levelAt(predicted)), me.group.position.z), 1 - Math.exp(-dt * 9));
       if (!cam.free) { frameTalk(dt); frameCarTalk(dt); }
     } else {
       // the start screen circles the town centre
@@ -4735,15 +4829,10 @@ blood.update(dt, view.blood || []);
     for (const showroom of world.showrooms) showroom.setNight(night);
     siteLayer.setNight(night * 1.5);
     world.waterMaterial.color.copy(linear(ZONE_PROPS.water.day)).lerp(linear(ZONE_PROPS.water.night), night * 0.8).lerp(linear(ZONE_PROPS.water.dull), skyState.dull * 0.5);
-    lampTimer += dt;
-    if (lampTimer > 0.5) {
-      lampTimer = 0;
-      const nearest = world.lampHeads.map((lamp) => ({ lamp, d: Math.hypot(lamp.x - cam.target.x, lamp.z - cam.target.z) })).sort((a, b) => a.d - b.d);
-      lampLights.forEach((light, index) => { const item = nearest[index]; if (item) { light.position.x = item.lamp.x; light.position.z = item.lamp.z; light.position.y = 4.8 + zoneGroundY(item.lamp.x, item.lamp.z); } });
-    }
-    for (const light of lampLights) light.intensity = hall ? 0 : night * STREET_LAMP.intensity;
-    lampPools.mesh.visible = night > 0.02;
-    lampPools.material.opacity = night * 0.5;
+    // the street lamps: lit one after another at dusk, any knocked down falling, lying, standing again (render-lamps.js)
+    streetLamps.update(dt, { night, wet: groundWet, camera, hall: !!hall, target: cam.target, reach: lampReach });
+    // (its slim trees read once it is in sight: not while the eye is in the town, nor before the habitation near the player)
+    if (city.ready && cityShown && !habitationBusy()) { if (habitationKit && habitationKit.plants) city.trees.use(habitationKit.plants); else if (!habitationKit && playing && !cityOnDisk && performance.now() > habitationRetryAt) habitationCodeOf().catch(() => { habitationRetryAt = performance.now() + 30000; }); city.update(dt, { night, hour, camera, storm: weather.kind === 'storm' ? 1 : weather.wet ? 0.4 : 0 }); }
     markerMaterial.opacity = 0.55 + Math.sin(clock * 3) * 0.3;
 
     monitor.mark('sound and sight');
@@ -4788,6 +4877,13 @@ blood.update(dt, view.blood || []);
       // (a phone far to the east: the land beyond the town let go, BEYOND_PHONE)
       if (LITE && playing && outskirts.ready && predicted.x > BEYOND_PHONE.go && predicted.z <= 150) letGoBeyond();
       outskirts.see(cam.target.x, cam.target.z, reach, outdoors);
+      // (Oganiru City: built once the town is warmed up, or at once for someone already in it; a phone far from it lets it go)
+      if (!city.ready && playing && cityWanted(predicted.x, predicted.z)) { if (oganiruAway(predicted.x, predicted.z) < 60) buildCity(); else if (warm.stage >= 5) cityBegun = true; }
+      if (LITE && playing && city.ready && oganiruAway(predicted.x, predicted.z) > CITY_PHONE.go) letGoCity();
+      // (its street lamps, the deck's lights' pools among them, drawn while it is)
+      if (city.ready) { cityShown = city.see(cam.target.x, cam.target.z, reach * 1.25) !== false; streetLamps.show({ city: cityShown }); }
+      // (the street lamps: a kind of them all further off than this not drawn, render-lamps.js)
+      lampReach = reach * 1.25;
       world.seeVehicles(camera.position.x, camera.position.z, reach + cam.dist);
       town.see(cam.target.x, cam.target.z, reach, outdoors);
     }
@@ -4811,6 +4907,9 @@ blood.update(dt, view.blood || []);
     if (clock - programsPinnedAt > 2) { programsPinnedAt = clock; warmUp.pin(); }
     // the land beyond the town, a piece a frame once begun (buildBeyond)
     if (beyondBegun && !outskirts.ready && playing) stepBeyond();
+    // (the habitation first: while it is being made ready near the player, the city waits; 1 November 2026, the habitation
+    // test's sign, from which it is to be seen within two minutes of the land beyond the town being in)
+    else if (cityBegun && !city.ready && playing && !habitationBusy()) stepCity();
     monitor.mark('drawing');
     // behind the opening nothing of the town can be seen: once it is warmed up, it is not drawn at all
     // the start screen covers the town entirely: once it is warmed, it is not drawn behind it for nobody
@@ -4978,7 +5077,11 @@ blood.update(dt, view.blood || []);
     // the town's voices (28 October 2026): what the page has fetched and played
     voicePlayer, voiceStats: () => ({ ...voicePlayer.stats(), ...audio.voiceStats() }),
     get host() { return host; }, get playerId() { return playerId; }, get view() { return view; }, ui, cam, get crowd() { return crowd; }, audio, get ownBikeView() { return ownBikeView; }, rideBike: (id) => rideOwnBike(id), bikeState, get sportView() { return sportView; }, get peerSportView() { return peerSportView; }, get sportRidersView() { return sportRidersView; }, takeSport: (n) => takeSport(n), retakeSport: (n) => retakeSport(n), get boatView() { return boatView; }, get shipView() { return shipView; }, get surfView() { return surfView; }, surfState, surfOut: () => surfOut(), standUp: () => standUp(), offBoard: () => offBoard(), ownSurf: () => ownSurf(), waveNow: () => waveNow(), boatState, launchBoat: () => launchBoat(), boardShip: () => boardShip(), leaveBoat: () => leaveBoat(), ownBoat: () => ownBoat(), aboardShip: () => aboardShip(), shipsNow: () => shipsNow(), get bellsHeard() { return riderBellsHeard; }, get peerSportRides() { return peerSportRides; }, rideSport: (id) => rideOwnSport(id), sportState, ownSport: () => ownSport(), speedo, bikeCc: (id) => (POWER_BIKES[id] ? POWER_BIKES[id].cc : 0), bikeTop: (id) => (POWER_BIKES[id] ? handlingOf(POWER_BIKES[id]).top : 0), get peerBikeView() { return peerBikeView; }, get peerRides() { return peerRides; }, get shownPeers() { return shownPeers; }, get predicted() { return predicted; }, ground: (x, z) => zoneGroundY(x, z), service: (id) => { const sv = ZONE_SERVICES.find((x) => x.id === id) || ZONE_SERVICES[id]; return sv ? { x: sv.x, z: sv.z } : null; }, peerKekes, claimedFleet, vehicleActors, get peerHornsHeard() { return peerHornsHeard; }, get night() { return night; }, get headlight() { return headlight; }, server, prompt: () => findPrompt(), get town() { return town; }, bubbles, known, perf,
-    place(x, z) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; refreshView(); },
+    // (and, since 31 October 2026, on the level `y` there: a flyover's deck over a road; the ground if none is given)
+    place(x, z, y) { const p = host.game.state.players[playerId]; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; const lv = Number.isFinite(y) ? y : zoneGroundY(x, z); keepLevel(p, lv); keepLevel(predicted, lv); refreshView(); },
+    // (a street lamp knocked down the way `dir`, as a car would knock it: render-lamps.js draws it fall; the tests)
+    knockLamp(id, dir = 0) { const i = STREET_LAMPS.findIndex((l) => l.id === id); if (i < 0) return false; return knockLamp(i, host.game.state.real, dir, playerId); },
+    lampsNear(x, z, reach = 30) { return STREET_LAMPS.map((l, i) => ({ id: l.id, i, kind: l.kind, x: l.x, z: l.z, y: l.y, knock: l.knock, d: Math.hypot(l.x - x, l.z - z) })).filter((l) => l.d < reach).sort((a, b) => a.d - b.d); },
     // puts the vehicle being driven somewhere, for screenshots
     park(x, z, heading) { const p = host.game.state.players[playerId]; const v = host.game.state.vehicles.list[p.driving]; v.x = x; v.z = z; v.heading = heading; p.x = x; p.z = z; p.lastMoveAt = host.game.state.real; predicted.x = x; predicted.z = z; predicted.heading = heading; car.speed = 0; refreshView(); },
     get car() { return car; }, controls, monitor, rig, get mode() { return mode; },
@@ -5008,7 +5111,7 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)
-    get beyond() { return outskirts.ready; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
+    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },

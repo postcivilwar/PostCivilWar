@@ -4,3 +4,6 @@ prototype/dist/
 .notes/
 .vercel/
 node_modules/
+prototype/tools/city/zone.json
+prototype/tools/city/plan.json
+prototype/tools/city/plan-*.png

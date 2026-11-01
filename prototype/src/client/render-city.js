@@ -236,12 +236,8 @@ export function buildCity(scene, { glowMaterial, lite = false, addTree } = {}) {
   for (const f of CITY_FURNITURE) {
     const y = g(f.x, f.z);
     if (f.kind === 'light') {
-      // a tall pole, an arm out over the road, the lamp under its end
-      B.metal.round(new THREE.CylinderGeometry(0.08, 0.13, 8.4, 10), place(f.x, y + 4.2, f.z), 0x3b3f44);
-      B.metal.round(new THREE.CylinderGeometry(0.2, 0.24, 0.5, 10), place(f.x, y + 0.25, f.z), 0x33363a);
-      B.metal.round(new THREE.CylinderGeometry(0.045, 0.055, 2.0, 8), place(f.x + f.face * 0.95, y + 8.3, f.z, 0, 1, 1, 1, 0, -f.face * (Math.PI / 2 - 0.12)), 0x3b3f44);
-      B.metal.box(0.75, 0.16, 0.32, place(f.x + f.face * 1.85, y + 8.42, f.z), 0x2c2f33);
-      B.lit.box(0.62, 0.03, 0.24, place(f.x + f.face * 1.85, y + 8.33, f.z), 0xfff1d0);
+      // a tall pole, an arm out over the road, the lamp under its end: drawn by render-lamps.js since 31 October 2026,
+      // as it was drawn here, by itself, so that it can be knocked down
     } else if (f.kind === 'signal') {
       B.metal.round(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 10), place(f.x, y + 1.7, f.z), 0x2a2c30);
       const fx = Math.sin(f.face), fz = Math.cos(f.face);

@@ -134,7 +134,7 @@ export function createSportView(scene, { lite = false, base = 'sports/', onError
 
   function place(e, ride, groundY) {
     const lean = leanOf(e, ride);
-    frameAt(e, ride.x, groundY(ride.x, ride.z), ride.z, ride.h, lean, e.pitch);
+    frameAt(e, ride.x, groundY(ride.x, ride.z, ride.y), ride.z, ride.h, lean, e.pitch);
     if (!e.models) return;
     const steer = ride.steer || 0;
     for (const m of e.models) {
@@ -162,7 +162,7 @@ export function createSportView(scene, { lite = false, base = 'sports/', onError
     const t = !p.fallen ? 10 : Number.isFinite(p.ago) ? p.ago : e.fallenAt > 0 ? Math.max(0, now - e.fallenAt) : 10;
     const k = smooth(t / 0.55);
     const tilt = p.fallen ? PARKED_TILT[e.id] + (FALLEN_TILT[e.id] - PARKED_TILT[e.id]) * k : PARKED_TILT[e.id];
-    const y = groundY(p.x, p.z);
+    const y = groundY(p.x, p.z, p.y);
     if (e.id === 'inline-skates') { standPair(e, p.x, y, p.z, p.h); return; }
     frameAt(e, p.x, y, p.z, p.h, tilt);
     for (const m of e.models) { put(m, e); m.pose({ travelled: e.travelled, steer: e.id === 'bicycle' || e.id === 'e-scooter' ? 0.3 : 0, tilt }); }

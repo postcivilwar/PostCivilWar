@@ -322,6 +322,10 @@ export function createTalk({ state, population, residents, players, weather, hub
     v.boats = (Array.isArray(data.boats) ? data.boats : []).slice(0, 1).map((b) => (b && b.boat === 'speedboat' && near(b, x, z) && boatWater(Number(b.x), Number(b.z), 0) ? { boat: 'speedboat', x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10) } : null)).filter(Boolean);
     // and theirs left standing near them
     v.sports = (Array.isArray(data.sports) ? data.sports : []).slice(0, 3).map((b) => (b && typeof b.item === 'string' && Object.hasOwn(SPORT_HANDLING, b.item) && near(b, x, z) ? { item: b.item, x: Number(b.x), z: Number(b.z), h: n(b.h, -10, 10), fallen: !!b.fallen } : null)).filter(Boolean);
+    // the height of what they stand on (31 October 2026: on a flyover or under it, link.js `gy`), within bounds
+    { const gy = Number(data.gy); v.gy = Number.isFinite(gy) ? Math.max(-3, Math.min(80, gy)) : null; }
+    // the street lamps they knocked down lately (lamps.js: put down here too, once each)
+    if (Array.isArray(data.knocked) && data.knocked.length && hub.lamps) hub.lamps.heard(id, data.knocked);
     // the phone in their hand: held to be read (1), on a call (2), held up for a picture (3), or not out (0)
     v.phone = [1, 2, 3].includes(data.phone) ? data.phone : 0;
     // its torch, lit (only with the phone in hand)

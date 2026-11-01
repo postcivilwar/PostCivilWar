@@ -5,6 +5,9 @@
 // what it needs here. (The page copied to a disk carries it inside, after the game's script.)
 import { createHabitation } from './render-habitation.js';
 import { createHabitationLife } from './render-habitation-life.js';
-import { habitationWind } from './habitation-plants.js';
+import { habitationWind, setHabitationWind, readDressed, decodePicture, PICTURE_OPTIONS } from './habitation-plants.js';
+import { letGoOnceDrawn, decodeAtMost } from './glb.js';
 
-window.__pcwHabitationCode = Object.freeze({ createHabitation, createHabitationLife, habitationWind });
+// (and how its plants are read and their leaves moved, for the slim trees down Oganiru City's middle strips, which are
+// the habitation's slim tree: render-oganiru.js, 31 October 2026)
+window.__pcwHabitationCode = Object.freeze({ createHabitation, createHabitationLife, habitationWind, plants: Object.freeze({ readDressed, decodePicture, PICTURE_OPTIONS, letGoOnceDrawn, decodeAtMost, setHabitationWind }) });

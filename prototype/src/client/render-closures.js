@@ -85,7 +85,11 @@ const at = (x, y, z, ry = 0, rx = 0, rz = 0) => new THREE.Matrix4().compose(new 
 const FENCE_CHUNK = 20;              // panels of fence (three metres each) in one piece
 const SEE_FENCE = 170, SEE_BLOCK = 320;   // metres beyond which a piece of fence, and a roadblock, is not drawn
 
-export function buildClosures(scene, { lite = false } = {}) {
+// (`keep(item, kind)`: which roadblocks (kind 'closure') and runs of fence ('fence') to draw: the town draws its own,
+// Oganiru City its own with itself, render-oganiru.js, so that they are only on the graphics card while it is: 1 November
+// 2026, its nine roadblocks and long edge doubled the town's pieces of these, 5.7 MB more on the card, there from the
+// start. `scene`: what they are put in.)
+export function buildClosures(scene, { lite = false, keep = () => true } = {}) {
   const stripeMap = stripes(), glowMap = stripeGlow();
   const materials = {
     // (the white of the stripes gives back light after dark, as reflective sheeting does in a vehicle's lamps)
@@ -108,6 +112,7 @@ export function buildClosures(scene, { lite = false } = {}) {
 
   // ---- each roadblock ----
   for (const c of ZONE_CLOSURES) {
+    if (!keep(c, 'closure')) continue;
     const P = piece(SEE_BLOCK);
     const len = Math.hypot(c.b.x - c.a.x, c.b.z - c.a.z);
     const ux = (c.b.x - c.a.x) / len, uz = (c.b.z - c.a.z) / len;
@@ -161,6 +166,7 @@ export function buildClosures(scene, { lite = false } = {}) {
   let posts = 0;
   const fenceBoard = ['UNDER CONSTRUCTION', 'No way through: this land is not built yet'];
   for (const r of ZONE_EDGE_FENCES) {
+    if (!keep(r, 'fence')) continue;
     const len = Math.hypot(r.b.x - r.a.x, r.b.z - r.a.z);
     const ux = (r.b.x - r.a.x) / len, uz = (r.b.z - r.a.z) / len;
     const along = Math.atan2(-uz, ux);
@@ -246,5 +252,11 @@ export function buildClosures(scene, { lite = false } = {}) {
     },
     get posts() { return posts; },
     get pieces() { return pieces.length; },
+    // let go of all of it (Oganiru City's, when the city is let go)
+    dispose() {
+      for (const m of meshes) { if (m.parent) m.parent.remove(m); m.geometry.dispose(); }
+      for (const m of new Set([...Object.values(materials), ...faceMaterials.values()])) { if (m.map) m.map.dispose(); if (m.emissiveMap) m.emissiveMap.dispose(); m.dispose(); }
+      meshes.length = 0;
+    },
   };
 }

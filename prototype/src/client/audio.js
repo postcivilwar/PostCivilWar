@@ -761,6 +761,33 @@ export function createAudio() {
     if (made && kind !== 'miss') focus(0.9);
   }
 
+  // A street lamp's pole (render-lamps.js, 31 October 2026): 'hit', knocked gently (it rings, and stands); 'snap', knocked
+  // over (a crunch at its foot as it goes); 'down', on the road (the clang of it, once and a bounce, its glass breaking,
+  // and a crackle of sparks). Made here, as every knock in the game is: no recording.
+  function streetLamp(kind, x, z) {
+    const ring = (out, t, parts, level, length) => {
+      for (const [f, share, decay] of parts) {
+        const osc = ctx.createOscillator(), g = ctx.createGain();
+        osc.type = 'sine'; osc.frequency.value = f;
+        g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(level * share, t + 0.006); g.gain.exponentialRampToValueAtTime(0.0001, t + length * decay);
+        osc.connect(g); g.connect(out); osc.start(t); osc.stop(t + length * decay + 0.05);
+      }
+    };
+    const play = (out, t) => {
+      if (kind === 'hit') { thump(ctx, out, t, 0.3, 170, 70, 0.12); ring(out, t, [[233, 1, 1], [641, 0.6, 0.7], [1187, 0.35, 0.5], [1913, 0.2, 0.35]], 0.12, 1.4); return; }
+      if (kind === 'snap') { thump(ctx, out, t, 0.45, 120, 40, 0.2); burst(out, t, 'lowpass', 900, 0.8, 0.3, 0.18); burst(out, t + 0.02, 'bandpass', 2400, 1.2, 0.12, 0.08); ring(out, t + 0.01, [[311, 1, 0.8], [877, 0.5, 0.6]], 0.08, 0.7); return; }
+      thump(ctx, out, t, 0.5, 140, 45, 0.22);
+      ring(out, t, [[187, 1, 1], [523, 0.7, 0.8], [1031, 0.45, 0.6], [1733, 0.3, 0.45], [2671, 0.18, 0.3]], 0.16, 1.6);
+      ring(out, t + 0.16, [[203, 0.6, 0.6], [571, 0.4, 0.5]], 0.07, 0.8);
+      for (let k = 0; k < 7; k += 1) burst(out, t + 0.05 + k * 0.03 + Math.random() * 0.03, 'highpass', 4200 + Math.random() * 2500, 0.9, 0.09 * (1 - k / 9), 0.05 + Math.random() * 0.05);
+      for (let k = 0; k < 6; k += 1) tick(ctx, out, t + 0.15 + Math.random() * 0.5, 3200 + Math.random() * 3000, 0.03, 0.06);
+      for (let k = 0; k < 5; k += 1) burst(out, t + 0.02 + Math.random() * 0.4, 'bandpass', 2800 + Math.random() * 1500, 2.5, 0.05, 0.02);
+    };
+    const made = at(x, z, kind === 'down' ? 90 : 50, 'lamp', kind === 'down' ? 1.8 : 1.4, 'effects', play);
+    if (made && kind !== 'hit') focus(1.2);
+    return made;
+  }
+
   // A police whistle: a hard trill.
   function whistle(x, z) {
     const made = at(x, z, 110, 'whistle', 1.1, 'effects', (out, t) => {
@@ -1126,7 +1153,7 @@ export function createAudio() {
   return {
     supported: !!Ctx,
     voiceLine, decode, voiceStats: () => ({ ...voiceStats }), playerVoice, micPipe,
-    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, whistle, shout, door, chime, shutter, choose, focus, level,
+    start, update, bell, footstep, horn, bikeHorn, bikeHornAt, carHorn, cycleBell, shipHorn, surfBreak, previewBike, stopPreview, previewing: () => !!preview, blow, streetLamp, whistle, shout, door, chime, shutter, choose, focus, level,
     player,
     // the guns (gun-audio.js): each does nothing with the sound off or not started
     gunLoad: (gun) => { const v = guns(); return v ? v.load(gun) : Promise.resolve(); },

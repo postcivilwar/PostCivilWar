@@ -34,6 +34,9 @@ export * from './supplied-vehicles.js';
 import { TOWN_TREES } from './atani-trees.js';
 import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
 import { openClosures, closureColliders, edgeFences, fenceColliders } from './closures.js';
+// Oganiru City, the new city on the free land west of the town (31 October 2026): its roads, flyovers and towers
+import { OGANIRU, OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } from './oganiru.js';
+export * from './oganiru.js';
 // the habitation at the far end of the River Niger, and the road up the river to it (20 October 2026)
 import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt } from './habitation.js';
 export * from './habitation.js';
@@ -1025,7 +1028,22 @@ export * from './atani-outskirts.js';
 // (the bridge and the far bank; and in the city block, the pavements, a kerb above the road)
 const inHabitation = (x, z) => x > HABITATION.bounds.x0 - 6 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1;
 // (the road up the river and its car park lie level with the town; the habitation has its own hills, decks and shallows)
-export const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z));
+export const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z) || oganiruGroundY(x, z));
+// Where there is more than one level (Oganiru City's flyovers over its roads, 31 October 2026): the surface something at
+// height `y` stands on at (x, z), the highest no more than a step above it (oganiru.js). With no height, the ground.
+// Returns { y, deck } (deck: the flyover, ramp or raised road it is on, or null on the ground).
+const inOganiru = (x, z) => x > OGANIRU.bounds.x0 - 20 && x < OGANIRU.bounds.x1 + 20 && z > OGANIRU.bounds.z0 - 20 && z < OGANIRU.bounds.z1 + 20;
+export function zoneLevel(x, z, y) {
+  const g = zoneGroundY(x, z);
+  if (!Number.isFinite(y) || !inOganiru(x, z)) return { y: g, deck: null };
+  return oganiruSurface(x, z, y, g);
+}
+export const zoneSurfaceY = (x, z, y) => zoneLevel(x, z, y).y;
+// Is there a deck (a flyover, a ramp, the raised expressway) over this point, at any height?
+export const zoneDeckOver = (x, z) => inOganiru(x, z) && oganiruDecksAt(x, z).length > 0;
+// (the street lamps' poles, for the players' things: street-lamps.js registers how to find one in the way)
+let lampBlocker = null;
+export const setLampBlocker = (fn) => { lampBlocker = fn; };
 // One step from (ax, az) to (bx, bz), as the simulation's `move` and the page's own walking take them: in the habitation,
 // not off a bridge's side nor down a drop (habitation.js habitationStep); anywhere else, any step that is on the ground.
 export const zoneStep = (ax, az, bx, bz) => (inHabitation(ax, az) || inHabitation(bx, bz) ? habitationStep(ax, az, bx, bz) : true);
@@ -1036,8 +1054,8 @@ const BILLBOARD_COLLIDERS = ZONE_BILLBOARDS.flatMap((b) => b.feet.map((f) => Obj
 // The roads not open yet, and the edge of the built land (closures.js, 19 October 2026): each roadblock and each run
 // of the fence along the edge, where they stand. (They are barriers, which give a little: contact.js.)
 export * from './closures.js';
-export const ZONE_CLOSURES = Object.freeze(openClosures());
-export const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z)));
+export const ZONE_CLOSURES = Object.freeze([...openClosures(), ...OGANIRU_CLOSURES]);
+export const ZONE_EDGE_FENCES = Object.freeze(edgeFences((x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z) || onOganiru(x, z), OGANIRU_EDGE_LINES));
 const CLOSURE_COLLIDERS = [...closureColliders(ZONE_CLOSURES), ...fenceColliders(ZONE_EDGE_FENCES)];
 export const ZONE_COLLIDERS = Object.freeze([...BILLBOARD_COLLIDERS, ...CLOSURE_COLLIDERS, ...FIXED_COLLIDERS, ...ZONE_TREES.map((t) => boxOf(t.x, t.z, 0.45, 0.45)), ...OUTSKIRT_COLLIDERS, ...OUTSKIRT_BUILDING_COLLIDERS, ...CARSHOW_COLLIDERS, ...SPORTS_COLLIDERS, ...SUPPLIED_VEHICLE_COLLIDERS, ...HABITATION_COLLIDERS].map(Object.freeze));
 const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
@@ -1048,19 +1066,35 @@ const COLLIDER_INDEX = indexBoxes(ZONE_COLLIDERS);
 // (Water and the edge of the map are not solid; they are only not for walking on.)
 export function zoneSolid(x, z, radius = 0.2, above = -Infinity) {
   // (and in the habitation, a tree's buttresses and roots, up to 2.2 m above the ground: habitation.js)
-  return blockedIn(COLLIDER_INDEX, x, z, radius, above) || habitationRootAt(x, z, radius, above);
+  // (and in Oganiru City its towers, decks and pillars at that height, or on the ground its trunks and pillars too)
+  return blockedIn(COLLIDER_INDEX, x, z, radius, above) || habitationRootAt(x, z, radius, above) || (inOganiru(x, z) && (Number.isFinite(above) ? oganiruStructureAt(x, z, zoneGroundY(x, z) + above) : oganiruBlocked(x, z, radius, zoneGroundY(x, z))));
 }
 
 // Is this ground at all: the town's land (not the river) or the land beyond it that can be walked.
-export const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z);
+export const zoneOnGround = (x, z) => onGround(x, z) || onOutskirts(x, z) || onUpriver(x, z) || onHabitation(x, z) || (inOganiru(x, z) && (onOganiru(x, z) || oganiruDecksAt(x, z).length > 0));
 
-export function zoneWalkable(x, z, extra = [], radius = 0.4) {
-  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return false;
+// `y` (31 October 2026, Oganiru City's flyovers): the height the thing stood at before this step, for the players' own
+// things (on foot, and their cars, motorcycles, kekes and rides), which keep to the level they are on: on a deck, only
+// the deck (inside its walls) is open; on the ground, what stands on the ground. With it, the street lamps' poles are
+// in the way too (they can be knocked down: street-lamps.js). Without it (the town's own people and cars), the ground.
+// `extra` boxes may say what level they are at (`y`): only those near the level asked about are in the way.
+const atLevel = (c, y) => !Number.isFinite(c.y) || !Number.isFinite(y) || Math.abs(c.y - y) < 3;
+export function zoneWalkable(x, z, extra = [], radius = 0.4, y = undefined) {
+  const lv = Number.isFinite(y) && inOganiru(x, z) ? zoneLevel(x, z, y) : null;
+  if (lv && lv.deck) {
+    if (!oganiruOnDeck(x, z, radius, lv.y)) return false;
+    for (const c of extra) if (atLevel(c, lv.y) && x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
+    return !(lampBlocker && lampBlocker(x, z, radius, lv.y));
+  }
+  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z) && !onOganiru(x, z)) return false;
   if (blockedIn(COLLIDER_INDEX, x, z, radius)) return false;
   if (habitationRootAt(x, z, radius)) return false;
   // (a habitation deck's rails, whatever ground is beside them: the gate's footbridge begins over the car park's edge)
   if (habitationRailsAt(x, z)) return false;
-  for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
+  if (inOganiru(x, z) && oganiruBlocked(x, z, radius, lv ? lv.y : zoneGroundY(x, z))) return false;
+  const level = lv ? lv.y : Number.isFinite(y) ? zoneGroundY(x, z) : undefined;
+  for (const c of extra) if (atLevel(c, level) && x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return false;
+  if (Number.isFinite(y) && lampBlocker && lampBlocker(x, z, radius, level)) return false;
   return true;
 }
 
@@ -1068,8 +1102,17 @@ export function zoneWalkable(x, z, extra = [], radius = 0.4) {
 // decides what comes of it, contact.js): 'edge' where the ground ends (the end of the map, the river's bank, the bush
 // beyond the roads: not a thing that is hit), 'barrier' for a roadblock's boards, drums and fences (closures.js),
 // 'solid' for anything else (a wall, a post, a parked vehicle, something built), or null where nothing does.
-export function zoneBlockKind(x, z, extra = [], radius = 0.4) {
-  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z)) return 'edge';
+export function zoneBlockKind(x, z, extra = [], radius = 0.4, y = undefined) {
+  // (on a deck: its walls, its middle barrier and its closed ends are solid; 31 October 2026)
+  const lv = Number.isFinite(y) && inOganiru(x, z) ? zoneLevel(x, z, y) : null;
+  if (lv && lv.deck) {
+    if (!oganiruOnDeck(x, z, radius, lv.y)) return 'solid';
+    for (const c of extra) if (atLevel(c, lv.y) && x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return 'solid';
+    return lampBlocker && lampBlocker(x, z, radius, lv.y) ? 'lamp' : null;
+  }
+  if (!onGround(x, z) && !onOutskirts(x, z) && !onUpriver(x, z) && !onHabitation(x, z) && !onOganiru(x, z)) return 'edge';
+  if (inOganiru(x, z) && oganiruBlocked(x, z, radius, lv ? lv.y : zoneGroundY(x, z))) return 'solid';
+  if (Number.isFinite(y) && lampBlocker && lampBlocker(x, z, radius, lv ? lv.y : zoneGroundY(x, z))) return 'lamp';
   let kind = null;
   const i0 = Math.floor((x - radius) / CELL), i1 = Math.floor((x + radius) / CELL);
   const j0 = Math.floor((z - radius) / CELL), j1 = Math.floor((z + radius) / CELL);
@@ -1080,6 +1123,7 @@ export function zoneBlockKind(x, z, extra = [], radius = 0.4) {
       for (const c of list) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) { if (!c.barrier) return 'solid'; kind = 'barrier'; }
     }
   }
-  for (const c of extra) if (x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return 'solid';
+  const level = lv ? lv.y : Number.isFinite(y) ? zoneGroundY(x, z) : undefined;
+  for (const c of extra) if (atLevel(c, level) && x > c.x0 - radius && x < c.x1 + radius && z > c.z0 - radius && z < c.z1 + radius) return 'solid';
   return kind;
 }

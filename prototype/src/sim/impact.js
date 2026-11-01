@@ -31,7 +31,8 @@
 
 import { HEALTH } from './conflict.js';
 import { GameError } from './registry.js';
-import { zoneWalkable, ZONE_RESIDENTS } from './zone.js';
+import { zoneWalkable, ZONE_RESIDENTS, zoneGroundY } from './zone.js';
+import { levelAt } from './levels.js';
 
 const RESIDENT_NAME = new Map(ZONE_RESIDENTS.map((r) => [r.id, r.name]));
 import { POSE } from './population.js';
@@ -126,9 +127,14 @@ export function createImpact({ state, players, population, actors, conflict, tal
   // May `p` step from where they are to (x, z)? Throws if another player, a townsperson or a resident is in
   // the way; the error carries where they stand, so that the walker's client can step round them.
   const blockedBy = (q, name) => { const e = new GameError('IN_THE_WAY', `${name} is in the way.`); e.at = { x: q.x, z: q.z }; return e; };
+  // (only those on the same level: someone on a flyover is not in the way of someone under it, 31 October 2026)
+  const LEVEL_APART = 2;
   function clear(p, x, z) {
     const need = BODY.radius * 2;
+    const py = levelAt(p);
+    const raised = py - zoneGroundY(p.x, p.z) > LEVEL_APART;
     const test = (qx, qz, name) => {
+      if (raised) return;
       const before = Math.hypot(p.x - qx, p.z - qz);
       if (before > need + 8) return;
       const after = Math.hypot(x - qx, z - qz);
@@ -150,6 +156,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
       if (q === p || !solid(q)) continue;
       const before = Math.hypot(p.x - q.x, p.z - q.z);
       if (before > need + 8) continue;
+      if (Math.abs(levelAt(q) - py) > LEVEL_APART) continue;
       const after = Math.hypot(x - q.x, z - q.z);
       // already too close (set down together, or one fell onto the other): any step apart is allowed
       if (before < need) { if (after + 1e-6 < before) throw blockedBy(q, q.name); continue; }
@@ -161,6 +168,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     for (const v of visitors()) {
       const before = Math.hypot(p.x - v.x, p.z - v.z);
       if (before > need + 8) continue;
+      if (Math.abs((Number.isFinite(v.gy) ? v.gy : zoneGroundY(v.x, v.z)) - py) > LEVEL_APART) continue;
       const after = Math.hypot(x - v.x, z - v.z);
       if (before < need) { if (after + 1e-6 < before) throw blockedBy(v, v.name); continue; }
       if (after < need || nearestOnStep(p.x, p.z, x, z, v.x, v.z) < need) throw blockedBy(v, v.name);
@@ -382,11 +390,15 @@ export function createImpact({ state, players, population, actors, conflict, tal
     // (a car strikes whoever it runs into at any pace but a standstill: it never slides through someone, 31 October 2026)
     const car = vehicle.kind === 'car';
     const least = car ? IMPACT.crawl : IMPACT.least;
+    // (on its level only: a car on a flyover strikes nobody under it; nobody of the town's is ever up on one)
+    const vy = levelAt(holder);
+    const raised = vy - zoneGroundY(x1, z1) > LEVEL_APART;
     if (speed >= least) {
       for (const id of Object.keys(players)) {
         const q = players[id];
         if (q === driver || !onFoot(q) || q.dead) continue;
         if (nearestOnStep(ax, az, bx, bz, q.x, q.z) > reach) continue;
+        if (Math.abs(levelAt(q) - vy) > LEVEL_APART) continue;
         const hit = strikePlayer(driver, q, speed, throwTo, vehicle);
         if (hit) hits.push(hit);
       }
@@ -396,7 +408,8 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const now = real();
     let from = holder.sweep;
     if (!from || Math.hypot(bx - from.x, bz - from.z) > 4) from = { x: ax, z: az, at: now - 1 };
-    if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
+    if (raised) holder.sweep = null;
+    else if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
       const rows = population.within(`hit:${driver.id}`, x1, z1, 17, state.t, now);
       const tx = forward ? ux : -ux, tz = forward ? uz : -uz;
       if (speed >= least) {
@@ -414,7 +427,7 @@ export function createImpact({ state, players, population, actors, conflict, tal
     } else holder.sweep = from;
     // the town's riders on their bicycles, skateboards and skates (sport-riders.js): a car knocks them off, as it would
     // anyone on foot, at each step of its way (there are few of them, and they move quickly)
-    if (car && speed >= least && hub.sportRiders && hub.sportRiders.knock) {
+    if (car && !raised && speed >= least && hub.sportRiders && hub.sportRiders.knock) {
       for (const r of hub.sportRiders.riders()) {
         if (!hub.sportRiders.isOut(r)) continue;
         if (Math.abs(r.x - bx) > 12 || Math.abs(r.z - bz) > 12) continue;
@@ -531,10 +544,12 @@ export function createImpact({ state, players, population, actors, conflict, tal
       const forward = (v.x - was.x) * ux + (v.z - was.z) * uz >= 0;
       const lead = forward ? spec.length / 2 : -spec.length / 2;
       const reach = spec.width / 2 + IMPACT.reach;
+      const vy = Number.isFinite(v.gy) ? v.gy : zoneGroundY(v.x, v.z);
       for (const id of Object.keys(players)) {
         const q = players[id];
         if (!onFoot(q) || q.dead || q.swimming || q.custody) continue;
         if (nearestOnStep(was.x + ux * lead, was.z + uz * lead, v.x + ux * lead, v.z + uz * lead, q.x, q.z) > reach) continue;
+        if (Math.abs(levelAt(q) - vy) > 2) continue;
         struckByVisitor(q, v, speed, forward ? h : h + Math.PI);
       }
     }

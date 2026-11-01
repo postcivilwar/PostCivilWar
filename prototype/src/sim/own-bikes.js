@@ -11,6 +11,8 @@
 import { POWER_BIKES, handlingOf, FASTEST } from './power-bikes.js';
 import { zoneWalkable, zoneRoomAt, inPowerbikeHall, inSportsHall, zoneBlockKind, onHabitation, habitationFootOnly, footOnlySaid } from './zone.js';
 import { contactNormal, contactOutcome, crashShare, throwLanding, THROW } from './contact.js';
+import { zoneSurfaceY } from './zone.js';
+import { levelAt, keepLevel, walkLevel } from './levels.js';
 import { GameError } from './registry.js';
 import { clearOfPoint } from './in-the-way.js';
 
@@ -69,13 +71,15 @@ export function createOwnBikes({ state, hub, obstacles, strangers = () => [] }) 
       if (zoneRoomAt(p.x, p.z) || inPowerbikeHall(p.x, p.z) || inSportsHall(p.x, p.z)) throw new GameError('INDOORS', 'Go outside first: your motorcycle is brought to you there.');
       // (the habitation is walked: no vehicle in it, 20 October 2026)
       if (onHabitation(p.x, p.z)) throw new GameError('ON_FOOT_HERE', 'The habitation is on foot: your motorcycle is brought to you at its car park.');
-      if (!zoneWalkable(p.x, p.z, obstacles(), ROOM)) throw new GameError('NO_ROOM', 'There is no room for a motorcycle here. Go out to the road.');
-      at = { x: p.x, z: p.z, h: p.heading || 0 };
+      if (!zoneWalkable(p.x, p.z, obstacles(), ROOM, levelAt(p))) throw new GameError('NO_ROOM', 'There is no room for a motorcycle here. Go out to the road.');
+      at = { x: p.x, z: p.z, h: p.heading || 0, y: levelAt(p) };
     }
     delete parkedOf(p)[id];
     p.astride = `pb:${id}`;
-    p.pbike = { id, x: at.x, z: at.z, h: at.h, movedAt: state.real };
+    const y = Number.isFinite(at.y) ? at.y : levelAt(at);
+    p.pbike = { id, x: at.x, z: at.z, h: at.h, movedAt: state.real, lv: { x: at.x, z: at.z, y } };
     p.x = at.x; p.z = at.z; p.heading = at.h; p.lastMoveAt = state.real;
+    keepLevel(p, y);
     return { bike: id, x: at.x, z: at.z, h: at.h };
   }
 
@@ -96,8 +100,9 @@ export function createOwnBikes({ state, hub, obstacles, strangers = () => [] }) 
     if (gap > handling.top * (elapsed + 0.12) * 1.2 + 0.05) throw new GameError('TOO_FAST', 'Movement rejected.');
     if (gap > 0.02 && hub.impact && hub.impact.stalled(b)) throw new GameError('STALLED', 'The motorcycle has stopped: you hit someone.');
     const boxes = [...obstacles(), ...theirs(b)];
-    const steps = Math.max(1, Math.ceil(gap / 0.4));
-    for (let i = 1; i <= steps; i += 1) if (!zoneWalkable(b.x + ((x - b.x) * i) / steps, b.z + ((z - b.z) * i) / steps, boxes, ROOM - 0.1)) throw new GameError('BLOCKED', 'Movement rejected.');
+    // (on the level it is on, every step: levels.js)
+    const y = walkLevel(b.x, b.z, levelAt(b), x, z, boxes, ROOM - 0.1);
+    if (y === null) throw new GameError('BLOCKED', 'Movement rejected.');
     // a bridge, a boardwalk, a jetty: walked, never ridden onto
     { const f = habitationFootOnly(x, z); if (f) throw new GameError('FOOT_ONLY', footOnlySaid(f)); }
     const fromX = b.x, fromZ = b.z;
@@ -105,8 +110,10 @@ export function createOwnBikes({ state, hub, obstacles, strangers = () => [] }) 
     // page says)
     if (elapsed > 0.004) b.seen = Number.isFinite(b.seen) ? b.seen * 0.5 + (gap / elapsed) * 0.5 : gap / elapsed;
     b.x = x; b.z = z; b.h = heading; b.movedAt = state.real;
+    keepLevel(b, y);
     b.ride = rideOf(step, handling.top);
     p.x = x; p.z = z; p.heading = heading; p.lastMoveAt = state.real;
+    keepLevel(p, y);
     p.stats.driven = (p.stats.driven || 0) + gap;
     const hit = hub.impact ? hub.impact.step(p, { kind: 'moto', id: `pb:${b.id}` }, b, fromX, fromZ, x, z, heading, elapsed) : [];
     return hit.length ? { hit } : {};
@@ -130,26 +137,30 @@ export function createOwnBikes({ state, hub, obstacles, strangers = () => [] }) 
     // what it ran into: the first thing in its way within a step or two ahead (behind, backing up)
     const boxes = [...obstacles(), ...theirs(b)];
     const way = Math.sign(v) || 1;
+    const by = levelAt(b);
     let hit = null;
     for (let d = 0.2; d <= 1.41; d += 0.2) {
       const qx = b.x + Math.sin(h) * d * way, qz = b.z + Math.cos(h) * d * way;
-      const kind = zoneBlockKind(qx, qz, boxes, ROOM - 0.1);
-      if (kind) { hit = { x: qx, z: qz, kind }; break; }
+      // (a street lamp's pole is as solid as anything to a motorcycle: it never knocks one down, street-lamps.js)
+      const kind = zoneBlockKind(qx, qz, boxes, ROOM - 0.1, by);
+      if (kind) { hit = { x: qx, z: qz, kind: kind === 'lamp' ? 'solid' : kind }; break; }
     }
     if (!hit) return { fell: false, outcome: 'none' };
-    const normal = contactNormal((x, z) => zoneWalkable(x, z, boxes, ROOM - 0.1), b.x, b.z, hit.x, hit.z);
+    const normal = contactNormal((x, z) => zoneWalkable(x, z, boxes, ROOM - 0.1, by), b.x, b.z, hit.x, hit.z);
     const c = contactOutcome({ speed: v, heading: h, normal, kind: hit.kind });
     if (c.outcome !== 'crash') return { fell: false, outcome: c.outcome, into: Math.round(c.into * 10) / 10 };
     const share = crashShare(c.into, hit.kind);
     const now = state.real;
-    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now };
+    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, fallen: true, at: now, y: by };
     p.astride = null; p.pbike = null;
     // thrown on over the bars, as far as the blow carries: where there is room on the ground for the body to lie, over
     // a low roadblock or fence when there is ground beyond it, never through anything solid; or, the way on shut, down
     // beside the bike against what it hit (contact.js `throwLanding`)
     const far = Math.min(CRASH.thrown[1], CRASH.thrown[0] + CRASH.carry * c.into);
-    const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(h) * way, uz: Math.cos(h) * way, far: Math.max(far, THROW.nearest), kind: (x, z, r) => zoneBlockKind(x, z, boxes, r) });
+    // (on a flyover, over its own deck: its walls stop the body as anything solid does)
+    const at = throwLanding({ x: b.x, z: b.z, ux: Math.sin(h) * way, uz: Math.cos(h) * way, far: Math.max(far, THROW.nearest), kind: (x, z, r) => { const k = zoneBlockKind(x, z, boxes, r, by); return k === 'lamp' ? 'solid' : k; } });
     p.x = at.x; p.z = at.z; p.lastMoveAt = now;
+    keepLevel(p, zoneSurfaceY(at.x, at.z, by));
     const before = p.health;
     const lie = CRASH.lie[0] + (CRASH.lie[1] - CRASH.lie[0]) * share;
     // (`fall`: thrown forward over the bars, which way the body goes and how it lands: the page shows it, falls.js)
@@ -164,11 +175,13 @@ export function createOwnBikes({ state, hub, obstacles, strangers = () => [] }) 
     const b = p.pbike;
     if (!isOwnBike(p.astride) || !b) throw new GameError('NOT_RIDING', 'You are not on a motorcycle.');
     const boxes = obstacles();
+    const by = levelAt(b);
     const side = { x: Math.cos(b.h), z: -Math.sin(b.h) };
-    const spot = [[side.x * 1.0, side.z * 1.0], [-side.x * 1.0, -side.z * 1.0], [-Math.sin(b.h) * 1.6, -Math.cos(b.h) * 1.6]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes)) || { x: b.x, z: b.z };
-    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h };
+    const spot = [[side.x * 1.0, side.z * 1.0], [-side.x * 1.0, -side.z * 1.0], [-Math.sin(b.h) * 1.6, -Math.cos(b.h) * 1.6]].map(([dx, dz]) => ({ x: b.x + dx, z: b.z + dz })).find((s) => zoneWalkable(s.x, s.z, boxes, 0.4, by)) || { x: b.x, z: b.z };
+    if (own(p).includes(b.id)) parkedOf(p)[b.id] = { x: b.x, z: b.z, h: b.h, y: by };
     p.astride = null; p.pbike = null;
     p.x = spot.x; p.z = spot.z; p.lastMoveAt = state.real;
+    keepLevel(p, zoneSurfaceY(spot.x, spot.z, by));
     return { x: spot.x, z: spot.z, parked: { bike: b.id, x: b.x, z: b.z, h: b.h } };
   }
 
