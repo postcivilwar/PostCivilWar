@@ -266,9 +266,23 @@ export function cityRoute(from, to, { foot = false } = {}) {
   const W = cityWalks();
   const start = entry(W, from, foot), end = entry(W, to, foot);
   if (start < 0 || end < 0) return null;
-  const path = astar(W, start, end, foot);
+  let path = astar(W, start, end, foot);
   if (!path) return null;
+  // (someone part way along the way's first stretch goes on along it, not back to its nearer end first; nor on past where
+  // they are going to the last stretch's far end and back: asked the way again every second or so, as someone on the
+  // move is, they went to and fro between the two ends of a long stretch of pavement for minutes; 1 November 2026)
+  if (path.length >= 2 && alongStretch(from, W.nodes[path[0]], W.nodes[path[1]])) path = path.slice(1);
+  if (path.length >= 2 && alongStretch(to, W.nodes[path[path.length - 2]], W.nodes[path[path.length - 1]])) path = path.slice(0, -1);
   return [...path.map((k) => [W.nodes[k].x, W.nodes[k].z, W.nodes[k].y]), [to.x, to.z, Number.isFinite(to.y) ? to.y : W.nodes[end].y]];
+}
+// is a point on the straight stretch between two of the network's points, between its ends, at its height?
+function alongStretch(at, a, b) {
+  const dx = b.x - a.x, dz = b.z - a.z, L2 = dx * dx + dz * dz;
+  if (L2 < 1) return false;
+  const t = ((at.x - a.x) * dx + (at.z - a.z) * dz) / L2;
+  if (!(t > 0 && t < 1)) return false;
+  const y = Number.isFinite(at.y) ? at.y : 0;
+  return Math.hypot(a.x + dx * t - at.x, a.z + dz * t - at.z) < 1.5 && Math.abs(a.y + (b.y - a.y) * t - y) < 1;
 }
 // the network's point nearest (x, z) at its height that can be walked to straight from there
 function entry(W, at, foot) {

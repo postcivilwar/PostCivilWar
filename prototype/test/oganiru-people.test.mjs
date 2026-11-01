@@ -138,35 +138,46 @@ test('the police chase over an interchange: a wanted player running up the Peace
   const p = w.p;
   const slip = OGANIRU_DECKS.find((d) => d.id === 'p-sb-on');
   const foot = slip.path[0], top = slip.path[slip.path.length - 1];
-  // on Peace Avenue by the slip road's foot, seen doing it by an officer on the scene; the nearest free officer is sent
+  // on Peace Avenue by the slip road's foot, seen doing it by an officer on the scene; the nearest free officer is sent,
+  // on foot from the town (the Peace Interchange is at the city's north end, some 2.3 km by the pavements: at a run,
+  // eight or nine minutes)
   const start = [foot.x - 4, foot.z];
   w.place(p, ...start);
   officerOnScene(w, p.x, p.z, { metres: 16 });
   const victim = w.pop.people.find((q) => q.job !== 'police' && q.job !== 'motorist').index;
   w.I.justice.offence(p, 'assault', { victim: { kind: 'npc', id: victim, name: 'Someone' }, x: p.x, z: p.z });
   const after = () => Object.values(w.g.state.justice.officers).find((o) => o.suspect === p.id && o.duty === 'pursue');
-  until(w, () => p.law.state === 'pursuit' && after(), 400, () => w.place(p, ...start));
+  // (off when she is a dozen metres away: at one star an officer chases at a jog, hardly faster than this runner's, and
+  // one left more than her sight behind loses them)
+  const close = () => { const o = after(), m = o && w.I.actors.get(o.i); return !!m && Math.hypot(m.x - p.x, m.z - p.z) < 12; };
+  until(w, () => p.law.state === 'pursuit' && close(), 800, () => w.place(p, ...start));
   const i = after().i;
-  // at a jog up the middle of the slip road, onto the south-bound carriageway, a little way along it
-  const pts = [...slip.path.filter((q, k) => k % 8 === 0).map((q) => [q.x, q.z]), [top.x, top.z], [top.x - 30, -1138]];
-  let k = 0;
-  until(w, () => k >= pts.length, 200, () => {
-    const [tx, tz] = pts[k], gap = Math.hypot(tx - p.x, tz - p.z);
-    if (gap < 0.2) { k += 1; return; }
-    const s = Math.min(gap, 0.3);
-    assert.ok(w.send(w.id, { type: 'move', x: p.x + ((tx - p.x) / gap) * s, z: p.z + ((tz - p.z) / gap) * s, heading: Math.atan2(tx - p.x, tz - p.z), run: true }).ok, 'up the slip road');
-  });
-  assert.ok(Math.abs(levelAt(p) - 7.5) < 0.05, `up on the expressway at ${levelAt(p)}`);
-  // standing there: the officer comes up a slip road after them, a step at a time, and takes them on the viaduct
+  // at a jog up the middle of the slip road (from where they stand, a few metres up it), onto the south-bound
+  // carriageway, a little way along it; the town's cars drive up it too, and a car just ahead is waited behind
+  const pts = [...slip.path.filter((q, k) => k % 8 === 0 && q.x < start[0] - 1).map((q) => [q.x, q.z]), [top.x, top.z], [top.x - 30, -1138]];
+  // (where the officer is, each tenth of a second: a step at a time, how high, and whether on a slip road)
   let last = { x: w.I.actors.get(i).x, z: w.I.actors.get(i).z }, officerTop = 0, onSlip = 0;
-  until(w, () => p.law.state === 'arrested' || p.law.state === 'custody', 700, () => {
+  const look = () => {
     const m = w.I.actors.get(i);
     if (!m) return;
     assert.ok(Math.hypot(m.x - last.x, m.z - last.z) < 0.9, 'the officer moves by steps');
     last = { x: m.x, z: m.z };
     officerTop = Math.max(officerTop, m.y || 0);
     if (oganiruDecksAt(m.x, m.z).some((h) => h.deck.kind === 'ramp' && Math.abs(h.y - (m.y || 0)) < 0.3 && h.y > 1)) onSlip += 1;
+  };
+  let k = 0, waited = 0;
+  until(w, () => k >= pts.length, 200, () => {
+    look();
+    const [tx, tz] = pts[k], gap = Math.hypot(tx - p.x, tz - p.z);
+    if (gap < 0.2) { k += 1; return; }
+    const s = Math.min(gap, 0.3);
+    const r = w.send(w.id, { type: 'move', x: p.x + ((tx - p.x) / gap) * s, z: p.z + ((tz - p.z) / gap) * s, heading: Math.atan2(tx - p.x, tz - p.z), run: true });
+    if (!r.ok) { waited += 1; assert.ok(r.code === 'BLOCKED' && w.I.traffic.boxes().some((b) => Math.hypot((b.x0 + b.x1) / 2 - p.x, (b.z0 + b.z1) / 2 - p.z) < 4), `up the slip road: ${r.code}`); }
   });
+  assert.ok(waited < 100, `waited behind the cars ${waited} times`);
+  assert.ok(Math.abs(levelAt(p) - 7.5) < 0.05, `up on the expressway at ${levelAt(p)}`);
+  // standing there: the officer comes up the slip road after them, a step at a time, and takes them on the viaduct
+  until(w, () => p.law.state === 'arrested' || p.law.state === 'custody', 700, look);
   assert.ok(officerTop > 7.3, `the officer came up onto the viaduct (${officerTop.toFixed(2)} m)`);
   assert.ok(onSlip > 10, `by a slip road (${onSlip} looks at her on one)`);
 });
