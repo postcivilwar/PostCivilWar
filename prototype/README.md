@@ -4464,6 +4464,121 @@ players, one on a phone's settings: the city drawn, the expressway, the flyover 
 driven, the camera under the decks, the lamps at night, a lamp knocked down seen by the other, the phone's graphics card
 at the city's places), `test/oganiru-look.mjs` (pictures).
 
+## Oganiru City, Stage 2: the whole road network (1 November 2026)
+
+The owner's brief of 31 October (Project doc `claude/brief-flyovers-city.md`), its Stage 2: "The whole road network: the
+expressway, every flyover and interchange, the main roads and the streets", with the town's traffic on them, the police
+over the flyovers and the townspeople on the pavements; his word on 1 November: "Yes go ahead with the stage two." As
+in Stage 1, nothing that was in the town moved, his files are byte for byte, and saved games load (tested). The town is
+joined to the city at three places, its roads carried on, not changed: College Road (Stage 1), the Kwale road's end
+(its road works opened, on to the Southgate Roundabout) and Campus Road's north end (on as Campus Link).
+
+**The roads** (`src/sim/zones/oganiru.js`, drawn by `src/client/render-oganiru.js`):
+
+- The **Oganiru Expressway**: three lanes each way (3.5 m), a concrete barrier down the middle, hard shoulders. From the
+  **Harmony Interchange** at its south end it runs at ground between grass banks with palms, goes down into a **cutting**
+  7.6 m deep between retaining walls with a parapet along their tops, under the **Hope Avenue bridge**, climbs out onto
+  its **viaduct** 7.5 m up through downtown, over Unity Avenue (the **Unity Interchange**, Stage 1's) and Peace Avenue
+  (the **Peace Interchange**), and stays up to road works at its north end (there is no room to bring it down before
+  the city's edge). Green gantries over it point to the avenues, the town, the airport and the habitation; at the north
+  end "ROAD WORKS AHEAD · All traffic: Peace Avenue exit".
+- The **Harmony Interchange**, two levels: south-bound to Harmony Avenue east on a curved flyover over the avenue (7.5 m),
+  Harmony Avenue east to north-bound on an upper flyover crossing over both (about 15 m); ramps at ground for the two
+  turns the other way. The **Peace Interchange**: four slip roads down to traffic lights on Peace Avenue.
+- **Four avenues** (dual carriageways, two lanes each way, the raised grass strip with the slim trees, black-and-white
+  kerbs): Unity, Harmony, Peace and Hope Avenues; **three boulevards**: Gateway, Independence and Sunrise; **Campus
+  Link**; **downtown's six streets** (two lanes each way, wide pavements): Exchange, Commerce, Council, Charter, Union and
+  Tower Streets.
+- **Five roundabouts**: Gate (Stage 1's), Airport, Southgate, Campus and Sunrise, each with its island and walkway.
+- **Junction flyovers**: the Independence Flyover (Stage 1's, Independence Boulevard over Unity Avenue) and the Peace,
+  Harmony and Hope Flyovers, each avenue over Independence Boulevard (7.5 m, 5.5 m clear, ramps no steeper than 6%
+  between retaining walls where too low to pass under). With the expressway's crossings, the curved flyovers of the two
+  big interchanges and the Hope Avenue bridge: ten places where one road goes over another.
+- **29 junctions** with traffic signals (the town's cycle), stop lines a little back from each, zebra crossings on each
+  leg, turn arrows, U-turn gaps in the strips; **903 street lamps** (every one can be knocked down, as in Stage 1) and the
+  trees down the strips and along the verges.
+- **Markings**: on the expressway (on the ground, in the cutting and up on the viaduct, which had none in Stage 1) its
+  three lanes each way with solid edge lines and broken lines between, where the town's cars drive them; the edge line
+  broken where a slip road comes in or goes off; white chevrons in the wedge where each slip road parts from the
+  expressway (fourteen of them; the long one where the south-bound carriageway ends in two slip roads at the Harmony
+  Interchange).
+- **Ten billboards** along the expressway with **the game's own adverts** (`src/client/render-city-adverts.js`): Post
+  Civil War with the rising-sun logo ("Find work. Buy a plot. Build the walls. Start again."), the PowerBike showroom,
+  the Car Showroom, the Sports Mall, and three of the city's own made-up names (Unity Tower's offices, Udo Bank, the
+  airport). They stand on the town's own billboard frames (`render-billboards.js`), lit at night, their poles solid.
+- Where nothing is built yet, roadblocks, and the edge of the built land fenced, as in the town; and the slip road up
+  from Peace Avenue onto the north-bound carriageway, which runs only to the road works at the expressway's north end,
+  closed at its foot.
+
+**Moved from the plan** (so that each ramp comes down before the next junction): Hope Avenue 100 m north (x −750), so
+that the Harmony Interchange's upper flyover is down before the expressway goes into its cutting; Peace Avenue 70 m north
+(x 720), so that the Peace Interchange's slip road leaves the expressway after the Unity Interchange's flyover has come
+down onto it; Council and Charter Streets 40 m out (x ±240), so that the Independence Flyover's ramps are down before
+them. The Unity Interchange is as in the sample: one curved flyover 15 m up and three loops (the plan had two flyovers).
+
+**In pieces.** The city is too big to be one thing on a phone: its land is cut into squares, each built a few
+milliseconds a frame as the player comes near it and let go again behind them; what is the whole city's (its pictures,
+the slim trees, the signals' lamps, the roadblocks, and a coarse land under the whole of it, half a metre below the
+pieces' own ground, so that where a piece is not built yet the land is seen there, not the sky) is built once, on a phone
+only when coming near the city. The city's land beyond its fence keeps under the habitation's own ground where the two
+meet, at the habitation's south end.
+
+**The town's traffic in the city** (`src/sim/traffic.js`, the city's roads in `OGANIRU_TRAFFIC`). The town's cars now
+drive the city's roads, flyovers, ramps, loops and roundabouts as well as the town's: each trip's way is chosen by time,
+so they take the expressway when it is quicker (79 km/h there; 50 on the avenues, 40 on the streets, 43 on the ramps, 32
+round a roundabout), merging from the slip roads, stopping at the stop lines on red, giving way at the roundabouts and
+junctions, keeping their distance, and each keeping to the level it is on (a car on a flyover and one under it never
+meet). Drawn at their height on the decks. While a player is out in the city, the cars come out to them from anywhere
+in the town in one drive; half of the trips of those already in the city go past a player rather than to one (on the
+player's level: a player up on the viaduct is passed by the expressway, not by the street under it); and one car in five
+drives the length of the expressway, from Harmony Avenue by its interchange to Peace Avenue by its and back, as an
+expressway's through traffic does (without it, the expressway was driven only by the few going right across the city:
+a player up on it saw no car on it in ten minutes). A headless test drives a whole town day with four players about the city: more than 150 trips, every slip road but a few and every roundabout driven, no car standing on its way for as long as a minute, none through a red light, none into another, none on the wrong side.
+
+**The townspeople on the pavements** (`src/sim/city-strollers.js`, `src/sim/city-walks.js`). By day (from half past seven
+to seven, up to 26 at a time, most about midday) townspeople whose own day has them indoors in the town for long enough
+come out of one of the towers' doors, stroll along the city's pavements, and go in at another door: crossing its roads
+only at the zebras, and at a junction with lights only while that road's traffic is held at red; never on the
+expressway, a flyover or a slip road (players may go anywhere a car can). One of the town's people sent somewhere in
+the city on foot (going back for a car, say) goes by its pavements and crossings too when both ends are on the ground,
+never over a flyover or along the expressway; up a ramp only to someone or something up on a deck.
+
+**The police over the flyovers** (`justice.js`, `actors.js`). An officer after a wanted player follows them up a ramp
+or a slip road onto a deck and arrests them there; an officer under a deck neither sees nor reaches someone on it (an
+officer's sight is from eye to eye, through anything a deck, a pillar or a tower puts between). Someone on a deck is
+knocked down only by a car on that deck. The police come on foot from the town, as they always have: to the Peace
+Interchange, at the city's north end, some 2.3 km by the pavements, eight or nine minutes at a run.
+
+**Found and fixed on the way**: by the headless tests: someone of the town's going along a long stretch of the city's
+pavement (an officer going back to her beat from the Peace Interchange, say) went to and fro on it for minutes, since each
+time they asked the way again (every second or two, on the move) it began at the stretch's nearer end, behind them: now
+someone part way along a stretch goes on along it (`city-walks.js`); by the city browser test and the checks after it:
+the camera behind a car down in the expressway's cutting stayed up at the land's height (a floor of half a metre everywhere), inside the Hope Avenue bridge over it: now it may
+go down into the cutting as far as its road (`camera.js` `floor`); three of Peace Avenue's verge trees and a lamp stood
+on the Peace Interchange's slip roads where they cross the verges (now nothing grows or stands on a deck's footprint,
+even where it is still on the ground; a headless test looks at every trunk, lamp, signal and billboard leg in the city
+against every carriageway and slip road); the zebras and stop lines under the flyovers ran over the paving between the
+carriageways; the lines painted on the expressway on the ground and in the cutting were not where its traffic drives;
+a phone put down in the middle of the city (and anyone faster than its pieces are built) saw the sky's dome below the
+horizon where the pieces were not built yet, a white plain by day and a grey one at night in rain (now the coarse land
+under the city, above); the city's hills beyond its fence, since Stage 2 come round north of the town, reached over the
+habitation's south end round its boiling river (now under the habitation's own ground there), and between the town's
+ground and the habitation a strip was left to the town's ground, which stops at the habitation's edge (a hole); in ten
+minutes beside or up on the expressway no town car came by (the through traffic, above); an edit took out the line
+pairing the viaduct's pillars and the city stopped being built in a browser (found by TypeScript's checker for names
+never declared, now run over the game's code before each build).
+
+**Files.** `src/sim/zones/oganiru.js` (the whole road network: roads, decks, junctions, signals, stop lines, gaps,
+roundabouts, billboards, the traffic's roads), `src/sim/traffic.js` (roads along a line or a path, at a level; ways by
+time), `src/sim/city-walks.js` (the city's pavements, crossings and doors as a network, built a little at a time),
+`src/sim/city-strollers.js`, `src/client/render-oganiru.js` (in pieces), `src/client/render-city-adverts.js`. Tests:
+`test/oganiru-traffic.test.mjs` (headless: the city's roads as a network, ways over and under a flyover and through the
+cutting, a whole town day of traffic with four players in the city, a game saved and opened again),
+`test/oganiru-people.test.mjs` (headless: the townspeople out walking; one of them sent across the city on foot; the chase
+up the Independence Flyover; an officer under a deck; the chase up the Peace Interchange's slip road onto the viaduct), `test/oganiru-city.mjs` (in a browser, two players, one on a phone's settings: the city in pieces, both
+levels of the Harmony Interchange driven, the cutting under the Hope bridge, the camera under the Peace flyover, the
+town's cars and people at their heights, the billboards, downtown at night, the phone's graphics card at the new places).
+
 ## Tests
 
 ```
@@ -4499,7 +4614,8 @@ node test/stars.mjs out/                           # the police's stars: none wh
 ../server/with-postgres.sh node test/motorcycles.mjs out/    # the seventeen motorcycles: the showroom, the engines, bought with arrival money, ridden (seat, grips, pegs, lean, the wheels), every one in turn, another player on theirs
 node test/city.mjs out/                            # the first city block, walked and seen from the road, the junction, above and at night
 ../server/with-postgres.sh node test/oganiru.mjs out/        # Oganiru City (31 October 2026), two players (a computer and a phone): the city drawn, the expressway, the flyover over it and the avenue under it driven, the camera under the decks, the lamps at night, a lamp knocked down seen by the other, the phone's graphics card at the city's places
-../server/with-postgres.sh node test/oganiru-look.mjs out/   # its pictures: by day, a lamp down, in the rain, the towers at dusk, at night, in a storm (LOOK_LITE=1: a phone's)
+../server/with-postgres.sh node test/oganiru-city.mjs out/   # Oganiru City, Stage 2 (1 November 2026), two players (a computer and a phone): the city in pieces round the player (built as they come, let go behind them on the phone), both levels of the Harmony Interchange and the avenue under them driven, down the expressway's cutting under the Hope bridge, the camera under the Peace flyover, the town's cars up on the viaduct drawn up there, the townspeople on downtown's pavements, the ten billboards, downtown's lamps at night, the phone's graphics card at the new places
+../server/with-postgres.sh node test/oganiru-look.mjs out/   # its pictures: by day, a lamp down, in the rain, the towers at dusk, at night, in a storm; and Stage 2's: the Harmony and Peace Interchanges from above, the upper flyover, the cutting under the Hope bridge, the viaduct's lanes and a gantry, a billboard, the chevrons where a slip road leaves, the Hope Flyover, the Sunrise and Southgate Roundabouts, a downtown street; the viaduct and the street at night (LOOK_LITE=1: a phone's)
 ../server/with-postgres.sh node test/adverts.mjs out/        # the billboards and the ADS app: booked, approved, shown
 ../server/with-postgres.sh node test/sports.mjs out/ [phone]  # the Post Civil War Sports Mall: the compound and the building, in and out by the doors, the eight things on their stands with the pictures their distance asks for, asking Nkem, buying with the arrival money, Property, the models let go
 ../server/with-postgres.sh node test/carshow.mjs out/    # the Post Civil War Car Showroom: the compound, the gate, the cameras, in and out by the doors, the cars, Tochi and Oluchi, asking and buying with earned TR, driving (the engine, the speedometer, steering, the brake, the gate, getting out), the lamps at night, another player's car
