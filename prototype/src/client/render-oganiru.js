@@ -371,6 +371,41 @@ function groundTile(T, lite) {
   return g;
 }
 
+// The land under the whole city, coarse, a little below its pieces' own ground and drawn with the same material: where a
+// piece is not built yet (the player come there faster than it is built, or put there), the land is seen there, never the
+// sky below the horizon (1 November 2026: a phone put down in the middle of the city saw a white plain for the seconds its
+// pieces took). The same cells as the pieces' ground (none where the town's or the land beyond it is drawn, none over the
+// expressway's cutting).
+function baseGround(lite) {
+  const step = lite ? 48 : 32;
+  const xs = gridLines(GROUND.x0, GROUND.x1, step, [OGANIRU_CUTTING.x0, OGANIRU_CUTTING.x1, TOWN_GROUND.x0, TOWN_GROUND.x1, OUTSKIRTS_GROUND.x0, OUTSKIRTS_GROUND.x1]);
+  const zs = gridLines(GROUND.z0, GROUND.z1, step, [EZ - CUT.wall - CUT.wallWidth, EZ + CUT.wall + CUT.wallWidth, TOWN_GROUND.z0, OUTSKIRTS_GROUND.z0]);
+  const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dry = linear(0xa9a85a), c = new THREE.Color();
+  const at = (x, z) => {
+    const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
+    c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
+    return { x, y: landY(x, z) - 0.45, z, r: c.r, g: c.g, b: c.b };
+  };
+  const grid = zs.map((z) => xs.map((x) => at(x, z)));
+  const pos = [], col = [], uv = [];
+  const put = (v) => { pos.push(v.x, v.y, v.z); col.push(v.r, v.g, v.b); uv.push(v.x / 3.2, v.z / 3.2); };
+  for (let j = 0; j < zs.length - 1; j += 1) for (let i = 0; i < xs.length - 1; i += 1) {
+    const a = grid[j][i], b = grid[j][i + 1], cc = grid[j + 1][i + 1], d = grid[j + 1][i];
+    const mx = (a.x + cc.x) / 2, mz = (a.z + cc.z) / 2;
+    if (covered(mx, mz) || cutOut(mx, mz)) continue;
+    put(a); put(d); put(cc); put(a); put(cc); put(b);
+  }
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  letGoOnceSent(g);
+  return g;
+}
+
 // ------------------------------------------------------------------------------------------------- roads --
 // (a point `lat` metres across a road from its middle, `a` along it)
 const Pt = (r, lat, a) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
@@ -1366,6 +1401,10 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
   // (render-closures.js; each piece drawn within its own distance of the eye)
   yield;
   const closures = buildClosures(group, { lite, keep: ofOganiru });
+  // the land under the whole city, where its pieces are not built yet
+  yield;
+  const base = baseGround(lite);
+  if (base) { const mesh = new THREE.Mesh(base, materials.ground); mesh.receiveShadow = true; mesh.name = 'oganiru:base-ground'; group.add(mesh); }
   // the programs the city's own need, made ready before it is put in (program-ready.js)
   if (renderer && camera) {
     yield;
