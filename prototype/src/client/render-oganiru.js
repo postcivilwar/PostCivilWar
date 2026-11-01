@@ -26,7 +26,7 @@
 // is the whole city's (its pictures and materials, the slim trees, the signals' lamps, the roadblocks and the fence) is
 // built once (`oganiruSteps`, a generator, as the land beyond the town is), on a phone only when the player is coming
 // near the city, and let go again when they are far.
-import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, ofOganiru } from '../sim/zone.js';
+import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, HABITATION, habitationGroundAt, ofOganiru } from '../sim/zone.js';
 import { Batch, place, linear, noise, smoothNoise, grassTexture, textTexture, surface, buildingKit, letGoOnceSent } from './render-kit.js';
 import { addTree, CITY_FLAT } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
@@ -300,10 +300,20 @@ const TILE_NEAR = Object.freeze({ lite: Object.freeze({ come: 360, go: 560 }), f
 // The land drawn under and round the city: flat where the city is (and a little round it), rising to bush hills beyond
 // its fence as the town's land does beyond the town (render-world.js). Where the town's ground or the land beyond the
 // town is already drawn, nothing; where the expressway's cutting is, nothing (its walls and its road are drawn).
-const TOWN_GROUND = { x0: -470, x1: 470, z0: -700 };
+// (the town's ground stops at the habitation's edge: render-world.js, HABITATION_EDGE)
+const TOWN_GROUND = { x0: -470, x1: HABITATION.bounds.x0, z0: -700 };
 const OUTSKIRTS_GROUND = { x0: -1330, x1: -232, z0: -660 };
 const GROUND = { x0: -1500, x1: 1040, z0: -1740, z1: -12 };
+// (1 November 2026: the city's land since Stage 2 comes round north of the town, and the hills beyond its fence reached
+// over the habitation's south end, round its boiling river: there, under the habitation's own ground, out of sight
+// whenever that is drawn, and the land there whenever it is not)
+const HAB = HABITATION.bounds;
+const inHabitationLand = (x, z) => x > HAB.x0 - 1 && x < HAB.x1 + 1 && z > HAB.z0 - 1 && z < HAB.z1 + 1;
 function landY(x, z) {
+  const y = cityLandY(x, z);
+  return inHabitationLand(x, z) ? Math.min(y, habitationGroundAt(x, z) - 0.6) : y;
+}
+function cityLandY(x, z) {
   const away = oganiruAway(x, z);
   if (away <= CITY_FLAT.flat) return -0.02;
   const b = ZONE.bounds;
