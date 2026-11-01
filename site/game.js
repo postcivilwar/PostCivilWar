@@ -53539,6 +53539,8 @@ function goresTile(M, T) {
   }
 }
 
+const VIADUCT_PAIRS = (() => { const pairs = new Map(); for (const p of OGANIRU_PILLARS.filter((q) => q.deck === 'viaduct')) { const key = Math.round(p.x); if (!pairs.has(key)) pairs.set(key, []); pairs.get(key).push(p); } return pairs; })();
+
 const HOPE_BRIDGE = OGANIRU_DECKS.find((d) => d.kind === 'bridge');
 function cuttingTile(M, T) {
   const C = OGANIRU_CUTTING;

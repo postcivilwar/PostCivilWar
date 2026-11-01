@@ -964,6 +964,8 @@ function goresTile(M, T) {
   }
 }
 
+const VIADUCT_PAIRS = (() => { const pairs = new Map(); for (const p of OGANIRU_PILLARS.filter((q) => q.deck === 'viaduct')) { const key = Math.round(p.x); if (!pairs.has(key)) pairs.set(key, []); pairs.get(key).push(p); } return pairs; })();
+
 // --------------------------------------------------------------------------------------------- the cutting --
 // The expressway below the land, in this piece: its road at its own height (going down into the cutting and up out of
 // it), its lanes' lines and middle barrier, a gutter at each side, and its retaining walls: from its road to the land,
