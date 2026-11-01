@@ -42,21 +42,24 @@ export function wayBetween(x0, z0, x1, z1, y0 = undefined, y1 = undefined) {
   return points;
 }
 
+// (on the ground at both ends: by the pavements and the crossings, as the town's people walk, never up onto the
+// expressway or a flyover; by a ramp only to or from someone or something up on a deck, or where there is no other way)
+const cityRouteOf = (p, q) => (Math.abs(p.y) < 1.2 && Math.abs(q.y) < 1.2 && cityRoute(p, q, { foot: true })) || cityRoute(p, q);
 function cityWay(x0, z0, x1, z1, y0, y1, c0, c1) {
   const a = Number.isFinite(y0) ? y0 : zoneGroundY(x0, z0), b = Number.isFinite(y1) ? y1 : zoneGroundY(x1, z1);
   const end = walkLevel(x0, z0, a, x1, z1, [], 0.3, 0.7);
   if (end !== null && Math.abs(end - b) < 1.2) return [[x1, z1]];
   if (c0 && c1) {
-    const route = cityRoute({ x: x0, z: z0, y: a }, { x: x1, z: z1, y: b });
+    const route = cityRouteOf({ x: x0, z: z0, y: a }, { x: x1, z: z1, y: b });
     return route ? route.map(([x, z]) => [x, z]) : [[x1, z1]];
   }
   // (one end in the town, the other in the city: by the nearer of the ways between them)
   const gate = CITY_GATES.reduce((best, g) => { const d = Math.hypot(g.city[0] - (c0 ? x0 : x1), g.city[1] - (c0 ? z0 : z1)) + Math.hypot(g.town[0] - (c0 ? x1 : x0), g.town[1] - (c0 ? z1 : z0)); return !best || d < best.d ? { g, d } : best; }, null).g;
   if (c0) {
-    const inside = cityRoute({ x: x0, z: z0, y: a }, { x: gate.city[0], z: gate.city[1], y: 0 });
+    const inside = cityRouteOf({ x: x0, z: z0, y: a }, { x: gate.city[0], z: gate.city[1], y: 0 });
     return [...(inside ? inside.map(([x, z]) => [x, z]) : [[gate.city[0], gate.city[1]]]), [gate.town[0], gate.town[1]], ...wayBetween(gate.town[0], gate.town[1], x1, z1)];
   }
-  const inside = cityRoute({ x: gate.city[0], z: gate.city[1], y: 0 }, { x: x1, z: z1, y: b });
+  const inside = cityRouteOf({ x: gate.city[0], z: gate.city[1], y: 0 }, { x: x1, z: z1, y: b });
   return [...wayBetween(x0, z0, gate.town[0], gate.town[1]), [gate.city[0], gate.city[1]], ...(inside ? inside.map(([x, z]) => [x, z]) : [[x1, z1]])];
 }
 

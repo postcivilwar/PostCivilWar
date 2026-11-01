@@ -66,6 +66,21 @@ await view('07-interchange-above', { x: 0, z: -1060, h: Math.PI, yaw: Math.PI + 
 await view('08-under-viaduct', { x: -6, z: -1110, h: Math.PI, yaw: Math.PI, dist: 7, pitch: 0.12 });
 await view('09-on-viaduct', { x: -120, z: -1122, y: 7.5, h: Math.PI / 2, yaw: Math.PI / 2 + 0.2, dist: 9, pitch: 0.15 });
 await view('10-towers-from-avenue', { x: 2, z: -600, h: Math.PI, yaw: Math.PI + 0.05, dist: 8, pitch: -0.08 });
+// Stage 2 (1 November 2026), the whole road network: the Harmony Interchange from above and on its upper flyover, the
+// expressway down in its cutting under the Hope Avenue bridge and up on its viaduct (its lanes, a gantry, a billboard,
+// the chevrons where a slip road leaves it), the Peace Interchange from above, the Hope Flyover over Independence
+// Boulevard, two roundabouts, downtown's streets
+await view('20-harmony-interchange-above', { x: -1240, z: -1150, h: 0, yaw: -2.3, dist: 190, pitch: 0.62, wait: 8000 });
+await view('21-harmony-upper-flyover', { x: -1200, z: -1146, y: 14, h: 0.75, yaw: 0.75, dist: 9, pitch: 0.16, wait: 6000 });
+await view('22-cutting-under-hope-bridge', { x: -700, z: -1121.5, y: -6.42, h: -Math.PI / 2, yaw: -Math.PI / 2, dist: 8, pitch: 0.1, wait: 6000 });
+await view('23-viaduct-lanes-gantry', { x: -340, z: -1121.5, y: 7.5, h: Math.PI / 2, yaw: Math.PI / 2, dist: 8, pitch: 0.12, wait: 6000 });
+await view('24-billboard-by-the-expressway', { x: -575, z: -1121.5, y: 7.5, h: Math.PI / 2 + 0.5, yaw: Math.PI / 2 + 0.55, dist: 8, pitch: 0.08, wait: 8000 });
+await view('25-chevrons-where-a-slip-road-leaves', { x: -252, z: -1118, y: 7.5, h: Math.PI / 2, yaw: Math.PI / 2 + 0.25, dist: 7, pitch: 0.3, wait: 6000 });
+await view('26-peace-interchange-above', { x: 720, z: -1100, h: 0, yaw: 0.6, dist: 190, pitch: 0.62, wait: 8000 });
+await view('27-hope-flyover', { x: -750, z: -700, h: -Math.PI / 2, yaw: -Math.PI / 2 + 0.35, dist: 9, pitch: 0.12, wait: 6000 });
+await view('28-sunrise-roundabout-above', { x: 0, z: -1525, h: Math.PI, yaw: Math.PI - 0.5, dist: 80, pitch: 0.6, wait: 6000 });
+await view('29-southgate-roundabout', { x: -1205, z: -38, h: -Math.PI / 2, yaw: -Math.PI / 2, dist: 9, pitch: 0.1, wait: 6000 });
+await view('30-downtown-street', { x: -396, z: -655, h: Math.PI, yaw: Math.PI + 0.3, dist: 9, pitch: 0.08, wait: 6000 });
 // a lamp knocked down, and the night
 if (!only || only.has('11-lamp-down')) {
   const lamp = await page.evaluate(() => { const n = window.__nlw; const near = n.lampsNear(-4, -640, 40).filter((l) => l.kind === 'median'); return near[0] || null; });
@@ -93,6 +108,8 @@ if (!only || only.has('12-night')) {
   console.log('pools', JSON.stringify(await page.evaluate(() => { const n = window.__nlw; let pools = null; n.scene.traverse((o) => { if (o.name === 'lamp-pools') pools = o; }); if (!pools) return null; const m = new THREE.Matrix4(); const near = []; for (let i = 0; i < pools.count; i += 1) { pools.getMatrixAt(i, m); const e = m.elements; if (Math.hypot(e[12] - 0, e[14] + 500) < 60) near.push([+e[12].toFixed(1), +e[13].toFixed(2), +e[14].toFixed(1), +e[0].toFixed(1)]); } return { visible: pools.visible, count: pools.count, opacity: +pools.material.opacity.toFixed(2), near }; })));
   await view('12b-night-town', { x: -8.6, z: 15, h: 0, yaw: 0.25, dist: 6, pitch: 0.12, wait: 5000 });
   await view('13-night-towers', { x: -14, z: -760, h: Math.PI, yaw: -0.6, dist: 12, pitch: 0.05, wait: 5000 });
+  await view('31-night-viaduct', { x: -340, z: -1121.5, y: 7.5, h: Math.PI / 2, yaw: Math.PI / 2, dist: 8, pitch: 0.12, wait: 6000 });
+  await view('32-night-downtown-street', { x: -396, z: -655, h: Math.PI, yaw: Math.PI + 0.3, dist: 9, pitch: 0.08, wait: 6000 });
   await page.evaluate(() => { const g = window.__nlw.host.game; g.state.weather = { kind: 'storm', until: g.state.t + 6 * 3600 }; });
   await page.waitForTimeout(6000);
   await view('14-night-rain', { x: -6, z: -600, h: Math.PI, yaw: Math.PI, dist: 7, pitch: 0.1, wait: 8000 });

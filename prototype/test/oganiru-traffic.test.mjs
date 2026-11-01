@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import { town } from './world.mjs';
 import { TRAFFIC_ROADS, TRAFFIC_STOPS, trafficNetwork, trafficWay, trafficLevel } from '../src/sim/traffic.js';
 import { POWER_CARS } from '../src/sim/power-cars.js';
-import { OGANIRU_TRAFFIC, OGANIRU_STOP_LINES, OGANIRU_ROUNDABOUTS, OGANIRU_DECKS, zoneSurfaceY, signalState } from '../src/sim/zone.js';
+import { OGANIRU_TRAFFIC, OGANIRU_STOP_LINES, OGANIRU_ROUNDABOUTS, OGANIRU_DECKS, OGANIRU_SOLIDS, OGANIRU_LAMPS, OGANIRU_KERBED, oganiruTar, oganiruDecksAt, zoneSurfaceY, signalState } from '../src/sim/zone.js';
 import { createHost } from '../src/sim/host.js';
 
 const N = trafficNetwork();
@@ -156,4 +156,25 @@ test('kept with the town: the cars on the city\'s roads, saved and opened again,
   }
   again.tick(0.05);
   for (const c of driving) assert.ok(Math.hypot(T2.cars[c.n].x - c.x, T2.cars[c.n].z - c.z) < 2, `car ${c.n} where it was`);
+});
+
+test('nothing stands in the way where the city\'s cars drive on the ground: no trunk, lamp, signal or billboard leg on a carriageway (its middle strips, walkways and the roundabouts\' islands apart), nor on a slip road or flyover where it is still on the ground', () => {
+  const kerbed = (x, z) => OGANIRU_KERBED.some((b) => x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1);
+  const island = (x, z) => OGANIRU_ROUNDABOUTS.some((r) => Math.hypot(x - r.x, z - r.z) <= r.island);
+  const things = [
+    ...OGANIRU_SOLIDS.filter((s) => !s.pillar).map((s) => ({ what: s.tree ? 'a tree' : s.billboard ? 'a billboard' : 'a signal', x: s.x ?? (s.x0 + s.x1) / 2, z: s.z ?? (s.z0 + s.z1) / 2, r: s.r ?? 0.3 })),
+    // (the lamps on the decks' walls stand up there, at the deck's height)
+    ...OGANIRU_LAMPS.filter((l) => l.kind !== 'deck').map((l) => ({ what: `a lamp (${l.kind})`, x: l.x, z: l.z, r: 0.2 })),
+  ];
+  assert.ok(things.length > 2000, `${things.length} things standing in the city`);
+  const inWay = [];
+  for (const t of things) {
+    for (const [dx, dz] of [[0, 0], [t.r, 0], [-t.r, 0], [0, t.r], [0, -t.r]]) {
+      const x = t.x + dx, z = t.z + dz;
+      const onRoad = oganiruTar(x, z) && !kerbed(x, z) && !island(x, z);
+      const onSlip = oganiruDecksAt(x, z).some((h) => h.y < 2.2 && h.deck.kind !== 'bridge');
+      if (onRoad || onSlip) { inWay.push(`${t.what} at (${t.x.toFixed(1)}, ${t.z.toFixed(1)})${onSlip ? ' on a slip road' : ''}`); break; }
+    }
+  }
+  assert.deepEqual(inWay, []);
 });

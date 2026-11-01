@@ -6,10 +6,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { AREA_STATE, ROAD_CLOSURES, openClosures, closureColliders, CLOSURE_KIT, EDGE_FENCE } from '../src/sim/zones/closures.js';
 import { ZONE_CLOSURES, ZONE_EDGE_FENCES, ZONE_ROADS, ZONE_NODES, ZONE_EDGES, zoneWalkable, zoneBlockKind, zoneSolid, zoneOnGround } from '../src/sim/zone.js';
-import { OGANIRU_CLOSURES, OGANIRU_ROADS } from '../src/sim/zones/oganiru.js';
+import { OGANIRU_CLOSURES, OGANIRU_ROADS, OGANIRU_DECKS } from '../src/sim/zones/oganiru.js';
 
 // Oganiru City's roads (31 October 2026) as boxes like the town's: across their whole width, from end to end
 const CITY_ROADS = OGANIRU_ROADS.map((r) => (r.along === 'z' ? { id: r.id, x0: r.c - r.half, x1: r.c + r.half, z0: r.from, z1: r.to } : { id: r.id, x0: r.from, x1: r.to, z0: r.c - r.half, z1: r.c + r.half }));
+// and its slip roads where they leave the ground (1 November 2026: the one up onto the expressway's north-bound
+// carriageway from Peace Avenue, which runs only to the road works at its north end, is closed at its foot): the first
+// twenty metres of each, across its width (walls or kerbs either side of it rather than verges)
+const SLIP_FEET = OGANIRU_DECKS.filter((d) => d.kind === 'ramp').map((d) => { const P = d.path, p = P[0].y < 0.3 ? P[0] : P[P.length - 1]; return Math.abs(p.ux) > Math.abs(p.uz) ? { id: d.id, slip: true, x0: p.x - 10, x1: p.x + 10, z0: p.z - d.half, z1: p.z + d.half } : { id: d.id, slip: true, x0: p.x - d.half, x1: p.x + d.half, z0: p.z - 10, z1: p.z + 10 }; });
 
 const BETWEEN = new Set(['oganiru-town-west', 'oganiru-town-north', 'oganiru-airport-west', 'oganiru-airport-south', 'oganiru-kwale-inland', 'oganiru-kwale-end']);
 const along = (c, t) => ({ x: c.a.x + (c.b.x - c.a.x) * t, z: c.a.z + (c.b.z - c.a.z) * t });
@@ -25,8 +29,8 @@ test('every part of the land is in one of four states; the roads closed now are 
   // (Campus Road's north end is open since 1 November 2026: it goes on as Oganiru City's Campus Link)
   assert.equal(ROAD_CLOSURES.find((c) => c.id === 'campus-north').state, AREA_STATE.OPEN);
   // the new city's roads that go no further yet, each closed where it stops (Stage 2: the far ends of its avenues, the
-  // Kwale road on south, the roundabouts' legs not built on)
-  assert.deepEqual(OGANIRU_CLOSURES.map((c) => c.id), ['unity-west', 'harmony-west', 'kwale-south', 'airport-south', 'campus-north']);
+  // Kwale road on south, the roundabouts' legs not built on, the slip road onto the expressway north of Peace Avenue)
+  assert.deepEqual(OGANIRU_CLOSURES.map((c) => c.id), ['unity-west', 'harmony-west', 'kwale-south', 'airport-south', 'campus-north', 'peace-nb-on']);
   assert.ok([...ROAD_CLOSURES, ...OGANIRU_CLOSURES].filter((c) => c.state !== AREA_STATE.OPEN).every((c) => c.state === AREA_STATE.BUILDING && c.sign[0] === 'ROAD CLOSED' && c.why.length > 10));
   // what is closed is what is not open, the town's and the city's: one that is opened has no roadblock and nothing solid
   assert.deepEqual(ZONE_CLOSURES.map((c) => c.id), [...openClosures(), ...OGANIRU_CLOSURES].map((c) => c.id));
@@ -43,12 +47,12 @@ test('each roadblock stands across the whole of its road and both verges, on the
     const lo = alongZ ? Math.min(c.a.z, c.b.z) : Math.min(c.a.x, c.b.x), hi = alongZ ? Math.max(c.a.z, c.b.z) : Math.max(c.a.x, c.b.x);
     // the road it closes: across the line, or ending within a few metres of it; all of its width inside the line,
     // with a verge's room either side
-    const roads = [...ZONE_ROADS, ...CITY_ROADS].filter((r) => {
+    const roads = [...ZONE_ROADS, ...CITY_ROADS, ...SLIP_FEET].filter((r) => {
       const [w0, w1, l0, l1] = alongZ ? [r.z0, r.z1, r.x0, r.x1] : [r.x0, r.x1, r.z0, r.z1];
       return w0 >= lo - 0.01 && w1 <= hi + 0.01 && l1 >= at - 3 && l0 <= at + 3;
     });
     assert.ok(roads.length >= 1, `${c.id} closes a road`);
-    for (const r of roads) { const [w0, w1] = alongZ ? [r.z0, r.z1] : [r.x0, r.x1]; assert.ok(lo <= w0 - 2 && hi >= w1 + 2, `${c.id}: ${r.id} (${w0} to ${w1}) closed across its whole width and both verges (${lo} to ${hi})`); }
+    for (const r of roads) { const [w0, w1] = alongZ ? [r.z0, r.z1] : [r.x0, r.x1], verge = r.slip ? 0 : 2; assert.ok(lo <= w0 - verge && hi >= w1 + verge, `${c.id}: ${r.id} (${w0} to ${w1}) closed across its whole width and both verges (${lo} to ${hi})`); }
     // on the land, and solid all along it: a roadblock, which gives a little ('barrier')
     for (let t = 0; t <= 1.0001; t += 0.1) { const p = along(c, t); assert.ok(zoneOnGround(p.x, p.z), `${c.id} at ${t}: on the land`); assert.equal(zoneBlockKind(p.x, p.z, [], 0.3), 'barrier', `${c.id} at ${t}`); }
     // the way to it is open, with room before it to see it and stop (`facing`: the way the traffic meeting it comes from)

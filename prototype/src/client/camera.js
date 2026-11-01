@@ -94,8 +94,9 @@ export const viewFor = (current, where) => ((CAMERA_VIEWS[where] || CAMERA_VIEWS
 // `blocked(x, z, y)` says whether a point is inside something solid, or above a low roof that
 // would hide whoever stands under it. `tall(x, z)`, if given, is how high a building far taller than the
 // eaves stands there (0 where there is none): up to its top, it is solid too. `ground(x, z)`, if given, is the
-// height of the ground: the eye keeps above it.
-export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null } = {}) {
+// height of the ground: the eye keeps above it. `floor(x, z)`, if given, is the lowest the eye may go there (half a
+// metre if not given).
+export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null, ground = null, terrain = null, floor = null } = {}) {
   // (`look`, `lookPitch`: how far a finger has turned a following view round, and tipped it, from where it follows)
   const live = { dist: 8, pitch: 0.27, turn: 0, shift: 0, lift: 0, seat: 0, yaw: Math.PI, look: 0, lookPitch: 0, arm: 8, rise: 0, fov: BASE_FOV, run: 0, swing: 0, sway: 0, rate: 0, bob: 0 };
   const eye = new THREE.Vector3(), aim = new THREE.Vector3(), sightAim = new THREE.Vector3();
@@ -244,7 +245,10 @@ export function createCameraRig(camera, { blocked, wallHeight = 4.2, tall = null
     const dist = near ? Math.min(live.arm, 0.25) : Math.max(live.arm, v.seat ? 0 : 1.1);
     // (the sway moves the eye only, so the player stays where they are in the picture while the town swings past)
     const sway = live.sway * Math.min(1, live.arm / 2);
-    eye.set(tx + dx * dist + rightX * sway, Math.max(0.5, ty + dy * dist + bob), tz + dz * dist + rightZ * sway);
+    eye.set(tx + dx * dist + rightX * sway, ty + dy * dist + bob, tz + dz * dist + rightZ * sway);
+    // never lower than half a metre, but where the land is let down below that (the expressway's cutting, as far as its
+    // road: 1 November 2026, the eye had stayed up at the land's height, inside the Hope Avenue bridge over it)
+    eye.y = Math.max(floor ? floor(eye.x, eye.z) : 0.5, eye.y);
     // never below the ground it stands over (a slope or a kerb behind)
     if (ground && !v.seat) { const g = ground(eye.x, eye.z); if (Number.isFinite(g)) eye.y = Math.max(eye.y, g + 0.35); }
     // (kept inside the hall's walls even at arm's length)

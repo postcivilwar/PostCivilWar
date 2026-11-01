@@ -250,6 +250,16 @@ const PLACES = [
   ['under the flyover', 2, -770, Math.PI],
   ['interchange', -6, -1110, Math.PI],
   ['on the expressway', -120, -1122, Math.PI / 2, 7.5],
+  // (1 November 2026, Stage 2, the whole road network: the Harmony Interchange's two levels of flyovers from Harmony
+  // Avenue, under the expressway's viaduct at the Peace Interchange, down in the expressway's cutting by the Hope Avenue
+  // bridge, on the Hope Flyover over Independence Boulevard, the Southgate Roundabout at the Kwale road's end, and the
+  // Sunrise Roundabout at the city's far end)
+  ['Harmony Interchange', -1250, -1185, -0.9],
+  ['Peace Interchange', 700, -1100, -2.4],
+  ['in the cutting', -700, -1121.5, -Math.PI / 2, -6.42],
+  ['on the Hope Flyover', -746, -780, -Math.PI / 2, 7.5],
+  ['Southgate Roundabout', -1265, -40, -Math.PI / 2],
+  ['Sunrise Roundabout', 30, -1550, -Math.PI / 2],
 ];
 // (TEXTURE_LIST: after each place, what is on the graphics card, picture by picture: textures-<place>.json)
 const pictureList = async (place) => {
@@ -298,8 +308,12 @@ const pictureList = async (place) => {
   console.log(place, 'on the card:', MB(found.card.pictures), 'MB in', found.card.held, 'pictures; used by the scene', MB(on.reduce((s, e) => s + e.bytes, 0)), 'MB in', on.length, '; the shadow map', MB((found.card.shadowMap || 0) + (found.card.shadowDepth || 0)), 'MB; the rest', MB(found.card.others), 'MB in', found.card.otherCount, `(largest ${found.card.largestOthers.map(MB).join(', ')})`);
   for (const e of on.slice(0, 25)) console.log(' ', MB(e.bytes), 'MB', `${e.w}x${e.h}`, e.kind, e.slot, e.shown ? 'shown' : 'hidden', e.uses, `at ${e.at}`, e.users.join(' | ').slice(0, 100));
 };
-for (const [place, x, z, h, y] of PLACES) {
+// (PERF_GROUND_ONLY="place,place": those measured on the ground there, their heights left aside: a build from before
+// the deck or the cutting a place stands on was built, measured for a before-and-after, 1 November 2026)
+const GROUND_ONLY = process.env.PERF_GROUND_ONLY ? process.env.PERF_GROUND_ONLY.split(',') : [];
+for (const [place, x, z, h, height] of PLACES) {
   if (ONLY && !ONLY.includes(place)) continue;
+  const y = GROUND_ONLY.includes(place) ? undefined : height;
   await page.evaluate(([x, z, h, y]) => { const n = window.__nlw; n.place(x, z, y); n.face(h); n.cam.yaw = h; n.cam.dist = 6.5; n.cam.pitch = 0.12; if (n.buildCity && (n.city && !n.city.ready) && z < -470) n.buildCity(); }, [x, z, h, y]);
   await setHour(12);
   const q = await quiet(place === 'habitation gate' || place === 'entrance hill' ? 120000 : 45000);

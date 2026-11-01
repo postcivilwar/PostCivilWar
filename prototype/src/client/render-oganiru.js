@@ -47,6 +47,9 @@ const TT = 12;                  // metres of road to the tar's picture
 const TAR = 0x4b4b50, TAR_WORN = 0x444449, LINE = 0xece9df, CONCRETE = 0xc2bdb1, CONCRETE_DARK = 0xa59f92, KERB_WHITE = 0xe8e6df, KERB_BLACK = 0x1f2022;
 const EZ = EXPRESSWAY_Z;
 const PEACE_X = OGANIRU_PLACES.PEACE_X;
+// the expressway's three lanes each way, measured from its middle where the town's cars keep to them (oganiru.js,
+// OGANIRU_TRAFFIC: 5, 8.5 and 12 m out): the solid lines at their edges, the broken lines between them, the wheels' wear
+const EXPRESSWAY_LINES = Object.freeze({ lanes: [5, 8.5, 12], edges: [3.25, 13.75], between: [6.75, 10.25] });
 // the ground under a point before any deck: the expressway's cutting below the land, the land itself
 const inCut = (x, z) => x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1 && Math.abs(z - EZ) <= CUT.wall;
 const groundBelow = (x, z) => (inCut(x, z) ? expresswayY(x) : 0);
@@ -432,9 +435,9 @@ function roadTile(M, r, T) {
     // south-bound has gone off to the Harmony Interchange)
     const toLat = (o) => EZ + o - r.c;
     for (const k of r.half > 10 ? [-1, 1] : [1]) {
-      for (const o of [1.0, 11.5]) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a0, a1); }
-      for (const o of [4.5, 8.0]) for (let a = Math.ceil(a0 / 12) * 12; a < a1 - 4; a += 12) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a, a + 4); }
-      for (const o of [2.75, 6.25, 9.75]) for (const s of [-0.85, 0.85]) { const l = toLat(k * o) + s; flat(M.wear, r, l - 0.3, l + 0.3, a0, a1, ROAD_Y + 0.002, TAR_WORN); }
+      for (const o of EXPRESSWAY_LINES.edges) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a0, a1); }
+      for (const o of EXPRESSWAY_LINES.between) for (let a = Math.ceil(a0 / 12) * 12; a < a1 - 4; a += 12) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a, a + 4); }
+      for (const o of EXPRESSWAY_LINES.lanes) for (const s of [-0.85, 0.85]) { const l = toLat(k * o) + s; flat(M.wear, r, l - 0.3, l + 0.3, a0, a1, ROAD_Y + 0.002, TAR_WORN); }
     }
     if (r.barrier) groundBarrier(M, r, a0, a1, () => 0);
     return;
@@ -541,14 +544,16 @@ function junctionTile(M, j) {
     const road = OGANIRU_ROADS.find((q) => j.roads.includes(q.id) && (q.along === 'z') === alongZ && (sign > 0 ? q.to > (alongZ ? j.z : j.x) + 1 : q.from < (alongZ ? j.z : j.x) - 1));
     if (!road) continue;
     const r = { along: alongZ ? 'z' : 'x', c: alongZ ? j.x : j.z };
-    // the zebra: white bars along the road, half a metre wide, a metre apart, four metres long
+    // the zebra: white bars along the road, half a metre wide, a metre apart, four metres long (across its carriageways:
+    // under a flyover not over the paving between them)
     const a0 = edge + sign * 0.6, a1 = edge + sign * 4.6;
-    for (let l = -half + 0.6; l < half - 0.5; l += 1) paintStrip(M, r, l, l + 0.5, Math.min(a0, a1), Math.max(a0, a1));
+    const paved = road.kind === 'flyover-road' ? roadWidthAt(road, edge).median / 2 : 0;
+    for (let l = -half + 0.6; l < half - 0.5; l += 1) if (!(paved && l + 0.5 > -paved && l < paved)) paintStrip(M, r, l, l + 0.5, Math.min(a0, a1), Math.max(a0, a1));
     // the stop line, across the half its traffic comes in on (for traffic going west, -z, the north half, +x; and so
     // round: the coming-in half is on the driver's right)
     const s0 = edge + sign * 5.0, s1 = edge + sign * 5.4;
     const inLat = alongZ ? (sign > 0 ? [0.3, half - 0.4] : [-half + 0.4, -0.3]) : (sign > 0 ? [-half + 0.4, -0.3] : [0.3, half - 0.4]);
-    const median = road.median > 0 && road.kind === 'avenue' ? road.median / 2 : 0;
+    const median = paved || (road.median > 0 && road.kind === 'avenue' ? road.median / 2 : 0);
     const [l0, l1] = inLat[0] > 0 ? [Math.max(inLat[0], median), inLat[1]] : [inLat[0], Math.min(inLat[1], -median)];
     paintStrip(M, r, l0, l1, Math.min(s0, s1), Math.max(s0, s1));
     // a street's arrows, ten metres before the stop line: straight on in the inner lane, a turn in the outer
@@ -700,8 +705,8 @@ function* decksTile(M, T, lite, fixedLights) {
       for (const side of [-1, 1]) {
         const e = side * half, wa = walled(side, a.s), wb = walled(side, b.s);
         const out = (p) => { const [lx, lz] = L(p); return [lx * side, 0, lz * side]; };
-        // the edge line, inside the wall
-        if (raised(a) || d.kind !== 'ramp') M.paint.quad(at(a, side * (half - D.wallWidth - 0.35), lift(a) + 0.008), at(b, side * (half - D.wallWidth - 0.35), lift(b) + 0.008), at(b, side * (half - D.wallWidth - 0.2), lift(b) + 0.008), at(a, side * (half - D.wallWidth - 0.2), lift(a) + 0.008), LINE, Q_UV, UP);
+        // the edge line, inside the wall (the expressway's own lines below)
+        if (d.id !== 'viaduct' && (raised(a) || d.kind !== 'ramp')) M.paint.quad(at(a, side * (half - D.wallWidth - 0.35), lift(a) + 0.008), at(b, side * (half - D.wallWidth - 0.35), lift(b) + 0.008), at(b, side * (half - D.wallWidth - 0.2), lift(b) + 0.008), at(a, side * (half - D.wallWidth - 0.2), lift(a) + 0.008), LINE, Q_UV, UP);
         // the outer face: from the slab's underside (or the ground, an embankment's retaining wall) to the road, or the
         // wall's top where it has one
         if (raised(a) || raised(b)) {
@@ -715,6 +720,22 @@ function* decksTile(M, T, lite, fixedLights) {
             const ia = at(a, side * (half - D.wallWidth)), ib = at(b, side * (half - D.wallWidth));
             M.concrete.quad([ia[0], ia[1], ia[2]], [ib[0], ib[1], ib[2]], [ib[0], ib[1] + D.wall, ib[2]], [ia[0], ia[1] + D.wall, ia[2]], 0xd2cdc2, [[a.s / 6, 0], [b.s / 6, 0], [b.s / 6, D.wall / 6], [a.s / 6, D.wall / 6]], [-out(a)[0], 0, -out(a)[2]]);
             M.concrete.quad([ia[0], ia[1] + D.wall, ia[2]], [ib[0], ib[1] + D.wall, ib[2]], [pb0[0], pb0[1] + D.wall, pb0[2]], [pa0[0], pa0[1] + D.wall, pa0[2]], 0xd8d3c8, [[a.s / 6, 0], [b.s / 6, 0], [b.s / 6, 0.08], [a.s / 6, 0.08]], UP);
+          }
+        }
+      }
+      // the expressway on its viaduct: its lanes' lines as on the ground (the edge line beside a slip road coming in or
+      // going off broken, where there is no wall between them), the wheels' wear
+      if (d.id === 'viaduct') {
+        const line = (o, dy = 0.012) => M.paint.quad(at(a, o - 0.075, lift(a) + dy), at(b, o - 0.075, lift(b) + dy), at(b, o + 0.075, lift(b) + dy), at(a, o + 0.075, lift(a) + dy), LINE, Q_UV, UP);
+        const dash = ((Math.floor(a.x / 4) % 3) + 3) % 3 === 0;
+        for (const side of [-1, 1]) {
+          const [inner, outer] = EXPRESSWAY_LINES.edges;
+          line(side * inner);
+          if (dash || walled(side, a.s) || !raised(a)) line(side * outer);
+          if (dash) for (const o of EXPRESSWAY_LINES.between) line(side * o);
+          for (const o of EXPRESSWAY_LINES.lanes) for (const s of [-0.85, 0.85]) {
+            const l0 = side * o + s - 0.3, l1 = side * o + s + 0.3;
+            M.wear.quad(at(a, l0, lift(a) + 0.002), at(b, l0, lift(b) + 0.002), at(b, l1, lift(b) + 0.002), at(a, l1, lift(a) + 0.002), TAR_WORN, [ua(l0), ub(l0), ub(l1), ua(l1)], UP);
           }
         }
       }
@@ -825,7 +846,78 @@ function* decksTile(M, T, lite, fixedLights) {
   }
 }
 const DECK_BY_ID = new Map(OGANIRU_DECKS.map((d) => [d.id, d]));
-const VIADUCT_PAIRS = (() => { const pairs = new Map(); for (const p of OGANIRU_PILLARS.filter((q) => q.deck === 'viaduct')) { const key = Math.round(p.x); if (!pairs.has(key)) pairs.set(key, []); pairs.get(key).push(p); } return pairs; })();
+
+// ------------------------------------------------------------------------------------------------ the gores --
+// Where a slip road leaves the expressway or joins it (the brief: "chevrons where slip roads split"): the wedge between
+// the expressway's edge line and the slip road's own, from where they part to where their roads part, its edge line
+// solid along it and white chevrons across it. Where the south-bound carriageway ends in two slip roads (the Harmony
+// Interchange), the wedge between the two. Each: { side, twin, pts: [{ x, lo, hi, main, ramp }] } from its point
+// outward: `lo` and `hi` how far out from the expressway's middle its two lines are, `main` and `ramp` the heights of
+// the expressway's road and the slip road's there (on the viaduct a slip road going down is already a little lower
+// where it parts from it: what of the wedge is on the slip road is painted on it).
+const EDGE = 15;                    // the expressway's road, from its middle to its edge
+const GORES = (() => {
+  const out = [];
+  const lineIn = (d) => d.half - D.wallWidth - 0.35;                 // a deck's edge line, from its middle
+  // how far out from the expressway's middle a deck's middle is where it crosses x
+  const offOf = (d, side, x) => { const P = d.path; for (let i = 0; i + 1 < P.length; i += 1) { const a = P[i], b = P[i + 1]; if (a.x !== b.x && (a.x - x) * (b.x - x) <= 0) return (a.z + ((b.z - a.z) * (x - a.x)) / (b.x - a.x) - EZ) * side; } return null; };
+  // (where the expressway has a carriageway on that side: the north-bound from the Harmony Interchange, the south-bound
+  // to where it ends in its two slip roads there)
+  const carriageway = (side, x) => (side > 0 ? x >= -1200 : x >= -1040) && x <= 920;
+  for (const d of OGANIRU_DECKS) {
+    if (d.id === 'viaduct' || d.kind === 'bridge') continue;
+    const P = d.path, n = P.length;
+    for (const end of [0, n - 1]) {
+      const p = P[end];
+      if (Math.abs(Math.abs(p.z - EZ) - 12) > 6 || Math.abs(p.y - expresswayY(p.x)) > 0.3) continue;
+      const side = Math.sign(p.z - EZ), dir = end === 0 ? 1 : -1, off0 = (p.z - EZ) * side;
+      const twin = OGANIRU_DECKS.find((e) => e !== d && e.kind !== 'bridge' && e.id !== 'viaduct' && Math.hypot(e.path[0].x - p.x, e.path[0].z - p.z) < 8 && (e.path[0].z - EZ) * side < off0 - 2) || null;
+      const pts = [];
+      for (let i = end; i >= 0 && i < n; i += dir) {
+        const q = P[i], off = (q.z - EZ) * side, hi = off - lineIn(d);
+        let lo, parted;
+        if (twin) { const o = offOf(twin, side, q.x); if (o === null) break; lo = o + lineIn(twin); parted = off - d.half > o + twin.half; }
+        else { if (!carriageway(side, q.x)) break; lo = EXPRESSWAY_LINES.edges[1]; parted = off - d.half > EDGE; }
+        // (and only while the two roads are within a little over a metre of each other)
+        if (parted || Math.abs(q.y - expresswayY(q.x)) > 1.5) break;
+        pts.push({ x: q.x, lo, hi, main: twin ? q.y : expresswayY(q.x), ramp: q.y });
+      }
+      // (from where the two lines are far enough apart for a chevron)
+      const from = pts.findIndex((g) => g.hi - g.lo > 0.6);
+      if (from >= 0 && pts.length - from >= 2) out.push({ deck: d.id, side, twin: !!twin, pts: pts.slice(from) });
+    }
+  }
+  return out;
+})();
+function goresTile(M, T) {
+  for (const g of GORES) {
+    // a point `off` out from the expressway's middle at x, on the road there (the expressway's, or beyond its edge the
+    // slip road's), a little over its other markings
+    const at = (x, off, A) => { const y = g.twin || off <= EDGE ? A.main : A.ramp; return [x, y + (y > 0.35 ? 0.004 : DECK_LIFT) + 0.014, EZ + g.side * off]; };
+    for (let i = 0; i + 1 < g.pts.length; i += 1) {
+      const a = g.pts[i], b = g.pts[i + 1];
+      if (!inTile(T, a.x, EZ + g.side * a.lo)) continue;
+      // its edge line on the expressway's side, solid along it
+      M.paint.quad(at(a.x, a.lo - 0.075, a), at(b.x, b.lo - 0.075, b), at(b.x, b.lo + 0.075, b), at(a.x, a.lo + 0.075, a), LINE, Q_UV, UP);
+    }
+    // the chevrons: every 3 m, a stripe across the wedge, slanting back toward its point (in two where it crosses from
+    // the expressway's road onto the slip road's)
+    const x0 = g.pts[0].x, last = g.pts[g.pts.length - 1].x, way = Math.sign(last - x0) || 1;
+    const lineAt = (x) => { for (let i = 0; i + 1 < g.pts.length; i += 1) { const a = g.pts[i], b = g.pts[i + 1]; if ((a.x - x) * (b.x - x) <= 0 && a.x !== b.x) { const t = (x - a.x) / (b.x - a.x); const m = (k) => a[k] + (b[k] - a[k]) * t; return { lo: m('lo'), hi: m('hi'), main: m('main'), ramp: m('ramp') }; } } return null; };
+    const stripe = (xa, oa, xb, ob, A, B) => { const t = 0.4 * way; M.paint.quad(at(xa, oa, A), at(xa + t, oa, A), at(xb + t, ob, B), at(xb, ob, B), LINE, Q_UV, UP); };
+    for (let x = x0 + way * 1.5; (last - x) * way > 0.4; x += way * 3) {
+      const A = lineAt(x);
+      if (!A || A.hi - A.lo < 0.6 || !inTile(T, x, EZ + g.side * A.lo)) continue;
+      const xb = x - way * (A.hi - A.lo) * 0.8, B = lineAt(xb);
+      if (!B || B.hi - B.lo < 0.4) continue;
+      const oa = A.lo + 0.15, ob = B.hi - 0.15;
+      if (g.twin || ob <= EDGE || oa >= EDGE) { stripe(x, oa, xb, ob, A, B); continue; }
+      const k = (EDGE - oa) / (ob - oa), xm = x + (xb - x) * k, Mid = lineAt(xm) || A;
+      stripe(x, oa, xm, EDGE - 0.02, A, Mid);
+      stripe(xm, EDGE + 0.02, xb, ob, Mid, B);
+    }
+  }
+}
 
 // --------------------------------------------------------------------------------------------- the cutting --
 // The expressway below the land, in this piece: its road at its own height (going down into the cutting and up out of
@@ -849,9 +941,9 @@ function cuttingTile(M, T) {
     // the road, its lines, the wheels' wear
     q(-15, 15, ya + ROAD_Y, yb + ROAD_Y, ya + ROAD_Y, yb + ROAD_Y, M.tar, TAR, UP);
     for (const k of [-1, 1]) {
-      for (const o of [1.0, 11.5]) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
-      if (Math.floor(a / step) % 3 === 0) for (const o of [4.5, 8.0]) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
-      for (const o of [2.75, 6.25, 9.75]) for (const s of [-0.85, 0.85]) q(k * o + s - 0.3, k * o + s + 0.3, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, M.wear, TAR_WORN, UP);
+      for (const o of EXPRESSWAY_LINES.edges) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
+      if (Math.floor(a / step) % 3 === 0) for (const o of EXPRESSWAY_LINES.between) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
+      for (const o of EXPRESSWAY_LINES.lanes) for (const s of [-0.85, 0.85]) q(k * o + s - 0.3, k * o + s + 0.3, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, M.wear, TAR_WORN, UP);
       // the gutter
       q(k * 15, k * CUT.wall, ya + 0.003, yb + 0.003, ya + 0.003, yb + 0.003, M.concrete, CONCRETE_DARK, UP, Q_UV);
       // the retaining wall's face, from the road to the land (and on up as the parapet's inner face)
@@ -1173,6 +1265,7 @@ function* buildTile(T, S) {
   yield* kerbsTile(M, T);
   yield;
   yield* decksTile(M, T, lite, fixedLights);
+  goresTile(M, T);
   yield;
   cuttingTile(M, T);
   signalsTile(M, T);

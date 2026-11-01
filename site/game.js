@@ -1206,7 +1206,6 @@ const OUTSKIRT_COLLIDERS = Object.freeze([
   wall(BRIDGE.x0, BRIDGE.start + 2, BRIDGE.x0 + 0.6, BRIDGE.end), wall(BRIDGE.x1 - 0.6, BRIDGE.start + 2, BRIDGE.x1, BRIDGE.end),
   ...[-1, 1].map((k) => box((BRIDGE.x0 + BRIDGE.x1) / 2 + k * 9.5 - 0.35, BRIDGE.land + 8 - 0.35, (BRIDGE.x0 + BRIDGE.x1) / 2 + k * 9.5 + 0.35, BRIDGE.land + 8 + 0.35)),
   wall(FAR_BANK.x0, BRIDGE.end - 0.6, FAR_BANK.x1, BRIDGE.end),
-  wall(-1188, -47, -1184, -33),
   ...fenceWalls(),
   ...terminalWalls(),
   box(A.tower.x - A.tower.base / 2, A.tower.z - A.tower.base / 2, A.tower.x + A.tower.base / 2, A.tower.z + A.tower.base / 2),
@@ -1226,7 +1225,7 @@ const OUTSKIRT_SIGNS = Object.freeze([
   { id: 'onitsha-exit', lines: ['KWALE ROAD', 'Kwale · Ughelli · Warri'], x: -262, z: -54, facing: Math.PI / 2, width: 7, height: 2.2, palette: ['#ffffff', '#0b6b3a'] },
   { id: 'airport-turn', lines: ['ASABA AIRPORT', 'Turn here'], x: -728, z: -54, facing: Math.PI / 2, width: 5.5, height: 2, palette: ['#ffffff', '#16407a'] },
   { id: 'airport-terminal', lines: ['ASABA AIRPORT'], x: -850, z: -212.6, facing: 0, width: 26, height: 2.6, palette: ['#ffffff', '#0e2a4a'], high: 10.5 },
-  { id: 'roadworks', lines: ['ROAD WORKS', 'Road closed ahead'], x: -1180, z: -54, facing: Math.PI / 2, width: 5, height: 2, palette: ['#111111', '#f2b705'] },
+  { id: 'roadworks', lines: ['OGANIRU CITY', 'Southgate Roundabout · Harmony Avenue'], x: -1180, z: -54, facing: Math.PI / 2, width: 6, height: 2, palette: ['#ffffff', '#0b6b3a'] },
   { id: 'bridge-name', lines: ['RIVER NIGER BRIDGE'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.truss.from - 0.45, facing: Math.PI, width: 12, height: 1.4, palette: ['#ffffff', '#24364f'], high: BRIDGE.height + BRIDGE.truss.rise - 0.2 },
   { id: 'anambra-welcome', lines: ['WELCOME TO ANAMBRA STATE \u2014', 'LIGHT OF THE NATION'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.land + 8, facing: Math.PI, width: 15, height: 3.2, palette: ['#ffffff', '#0b3b6e', '#f2c200'], ground: BRIDGE.farBank, gantry: Object.freeze({ span: 19, clear: 6.2 }) },
   { id: 'bridge-closed', lines: ['ROAD NOT YET OPEN', 'Onitsha and Anambra State: coming later'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.end - 1.4, facing: Math.PI, width: 8, height: 1.8, palette: ['#111111', '#f2b705'], ground: BRIDGE.farBank },
@@ -5430,7 +5429,7 @@ const ROAD_CLOSURES = Object.freeze([
     ['ROAD CLOSED', 'Road works ahead'], 'Asaba is still being built beyond this point.'),
   closure('registry-north', 'Registry Road, north end', AREA_STATE.BUILDING, { x: 241.5, z: -47.4 }, { x: 241.5, z: -32.6 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road not yet built'], 'The road is not built on from here.'),
-  closure('campus-north', 'Campus Road, north end', AREA_STATE.BUILDING, { x: 241.5, z: -347.2 }, { x: 241.5, z: -334.8 }, -Math.PI / 2,
+  closure('campus-north', 'Campus Road, north end', AREA_STATE.OPEN, { x: 241.5, z: -347.2 }, { x: 241.5, z: -334.8 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road not yet built'], 'The road is not built on from here.'),
   closure('college-west', 'College Road, west end', AREA_STATE.OPEN, { x: -7.4, z: -472 }, { x: 7.4, z: -472 }, 0,
     ['ROAD CLOSED', 'Road works ahead'], 'Asaba is still being built beyond this point.'),
@@ -5484,7 +5483,7 @@ function edgeFences(ground, more = []) {
       const p = at(d);
       const by = l.style === 'wood' ? 1 : 0, ux = (l.b.x - l.a.x) / len, uz = (l.b.z - l.a.z) / len;
       const beyond = (k) => ground(p.x + ux * k + l.out.x * EDGE_FENCE.beyond, p.z + uz * k + l.out.z * EDGE_FENCE.beyond);
-      const edge = ground(p.x, p.z) && !beyond(0) && !(by && (beyond(by) || beyond(-by)));
+      const edge = l.keep ? ground(p.x, p.z) && l.keep(p) : ground(p.x, p.z) && !beyond(0) && !(by && (beyond(by) || beyond(-by)));
       if (edge) { if (start === null) start = d; last = d; } else close();
     }
     close();
@@ -5499,7 +5498,92 @@ function fenceColliders(runs) {
 return { AREA_STATE, ROAD_CLOSURES, openClosures, CLOSURE_KIT, closureColliders, EDGE_LINES, EDGE_FENCE, edgeFences, fenceColliders };
 })();
 
+__modules["sim/billboards.js"] = (function () {
+
+const AD_CATEGORIES = Object.freeze({
+  small: Object.freeze({ id: 'small', name: 'Small', fee: 66, tax: 4 }),
+  medium: Object.freeze({ id: 'medium', name: 'Medium', fee: 132, tax: 8 }),
+  large: Object.freeze({ id: 'large', name: 'Large', fee: 200, tax: 16 }),
+  xl: Object.freeze({ id: 'xl', name: 'Extra-large', fee: 267, tax: 32 }),
+  tv: Object.freeze({ id: 'tv', name: 'Digital TV billboard', fee: 667, tax: 64 }),
+});
+const dailyCharge = (category) => AD_CATEGORIES[category].fee + AD_CATEGORIES[category].tax;
+
+function categoryOf(width, height, tv = false) {
+  if (tv) return 'tv';
+  const area = width * height;
+  return area < 12 ? 'small' : area < 36 ? 'medium' : area < 80 ? 'large' : 'xl';
+}
+
+const AD_DURATIONS = Object.freeze([
+  Object.freeze({ id: '1w', label: '1 week', days: 7 }),
+  Object.freeze({ id: '2w', label: '2 weeks', days: 14 }),
+  Object.freeze({ id: '1m', label: '1 month (30 days)', days: 30 }),
+  Object.freeze({ id: '2m', label: '2 months (60 days)', days: 60 }),
+  Object.freeze({ id: '3m', label: '3 months (90 days)', days: 90 }),
+  Object.freeze({ id: '6m', label: '6 months (180 days)', days: 180 }),
+]);
+
+const DARK = Object.freeze({ steel: 0x3b3f45, deep: 0x26292e, pole: 0x34383d, rail: 0x50555b, lamp: 0x2a2d31 });
+const GALV = Object.freeze({ steel: 0x9aa0a6, deep: 0x7d838a, pole: 0xa8adb2, rail: 0xb3b8bd, lamp: 0x5d6268 });
+const WHITE = Object.freeze({ steel: 0x9aa0a6, deep: 0x6f757c, pole: 0xd9dcdc, rail: 0xb3b8bd, lamp: 0xd0d3d4 });
+
+const kind = (id, name, ref, spec) => Object.freeze({ id, name, ref, ...spec });
+
+const BILLBOARD_TYPES = Object.freeze({
+  'dark-unipole-truss': kind('dark-unipole-truss', 'Unipole with side truss', 'a02', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'grating', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'dark-unipole-catwalk': kind('dark-unipole-catwalk', 'Unipole with catwalk and cage ladder', 'a03', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'dark-unipole-deep': kind('dark-unipole-deep', 'Unipole with deep platform', 'a04', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'grating', deepDeck: true, lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5] }),
+  'galvanised-four-leg': kind('galvanised-four-leg', 'Four-legged galvanised frame', 'a05', { width: 12, height: 4.5, bottom: 7, supports: 'four', poleRadius: 0.32, truss: 'left', deck: 'grating', lamps: 0, lampsAt: null, ladder: null, colours: GALV, scales: [1, 0.75] }),
+  'galvanised-unipole-railing': kind('galvanised-unipole-railing', 'Galvanised unipole with railed catwalk', 'a06', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'galvanised-unipole-deck-lamps': kind('galvanised-unipole-deck-lamps', 'Galvanised unipole, lamps on the catwalk', 'a07', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5] }),
+  'yellow-trestle': kind('yellow-trestle', 'Long board on yellow scaffold legs', 'a01', { width: 30, height: 6, bottom: 7, supports: 'trestle', poleRadius: 0.12, truss: 'left', deck: 'grating', lamps: 13, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.8] }),
+  'front-unipole-ladder': kind('front-unipole-ladder', 'Unipole with railed catwalk and ladder', 'b03', { width: 14, height: 5, bottom: 10, supports: 'pole', poleRadius: 0.65, truss: null, deck: 'railing', lamps: 5, lampsAt: 'top', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'offset-white-unipole': kind('offset-white-unipole', 'Offset white unipole with double deck', 'b04', { width: 14, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, poleOffset: 0.3, truss: 'right', deck: 'double', lamps: 2, lampsAt: 'deck', lightBar: true, ladder: 'rungs', colours: WHITE, scales: [1, 0.75, 0.6, 0.5] }),
+  'dark-unipole-deck-lamps': kind('dark-unipole-deck-lamps', 'Unipole with lamps along its deck', 'b05', { width: 14, height: 5, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'grating', lamps: 7, lampsAt: 'deck', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
+  'twin-pole-railing': kind('twin-pole-railing', 'Twin-pole board with railed catwalk', 'b07', { width: 16, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
+  'twin-pole-long': kind('twin-pole-long', 'Long twin-pole board', 'b09', { width: 22, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.6, truss: 'left', deck: 'grating', underTruss: true, lamps: 9, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
+  'tv-unipole': kind('tv-unipole', 'Digital screen on a unipole', 'b01', { width: 8, height: 10, bottom: 10, supports: 'pole', poleRadius: 0.7, truss: 'left', deck: 'railing', lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, tv: true, scales: [1] }),
+  'tv-building': kind('tv-building', 'Building wrapped in digital screens', 'b02', { width: 24, height: 9, bottom: 8, supports: 'building', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: DARK, tv: true, footprint: Object.freeze({ w: 34, d: 22 }), scales: [1] }),
+  'tv-tower': kind('tv-tower', 'Four-sided digital screen tower', 'b08', { width: 6, height: 8, bottom: 4.5, supports: 'tower', poleRadius: 0, truss: null, deck: null, lamps: 12, lampsAt: 'top', ladder: null, colours: DARK, tv: true, sides: 4, footprint: Object.freeze({ w: 8, d: 8 }), scales: [1] }),
+  'tv-curved': kind('tv-curved', 'Curved digital screen on a mast', 'b10', { width: 9, height: 10, bottom: 6, supports: 'mast', poleRadius: 0.3, truss: null, deck: 'grating', lamps: 6, lampsAt: 'deck', ladder: null, colours: DARK, tv: true, curve: 0.5, scales: [1] }),
+  'tv-chrome': kind('tv-chrome', 'Chrome-framed digital screen', 'b11', { width: 12, height: 4, bottom: 5, supports: 'plinth', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: WHITE, tv: true, footprint: Object.freeze({ w: 11, d: 2.6 }), scales: [1] }),
+});
+
+function feetOf(type, scale = 1) {
+  const t = BILLBOARD_TYPES[type], W = t.width * scale, s = scale, back = -0.9 * s;
+  switch (t.supports) {
+    case 'pole': return [{ x: (t.poleOffset || 0) * W, z: back - 0.3 * s, r: t.poleRadius * s }];
+    case 'twin': return [-0.32, 0.32].map((k) => ({ x: k * W, z: back - 0.3 * s, r: t.poleRadius * s }));
+    case 'four': return [-0.36, -0.12, 0.12, 0.36].map((k, i) => ({ x: k * W, z: back - (i % 2 ? 1.6 : 0.4) * s, r: 0.35 * s }));
+    case 'trestle': { const out = []; for (let x = -W / 2 + 1; x <= W / 2 - 0.9; x += 3 * s) for (const z of [back, back - 1.8 * s]) out.push({ x, z, r: 0.2 * s }); return out; }
+    case 'mast': return [{ x: W / 2 + 0.8 * s, z: back, r: 0.6 * s }];
+    case 'tower': case 'building': case 'plinth': return [{ x: 0, z: -t.footprint.d / 2 + 0.6, w: t.footprint.w, d: t.footprint.d }];
+    default: return [];
+  }
+}
+
+function faceOf(type, scale = 1) {
+  const t = BILLBOARD_TYPES[type];
+  const r = (v) => Math.round(v * 10) / 10;
+  return { width: r(t.width * scale), height: r(t.height * scale), bottom: r(t.bottom * scale) };
+}
+
+function aspectOf(width, height) {
+  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
+  const a = Math.round(width * 10), b = Math.round(height * 10), g = gcd(a, b);
+  const x = a / g, y = b / g;
+  if (x <= 20 && y <= 20) return `${x}:${y}`;
+  return `${(width / height).toFixed(2)}:1`;
+}
+
+const EMPTY_FACE = 'PLACE YOUR ADS';
+
+return { AD_CATEGORIES, dailyCharge, categoryOf, AD_DURATIONS, BILLBOARD_TYPES, feetOf, faceOf, aspectOf, EMPTY_FACE };
+})();
+
 __modules["sim/zones/oganiru.js"] = (function () {
+const { faceOf, feetOf, categoryOf } = __modules["sim/billboards.js"];
 
 const KERB = 0.15;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -5508,12 +5592,13 @@ const inBox = (b, x, z, pad = 0) => x >= b.x0 - pad && x <= b.x1 + pad && z >= b
 
 const OGANIRU = Object.freeze({
   name: 'Oganiru City',
-  stage: 1,
+  stage: 2,
   lane: 3.5, carriage: 7.5, median: 5, kerb: KERB, walk: 3.5, verge: 4.5,
   deck: Object.freeze({ thick: 2, wall: 1.1, wallWidth: 0.5, clear: 5.5, level: 7.5, upper: 15.4, grade: 0.06, curve: 30 }),
   under: 4.5,
   step: 1.2,
-  bounds: box(-600, -1560, 680, -470),
+  cutting: Object.freeze({ deep: 7.6, wall: 15.5, wallWidth: 0.6, parapet: 1.1 }),
+  bounds: box(-1430, -1670, 960, -12),
 });
 
 function resample(pts, step = 2) {
@@ -5571,31 +5656,140 @@ function profile(knots, curve = OGANIRU.deck.curve) {
     return knots[knots.length - 1][1];
   };
 }
+const hash = (i, k) => { const s = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return s - Math.floor(s); };
 
-const groundRoad = (id, name, along, c, from, to, o = {}) => Object.freeze({ id, name, along, c, from: Math.min(from, to), to: Math.max(from, to), half: 10, median: OGANIRU.median, walk: OGANIRU.walk, trees: false, lamps: false, kind: 'avenue', ...o });
-const U = 0;                       // Unity Avenue's middle (x)
-const GATE = Object.freeze({ x: 0, z: -560, island: 13, outer: 22, walk: 3.5 });       // the Gate Roundabout
-const UNION_Z = -670, INDEPENDENCE_Z = -780, TOWER_Z = -880;
+const U = 0;                                                   // Unity Avenue
+const HARMONY_X = -1290, HOPE_X = -750, PEACE_X = 720;         // Harmony, Hope and Peace Avenues
+const EXCHANGE_X = -400, COUNCIL_X = -240, CHARTER_X = 240, COMMERCE_X = 400;   // downtown's streets along z
+const GATEWAY_Z = -560, UNION_Z = -670, INDEPENDENCE_Z = -780, TOWER_Z = -880, SUNRISE_Z = -1550;
+const CAMPUS_Z = -341, KWALE_Z = -40;
 const EXPRESSWAY_Z = -1130;
 const UNITY_WALKS_TO = -950;
-const OGANIRU_ROADS = Object.freeze([
-  groundRoad('unity-gate', 'Unity Avenue', 'z', U, -478.6, -GATE.outer + GATE.z + 0.5, { half: 5, median: 0, walk: 0, kind: 'approach', flare: { from: -505, to: GATE.z + GATE.outer, half: 10, median: 5 } }),
-  groundRoad('unity', 'Unity Avenue', 'z', U, GATE.z - GATE.outer - 0.5, -1520, { trees: true, lamps: true, walkTo: UNITY_WALKS_TO }),
-  groundRoad('gateway-n', 'Gateway Boulevard', 'x', GATE.z, GATE.outer + 0.5, 78, { walk: 3.5 }),
-  groundRoad('gateway-s', 'Gateway Boulevard', 'x', GATE.z, -GATE.outer - 0.5, -78, { walk: 3.5 }),
-  groundRoad('union-n', 'Union Street', 'x', UNION_Z, 10, 58, { half: 7, median: 0, walk: 4, kind: 'street' }),
-  groundRoad('union-s', 'Union Street', 'x', UNION_Z, -10, -58, { half: 7, median: 0, walk: 4, kind: 'street' }),
-  groundRoad('tower-n', 'Tower Street', 'x', TOWER_Z, 10, 58, { half: 7, median: 0, walk: 4, kind: 'street' }),
-  groundRoad('tower-s', 'Tower Street', 'x', TOWER_Z, -10, -58, { half: 7, median: 0, walk: 4, kind: 'street' }),
-  groundRoad('independence-n', 'Independence Boulevard', 'x', INDEPENDENCE_Z, 13.5, 213, { half: 16, median: 16, walk: 3.5, kind: 'flyover-road' }),
-  groundRoad('independence-s', 'Independence Boulevard', 'x', INDEPENDENCE_Z, -13.5, -213, { half: 16, median: 16, walk: 3.5, kind: 'flyover-road' }),
+const OGANIRU_PLACES = Object.freeze({ U, HARMONY_X, HOPE_X, PEACE_X, EXCHANGE_X, COUNCIL_X, CHARTER_X, COMMERCE_X, GATEWAY_Z, UNION_Z, INDEPENDENCE_Z, TOWER_Z, SUNRISE_Z, CAMPUS_Z, KWALE_Z, EXPRESSWAY_Z });
+
+const RING = Object.freeze({ island: 13, outer: 22, walk: 3.5 });
+const RING_EDGE = RING.outer + 0.5;           // where a road coming in meets the ring
+const roundabout = (id, name, x, z, legs) => Object.freeze({ id, name, x, z, ...RING, legs: Object.freeze(legs.map(([dir, half]) => Object.freeze({ dir, half }))) });
+const OGANIRU_ROUNDABOUTS = Object.freeze([
+  roundabout('gate', 'Gate Roundabout', U, GATEWAY_Z, [['e', 10], ['w', 10], ['n', 10], ['s', 10]]),
+  roundabout('airport', 'Airport Roundabout', HARMONY_X, GATEWAY_Z, [['e', 10], ['w', 10], ['n', 10], ['s', 10]]),
+  roundabout('southgate', 'Southgate Roundabout', HARMONY_X, KWALE_Z, [['n', 7], ['s', 7], ['w', 10]]),
+  roundabout('campus', 'Campus Roundabout', PEACE_X, CAMPUS_Z, [['s', 10], ['w', 10], ['n', 10]]),
+  roundabout('sunrise', 'Sunrise Roundabout', U, SUNRISE_Z, [['e', 10], ['w', 10], ['n', 10], ['s', 10]]),
 ]);
+const GATE = OGANIRU_ROUNDABOUTS[0];
+const legVector = (dir) => (dir === 'n' ? [1, 0] : dir === 's' ? [-1, 0] : dir === 'e' ? [0, 1] : [0, -1]);
+const inMouth = (r, x, z) => r.legs.some((l) => { const [ux, uz] = legVector(l.dir); const along = (x - r.x) * ux + (z - r.z) * uz, across = Math.abs(-(x - r.x) * uz + (z - r.z) * ux); return along > 0 && across < l.half + 0.5; });
+
+const L1 = OGANIRU.deck.level, L2 = OGANIRU.deck.upper;
+const CUT = OGANIRU.cutting;
+const EXPRESSWAY_PROFILE = profile([[-930, 0], [-770, -CUT.deep], [-735, -CUT.deep], [-450, L1]], 30);
+const expresswayY = (x) => (x <= -930 ? 0 : x >= -450 ? L1 : EXPRESSWAY_PROFILE(x));
+const CUTTING_TO = (() => { let x = -735; while (expresswayY(x) < 0) x += 0.25; return x; })();
+const OGANIRU_CUTTING = Object.freeze({ x0: -930, x1: CUTTING_TO, z: EXPRESSWAY_Z, half: CUT.wall });
+const inCutting = (x, z) => x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1 && Math.abs(z - EXPRESSWAY_Z) <= CUT.wall;
+
+const groundRoad = (id, name, along, c, from, to, o = {}) => Object.freeze({ id, name, along, c, from: Math.min(from, to), to: Math.max(from, to), half: 10, median: OGANIRU.median, walk: OGANIRU.walk, trees: false, lamps: true, kind: 'avenue', ...o });
+const AVENUE = { half: 10, median: 5, walk: 3.5 };
+const STREET = { half: 7, median: 0, walk: 4, kind: 'street', lamps: false };
+const FLYOVER_ROAD = { half: 16, median: 16, walk: 3.5, kind: 'flyover-road', lamps: false };
+const FLY = Object.freeze({ independence: [180, 180], peace: [165, 165], harmony: [165, 165], hope: [165, 165] });
+const OGANIRU_ROADS = Object.freeze([
+  groundRoad('unity-gate', 'Unity Avenue', 'z', U, -470, GATE.z + RING_EDGE, { half: 5, median: 0, walk: 0, kind: 'approach', lamps: false, flare: { narrow: -505, wide: GATE.z + GATE.outer, half: 10, median: 5, walk: OGANIRU.walk } }),
+  groundRoad('unity', 'Unity Avenue', 'z', U, GATE.z - RING_EDGE, SUNRISE_Z + RING_EDGE, { trees: true, walks: [[UNITY_WALKS_TO, GATE.z - RING_EDGE]] }),
+  groundRoad('unity-west', 'Unity Avenue', 'z', U, SUNRISE_Z - RING_EDGE, -1640, { trees: true, walk: 0 }),
+  groundRoad('gateway-s', 'Gateway Boulevard', 'x', GATEWAY_Z, HARMONY_X + RING_EDGE, U - RING_EDGE, {}),
+  groundRoad('gateway-n', 'Gateway Boulevard', 'x', GATEWAY_Z, U + RING_EDGE, PEACE_X - 10, {}),
+  groundRoad('independence-1', 'Independence Boulevard', 'x', INDEPENDENCE_Z, HARMONY_X + 16, HOPE_X - 16, {}),
+  groundRoad('independence-2', 'Independence Boulevard', 'x', INDEPENDENCE_Z, HOPE_X + 16, -230, {}),
+  groundRoad('independence-s', 'Independence Boulevard', 'x', INDEPENDENCE_Z, -230, -10, { ...FLYOVER_ROAD, taper: [-230, 50] }),
+  groundRoad('independence-n', 'Independence Boulevard', 'x', INDEPENDENCE_Z, 10, 230, { ...FLYOVER_ROAD, taper: [230, 50] }),
+  groundRoad('independence-3', 'Independence Boulevard', 'x', INDEPENDENCE_Z, 230, PEACE_X - 16, {}),
+  groundRoad('sunrise-s', 'Sunrise Boulevard', 'x', SUNRISE_Z, HARMONY_X + 10, U - RING_EDGE, { trees: true }),
+  groundRoad('sunrise-n', 'Sunrise Boulevard', 'x', SUNRISE_Z, U + RING_EDGE, PEACE_X + 10, { trees: true }),
+  groundRoad('harmony-1', 'Harmony Avenue', 'z', HARMONY_X, KWALE_Z - RING_EDGE, GATEWAY_Z + RING_EDGE, { trees: true }),
+  groundRoad('harmony-r2', 'Harmony Avenue', 'z', HARMONY_X, GATEWAY_Z - RING_EDGE, GATEWAY_Z - RING_EDGE - 12.5, { median: 0 }),
+  groundRoad('harmony-fe', 'Harmony Avenue', 'z', HARMONY_X, GATEWAY_Z - RING_EDGE - 12.5, INDEPENDENCE_Z + 10, { ...FLYOVER_ROAD, taper: [GATEWAY_Z - RING_EDGE - 12.5, 20] }),
+  groundRoad('harmony-fw', 'Harmony Avenue', 'z', HARMONY_X, INDEPENDENCE_Z - 10, INDEPENDENCE_Z - FLY.harmony[0] - 35, { ...FLYOVER_ROAD, taper: [INDEPENDENCE_Z - FLY.harmony[0] - 35, 35] }),
+  groundRoad('harmony-2', 'Harmony Avenue', 'z', HARMONY_X, INDEPENDENCE_Z - FLY.harmony[0] - 35, -1620, { trees: true, walk: 0 }),
+  groundRoad('peace-1', 'Peace Avenue', 'z', PEACE_X, CAMPUS_Z - RING_EDGE, INDEPENDENCE_Z + FLY.peace[1] + 35, { trees: true }),
+  groundRoad('peace-fe', 'Peace Avenue', 'z', PEACE_X, INDEPENDENCE_Z + FLY.peace[1] + 35, INDEPENDENCE_Z + 10, { ...FLYOVER_ROAD, taper: [INDEPENDENCE_Z + FLY.peace[1] + 35, 35] }),
+  groundRoad('peace-fw', 'Peace Avenue', 'z', PEACE_X, INDEPENDENCE_Z - 10, INDEPENDENCE_Z - FLY.peace[0] - 35, { ...FLYOVER_ROAD, taper: [INDEPENDENCE_Z - FLY.peace[0] - 35, 35] }),
+  groundRoad('peace-2', 'Peace Avenue', 'z', PEACE_X, INDEPENDENCE_Z - FLY.peace[0] - 35, SUNRISE_Z - 10, { trees: true }),
+  groundRoad('hope-1', 'Hope Avenue', 'z', HOPE_X, GATEWAY_Z - 10, INDEPENDENCE_Z + FLY.hope[1] + 25, {}),
+  groundRoad('hope-fe', 'Hope Avenue', 'z', HOPE_X, INDEPENDENCE_Z + FLY.hope[1] + 25, INDEPENDENCE_Z + 10, { ...FLYOVER_ROAD, taper: [INDEPENDENCE_Z + FLY.hope[1] + 25, 25] }),
+  groundRoad('hope-fw', 'Hope Avenue', 'z', HOPE_X, INDEPENDENCE_Z - 10, INDEPENDENCE_Z - FLY.hope[0] - 35, { ...FLYOVER_ROAD, taper: [INDEPENDENCE_Z - FLY.hope[0] - 35, 35] }),
+  groundRoad('hope-2', 'Hope Avenue', 'z', HOPE_X, INDEPENDENCE_Z - FLY.hope[0] - 35, -1104, {}),
+  groundRoad('hope-3', 'Hope Avenue', 'z', HOPE_X, -1156, SUNRISE_Z + 10, {}),
+  groundRoad('campus-gate', 'Campus Link', 'x', CAMPUS_Z, 240, 300, { half: 4, median: 0, walk: 0, kind: 'approach', lamps: false, flare: { narrow: 252, wide: 296, half: 10, median: 5, walk: OGANIRU.walk } }),
+  groundRoad('campus-link', 'Campus Link', 'x', CAMPUS_Z, 300, PEACE_X - RING_EDGE, {}),
+  groundRoad('kwale-on', 'Asaba\u2013Kwale Road', 'x', KWALE_Z, -1190, HARMONY_X + RING_EDGE, { half: 7, median: 0, walk: 0, kind: 'link', lamps: false }),
+  groundRoad('kwale-south', 'Asaba\u2013Kwale Road', 'x', KWALE_Z, HARMONY_X - RING_EDGE, -1390, { half: 7, median: 0, walk: 0, kind: 'link', lamps: false }),
+  groundRoad('airport-south', 'Gateway Boulevard', 'x', GATEWAY_Z, HARMONY_X - RING_EDGE, HARMONY_X - 70, { walk: 0, lamps: false }),
+  groundRoad('campus-north', 'Peace Avenue', 'x', CAMPUS_Z, PEACE_X + RING_EDGE, PEACE_X + 80, { walk: 0, lamps: false }),
+  groundRoad('expressway-south', 'Oganiru Expressway', 'x', EXPRESSWAY_Z, -1040, OGANIRU_CUTTING.x0, { half: 15, median: 0, walk: 0, kind: 'expressway', barrier: 0.3, lamps: false }),
+  groundRoad('expressway-south-nb', 'Oganiru Expressway', 'x', EXPRESSWAY_Z + 7.5, -1200, -1040, { half: 7.5, median: 0, walk: 0, kind: 'expressway', lamps: false }),
+  groundRoad('expressway-cutting', 'Oganiru Expressway', 'x', EXPRESSWAY_Z, OGANIRU_CUTTING.x0, OGANIRU_CUTTING.x1, { half: 15, median: 0, walk: 0, kind: 'cutting', barrier: 0.3, lamps: false }),
+  groundRoad('exchange', 'Exchange Street', 'z', EXCHANGE_X, GATEWAY_Z - 10, SUNRISE_Z + 10, STREET),
+  groundRoad('commerce', 'Commerce Street', 'z', COMMERCE_X, GATEWAY_Z - 10, SUNRISE_Z + 10, STREET),
+  groundRoad('council', 'Council Street', 'z', COUNCIL_X, GATEWAY_Z - 10, TOWER_Z + 7, STREET),
+  groundRoad('charter', 'Charter Street', 'z', CHARTER_X, GATEWAY_Z - 10, TOWER_Z + 7, STREET),
+  groundRoad('union-s', 'Union Street', 'x', UNION_Z, EXCHANGE_X + 7, -10, STREET),
+  groundRoad('union-n', 'Union Street', 'x', UNION_Z, 10, COMMERCE_X - 7, STREET),
+  groundRoad('tower-s', 'Tower Street', 'x', TOWER_Z, EXCHANGE_X + 7, -10, STREET),
+  groundRoad('tower-n', 'Tower Street', 'x', TOWER_Z, 10, COMMERCE_X - 7, STREET),
+]);
+const ROAD_BY_ID = new Map(OGANIRU_ROADS.map((r) => [r.id, r]));
+function roadWidthAt(r, a) {
+  if (r.kind === 'flyover-road' && r.taper) {
+    const [end, len] = r.taper, t = clamp(1 - Math.abs(a - end) / len, 0, 1);
+    return { half: r.half + (AVENUE.half - r.half) * t, median: r.median * (1 - t), walk: r.walk, under: t < 1 };
+  }
+  if (r.flare) {
+    const f = r.flare, t = clamp((a - f.narrow) / (f.wide - f.narrow), 0, 1);
+    return { half: r.half + (f.half - r.half) * t, median: f.median * t, walk: f.walk };
+  }
+  return { half: r.half, median: r.median, walk: r.walk };
+}
+const across = (r, x, z) => (r.along === 'z' ? x - r.c : z - r.c);
+const alongOf = (r, x, z) => (r.along === 'z' ? z : x);
+
+const OGANIRU_JUNCTIONS = (() => {
+  const out = [];
+  const roads = OGANIRU_ROADS.filter((r) => !['expressway', 'cutting', 'link'].includes(r.kind) && !r.id.startsWith('campus-') && !r.id.startsWith('airport-'));
+  for (const X of roads) for (const Z of roads) {
+    if (X.along !== 'x' || Z.along !== 'z') continue;
+    const x = Z.c, z = X.c;
+    const wx = roadWidthAt(Z, z).half, wz = roadWidthAt(X, x).half;
+    if (x < X.from - wx - 1.5 || x > X.to + wx + 1.5 || z < Z.from - wz - 1.5 || z > Z.to + wz + 1.5) continue;
+    const key = `${Math.round(x)},${Math.round(z)}`;
+    let j = out.find((q) => q.key === key);
+    if (!j) { j = { key, x, z, hx: 0, hz: 0, roads: [], ends: [], flyover: null }; out.push(j); }
+    j.hx = Math.max(j.hx, wx); j.hz = Math.max(j.hz, wz);
+    for (const r of [X, Z]) if (!j.roads.includes(r.id)) j.roads.push(r.id);
+  }
+  for (const j of out) {
+    const legs = new Set();
+    for (const id of j.roads) {
+      const r = ROAD_BY_ID.get(id), a = r.along === 'x' ? j.x : j.z, w = (r.along === 'x' ? j.hx : j.hz) + 2;
+      if (r.along === 'x') { if (r.to > a + w) legs.add('n'); if (r.from < a - w) legs.add('s'); } else { if (r.to > a + w) legs.add('e'); if (r.from < a - w) legs.add('w'); }
+    }
+    j.legs = [...legs];
+    j.kind = j.legs.length >= 4 ? 'cross' : j.legs.length === 3 ? 'T' : 'corner';
+    j.flyover = j.roads.some((id) => ROAD_BY_ID.get(id).kind === 'flyover-road') ? (j.roads.find((id) => ROAD_BY_ID.get(id).kind === 'flyover-road') || '').split('-')[0] : null;
+    j.signals = j.kind !== 'corner';
+    j.offset = Math.round(hash(Math.round(j.x), Math.round(j.z)) * 4) * 8;
+    j.id = `j-${j.key}`;
+  }
+  return Object.freeze(out.map((j) => Object.freeze({ id: j.id, x: j.x, z: j.z, hx: j.hx, hz: j.hz, roads: Object.freeze(j.roads), legs: Object.freeze(j.legs), kind: j.kind, flyover: j.flyover, signals: j.signals, offset: j.offset })));
+})();
+const junctionAt = (x, z, pad = 0) => OGANIRU_JUNCTIONS.find((j) => Math.abs(x - j.x) <= j.hx + pad && Math.abs(z - j.z) <= j.hz + pad) || null;
 
 const D = OGANIRU.deck;
-function deck(id, name, kind, pts, { width = 8, heights, step = 2, barrier = 0, closed = [], bank = 0.035, walls = null, joins = [] }) {
+function deck(id, name, kind, pts, { width = 8, heights, step = 2, barrier = 0, closed = [], bank = 0.035, walls = null, curve = D.curve }) {
   const path = resample(pts, step);
   const len = path[path.length - 1].s;
-  const hAt = typeof heights === 'function' ? heights : profile(heights.map(([f, h]) => [f < 0 ? len + f : f, h]));
+  const hAt = typeof heights === 'function' ? heights : profile(heights.map(([f, h]) => [f < 0 ? len + f : f, h]), curve);
   for (let i = 0; i < path.length; i += 1) {
     const p = path[i];
     p.y = hAt(p.s);
@@ -5604,7 +5798,7 @@ function deck(id, name, kind, pts, { width = 8, heights, step = 2, barrier = 0, 
     p.bank = clamp(turn * 3, -1, 1) * bank;
   }
   const half = width / 2;
-  return { id, name, kind, path, len, half, inner: half - D.wallWidth, barrier, closed, walls: walls || { left: [[0, len]], right: [[0, len]] }, joins };
+  return { id, name, kind, path, len, half, inner: half - D.wallWidth, barrier, closed, walls: walls || 'auto' };
 }
 const without = (len, gaps) => {
   const out = [];
@@ -5614,9 +5808,8 @@ const without = (len, gaps) => {
   return out;
 };
 
-const L1 = D.level, L2 = D.upper;
 const NB = EXPRESSWAY_Z + 12, SB = EXPRESSWAY_Z - 12;       // the middle of each carriageway's outer lane
-const VIADUCT_HALF = 15, VIADUCT_SOUTH = -560, VIADUCT_NORTH = 640;
+const VIADUCT_HALF = 15, VIADUCT_SOUTH = OGANIRU_CUTTING.x1, VIADUCT_NORTH = 920;
 const RAMP_PATHS = {
   'u-loop-ne': [[16, NB + 1], [44, NB + 7], [90, NB + 12], ...arc(90, EXPRESSWAY_Z + 79, 55, 180, -90, 4).slice(1), [24, EXPRESSWAY_Z + 66], [15, EXPRESSWAY_Z + 48], [12.5, EXPRESSWAY_Z + 32]],
   'u-loop-sw': [[-16, SB - 1], [-44, SB - 7], [-90, SB - 12], ...arc(-90, EXPRESSWAY_Z - 79, 55, 0, -270, 4).slice(1), [-24, EXPRESSWAY_Z - 66], [-15, EXPRESSWAY_Z - 48], [-12.5, EXPRESSWAY_Z - 32]],
@@ -5626,63 +5819,87 @@ const RAMP_PATHS = {
   'u-nw': spline([[262, SB - 1], [215, SB - 9], [160, SB - 34], [138, SB - 98], [96, SB - 146], [44, SB - 172], [16, SB - 186], [12.5, SB - 205]], 10),
   'u-sw': spline([[-12.5, SB - 196], [-16, SB - 182], [-46, SB - 172], [-120, SB - 160], [-178, SB - 112], [-226, SB - 40], [-262, SB - 9], [-300, SB - 1]], 10),
   'u-fly': spline([[-12.5, -1508], [-16, -1478], [-24, -1405], [-8, -1338], [40, -1290], [120, -1228], [196, -1172], [248, -1132], [300, -1102], [360, -1100], [430, -1104], [490, -1107], [525, -1112], [555, NB + 1]], 12),
+  'h-sb-wb': spline([[-1040, SB + 1], [-1100, SB + 0.5], [-1160, SB - 2], [-1205, SB - 12], [-1240, SB - 40], [-1264, SB - 92], [-1274, SB - 150], [-1276, SB - 190]], 12),
+  'h-wb-nb': spline([[-1276, -1000], [-1272, -1030], [-1258, -1068], [-1236, -1098], [-1214, NB + 4.5], [-1196, NB + 4.5]], 12),
+  'h-sb-eb': spline([[-1040, EXPRESSWAY_Z - 4.5], [-1100, EXPRESSWAY_Z - 4.6], [-1170, EXPRESSWAY_Z - 5.5], [-1240, EXPRESSWAY_Z - 8], [-1300, EXPRESSWAY_Z - 12], [-1350, EXPRESSWAY_Z - 6], [-1374, EXPRESSWAY_Z + 24], [-1368, EXPRESSWAY_Z + 68], [-1340, EXPRESSWAY_Z + 104], [-1306, EXPRESSWAY_Z + 124], [-1304, EXPRESSWAY_Z + 140]], 12),
+  'h-eb-nb': spline([[-1304, -1480], [-1309, -1430], [-1310, -1370], [-1302, -1310], [-1284, -1258], [-1258, -1212], [-1222, -1168], [-1190, -1138], [-1160, -1112], [-1110, -1098], [-1040, -1100], [-980, -1108], [-930, NB + 4]], 12),
+  'p-nb-off': spline([[PEACE_X - 160, NB + 1], [PEACE_X - 120, NB + 8], [PEACE_X - 75, NB + 26], [PEACE_X - 35, NB + 38], [PEACE_X - 18, NB + 40], [PEACE_X - 10, NB + 40]], 12),
+  'p-nb-on': spline([[PEACE_X + 10, NB + 40], [PEACE_X + 18, NB + 40], [PEACE_X + 50, NB + 32], [PEACE_X + 110, NB + 14], [PEACE_X + 160, NB + 6], [PEACE_X + 185, NB + 1]], 12),
+  'p-sb-off': spline([[PEACE_X + 185, SB - 1], [PEACE_X + 140, SB - 8], [PEACE_X + 80, SB - 26], [PEACE_X + 30, SB - 38], [PEACE_X + 18, SB - 40], [PEACE_X + 10, SB - 40]], 12),
+  'p-sb-on': spline([[PEACE_X - 10, SB - 40], [PEACE_X - 18, SB - 40], [PEACE_X - 50, SB - 34], [PEACE_X - 100, SB - 18], [PEACE_X - 150, SB - 6], [PEACE_X - 180, SB - 1]], 12),
 };
+const PEACE_RAMP_Z = Object.freeze([NB + 40, SB - 40]);
 const RAMP = { width: 8, flyWidth: 9 };
 function rampDeck(id, name, pts, knots, o = {}) { return deck(id, name, o.kind || 'ramp', pts, { width: o.width || RAMP.width, heights: knots, ...o }); }
 function buildDecks() {
   const out = [];
-  out.push(deck('viaduct', 'Oganiru Expressway', 'expressway', [[VIADUCT_SOUTH, EXPRESSWAY_Z], [VIADUCT_NORTH, EXPRESSWAY_Z]], { width: VIADUCT_HALF * 2, heights: () => L1, step: 4, barrier: 0.5, closed: ['start', 'end'], bank: 0 }));
-  const fly = 180, top = 25;
-  out.push(deck('independence-flyover', 'Independence Boulevard', 'flyover', [[-fly, INDEPENDENCE_Z], [fly, INDEPENDENCE_Z]], { width: 16, heights: [[0, 0], [fly - top, L1], [fly + top, L1], [2 * fly, 0]], step: 2, barrier: 0.35, bank: 0 }));
-  const down = (len) => [[0, L1], [len, 0]], up = (len) => [[0, 0], [len, L1]];
-  const r = (id, name, pts, upward, o = {}) => { const path = resample(pts, 2), len = path[path.length - 1].s; return rampDeck(id, name, pts, upward ? up(len) : down(len), o); };
-  out.push(r('u-loop-ne', 'Unity Interchange (north-bound to Unity Avenue west)', RAMP_PATHS['u-loop-ne'], false));
-  out.push(r('u-loop-sw', 'Unity Interchange (south-bound to Unity Avenue east)', RAMP_PATHS['u-loop-sw'], false));
-  out.push(r('u-loop-nw', 'Unity Interchange (Unity Avenue west to south-bound)', RAMP_PATHS['u-loop-nw'], true));
-  out.push(r('u-se', 'Unity Interchange (north-bound to Unity Avenue east)', RAMP_PATHS['u-se'], false));
-  out.push(r('u-ne', 'Unity Interchange (Unity Avenue west to north-bound)', RAMP_PATHS['u-ne'], true));
-  out.push(r('u-nw', 'Unity Interchange (south-bound to Unity Avenue west)', RAMP_PATHS['u-nw'], false));
-  out.push(r('u-sw', 'Unity Interchange (Unity Avenue east to south-bound)', RAMP_PATHS['u-sw'], true));
+  out.push(deck('viaduct', 'Oganiru Expressway', 'expressway', [[VIADUCT_SOUTH, EXPRESSWAY_Z], [VIADUCT_NORTH, EXPRESSWAY_Z]], { width: VIADUCT_HALF * 2, heights: (s) => expresswayY(VIADUCT_SOUTH + s), step: 4, barrier: 0.5, closed: ['end'], bank: 0 }));
   {
-    const pts = RAMP_PATHS['u-fly'];
-    const path = resample(pts, 2);
-    const near = (x, z) => path.reduce((best, p) => (Math.hypot(p.x - x, p.z - z) < Math.hypot(best.x - x, best.z - z) ? p : best), path[0]).s;
-    const sUnity = near(0, -1320), sLoop = near(150, -1210), sOver = near(248, EXPRESSWAY_Z), sClear = near(318, -1101), sDown = near(492, -1107), len = path[path.length - 1].s;
-    out.push(rampDeck('u-fly', 'Unity Interchange flyover (Unity Avenue east to north-bound)', pts, [[0, 0], [sUnity, 8.0], [sLoop, 13.2], [sOver, L2], [sClear, L2], [sDown, L1], [len, L1]], { kind: 'flyover', width: RAMP.flyWidth }));
+    const [fs, fn] = FLY.independence, top = 25;
+    out.push(deck('independence-flyover', 'Independence Boulevard', 'flyover', [[-fs, INDEPENDENCE_Z], [fn, INDEPENDENCE_Z]], { width: 16, heights: [[0, 0], [fs - top, L1], [fs + top, L1], [fs + fn, 0]], step: 2, barrier: 0.35, bank: 0 }));
   }
+  for (const [id, name, x] of [['peace-flyover', 'Peace Avenue', PEACE_X], ['harmony-flyover', 'Harmony Avenue', HARMONY_X], ['hope-flyover', 'Hope Avenue', HOPE_X]]) {
+    const [fw, fe] = FLY[id.split('-')[0]], top = 15;
+    out.push(deck(id, name, 'flyover', [[x, INDEPENDENCE_Z - fw], [x, INDEPENDENCE_Z + fe]], { width: 16, heights: [[0, 0], [fw - top, L1], [fw + top, L1], [fw + fe, 0]], step: 2, barrier: 0.35, bank: 0, curve: 25 }));
+  }
+  out.push(deck('hope-bridge', 'Hope Avenue', 'bridge', [[HOPE_X, -1156], [HOPE_X, -1104]], { width: 27, heights: () => 0, step: 2, barrier: 0.35, bank: 0, walls: { left: [[0, 52]], right: [[0, 52]] } }));
+  const down = (len) => [[0, L1], [len, 0]], up = (len) => [[0, 0], [len, L1]];
+  const r = (id, name, upward, o = {}) => { const pts = RAMP_PATHS[id], path = resample(pts, 2), len = path[path.length - 1].s; return rampDeck(id, name, pts, upward ? up(len) : down(len), o); };
+  out.push(r('u-loop-ne', 'Unity Interchange (north-bound to Unity Avenue west)', false));
+  out.push(r('u-loop-sw', 'Unity Interchange (south-bound to Unity Avenue east)', false));
+  out.push(r('u-loop-nw', 'Unity Interchange (Unity Avenue west to south-bound)', true));
+  out.push(r('u-se', 'Unity Interchange (north-bound to Unity Avenue east)', false));
+  out.push(r('u-ne', 'Unity Interchange (Unity Avenue west to north-bound)', true));
+  out.push(r('u-nw', 'Unity Interchange (south-bound to Unity Avenue west)', false));
+  out.push(r('u-sw', 'Unity Interchange (Unity Avenue east to south-bound)', true));
+  const near = (path, x, z) => path.reduce((best, p) => (Math.hypot(p.x - x, p.z - z) < Math.hypot(best.x - x, best.z - z) ? p : best), path[0]).s;
+  {
+    const pts = RAMP_PATHS['u-fly'], path = resample(pts, 2), len = path[path.length - 1].s;
+    out.push(rampDeck('u-fly', 'Unity Interchange flyover (Unity Avenue east to north-bound)', pts, [[0, 0], [near(path, 0, -1320), 8.0], [near(path, 150, -1210), 13.2], [near(path, 248, EXPRESSWAY_Z), L2], [near(path, 318, -1101), L2], [near(path, 492, -1107), L1], [len, L1]], { kind: 'flyover', width: RAMP.flyWidth }));
+  }
+  out.push(rampDeck('h-sb-wb', 'Harmony Interchange (south-bound to Harmony Avenue west)', RAMP_PATHS['h-sb-wb'], () => 0, { kind: 'ground-ramp' }));
+  out.push(rampDeck('h-wb-nb', 'Harmony Interchange (Harmony Avenue west to north-bound)', RAMP_PATHS['h-wb-nb'], () => 0, { kind: 'ground-ramp' }));
+  {
+    const pts = RAMP_PATHS['h-sb-eb'], path = resample(pts, 2), len = path[path.length - 1].s;
+    out.push(rampDeck('h-sb-eb', 'Harmony Interchange flyover (south-bound to Harmony Avenue east)', pts, [[0, 0], [near(path, -1250, EXPRESSWAY_Z - 9), L1], [near(path, -1335, EXPRESSWAY_Z - 9), L1], [len, 0]], { kind: 'flyover' }));
+  }
+  {
+    const pts = RAMP_PATHS['h-eb-nb'], path = resample(pts, 2), len = path[path.length - 1].s;
+    out.push(rampDeck('h-eb-nb', 'Harmony Interchange upper flyover (Harmony Avenue east to north-bound)', pts, [[0, 0], [near(path, -1290, -1268), 9.4], [near(path, -1200, -1145), 14.0], [near(path, -1185, -1134), 14.0], [len, 0]], { kind: 'flyover', width: RAMP.flyWidth }));
+  }
+  out.push(r('p-nb-off', 'Peace Interchange (north-bound to Peace Avenue)', false));
+  out.push(r('p-nb-on', 'Peace Interchange (Peace Avenue to north-bound)', true));
+  out.push(r('p-sb-off', 'Peace Interchange (south-bound to Peace Avenue)', false));
+  out.push(r('p-sb-on', 'Peace Interchange (Peace Avenue to south-bound)', true));
+
+  const raised = (q) => q.y > 0.35;
+  const footprint = (B, x, z) => { let best = null; for (let m = 0; m < B.path.length - 1; m += 1) { const a = B.path[m], b = B.path[m + 1]; const ex = b.x - a.x, ez = b.z - a.z, l2 = ex * ex + ez * ez; const t = clamp(((x - a.x) * ex + (z - a.z) * ez) / l2, 0, 1); const px = a.x + ex * t, pz = a.z + ez * t, off = Math.hypot(x - px, z - pz); if (off <= B.half + 1 && (!best || off < best.off)) best = { off, y: a.y + (b.y - a.y) * t, s: a.s + (b.s - a.s) * t, px, pz, ux: ex / Math.sqrt(l2), uz: ez / Math.sqrt(l2) }; } return best; };
+  const gaps = new Map(out.map((d) => [d, { left: [], right: [] }]));
   for (const d of out) {
-    if (d.id === 'viaduct' || d.id === 'independence-flyover') continue;
-    const p = d.path, len = d.len;
-    const low = p.filter((q) => q.y < 0.35).map((q) => q.s);
-    const lowEnd = low.length ? (p[0].y < 0.35 ? Math.max(...low.filter((s) => s < len / 2), 0) : null) : null;
-    const lowStart = low.length ? (p[p.length - 1].y < 0.35 ? Math.min(...low.filter((s) => s > len / 2), len) : null) : null;
-    const gaps = [];
-    if (lowEnd !== null) gaps.push([0, lowEnd]);
-    if (lowStart !== null) gaps.push([lowStart, len]);
-    const atViaduct = (q) => Math.abs(q.z - EXPRESSWAY_Z) < VIADUCT_HALF + 1 && q.x > VIADUCT_SOUTH && q.x < VIADUCT_NORTH && Math.abs(q.y - L1) < 0.6;
-    const meets = p.filter(atViaduct).map((q) => q.s);
-    let left = without(len, gaps), right = without(len, gaps);
-    if (meets.length) {
-      const s0 = Math.min(...meets), s1 = Math.max(...meets);
-      const q = p.find((k) => k.s >= (s0 + s1) / 2) || p[0];
-      const toMiddle = { x: 0, z: EXPRESSWAY_Z - q.z };
-      const leftNormal = { x: q.uz, z: -q.ux };
-      const faceLeft = leftNormal.z * toMiddle.z > 0;
-      const open = [Math.max(0, s0 - 30), Math.min(len, s1 + 30)];
-      if (faceLeft) left = without(len, [...gaps, open]); else right = without(len, [...gaps, open]);
-    }
-    d.walls = { left, right };
+    if (d.walls !== 'auto') continue;
+    const p = d.path, len = d.len, g = gaps.get(d);
+    const lowStart = p.findIndex(raised), lowEnd = p.length - 1 - [...p].reverse().findIndex(raised);
+    if (lowStart < 0) { g.left.push([0, len]); g.right.push([0, len]); continue; }
+    if (lowStart > 0) { g.left.push([0, p[lowStart].s]); g.right.push([0, p[lowStart].s]); }
+    if (lowEnd < p.length - 1) { g.left.push([p[lowEnd].s, len]); g.right.push([p[lowEnd].s, len]); }
   }
-  const v = out[0];
-  const gaps = { left: [], right: [] };
-  for (const d of out.slice(2)) {
-    const meets = d.path.filter((q) => Math.abs(q.z - EXPRESSWAY_Z) < VIADUCT_HALF + 1 && q.x > VIADUCT_SOUTH && q.x < VIADUCT_NORTH && Math.abs(q.y - L1) < 0.6);
-    if (!meets.length) continue;
-    const xs = meets.map((q) => q.x);
-    const a = Math.min(...xs) - VIADUCT_SOUTH - 24, b = Math.max(...xs) - VIADUCT_SOUTH + 24;
-    (meets[0].z < EXPRESSWAY_Z ? gaps.left : gaps.right).push([a, b]);
+  for (const A of out) for (const B of out) {
+    if (A === B || B.walls !== 'auto' || A.walls !== 'auto') continue;
+    const meets = [];
+    for (const q of A.path) { if (!raised(q)) continue; const h = footprint(B, q.x, q.z); if (h && Math.abs(h.y - q.y) < 0.6) meets.push({ q, h }); }
+    if (meets.length < 3) continue;
+    const s0 = Math.min(...meets.map((m) => m.q.s)), s1 = Math.max(...meets.map((m) => m.q.s));
+    const mid = meets[Math.floor(meets.length / 2)];
+    const aLeft = { x: mid.q.uz, z: -mid.q.ux };
+    const toB = { x: mid.h.px - mid.q.x, z: mid.h.pz - mid.q.z };
+    const faceLeft = aLeft.x * toB.x + aLeft.z * toB.z > 0;
+    gaps.get(A)[faceLeft ? 'left' : 'right'].push([Math.max(0, s0 - 30), Math.min(A.len, s1 + 30)]);
+    const bLeft = { x: mid.h.uz, z: -mid.h.ux };
+    const toA = { x: mid.q.x - mid.h.px, z: mid.q.z - mid.h.pz };
+    const bs = meets.map((m) => m.h.s);
+    gaps.get(B)[bLeft.x * toA.x + bLeft.z * toA.z > 0 ? 'left' : 'right'].push([Math.max(0, Math.min(...bs) - 24), Math.min(B.len, Math.max(...bs) + 24)]);
   }
-  v.walls = { left: without(v.len, gaps.left), right: without(v.len, gaps.right) };
+  for (const d of out) if (d.walls === 'auto') { const g = gaps.get(d); d.walls = { left: without(d.len, g.left), right: without(d.len, g.right) }; }
   return out;
 }
 const OGANIRU_DECKS = buildDecks();
@@ -5717,8 +5934,10 @@ function oganiruDecksAt(x, z) {
     const along = Math.hypot(x - px, z - pz);
     if (along > d.half) continue;
     const s = a.s + (b.s - a.s) * t;
+    const p0 = d.path[0], pn = d.path[d.path.length - 1];
+    if (a.s < d.half + 4 && (x - p0.x) * p0.ux + (z - p0.z) * p0.uz < -0.01) continue;
+    if (b.s > d.len - d.half - 4 && (x - pn.x) * pn.ux + (z - pn.z) * pn.uz > 0.01) continue;
     const ux = ex / Math.sqrt(l2), uz = ez / Math.sqrt(l2);
-    if ((t === 0 && list[k + 1] === 0 && (x - a.x) * ux + (z - a.z) * uz < -0.01) || (t === 1 && list[k + 1] === d.path.length - 2 && (x - b.x) * ux + (z - b.z) * uz > 0.01)) continue;
     const left = -(x - px) * uz + (z - pz) * ux;           // + to the left of the way it runs (+x north, +z east: left of north is west, -z)
     const d2 = -left;
     const was = best.get(d);
@@ -5730,32 +5949,80 @@ function oganiruDecksAt(x, z) {
   return hitsOut;
 }
 
+const OGANIRU_MEDIAN_GAPS = (() => {
+  const out = [];
+  for (const r of OGANIRU_ROADS) {
+    if (!(r.median > 0) || r.kind !== 'avenue') continue;
+    for (const j of OGANIRU_JUNCTIONS) {
+      if (!j.roads.includes(r.id)) continue;
+      const a = r.along === 'z' ? j.z : j.x, w = r.along === 'z' ? j.hz : j.hx;
+      const pad = j.flyover ? 6 : 2;
+      out.push({ road: r.id, from: a - w - pad, to: a + w + pad, why: 'junction' });
+    }
+  }
+  for (const z of PEACE_RAMP_Z) out.push({ road: 'peace-2', from: z - 10, to: z + 10, why: 'junction' });
+  out.push({ road: 'unity', from: -1000, to: -988, why: 'u-turn' }, { road: 'unity', from: -1400, to: -1388, why: 'u-turn' });
+  for (const r of OGANIRU_ROADS) {
+    if (!(r.median > 0) || r.kind !== 'avenue' || r.id === 'unity' || r.to - r.from < 300) continue;
+    for (let a = r.from + 200; a < r.to - 150; a += 400) {
+      const at = Math.round(a);
+      if (out.some((g) => g.road === r.id && g.to > at - 80 && g.from < at + 80)) continue;
+      if (oganiruDecksAt(r.along === 'z' ? r.c : at, r.along === 'z' ? at : r.c).length) continue;
+      out.push({ road: r.id, from: at - 6, to: at + 6, why: 'u-turn' });
+    }
+  }
+  return Object.freeze(out.map(Object.freeze));
+})();
+const GAPS_BY_ROAD = new Map();
+for (const g of OGANIRU_MEDIAN_GAPS) { if (!GAPS_BY_ROAD.has(g.road)) GAPS_BY_ROAD.set(g.road, []); GAPS_BY_ROAD.get(g.road).push(g); }
+const inMedianGap = (road, a, pad = 0) => (GAPS_BY_ROAD.get(road) || []).some((g) => a >= g.from - pad && a <= g.to + pad);
+
+const CLOSURE_LINES = [];
 const KERBED = [];
-function addKerbed(b) { KERBED.push(box(b.x0, b.z0, b.x1, b.z1, b.extra || {})); }
+function addKerbed(b) { if (b.x1 - b.x0 > 0.05 && b.z1 - b.z0 > 0.05) KERBED.push(box(b.x0, b.z0, b.x1, b.z1, b.extra || {})); }
+function runsOf(a0, a1, cut) {
+  const out = [];
+  let from = null;
+  for (let a = a0; a < a1 + 1e-6; a += 0.5) {
+    const c = cut(Math.min(a1, a + 0.25));
+    if (!c && from === null) from = a;
+    if ((c || a >= a1 - 1e-6) && from !== null) { const to = c ? a : a1; if (to - from > 0.4) out.push([from, to]); from = null; }
+  }
+  return out;
+}
+const onOtherRoad = (self, x, z) => OGANIRU_ROADS.some((q) => q !== self && q.kind !== 'cutting' && (q.along === 'z' ? z >= q.from - 0.5 && z <= q.to + 0.5 && Math.abs(x - q.c) <= roadWidthAt(q, z).half : x >= q.from - 0.5 && x <= q.to + 0.5 && Math.abs(z - q.c) <= roadWidthAt(q, x).half));
+const lowDeckAt = (x, z) => oganiruDecksAt(x, z).some((h) => h.y < 0.6 && h.deck.kind !== 'bridge');
+const inAnyRing = (x, z) => OGANIRU_ROUNDABOUTS.some((r) => Math.hypot(x - r.x, z - r.z) < r.outer + r.walk + 0.5);
 for (const r of OGANIRU_ROADS) {
-  const span = (c0, c1, a0, a1) => (r.along === 'z' ? { x0: c0, x1: c1, z0: a0, z1: a1 } : { x0: a0, x1: a1, z0: c0, z1: c1 });
-  if (r.median > 0 && r.kind !== 'flyover-road') addKerbed({ ...span(r.c - r.median / 2, r.c + r.median / 2, r.from, r.to), extra: { median: r.id } });
-  if (r.walk > 0) {
-    const to = r.walkTo !== undefined ? Math.max(r.from, r.walkTo) : r.from;
-    if (to < r.to) for (const k of [-1, 1]) addKerbed({ ...span(r.c + k * r.half, r.c + k * (r.half + r.walk), to, r.to), extra: { walk: r.id } });
+  const span = (c0, c1, a0, a1) => (r.along === 'z' ? { x0: Math.min(c0, c1), x1: Math.max(c0, c1), z0: a0, z1: a1 } : { x0: a0, x1: a1, z0: Math.min(c0, c1), z1: Math.max(c0, c1) });
+  const P = (lat, a) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
+  if (r.kind === 'avenue' && r.median > 0) {
+    for (const [a0, a1] of runsOf(r.from, r.to, (a) => inMedianGap(r.id, a))) addKerbed({ ...span(r.c - r.median / 2, r.c + r.median / 2, a0, a1), extra: { median: r.id } });
+  }
+  if (r.flare) {
+    const step = 4, dir = Math.sign(r.flare.wide - r.flare.narrow);
+    for (let a = r.flare.narrow; dir > 0 ? a < r.flare.wide : a > r.flare.wide; a += dir * step) {
+      const w = roadWidthAt(r, a + dir * step / 2);
+      if (w.median > 0.6) addKerbed({ ...span(r.c - w.median / 2, r.c + w.median / 2, Math.min(a, a + dir * step), Math.max(a, a + dir * step)), extra: { median: r.id } });
+    }
+  }
+  const walk = r.flare ? r.flare.walk : r.walk;
+  if (walk > 0) {
+    const varying = !!(r.taper || r.flare);
+    const spans = r.flare ? [[Math.min(r.flare.narrow, r.flare.wide), Math.max(r.flare.narrow, r.flare.wide)]] : r.walks || [[r.from, r.to]];
+    for (const k of [-1, 1]) {
+      const cut = (a) => { const half = roadWidthAt(r, a).half; const [x, z] = P(k * (half + walk / 2), a); return onOtherRoad(r, x, z) || lowDeckAt(x, z) || inAnyRing(x, z) || inCutting(x, z); };
+      for (const [from, to] of spans) for (const [a0, a1] of runsOf(from, to, cut)) {
+        if (!varying) { addKerbed({ ...span(r.c + k * r.half, r.c + k * (r.half + walk), a0, a1), extra: { walk: r.id, side: k } }); continue; }
+        for (let a = a0; a < a1 - 1e-6; a += 4) {
+          const b = Math.min(a1, a + 4), half = roadWidthAt(r, (a + b) / 2).half;
+          addKerbed({ ...span(r.c + k * half, r.c + k * (half + walk), a, b), extra: { walk: r.id, side: k } });
+        }
+      }
+    }
   }
 }
-for (let z = -505; z > GATE.z + GATE.outer; z -= 4) {
-  const t = clamp((-505 - z) / (-505 - (GATE.z + GATE.outer)), 0, 1);
-  const half = 5 + 5 * t, m = 5 * t;
-  if (m > 0.6) addKerbed({ x0: -m / 2, x1: m / 2, z0: z - 4, z1: z, extra: { median: 'unity-gate' } });
-  for (const k of [-1, 1]) addKerbed({ x0: k > 0 ? half : -half - OGANIRU.walk, x1: k > 0 ? half + OGANIRU.walk : -half, z0: z - 4, z1: z, extra: { walk: 'unity-gate' } });
-}
 const OGANIRU_KERBED = KERBED;
-
-const OGANIRU_MEDIAN_GAPS = Object.freeze([
-  Object.freeze({ road: 'unity', from: UNION_Z - 9, to: UNION_Z + 9, why: 'junction' }),
-  Object.freeze({ road: 'unity', from: INDEPENDENCE_Z - 22, to: INDEPENDENCE_Z + 22, why: 'junction' }),
-  Object.freeze({ road: 'unity', from: TOWER_Z - 9, to: TOWER_Z + 9, why: 'junction' }),
-  Object.freeze({ road: 'unity', from: -1000, to: -988, why: 'u-turn' }),
-  Object.freeze({ road: 'unity', from: -1400, to: -1388, why: 'u-turn' }),
-]);
-const inMedianGap = (z) => OGANIRU_MEDIAN_GAPS.some((g) => z >= g.from && z <= g.to);
 
 const tower = (id, name, kind, x, z, dx, dz, storeys, o = {}) => Object.freeze({ id, name, kind, x, z, dx, dz, storeys, height: storeys * 3.6 + (o.crown || 0), ...o });
 const OGANIRU_TOWERS = Object.freeze([
@@ -5782,112 +6049,173 @@ for (const b of KERBED) {
 }
 function oganiruGroundY(x, z) {
   if (!inBox(OGANIRU.bounds, x, z)) return 0;
-  const dg = Math.hypot(x - GATE.x, z - GATE.z);
-  if (dg < GATE.outer + GATE.walk + 0.5) {
-    if (dg <= GATE.island) return KERB;
-    if (dg <= GATE.outer) return 0;
-    const ax = Math.abs(x - GATE.x), az = Math.abs(z - GATE.z);
-    const mouth = (ax < 10.5 && dg > GATE.outer) || (az < 10.5 && dg > GATE.outer);
-    return mouth ? 0 : KERB;
+  if (inCutting(x, z)) return expresswayY(x);
+  for (const r of OGANIRU_ROUNDABOUTS) {
+    const dg = Math.hypot(x - r.x, z - r.z);
+    if (dg >= r.outer + r.walk + 0.5) continue;
+    if (dg <= r.island) return KERB;
+    if (dg <= r.outer) return 0;
+    return inMouth(r, x, z) ? 0 : KERB;
   }
   const list = KERB_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
-  if (list) for (const b of list) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) {
-    if (b.median === 'unity' && inMedianGap(z)) continue;
-    if (b.walk && crossingAt(x, z)) continue;
-    return KERB;
-  }
+  if (list) for (const b of list) if (x >= b.x0 && x <= b.x1 && z >= b.z0 && z <= b.z1) return KERB;
   return 0;
-}
-function crossingAt(x, z) {
-  for (const r of OGANIRU_ROADS) {
-    if (r.along !== 'x') continue;
-    if (Math.abs(z - r.c) <= r.half && Math.abs(x) < 10 + OGANIRU.walk + 0.5) return true;
-  }
-  return false;
 }
 
 const OGANIRU_AREAS = Object.freeze([
-  box(-36, -1525, 36, -478.6),                   // Unity Avenue, its walkways and verges, from College Road to the roadblock
-  box(-82, -585, 82, -535),                      // the Gate Roundabout and Gateway Boulevard's first metres
-  box(-218, -905, 218, -650),                    // the six towers, Union and Tower Streets and Independence Boulevard
-  box(-320, -1480, 320, -905),                   // the interchange's land, under and round its ramps
+  box(-1420, -1660, 950, -509),                  // the city, west of the airport, the strip by the showroom and the town
+  box(-250, -511, 250, -478.6),                  // in front of the town's west edge, College Road coming out of it
+  box(248.6, -511, 950, -290),                   // north of the town (Anwuli Gardens), Campus Road coming out of it
+  box(-1420, -511, -1160, -60),                  // south of the airport, Harmony Avenue going to the Southgate Roundabout
+  box(-1420, -61, -1190.6, -21.4),               // south of the Kwale road's end, the Southgate Roundabout
 ]);
 const onOganiru = (x, z) => inBox(OGANIRU.bounds, x, z) && OGANIRU_AREAS.some((a) => x > a.x0 && x < a.x1 && z > a.z0 && z < a.z1);
 const oganiruAway = (x, z) => { let best = Infinity; for (const a of OGANIRU_AREAS) best = Math.min(best, Math.hypot(Math.max(a.x0 - x, 0, x - a.x1), Math.max(a.z0 - z, 0, z - a.z1))); return best; };
+const nearOganiru = (x, z, pad = 20) => inBox(OGANIRU.bounds, x, z, pad) && OGANIRU_AREAS.some((a) => x > a.x0 - pad && x < a.x1 + pad && z > a.z0 - pad && z < a.z1 + pad);
 const IN = 1.4;
-const OGANIRU_EDGE_LINES = Object.freeze(OGANIRU_AREAS.flatMap((a, i) => [
-  { id: `oganiru-${i}-n`, a: { x: a.x1 - IN, z: a.z0 + IN }, b: { x: a.x1 - IN, z: a.z1 - IN }, out: { x: 1, z: 0 } },
-  { id: `oganiru-${i}-s`, a: { x: a.x0 + IN, z: a.z0 + IN }, b: { x: a.x0 + IN, z: a.z1 - IN }, out: { x: -1, z: 0 } },
-  { id: `oganiru-${i}-w`, a: { x: a.x0 + IN, z: a.z0 + IN }, b: { x: a.x1 - IN, z: a.z0 + IN }, out: { x: 0, z: -1 } },
-  { id: `oganiru-${i}-e`, a: { x: a.x0 + IN, z: a.z1 - IN }, b: { x: a.x1 - IN, z: a.z1 - IN }, out: { x: 0, z: 1 } },
-]).map((l) => Object.freeze({ ...l, a: Object.freeze(l.a), b: Object.freeze(l.b), out: Object.freeze(l.out), style: 'tape' })));
+const OGANIRU_EDGE_LINES = Object.freeze([
+  ...OGANIRU_AREAS.flatMap((a, i) => [
+    { id: `oganiru-${i}-n`, a: { x: a.x1 - IN, z: a.z0 + IN }, b: { x: a.x1 - IN, z: a.z1 - IN }, out: { x: 1, z: 0 } },
+    { id: `oganiru-${i}-s`, a: { x: a.x0 + IN, z: a.z0 + IN }, b: { x: a.x0 + IN, z: a.z1 - IN }, out: { x: -1, z: 0 } },
+    { id: `oganiru-${i}-w`, a: { x: a.x0 + IN, z: a.z0 + IN }, b: { x: a.x1 - IN, z: a.z0 + IN }, out: { x: 0, z: -1 } },
+    { id: `oganiru-${i}-e`, a: { x: a.x0 + IN, z: a.z1 - IN }, b: { x: a.x1 - IN, z: a.z1 - IN }, out: { x: 0, z: 1 } },
+  ]),
+  { id: 'oganiru-town-west', a: { x: -250 + IN, z: -480 + IN }, b: { x: 250 - IN, z: -480 + IN }, out: { x: 0, z: -1 }, keep: (p) => Math.abs(p.x) > 12 },
+  { id: 'oganiru-town-north', a: { x: 250 - IN, z: -480 + IN }, b: { x: 250 - IN, z: -290 }, out: { x: 1, z: 0 }, keep: (p) => Math.abs(p.z - CAMPUS_Z) > 7.5 },
+  { id: 'oganiru-airport-west', a: { x: -1160 + IN, z: -510 + IN }, b: { x: -560 - IN, z: -510 + IN }, out: { x: 0, z: -1 }, keep: () => true },
+  { id: 'oganiru-airport-south', a: { x: -1160 + IN, z: -510 + IN }, b: { x: -1160 + IN, z: -60 }, out: { x: -1, z: 0 }, keep: () => true },
+  { id: 'oganiru-kwale-inland', a: { x: -1192 + IN, z: -60 + IN }, b: { x: -1160 + IN, z: -60 + IN }, out: { x: 0, z: -1 }, keep: () => true },
+  { id: 'oganiru-kwale-end', a: { x: -1192 + IN, z: -60 + IN }, b: { x: -1192 + IN, z: -20 - IN }, out: { x: -1, z: 0 }, keep: (p) => Math.abs(p.z - KWALE_Z) > 8 },
+].map((l) => Object.freeze({ ...l, a: Object.freeze(l.a), b: Object.freeze(l.b), out: Object.freeze(l.out), style: 'tape' })));
 
 const OGANIRU_CLOSURES = Object.freeze([
-  { id: 'unity-west', name: 'Unity Avenue, west end', a: { x: -14, z: -1518 }, b: { x: 14, z: -1518 }, facing: 0, sign: ['ROAD CLOSED', 'Road works ahead'], why: 'Oganiru City is still being built beyond this point.' },
-  { id: 'gateway-north', name: 'Gateway Boulevard, north', a: { x: 76, z: -574 }, b: { x: 76, z: -546 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Gateway Boulevard: coming soon'], why: 'Gateway Boulevard is not built on from here yet.' },
-  { id: 'gateway-south', name: 'Gateway Boulevard, south', a: { x: -76, z: -574 }, b: { x: -76, z: -546 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'Gateway Boulevard: coming soon'], why: 'Gateway Boulevard is not built on from here yet.' },
-  { id: 'union-north', name: 'Union Street, north', a: { x: 56, z: UNION_Z - 11 }, b: { x: 56, z: UNION_Z + 11 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Road works'], why: 'Union Street is not built on from here yet.' },
-  { id: 'union-south', name: 'Union Street, south', a: { x: -56, z: UNION_Z - 11 }, b: { x: -56, z: UNION_Z + 11 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'Road works'], why: 'Union Street is not built on from here yet.' },
-  { id: 'tower-north', name: 'Tower Street, north', a: { x: 56, z: TOWER_Z - 11 }, b: { x: 56, z: TOWER_Z + 11 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Road works'], why: 'Tower Street is not built on from here yet.' },
-  { id: 'tower-south', name: 'Tower Street, south', a: { x: -56, z: TOWER_Z - 11 }, b: { x: -56, z: TOWER_Z + 11 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'Road works'], why: 'Tower Street is not built on from here yet.' },
-  { id: 'independence-north', name: 'Independence Boulevard, north', a: { x: 211, z: INDEPENDENCE_Z - 20 }, b: { x: 211, z: INDEPENDENCE_Z + 20 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Independence Boulevard: coming soon'], why: 'Independence Boulevard is not built on from here yet.' },
-  { id: 'independence-south', name: 'Independence Boulevard, south', a: { x: -211, z: INDEPENDENCE_Z - 20 }, b: { x: -211, z: INDEPENDENCE_Z + 20 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'Independence Boulevard: coming soon'], why: 'Independence Boulevard is not built on from here yet.' },
+  { id: 'unity-west', name: 'Unity Avenue, west end', a: { x: -14, z: -1632 }, b: { x: 14, z: -1632 }, facing: 0, sign: ['ROAD CLOSED', 'Road works ahead'], why: 'Oganiru City is still being built beyond this point.' },
+  { id: 'harmony-west', name: 'Harmony Avenue, west end', a: { x: HARMONY_X - 14, z: -1612 }, b: { x: HARMONY_X + 14, z: -1612 }, facing: 0, sign: ['ROAD CLOSED', 'Road works ahead'], why: 'Oganiru City is still being built beyond this point.' },
+  { id: 'kwale-south', name: 'Asaba\u2013Kwale Road, south', a: { x: -1385, z: KWALE_Z - 11 }, b: { x: -1385, z: KWALE_Z + 11 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'To Kwale and Warri: road works'], why: 'The road on to Kwale and Warri is not built on from here yet.' },
+  { id: 'airport-south', name: 'Airport Roundabout, south', a: { x: HARMONY_X - 66, z: GATEWAY_Z - 14 }, b: { x: HARMONY_X - 66, z: GATEWAY_Z + 14 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'Road works'], why: 'Oganiru City is still being built beyond this point.' },
+  { id: 'campus-north', name: 'Campus Roundabout, north', a: { x: PEACE_X + 76, z: CAMPUS_Z - 14 }, b: { x: PEACE_X + 76, z: CAMPUS_Z + 14 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Anwuli Gardens: coming soon'], why: 'Oganiru City is still being built beyond this point.' },
 ].map((c) => Object.freeze({ ...c, state: 'under construction', a: Object.freeze(c.a), b: Object.freeze(c.b), sign: Object.freeze(c.sign) })));
+CLOSURE_LINES.push(...OGANIRU_CLOSURES);
 const ofOganiru = (item, kind) => (kind === 'closure' ? OGANIRU_CLOSURES.includes(item) : String((item && item.line) || '').startsWith('oganiru-'));
 
-const hash = (i, k) => { const s = Math.sin(i * 127.1 + k * 311.7) * 43758.5453; return s - Math.floor(s); };
-const underDeck = (x, z, pad = 2) => oganiruDecksAt(x, z).some((h) => h.y - D.thick > 0.5) || [[-pad, 0], [pad, 0], [0, -pad], [0, pad]].some(([dx, dz]) => oganiruDecksAt(x + dx, z + dz).some((h) => h.y > 0.5));
+const underDeck = (x, z, pad = 2) => oganiruDecksAt(x, z).some((h) => h.y - D.thick > 0.5 || h.y > 0.3) || [[-pad, 0], [pad, 0], [0, -pad], [0, pad]].some(([dx, dz]) => oganiruDecksAt(x + dx, z + dz).some((h) => h.y > 0.3));
+const nearJunction = (x, z, pad) => !!junctionAt(x, z, pad);
+const closureNear = (x, z, pad) => CLOSURE_LINES.some(({ a, b }) => { const dx = b.x - a.x, dz = b.z - a.z, t = clamp(((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz || 1), 0, 1); return Math.hypot(x - a.x - dx * t, z - a.z - dz * t) < pad; });
+const nearRing = (x, z, pad) => OGANIRU_ROUNDABOUTS.some((r) => Math.hypot(x - r.x, z - r.z) < r.outer + pad);
+const towerNear = (x, z, pad) => OGANIRU_TOWERS.some((t) => Math.abs(x - t.x) < t.dx / 2 + pad && Math.abs(z - t.z) < t.dz / 2 + pad);
 const OGANIRU_TREES = [];
 const OGANIRU_LAMPS = [];
 {
-  const ACROSS = Math.PI / 2;
-  const noses = OGANIRU_MEDIAN_GAPS.filter((g) => g.road === 'unity' && g.why === 'junction').flatMap((g) => [g.from - 2.5, g.to + 2.5]);
-  for (const z of noses) OGANIRU_LAMPS.push({ kind: 'median', x: 0, z, y: KERB, heading: ACROSS });
-  let slot = 0;
-  for (let z = GATE.z - GATE.outer - 18; z > -1508; z -= 9, slot += 1) {
-    if (inMedianGap(z) || OGANIRU_MEDIAN_GAPS.some((g) => z >= g.from - 6 && z <= g.to + 6)) continue;
-    if (underDeck(0, z, 6) || noses.some((n) => Math.abs(n - z) < 5)) continue;
-    if (slot % 4 === 2 && !noses.some((n) => Math.abs(n - z) < 14)) { OGANIRU_LAMPS.push({ kind: 'median', x: 0, z, y: KERB, heading: ACROSS, banner: z > UNITY_WALKS_TO }); continue; }
-    OGANIRU_TREES.push({ kind: 'slim', x: (hash(slot, 3) - 0.5) * 0.5, z: z + (hash(slot, 5) - 0.5) * 0.8, y: KERB, size: 0.9 + hash(slot, 7) * 0.22, turn: hash(slot, 9) * Math.PI * 2 });
-  }
-  for (let z = -520; z > UNITY_WALKS_TO; z -= 17) {
-    for (const k of [-1, 1]) {
-      const x = k * 16.5;
-      if (OGANIRU_TOWERS.some((t) => Math.abs(z - t.z) < t.dz / 2 + 10 && Math.sign(t.x) === k)) continue;
-      if (OGANIRU_ROADS.some((r) => r.along === 'x' && Math.abs(z - r.c) < r.half + r.walk + 5)) continue;
-      if (Math.hypot(x - GATE.x, z - GATE.z) < GATE.outer + 14) continue;
-      if (underDeck(x, z, 4)) continue;
-      const i = Math.round(-z) * 2 + (k > 0 ? 1 : 0);
-      OGANIRU_TREES.push({ kind: hash(i, 2) < 0.6 ? 'mango' : 'almond', x: x + (hash(i, 4) - 0.5) * 1.2, z: z + (hash(i, 6) - 0.5) * 3, y: 0, size: 0.95 + hash(i, 8) * 0.3, turn: hash(i, 10) * 6.28 });
+  for (const r of OGANIRU_ROADS) {
+    if (r.kind !== 'avenue' || !(r.median > 0) || r.lamps === false) continue;
+    const ACROSS = r.along === 'z' ? Math.PI / 2 : 0;
+    const P = (a, lat = 0) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
+    const noses = (GAPS_BY_ROAD.get(r.id) || []).filter((g) => g.why === 'junction').flatMap((g) => [g.from - 2.5, g.to + 2.5]).filter((a) => a > r.from + 2 && a < r.to - 2);
+    for (const a of noses) { const [x, z] = P(a); if (!underDeck(x, z, 3)) OGANIRU_LAMPS.push({ kind: 'median', x, z, y: KERB, heading: ACROSS }); }
+    const dir = r.along === 'z' ? -1 : 1;              // (from the end nearer the town)
+    const start = dir < 0 ? r.to - 18 : r.from + 18, end = dir < 0 ? r.from + 6 : r.to - 6;
+    let slot = 0;
+    for (let a = start; dir < 0 ? a > end : a < end; a += dir * 9, slot += 1) {
+      if (inMedianGap(r.id, a, 6)) continue;
+      const [x, z] = P(a);
+      if (underDeck(x, z, 6) || noses.some((n) => Math.abs(n - a) < 5) || nearRing(x, z, 8) || closureNear(x, z, 12)) continue;
+      if (slot % 4 === 2 && !noses.some((n) => Math.abs(n - a) < 14)) { OGANIRU_LAMPS.push({ kind: 'median', x, z, y: KERB, heading: ACROSS, banner: r.id === 'unity' && a > UNITY_WALKS_TO }); continue; }
+      if (r.trees) {
+        const i = Math.round(Math.abs(a)) * 7 + (r.along === 'x' ? 3 : 0) + Math.round(Math.abs(r.c));
+        const [tx, tz] = P(a + (hash(i, 5) - 0.5) * 0.8, (hash(i, 3) - 0.5) * 0.5);
+        OGANIRU_TREES.push({ kind: 'slim', x: tx, z: tz, y: KERB, size: 0.9 + hash(i, 7) * 0.22, turn: hash(i, 9) * Math.PI * 2, road: r.id });
+      }
     }
   }
-  for (let k = 0; k < 8; k += 1) {
-    const a = (k + 0.5) * (Math.PI / 4);
-    const x = GATE.x + Math.sin(a) * (GATE.outer + 1.4), z = GATE.z + Math.cos(a) * (GATE.outer + 1.4);
-    OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: KERB, heading: Math.atan2(GATE.x - x, GATE.z - z) });
+  for (const r of OGANIRU_ROADS) {
+    if (!(r.walk > 0) || r.kind === 'approach') continue;
+    const P = (a, lat) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
+    const spans = r.walks || [[r.from, r.to]];
+    for (const [w0, w1] of spans) for (let a = w0 + 8; a < w1 - 8; a += 17) {
+      for (const k of [-1, 1]) {
+        const half = roadWidthAt(r, a).half;
+        const [x, z] = P(a, k * (half + r.walk + 3));
+        if (towerNear(x, z, 10) || nearJunction(x, z, 8) || nearRing(x, z, 14) || underDeck(x, z, 5) || onOtherRoad(null, x, z) || inCutting(x, z)) continue;
+        if (OGANIRU_KERBED.some((b) => b.plaza && inBox(b, x, z, 2))) continue;
+        const i = Math.round(Math.abs(a)) * 2 + (k > 0 ? 1 : 0) + Math.round(Math.abs(r.c)) * 3;
+        OGANIRU_TREES.push({ kind: hash(i, 2) < 0.6 ? 'mango' : 'almond', x: x + (hash(i, 4) - 0.5) * 1.2, z: z + (hash(i, 6) - 0.5) * 3, y: 0, size: 0.95 + hash(i, 8) * 0.3, turn: hash(i, 10) * 6.28 });
+      }
+    }
   }
-  for (const r of OGANIRU_ROADS.filter((q) => q.id.startsWith('gateway'))) {
-    for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'edge', x: (r.from + r.to) / 2 + 8 * Math.sign(r.from), z: r.c + k * (r.half + 0.8), y: KERB, heading: k > 0 ? Math.PI : 0 });
+  for (let x = -1180; x < OGANIRU_CUTTING.x1 - 20; x += 23) {
+    for (const k of [-1, 1]) {
+      const z = EXPRESSWAY_Z + k * (inCutting(x, EXPRESSWAY_Z) || x > OGANIRU_CUTTING.x0 ? 27 : 24) + (hash(Math.round(x), k + 4) - 0.5) * 4;
+      if (underDeck(x, z, 8) || onOtherRoad(null, x, z) || nearJunction(x, z, 10)) continue;
+      const i = Math.round(-x) * 3 + (k > 0 ? 1 : 0);
+      OGANIRU_TREES.push({ kind: hash(i, 12) < 0.5 ? 'palm' : hash(i, 13) < 0.6 ? 'mango' : 'almond', x, z, y: 0, size: 0.9 + hash(i, 14) * 0.3, turn: hash(i, 15) * 6.28 });
+    }
   }
-  for (const xs of [-200, 200]) for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'edge', x: xs, z: INDEPENDENCE_Z + k * (16 + 0.8), y: KERB, heading: k > 0 ? Math.PI : 0 });
-  for (const sx of [-1, 1]) for (const k of [-1, 1]) { const x = sx * 11, z = INDEPENDENCE_Z + k * 18; OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: KERB, heading: Math.atan2(-x, INDEPENDENCE_Z - z) }); }
+  for (const rb of OGANIRU_ROUNDABOUTS) {
+    for (let k = 0; k < 8; k += 1) {
+      const a = (Math.floor(k / 2) * 90 + 45 + (k % 2 ? 12 : -12)) * (Math.PI / 180);
+      const x = rb.x + Math.sin(a) * (rb.outer + 1.4), z = rb.z + Math.cos(a) * (rb.outer + 1.4);
+      if (inMouth(rb, x, z)) continue;
+      OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: KERB, heading: Math.atan2(rb.x - x, rb.z - z) });
+    }
+  }
+  for (const r of OGANIRU_ROADS) {
+    if (!['flyover-road', 'link'].includes(r.kind) && !(r.kind === 'avenue' && r.lamps === false)) continue;
+    const P = (a, lat) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
+    for (let a = r.from + 12; a < r.to - 6; a += 36) {
+      for (const k of [-1, 1]) {
+        const half = roadWidthAt(r, a).half;
+        const [x, z] = P(a, k * (half + 0.8));
+        if (nearJunction(x, z, 3) || nearRing(x, z, 4) || underDeck(x, z, 2)) continue;
+        const heading = r.along === 'z' ? (k > 0 ? -Math.PI / 2 : Math.PI / 2) : (k > 0 ? Math.PI : 0);
+        OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: oganiruGroundY(x, z), heading });
+      }
+    }
+  }
+  for (const j of OGANIRU_JUNCTIONS) {
+    if (!j.flyover) continue;
+    for (const sx of [-1, 1]) for (const sz of [-1, 1]) {
+      const x = j.x + sx * (j.hx + 1), z = j.z + sz * (j.hz + 2);
+      if (underDeck(x, z, 1)) continue;
+      OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: KERB, heading: Math.atan2(j.x - x, j.z - z) });
+    }
+  }
   for (const z of [-490, -511, -530]) {
-    const t = clamp((-505 - z) / (-505 - (GATE.z + GATE.outer)), 0, 1), half = 5 + 5 * t;
+    const half = roadWidthAt(ROAD_BY_ID.get('unity-gate'), z).half;
     for (const k of [-1, 1]) { const x = k * (half + 1.0); OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: oganiruGroundY(x, z), heading: k > 0 ? -Math.PI / 2 : Math.PI / 2 }); }
   }
+  for (const x of [262, 284]) {
+    const half = roadWidthAt(ROAD_BY_ID.get('campus-gate'), x).half;
+    for (const k of [-1, 1]) { const z = CAMPUS_Z + k * (half + 1.0); OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: oganiruGroundY(x, z), heading: k > 0 ? Math.PI : 0 }); }
+  }
+  for (let x = -1180; x < OGANIRU_CUTTING.x1 - 10; x += 40) {
+    for (const k of [-1, 1]) {
+      if (x < -1040 && k < 0) continue;
+      const z = EXPRESSWAY_Z + k * (inCutting(x, EXPRESSWAY_Z) || x > OGANIRU_CUTTING.x0 ? CUT.wall + CUT.wallWidth / 2 : 15.8);
+      if (underDeck(x, z, 3) || Math.abs(x - HOPE_X) < 20) continue;
+      OGANIRU_LAMPS.push({ kind: 'edge', x, z, y: 0, heading: k > 0 ? Math.PI : 0, gy: expresswayY(x) });
+    }
+  }
   for (const r of OGANIRU_ROADS.filter((q) => q.kind === 'street')) {
-    for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'ornate', x: (r.from + r.to) / 2 + 6 * Math.sign(r.from), z: r.c + k * (r.half + 1.2), y: KERB, heading: 0 });
+    const P = (a, lat) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
+    for (let a = r.from + 9; a < r.to - 6; a += 30) {
+      for (const k of [-1, 1]) {
+        const [x, z] = P(a, k * (r.half + 1.2));
+        if (nearJunction(x, z, 4) || towerNear(x, z, 3) || underDeck(x, z, 2) || onOtherRoad(r, x, z)) continue;
+        OGANIRU_LAMPS.push({ kind: 'ornate', x, z, y: KERB, heading: 0 });
+      }
+    }
   }
   for (const t of OGANIRU_TOWERS) {
     const front = t.x > 0 ? t.x - t.dx / 2 - 3 : t.x + t.dx / 2 + 3;
     for (const k of [-1, 1]) OGANIRU_LAMPS.push({ kind: 'ornate', x: front, z: t.z + k * (t.dz / 2 - 2), y: KERB, heading: 0 });
   }
   for (const d of OGANIRU_DECKS) {
-    const both = d.id === 'viaduct' || d.id === 'independence-flyover';
+    if (d.kind === 'ground-ramp') continue;
+    const both = d.id === 'viaduct' || d.kind === 'flyover' && d.barrier || d.kind === 'bridge';
     let n = 0;
     for (let s = 18; s < d.len - 10; s += 36, n += 1) {
       const p = d.path.find((q) => q.s >= s) || d.path[d.path.length - 1];
-      if (p.y < 2.5) continue;
+      if (p.y < 2.5 && d.kind !== 'bridge') continue;
       for (const side of both ? [-1, 1] : [n % 2 ? 1 : -1]) {
         const wall = (side > 0 ? d.walls.left : d.walls.right).some(([a, b]) => s >= a && s <= b);
         if (!wall) continue;
@@ -5899,21 +6227,61 @@ const OGANIRU_LAMPS = [];
 }
 Object.freeze(OGANIRU_TREES); Object.freeze(OGANIRU_LAMPS);
 
-const OGANIRU_SIGNALS = Object.freeze([UNION_Z, TOWER_Z, INDEPENDENCE_Z].flatMap((zc) => {
-  const half = zc === INDEPENDENCE_Z ? 24 : 7;
-  return [
-    { x: -12, z: zc + half + 2, heading: Math.PI, phase: 0 }, { x: 12, z: zc - half - 2, heading: 0, phase: 0 },
-    { x: 12 + 1.5, z: zc + half + 2, heading: -Math.PI / 2, phase: 1 }, { x: -12 - 1.5, z: zc - half - 2, heading: Math.PI / 2, phase: 1 },
-  ];
-}).map(Object.freeze));
+const OGANIRU_SIGNALS = Object.freeze([
+  ...OGANIRU_JUNCTIONS.filter((j) => j.signals).flatMap((j) => {
+    const out = [];
+    const hx = j.hx + 2, hz = j.hz + 2;
+    if (j.legs.includes('w')) out.push({ x: j.x - hx, z: j.z + hz, heading: Math.PI, phase: 0, offset: j.offset, junction: j.id });
+    if (j.legs.includes('e')) out.push({ x: j.x + hx, z: j.z - hz, heading: 0, phase: 0, offset: j.offset, junction: j.id });
+    if (j.legs.includes('s')) out.push({ x: j.x + hx + 1.5, z: j.z + hz, heading: -Math.PI / 2, phase: 1, offset: j.offset, junction: j.id });
+    if (j.legs.includes('n')) out.push({ x: j.x - hx - 1.5, z: j.z - hz, heading: Math.PI / 2, phase: 1, offset: j.offset, junction: j.id });
+    return out;
+  }),
+  ...PEACE_RAMP_Z.flatMap((z, k) => {
+    const offset = 8 + k * 8, junction = `peace-ramps-${k}`;
+    return [
+      { x: PEACE_X + 12, z: z + 12, heading: 0, phase: 0, offset, junction },
+      { x: PEACE_X - 12, z: z - 12, heading: Math.PI, phase: 0, offset, junction },
+      k === 0 ? { x: PEACE_X - 12, z: z + 6, heading: -Math.PI / 2, phase: 1, offset, junction } : { x: PEACE_X + 12, z: z - 6, heading: Math.PI / 2, phase: 1, offset, junction },
+    ];
+  }),
+].map(Object.freeze));
+const STOP_LINE_OUT = 5.4;       // metres beyond a junction's edge
+const OGANIRU_STOP_LINES = Object.freeze([
+  ...OGANIRU_JUNCTIONS.filter((j) => j.signals).flatMap((j) => {
+    const out = [];
+    const ex = j.hx + STOP_LINE_OUT, ez = j.hz + STOP_LINE_OUT;
+    if (j.legs.includes('e')) out.push({ way: 'w', x: j.x + j.hx / 2, z: j.z + ez, half: j.hx / 2 + 0.5, phase: 0, offset: j.offset, junction: j.id });
+    if (j.legs.includes('w')) out.push({ way: 'e', x: j.x - j.hx / 2, z: j.z - ez, half: j.hx / 2 + 0.5, phase: 0, offset: j.offset, junction: j.id });
+    if (j.legs.includes('n')) out.push({ way: 's', x: j.x + ex, z: j.z - j.hz / 2, half: j.hz / 2 + 0.5, phase: 1, offset: j.offset, junction: j.id });
+    if (j.legs.includes('s')) out.push({ way: 'n', x: j.x - ex, z: j.z + j.hz / 2, half: j.hz / 2 + 0.5, phase: 1, offset: j.offset, junction: j.id });
+    return out;
+  }),
+  ...PEACE_RAMP_Z.flatMap((z, k) => {
+    const offset = 8 + k * 8, junction = `peace-ramps-${k}`;
+    return [
+      { way: 'w', x: PEACE_X + 5, z: z + 11.5, half: 5.5, phase: 0, offset, junction },
+      { way: 'e', x: PEACE_X - 5, z: z - 11.5, half: 5.5, phase: 0, offset, junction },
+      k === 0 ? { way: 'n', x: PEACE_X - 14, z, half: 4.5, phase: 1, offset, junction } : { way: 's', x: PEACE_X + 14, z, half: 4.5, phase: 1, offset, junction },
+    ];
+  }),
+].map(Object.freeze));
 
-const onRoadHere = (x, z) => OGANIRU_ROADS.some((r) => (r.along === 'z' ? Math.abs(x - r.c) < r.half + (r.walk || 0) + 0.6 && z >= r.from && z <= r.to : Math.abs(z - r.c) < r.half + (r.walk || 0) + 0.6 && x >= r.from && x <= r.to && r.kind !== 'flyover-road')) || (Math.hypot(x - GATE.x, z - GATE.z) < GATE.outer + 1);
+const onRoadHere = (x, z) => OGANIRU_ROADS.some((r) => {
+  const a = alongOf(r, x, z);
+  if (a < r.from - 0.5 || a > r.to + 0.5) return false;
+  const w = roadWidthAt(r, a);
+  const off = Math.abs(across(r, x, z));
+  if (r.kind === 'flyover-road' && off < w.median / 2 - 1) return false;
+  return off < w.half + (w.walk || 0) + 0.6;
+}) || OGANIRU_ROUNDABOUTS.some((r) => Math.hypot(x - r.x, z - r.z) < r.outer + 1) || inCutting(x, z);
 const OGANIRU_PILLARS = [];
 for (const d of OGANIRU_DECKS) {
   const two = d.id === 'viaduct';
+  if (d.kind === 'bridge' || d.kind === 'ground-ramp' || (d.kind === 'flyover' && d.barrier)) continue;
   for (let s = 14; s < d.len - 6; s += two ? 30 : 28) {
     const p = d.path.find((q) => q.s >= s) || d.path[d.path.length - 1];
-    if (p.y - D.thick - 0 < OGANIRU.under) continue;
+    if (p.y - D.thick - oganiruGroundY(p.x, p.z) < OGANIRU.under) continue;
     const offsets = two ? [-8, 8] : [0];
     for (const o of offsets) {
       const lx = -p.uz, lz = p.ux;
@@ -5924,19 +6292,32 @@ for (const d of OGANIRU_DECKS) {
     }
   }
 }
-OGANIRU_PILLARS.splice(0, OGANIRU_PILLARS.length, ...OGANIRU_PILLARS.filter((p) => p.deck !== 'independence-flyover'));
-{
-  const fly = OGANIRU_DECKS.find((d) => d.id === 'independence-flyover');
-  for (const x of [-48, -20, 20, 48]) {
-    const h = oganiruDecksAt(x, INDEPENDENCE_Z).find((q) => q.deck === fly);
-    if (h && h.y - D.thick >= OGANIRU.under) OGANIRU_PILLARS.push(Object.freeze({ x, z: INDEPENDENCE_Z, r: 0.75, top: h.y - D.thick, deck: 'independence-flyover', heading: Math.PI / 2 }));
+for (const d of OGANIRU_DECKS.filter((q) => q.kind === 'flyover' && q.barrier)) {
+  const alongX = Math.abs(d.path[0].z - d.path[d.path.length - 1].z) < 1;
+  const c = alongX ? d.path[0].z : d.path[0].x, mid = alongX ? (d.path[0].x + d.path[d.path.length - 1].x) / 2 : (d.path[0].z + d.path[d.path.length - 1].z) / 2;
+  for (const o of [-48, -20, 20, 48]) {
+    const x = alongX ? mid + o : c, z = alongX ? c : mid + o;
+    const h = oganiruDecksAt(x, z).find((q) => q.deck === d);
+    if (h && h.y - D.thick >= OGANIRU.under) OGANIRU_PILLARS.push(Object.freeze({ x, z, r: 0.75, top: h.y - D.thick, deck: d.id, heading: alongX ? Math.PI / 2 : 0 }));
   }
 }
 Object.freeze(OGANIRU_PILLARS);
 
 const circle = (x, z, r, top, extra = {}) => Object.freeze({ x, z, r, top, ...extra });
+const OGANIRU_BILLBOARDS = Object.freeze([
+  [-990, -1, 28, 'twin-pole-long', 'game'], [-880, 1, 32, 'dark-unipole-catwalk', 'powerbike'], [-830, -1, 28, 'front-unipole-ladder', 'carshow'],
+  [-690, 1, 28, 'twin-pole-railing', 'sports'], [-640, -1, 28, 'dark-unipole-deck-lamps', 'unity-tower'], [-520, 1, 28, 'galvanised-unipole-railing', 'udo-bank'],
+  [-470, -1, 28, 'offset-white-unipole', 'airport'], [-340, 1, 28, 'twin-pole-railing', 'game'], [-350, -1, 28, 'dark-unipole-catwalk', 'powerbike'],
+  [460, -1, 28, 'front-unipole-ladder', 'carshow'],
+].map(([x, side, out, type, advert], n) => {
+  const z = EXPRESSWAY_Z + side * out, heading = side > 0 ? Math.atan2(-1, -0.35) : Math.atan2(1, 0.35);
+  const face = faceOf(type, 1);
+  const feet = feetOf(type, 1).map((f) => { const fx = x + Math.cos(heading) * f.x + Math.sin(heading) * f.z, fz = z - Math.sin(heading) * f.x + Math.cos(heading) * f.z, r = f.r || 0.5; return [fx - r, fz - r, fx + r, fz + r].map((v) => Math.round(v * 10) / 10); });
+  return Object.freeze({ id: `OC-${String(n + 1).padStart(2, '0')}`, type, scale: 1, category: categoryOf(face.width, face.height, false), tv: false, width: face.width, height: face.height, bottom: face.bottom, x, z, heading, region: 'city', place: `Oganiru Expressway, ${side > 0 ? 'east' : 'west'} bank`, feet, advert });
+}));
 const OGANIRU_SOLIDS = Object.freeze([
-  ...OGANIRU_TREES.map((t) => circle(t.x, t.z, t.kind === 'slim' ? 0.3 : 0.42, 12, { tree: true })),
+  ...OGANIRU_TREES.map((t) => circle(t.x, t.z, t.kind === 'slim' ? 0.3 : t.kind === 'palm' ? 0.28 : 0.42, 12, { tree: true })),
+  ...OGANIRU_BILLBOARDS.flatMap((b) => b.feet.map(([x0, z0, x1, z1]) => circle((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2 + 0.05, b.bottom + b.height + 1, { billboard: b.id }))),
   ...OGANIRU_SIGNALS.map((s) => circle(s.x, s.z, 0.13, 5)),
   ...OGANIRU_PILLARS.map((p) => circle(p.x, p.z, p.r, p.top, { pillar: true })),
 ]);
@@ -5949,6 +6330,18 @@ for (const c of OGANIRU_SOLIDS) {
   }
 }
 const TOWER_SOLIDS = OGANIRU_TOWERS.map((t) => (t.kind === 'round' ? { round: true, x: t.x, z: t.z, r: t.dx / 2, top: t.height } : { ...box(t.x - t.dx / 2, t.z - t.dz / 2, t.x + t.dx / 2, t.z + t.dz / 2), top: t.height }));
+const OGANIRU_WALLS = Object.freeze([
+  Object.freeze({ id: 'barrier-south', along: 'x', c: EXPRESSWAY_Z, from: -1040, to: OGANIRU_CUTTING.x1, half: 0.3, top: (x) => expresswayY(x) + 0.82 }),
+  ...[-1, 1].map((k) => Object.freeze({ id: `cutting-${k > 0 ? 'east' : 'west'}`, along: 'x', c: EXPRESSWAY_Z + k * (CUT.wall + CUT.wallWidth / 2), from: OGANIRU_CUTTING.x0, to: OGANIRU_CUTTING.x1, half: CUT.wallWidth / 2, top: () => CUT.parapet, bottom: (x) => expresswayY(x) })),
+]);
+const wallAt = (x, z, radius, y) => {
+  for (const w of OGANIRU_WALLS) {
+    if (x < w.from - radius || x > w.to + radius || Math.abs(z - w.c) > w.half + radius) continue;
+    if (y >= w.top(x) - 0.05) continue;
+    return w;
+  }
+  return null;
+};
 
 function oganiruBlocked(x, z, radius = 0.4, y = 0) {
   if (!inBox(OGANIRU.bounds, x, z, radius + 2)) return false;
@@ -5958,14 +6351,16 @@ function oganiruBlocked(x, z, radius = 0.4, y = 0) {
   }
   const list = SOLID_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
   if (list) for (const c of list) if (y < c.top - 0.05 && Math.hypot(x - c.x, z - c.z) < c.r + radius) return true;
+  if (wallAt(x, z, radius, y)) return true;
+  const g = (px, pz) => (inCutting(px, pz) ? expresswayY(px) : 0);
   for (const h of oganiruDecksAt(x, z)) {
-    if (h.y <= 0.32) continue;
+    if (h.y - g(x, z) <= 0.32) continue;
     if (y >= h.y - 0.3) continue;              // on it (or above it): not in the way
     if (h.y - D.thick - y < OGANIRU.under) {
       if (h.off <= h.deck.half + radius) return true;
     }
   }
-  for (const h of decksNear(x, z, radius)) if (h.y > 0.32 && y < h.y - 0.3 && h.y - D.thick - y < OGANIRU.under) return true;
+  for (const h of decksNear(x, z, radius)) if (h.y - g(x, z) > 0.32 && y < h.y - 0.3 && h.y - D.thick - y < OGANIRU.under) return true;
   return false;
 }
 function decksNear(x, z, radius) {
@@ -5994,6 +6389,7 @@ function oganiruOnDeck(x, z, radius, y) {
       if (walled || h.off > d.half) continue;
     }
     if (d.barrier && Math.abs(h.d) < d.barrier + radius && h.y > 1) continue;
+    if (d.barrier && d.kind === 'bridge' && Math.abs(h.d) < d.barrier + radius) continue;
     if (d.closed.includes('start') && h.s < 1.5 + radius) continue;
     if (d.closed.includes('end') && h.s > d.len - 1.5 - radius) continue;
     return true;
@@ -6003,24 +6399,32 @@ function oganiruOnDeck(x, z, radius, y) {
 
 function oganiruTar(x, z) {
   if (!inBox(OGANIRU.bounds, x, z)) return false;
-  if (Math.hypot(x - GATE.x, z - GATE.z) < GATE.outer && Math.hypot(x - GATE.x, z - GATE.z) > GATE.island) return true;
+  for (const r of OGANIRU_ROUNDABOUTS) { const d = Math.hypot(x - r.x, z - r.z); if (d < r.outer && d > r.island) return true; }
+  if (junctionAt(x, z)) return true;
   for (const r of OGANIRU_ROADS) {
-    const half = r.kind === 'approach' ? 10 : r.half;
-    if (r.along === 'z' ? Math.abs(x - r.c) <= half && z >= r.from - 1 && z <= r.to + 1 : Math.abs(z - r.c) <= half && x >= r.from - 1 && x <= r.to + 1) return true;
+    const a = alongOf(r, x, z);
+    if (a < r.from - 1 || a > r.to + 1) continue;
+    if (Math.abs(across(r, x, z)) <= roadWidthAt(r, a).half) return true;
   }
   return oganiruDecksAt(x, z).length > 0;
 }
 
 function oganiruStructureAt(x, z, y) {
   if (!inBox(OGANIRU.bounds, x, z, 4)) return false;
+  const g = inCutting(x, z) ? expresswayY(x) : 0;
   for (const h of oganiruDecksAt(x, z)) {
     if (y > h.y - D.thick - 0.15 && y < h.y + 0.05) return true;                   // in the slab
     if (h.off > h.deck.inner - 0.1 && y < h.y + D.wall + 0.1 && y > h.y - D.thick) return true;      // in a wall
-    if (h.y - D.thick - 0 < OGANIRU.under && y < h.y) return true;                  // in an embankment
+    if (h.y - D.thick - g < OGANIRU.under && y < h.y && y > g - 0.05) return true;                  // in an embankment
   }
   for (const t of TOWER_SOLIDS) if (y < t.top && (t.round ? Math.hypot(x - t.x, z - t.z) < t.r + 0.2 : (x > t.x0 - 0.2 && x < t.x1 + 0.2 && z > t.z0 - 0.2 && z < t.z1 + 0.2))) return true;
   const list = SOLID_CELLS.get(Math.floor(x / CELL) * 4096 + Math.floor(z / CELL));
   if (list) for (const c of list) if (c.pillar && y < c.top + 0.2 && Math.hypot(x - c.x, z - c.z) < c.r + 0.25) return true;
+  if (x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1) {
+    const off = Math.abs(z - EXPRESSWAY_Z);
+    if (off > CUT.wall - 0.1 && off < CUT.wall + CUT.wallWidth + 0.1 && y < CUT.parapet + 0.1 && y > expresswayY(x) - 0.1) return true;
+    if (off >= CUT.wall + CUT.wallWidth && y < -0.05) return true;
+  }
   return false;
 }
 function oganiruTallAt(x, z) {
@@ -6028,24 +6432,143 @@ function oganiruTallAt(x, z) {
   let top = 0;
   for (const h of oganiruDecksAt(x, z)) top = Math.max(top, h.y + D.wall + 0.2);
   for (const t of TOWER_SOLIDS) if (t.round ? Math.hypot(x - t.x, z - t.z) < t.r + 1 : (x > t.x0 - 1 && x < t.x1 + 1 && z > t.z0 - 1 && z < t.z1 + 1)) top = Math.max(top, t.top);
+  if (x > OGANIRU_CUTTING.x0 - 1 && x < OGANIRU_CUTTING.x1 + 1 && Math.abs(z - EXPRESSWAY_Z) < CUT.wall + CUT.wallWidth + 1) top = Math.max(top, CUT.parapet + 0.2);
   return top;
 }
 
+const STOP_CELLS = new Map();
+for (const s of OGANIRU_STOP_LINES) { const key = Math.floor(s.x / 64) * 4096 + Math.floor(s.z / 64); if (!STOP_CELLS.has(key)) STOP_CELLS.set(key, []); STOP_CELLS.get(key).push(s); }
+function oganiruHold(x, z, nx, nz, seconds, signalState) {
+  if (!inBox(OGANIRU.bounds, x, z, 30)) return false;
+  for (let i = -1; i <= 1; i += 1) for (let k = -1; k <= 1; k += 1) {
+    const list = STOP_CELLS.get((Math.floor(x / 64) + i) * 4096 + Math.floor(z / 64) + k);
+    if (!list) continue;
+    for (const s of list) {
+      if (s.way === 'n' || s.way === 's') {
+        if (Math.abs(z - s.z) > s.half) continue;
+        const going = s.way === 'n' ? nx > x : nx < x;
+        if (!going) continue;
+        const before = s.way === 'n' ? x <= s.x && nx > s.x : x >= s.x && nx < s.x;
+        if (before && signalState(s.phase, seconds + s.offset) !== 'green') return true;
+      } else {
+        if (Math.abs(x - s.x) > s.half) continue;
+        const going = s.way === 'e' ? nz > z : nz < z;
+        if (!going) continue;
+        const before = s.way === 'e' ? z <= s.z && nz > s.z : z >= s.z && nz < s.z;
+        if (before && signalState(s.phase, seconds + s.offset) !== 'green') return true;
+      }
+    }
+  }
+  return false;
+}
+
+const NAME_OF = new Map(OGANIRU_ROADS.map((r) => [r.id, r.name]));
 const OGANIRU_SIGNS = Object.freeze([
   { id: 'welcome', lines: ['WELCOME TO', 'OGANIRU CITY'], x: -9, z: -512, facing: 0, width: 6, height: 2.6, palette: ['#ffffff', '#0f5132', '#f2c200'] },
-  { id: 'gate-name', lines: ['GATE ROUNDABOUT'], x: 10.8, z: -530, facing: 0, width: 4.4, height: 0.9, palette: ['#ffffff', '#0f5132'] },
-  { id: 'unity-union', lines: ['UNITY AVENUE', 'UNION STREET'], x: -12.2, z: UNION_Z + 11, facing: 0, width: 3.2, height: 1.1, palette: ['#ffffff', '#0f5132'] },
-  { id: 'unity-tower', lines: ['UNITY AVENUE', 'TOWER STREET'], x: 12.2, z: TOWER_Z + 11, facing: 0, width: 3.2, height: 1.1, palette: ['#ffffff', '#0f5132'] },
-  { id: 'independence-name', lines: ['INDEPENDENCE', 'BOULEVARD'], x: -26, z: INDEPENDENCE_Z + 21, facing: 0, width: 3.4, height: 1.1, palette: ['#ffffff', '#0f5132'] },
+  { id: 'welcome-kwale', lines: ['WELCOME TO', 'OGANIRU CITY'], x: -1215, z: KWALE_Z + 10.5, facing: Math.PI / 2, width: 6, height: 2.6, palette: ['#ffffff', '#0f5132', '#f2c200'] },
+  { id: 'welcome-campus', lines: ['WELCOME TO', 'OGANIRU CITY'], x: 272, z: CAMPUS_Z - 13, facing: -Math.PI / 2, width: 6, height: 2.6, palette: ['#ffffff', '#0f5132', '#f2c200'] },
+  ...OGANIRU_ROUNDABOUTS.map((r) => ({ id: `${r.id}-name`, lines: [r.name.toUpperCase()], x: r.x + RING.outer + RING.walk + 3, z: r.z + 12, facing: Math.PI / 2, width: 4.8, height: 0.9, palette: ['#ffffff', '#0f5132'] })),
+  ...OGANIRU_JUNCTIONS.filter((j) => j.roads.length >= 2).map((j) => {
+    const names = [...new Set(j.roads.map((id) => NAME_OF.get(id)))];
+    return { id: `name-${j.id}`, lines: names.slice(0, 2).map((n) => n.toUpperCase()), x: j.x + j.hx + 2.2, z: j.z + j.hz + 3.4, facing: 0, width: 3.4, height: 1.1, palette: ['#ffffff', '#0f5132'] };
+  }),
   { id: 'gantry-nb', lines: ['UNITY AVENUE  \u2197', 'Asaba town centre · Motor park · Market'], x: -300, z: EXPRESSWAY_Z + 7.5, facing: -Math.PI / 2, width: 13, height: 3.2, palette: ['#ffffff', '#0b5d32'], gantry: 'viaduct', across: VIADUCT_HALF * 2 },
   { id: 'gantry-sb', lines: ['UNITY AVENUE  \u2196', 'Oganiru Central · Towers'], x: 300, z: EXPRESSWAY_Z - 7.5, facing: Math.PI / 2, width: 13, height: 3.2, palette: ['#ffffff', '#0b5d32'], gantry: 'viaduct', across: VIADUCT_HALF * 2 },
+  { id: 'gantry-nb-peace', lines: ['PEACE AVENUE  \u2197', 'Campus Link · Anwuli Gardens · Habitation'], x: PEACE_X - 330, z: EXPRESSWAY_Z + 7.5, facing: -Math.PI / 2, width: 13, height: 3.2, palette: ['#ffffff', '#0b5d32'], gantry: 'viaduct', across: VIADUCT_HALF * 2 },
+  { id: 'gantry-nb-end', lines: ['ROAD WORKS AHEAD', 'All traffic: Peace Avenue exit'], x: PEACE_X - 60, z: EXPRESSWAY_Z + 7.5, facing: -Math.PI / 2, width: 13, height: 3.2, palette: ['#ffffff', '#b8860b'], gantry: 'viaduct', across: VIADUCT_HALF * 2 },
+  { id: 'gantry-sb-harmony', lines: ['HARMONY AVENUE  \u2199  \u2198', 'Airport · Kwale · Warri  |  Ihuoma Park'], x: -900, z: EXPRESSWAY_Z - 7.5, facing: Math.PI / 2, width: 13, height: 3.2, palette: ['#ffffff', '#0b5d32'], gantry: 'ground', across: VIADUCT_HALF * 2 },
 ].map(Object.freeze));
 
 const OGANIRU_MAP_LABELS = Object.freeze([
   ['Oganiru City', -60, -760, 'center'], ['Unity Interchange', -150, -1130, 'center'], ['Oganiru Expressway', 380, -1130, 'vertical'],
+  ['Harmony Interchange', -1290, -1200, 'center'], ['Peace Interchange', PEACE_X, -1200, 'center'],
+  ['Anwuli Gardens', 600, -450, 'center'], ['Ihuoma Park', -900, -620, 'center'], ['Ugwuoma Heights', -400, -1400, 'center'],
 ]);
 
-return { OGANIRU, EXPRESSWAY_Z, OGANIRU_ROADS, OGANIRU_DECKS, oganiruDecksAt, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, oganiruGroundY, OGANIRU_AREAS, onOganiru, oganiruAway, OGANIRU_EDGE_LINES, OGANIRU_CLOSURES, ofOganiru, OGANIRU_TREES, OGANIRU_LAMPS, OGANIRU_SIGNALS, OGANIRU_PILLARS, OGANIRU_SOLIDS, oganiruBlocked, oganiruSurface, oganiruOnDeck, oganiruTar, oganiruStructureAt, oganiruTallAt, OGANIRU_SIGNS, OGANIRU_MAP_LABELS };
+const TRAFFIC_SPEED = Object.freeze({ expressway: 22, avenue: 14, street: 11, ramp: 12, ring: 9, link: 13 });
+const TRAFFIC_LANE = Object.freeze({ avenue: 4.25, street: 2.0, link: 2.2, deck: 4.25, expressway: 8.5, kerb: 8.6, streetKerb: 5.6, ring: 19.5 });
+const OGANIRU_TRAFFIC = (() => {
+  const roads = [];
+  const ground = (id, from, to, o = {}) => {
+    const r = ROAD_BY_ID.get(id);
+    const base = r.kind === 'street' ? { lane: TRAFFIC_LANE.street, inner: 0, kerb: TRAFFIC_LANE.streetKerb, cruise: TRAFFIC_SPEED.street, stops: true }
+      : r.kind === 'link' ? { lane: TRAFFIC_LANE.link, inner: 0, kerb: r.half - 1.4, cruise: TRAFFIC_SPEED.link, stops: false }
+        : r.kind === 'flyover-road' ? { lane: TRAFFIC_LANE.avenue, laneAt: (a) => Math.max(roadWidthAt(r, a).median / 2, 2.5) + 1.75, inner: 2.5, kerb: r.half - 1.4, cruise: TRAFFIC_SPEED.avenue, stops: false }
+          : r.kind === 'approach' ? { lane: TRAFFIC_LANE.avenue, laneAt: (a) => Math.max(o.least || 2.2, roadWidthAt(r, a).median / 2 + 1.75), inner: 2.5, kerb: r.half - 1.4, cruise: TRAFFIC_SPEED.link, stops: false }
+            : { lane: TRAFFIC_LANE.avenue, inner: r.median > 0 ? r.median / 2 : 0, kerb: TRAFFIC_LANE.kerb, cruise: TRAFFIC_SPEED.avenue, stops: true };
+    roads.push({ id, axis: r.along, c: r.c, a0: from === undefined ? r.from : from, a1: to === undefined ? r.to : to, w: 2 * r.half, ...base, oneway: 0, level: null, ...o });
+  };
+  ground('unity-gate', undefined, -470, { least: 2.2 });
+  for (const id of ['unity', 'gateway-s', 'gateway-n', 'independence-1', 'independence-2', 'independence-3', 'sunrise-s', 'sunrise-n', 'harmony-1', 'harmony-r2', 'peace-1', 'peace-2', 'hope-1', 'campus-link', 'kwale-on', 'exchange', 'commerce', 'council', 'charter', 'union-s', 'union-n', 'tower-s', 'tower-n']) ground(id);
+  ground('campus-gate', undefined, undefined, { least: 2.0 });
+  ground('harmony-2', SUNRISE_Z, undefined);
+  roads.push({ id: 'hope-south', axis: 'z', c: HOPE_X, a0: SUNRISE_Z + 10, a1: INDEPENDENCE_Z - FLY.hope[0] - 35, w: 20, lane: TRAFFIC_LANE.avenue, inner: 2.5, kerb: TRAFFIC_LANE.kerb, cruise: TRAFFIC_SPEED.avenue, stops: true, noStops: [[-1175, -1085]], oneway: 0, level: null });
+  for (const id of ['independence-s', 'independence-n', 'peace-fe', 'peace-fw', 'harmony-fe', 'harmony-fw', 'hope-fe', 'hope-fw']) ground(id);
+  for (const d of OGANIRU_DECKS.filter((q) => q.kind === 'flyover' && q.barrier)) {
+    const p0 = d.path[0], pn = d.path[d.path.length - 1], alongX = Math.abs(p0.z - pn.z) < 1;
+    const c = alongX ? p0.z : p0.x, s0 = alongX ? Math.min(p0.x, pn.x) : Math.min(p0.z, pn.z), s1 = alongX ? Math.max(p0.x, pn.x) : Math.max(p0.z, pn.z);
+    const sides = OGANIRU_ROADS.filter((r) => r.kind === 'flyover-road' && r.along === (alongX ? 'x' : 'z') && Math.abs(r.c - c) < 1 && r.to > s0 - 60 && r.from < s1 + 60);
+    const forward = alongX ? p0.x < pn.x : p0.z < pn.z;
+    const at = (a) => {
+      const s = forward ? a - s0 : s1 - a;
+      if (s <= 0 || s >= d.len) return 0;
+      let lo = 0, hi = d.path.length - 1;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (d.path[m].s <= s) lo = m; else hi = m; }
+      const p = d.path[lo], q = d.path[hi];
+      return p.y + (q.y - p.y) * clamp((s - p.s) / Math.max(1e-6, q.s - p.s), 0, 1);
+    };
+    roads.push({ id: d.id, axis: alongX ? 'x' : 'z', c, a0: Math.min(...sides.map((r) => r.from)), a1: Math.max(...sides.map((r) => r.to)), w: 16, lane: TRAFFIC_LANE.deck, inner: 0.5, kerb: 6, cruise: TRAFFIC_SPEED.avenue, stops: false, oneway: 0, level: at, deck: d.id });
+  }
+  roads.push({ id: 'expressway', axis: 'x', c: EXPRESSWAY_Z, a0: -1040, a1: PEACE_X - 160, w: 30, lane: TRAFFIC_LANE.expressway, inner: 3.25, kerb: 13, cruise: TRAFFIC_SPEED.expressway, stops: false, oneway: 0, level: (x) => expresswayY(x) });
+  roads.push({ id: 'expressway-nb', axis: 'x', c: EXPRESSWAY_Z, a0: -1200, a1: -1040, w: 30, lane: TRAFFIC_LANE.expressway, inner: 0.5, kerb: 13, cruise: TRAFFIC_SPEED.expressway, stops: false, oneway: 1, level: null });
+  const axisRoads = roads.slice();
+  const path = (id, pts, o = {}) => { roads.push({ id, axis: 'path', pts, a0: 0, a1: pts[pts.length - 1].s, w: 8, lane: 0, inner: 0, kerb: 0, cruise: TRAFFIC_SPEED.ramp, stops: false, oneway: 1, level: null, ...o }); return roads[roads.length - 1]; };
+  const levelOf = (r, a) => (r.level ? r.level(clamp(a, r.a0, r.a1)) : 0);
+  const attach = (p) => {
+    let best = null;
+    for (const r of axisRoads) {
+      const a = r.axis === 'x' ? p.x : p.z, off = (r.axis === 'x' ? p.z : p.x) - r.c;
+      if (a < r.a0 - 2 || a > r.a1 + 2 || Math.abs(off) > r.w / 2 + 6) continue;
+      if (Math.abs(levelOf(r, a) - p.y) > 1.2) continue;
+      const along = r.axis === 'x' ? p.ux : p.uz, dir = Math.abs(along) > 0.7 ? Math.sign(along) : 0;
+      const side = r.axis === 'x' ? Math.sign(off) : -Math.sign(off);
+      if (r.oneway && side !== r.oneway) continue;
+      const d = Math.abs(Math.abs(off) - (r.laneAt ? r.laneAt(clamp(a, r.a0, r.a1)) : r.lane));
+      if (!best || d < best.d) best = { road: r.id, along: clamp(a, r.a0, r.a1), dir, d };
+    }
+    return best ? { road: best.road, along: best.along, dir: best.dir } : null;
+  };
+  for (const d of OGANIRU_DECKS) {
+    if (!/^(u-|h-|p-nb-off$|p-sb-on$)/.test(d.id)) continue;
+    const pts = d.path.map((q) => Object.freeze({ x: q.x, z: q.z, y: q.y, s: q.s, ux: q.ux, uz: q.uz }));
+    const r = path(d.id, pts, { w: 2 * d.half, deck: d.id });
+    r.from = attach(pts[0]);
+    r.to = attach(pts[pts.length - 1]);
+  }
+  for (const rb of OGANIRU_ROUNDABOUTS) {
+    const legs = [];
+    for (const leg of rb.legs) {
+      const ns = leg.dir === 'n' || leg.dir === 's', far = leg.dir === 'n' || leg.dir === 'e';
+      const edge = (ns ? rb.x : rb.z) + (far ? RING_EDGE : -RING_EDGE);
+      const road = axisRoads.find((r) => r.axis === (ns ? 'x' : 'z') && Math.abs(r.c - (ns ? rb.z : rb.x)) < 1 && Math.abs((far ? r.a0 : r.a1) - edge) < 2);
+      if (!road) continue;
+      const base = leg.dir === 'e' ? 0 : leg.dir === 'n' ? 90 : leg.dir === 'w' ? 180 : 270;
+      const lane = road.laneAt ? road.laneAt(edge) : road.lane;
+      const off = (Math.asin(Math.min(0.9, lane / TRAFFIC_LANE.ring)) * 180) / Math.PI;
+      legs.push({ base, off, road: road.id, along: edge });
+    }
+    legs.sort((p, q) => p.base - q.base);
+    legs.forEach((p, k) => {
+      const q = legs[(k + 1) % legs.length];
+      const to = q.base - q.off + (k + 1 === legs.length ? 360 : 0);
+      const pts = resample(arc(rb.x, rb.z, TRAFFIC_LANE.ring, p.base + p.off, to, 1.5), 1.5).map((o) => Object.freeze({ ...o, y: 0 }));
+      path(`ring-${rb.id}-${p.road}`, pts, { cruise: TRAFFIC_SPEED.ring, w: 8, ring: rb.id, from: { road: p.road, along: p.along, dir: 0 }, to: { road: q.road, along: q.along, dir: 0 } });
+    });
+  }
+  return Object.freeze(roads.map((r) => Object.freeze(r)));
+})();
+
+return { OGANIRU, EXPRESSWAY_Z, OGANIRU_PLACES, OGANIRU_ROUNDABOUTS, expresswayY, OGANIRU_CUTTING, OGANIRU_ROADS, roadWidthAt, OGANIRU_JUNCTIONS, PEACE_RAMP_Z, OGANIRU_DECKS, oganiruDecksAt, OGANIRU_MEDIAN_GAPS, OGANIRU_KERBED, OGANIRU_TOWERS, oganiruGroundY, OGANIRU_AREAS, onOganiru, oganiruAway, nearOganiru, OGANIRU_EDGE_LINES, OGANIRU_CLOSURES, ofOganiru, OGANIRU_TREES, OGANIRU_LAMPS, OGANIRU_SIGNALS, STOP_LINE_OUT, OGANIRU_STOP_LINES, OGANIRU_PILLARS, OGANIRU_BILLBOARDS, OGANIRU_SOLIDS, OGANIRU_WALLS, oganiruBlocked, oganiruSurface, oganiruOnDeck, oganiruTar, oganiruStructureAt, oganiruTallAt, oganiruHold, OGANIRU_SIGNS, OGANIRU_MAP_LABELS, OGANIRU_TRAFFIC };
 })();
 
 __modules["sim/zones/atani-town.js"] = (function () {
@@ -6489,7 +7012,7 @@ const { SUPPLIED_VEHICLE_COLLIDERS } = __modules["sim/zones/supplied-vehicles.js
 const { TOWN_TREES } = __modules["sim/zones/atani-trees.js"];
 const { TOWER_COLLIDERS, TOWER_BOXES, standsAt } = __modules["sim/zones/town-buildings.js"];
 const { openClosures, closureColliders, edgeFences, fenceColliders } = __modules["sim/zones/closures.js"];
-const { OGANIRU, OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } = __modules["sim/zones/oganiru.js"];
+const { OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, nearOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } = __modules["sim/zones/oganiru.js"];
 
 const { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt } = __modules["sim/zones/habitation.js"];
 
@@ -7321,7 +7844,7 @@ const ZONE_TREES = Object.freeze(TOWN_TREES.filter((t) => !underBridge(t) && !in
 
 const inHabitation = (x, z) => x > HABITATION.bounds.x0 - 6 && x < HABITATION.bounds.x1 && z > HABITATION.bounds.z0 && z < HABITATION.bounds.z1;
 const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) && !onHabitation(x, z)) ? habitationGroundY(x, z) : cityGroundY(x, z) || outskirtsGroundY(x, z) || oganiruGroundY(x, z));
-const inOganiru = (x, z) => x > OGANIRU.bounds.x0 - 20 && x < OGANIRU.bounds.x1 + 20 && z > OGANIRU.bounds.z0 - 20 && z < OGANIRU.bounds.z1 + 20;
+const inOganiru = (x, z) => nearOganiru(x, z, 20);
 function zoneLevel(x, z, y) {
   const g = zoneGroundY(x, z);
   if (!Number.isFinite(y) || !inOganiru(x, z)) return { y: g, deck: null };
@@ -10716,11 +11239,13 @@ function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPULATION.
   }
 
   function locate(i, t, out) {
+    out.y = undefined;
     for (let k = 0; k < hooks.length; k += 1) if (hooks[k](i, t, out)) return out;
     return planned(i, t, out);
   }
 
   function planned(i, t, out) {
+    out.y = undefined;
     const dayIndex = Math.floor(t / 86400);
     const s = t - dayIndex * 86400;
     const plan = planOf(i, dayIndex);
@@ -10800,7 +11325,9 @@ function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPULATION.
       const d2 = dx * dx + dz * dz;
       if (d2 > m2) continue;
       if (d2 <= n2) near += 1;
-      rows.push([i, Math.round(probe.x * 100) / 100, Math.round(probe.z * 100) / 100, Math.round(probe.h * 100) / 100, probe.pose]);
+      const row = [i, Math.round(probe.x * 100) / 100, Math.round(probe.z * 100) / 100, Math.round(probe.h * 100) / 100, probe.pose];
+      if (Number.isFinite(probe.y)) row.push(Math.round(probe.y * 100) / 100);
+      rows.push(row);
     }
     stats.views += 1;
     stats.lastViewMs = now() - started;
@@ -10817,7 +11344,7 @@ function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPULATION.
     for (const i of set.list) {
       locate(i, t, probe);
       const dx = probe.x - x, dz = probe.z - z;
-      if (dx * dx + dz * dz <= r2) rows.push([i, probe.x, probe.z, probe.pose]);
+      if (dx * dx + dz * dz <= r2) rows.push([i, probe.x, probe.z, probe.pose, probe.y]);
     }
     return rows;
   }
@@ -11453,7 +11980,8 @@ return { CAR_CLASSES, CAR_HANDLING, POWER_CARS, carHandlingOf, CAR_FASTEST, topK
 })();
 
 __modules["sim/traffic.js"] = (function () {
-const { ZONE_ROADS, OUTSKIRT_ROADS, BOULEVARD, ZONE_CLOSURES, CITY_AREA, trafficHold, zoneWalkable } = __modules["sim/zone.js"];
+const { ZONE_ROADS, OUTSKIRT_ROADS, BOULEVARD, ZONE_CLOSURES, CITY_AREA, trafficHold, zoneWalkable, OGANIRU, OGANIRU_TRAFFIC, OGANIRU_JUNCTIONS, oganiruHold, signalState } = __modules["sim/zone.js"];
+const { levelAt } = __modules["sim/levels.js"];
 const { POWER_CARS, carBoxes, carCircles } = __modules["sim/power-cars.js"];
 const { POSE } = __modules["sim/population.js"];
 const { GameError } = __modules["sim/registry.js"];
@@ -11472,6 +12000,9 @@ const TRAFFIC = Object.freeze({
   shift: 10,               // metres a car takes to pull out from the roadside, or in to it
   every: 45,               // metres between places at the roadside a car may stand
   clear: 18,               // and none nearer a junction than this
+  cityClear: 30,           // (in the city, where the junctions are wider and the stop lines further out, this)
+  cityPace: 14,            // m/s: the city's roads compared by time at this pace, choosing a way
+  cityFar: 2600,           // metres (at that pace) a trip from somewhere in the city may go
   stand: Object.freeze([25, 80]),     // real seconds a car stands at the roadside before going on
   apart: 80,               // metres: a car comes onto the roads, or goes home off them, only this far from every player
   near: 75,                // metres: townspeople are asked to step aside only by a car this near a player
@@ -11503,44 +12034,112 @@ function carRoads() {
       const at = axis === 'x' ? kx : kz;
       if (at - a0 < a1 - at) a0 = Math.max(a0, at + 4); else a1 = Math.min(a1, at - 4);
     }
-    list.push(Object.freeze({ id: r.id, axis, c, a0, a1, w, lane: Math.min(2.2, w / 4), kerb: w / 2 + 0.6, cruise: open ? TRAFFIC.open : boulevard ? TRAFFIC.town - 1 : TRAFFIC.town, boulevard, open }));
+    list.push({ id: r.id, axis, c, a0, a1, w, lane: Math.min(2.2, w / 4), kerb: w / 2 + 0.6, cruise: open ? TRAFFIC.open : boulevard ? TRAFFIC.town - 1 : TRAFFIC.town, boulevard, open, city: false, oneway: 0, inner: null, stops: true });
   };
   for (const r of ZONE_ROADS) take(r, false);
   for (const r of OUTSKIRT_ROADS) if (!r.bays && !r.deck) take(r, true);
+  for (const r of OGANIRU_TRAFFIC) {
+    const o = { ...r, city: true, boulevard: false, open: false };
+    if (r.axis === 'path') {
+      o.xs = Float64Array.from(r.pts, (p) => p.x); o.zs = Float64Array.from(r.pts, (p) => p.z); o.ys = Float64Array.from(r.pts, (p) => p.y);
+      o.ss = Float64Array.from(r.pts, (p) => p.s); o.uxs = Float64Array.from(r.pts, (p) => p.ux); o.uzs = Float64Array.from(r.pts, (p) => p.uz);
+    }
+    list.push(o);
+  }
   return list;
 }
 
-const pointOf = (road, along, lat, dir) => (road.axis === 'x' ? [along, road.c + lat * dir] : [road.c - lat * dir, along]);
-const headingOf = (road, dir) => (road.axis === 'x' ? (dir > 0 ? Math.PI / 2 : -Math.PI / 2) : dir > 0 ? 0 : Math.PI);
-const alongOf = (road, x, z) => (road.axis === 'x' ? x : z);
+function pathSpot(road, along) {
+  const ss = road.ss, n = ss.length;
+  if (along <= ss[0]) return [0, 0];
+  if (along >= ss[n - 1]) return [n - 2, 1];
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ss[m] <= along) lo = m; else hi = m; }
+  return [lo, (along - ss[lo]) / Math.max(1e-9, ss[hi] - ss[lo])];
+}
+function nearestOnPath(road, x, z) {
+  let best = { along: 0, off: Infinity };
+  for (let k = 0; k + 1 < road.xs.length; k += 1) {
+    const ax = road.xs[k], az = road.zs[k], ex = road.xs[k + 1] - ax, ez = road.zs[k + 1] - az, l2 = ex * ex + ez * ez || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2));
+    const off = Math.hypot(x - ax - ex * t, z - az - ez * t);
+    if (off < best.off) best = { along: road.ss[k] + (road.ss[k + 1] - road.ss[k]) * t, off };
+  }
+  return best;
+}
+const laneOf = (road, along) => (road.laneAt ? road.laneAt(Math.max(road.a0, Math.min(road.a1, along))) : road.lane);
+function pointOf(road, along, lat, dir) {
+  if (road.axis === 'x') return [along, road.c + lat * dir];
+  if (road.axis === 'z') return [road.c - lat * dir, along];
+  const [k, f] = pathSpot(road, along);
+  const x = road.xs[k] + (road.xs[k + 1] - road.xs[k]) * f, z = road.zs[k] + (road.zs[k + 1] - road.zs[k]) * f;
+  if (!lat) return [x, z];
+  const ux = road.uxs[k] + (road.uxs[k + 1] - road.uxs[k]) * f, uz = road.uzs[k] + (road.uzs[k + 1] - road.uzs[k]) * f, l = Math.hypot(ux, uz) || 1;
+  return [x - (uz / l) * lat * dir, z + (ux / l) * lat * dir];
+}
+function headingOf(road, dir, along = 0) {
+  if (road.axis === 'x') return dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+  if (road.axis === 'z') return dir > 0 ? 0 : Math.PI;
+  const [k, f] = pathSpot(road, along);
+  const ux = road.uxs[k] + (road.uxs[k + 1] - road.uxs[k]) * f, uz = road.uzs[k] + (road.uzs[k + 1] - road.uzs[k]) * f;
+  return Math.atan2(ux * dir, uz * dir);
+}
+const alongOf = (road, x, z) => (road.axis === 'x' ? x : road.axis === 'z' ? z : nearestOnPath(road, x, z).along);
+function levelOf(road, along) {
+  if (!road.city) return NaN;
+  if (road.axis === 'path') { const [k, f] = pathSpot(road, along); return road.ys[k] + (road.ys[k + 1] - road.ys[k]) * f; }
+  return road.level ? road.level(Math.max(road.a0, Math.min(road.a1, along))) : 0;
+}
+const lineOf = (road) => (road.axis === 'path' ? road.id : `${road.axis}:${Math.round(road.c * 10)}`);
 
 function buildNetwork() {
   const roads = carRoads();
+  const index = new Map(roads.map((r, k) => [r.id, k]));
+  const flat = (r, a) => { const y = levelOf(r, a); return Number.isFinite(y) ? y : 0; };
   const marks = roads.map(() => []);
   for (let a = 0; a < roads.length; a += 1) {
     for (let b = a + 1; b < roads.length; b += 1) {
       const A = roads[a], B = roads[b];
+      if (A.axis === 'path' || B.axis === 'path') continue;
       if (A.axis === B.axis) {
         if (Math.abs(A.c - B.c) > 1.5) continue;
-        for (const e of [A.a0, A.a1]) for (const f of [B.a0, B.a1]) if (Math.abs(e - f) < 3) { const m = (e + f) / 2; marks[a].push([m, 1]); marks[b].push([m, 1]); }
+        for (const e of [A.a0, A.a1]) for (const f of [B.a0, B.a1]) if (Math.abs(e - f) < 3 && Math.abs(flat(A, e) - flat(B, f)) < 1.5) { const m = (e + f) / 2; marks[a].push([m, 1]); marks[b].push([m, 1]); }
         continue;
       }
       const ix = A.axis === 'x' ? a : b, iz = A.axis === 'x' ? b : a;
       const X = roads[ix], Z = roads[iz];
       const x = Z.c, z = X.c;
       if (x < X.a0 - Z.w / 2 - 1.5 || x > X.a1 + Z.w / 2 + 1.5 || z < Z.a0 - X.w / 2 - 1.5 || z > Z.a1 + X.w / 2 + 1.5) continue;
+      if ((X.city || Z.city) && Math.abs(flat(X, x) - flat(Z, z)) > 2.5) continue;
       marks[ix].push([x, 2]); marks[iz].push([z, 2]);
     }
   }
+  roads.forEach((r) => { if (r.axis === 'path') for (const end of [r.from, r.to]) marks[index.get(end.road)].push([end.along, 1.5]); });
+  roads.forEach((r, ri) => {
+    if (!r.city || r.axis === 'path') return;
+    for (const end of ['a0', 'a1']) {
+      const at = r[end];
+      if (marks[ri].some(([m, f]) => f < 2 && Math.abs(m - at) < 3)) continue;
+      const cross = marks[ri].filter(([m, f]) => f === 2 && Math.abs(m - at) <= 12).sort((p, q) => Math.abs(p[0] - at) - Math.abs(q[0] - at))[0];
+      if (cross) r[end] = cross[0];
+    }
+    for (const [m] of marks[ri]) { if (m < r.a0) r.a0 = m; if (m > r.a1) r.a1 = m; }
+  });
   const nodes = [];
-  const nodeAt = (x, z) => {
-    for (let k = 0; k < nodes.length; k += 1) if (Math.hypot(nodes[k].x - x, nodes[k].z - z) < 4) return k;
-    nodes.push({ x, z, on: new Map(), links: [] });
+  const nodeAt = (x, z, y) => {
+    for (let k = 0; k < nodes.length; k += 1) if (Math.hypot(nodes[k].x - x, nodes[k].z - z) < 4 && !(Number.isFinite(y) && Number.isFinite(nodes[k].y) && Math.abs(nodes[k].y - y) > 2)) { if (!Number.isFinite(nodes[k].y)) nodes[k].y = y; return k; }
+    nodes.push({ x, z, y, on: new Map(), links: [], out: [], into: [] });
     return nodes.length - 1;
   };
   const edges = [];
   const stops = [];
+  const link = (e) => {
+    edges.push(e);
+    nodes[e.a].links.push({ to: e.b, edge: edges.length - 1, len: e.len });
+    nodes[e.b].links.push({ to: e.a, edge: edges.length - 1, len: e.len });
+  };
   roads.forEach((road, ri) => {
+    if (road.axis === 'path') return;
     const all = [...marks[ri], [road.a0, 0], [road.a1, 0]].sort((p, q) => p[0] - q[0]);
     const kept = [];
     for (const p of all) {
@@ -11548,16 +12147,15 @@ function buildNetwork() {
       if (last && p[0] - last[0] < 8.5) { if (p[1] > last[1]) kept[kept.length - 1] = p; continue; }
       kept.push(p);
     }
-    const ids = kept.map(([along]) => { const [x, z] = pointOf(road, along, 0, 1); const k = nodeAt(x, z); nodes[k].on.set(ri, along); return k; });
+    const ids = kept.map(([along]) => { const [x, z] = pointOf(road, along, 0, 1); const k = nodeAt(x, z, levelOf(road, along)); nodes[k].on.set(ri, along); return k; });
     for (let k = 0; k + 1 < ids.length; k += 1) {
       const s0 = kept[k][0], s1 = kept[k + 1][0];
-      const e = { road: ri, a: ids[k], b: ids[k + 1], s0, s1, len: s1 - s0 };
-      edges.push(e);
-      nodes[ids[k]].links.push({ to: ids[k + 1], edge: edges.length - 1, len: e.len });
-      nodes[ids[k + 1]].links.push({ to: ids[k], edge: edges.length - 1, len: e.len });
-      if (road.boulevard) continue;
-      for (let s = s0 + TRAFFIC.clear; s <= s1 - TRAFFIC.clear; s += TRAFFIC.every) {
-        for (const dir of [1, -1]) {
+      link({ road: ri, a: ids[k], b: ids[k + 1], s0, s1, len: s1 - s0 });
+      if (road.boulevard || !road.stops) continue;
+      const clear = road.city ? TRAFFIC.cityClear : TRAFFIC.clear;
+      for (let s = s0 + clear; s <= s1 - clear; s += TRAFFIC.every) {
+        if (road.noStops && road.noStops.some(([p, q]) => s >= p && s <= q)) continue;
+        for (const dir of road.oneway ? [road.oneway] : [1, -1]) {
           const [x, z] = pointOf(road, s, road.kerb, dir);
           const h = headingOf(road, dir);
           if (!carCircles(ROOMY, x, z, h).every((c) => zoneWalkable(c.x, c.z, [], Math.max(0.3, c.r - 0.05)))) continue;
@@ -11566,27 +12164,89 @@ function buildNetwork() {
       }
     }
   });
-  const N = nodes.length;
-  const dist = Array.from({ length: N }, () => new Float64Array(N).fill(Infinity));
-  const next = Array.from({ length: N }, () => new Int16Array(N).fill(-1));
-  for (let s = 0; s < N; s += 1) {
-    const d = dist[s], prev = new Int16Array(N).fill(-1), done = new Uint8Array(N);
-    d[s] = 0;
-    for (;;) {
-      let u = -1;
-      for (let k = 0; k < N; k += 1) if (!done[k] && d[k] < Infinity && (u < 0 || d[k] < d[u])) u = k;
-      if (u < 0) break;
-      done[u] = 1;
-      for (const l of nodes[u].links) if (d[u] + l.len < d[l.to]) { d[l.to] = d[u] + l.len; prev[l.to] = u; }
+  roads.forEach((road, ri) => {
+    if (road.axis !== 'path') return;
+    const ends = [road.from, road.to].map((end) => {
+      const h = index.get(end.road);
+      let best = -1, bestD = Infinity;
+      nodes.forEach((n, k) => { const a = n.on.get(h); if (a !== undefined && Math.abs(a - end.along) < bestD) { bestD = Math.abs(a - end.along); best = k; } });
+      return best;
+    });
+    if (ends[0] < 0 || ends[1] < 0 || ends[0] === ends[1]) throw new Error(`traffic: ${road.id} does not join the roads`);
+    nodes[ends[0]].on.set(ri, 0); nodes[ends[1]].on.set(ri, road.a1);
+    link({ road: ri, a: ends[0], b: ends[1], s0: 0, s1: road.a1, len: road.a1 });
+  });
+  for (const n of nodes) {
+    n.city = [...n.on.keys()].some((ri) => roads[ri].city);
+    const j = n.city ? OGANIRU_JUNCTIONS.find((q) => Math.abs(q.x - n.x) < 3 && Math.abs(q.z - n.z) < 3) : null;
+    n.uturn = !n.city || (!!j && ![...n.on.keys()].some((ri) => roads[ri].axis === 'path' || roads[ri].deck));
+    n.signals = !!(j && j.signals);
+  }
+  const arcs = [], arcIndex = new Int32Array(edges.length * 2).fill(-1);
+  edges.forEach((e, ei) => {
+    const road = roads[e.road];
+    for (const dir of [1, -1]) {
+      if (road.oneway && dir !== road.oneway) continue;
+      const k = arcs.length;
+      arcs.push({ edge: ei, road: e.road, dir, from: dir > 0 ? e.a : e.b, to: dir > 0 ? e.b : e.a, len: e.len, cost: e.len * (road.city ? TRAFFIC.cityPace / road.cruise : 1) });
+      arcIndex[ei * 2 + (dir > 0 ? 0 : 1)] = k;
+      nodes[arcs[k].from].out.push(k); nodes[arcs[k].to].into.push(k);
     }
-    for (let t = 0; t < N; t += 1) {
-      if (t === s || prev[t] < 0) continue;
-      let at = t;
-      while (prev[at] !== s) at = prev[at];
-      next[s][t] = at;
+  });
+  const along = roads.map(() => []);
+  nodes.forEach((n, k) => { for (const [ri, a] of n.on) along[ri].push([a, k]); });
+  for (const l of along) l.sort((p, q) => p[0] - q[0]);
+  for (const r of roads) Object.freeze(r);
+  const net = { roads, nodes, edges, arcs, stops, along, arcOf: (ei, dir) => arcIndex[ei * 2 + (dir > 0 ? 0 : 1)], lines: roads.map(lineOf) };
+  let dist = null;
+  Object.defineProperty(net, 'dist', { get() { if (!dist) dist = nodes.map((_, a) => { const R = search({ node: a, arc: -1, cost: 0 }, net); const d = new Float64Array(nodes.length).fill(Infinity); d[a] = 0; arcs.forEach((A, k) => { if (R.dist[k] < d[A.to]) d[A.to] = R.dist[k]; }); return d; }); return dist; } });
+  return net;
+}
+
+function turnable(net, n, i, o) {
+  const A = net.arcs[i], B = net.arcs[o];
+  if (A.edge === B.edge) return net.nodes[n].uturn;
+  const ra = net.roads[A.road], rb = net.roads[B.road];
+  if (ra.axis !== 'path' && rb.axis !== 'path') return true;
+  const hi = ra.axis === 'path' ? ra.to : null, ho = rb.axis === 'path' ? rb.from : null;
+  const lineA = hi ? net.lines[net.roads.findIndex((r) => r.id === hi.road)] : net.lines[A.road], dirA = hi ? hi.dir : A.dir;
+  const lineB = ho ? net.lines[net.roads.findIndex((r) => r.id === ho.road)] : net.lines[B.road], dirB = ho ? ho.dir : B.dir;
+  if (ho && ho.dir) return lineA === lineB && dirA === ho.dir;
+  if (hi && hi.dir) return lineA === lineB && dirB === hi.dir;
+  return true;
+}
+function turnCost(net, n, i, o) {
+  const N = net.nodes[n];
+  if (!N.city || i < 0) return 0;
+  const A = net.arcs[i], B = net.arcs[o];
+  if (A.edge === B.edge) return 40;
+  const ra = net.roads[A.road], rb = net.roads[B.road];
+  return (N.signals ? 12 : 0) + (ra.axis !== 'path' && rb.axis !== 'path' && ra.axis !== rb.axis ? 6 : 0);
+}
+function search(start, net = NET) {
+  const n = net.arcs.length, S = n;
+  const dist = new Float64Array(n + 1).fill(Infinity), prev = new Int32Array(n + 1).fill(-1), done = new Uint8Array(n + 1);
+  const heap = [], put = (k, d) => { heap.push([d, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const take = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top[1]; };
+  dist[S] = start.cost || 0; put(S, dist[S]);
+  const turns = new Map();
+  while (heap.length) {
+    const u = take();
+    if (done[u]) continue;
+    done[u] = 1;
+    const node = u === S ? start.node : net.arcs[u].to, inn = u === S ? start.arc : u;
+    for (const o of net.nodes[node].out) {
+      if (inn >= 0) {
+        const key = inn * 65536 + o;
+        let ok = turns.get(key);
+        if (ok === undefined) { ok = turnable(net, node, inn, o); turns.set(key, ok); }
+        if (!ok) continue;
+      }
+      const d = dist[u] + (inn >= 0 ? turnCost(net, node, inn, o) : 0) + net.arcs[o].cost;
+      if (d < dist[o]) { dist[o] = d; prev[o] = u; put(o, d); }
     }
   }
-  return { roads, nodes, edges, stops, dist, next };
+  return { dist, prev, S };
 }
 
 const NET = buildNetwork();
@@ -11595,22 +12255,46 @@ const TRAFFIC_STOPS = NET.stops;
 const trafficNetwork = () => NET;
 
 function nodeAhead(ri, along, dir) {
-  let best = -1, bestD = Infinity;
-  NET.nodes.forEach((n, k) => { const a = n.on.get(ri); if (a === undefined) return; const d = (a - along) * dir; if (d > 0.5 && d < bestD) { bestD = d; best = k; } });
-  return best;
+  const l = NET.along[ri];
+  if (dir > 0) { for (let k = 0; k < l.length; k += 1) if (l[k][0] - along > 0.5) return l[k][1]; return -1; }
+  for (let k = l.length - 1; k >= 0; k -= 1) if (along - l[k][0] > 0.5) return l[k][1];
+  return -1;
 }
-function nodeBehind(ri, along, dir) { return nodeAhead(ri, along, -dir); }
-const edgeBetween = (a, b) => { const l = NET.nodes[a].links.find((q) => q.to === b); return l ? NET.edges[l.edge] : null; };
+function startOf(from) {
+  const first = nodeAhead(from.road, from.along, from.dir);
+  if (first < 0) return null;
+  const arc = NET.nodes[first].into.find((k) => NET.arcs[k].road === from.road && NET.arcs[k].dir === from.dir);
+  if (arc === undefined) return null;
+  const road = NET.roads[from.road];
+  return { node: first, arc, cost: Math.abs(NET.nodes[first].on.get(from.road) - from.along) * (road.city ? TRAFFIC.cityPace / road.cruise : 1) };
+}
+function farTo(from, stop, R) {
+  const e = NET.edges[stop.edge];
+  if (from.road === stop.road && from.dir === stop.dir && (stop.s - from.along) * stop.dir > 4 && from.along >= e.s0 - 0.5 && from.along <= e.s1 + 0.5) return (stop.s - from.along) * stop.dir;
+  const t = NET.arcOf(stop.edge, stop.dir);
+  if (t < 0 || !Number.isFinite(R.dist[t])) return Infinity;
+  return R.dist[t] - NET.arcs[t].cost + Math.abs(stop.s - NET.nodes[NET.arcs[t].from].on.get(stop.road));
+}
 
-function placeOnRoads(x, z, h) {
+function placeOnRoads(x, z, h, y = NaN) {
   let best = null, bestD = Infinity;
+  const fx = Math.sin(h), fz = Math.cos(h);
   NET.roads.forEach((road, ri) => {
+    if (road.axis === 'path') {
+      const q = nearestOnPath(road, x, z);
+      if (q.off > road.w / 2 + 2 || q.off >= bestD) return;
+      if (Number.isFinite(y) && Math.abs(levelOf(road, q.along) - y) > 2.5) return;
+      if (Math.cos(h - headingOf(road, 1, q.along)) < 0) return;
+      bestD = q.off; best = { road: ri, along: q.along, dir: 1 };
+      return;
+    }
     const along = alongOf(road, x, z);
     if (along < road.a0 - 3 || along > road.a1 + 3) return;
     const off = Math.abs((road.axis === 'x' ? z : x) - road.c);
     if (off > road.w / 2 + 3 || off >= bestD) return;
-    const fx = Math.sin(h), fz = Math.cos(h);
+    if (road.city && Number.isFinite(y) && Math.abs(levelOf(road, along) - y) > 2.5) return;
     const dir = (road.axis === 'x' ? fx : fz) >= 0 ? 1 : -1;
+    if (road.oneway && dir !== road.oneway) return;
     bestD = off; best = { road: ri, along: Math.max(road.a0, Math.min(road.a1, along)), dir };
   });
   return best;
@@ -11619,59 +12303,66 @@ function placeOnRoads(x, z, h) {
 
 function legsTo(from, stop) {
   const road = from.road, end = NET.stops[stop];
-  const legs = [];
   const e = NET.edges[end.edge];
-  if (road === end.road && from.dir === end.dir && (end.s - from.along) * end.dir > 4 && from.along >= e.s0 - 0.5 && from.along <= e.s1 + 0.5) {
-    legs.push({ road, dir: end.dir, a: from.along, b: end.s, node: -1 });
-    return legs;
-  }
-  const first = nodeAhead(road, from.along, from.dir);
-  const last = end.dir > 0 ? e.a : e.b;
-  if (first < 0 || !Number.isFinite(NET.dist[first][last])) return null;
-  legs.push({ road, dir: from.dir, a: from.along, b: NET.nodes[first].on.get(road), node: first });
-  let at = first;
-  while (at !== last) {
-    const to = NET.next[at][last];
-    const edge = edgeBetween(at, to);
-    const a = NET.nodes[at].on.get(edge.road), b = NET.nodes[to].on.get(edge.road);
-    legs.push({ road: edge.road, dir: b > a ? 1 : -1, a, b, node: to });
-    at = to;
-  }
-  legs.push({ road: end.road, dir: end.dir, a: NET.nodes[last].on.get(end.road), b: end.s, node: -1 });
+  if (road === end.road && from.dir === end.dir && (end.s - from.along) * end.dir > 4 && from.along >= e.s0 - 0.5 && from.along <= e.s1 + 0.5) return [{ road, dir: end.dir, a: from.along, b: end.s, node: -1 }];
+  const start = startOf(from);
+  if (!start) return null;
+  const R = search(start);
+  const target = NET.arcOf(end.edge, end.dir);
+  if (target < 0 || !Number.isFinite(R.dist[target])) return null;
+  const chain = [];
+  for (let k = target; k !== R.S; k = R.prev[k]) { if (k < 0) return null; chain.push(k); }
+  chain.reverse();
+  const on = (node, ri) => NET.nodes[node].on.get(ri);
+  const legs = [{ road, dir: from.dir, a: from.along, b: on(start.node, road), node: start.node }];
+  for (let k = 0; k + 1 < chain.length; k += 1) { const A = NET.arcs[chain[k]]; legs.push({ road: A.road, dir: A.dir, a: on(A.from, A.road), b: on(A.to, A.road), node: A.to }); }
+  legs.push({ road: end.road, dir: end.dir, a: on(NET.arcs[target].from, end.road), b: end.s, node: -1 });
   return legs.filter((l, k) => Math.abs(l.b - l.a) > 0.01 || k === legs.length - 1);
 }
 
 function shapeWay(legs, fromLat, toLat) {
-  const xs = [], zs = [], lg = [];
-  const put = (x, z, k) => {
+  const xs = [], zs = [], ys = [], lg = [], as = [];
+  const put = (x, z, y, k, a) => {
     const n = xs.length;
     if (n && Math.hypot(x - xs[n - 1], z - zs[n - 1]) < 0.05) return;
-    xs.push(x); zs.push(z); lg.push(k);
+    xs.push(x); zs.push(z); ys.push(y); lg.push(k); as.push(a);
   };
   const R = (k) => NET.roads[legs[k].road];
   const span = legs.map((l) => [l.a, l.b]);
   const joins = [];
   for (let k = 0; k + 1 < legs.length; k += 1) {
     const A = legs[k], B = legs[k + 1], ra = R(k), rb = R(k + 1);
-    if (ra.axis !== rb.axis) {
-      const [cx, cz] = ra.axis === 'x' ? [rb.c - rb.lane * B.dir, ra.c + ra.lane * A.dir] : [ra.c - ra.lane * A.dir, rb.c + rb.lane * B.dir];
+    const paths = ra.axis === 'path' || rb.axis === 'path';
+    const la = laneOf(ra, A.b), lb = laneOf(rb, B.a);
+    if (!paths && ra.axis !== rb.axis) {
+      const [cx, cz] = ra.axis === 'x' ? [rb.c - lb * B.dir, ra.c + la * A.dir] : [ra.c - la * A.dir, rb.c + lb * B.dir];
       const ai = alongOf(ra, cx, cz), aj = alongOf(rb, cx, cz);
-      const r = Math.max(1.5, Math.min(TRAFFIC.turn, Math.abs(ai - span[k][0]) * 0.8, Math.abs(B.b - aj) * 0.5));
+      const most = ra.city || rb.city ? Math.max(TRAFFIC.turn, (la + lb) * 1.1) : TRAFFIC.turn;
+      const r = Math.max(1.5, Math.min(most, Math.abs(ai - span[k][0]) * 0.8, Math.abs(B.b - aj) * 0.5));
       span[k][1] = ai - A.dir * r; span[k + 1][0] = aj + B.dir * r;
       joins.push({ kind: 'turn', cx, cz });
-    } else if (A.dir === B.dir) {
+    } else if (!paths && A.dir === B.dir && Math.abs(la - lb) < 0.3) {
       joins.push({ kind: 'on' });
-    } else {
-      const rad = (ra.lane + rb.lane) / 2;
+    } else if (!paths && A.dir !== B.dir) {
+      const rad = (la + lb) / 2;
       const u = A.b - A.dir * rad;
       span[k][1] = u; span[k + 1][0] = u;
       joins.push({ kind: 'about', u, rad });
+    } else {
+      const square = Math.abs(wrap(headingOf(rb, B.dir, B.a) - headingOf(ra, A.dir, A.b))) > 0.6;
+      const ring = !!(ra.ring || rb.ring);
+      const trim = (r, other) => (r.axis === 'path' ? (r.ring && other.ring ? 0 : r.ring ? 2.5 : square ? 3 : 12) : square ? (ring ? 6 : 8) : 18);
+      const lenA = Math.abs(span[k][1] - span[k][0]), lenB = Math.abs(B.b - B.a);
+      span[k][1] = A.b - A.dir * Math.min(trim(ra, rb), lenA * 0.45);
+      span[k + 1][0] = B.a + B.dir * Math.min(trim(rb, ra), lenB * 0.45);
+      joins.push({ kind: 'link' });
     }
   }
   const latAt = (k, along) => {
     const l = legs[k], road = R(k);
-    let lat = road.lane;
-    if (k === 0 && fromLat !== null) { const u = Math.abs(along - l.a) / TRAFFIC.shift; lat = fromLat + (road.lane - fromLat) * smooth(u); }
+    if (road.axis === 'path') return 0;
+    let lat = laneOf(road, along);
+    if (k === 0 && fromLat !== null) { const u = Math.abs(along - l.a) / TRAFFIC.shift; lat = fromLat + (lat - fromLat) * smooth(u); }
     if (k === legs.length - 1 && toLat !== null) { const u = Math.abs(l.b - along) / TRAFFIC.shift; lat = toLat + (lat - toLat) * smooth(u); }
     return lat;
   };
@@ -11683,28 +12374,39 @@ function shapeWay(legs, fromLat, toLat) {
     for (let i = 0; i <= steps; i += 1) {
       const along = s0 + ((s1 - s0) * i) / steps;
       const [x, z] = pointOf(road, along, latAt(k, along), l.dir);
-      put(x, z, k);
+      put(x, z, levelOf(road, along), k, along);
     }
     const j = joins[k];
     if (!j) return;
+    const y = levelOf(road, s1);
     if (j.kind === 'turn') {
       const [x0, z0] = pointOf(road, s1, latAt(k, s1), l.dir);
       const nb = legs[k + 1], rb = R(k + 1);
       const [x2, z2] = pointOf(rb, span[k + 1][0], latAt(k + 1, span[k + 1][0]), nb.dir);
       for (let i = 1; i < 10; i += 1) {
         const t = i / 10, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t;
-        put(a * x0 + b * j.cx + c * x2, a * z0 + b * j.cz + c * z2, k);
+        put(a * x0 + b * j.cx + c * x2, a * z0 + b * j.cz + c * z2, y, k, s1);
       }
     } else if (j.kind === 'about') {
-      const rb = R(k + 1);
       const li = latAt(k, j.u), lj = latAt(k + 1, j.u);
       const rad = (li + lj) / 2, mid = (li - lj) / 2;
       for (let i = 1; i < 12; i += 1) {
         const th = (Math.PI * i) / 12;
         const [x, z] = pointOf(road, j.u + l.dir * rad * Math.sin(th), mid + rad * Math.cos(th), l.dir);
-        put(x, z, k);
+        put(x, z, y, k, s1);
       }
-      void rb;
+    } else if (j.kind === 'link') {
+      const nb = legs[k + 1], rb = R(k + 1), a3 = span[k + 1][0];
+      const [x0, z0] = pointOf(road, s1, latAt(k, s1), l.dir), h0 = headingOf(road, l.dir, s1);
+      const [x3, z3] = pointOf(rb, a3, latAt(k + 1, a3), nb.dir), h3 = headingOf(rb, nb.dir, a3), y3 = levelOf(rb, a3);
+      const L = Math.hypot(x3 - x0, z3 - z0), m = L * 0.38;
+      const x1 = x0 + Math.sin(h0) * m, z1 = z0 + Math.cos(h0) * m, x2 = x3 - Math.sin(h3) * m, z2 = z3 - Math.cos(h3) * m;
+      const n = Math.max(2, Math.ceil(L / 1.5));
+      for (let i = 1; i < n; i += 1) {
+        const t = i / n, u = 1 - t;
+        const yy = Number.isFinite(y) && Number.isFinite(y3) ? y + (y3 - y) * t : Number.isFinite(y3) ? y3 : y;
+        put(u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, u * u * u * z0 + 3 * u * u * t * z1 + 3 * u * t * t * z2 + t * t * t * z3, yy, k, s1);
+      }
     }
   });
   const n = xs.length;
@@ -11726,27 +12428,33 @@ function shapeWay(legs, fromLat, toLat) {
     if (node < 0) continue;
     const N = NET.nodes[node];
     if (N.links.length < 2) continue;
-    let r = 0;
-    for (const ri of N.on.keys()) r = Math.max(r, NET.roads[ri].w / 2 + 1);
+    let rx = 0, rz = 0;
+    for (const ri of N.on.keys()) { const q = NET.roads[ri], h = q.w / 2 + 1; if (!N.city || q.axis !== 'x') rx = Math.max(rx, h); if (!N.city || q.axis !== 'z') rz = Math.max(rz, h); }
+    if (N.city) { rx = Math.max(rx, 8); rz = Math.max(rz, 8); }
     let a = -1, b = -1;
     for (let i = 0; i < n; i += 1) {
       if (lg[i] !== k && lg[i] !== k + 1) continue;
-      if (Math.abs(xs[i] - N.x) <= r && Math.abs(zs[i] - N.z) <= r) { if (a < 0) a = i; b = i; }
+      if (Math.abs(xs[i] - N.x) <= rx && Math.abs(zs[i] - N.z) <= rz) { if (a < 0) a = i; b = i; }
     }
     if (a < 0) continue;
     junctions.push({ node, enter: Math.max(0, cum[a] - 2), leave: cum[b] + 1, move: `${legs[k].road}:${legs[k].dir}>${legs[k + 1].road}:${legs[k + 1].dir}` });
   }
-  return { xs, zs, lg, cum, most, len: n ? cum[n - 1] : 0, legs, junctions };
+  return { xs, zs, ys, as, lg, cum, most, len: n ? cum[n - 1] : 0, legs, junctions };
 }
+
+function trafficWay(from, stop) { const legs = legsTo(from, stop); return legs ? shapeWay(legs, null, null) : null; }
+const trafficLevel = (road, along) => levelOf(road, along);
 
 const crossings = new Map();
 function wayThrough(node, move) {
   const [inn, out] = move.split('>').map((m) => m.split(':').map(Number));
   const N = NET.nodes[node], ai = N.on.get(inn[0]), aj = N.on.get(out[0]);
   if (ai === undefined || aj === undefined) return [];
-  const w = shapeWay([{ road: inn[0], dir: inn[1], a: ai - inn[1] * 25, b: ai, node }, { road: out[0], dir: out[1], a: aj, b: aj + out[1] * 25, node: -1 }], null, null);
+  const ri = NET.roads[inn[0]], ro = NET.roads[out[0]];
+  const a0 = ri.axis === 'path' ? Math.max(0, ai - 25) : ai - inn[1] * 25, b1 = ro.axis === 'path' ? Math.min(ro.a1, aj + 25) : aj + out[1] * 25;
+  const w = shapeWay([{ road: inn[0], dir: inn[1], a: a0, b: ai, node }, { road: out[0], dir: out[1], a: aj, b: b1, node: -1 }], null, null);
   let r = 0;
-  for (const ri of N.on.keys()) r = Math.max(r, NET.roads[ri].w / 2 + 2);
+  for (const k of N.on.keys()) r = Math.max(r, NET.roads[k].w / 2 + 2);
   const pts = [];
   for (let k = 0; k < w.xs.length; k += 1) if (Math.abs(w.xs[k] - N.x) <= r && Math.abs(w.zs[k] - N.z) <= r) pts.push([w.xs[k], w.zs[k]]);
   const fine = [];
@@ -11785,6 +12493,9 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   const real = () => state.real;
 
   const specOf = (c) => POWER_CARS[c.model] || POWER_CARS['grey-saloon'];
+  const inCity = (x, z) => inBox(OGANIRU.bounds, x, z, 30);
+  const heightAt = (ri, along) => { const y = levelOf(NET.roads[ri], along); return Number.isFinite(y) ? y : null; };
+  const keptHeight = (at) => (inCity(at.x, at.z) ? levelAt(at) : null);
   const onRoads = (c) => c.mode === 'drive' || c.mode === 'stop';
   const shown = (c) => onRoads(c) || c.mode === 'kept' || c.mode === 'returning';
 
@@ -11817,16 +12528,18 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   function chooseStop(c, from) {
     const taken = busy();
     const near = anyPlayers() && hash(c.n * 13 + 5, c.trips) < 0.65;
+    const start = from ? startOf(from) : null;
+    if (from && !start) return -1;
+    const R = start ? search(start) : null;
+    const farthest = from && NET.roads[from.road].city ? TRAFFIC.cityFar : 1100;
     let best = -1, bestScore = Infinity;
     for (const s of NET.stops) {
       if (taken.has(s.id) || s.id === c.to) continue;
       let far = 0;
       if (from) {
-        const ahead = nodeAhead(from.road, from.along, from.dir);
-        const behind = s.dir > 0 ? NET.edges[s.edge].a : NET.edges[s.edge].b;
-        far = ahead >= 0 ? NET.dist[ahead][behind] : Infinity;
+        far = farTo(from, s, R);
         if (!Number.isFinite(far)) continue;
-        if (far < 60 || far > 1100) continue;
+        if (far < 60 || far > farthest) continue;
       }
       let score = hash(c.n * 31 + s.id, c.trips + 1) * 400;
       if (near) score += Math.min(600, nearestPlayer(s.x, s.z));
@@ -11847,7 +12560,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     return w;
   }
   function setOff(c, fromKerb) {
-    const at = c.road >= 0 ? { road: c.road, along: c.along, dir: c.dir } : placeOnRoads(c.x, c.z, c.h);
+    const at = c.road >= 0 ? { road: c.road, along: c.along, dir: c.dir } : placeOnRoads(c.x, c.z, c.h, Number.isFinite(c.y) ? c.y : NaN);
     if (!at) return false;
     c.road = at.road; c.along = at.along; c.dir = at.dir;
     const to = chooseStop(c, at);
@@ -11872,7 +12585,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       if (score < bestScore) { bestScore = score; best = s; }
     }
     if (!best) return false;
-    Object.assign(c, { mode: 'stop', x: best.x, z: best.z, h: best.h, v: 0, road: best.road, along: best.s, dir: best.dir, to: best.id, d: 0, until: real() + 2 + hash(c.n, c.trips + 7) * 30, since: real() });
+    Object.assign(c, { mode: 'stop', x: best.x, z: best.z, y: heightAt(best.road, best.s), h: best.h, v: 0, road: best.road, along: best.s, dir: best.dir, to: best.id, d: 0, until: real() + 2 + hash(c.n, c.trips + 7) * 30, since: real() });
     ways.delete(c.n);
     return true;
   }
@@ -11881,24 +12594,27 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
 
   function obstaclesNow() {
     const out = [];
-    for (const c of cars) if (shown(c)) { const s = specOf(c); out.push({ x: c.x, z: c.z, h: c.h, hw: s.width / 2, hl: s.length / 2, v: c.mode === 'drive' ? c.v : 0, car: c.n }); }
+    const yOf = (o) => (inCity(o.x, o.z) ? levelAt(o) : undefined);
+    for (const c of cars) if (shown(c)) { const s = specOf(c); out.push({ x: c.x, z: c.z, y: Number.isFinite(c.y) ? c.y : undefined, h: c.h, hw: s.width / 2, hl: s.length / 2, v: c.mode === 'drive' ? c.v : 0, car: c.n }); }
     for (const id of Object.keys(players)) {
       const q = players[id];
-      if (q.incar && q.pcar) { const s = POWER_CARS[q.pcar.id] || ROOMY; out.push({ x: q.pcar.x, z: q.pcar.z, h: q.pcar.h, hw: s.width / 2, hl: s.length / 2, v: Math.max(0, (q.pcar.drive && q.pcar.drive.speed) || 0), player: q.id }); }
-      else if (q.astride !== null && q.astride !== undefined) out.push({ x: q.x, z: q.z, h: q.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: q.id });
-      else if (q.driving) out.push({ x: q.x, z: q.z, h: q.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: q.id });
-      else if (!q.carried) out.push({ x: q.x, z: q.z, h: 0, hw: 0.4, hl: 0.4, v: 0, player: q.id, foot: true });
+      const y = yOf(q);
+      if (q.incar && q.pcar) { const s = POWER_CARS[q.pcar.id] || ROOMY; out.push({ x: q.pcar.x, z: q.pcar.z, y, h: q.pcar.h, hw: s.width / 2, hl: s.length / 2, v: Math.max(0, (q.pcar.drive && q.pcar.drive.speed) || 0), player: q.id }); }
+      else if (q.astride !== null && q.astride !== undefined) out.push({ x: q.x, z: q.z, y, h: q.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: q.id });
+      else if (q.driving) out.push({ x: q.x, z: q.z, y, h: q.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: q.id });
+      else if (!q.carried) out.push({ x: q.x, z: q.z, y, h: 0, hw: 0.4, hl: 0.4, v: 0, player: q.id, foot: true });
       const parked = q.carParked && typeof q.carParked === 'object' ? q.carParked : {};
-      for (const [id2, s2] of Object.entries(parked)) { const s = POWER_CARS[id2]; if (s) out.push({ x: s2.x, z: s2.z, h: s2.h, hw: s.width / 2, hl: s.length / 2, v: 0 }); }
+      for (const [id2, s2] of Object.entries(parked)) { const s = POWER_CARS[id2]; if (s) out.push({ x: s2.x, z: s2.z, y: inCity(s2.x, s2.z) && Number.isFinite(s2.y) ? s2.y : undefined, h: s2.h, hw: s.width / 2, hl: s.length / 2, v: 0 }); }
     }
-    if (hub.vehicles && hub.vehicles.all) for (const v of hub.vehicles.all()) if (!v.driver) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0 });
+    if (hub.vehicles && hub.vehicles.all) for (const v of hub.vehicles.all()) if (!v.driver) out.push({ x: v.x, z: v.z, y: yOf(v), h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0 });
     for (const v of visitors()) {
       if (v.held || v.swimming) continue;
       const car = v.car && POWER_CARS[v.car.car];
-      if (car) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: car.width / 2, hl: car.length / 2, v: Math.max(0, v.car.speed || 0), player: v.id });
-      else if (v.ride) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: v.id });
-      else if (v.vehicle) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: v.id });
-      else out.push({ x: v.x, z: v.z, h: 0, hw: 0.4, hl: 0.4, v: 0, player: v.id, foot: true });
+      const y = inCity(v.x, v.z) && Number.isFinite(v.y) ? v.y : undefined;
+      if (car) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: car.width / 2, hl: car.length / 2, v: Math.max(0, v.car.speed || 0), player: v.id });
+      else if (v.ride) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: v.id });
+      else if (v.vehicle) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: v.id });
+      else out.push({ x: v.x, z: v.z, y, h: 0, hw: 0.4, hl: 0.4, v: 0, player: v.id, foot: true });
     }
     if (hub.sportRiders) for (const o of hub.sportRiders.obstacles()) out.push(o);
     if (hub.care && hub.care.box) { const b = hub.care.box(), along = b.x1 - b.x0 > b.z1 - b.z0; out.push({ x: (b.x0 + b.x1) / 2, z: (b.z0 + b.z1) / 2, h: along ? Math.PI / 2 : 0, hw: (along ? b.z1 - b.z0 : b.x1 - b.x0) / 2, hl: (along ? b.x1 - b.x0 : b.z1 - b.z0) / 2, v: 0 }); }
@@ -11928,7 +12644,9 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       const step = k + 1 < n ? w.cum[k + 1] - sk : 1;
       const sh = sk <= until ? shift : 0;
       const px = w.xs[k] + uz * sh, pz = w.zs[k] - ux * sh;
+      const wy = w.ys[k];
       for (const o of near2) {
+        if (Number.isFinite(o.y) && Number.isFinite(wy) && Math.abs(o.y - wy) > 2.5) continue;
         const dx = o.x - px, dz = o.z - pz;
         const along = dx * ux + dz * uz;
         const turned = o.h - ph, ca = Math.abs(Math.cos(turned)), sa = Math.abs(Math.sin(turned));
@@ -11950,6 +12668,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   const peopleSeen = new Map();
   function peopleNear(c, t) {
     if (!hub.impact || !hub.impact.makeWay || near(c) > TRAFFIC.near) return [];
+    if (Number.isFinite(c.y) && Math.abs(c.y) > 2) return [];
     const kept = peopleSeen.get(c.n);
     if (kept && real() - kept.at < 0.2 && real() >= kept.at) return kept.list;
     const s = specOf(c);
@@ -11971,12 +12690,16 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   }
 
   function lightAhead(c, w, front) {
-    if (!inBox(CITY_AREA, c.x, c.z, 45)) return Infinity;
-    const at = (d) => { const k = indexAt(w, d); const f = (d - w.cum[k]) / Math.max(1e-6, w.cum[k + 1] - w.cum[k]); return [w.xs[k] + (w.xs[k + 1] - w.xs[k]) * f, w.zs[k] + (w.zs[k + 1] - w.zs[k]) * f]; };
-    for (let d = 0; d < 26 && front + d + 1 < w.len; d += 1) {
-      const [x0, z0] = at(front + d), [x1, z1] = at(front + d + 1);
-      if (!trafficHold(x0, z0, x1, z1, real())) continue;
-      for (let e = 0; e < 1; e += 0.1) { const [a0, b0] = at(front + d + e), [a1, b1] = at(front + d + e + 0.1); if (trafficHold(a0, b0, a1, b1, real())) return d + e; }
+    const town = inBox(CITY_AREA, c.x, c.z, 45);
+    if (!town && !inBox(OGANIRU.bounds, c.x, c.z, 40)) return Infinity;
+    const hold = town ? (x0, z0, x1, z1) => trafficHold(x0, z0, x1, z1, real()) : (x0, z0, x1, z1) => oganiruHold(x0, z0, x1, z1, real(), signalState);
+    const at = (d) => { const k = indexAt(w, d); const f = (d - w.cum[k]) / Math.max(1e-6, w.cum[k + 1] - w.cum[k]); return [w.xs[k] + (w.xs[k + 1] - w.xs[k]) * f, w.zs[k] + (w.zs[k + 1] - w.zs[k]) * f, w.ys[k]]; };
+    const reach = town ? 26 : 36;
+    for (let d = 0; d < reach && front + d + 1 < w.len; d += 1) {
+      const [x0, z0, y0] = at(front + d), [x1, z1] = at(front + d + 1);
+      if (!town && Number.isFinite(y0) && Math.abs(y0) > 1.5) continue;
+      if (!hold(x0, z0, x1, z1)) continue;
+      for (let e = 0; e < 1; e += 0.1) { const [a0, b0] = at(front + d + e), [a1, b1] = at(front + d + e + 0.1); if (hold(a0, b0, a1, b1)) return d + e; }
       return d;
     }
     return Infinity;
@@ -12002,7 +12725,12 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     c.steer = Math.max(-0.6, Math.min(0.6, -Math.atan2(2.8 * turn, Math.max(0.5, Math.hypot(w.xs[b] - w.xs[a], w.zs[b] - w.zs[a])))));
     c.h = h;
     const leg = w.legs[w.lg[k]], road = NET.roads[leg.road];
-    c.road = leg.road; c.dir = leg.dir; c.along = Math.max(road.a0, Math.min(road.a1, alongOf(road, c.x, c.z)));
+    c.road = leg.road; c.dir = leg.dir;
+    const along = road.axis === 'path' ? (w.lg[k + 1] === w.lg[k] ? w.as[k] + (w.as[k + 1] - w.as[k]) * f : w.as[k]) : alongOf(road, c.x, c.z);
+    c.along = Math.max(road.a0, Math.min(road.a1, along));
+    const y0 = w.ys[k], y1 = w.ys[k + 1];
+    const y = Number.isFinite(y0) ? (Number.isFinite(y1) ? y0 + (y1 - y0) * f : y0) : y1;
+    c.y = Number.isFinite(y) ? y : null;
     const want = c.passing ? c.passing.need : 0;
     const was = c.side || 0;
     if (want !== was) {
@@ -12010,7 +12738,17 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       c.side = was + Math.sign(want - was) * move;
       c.h -= Math.max(-0.25, Math.min(0.25, Math.atan2(Math.sign(want - was) * move / dt, Math.max(2, c.v))));
     }
-    if (c.side) { c.x += Math.cos(h) * c.side; c.z -= Math.sin(h) * c.side; }
+    if (c.side) {
+      let side = c.side;
+      if (side < 0 && road.axis !== 'path') { const lat = wayLat(c, w, road), edge = road.w / 2 - specOf(c).width / 2 - 0.1; side = Math.max(side, Math.min(0, lat - edge)); }
+      c.x += Math.cos(h) * side; c.z -= Math.sin(h) * side;
+    }
+  }
+  function wayLat(c, w, road) {
+    if (road.axis === 'path') return 0;
+    const k = indexAt(w, c.d), f = Math.max(0, Math.min(1, (c.d - w.cum[k]) / (w.cum[k + 1] - w.cum[k] || 1)));
+    const x = w.xs[k] + (w.xs[k + 1] - w.xs[k]) * f, z = w.zs[k] + (w.zs[k + 1] - w.zs[k]) * f;
+    return road.axis === 'x' ? (z - road.c) * c.dir : -(x - road.c) * c.dir;
   }
 
   function drive(c, dt, obstacles, t, wet) {
@@ -12022,7 +12760,8 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     let why = '';
     const k0 = indexAt(w, c.d);
     let want = w.most[k0] * (wet ? 0.85 : 1);
-    for (let k = k0 + 1; k < w.cum.length && w.cum[k] - c.d < 45; k += 1) want = Math.min(want, Math.sqrt(w.most[k] * w.most[k] + 2 * TRAFFIC.brake * (w.cum[k] - c.d)));
+    const reach = Math.max(45, (c.v * c.v) / (2 * TRAFFIC.brake) + 12);
+    for (let k = k0 + 1; k < w.cum.length && w.cum[k] - c.d < reach; k += 1) want = Math.min(want, Math.sqrt(w.most[k] * w.most[k] + 2 * TRAFFIC.brake * (w.cum[k] - c.d)));
     want = Math.min(want, Math.sqrt(2 * TRAFFIC.brake * Math.max(0, w.len - c.d)) + 0.3);
     const line = lightAhead(c, w, c.d + s.length / 2);
     c.line = line < Infinity ? Math.round(line * 10) / 10 : -1;
@@ -12033,7 +12772,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     const walkers = peopleNear(c, t);
     if (walkers.length) obstacles = obstacles.concat(walkers);
     const over = c.passing ? Math.sign(c.passing.need) * Math.min(Math.abs(c.side || 0), Math.abs(c.passing.need)) : 0;
-    const way = ahead(c, w, obstacles, over, null, TRAFFIC.look, c.passing ? c.passing.past + s.length / 2 : Infinity);
+    const way = ahead(c, w, obstacles, over, null, Math.max(TRAFFIC.look, (c.v * c.v) / (2 * TRAFFIC.brake) + 12), c.passing ? c.passing.past + s.length / 2 : Infinity);
     const ghost = real() < (c.ghostUntil || 0);
     const next = w.junctions.find((j) => j.enter > front - 0.01 && !(c.booked && c.booked.node === j.node && c.booked.enter === j.enter));
     const redBefore = (j) => !!j && line < Infinity && upTo < Infinity && line < j.enter - front + 1;
@@ -12057,7 +12796,9 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       const road = NET.roads[c.road];
       if (c.facing > 2 && road) {
         const room = s.width / 2 + way.wide + 0.4;
-        const most = road.lane + road.w / 2 - s.width / 2 - 0.3, least = -(road.w / 2 - road.lane - s.width / 2 - 0.2);
+        const lane = wayLat(c, w, road);
+        const most = road.inner === null || road.inner === undefined ? lane + road.w / 2 - s.width / 2 - 0.3 : lane - road.inner - s.width / 2 - 0.2;
+        const least = -(road.w / 2 - lane - s.width / 2 - 0.2);
         const sides = [way.left + room, way.left - room].filter((v) => v <= most && v >= least).sort((a, b) => Math.abs(a) - Math.abs(b));
         const past = c.d + way.gap + way.long * 2 + s.length + 1.5;
         const junctionNear = w.junctions.some((j) => j.leave > front - 1 && j.enter < past + 8);
@@ -12097,7 +12838,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   function arrive(c) {
     const stop = NET.stops[c.to];
     c.mode = 'stop'; c.v = 0; c.brake = 0; c.passing = null; c.side = 0; c.booked = null;
-    if (stop) { c.x = stop.x; c.z = stop.z; c.h = stop.h; c.road = stop.road; c.along = stop.s; c.dir = stop.dir; }
+    if (stop) { c.x = stop.x; c.z = stop.z; c.h = stop.h; c.road = stop.road; c.along = stop.s; c.dir = stop.dir; c.y = heightAt(stop.road, stop.s); }
     c.until = real() + TRAFFIC.stand[0] + hash(c.n * 7, c.trips) * (TRAFFIC.stand[1] - TRAFFIC.stand[0]);
     c.since = real();
     ways.delete(c.n);
@@ -12109,7 +12850,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     if (!c || !shown(c)) return { ok: false, code: 'NO_CAR', reason: 'There is no car there.' };
     if (c.mode === 'kept' || c.mode === 'returning' || c.frozen) return { ok: false, code: 'BUSY', reason: 'Somebody already has that car.' };
     if (c.v > 0.6) return { ok: false, code: 'MOVING', reason: 'It is moving. Wait until it stops.' };
-    return { ok: true, x: c.x, z: c.z, h: c.h, model: c.model, person: c.i };
+    return { ok: true, x: c.x, z: c.z, y: Number.isFinite(c.y) ? c.y : undefined, h: c.h, model: c.model, person: c.i };
   }
   function freeze(n, on) { const c = cars[n]; if (c) { c.frozen = !!on; if (on) c.v = 0; } }
   function take(n, player) {
@@ -12122,7 +12863,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   function leftBy(player, n, at) {
     const c = cars[n];
     if (!c || c.takenBy !== player.id) return;
-    c.mode = 'kept'; c.x = at.x; c.z = at.z; c.h = at.h; c.v = 0; c.keptAt = real();
+    c.mode = 'kept'; c.x = at.x; c.z = at.z; c.h = at.h; c.v = 0; c.keptAt = real(); c.y = keptHeight(at);
     const kept = cars.filter((o) => o.mode === 'kept' && o.takenBy === player.id).sort((a, b) => a.keptAt - b.keptAt);
     while (kept.length > TRAFFIC.most) {
       const first = kept.shift();
@@ -12137,9 +12878,9 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     const s = specOf(c);
     if (Math.hypot(player.x - c.x, player.z - c.z) > s.length / 2 + 2.5) throw new GameError('TOO_FAR', 'Walk up to the car.');
     c.mode = 'taken'; c.since = real();
-    return { model: c.model, x: c.x, z: c.z, h: c.h, n };
+    return { model: c.model, x: c.x, z: c.z, h: c.h, n, y: Number.isFinite(c.y) ? c.y : undefined };
   }
-  function moved(n, at) { const c = cars[n]; if (c && c.mode === 'taken') { c.x = at.x; c.z = at.z; c.h = at.h; } }
+  function moved(n, at) { const c = cars[n]; if (c && c.mode === 'taken') { c.x = at.x; c.z = at.z; c.h = at.h; c.y = keptHeight(at); } }
   function giveBack(c) {
     c.mode = 'returning'; c.takenBy = null; c.since = real(); c.frozen = false; c.v = 0; c.walking = 0;
     book.returned += 1;
@@ -12165,7 +12906,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
       if (Math.hypot(m.x - c.x, m.z - c.z) < specOf(c).width / 2 + 1.2) {
         actors.drop(owner);
         c.walking = 0;
-        const at = placeOnRoads(c.x, c.z, c.h);
+        const at = placeOnRoads(c.x, c.z, c.h, Number.isFinite(c.y) ? c.y : NaN);
         Object.assign(c, { mode: 'stop', v: 0, to: -1, until: real() + 4, since: real(), road: at ? at.road : -1, along: at ? at.along : 0, dir: at ? at.dir : 1, fromLat: undefined });
         return;
       }
@@ -12225,7 +12966,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     for (const c of cars) {
       if (!shown(c) || Math.abs(c.x - x) > 330 || Math.abs(c.z - z) > 330) continue;
       const r = (v, k = 100) => Math.round(v * k) / k;
-      out.push({ n: c.n, model: c.model, person: onRoads(c) ? c.i : null, x: r(c.x), z: r(c.z), h: r(c.h, 1000), speed: r(c.mode === 'drive' ? c.v : 0, 10), steer: r(c.steer || 0), brake: c.brake ? 1 : 0, held: !!c.held,
+      out.push({ n: c.n, model: c.model, person: onRoads(c) ? c.i : null, x: r(c.x), z: r(c.z), y: Number.isFinite(c.y) ? r(c.y) : undefined, h: r(c.h, 1000), speed: r(c.mode === 'drive' ? c.v : 0, 10), steer: r(c.steer || 0), brake: c.brake ? 1 : 0, held: !!c.held,
         mode: c.mode, mine: c.takenBy !== null && c.takenBy === viewerId, stopped: onRoads(c) && !c.frozen && c.v <= 0.6, hornAgo: c.hornAt ? r(real() - c.hornAt, 10) : -1 });
     }
     return out;
@@ -12241,7 +12982,8 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     for (const c of cars) {
       if (!shown(c)) continue;
       if (!ps.some((q) => Math.abs(q.x - c.x) < 70 && Math.abs(q.z - c.z) < 70)) continue;
-      boxesMade.push(...carBoxes(specOf(c), c.x, c.z, c.h));
+      const made = carBoxes(specOf(c), c.x, c.z, c.h);
+      if (Number.isFinite(c.y)) for (const b of made) boxesMade.push({ ...b, y: c.y }); else boxesMade.push(...made);
     }
     return boxesMade;
   }
@@ -12259,7 +13001,7 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
   return api;
 }
 
-return { TRAFFIC, TRAFFIC_MODELS, TRAFFIC_ROADS, TRAFFIC_STOPS, trafficNetwork, placeOnRoads, waysCross, createTraffic };
+return { TRAFFIC, TRAFFIC_MODELS, TRAFFIC_ROADS, TRAFFIC_STOPS, trafficNetwork, placeOnRoads, trafficWay, trafficLevel, waysCross, createTraffic };
 })();
 
 __modules["sim/sport-ride.js"] = (function () {
@@ -12793,6 +13535,433 @@ function createSportRiders({ state, population, players, hub = {}, emit = () => 
 const sportRiderName = (item) => NAMES[item] || 'bicycle';
 
 return { RIDERS, SPORT_RIDING, BEATS, chooseRiders, createSportRiders, sportRiderName };
+})();
+
+__modules["sim/city-walks.js"] = (function () {
+const { OGANIRU, OGANIRU_ROADS, OGANIRU_KERBED, OGANIRU_JUNCTIONS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_ROUNDABOUTS, OGANIRU_PLACES, OGANIRU_CUTTING, EXPRESSWAY_Z, expresswayY, oganiruGroundY, onOganiru, roadWidthAt, zoneWalkable } = __modules["sim/zone.js"];
+const { walkLevel } = __modules["sim/levels.js"];
+
+const KERB = OGANIRU.kerb;
+const CELL = 40;
+const inCityLand = (x, z) => x >= OGANIRU.bounds.x0 && x <= OGANIRU.bounds.x1 && z >= OGANIRU.bounds.z0 && z <= OGANIRU.bounds.z1;
+const inCity = (x, z) => inCityLand(x, z) && (onOganiru(x, z) || (Math.abs(x) < 6 && z < -466 && z > -482));
+const CITY_GATES = Object.freeze([
+  Object.freeze({ id: 'college', town: [0, -462], city: [0, -486] }),
+  Object.freeze({ id: 'campus', town: [234, -341], city: [258, -341] }),
+]);
+
+function onCarriageway(x, z) {
+  if (x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1 && Math.abs(z - OGANIRU_CUTTING.z) <= OGANIRU_CUTTING.half + 0.7) return true;
+  for (const rb of OGANIRU_ROUNDABOUTS) { const d = Math.hypot(x - rb.x, z - rb.z); if (d < rb.outer + 0.2 && d > rb.island - 0.2) return true; }
+  for (const j of OGANIRU_JUNCTIONS) if (Math.abs(x - j.x) <= j.hx && Math.abs(z - j.z) <= j.hz) return true;
+  for (const r of OGANIRU_ROADS) {
+    if (r.kind === 'cutting') continue;
+    const a = r.along === 'z' ? z : x;
+    if (a < r.from - 0.3 || a > r.to + 0.3) continue;
+    const w = roadWidthAt(r, a), off = Math.abs((r.along === 'z' ? x : z) - r.c);
+    if (off <= w.half + 0.2 && !(w.median > 0 && off < w.median / 2 - 0.2)) return true;
+  }
+  return false;
+}
+
+let built = null, building = null;
+const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+function prepareCityWalks(ms = 3) {
+  if (built) return true;
+  if (!building) building = build();
+  const end = clock() + ms;
+  while (clock() < end) { const r = building.next(); if (r.done) { built = r.value; building = null; return true; } }
+  return false;
+}
+function cityWalks() { while (!prepareCityWalks(1000)); return built; }
+
+function* build() {
+  const nodes = [];          // { x, z, y, foot }
+  const adj = [];            // per node: [[other, length, crossing or null, foot], ...]
+  const cells = new Map();
+  const add = (x, z, y, foot, kind) => {
+    const k = nodes.length;
+    nodes.push({ x, z, y, foot, kind });
+    adj.push([]);
+    const key = Math.floor(x / CELL) * 4096 + Math.floor(z / CELL);
+    if (!cells.has(key)) cells.set(key, []);
+    cells.get(key).push(k);
+    return k;
+  };
+  const link = (a, b, crossing = null, foot = true) => {
+    if (a === b || adj[a].some((e) => e[0] === b)) return;
+    const len = Math.hypot(nodes[a].x - nodes[b].x, nodes[a].z - nodes[b].z) + Math.abs(nodes[a].y - nodes[b].y);
+    adj[a].push([b, len, crossing, foot]); adj[b].push([a, len, crossing, foot]);
+  };
+  const near = (x, z, r, test) => {
+    const out = [];
+    const c0 = Math.floor((x - r) / CELL), c1 = Math.floor((x + r) / CELL), d0 = Math.floor((z - r) / CELL), d1 = Math.floor((z + r) / CELL);
+    for (let i = c0; i <= c1; i += 1) for (let j = d0; j <= d1; j += 1) for (const k of cells.get(i * 4096 + j) || []) { const n = nodes[k]; const d = Math.hypot(n.x - x, n.z - z); if (d <= r && (!test || test(n, k))) out.push([k, d]); }
+    return out.sort((p, q) => p[1] - q[1]);
+  };
+  const onKerb = (x0, z0, x1, z1) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0) / 0.5));
+    for (let i = 0; i <= n; i += 1) { const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * i) / n; if (onCarriageway(x, z)) return false; }
+    return true;
+  };
+  const open = (x0, z0, x1, z1, y = 0) => walkLevel(x0, z0, y, x1, z1, [], 0.3, 0.7) !== null;
+
+  const runs = new Map();
+  for (const b of OGANIRU_KERBED) {
+    if (!b.walk) continue;
+    const r = OGANIRU_ROADS.find((q) => q.id === b.walk);
+    if (!r) continue;
+    const key = `${b.walk}|${b.side}`;
+    if (!runs.has(key)) runs.set(key, []);
+    runs.get(key).push({ r, a0: r.along === 'z' ? b.z0 : b.x0, a1: r.along === 'z' ? b.z1 : b.x1, c: r.along === 'z' ? (b.x0 + b.x1) / 2 : (b.z0 + b.z1) / 2 });
+  }
+  const ends = [], runOf = [];
+  let run = 0;
+  for (const list of runs.values()) {
+    yield;
+    list.sort((p, q) => p.a0 - q.a0);
+    let last = null;
+    for (const p of list) {
+      const P = (a) => (p.r.along === 'z' ? [p.c, a] : [a, p.c]);
+      const n = Math.max(1, Math.ceil((p.a1 - p.a0 - 1) / 20));
+      const goesOn = last && p.a0 - last.a1 < 0.8;
+      if (!goesOn) { if (last) ends.push(last.k); run += 1; }
+      let prev = -1;
+      for (let i = 0; i <= n; i += 1) {
+        const a = p.a0 + 0.5 + ((p.a1 - p.a0 - 1) * i) / n;
+        const [x, z] = P(a);
+        const k = add(x, z, KERB, true, 'walk');
+        runOf[k] = run;
+        if (prev >= 0) link(prev, k);
+        else if (goesOn) link(last.k, k);
+        else ends.push(k);
+        prev = k;
+      }
+      last = { a1: p.a1, k: prev };
+    }
+    if (last) ends.push(last.k);
+  }
+  for (const b of OGANIRU_KERBED) {
+    if (!b.plaza) continue;
+    yield;
+    run += 1;
+    const grid = new Map();
+    for (let x = b.x0 + 1.5; x <= b.x1 - 1.5; x += 12) for (let z = b.z0 + 1.5; z <= b.z1 - 1.5; z += 12) {
+      if (!zoneWalkable(x, z, [], 0.6, KERB)) continue;
+      const k = add(x, z, KERB, true, 'walk');
+      runOf[k] = run; ends.push(k);
+      grid.set(`${Math.round((x - b.x0) / 12)},${Math.round((z - b.z0) / 12)}`, k);
+    }
+    for (const [key, k] of grid) { const [i, j] = key.split(',').map(Number); for (const [di, dj] of [[1, 0], [0, 1], [1, 1], [1, -1]]) { const o = grid.get(`${i + di},${j + dj}`); if (o !== undefined && open(nodes[k].x, nodes[k].z, nodes[o].x, nodes[o].z, KERB)) link(k, o); } }
+  }
+  for (const rb of OGANIRU_ROUNDABOUTS) {
+    yield;
+    const R = rb.outer + rb.walk / 2;
+    let prev = -1, first = -1;
+    for (let a = 0; a < 360; a += 10) {
+      const x = rb.x + R * Math.sin((a * Math.PI) / 180), z = rb.z + R * Math.cos((a * Math.PI) / 180);
+      if (oganiruGroundY(x, z) < KERB - 0.02) { prev = -1; continue; }
+      const k = add(x, z, KERB, true, 'walk');
+      if (prev < 0) { run += 1; ends.push(k); }
+      runOf[k] = run;
+      if (prev >= 0) link(prev, k);
+      if (first < 0) first = k;
+      prev = k;
+    }
+    if (prev >= 0 && first >= 0 && Math.hypot(nodes[prev].x - nodes[first].x, nodes[prev].z - nodes[first].z) < R * 0.2) link(prev, first);
+  }
+  let count = 0;
+  for (const k of ends) {
+    if ((count += 1) % 12 === 0) yield;
+    const seen = new Set([runOf[k]]);
+    for (const [o, d] of near(nodes[k].x, nodes[k].z, 9, (n, i) => n.foot && !seen.has(runOf[i]))) {
+      if (seen.has(runOf[o]) || d < 0.01) continue;
+      if (onKerb(nodes[k].x, nodes[k].z, nodes[o].x, nodes[o].z) && open(nodes[k].x, nodes[k].z, nodes[o].x, nodes[o].z, KERB)) { link(k, o); seen.add(runOf[o]); }
+    }
+  }
+
+  const zebras = [];
+  for (const j of OGANIRU_JUNCTIONS) {
+    yield;
+    for (const leg of j.legs) {
+      const alongZ = leg === 'e' || leg === 'w', sign = leg === 'e' || leg === 'n' ? 1 : -1;
+      const road = OGANIRU_ROADS.find((q) => j.roads.includes(q.id) && (q.along === 'z') === alongZ && (sign > 0 ? q.to > (alongZ ? j.z : j.x) + 1 : q.from < (alongZ ? j.z : j.x) - 1));
+      if (!road) continue;
+      const a = (alongZ ? j.z : j.x) + sign * ((alongZ ? j.hz : j.hx) + 2.6);
+      const w = roadWidthAt(road, a);
+      if (!(w.walk > 0)) continue;
+      const half = alongZ ? j.hx : j.hz, lat = half + w.walk / 2;
+      const P = (l) => (alongZ ? [j.x + l, a] : [a, j.z + l]);
+      const sides = [-1, 1].map((s) => { const [x, z] = P(s * lat); return add(x, z, KERB, true, 'zebra'); });
+      for (const k of sides) for (const [o] of near(nodes[k].x, nodes[k].z, 10, (n, i) => n.foot && i !== sides[0] && i !== sides[1]).slice(0, 3)) if (onKerb(nodes[k].x, nodes[k].z, nodes[o].x, nodes[o].z)) link(k, o);
+      const crossing = { junction: j.id, phase: alongZ ? 0 : 1, offset: j.offset, signals: j.signals };
+      link(sides[0], sides[1], crossing);
+      zebras.push({ a: sides[0], b: sides[1], crossing });
+    }
+  }
+  const doors = [];
+  for (const t of OGANIRU_TOWERS) {
+    yield;
+    const facing = t.x > 0 ? -1 : 1;
+    const x = t.x + facing * (t.dx / 2 + 3.2), z = t.z;
+    const k = add(x, z, KERB, true, 'door');
+    doors.push({ k, tower: t.id, name: t.name, x, z, h: facing > 0 ? Math.PI / 2 : -Math.PI / 2 });
+    for (const [o] of near(x, z, 20, (n, i) => n.foot && i !== k).slice(0, 6)) if (onKerb(x, z, nodes[o].x, nodes[o].z) && open(x, z, nodes[o].x, nodes[o].z, KERB)) link(k, o);
+  }
+  {
+    const X = OGANIRU_PLACES.HOPE_X;
+    for (const s of [-1, 1]) {
+      let prev = -1;
+      for (let z = -1162; z <= -1098; z += 8) {
+        const k = add(X + s * 11.75, z, 0, true, 'bridge');
+        if (prev >= 0) link(prev, k);
+        prev = k;
+      }
+      for (const end of [nodes.length - 9, nodes.length - 1]) for (const [o] of near(nodes[end].x, nodes[end].z, 10, (n, i) => n.foot && n.kind === 'walk' && i !== end).slice(0, 2)) link(end, o);
+    }
+  }
+
+  const deckEnds = [];
+  const pointOn = (d, s) => {
+    let lo = 0, hi = d.path.length - 1;
+    while (hi - lo > 1) { const m = (lo + hi) >> 1; if (d.path[m].s <= s) lo = m; else hi = m; }
+    const p = d.path[lo], q = d.path[hi], f = Math.max(0, Math.min(1, (s - p.s) / Math.max(1e-6, q.s - p.s)));
+    return [p.x + (q.x - p.x) * f, p.z + (q.z - p.z) * f, p.y + (q.y - p.y) * f];
+  };
+  for (const d of OGANIRU_DECKS) {
+    if (d.kind === 'expressway' || d.kind === 'bridge') continue;
+    yield;
+    let prev = -1;
+    const n = Math.max(1, Math.ceil(d.len / 8));
+    for (let i = 0; i <= n; i += 1) {
+      const [x, z, y] = pointOn(d, (d.len * i) / n);
+      const k = add(x, z, y, false, 'deck');
+      if (prev >= 0) link(prev, k, null, false);
+      if (i === 0 || i === n) deckEnds.push(k);
+      prev = k;
+    }
+  }
+  const EZ = EXPRESSWAY_Z;
+  const lines = [], first = {};
+  for (const side of [-1, 1]) {
+    let prev = -1;
+    for (let x = side > 0 ? -1196 : -1036; x <= 916; x += 10) {
+      const k = add(x, EZ + side * 8, expresswayY(x), false, 'expressway');
+      if (prev >= 0) link(prev, k, null, false);
+      if (x === -1036) first[side] = k;
+      prev = k;
+      lines.push(k);
+    }
+  }
+  link(first[-1], first[1], null, false);
+  count = 0;
+  for (const k of [...deckEnds, ...lines]) {
+    if ((count += 1) % 2 === 0) yield;
+    const n = nodes[k];
+    for (const [o, d] of near(n.x, n.z, n.kind === 'expressway' ? 9 : 16, (m, i) => i !== k && !m.foot && Math.abs(m.y - n.y) < 0.6)) if (d > 0.01 && open(n.x, n.z, nodes[o].x, nodes[o].z, n.y)) { link(k, o, null, false); }
+    if (n.y < 0.6) for (const [o] of near(n.x, n.z, 24, (m) => m.foot && m.y < 0.6 + KERB).slice(0, 3)) if (open(n.x, n.z, nodes[o].x, nodes[o].z, 0)) link(k, o, null, false);
+  }
+  return { nodes, adj, cells, zebras, doors, near };
+}
+
+function cityRoute(from, to, { foot = false } = {}) {
+  const W = cityWalks();
+  const start = entry(W, from, foot), end = entry(W, to, foot);
+  if (start < 0 || end < 0) return null;
+  const path = astar(W, start, end, foot);
+  if (!path) return null;
+  return [...path.map((k) => [W.nodes[k].x, W.nodes[k].z, W.nodes[k].y]), [to.x, to.z, Number.isFinite(to.y) ? to.y : W.nodes[end].y]];
+}
+function entry(W, at, foot) {
+  const y = Number.isFinite(at.y) ? at.y : 0;
+  const list = W.near(at.x, at.z, 60, (n) => (!foot || n.foot) && Math.abs(n.y - y) < 1.3);
+  for (const [k] of list.slice(0, 12)) { const n = W.nodes[k]; if (walkLevel(at.x, at.z, y, n.x, n.z, [], 0.3, 0.7) !== null) return k; }
+  return list.length ? list[0][0] : -1;
+}
+function astar(W, a, b, foot) {
+  const N = W.nodes.length, goal = W.nodes[b];
+  const g = new Float64Array(N).fill(Infinity), prev = new Int32Array(N).fill(-1), done = new Uint8Array(N);
+  const heap = [];
+  const push = (k, f) => { heap.push([f, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const pop = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top[1]; };
+  const h = (k) => Math.hypot(W.nodes[k].x - goal.x, W.nodes[k].z - goal.z);
+  g[a] = 0; push(a, h(a));
+  while (heap.length) {
+    const u = pop();
+    if (done[u]) continue;
+    done[u] = 1;
+    if (u === b) break;
+    for (const [v, len, crossing, onFoot] of W.adj[u]) {
+      if (foot && !onFoot) continue;
+      const d = g[u] + len + (foot && crossing ? 12 : 0);
+      if (d < g[v]) { g[v] = d; prev[v] = u; push(v, d + h(v)); }
+    }
+  }
+  if (!Number.isFinite(g[b])) return null;
+  const out = [];
+  for (let k = b; k >= 0; k = prev[k]) out.push(k);
+  return out.reverse();
+}
+
+return { inCity, CITY_GATES, prepareCityWalks, cityWalks, cityRoute };
+})();
+
+__modules["sim/city-strollers.js"] = (function () {
+const { signalState } = __modules["sim/zone.js"];
+const { POSE } = __modules["sim/population.js"];
+const { cityRoute, cityWalks, prepareCityWalks } = __modules["sim/city-walks.js"];
+const { chooseRiders } = __modules["sim/sport-riders.js"];
+
+const STROLLERS = Object.freeze({
+  most: 26,                 // out at once at the busiest of the day
+  pool: 130,                // the townspeople who go into the city now and then
+  hours: Object.freeze([7.5, 19]),     // when (by the town's clock) anyone sets out
+  kerb: 0.5,                // metres short of the road a walker waits at a crossing
+  every: 1.5,               // real seconds between looks at whether someone sets out
+});
+const JOBS = new Set(['trader', 'hawker', 'unemployed', 'homemaker', 'labourer']);
+const hash = (a, b = 0) => { let h = (a * 374761393 + b * 668265263) | 0; h = Math.imul(h ^ (h >>> 13), 1274126177); return ((h ^ (h >>> 16)) >>> 0) / 4294967296; };
+
+function createCityStrollers({ state, population, hub = {}, timeScale = 30 }) {
+  const people = population.people;
+  const riders = new Set(chooseRiders(people));
+  const pool = people.filter((p) => p && JOBS.has(p.job) && p.age >= 15 && p.age <= 72 && p.transport !== 'okada' && !riders.has(p.index)).map((p) => p.index);
+  const chosen = [];
+  for (let k = 0; chosen.length < Math.min(STROLLERS.pool, pool.length) && k < pool.length * 4; k += 1) { const i = pool[Math.floor(hash(k, 911) * pool.length)]; if (!chosen.includes(i)) chosen.push(i); }
+  if (!state.strollers || typeof state.strollers !== 'object') state.strollers = { out: {}, walks: 0, crossed: 0 };
+  const book = state.strollers;
+  const ways = new Map();       // each walker's way (made again from its doors and turn when the town is opened)
+  const real = () => state.real;
+  let nextLook = 0;
+
+  function indoorsFor(i, t) {
+    const day = Math.floor(t / 86400), s = t - day * 86400;
+    const plan = population.planOf(i, day);
+    const legs = plan.legs;
+    let k = -1;
+    for (let n = 0; n < legs.length; n += 1) if (legs[n].t0 <= s) k = n; else break;
+    const leg = k >= 0 ? legs[k] : null;
+    if (leg && leg.path && s < leg.t1) return 0;
+    const spot = population.spot(leg ? leg.spot : plan.start);
+    if (!spot || !spot.inside) return 0;
+    return (k + 1 < legs.length ? legs[k + 1].t0 : 86400) - s;
+  }
+  function wayOf(w) {
+    let way = ways.get(w.i);
+    if (way) return way;
+    const W = cityWalks();
+    const a = W.doors[w.from], b = W.doors[w.to], turn = W.nodes[w.turn];
+    if (!a || !b || !turn) return null;
+    const there = cityRoute({ x: a.x, z: a.z, y: W.nodes[a.k].y }, { x: turn.x, z: turn.z, y: turn.y }, { foot: true });
+    const back = there && cityRoute({ x: turn.x, z: turn.z, y: turn.y }, { x: b.x, z: b.z, y: W.nodes[b.k].y }, { foot: true });
+    if (!there || !back) return null;
+    const pts = [[a.x, a.z, W.nodes[a.k].y], ...there, ...back];
+    const xs = [], zs = [], ys = [], cum = [0], cross = [];
+    for (const [x, z, y] of pts) { const n = xs.length; if (n && Math.hypot(x - xs[n - 1], z - zs[n - 1]) < 0.05) continue; xs.push(x); zs.push(z); ys.push(y); if (n) cum.push(cum[n - 1] + Math.hypot(x - xs[n - 1], z - zs[n - 1])); }
+    for (const zb of W.zebras) {
+      const A = W.nodes[zb.a], B = W.nodes[zb.b];
+      for (let n = 0; n + 1 < xs.length; n += 1) {
+        const fwd = Math.hypot(xs[n] - A.x, zs[n] - A.z) < 0.1 && Math.hypot(xs[n + 1] - B.x, zs[n + 1] - B.z) < 0.1;
+        const rev = Math.hypot(xs[n] - B.x, zs[n] - B.z) < 0.1 && Math.hypot(xs[n + 1] - A.x, zs[n + 1] - A.z) < 0.1;
+        if (fwd || rev) cross.push({ at: cum[n], crossing: zb.crossing });
+      }
+    }
+    cross.sort((p, q) => p.at - q.at);
+    way = { xs, zs, ys, cum, len: cum[cum.length - 1], cross };
+    ways.set(w.i, way);
+    return way;
+  }
+
+  function setOut(t) {
+    const W = cityWalks();
+    if (W.doors.length < 2) return;
+    const hour = (t % 86400) / 3600;
+    if (hour < STROLLERS.hours[0] || hour > STROLLERS.hours[1]) return;
+    const want = Math.round(STROLLERS.most * (0.45 + 0.55 * Math.sin(Math.PI * Math.min(1, Math.max(0, (hour - STROLLERS.hours[0]) / (STROLLERS.hours[1] - STROLLERS.hours[0]))))));
+    if (Object.keys(book.out).length >= want) return;
+    const k = Math.floor(hash(book.walks + 17, Math.floor(real())) * chosen.length);
+    for (let n = 0; n < chosen.length; n += 1) {
+      const i = chosen[(k + n) % chosen.length];
+      if (book.out[i] || (hub.actors && hub.actors.has(i)) || people[i].gone) continue;
+      const indoors = indoorsFor(i, t);
+      const pace = people[i].pace || 1.6;
+      const most = (indoors / (1.15 * Math.max(1, timeScale)) - 60) * pace;
+      if (most < 90) continue;
+      const from = Math.floor(hash(i, book.walks) * W.doors.length);
+      let to = Math.floor(hash(i, book.walks + 1) * (W.doors.length - 1));
+      if (to >= from) to += 1;
+      const turns = W.near(W.doors[from].x, W.doors[from].z, Math.min(260, most / 2.6), (q) => q.foot && q.kind === 'walk');
+      if (!turns.length) continue;
+      const turn = turns[Math.floor(hash(i, book.walks + 2) * turns.length)][0];
+      const w = { i, from, to, turn, d: 0, wait: 0, since: real() };
+      ways.delete(i);
+      const way = wayOf(w);
+      const takes = (way ? way.len / pace + way.cross.length * 25 : Infinity) * 1.15 * Math.max(1, timeScale);
+      if (!way || way.len < 60 || way.len > 900 || takes > indoors) { ways.delete(i); continue; }
+      book.out[i] = w;
+      book.walks += 1;
+      return;
+    }
+  }
+
+  function tick(dt, t) {
+    if (!prepareCityWalks(3)) return;
+    if (real() >= nextLook) { nextLook = real() + STROLLERS.every; setOut(t); }
+    for (const key of Object.keys(book.out)) {
+      const w = book.out[key];
+      if (!people[w.i] || (hub.actors && hub.actors.has(w.i))) { delete book.out[key]; ways.delete(w.i); continue; }
+      const way = wayOf(w);
+      if (!way) { delete book.out[key]; continue; }
+      const pace = people[w.i].pace || 1.6;
+      let go = pace * dt;
+      const next = way.cross.find((c) => c.at >= w.d - 0.01);
+      w.waiting = false;
+      if (next && next.crossing.signals && next.at - w.d < go + STROLLERS.kerb && signalState(next.crossing.phase, real() + next.crossing.offset) !== 'red') {
+        go = Math.max(0, next.at - STROLLERS.kerb - w.d);
+        w.waiting = go < 0.01;
+      }
+      const was = w.d;
+      w.d = Math.min(way.len, w.d + go);
+      if (next && was < next.at + 0.01 && w.d > next.at + 0.01) book.crossed += 1;
+      if (w.d >= way.len - 0.01) { delete book.out[key]; ways.delete(w.i); }
+    }
+  }
+
+  const probe = {};
+  function hook(i, t, out) {
+    const w = book.out[i];
+    if (!w || !people[i]) return false;
+    const way = wayOf(w);
+    if (!way) return false;
+    population.planned(i, t, out);
+    let a = 0, b = way.cum.length - 1;
+    while (b - a > 1) { const m = (a + b) >> 1; if (way.cum[m] <= w.d) a = m; else b = m; }
+    const span = way.cum[b] - way.cum[a] || 1, f = Math.max(0, Math.min(1, (w.d - way.cum[a]) / span));
+    out.x = way.xs[a] + (way.xs[b] - way.xs[a]) * f;
+    out.z = way.zs[a] + (way.zs[b] - way.zs[a]) * f;
+    out.y = way.ys[a] + (way.ys[b] - way.ys[a]) * f;
+    out.h = Math.atan2(way.xs[b] - way.xs[a], way.zs[b] - way.zs[a]);
+    out.pose = w.waiting ? POSE.stand : POSE.walk;
+    out.moving = !w.waiting;
+    out.leg = null;
+    out.act = w.waiting ? 'Waiting to cross' : 'Out walking in the city';
+    return true;
+  }
+  population.addHook(hook);
+  void probe;
+
+  const api = {
+    tick, hook,
+    out: () => Object.values(book.out).map((w) => ({ ...w })),
+    wayOf: (i) => (book.out[i] ? wayOf(book.out[i]) : null),
+    audit: () => ({ out: Object.keys(book.out).length, walks: book.walks, crossed: book.crossed, pool: chosen.length }),
+    chosen,
+  };
+  hub.strollers = api;
+  return api;
+}
+
+return { STROLLERS, createCityStrollers };
 })();
 
 __modules["sim/power-bikes.js"] = (function () {
@@ -14156,9 +15325,11 @@ return { isOwnCar, carOf, CAR_CRASH, carCrashHarm, carFits, createOwnCars };
 
 __modules["sim/actors.js"] = (function () {
 
-const { ZONE_SPOTS, zoneWalkable } = __modules["sim/zone.js"];
+const { ZONE_SPOTS, zoneWalkable, zoneSurfaceY, zoneGroundY } = __modules["sim/zone.js"];
 const { graphNearest, graphRoute, graphPoint, graphSize } = __modules["sim/graph.js"];
 const { POSE } = __modules["sim/population.js"];
+const { walkLevel, levelAt } = __modules["sim/levels.js"];
+const { inCity, cityRoute, cityWalks, CITY_GATES } = __modules["sim/city-walks.js"];
 
 const PACE = Object.freeze({ walk: 1.7, hurry: 3.2, run: 4.6, sprint: 5.2, limp: 0.85 });
 
@@ -14169,7 +15340,9 @@ function clearLine(x0, z0, x1, z1, radius = 0.3) {
   return true;
 }
 
-function wayBetween(x0, z0, x1, z1) {
+function wayBetween(x0, z0, x1, z1, y0 = undefined, y1 = undefined) {
+  const c0 = inCity(x0, z0), c1 = inCity(x1, z1);
+  if (c0 || c1) return cityWay(x0, z0, x1, z1, y0, y1, c0, c1);
   if (clearLine(x0, z0, x1, z1)) return [[x1, z1]];
   const a = graphNearest(x0, z0), b = graphNearest(x1, z1);
   const nodes = graphRoute(a, b) || [b];
@@ -14178,6 +15351,23 @@ function wayBetween(x0, z0, x1, z1) {
   while (points.length > 1 && clearLine(points[points.length - 2][0], points[points.length - 2][1], x1, z1)) points.pop();
   points.push([x1, z1]);
   return points;
+}
+
+function cityWay(x0, z0, x1, z1, y0, y1, c0, c1) {
+  const a = Number.isFinite(y0) ? y0 : zoneGroundY(x0, z0), b = Number.isFinite(y1) ? y1 : zoneGroundY(x1, z1);
+  const end = walkLevel(x0, z0, a, x1, z1, [], 0.3, 0.7);
+  if (end !== null && Math.abs(end - b) < 1.2) return [[x1, z1]];
+  if (c0 && c1) {
+    const route = cityRoute({ x: x0, z: z0, y: a }, { x: x1, z: z1, y: b });
+    return route ? route.map(([x, z]) => [x, z]) : [[x1, z1]];
+  }
+  const gate = CITY_GATES.reduce((best, g) => { const d = Math.hypot(g.city[0] - (c0 ? x0 : x1), g.city[1] - (c0 ? z0 : z1)) + Math.hypot(g.town[0] - (c0 ? x1 : x0), g.town[1] - (c0 ? z1 : z0)); return !best || d < best.d ? { g, d } : best; }, null).g;
+  if (c0) {
+    const inside = cityRoute({ x: x0, z: z0, y: a }, { x: gate.city[0], z: gate.city[1], y: 0 });
+    return [...(inside ? inside.map(([x, z]) => [x, z]) : [[gate.city[0], gate.city[1]]]), [gate.town[0], gate.town[1]], ...wayBetween(gate.town[0], gate.town[1], x1, z1)];
+  }
+  const inside = cityRoute({ x: gate.city[0], z: gate.city[1], y: 0 }, { x: x1, z: z1, y: b });
+  return [...wayBetween(x0, z0, gate.town[0], gate.town[1]), [gate.city[0], gate.city[1]], ...(inside ? inside.map(([x, z]) => [x, z]) : [[x1, z1]])];
 }
 
 function wayLength(x0, z0, points) {
@@ -14202,14 +15392,15 @@ function createActors({ state, population }) {
     const start = from || (indoors ? null : at);
     if (!start) return null;
     list[i] = { i, x: start.x, z: start.z, h: at.h || 0, pose: POSE.stand, mode: 'hold', speed: 0, path: [], act: '', until: 0, follow: null, keep: 0, goal: null, moving: false, home: false, replan: 0 };
+    if (inCity(start.x, start.z)) list[i].y = Number.isFinite(start.y) ? start.y : Number.isFinite(at.y) && start === at ? at.y : zoneGroundY(start.x, start.z);
     return list[i];
   }
 
-  function walkTo(i, x, z, speed = PACE.walk, act = '') {
+  function walkTo(i, x, z, speed = PACE.walk, act = '', y = undefined) {
     const m = list[i];
     if (!m) return null;
     if (m.dead) return m;
-    m.path = wayBetween(m.x, m.z, x, z);
+    m.path = wayBetween(m.x, m.z, x, z, m.y, y);
     m.goal = { x, z };
     m.speed = speed; m.mode = 'go'; m.follow = null; m.home = false; m.arrived = 0;
     if (act) m.act = act;
@@ -14241,8 +15432,12 @@ function createActors({ state, population }) {
     const ax = m.x - fromX, az = m.z - fromZ;
     const len = Math.hypot(ax, az) || 1;
     let best = null, bestScore = -Infinity;
-    for (let n = 0; n < graphSize(); n += 1) {
-      const [x, z] = graphPoint(n);
+    const city = inCity(m.x, m.z);
+    const W = city ? cityWalks() : null;
+    const count = city ? W.nodes.length : graphSize();
+    for (let n = 0; n < count; n += 1) {
+      if (city && !(W.nodes[n].foot && Math.abs(W.nodes[n].y - (Number.isFinite(m.y) ? m.y : 0)) < 1.3)) continue;
+      const [x, z] = city ? [W.nodes[n].x, W.nodes[n].z] : graphPoint(n);
       const d = Math.hypot(x - m.x, z - m.z);
       if (d < distance * 0.5 || d > distance * 1.6) continue;
       const away = ((x - m.x) * ax + (z - m.z) * az) / (len * d);
@@ -14272,6 +15467,7 @@ function createActors({ state, population }) {
       const dx = tx - m.x, dz = tz - m.z;
       const gap = Math.hypot(dx, dz);
       if (gap <= budget) { m.x = tx; m.z = tz; budget -= gap; m.path.shift(); if (gap > 0.001) moved = true; } else { m.x += (dx / gap) * budget; m.z += (dz / gap) * budget; m.h = Math.atan2(dx, dz); budget = 0; moved = true; }
+      if (Number.isFinite(m.y) || inCity(m.x, m.z)) m.y = inCity(m.x, m.z) ? zoneSurfaceY(m.x, m.z, Number.isFinite(m.y) ? m.y : zoneGroundY(m.x, m.z)) : undefined;
     }
     return moved;
   }
@@ -14287,11 +15483,13 @@ function createActors({ state, population }) {
         const at = target ? resolve(target) : null;
         if (!at) { hold(m.i); continue; }
         const d = Math.hypot(at.x - m.x, at.z - m.z);
+        const ay = Number.isFinite(at.y) ? at.y : at.lv ? levelAt(at) : undefined;
+        const level = !Number.isFinite(ay) || !Number.isFinite(m.y) || Math.abs(ay - m.y) < 2.5;
         m.h = d > 0.05 ? Math.atan2(at.x - m.x, at.z - m.z) : m.h;
-        if (d <= m.keep) { m.path = []; continue; }
+        if (d <= m.keep && level) { m.path = []; continue; }
         m.replan -= dt;
         if (m.replan <= 0 || !m.path.length) {
-          m.path = wayBetween(m.x, m.z, at.x, at.z);
+          m.path = wayBetween(m.x, m.z, at.x, at.z, m.y, ay);
           m.replan = 0.6;
         }
         const room = Math.max(0, wayLength(m.x, m.z, m.path) - m.keep);
@@ -14303,7 +15501,7 @@ function createActors({ state, population }) {
         if (m.replan <= 0) {
           const plan = population.planned(m.i, t, probe);
           if (Math.hypot(plan.x - m.x, plan.z - m.z) < 1.6) { drop(m.i); continue; }
-          m.path = wayBetween(m.x, m.z, plan.x, plan.z);
+          m.path = wayBetween(m.x, m.z, plan.x, plan.z, m.y, plan.y);
           m.replan = plan.moving ? 1.5 : 6;
           if (plan.moving && m.speed >= PACE.walk) m.speed = PACE.walk * 1.4;
         }
@@ -14324,6 +15522,7 @@ function createActors({ state, population }) {
     if (!m) return false;
     population.planned(i, t, out);          // their spot and the rest, as their day has it
     out.x = m.x; out.z = m.z; out.h = m.h;
+    out.y = Number.isFinite(m.y) ? m.y : undefined;
     out.pose = m.moving ? POSE.walk : m.pose;
     out.moving = m.moving;
     out.leg = null;
@@ -16152,8 +17351,8 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     const need = BODY.radius * 2;
     const py = levelAt(p);
     const raised = py - zoneGroundY(p.x, p.z) > LEVEL_APART;
-    const test = (qx, qz, name) => {
-      if (raised) return;
+    const test = (qx, qz, name, level = undefined) => {
+      if (Number.isFinite(level) ? Math.abs(level - py) > LEVEL_APART : raised) return;
       const before = Math.hypot(p.x - qx, p.z - qz);
       if (before > need + 8) return;
       const after = Math.hypot(x - qx, z - qz);
@@ -16161,10 +17360,10 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
       if (after < need || nearestOnStep(p.x, p.z, x, z, qx, qz) < need) throw blockedBy({ x: qx, z: qz }, name);
     };
     if (population.within && !p.driving) {
-      for (const [i, qx, qz, pose] of population.within(`way:${p.id}`, x, z, 1.6, state.t, real())) {
+      for (const [i, qx, qz, pose, qy] of population.within(`way:${p.id}`, x, z, 1.6, state.t, real())) {
         if (pose === POSE.hidden || pose === POSE.ride) continue;
         if (book.npc[i] && book.npc[i].dead) continue;
-        test(qx, qz, population.people[i] ? population.people[i].short || population.people[i].name : 'Someone');
+        test(qx, qz, population.people[i] ? population.people[i].short || population.people[i].name : 'Someone', qy);
       }
     }
     if (state.residents) for (const r of Object.values(state.residents)) if (r && r.mode !== 'inside' && r.mode !== 'away' && Number.isFinite(r.x)) test(r.x, r.z, RESIDENT_NAME.get(r.id) || 'Someone');
@@ -16377,9 +17576,8 @@ function createImpact({ state, players, population, actors, conflict, talk, emit
     const now = real();
     let from = holder.sweep;
     if (!from || Math.hypot(bx - from.x, bz - from.z) > 4) from = { x: ax, z: az, at: now - 1 };
-    if (raised) holder.sweep = null;
-    else if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
-      const rows = population.within(`hit:${driver.id}`, x1, z1, 17, state.t, now);
+    if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
+      const rows = population.within(`hit:${driver.id}`, x1, z1, 17, state.t, now).filter((r) => Math.abs((Number.isFinite(r[4]) ? r[4] : zoneGroundY(r[1], r[2])) - vy) <= LEVEL_APART);
       const tx = forward ? ux : -ux, tz = forward ? uz : -uz;
       if (speed >= least) {
         for (const [i, px, pz, pose] of rows) {
@@ -16652,7 +17850,8 @@ return { BODY, IMPACT, FRONTS, SPORT_HARM, nearestOnStep, harmAt, harmOf, create
 
 __modules["sim/justice.js"] = (function () {
 
-const { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid, zoneGroundY } = __modules["sim/zone.js"];
+const { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid, zoneGroundY, oganiruStructureAt } = __modules["sim/zone.js"];
+const { inCity } = __modules["sim/city-walks.js"];
 const { levelAt } = __modules["sim/levels.js"];
 const { GameError } = __modules["sim/registry.js"];
 const { LedgerError, fineShares, trText, TR } = __modules["sim/ledger.js"];
@@ -16943,7 +18142,17 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
     for (const pick of nearestFree(goal.x, goal.z, Math.max(0, want))) send(pick.i, pick.from, 'respond', crime, p, goal);
   }
 
-  const sees = (m, p) => { const d = Math.hypot(p.x - m.x, p.z - m.z); return d < 8 || (d < LAW.sight && clearLine(m.x, m.z, p.x, p.z, 0.1)); };
+  const officerLevel = (m) => (Number.isFinite(m.y) ? m.y : zoneGroundY(m.x, m.z));
+  const eyeToEye = (x0, z0, y0, x1, z1, y1) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0, y1 - y0)));
+    for (let k = 1; k < n; k += 1) { const t = k / n; if (oganiruStructureAt(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, y0 + (y1 - y0) * t)) return false; }
+    return true;
+  };
+  const sees = (m, p) => {
+    const d = Math.hypot(p.x - m.x, p.z - m.z), my = officerLevel(m), py = levelAt(p);
+    if (Math.abs(my - py) > 1.2 && (inCity(m.x, m.z) || inCity(p.x, p.z))) return d < LAW.sight && eyeToEye(m.x, m.z, my + 1.6, p.x, p.z, py + 1.6);
+    return d < 8 || (d < LAW.sight && clearLine(m.x, m.z, p.x, p.z, 0.1));
+  };
   const chasePace = (law) => ((law.stars || 0) <= 1 ? PACE.hurry : PACE.sprint);
   const dutyOver = (i) => { delete book.officers[i]; if (actors.has(i)) actors.release(i, 'Going back on the beat'); };
 
@@ -16987,8 +18196,8 @@ function createJustice({ state, players, ledger, accounts, population, actors, t
     if (!p || p.custody || !['wanted', 'pursuit'].includes(lawOf(p).state)) { dutyOver(o.i); return; }
     const law = lawOf(p);
     const d = Math.hypot(p.x - m.x, p.z - m.z);
-    const apart = Math.abs(levelAt(p) - zoneGroundY(m.x, m.z)) > 2.5;
-    const inSight = sees(m, p) && !(apart && d < 40);
+    const apart = Math.abs(levelAt(p) - officerLevel(m)) > 2.5;
+    const inSight = sees(m, p);
     if (inSight) { law.seenAt = { x: p.x, z: p.z, real: now, t: state.t }; law.wantedAt = state.t; o.lost = 0; } else o.lost += dt;
 
     if (o.duty === 'respond') {
@@ -17921,6 +19130,7 @@ const { ZONE_FLEET, zoneService, zoneResident, zoneWalkable } = __modules["sim/z
 const { GameError } = __modules["sim/registry.js"];
 const { PACE } = __modules["sim/actors.js"];
 const { POWER_CARS } = __modules["sim/power-cars.js"];
+const { levelAt } = __modules["sim/levels.js"];
 
 const HIJACK = Object.freeze({
   okada: Object.freeze({ lateral: Object.freeze([0.35, 1.6]), along: Object.freeze([-0.3, 1.1]), stand: Object.freeze([0.78, 0.25]), steps: Object.freeze([['reach', 0.5], ['pull', 1.4], ['mount', 2.2]]) }),
@@ -17973,6 +19183,7 @@ function createHijack({ state, players, okada, vehicles, actors, population, emi
       at = hub.traffic.seizable(id);
     } else throw new GameError('NO_TARGET', 'There is nothing there to take.');
     if (!at.ok) throw new GameError(at.code, at.reason);
+    if (Number.isFinite(at.y) && Math.abs(at.y - levelAt(p)) > 2.5) throw new GameError('TOO_FAR', 'Walk up to it.');
     const where = driverSide(kind, at, p.x, p.z);
     if (!where.ok) throw new GameError(where.behind ? 'PASSENGER_SIDE' : 'TOO_FAR', where.reason);
     const steps = HIJACK[kind].steps;
@@ -18237,6 +19448,7 @@ function renewTown(state) {
   delete state.traffic;
   delete state.actors;
   delete state.reactions;
+  delete state.strollers;
   const o = state.okada;
   if (o) {
     const outstanding = (o.owed || []).reduce((sum, amount) => sum + amount, 0);
@@ -18313,7 +19525,7 @@ function allLamps() {
   });
   OGANIRU_LAMPS.forEach((l, i) => {
     const k = LAMP_KINDS[l.kind];
-    const gy = l.kind === 'deck' ? l.y - 1.1 : 0;
+    const gy = Number.isFinite(l.gy) ? l.gy : l.kind === 'deck' ? l.y - 1.1 : 0;
     out.push(lamp(`c${i}`, l.kind, l.x, l.z, l.y, l.heading, k.reach, k.height, { radius: k.radius, arms: k.arms || 1, gy, knock: l.kind !== 'deck', deck: l.deck || null, banner: !!l.banner }));
   });
   return Object.freeze(out);
@@ -18377,7 +19589,7 @@ const knockSpeedOf = (cls) => (heavyClass(cls) ? LAMP_KNOCK.heavy : LAMP_KNOCK.c
 
 function lampOrder(l) {
   const k = Math.sin(l.x * 0.0123 + l.z * 0.0071) * 0.5 + 0.5;
-  if (l.kind === 'median' || l.kind === 'edge' || l.kind === 'ornate' || l.kind === 'deck') return Math.max(0, Math.min(1, (-l.z - 470) / 1100)) * 0.85 + k * 0.15;
+  if (l.kind === 'median' || l.kind === 'edge' || l.kind === 'ornate' || l.kind === 'deck') return Math.max(0, Math.min(1, (Math.max(-l.z - 470, 0) + Math.abs(l.x) * 0.5) / 1500)) * 0.85 + k * 0.15;
   return k;
 }
 const lampOnAt = (l) => 0.12 + lampOrder(l) * 0.16;
@@ -18469,6 +19681,7 @@ const { createPopulation, RANGE } = __modules["sim/population.js"];
 const { createOkada } = __modules["sim/okada.js"];
 const { createTraffic } = __modules["sim/traffic.js"];
 const { createSportRiders } = __modules["sim/sport-riders.js"];
+const { createCityStrollers } = __modules["sim/city-strollers.js"];
 const { createOwnBikes, isOwnBike, bikeOf } = __modules["sim/own-bikes.js"];
 const { createOwnSports, isOwnSport, sportOfAstride } = __modules["sim/own-sports.js"];
 const { createOwnBoats, isOwnBoat, boatOfAstride } = __modules["sim/own-boats.js"];
@@ -18604,6 +19817,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
   const phone = createPhone({ state, players: state.players, ledger, accounts: economy.accounts, residents, talk, emit, clock, hub, serviceState: (id) => serviceState(id), timeScale: scale });
   const traffic = createTraffic({ state, population, players: state.players, hub, emit, visitors: () => talk.visitors() });
   const sportRiders = createSportRiders({ state, population, players: state.players, hub, emit, visitors: () => talk.visitors() });
+  const strollers = createCityStrollers({ state, population, hub, timeScale: scale });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   const market = createMarketBridge({ state, ledger: rawLedger, monetary, issuanceAccount, players: state.players });
   for (const id of Object.keys(state.players)) { const q = state.players[id]; if (q.custody === undefined) q.custody = null; if (q.carried === undefined) q.carried = null; if (q.astride === undefined) q.astride = null; if (q.incar === undefined) q.incar = null; if (q.hijack === undefined) q.hijack = null; }
@@ -18744,6 +19958,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     okada.tick(dtReal, state.t, state.real, weather().wet);
     traffic.tick(dtReal, state.t, state.real, weather().wet);
     sportRiders.tick(dtReal, state.t, state.real);
+    strollers.tick(dtReal, state.t);
     lamps.tick();
     naval.tick(dtReal);
     actors.tick(dtReal, state.t, state.real);
@@ -19503,7 +20718,7 @@ function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, auditor, 
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, naval, ownBoats, surfing, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
+    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, strollers, naval, ownBoats, surfing, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
   };
 }
 
@@ -22566,7 +23781,8 @@ function buildGround() {
       if (near < 16 && y > -0.06) { const k = Math.max(0, Math.min(1, (near - 6) / 10)); y = -0.06 + (y + 0.06) * k * k * (3 - 2 * k); }
     }
     if (x < b.minX - 6 && z > -650 && z < 140 && toShore > 0) y = -0.12;
-    if (z < b.minZ + 4 && toShore > 0) { const away = oganiruAway(x, z); if (away < CITY_FLAT.rise && y > -0.12) { const k = Math.max(0, Math.min(1, (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.12 + (y + 0.12) * k * k * (3 - 2 * k); } }
+    if ((z < b.minZ + 4 || outside > 0) && toShore > 0) { const away = oganiruAway(x, z); if (away < CITY_FLAT.rise && y > -0.12) { const k = Math.max(0, Math.min(1, (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.12 + (y + 0.12) * k * k * (3 - 2 * k); } }
+    if (z < -466 && Math.abs(x) < 10 && toShore > 0) y = Math.min(y, -0.12);
     position.setY(i, y);
     colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
   }
@@ -23076,9 +24292,9 @@ return { programsReady };
 __modules["client/render-outskirts.js"] = (function () {
 
 const { programsReady } = __modules["client/program-ready.js"];
-const { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } = __modules["sim/zone.js"];
+const { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS, oganiruAway } = __modules["sim/zone.js"];
 const { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } = __modules["client/render-kit.js"];
-const { addTree } = __modules["client/render-world.js"];
+const { addTree, CITY_FLAT } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
 const { reflects, weathers } = __modules["client/render-finish.js"];
 const { isRoad } = __modules["client/world-shading.js"];
@@ -23103,7 +24319,10 @@ function buildGround() {
     const far = away(x, z);
     if (z > -62 && z < -18) c.lerp(earth, 0.55 * Math.max(0, 1 - Math.abs(z + 40) / 22));
     const rise = Math.max(0, Math.min(1, (far - 40) / 160)) * Math.max(0, Math.min(1, (-232 - x) / 60)) * Math.max(0, Math.min(1, (120 - z) / 60));
-    P.setY(i, rise * (2 + smoothNoise(x / 90, z / 90) * 9));
+    let y = rise * (2 + smoothNoise(x / 90, z / 90) * 9);
+    const city = oganiruAway(x, z);
+    if (city < CITY_FLAT.rise) { const k = Math.max(0, Math.min(1, (city - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.02 + (y + 0.02) * k * k * (3 - 2 * k); }
+    P.setY(i, y);
     colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));
@@ -23361,14 +24580,13 @@ function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera = null }
   for (const b of OUTSKIRT_BUILDINGS) addRoadside(B, b);
   yield;
   for (const s of OUTSKIRT_SIGNS) addSign(B, s, signs);
-  const R = ONITSHA_ROAD;
-  for (let z = R.z0 + 0.5; z < R.z1; z += 2.2) { solid.box(0.25, 1.0, 2.0, place(R.x0 + 4, 0.5, z), Math.round(z) % 2 ? 0xf2f0ea : 0xc8342b); solid.round(new THREE.ConeGeometry(0.25, 0.7, 10), place(R.x0 + 9, 0.35, z + 1), 0xe0702a); }
   yield;
   const away = (x, z, pad) => OUTSKIRT_AREAS.every((a) => x < a.x0 - pad || x > a.x1 + pad || z < a.z0 - pad || z > a.z1 + pad);
   let made = 0;
   for (let i = 0; made < 170 && i < 4000; i += 1) {
     const x = -1300 + noise(i, 71) * 1050, z = -640 + noise(i, 73) * 760;
     if (x > -262 || !away(x, z, 6) || OUTSKIRT_BUILDINGS.some((b) => Math.hypot(b.x - x, b.z - z) < 9)) continue;
+    if (oganiruAway(x, z) < 6) { made += 1; continue; }
     const r = noise(i, 79);
     addTree(solid, leaves, { x, z, kind: r < 0.45 ? 'oilpalm' : r < 0.7 ? 'mango' : r < 0.85 ? 'palm' : 'almond', size: 0.8 + noise(i, 83) * 0.5, turn: noise(i, 89) * 6.28 });
     made += 1;
@@ -23419,90 +24637,6 @@ function chainLink() {
 }
 
 return { outskirtsSteps, buildOutskirts };
-})();
-
-__modules["sim/billboards.js"] = (function () {
-
-const AD_CATEGORIES = Object.freeze({
-  small: Object.freeze({ id: 'small', name: 'Small', fee: 66, tax: 4 }),
-  medium: Object.freeze({ id: 'medium', name: 'Medium', fee: 132, tax: 8 }),
-  large: Object.freeze({ id: 'large', name: 'Large', fee: 200, tax: 16 }),
-  xl: Object.freeze({ id: 'xl', name: 'Extra-large', fee: 267, tax: 32 }),
-  tv: Object.freeze({ id: 'tv', name: 'Digital TV billboard', fee: 667, tax: 64 }),
-});
-const dailyCharge = (category) => AD_CATEGORIES[category].fee + AD_CATEGORIES[category].tax;
-
-function categoryOf(width, height, tv = false) {
-  if (tv) return 'tv';
-  const area = width * height;
-  return area < 12 ? 'small' : area < 36 ? 'medium' : area < 80 ? 'large' : 'xl';
-}
-
-const AD_DURATIONS = Object.freeze([
-  Object.freeze({ id: '1w', label: '1 week', days: 7 }),
-  Object.freeze({ id: '2w', label: '2 weeks', days: 14 }),
-  Object.freeze({ id: '1m', label: '1 month (30 days)', days: 30 }),
-  Object.freeze({ id: '2m', label: '2 months (60 days)', days: 60 }),
-  Object.freeze({ id: '3m', label: '3 months (90 days)', days: 90 }),
-  Object.freeze({ id: '6m', label: '6 months (180 days)', days: 180 }),
-]);
-
-const DARK = Object.freeze({ steel: 0x3b3f45, deep: 0x26292e, pole: 0x34383d, rail: 0x50555b, lamp: 0x2a2d31 });
-const GALV = Object.freeze({ steel: 0x9aa0a6, deep: 0x7d838a, pole: 0xa8adb2, rail: 0xb3b8bd, lamp: 0x5d6268 });
-const WHITE = Object.freeze({ steel: 0x9aa0a6, deep: 0x6f757c, pole: 0xd9dcdc, rail: 0xb3b8bd, lamp: 0xd0d3d4 });
-
-const kind = (id, name, ref, spec) => Object.freeze({ id, name, ref, ...spec });
-
-const BILLBOARD_TYPES = Object.freeze({
-  'dark-unipole-truss': kind('dark-unipole-truss', 'Unipole with side truss', 'a02', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'grating', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'dark-unipole-catwalk': kind('dark-unipole-catwalk', 'Unipole with catwalk and cage ladder', 'a03', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'dark-unipole-deep': kind('dark-unipole-deep', 'Unipole with deep platform', 'a04', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'grating', deepDeck: true, lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.75, 0.6, 0.5] }),
-  'galvanised-four-leg': kind('galvanised-four-leg', 'Four-legged galvanised frame', 'a05', { width: 12, height: 4.5, bottom: 7, supports: 'four', poleRadius: 0.32, truss: 'left', deck: 'grating', lamps: 0, lampsAt: null, ladder: null, colours: GALV, scales: [1, 0.75] }),
-  'galvanised-unipole-railing': kind('galvanised-unipole-railing', 'Galvanised unipole with railed catwalk', 'a06', { width: 12, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'galvanised-unipole-deck-lamps': kind('galvanised-unipole-deck-lamps', 'Galvanised unipole, lamps on the catwalk', 'a07', { width: 12, height: 4.5, bottom: 9, supports: 'pole', poleRadius: 0.6, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'deck', ladder: 'cage', colours: GALV, scales: [1, 0.75, 0.6, 0.5] }),
-  'yellow-trestle': kind('yellow-trestle', 'Long board on yellow scaffold legs', 'a01', { width: 30, height: 6, bottom: 7, supports: 'trestle', poleRadius: 0.12, truss: 'left', deck: 'grating', lamps: 13, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.8] }),
-  'front-unipole-ladder': kind('front-unipole-ladder', 'Unipole with railed catwalk and ladder', 'b03', { width: 14, height: 5, bottom: 10, supports: 'pole', poleRadius: 0.65, truss: null, deck: 'railing', lamps: 5, lampsAt: 'top', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'offset-white-unipole': kind('offset-white-unipole', 'Offset white unipole with double deck', 'b04', { width: 14, height: 4, bottom: 9, supports: 'pole', poleRadius: 0.55, poleOffset: 0.3, truss: 'right', deck: 'double', lamps: 2, lampsAt: 'deck', lightBar: true, ladder: 'rungs', colours: WHITE, scales: [1, 0.75, 0.6, 0.5] }),
-  'dark-unipole-deck-lamps': kind('dark-unipole-deck-lamps', 'Unipole with lamps along its deck', 'b05', { width: 14, height: 5, bottom: 9, supports: 'pole', poleRadius: 0.55, truss: 'right', deck: 'grating', lamps: 7, lampsAt: 'deck', ladder: 'rungs', colours: DARK, scales: [1, 0.75, 0.6, 0.5, 0.4] }),
-  'twin-pole-railing': kind('twin-pole-railing', 'Twin-pole board with railed catwalk', 'b07', { width: 16, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.55, truss: 'left', deck: 'railing', lamps: 6, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
-  'twin-pole-long': kind('twin-pole-long', 'Long twin-pole board', 'b09', { width: 22, height: 5.5, bottom: 9, supports: 'twin', poleRadius: 0.6, truss: 'left', deck: 'grating', underTruss: true, lamps: 9, lampsAt: 'top', ladder: null, colours: DARK, scales: [1, 0.85] }),
-  'tv-unipole': kind('tv-unipole', 'Digital screen on a unipole', 'b01', { width: 8, height: 10, bottom: 10, supports: 'pole', poleRadius: 0.7, truss: 'left', deck: 'railing', lamps: 5, lampsAt: 'top', ladder: null, colours: DARK, tv: true, scales: [1] }),
-  'tv-building': kind('tv-building', 'Building wrapped in digital screens', 'b02', { width: 24, height: 9, bottom: 8, supports: 'building', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: DARK, tv: true, footprint: Object.freeze({ w: 34, d: 22 }), scales: [1] }),
-  'tv-tower': kind('tv-tower', 'Four-sided digital screen tower', 'b08', { width: 6, height: 8, bottom: 4.5, supports: 'tower', poleRadius: 0, truss: null, deck: null, lamps: 12, lampsAt: 'top', ladder: null, colours: DARK, tv: true, sides: 4, footprint: Object.freeze({ w: 8, d: 8 }), scales: [1] }),
-  'tv-curved': kind('tv-curved', 'Curved digital screen on a mast', 'b10', { width: 9, height: 10, bottom: 6, supports: 'mast', poleRadius: 0.3, truss: null, deck: 'grating', lamps: 6, lampsAt: 'deck', ladder: null, colours: DARK, tv: true, curve: 0.5, scales: [1] }),
-  'tv-chrome': kind('tv-chrome', 'Chrome-framed digital screen', 'b11', { width: 12, height: 4, bottom: 5, supports: 'plinth', poleRadius: 0, truss: null, deck: null, lamps: 0, lampsAt: null, ladder: null, colours: WHITE, tv: true, footprint: Object.freeze({ w: 11, d: 2.6 }), scales: [1] }),
-});
-
-function feetOf(type, scale = 1) {
-  const t = BILLBOARD_TYPES[type], W = t.width * scale, s = scale, back = -0.9 * s;
-  switch (t.supports) {
-    case 'pole': return [{ x: (t.poleOffset || 0) * W, z: back - 0.3 * s, r: t.poleRadius * s }];
-    case 'twin': return [-0.32, 0.32].map((k) => ({ x: k * W, z: back - 0.3 * s, r: t.poleRadius * s }));
-    case 'four': return [-0.36, -0.12, 0.12, 0.36].map((k, i) => ({ x: k * W, z: back - (i % 2 ? 1.6 : 0.4) * s, r: 0.35 * s }));
-    case 'trestle': { const out = []; for (let x = -W / 2 + 1; x <= W / 2 - 0.9; x += 3 * s) for (const z of [back, back - 1.8 * s]) out.push({ x, z, r: 0.2 * s }); return out; }
-    case 'mast': return [{ x: W / 2 + 0.8 * s, z: back, r: 0.6 * s }];
-    case 'tower': case 'building': case 'plinth': return [{ x: 0, z: -t.footprint.d / 2 + 0.6, w: t.footprint.w, d: t.footprint.d }];
-    default: return [];
-  }
-}
-
-function faceOf(type, scale = 1) {
-  const t = BILLBOARD_TYPES[type];
-  const r = (v) => Math.round(v * 10) / 10;
-  return { width: r(t.width * scale), height: r(t.height * scale), bottom: r(t.bottom * scale) };
-}
-
-function aspectOf(width, height) {
-  const gcd = (a, b) => (b ? gcd(b, a % b) : a);
-  const a = Math.round(width * 10), b = Math.round(height * 10), g = gcd(a, b);
-  const x = a / g, y = b / g;
-  if (x <= 20 && y <= 20) return `${x}:${y}`;
-  return `${(width / height).toFixed(2)}:1`;
-}
-
-const EMPTY_FACE = 'PLACE YOUR ADS';
-
-return { AD_CATEGORIES, dailyCharge, categoryOf, AD_DURATIONS, BILLBOARD_TYPES, feetOf, faceOf, aspectOf, EMPTY_FACE };
 })();
 
 __modules["client/render-billboards.js"] = (function () {
@@ -23920,6 +25054,69 @@ function buildBillboards(scene, { glowMaterial, lite = false, boards = ZONE_BILL
 }
 
 return { buildBillboards };
+})();
+
+__modules["client/brand-data.js"] = (function () {
+const COVER = {"alt":"Post Civil War. A woman and a man stand on a quay between a yacht and a jet. Find work. Buy a plot. Build the walls. Start again.","aspect":1.7777777777777777,"sky":"#97d5ea","figures":[0.5046583850931677,0.020703933747412008,0.30667701863354035,0.966183574879227],"plate":"cover/plate.webp?v=4272ef1b16cae0ce","logo":{"src":"cover/logo.webp?v=4edf1515ddaadbb6","x":0.08812111801242237,"y":0.025534851621808144,"w":0.25232919254658387,"h":0.5479641131815045,"ratio":0.818639798488665},"words":{"src":"cover/words.webp?v=ec52bf3dc2a221b1","x":0.8338509316770186,"y":0.04071773636991028,"w":0.14673913043478262,"h":0.2263630089717046,"ratio":1.1524390243902438},"play":{"src":"cover/play.webp?v=72c086d229716784","x":0.09239130434782608,"y":0.7715665976535542,"w":0.2391304347826087,"h":0.10006901311249138,"ratio":4.248275862068965}};
+
+return { COVER };
+})();
+
+__modules["client/render-city-adverts.js"] = (function () {
+const { COVER } = __modules["client/brand-data.js"];
+
+const CITY_ADVERTS = Object.freeze({
+  game: { ground: ['#0f2d4a', '#1d5a86'], ink: '#fff6dc', accent: '#f2b632', name: 'POST CIVIL WAR', line: 'Find work. Buy a plot. Build the walls. Start again.', logo: true },
+  powerbike: { ground: ['#14171c', '#2a2f38'], ink: '#ffffff', accent: '#e4572e', name: 'POWERBIKE', line: 'Motorcycles of every kind · Market Road, Atani', logo: true },
+  carshow: { ground: ['#f4f1ea', '#d9d4c7'], ink: '#14202b', accent: '#0b6b3a', name: 'CAR SHOWROOM', line: 'Twenty models to choose from · Atani', logo: true },
+  sports: { ground: ['#0b6b3a', '#13894d'], ink: '#ffffff', accent: '#f2c200', name: 'SPORTS MALL', line: 'Bicycles · skateboards · skates', logo: true },
+  'unity-tower': { ground: ['#0e3b5c', '#2b6f9e'], ink: '#ffffff', accent: '#9fd3f2', name: 'UNITY TOWER', line: 'Offices to let · Unity Avenue, Oganiru City', logo: false },
+  'udo-bank': { ground: ['#5b1a1a', '#8c2a2a'], ink: '#fff2df', accent: '#f2c27a', name: 'UDO BANK', line: 'Harmony Place · open six days a week', logo: false },
+  airport: { ground: ['#e9eef2', '#c9d6e0'], ink: '#123047', accent: '#d9382c', name: 'ASABA AIRPORT', line: 'Fly from Asaba · Terminal Drive', logo: false },
+});
+
+let logo = null;
+function logoImage() {
+  if (!logo) logo = new Promise((resolve) => { const img = new Image(); img.onload = () => resolve(img); img.onerror = () => resolve(null); img.src = COVER.logo.src; });
+  return logo;
+}
+const HEAVY = (px) => `900 ${px}px "Arial Black", "Helvetica Neue", Helvetica, Arial, sans-serif`;
+const PLAIN = (px) => `600 ${px}px "Helvetica Neue", Helvetica, Arial, sans-serif`;
+function fit(g, text, x, y, px, most, font, fill) {
+  let size = px;
+  g.font = font(size);
+  while (g.measureText(text).width > most && size > 10) { size -= 2; g.font = font(size); }
+  g.fillStyle = fill;
+  g.fillText(text, x, y);
+  return size;
+}
+
+async function cityAdvertArt(advert, width = 1024, aspect = 3) {
+  const a = CITY_ADVERTS[advert] || CITY_ADVERTS.game;
+  const W = width, H = Math.round(width / aspect);
+  const canvas = document.createElement('canvas');
+  canvas.width = W; canvas.height = H;
+  const g = canvas.getContext('2d');
+  const grad = g.createLinearGradient(0, 0, W, H);
+  grad.addColorStop(0, a.ground[0]); grad.addColorStop(1, a.ground[1]);
+  g.fillStyle = grad; g.fillRect(0, 0, W, H);
+  g.fillStyle = a.accent; g.fillRect(0, H * 0.86, W, H * 0.14); g.fillRect(0, 0, W, H * 0.035);
+  let left = W * 0.05;
+  if (a.logo) {
+    const img = await logoImage();
+    if (img) {
+      const h = H * 0.74, w = (h * img.width) / img.height;
+      g.drawImage(img, W * 0.035, H * 0.07, w, h);
+      left = W * 0.06 + w;
+    }
+  }
+  g.textBaseline = 'alphabetic';
+  fit(g, a.name, left, H * 0.5, Math.round(H * 0.34), W - left - W * 0.04, HEAVY, a.ink);
+  fit(g, a.line, left, H * 0.72, Math.round(H * 0.11), W - left - W * 0.04, PLAIN, a.ink);
+  return new Promise((resolve, reject) => canvas.toBlob((b) => (b ? resolve(b) : reject(new Error('no picture'))), 'image/png'));
+}
+
+return { CITY_ADVERTS, cityAdvertArt };
 })();
 
 __modules["client/render-town.js"] = (function () {
@@ -29595,6 +30792,7 @@ const { poseFighter } = __modules["client/combat-view.js"];
 const { zoneGroundY, zoneSurfaceY, habitationClimbing } = __modules["sim/zone.js"];
 
 const groundOfPeer = (x, z, q) => (q && Number.isFinite(q.gy) ? zoneSurfaceY(x, z, q.gy) : zoneGroundY(x, z));
+const groundOf = (x, z, y) => (Number.isFinite(y) ? zoneSurfaceY(x, z, y) : zoneGroundY(x, z));
 const { vehicleMeta } = __modules["client/vehicle-kit.js"];
 const { fallTime, flightAt } = __modules["client/falls.js"];
 const { deviceKind } = __modules["client/budget.js"];
@@ -29744,7 +30942,7 @@ function createCrowd(scene) {
   const put = (mesh, matrix, hex) => { mesh.setMatrixAt(n, matrix); const c = colourOf(hex); mesh.instanceColor.setXYZ(n, c.r, c.g, c.b); };
   const HIDE = new THREE.Matrix4().makeScale(0, 0, 0);
 
-  function figure(fig, x, y, z, h, pose, walk, armsOut = 0) {
+  function figure(fig, x, y, z, h, pose, walk, armsOut = 0, level = undefined) {
     if (n >= MAX_FIGURES) return;
     const s = fig.scale || 1;
     const seated = pose === POSE.sit || pose === POSE.ride;
@@ -29752,7 +30950,8 @@ function createCrowd(scene) {
     Q.setFromEuler(E);
     const lift = pose === POSE.lie ? 0.72 : 0;
     const back = pose === POSE.lie ? 0.85 * s : 0;
-    P.set(x + Math.sin(h) * back, y + lift + zoneGroundY(x, z), z + Math.cos(h) * back);
+    const ground = groundOf(x, z, level);
+    P.set(x + Math.sin(h) * back, y + lift + ground, z + Math.cos(h) * back);
     S.set(s * (fig.wide || 1), s, s * (fig.wide || 1));
     M.compose(P, Q, S);
     const hip = seated ? 0.46 : 0.9;
@@ -29775,20 +30974,20 @@ function createCrowd(scene) {
     put(parts.shinR, joint(K, J, 0, -0.44, 0, kneeR), fig.legs);
     if (fig.skirt) put(parts.skirt, joint(K, M, 0, hip + 0.04, seated ? 0.12 : 0, seated ? -1.2 : 0, 1, seated ? 0.5 : fig.skirt === 1 ? 0.5 : 0.82, 1), fig.bottom);
     else parts.skirt.setMatrixAt(n, HIDE);
-    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06 + zoneGroundY(x, z), z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
+    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06 + ground, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
     n += 1;
   }
 
   let m = 0;
   const putFar = (mesh, matrix, hex) => { mesh.setMatrixAt(m, matrix); const c = colourOf(hex); mesh.instanceColor.setXYZ(m, c.r, c.g, c.b); };
-  function farFigure(fig, x, z, h, pose) {
+  function farFigure(fig, x, z, h, pose, level = undefined) {
     if (m >= MAX_FIGURES) return;
     const s = fig.scale || 1;
     const seated = pose === POSE.sit || pose === POSE.ride;
     E.set(pose === POSE.lie ? -Math.PI / 2 : 0, h, 0);
     Q.setFromEuler(E);
     const back = pose === POSE.lie ? 0.85 * s : 0;
-    P.set(x + Math.sin(h) * back, (pose === POSE.lie ? 0.72 : 0) + zoneGroundY(x, z), z + Math.cos(h) * back);
+    P.set(x + Math.sin(h) * back, (pose === POSE.lie ? 0.72 : 0) + groundOf(x, z, level), z + Math.cos(h) * back);
     S.set(s * (fig.wide || 1), s, s * (fig.wide || 1));
     M.compose(P, Q, S);
     const hip = seated ? 0.46 : 0.9;
@@ -29835,7 +31034,7 @@ function createCrowd(scene) {
     const down = falls.get(actor.i);
     if (down && rig.fallDriver) {
       g.rotation.set(0, 0, 0);
-      g.position.set(actor.x, zoneGroundY(actor.x, actor.z), actor.z);
+      g.position.set(actor.x, groundOf(actor.x, actor.z, actor.y), actor.z);
       const age = down[1] + (fallsClock - fallsAt);
       rig.downState = { kind: 'knock', age, lie: down[2], rise: down[3], push: down[4] + Math.PI, facing: down[4], hard: false, from: null };
       g.rotation.y = down[4];
@@ -29846,7 +31045,7 @@ function createCrowd(scene) {
     if (rig.downState) rig.downState = null;
     if (actor.pose === POSE.lie && fallen.has(actor.i)) {
       g.rotation.set(0, actor.h, 0);
-      g.position.set(actor.x, zoneGroundY(actor.x, actor.z), actor.z);
+      g.position.set(actor.x, groundOf(actor.x, actor.z, actor.y), actor.z);
       standCharacter(rig);
       actor.fall = (actor.fall || 0) + (1 - (actor.fall || 0)) * Math.min(1, dt * 12);
       layCharacter(rig, actor.fall);
@@ -29871,7 +31070,7 @@ function createCrowd(scene) {
       if (tk[2] && rig.animated && rig.spec && rig.spec.moods && !rig.emoting && !rig.doing && !rig.strike && rig.emote('~talk')) stats.talkGestures = (stats.talkGestures || 0) + 1;
     } else actor.talkH = undefined;
     g.rotation.set(0, facing, 0);
-    g.position.set(actor.x + (actor.ox || 0), zoneGroundY(actor.x, actor.z), actor.z + (actor.oz || 0));
+    g.position.set(actor.x + (actor.ox || 0), groundOf(actor.x, actor.z, actor.y), actor.z + (actor.oz || 0));
     const went = rig.atX === undefined ? 0 : Math.hypot(actor.x - rig.atX, actor.z - rig.atZ);
     rig.atX = actor.x; rig.atZ = actor.z;
     rig.pace = (rig.pace === undefined ? 1.35 : rig.pace) + (Math.min(rig.animated ? 6 : 2.4, went / Math.max(dt, 0.001)) - (rig.pace === undefined ? 1.35 : rig.pace)) * Math.min(1, dt * 3);
@@ -29958,9 +31157,10 @@ function createCrowd(scene) {
     stamp += 1;
     if (rows !== lastRows) {
       lastRows = rows;
-      for (const [i, x, z, h, pose] of rows) {
+      for (const [i, x, z, h, pose, y] of rows) {
         let actor = actors.get(i);
         if (!actor) { actor = { i, x, z, h, tx: x, tz: z, th: h, pose, walk: (i * 1.7) % 6.28, rig: null, seen: 0, speed: 0 }; actors.set(i, actor); }
+        actor.y = y;
         if (Math.hypot(actor.x - x, actor.z - z) > 9 || (pose !== POSE.walk && actor.pose === POSE.walk && Math.hypot(actor.x - x, actor.z - z) < 0.6)) { actor.x = x; actor.z = z; }
         actor.tx = x; actor.tz = z; actor.th = h; actor.pose = pose; actor.seen = stamp;
       }
@@ -30016,7 +31216,7 @@ function createCrowd(scene) {
         const look = info.look;
         const id = look && look.figure && ANIMATED[look.figure] && !(look.plain && !figureHere(look.figure)) ? look.figure : null;
         if (id) {
-          const x = actor.x + (actor.ox || 0), z = actor.z + (actor.oz || 0), y = zoneGroundY(x, z);
+          const x = actor.x + (actor.ox || 0), z = actor.z + (actor.oz || 0), y = groundOf(x, z, actor.y);
           const went = actor.cx === undefined ? 0 : Math.hypot(actor.x - actor.cx, actor.z - actor.cz);
           actor.cx = actor.x; actor.cz = actor.z;
           actor.pace = (actor.pace === undefined ? 1.35 : actor.pace) + (Math.min(2.4, went / Math.max(dt, 0.001)) - (actor.pace === undefined ? 1.35 : actor.pace)) * Math.min(1, dt * 3);
@@ -30028,8 +31228,8 @@ function createCrowd(scene) {
           }
         }
       }
-      if (d > detail) farFigure(info.fig, actor.x + (actor.ox || 0), actor.z + (actor.oz || 0), actor.h, actor.pose);
-      else figure(info.fig, actor.x + (actor.ox || 0), moving ? Math.abs(Math.cos(actor.walk)) * 0.025 : 0, actor.z + (actor.oz || 0), actor.h, moving ? POSE.walk : actor.pose === POSE.walk ? POSE.stand : actor.pose, actor.walk);
+      if (d > detail) farFigure(info.fig, actor.x + (actor.ox || 0), actor.z + (actor.oz || 0), actor.h, actor.pose, actor.y);
+      else figure(info.fig, actor.x + (actor.ox || 0), moving ? Math.abs(Math.cos(actor.walk)) * 0.025 : 0, actor.z + (actor.oz || 0), actor.h, moving ? POSE.walk : actor.pose === POSE.walk ? POSE.stand : actor.pose, actor.walk, 0, actor.y);
     }
     crowdFigures.end();
     crowdShade.count = c;
@@ -33801,7 +35001,7 @@ return { NIGERIA_STATES, NIGERIA_ZONES, stateByCode };
 
 __modules["client/town-map.js"] = (function () {
 
-const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS, OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_MAP_LABELS } = __modules["sim/zone.js"];
+const { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS, OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_MAP_LABELS, OGANIRU_ROUNDABOUTS } = __modules["sim/zone.js"];
 const { gridToTrue, trueToGrid } = __modules["sim/geo.js"];
 
 const MAP_STYLE = Object.freeze({
@@ -33825,7 +35025,7 @@ const CITY_MAP_ROADS = OGANIRU_ROADS.map((r) => { const half = r.kind === 'appro
 const MAP_ROADS = Object.freeze([...ZONE_ROADS, ...OUTSKIRT_ROADS, UPRIVER.road, UPRIVER.park, ...CITY_MAP_ROADS]);
 function mapExtent() {
   const b = ZONE.bounds;
-  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0, OGANIRU.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
+  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0), OGANIRU.bounds.x0), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0, OGANIRU.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1, OGANIRU.bounds.x1);
   const pts = [T(minX, minZ), T(maxX, minZ), T(minX, maxZ), T(maxX, maxZ)];
   return { minE: Math.min(...pts.map((p) => p.e)), maxE: Math.max(...pts.map((p) => p.e)), minS: Math.min(...pts.map((p) => p.s)), maxS: Math.max(...pts.map((p) => p.s)) };
 }
@@ -34017,12 +35217,13 @@ function createTownMap({ h, view, way = () => null, waypoint = () => null, listi
   }
 
   function decks() {
-    const ring = P(0, -560);
     const k = state.k;
-    if (onScreen(-30, -590, 30, -530)) {
-      g.beginPath(); g.arc(ring[0], ring[1], 23 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.majorEdge; g.fill();
-      g.beginPath(); g.arc(ring[0], ring[1], 22 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.major; g.fill();
-      g.beginPath(); g.arc(ring[0], ring[1], 13 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.tree; g.fill();
+    for (const rb of OGANIRU_ROUNDABOUTS) {
+      if (!onScreen(rb.x - 30, rb.z - 30, rb.x + 30, rb.z + 30)) continue;
+      const ring = P(rb.x, rb.z);
+      g.beginPath(); g.arc(ring[0], ring[1], (rb.outer + 1) * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.majorEdge; g.fill();
+      g.beginPath(); g.arc(ring[0], ring[1], rb.outer * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.major; g.fill();
+      g.beginPath(); g.arc(ring[0], ring[1], rb.island * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.tree; g.fill();
     }
     g.lineCap = 'butt'; g.lineJoin = 'round';
     const order = [...OGANIRU_DECKS].sort((a, b) => a.path.reduce((m, q) => m + q.y, 0) / a.path.length - b.path.reduce((m, q) => m + q.y, 0) / b.path.length);
@@ -43408,12 +44609,6 @@ function createWarmUp(renderer, scene) {
 return { createWarmUp };
 })();
 
-__modules["client/brand-data.js"] = (function () {
-const COVER = {"alt":"Post Civil War. A woman and a man stand on a quay between a yacht and a jet. Find work. Buy a plot. Build the walls. Start again.","aspect":1.7777777777777777,"sky":"#97d5ea","figures":[0.5046583850931677,0.020703933747412008,0.30667701863354035,0.966183574879227],"plate":"cover/plate.webp?v=4272ef1b16cae0ce","logo":{"src":"cover/logo.webp?v=4edf1515ddaadbb6","x":0.08812111801242237,"y":0.025534851621808144,"w":0.25232919254658387,"h":0.5479641131815045,"ratio":0.818639798488665},"words":{"src":"cover/words.webp?v=ec52bf3dc2a221b1","x":0.8338509316770186,"y":0.04071773636991028,"w":0.14673913043478262,"h":0.2263630089717046,"ratio":1.1524390243902438},"play":{"src":"cover/play.webp?v=72c086d229716784","x":0.09239130434782608,"y":0.7715665976535542,"w":0.2391304347826087,"h":0.10006901311249138,"ratio":4.248275862068965}};
-
-return { COVER };
-})();
-
 __modules["client/intro.js"] = (function () {
 
 const { COVER } = __modules["client/brand-data.js"];
@@ -51101,8 +52296,12 @@ const { reflects } = __modules["client/render-finish.js"];
 const { STREET_LAMP } = __modules["client/light.js"];
 
 const REGION = Object.freeze({ town: 'town', block: 'town', outskirt: 'outskirts', median: 'city', 'median+banner': 'city', edge: 'city', ornate: 'city', deck: 'city' });
-const drawnKind = (l) => (l.banner ? `${l.kind}+banner` : l.kind);
-const FIXED_MOST = 320;
+const LAMP_SQUARE = 640;
+const CITY_KINDS = new Set(['median', 'edge', 'ornate', 'deck']);
+const drawnKind = (l) => { const kind = l.banner ? `${l.kind}+banner` : l.kind; return CITY_KINDS.has(l.kind) ? `${kind}@${Math.floor((l.x + 1510) / LAMP_SQUARE)},${Math.floor((l.z + 1750) / LAMP_SQUARE)}` : kind; };
+const baseKind = (kind) => kind.split('@')[0];
+const regionOf = (kind) => REGION[baseKind(kind)] || 'town';
+const FIXED_MOST = 480;
 const GREY = 0x4a4d52, DARK = 0x3a3d42, STONE = 0x8d877b, LAMPLIGHT = 0xfff1c9;
 const STEEL = 0x9ba1a7, STEEL_DARK = 0x5d6268, IRON = 0x1d1f22, CONCRETE = 0xb6b1a5;
 
@@ -51240,7 +52439,7 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
   }
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), qa = new THREE.Quaternion(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), axis = new THREE.Vector3(), upY = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3();
   for (const [kind, K] of kinds) {
-    const shape = shapeOf(kind, lite);
+    const shape = shapeOf(baseKind(kind), lite);
     K.shape = shape;
     const n = K.list.length;
     K.solid = new THREE.InstancedMesh(shape.solid, shape.metal ? metal : kit.solid, n);
@@ -51263,7 +52462,7 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
       L.heads = shape.heads.map(([hx, hy, hz]) => { v3.set(hx, hy, hz).applyQuaternion(q); return { x: l.x + v3.x, y: L.y + v3.y, z: l.z + v3.z, ground: l.kind === 'deck' ? l.gy : zoneGroundY(l.x + v3.x, l.z + v3.z), size: shape.pool, lamp: L }; });
     }
     K.solid.computeBoundingSphere(); K.glow.computeBoundingSphere();
-    K.region = REGION[kind] || 'town';
+    K.region = regionOf(kind);
     K.box = { x0: Math.min(...K.list.map((L) => L.l.x)), x1: Math.max(...K.list.map((L) => L.l.x)), z0: Math.min(...K.list.map((L) => L.l.z)), z1: Math.max(...K.list.map((L) => L.l.z)) };
     scene.add(K.solid); scene.add(K.glow);
     if (K.cloth) { K.cloth.computeBoundingSphere(); scene.add(K.cloth); }
@@ -51349,7 +52548,7 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
     if (K.cloth) { K.cloth.setMatrixAt(L.slot, m4); K.cloth.instanceMatrix.needsUpdate = true; }
     K.moved = true;
   }
-  const rollOf = (L, dir) => { if (!L.heads.length || L.kind === 'ornate') return 0; const a = wrap(dir + Math.PI / 2 - L.l.heading), b = wrap(dir - Math.PI / 2 - L.l.heading); return Math.abs(a) < Math.abs(b) ? a : b; };
+  const rollOf = (L, dir) => { if (!L.heads.length || L.l.kind === 'ornate') return 0; const a = wrap(dir + Math.PI / 2 - L.l.heading), b = wrap(dir - Math.PI / 2 - L.l.heading); return Math.abs(a) < Math.abs(b) ? a : b; };
 
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), sphere = new THREE.Sphere();
   function seen(L, camera) {
@@ -51366,7 +52565,7 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
     let n = 0;
     for (const h of heads) {
       const L = h.lamp;
-      const lit = L.on > 0.5 && L.shown && regions[REGION[L.kind] || 'town'];
+      const lit = L.on > 0.5 && L.shown && regions[regionOf(L.kind)];
       poolAt.makeScale(lit ? h.size : 0, 1, lit ? h.size : 0);
       poolAt.setPosition(h.x, h.ground + 0.07, h.z);
       pools.setMatrixAt(n, poolAt);
@@ -51459,7 +52658,7 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
       streakTimer = 0;
       const ex = camera.position.x, ez = camera.position.z;
       const near = [];
-      for (const h of heads) { const L = h.lamp; if (L.on < 0.5 || !regions[REGION[L.kind] || 'town']) continue; const d = Math.hypot(h.x - ex, h.z - ez); if (d < 130 && d > 2) near.push([d, h]); }
+      for (const h of heads) { const L = h.lamp; if (L.on < 0.5 || !regions[regionOf(L.kind)]) continue; const d = Math.hypot(h.x - ex, h.z - ez); if (d < 130 && d > 2) near.push([d, h]); }
       near.sort((a, b) => a[0] - b[0]);
       let n = 0;
       for (const [d, h] of near) {
@@ -51480,7 +52679,7 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
     if (lights.length && target && lightTimer > 0.5) {
       lightTimer = 0;
       const near = [];
-      for (const h of heads) { if (h.lamp.on < 0.5 || !regions[REGION[h.lamp.kind] || 'town']) continue; const d = Math.hypot(h.x - target.x, h.z - target.z); if (d < 60) near.push([d, h]); }
+      for (const h of heads) { if (h.lamp.on < 0.5 || !regions[regionOf(h.lamp.kind)]) continue; const d = Math.hypot(h.x - target.x, h.z - target.z); if (d < 60) near.push([d, h]); }
       near.sort((a, b) => a[0] - b[0]);
       lights.forEach((light, k) => { const h = near[k] && near[k][1]; if (h) light.position.set(h.x, h.y - 0.45, h.z); else light.position.y = -100; });
     }
@@ -51507,7 +52706,7 @@ return { createStreetLamps };
 })();
 
 __modules["client/render-oganiru.js"] = (function () {
-const { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_AREAS, EXPRESSWAY_Z, oganiruAway, ZONE, signalState } = __modules["sim/zone.js"];
+const { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, ofOganiru } = __modules["sim/zone.js"];
 const { Batch, place, linear, noise, smoothNoise, grassTexture, textTexture, surface, buildingKit, letGoOnceSent } = __modules["client/render-kit.js"];
 const { addTree, CITY_FLAT } = __modules["client/render-world.js"];
 const { Foliage, foliageMaterials } = __modules["client/render-foliage.js"];
@@ -51515,18 +52714,21 @@ const { reflects, weathers } = __modules["client/render-finish.js"];
 const { isRoad } = __modules["client/world-shading.js"];
 const { LIGHT } = __modules["client/light.js"];
 const { programsReady } = __modules["client/program-ready.js"];
-const { HABITATION_MODELS, ofOganiru } = __modules["sim/zone.js"];
 const { buildClosures } = __modules["client/render-closures.js"];
 
 const D = OGANIRU.deck;
-const GATE = Object.freeze({ x: 0, z: -560, island: 13, outer: 22, walk: 3.5 });
+const CUT = OGANIRU.cutting;
 const KERB = OGANIRU.kerb;
 const ROAD_Y = 0.005;          // the tar's top (the ground under it a little lower)
 const PAINT_Y = 0.013;          // the markings on it
 const DECK_LIFT = 0.012;        // a deck's road drawn this much over where it lies on the ground (a ramp's foot)
 const GRASS = 0x55803a;
 const TT = 12;                  // metres of road to the tar's picture
-const TAR = 0x4b4b50, TAR_WORN = 0x444449, PATCH = 0x58585d, LINE = 0xece9df, CONCRETE = 0xc2bdb1, CONCRETE_DARK = 0xa59f92, KERB_WHITE = 0xe8e6df, KERB_BLACK = 0x1f2022;
+const TAR = 0x4b4b50, TAR_WORN = 0x444449, LINE = 0xece9df, CONCRETE = 0xc2bdb1, CONCRETE_DARK = 0xa59f92, KERB_WHITE = 0xe8e6df, KERB_BLACK = 0x1f2022;
+const EZ = EXPRESSWAY_Z;
+const PEACE_X = OGANIRU_PLACES.PEACE_X;
+const inCut = (x, z) => x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1 && Math.abs(z - EZ) <= CUT.wall;
+const groundBelow = (x, z) => (inCut(x, z) ? expresswayY(x) : 0);
 
 function canvasOf(size, paint, repeat = true) {
   const c = document.createElement('canvas');
@@ -51709,189 +52911,6 @@ const Q_UV = [[0, 0], [1, 0], [1, 1], [0, 1]];
 const UP = [0, 1, 0], DOWN = [0, -1, 0];
 const shade = (hex, k) => linear(hex).multiplyScalar(k);
 
-const TOWN_GROUND = { x0: -470, x1: 470, z0: -700 };
-const OUTSKIRTS_GROUND = { x0: -1330, x1: -232, z0: -660 };
-function landY(x, z) {
-  const away = oganiruAway(x, z);
-  if (away <= CITY_FLAT.flat) return -0.02;
-  const b = ZONE.bounds;
-  const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
-  const hill = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
-  if (away >= CITY_FLAT.rise) return hill;
-  const k = (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat);
-  return -0.12 + (hill + 0.12) * k * k * (3 - 2 * k);
-}
-function buildGround(lite) {
-  const x0 = -760, x1 = 820, z0 = -1720, z1 = -478;
-  const step = lite ? 14 : 9;
-  const nx = Math.ceil((x1 - x0) / step), nz = Math.ceil((z1 - z0) / step);
-  const pos = [], col = [], uv = [];
-  const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dry = linear(0xa9a85a), earth = linear(0xa0623a), c = new THREE.Color();
-  const covered = (x, z) => (x > TOWN_GROUND.x0 && x < TOWN_GROUND.x1 && z > TOWN_GROUND.z0 && oganiruAway(x, z) > CITY_FLAT.flat - 2) || (x > OUTSKIRTS_GROUND.x0 && x < OUTSKIRTS_GROUND.x1 && z > OUTSKIRTS_GROUND.z0);
-  const at = (i, j) => {
-    const x = Math.min(x1, x0 + i * step), z = Math.min(z1, z0 + j * step);
-    const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
-    c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
-    const away = oganiruAway(x, z);
-    if (away < 1) { const nearRoad = roadEdgeNear(x, z); if (nearRoad < 7) c.lerp(earth, 0.55 * (1 - nearRoad / 7) + 0.1 * smoothNoise(x / 6, z / 6)); }
-    return { x, y: landY(x, z), z, r: c.r, g: c.g, b: c.b };
-  };
-  const grid = [];
-  for (let j = 0; j <= nz; j += 1) { const row = []; for (let i = 0; i <= nx; i += 1) row.push(at(i, j)); grid.push(row); }
-  const put = (v) => { pos.push(v.x, v.y, v.z); col.push(v.r, v.g, v.b); uv.push(v.x / 3.2, v.z / 3.2); };
-  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) {
-    const a = grid[j][i], b = grid[j][i + 1], cc = grid[j + 1][i + 1], d = grid[j + 1][i];
-    const mx = (a.x + cc.x) / 2, mz = (a.z + cc.z) / 2;
-    if (covered(mx, mz)) continue;
-    put(a); put(d); put(cc); put(a); put(cc); put(b);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.computeVertexNormals();
-  g.computeBoundingSphere();
-  letGoOnceSent(g);
-  const map = grassTexture();
-  map.repeat.set(1, 1);
-  const mesh = new THREE.Mesh(g, surface({ vertexColors: true, map, roughness: 1, metalness: 0 }));
-  mesh.receiveShadow = true;
-  mesh.name = 'oganiru:ground';
-  return mesh;
-}
-function roadEdgeNear(x, z) {
-  let best = Infinity;
-  for (const r of OGANIRU_ROADS) {
-    const half = r.kind === 'approach' ? 10 : r.half;
-    const across = r.along === 'z' ? Math.abs(x - r.c) : Math.abs(z - r.c), along = r.along === 'z' ? z : x;
-    if (along < r.from - 3 || along > r.to + 3) continue;
-    const edge = half + (r.walk || 0);
-    if (across > edge) best = Math.min(best, across - edge);
-    else best = 0;
-  }
-  return best;
-}
-
-function runsOf(a0, a1, open) {
-  const out = [];
-  let from = null;
-  for (let a = a0; a < a1; a += 1) {
-    const ok = open(a + 0.5);
-    if (ok && from === null) from = a;
-    if (!ok && from !== null) { out.push([from, a]); from = null; }
-  }
-  if (from !== null) out.push([from, a1]);
-  return out;
-}
-function addRoads(M, lite) {
-  const tar = (x0, z0, x1, z1, col = TAR, y = ROAD_Y) => M.tar.quad([x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1], col, [[x0 / TT, z0 / TT], [x1 / TT, z0 / TT], [x1 / TT, z1 / TT], [x0 / TT, z1 / TT]], UP);
-  const paint = (x0, z0, x1, z1, col = LINE) => M.paint.quad([x0, PAINT_Y, z0], [x1, PAINT_Y, z0], [x1, PAINT_Y, z1], [x0, PAINT_Y, z1], col, Q_UV, UP);
-  const junctions = OGANIRU_ROADS.filter((r) => r.along === 'x').map((r) => ({ c: r.c, half: r.half }));
-  const inJunction = (z, pad = 3) => junctions.some((j) => Math.abs(z - j.c) < j.half + pad) || OGANIRU_MEDIAN_GAPS.some((g) => g.why === 'u-turn' && z > g.from - 2 && z < g.to + 2);
-  for (const r of OGANIRU_ROADS) {
-    if (r.kind === 'approach') continue;
-    const lo = r.c - r.half, hi = r.c + r.half;
-    if (r.along === 'z') {
-      tar(lo, r.from, hi, r.to);
-      for (const k of [-1, 1]) {
-        const inner = r.c + k * (r.median / 2), outer = r.c + k * (r.half - 0.5);
-        for (const lane of [inner + k * 1.75, inner + k * 5.25]) for (const w of [-0.85, 0.85]) {
-          const x = lane + w;
-          M.wear.quad([x - 0.28, ROAD_Y + 0.002, r.from], [x + 0.28, ROAD_Y + 0.002, r.from], [x + 0.28, ROAD_Y + 0.002, r.to], [x - 0.28, ROAD_Y + 0.002, r.to], TAR_WORN, [[(x - 0.28) / TT, r.from / TT], [(x + 0.28) / TT, r.from / TT], [(x + 0.28) / TT, r.to / TT], [(x - 0.28) / TT, r.to / TT]], UP);
-        }
-        for (const [z0, z1] of runsOf(r.from, r.to, (z) => !inJunction(z))) {
-          paint(inner + k * 0.2 - 0.075, z0, inner + k * 0.2 + 0.075, z1);
-          paint(outer - k * 0.15 - 0.075, z0, outer - k * 0.15 + 0.075, z1);
-        }
-        for (let z = r.from + 2; z < r.to - 3; z += 9) if (!inJunction(z + 1.5, 5)) paint(inner + k * 3.5 - 0.075, z, inner + k * 3.5 + 0.075, z + 3);
-      }
-    } else if (r.kind === 'flyover-road') {
-      for (const k of [-1, 1]) {
-        const z0 = r.c + k * (r.median / 2), z1 = r.c + k * r.half;
-        tar(r.from, Math.min(z0, z1), r.to, Math.max(z0, z1));
-        for (let x = r.from + 3; x < r.to - 3; x += 9) paint(x, (z0 + z1) / 2 - 0.075, x + 3, (z0 + z1) / 2 + 0.075);
-      }
-      M.pave.quad([r.from, ROAD_Y + 0.01, r.c - r.median / 2], [r.to, ROAD_Y + 0.01, r.c - r.median / 2], [r.to, ROAD_Y + 0.01, r.c + r.median / 2], [r.from, ROAD_Y + 0.01, r.c + r.median / 2], CONCRETE_DARK, [[r.from / 2, (r.c - 8) / 2], [r.to / 2, (r.c - 8) / 2], [r.to / 2, (r.c + 8) / 2], [r.from / 2, (r.c + 8) / 2]], UP);
-      const mouth = r.from > 0 ? [10, r.from] : [r.to, -10];
-      tar(mouth[0], r.c - r.half, mouth[1], r.c + r.half);
-    } else {
-      tar(r.from, lo, r.to, hi);
-      if (r.median > 0) {
-        for (const k of [-1, 1]) {
-          const inner = r.c + k * (r.median / 2), outer = r.c + k * (r.half - 0.5);
-          paint(r.from, inner + k * 0.2 - 0.075, r.to, inner + k * 0.2 + 0.075); paint(r.from, outer - k * 0.15 - 0.075, r.to, outer - k * 0.15 + 0.075);
-          for (let x = r.from + 2; x < r.to - 3; x += 9) paint(x, inner + k * 3.5 - 0.075, x + 3, inner + k * 3.5 + 0.075);
-        }
-      } else {
-        for (let x = r.from + 3; x < r.to - 3; x += 6) paint(x, r.c - 0.075, x + 3, r.c + 0.075);
-        for (const k of [-1, 1]) paint(r.from, r.c + k * (r.half - 0.5) - 0.075, r.to, r.c + k * (r.half - 0.5) + 0.075);
-      }
-    }
-  }
-  const flareHalf = (z) => { const t = Math.max(0, Math.min(1, (-505 - z) / (-505 - (GATE.z + GATE.outer)))); return 5 + 5 * t; };
-  for (let z = -478.6; z > GATE.z + GATE.outer - 0.6; z -= 2) {
-    const z1 = Math.max(GATE.z + GATE.outer - 0.6, z - 2);
-    const h0 = flareHalf(z), h1 = flareHalf(z1);
-    M.tar.quad([-h0, ROAD_Y, z], [h0, ROAD_Y, z], [h1, ROAD_Y, z1], [-h1, ROAD_Y, z1], TAR, [[-h0 / TT, z / TT], [h0 / TT, z / TT], [h1 / TT, z1 / TT], [-h1 / TT, z1 / TT]], UP);
-  }
-  for (let z = -481; z > GATE.z + GATE.outer + 4; z -= 9) {
-    if (z < -505) break;
-    paint(-0.075, z - 3, 0.075, z);
-  }
-  for (let z = -478.6; z > GATE.z + GATE.outer + 1; z -= 1) { const h0 = flareHalf(z) - 0.5; paint(-h0 - 0.075, z - 1, -h0 + 0.075, z); paint(h0 - 0.075, z - 1, h0 + 0.075, z); }
-  {
-    const seg = lite ? 48 : 72;
-    for (let i = 0; i < seg; i += 1) {
-      const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
-      const P = (r, a, y = ROAD_Y) => [GATE.x + Math.sin(a) * r, y, GATE.z + Math.cos(a) * r];
-      const p0 = P(GATE.island, a0), p1 = P(GATE.outer + 0.6, a0), p2 = P(GATE.outer + 0.6, a1), p3 = P(GATE.island, a1);
-      M.tar.quad(p0, p1, p2, p3, TAR, [[p0[0] / TT, p0[2] / TT], [p1[0] / TT, p1[2] / TT], [p2[0] / TT, p2[2] / TT], [p3[0] / TT, p3[2] / TT]], UP);
-      if (i % 2 === 0) { const q0 = P(17.6, a0, PAINT_Y), q1 = P(17.75, a0, PAINT_Y), q2 = P(17.75, a1, PAINT_Y), q3 = P(17.6, a1, PAINT_Y); M.paint.quad(q0, q1, q2, q3, LINE, Q_UV, UP); }
-    }
-    for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      for (let k = -8.5; k <= 8.5; k += 1.2) {
-        const r0 = GATE.outer + 0.8, r1 = GATE.outer + 1.4;
-        const cx = GATE.x + ax * r0 + az * k, cz = GATE.z + az * r0 + ax * k, ex = GATE.x + ax * r1 + az * k, ez = GATE.z + az * r1 + ax * k;
-        const sx = az * 0.25, sz = ax * 0.25;
-        M.paint.quad([cx - sx, PAINT_Y, cz - sz], [cx + sx, PAINT_Y, cz + sz], [ex + sx, PAINT_Y, ez + sz], [ex - sx, PAINT_Y, ez - sz], LINE, Q_UV, UP);
-      }
-    }
-  }
-  for (const j of OGANIRU_ROADS.filter((r) => r.kind === 'street' && r.from > 0)) {
-    for (const k of [-1, 1]) {
-      const zc = j.c + k * (j.half + 2.6);
-      for (let x = -9.4; x < 9.6; x += 1) paint(x, zc - 2, x + 0.5, zc + 2);
-      paint(k > 0 ? 2.7 : -9.6, zc + k * 2.6 - 0.2, k > 0 ? 9.6 : -2.7, zc + k * 2.6 + 0.2);
-    }
-    for (const k of [-1, 1]) {
-      const xc = k * (10 + OGANIRU.walk + 2.5);
-      for (let z = j.c - j.half + 0.6; z < j.c + j.half - 0.6; z += 1) paint(xc - 2, z, xc + 2, z + 0.5);
-    }
-  }
-  for (const r of OGANIRU_ROADS.filter((q) => q.along === 'z' && q.kind === 'avenue')) {
-    for (let z = r.from + 6; z < r.to - 6; z += 25) {
-      if (inJunction(z, 5)) continue;
-      for (const k of [-1, 1]) {
-        const x = r.c + k * (r.half - 0.3);
-        M.solid.box(0.45, 0.02, 0.9, x, ROAD_Y + 0.004, z, 0x141516);
-        for (const s of [-1, 1]) { M.solid.box(0.45, 0.03, 0.05, x, ROAD_Y + 0.008, z + s * 0.425, 0x4a4b4e); M.solid.box(0.05, 0.03, 0.9, x + s * 0.2, ROAD_Y + 0.008, z, 0x4a4b4e); }
-        for (let b = -2; b <= 2; b += 1) M.solid.box(0.4, 0.028, 0.035, x, ROAD_Y + 0.008, z + b * 0.15, 0x56575a);
-      }
-    }
-  }
-}
-
-function inGap(b, z) { return b.median === 'unity' && OGANIRU_MEDIAN_GAPS.some((g) => z >= g.from && z <= g.to); }
-function walkCut(x, z) { for (const r of OGANIRU_ROADS) if (r.along === 'x' && Math.abs(z - r.c) <= r.half && Math.abs(x) < 10 + OGANIRU.walk + 0.5) return true; return false; }
-const KERB_TOP = KERB + 0.04;
-function kerbRun(M, x0, z0, x1, z1, out) {
-  const len = Math.hypot(x1 - x0, z1 - z0);
-  if (len < 0.3) return;
-  const ox = out[0] * 0.11, oz = out[1] * 0.11, s0 = (Math.abs(x0) + Math.abs(z0)) % 32, s1 = s0 + len;
-  const u0 = s0 / 32, u1 = s1 / 32;
-  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
-  M.kerb.quad([x0 + ox, 0, z0 + oz], [x1 + ox, 0, z1 + oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
-}
 function kerbTexture(size) {
   const c = document.createElement('canvas');
   c.width = size; c.height = 16;
@@ -51910,72 +52929,357 @@ function kerbTexture(size) {
   t.wrapS = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
 }
-function addKerbs(M) {
-  for (const b of OGANIRU_KERBED) {
-    const kind = b.median ? 'median' : b.walk ? 'walk' : 'plaza';
-    const top = kind === 'plaza' ? KERB + 0.003 : KERB;
-    const target = kind === 'median' ? M.grass : M.pave;
-    const alongZ = b.z1 - b.z0 >= b.x1 - b.x0;
-    const a0 = alongZ ? b.z0 : b.x0, a1 = alongZ ? b.z1 : b.x1;
-    const open = (a) => (alongZ ? inGap(b, a) || (kind === 'walk' && walkCut((b.x0 + b.x1) / 2, a)) : kind === 'walk' && walkCut(a, (b.z0 + b.z1) / 2));
-    let runFrom = null;
-    const runs = [];
-    for (let a = a0; a <= a1 + 1e-6; a += 1) {
-      const at = Math.min(a1, a);
-      if (!open(at + 0.5) && at < a1) { if (runFrom === null) runFrom = at; } else if (runFrom !== null) { runs.push([runFrom, at]); runFrom = null; }
+
+const PIECE = 320;
+const T_X0 = -1510, T_Z0 = -1750, T_NX = 8, T_NZ = 6;
+const OGANIRU_TILES = Object.freeze(Array.from({ length: T_NX * T_NZ }, (_, k) => {
+  const i = Math.floor(k / T_NZ), j = k % T_NZ;
+  return Object.freeze({ key: `${i},${j}`, i, j, x0: T_X0 + i * PIECE, x1: T_X0 + (i + 1) * PIECE, z0: T_Z0 + j * PIECE, z1: T_Z0 + (j + 1) * PIECE });
+}));
+const inTile = (T, x, z) => x >= T.x0 && x < T.x1 && z >= T.z0 && z < T.z1;
+const tileAway = (T, x, z) => Math.hypot(Math.max(T.x0 - x, 0, x - T.x1), Math.max(T.z0 - z, 0, z - T.z1));
+const TILE_NEAR = Object.freeze({ lite: Object.freeze({ come: 360, go: 560 }), full: Object.freeze({ come: 820, go: 1150 }) });
+
+const TOWN_GROUND = { x0: -470, x1: 470, z0: -700 };
+const OUTSKIRTS_GROUND = { x0: -1330, x1: -232, z0: -660 };
+const GROUND = { x0: -1500, x1: 1040, z0: -1740, z1: -12 };
+function landY(x, z) {
+  const away = oganiruAway(x, z);
+  if (away <= CITY_FLAT.flat) return -0.02;
+  const b = ZONE.bounds;
+  const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
+  const hill = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
+  if (away >= CITY_FLAT.rise) return hill;
+  const k = (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat);
+  return -0.12 + (hill + 0.12) * k * k * (3 - 2 * k);
+}
+const covered = (x, z) => (x > TOWN_GROUND.x0 && x < TOWN_GROUND.x1 && z > TOWN_GROUND.z0 && oganiruAway(x, z) > CITY_FLAT.flat - 2) || (x > OUTSKIRTS_GROUND.x0 && x < OUTSKIRTS_GROUND.x1 && z > OUTSKIRTS_GROUND.z0);
+const cutOut = (x, z) => x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1 && Math.abs(z - EZ) < CUT.wall + CUT.wallWidth;
+function gridLines(a0, a1, step, extra = []) {
+  const out = [];
+  for (let a = a0; a < a1 - 0.01; a += step) out.push(a);
+  out.push(a1);
+  for (const e of extra) if (e > a0 + 0.05 && e < a1 - 0.05) out.push(e);
+  return [...new Set(out.map((v) => Math.round(v * 100) / 100))].sort((p, q) => p - q);
+}
+function roadEdgeNear(x, z) {
+  let best = Infinity;
+  for (const r of OGANIRU_ROADS) {
+    const along = r.along === 'z' ? z : x;
+    if (along < r.from - 3 || along > r.to + 3) continue;
+    const w = roadWidthAt(r, along);
+    const across = r.along === 'z' ? Math.abs(x - r.c) : Math.abs(z - r.c);
+    const edge = w.half + (w.walk || 0);
+    if (across > edge) best = Math.min(best, across - edge); else return 0;
+  }
+  return best;
+}
+function groundTile(T, lite) {
+  const x0 = Math.max(T.x0, GROUND.x0), x1 = Math.min(T.x1, GROUND.x1), z0 = Math.max(T.z0, GROUND.z0), z1 = Math.min(T.z1, GROUND.z1);
+  if (x1 <= x0 || z1 <= z0) return null;
+  const step = lite ? 14 : 9;
+  const xs = gridLines(x0, x1, step, [OGANIRU_CUTTING.x0, OGANIRU_CUTTING.x1]);
+  const zs = gridLines(z0, z1, step, [EZ - CUT.wall - CUT.wallWidth, EZ + CUT.wall + CUT.wallWidth]);
+  const pos = [], col = [], uv = [];
+  const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dry = linear(0xa9a85a), earth = linear(0xa0623a), c = new THREE.Color();
+  const at = (x, z) => {
+    const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
+    c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
+    if (oganiruAway(x, z) < 1) { const nearRoad = roadEdgeNear(x, z); if (nearRoad < 7) c.lerp(earth, 0.55 * (1 - nearRoad / 7) + 0.1 * smoothNoise(x / 6, z / 6)); }
+    return { x, y: landY(x, z), z, r: c.r, g: c.g, b: c.b };
+  };
+  const grid = zs.map((z) => xs.map((x) => at(x, z)));
+  const put = (v) => { pos.push(v.x, v.y, v.z); col.push(v.r, v.g, v.b); uv.push(v.x / 3.2, v.z / 3.2); };
+  for (let j = 0; j < zs.length - 1; j += 1) for (let i = 0; i < xs.length - 1; i += 1) {
+    const a = grid[j][i], b = grid[j][i + 1], cc = grid[j + 1][i + 1], d = grid[j + 1][i];
+    const mx = (a.x + cc.x) / 2, mz = (a.z + cc.z) / 2;
+    if (covered(mx, mz) || cutOut(mx, mz)) continue;
+    put(a); put(d); put(cc); put(a); put(cc); put(b);
+  }
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  letGoOnceSent(g);
+  return g;
+}
+
+const Pt = (r, lat, a) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
+function flat(Mx, r, lat0, lat1, a0, a1, y, col, scale = TT) {
+  const [x00, z00] = Pt(r, lat0, a0), [x10, z10] = Pt(r, lat1, a0), [x11, z11] = Pt(r, lat1, a1), [x01, z01] = Pt(r, lat0, a1);
+  Mx.quad([x00, y, z00], [x10, y, z10], [x11, y, z11], [x01, y, z01], col, [[x00 / scale, z00 / scale], [x10 / scale, z10 / scale], [x11 / scale, z11 / scale], [x01 / scale, z01 / scale]], UP);
+}
+function trapezoid(Mx, r, l0a, l1a, l0b, l1b, a0, a1, y, col, scale = TT) {
+  const [x00, z00] = Pt(r, l0a, a0), [x10, z10] = Pt(r, l1a, a0), [x11, z11] = Pt(r, l1b, a1), [x01, z01] = Pt(r, l0b, a1);
+  Mx.quad([x00, y, z00], [x10, y, z10], [x11, y, z11], [x01, y, z01], col, [[x00 / scale, z00 / scale], [x10 / scale, z10 / scale], [x11 / scale, z11 / scale], [x01 / scale, z01 / scale]], UP);
+}
+function runIn(r, T) {
+  if (r.along === 'z') { if (r.c < T.x0 || r.c >= T.x1) return null; const a0 = Math.max(r.from, T.z0), a1 = Math.min(r.to, T.z1); return a1 > a0 ? [a0, a1] : null; }
+  if (r.c < T.z0 || r.c >= T.z1) return null;
+  const a0 = Math.max(r.from, T.x0), a1 = Math.min(r.to, T.x1);
+  return a1 > a0 ? [a0, a1] : null;
+}
+const JUNCTIONS_OF = new Map(OGANIRU_ROADS.map((r) => [r.id, OGANIRU_JUNCTIONS.filter((j) => j.roads.includes(r.id)).map((j) => (r.along === 'z' ? [j.z - j.hz, j.z + j.hz] : [j.x - j.hx, j.x + j.hx]))]));
+function minus(a0, a1, cuts) {
+  let runs = [[a0, a1]];
+  for (const [c0, c1] of cuts) runs = runs.flatMap(([p, q]) => (c1 <= p || c0 >= q ? [[p, q]] : [[p, c0], [c1, q]].filter(([u, v]) => v - u > 0.05)));
+  return runs;
+}
+const nearCut = (cuts, a, pad) => cuts.some(([c0, c1]) => a > c0 - pad && a < c1 + pad);
+function paintStrip(M, r, lat0, lat1, a0, a1, col = LINE) { flat(M.paint, r, lat0, lat1, a0, a1, PAINT_Y, col, 1); }
+function roadTile(M, r, T) {
+  const run = runIn(r, T);
+  if (!run || r.kind === 'cutting') return;
+  const cuts = JUNCTIONS_OF.get(r.id) || [];
+  const [a0, a1] = run;
+  const w = roadWidthAt(r, (a0 + a1) / 2);
+  const varying = !!(r.flare || r.taper);
+  for (const [p, q] of minus(a0, a1, cuts)) {
+    if (!varying) { flat(M.tar, r, -r.half, r.half, p, q, ROAD_Y, TAR); continue; }
+    for (let a = p; a < q - 1e-6; a += 2) {
+      const b = Math.min(q, a + 2), wa = roadWidthAt(r, a), wb = roadWidthAt(r, b);
+      if (r.kind === 'flyover-road') {
+        const mid = deckOverMiddle(r, (a + b) / 2);
+        if (mid) {
+          for (const k of [-1, 1]) trapezoid(M.tar, r, k > 0 ? wa.median / 2 : -wa.half, k > 0 ? wa.half : -wa.median / 2, k > 0 ? wb.median / 2 : -wb.half, k > 0 ? wb.half : -wb.median / 2, a, b, ROAD_Y, TAR);
+          if (mid === 'high') trapezoid(M.pave, r, -wa.median / 2, wa.median / 2, -wb.median / 2, wb.median / 2, a, b, ROAD_Y + 0.01, CONCRETE_DARK, 2);
+          continue;
+        }
+      }
+      trapezoid(M.tar, r, -wa.half, wa.half, -wb.half, wb.half, a, b, ROAD_Y, TAR);
     }
-    if (runFrom !== null) runs.push([runFrom, a1]);
-    for (const [s0, s1] of runs) {
-      const x0 = alongZ ? b.x0 : s0, x1 = alongZ ? b.x1 : s1, z0 = alongZ ? s0 : b.z0, z1 = alongZ ? s1 : b.z1;
-      const sc = kind === 'median' ? 3.2 : 2;
-      target.quad([x0, top, z0], [x1, top, z0], [x1, top, z1], [x0, top, z1], kind === 'median' ? shade(GRASS, 0.92 + rnd(Math.round(x0), Math.round(z0)) * 0.16) : kind === 'plaza' ? 0xf4f0e6 : 0xe6e2d8, [[x0 / sc, z0 / sc], [x1 / sc, z0 / sc], [x1 / sc, z1 / sc], [x0 / sc, z1 / sc]], UP);
-      const side = (p, q, facing) => M.concrete.quad([p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], top, q[1]], [p[0], top, p[1]], CONCRETE, Q_UV, facing);
-      side([x0, z0], [x1, z0], [0, 0, -1]); side([x0, z1], [x1, z1], [0, 0, 1]); side([x0, z0], [x0, z1], [-1, 0, 0]); side([x1, z0], [x1, z1], [1, 0, 0]);
-      if (kind === 'median') {
-        if (alongZ) { kerbRun(M, x0, z0, x0, z1, [-1, 0]); kerbRun(M, x1, z0, x1, z1, [1, 0]); } else { kerbRun(M, x0, z0, x1, z0, [0, -1]); kerbRun(M, x0, z1, x1, z1, [0, 1]); }
-      } else if (kind === 'walk') {
-        const road = OGANIRU_ROADS.find((r) => r.id === b.walk);
-        if (road && road.along === 'z') { const near0 = Math.abs(x0 - road.c) < Math.abs(x1 - road.c); kerbRun(M, near0 ? x0 : x1, z0, near0 ? x0 : x1, z1, [near0 ? -1 : 1, 0]); }
-        else if (road) { const near0 = Math.abs(z0 - road.c) < Math.abs(z1 - road.c); kerbRun(M, x0, near0 ? z0 : z1, x1, near0 ? z0 : z1, [0, near0 ? -1 : 1]); }
-        else if (b.walk === 'unity-gate') { const near0 = Math.abs(x0) < Math.abs(x1); kerbRun(M, near0 ? x0 : x1, z0, near0 ? x0 : x1, z1, [near0 ? -1 : 1, 0]); }
+  }
+  if (r.kind === 'expressway') {
+    const toLat = (o) => EZ + o - r.c;
+    for (const k of r.half > 10 ? [-1, 1] : [1]) {
+      for (const o of [1.0, 11.5]) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a0, a1); }
+      for (const o of [4.5, 8.0]) for (let a = Math.ceil(a0 / 12) * 12; a < a1 - 4; a += 12) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a, a + 4); }
+      for (const o of [2.75, 6.25, 9.75]) for (const s of [-0.85, 0.85]) { const l = toLat(k * o) + s; flat(M.wear, r, l - 0.3, l + 0.3, a0, a1, ROAD_Y + 0.002, TAR_WORN); }
+    }
+    if (r.barrier) groundBarrier(M, r, a0, a1, () => 0);
+    return;
+  }
+  if (varying) {
+    for (let a = Math.max(a0, r.from + 2); a < a1 - 2; a += 2) {
+      if (nearCut(cuts, a + 1, 3)) continue;
+      const wa = roadWidthAt(r, a), wb = roadWidthAt(r, a + 2);
+      for (const k of [-1, 1]) trapezoid(M.paint, r, k * (wa.half - 0.65) - 0.075, k * (wa.half - 0.65) + 0.075, k * (wb.half - 0.65) - 0.075, k * (wb.half - 0.65) + 0.075, a, a + 2, PAINT_Y, LINE, 1);
+      if (r.kind === 'flyover-road' && wa.median > 1 && Math.floor(a / 2) % 4 === 0) for (const k of [-1, 1]) { const m = k * (wa.median / 2 + wa.half) / 2; paintStrip(M, r, m - 0.075, m + 0.075, a, a + 3); }
+      if (r.kind === 'approach' && wa.median < 0.6 && Math.floor(a / 2) % 4 === 0) paintStrip(M, r, -0.075, 0.075, a, a + 3);
+    }
+    return;
+  }
+  for (const [p, q] of minus(a0, a1, cuts.map(([c0, c1]) => [c0 - 3, c1 + 3]))) {
+    if (r.median > 0) {
+      for (const k of [-1, 1]) {
+        const inner = k * (r.median / 2), outer = k * (r.half - 0.5);
+        paintStrip(M, r, inner + k * 0.2 - 0.075, inner + k * 0.2 + 0.075, p, q);
+        paintStrip(M, r, outer - k * 0.15 - 0.075, outer - k * 0.15 + 0.075, p, q);
+        for (let a = Math.ceil((p - 2) / 9) * 9 + 2; a < q - 3; a += 9) paintStrip(M, r, inner + k * 3.5 - 0.075, inner + k * 3.5 + 0.075, a, a + 3);
+        for (const lane of [inner + k * 1.75, inner + k * 5.25]) for (const s of [-0.85, 0.85]) flat(M.wear, r, lane + s - 0.28, lane + s + 0.28, p, q, ROAD_Y + 0.002, TAR_WORN);
+      }
+    } else {
+      for (let a = Math.ceil(p / 6) * 6; a < q - 3; a += 6) paintStrip(M, r, -0.075, 0.075, a, a + 3);
+      for (const k of [-1, 1]) paintStrip(M, r, k * (r.half - 0.5) - 0.075, k * (r.half - 0.5) + 0.075, p, q);
+      for (const k of [-1, 1]) for (const s of [-0.85, 0.85]) flat(M.wear, r, k * r.half / 2 + s - 0.28, k * r.half / 2 + s + 0.28, p, q, ROAD_Y + 0.002, TAR_WORN);
+    }
+  }
+  if (r.kind === 'avenue' || r.kind === 'street') {
+    for (let a = Math.ceil(a0 / 25) * 25 + 6; a < a1 - 6; a += 25) {
+      if (nearCut(cuts, a, 5)) continue;
+      for (const k of [-1, 1]) {
+        const [x, z] = Pt(r, k * (r.half - 0.3), a), turn = r.along === 'z' ? 0 : Math.PI / 2;
+        M.solid.box(0.45, 0.02, 0.9, x, ROAD_Y + 0.004, z, 0x141516, turn);
+        for (const s of [-1, 1]) {
+          const [fx, fz] = Pt(r, k * (r.half - 0.3), a + s * 0.425), [gx, gz] = Pt(r, k * (r.half - 0.3) + s * 0.2, a);
+          M.solid.box(0.45, 0.03, 0.05, fx, ROAD_Y + 0.008, fz, 0x4a4b4e, turn);
+          M.solid.box(0.05, 0.03, 0.9, gx, ROAD_Y + 0.008, gz, 0x4a4b4e, turn);
+        }
       }
     }
   }
-  const seg = 56;
+}
+function deckOverMiddle(r, a) {
+  const [x, z] = Pt(r, 0, a);
+  let best = null;
+  for (const d of OGANIRU_DECKS) {
+    if (d.kind !== 'flyover' || !d.barrier) continue;
+    const p0 = d.path[0], pn = d.path[d.path.length - 1];
+    const alongX = Math.abs(p0.z - pn.z) < 1;
+    if (alongX ? Math.abs(z - p0.z) > 1 || x < Math.min(p0.x, pn.x) || x > Math.max(p0.x, pn.x) : Math.abs(x - p0.x) > 1 || z < Math.min(p0.z, pn.z) || z > Math.max(p0.z, pn.z)) continue;
+    const s = alongX ? x - Math.min(p0.x, pn.x) : z - Math.min(p0.z, pn.z);
+    const q = d.path.find((pp) => pp.s >= (alongX ? (p0.x < pn.x ? s : d.len - s) : (p0.z < pn.z ? s : d.len - s))) || pn;
+    best = q.y - D.thick >= OGANIRU.under ? 'high' : 'low';
+  }
+  return best;
+}
+function groundBarrier(M, r, a0, a1, y, step = 4) {
+  const prof = [[0.3, 0], [0.19, 0.28], [0.08, 0.82]];
+  const lat0 = EZ - r.c;
+  for (let a = a0; a < a1 - 1e-6; a += step) {
+    const b = Math.min(a1, a + step), ya = y(a), yb = y(b);
+    for (const side of [-1, 1]) for (let k = 0; k < prof.length - 1; k += 1) {
+      const [o0, h0] = prof[k], [o1, h1] = prof[k + 1];
+      const [xa0, za0] = Pt(r, lat0 + side * o0, a), [xb0, zb0] = Pt(r, lat0 + side * o0, b), [xb1, zb1] = Pt(r, lat0 + side * o1, b), [xa1, za1] = Pt(r, lat0 + side * o1, a);
+      M.concrete.quad([xa0, ya + h0, za0], [xb0, yb + h0, zb0], [xb1, yb + h1, zb1], [xa1, ya + h1, za1], 0xd6d1c6, [[a / 6, h0 / 6], [b / 6, h0 / 6], [b / 6, h1 / 6], [a / 6, h1 / 6]], r.along === 'x' ? [0, 0.4, side] : [side, 0.4, 0]);
+    }
+    const [xa, za] = Pt(r, lat0 - 0.08, a), [xb, zb] = Pt(r, lat0 - 0.08, b), [xc, zc] = Pt(r, lat0 + 0.08, b), [xd, zd] = Pt(r, lat0 + 0.08, a);
+    M.concrete.quad([xa, ya + 0.82, za], [xb, yb + 0.82, zb], [xc, yb + 0.82, zc], [xd, ya + 0.82, zd], 0xdcd7cc, [[a / 6, 0.13], [b / 6, 0.13], [b / 6, 0.14], [a / 6, 0.14]], UP);
+  }
+}
+function arrow(M, r, lat, a, dir, turn) {
+  const P = (u, v) => { const [x, z] = Pt(r, lat + v * (r.along === 'z' ? -dir : dir), a + u * dir); return [x, PAINT_Y, z]; };
+  const tri = (p, q, s) => M.paint.quad(P(...p), P(...q), P(...s), P(...s), LINE, Q_UV, UP);
+  if (!turn) {
+    M.paint.quad(P(-2.2, -0.08), P(-2.2, 0.08), P(0.4, 0.08), P(0.4, -0.08), LINE, Q_UV, UP);
+    tri([0.4, -0.35], [0.4, 0.35], [1.4, 0]);
+    return;
+  }
+  M.paint.quad(P(-2.2, -0.08), P(-2.2, 0.08), P(0.2, 0.08), P(0.2, -0.08), LINE, Q_UV, UP);
+  M.paint.quad(P(0.2, -0.08), P(0.2, 0.08), P(0.36, turn * 0.9 + 0.08), P(0.2, turn * 0.9 - 0.08), LINE, Q_UV, UP);
+  tri([0.0, turn * 0.9], [0.6, turn * 0.9], [0.3, turn * 1.6]);
+}
+function junctionTile(M, j) {
+  const x0 = j.x - j.hx, x1 = j.x + j.hx, z0 = j.z - j.hz, z1 = j.z + j.hz;
+  M.tar.quad([x0, ROAD_Y, z0], [x1, ROAD_Y, z0], [x1, ROAD_Y, z1], [x0, ROAD_Y, z1], TAR, [[x0 / TT, z0 / TT], [x1 / TT, z0 / TT], [x1 / TT, z1 / TT], [x0 / TT, z1 / TT]], UP);
+  for (const leg of j.legs) {
+    const alongZ = leg === 'e' || leg === 'w', sign = leg === 'e' || leg === 'n' ? 1 : -1;
+    const half = alongZ ? j.hx : j.hz;
+    const edge = alongZ ? j.z + sign * j.hz : j.x + sign * j.hx;
+    const road = OGANIRU_ROADS.find((q) => j.roads.includes(q.id) && (q.along === 'z') === alongZ && (sign > 0 ? q.to > (alongZ ? j.z : j.x) + 1 : q.from < (alongZ ? j.z : j.x) - 1));
+    if (!road) continue;
+    const r = { along: alongZ ? 'z' : 'x', c: alongZ ? j.x : j.z };
+    const a0 = edge + sign * 0.6, a1 = edge + sign * 4.6;
+    for (let l = -half + 0.6; l < half - 0.5; l += 1) paintStrip(M, r, l, l + 0.5, Math.min(a0, a1), Math.max(a0, a1));
+    const s0 = edge + sign * 5.0, s1 = edge + sign * 5.4;
+    const inLat = alongZ ? (sign > 0 ? [0.3, half - 0.4] : [-half + 0.4, -0.3]) : (sign > 0 ? [-half + 0.4, -0.3] : [0.3, half - 0.4]);
+    const median = road.median > 0 && road.kind === 'avenue' ? road.median / 2 : 0;
+    const [l0, l1] = inLat[0] > 0 ? [Math.max(inLat[0], median), inLat[1]] : [inLat[0], Math.min(inLat[1], -median)];
+    paintStrip(M, r, l0, l1, Math.min(s0, s1), Math.max(s0, s1));
+    if (road.kind === 'street') {
+      const dirIn = -sign;
+      const laneIn = (l0 + l1) / 2, laneOut = inLat[0] > 0 ? l1 - 1.6 : l0 + 1.6, laneInner = inLat[0] > 0 ? l0 + 1.6 : l1 - 1.6;
+      void laneIn;
+      arrow(M, r, laneInner, edge + sign * 14, dirIn, 0);
+      arrow(M, r, laneOut, edge + sign * 14, dirIn, 1);
+    }
+  }
+}
+function stopLineTile(M, l) {
+  const alongZ = l.way === 'e' || l.way === 'w', toward = l.way === 'e' || l.way === 'n' ? 1 : -1;
+  const r = { along: alongZ ? 'z' : 'x', c: alongZ ? PEACE_X : l.z };
+  const at = alongZ ? l.z : l.x, mid = alongZ ? l.x - PEACE_X : 0;
+  paintStrip(M, r, mid - l.half + 0.5, mid + l.half - 0.5, toward > 0 ? at : at - 0.4, toward > 0 ? at + 0.4 : at);
+}
+function roundaboutTile(M, rb, lite, shade, foliage) {
+  const seg = lite ? 48 : 72;
+  const P = (r, a, y) => [rb.x + Math.sin(a) * r, y, rb.z + Math.cos(a) * r];
   for (let i = 0; i < seg; i += 1) {
     const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
-    const P = (r, a, y) => [GATE.x + Math.sin(a) * r, y, GATE.z + Math.cos(a) * r];
-    const c0 = P(0, a0, KERB), p0 = P(GATE.island, a0, KERB), p1 = P(GATE.island, a1, KERB);
+    const p0 = P(rb.island, a0, ROAD_Y), p1 = P(rb.outer + 0.6, a0, ROAD_Y), p2 = P(rb.outer + 0.6, a1, ROAD_Y), p3 = P(rb.island, a1, ROAD_Y);
+    M.tar.quad(p0, p1, p2, p3, TAR, [[p0[0] / TT, p0[2] / TT], [p1[0] / TT, p1[2] / TT], [p2[0] / TT, p2[2] / TT], [p3[0] / TT, p3[2] / TT]], UP);
+    if (i % 2 === 0) M.paint.quad(P(17.6, a0, PAINT_Y), P(17.75, a0, PAINT_Y), P(17.75, a1, PAINT_Y), P(17.6, a1, PAINT_Y), LINE, Q_UV, UP);
+  }
+  for (const leg of rb.legs) {
+    const [ax, az] = leg.dir === 'n' ? [1, 0] : leg.dir === 's' ? [-1, 0] : leg.dir === 'e' ? [0, 1] : [0, -1];
+    for (let k = -leg.half + 1.5; k <= leg.half - 1.5; k += 1.2) {
+      const r0 = rb.outer + 0.8, r1 = rb.outer + 1.4;
+      const cx = rb.x + ax * r0 + az * k, cz = rb.z + az * r0 + ax * k, ex = rb.x + ax * r1 + az * k, ez = rb.z + az * r1 + ax * k;
+      const sx = az * 0.25, sz = ax * 0.25;
+      M.paint.quad([cx - sx, PAINT_Y, cz - sz], [cx + sx, PAINT_Y, cz + sz], [ex + sx, PAINT_Y, ez + sz], [ex - sx, PAINT_Y, ez - sz], LINE, Q_UV, UP);
+    }
+  }
+  const mouth = (a) => rb.legs.some((l) => { const [ax, az] = l.dir === 'n' ? [1, 0] : l.dir === 's' ? [-1, 0] : l.dir === 'e' ? [0, 1] : [0, -1]; const px = Math.sin(a) * (rb.outer + 2), pz = Math.cos(a) * (rb.outer + 2); return px * ax + pz * az > 0 && Math.abs(-px * az + pz * ax) < l.half + 0.5; });
+  const iseg = 56;
+  for (let i = 0; i < iseg; i += 1) {
+    const a0 = (i / iseg) * Math.PI * 2, a1 = ((i + 1) / iseg) * Math.PI * 2;
+    const c0 = P(0, a0, KERB), p0 = P(rb.island, a0, KERB), p1 = P(rb.island, a1, KERB);
     M.grass.quad(c0, p0, p1, c0, GRASS, [[c0[0] / 3.2, c0[2] / 3.2], [p0[0] / 3.2, p0[2] / 3.2], [p1[0] / 3.2, p1[2] / 3.2], [c0[0] / 3.2, c0[2] / 3.2]], UP);
     const k = i % 2 ? KERB_BLACK : KERB_WHITE;
     const m = (a0 + a1) / 2;
-    M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * GATE.island) / seg - 0.03, GATE.x + Math.sin(m) * GATE.island, (KERB + 0.04) / 2, GATE.z + Math.cos(m) * GATE.island, k, m + Math.PI / 2);
-    const mouth = (a) => { const ax = Math.abs(Math.sin(a) * (GATE.outer + 2)), az = Math.abs(Math.cos(a) * (GATE.outer + 2)); return ax < 10.5 || az < 10.5; };
+    M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.island) / iseg - 0.03, rb.x + Math.sin(m) * rb.island, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.island, k, m + Math.PI / 2);
     if (!mouth(m)) {
-      const w0 = P(GATE.outer, a0, KERB), w1 = P(GATE.outer + GATE.walk, a0, KERB), w2 = P(GATE.outer + GATE.walk, a1, KERB), w3 = P(GATE.outer, a1, KERB);
+      const w0 = P(rb.outer, a0, KERB), w1 = P(rb.outer + rb.walk, a0, KERB), w2 = P(rb.outer + rb.walk, a1, KERB), w3 = P(rb.outer, a1, KERB);
       M.pave.quad(w0, w1, w2, w3, 0xe6e2d8, [[w0[0] / 2, w0[2] / 2], [w1[0] / 2, w1[2] / 2], [w2[0] / 2, w2[2] / 2], [w3[0] / 2, w3[2] / 2]], UP);
-      M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * GATE.outer) / seg - 0.03, GATE.x + Math.sin(m) * GATE.outer, (KERB + 0.04) / 2, GATE.z + Math.cos(m) * GATE.outer, k, m + Math.PI / 2);
+      M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.outer) / iseg - 0.03, rb.x + Math.sin(m) * rb.outer, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.outer, k, m + Math.PI / 2);
     }
   }
-  M.concrete.box(7, 0.6, 7, GATE.x, KERB + 0.3, GATE.z, 0xd8d2c4);
-  M.concrete.box(5, 0.6, 5, GATE.x, KERB + 0.9, GATE.z, 0xe2ddd0);
-  M.concrete.geo(new THREE.CylinderGeometry(0.55, 1.1, 9, 4), place(GATE.x, KERB + 1.2 + 4.5, GATE.z, Math.PI / 4), 0xeee9dc);
-  M.concrete.geo(new THREE.ConeGeometry(0.62, 1.4, 4), place(GATE.x, KERB + 1.2 + 9 + 0.7, GATE.z, Math.PI / 4), 0xd4b24a);
+  if (rb.id === 'gate') {
+    M.concrete.box(7, 0.6, 7, rb.x, KERB + 0.3, rb.z, 0xd8d2c4);
+    M.concrete.box(5, 0.6, 5, rb.x, KERB + 0.9, rb.z, 0xe2ddd0);
+    M.concrete.geo(new THREE.CylinderGeometry(0.55, 1.1, 9, 4), place(rb.x, KERB + 1.2 + 4.5, rb.z, Math.PI / 4), 0xeee9dc);
+    M.concrete.geo(new THREE.ConeGeometry(0.62, 1.4, 4), place(rb.x, KERB + 1.2 + 9 + 0.7, rb.z, Math.PI / 4), 0xd4b24a);
+    return;
+  }
+  M.concrete.geo(new THREE.CylinderGeometry(4.2, 4.4, 0.55, 24, 1, true), place(rb.x, KERB + 0.27, rb.z), 0xd8d2c4, 'wall', 4);
+  M.grass.geo(new THREE.CircleGeometry(4.2, 24).rotateX(-Math.PI / 2), place(rb.x, KERB + 0.5, rb.z), GRASS, 'plan', 3.2);
+  for (let k = 0; k < 3; k += 1) {
+    const a = (k / 3) * Math.PI * 2 + rb.x * 0.01;
+    addTree(shade, foliage, { x: rb.x + Math.sin(a) * 1.8, z: rb.z + Math.cos(a) * 1.8, kind: 'palm', size: 0.85 + k * 0.1, turn: a * 2.3, base: KERB + 0.5 });
+  }
 }
 
-function addDecks(M, lite, fixedLights) {
+const KERB_TOP = KERB + 0.04;
+function kerbRun(M, x0, z0, x1, z1, out) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  if (len < 0.3) return;
+  const ox = out[0] * 0.11, oz = out[1] * 0.11;
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+  const u0 = (alongX ? x0 : z0) / 32, u1 = (alongX ? x1 : z1) / 32;
+  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
+  M.kerb.quad([x0 + ox, 0, z0 + oz], [x1 + ox, 0, z1 + oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
+}
+const ROAD_OF = new Map(OGANIRU_ROADS.map((r) => [r.id, r]));
+function* kerbsTile(M, T) {
+  let n = 0;
+  for (const B of OGANIRU_KERBED) {
+    if ((n += 1) % 150 === 0) yield;
+    const x0 = Math.max(B.x0, T.x0), x1 = Math.min(B.x1, T.x1), z0 = Math.max(B.z0, T.z0), z1 = Math.min(B.z1, T.z1);
+    if (x1 - x0 < 0.02 || z1 - z0 < 0.02) continue;
+    const kind = B.median ? 'median' : B.walk ? 'walk' : 'plaza';
+    const top = kind === 'plaza' ? KERB + 0.003 : KERB;
+    const target = kind === 'median' ? M.grass : M.pave;
+    const sc = kind === 'median' ? 3.2 : 2;
+    target.quad([x0, top, z0], [x1, top, z0], [x1, top, z1], [x0, top, z1], kind === 'median' ? shade(GRASS, 0.92 + rnd(Math.round(B.x0), Math.round(B.z0)) * 0.16) : kind === 'plaza' ? 0xf4f0e6 : 0xe6e2d8, [[x0 / sc, z0 / sc], [x1 / sc, z0 / sc], [x1 / sc, z1 / sc], [x0 / sc, z1 / sc]], UP);
+    const side = (p, q, facing) => M.concrete.quad([p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], top, q[1]], [p[0], top, p[1]], CONCRETE, Q_UV, facing);
+    if (z0 === B.z0) side([x0, z0], [x1, z0], [0, 0, -1]);
+    if (z1 === B.z1) side([x0, z1], [x1, z1], [0, 0, 1]);
+    if (x0 === B.x0) side([x0, z0], [x0, z1], [-1, 0, 0]);
+    if (x1 === B.x1) side([x1, z0], [x1, z1], [1, 0, 0]);
+    const alongZ = B.z1 - B.z0 >= B.x1 - B.x0;
+    if (kind === 'median') {
+      if (alongZ) { if (x0 === B.x0) kerbRun(M, x0, z0, x0, z1, [-1, 0]); if (x1 === B.x1) kerbRun(M, x1, z0, x1, z1, [1, 0]); } else { if (z0 === B.z0) kerbRun(M, x0, z0, x1, z0, [0, -1]); if (z1 === B.z1) kerbRun(M, x0, z1, x1, z1, [0, 1]); }
+    } else if (kind === 'walk') {
+      const road = ROAD_OF.get(B.walk);
+      if (!road) continue;
+      if (road.along === 'z') { const near0 = Math.abs(B.x0 - road.c) < Math.abs(B.x1 - road.c); if ((near0 ? x0 === B.x0 : x1 === B.x1)) kerbRun(M, near0 ? x0 : x1, z0, near0 ? x0 : x1, z1, [near0 ? -1 : 1, 0]); }
+      else { const near0 = Math.abs(B.z0 - road.c) < Math.abs(B.z1 - road.c); if ((near0 ? z0 === B.z0 : z1 === B.z1)) kerbRun(M, x0, near0 ? z0 : z1, x1, near0 ? z0 : z1, [0, near0 ? -1 : 1]); }
+    }
+  }
+}
+
+function* decksTile(M, T, lite, fixedLights) {
+  const mid = (a, b) => inTile(T, (a.x + b.x) / 2, (a.z + b.z) / 2);
   for (const d of OGANIRU_DECKS) {
     const P = d.path, n = P.length, half = d.half;
+    if (!P.some((p) => p.x > T.x0 - 40 && p.x < T.x1 + 40 && p.z > T.z0 - 40 && p.z < T.z1 + 40)) continue;
+    yield;
     const ramp = d.id !== 'viaduct';
     const road = ramp ? M.rampTar : M.tar;
+    const bridge = d.kind === 'bridge';
     const L = (p) => [p.uz, -p.ux];                     // the deck's left (oganiru.js: +d to the left)
     const at = (p, off, dy = 0) => { const [lx, lz] = L(p); return [p.x + lx * off, p.y + p.bank * off + dy, p.z + lz * off]; };
     const walled = (side, s) => (side > 0 ? d.walls.left : d.walls.right).some(([a, b]) => s >= a - 0.01 && s <= b + 0.01);
-    const lift = (p) => (p.y < 0.35 ? DECK_LIFT : 0.004);
-    const under = (p) => p.y - D.thick >= OGANIRU.under;   // high enough to pass under: on pillars
-    const raised = (p) => p.y > 0.35;
+    const lift = (p) => (p.y < 0.35 && !bridge ? DECK_LIFT : 0.004);
+    const g = (p) => groundBelow(p.x, p.z);
+    const under = (p) => p.y - D.thick - g(p) >= OGANIRU.under;   // high enough to pass under: on pillars
+    const raised = (p) => bridge || p.y - g(p) > 0.35;
     for (let i = 0; i < n - 1; i += 1) {
       const a = P[i], b = P[i + 1];
+      if (!mid(a, b)) continue;
       const ua = (u) => [u / TT, a.s / TT], ub = (u) => [u / TT, b.s / TT];
       road.quad(at(a, -half, lift(a)), at(b, -half, lift(b)), at(b, half, lift(b)), at(a, half, lift(a)), TAR, [ua(-half), ub(-half), ub(half), ua(half)], UP);
       for (const side of [-1, 1]) {
@@ -51983,7 +53287,7 @@ function addDecks(M, lite, fixedLights) {
         const out = (p) => { const [lx, lz] = L(p); return [lx * side, 0, lz * side]; };
         if (raised(a) || d.kind !== 'ramp') M.paint.quad(at(a, side * (half - D.wallWidth - 0.35), lift(a) + 0.008), at(b, side * (half - D.wallWidth - 0.35), lift(b) + 0.008), at(b, side * (half - D.wallWidth - 0.2), lift(b) + 0.008), at(a, side * (half - D.wallWidth - 0.2), lift(a) + 0.008), LINE, Q_UV, UP);
         if (raised(a) || raised(b)) {
-          const bottomA = under(a) ? a.y - 1.0 : -0.05, bottomB = under(b) ? b.y - 1.0 : -0.05;
+          const bottomA = under(a) ? a.y - 1.0 : g(a) - 0.05, bottomB = under(b) ? b.y - 1.0 : g(b) - 0.05;
           const topA = wa ? D.wall : 0.05, topB = wb ? D.wall : 0.05;
           const pa0 = at(a, e), pb0 = at(b, e);
           const v = (y) => y / 6;
@@ -51995,18 +53299,18 @@ function addDecks(M, lite, fixedLights) {
           }
         }
       }
-      if (raised(a) && raised(b) && under(a) !== under(b)) {
+      if (raised(a) && raised(b) && under(a) !== under(b) && !bridge) {
         const e = under(a) ? b : a, toward = under(a) ? -1 : 1;
         const l0 = at(e, -half), l1 = at(e, half);
-        M.concrete.quad([l0[0], -0.05, l0[2]], [l1[0], -0.05, l1[2]], [l1[0], e.y - 0.45, l1[2]], [l0[0], e.y - 0.45, l0[2]], CONCRETE, [[-half / 6, 0], [half / 6, 0], [half / 6, e.y / 6], [-half / 6, e.y / 6]], [e.ux * toward, 0, e.uz * toward]);
+        M.concrete.quad([l0[0], g(e) - 0.05, l0[2]], [l1[0], g(e) - 0.05, l1[2]], [l1[0], e.y - 0.45, l1[2]], [l0[0], e.y - 0.45, l0[2]], CONCRETE, [[-half / 6, 0], [half / 6, 0], [half / 6, e.y / 6], [-half / 6, e.y / 6]], [e.ux * toward, 0, e.uz * toward]);
       }
       if (under(a) && under(b)) {
         const slab = 0.45;
         const ya = a.y - slab, yb = b.y - slab;
         M.soffit.quad(at(a, -half, -slab), at(b, -half, -slab), at(b, half, -slab), at(a, half, -slab), CONCRETE_DARK, [[-half / 6, a.s / 6], [-half / 6, b.s / 6], [half / 6, b.s / 6], [half / 6, a.s / 6]], DOWN);
         const count = lite ? (half > 10 ? 4 : 2) : Math.max(2, Math.round((half * 2) / 3.6));
-        for (let g = 0; g < count; g += 1) {
-          const o = -half + 1 + ((half * 2 - 2) * (g + 0.5)) / count, w = Math.min(1.5, (half * 2 - 2) / count * 0.6);
+        for (let gk = 0; gk < count; gk += 1) {
+          const o = -half + 1 + ((half * 2 - 2) * (gk + 0.5)) / count, w = Math.min(1.5, (half * 2 - 2) / count * 0.6);
           const deep = D.thick - slab;
           const A0 = at(a, o - w / 2, -slab - deep), A1 = at(a, o + w / 2, -slab - deep), B0 = at(b, o - w / 2, -slab - deep), B1 = at(b, o + w / 2, -slab - deep);
           M.soffit.quad(A0, B0, B1, A1, CONCRETE_DARK, [[o / 6, a.s / 6], [o / 6, b.s / 6], [(o + w) / 6, b.s / 6], [(o + w) / 6, a.s / 6]], DOWN);
@@ -52014,22 +53318,33 @@ function addDecks(M, lite, fixedLights) {
             const ea = at(a, o + (s * w) / 2, -slab), eb = at(b, o + (s * w) / 2, -slab);
             const fa = at(a, o + (s * w) / 2, -slab - deep), fb = at(b, o + (s * w) / 2, -slab - deep);
             const [lx, lz] = L(a);
-            M.under.quad(fa, fb, eb, ea, CONCRETE_DARK, [[a.s / 6, ya / 6 - 0.3], [b.s / 6, yb / 6 - 0.3], [b.s / 6, yb / 6], [a.s / 6, ya / 6]], [lx * s, 0, lz * s]);
+            M.concrete.quad(fa, fb, eb, ea, CONCRETE_DARK, [[a.s / 6, ya / 6 - 0.3], [b.s / 6, yb / 6 - 0.3], [b.s / 6, yb / 6], [a.s / 6, ya / 6]], [lx * s, 0, lz * s]);
           }
         }
       }
+      if (d.barrier && (a.y >= 0.35 || bridge)) {
+        const prof = [[0.3, 0], [0.19, 0.28], [0.08, 0.82]];
+        for (const side of [-1, 1]) for (let k = 0; k < prof.length - 1; k += 1) {
+          const [o0, h0] = prof[k], [o1, h1] = prof[k + 1];
+          const [lx, lz] = L(a);
+          M.concrete.quad(at(a, side * o0, h0), at(b, side * o0, h0), at(b, side * o1, h1), at(a, side * o1, h1), 0xd6d1c6, [[a.s / 6, h0 / 6], [b.s / 6, h0 / 6], [b.s / 6, h1 / 6], [a.s / 6, h1 / 6]], [lx * side, 0.4, lz * side]);
+        }
+        M.concrete.quad(at(a, -0.08, 0.82), at(b, -0.08, 0.82), at(b, 0.08, 0.82), at(a, 0.08, 0.82), 0xdcd7cc, [[a.s / 6, 0.13], [b.s / 6, 0.13], [b.s / 6, 0.14], [a.s / 6, 0.14]], UP);
+      }
     }
     for (let s = 30; s < d.len - 5; s += 30) {
-      const p = P.find((q) => q.s >= s);
-      if (!p || !raised(p)) continue;
-      const q = P[Math.min(n - 1, P.indexOf(p) + 1)];
+      const k = P.findIndex((q) => q.s >= s);
+      if (k < 0) continue;
+      const p = P[k];
+      if (!raised(p) || !inTile(T, p.x, p.z)) continue;
+      const q = P[Math.min(n - 1, k + 1)];
       const ux = q.x - p.x, uz = q.z - p.z, l = Math.hypot(ux, uz) || 1, dx = (ux / l) * 0.09, dz = (uz / l) * 0.09;
       const l0 = at(p, -half + 0.5, 0.012), l1 = at(p, half - 0.5, 0.012);
       M.paint.quad([l0[0] - dx, l0[1], l0[2] - dz], [l1[0] - dx, l1[1], l1[2] - dz], [l1[0] + dx, l1[1], l1[2] + dz], [l0[0] + dx, l0[1], l0[2] + dz], 0x2b2b2e, Q_UV, UP);
     }
     if (!lite) for (let s = 12; s < d.len - 5; s += 20) {
       const p = P.find((q) => q.s >= s);
-      if (!p || !under(p)) continue;
+      if (!p || !under(p) || !inTile(T, p.x, p.z)) continue;
       for (const side of [-1, 1]) {
         const [lx, lz] = L(p);
         const e = at(p, side * (half + 0.18), -0.55);
@@ -52039,19 +53354,9 @@ function addDecks(M, lite, fixedLights) {
         M.stain.quad([s0[0] - ux, s0[1] - drop, s0[2] - uz], [s0[0] + ux, s0[1] - drop, s0[2] + uz], [s0[0] + ux, s0[1], s0[2] + uz], [s0[0] - ux, s0[1], s0[2] - uz], 0xffffff, [[0, 0], [1, 0], [1, 1], [0, 1]], [lx * side, 0, lz * side]);
       }
     }
-    if (d.barrier) for (let i = 0; i < n - 1; i += 1) {
-      const a = P[i], b = P[i + 1];
-      if (a.y < 0.35) continue;
-      const prof = [[0.3, 0], [0.19, 0.28], [0.08, 0.82]];
-      for (const side of [-1, 1]) for (let k = 0; k < prof.length - 1; k += 1) {
-        const [o0, h0] = prof[k], [o1, h1] = prof[k + 1];
-        const [lx, lz] = L(a);
-        M.concrete.quad(at(a, side * o0, h0), at(b, side * o0, h0), at(b, side * o1, h1), at(a, side * o1, h1), 0xd6d1c6, [[a.s / 6, h0 / 6], [b.s / 6, h0 / 6], [b.s / 6, h1 / 6], [a.s / 6, h1 / 6]], [lx * side, 0.4, lz * side]);
-      }
-      M.concrete.quad(at(a, -0.08, 0.82), at(b, -0.08, 0.82), at(b, 0.08, 0.82), at(a, 0.08, 0.82), 0xdcd7cc, [[a.s / 6, 0.13], [b.s / 6, 0.13], [b.s / 6, 0.14], [a.s / 6, 0.14]], UP);
-    }
     for (const end of d.closed) {
       const p = end === 'start' ? P[0] : P[n - 1];
+      if (!inTile(T, p.x, p.z)) continue;
       const inward = end === 'start' ? 1 : -1;
       const l0 = at(p, -half), l1 = at(p, half);
       M.concrete.quad([l0[0], p.y - D.thick, l0[2]], [l1[0], p.y - D.thick, l1[2]], [l1[0], p.y + D.wall, l1[2]], [l0[0], p.y + D.wall, l0[2]], CONCRETE, Q_UV, [-p.ux * inward, 0, -p.uz * inward]);
@@ -52064,30 +53369,102 @@ function addDecks(M, lite, fixedLights) {
     }
     for (let s = 8; s < d.len; s += 16) {
       const p = P.find((q) => q.s >= s);
-      if (!p || !under(p)) continue;
+      if (!p || !under(p) || !inTile(T, p.x, p.z)) continue;
       for (const side of d.half > 6 ? [-1, 1] : [0]) {
         const off = side * (half - 2.2);
         const q = at(p, off, -D.thick - 0.06);
         M.lit.box(0.7, 0.08, 0.28, q[0], q[1], q[2], 0xfff1c9, Math.atan2(p.ux, p.uz));
-        fixedLights.push({ x: q[0], z: q[2], ground: 0, size: 9, region: 'city' });
+        fixedLights.push({ x: q[0], z: q[2], ground: groundBelow(q[0], q[2]), size: 9, region: 'city' });
       }
     }
   }
   for (const p of OGANIRU_PILLARS) {
-    const deck = OGANIRU_DECKS.find((d) => d.id === p.deck);
+    if (!inTile(T, p.x, p.z)) continue;
+    const deck = DECK_BY_ID.get(p.deck);
     const capH = 1.3, capW = p.deck === 'viaduct' ? 7.5 : Math.max(3, deck ? deck.half * 2 - 1.2 : 6);
     const segs = lite ? 12 : 20;
-    M.pillar.geo(new THREE.CylinderGeometry(p.r, p.r * 1.06, p.top - capH, segs), place(p.x, (p.top - capH) / 2, p.z), CONCRETE, 'wall', 6);
-    M.pillar.geo(new THREE.CylinderGeometry(p.r + 0.35, p.r + 0.45, 0.4, segs), place(p.x, 0.2, p.z), CONCRETE_DARK, 'wall', 6);
+    M.concrete.geo(new THREE.CylinderGeometry(p.r, p.r * 1.06, p.top - capH, segs), place(p.x, (p.top - capH) / 2, p.z), CONCRETE, 'wall', 6);
+    M.concrete.geo(new THREE.CylinderGeometry(p.r + 0.35, p.r + 0.45, 0.4, segs), place(p.x, 0.2, p.z), CONCRETE_DARK, 'wall', 6);
     const cap = new THREE.CylinderGeometry(capW / 2, p.r * 1.3, capH, 4, 1);
     cap.rotateY(Math.PI / 4);
-    M.pillar.geo(cap, place(p.x, p.top - capH / 2, p.z, p.heading, 1, 1, 1.8 / (capW * Math.SQRT1_2)), 0xccc7bb, 'wall', 6);
+    M.concrete.geo(cap, place(p.x, p.top - capH / 2, p.z, p.heading, 1, 1, 1.8 / (capW * Math.SQRT1_2)), 0xccc7bb, 'wall', 6);
   }
-  const pairs = new Map();
-  for (const p of OGANIRU_PILLARS.filter((q) => q.deck === 'viaduct')) { const key = Math.round(p.x); if (!pairs.has(key)) pairs.set(key, []); pairs.get(key).push(p); }
-  for (const [, two] of pairs) if (two.length === 2) {
+  for (const [x, two] of VIADUCT_PAIRS) if (two.length === 2 && inTile(T, x, EZ)) {
     const [a, b] = two, top = Math.min(a.top, b.top);
-    M.pillar.box(1.6, 1.3, Math.abs(a.z - b.z) + 2, (a.x + b.x) / 2, top - 0.65, (a.z + b.z) / 2, 0xccc7bb);
+    M.concrete.box(1.6, 1.3, Math.abs(a.z - b.z) + 2, (a.x + b.x) / 2, top - 0.65, (a.z + b.z) / 2, 0xccc7bb);
+  }
+}
+const DECK_BY_ID = new Map(OGANIRU_DECKS.map((d) => [d.id, d]));
+const VIADUCT_PAIRS = (() => { const pairs = new Map(); for (const p of OGANIRU_PILLARS.filter((q) => q.deck === 'viaduct')) { const key = Math.round(p.x); if (!pairs.has(key)) pairs.set(key, []); pairs.get(key).push(p); } return pairs; })();
+
+const HOPE_BRIDGE = OGANIRU_DECKS.find((d) => d.kind === 'bridge');
+function cuttingTile(M, T) {
+  const C = OGANIRU_CUTTING;
+  if (EZ < T.z0 || EZ >= T.z1) return;
+  const x0 = Math.max(C.x0, T.x0), x1 = Math.min(C.x1, T.x1);
+  if (x1 <= x0) return;
+  const r = { along: 'x', c: EZ };
+  const step = 4;
+  const bridgeX = HOPE_BRIDGE ? HOPE_BRIDGE.path[0].x : -1e9, bridgeHalf = HOPE_BRIDGE ? HOPE_BRIDGE.half + 0.5 : 0;
+  for (let a = x0; a < x1 - 1e-6; a += step) {
+    const b = Math.min(x1, a + step), ya = expresswayY(a), yb = expresswayY(b);
+    const q = (lat0, lat1, h0a, h0b, h1a, h1b, M_, col, facing, uvs) => {
+      const [xa0, za0] = Pt(r, lat0, a), [xb0, zb0] = Pt(r, lat0, b), [xb1, zb1] = Pt(r, lat1, b), [xa1, za1] = Pt(r, lat1, a);
+      M_.quad([xa0, h0a, za0], [xb0, h0b, zb0], [xb1, h1b, zb1], [xa1, h1a, za1], col, uvs || [[xa0 / TT, za0 / TT], [xb0 / TT, zb0 / TT], [xb1 / TT, zb1 / TT], [xa1 / TT, za1 / TT]], facing);
+    };
+    q(-15, 15, ya + ROAD_Y, yb + ROAD_Y, ya + ROAD_Y, yb + ROAD_Y, M.tar, TAR, UP);
+    for (const k of [-1, 1]) {
+      for (const o of [1.0, 11.5]) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
+      if (Math.floor(a / step) % 3 === 0) for (const o of [4.5, 8.0]) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
+      for (const o of [2.75, 6.25, 9.75]) for (const s of [-0.85, 0.85]) q(k * o + s - 0.3, k * o + s + 0.3, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, M.wear, TAR_WORN, UP);
+      q(k * 15, k * CUT.wall, ya + 0.003, yb + 0.003, ya + 0.003, yb + 0.003, M.concrete, CONCRETE_DARK, UP, Q_UV);
+      const atBridge = Math.abs((a + b) / 2 - bridgeX) < bridgeHalf;
+      const topA = atBridge ? 0 : CUT.parapet, topB = topA;
+      if (ya < -0.02 || yb < -0.02 || topA > 0) q(k * CUT.wall, k * CUT.wall, ya, yb, topA, topB, M.concrete, CONCRETE, [-k * 0, 0, -k], [[a / 6, ya / 6], [b / 6, yb / 6], [b / 6, topB / 6], [a / 6, topA / 6]]);
+      if (!atBridge) {
+        const outer = k * (CUT.wall + CUT.wallWidth);
+        q(k * CUT.wall, outer, CUT.parapet, CUT.parapet, CUT.parapet, CUT.parapet, M.concrete, 0xd8d3c8, UP, Q_UV);
+        q(outer, outer, CUT.parapet, CUT.parapet, -0.05, -0.05, M.concrete, CONCRETE, [0, 0, k], [[a / 6, CUT.parapet / 6], [b / 6, CUT.parapet / 6], [b / 6, 0], [a / 6, 0]]);
+      } else {
+        q(k * CUT.wall, k * (CUT.wall + CUT.wallWidth), 0, 0, 0, 0, M.concrete, 0xd8d3c8, UP, Q_UV);
+      }
+    }
+  }
+  groundBarrier(M, r, x0, x1, (x) => expresswayY(x));
+}
+
+function signalsTile(M, T) {
+  for (const s of OGANIRU_SIGNALS) {
+    if (!inTile(T, s.x, s.z)) continue;
+    M.metal.geo(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 10), place(s.x, KERB + 1.7, s.z), 0x2a2c30);
+    const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
+    const hx = s.x + fx * 0.12, hy = KERB + 2.9, hz = s.z + fz * 0.12;
+    M.metal.box(0.34, 0.98, 0.26, hx, hy, hz, 0x1c1d20, s.heading);
+    M.metal.box(0.5, 1.12, 0.03, hx - fx * 0.14, hy, hz - fz * 0.14, 0x111214, s.heading);
+    for (const dy of [0.3, 0, -0.3]) M.metal.box(0.26, 0.03, 0.16, hx + fx * 0.2, hy + dy + 0.13, hz + fz * 0.2, 0x1c1d20, s.heading);
+  }
+}
+const SIGNAL_LAMPS = OGANIRU_SIGNALS.flatMap((s) => {
+  const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
+  const hx = s.x + fx * 0.12, hy = KERB + 2.9, hz = s.z + fz * 0.12;
+  return [['red', 0.3], ['amber', 0], ['green', -0.3]].map(([colour, dy]) => ({ colour, phase: s.phase, offset: s.offset || 0, x: hx + fx * 0.135, y: hy + dy, z: hz + fz * 0.135, face: s.heading }));
+});
+function signsTile(M, T, signs) {
+  for (const s of OGANIRU_SIGNS) {
+    if (!inTile(T, s.x, s.z)) continue;
+    const [fg, bg] = s.palette;
+    if (s.gantry) {
+      const y = s.gantry === 'viaduct' ? expresswayY(s.x) + D.wall : expresswayY(s.x);
+      const across = s.across / 2 - 0.25;
+      for (const k of [-1, 1]) M.metal.box(0.35, 7.2, 0.35, s.x, y + 3.6, EZ + k * across, 0x7c8288);
+      M.metal.box(0.5, 0.5, s.across - 0.3, s.x, y + 7.0, EZ, 0x7c8288);
+      M.metal.box(0.3, 0.3, s.across - 0.3, s.x, y + 6.2, EZ, 0x7c8288);
+      signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]));
+      continue;
+    }
+    const w = s.width, h = s.height;
+    for (const k of [-1, 1]) M.metal.box(0.1, h + 2.2, 0.1, s.x + Math.cos(s.facing) * k * (w / 2 - 0.3), (h + 2.2) / 2, s.z - Math.sin(s.facing) * k * (w / 2 - 0.3), 0x6d7177, s.facing);
+    signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]));
   }
 }
 
@@ -52106,11 +53483,12 @@ function towerMaterial(kind, lite, textures) {
       #endif`);
   };
   m.customProgramCacheKey = () => 'pcw-tower-windows';
+  m.userData.kind = kind;
   return m;
 }
-function addTowers(group, lite, textures, signs, M) {
-  const meshes = [], materials = new Map(), crowns = [];
-  for (const t of OGANIRU_TOWERS) {
+function addTowers(group, lite, textures, signs, M, list, materials, bandMaterial) {
+  const crowns = [];
+  for (const t of list) {
     if (!materials.has(t.kind)) materials.set(t.kind, towerMaterial(t.kind, lite, textures));
     const mat = materials.get(t.kind);
     const W = new Mesher();
@@ -52133,7 +53511,8 @@ function addTowers(group, lite, textures, signs, M) {
     }
     const body = W.build(mat);
     body.name = `oganiru:${t.id}`;
-    group.add(body); meshes.push(body);
+    body.userData.tower = true;
+    group.add(body);
     const round = t.kind === 'round';
     const roofCol = t.kind === 'stone' ? 0xcdbb9b : t.kind === 'ribbed-white' ? 0xf1efe9 : 0x8a9096;
     if (round) M.solid.geo(new THREE.CylinderGeometry(t.dx / 2, t.dx / 2, 0.6, lite ? 24 : 40), place(t.x, top + 0.3, t.z), roofCol);
@@ -52145,11 +53524,11 @@ function addTowers(group, lite, textures, signs, M) {
       for (let k = 0; k < steps; k += 1) {
         const shrink = 0.72 - k * 0.18, h = (crown * (k === steps - 1 ? 0.5 : 0.25));
         const cw = (round ? t.dx : t.dx) * shrink, cd = (round ? t.dx : t.dz) * shrink;
-        if (round) M.crownSolid.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
-        else M.crownSolid.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
+        if (round) M.solid.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
+        else M.solid.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
         y += h;
       }
-      if (t.kind === 'stone') M.crownSolid.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
+      if (t.kind === 'stone') M.solid.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
       if (t.storeys >= 30) crowns.push({ t, y: y - 0.6, w: (round ? t.dx : t.dx) * (0.72 - (steps - 1) * 0.18) + 0.1, d: (round ? t.dx : t.dz) * (0.72 - (steps - 1) * 0.18) + 0.1, round });
     }
     M.solid.box(4, 2.2, 3, t.x + 3, top + 0.8 + (crown > 0 ? 0 : 1.1), t.z - 4, 0x9a9da0);
@@ -52174,10 +53553,9 @@ function addTowers(group, lite, textures, signs, M) {
     if (c.round) { const g = new THREE.CylinderGeometry(c.w / 2 + 0.05, c.w / 2 + 0.05, 0.5, 40, 1, true); band.geo(g, place(c.t.x, c.y, c.t.z), 0xfff4dc, 'own'); }
     else band.box(c.w, 0.5, c.d, c.t.x, c.y, c.t.z, 0xfff4dc);
   }
-  const bandMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xb9bcc0), emissive: linear(0xfff0d0), emissiveIntensity: 0, roughness: 0.6 });
   const bandMesh = band.empty ? null : band.build(bandMaterial, { shadows: false });
-  if (bandMesh) { bandMesh.name = 'oganiru:crowns'; group.add(bandMesh); }
-  return { meshes, materials: [...materials.values()], bandMaterial };
+  if (bandMesh) { bandMesh.name = 'oganiru:crowns'; bandMesh.userData.tower = true; }
+  return bandMesh;
 }
 
 let SIGN_WIDTH = 1024;
@@ -52189,40 +53567,6 @@ function signMesh(lines, x, y, z, facing, w, h, [fg, bg]) {
   mesh.rotation.y = facing;
   mesh.name = 'oganiru:sign';
   return mesh;
-}
-
-function addSignals(M, lamps) {
-  for (const s of OGANIRU_SIGNALS) {
-    M.metal.geo(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 10), place(s.x, KERB + 1.7, s.z), 0x2a2c30);
-    const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
-    const hx = s.x + fx * 0.12, hy = KERB + 2.9, hz = s.z + fz * 0.12;
-    M.metal.box(0.34, 0.98, 0.26, hx, hy, hz, 0x1c1d20, s.heading);
-    M.metal.box(0.5, 1.12, 0.03, hx - fx * 0.14, hy, hz - fz * 0.14, 0x111214, s.heading);
-    [['red', 0.3], ['amber', 0], ['green', -0.3]].forEach(([colour, dy]) => {
-      (lamps[colour][s.phase] = lamps[colour][s.phase] || []).push({ x: hx + fx * 0.135, y: hy + dy, z: hz + fz * 0.135, face: s.heading });
-      M.metal.box(0.26, 0.03, 0.16, hx + fx * 0.2, hy + dy + 0.13, hz + fz * 0.2, 0x1c1d20, s.heading);
-    });
-  }
-}
-function addSigns(M, group, signs) {
-  for (const s of OGANIRU_SIGNS) {
-    const [fg, bg] = s.palette;
-    if (s.gantry) {
-      const deck = OGANIRU_DECKS.find((d) => d.id === 'viaduct');
-      const y = OGANIRU.deck.level + D.wall;
-      const across = s.across / 2 - 0.25;
-      for (const k of [-1, 1]) M.metal.box(0.35, 7.2, 0.35, s.x, y + 3.6, EXPRESSWAY_Z + k * across, 0x7c8288);
-      M.metal.box(0.5, 0.5, s.across - 0.3, s.x, y + 7.0, EXPRESSWAY_Z, 0x7c8288);
-      M.metal.box(0.3, 0.3, s.across - 0.3, s.x, y + 6.2, EXPRESSWAY_Z, 0x7c8288);
-      const sign = signMesh(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]);
-      signs.push(sign);
-      void deck;
-      continue;
-    }
-    const w = s.width, h = s.height;
-    for (const k of [-1, 1]) M.metal.box(0.1, h + 2.2, 0.1, s.x + Math.cos(s.facing) * k * (w / 2 - 0.3), (h + 2.2) / 2, s.z - Math.sin(s.facing) * k * (w / 2 - 0.3), 0x6d7177, s.facing);
-    signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]));
-  }
 }
 
 const ON_DISK = (() => { try { return location.protocol === 'file:'; } catch (error) { return false; } })();
@@ -52341,6 +53685,61 @@ function treeBoards(group, model, copies, renderer, lite) {
   };
 }
 
+function* buildTile(T, S) {
+  const { lite, materials, textures, towerMaterials, bandMaterial } = S;
+  const group = new THREE.Group(); group.name = `oganiru:${T.key}`;
+  const M = { tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), kerb: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), soffit: new Mesher(), stain: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher(), lobby: new Mesher() };
+  const shadeSolid = new Batch(), foliage = new Foliage();
+  const fixedLights = [], signs = [];
+  const ground = groundTile(T, lite);
+  if (ground) { const mesh = new THREE.Mesh(ground, materials.ground); mesh.receiveShadow = true; mesh.name = `oganiru:ground:${T.key}`; group.add(mesh); }
+  yield;
+  for (const r of OGANIRU_ROADS) { if (!runIn(r, T)) continue; roadTile(M, r, T); yield; }
+  for (const j of OGANIRU_JUNCTIONS) if (inTile(T, j.x, j.z)) junctionTile(M, j);
+  for (const l of OGANIRU_STOP_LINES) if (l.junction.startsWith('peace-ramps') && inTile(T, l.x, l.z)) stopLineTile(M, l);
+  for (const rb of OGANIRU_ROUNDABOUTS) if (inTile(T, rb.x, rb.z)) roundaboutTile(M, rb, lite, shadeSolid, foliage);
+  yield;
+  yield* kerbsTile(M, T);
+  yield;
+  yield* decksTile(M, T, lite, fixedLights);
+  yield;
+  cuttingTile(M, T);
+  signalsTile(M, T);
+  signsTile(M, T, signs);
+  yield;
+  const towers = OGANIRU_TOWERS.filter((t) => inTile(T, t.x, t.z));
+  const crowns = towers.length ? addTowers(group, lite, textures, signs, M, towers, towerMaterials, bandMaterial) : null;
+  yield;
+  let n = 0;
+  for (const t of OGANIRU_TREES) {
+    if (t.kind === 'slim' || !inTile(T, t.x, t.z)) continue;
+    addTree(shadeSolid, foliage, { x: t.x, z: t.z, kind: t.kind, size: t.size, turn: t.turn });
+    if ((n += 1) % 60 === 0) yield;
+  }
+  yield;
+  const add = (mesh, name, shadows = true) => { if (!mesh) return; mesh.name = `oganiru:${name}:${T.key}`; mesh.castShadow = shadows; group.add(mesh); };
+  const build = (key, material, shadows = true) => { if (!M[key].empty) add(M[key].build(material, { shadows }), key, shadows); };
+  build('tar', materials.asphalt, false);
+  build('rampTar', materials.rampAsphalt, true);
+  build('wear', materials.wear, false);
+  build('paint', materials.paint, false); yield;
+  build('kerb', materials.kerb, false);
+  build('grass', materials.grass, false);
+  build('pave', materials.pave, false); yield;
+  build('concrete', materials.concrete, true); yield;
+  build('soffit', materials.soffit, true);
+  build('stain', materials.stain, false);
+  build('solid', materials.solid, true);
+  build('metal', materials.metal, true);
+  build('lit', materials.lit, false);
+  build('lobby', materials.lobby, false); yield;
+  if (!shadeSolid.empty) { const m = shadeSolid.build(materials.solid); m.castShadow = true; m.receiveShadow = true; m.name = `oganiru:trunks:${T.key}`; group.add(m); }
+  for (const mesh of foliage.build(foliageMaterials())) { mesh.name = `oganiru:leaves:${T.key}`; group.add(mesh); }
+  for (const s of signs) group.add(s);
+  if (crowns) group.add(crowns);
+  return { group, fixedLights };
+}
+
 function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, camera = null, fetchFile = (u) => fetch(u), lamps = null } = {}) {
   const group = new THREE.Group(); group.name = 'oganiru';
   SIGN_WIDTH = lite ? 512 : 1024;
@@ -52352,79 +53751,43 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
     lit(punched) { if (!this.lits.has(punched)) { const t = litTexture(punched, lite ? 128 : 256); t.colorSpace = THREE.NoColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; this.lits.set(punched, t); } return this.lits.get(punched); },
   };
   yield;
-  const ground = buildGround(lite);
-  group.add(ground);
-  yield;
-  const M = { soffit: new Mesher(), kerb: new Mesher(), tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), under: new Mesher(), stain: new Mesher(), pillar: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher(), lobby: new Mesher(), crownSolid: new Mesher() };
-  addRoads(M, lite);
-  yield;
-  addKerbs(M);
-  yield;
-  const fixedLights = [];
-  addDecks(M, lite, fixedLights);
-  yield;
-  const signs = [];
-  const towers = addTowers(group, lite, textures, signs, M);
-  yield;
-  const signalLamps = { red: [], amber: [], green: [] };
-  addSignals(M, signalLamps);
-  addSigns(M, group, signs);
-  yield;
-  const shadeSolid = new Batch(), foliage = new Foliage();
-  for (const t of OGANIRU_TREES.filter((q) => q.kind !== 'slim')) addTree(shadeSolid, foliage, { x: t.x, z: t.z, kind: t.kind, size: t.size, turn: t.turn });
-  yield;
-
-  const asphalt = isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
-  textures.asphalt.repeat.set(1, 1);
-  const rampAsphalt = isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
-  const wear = isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
-  const paint = weathers(surface({ vertexColors: true, roughness: 0.72, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { darken: 0.2, gloss: 0.3 });
-  const grass = surface({ vertexColors: true, map: grassTexture(), roughness: 0.95, metalness: 0 });
-  const pave = weathers(surface({ vertexColors: true, map: textures.pavers, roughness: 0.82, metalness: 0 }), { darken: 0.25, gloss: 0.32, sheen: 0.25 });
-  const concrete = weathers(surface({ vertexColors: true, map: textures.concrete, roughness: 0.9, metalness: 0 }), { darken: 0.18 });
-  const stain = new THREE.MeshLambertMaterial({ color: linear(0x2d2a24), transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const metal = reflects(surface({ vertexColors: true, roughness: 0.45, metalness: 0.55 }), 0.6, 'metal');
-  const lobbyGlass = reflects(new THREE.MeshStandardMaterial({ vertexColors: true, map: textures.lobby, emissiveMap: textures.lobbyLit, emissive: linear(0xffe2b0), emissiveIntensity: 0, roughness: 0.12, metalness: 0.35 }), 0.8);
   const kit = buildingKit();
-  const add = (mesh, name, shadows = true) => { if (!mesh) return; mesh.name = `oganiru:${name}`; mesh.castShadow = shadows; group.add(mesh); };
-  const build = (key, material, shadows = true) => { if (!M[key].empty) add(M[key].build(material, { shadows }), key, shadows); };
-  build('tar', asphalt, false); yield;
-  build('rampTar', rampAsphalt, true); yield;
-  build('wear', wear, false);
-  build('paint', paint, false); yield;
-  const kerbMaterial = weathers(surface({ map: kerbTexture(lite ? 256 : 512), roughness: 0.8, metalness: 0 }), { darken: 0.2 });
-  build('kerb', kerbMaterial, false);
-  build('grass', grass, false);
-  build('pave', pave, false); yield;
-  build('concrete', concrete, true); yield;
-  build('under', concrete, true);
-  build('soffit', weathers(surface({ vertexColors: true, map: textures.soffit, roughness: 0.92, metalness: 0 }), { darken: 0.1 }), true);
-  build('stain', stain, false);
-  build('pillar', concrete, true); yield;
-  build('solid', kit.solid, true);
-  build('crownSolid', kit.solid, true);
-  build('metal', metal, true);
-  build('lit', glowMaterial || new THREE.MeshBasicMaterial({ color: 0xfff1c9 }), false);
-  build('lobby', lobbyGlass, false); yield;
-  if (!shadeSolid.empty) { const m = shadeSolid.build(kit.solid); m.castShadow = true; m.receiveShadow = true; m.name = 'oganiru:trunks'; group.add(m); }
-  for (const mesh of foliage.build(foliageMaterials())) { mesh.name = 'oganiru:leaves'; group.add(mesh); }
-  for (const s of signs) group.add(s);
+  textures.asphalt.repeat.set(1, 1);
+  const groundMap = grassTexture(); groundMap.repeat.set(1, 1);
+  const materials = {
+    ground: surface({ vertexColors: true, map: groundMap, roughness: 1, metalness: 0 }),
+    asphalt: isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 })),
+    rampAsphalt: isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), { darken: 0.42, gloss: 0.66, sheen: 1 })),
+    wear: isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), { darken: 0.42, gloss: 0.66, sheen: 1 })),
+    paint: weathers(surface({ vertexColors: true, roughness: 0.72, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { darken: 0.2, gloss: 0.3 }),
+    grass: surface({ vertexColors: true, map: grassTexture(), roughness: 0.95, metalness: 0 }),
+    pave: weathers(surface({ vertexColors: true, map: textures.pavers, roughness: 0.82, metalness: 0 }), { darken: 0.25, gloss: 0.32, sheen: 0.25 }),
+    concrete: weathers(surface({ vertexColors: true, map: textures.concrete, roughness: 0.9, metalness: 0 }), { darken: 0.18 }),
+    soffit: weathers(surface({ vertexColors: true, map: textures.soffit, roughness: 0.92, metalness: 0 }), { darken: 0.1 }),
+    stain: new THREE.MeshLambertMaterial({ color: linear(0x2d2a24), transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    metal: reflects(surface({ vertexColors: true, roughness: 0.45, metalness: 0.55 }), 0.6, 'metal'),
+    lobby: reflects(new THREE.MeshStandardMaterial({ vertexColors: true, map: textures.lobby, emissiveMap: textures.lobbyLit, emissive: linear(0xffe2b0), emissiveIntensity: 0, roughness: 0.12, metalness: 0.35 }), 0.8),
+    kerb: weathers(surface({ map: kerbTexture(lite ? 256 : 512), roughness: 0.8, metalness: 0 }), { darken: 0.2 }),
+    solid: kit.solid,
+    lit: glowMaterial || new THREE.MeshBasicMaterial({ color: 0xfff1c9 }),
+  };
+  const towerMaterials = new Map();
+  const bandMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xb9bcc0), emissive: linear(0xfff0d0), emissiveIntensity: 0, roughness: 0.6 });
+  yield;
   const disc = new THREE.CircleGeometry(0.105, 16);
   const COLOURS = { red: 0xff2a1a, amber: 0xffa31a, green: 0x2dff6a };
-  const lampMeshes = [];
-  for (const [colour, byPhase] of Object.entries(signalLamps)) byPhase.forEach((list, phase) => {
-    if (!list || !list.length) return;
-    const material = new THREE.MeshStandardMaterial({ color: linear(0x1a1a1a), emissive: linear(COLOURS[colour]), emissiveIntensity: 0, roughness: 0.3 });
-    const mesh = new THREE.InstancedMesh(disc, material, list.length);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ');
-    list.forEach((l, i) => { e.set(0, l.face, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(l.x, l.y, l.z), q, new THREE.Vector3(1, 1, 1)); mesh.setMatrixAt(i, m4); });
-    mesh.name = 'oganiru:signals';
+  const signalMeshes = Object.keys(COLOURS).map((colour) => {
+    const list = SIGNAL_LAMPS.filter((l) => l.colour === colour);
+    const mesh = new THREE.InstancedMesh(disc, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), list.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), c = new THREE.Color();
+    list.forEach((l, i) => { e.set(0, l.face, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(l.x, l.y, l.z), q, new THREE.Vector3(1, 1, 1)); mesh.setMatrixAt(i, m4); mesh.setColorAt(i, c.setHex(0x1a1a1a)); });
+    mesh.computeBoundingSphere();
+    mesh.name = `oganiru:signals:${colour}`;
     group.add(mesh);
-    lampMeshes.push({ colour, phase, material });
+    return { colour, mesh, list, lit: linear(COLOURS[colour]).multiplyScalar(2.4), dark: linear(0x1a1a1a), state: new Uint8Array(list.length) };
   });
   yield;
   const trees = createSlimTrees(group, { lite, fetchFile, renderer });
-  if (lamps) lamps.addFixed(fixedLights);
   yield;
   const closures = buildClosures(group, { lite, keep: ofOganiru });
   if (renderer && camera) {
@@ -52434,53 +53797,132 @@ function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, cam
   }
   scene.add(group);
 
-  const far = new Map();
-  group.traverse((o) => {
-    if (!o.isMesh || o.isInstancedMesh || !o.geometry || o.name.startsWith('closures-')) return;
-    if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
-    const s = o.geometry.boundingSphere;
-    if (s && s.radius >= 0 && Number.isFinite(s.center.x)) far.set(o, s);
-  });
+  const near = lite ? TILE_NEAR.lite : TILE_NEAR.full;
+  const S = { lite, materials, textures, towerMaterials, bandMaterial };
+  const pieces = new Map();             // key -> { T, state: 'queued' | 'building' | 'built', steps, group, fixedLights, ready }
+  let building = null;
+  let compiled = false;
+  const budget = lite ? 3 : 6;          // milliseconds a frame for building pieces
+  const stats = { built: 0, letGo: 0, building: null, ms: 0, longest: 0 };
+  function stepPieces(ms = budget, wait = true) {
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) {
+      if (!building) {
+        let best = null;
+        for (const p of pieces.values()) if (p.state === 'queued' && (!best || p.d < best.d)) best = p;
+        if (!best) return;
+        best.state = 'building'; best.steps = buildTile(best.T, S); building = best;
+        stats.building = best.T.key;
+      }
+      const s0 = performance.now();
+      const r = building.steps.next();
+      const took = performance.now() - s0;
+      stats.ms += took; stats.longest = Math.max(stats.longest, took);
+      if (r.done) {
+        const p = building;
+        building = null; stats.building = null;
+        if (p.state !== 'building') { disposeGroup(r.value.group); continue; }
+        p.group = r.value.group; p.fixedLights = r.value.fixedLights.map((f) => ({ ...f, region: `city:${p.T.key}` }));
+        if (!compiled && wait && renderer && camera) { p.ready = programsReady(renderer, p.group, camera, scene); p.state = 'compiling'; return; }
+        show(p);
+      }
+    }
+  }
+  function show(p) {
+    p.state = 'built'; p.ready = null;
+    group.add(p.group);
+    if (lamps && p.fixedLights.length) lamps.addFixed(p.fixedLights);
+    stats.built += 1;
+  }
+  function letGoPiece(p) {
+    if (p.group) { group.remove(p.group); disposeGroup(p.group); p.group = null; }
+    if (lamps) lamps.dropFixed(`city:${p.T.key}`);
+    if (p.state === 'building') { p.state = 'dropped'; } else pieces.delete(p.T.key);
+    stats.letGo += 1;
+  }
+  const shared = new Set([...Object.values(materials), kit.solid, ...Object.values(foliageMaterials())]);
+  function disposeGroup(g) {
+    g.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) { if (shared.has(m) || towerMaterials.has(m.userData.kind) && towerMaterials.get(m.userData.kind) === m || m === bandMaterial) continue; if (m.map) m.map.dispose(); m.dispose(); }
+    });
+  }
+
   let clock = 0;
+  const nowLit = new Map();
   function update(dt, { night = 0, hour = 12, camera: eye = null, storm = 0 } = {}) {
     clock += dt;
-    for (const l of lampMeshes) l.material.emissiveIntensity = signalState(l.phase, clock) === l.colour ? 2.4 : 0;
+    for (const p of pieces.values()) if (p.state === 'compiling' && p.ready.step(4)) { compiled = true; show(p); }
+    stepPieces();
+    for (const S2 of signalMeshes) {
+      let changed = false;
+      S2.list.forEach((l, i) => {
+        const key = `${l.phase}|${l.offset}`;
+        let state = nowLit.get(key);
+        if (state === undefined) { state = signalState(l.phase, clock + l.offset); nowLit.set(key, state); }
+        const on = state === S2.colour ? 1 : 0;
+        if (S2.state[i] !== on) { S2.state[i] = on; S2.mesh.setColorAt(i, on ? S2.lit : S2.dark); changed = true; }
+      });
+      if (changed) S2.mesh.instanceColor.needsUpdate = true;
+    }
+    nowLit.clear();
     const h = ((hour % 24) + 24) % 24;
     const share = h >= 18 ? 0.55 - (h - 18) * 0.05 : h < 5 ? 0.25 - h * 0.035 : h < 7 ? 0.12 + (h - 5) * 0.1 : 0.4;
-    for (const m of towers.materials) { m.emissiveIntensity = night * 1.6; m.userData.lit.value = Math.max(0.08, share); }
-    towers.bandMaterial.emissiveIntensity = night * 2.2;
-    lobbyGlass.emissiveIntensity = night * 0.45;
+    for (const m of towerMaterials.values()) { m.emissiveIntensity = night * 1.6; m.userData.lit.value = Math.max(0.08, share); }
+    bandMaterial.emissiveIntensity = night * 2.2;
+    materials.lobby.emissiveIntensity = night * 0.45;
     trees.update(eye, storm);
     closures.update(dt, night, eye ? eye.position : null);
   }
   function see(x, z, reach) {
-    const shown = oganiruAway(x, z) < reach;
-    if (group.visible !== shown) group.visible = shown;
-    if (!shown) return false;
-    for (const [mesh, s] of far) {
-      if (mesh.name === 'oganiru:ground' || mesh.name === 'oganiru:tar') { mesh.visible = true; continue; }
-      const d = Math.hypot(s.center.x - x, s.center.z - z) - s.radius;
-      mesh.visible = d < (mesh.name.startsWith('oganiru:t') && mesh.name.length < 12 ? reach * 2.2 : reach);
+    const shownAll = oganiruAway(x, z) < reach;
+    if (group.visible !== shownAll) group.visible = shownAll;
+    for (const T of OGANIRU_TILES) {
+      const d = tileAway(T, x, z);
+      let p = pieces.get(T.key);
+      if (!p && d < near.come && tileHasCity(T)) { p = { T, state: 'queued', d }; pieces.set(T.key, p); }
+      if (!p) continue;
+      p.d = d;
+      if (d > near.go && p.state !== 'queued') { letGoPiece(p); continue; }
+      if (d > near.go && p.state === 'queued') { pieces.delete(T.key); continue; }
+      if (p.group) p.group.visible = d < reach || p.group.children.some((c) => c.userData.tower) && d < reach * 2.2;
     }
-    return true;
+    return shownAll;
   }
   const keep = new Set([glowMaterial, kit.solid, ...Object.values(foliageMaterials())]);
   function letGo() {
+    for (const p of [...pieces.values()]) letGoPiece(p);
+    pieces.clear();
     scene.remove(group);
     trees.dispose();
-    const disposed = new Set(), pictures = new Set();
-    group.traverse((o) => {
-      if (o.geometry && !disposed.has(o.geometry)) { disposed.add(o.geometry); o.geometry.dispose(); }
-      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-      for (const m of mats) { if (keep.has(m) || disposed.has(m)) continue; disposed.add(m); for (const key of ['map', 'emissiveMap']) if (m[key]) pictures.add(m[key]); m.dispose(); }
-    });
-    for (const t of [...pictures, textures.asphalt, textures.concrete, textures.soffit, textures.lobby, textures.lobbyLit, textures.pavers, ...textures.facades.values(), ...textures.lits.values()]) t.dispose();
-    if (lamps) lamps.dropFixed('city');
+    closures.dispose();
+    for (const S2 of signalMeshes) { S2.mesh.dispose(); S2.mesh.material.dispose(); }
+    disc.dispose();
+    for (const m of [...Object.values(materials), ...towerMaterials.values(), bandMaterial]) { if (keep.has(m)) continue; m.dispose(); }
+    for (const t of [groundMap, materials.kerb.map, materials.grass.map, textures.asphalt, textures.concrete, textures.soffit, textures.lobby, textures.lobbyLit, textures.pavers, ...textures.facades.values(), ...textures.lits.values()]) if (t) t.dispose();
+    if (lamps) for (const T of OGANIRU_TILES) lamps.dropFixed(`city:${T.key}`);
   }
-  return { group, update, see, letGo, trees, stats: () => ({ meshes: far.size, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count }, fixedLights: fixedLights.length }) };
+  function buildAround(x, z) {
+    see(x, z, Infinity);
+    for (const p of pieces.values()) if (p.state === 'compiling') show(p);
+    for (let guard = 0; guard < 100000 && [...pieces.values()].some((p) => p.state === 'queued' || p.state === 'building'); guard += 1) stepPieces(1e9, false);
+    see(x, z, Infinity);
+  }
+  return {
+    group, update, see, letGo, trees, buildAround,
+    pieces: () => [...pieces.values()].map((p) => ({ key: p.T.key, state: p.state, d: Math.round(p.d) })),
+    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count } }),
+  };
 }
+const TILE_HAS = new Map(OGANIRU_TILES.map((T) => {
+  const has = OGANIRU_ROADS.some((r) => runIn(r, T)) || OGANIRU_DECKS.some((d) => d.path.some((p) => inTile(T, p.x, p.z))) || OGANIRU_KERBED.some((b) => b.x1 > T.x0 && b.x0 < T.x1 && b.z1 > T.z0 && b.z0 < T.z1) || OGANIRU_TREES.some((t) => inTile(T, t.x, t.z)) || OGANIRU_ROUNDABOUTS.some((r) => inTile(T, r.x, r.z));
+  const land = T.x1 > GROUND.x0 && T.x0 < GROUND.x1 && T.z1 > GROUND.z0 && T.z0 < GROUND.z1;
+  return [T.key, has || land];
+}));
+const tileHasCity = (T) => TILE_HAS.get(T.key);
 
-return { oganiruSteps };
+return { PIECE, OGANIRU_TILES, oganiruSteps };
 })();
 
 __modules["client/gun-model.js"] = (function () {
@@ -54407,7 +55849,7 @@ return { createGunNet };
 __modules["client/main.js"] = (function () {
 
 const { createHost } = __modules["sim/host.js"];
-const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU } = __modules["sim/zone.js"];
+const { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU, OGANIRU_BILLBOARDS } = __modules["sim/zone.js"];
 const { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } = __modules["sim/sim.js"];
 const { FIGURES } = __modules["sim/figures.js"];
 const { DESIGNS, BUSINESSES } = __modules["sim/economy.js"];
@@ -54419,6 +55861,7 @@ const { buildWorld } = __modules["client/render-world.js"];
 const { outskirtsSteps } = __modules["client/render-outskirts.js"];
 const { programsReady } = __modules["client/program-ready.js"];
 const { buildBillboards } = __modules["client/render-billboards.js"];
+const { cityAdvertArt } = __modules["client/render-city-adverts.js"];
 const { buildTown } = __modules["client/render-town.js"];
 const { createCrowd } = __modules["client/render-crowd.js"];
 const { linear, setLite, restoreGeometry, settleMesh, restState } = __modules["client/render-kit.js"];
@@ -54671,7 +56114,7 @@ function start(carried) {
   let cityShown = false;
   let lampReach = Infinity;
   let cityJob = null, cityBegun = false;
-  const CITY_PHONE = Object.freeze({ come: 420, go: 650 });
+  const CITY_PHONE = Object.freeze({ come: 300, go: 480 });
   const cityWanted = (x, z) => !LITE || oganiruAway(x, z) < CITY_PHONE.come;
   const cityStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0 };
   function* citySteps(stepwise) {
@@ -54680,13 +56123,28 @@ function start(carried) {
     while (!(step = steps.next(said)).done) said = yield step.value;
     city = { ...step.value, ready: true };
     streetLamps.show({ city: true });
+    if (!cityBoards) {
+      cityBoards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, boards: OGANIRU_BILLBOARDS, loadArtwork: (url) => { const [advert, aspect] = url.split('|'); return cityAdvertArt(advert, LITE ? 512 : 1024, Number(aspect)); } });
+      cityBoards.show(OGANIRU_BILLBOARDS.map((b) => ({ id: `house:${b.id}`, billboard: b.id, art: [`${b.advert}|${b.width / b.height}`] })));
+    }
     cityStats.builds += 1;
+  }
+  let cityBoards = null;
+  function letGoCityBoards() {
+    if (!cityBoards) return;
+    cityBoards.dispose();
+    cityBoards.group.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      for (const m of [].concat(o.material || [])) { if (m === world.glowMaterial) continue; for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].dispose(); m.dispose(); }
+    });
+    cityBoards = null;
   }
   function buildCity() {
     if (city.ready) return;
     if (!cityJob) cityJob = citySteps(false);
     while (!cityJob.next('now').done) { /* all of it, now */ }
     cityJob = null;
+    if (city.buildAround) city.buildAround(predicted.x, predicted.z);
   }
   function stepCity(budgetMs = 6) {
     if (city.ready) { cityJob = null; return; }
@@ -54705,6 +56163,7 @@ function start(carried) {
   function letGoCity() {
     if (!city.ready || cityJob) return false;
     city.letGo();
+    letGoCityBoards();
     city = { ready: false, see() {}, update() {}, letGo() {} };
     streetLamps.show({ city: false });
     cityBegun = false;
@@ -56213,7 +57672,7 @@ function start(carried) {
     }
     for (const c of view.traffic || []) {
       if (!POWER_CARS[c.model] || Math.abs(c.x - predicted.x) > 40 || Math.abs(c.z - predicted.z) > 40) continue;
-      for (const b of carBoxes(POWER_CARS[c.model], c.x, c.z, c.h)) if (!(predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4)) boxes.push(b);
+      for (const b of carBoxes(POWER_CARS[c.model], c.x, c.z, c.h)) if (!(predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4)) boxes.push(Number.isFinite(c.y) ? { ...b, y: c.y } : b);
     }
     boxes.push(...carshowGateBoxes(view.carshowGate || 0));
     return boxes;
@@ -56735,7 +58194,7 @@ function start(carried) {
       if (typeof r.person === 'number' && r.speed <= 3.4 && (r.mode === 'ride' || r.mode === 'stop')) { const who = known.get(r.person); add(r.x, r.z, 2.4, { bias: 0.4, short: 'Take', text: `Take the ${word} from ${who ? who.short : 'them'}`, run: () => takeSport(r.n) }); }
       if (r.mine && r.person === null && r.mode === 'kept') add(r.x, r.z, 2.4, { bias: 1.2, short: 'Ride', text: `Ride the ${word} you took`, run: () => retakeSport(r.n) });
     }
-    for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model]) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
+    for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model] && !(Number.isFinite(c.y) && Math.abs(c.y - levelAt(predicted)) > 2.5)) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
     for (const v of view.vehicles) {
       if (v.driver) continue;
       if (v.yours) add(v.x, v.z, 3.4, { bias: 1.2, short: 'Drive', text: `Drive keke ${v.plate}`, run: () => enterVehicle(v) });
@@ -56878,6 +58337,7 @@ function start(carried) {
     }
     if (!out.take) for (const c of view.traffic || []) {
       if (!c.stopped || c.mode === 'kept' || !POWER_CARS[c.model] || !driverSide('car', c, predicted.x, predicted.z).ok) continue;
+      if (Number.isFinite(c.y) && Math.abs(c.y - levelAt(predicted)) > 2.5) continue;
       const driver = known.get(c.person);
       out.take = { car: c.n, text: `Take ${driver ? `${driver.short}'s` : 'the'} ${POWER_CARS[c.model].name}` };
       break;
@@ -57517,6 +58977,7 @@ function start(carried) {
       if (!e || Math.hypot(e.x - tx, e.z - tz) > 6) { e = { x: tx, z: tz, h: t.h }; trafficShown.set(t.n, e); }
       else { const k = Math.min(1, dt * 12); e.x += (tx - e.x) * k; e.z += (tz - e.z) * k; e.h += angleGap(t.h, e.h) * k; }
       e.n = t.n; e.model = t.model; e.speed = t.speed; e.steer = t.steer; e.brake = t.brake; e.held = t.held; e.mode = t.mode; e.mine = t.mine; e.hornAgo = t.hornAgo;
+      e.y = Number.isFinite(t.y) ? t.y : undefined;
     }
     for (const n of [...trafficShown.keys()]) if (!seen.has(n)) trafficShown.delete(n);
     return [...trafficShown.values()];
@@ -58130,7 +59591,7 @@ function start(carried) {
         for (const c of q.cars || []) parkedCars.push({ ...c, key: `cpark:${q.id}:${c.car}` });
       }
       trafficCars = trafficNow(dt);
-      const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
+      const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, y: e.y, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
       const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
       carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: groundAt, from: predicted, night, bodies });
       const carSeated = !!ownDrive && carView.seat(me, ownDrive);
@@ -58289,7 +59750,7 @@ blood.update(dt, view.blood || []);
         if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: groundAt(q.x, q.z, q.gy), z: q.z, h: q.heading });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
       }
-      for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: zoneGroundY(e.x, e.z), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
+      for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: groundAt(e.x, e.z, e.y), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
       updatePeerKekes(dt);
       sportRidersView.update(dt, { list: view.sportRiders || [], known, eye: predicted, ahead: Math.max(0, clock - viewAt), groundY: zoneGroundY, now: clock });
       for (const r of view.sportRiders || []) { const was = riderBells.has(r.n) ? riderBells.get(r.n) : 99; if (r.bellAgo >= 0 && r.bellAgo < 0.8 && r.bellAgo < was - 0.05 && Math.hypot(r.x - predicted.x, r.z - predicted.z) < 50) { audio.cycleBell(r.x, r.z); riderBellsHeard += 1; } riderBells.set(r.n, r.bellAgo); }
@@ -58423,6 +59884,7 @@ blood.update(dt, view.blood || []);
       }
     }
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
+    if (cityBoards && cityShown) cityBoards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
     for (const showroom of world.showrooms) showroom.setNight(night);
     siteLayer.setNight(night * 1.5);
@@ -58625,7 +60087,7 @@ blood.update(dt, view.blood || []);
     walkable: (x, z) => zoneWalkable(x, z, structureBoxes()),
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
-    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
+    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, get cityBoards() { return cityBoards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },

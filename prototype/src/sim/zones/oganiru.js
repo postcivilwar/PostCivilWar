@@ -691,6 +691,9 @@ export const OGANIRU_CLOSURES = Object.freeze([
   { id: 'kwale-south', name: 'Asaba–Kwale Road, south', a: { x: -1385, z: KWALE_Z - 11 }, b: { x: -1385, z: KWALE_Z + 11 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'To Kwale and Warri: road works'], why: 'The road on to Kwale and Warri is not built on from here yet.' },
   { id: 'airport-south', name: 'Airport Roundabout, south', a: { x: HARMONY_X - 66, z: GATEWAY_Z - 14 }, b: { x: HARMONY_X - 66, z: GATEWAY_Z + 14 }, facing: Math.PI / 2, sign: ['ROAD CLOSED', 'Road works'], why: 'Oganiru City is still being built beyond this point.' },
   { id: 'campus-north', name: 'Campus Roundabout, north', a: { x: PEACE_X + 76, z: CAMPUS_Z - 14 }, b: { x: PEACE_X + 76, z: CAMPUS_Z + 14 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Anwuli Gardens: coming soon'], why: 'Oganiru City is still being built beyond this point.' },
+  // (the slip road up from Peace Avenue onto the north-bound carriageway, which runs only to the road works at the
+  // expressway's north end: closed at its foot, as the expressway beyond the Peace Interchange is not built on yet)
+  { id: 'peace-nb-on', name: 'Peace Interchange, slip road to the expressway north', a: { x: PEACE_X + 18, z: NB + 35.4 }, b: { x: PEACE_X + 18, z: NB + 44.6 }, facing: -Math.PI / 2, sign: ['ROAD CLOSED', 'Expressway north: road works'], why: 'The expressway north of Peace Avenue is not open yet.' },
 ].map((c) => Object.freeze({ ...c, state: 'under construction', a: Object.freeze(c.a), b: Object.freeze(c.b), sign: Object.freeze(c.sign) })));
 CLOSURE_LINES.push(...OGANIRU_CLOSURES);
 // (what of the roadblocks and of the fence at the built land's edge is the city's: drawn with it, render-oganiru.js)
@@ -698,7 +701,9 @@ export const ofOganiru = (item, kind) => (kind === 'closure' ? OGANIRU_CLOSURES.
 
 // --------------------------------------------------------------------- trees, lamps, signals, pillars --
 // Under a deck (or beside it within `pad`), where nothing grows and no lamp stands.
-const underDeck = (x, z, pad = 2) => oganiruDecksAt(x, z).some((h) => h.y - D.thick > 0.5 || h.y > 0.3) || [[-pad, 0], [pad, 0], [0, -pad], [0, pad]].some(([dx, dz]) => oganiruDecksAt(x + dx, z + dz).some((h) => h.y > 0.3));
+// (and on a deck where it is still on the ground, a slip road's foot: 1 November 2026, three of the verges' trees stood on
+// the Peace Interchange's slip roads, where they cross the verges of Peace Avenue)
+const underDeck = (x, z, pad = 2) => [[0, 0], [-1, 0], [1, 0], [0, -1], [0, 1]].some(([dx, dz]) => oganiruDecksAt(x + dx, z + dz).length > 0) || [[-pad, 0], [pad, 0], [0, -pad], [0, pad]].some(([dx, dz]) => oganiruDecksAt(x + dx, z + dz).some((h) => h.y > 0.3));
 const nearJunction = (x, z, pad) => !!junctionAt(x, z, pad);
 // (and the roadblocks across the roads not built on yet: nothing grows or stands just before them; they are declared below)
 const closureNear = (x, z, pad) => CLOSURE_LINES.some(({ a, b }) => { const dx = b.x - a.x, dz = b.z - a.z, t = clamp(((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz || 1), 0, 1); return Math.hypot(x - a.x - dx * t, z - a.z - dz * t) < pad; });
