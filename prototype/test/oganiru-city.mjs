@@ -140,7 +140,9 @@ await A.shot('under-the-peace-flyover');
 // town's cars going by up there, its through traffic among them, each drawn up there as its model)
 await at(a, -400, EXPRESSWAY_Z + 14.2, -Math.PI / 2, expresswayY(-400), { dist: 9, pitch: 0.16, yaw: -Math.PI / 2 });
 let up = null;
-for (let k = 0; k < 480 && !up; k += 1) {
+// (as long as a quarter of an hour: drawing in software here, a frame can take longer than the game's longest step, and
+// the town's time then runs slower than the clock's)
+for (let k = 0; k < 900 && !up; k += 1) {
   await a.waitForTimeout(1000);
   up = await a.evaluate(() => {
     const n = window.__nlw;

@@ -138,6 +138,38 @@ test('a whole town day, players about the city: the town\'s cars drive its roads
   assert.ok(overlaps / samples < 1 / 5000, `into each other: ${overlaps} of ${samples}`);
 });
 
+test('where a flyover\'s road and the road beside it join, the cars down the one and along the other never wait for each other for good; and a player up on the expressway\'s viaduct is passed by its through traffic', () => {
+  // (as the city browser test has its two players, 1 November 2026: one at the Harmony Interchange all along, the other
+  // about the city and then up on the viaduct. At the foot of the Harmony Flyover, the first car down it had the junction
+  // with Harmony Avenue for itself while a car from the road beside it, its way come into the same lane a little before
+  // the junction, stood in front of it waiting for that junction: each waited for the other, and the city's cars queued
+  // behind them for the rest of the day; nothing came by the player up on the viaduct)
+  const w = town(['Ada Test', 'Bayo Test'], { hour: 13 });
+  const [A, B] = w.players;
+  const T = w.I.traffic;
+  const put = (p, x, z, y) => { w.place(p, x, z); p.lv = { x, z, y }; };
+  const legs = [[-1294, -1320, 0, 300], [-700, -1138.5, -6.42, 300], [716, -770, 0, 300], [-400, -1115.8, 7.5, 900]];
+  const still = new Map();
+  let longest = 0, t = 0, passes = 0, near = new Set();
+  for (const [x, z, y, span] of legs) for (let k = 0; k < span; k += 0.25) {
+    put(A, x, z, y); put(B, -1290, -1150, 0);
+    w.host.tick(0.25); t += 0.25;
+    for (const c of T.cars) {
+      if (c.mode !== 'drive') { still.delete(c.n); continue; }
+      const at = still.get(c.n);
+      if (!at || Math.hypot(at.x - c.x, at.z - c.z) > 1) still.set(c.n, { x: c.x, z: c.z, since: t });
+      else longest = Math.max(longest, t - at.since);
+    }
+    if (y > 5) {
+      const now = new Set();
+      for (const c of T.list(A.x, A.z, A.id)) if (c.y > 5 && Math.hypot(c.x - A.x, c.z - A.z) < 90) { now.add(c.n); if (!near.has(c.n)) passes += 1; }
+      near = now;
+    }
+  }
+  assert.ok(longest < 60, `no car stuck: the longest standing on its way ${longest.toFixed(0)} s`);
+  assert.ok(passes >= 3, `the town's cars by the player up on the viaduct in a quarter of an hour: ${passes}`);
+});
+
 test('kept with the town: the cars on the city\'s roads, saved and opened again, are each where they were on the same way', () => {
   const w = town(['Ada Test', 'Bayo Test'], { hour: 10 });
   const T = w.I.traffic;

@@ -483,6 +483,8 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
     dropFixed(region) { for (let k = fixed.length - 1; k >= 0; k -= 1) if ((fixed[k].region || 'city') === region) fixed.splice(k, 1); poolsDirty = true; },
     // (for the tests: how each is drawn now)
     drawnOf(i) { const L = lamps[i]; if (!L) return null; const K = kinds.get(L.kind); K.solid.getMatrixAt(L.slot, m4); const e = m4.elements; return { x: e[12], y: e[13], z: e[14], up: e[5], on: L.on, down: !!L.down, kind: L.l.kind, banner: !!K.cloth, shown: K.solid.visible }; },
-    stats: () => ({ kinds: kinds.size, lamps: lamps.length, heads: heads.length, lit: lamps.filter((L) => L.on > 0.5).length, down: lamps.filter((L) => L.down).length, flying: flying.length, regions: { ...regions }, fixed: fixed.length }),
+    // (`kinds`: the groups drawn, the city's kinds of lamp a group to each of its squares since Stage 2; `types`: the kinds
+    // of lamp themselves)
+    stats: () => ({ kinds: kinds.size, types: new Set([...kinds.keys()].map(baseKind)).size, lamps: lamps.length, heads: heads.length, lit: lamps.filter((L) => L.on > 0.5).length, down: lamps.filter((L) => L.down).length, flying: flying.length, regions: { ...regions }, fixed: fixed.length }),
   };
 }

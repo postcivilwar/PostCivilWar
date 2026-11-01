@@ -4549,7 +4549,14 @@ officer's sight is from eye to eye, through anything a deck, a pillar or a tower
 knocked down only by a car on that deck. The police come on foot from the town, as they always have: to the Peace
 Interchange, at the city's north end, some 2.3 km by the pavements, eight or nine minutes at a run.
 
-**Found and fixed on the way**: by the headless tests: someone of the town's going along a long stretch of the city's
+**Found and fixed on the way**: by the city browser test (no town car came by a player up on the viaduct in eight
+minutes) and the headless runs after it: where the Harmony Flyover comes down to Harmony Avenue, its road and the road
+beside it join into one, and their ways come together a little before the junction; the first car down the flyover had
+asked for the junction, while a car from the road beside it stood in front of it, waiting for that junction: each waited
+for the other, for good, and the city's cars queued up behind them for the rest of the day, so that none drove the
+expressway (now a car that has asked for a junction lets it go to the car in front of it waiting for it, `traffic.js`; a
+headless test has the browser test's two players for half an hour: no car standing on its way for a minute, cars by the
+player on the viaduct); by the headless tests: someone of the town's going along a long stretch of the city's
 pavement (an officer going back to her beat from the Peace Interchange, say) went to and fro on it for minutes, since each
 time they asked the way again (every second or two, on the move) it began at the stretch's nearer end, behind them: now
 someone part way along a stretch goes on along it (`city-walks.js`); by the city browser test and the checks after it:
@@ -4573,7 +4580,8 @@ roundabouts, billboards, the traffic's roads), `src/sim/traffic.js` (roads along
 time), `src/sim/city-walks.js` (the city's pavements, crossings and doors as a network, built a little at a time),
 `src/sim/city-strollers.js`, `src/client/render-oganiru.js` (in pieces), `src/client/render-city-adverts.js`. Tests:
 `test/oganiru-traffic.test.mjs` (headless: the city's roads as a network, ways over and under a flyover and through the
-cutting, a whole town day of traffic with four players in the city, a game saved and opened again),
+cutting, a whole town day of traffic with four players in the city, half an hour with the browser test's two, a game
+saved and opened again, nothing standing on a carriageway),
 `test/oganiru-people.test.mjs` (headless: the townspeople out walking; one of them sent across the city on foot; the chase
 up the Independence Flyover; an officer under a deck; the chase up the Peace Interchange's slip road onto the viaduct), `test/oganiru-city.mjs` (in a browser, two players, one on a phone's settings: the city in pieces, both
 levels of the Harmony Interchange driven, the cutting under the Hope bridge, the camera under the Peace flyover, the

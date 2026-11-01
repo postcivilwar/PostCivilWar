@@ -996,6 +996,14 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     const over = c.passing ? Math.sign(c.passing.need) * Math.min(Math.abs(c.side || 0), Math.abs(c.passing.need)) : 0;
     const way = ahead(c, w, obstacles, over, null, Math.max(TRAFFIC.look, (c.v * c.v) / (2 * TRAFFIC.brake) + 12), c.passing ? c.passing.past + s.length / 2 : Infinity);
     const ghost = real() < (c.ghostUntil || 0);
+    // (a junction it has asked for, while the car in front of it, short of the junction, waits for that very junction:
+    // where two roads join into one, their ways come together a little before the junction, and a car from the other
+    // road can be in front of it there; it lets the junction go to that one, or each would wait for the other for ever.
+    // 1 November 2026: at the foot of the Harmony Flyover, the cars down it and those along the road beside it, for good)
+    if (c.booked && way.car >= 0 && way.gap < c.booked.enter - front) {
+      const o = cars[way.car];
+      if (o && o.why === 'junction' && o.nextJunction && o.nextJunction.node === c.booked.node) c.booked = null;
+    }
     // a junction: taken one way through it at a time. A car coming up to one asks for it a little before it must decide
     // whether to stop (nothing else between it and the junction): if nobody is going through it, or only the same way,
     // it is the car's until it is out of it (`booked`); if someone is going through another way, it waits short of it.

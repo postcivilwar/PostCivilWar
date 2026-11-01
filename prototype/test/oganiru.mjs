@@ -65,11 +65,13 @@ const a = A.page, b = B.page;
 for (const p of [a, b]) await p.evaluate(() => { const n = window.__nlw; n.place(0, -500); n.buildCity(); });
 const drawn = await a.evaluate(() => {
   const n = window.__nlw, names = new Set();
-  n.scene.traverse((o) => { if (o.name && /^(oganiru|lamps|lamp-)/.test(o.name)) names.add(o.name.replace(/:t\d$/, ':tower')); });
+  // (since Stage 2 the city is drawn in pieces, each mesh's name ending in its piece's square, ":4,2"; the signals' lamps
+  // by their colour; the pillars with the rest of the concrete)
+  n.scene.traverse((o) => { if (o.name && /^(oganiru|lamps|lamp-)/.test(o.name)) names.add(o.name.replace(/:\d+,\d+$/, '').replace(/:t\d+$/, ':tower').replace(/^oganiru:signals:\w+$/, 'oganiru:signals')); });
   return { ready: n.city.ready, names: [...names].sort(), lamps: n.streetLamps.stats(), stats: n.city.stats() };
 });
-check('the city is built and drawn: its ground, roads and markings, kerbs, strips and walkways, decks with their undersides and pillars, its towers, signals and signs', drawn.ready && ['oganiru:ground', 'oganiru:tar', 'oganiru:rampTar', 'oganiru:paint', 'oganiru:kerb', 'oganiru:grass', 'oganiru:pave', 'oganiru:concrete', 'oganiru:soffit', 'oganiru:pillar', 'oganiru:tower', 'oganiru:lobby', 'oganiru:signals'].every((k) => drawn.names.includes(k)), drawn.names);
-check('every street lamp is drawn, the town\'s, Market Road\'s, those beyond the town and the city\'s (eight kinds: downtown\'s middle-strip lamps with their banners one of them), the city\'s shown with it', drawn.lamps.kinds === 8 && drawn.lamps.lamps > 250 && drawn.lamps.regions.city === true, drawn.lamps);
+check('the city is built and drawn: its ground, roads and markings, kerbs, strips and walkways, decks with their undersides and pillars, its towers, signals and signs', drawn.ready && ['oganiru:ground', 'oganiru:tar', 'oganiru:rampTar', 'oganiru:paint', 'oganiru:kerb', 'oganiru:grass', 'oganiru:pave', 'oganiru:concrete', 'oganiru:soffit', 'oganiru:tower', 'oganiru:lobby', 'oganiru:signals'].every((k) => drawn.names.includes(k)), drawn.names);
+check('every street lamp is drawn, the town\'s, Market Road\'s, those beyond the town and the city\'s (eight kinds: downtown\'s middle-strip lamps with their banners one of them), the city\'s shown with it', drawn.lamps.types === 8 && drawn.lamps.lamps > 250 && drawn.lamps.regions.city === true, drawn.lamps);
 for (let k = 0; k < 150; k += 1) { const t = await a.evaluate(() => { const c = window.__nlw.city; return c.trees ? { loaded: c.trees.loaded, failed: c.trees.failed } : null; }); if (t && (t.loaded || t.failed)) break; await a.waitForTimeout(1000); }
 await at(a, -6, -640, Math.PI, undefined, { dist: 6, pitch: 0.06, yaw: Math.PI - 0.15 });
 await settle(a, 4);
