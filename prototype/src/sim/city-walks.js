@@ -40,10 +40,20 @@ function onCarriageway(x, z) {
   return false;
 }
 
-let built = null;
-export function cityWalks() { if (!built) built = build(); return built; }
+// Worked out a few milliseconds at a time (`prepareCityWalks`, each tick of the town until it is done), or all at once
+// where it is wanted before then.
+let built = null, building = null;
+const clock = () => (typeof performance !== 'undefined' ? performance.now() : Date.now());
+export function prepareCityWalks(ms = 3) {
+  if (built) return true;
+  if (!building) building = build();
+  const end = clock() + ms;
+  while (clock() < end) { const r = building.next(); if (r.done) { built = r.value; building = null; return true; } }
+  return false;
+}
+export function cityWalks() { while (!prepareCityWalks(1000)); return built; }
 
-function build() {
+function* build() {
   const nodes = [];          // { x, z, y, foot }
   const adj = [];            // per node: [[other, length, crossing or null, foot], ...]
   const cells = new Map();
@@ -89,6 +99,7 @@ function build() {
   const ends = [], runOf = [];
   let run = 0;
   for (const list of runs.values()) {
+    yield;
     list.sort((p, q) => p.a0 - q.a0);
     let last = null;
     for (const p of list) {
@@ -115,6 +126,7 @@ function build() {
   // the towers' plazas: a few points across each, about the towers
   for (const b of OGANIRU_KERBED) {
     if (!b.plaza) continue;
+    yield;
     run += 1;
     const grid = new Map();
     for (let x = b.x0 + 1.5; x <= b.x1 - 1.5; x += 12) for (let z = b.z0 + 1.5; z <= b.z1 - 1.5; z += 12) {
@@ -127,6 +139,7 @@ function build() {
   }
   // round the roundabouts: their walkways (but where a road comes in)
   for (const rb of OGANIRU_ROUNDABOUTS) {
+    yield;
     const R = rb.outer + rb.walk / 2;
     let prev = -1, first = -1;
     for (let a = 0; a < 360; a += 10) {
@@ -143,7 +156,9 @@ function build() {
   }
   // where two runs meet (round a corner, at a roundabout's walkway): each end joined over the kerbed ground to the
   // nearest points of the other runs there
+  let count = 0;
   for (const k of ends) {
+    if ((count += 1) % 12 === 0) yield;
     const seen = new Set([runOf[k]]);
     for (const [o, d] of near(nodes[k].x, nodes[k].z, 9, (n, i) => n.foot && !seen.has(runOf[i]))) {
       if (seen.has(runOf[o]) || d < 0.01) continue;
@@ -155,6 +170,7 @@ function build() {
   // with the light that road's traffic stops at (along z the avenues', phase 0; along x the boulevards', phase 1)
   const zebras = [];
   for (const j of OGANIRU_JUNCTIONS) {
+    yield;
     for (const leg of j.legs) {
       const alongZ = leg === 'e' || leg === 'w', sign = leg === 'e' || leg === 'n' ? 1 : -1;
       const road = OGANIRU_ROADS.find((q) => j.roads.includes(q.id) && (q.along === 'z') === alongZ && (sign > 0 ? q.to > (alongZ ? j.z : j.x) + 1 : q.from < (alongZ ? j.z : j.x) - 1));
@@ -175,6 +191,7 @@ function build() {
   // the towers' doors (at the foot of their steps, toward Unity Avenue), across their plazas to the pavement
   const doors = [];
   for (const t of OGANIRU_TOWERS) {
+    yield;
     const facing = t.x > 0 ? -1 : 1;
     const x = t.x + facing * (t.dx / 2 + 3.2), z = t.z;
     const k = add(x, z, KERB, true, 'door');
@@ -205,6 +222,7 @@ function build() {
   };
   for (const d of OGANIRU_DECKS) {
     if (d.kind === 'expressway' || d.kind === 'bridge') continue;
+    yield;
     let prev = -1;
     const n = Math.max(1, Math.ceil(d.len / 8));
     for (let i = 0; i <= n; i += 1) {
@@ -230,10 +248,12 @@ function build() {
   // (round the end of the barrier between them, where the south-bound carriageway begins)
   link(first[-1], first[1], null, false);
   // a deck's ends: onto the expressway or another deck where it runs into one at its height, or down to the ground
+  count = 0;
   for (const k of [...deckEnds, ...lines]) {
+    if ((count += 1) % 2 === 0) yield;
     const n = nodes[k];
     for (const [o, d] of near(n.x, n.z, n.kind === 'expressway' ? 9 : 16, (m, i) => i !== k && !m.foot && Math.abs(m.y - n.y) < 0.6)) if (d > 0.01 && open(n.x, n.z, nodes[o].x, nodes[o].z, n.y)) { link(k, o, null, false); }
-    if (n.y < 0.6) for (const [o] of near(n.x, n.z, 30, (m) => m.foot && m.y < 0.6 + KERB).slice(0, 4)) if (open(n.x, n.z, nodes[o].x, nodes[o].z, 0)) link(k, o, null, false);
+    if (n.y < 0.6) for (const [o] of near(n.x, n.z, 24, (m) => m.foot && m.y < 0.6 + KERB).slice(0, 3)) if (open(n.x, n.z, nodes[o].x, nodes[o].z, 0)) link(k, o, null, false);
   }
   return { nodes, adj, cells, zebras, doors, near };
 }

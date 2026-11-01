@@ -27,6 +27,8 @@ export function renewTown(state) {
   // people taken out of their day, and how townspeople were moving
   delete state.actors;
   delete state.reactions;
+  // whoever was out walking in Oganiru City (city-strollers.js)
+  delete state.strollers;
   // the okadas and their riders: gone, with their journeys; the fares not yet paid over are not owed to anyone now
   const o = state.okada;
   if (o) {

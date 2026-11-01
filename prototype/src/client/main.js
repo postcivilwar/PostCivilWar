@@ -10,7 +10,7 @@
 // is a function call. In the networked game it is a message to a zone server.
 
 import { createHost } from '../sim/host.js';
-import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU } from '../sim/zone.js';
+import { ZONE, ZONE_PROPS, ZONE_TEXT, ZONE_RESIDENTS, ZONE_SERVICES, ZONE_BENCHES, ZONE_MOULD_STATIONS, ZONE_PARCELS, ZONE_ROADS, ZONE_JETTY, ZONE_SOUNDS, ZONE_COMPOUNDS, ZONE_SHEDS, ZONE_STALLS, ZONE_SPOTS, zoneWalkable, zoneStep, zoneSwimmable, zoneSolid, zoneSiteLayout, zoneResident, zoneRoomAt, zoneShoreZ, ZONE_SHOPS, zoneShop, ZONE_CAST, ZONE_BUILDINGS, OUTSKIRT_ROADS, zoneGroundY, POWERBIKE, inPowerbikeHall, onPowerbikeExit, powerbikeDisplayNear, CARSHOW, inCarHall, onCarshowExit, carshowAtDoors, carshowDisplayNear, carshowSideAt, carshowSideOf, carshowBuildingAt, carshowGateBoxes, SPORTS_MALL, inSportsHall, onSportsExit, sportsDisplayNear, sportsBuildingAt, zoneBlockKind, habitationFootOnly, HABITATION, HABITATION_FALLS, HABITATION_HOT_RIVER, hotRiverNear, HABITATION_STREAMS, HABITATION_WATERS, habitationWaterAt, habitationGroundAt, habitationFooting, habitationClimbing, habitationAlongDeck, habitationAway, CITY_AREA, zoneSurfaceY, zoneLevel, zoneDeckOver, oganiruTallAt, oganiruAway, ofOganiru, OGANIRU, OGANIRU_BILLBOARDS } from '../sim/zone.js';
 import { SPEED, SWIM, UPGRADE, structureFootprint, wallSeconds } from '../sim/sim.js';
 import { FIGURES } from '../sim/figures.js';
 import { DESIGNS, BUSINESSES } from '../sim/economy.js';
@@ -22,6 +22,7 @@ import { buildWorld } from './render-world.js';
 import { outskirtsSteps } from './render-outskirts.js';
 import { programsReady } from './program-ready.js';
 import { buildBillboards } from './render-billboards.js';
+import { cityAdvertArt } from './render-city-adverts.js';
 import { buildTown } from './render-town.js';
 import { createCrowd } from './render-crowd.js';
 import { linear, setLite, restoreGeometry, settleMesh, restState } from './render-kit.js';
@@ -349,7 +350,23 @@ function start(carried) {
     city = { ...step.value, ready: true };
     // (shown at once for someone in it; its trees read once it is in sight, below)
     streetLamps.show({ city: true });
+    // the billboards along its expressway, with the game's own adverts on them (render-city-adverts.js)
+    if (!cityBoards) {
+      cityBoards = buildBillboards(scene, { glowMaterial: world.glowMaterial, lite: LITE, boards: OGANIRU_BILLBOARDS, loadArtwork: (url) => { const [advert, aspect] = url.split('|'); return cityAdvertArt(advert, LITE ? 512 : 1024, Number(aspect)); } });
+      cityBoards.show(OGANIRU_BILLBOARDS.map((b) => ({ id: `house:${b.id}`, billboard: b.id, art: [`${b.advert}|${b.width / b.height}`] })));
+    }
     cityStats.builds += 1;
+  }
+  // (the city's billboards let go with it on a phone: what they are made of, but the glow they share with the town's)
+  let cityBoards = null;
+  function letGoCityBoards() {
+    if (!cityBoards) return;
+    cityBoards.dispose();
+    cityBoards.group.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      for (const m of [].concat(o.material || [])) { if (m === world.glowMaterial) continue; for (const k of ['map', 'emissiveMap']) if (m[k]) m[k].dispose(); m.dispose(); }
+    });
+    cityBoards = null;
   }
   function buildCity() {
     if (city.ready) return;
@@ -376,6 +393,7 @@ function start(carried) {
   function letGoCity() {
     if (!city.ready || cityJob) return false;
     city.letGo();
+    letGoCityBoards();
     city = { ready: false, see() {}, update() {}, letGo() {} };
     streetLamps.show({ city: false });
     cityBegun = false;
@@ -4833,6 +4851,7 @@ blood.update(dt, view.blood || []);
       }
     }
     if (billboards) billboards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
+    if (cityBoards && cityShown) cityBoards.update(dt, { x: cam.target.x, z: cam.target.z, night, clock });
     if (billboards && playing && clock - adBoard.at > 300) { adBoard.at = clock; adBoard.refresh(); }
     for (const showroom of world.showrooms) showroom.setNight(night);
     siteLayer.setNight(night * 1.5);
@@ -5119,7 +5138,7 @@ blood.update(dt, view.blood || []);
     saveNow() { writeStored(SAVE_KEY, { host: host.save(), playerId }); },
     get lite() { return LITE; }, get going() { return going; }, get me() { return me; },
     // for the browser tests: the power bike's riding controls on screen, with nothing to ride (no bike is in the game yet)
-    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
+    get beyond() { return outskirts.ready; }, get city() { return city; }, buildCity: () => buildCity(), letGoCity: () => letGoCity(), get cityStats() { return { ...cityStats }; }, get streetLamps() { return streetLamps; }, get closures() { return closures; }, get billboards() { return billboards; }, get cityBoards() { return cityBoards; }, adBoard, buildBeyond: () => buildBeyond(), beginBeyond: () => { beyondBegun = true; }, get beyondSteps() { return { ...beyondStats }; },
     bikePreview(on) { bikePreview = !!on; showControls(); return controls.shown; },
     bikeAudio: { BIKE_SOUNDS, BIKE_HORNS, createBikeEngine, soundBikeHorn, firingHz }, get bikeInput() { return controls.bike(); },
     skip(gameHours) { host.game.advance(gameHours * 3600); refreshView(); },

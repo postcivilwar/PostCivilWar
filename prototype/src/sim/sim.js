@@ -14,6 +14,7 @@ import { createPopulation, RANGE } from './population.js';
 import { createOkada } from './okada.js';
 import { createTraffic } from './traffic.js';
 import { createSportRiders } from './sport-riders.js';
+import { createCityStrollers } from './city-strollers.js';
 import { createOwnBikes, isOwnBike, bikeOf } from './own-bikes.js';
 import { createOwnSports, isOwnSport, sportOfAstride } from './own-sports.js';
 import { createOwnBoats, isOwnBoat, boatOfAstride } from './own-boats.js';
@@ -195,6 +196,8 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
   const traffic = createTraffic({ state, population, players: state.players, hub, emit, visitors: () => talk.visitors() });
   // the town's people out on bicycles, skateboards and skates (31 October 2026), up and down its roads
   const sportRiders = createSportRiders({ state, population, players: state.players, hub, emit, visitors: () => talk.visitors() });
+  // the town's people out walking in Oganiru City by day (city-strollers.js, 1 November 2026): its pavements and crossings
+  const strollers = createCityStrollers({ state, population, hub, timeScale: scale });
   const hijack = createHijack({ state, players: state.players, okada, vehicles, actors, population, emit, hub });
   // the shared market settles its sales here (market.js): money set aside for an offer, paid for a purchase, received for a sale
   // (what it finishes was agreed before starter TR was kept apart, with the money already set aside: it is not asked again)
@@ -348,6 +351,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     okada.tick(dtReal, state.t, state.real, weather().wet);
     traffic.tick(dtReal, state.t, state.real, weather().wet);
     sportRiders.tick(dtReal, state.t, state.real);
+    strollers.tick(dtReal, state.t);
     lamps.tick();
     naval.tick(dtReal);
     actors.tick(dtReal, state.t, state.real);
@@ -1210,7 +1214,7 @@ export function createGameSim({ ledger: rawLedger, monetary, issuanceAccount, au
     funds,
     setFigure: (playerId, figure, paid) => changeFigure(player(playerId), figure, paid),
     upgradeQuote: (playerId, figure) => upgradeQuote(player(playerId), figure),
-    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, naval, ownBoats, surfing, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
+    internals: { registry, economy, residents, vehicles, population, okada, traffic, sportRiders, strollers, naval, ownBoats, surfing, talk, actors, conflict, justice, care, phone, hijack, impact, guns, voices, timeScale: scale },
   };
 }
 

@@ -32,7 +32,8 @@
 //     walked to the Police Post
 //   there they pay, or someone pays for them, or they sit out their time
 
-import { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid, zoneGroundY } from './zone.js';
+import { ZONE, ZONE_SPOTS, zoneService, zoneWalkable, zoneSolid, zoneGroundY, oganiruStructureAt } from './zone.js';
+import { inCity } from './city-walks.js';
 import { levelAt } from './levels.js';
 import { GameError } from './registry.js';
 import { LedgerError, fineShares, trText, TR } from './ledger.js';
@@ -383,7 +384,19 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     for (const pick of nearestFree(goal.x, goal.z, Math.max(0, want))) send(pick.i, pick.from, 'respond', crime, p, goal);
   }
 
-  const sees = (m, p) => { const d = Math.hypot(p.x - m.x, p.z - m.z); return d < 8 || (d < LAW.sight && clearLine(m.x, m.z, p.x, p.z, 0.1)); };
+  // (in the city, one higher than the other, up a flyover's ramp, on its deck, under it: eye to eye, unless a deck's slab,
+  // an embankment, a pillar or a tower is between them; 1 November 2026, since an officer may follow up a ramp)
+  const officerLevel = (m) => (Number.isFinite(m.y) ? m.y : zoneGroundY(m.x, m.z));
+  const eyeToEye = (x0, z0, y0, x1, z1, y1) => {
+    const n = Math.max(1, Math.ceil(Math.hypot(x1 - x0, z1 - z0, y1 - y0)));
+    for (let k = 1; k < n; k += 1) { const t = k / n; if (oganiruStructureAt(x0 + (x1 - x0) * t, z0 + (z1 - z0) * t, y0 + (y1 - y0) * t)) return false; }
+    return true;
+  };
+  const sees = (m, p) => {
+    const d = Math.hypot(p.x - m.x, p.z - m.z), my = officerLevel(m), py = levelAt(p);
+    if (Math.abs(my - py) > 1.2 && (inCity(m.x, m.z) || inCity(p.x, p.z))) return d < LAW.sight && eyeToEye(m.x, m.z, my + 1.6, p.x, p.z, py + 1.6);
+    return d < 8 || (d < LAW.sight && clearLine(m.x, m.z, p.x, p.z, 0.1));
+  };
   // how hard the police run after someone: at one star a jog, from two up flat out (STARS)
   const chasePace = (law) => ((law.stars || 0) <= 1 ? PACE.hurry : PACE.sprint);
   const dutyOver = (i) => { delete book.officers[i]; if (actors.has(i)) actors.release(i, 'Going back on the beat'); };
@@ -432,9 +445,10 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     const d = Math.hypot(p.x - m.x, p.z - m.z);
     // (on a flyover over the officer's road, or under it: another level, out of reach; and near, out of sight behind its
     // deck: 31 October 2026)
-    // (an officer has her own height, in the city: up a flyover's ramp after someone, 1 November 2026)
-    const apart = Math.abs(levelAt(p) - (Number.isFinite(m.y) ? m.y : zoneGroundY(m.x, m.z))) > 2.5;
-    const inSight = sees(m, p) && !(apart && d < 40);
+    // (an officer has her own height, in the city: up a flyover's ramp after someone, 1 November 2026; another level,
+    // over or under her, is out of her reach)
+    const apart = Math.abs(levelAt(p) - officerLevel(m)) > 2.5;
+    const inSight = sees(m, p);
     if (inSight) { law.seenAt = { x: p.x, z: p.z, real: now, t: state.t }; law.wantedAt = state.t; o.lost = 0; } else o.lost += dt;
 
     if (o.duty === 'respond') {

@@ -133,8 +133,10 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const need = BODY.radius * 2;
     const py = levelAt(p);
     const raised = py - zoneGroundY(p.x, p.z) > LEVEL_APART;
-    const test = (qx, qz, name) => {
-      if (raised) return;
+    // (`level`: how high they are where the town says, in the city; otherwise on the ground, and someone up on a deck
+    // has nobody of the town's in their way)
+    const test = (qx, qz, name, level = undefined) => {
+      if (Number.isFinite(level) ? Math.abs(level - py) > LEVEL_APART : raised) return;
       const before = Math.hypot(p.x - qx, p.z - qz);
       if (before > need + 8) return;
       const after = Math.hypot(x - qx, z - qz);
@@ -143,10 +145,10 @@ export function createImpact({ state, players, population, actors, conflict, tal
     };
     // the town's people, wherever their day has them just now (not those indoors out of sight, nor riding)
     if (population.within && !p.driving) {
-      for (const [i, qx, qz, pose] of population.within(`way:${p.id}`, x, z, 1.6, state.t, real())) {
+      for (const [i, qx, qz, pose, qy] of population.within(`way:${p.id}`, x, z, 1.6, state.t, real())) {
         if (pose === POSE.hidden || pose === POSE.ride) continue;
         if (book.npc[i] && book.npc[i].dead) continue;
-        test(qx, qz, population.people[i] ? population.people[i].short || population.people[i].name : 'Someone');
+        test(qx, qz, population.people[i] ? population.people[i].short || population.people[i].name : 'Someone', qy);
       }
     }
     // the named residents (the police, the clerks, the drivers at the park)
@@ -408,9 +410,11 @@ export function createImpact({ state, players, population, actors, conflict, tal
     const now = real();
     let from = holder.sweep;
     if (!from || Math.hypot(bx - from.x, bz - from.z) > 4) from = { x: ax, z: az, at: now - 1 };
-    if (raised) holder.sweep = null;
-    else if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
-      const rows = population.within(`hit:${driver.id}`, x1, z1, 17, state.t, now);
+    if (now - from.at >= 0.09 || Math.hypot(bx - from.x, bz - from.z) > 1) {
+      // (those at its level only: in the city, where the town says how high someone is, on a flyover after somebody or
+      // on the Hope bridge over the cutting, that; elsewhere the ground they stand on. 1 November 2026: until then
+      // nobody of the town's was ever up on a deck, and a vehicle up on one struck nobody)
+      const rows = population.within(`hit:${driver.id}`, x1, z1, 17, state.t, now).filter((r) => Math.abs((Number.isFinite(r[4]) ? r[4] : zoneGroundY(r[1], r[2])) - vy) <= LEVEL_APART);
       const tx = forward ? ux : -ux, tz = forward ? uz : -uz;
       if (speed >= least) {
         for (const [i, px, pz, pose] of rows) {

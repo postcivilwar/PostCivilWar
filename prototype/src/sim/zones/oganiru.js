@@ -32,6 +32,7 @@
 // parapet along their tops; the bridge over it is a deck at street level.
 //
 // Grid metres, as the town's: +x is true north, +z true east; the free land is west (-z). One grid metre is a metre.
+import { faceOf, feetOf, categoryOf } from '../billboards.js';
 
 const KERB = 0.15;
 const clamp = (v, a, b) => (v < a ? a : v > b ? b : v);
@@ -951,8 +952,26 @@ Object.freeze(OGANIRU_PILLARS);
 // stands (`top`, absolute): something above it is not stopped by it (a car on the flyover by the pillar under it, nor
 // by the embankment of the ramp it is on).
 const circle = (x, z, r, top, extra = {}) => Object.freeze({ x, z, r, top, ...extra });
+// The expressway's billboards (the brief: "billboards with the game's own adverts"): on its banks, clear of its slip
+// roads, loops and the streets under its viaduct, each facing the traffic on its side (north-bound on the east, south-
+// bound on the west), the face 9 m up and more, seen from the viaduct and from down in the cutting. The kinds are the
+// town's (billboards.js); what each shows is one of the game's own places (render-city-adverts.js). Not for hire: the
+// town's fifty are (atani-billboards.js), these are the city's.
+export const OGANIRU_BILLBOARDS = Object.freeze([
+  [-990, -1, 28, 'twin-pole-long', 'game'], [-880, 1, 32, 'dark-unipole-catwalk', 'powerbike'], [-830, -1, 28, 'front-unipole-ladder', 'carshow'],
+  [-690, 1, 28, 'twin-pole-railing', 'sports'], [-640, -1, 28, 'dark-unipole-deck-lamps', 'unity-tower'], [-520, 1, 28, 'galvanised-unipole-railing', 'udo-bank'],
+  [-470, -1, 28, 'offset-white-unipole', 'airport'], [-340, 1, 28, 'twin-pole-railing', 'game'], [-350, -1, 28, 'dark-unipole-catwalk', 'powerbike'],
+  [460, -1, 28, 'front-unipole-ladder', 'carshow'],
+].map(([x, side, out, type, advert], n) => {
+  const z = EXPRESSWAY_Z + side * out, heading = side > 0 ? Math.atan2(-1, -0.35) : Math.atan2(1, 0.35);
+  const face = faceOf(type, 1);
+  const feet = feetOf(type, 1).map((f) => { const fx = x + Math.cos(heading) * f.x + Math.sin(heading) * f.z, fz = z - Math.sin(heading) * f.x + Math.cos(heading) * f.z, r = f.r || 0.5; return [fx - r, fz - r, fx + r, fz + r].map((v) => Math.round(v * 10) / 10); });
+  return Object.freeze({ id: `OC-${String(n + 1).padStart(2, '0')}`, type, scale: 1, category: categoryOf(face.width, face.height, false), tv: false, width: face.width, height: face.height, bottom: face.bottom, x, z, heading, region: 'city', place: `Oganiru Expressway, ${side > 0 ? 'east' : 'west'} bank`, feet, advert });
+}));
 export const OGANIRU_SOLIDS = Object.freeze([
   ...OGANIRU_TREES.map((t) => circle(t.x, t.z, t.kind === 'slim' ? 0.3 : t.kind === 'palm' ? 0.28 : 0.42, 12, { tree: true })),
+  // (the billboards' poles)
+  ...OGANIRU_BILLBOARDS.flatMap((b) => b.feet.map(([x0, z0, x1, z1]) => circle((x0 + x1) / 2, (z0 + z1) / 2, (x1 - x0) / 2 + 0.05, b.bottom + b.height + 1, { billboard: b.id }))),
   ...OGANIRU_SIGNALS.map((s) => circle(s.x, s.z, 0.13, 5)),
   ...OGANIRU_PILLARS.map((p) => circle(p.x, p.z, p.r, p.top, { pillar: true })),
 ]);
