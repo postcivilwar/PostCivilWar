@@ -35,7 +35,7 @@ import { TOWN_TREES } from './atani-trees.js';
 import { TOWER_COLLIDERS, TOWER_BOXES, standsAt } from './town-buildings.js';
 import { openClosures, closureColliders, edgeFences, fenceColliders } from './closures.js';
 // Oganiru City, the new city on the free land west of the town (31 October 2026): its roads, flyovers and towers
-import { OGANIRU, OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } from './oganiru.js';
+import { OGANIRU_CLOSURES, OGANIRU_EDGE_LINES, onOganiru, nearOganiru, oganiruGroundY, oganiruSurface, oganiruOnDeck, oganiruBlocked, oganiruDecksAt, oganiruStructureAt } from './oganiru.js';
 export * from './oganiru.js';
 // the habitation at the far end of the River Niger, and the road up the river to it (20 October 2026)
 import { HABITATION, onUpriver, onHabitation, habitationGroundY, habitationStep, HABITATION_COLLIDERS, habitationRootAt, habitationRailsAt } from './habitation.js';
@@ -1032,7 +1032,8 @@ export const zoneGroundY = (x, z) => (inHabitation(x, z) && !(onUpriver(x, z) &&
 // Where there is more than one level (Oganiru City's flyovers over its roads, 31 October 2026): the surface something at
 // height `y` stands on at (x, z), the highest no more than a step above it (oganiru.js). With no height, the ground.
 // Returns { y, deck } (deck: the flyover, ramp or raised road it is on, or null on the ground).
-const inOganiru = (x, z) => x > OGANIRU.bounds.x0 - 20 && x < OGANIRU.bounds.x1 + 20 && z > OGANIRU.bounds.z0 - 20 && z < OGANIRU.bounds.z1 + 20;
+// (near the city's land: since 1 November 2026 it reaches round the town, so its boxes are asked, not one box round it)
+const inOganiru = (x, z) => nearOganiru(x, z, 20);
 export function zoneLevel(x, z, y) {
   const g = zoneGroundY(x, z);
   if (!Number.isFinite(y) || !inOganiru(x, z)) return { y: g, deck: null };

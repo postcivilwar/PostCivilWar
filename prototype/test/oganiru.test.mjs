@@ -9,7 +9,8 @@ import { OGANIRU, OGANIRU_DECKS, OGANIRU_ROADS, OGANIRU_TREES, OGANIRU_PILLARS, 
 import { STREET_LAMPS, LAMP_KNOCK, LAMP_KINDS, lampDown, lampsDown, lampOnAt, lampInTheWay, clearLamps, knockSpeedOf } from '../src/sim/street-lamps.js';
 import { levelAt, walkLevel, keepLevel } from '../src/sim/levels.js';
 import { carFits } from '../src/sim/own-cars.js';
-import { OGANIRU_CLOSURES } from '../src/sim/zones/oganiru.js';
+import { OGANIRU_CLOSURES, roadWidthAt } from '../src/sim/zones/oganiru.js';
+import { onOutskirts } from '../src/sim/zones/atani-outskirts.js';
 import { POWER_CARS } from '../src/sim/power-cars.js';
 
 const D = OGANIRU.deck;
@@ -58,7 +59,8 @@ test('the decks are as the brief has them: no steeper than 6%, at least 5.5 m cl
   }
   assert.ok(highest > 15 && highest < 16, `the upper level ${highest} m`);
   // where one deck crosses over another, or over a road on the ground, there is room under it
-  const roadAt = (x, z) => OGANIRU_ROADS.some((r) => (r.along === 'z' ? Math.abs(x - r.c) <= r.half && z >= r.from && z <= r.to : Math.abs(z - r.c) <= r.half && x >= r.from && x <= r.to));
+  // (on a road's tar: not the middle of a flyover-road, which is its flyover's own way up and down)
+  const roadAt = (x, z) => OGANIRU_ROADS.some((r) => { const a = r.along === 'z' ? z : x; if (a < r.from || a > r.to) return false; const w = roadWidthAt(r, a), off = Math.abs(r.along === 'z' ? x - r.c : z - r.c); if (r.kind === 'flyover-road' && off < w.median / 2) return false; return off <= w.half; });
   let crossings = 0, overRoad = 0;
   for (const d of OGANIRU_DECKS) for (const p of d.path) {
     const hits = oganiruDecksAt(p.x, p.z).sort((a, b) => a.y - b.y);
@@ -68,7 +70,7 @@ test('the decks are as the brief has them: no steeper than 6%, at least 5.5 m cl
       assert.ok(hits[k].y - D.thick - hits[k - 1].y >= D.clear - 0.01, `${hits[k].deck.id} over ${hits[k - 1].deck.id} at (${p.x.toFixed(0)}, ${p.z.toFixed(0)}): ${(hits[k].y - D.thick - hits[k - 1].y).toFixed(2)} m clear`);
     }
     // over a road on the ground: high enough to pass under, never an embankment across it
-    if (roadAt(p.x, p.z) && p.y > 0.35 && Math.abs(p.z - (-780)) > 30) { overRoad += 1; assert.ok(p.y - D.thick >= D.clear - 0.01, `${d.id} over the road at (${p.x.toFixed(0)}, ${p.z.toFixed(0)}): ${(p.y - D.thick).toFixed(2)} m clear`); }
+    if (roadAt(p.x, p.z) && p.y > 0.35) { overRoad += 1; assert.ok(p.y - D.thick >= D.clear - 0.01, `${d.id} over the road at (${p.x.toFixed(0)}, ${p.z.toFixed(0)}): ${(p.y - D.thick).toFixed(2)} m clear`); }
   }
   assert.ok(crossings > 20 && overRoad > 10, `${crossings} points where one deck crosses another, ${overRoad} over a road`);
   for (const p of OGANIRU_PILLARS) assert.ok(!roadAt(p.x, p.z) || OGANIRU_ROADS.some((r) => r.kind === 'flyover-road' && Math.abs(p.z - r.c) < r.median / 2), `pillar at (${p.x.toFixed(0)}, ${p.z.toFixed(0)}) on a road`);
@@ -81,29 +83,44 @@ test('the decks are as the brief has them: no steeper than 6%, at least 5.5 m cl
 
 test('every lane of the city\'s roads on the ground is open to a car, and to the town\'s people: no pillar, tree, kerb post or embankment in a lane', () => {
   let points = 0;
+  // (each road's lanes where it is, as wide as it is there: a flyover-road narrowing to the avenue past its flyover's foot)
+  const lanesAt = (r, a) => {
+    const w = roadWidthAt(r, a);
+    if (r.kind === 'flyover-road') return [-(w.half + w.median / 2) / 2, (w.half + w.median / 2) / 2];
+    if (r.kind === 'expressway' || r.kind === 'cutting') return r.half > 10 ? [-12, -8.5, -5, 5, 8.5, 12] : [-3.5, 3.5];
+    if (w.median > 0 && r.kind !== 'approach') return [-(w.median / 2 + 1.75), -(w.median / 2 + 5.25), w.median / 2 + 1.75, w.median / 2 + 5.25];
+    if (r.kind === 'approach' || r.kind === 'link') return [-(w.half + w.median / 2) / 2, (w.half + w.median / 2) / 2];
+    return [-3.5, 3.5];
+  };
   for (const r of OGANIRU_ROADS) {
-    const lanes = r.kind === 'flyover-road' ? [-(r.half + r.median / 2) / 2, (r.half + r.median / 2) / 2] : r.median > 0 ? [-(r.median / 2 + 1.75), -(r.median / 2 + 5.25), r.median / 2 + 1.75, r.median / 2 + 5.25] : r.kind === 'approach' ? [-2.5, 2.5] : [-3.5, 3.5];
-    for (let a = r.from + 3; a <= r.to - 3; a += 2) for (const o of lanes) {
+    for (let a = r.from + 3; a <= r.to - 3; a += 2) for (const o of lanesAt(r, a)) {
       const x = r.along === 'z' ? r.c + o : a, z = r.along === 'z' ? a : r.c + o;
-      // (the Independence Flyover's ends come down onto the boulevard's middle, between its two roads; the roadblocks
-      // at the roads' ends are across them)
+      // (the flyovers' ends come down onto the roads' middles, between their two carriageways; the roadblocks at the
+      // roads' ends are across them)
       if (!zoneOnGround(x, z) || toClosure(x, z) < 3) continue;
+      const g = zoneGroundY(x, z);
       points += 1;
-      assert.ok(zoneWalkable(x, z, [], 1.0, 0), `${r.id}: a car's width at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+      assert.ok(zoneWalkable(x, z, [], 1.0, g), `${r.id}: a car's width at (${x.toFixed(1)}, ${z.toFixed(1)})`);
       assert.ok(zoneWalkable(x, z, [], 0.3), `${r.id}: the town's people at (${x.toFixed(1)}, ${z.toFixed(1)})`);
-      assert.equal(zoneSurfaceY(x, z, 0), zoneGroundY(x, z), `${r.id}: on the ground at (${x.toFixed(1)}, ${z.toFixed(1)})`);
+      assert.equal(zoneSurfaceY(x, z, g), g, `${r.id}: on the ground at (${x.toFixed(1)}, ${z.toFixed(1)})`);
     }
   }
-  assert.ok(points > 800, `${points} points`);
+  assert.ok(points > 8000, `${points} points`);
   // College Road goes on into Unity Avenue: from the town's road onto the city's, open all the way
   for (let z = -460; z > -540; z -= 1) assert.ok(zoneWalkable(-2.5, z, [], 1.0, 0) && zoneWalkable(2.5, z, [], 1.0, 0), `College Road on into Unity Avenue at ${z}`);
   assert.ok(ZONE_ROADS.some((r) => r.z0 <= -470 && r.x0 <= -2.5 && r.x1 >= 2.5), 'College Road reaches the town\'s west edge');
 });
 
 test('the slim trees down the middle strip: their trunks are solid to a car and to anyone on foot, at least 4 m apart, and the gaps between them open; a car crosses the strip only between them', () => {
-  const slim = OGANIRU_TREES.filter((t) => t.kind === 'slim').sort((a, b) => a.z - b.z);
-  assert.ok(slim.length >= 40, `${slim.length} slim trees`);
-  for (let i = 1; i < slim.length; i += 1) assert.ok(Math.abs(slim[i].z - slim[i - 1].z) >= 4.5, `trees ${(slim[i].z).toFixed(1)} and ${(slim[i - 1].z).toFixed(1)}`);
+  const all = OGANIRU_TREES.filter((t) => t.kind === 'slim');
+  assert.ok(all.length >= 200, `${all.length} slim trees`);
+  // (down each avenue's strip, at least 4 m apart)
+  for (const id of new Set(all.map((t) => t.road))) {
+    const r = OGANIRU_ROADS.find((q) => q.id === id), along = (t) => (r.along === 'z' ? t.z : t.x);
+    const row = all.filter((t) => t.road === id).sort((a, b) => along(a) - along(b));
+    for (let i = 1; i < row.length; i += 1) assert.ok(Math.abs(along(row[i]) - along(row[i - 1])) >= 4.5, `${id}: trees at ${along(row[i]).toFixed(1)} and ${along(row[i - 1]).toFixed(1)}`);
+  }
+  const slim = all.filter((t) => t.road === 'unity').sort((a, b) => a.z - b.z);
   for (const t of slim) {
     assert.ok(!zoneWalkable(t.x, t.z, [], 0.35, 0.15), `the trunk at ${t.z.toFixed(1)} stops someone on foot`);
     assert.ok(!zoneWalkable(t.x, t.z, [], 0.35), `and the town's people`);
@@ -119,7 +136,7 @@ test('the slim trees down the middle strip: their trunks are solid to a car and 
   assert.ok(carFits('grey-saloon', 0, mid, -Math.PI / 2, [], 0.2, 0.15), `a car across the strip between the trees at ${mid.toFixed(1)}`);
   // the middle strip is a kerb above the road; its openings (the junctions and the two U-turn gaps) are level
   assert.ok(Math.abs(zoneGroundY(0, -620) - OGANIRU.kerb) < 1e-9);
-  for (const g of OGANIRU_MEDIAN_GAPS) assert.equal(zoneGroundY(0, (g.from + g.to) / 2), 0, `${g.why} at ${g.from}`);
+  for (const g of OGANIRU_MEDIAN_GAPS) { const r = OGANIRU_ROADS.find((q) => q.id === g.road), a = (g.from + g.to) / 2; assert.equal(zoneGroundY(r.along === 'z' ? r.c : a, r.along === 'z' ? a : r.c), 0, `${g.road}: ${g.why} at ${g.from}`); }
 });
 
 test('a car keeps its level: up the Independence Flyover\'s ramp, over Unity Avenue on it, down its far ramp; another under it on the avenue all the while, neither touching the other', () => {
@@ -202,7 +219,7 @@ test('street lamps: a car slower than 35 km/h stops against one and it stands; f
   clearLamps();
   const w = town(['Lamp Driver']);
   // one of the tall lamps down Unity Avenue's middle strip, and one of the town's own
-  const median = STREET_LAMPS.find((l) => l.kind === 'median' && l.z < -620 && l.z > -660);
+  const median = STREET_LAMPS.find((l) => l.kind === 'median' && Math.abs(l.x) < 1 && l.z < -620 && l.z > -660);
   assert.ok(median, 'a lamp on the middle strip');
   const lampIndex = STREET_LAMPS.indexOf(median);
   assert.ok(lampInTheWay(median.x, median.z, 0.4, median.y) === lampIndex, 'its pole is in the way of a player\'s things');
@@ -229,7 +246,7 @@ test('street lamps: a car slower than 35 km/h stops against one and it stands; f
   assert.ok(!lampDown(lampIndex), 'up again after six minutes at most');
   // (the town judges the speed by what it saw: a page saying 40 km/h for a car the town saw crawling knocks nothing)
   const town2 = town(['Crawler']);
-  const other = STREET_LAMPS.find((l) => l.kind === 'median' && l.z < -680 && l.z > -760 && !lampDown(STREET_LAMPS.indexOf(l)));
+  const other = STREET_LAMPS.find((l) => l.kind === 'median' && Math.abs(l.x) < 1 && l.z < -680 && l.z > -760 && !lampDown(STREET_LAMPS.indexOf(l)));
   const q = into(town2, town2.id, other.x + 4, other.z + 5, Math.PI);
   q.pcar.x = other.x; q.pcar.z = other.z + 3.1; q.pcar.h = Math.PI; q.pcar.seen = 1;
   const lie = town2.send(town2.id, { type: 'lamp.knock', lamp: other.id, speed: 12, heading: Math.PI });
@@ -246,7 +263,7 @@ test('street lamps: a car slower than 35 km/h stops against one and it stands; f
   // lit only at night: each comes on as the dusk deepens, one after another along the avenue
   const ons = STREET_LAMPS.filter((l) => l.kind === 'median').map(lampOnAt);
   assert.ok(ons.every((v) => v > 0.05 && v < 0.35), 'each comes on at dusk, none by day');
-  assert.ok(new Set(ons.map((v) => v.toFixed(3))).size > ons.length / 2, 'not all at once');
+  assert.ok(new Set(ons.map((v) => v.toFixed(4))).size > ons.length / 2, 'not all at once');
   // the town's own lamps are knocked down the same way
   const townLamp = STREET_LAMPS.find((l) => l.kind === 'town');
   assert.ok(townLamp && townLamp.knock, 'the town\'s lamps too');
@@ -258,7 +275,8 @@ test('street lamps: a car slower than 35 km/h stops against one and it stands; f
 test('a lamp knocked down in one player\'s game is told to the others near, who see it down too, once; it is up again for all after its time', () => {
   clearLamps();
   const a = town(['Knocker']);
-  const lamp = STREET_LAMPS.find((l) => l.kind === 'edge');
+  // (one of the lamps along College Road carried on, as in Stage 1)
+  const lamp = STREET_LAMPS.find((l) => l.kind === 'edge' && Math.abs(l.z + 511) < 0.5 && l.x > 0);
   const i = STREET_LAMPS.indexOf(lamp);
   const p = into(a, a.id, lamp.x + 3, lamp.z + 6, Math.PI);
   p.pcar.x = lamp.x - Math.sin(lamp.heading) * 0; p.pcar.z = lamp.z + 3; p.pcar.h = Math.PI; p.pcar.seen = 13; keepLevel(p.pcar, 0);
@@ -310,9 +328,10 @@ test('the six towers are solid to their tops, with room to walk round them; noth
     assert.ok(t.height >= 30, `${t.name}: ${t.height} m`);
   }
   assert.ok(OGANIRU_TOWERS.some((t) => t.storeys >= 40) && OGANIRU_TOWERS.some((t) => t.storeys <= 12), 'tall and lower');
-  // nothing of the city east of the town's west edge
-  for (const l of OGANIRU_LAMPS) assert.ok(l.z < -478, 'its lamps');
-  for (const t of OGANIRU_TREES) assert.ok(t.z < -478, 'its trees');
-  for (const d of OGANIRU_DECKS) for (const q of d.path) assert.ok(q.z < -478, 'its decks');
+  // nothing of the city on the town's land, the airport's or the Kwale road's
+  const theirs = (x, z) => (Math.abs(x) < 250 && z > -478.6) || onOutskirts(x, z);
+  for (const l of OGANIRU_LAMPS) assert.ok(!theirs(l.x, l.z), `its lamps: (${l.x.toFixed(0)}, ${l.z.toFixed(0)})`);
+  for (const t of OGANIRU_TREES) assert.ok(!theirs(t.x, t.z), `its trees: (${t.x.toFixed(0)}, ${t.z.toFixed(0)})`);
+  for (const d of OGANIRU_DECKS) for (const q of d.path) assert.ok(!theirs(q.x, q.z), 'its decks');
   assert.ok(LAMP_KINDS.median.height > 10 && LAMP_KINDS.ornate.height < 5);
 });

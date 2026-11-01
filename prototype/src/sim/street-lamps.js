@@ -75,7 +75,7 @@ function allLamps() {
   // (out of any vehicle's reach), the ornate black posts with lanterns on the downtown streets
   OGANIRU_LAMPS.forEach((l, i) => {
     const k = LAMP_KINDS[l.kind];
-    const gy = l.kind === 'deck' ? l.y - 1.1 : 0;
+    const gy = Number.isFinite(l.gy) ? l.gy : l.kind === 'deck' ? l.y - 1.1 : 0;
     out.push(lamp(`c${i}`, l.kind, l.x, l.z, l.y, l.heading, k.reach, k.height, { radius: k.radius, arms: k.arms || 1, gy, knock: l.kind !== 'deck', deck: l.deck || null, banner: !!l.banner }));
   });
   return Object.freeze(out);
@@ -155,7 +155,8 @@ export const knockSpeedOf = (cls) => (heavyClass(cls) ? LAMP_KNOCK.heavy : LAMP_
 export function lampOrder(l) {
   // along the road it stands on: for one down a road running along z, by its z; along x, by its x; the town's by place
   const k = Math.sin(l.x * 0.0123 + l.z * 0.0071) * 0.5 + 0.5;
-  if (l.kind === 'median' || l.kind === 'edge' || l.kind === 'ornate' || l.kind === 'deck') return Math.max(0, Math.min(1, (-l.z - 470) / 1100)) * 0.85 + k * 0.15;
+  // (Oganiru City's: from the town's side out, along its avenues and boulevards both)
+  if (l.kind === 'median' || l.kind === 'edge' || l.kind === 'ornate' || l.kind === 'deck') return Math.max(0, Math.min(1, (Math.max(-l.z - 470, 0) + Math.abs(l.x) * 0.5) / 1500)) * 0.85 + k * 0.15;
   return k;
 }
 export const lampOnAt = (l) => 0.12 + lampOrder(l) * 0.16;

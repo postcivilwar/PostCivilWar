@@ -36,8 +36,8 @@ export const ROAD_CLOSURES = Object.freeze([
   // Registry Road ends in open ground to the north: the way on is not laid yet
   closure('registry-north', 'Registry Road, north end', AREA_STATE.BUILDING, { x: 241.5, z: -47.4 }, { x: 241.5, z: -32.6 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road not yet built'], 'The road is not built on from here.'),
-  // Campus Road, the same
-  closure('campus-north', 'Campus Road, north end', AREA_STATE.BUILDING, { x: 241.5, z: -347.2 }, { x: 241.5, z: -334.8 }, -Math.PI / 2,
+  // Campus Road, the same (open since 1 November 2026: it goes on as Campus Link into Oganiru City, oganiru.js)
+  closure('campus-north', 'Campus Road, north end', AREA_STATE.OPEN, { x: 241.5, z: -347.2 }, { x: 241.5, z: -334.8 }, -Math.PI / 2,
     ['ROAD CLOSED', 'Road not yet built'], 'The road is not built on from here.'),
   // College Road runs west to the edge of the town's land (open since 31 October 2026: it goes on as Unity Avenue into
   // Oganiru City, oganiru.js)
@@ -111,7 +111,9 @@ export function edgeFences(ground, more = []) {
       // of the way on either side, so that whoever comes to the bridge a little to one side of its middle walks on to it)
       const by = l.style === 'wood' ? 1 : 0, ux = (l.b.x - l.a.x) / len, uz = (l.b.z - l.a.z) / len;
       const beyond = (k) => ground(p.x + ux * k + l.out.x * EDGE_FENCE.beyond, p.z + uz * k + l.out.z * EDGE_FENCE.beyond);
-      const edge = ground(p.x, p.z) && !beyond(0) && !(by && (beyond(by) || beyond(-by)));
+      // (a line between two lands that both go on, where a fence stands all the same: `keep` says where along it; 1
+      // November 2026, Oganiru City's land against the town's, the airport's and the Kwale road's)
+      const edge = l.keep ? ground(p.x, p.z) && l.keep(p) : ground(p.x, p.z) && !beyond(0) && !(by && (beyond(by) || beyond(-by)));
       if (edge) { if (start === null) start = d; last = d; } else close();
     }
     close();

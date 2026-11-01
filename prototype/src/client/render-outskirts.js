@@ -9,7 +9,7 @@
 // anything, and nothing on it says it is any real bridge.
 
 import { programsReady } from './program-ready.js';
-import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS } from '../sim/zone.js';
+import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS, oganiruAway } from '../sim/zone.js';
 import { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } from './render-kit.js';
 import { addTree } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
@@ -345,9 +345,7 @@ export function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera =
   yield;
   // (the lamps along the road: render-lamps.js, since 31 October 2026, each by itself so that one can be knocked down)
   for (const s of OUTSKIRT_SIGNS) addSign(B, s, signs);
-  // the road works at the end of the Onitsha road: barriers and cones across it
-  const R = ONITSHA_ROAD;
-  for (let z = R.z0 + 0.5; z < R.z1; z += 2.2) { solid.box(0.25, 1.0, 2.0, place(R.x0 + 4, 0.5, z), Math.round(z) % 2 ? 0xf2f0ea : 0xc8342b); solid.round(new THREE.ConeGeometry(0.25, 0.7, 10), place(R.x0 + 9, 0.35, z + 1), 0xe0702a); }
+  // (the road works at the end of the Kwale road came away on 1 November 2026: it goes on into Oganiru City)
   yield;
   // trees on the land beyond the town, but nowhere anyone walks or drives
   const away = (x, z, pad) => OUTSKIRT_AREAS.every((a) => x < a.x0 - pad || x > a.x1 + pad || z < a.z0 - pad || z > a.z1 + pad);
@@ -355,6 +353,8 @@ export function* outskirtsSteps(scene, { glowMaterial, renderer = null, camera =
   for (let i = 0; made < 170 && i < 4000; i += 1) {
     const x = -1300 + noise(i, 71) * 1050, z = -640 + noise(i, 73) * 760;
     if (x > -262 || !away(x, z, 6) || OUTSKIRT_BUILDINGS.some((b) => Math.hypot(b.x - x, b.z - z) < 9)) continue;
+    // (none on Oganiru City's land, since 1 November 2026: the rest stand where they always have)
+    if (oganiruAway(x, z) < 6) { made += 1; continue; }
     const r = noise(i, 79);
     addTree(solid, leaves, { x, z, kind: r < 0.45 ? 'oilpalm' : r < 0.7 ? 'mango' : r < 0.85 ? 'palm' : 'almond', size: 0.8 + noise(i, 83) * 0.5, turn: noise(i, 89) * 6.28 });
     made += 1;

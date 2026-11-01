@@ -11,6 +11,7 @@ import { OGANIRU_CLOSURES, OGANIRU_ROADS } from '../src/sim/zones/oganiru.js';
 // Oganiru City's roads (31 October 2026) as boxes like the town's: across their whole width, from end to end
 const CITY_ROADS = OGANIRU_ROADS.map((r) => (r.along === 'z' ? { id: r.id, x0: r.c - r.half, x1: r.c + r.half, z0: r.from, z1: r.to } : { id: r.id, x0: r.from, x1: r.to, z0: r.c - r.half, z1: r.c + r.half }));
 
+const BETWEEN = new Set(['oganiru-town-west', 'oganiru-town-north', 'oganiru-airport-west', 'oganiru-airport-south', 'oganiru-kwale-inland', 'oganiru-kwale-end']);
 const along = (c, t) => ({ x: c.a.x + (c.b.x - c.a.x) * t, z: c.a.z + (c.b.z - c.a.z) * t });
 
 test('every part of the land is in one of four states; the roads closed now are all under construction, and each is closed by what is drawn', () => {
@@ -21,8 +22,11 @@ test('every part of the land is in one of four states; the roads closed now are 
   assert.equal(ROAD_CLOSURES.find((c) => c.id === 'waterside-north').state, AREA_STATE.OPEN);
   // (College Road's west end is open since 31 October 2026: it goes on as Oganiru City's Unity Avenue)
   assert.equal(ROAD_CLOSURES.find((c) => c.id === 'college-west').state, AREA_STATE.OPEN);
-  // the new city's roads that go no further yet, each closed where it stops
-  assert.deepEqual(OGANIRU_CLOSURES.map((c) => c.id), ['unity-west', 'gateway-north', 'gateway-south', 'union-north', 'union-south', 'tower-north', 'tower-south', 'independence-north', 'independence-south']);
+  // (Campus Road's north end is open since 1 November 2026: it goes on as Oganiru City's Campus Link)
+  assert.equal(ROAD_CLOSURES.find((c) => c.id === 'campus-north').state, AREA_STATE.OPEN);
+  // the new city's roads that go no further yet, each closed where it stops (Stage 2: the far ends of its avenues, the
+  // Kwale road on south, the roundabouts' legs not built on)
+  assert.deepEqual(OGANIRU_CLOSURES.map((c) => c.id), ['unity-west', 'harmony-west', 'kwale-south', 'airport-south', 'campus-north']);
   assert.ok([...ROAD_CLOSURES, ...OGANIRU_CLOSURES].filter((c) => c.state !== AREA_STATE.OPEN).every((c) => c.state === AREA_STATE.BUILDING && c.sign[0] === 'ROAD CLOSED' && c.why.length > 10));
   // what is closed is what is not open, the town's and the city's: one that is opened has no roadblock and nothing solid
   assert.deepEqual(ZONE_CLOSURES.map((c) => c.id), [...openClosures(), ...OGANIRU_CLOSURES].map((c) => c.id));
@@ -65,6 +69,9 @@ test('the fence along the edge of the built land: on the land, where the land en
     for (let t = 0; t <= 1; t += 0.25) {
       const p = { x: r.a.x + (r.b.x - r.a.x) * t, z: r.a.z + (r.b.z - r.a.z) * t };
       assert.ok(zoneOnGround(p.x, p.z), `${r.line} on the land`);
+      // (but where Oganiru City's land meets the town's, the airport's and the Kwale road's: a fence between two lands,
+      // since 1 November 2026, open only where a road goes through)
+      if (BETWEEN.has(r.line)) continue;
       assert.ok(!zoneOnGround(p.x + r.out.x * EDGE_FENCE.beyond, p.z + r.out.z * EDGE_FENCE.beyond), `${r.line}: the land ends just beyond it`);
     }
   }

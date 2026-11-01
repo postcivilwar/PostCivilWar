@@ -142,8 +142,8 @@ export const OUTSKIRT_COLLIDERS = Object.freeze([
   ...[-1, 1].map((k) => box((BRIDGE.x0 + BRIDGE.x1) / 2 + k * 9.5 - 0.35, BRIDGE.land + 8 - 0.35, (BRIDGE.x0 + BRIDGE.x1) / 2 + k * 9.5 + 0.35, BRIDGE.land + 8 + 0.35)),
   // the barrier across the far end
   wall(FAR_BANK.x0, BRIDGE.end - 0.6, FAR_BANK.x1, BRIDGE.end),
-  // the road works at the end of the Kwale road
-  wall(-1188, -47, -1184, -33),
+  // (the road works at the end of the Kwale road came away on 1 November 2026: the road goes on into Oganiru City, to
+  // the Southgate Roundabout, oganiru.js)
   ...fenceWalls(),
   ...terminalWalls(),
   box(A.tower.x - A.tower.base / 2, A.tower.z - A.tower.base / 2, A.tower.x + A.tower.base / 2, A.tower.z + A.tower.base / 2),
@@ -166,7 +166,8 @@ export const OUTSKIRT_SIGNS = Object.freeze([
   { id: 'onitsha-exit', lines: ['KWALE ROAD', 'Kwale · Ughelli · Warri'], x: -262, z: -54, facing: Math.PI / 2, width: 7, height: 2.2, palette: ['#ffffff', '#0b6b3a'] },
   { id: 'airport-turn', lines: ['ASABA AIRPORT', 'Turn here'], x: -728, z: -54, facing: Math.PI / 2, width: 5.5, height: 2, palette: ['#ffffff', '#16407a'] },
   { id: 'airport-terminal', lines: ['ASABA AIRPORT'], x: -850, z: -212.6, facing: 0, width: 26, height: 2.6, palette: ['#ffffff', '#0e2a4a'], high: 10.5 },
-  { id: 'roadworks', lines: ['ROAD WORKS', 'Road closed ahead'], x: -1180, z: -54, facing: Math.PI / 2, width: 5, height: 2, palette: ['#111111', '#f2b705'] },
+  // (where the road works were until 1 November 2026: the way on into Oganiru City)
+  { id: 'roadworks', lines: ['OGANIRU CITY', 'Southgate Roundabout · Harmony Avenue'], x: -1180, z: -54, facing: Math.PI / 2, width: 6, height: 2, palette: ['#ffffff', '#0b6b3a'] },
   { id: 'bridge-name', lines: ['RIVER NIGER BRIDGE'], x: (BRIDGE.x0 + BRIDGE.x1) / 2, z: BRIDGE.truss.from - 0.45, facing: Math.PI, width: 12, height: 1.4, palette: ['#ffffff', '#24364f'], high: BRIDGE.height + BRIDGE.truss.rise - 0.2 },
   // Anambra State, at the far end of the bridge: the State's welcome over the road where it comes down onto the far
   // bank (a gantry, lit at night), and a little further on the barrier where the world ends for now
