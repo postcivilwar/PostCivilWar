@@ -13088,6 +13088,10 @@ function createTraffic({ state, population, players, hub = {}, emit = () => {}, 
     const over = c.passing ? Math.sign(c.passing.need) * Math.min(Math.abs(c.side || 0), Math.abs(c.passing.need)) : 0;
     const way = ahead(c, w, obstacles, over, null, Math.max(TRAFFIC.look, (c.v * c.v) / (2 * TRAFFIC.brake) + 12), c.passing ? c.passing.past + s.length / 2 : Infinity);
     const ghost = real() < (c.ghostUntil || 0);
+    if (c.booked && way.car >= 0 && way.gap < c.booked.enter - front) {
+      const o = cars[way.car];
+      if (o && o.why === 'junction' && o.nextJunction && o.nextJunction.node === c.booked.node) c.booked = null;
+    }
     const next = w.junctions.find((j) => j.enter > front - 0.01 && !(c.booked && c.booked.node === j.node && c.booked.enter === j.enter));
     const redBefore = (j) => !!j && line < Infinity && upTo < Infinity && line < j.enter - front + 1;
     if (c.booked && redBefore(c.booked)) c.booked = null;
@@ -52745,7 +52749,7 @@ function createStreetLamps(scene, { lite = false, now = () => performance.now() 
     addFixed(list) { for (const f of list.slice(0, Math.max(0, FIXED_MOST - fixed.length))) fixed.push({ ...f, on: false }); poolsDirty = true; },
     dropFixed(region) { for (let k = fixed.length - 1; k >= 0; k -= 1) if ((fixed[k].region || 'city') === region) fixed.splice(k, 1); poolsDirty = true; },
     drawnOf(i) { const L = lamps[i]; if (!L) return null; const K = kinds.get(L.kind); K.solid.getMatrixAt(L.slot, m4); const e = m4.elements; return { x: e[12], y: e[13], z: e[14], up: e[5], on: L.on, down: !!L.down, kind: L.l.kind, banner: !!K.cloth, shown: K.solid.visible }; },
-    stats: () => ({ kinds: kinds.size, lamps: lamps.length, heads: heads.length, lit: lamps.filter((L) => L.on > 0.5).length, down: lamps.filter((L) => L.down).length, flying: flying.length, regions: { ...regions }, fixed: fixed.length }),
+    stats: () => ({ kinds: kinds.size, types: new Set([...kinds.keys()].map(baseKind)).size, lamps: lamps.length, heads: heads.length, lit: lamps.filter((L) => L.on > 0.5).length, down: lamps.filter((L) => L.down).length, flying: flying.length, regions: { ...regions }, fixed: fixed.length }),
   };
 }
 
