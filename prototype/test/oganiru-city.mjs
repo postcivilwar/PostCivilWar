@@ -148,8 +148,10 @@ for (let k = 0; k < 900 && !up; k += 1) {
     const n = window.__nlw;
     for (const c of n.view.traffic || []) {
       if (!(c.y > 5) || Math.hypot(c.x - n.predicted.x, c.z - n.predicted.z) > 90) continue;
+      // (as its model, once that has been put where the car is: a model just fetched stands at the scene's middle until
+      // the next frame puts it there)
       const car = n.carView.driven(`traffic:${c.n}`);
-      if (car && car.group) return { n: c.n, y: c.y, drawn: +car.group.position.y.toFixed(2), x: c.x, z: c.z, after: 0 };
+      if (car && car.group && Math.hypot(car.group.position.x - c.x, car.group.position.z - c.z) < 8) return { n: c.n, y: c.y, drawn: +car.group.position.y.toFixed(2), x: c.x, z: c.z, at: [+car.group.position.x.toFixed(1), +car.group.position.z.toFixed(1)], after: 0 };
     }
     return null;
   });
