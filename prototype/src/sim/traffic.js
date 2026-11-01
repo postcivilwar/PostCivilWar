@@ -29,6 +29,7 @@
 // its picture (vehicle-standins.js), lamps lit at night; what it hears: the nearest engines (audio.js).
 import { ZONE_ROADS, OUTSKIRT_ROADS, BOULEVARD, ZONE_CLOSURES, CITY_AREA, trafficHold, zoneWalkable, OGANIRU, OGANIRU_TRAFFIC, OGANIRU_JUNCTIONS, oganiruHold, signalState } from './zone.js';
 import { levelAt } from './levels.js';
+import { inCity } from './city-walks.js';
 import { POWER_CARS, carBoxes, carCircles } from './power-cars.js';
 import { POSE } from './population.js';
 import { GameError } from './registry.js';
@@ -344,6 +345,12 @@ const NET = buildNetwork();
 export const TRAFFIC_ROADS = NET.roads;
 export const TRAFFIC_STOPS = NET.stops;
 export const trafficNetwork = () => NET;
+// The expressway's through traffic (1 November 2026): the places at the roadside at its two ends, on Harmony Avenue by
+// the Harmony Interchange and on Peace Avenue by the Peace Interchange, and the expressway's own road.
+const THROUGH = (() => {
+  const on = (id, z0, z1) => NET.stops.filter((s) => NET.roads[s.road].id === id && s.z > z0 && s.z < z1);
+  return Object.freeze({ south: on('harmony-2', -1240, -1020), north: on('peace-2', -1170, -990), road: NET.roads.findIndex((r) => r.id === 'expressway') });
+})();
 
 // The junction ahead of something at `along` on road `ri` going `dir`; -1 where there is none.
 function nodeAhead(ri, along, dir) {
@@ -618,9 +625,9 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
 
   const specOf = (c) => POWER_CARS[c.model] || POWER_CARS['grey-saloon'];
   // (in the city, where one road may run over another, where something is up or down matters)
-  const inCity = (x, z) => inBox(OGANIRU.bounds, x, z, 30);
+  const nearCity = (x, z) => inBox(OGANIRU.bounds, x, z, 30);
   const heightAt = (ri, along) => { const y = levelOf(NET.roads[ri], along); return Number.isFinite(y) ? y : null; };
-  const keptHeight = (at) => (inCity(at.x, at.z) ? levelAt(at) : null);
+  const keptHeight = (at) => (nearCity(at.x, at.z) ? levelAt(at) : null);
   const onRoads = (c) => c.mode === 'drive' || c.mode === 'stop';
   const shown = (c) => onRoads(c) || c.mode === 'kept' || c.mode === 'returning';
 
@@ -654,17 +661,57 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     return out;
   };
 
+  // Does the way to a place at the roadside go along the expressway (`R`: the ways from where the car is)?
+  function alongExpressway(R, stop) {
+    let t = NET.arcOf(stop.edge, stop.dir);
+    if (t < 0 || !Number.isFinite(R.dist[t])) return false;
+    for (let k = 0; t >= 0 && t !== R.S && k < 600; k += 1, t = R.prev[t]) if (NET.arcs[t].road === THROUGH.road) return true;
+    return false;
+  }
+  // How near the way to a place at the roadside passes a player, along the junctions on it and the straight between
+  // each two (`R`: the ways from where the car is, search()).
+  const segment = (x, z, ax, az, bx, bz) => { const ex = bx - ax, ez = bz - az, l2 = ex * ex + ez * ez; const t = l2 > 0 ? Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2)) : 0; return Math.hypot(x - ax - ex * t, z - az - ez * t); };
+  // (a player up on a flyover or the expressway, or down in its cutting, is passed only on their level: the street under
+  // a player on the viaduct does not pass them)
+  function passing(R, stop) {
+    let t = NET.arcOf(stop.edge, stop.dir);
+    if (t < 0 || !Number.isFinite(R.dist[t])) return Infinity;
+    const ps = Object.values(players).map((q) => { const y = nearCity(q.x, q.z) ? levelAt(q) : 0; return { x: q.x, z: q.z, y, up: Math.abs(y) > 2 }; });
+    const at = (n) => (Number.isFinite(n.y) ? n.y : 0);
+    let best = Infinity;
+    for (let k = 0; t >= 0 && t !== R.S && k < 600; k += 1, t = R.prev[t]) {
+      const A = NET.nodes[NET.arcs[t].from], B = NET.nodes[NET.arcs[t].to], y = (at(A) + at(B)) / 2;
+      for (const q of ps) { if (q.up && Math.abs(y - q.y) > 3) continue; const d = segment(q.x, q.z, A.x, A.z, B.x, B.z); if (d < best) best = d; }
+    }
+    return best;
+  }
+
   // Where a car goes next: somewhere at the roadside a fair way off by the roads; while players are about, mostly
-  // somewhere near one of them, where the town is being seen.
+  // somewhere near one of them, where the town is being seen. (In the city, half of those a way past a player rather
+  // than to one: its expressway, flyovers and slip roads, where nobody stops, are seen driven where the players are: 1
+  // November 2026, a player by the expressway had waited ten minutes for a car on it.)
   function chooseStop(c, from) {
     const taken = busy();
     const near = anyPlayers() && hash(c.n * 13 + 5, c.trips) < 0.65;
+    const past = near && !!from && !!NET.roads[from.road].city && hash(c.n * 7 + 11, c.trips) < 0.5;
     // (the ways on from where it is, as it may drive them: one way along the slip roads, turning about only where it may)
     const start = from ? startOf(from) : null;
     if (from && !start) return -1;
     const R = start ? search(start) : null;
-    // (no further than a fair drive in the town; from the city, across it: along its expressway, over its flyovers)
-    const farthest = from && NET.roads[from.road].city ? TRAFFIC.cityFar : 1100;
+    // (while a player is out in the city, one in five of the cars already in it drive the length of its expressway, from
+    // the avenue by the interchange at one end to the avenue by the one at the other, as an expressway's through traffic
+    // does: 1 November 2026, the expressway had been driven only by the few going across the whole city)
+    if (from && NET.roads[from.road].city && c.n % 5 === 0 && Object.values(players).some((q) => inCity(q.x, q.z))) {
+      const ends = c.x > -300 ? THROUGH.south : THROUGH.north;
+      const k0 = Math.floor(hash(c.n * 17 + 3, c.trips) * ends.length);
+      for (let k = 0; k < ends.length; k += 1) {
+        const s = ends[(k0 + k) % ends.length];
+        if (!taken.has(s.id) && s.id !== c.to && alongExpressway(R, s)) return s.id;
+      }
+    }
+    // (no further than a fair drive in the town; from the city, across it: along its expressway, over its flyovers; and
+    // from the town to a player out in the city, as far as that is)
+    const farthest = from && (NET.roads[from.road].city || (near && Object.values(players).some((q) => inCity(q.x, q.z)))) ? TRAFFIC.cityFar : 1100;
     let best = -1, bestScore = Infinity;
     for (const s of NET.stops) {
       if (taken.has(s.id) || s.id === c.to) continue;
@@ -674,8 +721,9 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
         if (!Number.isFinite(far)) continue;
         if (far < 60 || far > farthest) continue;
       }
-      let score = hash(c.n * 31 + s.id, c.trips + 1) * 400;
-      if (near) score += Math.min(600, nearestPlayer(s.x, s.z));
+      // (a way past a player: the one passing nearest, give or take a little; to one: near one, give or take more)
+      let score = hash(c.n * 31 + s.id, c.trips + 1) * (past ? 120 : 400);
+      if (near) score += Math.min(600, past ? passing(R, s) : nearestPlayer(s.x, s.z));
       if (score < bestScore) { bestScore = score; best = s.id; }
     }
     return best;
@@ -736,7 +784,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     const out = [];
     // (each at its height where it is in the city, where one thing may be over another: what is on a flyover is not in
     // the way of what is under it)
-    const yOf = (o) => (inCity(o.x, o.z) ? levelAt(o) : undefined);
+    const yOf = (o) => (nearCity(o.x, o.z) ? levelAt(o) : undefined);
     for (const c of cars) if (shown(c)) { const s = specOf(c); out.push({ x: c.x, z: c.z, y: Number.isFinite(c.y) ? c.y : undefined, h: c.h, hw: s.width / 2, hl: s.length / 2, v: c.mode === 'drive' ? c.v : 0, car: c.n }); }
     for (const id of Object.keys(players)) {
       const q = players[id];
@@ -746,14 +794,14 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       else if (q.driving) out.push({ x: q.x, z: q.z, y, h: q.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: q.id });
       else if (!q.carried) out.push({ x: q.x, z: q.z, y, h: 0, hw: 0.4, hl: 0.4, v: 0, player: q.id, foot: true });
       const parked = q.carParked && typeof q.carParked === 'object' ? q.carParked : {};
-      for (const [id2, s2] of Object.entries(parked)) { const s = POWER_CARS[id2]; if (s) out.push({ x: s2.x, z: s2.z, y: inCity(s2.x, s2.z) && Number.isFinite(s2.y) ? s2.y : undefined, h: s2.h, hw: s.width / 2, hl: s.length / 2, v: 0 }); }
+      for (const [id2, s2] of Object.entries(parked)) { const s = POWER_CARS[id2]; if (s) out.push({ x: s2.x, z: s2.z, y: nearCity(s2.x, s2.z) && Number.isFinite(s2.y) ? s2.y : undefined, h: s2.h, hw: s.width / 2, hl: s.length / 2, v: 0 }); }
     }
     if (hub.vehicles && hub.vehicles.all) for (const v of hub.vehicles.all()) if (!v.driver) out.push({ x: v.x, z: v.z, y: yOf(v), h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0 });
     // players in other copies of the town, seen through the network (talk.js): on foot, or in what they drive
     for (const v of visitors()) {
       if (v.held || v.swimming) continue;
       const car = v.car && POWER_CARS[v.car.car];
-      const y = inCity(v.x, v.z) && Number.isFinite(v.y) ? v.y : undefined;
+      const y = nearCity(v.x, v.z) && Number.isFinite(v.y) ? v.y : undefined;
       if (car) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: car.width / 2, hl: car.length / 2, v: Math.max(0, v.car.speed || 0), player: v.id });
       else if (v.ride) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: v.id });
       else if (v.vehicle) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: v.id });

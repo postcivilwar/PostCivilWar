@@ -136,22 +136,25 @@ check('on foot under the Peace Avenue flyover, the camera is under its deck', un
 await A.shot('under-the-peace-flyover');
 
 // ---- D: the town's cars and people drawn at their heights ----
-await at(a, 20, -1110, -Math.PI / 2, undefined, { dist: 10, pitch: 0.2, yaw: -Math.PI / 2 });
+// (up on the expressway's viaduct, on its shoulder south of the Unity Interchange, facing the north-bound traffic: the
+// town's cars going by up there, its through traffic among them, each drawn up there as its model)
+await at(a, -400, EXPRESSWAY_Z + 14.2, -Math.PI / 2, expresswayY(-400), { dist: 9, pitch: 0.16, yaw: -Math.PI / 2 });
 let up = null;
-for (let k = 0; k < 240 && !up; k += 1) {
+for (let k = 0; k < 480 && !up; k += 1) {
   await a.waitForTimeout(1000);
   up = await a.evaluate(() => {
     const n = window.__nlw;
     for (const c of n.view.traffic || []) {
-      if (!(c.y > 5) || Math.hypot(c.x - n.predicted.x, c.z - n.predicted.z) > 150) continue;
+      if (!(c.y > 5) || Math.hypot(c.x - n.predicted.x, c.z - n.predicted.z) > 90) continue;
       const car = n.carView.driven(`traffic:${c.n}`);
-      if (car && car.group) return { n: c.n, y: c.y, drawn: +car.group.position.y.toFixed(2), x: c.x, z: c.z };
+      if (car && car.group) return { n: c.n, y: c.y, drawn: +car.group.position.y.toFixed(2), x: c.x, z: c.z, after: 0 };
     }
     return null;
   });
+  if (up) up.after = k;
 }
-await A.shot('the-towns-cars-at-the-unity-interchange');
-check('the town\'s cars drive up on the viaduct and the flyovers, and are drawn up there', !!up && Math.abs(up.drawn - up.y) < 0.6, up);
+await A.shot('the-towns-cars-up-on-the-expressway');
+check('the town\'s cars drive up on the viaduct, and are drawn up there', !!up && Math.abs(up.drawn - up.y) < 0.6, up);
 await at(a, 0, -760, Math.PI, undefined, { dist: 9, pitch: 0.15, yaw: Math.PI - 0.4 });
 let walker = null;
 for (let k = 0; k < 180 && !walker; k += 1) {
