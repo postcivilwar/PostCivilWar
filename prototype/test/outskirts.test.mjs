@@ -6,12 +6,14 @@ import { createHost } from '../src/sim/host.js';
 
 const walkLine = (x0, z0, x1, z1, step = 0.5) => { const n = Math.ceil(Math.hypot(x1 - x0, z1 - z0) / step); for (let i = 0; i <= n; i += 1) { const x = x0 + ((x1 - x0) * i) / n, z = z0 + ((z1 - z0) * i) / n; if (!zoneWalkable(x, z)) return { x, z }; } return null; };
 
-test('the Onitsha road leaves the town from Registry Road and can be walked to the road works', () => {
+test('the Onitsha road leaves the town from Registry Road and can be walked on into Oganiru City, to its Southgate Roundabout', () => {
   const registry = ZONE_ROADS.find((r) => r.id === 'registry');
   assert.ok(ONITSHA_ROAD.x1 >= registry.x0 && ONITSHA_ROAD.z0 <= registry.z0 && ONITSHA_ROAD.z1 >= registry.z1, 'it carries straight on from Registry Road');
-  assert.equal(walkLine(0, -40, -1180, -40), null, 'from the middle of town to the road works');
-  assert.equal(zoneWalkable(-1187, -40), false, 'and no further');
-  assert.equal(zoneWalkable(-700, -300 - 300), false, 'the bush beyond is not walked on');
+  // (until 1 November 2026 it ended at road works at x -1187; the city's second stage carries it on to the roundabout)
+  assert.equal(walkLine(0, -40, -1180, -40), null, 'from the middle of town to where the road works were');
+  assert.equal(walkLine(-1180, -40, -1262, -40), null, 'and on to the Southgate Roundabout');
+  // (the bush between the road, the airport and the city's land: at (-700, -600) until the city came round north of it)
+  assert.equal(zoneWalkable(-500, -300), false, 'the bush beyond is not walked on');
 });
 
 test('the airport: in by its road, along the terminal, into the hall by a door, onto the airside only by the gate', () => {

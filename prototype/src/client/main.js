@@ -337,7 +337,9 @@ function start(carried) {
   // (how far the street lamps are drawn from where the eye looks: the town's reach, as last worked out)
   let lampReach = Infinity;
   let cityJob = null, cityBegun = false;
-  const CITY_PHONE = Object.freeze({ come: 420, go: 650 });
+  // (1 November 2026: the city's land reaches round the town to its north and south, so a phone builds its own of it
+  // from nearer: its pieces near the player are built as they come near, render-oganiru.js)
+  const CITY_PHONE = Object.freeze({ come: 300, go: 480 });
   const cityWanted = (x, z) => !LITE || oganiruAway(x, z) < CITY_PHONE.come;
   const cityStats = { steps: 0, frames: 0, longestMs: 0, workMs: 0, builds: 0, letGo: 0 };
   function* citySteps(stepwise) {
@@ -354,6 +356,8 @@ function start(carried) {
     if (!cityJob) cityJob = citySteps(false);
     while (!cityJob.next('now').done) { /* all of it, now */ }
     cityJob = null;
+    // (and its pieces round the player, at once)
+    if (city.buildAround) city.buildAround(predicted.x, predicted.z);
   }
   function stepCity(budgetMs = 6) {
     if (city.ready) { cityJob = null; return; }
@@ -2155,7 +2159,8 @@ function start(carried) {
     // the town's cars near them (traffic.js), where they stand or are going; not one the player is in
     for (const c of view.traffic || []) {
       if (!POWER_CARS[c.model] || Math.abs(c.x - predicted.x) > 40 || Math.abs(c.z - predicted.z) > 40) continue;
-      for (const b of carBoxes(POWER_CARS[c.model], c.x, c.z, c.h)) if (!(predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4)) boxes.push(b);
+      // (at its height in the city: a car on a flyover is not in the way of someone under it)
+      for (const b of carBoxes(POWER_CARS[c.model], c.x, c.z, c.h)) if (!(predicted.x > b.x0 - 0.4 && predicted.x < b.x1 + 0.4 && predicted.z > b.z0 - 0.4 && predicted.z < b.z1 + 0.4)) boxes.push(Number.isFinite(c.y) ? { ...b, y: c.y } : b);
     }
     boxes.push(...carshowGateBoxes(view.carshowGate || 0));
     return boxes;
@@ -2762,7 +2767,7 @@ function start(carried) {
       if (r.mine && r.person === null && r.mode === 'kept') add(r.x, r.z, 2.4, { bias: 1.2, short: 'Ride', text: `Ride the ${word} you took`, run: () => retakeSport(r.n) });
     }
     // and a car of the town's they took and left standing (never theirs: traffic.js)
-    for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model]) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
+    for (const c of view.traffic || []) if (c.mine && c.mode === 'kept' && POWER_CARS[c.model] && !(Number.isFinite(c.y) && Math.abs(c.y - levelAt(predicted)) > 2.5)) add(c.x, c.z, POWER_CARS[c.model].length / 2 + 1.6, { bias: 2.2, short: 'Drive', text: `Drive the ${POWER_CARS[c.model].name} you took`, run: () => enterTakenCar(c.n) });
     for (const v of view.vehicles) {
       if (v.driver) continue;
       if (v.yours) add(v.x, v.z, 3.4, { bias: 1.2, short: 'Drive', text: `Drive keke ${v.plate}`, run: () => enterVehicle(v) });
@@ -2923,6 +2928,7 @@ function start(carried) {
     // a car of the town's standing still with its driver at the wheel (traffic.js), from beside either front door
     if (!out.take) for (const c of view.traffic || []) {
       if (!c.stopped || c.mode === 'kept' || !POWER_CARS[c.model] || !driverSide('car', c, predicted.x, predicted.z).ok) continue;
+      if (Number.isFinite(c.y) && Math.abs(c.y - levelAt(predicted)) > 2.5) continue;
       const driver = known.get(c.person);
       out.take = { car: c.n, text: `Take ${driver ? `${driver.short}'s` : 'the'} ${POWER_CARS[c.model].name}` };
       break;
@@ -3690,6 +3696,8 @@ function start(carried) {
       if (!e || Math.hypot(e.x - tx, e.z - tz) > 6) { e = { x: tx, z: tz, h: t.h }; trafficShown.set(t.n, e); }
       else { const k = Math.min(1, dt * 12); e.x += (tx - e.x) * k; e.z += (tz - e.z) * k; e.h += angleGap(t.h, e.h) * k; }
       e.n = t.n; e.model = t.model; e.speed = t.speed; e.steer = t.steer; e.brake = t.brake; e.held = t.held; e.mode = t.mode; e.mine = t.mine; e.hornAgo = t.hornAgo;
+      // (its height, in the city: on a flyover, the viaduct, a slip road, down in the cutting; drawn on the surface there)
+      e.y = Number.isFinite(t.y) ? t.y : undefined;
     }
     for (const n of [...trafficShown.keys()]) if (!seen.has(n)) trafficShown.delete(n);
     return [...trafficShown.values()];
@@ -4460,7 +4468,7 @@ function start(carried) {
         for (const c of q.cars || []) parkedCars.push({ ...c, key: `cpark:${q.id}:${c.car}` });
       }
       trafficCars = trafficNow(dt);
-      const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
+      const trafficDrawn = trafficCars.map((e) => ({ key: e.n, id: e.model, x: e.x, z: e.z, y: e.y, h: e.h, speed: e.speed, steer: e.steer, brake: e.brake, held: e.held }));
       // (whoever lies on the road near: for the wheels of a car going over them, wheel-bumps.js)
       const bodies = ownDrive || peerCars.length || trafficDrawn.length ? crowd.lying(predicted.x, predicted.z, 80) : [];
       carView.update(dt, { driven: ownDrive, drives: peerCars, parked: parkedCars, parkedMost: 6, traffic: trafficDrawn, groundY: groundAt, from: predicted, night, bodies });
@@ -4652,7 +4660,7 @@ blood.update(dt, view.blood || []);
         if (!carView.driven(`peer:${q.id}`) && POWER_CARS[q.car.car] && Math.hypot(q.x - predicted.x, q.z - predicted.z) < PEER_STANDIN) standing.push({ key: `c:${q.id}`, kind: 'car', id: q.car.car, x: q.x, y: groundAt(q.x, q.z, q.gy), z: q.z, h: q.heading });
         if (q.hornAgo >= 0 && q.hornAgo < 0.8 && peerHorned.get(q.id) !== q.hornAt) { peerHorned.set(q.id, q.hornAt); peerHornsHeard += 1; audio.carHorn(q.car.car, q.x, q.z); }
       }
-      for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: zoneGroundY(e.x, e.z), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
+      for (const e of trafficCars) if (!carView.driven(`traffic:${e.n}`) && Math.hypot(e.x - predicted.x, e.z - predicted.z) < (LITE ? TRAFFIC_STANDIN.lite : TRAFFIC_STANDIN.full)) standing.push({ key: `t:${e.n}`, kind: 'car', id: e.model, x: e.x, y: groundAt(e.x, e.z, e.y), z: e.z, h: e.h, lamps: night > 0.25 && (e.mode === 'drive' || e.mode === 'stop') });
       updatePeerKekes(dt);
       // the town's people out on their bicycles, skateboards and skates (sport-riders-view.js), and a cyclist's bell
       sportRidersView.update(dt, { list: view.sportRiders || [], known, eye: predicted, ahead: Math.max(0, clock - viewAt), groundY: zoneGroundY, now: clock });

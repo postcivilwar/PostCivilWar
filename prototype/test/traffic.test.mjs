@@ -8,14 +8,15 @@ import { town, ok, refused, until, officerOnScene } from './world.mjs';
 import { TRAFFIC, TRAFFIC_MODELS, TRAFFIC_ROADS, TRAFFIC_STOPS, trafficNetwork } from '../src/sim/traffic.js';
 import { POWER_CARS } from '../src/sim/power-cars.js';
 import { CAR_PARTS } from '../src/client/car-parts.js';
-import { ZONE_ROADS, OUTSKIRT_ROADS } from '../src/sim/zone.js';
+import { ZONE_ROADS, OUTSKIRT_ROADS, oganiruTar } from '../src/sim/zone.js';
 import { NPC_FIGURES } from '../src/sim/npc-figures.js';
 import { driverSide } from '../src/sim/hijack.js';
 import { signalState, CITY_AREA } from '../src/sim/zones/atani-city.js';
 import { createHost } from '../src/sim/host.js';
 
 const roadsAll = [...ZONE_ROADS, ...OUTSKIRT_ROADS];
-const onRoad = (x, z, m) => roadsAll.some((r) => x >= r.x0 - m && x <= r.x1 + m && z >= r.z0 - m && z <= r.z1 + m);
+// (the town's roads, or the city's tar and its decks, Oganiru City's: zones/oganiru.js)
+const onRoad = (x, z, m) => roadsAll.some((r) => x >= r.x0 - m && x <= r.x1 + m && z >= r.z0 - m && z <= r.z1 + m) || [[0, 0], [m, 0], [-m, 0], [0, m], [0, -m]].some(([dx, dz]) => oganiruTar(x + dx, z + dz));
 // two cars, as boxes turned as they stand: do they overlap? (separating axes)
 const corners = (c) => { const s = POWER_CARS[c.model]; const ux = Math.sin(c.h), uz = Math.cos(c.h), sx = Math.cos(c.h), sz = -Math.sin(c.h); const L = s.length / 2, W = s.width / 2; return [[1, 1], [1, -1], [-1, -1], [-1, 1]].map(([a, b]) => [c.x + ux * L * a + sx * W * b, c.z + uz * L * a + sz * W * b]); };
 function overlap(A, B) {
@@ -97,10 +98,11 @@ test('on the roads for ten minutes about the boulevard: on the roads, on their o
       if (!atStop && !onRoad(c.x, c.z, 1.5)) offRoad += 1;
       // its own side: cruising, not going round anything, away from the junctions
       const road = TRAFFIC_ROADS[c.road];
-      if (c.mode === 'drive' && c.v > 4 && !c.side && road && !trafficNetwork().nodes.some((n) => Math.hypot(n.x - c.x, n.z - c.z) < 14)) {
+      if (c.mode === 'drive' && c.v > 4 && !c.side && road && road.axis !== 'path' && !trafficNetwork().nodes.some((n) => Math.hypot(n.x - c.x, n.z - c.z) < 24)) {
         sideSamples += 1;
         const right = road.axis === 'x' ? (c.z - road.c) * c.dir : -(c.x - road.c) * c.dir;
-        if (right < road.lane - 0.6) wrongSide += 1;
+        const lane = road.laneAt ? road.laneAt(Math.max(road.a0, Math.min(road.a1, c.along))) : road.lane;
+        if (right < lane - 0.6) wrongSide += 1;
       }
       // a stop line crossed while its light was red
       const [fx, fz] = front(c), last = was.get(c.n);

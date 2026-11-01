@@ -26,8 +26,14 @@ import { STREET_LAMP } from './light.js';
 // let go on a phone far from them, main.js).
 const REGION = Object.freeze({ town: 'town', block: 'town', outskirt: 'outskirts', median: 'city', 'median+banner': 'city', edge: 'city', ornate: 'city', deck: 'city' });
 // (how each lamp is drawn: its kind, the city's downtown middle-strip lamps with their banners a shape of their own)
-const drawnKind = (l) => (l.banner ? `${l.kind}+banner` : l.kind);
-const FIXED_MOST = 320;
+// (Oganiru City's lamps, since 1 November 2026, each kind drawn in squares of the city LAMP_SQUARE m across, so that only
+// those near the eye are drawn: the city reaches 2.4 km)
+const LAMP_SQUARE = 640;
+const CITY_KINDS = new Set(['median', 'edge', 'ornate', 'deck']);
+const drawnKind = (l) => { const kind = l.banner ? `${l.kind}+banner` : l.kind; return CITY_KINDS.has(l.kind) ? `${kind}@${Math.floor((l.x + 1510) / LAMP_SQUARE)},${Math.floor((l.z + 1750) / LAMP_SQUARE)}` : kind; };
+const baseKind = (kind) => kind.split('@')[0];
+const regionOf = (kind) => REGION[baseKind(kind)] || 'town';
+const FIXED_MOST = 480;
 const GREY = 0x4a4d52, DARK = 0x3a3d42, STONE = 0x8d877b, LAMPLIGHT = 0xfff1c9;
 const STEEL = 0x9ba1a7, STEEL_DARK = 0x5d6268, IRON = 0x1d1f22, CONCRETE = 0xb6b1a5;
 
@@ -186,7 +192,7 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
   }
   const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), qa = new THREE.Quaternion(), pos = new THREE.Vector3(), one = new THREE.Vector3(1, 1, 1), axis = new THREE.Vector3(), upY = new THREE.Vector3(0, 1, 0), v3 = new THREE.Vector3();
   for (const [kind, K] of kinds) {
-    const shape = shapeOf(kind, lite);
+    const shape = shapeOf(baseKind(kind), lite);
     K.shape = shape;
     const n = K.list.length;
     K.solid = new THREE.InstancedMesh(shape.solid, shape.metal ? metal : kit.solid, n);
@@ -209,7 +215,7 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
       L.heads = shape.heads.map(([hx, hy, hz]) => { v3.set(hx, hy, hz).applyQuaternion(q); return { x: l.x + v3.x, y: L.y + v3.y, z: l.z + v3.z, ground: l.kind === 'deck' ? l.gy : zoneGroundY(l.x + v3.x, l.z + v3.z), size: shape.pool, lamp: L }; });
     }
     K.solid.computeBoundingSphere(); K.glow.computeBoundingSphere();
-    K.region = REGION[kind] || 'town';
+    K.region = regionOf(kind);
     // (where its lamps stand: none of it is drawn while the eye is further than it sees from all of them, as the town's
     // own squares are not, render-kit.js: before 1 November 2026 they were drawn in the town's squares)
     K.box = { x0: Math.min(...K.list.map((L) => L.l.x)), x1: Math.max(...K.list.map((L) => L.l.x)), z0: Math.min(...K.list.map((L) => L.l.z)), z1: Math.max(...K.list.map((L) => L.l.z)) };
@@ -307,7 +313,7 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
     K.moved = true;
   }
   // how far round a lamp turns as it falls, so that it lies with its arm flat on the road, not dug into it
-  const rollOf = (L, dir) => { if (!L.heads.length || L.kind === 'ornate') return 0; const a = wrap(dir + Math.PI / 2 - L.l.heading), b = wrap(dir - Math.PI / 2 - L.l.heading); return Math.abs(a) < Math.abs(b) ? a : b; };
+  const rollOf = (L, dir) => { if (!L.heads.length || L.l.kind === 'ornate') return 0; const a = wrap(dir + Math.PI / 2 - L.l.heading), b = wrap(dir - Math.PI / 2 - L.l.heading); return Math.abs(a) < Math.abs(b) ? a : b; };
 
   const frustum = new THREE.Frustum(), viewProjection = new THREE.Matrix4(), sphere = new THREE.Sphere();
   // Is someone here looking at lamp `L` (it is near, and in view)?
@@ -325,7 +331,7 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
     let n = 0;
     for (const h of heads) {
       const L = h.lamp;
-      const lit = L.on > 0.5 && L.shown && regions[REGION[L.kind] || 'town'];
+      const lit = L.on > 0.5 && L.shown && regions[regionOf(L.kind)];
       poolAt.makeScale(lit ? h.size : 0, 1, lit ? h.size : 0);
       poolAt.setPosition(h.x, h.ground + 0.07, h.z);
       pools.setMatrixAt(n, poolAt);
@@ -430,7 +436,7 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
       streakTimer = 0;
       const ex = camera.position.x, ez = camera.position.z;
       const near = [];
-      for (const h of heads) { const L = h.lamp; if (L.on < 0.5 || !regions[REGION[L.kind] || 'town']) continue; const d = Math.hypot(h.x - ex, h.z - ez); if (d < 130 && d > 2) near.push([d, h]); }
+      for (const h of heads) { const L = h.lamp; if (L.on < 0.5 || !regions[regionOf(L.kind)]) continue; const d = Math.hypot(h.x - ex, h.z - ez); if (d < 130 && d > 2) near.push([d, h]); }
       near.sort((a, b) => a[0] - b[0]);
       let n = 0;
       for (const [d, h] of near) {
@@ -452,7 +458,7 @@ export function createStreetLamps(scene, { lite = false, now = () => performance
     if (lights.length && target && lightTimer > 0.5) {
       lightTimer = 0;
       const near = [];
-      for (const h of heads) { if (h.lamp.on < 0.5 || !regions[REGION[h.lamp.kind] || 'town']) continue; const d = Math.hypot(h.x - target.x, h.z - target.z); if (d < 60) near.push([d, h]); }
+      for (const h of heads) { if (h.lamp.on < 0.5 || !regions[regionOf(h.lamp.kind)]) continue; const d = Math.hypot(h.x - target.x, h.z - target.z); if (d < 60) near.push([d, h]); }
       near.sort((a, b) => a[0] - b[0]);
       lights.forEach((light, k) => { const h = near[k] && near[k][1]; if (h) light.position.set(h.x, h.y - 0.45, h.z); else light.position.y = -100; });
     }

@@ -1,27 +1,32 @@
-// Oganiru City, drawn (31 October 2026, the owner's brief for the new city with flyovers: Stage 1, the sample). What it
-// is and where: src/sim/zones/oganiru.js. Drawn from the same data the town keeps to, so that what is seen is what is
-// solid: every kerb, strip and walkway from the boxes the town stands people on, every deck from the line its road
-// follows and the heights along it, every pillar where the town has one.
+// Oganiru City, drawn (the owner's brief of 31 October 2026 for the new city with flyovers: Stage 1, the sample, 31
+// October; Stage 2, the whole road network, 1 November). What it is and where: src/sim/zones/oganiru.js. Drawn from the
+// same data the town keeps to, so that what is seen is what is solid: every kerb, strip and walkway from the boxes the
+// town stands people on, every deck from the line its road follows and the heights along it, every pillar where the
+// town has one.
 //
-//   - The ground: the land round the city flat, red earth along the roads' verges, rising to bush hills beyond its fence.
+//   - The ground: the land round the city flat, red earth along the roads' verges, rising to bush hills beyond its fence;
+//     the expressway's cutting let down into it, between its retaining walls.
 //   - The roads: tar with its grain, its patches and cracks, darker where the wheels run; lanes, edge lines, zebra
-//     crossings and stop lines in white; black-and-white kerbs a metre a block, worn; grass middle strips raised behind
-//     them; paved walkways; the Gate Roundabout with its island; drains at the kerb.
-//   - The decks (the flyovers, the raised expressway, its ramps and loops): the road on them with its joints, concrete
-//     walls 1.1 m high with drain spouts and the stains under them, a barrier down the middle of the expressway and the
-//     Independence Flyover, the slab and its girders underneath, pillars with wide caps, embankments between retaining
-//     walls where a deck is too low to pass under, lamps under the decks that light the road at night.
-//   - The slim trees down Unity Avenue's middle strip: the habitation's slim tree (from its owner's file, unchanged),
-//     each copy its own height and turn, its leaves moving in the wind (more in a storm); further off, its picture.
-//     Shade trees along the verges, as the town's.
+//     crossings, stop lines and turn arrows in white; black-and-white kerbs a metre a block, worn; grass middle strips
+//     raised behind them; paved walkways; the roundabouts with their islands; drains at the kerb; the junctions.
+//   - The decks (the flyovers, the raised expressway, its ramps and loops, the bridge): the road on them with its joints,
+//     concrete walls 1.1 m high with drain spouts and the stains under them, a barrier down the middle of the expressway
+//     and the flyovers, the slab and its girders underneath, pillars with wide caps, embankments between retaining walls
+//     where a deck is too low to pass under, lamps under the decks that light the road at night.
+//   - The slim trees down the middle strips: the habitation's slim tree (from its owner's file, unchanged), each copy its
+//     own height and turn, its leaves moving in the wind (more in a storm); further off, its picture. Shade trees along
+//     the verges, palms on the expressway's banks, as the town's.
 //   - Six towers: glass and stone, each its own; lobbies of glass with canopies and steps, shops at the foot with made-up
 //     names; at night their windows lit, more in the evening and fewer late, the tallest crowns lit.
 //   - Traffic signals at the junctions, the road signs, the green gantries over the expressway.
 // The street lamps are render-lamps.js's (they can be knocked down); the roadblocks and the fence, render-closures.js's.
 //
-// Built a piece a frame (`oganiruSteps`, a generator, as the land beyond the town is), on a phone only when the player
-// is coming near it, and let go again when they are far.
-import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_AREAS, EXPRESSWAY_Z, oganiruAway, ZONE, signalState } from '../sim/zone.js';
+// In pieces (Stage 2: the city is too big to be one thing on a phone): the land is cut into squares (`PIECE` m), each
+// built by itself a few milliseconds a frame when the player comes near it and let go again when they are far; what
+// is the whole city's (its pictures and materials, the slim trees, the signals' lamps, the roadblocks and the fence) is
+// built once (`oganiruSteps`, a generator, as the land beyond the town is), on a phone only when the player is coming
+// near the city, and let go again when they are far.
+import { OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_KERBED, OGANIRU_MEDIAN_GAPS, OGANIRU_TOWERS, OGANIRU_TREES, OGANIRU_PILLARS, OGANIRU_SIGNALS, OGANIRU_SIGNS, OGANIRU_JUNCTIONS, OGANIRU_ROUNDABOUTS, OGANIRU_CUTTING, OGANIRU_STOP_LINES, OGANIRU_PLACES, EXPRESSWAY_Z, oganiruAway, expresswayY, roadWidthAt, ZONE, signalState, HABITATION_MODELS, ofOganiru } from '../sim/zone.js';
 import { Batch, place, linear, noise, smoothNoise, grassTexture, textTexture, surface, buildingKit, letGoOnceSent } from './render-kit.js';
 import { addTree, CITY_FLAT } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
@@ -29,18 +34,22 @@ import { reflects, weathers } from './render-finish.js';
 import { isRoad } from './world-shading.js';
 import { LIGHT } from './light.js';
 import { programsReady } from './program-ready.js';
-import { HABITATION_MODELS, ofOganiru } from '../sim/zone.js';
 import { buildClosures } from './render-closures.js';
 
 const D = OGANIRU.deck;
-const GATE = Object.freeze({ x: 0, z: -560, island: 13, outer: 22, walk: 3.5 });
+const CUT = OGANIRU.cutting;
 const KERB = OGANIRU.kerb;
 const ROAD_Y = 0.005;          // the tar's top (the ground under it a little lower)
 const PAINT_Y = 0.013;          // the markings on it
 const DECK_LIFT = 0.012;        // a deck's road drawn this much over where it lies on the ground (a ramp's foot)
 const GRASS = 0x55803a;
 const TT = 12;                  // metres of road to the tar's picture
-const TAR = 0x4b4b50, TAR_WORN = 0x444449, PATCH = 0x58585d, LINE = 0xece9df, CONCRETE = 0xc2bdb1, CONCRETE_DARK = 0xa59f92, KERB_WHITE = 0xe8e6df, KERB_BLACK = 0x1f2022;
+const TAR = 0x4b4b50, TAR_WORN = 0x444449, LINE = 0xece9df, CONCRETE = 0xc2bdb1, CONCRETE_DARK = 0xa59f92, KERB_WHITE = 0xe8e6df, KERB_BLACK = 0x1f2022;
+const EZ = EXPRESSWAY_Z;
+const PEACE_X = OGANIRU_PLACES.PEACE_X;
+// the ground under a point before any deck: the expressway's cutting below the land, the land itself
+const inCut = (x, z) => x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1 && Math.abs(z - EZ) <= CUT.wall;
+const groundBelow = (x, z) => (inCut(x, z) ? expresswayY(x) : 0);
 
 // ------------------------------------------------------------------------------------------- pictures --
 function canvasOf(size, paint, repeat = true) {
@@ -250,214 +259,6 @@ const Q_UV = [[0, 0], [1, 0], [1, 1], [0, 1]];
 const UP = [0, 1, 0], DOWN = [0, -1, 0];
 const shade = (hex, k) => linear(hex).multiplyScalar(k);
 
-// ------------------------------------------------------------------------------------------------ ground --
-// The land drawn under and round the city: flat where the city is (and a little round it), rising to bush hills beyond
-// its fence as the town's land does beyond the town (render-world.js). Where the town's ground or the land beyond the
-// town is already drawn, nothing.
-const TOWN_GROUND = { x0: -470, x1: 470, z0: -700 };
-const OUTSKIRTS_GROUND = { x0: -1330, x1: -232, z0: -660 };
-function landY(x, z) {
-  const away = oganiruAway(x, z);
-  if (away <= CITY_FLAT.flat) return -0.02;
-  const b = ZONE.bounds;
-  const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
-  const hill = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
-  if (away >= CITY_FLAT.rise) return hill;
-  const k = (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat);
-  return -0.12 + (hill + 0.12) * k * k * (3 - 2 * k);
-}
-function buildGround(lite) {
-  const x0 = -760, x1 = 820, z0 = -1720, z1 = -478;
-  const step = lite ? 14 : 9;
-  const nx = Math.ceil((x1 - x0) / step), nz = Math.ceil((z1 - z0) / step);
-  const pos = [], col = [], uv = [];
-  const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dry = linear(0xa9a85a), earth = linear(0xa0623a), c = new THREE.Color();
-  const covered = (x, z) => (x > TOWN_GROUND.x0 && x < TOWN_GROUND.x1 && z > TOWN_GROUND.z0 && oganiruAway(x, z) > CITY_FLAT.flat - 2) || (x > OUTSKIRTS_GROUND.x0 && x < OUTSKIRTS_GROUND.x1 && z > OUTSKIRTS_GROUND.z0);
-  const at = (i, j) => {
-    const x = Math.min(x1, x0 + i * step), z = Math.min(z1, z0 + j * step);
-    const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
-    c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
-    // red earth trodden along the roads' verges and round the decks' feet
-    const away = oganiruAway(x, z);
-    if (away < 1) { const nearRoad = roadEdgeNear(x, z); if (nearRoad < 7) c.lerp(earth, 0.55 * (1 - nearRoad / 7) + 0.1 * smoothNoise(x / 6, z / 6)); }
-    return { x, y: landY(x, z), z, r: c.r, g: c.g, b: c.b };
-  };
-  const grid = [];
-  for (let j = 0; j <= nz; j += 1) { const row = []; for (let i = 0; i <= nx; i += 1) row.push(at(i, j)); grid.push(row); }
-  const put = (v) => { pos.push(v.x, v.y, v.z); col.push(v.r, v.g, v.b); uv.push(v.x / 3.2, v.z / 3.2); };
-  for (let j = 0; j < nz; j += 1) for (let i = 0; i < nx; i += 1) {
-    const a = grid[j][i], b = grid[j][i + 1], cc = grid[j + 1][i + 1], d = grid[j + 1][i];
-    const mx = (a.x + cc.x) / 2, mz = (a.z + cc.z) / 2;
-    if (covered(mx, mz)) continue;
-    // (two triangles facing up: x north, z east)
-    put(a); put(d); put(cc); put(a); put(cc); put(b);
-  }
-  const g = new THREE.BufferGeometry();
-  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
-  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
-  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
-  g.computeVertexNormals();
-  g.computeBoundingSphere();
-  letGoOnceSent(g);
-  const map = grassTexture();
-  map.repeat.set(1, 1);
-  const mesh = new THREE.Mesh(g, surface({ vertexColors: true, map, roughness: 1, metalness: 0 }));
-  mesh.receiveShadow = true;
-  mesh.name = 'oganiru:ground';
-  return mesh;
-}
-// how far a point is from the edge of the nearest road's tar (for the verges' red earth)
-function roadEdgeNear(x, z) {
-  let best = Infinity;
-  for (const r of OGANIRU_ROADS) {
-    const half = r.kind === 'approach' ? 10 : r.half;
-    const across = r.along === 'z' ? Math.abs(x - r.c) : Math.abs(z - r.c), along = r.along === 'z' ? z : x;
-    if (along < r.from - 3 || along > r.to + 3) continue;
-    const edge = half + (r.walk || 0);
-    if (across > edge) best = Math.min(best, across - edge);
-    else best = 0;
-  }
-  return best;
-}
-
-// ------------------------------------------------------------------------------------------------- roads --
-// The stretches of [a0, a1] where `open(at)` holds, looked at a metre at a time: [[from, to], ...].
-function runsOf(a0, a1, open) {
-  const out = [];
-  let from = null;
-  for (let a = a0; a < a1; a += 1) {
-    const ok = open(a + 0.5);
-    if (ok && from === null) from = a;
-    if (!ok && from !== null) { out.push([from, a]); from = null; }
-  }
-  if (from !== null) out.push([from, a1]);
-  return out;
-}
-function addRoads(M, lite) {
-  const tar = (x0, z0, x1, z1, col = TAR, y = ROAD_Y) => M.tar.quad([x0, y, z0], [x1, y, z0], [x1, y, z1], [x0, y, z1], col, [[x0 / TT, z0 / TT], [x1 / TT, z0 / TT], [x1 / TT, z1 / TT], [x0 / TT, z1 / TT]], UP);
-  const paint = (x0, z0, x1, z1, col = LINE) => M.paint.quad([x0, PAINT_Y, z0], [x1, PAINT_Y, z0], [x1, PAINT_Y, z1], [x0, PAINT_Y, z1], col, Q_UV, UP);
-  // where a road's markings stop short of a junction or the roundabout
-  const junctions = OGANIRU_ROADS.filter((r) => r.along === 'x').map((r) => ({ c: r.c, half: r.half }));
-  const inJunction = (z, pad = 3) => junctions.some((j) => Math.abs(z - j.c) < j.half + pad) || OGANIRU_MEDIAN_GAPS.some((g) => g.why === 'u-turn' && z > g.from - 2 && z < g.to + 2);
-  for (const r of OGANIRU_ROADS) {
-    if (r.kind === 'approach') continue;
-    const lo = r.c - r.half, hi = r.c + r.half;
-    if (r.along === 'z') {
-      tar(lo, r.from, hi, r.to);
-      // the wheels' darker paths down each lane, and the markings: the edge lines, the line between the lanes
-      for (const k of [-1, 1]) {
-        const inner = r.c + k * (r.median / 2), outer = r.c + k * (r.half - 0.5);
-        for (const lane of [inner + k * 1.75, inner + k * 5.25]) for (const w of [-0.85, 0.85]) {
-          const x = lane + w;
-          M.wear.quad([x - 0.28, ROAD_Y + 0.002, r.from], [x + 0.28, ROAD_Y + 0.002, r.from], [x + 0.28, ROAD_Y + 0.002, r.to], [x - 0.28, ROAD_Y + 0.002, r.to], TAR_WORN, [[(x - 0.28) / TT, r.from / TT], [(x + 0.28) / TT, r.from / TT], [(x + 0.28) / TT, r.to / TT], [(x - 0.28) / TT, r.to / TT]], UP);
-        }
-        for (const [z0, z1] of runsOf(r.from, r.to, (z) => !inJunction(z))) {
-          paint(inner + k * 0.2 - 0.075, z0, inner + k * 0.2 + 0.075, z1);
-          paint(outer - k * 0.15 - 0.075, z0, outer - k * 0.15 + 0.075, z1);
-        }
-        for (let z = r.from + 2; z < r.to - 3; z += 9) if (!inJunction(z + 1.5, 5)) paint(inner + k * 3.5 - 0.075, z, inner + k * 3.5 + 0.075, z + 3);
-      }
-    } else if (r.kind === 'flyover-road') {
-      // the boulevard either side of its flyover; under the flyover, paving
-      for (const k of [-1, 1]) {
-        const z0 = r.c + k * (r.median / 2), z1 = r.c + k * r.half;
-        tar(r.from, Math.min(z0, z1), r.to, Math.max(z0, z1));
-        for (let x = r.from + 3; x < r.to - 3; x += 9) paint(x, (z0 + z1) / 2 - 0.075, x + 3, (z0 + z1) / 2 + 0.075);
-      }
-      M.pave.quad([r.from, ROAD_Y + 0.01, r.c - r.median / 2], [r.to, ROAD_Y + 0.01, r.c - r.median / 2], [r.to, ROAD_Y + 0.01, r.c + r.median / 2], [r.from, ROAD_Y + 0.01, r.c + r.median / 2], CONCRETE_DARK, [[r.from / 2, (r.c - 8) / 2], [r.to / 2, (r.c - 8) / 2], [r.to / 2, (r.c + 8) / 2], [r.from / 2, (r.c + 8) / 2]], UP);
-      // (the mouth where it meets Unity Avenue's edge)
-      const mouth = r.from > 0 ? [10, r.from] : [r.to, -10];
-      tar(mouth[0], r.c - r.half, mouth[1], r.c + r.half);
-    } else {
-      tar(r.from, lo, r.to, hi);
-      if (r.median > 0) {
-        for (const k of [-1, 1]) {
-          const inner = r.c + k * (r.median / 2), outer = r.c + k * (r.half - 0.5);
-          paint(r.from, inner + k * 0.2 - 0.075, r.to, inner + k * 0.2 + 0.075); paint(r.from, outer - k * 0.15 - 0.075, r.to, outer - k * 0.15 + 0.075);
-          for (let x = r.from + 2; x < r.to - 3; x += 9) paint(x, inner + k * 3.5 - 0.075, x + 3, inner + k * 3.5 + 0.075);
-        }
-      } else {
-        // a street: a dashed line down its middle, edge lines
-        for (let x = r.from + 3; x < r.to - 3; x += 6) paint(x, r.c - 0.075, x + 3, r.c + 0.075);
-        for (const k of [-1, 1]) paint(r.from, r.c + k * (r.half - 0.5) - 0.075, r.to, r.c + k * (r.half - 0.5) + 0.075);
-      }
-    }
-  }
-  // College Road carried on, widening to the roundabout
-  const flareHalf = (z) => { const t = Math.max(0, Math.min(1, (-505 - z) / (-505 - (GATE.z + GATE.outer)))); return 5 + 5 * t; };
-  for (let z = -478.6; z > GATE.z + GATE.outer - 0.6; z -= 2) {
-    const z1 = Math.max(GATE.z + GATE.outer - 0.6, z - 2);
-    const h0 = flareHalf(z), h1 = flareHalf(z1);
-    M.tar.quad([-h0, ROAD_Y, z], [h0, ROAD_Y, z], [h1, ROAD_Y, z1], [-h1, ROAD_Y, z1], TAR, [[-h0 / TT, z / TT], [h0 / TT, z / TT], [h1 / TT, z1 / TT], [-h1 / TT, z1 / TT]], UP);
-  }
-  for (let z = -481; z > GATE.z + GATE.outer + 4; z -= 9) {
-    if (z < -505) break;
-    paint(-0.075, z - 3, 0.075, z);
-  }
-  for (let z = -478.6; z > GATE.z + GATE.outer + 1; z -= 1) { const h0 = flareHalf(z) - 0.5; paint(-h0 - 0.075, z - 1, -h0 + 0.075, z); paint(h0 - 0.075, z - 1, h0 + 0.075, z); }
-  // the roundabout: its ring of tar, the island's edge marked, the give-way lines where each road comes in
-  {
-    const seg = lite ? 48 : 72;
-    for (let i = 0; i < seg; i += 1) {
-      const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
-      const P = (r, a, y = ROAD_Y) => [GATE.x + Math.sin(a) * r, y, GATE.z + Math.cos(a) * r];
-      const p0 = P(GATE.island, a0), p1 = P(GATE.outer + 0.6, a0), p2 = P(GATE.outer + 0.6, a1), p3 = P(GATE.island, a1);
-      M.tar.quad(p0, p1, p2, p3, TAR, [[p0[0] / TT, p0[2] / TT], [p1[0] / TT, p1[2] / TT], [p2[0] / TT, p2[2] / TT], [p3[0] / TT, p3[2] / TT]], UP);
-      // the line between its two lanes, dashed
-      if (i % 2 === 0) { const q0 = P(17.6, a0, PAINT_Y), q1 = P(17.75, a0, PAINT_Y), q2 = P(17.75, a1, PAINT_Y), q3 = P(17.6, a1, PAINT_Y); M.paint.quad(q0, q1, q2, q3, LINE, Q_UV, UP); }
-    }
-    // give way: a row of short white teeth across each way in, on the inside of the ring
-    for (const [ax, az] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      for (let k = -8.5; k <= 8.5; k += 1.2) {
-        const r0 = GATE.outer + 0.8, r1 = GATE.outer + 1.4;
-        const cx = GATE.x + ax * r0 + az * k, cz = GATE.z + az * r0 + ax * k, ex = GATE.x + ax * r1 + az * k, ez = GATE.z + az * r1 + ax * k;
-        const sx = az * 0.25, sz = ax * 0.25;
-        M.paint.quad([cx - sx, PAINT_Y, cz - sz], [cx + sx, PAINT_Y, cz + sz], [ex + sx, PAINT_Y, ez + sz], [ex - sx, PAINT_Y, ez - sz], LINE, Q_UV, UP);
-      }
-    }
-  }
-  // zebra crossings and stop lines where the streets cross Unity Avenue, and across each street's mouth
-  for (const j of OGANIRU_ROADS.filter((r) => r.kind === 'street' && r.from > 0)) {
-    for (const k of [-1, 1]) {
-      const zc = j.c + k * (j.half + 2.6);
-      for (let x = -9.4; x < 9.6; x += 1) paint(x, zc - 2, x + 0.5, zc + 2);
-      // (the stop line across the carriageway coming to it: west-bound on the avenue's north half, east-bound on its south)
-      paint(k > 0 ? 2.7 : -9.6, zc + k * 2.6 - 0.2, k > 0 ? 9.6 : -2.7, zc + k * 2.6 + 0.2);
-    }
-    for (const k of [-1, 1]) {
-      const xc = k * (10 + OGANIRU.walk + 2.5);
-      for (let z = j.c - j.half + 0.6; z < j.c + j.half - 0.6; z += 1) paint(xc - 2, z, xc + 2, z + 0.5);
-    }
-  }
-  // drains in the gutter along the kerbs: a grate every 25 m (a dark hole, its iron frame and five bars across it)
-  for (const r of OGANIRU_ROADS.filter((q) => q.along === 'z' && q.kind === 'avenue')) {
-    for (let z = r.from + 6; z < r.to - 6; z += 25) {
-      if (inJunction(z, 5)) continue;
-      for (const k of [-1, 1]) {
-        const x = r.c + k * (r.half - 0.3);
-        M.solid.box(0.45, 0.02, 0.9, x, ROAD_Y + 0.004, z, 0x141516);
-        for (const s of [-1, 1]) { M.solid.box(0.45, 0.03, 0.05, x, ROAD_Y + 0.008, z + s * 0.425, 0x4a4b4e); M.solid.box(0.05, 0.03, 0.9, x + s * 0.2, ROAD_Y + 0.008, z, 0x4a4b4e); }
-        for (let b = -2; b <= 2; b += 1) M.solid.box(0.4, 0.028, 0.035, x, ROAD_Y + 0.008, z + b * 0.15, 0x56575a);
-      }
-    }
-  }
-}
-
-// ------------------------------------------------------------------------------- kerbs, strips, walkways --
-function inGap(b, z) { return b.median === 'unity' && OGANIRU_MEDIAN_GAPS.some((g) => z >= g.from && z <= g.to); }
-// the walkways cut where a street's mouth crosses them (oganiru.js crossingAt)
-function walkCut(x, z) { for (const r of OGANIRU_ROADS) if (r.along === 'x' && Math.abs(z - r.c) <= r.half && Math.abs(x) < 10 + OGANIRU.walk + 0.5) return true; return false; }
-// A run of black-and-white kerb, from (x0, z0) to (x1, z1), its face toward `out` ([x, z]): its top and its face, the
-// blocks (a metre each, black and white, worn) a picture along it.
-const KERB_TOP = KERB + 0.04;
-function kerbRun(M, x0, z0, x1, z1, out) {
-  const len = Math.hypot(x1 - x0, z1 - z0);
-  if (len < 0.3) return;
-  const ox = out[0] * 0.11, oz = out[1] * 0.11, s0 = (Math.abs(x0) + Math.abs(z0)) % 32, s1 = s0 + len;
-  const u0 = s0 / 32, u1 = s1 / 32;
-  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
-  M.kerb.quad([x0 + ox, 0, z0 + oz], [x1 + ox, 0, z1 + oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
-}
 // The kerb's blocks: 32 a picture, black and white by turns, each worn its own way, darker at its foot.
 function kerbTexture(size) {
   const c = document.createElement('canvas');
@@ -477,83 +278,422 @@ function kerbTexture(size) {
   t.wrapS = THREE.RepeatWrapping; t.colorSpace = THREE.SRGBColorSpace; t.anisotropy = 8;
   return t;
 }
-function addKerbs(M) {
-  for (const b of OGANIRU_KERBED) {
-    const kind = b.median ? 'median' : b.walk ? 'walk' : 'plaza';
-    const top = kind === 'plaza' ? KERB + 0.003 : KERB;
-    const target = kind === 'median' ? M.grass : M.pave;
-    // the box cut where the strip has a gap or the walkway a street's mouth: in metre steps along its length
-    const alongZ = b.z1 - b.z0 >= b.x1 - b.x0;
-    const a0 = alongZ ? b.z0 : b.x0, a1 = alongZ ? b.z1 : b.x1;
-    const open = (a) => (alongZ ? inGap(b, a) || (kind === 'walk' && walkCut((b.x0 + b.x1) / 2, a)) : kind === 'walk' && walkCut(a, (b.z0 + b.z1) / 2));
-    let runFrom = null;
-    const runs = [];
-    for (let a = a0; a <= a1 + 1e-6; a += 1) {
-      const at = Math.min(a1, a);
-      if (!open(at + 0.5) && at < a1) { if (runFrom === null) runFrom = at; } else if (runFrom !== null) { runs.push([runFrom, at]); runFrom = null; }
+
+// ------------------------------------------------------------------------------------------ the pieces --
+// The squares the city is drawn in: each built when the player comes within `come` of it, let go beyond `go`.
+export const PIECE = 320;
+const T_X0 = -1510, T_Z0 = -1750, T_NX = 8, T_NZ = 6;
+export const OGANIRU_TILES = Object.freeze(Array.from({ length: T_NX * T_NZ }, (_, k) => {
+  const i = Math.floor(k / T_NZ), j = k % T_NZ;
+  return Object.freeze({ key: `${i},${j}`, i, j, x0: T_X0 + i * PIECE, x1: T_X0 + (i + 1) * PIECE, z0: T_Z0 + j * PIECE, z1: T_Z0 + (j + 1) * PIECE });
+}));
+const inTile = (T, x, z) => x >= T.x0 && x < T.x1 && z >= T.z0 && z < T.z1;
+const tileAway = (T, x, z) => Math.hypot(Math.max(T.x0 - x, 0, x - T.x1), Math.max(T.z0 - z, 0, z - T.z1));
+// how near a piece must be for it to be built, and how far for it to be let go: a phone keeps the pieces round the
+// player, a computer most of the city
+const TILE_NEAR = Object.freeze({ lite: Object.freeze({ come: 360, go: 560 }), full: Object.freeze({ come: 820, go: 1150 }) });
+
+// ------------------------------------------------------------------------------------------------ ground --
+// The land drawn under and round the city: flat where the city is (and a little round it), rising to bush hills beyond
+// its fence as the town's land does beyond the town (render-world.js). Where the town's ground or the land beyond the
+// town is already drawn, nothing; where the expressway's cutting is, nothing (its walls and its road are drawn).
+const TOWN_GROUND = { x0: -470, x1: 470, z0: -700 };
+const OUTSKIRTS_GROUND = { x0: -1330, x1: -232, z0: -660 };
+const GROUND = { x0: -1500, x1: 1040, z0: -1740, z1: -12 };
+function landY(x, z) {
+  const away = oganiruAway(x, z);
+  if (away <= CITY_FLAT.flat) return -0.02;
+  const b = ZONE.bounds;
+  const outside = Math.max(b.minX - x, x - b.maxX, b.minZ - z, 0);
+  const hill = Math.min(9, outside * 0.03) * smoothNoise(x / 60, z / 60);
+  if (away >= CITY_FLAT.rise) return hill;
+  const k = (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat);
+  return -0.12 + (hill + 0.12) * k * k * (3 - 2 * k);
+}
+const covered = (x, z) => (x > TOWN_GROUND.x0 && x < TOWN_GROUND.x1 && z > TOWN_GROUND.z0 && oganiruAway(x, z) > CITY_FLAT.flat - 2) || (x > OUTSKIRTS_GROUND.x0 && x < OUTSKIRTS_GROUND.x1 && z > OUTSKIRTS_GROUND.z0);
+const cutOut = (x, z) => x > OGANIRU_CUTTING.x0 && x < OGANIRU_CUTTING.x1 && Math.abs(z - EZ) < CUT.wall + CUT.wallWidth;
+// the coordinates of a grid from a0 to a1 every `step`, with `extra` lines in it
+function gridLines(a0, a1, step, extra = []) {
+  const out = [];
+  for (let a = a0; a < a1 - 0.01; a += step) out.push(a);
+  out.push(a1);
+  for (const e of extra) if (e > a0 + 0.05 && e < a1 - 0.05) out.push(e);
+  return [...new Set(out.map((v) => Math.round(v * 100) / 100))].sort((p, q) => p - q);
+}
+// how far a point is from the edge of the nearest road's tar (for the verges' red earth)
+function roadEdgeNear(x, z) {
+  let best = Infinity;
+  for (const r of OGANIRU_ROADS) {
+    const along = r.along === 'z' ? z : x;
+    if (along < r.from - 3 || along > r.to + 3) continue;
+    const w = roadWidthAt(r, along);
+    const across = r.along === 'z' ? Math.abs(x - r.c) : Math.abs(z - r.c);
+    const edge = w.half + (w.walk || 0);
+    if (across > edge) best = Math.min(best, across - edge); else return 0;
+  }
+  return best;
+}
+function groundTile(T, lite) {
+  const x0 = Math.max(T.x0, GROUND.x0), x1 = Math.min(T.x1, GROUND.x1), z0 = Math.max(T.z0, GROUND.z0), z1 = Math.min(T.z1, GROUND.z1);
+  if (x1 <= x0 || z1 <= z0) return null;
+  const step = lite ? 14 : 9;
+  const xs = gridLines(x0, x1, step, [OGANIRU_CUTTING.x0, OGANIRU_CUTTING.x1]);
+  const zs = gridLines(z0, z1, step, [EZ - CUT.wall - CUT.wallWidth, EZ + CUT.wall + CUT.wallWidth]);
+  const pos = [], col = [], uv = [];
+  const grassA = linear(0x5f9440), grassB = linear(0x8cb655), dry = linear(0xa9a85a), earth = linear(0xa0623a), c = new THREE.Color();
+  const at = (x, z) => {
+    const patch = smoothNoise(x / 34, z / 34) * 0.65 + smoothNoise(x / 9, z / 9) * 0.35;
+    c.copy(grassA).lerp(grassB, patch).lerp(dry, Math.max(0, smoothNoise(x / 55 + 9, z / 55) - 0.5) * 1.3);
+    // red earth trodden along the roads' verges
+    if (oganiruAway(x, z) < 1) { const nearRoad = roadEdgeNear(x, z); if (nearRoad < 7) c.lerp(earth, 0.55 * (1 - nearRoad / 7) + 0.1 * smoothNoise(x / 6, z / 6)); }
+    return { x, y: landY(x, z), z, r: c.r, g: c.g, b: c.b };
+  };
+  const grid = zs.map((z) => xs.map((x) => at(x, z)));
+  const put = (v) => { pos.push(v.x, v.y, v.z); col.push(v.r, v.g, v.b); uv.push(v.x / 3.2, v.z / 3.2); };
+  for (let j = 0; j < zs.length - 1; j += 1) for (let i = 0; i < xs.length - 1; i += 1) {
+    const a = grid[j][i], b = grid[j][i + 1], cc = grid[j + 1][i + 1], d = grid[j + 1][i];
+    const mx = (a.x + cc.x) / 2, mz = (a.z + cc.z) / 2;
+    if (covered(mx, mz) || cutOut(mx, mz)) continue;
+    // (two triangles facing up: x north, z east)
+    put(a); put(d); put(cc); put(a); put(cc); put(b);
+  }
+  if (!pos.length) return null;
+  const g = new THREE.BufferGeometry();
+  g.setAttribute('position', new THREE.Float32BufferAttribute(pos, 3));
+  g.setAttribute('color', new THREE.Float32BufferAttribute(col, 3));
+  g.setAttribute('uv', new THREE.Float32BufferAttribute(uv, 2));
+  g.computeVertexNormals();
+  g.computeBoundingSphere();
+  letGoOnceSent(g);
+  return g;
+}
+
+// ------------------------------------------------------------------------------------------------- roads --
+// (a point `lat` metres across a road from its middle, `a` along it)
+const Pt = (r, lat, a) => (r.along === 'z' ? [r.c + lat, a] : [a, r.c + lat]);
+// a flat quad on a road, `lat0`..`lat1` across it and `a0`..`a1` along it, at height y
+function flat(Mx, r, lat0, lat1, a0, a1, y, col, scale = TT) {
+  const [x00, z00] = Pt(r, lat0, a0), [x10, z10] = Pt(r, lat1, a0), [x11, z11] = Pt(r, lat1, a1), [x01, z01] = Pt(r, lat0, a1);
+  Mx.quad([x00, y, z00], [x10, y, z10], [x11, y, z11], [x01, y, z01], col, [[x00 / scale, z00 / scale], [x10 / scale, z10 / scale], [x11 / scale, z11 / scale], [x01 / scale, z01 / scale]], UP);
+}
+// a quad between two cross-sections (a road narrowing or opening out): lat ranges [l0a, l1a] at a0 and [l0b, l1b] at a1
+function trapezoid(Mx, r, l0a, l1a, l0b, l1b, a0, a1, y, col, scale = TT) {
+  const [x00, z00] = Pt(r, l0a, a0), [x10, z10] = Pt(r, l1a, a0), [x11, z11] = Pt(r, l1b, a1), [x01, z01] = Pt(r, l0b, a1);
+  Mx.quad([x00, y, z00], [x10, y, z10], [x11, y, z11], [x01, y, z01], col, [[x00 / scale, z00 / scale], [x10 / scale, z10 / scale], [x11 / scale, z11 / scale], [x01 / scale, z01 / scale]], UP);
+}
+// the stretch of a road drawn in a piece: where its middle line is in the piece
+function runIn(r, T) {
+  if (r.along === 'z') { if (r.c < T.x0 || r.c >= T.x1) return null; const a0 = Math.max(r.from, T.z0), a1 = Math.min(r.to, T.z1); return a1 > a0 ? [a0, a1] : null; }
+  if (r.c < T.z0 || r.c >= T.z1) return null;
+  const a0 = Math.max(r.from, T.x0), a1 = Math.min(r.to, T.x1);
+  return a1 > a0 ? [a0, a1] : null;
+}
+// the junctions along a road: where along it each one's box is
+const JUNCTIONS_OF = new Map(OGANIRU_ROADS.map((r) => [r.id, OGANIRU_JUNCTIONS.filter((j) => j.roads.includes(r.id)).map((j) => (r.along === 'z' ? [j.z - j.hz, j.z + j.hz] : [j.x - j.hx, j.x + j.hx]))]));
+// [a0, a1] less the junctions' boxes: the runs of a road's own tar
+function minus(a0, a1, cuts) {
+  let runs = [[a0, a1]];
+  for (const [c0, c1] of cuts) runs = runs.flatMap(([p, q]) => (c1 <= p || c0 >= q ? [[p, q]] : [[p, c0], [c1, q]].filter(([u, v]) => v - u > 0.05)));
+  return runs;
+}
+// near a junction (for where the markings stop)
+const nearCut = (cuts, a, pad) => cuts.some(([c0, c1]) => a > c0 - pad && a < c1 + pad);
+function paintStrip(M, r, lat0, lat1, a0, a1, col = LINE) { flat(M.paint, r, lat0, lat1, a0, a1, PAINT_Y, col, 1); }
+// A road's tar, its markings, the wheels' wear and its drains, in this piece.
+function roadTile(M, r, T) {
+  const run = runIn(r, T);
+  if (!run || r.kind === 'cutting') return;
+  const cuts = JUNCTIONS_OF.get(r.id) || [];
+  const [a0, a1] = run;
+  const w = roadWidthAt(r, (a0 + a1) / 2);
+  const varying = !!(r.flare || r.taper);
+  // the tar: across its whole width, but in its junctions' boxes (drawn with the junction); a flyover-road's middle under
+  // its flyover is paving, and under the flyover's low ends its embankment
+  for (const [p, q] of minus(a0, a1, cuts)) {
+    if (!varying) { flat(M.tar, r, -r.half, r.half, p, q, ROAD_Y, TAR); continue; }
+    for (let a = p; a < q - 1e-6; a += 2) {
+      const b = Math.min(q, a + 2), wa = roadWidthAt(r, a), wb = roadWidthAt(r, b);
+      if (r.kind === 'flyover-road') {
+        // (where its flyover is over it: the side carriageways; the middle paved where the flyover is high, its
+        // embankment's where it is low; beyond the flyover's foot, the whole width)
+        const mid = deckOverMiddle(r, (a + b) / 2);
+        if (mid) {
+          for (const k of [-1, 1]) trapezoid(M.tar, r, k > 0 ? wa.median / 2 : -wa.half, k > 0 ? wa.half : -wa.median / 2, k > 0 ? wb.median / 2 : -wb.half, k > 0 ? wb.half : -wb.median / 2, a, b, ROAD_Y, TAR);
+          if (mid === 'high') trapezoid(M.pave, r, -wa.median / 2, wa.median / 2, -wb.median / 2, wb.median / 2, a, b, ROAD_Y + 0.01, CONCRETE_DARK, 2);
+          continue;
+        }
+      }
+      trapezoid(M.tar, r, -wa.half, wa.half, -wb.half, wb.half, a, b, ROAD_Y, TAR);
     }
-    if (runFrom !== null) runs.push([runFrom, a1]);
-    for (const [s0, s1] of runs) {
-      const x0 = alongZ ? b.x0 : s0, x1 = alongZ ? b.x1 : s1, z0 = alongZ ? s0 : b.z0, z1 = alongZ ? s1 : b.z1;
-      const sc = kind === 'median' ? 3.2 : 2;
-      target.quad([x0, top, z0], [x1, top, z0], [x1, top, z1], [x0, top, z1], kind === 'median' ? shade(GRASS, 0.92 + rnd(Math.round(x0), Math.round(z0)) * 0.16) : kind === 'plaza' ? 0xf4f0e6 : 0xe6e2d8, [[x0 / sc, z0 / sc], [x1 / sc, z0 / sc], [x1 / sc, z1 / sc], [x0 / sc, z1 / sc]], UP);
-      // its sides down to the road
-      const side = (p, q, facing) => M.concrete.quad([p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], top, q[1]], [p[0], top, p[1]], CONCRETE, Q_UV, facing);
-      side([x0, z0], [x1, z0], [0, 0, -1]); side([x0, z1], [x1, z1], [0, 0, 1]); side([x0, z0], [x0, z1], [-1, 0, 0]); side([x1, z0], [x1, z1], [1, 0, 0]);
-      // the kerbs: black and white down both long sides of a middle strip, and along the road's edge of a walkway
-      if (kind === 'median') {
-        if (alongZ) { kerbRun(M, x0, z0, x0, z1, [-1, 0]); kerbRun(M, x1, z0, x1, z1, [1, 0]); } else { kerbRun(M, x0, z0, x1, z0, [0, -1]); kerbRun(M, x0, z1, x1, z1, [0, 1]); }
-      } else if (kind === 'walk') {
-        // (the side nearer the road's middle)
-        const road = OGANIRU_ROADS.find((r) => r.id === b.walk);
-        if (road && road.along === 'z') { const near0 = Math.abs(x0 - road.c) < Math.abs(x1 - road.c); kerbRun(M, near0 ? x0 : x1, z0, near0 ? x0 : x1, z1, [near0 ? -1 : 1, 0]); }
-        else if (road) { const near0 = Math.abs(z0 - road.c) < Math.abs(z1 - road.c); kerbRun(M, x0, near0 ? z0 : z1, x1, near0 ? z0 : z1, [0, near0 ? -1 : 1]); }
-        else if (b.walk === 'unity-gate') { const near0 = Math.abs(x0) < Math.abs(x1); kerbRun(M, near0 ? x0 : x1, z0, near0 ? x0 : x1, z1, [near0 ? -1 : 1, 0]); }
+  }
+  // the markings
+  if (r.kind === 'expressway') {
+    // three lanes each way: their lines measured from the expressway's middle (its north-bound half alone where the
+    // south-bound has gone off to the Harmony Interchange)
+    const toLat = (o) => EZ + o - r.c;
+    for (const k of r.half > 10 ? [-1, 1] : [1]) {
+      for (const o of [1.0, 11.5]) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a0, a1); }
+      for (const o of [4.5, 8.0]) for (let a = Math.ceil(a0 / 12) * 12; a < a1 - 4; a += 12) { const l = toLat(k * o); paintStrip(M, r, l - 0.075, l + 0.075, a, a + 4); }
+      for (const o of [2.75, 6.25, 9.75]) for (const s of [-0.85, 0.85]) { const l = toLat(k * o) + s; flat(M.wear, r, l - 0.3, l + 0.3, a0, a1, ROAD_Y + 0.002, TAR_WORN); }
+    }
+    if (r.barrier) groundBarrier(M, r, a0, a1, () => 0);
+    return;
+  }
+  if (varying) {
+    // (an approach opening out, a flyover-road narrowing: its edge lines and the line between its lanes)
+    for (let a = Math.max(a0, r.from + 2); a < a1 - 2; a += 2) {
+      if (nearCut(cuts, a + 1, 3)) continue;
+      const wa = roadWidthAt(r, a), wb = roadWidthAt(r, a + 2);
+      for (const k of [-1, 1]) trapezoid(M.paint, r, k * (wa.half - 0.65) - 0.075, k * (wa.half - 0.65) + 0.075, k * (wb.half - 0.65) - 0.075, k * (wb.half - 0.65) + 0.075, a, a + 2, PAINT_Y, LINE, 1);
+      if (r.kind === 'flyover-road' && wa.median > 1 && Math.floor(a / 2) % 4 === 0) for (const k of [-1, 1]) { const m = k * (wa.median / 2 + wa.half) / 2; paintStrip(M, r, m - 0.075, m + 0.075, a, a + 3); }
+      if (r.kind === 'approach' && wa.median < 0.6 && Math.floor(a / 2) % 4 === 0) paintStrip(M, r, -0.075, 0.075, a, a + 3);
+    }
+    return;
+  }
+  for (const [p, q] of minus(a0, a1, cuts.map(([c0, c1]) => [c0 - 3, c1 + 3]))) {
+    if (r.median > 0) {
+      for (const k of [-1, 1]) {
+        const inner = k * (r.median / 2), outer = k * (r.half - 0.5);
+        paintStrip(M, r, inner + k * 0.2 - 0.075, inner + k * 0.2 + 0.075, p, q);
+        paintStrip(M, r, outer - k * 0.15 - 0.075, outer - k * 0.15 + 0.075, p, q);
+        for (let a = Math.ceil((p - 2) / 9) * 9 + 2; a < q - 3; a += 9) paintStrip(M, r, inner + k * 3.5 - 0.075, inner + k * 3.5 + 0.075, a, a + 3);
+        for (const lane of [inner + k * 1.75, inner + k * 5.25]) for (const s of [-0.85, 0.85]) flat(M.wear, r, lane + s - 0.28, lane + s + 0.28, p, q, ROAD_Y + 0.002, TAR_WORN);
+      }
+    } else {
+      // a street, the Kwale road on: a dashed line down its middle, edge lines
+      for (let a = Math.ceil(p / 6) * 6; a < q - 3; a += 6) paintStrip(M, r, -0.075, 0.075, a, a + 3);
+      for (const k of [-1, 1]) paintStrip(M, r, k * (r.half - 0.5) - 0.075, k * (r.half - 0.5) + 0.075, p, q);
+      for (const k of [-1, 1]) for (const s of [-0.85, 0.85]) flat(M.wear, r, k * r.half / 2 + s - 0.28, k * r.half / 2 + s + 0.28, p, q, ROAD_Y + 0.002, TAR_WORN);
+    }
+  }
+  // drains in the gutter along the kerbs: a grate every 25 m (a dark hole, its iron frame and five bars across it)
+  if (r.kind === 'avenue' || r.kind === 'street') {
+    for (let a = Math.ceil(a0 / 25) * 25 + 6; a < a1 - 6; a += 25) {
+      if (nearCut(cuts, a, 5)) continue;
+      for (const k of [-1, 1]) {
+        const [x, z] = Pt(r, k * (r.half - 0.3), a), turn = r.along === 'z' ? 0 : Math.PI / 2;
+        M.solid.box(0.45, 0.02, 0.9, x, ROAD_Y + 0.004, z, 0x141516, turn);
+        for (const s of [-1, 1]) {
+          const [fx, fz] = Pt(r, k * (r.half - 0.3), a + s * 0.425), [gx, gz] = Pt(r, k * (r.half - 0.3) + s * 0.2, a);
+          M.solid.box(0.45, 0.03, 0.05, fx, ROAD_Y + 0.008, fz, 0x4a4b4e, turn);
+          M.solid.box(0.05, 0.03, 0.9, gx, ROAD_Y + 0.008, gz, 0x4a4b4e, turn);
+        }
       }
     }
   }
-  // the roundabout's island: grass behind a black-and-white kerb, a low plinth with the city's name at its middle
-  const seg = 56;
+}
+// Is a junction flyover over the middle of this flyover-road here, and high or low? ('high': on columns; 'low': its
+// embankment; null: past its foot)
+function deckOverMiddle(r, a) {
+  const [x, z] = Pt(r, 0, a);
+  let best = null;
+  for (const d of OGANIRU_DECKS) {
+    if (d.kind !== 'flyover' || !d.barrier) continue;
+    const p0 = d.path[0], pn = d.path[d.path.length - 1];
+    const alongX = Math.abs(p0.z - pn.z) < 1;
+    if (alongX ? Math.abs(z - p0.z) > 1 || x < Math.min(p0.x, pn.x) || x > Math.max(p0.x, pn.x) : Math.abs(x - p0.x) > 1 || z < Math.min(p0.z, pn.z) || z > Math.max(p0.z, pn.z)) continue;
+    const s = alongX ? x - Math.min(p0.x, pn.x) : z - Math.min(p0.z, pn.z);
+    const q = d.path.find((pp) => pp.s >= (alongX ? (p0.x < pn.x ? s : d.len - s) : (p0.z < pn.z ? s : d.len - s))) || pn;
+    best = q.y - D.thick >= OGANIRU.under ? 'high' : 'low';
+  }
+  return best;
+}
+// The expressway's middle barrier on the ground (and in its cutting, `y(a)` the road's height along it): a concrete
+// wall, wide at its foot, narrow at its top.
+function groundBarrier(M, r, a0, a1, y, step = 4) {
+  const prof = [[0.3, 0], [0.19, 0.28], [0.08, 0.82]];
+  const lat0 = EZ - r.c;
+  for (let a = a0; a < a1 - 1e-6; a += step) {
+    const b = Math.min(a1, a + step), ya = y(a), yb = y(b);
+    for (const side of [-1, 1]) for (let k = 0; k < prof.length - 1; k += 1) {
+      const [o0, h0] = prof[k], [o1, h1] = prof[k + 1];
+      const [xa0, za0] = Pt(r, lat0 + side * o0, a), [xb0, zb0] = Pt(r, lat0 + side * o0, b), [xb1, zb1] = Pt(r, lat0 + side * o1, b), [xa1, za1] = Pt(r, lat0 + side * o1, a);
+      M.concrete.quad([xa0, ya + h0, za0], [xb0, yb + h0, zb0], [xb1, yb + h1, zb1], [xa1, ya + h1, za1], 0xd6d1c6, [[a / 6, h0 / 6], [b / 6, h0 / 6], [b / 6, h1 / 6], [a / 6, h1 / 6]], r.along === 'x' ? [0, 0.4, side] : [side, 0.4, 0]);
+    }
+    const [xa, za] = Pt(r, lat0 - 0.08, a), [xb, zb] = Pt(r, lat0 - 0.08, b), [xc, zc] = Pt(r, lat0 + 0.08, b), [xd, zd] = Pt(r, lat0 + 0.08, a);
+    M.concrete.quad([xa, ya + 0.82, za], [xb, yb + 0.82, zb], [xc, yb + 0.82, zc], [xd, ya + 0.82, zd], 0xdcd7cc, [[a / 6, 0.13], [b / 6, 0.13], [b / 6, 0.14], [a / 6, 0.14]], UP);
+  }
+}
+// An arrow painted on a lane: `a` along the road, pointing `dir` (+1: toward its higher end), turning `turn` (0 straight
+// on, -1 left, +1 right, as the driver sees it), its middle `lat` across.
+function arrow(M, r, lat, a, dir, turn) {
+  const P = (u, v) => { const [x, z] = Pt(r, lat + v * (r.along === 'z' ? -dir : dir), a + u * dir); return [x, PAINT_Y, z]; };
+  // (u: forward, v: to the driver's right)
+  const tri = (p, q, s) => M.paint.quad(P(...p), P(...q), P(...s), P(...s), LINE, Q_UV, UP);
+  if (!turn) {
+    M.paint.quad(P(-2.2, -0.08), P(-2.2, 0.08), P(0.4, 0.08), P(0.4, -0.08), LINE, Q_UV, UP);
+    tri([0.4, -0.35], [0.4, 0.35], [1.4, 0]);
+    return;
+  }
+  M.paint.quad(P(-2.2, -0.08), P(-2.2, 0.08), P(0.2, 0.08), P(0.2, -0.08), LINE, Q_UV, UP);
+  M.paint.quad(P(0.2, -0.08), P(0.2, 0.08), P(0.36, turn * 0.9 + 0.08), P(0.2, turn * 0.9 - 0.08), LINE, Q_UV, UP);
+  tri([0.0, turn * 0.9], [0.6, turn * 0.9], [0.3, turn * 1.6]);
+}
+// A junction, in this piece: its tar; across each road coming into it a zebra crossing, and the stop line before it on
+// the side its traffic comes in on; on a street, the arrows for the lanes coming to it.
+function junctionTile(M, j) {
+  const x0 = j.x - j.hx, x1 = j.x + j.hx, z0 = j.z - j.hz, z1 = j.z + j.hz;
+  M.tar.quad([x0, ROAD_Y, z0], [x1, ROAD_Y, z0], [x1, ROAD_Y, z1], [x0, ROAD_Y, z1], TAR, [[x0 / TT, z0 / TT], [x1 / TT, z0 / TT], [x1 / TT, z1 / TT], [x0 / TT, z1 / TT]], UP);
+  for (const leg of j.legs) {
+    const alongZ = leg === 'e' || leg === 'w', sign = leg === 'e' || leg === 'n' ? 1 : -1;
+    const half = alongZ ? j.hx : j.hz;
+    const edge = alongZ ? j.z + sign * j.hz : j.x + sign * j.hx;
+    const road = OGANIRU_ROADS.find((q) => j.roads.includes(q.id) && (q.along === 'z') === alongZ && (sign > 0 ? q.to > (alongZ ? j.z : j.x) + 1 : q.from < (alongZ ? j.z : j.x) - 1));
+    if (!road) continue;
+    const r = { along: alongZ ? 'z' : 'x', c: alongZ ? j.x : j.z };
+    // the zebra: white bars along the road, half a metre wide, a metre apart, four metres long
+    const a0 = edge + sign * 0.6, a1 = edge + sign * 4.6;
+    for (let l = -half + 0.6; l < half - 0.5; l += 1) paintStrip(M, r, l, l + 0.5, Math.min(a0, a1), Math.max(a0, a1));
+    // the stop line, across the half its traffic comes in on (for traffic going west, -z, the north half, +x; and so
+    // round: the coming-in half is on the driver's right)
+    const s0 = edge + sign * 5.0, s1 = edge + sign * 5.4;
+    const inLat = alongZ ? (sign > 0 ? [0.3, half - 0.4] : [-half + 0.4, -0.3]) : (sign > 0 ? [-half + 0.4, -0.3] : [0.3, half - 0.4]);
+    const median = road.median > 0 && road.kind === 'avenue' ? road.median / 2 : 0;
+    const [l0, l1] = inLat[0] > 0 ? [Math.max(inLat[0], median), inLat[1]] : [inLat[0], Math.min(inLat[1], -median)];
+    paintStrip(M, r, l0, l1, Math.min(s0, s1), Math.max(s0, s1));
+    // a street's arrows, ten metres before the stop line: straight on in the inner lane, a turn in the outer
+    if (road.kind === 'street') {
+      const dirIn = -sign;
+      const laneIn = (l0 + l1) / 2, laneOut = inLat[0] > 0 ? l1 - 1.6 : l0 + 1.6, laneInner = inLat[0] > 0 ? l0 + 1.6 : l1 - 1.6;
+      void laneIn;
+      arrow(M, r, laneInner, edge + sign * 14, dirIn, 0);
+      arrow(M, r, laneOut, edge + sign * 14, dirIn, 1);
+    }
+  }
+}
+// A stop line by itself (where the Peace Interchange's slip roads meet the avenue, at its lights): across the half its
+// traffic comes in on, just beyond where that traffic stops.
+function stopLineTile(M, l) {
+  const alongZ = l.way === 'e' || l.way === 'w', toward = l.way === 'e' || l.way === 'n' ? 1 : -1;
+  const r = { along: alongZ ? 'z' : 'x', c: alongZ ? PEACE_X : l.z };
+  const at = alongZ ? l.z : l.x, mid = alongZ ? l.x - PEACE_X : 0;
+  paintStrip(M, r, mid - l.half + 0.5, mid + l.half - 0.5, toward > 0 ? at : at - 0.4, toward > 0 ? at + 0.4 : at);
+}
+// A roundabout, in this piece: its ring of tar, the line between its two lanes, the give-way teeth where each road
+// comes in, its island of grass behind a black-and-white kerb, its walkway round it but where a road comes in, and at its
+// middle the Gate Roundabout's obelisk, or a raised bed of palms.
+function roundaboutTile(M, rb, lite, shade, foliage) {
+  const seg = lite ? 48 : 72;
+  const P = (r, a, y) => [rb.x + Math.sin(a) * r, y, rb.z + Math.cos(a) * r];
   for (let i = 0; i < seg; i += 1) {
     const a0 = (i / seg) * Math.PI * 2, a1 = ((i + 1) / seg) * Math.PI * 2;
-    const P = (r, a, y) => [GATE.x + Math.sin(a) * r, y, GATE.z + Math.cos(a) * r];
-    const c0 = P(0, a0, KERB), p0 = P(GATE.island, a0, KERB), p1 = P(GATE.island, a1, KERB);
+    const p0 = P(rb.island, a0, ROAD_Y), p1 = P(rb.outer + 0.6, a0, ROAD_Y), p2 = P(rb.outer + 0.6, a1, ROAD_Y), p3 = P(rb.island, a1, ROAD_Y);
+    M.tar.quad(p0, p1, p2, p3, TAR, [[p0[0] / TT, p0[2] / TT], [p1[0] / TT, p1[2] / TT], [p2[0] / TT, p2[2] / TT], [p3[0] / TT, p3[2] / TT]], UP);
+    if (i % 2 === 0) M.paint.quad(P(17.6, a0, PAINT_Y), P(17.75, a0, PAINT_Y), P(17.75, a1, PAINT_Y), P(17.6, a1, PAINT_Y), LINE, Q_UV, UP);
+  }
+  for (const leg of rb.legs) {
+    const [ax, az] = leg.dir === 'n' ? [1, 0] : leg.dir === 's' ? [-1, 0] : leg.dir === 'e' ? [0, 1] : [0, -1];
+    for (let k = -leg.half + 1.5; k <= leg.half - 1.5; k += 1.2) {
+      const r0 = rb.outer + 0.8, r1 = rb.outer + 1.4;
+      const cx = rb.x + ax * r0 + az * k, cz = rb.z + az * r0 + ax * k, ex = rb.x + ax * r1 + az * k, ez = rb.z + az * r1 + ax * k;
+      const sx = az * 0.25, sz = ax * 0.25;
+      M.paint.quad([cx - sx, PAINT_Y, cz - sz], [cx + sx, PAINT_Y, cz + sz], [ex + sx, PAINT_Y, ez + sz], [ex - sx, PAINT_Y, ez - sz], LINE, Q_UV, UP);
+    }
+  }
+  const mouth = (a) => rb.legs.some((l) => { const [ax, az] = l.dir === 'n' ? [1, 0] : l.dir === 's' ? [-1, 0] : l.dir === 'e' ? [0, 1] : [0, -1]; const px = Math.sin(a) * (rb.outer + 2), pz = Math.cos(a) * (rb.outer + 2); return px * ax + pz * az > 0 && Math.abs(-px * az + pz * ax) < l.half + 0.5; });
+  const iseg = 56;
+  for (let i = 0; i < iseg; i += 1) {
+    const a0 = (i / iseg) * Math.PI * 2, a1 = ((i + 1) / iseg) * Math.PI * 2;
+    const c0 = P(0, a0, KERB), p0 = P(rb.island, a0, KERB), p1 = P(rb.island, a1, KERB);
     M.grass.quad(c0, p0, p1, c0, GRASS, [[c0[0] / 3.2, c0[2] / 3.2], [p0[0] / 3.2, p0[2] / 3.2], [p1[0] / 3.2, p1[2] / 3.2], [c0[0] / 3.2, c0[2] / 3.2]], UP);
     const k = i % 2 ? KERB_BLACK : KERB_WHITE;
     const m = (a0 + a1) / 2;
-    M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * GATE.island) / seg - 0.03, GATE.x + Math.sin(m) * GATE.island, (KERB + 0.04) / 2, GATE.z + Math.cos(m) * GATE.island, k, m + Math.PI / 2);
-    // the walkway ring, but where a road comes in
-    const mouth = (a) => { const ax = Math.abs(Math.sin(a) * (GATE.outer + 2)), az = Math.abs(Math.cos(a) * (GATE.outer + 2)); return ax < 10.5 || az < 10.5; };
+    M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.island) / iseg - 0.03, rb.x + Math.sin(m) * rb.island, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.island, k, m + Math.PI / 2);
     if (!mouth(m)) {
-      const w0 = P(GATE.outer, a0, KERB), w1 = P(GATE.outer + GATE.walk, a0, KERB), w2 = P(GATE.outer + GATE.walk, a1, KERB), w3 = P(GATE.outer, a1, KERB);
+      const w0 = P(rb.outer, a0, KERB), w1 = P(rb.outer + rb.walk, a0, KERB), w2 = P(rb.outer + rb.walk, a1, KERB), w3 = P(rb.outer, a1, KERB);
       M.pave.quad(w0, w1, w2, w3, 0xe6e2d8, [[w0[0] / 2, w0[2] / 2], [w1[0] / 2, w1[2] / 2], [w2[0] / 2, w2[2] / 2], [w3[0] / 2, w3[2] / 2]], UP);
-      M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * GATE.outer) / seg - 0.03, GATE.x + Math.sin(m) * GATE.outer, (KERB + 0.04) / 2, GATE.z + Math.cos(m) * GATE.outer, k, m + Math.PI / 2);
+      M.solid.box(0.22, KERB + 0.04, (Math.PI * 2 * rb.outer) / iseg - 0.03, rb.x + Math.sin(m) * rb.outer, (KERB + 0.04) / 2, rb.z + Math.cos(m) * rb.outer, k, m + Math.PI / 2);
     }
   }
-  // the island's middle: a stepped plinth and a slim obelisk, the city's emblem (a rising sun's rays) round its foot
-  M.concrete.box(7, 0.6, 7, GATE.x, KERB + 0.3, GATE.z, 0xd8d2c4);
-  M.concrete.box(5, 0.6, 5, GATE.x, KERB + 0.9, GATE.z, 0xe2ddd0);
-  M.concrete.geo(new THREE.CylinderGeometry(0.55, 1.1, 9, 4), place(GATE.x, KERB + 1.2 + 4.5, GATE.z, Math.PI / 4), 0xeee9dc);
-  M.concrete.geo(new THREE.ConeGeometry(0.62, 1.4, 4), place(GATE.x, KERB + 1.2 + 9 + 0.7, GATE.z, Math.PI / 4), 0xd4b24a);
+  if (rb.id === 'gate') {
+    // the island's middle: a stepped plinth and a slim obelisk, the city's emblem (a rising sun's rays) round its foot
+    M.concrete.box(7, 0.6, 7, rb.x, KERB + 0.3, rb.z, 0xd8d2c4);
+    M.concrete.box(5, 0.6, 5, rb.x, KERB + 0.9, rb.z, 0xe2ddd0);
+    M.concrete.geo(new THREE.CylinderGeometry(0.55, 1.1, 9, 4), place(rb.x, KERB + 1.2 + 4.5, rb.z, Math.PI / 4), 0xeee9dc);
+    M.concrete.geo(new THREE.ConeGeometry(0.62, 1.4, 4), place(rb.x, KERB + 1.2 + 9 + 0.7, rb.z, Math.PI / 4), 0xd4b24a);
+    return;
+  }
+  // a raised round bed behind a low wall, three palms in it
+  M.concrete.geo(new THREE.CylinderGeometry(4.2, 4.4, 0.55, 24, 1, true), place(rb.x, KERB + 0.27, rb.z), 0xd8d2c4, 'wall', 4);
+  M.grass.geo(new THREE.CircleGeometry(4.2, 24).rotateX(-Math.PI / 2), place(rb.x, KERB + 0.5, rb.z), GRASS, 'plan', 3.2);
+  for (let k = 0; k < 3; k += 1) {
+    const a = (k / 3) * Math.PI * 2 + rb.x * 0.01;
+    addTree(shade, foliage, { x: rb.x + Math.sin(a) * 1.8, z: rb.z + Math.cos(a) * 1.8, kind: 'palm', size: 0.85 + k * 0.1, turn: a * 2.3, base: KERB + 0.5 });
+  }
+}
+
+// ------------------------------------------------------------------------------- kerbs, strips, walkways --
+// A run of black-and-white kerb, from (x0, z0) to (x1, z1), its face toward `out` ([x, z]): its top and its face, the
+// blocks (a metre each, black and white, worn) a picture along it, by where they are along the road (so that they run on
+// unbroken from one piece of the city to the next).
+const KERB_TOP = KERB + 0.04;
+function kerbRun(M, x0, z0, x1, z1, out) {
+  const len = Math.hypot(x1 - x0, z1 - z0);
+  if (len < 0.3) return;
+  const ox = out[0] * 0.11, oz = out[1] * 0.11;
+  const alongX = Math.abs(x1 - x0) > Math.abs(z1 - z0);
+  const u0 = (alongX ? x0 : z0) / 32, u1 = (alongX ? x1 : z1) / 32;
+  M.kerb.quad([x0 - ox, KERB_TOP, z0 - oz], [x1 - ox, KERB_TOP, z1 - oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0.9], [u1, 0.9], [u1, 1], [u0, 1]], UP);
+  M.kerb.quad([x0 + ox, 0, z0 + oz], [x1 + ox, 0, z1 + oz], [x1 + ox, KERB_TOP, z1 + oz], [x0 + ox, KERB_TOP, z0 + oz], 0xffffff, [[u0, 0], [u1, 0], [u1, 0.85], [u0, 0.85]], [out[0], 0, out[1]]);
+}
+const ROAD_OF = new Map(OGANIRU_ROADS.map((r) => [r.id, r]));
+function* kerbsTile(M, T) {
+  let n = 0;
+  for (const B of OGANIRU_KERBED) {
+    if ((n += 1) % 150 === 0) yield;
+    // (the part of it in this piece; its ends drawn only where they are its own)
+    const x0 = Math.max(B.x0, T.x0), x1 = Math.min(B.x1, T.x1), z0 = Math.max(B.z0, T.z0), z1 = Math.min(B.z1, T.z1);
+    if (x1 - x0 < 0.02 || z1 - z0 < 0.02) continue;
+    const kind = B.median ? 'median' : B.walk ? 'walk' : 'plaza';
+    const top = kind === 'plaza' ? KERB + 0.003 : KERB;
+    const target = kind === 'median' ? M.grass : M.pave;
+    const sc = kind === 'median' ? 3.2 : 2;
+    target.quad([x0, top, z0], [x1, top, z0], [x1, top, z1], [x0, top, z1], kind === 'median' ? shade(GRASS, 0.92 + rnd(Math.round(B.x0), Math.round(B.z0)) * 0.16) : kind === 'plaza' ? 0xf4f0e6 : 0xe6e2d8, [[x0 / sc, z0 / sc], [x1 / sc, z0 / sc], [x1 / sc, z1 / sc], [x0 / sc, z1 / sc]], UP);
+    // its sides down to the road
+    const side = (p, q, facing) => M.concrete.quad([p[0], 0, p[1]], [q[0], 0, q[1]], [q[0], top, q[1]], [p[0], top, p[1]], CONCRETE, Q_UV, facing);
+    if (z0 === B.z0) side([x0, z0], [x1, z0], [0, 0, -1]);
+    if (z1 === B.z1) side([x0, z1], [x1, z1], [0, 0, 1]);
+    if (x0 === B.x0) side([x0, z0], [x0, z1], [-1, 0, 0]);
+    if (x1 === B.x1) side([x1, z0], [x1, z1], [1, 0, 0]);
+    // the kerbs: black and white down both long sides of a middle strip, and along the road's edge of a walkway
+    const alongZ = B.z1 - B.z0 >= B.x1 - B.x0;
+    if (kind === 'median') {
+      if (alongZ) { if (x0 === B.x0) kerbRun(M, x0, z0, x0, z1, [-1, 0]); if (x1 === B.x1) kerbRun(M, x1, z0, x1, z1, [1, 0]); } else { if (z0 === B.z0) kerbRun(M, x0, z0, x1, z0, [0, -1]); if (z1 === B.z1) kerbRun(M, x0, z1, x1, z1, [0, 1]); }
+    } else if (kind === 'walk') {
+      const road = ROAD_OF.get(B.walk);
+      if (!road) continue;
+      // (the side nearer the road's middle)
+      if (road.along === 'z') { const near0 = Math.abs(B.x0 - road.c) < Math.abs(B.x1 - road.c); if ((near0 ? x0 === B.x0 : x1 === B.x1)) kerbRun(M, near0 ? x0 : x1, z0, near0 ? x0 : x1, z1, [near0 ? -1 : 1, 0]); }
+      else { const near0 = Math.abs(B.z0 - road.c) < Math.abs(B.z1 - road.c); if ((near0 ? z0 === B.z0 : z1 === B.z1)) kerbRun(M, x0, near0 ? z0 : z1, x1, near0 ? z0 : z1, [0, near0 ? -1 : 1]); }
+    }
+  }
 }
 
 // ------------------------------------------------------------------------------------------------- decks --
-// For each deck: the road on it (and where it lies on the ground, the road there), its joints, walls and drain spouts,
-// the barrier down its middle, underneath it the slab and girders, its embankments between retaining walls where it is
-// low, the faces at its ends; its pillars; the lamps under it.
-function addDecks(M, lite, fixedLights) {
+// For each deck, in this piece (its stretches whose middles are in it): the road on it (and where it lies on the
+// ground, the road there), its joints, walls and drain spouts, the barrier down its middle, underneath it the slab and
+// girders, its embankments between retaining walls where it is low, the faces at its ends; its pillars; the lamps under
+// it.
+function* decksTile(M, T, lite, fixedLights) {
+  const mid = (a, b) => inTile(T, (a.x + b.x) / 2, (a.z + b.z) / 2);
   for (const d of OGANIRU_DECKS) {
     const P = d.path, n = P.length, half = d.half;
+    // (a quick look: none of it in this piece)
+    if (!P.some((p) => p.x > T.x0 - 40 && p.x < T.x1 + 40 && p.z > T.z0 - 40 && p.z < T.z1 + 40)) continue;
+    yield;
     const ramp = d.id !== 'viaduct';
     const road = ramp ? M.rampTar : M.tar;
+    const bridge = d.kind === 'bridge';
     const L = (p) => [p.uz, -p.ux];                     // the deck's left (oganiru.js: +d to the left)
     const at = (p, off, dy = 0) => { const [lx, lz] = L(p); return [p.x + lx * off, p.y + p.bank * off + dy, p.z + lz * off]; };
     const walled = (side, s) => (side > 0 ? d.walls.left : d.walls.right).some(([a, b]) => s >= a - 0.01 && s <= b + 0.01);
-    const lift = (p) => (p.y < 0.35 ? DECK_LIFT : 0.004);
-    const under = (p) => p.y - D.thick >= OGANIRU.under;   // high enough to pass under: on pillars
-    const raised = (p) => p.y > 0.35;
+    const lift = (p) => (p.y < 0.35 && !bridge ? DECK_LIFT : 0.004);
+    const g = (p) => groundBelow(p.x, p.z);
+    const under = (p) => p.y - D.thick - g(p) >= OGANIRU.under;   // high enough to pass under: on pillars
+    const raised = (p) => bridge || p.y - g(p) > 0.35;
     for (let i = 0; i < n - 1; i += 1) {
       const a = P[i], b = P[i + 1];
+      if (!mid(a, b)) continue;
       // the road
       const ua = (u) => [u / TT, a.s / TT], ub = (u) => [u / TT, b.s / TT];
       road.quad(at(a, -half, lift(a)), at(b, -half, lift(b)), at(b, half, lift(b)), at(a, half, lift(a)), TAR, [ua(-half), ub(-half), ub(half), ua(half)], UP);
@@ -565,7 +705,7 @@ function addDecks(M, lite, fixedLights) {
         // the outer face: from the slab's underside (or the ground, an embankment's retaining wall) to the road, or the
         // wall's top where it has one
         if (raised(a) || raised(b)) {
-          const bottomA = under(a) ? a.y - 1.0 : -0.05, bottomB = under(b) ? b.y - 1.0 : -0.05;
+          const bottomA = under(a) ? a.y - 1.0 : g(a) - 0.05, bottomB = under(b) ? b.y - 1.0 : g(b) - 0.05;
           const topA = wa ? D.wall : 0.05, topB = wb ? D.wall : 0.05;
           const pa0 = at(a, e), pb0 = at(b, e);
           const v = (y) => y / 6;
@@ -579,20 +719,19 @@ function addDecks(M, lite, fixedLights) {
         }
       }
       // where an embankment ends and the deck goes on on pillars: its face across, under the deck
-      if (raised(a) && raised(b) && under(a) !== under(b)) {
+      if (raised(a) && raised(b) && under(a) !== under(b) && !bridge) {
         const e = under(a) ? b : a, toward = under(a) ? -1 : 1;
         const l0 = at(e, -half), l1 = at(e, half);
-        M.concrete.quad([l0[0], -0.05, l0[2]], [l1[0], -0.05, l1[2]], [l1[0], e.y - 0.45, l1[2]], [l0[0], e.y - 0.45, l0[2]], CONCRETE, [[-half / 6, 0], [half / 6, 0], [half / 6, e.y / 6], [-half / 6, e.y / 6]], [e.ux * toward, 0, e.uz * toward]);
+        M.concrete.quad([l0[0], g(e) - 0.05, l0[2]], [l1[0], g(e) - 0.05, l1[2]], [l1[0], e.y - 0.45, l1[2]], [l0[0], e.y - 0.45, l0[2]], CONCRETE, [[-half / 6, 0], [half / 6, 0], [half / 6, e.y / 6], [-half / 6, e.y / 6]], [e.ux * toward, 0, e.uz * toward]);
       }
-      // underneath: where it stands on pillars, the slab and its girders; where it is an embankment, nothing is seen
+      // underneath: where it stands on pillars (or spans the cutting), the slab and its girders
       if (under(a) && under(b)) {
         const slab = 0.45;
         const ya = a.y - slab, yb = b.y - slab;
         M.soffit.quad(at(a, -half, -slab), at(b, -half, -slab), at(b, half, -slab), at(a, half, -slab), CONCRETE_DARK, [[-half / 6, a.s / 6], [-half / 6, b.s / 6], [half / 6, b.s / 6], [half / 6, a.s / 6]], DOWN);
-        // the girders: box beams the deck's length, a metre and a half deep
         const count = lite ? (half > 10 ? 4 : 2) : Math.max(2, Math.round((half * 2) / 3.6));
-        for (let g = 0; g < count; g += 1) {
-          const o = -half + 1 + ((half * 2 - 2) * (g + 0.5)) / count, w = Math.min(1.5, (half * 2 - 2) / count * 0.6);
+        for (let gk = 0; gk < count; gk += 1) {
+          const o = -half + 1 + ((half * 2 - 2) * (gk + 0.5)) / count, w = Math.min(1.5, (half * 2 - 2) / count * 0.6);
           const deep = D.thick - slab;
           const A0 = at(a, o - w / 2, -slab - deep), A1 = at(a, o + w / 2, -slab - deep), B0 = at(b, o - w / 2, -slab - deep), B1 = at(b, o + w / 2, -slab - deep);
           M.soffit.quad(A0, B0, B1, A1, CONCRETE_DARK, [[o / 6, a.s / 6], [o / 6, b.s / 6], [(o + w) / 6, b.s / 6], [(o + w) / 6, a.s / 6]], DOWN);
@@ -600,23 +739,35 @@ function addDecks(M, lite, fixedLights) {
             const ea = at(a, o + (s * w) / 2, -slab), eb = at(b, o + (s * w) / 2, -slab);
             const fa = at(a, o + (s * w) / 2, -slab - deep), fb = at(b, o + (s * w) / 2, -slab - deep);
             const [lx, lz] = L(a);
-            M.under.quad(fa, fb, eb, ea, CONCRETE_DARK, [[a.s / 6, ya / 6 - 0.3], [b.s / 6, yb / 6 - 0.3], [b.s / 6, yb / 6], [a.s / 6, ya / 6]], [lx * s, 0, lz * s]);
+            M.concrete.quad(fa, fb, eb, ea, CONCRETE_DARK, [[a.s / 6, ya / 6 - 0.3], [b.s / 6, yb / 6 - 0.3], [b.s / 6, yb / 6], [a.s / 6, ya / 6]], [lx * s, 0, lz * s]);
           }
         }
+      }
+      // the barrier down the middle (a concrete wall, wide at its foot, narrow at its top)
+      if (d.barrier && (a.y >= 0.35 || bridge)) {
+        const prof = [[0.3, 0], [0.19, 0.28], [0.08, 0.82]];
+        for (const side of [-1, 1]) for (let k = 0; k < prof.length - 1; k += 1) {
+          const [o0, h0] = prof[k], [o1, h1] = prof[k + 1];
+          const [lx, lz] = L(a);
+          M.concrete.quad(at(a, side * o0, h0), at(b, side * o0, h0), at(b, side * o1, h1), at(a, side * o1, h1), 0xd6d1c6, [[a.s / 6, h0 / 6], [b.s / 6, h0 / 6], [b.s / 6, h1 / 6], [a.s / 6, h1 / 6]], [lx * side, 0.4, lz * side]);
+        }
+        M.concrete.quad(at(a, -0.08, 0.82), at(b, -0.08, 0.82), at(b, 0.08, 0.82), at(a, 0.08, 0.82), 0xdcd7cc, [[a.s / 6, 0.13], [b.s / 6, 0.13], [b.s / 6, 0.14], [a.s / 6, 0.14]], UP);
       }
     }
     // the joints across the road every 30 m, and the drain spouts with the stains under them
     for (let s = 30; s < d.len - 5; s += 30) {
-      const p = P.find((q) => q.s >= s);
-      if (!p || !raised(p)) continue;
-      const q = P[Math.min(n - 1, P.indexOf(p) + 1)];
+      const k = P.findIndex((q) => q.s >= s);
+      if (k < 0) continue;
+      const p = P[k];
+      if (!raised(p) || !inTile(T, p.x, p.z)) continue;
+      const q = P[Math.min(n - 1, k + 1)];
       const ux = q.x - p.x, uz = q.z - p.z, l = Math.hypot(ux, uz) || 1, dx = (ux / l) * 0.09, dz = (uz / l) * 0.09;
       const l0 = at(p, -half + 0.5, 0.012), l1 = at(p, half - 0.5, 0.012);
       M.paint.quad([l0[0] - dx, l0[1], l0[2] - dz], [l1[0] - dx, l1[1], l1[2] - dz], [l1[0] + dx, l1[1], l1[2] + dz], [l0[0] + dx, l0[1], l0[2] + dz], 0x2b2b2e, Q_UV, UP);
     }
     if (!lite) for (let s = 12; s < d.len - 5; s += 20) {
       const p = P.find((q) => q.s >= s);
-      if (!p || !under(p)) continue;
+      if (!p || !under(p) || !inTile(T, p.x, p.z)) continue;
       for (const side of [-1, 1]) {
         const [lx, lz] = L(p);
         const e = at(p, side * (half + 0.18), -0.55);
@@ -627,22 +778,11 @@ function addDecks(M, lite, fixedLights) {
         M.stain.quad([s0[0] - ux, s0[1] - drop, s0[2] - uz], [s0[0] + ux, s0[1] - drop, s0[2] + uz], [s0[0] + ux, s0[1], s0[2] + uz], [s0[0] - ux, s0[1], s0[2] - uz], 0xffffff, [[0, 0], [1, 0], [1, 1], [0, 1]], [lx * side, 0, lz * side]);
       }
     }
-    // the barrier down the middle (a concrete wall, wide at its foot, narrow at its top)
-    if (d.barrier) for (let i = 0; i < n - 1; i += 1) {
-      const a = P[i], b = P[i + 1];
-      if (a.y < 0.35) continue;
-      const prof = [[0.3, 0], [0.19, 0.28], [0.08, 0.82]];
-      for (const side of [-1, 1]) for (let k = 0; k < prof.length - 1; k += 1) {
-        const [o0, h0] = prof[k], [o1, h1] = prof[k + 1];
-        const [lx, lz] = L(a);
-        M.concrete.quad(at(a, side * o0, h0), at(b, side * o0, h0), at(b, side * o1, h1), at(a, side * o1, h1), 0xd6d1c6, [[a.s / 6, h0 / 6], [b.s / 6, h0 / 6], [b.s / 6, h1 / 6], [a.s / 6, h1 / 6]], [lx * side, 0.4, lz * side]);
-      }
-      M.concrete.quad(at(a, -0.08, 0.82), at(b, -0.08, 0.82), at(b, 0.08, 0.82), at(a, 0.08, 0.82), 0xdcd7cc, [[a.s / 6, 0.13], [b.s / 6, 0.13], [b.s / 6, 0.14], [a.s / 6, 0.14]], UP);
-    }
-    // where it ends in the air (the expressway beyond the interchange in this stage): its end face, a wall across it,
-    // and the road works before it
+    // where it ends in the air (the expressway at its north end): its end face, a wall across it, and the road works
+    // before it
     for (const end of d.closed) {
       const p = end === 'start' ? P[0] : P[n - 1];
+      if (!inTile(T, p.x, p.z)) continue;
       const inward = end === 'start' ? 1 : -1;
       const l0 = at(p, -half), l1 = at(p, half);
       M.concrete.quad([l0[0], p.y - D.thick, l0[2]], [l1[0], p.y - D.thick, l1[2]], [l1[0], p.y + D.wall, l1[2]], [l0[0], p.y + D.wall, l0[2]], CONCRETE, Q_UV, [-p.ux * inward, 0, -p.uz * inward]);
@@ -656,33 +796,119 @@ function addDecks(M, lite, fixedLights) {
     // the lamps under it, over the road below, lit at night (render-lamps.js paints their light on the ground)
     for (let s = 8; s < d.len; s += 16) {
       const p = P.find((q) => q.s >= s);
-      if (!p || !under(p)) continue;
+      if (!p || !under(p) || !inTile(T, p.x, p.z)) continue;
       for (const side of d.half > 6 ? [-1, 1] : [0]) {
         const off = side * (half - 2.2);
         const q = at(p, off, -D.thick - 0.06);
         M.lit.box(0.7, 0.08, 0.28, q[0], q[1], q[2], 0xfff1c9, Math.atan2(p.ux, p.uz));
-        fixedLights.push({ x: q[0], z: q[2], ground: 0, size: 9, region: 'city' });
+        fixedLights.push({ x: q[0], z: q[2], ground: groundBelow(q[0], q[2]), size: 9, region: 'city' });
       }
     }
   }
   // the pillars: a round column on a footing, a wide cap under the deck (the expressway's on two columns, a beam across)
   for (const p of OGANIRU_PILLARS) {
-    const deck = OGANIRU_DECKS.find((d) => d.id === p.deck);
+    if (!inTile(T, p.x, p.z)) continue;
+    const deck = DECK_BY_ID.get(p.deck);
     const capH = 1.3, capW = p.deck === 'viaduct' ? 7.5 : Math.max(3, deck ? deck.half * 2 - 1.2 : 6);
     const segs = lite ? 12 : 20;
-    M.pillar.geo(new THREE.CylinderGeometry(p.r, p.r * 1.06, p.top - capH, segs), place(p.x, (p.top - capH) / 2, p.z), CONCRETE, 'wall', 6);
-    M.pillar.geo(new THREE.CylinderGeometry(p.r + 0.35, p.r + 0.45, 0.4, segs), place(p.x, 0.2, p.z), CONCRETE_DARK, 'wall', 6);
+    M.concrete.geo(new THREE.CylinderGeometry(p.r, p.r * 1.06, p.top - capH, segs), place(p.x, (p.top - capH) / 2, p.z), CONCRETE, 'wall', 6);
+    M.concrete.geo(new THREE.CylinderGeometry(p.r + 0.35, p.r + 0.45, 0.4, segs), place(p.x, 0.2, p.z), CONCRETE_DARK, 'wall', 6);
     // the cap: wide across the deck, tapering down to the column
     const cap = new THREE.CylinderGeometry(capW / 2, p.r * 1.3, capH, 4, 1);
     cap.rotateY(Math.PI / 4);
-    M.pillar.geo(cap, place(p.x, p.top - capH / 2, p.z, p.heading, 1, 1, 1.8 / (capW * Math.SQRT1_2)), 0xccc7bb, 'wall', 6);
+    M.concrete.geo(cap, place(p.x, p.top - capH / 2, p.z, p.heading, 1, 1, 1.8 / (capW * Math.SQRT1_2)), 0xccc7bb, 'wall', 6);
   }
   // the expressway's cross beams between its pairs of columns
-  const pairs = new Map();
-  for (const p of OGANIRU_PILLARS.filter((q) => q.deck === 'viaduct')) { const key = Math.round(p.x); if (!pairs.has(key)) pairs.set(key, []); pairs.get(key).push(p); }
-  for (const [, two] of pairs) if (two.length === 2) {
+  for (const [x, two] of VIADUCT_PAIRS) if (two.length === 2 && inTile(T, x, EZ)) {
     const [a, b] = two, top = Math.min(a.top, b.top);
-    M.pillar.box(1.6, 1.3, Math.abs(a.z - b.z) + 2, (a.x + b.x) / 2, top - 0.65, (a.z + b.z) / 2, 0xccc7bb);
+    M.concrete.box(1.6, 1.3, Math.abs(a.z - b.z) + 2, (a.x + b.x) / 2, top - 0.65, (a.z + b.z) / 2, 0xccc7bb);
+  }
+}
+const DECK_BY_ID = new Map(OGANIRU_DECKS.map((d) => [d.id, d]));
+const VIADUCT_PAIRS = (() => { const pairs = new Map(); for (const p of OGANIRU_PILLARS.filter((q) => q.deck === 'viaduct')) { const key = Math.round(p.x); if (!pairs.has(key)) pairs.set(key, []); pairs.get(key).push(p); } return pairs; })();
+
+// --------------------------------------------------------------------------------------------- the cutting --
+// The expressway below the land, in this piece: its road at its own height (going down into the cutting and up out of
+// it), its lanes' lines and middle barrier, a gutter at each side, and its retaining walls: from its road to the land,
+// a coping along the top and a parapet over the land (none where the Hope Avenue bridge spans it).
+const HOPE_BRIDGE = OGANIRU_DECKS.find((d) => d.kind === 'bridge');
+function cuttingTile(M, T) {
+  const C = OGANIRU_CUTTING;
+  if (EZ < T.z0 || EZ >= T.z1) return;
+  const x0 = Math.max(C.x0, T.x0), x1 = Math.min(C.x1, T.x1);
+  if (x1 <= x0) return;
+  const r = { along: 'x', c: EZ };
+  const step = 4;
+  const bridgeX = HOPE_BRIDGE ? HOPE_BRIDGE.path[0].x : -1e9, bridgeHalf = HOPE_BRIDGE ? HOPE_BRIDGE.half + 0.5 : 0;
+  for (let a = x0; a < x1 - 1e-6; a += step) {
+    const b = Math.min(x1, a + step), ya = expresswayY(a), yb = expresswayY(b);
+    const q = (lat0, lat1, h0a, h0b, h1a, h1b, M_, col, facing, uvs) => {
+      const [xa0, za0] = Pt(r, lat0, a), [xb0, zb0] = Pt(r, lat0, b), [xb1, zb1] = Pt(r, lat1, b), [xa1, za1] = Pt(r, lat1, a);
+      M_.quad([xa0, h0a, za0], [xb0, h0b, zb0], [xb1, h1b, zb1], [xa1, h1a, za1], col, uvs || [[xa0 / TT, za0 / TT], [xb0 / TT, zb0 / TT], [xb1 / TT, zb1 / TT], [xa1 / TT, za1 / TT]], facing);
+    };
+    // the road, its lines, the wheels' wear
+    q(-15, 15, ya + ROAD_Y, yb + ROAD_Y, ya + ROAD_Y, yb + ROAD_Y, M.tar, TAR, UP);
+    for (const k of [-1, 1]) {
+      for (const o of [1.0, 11.5]) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
+      if (Math.floor(a / step) % 3 === 0) for (const o of [4.5, 8.0]) q(k * o - 0.075, k * o + 0.075, ya + PAINT_Y, yb + PAINT_Y, ya + PAINT_Y, yb + PAINT_Y, M.paint, LINE, UP, Q_UV);
+      for (const o of [2.75, 6.25, 9.75]) for (const s of [-0.85, 0.85]) q(k * o + s - 0.3, k * o + s + 0.3, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, ya + ROAD_Y + 0.002, yb + ROAD_Y + 0.002, M.wear, TAR_WORN, UP);
+      // the gutter
+      q(k * 15, k * CUT.wall, ya + 0.003, yb + 0.003, ya + 0.003, yb + 0.003, M.concrete, CONCRETE_DARK, UP, Q_UV);
+      // the retaining wall's face, from the road to the land (and on up as the parapet's inner face)
+      const atBridge = Math.abs((a + b) / 2 - bridgeX) < bridgeHalf;
+      const topA = atBridge ? 0 : CUT.parapet, topB = topA;
+      if (ya < -0.02 || yb < -0.02 || topA > 0) q(k * CUT.wall, k * CUT.wall, ya, yb, topA, topB, M.concrete, CONCRETE, [-k * 0, 0, -k], [[a / 6, ya / 6], [b / 6, yb / 6], [b / 6, topB / 6], [a / 6, topA / 6]]);
+      if (!atBridge) {
+        // the parapet: its top and its face to the land
+        const outer = k * (CUT.wall + CUT.wallWidth);
+        q(k * CUT.wall, outer, CUT.parapet, CUT.parapet, CUT.parapet, CUT.parapet, M.concrete, 0xd8d3c8, UP, Q_UV);
+        q(outer, outer, CUT.parapet, CUT.parapet, -0.05, -0.05, M.concrete, CONCRETE, [0, 0, k], [[a / 6, CUT.parapet / 6], [b / 6, CUT.parapet / 6], [b / 6, 0], [a / 6, 0]]);
+      } else {
+        // under the bridge, the wall's coping at the land's height
+        q(k * CUT.wall, k * (CUT.wall + CUT.wallWidth), 0, 0, 0, 0, M.concrete, 0xd8d3c8, UP, Q_UV);
+      }
+    }
+  }
+  groundBarrier(M, r, x0, x1, (x) => expresswayY(x));
+}
+
+// ------------------------------------------------------------------------------------- signals and signs --
+function signalsTile(M, T) {
+  for (const s of OGANIRU_SIGNALS) {
+    if (!inTile(T, s.x, s.z)) continue;
+    M.metal.geo(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 10), place(s.x, KERB + 1.7, s.z), 0x2a2c30);
+    const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
+    const hx = s.x + fx * 0.12, hy = KERB + 2.9, hz = s.z + fz * 0.12;
+    M.metal.box(0.34, 0.98, 0.26, hx, hy, hz, 0x1c1d20, s.heading);
+    M.metal.box(0.5, 1.12, 0.03, hx - fx * 0.14, hy, hz - fz * 0.14, 0x111214, s.heading);
+    for (const dy of [0.3, 0, -0.3]) M.metal.box(0.26, 0.03, 0.16, hx + fx * 0.2, hy + dy + 0.13, hz + fz * 0.2, 0x1c1d20, s.heading);
+  }
+}
+// where each signal's three lamps are: [colour, phase, offset, x, y, z, facing] (the whole city's, drawn together)
+const SIGNAL_LAMPS = OGANIRU_SIGNALS.flatMap((s) => {
+  const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
+  const hx = s.x + fx * 0.12, hy = KERB + 2.9, hz = s.z + fz * 0.12;
+  return [['red', 0.3], ['amber', 0], ['green', -0.3]].map(([colour, dy]) => ({ colour, phase: s.phase, offset: s.offset || 0, x: hx + fx * 0.135, y: hy + dy, z: hz + fz * 0.135, face: s.heading }));
+});
+function signsTile(M, T, signs) {
+  for (const s of OGANIRU_SIGNS) {
+    if (!inTile(T, s.x, s.z)) continue;
+    const [fg, bg] = s.palette;
+    if (s.gantry) {
+      // a green sign on a steel frame over the expressway's carriageway, its legs on the deck's walls (or at its edges,
+      // on the ground and in its cutting)
+      const y = s.gantry === 'viaduct' ? expresswayY(s.x) + D.wall : expresswayY(s.x);
+      const across = s.across / 2 - 0.25;
+      for (const k of [-1, 1]) M.metal.box(0.35, 7.2, 0.35, s.x, y + 3.6, EZ + k * across, 0x7c8288);
+      M.metal.box(0.5, 0.5, s.across - 0.3, s.x, y + 7.0, EZ, 0x7c8288);
+      M.metal.box(0.3, 0.3, s.across - 0.3, s.x, y + 6.2, EZ, 0x7c8288);
+      signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]));
+      continue;
+    }
+    // on two posts beside the road
+    const w = s.width, h = s.height;
+    for (const k of [-1, 1]) M.metal.box(0.1, h + 2.2, 0.1, s.x + Math.cos(s.facing) * k * (w / 2 - 0.3), (h + 2.2) / 2, s.z - Math.sin(s.facing) * k * (w / 2 - 0.3), 0x6d7177, s.facing);
+    signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]));
   }
 }
 
@@ -705,11 +931,14 @@ function towerMaterial(kind, lite, textures) {
       #endif`);
   };
   m.customProgramCacheKey = () => 'pcw-tower-windows';
+  m.userData.kind = kind;
   return m;
 }
-function addTowers(group, lite, textures, signs, M) {
-  const meshes = [], materials = new Map(), crowns = [];
-  for (const t of OGANIRU_TOWERS) {
+// (in one piece of the city: `list` the towers in it; `materials` the city's, one a kind; the lit bands round the tallest
+// crowns made into one mesh with `bandMaterial`, given back)
+function addTowers(group, lite, textures, signs, M, list, materials, bandMaterial) {
+  const crowns = [];
+  for (const t of list) {
     if (!materials.has(t.kind)) materials.set(t.kind, towerMaterial(t.kind, lite, textures));
     const mat = materials.get(t.kind);
     const W = new Mesher();
@@ -732,7 +961,8 @@ function addTowers(group, lite, textures, signs, M) {
     }
     const body = W.build(mat);
     body.name = `oganiru:${t.id}`;
-    group.add(body); meshes.push(body);
+    body.userData.tower = true;
+    group.add(body);
     // the roof and the crown: stepped back, its own solid stuff (and on the stone one, a little pyramid of a top)
     const round = t.kind === 'round';
     const roofCol = t.kind === 'stone' ? 0xcdbb9b : t.kind === 'ribbed-white' ? 0xf1efe9 : 0x8a9096;
@@ -745,11 +975,11 @@ function addTowers(group, lite, textures, signs, M) {
       for (let k = 0; k < steps; k += 1) {
         const shrink = 0.72 - k * 0.18, h = (crown * (k === steps - 1 ? 0.5 : 0.25));
         const cw = (round ? t.dx : t.dx) * shrink, cd = (round ? t.dx : t.dz) * shrink;
-        if (round) M.crownSolid.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
-        else M.crownSolid.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
+        if (round) M.solid.geo(new THREE.CylinderGeometry(cw / 2, cw / 2, h, lite ? 20 : 32), place(t.x, y + h / 2, t.z), roofCol);
+        else M.solid.box(cw, h, cd, t.x, y + h / 2, t.z, roofCol);
         y += h;
       }
-      if (t.kind === 'stone') M.crownSolid.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
+      if (t.kind === 'stone') M.solid.geo(new THREE.ConeGeometry(t.dx * 0.18, crown * 0.3, 4), place(t.x, y + crown * 0.15, t.z, Math.PI / 4), 0x6f8f7a);
       // the tallest: a lit band round the top of the crown
       if (t.storeys >= 30) crowns.push({ t, y: y - 0.6, w: (round ? t.dx : t.dx) * (0.72 - (steps - 1) * 0.18) + 0.1, d: (round ? t.dx : t.dz) * (0.72 - (steps - 1) * 0.18) + 0.1, round });
     }
@@ -780,10 +1010,9 @@ function addTowers(group, lite, textures, signs, M) {
     if (c.round) { const g = new THREE.CylinderGeometry(c.w / 2 + 0.05, c.w / 2 + 0.05, 0.5, 40, 1, true); band.geo(g, place(c.t.x, c.y, c.t.z), 0xfff4dc, 'own'); }
     else band.box(c.w, 0.5, c.d, c.t.x, c.y, c.t.z, 0xfff4dc);
   }
-  const bandMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xb9bcc0), emissive: linear(0xfff0d0), emissiveIntensity: 0, roughness: 0.6 });
   const bandMesh = band.empty ? null : band.build(bandMaterial, { shadows: false });
-  if (bandMesh) { bandMesh.name = 'oganiru:crowns'; group.add(bandMesh); }
-  return { meshes, materials: [...materials.values()], bandMaterial };
+  if (bandMesh) { bandMesh.name = 'oganiru:crowns'; bandMesh.userData.tower = true; }
+  return bandMesh;
 }
 
 // A sign: a board with the text on it, standing `facing` (0: toward +z), its middle at (x, y, z).
@@ -796,43 +1025,6 @@ function signMesh(lines, x, y, z, facing, w, h, [fg, bg]) {
   mesh.rotation.y = facing;
   mesh.name = 'oganiru:sign';
   return mesh;
-}
-
-// ------------------------------------------------------------------------------------- signals and signs --
-function addSignals(M, lamps) {
-  for (const s of OGANIRU_SIGNALS) {
-    M.metal.geo(new THREE.CylinderGeometry(0.07, 0.09, 3.4, 10), place(s.x, KERB + 1.7, s.z), 0x2a2c30);
-    const fx = Math.sin(s.heading), fz = Math.cos(s.heading);
-    const hx = s.x + fx * 0.12, hy = KERB + 2.9, hz = s.z + fz * 0.12;
-    M.metal.box(0.34, 0.98, 0.26, hx, hy, hz, 0x1c1d20, s.heading);
-    M.metal.box(0.5, 1.12, 0.03, hx - fx * 0.14, hy, hz - fz * 0.14, 0x111214, s.heading);
-    [['red', 0.3], ['amber', 0], ['green', -0.3]].forEach(([colour, dy]) => {
-      (lamps[colour][s.phase] = lamps[colour][s.phase] || []).push({ x: hx + fx * 0.135, y: hy + dy, z: hz + fz * 0.135, face: s.heading });
-      M.metal.box(0.26, 0.03, 0.16, hx + fx * 0.2, hy + dy + 0.13, hz + fz * 0.2, 0x1c1d20, s.heading);
-    });
-  }
-}
-function addSigns(M, group, signs) {
-  for (const s of OGANIRU_SIGNS) {
-    const [fg, bg] = s.palette;
-    if (s.gantry) {
-      // a green sign on a steel frame over the expressway's carriageway, its legs on the deck's walls
-      const deck = OGANIRU_DECKS.find((d) => d.id === 'viaduct');
-      const y = OGANIRU.deck.level + D.wall;
-      const across = s.across / 2 - 0.25;
-      for (const k of [-1, 1]) M.metal.box(0.35, 7.2, 0.35, s.x, y + 3.6, EXPRESSWAY_Z + k * across, 0x7c8288);
-      M.metal.box(0.5, 0.5, s.across - 0.3, s.x, y + 7.0, EXPRESSWAY_Z, 0x7c8288);
-      M.metal.box(0.3, 0.3, s.across - 0.3, s.x, y + 6.2, EXPRESSWAY_Z, 0x7c8288);
-      const sign = signMesh(s.lines, s.x + Math.sin(s.facing) * 0.3, y + 6.0, s.z, s.facing, s.width, s.height, [fg, bg]);
-      signs.push(sign);
-      void deck;
-      continue;
-    }
-    // on two posts beside the road
-    const w = s.width, h = s.height;
-    for (const k of [-1, 1]) M.metal.box(0.1, h + 2.2, 0.1, s.x + Math.cos(s.facing) * k * (w / 2 - 0.3), (h + 2.2) / 2, s.z - Math.sin(s.facing) * k * (w / 2 - 0.3), 0x6d7177, s.facing);
-    signs.push(signMesh(s.lines, s.x + Math.sin(s.facing) * 0.06, 2.2 + h / 2, s.z + Math.cos(s.facing) * 0.06, s.facing, w, h, [fg, bg]));
-  }
 }
 
 // ------------------------------------------------------------------------------------------- the trees --
@@ -962,8 +1154,67 @@ function treeBoards(group, model, copies, renderer, lite) {
 }
 
 // --------------------------------------------------------------------------------------------- the whole --
-// The steps that build the city: each a few milliseconds' work, `yield` between them (main.js runs one or a few a frame).
-// At the end, what was built: { group, update, see, letGo, stats }.
+// One piece of the city, built: its steps (a few milliseconds each), at the end its group of meshes, its signs, the
+// fixed lights under its decks.
+function* buildTile(T, S) {
+  const { lite, materials, textures, towerMaterials, bandMaterial } = S;
+  const group = new THREE.Group(); group.name = `oganiru:${T.key}`;
+  const M = { tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), kerb: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), soffit: new Mesher(), stain: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher(), lobby: new Mesher() };
+  const shadeSolid = new Batch(), foliage = new Foliage();
+  const fixedLights = [], signs = [];
+  const ground = groundTile(T, lite);
+  if (ground) { const mesh = new THREE.Mesh(ground, materials.ground); mesh.receiveShadow = true; mesh.name = `oganiru:ground:${T.key}`; group.add(mesh); }
+  yield;
+  for (const r of OGANIRU_ROADS) { if (!runIn(r, T)) continue; roadTile(M, r, T); yield; }
+  for (const j of OGANIRU_JUNCTIONS) if (inTile(T, j.x, j.z)) junctionTile(M, j);
+  for (const l of OGANIRU_STOP_LINES) if (l.junction.startsWith('peace-ramps') && inTile(T, l.x, l.z)) stopLineTile(M, l);
+  for (const rb of OGANIRU_ROUNDABOUTS) if (inTile(T, rb.x, rb.z)) roundaboutTile(M, rb, lite, shadeSolid, foliage);
+  yield;
+  yield* kerbsTile(M, T);
+  yield;
+  yield* decksTile(M, T, lite, fixedLights);
+  yield;
+  cuttingTile(M, T);
+  signalsTile(M, T);
+  signsTile(M, T, signs);
+  yield;
+  const towers = OGANIRU_TOWERS.filter((t) => inTile(T, t.x, t.z));
+  const crowns = towers.length ? addTowers(group, lite, textures, signs, M, towers, towerMaterials, bandMaterial) : null;
+  yield;
+  // shade trees along the verges and palms on the expressway's banks, as the town's own (render-world.js addTree)
+  let n = 0;
+  for (const t of OGANIRU_TREES) {
+    if (t.kind === 'slim' || !inTile(T, t.x, t.z)) continue;
+    addTree(shadeSolid, foliage, { x: t.x, z: t.z, kind: t.kind, size: t.size, turn: t.turn });
+    if ((n += 1) % 60 === 0) yield;
+  }
+  yield;
+  const add = (mesh, name, shadows = true) => { if (!mesh) return; mesh.name = `oganiru:${name}:${T.key}`; mesh.castShadow = shadows; group.add(mesh); };
+  const build = (key, material, shadows = true) => { if (!M[key].empty) add(M[key].build(material, { shadows }), key, shadows); };
+  build('tar', materials.asphalt, false);
+  build('rampTar', materials.rampAsphalt, true);
+  build('wear', materials.wear, false);
+  build('paint', materials.paint, false); yield;
+  build('kerb', materials.kerb, false);
+  build('grass', materials.grass, false);
+  build('pave', materials.pave, false); yield;
+  build('concrete', materials.concrete, true); yield;
+  build('soffit', materials.soffit, true);
+  build('stain', materials.stain, false);
+  build('solid', materials.solid, true);
+  build('metal', materials.metal, true);
+  build('lit', materials.lit, false);
+  build('lobby', materials.lobby, false); yield;
+  if (!shadeSolid.empty) { const m = shadeSolid.build(materials.solid); m.castShadow = true; m.receiveShadow = true; m.name = `oganiru:trunks:${T.key}`; group.add(m); }
+  for (const mesh of foliage.build(foliageMaterials())) { mesh.name = `oganiru:leaves:${T.key}`; group.add(mesh); }
+  for (const s of signs) group.add(s);
+  if (crowns) group.add(crowns);
+  return { group, fixedLights };
+}
+
+// The steps that build the city's own (what all its pieces share): each a few milliseconds' work, `yield` between them
+// (main.js runs one or a few a frame). At the end: { group, update, see, letGo, trees, stats, step }. Its pieces are built
+// afterwards, a few milliseconds a frame (`update`), as the player comes near them (`see`).
 export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = null, camera = null, fetchFile = (u) => fetch(u), lamps = null } = {}) {
   const group = new THREE.Group(); group.name = 'oganiru';
   // (a phone's signs at half the picture: it reads them from no nearer)
@@ -976,89 +1227,53 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
     lit(punched) { if (!this.lits.has(punched)) { const t = litTexture(punched, lite ? 128 : 256); t.colorSpace = THREE.NoColorSpace; t.magFilter = THREE.NearestFilter; t.minFilter = THREE.NearestFilter; t.generateMipmaps = false; this.lits.set(punched, t); } return this.lits.get(punched); },
   };
   yield;
-  const ground = buildGround(lite);
-  group.add(ground);
-  yield;
-  const M = { soffit: new Mesher(), kerb: new Mesher(), tar: new Mesher(), rampTar: new Mesher(), wear: new Mesher(), paint: new Mesher(), grass: new Mesher(), pave: new Mesher(), concrete: new Mesher(), under: new Mesher(), stain: new Mesher(), pillar: new Mesher(), solid: new Mesher(), metal: new Mesher(), lit: new Mesher(), lobby: new Mesher(), crownSolid: new Mesher() };
-  addRoads(M, lite);
-  yield;
-  addKerbs(M);
-  yield;
-  const fixedLights = [];
-  addDecks(M, lite, fixedLights);
-  yield;
-  const signs = [];
-  const towers = addTowers(group, lite, textures, signs, M);
-  yield;
-  const signalLamps = { red: [], amber: [], green: [] };
-  addSignals(M, signalLamps);
-  addSigns(M, group, signs);
-  yield;
-  // shade trees along the verges, as the town's own (render-world.js addTree)
-  const shadeSolid = new Batch(), foliage = new Foliage();
-  for (const t of OGANIRU_TREES.filter((q) => q.kind !== 'slim')) addTree(shadeSolid, foliage, { x: t.x, z: t.z, kind: t.kind, size: t.size, turn: t.turn });
-  yield;
-
-  // ---- materials ----
-  const asphalt = isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
-  textures.asphalt.repeat.set(1, 1);
-  // (the ramps' road over the expressway's where they run into it: drawn over it)
-  const rampAsphalt = isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
-  const wear = isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), { darken: 0.42, gloss: 0.66, sheen: 1 }));
-  const paint = weathers(surface({ vertexColors: true, roughness: 0.72, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { darken: 0.2, gloss: 0.3 });
-  const grass = surface({ vertexColors: true, map: grassTexture(), roughness: 0.95, metalness: 0 });
-  const pave = weathers(surface({ vertexColors: true, map: textures.pavers, roughness: 0.82, metalness: 0 }), { darken: 0.25, gloss: 0.32, sheen: 0.25 });
-  const concrete = weathers(surface({ vertexColors: true, map: textures.concrete, roughness: 0.9, metalness: 0 }), { darken: 0.18 });
-  const stain = new THREE.MeshLambertMaterial({ color: linear(0x2d2a24), transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 });
-  const metal = reflects(surface({ vertexColors: true, roughness: 0.45, metalness: 0.55 }), 0.6, 'metal');
-  // (the lobbies' glass: dark by day, giving back the sky; lit warm from within at night)
-  const lobbyGlass = reflects(new THREE.MeshStandardMaterial({ vertexColors: true, map: textures.lobby, emissiveMap: textures.lobbyLit, emissive: linear(0xffe2b0), emissiveIntensity: 0, roughness: 0.12, metalness: 0.35 }), 0.8);
+  // ---- the materials every piece draws with ----
   const kit = buildingKit();
-  const add = (mesh, name, shadows = true) => { if (!mesh) return; mesh.name = `oganiru:${name}`; mesh.castShadow = shadows; group.add(mesh); };
-  const build = (key, material, shadows = true) => { if (!M[key].empty) add(M[key].build(material, { shadows }), key, shadows); };
-  build('tar', asphalt, false); yield;
-  build('rampTar', rampAsphalt, true); yield;
-  build('wear', wear, false);
-  build('paint', paint, false); yield;
-  const kerbMaterial = weathers(surface({ map: kerbTexture(lite ? 256 : 512), roughness: 0.8, metalness: 0 }), { darken: 0.2 });
-  build('kerb', kerbMaterial, false);
-  build('grass', grass, false);
-  build('pave', pave, false); yield;
-  build('concrete', concrete, true); yield;
-  build('under', concrete, true);
-  build('soffit', weathers(surface({ vertexColors: true, map: textures.soffit, roughness: 0.92, metalness: 0 }), { darken: 0.1 }), true);
-  build('stain', stain, false);
-  build('pillar', concrete, true); yield;
-  build('solid', kit.solid, true);
-  build('crownSolid', kit.solid, true);
-  build('metal', metal, true);
-  build('lit', glowMaterial || new THREE.MeshBasicMaterial({ color: 0xfff1c9 }), false);
-  build('lobby', lobbyGlass, false); yield;
-  if (!shadeSolid.empty) { const m = shadeSolid.build(kit.solid); m.castShadow = true; m.receiveShadow = true; m.name = 'oganiru:trunks'; group.add(m); }
-  for (const mesh of foliage.build(foliageMaterials())) { mesh.name = 'oganiru:leaves'; group.add(mesh); }
-  for (const s of signs) group.add(s);
-  // the signal lamps: one mesh for each colour of each phase, lit by turns (as Market Road's: render-city.js)
+  textures.asphalt.repeat.set(1, 1);
+  const groundMap = grassTexture(); groundMap.repeat.set(1, 1);
+  const materials = {
+    ground: surface({ vertexColors: true, map: groundMap, roughness: 1, metalness: 0 }),
+    asphalt: isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0 }), { darken: 0.42, gloss: 0.66, sheen: 1 })),
+    // (the ramps' road over the expressway's where they run into it: drawn over it)
+    rampAsphalt: isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.93, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -2 }), { darken: 0.42, gloss: 0.66, sheen: 1 })),
+    wear: isRoad(weathers(surface({ vertexColors: true, map: textures.asphalt, roughness: 0.9, metalness: 0, polygonOffset: true, polygonOffsetFactor: -1, polygonOffsetUnits: -1 }), { darken: 0.42, gloss: 0.66, sheen: 1 })),
+    paint: weathers(surface({ vertexColors: true, roughness: 0.72, metalness: 0, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }), { darken: 0.2, gloss: 0.3 }),
+    grass: surface({ vertexColors: true, map: grassTexture(), roughness: 0.95, metalness: 0 }),
+    pave: weathers(surface({ vertexColors: true, map: textures.pavers, roughness: 0.82, metalness: 0 }), { darken: 0.25, gloss: 0.32, sheen: 0.25 }),
+    concrete: weathers(surface({ vertexColors: true, map: textures.concrete, roughness: 0.9, metalness: 0 }), { darken: 0.18 }),
+    soffit: weathers(surface({ vertexColors: true, map: textures.soffit, roughness: 0.92, metalness: 0 }), { darken: 0.1 }),
+    stain: new THREE.MeshLambertMaterial({ color: linear(0x2d2a24), transparent: true, opacity: 0.28, depthWrite: false, polygonOffset: true, polygonOffsetFactor: -2, polygonOffsetUnits: -2 }),
+    metal: reflects(surface({ vertexColors: true, roughness: 0.45, metalness: 0.55 }), 0.6, 'metal'),
+    // (the lobbies' glass: dark by day, giving back the sky; lit warm from within at night)
+    lobby: reflects(new THREE.MeshStandardMaterial({ vertexColors: true, map: textures.lobby, emissiveMap: textures.lobbyLit, emissive: linear(0xffe2b0), emissiveIntensity: 0, roughness: 0.12, metalness: 0.35 }), 0.8),
+    kerb: weathers(surface({ map: kerbTexture(lite ? 256 : 512), roughness: 0.8, metalness: 0 }), { darken: 0.2 }),
+    solid: kit.solid,
+    lit: glowMaterial || new THREE.MeshBasicMaterial({ color: 0xfff1c9 }),
+  };
+  const towerMaterials = new Map();
+  const bandMaterial = new THREE.MeshStandardMaterial({ vertexColors: true, color: linear(0xb9bcc0), emissive: linear(0xfff0d0), emissiveIntensity: 0, roughness: 0.6 });
+  yield;
+  // the signals' lamps, the whole city's: one mesh for each colour, each lamp lit or dark by its own phase and its
+  // junction's step in the cycle (as Market Road's: render-city.js, which has one mesh a phase)
   const disc = new THREE.CircleGeometry(0.105, 16);
   const COLOURS = { red: 0xff2a1a, amber: 0xffa31a, green: 0x2dff6a };
-  const lampMeshes = [];
-  for (const [colour, byPhase] of Object.entries(signalLamps)) byPhase.forEach((list, phase) => {
-    if (!list || !list.length) return;
-    const material = new THREE.MeshStandardMaterial({ color: linear(0x1a1a1a), emissive: linear(COLOURS[colour]), emissiveIntensity: 0, roughness: 0.3 });
-    const mesh = new THREE.InstancedMesh(disc, material, list.length);
-    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ');
-    list.forEach((l, i) => { e.set(0, l.face, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(l.x, l.y, l.z), q, new THREE.Vector3(1, 1, 1)); mesh.setMatrixAt(i, m4); });
-    mesh.name = 'oganiru:signals';
+  const signalMeshes = Object.keys(COLOURS).map((colour) => {
+    const list = SIGNAL_LAMPS.filter((l) => l.colour === colour);
+    const mesh = new THREE.InstancedMesh(disc, new THREE.MeshBasicMaterial({ color: 0xffffff, toneMapped: false }), list.length);
+    const m4 = new THREE.Matrix4(), q = new THREE.Quaternion(), e = new THREE.Euler(0, 0, 0, 'YXZ'), c = new THREE.Color();
+    list.forEach((l, i) => { e.set(0, l.face, 0); q.setFromEuler(e); m4.compose(new THREE.Vector3(l.x, l.y, l.z), q, new THREE.Vector3(1, 1, 1)); mesh.setMatrixAt(i, m4); mesh.setColorAt(i, c.setHex(0x1a1a1a)); });
+    mesh.computeBoundingSphere();
+    mesh.name = `oganiru:signals:${colour}`;
     group.add(mesh);
-    lampMeshes.push({ colour, phase, material });
+    return { colour, mesh, list, lit: linear(COLOURS[colour]).multiplyScalar(2.4), dark: linear(0x1a1a1a), state: new Uint8Array(list.length) };
   });
   yield;
   const trees = createSlimTrees(group, { lite, fetchFile, renderer });
-  if (lamps) lamps.addFixed(fixedLights);
   // the roadblocks across the roads not built on yet, and the fence along the built land's edge: the city's own, with it
-  // (render-closures.js; drawn from as far as the rest of the city, `see`)
+  // (render-closures.js; each piece drawn within its own distance of the eye)
   yield;
   const closures = buildClosures(group, { lite, keep: ofOganiru });
-  // the programs it needs, made ready before it is put in (program-ready.js)
+  // the programs the city's own need, made ready before it is put in (program-ready.js)
   if (renderer && camera) {
     yield;
     const ready = programsReady(renderer, group, camera, scene);
@@ -1066,58 +1281,144 @@ export function* oganiruSteps(scene, { glowMaterial, lite = false, renderer = nu
   }
   scene.add(group);
 
-  // what is drawn from where: each mesh by its distance (the ground and the roads always while the city is)
-  const far = new Map();
-  // (the roadblocks and the fence see to their own: each piece drawn within its own distance of the eye, render-closures.js)
-  group.traverse((o) => {
-    if (!o.isMesh || o.isInstancedMesh || !o.geometry || o.name.startsWith('closures-')) return;
-    if (!o.geometry.boundingSphere) o.geometry.computeBoundingSphere();
-    const s = o.geometry.boundingSphere;
-    if (s && s.radius >= 0 && Number.isFinite(s.center.x)) far.set(o, s);
-  });
+  // ---- the pieces ----
+  const near = lite ? TILE_NEAR.lite : TILE_NEAR.full;
+  const S = { lite, materials, textures, towerMaterials, bandMaterial };
+  const pieces = new Map();             // key -> { T, state: 'queued' | 'building' | 'built', steps, group, fixedLights, ready }
+  let building = null;
+  let compiled = false;
+  const budget = lite ? 3 : 6;          // milliseconds a frame for building pieces
+  const stats = { built: 0, letGo: 0, building: null, ms: 0, longest: 0 };
+  function stepPieces(ms = budget, wait = true) {
+    const t0 = performance.now();
+    while (performance.now() - t0 < ms) {
+      if (!building) {
+        // the nearest piece waiting
+        let best = null;
+        for (const p of pieces.values()) if (p.state === 'queued' && (!best || p.d < best.d)) best = p;
+        if (!best) return;
+        best.state = 'building'; best.steps = buildTile(best.T, S); building = best;
+        stats.building = best.T.key;
+      }
+      const s0 = performance.now();
+      const r = building.steps.next();
+      const took = performance.now() - s0;
+      stats.ms += took; stats.longest = Math.max(stats.longest, took);
+      if (r.done) {
+        const p = building;
+        building = null; stats.building = null;
+        if (p.state !== 'building') { disposeGroup(r.value.group); continue; }
+        p.group = r.value.group; p.fixedLights = r.value.fixedLights.map((f) => ({ ...f, region: `city:${p.T.key}` }));
+        // (the first piece: its programs made ready before it is shown; the rest share them)
+        if (!compiled && wait && renderer && camera) { p.ready = programsReady(renderer, p.group, camera, scene); p.state = 'compiling'; return; }
+        show(p);
+      }
+    }
+  }
+  function show(p) {
+    p.state = 'built'; p.ready = null;
+    group.add(p.group);
+    if (lamps && p.fixedLights.length) lamps.addFixed(p.fixedLights);
+    stats.built += 1;
+  }
+  function letGoPiece(p) {
+    if (p.group) { group.remove(p.group); disposeGroup(p.group); p.group = null; }
+    if (lamps) lamps.dropFixed(`city:${p.T.key}`);
+    if (p.state === 'building') { p.state = 'dropped'; } else pieces.delete(p.T.key);
+    stats.letGo += 1;
+  }
+  // (each piece's own geometry, signs and their pictures go with it; the materials are the city's)
+  const shared = new Set([...Object.values(materials), kit.solid, ...Object.values(foliageMaterials())]);
+  function disposeGroup(g) {
+    g.traverse((o) => {
+      if (o.geometry) o.geometry.dispose();
+      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
+      for (const m of mats) { if (shared.has(m) || towerMaterials.has(m.userData.kind) && towerMaterials.get(m.userData.kind) === m || m === bandMaterial) continue; if (m.map) m.map.dispose(); m.dispose(); }
+    });
+  }
+
   let clock = 0;
+  const nowLit = new Map();
   function update(dt, { night = 0, hour = 12, camera: eye = null, storm = 0 } = {}) {
     clock += dt;
-    for (const l of lampMeshes) l.material.emissiveIntensity = signalState(l.phase, clock) === l.colour ? 2.4 : 0;
+    // the pieces being built, a few milliseconds a frame; the first one's programs made ready
+    for (const p of pieces.values()) if (p.state === 'compiling' && p.ready.step(4)) { compiled = true; show(p); }
+    stepPieces();
+    // the signals: each lamp lit or dark by its phase and its junction's offset in the cycle
+    for (const S2 of signalMeshes) {
+      let changed = false;
+      S2.list.forEach((l, i) => {
+        const key = `${l.phase}|${l.offset}`;
+        let state = nowLit.get(key);
+        if (state === undefined) { state = signalState(l.phase, clock + l.offset); nowLit.set(key, state); }
+        const on = state === S2.colour ? 1 : 0;
+        if (S2.state[i] !== on) { S2.state[i] = on; S2.mesh.setColorAt(i, on ? S2.lit : S2.dark); changed = true; }
+      });
+      if (changed) S2.mesh.instanceColor.needsUpdate = true;
+    }
+    nowLit.clear();
     // the towers' windows: lit at night, more of them in the evening than late (`uLit`: the share lit)
     const h = ((hour % 24) + 24) % 24;
     // (from dusk about half of them, fewer as the night goes on, a few at four in the morning, more again before dawn)
     const share = h >= 18 ? 0.55 - (h - 18) * 0.05 : h < 5 ? 0.25 - h * 0.035 : h < 7 ? 0.12 + (h - 5) * 0.1 : 0.4;
-    for (const m of towers.materials) { m.emissiveIntensity = night * 1.6; m.userData.lit.value = Math.max(0.08, share); }
-    towers.bandMaterial.emissiveIntensity = night * 2.2;
-    lobbyGlass.emissiveIntensity = night * 0.45;
+    for (const m of towerMaterials.values()) { m.emissiveIntensity = night * 1.6; m.userData.lit.value = Math.max(0.08, share); }
+    bandMaterial.emissiveIntensity = night * 2.2;
+    materials.lobby.emissiveIntensity = night * 0.45;
     trees.update(eye, storm);
     closures.update(dt, night, eye ? eye.position : null);
   }
-  // (`reach`: how far the eye sees from (x, z). The city's land beyond it, none of the city is drawn: its meshes are each
-  // the whole city's of their kind, so that from the town, its frames as they were on a computer that has the city
-  // built (1 November 2026: at the motor park 819 -> 888 draws a frame, the frame 6% to 20% longer, before this).
-  // Gives whether it is drawn.)
+  // (`reach`: how far the eye sees from (x, z). The pieces within `come` of it are built (the nearest first), those
+  // beyond `go` let go; of those built, each drawn only within reach of the eye (the towers from further: they stand over
+  // everything). Gives whether any of the city is drawn.)
   function see(x, z, reach) {
-    const shown = oganiruAway(x, z) < reach;
-    if (group.visible !== shown) group.visible = shown;
-    if (!shown) return false;
-    for (const [mesh, s] of far) {
-      if (mesh.name === 'oganiru:ground' || mesh.name === 'oganiru:tar') { mesh.visible = true; continue; }
-      const d = Math.hypot(s.center.x - x, s.center.z - z) - s.radius;
-      // (the towers seen from further: they stand over everything)
-      mesh.visible = d < (mesh.name.startsWith('oganiru:t') && mesh.name.length < 12 ? reach * 2.2 : reach);
+    const shownAll = oganiruAway(x, z) < reach;
+    if (group.visible !== shownAll) group.visible = shownAll;
+    for (const T of OGANIRU_TILES) {
+      const d = tileAway(T, x, z);
+      let p = pieces.get(T.key);
+      if (!p && d < near.come && tileHasCity(T)) { p = { T, state: 'queued', d }; pieces.set(T.key, p); }
+      if (!p) continue;
+      p.d = d;
+      if (d > near.go && p.state !== 'queued') { letGoPiece(p); continue; }
+      if (d > near.go && p.state === 'queued') { pieces.delete(T.key); continue; }
+      if (p.group) p.group.visible = d < reach || p.group.children.some((c) => c.userData.tower) && d < reach * 2.2;
     }
-    return true;
+    return shownAll;
   }
   // (shared with the town, and not let go with the city: the town's own materials, its leaves')
   const keep = new Set([glowMaterial, kit.solid, ...Object.values(foliageMaterials())]);
   function letGo() {
+    for (const p of [...pieces.values()]) letGoPiece(p);
+    pieces.clear();
     scene.remove(group);
     trees.dispose();
-    const disposed = new Set(), pictures = new Set();
-    group.traverse((o) => {
-      if (o.geometry && !disposed.has(o.geometry)) { disposed.add(o.geometry); o.geometry.dispose(); }
-      const mats = Array.isArray(o.material) ? o.material : o.material ? [o.material] : [];
-      for (const m of mats) { if (keep.has(m) || disposed.has(m)) continue; disposed.add(m); for (const key of ['map', 'emissiveMap']) if (m[key]) pictures.add(m[key]); m.dispose(); }
-    });
-    for (const t of [...pictures, textures.asphalt, textures.concrete, textures.soffit, textures.lobby, textures.lobbyLit, textures.pavers, ...textures.facades.values(), ...textures.lits.values()]) t.dispose();
-    if (lamps) lamps.dropFixed('city');
+    closures.dispose();
+    for (const S2 of signalMeshes) { S2.mesh.dispose(); S2.mesh.material.dispose(); }
+    disc.dispose();
+    for (const m of [...Object.values(materials), ...towerMaterials.values(), bandMaterial]) { if (keep.has(m)) continue; m.dispose(); }
+    for (const t of [groundMap, materials.kerb.map, materials.grass.map, textures.asphalt, textures.concrete, textures.soffit, textures.lobby, textures.lobbyLit, textures.pavers, ...textures.facades.values(), ...textures.lits.values()]) if (t) t.dispose();
+    if (lamps) for (const T of OGANIRU_TILES) lamps.dropFixed(`city:${T.key}`);
   }
-  return { group, update, see, letGo, trees, stats: () => ({ meshes: far.size, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count }, fixedLights: fixedLights.length }) };
+  // every piece near (x, z) built now, whatever it takes (someone put down in the city, the tests, the measuring)
+  function buildAround(x, z) {
+    see(x, z, Infinity);
+    for (const p of pieces.values()) if (p.state === 'compiling') show(p);
+    for (let guard = 0; guard < 100000 && [...pieces.values()].some((p) => p.state === 'queued' || p.state === 'building'); guard += 1) stepPieces(1e9, false);
+    see(x, z, Infinity);
+  }
+  return {
+    group, update, see, letGo, trees, buildAround,
+    // (for the tests and the measuring: the pieces and what is in them)
+    pieces: () => [...pieces.values()].map((p) => ({ key: p.T.key, state: p.state, d: Math.round(p.d) })),
+    stats: () => ({ pieces: { ...stats, now: [...pieces.values()].filter((p) => p.state === 'built').length, queued: [...pieces.values()].filter((p) => p.state === 'queued').length }, trees: { drawn: trees.drawn, loaded: trees.loaded, failed: trees.failed, of: trees.count } }),
+  };
 }
+// Is any of the city in this piece (its roads, decks, roundabouts, kerbs, trees; or the land round it, near enough to
+// be seen)?
+const TILE_HAS = new Map(OGANIRU_TILES.map((T) => {
+  const has = OGANIRU_ROADS.some((r) => runIn(r, T)) || OGANIRU_DECKS.some((d) => d.path.some((p) => inTile(T, p.x, p.z))) || OGANIRU_KERBED.some((b) => b.x1 > T.x0 && b.x0 < T.x1 && b.z1 > T.z0 && b.z0 < T.z1) || OGANIRU_TREES.some((t) => inTile(T, t.x, t.z)) || OGANIRU_ROUNDABOUTS.some((r) => inTile(T, r.x, r.z));
+  // (the land round the city, its hills, where nothing of its own stands: drawn as part of the nearest piece that has it)
+  const land = T.x1 > GROUND.x0 && T.x0 < GROUND.x1 && T.z1 > GROUND.z0 && T.z0 < GROUND.z1;
+  return [T.key, has || land];
+}));
+const tileHasCity = (T) => TILE_HAS.get(T.key);

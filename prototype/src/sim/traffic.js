@@ -27,7 +27,8 @@
 //
 // What the page draws (traffic-view in main.js and car-view.js): each car within sight as its model or, further off,
 // its picture (vehicle-standins.js), lamps lit at night; what it hears: the nearest engines (audio.js).
-import { ZONE_ROADS, OUTSKIRT_ROADS, BOULEVARD, ZONE_CLOSURES, CITY_AREA, trafficHold, zoneWalkable } from './zone.js';
+import { ZONE_ROADS, OUTSKIRT_ROADS, BOULEVARD, ZONE_CLOSURES, CITY_AREA, trafficHold, zoneWalkable, OGANIRU, OGANIRU_TRAFFIC, OGANIRU_JUNCTIONS, oganiruHold, signalState } from './zone.js';
+import { levelAt } from './levels.js';
 import { POWER_CARS, carBoxes, carCircles } from './power-cars.js';
 import { POSE } from './population.js';
 import { GameError } from './registry.js';
@@ -46,6 +47,9 @@ export const TRAFFIC = Object.freeze({
   shift: 10,               // metres a car takes to pull out from the roadside, or in to it
   every: 45,               // metres between places at the roadside a car may stand
   clear: 18,               // and none nearer a junction than this
+  cityClear: 30,           // (in the city, where the junctions are wider and the stop lines further out, this)
+  cityPace: 14,            // m/s: the city's roads compared by time at this pace, choosing a way
+  cityFar: 2600,           // metres (at that pace) a trip from somewhere in the city may go
   stand: Object.freeze([25, 80]),     // real seconds a car stands at the roadside before going on
   apart: 80,               // metres: a car comes onto the roads, or goes home off them, only this far from every player
   near: 75,                // metres: townspeople are asked to step aside only by a car this near a player
@@ -85,48 +89,129 @@ function carRoads() {
     // its lanes: on the right, in the middle of its own half on the town's roads (2 m from the middle of an 8 m road,
     // 2.2 m of a wider one: people walking along a road keep within half a metre of its middle, population.js); on the
     // city block's boulevard 2.2 m from its middle too, where its two lanes each way meet
-    list.push(Object.freeze({ id: r.id, axis, c, a0, a1, w, lane: Math.min(2.2, w / 4), kerb: w / 2 + 0.6, cruise: open ? TRAFFIC.open : boulevard ? TRAFFIC.town - 1 : TRAFFIC.town, boulevard, open }));
+    list.push({ id: r.id, axis, c, a0, a1, w, lane: Math.min(2.2, w / 4), kerb: w / 2 + 0.6, cruise: open ? TRAFFIC.open : boulevard ? TRAFFIC.town - 1 : TRAFFIC.town, boulevard, open, city: false, oneway: 0, inner: null, stops: true });
   };
   for (const r of ZONE_ROADS) take(r, false);
   // out of town: the Kwale road and the airport's (not its car park, nor the bridge, which leads nowhere built yet)
   for (const r of OUTSKIRT_ROADS) if (!r.bays && !r.deck) take(r, true);
+  // and on into Oganiru City (zones/oganiru.js, 1 November 2026): its avenues, boulevards and streets, the flyovers over
+  // its junctions, the expressway, the interchanges' slip roads and loops, the roundabouts' rings
+  for (const r of OGANIRU_TRAFFIC) {
+    const o = { ...r, city: true, boulevard: false, open: false };
+    if (r.axis === 'path') {
+      o.xs = Float64Array.from(r.pts, (p) => p.x); o.zs = Float64Array.from(r.pts, (p) => p.z); o.ys = Float64Array.from(r.pts, (p) => p.y);
+      o.ss = Float64Array.from(r.pts, (p) => p.s); o.uxs = Float64Array.from(r.pts, (p) => p.ux); o.uzs = Float64Array.from(r.pts, (p) => p.uz);
+    }
+    list.push(o);
+  }
   return list;
 }
 
+// Where `along` falls on a path road (its points' distances along it): the point before, and how far on to the next.
+function pathSpot(road, along) {
+  const ss = road.ss, n = ss.length;
+  if (along <= ss[0]) return [0, 0];
+  if (along >= ss[n - 1]) return [n - 2, 1];
+  let lo = 0, hi = n - 1;
+  while (hi - lo > 1) { const m = (lo + hi) >> 1; if (ss[m] <= along) lo = m; else hi = m; }
+  return [lo, (along - ss[lo]) / Math.max(1e-9, ss[hi] - ss[lo])];
+}
+// The nearest point of a path road to (x, z): how far along it, and how far off it.
+function nearestOnPath(road, x, z) {
+  let best = { along: 0, off: Infinity };
+  for (let k = 0; k + 1 < road.xs.length; k += 1) {
+    const ax = road.xs[k], az = road.zs[k], ex = road.xs[k + 1] - ax, ez = road.zs[k + 1] - az, l2 = ex * ex + ez * ez || 1;
+    const t = Math.max(0, Math.min(1, ((x - ax) * ex + (z - az) * ez) / l2));
+    const off = Math.hypot(x - ax - ex * t, z - az - ez * t);
+    if (off < best.off) best = { along: road.ss[k] + (road.ss[k + 1] - road.ss[k]) * t, off };
+  }
+  return best;
+}
+// A road's lane at a point along it (where it changes: a flyover-road opening out, an approach to a roundabout).
+const laneOf = (road, along) => (road.laneAt ? road.laneAt(Math.max(road.a0, Math.min(road.a1, along))) : road.lane);
 // A point of a road: `along` it, `lat` metres to the right of its middle for something going `dir` (+1: towards its
 // higher end) along it.
-const pointOf = (road, along, lat, dir) => (road.axis === 'x' ? [along, road.c + lat * dir] : [road.c - lat * dir, along]);
-const headingOf = (road, dir) => (road.axis === 'x' ? (dir > 0 ? Math.PI / 2 : -Math.PI / 2) : dir > 0 ? 0 : Math.PI);
-const alongOf = (road, x, z) => (road.axis === 'x' ? x : z);
+function pointOf(road, along, lat, dir) {
+  if (road.axis === 'x') return [along, road.c + lat * dir];
+  if (road.axis === 'z') return [road.c - lat * dir, along];
+  const [k, f] = pathSpot(road, along);
+  const x = road.xs[k] + (road.xs[k + 1] - road.xs[k]) * f, z = road.zs[k] + (road.zs[k + 1] - road.zs[k]) * f;
+  if (!lat) return [x, z];
+  const ux = road.uxs[k] + (road.uxs[k + 1] - road.uxs[k]) * f, uz = road.uzs[k] + (road.uzs[k + 1] - road.uzs[k]) * f, l = Math.hypot(ux, uz) || 1;
+  return [x - (uz / l) * lat * dir, z + (ux / l) * lat * dir];
+}
+// Which way something going `dir` along a road faces (on a path road, where along it).
+function headingOf(road, dir, along = 0) {
+  if (road.axis === 'x') return dir > 0 ? Math.PI / 2 : -Math.PI / 2;
+  if (road.axis === 'z') return dir > 0 ? 0 : Math.PI;
+  const [k, f] = pathSpot(road, along);
+  const ux = road.uxs[k] + (road.uxs[k + 1] - road.uxs[k]) * f, uz = road.uzs[k] + (road.uzs[k + 1] - road.uzs[k]) * f;
+  return Math.atan2(ux * dir, uz * dir);
+}
+const alongOf = (road, x, z) => (road.axis === 'x' ? x : road.axis === 'z' ? z : nearestOnPath(road, x, z).along);
+// How high a road runs at a point along it: the city's at their levels (the ground there 0, the expressway's cutting
+// below it, its viaduct and the flyovers above); the town's as its ground lies (NaN).
+function levelOf(road, along) {
+  if (!road.city) return NaN;
+  if (road.axis === 'path') { const [k, f] = pathSpot(road, along); return road.ys[k] + (road.ys[k + 1] - road.ys[k]) * f; }
+  return road.level ? road.level(Math.max(road.a0, Math.min(road.a1, along))) : 0;
+}
+// the line a road runs along (two roads end to end along it are one way on)
+const lineOf = (road) => (road.axis === 'path' ? road.id : `${road.axis}:${Math.round(road.c * 10)}`);
 
 function buildNetwork() {
   const roads = carRoads();
-  // where along each road something joins it: [along, how firmly: 2 a road across it, 1 a road going on from its end]
+  const index = new Map(roads.map((r, k) => [r.id, k]));
+  const flat = (r, a) => { const y = levelOf(r, a); return Number.isFinite(y) ? y : 0; };
+  // where along each road something joins it: [along, how firmly: 2 a road across it, 1.5 a slip road leaving or joining
+  // it, 1 a road going on from its end]
   const marks = roads.map(() => []);
   for (let a = 0; a < roads.length; a += 1) {
     for (let b = a + 1; b < roads.length; b += 1) {
       const A = roads[a], B = roads[b];
+      if (A.axis === 'path' || B.axis === 'path') continue;
       if (A.axis === B.axis) {
         if (Math.abs(A.c - B.c) > 1.5) continue;
-        for (const e of [A.a0, A.a1]) for (const f of [B.a0, B.a1]) if (Math.abs(e - f) < 3) { const m = (e + f) / 2; marks[a].push([m, 1]); marks[b].push([m, 1]); }
+        for (const e of [A.a0, A.a1]) for (const f of [B.a0, B.a1]) if (Math.abs(e - f) < 3 && Math.abs(flat(A, e) - flat(B, f)) < 1.5) { const m = (e + f) / 2; marks[a].push([m, 1]); marks[b].push([m, 1]); }
         continue;
       }
       const ix = A.axis === 'x' ? a : b, iz = A.axis === 'x' ? b : a;
       const X = roads[ix], Z = roads[iz];
       const x = Z.c, z = X.c;
       if (x < X.a0 - Z.w / 2 - 1.5 || x > X.a1 + Z.w / 2 + 1.5 || z < Z.a0 - X.w / 2 - 1.5 || z > Z.a1 + X.w / 2 + 1.5) continue;
+      // (one over the other, a flyover over a road, the expressway over or under one: no junction)
+      if ((X.city || Z.city) && Math.abs(flat(X, x) - flat(Z, z)) > 2.5) continue;
       marks[ix].push([x, 2]); marks[iz].push([z, 2]);
     }
   }
+  roads.forEach((r) => { if (r.axis === 'path') for (const end of [r.from, r.to]) marks[index.get(end.road)].push([end.along, 1.5]); });
+  // (a city road's end left free just short of a junction, or just beyond it: the road ends at the junction, no way
+  // running on into the few metres past it; and it runs on to every junction it reaches)
+  roads.forEach((r, ri) => {
+    if (!r.city || r.axis === 'path') return;
+    for (const end of ['a0', 'a1']) {
+      const at = r[end];
+      if (marks[ri].some(([m, f]) => f < 2 && Math.abs(m - at) < 3)) continue;
+      const cross = marks[ri].filter(([m, f]) => f === 2 && Math.abs(m - at) <= 12).sort((p, q) => Math.abs(p[0] - at) - Math.abs(q[0] - at))[0];
+      if (cross) r[end] = cross[0];
+    }
+    for (const [m] of marks[ri]) { if (m < r.a0) r.a0 = m; if (m > r.a1) r.a1 = m; }
+  });
   const nodes = [];
-  const nodeAt = (x, z) => {
-    for (let k = 0; k < nodes.length; k += 1) if (Math.hypot(nodes[k].x - x, nodes[k].z - z) < 4) return k;
-    nodes.push({ x, z, on: new Map(), links: [] });
+  const nodeAt = (x, z, y) => {
+    for (let k = 0; k < nodes.length; k += 1) if (Math.hypot(nodes[k].x - x, nodes[k].z - z) < 4 && !(Number.isFinite(y) && Number.isFinite(nodes[k].y) && Math.abs(nodes[k].y - y) > 2)) { if (!Number.isFinite(nodes[k].y)) nodes[k].y = y; return k; }
+    nodes.push({ x, z, y, on: new Map(), links: [], out: [], into: [] });
     return nodes.length - 1;
   };
   const edges = [];
   const stops = [];
+  const link = (e) => {
+    edges.push(e);
+    nodes[e.a].links.push({ to: e.b, edge: edges.length - 1, len: e.len });
+    nodes[e.b].links.push({ to: e.a, edge: edges.length - 1, len: e.len });
+  };
   roads.forEach((road, ri) => {
+    if (road.axis === 'path') return;
     // its points: where others join it, and its own ends where nothing does; near together, the firmer kept
     const all = [...marks[ri], [road.a0, 0], [road.a1, 0]].sort((p, q) => p[0] - q[0]);
     const kept = [];
@@ -135,18 +220,17 @@ function buildNetwork() {
       if (last && p[0] - last[0] < 8.5) { if (p[1] > last[1]) kept[kept.length - 1] = p; continue; }
       kept.push(p);
     }
-    const ids = kept.map(([along]) => { const [x, z] = pointOf(road, along, 0, 1); const k = nodeAt(x, z); nodes[k].on.set(ri, along); return k; });
+    const ids = kept.map(([along]) => { const [x, z] = pointOf(road, along, 0, 1); const k = nodeAt(x, z, levelOf(road, along)); nodes[k].on.set(ri, along); return k; });
     for (let k = 0; k + 1 < ids.length; k += 1) {
       const s0 = kept[k][0], s1 = kept[k + 1][0];
-      const e = { road: ri, a: ids[k], b: ids[k + 1], s0, s1, len: s1 - s0 };
-      edges.push(e);
-      nodes[ids[k]].links.push({ to: ids[k + 1], edge: edges.length - 1, len: e.len });
-      nodes[ids[k + 1]].links.push({ to: ids[k], edge: edges.length - 1, len: e.len });
-      // places at the roadside along it, both sides, clear of the junctions; not on the city block's boulevard, and
-      // only where the biggest of the cars has room
-      if (road.boulevard) continue;
-      for (let s = s0 + TRAFFIC.clear; s <= s1 - TRAFFIC.clear; s += TRAFFIC.every) {
-        for (const dir of [1, -1]) {
+      link({ road: ri, a: ids[k], b: ids[k + 1], s0, s1, len: s1 - s0 });
+      // places at the roadside along it, both sides, clear of the junctions; not on the city block's boulevard, nor on
+      // the city's roads with nowhere to stand, and only where the biggest of the cars has room
+      if (road.boulevard || !road.stops) continue;
+      const clear = road.city ? TRAFFIC.cityClear : TRAFFIC.clear;
+      for (let s = s0 + clear; s <= s1 - clear; s += TRAFFIC.every) {
+        if (road.noStops && road.noStops.some(([p, q]) => s >= p && s <= q)) continue;
+        for (const dir of road.oneway ? [road.oneway] : [1, -1]) {
           const [x, z] = pointOf(road, s, road.kerb, dir);
           const h = headingOf(road, dir);
           if (!carCircles(ROOMY, x, z, h).every((c) => zoneWalkable(c.x, c.z, [], Math.max(0.3, c.r - 0.05)))) continue;
@@ -155,28 +239,104 @@ function buildNetwork() {
       }
     }
   });
-  // the shortest way from every junction to every other: the next junction on the way, and how far
-  const N = nodes.length;
-  const dist = Array.from({ length: N }, () => new Float64Array(N).fill(Infinity));
-  const next = Array.from({ length: N }, () => new Int16Array(N).fill(-1));
-  for (let s = 0; s < N; s += 1) {
-    const d = dist[s], prev = new Int16Array(N).fill(-1), done = new Uint8Array(N);
-    d[s] = 0;
-    for (;;) {
-      let u = -1;
-      for (let k = 0; k < N; k += 1) if (!done[k] && d[k] < Infinity && (u < 0 || d[k] < d[u])) u = k;
-      if (u < 0) break;
-      done[u] = 1;
-      for (const l of nodes[u].links) if (d[u] + l.len < d[l.to]) { d[l.to] = d[u] + l.len; prev[l.to] = u; }
+  // the slip roads, loops and rings: each from the point where it leaves a road to where it joins another
+  roads.forEach((road, ri) => {
+    if (road.axis !== 'path') return;
+    const ends = [road.from, road.to].map((end) => {
+      const h = index.get(end.road);
+      let best = -1, bestD = Infinity;
+      nodes.forEach((n, k) => { const a = n.on.get(h); if (a !== undefined && Math.abs(a - end.along) < bestD) { bestD = Math.abs(a - end.along); best = k; } });
+      return best;
+    });
+    if (ends[0] < 0 || ends[1] < 0 || ends[0] === ends[1]) throw new Error(`traffic: ${road.id} does not join the roads`);
+    nodes[ends[0]].on.set(ri, 0); nodes[ends[1]].on.set(ri, road.a1);
+    link({ road: ri, a: ends[0], b: ends[1], s0: 0, s1: road.a1, len: road.a1 });
+  });
+  // what each junction is: in the town, anywhere a car may turn about; in the city only at its junctions (through the
+  // gap in the middle strip there), never on the expressway, its slip roads, a flyover or a ring
+  for (const n of nodes) {
+    n.city = [...n.on.keys()].some((ri) => roads[ri].city);
+    const j = n.city ? OGANIRU_JUNCTIONS.find((q) => Math.abs(q.x - n.x) < 3 && Math.abs(q.z - n.z) < 3) : null;
+    n.uturn = !n.city || (!!j && ![...n.on.keys()].some((ri) => roads[ri].axis === 'path' || roads[ri].deck));
+    n.signals = !!(j && j.signals);
+  }
+  // the ways along each stretch a car may go: both ways along a road, one way along a one-way road and every slip road
+  const arcs = [], arcIndex = new Int32Array(edges.length * 2).fill(-1);
+  edges.forEach((e, ei) => {
+    const road = roads[e.road];
+    for (const dir of [1, -1]) {
+      if (road.oneway && dir !== road.oneway) continue;
+      const k = arcs.length;
+      // (what it costs to go along it, choosing a way: in the city its time, as metres at an avenue's pace, so that
+      // the expressway is taken for the longer ways; in the town its length)
+      arcs.push({ edge: ei, road: e.road, dir, from: dir > 0 ? e.a : e.b, to: dir > 0 ? e.b : e.a, len: e.len, cost: e.len * (road.city ? TRAFFIC.cityPace / road.cruise : 1) });
+      arcIndex[ei * 2 + (dir > 0 ? 0 : 1)] = k;
+      nodes[arcs[k].from].out.push(k); nodes[arcs[k].to].into.push(k);
     }
-    for (let t = 0; t < N; t += 1) {
-      if (t === s || prev[t] < 0) continue;
-      let at = t;
-      while (prev[at] !== s) at = prev[at];
-      next[s][t] = at;
+  });
+  // each road's junctions in order along it
+  const along = roads.map(() => []);
+  nodes.forEach((n, k) => { for (const [ri, a] of n.on) along[ri].push([a, k]); });
+  for (const l of along) l.sort((p, q) => p[0] - q[0]);
+  for (const r of roads) Object.freeze(r);
+  const net = { roads, nodes, edges, arcs, stops, along, arcOf: (ei, dir) => arcIndex[ei * 2 + (dir > 0 ? 0 : 1)], lines: roads.map(lineOf) };
+  // (for the tests: the shortest way from every junction to every other, as the cars may go; worked out when asked)
+  let dist = null;
+  Object.defineProperty(net, 'dist', { get() { if (!dist) dist = nodes.map((_, a) => { const R = search({ node: a, arc: -1, cost: 0 }, net); const d = new Float64Array(nodes.length).fill(Infinity); d[a] = 0; arcs.forEach((A, k) => { if (R.dist[k] < d[A.to]) d[A.to] = R.dist[k]; }); return d; }); return dist; } });
+  return net;
+}
+
+// May a car come into junction `n` along arc `i` and leave it along arc `o`? Not back the way it came but where it may
+// turn about; onto a slip road leaving a road alongside only from that road, going its way; off one joining a road
+// alongside only onto that road, going its way.
+function turnable(net, n, i, o) {
+  const A = net.arcs[i], B = net.arcs[o];
+  if (A.edge === B.edge) return net.nodes[n].uturn;
+  const ra = net.roads[A.road], rb = net.roads[B.road];
+  if (ra.axis !== 'path' && rb.axis !== 'path') return true;
+  const hi = ra.axis === 'path' ? ra.to : null, ho = rb.axis === 'path' ? rb.from : null;
+  const lineA = hi ? net.lines[net.roads.findIndex((r) => r.id === hi.road)] : net.lines[A.road], dirA = hi ? hi.dir : A.dir;
+  const lineB = ho ? net.lines[net.roads.findIndex((r) => r.id === ho.road)] : net.lines[B.road], dirB = ho ? ho.dir : B.dir;
+  if (ho && ho.dir) return lineA === lineB && dirA === ho.dir;
+  if (hi && hi.dir) return lineA === lineB && dirB === hi.dir;
+  return true;
+}
+// What a turn costs, in metres, choosing a way: in the city, through a junction's lights, round a corner, turning about
+// (so that the traffic going on goes over a junction's flyover rather than through the junction under it).
+function turnCost(net, n, i, o) {
+  const N = net.nodes[n];
+  if (!N.city || i < 0) return 0;
+  const A = net.arcs[i], B = net.arcs[o];
+  if (A.edge === B.edge) return 40;
+  const ra = net.roads[A.road], rb = net.roads[B.road];
+  return (N.signals ? 12 : 0) + (ra.axis !== 'path' && rb.axis !== 'path' && ra.axis !== rb.axis ? 6 : 0);
+}
+// The shortest ways on from `start` ({ node, arc: the arc it came in along or -1, cost so far }): for each arc, how far
+// to its end by the best way, and the arc before it on that way (the start itself is `S`).
+function search(start, net = NET) {
+  const n = net.arcs.length, S = n;
+  const dist = new Float64Array(n + 1).fill(Infinity), prev = new Int32Array(n + 1).fill(-1), done = new Uint8Array(n + 1);
+  const heap = [], put = (k, d) => { heap.push([d, k]); let i = heap.length - 1; while (i > 0) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const take = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = 2 * i + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top[1]; };
+  dist[S] = start.cost || 0; put(S, dist[S]);
+  const turns = new Map();
+  while (heap.length) {
+    const u = take();
+    if (done[u]) continue;
+    done[u] = 1;
+    const node = u === S ? start.node : net.arcs[u].to, inn = u === S ? start.arc : u;
+    for (const o of net.nodes[node].out) {
+      if (inn >= 0) {
+        const key = inn * 65536 + o;
+        let ok = turns.get(key);
+        if (ok === undefined) { ok = turnable(net, node, inn, o); turns.set(key, ok); }
+        if (!ok) continue;
+      }
+      const d = dist[u] + (inn >= 0 ? turnCost(net, node, inn, o) : 0) + net.arcs[o].cost;
+      if (d < dist[o]) { dist[o] = d; prev[o] = u; put(o, d); }
     }
   }
-  return { roads, nodes, edges, stops, dist, next };
+  return { dist, prev, S };
 }
 
 const NET = buildNetwork();
@@ -185,26 +345,52 @@ export const TRAFFIC_ROADS = NET.roads;
 export const TRAFFIC_STOPS = NET.stops;
 export const trafficNetwork = () => NET;
 
-// The junction ahead of something at `along` on road `ri` going `dir`, and the one behind; -1 where there is none.
+// The junction ahead of something at `along` on road `ri` going `dir`; -1 where there is none.
 function nodeAhead(ri, along, dir) {
-  let best = -1, bestD = Infinity;
-  NET.nodes.forEach((n, k) => { const a = n.on.get(ri); if (a === undefined) return; const d = (a - along) * dir; if (d > 0.5 && d < bestD) { bestD = d; best = k; } });
-  return best;
+  const l = NET.along[ri];
+  if (dir > 0) { for (let k = 0; k < l.length; k += 1) if (l[k][0] - along > 0.5) return l[k][1]; return -1; }
+  for (let k = l.length - 1; k >= 0; k -= 1) if (along - l[k][0] > 0.5) return l[k][1];
+  return -1;
 }
-function nodeBehind(ri, along, dir) { return nodeAhead(ri, along, -dir); }
-// the edge between two junctions
-const edgeBetween = (a, b) => { const l = NET.nodes[a].links.find((q) => q.to === b); return l ? NET.edges[l.edge] : null; };
+// Where something at (road, along, dir) is on the network: the junction ahead of it, the arc it is on to it, how far.
+function startOf(from) {
+  const first = nodeAhead(from.road, from.along, from.dir);
+  if (first < 0) return null;
+  const arc = NET.nodes[first].into.find((k) => NET.arcs[k].road === from.road && NET.arcs[k].dir === from.dir);
+  if (arc === undefined) return null;
+  const road = NET.roads[from.road];
+  return { node: first, arc, cost: Math.abs(NET.nodes[first].on.get(from.road) - from.along) * (road.city ? TRAFFIC.cityPace / road.cruise : 1) };
+}
+// How far by road from where `from` is (its `start` and the ways on from it, `R`) to a place at the roadside.
+function farTo(from, stop, R) {
+  const e = NET.edges[stop.edge];
+  if (from.road === stop.road && from.dir === stop.dir && (stop.s - from.along) * stop.dir > 4 && from.along >= e.s0 - 0.5 && from.along <= e.s1 + 0.5) return (stop.s - from.along) * stop.dir;
+  const t = NET.arcOf(stop.edge, stop.dir);
+  if (t < 0 || !Number.isFinite(R.dist[t])) return Infinity;
+  return R.dist[t] - NET.arcs[t].cost + Math.abs(stop.s - NET.nodes[NET.arcs[t].from].on.get(stop.road));
+}
 
-// Where something standing at (x, z), facing h, is on the roads: the road, how far along, and which way it faces.
-export function placeOnRoads(x, z, h) {
+// Where something standing at (x, z), facing h (at height y, where it is known), is on the roads: the road, how far
+// along, and which way it faces.
+export function placeOnRoads(x, z, h, y = NaN) {
   let best = null, bestD = Infinity;
+  const fx = Math.sin(h), fz = Math.cos(h);
   NET.roads.forEach((road, ri) => {
+    if (road.axis === 'path') {
+      const q = nearestOnPath(road, x, z);
+      if (q.off > road.w / 2 + 2 || q.off >= bestD) return;
+      if (Number.isFinite(y) && Math.abs(levelOf(road, q.along) - y) > 2.5) return;
+      if (Math.cos(h - headingOf(road, 1, q.along)) < 0) return;
+      bestD = q.off; best = { road: ri, along: q.along, dir: 1 };
+      return;
+    }
     const along = alongOf(road, x, z);
     if (along < road.a0 - 3 || along > road.a1 + 3) return;
     const off = Math.abs((road.axis === 'x' ? z : x) - road.c);
     if (off > road.w / 2 + 3 || off >= bestD) return;
-    const fx = Math.sin(h), fz = Math.cos(h);
+    if (road.city && Number.isFinite(y) && Math.abs(levelOf(road, along) - y) > 2.5) return;
     const dir = (road.axis === 'x' ? fx : fz) >= 0 ? 1 : -1;
+    if (road.oneway && dir !== road.oneway) return;
     bestD = off; best = { road: ri, along: Math.max(road.a0, Math.min(road.a1, along)), dir };
   });
   return best;
@@ -215,38 +401,34 @@ export function placeOnRoads(x, z, h) {
 // The legs of a way from (road, along, dir) to a place at the roadside: each a stretch of one road, one way.
 function legsTo(from, stop) {
   const road = from.road, end = NET.stops[stop];
-  const legs = [];
-  // already on the stretch the place is on, facing its way, short of it: straight there
   const e = NET.edges[end.edge];
-  if (road === end.road && from.dir === end.dir && (end.s - from.along) * end.dir > 4 && from.along >= e.s0 - 0.5 && from.along <= e.s1 + 0.5) {
-    legs.push({ road, dir: end.dir, a: from.along, b: end.s, node: -1 });
-    return legs;
-  }
-  const first = nodeAhead(road, from.along, from.dir);
-  const last = end.dir > 0 ? e.a : e.b;
-  if (first < 0 || !Number.isFinite(NET.dist[first][last])) return null;
-  legs.push({ road, dir: from.dir, a: from.along, b: NET.nodes[first].on.get(road), node: first });
-  let at = first;
-  while (at !== last) {
-    const to = NET.next[at][last];
-    const edge = edgeBetween(at, to);
-    const a = NET.nodes[at].on.get(edge.road), b = NET.nodes[to].on.get(edge.road);
-    legs.push({ road: edge.road, dir: b > a ? 1 : -1, a, b, node: to });
-    at = to;
-  }
-  legs.push({ road: end.road, dir: end.dir, a: NET.nodes[last].on.get(end.road), b: end.s, node: -1 });
+  // already on the stretch the place is on, facing its way, short of it: straight there
+  if (road === end.road && from.dir === end.dir && (end.s - from.along) * end.dir > 4 && from.along >= e.s0 - 0.5 && from.along <= e.s1 + 0.5) return [{ road, dir: end.dir, a: from.along, b: end.s, node: -1 }];
+  const start = startOf(from);
+  if (!start) return null;
+  const R = search(start);
+  const target = NET.arcOf(end.edge, end.dir);
+  if (target < 0 || !Number.isFinite(R.dist[target])) return null;
+  const chain = [];
+  for (let k = target; k !== R.S; k = R.prev[k]) { if (k < 0) return null; chain.push(k); }
+  chain.reverse();
+  const on = (node, ri) => NET.nodes[node].on.get(ri);
+  const legs = [{ road, dir: from.dir, a: from.along, b: on(start.node, road), node: start.node }];
+  for (let k = 0; k + 1 < chain.length; k += 1) { const A = NET.arcs[chain[k]]; legs.push({ road: A.road, dir: A.dir, a: on(A.from, A.road), b: on(A.to, A.road), node: A.to }); }
+  legs.push({ road: end.road, dir: end.dir, a: on(NET.arcs[target].from, end.road), b: end.s, node: -1 });
   // a leg of nothing (a junction passed straight through on the same road) is left out
   return legs.filter((l, k) => Math.abs(l.b - l.a) > 0.01 || k === legs.length - 1);
 }
 
 // The way itself: points along the middle of the car's own side of each road, round the corners, turned about at
-// ends, out from the roadside at the start (`fromLat` metres from the middle) and in to it at the end.
+// ends, out from the roadside at the start (`fromLat` metres from the middle) and in to it at the end; onto a slip road
+// and off it, into a ring and out of it, along a smooth curve from the one to the other; each point at its height.
 function shapeWay(legs, fromLat, toLat) {
-  const xs = [], zs = [], lg = [];
-  const put = (x, z, k) => {
+  const xs = [], zs = [], ys = [], lg = [], as = [];
+  const put = (x, z, y, k, a) => {
     const n = xs.length;
     if (n && Math.hypot(x - xs[n - 1], z - zs[n - 1]) < 0.05) return;
-    xs.push(x); zs.push(z); lg.push(k);
+    xs.push(x); zs.push(z); ys.push(y); lg.push(k); as.push(a);
   };
   const R = (k) => NET.roads[legs[k].road];
   // how each leg is trimmed at its ends for the turn into it and out of it: [start along, end along]
@@ -254,29 +436,42 @@ function shapeWay(legs, fromLat, toLat) {
   const joins = [];
   for (let k = 0; k + 1 < legs.length; k += 1) {
     const A = legs[k], B = legs[k + 1], ra = R(k), rb = R(k + 1);
-    if (ra.axis !== rb.axis) {
-      // a corner: where the two sides meet
-      const [cx, cz] = ra.axis === 'x' ? [rb.c - rb.lane * B.dir, ra.c + ra.lane * A.dir] : [ra.c - ra.lane * A.dir, rb.c + rb.lane * B.dir];
+    const paths = ra.axis === 'path' || rb.axis === 'path';
+    const la = laneOf(ra, A.b), lb = laneOf(rb, B.a);
+    if (!paths && ra.axis !== rb.axis) {
+      // a corner: where the two sides meet (round a wider bend on the city's wide roads)
+      const [cx, cz] = ra.axis === 'x' ? [rb.c - lb * B.dir, ra.c + la * A.dir] : [ra.c - la * A.dir, rb.c + lb * B.dir];
       const ai = alongOf(ra, cx, cz), aj = alongOf(rb, cx, cz);
-      const r = Math.max(1.5, Math.min(TRAFFIC.turn, Math.abs(ai - span[k][0]) * 0.8, Math.abs(B.b - aj) * 0.5));
+      const most = ra.city || rb.city ? Math.max(TRAFFIC.turn, (la + lb) * 1.1) : TRAFFIC.turn;
+      const r = Math.max(1.5, Math.min(most, Math.abs(ai - span[k][0]) * 0.8, Math.abs(B.b - aj) * 0.5));
       span[k][1] = ai - A.dir * r; span[k + 1][0] = aj + B.dir * r;
       joins.push({ kind: 'turn', cx, cz });
-    } else if (A.dir === B.dir) {
+    } else if (!paths && A.dir === B.dir && Math.abs(la - lb) < 0.3) {
       joins.push({ kind: 'on' });
-    } else {
+    } else if (!paths && A.dir !== B.dir) {
       // turned about: a half circle from its own side to the other, its far edge at the junction
-      const rad = (ra.lane + rb.lane) / 2;
+      const rad = (la + lb) / 2;
       const u = A.b - A.dir * rad;
       span[k][1] = u; span[k + 1][0] = u;
       joins.push({ kind: 'about', u, rad });
+    } else {
+      // onto a slip road or off it, into a ring or out of it, from one lane to another: each trimmed back a little,
+      // a smooth curve between (longer where the two run alongside, merging or parting)
+      const square = Math.abs(wrap(headingOf(rb, B.dir, B.a) - headingOf(ra, A.dir, A.b))) > 0.6;
+      const ring = !!(ra.ring || rb.ring);
+      const trim = (r, other) => (r.axis === 'path' ? (r.ring && other.ring ? 0 : r.ring ? 2.5 : square ? 3 : 12) : square ? (ring ? 6 : 8) : 18);
+      const lenA = Math.abs(span[k][1] - span[k][0]), lenB = Math.abs(B.b - B.a);
+      span[k][1] = A.b - A.dir * Math.min(trim(ra, rb), lenA * 0.45);
+      span[k + 1][0] = B.a + B.dir * Math.min(trim(rb, ra), lenB * 0.45);
+      joins.push({ kind: 'link' });
     }
   }
   const latAt = (k, along) => {
-    // out from the roadside on the first leg, in to it on the last; and from one road's lane to the next's where one
-    // road goes straight on into another
+    // out from the roadside on the first leg, in to it on the last
     const l = legs[k], road = R(k);
-    let lat = road.lane;
-    if (k === 0 && fromLat !== null) { const u = Math.abs(along - l.a) / TRAFFIC.shift; lat = fromLat + (road.lane - fromLat) * smooth(u); }
+    if (road.axis === 'path') return 0;
+    let lat = laneOf(road, along);
+    if (k === 0 && fromLat !== null) { const u = Math.abs(along - l.a) / TRAFFIC.shift; lat = fromLat + (lat - fromLat) * smooth(u); }
     if (k === legs.length - 1 && toLat !== null) { const u = Math.abs(l.b - along) / TRAFFIC.shift; lat = toLat + (lat - toLat) * smooth(u); }
     return lat;
   };
@@ -284,33 +479,44 @@ function shapeWay(legs, fromLat, toLat) {
     const road = R(k);
     const [s0, s1] = span[k];
     const len = Math.abs(s1 - s0);
-    // a straight run, finer where the car moves across the road (at its ends)
+    // a straight run (or a slip road's own curve), finer where the car moves across the road (at its ends)
     const steps = Math.max(1, Math.ceil(len / 2));
     for (let i = 0; i <= steps; i += 1) {
       const along = s0 + ((s1 - s0) * i) / steps;
       const [x, z] = pointOf(road, along, latAt(k, along), l.dir);
-      put(x, z, k);
+      put(x, z, levelOf(road, along), k, along);
     }
     const j = joins[k];
     if (!j) return;
+    const y = levelOf(road, s1);
     if (j.kind === 'turn') {
       const [x0, z0] = pointOf(road, s1, latAt(k, s1), l.dir);
       const nb = legs[k + 1], rb = R(k + 1);
       const [x2, z2] = pointOf(rb, span[k + 1][0], latAt(k + 1, span[k + 1][0]), nb.dir);
       for (let i = 1; i < 10; i += 1) {
         const t = i / 10, a = (1 - t) * (1 - t), b = 2 * (1 - t) * t, c = t * t;
-        put(a * x0 + b * j.cx + c * x2, a * z0 + b * j.cz + c * z2, k);
+        put(a * x0 + b * j.cx + c * x2, a * z0 + b * j.cz + c * z2, y, k, s1);
       }
     } else if (j.kind === 'about') {
-      const rb = R(k + 1);
       const li = latAt(k, j.u), lj = latAt(k + 1, j.u);
       const rad = (li + lj) / 2, mid = (li - lj) / 2;
       for (let i = 1; i < 12; i += 1) {
         const th = (Math.PI * i) / 12;
         const [x, z] = pointOf(road, j.u + l.dir * rad * Math.sin(th), mid + rad * Math.cos(th), l.dir);
-        put(x, z, k);
+        put(x, z, y, k, s1);
       }
-      void rb;
+    } else if (j.kind === 'link') {
+      const nb = legs[k + 1], rb = R(k + 1), a3 = span[k + 1][0];
+      const [x0, z0] = pointOf(road, s1, latAt(k, s1), l.dir), h0 = headingOf(road, l.dir, s1);
+      const [x3, z3] = pointOf(rb, a3, latAt(k + 1, a3), nb.dir), h3 = headingOf(rb, nb.dir, a3), y3 = levelOf(rb, a3);
+      const L = Math.hypot(x3 - x0, z3 - z0), m = L * 0.38;
+      const x1 = x0 + Math.sin(h0) * m, z1 = z0 + Math.cos(h0) * m, x2 = x3 - Math.sin(h3) * m, z2 = z3 - Math.cos(h3) * m;
+      const n = Math.max(2, Math.ceil(L / 1.5));
+      for (let i = 1; i < n; i += 1) {
+        const t = i / n, u = 1 - t;
+        const yy = Number.isFinite(y) && Number.isFinite(y3) ? y + (y3 - y) * t : Number.isFinite(y3) ? y3 : y;
+        put(u * u * u * x0 + 3 * u * u * t * x1 + 3 * u * t * t * x2 + t * t * t * x3, u * u * u * z0 + 3 * u * u * t * z1 + 3 * u * t * t * z2 + t * t * t * z3, yy, k, s1);
+      }
     }
   });
   // distances along it, and how fast each point may be taken: its bend, and its road
@@ -335,18 +541,26 @@ function shapeWay(legs, fromLat, toLat) {
     if (node < 0) continue;
     const N = NET.nodes[node];
     if (N.links.length < 2) continue;
-    let r = 0;
-    for (const ri of N.on.keys()) r = Math.max(r, NET.roads[ri].w / 2 + 1);
+    // (how far the junction reaches each way: in the town as far as its widest road, both ways; in the city, where a
+    // narrow street may cross a wide avenue and the stop lines are just beyond each edge, each way as wide as the roads
+    // across it, and no less than 8 m)
+    let rx = 0, rz = 0;
+    for (const ri of N.on.keys()) { const q = NET.roads[ri], h = q.w / 2 + 1; if (!N.city || q.axis !== 'x') rx = Math.max(rx, h); if (!N.city || q.axis !== 'z') rz = Math.max(rz, h); }
+    if (N.city) { rx = Math.max(rx, 8); rz = Math.max(rz, 8); }
     let a = -1, b = -1;
     for (let i = 0; i < n; i += 1) {
       if (lg[i] !== k && lg[i] !== k + 1) continue;
-      if (Math.abs(xs[i] - N.x) <= r && Math.abs(zs[i] - N.z) <= r) { if (a < 0) a = i; b = i; }
+      if (Math.abs(xs[i] - N.x) <= rx && Math.abs(zs[i] - N.z) <= rz) { if (a < 0) a = i; b = i; }
     }
     if (a < 0) continue;
     junctions.push({ node, enter: Math.max(0, cum[a] - 2), leave: cum[b] + 1, move: `${legs[k].road}:${legs[k].dir}>${legs[k + 1].road}:${legs[k + 1].dir}` });
   }
-  return { xs, zs, lg, cum, most, len: n ? cum[n - 1] : 0, legs, junctions };
+  return { xs, zs, ys, as, lg, cum, most, len: n ? cum[n - 1] : 0, legs, junctions };
 }
+
+// (for the tests: the way a car at (road, along, dir) would take to a place at the roadside, and a road's height)
+export function trafficWay(from, stop) { const legs = legsTo(from, stop); return legs ? shapeWay(legs, null, null) : null; }
+export const trafficLevel = (road, along) => levelOf(road, along);
 
 // Two ways through a junction (each from one road, one way, to another: `move`, '2:1>3:-1'): do they cross, or come
 // near enough that two cars on them at once would touch? (Worked out from the ways themselves, once for each pair.)
@@ -356,9 +570,11 @@ function wayThrough(node, move) {
   const [inn, out] = move.split('>').map((m) => m.split(':').map(Number));
   const N = NET.nodes[node], ai = N.on.get(inn[0]), aj = N.on.get(out[0]);
   if (ai === undefined || aj === undefined) return [];
-  const w = shapeWay([{ road: inn[0], dir: inn[1], a: ai - inn[1] * 25, b: ai, node }, { road: out[0], dir: out[1], a: aj, b: aj + out[1] * 25, node: -1 }], null, null);
+  const ri = NET.roads[inn[0]], ro = NET.roads[out[0]];
+  const a0 = ri.axis === 'path' ? Math.max(0, ai - 25) : ai - inn[1] * 25, b1 = ro.axis === 'path' ? Math.min(ro.a1, aj + 25) : aj + out[1] * 25;
+  const w = shapeWay([{ road: inn[0], dir: inn[1], a: a0, b: ai, node }, { road: out[0], dir: out[1], a: aj, b: b1, node: -1 }], null, null);
   let r = 0;
-  for (const ri of N.on.keys()) r = Math.max(r, NET.roads[ri].w / 2 + 2);
+  for (const k of N.on.keys()) r = Math.max(r, NET.roads[k].w / 2 + 2);
   const pts = [];
   for (let k = 0; k < w.xs.length; k += 1) if (Math.abs(w.xs[k] - N.x) <= r && Math.abs(w.zs[k] - N.z) <= r) pts.push([w.xs[k], w.zs[k]]);
   // (and the half metres between its points, so that no crossing slips between two of them)
@@ -401,6 +617,10 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   const real = () => state.real;
 
   const specOf = (c) => POWER_CARS[c.model] || POWER_CARS['grey-saloon'];
+  // (in the city, where one road may run over another, where something is up or down matters)
+  const inCity = (x, z) => inBox(OGANIRU.bounds, x, z, 30);
+  const heightAt = (ri, along) => { const y = levelOf(NET.roads[ri], along); return Number.isFinite(y) ? y : null; };
+  const keptHeight = (at) => (inCity(at.x, at.z) ? levelAt(at) : null);
   const onRoads = (c) => c.mode === 'drive' || c.mode === 'stop';
   const shown = (c) => onRoads(c) || c.mode === 'kept' || c.mode === 'returning';
 
@@ -439,16 +659,20 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   function chooseStop(c, from) {
     const taken = busy();
     const near = anyPlayers() && hash(c.n * 13 + 5, c.trips) < 0.65;
+    // (the ways on from where it is, as it may drive them: one way along the slip roads, turning about only where it may)
+    const start = from ? startOf(from) : null;
+    if (from && !start) return -1;
+    const R = start ? search(start) : null;
+    // (no further than a fair drive in the town; from the city, across it: along its expressway, over its flyovers)
+    const farthest = from && NET.roads[from.road].city ? TRAFFIC.cityFar : 1100;
     let best = -1, bestScore = Infinity;
     for (const s of NET.stops) {
       if (taken.has(s.id) || s.id === c.to) continue;
       let far = 0;
       if (from) {
-        const ahead = nodeAhead(from.road, from.along, from.dir);
-        const behind = s.dir > 0 ? NET.edges[s.edge].a : NET.edges[s.edge].b;
-        far = ahead >= 0 ? NET.dist[ahead][behind] : Infinity;
+        far = farTo(from, s, R);
         if (!Number.isFinite(far)) continue;
-        if (far < 60 || far > 1100) continue;
+        if (far < 60 || far > farthest) continue;
       }
       let score = hash(c.n * 31 + s.id, c.trips + 1) * 400;
       if (near) score += Math.min(600, nearestPlayer(s.x, s.z));
@@ -472,7 +696,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   }
   // sets out from where it stands (at the roadside, or in the road) for another place
   function setOff(c, fromKerb) {
-    const at = c.road >= 0 ? { road: c.road, along: c.along, dir: c.dir } : placeOnRoads(c.x, c.z, c.h);
+    const at = c.road >= 0 ? { road: c.road, along: c.along, dir: c.dir } : placeOnRoads(c.x, c.z, c.h, Number.isFinite(c.y) ? c.y : NaN);
     if (!at) return false;
     c.road = at.road; c.along = at.along; c.dir = at.dir;
     const to = chooseStop(c, at);
@@ -499,7 +723,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       if (score < bestScore) { bestScore = score; best = s; }
     }
     if (!best) return false;
-    Object.assign(c, { mode: 'stop', x: best.x, z: best.z, h: best.h, v: 0, road: best.road, along: best.s, dir: best.dir, to: best.id, d: 0, until: real() + 2 + hash(c.n, c.trips + 7) * 30, since: real() });
+    Object.assign(c, { mode: 'stop', x: best.x, z: best.z, y: heightAt(best.road, best.s), h: best.h, v: 0, road: best.road, along: best.s, dir: best.dir, to: best.id, d: 0, until: real() + 2 + hash(c.n, c.trips + 7) * 30, since: real() });
     ways.delete(c.n);
     return true;
   }
@@ -510,25 +734,30 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   // what is in the road this step: [x, z, heading, half its width, half its length, speed, what]
   function obstaclesNow() {
     const out = [];
-    for (const c of cars) if (shown(c)) { const s = specOf(c); out.push({ x: c.x, z: c.z, h: c.h, hw: s.width / 2, hl: s.length / 2, v: c.mode === 'drive' ? c.v : 0, car: c.n }); }
+    // (each at its height where it is in the city, where one thing may be over another: what is on a flyover is not in
+    // the way of what is under it)
+    const yOf = (o) => (inCity(o.x, o.z) ? levelAt(o) : undefined);
+    for (const c of cars) if (shown(c)) { const s = specOf(c); out.push({ x: c.x, z: c.z, y: Number.isFinite(c.y) ? c.y : undefined, h: c.h, hw: s.width / 2, hl: s.length / 2, v: c.mode === 'drive' ? c.v : 0, car: c.n }); }
     for (const id of Object.keys(players)) {
       const q = players[id];
-      if (q.incar && q.pcar) { const s = POWER_CARS[q.pcar.id] || ROOMY; out.push({ x: q.pcar.x, z: q.pcar.z, h: q.pcar.h, hw: s.width / 2, hl: s.length / 2, v: Math.max(0, (q.pcar.drive && q.pcar.drive.speed) || 0), player: q.id }); }
-      else if (q.astride !== null && q.astride !== undefined) out.push({ x: q.x, z: q.z, h: q.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: q.id });
-      else if (q.driving) out.push({ x: q.x, z: q.z, h: q.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: q.id });
-      else if (!q.carried) out.push({ x: q.x, z: q.z, h: 0, hw: 0.4, hl: 0.4, v: 0, player: q.id, foot: true });
+      const y = yOf(q);
+      if (q.incar && q.pcar) { const s = POWER_CARS[q.pcar.id] || ROOMY; out.push({ x: q.pcar.x, z: q.pcar.z, y, h: q.pcar.h, hw: s.width / 2, hl: s.length / 2, v: Math.max(0, (q.pcar.drive && q.pcar.drive.speed) || 0), player: q.id }); }
+      else if (q.astride !== null && q.astride !== undefined) out.push({ x: q.x, z: q.z, y, h: q.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: q.id });
+      else if (q.driving) out.push({ x: q.x, z: q.z, y, h: q.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: q.id });
+      else if (!q.carried) out.push({ x: q.x, z: q.z, y, h: 0, hw: 0.4, hl: 0.4, v: 0, player: q.id, foot: true });
       const parked = q.carParked && typeof q.carParked === 'object' ? q.carParked : {};
-      for (const [id2, s2] of Object.entries(parked)) { const s = POWER_CARS[id2]; if (s) out.push({ x: s2.x, z: s2.z, h: s2.h, hw: s.width / 2, hl: s.length / 2, v: 0 }); }
+      for (const [id2, s2] of Object.entries(parked)) { const s = POWER_CARS[id2]; if (s) out.push({ x: s2.x, z: s2.z, y: inCity(s2.x, s2.z) && Number.isFinite(s2.y) ? s2.y : undefined, h: s2.h, hw: s.width / 2, hl: s.length / 2, v: 0 }); }
     }
-    if (hub.vehicles && hub.vehicles.all) for (const v of hub.vehicles.all()) if (!v.driver) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0 });
+    if (hub.vehicles && hub.vehicles.all) for (const v of hub.vehicles.all()) if (!v.driver) out.push({ x: v.x, z: v.z, y: yOf(v), h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0 });
     // players in other copies of the town, seen through the network (talk.js): on foot, or in what they drive
     for (const v of visitors()) {
       if (v.held || v.swimming) continue;
       const car = v.car && POWER_CARS[v.car.car];
-      if (car) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: car.width / 2, hl: car.length / 2, v: Math.max(0, v.car.speed || 0), player: v.id });
-      else if (v.ride) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: v.id });
-      else if (v.vehicle) out.push({ x: v.x, z: v.z, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: v.id });
-      else out.push({ x: v.x, z: v.z, h: 0, hw: 0.4, hl: 0.4, v: 0, player: v.id, foot: true });
+      const y = inCity(v.x, v.z) && Number.isFinite(v.y) ? v.y : undefined;
+      if (car) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: car.width / 2, hl: car.length / 2, v: Math.max(0, v.car.speed || 0), player: v.id });
+      else if (v.ride) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: 0.45, hl: 1.1, v: 0, player: v.id });
+      else if (v.vehicle) out.push({ x: v.x, z: v.z, y, h: v.heading || 0, hw: 0.8, hl: 1.5, v: 0, player: v.id });
+      else out.push({ x: v.x, z: v.z, y, h: 0, hw: 0.4, hl: 0.4, v: 0, player: v.id, foot: true });
     }
     // the town's people on their bicycles, skateboards and skates (sport-riders.js)
     if (hub.sportRiders) for (const o of hub.sportRiders.obstacles()) out.push(o);
@@ -564,7 +793,9 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       // (the car's left, of this stretch of its way: (cos h, -sin h))
       const sh = sk <= until ? shift : 0;
       const px = w.xs[k] + uz * sh, pz = w.zs[k] - ux * sh;
+      const wy = w.ys[k];
       for (const o of near2) {
+        if (Number.isFinite(o.y) && Number.isFinite(wy) && Math.abs(o.y - wy) > 2.5) continue;
         const dx = o.x - px, dz = o.z - pz;
         const along = dx * ux + dz * uz;
         const turned = o.h - ph, ca = Math.abs(Math.cos(turned)), sa = Math.abs(Math.sin(turned));
@@ -592,6 +823,8 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   const peopleSeen = new Map();
   function peopleNear(c, t) {
     if (!hub.impact || !hub.impact.makeWay || near(c) > TRAFFIC.near) return [];
+    // (nobody of the town's walks on a flyover, the expressway's viaduct or down in its cutting)
+    if (Number.isFinite(c.y) && Math.abs(c.y) > 2) return [];
     const kept = peopleSeen.get(c.n);
     if (kept && real() - kept.at < 0.2 && real() >= kept.at) return kept.list;
     const s = specOf(c);
@@ -612,15 +845,20 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     return list;
   }
 
-  // the lights on Market Road (atani-city.js): how far ahead the stop line is, if this car must stop at it
+  // the lights on Market Road (atani-city.js), and the city's at its junctions (zones/oganiru.js): how far ahead the
+  // stop line is, if this car must stop at it (none over a junction, on its flyover)
   function lightAhead(c, w, front) {
-    if (!inBox(CITY_AREA, c.x, c.z, 45)) return Infinity;
-    const at = (d) => { const k = indexAt(w, d); const f = (d - w.cum[k]) / Math.max(1e-6, w.cum[k + 1] - w.cum[k]); return [w.xs[k] + (w.xs[k + 1] - w.xs[k]) * f, w.zs[k] + (w.zs[k + 1] - w.zs[k]) * f]; };
-    for (let d = 0; d < 26 && front + d + 1 < w.len; d += 1) {
-      const [x0, z0] = at(front + d), [x1, z1] = at(front + d + 1);
-      if (!trafficHold(x0, z0, x1, z1, real())) continue;
+    const town = inBox(CITY_AREA, c.x, c.z, 45);
+    if (!town && !inBox(OGANIRU.bounds, c.x, c.z, 40)) return Infinity;
+    const hold = town ? (x0, z0, x1, z1) => trafficHold(x0, z0, x1, z1, real()) : (x0, z0, x1, z1) => oganiruHold(x0, z0, x1, z1, real(), signalState);
+    const at = (d) => { const k = indexAt(w, d); const f = (d - w.cum[k]) / Math.max(1e-6, w.cum[k + 1] - w.cum[k]); return [w.xs[k] + (w.xs[k + 1] - w.xs[k]) * f, w.zs[k] + (w.zs[k + 1] - w.zs[k]) * f, w.ys[k]]; };
+    const reach = town ? 26 : 36;
+    for (let d = 0; d < reach && front + d + 1 < w.len; d += 1) {
+      const [x0, z0, y0] = at(front + d), [x1, z1] = at(front + d + 1);
+      if (!town && Number.isFinite(y0) && Math.abs(y0) > 1.5) continue;
+      if (!hold(x0, z0, x1, z1)) continue;
       // (the line is somewhere in this metre: to a tenth of one)
-      for (let e = 0; e < 1; e += 0.1) { const [a0, b0] = at(front + d + e), [a1, b1] = at(front + d + e + 0.1); if (trafficHold(a0, b0, a1, b1, real())) return d + e; }
+      for (let e = 0; e < 1; e += 0.1) { const [a0, b0] = at(front + d + e), [a1, b1] = at(front + d + e + 0.1); if (hold(a0, b0, a1, b1)) return d + e; }
       return d;
     }
     return Infinity;
@@ -647,7 +885,13 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     c.steer = Math.max(-0.6, Math.min(0.6, -Math.atan2(2.8 * turn, Math.max(0.5, Math.hypot(w.xs[b] - w.xs[a], w.zs[b] - w.zs[a])))));
     c.h = h;
     const leg = w.legs[w.lg[k]], road = NET.roads[leg.road];
-    c.road = leg.road; c.dir = leg.dir; c.along = Math.max(road.a0, Math.min(road.a1, alongOf(road, c.x, c.z)));
+    c.road = leg.road; c.dir = leg.dir;
+    const along = road.axis === 'path' ? (w.lg[k + 1] === w.lg[k] ? w.as[k] + (w.as[k + 1] - w.as[k]) * f : w.as[k]) : alongOf(road, c.x, c.z);
+    c.along = Math.max(road.a0, Math.min(road.a1, along));
+    // (its height: the city's road under it, its flyover, its slip road; in the town, its ground)
+    const y0 = w.ys[k], y1 = w.ys[k + 1];
+    const y = Number.isFinite(y0) ? (Number.isFinite(y1) ? y0 + (y1 - y0) * f : y0) : y1;
+    c.y = Number.isFinite(y) ? y : null;
     // out to the left of its way while going round something, and back (no faster sideways than a car is steered)
     const want = c.passing ? c.passing.need : 0;
     const was = c.side || 0;
@@ -657,7 +901,20 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       // (turned a little towards where it is going sideways: no more than a car's nose is, changing lanes)
       c.h -= Math.max(-0.25, Math.min(0.25, Math.atan2(Math.sign(want - was) * move / dt, Math.max(2, c.v))));
     }
-    if (c.side) { c.x += Math.cos(h) * c.side; c.z -= Math.sin(h) * c.side; }
+    if (c.side) {
+      // (never out over the road's edge going round something: no further to the right than its way goes, where that
+      // is already at the kerb)
+      let side = c.side;
+      if (side < 0 && road.axis !== 'path') { const lat = wayLat(c, w, road), edge = road.w / 2 - specOf(c).width / 2 - 0.1; side = Math.max(side, Math.min(0, lat - edge)); }
+      c.x += Math.cos(h) * side; c.z -= Math.sin(h) * side;
+    }
+  }
+  // how far to the right of its road's middle the car's way runs where the car is (a slip road's: 0)
+  function wayLat(c, w, road) {
+    if (road.axis === 'path') return 0;
+    const k = indexAt(w, c.d), f = Math.max(0, Math.min(1, (c.d - w.cum[k]) / (w.cum[k + 1] - w.cum[k] || 1)));
+    const x = w.xs[k] + (w.xs[k + 1] - w.xs[k]) * f, z = w.zs[k] + (w.zs[k + 1] - w.zs[k]) * f;
+    return road.axis === 'x' ? (z - road.c) * c.dir : -(x - road.c) * c.dir;
   }
 
   function drive(c, dt, obstacles, t, wet) {
@@ -670,7 +927,8 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     // how fast it may go: its road, the bends coming, the end of its way
     const k0 = indexAt(w, c.d);
     let want = w.most[k0] * (wet ? 0.85 : 1);
-    for (let k = k0 + 1; k < w.cum.length && w.cum[k] - c.d < 45; k += 1) want = Math.min(want, Math.sqrt(w.most[k] * w.most[k] + 2 * TRAFFIC.brake * (w.cum[k] - c.d)));
+    const reach = Math.max(45, (c.v * c.v) / (2 * TRAFFIC.brake) + 12);
+    for (let k = k0 + 1; k < w.cum.length && w.cum[k] - c.d < reach; k += 1) want = Math.min(want, Math.sqrt(w.most[k] * w.most[k] + 2 * TRAFFIC.brake * (w.cum[k] - c.d)));
     want = Math.min(want, Math.sqrt(2 * TRAFFIC.brake * Math.max(0, w.len - c.d)) + 0.3);
     // a red light ahead (one it can still stop for)
     const line = lightAhead(c, w, c.d + s.length / 2);
@@ -688,7 +946,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     // (going round something: what is ahead of it as far over as it has got, not as far as it is going: it does not
     // drive on into what it is going round before it is clear of it)
     const over = c.passing ? Math.sign(c.passing.need) * Math.min(Math.abs(c.side || 0), Math.abs(c.passing.need)) : 0;
-    const way = ahead(c, w, obstacles, over, null, TRAFFIC.look, c.passing ? c.passing.past + s.length / 2 : Infinity);
+    const way = ahead(c, w, obstacles, over, null, Math.max(TRAFFIC.look, (c.v * c.v) / (2 * TRAFFIC.brake) + 12), c.passing ? c.passing.past + s.length / 2 : Infinity);
     const ghost = real() < (c.ghostUntil || 0);
     // a junction: taken one way through it at a time. A car coming up to one asks for it a little before it must decide
     // whether to stop (nothing else between it and the junction): if nobody is going through it, or only the same way,
@@ -722,7 +980,12 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       const road = NET.roads[c.road];
       if (c.facing > 2 && road) {
         const room = s.width / 2 + way.wide + 0.4;
-        const most = road.lane + road.w / 2 - s.width / 2 - 0.3, least = -(road.w / 2 - road.lane - s.width / 2 - 0.2);
+        // (across the middle of the road onto the other side, but not over a middle strip, the expressway's barrier, a
+        // flyover's: there only within its own side)
+        // (from where its way has it across the road now: its lane, or nearer the kerb pulling in or out)
+        const lane = wayLat(c, w, road);
+        const most = road.inner === null || road.inner === undefined ? lane + road.w / 2 - s.width / 2 - 0.3 : lane - road.inner - s.width / 2 - 0.2;
+        const least = -(road.w / 2 - lane - s.width / 2 - 0.2);
         const sides = [way.left + room, way.left - room].filter((v) => v <= most && v >= least).sort((a, b) => Math.abs(a) - Math.abs(b));
         const past = c.d + way.gap + way.long * 2 + s.length + 1.5;
         // (never round on the left into a junction, or just short of one: on the wrong side there it would be in the way
@@ -773,7 +1036,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   function arrive(c) {
     const stop = NET.stops[c.to];
     c.mode = 'stop'; c.v = 0; c.brake = 0; c.passing = null; c.side = 0; c.booked = null;
-    if (stop) { c.x = stop.x; c.z = stop.z; c.h = stop.h; c.road = stop.road; c.along = stop.s; c.dir = stop.dir; }
+    if (stop) { c.x = stop.x; c.z = stop.z; c.h = stop.h; c.road = stop.road; c.along = stop.s; c.dir = stop.dir; c.y = heightAt(stop.road, stop.s); }
     c.until = real() + TRAFFIC.stand[0] + hash(c.n * 7, c.trips) * (TRAFFIC.stand[1] - TRAFFIC.stand[0]);
     c.since = real();
     ways.delete(c.n);
@@ -787,7 +1050,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     if (!c || !shown(c)) return { ok: false, code: 'NO_CAR', reason: 'There is no car there.' };
     if (c.mode === 'kept' || c.mode === 'returning' || c.frozen) return { ok: false, code: 'BUSY', reason: 'Somebody already has that car.' };
     if (c.v > 0.6) return { ok: false, code: 'MOVING', reason: 'It is moving. Wait until it stops.' };
-    return { ok: true, x: c.x, z: c.z, h: c.h, model: c.model, person: c.i };
+    return { ok: true, x: c.x, z: c.z, y: Number.isFinite(c.y) ? c.y : undefined, h: c.h, model: c.model, person: c.i };
   }
   function freeze(n, on) { const c = cars[n]; if (c) { c.frozen = !!on; if (on) c.v = 0; } }
   // The driver is out and the player is at the wheel.
@@ -803,7 +1066,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
   function leftBy(player, n, at) {
     const c = cars[n];
     if (!c || c.takenBy !== player.id) return;
-    c.mode = 'kept'; c.x = at.x; c.z = at.z; c.h = at.h; c.v = 0; c.keptAt = real();
+    c.mode = 'kept'; c.x = at.x; c.z = at.z; c.h = at.h; c.v = 0; c.keptAt = real(); c.y = keptHeight(at);
     const kept = cars.filter((o) => o.mode === 'kept' && o.takenBy === player.id).sort((a, b) => a.keptAt - b.keptAt);
     while (kept.length > TRAFFIC.most) {
       const first = kept.shift();
@@ -819,10 +1082,10 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     const s = specOf(c);
     if (Math.hypot(player.x - c.x, player.z - c.z) > s.length / 2 + 2.5) throw new GameError('TOO_FAR', 'Walk up to the car.');
     c.mode = 'taken'; c.since = real();
-    return { model: c.model, x: c.x, z: c.z, h: c.h, n };
+    return { model: c.model, x: c.x, z: c.z, h: c.h, n, y: Number.isFinite(c.y) ? c.y : undefined };
   }
   // Where the thief's car is as they drive it (own-cars.js keeps it; here it is only remembered).
-  function moved(n, at) { const c = cars[n]; if (c && c.mode === 'taken') { c.x = at.x; c.z = at.z; c.h = at.h; } }
+  function moved(n, at) { const c = cars[n]; if (c && c.mode === 'taken') { c.x = at.x; c.z = at.z; c.h = at.h; c.y = keptHeight(at); } }
   function giveBack(c) {
     c.mode = 'returning'; c.takenBy = null; c.since = real(); c.frozen = false; c.v = 0; c.walking = 0;
     book.returned += 1;
@@ -853,7 +1116,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
       if (Math.hypot(m.x - c.x, m.z - c.z) < specOf(c).width / 2 + 1.2) {
         actors.drop(owner);
         c.walking = 0;
-        const at = placeOnRoads(c.x, c.z, c.h);
+        const at = placeOnRoads(c.x, c.z, c.h, Number.isFinite(c.y) ? c.y : NaN);
         Object.assign(c, { mode: 'stop', v: 0, to: -1, until: real() + 4, since: real(), road: at ? at.road : -1, along: at ? at.along : 0, dir: at ? at.dir : 1, fromLat: undefined });
         return;
       }
@@ -919,7 +1182,7 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     for (const c of cars) {
       if (!shown(c) || Math.abs(c.x - x) > 330 || Math.abs(c.z - z) > 330) continue;
       const r = (v, k = 100) => Math.round(v * k) / k;
-      out.push({ n: c.n, model: c.model, person: onRoads(c) ? c.i : null, x: r(c.x), z: r(c.z), h: r(c.h, 1000), speed: r(c.mode === 'drive' ? c.v : 0, 10), steer: r(c.steer || 0), brake: c.brake ? 1 : 0, held: !!c.held,
+      out.push({ n: c.n, model: c.model, person: onRoads(c) ? c.i : null, x: r(c.x), z: r(c.z), y: Number.isFinite(c.y) ? r(c.y) : undefined, h: r(c.h, 1000), speed: r(c.mode === 'drive' ? c.v : 0, 10), steer: r(c.steer || 0), brake: c.brake ? 1 : 0, held: !!c.held,
         mode: c.mode, mine: c.takenBy !== null && c.takenBy === viewerId, stopped: onRoads(c) && !c.frozen && c.v <= 0.6, hornAgo: c.hornAt ? r(real() - c.hornAt, 10) : -1 });
     }
     return out;
@@ -936,7 +1199,8 @@ export function createTraffic({ state, population, players, hub = {}, emit = () 
     for (const c of cars) {
       if (!shown(c)) continue;
       if (!ps.some((q) => Math.abs(q.x - c.x) < 70 && Math.abs(q.z - c.z) < 70)) continue;
-      boxesMade.push(...carBoxes(specOf(c), c.x, c.z, c.h));
+      const made = carBoxes(specOf(c), c.x, c.z, c.h);
+      if (Number.isFinite(c.y)) for (const b of made) boxesMade.push({ ...b, y: c.y }); else boxesMade.push(...made);
     }
     return boxesMade;
   }

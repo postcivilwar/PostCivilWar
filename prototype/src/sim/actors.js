@@ -6,9 +6,11 @@
 // a step at a time, until they are let go and walk back to wherever their
 // day says they should be. Nobody is ever moved in a jump.
 
-import { ZONE_SPOTS, zoneWalkable } from './zone.js';
+import { ZONE_SPOTS, zoneWalkable, zoneSurfaceY, zoneGroundY } from './zone.js';
 import { graphNearest, graphRoute, graphPoint, graphSize } from './graph.js';
 import { POSE } from './population.js';
+import { walkLevel, levelAt } from './levels.js';
+import { inCity, cityRoute, cityWalks, CITY_GATES } from './city-walks.js';
 
 // (limp: someone badly hurt, at 20 or not far above it, the owner's 20-life rule: "they walk slowly and weakly")
 export const PACE = Object.freeze({ walk: 1.7, hurry: 3.2, run: 4.6, sprint: 5.2, limp: 0.85 });
@@ -23,7 +25,12 @@ export function clearLine(x0, z0, x1, z1, radius = 0.3) {
 
 // The way on foot from one point to another: straight if the line is clear,
 // otherwise along the town's paths. Returns the points to pass through.
-export function wayBetween(x0, z0, x1, z1) {
+// In Oganiru City (1 November 2026), where a flyover may run over a road, each end at its height (`y0`, `y1`): straight
+// if the line is clear at that height and comes to the other's, otherwise along the city's ways (city-walks.js), up a
+// slip road or a flyover's ramp where that is the way; between the town and the city by College Road or Campus Road.
+export function wayBetween(x0, z0, x1, z1, y0 = undefined, y1 = undefined) {
+  const c0 = inCity(x0, z0), c1 = inCity(x1, z1);
+  if (c0 || c1) return cityWay(x0, z0, x1, z1, y0, y1, c0, c1);
   if (clearLine(x0, z0, x1, z1)) return [[x1, z1]];
   const a = graphNearest(x0, z0), b = graphNearest(x1, z1);
   const nodes = graphRoute(a, b) || [b];
@@ -33,6 +40,24 @@ export function wayBetween(x0, z0, x1, z1) {
   while (points.length > 1 && clearLine(points[points.length - 2][0], points[points.length - 2][1], x1, z1)) points.pop();
   points.push([x1, z1]);
   return points;
+}
+
+function cityWay(x0, z0, x1, z1, y0, y1, c0, c1) {
+  const a = Number.isFinite(y0) ? y0 : zoneGroundY(x0, z0), b = Number.isFinite(y1) ? y1 : zoneGroundY(x1, z1);
+  const end = walkLevel(x0, z0, a, x1, z1, [], 0.3, 0.7);
+  if (end !== null && Math.abs(end - b) < 1.2) return [[x1, z1]];
+  if (c0 && c1) {
+    const route = cityRoute({ x: x0, z: z0, y: a }, { x: x1, z: z1, y: b });
+    return route ? route.map(([x, z]) => [x, z]) : [[x1, z1]];
+  }
+  // (one end in the town, the other in the city: by the nearer of the ways between them)
+  const gate = CITY_GATES.reduce((best, g) => { const d = Math.hypot(g.city[0] - (c0 ? x0 : x1), g.city[1] - (c0 ? z0 : z1)) + Math.hypot(g.town[0] - (c0 ? x1 : x0), g.town[1] - (c0 ? z1 : z0)); return !best || d < best.d ? { g, d } : best; }, null).g;
+  if (c0) {
+    const inside = cityRoute({ x: x0, z: z0, y: a }, { x: gate.city[0], z: gate.city[1], y: 0 });
+    return [...(inside ? inside.map(([x, z]) => [x, z]) : [[gate.city[0], gate.city[1]]]), [gate.town[0], gate.town[1]], ...wayBetween(gate.town[0], gate.town[1], x1, z1)];
+  }
+  const inside = cityRoute({ x: gate.city[0], z: gate.city[1], y: 0 }, { x: x1, z: z1, y: b });
+  return [...wayBetween(x0, z0, gate.town[0], gate.town[1]), [gate.city[0], gate.city[1]], ...(inside ? inside.map(([x, z]) => [x, z]) : [[x1, z1]])];
 }
 
 export function wayLength(x0, z0, points) {
@@ -58,14 +83,16 @@ export function createActors({ state, population }) {
     const start = from || (indoors ? null : at);
     if (!start) return null;
     list[i] = { i, x: start.x, z: start.z, h: at.h || 0, pose: POSE.stand, mode: 'hold', speed: 0, path: [], act: '', until: 0, follow: null, keep: 0, goal: null, moving: false, home: false, replan: 0 };
+    // (their height, in the city: on a pavement, the Hope bridge, a flyover)
+    if (inCity(start.x, start.z)) list[i].y = Number.isFinite(start.y) ? start.y : Number.isFinite(at.y) && start === at ? at.y : zoneGroundY(start.x, start.z);
     return list[i];
   }
 
-  function walkTo(i, x, z, speed = PACE.walk, act = '') {
+  function walkTo(i, x, z, speed = PACE.walk, act = '', y = undefined) {
     const m = list[i];
     if (!m) return null;
     if (m.dead) return m;
-    m.path = wayBetween(m.x, m.z, x, z);
+    m.path = wayBetween(m.x, m.z, x, z, m.y, y);
     m.goal = { x, z };
     m.speed = speed; m.mode = 'go'; m.follow = null; m.home = false; m.arrived = 0;
     if (act) m.act = act;
@@ -99,8 +126,13 @@ export function createActors({ state, population }) {
     const ax = m.x - fromX, az = m.z - fromZ;
     const len = Math.hypot(ax, az) || 1;
     let best = null, bestScore = -Infinity;
-    for (let n = 0; n < graphSize(); n += 1) {
-      const [x, z] = graphPoint(n);
+    // (in the city, somewhere on its pavements at their height)
+    const city = inCity(m.x, m.z);
+    const W = city ? cityWalks() : null;
+    const count = city ? W.nodes.length : graphSize();
+    for (let n = 0; n < count; n += 1) {
+      if (city && !(W.nodes[n].foot && Math.abs(W.nodes[n].y - (Number.isFinite(m.y) ? m.y : 0)) < 1.3)) continue;
+      const [x, z] = city ? [W.nodes[n].x, W.nodes[n].z] : graphPoint(n);
       const d = Math.hypot(x - m.x, z - m.z);
       if (d < distance * 0.5 || d > distance * 1.6) continue;
       // away from the danger, and not across it
@@ -134,6 +166,8 @@ export function createActors({ state, population }) {
       const dx = tx - m.x, dz = tz - m.z;
       const gap = Math.hypot(dx, dz);
       if (gap <= budget) { m.x = tx; m.z = tz; budget -= gap; m.path.shift(); if (gap > 0.001) moved = true; } else { m.x += (dx / gap) * budget; m.z += (dz / gap) * budget; m.h = Math.atan2(dx, dz); budget = 0; moved = true; }
+      // (in the city, on whatever is under them at their height: up a ramp step by step, along a flyover, down again)
+      if (Number.isFinite(m.y) || inCity(m.x, m.z)) m.y = inCity(m.x, m.z) ? zoneSurfaceY(m.x, m.z, Number.isFinite(m.y) ? m.y : zoneGroundY(m.x, m.z)) : undefined;
     }
     return moved;
   }
@@ -149,11 +183,14 @@ export function createActors({ state, population }) {
         const at = target ? resolve(target) : null;
         if (!at) { hold(m.i); continue; }
         const d = Math.hypot(at.x - m.x, at.z - m.z);
+        // (at their height: a player on a flyover is reached up its ramp, not from the road under it)
+        const ay = Number.isFinite(at.y) ? at.y : at.lv ? levelAt(at) : undefined;
+        const level = !Number.isFinite(ay) || !Number.isFinite(m.y) || Math.abs(ay - m.y) < 2.5;
         m.h = d > 0.05 ? Math.atan2(at.x - m.x, at.z - m.z) : m.h;
-        if (d <= m.keep) { m.path = []; continue; }
+        if (d <= m.keep && level) { m.path = []; continue; }
         m.replan -= dt;
         if (m.replan <= 0 || !m.path.length) {
-          m.path = wayBetween(m.x, m.z, at.x, at.z);
+          m.path = wayBetween(m.x, m.z, at.x, at.z, m.y, ay);
           m.replan = 0.6;
         }
         // stop `keep` short of them
@@ -167,7 +204,7 @@ export function createActors({ state, population }) {
         if (m.replan <= 0) {
           const plan = population.planned(m.i, t, probe);
           if (Math.hypot(plan.x - m.x, plan.z - m.z) < 1.6) { drop(m.i); continue; }
-          m.path = wayBetween(m.x, m.z, plan.x, plan.z);
+          m.path = wayBetween(m.x, m.z, plan.x, plan.z, m.y, plan.y);
           m.replan = plan.moving ? 1.5 : 6;
           // (catching up with a day that is on the move: a brisk walk, or they never would; someone limping limps)
           if (plan.moving && m.speed >= PACE.walk) m.speed = PACE.walk * 1.4;
@@ -191,6 +228,7 @@ export function createActors({ state, population }) {
     if (!m) return false;
     population.planned(i, t, out);          // their spot and the rest, as their day has it
     out.x = m.x; out.z = m.z; out.h = m.h;
+    out.y = Number.isFinite(m.y) ? m.y : undefined;
     out.pose = m.moving ? POSE.walk : m.pose;
     out.moving = m.moving;
     out.leg = null;

@@ -18,6 +18,8 @@ import { zoneGroundY, zoneSurfaceY, habitationClimbing } from '../sim/zone.js';
 // Where another player stands: on the level their game says they are on (`gy`: a flyover's deck over a road is a second
 // ground, zone.js zoneSurfaceY, 31 October 2026), or the ground.
 const groundOfPeer = (x, z, q) => (q && Number.isFinite(q.gy) ? zoneSurfaceY(x, z, q.gy) : zoneGroundY(x, z));
+// (one of the town's people, where the town says how high they are, in the city: on a flyover, on the Hope bridge)
+const groundOf = (x, z, y) => (Number.isFinite(y) ? zoneSurfaceY(x, z, y) : zoneGroundY(x, z));
 import { vehicleMeta } from './vehicle-kit.js';
 import { fallTime, flightAt } from './falls.js';
 import { deviceKind } from './budget.js';
@@ -195,7 +197,7 @@ export function createCrowd(scene) {
 
   // Writes one simple figure. `pose` is how the body is held; `walk` is the
   // phase of the stride; (x, y, z, h) is where the feet are.
-  function figure(fig, x, y, z, h, pose, walk, armsOut = 0) {
+  function figure(fig, x, y, z, h, pose, walk, armsOut = 0, level = undefined) {
     if (n >= MAX_FIGURES) return;
     const s = fig.scale || 1;
     const seated = pose === POSE.sit || pose === POSE.ride;
@@ -203,7 +205,8 @@ export function createCrowd(scene) {
     Q.setFromEuler(E);
     const lift = pose === POSE.lie ? 0.72 : 0;
     const back = pose === POSE.lie ? 0.85 * s : 0;
-    P.set(x + Math.sin(h) * back, y + lift + zoneGroundY(x, z), z + Math.cos(h) * back);
+    const ground = groundOf(x, z, level);
+    P.set(x + Math.sin(h) * back, y + lift + ground, z + Math.cos(h) * back);
     S.set(s * (fig.wide || 1), s, s * (fig.wide || 1));
     M.compose(P, Q, S);
     const hip = seated ? 0.46 : 0.9;
@@ -226,21 +229,21 @@ export function createCrowd(scene) {
     put(parts.shinR, joint(K, J, 0, -0.44, 0, kneeR), fig.legs);
     if (fig.skirt) put(parts.skirt, joint(K, M, 0, hip + 0.04, seated ? 0.12 : 0, seated ? -1.2 : 0, 1, seated ? 0.5 : fig.skirt === 1 ? 0.5 : 0.82, 1), fig.bottom);
     else parts.skirt.setMatrixAt(n, HIDE);
-    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06 + zoneGroundY(x, z), z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
+    if (pose === POSE.lie || pose === POSE.ride) shade.setMatrixAt(n, HIDE); else { P.set(x, 0.06 + ground, z); Q.identity(); S.set(s, 1, s); L.compose(P, Q, S); shade.setMatrixAt(n, L); }
     n += 1;
   }
 
   // The same person further off: no arms, no stride, no shade.
   let m = 0;
   const putFar = (mesh, matrix, hex) => { mesh.setMatrixAt(m, matrix); const c = colourOf(hex); mesh.instanceColor.setXYZ(m, c.r, c.g, c.b); };
-  function farFigure(fig, x, z, h, pose) {
+  function farFigure(fig, x, z, h, pose, level = undefined) {
     if (m >= MAX_FIGURES) return;
     const s = fig.scale || 1;
     const seated = pose === POSE.sit || pose === POSE.ride;
     E.set(pose === POSE.lie ? -Math.PI / 2 : 0, h, 0);
     Q.setFromEuler(E);
     const back = pose === POSE.lie ? 0.85 * s : 0;
-    P.set(x + Math.sin(h) * back, (pose === POSE.lie ? 0.72 : 0) + zoneGroundY(x, z), z + Math.cos(h) * back);
+    P.set(x + Math.sin(h) * back, (pose === POSE.lie ? 0.72 : 0) + groundOf(x, z, level), z + Math.cos(h) * back);
     S.set(s * (fig.wide || 1), s, s * (fig.wide || 1));
     M.compose(P, Q, S);
     const hip = seated ? 0.46 : 0.9;
@@ -295,7 +298,7 @@ export function createCrowd(scene) {
     const down = falls.get(actor.i);
     if (down && rig.fallDriver) {
       g.rotation.set(0, 0, 0);
-      g.position.set(actor.x, zoneGroundY(actor.x, actor.z), actor.z);
+      g.position.set(actor.x, groundOf(actor.x, actor.z, actor.y), actor.z);
       const age = down[1] + (fallsClock - fallsAt);
       rig.downState = { kind: 'knock', age, lie: down[2], rise: down[3], push: down[4] + Math.PI, facing: down[4], hard: false, from: null };
       g.rotation.y = down[4];
@@ -309,7 +312,7 @@ export function createCrowd(scene) {
       // and lie where they fell
       g.rotation.set(0, actor.h, 0);
       // (on the ground where they fell: a road or pavement stands above the town's level)
-      g.position.set(actor.x, zoneGroundY(actor.x, actor.z), actor.z);
+      g.position.set(actor.x, groundOf(actor.x, actor.z, actor.y), actor.z);
       standCharacter(rig);
       actor.fall = (actor.fall || 0) + (1 - (actor.fall || 0)) * Math.min(1, dt * 12);
       layCharacter(rig, actor.fall);
@@ -340,7 +343,7 @@ export function createCrowd(scene) {
     } else actor.talkH = undefined;
     g.rotation.set(0, facing, 0);
     // (on the ground where they are: up on a pavement, where it stands above the road)
-    g.position.set(actor.x + (actor.ox || 0), zoneGroundY(actor.x, actor.z), actor.z + (actor.oz || 0));
+    g.position.set(actor.x + (actor.ox || 0), groundOf(actor.x, actor.z, actor.y), actor.z + (actor.oz || 0));
     // the legs keep the pace the person is really going at, so the feet hold the ground
     const went = rig.atX === undefined ? 0 : Math.hypot(actor.x - rig.atX, actor.z - rig.atZ);
     rig.atX = actor.x; rig.atZ = actor.z;
@@ -442,9 +445,10 @@ export function createCrowd(scene) {
     stamp += 1;
     if (rows !== lastRows) {
       lastRows = rows;
-      for (const [i, x, z, h, pose] of rows) {
+      for (const [i, x, z, h, pose, y] of rows) {
         let actor = actors.get(i);
         if (!actor) { actor = { i, x, z, h, tx: x, tz: z, th: h, pose, walk: (i * 1.7) % 6.28, rig: null, seen: 0, speed: 0 }; actors.set(i, actor); }
+        actor.y = y;
         // someone who sits down, or is suddenly far from where they were, is put there
         if (Math.hypot(actor.x - x, actor.z - z) > 9 || (pose !== POSE.walk && actor.pose === POSE.walk && Math.hypot(actor.x - x, actor.z - z) < 0.6)) { actor.x = x; actor.z = z; }
         actor.tx = x; actor.tz = z; actor.th = h; actor.pose = pose; actor.seen = stamp;
@@ -508,7 +512,7 @@ export function createCrowd(scene) {
         const look = info.look;
         const id = look && look.figure && ANIMATED[look.figure] && !(look.plain && !figureHere(look.figure)) ? look.figure : null;
         if (id) {
-          const x = actor.x + (actor.ox || 0), z = actor.z + (actor.oz || 0), y = zoneGroundY(x, z);
+          const x = actor.x + (actor.ox || 0), z = actor.z + (actor.oz || 0), y = groundOf(x, z, actor.y);
           const went = actor.cx === undefined ? 0 : Math.hypot(actor.x - actor.cx, actor.z - actor.cz);
           actor.cx = actor.x; actor.cz = actor.z;
           actor.pace = (actor.pace === undefined ? 1.35 : actor.pace) + (Math.min(2.4, went / Math.max(dt, 0.001)) - (actor.pace === undefined ? 1.35 : actor.pace)) * Math.min(1, dt * 3);
@@ -520,8 +524,8 @@ export function createCrowd(scene) {
           }
         }
       }
-      if (d > detail) farFigure(info.fig, actor.x + (actor.ox || 0), actor.z + (actor.oz || 0), actor.h, actor.pose);
-      else figure(info.fig, actor.x + (actor.ox || 0), moving ? Math.abs(Math.cos(actor.walk)) * 0.025 : 0, actor.z + (actor.oz || 0), actor.h, moving ? POSE.walk : actor.pose === POSE.walk ? POSE.stand : actor.pose, actor.walk);
+      if (d > detail) farFigure(info.fig, actor.x + (actor.ox || 0), actor.z + (actor.oz || 0), actor.h, actor.pose, actor.y);
+      else figure(info.fig, actor.x + (actor.ox || 0), moving ? Math.abs(Math.cos(actor.walk)) * 0.025 : 0, actor.z + (actor.oz || 0), actor.h, moving ? POSE.walk : actor.pose === POSE.walk ? POSE.stand : actor.pose, actor.walk, 0, actor.y);
     }
     crowdFigures.end();
     crowdShade.count = c;

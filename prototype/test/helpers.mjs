@@ -62,8 +62,13 @@ export function walkTo(host, id, x, z) {
         if (!stepped && blocked > 400) throw new Error(`stuck behind someone at (${moved.at.x.toFixed(1)}, ${moved.at.z.toFixed(1)})`);
         continue;
       }
-      // a car of the town's in the way: wait for it to go by
-      if (moved.code === 'BLOCKED' && carInTheWay(host, nx, nz) && carWait < 1200) { carWait += 1; continue; }
+      // a car of the town's in the way: wait for it to go by (and, standing in front of one that has stopped for them,
+      // now and then a step back out of its way, as a player would, so that it can go on)
+      if (moved.code === 'BLOCKED' && carInTheWay(host, nx, nz) && carWait < 1200) {
+        carWait += 1;
+        if (carWait % 25 === 0) { const bx = me.x - ((tx - me.x) / gap) * stride, bz = me.z - ((tz - me.z) / gap) * stride; host.game.intent(id, { type: 'move', x: bx, z: bz, heading: Math.atan2(tx - me.x, tz - me.z), run: true }); }
+        continue;
+      }
       // stepped round someone, and now against something solid (a bollard, a post): back toward the line being
       // walked, as a client's player would be steered (the way between two points of the route is clear)
       if (moved.code === 'BLOCKED' && blocked < 400) {

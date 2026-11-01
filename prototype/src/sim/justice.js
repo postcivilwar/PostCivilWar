@@ -432,7 +432,8 @@ export function createJustice({ state, players, ledger, accounts, population, ac
     const d = Math.hypot(p.x - m.x, p.z - m.z);
     // (on a flyover over the officer's road, or under it: another level, out of reach; and near, out of sight behind its
     // deck: 31 October 2026)
-    const apart = Math.abs(levelAt(p) - zoneGroundY(m.x, m.z)) > 2.5;
+    // (an officer has her own height, in the city: up a flyover's ramp after someone, 1 November 2026)
+    const apart = Math.abs(levelAt(p) - (Number.isFinite(m.y) ? m.y : zoneGroundY(m.x, m.z))) > 2.5;
     const inSight = sees(m, p) && !(apart && d < 40);
     if (inSight) { law.seenAt = { x: p.x, z: p.z, real: now, t: state.t }; law.wantedAt = state.t; o.lost = 0; } else o.lost += dt;
 

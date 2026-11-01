@@ -184,8 +184,9 @@ const FLYOVER_ROAD = { half: 16, median: 16, walk: 3.5, kind: 'flyover-road', la
 // as Stage 1 built it; Peace, Harmony and Hope over Independence)
 const FLY = Object.freeze({ independence: [180, 180], peace: [165, 165], harmony: [165, 165], hope: [165, 165] });
 export const OGANIRU_ROADS = Object.freeze([
-  // College Road carried on: as wide as it is at the town's edge, then opening out to the roundabout
-  groundRoad('unity-gate', 'Unity Avenue', 'z', U, -478.6, GATE.z + RING_EDGE, { half: 5, median: 0, walk: 0, kind: 'approach', lamps: false, flare: { narrow: -505, wide: GATE.z + GATE.outer, half: 10, median: 5, walk: OGANIRU.walk } }),
+  // College Road carried on from its end (at the town's edge): as wide as it is there, then opening out to the
+  // roundabout
+  groundRoad('unity-gate', 'Unity Avenue', 'z', U, -470, GATE.z + RING_EDGE, { half: 5, median: 0, walk: 0, kind: 'approach', lamps: false, flare: { narrow: -505, wide: GATE.z + GATE.outer, half: 10, median: 5, walk: OGANIRU.walk } }),
   groundRoad('unity', 'Unity Avenue', 'z', U, GATE.z - RING_EDGE, SUNRISE_Z + RING_EDGE, { trees: true, walks: [[UNITY_WALKS_TO, GATE.z - RING_EDGE]] }),
   groundRoad('unity-west', 'Unity Avenue', 'z', U, SUNRISE_Z - RING_EDGE, -1640, { trees: true, walk: 0 }),
   // the boulevards, south to north
@@ -360,9 +361,10 @@ const RAMP_PATHS = {
   'h-eb-nb': spline([[-1304, -1480], [-1309, -1430], [-1310, -1370], [-1302, -1310], [-1284, -1258], [-1258, -1212], [-1222, -1168], [-1190, -1138], [-1160, -1112], [-1110, -1098], [-1040, -1100], [-980, -1108], [-930, NB + 4]], 12),
   // The Peace Interchange: four slip roads between the raised expressway and Peace Avenue, to traffic lights on it
   'p-nb-off': spline([[PEACE_X - 160, NB + 1], [PEACE_X - 120, NB + 8], [PEACE_X - 75, NB + 26], [PEACE_X - 35, NB + 38], [PEACE_X - 18, NB + 40], [PEACE_X - 10, NB + 40]], 12),
-  'p-nb-on': spline([[PEACE_X + 10, NB + 40], [PEACE_X + 18, NB + 40], [PEACE_X + 50, NB + 32], [PEACE_X + 110, NB + 14], [PEACE_X + 160, NB + 4], [PEACE_X + 185, NB + 1]], 12),
+  // (the two onto the viaduct kept just clear of its edge until they are level with it)
+  'p-nb-on': spline([[PEACE_X + 10, NB + 40], [PEACE_X + 18, NB + 40], [PEACE_X + 50, NB + 32], [PEACE_X + 110, NB + 14], [PEACE_X + 160, NB + 6], [PEACE_X + 185, NB + 1]], 12),
   'p-sb-off': spline([[PEACE_X + 185, SB - 1], [PEACE_X + 140, SB - 8], [PEACE_X + 80, SB - 26], [PEACE_X + 30, SB - 38], [PEACE_X + 18, SB - 40], [PEACE_X + 10, SB - 40]], 12),
-  'p-sb-on': spline([[PEACE_X - 10, SB - 40], [PEACE_X - 18, SB - 40], [PEACE_X - 50, SB - 34], [PEACE_X - 100, SB - 18], [PEACE_X - 150, SB - 4], [PEACE_X - 180, SB - 1]], 12),
+  'p-sb-on': spline([[PEACE_X - 10, SB - 40], [PEACE_X - 18, SB - 40], [PEACE_X - 50, SB - 34], [PEACE_X - 100, SB - 18], [PEACE_X - 150, SB - 6], [PEACE_X - 180, SB - 1]], 12),
 };
 // the Peace Interchange's two junctions on the avenue, east and west of the expressway, where its slip roads meet it
 export const PEACE_RAMP_Z = Object.freeze([NB + 40, SB - 40]);
@@ -522,6 +524,8 @@ export const OGANIRU_MEDIAN_GAPS = (() => {
       out.push({ road: r.id, from: a - w - pad, to: a + w + pad, why: 'junction' });
     }
   }
+  // where the Peace Interchange's slip roads meet Peace Avenue, at its lights: open for the traffic turning across it
+  for (const z of PEACE_RAMP_Z) out.push({ road: 'peace-2', from: z - 10, to: z + 10, why: 'junction' });
   // Unity Avenue's U-turn gaps, as Stage 1 had them; and on the other avenues every 400 m or so, where no junction is near
   out.push({ road: 'unity', from: -1000, to: -988, why: 'u-turn' }, { road: 'unity', from: -1400, to: -1388, why: 'u-turn' });
   for (const r of OGANIRU_ROADS) {
@@ -863,35 +867,37 @@ export const OGANIRU_SIGNALS = Object.freeze([
     if (j.legs.includes('n')) out.push({ x: j.x - hx - 1.5, z: j.z - hz, heading: Math.PI / 2, phase: 1, offset: j.offset, junction: j.id });
     return out;
   }),
+  // (the slip road coming in: off the north-bound carriageway to the south of the avenue, off the south-bound one to
+  // its north; the other two go out from it)
   ...PEACE_RAMP_Z.flatMap((z, k) => {
     const offset = 8 + k * 8, junction = `peace-ramps-${k}`;
     return [
       { x: PEACE_X + 12, z: z + 12, heading: 0, phase: 0, offset, junction },
       { x: PEACE_X - 12, z: z - 12, heading: Math.PI, phase: 0, offset, junction },
-      { x: PEACE_X - 12, z: z + 6, heading: -Math.PI / 2, phase: 1, offset, junction },
-      { x: PEACE_X + 12, z: z - 6, heading: Math.PI / 2, phase: 1, offset, junction },
+      k === 0 ? { x: PEACE_X - 12, z: z + 6, heading: -Math.PI / 2, phase: 1, offset, junction } : { x: PEACE_X + 12, z: z - 6, heading: Math.PI / 2, phase: 1, offset, junction },
     ];
   }),
 ].map(Object.freeze));
-// Where the traffic coming into each signalled junction stops (on the middle of its own carriageway: the stop line), and
-// which way it is going: for the town's cars (traffic.js) and the drawing's stop lines.
+// Where the traffic coming into each signalled junction stops (the far edge of the stop line painted across its half,
+// beyond the zebra: render-oganiru.js), and which way it is going: for the town's cars (traffic.js).
+export const STOP_LINE_OUT = 5.4;       // metres beyond a junction's edge
 export const OGANIRU_STOP_LINES = Object.freeze([
   ...OGANIRU_JUNCTIONS.filter((j) => j.signals).flatMap((j) => {
     const out = [];
-    const ex = j.hx + 0.8, ez = j.hz + 0.8;
+    const ex = j.hx + STOP_LINE_OUT, ez = j.hz + STOP_LINE_OUT;
     if (j.legs.includes('e')) out.push({ way: 'w', x: j.x + j.hx / 2, z: j.z + ez, half: j.hx / 2 + 0.5, phase: 0, offset: j.offset, junction: j.id });
     if (j.legs.includes('w')) out.push({ way: 'e', x: j.x - j.hx / 2, z: j.z - ez, half: j.hx / 2 + 0.5, phase: 0, offset: j.offset, junction: j.id });
     if (j.legs.includes('n')) out.push({ way: 's', x: j.x + ex, z: j.z - j.hz / 2, half: j.hz / 2 + 0.5, phase: 1, offset: j.offset, junction: j.id });
     if (j.legs.includes('s')) out.push({ way: 'n', x: j.x - ex, z: j.z + j.hz / 2, half: j.hz / 2 + 0.5, phase: 1, offset: j.offset, junction: j.id });
     return out;
   }),
+  // (at the Peace Interchange's: the avenue's traffic either way, and the slip road's coming in, painted there too)
   ...PEACE_RAMP_Z.flatMap((z, k) => {
     const offset = 8 + k * 8, junction = `peace-ramps-${k}`;
     return [
-      { way: 'w', x: PEACE_X + 5, z: z + 9, half: 5.5, phase: 0, offset, junction },
-      { way: 'e', x: PEACE_X - 5, z: z - 9, half: 5.5, phase: 0, offset, junction },
-      { way: 'n', x: PEACE_X - 10.8, z, half: 4.5, phase: 1, offset, junction },
-      { way: 's', x: PEACE_X + 10.8, z, half: 4.5, phase: 1, offset, junction },
+      { way: 'w', x: PEACE_X + 5, z: z + 11.5, half: 5.5, phase: 0, offset, junction },
+      { way: 'e', x: PEACE_X - 5, z: z - 11.5, half: 5.5, phase: 0, offset, junction },
+      k === 0 ? { way: 'n', x: PEACE_X - 14, z, half: 4.5, phase: 1, offset, junction } : { way: 's', x: PEACE_X + 14, z, half: 4.5, phase: 1, offset, junction },
     ];
   }),
 ].map(Object.freeze));
@@ -1048,6 +1054,7 @@ export function oganiruOnDeck(x, z, radius, y) {
 export function oganiruTar(x, z) {
   if (!inBox(OGANIRU.bounds, x, z)) return false;
   for (const r of OGANIRU_ROUNDABOUTS) { const d = Math.hypot(x - r.x, z - r.z); if (d < r.outer && d > r.island) return true; }
+  if (junctionAt(x, z)) return true;
   for (const r of OGANIRU_ROADS) {
     const a = alongOf(r, x, z);
     if (a < r.from - 1 || a > r.to + 1) continue;
@@ -1143,3 +1150,116 @@ export const OGANIRU_MAP_LABELS = Object.freeze([
   ['Harmony Interchange', -1290, -1200, 'center'], ['Peace Interchange', PEACE_X, -1200, 'center'],
   ['Anwuli Gardens', 600, -450, 'center'], ['Ihuoma Park', -900, -620, 'center'], ['Ugwuoma Heights', -400, -1400, 'center'],
 ]);
+
+// ------------------------------------------------------------------------- the town's cars on the city's roads --
+// The roads the town's cars drive in the city (traffic.js keeps the town's own the same way): each a road along x or
+// along z (`axis`, its middle `c`, from `a0` to `a1`), how wide (`w`), where its cars keep (`lane`: from its middle, on
+// the right; `laneAt(along)` where that changes: a flyover-road opening out beside its flyover, an approach opening out
+// to its roundabout), where its middle strip begins (`inner`: how near its middle a car may go, going round something
+// in its way), where cars stand at the roadside (`kerb`, where `stops`, but for `noStops`), how fast they go (`cruise`,
+// m/s), one way only (`oneway`: +1, along it only) and how high it runs (`level(along)`; none: on the ground, 0). Or a
+// line of points (`axis` 'path': `pts`, each with its height `y`): the interchanges' slip roads, loops and flyovers and
+// the roundabouts' rings, one way, from the road it leaves (`from`: { road, along, dir }, `dir` the way along that road
+// the traffic it takes is going, 0 where it leaves square at a junction, either way) to the road it joins (`to`, the
+// same). A ring's stretch runs from where one road comes in to where the next goes out: its ends are those roads' ends.
+// Not the stubs closed at their roadblocks, nor the expressway beyond the Peace Interchange to its road works, nor its
+// slip roads there: nobody drives there but the players.
+const TRAFFIC_SPEED = Object.freeze({ expressway: 22, avenue: 14, street: 11, ramp: 12, ring: 9, link: 13 });
+// (lanes: an avenue's inner lane, beside its middle strip, so that a car standing at the kerb is out of the way; a
+// street's and a link's middle of its own half; on a flyover its inner lane; on the expressway its middle lane)
+const TRAFFIC_LANE = Object.freeze({ avenue: 4.25, street: 2.0, link: 2.2, deck: 4.25, expressway: 8.5, kerb: 8.6, streetKerb: 5.6, ring: 19.5 });
+export const OGANIRU_TRAFFIC = (() => {
+  const roads = [];
+  const ground = (id, from, to, o = {}) => {
+    const r = ROAD_BY_ID.get(id);
+    const base = r.kind === 'street' ? { lane: TRAFFIC_LANE.street, inner: 0, kerb: TRAFFIC_LANE.streetKerb, cruise: TRAFFIC_SPEED.street, stops: true }
+      : r.kind === 'link' ? { lane: TRAFFIC_LANE.link, inner: 0, kerb: r.half - 1.4, cruise: TRAFFIC_SPEED.link, stops: false }
+        : r.kind === 'flyover-road' ? { lane: TRAFFIC_LANE.avenue, laneAt: (a) => Math.max(roadWidthAt(r, a).median / 2, 2.5) + 1.75, inner: 2.5, kerb: r.half - 1.4, cruise: TRAFFIC_SPEED.avenue, stops: false }
+          : r.kind === 'approach' ? { lane: TRAFFIC_LANE.avenue, laneAt: (a) => Math.max(o.least || 2.2, roadWidthAt(r, a).median / 2 + 1.75), inner: 2.5, kerb: r.half - 1.4, cruise: TRAFFIC_SPEED.link, stops: false }
+            : { lane: TRAFFIC_LANE.avenue, inner: r.median > 0 ? r.median / 2 : 0, kerb: TRAFFIC_LANE.kerb, cruise: TRAFFIC_SPEED.avenue, stops: true };
+    roads.push({ id, axis: r.along, c: r.c, a0: from === undefined ? r.from : from, a1: to === undefined ? r.to : to, w: 2 * r.half, ...base, oneway: 0, level: null, ...o });
+  };
+  // the avenues, boulevards and streets on the ground (College Road on, from the town's end of it; Campus Road on; the
+  // Kwale road on to the Southgate Roundabout)
+  ground('unity-gate', undefined, -470, { least: 2.2 });
+  for (const id of ['unity', 'gateway-s', 'gateway-n', 'independence-1', 'independence-2', 'independence-3', 'sunrise-s', 'sunrise-n', 'harmony-1', 'harmony-r2', 'peace-1', 'peace-2', 'hope-1', 'campus-link', 'kwale-on', 'exchange', 'commerce', 'council', 'charter', 'union-s', 'union-n', 'tower-s', 'tower-n']) ground(id);
+  ground('campus-gate', undefined, undefined, { least: 2.0 });
+  ground('harmony-2', SUNRISE_Z, undefined);
+  // Hope Avenue from Sunrise Boulevard to its flyover, over the expressway on its bridge (at the street's level; nobody
+  // stands on the bridge)
+  roads.push({ id: 'hope-south', axis: 'z', c: HOPE_X, a0: SUNRISE_Z + 10, a1: INDEPENDENCE_Z - FLY.hope[0] - 35, w: 20, lane: TRAFFIC_LANE.avenue, inner: 2.5, kerb: TRAFFIC_LANE.kerb, cruise: TRAFFIC_SPEED.avenue, stops: true, noStops: [[-1175, -1085]], oneway: 0, level: null });
+  // the flyover-roads beside the junction flyovers (for the traffic turning at the junction under them), and the
+  // flyovers themselves for the traffic going on over it, from where the avenue opens out to where it closes again
+  for (const id of ['independence-s', 'independence-n', 'peace-fe', 'peace-fw', 'harmony-fe', 'harmony-fw', 'hope-fe', 'hope-fw']) ground(id);
+  for (const d of OGANIRU_DECKS.filter((q) => q.kind === 'flyover' && q.barrier)) {
+    const p0 = d.path[0], pn = d.path[d.path.length - 1], alongX = Math.abs(p0.z - pn.z) < 1;
+    const c = alongX ? p0.z : p0.x, s0 = alongX ? Math.min(p0.x, pn.x) : Math.min(p0.z, pn.z), s1 = alongX ? Math.max(p0.x, pn.x) : Math.max(p0.z, pn.z);
+    const sides = OGANIRU_ROADS.filter((r) => r.kind === 'flyover-road' && r.along === (alongX ? 'x' : 'z') && Math.abs(r.c - c) < 1 && r.to > s0 - 60 && r.from < s1 + 60);
+    const forward = alongX ? p0.x < pn.x : p0.z < pn.z;
+    const at = (a) => {
+      const s = forward ? a - s0 : s1 - a;
+      if (s <= 0 || s >= d.len) return 0;
+      let lo = 0, hi = d.path.length - 1;
+      while (hi - lo > 1) { const m = (lo + hi) >> 1; if (d.path[m].s <= s) lo = m; else hi = m; }
+      const p = d.path[lo], q = d.path[hi];
+      return p.y + (q.y - p.y) * clamp((s - p.s) / Math.max(1e-6, q.s - p.s), 0, 1);
+    };
+    roads.push({ id: d.id, axis: alongX ? 'x' : 'z', c, a0: Math.min(...sides.map((r) => r.from)), a1: Math.max(...sides.map((r) => r.to)), w: 16, lane: TRAFFIC_LANE.deck, inner: 0.5, kerb: 6, cruise: TRAFFIC_SPEED.avenue, stops: false, oneway: 0, level: at, deck: d.id });
+  }
+  // the expressway, from where the Harmony Interchange's south-bound slip roads leave it, down through its cutting and up
+  // onto its viaduct, to the Peace Interchange's last slip road; and its north-bound carriageway alone south of that
+  // (from the Harmony Interchange's right turn onto it), one way
+  roads.push({ id: 'expressway', axis: 'x', c: EXPRESSWAY_Z, a0: -1040, a1: PEACE_X - 160, w: 30, lane: TRAFFIC_LANE.expressway, inner: 3.25, kerb: 13, cruise: TRAFFIC_SPEED.expressway, stops: false, oneway: 0, level: (x) => expresswayY(x) });
+  roads.push({ id: 'expressway-nb', axis: 'x', c: EXPRESSWAY_Z, a0: -1200, a1: -1040, w: 30, lane: TRAFFIC_LANE.expressway, inner: 0.5, kerb: 13, cruise: TRAFFIC_SPEED.expressway, stops: false, oneway: 1, level: null });
+  const axisRoads = roads.slice();
+  const path = (id, pts, o = {}) => { roads.push({ id, axis: 'path', pts, a0: 0, a1: pts[pts.length - 1].s, w: 8, lane: 0, inner: 0, kerb: 0, cruise: TRAFFIC_SPEED.ramp, stops: false, oneway: 1, level: null, ...o }); return roads[roads.length - 1]; };
+  // where a slip road's end meets a road: the nearest road whose lane its end is beside, at its height; and which way
+  // along that road the traffic it leaves or joins is going (0: it meets it square, at a junction)
+  const levelOf = (r, a) => (r.level ? r.level(clamp(a, r.a0, r.a1)) : 0);
+  const attach = (p) => {
+    let best = null;
+    for (const r of axisRoads) {
+      const a = r.axis === 'x' ? p.x : p.z, off = (r.axis === 'x' ? p.z : p.x) - r.c;
+      if (a < r.a0 - 2 || a > r.a1 + 2 || Math.abs(off) > r.w / 2 + 6) continue;
+      if (Math.abs(levelOf(r, a) - p.y) > 1.2) continue;
+      const along = r.axis === 'x' ? p.ux : p.uz, dir = Math.abs(along) > 0.7 ? Math.sign(along) : 0;
+      // (beside a one-way road: on the side it is driven on)
+      const side = r.axis === 'x' ? Math.sign(off) : -Math.sign(off);
+      if (r.oneway && side !== r.oneway) continue;
+      const d = Math.abs(Math.abs(off) - (r.laneAt ? r.laneAt(clamp(a, r.a0, r.a1)) : r.lane));
+      if (!best || d < best.d) best = { road: r.id, along: clamp(a, r.a0, r.a1), dir, d };
+    }
+    return best ? { road: best.road, along: best.along, dir: best.dir } : null;
+  };
+  // the slip roads, loops and flyovers, from their decks (their heights as the decks have them)
+  for (const d of OGANIRU_DECKS) {
+    if (!/^(u-|h-|p-nb-off$|p-sb-on$)/.test(d.id)) continue;
+    const pts = d.path.map((q) => Object.freeze({ x: q.x, z: q.z, y: q.y, s: q.s, ux: q.ux, uz: q.uz }));
+    const r = path(d.id, pts, { w: 2 * d.half, deck: d.id });
+    r.from = attach(pts[0]);
+    r.to = attach(pts[pts.length - 1]);
+  }
+  // the roundabouts' rings, one way round (anticlockwise as the map is drawn, north up: in to the right, out to the
+  // right), a stretch from each road's way in to the next road's way out
+  for (const rb of OGANIRU_ROUNDABOUTS) {
+    const legs = [];
+    for (const leg of rb.legs) {
+      const ns = leg.dir === 'n' || leg.dir === 's', far = leg.dir === 'n' || leg.dir === 'e';
+      const edge = (ns ? rb.x : rb.z) + (far ? RING_EDGE : -RING_EDGE);
+      const road = axisRoads.find((r) => r.axis === (ns ? 'x' : 'z') && Math.abs(r.c - (ns ? rb.z : rb.x)) < 1 && Math.abs((far ? r.a0 : r.a1) - edge) < 2);
+      if (!road) continue;
+      const base = leg.dir === 'e' ? 0 : leg.dir === 'n' ? 90 : leg.dir === 'w' ? 180 : 270;
+      const lane = road.laneAt ? road.laneAt(edge) : road.lane;
+      const off = (Math.asin(Math.min(0.9, lane / TRAFFIC_LANE.ring)) * 180) / Math.PI;
+      legs.push({ base, off, road: road.id, along: edge });
+    }
+    legs.sort((p, q) => p.base - q.base);
+    legs.forEach((p, k) => {
+      const q = legs[(k + 1) % legs.length];
+      const to = q.base - q.off + (k + 1 === legs.length ? 360 : 0);
+      const pts = resample(arc(rb.x, rb.z, TRAFFIC_LANE.ring, p.base + p.off, to, 1.5), 1.5).map((o) => Object.freeze({ ...o, y: 0 }));
+      path(`ring-${rb.id}-${p.road}`, pts, { cruise: TRAFFIC_SPEED.ring, w: 8, ring: rb.id, from: { road: p.road, along: p.along, dir: 0 }, to: { road: q.road, along: q.along, dir: 0 } });
+    });
+  }
+  return Object.freeze(roads.map((r) => Object.freeze(r)));
+})();

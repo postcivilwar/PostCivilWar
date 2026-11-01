@@ -17,6 +17,7 @@ import { ZONE_FLEET, zoneService, zoneResident, zoneWalkable } from './zone.js';
 import { GameError } from './registry.js';
 import { PACE } from './actors.js';
 import { POWER_CARS } from './power-cars.js';
+import { levelAt } from './levels.js';
 
 export const HIJACK = Object.freeze({
   okada: Object.freeze({ lateral: Object.freeze([0.35, 1.6]), along: Object.freeze([-0.3, 1.1]), stand: Object.freeze([0.78, 0.25]), steps: Object.freeze([['reach', 0.5], ['pull', 1.4], ['mount', 2.2]]) }),
@@ -76,6 +77,8 @@ export function createHijack({ state, players, okada, vehicles, actors, populati
       at = hub.traffic.seizable(id);
     } else throw new GameError('NO_TARGET', 'There is nothing there to take.');
     if (!at.ok) throw new GameError(at.code, at.reason);
+    // (in the city one road may run over another: not a car on a flyover from the road under it)
+    if (Number.isFinite(at.y) && Math.abs(at.y - levelAt(p)) > 2.5) throw new GameError('TOO_FAR', 'Walk up to it.');
     const where = driverSide(kind, at, p.x, p.z);
     if (!where.ok) throw new GameError(where.behind ? 'PASSENGER_SIDE' : 'TOO_FAR', where.reason);
     const steps = HIJACK[kind].steps;

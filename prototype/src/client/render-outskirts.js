@@ -11,7 +11,7 @@
 import { programsReady } from './program-ready.js';
 import { BRIDGE, AIRPORT, OUTSKIRT_ROADS, OUTSKIRT_AREAS, OUTSKIRT_SIGNS, OUTSKIRT_BUILDINGS, ONITSHA_ROAD, zoneGroundY, ZONE, ZONE_PROPS, oganiruAway } from '../sim/zone.js';
 import { Chunked, createSight, place, linear, noise, smoothNoise, grassTexture, grainTexture, textTexture, surface, buildingKit } from './render-kit.js';
-import { addTree } from './render-world.js';
+import { addTree, CITY_FLAT } from './render-world.js';
 import { Foliage, foliageMaterials } from './render-foliage.js';
 import { reflects, weathers } from './render-finish.js';
 import { isRoad } from './world-shading.js';
@@ -39,7 +39,12 @@ function buildGround() {
     if (z > -62 && z < -18) c.lerp(earth, 0.55 * Math.max(0, 1 - Math.abs(z + 40) / 22));
     // hills only well away from where anyone goes, and none near the town's own edge or the river
     const rise = Math.max(0, Math.min(1, (far - 40) / 160)) * Math.max(0, Math.min(1, (-232 - x) / 60)) * Math.max(0, Math.min(1, (120 - z) / 60));
-    P.setY(i, rise * (2 + smoothNoise(x / 90, z / 90) * 9));
+    let y = rise * (2 + smoothNoise(x / 90, z / 90) * 9);
+    // (flat on Oganiru City's land and a little round it, since 1 November 2026: its roads lie on this ground south of
+    // the airport and beyond the Kwale road's end; the hills rise again well clear of it, render-oganiru.js)
+    const city = oganiruAway(x, z);
+    if (city < CITY_FLAT.rise) { const k = Math.max(0, Math.min(1, (city - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.02 + (y + 0.02) * k * k * (3 - 2 * k); }
+    P.setY(i, y);
     colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
   }
   geometry.setAttribute('color', new THREE.BufferAttribute(colours, 3));

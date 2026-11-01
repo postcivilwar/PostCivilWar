@@ -65,7 +65,11 @@ function buildGround() {
     if (x < b.minX - 6 && z > -650 && z < 140 && toShore > 0) y = -0.12;
     // Oganiru City's land west of the town (31 October 2026) is flat, its own ground drawn over it (render-oganiru.js):
     // this lies just under it, rising to the hills beyond only well clear of it
-    if (z < b.minZ + 4 && toShore > 0) { const away = oganiruAway(x, z); if (away < CITY_FLAT.rise && y > -0.12) { const k = Math.max(0, Math.min(1, (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.12 + (y + 0.12) * k * k * (3 - 2 * k); } }
+    // (and since 1 November 2026 north of the town too, where the city's land comes round it: its ground flat beyond the
+    // town's own edge)
+    if ((z < b.minZ + 4 || outside > 0) && toShore > 0) { const away = oganiruAway(x, z); if (away < CITY_FLAT.rise && y > -0.12) { const k = Math.max(0, Math.min(1, (away - CITY_FLAT.flat) / (CITY_FLAT.rise - CITY_FLAT.flat))); y = -0.12 + (y + 0.12) * k * k * (3 - 2 * k); } }
+    // (and just under the city's road where it carries College Road on from its end to the city's edge)
+    if (z < -466 && Math.abs(x) < 10 && toShore > 0) y = Math.min(y, -0.12);
     position.setY(i, y);
     colours[i * 3] = c.r; colours[i * 3 + 1] = c.g; colours[i * 3 + 2] = c.b;
   }

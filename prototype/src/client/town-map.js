@@ -23,7 +23,7 @@
 //   waypoint()   the place marked in the town, or null
 //   state        an object the caller keeps, so the map is where it was left when the page is drawn again
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS, OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_MAP_LABELS } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, ZONE_PROPS, ZONE_TREES, ZONE_STALLS, ZONE_SERVICES, ZONE_SHOPS, zoneShoreZ, OUTSKIRT_ROADS, OUTSKIRT_MAP_LABELS, OUTSKIRT_BUILDINGS, AIRPORT, BRIDGE, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS, OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_MAP_LABELS, OGANIRU_ROUNDABOUTS } from '../sim/zone.js';
 import { gridToTrue, trueToGrid } from '../sim/geo.js';
 
 export const MAP_STYLE = Object.freeze({
@@ -56,7 +56,8 @@ export function mapExtent() {
   // (out as far as the road works on the Onitsha road, the airport's fence and the bridge's far end)
   // (and north up the river as far as the habitation reaches)
   // (and west as far as Oganiru City's land: 31 October 2026)
-  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0)), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0, OGANIRU.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1);
+  // (and since 1 November 2026 north and south as far as the city's land reaches round the town)
+  const minX = Math.min(b.minX, ...OUTSKIRT_ROADS.map((r) => r.x0), OGANIRU.bounds.x0), minZ = Math.min(b.minZ, AIRPORT.fence.z0, HABITATION.bounds.z0, OGANIRU.bounds.z0), maxZ = Math.max(b.maxZ, BRIDGE.end, HABITATION.bounds.z1), maxX = Math.max(b.maxX, HABITATION.bounds.x1, OGANIRU.bounds.x1);
   const pts = [T(minX, minZ), T(maxX, minZ), T(minX, maxZ), T(maxX, maxZ)];
   return { minE: Math.min(...pts.map((p) => p.e)), maxE: Math.max(...pts.map((p) => p.e)), minS: Math.min(...pts.map((p) => p.s)), maxS: Math.max(...pts.map((p) => p.s)) };
 }
@@ -272,12 +273,13 @@ export function createTownMap({ h, view, way = () => null, waypoint = () => null
   // Oganiru City's decks (31 October 2026): the flyovers, the raised expressway and its ramps, over the roads under
   // them, the higher drawn over the lower, each with its edge; its roundabout; its towers.
   function decks() {
-    const ring = P(0, -560);
     const k = state.k;
-    if (onScreen(-30, -590, 30, -530)) {
-      g.beginPath(); g.arc(ring[0], ring[1], 23 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.majorEdge; g.fill();
-      g.beginPath(); g.arc(ring[0], ring[1], 22 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.major; g.fill();
-      g.beginPath(); g.arc(ring[0], ring[1], 13 * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.tree; g.fill();
+    for (const rb of OGANIRU_ROUNDABOUTS) {
+      if (!onScreen(rb.x - 30, rb.z - 30, rb.x + 30, rb.z + 30)) continue;
+      const ring = P(rb.x, rb.z);
+      g.beginPath(); g.arc(ring[0], ring[1], (rb.outer + 1) * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.majorEdge; g.fill();
+      g.beginPath(); g.arc(ring[0], ring[1], rb.outer * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.major; g.fill();
+      g.beginPath(); g.arc(ring[0], ring[1], rb.island * k, 0, Math.PI * 2); g.fillStyle = MAP_STYLE.tree; g.fill();
     }
     g.lineCap = 'butt'; g.lineJoin = 'round';
     const order = [...OGANIRU_DECKS].sort((a, b) => a.path.reduce((m, q) => m + q.y, 0) / a.path.length - b.path.reduce((m, q) => m + q.y, 0) / b.path.length);

@@ -1035,12 +1035,15 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
 
   // Where person `i` is at time `t`, written into `out`.
   function locate(i, t, out) {
+    // (`y`: their height, where it is not simply the ground under them: in Oganiru City, on a flyover or the Hope bridge)
+    out.y = undefined;
     for (let k = 0; k < hooks.length; k += 1) if (hooks[k](i, t, out)) return out;
     return planned(i, t, out);
   }
 
   // Where their own day has person `i` at time `t`, whatever else has hold of them.
   function planned(i, t, out) {
+    out.y = undefined;
     const dayIndex = Math.floor(t / 86400);
     const s = t - dayIndex * 86400;
     const plan = planOf(i, dayIndex);
@@ -1123,7 +1126,9 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
       const d2 = dx * dx + dz * dz;
       if (d2 > m2) continue;
       if (d2 <= n2) near += 1;
-      rows.push([i, Math.round(probe.x * 100) / 100, Math.round(probe.z * 100) / 100, Math.round(probe.h * 100) / 100, probe.pose]);
+      const row = [i, Math.round(probe.x * 100) / 100, Math.round(probe.z * 100) / 100, Math.round(probe.h * 100) / 100, probe.pose];
+      if (Number.isFinite(probe.y)) row.push(Math.round(probe.y * 100) / 100);
+      rows.push(row);
     }
     stats.views += 1;
     stats.lastViewMs = now() - started;
@@ -1143,7 +1148,7 @@ export function createPopulation({ state, timeScale, scale = 1, seed = ZONE_POPU
     for (const i of set.list) {
       locate(i, t, probe);
       const dx = probe.x - x, dz = probe.z - z;
-      if (dx * dx + dz * dz <= r2) rows.push([i, probe.x, probe.z, probe.pose]);
+      if (dx * dx + dz * dz <= r2) rows.push([i, probe.x, probe.z, probe.pose, probe.y]);
     }
     return rows;
   }
