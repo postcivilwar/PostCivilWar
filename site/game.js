@@ -60488,8 +60488,8 @@ blood.update(dt, view.blood || []);
     if (!NO_DRAW) warmStep();
     if (clock - programsPinnedAt > 2) { programsPinnedAt = clock; warmUp.pin(); }
     if (beyondBegun && !outskirts.ready && playing) stepBeyond();
-    else if (skylineBegun && !skyline && playing && !habitationBusy()) stepSkyline();
-    else if (cityBegun && !city.ready && playing && !habitationBusy()) stepCity();
+    else if (skylineBegun && !skyline && playing && !hall && !habitationBusy()) stepSkyline();
+    else if (cityBegun && !city.ready && playing && !hall && !habitationBusy()) stepCity();
     monitor.mark('drawing');
     const covered = !playing && startEl && !startEl.hidden;
     phoneShift += ((playing ? ui.phoneWidth() : 0) / 2 - phoneShift) * Math.min(1, dt * 7);
