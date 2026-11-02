@@ -974,6 +974,8 @@ function addTowers(signs, M, list) {
     obox(M.metal, 4.65, 0.3, 0.3, 0.12, KERB + 3.3, 0, 0x23272b);
     for (const [out, hk] of [[2.7, 0.15], [1.8, 0.3], [0.9, 0.45]]) obox(M.concrete, 8, hk, out + 1.2, out / 2 - 0.6, KERB + hk / 2, 0, 0xd8d3c8);
     signs.add([t.lobby], fx0 + fx * 3.25, 5.1 + KERB, fz0 + fz * 3.25, heading, 6.5, 0.55, ['#ffffff', 'rgba(20,24,28,0.92)']);
+    // (its name's board on two posts on the canopy's edge)
+    for (const k of [-1, 1]) obox(M.metal, 0.08, 0.32, 0.08, 3.12, 4.69 + KERB, k * 2.6, 0x23272b);
     // the shops at its foot, either side of the way in: their names over their windows, a strip of colour over each (on
     // the round one, round its wall)
     (t.shops || []).forEach((name, k) => {

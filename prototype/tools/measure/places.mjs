@@ -260,6 +260,12 @@ const PLACES = [
   ['on the Hope Flyover', -746, -780, -Math.PI / 2, 7.5],
   ['Southgate Roundabout', -1265, -40, -Math.PI / 2],
   ['Sunrise Roundabout', 30, -1550, -Math.PI / 2],
+  // (2 November 2026, Stage 3, the whole downtown and the skyline: in the middle of downtown on Unity Avenue, along
+  // Gateway Boulevard, round Interchange Park, and the skyline from the middle of the town looking west)
+  ['downtown middle', 0, -670, Math.PI],
+  ['Gateway Boulevard', -230, -566, -Math.PI / 2],
+  ['Interchange Park', 0, -930, Math.PI],
+  ['town looking west', 0, 20, Math.PI],
 ];
 // (TEXTURE_LIST: after each place, what is on the graphics card, picture by picture: textures-<place>.json)
 const pictureList = async (place) => {

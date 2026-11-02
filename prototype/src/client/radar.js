@@ -7,7 +7,7 @@
 // The town itself is drawn once into a picture and only turned and moved each frame; the marks are drawn
 // over it. Nothing here decides anything: it draws what the view says.
 
-import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS } from '../sim/zone.js';
+import { ZONE, ZONE_ROADS, ZONE_BUILDINGS, ZONE_PARCELS, ZONE_JETTY, ZONE_COMPOUNDS, ZONE_HOUSES, ZONE_SHEDS, ZONE_FARMLAND, zoneShoreZ, OUTSKIRT_ROADS, AIRPORT, TOWN_TOWERS, ZONE_CLOSURES, ZONE_EDGE_FENCES, UPRIVER, RIVER_HEAD, RIVER_FAR, riverShore, HABITATION, HABITATION_WATERS, HABITATION_STREAMS, HABITATION_HOT_RIVER, HABITATION_PATHS, HABITATION_DECKS, OGANIRU, OGANIRU_ROADS, OGANIRU_DECKS, OGANIRU_TOWERS, OGANIRU_ROUNDABOUTS } from '../sim/zone.js';
 import { trueToGrid } from '../sim/geo.js';
 
 const PX = 2;                       // pixels of the town picture to a metre
@@ -18,6 +18,13 @@ export const RADAR_COLOURS = Object.freeze({
   closed: '#e8382f', fence: 'rgba(232,56,47,0.75)',
   sand: '#cdbb8a', stone: '#9a968c', deck: '#8a6a48',
 });
+
+// Oganiru City (2 November 2026, Stage 3: on the phone's map since Stage 1, never on the radar): its roads as the
+// shapes they are, its roundabouts, its decks over them (the higher drawn over the lower), its towers.
+const CITY_ROADS = OGANIRU_ROADS.filter((r) => r.kind !== 'cutting').map((r) => { const half = r.kind === 'approach' ? 7 : r.half; return Object.freeze(r.along === 'z' ? { x0: r.c - half, x1: r.c + half, z0: Math.min(r.from, r.to), z1: Math.max(r.from, r.to) } : { x0: Math.min(r.from, r.to), x1: Math.max(r.from, r.to), z0: r.c - half, z1: r.c + half }); });
+const CITY_DECKS = [...OGANIRU_DECKS].sort((a, b) => a.path.reduce((m, q) => m + q.y, 0) / a.path.length - b.path.reduce((m, q) => m + q.y, 0) / b.path.length).map((d) => Object.freeze({ d, x0: Math.min(...d.path.map((q) => q.x)) - d.half, x1: Math.max(...d.path.map((q) => q.x)) + d.half, z0: Math.min(...d.path.map((q) => q.z)) - d.half, z1: Math.max(...d.path.map((q) => q.z)) + d.half }));
+const CITY_TOWERS = OGANIRU_TOWERS.map((t) => Object.freeze({ t, x0: t.x - t.dx / 2, x1: t.x + t.dx / 2, z0: t.z - t.dz / 2, z1: t.z + t.dz / 2 }));
+const CITY_BOX = { x0: OGANIRU.bounds.x0, x1: OGANIRU.bounds.x1, z0: OGANIRU.bounds.z0, z1: OGANIRU.bounds.z1 };
 
 // The town, drawn once (and again when who owns which plot changes).
 function drawTownPicture(owned) {
@@ -112,6 +119,31 @@ export function createRadar(canvas) {
         for (const w of HABITATION_WATERS) for (const isle of w.islands || []) poly(isle.outline);
         for (const p of HABITATION_PATHS) line(p.line, Math.max(2.4, p.width), p.surface === 'sand' ? RADAR_COLOURS.sand : p.surface === 'stone' ? RADAR_COLOURS.stone : RADAR_COLOURS.laterite);
         for (const d of HABITATION_DECKS) line(d.line, Math.max(2, d.width), RADAR_COLOURS.deck);
+      }
+    }
+    // Oganiru City, near it: its roads, roundabouts and decks, its towers
+    if (near(CITY_BOX)) {
+      g.fillStyle = RADAR_COLOURS.asphalt;
+      for (const r of CITY_ROADS) if (near(r)) shape(r);
+      for (const rb of OGANIRU_ROUNDABOUTS) {
+        if (!near({ x0: rb.x - rb.outer, x1: rb.x + rb.outer, z0: rb.z - rb.outer, z1: rb.z + rb.outer })) continue;
+        g.fillStyle = RADAR_COLOURS.asphalt; g.beginPath(); g.arc(rb.x - s.x, rb.z - s.z, rb.outer, 0, Math.PI * 2); g.fill();
+        g.fillStyle = RADAR_COLOURS.land; g.beginPath(); g.arc(rb.x - s.x, rb.z - s.z, rb.island, 0, Math.PI * 2); g.fill();
+      }
+      g.lineCap = 'butt'; g.lineJoin = 'round';
+      for (const { d, ...box } of CITY_DECKS) {
+        if (!near(box)) continue;
+        for (const [colour, extra] of [['rgba(0,0,0,0.35)', 1.6], [RADAR_COLOURS.asphalt, 0]]) {
+          g.strokeStyle = colour; g.lineWidth = d.half * 2 + extra;
+          g.beginPath();
+          d.path.forEach((q, i) => (i ? g.lineTo(q.x - s.x, q.z - s.z) : g.moveTo(q.x - s.x, q.z - s.z)));
+          g.stroke();
+        }
+      }
+      g.fillStyle = RADAR_COLOURS.building;
+      for (const { t, ...box } of CITY_TOWERS) {
+        if (!near(box)) continue;
+        if (t.kind === 'round') { g.beginPath(); g.arc(t.x - s.x, t.z - s.z, t.dx / 2, 0, Math.PI * 2); g.fill(); } else shape(box);
       }
     }
     // what is not open (closures.js): the edge of the built land as a thin red line, and each road closed as a

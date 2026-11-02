@@ -81,6 +81,19 @@ await view('27-hope-flyover', { x: -750, z: -700, h: -Math.PI / 2, yaw: -Math.PI
 await view('28-sunrise-roundabout-above', { x: 0, z: -1525, h: Math.PI, yaw: Math.PI - 0.5, dist: 80, pitch: 0.6, wait: 6000 });
 await view('29-southgate-roundabout', { x: -1205, z: -38, h: -Math.PI / 2, yaw: -Math.PI / 2, dist: 9, pitch: 0.1, wait: 6000 });
 await view('30-downtown-street', { x: -396, z: -655, h: Math.PI, yaw: Math.PI + 0.3, dist: 9, pitch: 0.08, wait: 6000 });
+// Stage 3 (2 November 2026), the whole downtown and the skyline: the skyline from the town (College Road at its edge,
+// and from the middle of the town, 600 m and more off), from the expressway's viaduct and from the Hope Flyover;
+// downtown from above; along Gateway Boulevard, Union Street and round Interchange Park at street level; a tower's
+// foot (its canopy, doors, steps and shops)
+await view('40-skyline-from-college-road', { x: 0, z: -300, h: Math.PI, yaw: Math.PI, dist: 8, pitch: 0.02, wait: 8000 });
+await view('41-skyline-from-the-town', { x: 0, z: 20, h: Math.PI, yaw: Math.PI, dist: 8, pitch: 0.02, wait: 8000 });
+await view('42-skyline-from-the-viaduct', { x: 60, z: -1121.5, y: 7.5, h: 0.3, yaw: 0.3, dist: 9, pitch: 0.02, wait: 8000 });
+await view('43-skyline-from-the-hope-flyover', { x: -746, z: -782, y: 7.5, h: Math.PI / 2 + 0.2, yaw: Math.PI / 2 + 0.2, dist: 9, pitch: 0.04, wait: 8000 });
+await view('44-downtown-above', { x: 0, z: -520, h: Math.PI, yaw: Math.PI, dist: 260, pitch: 0.32, wait: 10000 });
+await view('45-gateway-boulevard', { x: -230, z: -566, h: -Math.PI / 2, yaw: -Math.PI / 2 + 0.35, dist: 8, pitch: 0.05, wait: 8000 });
+await view('46-union-street', { x: 300, z: -666, h: Math.PI / 2, yaw: Math.PI / 2 - 0.3, dist: 8, pitch: 0.05, wait: 8000 });
+await view('47-interchange-park', { x: 0, z: -930, h: Math.PI, yaw: Math.PI + 0.6, dist: 9, pitch: 0.08, wait: 8000 });
+await view('48-tower-foot', { x: -120, z: -588, h: Math.PI, yaw: Math.PI + 0.5, dist: 7, pitch: 0.12, wait: 8000 });
 // a lamp knocked down, and the night
 if (!only || only.has('11-lamp-down')) {
   const lamp = await page.evaluate(() => { const n = window.__nlw; const near = n.lampsNear(-4, -640, 40).filter((l) => l.kind === 'median'); return near[0] || null; });
@@ -110,6 +123,10 @@ if (!only || only.has('12-night')) {
   await view('13-night-towers', { x: -14, z: -760, h: Math.PI, yaw: -0.6, dist: 12, pitch: 0.05, wait: 5000 });
   await view('31-night-viaduct', { x: -340, z: -1121.5, y: 7.5, h: Math.PI / 2, yaw: Math.PI / 2, dist: 8, pitch: 0.12, wait: 6000 });
   await view('32-night-downtown-street', { x: -396, z: -655, h: Math.PI, yaw: Math.PI + 0.3, dist: 9, pitch: 0.08, wait: 6000 });
+  await view('50-night-skyline-from-the-town', { x: 0, z: 20, h: Math.PI, yaw: Math.PI, dist: 8, pitch: 0.02, wait: 8000 });
+  await view('51-night-skyline-from-the-viaduct', { x: 60, z: -1121.5, y: 7.5, h: 0.3, yaw: 0.3, dist: 9, pitch: 0.02, wait: 8000 });
+  await view('52-night-downtown-above', { x: 0, z: -520, h: Math.PI, yaw: Math.PI, dist: 260, pitch: 0.32, wait: 10000 });
+  await view('53-night-gateway-boulevard', { x: -230, z: -566, h: -Math.PI / 2, yaw: -Math.PI / 2 + 0.35, dist: 8, pitch: 0.05, wait: 8000 });
   await page.evaluate(() => { const g = window.__nlw.host.game; g.state.weather = { kind: 'storm', until: g.state.t + 6 * 3600 }; });
   await page.waitForTimeout(6000);
   await view('14-night-rain', { x: -6, z: -600, h: Math.PI, yaw: Math.PI, dist: 7, pitch: 0.1, wait: 8000 });

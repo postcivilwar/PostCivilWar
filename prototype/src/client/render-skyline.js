@@ -12,7 +12,7 @@
 // from the town, a kilometre off, their upper storeys are seen, pale, and at night their lit windows.
 //
 //   const steps = skylineSteps(scene, { lite, renderer, camera })   a few milliseconds a step; at the end:
-//   { group, update(dt, { night, hour }), show(on), letGo(), stats() }
+//   { group, update(dt, { night, hour }), show(on), see(x, z), letGo(), stats() }
 
 import { OGANIRU_TOWERS } from '../sim/zone.js';
 import { place, linear, noise, surface } from './render-kit.js';
@@ -71,14 +71,15 @@ function facadeTexture(kind, size) {
   });
 }
 // Which windows are lit at night: in each a number (green) by which one comes on sooner or later in the evening (the
-// tower's shader lights those under the share for the hour), where its glass is (red).
+// tower's shader lights those under the share for the hour), where its glass is and how bright (red), and whether its
+// light is an office's cooler white rather than a warm lamp's (blue: a third of them).
 function litTexture(punched, size) {
   const t = canvasOf(size, (g, n) => {
     g.fillStyle = '#000'; g.fillRect(0, 0, n, n);
     const bw = n / BAYS, sh = n / STOREYS_IN;
     for (let j = 0; j < STOREYS_IN; j += 1) for (let i = 0; i < BAYS; i += 1) {
-      const order = Math.round(rnd(i * 13 + j * 5, 41) * 255), warm = 170 + Math.round(rnd(i, j + 50) * 85);
-      g.fillStyle = `rgb(${warm},${order},0)`;
+      const order = Math.round(rnd(i * 13 + j * 5, 41) * 255), warm = 170 + Math.round(rnd(i, j + 50) * 85), cool = rnd(i * 7 + j * 3, 61) < 0.34 ? 255 : 0;
+      g.fillStyle = `rgb(${warm},${order},${cool})`;
       if (punched) g.fillRect(i * bw + bw * 0.22, j * sh + sh * 0.22, bw * 0.56, sh * 0.56);
       else g.fillRect(i * bw + bw * 0.06, j * sh + sh * 0.08, bw * 0.88, sh * 0.6);
     }
@@ -136,7 +137,7 @@ function towerMaterial(kind, lite, textures) {
     shader.fragmentShader = shader.fragmentShader.replace('#include <common>', '#include <common>\nuniform float uLit;').replace('#include <emissivemap_fragment>', `#ifdef USE_EMISSIVEMAP
         vec4 litWin = texture2D(emissiveMap, vEmissiveMapUv);
         float litShift = fract(sin(dot(floor(vEmissiveMapUv), vec2(12.9898, 78.233))) * 43758.5453);
-        totalEmissiveRadiance *= litWin.r * step(fract(litWin.g + litShift), uLit);
+        totalEmissiveRadiance *= litWin.r * step(fract(litWin.g + litShift), uLit) * mix(vec3(1.0), vec3(0.8, 0.95, 1.3), litWin.b);
       #endif`);
     hazed(shader);
   };
@@ -151,6 +152,7 @@ function hazeMaterial(m) {
 
 // ------------------------------------------------------------------------------------------- the shapes --
 const LOBBY = 7.2, STOREY = 3.6;
+export const SHADOWS_WITHIN = 250;
 // (a tower's own: a shade of its kind's colours, so that two of a kind are not alike; and where its walls' pictures
 // begin, so that its windows are lit its own way)
 const towerSeed = (t) => { let h = 7; for (const ch of t.id) h = (h * 31 + ch.charCodeAt(0)) % 9973; return h; };
@@ -276,6 +278,18 @@ export function* skylineSteps(scene, { lite = false, renderer = null, camera = n
     lobby.emissiveIntensity = night * 0.45;
   }
   function show(on) { if (group.visible !== !!on) group.visible = !!on; }
+  // (their shadows cast only for someone among them, within SHADOWS_WITHIN m of downtown: from further off the sun's
+  // shadows, which reach a few tens of metres round the player, never have them in, and each mesh would be drawn into
+  // them all the same, the whole downtown being one mesh of each kind)
+  const box = towers.reduce((b, t) => ({ x0: Math.min(b.x0, t.x - t.dx / 2), x1: Math.max(b.x1, t.x + t.dx / 2), z0: Math.min(b.z0, t.z - t.dz / 2), z1: Math.max(b.z1, t.z + t.dz / 2) }), { x0: Infinity, x1: -Infinity, z0: Infinity, z1: -Infinity });
+  let shadows = null;
+  function see(x, z) {
+    const away = Math.hypot(Math.max(box.x0 - x, 0, x - box.x1), Math.max(box.z0 - z, 0, z - box.z1));
+    const want = away < SHADOWS_WITHIN;
+    if (want === shadows) return;
+    shadows = want;
+    for (const m of group.children) if (m.name !== 'oganiru:lobbies' && m.name !== 'oganiru:crowns') m.castShadow = want;
+  }
   function letGo() {
     scene.remove(group);
     group.traverse((o) => { if (o.geometry) o.geometry.dispose(); });
@@ -283,5 +297,6 @@ export function* skylineSteps(scene, { lite = false, renderer = null, camera = n
     for (const t of [...textures.facades.values(), ...textures.lits.values(), textures.lobby, textures.lobbyLit]) t.dispose();
   }
   const stats = () => ({ towers: towers.length, kinds: walls.size, meshes: group.children.length, bands: bands.length, shown: group.visible });
-  return { group, update, show, letGo, stats, materials };
+  see(Infinity, Infinity);
+  return { group, update, show, see, letGo, stats, materials };
 }

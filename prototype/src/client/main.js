@@ -4939,9 +4939,10 @@ blood.update(dt, view.blood || []);
       outskirts.see(cam.target.x, cam.target.z, reach, outdoors);
       // (Oganiru City: built once the town is warmed up, or at once for someone already in it; a phone far from it lets it go)
       if (!city.ready && playing && cityWanted(predicted.x, predicted.z)) { if (oganiruAway(predicted.x, predicted.z) < 60) buildCity(); else if (warm.stage >= 5) cityBegun = true; }
-      // (its towers, the skyline: once the town is warmed up; not drawn from inside a hall)
+      // (its towers, the skyline: once the town is warmed up; not drawn from inside a hall, nor from in the habitation, a
+      // kilometre and more off over its own hills, where its own drawing has the phone's whole share)
       if (!skyline && playing && warm.stage >= 5) skylineBegun = true;
-      if (skyline) skyline.show(!hall);
+      if (skyline) { skyline.show(!hall && habitationAway(cam.target.x, cam.target.z) > 0); skyline.see(cam.target.x, cam.target.z); }
       if (LITE && playing && city.ready && oganiruAway(predicted.x, predicted.z) > CITY_PHONE.go) letGoCity();
       // (its street lamps, the deck's lights' pools among them, drawn while it is)
       if (city.ready) { cityShown = city.see(cam.target.x, cam.target.z, reach * 1.25) !== false; streetLamps.show({ city: cityShown }); }
