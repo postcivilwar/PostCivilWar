@@ -1933,6 +1933,7 @@ function createHabitation(scene, { lite = false, renderer = null, riverMaterial 
     update,
     get built() { return !!built; },
     get root() { return root; },
+    get building() { return !!building; },
     get impostors() { return built ? built.impostors : null; },
     build, letGo,
     prepare: () => prepareGround(Infinity),

@@ -57481,7 +57481,7 @@ function start(carried) {
     }
     return habitationCode;
   }
-  const habitationBusy = () => playing && (habitationAsked || !!habitation) && !(habitation && habitation.built) && habitationAway(predicted.x, predicted.z) < 400;
+  const habitationBusy = () => playing && !!habitation && !habitation.built && habitation.building;
   function askForHabitation() {
     habitationAsked = true;
     habitationCodeOf().then((kit) => {
