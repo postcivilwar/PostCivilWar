@@ -4977,8 +4977,10 @@ blood.update(dt, view.blood || []);
     if (beyondBegun && !outskirts.ready && playing) stepBeyond();
     // (the habitation first: while it is being made ready near the player, the city waits; 1 November 2026, the habitation
     // test's sign, from which it is to be seen within two minutes of the land beyond the town being in)
-    else if (skylineBegun && !skyline && playing && !habitationBusy()) stepSkyline();
-    else if (cityBegun && !city.ready && playing && !habitationBusy()) stepCity();
+    // (nor from inside a hall, from where none of it is seen: built once out of it again; 2 November 2026, a computer in
+    // the PowerBike hall had the city built round it as the hall was drawn)
+    else if (skylineBegun && !skyline && playing && !hall && !habitationBusy()) stepSkyline();
+    else if (cityBegun && !city.ready && playing && !hall && !habitationBusy()) stepCity();
     monitor.mark('drawing');
     // behind the opening nothing of the town can be seen: once it is warmed up, it is not drawn at all
     // the start screen covers the town entirely: once it is warmed, it is not drawn behind it for nobody
