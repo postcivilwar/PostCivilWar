@@ -1378,7 +1378,11 @@ function start(carried) {
     return habitationCode;
   }
   // (the habitation being fetched or made ready near the player: what else is being built waits for it)
-  const habitationBusy = () => playing && (habitationAsked || !!habitation) && !(habitation && habitation.built) && habitationAway(predicted.x, predicted.z) < 400;
+  // (while the habitation is being built near the player, the city and its skyline wait. Until 2 November 2026 this was
+  // anywhere within 400 m of it, once it had been asked for, built or not: the habitation is built only within 180 m
+  // (a phone) or 260 m (a computer), so in the northern half of the town, 260 to 400 m off, nothing of the city was
+  // built at all, until someone reached its gate and it was built at once there, the page held for seconds)
+  const habitationBusy = () => playing && !!habitation && !habitation.built && habitation.building;
   function askForHabitation() {
     habitationAsked = true;
     habitationCodeOf().then((kit) => {

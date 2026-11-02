@@ -2,7 +2,8 @@
 // served with its server, in a headless browser; two players, the second on a phone's settings (#lite):
 //   A  the skyline from the town, on the phone before any of the city near it is built (and with nothing of the city's
 //      own built at all): every tower, one mesh for each kind of wall, its lobbies, its tops and their lit bands, in
-//      sight looking west from the middle of the town; at night their windows lit
+//      sight looking west from the middle of the town; at night their windows lit; on a computer in the north of the
+//      town the city built a piece a frame, not all at once at its gate
 //   B  downtown at its street level: each tower's foot (its canopy, doors, steps, shops and their names), a piece's
 //      signs drawn as one; the towers' pieces drawn from as near as the rest of the city
 //   C  the windows lit at night, more in the evening than late in the night; none by day; the tallest crowns' bands lit
@@ -95,6 +96,12 @@ await at(a, 0, -300, Math.PI, undefined, { dist: 8, pitch: 0.02 });
 for (let k = 0; k < 900 && !(await a.evaluate(() => !!window.__nlw.skyline)); k += 1) await a.waitForTimeout(1000);
 await settle(a, 8);
 await A.shot('skyline-from-college-road');
+// (and the city itself, there in the north of the town 330 m from the habitation, built a piece a frame after the
+// warm-up, as everywhere else: until 2 November it waited there for the habitation, which is not built from so far, and
+// was built all at once at its gate)
+for (let k = 0; k < 900 && !(await a.evaluate(() => window.__nlw.city.ready)); k += 1) await a.waitForTimeout(1000);
+const gradual = await a.evaluate(() => { const n = window.__nlw; return { ready: n.city.ready, stats: n.cityStats }; });
+check('on a computer in the north of the town, the city is built a piece a frame once the town is warmed up, not all at once at its gate', gradual.ready && gradual.stats.frames > 0 && gradual.stats.builds === 1, gradual);
 
 // ---- B: downtown at its street level ----
 await at(a, -120, -588, Math.PI, undefined, { dist: 7, pitch: 0.12, yaw: Math.PI + 0.5 });

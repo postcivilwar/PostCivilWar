@@ -1934,6 +1934,8 @@ export function createHabitation(scene, { lite = false, renderer = null, riverMa
     update,
     get built() { return !!built; },
     get root() { return root; },
+    // (whether it is being built now: the city waits meanwhile, main.js habitationBusy)
+    get building() { return !!building; },
     // (for the tools: the sheet of the trees' pictures)
     get impostors() { return built ? built.impostors : null; },
     build, letGo,
